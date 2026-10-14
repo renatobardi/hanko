@@ -1,0 +1,10 @@
+-- name: CreateComment :one
+INSERT INTO task_comments (id, company_id, task_id, author_type, author_id, run_id, body, event_id, created_at)
+VALUES (@id, @company_id, @task_id, @author_type, @author_id, @run_id, @body, @event_id, @now)
+RETURNING *;
+
+-- name: GetCommentByEventID :one
+SELECT * FROM task_comments WHERE company_id = @company_id AND event_id = @event_id;
+
+-- name: ListComments :many
+SELECT * FROM task_comments WHERE company_id = @company_id AND task_id = @task_id ORDER BY created_at, id;
