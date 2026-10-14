@@ -1,0 +1,473 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hanko — Plano v0.1</title>
+<meta name="description" content="Plano completo do Hanko v0.1: tese, decisões, stack, arquitetura, fases M1–M6, alavancas de velocidade, regras de parada.">
+<style>
+  :root{
+    --bg:#f7f4ee; --bg-2:#efeae0; --fg:#1c1a17; --fg-2:#5c564d; --fg-3:#8a8378;
+    --line:#dcd5c8; --shu:#b4432b; --shu-2:#f3dcd5; --ai:#2b5c8a; --ai-2:#dbe6f0; --matcha:#4f7a3a; --matcha-2:#dfe9d6;
+    --amber:#a66a12; --amber-2:#f4e6c8; --card:#fffdf9; --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:"Geist",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Inter,Roboto,sans-serif;
+  }
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+    --bg:#15130f; --bg-2:#1d1a15; --fg:#ebe6dc; --fg-2:#b5ad9f; --fg-3:#7d766a;
+    --line:#2d2922; --shu:#d8674d; --shu-2:#3a221c; --ai:#6f9fcf; --ai-2:#1c2a3a; --matcha:#8dbb72; --matcha-2:#1f2d19;
+    --amber:#d9a34a; --amber-2:#33270f; --card:#1a1713;
+  }}
+  :root[data-theme="dark"]{
+    --bg:#15130f; --bg-2:#1d1a15; --fg:#ebe6dc; --fg-2:#b5ad9f; --fg-3:#7d766a;
+    --line:#2d2922; --shu:#d8674d; --shu-2:#3a221c; --ai:#6f9fcf; --ai-2:#1c2a3a; --matcha:#8dbb72; --matcha-2:#1f2d19;
+    --amber:#d9a34a; --amber-2:#33270f; --card:#1a1713;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.55 var(--sans);-webkit-font-smoothing:antialiased}
+  a{color:var(--ai);text-decoration:none}a:hover{text-decoration:underline}
+  .wrap{max-width:1040px;margin:0 auto;padding:0 16px}
+  header.hero{border-bottom:1px solid var(--line);background:linear-gradient(180deg,var(--bg-2),var(--bg))}
+  .hero .wrap{padding:40px 16px 28px;display:flex;gap:22px;align-items:flex-start;flex-wrap:wrap}
+  .seal{width:72px;height:72px;border:3px solid var(--shu);border-radius:10px;display:grid;place-items:center;color:var(--shu);font-size:40px;font-weight:700;line-height:1;transform:rotate(-4deg);flex:none;box-shadow:inset 0 0 0 2px var(--bg),inset 0 0 0 4px var(--shu)}
+  .hero h1{margin:0;font-size:34px;letter-spacing:-.02em;line-height:1.1}
+  .hero h1 small{font-weight:400;color:var(--fg-2);font-size:18px;margin-left:8px}
+  .hero p.tag{margin:6px 0 10px;font-size:17px;color:var(--fg-2)}
+  .meta{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{font:12px/1 var(--mono);padding:6px 9px;border:1px solid var(--line);border-radius:999px;background:var(--card);color:var(--fg-2)}
+  .chip b{color:var(--fg);font-weight:600}
+  nav.toc{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(6px);border-bottom:1px solid var(--line)}
+  nav.toc .wrap{display:flex;gap:4px;overflow-x:auto;padding:8px 16px;scrollbar-width:none}
+  nav.toc a{white-space:nowrap;font-size:13px;color:var(--fg-2);padding:6px 10px;border-radius:6px}
+  nav.toc a:hover{background:var(--bg-2);text-decoration:none;color:var(--fg)}
+  main .wrap{padding:8px 16px 64px}
+  section{padding:30px 0;border-bottom:1px solid var(--line);scroll-margin-top:48px}
+  section:last-of-type{border-bottom:0}
+  h2{font-size:22px;margin:0 0 14px;letter-spacing:-.01em;display:flex;align-items:baseline;gap:10px}
+  h2 .n{font:600 12px/1 var(--mono);color:var(--shu);letter-spacing:.08em}
+  h3{font-size:15px;margin:18px 0 8px;color:var(--fg)}
+  p{margin:0 0 10px}
+  .lead{font-size:16px;color:var(--fg-2);max-width:72ch}
+  .grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .card h4{margin:0 0 6px;font-size:14px}
+  .card p{margin:0;color:var(--fg-2);font-size:14px}
+  .card .k{font:600 11px/1 var(--mono);color:var(--shu);letter-spacing:.08em;display:block;margin-bottom:8px}
+  table{width:100%;border-collapse:collapse;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .tbl{overflow-x:auto;border-radius:10px}
+  th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--fg-3);background:var(--bg-2);font-weight:600}
+  tr:last-child td{border-bottom:0}
+  td code,p code,li code{font:13px var(--mono);background:var(--bg-2);padding:1px 5px;border-radius:4px;color:var(--fg)}
+  .adr{font:12px var(--mono);color:var(--fg-3);white-space:nowrap}
+  .pill{display:inline-block;font:600 11px/1 var(--mono);padding:4px 7px;border-radius:5px;letter-spacing:.04em}
+  .pill.shu{background:var(--shu-2);color:var(--shu)}.pill.ai{background:var(--ai-2);color:var(--ai)}.pill.ok{background:var(--matcha-2);color:var(--matcha)}.pill.amb{background:var(--amber-2);color:var(--amber)}
+  .callout{border-left:3px solid var(--shu);background:var(--shu-2);padding:12px 14px;border-radius:0 8px 8px 0;margin:14px 0}
+  .callout.amb{border-color:var(--amber);background:var(--amber-2)}
+  .callout.ai{border-color:var(--ai);background:var(--ai-2)}
+  .callout.ok{border-color:var(--matcha);background:var(--matcha-2)}
+  .callout h4{margin:0 0 6px;font-size:13px;letter-spacing:.06em;text-transform:uppercase}
+  .callout ul{margin:0;padding-left:18px}
+  ul.tight{margin:0;padding-left:18px}ul.tight li{margin:3px 0}
+  ol.tight{margin:0;padding-left:20px}ol.tight li{margin:4px 0}
+  pre{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;overflow-x:auto;font:13px/1.5 var(--mono);margin:0}
+  .tl{display:grid;grid-template-columns:repeat(8,1fr);gap:4px;margin:14px 0 6px}
+  .tl .w{font:11px var(--mono);color:var(--fg-3);text-align:center}
+  .bar{display:grid;grid-template-columns:repeat(8,1fr);gap:4px;margin-bottom:18px}
+  .bar div{height:28px;border-radius:6px;display:grid;place-items:center;font:600 12px var(--mono);color:#fff}
+  .m1{background:var(--shu);grid-column:1/2}.m2{background:#c45a3f;grid-column:2/4}.m3{background:var(--ai);grid-column:4/6}.m4{background:#3f6f9d;grid-column:6/7}.m5{background:var(--matcha);grid-column:7/8}.m6{background:var(--amber);grid-column:8/9}
+  .ms{display:grid;gap:12px}
+  .mcard{display:grid;grid-template-columns:110px 1fr;gap:14px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .mcard .id{font:700 20px/1 var(--mono);color:var(--shu)}
+  .mcard .id small{display:block;font:12px var(--mono);color:var(--fg-3);margin-top:6px;font-weight:400}
+  .mcard .id .tag{display:block;font:11px var(--mono);color:var(--fg-3);margin-top:4px}
+  .mcard h4{margin:0 0 6px;font-size:15px}
+  .mcard p{margin:0 0 6px;font-size:14px;color:var(--fg-2)}
+  .mcard .demo{font-size:13px;border-top:1px dashed var(--line);padding-top:8px;margin-top:8px}
+  .mcard .demo b{color:var(--matcha)}
+  .arch{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px}
+  .arch svg{width:100%;height:auto;display:block}
+  .arch text{font-family:var(--mono);font-size:11.5px;fill:var(--fg)}
+  .arch .lbl{fill:var(--fg-3);font-size:10.5px;letter-spacing:.06em}
+  .arch .box{fill:var(--bg-2);stroke:var(--line);stroke-width:1}
+  .arch .core{fill:var(--card);stroke:var(--shu);stroke-width:1.5}
+  .arch .pg{fill:var(--ai-2);stroke:var(--ai)}
+  .arch .ext{fill:var(--matcha-2);stroke:var(--matcha)}
+  .arch .isl{fill:var(--amber-2);stroke:var(--amber);stroke-dasharray:4 3}
+  .arch .ln{stroke:var(--fg-3);stroke-width:1.2;fill:none;marker-end:url(#ar)}
+  .two{display:grid;gap:14px;grid-template-columns:1fr 1fr}
+  @media (max-width:760px){.two{grid-template-columns:1fr}.mcard{grid-template-columns:1fr}.hero h1{font-size:28px}}
+  footer{color:var(--fg-3);font-size:12px;padding:20px 0 40px;border-top:1px solid var(--line)}
+  @media print{nav.toc{display:none}body{font-size:12px}section{break-inside:avoid-page;padding:16px 0}.mcard{break-inside:avoid}}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="seal" aria-hidden="true">判</div>
+    <div>
+      <h1>Hanko <small>判子 · plano v0.1</small></h1>
+      <p class="tag">Control plane open-source para orquestrar times de agentes de IA — tasks, org chart, heartbeat, governança, budget.</p>
+      <div class="meta">
+        <span class="chip"><b>Go</b> single binary</span>
+        <span class="chip"><b>Postgres 17</b> única dependência de dados</span>
+        <span class="chip"><b>OTel</b> completo, sempre ligado</span>
+        <span class="chip"><b>Apache-2.0</b> + DCO</span>
+        <span class="chip">hanko.oute.pro</span>
+        <span class="chip">2026-10-13 · rev. 2</span>
+        <span class="chip">14 ADRs</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<nav class="toc"><div class="wrap">
+  <a href="#tese">Tese</a><a href="#principios">Princípios</a><a href="#decisoes">Decisões</a><a href="#arquitetura">Arquitetura</a><a href="#stack">Stack</a><a href="#fases">Fases</a><a href="#velocidade">Velocidade</a><a href="#regras">Regras</a><a href="#memoria">Memória</a><a href="#escopo">Escopo</a><a href="#repo">Repo</a><a href="#proximos">Próximos</a>
+</div></nav>
+
+<main><div class="wrap">
+
+<section id="tese">
+  <h2><span class="n">01</span>Tese</h2>
+  <p class="lead">Os conceitos da categoria — company, agent, issue, heartbeat, run, approval, budget, routine — implementados <b>do zero em Go</b>, num binário, com Postgres como única dependência de dados e observabilidade completa de fábrica. <b>Nenhum código de terceiros.</b> Nicho: operação on-prem em ambiente regulado, onde o cliente opera a infra e o DB.</p>
+  <div class="grid">
+    <div class="card"><span class="k">REFERÊNCIA</span><h4>O líder da categoria</h4><p>~1,3M linhas TS · 68 tabelas · 342 migrations · 12 adapters · time full-time. Paridade é inviável solo — por isso escopo é governado por milestones, não por feature-list.</p></div>
+    <div class="card"><span class="k">DIFERENÇA</span><h4>Chato na infra, novo no domínio</h4><p>Novidade vai em heartbeat, governança e budget. DB, fila e framework são escolhas conservadoras de propósito.</p></div>
+    <div class="card"><span class="k">MODELO</span><h4>Open-core</h4><p>Core Apache-2.0 com DCO. <code>ee/</code> reservado para features enterprise sob licença comercial. Core nunca precisa ser relicenciado.</p></div>
+  </div>
+</section>
+
+<section id="principios">
+  <h2><span class="n">02</span>Princípios</h2>
+  <div class="grid">
+    <div class="card"><h4>Single binary</h4><p><code>hanko</code> sobe API + UI embutida + scheduler. Zero Node em runtime; Node só como ferramenta de build (dev/CI).</p></div>
+    <div class="card"><h4>Postgres é a única dependência de dados</h4><p>Sem Redis, sem fila externa. Fila, scheduler e domínio na mesma transação.</p></div>
+    <div class="card"><h4>Observabilidade mandatória, zero phone-home</h4><p>OTel sempre ligado — traces, métricas e logs correlacionados por run. Vai pro <b>seu</b> collector. Telemetria de produto não existe.</p></div>
+    <div class="card"><h4>Code-first</h4><p>Go é a fonte da verdade. OpenAPI é gerado, versionado e checado no CI.</p></div>
+    <div class="card"><h4>Stdlib primeiro</h4><p>Dependência só quando a stdlib não resolve. Sem ORM, sem framework HTTP.</p></div>
+    <div class="card"><h4>Multi-org desde o dia 1</h4><p><code>company_id</code> em toda tabela de domínio desde a primeira migration.</p></div>
+    <div class="card"><h4>Incremento visível por sessão</h4><p>Toda sessão termina com algo executável + commit. Demo semanal. Escopo cede, prazo não.</p></div>
+    <div class="card"><h4>Fronteira dura host/ilha</h4><p>UI server-rendered; React só em folhas isoladas, com teto de 3.</p></div>
+  </div>
+</section>
+
+<section id="decisoes">
+  <h2><span class="n">03</span>Decisões</h2>
+  <p class="lead">Tomadas em rodadas, sempre com 3 opções e uma recomendação. Fonte canônica: <code>docs/adr/</code>.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>#</th><th>Decisão</th><th>Escolha</th><th>Por quê</th><th>ADR</th></tr></thead>
+    <tbody>
+      <tr><td>D1</td><td>Escopo v0.1</td><td><span class="pill shu">Núcleo completo (C)</span> cortado em M1–M6</td><td>C é destino, não primeiro entregável. Cada milestone tem demo gravada e tag.</td><td class="adr">0002</td></tr>
+      <tr><td>D2</td><td>Licença</td><td><span class="pill ok">Apache-2.0 + DCO</span></td><td>Nicho enterprise regulado proíbe AGPL por política. Sem CLA; <code>ee/</code> reservado.</td><td class="adr">0003</td></tr>
+      <tr><td>D3</td><td>Protocolo de agente</td><td><span class="pill ai">Adapter cli</span> + http; ACP v0.2</td><td>ACP é o alvo certo (a referência usa como default) mas custa 1–2 sem de protocolo. CLI = 1 dia.</td><td class="adr">0004</td></tr>
+      <tr><td>D4</td><td>UI</td><td><span class="pill ai">templ + htmx</span> host · <span class="pill amb">ilhas React</span> via esbuild (Go)</td><td>80% do produto é CRUD/board/threads (htmx vence). 3 peças pesadas (editor, org chart, log 10k+) viram ilhas v0.2+.</td><td class="adr">0005</td></tr>
+      <tr><td>D5</td><td>Contrato de API</td><td><span class="pill ai">huma v2</span> code-first</td><td>Spec-first solo = 3 lugares para drift por endpoint. <code>openapi.json</code> gerado e checado no CI.</td><td class="adr">0006</td></tr>
+      <tr><td>D6</td><td>Auth v0.1</td><td><code>local</code> (default self-host) · <code>firebase</code> (Google + email/senha)</td><td>hanko.oute.pro usa Firebase; self-host enterprise não pode depender de SaaS. Servidor valida ID token via JWKS, sem Admin SDK.</td><td class="adr">0007 · 0014</td></tr>
+      <tr><td>D7</td><td>Deploy</td><td>LXC <code>hanko-stg</code>/<code>hanko-prd</code> no oute-server</td><td>Custo zero, runbook conhecido. VPS só com usuário externo.</td><td class="adr">0008</td></tr>
+      <tr><td>D8</td><td>Cadência</td><td>Milestones curtos · demo gravada · tag <code>v0.1.0-mN</code> · 3 trilhas paralelas</td><td>Fluxo contínuo matou projetos anteriores. Estourou 2x → corta escopo.</td><td class="adr">0009</td></tr>
+      <tr><td>D9</td><td>Multi-org</td><td><code>company_id</code> desde M1; troca na UI v0.2</td><td>Custo baixo agora, retrofit caro depois.</td><td class="adr">0010</td></tr>
+      <tr><td>—</td><td>Banco</td><td><span class="pill ai">PostgreSQL 17</span> · SurrealDB rejeitado</td><td>Surreal mata river/sqlc/goose/SKIP LOCKED, não passa em revisão enterprise, SDK Go de 2ª classe.</td><td class="adr">0011</td></tr>
+      <tr><td>—</td><td>Fila</td><td><span class="pill ai">river</span> sobre Postgres</td><td>Wakeup, retries, periodic (routines), unique jobs (coalescing). Sem Redis.</td><td class="adr">0012</td></tr>
+      <tr><td>—</td><td>Observabilidade</td><td><span class="pill ok">OTel completo, mandatório</span> · LGTM no compose</td><td>Agente autônomo gastando dinheiro exige trace por run no dia 1. "Opt-in" vira "ninguém liga".</td><td class="adr">0013</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="arquitetura">
+  <h2><span class="n">04</span>Arquitetura</h2>
+  <div class="arch">
+    <svg viewBox="0 0 980 470" role="img" aria-label="Arquitetura do Hanko: clientes, binário hanko com UI, API, service, store, heartbeat e adapters; Postgres com river; runtimes de agente; stack de observabilidade">
+      <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#8a8378"/></marker></defs>
+      <text class="lbl" x="20" y="28">CLIENTES</text>
+      <rect class="box" x="20" y="40" width="130" height="40" rx="7"/><text x="34" y="64">Browser (htmx)</text>
+      <rect class="box" x="20" y="90" width="130" height="40" rx="7"/><text x="34" y="114">hanko CLI</text>
+      <rect class="box" x="20" y="140" width="130" height="40" rx="7"/><text x="34" y="164">Claude Code (MCP)</text>
+      <rect class="box" x="20" y="190" width="130" height="40" rx="7"/><text x="34" y="214">Agente externo</text>
+      <rect class="core" x="200" y="20" width="520" height="330" rx="12"/>
+      <text class="lbl" x="216" y="42">BINÁRIO  hanko  (go:embed ui + migrations)</text>
+      <rect class="box" x="216" y="56" width="150" height="54" rx="7"/><text x="228" y="78">ui/ templ + htmx</text><text x="228" y="96" class="lbl">SSE fragmentos</text>
+      <rect class="isl" x="376" y="56" width="90" height="54" rx="7"/><text x="388" y="78">ilhas</text><text x="388" y="96" class="lbl">React · v0.2+</text>
+      <rect class="box" x="486" y="56" width="110" height="54" rx="7"/><text x="498" y="78">api/ huma</text><text x="498" y="96" class="lbl">openapi.json</text>
+      <rect class="box" x="606" y="56" width="98" height="54" rx="7"/><text x="618" y="78">mcp/</text><text x="618" y="96" class="lbl">server+gateway</text>
+      <rect class="box" x="216" y="130" width="488" height="46" rx="7"/><text x="228" y="150">service/  casos de uso · transação por caso · emite activity_event</text><text x="228" y="168" class="lbl">domain/  company · agent · issue · run · budget · approval · routine</text>
+      <rect class="box" x="216" y="196" width="236" height="46" rx="7"/><text x="228" y="216">store/  sqlc + pgx (otelpgx)</text><text x="228" y="234" class="lbl">db/queries/*.sql · goose</text>
+      <rect class="box" x="468" y="196" width="236" height="46" rx="7"/><text x="480" y="216">heartbeat/  river workers</text><text x="480" y="234" class="lbl">wakeup · scheduler · recovery</text>
+      <rect class="box" x="216" y="262" width="488" height="70" rx="7"/><text x="228" y="282">adapters/  interface Adapter · span por run</text>
+      <rect class="box" x="228" y="294" width="118" height="28" rx="5"/><text x="238" y="312">cli  (v0.1)</text>
+      <rect class="box" x="356" y="294" width="118" height="28" rx="5"/><text x="366" y="312">http (v0.1)</text>
+      <rect class="isl" x="484" y="294" width="118" height="28" rx="5"/><text x="494" y="312">acp  (v0.2)</text>
+      <text x="560" y="282" class="lbl">auth · secrets · storage · otel</text>
+      <rect class="pg" x="770" y="150" width="190" height="110" rx="12"/>
+      <text x="786" y="176">PostgreSQL 17</text>
+      <text x="786" y="198" class="lbl">domínio · activity_event</text>
+      <text x="786" y="216" class="lbl">river_job (fila)</text>
+      <text x="786" y="234" class="lbl">FOR UPDATE SKIP LOCKED</text>
+      <text x="786" y="252" class="lbl">company_id em tudo</text>
+      <rect class="ext" x="770" y="20" width="190" height="110" rx="12"/>
+      <text x="786" y="46">OTel backend (LGTM)</text>
+      <text x="786" y="68" class="lbl">collector OTLP :4317</text>
+      <text x="786" y="86" class="lbl">Tempo · Loki · Mimir</text>
+      <text x="786" y="104" class="lbl">Grafana: trace por run</text>
+      <text x="786" y="122" class="lbl">1 container no compose</text>
+      <text class="lbl" x="20" y="408">RUNTIMES DE AGENTE</text><text class="lbl" x="20" y="424">processos externos,</text><text class="lbl" x="20" y="440">qualquer linguagem</text>
+      <rect class="ext" x="216" y="394" width="150" height="40" rx="7"/><text x="228" y="418">claude -p stream-json</text>
+      <rect class="ext" x="376" y="394" width="150" height="40" rx="7"/><text x="388" y="418">codex exec --json</text>
+      <rect class="ext" x="536" y="394" width="168" height="40" rx="7"/><text x="548" y="418">webhook / bring-your-own</text>
+      <path class="ln" d="M150 60 L200 60"/>
+      <path class="ln" d="M150 110 L200 110"/>
+      <path class="ln" d="M150 160 L200 160"/>
+      <path class="ln" d="M150 210 L200 210"/>
+      <path class="ln" d="M334 196 L334 176"/>
+      <path class="ln" d="M586 196 L586 176"/>
+      <path class="ln" d="M334 242 L334 252 L750 252 L750 212 L770 212"/>
+      <path class="ln" d="M704 226 L770 226"/>
+      <path class="ln" d="M586 262 L586 242"/>
+      <path class="ln" d="M720 60 L770 60"/>
+      <path class="ln" d="M287 322 L291 394"/>
+      <path class="ln" d="M415 322 L451 394"/>
+      <path class="ln" d="M415 322 L620 394"/>
+      <text x="770" y="290" class="lbl">deploy: compose</text>
+      <text x="770" y="306" class="lbl">hanko + pg17 + caddy + lgtm</text>
+      <text x="770" y="322" class="lbl">LXC stg/prd · oute-server</text>
+      <text x="770" y="338" class="lbl">backup: pg_dump+restic→R2</text>
+    </svg>
+  </div>
+  <p style="margin-top:10px;font-size:13px;color:var(--fg-2)">Camadas: handler → service → store. Handler não toca DB; store não tem regra de negócio; domain não importa infra. Toda escrita de domínio gera <code>activity_event</code> na mesma transação — alimenta SSE, audit trail e budget. Todo request, job e run carrega <code>trace_id</code>; logs saem com ele.</p>
+</section>
+
+<section id="stack">
+  <h2><span class="n">05</span>Stack</h2>
+  <div class="two">
+    <div>
+      <h3>Backend (Go)</h3>
+      <div class="tbl"><table>
+        <tbody>
+          <tr><td>HTTP</td><td><code>net/http</code> + <code>ServeMux</code>; middleware próprio</td></tr>
+          <tr><td>API</td><td><code>huma</code> v2 — structs → openapi.json + validação + /docs</td></tr>
+          <tr><td>Realtime</td><td>SSE; sem WebSocket/GraphQL</td></tr>
+          <tr><td>DB</td><td>PostgreSQL 17 · UUIDv7 · timestamptz UTC · JSONB</td></tr>
+          <tr><td>Acesso</td><td><code>pgx/v5</code> + <code>sqlc</code>; sem ORM</td></tr>
+          <tr><td>Migrations</td><td><code>goose</code> v3 SQL, <code>go:embed</code></td></tr>
+          <tr><td>Fila</td><td><code>river</code> — wakeup, retries, periodic, unique</td></tr>
+          <tr><td>Checkout</td><td><code>FOR UPDATE SKIP LOCKED</code> + lock por issue</td></tr>
+          <tr><td>Adapters</td><td><code>cli</code>, <code>http</code> (v0.1) · <code>acp</code> (v0.2)</td></tr>
+          <tr><td>MCP</td><td><code>modelcontextprotocol/go-sdk</code> — server + gateway</td></tr>
+          <tr><td>Observ.</td><td><b>Mandatório:</b> <code>otelhttp</code> · <code>otelpgx</code> · OTel no river · span por run · <code>otelslog</code> · métricas + <code>/metrics</code> · OTLP → <code>localhost:4317</code></td></tr>
+          <tr><td>Auth</td><td><code>local</code> argon2id + cookie (default) · <code>firebase</code> ID token via JWKS · API keys SHA-256 · run JWT</td></tr>
+          <tr><td>Secrets</td><td>AES-256-GCM envelope, <code>HANKO_MASTER_KEY</code></td></tr>
+          <tr><td>Config</td><td>env <code>HANKO_*</code> + <code>hanko.yaml</code></td></tr>
+          <tr><td>CLI</td><td><code>cobra</code>: serve · onboard · migrate · test-drive · agent · export · import</td></tr>
+          <tr><td>Testes</td><td><code>go test</code> + testcontainers PG17 · ≥70% domain/heartbeat</td></tr>
+          <tr><td>Release</td><td><code>goreleaser</code> v2 · distroless · SBOM · ghcr.io/oute/hanko</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+    <div>
+      <h3>Frontend — host + ilhas</h3>
+      <div class="tbl"><table>
+        <tbody>
+          <tr><td>Templates</td><td><code>templ</code> — componentes tipados</td></tr>
+          <tr><td>Interação</td><td><code>htmx</code> 2 + ext <code>sse</code>; Alpine só estado local</td></tr>
+          <tr><td>CSS</td><td>Tailwind standalone CLI; tokens em CSS vars; 1 CSS p/ tudo</td></tr>
+          <tr><td>JS vendorizado</td><td><code>sortable.js</code> (kanban); máx. 3 arquivos</td></tr>
+          <tr><td>Scripts do host</td><td>Firebase Auth SDK bundlado por <code>tools/bundle</code> (esbuild em Go) — não é ilha</td></tr>
+          <tr><td>Ilhas</td><td>React + TS via esbuild em Go; npm só dev/CI; teto 3</td></tr>
+          <tr><td>Markdown</td><td><code>goldmark</code> server-side</td></tr>
+          <tr><td>i18n</td><td><code>go-i18n</code>: pt-BR (M1), en (M6)</td></tr>
+          <tr><td>E2E</td><td><code>chromedp</code>/<code>rod</code> contra o binário</td></tr>
+          <tr><td>Mobile</td><td>responsivo; sem PWA no v0.1</td></tr>
+        </tbody>
+      </table></div>
+      <div class="callout ai">
+        <h4>Contrato host / ilha</h4>
+        <ul>
+          <li>Host decide rota, auth, layout, navegação, listas.</li>
+          <li>Ilha é folha: props via <code>data-*</code>, emite eventos ou chama a API. Nunca roteia, sem estado global.</li>
+          <li>Um CSS, mesmos tokens. Sem shadcn global.</li>
+          <li>Só esbuild. Sem Vite, pnpm workspace, Router, TanStack.</li>
+          <li>Teto 3 ilhas (log viewer, org chart, editor). A 4ª exige ADR.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="fases">
+  <h2><span class="n">06</span>Fases v0.1 — meta 8 semanas</h2>
+  <div class="callout amb"><h4>Premissa</h4><p style="margin:0">≥20 h/semana + 3 trilhas paralelas de agentes por milestone — <b>não confirmada</b>. Abaixo de 20 h, cada milestone dobra e o plano volta a 12 semanas (M1 2 · M2 3 · M3 2 · M4 2 · M5 1 · M6 2).</p></div>
+  <div class="tl"><div class="w">s1</div><div class="w">s2</div><div class="w">s3</div><div class="w">s4</div><div class="w">s5</div><div class="w">s6</div><div class="w">s7</div><div class="w">s8</div></div>
+  <div class="bar"><div class="m1">M1</div><div class="m2">M2</div><div class="m3">M3</div><div class="m4">M4</div><div class="m5">M5</div><div class="m6">M6</div></div>
+
+  <div class="ms">
+    <div class="mcard">
+      <div class="id">M1<small>semana 1</small><span class="tag">v0.1.0-m1</span></div>
+      <div>
+        <h4>Loop mínimo — zero UI</h4>
+        <p>company · agent (adapter <code>cli</code>) · issue · heartbeat (river) · run · log SSE · comentário do agente na issue. API huma + CLI. OTel ligado desde o primeiro request. Migrations com <code>company_id</code> desde a primeira.</p>
+        <p>Sessão 1 = contrato (migrations + domain + OpenAPI). Depois 3 trilhas paralelas: <b>(a)</b> schema + sqlc + domain · <b>(b)</b> heartbeat + adapter cli · <b>(c)</b> API + CLI.</p>
+        <div class="demo"><b>Demo:</b> <code>hanko serve</code> → <code>hanko agent hire</code> → criar issue → agente executa → log ao vivo → comenta na issue. Trace do run aberto no Grafana.</div>
+      </div>
+    </div>
+    <div class="mcard">
+      <div class="id">M2<small>semanas 2–3</small><span class="tag">v0.1.0-m2</span></div>
+      <div>
+        <h4>UI host + MCP server</h4>
+        <p>Board de issues, issue + thread, run log ao vivo (SSE), hire agent, settings. templ + htmx + Tailwind; sem ilhas. MCP server com tools de task.</p>
+        <div class="demo"><b>Demo:</b> mesmo fluxo do M1 pelo browser; Claude Code opera o Hanko via MCP. <b>Dogfood começa aqui:</b> Hanko constrói Hanko. Checkpoint: UI &gt;50% das horas → reavaliar D4.</div>
+      </div>
+    </div>
+    <div class="mcard">
+      <div class="id">M3<small>semanas 4–5</small><span class="tag">v0.1.0-m3</span></div>
+      <div>
+        <h4>Org chart + approvals</h4>
+        <p><code>reports_to</code>, delegação, checkout atômico (1 assignee, 1 run ativo). Gate de aprovação humano com audit trail em <code>activity_event</code>. Org chart em SVG server-side (leitura).</p>
+        <div class="demo"><b>Demo:</b> agente delega sub-issue; humano aprova/recusa; trilha auditável.</div>
+      </div>
+    </div>
+    <div class="mcard">
+      <div class="id">M4<small>semana 6</small><span class="tag">v0.1.0-m4</span></div>
+      <div>
+        <h4>Budget / cost ledger</h4>
+        <p>Custo por run → agent → company; limites com hard stop; metadata de custo via SDKs oficiais (core não chama LLM). Custo como atributo do span do run.</p>
+        <div class="demo"><b>Demo:</b> agente estoura budget → run bloqueado → alerta no activity.</div>
+      </div>
+    </div>
+    <div class="mcard">
+      <div class="id">M5<small>semana 7</small><span class="tag">v0.1.0-m5</span></div>
+      <div>
+        <h4>Routines</h4>
+        <p>Jobs periódicos via river (cron) que criam issues e acordam agentes sem humano.</p>
+        <div class="demo"><b>Demo:</b> rotina diária cria issue e dispara agente sozinha.</div>
+      </div>
+    </div>
+    <div class="mcard">
+      <div class="id">M6<small>semana 8</small><span class="tag">v0.1.0</span></div>
+      <div>
+        <h4>Auth, deploy, docs, release</h4>
+        <p>Provider <code>firebase</code> (Google + email/senha) em hanko.oute.pro, <code>local</code> no self-host. LXC <code>hanko-prd</code> com caddy/TLS + LGTM, backup restic→R2, README + docs, i18n en, goreleaser → ghcr.io + GitHub Release.</p>
+        <div class="demo"><b>Demo:</b> hanko.oute.pro no ar com login Google.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="velocidade">
+  <h2><span class="n">07</span>Alavancas de velocidade</h2>
+  <p class="lead">Velocidade vem de três lugares: horas, paralelismo e corte de escopo. Não vem de pular testes em <code>domain</code>/<code>heartbeat</code> nem de "ir fazendo".</p>
+  <div class="grid">
+    <div class="card"><span class="k">1</span><h4>Contrato antes de código</h4><p>Cada milestone abre com 1 sessão de migrations + tipos de domínio + OpenAPI. Só então 3 trilhas paralelas de agentes implementam contra o contrato — sem contrato, paralelismo vira merge hell.</p></div>
+    <div class="card"><span class="k">2</span><h4>Incremento visível por sessão</h4><p>Toda sessão termina com algo executável + commit. Zero sessões "só refatorando". Regra em <code>AGENTS.md</code>.</p></div>
+    <div class="card"><span class="k">3</span><h4>MCP sai do M1</h4><p>CLI já dá controle total. MCP entra no M2 junto com o dogfood, quando tem UI pra operar.</p></div>
+    <div class="card"><span class="k">4</span><h4>Demo semanal</h4><p>Checkpoint toda semana, não só no fim do milestone. Vídeo curto, sem polish.</p></div>
+    <div class="card"><span class="k">5</span><h4>Qualidade onde importa</h4><p>≥70% de cobertura só em domain e heartbeat. Resto best-effort até v0.1.</p></div>
+    <div class="card"><span class="k">6</span><h4>Horas são a alavanca-mestra</h4><p>12 semanas → 8 só existe com ≥20 h/sem. Com 10 h, nenhuma alavanca acima compensa.</p></div>
+  </div>
+</section>
+
+<section id="regras">
+  <h2><span class="n">08</span>Regras de parada</h2>
+  <div class="grid">
+    <div class="card"><span class="k">ESCOPO × PRAZO</span><h4>Estourou 2x → corta escopo</h4><p>Nunca estica prazo. O que não coube vai pro próximo milestone ou pro v0.2.</p></div>
+    <div class="card"><span class="k">GATE M1</span><h4>M1 não roda em 1 semana → para tudo</h4><p>(2 semanas com &lt;20 h.) Reavaliação completa: escopo, stack, horas. Sem exceção.</p></div>
+    <div class="card"><span class="k">GATE M2</span><h4>UI &gt;50% das horas → reavalia D4</h4><p>Se o host templ+htmx estiver custando mais que o domínio, a decisão de UI reabre.</p></div>
+    <div class="card"><span class="k">ILHAS</span><h4>4ª ilha exige ADR</h4><p>Teto de 3 ilhas React e 3 JS vendorizados até v0.2.</p></div>
+    <div class="card"><span class="k">DEMO</span><h4>Sem demo gravada, milestone não fecha</h4><p>Tag só depois do vídeo. Antídoto contra "pronto quando pronto".</p></div>
+    <div class="card"><span class="k">DOGFOOD</span><h4>A partir do M2, Hanko constrói Hanko</h4><p>Lead-orchestrator + subagentes + crítico cego operando pelo próprio Hanko via MCP.</p></div>
+  </div>
+</section>
+
+<section id="memoria">
+  <h2><span class="n">09</span>Memória entre sessões</h2>
+  <div class="two">
+    <div class="callout ok">
+      <h4>No desenvolvimento (nós)</h4>
+      <ul>
+        <li><b>Repo é a memória canônica:</b> <code>docs/ROADMAP.md</code> (milestone aberto), <code>docs/adr/</code> (decisões), <code>docs/STACK.md</code>, <code>docs/SESSION.md</code> (estado deixado pela última sessão: feito / travado / próximo).</li>
+        <li><b><code>AGENTS.md</code> = protocolo de cold start</b> para humano, Claude Code, Cowork e os próprios agentes do Hanko. Toda sessão começa lendo-o e termina atualizando <code>SESSION.md</code>.</li>
+        <li>Project "Hanko" no Claude guarda o resumo das decisões; memória do Project guarda contexto durável. Nenhum dos dois substitui o repo.</li>
+      </ul>
+    </div>
+    <div class="callout ai">
+      <h4>No produto (agentes do Hanko)</h4>
+      <ul>
+        <li><b>v0.1:</b> instruções por agente versionadas; thread da issue como contexto do run; <code>state_dir</code> por agente para o adapter (sessão do CLI); <code>activity_event</code> como histórico auditável.</li>
+        <li><b>v0.2:</b> memória de longo prazo (learnings entre runs) e sessão persistente via ACP.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="escopo">
+  <h2><span class="n">10</span>Escopo</h2>
+  <div class="two">
+    <div class="card">
+      <span class="k">FORA DO v0.1</span>
+      <ul class="tight">
+        <li>SQLite · WebSocket · GraphQL</li>
+        <li>ACP engine · plugins out-of-process</li>
+        <li>Ilhas React (editor ancorado, org chart interativo, log viewer virtualizado)</li>
+        <li>RLS · schema-per-tenant</li>
+        <li>Sandboxes remotos (e2b/Daytona) · OIDC SSO</li>
+        <li>Multi-humano · troca de org na UI</li>
+        <li>Desktop · mobile nativo · PWA</li>
+        <li>Agent Chat · connectors Slack/Discord/Telegram</li>
+      </ul>
+    </div>
+    <div class="card">
+      <span class="k">BACKLOG v0.2 (não planejado)</span>
+      <ul class="tight">
+        <li>ACP engine (sessão persistente, permissões interativas)</li>
+        <li>Ilha 1: log viewer virtualizado</li>
+        <li>Ilha 2: org chart interativo (react-flow)</li>
+        <li>Ilha 3: editor com comentários ancorados (CodeMirror 6)</li>
+        <li>Multi-humano + troca de org</li>
+        <li>Memória de longo prazo de agentes</li>
+        <li>Polish visual · PWA</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="repo">
+  <h2><span class="n">11</span>Repositório</h2>
+<pre>hanko/
+  AGENTS.md                protocolo de sessão (cold start / fim de sessão)
+  cmd/hanko/main.go
+  internal/
+    api/         handlers huma (fino: valida → service)
+    domain/      entidades e regras
+    service/     casos de uso; transações; activity events
+    store/       sqlc gerado + repositórios
+    heartbeat/   river workers, scheduler, wakeup, recovery
+    adapters/    cli/, http/   (acp/ em v0.2)
+    mcp/         server + gateway
+    auth/ secrets/ storage/ config/ activity/ otel/
+    ui/          templ pages + components, static/ (embed.go)
+  ui/islands/    React/TS das ilhas (v0.2+), package.json
+  tools/bundle/  esbuild via Go (ilhas + scripts do host)
+  db/migrations/ goose SQL          db/queries/  sqlc SQL
+  api/openapi.json                  deploy/  Dockerfile, compose (hanko+pg17+caddy+lgtm), lxc/
+  docs/  STACK.md ROADMAP.md SESSION.md adr/   ee/  reservado
+  Makefile sqlc.yaml .goreleaser.yaml .golangci.yaml</pre>
+  <p style="margin-top:10px;font-size:13px;color:var(--fg-2)">Já criado em <code>~/Projects/Github/Hanko</code>: README, AGENTS.md, CONTRIBUTING (DCO), LICENSE, .gitignore, docs/STACK.md, docs/ROADMAP.md, docs/SESSION.md, docs/adr/0001–0014. <code>git init</code> feito em <code>main</code>; nada commitado.</p>
+</section>
+
+<section id="proximos">
+  <h2><span class="n">12</span>Próximos passos</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>#</th><th>Ação</th><th>Quem</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Confirmar horas/semana reais (decide 8 vs 12 semanas)</td><td>Bardi</td><td><span class="pill amb">PENDENTE</span></td></tr>
+      <tr><td>2</td><td>Revisar docs/STACK.md e ADRs; commit inicial com <code>-s</code></td><td>Bardi</td><td><span class="pill amb">PENDENTE</span></td></tr>
+      <tr><td>3</td><td>Scaffold: <code>go mod init</code>, Makefile, sqlc.yaml, goose, golangci, OTel bootstrap, CI</td><td>Claude</td><td><span class="pill ai">PRÓXIMO</span></td></tr>
+      <tr><td>4</td><td>M1 sessão 1: contrato (migrations + domain + OpenAPI); depois 3 trilhas paralelas</td><td>Claude + Bardi</td><td><span class="pill ai">PRÓXIMO</span></td></tr>
+      <tr><td>5</td><td>Criar projeto Firebase / habilitar Google + email-senha (só precisa no M6)</td><td>Bardi</td><td><span class="pill amb">M6</span></td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<footer>Hanko 判子 · plano v0.1 rev. 2 · 2026-10-13 · fonte canônica: <code>docs/adr/0001–0014</code> · Apache-2.0</footer>
+</div></main>
+</body>
+</html>
