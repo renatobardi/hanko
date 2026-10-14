@@ -1,0 +1,125 @@
+package views
+
+import "fmt"
+
+templ DashboardPage(sh Shell, vm DashboardVM) {
+	@Layout(sh) {
+		@PageHead("Painel", vm.Subtitle) {
+			<a class="btn outline" href={ templ.SafeURL(sh.Base() + "/execucoes") }>@Icon("play") Ver ao vivo</a>
+			<a class="btn primary" href={ templ.SafeURL(sh.Base() + "/tasks/nova") }>@Icon("plus") Nova task</a>
+		}
+		<div class="kpis">
+			@Kpi("bot", fmt.Sprint(vm.ActivePersonas), "Personas ativas", false)
+			@Kpi("activity", fmt.Sprint(vm.TasksInProgress), "Tasks em andamento", false)
+			@Kpi("database", vm.MonthCost, "Gasto do mês", false)
+			@Kpi("shield", fmt.Sprint(vm.PendingGates), "Gates pendentes", vm.PendingGates > 0)
+		</div>
+		<div class="grid-dash">
+			if !vm.HasPersonas {
+				@EmptyCard("bot", "Você ainda não tem personas.", "Contrate a primeira e dê um heartbeat. A partir daí, toda task atribuída começa a rodar sozinha.", true) {
+					<a class="btn outline" href={ templ.SafeURL(sh.Base() + "/personas/nova") }>@Icon("plus") Contratar persona</a>
+				}
+			} else {
+				<section class="card pad">
+					<div class="card-head">
+						<div>
+							<h2>Tasks por status</h2>
+							<p class="sub">{ fmt.Sprint(vm.OpenTasks) } tasks abertas</p>
+						</div>
+						<a class="more" href={ templ.SafeURL(sh.Base() + "/tasks") }>Ver todas</a>
+					</div>
+					if len(vm.Bars) == 0 {
+						<p class="muted">Nenhuma task ainda.</p>
+					} else {
+						<div class="bars">
+							for _, b := range vm.Bars {
+								<div class="bar-row">
+									<span>{ b.Label }</span>
+									<span class="track"><i class={ "s-" + b.Class } style={ pct(b.Pct) }></i></span>
+									<span class="v">{ fmt.Sprint(b.Count) }</span>
+								</div>
+							}
+						</div>
+					}
+				</section>
+			}
+			<section class="card pad">
+				<h2>Primeiros passos</h2>
+				<p class="sub">{ fmt.Sprint(vm.StepsDone) } de { fmt.Sprint(len(vm.Steps)) } · você pode retomar depois</p>
+				<div class="progress"><i style={ pct(vm.StepsPct) }></i></div>
+				<ol class="steps">
+					for _, s := range vm.Steps {
+						<li class={ templ.KV("done", s.Done), templ.KV("now", s.Now) }>
+							<span class="n">
+								if s.Done {
+									@Icon("check")
+								} else {
+									{ fmt.Sprint(s.N) }
+								}
+							</span>
+							if s.Href != "" && !s.Done {
+								<a href={ templ.SafeURL(s.Href) }>{ s.Label }</a>
+							} else {
+								{ s.Label }
+							}
+						</li>
+					}
+				</ol>
+			</section>
+		</div>
+		<div class="grid-3">
+			if len(vm.Activity) == 0 {
+				@EmptyCard("clock", "Nenhuma atividade ainda.", "Heartbeats, comentários e mudanças de status aparecem aqui.", false)
+			} else {
+				<section class="card pad">
+					<div class="card-head"><h2>Atividade recente</h2><a class="more" href={ templ.SafeURL(sh.Base() + "/atividade") }>Ver tudo</a></div>
+					<ul class="list">
+						for _, a := range vm.Activity {
+							<li>
+								@actorAvatar(a)
+								<div class="txt">
+									<b>{ a.Actor }</b> { a.Text }
+									if a.Href != "" {
+										<a href={ templ.SafeURL(a.Href) } class="mono" style="text-decoration:underline;text-underline-offset:2px">{ a.Subject }</a>
+									} else {
+										{ a.Subject }
+									}
+									<div class="when">{ a.When }</div>
+								</div>
+							</li>
+						}
+					</ul>
+				</section>
+			}
+			if len(vm.Tasks) == 0 {
+				@EmptyCard("list", "Nenhuma task.", "Crie uma e atribua a uma persona para ver o heartbeat em ação.", false) {
+					<a class="btn outline sm" href={ templ.SafeURL(sh.Base() + "/tasks/nova") }>@Icon("plus") Nova task</a>
+				}
+			} else {
+				<section class="card pad">
+					<div class="card-head"><h2>Tasks recentes</h2><a class="more" href={ templ.SafeURL(sh.Base() + "/tasks") }>Ver todas</a></div>
+					for _, t := range vm.Tasks {
+						<div class="trow">
+							<a class="id mono muted" style="font-size:12px" href={ templ.SafeURL(t.Href) }>{ t.Key }</a>
+							<a class="t" href={ templ.SafeURL(t.Href) }>{ t.Title }</a>
+							@BadgeEl(t.Badge)
+						</div>
+					}
+				</section>
+			}
+			@EmptyCard("database", "Sem orçamento definido.", "Sem limite, as personas trabalham até você pausar.", false) {
+				<a class="btn outline sm" href={ templ.SafeURL(sh.Base() + "/em-breve/custos") }>Definir limite mensal</a>
+			}
+		</div>
+	}
+}
+
+templ actorAvatar(a ActivityItem) {
+	if a.Persona {
+		<span class="mini-avatar">@Icon("bot")</span>
+	} else if a.Actor == "Sistema" {
+		<span class="mini-avatar">@Icon("zap")</span>
+	} else {
+		<span class="mini-avatar you">{ initial(a.Actor) }</span>
+	}
+}

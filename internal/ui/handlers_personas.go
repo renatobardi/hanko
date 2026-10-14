@@ -1,0 +1,151 @@
+package ui
+
+import (
+	"net/http"
+	"strconv"
+
+	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/service"
+	"github.com/renatobardi/hanko/internal/ui/views"
+)
+
+func (s *server) handlePersonas(w http.ResponseWriter, r *http.Request, co domain.Company) {
+	ctx := r.Context()
+	personas, err := s.be.ListPersonas(ctx, co.ID)
+	if err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
+	tasks, err := s.be.ListTasks(ctx, co.ID, service.TaskFilter{Limit: 500})
+	if err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
+	open := map[domain.ID]int{}
+	for _, t := range tasks {
+		if t.PersonaID != nil && t.Status.Open() {
+			open[*t.PersonaID]++
+		}
+	}
+	base := "/c/" + co.Slug
+	vm := views.PersonasVM{}
+	for _, p := range personas {
+		switch p.Status {
+		case domain.PersonaActive, domain.PersonaIdle:
+			vm.Active++
+		case domain.PersonaRunning:
+			vm.Active++
+			vm.Running++
+		case domain.PersonaPaused:
+			vm.Paused++
+		case domain.PersonaAwaitingGate:
+			vm.Awaiting++
+		}
+		vm.Rows = append(vm.Rows, views.PersonaRow{
+			Name: p.Name, Initials: initialsOf(p.Name), Title: p.Title, Href: base + "/personas/" + p.Slug,
+			Badge: personaBadge(p.Status), Agent: p.Agent, Model: p.Model, OpenTasks: open[p.ID], Heartbeat: heartbeatLabel(p.HeartbeatIntervalSec),
+		})
+	}
+	switch len(personas) {
+	case 0:
+		vm.Subtitle = "Nenhuma persona ainda · qualquer agente, qualquer modelo. Se recebe heartbeat, está contratada."
+	case 1:
+		vm.Subtitle = "1 persona · qualquer agente, qualquer modelo. Se recebe heartbeat, está contratada."
+	default:
+		vm.Subtitle = fmtInt(len(personas)) + " personas · qualquer agente, qualquer modelo. Se recebe heartbeat, está contratada."
+	}
+	sh := s.shell(co, "personas", "Personas", views.Crumb{Label: "Personas"})
+	sh.Action = &views.Action{Label: "Contratar persona", Href: base + "/personas/nova", Icon: "plus"}
+	s.render(w, r, http.StatusOK, views.PersonasPage(sh, vm))
+}
+
+func (s *server) handleNewPersona(w http.ResponseWriter, r *http.Request, co domain.Company) {
+	s.renderHire(w, r, co, http.StatusOK, views.HirePersonaVM{Agent: "claude", Heartbeat: "15", FieldErr: map[string]string{}})
+}
+
+func (s *server) renderHire(w http.ResponseWriter, r *http.Request, co domain.Company, status int, vm views.HirePersonaVM) {
+	base := "/c/" + co.Slug
+	sh := s.shell(co, "personas", "Contratar persona", views.Crumb{Label: "Personas", Href: base + "/personas"}, views.Crumb{Label: "Contratar"})
+	s.render(w, r, status, views.HirePersonaPage(sh, vm))
+}
+
+func (s *server) handleHirePersona(w http.ResponseWriter, r *http.Request, co domain.Company) {
+	vm := views.HirePersonaVM{
+		Name: trimForm(r, "name"), Title: trimForm(r, "title"), Agent: trimForm(r, "agent"), Model: trimForm(r, "model"),
+		Instructions: r.PostFormValue("instructions"), Heartbeat: trimForm(r, "heartbeat"), FieldErr: map[string]string{},
+	}
+	if vm.Agent == "" {
+		vm.Agent = "claude"
+	}
+	bad := func(field, msg string) {
+		vm.FieldErr[field] = msg
+		vm.Error = msg
+		s.renderHire(w, r, co, http.StatusUnprocessableEntity, vm)
+	}
+	if vm.Name == "" {
+		bad("name", "Dê um nome à persona.")
+		return
+	}
+	switch vm.Agent {
+	case "claude", "codex", "fake":
+	default:
+		bad("agent", "Agente desconhecido: use claude, codex ou fake.")
+		return
+	}
+	minutes := 15
+	if vm.Heartbeat != "" {
+		n, err := strconv.Atoi(vm.Heartbeat)
+		if err != nil || n < 0 || n > 1440 {
+			bad("heartbeat", "O heartbeat deve ser um número de minutos entre 0 e 1440.")
+			return
+		}
+		minutes = n
+	}
+	p, err := s.be.HirePersona(r.Context(), domain.HumanActor, co.ID, service.HirePersonaInput{
+		Name: vm.Name, Slug: domain.Slugify(vm.Name), Title: vm.Title, Instructions: vm.Instructions,
+		Agent: vm.Agent, Model: vm.Model, HeartbeatIntervalSec: minutes * 60,
+	})
+	if err != nil {
+		_, title, msg := friendly(err)
+		vm.Error = title + ". " + msg
+		s.renderHire(w, r, co, statusFor(err), vm)
+		return
+	}
+	redirect(w, r, "/c/"+co.Slug+"/personas/"+p.Slug)
+}
+
+func (s *server) handlePersona(w http.ResponseWriter, r *http.Request, co domain.Company) {
+	ctx := r.Context()
+	p, err := s.be.GetPersona(ctx, co.ID, r.PathValue("persona"))
+	if err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
+	tasks, err := s.be.ListTasks(ctx, co.ID, service.TaskFilter{PersonaID: &p.ID, Limit: 100})
+	if err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
+	runs, err := s.be.ListRuns(ctx, co.ID, service.RunFilter{PersonaID: &p.ID, Limit: 20})
+	if err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
+	base := "/c/" + co.Slug
+	loc := loadLoc(co.Timezone)
+	now := s.now()
+	vm := views.PersonaVM{
+		Name: p.Name, Initials: initialsOf(p.Name), Title: p.Title, Badge: personaBadge(p.Status),
+		Agent: p.Agent, Model: p.Model, Heartbeat: heartbeatLabel(p.HeartbeatIntervalSec), Instructions: p.Instructions,
+		Hired: fmtDateTime(p.CreatedAt, loc), Slug: p.Slug,
+	}
+	for _, t := range tasks {
+		vm.Tasks = append(vm.Tasks, taskRow(t, base, now, loc))
+	}
+	for _, rv := range runs {
+		vm.Runs = append(vm.Runs, runRow(rv, base, now, loc))
+	}
+	sh := s.shell(co, "personas", p.Name, views.Crumb{Label: "Personas", Href: base + "/personas"}, views.Crumb{Label: p.Name})
+	sh.Action = &views.Action{Label: "Nova task", Href: base + "/tasks/nova?persona=" + p.ID.String(), Icon: "plus"}
+	s.render(w, r, http.StatusOK, views.PersonaPage(sh, vm))
+}

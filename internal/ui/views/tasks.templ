@@ -1,0 +1,259 @@
+package views
+
+import "fmt"
+
+templ TasksPage(sh Shell, vm TasksVM) {
+	@Layout(sh) {
+		@PageHead("Tasks", vm.Subtitle) {
+		}
+		<div class="toolbar">
+			@Tabs(vm.Tabs)
+			<span class="grow"></span>
+			<form method="get" action={ templ.SafeURL(sh.Base() + "/tasks") } class="search" role="search">
+				<input type="hidden" name="aba" value={ vm.Tab }/>
+				<input
+					class="input"
+					type="search"
+					name="q"
+					value={ vm.Query }
+					placeholder="Buscar tasks..."
+					aria-label="Buscar tasks"
+					hx-get={ sh.Base() + "/tasks" }
+					hx-include="[name='aba']"
+					hx-trigger="input changed delay:300ms, search"
+					hx-target="#tasks-list"
+					hx-swap="outerHTML"
+					hx-push-url="false"
+				/>
+			</form>
+		</div>
+		@TaskTable(vm)
+	}
+}
+
+// ---- task detail ----
+
+templ TaskPage(sh Shell, vm TaskVM, base string) {
+	@Layout(sh) {
+		<div class="detail">
+			<div class="detail-main">
+				<div class="eyebrow">
+					<span class="mono">{ vm.Key }</span>
+					if vm.ProjectName != "" {
+						<span>·</span>
+						<span>Projeto { vm.ProjectName }</span>
+					}
+					<span>·</span>
+					<span>criada { vm.Created }</span>
+				</div>
+				<h1>{ vm.Title }</h1>
+				@TaskChips(vm, false)
+				if vm.Notice != "" {
+					<div style="margin-top:16px">@Alert("warn", vm.Notice)</div>
+				}
+				if vm.Error != "" {
+					<div style="margin-top:16px">@Alert("danger", vm.Error)</div>
+				}
+				<div class="brief" style="margin-top:20px">
+					<div class="side-h">Pedido</div>
+					if vm.HasDescription {
+						<div class="md">@templ.Raw(string(vm.Description))</div>
+					} else {
+						<p class="muted">Sem descrição.</p>
+					}
+				</div>
+				<h2 class="side-h" style="margin:28px 0 14px">Conversa</h2>
+				@Thread(vm, base)
+				if vm.ActiveRun != nil {
+					<div class="run-sep" style="margin-bottom:16px">
+						<span>
+							Execução <span class="mono">{ vm.ActiveRun.Short }</span> em andamento ·
+							<a href={ templ.SafeURL(vm.ActiveRun.Href) } style="text-decoration:underline;text-underline-offset:2px;color:var(--ink)">Inspecionar</a>
+						</span>
+					</div>
+				}
+				@CommentForm(vm, base)
+			</div>
+			@TaskSide(vm, base)
+		</div>
+	}
+}
+
+templ TaskChips(vm TaskVM, oob bool) {
+	<div id="task-chips" class="chips" style="margin-top:2px" hx-swap-oob={ oobAttr(oob) }>
+		@BadgeEl(vm.Badge)
+		<span class="chip">@PrioIcon(vm.Priority, vm.PriorityLabel)<span>{ vm.PriorityLabel }</span></span>
+		if vm.PersonaName != "" {
+			<a class="chip" href={ templ.SafeURL(vm.PersonaHref) }>@Icon("bot")<span>{ vm.PersonaName }</span></a>
+		} else {
+			<span class="chip soft">Sem dono</span>
+		}
+	</div>
+}
+
+templ Thread(vm TaskVM, base string) {
+	<div id="thread" class="thread" aria-live="polite">
+		if len(vm.Thread) == 0 {
+			<p class="thread-empty">Nenhum comentário ainda. Escreva abaixo para orientar a persona.</p>
+		}
+		for _, m := range vm.Thread {
+			if m.Human {
+				<div class="msg me">
+					<div class="bubble"><div class="md">@templ.Raw(string(m.Body))</div></div>
+					<div class="meta"><span>Você · <time class="mono">{ m.When }</time></span></div>
+				</div>
+			} else {
+				<div class="msg">
+					<span class="mini-avatar">@Icon("bot")</span>
+					<div>
+						<div class="meta"><b>{ m.Author }</b><time class="mono">{ m.When }</time>
+							if m.RunHref != "" {
+								<a href={ templ.SafeURL(m.RunHref) } style="text-decoration:underline">execução</a>
+							}
+						</div>
+						<div class="body md">@templ.Raw(string(m.Body))</div>
+					</div>
+				</div>
+			}
+		}
+	</div>
+}
+
+templ CommentForm(vm TaskVM, base string) {
+	<form
+		class="composer"
+		method="post"
+		action={ templ.SafeURL(base + "/tasks/" + vm.Key + "/comentarios") }
+		hx-post={ base + "/tasks/" + vm.Key + "/comentarios" }
+		hx-target="#thread"
+		hx-swap="outerHTML"
+		hx-on::after-request="if(event.detail.successful){this.reset();}"
+	>
+		<textarea name="body" required placeholder="Escreva um comentário (markdown). Fica na fila se a persona estiver ocupada." aria-label="Comentário">{ vm.Draft }</textarea>
+		<div class="row">
+			<span class="hint">Markdown · HTML é escapado</span>
+			<button type="submit" class="btn primary sm">@Icon("send") Comentar</button>
+		</div>
+	</form>
+}
+
+templ TaskSide(vm TaskVM, base string) {
+	<aside class="detail-side" id="task-side">
+		<form
+			class="side-sec"
+			id="task-props"
+			method="post"
+			action={ templ.SafeURL(base + "/tasks/" + vm.Key) }
+			hx-post={ base + "/tasks/" + vm.Key }
+			hx-trigger="change"
+			hx-target="#task-side"
+			hx-swap="outerHTML"
+		>
+			<div class="side-h">Propriedades</div>
+			<div class="props">
+				<label class="prop"><span>Status</span>@Select("status", "f-status", vm.StatusOptions, true)</label>
+				<label class="prop"><span>Prioridade</span>@Select("priority", "f-priority", vm.PriorityOptions, true)</label>
+				<label class="prop"><span>Persona</span>@Select("persona", "f-persona", vm.PersonaOptions, true)</label>
+				<div class="prop"><span>Projeto</span><span>
+					if vm.ProjectName != "" {
+						{ vm.ProjectName }
+					} else {
+						<span class="faint">—</span>
+					}
+				</span></div>
+				<div class="prop"><span>Criada</span><span class="mono" style="font-size:12.5px">{ vm.Created }</span></div>
+				<div class="prop"><span>Atualizada</span><span class="mono" style="font-size:12.5px">{ vm.Updated }</span></div>
+			</div>
+			<noscript><button class="btn sm" type="submit" style="margin-top:12px">Salvar</button></noscript>
+		</form>
+		<div class="side-sec">
+			<div class="side-h">Custo</div>
+			<div class="prop"><span>Esta task</span><span class="mono" style="text-align:right">{ vm.Cost }</span></div>
+		</div>
+		<div class="side-sec">
+			<div class="side-h" style="display:flex;justify-content:space-between"><span>Execuções</span><a href={ templ.SafeURL(base + "/execucoes") } style="text-transform:none;letter-spacing:0;font-weight:400">Ver todas</a></div>
+			if len(vm.Runs) == 0 {
+				<p class="muted" style="font-size:13px">Nenhuma execução ainda.</p>
+			}
+			for _, r := range vm.Runs {
+				<a class="side-run" href={ templ.SafeURL(r.Href) }>
+					<span class={ "dot", r.Dot }></span>
+					<span class="mono">{ r.Short }</span>
+					<span>{ r.Label }</span>
+					<span class="d mono">{ r.When }</span>
+				</a>
+			}
+			if vm.CanWake {
+				<form method="post" action={ templ.SafeURL(base + "/tasks/" + vm.Key + "/acordar") } hx-post={ base + "/tasks/" + vm.Key + "/acordar" } hx-swap="none" style="margin-top:12px">
+					<button class="btn outline sm block" type="submit">@Icon("zap") Acordar { vm.PersonaName }</button>
+				</form>
+			}
+		</div>
+	</aside>
+}
+
+// ---- new task ----
+
+templ NewTaskPage(sh Shell, vm NewTaskVM) {
+	@Layout(sh) {
+		@PageHead("Nova task", "Descreva o pedido; se atribuir a uma persona, ela é acordada na hora.") {
+		}
+		<form class="card pad form-card" method="post" action={ templ.SafeURL(sh.Base() + "/tasks/nova") } hx-boost="true">
+			if vm.Error != "" {
+				@Alert("danger", vm.Error)
+			}
+			<div class="field">
+				<label for="t-title">Título</label>
+				<input class="input" id="t-title" name="title" value={ vm.Title } required maxlength="200" placeholder="Ex.: Docslide: AI-first SDLC no banco" autofocus/>
+				if e := vm.FieldErr["title"]; e != "" {
+					<span class="err">{ e }</span>
+				}
+			</div>
+			<div class="field">
+				<label for="t-desc">Descrição</label>
+				<textarea class="textarea" id="t-desc" name="description" rows="8" placeholder="O que precisa ser feito, contexto e critério de pronto. Markdown.">{ vm.Description }</textarea>
+				<span class="hint">Markdown. HTML é escapado.</span>
+			</div>
+			<div class="form-grid">
+				<div class="field">
+					<label for="t-persona">Persona</label>
+					@Select("persona", "t-persona", vm.PersonaOptions, false)
+				</div>
+				<div class="field">
+					<label for="t-prio">Prioridade</label>
+					@Select("priority", "t-prio", vm.PriorityOptions, false)
+				</div>
+				<div class="field">
+					<label for="t-status">Status inicial</label>
+					@Select("status", "t-status", vm.StatusOptions, false)
+				</div>
+				if len(vm.ProjectOptions) > 1 {
+					<div class="field">
+						<label for="t-proj">Projeto</label>
+						@Select("project", "t-proj", vm.ProjectOptions, false)
+					</div>
+				}
+			</div>
+			<div class="form-actions">
+				<a class="btn ghost" href={ templ.SafeURL(sh.Base() + "/tasks") }>Cancelar</a>
+				<button class="btn primary" type="submit">Criar task</button>
+			</div>
+		</form>
+	}
+}
+
+var _ = fmt.Sprint
+
+// TaskSideUpdate is the htmx response to a property change: the side panel plus
+// the header chips (out-of-band).
+templ TaskSideUpdate(vm TaskVM, base string) {
+	@TaskSide(vm, base)
+	@TaskChips(vm, true)
+}
+
+func oobAttr(oob bool) string {
+	if oob {
+		return "true"
+	}
+	return ""
+}

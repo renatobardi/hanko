@@ -1,0 +1,174 @@
+package views
+
+import "fmt"
+
+templ BadgeEl(b Badge) {
+	<span class={ "badge " + b.Class }>
+		if b.Live {
+			<i class="pulse"></i>
+		}
+		{ b.Label }
+	</span>
+}
+
+templ PageHead(title, sub string) {
+	<div class="page-head">
+		<div>
+			<h1>{ title }</h1>
+			if sub != "" {
+				<p>{ sub }</p>
+			}
+		</div>
+		<div class="tools">
+			{ children... }
+		</div>
+	</div>
+}
+
+templ Kpi(icon, num, label string, warn bool) {
+	<div class={ "kpi", templ.KV("warn", warn) }>
+		<span class="ico">@Icon(icon)</span>
+		<div>
+			<div class="num">{ num }</div>
+			<div class="lbl">{ label }</div>
+		</div>
+	</div>
+}
+
+templ EmptyCard(icon, title, text string, large bool) {
+	<div class={ "card empty", templ.KV("lg", large) }>
+		<span class="ico">@Icon(icon)</span>
+		<h3>{ title }</h3>
+		if text != "" {
+			<p>{ text }</p>
+		}
+		<div class="actions">
+			{ children... }
+		</div>
+	</div>
+}
+
+templ Alert(kind, text string) {
+	<div class={ "alert " + kind } role={ alertRole(kind) }>
+		@Icon("alert")
+		<div>{ text }</div>
+	</div>
+}
+
+func alertRole(kind string) string {
+	if kind == "danger" {
+		return "alert"
+	}
+	return "status"
+}
+
+templ PrioIcon(p, label string) {
+	<span class={ "prio " + p } title={ label }>@Icon(prioIcon(p))</span>
+}
+
+templ PersonaChip(name string) {
+	<span class="who">
+		<span class="mini-avatar">@Icon("bot")</span>
+		<span>{ name }</span>
+	</span>
+}
+
+templ OwnerCell(name string) {
+	if name == "" {
+		<span class="who none"><span class="mini-avatar">@Icon("user")</span><span>Sem dono</span></span>
+	} else {
+		@PersonaChip(name)
+	}
+}
+
+templ Select(name, id string, opts []Option, small bool) {
+	<select name={ name } id={ id } class={ "select", templ.KV("sm", small) }>
+		for _, o := range opts {
+			<option value={ o.Value } selected?={ o.Selected }>{ o.Label }</option>
+		}
+	</select>
+}
+
+templ Tabs(tabs []TabLink) {
+	<div class="seg" role="tablist">
+		for _, t := range tabs {
+			<a href={ templ.SafeURL(t.Href) } aria-current?={ t.On } role="tab">
+				{ t.Label }
+				if t.Count > 0 {
+					<span class="cnt">{ fmt.Sprint(t.Count) }</span>
+				}
+			</a>
+		}
+	</div>
+}
+
+// TaskTable is the grouped task list; it is also the htmx fragment for search/tabs.
+templ TaskTable(vm TasksVM) {
+	<div id="tasks-list">
+		if vm.Total == 0 {
+			@EmptyCard("list", emptyTasksTitle(vm), emptyTasksText(vm), true) {
+				<a class="btn outline" href={ templ.SafeURL(vm.NewHref) }>@Icon("plus") Nova task</a>
+			}
+		} else {
+			<div class="table-wrap">
+				<table class="table">
+					<thead>
+						<tr>
+							<th class="hide-sm"></th>
+							<th>ID</th>
+							<th>Título</th>
+							<th class="hide-sm">Persona</th>
+							<th class="hide-sm">Projeto</th>
+							<th>Status</th>
+							<th class="num hide-sm">Atualizada</th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, g := range vm.Groups {
+							<tr class="group-row">
+								<td colspan="7">
+									@Icon("chevron-down")
+									{ g.Label }<span class="cnt">· { fmt.Sprint(g.Count) }</span>
+								</td>
+							</tr>
+							for _, r := range g.Rows {
+								@TaskRowEl(r)
+							}
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+	</div>
+}
+
+func emptyTasksTitle(vm TasksVM) string {
+	if vm.Query != "" {
+		return "Nada encontrado."
+	}
+	return "Nenhuma task aqui."
+}
+
+func emptyTasksText(vm TasksVM) string {
+	if vm.Query != "" {
+		return "Nenhuma task corresponde a “" + vm.Query + "”. Tente outro termo."
+	}
+	return "Crie uma task e atribua a uma persona para ver o heartbeat em ação."
+}
+
+templ TaskRowEl(r TaskRow) {
+	<tr class="row">
+		<td class="hide-sm" style="width:36px;padding-right:0">@PrioIcon(r.Priority, r.PriorityLabel)</td>
+		<td class="id">{ r.Key }</td>
+		<td class="ttl">
+			<a href={ templ.SafeURL(r.Href) }>{ r.Title }</a>
+			if r.Note != "" {
+				<span class="note"> · { r.Note }</span>
+			}
+		</td>
+		<td class="hide-sm">@OwnerCell(r.Persona)</td>
+		<td class="hide-sm muted">{ r.Project }</td>
+		<td>@BadgeEl(r.Badge)</td>
+		<td class="when hide-sm">{ r.Updated }</td>
+	</tr>
+}

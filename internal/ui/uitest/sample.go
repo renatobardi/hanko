@@ -1,0 +1,170 @@
+package uitest
+
+import (
+	"encoding/json"
+	"time"
+
+	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/service"
+)
+
+// Empty returns a backend with one company and nothing else (fresh install).
+func Empty() *Fake {
+	now := time.Now().UTC()
+	return &Fake{Companies: []domain.Company{{ID: ID("company"), Slug: "hanko", Name: "Hanko", TaskPrefix: "HNK", Timezone: "America/Sao_Paulo", CreatedAt: now, UpdatedAt: now}}}
+}
+
+// None returns a backend with no company at all (onboarding).
+func None() *Fake { return &Fake{} }
+
+func rid(n string) domain.ID {
+	// run ids end in recognisable hex so the "#xxxxxx" handle looks like the design
+	return domain.ID(mustUUID("0199a1f2-0000-7000-8000-000000" + n))
+}
+
+// Sample returns a populated backend: the Hanko company, five personas, tasks
+// HNK-2xx, runs, a thread and an activity feed, relative to now.
+func Sample() *Fake {
+	f := Empty()
+	co := f.Companies[0]
+	now := time.Now().UTC()
+	ago := func(d time.Duration) time.Time { return now.Add(-d) }
+	mk := func(slug, name, title, agent, model string, st domain.PersonaStatus, hb int, instr string) domain.Persona {
+		return domain.Persona{ID: ID("persona:" + slug), CompanyID: co.ID, Slug: slug, Name: name, Title: title, Agent: agent, Model: model,
+			Status: st, HeartbeatIntervalSec: hb, Instructions: instr, CreatedAt: ago(9 * 24 * time.Hour), UpdatedAt: ago(time.Hour)}
+	}
+	ada := mk("ada", "Ada", "Chief of staff", "claude", "claude-sonnet", domain.PersonaRunning, 900,
+		"Você é a Ada, Chief of staff da Hanko. Receba a meta ligada à task, delegue para a persona certa e só conclua com evidência (diff, screenshot ou teste). Abra um gate para o humano quando houver decisão irreversível.")
+	hana := mk("hana", "Hana", "Pesquisa e proveniência", "codex", "gpt-5", domain.PersonaRunning, 900, "Você é a Hana. Pesquise com fonte citada e rastreável.")
+	kenji := mk("kenji", "Kenji", "Engenheiro de plataforma", "claude", "claude-opus", domain.PersonaAwaitingGate, 1800, "Você é o Kenji. Plataforma, infraestrutura e migrações.")
+	mika := mk("mika", "Mika", "Operações de conhecimento", "claude", "claude-haiku", domain.PersonaIdle, 3600, "Você é a Mika. Coleta, limpeza e curadoria de fontes.")
+	sato := mk("sato", "Sato", "Conteúdo e distribuição", "fake", "", domain.PersonaPaused, 0, "Você é o Sato. Conteúdo para LinkedIn.")
+	f.Personas = []domain.Persona{ada, hana, kenji, mika, sato}
+
+	linkedin := domain.Project{ID: ID("project:linkedin"), CompanyID: co.ID, Slug: "linkedin", Name: "LinkedIn", CreatedAt: now, UpdatedAt: now}
+	kubo := domain.Project{ID: ID("project:kubo"), CompanyID: co.ID, Slug: "kubo", Name: "Kubo", CreatedAt: now, UpdatedAt: now}
+	nas := domain.Project{ID: ID("project:nas"), CompanyID: co.ID, Slug: "nas-3d", Name: "NAS 3D", CreatedAt: now, UpdatedAt: now}
+	f.Projects = []domain.Project{linkedin, kubo, nas}
+
+	run1842, run1841, run1840, run1839, run1838 := rid("7c1842"), rid("7c1841"), rid("7c1840"), rid("7c1839"), rid("7c1838")
+	type spec struct {
+		n      int64
+		title  string
+		st     domain.TaskStatus
+		pr     domain.Priority
+		who    *domain.Persona
+		proj   *domain.Project
+		age    time.Duration
+		active *domain.ID
+		desc   string
+	}
+	tasks := []spec{
+		{221, "Docslide: AI-first SDLC no banco", domain.TaskInProgress, domain.PriorityCritical, &ada, &linkedin, 4 * time.Minute, &run1842,
+			"Criar um docslide de **5 slides** sobre a modernização do AI-first SDLC no banco, no meu tom de LinkedIn: tese forte no slide 1, dados do piloto no 3, provocação no 5.\n\nUsar a skill `linkedin-docslide`."},
+		{219, "Extrair entidades das fontes de setembro", domain.TaskInProgress, domain.PriorityHigh, &hana, &kubo, 11 * time.Minute, &run1841, "Extrair pessoas, organizações e conceitos das fontes coletadas em setembro e gravar no grafo."},
+		{217, "Templates de e-mail do digest", domain.TaskInProgress, domain.PriorityMedium, &mika, &kubo, time.Hour, nil, "Três templates: diário, semanal e alerta."},
+		{220, "Revisar arquitetura do Kubo v0.4", domain.TaskInReview, domain.PriorityHigh, &kenji, &kubo, 2 * time.Hour, nil, "Revisão de arquitetura antes do corte da v0.4."},
+		{203, "Refatorar coletor de fontes RSS", domain.TaskInReview, domain.PriorityMedium, &kenji, &kubo, 5 * time.Hour, nil, ""},
+		{218, "Plano de migração do NAS 3D", domain.TaskBlocked, domain.PriorityCritical, &kenji, &nas, 19 * time.Minute, nil, "Mover os volumes do NAS 3D para o pool nvme com snapshot ZFS antes. Etapa 3 é irreversível."},
+		{209, "Benchmark de inferência local", domain.TaskBlocked, domain.PriorityMedium, &mika, &nas, 3 * time.Hour, nil, "Rodar o conjunto de benchmark em modelos locais."},
+		{222, "Post: por que gates humanos escalam melhor que revisão de código", domain.TaskTodo, domain.PriorityHigh, &sato, &linkedin, 26 * time.Hour, nil, ""},
+		{211, "Limpar fontes duplicadas no grafo", domain.TaskTodo, domain.PriorityLow, nil, &kubo, 3 * 24 * time.Hour, nil, ""},
+		{224, "Agendar digest de sexta às 7h", domain.TaskBacklog, domain.PriorityLow, &ada, &kubo, 2 * 24 * time.Hour, nil, ""},
+		{214, "Digest semanal de fontes", domain.TaskDone, domain.PriorityMedium, &ada, &kubo, 41 * time.Minute, nil, "Digest enviado a 3 destinos."},
+	}
+	for _, s := range tasks {
+		t := domain.Task{ID: ID("task:" + domain.TaskKey("HNK", s.n)), CompanyID: co.ID, Number: s.n, Key: domain.TaskKey("HNK", s.n), Title: s.title, Description: s.desc,
+			Status: s.st, Priority: s.pr, CreatedBy: domain.HumanActor, CreatedAt: now.Add(-s.age - 48*time.Hour), UpdatedAt: now.Add(-s.age)}
+		tv := service.TaskView{Task: t}
+		if s.who != nil {
+			id := s.who.ID
+			tv.PersonaID, tv.PersonaName = &id, s.who.Name
+		}
+		if s.proj != nil {
+			id := s.proj.ID
+			tv.ProjectID, tv.ProjectName = &id, s.proj.Name
+		}
+		tv.ActiveRunID = s.active
+		f.Tasks = append(f.Tasks, tv)
+	}
+	f.nextTask = 224
+
+	t221 := f.Tasks[0]
+	f.Comments = []domain.Comment{
+		{ID: ID("c1"), CompanyID: co.ID, TaskID: t221.ID, Author: domain.PersonaActor(ada.ID), Body: "Li o pedido e a skill. Vou estruturar os 5 slides e delegar os dados do piloto para a Hana (ela tem acesso ao relatório de setembro). Antes de escrever, uma pergunta sobre o escopo.", CreatedAt: ago(50 * time.Minute)},
+		{ID: ID("c2"), CompanyID: co.ID, TaskID: t221.ID, Author: domain.HumanActor, Body: "Pode delegar. Mas o slide 3 precisa citar a fonte dos números — quero proveniência rastreável.", CreatedAt: ago(47 * time.Minute)},
+		{ID: ID("c3"), CompanyID: co.ID, TaskID: t221.ID, Author: domain.PersonaActor(ada.ID), RunID: &run1842, Body: "Combinado. Abri **HNK-223** para a Hana com a exigência de citação. Enquanto isso, rascunhei o slide 1:\n\n- tese: *gate humano escala melhor que revisão*\n- gancho: o número do piloto\n\n> Rascunho em `work/slide-01-tese.md`", CreatedAt: ago(45 * time.Minute)},
+	}
+
+	cost := func(v float64) *float64 { return &v }
+	st := func(d time.Duration) *time.Time { t := now.Add(-d); return &t }
+	run := func(id domain.ID, tk string, who domain.Persona, task string, stt domain.RunStatus, trig domain.RunTrigger, started, finished time.Duration, c *float64, in, out int64, errMsg, summary string) service.RunView {
+		r := domain.Run{ID: id, CompanyID: co.ID, TaskID: ID("task:" + tk), PersonaID: who.ID, Status: stt, Trigger: trig, Agent: who.Agent, Model: who.Model,
+			CreatedAt: now.Add(-started), StartedAt: st(started), CostUSD: c, Usage: domain.Usage{InputTokens: in, OutputTokens: out}, Error: errMsg, Summary: summary, SessionRef: "sess-" + tk}
+		if finished >= 0 {
+			r.FinishedAt = st(finished)
+		}
+		var title string
+		for _, t := range f.Tasks {
+			if t.Key == tk {
+				title = t.Title
+			}
+		}
+		return service.RunView{Run: r, TaskKey: tk, TaskTitle: title, PersonaName: who.Name}
+	}
+	f.Runs = []service.RunView{
+		run(run1842, "HNK-221", ada, "", domain.RunRunning, domain.TriggerAssign, 4*time.Minute+12*time.Second, -1, cost(0.06), 84200, 11900, "", ""),
+		run(run1841, "HNK-219", hana, "", domain.RunRunning, domain.TriggerHeartbeat, 11*time.Minute, -1, cost(0.14), 51300, 6200, "", ""),
+		run(run1840, "HNK-218", kenji, "", domain.RunDone, domain.TriggerHeartbeat, 19*time.Minute+30*time.Second, 17*time.Minute, cost(0.42), 142000, 18800, "", "Plano de migração reenviado com snapshot ZFS antes de mover os volumes; etapa 3 marcada como **irreversível**."),
+		run(run1839, "HNK-214", ada, "", domain.RunDone, domain.TriggerHeartbeat, 41*time.Minute+13*time.Second, 41*time.Minute, cost(0.08), 22400, 1900, "", "Digest enviado a 3 destinos."),
+		run(run1838, "HNK-222", sato, "", domain.RunFailed, domain.TriggerManual, time.Hour+2*time.Minute, time.Hour, cost(0), 0, 0, "bloqueada por orçamento do projeto LinkedIn", ""),
+	}
+
+	f.Events = map[domain.ID][]domain.RunEvent{}
+	add := func(rid domain.ID, ago time.Duration, k domain.RunEventKind, text string) {
+		seq := int64(len(f.Events[rid]) + 1)
+		ts := now.Add(-ago)
+		f.Events[rid] = append(f.Events[rid], domain.RunEvent{ID: domain.NewID(), CompanyID: co.ID, RunID: rid, Seq: seq, Kind: k, Text: text, OccurredAt: ts, ReceivedAt: ts})
+	}
+	add(run1842, 4*time.Minute+12*time.Second, domain.EventSystem, "run.start agent=ada adapter=claude model=claude-sonnet")
+	add(run1842, 4*time.Minute+9*time.Second, domain.EventSystem, "context.load task=HNK-221 skills=[linkedin-docslide]")
+	add(run1842, 4*time.Minute+7*time.Second, domain.EventToolUse, "Read skills/linkedin-docslide/SKILL.md")
+	add(run1842, 4*time.Minute+6*time.Second, domain.EventToolResult, "4.1 kB")
+	add(run1842, 3*time.Minute+50*time.Second, domain.EventThinking, "O pedido tem 5 slides; o slide 3 depende dos dados do piloto, que a Hana pode extrair.")
+	add(run1842, 3*time.Minute+40*time.Second, domain.EventToolUse, "Read docs/piloto-set-2026.md")
+	add(run1842, 3*time.Minute+30*time.Second, domain.EventAssistant, "Vou estruturar os 5 slides e delegar os dados do piloto para a Hana.")
+	add(run1842, 3*time.Minute, domain.EventToolUse, "Write work/slide-01-tese.md (v1)")
+	add(run1842, 2*time.Minute+50*time.Second, domain.EventStdout, "slide-01-tese.md escrito (412 palavras)")
+	add(run1842, 2*time.Minute, domain.EventStderr, "aviso: fonte do número do slide 3 ainda sem citação")
+	add(run1842, time.Minute+30*time.Second, domain.EventToolUse, "task.create parent=HNK-221 assignee=hana")
+	add(run1842, time.Minute, domain.EventStatus, "aguardando resposta humana · composer liberado")
+	add(run1841, 11*time.Minute, domain.EventSystem, "run.start agent=hana adapter=codex model=gpt-5")
+	add(run1841, 10*time.Minute, domain.EventAssistant, "Extraindo entidades de 214 fontes.")
+	add(run1840, 19*time.Minute, domain.EventSystem, "run.start agent=kenji")
+	add(run1840, 17*time.Minute, domain.EventResult, "Plano reenviado com snapshot ZFS.")
+
+	acts := []struct {
+		ago  time.Duration
+		who  domain.Actor
+		verb string
+		typ  string
+		id   domain.ID
+		data string
+	}{
+		{4 * time.Minute, domain.PersonaActor(ada.ID), "run.finished", "run", run1839, ""},
+		{19 * time.Minute, domain.PersonaActor(kenji.ID), "task.status_changed", "task", t221.ID, ""},
+		{41 * time.Minute, domain.PersonaActor(ada.ID), "task.created", "task", f.Tasks[1].ID, ""},
+		{47 * time.Minute, domain.HumanActor, "comment.added", "comment", ID("c2"), `{"task_id":"` + t221.ID.String() + `"}`},
+		{time.Hour, domain.HumanActor, "persona.hired", "persona", hana.ID, ""},
+		{2 * time.Hour, domain.SystemActor, "task.updated", "task", f.Tasks[5].ID, ""},
+		{27 * time.Hour, domain.HumanActor, "task.created", "task", f.Tasks[7].ID, ""},
+	}
+	for i, a := range acts {
+		ev := domain.ActivityEvent{ID: ID("act:" + string(rune('a'+i))), CompanyID: co.ID, Actor: a.who, Verb: a.verb, SubjectType: a.typ, SubjectID: a.id, OccurredAt: now.Add(-a.ago), ReceivedAt: now.Add(-a.ago)}
+		if a.data != "" {
+			ev.Data = json.RawMessage(a.data)
+		}
+		f.Activity = append(f.Activity, ev)
+	}
+	return f
+}
