@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/renatobardi/hanko/internal/auth"
 )
 
 func statDir(p string) (os.FileInfo, error) { return os.Stat(p) }
@@ -20,3 +22,5 @@ func lazyPool(t *testing.T) *pgxpool.Pool {
 	t.Cleanup(p.Close)
 	return p
 }
+
+func authForTest() auth.RunTokens { return auth.RunTokens{Secret: []byte("0123456789abcdef0123")} }
