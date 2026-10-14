@@ -1,11 +1,4 @@
-//go:build wiring
-
-// ATENÇÃO (orquestrador): este arquivo é a montagem final do processo contra as
-// assinaturas de docs/CONTRACT-M1M2.md ("Construtores"). Ele usa pacotes de outras
-// trilhas (heartbeat, api, ui, mcp, memory/aimemory, adapter/claude|codex|fake) que
-// não existem no worktree da trilha F, por isso está sob a build tag `wiring`.
-// Ao mesclar as trilhas: remova a linha `//go:build wiring` deste arquivo, apague
-// app_stub.go, rode `gorun build ./...` e ajuste eventuais diferenças de assinatura.
+// Package app monta o processo hanko: telemetria, banco, heartbeat, service, API, UI e MCP.
 package app
 
 import (
@@ -80,7 +73,7 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 	reg := adapter.Registry{
 		"claude": claude.New(claude.Options{Bin: cfg.ClaudeBin, Logger: logger}),
 		"codex":  codex.New(codex.Options{Bin: cfg.CodexBin, Logger: logger}),
-		"fake":   fake.New(fake.Options{Logger: logger}),
+		"fake":   fake.New(fake.Options{}),
 	}
 	tokens := auth.RunTokens{Secret: []byte(cfg.Secret), TTL: cfg.RunTimeout + 5*time.Minute}
 	hb.Attach(svc, reg, mem, broker, tokens)
