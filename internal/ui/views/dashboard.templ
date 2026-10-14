@@ -8,10 +8,15 @@ templ DashboardPage(sh Shell, vm DashboardVM) {
 			<a class="btn outline" href={ templ.SafeURL(sh.Base() + "/execucoes") }>@Icon("play") Ver ao vivo</a>
 			<a class="btn primary" href={ templ.SafeURL(sh.Base() + "/tasks/nova") }>@Icon("plus") Nova task</a>
 		}
+		if vm.Budget != nil && vm.Budget.State == "exceeded" {
+			@Alert("danger", "Orçamento do mês estourado: nenhuma persona abre execução nova até o limite subir ou o mês virar.")
+		} else if vm.Budget != nil && vm.Budget.State == "warning" {
+			@Alert("warn", "O gasto do mês passou de 80% do orçamento da empresa.")
+		}
 		<div class="kpis">
 			@Kpi("bot", fmt.Sprint(vm.ActivePersonas), "Personas ativas", false)
 			@Kpi("activity", fmt.Sprint(vm.TasksInProgress), "Tasks em andamento", false)
-			@Kpi("database", vm.MonthCost, "Gasto do mês", false)
+			@Kpi("database", vm.MonthCost, monthCostLabel(vm.Budget), vm.Budget != nil && (vm.Budget.State == "warning" || vm.Budget.State == "exceeded"))
 			@Kpi("shield", fmt.Sprint(vm.PendingGates), "Gates pendentes", vm.PendingGates > 0)
 		</div>
 		<div class="grid-dash">
@@ -107,8 +112,15 @@ templ DashboardPage(sh Shell, vm DashboardVM) {
 					}
 				</section>
 			}
-			@EmptyCard("database", "Sem orçamento definido.", "Sem limite, as personas trabalham até você pausar.", false) {
-				<a class="btn outline sm" href={ templ.SafeURL(sh.Base() + "/em-breve/custos") }>Definir limite mensal</a>
+			if vm.Budget != nil && vm.Budget.Limit != "" {
+				<section class={ "card pad budget-card", "b-" + vm.Budget.State }>
+					<div class="card-head"><h2>Orçamento do mês</h2><a class="more" href={ templ.SafeURL(sh.Base() + "/custos") }>Custos</a></div>
+					@BudgetMeter(*vm.Budget)
+				</section>
+			} else {
+				@EmptyCard("database", "Sem orçamento definido.", "Sem limite, as personas trabalham até você pausar.", false) {
+					<a class="btn outline sm" href={ templ.SafeURL(sh.Base() + "/custos") }>Definir limite mensal</a>
+				}
 			}
 		</div>
 	}
@@ -122,4 +134,11 @@ templ actorAvatar(a ActivityItem) {
 	} else {
 		<span class="mini-avatar you">{ initial(a.Actor) }</span>
 	}
+}
+
+func monthCostLabel(b *BudgetBox) string {
+	if b == nil || b.Limit == "" {
+		return "Gasto do mês"
+	}
+	return "Gasto do mês · " + b.PercentTxt + " de " + b.Limit
 }

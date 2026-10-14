@@ -153,7 +153,10 @@ func TestPagesRender(t *testing.T) {
 		{"/c/hanko/execucoes/" + run, []string{`hx-ext="sse"`, `sse-connect="/c/hanko/execucoes/` + run + `/sse?after=12"`, `sse-swap="run-event"`, `sse-swap="run-status"`, "Interromper", "context.load"}},
 		{"/c/hanko/atividade", []string{"Atividade", "Hoje", "HNK-221"}},
 		{"/c/hanko/em-breve/gates", []string{"Gates", "M3"}},
-		{"/c/hanko/em-breve/custos", []string{"Custos", "M4"}},
+		{"/c/hanko/custos", []string{"Custos e orçamentos", "Gasto por dia", "Orçamento da empresa", "Orçamento por persona", "<svg"}},
+		{"/c/hanko/fluxos", []string{"Fluxos", "Digest semanal de fontes", "Rodar agora", "Toda sexta às 07:00"}},
+		{"/c/hanko/fluxos/novo", []string{"Novo fluxo", `name="cron"`, "Modelos de agenda"}},
+		{"/c/hanko/fluxos/digest-semanal", []string{"Digest semanal de fontes", "Histórico de disparos", "HNK-214", "Salvar alterações"}},
 	}
 	for _, c := range cases {
 		t.Run(c.path, func(t *testing.T) {
@@ -846,7 +849,7 @@ func TestVocabularyHasNoAgentOrHeartbeat(t *testing.T) {
 	for name, f := range map[string]*uitest.Fake{"vazio": uitest.Empty(), "amostra": uitest.Sample()} {
 		e := newEnv(t, f)
 		for _, path := range []string{"/c/hanko/", "/c/hanko/personas", "/c/hanko/personas/nova", "/c/hanko/personas/ada", "/c/hanko/tasks",
-			"/c/hanko/execucoes", "/c/hanko/atividade", "/c/hanko/tasks/nova"} {
+			"/c/hanko/execucoes", "/c/hanko/atividade", "/c/hanko/tasks/nova", "/c/hanko/custos", "/c/hanko/fluxos", "/c/hanko/fluxos/novo", "/c/hanko/fluxos/digest-semanal"} {
 			rec := e.get(t, path)
 			if rec.Code == http.StatusNotFound {
 				continue

@@ -29,7 +29,7 @@ var Nav = []NavGroup{
 	{Label: "Trabalho", Items: []NavItem{
 		{Key: "tasks", Label: "Tasks", Icon: "list", Path: "/tasks"},
 		{Key: "projetos", Label: "Projetos", Icon: "layers", Milestone: "M3", Blurb: "Agrupe tasks por projeto, com workspace e orçamento próprios."},
-		{Key: "fluxos", Label: "Fluxos", Icon: "workflow", Milestone: "M4", Blurb: "Gatilhos por agenda, evento ou manual que criam tasks e execuções."},
+		{Key: "fluxos", Label: "Fluxos", Icon: "workflow", Path: "/fluxos"},
 		{Key: "metas", Label: "Metas", Icon: "trending-up", Milestone: "v0.2", Blurb: "Metas mensuráveis ligadas a projetos."},
 		{Key: "artefatos", Label: "Artefatos", Icon: "file", Milestone: "v0.2", Blurb: "Documentos e arquivos produzidos pelas personas."},
 		{Key: "workspaces", Label: "Workspaces", Icon: "git-branch", Milestone: "M3", Blurb: "Diretórios e repositórios onde as personas trabalham."},
@@ -43,7 +43,7 @@ var Nav = []NavGroup{
 	}},
 	{Label: "Supervisão", Items: []NavItem{
 		{Key: "execucoes", Label: "Execuções", Icon: "activity", Path: "/execucoes"},
-		{Key: "custos", Label: "Custos", Icon: "database", Milestone: "M4", Blurb: "Ledger por execução, orçamentos e parada dura."},
+		{Key: "custos", Label: "Custos", Icon: "database", Path: "/custos"},
 		{Key: "atividade", Label: "Atividade", Icon: "clock", Path: "/atividade"},
 	}},
 }

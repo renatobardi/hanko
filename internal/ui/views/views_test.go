@@ -33,6 +33,10 @@ func TestRenderZeroValues(t *testing.T) {
 		"error-bare": ErrorBare(ErrorVM{Back: "/"}, "t"),
 		"error-frag": ErrorFragment(ErrorVM{}),
 		"soon":       SoonPage(sh, SoonVM{}),
+		"costs":      CostsPage(sh, CostsVM{}),
+		"flows":      FlowsPage(sh, FlowsVM{}),
+		"flow-new":   NewFlowPage(sh, FlowFormVM{}),
+		"flow":       FlowPage(sh, FlowVM{}),
 		"mark":       Mark(22),
 	}
 	for name, c := range pages {

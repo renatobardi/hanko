@@ -166,5 +166,98 @@ func Sample() *Fake {
 		}
 		f.Activity = append(f.Activity, ev)
 	}
+	sampleCostsAndFlows(f, now)
 	return f
+}
+
+// sampleCostsAndFlows adds a month of ledger entries, budgets and a few flows.
+func sampleCostsAndFlows(f *Fake, now time.Time) {
+	co := &f.Companies[0]
+	byName := map[string]*domain.Persona{}
+	for i := range f.Personas {
+		byName[f.Personas[i].Slug] = &f.Personas[i]
+	}
+	cents := func(usd int64) *int64 { v := usd * 100; return &v }
+	co.BudgetMonthlyCents = cents(400)
+	byName["ada"].BudgetMonthlyCents = cents(120)
+	byName["kenji"].BudgetMonthlyCents = cents(150)
+	byName["sato"].BudgetMonthlyCents = cents(60)
+	byName["hana"].BudgetMonthlyCents = cents(80)
+
+	loc := f.companyTZ()
+	type src struct {
+		persona, project string
+		base             float64
+		estEvery         int
+	}
+	sources := []src{{"ada", "Kubo", 5.2, 0}, {"kenji", "NAS 3D", 8.6, 3}, {"sato", "LinkedIn", 4.4, 0}, {"hana", "Kubo", 3.1, 4}, {"mika", "Kubo", 0.6, 0}}
+	pat := []float64{0.9, 1.25, 0.7, 1.1, 0.4, 1.6, 1.0, 0.8, 1.35, 0.6, 1.2, 0.95, 1.5, 0.5}
+	start := time.Date(now.In(loc).Year(), now.In(loc).Month(), 1, 0, 0, 0, 0, loc)
+	for d := 0; ; d++ {
+		day := start.AddDate(0, 0, d)
+		if day.After(now) {
+			break
+		}
+		for si, sc := range sources {
+			p := byName[sc.persona]
+			factor := pat[(d+si*3)%len(pat)]
+			model := p.Model
+			e := LedgerEntry{At: day.Add(time.Duration(9+si) * time.Hour), PersonaID: p.ID, Project: sc.project, Model: model, Harness: p.Agent,
+				CostUSD: sc.base * factor, In: int64(180000 * factor), Out: int64(24000 * factor)}
+			if sc.estEvery > 0 && d%sc.estEvery == 0 {
+				e.Estimated = true
+			}
+			if e.At.After(now) {
+				e.At = now.Add(-time.Minute)
+			}
+			f.Ledger = append(f.Ledger, e)
+		}
+	}
+
+	proj := func(slug string) *domain.ID {
+		for _, p := range f.Projects {
+			if p.Slug == slug {
+				id := p.ID
+				return &id
+			}
+		}
+		return nil
+	}
+	mkFlow := func(slug, name, desc, cron string, enabled bool, who string, project string, title string) domain.Flow {
+		next, _ := service.NextCron(cron, co.Timezone, now)
+		fl := domain.Flow{ID: ID("flow:" + slug), CompanyID: co.ID, Slug: slug, Name: name, Description: desc, Cron: cron, Timezone: co.Timezone, Enabled: enabled,
+			PersonaID: byName[who].ID, ProjectID: proj(project), Priority: domain.PriorityMedium, TaskTitle: title,
+			CreatedAt: now.Add(-20 * 24 * time.Hour), UpdatedAt: now.Add(-time.Hour)}
+		if enabled {
+			fl.NextFireAt = &next
+		}
+		return fl
+	}
+	flows := []domain.Flow{
+		mkFlow("digest-semanal", "Digest semanal de fontes", "Lê fontes novas, destila e envia aos 3 destinos", "0 7 * * 5", true, "ada", "kubo", "Digest semanal de fontes · {{data}}"),
+		mkFlow("conteudo-linkedin", "Conteúdo semanal LinkedIn", "Gera 1 post + 1 docslide a partir dos destilados da semana", "0 8 * * 1", true, "sato", "linkedin", "Conteúdo da semana · {{data}}"),
+		mkFlow("coleta-rss", "Coleta de fontes RSS", "Ingere os feeds e abre task só quando há item novo relevante", "0 */2 * * *", true, "mika", "kubo", "Coleta RSS #{{n}}"),
+		mkFlow("metricas-alcance", "Métricas de alcance", "Coleta impressões e salva no destilado mensal", "0 23 * * *", false, "sato", "linkedin", "Métricas · {{data}}"),
+	}
+	for i := range flows {
+		fl := flows[i]
+		if fl.Slug == "digest-semanal" || fl.Slug == "coleta-rss" {
+			t := now.Add(-26 * time.Hour)
+			fl.LastFiredAt = &t
+		}
+		f.Flows = append(f.Flows, f.flowView(fl))
+	}
+	digest := f.Flows[0]
+	for i, k := range []struct {
+		ago time.Duration
+		key string
+		st  string
+	}{{2 * 24 * time.Hour, "HNK-214", "done"}, {9 * 24 * time.Hour, "HNK-198", "done"}, {16 * 24 * time.Hour, "HNK-181", "done"}} {
+		at := now.Add(-k.ago).Truncate(time.Minute)
+		tid := ID("task:" + k.key)
+		f.Fires = append(f.Fires, service.FlowFireView{
+			FlowFire: domain.FlowFire{ID: ID("fire:" + k.key), FlowID: digest.ID, CompanyID: co.ID, ScheduledFor: at, TaskID: &tid, CreatedAt: at},
+			TaskKey:  k.key, TaskTitle: "Digest semanal de fontes", TaskStatus: k.st})
+		_ = i
+	}
 }

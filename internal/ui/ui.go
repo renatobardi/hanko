@@ -61,6 +61,18 @@ type Backend interface {
 
 	ListActivity(ctx context.Context, companyID domain.ID, f service.ActivityFilter) ([]domain.ActivityEvent, error)
 	Dashboard(ctx context.Context, companyID domain.ID) (service.DashboardStats, error)
+
+	CostSummary(ctx context.Context, companyID domain.ID, f service.CostFilter) (service.CostSummary, error)
+	CompanyBudget(ctx context.Context, companyID domain.ID) (service.BudgetStatus, error)
+	PersonaBudget(ctx context.Context, companyID, personaID domain.ID) (service.BudgetStatus, error)
+	SetCompanyBudget(ctx context.Context, actor domain.Actor, companyID domain.ID, cents *int64) (domain.Company, error)
+
+	ListFlows(ctx context.Context, companyID domain.ID) ([]service.FlowView, error)
+	GetFlow(ctx context.Context, companyID domain.ID, ref string) (service.FlowView, error)
+	CreateFlow(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.CreateFlowInput) (service.FlowView, error)
+	UpdateFlow(ctx context.Context, actor domain.Actor, companyID, flowID domain.ID, in service.UpdateFlowInput) (service.FlowView, error)
+	ListFlowFires(ctx context.Context, companyID, flowID domain.ID, limit int) ([]service.FlowFireView, error)
+	RunFlowNow(ctx context.Context, actor domain.Actor, companyID, flowID domain.ID) (service.FlowFireResult, error)
 }
 
 var _ Backend = (*service.Service)(nil)
@@ -140,6 +152,21 @@ func (s *server) routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /c/{company}/personas/{persona}/pausar", post(co(s.handlePersonaControl(domain.PersonaPaused, "pausada"))))
 	mux.HandleFunc("POST /c/{company}/personas/{persona}/retomar", post(co(s.handlePersonaControl(domain.PersonaActive, "retomada"))))
 	mux.HandleFunc("POST /c/{company}/personas/{persona}/reativar", post(co(s.handlePersonaControl(domain.PersonaActive, "reativada"))))
+
+	mux.HandleFunc("POST /c/{company}/personas/{persona}/orcamento", post(co(s.handleSetPersonaBudget)))
+
+	mux.HandleFunc("GET /c/{company}/custos", co(s.handleCosts))
+	mux.HandleFunc("POST /c/{company}/custos/orcamento", post(co(s.handleSetCompanyBudget)))
+
+	mux.HandleFunc("GET /c/{company}/fluxos", co(s.handleFlows))
+	mux.HandleFunc("GET /c/{company}/fluxos/novo", co(s.handleNewFlow))
+	mux.HandleFunc("POST /c/{company}/fluxos/novo", post(co(s.handleCreateFlow)))
+	mux.HandleFunc("GET /c/{company}/fluxos/cron", co(s.handleCronHint))
+	mux.HandleFunc("GET /c/{company}/fluxos/{flow}", co(s.handleFlow))
+	mux.HandleFunc("POST /c/{company}/fluxos/{flow}", post(co(s.handleUpdateFlow)))
+	mux.HandleFunc("POST /c/{company}/fluxos/{flow}/ativar", post(co(s.handleFlowEnabled(true))))
+	mux.HandleFunc("POST /c/{company}/fluxos/{flow}/desativar", post(co(s.handleFlowEnabled(false))))
+	mux.HandleFunc("POST /c/{company}/fluxos/{flow}/executar", post(co(s.handleRunFlow)))
 
 	mux.HandleFunc("GET /c/{company}/execucoes", co(s.handleRuns))
 	mux.HandleFunc("GET /c/{company}/execucoes/{run}", co(s.handleRun))
@@ -248,6 +275,9 @@ func friendly(err error) (int, string, string) {
 		}
 		return st, "Dados inválidos", "Confira os campos e tente de novo."
 	case http.StatusConflict:
+		if errors.Is(err, domain.ErrBudgetExceeded) {
+			return st, "Orçamento estourado", "O limite mensal foi atingido; nenhuma execução nova abre até o limite subir ou o mês virar."
+		}
 		if errors.Is(err, domain.ErrActiveRun) {
 			return st, "Já existe uma execução ativa", "Esta task já tem uma execução em andamento; espere ela terminar."
 		}

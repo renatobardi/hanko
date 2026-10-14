@@ -383,3 +383,9 @@ func (t *txc) checkBudgets(company store.Company, persona store.Persona, enforce
 	}
 	return blocked
 }
+
+// BudgetFor computes spend versus ceiling for callers that already know both
+// (previews and tests use it to mirror the service).
+func BudgetFor(budgetCents *int64, spentUSD float64) BudgetStatus {
+	return budgetStatus(budgetCents, spentUSD)
+}

@@ -33,6 +33,9 @@ type Fake struct {
 	Activity  []domain.ActivityEvent
 	Health    map[domain.ID]service.PersonaHealth
 	Calls     []string // names of mutating calls, in order
+	Ledger    []LedgerEntry
+	Flows     []service.FlowView
+	Fires     []service.FlowFireView
 	nextTask  int64
 }
 
@@ -208,6 +211,11 @@ func (f *Fake) UpdatePersona(_ context.Context, _ domain.Actor, _, personaID dom
 				delete(f.Health, p.ID) // a status change by the user resets the failure counter
 			}
 			p.Status = *in.Status
+		}
+		if in.ClearBudget {
+			p.BudgetMonthlyCents = nil
+		} else if in.BudgetMonthlyCents != nil {
+			p.BudgetMonthlyCents = in.BudgetMonthlyCents
 		}
 		f.Personas[i] = p
 		return p, nil
@@ -492,6 +500,16 @@ func (f *Fake) Dashboard(context.Context, domain.ID) (service.DashboardStats, er
 		if r.CostUSD != nil {
 			st.MonthCostUSD += *r.CostUSD
 		}
+	}
+	if len(f.Ledger) > 0 {
+		st.MonthCostUSD = 0
+		for _, e := range f.Ledger {
+			st.MonthCostUSD += e.CostUSD
+		}
+	}
+	if len(f.Companies) > 0 {
+		b := service.BudgetFor(f.Companies[0].BudgetMonthlyCents, st.MonthCostUSD)
+		st.MonthBudgetCents, st.BudgetPercent, st.BudgetState = b.BudgetCents, b.Percent, b.State
 	}
 	return st, nil
 }

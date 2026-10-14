@@ -153,6 +153,13 @@ func (s *server) handlePersona(w http.ResponseWriter, r *http.Request, co domain
 			vm.LastErrorAt = fmtDateTime(*health.LastErrorAt, loc)
 		}
 	}
+	if pb, err := s.be.PersonaBudget(ctx, co.ID, p.ID); err == nil {
+		b := budgetBox("Orçamento do mês", pb, base+"/personas/"+p.Slug+"/orcamento", base+"/custos")
+		if pb.State == service.BudgetExceeded {
+			b.StateText = "Limite atingido: a persona foi pausada e não abre execuções novas até o limite subir ou o mês virar."
+		}
+		vm.Budget = &b
+	}
 	for _, t := range tasks {
 		vm.Tasks = append(vm.Tasks, taskRow(t, base, now, loc))
 	}
@@ -168,6 +175,7 @@ var personaNotices = map[string]string{
 	"pausada":   "Persona pausada: ela não será mais acordada.",
 	"retomada":  "Persona retomada.",
 	"reativada": "Persona reativada: volta a ser acordada normalmente.",
+	"orcamento": "Orçamento da persona atualizado.",
 }
 
 // personaControls lists the actions that make sense for the persona's current status.
