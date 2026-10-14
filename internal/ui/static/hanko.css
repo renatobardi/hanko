@@ -522,7 +522,8 @@ table.table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .gate-decide { display: grid; gap: 10px; margin-top: 12px; }
 .gate-decide .textarea { min-height: 72px; background: var(--surface); }
 .gate-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; align-items: center; }
-.gate-decide.compact { margin-top: 0; flex: none; }
+.gate-decide.compact { margin-top: 0; flex: 0 1 auto; min-width: 0; max-width: 100%; }
+.gate-mini, .gate-card { min-width: 0; }
 .gate-note { margin: 10px 0 0; padding: 8px 14px; border-left: 2px solid var(--line); color: var(--ink-soft); font-size: 13.5px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .mini-avatar.gate { background: var(--warn-tint); color: var(--warn); }
 .card.gate-card { border-left: 3px solid var(--warn); }
@@ -564,8 +565,8 @@ table.table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .inbox-stats dd { margin: 0; }
 
 /* ---------- organograma ---------- */
-.org-scroll { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); overflow-x: auto; padding: 8px; }
-.org-svg { display: block; margin: 0 auto; max-width: none; font-family: var(--font-sans); }
+.org-scroll { display: flex; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); overflow-x: auto; padding: 8px; }
+.org-svg { display: block; flex: none; margin: 0 auto; max-width: none; font-family: var(--font-sans); }
 .org-edge { fill: none; stroke: var(--ink-faintest); stroke-width: 1.5; }
 .org-node rect { fill: var(--surface); stroke: var(--line); stroke-width: 1; transition: stroke 0.12s; }
 .org-node:hover rect, .org-node:focus-visible rect { stroke: var(--ink-soft); }
@@ -612,7 +613,8 @@ table.table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 @media (max-width: 640px) {
   .hide-sm { display: none; }
   .inbox-row, .gate-mini { flex-wrap: wrap; }
-  .inbox-row .gate-decide, .gate-mini .gate-decide, .inbox-act { width: 100%; }
+  .inbox-row .gate-decide, .gate-mini .gate-decide, .inbox-act { width: 100%; flex-basis: 100%; }
+  .gate-mini { padding-right: 0; }
   .gate-decide.compact .gate-actions, .inbox-act { justify-content: flex-start; }
   .dec-when { margin-left: 0; width: 100%; }
   .kpis { gap: 12px; }
