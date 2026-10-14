@@ -1,0 +1,73 @@
+package views
+
+templ OnboardingPage(vm OnboardingVM, version string) {
+	@Bare("Bem-vindo", version) {
+		<div class="auth" style="max-width:440px">
+			<div class="mark">
+				@Mark(40)
+				<b>Hanko</b>
+			</div>
+			<form class="card" method="post" action="/empresas" hx-boost="true">
+				<h1>Criar empresa</h1>
+				<p class="sub muted">A empresa isola personas, tasks e execuções. Dá para criar outras depois.</p>
+				if vm.Error != "" {
+					@Alert("danger", vm.Error)
+				}
+				<div class="field">
+					<label for="c-name">Nome da empresa</label>
+					<input class="input" id="c-name" name="name" value={ vm.Name } required maxlength="80" placeholder="Hanko" autofocus/>
+				</div>
+				<div class="field">
+					<label for="c-prefix">Prefixo das tasks</label>
+					<input class="input" id="c-prefix" name="prefix" value={ vm.TaskPrefix } maxlength="10" placeholder="HNK" style="text-transform:uppercase"/>
+					<span class="hint">As tasks viram HNK-1, HNK-2…</span>
+				</div>
+				<button class="btn primary block" type="submit">Criar empresa e continuar</button>
+			</form>
+			<div class="foot"><span>Hanko · control plane de agentes de IA</span></div>
+		</div>
+	}
+}
+
+templ ErrorPage(sh Shell, vm ErrorVM) {
+	@Layout(sh) {
+		@errorBody(vm)
+	}
+}
+
+templ ErrorBare(vm ErrorVM, version string) {
+	@Bare(vm.Title, version) {
+		<div style="width:100%;max-width:520px">
+			@errorBody(vm)
+		</div>
+	}
+}
+
+templ errorBody(vm ErrorVM) {
+	<div class="soon-box">
+		@EmptyCard("alert", vm.Title, vm.Message, true) {
+			if vm.Back != "" {
+				<a class="btn outline" href={ templ.SafeURL(vm.Back) }>Voltar</a>
+			}
+		}
+	</div>
+}
+
+// ErrorFragment is what htmx requests receive for a failed action.
+templ ErrorFragment(vm ErrorVM) {
+	<div class="alert danger" role="alert">
+		@Icon("alert")
+		<div><b>{ vm.Title }</b> { vm.Message }</div>
+	</div>
+}
+
+templ SoonPage(sh Shell, vm SoonVM) {
+	@Layout(sh) {
+		<div class="soon-box">
+			@EmptyCard("clock", vm.Label+" · em breve", vm.Blurb, true) {
+				<span class="badge soft">Previsto para { vm.Milestone }</span>
+				<a class="btn outline" href={ templ.SafeURL(sh.Base() + "/") }>Voltar ao painel</a>
+			}
+		</div>
+	}
+}

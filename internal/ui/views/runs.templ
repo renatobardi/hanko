@@ -1,0 +1,171 @@
+package views
+
+import "fmt"
+
+templ RunsTable(rows []RunRow, showPersona bool) {
+	if len(rows) == 0 {
+		@EmptyCard("activity", "Nenhuma execução ainda.", "Cada heartbeat vira uma execução auditável: status, eventos, saída e custo.", false)
+	} else {
+		<div class="table-wrap">
+			<table class="table">
+				<thead>
+					<tr>
+						<th>Execução</th>
+						if showPersona {
+							<th>Persona · task</th>
+						} else {
+							<th>Task</th>
+						}
+						<th>Status</th>
+						<th class="hide-sm num">Duração</th>
+						<th class="hide-sm num">Tokens</th>
+						<th class="num">Custo</th>
+						<th class="hide-sm num">Quando</th>
+					</tr>
+				</thead>
+				<tbody>
+					for _, r := range rows {
+						<tr class="row">
+							<td class="id"><a href={ templ.SafeURL(r.Href) }>{ r.Short }</a></td>
+							<td>
+								<a href={ templ.SafeURL(r.Href) } class="ttl">
+									if showPersona {
+										{ r.Persona } · { r.TaskKey }
+									} else {
+										{ r.TaskKey }
+									}
+								</a>
+								<div class="sub-line">{ r.TaskTitle } · <span class="mono">{ r.Agent }</span></div>
+							</td>
+							<td>@BadgeEl(r.Badge)</td>
+							<td class="hide-sm num mono">{ r.Duration }</td>
+							<td class="hide-sm num mono">{ r.Tokens }</td>
+							<td class="num mono">{ r.Cost }</td>
+							<td class="hide-sm when">{ r.When }</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+	}
+}
+
+templ RunsPage(sh Shell, vm RunsVM) {
+	@Layout(sh) {
+		@PageHead("Execuções", vm.Subtitle) {
+			if vm.Live > 0 {
+				<span class="badge run"><i class="pulse"></i> { fmt.Sprint(vm.Live) } ao vivo</span>
+			}
+		}
+		<div class="toolbar">
+			@Tabs(vm.Tabs)
+		</div>
+		@RunsTable(vm.Rows, true)
+	}
+}
+
+// RunHeader is the live part of the run page (swapped by the run-status SSE event).
+templ RunHeader(vm RunVM) {
+	<div class="run-head">
+		<div class="tt">
+			<span class="mini-avatar" style="width:38px;height:38px">@Icon("bot")</span>
+			<div>
+				<h2>Execução <span class="mono">{ vm.Short }</span> · { vm.Persona } @BadgeEl(vm.Badge)</h2>
+				<div class="sub">Task <a class="mono" href={ templ.SafeURL(vm.TaskHref) }>{ vm.TaskKey }</a> · { vm.Trigger } · iniciada { vm.Started }</div>
+			</div>
+		</div>
+		if vm.Active && vm.CancelHref != "" {
+			<form method="post" action={ templ.SafeURL(vm.CancelHref) } hx-post={ vm.CancelHref } hx-swap="none">
+				<button class="btn danger" type="submit">@Icon("square") Interromper</button>
+			</form>
+		}
+	</div>
+	<div class="stats4">
+		<div class="stat"><div class="l">Duração</div><div class="v">{ vm.Duration }</div></div>
+		<div class="stat"><div class="l">Eventos</div><div class="v">{ fmt.Sprint(vm.Events) }</div></div>
+		<div class="stat"><div class="l">Tokens</div><div class="v">{ vm.Tokens }</div></div>
+		<div class="stat"><div class="l">Custo</div><div class="v">{ vm.Cost }</div></div>
+	</div>
+	if vm.Error != "" {
+		<div class="err-box">{ vm.Error }</div>
+	}
+}
+
+templ RunLine(l LogLine) {
+	<div class={ "log-line", "k-" + l.Kind } data-seq={ fmt.Sprint(l.Seq) }>
+		<time>{ l.Time }</time>
+		<span class="k">{ l.Label }</span>
+		<span class="tx">{ l.Text }</span>
+	</div>
+}
+
+templ RunPage(sh Shell, vm RunVM) {
+	@Layout(sh) {
+		<div class="runs-grid">
+			<section class="card run-box">
+				if vm.SSEHref != "" {
+					<div hx-ext="sse" sse-connect={ vm.SSEHref } sse-close="run-end">
+						<div id="run-head" sse-swap="run-status" hx-swap="innerHTML">
+							@RunHeader(vm)
+						</div>
+						<div class="side-h" style="margin:4px 0 10px">Log</div>
+						<div id="run-log" class="log" role="log" aria-live="off" sse-swap="run-event" hx-swap="beforeend" tabindex="0">
+							for _, l := range vm.Lines {
+								@RunLine(l)
+							}
+							if len(vm.Lines) == 0 {
+								<div class="log-empty" id="log-empty">Aguardando eventos…</div>
+							}
+						</div>
+					</div>
+				} else {
+					<div id="run-head">
+						@RunHeader(vm)
+					</div>
+					<div class="side-h" style="margin:4px 0 10px">Log</div>
+					<div id="run-log" class="log" role="log" tabindex="0">
+						for _, l := range vm.Lines {
+							@RunLine(l)
+						}
+						if len(vm.Lines) == 0 {
+							<div class="log-empty">Sem eventos registrados.</div>
+						}
+					</div>
+				}
+			</section>
+			<div class="grid-2" style="align-items:start">
+				<section class="card pad">
+					<div class="card-head"><h2 style="font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);font-weight:500">Invocação</h2></div>
+					<dl class="kv">
+						<dt>Agente</dt><dd>{ vm.Agent }</dd>
+						<dt>Modelo</dt><dd>
+							if vm.Model != "" {
+								{ vm.Model }
+							} else {
+								—
+							}
+						</dd>
+						<dt>Gatilho</dt><dd>{ vm.Trigger }</dd>
+						<dt>Sessão</dt><dd>
+							if vm.Session != "" {
+								{ vm.Session }
+							} else {
+								—
+							}
+						</dd>
+						<dt>Saída</dt><dd>{ vm.ExitCode }</dd>
+						<dt>ID</dt><dd>{ vm.ID }</dd>
+					</dl>
+				</section>
+				<section class="card pad">
+					<div class="card-head"><h2 style="font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);font-weight:500">Resumo</h2></div>
+					if vm.Summary != "" {
+						<div class="md">@templ.Raw(string(vm.Summary))</div>
+					} else {
+						<p class="muted">O resumo aparece quando a execução termina.</p>
+					}
+				</section>
+			</div>
+		</div>
+	}
+}

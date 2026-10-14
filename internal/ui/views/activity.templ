@@ -1,0 +1,32 @@
+package views
+
+templ ActivityPage(sh Shell, vm ActivityVM) {
+	@Layout(sh) {
+		@PageHead("Atividade", vm.Subtitle) {
+		}
+		if len(vm.Days) == 0 {
+			@EmptyCard("clock", "Nenhuma atividade ainda.", "Heartbeats, comentários e mudanças de status aparecem aqui.", true)
+		} else {
+			<div class="feed">
+				for _, d := range vm.Days {
+					<div class="day">{ d.Label }</div>
+					for _, e := range d.Items {
+						<div class="ev">
+							<time>{ e.When }</time>
+							<span class="ico">@actorAvatar(e)</span>
+							<div>
+								<b>{ e.Actor }</b> { e.Text }
+								if e.Href != "" {
+									<a class="subj" href={ templ.SafeURL(e.Href) }>{ e.Subject }</a>
+								} else {
+									{ e.Subject }
+								}
+							</div>
+							<span class="tag">{ e.Detail }</span>
+						</div>
+					}
+				}
+			</div>
+		}
+	}
+}

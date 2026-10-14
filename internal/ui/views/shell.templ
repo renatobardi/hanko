@@ -1,0 +1,105 @@
+package views
+
+// Layout is the application shell: sidebar, topbar with breadcrumb and the primary action.
+templ Layout(sh Shell) {
+	<!DOCTYPE html>
+	<html lang="pt-BR">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<meta name="color-scheme" content="light dark"/>
+			<title>{ sh.Title } · Hanko</title>
+			<link rel="icon" href="/static/favicon.svg" type="image/svg+xml"/>
+			<link rel="stylesheet" href={ "/static/hanko.css?v=" + sh.Version }/>
+			<script src={ "/static/vendor/htmx.min.js" } defer></script>
+			<script src={ "/static/vendor/sse.min.js" } defer></script>
+			<script src={ "/static/hanko.js?v=" + sh.Version } defer></script>
+		</head>
+		<body>
+			<input type="checkbox" id="nav-toggle" class="nav-toggle" aria-label="Menu"/>
+			<div class="app">
+				<aside class="sidebar" id="sidebar">
+					<a class="brand" href={ templ.SafeURL(sh.Base() + "/") }>
+						@Mark(22)
+						<span>Hanko</span>
+					</a>
+					<nav class="nav" aria-label="Principal">
+						for _, g := range Nav {
+							<div class="nav-group">
+								if g.Label != "" {
+									<div class="nav-label">{ g.Label }</div>
+								}
+								for _, it := range g.Items {
+									<a href={ templ.SafeURL(it.Href(sh.Base())) } aria-current?={ it.Key == sh.Active }>
+										@Icon(it.Icon)
+										<span>{ it.Label }</span>
+									</a>
+								}
+							</div>
+						}
+					</nav>
+					<div class="sidebar-foot">
+						<span class="avatar-sq">{ initial(sh.Owner) }</span>
+						<div class="me"><b>{ sh.Owner }</b><span>Owner · admin</span></div>
+						<span class="gear">@Icon("settings")</span>
+					</div>
+				</aside>
+				<label class="scrim" for="nav-toggle"></label>
+				<div class="main">
+					<header class="topbar">
+						<label class="icon-btn" for="nav-toggle" title="Alternar menu">
+							@Icon("panel-left")
+						</label>
+						<nav class="crumbs" aria-label="Trilha">
+							for i, c := range sh.Crumbs {
+								if i > 0 {
+									@Icon("chevron-right")
+								}
+								if i == len(sh.Crumbs)-1 {
+									<span class="cur">{ c.Label }</span>
+								} else {
+									<a href={ templ.SafeURL(c.Href) } class="hide-sm">{ c.Label }</a>
+								}
+							}
+						</nav>
+						<span class="spacer"></span>
+						if sh.Action != nil {
+							<a class="btn primary" href={ templ.SafeURL(sh.Action.Href) }>
+								if sh.Action.Icon != "" {
+									@Icon(sh.Action.Icon)
+								}
+								{ sh.Action.Label }
+							</a>
+						}
+					</header>
+					<main class={ "content", templ.KV("flush", sh.Flush) } id="content">
+						<div id="flash" aria-live="polite"></div>
+						{ children... }
+					</main>
+				</div>
+			</div>
+		</body>
+	</html>
+}
+
+// Bare is a centered page without shell (onboarding, errors outside a company).
+templ Bare(title, version string) {
+	<!DOCTYPE html>
+	<html lang="pt-BR">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<meta name="color-scheme" content="light dark"/>
+			<title>{ title } · Hanko</title>
+			<link rel="icon" href="/static/favicon.svg" type="image/svg+xml"/>
+			<link rel="stylesheet" href={ "/static/hanko.css?v=" + version }/>
+			<script src="/static/vendor/htmx.min.js" defer></script>
+			<script src={ "/static/hanko.js?v=" + version } defer></script>
+		</head>
+		<body>
+			<div class="center-page">
+				{ children... }
+			</div>
+		</body>
+	</html>
+}
