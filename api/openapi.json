@@ -2354,11 +2354,23 @@
       }
     },
     "securitySchemes": {
-      "runToken": {
-        "bearerFormat": "JWT",
-        "description": "Run token de uma execução. Sem header vale o modo trusted (humano local).",
+      "apiKey": {
+        "bearerFormat": "hk_…",
+        "description": "API key de usuário (hanko auth token create). Obrigatória fora de sessão no modo authenticated.",
         "scheme": "bearer",
         "type": "http"
+      },
+      "runToken": {
+        "bearerFormat": "JWT",
+        "description": "Run token de uma execução. Sem credencial vale o modo trusted (humano local).",
+        "scheme": "bearer",
+        "type": "http"
+      },
+      "session": {
+        "description": "Cookie de sessão do navegador (modo authenticated); métodos que mudam estado exigem mesma origem.",
+        "in": "cookie",
+        "name": "hanko_session",
+        "type": "apiKey"
       }
     }
   },
@@ -6759,6 +6771,12 @@
   "security": [
     {
       "runToken": []
+    },
+    {
+      "apiKey": []
+    },
+    {
+      "session": []
     },
     {}
   ]

@@ -1,0 +1,199 @@
+package views
+
+// LoginPage is the "Entrar" screen. local: e-mail/senha (or "Criar conta de dono" on first
+// run); firebase: e-mail/senha and Google through the Firebase web SDK (static/auth-firebase.js).
+templ LoginPage(vm LoginVM) {
+	@Bare("Entrar", vm.Version) {
+		<div class="auth">
+			<div class="mark">
+				@Mark(40)
+				<b>Hanko</b>
+			</div>
+			if vm.Provider == "firebase" {
+				@firebaseCard(vm)
+			} else if vm.FirstRun {
+				@ownerCard(vm)
+			} else {
+				@localCard(vm)
+			}
+			<div class="foot">
+				if vm.Provider == "firebase" {
+					<span>Autenticação pelo Firebase · e-mail e senha ou Google</span>
+				} else {
+					<span>Autenticação local · e-mail e senha</span>
+				}
+			</div>
+		</div>
+	}
+}
+
+templ localCard(vm LoginVM) {
+	<form class="card" method="post" action="/entrar">
+		<h1>Entrar</h1>
+		<p class="sub muted">Use suas credenciais para acessar o Hanko.</p>
+		@loginMessages(vm)
+		<input type="hidden" name="next" value={ vm.Next }/>
+		<div class="field">
+			<label for="l-email">E-mail</label>
+			<input class="input" id="l-email" name="email" type="email" value={ vm.Email } required autocomplete="username" autofocus/>
+		</div>
+		<div class="field">
+			<label for="l-pass">Senha</label>
+			<input class="input" id="l-pass" name="password" type="password" required autocomplete="current-password"/>
+		</div>
+		<button class="btn primary block" type="submit">Entrar</button>
+	</form>
+}
+
+templ ownerCard(vm LoginVM) {
+	<form class="card" method="post" action="/entrar/dono">
+		<h1>Criar conta de dono</h1>
+		<p class="sub muted">Ainda não há usuários. A primeira conta vira dona desta instalação.</p>
+		@loginMessages(vm)
+		<div class="field">
+			<label for="o-name">Nome</label>
+			<input class="input" id="o-name" name="name" value={ vm.Name } required maxlength="80" autocomplete="name" autofocus/>
+		</div>
+		<div class="field">
+			<label for="o-email">E-mail</label>
+			<input class="input" id="o-email" name="email" type="email" value={ vm.Email } required autocomplete="username"/>
+		</div>
+		<div class="field">
+			<label for="o-pass">Senha</label>
+			<input class="input" id="o-pass" name="password" type="password" required minlength="10" maxlength="256" autocomplete="new-password"/>
+			<span class="hint">Mínimo de 10 caracteres.</span>
+		</div>
+		<button class="btn primary block" type="submit">Criar conta e entrar</button>
+	</form>
+}
+
+templ firebaseCard(vm LoginVM) {
+	<form
+		class="card"
+		id="fb-form"
+		method="post"
+		action="/entrar"
+		data-api-key={ vm.Firebase.APIKey }
+		data-auth-domain={ vm.Firebase.AuthDomain }
+		data-project-id={ vm.Firebase.ProjectID }
+		data-next={ vm.Next }
+	>
+		<h1 id="fb-title">Entrar</h1>
+		<p class="sub muted" id="fb-sub">Use suas credenciais para acessar o Hanko.</p>
+		@loginMessages(vm)
+		<div id="fb-msg" aria-live="polite"></div>
+		<noscript><div class="alert danger" role="alert">@Icon("alert")<div>Ative o JavaScript para entrar com o Firebase.</div></div></noscript>
+		<div class="field">
+			<label for="f-email">E-mail</label>
+			<input class="input" id="f-email" name="email" type="email" value={ vm.Email } required autocomplete="username" autofocus/>
+		</div>
+		<div class="field">
+			<div class="lbl-row">
+				<label for="f-pass">Senha</label>
+				<button class="link" type="button" id="fb-reset">Esqueci a senha</button>
+			</div>
+			<input class="input" id="f-pass" name="password" type="password" required minlength="6" autocomplete="current-password"/>
+		</div>
+		<button class="btn primary block" type="submit" id="fb-submit">Entrar</button>
+		<div class="or"><span>ou</span></div>
+		<button class="btn outline block" type="button" id="fb-google">Continuar com Google</button>
+	</form>
+	<div class="foot">
+		<span>
+			<span id="fb-toggle-text">Não tem conta?</span>
+			<button class="link" type="button" id="fb-toggle">Criar conta</button>
+		</span>
+	</div>
+	<script type="module" src={ "/static/auth-firebase.js?v=" + vm.Version }></script>
+}
+
+templ loginMessages(vm LoginVM) {
+	if vm.Error != "" {
+		@Alert("danger", vm.Error)
+	}
+	if vm.Notice != "" {
+		<div class="alert" role="status"><div>{ vm.Notice }</div></div>
+	}
+}
+
+// SettingsPage shows the account and its API keys.
+templ SettingsPage(sh Shell, vm SettingsVM) {
+	@Layout(sh) {
+		@PageHead("Configurações", "Sua conta e as chaves de API usadas pela CLI e por integrações.")
+		if !vm.Authenticated {
+			@EmptyCard("lock", "Modo trusted", "Contas e chaves de API existem no modo authenticated (HANKO_MODE=authenticated). Veja o RUNBOOK.", true)
+		} else {
+			<div class="card pad form-card" style="margin-bottom:20px">
+				<h2>Conta</h2>
+				<dl class="kv">
+					<dt>Nome</dt>
+					<dd>{ vm.Name }</dd>
+					<dt>E-mail</dt>
+					<dd class="mono">{ vm.Email }</dd>
+					<dt>Login</dt>
+					<dd>{ vm.Provider }</dd>
+					<dt>Papel</dt>
+					<dd>{ vm.Role }</dd>
+				</dl>
+			</div>
+			<div class="card pad form-card" style="margin-bottom:20px">
+				<div class="card-head">
+					<div>
+						<h2>Chaves de API</h2>
+						<p class="sub">Use <span class="mono">Authorization: Bearer hk_…</span> na API e no MCP, ou <span class="mono">HANKO_TOKEN</span> na CLI. A chave aparece uma única vez.</p>
+					</div>
+				</div>
+				if vm.Error != "" {
+					@Alert("danger", vm.Error)
+				}
+				if vm.NewKey != "" {
+					<div class="alert warn" role="status">
+						@Icon("key")
+						<div>
+							<b>Copie agora a chave “{ vm.KeyName }”. Ela não será mostrada de novo.</b>
+							<div class="mono keybox">{ vm.NewKey }</div>
+						</div>
+					</div>
+				}
+				<form method="post" action={ templ.SafeURL(sh.Base() + "/configuracoes/chaves") } class="inline-form">
+					<input class="input" name="name" placeholder="Nome (ex.: CLI do notebook)" required maxlength="80" aria-label="Nome da chave"/>
+					<button class="btn primary" type="submit">@Icon("plus") Criar chave</button>
+				</form>
+				if len(vm.Keys) > 0 {
+					<div class="table-wrap" style="margin-top:16px">
+						<table class="table">
+							<thead>
+								<tr>
+									<th>Nome</th>
+									<th>Prefixo</th>
+									<th class="hide-sm">Criada</th>
+									<th class="hide-sm">Último uso</th>
+									<th></th>
+								</tr>
+							</thead>
+							<tbody>
+								for _, k := range vm.Keys {
+									<tr class="row">
+										<td>{ k.Name }</td>
+										<td class="id">{ k.Prefix }…</td>
+										<td class="when hide-sm">{ k.Created }</td>
+										<td class="when hide-sm">{ k.LastUsed }</td>
+										<td style="text-align:right">
+											if k.Revoked {
+												<span class="badge outline">Revogada</span>
+											} else {
+												<form method="post" action={ templ.SafeURL(sh.Base() + "/configuracoes/chaves/" + k.ID + "/revogar") }>
+													<button class="btn sm danger" type="submit">Revogar</button>
+												</form>
+											}
+										</td>
+									</tr>
+								}
+							</tbody>
+						</table>
+					</div>
+				}
+			</div>
+		}
+	}
+}

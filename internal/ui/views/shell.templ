@@ -38,11 +38,7 @@ templ Layout(sh Shell) {
 							</div>
 						}
 					</nav>
-					<div class="sidebar-foot">
-						<span class="avatar-sq">{ initial(sh.Owner) }</span>
-						<div class="me"><b>{ sh.Owner }</b><span>Owner · admin</span></div>
-						<span class="gear">@Icon("settings")</span>
-					</div>
+					@sidebarFoot(sh)
 				</aside>
 				<label class="scrim" for="nav-toggle"></label>
 				<div class="main">
@@ -102,4 +98,37 @@ templ Bare(title, version string) {
 			</div>
 		</body>
 	</html>
+}
+
+// sidebarFoot is the user block at the bottom of the sidebar. With a signed-in user
+// (authenticated mode) it is a menu with settings and sign-out; in trusted mode it
+// shows the local owner.
+templ sidebarFoot(sh Shell) {
+	if u, ok := userFrom(ctx); ok {
+		<details class="usermenu">
+			<summary class="sidebar-foot">
+				<span class="avatar-sq">{ initial(u.Name) }</span>
+				<div class="me"><b>{ u.Name }</b><span>{ u.Email }</span></div>
+				<span class="gear">@Icon("chevron-down")</span>
+			</summary>
+			<div class="menu" role="menu">
+				<a href={ templ.SafeURL(sh.Base() + "/configuracoes") } role="menuitem">
+					@Icon("key")
+					<span>Configurações e chaves de API</span>
+				</a>
+				<form method="post" action="/sair">
+					<button type="submit" role="menuitem">
+						@Icon("log-out")
+						<span>Sair</span>
+					</button>
+				</form>
+			</div>
+		</details>
+	} else {
+		<div class="sidebar-foot">
+			<span class="avatar-sq">{ initial(sh.Owner) }</span>
+			<div class="me"><b>{ sh.Owner }</b><span>Owner · admin</span></div>
+			<span class="gear">@Icon("settings")</span>
+		</div>
+	}
 }

@@ -24,6 +24,17 @@ type ActivityEvent struct {
 	ReceivedAt  time.Time
 }
 
+type ApiKey struct {
+	ID         uuid.UUID
+	UserID     uuid.UUID
+	Name       string
+	Prefix     string
+	Hash       string
+	CreatedAt  time.Time
+	LastUsedAt *time.Time
+	RevokedAt  *time.Time
+}
+
 type BudgetAlert struct {
 	ID        uuid.UUID
 	CompanyID uuid.UUID
@@ -197,6 +208,17 @@ type RunEvent struct {
 	ReceivedAt time.Time
 }
 
+type Session struct {
+	ID         uuid.UUID
+	UserID     uuid.UUID
+	TokenHash  string
+	CreatedAt  time.Time
+	ExpiresAt  time.Time
+	LastSeenAt time.Time
+	UserAgent  string
+	Ip         string
+}
+
 type Task struct {
 	ID            uuid.UUID
 	CompanyID     uuid.UUID
@@ -226,6 +248,18 @@ type TaskComment struct {
 	Body       string
 	EventID    *string
 	CreatedAt  time.Time
+}
+
+type User struct {
+	ID           uuid.UUID
+	Email        string
+	Name         string
+	Provider     string
+	ExternalID   *string
+	PasswordHash *string
+	Role         string
+	CreatedAt    time.Time
+	LastLoginAt  *time.Time
 }
 
 type Workspace struct {

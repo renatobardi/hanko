@@ -149,7 +149,7 @@ func (s *server) handleCancelRun(w http.ResponseWriter, r *http.Request, co doma
 		s.fail(w, r, &co, domain.ErrNotFound)
 		return
 	}
-	if _, err := s.be.CancelRun(r.Context(), domain.HumanActor, co.ID, runID); err != nil {
+	if _, err := s.be.CancelRun(r.Context(), actorFrom(r.Context()), co.ID, runID); err != nil {
 		s.fail(w, r, &co, err)
 		return
 	}

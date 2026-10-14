@@ -129,7 +129,7 @@ func (s *server) handleHirePersona(w http.ResponseWriter, r *http.Request, co do
 		}
 		minutes = n
 	}
-	p, err := s.be.HirePersona(r.Context(), domain.HumanActor, co.ID, service.HirePersonaInput{
+	p, err := s.be.HirePersona(r.Context(), actorFrom(r.Context()), co.ID, service.HirePersonaInput{
 		Name: vm.Name, Slug: domain.Slugify(vm.Name), Title: vm.Title, Instructions: vm.Instructions,
 		Agent: vm.Agent, Model: vm.Model, HeartbeatIntervalSec: minutes * 60, ReportsTo: reportsTo, RequireReview: vm.RequireReview,
 	})
@@ -247,7 +247,7 @@ func (s *server) handlePersonaOrg(w http.ResponseWriter, r *http.Request, co dom
 		in.RequireReview = &rr
 	}
 	if in.ReportsTo != nil || in.ClearReportsTo || in.RequireReview != nil {
-		if _, err := s.be.UpdatePersona(ctx, domain.HumanActor, co.ID, p.ID, in); err != nil {
+		if _, err := s.be.UpdatePersona(ctx, actorFrom(ctx), co.ID, p.ID, in); err != nil {
 			s.fail(w, r, &co, err)
 			return
 		}
@@ -283,7 +283,7 @@ func (s *server) handlePersonaControl(to domain.PersonaStatus, notice string) co
 			s.fail(w, r, &co, fmt.Errorf("persona %q já está %s: %w", p.Name, p.Status, domain.ErrConflict))
 			return
 		}
-		if _, err := s.be.UpdatePersona(ctx, domain.HumanActor, co.ID, p.ID, service.UpdatePersonaInput{Status: &to}); err != nil {
+		if _, err := s.be.UpdatePersona(ctx, actorFrom(ctx), co.ID, p.ID, service.UpdatePersonaInput{Status: &to}); err != nil {
 			s.fail(w, r, &co, err)
 			return
 		}

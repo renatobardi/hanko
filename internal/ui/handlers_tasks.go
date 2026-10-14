@@ -169,7 +169,7 @@ func (s *server) buildTaskVM(r *http.Request, co domain.Company, t service.TaskV
 	if err != nil {
 		return views.TaskVM{}, err
 	}
-	names := newLookup(personas, nil)
+	names := s.lookup(r.Context(), personas, nil)
 	pending, err := s.be.ListGates(ctx, co.ID, service.GateFilter{TaskID: &t.ID, Statuses: []domain.GateStatus{domain.GatePending}, Limit: 20})
 	if err != nil {
 		return views.TaskVM{}, err
@@ -300,7 +300,7 @@ func (s *server) handleUpdateTask(w http.ResponseWriter, r *http.Request, co dom
 		}
 	}
 	if changed {
-		t, err = s.be.UpdateTask(ctx, domain.HumanActor, co.ID, t.ID, in)
+		t, err = s.be.UpdateTask(ctx, actorFrom(ctx), co.ID, t.ID, in)
 		if err != nil {
 			s.fail(w, r, &co, err)
 			return
@@ -331,7 +331,7 @@ func (s *server) handleComment(w http.ResponseWriter, r *http.Request, co domain
 		s.fail(w, r, &co, domain.Invalid("comentário", "escreva algo antes de enviar"))
 		return
 	}
-	if _, err := s.be.AddComment(ctx, domain.HumanActor, co.ID, t.ID, service.AddCommentInput{Body: body}); err != nil {
+	if _, err := s.be.AddComment(ctx, actorFrom(ctx), co.ID, t.ID, service.AddCommentInput{Body: body}); err != nil {
 		s.fail(w, r, &co, err)
 		return
 	}
@@ -354,7 +354,7 @@ func (s *server) handleWake(w http.ResponseWriter, r *http.Request, co domain.Co
 		s.fail(w, r, &co, err)
 		return
 	}
-	if err := s.be.WakeTask(r.Context(), domain.HumanActor, co.ID, t.ID); err != nil {
+	if err := s.be.WakeTask(r.Context(), actorFrom(r.Context()), co.ID, t.ID); err != nil {
 		s.fail(w, r, &co, err)
 		return
 	}
@@ -450,7 +450,7 @@ func (s *server) handleCreateTask(w http.ResponseWriter, r *http.Request, co dom
 		}
 		in.ProjectID = &id
 	}
-	t, err := s.be.CreateTask(r.Context(), domain.HumanActor, co.ID, in)
+	t, err := s.be.CreateTask(r.Context(), actorFrom(r.Context()), co.ID, in)
 	if err != nil {
 		_, title, msg := friendly(err)
 		vm.Error = title + ". " + msg

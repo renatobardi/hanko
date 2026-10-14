@@ -37,6 +37,8 @@ type Deps struct {
 	Version string
 	// Tokens habilita autenticação por run token (Bearer). Nil = só modo trusted.
 	Tokens *auth.RunTokens
+	// Authenticated é o modo authenticated: sem identidade do auth.Guard nem run token, 401.
+	Authenticated bool
 	// DB é usado pelo /readyz. Nil = sempre pronto.
 	DB Pinger
 	// CORSOrigins lista origens permitidas. Vazio = CORS desligado.
@@ -149,9 +151,13 @@ func config() huma.Config {
 	c.CreateHooks = nil // sem campo $schema nas respostas
 	c.Components.SecuritySchemes = map[string]*huma.SecurityScheme{
 		"runToken": {Type: "http", Scheme: "bearer", BearerFormat: "JWT",
-			Description: "Run token de uma execução. Sem header vale o modo trusted (humano local)."},
+			Description: "Run token de uma execução. Sem credencial vale o modo trusted (humano local)."},
+		"apiKey": {Type: "http", Scheme: "bearer", BearerFormat: "hk_…",
+			Description: "API key de usuário (hanko auth token create). Obrigatória fora de sessão no modo authenticated."},
+		"session": {Type: "apiKey", In: "cookie", Name: "hanko_session",
+			Description: "Cookie de sessão do navegador (modo authenticated); métodos que mudam estado exigem mesma origem."},
 	}
-	c.Security = []map[string][]string{{"runToken": {}}, {}}
+	c.Security = []map[string][]string{{"runToken": {}}, {"apiKey": {}}, {"session": {}}, {}}
 	return c
 }
 

@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"time"
@@ -15,10 +16,26 @@ import (
 type lookup struct {
 	personas map[domain.ID]domain.Persona
 	tasks    map[domain.ID]service.TaskView
+	users    map[domain.ID]domain.User
+}
+
+// lookup builds the name resolver for a request. Users are read only in authenticated mode.
+func (s *server) lookup(ctx context.Context, personas []domain.Persona, tasks []service.TaskView) lookup {
+	l := newLookup(personas, tasks)
+	if s.auth != nil {
+		if us, err := s.auth.be.ListUsers(ctx); err == nil {
+			for _, u := range us {
+				l.users[u.ID] = u
+			}
+		} else {
+			s.log.Warn("ui: listar usuários para nomes", "err", err)
+		}
+	}
+	return l
 }
 
 func newLookup(personas []domain.Persona, tasks []service.TaskView) lookup {
-	l := lookup{personas: map[domain.ID]domain.Persona{}, tasks: map[domain.ID]service.TaskView{}}
+	l := lookup{personas: map[domain.ID]domain.Persona{}, tasks: map[domain.ID]service.TaskView{}, users: map[domain.ID]domain.User{}}
 	for _, p := range personas {
 		l.personas[p.ID] = p
 	}
@@ -44,6 +61,12 @@ func (l lookup) actorName(a domain.Actor) string {
 		return l.personaName(a.ID)
 	case domain.ActorSystem:
 		return "Sistema"
+	}
+	if a.ID != nil {
+		if u, ok := l.users[*a.ID]; ok {
+			return u.DisplayName()
+		}
+		return "Usuário"
 	}
 	return ownerName
 }

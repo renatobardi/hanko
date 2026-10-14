@@ -95,11 +95,61 @@ secret: 0123456789abcdef0123456789abcdef
 			wantErr: "HANKO_MODE",
 		},
 		{
-			name: "authenticated avisa",
+			name: "authenticated válido (loopback http)",
 			env:  map[string]string{"HANKO_DATABASE_URL": db, "HANKO_MODE": "authenticated", "HANKO_SECRET": "0123456789abcdef0123456789abcdef"},
 			check: func(t *testing.T, c Config) {
-				if !hasWarn(c, "M5") {
-					t.Fatalf("faltou aviso M5: %v", c.Warnings)
+				if !c.Authenticated() || c.Auth.Provider != AuthLocal || c.SecureCookies() {
+					t.Fatalf("cfg inesperada: %+v", c.Auth)
+				}
+			},
+		},
+		{
+			name:    "authenticated exige secret",
+			env:     map[string]string{"HANKO_DATABASE_URL": db, "HANKO_MODE": "authenticated"},
+			wantErr: "HANKO_SECRET",
+		},
+		{
+			name:    "authenticated exige https fora de loopback",
+			env:     map[string]string{"HANKO_DATABASE_URL": db, "HANKO_MODE": "authenticated", "HANKO_SECRET": "0123456789abcdef0123456789abcdef", "HANKO_PUBLIC_URL": "http://hanko.exemplo.com"},
+			wantErr: "https",
+		},
+		{
+			name: "authenticated https ok",
+			env:  map[string]string{"HANKO_DATABASE_URL": db, "HANKO_MODE": "authenticated", "HANKO_SECRET": "0123456789abcdef0123456789abcdef", "HANKO_PUBLIC_URL": "https://hanko.exemplo.com/"},
+			check: func(t *testing.T, c Config) {
+				if !c.SecureCookies() || c.PublicURL != "https://hanko.exemplo.com" {
+					t.Fatalf("cfg inesperada: %q", c.PublicURL)
+				}
+			},
+		},
+		{
+			name:    "authenticated provider inválido",
+			env:     map[string]string{"HANKO_DATABASE_URL": db, "HANKO_MODE": "authenticated", "HANKO_SECRET": "0123456789abcdef0123456789abcdef", "HANKO_AUTH_PROVIDER": "ldap"},
+			wantErr: "HANKO_AUTH_PROVIDER",
+		},
+		{
+			name:    "firebase exige projeto, chave e domínio",
+			env:     map[string]string{"HANKO_DATABASE_URL": db, "HANKO_MODE": "authenticated", "HANKO_SECRET": "0123456789abcdef0123456789abcdef", "HANKO_AUTH_PROVIDER": "firebase"},
+			wantErr: "HANKO_FIREBASE_PROJECT_ID",
+		},
+		{
+			name: "firebase completo avisa sem lista de admissão",
+			env: map[string]string{"HANKO_DATABASE_URL": db, "HANKO_MODE": "authenticated", "HANKO_SECRET": "0123456789abcdef0123456789abcdef",
+				"HANKO_AUTH_PROVIDER": "firebase", "HANKO_FIREBASE_PROJECT_ID": "p", "HANKO_FIREBASE_API_KEY": "k", "HANKO_FIREBASE_AUTH_DOMAIN": "p.firebaseapp.com"},
+			check: func(t *testing.T, c Config) {
+				if !hasWarn(c, "primeiro usuário") {
+					t.Fatalf("faltou aviso de admissão: %v", c.Warnings)
+				}
+			},
+		},
+		{
+			name: "firebase com lista de admissão normaliza e não avisa",
+			env: map[string]string{"HANKO_DATABASE_URL": db, "HANKO_MODE": "authenticated", "HANKO_SECRET": "0123456789abcdef0123456789abcdef",
+				"HANKO_AUTH_PROVIDER": "Firebase", "HANKO_FIREBASE_PROJECT_ID": "p", "HANKO_FIREBASE_API_KEY": "k", "HANKO_FIREBASE_AUTH_DOMAIN": "p.firebaseapp.com",
+				"HANKO_AUTH_ALLOWED_EMAILS": " Ana@Exemplo.com , ", "HANKO_AUTH_ALLOWED_DOMAINS": "Exemplo.com"},
+			check: func(t *testing.T, c Config) {
+				if hasWarn(c, "primeiro usuário") || len(c.Auth.AllowedEmails) != 1 || c.Auth.AllowedEmails[0] != "ana@exemplo.com" || c.Auth.AllowedDomains[0] != "exemplo.com" {
+					t.Fatalf("cfg inesperada: %+v %v", c.Auth, c.Warnings)
 				}
 			},
 		},

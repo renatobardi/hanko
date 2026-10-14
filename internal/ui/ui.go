@@ -16,6 +16,7 @@ import (
 
 	"github.com/a-h/templ"
 
+	"github.com/renatobardi/hanko/internal/auth"
 	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/events"
 	"github.com/renatobardi/hanko/internal/service"
@@ -28,6 +29,8 @@ type Deps struct {
 	Broker  *events.Broker
 	Logger  *slog.Logger
 	Version string
+	// Auth enables sign-in, sessions and API keys (authenticated mode). Nil = trusted mode.
+	Auth *AuthDeps
 	// Now overrides the clock (tests, previews). Optional.
 	Now func() time.Time
 }
@@ -82,7 +85,7 @@ type Backend interface {
 
 var _ Backend = (*service.Service)(nil)
 
-// ownerName is how the (single, trusted) human owner is shown until v0.1 auth lands.
+// ownerName is how the local human is shown in trusted mode (no accounts).
 const ownerName = "Você"
 
 type server struct {
@@ -91,6 +94,7 @@ type server struct {
 	log     *slog.Logger
 	version string
 	now     func() time.Time
+	auth    *authState // nil in trusted mode
 	// sseTick is how often the SSE handler re-reads the database as a safety
 	// net for dropped broker messages.
 	sseTick time.Duration
@@ -119,6 +123,13 @@ func MountBackend(mux *http.ServeMux, be Backend, d Deps) {
 		now = func() time.Time { return time.Now().UTC() }
 	}
 	s := &server{be: be, broker: broker, log: log, version: d.Version, now: now, sseTick: 2 * time.Second}
+	if d.Auth != nil {
+		ab := d.Auth.Backend
+		if ab == nil {
+			ab = d.Svc
+		}
+		s.auth = newAuthState(*d.Auth, ab, now)
+	}
 	s.routes(mux)
 }
 
@@ -190,6 +201,11 @@ func (s *server) routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /c/{company}/gates/{gate}/decidir", post(co(s.handleDecideGate)))
 	mux.HandleFunc("GET /c/{company}/organograma", co(s.handleOrg))
 
+	mux.HandleFunc("GET /c/{company}/configuracoes", co(s.handleSettings))
+	mux.HandleFunc("POST /c/{company}/configuracoes/chaves", post(co(s.handleCreateKey)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/chaves/{key}/revogar", post(co(s.handleRevokeKey)))
+	s.authRoutes(mux)
+
 	mux.HandleFunc("GET /c/{company}/atividade", co(s.handleActivity))
 	mux.HandleFunc("GET /c/{company}/em-breve/{item}", co(s.handleSoon))
 }
@@ -242,7 +258,11 @@ func isHX(r *http.Request) bool {
 
 func (s *server) render(w http.ResponseWriter, r *http.Request, status int, c templ.Component) {
 	var buf bytes.Buffer
-	if err := c.Render(r.Context(), &buf); err != nil {
+	ctx := r.Context()
+	if id, ok := auth.IdentityFrom(ctx); ok {
+		ctx = views.WithUser(ctx, views.UserRef{Name: id.User.DisplayName(), Email: id.User.Email})
+	}
+	if err := c.Render(ctx, &buf); err != nil {
 		s.log.Error("ui render", "path", r.URL.Path, "err", err)
 		http.Error(w, "erro ao renderizar a página", http.StatusInternalServerError)
 		return
@@ -344,3 +364,12 @@ func (s *server) shell(co domain.Company, active, title string, crumbs ...views.
 }
 
 func trimForm(r *http.Request, key string) string { return strings.TrimSpace(r.PostFormValue(key)) }
+
+// actorFrom is the human actor of the request: the signed-in user in authenticated
+// mode, the anonymous local human in trusted mode.
+func actorFrom(ctx context.Context) domain.Actor {
+	if id, ok := auth.IdentityFrom(ctx); ok {
+		return id.User.Actor()
+	}
+	return domain.HumanActor
+}

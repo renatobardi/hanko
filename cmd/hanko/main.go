@@ -34,6 +34,13 @@ func main() {
 			return app.Migrate(ctx, cfg, version)
 		},
 		OpenAPI: api.Spec,
+		Auth: func(ctx context.Context) (cli.AuthAdmin, error) {
+			cfg, err := config.Load()
+			if err != nil {
+				return nil, err
+			}
+			return app.OpenAuthAdmin(ctx, cfg)
+		},
 	})
 	stop()
 	os.Exit(code)

@@ -27,7 +27,7 @@ func (s *server) handleActivity(w http.ResponseWriter, r *http.Request, co domai
 		s.fail(w, r, &co, err)
 		return
 	}
-	names := newLookup(personas, tasks)
+	names := s.lookup(r.Context(), personas, tasks)
 	loc := loadLoc(co.Timezone)
 	now := s.now()
 	base := "/c/" + co.Slug

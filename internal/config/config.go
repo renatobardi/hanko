@@ -25,6 +25,9 @@ const (
 	ModeTrusted       = "trusted"
 	ModeAuthenticated = "authenticated"
 
+	AuthLocal    = "local"
+	AuthFirebase = "firebase"
+
 	MemoryAIMemory = "ai-memory"
 	MemoryNone     = "none"
 
@@ -44,6 +47,22 @@ type Memory struct {
 	Token    string `yaml:"token" env:"HANKO_MEMORY_TOKEN"`
 }
 
+// Firebase configura o provider de auth firebase (ADR-0014). Os três valores são
+// públicos (vão para o navegador); não há credencial de serviço.
+type Firebase struct {
+	ProjectID  string `yaml:"project_id" env:"HANKO_FIREBASE_PROJECT_ID"`
+	APIKey     string `yaml:"api_key" env:"HANKO_FIREBASE_API_KEY"`
+	AuthDomain string `yaml:"auth_domain" env:"HANKO_FIREBASE_AUTH_DOMAIN"`
+}
+
+// Auth configura a autenticação de humanos (vale no modo authenticated).
+type Auth struct {
+	Provider       string   `yaml:"provider" env:"HANKO_AUTH_PROVIDER"` // local (default) | firebase
+	Firebase       Firebase `yaml:"firebase"`
+	AllowedEmails  []string `yaml:"allowed_emails" env:"HANKO_AUTH_ALLOWED_EMAILS" envSeparator:","`
+	AllowedDomains []string `yaml:"allowed_domains" env:"HANKO_AUTH_ALLOWED_DOMAINS" envSeparator:","`
+}
+
 // Config é a configuração completa do processo.
 type Config struct {
 	DatabaseURL       string        `yaml:"database_url" env:"HANKO_DATABASE_URL"`
@@ -53,6 +72,7 @@ type Config struct {
 	Secret            string        `yaml:"secret" env:"HANKO_SECRET"`
 	MigrateOnBoot     bool          `yaml:"migrate_on_boot" env:"HANKO_MIGRATE_ON_BOOT"`
 	Memory            Memory        `yaml:"memory"`
+	Auth              Auth          `yaml:"auth"`
 	ClaudeBin         string        `yaml:"claude_bin" env:"HANKO_CLAUDE_BIN"`
 	CodexBin          string        `yaml:"codex_bin" env:"HANKO_CODEX_BIN"`
 	Workers           int           `yaml:"workers" env:"HANKO_WORKERS"`
@@ -84,6 +104,7 @@ func Defaults() Config {
 		Mode:              ModeTrusted,
 		MigrateOnBoot:     true,
 		Memory:            Memory{Provider: MemoryAIMemory, URL: "http://127.0.0.1:49374"},
+		Auth:              Auth{Provider: AuthLocal},
 		ClaudeBin:         "claude",
 		CodexBin:          "codex",
 		Workers:           4,
@@ -142,6 +163,8 @@ func environFor(getenv func(string) string) map[string]string {
 		"HANKO_CLAUDE_BIN", "HANKO_CODEX_BIN", "HANKO_WORKERS", "HANKO_RUN_TIMEOUT",
 		"HANKO_HEARTBEAT_INTERVAL", "HANKO_LOG_LEVEL", "HANKO_LOG_FORMAT",
 		"HANKO_AGENT_ENV_ALLOW", "HANKO_ALLOWED_HOSTS", "HANKO_WORKSPACES_ROOT",
+		"HANKO_AUTH_PROVIDER", "HANKO_AUTH_ALLOWED_EMAILS", "HANKO_AUTH_ALLOWED_DOMAINS",
+		"HANKO_FIREBASE_PROJECT_ID", "HANKO_FIREBASE_API_KEY", "HANKO_FIREBASE_AUTH_DOMAIN",
 	}
 	m := make(map[string]string, len(keys))
 	for _, k := range keys {
@@ -155,6 +178,15 @@ func environFor(getenv func(string) string) map[string]string {
 func (c *Config) finalize() error {
 	c.Mode = strings.ToLower(strings.TrimSpace(c.Mode))
 	c.Memory.Provider = strings.ToLower(strings.TrimSpace(c.Memory.Provider))
+	c.Auth.Provider = strings.ToLower(strings.TrimSpace(c.Auth.Provider))
+	if c.Auth.Provider == "" {
+		c.Auth.Provider = AuthLocal
+	}
+	c.Auth.Firebase.ProjectID = strings.TrimSpace(c.Auth.Firebase.ProjectID)
+	c.Auth.Firebase.APIKey = strings.TrimSpace(c.Auth.Firebase.APIKey)
+	c.Auth.Firebase.AuthDomain = strings.TrimSpace(c.Auth.Firebase.AuthDomain)
+	c.Auth.AllowedEmails = lowerList(c.Auth.AllowedEmails)
+	c.Auth.AllowedDomains = lowerList(c.Auth.AllowedDomains)
 	c.LogLevel = strings.ToLower(strings.TrimSpace(c.LogLevel))
 	c.LogFormat = strings.ToLower(strings.TrimSpace(c.LogFormat))
 	c.Addr = strings.TrimSpace(c.Addr)
@@ -186,13 +218,9 @@ func (c *Config) finalize() error {
 		c.Warnings = append(c.Warnings,
 			"HANKO_SECRET não definido: gerado aleatoriamente neste boot; run tokens de runs em andamento não sobrevivem a restart")
 	}
-	if c.Mode == ModeAuthenticated {
+	if c.Mode == ModeAuthenticated && c.Auth.Provider == AuthFirebase && len(c.Auth.AllowedEmails)+len(c.Auth.AllowedDomains) == 0 {
 		c.Warnings = append(c.Warnings,
-			"modo authenticated ainda não está implementado (chega no M5): o servidor segue sem autenticação de humanos")
-		if !c.IsLoopback() {
-			c.Warnings = append(c.Warnings,
-				"modo authenticated com bind fora de loopback e sem autenticação implementada: exponha apenas atrás de proxy autenticado")
-		}
+			"auth firebase sem HANKO_AUTH_ALLOWED_EMAILS/HANKO_AUTH_ALLOWED_DOMAINS: só o primeiro usuário a entrar (dono) é admitido; os demais são recusados")
 	}
 	if c.Mode == ModeTrusted && !c.IsLoopback() {
 		c.Warnings = append(c.Warnings,
@@ -219,6 +247,9 @@ func (c Config) Validate() error {
 	}
 	if c.Mode != ModeTrusted && c.Mode != ModeAuthenticated {
 		add("HANKO_MODE %q inválido: use %q ou %q", c.Mode, ModeTrusted, ModeAuthenticated)
+	}
+	if c.Mode == ModeAuthenticated {
+		c.validateAuthenticated(add)
 	}
 	switch c.Memory.Provider {
 	case MemoryNone:
@@ -260,6 +291,39 @@ func (c Config) Validate() error {
 	return fmt.Errorf("configuração inválida: %w", errors.Join(errs...))
 }
 
+// validateAuthenticated aplica as exigências do modo authenticated (ADR-0007, ADR-0017).
+func (c Config) validateAuthenticated(add func(string, ...any)) {
+	if len(c.Secret) < MinSecretLen {
+		add("modo authenticated exige HANKO_SECRET com no mínimo %d bytes (ex.: openssl rand -hex 32)", MinSecretLen)
+	}
+	if u, err := url.Parse(c.PublicURL); err == nil && u.Host != "" && u.Scheme != "https" && !loopbackHost(u.Hostname()) {
+		add("modo authenticated exige HANKO_PUBLIC_URL https (recebido %q); http só vale em localhost/loopback", c.PublicURL)
+	}
+	switch c.Auth.Provider {
+	case AuthLocal:
+	case AuthFirebase:
+		if c.Auth.Firebase.ProjectID == "" || c.Auth.Firebase.APIKey == "" || c.Auth.Firebase.AuthDomain == "" {
+			add("HANKO_AUTH_PROVIDER=firebase exige HANKO_FIREBASE_PROJECT_ID, HANKO_FIREBASE_API_KEY e HANKO_FIREBASE_AUTH_DOMAIN")
+		}
+	default:
+		add("HANKO_AUTH_PROVIDER %q inválido: use %q ou %q", c.Auth.Provider, AuthLocal, AuthFirebase)
+	}
+}
+
+// Authenticated informa se o servidor exige login de humanos.
+func (c Config) Authenticated() bool { return c.Mode == ModeAuthenticated }
+
+// SecureCookies informa se os cookies devem levar o atributo Secure (PublicURL https).
+func (c Config) SecureCookies() bool { return strings.HasPrefix(c.PublicURL, "https://") }
+
+func loopbackHost(h string) bool {
+	if strings.EqualFold(h, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(h)
+	return ip != nil && ip.IsLoopback()
+}
+
 // IsLoopback informa se Addr escuta apenas em loopback.
 func (c Config) IsLoopback() bool {
 	host, _, err := net.SplitHostPort(c.Addr)
@@ -293,6 +357,15 @@ func cleanList(in []string) []string {
 		if v = strings.TrimSpace(v); v != "" {
 			out = append(out, v)
 		}
+	}
+	return out
+}
+
+// lowerList apara, descarta vazios e passa para minúsculas.
+func lowerList(in []string) []string {
+	var out []string
+	for _, v := range cleanList(in) {
+		out = append(out, strings.ToLower(v))
 	}
 	return out
 }

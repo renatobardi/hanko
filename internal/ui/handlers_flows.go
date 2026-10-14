@@ -194,7 +194,7 @@ func (s *server) handleCreateFlow(w http.ResponseWriter, r *http.Request, co dom
 		return
 	}
 	enabled := vm.Enabled
-	f, err := s.be.CreateFlow(r.Context(), domain.HumanActor, co.ID, service.CreateFlowInput{
+	f, err := s.be.CreateFlow(r.Context(), actorFrom(r.Context()), co.ID, service.CreateFlowInput{
 		Name: vm.Name, Description: vm.Description, Cron: vm.Cron, Timezone: vm.Timezone, Enabled: &enabled,
 		PersonaID: *persona, ProjectID: project, Priority: domain.Priority(trimForm(r, "priority")),
 		TaskTitle: vm.TaskTitle, TaskDescription: vm.TaskDescription,
@@ -323,7 +323,7 @@ func (s *server) handleUpdateFlow(w http.ResponseWriter, r *http.Request, co dom
 	} else {
 		in.ProjectID = project
 	}
-	up, err := s.be.UpdateFlow(ctx, domain.HumanActor, co.ID, f.ID, in)
+	up, err := s.be.UpdateFlow(ctx, actorFrom(ctx), co.ID, f.ID, in)
 	if err != nil {
 		bad(err)
 		return
@@ -341,7 +341,7 @@ func (s *server) handleFlowEnabled(on bool) companyHandler {
 			return
 		}
 		if f.Enabled != on {
-			if _, err := s.be.UpdateFlow(ctx, domain.HumanActor, co.ID, f.ID, service.UpdateFlowInput{Enabled: &on}); err != nil {
+			if _, err := s.be.UpdateFlow(ctx, actorFrom(ctx), co.ID, f.ID, service.UpdateFlowInput{Enabled: &on}); err != nil {
 				s.fail(w, r, &co, err)
 				return
 			}
@@ -365,7 +365,7 @@ func (s *server) handleRunFlow(w http.ResponseWriter, r *http.Request, co domain
 		s.fail(w, r, &co, err)
 		return
 	}
-	res, err := s.be.RunFlowNow(ctx, domain.HumanActor, co.ID, f.ID)
+	res, err := s.be.RunFlowNow(ctx, actorFrom(ctx), co.ID, f.ID)
 	if err != nil {
 		s.fail(w, r, &co, fmt.Errorf("rodar fluxo: %w", err))
 		return

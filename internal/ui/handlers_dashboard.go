@@ -44,7 +44,7 @@ func (s *server) handleDashboard(w http.ResponseWriter, r *http.Request, co doma
 	loc := loadLoc(co.Timezone)
 	now := s.now()
 	base := "/c/" + co.Slug
-	names := newLookup(personas, tasks)
+	names := s.lookup(r.Context(), personas, tasks)
 
 	vm := views.DashboardVM{
 		ActivePersonas:  stats.ActivePersonas,

@@ -43,6 +43,7 @@ type Deps struct {
 	Logger  *slog.Logger
 	Version string
 	// Trusted permite chamadas sem token (loopback): ator humano, empresa por argumento.
+	// No modo authenticated é false: só run token ou API key (via auth.Guard).
 	Trusted bool
 }
 
@@ -121,6 +122,10 @@ func runStatus(b interface {
 }
 
 func authenticate(r *http.Request, d Deps, b Backend) (identity, error) {
+	// API key de usuário já validada pelo auth.Guard (modo authenticated): ator humano com o ID do usuário.
+	if uid, ok := auth.IdentityFrom(r.Context()); ok && uid.Via == auth.ViaAPIKey {
+		return identity{Actor: uid.User.Actor()}, nil
+	}
 	h := strings.TrimSpace(r.Header.Get("Authorization"))
 	if h == "" {
 		if d.Trusted {

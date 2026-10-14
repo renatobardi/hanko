@@ -732,3 +732,39 @@ table.table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .pb-table tr.b-exceeded td:first-child b, .pb-table tr.b-exceeded .meter-note { color: var(--danger-deep); }
 .chip.soft { white-space: nowrap; }
 @media (max-width: 640px) { .flows-table .row-acts .btn { padding: 0 10px; } }
+
+/* ---------- auth (M5) ---------- */
+.auth .lbl-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.auth .lbl-row label { font-size: 13px; font-weight: 500; }
+button.link { background: none; border: 0; padding: 0; font: inherit; font-size: 12.5px; color: var(--ink-soft); cursor: pointer; }
+button.link:hover { color: var(--ink); }
+.auth .foot button.link { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; }
+.auth .or { display: flex; align-items: center; gap: 12px; margin: 16px 0; color: var(--ink-soft); font-size: 12px; }
+.auth .or::before, .auth .or::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.auth .alert { margin-top: 0; }
+.auth #fb-msg:empty { display: none; }
+
+.usermenu { position: relative; border-top: 1px solid var(--line); }
+.usermenu > summary { list-style: none; cursor: pointer; border-top: 0; }
+.usermenu > summary::-webkit-details-marker { display: none; }
+.usermenu > summary:hover { background: var(--surface-recessed); }
+.usermenu[open] > summary .gear svg { transform: rotate(180deg); }
+.usermenu .menu {
+  position: absolute; left: 10px; right: 10px; bottom: calc(100% + 6px); z-index: 20;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.12); padding: 4px; display: grid; gap: 2px;
+}
+.usermenu .menu a, .usermenu .menu button {
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 10px; border: 0; background: none;
+  border-radius: var(--r-sm); font: inherit; font-size: 13px; color: var(--ink); cursor: pointer; text-align: left;
+}
+.usermenu .menu a:hover, .usermenu .menu button:hover { background: var(--surface-recessed); }
+.usermenu .menu svg.ic { color: var(--ink-soft); }
+.sidebar-foot .me span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+
+dl.kv { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 8px 16px; margin-top: 14px; font-size: 13.5px; }
+dl.kv dt { color: var(--ink-soft); }
+dl.kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.inline-form { display: flex; gap: 10px; flex-wrap: wrap; }
+.inline-form .input { flex: 1 1 220px; }
+.keybox { margin-top: 8px; padding: 8px 10px; background: var(--surface); border-radius: var(--r-sm); font-size: 12.5px; user-select: all; overflow-wrap: anywhere; color: var(--ink); }

@@ -39,7 +39,7 @@ func (s *server) handleInbox(w http.ResponseWriter, r *http.Request, co domain.C
 		s.fail(w, r, &co, err)
 		return
 	}
-	names := newLookup(personas, nil)
+	names := s.lookup(r.Context(), personas, nil)
 	base := "/c/" + co.Slug
 	loc, now := loadLoc(co.Timezone), s.now()
 
@@ -128,7 +128,7 @@ func (s *server) handleInboxUnblock(w http.ResponseWriter, r *http.Request, co d
 		return
 	}
 	st := domain.TaskTodo
-	if _, err := s.be.UpdateTask(r.Context(), domain.HumanActor, co.ID, id, service.UpdateTaskInput{Status: &st}); err != nil {
+	if _, err := s.be.UpdateTask(r.Context(), actorFrom(r.Context()), co.ID, id, service.UpdateTaskInput{Status: &st}); err != nil {
 		s.fail(w, r, &co, err)
 		return
 	}
@@ -142,7 +142,7 @@ func (s *server) handleInboxWake(w http.ResponseWriter, r *http.Request, co doma
 		s.fail(w, r, &co, domain.ErrNotFound)
 		return
 	}
-	if err := s.be.WakeTask(r.Context(), domain.HumanActor, co.ID, id); err != nil {
+	if err := s.be.WakeTask(r.Context(), actorFrom(r.Context()), co.ID, id); err != nil {
 		s.fail(w, r, &co, err)
 		return
 	}
@@ -161,7 +161,7 @@ func (s *server) handleInboxReactivate(w http.ResponseWriter, r *http.Request, c
 		return
 	}
 	to := domain.PersonaActive
-	if _, err := s.be.UpdatePersona(r.Context(), domain.HumanActor, co.ID, p.ID, service.UpdatePersonaInput{Status: &to}); err != nil {
+	if _, err := s.be.UpdatePersona(r.Context(), actorFrom(r.Context()), co.ID, p.ID, service.UpdatePersonaInput{Status: &to}); err != nil {
 		s.fail(w, r, &co, err)
 		return
 	}

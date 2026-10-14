@@ -260,7 +260,7 @@ func (s *server) handleSetCompanyBudget(w http.ResponseWriter, r *http.Request, 
 		s.fail(w, r, &co, err)
 		return
 	}
-	if _, err := s.be.SetCompanyBudget(r.Context(), domain.HumanActor, co.ID, cents); err != nil {
+	if _, err := s.be.SetCompanyBudget(r.Context(), actorFrom(r.Context()), co.ID, cents); err != nil {
 		s.fail(w, r, &co, err)
 		return
 	}
@@ -280,7 +280,7 @@ func (s *server) handleSetPersonaBudget(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 	in := service.UpdatePersonaInput{BudgetMonthlyCents: cents, ClearBudget: cents == nil}
-	if _, err := s.be.UpdatePersona(ctx, domain.HumanActor, co.ID, p.ID, in); err != nil {
+	if _, err := s.be.UpdatePersona(ctx, actorFrom(ctx), co.ID, p.ID, in); err != nil {
 		s.fail(w, r, &co, err)
 		return
 	}

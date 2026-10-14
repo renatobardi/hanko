@@ -155,7 +155,7 @@ func (s *server) handleGates(w http.ResponseWriter, r *http.Request, co domain.C
 		s.fail(w, r, &co, err)
 		return
 	}
-	names := newLookup(personas, nil)
+	names := s.lookup(r.Context(), personas, nil)
 	base := "/c/" + co.Slug
 	loc, now := loadLoc(co.Timezone), s.now()
 
@@ -241,7 +241,7 @@ func (s *server) handleGate(w http.ResponseWriter, r *http.Request, co domain.Co
 	base := "/c/" + co.Slug
 	loc, now := loadLoc(co.Timezone), s.now()
 	vm := views.GateVM{
-		Row:     gateRow(g, base, now, loc, newLookup(personas, nil)),
+		Row:     gateRow(g, base, now, loc, s.lookup(r.Context(), personas, nil)),
 		Body:    renderMD(g.Body),
 		HasBody: strings.TrimSpace(g.Body) != "",
 		Created: fmtDateTime(g.CreatedAt, loc),
@@ -275,7 +275,7 @@ func (s *server) handleDecideGate(w http.ResponseWriter, r *http.Request, co dom
 		s.fail(w, r, &co, domain.Invalid("nota", "explique o que precisa mudar"))
 		return
 	}
-	g, err := s.be.DecideGate(r.Context(), domain.HumanActor, co.ID, id, service.DecideGateInput{Decision: decision, Note: note})
+	g, err := s.be.DecideGate(r.Context(), actorFrom(r.Context()), co.ID, id, service.DecideGateInput{Decision: decision, Note: note})
 	if err != nil {
 		s.fail(w, r, &co, err)
 		return
@@ -321,7 +321,7 @@ func (s *server) handleDecisions(w http.ResponseWriter, r *http.Request, co doma
 		s.fail(w, r, &co, err)
 		return
 	}
-	names := newLookup(personas, nil)
+	names := s.lookup(r.Context(), personas, nil)
 	base := "/c/" + co.Slug
 	loc, now := loadLoc(co.Timezone), s.now()
 	cur := decisionTabs[0]

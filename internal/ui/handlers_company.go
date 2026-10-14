@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/service"
 	"github.com/renatobardi/hanko/internal/ui/views"
 )
@@ -33,7 +32,7 @@ func (s *server) handleCreateCompany(w http.ResponseWriter, r *http.Request) {
 		s.render(w, r, http.StatusUnprocessableEntity, views.OnboardingPage(vm, s.version))
 		return
 	}
-	co, err := s.be.CreateCompany(r.Context(), domain.HumanActor, service.CreateCompanyInput{Name: vm.Name, TaskPrefix: vm.TaskPrefix})
+	co, err := s.be.CreateCompany(r.Context(), actorFrom(r.Context()), service.CreateCompanyInput{Name: vm.Name, TaskPrefix: vm.TaskPrefix})
 	if err != nil {
 		_, title, msg := friendly(err)
 		vm.Error = title + ". " + msg

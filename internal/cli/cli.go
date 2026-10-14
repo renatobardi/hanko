@@ -25,6 +25,8 @@ type Runtime struct {
 	Migrate func(ctx context.Context) error
 	// OpenAPI gera a spec; nil usa api.Spec.
 	OpenAPI func() ([]byte, error)
+	// Auth abre o acesso direto ao banco para `hanko auth …` (usuários e API keys).
+	Auth func(ctx context.Context) (AuthAdmin, error)
 }
 
 // Exit codes.
@@ -115,12 +117,12 @@ func (e *env) root() *cobra.Command {
 	f := root.PersistentFlags()
 	f.StringVar(&e.url, "url", def("HANKO_URL", client.DefaultURL), "URL do servidor Hanko (HANKO_URL)")
 	f.StringVarP(&e.company, "company", "c", def("HANKO_COMPANY", ""), "empresa: id ou slug (HANKO_COMPANY)")
-	f.StringVar(&e.token, "token", def("HANKO_TOKEN", ""), "run token opcional (HANKO_TOKEN)")
+	f.StringVar(&e.token, "token", def("HANKO_TOKEN", ""), "credencial opcional: API key hk_… (modo authenticated) ou run token (HANKO_TOKEN)")
 	f.BoolVar(&e.asJSON, "json", false, "saída em JSON")
 
 	root.AddCommand(e.serveCmd(), e.migrateCmd(), e.versionCmd(), e.openapiCmd(),
 		e.companyCmd(), e.workspaceCmd(), e.projectCmd(), e.personaCmd(), e.taskCmd(), e.runCmd(), e.gateCmd(), e.orgCmd(),
-		e.costCmd(), e.budgetCmd(), e.flowCmd())
+		e.costCmd(), e.budgetCmd(), e.flowCmd(), e.authCmd())
 	return root
 }
 

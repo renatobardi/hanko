@@ -521,3 +521,49 @@ type FlowVM struct {
 	Error      string
 	Fired      int
 }
+
+// ---- auth ----
+
+// FirebaseWeb is the public Firebase web configuration handed to the browser.
+type FirebaseWeb struct {
+	APIKey     string
+	AuthDomain string
+	ProjectID  string
+}
+
+// LoginVM drives the sign-in page. Provider is "local" or "firebase".
+type LoginVM struct {
+	Provider string
+	Next     string
+	Email    string
+	Name     string
+	Error    string
+	Notice   string
+	// FirstRun: no users yet. Local provider shows "Criar conta de dono".
+	FirstRun bool
+	Firebase *FirebaseWeb
+	Version  string
+}
+
+// APIKeyRow is one API key in the settings table.
+type APIKeyRow struct {
+	ID       string
+	Name     string
+	Prefix   string
+	Created  string
+	LastUsed string
+	Revoked  bool
+}
+
+// SettingsVM drives the account/API keys page.
+type SettingsVM struct {
+	Authenticated bool
+	Name, Email   string
+	Provider      string
+	Role          string
+	Keys          []APIKeyRow
+	// NewKey is shown once, right after creation.
+	NewKey  string
+	KeyName string
+	Error   string
+}

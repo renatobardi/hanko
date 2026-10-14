@@ -27,3 +27,6 @@ func (e *ValidationError) Error() string { return e.Field + ": " + e.Reason }
 func (e *ValidationError) Unwrap() error { return ErrInvalid }
 
 func Invalid(field, reason string) error { return &ValidationError{Field: field, Reason: reason} }
+
+// ErrUnauthenticated: credencial ausente, inválida, expirada ou revogada (sessão, API key).
+var ErrUnauthenticated = errors.New("unauthenticated")

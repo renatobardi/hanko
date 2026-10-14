@@ -136,7 +136,7 @@ func (s *server) middleware(next http.Handler) http.Handler {
 			p, err := s.authenticate(r)
 			if err != nil {
 				if errors.Is(err, auth.ErrBadToken) {
-					writeProblem(sw, problem(http.StatusUnauthorized, "token inválido, expirado ou de run encerrado"))
+					writeProblem(sw, problem(http.StatusUnauthorized, "credencial ausente, inválida, expirada ou de run encerrado"))
 				} else {
 					s.log.ErrorContext(ctx, "api: autenticação falhou", "err", err, "request_id", id)
 					writeProblem(sw, problem(http.StatusServiceUnavailable, "autenticação indisponível"))
@@ -149,12 +149,20 @@ func (s *server) middleware(next http.Handler) http.Handler {
 	})
 }
 
-// authenticate resolve o ator. Sem header vale o modo trusted (humano local). Com
+// authenticate resolve o ator. Com identidade do Guard (modo authenticated) o ator é o
+// usuário. Sem header vale o modo trusted (humano local); em authenticated, é 401. Com
 // header Authorization, o Bearer precisa ser um run token válido de um run ativo;
 // sem Tokens configurado, qualquer Authorization é rejeitado (nunca ignorado).
 func (s *server) authenticate(r *http.Request) (principal, error) {
+	// Usuário já resolvido pelo auth.Guard (sessão ou API key): ator humano com o ID dele.
+	if id, ok := auth.IdentityFrom(r.Context()); ok {
+		return principal{Actor: id.User.Actor()}, nil
+	}
 	h := r.Header.Get("Authorization")
 	if h == "" {
+		if s.d.Authenticated {
+			return principal{}, auth.ErrBadToken
+		}
 		return principal{Actor: domain.HumanActor}, nil
 	}
 	if s.d.Tokens == nil || s.svc == nil {
