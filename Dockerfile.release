@@ -1,0 +1,7 @@
+# Usado pelo goreleaser: o binário já vem compilado no contexto.
+FROM gcr.io/distroless/static-debian12:nonroot
+COPY hanko /hanko
+USER nonroot
+EXPOSE 7420
+ENV HANKO_ADDR=0.0.0.0:7420
+ENTRYPOINT ["/hanko","serve"]

@@ -1,0 +1,65 @@
+version: 2
+project_name: hanko
+
+before:
+  hooks:
+    - go mod download
+
+builds:
+  - id: hanko
+    main: ./cmd/hanko
+    binary: hanko
+    env: [CGO_ENABLED=0]
+    goos: [linux, darwin]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+
+archives:
+  - id: default
+    formats: [tar.gz]
+    name_template: "hanko_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files: [LICENSE, README.md, hanko.example.yaml]
+
+checksum:
+  name_template: checksums.txt
+
+sboms:
+  - artifacts: archive # requer syft no PATH (ver release.yml)
+
+dockers:
+  - id: amd64
+    goos: linux
+    goarch: amd64
+    dockerfile: Dockerfile.release
+    use: buildx
+    image_templates:
+      - "ghcr.io/renatobardi/hanko:{{ .Version }}-amd64"
+    build_flag_templates: ["--platform=linux/amd64", "--label=org.opencontainers.image.source=https://github.com/renatobardi/hanko"]
+  - id: arm64
+    goos: linux
+    goarch: arm64
+    dockerfile: Dockerfile.release
+    use: buildx
+    image_templates:
+      - "ghcr.io/renatobardi/hanko:{{ .Version }}-arm64"
+    build_flag_templates: ["--platform=linux/arm64", "--label=org.opencontainers.image.source=https://github.com/renatobardi/hanko"]
+
+docker_manifests:
+  - name_template: "ghcr.io/renatobardi/hanko:{{ .Version }}"
+    image_templates:
+      - "ghcr.io/renatobardi/hanko:{{ .Version }}-amd64"
+      - "ghcr.io/renatobardi/hanko:{{ .Version }}-arm64"
+  - name_template: "ghcr.io/renatobardi/hanko:latest"
+    image_templates:
+      - "ghcr.io/renatobardi/hanko:{{ .Version }}-amd64"
+      - "ghcr.io/renatobardi/hanko:{{ .Version }}-arm64"
+
+changelog:
+  sort: asc
+  filters:
+    exclude: ["^docs:", "^test:", "^style:"]
+
+release:
+  prerelease: auto

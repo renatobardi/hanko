@@ -1,0 +1,15 @@
+# TLS automático para o domínio de HANKO_DOMAIN (profile "edge" do compose).
+{$HANKO_DOMAIN} {
+	encode zstd gzip
+
+	# flush_interval -1: SSE (logs de run ao vivo) não pode ser bufferizado.
+	reverse_proxy hanko:7420 {
+		flush_interval -1
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+	}
+}

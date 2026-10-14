@@ -1,0 +1,179 @@
+//go:build wiring
+
+// ATENÇÃO (orquestrador): este arquivo é a montagem final do processo contra as
+// assinaturas de docs/CONTRACT-M1M2.md ("Construtores"). Ele usa pacotes de outras
+// trilhas (heartbeat, api, ui, mcp, memory/aimemory, adapter/claude|codex|fake) que
+// não existem no worktree da trilha F, por isso está sob a build tag `wiring`.
+// Ao mesclar as trilhas: remova a linha `//go:build wiring` deste arquivo, apague
+// app_stub.go, rode `gorun build ./...` e ajuste eventuais diferenças de assinatura.
+package app
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"net"
+	"net/http"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+
+	"github.com/renatobardi/hanko/internal/adapter"
+	"github.com/renatobardi/hanko/internal/adapter/claude"
+	"github.com/renatobardi/hanko/internal/adapter/codex"
+	"github.com/renatobardi/hanko/internal/adapter/fake"
+	"github.com/renatobardi/hanko/internal/api"
+	"github.com/renatobardi/hanko/internal/auth"
+	"github.com/renatobardi/hanko/internal/config"
+	"github.com/renatobardi/hanko/internal/db"
+	"github.com/renatobardi/hanko/internal/events"
+	"github.com/renatobardi/hanko/internal/heartbeat"
+	"github.com/renatobardi/hanko/internal/mcp"
+	"github.com/renatobardi/hanko/internal/memory"
+	"github.com/renatobardi/hanko/internal/memory/aimemory"
+	"github.com/renatobardi/hanko/internal/service"
+	"github.com/renatobardi/hanko/internal/telemetry"
+	"github.com/renatobardi/hanko/internal/ui"
+)
+
+const serviceName = "hanko"
+
+// Serve sobe o Hanko e bloqueia até ctx ser cancelado (SIGINT/SIGTERM no cmd),
+// encerrando na ordem inversa da montagem, em até ShutdownGrace.
+func Serve(ctx context.Context, cfg config.Config, version string) error {
+	tel, logger, err := setupTelemetry(ctx, cfg, version)
+	if err != nil {
+		return err
+	}
+	defer shutdownTelemetry(tel)
+
+	pool, err := db.Open(ctx, cfg.DatabaseURL, logger)
+	if err != nil {
+		return err
+	}
+	defer pool.Close()
+
+	if cfg.MigrateOnBoot {
+		if err := db.Migrate(ctx, pool, logger, migrateOptions()); err != nil {
+			return err
+		}
+	} else {
+		logger.Info("migrations no boot desligadas (HANKO_MIGRATE_ON_BOOT=false)")
+	}
+
+	broker := events.NewBroker()
+	hb, err := heartbeat.New(pool, heartbeat.Options{
+		Workers:          cfg.Workers,
+		PublicURL:        cfg.PublicURL,
+		RunTimeout:       cfg.RunTimeout,
+		PeriodicInterval: cfg.HeartbeatInterval,
+		Logger:           logger,
+	})
+	if err != nil {
+		return fmt.Errorf("app: heartbeat: %w", err)
+	}
+	svc := service.New(pool, hb, broker)
+
+	mem := newMemory(ctx, cfg, logger)
+	reg := adapter.Registry{
+		"claude": claude.New(claude.Options{Bin: cfg.ClaudeBin, Logger: logger}),
+		"codex":  codex.New(codex.Options{Bin: cfg.CodexBin, Logger: logger}),
+		"fake":   fake.New(fake.Options{Logger: logger}),
+	}
+	tokens := auth.RunTokens{Secret: []byte(cfg.Secret), TTL: cfg.RunTimeout + 5*time.Minute}
+	hb.Attach(svc, reg, mem, broker, tokens)
+
+	mux := http.NewServeMux()
+	api.Mount(mux, api.Deps{Svc: svc, Broker: broker, Logger: logger, Version: version})
+	ui.Mount(mux, ui.Deps{Svc: svc, Broker: broker, Logger: logger, Version: version})
+	mux.Handle("/mcp", mcp.Handler(mcp.Deps{Svc: svc, Tokens: tokens, Logger: logger, Version: version, Trusted: cfg.TrustedMCP()}))
+	mux.Handle("GET /metrics", tel.MetricsHandler())
+
+	handler := otelhttp.NewHandler(mux, serviceName,
+		otelhttp.WithFilter(traceRequest),
+		otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string { return r.Method + " " + r.URL.Path }),
+	)
+	srv := newHTTPServer(cfg.Addr, handler, logger)
+
+	var hbStarted bool
+	err = serve(ctx, srv, ShutdownGrace, logger, func(_ net.Addr) error {
+		if err := hb.Start(ctx); err != nil {
+			return fmt.Errorf("app: iniciar heartbeat: %w", err)
+		}
+		hbStarted = true
+		logger.Info("hanko pronto", "version", version, "public_url", cfg.PublicURL, "mode", cfg.Mode, "memory", mem.Name(), "workers", cfg.Workers)
+		return nil
+	})
+
+	if hbStarted {
+		sctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), ShutdownGrace)
+		defer cancel()
+		if herr := hb.Stop(sctx); herr != nil {
+			err = errors.Join(err, fmt.Errorf("app: parar heartbeat: %w", herr))
+		}
+	}
+	return err
+}
+
+// Migrate aplica goose + river e termina (comando `hanko migrate`).
+func Migrate(ctx context.Context, cfg config.Config, version string) error {
+	tel, logger, err := setupTelemetry(ctx, cfg, version)
+	if err != nil {
+		return err
+	}
+	defer shutdownTelemetry(tel)
+
+	pool, err := db.Open(ctx, cfg.DatabaseURL, logger)
+	if err != nil {
+		return err
+	}
+	defer pool.Close()
+	if err := db.Migrate(ctx, pool, logger, migrateOptions()); err != nil {
+		return err
+	}
+	logger.Info("migrations concluídas")
+	return nil
+}
+
+func migrateOptions() db.MigrateOptions {
+	return db.MigrateOptions{Extra: []func(context.Context, *pgxpool.Pool) error{heartbeat.Migrate}}
+}
+
+func setupTelemetry(ctx context.Context, cfg config.Config, version string) (*telemetry.Telemetry, *slog.Logger, error) {
+	tel, err := telemetry.Setup(ctx, telemetry.Options{
+		ServiceName: serviceName, Version: version, LogLevel: cfg.LogLevel, LogFormat: cfg.LogFormat,
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("app: telemetria: %w", err)
+	}
+	for _, w := range cfg.Warnings {
+		tel.Logger.Warn(w)
+	}
+	return tel, tel.Logger, nil
+}
+
+func shutdownTelemetry(tel *telemetry.Telemetry) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_ = tel.Shutdown(ctx) // collector fora nunca vira erro do processo
+}
+
+// newMemory escolhe o provedor (ADR-0015). Ping no boot só avisa: o Hanko degrada sem memória.
+func newMemory(ctx context.Context, cfg config.Config, logger *slog.Logger) memory.Provider {
+	if cfg.Memory.Provider != config.MemoryAIMemory {
+		logger.Info("memória desligada (HANKO_MEMORY_PROVIDER=none)")
+		return memory.Noop{}
+	}
+	p := aimemory.New(aimemory.Options{URL: cfg.Memory.URL, Token: cfg.Memory.Token, Logger: logger})
+	go func() {
+		pctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		defer cancel()
+		if err := p.Ping(pctx); err != nil {
+			logger.Warn("ai-memory indisponível no boot; runs abrem sem briefing e fatos ficam no outbox até voltar",
+				"url", cfg.Memory.URL, "error", err.Error())
+		}
+	}()
+	return p
+}

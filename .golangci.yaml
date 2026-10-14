@@ -1,0 +1,38 @@
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  default: standard # errcheck, govet, ineffassign, staticcheck, unused
+  enable:
+    - gosec
+    - revive
+  settings:
+    revive:
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: dot-imports
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: increment-decrement
+        - name: var-declaration
+        - name: indent-error-flow
+        - name: errorf
+        - name: empty-block
+        - name: unreachable-code
+    gosec:
+      excludes:
+        - G104 # coberto pelo errcheck
+  exclusions:
+    generated: lax
+    paths:
+      - internal/store/gen
+      - ".*_templ\\.go$"
+    rules:
+      - path: _test\.go
+        linters: [gosec, errcheck]
