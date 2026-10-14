@@ -1,8 +1,8 @@
-bin/
-dist/
 *.test
-coverage.out
 .env
-ui/islands/node_modules/
-internal/ui/static/js/islands/
 .fuse_hidden*
+bin/
+coverage.out
+dist/
+internal/ui/static/js/islands/
+ui/islands/node_modules/

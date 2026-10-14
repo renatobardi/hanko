@@ -9,3 +9,6 @@ PostgreSQL 17. Sem camada de abstração "pra trocar depois".
 
 ## Consequências
 Infra chata por design. Novidade vai no domínio.
+
+## Revisão 2026-10-13 (ADR-0015)
+Postgres é a única dependência **obrigatória**. ai-memory vem ligado por padrão como dependência **degradável**: indisponível, o Hanko funciona e a outbox drena depois.

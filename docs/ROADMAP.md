@@ -1,30 +1,23 @@
-# Roadmap v0.1 — "Núcleo completo"
+# Roadmap v0.1
 
-**Premissa: ≥20 h/semana + 3 trilhas paralelas de agentes por milestone. NÃO CONFIRMADA.** Abaixo de 20 h, cada milestone dobra (volta ao plano de 12 semanas).
-Cadência (ADR-0009): milestones curtos, demo gravada ao fim de cada, tag `v0.1.0-mN`. Checkpoint de demo toda semana, mesmo no meio de um milestone.
+**Capacidade declarada: 60 h/semana (40 h dias úteis + 20 h fim de semana).** Meta: **6 semanas** (5 de entrega + 1 de folga). Gargalo deixa de ser hora de código e passa a ser o gate humano (revisão, decisão, demo) — por isso a folga.
 
-## Alavancas de velocidade (ADR-0009, revisão 2026-10-13)
-1. **Contrato antes de código** — cada milestone abre com migrations + tipos de domínio + OpenAPI (1 sessão). Só então 3 trilhas paralelas (agentes) implementam contra o contrato.
-2. **Incremento visível por sessão** — toda sessão termina com algo executável + commit. Zero sessões "só refatorando". (`AGENTS.md`)
-3. **MCP server sai do M1** — CLI já dá controle; MCP entra no M2 junto com o dogfood.
-4. **Demo semanal** — não só no fim do milestone.
-5. **Qualidade onde importa** — ≥70% de cobertura só em `domain` e `heartbeat`; resto best-effort até v0.1.
+Alavancas (ADR-0009): contrato antes de código → 3 trilhas paralelas de agentes; incremento executável + commit por sessão (`AGENTS.md`); demo semanal; ≥70% cobertura só em domain/heartbeat.
 
 Regras de parada:
-- Milestone estoura 2x → corta escopo. Nunca estica prazo.
-- M1 não roda em 1 semana (2 com <20 h) → para tudo e reavalia o projeto.
-- Checkpoint pós-M2: UI consumindo >50% das horas → reavalia ADR-0005.
+- Milestone estoura 2x → corta escopo, nunca estica prazo.
+- M1 não roda na semana 1 → para e reavalia.
+- Pós-M2: UI >50% das horas → reavalia ADR-0005.
+- Duas semanas seguidas abaixo de 40 h reais → replaneja para 8 semanas (não força ritmo).
 
-| M | Semana | Entregável | Demo (critério de pronto) |
+| M | Semana | Entregável | Demo |
 |---|---|---|---|
-| M1 | 1 | Loop mínimo: company, agent (adapter `cli`), issue, heartbeat (river), run, log SSE, comentário do agente. API huma + CLI. OTel ligado desde o 1º request. Zero UI. Trilhas: (a) schema+sqlc+domain, (b) heartbeat+adapter cli, (c) API+CLI. | `hanko serve` → `hanko agent hire` → criar issue → agente executa → log ao vivo → comenta na issue. Trace do run visível no Grafana. |
-| M2 | 2–3 | UI host (board, issue + thread, run log ao vivo, hire, settings) + MCP server. | Mesmo fluxo pelo browser. **Dogfood: Hanko constrói Hanko a partir daqui.** |
-| M3 | 4–5 | Org chart (reports_to, delegação, checkout atômico) + approvals (gate + audit trail). | Agente delega sub-issue; humano aprova/recusa; trilha auditável. |
-| M4 | 6 | Budget/cost ledger por run/agent/company; hard stop. | Agente estoura budget → run bloqueado → alerta. |
-| M5 | 7 | Routines (river periodic). | Rotina diária cria issue e dispara agente sozinha. |
-| M6 | 8 | Auth `firebase` (Google + email/senha) em hanko.oute.pro e `local` no self-host; deploy `hanko-prd` com LGTM; docs; en; `v0.1.0`. | hanko.oute.pro no ar com login Google. |
+| M1 | 1 | Contrato (migrations com vocabulário ADR-0016 + `event_id`, `occurred_at/received_at`, `actor_type`, `memory_outbox`) → company, persona (adapter `cli`), task, heartbeat (river), run, log SSE, comentário. API huma + CLI. OTel do 1º request. | `hanko serve` → contratar persona → criar task → run → log ao vivo → comentário. Trace no Grafana. |
+| M2 | 2 | UI host (Kubo DS): painel, tasks/board, task + thread, execuções ao vivo, contratar persona. MCP server. **ai-memory ligado**: personas (MCP+hooks) e Hanko (outbox + briefing no despacho). | Run 2 no mesmo workspace recebe handoff do run 1. Dogfood começa. |
+| M3 | 3 | Organograma (reports_to, delegação, checkout atômico) + Gates (audit trail, Caixa de entrada/Decisões). | Persona delega; humano decide gate; decisão vira memória. |
+| M4 | 4 | Custos e orçamentos (ledger, hard stop, assinaturas) + Fluxos (river periodic). | Orçamento estoura → run bloqueado. Fluxo diário cria task sozinho. |
+| M5 | 5 | Auth firebase/local, deploy `hanko-prd` (pg17 + ai-memory + LGTM + caddy), docs, en, `v0.1.0`. | hanko.oute.pro com login Google. |
+| — | 6 | Folga: estouro, bugs do dogfood, polish. | — |
 
-Base realista sem as alavancas: 12 semanas (M1 2 · M2 3 · M3 2 · M4 2 · M5 1 · M6 2).
-
-## v0.2 (backlog, não planejado)
-ACP engine; ilhas: log viewer virtualizado, org chart interativo, editor com comentários ancorados; multi-humano; troca de org na UI; polish visual; PWA; memória de longo prazo de agentes (learnings entre runs).
+## v0.2 (não planejado)
+ACP; ilhas (log virtualizado, organograma interativo, editor ancorado); multi-humano; troca de empresa na UI; consolidação de memória via gateway; PWA.

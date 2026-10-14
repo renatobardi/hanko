@@ -6,7 +6,7 @@ Decisões em `docs/adr/`. Este arquivo é o resumo vigente; ADR vence em conflit
 
 ## 1. Princípios
 - Single binary: `hanko` sobe API + UI embutida + scheduler. Zero Node em runtime; Node só como ferramenta de build das ilhas (dev/CI). (ADR-0005)
-- Postgres é a única dependência de dados. Sem Redis, sem filas externas. (ADR-0011)
+- Postgres é a única dependência obrigatória. ai-memory vem ligado por padrão e é degradável (outbox no Postgres). Sem Redis, sem filas externas. (ADR-0011, ADR-0015)
 - Chato na infra, novo no domínio: novidade vai em heartbeat/governança/budget, nunca em DB, fila ou framework.
 - Code-first: Go é a fonte da verdade; OpenAPI é gerado e versionado. (ADR-0006)
 - Stdlib primeiro. Dependência só quando a stdlib não resolve.
@@ -28,6 +28,7 @@ Decisões em `docs/adr/`. Este arquivo é o resumo vigente; ADR vence em conflit
 | Checkout atômico | `SELECT ... FOR UPDATE SKIP LOCKED` + execution lock por issue | 1 assignee, 1 run ativo |
 | Adapters | interface `Adapter` em `internal/adapters`. v0.1: `cli` (`claude -p --output-format stream-json --verbose`, `codex exec --json`) e `http` (webhook) | `acp` = v0.2 (ADR-0004); plugins out-of-process = v1 |
 | MCP | `github.com/modelcontextprotocol/go-sdk` | Hanko como MCP **server** (tools de task) e **gateway** (allow/ask/off) |
+| Memória | ai-memory **ligado por padrão** (ADR-0015). Personas: MCP+hooks por run, projeto = workspace, sessão = run_id, `finalize-session`. Hanko: MCP client (`go-sdk`) — escreve fatos (task, gate, run, delegação) via `memory_outbox` + river; lê `memory_briefing` + handoff no despacho; busca na UI. Indisponível = degrada, nunca bloqueia | Governança fica no Postgres |
 | LLM SDKs | `anthropic-sdk-go`, `openai-go` | só evals e metadata de custo; core não chama LLM |
 | Auth v0.1 | providers: `local` (default self-host: email/senha argon2id + cookie) e `firebase` (Google + email/senha gerenciados pelo Firebase; servidor valida ID token via JWKS do Google, sem Admin SDK). API keys de agente (SHA-256); run JWT curto (`golang-jwt/v5`) | `HANKO_AUTH_PROVIDER=local|firebase`. hanko.oute.pro usa firebase. Multi-humano v0.2; OIDC v1 (ADR-0007, ADR-0014) |
 | Secrets | AES-256-GCM envelope, master key em `HANKO_MASTER_KEY` ou arquivo | refs injetadas no run, nunca em config |
