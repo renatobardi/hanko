@@ -167,3 +167,16 @@ func (s *Service) UpdatePersona(ctx context.Context, actor domain.Actor, company
 	})
 	return out, err
 }
+
+// GetPersonaHealth returns the last failure and the consecutive-failure counter of a persona.
+func (s *Service) GetPersonaHealth(ctx context.Context, companyID, personaID domain.ID) (PersonaHealth, error) {
+	row, err := s.read().GetPersonaByID(ctx, store.GetPersonaByIDParams{CompanyID: companyID, ID: personaID})
+	if err != nil {
+		return PersonaHealth{}, mapErr(err, "get persona")
+	}
+	h := PersonaHealth{LastErrorAt: row.LastErrorAt, ConsecutiveFailures: int(row.ConsecutiveFailures)}
+	if row.LastError != nil {
+		h.LastError = *row.LastError
+	}
+	return h, nil
+}

@@ -8,3 +8,9 @@ SELECT * FROM task_comments WHERE company_id = @company_id AND event_id = @event
 
 -- name: ListComments :many
 SELECT * FROM task_comments WHERE company_id = @company_id AND task_id = @task_id ORDER BY created_at, id;
+
+-- name: HasHumanCommentSince :one
+SELECT EXISTS (
+    SELECT 1 FROM task_comments
+    WHERE company_id = @company_id AND task_id = @task_id AND author_type = 'human' AND created_at > @since
+) AS found;

@@ -13,24 +13,25 @@ import (
 )
 
 const getMemoryOutbox = `-- name: GetMemoryOutbox :one
-SELECT m.id, m.company_id, m.workspace_id, m.kind, m.payload, m.event_id, m.status, m.attempts, m.last_error, m.created_at, m.sent_at, c.slug AS company_slug
+SELECT m.id, m.company_id, m.workspace_id, m.kind, m.payload, m.event_id, m.status, m.attempts, m.last_error, m.created_at, m.sent_at, m.next_attempt_at, c.slug AS company_slug
 FROM memory_outbox m JOIN companies c ON c.id = m.company_id
 WHERE m.id = $1
 `
 
 type GetMemoryOutboxRow struct {
-	ID          uuid.UUID
-	CompanyID   uuid.UUID
-	WorkspaceID *uuid.UUID
-	Kind        string
-	Payload     []byte
-	EventID     string
-	Status      string
-	Attempts    int32
-	LastError   string
-	CreatedAt   time.Time
-	SentAt      *time.Time
-	CompanySlug string
+	ID            uuid.UUID
+	CompanyID     uuid.UUID
+	WorkspaceID   *uuid.UUID
+	Kind          string
+	Payload       []byte
+	EventID       string
+	Status        string
+	Attempts      int32
+	LastError     string
+	CreatedAt     time.Time
+	SentAt        *time.Time
+	NextAttemptAt *time.Time
+	CompanySlug   string
 }
 
 func (q *Queries) GetMemoryOutbox(ctx context.Context, id uuid.UUID) (GetMemoryOutboxRow, error) {
@@ -48,6 +49,7 @@ func (q *Queries) GetMemoryOutbox(ctx context.Context, id uuid.UUID) (GetMemoryO
 		&i.LastError,
 		&i.CreatedAt,
 		&i.SentAt,
+		&i.NextAttemptAt,
 		&i.CompanySlug,
 	)
 	return i, err
@@ -88,17 +90,19 @@ func (q *Queries) InsertMemoryOutbox(ctx context.Context, arg InsertMemoryOutbox
 const listPendingMemory = `-- name: ListPendingMemory :many
 SELECT id FROM memory_outbox
 WHERE status = 'pending' AND created_at < $1
+  AND (next_attempt_at IS NULL OR next_attempt_at <= $2)
 ORDER BY created_at
-LIMIT $2
+LIMIT $3
 `
 
 type ListPendingMemoryParams struct {
 	OlderThan time.Time
+	Now       *time.Time
 	Lim       int32
 }
 
 func (q *Queries) ListPendingMemory(ctx context.Context, arg ListPendingMemoryParams) ([]uuid.UUID, error) {
-	rows, err := q.db.Query(ctx, listPendingMemory, arg.OlderThan, arg.Lim)
+	rows, err := q.db.Query(ctx, listPendingMemory, arg.OlderThan, arg.Now, arg.Lim)
 	if err != nil {
 		return nil, err
 	}
@@ -120,18 +124,27 @@ func (q *Queries) ListPendingMemory(ctx context.Context, arg ListPendingMemoryPa
 const markMemoryFailed = `-- name: MarkMemoryFailed :exec
 UPDATE memory_outbox
 SET attempts = attempts + 1, last_error = $1,
-    status = CASE WHEN attempts + 1 >= $2 THEN 'failed' ELSE 'pending' END
-WHERE id = $3
+    status = CASE WHEN $2::boolean THEN 'failed' ELSE 'pending' END,
+    next_attempt_at = CASE WHEN $2::boolean THEN NULL ELSE $3::timestamptz END
+WHERE id = $4
 `
 
 type MarkMemoryFailedParams struct {
-	LastError   string
-	MaxAttempts int32
-	ID          uuid.UUID
+	LastError     string
+	Permanent     bool
+	NextAttemptAt time.Time
+	ID            uuid.UUID
 }
 
+// Erro permanente (permanent) encerra em 'failed'; erro transitório mantém 'pending' e agenda a
+// próxima tentativa em @next_attempt_at (backoff calculado pelo service).
 func (q *Queries) MarkMemoryFailed(ctx context.Context, arg MarkMemoryFailedParams) error {
-	_, err := q.db.Exec(ctx, markMemoryFailed, arg.LastError, arg.MaxAttempts, arg.ID)
+	_, err := q.db.Exec(ctx, markMemoryFailed,
+		arg.LastError,
+		arg.Permanent,
+		arg.NextAttemptAt,
+		arg.ID,
+	)
 	return err
 }
 

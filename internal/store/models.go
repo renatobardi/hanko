@@ -36,17 +36,18 @@ type Company struct {
 }
 
 type MemoryOutbox struct {
-	ID          uuid.UUID
-	CompanyID   uuid.UUID
-	WorkspaceID *uuid.UUID
-	Kind        string
-	Payload     []byte
-	EventID     string
-	Status      string
-	Attempts    int32
-	LastError   string
-	CreatedAt   time.Time
-	SentAt      *time.Time
+	ID            uuid.UUID
+	CompanyID     uuid.UUID
+	WorkspaceID   *uuid.UUID
+	Kind          string
+	Payload       []byte
+	EventID       string
+	Status        string
+	Attempts      int32
+	LastError     string
+	CreatedAt     time.Time
+	SentAt        *time.Time
+	NextAttemptAt *time.Time
 }
 
 type Persona struct {
@@ -66,6 +67,9 @@ type Persona struct {
 	BudgetMonthlyCents   *int64
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
+	LastError            *string
+	LastErrorAt          *time.Time
+	ConsecutiveFailures  int32
 }
 
 type Project struct {
@@ -103,6 +107,7 @@ type Run struct {
 	CreatedAt           time.Time
 	StartedAt           *time.Time
 	FinishedAt          *time.Time
+	PendingResult       []byte
 }
 
 type RunEvent struct {

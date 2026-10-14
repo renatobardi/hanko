@@ -24,10 +24,21 @@ type wakeWorker struct {
 }
 
 func (w *wakeWorker) Work(ctx context.Context, job *river.Job[WakeArgs]) error {
-	return w.h.wake(ctx, job.Args)
+	return w.h.wake(ctx, job.Args, time.Since(job.CreatedAt))
 }
 
-func (h *Heartbeat) wake(ctx context.Context, a WakeArgs) error {
+const (
+	wakeSnooze   = 30 * time.Second // re-check interval while the task has an active run
+	wakeGiveUp   = 2 * time.Hour    // a wake older than this stops waiting for the active run
+	finishSnooze = time.Minute      // re-check interval while a run could not be finalized
+	finishGiveUp = 24 * time.Hour
+)
+
+// wake checks the task out. While another run is active the wake is snoozed (not dropped),
+// so a comment or reassignment that arrives mid-run still produces a run afterwards; it
+// stays one job per (persona, task), so further wakes keep coalescing. age is how long the
+// wake has existed.
+func (h *Heartbeat) wake(ctx context.Context, a WakeArgs, age time.Duration) error {
 	if h.svc == nil {
 		return errNotAttached
 	}
@@ -36,7 +47,14 @@ func (h *Heartbeat) wake(ctx context.Context, a WakeArgs) error {
 	case err == nil:
 		h.log.Debug("wake: run enfileirada", "run_id", run.ID, "task_id", a.TaskID, "trigger", a.Trigger)
 		return nil
-	case errors.Is(err, domain.ErrActiveRun), errors.Is(err, domain.ErrInvalid), errors.Is(err, domain.ErrNotFound):
+	case errors.Is(err, domain.ErrActiveRun):
+		if age > wakeGiveUp {
+			h.log.Warn("wake: run ativa por tempo demais, desistindo", "task_id", a.TaskID, "persona_id", a.PersonaID, "age", age)
+			return nil
+		}
+		h.log.Debug("wake: task com run ativa, tentando de novo", "task_id", a.TaskID, "persona_id", a.PersonaID)
+		return river.JobSnooze(h.opts.WakeSnooze)
+	case errors.Is(err, domain.ErrInvalid), errors.Is(err, domain.ErrNotFound):
 		h.log.Debug("wake: nada a fazer", "task_id", a.TaskID, "persona_id", a.PersonaID, "reason", err)
 		return nil
 	}
@@ -52,11 +70,11 @@ type executeRunWorker struct {
 
 // Timeout leaves room after RunTimeout for finishing the run and memory finalization.
 func (w *executeRunWorker) Timeout(*river.Job[ExecuteRunArgs]) time.Duration {
-	return w.h.opts.RunTimeout + 2*time.Minute
+	return w.h.opts.RunTimeout + 6*time.Minute
 }
 
 func (w *executeRunWorker) Work(ctx context.Context, job *river.Job[ExecuteRunArgs]) error {
-	return w.h.executeRun(ctx, job.Args)
+	return w.h.executeRunJob(ctx, job.Args, jobInfo{final: job.Attempt >= job.MaxAttempts, age: time.Since(job.CreatedAt)})
 }
 
 // ---- deliver_memory ----
@@ -82,9 +100,13 @@ func (h *Heartbeat) deliverMemory(ctx context.Context, a DeliverMemoryArgs) erro
 	if err != nil {
 		return fmt.Errorf("deliver_memory: load: %w", err)
 	}
+	if item.Status == "sent" || item.Status == "failed" {
+		h.log.Debug("deliver_memory: item já encerrado", "outbox_id", item.ID, "status", item.Status)
+		return nil
+	}
 	var fact memory.Fact
 	if err := json.Unmarshal(item.Payload, &fact); err != nil {
-		_ = h.svc.MarkMemoryFailed(ctx, item.ID, "payload inválido: "+err.Error())
+		_ = h.svc.MarkMemoryFailed(ctx, item.ID, "payload inválido: "+err.Error(), true)
 		return river.JobCancel(fmt.Errorf("deliver_memory: payload inválido: %w", err))
 	}
 	if fact.Kind == "" {
@@ -93,10 +115,12 @@ func (h *Heartbeat) deliverMemory(ctx context.Context, a DeliverMemoryArgs) erro
 	rctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	if err := h.mem.Record(rctx, scopeFor(item.CompanySlug, item.Workspace), fact); err != nil {
-		if merr := h.svc.MarkMemoryFailed(ctx, item.ID, err.Error()); merr != nil {
+		// Transient: the fact stays pending and is retried later, never dropped.
+		if merr := h.svc.MarkMemoryFailed(ctx, item.ID, err.Error(), false); merr != nil {
 			h.log.Warn("deliver_memory: marcar falha", "outbox_id", item.ID, "err", merr)
 		}
-		return fmt.Errorf("deliver_memory: %w", err)
+		h.log.Warn("deliver_memory: entrega falhou, nova tentativa agendada", "outbox_id", item.ID, "err", err)
+		return river.JobSnooze(service.MemoryBackoff(item.Attempts))
 	}
 	if err := h.svc.MarkMemorySent(ctx, item.ID); err != nil {
 		return fmt.Errorf("deliver_memory: mark sent: %w", err)

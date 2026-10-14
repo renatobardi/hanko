@@ -182,6 +182,8 @@ type RunContext struct {
 	Task      TaskView
 	Comments  []domain.Comment
 	Workspace *domain.Workspace
+	// PendingResult is set when the harness already ran and only finalization is missing.
+	PendingResult *FinishRunInput
 }
 
 // WakeCandidate is an (assigned, workable, idle) task found by the periodic heartbeat.
@@ -201,4 +203,14 @@ type MemoryItem struct {
 	Payload     json.RawMessage
 	EventID     string
 	Attempts    int
+	Status      string // pending | sent | failed
+	NextAttempt *time.Time
+}
+
+// PersonaHealth is the reliability state of a persona: its last failed run and how many
+// failures in a row it has (the persona goes to error at personaMaxFailures).
+type PersonaHealth struct {
+	LastError           string
+	LastErrorAt         *time.Time
+	ConsecutiveFailures int
 }

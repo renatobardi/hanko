@@ -40,8 +40,10 @@ func (WakeArgs) InsertOpts() river.InsertOpts {
 	}
 }
 
-// ExecuteRunArgs executes one queued run (job "execute_run"). Never retried: a run that
-// died is marked interrupted at boot, not replayed.
+// ExecuteRunArgs executes one queued run (job "execute_run"). The harness is never run
+// twice: once the run left "queued" a retry can only finalize it from the result saved in
+// runs.pending_result (finalization failures snooze the job). A run that died with the
+// process is marked interrupted at boot, not replayed.
 type ExecuteRunArgs struct {
 	CompanyID domain.ID `json:"company_id"`
 	RunID     domain.ID `json:"run_id"`
@@ -50,7 +52,7 @@ type ExecuteRunArgs struct {
 func (ExecuteRunArgs) Kind() string { return "execute_run" }
 
 func (ExecuteRunArgs) InsertOpts() river.InsertOpts {
-	return river.InsertOpts{Queue: QueueRuns, MaxAttempts: 1}
+	return river.InsertOpts{Queue: QueueRuns, MaxAttempts: 10}
 }
 
 // DeliverMemoryArgs delivers one memory_outbox row to the memory provider (job "deliver_memory").
@@ -63,7 +65,15 @@ func (DeliverMemoryArgs) Kind() string { return "deliver_memory" }
 func (DeliverMemoryArgs) InsertOpts() river.InsertOpts {
 	return river.InsertOpts{
 		MaxAttempts: 10,
-		UniqueOpts:  river.UniqueOpts{ByArgs: true},
+		// Completed jobs are not unique: the sweep must be able to re-enqueue a row that
+		// went back to pending after an earlier delivery job finished.
+		UniqueOpts: river.UniqueOpts{
+			ByArgs: true,
+			ByState: []rivertype.JobState{
+				rivertype.JobStateAvailable, rivertype.JobStatePending, rivertype.JobStateScheduled,
+				rivertype.JobStateRetryable, rivertype.JobStateRunning,
+			},
+		},
 	}
 }
 

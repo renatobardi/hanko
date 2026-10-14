@@ -37,6 +37,10 @@ type Options struct {
 
 	// MemorySweepInterval is the memory_sweep period; default 5 min.
 	MemorySweepInterval time.Duration
+
+	// WakeSnooze is how long a wake waits before re-checking a task that still has an
+	// active run; default 30 s.
+	WakeSnooze time.Duration
 }
 
 func (o *Options) defaults() {
@@ -55,6 +59,9 @@ func (o *Options) defaults() {
 	if o.MemorySweepInterval <= 0 {
 		o.MemorySweepInterval = 5 * time.Minute
 	}
+	if o.WakeSnooze <= 0 {
+		o.WakeSnooze = wakeSnooze
+	}
 	if o.Logger == nil {
 		o.Logger = slog.New(slog.NewTextHandler(io.Discard, nil))
 	}
@@ -67,11 +74,12 @@ type backend interface {
 	MarkRunStarted(ctx context.Context, companyID, runID domain.ID, traceID, handoffIn string) (domain.Run, error)
 	AppendRunEvent(ctx context.Context, companyID, runID domain.ID, e adapter.Event) (domain.RunEvent, error)
 	FinishRun(ctx context.Context, companyID, runID domain.ID, in service.FinishRunInput) (domain.Run, error)
+	SavePendingResult(ctx context.Context, companyID, runID domain.ID, in service.FinishRunInput) error
 	InterruptOrphanRuns(ctx context.Context) (int, error)
 	WakeCandidates(ctx context.Context, limit int) ([]service.WakeCandidate, error)
 	GetMemoryItem(ctx context.Context, id domain.ID) (service.MemoryItem, error)
 	MarkMemorySent(ctx context.Context, id domain.ID) error
-	MarkMemoryFailed(ctx context.Context, id domain.ID, errMsg string) error
+	MarkMemoryFailed(ctx context.Context, id domain.ID, errMsg string, permanent bool) error
 	PendingMemory(ctx context.Context, limit int) ([]domain.ID, error)
 }
 
@@ -93,6 +101,9 @@ type Heartbeat struct {
 	// Enqueue seams outside a transaction (periodic scans); tests replace them.
 	enqueueWake    func(context.Context, WakeArgs) error
 	enqueueDeliver func(context.Context, DeliverMemoryArgs) error
+
+	// finishBackoff are the waits between local FinishRun attempts (len+1 attempts); tests shrink it.
+	finishBackoff []time.Duration
 }
 
 // Migrate brings the river schema up to the latest version.
@@ -110,7 +121,8 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 // New builds the river client with all workers and periodic jobs. Call Attach, then Start.
 func New(pool *pgxpool.Pool, opts Options) (*Heartbeat, error) {
 	opts.defaults()
-	h := &Heartbeat{opts: opts, log: opts.Logger, mem: memory.Noop{}}
+	h := &Heartbeat{opts: opts, log: opts.Logger, mem: memory.Noop{},
+		finishBackoff: []time.Duration{5 * time.Second, 15 * time.Second, 30 * time.Second, time.Minute}}
 
 	workers := river.NewWorkers()
 	if err := errors.Join(

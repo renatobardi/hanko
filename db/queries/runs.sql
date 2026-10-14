@@ -43,9 +43,14 @@ UPDATE runs
 SET status = @status, exit_code = @exit_code, error = @error, summary = @summary, cost_usd = @cost_usd,
     input_tokens = @input_tokens, output_tokens = @output_tokens,
     cache_read_tokens = @cache_read_tokens, cache_creation_tokens = @cache_creation_tokens,
-    session_ref = @session_ref, model = @model, finished_at = @now
+    session_ref = @session_ref, model = @model, finished_at = @now, pending_result = NULL
 WHERE company_id = @company_id AND id = @id
 RETURNING *;
+
+-- name: SetRunPendingResult :exec
+-- Guarda o resultado antes de finalizar: uma finalização que falha pode ser refeita sem reexecutar o harness.
+UPDATE runs SET pending_result = @pending_result
+WHERE company_id = @company_id AND id = @id AND status = 'running';
 
 -- name: CancelQueuedRun :one
 UPDATE runs SET status = 'cancelled', finished_at = @now
