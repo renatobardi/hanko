@@ -33,6 +33,8 @@ type fakeSvc struct {
 	lastComment service.AddCommentInput
 	lastRunF    service.RunFilter
 	failWith    error
+
+	m4 costFlowFake // custos e fluxos
 }
 
 func (f *fakeSvc) GetCompany(_ context.Context, ref string) (domain.Company, error) {

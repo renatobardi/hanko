@@ -78,6 +78,15 @@ type backend interface {
 	CancelRun(ctx context.Context, actor domain.Actor, companyID, runID domain.ID) (service.RunView, error)
 	ListActivity(ctx context.Context, companyID domain.ID, f service.ActivityFilter) ([]domain.ActivityEvent, error)
 	Dashboard(ctx context.Context, companyID domain.ID) (service.DashboardStats, error)
+	CostSummary(ctx context.Context, companyID domain.ID, f service.CostFilter) (service.CostSummary, error)
+	CompanyBudget(ctx context.Context, companyID domain.ID) (service.BudgetStatus, error)
+	SetCompanyBudget(ctx context.Context, actor domain.Actor, companyID domain.ID, cents *int64) (domain.Company, error)
+	CreateFlow(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.CreateFlowInput) (service.FlowView, error)
+	UpdateFlow(ctx context.Context, actor domain.Actor, companyID, flowID domain.ID, in service.UpdateFlowInput) (service.FlowView, error)
+	ListFlows(ctx context.Context, companyID domain.ID) ([]service.FlowView, error)
+	GetFlow(ctx context.Context, companyID domain.ID, ref string) (service.FlowView, error)
+	ListFlowFires(ctx context.Context, companyID, flowID domain.ID, limit int) ([]service.FlowFireView, error)
+	RunFlowNow(ctx context.Context, actor domain.Actor, companyID, flowID domain.ID) (service.FlowFireResult, error)
 }
 
 var _ backend = (*service.Service)(nil)
@@ -161,6 +170,8 @@ func (s *server) register(api huma.API) {
 	s.registerTasks(api)
 	s.registerRuns(api)
 	s.registerMisc(api)
+	s.registerCosts(api)
+	s.registerFlows(api)
 }
 
 // op monta uma huma.Operation com o prefixo da API.

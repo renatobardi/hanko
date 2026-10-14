@@ -49,6 +49,8 @@ type updatePersonaIn struct {
 		HeartbeatIntervalSec *int    `json:"heartbeat_interval_sec,omitempty" minimum:"0"`
 		Workspace            string  `json:"workspace,omitempty" doc:"Id ou slug do novo workspace."`
 		ClearWorkspace       bool    `json:"clear_workspace,omitempty" doc:"Remove o workspace da persona."`
+		BudgetMonthlyCents   *int64  `json:"budget_monthly_cents,omitempty" minimum:"0" doc:"Orçamento mensal da persona em centavos de dólar."`
+		ClearBudget          bool    `json:"clear_budget,omitempty" doc:"Remove o teto de orçamento da persona."`
 	}
 }
 
@@ -132,7 +134,8 @@ func (s *server) registerPersonas(api huma.API) {
 			}
 			up := service.UpdatePersonaInput{
 				Name: in.Body.Name, Title: in.Body.Title, Instructions: in.Body.Instructions, Model: in.Body.Model,
-				HeartbeatIntervalSec: in.Body.HeartbeatIntervalSec, WorkspaceID: ws, ClearWorkspace: in.Body.ClearWorkspace}
+				HeartbeatIntervalSec: in.Body.HeartbeatIntervalSec, WorkspaceID: ws, ClearWorkspace: in.Body.ClearWorkspace,
+				BudgetMonthlyCents: in.Body.BudgetMonthlyCents, ClearBudget: in.Body.ClearBudget}
 			if in.Body.Status != nil {
 				st := domain.PersonaStatus(*in.Body.Status)
 				up.Status = &st

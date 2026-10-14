@@ -42,13 +42,15 @@ type ActorRef struct {
 
 // Company é a unidade de isolamento multi-org.
 type Company struct {
-	ID         string    `json:"id" format:"uuid" doc:"Identificador (UUIDv7)."`
-	Slug       string    `json:"slug" example:"acme" doc:"Identificador legível, único."`
-	Name       string    `json:"name" example:"Acme Ltda" doc:"Nome de exibição."`
-	TaskPrefix string    `json:"task_prefix" example:"HNK" doc:"Prefixo das chaves de task (HNK-12)."`
-	Timezone   string    `json:"timezone" example:"America/Sao_Paulo" doc:"Fuso IANA."`
-	CreatedAt  time.Time `json:"created_at"`
-	UpdatedAt  time.Time `json:"updated_at"`
+	ID         string `json:"id" format:"uuid" doc:"Identificador (UUIDv7)."`
+	Slug       string `json:"slug" example:"acme" doc:"Identificador legível, único."`
+	Name       string `json:"name" example:"Acme Ltda" doc:"Nome de exibição."`
+	TaskPrefix string `json:"task_prefix" example:"HNK" doc:"Prefixo das chaves de task (HNK-12)."`
+	Timezone   string `json:"timezone" example:"America/Sao_Paulo" doc:"Fuso IANA."`
+	// BudgetMonthlyCents é o teto mensal de gasto em centavos de dólar; ausente = sem teto.
+	BudgetMonthlyCents *int64    `json:"budget_monthly_cents,omitempty" doc:"Orçamento mensal da empresa em centavos de dólar."`
+	CreatedAt          time.Time `json:"created_at"`
+	UpdatedAt          time.Time `json:"updated_at"`
 }
 
 // Workspace é um diretório/repositório onde personas trabalham.
@@ -91,6 +93,7 @@ type Persona struct {
 	WorkspaceID          string         `json:"workspace_id,omitempty" format:"uuid"`
 	HeartbeatIntervalSec int            `json:"heartbeat_interval_sec" doc:"Intervalo do heartbeat em segundos; 0 desliga."`
 	BudgetMonthlyCents   *int64         `json:"budget_monthly_cents,omitempty" doc:"Orçamento mensal em centavos de dólar."`
+	PauseReason          string         `json:"pause_reason,omitempty" doc:"Motivo de uma pausa automática (orçamento estourado)."`
 	CreatedAt            time.Time      `json:"created_at"`
 	UpdatedAt            time.Time      `json:"updated_at"`
 }
@@ -148,7 +151,7 @@ type Run struct {
 	PersonaID   string     `json:"persona_id" format:"uuid"`
 	PersonaName string     `json:"persona_name,omitempty"`
 	Status      string     `json:"status" enum:"queued,running,done,interrupted,failed,cancelled,expired"`
-	Trigger     string     `json:"trigger" enum:"assign,comment,manual,heartbeat"`
+	Trigger     string     `json:"trigger" enum:"assign,comment,manual,heartbeat,flow"`
 	Agent       string     `json:"agent" enum:"claude,codex,fake"`
 	Model       string     `json:"model,omitempty"`
 	SessionRef  string     `json:"session_ref,omitempty"`
@@ -157,6 +160,7 @@ type Run struct {
 	Error       string     `json:"error,omitempty"`
 	Summary     string     `json:"summary,omitempty"`
 	CostUSD     *float64   `json:"cost_usd,omitempty"`
+	CostSource  string     `json:"cost_source,omitempty" enum:"reported,estimated,none" doc:"Origem do custo: informado pelo harness, estimado pela tabela de preços ou desconhecido."`
 	Usage       Usage      `json:"usage"`
 	CreatedAt   time.Time  `json:"created_at"`
 	StartedAt   *time.Time `json:"started_at,omitempty"`
@@ -197,6 +201,89 @@ type Dashboard struct {
 	MonthCostUSD    float64 `json:"month_cost_usd"`
 	PendingGates    int     `json:"pending_gates"`
 	RunningRuns     int     `json:"running_runs"`
+	// Teto mensal da empresa (centavos de dólar), uso e estado (none, ok, warning, exceeded).
+	MonthBudgetCents *int64  `json:"month_budget_cents,omitempty"`
+	BudgetPercent    float64 `json:"budget_percent"`
+	BudgetState      string  `json:"budget_state" enum:"none,ok,warning,exceeded"`
+}
+
+// Budget é o gasto do mês contra o teto.
+type Budget struct {
+	BudgetMonthlyCents *int64  `json:"budget_monthly_cents,omitempty" doc:"Teto mensal em centavos de dólar; ausente = sem teto."`
+	SpentUSD           float64 `json:"spent_usd"`
+	Percent            float64 `json:"percent" doc:"Uso do teto em %; 0 sem teto."`
+	State              string  `json:"state" enum:"none,ok,warning,exceeded" doc:"warning a partir de 80%, exceeded a partir de 100% (trava dura)."`
+}
+
+// CostRow é um grupo do resumo de custos.
+type CostRow struct {
+	Key          string  `json:"key" doc:"Chave do grupo (data, id da persona, id do projeto, modelo ou harness)."`
+	Label        string  `json:"label"`
+	CostUSD      float64 `json:"cost_usd"`
+	EstimatedUSD float64 `json:"estimated_usd" doc:"Parte do custo estimada pela tabela de preços."`
+	Runs         int     `json:"runs"`
+	InputTokens  int64   `json:"input_tokens"`
+	OutputTokens int64   `json:"output_tokens"`
+	CacheTokens  int64   `json:"cache_tokens"`
+}
+
+// CostSummary agrega o custo de um período por uma dimensão.
+type CostSummary struct {
+	From         time.Time `json:"from"`
+	To           time.Time `json:"to" doc:"Exclusivo."`
+	Timezone     string    `json:"timezone"`
+	GroupBy      string    `json:"group_by" enum:"day,persona,project,model,harness"`
+	TotalUSD     float64   `json:"total_usd"`
+	ReportedUSD  float64   `json:"reported_usd"`
+	EstimatedUSD float64   `json:"estimated_usd"`
+	Runs         int       `json:"runs"`
+	InputTokens  int64     `json:"input_tokens"`
+	OutputTokens int64     `json:"output_tokens"`
+	CacheTokens  int64     `json:"cache_tokens"`
+	Rows         []CostRow `json:"rows"`
+	Budget       Budget    `json:"budget" doc:"Orçamento da empresa no mês corrente."`
+}
+
+// Flow é uma definição recorrente que cria tasks por cron.
+type Flow struct {
+	ID              string     `json:"id" format:"uuid"`
+	CompanyID       string     `json:"company_id" format:"uuid"`
+	Slug            string     `json:"slug" example:"resumo-diario"`
+	Name            string     `json:"name" example:"Resumo diário"`
+	Description     string     `json:"description,omitempty"`
+	Cron            string     `json:"cron" example:"0 9 * * 1-5"`
+	Timezone        string     `json:"timezone" example:"America/Sao_Paulo"`
+	Enabled         bool       `json:"enabled"`
+	PersonaID       string     `json:"persona_id" format:"uuid"`
+	PersonaName     string     `json:"persona_name"`
+	ProjectID       string     `json:"project_id,omitempty" format:"uuid"`
+	ProjectName     string     `json:"project_name,omitempty"`
+	Priority        string     `json:"priority" enum:"critical,high,medium,low"`
+	TaskTitle       string     `json:"task_title" doc:"Modelo do título: {{data}}, {{n}}."`
+	TaskDescription string     `json:"task_description"`
+	LastFiredAt     *time.Time `json:"last_fired_at,omitempty"`
+	NextFireAt      *time.Time `json:"next_fire_at,omitempty"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
+}
+
+// FlowFire é um disparo de um fluxo.
+type FlowFire struct {
+	ID           string    `json:"id" format:"uuid"`
+	FlowID       string    `json:"flow_id" format:"uuid"`
+	ScheduledFor time.Time `json:"scheduled_for"`
+	TaskID       string    `json:"task_id,omitempty" format:"uuid"`
+	TaskKey      string    `json:"task_key,omitempty" example:"HNK-12"`
+	TaskTitle    string    `json:"task_title,omitempty"`
+	TaskStatus   string    `json:"task_status,omitempty"`
+	CreatedAt    time.Time `json:"created_at"`
+}
+
+// FlowRun é o resultado de "rodar agora".
+type FlowRun struct {
+	Fire      FlowFire `json:"fire"`
+	Task      *Task    `json:"task,omitempty"`
+	Duplicate bool     `json:"duplicate,omitempty" doc:"true quando já havia um disparo neste minuto: nada novo foi criado."`
 }
 
 // WakeResult confirma o enfileiramento de um wake.
@@ -221,7 +308,7 @@ func actorRef(a domain.Actor) ActorRef {
 
 func companyOut(c domain.Company) Company {
 	return Company{ID: idStr(c.ID), Slug: c.Slug, Name: c.Name, TaskPrefix: c.TaskPrefix,
-		Timezone: c.Timezone, CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt}
+		Timezone: c.Timezone, BudgetMonthlyCents: c.BudgetMonthlyCents, CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt}
 }
 
 func workspaceOut(w domain.Workspace) Workspace {
@@ -242,7 +329,7 @@ func personaOut(p domain.Persona) Persona {
 	return Persona{ID: idStr(p.ID), CompanyID: idStr(p.CompanyID), Slug: p.Slug, Name: p.Name, Title: p.Title,
 		Instructions: p.Instructions, Agent: p.Agent, Model: p.Model, AdapterConfig: cfg, Status: string(p.Status),
 		ReportsTo: idPtr(p.ReportsTo), WorkspaceID: idPtr(p.WorkspaceID), HeartbeatIntervalSec: p.HeartbeatIntervalSec,
-		BudgetMonthlyCents: p.BudgetMonthlyCents, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt}
+		BudgetMonthlyCents: p.BudgetMonthlyCents, PauseReason: p.PauseReason, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt}
 }
 
 func taskOut(t service.TaskView) Task {
@@ -261,7 +348,8 @@ func commentOut(c domain.Comment) Comment {
 func runOut(r service.RunView) Run {
 	return Run{ID: idStr(r.ID), CompanyID: idStr(r.CompanyID), TaskID: idStr(r.TaskID), TaskKey: r.TaskKey,
 		TaskTitle: r.TaskTitle, PersonaID: idStr(r.PersonaID), PersonaName: r.PersonaName, Status: string(r.Status),
-		Trigger: string(r.Trigger), Agent: r.Agent, Model: r.Model, SessionRef: r.SessionRef, TraceID: r.TraceID,
+		CostSource: string(r.CostSource),
+		Trigger:    string(r.Trigger), Agent: r.Agent, Model: r.Model, SessionRef: r.SessionRef, TraceID: r.TraceID,
 		ExitCode: r.ExitCode, Error: r.Error, Summary: r.Summary, CostUSD: r.CostUSD, Usage: Usage(r.Usage),
 		CreatedAt: r.CreatedAt, StartedAt: r.StartedAt, FinishedAt: r.FinishedAt}
 }
@@ -277,7 +365,49 @@ func activityOut(a domain.ActivityEvent) Activity {
 		OccurredAt: a.OccurredAt, ReceivedAt: a.ReceivedAt}
 }
 
-func dashboardOut(d service.DashboardStats) Dashboard { return Dashboard(d) }
+func dashboardOut(d service.DashboardStats) Dashboard {
+	return Dashboard{ActivePersonas: d.ActivePersonas, TasksInProgress: d.TasksInProgress, OpenTasks: d.OpenTasks,
+		MonthCostUSD: d.MonthCostUSD, PendingGates: d.PendingGates, RunningRuns: d.RunningRuns,
+		MonthBudgetCents: d.MonthBudgetCents, BudgetPercent: d.BudgetPercent, BudgetState: d.BudgetState}
+}
+
+func budgetOut(b service.BudgetStatus) Budget {
+	return Budget{BudgetMonthlyCents: b.BudgetCents, SpentUSD: b.SpentUSD, Percent: b.Percent, State: b.State}
+}
+
+func costSummaryOut(c service.CostSummary, b service.BudgetStatus) CostSummary {
+	rows := make([]CostRow, len(c.Rows))
+	for i, r := range c.Rows {
+		rows[i] = CostRow(r)
+	}
+	return CostSummary{From: c.From, To: c.To, Timezone: c.Timezone, GroupBy: c.GroupBy, TotalUSD: c.TotalUSD,
+		ReportedUSD: c.ReportedUSD, EstimatedUSD: c.EstimatedUSD, Runs: c.Runs, InputTokens: c.InputTokens,
+		OutputTokens: c.OutputTokens, CacheTokens: c.CacheTokens, Rows: rows, Budget: budgetOut(b)}
+}
+
+func flowOut(f service.FlowView) Flow {
+	return Flow{ID: idStr(f.ID), CompanyID: idStr(f.CompanyID), Slug: f.Slug, Name: f.Name, Description: f.Description,
+		Cron: f.Cron, Timezone: f.Timezone, Enabled: f.Enabled, PersonaID: idStr(f.PersonaID), PersonaName: f.PersonaName,
+		ProjectID: idPtr(f.ProjectID), ProjectName: f.ProjectName, Priority: string(f.Priority), TaskTitle: f.TaskTitle,
+		TaskDescription: f.TaskDescription, LastFiredAt: f.LastFiredAt, NextFireAt: f.NextFireAt,
+		CreatedAt: f.CreatedAt, UpdatedAt: f.UpdatedAt}
+}
+
+func flowFireOut(f service.FlowFireView) FlowFire {
+	return FlowFire{ID: idStr(f.ID), FlowID: idStr(f.FlowID), ScheduledFor: f.ScheduledFor, TaskID: idPtr(f.TaskID),
+		TaskKey: f.TaskKey, TaskTitle: f.TaskTitle, TaskStatus: f.TaskStatus, CreatedAt: f.CreatedAt}
+}
+
+func flowRunOut(r service.FlowFireResult) FlowRun {
+	out := FlowRun{Fire: FlowFire{ID: idStr(r.Fire.ID), FlowID: idStr(r.Fire.FlowID), ScheduledFor: r.Fire.ScheduledFor,
+		TaskID: idPtr(r.Fire.TaskID), CreatedAt: r.Fire.CreatedAt}, Duplicate: r.Duplicate}
+	if r.Task != nil {
+		t := taskOut(*r.Task)
+		out.Task = &t
+		out.Fire.TaskKey, out.Fire.TaskTitle, out.Fire.TaskStatus = t.Key, t.Title, t.Status
+	}
+	return out
+}
 
 // listOf converte, pagina e envelopa. A paginação por fatiamento vale para
 // listagens que o service devolve completas.
