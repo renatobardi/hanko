@@ -16,7 +16,7 @@ templ DashboardPage(sh Shell, vm DashboardVM) {
 		</div>
 		<div class="grid-dash">
 			if !vm.HasPersonas {
-				@EmptyCard("bot", "Você ainda não tem personas.", "Contrate a primeira e dê um heartbeat. A partir daí, toda task atribuída começa a rodar sozinha.", true) {
+				@EmptyCard("bot", "Você ainda não tem personas.", "Contrate a primeira e defina o intervalo de verificação. A partir daí, toda task atribuída começa a rodar sozinha.", true) {
 					<a class="btn outline" href={ templ.SafeURL(sh.Base() + "/personas/nova") }>@Icon("plus") Contratar persona</a>
 				}
 			} else {
@@ -69,7 +69,7 @@ templ DashboardPage(sh Shell, vm DashboardVM) {
 		</div>
 		<div class="grid-3">
 			if len(vm.Activity) == 0 {
-				@EmptyCard("clock", "Nenhuma atividade ainda.", "Heartbeats, comentários e mudanças de status aparecem aqui.", false)
+				@EmptyCard("clock", "Nenhuma atividade ainda.", "Execuções, comentários e mudanças de status aparecem aqui.", false)
 			} else {
 				<section class="card pad">
 					<div class="card-head"><h2>Atividade recente</h2><a class="more" href={ templ.SafeURL(sh.Base() + "/atividade") }>Ver tudo</a></div>
@@ -92,7 +92,7 @@ templ DashboardPage(sh Shell, vm DashboardVM) {
 				</section>
 			}
 			if len(vm.Tasks) == 0 {
-				@EmptyCard("list", "Nenhuma task.", "Crie uma e atribua a uma persona para ver o heartbeat em ação.", false) {
+				@EmptyCard("list", "Nenhuma task.", "Crie uma e atribua a uma persona para ver uma execução acontecer.", false) {
 					<a class="btn outline sm" href={ templ.SafeURL(sh.Base() + "/tasks/nova") }>@Icon("plus") Nova task</a>
 				}
 			} else {

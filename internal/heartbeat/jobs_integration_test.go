@@ -78,7 +78,7 @@ func TestJobsInsertTx(t *testing.T) {
 	if n := countJobs(t, pool, "kind='wake'"); n != 1 {
 		t.Errorf("wake jobs = %d, want 1 (coalesced)", n)
 	}
-	if n := countJobs(t, pool, "kind='execute_run' AND queue='runs' AND max_attempts=1"); n != 1 {
+	if n := countJobs(t, pool, "kind='execute_run' AND queue='runs' AND max_attempts=10"); n != 1 {
 		t.Errorf("execute_run jobs = %d", n)
 	}
 	if n := countJobs(t, pool, "kind='deliver_memory'"); n != 1 {

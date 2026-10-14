@@ -241,6 +241,19 @@ type PersonaVM struct {
 	Tasks        []TaskRow
 	Runs         []RunRow
 	Budget       string
+	Notice       string           // flash after an action
+	LastError    string           // last failed run, shown while the persona is failing
+	LastErrorAt  string           // when it happened
+	Failures     int              // failed runs in a row
+	Controls     []PersonaControl // pause / resume / reactivate buttons
+}
+
+// PersonaControl is one action button on the persona page (a POST to Href).
+type PersonaControl struct {
+	Label string
+	Href  string
+	Icon  string
+	Hint  string
 }
 
 // ---- runs ----

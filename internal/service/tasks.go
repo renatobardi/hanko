@@ -203,7 +203,9 @@ func (s *Service) GetTask(ctx context.Context, companyID domain.ID, ref string) 
 }
 
 // UpdateTask applies changes; (re)assignment to a workable task enqueues a Wake.
-// Closing a task (done/cancelled) sets closed_at and records a memory fact.
+// Closing a task (done/cancelled) sets closed_at and records a memory fact. Closing,
+// unassigning or reassigning a task cancels its active run (queued → cancelled in the tx;
+// running → run.cancel is published after commit).
 func (s *Service) UpdateTask(ctx context.Context, actor domain.Actor, companyID, taskID domain.ID, in UpdateTaskInput) (TaskView, error) {
 	if in.Title != nil {
 		if _, err := validateTitle(*in.Title); err != nil {
@@ -332,6 +334,15 @@ func (s *Service) UpdateTask(ctx context.Context, actor domain.Actor, companyID,
 					fmt.Sprintf("- Encerrada em: %s\n", t.now.Format("2006-01-02 15:04 UTC")))
 				if err := t.memoryFact(companyID, row.WorkspaceID, f,
 					fmt.Sprintf("task.closed:%s:%d", row.ID, t.now.Unix())); err != nil {
+					return err
+				}
+			}
+			if cur.PersonaID != nil && (closedNow || personaChanged) {
+				reason := "task_reassigned"
+				if closedNow {
+					reason = "task_closed"
+				}
+				if err := t.cancelTaskRun(actor, companyID, taskID, reason); err != nil {
 					return err
 				}
 			}

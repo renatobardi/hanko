@@ -306,12 +306,14 @@ func TestFinishRunFailureAndValidation(t *testing.T) {
 	if c, _ := e.svc.ListComments(ctx, e.co.ID, tv.ID); len(c) != 0 {
 		t.Fatalf("failed run must not comment: %+v", c)
 	}
-	if pp, _ := e.svc.GetPersona(ctx, e.co.ID, p.ID.String()); pp.Status != domain.PersonaError {
-		t.Fatalf("persona = %s, want error", pp.Status)
+	// one failure is not enough for error: back to idle, with the last error recorded
+	if pp, _ := e.svc.GetPersona(ctx, e.co.ID, p.ID.String()); pp.Status != domain.PersonaIdle {
+		t.Fatalf("persona = %s, want idle", pp.Status)
 	}
-	// persona in error can no longer be checked out
-	_, err = e.svc.CheckoutRun(ctx, wakeOf(p, tv, domain.TriggerHeartbeat))
-	wantErr(t, err, domain.ErrInvalid)
+	h, err := e.svc.GetPersonaHealth(ctx, e.co.ID, p.ID)
+	if err != nil || h.LastError != "boom" || h.LastErrorAt == nil || h.ConsecutiveFailures != 1 {
+		t.Fatalf("health = %+v %v", h, err)
+	}
 }
 
 func TestCancelRun(t *testing.T) {
@@ -507,7 +509,7 @@ func TestMemoryFactsAndOutbox(t *testing.T) {
 	if err != nil || len(pend) != 3 {
 		t.Fatalf("pending: %v %v", pend, err)
 	}
-	if err := e.svc.MarkMemoryFailed(ctx, id, "provider down"); err != nil {
+	if err := e.svc.MarkMemoryFailed(ctx, id, "provider down", false); err != nil {
 		t.Fatal(err)
 	}
 	item, _ := e.svc.GetMemoryItem(ctx, id)

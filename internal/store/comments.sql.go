@@ -83,6 +83,26 @@ func (q *Queries) GetCommentByEventID(ctx context.Context, arg GetCommentByEvent
 	return i, err
 }
 
+const hasHumanCommentSince = `-- name: HasHumanCommentSince :one
+SELECT EXISTS (
+    SELECT 1 FROM task_comments
+    WHERE company_id = $1 AND task_id = $2 AND author_type = 'human' AND created_at > $3
+) AS found
+`
+
+type HasHumanCommentSinceParams struct {
+	CompanyID uuid.UUID
+	TaskID    uuid.UUID
+	Since     time.Time
+}
+
+func (q *Queries) HasHumanCommentSince(ctx context.Context, arg HasHumanCommentSinceParams) (bool, error) {
+	row := q.db.QueryRow(ctx, hasHumanCommentSince, arg.CompanyID, arg.TaskID, arg.Since)
+	var found bool
+	err := row.Scan(&found)
+	return found, err
+}
+
 const listComments = `-- name: ListComments :many
 SELECT id, company_id, task_id, author_type, author_id, run_id, body, event_id, created_at FROM task_comments WHERE company_id = $1 AND task_id = $2 ORDER BY created_at, id
 `

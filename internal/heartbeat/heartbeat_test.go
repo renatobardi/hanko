@@ -14,6 +14,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/riverqueue/river/rivertype"
 
 	"github.com/renatobardi/hanko/internal/adapter"
 	"github.com/renatobardi/hanko/internal/auth"
@@ -35,29 +36,36 @@ func sampleContext() service.RunContext {
 }
 
 type fakeBackend struct {
-	mu       sync.Mutex
-	rc       service.RunContext
-	loadErr  error
-	startErr error
-	finErr   error
-	events   []adapter.Event
-	started  []string // traceID
-	handoff  string
-	finished []service.FinishRunInput
-	checkout func(service.Wake) (domain.Run, error)
-	orphans  int
-	cands    []service.WakeCandidate
-	pending  []domain.ID
-	item     service.MemoryItem
-	itemErr  error
-	sent     []domain.ID
-	failed   []string
+	mu           sync.Mutex
+	rc           service.RunContext
+	loadErr      error
+	startErr     error
+	finErr       error
+	events       []adapter.Event
+	started      []string // traceID
+	handoff      string
+	finished     []service.FinishRunInput
+	checkout     func(service.Wake) (domain.Run, error)
+	orphans      int
+	cands        []service.WakeCandidate
+	pending      []domain.ID
+	item         service.MemoryItem
+	itemErr      error
+	sent         []domain.ID
+	failed       []string
+	failPerm     []bool
+	pendingSaved []service.FinishRunInput
+	pendErr      error
+	finFails     int // FinishRun fails this many times before succeeding
+	finCalls     int
 }
 
 func (f *fakeBackend) CheckoutRun(_ context.Context, w service.Wake) (domain.Run, error) {
 	return f.checkout(w)
 }
 func (f *fakeBackend) LoadRunContext(context.Context, domain.ID, domain.ID) (service.RunContext, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	return f.rc, f.loadErr
 }
 func (f *fakeBackend) MarkRunStarted(_ context.Context, _, _ domain.ID, traceID, handoff string) (domain.Run, error) {
@@ -65,6 +73,9 @@ func (f *fakeBackend) MarkRunStarted(_ context.Context, _, _ domain.ID, traceID,
 	defer f.mu.Unlock()
 	f.started = append(f.started, traceID)
 	f.handoff = handoff
+	if f.startErr == nil {
+		f.rc.Run.Status = domain.RunRunning
+	}
 	return domain.Run{}, f.startErr
 }
 func (f *fakeBackend) AppendRunEvent(_ context.Context, _, _ domain.ID, e adapter.Event) (domain.RunEvent, error) {
@@ -76,8 +87,28 @@ func (f *fakeBackend) AppendRunEvent(_ context.Context, _, _ domain.ID, e adapte
 func (f *fakeBackend) FinishRun(_ context.Context, _, _ domain.ID, in service.FinishRunInput) (domain.Run, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.finCalls++
+	if f.finErr != nil {
+		return domain.Run{}, f.finErr
+	}
+	if f.finCalls <= f.finFails {
+		return domain.Run{}, errors.New("db indisponível")
+	}
 	f.finished = append(f.finished, in)
-	return domain.Run{}, f.finErr
+	f.rc.Run.Status = in.Status
+	f.rc.PendingResult = nil
+	return domain.Run{}, nil
+}
+func (f *fakeBackend) SavePendingResult(_ context.Context, _, _ domain.ID, in service.FinishRunInput) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.pendErr != nil {
+		return f.pendErr
+	}
+	f.pendingSaved = append(f.pendingSaved, in)
+	cp := in
+	f.rc.PendingResult = &cp
+	return nil
 }
 func (f *fakeBackend) InterruptOrphanRuns(context.Context) (int, error) { return f.orphans, nil }
 func (f *fakeBackend) WakeCandidates(context.Context, int) ([]service.WakeCandidate, error) {
@@ -90,8 +121,9 @@ func (f *fakeBackend) MarkMemorySent(_ context.Context, id domain.ID) error {
 	f.sent = append(f.sent, id)
 	return nil
 }
-func (f *fakeBackend) MarkMemoryFailed(_ context.Context, _ domain.ID, msg string) error {
+func (f *fakeBackend) MarkMemoryFailed(_ context.Context, _ domain.ID, msg string, permanent bool) error {
 	f.failed = append(f.failed, msg)
+	f.failPerm = append(f.failPerm, permanent)
 	return nil
 }
 func (f *fakeBackend) PendingMemory(context.Context, int) ([]domain.ID, error) { return f.pending, nil }
@@ -163,6 +195,7 @@ func newTestHB(t *testing.T, be *fakeBackend, ad adapter.Adapter, mem memory.Pro
 	if err != nil {
 		t.Fatal(err)
 	}
+	h.finishBackoff = []time.Duration{time.Millisecond, time.Millisecond, time.Millisecond, time.Millisecond}
 	b := events.NewBroker()
 	h.attach(be, adapter.Registry{"fake": ad}, mem, b, auth.RunTokens{Secret: []byte("0123456789abcdef0123")})
 	return h, b
@@ -522,11 +555,25 @@ func TestExecuteRunEarlyExits(t *testing.T) {
 			t.Fatalf("err=%v %+v", err, be.finished)
 		}
 	})
-	t.Run("finish error propagates", func(t *testing.T) {
+	t.Run("finish error snoozes while running", func(t *testing.T) {
 		be := &fakeBackend{rc: sampleContext(), finErr: errors.New("db")}
 		h, _ := newTestHB(t, be, okAdapter(), nil, Options{})
-		if err := h.executeRun(context.Background(), ExecuteRunArgs{}); err == nil {
-			t.Fatal("want error")
+		err := h.executeRun(context.Background(), ExecuteRunArgs{})
+		var sn *rivertype.JobSnoozeError
+		if !errors.As(err, &sn) || sn.Duration != time.Minute {
+			t.Fatalf("want snooze 1m, got %v", err)
+		}
+		if be.finCalls != 5 {
+			t.Errorf("tentativas locais = %d, want 5", be.finCalls)
+		}
+	})
+	t.Run("running without pending result fails the run", func(t *testing.T) {
+		be := &fakeBackend{rc: sampleContext()}
+		be.rc.Run.Status = domain.RunRunning
+		h, _ := newTestHB(t, be, okAdapter(), nil, Options{})
+		if err := h.executeRun(context.Background(), ExecuteRunArgs{}); err != nil || len(be.started) != 0 ||
+			len(be.finished) != 1 || be.finished[0].Status != domain.RunFailed {
+			t.Fatalf("err=%v %+v", err, be.finished)
 		}
 	})
 	t.Run("not attached", func(t *testing.T) {
@@ -546,11 +593,10 @@ func TestWake(t *testing.T) {
 	for _, tc := range []struct {
 		err     error
 		wantErr bool
-	}{{nil, false}, {domain.ErrActiveRun, false}, {domain.ErrInvalid, false}, {domain.ErrNotFound, false},
-		{fmt.Errorf("x: %w", domain.ErrActiveRun), false}, {errors.New("db"), true}} {
+	}{{nil, false}, {domain.ErrInvalid, false}, {domain.ErrNotFound, false}, {errors.New("db"), true}} {
 		be := &fakeBackend{checkout: func(service.Wake) (domain.Run, error) { return domain.Run{}, tc.err }}
 		h, _ := newTestHB(t, be, okAdapter(), nil, Options{})
-		if err := h.wake(context.Background(), WakeArgs{}); (err != nil) != tc.wantErr {
+		if err := h.wake(context.Background(), WakeArgs{}, 0); (err != nil) != tc.wantErr {
 			t.Errorf("err %v → %v", tc.err, err)
 		}
 	}
@@ -576,8 +622,10 @@ func TestDeliverMemory(t *testing.T) {
 	be = &fakeBackend{item: service.MemoryItem{ID: id, CompanySlug: "acme", Payload: fact}}
 	mem = &memStub{recordErr: errors.New("fora")}
 	h, _ = newTestHB(t, be, okAdapter(), mem, Options{})
-	if err := h.deliverMemory(context.Background(), DeliverMemoryArgs{OutboxID: id}); err == nil || len(be.failed) != 1 || len(be.sent) != 0 {
-		t.Fatalf("err=%v failed=%v", err, be.failed)
+	err := h.deliverMemory(context.Background(), DeliverMemoryArgs{OutboxID: id})
+	var sn *rivertype.JobSnoozeError
+	if !errors.As(err, &sn) || sn.Duration != time.Minute || len(be.failed) != 1 || be.failPerm[0] || len(be.sent) != 0 {
+		t.Fatalf("err=%v failed=%v perm=%v", err, be.failed, be.failPerm)
 	}
 	if mem.scopes[0].Project != "default" {
 		t.Errorf("scope=%+v", mem.scopes[0])
@@ -586,7 +634,7 @@ func TestDeliverMemory(t *testing.T) {
 	// bad payload → cancelled job, marked failed
 	be = &fakeBackend{item: service.MemoryItem{ID: id, Payload: json.RawMessage(`{`)}}
 	h, _ = newTestHB(t, be, okAdapter(), mem, Options{})
-	if err := h.deliverMemory(context.Background(), DeliverMemoryArgs{OutboxID: id}); err == nil || len(be.failed) != 1 {
+	if err := h.deliverMemory(context.Background(), DeliverMemoryArgs{OutboxID: id}); err == nil || len(be.failed) != 1 || !be.failPerm[0] {
 		t.Fatalf("err=%v", err)
 	}
 
@@ -631,7 +679,7 @@ func TestOptionsDefaultsAndStart(t *testing.T) {
 		t.Fatalf("%+v", o)
 	}
 	w := &executeRunWorker{h: &Heartbeat{opts: o}}
-	if w.Timeout(nil) != 32*time.Minute {
+	if w.Timeout(nil) != 36*time.Minute {
 		t.Errorf("timeout=%v", w.Timeout(nil))
 	}
 }
@@ -647,4 +695,116 @@ func TestArgsKinds(t *testing.T) {
 	_ = (HeartbeatTickArgs{}).InsertOpts()
 	_ = (MemorySweepArgs{}).InsertOpts()
 	_ = (DeliverMemoryArgs{}).InsertOpts()
+}
+
+// ---- confiabilidade ----
+
+func TestFinishRunRetriesLocally(t *testing.T) {
+	be := &fakeBackend{rc: sampleContext(), finFails: 3}
+	h, _ := newTestHB(t, be, okAdapter(), nil, Options{})
+	if err := h.executeRun(context.Background(), ExecuteRunArgs{}); err != nil {
+		t.Fatal(err)
+	}
+	if be.finCalls != 4 || len(be.finished) != 1 || be.finished[0].Status != domain.RunDone {
+		t.Fatalf("calls=%d finished=%+v", be.finCalls, be.finished)
+	}
+	if len(be.pendingSaved) != 1 || be.pendingSaved[0].Result.Summary != "feito" {
+		t.Fatalf("resultado pendente não guardado: %+v", be.pendingSaved)
+	}
+}
+
+// A finalization that keeps failing snoozes the job; the next attempt finishes the run from
+// the saved result and never runs the harness again.
+func TestFinishRunSnoozeThenFinishWithoutRerun(t *testing.T) {
+	be := &fakeBackend{rc: sampleContext(), finFails: 5}
+	runs := 0
+	ad := &scriptedAdapter{run: func(ctx context.Context, _ adapter.Spec, _ adapter.Sink) (adapter.Result, error) {
+		runs++
+		return adapter.Result{SessionRef: "s1", Summary: "feito"}, nil
+	}}
+	mem := &memStub{}
+	h, _ := newTestHB(t, be, ad, mem, Options{})
+	args := ExecuteRunArgs{CompanyID: be.rc.Company.ID, RunID: be.rc.Run.ID}
+
+	err := h.executeRun(context.Background(), args)
+	var sn *rivertype.JobSnoozeError
+	if !errors.As(err, &sn) {
+		t.Fatalf("want snooze, got %v", err)
+	}
+	if len(be.finished) != 0 || be.rc.PendingResult == nil || be.rc.Run.Status != domain.RunRunning {
+		t.Fatalf("estado após snooze: finished=%d pending=%v status=%s", len(be.finished), be.rc.PendingResult, be.rc.Run.Status)
+	}
+
+	// second attempt: DB is back
+	if err := h.executeRun(context.Background(), args); err != nil {
+		t.Fatal(err)
+	}
+	if runs != 1 || len(be.started) != 1 {
+		t.Fatalf("harness reexecutado: runs=%d started=%d", runs, len(be.started))
+	}
+	if len(be.finished) != 1 || be.finished[0].Status != domain.RunDone || be.finished[0].Result.Summary != "feito" {
+		t.Fatalf("finished=%+v", be.finished)
+	}
+	if len(mem.finalized) != 1 {
+		t.Errorf("sessão de memória finalizada %d vezes", len(mem.finalized))
+	}
+}
+
+func TestFinishFailedSkipsSnoozeWhenAlreadyTerminal(t *testing.T) {
+	be := &fakeBackend{rc: sampleContext(), finErr: errors.New("db")}
+	h, _ := newTestHB(t, be, okAdapter(), nil, Options{})
+	be.rc.Run.Status = domain.RunCancelled // someone else finished it
+	if err := h.finishFailed(context.Background(), ExecuteRunArgs{}, errors.New("x"), jobInfo{}, h.log); err != nil {
+		t.Fatalf("run terminal não deve gerar snooze: %v", err)
+	}
+	be.rc.Run.Status = domain.RunRunning
+	if err := h.finishFailed(context.Background(), ExecuteRunArgs{}, errors.New("x"), jobInfo{age: 25 * time.Hour}, h.log); err == nil || errors.As(err, new(*rivertype.JobSnoozeError)) {
+		t.Fatalf("passado o teto deve devolver o erro, got %v", err)
+	}
+}
+
+func TestLoadErrorOnlyFailsRunOnFinalAttempt(t *testing.T) {
+	be := &fakeBackend{loadErr: errors.New("db")}
+	h, _ := newTestHB(t, be, okAdapter(), nil, Options{})
+	if err := h.executeRunJob(context.Background(), ExecuteRunArgs{}, jobInfo{final: false}); err == nil || len(be.finished) != 0 {
+		t.Fatalf("err=%v finished=%+v", err, be.finished)
+	}
+	if err := h.executeRunJob(context.Background(), ExecuteRunArgs{}, jobInfo{final: true}); err == nil || len(be.finished) != 1 {
+		t.Fatalf("err=%v finished=%+v", err, be.finished)
+	}
+}
+
+func TestWakeSnoozesWhileRunActive(t *testing.T) {
+	be := &fakeBackend{checkout: func(service.Wake) (domain.Run, error) { return domain.Run{}, domain.ErrActiveRun }}
+	h, _ := newTestHB(t, be, okAdapter(), nil, Options{})
+	err := h.wake(context.Background(), WakeArgs{}, time.Minute)
+	var sn *rivertype.JobSnoozeError
+	if !errors.As(err, &sn) || sn.Duration != 30*time.Second {
+		t.Fatalf("want snooze 30s, got %v", err)
+	}
+	if err := h.wake(context.Background(), WakeArgs{}, 3*time.Hour); err != nil {
+		t.Fatalf("acima do teto de 2 h deve desistir sem erro, got %v", err)
+	}
+}
+
+func TestInsertOptsReliability(t *testing.T) {
+	if got := (ExecuteRunArgs{}).InsertOpts().MaxAttempts; got != 10 {
+		t.Errorf("execute_run MaxAttempts = %d", got)
+	}
+	for _, st := range (DeliverMemoryArgs{}).InsertOpts().UniqueOpts.ByState {
+		if st == rivertype.JobStateCompleted {
+			t.Error("deliver_memory concluída não pode bloquear nova entrega")
+		}
+	}
+}
+
+func TestDeliverMemorySkipsClosedItems(t *testing.T) {
+	for _, st := range []string{"sent", "failed"} {
+		be := &fakeBackend{item: service.MemoryItem{ID: domain.NewID(), Status: st, Payload: json.RawMessage(`{}`)}}
+		mem := &memStub{}
+		h, _ := newTestHB(t, be, okAdapter(), mem, Options{})
+		if err := h.deliverMemory(context.Background(), DeliverMemoryArgs{}); err != nil || len(mem.recorded) != 0 {
+			t.Errorf("%s: err=%v rec=%v", st, err, mem.recorded)
+		}
+	}
 }

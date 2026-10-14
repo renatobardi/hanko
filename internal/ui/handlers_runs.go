@@ -51,7 +51,7 @@ func (s *server) handleRuns(w http.ResponseWriter, r *http.Request, co domain.Co
 		s.fail(w, r, &co, err)
 		return
 	}
-	vm := views.RunsVM{Live: len(live), Subtitle: "Cada heartbeat vira uma execução auditável: status, eventos, saída, custo e a task de origem."}
+	vm := views.RunsVM{Live: len(live), Subtitle: "Cada vez que uma persona é acordada vira uma execução auditável: status, eventos, saída, custo e a task de origem."}
 	for _, t := range runTabs {
 		vm.Tabs = append(vm.Tabs, views.TabLink{Key: t.key, Label: t.label, Href: base + "/execucoes?aba=" + t.key, On: t.key == cur.key})
 	}

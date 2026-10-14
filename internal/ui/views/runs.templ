@@ -4,7 +4,7 @@ import "fmt"
 
 templ RunsTable(rows []RunRow, showPersona bool) {
 	if len(rows) == 0 {
-		@EmptyCard("activity", "Nenhuma execução ainda.", "Cada heartbeat vira uma execução auditável: status, eventos, saída e custo.", false)
+		@EmptyCard("activity", "Nenhuma execução ainda.", "Cada vez que uma persona é acordada vira uma execução auditável: status, eventos, saída e custo.", false)
 	} else {
 		<div class="table-wrap">
 			<table class="table">
@@ -137,7 +137,7 @@ templ RunPage(sh Shell, vm RunVM) {
 				<section class="card pad">
 					<div class="card-head"><h2 style="font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);font-weight:500">Invocação</h2></div>
 					<dl class="kv">
-						<dt>Agente</dt><dd>{ vm.Agent }</dd>
+						<dt>Harness</dt><dd>{ vm.Agent }</dd>
 						<dt>Modelo</dt><dd>
 							if vm.Model != "" {
 								{ vm.Model }

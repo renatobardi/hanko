@@ -13,7 +13,7 @@ templ PersonasPage(sh Shell, vm PersonasVM) {
 			@Kpi("shield", fmt.Sprint(vm.Awaiting), "Aguardando gate", vm.Awaiting > 0)
 		</div>
 		if len(vm.Rows) == 0 {
-			@EmptyCard("bot", "Você ainda não tem personas.", "Contrate a primeira, escolha o agente e o modelo e dê um heartbeat.", true) {
+			@EmptyCard("bot", "Você ainda não tem personas.", "Contrate a primeira, escolha o harness e o modelo e defina o intervalo de verificação.", true) {
 				<a class="btn outline" href={ templ.SafeURL(sh.Base() + "/personas/nova") }>@Icon("plus") Contratar persona</a>
 			}
 		} else {
@@ -23,9 +23,9 @@ templ PersonasPage(sh Shell, vm PersonasVM) {
 						<tr>
 							<th>Persona</th>
 							<th>Status</th>
-							<th class="hide-sm">Agente · modelo</th>
+							<th class="hide-sm">Harness · modelo</th>
 							<th class="num">Tasks</th>
-							<th class="hide-sm">Heartbeat</th>
+							<th class="hide-sm">Acorda</th>
 						</tr>
 					</thead>
 					<tbody>
@@ -56,7 +56,7 @@ templ PersonasPage(sh Shell, vm PersonasVM) {
 
 templ HirePersonaPage(sh Shell, vm HirePersonaVM) {
 	@Layout(sh) {
-		@PageHead("Contratar persona", "Identidade, agente e modelo. A persona passa a receber heartbeat assim que tiver uma task.") {
+		@PageHead("Contratar persona", "Identidade, harness e modelo. A persona é acordada assim que tiver uma task.") {
 		}
 		<form class="card pad form-card" method="post" action={ templ.SafeURL(sh.Base() + "/personas/nova") } hx-boost="true">
 			if vm.Error != "" {
@@ -76,7 +76,7 @@ templ HirePersonaPage(sh Shell, vm HirePersonaVM) {
 				</div>
 			</div>
 			<div class="field">
-				<span class="lbl">Agente</span>
+				<span class="lbl">Harness</span>
 				<div class="radio-cards">
 					<label>
 						<input type="radio" name="agent" value="claude" checked?={ vm.Agent == "claude" }/>
@@ -95,7 +95,7 @@ templ HirePersonaPage(sh Shell, vm HirePersonaVM) {
 			<div class="form-grid">
 				<div class="field">
 					<label for="p-model">Modelo</label>
-					<input class="input" id="p-model" name="model" value={ vm.Model } placeholder="claude-sonnet (vazio = padrão do agente)" list="models"/>
+					<input class="input" id="p-model" name="model" value={ vm.Model } placeholder="claude-sonnet (vazio = padrão do harness)" list="models"/>
 					<datalist id="models">
 						<option value="claude-sonnet"></option>
 						<option value="claude-opus"></option>
@@ -105,9 +105,9 @@ templ HirePersonaPage(sh Shell, vm HirePersonaVM) {
 					<span class="hint">Lista sugerida · ou informe um ID manual.</span>
 				</div>
 				<div class="field">
-					<label for="p-hb">Heartbeat (min)</label>
+					<label for="p-hb">Acordar a cada (min)</label>
 					<input class="input" id="p-hb" name="heartbeat" type="number" min="0" max="1440" value={ vm.Heartbeat } inputmode="numeric"/>
-					<span class="hint">Intervalo entre despertares por task. 0 = só manual.</span>
+					<span class="hint">Intervalo de verificação: de quanto em quanto tempo a persona é acordada por task. 0 = só manual.</span>
 				</div>
 			</div>
 			<div class="field">
@@ -125,6 +125,12 @@ templ HirePersonaPage(sh Shell, vm HirePersonaVM) {
 
 templ PersonaPage(sh Shell, vm PersonaVM) {
 	@Layout(sh) {
+		if vm.Notice != "" {
+			@Alert("warn", vm.Notice)
+		}
+		if vm.LastError != "" {
+			@Alert("danger", personaErrorText(vm))
+		}
 		<div class="persona-head">
 			<span class="mini-avatar">@Icon("bot")</span>
 			<div>
@@ -133,10 +139,19 @@ templ PersonaPage(sh Shell, vm PersonaVM) {
 					if vm.Model != "" {
 						<span class="mono" style="font-size:12.5px"> · { vm.Model }</span>
 					}
-					· heartbeat { vm.Heartbeat }
+					· intervalo de verificação: { vm.Heartbeat }
 				</p>
 			</div>
 		</div>
+		if len(vm.Controls) > 0 {
+			<div class="persona-controls" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">
+				for _, c := range vm.Controls {
+					<form method="post" action={ templ.SafeURL(c.Href) } hx-post={ c.Href } hx-swap="none">
+						<button class="btn outline sm" type="submit" title={ c.Hint }>@Icon(c.Icon) <span>{ c.Label }</span></button>
+					</form>
+				}
+			</div>
+		}
 		<div class="tabs" style="margin-bottom:22px">
 			<a href="#visao" aria-current="page">Visão geral</a>
 			<a href="#execucoes">Execuções</a>
@@ -148,15 +163,15 @@ templ PersonaPage(sh Shell, vm PersonaVM) {
 					<dt>Nome</dt><dd>{ vm.Name }</dd>
 					<dt>Cargo</dt><dd>{ vm.Title }</dd>
 					<dt>Slug</dt><dd class="mono">{ vm.Slug }</dd>
-					<dt>Agente</dt><dd class="mono">{ vm.Agent }</dd>
+					<dt>Harness</dt><dd class="mono">{ vm.Agent }</dd>
 					<dt>Modelo</dt><dd class="mono">
 						if vm.Model != "" {
 							{ vm.Model }
 						} else {
-							<span class="faint">padrão do agente</span>
+							<span class="faint">padrão do harness</span>
 						}
 					</dd>
-					<dt>Heartbeat</dt><dd>{ vm.Heartbeat }</dd>
+					<dt>Intervalo de verificação</dt><dd>{ vm.Heartbeat }</dd>
 					<dt>Contratada</dt><dd>{ vm.Hired }</dd>
 				</dl>
 			</section>
@@ -192,4 +207,15 @@ templ PersonaPage(sh Shell, vm PersonaVM) {
 		<h2 class="side-h" id="execucoes" style="margin:28px 0 12px">Execuções recentes</h2>
 		@RunsTable(vm.Runs, false)
 	}
+}
+
+func personaErrorText(vm PersonaVM) string {
+	msg := "Última execução falhou"
+	if vm.LastErrorAt != "" {
+		msg += " em " + vm.LastErrorAt
+	}
+	if vm.Failures > 1 {
+		msg += " (" + fmt.Sprint(vm.Failures) + " falhas seguidas)"
+	}
+	return msg + ": " + vm.LastError
 }

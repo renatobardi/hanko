@@ -32,7 +32,7 @@ func RunsTable(rows []RunRow, showPersona bool) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		if len(rows) == 0 {
-			templ_7745c5c3_Err = EmptyCard("activity", "Nenhuma execução ainda.", "Cada heartbeat vira uma execução auditável: status, eventos, saída e custo.", false).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = EmptyCard("activity", "Nenhuma execução ainda.", "Cada vez que uma persona é acordada vira uma execução auditável: status, eventos, saída e custo.", false).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -777,14 +777,14 @@ func RunPage(sh Shell, vm RunVM) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 59, "</section><div class=\"grid-2\" style=\"align-items:start\"><section class=\"card pad\"><div class=\"card-head\"><h2 style=\"font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);font-weight:500\">Invocação</h2></div><dl class=\"kv\"><dt>Agente</dt><dd>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 59, "</section><div class=\"grid-2\" style=\"align-items:start\"><section class=\"card pad\"><div class=\"card-head\"><h2 style=\"font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);font-weight:500\">Invocação</h2></div><dl class=\"kv\"><dt>Harness</dt><dd>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var42 string
 			templ_7745c5c3_Var42, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Agent)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `runs.templ`, Line: 140, Col: 35}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `runs.templ`, Line: 140, Col: 36}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var42))
 			if templ_7745c5c3_Err != nil {

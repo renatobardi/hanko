@@ -171,7 +171,7 @@ func DashboardPage(sh Shell, vm DashboardVM) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = EmptyCard("bot", "Você ainda não tem personas.", "Contrate a primeira e dê um heartbeat. A partir daí, toda task atribuída começa a rodar sozinha.", true).Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = EmptyCard("bot", "Você ainda não tem personas.", "Contrate a primeira e defina o intervalo de verificação. A partir daí, toda task atribuída começa a rodar sozinha.", true).Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -431,7 +431,7 @@ func DashboardPage(sh Shell, vm DashboardVM) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			if len(vm.Activity) == 0 {
-				templ_7745c5c3_Err = EmptyCard("clock", "Nenhuma atividade ainda.", "Heartbeats, comentários e mudanças de status aparecem aqui.", false).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = EmptyCard("clock", "Nenhuma atividade ainda.", "Execuções, comentários e mudanças de status aparecem aqui.", false).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -597,7 +597,7 @@ func DashboardPage(sh Shell, vm DashboardVM) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = EmptyCard("list", "Nenhuma task.", "Crie uma e atribua a uma persona para ver o heartbeat em ação.", false).Render(templ.WithChildren(ctx, templ_7745c5c3_Var31), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = EmptyCard("list", "Nenhuma task.", "Crie uma e atribua a uma persona para ver uma execução acontecer.", false).Render(templ.WithChildren(ctx, templ_7745c5c3_Var31), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

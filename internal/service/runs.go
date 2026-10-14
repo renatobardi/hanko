@@ -76,28 +76,63 @@ func (s *Service) CancelRun(ctx context.Context, actor domain.Actor, companyID, 
 		if err != nil {
 			return mapErr(err, "get run")
 		}
-		switch domain.RunStatus(cur.Status) {
-		case domain.RunQueued:
-			row, err := t.q.CancelQueuedRun(ctx, store.CancelQueuedRunParams{CompanyID: companyID, ID: runID, Now: &t.now})
-			if err != nil {
-				return mapErr(err, "cancel run")
-			}
-			if err := t.activity(actor, companyID, "run.cancelled", "run", runID, map[string]any{"was": "queued"}, ""); err != nil {
-				return err
-			}
-			t.publishRunStatus(runFromRow(row))
-		case domain.RunRunning:
-			if err := t.activity(actor, companyID, "run.cancelled", "run", runID, map[string]any{"was": "running", "requested": true}, ""); err != nil {
-				return err
-			}
-			t.publish(events.RunTopic(runID.String()), "run.cancel", runID)
-		default:
+		if !domain.RunStatus(cur.Status).Active() {
 			return domain.Invalid("run", fmt.Sprintf("run already %s", cur.Status))
+		}
+		if err := t.cancelRun(actor, companyID, cur, nil); err != nil {
+			return err
 		}
 		out, err = loadRunView(ctx, t.q, companyID, runID)
 		return err
 	})
 	return out, err
+}
+
+// cancelRun cancels a locked, active run inside the transaction: queued → cancelled right
+// away; running → records the request and publishes run.cancel after commit.
+func (t *txc) cancelRun(actor domain.Actor, companyID domain.ID, cur store.Run, extra map[string]any) error {
+	data := map[string]any{}
+	for k, v := range extra {
+		data[k] = v
+	}
+	switch domain.RunStatus(cur.Status) {
+	case domain.RunQueued:
+		row, err := t.q.CancelQueuedRun(t.ctx, store.CancelQueuedRunParams{CompanyID: companyID, ID: cur.ID, Now: &t.now})
+		if err != nil {
+			return mapErr(err, "cancel run")
+		}
+		data["was"] = "queued"
+		if err := t.activity(actor, companyID, "run.cancelled", "run", cur.ID, data, ""); err != nil {
+			return err
+		}
+		t.publishRunStatus(runFromRow(row))
+	case domain.RunRunning:
+		data["was"], data["requested"] = "running", true
+		if err := t.activity(actor, companyID, "run.cancelled", "run", cur.ID, data, ""); err != nil {
+			return err
+		}
+		t.publish(events.RunTopic(cur.ID.String()), "run.cancel", cur.ID)
+	}
+	return nil
+}
+
+// cancelTaskRun cancels the task's active run, if any (task closed, unassigned or reassigned).
+func (t *txc) cancelTaskRun(actor domain.Actor, companyID, taskID domain.ID, reason string) error {
+	active, err := t.q.ActiveRunForTask(t.ctx, taskID)
+	if isNoRows(err) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("active run for task: %w", err)
+	}
+	cur, err := t.q.GetRunByIDForUpdate(t.ctx, store.GetRunByIDForUpdateParams{CompanyID: companyID, ID: active.ID})
+	if err != nil {
+		return mapErr(err, "get run")
+	}
+	if !domain.RunStatus(cur.Status).Active() {
+		return nil // finished while we were looking
+	}
+	return t.cancelRun(actor, companyID, cur, map[string]any{"reason": reason})
 }
 
 // CheckoutRun atomically creates a queued run for (task, persona) if the task has no
@@ -199,6 +234,13 @@ func (s *Service) LoadRunContext(ctx context.Context, companyID, runID domain.ID
 	}
 	rc := RunContext{Run: runFromRow(run), Company: companyFromRow(company), Persona: personaFromRow(persona),
 		Task: task, Comments: make([]domain.Comment, len(comments))}
+	if len(run.PendingResult) > 0 {
+		var in FinishRunInput
+		if err := json.Unmarshal(run.PendingResult, &in); err != nil {
+			return RunContext{}, fmt.Errorf("decode pending result: %w", err)
+		}
+		rc.PendingResult = &in
+	}
 	for i, c := range comments {
 		rc.Comments[i] = commentFromRow(c)
 	}
@@ -297,8 +339,23 @@ func (s *Service) AppendRunEvent(ctx context.Context, companyID, runID domain.ID
 	return ev, nil
 }
 
+// SavePendingResult stores the outcome of a running run before FinishRun is attempted, so a
+// finalization that keeps failing can be retried later without executing the harness again.
+func (s *Service) SavePendingResult(ctx context.Context, companyID, runID domain.ID, in FinishRunInput) error {
+	raw, err := json.Marshal(in)
+	if err != nil {
+		return fmt.Errorf("marshal pending result: %w", err)
+	}
+	if err := s.read().SetRunPendingResult(ctx, store.SetRunPendingResultParams{CompanyID: companyID, ID: runID, PendingResult: raw}); err != nil {
+		return fmt.Errorf("save pending result: %w", err)
+	}
+	return nil
+}
+
 // FinishRun records the result. On done with a non-empty summary, posts it as a persona
-// comment on the task. Persona → idle (or error on failure). Writes activity + a
+// comment on the task. Persona → idle (error only after personaMaxFailures failures in a
+// row; the last error is kept). A human comment posted while the run was active re-enqueues
+// a Wake (trigger comment) in the same tx. Writes activity + a
 // memory_outbox fact (run.finished) and enqueues its delivery. Publishes run.status.
 func (s *Service) FinishRun(ctx context.Context, companyID, runID domain.ID, in FinishRunInput) (domain.Run, error) {
 	if !in.Status.Valid() || !in.Status.Terminal() {
@@ -348,12 +405,8 @@ func (s *Service) FinishRun(ctx context.Context, companyID, runID domain.ID, in 
 			}
 		}
 
-		pstatus := domain.PersonaIdle
-		if in.Status == domain.RunFailed {
-			pstatus = domain.PersonaError
-		}
-		if err := t.q.SetPersonaAfterRun(ctx, store.SetPersonaAfterRunParams{ID: row.PersonaID, Status: string(pstatus), Now: t.now}); err != nil {
-			return fmt.Errorf("update persona after run: %w", err)
+		if err := t.personaAfterRun(row.PersonaID, in.Status, res.Error); err != nil {
+			return err
 		}
 
 		verb := "run.finished"
@@ -373,6 +426,9 @@ func (s *Service) FinishRun(ctx context.Context, companyID, runID domain.ID, in 
 			"run.finished:"+runID.String()); err != nil {
 			return err
 		}
+		if err := t.wakeForMissedComment(companyID, task, row); err != nil {
+			return err
+		}
 		t.publishRunStatus(out)
 		if tv, err := loadTaskView(ctx, t.q, companyID, row.TaskID); err == nil {
 			t.publish(companyTopic(companyID), "task.updated", tv)
@@ -386,6 +442,46 @@ func (s *Service) FinishRun(ctx context.Context, companyID, runID domain.ID, in 
 }
 
 func ptr[T any](v T) *T { return &v }
+
+// personaMaxFailures is how many failed runs in a row put a persona in error.
+const personaMaxFailures = 3
+
+// personaAfterRun returns the persona to idle after a run and records failures. Only
+// failed runs count toward error; success resets the counter; cancelled, interrupted and
+// expired runs leave it alone.
+func (t *txc) personaAfterRun(personaID domain.ID, status domain.RunStatus, errMsg string) error {
+	outcome := "neutral"
+	switch status {
+	case domain.RunDone:
+		outcome = "ok"
+	case domain.RunFailed:
+		outcome = "fail"
+		if strings.TrimSpace(errMsg) == "" {
+			errMsg = "execução falhou"
+		}
+	}
+	if err := t.q.SetPersonaAfterRun(t.ctx, store.SetPersonaAfterRunParams{ID: personaID, Outcome: outcome,
+		MaxFailures: personaMaxFailures, LastError: errMsg, Now: t.now}); err != nil {
+		return fmt.Errorf("update persona after run: %w", err)
+	}
+	return nil
+}
+
+// wakeForMissedComment re-enqueues a Wake when a human commented on the task while the run
+// was active (the run's prompt did not include it). A run the user cancelled is not retried.
+func (t *txc) wakeForMissedComment(companyID domain.ID, task store.Task, run store.Run) error {
+	if run.StartedAt == nil || run.Status == string(domain.RunCancelled) || run.Status == string(domain.RunInterrupted) {
+		return nil
+	}
+	found, err := t.q.HasHumanCommentSince(t.ctx, store.HasHumanCommentSinceParams{CompanyID: companyID, TaskID: task.ID, Since: *run.StartedAt})
+	if err != nil {
+		return fmt.Errorf("check missed comment: %w", err)
+	}
+	if !found {
+		return nil
+	}
+	return t.wake(companyID, task.ID, task.PersonaID, domain.TaskStatus(task.Status), domain.TriggerComment, false)
+}
 
 func runFact(v RunView, status domain.RunStatus, res adapter.Result, now time.Time) memory.Fact {
 	var b strings.Builder
@@ -418,14 +514,22 @@ func (s *Service) InterruptOrphanRuns(ctx context.Context) (int, error) {
 			return fmt.Errorf("interrupt runs: %w", err)
 		}
 		for _, r := range rows {
-			if err := t.q.SetPersonaAfterRun(ctx, store.SetPersonaAfterRunParams{ID: r.PersonaID, Status: string(domain.PersonaIdle), Now: t.now}); err != nil {
-				return fmt.Errorf("update persona after interrupt: %w", err)
+			if err := t.personaAfterRun(r.PersonaID, domain.RunInterrupted, ""); err != nil {
+				return err
 			}
 			if err := t.activity(domain.SystemActor, r.CompanyID, "run.finished", "run", r.ID,
 				map[string]any{"status": domain.RunInterrupted, "task_id": r.TaskID, "reason": "orphan"}, ""); err != nil {
 				return err
 			}
 			t.publishRunStatus(runFromRow(r))
+			// The work was cut short: wake the assignee so the task is not left waiting for the next scan.
+			task, err := t.q.GetTaskByID(ctx, store.GetTaskByIDParams{CompanyID: r.CompanyID, ID: r.TaskID})
+			if err != nil {
+				return mapErr(err, "get task")
+			}
+			if err := t.wake(r.CompanyID, task.ID, task.PersonaID, domain.TaskStatus(task.Status), domain.TriggerHeartbeat, true); err != nil {
+				return err
+			}
 		}
 		n = len(rows)
 		return nil

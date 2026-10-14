@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -48,11 +49,11 @@ func (s *server) handlePersonas(w http.ResponseWriter, r *http.Request, co domai
 	}
 	switch len(personas) {
 	case 0:
-		vm.Subtitle = "Nenhuma persona ainda · qualquer agente, qualquer modelo. Se recebe heartbeat, está contratada."
+		vm.Subtitle = "Nenhuma persona ainda · qualquer harness, qualquer modelo. Se é acordada para trabalhar, está contratada."
 	case 1:
-		vm.Subtitle = "1 persona · qualquer agente, qualquer modelo. Se recebe heartbeat, está contratada."
+		vm.Subtitle = "1 persona · qualquer harness, qualquer modelo. Se é acordada para trabalhar, está contratada."
 	default:
-		vm.Subtitle = fmtInt(len(personas)) + " personas · qualquer agente, qualquer modelo. Se recebe heartbeat, está contratada."
+		vm.Subtitle = fmtInt(len(personas)) + " personas · qualquer harness, qualquer modelo. Se é acordada para trabalhar, está contratada."
 	}
 	sh := s.shell(co, "personas", "Personas", views.Crumb{Label: "Personas"})
 	sh.Action = &views.Action{Label: "Contratar persona", Href: base + "/personas/nova", Icon: "plus"}
@@ -89,14 +90,14 @@ func (s *server) handleHirePersona(w http.ResponseWriter, r *http.Request, co do
 	switch vm.Agent {
 	case "claude", "codex", "fake":
 	default:
-		bad("agent", "Agente desconhecido: use claude, codex ou fake.")
+		bad("agent", "Harness desconhecido: use claude, codex ou fake.")
 		return
 	}
 	minutes := 15
 	if vm.Heartbeat != "" {
 		n, err := strconv.Atoi(vm.Heartbeat)
 		if err != nil || n < 0 || n > 1440 {
-			bad("heartbeat", "O heartbeat deve ser um número de minutos entre 0 e 1440.")
+			bad("heartbeat", "O intervalo de verificação deve ser um número de minutos entre 0 e 1440.")
 			return
 		}
 		minutes = n
@@ -134,10 +135,23 @@ func (s *server) handlePersona(w http.ResponseWriter, r *http.Request, co domain
 	base := "/c/" + co.Slug
 	loc := loadLoc(co.Timezone)
 	now := s.now()
+	health, err := s.be.GetPersonaHealth(ctx, co.ID, p.ID)
+	if err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
 	vm := views.PersonaVM{
+		Notice: personaNotices[r.URL.Query().Get("ok")], Controls: personaControls(p, base),
 		Name: p.Name, Initials: initialsOf(p.Name), Title: p.Title, Badge: personaBadge(p.Status),
 		Agent: p.Agent, Model: p.Model, Heartbeat: heartbeatLabel(p.HeartbeatIntervalSec), Instructions: p.Instructions,
 		Hired: fmtDateTime(p.CreatedAt, loc), Slug: p.Slug,
+	}
+	// The last error stays visible while the persona is failing (in error, or with failures counted).
+	if health.LastError != "" && (p.Status == domain.PersonaError || health.ConsecutiveFailures > 0) {
+		vm.LastError, vm.Failures = health.LastError, health.ConsecutiveFailures
+		if health.LastErrorAt != nil {
+			vm.LastErrorAt = fmtDateTime(*health.LastErrorAt, loc)
+		}
 	}
 	for _, t := range tasks {
 		vm.Tasks = append(vm.Tasks, taskRow(t, base, now, loc))
@@ -148,4 +162,46 @@ func (s *server) handlePersona(w http.ResponseWriter, r *http.Request, co domain
 	sh := s.shell(co, "personas", p.Name, views.Crumb{Label: "Personas", Href: base + "/personas"}, views.Crumb{Label: p.Name})
 	sh.Action = &views.Action{Label: "Nova task", Href: base + "/tasks/nova?persona=" + p.ID.String(), Icon: "plus"}
 	s.render(w, r, http.StatusOK, views.PersonaPage(sh, vm))
+}
+
+var personaNotices = map[string]string{
+	"pausada":   "Persona pausada: ela não será mais acordada.",
+	"retomada":  "Persona retomada.",
+	"reativada": "Persona reativada: volta a ser acordada normalmente.",
+}
+
+// personaControls lists the actions that make sense for the persona's current status.
+func personaControls(p domain.Persona, base string) []views.PersonaControl {
+	href := func(action string) string { return base + "/personas/" + p.Slug + "/" + action }
+	switch p.Status {
+	case domain.PersonaError:
+		return []views.PersonaControl{{Label: "Reativar", Href: href("reativar"), Icon: "zap", Hint: "Zera as falhas e volta a acordar a persona"}}
+	case domain.PersonaPaused, domain.PersonaOff:
+		return []views.PersonaControl{{Label: "Retomar", Href: href("retomar"), Icon: "play", Hint: "Volta a acordar a persona"}}
+	case domain.PersonaActive, domain.PersonaIdle, domain.PersonaRunning:
+		return []views.PersonaControl{{Label: "Pausar", Href: href("pausar"), Icon: "alert", Hint: "Para de acordar a persona"}}
+	}
+	return nil
+}
+
+// handlePersonaControl moves the persona to a status chosen by the route (pause, resume,
+// reactivate) and returns to its page.
+func (s *server) handlePersonaControl(to domain.PersonaStatus, notice string) companyHandler {
+	return func(w http.ResponseWriter, r *http.Request, co domain.Company) {
+		ctx := r.Context()
+		p, err := s.be.GetPersona(ctx, co.ID, r.PathValue("persona"))
+		if err != nil {
+			s.fail(w, r, &co, err)
+			return
+		}
+		if len(personaControls(p, "")) == 0 || p.Status == to {
+			s.fail(w, r, &co, fmt.Errorf("persona %q já está %s: %w", p.Name, p.Status, domain.ErrConflict))
+			return
+		}
+		if _, err := s.be.UpdatePersona(ctx, domain.HumanActor, co.ID, p.ID, service.UpdatePersonaInput{Status: &to}); err != nil {
+			s.fail(w, r, &co, err)
+			return
+		}
+		redirect(w, r, "/c/"+co.Slug+"/personas/"+p.Slug+"?ok="+notice)
+	}
 }

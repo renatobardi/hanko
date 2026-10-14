@@ -85,7 +85,7 @@ func OnboardingPage(vm OnboardingVM, version string) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "\" maxlength=\"10\" placeholder=\"HNK\" style=\"text-transform:uppercase\"> <span class=\"hint\">As tasks viram HNK-1, HNK-2…</span></div><button class=\"btn primary block\" type=\"submit\">Criar empresa e continuar</button></form><div class=\"foot\"><span>Hanko · control plane de agentes de IA</span></div></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "\" maxlength=\"10\" placeholder=\"HNK\" style=\"text-transform:uppercase\"> <span class=\"hint\">As tasks viram HNK-1, HNK-2…</span></div><button class=\"btn primary block\" type=\"submit\">Criar empresa e continuar</button></form><div class=\"foot\"><span>Hanko · control plane de personas de IA</span></div></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

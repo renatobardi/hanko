@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/riverqueue/river"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -54,8 +56,18 @@ func finalStatus(cause, parentErr, runErr error, res adapter.Result) (domain.Run
 	return domain.RunDone, ""
 }
 
-// executeRun is the body of the execute_run job.
-func (h *Heartbeat) executeRun(ctx context.Context, a ExecuteRunArgs) (err error) {
+// jobInfo describes the river job running an execution.
+type jobInfo struct {
+	final bool          // last attempt: a load failure may now fail the run
+	age   time.Duration // time since the job was created
+}
+
+// executeRun is the body of the execute_run job (first and final attempt).
+func (h *Heartbeat) executeRun(ctx context.Context, a ExecuteRunArgs) error {
+	return h.executeRunJob(ctx, a, jobInfo{final: true})
+}
+
+func (h *Heartbeat) executeRunJob(ctx context.Context, a ExecuteRunArgs, ji jobInfo) (err error) {
 	if h.svc == nil {
 		return errNotAttached
 	}
@@ -67,8 +79,23 @@ func (h *Heartbeat) executeRun(ctx context.Context, a ExecuteRunArgs) (err error
 			log.Warn("execute_run: run inexistente")
 			return nil
 		}
-		h.failEarly(ctx, a, fmt.Errorf("carregar contexto: %w", err))
+		// A transient load failure is retried by river; only the last attempt gives up the run.
+		// The run may already hold a result waiting to be finalized: never fail it from here
+		// before the last attempt.
+		if ji.final {
+			h.failEarly(ctx, a, fmt.Errorf("carregar contexto: %w", err))
+		}
 		return fmt.Errorf("execute_run: load context: %w", err)
+	}
+	if rc.Run.Status == domain.RunRunning && rc.PendingResult != nil {
+		// The harness already ran: only finalization is missing. Never execute it twice.
+		return h.finishPending(ctx, a, rc, ji, log)
+	}
+	if rc.Run.Status == domain.RunRunning {
+		// Only a previous attempt of this job starts a run, and it left no result: the
+		// harness may be gone mid-way. Fail the run instead of leaving it running forever.
+		h.failEarly(ctx, a, errors.New("execução anterior não foi finalizada"))
+		return nil
 	}
 	if rc.Run.Status != domain.RunQueued {
 		log.Debug("execute_run: run não está na fila", "status", rc.Run.Status)
@@ -191,20 +218,91 @@ func (h *Heartbeat) executeRun(ctx context.Context, a ExecuteRunArgs) (err error
 	if status != domain.RunDone {
 		h.appendEvent(fctx, a, adapter.Event{Kind: domain.EventStatus, Text: fmt.Sprintf("%s: %s", status, msg), OccurredAt: time.Now().UTC()})
 	}
-	if _, ferr := h.svc.FinishRun(fctx, a.CompanyID, a.RunID, service.FinishRunInput{Status: status, Result: res}); ferr != nil {
+	in := service.FinishRunInput{Status: status, Result: res}
+	// Keep the outcome before finishing: if finalization keeps failing, a later attempt
+	// finishes the run from here instead of executing the harness again.
+	if serr := h.svc.SavePendingResult(fctx, a.CompanyID, a.RunID, in); serr != nil {
+		log.Warn("execute_run: guardar resultado pendente", "err", serr)
+	}
+	if ferr := h.finishWithRetry(ctx, a, in, log); ferr != nil {
 		span.RecordError(ferr)
-		return fmt.Errorf("execute_run: finish: %w", ferr)
+		return h.finishFailed(ctx, a, ferr, ji, log)
 	}
 	log.Info("run finalizada", "status", status, "exit_code", res.ExitCode)
 
-	if res.SessionRef != "" {
-		mctx, cancelM := context.WithTimeout(fctx, memoryTimeout)
-		defer cancelM()
-		if merr := h.mem.FinalizeSession(mctx, scope, rc.Persona.Agent, res.SessionRef); merr != nil {
-			log.Warn("execute_run: finalizar sessão de memória", "err", merr)
+	h.finalizeMemorySession(fctx, scope, rc.Persona.Agent, res.SessionRef, log)
+	return nil
+}
+
+// finishPending finalizes a run whose result was saved by an earlier attempt.
+func (h *Heartbeat) finishPending(ctx context.Context, a ExecuteRunArgs, rc service.RunContext, ji jobInfo, log *slog.Logger) error {
+	in := *rc.PendingResult
+	if ferr := h.finishWithRetry(ctx, a, in, log); ferr != nil {
+		return h.finishFailed(ctx, a, ferr, ji, log)
+	}
+	log.Info("run finalizada (resultado pendente)", "status", in.Status, "exit_code", in.Result.ExitCode)
+	fctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), finishTimeout)
+	defer cancel()
+	h.finalizeMemorySession(fctx, scopeFor(rc.Company.Slug, rc.Workspace), rc.Persona.Agent, in.Result.SessionRef, log)
+	return nil
+}
+
+func (h *Heartbeat) finalizeMemorySession(ctx context.Context, scope memory.Scope, agent, sessionRef string, log *slog.Logger) {
+	if sessionRef == "" {
+		return
+	}
+	mctx, cancel := context.WithTimeout(ctx, memoryTimeout)
+	defer cancel()
+	if merr := h.mem.FinalizeSession(mctx, scope, agent, sessionRef); merr != nil {
+		log.Warn("execute_run: finalizar sessão de memória", "err", merr)
+	}
+}
+
+// finishWithRetry calls FinishRun, retrying locally with backoff (h.finishBackoff). Missing
+// or invalid runs are not retried.
+func (h *Heartbeat) finishWithRetry(ctx context.Context, a ExecuteRunArgs, in service.FinishRunInput, log *slog.Logger) error {
+	var err error
+	for i := 0; ; i++ {
+		fctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), finishTimeout)
+		_, err = h.svc.FinishRun(fctx, a.CompanyID, a.RunID, in)
+		cancel()
+		if err == nil {
+			return nil
+		}
+		if errors.Is(err, domain.ErrNotFound) || errors.Is(err, domain.ErrInvalid) || i >= len(h.finishBackoff) {
+			break
+		}
+		log.Warn("execute_run: finalizar run falhou, tentando de novo", "attempt", i+1, "err", err)
+		t := time.NewTimer(h.finishBackoff[i])
+		select {
+		case <-t.C:
+		case <-ctx.Done():
+			t.Stop()
+			return fmt.Errorf("execute_run: finish: %w", err)
 		}
 	}
-	return nil
+	return fmt.Errorf("execute_run: finish: %w", err)
+}
+
+// finishFailed decides what to do when finalization still fails after the local retries.
+// The run is only snoozed while it is still running; a later attempt finalizes it from
+// runs.pending_result without executing the harness.
+func (h *Heartbeat) finishFailed(ctx context.Context, a ExecuteRunArgs, ferr error, ji jobInfo, log *slog.Logger) error {
+	lctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), finishTimeout)
+	defer cancel()
+	cur, lerr := h.svc.LoadRunContext(lctx, a.CompanyID, a.RunID)
+	switch {
+	case errors.Is(lerr, domain.ErrNotFound):
+		return nil
+	case lerr == nil && cur.Run.Status != domain.RunRunning:
+		log.Info("execute_run: run já finalizada por outro caminho", "status", cur.Run.Status)
+		return nil
+	}
+	if ji.age > finishGiveUp {
+		return ferr
+	}
+	log.Warn("execute_run: finalização pendente, nova tentativa agendada", "err", ferr)
+	return river.JobSnooze(finishSnooze)
 }
 
 // buildSpec assembles the adapter.Spec and resolves the working directory. The returned

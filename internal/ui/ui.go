@@ -43,6 +43,8 @@ type Backend interface {
 	HirePersona(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.HirePersonaInput) (domain.Persona, error)
 	ListPersonas(ctx context.Context, companyID domain.ID) ([]domain.Persona, error)
 	GetPersona(ctx context.Context, companyID domain.ID, ref string) (domain.Persona, error)
+	GetPersonaHealth(ctx context.Context, companyID, personaID domain.ID) (service.PersonaHealth, error)
+	UpdatePersona(ctx context.Context, actor domain.Actor, companyID, personaID domain.ID, in service.UpdatePersonaInput) (domain.Persona, error)
 
 	CreateTask(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.CreateTaskInput) (service.TaskView, error)
 	ListTasks(ctx context.Context, companyID domain.ID, f service.TaskFilter) ([]service.TaskView, error)
@@ -135,6 +137,9 @@ func (s *server) routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /c/{company}/personas/nova", co(s.handleNewPersona))
 	mux.HandleFunc("POST /c/{company}/personas/nova", post(co(s.handleHirePersona)))
 	mux.HandleFunc("GET /c/{company}/personas/{persona}", co(s.handlePersona))
+	mux.HandleFunc("POST /c/{company}/personas/{persona}/pausar", post(co(s.handlePersonaControl(domain.PersonaPaused, "pausada"))))
+	mux.HandleFunc("POST /c/{company}/personas/{persona}/retomar", post(co(s.handlePersonaControl(domain.PersonaActive, "retomada"))))
+	mux.HandleFunc("POST /c/{company}/personas/{persona}/reativar", post(co(s.handlePersonaControl(domain.PersonaActive, "reativada"))))
 
 	mux.HandleFunc("GET /c/{company}/execucoes", co(s.handleRuns))
 	mux.HandleFunc("GET /c/{company}/execucoes/{run}", co(s.handleRun))

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -759,4 +760,109 @@ func TestRunPageLiveWiring(t *testing.T) {
 	rec = e.get(t, "/c/hanko/execucoes/"+e.f.Runs[2].ID.String())
 	wantNotContains(t, rec, "sse-connect")
 	wantContains(t, rec, "Concluída", "Plano de migração reenviado")
+}
+
+func personaOf(f *uitest.Fake, slug string) *domain.Persona {
+	for i := range f.Personas {
+		if f.Personas[i].Slug == slug {
+			return &f.Personas[i]
+		}
+	}
+	return nil
+}
+
+func TestPersonaControls(t *testing.T) {
+	t.Run("pausada oferece retomar", func(t *testing.T) {
+		e := newEnv(t, uitest.Sample())
+		wantContains(t, e.get(t, "/c/hanko/personas/sato"), `action="/c/hanko/personas/sato/retomar"`, "Retomar")
+		rec := e.post(t, "/c/hanko/personas/sato/retomar", nil, false)
+		wantStatus(t, rec, http.StatusSeeOther)
+		if loc := rec.Header().Get("Location"); loc != "/c/hanko/personas/sato?ok=retomada" {
+			t.Errorf("Location = %q", loc)
+		}
+		if st := personaOf(e.f, "sato").Status; st != domain.PersonaActive {
+			t.Errorf("status = %s", st)
+		}
+		wantContains(t, e.get(t, "/c/hanko/personas/sato?ok=retomada"), "Persona retomada", `action="/c/hanko/personas/sato/pausar"`)
+	})
+	t.Run("pausar", func(t *testing.T) {
+		e := newEnv(t, uitest.Sample())
+		wantContains(t, e.get(t, "/c/hanko/personas/mika"), `action="/c/hanko/personas/mika/pausar"`, "Pausar")
+		rec := e.post(t, "/c/hanko/personas/mika/pausar", nil, true)
+		wantStatus(t, rec, http.StatusNoContent)
+		if got := rec.Header().Get("HX-Redirect"); got != "/c/hanko/personas/mika?ok=pausada" {
+			t.Errorf("HX-Redirect = %q", got)
+		}
+		if st := personaOf(e.f, "mika").Status; st != domain.PersonaPaused {
+			t.Errorf("status = %s", st)
+		}
+		// already paused → conflict, nothing else called
+		wantStatus(t, e.post(t, "/c/hanko/personas/mika/pausar", nil, false), http.StatusConflict)
+	})
+	t.Run("em erro: mostra a falha e reativa", func(t *testing.T) {
+		f := uitest.Sample()
+		mika := personaOf(f, "mika")
+		mika.Status = domain.PersonaError
+		at := time.Now().UTC()
+		f.Health = map[domain.ID]service.PersonaHealth{mika.ID: {LastError: "limite de uso atingido", LastErrorAt: &at, ConsecutiveFailures: 3}}
+		e := newEnv(t, f)
+		rec := e.get(t, "/c/hanko/personas/mika")
+		wantContains(t, rec, "Reativar", `action="/c/hanko/personas/mika/reativar"`, "limite de uso atingido", "3 falhas seguidas")
+		wantNotContains(t, rec, `/mika/pausar`)
+
+		rec = e.post(t, "/c/hanko/personas/mika/reativar", nil, false)
+		wantStatus(t, rec, http.StatusSeeOther)
+		if loc := rec.Header().Get("Location"); loc != "/c/hanko/personas/mika?ok=reativada" {
+			t.Errorf("Location = %q", loc)
+		}
+		if st := mika.Status; st != domain.PersonaActive {
+			t.Errorf("status = %s", st)
+		}
+		rec = e.get(t, "/c/hanko/personas/mika?ok=reativada")
+		wantContains(t, rec, "Persona reativada")
+		wantNotContains(t, rec, "limite de uso atingido")
+	})
+	t.Run("persona inexistente é 404 e GET não age", func(t *testing.T) {
+		e := newEnv(t, uitest.Sample())
+		wantStatus(t, e.post(t, "/c/hanko/personas/nada/reativar", nil, false), http.StatusNotFound)
+		wantStatus(t, e.get(t, "/c/hanko/personas/sato/retomar"), http.StatusMethodNotAllowed)
+		if e.f.Called("UpdatePersona") {
+			t.Error("UpdatePersona chamado")
+		}
+	})
+	t.Run("post de outra origem é recusado", func(t *testing.T) {
+		e := newEnv(t, uitest.Sample())
+		rec := e.do(t, req{method: "POST", path: "/c/hanko/personas/sato/retomar", hdr: map[string]string{"Sec-Fetch-Site": "cross-site"}})
+		if rec.Code < 400 || e.f.Called("UpdatePersona") {
+			t.Errorf("code=%d", rec.Code)
+		}
+	})
+}
+
+var tagRE = regexp.MustCompile(`(?s)<[^>]*>`)
+
+// ADR-0016: the UI says "Harness" and "Intervalo de verificação", never "agente" or "heartbeat".
+func TestVocabularyHasNoAgentOrHeartbeat(t *testing.T) {
+	for name, f := range map[string]*uitest.Fake{"vazio": uitest.Empty(), "amostra": uitest.Sample()} {
+		e := newEnv(t, f)
+		for _, path := range []string{"/c/hanko/", "/c/hanko/personas", "/c/hanko/personas/nova", "/c/hanko/personas/ada", "/c/hanko/tasks",
+			"/c/hanko/execucoes", "/c/hanko/atividade", "/c/hanko/tasks/nova"} {
+			rec := e.get(t, path)
+			if rec.Code == http.StatusNotFound {
+				continue
+			}
+			text := strings.ToLower(tagRE.ReplaceAllString(rec.Body.String(), " "))
+			for _, bad := range []string{"agente", "agent", "heartbeat"} {
+				if strings.Contains(text, bad) {
+					i := strings.Index(text, bad)
+					t.Errorf("%s %s mostra %q: …%s…", name, path, bad, text[max(0, i-40):min(len(text), i+40)])
+				}
+			}
+		}
+	}
+	e := newEnv(t, uitest.Sample())
+	wantContains(t, e.get(t, "/c/hanko/personas/nova"), "Harness", "Acordar a cada")
+	wantContains(t, e.get(t, "/c/hanko/personas/ada"), "Intervalo de verificação", "Harness")
+	// the run page logs raw harness output, so only its labels are checked
+	wantContains(t, e.get(t, "/c/hanko/execucoes/"+e.f.Runs[0].ID.String()), "<dt>Harness</dt>")
 }
