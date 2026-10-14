@@ -107,7 +107,7 @@ func triggerLabel(t domain.RunTrigger) string {
 	case domain.TriggerManual:
 		return "manual"
 	case domain.TriggerHeartbeat:
-		return "heartbeat"
+		return "verificação periódica"
 	}
 	return string(t)
 }

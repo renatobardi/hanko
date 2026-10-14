@@ -5,7 +5,7 @@ templ ActivityPage(sh Shell, vm ActivityVM) {
 		@PageHead("Atividade", vm.Subtitle) {
 		}
 		if len(vm.Days) == 0 {
-			@EmptyCard("clock", "Nenhuma atividade ainda.", "Heartbeats, comentários e mudanças de status aparecem aqui.", true)
+			@EmptyCard("clock", "Nenhuma atividade ainda.", "Execuções, comentários e mudanças de status aparecem aqui.", true)
 		} else {
 			<div class="feed">
 				for _, d := range vm.Days {

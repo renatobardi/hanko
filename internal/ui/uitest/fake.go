@@ -31,6 +31,7 @@ type Fake struct {
 	Runs      []service.RunView
 	Events    map[domain.ID][]domain.RunEvent
 	Activity  []domain.ActivityEvent
+	Health    map[domain.ID]service.PersonaHealth
 	Calls     []string // names of mutating calls, in order
 	nextTask  int64
 }
@@ -178,6 +179,38 @@ func (f *Fake) GetPersona(_ context.Context, _ domain.ID, ref string) (domain.Pe
 		if p.Slug == ref || p.ID.String() == ref {
 			return p, nil
 		}
+	}
+	return domain.Persona{}, domain.ErrNotFound
+}
+
+func (f *Fake) GetPersonaHealth(_ context.Context, _, personaID domain.ID) (service.PersonaHealth, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if err := f.fail("GetPersonaHealth"); err != nil {
+		return service.PersonaHealth{}, err
+	}
+	return f.Health[personaID], nil
+}
+
+func (f *Fake) UpdatePersona(_ context.Context, _ domain.Actor, _, personaID domain.ID, in service.UpdatePersonaInput) (domain.Persona, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.note("UpdatePersona")
+	if err := f.fail("UpdatePersona"); err != nil {
+		return domain.Persona{}, err
+	}
+	for i, p := range f.Personas {
+		if p.ID != personaID {
+			continue
+		}
+		if in.Status != nil {
+			if *in.Status != p.Status {
+				delete(f.Health, p.ID) // a status change by the user resets the failure counter
+			}
+			p.Status = *in.Status
+		}
+		f.Personas[i] = p
+		return p, nil
 	}
 	return domain.Persona{}, domain.ErrNotFound
 }

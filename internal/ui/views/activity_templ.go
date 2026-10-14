@@ -60,7 +60,7 @@ func ActivityPage(sh Shell, vm ActivityVM) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			if len(vm.Days) == 0 {
-				templ_7745c5c3_Err = EmptyCard("clock", "Nenhuma atividade ainda.", "Heartbeats, comentários e mudanças de status aparecem aqui.", true).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = EmptyCard("clock", "Nenhuma atividade ainda.", "Execuções, comentários e mudanças de status aparecem aqui.", true).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

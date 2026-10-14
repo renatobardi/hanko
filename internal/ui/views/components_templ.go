@@ -941,7 +941,7 @@ func emptyTasksText(vm TasksVM) string {
 	if vm.Query != "" {
 		return "Nenhuma task corresponde a “" + vm.Query + "”. Tente outro termo."
 	}
-	return "Crie uma task e atribua a uma persona para ver o heartbeat em ação."
+	return "Crie uma task e atribua a uma persona para ver uma execução acontecer."
 }
 
 func TaskRowEl(r TaskRow) templ.Component {
