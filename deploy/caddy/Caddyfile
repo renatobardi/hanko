@@ -1,9 +1,9 @@
 # TLS automático para o domínio de HANKO_DOMAIN (profile "edge" do compose).
 #
-# Até o M5 (modo authenticated) o Hanko não autentica humanos: o basic_auth abaixo é a
+# Para HANKO_MODE=trusted (padrão): o Hanko não autentica humanos, então o basic_auth abaixo é a
 # única barreira de quem chega pela internet. HANKO_EDGE_USER e HANKO_EDGE_PASSWORD_HASH
-# são obrigatórios (o compose recusa subir sem eles). Gere o hash com
-# `caddy hash-password` (ver docs/RUNBOOK.md).
+# são obrigatórios. Gere o hash com `caddy hash-password` (ver docs/RUNBOOK.md).
+# Com HANKO_MODE=authenticated use Caddyfile.authenticated (HANKO_CADDYFILE no .env).
 {$HANKO_DOMAIN} {
 	encode zstd gzip
 

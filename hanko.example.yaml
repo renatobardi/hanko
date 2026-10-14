@@ -2,11 +2,19 @@
 database_url: postgres://hanko:hanko@127.0.0.1:5432/hanko?sslmode=disable
 addr: 127.0.0.1:7420
 # public_url: http://127.0.0.1:7420
-mode: trusted            # trusted | authenticated (authenticated chega no M5)
+mode: trusted            # trusted | authenticated (login; exige secret >= 32 bytes e public_url https)
 # secret: ""             # prefira HANKO_SECRET (mínimo 32 bytes); vazio = gerado por boot
 # allowed_hosts: []      # hosts extras aceitos no cabeçalho Host (HANKO_ALLOWED_HOSTS)
 # workspaces_root: ""    # raiz dos workspaces (HANKO_WORKSPACES_ROOT); padrão $HOME/hanko-workspaces
 # agent_env_allow: []    # env extra do servidor repassado aos agentes (HANKO_AGENT_ENV_ALLOW)
+# auth:                  # só vale com mode: authenticated (docs/RUNBOOK.md §5)
+#   provider: local      # local | firebase
+#   firebase:            # provider firebase: valores públicos do app Web (sem Admin SDK)
+#     project_id: ""
+#     api_key: ""
+#     auth_domain: ""    # ex.: meu-projeto.firebaseapp.com
+#   allowed_emails: []   # e/ou allowed_domains; sem listas só o primeiro usuário (dono) entra
+#   allowed_domains: []
 migrate_on_boot: true
 memory:
   provider: ai-memory    # ai-memory | none

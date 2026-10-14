@@ -1,6 +1,6 @@
 # RUNBOOK — Hanko
 
-Operação do dia a dia. Decisões em `docs/adr/` (0008 deploy, 0011 Postgres, 0013 OTel, 0015 memória).
+Operação do dia a dia. Decisões em `docs/adr/` (0007/0014 auth, 0008 deploy, 0011 Postgres, 0013 OTel, 0015 memória).
 
 ## 1. Rodar local em 5 minutos
 
@@ -35,7 +35,8 @@ Dois containers: `hanko-stg` (branch `develop`) e `hanko-prd` (tag `v*`). Acesso
    - `HANKO_VERSION` = tag (prd) ou `develop` (stg); `POSTGRES_PASSWORD`; `HANKO_SECRET` (`openssl rand -hex 32`);
    - `AI_MEMORY_IMAGE` por digest; `AI_MEMORY_AUTH_TOKEN`; `HANKO_PUBLIC_URL=https://hanko.oute.pro` (prd);
    - `HANKO_DOMAIN`;
-   - borda (prd): `HANKO_EDGE_USER` e `HANKO_EDGE_PASSWORD_HASH` (veja "Borda com basic_auth" abaixo). O compose recusa subir o profile `edge` sem eles.
+   - borda (prd): no modo `trusted`, `HANKO_EDGE_USER` e `HANKO_EDGE_PASSWORD_HASH` (veja "Borda com basic_auth" abaixo); no modo
+     `authenticated`, `HANKO_CADDYFILE=Caddyfile.authenticated` e as variáveis do §5 (sem basic_auth: quem autentica é o Hanko).
 4. Suba: `cd /opt/hanko && docker compose -f deploy/compose.yaml --env-file .env up -d` (prd com borda TLS: `--profile edge`).
 5. Verifique: `curl -fsS http://127.0.0.1:7420/healthz` e `/readyz`; abra o Grafana por túnel (porta 3000 só em loopback).
 6. Atualizar versão: ajuste `HANKO_VERSION`, `docker compose pull hanko && docker compose up -d hanko`. Migrations rodam no boot
@@ -44,9 +45,9 @@ Dois containers: `hanko-stg` (branch `develop`) e `hanko-prd` (tag `v*`). Acesso
 
 Segredos nunca entram no git: `.env` fica só no container.
 
-### Borda com basic_auth (até o M5)
+### Borda com basic_auth (modo trusted)
 
-Enquanto o modo `authenticated` não existe, o Hanko não autentica humanos: quem alcança a porta age como operador. Por isso o
+No modo `trusted` o Hanko não autentica humanos: quem alcança a porta age como operador. Por isso o
 `deploy/caddy/Caddyfile` exige `basic_auth` e remove o `Authorization` antes de repassar ao Hanko. Gere o hash bcrypt:
 
 ```bash
@@ -54,7 +55,8 @@ docker run --rm caddy:2 caddy hash-password --plaintext 'SENHA-FORTE'   # ou: ca
 ```
 
 No `.env`, `HANKO_EDGE_USER=operador` e `HANKO_EDGE_PASSWORD_HASH=...` com **cada `$` do hash escrito como `$$`** (o compose
-interpola `$`). Troque a senha regerando o hash e executando `docker compose up -d caddy`.
+interpola `$`). Troque a senha regerando o hash e executando `docker compose up -d caddy`. Sem as duas variáveis o Caddy recusa
+subir (config inválida), de propósito. Com o modo `authenticated`, use o §5 e dispense o basic_auth.
 
 ### Endurecimento do modo trusted
 
@@ -69,7 +71,90 @@ interpola `$`). Troque a senha regerando o hash e executando `docker compose up 
 - Memória: o agente fala com `<HANKO_PUBLIC_URL>/memory-mcp` usando o run token; o Hanko injeta `HANKO_MEMORY_TOKEN` e o escopo
   (empresa/workspace) do lado do servidor. O token do ai-memory nunca vai ao agente.
 - Workspaces só podem apontar para dentro de `HANKO_WORKSPACES_ROOT` (padrão `$HOME/hanko-workspaces`), com caminho absoluto e limpo.
-- Limites e recomendação de isolamento: `docs/adr/0017-modo-trusted-e-limites.md`.
+- Limites e recomendação de isolamento: `docs/adr/0017-modo-trusted-e-limites.md`. O modo `authenticated` (§5) remove o limite principal.
+
+## 5. Modo authenticated (login, sessões e API keys)
+
+`HANKO_MODE=authenticated` exige login para tudo, exceto `/healthz`, `/readyz` e `/static`:
+
+| Rota | Quem entra |
+|---|---|
+| UI (`/`, `/c/...`) | sessão (cookie `hanko_session`); sem sessão, redireciona para `/entrar` |
+| `/api/v1/*` | sessão (métodos que mudam estado exigem mesma origem), **API key** (`Authorization: Bearer hk_…`) ou run token de persona |
+| `/mcp` | run token ou API key (cookie não vale) |
+| `/memory-mcp` | run token |
+| `/metrics` | conexão loopback direta (sem `X-Forwarded-For`) ou API key |
+
+Recusa de boot: `HANKO_SECRET` com menos de 32 bytes (ou vazio) e `HANKO_PUBLIC_URL` que não seja `https` (exceto `localhost`/loopback).
+O cookie leva `Secure` quando `HANKO_PUBLIC_URL` é https. Sessão: token aleatório de 32 bytes (só o hash SHA-256 vai ao banco),
+validade de 30 dias **deslizante** (renovada no máximo 1×/min), `HttpOnly`, `SameSite=Lax`; trocada a cada login. Sair: menu do rodapé da sidebar.
+
+### 5.1 Provider `local` (padrão, `HANKO_AUTH_PROVIDER=local`)
+
+E-mail e senha (argon2id, 64 MiB, 3 passadas), com limite de 5 falhas por IP+e-mail a cada 15 min (em memória; reinicia com o processo).
+
+```bash
+export HANKO_MODE=authenticated HANKO_SECRET=$(openssl rand -hex 32) HANKO_PUBLIC_URL=https://hanko.exemplo.com
+hanko migrate
+read -rs HANKO_OWNER_PASSWORD && export HANKO_OWNER_PASSWORD      # mínimo de 10 caracteres
+hanko auth create-owner --email voce@exemplo.com --name "Seu Nome"
+hanko serve
+```
+
+**Crie o dono pela CLI antes de expor o servidor.** Enquanto não houver usuários, `/entrar` oferece "Criar conta de dono" a quem chegar
+primeiro. Só existe um dono no v0.1 (multi-humano é v0.2); todos os usuários podem tudo.
+
+### 5.2 Provider `firebase` (`HANKO_AUTH_PROVIDER=firebase`)
+
+Login com Google e e-mail/senha pelo Firebase Auth. O servidor **não usa o Admin SDK**: o navegador autentica com o SDK web, envia o
+ID token para `POST /auth/firebase` (só mesma origem) e o Hanko valida o JWT RS256 com as chaves públicas do Google
+(`securetoken@system.gserviceaccount.com`, cache conforme `Cache-Control`, refresh quando o `kid` é novo), `iss`/`aud` do projeto,
+`exp`/`iat`/`auth_time`, `sub` e `email_verified`; então abre a sessão própria. Revogar = expirar a sessão do Hanko.
+
+1. Console do Firebase: crie o projeto (ou reuse um) e registre um **app Web**; anote `projectId`, `apiKey` e `authDomain`
+   (são valores públicos, não segredos).
+2. Authentication → Sign-in method: habilite **Google** e **E-mail/senha**.
+3. Authentication → Settings → **Authorized domains**: acrescente o domínio do Hanko (ex.: `hanko.oute.pro`); `localhost` já vem.
+4. No `.env` do Hanko:
+   ```bash
+   HANKO_MODE=authenticated
+   HANKO_PUBLIC_URL=https://hanko.oute.pro
+   HANKO_SECRET=...                       # openssl rand -hex 32
+   HANKO_AUTH_PROVIDER=firebase
+   HANKO_FIREBASE_PROJECT_ID=meu-projeto
+   HANKO_FIREBASE_API_KEY=AIza...
+   HANKO_FIREBASE_AUTH_DOMAIN=meu-projeto.firebaseapp.com
+   HANKO_AUTH_ALLOWED_EMAILS=voce@exemplo.com,outra@exemplo.com   # e/ou
+   HANKO_AUTH_ALLOWED_DOMAINS=exemplo.com
+   ```
+5. Borda: `HANKO_CADDYFILE=Caddyfile.authenticated` (sem basic_auth, repassa o `Authorization`) e `docker compose --profile edge up -d`.
+
+**Política de admissão.** Com `HANKO_AUTH_ALLOWED_EMAILS` e/ou `HANKO_AUTH_ALLOWED_DOMAINS`, só entra quem estiver nas listas (vale também
+para quem já tem conta: sair da lista tira o acesso no próximo login). O primeiro a entrar vira `owner`; os demais, `member`.
+**Sem nenhuma lista**, só o primeiro usuário a entrar vira dono e **todos os outros são recusados** até haver uma lista (o boot avisa).
+Exige `email_verified`: quem cria conta por e-mail/senha recebe o link de verificação e precisa confirmá-lo antes de entrar.
+Um e-mail já cadastrado por outro método (ex.: dono local) não é vinculado automaticamente: é recusado (409).
+`hanko auth create-owner` não se aplica ao provider firebase.
+
+### 5.3 API keys e CLI
+
+Crie pela tela **Configurações** (menu do rodapé da sidebar) ou, direto no banco, sem o servidor no ar:
+
+```bash
+hanko auth token create --name notebook      # imprime a chave uma única vez (hk_...); --email se houver mais de um usuário
+hanko auth token list
+hanko auth token revoke <id>
+export HANKO_URL=https://hanko.exemplo.com HANKO_TOKEN=hk_...
+hanko task list -c acme                       # a CLI envia HANKO_TOKEN como Bearer
+```
+
+Só o hash SHA-256 da chave fica no banco (mais um prefixo para identificá-la). Revogada, a chave deixa de valer na hora.
+Os comandos `hanko auth` usam `HANKO_DATABASE_URL` (e o restante da configuração, incluindo `HANKO_SECRET` no modo authenticated).
+
+### 5.4 Agentes e o modo authenticated
+
+Run tokens continuam funcionando (API, `/mcp`, `/memory-mcp`). Agentes locais que **omitiam o token** e falavam com o loopback como se
+fossem o humano (ADR-0017) passam a receber **401**; use o run token (já injetado pelo Hanko) ou uma API key dedicada.
 
 ## 3. Backup e restore
 
@@ -118,6 +203,12 @@ Registre data e resultado em `docs/SESSION.md` ou no issue de operação.
 | `HANKO_SECRET tem N bytes` | secret curto | `openssl rand -hex 32` |
 | `path: must be inside the workspaces root` ao criar workspace | caminho fora de `HANKO_WORKSPACES_ROOT` | use um caminho dentro da raiz ou mude a raiz |
 | Agente não enxerga uma variável de ambiente | env filtrado (allowlist) | `HANKO_AGENT_ENV_ALLOW=NOME` |
+| `HANKO_SECRET exige…` / `HANKO_PUBLIC_URL exige https` no boot | modo authenticated sem secret de 32 bytes ou com URL http fora de loopback | `openssl rand -hex 32`; use `https://…` (ou loopback para teste local) |
+| `/entrar` mostra "Criar conta de dono" | banco sem usuários | `hanko auth create-owner` (§5.1) antes de expor |
+| Firebase: "Este e-mail não tem acesso" | fora de `HANKO_AUTH_ALLOWED_EMAILS/DOMAINS` (ou lista vazia e já há um dono) | ajuste as listas (§5.2) |
+| Firebase: "domínio não autorizado" no popup | domínio fora de Authorized domains | Console → Authentication → Settings |
+| Firebase: 503 `Não foi possível validar o login` | servidor sem acesso a `www.googleapis.com` | libere a saída HTTPS do servidor para o JWKS do Google |
+| Agente local recebe 401 depois de ligar o modo authenticated | omitia o token (ADR-0017) | use o run token injetado ou uma API key (§5.4) |
 | Porta 7420 ocupada | outra instância | `HANKO_ADDR` |
 
 Logs são JSON no stderr com `trace_id`/`span_id`: copie o `trace_id` e busque no Tempo (Grafana) para ver o trace completo da requisição/run.

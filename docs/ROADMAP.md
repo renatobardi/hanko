@@ -18,7 +18,7 @@ Regras de parada:
 | M2 ✅ | 2 | UI host (Kubo DS): painel, tasks/board, task + thread, execuções ao vivo, contratar persona. MCP server. **ai-memory ligado**: personas (MCP+hooks) e Hanko (outbox + briefing no despacho). | Run 2 no mesmo workspace recebe handoff do run 1. Dogfood começa. |
 | M3 | 3 | Organograma (reports_to, delegação, checkout atômico) + Gates (audit trail, Caixa de entrada/Decisões). | Persona delega; humano decide gate; decisão vira memória. |
 | M4 | 4 | Custos e orçamentos (ledger, hard stop, assinaturas) + Fluxos (river periodic). | Orçamento estoura → run bloqueado. Fluxo diário cria task sozinho. |
-| M5 | 5 | Auth firebase/local, deploy `hanko-prd` (pg17 + ai-memory + LGTM + caddy), docs, en, `v0.1.0`. | hanko.oute.pro com login Google. |
+| M5 | 5 | ✅ Auth firebase/local (feito), deploy `hanko-prd` (pg17 + ai-memory + LGTM + caddy), docs, en, `v0.1.0`. | hanko.oute.pro com login Google. |
 | — | 6 | Folga: estouro, bugs do dogfood, polish. | — |
 
 ## v0.2 (não planejado)

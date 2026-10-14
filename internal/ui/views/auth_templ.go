@@ -443,7 +443,7 @@ func SettingsPage(sh Shell, vm SettingsVM) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			} else {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "<div class=\"card pad form-card\" style=\"margin-bottom:20px\"><h2>Conta</h2><dl class=\"kv\"><dt>Nome</dt><dd>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "<div class=\"card pad form-card\" style=\"margin-bottom:20px\"><h2>Conta</h2><dl class=\"dl\" style=\"margin-top:14px\"><dt>Nome</dt><dd>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

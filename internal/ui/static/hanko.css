@@ -762,9 +762,8 @@ button.link:hover { color: var(--ink); }
 .usermenu .menu svg.ic { color: var(--ink-soft); }
 .sidebar-foot .me span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
 
-dl.kv { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 8px 16px; margin-top: 14px; font-size: 13.5px; }
-dl.kv dt { color: var(--ink-soft); }
-dl.kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .inline-form { display: flex; gap: 10px; flex-wrap: wrap; }
 .inline-form .input { flex: 1 1 220px; }
 .keybox { margin-top: 8px; padding: 8px 10px; background: var(--surface); border-radius: var(--r-sm); font-size: 12.5px; user-select: all; overflow-wrap: anywhere; color: var(--ink); }
+.auth .btn.outline { background: var(--surface-recessed); border-color: transparent; }
+.auth .btn.outline:hover { background: var(--line); }

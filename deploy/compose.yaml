@@ -22,6 +22,13 @@ services:
       HANKO_WORKSPACES_ROOT: ${HANKO_WORKSPACES_ROOT:-}
       HANKO_AGENT_ENV_ALLOW: ${HANKO_AGENT_ENV_ALLOW:-}
       HANKO_SECRET: ${HANKO_SECRET:-}
+      # Modo authenticated (docs/RUNBOOK.md §5).
+      HANKO_AUTH_PROVIDER: ${HANKO_AUTH_PROVIDER:-local}
+      HANKO_AUTH_ALLOWED_EMAILS: ${HANKO_AUTH_ALLOWED_EMAILS:-}
+      HANKO_AUTH_ALLOWED_DOMAINS: ${HANKO_AUTH_ALLOWED_DOMAINS:-}
+      HANKO_FIREBASE_PROJECT_ID: ${HANKO_FIREBASE_PROJECT_ID:-}
+      HANKO_FIREBASE_API_KEY: ${HANKO_FIREBASE_API_KEY:-}
+      HANKO_FIREBASE_AUTH_DOMAIN: ${HANKO_FIREBASE_AUTH_DOMAIN:-}
       HANKO_MEMORY_PROVIDER: ${HANKO_MEMORY_PROVIDER:-ai-memory}
       HANKO_MEMORY_URL: http://ai-memory:49374
       HANKO_MEMORY_TOKEN: ${AI_MEMORY_AUTH_TOKEN:-}
@@ -82,11 +89,11 @@ services:
     restart: unless-stopped
     environment:
       HANKO_DOMAIN: ${HANKO_DOMAIN:-hanko.oute.pro}
-      # basic_auth da borda até o M5; sem os dois o caddy não sobe (docs/RUNBOOK.md §2).
-      HANKO_EDGE_USER: ${HANKO_EDGE_USER:?defina HANKO_EDGE_USER para o profile edge}
-      HANKO_EDGE_PASSWORD_HASH: ${HANKO_EDGE_PASSWORD_HASH:?defina HANKO_EDGE_PASSWORD_HASH (caddy hash-password)}
+      # basic_auth da borda no modo trusted (Caddyfile); no authenticated (Caddyfile.authenticated) não se usa.
+      HANKO_EDGE_USER: ${HANKO_EDGE_USER:-}
+      HANKO_EDGE_PASSWORD_HASH: ${HANKO_EDGE_PASSWORD_HASH:-}
     volumes:
-      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy/${HANKO_CADDYFILE:-Caddyfile}:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
     ports:

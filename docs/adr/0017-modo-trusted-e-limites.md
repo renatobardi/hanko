@@ -30,3 +30,9 @@ Em `trusted`, **agentes e operador compartilham o host**. A fronteira de confian
 ## Decisão pendente (dono)
 Escolher entre isolar os agentes (custo operacional, sem mudança de código) e antecipar `authenticated` (custo de produto, remove o limite principal).
 Até lá, tratar o v0.1 como adequado a uma máquina de um único operador confiável e a agentes que não sejam adversariais.
+
+## Adendo (M5): o modo `authenticated` existe
+O modo `authenticated` (ADR-0007, ADR-0014) está implementado: UI exige sessão, `/api/v1/*` exige sessão, API key de usuário ou run token,
+e `/mcp` exige run token ou API key. Nele, **agentes locais que omitiam o token passam a receber 401** e o ator `human` deixa de ser
+o padrão do loopback: o ator humano é sempre um usuário identificado. Ligue-o (docs/RUNBOOK.md §5) para remover o limite principal deste ADR;
+os demais limites (sistema de arquivos e rede do host) continuam valendo e a recomendação de isolar agentes se mantém.
