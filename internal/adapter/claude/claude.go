@@ -22,13 +22,17 @@ type Options struct {
 	Logger *slog.Logger
 	// Grace between SIGTERM and SIGKILL on cancel; 0 = 5 s.
 	Grace time.Duration
+	// EnvAllow lista variáveis extras do ambiente do servidor repassadas ao harness
+	// (nomes exatos ou prefixos terminados em "*"). Ver procrun.HarnessEnv.
+	EnvAllow []string
 }
 
 // Adapter implements adapter.Adapter for the claude harness.
 type Adapter struct {
-	bin   string
-	log   *slog.Logger
-	grace time.Duration
+	bin      string
+	log      *slog.Logger
+	grace    time.Duration
+	envAllow []string
 }
 
 // New returns the claude adapter.
@@ -41,7 +45,7 @@ func New(o Options) *Adapter {
 	if log == nil {
 		log = slog.New(slog.NewTextHandler(discard{}, nil))
 	}
-	return &Adapter{bin: bin, log: log, grace: o.Grace}
+	return &Adapter{bin: bin, log: log, grace: o.Grace, envAllow: o.EnvAllow}
 }
 
 type discard struct{}
@@ -81,6 +85,12 @@ func BuildArgs(spec adapter.Spec, cfg Config, mcpFile string) []string {
 // Run executes the harness. Cancelling ctx terminates the whole process group; the
 // partial Result is returned with a nil error (the caller inspects ctx).
 func (a *Adapter) Run(ctx context.Context, spec adapter.Spec, sink adapter.Sink) (adapter.Result, error) {
+	secrets := adapter.SpecSecrets(spec)
+	res, err := a.run(ctx, spec, sink, secrets)
+	return adapter.RedactResult(res, secrets...), err
+}
+
+func (a *Adapter) run(ctx context.Context, spec adapter.Spec, sink adapter.Sink, secrets []string) (adapter.Result, error) {
 	var cfg Config
 	if len(spec.Config) > 0 {
 		if err := json.Unmarshal(spec.Config, &cfg); err != nil {
@@ -116,10 +126,8 @@ func (a *Adapter) Run(ctx context.Context, spec adapter.Spec, sink adapter.Sink)
 		}
 	}
 
-	env := os.Environ()
-	for k, v := range spec.Env {
-		env = append(env, k+"="+v)
-	}
+	env := procrun.HarnessEnv(os.Environ(), a.envAllow, spec.Env)
+	sink = adapter.RedactingSink(sink, secrets...)
 
 	p := newParser(nil)
 	var stderrTail []string

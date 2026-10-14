@@ -84,9 +84,13 @@ func newHandler(b Backend, d Deps) http.Handler {
 		&sdk.StreamableHTTPOptions{Stateless: true, JSONResponse: true, Logger: logger})
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		id, err := authenticate(r, d)
+		id, err := authenticate(r, d, b)
 		if err != nil {
 			logger.Warn("mcp: auth negada", "reason", err.Error(), "remote", r.RemoteAddr)
+			if errors.Is(err, errUnavailable) {
+				http.Error(w, "autenticação indisponível", http.StatusServiceUnavailable)
+				return
+			}
 			w.Header().Set("WWW-Authenticate", `Bearer realm="hanko"`)
 			http.Error(w, "unauthorized: "+err.Error(), http.StatusUnauthorized)
 			return
@@ -95,9 +99,22 @@ func newHandler(b Backend, d Deps) http.Handler {
 	})
 }
 
-var errNoToken = errors.New("missing bearer run token")
+var (
+	errNoToken     = errors.New("missing bearer run token")
+	errUnavailable = errors.New("auth backend unavailable")
+)
 
-func authenticate(r *http.Request, d Deps) (identity, error) {
+// runStatus adapta Backend.GetRun para auth.RunStatusFunc.
+func runStatus(b interface {
+	GetRun(ctx context.Context, companyID, runID domain.ID) (service.RunView, error)
+}) auth.RunStatusFunc {
+	return func(ctx context.Context, cid, rid domain.ID) (domain.RunStatus, error) {
+		run, err := b.GetRun(ctx, cid, rid)
+		return run.Status, err
+	}
+}
+
+func authenticate(r *http.Request, d Deps, b Backend) (identity, error) {
 	h := strings.TrimSpace(r.Header.Get("Authorization"))
 	if h == "" {
 		if d.Trusted {
@@ -109,9 +126,12 @@ func authenticate(r *http.Request, d Deps) (identity, error) {
 	if !ok || !strings.EqualFold(scheme, "bearer") || strings.TrimSpace(tok) == "" {
 		return identity{}, errors.New("malformed Authorization header")
 	}
-	claims, err := d.Tokens.Verify(strings.TrimSpace(tok))
+	claims, err := d.Tokens.VerifyActive(r.Context(), strings.TrimSpace(tok), runStatus(b))
 	if err != nil {
-		return identity{}, errors.New("invalid or expired run token")
+		if errors.Is(err, auth.ErrBadToken) {
+			return identity{}, errors.New("invalid or expired run token, or run no longer active")
+		}
+		return identity{}, errUnavailable
 	}
 	actor, err := claims.Actor()
 	if err != nil {

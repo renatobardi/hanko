@@ -133,7 +133,7 @@ func newFake() *Adapter {
 	if err != nil {
 		panic(err)
 	}
-	return New(Options{Bin: bin, Grace: 500 * time.Millisecond})
+	return New(Options{Bin: bin, Grace: 500 * time.Millisecond, EnvAllow: []string{"FAKE_*"}})
 }
 
 func TestRunProcess(t *testing.T) {
@@ -189,5 +189,40 @@ func TestRunErrors(t *testing.T) {
 	}
 	if _, err := newFake().Run(context.Background(), adapter.Spec{Config: json.RawMessage(`{`)}, &collector{}); err == nil {
 		t.Fatal("want config error")
+	}
+}
+
+func TestRunEnvAllowlist(t *testing.T) {
+	t.Setenv("HANKO_SECRET", "server-secret-value")
+	t.Setenv("HANKO_DATABASE_URL", "postgres://u:dbpass@h/d")
+	t.Setenv("HANKO_MEMORY_TOKEN", "memory-token-value")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "aws-secret-value")
+	c := &collector{}
+	spec := adapter.Spec{RunID: domain.NewID(), Dir: t.TempDir(), Prompt: "x",
+		MCPConfig: json.RawMessage(`{"mcpServers":{"hanko":{"type":"http","url":"http://x/mcp","headers":{"Authorization":"Bearer mcp-token-987654321"}}}}`)}
+	if _, err := newFake().Run(context.Background(), spec, c); err != nil {
+		t.Fatal(err)
+	}
+	var errs []string
+	for _, e := range c.ev {
+		if e.Kind == domain.EventStderr {
+			errs = append(errs, e.Text)
+		}
+	}
+	leak := ""
+	tok := ""
+	for _, s := range errs {
+		if strings.HasPrefix(s, "ENV_LEAK: ") {
+			leak = s
+		}
+		if strings.HasPrefix(s, "ENV_TOKEN: ") {
+			tok = s
+		}
+	}
+	if leak != "ENV_LEAK: secret=|db=|mem=|aws=|path=set" {
+		t.Errorf("env = %q", leak)
+	}
+	if tok != "ENV_TOKEN: "+adapter.Mask {
+		t.Errorf("token do MCP deveria chegar ao processo e sair mascarado: %q", tok)
 	}
 }

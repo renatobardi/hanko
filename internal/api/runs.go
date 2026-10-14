@@ -104,6 +104,9 @@ func (s *server) registerRuns(api huma.API) {
 
 	huma.Register(api, op("cancel-run", http.MethodPost, "/companies/{company}/runs/{run}/cancel", "runs", "Cancela uma execução"),
 		func(ctx context.Context, in *RunPath) (*ItemOut[Run], error) {
+			if err := forbidPersona(ctx); err != nil {
+				return nil, err
+			}
 			sc, err := s.scope(ctx, in.Company)
 			if err != nil {
 				return nil, err

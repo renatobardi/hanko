@@ -55,6 +55,9 @@ type updatePersonaIn struct {
 func (s *server) registerPersonas(api huma.API) {
 	huma.Register(api, created(op("hire-persona", http.MethodPost, "/companies/{company}/personas", "personas", "Contrata uma persona")),
 		func(ctx context.Context, in *hirePersonaIn) (*ItemOut[Persona], error) {
+			if err := forbidPersona(ctx); err != nil {
+				return nil, err
+			}
 			sc, err := s.scope(ctx, in.Company)
 			if err != nil {
 				return nil, err
@@ -112,6 +115,9 @@ func (s *server) registerPersonas(api huma.API) {
 
 	huma.Register(api, op("update-persona", http.MethodPatch, "/companies/{company}/personas/{persona}", "personas", "Atualiza uma persona"),
 		func(ctx context.Context, in *updatePersonaIn) (*ItemOut[Persona], error) {
+			if err := forbidPersona(ctx); err != nil {
+				return nil, err
+			}
 			sc, err := s.scope(ctx, in.Company)
 			if err != nil {
 				return nil, err

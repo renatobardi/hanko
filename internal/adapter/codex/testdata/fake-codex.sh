@@ -6,6 +6,7 @@ set -u
 echo "ARGS: $*" >&2
 echo "STDIN: $(cat | tr '\n' '~')" >&2
 echo "ENV_TOKEN: ${HANKO_MCP_TOKEN_HANKO:-}" >&2
+echo "ENV_LEAK: secret=${HANKO_SECRET:-}|db=${HANKO_DATABASE_URL:-}|mem=${HANKO_MEMORY_TOKEN:-}|aws=${AWS_SECRET_ACCESS_KEY:-}|path=${PATH:+set}" >&2
 
 echo '{"type":"thread.started","thread_id":"thr-1"}'
 echo '{"type":"turn.started"}'

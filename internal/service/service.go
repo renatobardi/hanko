@@ -45,6 +45,9 @@ type Service struct {
 	Jobs   Jobs
 	Broker *events.Broker
 	Now    Clock
+	// WorkspacesRoot restringe o caminho de novos workspaces a esta raiz (HANKO_WORKSPACES_ROOT).
+	// Vazio = sem restrição de raiz (só caminho absoluto e limpo); o app sempre define.
+	WorkspacesRoot string
 }
 
 func New(pool *pgxpool.Pool, jobs Jobs, broker *events.Broker) *Service {

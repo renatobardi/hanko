@@ -58,11 +58,11 @@ workers: 2
 run_timeout: 10m
 memory:
   provider: none
-secret: abc
+secret: 0123456789abcdef0123456789abcdef
 `},
 			check: func(t *testing.T, c Config) {
 				if c.Workers != 9 || c.RunTimeout != 10*time.Minute || c.Memory.Provider != "none" ||
-					c.MigrateOnBoot || c.Secret != "abc" || c.SecretGenerated {
+					c.MigrateOnBoot || c.Secret != "0123456789abcdef0123456789abcdef" || c.SecretGenerated {
 					t.Fatalf("merge incorreto: %+v", c)
 				}
 			},
@@ -96,7 +96,7 @@ secret: abc
 		},
 		{
 			name: "authenticated avisa",
-			env:  map[string]string{"HANKO_DATABASE_URL": db, "HANKO_MODE": "authenticated", "HANKO_SECRET": "s"},
+			env:  map[string]string{"HANKO_DATABASE_URL": db, "HANKO_MODE": "authenticated", "HANKO_SECRET": "0123456789abcdef0123456789abcdef"},
 			check: func(t *testing.T, c Config) {
 				if !hasWarn(c, "M5") {
 					t.Fatalf("faltou aviso M5: %v", c.Warnings)
@@ -122,6 +122,35 @@ secret: abc
 			name:    "addr inválido",
 			env:     map[string]string{"HANKO_DATABASE_URL": db, "HANKO_ADDR": "7420"},
 			wantErr: "HANKO_ADDR",
+		},
+		{
+			name:    "secret curto",
+			env:     map[string]string{"HANKO_DATABASE_URL": db, "HANKO_SECRET": "curto-demais"},
+			wantErr: "HANKO_SECRET tem 12 bytes",
+		},
+		{
+			name: "listas e raiz de workspaces",
+			env: map[string]string{"HANKO_DATABASE_URL": db, "HANKO_AGENT_ENV_ALLOW": "FOO, BAR_*,", "HANKO_ALLOWED_HOSTS": "hanko.local, ,x.test:8443",
+				"HANKO_WORKSPACES_ROOT": "/srv/ws"},
+			check: func(t *testing.T, c Config) {
+				if len(c.AgentEnvAllow) != 2 || c.AgentEnvAllow[1] != "BAR_*" || len(c.AllowedHosts) != 2 || c.AllowedHosts[1] != "x.test:8443" || c.WorkspacesRoot != "/srv/ws" {
+					t.Fatalf("%+v", c)
+				}
+			},
+		},
+		{
+			name: "raiz de workspaces padrão",
+			env:  map[string]string{"HANKO_DATABASE_URL": db},
+			check: func(t *testing.T, c Config) {
+				if !strings.HasSuffix(c.WorkspacesRoot, "hanko-workspaces") {
+					t.Fatal(c.WorkspacesRoot)
+				}
+			},
+		},
+		{
+			name:    "raiz relativa",
+			env:     map[string]string{"HANKO_DATABASE_URL": db, "HANKO_WORKSPACES_ROOT": "rel/x"},
+			wantErr: "HANKO_WORKSPACES_ROOT",
 		},
 		{
 			name: "public url explícita",

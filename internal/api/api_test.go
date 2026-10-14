@@ -247,6 +247,7 @@ func TestAutenticacaoPorRunToken(t *testing.T) {
 	ts, _ := newTestServer(t, f, func(d *Deps) { d.Tokens = tokens })
 
 	pid, rid := domain.NewID(), domain.NewID()
+	f.runs = map[domain.ID]service.RunView{rid: {Run: domain.Run{ID: rid, CompanyID: c.ID, Status: domain.RunRunning}}}
 	tok, err := tokens.Issue(c.ID, pid, rid, domain.NewID())
 	if err != nil {
 		t.Fatal(err)
@@ -302,12 +303,87 @@ func TestAutenticacaoPorRunToken(t *testing.T) {
 	}
 }
 
-func TestSemTokensIgnoraAuthorization(t *testing.T) {
+func TestSemTokensRejeitaAuthorization(t *testing.T) {
 	f := &fakeSvc{}
 	seedCompany(f)
 	ts, _ := newTestServer(t, f, nil)
 	resp, _ := do(t, "GET", ts.URL+"/api/v1/companies/acme", "", map[string]string{"Authorization": "Bearer qualquer"})
-	if resp.StatusCode != 200 {
-		t.Fatalf("status = %d", resp.StatusCode)
+	if resp.StatusCode != 401 {
+		t.Fatalf("status = %d, quer 401", resp.StatusCode)
+	}
+	if resp, _ = do(t, "GET", ts.URL+"/api/v1/companies/acme", "", nil); resp.StatusCode != 200 {
+		t.Fatalf("sem header (trusted) = %d", resp.StatusCode)
+	}
+}
+
+func TestRunTokenSoValeComRunAtivo(t *testing.T) {
+	f := &fakeSvc{}
+	c := seedCompany(f)
+	tokens := &auth.RunTokens{Secret: []byte("0123456789abcdef0123456789abcdef"), TTL: time.Hour}
+	ts, _ := newTestServer(t, f, func(d *Deps) { d.Tokens = tokens })
+	rid := domain.NewID()
+	f.runs = map[domain.ID]service.RunView{rid: {Run: domain.Run{ID: rid, CompanyID: c.ID, Status: domain.RunQueued}}}
+	tok, _ := tokens.Issue(c.ID, domain.NewID(), rid, domain.NewID())
+	h := map[string]string{"Authorization": "Bearer " + tok}
+	for _, st := range []domain.RunStatus{domain.RunQueued, domain.RunRunning} {
+		f.setStatus(rid, st)
+		if resp, body := do(t, "GET", ts.URL+"/api/v1/companies/acme", "", h); resp.StatusCode != 200 {
+			t.Fatalf("%s: %d %s", st, resp.StatusCode, body)
+		}
+	}
+	for _, st := range []domain.RunStatus{domain.RunDone, domain.RunFailed, domain.RunCancelled, domain.RunInterrupted, domain.RunExpired} {
+		f.setStatus(rid, st)
+		if resp, _ := do(t, "GET", ts.URL+"/api/v1/companies/acme", "", h); resp.StatusCode != 401 {
+			t.Fatalf("%s: %d, quer 401", st, resp.StatusCode)
+		}
+	}
+	// run inexistente
+	ghost, _ := tokens.Issue(c.ID, domain.NewID(), domain.NewID(), domain.NewID())
+	if resp, _ := do(t, "GET", ts.URL+"/api/v1/companies/acme", "", map[string]string{"Authorization": "Bearer " + ghost}); resp.StatusCode != 401 {
+		t.Fatalf("run inexistente: %d", resp.StatusCode)
+	}
+}
+
+func TestPersonaAutorizacaoPorAtor(t *testing.T) {
+	f := &fakeSvc{}
+	c := seedCompany(f)
+	f.tasks = append(f.tasks, service.TaskView{Task: domain.Task{ID: domain.NewID(), CompanyID: c.ID, Key: "HNK-1", Number: 1}})
+	tokens := &auth.RunTokens{Secret: []byte("0123456789abcdef0123456789abcdef"), TTL: time.Hour}
+	ts, _ := newTestServer(t, f, func(d *Deps) { d.Tokens = tokens })
+	rid := domain.NewID()
+	f.runs = map[domain.ID]service.RunView{rid: {Run: domain.Run{ID: rid, CompanyID: c.ID, Status: domain.RunRunning}}}
+	tok, _ := tokens.Issue(c.ID, domain.NewID(), rid, domain.NewID())
+	h := map[string]string{"Authorization": "Bearer " + tok}
+	base := ts.URL + "/api/v1/companies/acme"
+
+	forbidden := []struct{ method, path, body string }{
+		{"POST", "/api/v1/companies", `{"name":"nova"}`},
+		{"POST", "/api/v1/companies/acme/personas", `{"name":"x","agent":"fake"}`},
+		{"PATCH", "/api/v1/companies/acme/personas/p", `{"name":"y"}`},
+		{"POST", "/api/v1/companies/acme/workspaces", `{"name":"w","path":"/tmp/w"}`},
+		{"POST", "/api/v1/companies/acme/projects", `{"name":"p"}`},
+		{"POST", "/api/v1/companies/acme/runs/" + rid.String() + "/cancel", ``},
+	}
+	for _, c := range forbidden {
+		if resp, body := do(t, c.method, ts.URL+c.path, c.body, h); resp.StatusCode != 403 {
+			t.Errorf("%s %s: %d (quer 403) %s", c.method, c.path, resp.StatusCode, body)
+		}
+	}
+	allowed := []struct{ method, path, body string }{
+		{"GET", "/tasks", ""},
+		{"POST", "/tasks", `{"title":"filha"}`},
+		{"POST", "/tasks/HNK-1/comments", `{"body":"oi"}`},
+		{"POST", "/tasks/HNK-1/wake", ``},
+		{"GET", "/runs", ""},
+		{"GET", "/runs/" + rid.String(), ""},
+	}
+	for _, c := range allowed {
+		if resp, body := do(t, c.method, base+c.path, c.body, h); resp.StatusCode >= 300 {
+			t.Errorf("%s %s: %d (quer 2xx) %s", c.method, c.path, resp.StatusCode, body)
+		}
+	}
+	// humano (trusted) continua podendo criar projeto/workspace: não é 403
+	if resp, _ := do(t, "POST", base+"/projects", `{"name":"p"}`, nil); resp.StatusCode == 403 {
+		t.Error("humano não deveria receber 403")
 	}
 }

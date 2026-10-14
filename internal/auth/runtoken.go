@@ -3,6 +3,7 @@
 package auth
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -75,4 +76,42 @@ func (c RunClaims) Actor() (domain.Actor, error) {
 		return domain.Actor{}, ErrBadToken
 	}
 	return domain.PersonaActor(id), nil
+}
+
+// RunStatusFunc consulta o status atual de um run (normalmente service.GetRun).
+type RunStatusFunc func(ctx context.Context, companyID, runID domain.ID) (domain.RunStatus, error)
+
+// ErrRunInactive indica um token assinado cujo run não está mais queued/running.
+var ErrRunInactive = fmt.Errorf("%w: run não está ativo", ErrBadToken)
+
+// VerifyActive valida a assinatura e confirma que o run do token está ativo
+// (queued ou running). Run inexistente ou encerrado devolve erro que casa com
+// ErrBadToken; falha na consulta (banco) é devolvida sem esse sentinela.
+func (t RunTokens) VerifyActive(ctx context.Context, tok string, status RunStatusFunc) (RunClaims, error) {
+	c, err := t.Verify(tok)
+	if err != nil {
+		return RunClaims{}, err
+	}
+	if status == nil {
+		return RunClaims{}, fmt.Errorf("%w: sem consulta de run", ErrBadToken)
+	}
+	cid, err := domain.ParseID(c.CompanyID)
+	if err != nil {
+		return RunClaims{}, ErrBadToken
+	}
+	rid, err := domain.ParseID(c.RunID)
+	if err != nil {
+		return RunClaims{}, ErrBadToken
+	}
+	st, err := status(ctx, cid, rid)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			return RunClaims{}, ErrRunInactive
+		}
+		return RunClaims{}, fmt.Errorf("consultar run do token: %w", err)
+	}
+	if !st.Active() {
+		return RunClaims{}, ErrRunInactive
+	}
+	return c, nil
 }

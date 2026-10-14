@@ -23,13 +23,17 @@ type Options struct {
 	Bin    string // default "codex"
 	Logger *slog.Logger
 	Grace  time.Duration // SIGTERM → SIGKILL; 0 = 5 s
+	// EnvAllow lista variáveis extras do ambiente do servidor repassadas ao harness
+	// (nomes exatos ou prefixos terminados em "*"). Ver procrun.HarnessEnv.
+	EnvAllow []string
 }
 
 // Adapter implements adapter.Adapter for the codex harness.
 type Adapter struct {
-	bin   string
-	log   *slog.Logger
-	grace time.Duration
+	bin      string
+	log      *slog.Logger
+	grace    time.Duration
+	envAllow []string
 }
 
 // New returns the codex adapter.
@@ -42,7 +46,7 @@ func New(o Options) *Adapter {
 	if log == nil {
 		log = slog.New(slog.NewTextHandler(io.Discard, nil))
 	}
-	return &Adapter{bin: bin, log: log, grace: o.Grace}
+	return &Adapter{bin: bin, log: log, grace: o.Grace, envAllow: o.EnvAllow}
 }
 
 func (a *Adapter) Name() string { return "codex" }
@@ -136,6 +140,12 @@ func Prompt(spec adapter.Spec) string {
 // Run executes the harness. Cancelling ctx terminates the whole process group; the
 // partial Result is returned with a nil error (the caller inspects ctx).
 func (a *Adapter) Run(ctx context.Context, spec adapter.Spec, sink adapter.Sink) (adapter.Result, error) {
+	secrets := adapter.SpecSecrets(spec)
+	res, err := a.run(ctx, spec, sink, secrets)
+	return adapter.RedactResult(res, secrets...), err
+}
+
+func (a *Adapter) run(ctx context.Context, spec adapter.Spec, sink adapter.Sink, secrets []string) (adapter.Result, error) {
 	var cfg Config
 	if len(spec.Config) > 0 {
 		if err := json.Unmarshal(spec.Config, &cfg); err != nil {
@@ -152,13 +162,16 @@ func (a *Adapter) Run(ctx context.Context, spec adapter.Spec, sink adapter.Sink)
 		dir = d
 	}
 	mcpArgs, mcpEnv := mcpOverrides(spec.MCPConfig)
-	env := os.Environ()
+	extra := make(map[string]string, len(mcpEnv)+len(spec.Env))
 	for k, v := range mcpEnv {
-		env = append(env, k+"="+v)
+		extra[k] = v
+		secrets = append(secrets, v)
 	}
 	for k, v := range spec.Env {
-		env = append(env, k+"="+v)
+		extra[k] = v
 	}
+	env := procrun.HarnessEnv(os.Environ(), a.envAllow, extra)
+	sink = adapter.RedactingSink(sink, secrets...)
 
 	p := newParser(nil)
 	var tail []string

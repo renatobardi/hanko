@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"runtime/debug"
@@ -134,7 +135,12 @@ func (s *server) middleware(next http.Handler) http.Handler {
 		if strings.HasPrefix(r.URL.Path, "/api/") {
 			p, err := s.authenticate(r)
 			if err != nil {
-				writeProblem(sw, problem(http.StatusUnauthorized, "token inválido ou expirado"))
+				if errors.Is(err, auth.ErrBadToken) {
+					writeProblem(sw, problem(http.StatusUnauthorized, "token inválido, expirado ou de run encerrado"))
+				} else {
+					s.log.ErrorContext(ctx, "api: autenticação falhou", "err", err, "request_id", id)
+					writeProblem(sw, problem(http.StatusServiceUnavailable, "autenticação indisponível"))
+				}
 				return
 			}
 			r = r.WithContext(context.WithValue(r.Context(), keyPrincipal, p))
@@ -143,12 +149,16 @@ func (s *server) middleware(next http.Handler) http.Handler {
 	})
 }
 
-// authenticate resolve o ator. Sem header (ou sem Tokens configurado) vale o modo
-// trusted: humano local. Com Tokens, um Bearer inválido é rejeitado.
+// authenticate resolve o ator. Sem header vale o modo trusted (humano local). Com
+// header Authorization, o Bearer precisa ser um run token válido de um run ativo;
+// sem Tokens configurado, qualquer Authorization é rejeitado (nunca ignorado).
 func (s *server) authenticate(r *http.Request) (principal, error) {
 	h := r.Header.Get("Authorization")
-	if s.d.Tokens == nil || h == "" {
+	if h == "" {
 		return principal{Actor: domain.HumanActor}, nil
+	}
+	if s.d.Tokens == nil || s.svc == nil {
+		return principal{}, auth.ErrBadToken
 	}
 	tok, ok := strings.CutPrefix(h, "Bearer ")
 	if !ok {
@@ -157,7 +167,10 @@ func (s *server) authenticate(r *http.Request) (principal, error) {
 	if !ok || strings.TrimSpace(tok) == "" {
 		return principal{}, auth.ErrBadToken
 	}
-	claims, err := s.d.Tokens.Verify(strings.TrimSpace(tok))
+	claims, err := s.d.Tokens.VerifyActive(r.Context(), strings.TrimSpace(tok), func(ctx context.Context, cid, rid domain.ID) (domain.RunStatus, error) {
+		run, err := s.svc.GetRun(ctx, cid, rid)
+		return run.Status, err
+	})
 	if err != nil {
 		return principal{}, err
 	}

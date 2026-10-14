@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -102,13 +103,17 @@ func (s *Service) CreateWorkspace(ctx context.Context, actor domain.Actor, compa
 	if err != nil {
 		return domain.Workspace{}, err
 	}
+	path, err := s.checkWorkspacePath(in.Path)
+	if err != nil {
+		return domain.Workspace{}, err
+	}
 	var out domain.Workspace
 	err = s.withTx(ctx, func(t *txc) error {
 		if _, err := t.q.GetCompanyByID(ctx, companyID); err != nil {
 			return mapErr(err, "company")
 		}
 		row, err := t.q.CreateWorkspace(ctx, store.CreateWorkspaceParams{ID: domain.NewID(), CompanyID: companyID,
-			Slug: slug, Name: name, Path: strings.TrimSpace(in.Path), RepoUrl: strings.TrimSpace(in.RepoURL), Now: t.now})
+			Slug: slug, Name: name, Path: path, RepoUrl: strings.TrimSpace(in.RepoURL), Now: t.now})
 		if err != nil {
 			return mapErr(err, "create workspace")
 		}
@@ -117,6 +122,48 @@ func (s *Service) CreateWorkspace(ctx context.Context, actor domain.Actor, compa
 			map[string]any{"slug": out.Slug, "name": out.Name}, "")
 	})
 	return out, err
+}
+
+// checkWorkspacePath valida o caminho de um workspace: vazio é aceito; senão precisa
+// ser absoluto, limpo (sem "..", "//" ou "/" final) e, havendo WorkspacesRoot, ficar
+// estritamente dentro dela depois de resolver symlinks do trecho que já existe no disco.
+func (s *Service) checkWorkspacePath(raw string) (string, error) {
+	p := strings.TrimSpace(raw)
+	if p == "" {
+		return "", nil
+	}
+	if !filepath.IsAbs(p) {
+		return "", domain.Invalid("path", "must be an absolute path")
+	}
+	if filepath.Clean(p) != p {
+		return "", domain.Invalid("path", "must be clean (no '..', '//' or trailing '/')")
+	}
+	if s.WorkspacesRoot == "" {
+		return p, nil
+	}
+	root := resolveExisting(filepath.Clean(s.WorkspacesRoot))
+	rel, err := filepath.Rel(root, resolveExisting(p))
+	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", domain.Invalid("path", "must be inside the workspaces root")
+	}
+	return p, nil
+}
+
+// resolveExisting resolve symlinks do maior prefixo existente de p e reanexa o resto.
+func resolveExisting(p string) string {
+	rest := ""
+	cur := p
+	for {
+		if r, err := filepath.EvalSymlinks(cur); err == nil {
+			return filepath.Join(r, rest)
+		}
+		parent := filepath.Dir(cur)
+		if parent == cur {
+			return p
+		}
+		rest = filepath.Join(filepath.Base(cur), rest)
+		cur = parent
+	}
 }
 
 func (s *Service) ListWorkspaces(ctx context.Context, companyID domain.ID) ([]domain.Workspace, error) {

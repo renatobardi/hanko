@@ -26,7 +26,7 @@ type Options struct {
 	Bin   string
 	Args  []string
 	Dir   string
-	Env   []string // full environment; nil = os.Environ()
+	Env   []string // full environment; nil = HarnessEnv(os.Environ()) (allowlist, sem HANKO_*)
 	Stdin string
 	// Grace between SIGTERM and SIGKILL on cancellation; 0 = DefaultGrace.
 	Grace time.Duration
@@ -51,7 +51,7 @@ func Run(ctx context.Context, o Options) (Result, error) {
 	if o.Env != nil {
 		cmd.Env = o.Env
 	} else {
-		cmd.Env = os.Environ()
+		cmd.Env = HarnessEnv(os.Environ(), nil, nil)
 	}
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Stdin = bytes.NewReader([]byte(o.Stdin))

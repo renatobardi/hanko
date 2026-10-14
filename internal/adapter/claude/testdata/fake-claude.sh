@@ -8,6 +8,7 @@ set -u
 echo "ARGS: $*" >&2
 echo "CWD: $(pwd)" >&2
 echo "ENV_FOO: ${FOO:-}" >&2
+echo "ENV_LEAK: secret=${HANKO_SECRET:-}|db=${HANKO_DATABASE_URL:-}|mem=${HANKO_MEMORY_TOKEN:-}|aws=${AWS_SECRET_ACCESS_KEY:-}|run=${HANKO_RUN_TOKEN:-}|path=${PATH:+set}" >&2
 
 prev=""
 for a in "$@"; do
@@ -32,6 +33,9 @@ fi
 
 echo '{"type":"assistant","message":{"id":"msg_1","role":"assistant","model":"claude-sonnet-fake","content":[{"type":"thinking","thinking":"Preciso ler o arquivo primeiro."},{"type":"text","text":"Vou listar os arquivos."},{"type":"tool_use","id":"toolu_1","name":"Bash","input":{"command":"ls -la","description":"lista arquivos"}}]},"session_id":"sess-123"}'
 echo '{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_1","content":"total 0\nREADME.md","is_error":false}]},"session_id":"sess-123"}'
+if [ -n "${HANKO_RUN_TOKEN:-}" ]; then
+  echo "{\"type\":\"assistant\",\"message\":{\"id\":\"msg_leak\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"token ${HANKO_RUN_TOKEN}\"}]},\"session_id\":\"sess-123\"}"
+fi
 echo '{"type":"assistant","message":{"id":"msg_2","role":"assistant","content":[{"type":"text","text":"Pronto."}]},"session_id":"sess-123"}'
 
 if [ "${FAKE_CLAUDE_FAIL:-}" = "1" ]; then

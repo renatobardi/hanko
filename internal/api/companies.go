@@ -89,6 +89,9 @@ func (s *server) registerCompanies(api huma.API) {
 
 	huma.Register(api, created(op("create-workspace", http.MethodPost, "/companies/{company}/workspaces", "workspaces", "Cria um workspace")),
 		func(ctx context.Context, in *createWorkspaceIn) (*ItemOut[Workspace], error) {
+			if err := forbidPersona(ctx); err != nil {
+				return nil, err
+			}
 			sc, err := s.scope(ctx, in.Company)
 			if err != nil {
 				return nil, err
@@ -116,6 +119,9 @@ func (s *server) registerCompanies(api huma.API) {
 
 	huma.Register(api, created(op("create-project", http.MethodPost, "/companies/{company}/projects", "projects", "Cria um projeto")),
 		func(ctx context.Context, in *createProjectIn) (*ItemOut[Project], error) {
+			if err := forbidPersona(ctx); err != nil {
+				return nil, err
+			}
 			sc, err := s.scope(ctx, in.Company)
 			if err != nil {
 				return nil, err

@@ -31,7 +31,7 @@ func (s *server) scope(ctx context.Context, ref string) (scope, error) {
 	return scope{Company: c, Actor: p.Actor, Claims: p.Claims}, nil
 }
 
-// forbidPersona rejeita escritas globais (fora de uma empresa) feitas por persona.
+// forbidPersona rejeita operações administrativas (empresa, workspace, projeto, persona, cancelar run) feitas por persona.
 func forbidPersona(ctx context.Context) error {
 	if principalFrom(ctx).Claims != nil {
 		return problem(http.StatusForbidden, "run tokens não podem executar esta operação")

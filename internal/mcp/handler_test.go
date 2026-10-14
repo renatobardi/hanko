@@ -583,3 +583,32 @@ func TestHandlerWithService(t *testing.T) {
 		t.Fatal("nil")
 	}
 }
+
+func TestAuthRunInativo(t *testing.T) {
+	for _, st := range []domain.RunStatus{domain.RunDone, domain.RunFailed, domain.RunCancelled, domain.RunInterrupted, domain.RunExpired} {
+		e := setup(t, false)
+		r := e.f.runs[e.runID]
+		r.Status = st
+		e.f.runs[e.runID] = r
+		req, _ := http.NewRequest(http.MethodPost, e.srv.URL, strings.NewReader("{}"))
+		req.Header.Set("Authorization", "Bearer "+e.tok)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Errorf("run %s: status %d, quer 401", st, resp.StatusCode)
+		}
+	}
+	// queued ainda vale
+	e := setup(t, false)
+	r := e.f.runs[e.runID]
+	r.Status = domain.RunQueued
+	e.f.runs[e.runID] = r
+	cs, err := e.connect(t, e.tok)
+	if err != nil {
+		t.Fatalf("queued deveria valer: %v", err)
+	}
+	cs.Close()
+}

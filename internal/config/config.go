@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -31,6 +32,9 @@ const (
 	LogText = "text"
 
 	DefaultConfigFile = "hanko.yaml"
+
+	// MinSecretLen é o tamanho mínimo (bytes) de HANKO_SECRET quando definido.
+	MinSecretLen = 32
 )
 
 // Memory configura o provedor de memória (ADR-0015).
@@ -56,6 +60,15 @@ type Config struct {
 	HeartbeatInterval time.Duration `yaml:"heartbeat_interval" env:"HANKO_HEARTBEAT_INTERVAL"`
 	LogLevel          string        `yaml:"log_level" env:"HANKO_LOG_LEVEL"`
 	LogFormat         string        `yaml:"log_format" env:"HANKO_LOG_FORMAT"`
+
+	// AgentEnvAllow lista variáveis extras do ambiente do servidor repassadas aos
+	// harnesses (nomes exatos ou prefixos terminados em "*"); HANKO_* nunca passa.
+	AgentEnvAllow []string `yaml:"agent_env_allow" env:"HANKO_AGENT_ENV_ALLOW" envSeparator:","`
+	// AllowedHosts são hosts extras aceitos no cabeçalho Host (proteção contra DNS
+	// rebinding), além de localhost/loopback e do host de PublicURL.
+	AllowedHosts []string `yaml:"allowed_hosts" env:"HANKO_ALLOWED_HOSTS" envSeparator:","`
+	// WorkspacesRoot é a raiz sob a qual todo workspace precisa estar (default $HOME/hanko-workspaces).
+	WorkspacesRoot string `yaml:"workspaces_root" env:"HANKO_WORKSPACES_ROOT"`
 
 	// SecretGenerated indica que Secret foi gerado neste boot (run tokens não
 	// sobrevivem a restart). Preenchido por Load.
@@ -128,6 +141,7 @@ func environFor(getenv func(string) string) map[string]string {
 		"HANKO_MIGRATE_ON_BOOT", "HANKO_MEMORY_PROVIDER", "HANKO_MEMORY_URL", "HANKO_MEMORY_TOKEN",
 		"HANKO_CLAUDE_BIN", "HANKO_CODEX_BIN", "HANKO_WORKERS", "HANKO_RUN_TIMEOUT",
 		"HANKO_HEARTBEAT_INTERVAL", "HANKO_LOG_LEVEL", "HANKO_LOG_FORMAT",
+		"HANKO_AGENT_ENV_ALLOW", "HANKO_ALLOWED_HOSTS", "HANKO_WORKSPACES_ROOT",
 	}
 	m := make(map[string]string, len(keys))
 	for _, k := range keys {
@@ -149,6 +163,14 @@ func (c *Config) finalize() error {
 		c.PublicURL = "http://" + c.Addr
 	}
 	c.PublicURL = strings.TrimRight(c.PublicURL, "/")
+	c.AgentEnvAllow = cleanList(c.AgentEnvAllow)
+	c.AllowedHosts = cleanList(c.AllowedHosts)
+	c.WorkspacesRoot = strings.TrimSpace(c.WorkspacesRoot)
+	if c.WorkspacesRoot == "" {
+		if home, err := os.UserHomeDir(); err == nil && home != "" {
+			c.WorkspacesRoot = filepath.Join(home, "hanko-workspaces")
+		}
+	}
 
 	if err := c.Validate(); err != nil {
 		return err
@@ -207,6 +229,12 @@ func (c Config) Validate() error {
 	default:
 		add("HANKO_MEMORY_PROVIDER %q inválido: use %q ou %q", c.Memory.Provider, MemoryAIMemory, MemoryNone)
 	}
+	if c.Secret != "" && len(c.Secret) < MinSecretLen {
+		add("HANKO_SECRET tem %d bytes: use no mínimo %d (ex.: openssl rand -hex 32)", len(c.Secret), MinSecretLen)
+	}
+	if c.WorkspacesRoot != "" && !filepath.IsAbs(c.WorkspacesRoot) {
+		add("HANKO_WORKSPACES_ROOT %q deve ser um caminho absoluto", c.WorkspacesRoot)
+	}
 	if c.Workers < 1 || c.Workers > 256 {
 		add("HANKO_WORKERS %d inválido: use um valor entre 1 e 256", c.Workers)
 	}
@@ -256,4 +284,24 @@ func randomSecret() (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(b), nil
+}
+
+// cleanList apara espaços e descarta entradas vazias.
+func cleanList(in []string) []string {
+	var out []string
+	for _, v := range in {
+		if v = strings.TrimSpace(v); v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+// PublicHost devolve o host (com porta, se houver) de PublicURL.
+func (c Config) PublicHost() string {
+	u, err := url.Parse(c.PublicURL)
+	if err != nil {
+		return ""
+	}
+	return u.Host
 }
