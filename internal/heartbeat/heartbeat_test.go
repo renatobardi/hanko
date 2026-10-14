@@ -58,6 +58,10 @@ type fakeBackend struct {
 	pendErr      error
 	finFails     int // FinishRun fails this many times before succeeding
 	finCalls     int
+	due          []domain.Flow
+	fireErr      map[domain.ID]error
+	fired        []time.Time
+	firedIDs     []domain.ID
 }
 
 func (f *fakeBackend) CheckoutRun(_ context.Context, w service.Wake) (domain.Run, error) {
@@ -127,6 +131,20 @@ func (f *fakeBackend) MarkMemoryFailed(_ context.Context, _ domain.ID, msg strin
 	return nil
 }
 func (f *fakeBackend) PendingMemory(context.Context, int) ([]domain.ID, error) { return f.pending, nil }
+func (f *fakeBackend) DueFlows(context.Context, time.Time) ([]domain.Flow, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.due, nil
+}
+func (f *fakeBackend) FireFlow(_ context.Context, id domain.ID, at time.Time) (service.FlowFireResult, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if err := f.fireErr[id]; err != nil {
+		return service.FlowFireResult{}, err
+	}
+	f.fired, f.firedIDs = append(f.fired, at), append(f.firedIDs, id)
+	return service.FlowFireResult{Task: &service.TaskView{}}, nil
+}
 
 func (f *fakeBackend) texts(k domain.RunEventKind) (out []string) {
 	f.mu.Lock()
@@ -593,7 +611,7 @@ func TestWake(t *testing.T) {
 	for _, tc := range []struct {
 		err     error
 		wantErr bool
-	}{{nil, false}, {domain.ErrInvalid, false}, {domain.ErrNotFound, false}, {errors.New("db"), true}} {
+	}{{nil, false}, {domain.ErrInvalid, false}, {domain.ErrNotFound, false}, {domain.ErrBudgetExceeded, false}, {errors.New("db"), true}} {
 		be := &fakeBackend{checkout: func(service.Wake) (domain.Run, error) { return domain.Run{}, tc.err }}
 		h, _ := newTestHB(t, be, okAdapter(), nil, Options{})
 		if err := h.wake(context.Background(), WakeArgs{}, 0); (err != nil) != tc.wantErr {
@@ -806,5 +824,33 @@ func TestDeliverMemorySkipsClosedItems(t *testing.T) {
 		if err := h.deliverMemory(context.Background(), DeliverMemoryArgs{}); err != nil || len(mem.recorded) != 0 {
 			t.Errorf("%s: err=%v rec=%v", st, err, mem.recorded)
 		}
+	}
+}
+
+func TestFlowTick(t *testing.T) {
+	at := time.Date(2026, 3, 10, 12, 0, 0, 0, time.UTC)
+	ok1 := domain.Flow{ID: domain.NewID(), Slug: "a", NextFireAt: &at}
+	bad := domain.Flow{ID: domain.NewID(), Slug: "b", NextFireAt: &at}
+	ok2 := domain.Flow{ID: domain.NewID(), Slug: "c", NextFireAt: &at}
+	never := domain.Flow{ID: domain.NewID(), Slug: "d"}
+	be := &fakeBackend{due: []domain.Flow{ok1, bad, never, ok2}, fireErr: map[domain.ID]error{bad.ID: errors.New("db")}}
+	h, _ := newTestHB(t, be, okAdapter(), nil, Options{})
+	err := h.flowTick(context.Background(), at.Add(time.Second))
+	if err == nil || !strings.Contains(err.Error(), "flow b") {
+		t.Fatalf("a falha de um fluxo deve ser reportada, got %v", err)
+	}
+	if len(be.firedIDs) != 2 || be.firedIDs[0] != ok1.ID || be.firedIDs[1] != ok2.ID || !be.fired[0].Equal(at) {
+		t.Fatalf("fired = %v at %v", be.firedIDs, be.fired)
+	}
+	// no backend attached
+	h2, _ := New(lazyPool(t), Options{})
+	if err := h2.flowTick(context.Background(), at); !errors.Is(err, errNotAttached) {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestFlowTickRegistered(t *testing.T) {
+	if k := (FlowTickArgs{}).Kind(); k != "flow_tick" {
+		t.Fatalf("kind = %q", k)
 	}
 }
