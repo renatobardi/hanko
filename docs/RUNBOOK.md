@@ -38,7 +38,7 @@ Dois containers: `hanko-stg` (branch `develop`) e `hanko-prd` (tag `v*`). Acesso
 4. Suba: `cd /opt/hanko && docker compose -f deploy/compose.yaml --env-file .env up -d` (prd com borda TLS: `--profile edge`).
 5. Verifique: `curl -fsS http://127.0.0.1:7420/healthz` e `/readyz`; abra o Grafana por túnel (porta 3000 só em loopback).
 6. Atualizar versão: ajuste `HANKO_VERSION`, `docker compose pull hanko && docker compose up -d hanko`. Migrations rodam no boot
-   (`HANKO_MIGRATE_ON_BOOT=true`); para rodar à parte: `docker compose run --rm hanko migrate`.
+   (`HANKO_MIGRATE_ON_BOOT=true`); para rodar à parte: `docker compose run --rm --entrypoint /hanko hanko migrate`.
 7. Rollback: volte `HANKO_VERSION` e suba de novo. Migrations são append-only; rollback de schema = restore do backup.
 
 Segredos nunca entram no git: `.env` fica só no container.
