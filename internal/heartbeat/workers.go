@@ -54,6 +54,10 @@ func (h *Heartbeat) wake(ctx context.Context, a WakeArgs, age time.Duration) err
 		}
 		h.log.Debug("wake: task com run ativa, tentando de novo", "task_id", a.TaskID, "persona_id", a.PersonaID)
 		return river.JobSnooze(h.opts.WakeSnooze)
+	case errors.Is(err, domain.ErrBudgetExceeded):
+		// Hard stop: the service already paused the persona and recorded the alert.
+		h.log.Info("wake: orçamento estourado, run não aberta", "task_id", a.TaskID, "persona_id", a.PersonaID, "reason", err)
+		return nil
 	case errors.Is(err, domain.ErrInvalid), errors.Is(err, domain.ErrNotFound):
 		h.log.Debug("wake: nada a fazer", "task_id", a.TaskID, "persona_id", a.PersonaID, "reason", err)
 		return nil

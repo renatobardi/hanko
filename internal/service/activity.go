@@ -54,6 +54,8 @@ func (s *Service) Dashboard(ctx context.Context, companyID domain.ID) (Dashboard
 	if err != nil {
 		return DashboardStats{}, fmt.Errorf("pending gates: %w", err)
 	}
+	b := budgetStatus(company.BudgetMonthlyCents, cost)
 	return DashboardStats{ActivePersonas: int(c.ActivePersonas), TasksInProgress: int(c.TasksInProgress),
-		OpenTasks: int(c.OpenTasks), MonthCostUSD: cost, PendingGates: int(gates), RunningRuns: int(c.RunningRuns)}, nil
+		OpenTasks: int(c.OpenTasks), MonthCostUSD: cost, PendingGates: int(gates), RunningRuns: int(c.RunningRuns),
+		MonthBudgetCents: b.BudgetCents, BudgetPercent: b.Percent, BudgetState: b.State}, nil
 }

@@ -24,15 +24,55 @@ type ActivityEvent struct {
 	ReceivedAt  time.Time
 }
 
+type BudgetAlert struct {
+	ID        uuid.UUID
+	CompanyID uuid.UUID
+	Scope     string
+	TargetID  uuid.UUID
+	Month     string
+	Level     string
+	CreatedAt time.Time
+}
+
 type Company struct {
-	ID             uuid.UUID
-	Slug           string
-	Name           string
-	TaskPrefix     string
-	Timezone       string
-	NextTaskNumber int64
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	ID                 uuid.UUID
+	Slug               string
+	Name               string
+	TaskPrefix         string
+	Timezone           string
+	NextTaskNumber     int64
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	BudgetMonthlyCents *int64
+}
+
+type Flow struct {
+	ID              uuid.UUID
+	CompanyID       uuid.UUID
+	Slug            string
+	Name            string
+	Description     string
+	Cron            string
+	Timezone        string
+	Enabled         bool
+	PersonaID       uuid.UUID
+	ProjectID       *uuid.UUID
+	Priority        string
+	TaskTitle       string
+	TaskDescription string
+	LastFiredAt     *time.Time
+	NextFireAt      *time.Time
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
+type FlowFire struct {
+	ID           uuid.UUID
+	FlowID       uuid.UUID
+	CompanyID    uuid.UUID
+	ScheduledFor time.Time
+	TaskID       *uuid.UUID
+	CreatedAt    time.Time
 }
 
 type Gate struct {
@@ -70,6 +110,18 @@ type MemoryOutbox struct {
 	NextAttemptAt *time.Time
 }
 
+type ModelPrice struct {
+	ID                   uuid.UUID
+	Model                string
+	InputPerMtok         float64
+	OutputPerMtok        float64
+	CacheReadPerMtok     float64
+	CacheCreationPerMtok float64
+	Fixed                float64
+	EffectiveAt          time.Time
+	CreatedAt            time.Time
+}
+
 type Persona struct {
 	ID                   uuid.UUID
 	CompanyID            uuid.UUID
@@ -91,6 +143,7 @@ type Persona struct {
 	LastErrorAt          *time.Time
 	ConsecutiveFailures  int32
 	RequireReview        bool
+	PauseReason          *string
 }
 
 type Project struct {
@@ -129,6 +182,7 @@ type Run struct {
 	StartedAt           *time.Time
 	FinishedAt          *time.Time
 	PendingResult       []byte
+	CostSource          string
 }
 
 type RunEvent struct {

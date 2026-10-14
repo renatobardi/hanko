@@ -120,6 +120,12 @@ func (s *Service) UpdatePersona(ctx context.Context, actor domain.Actor, company
 	if in.ClearReportsTo && in.ReportsTo != nil {
 		return domain.Persona{}, domain.Invalid("reports_to", "cannot set and clear at once")
 	}
+	if in.ClearBudget && in.BudgetMonthlyCents != nil {
+		return domain.Persona{}, domain.Invalid("budget_monthly_cents", "cannot set and clear at once")
+	}
+	if in.BudgetMonthlyCents != nil && *in.BudgetMonthlyCents < 0 {
+		return domain.Persona{}, domain.Invalid("budget_monthly_cents", "must be >= 0")
+	}
 
 	var out domain.Persona
 	err := s.withTx(ctx, func(t *txc) error {
@@ -134,7 +140,8 @@ func (s *Service) UpdatePersona(ctx context.Context, actor domain.Actor, company
 		}
 		p := store.UpdatePersonaParams{CompanyID: companyID, ID: personaID, Name: cur.Name, Title: cur.Title,
 			Instructions: cur.Instructions, Model: cur.Model, Status: cur.Status,
-			HeartbeatIntervalSec: cur.HeartbeatIntervalSec, WorkspaceID: cur.WorkspaceID, Now: t.now}
+			HeartbeatIntervalSec: cur.HeartbeatIntervalSec, WorkspaceID: cur.WorkspaceID,
+			BudgetMonthlyCents: cur.BudgetMonthlyCents, Now: t.now}
 		var changed []string
 		if in.Name != nil && strings.TrimSpace(*in.Name) != cur.Name {
 			p.Name = strings.TrimSpace(*in.Name)
@@ -192,6 +199,13 @@ func (s *Service) UpdatePersona(ctx context.Context, actor domain.Actor, company
 		if in.RequireReview != nil && *in.RequireReview != cur.RequireReview {
 			review, orgChanged = *in.RequireReview, true
 			changed = append(changed, "require_review")
+		}
+		if in.ClearBudget && cur.BudgetMonthlyCents != nil {
+			p.BudgetMonthlyCents = nil
+			changed = append(changed, "budget_monthly_cents")
+		} else if in.BudgetMonthlyCents != nil && (cur.BudgetMonthlyCents == nil || *cur.BudgetMonthlyCents != *in.BudgetMonthlyCents) {
+			p.BudgetMonthlyCents = in.BudgetMonthlyCents
+			changed = append(changed, "budget_monthly_cents")
 		}
 		if len(changed) == 0 {
 			out = personaFromRow(cur)

@@ -239,6 +239,13 @@ templ PersonaPage(sh Shell, vm PersonaVM) {
 				<div class="form-actions" style="margin-top:0"><button class="btn primary sm" type="submit">Salvar organização</button></div>
 			</form>
 		</section>
+		if vm.Budget != nil {
+			<section class={ "card pad budget-card", "b-" + vm.Budget.State } style="margin-top:20px">
+				<div class="card-head"><h2>Orçamento do mês</h2><a class="more" href={ templ.SafeURL(vm.Budget.Href) }>Custos</a></div>
+				@BudgetMeter(*vm.Budget)
+				@BudgetForm(*vm.Budget, "persona-budget")
+			</section>
+		}
 		<h2 class="side-h" style="margin:28px 0 12px">Tasks atribuídas</h2>
 		if len(vm.Tasks) == 0 {
 			@EmptyCard("list", "Nenhuma task atribuída.", "Atribua uma task a esta persona para ela começar a trabalhar.", false)

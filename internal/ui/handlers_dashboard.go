@@ -56,6 +56,11 @@ func (s *server) handleDashboard(w http.ResponseWriter, r *http.Request, co doma
 		Gates:           gateRows(pending, base, now, loc, names),
 		Notice:          gateNotices[r.URL.Query().Get("ok")],
 	}
+	if stats.MonthBudgetCents != nil {
+		b := budgetBox("Orçamento do mês", service.BudgetStatus{BudgetCents: stats.MonthBudgetCents, SpentUSD: stats.MonthCostUSD,
+			Percent: stats.BudgetPercent, State: stats.BudgetState}, "", "")
+		vm.Budget = &b
+	}
 	switch {
 	case stats.RunningRuns == 1:
 		vm.Subtitle = co.Name + " · 1 execução em andamento."

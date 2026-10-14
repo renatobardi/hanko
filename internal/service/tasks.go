@@ -34,114 +34,143 @@ func validateTitle(title string) (string, error) {
 // CanWork and status is Workable, enqueues a Wake (trigger assign) in the same tx.
 // Same EventID twice → returns the existing task (idempotent).
 func (s *Service) CreateTask(ctx context.Context, actor domain.Actor, companyID domain.ID, in CreateTaskInput) (TaskView, error) {
-	title, err := validateTitle(in.Title)
-	if err != nil {
+	if _, err := normalizeNewTask(in); err != nil {
 		return TaskView{}, err
 	}
-	status := in.Status
-	if status == "" {
-		status = domain.TaskTodo
-	}
-	if !status.Valid() {
-		return TaskView{}, domain.Invalid("status", fmt.Sprintf("unknown status %q", status))
-	}
-	prio := in.Priority
-	if prio == "" {
-		prio = domain.PriorityMedium
-	}
-	if !prio.Valid() {
-		return TaskView{}, domain.Invalid("priority", fmt.Sprintf("unknown priority %q", prio))
-	}
-
 	var out TaskView
 	run := func() error {
 		return s.withTx(ctx, func(t *txc) error {
-			if in.EventID != "" {
-				ev, err := t.q.GetActivityByEventID(ctx, store.GetActivityByEventIDParams{CompanyID: companyID, EventID: &in.EventID})
-				if err == nil {
-					if ev.Verb != "task.created" {
-						return fmt.Errorf("event_id %q: %w", in.EventID, domain.ErrConflict)
-					}
-					out, err = loadTaskView(ctx, t.q, companyID, ev.SubjectID)
-					return err
-				}
-				if !isNoRows(err) {
-					return fmt.Errorf("lookup event: %w", err)
-				}
-			}
-
-			wsID := in.WorkspaceID
-			if wsID != nil {
-				if _, err := t.q.GetWorkspaceByID(ctx, store.GetWorkspaceByIDParams{CompanyID: companyID, ID: *wsID}); err != nil {
-					return domain.Invalid("workspace_id", "workspace not found in company")
-				}
-			}
-			if in.ProjectID != nil {
-				pr, err := t.q.GetProjectByID(ctx, store.GetProjectByIDParams{CompanyID: companyID, ID: *in.ProjectID})
-				if err != nil {
-					return domain.Invalid("project_id", "project not found in company")
-				}
-				if wsID == nil {
-					wsID = pr.WorkspaceID
-				}
-			}
-			if in.PersonaID != nil {
-				p, err := t.q.GetPersonaByID(ctx, store.GetPersonaByIDParams{CompanyID: companyID, ID: *in.PersonaID})
-				if err != nil {
-					return domain.Invalid("persona_id", "persona not found in company")
-				}
-				if wsID == nil {
-					wsID = p.WorkspaceID
-				}
-				if err := t.checkDelegation(actor, companyID, in.PersonaID); err != nil {
-					return err
-				}
-			}
-			if in.ParentID != nil {
-				if _, err := t.q.GetTaskByID(ctx, store.GetTaskByIDParams{CompanyID: companyID, ID: *in.ParentID}); err != nil {
-					return domain.Invalid("parent_id", "task not found in company")
-				}
-			}
-
-			num, err := t.q.AllocateTaskNumber(ctx, companyID)
-			if err != nil {
-				return mapErr(err, "company")
-			}
-			row, err := t.q.CreateTask(ctx, store.CreateTaskParams{
-				ID: domain.NewID(), CompanyID: companyID, Number: num.Number, Title: title, Description: in.Description,
-				Status: string(status), Priority: string(prio), PersonaID: in.PersonaID, ProjectID: in.ProjectID,
-				WorkspaceID: wsID, ParentID: in.ParentID, CreatedByType: string(actor.Type), CreatedByID: actor.ID, Now: t.now})
-			if err != nil {
-				return mapErr(err, "create task")
-			}
-			key := domain.TaskKey(num.TaskPrefix, num.Number)
-			if err := t.activity(actor, companyID, "task.created", "task", row.ID, map[string]any{
-				"key": key, "title": title, "status": status, "priority": prio, "persona_id": in.PersonaID,
-			}, in.EventID); err != nil {
-				return err
-			}
-			if err := t.memoryFact(companyID, wsID, taskFact("task.created", key, title, in.Description, status, prio, ""),
-				"task.created:"+row.ID.String()); err != nil {
-				return err
-			}
-			if err := t.wake(companyID, row.ID, in.PersonaID, status, domain.TriggerAssign, true); err != nil {
-				return err
-			}
-			out, err = loadTaskView(ctx, t.q, companyID, row.ID)
-			if err != nil {
-				return err
-			}
-			t.publish(companyTopic(companyID), "task.updated", out)
-			return nil
+			var err error
+			out, err = t.createTask(actor, companyID, in)
+			return err
 		})
 	}
-	err = run()
+	err := run()
 	if err != nil && in.EventID != "" && isUniqueOn(err, "activity_event_uq") {
 		err = run() // lost the race on event_id: the second pass returns the winner
 	}
 	if err != nil {
 		return TaskView{}, err
 	}
+	return out, nil
+}
+
+type newTask struct {
+	title  string
+	status domain.TaskStatus
+	prio   domain.Priority
+}
+
+// normalizeNewTask validates and defaults the scalar fields of a new task.
+func normalizeNewTask(in CreateTaskInput) (newTask, error) {
+	title, err := validateTitle(in.Title)
+	if err != nil {
+		return newTask{}, err
+	}
+	status := in.Status
+	if status == "" {
+		status = domain.TaskTodo
+	}
+	if !status.Valid() {
+		return newTask{}, domain.Invalid("status", fmt.Sprintf("unknown status %q", status))
+	}
+	prio := in.Priority
+	if prio == "" {
+		prio = domain.PriorityMedium
+	}
+	if !prio.Valid() {
+		return newTask{}, domain.Invalid("priority", fmt.Sprintf("unknown priority %q", prio))
+	}
+	return newTask{title: title, status: status, prio: prio}, nil
+}
+
+// createTask creates a task inside the caller's transaction (see CreateTask).
+func (t *txc) createTask(actor domain.Actor, companyID domain.ID, in CreateTaskInput) (TaskView, error) {
+	ctx := t.ctx
+	nt, err := normalizeNewTask(in)
+	if err != nil {
+		return TaskView{}, err
+	}
+	title, status, prio := nt.title, nt.status, nt.prio
+	if in.EventID != "" {
+		ev, err := t.q.GetActivityByEventID(ctx, store.GetActivityByEventIDParams{CompanyID: companyID, EventID: &in.EventID})
+		if err == nil {
+			if ev.Verb != "task.created" {
+				return TaskView{}, fmt.Errorf("event_id %q: %w", in.EventID, domain.ErrConflict)
+			}
+			return loadTaskView(ctx, t.q, companyID, ev.SubjectID)
+		}
+		if !isNoRows(err) {
+			return TaskView{}, fmt.Errorf("lookup event: %w", err)
+		}
+	}
+
+	wsID := in.WorkspaceID
+	if wsID != nil {
+		if _, err := t.q.GetWorkspaceByID(ctx, store.GetWorkspaceByIDParams{CompanyID: companyID, ID: *wsID}); err != nil {
+			return TaskView{}, domain.Invalid("workspace_id", "workspace not found in company")
+		}
+	}
+	if in.ProjectID != nil {
+		pr, err := t.q.GetProjectByID(ctx, store.GetProjectByIDParams{CompanyID: companyID, ID: *in.ProjectID})
+		if err != nil {
+			return TaskView{}, domain.Invalid("project_id", "project not found in company")
+		}
+		if wsID == nil {
+			wsID = pr.WorkspaceID
+		}
+	}
+	if in.PersonaID != nil {
+		p, err := t.q.GetPersonaByID(ctx, store.GetPersonaByIDParams{CompanyID: companyID, ID: *in.PersonaID})
+		if err != nil {
+			return TaskView{}, domain.Invalid("persona_id", "persona not found in company")
+		}
+		if wsID == nil {
+			wsID = p.WorkspaceID
+		}
+		if err := t.checkDelegation(actor, companyID, in.PersonaID); err != nil {
+			return TaskView{}, err
+		}
+	}
+	if in.ParentID != nil {
+		if _, err := t.q.GetTaskByID(ctx, store.GetTaskByIDParams{CompanyID: companyID, ID: *in.ParentID}); err != nil {
+			return TaskView{}, domain.Invalid("parent_id", "task not found in company")
+		}
+	}
+
+	num, err := t.q.AllocateTaskNumber(ctx, companyID)
+	if err != nil {
+		return TaskView{}, mapErr(err, "company")
+	}
+	row, err := t.q.CreateTask(ctx, store.CreateTaskParams{
+		ID: domain.NewID(), CompanyID: companyID, Number: num.Number, Title: title, Description: in.Description,
+		Status: string(status), Priority: string(prio), PersonaID: in.PersonaID, ProjectID: in.ProjectID,
+		WorkspaceID: wsID, ParentID: in.ParentID, CreatedByType: string(actor.Type), CreatedByID: actor.ID, Now: t.now})
+	if err != nil {
+		return TaskView{}, mapErr(err, "create task")
+	}
+	key := domain.TaskKey(num.TaskPrefix, num.Number)
+	if err := t.activity(actor, companyID, "task.created", "task", row.ID, map[string]any{
+		"key": key, "title": title, "status": status, "priority": prio, "persona_id": in.PersonaID,
+	}, in.EventID); err != nil {
+		return TaskView{}, err
+	}
+	if err := t.memoryFact(companyID, wsID, taskFact("task.created", key, title, in.Description, status, prio, ""),
+		"task.created:"+row.ID.String()); err != nil {
+		return TaskView{}, err
+	}
+	trigger := in.trigger
+	if trigger == "" {
+		trigger = domain.TriggerAssign
+	}
+	if err := t.wake(companyID, row.ID, in.PersonaID, status, trigger, true); err != nil {
+		return TaskView{}, err
+	}
+	out, err := loadTaskView(ctx, t.q, companyID, row.ID)
+	if err != nil {
+		return TaskView{}, err
+	}
+	t.publish(companyTopic(companyID), "task.updated", out)
 	return out, nil
 }
 

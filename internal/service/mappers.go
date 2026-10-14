@@ -15,7 +15,7 @@ func actorOf(typ string, id *uuid.UUID) domain.Actor {
 
 func companyFromRow(r store.Company) domain.Company {
 	return domain.Company{ID: r.ID, Slug: r.Slug, Name: r.Name, TaskPrefix: r.TaskPrefix,
-		Timezone: r.Timezone, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt}
+		Timezone: r.Timezone, BudgetMonthlyCents: r.BudgetMonthlyCents, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt}
 }
 
 func workspaceFromRow(r store.Workspace) domain.Workspace {
@@ -29,7 +29,11 @@ func projectFromRow(r store.Project) domain.Project {
 }
 
 func personaFromRow(r store.Persona) domain.Persona {
-	return domain.Persona{ID: r.ID, CompanyID: r.CompanyID, Slug: r.Slug, Name: r.Name, Title: r.Title,
+	reason := ""
+	if r.PauseReason != nil {
+		reason = *r.PauseReason
+	}
+	return domain.Persona{PauseReason: reason, ID: r.ID, CompanyID: r.CompanyID, Slug: r.Slug, Name: r.Name, Title: r.Title,
 		Instructions: r.Instructions, Agent: r.Agent, Model: r.Model, AdapterConfig: json.RawMessage(r.AdapterConfig),
 		Status: domain.PersonaStatus(r.Status), ReportsTo: r.ReportsTo, WorkspaceID: r.WorkspaceID,
 		HeartbeatIntervalSec: int(r.HeartbeatIntervalSec), BudgetMonthlyCents: r.BudgetMonthlyCents,
@@ -61,6 +65,7 @@ func runFromRow(r store.Run) domain.Run {
 	run := domain.Run{ID: r.ID, CompanyID: r.CompanyID, TaskID: r.TaskID, PersonaID: r.PersonaID,
 		Status: domain.RunStatus(r.Status), Trigger: domain.RunTrigger(r.Trigger), Agent: r.Agent, Model: r.Model,
 		SessionRef: r.SessionRef, TraceID: r.TraceID, Error: r.Error, Summary: r.Summary, CostUSD: r.CostUsd,
+		CostSource: domain.CostSource(r.CostSource),
 		Usage: domain.Usage{InputTokens: r.InputTokens, OutputTokens: r.OutputTokens,
 			CacheReadTokens: r.CacheReadTokens, CacheCreationTokens: r.CacheCreationTokens},
 		HandoffIn: r.HandoffIn, HandoffOut: r.HandoffOut, CreatedAt: r.CreatedAt,

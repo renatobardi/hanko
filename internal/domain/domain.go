@@ -41,13 +41,15 @@ func PersonaActor(id ID) Actor { return Actor{Type: ActorPersona, ID: &id} }
 
 // Company is the unit of multi-org isolation.
 type Company struct {
-	ID         ID        `json:"id"`
-	Slug       string    `json:"slug"`
-	Name       string    `json:"name"`
-	TaskPrefix string    `json:"task_prefix"` // e.g. "HNK" → task keys HNK-12
-	Timezone   string    `json:"timezone"`
-	CreatedAt  time.Time `json:"created_at"`
-	UpdatedAt  time.Time `json:"updated_at"`
+	ID         ID     `json:"id"`
+	Slug       string `json:"slug"`
+	Name       string `json:"name"`
+	TaskPrefix string `json:"task_prefix"` // e.g. "HNK" → task keys HNK-12
+	Timezone   string `json:"timezone"`
+	// BudgetMonthlyCents is the monthly spend ceiling in USD cents; nil = no ceiling.
+	BudgetMonthlyCents *int64    `json:"budget_monthly_cents,omitempty"`
+	CreatedAt          time.Time `json:"created_at"`
+	UpdatedAt          time.Time `json:"updated_at"`
 }
 
 // Workspace is a directory/repository where personas work; it scopes memory.
@@ -119,6 +121,7 @@ type Persona struct {
 	BudgetMonthlyCents   *int64          `json:"budget_monthly_cents,omitempty"`
 	// RequireReview sends the persona's attempts to close a task through a task_review gate.
 	RequireReview bool      `json:"require_review"`
+	PauseReason   string    `json:"pause_reason,omitempty"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
 }
@@ -235,6 +238,16 @@ const (
 	TriggerManual    RunTrigger = "manual"
 	TriggerHeartbeat RunTrigger = "heartbeat"
 	TriggerGate      RunTrigger = "gate" // a human decided a gate the persona was waiting on
+	TriggerFlow      RunTrigger = "flow"
+)
+
+// CostSource tells where a run's cost came from.
+type CostSource string
+
+const (
+	CostReported  CostSource = "reported"  // informed by the harness
+	CostEstimated CostSource = "estimated" // computed from the price table
+	CostNone      CostSource = "none"      // unknown
 )
 
 // Usage holds token counts reported by the agent.
@@ -261,6 +274,7 @@ type Run struct {
 	Error      string     `json:"error,omitempty"`
 	Summary    string     `json:"summary,omitempty"`
 	CostUSD    *float64   `json:"cost_usd,omitempty"`
+	CostSource CostSource `json:"cost_source,omitempty"`
 	Usage      Usage      `json:"usage"`
 	HandoffIn  string     `json:"handoff_in,omitempty"`
 	HandoffOut string     `json:"handoff_out,omitempty"`
@@ -320,4 +334,35 @@ func ParseID(s string) (ID, error) {
 		return ID{}, Invalid("id", "not a uuid")
 	}
 	return id, nil
+}
+
+// Flow is a recurring definition: on each cron occurrence it creates a task assigned to a persona.
+type Flow struct {
+	ID              ID         `json:"id"`
+	CompanyID       ID         `json:"company_id"`
+	Slug            string     `json:"slug"`
+	Name            string     `json:"name"`
+	Description     string     `json:"description,omitempty"`
+	Cron            string     `json:"cron"` // 5 fields
+	Timezone        string     `json:"timezone"`
+	Enabled         bool       `json:"enabled"`
+	PersonaID       ID         `json:"persona_id"`
+	ProjectID       *ID        `json:"project_id,omitempty"`
+	Priority        Priority   `json:"priority"`
+	TaskTitle       string     `json:"task_title"`       // template: {{data}}, {{n}}
+	TaskDescription string     `json:"task_description"` // same placeholders
+	LastFiredAt     *time.Time `json:"last_fired_at,omitempty"`
+	NextFireAt      *time.Time `json:"next_fire_at,omitempty"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
+}
+
+// FlowFire is one firing of a flow; (FlowID, ScheduledFor) is unique.
+type FlowFire struct {
+	ID           ID        `json:"id"`
+	FlowID       ID        `json:"flow_id"`
+	CompanyID    ID        `json:"company_id"`
+	ScheduledFor time.Time `json:"scheduled_for"`
+	TaskID       *ID       `json:"task_id,omitempty"`
+	CreatedAt    time.Time `json:"created_at"`
 }

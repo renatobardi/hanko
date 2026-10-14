@@ -157,7 +157,10 @@ func TestPagesRender(t *testing.T) {
 		{"/c/hanko/gates", []string{"Gates", "Pendentes", "Contratar Yuki (Dados)"}},
 		{"/c/hanko/organograma", []string{"Organograma", `class="org-svg"`, "Ada", "Kenji"}},
 		{"/c/hanko/em-breve/projetos", []string{"Projetos", "M3"}},
-		{"/c/hanko/em-breve/custos", []string{"Custos", "M4"}},
+		{"/c/hanko/custos", []string{"Custos e orçamentos", "Gasto por dia", "Orçamento da empresa", "Orçamento por persona", "<svg"}},
+		{"/c/hanko/fluxos", []string{"Fluxos", "Digest semanal de fontes", "Rodar agora", "Toda sexta às 07:00"}},
+		{"/c/hanko/fluxos/novo", []string{"Novo fluxo", `name="cron"`, "Modelos de agenda"}},
+		{"/c/hanko/fluxos/digest-semanal", []string{"Digest semanal de fontes", "Histórico de disparos", "HNK-214", "Salvar alterações"}},
 	}
 	for _, c := range cases {
 		t.Run(c.path, func(t *testing.T) {
@@ -854,7 +857,8 @@ func TestVocabularyHasNoAgentOrHeartbeat(t *testing.T) {
 		e := newEnv(t, f)
 		for _, path := range []string{"/c/hanko/", "/c/hanko/personas", "/c/hanko/personas/nova", "/c/hanko/personas/ada", "/c/hanko/personas/kenji", "/c/hanko/tasks",
 			"/c/hanko/execucoes", "/c/hanko/atividade", "/c/hanko/tasks/nova", "/c/hanko/caixa", "/c/hanko/decisoes", "/c/hanko/gates",
-			"/c/hanko/gates?status=todos", "/c/hanko/organograma", "/c/hanko/tasks/HNK-218", "/c/hanko/gates/" + uitest.ID("gate:plan").String()} {
+			"/c/hanko/gates?status=todos", "/c/hanko/organograma", "/c/hanko/tasks/HNK-218", "/c/hanko/gates/" + uitest.ID("gate:plan").String(),
+			"/c/hanko/custos", "/c/hanko/fluxos", "/c/hanko/fluxos/novo", "/c/hanko/fluxos/digest-semanal"} {
 			rec := e.get(t, path)
 			if rec.Code == http.StatusNotFound {
 				continue

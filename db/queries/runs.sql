@@ -43,6 +43,7 @@ UPDATE runs
 SET status = @status, exit_code = @exit_code, error = @error, summary = @summary, cost_usd = @cost_usd,
     input_tokens = @input_tokens, output_tokens = @output_tokens,
     cache_read_tokens = @cache_read_tokens, cache_creation_tokens = @cache_creation_tokens,
+    cost_source = @cost_source,
     session_ref = @session_ref, model = @model, finished_at = @now, pending_result = NULL
 WHERE company_id = @company_id AND id = @id
 RETURNING *;

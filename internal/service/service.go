@@ -99,6 +99,9 @@ type UpdatePersonaInput struct {
 	ReportsTo      *domain.ID
 	ClearReportsTo bool
 	RequireReview  *bool
+	// BudgetMonthlyCents sets the persona's monthly budget (USD cents); ClearBudget removes it.
+	BudgetMonthlyCents *int64
+	ClearBudget        bool
 }
 
 type CreateTaskInput struct {
@@ -111,6 +114,8 @@ type CreateTaskInput struct {
 	WorkspaceID *domain.ID // default: project's workspace, else persona's workspace
 	ParentID    *domain.ID
 	EventID     string // idempotency key (agents/MCP)
+
+	trigger domain.RunTrigger // wake trigger; default assign (flows use flow)
 }
 
 type UpdateTaskInput struct {
@@ -180,8 +185,12 @@ type DashboardStats struct {
 	TasksInProgress int     `json:"tasks_in_progress"`
 	OpenTasks       int     `json:"open_tasks"`
 	MonthCostUSD    float64 `json:"month_cost_usd"`
-	PendingGates    int     `json:"pending_gates"`
-	RunningRuns     int     `json:"running_runs"`
+	// Company monthly ceiling (USD cents), its use and state (none|ok|warning|exceeded).
+	MonthBudgetCents *int64  `json:"month_budget_cents,omitempty"`
+	BudgetPercent    float64 `json:"budget_percent"`
+	BudgetState      string  `json:"budget_state"`
+	PendingGates     int     `json:"pending_gates"`
+	RunningRuns      int     `json:"running_runs"`
 }
 
 // RunContext is everything the executor needs to build the agent prompt.

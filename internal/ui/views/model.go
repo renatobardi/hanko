@@ -98,6 +98,7 @@ type DashboardVM struct {
 	Tasks           []TaskRow
 	Gates           []GateRow // pending decisions, oldest first (at most 5)
 	Notice          string
+	Budget          *BudgetBox // company monthly budget, when set
 }
 
 // ---- tasks ----
@@ -245,7 +246,7 @@ type PersonaVM struct {
 	Slug          string
 	Tasks         []TaskRow
 	Runs          []RunRow
-	Budget        string
+	Budget        *BudgetBox       // monthly spend vs ceiling
 	Notice        string           // flash after an action
 	LastError     string           // last failed run, shown while the persona is failing
 	LastErrorAt   string           // when it happened
@@ -365,4 +366,158 @@ type SoonVM struct {
 	Label     string
 	Milestone string
 	Blurb     string
+}
+
+// ---- custos ----
+
+// BudgetBox is spend versus monthly ceiling. State: none|ok|warning|exceeded.
+type BudgetBox struct {
+	Label      string
+	Spent      string
+	Limit      string // "" = no ceiling
+	Percent    int    // 0..100, for the bar
+	PercentTxt string
+	State      string
+	StateText  string
+	Value      string // current ceiling in USD for the form ("" = none)
+	Action     string // POST target of the form; "" = read-only
+	Href       string // link to the owner page (persona), "" = none
+	Note       string
+}
+
+type CostRowVM struct {
+	Label     string
+	Href      string
+	Cost      string
+	Runs      string
+	Tokens    string
+	Share     int
+	Estimated bool // part of the cost was estimated from the price table
+}
+
+type CostTableVM struct {
+	Title string
+	Rows  []CostRowVM
+}
+
+// ChartBar is one day of the SVG bar chart (coordinates in the chart's viewBox).
+type ChartBar struct {
+	X, W   int
+	Y, H   int // reported part
+	EY, EH int // estimated part, stacked on top of the reported one
+	Title  string
+	Peak   bool
+}
+
+type DayChart struct {
+	W, H    int
+	Bars    []ChartBar
+	First   string
+	Last    string
+	Peak    string // "pico 12 out US$ 61,40"
+	Max     string
+	HasData bool
+	Mid     string
+}
+
+type CostsVM struct {
+	Subtitle   string
+	Tabs       []TabLink
+	Total      string
+	TotalNote  string
+	Runs       string
+	Estimated  string
+	EstNote    string
+	Company    BudgetBox
+	Personas   []BudgetBox
+	Chart      DayChart
+	Tables     []CostTableVM
+	Notice     string
+	Error      string
+	Month      string
+	HasSpend   bool
+	BudgetKpi  string
+	BudgetNote string
+}
+
+// ---- fluxos ----
+
+type FlowRow struct {
+	Name        string
+	Href        string
+	Description string
+	Persona     string
+	Project     string
+	Schedule    string // human description of the cron
+	Cron        string
+	Enabled     bool
+	Next        string
+	Last        string
+	ToggleHref  string
+	RunHref     string
+}
+
+type FlowsVM struct {
+	Subtitle string
+	Active   int
+	Disabled int
+	Next     string
+	Last     string
+	Rows     []FlowRow
+	NewHref  string
+	Notice   string
+}
+
+type FlowFormVM struct {
+	Action          string
+	Edit            bool
+	Name            string
+	Description     string
+	Cron            string
+	Timezone        string
+	Enabled         bool
+	TaskTitle       string
+	TaskDescription string
+	PersonaOptions  []Option
+	ProjectOptions  []Option
+	PriorityOptions []Option
+	Presets         []Option
+	Hint            CronHintVM
+	Error           string
+	FieldErr        map[string]string
+	CancelHref      string
+	HintHref        string
+}
+
+type CronHintVM struct {
+	Human string
+	Next  []string
+	Error string
+}
+
+type FireRow struct {
+	When     string
+	TaskKey  string
+	TaskHref string
+	Title    string
+	Badge    Badge
+}
+
+type FlowVM struct {
+	Name       string
+	Badge      Badge
+	Meta       string
+	Enabled    bool
+	ToggleHref string
+	RunHref    string
+	Schedule   string
+	Cron       string
+	Timezone   string
+	Next       string
+	Last       string
+	Form       FlowFormVM
+	Fires      []FireRow
+	Notice     string
+	Error      string
+	Fired      int
 }

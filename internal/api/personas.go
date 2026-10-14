@@ -53,6 +53,8 @@ type updatePersonaIn struct {
 		ReportsTo            string  `json:"reports_to,omitempty" doc:"Id ou slug da persona superior. Rejeitado (422) se criar um ciclo no organograma."`
 		ClearReportsTo       bool    `json:"clear_reports_to,omitempty" doc:"Põe a persona no topo do organograma."`
 		RequireReview        *bool   `json:"require_review,omitempty" doc:"Exige revisão (gate task_review) para concluir tasks."`
+		BudgetMonthlyCents   *int64  `json:"budget_monthly_cents,omitempty" minimum:"0" doc:"Orçamento mensal da persona em centavos de dólar."`
+		ClearBudget          bool    `json:"clear_budget,omitempty" doc:"Remove o teto de orçamento da persona."`
 	}
 }
 
@@ -142,7 +144,8 @@ func (s *server) registerPersonas(api huma.API) {
 			up := service.UpdatePersonaInput{
 				Name: in.Body.Name, Title: in.Body.Title, Instructions: in.Body.Instructions, Model: in.Body.Model,
 				HeartbeatIntervalSec: in.Body.HeartbeatIntervalSec, WorkspaceID: ws, ClearWorkspace: in.Body.ClearWorkspace,
-				ReportsTo: reports, ClearReportsTo: in.Body.ClearReportsTo, RequireReview: in.Body.RequireReview}
+				ReportsTo: reports, ClearReportsTo: in.Body.ClearReportsTo, RequireReview: in.Body.RequireReview,
+				BudgetMonthlyCents: in.Body.BudgetMonthlyCents, ClearBudget: in.Body.ClearBudget}
 			if in.Body.Status != nil {
 				st := domain.PersonaStatus(*in.Body.Status)
 				up.Status = &st

@@ -98,6 +98,10 @@ func snapshot(h http.Handler, f *uitest.Fake, dir string) error {
 		"execucao":      "/c/" + co + "/execucoes/" + r0,
 		"atividade":     "/c/" + co + "/atividade",
 		"em-breve":      "/c/" + co + "/em-breve/gates",
+		"custos":        "/c/" + co + "/custos",
+		"fluxos":        "/c/" + co + "/fluxos",
+		"fluxo":         "/c/" + co + "/fluxos/digest-semanal",
+		"fluxo-novo":    "/c/" + co + "/fluxos/novo",
 		"bem-vindo":     "/bem-vindo",
 	}
 	for name, path := range pages {

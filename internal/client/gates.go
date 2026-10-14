@@ -24,13 +24,6 @@ type DecideGateReq struct {
 	Note     string `json:"note,omitempty"`
 }
 
-// UpdatePersonaReq altera o organograma e a revisão obrigatória de uma persona.
-type UpdatePersonaReq struct {
-	ReportsTo      string `json:"reports_to,omitempty"`
-	ClearReportsTo bool   `json:"clear_reports_to,omitempty"`
-	RequireReview  *bool  `json:"require_review,omitempty"`
-}
-
 // GateQuery são os filtros de ListGates.
 type GateQuery struct {
 	Status, Kind, Task, Persona string
@@ -71,8 +64,4 @@ func (c *Client) DecideGate(ctx context.Context, company, id string, in DecideGa
 
 func (c *Client) OrgChart(ctx context.Context, company string) (api.OrgChart, error) {
 	return get[api.OrgChart](c, ctx, http.MethodGet, cp(company)+"/org-chart", nil)
-}
-
-func (c *Client) UpdatePersona(ctx context.Context, company, ref string, in UpdatePersonaReq) (api.Persona, error) {
-	return get[api.Persona](c, ctx, http.MethodPatch, cp(company)+"/personas/"+url.PathEscape(ref), in)
 }

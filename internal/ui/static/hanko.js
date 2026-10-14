@@ -20,6 +20,17 @@
     if (t && window.matchMedia("(max-width: 900px)").matches) t.checked = false;
   });
 
+  // Cron presets: choosing a template fills the expression and lets htmx refresh the hint.
+  document.addEventListener("change", function (e) {
+    var sel = e.target;
+    if (!sel.matches || !sel.matches("select[data-cron-preset]")) return;
+    var input = document.getElementById(sel.getAttribute("data-cron-preset"));
+    if (!input || !sel.value) return;
+    input.value = sel.value;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    sel.selectedIndex = 0;
+  });
+
   // Live log: stick to the bottom unless the reader scrolled up.
   function watchLog() {
     var log = document.getElementById("run-log");

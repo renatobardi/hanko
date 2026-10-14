@@ -1,0 +1,169 @@
+package views
+
+import "fmt"
+
+// BudgetMeter is the spend-versus-ceiling bar. The tinted red state is reserved
+// for an exceeded budget (hard stop); the warning state is amber.
+templ BudgetMeter(b BudgetBox) {
+	<div class={ "meter", "m-" + b.State }>
+		<div class="meter-top">
+			<span class="meter-spent mono">{ b.Spent }</span>
+			if b.Limit != "" {
+				<span class="muted">de <span class="mono">{ b.Limit }</span></span>
+				<span class="meter-pct mono">{ b.PercentTxt }</span>
+			} else {
+				<span class="muted">sem limite definido</span>
+			}
+		</div>
+		if b.Limit != "" {
+			<div class="progress meter-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={ fmt.Sprint(b.Percent) } aria-label={ b.Label }><i style={ pct(b.Percent) }></i></div>
+		}
+		if b.StateText != "" {
+			<p class="meter-note">{ b.StateText }</p>
+		}
+	</div>
+}
+
+templ BudgetForm(b BudgetBox, id string) {
+	<form class="budget-form" method="post" action={ templ.SafeURL(b.Action) }>
+		<label class="sr-only" for={ id }>Limite mensal em dólares</label>
+		<span class="usd-field">
+			<span class="pre mono">US$</span>
+			<input class="input sm mono" id={ id } name="budget" inputmode="decimal" value={ b.Value } placeholder="sem limite" autocomplete="off"/>
+		</span>
+		<button class="btn outline sm" type="submit">Salvar limite</button>
+	</form>
+}
+
+templ DayChartEl(c DayChart) {
+	<div class="chart">
+		if !c.HasData {
+			<p class="muted chart-empty">Nenhum gasto no período.</p>
+		} else {
+			<svg class="chart-svg" viewBox={ fmt.Sprintf("0 0 %d %d", c.W, c.H) } preserveAspectRatio="none" role="img" aria-label={ "Gasto por dia, " + c.Peak }>
+				<line class="grid" x1="0" x2={ fmt.Sprint(c.W) } y1={ fmt.Sprint(c.H - 1) } y2={ fmt.Sprint(c.H - 1) }></line>
+				<line class="grid dash" x1="0" x2={ fmt.Sprint(c.W) } y1={ fmt.Sprint(c.H / 2) } y2={ fmt.Sprint(c.H / 2) }></line>
+				for _, b := range c.Bars {
+					<g>
+						<title>{ b.Title }</title>
+						if b.H > 0 {
+							<rect class={ "bar", templ.KV("peak", b.Peak) } x={ fmt.Sprint(b.X) } y={ fmt.Sprint(b.Y) } width={ fmt.Sprint(b.W) } height={ fmt.Sprint(b.H) } rx="1.5"></rect>
+						}
+						if b.EH > 0 {
+							<rect class="bar est" x={ fmt.Sprint(b.X) } y={ fmt.Sprint(b.EY) } width={ fmt.Sprint(b.W) } height={ fmt.Sprint(b.EH) } rx="1.5"></rect>
+						}
+					</g>
+				}
+			</svg>
+			<div class="chart-axis"><span>{ c.First }</span><span class="hide-sm">{ c.Mid }</span><span>{ c.Last }</span></div>
+			<div class="chart-legend"><span><i class="sw rep"></i>Reportado pelo harness</span><span><i class="sw est"></i>Estimado pela tabela de preços</span></div>
+		}
+	</div>
+}
+
+templ CostTable(t CostTableVM) {
+	<section class="card pad">
+		<div class="card-head"><h2>{ t.Title }</h2></div>
+		if len(t.Rows) == 0 {
+			<p class="muted">Sem dados no período.</p>
+		} else {
+			<table class="table mini">
+				<thead>
+					<tr><th>{ t.Title }</th><th class="num">Gasto</th><th class="num hide-sm">Execuções</th><th class="num hide-sm">Tokens</th></tr>
+				</thead>
+				<tbody>
+					for _, r := range t.Rows {
+						<tr>
+							<td>
+								if r.Href != "" {
+									<a href={ templ.SafeURL(r.Href) }>{ r.Label }</a>
+								} else {
+									{ r.Label }
+								}
+								<span class="share"><i style={ pct(r.Share) }></i></span>
+							</td>
+							<td class="num mono">
+								{ r.Cost }
+								if r.Estimated {
+									<span class="est-mark" title="Inclui valor estimado pela tabela de preços">est.</span>
+								}
+							</td>
+							<td class="num mono hide-sm">{ r.Runs }</td>
+							<td class="num mono hide-sm">{ r.Tokens }</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		}
+	</section>
+}
+
+templ CostsPage(sh Shell, vm CostsVM) {
+	@Layout(sh) {
+		@PageHead("Custos e orçamentos", vm.Subtitle) {
+			@Tabs(vm.Tabs)
+		}
+		if vm.Notice != "" {
+			@Alert("warn", vm.Notice)
+		}
+		if vm.Error != "" {
+			@Alert("danger", vm.Error)
+		}
+		<div class="kpis">
+			@Kpi("database", vm.Total, vm.TotalNote, false)
+			@Kpi("trending-up", vm.BudgetKpi, vm.BudgetNote, vm.Company.State == "exceeded")
+			@Kpi("list", vm.Runs, "Execuções com custo", false)
+			@Kpi("clock", vm.Estimated, vm.EstNote, false)
+		</div>
+		<section class={ "card pad budget-card", "b-" + vm.Company.State }>
+			<div class="card-head">
+				<div>
+					<h2>Orçamento da empresa · { vm.Month }</h2>
+					<p class="sub">Ao chegar em 100% do limite, nenhuma persona abre execução nova até o limite subir ou o mês virar.</p>
+				</div>
+			</div>
+			@BudgetMeter(vm.Company)
+			@BudgetForm(vm.Company, "company-budget")
+		</section>
+		<div class="costs-grid">
+			<section class="card pad">
+				<div class="card-head"><h2>Gasto por dia</h2><span class="sub">{ vm.Chart.Peak }</span></div>
+				@DayChartEl(vm.Chart)
+			</section>
+		</div>
+		<section class="card pad" style="margin-top:20px">
+			<div class="card-head"><h2>Orçamento por persona</h2><span class="sub">{ vm.Month }</span></div>
+			if len(vm.Personas) == 0 {
+				<p class="muted">Nenhuma persona contratada.</p>
+			} else {
+				<table class="table mini pb-table">
+					<thead><tr><th>Persona</th><th class="num">Gasto</th><th class="hide-sm">Uso do limite</th><th>Limite mensal</th></tr></thead>
+					<tbody>
+						for i, p := range vm.Personas {
+							<tr class={ "b-" + p.State }>
+								<td><a href={ templ.SafeURL(p.Href) }><b>{ p.Label }</b></a></td>
+								<td class="num mono">{ p.Spent }</td>
+								<td class="hide-sm">
+									if p.Limit != "" {
+										<div class={ "pb-use", "m-" + p.State }><div class="progress meter-bar"><i style={ pct(p.Percent) }></i></div><span class="mono">{ p.PercentTxt }</span></div>
+										if p.StateText != "" {
+											<div class="meter-note">{ p.StateText }</div>
+										}
+									} else {
+										<span class="muted">sem limite</span>
+									}
+								</td>
+								<td>@BudgetForm(p, fmt.Sprintf("persona-budget-%d", i))</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			}
+		</section>
+		<div class="grid-2 costs-tables">
+			for _, t := range vm.Tables {
+				@CostTable(t)
+			}
+		</div>
+	}
+}

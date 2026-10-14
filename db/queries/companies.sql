@@ -18,3 +18,8 @@ UPDATE companies
 SET next_task_number = next_task_number + 1
 WHERE id = @id
 RETURNING (next_task_number - 1)::bigint AS number, task_prefix;
+
+-- name: SetCompanyBudget :one
+UPDATE companies SET budget_monthly_cents = @budget_monthly_cents, updated_at = @now
+WHERE id = @id
+RETURNING *;

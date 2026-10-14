@@ -35,7 +35,7 @@ func (q *Queries) AllocateTaskNumber(ctx context.Context, id uuid.UUID) (Allocat
 const createCompany = `-- name: CreateCompany :one
 INSERT INTO companies (id, slug, name, task_prefix, timezone, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6, $6)
-RETURNING id, slug, name, task_prefix, timezone, next_task_number, created_at, updated_at
+RETURNING id, slug, name, task_prefix, timezone, next_task_number, created_at, updated_at, budget_monthly_cents
 `
 
 type CreateCompanyParams struct {
@@ -66,12 +66,13 @@ func (q *Queries) CreateCompany(ctx context.Context, arg CreateCompanyParams) (C
 		&i.NextTaskNumber,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.BudgetMonthlyCents,
 	)
 	return i, err
 }
 
 const getCompanyByID = `-- name: GetCompanyByID :one
-SELECT id, slug, name, task_prefix, timezone, next_task_number, created_at, updated_at FROM companies WHERE id = $1
+SELECT id, slug, name, task_prefix, timezone, next_task_number, created_at, updated_at, budget_monthly_cents FROM companies WHERE id = $1
 `
 
 func (q *Queries) GetCompanyByID(ctx context.Context, id uuid.UUID) (Company, error) {
@@ -86,12 +87,13 @@ func (q *Queries) GetCompanyByID(ctx context.Context, id uuid.UUID) (Company, er
 		&i.NextTaskNumber,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.BudgetMonthlyCents,
 	)
 	return i, err
 }
 
 const getCompanyBySlug = `-- name: GetCompanyBySlug :one
-SELECT id, slug, name, task_prefix, timezone, next_task_number, created_at, updated_at FROM companies WHERE slug = $1
+SELECT id, slug, name, task_prefix, timezone, next_task_number, created_at, updated_at, budget_monthly_cents FROM companies WHERE slug = $1
 `
 
 func (q *Queries) GetCompanyBySlug(ctx context.Context, slug string) (Company, error) {
@@ -106,12 +108,13 @@ func (q *Queries) GetCompanyBySlug(ctx context.Context, slug string) (Company, e
 		&i.NextTaskNumber,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.BudgetMonthlyCents,
 	)
 	return i, err
 }
 
 const listCompanies = `-- name: ListCompanies :many
-SELECT id, slug, name, task_prefix, timezone, next_task_number, created_at, updated_at FROM companies ORDER BY created_at, id
+SELECT id, slug, name, task_prefix, timezone, next_task_number, created_at, updated_at, budget_monthly_cents FROM companies ORDER BY created_at, id
 `
 
 func (q *Queries) ListCompanies(ctx context.Context) ([]Company, error) {
@@ -132,6 +135,7 @@ func (q *Queries) ListCompanies(ctx context.Context) ([]Company, error) {
 			&i.NextTaskNumber,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.BudgetMonthlyCents,
 		); err != nil {
 			return nil, err
 		}
@@ -141,4 +145,33 @@ func (q *Queries) ListCompanies(ctx context.Context) ([]Company, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const setCompanyBudget = `-- name: SetCompanyBudget :one
+UPDATE companies SET budget_monthly_cents = $1, updated_at = $2
+WHERE id = $3
+RETURNING id, slug, name, task_prefix, timezone, next_task_number, created_at, updated_at, budget_monthly_cents
+`
+
+type SetCompanyBudgetParams struct {
+	BudgetMonthlyCents *int64
+	Now                time.Time
+	ID                 uuid.UUID
+}
+
+func (q *Queries) SetCompanyBudget(ctx context.Context, arg SetCompanyBudgetParams) (Company, error) {
+	row := q.db.QueryRow(ctx, setCompanyBudget, arg.BudgetMonthlyCents, arg.Now, arg.ID)
+	var i Company
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.Name,
+		&i.TaskPrefix,
+		&i.Timezone,
+		&i.NextTaskNumber,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.BudgetMonthlyCents,
+	)
+	return i, err
 }

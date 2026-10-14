@@ -71,8 +71,12 @@ func (f *fakeSvc) OrgChart(_ context.Context, cid domain.ID) (service.OrgChart, 
 
 func (f *fakeSvc) UpdatePersona(_ context.Context, a domain.Actor, cid, pid domain.ID, in service.UpdatePersonaInput) (domain.Persona, error) {
 	f.lastActor, f.lastPersonaUp = a, in
+	f.cf().lastPersona = in
 	for _, p := range f.personas {
 		if p.ID == pid {
+			if in.BudgetMonthlyCents != nil {
+				p.BudgetMonthlyCents = in.BudgetMonthlyCents
+			}
 			if in.RequireReview != nil {
 				p.RequireReview = *in.RequireReview
 			}

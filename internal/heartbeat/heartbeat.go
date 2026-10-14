@@ -32,7 +32,7 @@ type Options struct {
 	Workers          int           // concurrent jobs per queue; default 4
 	PublicURL        string        // base URL the agent uses to reach Hanko (MCP); default http://127.0.0.1:7420
 	RunTimeout       time.Duration // per-run limit; default 30 min
-	PeriodicInterval time.Duration // heartbeat_tick period; default 1 min
+	PeriodicInterval time.Duration // heartbeat_tick and flow_tick period; default 1 min
 	Logger           *slog.Logger
 
 	// MemorySweepInterval is the memory_sweep period; default 5 min.
@@ -81,6 +81,8 @@ type backend interface {
 	MarkMemorySent(ctx context.Context, id domain.ID) error
 	MarkMemoryFailed(ctx context.Context, id domain.ID, errMsg string, permanent bool) error
 	PendingMemory(ctx context.Context, limit int) ([]domain.ID, error)
+	DueFlows(ctx context.Context, now time.Time) ([]domain.Flow, error)
+	FireFlow(ctx context.Context, flowID domain.ID, scheduledFor time.Time) (service.FlowFireResult, error)
 }
 
 var _ backend = (*service.Service)(nil)
@@ -131,6 +133,7 @@ func New(pool *pgxpool.Pool, opts Options) (*Heartbeat, error) {
 		river.AddWorkerSafely(workers, &deliverMemoryWorker{h: h}),
 		river.AddWorkerSafely(workers, &tickWorker{h: h}),
 		river.AddWorkerSafely(workers, &sweepWorker{h: h}),
+		river.AddWorkerSafely(workers, &flowTickWorker{h: h}),
 	); err != nil {
 		return nil, fmt.Errorf("heartbeat workers: %w", err)
 	}
@@ -155,6 +158,9 @@ func New(pool *pgxpool.Pool, opts Options) (*Heartbeat, error) {
 			river.NewPeriodicJob(river.PeriodicInterval(opts.MemorySweepInterval),
 				func() (river.JobArgs, *river.InsertOpts) { return MemorySweepArgs{}, nil },
 				&river.PeriodicJobOpts{ID: "memory_sweep"}),
+			river.NewPeriodicJob(river.PeriodicInterval(opts.PeriodicInterval),
+				func() (river.JobArgs, *river.InsertOpts) { return FlowTickArgs{}, nil },
+				&river.PeriodicJobOpts{ID: "flow_tick"}),
 		},
 	})
 	if err != nil {
