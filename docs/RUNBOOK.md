@@ -74,7 +74,9 @@ subir (config inválida), de propósito. Com o modo `authenticated`, use o §5 e
 - Orçamento: antes de abrir uma run, o Hanko soma o gasto do mês, a reserva de cada run `queued`/`running` e a reserva da nova;
   se passar do teto da persona ou da empresa, a run não abre. A reserva de uma run é o maior entre a média de custo das últimas
   10 runs da persona e `HANKO_RUN_RESERVE_USD` (padrão `1.00`). Persona pausada por orçamento volta sozinha quando o teto sobe
-  ou o mês vira.
+  ou o mês vira. Uma recusa só pela reserva (nada foi pausado) tira a persona da rede de segurança do heartbeat por 10 min, para não
+  gerar uma tempestade de wakes; "Rodar agora" (wake manual) continua tentando. Quem define o status da persona explicitamente (ex.:
+  Pausar) assume a pausa: o motivo de orçamento é apagado e a retomada automática não a desfaz.
 - Limites e recomendação de isolamento: `docs/adr/0017-modo-trusted-e-limites.md`. O modo `authenticated` (§5) remove o limite principal.
 
 ## 5. Modo authenticated (login, sessões e API keys)
@@ -91,11 +93,25 @@ subir (config inválida), de propósito. Com o modo `authenticated`, use o §5 e
 
 Recusa de boot: `HANKO_SECRET` com menos de 32 bytes (ou vazio) e `HANKO_PUBLIC_URL` que não seja `https` (exceto `localhost`/loopback).
 O cookie leva `Secure` quando `HANKO_PUBLIC_URL` é https. Sessão: token aleatório de 32 bytes (só o hash SHA-256 vai ao banco),
-validade de 30 dias **deslizante** (renovada no máximo 1×/min), `HttpOnly`, `SameSite=Lax`; trocada a cada login. Sair: menu do rodapé da sidebar.
+validade de 30 dias **deslizante** (renovada no máximo 1×/min) com **teto absoluto de 90 dias** desde o login (depois disso, entrar de novo
+mesmo em uso contínuo), `HttpOnly`, `SameSite=Lax`; trocada a cada login. Sair: menu do rodapé da sidebar.
+
+**IP do cliente e proxies.** O rate limit de login e o IP gravado na sessão usam o IP do cliente. `X-Forwarded-For` só é aceito quando o
+par da conexão está em `HANKO_TRUSTED_PROXIES` (CIDRs ou IPs, separados por vírgula; padrão `127.0.0.1/32,::1/128`); a cadeia é lida da
+direita para a esquerda e vale o primeiro endereço que não é de proxy confiável. Fora da lista, ou com a lista vazia, vale o `RemoteAddr`.
+**Atrás do Caddy do compose** (que fala com o hanko pela rede docker) acrescente a sub-rede do compose, senão todos os clientes parecem
+ter o IP do Caddy: `docker network inspect <projeto>_hanko -f '{{(index .IPAM.Config 0).Subnet}}'` e então, por exemplo,
+`HANKO_TRUSTED_PROXIES=127.0.0.1/32,::1/128,172.18.0.0/16` (o `deploy/compose.yaml` repassa a variável). Não liste redes que clientes
+não confiáveis alcancem.
+
+**Custo de senha.** Hash e verificação argon2id (64 MiB cada) passam por um semáforo de `max(2, nº de CPUs)` vagas; sem vaga em 2 s o
+login responde 503 com `Retry-After` ("tente de novo") e não conta como falha.
 
 ### 5.1 Provider `local` (padrão, `HANKO_AUTH_PROVIDER=local`)
 
-E-mail e senha (argon2id, 64 MiB, 3 passadas), com limite de 5 falhas por IP+e-mail a cada 15 min (em memória; reinicia com o processo).
+E-mail e senha (argon2id, 64 MiB, 3 passadas), com limites de falhas a cada 15 min (em memória; reiniciam com o processo): 5 por IP+e-mail,
+25 por IP e **20 por e-mail somando todos os IPs** (força bruta distribuída), este com backoff progressivo (a partir da 6ª falha do e-mail,
+espera de 1 s, 2 s, 4 s… até 5 min).
 
 ```bash
 export HANKO_MODE=authenticated HANKO_SECRET=$(openssl rand -hex 32) HANKO_PUBLIC_URL=https://hanko.exemplo.com
@@ -105,14 +121,16 @@ hanko auth create-owner --email voce@exemplo.com --name "Seu Nome"
 hanko serve
 ```
 
-**Crie o dono pela CLI antes de expor o servidor.** Enquanto não houver usuários, `/entrar` oferece "Criar conta de dono" a quem chegar
-primeiro. Só existe um dono no v0.1 (multi-humano é v0.2); todos os usuários podem tudo.
+**Crie o dono pela CLI antes de expor o servidor.** O formulário web "Criar conta de dono" (quem chegar primeiro vira dono) só existe quando
+`HANKO_PUBLIC_URL` é loopback (`localhost`/`127.0.0.1`) ou `HANKO_AUTH_WEB_BOOTSTRAP=true`. Em URL pública, sem usuários, `/entrar` só orienta
+a rodar `hanko auth create-owner` e `POST /entrar/dono` responde 404. Só existe um dono no v0.1 (multi-humano é v0.2); todos os usuários podem tudo.
 
 ### 5.2 Provider `firebase` (`HANKO_AUTH_PROVIDER=firebase`)
 
 Login com Google e e-mail/senha pelo Firebase Auth. O servidor **não usa o Admin SDK**: o navegador autentica com o SDK web, envia o
 ID token para `POST /auth/firebase` (só mesma origem) e o Hanko valida o JWT RS256 com as chaves públicas do Google
-(`securetoken@system.gserviceaccount.com`, cache conforme `Cache-Control`, refresh quando o `kid` é novo), `iss`/`aud` do projeto,
+(`securetoken@system.gserviceaccount.com`, cache conforme `Cache-Control`, refresh quando o `kid` é novo; se o refresh falhar, as chaves em cache
+valem por até 1 h depois de vencidas, com aviso no log, e depois disso o login falha fechado com 503), `iss`/`aud` do projeto,
 `exp`/`iat`/`auth_time`, `sub` e `email_verified`; então abre a sessão própria. Revogar = expirar a sessão do Hanko.
 
 1. Console do Firebase: crie o projeto (ou reuse um) e registre um **app Web**; anote `projectId`, `apiKey` e `authDomain`
@@ -129,13 +147,19 @@ ID token para `POST /auth/firebase` (só mesma origem) e o Hanko valida o JWT RS
    HANKO_FIREBASE_API_KEY=AIza...
    HANKO_FIREBASE_AUTH_DOMAIN=meu-projeto.firebaseapp.com
    HANKO_AUTH_ALLOWED_EMAILS=voce@exemplo.com,outra@exemplo.com   # e/ou
-   HANKO_AUTH_ALLOWED_DOMAINS=exemplo.com
+   HANKO_AUTH_ALLOWED_DOMAINS=exemplo.com                         # e/ou
+   HANKO_AUTH_OWNER_EMAIL=voce@exemplo.com                        # pelo menos um dos três é obrigatório em URL pública
    ```
 5. Borda: `HANKO_CADDYFILE=Caddyfile.authenticated` (sem basic_auth, repassa o `Authorization`) e `docker compose --profile edge up -d`.
 
-**Política de admissão.** Com `HANKO_AUTH_ALLOWED_EMAILS` e/ou `HANKO_AUTH_ALLOWED_DOMAINS`, só entra quem estiver nas listas (vale também
-para quem já tem conta: sair da lista tira o acesso no próximo login). O primeiro a entrar vira `owner`; os demais, `member`.
-**Sem nenhuma lista**, só o primeiro usuário a entrar vira dono e **todos os outros são recusados** até haver uma lista (o boot avisa).
+**Política de admissão.** Com `HANKO_AUTH_ALLOWED_EMAILS` e/ou `HANKO_AUTH_ALLOWED_DOMAINS`, só entra quem estiver nas listas, e sair da lista
+**derruba na hora** as sessões e API keys desse usuário (checado a cada requisição). O primeiro a entrar vira `owner`; os demais, `member`.
+`HANKO_AUTH_OWNER_EMAIL` nomeia o dono: só esse e-mail vira `owner` (e passa mesmo fora das listas); os demais só entram se estiverem nas
+listas, como `member`.
+
+**Recusa de boot.** Com `HANKO_PUBLIC_URL` fora de loopback, o provider `firebase` exige lista de admissão **ou** `HANKO_AUTH_OWNER_EMAIL`:
+sem nenhum dos dois o primeiro visitante que fizesse login viraria dono, então o servidor não sobe. Só em loopback, sem listas nem dono
+nomeado, vale o modo de desenvolvimento: o primeiro a entrar vira dono e os demais são recusados (o boot avisa).
 Exige `email_verified`: quem cria conta por e-mail/senha recebe o link de verificação e precisa confirmá-lo antes de entrar.
 Um e-mail já cadastrado por outro método (ex.: dono local) não é vinculado automaticamente: é recusado (409).
 `hanko auth create-owner` não se aplica ao provider firebase.
@@ -208,7 +232,10 @@ Registre data e resultado em `docs/SESSION.md` ou no issue de operação.
 | `path: must be inside the workspaces root` ao criar workspace | caminho fora de `HANKO_WORKSPACES_ROOT` | use um caminho dentro da raiz ou mude a raiz |
 | Agente não enxerga uma variável de ambiente | env filtrado (allowlist) | `HANKO_AGENT_ENV_ALLOW=NOME` |
 | `HANKO_SECRET exige…` / `HANKO_PUBLIC_URL exige https` no boot | modo authenticated sem secret de 32 bytes ou com URL http fora de loopback | `openssl rand -hex 32`; use `https://…` (ou loopback para teste local) |
-| `/entrar` mostra "Criar conta de dono" | banco sem usuários | `hanko auth create-owner` (§5.1) antes de expor |
+| `/entrar` mostra "Criar conta de dono" | banco sem usuários | `hanko auth create-owner` (§5.1) antes de expor; em URL pública o formulário só existe com `HANKO_AUTH_WEB_BOOTSTRAP=true` |
+| Boot recusado: `HANKO_AUTH_PROVIDER=firebase com HANKO_PUBLIC_URL público exige…` | firebase sem listas nem dono nomeado | defina `HANKO_AUTH_ALLOWED_EMAILS/DOMAINS` ou `HANKO_AUTH_OWNER_EMAIL` (§5.2) |
+| Login 503 "Muitos logins ao mesmo tempo" | todas as vagas de argon2id ocupadas por 2 s | tente de novo; se persistir, há rajada de logins (confira o rate limit na borda) |
+| Rate limit de login bloqueia todo mundo junto atrás do Caddy | `HANKO_TRUSTED_PROXIES` sem a sub-rede do compose | inclua a sub-rede docker (§5) |
 | Firebase: "Este e-mail não tem acesso" | fora de `HANKO_AUTH_ALLOWED_EMAILS/DOMAINS` (ou lista vazia e já há um dono) | ajuste as listas (§5.2) |
 | Firebase: "domínio não autorizado" no popup | domínio fora de Authorized domains | Console → Authentication → Settings |
 | Firebase: 503 `Não foi possível validar o login` | servidor sem acesso a `www.googleapis.com` | libere a saída HTTPS do servidor para o JWKS do Google |

@@ -15,6 +15,9 @@ mode: trusted            # trusted | authenticated (login; exige secret >= 32 by
 #     auth_domain: ""    # ex.: meu-projeto.firebaseapp.com
 #   allowed_emails: []   # e/ou allowed_domains; sem listas só o primeiro usuário (dono) entra
 #   allowed_domains: []
+#   owner_email: ""      # firebase: único e-mail que vira dono (obrigatório em public_url público sem listas)
+#   web_bootstrap: false # local: libera o formulário "Criar conta de dono" em public_url público
+# trusted_proxies: [127.0.0.1/32, ::1/128]   # CIDRs cujo X-Forwarded-For vale (HANKO_TRUSTED_PROXIES)
 migrate_on_boot: true
 memory:
   provider: ai-memory    # ai-memory | none
