@@ -34,6 +34,7 @@ func BuildPrompt(rc service.RunContext, briefing, handoff string) (system, promp
 	fmt.Fprintf(&sb, "- Trabalhe na task %s e somente nela.\n", t.Key)
 	sb.WriteString("- Use as tools MCP `hanko_*` (por exemplo `hanko_task_get`, `hanko_task_comment`, `hanko_task_update`) para ler a task, comentar e atualizar status e prioridade.\n")
 	sb.WriteString("- Registre decisões e bloqueios como comentário na task; mude o status quando o trabalho avançar (`in_review` quando pronto para revisão, `blocked` quando depender de alguém).\n")
+	sb.WriteString("- Antes de uma ação irreversível (merge, deploy, gasto, contratação, apagar dados), peça a decisão de um humano com `hanko_gate_request` e encerre a execução; você será acordada com a decisão e a nota. Consulte `hanko_gate_status` se precisar.\n")
 	sb.WriteString("- Termine com um resumo objetivo do que fez e do próximo passo. Esse resumo é publicado automaticamente como comentário na task; não o repita via tool.\n")
 	system = strings.TrimSpace(sb.String())
 

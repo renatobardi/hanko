@@ -29,6 +29,9 @@ type Backend interface {
 	AddComment(ctx context.Context, actor domain.Actor, companyID, taskID domain.ID, in service.AddCommentInput) (domain.Comment, error)
 	ListComments(ctx context.Context, companyID, taskID domain.ID) ([]domain.Comment, error)
 	GetRun(ctx context.Context, companyID, runID domain.ID) (service.RunView, error)
+	RequestGate(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.RequestGateInput) (service.GateView, error)
+	GetGate(ctx context.Context, companyID, gateID domain.ID) (service.GateView, error)
+	ListGates(ctx context.Context, companyID domain.ID, f service.GateFilter) ([]service.GateView, error)
 }
 
 var _ Backend = (*service.Service)(nil)
@@ -107,6 +110,9 @@ var (
 // runStatus adapta Backend.GetRun para auth.RunStatusFunc.
 func runStatus(b interface {
 	GetRun(ctx context.Context, companyID, runID domain.ID) (service.RunView, error)
+	RequestGate(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.RequestGateInput) (service.GateView, error)
+	GetGate(ctx context.Context, companyID, gateID domain.ID) (service.GateView, error)
+	ListGates(ctx context.Context, companyID domain.ID, f service.GateFilter) ([]service.GateView, error)
 }) auth.RunStatusFunc {
 	return func(ctx context.Context, cid, rid domain.ID) (domain.RunStatus, error) {
 		run, err := b.GetRun(ctx, cid, rid)

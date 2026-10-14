@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -71,7 +72,41 @@ type runGetIn struct {
 	ID      string `json:"id,omitempty" jsonschema:"id (UUID) da execução; padrão = a execução do seu token"`
 }
 
+type gateRequestIn struct {
+	Company string `json:"company,omitempty" jsonschema:"slug ou id da empresa (obrigatório só sem token de run)"`
+	Title   string `json:"title" jsonschema:"o que você precisa que o humano decida, em uma frase"`
+	Body    string `json:"body,omitempty" jsonschema:"markdown: o que será feito, evidências, impacto e alternativas"`
+	Kind    string `json:"kind,omitempty" jsonschema:"approval (padrão)"`
+	Task    string `json:"task,omitempty" jsonschema:"chave da task; com token de run o padrão é a task da execução atual"`
+	EventID string `json:"event_id,omitempty" jsonschema:"chave de idempotência: repetir a chamada com o mesmo event_id devolve o mesmo gate"`
+}
+
+type gateStatusIn struct {
+	Company string `json:"company,omitempty" jsonschema:"slug ou id da empresa (obrigatório só sem token de run)"`
+	ID      string `json:"id,omitempty" jsonschema:"id (UUID) do gate; vazio = gates pendentes da task"`
+	Task    string `json:"task,omitempty" jsonschema:"chave da task; com token de run o padrão é a task da execução atual"`
+}
+
 // ---- saídas ----
+
+type gateOut struct {
+	ID           string `json:"id"`
+	Kind         string `json:"kind"`
+	Status       string `json:"status" jsonschema:"pending, approved, rejected, changes_requested ou expired"`
+	Title        string `json:"title"`
+	TaskKey      string `json:"task_key,omitempty"`
+	DecisionNote string `json:"decision_note,omitempty"`
+	CreatedAt    string `json:"created_at"`
+	DecidedAt    string `json:"decided_at,omitempty"`
+}
+
+type gateWriteOut struct {
+	Gate gateOut `json:"gate"`
+}
+
+type gateStatusOut struct {
+	Gates []gateOut `json:"gates"`
+}
 
 type whoamiOut struct {
 	Actor       string `json:"actor" jsonschema:"human ou persona"`
@@ -184,6 +219,20 @@ func registerTools(s *sdk.Server, t *tools) {
 		Name:        "hanko_task_comment",
 		Description: "Comenta na thread de uma task (progresso, perguntas, resultado). Use event_id para não duplicar o comentário em retentativas.",
 	}, t.taskComment)
+	sdk.AddTool(s, &sdk.Tool{
+		Name: "hanko_gate_request",
+		Description: "Pede a decisão de um humano (gate) e pausa o seu trabalho nesta task até ele responder. " +
+			"Peça ANTES de: ação irreversível ou destrutiva, merge, deploy ou publicação, gasto de dinheiro, contratação de persona, " +
+			"mudança de escopo ou qualquer coisa que você não deva decidir sozinha. Explique no body o que fará, o impacto e as alternativas. " +
+			"Depois de pedir, encerre a execução: você será acordada quando houver decisão (aprovado, mudanças pedidas ou rejeitado, com a nota). " +
+			"Use event_id para não duplicar o pedido em retentativas.",
+	}, t.gateRequest)
+	sdk.AddTool(s, &sdk.Tool{
+		Name: "hanko_gate_status",
+		Description: "Consulta um gate pelo id, ou os gates pendentes da task (padrão: a da sua execução). " +
+			"Use para saber se a decisão que você pediu já saiu e qual foi a nota do humano.",
+		Annotations: &sdk.ToolAnnotations{ReadOnlyHint: true},
+	}, t.gateStatus)
 	sdk.AddTool(s, &sdk.Tool{
 		Name:        "hanko_persona_list",
 		Description: "Lista as personas da empresa (slug, cargo, agente, status) para saber a quem delegar.",
@@ -625,4 +674,111 @@ func (t *tools) runGet(ctx context.Context, _ *sdk.CallToolRequest, in runGetIn)
 		txt += "\n" + o.Summary
 	}
 	return textResult("%s", txt), runGetOut{Run: o}, nil
+}
+
+func toGate(g service.GateView) gateOut {
+	o := gateOut{ID: g.ID.String(), Kind: string(g.Kind), Status: string(g.Status), Title: g.Title, TaskKey: g.TaskKey,
+		DecisionNote: g.DecisionNote, CreatedAt: g.CreatedAt.UTC().Format(time.RFC3339)}
+	if g.DecidedAt != nil {
+		o.DecidedAt = g.DecidedAt.UTC().Format(time.RFC3339)
+	}
+	return o
+}
+
+func gateLine(g service.GateView) string {
+	s := fmt.Sprintf("Gate %s [%s] %s", g.ID, g.Status, g.Title)
+	if g.TaskKey != "" {
+		s += " (" + g.TaskKey + ")"
+	}
+	if g.DecisionNote != "" {
+		s += "\nNota: " + g.DecisionNote
+	}
+	return s
+}
+
+// gateTask resolve a task do pedido: argumento explícito ou a task do token.
+func (t *tools) gateTask(ctx context.Context, id identity, company domain.ID, ref string) (*domain.ID, error) {
+	if ref = strings.TrimSpace(ref); ref != "" {
+		v, err := t.b.GetTask(ctx, company, ref)
+		if err != nil {
+			return nil, toolErr("task", ref, err)
+		}
+		return &v.ID, nil
+	}
+	if id.ViaToken && id.TaskID != nil {
+		return id.TaskID, nil
+	}
+	return nil, nil
+}
+
+func (t *tools) gateRequest(ctx context.Context, _ *sdk.CallToolRequest, in gateRequestIn) (*sdk.CallToolResult, gateWriteOut, error) {
+	id, company, err := t.scope(ctx, in.Company)
+	if err != nil {
+		return nil, gateWriteOut{}, err
+	}
+	if strings.TrimSpace(in.Title) == "" {
+		return nil, gateWriteOut{}, errors.New("title é obrigatório")
+	}
+	kind := domain.GateKind(strings.TrimSpace(in.Kind))
+	if kind != "" && kind != domain.GateApproval {
+		return nil, gateWriteOut{}, errors.New("kind: use approval (os demais tipos são abertos pelo Hanko)")
+	}
+	task, err := t.gateTask(ctx, id, company, in.Task)
+	if err != nil {
+		return nil, gateWriteOut{}, err
+	}
+	req := service.RequestGateInput{Kind: domain.GateApproval, Title: in.Title, Body: in.Body, TaskID: task, EventID: in.EventID}
+	if id.ViaToken {
+		req.RunID = id.RunID
+	}
+	g, err := t.b.RequestGate(ctx, id.Actor, company, req)
+	if err != nil {
+		return nil, gateWriteOut{}, opErr("pedir gate", err)
+	}
+	return textResult("Gate pedido (%s). Encerre esta execução: você será acordada quando o humano decidir.\n%s", g.ID, gateLine(g)),
+		gateWriteOut{Gate: toGate(g)}, nil
+}
+
+func (t *tools) gateStatus(ctx context.Context, _ *sdk.CallToolRequest, in gateStatusIn) (*sdk.CallToolResult, gateStatusOut, error) {
+	id, company, err := t.scope(ctx, in.Company)
+	if err != nil {
+		return nil, gateStatusOut{}, err
+	}
+	var gates []service.GateView
+	if raw := strings.TrimSpace(in.ID); raw != "" {
+		gid, err := domain.ParseID(raw)
+		if err != nil {
+			return nil, gateStatusOut{}, errors.New("id do gate inválido (esperado UUID)")
+		}
+		g, err := t.b.GetGate(ctx, company, gid)
+		if err != nil {
+			return nil, gateStatusOut{}, toolErr("gate", raw, err)
+		}
+		gates = []service.GateView{g}
+	} else {
+		task, err := t.gateTask(ctx, id, company, in.Task)
+		if err != nil {
+			return nil, gateStatusOut{}, err
+		}
+		if task == nil {
+			return nil, gateStatusOut{}, errors.New("informe id do gate ou task")
+		}
+		gates, err = t.b.ListGates(ctx, company, service.GateFilter{Statuses: []domain.GateStatus{domain.GatePending}, TaskID: task, Limit: 50})
+		if err != nil {
+			return nil, gateStatusOut{}, opErr("listar gates", err)
+		}
+	}
+	out := gateStatusOut{Gates: make([]gateOut, 0, len(gates))}
+	var sb strings.Builder
+	for i, g := range gates {
+		out.Gates = append(out.Gates, toGate(g))
+		if i > 0 {
+			sb.WriteString("\n")
+		}
+		sb.WriteString(gateLine(g))
+	}
+	if len(gates) == 0 {
+		sb.WriteString("Nenhum gate pendente.")
+	}
+	return textResult("%s", sb.String()), out, nil
 }

@@ -36,6 +36,8 @@ type fake struct {
 	lastComment  service.AddCommentInput
 	lastFilter   service.TaskFilter
 	createdByEvt map[string]service.TaskView
+	gates        []service.GateView
+	lastGate     service.RequestGateInput
 }
 
 func newFake() *fake {
@@ -154,6 +156,46 @@ func (f *fake) GetRun(_ context.Context, _, id domain.ID) (service.RunView, erro
 	return service.RunView{}, domain.ErrNotFound
 }
 
+func (f *fake) RequestGate(_ context.Context, a domain.Actor, _ domain.ID, in service.RequestGateInput) (service.GateView, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.lastActor, f.lastGate = a, in
+	for _, g := range f.gates {
+		if in.EventID != "" && g.EventID == in.EventID {
+			return g, nil
+		}
+	}
+	g := service.GateView{Gate: domain.Gate{ID: domain.NewID(), CompanyID: f.company.ID, Kind: in.Kind, Status: domain.GatePending,
+		Title: in.Title, Body: in.Body, TaskID: in.TaskID, RunID: in.RunID, EventID: in.EventID, RequestedBy: a, CreatedAt: time.Now()}, TaskKey: "HNK-1"}
+	f.gates = append(f.gates, g)
+	return g, nil
+}
+func (f *fake) GetGate(_ context.Context, _, id domain.ID) (service.GateView, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, g := range f.gates {
+		if g.ID == id {
+			return g, nil
+		}
+	}
+	return service.GateView{}, domain.ErrNotFound
+}
+func (f *fake) ListGates(_ context.Context, _ domain.ID, fl service.GateFilter) ([]service.GateView, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var out []service.GateView
+	for _, g := range f.gates {
+		if fl.TaskID != nil && (g.TaskID == nil || *g.TaskID != *fl.TaskID) {
+			continue
+		}
+		if len(fl.Statuses) > 0 && g.Status != fl.Statuses[0] {
+			continue
+		}
+		out = append(out, g)
+	}
+	return out, nil
+}
+
 type env struct {
 	f      *fake
 	srv    *httptest.Server
@@ -252,7 +294,7 @@ func TestListTools(t *testing.T) {
 		}
 	}
 	sort.Strings(got)
-	want := []string{"hanko_persona_list", "hanko_run_get", "hanko_task_comment", "hanko_task_create", "hanko_task_get", "hanko_task_list", "hanko_task_update", "hanko_whoami"}
+	want := []string{"hanko_gate_request", "hanko_gate_status", "hanko_persona_list", "hanko_run_get", "hanko_task_comment", "hanko_task_create", "hanko_task_get", "hanko_task_list", "hanko_task_update", "hanko_whoami"}
 	if d := cmp.Diff(want, got); d != "" {
 		t.Errorf("tools (-want +got):\n%s", d)
 	}
@@ -611,4 +653,63 @@ func TestAuthRunInativo(t *testing.T) {
 		t.Fatalf("queued deveria valer: %v", err)
 	}
 	cs.Close()
+}
+
+func TestGateRequestAndStatus(t *testing.T) {
+	e := setup(t, false)
+	cs, _ := e.connect(t, e.tok)
+	defer cs.Close()
+	var out gateWriteOut
+	res := call(t, cs, "hanko_gate_request", map[string]any{"title": "Publicar release", "body": "impacto", "event_id": "g-1"})
+	if res.IsError {
+		t.Fatal(text(res))
+	}
+	structured(t, res, &out)
+	in := e.f.lastGate
+	if out.Gate.Status != "pending" || in.Kind != domain.GateApproval || in.TaskID == nil || *in.TaskID != e.f.tasks[0].ID || in.RunID == nil || *in.RunID != e.runID || in.EventID != "g-1" {
+		t.Errorf("out=%+v in=%+v", out, in)
+	}
+	if e.f.lastActor.Type != domain.ActorPersona {
+		t.Errorf("actor = %+v", e.f.lastActor)
+	}
+	var again gateWriteOut
+	structured(t, call(t, cs, "hanko_gate_request", map[string]any{"title": "Publicar release", "event_id": "g-1"}), &again)
+	if again.Gate.ID != out.Gate.ID {
+		t.Error("event_id deveria ser idempotente")
+	}
+	// pendentes da task do token
+	var st gateStatusOut
+	structured(t, call(t, cs, "hanko_gate_status", map[string]any{}), &st)
+	if len(st.Gates) != 1 || st.Gates[0].ID != out.Gate.ID {
+		t.Errorf("status = %+v", st)
+	}
+	// por id
+	structured(t, call(t, cs, "hanko_gate_status", map[string]any{"id": out.Gate.ID}), &st)
+	if len(st.Gates) != 1 || st.Gates[0].Title != "Publicar release" {
+		t.Errorf("por id = %+v", st)
+	}
+	for _, bad := range []map[string]any{{"title": " "}, {"title": "x", "kind": "hire"}, {"title": "x", "task": "HNK-404"}} {
+		if r := call(t, cs, "hanko_gate_request", bad); !r.IsError {
+			t.Errorf("%v deveria falhar", bad)
+		}
+	}
+	for _, bad := range []map[string]any{{"id": "nope"}, {"id": domain.NewID().String()}} {
+		if r := call(t, cs, "hanko_gate_status", bad); !r.IsError {
+			t.Errorf("%v deveria falhar", bad)
+		}
+	}
+}
+
+func TestGateStatusTrustedNeedsTask(t *testing.T) {
+	e := setup(t, true)
+	cs, _ := e.connect(t, "")
+	defer cs.Close()
+	if r := call(t, cs, "hanko_gate_status", map[string]any{"company": "acme"}); !r.IsError {
+		t.Error("sem id nem task deveria falhar")
+	}
+	var st gateStatusOut
+	structured(t, call(t, cs, "hanko_gate_status", map[string]any{"company": "acme", "task": "HNK-1"}), &st)
+	if len(st.Gates) != 0 {
+		t.Errorf("gates = %+v", st.Gates)
+	}
 }

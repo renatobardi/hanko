@@ -216,7 +216,7 @@ func TestBuildPrompt(t *testing.T) {
 	rc.Comments = append(rc.Comments, domain.Comment{Author: domain.PersonaActor(other), Body: "de outra persona", CreatedAt: time.Date(2026, 10, 14, 13, 0, 0, 0, time.UTC)})
 
 	system, prompt := BuildPrompt(rc, "briefing X", "handoff Y")
-	for _, w := range []string{"Escreva código limpo.", "## Protocolo Hanko", "persona Ana (Engenheira)", "empresa Acme", "task HNK-7", "hanko_*", "resumo objetivo"} {
+	for _, w := range []string{"Escreva código limpo.", "## Protocolo Hanko", "persona Ana (Engenheira)", "empresa Acme", "task HNK-7", "hanko_*", "hanko_gate_request", "resumo objetivo"} {
 		if !strings.Contains(system, w) {
 			t.Errorf("system lacks %q", w)
 		}
