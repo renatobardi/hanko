@@ -146,7 +146,7 @@ func mapErr(err error, what string) error {
 	case errors.Is(err, pgx.ErrNoRows):
 		return fmt.Errorf("%s: %w", what, domain.ErrNotFound)
 	case isUnique(err):
-		return fmt.Errorf("%s: %w", what, domain.ErrConflict)
+		return fmt.Errorf("%s: %w: %w", what, domain.ErrConflict, err) // keep the pg error for race handling
 	}
 	return fmt.Errorf("%s: %w", what, err)
 }
