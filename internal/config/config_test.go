@@ -171,4 +171,3 @@ func hasWarn(c Config, sub string) bool {
 	}
 	return false
 }
-
