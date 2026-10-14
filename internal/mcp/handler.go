@@ -85,7 +85,9 @@ func newHandler(b Backend, d Deps) http.Handler {
 	registerTools(srv, &tools{b: b, log: logger})
 
 	inner := sdk.NewStreamableHTTPHandler(func(*http.Request) *sdk.Server { return srv },
-		&sdk.StreamableHTTPOptions{Stateless: true, JSONResponse: true, Logger: logger})
+		// A proteção contra DNS rebinding é do app (host check 421 com HANKO_PUBLIC_URL/HANKO_ALLOWED_HOSTS);
+		// a do SDK recusaria o Host público quando um proxy reverso fala com o Hanko em loopback.
+		&sdk.StreamableHTTPOptions{Stateless: true, JSONResponse: true, Logger: logger, DisableLocalhostProtection: true})
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id, err := authenticate(r, d, b)
