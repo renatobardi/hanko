@@ -151,8 +151,8 @@ type FinishRunInput struct {
 // TaskView is a task with display-ready joins.
 type TaskView struct {
 	domain.Task
-	PersonaName string `json:"persona_name,omitempty"`
-	ProjectName string `json:"project_name,omitempty"`
+	PersonaName string     `json:"persona_name,omitempty"`
+	ProjectName string     `json:"project_name,omitempty"`
 	ActiveRunID *domain.ID `json:"active_run_id,omitempty"`
 }
 

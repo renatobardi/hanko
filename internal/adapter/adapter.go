@@ -12,21 +12,21 @@ import (
 
 // Spec is everything an adapter needs to execute one run.
 type Spec struct {
-	RunID       domain.ID
-	CompanyID   domain.ID
-	PersonaID   domain.ID
-	TaskID      domain.ID
-	TaskKey     string
-	Agent       string // claude | codex | fake
-	Model       string
-	Dir         string // working directory (workspace path); empty = temp dir
-	System      string // persona instructions + Hanko protocol (appended system prompt)
-	Prompt      string // task + thread + memory briefing
-	SessionRef  string // previous agent session id to resume, if any
-	Env         map[string]string
-	MCPConfig   json.RawMessage // {"mcpServers":{...}} written to a temp file for the harness
-	Config      json.RawMessage // persona.adapter_config
-	Timeout     time.Duration
+	RunID      domain.ID
+	CompanyID  domain.ID
+	PersonaID  domain.ID
+	TaskID     domain.ID
+	TaskKey    string
+	Agent      string // claude | codex | fake
+	Model      string
+	Dir        string // working directory (workspace path); empty = temp dir
+	System     string // persona instructions + Hanko protocol (appended system prompt)
+	Prompt     string // task + thread + memory briefing
+	SessionRef string // previous agent session id to resume, if any
+	Env        map[string]string
+	MCPConfig  json.RawMessage // {"mcpServers":{...}} written to a temp file for the harness
+	Config     json.RawMessage // persona.adapter_config
+	Timeout    time.Duration
 }
 
 // Event is one normalized log entry emitted while the agent runs.

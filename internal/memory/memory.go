@@ -17,8 +17,8 @@ type Scope struct {
 
 // Fact is something the control plane records in memory (via memory_outbox).
 type Fact struct {
-	Kind  string   `json:"kind"`  // task.created, task.closed, run.finished, comment.human, ...
-	Path  string   `json:"path"`  // wiki page path, e.g. hanko/runs/2026-10-14-HNK-3-<run>.md
+	Kind  string   `json:"kind"` // task.created, task.closed, run.finished, comment.human, ...
+	Path  string   `json:"path"` // wiki page path, e.g. hanko/runs/2026-10-14-HNK-3-<run>.md
 	Title string   `json:"title"`
 	Body  string   `json:"body"` // markdown
 	Tags  []string `json:"tags,omitempty"`
@@ -45,10 +45,10 @@ type Provider interface {
 // Noop is the "none" provider.
 type Noop struct{}
 
-func (Noop) Name() string                                                     { return "none" }
-func (Noop) Briefing(context.Context, Scope) (string, error)                  { return "", nil }
-func (Noop) AcceptHandoff(context.Context, Scope) (string, error)             { return "", nil }
-func (Noop) Record(context.Context, Scope, Fact) error                        { return nil }
-func (Noop) FinalizeSession(context.Context, Scope, string, string) error     { return nil }
-func (Noop) AgentMCP(Scope, string) map[string]json.RawMessage                { return nil }
-func (Noop) Ping(context.Context) error                                       { return nil }
+func (Noop) Name() string                                                 { return "none" }
+func (Noop) Briefing(context.Context, Scope) (string, error)              { return "", nil }
+func (Noop) AcceptHandoff(context.Context, Scope) (string, error)         { return "", nil }
+func (Noop) Record(context.Context, Scope, Fact) error                    { return nil }
+func (Noop) FinalizeSession(context.Context, Scope, string, string) error { return nil }
+func (Noop) AgentMCP(Scope, string) map[string]json.RawMessage            { return nil }
+func (Noop) Ping(context.Context) error                                   { return nil }
