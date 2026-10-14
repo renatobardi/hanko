@@ -1,6 +1,8 @@
 *.test
 .env
 .fuse_hidden*
+/bin/
+/dist/
 bin/
 coverage.out
 dist/
