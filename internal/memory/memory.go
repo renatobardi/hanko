@@ -36,8 +36,10 @@ type Provider interface {
 	// FinalizeSession closes an agent session so the provider builds summary + handoff.
 	FinalizeSession(ctx context.Context, s Scope, agent, sessionID string) error
 	// AgentMCP returns the MCP server entry to inject into the agent config for this run
-	// (key = server name). Nil when the provider has nothing to inject.
-	AgentMCP(s Scope, runID string) map[string]json.RawMessage
+	// (key = server name). Nil when the provider has nothing to inject. The entry must
+	// never carry the provider's own credentials: agents authenticate with their run token
+	// against Hanko's memory proxy, which injects the provider credentials server-side.
+	AgentMCP(s Scope, runID, runToken string) map[string]json.RawMessage
 	// Ping checks availability.
 	Ping(ctx context.Context) error
 }
@@ -50,5 +52,5 @@ func (Noop) Briefing(context.Context, Scope) (string, error)              { retu
 func (Noop) AcceptHandoff(context.Context, Scope) (string, error)         { return "", nil }
 func (Noop) Record(context.Context, Scope, Fact) error                    { return nil }
 func (Noop) FinalizeSession(context.Context, Scope, string, string) error { return nil }
-func (Noop) AgentMCP(Scope, string) map[string]json.RawMessage            { return nil }
+func (Noop) AgentMCP(Scope, string, string) map[string]json.RawMessage    { return nil }
 func (Noop) Ping(context.Context) error                                   { return nil }

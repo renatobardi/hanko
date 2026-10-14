@@ -7,28 +7,23 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
-	"net/http"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/renatobardi/hanko/internal/adapter"
 	"github.com/renatobardi/hanko/internal/adapter/claude"
 	"github.com/renatobardi/hanko/internal/adapter/codex"
 	"github.com/renatobardi/hanko/internal/adapter/fake"
-	"github.com/renatobardi/hanko/internal/api"
 	"github.com/renatobardi/hanko/internal/auth"
 	"github.com/renatobardi/hanko/internal/config"
 	"github.com/renatobardi/hanko/internal/db"
 	"github.com/renatobardi/hanko/internal/events"
 	"github.com/renatobardi/hanko/internal/heartbeat"
-	"github.com/renatobardi/hanko/internal/mcp"
 	"github.com/renatobardi/hanko/internal/memory"
 	"github.com/renatobardi/hanko/internal/memory/aimemory"
 	"github.com/renatobardi/hanko/internal/service"
 	"github.com/renatobardi/hanko/internal/telemetry"
-	"github.com/renatobardi/hanko/internal/ui"
 )
 
 const serviceName = "hanko"
@@ -68,26 +63,22 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 		return fmt.Errorf("app: heartbeat: %w", err)
 	}
 	svc := service.New(pool, hb, broker)
+	svc.WorkspacesRoot = cfg.WorkspacesRoot
 
 	mem := newMemory(ctx, cfg, logger)
 	reg := adapter.Registry{
-		"claude": claude.New(claude.Options{Bin: cfg.ClaudeBin, Logger: logger}),
-		"codex":  codex.New(codex.Options{Bin: cfg.CodexBin, Logger: logger}),
+		"claude": claude.New(claude.Options{Bin: cfg.ClaudeBin, Logger: logger, EnvAllow: cfg.AgentEnvAllow}),
+		"codex":  codex.New(codex.Options{Bin: cfg.CodexBin, Logger: logger, EnvAllow: cfg.AgentEnvAllow}),
 		"fake":   fake.New(fake.Options{}),
 	}
 	tokens := auth.RunTokens{Secret: []byte(cfg.Secret), TTL: cfg.RunTimeout + 5*time.Minute}
 	hb.Attach(svc, reg, mem, broker, tokens)
 
-	mux := http.NewServeMux()
-	api.Mount(mux, api.Deps{Svc: svc, Broker: broker, Logger: logger, Version: version})
-	ui.Mount(mux, ui.Deps{Svc: svc, Broker: broker, Logger: logger, Version: version})
-	mux.Handle("/mcp", mcp.Handler(mcp.Deps{Svc: svc, Tokens: tokens, Logger: logger, Version: version, Trusted: cfg.TrustedMCP()}))
-	mux.Handle("GET /metrics", tel.MetricsHandler())
-
-	handler := otelhttp.NewHandler(mux, serviceName,
-		otelhttp.WithFilter(traceRequest),
-		otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string { return r.Method + " " + r.URL.Path }),
-	)
+	handler, err := buildHandler(handlerDeps{Cfg: cfg, Version: version, Logger: logger, Svc: svc, Broker: broker,
+		Pool: pool, Tokens: tokens, Metrics: tel.MetricsHandler()})
+	if err != nil {
+		return err
+	}
 	srv := newHTTPServer(cfg.Addr, handler, logger)
 
 	var hbStarted bool
@@ -159,7 +150,7 @@ func newMemory(ctx context.Context, cfg config.Config, logger *slog.Logger) memo
 		logger.Info("memória desligada (HANKO_MEMORY_PROVIDER=none)")
 		return memory.Noop{}
 	}
-	p := aimemory.New(aimemory.Options{URL: cfg.Memory.URL, Token: cfg.Memory.Token, Logger: logger})
+	p := aimemory.New(aimemory.Options{URL: cfg.Memory.URL, Token: cfg.Memory.Token, PublicURL: cfg.PublicURL, Logger: logger})
 	go func() {
 		pctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 		defer cancel()

@@ -34,7 +34,8 @@ Dois containers: `hanko-stg` (branch `develop`) e `hanko-prd` (tag `v*`). Acesso
 3. Preencha `/opt/hanko/.env`:
    - `HANKO_VERSION` = tag (prd) ou `develop` (stg); `POSTGRES_PASSWORD`; `HANKO_SECRET` (`openssl rand -hex 32`);
    - `AI_MEMORY_IMAGE` por digest; `AI_MEMORY_AUTH_TOKEN`; `HANKO_PUBLIC_URL=https://hanko.oute.pro` (prd);
-   - `HANKO_DOMAIN`.
+   - `HANKO_DOMAIN`;
+   - borda (prd): `HANKO_EDGE_USER` e `HANKO_EDGE_PASSWORD_HASH` (veja "Borda com basic_auth" abaixo). O compose recusa subir o profile `edge` sem eles.
 4. Suba: `cd /opt/hanko && docker compose -f deploy/compose.yaml --env-file .env up -d` (prd com borda TLS: `--profile edge`).
 5. Verifique: `curl -fsS http://127.0.0.1:7420/healthz` e `/readyz`; abra o Grafana por túnel (porta 3000 só em loopback).
 6. Atualizar versão: ajuste `HANKO_VERSION`, `docker compose pull hanko && docker compose up -d hanko`. Migrations rodam no boot
@@ -42,6 +43,33 @@ Dois containers: `hanko-stg` (branch `develop`) e `hanko-prd` (tag `v*`). Acesso
 7. Rollback: volte `HANKO_VERSION` e suba de novo. Migrations são append-only; rollback de schema = restore do backup.
 
 Segredos nunca entram no git: `.env` fica só no container.
+
+### Borda com basic_auth (até o M5)
+
+Enquanto o modo `authenticated` não existe, o Hanko não autentica humanos: quem alcança a porta age como operador. Por isso o
+`deploy/caddy/Caddyfile` exige `basic_auth` e remove o `Authorization` antes de repassar ao Hanko. Gere o hash bcrypt:
+
+```bash
+docker run --rm caddy:2 caddy hash-password --plaintext 'SENHA-FORTE'   # ou: caddy hash-password
+```
+
+No `.env`, `HANKO_EDGE_USER=operador` e `HANKO_EDGE_PASSWORD_HASH=...` com **cada `$` do hash escrito como `$$`** (o compose
+interpola `$`). Troque a senha regerando o hash e executando `docker compose up -d caddy`.
+
+### Endurecimento do modo trusted
+
+- `HANKO_SECRET` com menos de 32 bytes é recusado no boot; vazio gera um por boot.
+- O cabeçalho `Host` só vale para `localhost`, `127.0.0.1`, `[::1]`, o host de `HANKO_PUBLIC_URL` e `HANKO_ALLOWED_HOSTS`
+  (csv); outros recebem `421`. Atrás de proxy/túnel com outro nome, acrescente-o em `HANKO_ALLOWED_HOSTS`.
+- Agentes não herdam o ambiente do servidor: só `PATH, HOME, USER, LANG, LC_*, TERM, TMPDIR, TZ, SHELL, SSL_CERT_*`,
+  proxies, prefixos `ANTHROPIC_ CLAUDE_ OPENAI_ CODEX_ OTEL_ NODE_ XDG_ GIT_ GH_` e o que `HANKO_AGENT_ENV_ALLOW` (csv, aceita
+  prefixo com `*`) liberar. `HANKO_*` do servidor nunca passa.
+- Saída dos agentes é varrida para segredos (run token, Bearer, JWT, chaves de API, senhas em URL de banco) antes de virar log de run.
+- Run tokens só valem enquanto o run está `queued`/`running`.
+- Memória: o agente fala com `<HANKO_PUBLIC_URL>/memory-mcp` usando o run token; o Hanko injeta `HANKO_MEMORY_TOKEN` e o escopo
+  (empresa/workspace) do lado do servidor. O token do ai-memory nunca vai ao agente.
+- Workspaces só podem apontar para dentro de `HANKO_WORKSPACES_ROOT` (padrão `$HOME/hanko-workspaces`), com caminho absoluto e limpo.
+- Limites e recomendação de isolamento: `docs/adr/0017-modo-trusted-e-limites.md`.
 
 ## 3. Backup e restore
 
@@ -86,6 +114,10 @@ Registre data e resultado em `docs/SESSION.md` ou no issue de operação.
 | Aviso `HANKO_SECRET não definido` | secret gerado por boot | defina `HANKO_SECRET`; sem isso, run tokens de runs em andamento invalidam a cada restart |
 | Runs ficam `queued` | heartbeat parado, `Workers` baixo ou CLI do agente ausente | log do hanko; `HANKO_WORKERS`; `claude`/`codex` no PATH (ou `Dockerfile.agents`) |
 | `/mcp` responde 401 de fora | modo trusted só aceita sem token em loopback | normal: agentes usam run token; humanos usam a API/UI |
+| `421 host não permitido` | cabeçalho `Host` fora da lista | acrescente o nome em `HANKO_ALLOWED_HOSTS` ou ajuste `HANKO_PUBLIC_URL` |
+| `HANKO_SECRET tem N bytes` | secret curto | `openssl rand -hex 32` |
+| `path: must be inside the workspaces root` ao criar workspace | caminho fora de `HANKO_WORKSPACES_ROOT` | use um caminho dentro da raiz ou mude a raiz |
+| Agente não enxerga uma variável de ambiente | env filtrado (allowlist) | `HANKO_AGENT_ENV_ALLOW=NOME` |
 | Porta 7420 ocupada | outra instância | `HANKO_ADDR` |
 
 Logs são JSON no stderr com `trace_id`/`span_id`: copie o `trace_id` e busque no Tempo (Grafana) para ver o trace completo da requisição/run.

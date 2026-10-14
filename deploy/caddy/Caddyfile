@@ -1,10 +1,21 @@
 # TLS automático para o domínio de HANKO_DOMAIN (profile "edge" do compose).
+#
+# Até o M5 (modo authenticated) o Hanko não autentica humanos: o basic_auth abaixo é a
+# única barreira de quem chega pela internet. HANKO_EDGE_USER e HANKO_EDGE_PASSWORD_HASH
+# são obrigatórios (o compose recusa subir sem eles). Gere o hash com
+# `caddy hash-password` (ver docs/RUNBOOK.md).
 {$HANKO_DOMAIN} {
 	encode zstd gzip
+
+	basic_auth {
+		{$HANKO_EDGE_USER} {$HANKO_EDGE_PASSWORD_HASH}
+	}
 
 	# flush_interval -1: SSE (logs de run ao vivo) não pode ser bufferizado.
 	reverse_proxy hanko:7420 {
 		flush_interval -1
+		# O Authorization do basic_auth é da borda; o Hanko só entende Bearer de run token.
+		header_up -Authorization
 	}
 
 	header {

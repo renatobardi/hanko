@@ -484,8 +484,8 @@ func TestFinalizeSessionHTTPError(t *testing.T) {
 }
 
 func TestAgentMCP(t *testing.T) {
-	p := New(Options{URL: "http://mem:8080/", Token: "tok"})
-	m := p.AgentMCP(memory.Scope{Workspace: "acme", Project: "site"}, "run-1")
+	p := New(Options{URL: "http://mem:8080/", Token: "mem-secret", PublicURL: "http://127.0.0.1:7420/"})
+	m := p.AgentMCP(memory.Scope{Workspace: "acme", Project: "site"}, "run-1", "run-token-xyz")
 	raw, ok := m["ai-memory"]
 	if !ok || len(m) != 1 {
 		t.Fatalf("map = %v", m)
@@ -494,13 +494,19 @@ func TestAgentMCP(t *testing.T) {
 	if err := json.Unmarshal(raw, &got); err != nil {
 		t.Fatal(err)
 	}
-	_ = json.Unmarshal([]byte(`{"type":"http","url":"http://mem:8080/mcp","headers":{"Authorization":"Bearer tok","X-Memory-Workspace":"acme","X-Memory-Project":"site"}}`), &want)
+	_ = json.Unmarshal([]byte(`{"type":"http","url":"http://127.0.0.1:7420/memory-mcp","headers":{"Authorization":"Bearer run-token-xyz"}}`), &want)
 	if d := cmp.Diff(want, got); d != "" {
 		t.Errorf("(-want +got):\n%s", d)
 	}
-	raw = p.AgentMCP(memory.Scope{Workspace: "acme"}, "r")["ai-memory"]
-	if !strings.Contains(string(raw), `"X-Memory-Project":"default"`) {
-		t.Errorf("projeto padrão ausente: %s", raw)
+	if strings.Contains(string(raw), "mem-secret") || strings.Contains(string(raw), "X-Memory") || strings.Contains(string(raw), "mem:8080") {
+		t.Errorf("credencial/escopo/URL do ai-memory vazou ao agente: %s", raw)
+	}
+	// sem run token ou sem PublicURL: nada a injetar (nunca "Bearer " vazio)
+	if m := p.AgentMCP(memory.Scope{Workspace: "acme"}, "r", ""); m != nil {
+		t.Errorf("sem run token: %v", m)
+	}
+	if m := New(Options{URL: "http://mem:8080", Token: "t"}).AgentMCP(memory.Scope{}, "r", "tok"); m != nil {
+		t.Errorf("sem PublicURL: %v", m)
 	}
 }
 

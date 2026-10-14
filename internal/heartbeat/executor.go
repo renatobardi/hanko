@@ -215,7 +215,7 @@ func (h *Heartbeat) buildSpec(rc service.RunContext, briefing, handoff string, s
 		return adapter.Spec{}, nil, fmt.Errorf("emitir run token: %w", err)
 	}
 	publicURL := strings.TrimRight(h.opts.PublicURL, "/")
-	mcpCfg, err := buildMCPConfig(publicURL, token, h.mem.AgentMCP(scope, rc.Run.ID.String()))
+	mcpCfg, err := buildMCPConfig(publicURL, token, h.mem.AgentMCP(scope, rc.Run.ID.String(), token))
 	if err != nil {
 		return adapter.Spec{}, nil, err
 	}

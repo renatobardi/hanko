@@ -3,7 +3,10 @@ database_url: postgres://hanko:hanko@127.0.0.1:5432/hanko?sslmode=disable
 addr: 127.0.0.1:7420
 # public_url: http://127.0.0.1:7420
 mode: trusted            # trusted | authenticated (authenticated chega no M5)
-# secret: ""             # prefira HANKO_SECRET; vazio = gerado por boot
+# secret: ""             # prefira HANKO_SECRET (mínimo 32 bytes); vazio = gerado por boot
+# allowed_hosts: []      # hosts extras aceitos no cabeçalho Host (HANKO_ALLOWED_HOSTS)
+# workspaces_root: ""    # raiz dos workspaces (HANKO_WORKSPACES_ROOT); padrão $HOME/hanko-workspaces
+# agent_env_allow: []    # env extra do servidor repassado aos agentes (HANKO_AGENT_ENV_ALLOW)
 migrate_on_boot: true
 memory:
   provider: ai-memory    # ai-memory | none

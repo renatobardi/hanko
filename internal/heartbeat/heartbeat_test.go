@@ -150,7 +150,7 @@ func (m *memStub) Record(_ context.Context, s memory.Scope, f memory.Fact) error
 	m.recorded = append(m.recorded, f)
 	return m.recordErr
 }
-func (m *memStub) AgentMCP(memory.Scope, string) map[string]json.RawMessage {
+func (m *memStub) AgentMCP(memory.Scope, string, string) map[string]json.RawMessage {
 	return map[string]json.RawMessage{"ai-memory": json.RawMessage(`{"type":"http","url":"http://mem/mcp"}`)}
 }
 

@@ -17,6 +17,10 @@ services:
       HANKO_ADDR: 0.0.0.0:7420
       HANKO_PUBLIC_URL: ${HANKO_PUBLIC_URL:-http://hanko:7420}
       HANKO_MODE: ${HANKO_MODE:-trusted}
+      # Hosts aceitos no cabeçalho Host (anti DNS rebinding), além de localhost e do host de HANKO_PUBLIC_URL.
+      HANKO_ALLOWED_HOSTS: ${HANKO_ALLOWED_HOSTS:-hanko,${HANKO_DOMAIN:-hanko.oute.pro}}
+      HANKO_WORKSPACES_ROOT: ${HANKO_WORKSPACES_ROOT:-}
+      HANKO_AGENT_ENV_ALLOW: ${HANKO_AGENT_ENV_ALLOW:-}
       HANKO_SECRET: ${HANKO_SECRET:-}
       HANKO_MEMORY_PROVIDER: ${HANKO_MEMORY_PROVIDER:-ai-memory}
       HANKO_MEMORY_URL: http://ai-memory:49374
@@ -78,6 +82,9 @@ services:
     restart: unless-stopped
     environment:
       HANKO_DOMAIN: ${HANKO_DOMAIN:-hanko.oute.pro}
+      # basic_auth da borda até o M5; sem os dois o caddy não sobe (docs/RUNBOOK.md §2).
+      HANKO_EDGE_USER: ${HANKO_EDGE_USER:?defina HANKO_EDGE_USER para o profile edge}
+      HANKO_EDGE_PASSWORD_HASH: ${HANKO_EDGE_PASSWORD_HASH:?defina HANKO_EDGE_PASSWORD_HASH (caddy hash-password)}
     volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data

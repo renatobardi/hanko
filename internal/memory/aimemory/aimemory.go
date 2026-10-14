@@ -36,16 +36,19 @@ const (
 
 // Options configura o provider.
 type Options struct {
-	URL     string        // base do ai-memory, ex. http://ai-memory:8080
-	Token   string        // bearer token
-	HTTP    *http.Client  // opcional
-	Logger  *slog.Logger  // opcional
-	Timeout time.Duration // por chamada; padrão 5s
+	URL   string // base do ai-memory, ex. http://ai-memory:8080
+	Token string // bearer token (só do Hanko ao ai-memory; nunca vai ao agente)
+	// PublicURL é a base pela qual o agente alcança o Hanko (proxy /memory-mcp em AgentMCP).
+	PublicURL string
+	HTTP      *http.Client  // opcional
+	Logger    *slog.Logger  // opcional
+	Timeout   time.Duration // por chamada; padrão 5s
 }
 
 type provider struct {
 	base    string
 	token   string
+	public  string
 	hc      *http.Client // com Authorization injetado, usado no MCP e nos hooks
 	log     *slog.Logger
 	timeout time.Duration
@@ -59,6 +62,7 @@ func New(o Options) memory.Provider {
 	p := &provider{
 		base:    strings.TrimRight(strings.TrimSpace(o.URL), "/"),
 		token:   o.Token,
+		public:  strings.TrimRight(strings.TrimSpace(o.PublicURL), "/"),
 		log:     o.Logger,
 		timeout: o.Timeout,
 	}
@@ -332,16 +336,15 @@ type mcpEntry struct {
 	Headers map[string]string `json:"headers"`
 }
 
-func (p *provider) AgentMCP(s memory.Scope, _ string) map[string]json.RawMessage {
-	proj := s.Project
-	if proj == "" {
-		proj = defaultProject
+// AgentMCP aponta o agente para o proxy /memory-mcp do Hanko, autenticado pelo run token
+// do próprio run. O token e o escopo do ai-memory ficam só no servidor: o proxy os injeta.
+// Sem PublicURL ou sem run token não há o que injetar (nunca um "Bearer " vazio).
+func (p *provider) AgentMCP(_ memory.Scope, _, runToken string) map[string]json.RawMessage {
+	if p.public == "" || runToken == "" {
+		return nil
 	}
-	b, err := json.Marshal(mcpEntry{Type: "http", URL: p.base + "/mcp", Headers: map[string]string{
-		"Authorization":      "Bearer " + p.token,
-		"X-Memory-Workspace": s.Workspace,
-		"X-Memory-Project":   proj,
-	}})
+	b, err := json.Marshal(mcpEntry{Type: "http", URL: p.public + "/memory-mcp",
+		Headers: map[string]string{"Authorization": "Bearer " + runToken}})
 	if err != nil {
 		return nil
 	}
