@@ -141,11 +141,12 @@ func (t *txc) cancelTaskRun(actor domain.Actor, companyID, taskID domain.ID, rea
 // Moves task todo → in_progress.
 func (s *Service) CheckoutRun(ctx context.Context, w Wake) (domain.Run, error) {
 	switch w.Trigger {
-	case domain.TriggerAssign, domain.TriggerComment, domain.TriggerManual, domain.TriggerHeartbeat:
+	case domain.TriggerAssign, domain.TriggerComment, domain.TriggerManual, domain.TriggerHeartbeat, domain.TriggerFlow:
 	default:
 		return domain.Run{}, domain.Invalid("trigger", fmt.Sprintf("unknown trigger %q", w.Trigger))
 	}
 	var out domain.Run
+	var blocked error
 	err := s.withTx(ctx, func(t *txc) error {
 		task, err := t.q.GetTaskByIDForUpdate(ctx, store.GetTaskByIDForUpdateParams{CompanyID: w.CompanyID, ID: w.TaskID})
 		if err != nil {
@@ -164,6 +165,15 @@ func (s *Service) CheckoutRun(ctx context.Context, w Wake) (domain.Run, error) {
 		}
 		if !domain.PersonaStatus(p.Status).CanWork() {
 			return domain.Invalid("persona", fmt.Sprintf("persona status %q cannot work", p.Status))
+		}
+		// Hard stop: the budget check runs (and its pause/alerts commit) before any run is opened.
+		co, err := t.q.GetCompanyByID(ctx, w.CompanyID)
+		if err != nil {
+			return mapErr(err, "get company")
+		}
+		if berr := t.checkBudgets(co, p, true); berr != nil {
+			blocked = berr
+			return nil
 		}
 		if _, err := t.q.ActiveRunForTask(ctx, task.ID); err == nil {
 			return domain.ErrActiveRun
@@ -205,6 +215,9 @@ func (s *Service) CheckoutRun(ctx context.Context, w Wake) (domain.Run, error) {
 	})
 	if err != nil {
 		return domain.Run{}, err
+	}
+	if blocked != nil {
+		return domain.Run{}, blocked
 	}
 	return out, nil
 }
@@ -377,8 +390,12 @@ func (s *Service) FinishRun(ctx context.Context, companyID, runID domain.ID, in 
 		if res.Model != "" {
 			model = res.Model
 		}
+		cost, source, err := t.costFor(model, res)
+		if err != nil {
+			return err
+		}
 		row, err := t.q.FinishRun(ctx, store.FinishRunParams{CompanyID: companyID, ID: runID, Status: string(in.Status),
-			ExitCode: &code, Error: res.Error, Summary: res.Summary, CostUsd: res.CostUSD,
+			ExitCode: &code, Error: res.Error, Summary: res.Summary, CostUsd: cost, CostSource: string(source),
 			InputTokens: res.Usage.InputTokens, OutputTokens: res.Usage.OutputTokens,
 			CacheReadTokens: res.Usage.CacheReadTokens, CacheCreationTokens: res.Usage.CacheCreationTokens,
 			SessionRef: res.SessionRef, Model: model, Now: &t.now})
@@ -408,13 +425,26 @@ func (s *Service) FinishRun(ctx context.Context, companyID, runID domain.ID, in 
 		if err := t.personaAfterRun(row.PersonaID, in.Status, res.Error); err != nil {
 			return err
 		}
+		if cost != nil {
+			co, err := t.q.GetCompanyByID(ctx, companyID)
+			if err != nil {
+				return mapErr(err, "get company")
+			}
+			p, err := t.q.GetPersonaByID(ctx, store.GetPersonaByIDParams{CompanyID: companyID, ID: row.PersonaID})
+			if err != nil {
+				return mapErr(err, "get persona")
+			}
+			if err := t.checkBudgets(co, p, false); err != nil {
+				return err
+			}
+		}
 
 		verb := "run.finished"
 		if in.Status == domain.RunCancelled {
 			verb = "run.cancelled"
 		}
 		if err := t.activity(pactor, companyID, verb, "run", runID, map[string]any{
-			"status": in.Status, "task_id": row.TaskID, "cost_usd": res.CostUSD, "error": res.Error}, ""); err != nil {
+			"status": in.Status, "task_id": row.TaskID, "cost_usd": cost, "cost_source": source, "error": res.Error}, ""); err != nil {
 			return err
 		}
 
@@ -487,8 +517,12 @@ func runFact(v RunView, status domain.RunStatus, res adapter.Result, now time.Ti
 	var b strings.Builder
 	fmt.Fprintf(&b, "# Run %s — %s\n\n", v.TaskKey, v.TaskTitle)
 	fmt.Fprintf(&b, "- Task: %s\n- Persona: %s\n- Status: %s\n", v.TaskKey, v.PersonaName, status)
-	if res.CostUSD != nil {
-		fmt.Fprintf(&b, "- Custo: US$ %.4f\n", *res.CostUSD)
+	if v.CostUSD != nil {
+		est := ""
+		if v.CostSource == domain.CostEstimated {
+			est = " (estimado)"
+		}
+		fmt.Fprintf(&b, "- Custo: US$ %.4f%s\n", *v.CostUSD, est)
 	} else {
 		b.WriteString("- Custo: n/d\n")
 	}

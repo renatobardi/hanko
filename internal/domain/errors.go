@@ -1,6 +1,9 @@
 package domain
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+)
 
 // Domain errors. Mapped to HTTP status in one place (internal/api).
 var (
@@ -9,6 +12,9 @@ var (
 	ErrConflict   = errors.New("conflict")
 	ErrActiveRun  = errors.New("task already has an active run")
 	ErrNotAllowed = errors.New("not allowed")
+
+	// ErrBudgetExceeded: the persona or the company spent its monthly budget; no run is opened.
+	ErrBudgetExceeded = fmt.Errorf("monthly budget exceeded: %w", ErrConflict)
 )
 
 // ValidationError carries a field-level reason and unwraps to ErrInvalid.

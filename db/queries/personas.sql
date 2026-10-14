@@ -23,7 +23,8 @@ SELECT * FROM personas WHERE company_id = @company_id ORDER BY created_at, id;
 UPDATE personas
 SET name = @name, title = @title, instructions = @instructions, model = @model,
     status = @status, heartbeat_interval_sec = @heartbeat_interval_sec,
-    workspace_id = @workspace_id, updated_at = @now,
+    workspace_id = @workspace_id, budget_monthly_cents = @budget_monthly_cents, updated_at = @now,
+    pause_reason = CASE WHEN @status::text <> 'paused' THEN NULL ELSE pause_reason END,
     consecutive_failures = CASE WHEN @status::text <> status THEN 0 ELSE consecutive_failures END
 WHERE company_id = @company_id AND id = @id
 RETURNING *;
@@ -48,3 +49,8 @@ UPDATE personas p SET
     updated_at = @now
 WHERE p.id = @id AND p.status = 'running'
   AND NOT EXISTS (SELECT 1 FROM runs r WHERE r.persona_id = p.id AND r.status IN ('queued', 'running'));
+
+-- name: PausePersonaForBudget :exec
+-- Hard stop de orçamento: só pausa quem ainda pode trabalhar.
+UPDATE personas SET status = 'paused', pause_reason = @reason, updated_at = @now
+WHERE id = @id AND status IN ('active', 'idle', 'running');

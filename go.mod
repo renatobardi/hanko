@@ -20,6 +20,7 @@ require (
 	github.com/riverqueue/river/riverdriver/riverpgxv5 v0.49.0
 	github.com/riverqueue/river/rivertype v0.49.0
 	github.com/riverqueue/rivercontrib/otelriver v0.12.0
+	github.com/robfig/cron/v3 v3.0.1
 	github.com/spf13/cobra v1.10.2
 	github.com/yuin/goldmark v1.8.6
 	go.opentelemetry.io/contrib/bridges/otelslog v0.21.0
@@ -60,7 +61,6 @@ require (
 	github.com/prometheus/procfs v0.22.0 // indirect
 	github.com/riverqueue/river/riverdriver v0.49.0 // indirect
 	github.com/riverqueue/river/rivershared v0.49.0 // indirect
-	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/rogpeppe/go-internal v1.16.0 // indirect
 	github.com/segmentio/asm v1.2.1 // indirect
 	github.com/segmentio/encoding v0.5.4 // indirect
