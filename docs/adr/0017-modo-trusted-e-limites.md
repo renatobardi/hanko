@@ -36,3 +36,6 @@ O modo `authenticated` (ADR-0007, ADR-0014) está implementado: UI exige sessão
 e `/mcp` exige run token ou API key. Nele, **agentes locais que omitiam o token passam a receber 401** e o ator `human` deixa de ser
 o padrão do loopback: o ator humano é sempre um usuário identificado. Ligue-o (docs/RUNBOOK.md §5) para remover o limite principal deste ADR;
 os demais limites (sistema de arquivos e rede do host) continuam valendo e a recomendação de isolar agentes se mantém.
+
+## Decisão 2026-10-14 (dono)
+`HANKO_MODE=authenticated` sempre — inclusive em dev local. É o padrão da config, do `.env.example` e do compose. `trusted` só por escolha explícita, para teste descartável, e o boot emite aviso. Provider padrão do deploy: `firebase` (projeto `oute-sso`).

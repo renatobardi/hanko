@@ -16,7 +16,7 @@ services:
       HANKO_DATABASE_URL: postgres://${POSTGRES_USER:-hanko}:${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-hanko}?sslmode=disable
       HANKO_ADDR: 0.0.0.0:7420
       HANKO_PUBLIC_URL: ${HANKO_PUBLIC_URL:-http://hanko:7420}
-      HANKO_MODE: ${HANKO_MODE:-trusted}
+      HANKO_MODE: ${HANKO_MODE:-authenticated}
       # Hosts aceitos no cabeçalho Host (anti DNS rebinding), além de localhost e do host de HANKO_PUBLIC_URL.
       HANKO_ALLOWED_HOSTS: ${HANKO_ALLOWED_HOSTS:-hanko,${HANKO_DOMAIN:-hanko.oute.pro}}
       HANKO_WORKSPACES_ROOT: ${HANKO_WORKSPACES_ROOT:-}

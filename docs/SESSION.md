@@ -21,26 +21,28 @@ Revisões independentes acharam 37 problemas reais (vários críticos: token nã
 - Login real com Google/Firebase (validado com JWKS falso).
 - `go mod tidy`/`go mod verify` contra o proxy oficial (aqui foi espelho local montado do GitHub).
 
-## Teste em 5 minutos (no Mac)
+## Teste em 5 minutos (no Mac) — modo authenticated (padrão)
 ```bash
 cd ~/Projects/Github/Hanko
 go mod download && go build -o bin/hanko ./cmd/hanko && go test ./...
 docker run -d --name hanko-pg -e POSTGRES_HOST_AUTH_METHOD=trust -p 127.0.0.1:5432:5432 postgres:17
 export HANKO_DATABASE_URL="postgres://postgres@127.0.0.1:5432/postgres?sslmode=disable" HANKO_SECRET=$(openssl rand -hex 32)
-./bin/hanko serve &            # http://127.0.0.1:7420
+HANKO_OWNER_PASSWORD='troque-esta-senha' ./bin/hanko auth create-owner --email renatobardicabral@gmail.com --name "Renato Bardi"
+export HANKO_TOKEN=$(./bin/hanko auth token create --name mac | grep -oE 'hk_[A-Za-z0-9_-]+')
+./bin/hanko serve &            # http://127.0.0.1:7420 → /entrar com o e-mail e a senha acima
 ./bin/hanko company create "Oute Lab" && export HANKO_COMPANY=oute-lab
 ./bin/hanko persona hire Ada --agent claude --title CTO
-./bin/hanko persona hire Kenji --agent fake --title Revisor --reports-to ada
 ./bin/hanko task create "Diga olá e descreva o repositório" -p ada
 ./bin/hanko run logs -f $(./bin/hanko run list --json | jq -r '.[0].id')
 ```
+(Login com Google/Firebase: `HANKO_AUTH_PROVIDER=firebase` + variáveis `HANKO_FIREBASE_*` do projeto `oute-sso` — ver RUNBOOK §5.)
 
 ## Decisões pendentes do dono
-1. **ADR-0017:** no modo trusted, um agente local sem token fala com o loopback como humano. Opções: usar `HANKO_MODE=authenticated` (já pronto) mesmo em dev, ou rodar agentes isolados (container/LXC).
-2. **Firebase:** criar o projeto, habilitar Google + e-mail/senha, domínios autorizados e definir `HANKO_AUTH_OWNER_EMAIL` ou listas de admissão (RUNBOOK §5).
-3. **UI:** CSS próprio com tokens Kubo, sem Tailwind — confirmar ou reabrir ADR-0005.
+1. ~~ADR-0017~~ decidido: `authenticated` sempre (padrão da config).
+2. **Firebase** (projeto `oute-sso` criado): falta a `apiKey` do app Web; criar o projeto, habilitar Google + e-mail/senha, domínios autorizados e definir `HANKO_AUTH_OWNER_EMAIL` ou listas de admissão (RUNBOOK §5).
+3. ~~UI~~ decidido: CSS próprio (adendo na ADR-0005).
 4. **Gates do processo:** gravar as demos de M1–M4 e criar as tags `v0.1.0-mN`.
-5. **Autoria dos commits:** estão no seu nome com `Co-Authored-By: Claude`; nada foi enviado ao GitHub.
+5. ~~Autoria~~ decidido: commits no nome do Bardi.
 
 ## Próximo
 Restante do M5: deploy LXC `hanko-stg`/`hanko-prd` (RUNBOOK §3), versão en, `v0.1.0`.

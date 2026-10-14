@@ -115,7 +115,7 @@ type Config struct {
 func Defaults() Config {
 	return Config{
 		Addr:              "127.0.0.1:7420",
-		Mode:              ModeTrusted,
+		Mode:              ModeAuthenticated,
 		MigrateOnBoot:     true,
 		Memory:            Memory{Provider: MemoryAIMemory, URL: "http://127.0.0.1:49374"},
 		Auth:              Auth{Provider: AuthLocal},
@@ -240,6 +240,10 @@ func (c *Config) finalize() error {
 	if c.Mode == ModeAuthenticated && c.Auth.Provider == AuthFirebase && !c.Auth.ListsConfigured() && c.Auth.OwnerEmail == "" {
 		c.Warnings = append(c.Warnings,
 			"auth firebase sem HANKO_AUTH_ALLOWED_EMAILS/HANKO_AUTH_ALLOWED_DOMAINS nem HANKO_AUTH_OWNER_EMAIL (aceito só em loopback): só o primeiro usuário a entrar (dono) é admitido; os demais são recusados")
+	}
+	if c.Mode == ModeTrusted {
+		c.Warnings = append(c.Warnings,
+			"modo trusted: sem login; qualquer processo local (inclusive agentes sem token) age como humano — use só para teste descartável (ADR-0017)")
 	}
 	if c.Mode == ModeTrusted && !c.IsLoopback() {
 		c.Warnings = append(c.Warnings,

@@ -59,6 +59,7 @@ func TestWiringMuxReal(t *testing.T) {
 	tokens := auth.RunTokens{Secret: []byte("0123456789abcdef0123456789abcdef"), TTL: time.Hour}
 
 	cfg := config.Defaults()
+	cfg.Mode = config.ModeTrusted // este teste cobre o modo trusted; o authenticated tem wiring_auth_test.go
 	cfg.PublicURL = "https://hanko.example.test"
 	cfg.AllowedHosts = []string{"extra.test"}
 	cfg.Memory = config.Memory{Provider: config.MemoryAIMemory, URL: "http://127.0.0.1:1", Token: "mem"}

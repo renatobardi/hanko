@@ -31,22 +31,34 @@ func TestLoad(t *testing.T) {
 			name: "defaults",
 			env:  map[string]string{"HANKO_DATABASE_URL": db},
 			check: func(t *testing.T, c Config) {
-				if c.Addr != "127.0.0.1:7420" || c.PublicURL != "http://127.0.0.1:7420" || c.Mode != "trusted" ||
+				if c.Addr != "127.0.0.1:7420" || c.PublicURL != "http://127.0.0.1:7420" || c.Mode != "authenticated" ||
 					!c.MigrateOnBoot || c.Memory.Provider != "ai-memory" || c.Memory.URL != "http://127.0.0.1:49374" ||
 					c.Workers != 4 || c.RunTimeout != 30*time.Minute || c.HeartbeatInterval != time.Minute ||
 					c.LogLevel != "info" || c.LogFormat != "json" {
 					t.Fatalf("defaults inesperados: %+v", c)
 				}
+			},
+		},
+		{
+			name: "trusted explícito gera secret e avisa",
+			env:  map[string]string{"HANKO_DATABASE_URL": db, "HANKO_MODE": "trusted"},
+			check: func(t *testing.T, c Config) {
 				if !c.SecretGenerated || len(c.Secret) < 32 {
 					t.Fatalf("secret deveria ser gerado: %+v", c)
 				}
-				if !hasWarn(c, "HANKO_SECRET") {
-					t.Fatalf("faltou aviso de secret: %v", c.Warnings)
+				if !hasWarn(c, "HANKO_SECRET") || !hasWarn(c, "modo trusted") {
+					t.Fatalf("faltaram avisos: %v", c.Warnings)
 				}
 			},
 		},
 		{
+			name:    "authenticated sem secret falha",
+			env:     map[string]string{"HANKO_DATABASE_URL": db, "HANKO_SECRET": ""},
+			wantErr: "HANKO_SECRET",
+		},
+		{
 			name:    "sem database url",
+			env:     map[string]string{},
 			wantErr: "HANKO_DATABASE_URL é obrigatório",
 		},
 		{
@@ -69,7 +81,7 @@ secret: 0123456789abcdef0123456789abcdef
 		},
 		{
 			name:  "hanko.yaml padrão",
-			files: map[string]string{"hanko.yaml": "database_url: " + db + "\naddr: 0.0.0.0:8080\n"},
+			files: map[string]string{"hanko.yaml": "database_url: " + db + "\naddr: 0.0.0.0:8080\nmode: trusted\n"},
 			check: func(t *testing.T, c Config) {
 				if c.Addr != "0.0.0.0:8080" || c.PublicURL != "http://0.0.0.0:8080" {
 					t.Fatalf("%+v", c)
@@ -321,6 +333,15 @@ secret: 0123456789abcdef0123456789abcdef
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			// Padrão é authenticated (ADR-0017): casos que não tratam de modo/segredo recebem um segredo válido.
+			if tc.env == nil {
+				tc.env = map[string]string{}
+			}
+			if _, ok := tc.env["HANKO_MODE"]; !ok {
+				if _, ok := tc.env["HANKO_SECRET"]; !ok {
+					tc.env["HANKO_SECRET"] = "0123456789abcdef0123456789abcdef"
+				}
+			}
 			c, err := LoadFrom(envMap(tc.env), files(tc.files))
 			if tc.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {

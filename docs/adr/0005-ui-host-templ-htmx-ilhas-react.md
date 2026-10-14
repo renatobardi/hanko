@@ -9,3 +9,6 @@ Host templ + htmx 2 (+sse) + Alpine + Tailwind standalone CLI. Ilhas React bundl
 
 ## Consequências
 Visual utilitário no v0.1. Node volta só como ferramenta de build. Checkpoint pós-M2 (ROADMAP).
+
+## Adendo 2026-10-14 — CSS próprio (decisão do dono)
+O host usa CSS próprio (`internal/ui/static/hanko.css`) com os tokens do Kubo DS em CSS vars, sem Tailwind. Mantido por decisão do Bardi: zero ferramenta de build para estilo, fidelidade direta ao DS, tema claro/escuro por tokens. Ilhas React (v0.2+) consomem as mesmas vars.
