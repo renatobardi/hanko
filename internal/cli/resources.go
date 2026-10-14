@@ -267,7 +267,10 @@ func (e *env) personaCmd() *cobra.Command {
 			e.kv([2]string{"Persona", fmt.Sprintf("%s (%s)", p.Name, p.Slug)}, [2]string{"ID", p.ID},
 				[2]string{"Cargo", dash(p.Title)}, [2]string{"Agente", p.Agent}, [2]string{"Modelo", dash(p.Model)},
 				[2]string{"Status", p.Status}, [2]string{"Heartbeat", heartbeat(p.HeartbeatIntervalSec)},
-				[2]string{"Contratada em", fmtTime(p.CreatedAt)})
+				[2]string{"Orçamento", budgetValue(p.BudgetMonthlyCents)}, [2]string{"Contratada em", fmtTime(p.CreatedAt)})
+			if p.PauseReason != "" {
+				e.kv([2]string{"Pausada porque", p.PauseReason})
+			}
 			if p.Instructions != "" {
 				fmt.Fprintf(e.out, "\nInstruções:\n%s\n", strings.TrimSpace(p.Instructions))
 			}

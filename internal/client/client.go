@@ -267,6 +267,52 @@ func (r RunQuery) values() url.Values {
 	return q
 }
 
+// UpdateCompanyReq muda o orçamento da empresa.
+type UpdateCompanyReq struct {
+	BudgetMonthlyCents *int64 `json:"budget_monthly_cents,omitempty"`
+	ClearBudget        bool   `json:"clear_budget,omitempty"`
+}
+
+// UpdatePersonaReq muda o orçamento de uma persona.
+type UpdatePersonaReq struct {
+	BudgetMonthlyCents *int64 `json:"budget_monthly_cents,omitempty"`
+	ClearBudget        bool   `json:"clear_budget,omitempty"`
+}
+
+// CostQuery são os parâmetros de Costs.
+type CostQuery struct {
+	From, To, GroupBy string
+}
+
+func (c CostQuery) values() url.Values {
+	q := url.Values{}
+	for k, v := range map[string]string{"from": c.From, "to": c.To, "group_by": c.GroupBy} {
+		if v != "" {
+			q.Set(k, v)
+		}
+	}
+	return q
+}
+
+type CreateFlowReq struct {
+	Name            string `json:"name"`
+	Slug            string `json:"slug,omitempty"`
+	Description     string `json:"description,omitempty"`
+	Cron            string `json:"cron"`
+	Timezone        string `json:"timezone,omitempty"`
+	Enabled         *bool  `json:"enabled,omitempty"`
+	Persona         string `json:"persona"`
+	Project         string `json:"project,omitempty"`
+	Priority        string `json:"priority,omitempty"`
+	TaskTitle       string `json:"task_title,omitempty"`
+	TaskDescription string `json:"task_description,omitempty"`
+}
+
+type UpdateFlowReq struct {
+	Enabled *bool   `json:"enabled,omitempty"`
+	Cron    *string `json:"cron,omitempty"`
+}
+
 // ---------- operações ----------
 
 func (c *Client) CreateCompany(ctx context.Context, in CreateCompanyReq) (api.Company, error) {
@@ -303,6 +349,44 @@ func (c *Client) Personas(ctx context.Context, company string) ([]api.Persona, e
 
 func (c *Client) Persona(ctx context.Context, company, ref string) (api.Persona, error) {
 	return get[api.Persona](c, ctx, http.MethodGet, cp(company)+"/personas/"+url.PathEscape(ref), nil)
+}
+
+func (c *Client) UpdatePersona(ctx context.Context, company, ref string, in UpdatePersonaReq) (api.Persona, error) {
+	return get[api.Persona](c, ctx, http.MethodPatch, cp(company)+"/personas/"+url.PathEscape(ref), in)
+}
+
+func (c *Client) UpdateCompany(ctx context.Context, company string, in UpdateCompanyReq) (api.Company, error) {
+	return get[api.Company](c, ctx, http.MethodPatch, cp(company), in)
+}
+
+func (c *Client) Costs(ctx context.Context, company string, q CostQuery) (api.CostSummary, error) {
+	var out api.CostSummary
+	err := c.do(ctx, http.MethodGet, cp(company)+"/costs", q.values(), nil, &out)
+	return out, err
+}
+
+func (c *Client) CreateFlow(ctx context.Context, company string, in CreateFlowReq) (api.Flow, error) {
+	return get[api.Flow](c, ctx, http.MethodPost, cp(company)+"/flows", in)
+}
+
+func (c *Client) Flows(ctx context.Context, company string) ([]api.Flow, error) {
+	return list[api.Flow](c, ctx, cp(company)+"/flows", url.Values{"limit": {"500"}})
+}
+
+func (c *Client) Flow(ctx context.Context, company, ref string) (api.Flow, error) {
+	return get[api.Flow](c, ctx, http.MethodGet, cp(company)+"/flows/"+url.PathEscape(ref), nil)
+}
+
+func (c *Client) UpdateFlow(ctx context.Context, company, ref string, in UpdateFlowReq) (api.Flow, error) {
+	return get[api.Flow](c, ctx, http.MethodPatch, cp(company)+"/flows/"+url.PathEscape(ref), in)
+}
+
+func (c *Client) RunFlow(ctx context.Context, company, ref string) (api.FlowRun, error) {
+	return get[api.FlowRun](c, ctx, http.MethodPost, cp(company)+"/flows/"+url.PathEscape(ref)+"/run", nil)
+}
+
+func (c *Client) FlowFires(ctx context.Context, company, ref string) ([]api.FlowFire, error) {
+	return list[api.FlowFire](c, ctx, cp(company)+"/flows/"+url.PathEscape(ref)+"/fires", url.Values{"limit": {"30"}})
 }
 
 func (c *Client) CreateTask(ctx context.Context, company string, in CreateTaskReq) (api.Task, error) {

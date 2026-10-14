@@ -119,7 +119,8 @@ func (e *env) root() *cobra.Command {
 	f.BoolVar(&e.asJSON, "json", false, "saída em JSON")
 
 	root.AddCommand(e.serveCmd(), e.migrateCmd(), e.versionCmd(), e.openapiCmd(),
-		e.companyCmd(), e.workspaceCmd(), e.projectCmd(), e.personaCmd(), e.taskCmd(), e.runCmd())
+		e.companyCmd(), e.workspaceCmd(), e.projectCmd(), e.personaCmd(), e.taskCmd(), e.runCmd(),
+		e.costCmd(), e.budgetCmd(), e.flowCmd())
 	return root
 }
 
