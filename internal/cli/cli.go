@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"text/tabwriter"
 	"time"
 
@@ -76,11 +77,24 @@ func run(ctx context.Context, version string, rt Runtime, args []string, in io.R
 	}
 	fmt.Fprintln(errOut, "erro:", err)
 	var ue usageError
-	if errors.As(err, &ue) {
+	if errors.As(err, &ue) || isCobraUsageError(err) {
 		fmt.Fprintf(errOut, "Use '%s --help' para ver as opções.\n", root.Name())
 		return exitUsage
 	}
 	return exitError
+}
+
+// isCobraUsageError reconhece erros de uso gerados pelo próprio cobra (flags
+// obrigatórias, comando desconhecido, número de argumentos).
+func isCobraUsageError(err error) bool {
+	msg := err.Error()
+	for _, p := range []string{"required flag", "unknown command", "unknown flag", "unknown shorthand", "accepts ", "requires at least",
+		"invalid argument", "flag needs an argument"} {
+		if strings.HasPrefix(msg, p) {
+			return true
+		}
+	}
+	return false
 }
 
 func (e *env) root() *cobra.Command {
