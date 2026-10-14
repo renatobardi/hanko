@@ -36,6 +36,11 @@ func (s *server) handleDashboard(w http.ResponseWriter, r *http.Request, co doma
 		s.fail(w, r, &co, err)
 		return
 	}
+	pending, err := s.be.ListGates(ctx, co.ID, service.GateFilter{Statuses: []domain.GateStatus{domain.GatePending}, Limit: 5})
+	if err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
 	loc := loadLoc(co.Timezone)
 	now := s.now()
 	base := "/c/" + co.Slug
@@ -48,6 +53,8 @@ func (s *server) handleDashboard(w http.ResponseWriter, r *http.Request, co doma
 		PendingGates:    stats.PendingGates,
 		HasPersonas:     len(personas) > 0,
 		OpenTasks:       stats.OpenTasks,
+		Gates:           gateRows(pending, base, now, loc, names),
+		Notice:          gateNotices[r.URL.Query().Get("ok")],
 	}
 	switch {
 	case stats.RunningRuns == 1:

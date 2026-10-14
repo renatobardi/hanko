@@ -1,0 +1,279 @@
+package views
+
+import "fmt"
+
+// GateDecideForm answers a pending gate. compact (inbox, dashboard) has no note field and
+// no "Pedir mudanças" (that one needs a note). next says where to go afterwards.
+templ GateDecideForm(g GateRow, next string, compact bool) {
+	<form
+		class={ "gate-decide", templ.KV("compact", compact) }
+		method="post"
+		action={ templ.SafeURL(g.DecideHref) }
+		hx-post={ g.DecideHref }
+		hx-swap="none"
+	>
+		<input type="hidden" name="next" value={ next }/>
+		if !compact {
+			<textarea class="textarea" name="note" rows="3" aria-label="Nota da decisão" placeholder="Nota para a persona e para o registro (obrigatória ao pedir mudanças). Markdown."></textarea>
+		}
+		<div class="gate-actions">
+			if compact {
+				<a class="btn ghost sm" href={ templ.SafeURL(g.Href) }>Abrir</a>
+			}
+			if !compact {
+				<button class="btn outline sm" type="submit" name="decision" value="changes_requested">Pedir mudanças</button>
+			}
+			<button class="btn outline sm" type="submit" name="decision" value="rejected">Rejeitar</button>
+			<button class="btn primary sm" type="submit" name="decision" value="approved">@Icon("check") Aprovar</button>
+		</div>
+	</form>
+}
+
+// GateBanner is the amber notice on a task that waits for a human decision.
+templ GateBanner(g GateRow) {
+	<section class="gate-banner" aria-label="Decisão pendente">
+		<div class="gate-head">
+			@Icon("shield")
+			<b>Gate pendente</b>
+			<span class="badge warn">{ g.KindLabel }</span>
+			<span class="gate-when">
+				if g.Persona != "" {
+					pedido por { g.Persona } ·
+				}
+				{ g.Created }
+			</span>
+		</div>
+		<h3><a href={ templ.SafeURL(g.Href) }>{ g.Title }</a></h3>
+		if g.Excerpt != "" {
+			<p class="gate-excerpt">{ g.Excerpt }</p>
+		}
+		@GateDecideForm(g, "task", false)
+	</section>
+}
+
+templ GateRows(rows []GateRow, empty string) {
+	if len(rows) == 0 {
+		@EmptyCard("shield", "Nenhum gate aqui.", empty, true)
+	} else {
+		<div class="table-wrap">
+			<table class="table">
+				<thead>
+					<tr>
+						<th>Gate</th>
+						<th class="hide-sm">Pedido por</th>
+						<th class="hide-sm">Task</th>
+						<th>Status</th>
+						<th class="num hide-sm">Quando</th>
+					</tr>
+				</thead>
+				<tbody>
+					for _, r := range rows {
+						<tr class="row">
+							<td class="ttl">
+								<a href={ templ.SafeURL(r.Href) }>{ r.Title }</a>
+								<div class="sub-line">{ r.KindLabel } · <span class="mono">{ r.Short }</span></div>
+							</td>
+							<td class="hide-sm">
+								if r.Persona != "" {
+									@PersonaChip(r.Persona)
+								} else {
+									<span class="faint">—</span>
+								}
+							</td>
+							<td class="hide-sm">
+								if r.TaskKey != "" {
+									<a class="mono" style="font-size:12.5px;text-decoration:underline;text-underline-offset:2px" href={ templ.SafeURL(r.TaskHref) }>{ r.TaskKey }</a>
+								} else {
+									<span class="faint">—</span>
+								}
+							</td>
+							<td>@BadgeEl(r.Badge)</td>
+							<td class="when hide-sm">
+								if r.Pending {
+									{ r.Created }
+								} else {
+									{ r.Decided }
+								}
+							</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+	}
+}
+
+templ GatesPage(sh Shell, vm GatesVM) {
+	@Layout(sh) {
+		@PageHead("Gates", vm.Subtitle) {
+		}
+		if vm.Notice != "" {
+			@Alert("warn", vm.Notice)
+		}
+		<div class="toolbar">
+			@Tabs(vm.Status)
+			<span class="grow"></span>
+			@Tabs(vm.Kinds)
+		</div>
+		@GateRows(vm.Rows, vm.Empty)
+	}
+}
+
+templ GatePage(sh Shell, vm GateVM) {
+	@Layout(sh) {
+		<div class="detail">
+			<div class="detail-main">
+				<div class="eyebrow">
+					<span class="mono">{ vm.Row.Short }</span>
+					<span>·</span>
+					<span>{ vm.Row.KindLabel }</span>
+					<span>·</span>
+					<span>pedido { vm.Created }</span>
+				</div>
+				<h1>{ vm.Row.Title }</h1>
+				<div class="chips" style="margin-top:2px">
+					@BadgeEl(vm.Row.Badge)
+					if vm.Row.Persona != "" {
+						<a class="chip" href={ templ.SafeURL(vm.Row.PersonaHref) }>@Icon("bot")<span>{ vm.Row.Persona }</span></a>
+					}
+					if vm.Row.TaskKey != "" {
+						<a class="chip" href={ templ.SafeURL(vm.Row.TaskHref) }><span class="mono">{ vm.Row.TaskKey }</span></a>
+					}
+				</div>
+				if vm.Notice != "" {
+					<div style="margin-top:16px">@Alert("warn", vm.Notice)</div>
+				}
+				<div class="brief" style="margin-top:20px">
+					<div class="side-h">Pedido</div>
+					if vm.HasBody {
+						<div class="md">@templ.Raw(string(vm.Body))</div>
+					} else {
+						<p class="muted">Sem detalhes além do título.</p>
+					}
+				</div>
+				if vm.Row.Pending {
+					<section class="gate-banner" style="margin-top:24px" aria-label="Decidir">
+						<div class="gate-head">@Icon("shield") <b>Sua decisão</b> <span class="gate-when">a persona fica parada até você responder</span></div>
+						@GateDecideForm(vm.Row, "gate", false)
+					</section>
+				} else {
+					<section class="card pad" style="margin-top:24px">
+						<div class="card-head"><h2>Decisão</h2></div>
+						<p>
+							@BadgeEl(vm.Row.Badge)
+							<span class="muted"> por { vm.Row.DecidedBy } · { vm.Decided }</span>
+						</p>
+						if vm.Row.Note != "" {
+							<blockquote class="gate-note">{ vm.Row.Note }</blockquote>
+						} else {
+							<p class="muted" style="margin-top:8px">Sem nota.</p>
+						}
+					</section>
+				}
+			</div>
+			<aside class="detail-side">
+				<div class="side-sec">
+					<div class="side-h">Propriedades</div>
+					<div class="props">
+						<div class="prop"><span>Tipo</span><span>{ vm.Row.KindLabel }</span></div>
+						<div class="prop"><span>Status</span><span>@BadgeEl(vm.Row.Badge)</span></div>
+						<div class="prop"><span>Task</span><span>
+							if vm.Row.TaskKey != "" {
+								<a class="mono" style="font-size:12.5px;text-decoration:underline;text-underline-offset:2px" href={ templ.SafeURL(vm.Row.TaskHref) }>{ vm.Row.TaskKey }</a>
+							} else {
+								<span class="faint">—</span>
+							}
+						</span></div>
+						<div class="prop"><span>Execução</span><span>
+							if vm.RunHref != "" {
+								<a class="mono" style="font-size:12.5px;text-decoration:underline;text-underline-offset:2px" href={ templ.SafeURL(vm.RunHref) }>{ vm.RunShort }</a>
+							} else {
+								<span class="faint">—</span>
+							}
+						</span></div>
+						<div class="prop"><span>Pedido em</span><span class="mono" style="font-size:12.5px">{ vm.Created }</span></div>
+						if !vm.Row.Pending {
+							<div class="prop"><span>Decidido em</span><span class="mono" style="font-size:12.5px">{ vm.Decided }</span></div>
+						}
+					</div>
+				</div>
+				<div class="side-sec">
+					<div class="side-h">O que acontece</div>
+					<p class="muted" style="font-size:13px">Aprovar ou pedir mudanças devolve a task a Em andamento; rejeitar a devolve a A fazer com a sua nota. Em todos os casos a persona é acordada e a decisão vira memória da empresa.</p>
+				</div>
+			</aside>
+		</div>
+	}
+}
+
+templ DecisionsPage(sh Shell, vm DecisionsVM) {
+	@Layout(sh) {
+		@PageHead("Decisões", vm.Subtitle) {
+			<a class="btn outline" href={ templ.SafeURL(sh.Base() + "/gates") }>@Icon("shield") Ver gates</a>
+		}
+		<div class="toolbar">
+			@Tabs(vm.Tabs)
+		</div>
+		if len(vm.Rows) == 0 {
+			@EmptyCard("circle-check", "Nenhuma decisão ainda.", "Cada gate que você aprovar, rejeitar ou devolver com mudanças fica aqui, com a sua nota.", true)
+		} else {
+			<div class="dec-list">
+				for _, r := range vm.Rows {
+					<article class="dec-card">
+						<div class="dec-top">
+							@BadgeEl(r.Badge)
+							<span class="chip soft">{ r.KindLabel }</span>
+							<span class="dec-when">{ r.DecidedBy } · { r.Decided }</span>
+						</div>
+						<h3><a href={ templ.SafeURL(r.Href) }>{ r.Title }</a></h3>
+						<div class="dec-meta">
+							if r.Persona != "" {
+								<span>pedido por { r.Persona }</span>
+							}
+							if r.TaskKey != "" {
+								<a class="mono" href={ templ.SafeURL(r.TaskHref) }>{ r.TaskKey }</a>
+							}
+						</div>
+						if r.Note != "" {
+							<blockquote class="gate-note">{ r.Note }</blockquote>
+						}
+					</article>
+				}
+			</div>
+		}
+	}
+}
+
+// PendingGatesCard is the "Decisões pendentes" block of the Painel.
+templ PendingGatesCard(rows []GateRow, base string) {
+	<section class="card pad gate-card">
+		<div class="card-head">
+			<div>
+				<h2>Decisões pendentes</h2>
+				<p class="sub">{ fmt.Sprint(len(rows)) } esperando por você · as personas ficam paradas até a resposta</p>
+			</div>
+			<a class="more" href={ templ.SafeURL(base + "/gates") }>Ver todos</a>
+		</div>
+		<div class="gate-mini-list">
+			for _, g := range rows {
+				<div class="gate-mini">
+					<span class="mini-avatar gate">@Icon("shield")</span>
+					<div class="gm-main">
+						<a class="gm-t" href={ templ.SafeURL(g.Href) }>{ g.Title }</a>
+						<div class="gm-s">
+							<span class="badge warn">{ g.KindLabel }</span>
+							if g.TaskKey != "" {
+								<span class="mono">{ g.TaskKey }</span>
+							}
+							if g.Persona != "" {
+								<span>{ g.Persona }</span>
+							}
+							<span>{ g.Created }</span>
+						</div>
+					</div>
+					@GateDecideForm(g, "painel", true)
+				</div>
+			}
+		</div>
+	</section>
+}

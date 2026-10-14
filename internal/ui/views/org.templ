@@ -1,0 +1,44 @@
+package views
+
+import "fmt"
+
+templ OrgPage(sh Shell, vm OrgVM) {
+	@Layout(sh) {
+		@PageHead("Organograma", vm.Subtitle) {
+			<a class="btn outline" href={ templ.SafeURL(sh.Base() + "/personas") }>@Icon("bot") Personas</a>
+			<a class="btn primary" href={ templ.SafeURL(vm.HireHref) }>@Icon("plus") Contratar persona</a>
+		}
+		if vm.Total == 0 {
+			@EmptyCard("network", "Nenhuma persona ainda.", "Contrate a primeira; quem reporta a quem aparece aqui, e a delegação de tasks segue essa árvore.", true) {
+				<a class="btn outline" href={ templ.SafeURL(vm.HireHref) }>@Icon("plus") Contratar persona</a>
+			}
+		} else {
+			<div class="org-scroll">
+				<svg
+					class="org-svg"
+					viewBox={ fmt.Sprintf("0 0 %d %d", vm.Width, vm.Height) }
+					width={ fmt.Sprint(vm.Width) }
+					height={ fmt.Sprint(vm.Height) }
+					role="group"
+					aria-label="Organograma das personas"
+				>
+					for _, e := range vm.Edges {
+						<path class="org-edge" d={ e.D }></path>
+					}
+					for _, n := range vm.Nodes {
+						<a class={ "org-node", "st-" + n.StatusClass, templ.KV("gate", n.Gate) } href={ templ.SafeURL(n.Href) } aria-label={ n.Label }>
+							<rect x={ fmt.Sprint(n.X) } y={ fmt.Sprint(n.Y) } width={ fmt.Sprint(n.W) } height={ fmt.Sprint(n.H) } rx="12"></rect>
+							<circle class="org-av" cx={ fmt.Sprint(n.X + 26) } cy={ fmt.Sprint(n.Y + 28) } r="14"></circle>
+							<text class="org-ini" x={ fmt.Sprint(n.X + 26) } y={ fmt.Sprint(n.Y + 32) } text-anchor="middle">{ n.Initials }</text>
+							<text class="org-name" x={ fmt.Sprint(n.X + 50) } y={ fmt.Sprint(n.Y + 25) }>{ n.Name }</text>
+							<text class="org-title" x={ fmt.Sprint(n.X + 50) } y={ fmt.Sprint(n.Y + 42) }>{ n.Title }</text>
+							<circle class="org-dot" cx={ fmt.Sprint(n.X + 16) } cy={ fmt.Sprint(n.Y + 64) } r="3.5"></circle>
+							<text class="org-meta" x={ fmt.Sprint(n.X + 26) } y={ fmt.Sprint(n.Y + 68) }>{ n.Status }{ n.Meta }</text>
+						</a>
+					}
+				</svg>
+			</div>
+			<p class="muted org-note">A delegação segue a árvore: uma persona só cria ou atribui tasks para si e para quem reporta a ela, direta ou indiretamente. Quem decide é sempre um humano. Clique numa persona para abrir ou editar quem ela reporta.</p>
+		}
+	}
+}

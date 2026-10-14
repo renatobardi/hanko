@@ -54,6 +54,9 @@ templ TaskPage(sh Shell, vm TaskVM, base string) {
 				if vm.Error != "" {
 					<div style="margin-top:16px">@Alert("danger", vm.Error)</div>
 				}
+				for _, g := range vm.Gates {
+					@GateBanner(g)
+				}
 				<div class="brief" style="margin-top:20px">
 					<div class="side-h">Pedido</div>
 					if vm.HasDescription {

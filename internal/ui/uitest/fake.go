@@ -32,6 +32,7 @@ type Fake struct {
 	Events    map[domain.ID][]domain.RunEvent
 	Activity  []domain.ActivityEvent
 	Health    map[domain.ID]service.PersonaHealth
+	Gates     []service.GateView
 	Calls     []string // names of mutating calls, in order
 	nextTask  int64
 }
@@ -155,7 +156,8 @@ func (f *Fake) HirePersona(_ context.Context, _ domain.Actor, companyID domain.I
 		}
 	}
 	p := domain.Persona{ID: domain.NewID(), CompanyID: companyID, Slug: in.Slug, Name: in.Name, Title: in.Title, Instructions: in.Instructions,
-		Agent: in.Agent, Model: in.Model, Status: domain.PersonaIdle, HeartbeatIntervalSec: in.HeartbeatIntervalSec, CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
+		Agent: in.Agent, Model: in.Model, Status: domain.PersonaIdle, HeartbeatIntervalSec: in.HeartbeatIntervalSec, ReportsTo: in.ReportsTo, RequireReview: in.RequireReview,
+		CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
 	f.Personas = append(f.Personas, p)
 	return p, nil
 }
@@ -208,6 +210,19 @@ func (f *Fake) UpdatePersona(_ context.Context, _ domain.Actor, _, personaID dom
 				delete(f.Health, p.ID) // a status change by the user resets the failure counter
 			}
 			p.Status = *in.Status
+		}
+		switch {
+		case in.ClearReportsTo:
+			p.ReportsTo = nil
+		case in.ReportsTo != nil:
+			if *in.ReportsTo == p.ID || f.descendant(p.ID, *in.ReportsTo) {
+				return domain.Persona{}, domain.Invalid("reports_to", "would create a cycle in the chart")
+			}
+			id := *in.ReportsTo
+			p.ReportsTo = &id
+		}
+		if in.RequireReview != nil {
+			p.RequireReview = *in.RequireReview
 		}
 		f.Personas[i] = p
 		return p, nil
@@ -483,6 +498,11 @@ func (f *Fake) Dashboard(context.Context, domain.ID) (service.DashboardStats, er
 		}
 		if t.Status.Open() {
 			st.OpenTasks++
+		}
+	}
+	for _, g := range f.Gates {
+		if g.Status == domain.GatePending {
+			st.PendingGates++
 		}
 	}
 	for _, r := range f.Runs {

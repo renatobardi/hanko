@@ -8,12 +8,18 @@ templ DashboardPage(sh Shell, vm DashboardVM) {
 			<a class="btn outline" href={ templ.SafeURL(sh.Base() + "/execucoes") }>@Icon("play") Ver ao vivo</a>
 			<a class="btn primary" href={ templ.SafeURL(sh.Base() + "/tasks/nova") }>@Icon("plus") Nova task</a>
 		}
+		if vm.Notice != "" {
+			@Alert("warn", vm.Notice)
+		}
 		<div class="kpis">
 			@Kpi("bot", fmt.Sprint(vm.ActivePersonas), "Personas ativas", false)
 			@Kpi("activity", fmt.Sprint(vm.TasksInProgress), "Tasks em andamento", false)
 			@Kpi("database", vm.MonthCost, "Gasto do mês", false)
 			@Kpi("shield", fmt.Sprint(vm.PendingGates), "Gates pendentes", vm.PendingGates > 0)
 		</div>
+		if len(vm.Gates) > 0 {
+			<div style="margin-bottom:20px">@PendingGatesCard(vm.Gates, sh.Base())</div>
+		}
 		<div class="grid-dash">
 			if !vm.HasPersonas {
 				@EmptyCard("bot", "Você ainda não tem personas.", "Contrate a primeira e defina o intervalo de verificação. A partir daí, toda task atribuída começa a rodar sozinha.", true) {

@@ -22,9 +22,9 @@ var Nav = []NavGroup{
 	{Items: []NavItem{
 		{Key: "buscar", Label: "Buscar", Icon: "search", Milestone: "M3", Blurb: "Busca em tasks, personas, execuções e na memória da empresa."},
 		{Key: "painel", Label: "Painel", Icon: "layout-grid"},
-		{Key: "caixa", Label: "Caixa de entrada", Icon: "mail", Milestone: "M3", Blurb: "Gates, bloqueios e alertas que esperam por você."},
+		{Key: "caixa", Label: "Caixa de entrada", Icon: "mail", Path: "/caixa"},
 		{Key: "chat", Label: "Chat", Icon: "message-square", Milestone: "v0.2", Blurb: "Conversa direta com uma persona, fora de uma task."},
-		{Key: "decisoes", Label: "Decisões", Icon: "circle-check", Milestone: "M3", Blurb: "Histórico de gates decididos, com trilha de auditoria."},
+		{Key: "decisoes", Label: "Decisões", Icon: "circle-check", Path: "/decisoes"},
 	}},
 	{Label: "Trabalho", Items: []NavItem{
 		{Key: "tasks", Label: "Tasks", Icon: "list", Path: "/tasks"},
@@ -36,10 +36,10 @@ var Nav = []NavGroup{
 	}},
 	{Label: "Organização", Items: []NavItem{
 		{Key: "personas", Label: "Personas", Icon: "bot", Path: "/personas"},
-		{Key: "organograma", Label: "Organograma", Icon: "network", Milestone: "M3", Blurb: "Quem reporta a quem; a delegação segue a árvore."},
+		{Key: "organograma", Label: "Organograma", Icon: "network", Path: "/organograma"},
 		{Key: "skills", Label: "Skills", Icon: "sparkles", Milestone: "v0.2", Blurb: "Habilidades reutilizáveis habilitadas por persona."},
 		{Key: "integracoes", Label: "Integrações", Icon: "link", Milestone: "v0.2", Blurb: "Serviços externos conectados à empresa."},
-		{Key: "gates", Label: "Gates", Icon: "shield", Milestone: "M3", Blurb: "Pontos em que um humano decide: aprovar, recusar ou pedir mudança."},
+		{Key: "gates", Label: "Gates", Icon: "shield", Path: "/gates"},
 	}},
 	{Label: "Supervisão", Items: []NavItem{
 		{Key: "execucoes", Label: "Execuções", Icon: "activity", Path: "/execucoes"},

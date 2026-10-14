@@ -140,6 +140,14 @@ func (s *server) activityItem(a domain.ActivityEvent, base string, names lookup,
 		it.Subject, it.Href = "execução "+shortID(a.SubjectID), base+"/execucoes/"+a.SubjectID.String()
 	case "company":
 		it.Subject = str("name")
+	case "gate":
+		it.Subject, it.Href = str("title"), base+"/gates/"+a.SubjectID.String()
+		if it.Subject == "" {
+			it.Subject = "gate " + shortID(a.SubjectID)
+		}
+		if d := str("decision"); d != "" {
+			it.Text = "decidiu (" + decisionWord(d) + ")"
+		}
 	default:
 		it.Subject = str("name", "title")
 	}
@@ -154,15 +162,27 @@ func verbTail(v string) string {
 	if pt, ok := map[string]string{
 		"created": "criada", "updated": "atualizada", "assigned": "atribuída", "status_changed": "status",
 		"closed": "encerrada", "added": "adicionado", "hired": "contratada", "queued": "na fila",
-		"started": "iniciada", "finished": "concluída", "cancelled": "cancelada",
+		"started": "iniciada", "finished": "concluída", "cancelled": "cancelada", "requested": "pedido", "decided": "decidido",
 	}[tail]; ok {
 		return pt
 	}
 	return tail
 }
 
+func decisionWord(d string) string {
+	switch d {
+	case "approved":
+		return "aprovado"
+	case "rejected":
+		return "rejeitado"
+	case "changes_requested":
+		return "mudanças pedidas"
+	}
+	return d
+}
+
 func subjectLabel(t string) string {
-	if pt, ok := map[string]string{"comment": "comentário", "run": "execução", "project": "projeto", "company": "empresa"}[t]; ok {
+	if pt, ok := map[string]string{"comment": "comentário", "run": "execução", "project": "projeto", "company": "empresa", "gate": "gate"}[t]; ok {
 		return pt
 	}
 	return t
@@ -200,6 +220,10 @@ func verbPhrase(v string) string {
 		return "concluiu a"
 	case "run.cancelled":
 		return "cancelou a"
+	case "gate.requested":
+		return "pediu a decisão"
+	case "gate.decided":
+		return "decidiu"
 	}
 	return v
 }

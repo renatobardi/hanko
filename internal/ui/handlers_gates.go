@@ -1,0 +1,362 @@
+package ui
+
+import (
+	"net/http"
+	"sort"
+	"strings"
+	"time"
+	"unicode/utf8"
+
+	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/service"
+	"github.com/renatobardi/hanko/internal/ui/views"
+)
+
+const gateAged = 24 * time.Hour
+
+func gateKindLabel(k domain.GateKind) string {
+	switch k {
+	case domain.GateApproval:
+		return "Aprovação"
+	case domain.GateTaskReview:
+		return "Revisão de task"
+	case domain.GateHire:
+		return "Contratação"
+	}
+	return string(k)
+}
+
+// gateBadge: amber is reserved for what waits for a human.
+func gateBadge(s domain.GateStatus) views.Badge {
+	switch s {
+	case domain.GatePending:
+		return views.Badge{Label: "Pendente", Class: "warn"}
+	case domain.GateApproved:
+		return views.Badge{Label: "Aprovado", Class: "done"}
+	case domain.GateRejected:
+		return views.Badge{Label: "Rejeitado", Class: "danger"}
+	case domain.GateChangesRequested:
+		return views.Badge{Label: "Mudanças pedidas", Class: "outline"}
+	case domain.GateExpired:
+		return views.Badge{Label: "Expirado", Class: "soft"}
+	}
+	return views.Badge{Label: string(s), Class: "outline"}
+}
+
+var mdNoise = strings.NewReplacer("**", "", "__", "", "`", "", "#", "", ">", "", "*", "")
+
+// excerpt is a one-line plain-text teaser of a markdown body.
+func excerpt(body string, n int) string {
+	t := strings.Join(strings.Fields(mdNoise.Replace(body)), " ")
+	if utf8.RuneCountInString(t) <= n {
+		return t
+	}
+	r := []rune(t)
+	return strings.TrimSpace(string(r[:n])) + "…"
+}
+
+func gateRow(g service.GateView, base string, now time.Time, loc *time.Location, names lookup) views.GateRow {
+	row := views.GateRow{
+		ID:         g.ID.String(),
+		Short:      shortID(g.ID),
+		Href:       base + "/gates/" + g.ID.String(),
+		Title:      g.Title,
+		Kind:       string(g.Kind),
+		KindLabel:  gateKindLabel(g.Kind),
+		Badge:      gateBadge(g.Status),
+		TaskKey:    g.TaskKey,
+		TaskTitle:  g.TaskTitle,
+		Persona:    g.PersonaName,
+		Excerpt:    excerpt(g.Body, 170),
+		Created:    ago(g.CreatedAt, now, loc),
+		Note:       g.DecisionNote,
+		Pending:    g.Status == domain.GatePending,
+		DecideHref: base + "/gates/" + g.ID.String() + "/decidir",
+	}
+	if g.TaskKey != "" {
+		row.TaskHref = base + "/tasks/" + g.TaskKey
+	}
+	if g.PersonaID != nil {
+		if p, ok := names.personas[*g.PersonaID]; ok {
+			row.Persona, row.PersonaHref = p.Name, base+"/personas/"+p.Slug
+		}
+	}
+	row.Aged = row.Pending && now.Sub(g.CreatedAt) > gateAged
+	if g.DecidedAt != nil {
+		row.Decided = ago(*g.DecidedAt, now, loc)
+	}
+	if g.DecidedBy != nil {
+		row.DecidedBy = names.actorName(*g.DecidedBy)
+	}
+	return row
+}
+
+func gateRows(list []service.GateView, base string, now time.Time, loc *time.Location, names lookup) []views.GateRow {
+	out := make([]views.GateRow, 0, len(list))
+	for _, g := range list {
+		out = append(out, gateRow(g, base, now, loc, names))
+	}
+	return out
+}
+
+var gateNotices = map[string]string{
+	"aprovado":  "Gate aprovado. A decisão foi registrada e a persona, se houver, é acordada para seguir.",
+	"rejeitado": "Gate rejeitado. A decisão foi registrada; a task volta para A fazer com a sua nota.",
+	"mudancas":  "Mudanças pedidas. A task volta para Em andamento com a sua nota.",
+}
+
+type gateTab struct {
+	key, label string
+	statuses   []domain.GateStatus
+}
+
+var gateStatusTabs = []gateTab{
+	{"pendentes", "Pendentes", []domain.GateStatus{domain.GatePending}},
+	{"aprovados", "Aprovados", []domain.GateStatus{domain.GateApproved}},
+	{"mudancas", "Mudanças pedidas", []domain.GateStatus{domain.GateChangesRequested}},
+	{"rejeitados", "Rejeitados", []domain.GateStatus{domain.GateRejected, domain.GateExpired}},
+	{"todos", "Todos", nil},
+}
+
+type gateKindTab struct {
+	key, label string
+	kind       domain.GateKind
+}
+
+var gateKindTabs = []gateKindTab{
+	{"todos", "Todos os tipos", ""},
+	{"aprovacao", "Aprovação", domain.GateApproval},
+	{"revisao", "Revisão", domain.GateTaskReview},
+	{"contratacao", "Contratação", domain.GateHire},
+}
+
+func gateStatusIn(st domain.GateStatus, list []domain.GateStatus) bool {
+	return list == nil || has(list, st)
+}
+
+func has[T comparable](list []T, v T) bool {
+	for _, x := range list {
+		if x == v {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *server) handleGates(w http.ResponseWriter, r *http.Request, co domain.Company) {
+	ctx := r.Context()
+	all, err := s.be.ListGates(ctx, co.ID, service.GateFilter{Limit: 500})
+	if err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
+	personas, err := s.be.ListPersonas(ctx, co.ID)
+	if err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
+	names := newLookup(personas, nil)
+	base := "/c/" + co.Slug
+	loc, now := loadLoc(co.Timezone), s.now()
+
+	curS, curK := gateStatusTabs[0], gateKindTabs[0]
+	for _, t := range gateStatusTabs {
+		if t.key == r.URL.Query().Get("status") {
+			curS = t
+		}
+	}
+	for _, t := range gateKindTabs {
+		if t.key == r.URL.Query().Get("tipo") {
+			curK = t
+		}
+	}
+	href := func(status, kind string) string {
+		h := base + "/gates?status=" + status
+		if kind != "todos" {
+			h += "&tipo=" + kind
+		}
+		return h
+	}
+	vm := views.GatesVM{}
+	for _, t := range gateStatusTabs {
+		n := 0
+		for _, g := range all {
+			if gateStatusIn(g.Status, t.statuses) && (curK.kind == "" || g.Kind == curK.kind) {
+				n++
+			}
+		}
+		vm.Status = append(vm.Status, views.TabLink{Key: t.key, Label: t.label, Href: href(t.key, curK.key), Count: n, On: t.key == curS.key})
+	}
+	for _, t := range gateKindTabs {
+		n := 0
+		for _, g := range all {
+			if gateStatusIn(g.Status, curS.statuses) && (t.kind == "" || g.Kind == t.kind) {
+				n++
+			}
+		}
+		vm.Kinds = append(vm.Kinds, views.TabLink{Key: t.key, Label: t.label, Href: href(curS.key, t.key), Count: n, On: t.key == curK.key})
+	}
+	var shown []service.GateView
+	pending := 0
+	for _, g := range all {
+		if g.Status == domain.GatePending {
+			pending++
+		}
+		if gateStatusIn(g.Status, curS.statuses) && (curK.kind == "" || g.Kind == curK.kind) {
+			shown = append(shown, g)
+		}
+	}
+	vm.Rows = gateRows(shown, base, now, loc, names)
+	vm.Notice = gateNotices[r.URL.Query().Get("ok")]
+	switch pending {
+	case 0:
+		vm.Subtitle = "Pontos em que um humano decide. Nada pendente agora."
+	case 1:
+		vm.Subtitle = "Pontos em que um humano decide. 1 pendente: a persona fica parada até a sua resposta."
+	default:
+		vm.Subtitle = "Pontos em que um humano decide. " + fmtInt(pending) + " pendentes: as personas ficam paradas até a sua resposta."
+	}
+	vm.Empty = "Nenhum gate corresponde a este filtro. Uma persona pede um gate antes de uma ação irreversível, merge, deploy, gasto ou contratação."
+	sh := s.shell(co, "gates", "Gates", views.Crumb{Label: "Gates"})
+	s.render(w, r, http.StatusOK, views.GatesPage(sh, vm))
+}
+
+func (s *server) handleGate(w http.ResponseWriter, r *http.Request, co domain.Company) {
+	ctx := r.Context()
+	id, err := domain.ParseID(r.PathValue("gate"))
+	if err != nil {
+		s.fail(w, r, &co, domain.ErrNotFound)
+		return
+	}
+	g, err := s.be.GetGate(ctx, co.ID, id)
+	if err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
+	personas, err := s.be.ListPersonas(ctx, co.ID)
+	if err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
+	base := "/c/" + co.Slug
+	loc, now := loadLoc(co.Timezone), s.now()
+	vm := views.GateVM{
+		Row:     gateRow(g, base, now, loc, newLookup(personas, nil)),
+		Body:    renderMD(g.Body),
+		HasBody: strings.TrimSpace(g.Body) != "",
+		Created: fmtDateTime(g.CreatedAt, loc),
+		Notice:  gateNotices[r.URL.Query().Get("ok")],
+	}
+	if g.DecidedAt != nil {
+		vm.Decided = fmtDateTime(*g.DecidedAt, loc)
+	}
+	if g.RunID != nil {
+		vm.RunHref, vm.RunShort = base+"/execucoes/"+g.RunID.String(), shortID(*g.RunID)
+	}
+	sh := s.shell(co, "gates", g.Title, views.Crumb{Label: "Gates", Href: base + "/gates"}, views.Crumb{Label: shortID(g.ID)})
+	s.render(w, r, http.StatusOK, views.GatePage(sh, vm))
+}
+
+// handleDecideGate answers a gate (approve, reject, ask for changes) and goes back to where the
+// human was: the inbox, the task, the dashboard or the gate itself.
+func (s *server) handleDecideGate(w http.ResponseWriter, r *http.Request, co domain.Company) {
+	id, err := domain.ParseID(r.PathValue("gate"))
+	if err != nil {
+		s.fail(w, r, &co, domain.ErrNotFound)
+		return
+	}
+	decision := domain.GateStatus(trimForm(r, "decision"))
+	if !decision.Decision() {
+		s.fail(w, r, &co, domain.Invalid("decisão", "escolha aprovar, rejeitar ou pedir mudanças"))
+		return
+	}
+	note := strings.TrimSpace(r.PostFormValue("note"))
+	if decision == domain.GateChangesRequested && note == "" {
+		s.fail(w, r, &co, domain.Invalid("nota", "explique o que precisa mudar"))
+		return
+	}
+	g, err := s.be.DecideGate(r.Context(), domain.HumanActor, co.ID, id, service.DecideGateInput{Decision: decision, Note: note})
+	if err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
+	ok := map[domain.GateStatus]string{domain.GateApproved: "aprovado", domain.GateRejected: "rejeitado", domain.GateChangesRequested: "mudancas"}[decision]
+	base := "/c/" + co.Slug
+	to := base + "/gates/" + g.ID.String() + "?ok=" + ok
+	switch trimForm(r, "next") {
+	case "caixa":
+		to = base + "/caixa?ok=" + ok
+	case "painel":
+		to = base + "/?ok=" + ok
+	case "task":
+		if g.TaskKey != "" {
+			to = base + "/tasks/" + g.TaskKey + "?ok=" + ok
+		}
+	}
+	redirect(w, r, to)
+}
+
+type decisionTab struct {
+	key, label string
+	status     domain.GateStatus
+}
+
+var decisionTabs = []decisionTab{
+	{"todas", "Todas", ""},
+	{"aprovadas", "Aprovadas", domain.GateApproved},
+	{"mudancas", "Mudanças pedidas", domain.GateChangesRequested},
+	{"rejeitadas", "Rejeitadas", domain.GateRejected},
+}
+
+func (s *server) handleDecisions(w http.ResponseWriter, r *http.Request, co domain.Company) {
+	ctx := r.Context()
+	all, err := s.be.ListGates(ctx, co.ID, service.GateFilter{
+		Statuses: []domain.GateStatus{domain.GateApproved, domain.GateRejected, domain.GateChangesRequested}, Limit: 500})
+	if err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
+	personas, err := s.be.ListPersonas(ctx, co.ID)
+	if err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
+	names := newLookup(personas, nil)
+	base := "/c/" + co.Slug
+	loc, now := loadLoc(co.Timezone), s.now()
+	cur := decisionTabs[0]
+	for _, t := range decisionTabs {
+		if t.key == r.URL.Query().Get("d") {
+			cur = t
+		}
+	}
+	vm := views.DecisionsVM{Subtitle: "O que você decidiu, com a sua nota. Cada decisão também vira memória da empresa."}
+	var shown []service.GateView
+	for _, t := range decisionTabs {
+		n := 0
+		for _, g := range all {
+			if t.status == "" || g.Status == t.status {
+				n++
+			}
+		}
+		vm.Tabs = append(vm.Tabs, views.TabLink{Key: t.key, Label: t.label, Href: base + "/decisoes?d=" + t.key, Count: n, On: t.key == cur.key})
+	}
+	for _, g := range all {
+		if cur.status == "" || g.Status == cur.status {
+			shown = append(shown, g)
+		}
+	}
+	sort.SliceStable(shown, func(i, j int) bool {
+		a, b := shown[i].CreatedAt, shown[j].CreatedAt
+		if shown[i].DecidedAt != nil {
+			a = *shown[i].DecidedAt
+		}
+		if shown[j].DecidedAt != nil {
+			b = *shown[j].DecidedAt
+		}
+		return a.After(b)
+	})
+	vm.Rows = gateRows(shown, base, now, loc, names)
+	sh := s.shell(co, "decisoes", "Decisões", views.Crumb{Label: "Decisões"})
+	s.render(w, r, http.StatusOK, views.DecisionsPage(sh, vm))
+}

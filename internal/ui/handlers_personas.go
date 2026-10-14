@@ -30,6 +30,10 @@ func (s *server) handlePersonas(w http.ResponseWriter, r *http.Request, co domai
 	}
 	base := "/c/" + co.Slug
 	vm := views.PersonasVM{}
+	nameOf := map[domain.ID]string{}
+	for _, p := range personas {
+		nameOf[p.ID] = p.Name
+	}
 	for _, p := range personas {
 		switch p.Status {
 		case domain.PersonaActive, domain.PersonaIdle:
@@ -42,8 +46,12 @@ func (s *server) handlePersonas(w http.ResponseWriter, r *http.Request, co domai
 		case domain.PersonaAwaitingGate:
 			vm.Awaiting++
 		}
+		title := p.Title
+		if p.ReportsTo != nil && nameOf[*p.ReportsTo] != "" {
+			title += " · reporta a " + nameOf[*p.ReportsTo]
+		}
 		vm.Rows = append(vm.Rows, views.PersonaRow{
-			Name: p.Name, Initials: initialsOf(p.Name), Title: p.Title, Href: base + "/personas/" + p.Slug,
+			Name: p.Name, Initials: initialsOf(p.Name), Title: title, Href: base + "/personas/" + p.Slug,
 			Badge: personaBadge(p.Status), Agent: p.Agent, Model: p.Model, OpenTasks: open[p.ID], Heartbeat: heartbeatLabel(p.HeartbeatIntervalSec),
 		})
 	}
@@ -65,6 +73,13 @@ func (s *server) handleNewPersona(w http.ResponseWriter, r *http.Request, co dom
 }
 
 func (s *server) renderHire(w http.ResponseWriter, r *http.Request, co domain.Company, status int, vm views.HirePersonaVM) {
+	if personas, err := s.be.ListPersonas(r.Context(), co.ID); err == nil {
+		var sel *domain.ID
+		if id, err := domain.ParseID(trimForm(r, "reports_to")); err == nil {
+			sel = &id
+		}
+		vm.ReportsTo = reportsOptions(personas, nil, sel)
+	}
 	base := "/c/" + co.Slug
 	sh := s.shell(co, "personas", "Contratar persona", views.Crumb{Label: "Personas", Href: base + "/personas"}, views.Crumb{Label: "Contratar"})
 	s.render(w, r, status, views.HirePersonaPage(sh, vm))
@@ -74,6 +89,18 @@ func (s *server) handleHirePersona(w http.ResponseWriter, r *http.Request, co do
 	vm := views.HirePersonaVM{
 		Name: trimForm(r, "name"), Title: trimForm(r, "title"), Agent: trimForm(r, "agent"), Model: trimForm(r, "model"),
 		Instructions: r.PostFormValue("instructions"), Heartbeat: trimForm(r, "heartbeat"), FieldErr: map[string]string{},
+		RequireReview: r.PostFormValue("require_review") != "",
+	}
+	var reportsTo *domain.ID
+	if v := trimForm(r, "reports_to"); v != "" {
+		id, err := domain.ParseID(v)
+		if err != nil {
+			vm.FieldErr["reports_to"] = "Superior inválido."
+			vm.Error = "Superior inválido."
+			s.renderHire(w, r, co, http.StatusUnprocessableEntity, vm)
+			return
+		}
+		reportsTo = &id
 	}
 	if vm.Agent == "" {
 		vm.Agent = "claude"
@@ -104,7 +131,7 @@ func (s *server) handleHirePersona(w http.ResponseWriter, r *http.Request, co do
 	}
 	p, err := s.be.HirePersona(r.Context(), domain.HumanActor, co.ID, service.HirePersonaInput{
 		Name: vm.Name, Slug: domain.Slugify(vm.Name), Title: vm.Title, Instructions: vm.Instructions,
-		Agent: vm.Agent, Model: vm.Model, HeartbeatIntervalSec: minutes * 60,
+		Agent: vm.Agent, Model: vm.Model, HeartbeatIntervalSec: minutes * 60, ReportsTo: reportsTo, RequireReview: vm.RequireReview,
 	})
 	if err != nil {
 		_, title, msg := friendly(err)
@@ -145,6 +172,21 @@ func (s *server) handlePersona(w http.ResponseWriter, r *http.Request, co domain
 		Name: p.Name, Initials: initialsOf(p.Name), Title: p.Title, Badge: personaBadge(p.Status),
 		Agent: p.Agent, Model: p.Model, Heartbeat: heartbeatLabel(p.HeartbeatIntervalSec), Instructions: p.Instructions,
 		Hired: fmtDateTime(p.CreatedAt, loc), Slug: p.Slug,
+		RequireReview: p.RequireReview, OrgAction: base + "/personas/" + p.Slug + "/organizacao",
+	}
+	all, err := s.be.ListPersonas(ctx, co.ID)
+	if err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
+	vm.OrgOptions = reportsOptions(all, &p, p.ReportsTo)
+	for _, o := range all {
+		if p.ReportsTo != nil && o.ID == *p.ReportsTo {
+			vm.ReportsTo, vm.ReportsHref = o.Name, base+"/personas/"+o.Slug
+		}
+		if o.ReportsTo != nil && *o.ReportsTo == p.ID {
+			vm.Reports = append(vm.Reports, views.PersonaRef{Name: o.Name, Href: base + "/personas/" + o.Slug})
+		}
 	}
 	// The last error stays visible while the persona is failing (in error, or with failures counted).
 	if health.LastError != "" && (p.Status == domain.PersonaError || health.ConsecutiveFailures > 0) {
@@ -165,9 +207,44 @@ func (s *server) handlePersona(w http.ResponseWriter, r *http.Request, co domain
 }
 
 var personaNotices = map[string]string{
-	"pausada":   "Persona pausada: ela não será mais acordada.",
-	"retomada":  "Persona retomada.",
-	"reativada": "Persona reativada: volta a ser acordada normalmente.",
+	"pausada":     "Persona pausada: ela não será mais acordada.",
+	"retomada":    "Persona retomada.",
+	"reativada":   "Persona reativada: volta a ser acordada normalmente.",
+	"organizacao": "Organização atualizada.",
+}
+
+// handlePersonaOrg changes who the persona reports to and whether its work needs review.
+func (s *server) handlePersonaOrg(w http.ResponseWriter, r *http.Request, co domain.Company) {
+	ctx := r.Context()
+	p, err := s.be.GetPersona(ctx, co.ID, r.PathValue("persona"))
+	if err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
+	var in service.UpdatePersonaInput
+	switch v := trimForm(r, "reports_to"); {
+	case v == "":
+		in.ClearReportsTo = p.ReportsTo != nil
+	default:
+		id, err := domain.ParseID(v)
+		if err != nil {
+			s.fail(w, r, &co, domain.Invalid("reporta a", "persona inválida"))
+			return
+		}
+		if p.ReportsTo == nil || *p.ReportsTo != id {
+			in.ReportsTo = &id
+		}
+	}
+	if rr := r.PostFormValue("require_review") != ""; rr != p.RequireReview {
+		in.RequireReview = &rr
+	}
+	if in.ReportsTo != nil || in.ClearReportsTo || in.RequireReview != nil {
+		if _, err := s.be.UpdatePersona(ctx, domain.HumanActor, co.ID, p.ID, in); err != nil {
+			s.fail(w, r, &co, err)
+			return
+		}
+	}
+	redirect(w, r, "/c/"+co.Slug+"/personas/"+p.Slug+"?ok=organizacao")
 }
 
 // personaControls lists the actions that make sense for the persona's current status.

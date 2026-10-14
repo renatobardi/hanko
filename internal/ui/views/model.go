@@ -96,6 +96,8 @@ type DashboardVM struct {
 	OpenTasks       int
 	Activity        []ActivityItem
 	Tasks           []TaskRow
+	Gates           []GateRow // pending decisions, oldest first (at most 5)
+	Notice          string
 }
 
 // ---- tasks ----
@@ -173,6 +175,7 @@ type TaskVM struct {
 	PriorityOptions []Option
 	PersonaOptions  []Option
 	Thread          []Msg
+	Gates           []GateRow // pending gates of this task
 	Runs            []RunMini
 	CanWake         bool
 	ActiveRun       *RunMini
@@ -217,35 +220,49 @@ type PersonasVM struct {
 }
 
 type HirePersonaVM struct {
-	Name         string
-	Title        string
-	Agent        string
-	Model        string
-	Instructions string
-	Heartbeat    string
-	Error        string
-	FieldErr     map[string]string
+	Name          string
+	Title         string
+	Agent         string
+	Model         string
+	Instructions  string
+	Heartbeat     string
+	ReportsTo     []Option // "Reporta a": the human owner or a persona
+	RequireReview bool
+	Error         string
+	FieldErr      map[string]string
 }
 
 type PersonaVM struct {
-	Name         string
-	Initials     string
-	Title        string
-	Badge        Badge
-	Agent        string
-	Model        string
-	Heartbeat    string
-	Instructions string
-	Hired        string
-	Slug         string
-	Tasks        []TaskRow
-	Runs         []RunRow
-	Budget       string
-	Notice       string           // flash after an action
-	LastError    string           // last failed run, shown while the persona is failing
-	LastErrorAt  string           // when it happened
-	Failures     int              // failed runs in a row
-	Controls     []PersonaControl // pause / resume / reactivate buttons
+	Name          string
+	Initials      string
+	Title         string
+	Badge         Badge
+	Agent         string
+	Model         string
+	Heartbeat     string
+	Instructions  string
+	Hired         string
+	Slug          string
+	Tasks         []TaskRow
+	Runs          []RunRow
+	Budget        string
+	Notice        string           // flash after an action
+	LastError     string           // last failed run, shown while the persona is failing
+	LastErrorAt   string           // when it happened
+	Failures      int              // failed runs in a row
+	Controls      []PersonaControl // pause / resume / reactivate buttons
+	ReportsTo     string           // name of the superior ("" = reports to the owner)
+	ReportsHref   string
+	Reports       []PersonaRef // personas that report to this one
+	RequireReview bool
+	OrgAction     string   // POST target of the organisation form
+	OrgOptions    []Option // "Reporta a" choices
+}
+
+// PersonaRef is a link to another persona.
+type PersonaRef struct {
+	Name string
+	Href string
 }
 
 // PersonaControl is one action button on the persona page (a POST to Href).

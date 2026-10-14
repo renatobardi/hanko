@@ -61,6 +61,12 @@ type Backend interface {
 
 	ListActivity(ctx context.Context, companyID domain.ID, f service.ActivityFilter) ([]domain.ActivityEvent, error)
 	Dashboard(ctx context.Context, companyID domain.ID) (service.DashboardStats, error)
+
+	ListGates(ctx context.Context, companyID domain.ID, f service.GateFilter) ([]service.GateView, error)
+	GetGate(ctx context.Context, companyID, gateID domain.ID) (service.GateView, error)
+	DecideGate(ctx context.Context, actor domain.Actor, companyID, gateID domain.ID, in service.DecideGateInput) (service.GateView, error)
+	Inbox(ctx context.Context, companyID domain.ID) (service.Inbox, error)
+	OrgChart(ctx context.Context, companyID domain.ID) (service.OrgChart, error)
 }
 
 var _ Backend = (*service.Service)(nil)
@@ -145,6 +151,18 @@ func (s *server) routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /c/{company}/execucoes/{run}", co(s.handleRun))
 	mux.HandleFunc("GET /c/{company}/execucoes/{run}/sse", co(s.handleRunSSE))
 	mux.HandleFunc("POST /c/{company}/execucoes/{run}/cancelar", post(co(s.handleCancelRun)))
+
+	mux.HandleFunc("POST /c/{company}/personas/{persona}/organizacao", post(co(s.handlePersonaOrg)))
+
+	mux.HandleFunc("GET /c/{company}/caixa", co(s.handleInbox))
+	mux.HandleFunc("POST /c/{company}/caixa/tasks/{task}/desbloquear", post(co(s.handleInboxUnblock)))
+	mux.HandleFunc("POST /c/{company}/caixa/tasks/{task}/acordar", post(co(s.handleInboxWake)))
+	mux.HandleFunc("POST /c/{company}/caixa/personas/{persona}/reativar", post(co(s.handleInboxReactivate)))
+	mux.HandleFunc("GET /c/{company}/decisoes", co(s.handleDecisions))
+	mux.HandleFunc("GET /c/{company}/gates", co(s.handleGates))
+	mux.HandleFunc("GET /c/{company}/gates/{gate}", co(s.handleGate))
+	mux.HandleFunc("POST /c/{company}/gates/{gate}/decidir", post(co(s.handleDecideGate)))
+	mux.HandleFunc("GET /c/{company}/organograma", co(s.handleOrg))
 
 	mux.HandleFunc("GET /c/{company}/atividade", co(s.handleActivity))
 	mux.HandleFunc("GET /c/{company}/em-breve/{item}", co(s.handleSoon))

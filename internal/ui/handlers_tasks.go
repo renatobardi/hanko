@@ -144,8 +144,11 @@ func personaOptions(personas []domain.Persona, sel *domain.ID, emptyLabel string
 }
 
 var notices = map[string]string{
-	"acordada": "Persona acordada: a execução entra na fila.",
-	"criada":   "Task criada.",
+	"acordada":  "Persona acordada: a execução entra na fila.",
+	"criada":    "Task criada.",
+	"aprovado":  gateNotices["aprovado"],
+	"rejeitado": gateNotices["rejeitado"],
+	"mudancas":  gateNotices["mudancas"],
 }
 
 // buildTaskVM loads everything the task page and its fragments need.
@@ -167,8 +170,13 @@ func (s *server) buildTaskVM(r *http.Request, co domain.Company, t service.TaskV
 		return views.TaskVM{}, err
 	}
 	names := newLookup(personas, nil)
+	pending, err := s.be.ListGates(ctx, co.ID, service.GateFilter{TaskID: &t.ID, Statuses: []domain.GateStatus{domain.GatePending}, Limit: 20})
+	if err != nil {
+		return views.TaskVM{}, err
+	}
 
 	vm := views.TaskVM{
+		Gates:           gateRows(pending, base, now, loc, names),
 		Key:             t.Key,
 		Title:           t.Title,
 		Description:     renderMD(t.Description),

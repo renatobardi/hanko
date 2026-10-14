@@ -152,7 +152,11 @@ func TestPagesRender(t *testing.T) {
 		{"/c/hanko/execucoes?aba=falhas", []string{"Sato · HNK-222", "Falhou"}},
 		{"/c/hanko/execucoes/" + run, []string{`hx-ext="sse"`, `sse-connect="/c/hanko/execucoes/` + run + `/sse?after=12"`, `sse-swap="run-event"`, `sse-swap="run-status"`, "Interromper", "context.load"}},
 		{"/c/hanko/atividade", []string{"Atividade", "Hoje", "HNK-221"}},
-		{"/c/hanko/em-breve/gates", []string{"Gates", "M3"}},
+		{"/c/hanko/caixa", []string{"Caixa de entrada", "Aprovar o plano de migração do NAS 3D", "Tasks bloqueadas", "Execuções que falharam"}},
+		{"/c/hanko/decisoes", []string{"Decisões", "Publicar o digest semanal", "Aprovado"}},
+		{"/c/hanko/gates", []string{"Gates", "Pendentes", "Contratar Yuki (Dados)"}},
+		{"/c/hanko/organograma", []string{"Organograma", `class="org-svg"`, "Ada", "Kenji"}},
+		{"/c/hanko/em-breve/projetos", []string{"Projetos", "M3"}},
 		{"/c/hanko/em-breve/custos", []string{"Custos", "M4"}},
 	}
 	for _, c := range cases {
@@ -184,7 +188,7 @@ func TestShellNavigation(t *testing.T) {
 	wantContains(t, rec,
 		"Buscar", "Caixa de entrada", "Decisões", "Trabalho", "Projetos", "Fluxos", "Metas", "Artefatos", "Workspaces",
 		"Organização", "Organograma", "Skills", "Integrações", "Gates", "Supervisão", "Custos",
-		`href="/c/hanko/em-breve/gates"`, `href="/c/hanko/tasks" aria-current`, `href="/c/hanko/personas"`, `href="/c/hanko/execucoes"`)
+		`href="/c/hanko/gates"`, `href="/c/hanko/tasks" aria-current`, `href="/c/hanko/personas"`, `href="/c/hanko/execucoes"`)
 }
 
 func TestNotFoundAndErrors(t *testing.T) {
@@ -262,7 +266,10 @@ func TestCSRF(t *testing.T) {
 	t.Run("todos os POSTs são protegidos", func(t *testing.T) {
 		e := newEnv(t, uitest.Sample())
 		run := e.f.Runs[0].ID.String()
-		for _, p := range []string{"/empresas", "/c/hanko/tasks/nova", "/c/hanko/tasks/HNK-221", "/c/hanko/tasks/HNK-221/comentarios", "/c/hanko/tasks/HNK-221/acordar", "/c/hanko/personas/nova", "/c/hanko/execucoes/" + run + "/cancelar"} {
+		for _, p := range []string{"/empresas", "/c/hanko/tasks/nova", "/c/hanko/tasks/HNK-221", "/c/hanko/tasks/HNK-221/comentarios", "/c/hanko/tasks/HNK-221/acordar", "/c/hanko/personas/nova", "/c/hanko/execucoes/" + run + "/cancelar",
+			"/c/hanko/gates/" + uitest.ID("gate:plan").String() + "/decidir", "/c/hanko/personas/kenji/organizacao",
+			"/c/hanko/caixa/tasks/" + uitest.ID("task:HNK-209").String() + "/desbloquear", "/c/hanko/caixa/tasks/" + uitest.ID("task:HNK-209").String() + "/acordar",
+			"/c/hanko/caixa/personas/mika/reativar"} {
 			rec := e.do(t, req{method: "POST", path: p, form: url.Values{"x": {"1"}}})
 			if rec.Code != http.StatusForbidden {
 				t.Errorf("POST %s = %d, want 403", p, rec.Code)
@@ -845,8 +852,9 @@ var tagRE = regexp.MustCompile(`(?s)<[^>]*>`)
 func TestVocabularyHasNoAgentOrHeartbeat(t *testing.T) {
 	for name, f := range map[string]*uitest.Fake{"vazio": uitest.Empty(), "amostra": uitest.Sample()} {
 		e := newEnv(t, f)
-		for _, path := range []string{"/c/hanko/", "/c/hanko/personas", "/c/hanko/personas/nova", "/c/hanko/personas/ada", "/c/hanko/tasks",
-			"/c/hanko/execucoes", "/c/hanko/atividade", "/c/hanko/tasks/nova"} {
+		for _, path := range []string{"/c/hanko/", "/c/hanko/personas", "/c/hanko/personas/nova", "/c/hanko/personas/ada", "/c/hanko/personas/kenji", "/c/hanko/tasks",
+			"/c/hanko/execucoes", "/c/hanko/atividade", "/c/hanko/tasks/nova", "/c/hanko/caixa", "/c/hanko/decisoes", "/c/hanko/gates",
+			"/c/hanko/gates?status=todos", "/c/hanko/organograma", "/c/hanko/tasks/HNK-218", "/c/hanko/gates/" + uitest.ID("gate:plan").String()} {
 			rec := e.get(t, path)
 			if rec.Code == http.StatusNotFound {
 				continue

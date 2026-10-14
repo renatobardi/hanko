@@ -39,6 +39,10 @@ func Sample() *Fake {
 	kenji := mk("kenji", "Kenji", "Engenheiro de plataforma", "claude", "claude-opus", domain.PersonaAwaitingGate, 1800, "Você é o Kenji. Plataforma, infraestrutura e migrações.")
 	mika := mk("mika", "Mika", "Operações de conhecimento", "claude", "claude-haiku", domain.PersonaIdle, 3600, "Você é a Mika. Coleta, limpeza e curadoria de fontes.")
 	sato := mk("sato", "Sato", "Conteúdo e distribuição", "fake", "", domain.PersonaPaused, 0, "Você é o Sato. Conteúdo para LinkedIn.")
+	// organograma: Ada no topo; Hana, Kenji e Sato respondem a ela; Mika a Kenji
+	adaID, kenjiID := ada.ID, kenji.ID
+	hana.ReportsTo, kenji.ReportsTo, sato.ReportsTo, mika.ReportsTo = &adaID, &adaID, &adaID, &kenjiID
+	kenji.RequireReview = true
 	f.Personas = []domain.Persona{ada, hana, kenji, mika, sato}
 
 	linkedin := domain.Project{ID: ID("project:linkedin"), CompanyID: co.ID, Slug: "linkedin", Name: "LinkedIn", CreatedAt: now, UpdatedAt: now}
@@ -112,6 +116,7 @@ func Sample() *Fake {
 		}
 		return service.RunView{Run: r, TaskKey: tk, TaskTitle: title, PersonaName: who.Name}
 	}
+	f.Gates = sampleGates(co.ID, f, now, ada, kenji, run1840)
 	f.Runs = []service.RunView{
 		run(run1842, "HNK-221", ada, "", domain.RunRunning, domain.TriggerAssign, 4*time.Minute+12*time.Second, -1, cost(0.06), 84200, 11900, "", ""),
 		run(run1841, "HNK-219", hana, "", domain.RunRunning, domain.TriggerHeartbeat, 11*time.Minute, -1, cost(0.14), 51300, 6200, "", ""),
@@ -158,6 +163,8 @@ func Sample() *Fake {
 		{time.Hour, domain.HumanActor, "persona.hired", "persona", hana.ID, ""},
 		{2 * time.Hour, domain.SystemActor, "task.updated", "task", f.Tasks[5].ID, ""},
 		{27 * time.Hour, domain.HumanActor, "task.created", "task", f.Tasks[7].ID, ""},
+		{19*time.Minute + 30*time.Second, domain.PersonaActor(kenji.ID), "gate.requested", "gate", f.Gates[0].ID, `{"title":"Aprovar o plano de migração do NAS 3D"}`},
+		{26 * time.Hour, domain.HumanActor, "gate.decided", "gate", f.Gates[3].ID, `{"title":"Publicar o digest semanal","decision":"approved"}`},
 	}
 	for i, a := range acts {
 		ev := domain.ActivityEvent{ID: ID("act:" + string(rune('a'+i))), CompanyID: co.ID, Actor: a.who, Verb: a.verb, SubjectType: a.typ, SubjectID: a.id, OccurredAt: now.Add(-a.ago), ReceivedAt: now.Add(-a.ago)}
@@ -167,4 +174,49 @@ func Sample() *Fake {
 		f.Activity = append(f.Activity, ev)
 	}
 	return f
+}
+
+func sampleGates(co domain.ID, f *Fake, now time.Time, ada, kenji domain.Persona, run domain.ID) []service.GateView {
+	taskOf := func(key string) service.TaskView {
+		for _, t := range f.Tasks {
+			if t.Key == key {
+				return t
+			}
+		}
+		return service.TaskView{}
+	}
+	mk := func(label string, kind domain.GateKind, st domain.GateStatus, who domain.Persona, taskKey, title, body string, age time.Duration) service.GateView {
+		g := domain.Gate{ID: ID("gate:" + label), CompanyID: co, Kind: kind, Status: st, Title: title, Body: body, PersonaID: &who.ID,
+			RequestedBy: domain.PersonaActor(who.ID), CreatedAt: now.Add(-age)}
+		v := service.GateView{Gate: g, PersonaName: who.Name}
+		if taskKey != "" {
+			t := taskOf(taskKey)
+			id := t.ID
+			v.TaskID, v.TaskKey, v.TaskTitle = &id, t.Key, t.Title
+		}
+		return v
+	}
+	decide := func(g service.GateView, ago time.Duration, note string) service.GateView {
+		at := now.Add(-ago)
+		by := domain.HumanActor
+		g.DecidedAt, g.DecidedBy, g.DecisionNote = &at, &by, note
+		return g
+	}
+	g1 := mk("plan", domain.GateApproval, domain.GatePending, kenji, "HNK-218", "Aprovar o plano de migração do NAS 3D",
+		"Plano em **4 etapas**:\n\n1. Snapshot ZFS dos volumes\n2. Copiar os volumes para o pool nvme\n3. Trocar os pontos de montagem (**irreversível**)\n4. Validar leitura e escrita\n\nEstimativa de custo: US$ 2,40. Janela sugerida: hoje às 22:00.", 19*time.Minute)
+	g1.RunID = &run
+	g2 := mk("review", domain.GateTaskReview, domain.GatePending, kenji, "HNK-220", "Revisar HNK-220 — Revisar arquitetura do Kubo v0.4",
+		"Kenji deu a task como pronta e exige revisão antes de concluir. Aprove para concluir, peça mudanças ou rejeite.", 2*time.Hour)
+	g3 := mk("hire", domain.GateHire, domain.GatePending, ada, "", "Contratar Yuki (Dados)",
+		"Ada propõe contratar **Yuki** para o projeto Kubo: harness claude, modelo sonnet, reporta a Ada. Orçamento sugerido: US$ 60 por mês.", time.Hour)
+	g4 := decide(mk("digest", domain.GateApproval, domain.GateApproved, ada, "HNK-214", "Publicar o digest semanal nos 3 destinos",
+		"Publicação externa nos 3 destinos configurados. Pede aprovação antes de enviar.", 27*time.Hour), 26*time.Hour, "Pode publicar. Confira o link do slide 3 antes.")
+	g4.Status = domain.GateApproved
+	g5 := decide(mk("merge", domain.GateApproval, domain.GateRejected, kenji, "HNK-203", "Fazer merge do coletor refatorado na main",
+		"A refatoração mexe no coletor de fontes. Pede aprovação para o merge.", 3*24*time.Hour), 3*24*time.Hour-time.Hour, "Ainda sem testes de carga. Volte com os números.")
+	g5.Status = domain.GateRejected
+	g6 := decide(mk("slides", domain.GateApproval, domain.GateChangesRequested, ada, "HNK-221", "Enviar o rascunho dos slides para revisão externa",
+		"Rascunho do slide 1 e 2 pronto para sair da empresa.", 2*24*time.Hour), 2*24*time.Hour-30*time.Minute, "Troque o dado do slide 2 por um com fonte citada.")
+	g6.Status = domain.GateChangesRequested
+	return []service.GateView{g1, g2, g3, g4, g5, g6}
 }

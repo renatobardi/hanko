@@ -1,0 +1,154 @@
+package views
+
+import "fmt"
+
+templ InboxPage(sh Shell, vm InboxVM) {
+	@Layout(sh) {
+		@PageHead("Caixa de entrada", vm.Subtitle) {
+		}
+		if vm.Notice != "" {
+			@Alert("warn", vm.Notice)
+		}
+		<div class="toolbar">
+			@Tabs(vm.Tabs)
+		</div>
+		<div class="inbox-grid">
+			<div class="stack">
+				if vm.Total == 0 {
+					@EmptyCard("circle-check", "Você está em dia.", "Nada espera por você: sem gates, bloqueios, execuções que falharam ou personas com erro.", true)
+				}
+				if len(vm.Gates) > 0 {
+					<section class="card inbox-sec">
+						<div class="inbox-h">@Icon("shield") Precisa de você · gates <span class="cnt">{ fmt.Sprint(len(vm.Gates)) }</span></div>
+						for _, g := range vm.Gates {
+							<div class="inbox-row gate">
+								<span class="mini-avatar gate">@Icon("shield")</span>
+								<div class="main">
+									<div class="t">
+										if g.TaskKey != "" {
+											<a class="mono id" href={ templ.SafeURL(g.TaskHref) }>{ g.TaskKey }</a>
+										}
+										<a href={ templ.SafeURL(g.Href) }>{ g.Title }</a>
+										<span class="badge warn">{ g.KindLabel }</span>
+										if g.Aged {
+											<span class="badge outline">há mais de 24 h</span>
+										}
+									</div>
+									if g.Excerpt != "" {
+										<p class="x">{ g.Excerpt }</p>
+									}
+									<div class="s">
+										if g.Persona != "" {
+											pedido por { g.Persona } ·
+										}
+										{ g.Created }
+									</div>
+								</div>
+								@GateDecideForm(g, "caixa", true)
+							</div>
+						}
+					</section>
+				}
+				if len(vm.Blocked) > 0 {
+					<section class="card inbox-sec">
+						<div class="inbox-h">@Icon("alert") Tasks bloqueadas <span class="cnt">{ fmt.Sprint(len(vm.Blocked)) }</span></div>
+						for _, t := range vm.Blocked {
+							<div class="inbox-row">
+								<span class="mini-avatar">@Icon("list")</span>
+								<div class="main">
+									<div class="t">
+										<a class="mono id" href={ templ.SafeURL(t.Href) }>{ t.Key }</a>
+										<a href={ templ.SafeURL(t.Href) }>{ t.Title }</a>
+										<span class="badge danger">Bloqueada</span>
+									</div>
+									<div class="s">
+										if t.Persona != "" {
+											{ t.Persona } ·
+										}
+										{ t.When } · sem gate pendente: alguém precisa destravar
+									</div>
+								</div>
+								<form class="inbox-act" method="post" action={ templ.SafeURL(t.ActionHref) } hx-post={ t.ActionHref } hx-swap="none">
+									<a class="btn ghost sm" href={ templ.SafeURL(t.Href) }>Abrir</a>
+									<button class="btn outline sm" type="submit">{ t.ActionLabel }</button>
+								</form>
+							</div>
+						}
+					</section>
+				}
+				if len(vm.Failed) > 0 {
+					<section class="card inbox-sec">
+						<div class="inbox-h">@Icon("activity") Execuções que falharam <span class="cnt">{ fmt.Sprint(len(vm.Failed)) }</span></div>
+						for _, r := range vm.Failed {
+							<div class="inbox-row">
+								<span class="mini-avatar">@Icon("activity")</span>
+								<div class="main">
+									<div class="t">
+										<a class="mono id" href={ templ.SafeURL(r.TaskHref) }>{ r.TaskKey }</a>
+										<a href={ templ.SafeURL(r.Href) }>{ r.TaskTitle }</a>
+										<span class="badge danger">Falhou</span>
+									</div>
+									if r.Error != "" {
+										<p class="x">{ r.Error }</p>
+									}
+									<div class="s">{ r.Persona } · execução <span class="mono">{ r.Short }</span> · { r.When }</div>
+								</div>
+								<form class="inbox-act" method="post" action={ templ.SafeURL(r.ActionHref) } hx-post={ r.ActionHref } hx-swap="none">
+									<a class="btn ghost sm" href={ templ.SafeURL(r.Href) }>Ver log</a>
+									<button class="btn outline sm" type="submit">@Icon("zap") Acordar de novo</button>
+								</form>
+							</div>
+						}
+					</section>
+				}
+				if len(vm.Personas) > 0 {
+					<section class="card inbox-sec">
+						<div class="inbox-h">@Icon("bot") Personas com erro <span class="cnt">{ fmt.Sprint(len(vm.Personas)) }</span></div>
+						for _, p := range vm.Personas {
+							<div class="inbox-row">
+								<span class="mini-avatar">@Icon("bot")</span>
+								<div class="main">
+									<div class="t">
+										<a href={ templ.SafeURL(p.Href) }>{ p.Name }</a>
+										<span class="badge danger">Erro</span>
+									</div>
+									if p.Error != "" {
+										<p class="x">{ p.Error }</p>
+									}
+									<div class="s">
+										{ p.Title }
+										if p.Failures > 0 {
+											· { fmt.Sprint(p.Failures) } falhas seguidas
+										}
+										if p.When != "" {
+											· { p.When }
+										}
+									</div>
+								</div>
+								<form class="inbox-act" method="post" action={ templ.SafeURL(p.ActionHref) } hx-post={ p.ActionHref } hx-swap="none">
+									<a class="btn ghost sm" href={ templ.SafeURL(p.Href) }>Abrir</a>
+									<button class="btn outline sm" type="submit">Reativar</button>
+								</form>
+							</div>
+						}
+					</section>
+				}
+			</div>
+			<aside class="stack">
+				<section class="card pad">
+					<h2>Decisões</h2>
+					<p class="sub">Gates esperam por um humano. Nada anda sem a sua resposta.</p>
+					<dl class="inbox-stats">
+						<div><dt>Aguardando</dt><dd class="mono">{ fmt.Sprint(vm.Pending) }</dd></div>
+						<div><dt>Envelhecendo (&gt; 24 h)</dt><dd class="mono">{ fmt.Sprint(vm.Aged) }</dd></div>
+						<div><dt>Decididas hoje</dt><dd class="mono">{ fmt.Sprint(vm.DecidedToday) }</dd></div>
+					</dl>
+					<div style="display:grid;gap:8px;margin-top:14px">
+						<a class="btn outline block" href={ templ.SafeURL(vm.GatesURL) }>Abrir gates</a>
+						<a class="btn ghost block" href={ templ.SafeURL(vm.DecisionsURL) }>Histórico de decisões</a>
+					</div>
+				</section>
+			</aside>
+		</div>
+	}
+}

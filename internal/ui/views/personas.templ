@@ -110,6 +110,21 @@ templ HirePersonaPage(sh Shell, vm HirePersonaVM) {
 					<span class="hint">Intervalo de verificação: de quanto em quanto tempo a persona é acordada por task. 0 = só manual.</span>
 				</div>
 			</div>
+			<div class="form-grid">
+				<div class="field">
+					<label for="p-reports">Reporta a</label>
+					@Select("reports_to", "p-reports", vm.ReportsTo, false)
+					<span class="hint">Define o organograma. Uma persona só delega tasks para si e para quem reporta a ela.</span>
+				</div>
+				<div class="field">
+					<span class="lbl">Revisão</span>
+					<label class="check">
+						<input type="checkbox" name="require_review" value="1" checked?={ vm.RequireReview }/>
+						<span>Exige revisão</span>
+					</label>
+					<span class="hint">Ao dar uma task como concluída, ela passa por um gate de revisão antes de fechar.</span>
+				</div>
+			</div>
 			<div class="field">
 				<label for="p-instr">Instruções</label>
 				<textarea class="textarea mono" id="p-instr" name="instructions" rows="8" placeholder="Você é a Ada, Chief of staff. Receba a meta, delegue e conclua com evidência.">{ vm.Instructions }</textarea>
@@ -172,6 +187,30 @@ templ PersonaPage(sh Shell, vm PersonaVM) {
 						}
 					</dd>
 					<dt>Intervalo de verificação</dt><dd>{ vm.Heartbeat }</dd>
+					<dt>Reporta a</dt><dd>
+						if vm.ReportsHref != "" {
+							<a href={ templ.SafeURL(vm.ReportsHref) } style="text-decoration:underline;text-underline-offset:2px">{ vm.ReportsTo }</a>
+						} else {
+							<span>Você (dono)</span>
+						}
+					</dd>
+					<dt>Exige revisão</dt><dd>
+						if vm.RequireReview {
+							<span class="badge warn">Sim</span>
+						} else {
+							<span class="muted">Não</span>
+						}
+					</dd>
+					if len(vm.Reports) > 0 {
+						<dt>Equipe</dt><dd>
+							for i, r := range vm.Reports {
+								if i > 0 {
+									<span>, </span>
+								}
+								<a href={ templ.SafeURL(r.Href) } style="text-decoration:underline;text-underline-offset:2px">{ r.Name }</a>
+							}
+						</dd>
+					}
 					<dt>Contratada</dt><dd>{ vm.Hired }</dd>
 				</dl>
 			</section>
@@ -184,6 +223,22 @@ templ PersonaPage(sh Shell, vm PersonaVM) {
 				}
 			</section>
 		</div>
+		<section class="card pad" id="organizacao" style="margin-top:20px">
+			<div class="card-head"><div><h2>Organização</h2><p class="sub">Quem esta persona reporta e se o trabalho dela passa por revisão antes de concluir.</p></div></div>
+			<form method="post" action={ templ.SafeURL(vm.OrgAction) } hx-post={ vm.OrgAction } hx-swap="none" class="org-form">
+				<div class="field">
+					<label for="o-reports">Reporta a</label>
+					@Select("reports_to", "o-reports", vm.OrgOptions, false)
+				</div>
+				<div class="field">
+					<label class="check">
+						<input type="checkbox" name="require_review" value="1" checked?={ vm.RequireReview }/>
+						<span>Exige revisão</span>
+					</label>
+				</div>
+				<div class="form-actions" style="margin-top:0"><button class="btn primary sm" type="submit">Salvar organização</button></div>
+			</form>
+		</section>
 		<h2 class="side-h" style="margin:28px 0 12px">Tasks atribuídas</h2>
 		if len(vm.Tasks) == 0 {
 			@EmptyCard("list", "Nenhuma task atribuída.", "Atribua uma task a esta persona para ela começar a trabalhar.", false)
