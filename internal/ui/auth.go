@@ -53,6 +53,14 @@ type AuthDeps struct {
 	Limiter *auth.LoginLimiter
 	// Secure marks the session cookie Secure (PUBLIC_URL is https).
 	Secure bool
+	// Proxies are the peers whose X-Forwarded-For is believed (HANKO_TRUSTED_PROXIES). The zero
+	// value trusts nobody: the client IP is the connection's RemoteAddr.
+	Proxies auth.TrustedProxies
+	// OwnerEmail is the only e-mail that becomes owner at first Firebase login (HANKO_AUTH_OWNER_EMAIL).
+	OwnerEmail string
+	// WebBootstrap lets the sign-in page create the first (owner) account of the local provider.
+	// Off, the page tells the operator to run `hanko auth create-owner`.
+	WebBootstrap bool
 }
 
 type authState struct {
@@ -97,7 +105,9 @@ func (s *server) renderLogin(w http.ResponseWriter, r *http.Request, status int,
 		if err != nil {
 			s.log.Error("ui: contar usuários", "err", err)
 		}
-		vm.FirstRun = err == nil && n == 0
+		empty := err == nil && n == 0
+		vm.FirstRun = empty && s.auth.WebBootstrap
+		vm.NeedsCLI = empty && !s.auth.WebBootstrap
 	}
 	s.render(w, r, status, views.LoginPage(vm))
 }
@@ -116,7 +126,7 @@ func (s *server) startSession(w http.ResponseWriter, r *http.Request, u domain.U
 	if c, err := r.Cookie(auth.SessionCookie); err == nil {
 		old = c.Value
 	}
-	tok, sess, err := s.auth.be.CreateSession(r.Context(), u.ID, service.SessionMeta{UserAgent: r.UserAgent(), IP: auth.ClientIP(r)}, old)
+	tok, sess, err := s.auth.be.CreateSession(r.Context(), u.ID, service.SessionMeta{UserAgent: r.UserAgent(), IP: s.auth.Proxies.ClientIP(r)}, old)
 	if err != nil {
 		return err
 	}
@@ -138,7 +148,7 @@ func (s *server) handleLoginLocal(w http.ResponseWriter, r *http.Request) {
 	vm := s.loginVM(r)
 	vm.Email = trimForm(r, "email")
 	password := r.PostFormValue("password")
-	ip := auth.ClientIP(r)
+	ip := s.auth.Proxies.ClientIP(r)
 	if ok, wait := s.auth.Limiter.Allow(ip, vm.Email); !ok {
 		w.Header().Set("Retry-After", fmt.Sprint(int(wait.Seconds())+1))
 		vm.Error = fmt.Sprintf("Muitas tentativas. Tente novamente em %d min.", int(wait.Minutes())+1)
@@ -147,6 +157,10 @@ func (s *server) handleLoginLocal(w http.ResponseWriter, r *http.Request) {
 	}
 	u, err := s.auth.be.AuthenticateLocal(r.Context(), vm.Email, password)
 	if err != nil {
+		if errors.Is(err, auth.ErrBusy) {
+			s.busy(w, r, vm)
+			return
+		}
 		if errors.Is(err, domain.ErrUnauthenticated) {
 			s.auth.Limiter.Fail(ip, vm.Email)
 			vm.Error = "E-mail ou senha incorretos."
@@ -164,8 +178,15 @@ func (s *server) handleLoginLocal(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, vm.Next, http.StatusSeeOther)
 }
 
+// busy answers 503 when every password-hashing slot is taken (the failure does not count against the limiter).
+func (s *server) busy(w http.ResponseWriter, r *http.Request, vm views.LoginVM) {
+	w.Header().Set("Retry-After", "2")
+	vm.Error = "Muitos logins ao mesmo tempo. Tente de novo em instantes."
+	s.renderLogin(w, r, http.StatusServiceUnavailable, vm)
+}
+
 func (s *server) handleCreateOwner(w http.ResponseWriter, r *http.Request) {
-	if s.auth.Provider != "local" {
+	if s.auth.Provider != "local" || !s.auth.WebBootstrap {
 		http.NotFound(w, r)
 		return
 	}
@@ -174,6 +195,9 @@ func (s *server) handleCreateOwner(w http.ResponseWriter, r *http.Request) {
 	u, err := s.auth.be.CreateOwner(r.Context(), vm.Email, vm.Name, r.PostFormValue("password"))
 	switch {
 	case err == nil:
+	case errors.Is(err, auth.ErrBusy):
+		s.busy(w, r, vm)
+		return
 	case errors.Is(err, domain.ErrConflict):
 		vm.Email, vm.Name = "", ""
 		vm.Notice = "Já existe um usuário. Entre com a sua conta."
@@ -244,8 +268,8 @@ func (s *server) handleFirebase(w http.ResponseWriter, r *http.Request) {
 		jsonErr(w, http.StatusBadRequest, "bad_request", "Corpo inválido.")
 		return
 	}
-	ip := auth.ClientIP(r)
-	if ok, wait := s.auth.Limiter.Allow(ip, "firebase"); !ok {
+	ip := s.auth.Proxies.ClientIP(r)
+	if ok, wait := s.auth.Limiter.Allow(ip, ""); !ok {
 		w.Header().Set("Retry-After", fmt.Sprint(int(wait.Seconds())+1))
 		jsonErr(w, http.StatusTooManyRequests, "rate_limited", "Muitas tentativas. Tente de novo em alguns minutos.")
 		return
@@ -261,7 +285,7 @@ func (s *server) handleFirebase(w http.ResponseWriter, r *http.Request) {
 		jsonErr(w, http.StatusServiceUnavailable, "unavailable", "Não foi possível validar o login agora. Tente de novo.")
 		return
 	default:
-		s.auth.Limiter.Fail(ip, "firebase")
+		s.auth.Limiter.Fail(ip, "")
 		s.log.Warn("ui: ID token do Firebase recusado", "err", err, "ip", ip)
 		jsonErr(w, http.StatusUnauthorized, "invalid_token", "Credencial inválida ou expirada. Tente entrar de novo.")
 		return
@@ -269,6 +293,7 @@ func (s *server) handleFirebase(w http.ResponseWriter, r *http.Request) {
 	u, err := s.auth.be.LoginFirebase(r.Context(), service.FirebaseLogin{
 		UID: claims.UID, Email: claims.Email, Name: claims.Name,
 		ListsConfigured: s.auth.Admission.Configured(), Admitted: s.auth.Admission.Allows(claims.Email),
+		OwnerEmail: s.auth.OwnerEmail,
 	})
 	switch {
 	case err == nil:

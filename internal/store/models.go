@@ -164,6 +164,7 @@ type Persona struct {
 	ConsecutiveFailures  int32
 	RequireReview        bool
 	PauseReason          *string
+	BudgetRefusedAt      *time.Time
 }
 
 type Project struct {
@@ -203,6 +204,7 @@ type Run struct {
 	FinishedAt          *time.Time
 	PendingResult       []byte
 	CostSource          string
+	NextEventSeq        int64
 }
 
 type RunEvent struct {
@@ -218,33 +220,35 @@ type RunEvent struct {
 }
 
 type Session struct {
-	ID         uuid.UUID
-	UserID     uuid.UUID
-	TokenHash  string
-	CreatedAt  time.Time
-	ExpiresAt  time.Time
-	LastSeenAt time.Time
-	UserAgent  string
-	Ip         string
+	ID                uuid.UUID
+	UserID            uuid.UUID
+	TokenHash         string
+	CreatedAt         time.Time
+	ExpiresAt         time.Time
+	LastSeenAt        time.Time
+	UserAgent         string
+	Ip                string
+	AbsoluteExpiresAt time.Time
 }
 
 type Task struct {
-	ID            uuid.UUID
-	CompanyID     uuid.UUID
-	Number        int64
-	Title         string
-	Description   string
-	Status        string
-	Priority      string
-	PersonaID     *uuid.UUID
-	ProjectID     *uuid.UUID
-	WorkspaceID   *uuid.UUID
-	ParentID      *uuid.UUID
-	CreatedByType string
-	CreatedByID   *uuid.UUID
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-	ClosedAt      *time.Time
+	ID                uuid.UUID
+	CompanyID         uuid.UUID
+	Number            int64
+	Title             string
+	Description       string
+	Status            string
+	Priority          string
+	PersonaID         *uuid.UUID
+	ProjectID         *uuid.UUID
+	WorkspaceID       *uuid.UUID
+	ParentID          *uuid.UUID
+	CreatedByType     string
+	CreatedByID       *uuid.UUID
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+	ClosedAt          *time.Time
+	LastHumanChangeAt *time.Time
 }
 
 type TaskComment struct {

@@ -65,28 +65,33 @@ WHERE status IN ('queued', 'running')
 RETURNING *;
 
 -- name: ListWakeCandidates :many
--- Tasks atribuídas, trabalháveis e sem run ativa nem gate pendente, de personas que podem trabalhar:
+-- Tasks atribuídas, trabalháveis e sem run ativa nem gate pendente, de personas que podem trabalhar
+-- (e que não tiveram o checkout recusado por reserva de orçamento nos últimos 10 min):
 --  (a) o intervalo de heartbeat da persona (> 0) passou desde a última run da task; ou
---  (b) rede de segurança, independente do intervalo: a task mudou (ou recebeu comentário humano ou
---      decisão) antes de @stale_before (agora - 1 minuto) e nenhuma run foi aberta depois da mudança, ou seja, o wake se perdeu.
+--  (b) rede de segurança, independente do intervalo: houve uma mudança "não vista" (status/atribuição
+--      por ator não-persona, ou comentário humano) antes de @stale_before (agora - 1 minuto) e nenhuma
+--      run cobre o instante dela (nenhuma run terminou depois dele nem está aberta), ou seja, o wake se perdeu.
+--      Escritas da própria persona e edições de título/descrição/prioridade não contam.
 SELECT t.company_id, t.persona_id AS persona_id, t.id AS task_id
 FROM tasks t
 JOIN personas p ON p.id = t.persona_id
+LEFT JOIN LATERAL (
+    SELECT max(c.created_at) AS last_comment FROM task_comments c
+    WHERE c.task_id = t.id AND c.author_type <> 'persona'
+) hc ON true
 WHERE t.status IN ('todo', 'in_progress')
   AND p.status IN ('active', 'idle', 'running')
+  AND (p.budget_refused_at IS NULL OR p.budget_refused_at <= @budget_cutoff::timestamptz)
   AND NOT EXISTS (SELECT 1 FROM runs a WHERE a.task_id = t.id AND a.status IN ('queued', 'running'))
   AND NOT EXISTS (SELECT 1 FROM gates g WHERE g.task_id = t.id AND g.status = 'pending')
   AND (
     (p.heartbeat_interval_sec > 0
      AND COALESCE((SELECT max(COALESCE(r.finished_at, r.created_at)) FROM runs r WHERE r.task_id = t.id), 'epoch'::timestamptz)
-         + make_interval(secs => p.heartbeat_interval_sec) <= @now)
+         + make_interval(secs => p.heartbeat_interval_sec) <= @now::timestamptz)
     OR
-    (GREATEST(t.updated_at, COALESCE((SELECT max(c.created_at) FROM task_comments c
-                                      WHERE c.task_id = t.id AND c.author_type <> 'persona'), 'epoch'::timestamptz))
-         < @stale_before::timestamptz
+    (GREATEST(t.last_human_change_at, hc.last_comment) < @stale_before::timestamptz
      AND NOT EXISTS (SELECT 1 FROM runs r WHERE r.task_id = t.id
-                     AND r.created_at >= GREATEST(t.updated_at, COALESCE((SELECT max(c.created_at) FROM task_comments c
-                                      WHERE c.task_id = t.id AND c.author_type <> 'persona'), 'epoch'::timestamptz))))
+                     AND COALESCE(r.finished_at, @now::timestamptz) >= GREATEST(t.last_human_change_at, hc.last_comment)))
   )
 ORDER BY t.updated_at
 LIMIT @lim;
@@ -101,12 +106,15 @@ ON CONFLICT (persona_id, task_id) DO UPDATE SET seq = wake_requests.seq + 1, upd
 SELECT COALESCE((SELECT seq FROM wake_requests WHERE persona_id = @persona_id AND task_id = @task_id), 0)::bigint AS seq;
 
 -- name: AppendRunEvent :one
+-- O seq vem de runs.next_event_seq (UPDATE ... RETURNING serializa os escritores na linha da run).
+WITH r AS (
+    UPDATE runs SET next_event_seq = next_event_seq + 1
+    WHERE runs.company_id = @company_id AND runs.id = @run_id
+    RETURNING runs.id, runs.company_id, runs.next_event_seq - 1 AS seq
+)
 INSERT INTO run_events (id, company_id, run_id, seq, kind, text, payload, occurred_at, received_at)
-SELECT @id, r.company_id, r.id,
-       COALESCE((SELECT max(e.seq) FROM run_events e WHERE e.run_id = r.id), 0) + 1,
-       @kind, @text, @payload, @occurred_at, @now
-FROM runs r
-WHERE r.company_id = @company_id AND r.id = @run_id
+SELECT @id, r.company_id, r.id, r.seq, @kind, @text, @payload, @occurred_at, @now
+FROM r
 RETURNING *;
 
 -- name: ListRunEvents :many

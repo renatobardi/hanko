@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"math/big"
 	"net/http"
 	"strconv"
@@ -52,12 +53,20 @@ type FirebaseVerifier struct {
 	// MinRefresh é o intervalo mínimo entre buscas forçadas por kid desconhecido (default 10 s),
 	// para que tokens forjados não virem uma torrente de requisições ao Google.
 	MinRefresh time.Duration
+	// StaleGrace é por quanto tempo, depois de vencido o cache, as chaves antigas ainda valem se o
+	// refresh falhar (default 1 h). Passado esse prazo o verificador falha fechado (ErrJWKSUnavailable).
+	StaleGrace time.Duration
+	// Log recebe o aviso de uso de chaves vencidas (nil = descarta).
+	Log *slog.Logger
 
-	mu        sync.Mutex
-	keys      map[string]*rsa.PublicKey
-	expires   time.Time
-	lastFetch time.Time
+	mu          sync.Mutex
+	keys        map[string]*rsa.PublicKey
+	expires     time.Time
+	lastAttempt time.Time
 }
+
+// DefaultStaleGrace é a tolerância a um JWKS inalcançável depois do vencimento do cache.
+const DefaultStaleGrace = time.Hour
 
 func (v *FirebaseVerifier) now() time.Time {
 	if v.Now != nil {
@@ -136,23 +145,45 @@ func (v *FirebaseVerifier) Verify(ctx context.Context, idToken string) (Firebase
 }
 
 // key devolve a chave pública do kid, buscando o JWKS se o cache expirou ou o kid é novo.
+//
+// Se o refresh falha e o cache venceu há menos de StaleGrace, as chaves em cache continuam valendo
+// (com aviso no log): uma queda curta do endpoint do Google não derruba o login. Depois disso, falha fechado.
 func (v *FirebaseVerifier) key(ctx context.Context, kid string) (*rsa.PublicKey, error) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	now := v.now()
+	min := v.MinRefresh
+	if min == 0 {
+		min = 10 * time.Second
+	}
+	throttled := min > 0 && now.Sub(v.lastAttempt) < min
 	if v.keys != nil && now.Before(v.expires) {
 		if k, ok := v.keys[kid]; ok {
 			return k, nil
 		}
-		min := v.MinRefresh
-		if min == 0 {
-			min = 10 * time.Second
-		}
-		if min > 0 && now.Sub(v.lastFetch) < min {
+		if throttled {
 			return nil, fmt.Errorf("kid %q desconhecido", kid)
 		}
 	}
+	grace := v.StaleGrace
+	if grace <= 0 {
+		grace = DefaultStaleGrace
+	}
+	stale := v.keys != nil && !now.Before(v.expires) && now.Before(v.expires.Add(grace))
+	if stale && throttled { // o último refresh falhou há pouco: não martela o Google, usa o cache vencido
+		if k, ok := v.keys[kid]; ok {
+			return k, nil
+		}
+		return nil, fmt.Errorf("%w: refresh recente falhou e kid %q não está no cache vencido", ErrJWKSUnavailable, kid)
+	}
 	if err := v.fetchLocked(ctx); err != nil {
+		if stale {
+			v.logger().Warn("firebase: refresh do JWKS falhou; usando chaves em cache vencidas", "err", err,
+				"venceu_em", v.expires, "tolerancia_ate", v.expires.Add(grace))
+			if k, ok := v.keys[kid]; ok {
+				return k, nil
+			}
+		}
 		return nil, err
 	}
 	if k, ok := v.keys[kid]; ok {
@@ -170,7 +201,15 @@ type jwksDoc struct {
 	} `json:"keys"`
 }
 
+func (v *FirebaseVerifier) logger() *slog.Logger {
+	if v.Log != nil {
+		return v.Log
+	}
+	return slog.New(slog.DiscardHandler)
+}
+
 func (v *FirebaseVerifier) fetchLocked(ctx context.Context) error {
+	v.lastAttempt = v.now()
 	url := v.JWKSURL
 	if url == "" {
 		url = GoogleJWKSURL
@@ -215,7 +254,7 @@ func (v *FirebaseVerifier) fetchLocked(ctx context.Context) error {
 		return fmt.Errorf("%w: JWKS sem chaves RSA válidas", ErrJWKSUnavailable)
 	}
 	now := v.now()
-	v.keys, v.lastFetch, v.expires = keys, now, now.Add(maxAge(resp.Header.Get("Cache-Control")))
+	v.keys, v.expires = keys, now.Add(maxAge(resp.Header.Get("Cache-Control")))
 	return nil
 }
 

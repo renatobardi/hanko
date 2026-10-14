@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/renatobardi/hanko/internal/adapter"
+	"github.com/renatobardi/hanko/internal/auth"
 	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/events"
 )
@@ -51,10 +52,18 @@ type Service struct {
 	// RunReserveUSD é o piso da reserva de orçamento por run aberta (HANKO_RUN_RESERVE_USD);
 	// 0 usa DefaultRunReserveUSD.
 	RunReserveUSD float64
+	// PasswordGate limita os argon2id simultâneos (hash e verificação de senha); New cria o padrão.
+	PasswordGate *auth.PasswordGate
+	// Admission é a política de admissão do provider firebase (HANKO_AUTH_ALLOWED_EMAILS/DOMAINS):
+	// com listas, uma sessão (ou API key) de usuário firebase cujo e-mail saiu delas deixa de valer.
+	Admission auth.Admission
+	// OwnerEmail é HANKO_AUTH_OWNER_EMAIL (minúsculas): o dono nomeado passa mesmo fora das listas.
+	OwnerEmail string
 }
 
 func New(pool *pgxpool.Pool, jobs Jobs, broker *events.Broker) *Service {
-	return &Service{Pool: pool, Jobs: jobs, Broker: broker, Now: func() time.Time { return time.Now().UTC() }}
+	return &Service{Pool: pool, Jobs: jobs, Broker: broker, Now: func() time.Time { return time.Now().UTC() },
+		PasswordGate: auth.NewPasswordGate(0, 0)}
 }
 
 // ---------- inputs ----------

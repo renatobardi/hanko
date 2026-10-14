@@ -62,19 +62,20 @@ func (q *Queries) CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (Api
 }
 
 const createSession = `-- name: CreateSession :one
-INSERT INTO sessions (id, user_id, token_hash, created_at, expires_at, last_seen_at, user_agent, ip)
-VALUES ($1, $2, $3, $4, $5, $4, $6, $7)
-RETURNING id, user_id, token_hash, created_at, expires_at, last_seen_at, user_agent, ip
+INSERT INTO sessions (id, user_id, token_hash, created_at, expires_at, absolute_expires_at, last_seen_at, user_agent, ip)
+VALUES ($1, $2, $3, $4, $5, $6, $4, $7, $8)
+RETURNING id, user_id, token_hash, created_at, expires_at, last_seen_at, user_agent, ip, absolute_expires_at
 `
 
 type CreateSessionParams struct {
-	ID        uuid.UUID
-	UserID    uuid.UUID
-	TokenHash string
-	Now       time.Time
-	ExpiresAt time.Time
-	UserAgent string
-	Ip        string
+	ID                uuid.UUID
+	UserID            uuid.UUID
+	TokenHash         string
+	Now               time.Time
+	ExpiresAt         time.Time
+	AbsoluteExpiresAt time.Time
+	UserAgent         string
+	Ip                string
 }
 
 func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error) {
@@ -84,6 +85,7 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (S
 		arg.TokenHash,
 		arg.Now,
 		arg.ExpiresAt,
+		arg.AbsoluteExpiresAt,
 		arg.UserAgent,
 		arg.Ip,
 	)
@@ -97,6 +99,7 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (S
 		&i.LastSeenAt,
 		&i.UserAgent,
 		&i.Ip,
+		&i.AbsoluteExpiresAt,
 	)
 	return i, err
 }
@@ -145,7 +148,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 }
 
 const deleteExpiredSessions = `-- name: DeleteExpiredSessions :exec
-DELETE FROM sessions WHERE expires_at <= $1
+DELETE FROM sessions WHERE expires_at <= $1 OR absolute_expires_at <= $1
 `
 
 func (q *Queries) DeleteExpiredSessions(ctx context.Context, now time.Time) error {
@@ -183,7 +186,7 @@ func (q *Queries) GetAPIKeyByHash(ctx context.Context, hash string) (ApiKey, err
 }
 
 const getSessionByHash = `-- name: GetSessionByHash :one
-SELECT id, user_id, token_hash, created_at, expires_at, last_seen_at, user_agent, ip FROM sessions WHERE token_hash = $1 AND expires_at > $2
+SELECT id, user_id, token_hash, created_at, expires_at, last_seen_at, user_agent, ip, absolute_expires_at FROM sessions WHERE token_hash = $1 AND expires_at > $2 AND absolute_expires_at > $2
 `
 
 type GetSessionByHashParams struct {
@@ -203,6 +206,7 @@ func (q *Queries) GetSessionByHash(ctx context.Context, arg GetSessionByHashPara
 		&i.LastSeenAt,
 		&i.UserAgent,
 		&i.Ip,
+		&i.AbsoluteExpiresAt,
 	)
 	return i, err
 }
@@ -394,7 +398,7 @@ func (q *Queries) TouchAPIKey(ctx context.Context, arg TouchAPIKeyParams) error 
 }
 
 const touchSession = `-- name: TouchSession :exec
-UPDATE sessions SET last_seen_at = $1, expires_at = $2 WHERE id = $3
+UPDATE sessions SET last_seen_at = $1, expires_at = LEAST($2::timestamptz, absolute_expires_at) WHERE id = $3
 `
 
 type TouchSessionParams struct {

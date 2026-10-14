@@ -149,6 +149,11 @@ func (t *txc) createTask(actor domain.Actor, companyID domain.ID, in CreateTaskI
 	if err != nil {
 		return TaskView{}, mapErr(err, "create task")
 	}
+	if in.PersonaID != nil { // a fresh assignment is an unseen change whoever made it (no run can exist yet)
+		if err := t.q.TouchTaskHumanChange(ctx, store.TouchTaskHumanChangeParams{ID: row.ID, Now: &t.now}); err != nil {
+			return TaskView{}, fmt.Errorf("touch task: %w", err)
+		}
+	}
 	key := domain.TaskKey(num.TaskPrefix, num.Number)
 	if err := t.activity(actor, companyID, "task.created", "task", row.ID, map[string]any{
 		"key": key, "title": title, "status": status, "priority": prio, "persona_id": in.PersonaID,
@@ -380,6 +385,12 @@ func (s *Service) UpdateTask(ctx context.Context, actor domain.Actor, companyID,
 			row, err := t.q.UpdateTask(ctx, p)
 			if err != nil {
 				return mapErr(err, "update task")
+			}
+			if actor.Type != domain.ActorPersona && (statusChanged || personaChanged) {
+				// status/assignment by a human or the system: the one kind of edit the safety net may wake for
+				if err := t.q.TouchTaskHumanChange(ctx, store.TouchTaskHumanChangeParams{ID: taskID, Now: &t.now}); err != nil {
+					return fmt.Errorf("touch task: %w", err)
+				}
 			}
 			eid := in.EventID
 			for _, a := range acts {

@@ -36,6 +36,8 @@ type handlerDeps struct {
 // host check por fora. Separado de Serve para que os testes de wiring suban o mesmo mux.
 func buildHandler(d handlerDeps) (http.Handler, error) {
 	cfg := d.Cfg
+	d.Svc.Admission = auth.Admission{Emails: cfg.Auth.AllowedEmails, Domains: cfg.Auth.AllowedDomains}
+	d.Svc.OwnerEmail = cfg.Auth.OwnerEmail
 	mux := http.NewServeMux()
 	api.Mount(mux, api.Deps{Svc: d.Svc, Broker: d.Broker, Logger: d.Logger, Version: d.Version, Tokens: &d.Tokens, DB: d.Pool,
 		Authenticated: cfg.Authenticated()})
@@ -69,15 +71,19 @@ func uiAuth(d handlerDeps) *ui.AuthDeps {
 	if !cfg.Authenticated() {
 		return nil
 	}
+	proxies, _ := auth.ParseTrustedProxies(cfg.TrustedProxies) // validado em config.Validate
 	a := &ui.AuthDeps{
-		Provider:  cfg.Auth.Provider,
-		Secure:    cfg.SecureCookies(),
-		Admission: auth.Admission{Emails: cfg.Auth.AllowedEmails, Domains: cfg.Auth.AllowedDomains},
+		Provider:     cfg.Auth.Provider,
+		Secure:       cfg.SecureCookies(),
+		Admission:    auth.Admission{Emails: cfg.Auth.AllowedEmails, Domains: cfg.Auth.AllowedDomains},
+		Proxies:      proxies,
+		OwnerEmail:   cfg.Auth.OwnerEmail,
+		WebBootstrap: cfg.WebBootstrapAllowed(),
 	}
 	if cfg.Auth.Provider == config.AuthFirebase {
 		fb := cfg.Auth.Firebase
 		a.Firebase = views.FirebaseWeb{APIKey: fb.APIKey, AuthDomain: fb.AuthDomain, ProjectID: fb.ProjectID}
-		a.Verifier = &auth.FirebaseVerifier{ProjectID: fb.ProjectID, JWKSURL: d.JWKSURL}
+		a.Verifier = &auth.FirebaseVerifier{ProjectID: fb.ProjectID, JWKSURL: d.JWKSURL, Log: d.Logger}
 	}
 	return a
 }

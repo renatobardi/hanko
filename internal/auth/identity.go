@@ -36,25 +36,6 @@ func IdentityFrom(ctx context.Context) (Identity, bool) {
 	return id, ok
 }
 
-// ClientIP é o IP do cliente. X-Forwarded-For só vale quando a conexão vem de um proxy
-// local ou privado (o último valor é o que o proxy mais próximo anexou); de fora, é ignorado.
-func ClientIP(r *http.Request) string {
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		host = r.RemoteAddr
-	}
-	ip := net.ParseIP(host)
-	if ip != nil && (ip.IsLoopback() || ip.IsPrivate()) {
-		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-			parts := strings.Split(xff, ",")
-			if last := strings.TrimSpace(parts[len(parts)-1]); net.ParseIP(last) != nil {
-				return last
-			}
-		}
-	}
-	return host
-}
-
 // IsDirectLoopback: conexão de loopback sem sinal de proxy reverso à frente.
 func IsDirectLoopback(r *http.Request) bool {
 	if r.Header.Get("X-Forwarded-For") != "" || r.Header.Get("Forwarded") != "" || r.Header.Get("X-Real-IP") != "" {

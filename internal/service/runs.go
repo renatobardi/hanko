@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -186,7 +187,18 @@ func (s *Service) CheckoutRun(ctx context.Context, w Wake) (domain.Run, error) {
 		}
 		if berr := t.checkBudgets(co, p, true); berr != nil {
 			blocked = berr
+			var rr *reservationRefused
+			if errors.As(berr, &rr) { // refused only by the reservation: keep the safety net off this persona for a while
+				if err := t.q.SetPersonaBudgetRefused(ctx, store.SetPersonaBudgetRefusedParams{ID: p.ID, Now: &t.now}); err != nil {
+					return fmt.Errorf("mark budget refused: %w", err)
+				}
+			}
 			return nil
+		}
+		if p.BudgetRefusedAt != nil {
+			if err := t.q.ClearPersonaBudgetRefused(ctx, store.ClearPersonaBudgetRefusedParams{PersonaID: &p.ID}); err != nil {
+				return fmt.Errorf("clear budget refused: %w", err)
+			}
 		}
 		row, err := t.q.CreateRun(ctx, store.CreateRunParams{ID: domain.NewID(), CompanyID: w.CompanyID, TaskID: task.ID,
 			PersonaID: p.ID, Trigger: string(w.Trigger), Agent: p.Agent, Model: p.Model, Now: t.now})
@@ -343,13 +355,9 @@ func (s *Service) AppendRunEvent(ctx context.Context, companyID, runID domain.ID
 		row store.RunEvent
 		err error
 	)
-	for attempt := 0; attempt < 5; attempt++ { // concurrent writers may collide on (run_id, seq)
-		row, err = q.AppendRunEvent(ctx, store.AppendRunEventParams{ID: domain.NewID(), Kind: string(e.Kind),
-			Text: e.Text, Payload: payload, OccurredAt: occurred, Now: now, CompanyID: companyID, RunID: runID})
-		if err == nil || !isUnique(err) {
-			break
-		}
-	}
+	// seq comes from runs.next_event_seq (UPDATE ... RETURNING), which serializes concurrent writers.
+	row, err = q.AppendRunEvent(ctx, store.AppendRunEventParams{ID: domain.NewID(), Kind: string(e.Kind),
+		Text: e.Text, Payload: payload, OccurredAt: occurred, Now: now, CompanyID: companyID, RunID: runID})
 	if err != nil {
 		return domain.RunEvent{}, mapErr(err, "append run event")
 	}
@@ -595,16 +603,25 @@ func (s *Service) InterruptOrphanRuns(ctx context.Context) (int, error) {
 	return n, nil
 }
 
+// budgetRefusedQuiet is how long a persona whose checkout was refused only by the budget reservation
+// stays out of the heartbeat's wake candidates (an explicit human wake still tries).
+const budgetRefusedQuiet = 10 * time.Minute
+
 // wakeStaleAfter is how long a task may sit changed and unattended before the heartbeat wakes its
 // assignee regardless of heartbeat_interval_sec (safety net for a wake the queue lost).
 const wakeStaleAfter = time.Minute
 
 // WakeCandidates lists assigned workable tasks with no active run and no pending gate whose
 // persona CanWork and either has heartbeat_interval_sec > 0 elapsed since its last run on the
-// task, or (safety net, whatever the interval) whose task changed more than a minute ago with no
-// run opened since: the wake that should have followed the change was lost.
+// task, or (safety net, whatever the interval) that got an unseen change more than a minute ago
+// (status or assignment by a non-persona actor, or a human comment) which no run covers (none ran
+// or is running at that instant or later): the wake that should have followed it was lost. A
+// persona's own writes and title/description/priority edits never count, so no run loop. Personas
+// whose last checkout was refused by the budget reservation sit out for budgetRefusedQuiet.
 func (s *Service) WakeCandidates(ctx context.Context, limit int) ([]WakeCandidate, error) {
-	rows, err := s.read().ListWakeCandidates(ctx, store.ListWakeCandidatesParams{Now: ptr(s.Now().UTC()), StaleBefore: s.Now().UTC().Add(-wakeStaleAfter), Lim: int32(clamp(limit, 100, 1000))})
+	now := s.Now().UTC()
+	rows, err := s.read().ListWakeCandidates(ctx, store.ListWakeCandidatesParams{Now: now, StaleBefore: now.Add(-wakeStaleAfter),
+		BudgetCutoff: now.Add(-budgetRefusedQuiet), Lim: int32(clamp(limit, 100, 1000))})
 	if err != nil {
 		return nil, fmt.Errorf("wake candidates: %w", err)
 	}

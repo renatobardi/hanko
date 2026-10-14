@@ -287,6 +287,9 @@ func (s *Service) SetCompanyBudget(ctx context.Context, actor domain.Actor, comp
 		if err := t.resetBudgetAlerts(row, companyID, cents, nil); err != nil {
 			return err
 		}
+		if err := t.q.ClearPersonaBudgetRefused(ctx, store.ClearPersonaBudgetRefusedParams{CompanyID: &companyID}); err != nil {
+			return fmt.Errorf("clear budget refused: %w", err)
+		}
 		_, err = t.resumeBudgetPaused(&companyID, nil)
 		return err
 	})
@@ -365,6 +368,13 @@ func (s *Service) runReserve() float64 {
 
 // DefaultRunReserveUSD is the reservation floor per open run when none is configured.
 const DefaultRunReserveUSD = 1.0
+
+// reservationRefused is the checkBudgets refusal caused only by the reservation of open runs (nothing is
+// paused). It is a domain.ErrBudgetExceeded for errors.Is.
+type reservationRefused struct{ msg string }
+
+func (e *reservationRefused) Error() string { return e.msg }
+func (e *reservationRefused) Unwrap() error { return domain.ErrBudgetExceeded }
 
 // checkBudgets looks at the persona and company ceilings for the current month. Crossing
 // 80% records a budget.warning and 100% a budget.exceeded (each at most once per month and
@@ -452,8 +462,8 @@ func (t *txc) checkBudgets(company store.Company, persona store.Persona, enforce
 			if tg.scope == "company" {
 				what = "empresa"
 			}
-			blocked = fmt.Errorf("orçamento mensal da %s não comporta mais uma execução (gasto %.2f + reservas %.2f + nova %.2f > teto %.2f): %w",
-				what, spent, active, newRes, float64(*tg.budget)/100, domain.ErrBudgetExceeded)
+			blocked = &reservationRefused{msg: fmt.Sprintf("orçamento mensal da %s não comporta mais uma execução (gasto %.2f + reservas %.2f + nova %.2f > teto %.2f): %s",
+				what, spent, active, newRes, float64(*tg.budget)/100, domain.ErrBudgetExceeded)}
 		}
 	}
 	return blocked

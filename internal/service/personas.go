@@ -163,6 +163,14 @@ func (s *Service) UpdatePersona(ctx context.Context, actor domain.Actor, company
 			p.Status = string(*in.Status)
 			changed = append(changed, "status")
 		}
+		if in.Status != nil && actor.Type != domain.ActorPersona && cur.PauseReason != nil {
+			// A human who sets the status explicitly takes over a budget pause: without clearing the
+			// reason, the budget tick would resume a persona the human just paused on purpose.
+			p.ClearPauseReason = true
+			if string(*in.Status) == cur.Status {
+				changed = append(changed, "pause_reason")
+			}
+		}
 		if in.HeartbeatIntervalSec != nil && int32(*in.HeartbeatIntervalSec) != cur.HeartbeatIntervalSec {
 			p.HeartbeatIntervalSec = int32(*in.HeartbeatIntervalSec)
 			changed = append(changed, "heartbeat_interval_sec")
@@ -234,6 +242,9 @@ func (s *Service) UpdatePersona(ctx context.Context, actor domain.Actor, company
 			}
 			if err := t.resetBudgetAlerts(co, personaID, row.BudgetMonthlyCents, &personaID); err != nil {
 				return err
+			}
+			if err := t.q.ClearPersonaBudgetRefused(ctx, store.ClearPersonaBudgetRefusedParams{PersonaID: &personaID}); err != nil {
+				return fmt.Errorf("clear budget refused: %w", err)
 			}
 			if _, err := t.resumeBudgetPaused(&companyID, &personaID); err != nil {
 				return err

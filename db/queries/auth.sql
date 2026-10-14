@@ -30,21 +30,21 @@ UPDATE users SET email = @email, name = @name, last_login_at = @now::timestamptz
 RETURNING *;
 
 -- name: CreateSession :one
-INSERT INTO sessions (id, user_id, token_hash, created_at, expires_at, last_seen_at, user_agent, ip)
-VALUES (@id, @user_id, @token_hash, @now, @expires_at, @now, @user_agent, @ip)
+INSERT INTO sessions (id, user_id, token_hash, created_at, expires_at, absolute_expires_at, last_seen_at, user_agent, ip)
+VALUES (@id, @user_id, @token_hash, @now, @expires_at, @absolute_expires_at, @now, @user_agent, @ip)
 RETURNING *;
 
 -- name: GetSessionByHash :one
-SELECT * FROM sessions WHERE token_hash = @token_hash AND expires_at > @now;
+SELECT * FROM sessions WHERE token_hash = @token_hash AND expires_at > @now AND absolute_expires_at > @now;
 
 -- name: TouchSession :exec
-UPDATE sessions SET last_seen_at = @now, expires_at = @expires_at WHERE id = @id;
+UPDATE sessions SET last_seen_at = @now, expires_at = LEAST(@expires_at::timestamptz, absolute_expires_at) WHERE id = @id;
 
 -- name: DeleteSessionByHash :exec
 DELETE FROM sessions WHERE token_hash = @token_hash;
 
 -- name: DeleteExpiredSessions :exec
-DELETE FROM sessions WHERE expires_at <= @now;
+DELETE FROM sessions WHERE expires_at <= @now OR absolute_expires_at <= @now;
 
 -- name: CreateAPIKey :one
 INSERT INTO api_keys (id, user_id, name, prefix, hash, created_at)

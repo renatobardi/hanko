@@ -24,7 +24,7 @@ UPDATE personas
 SET name = @name, title = @title, instructions = @instructions, model = @model,
     status = @status, heartbeat_interval_sec = @heartbeat_interval_sec,
     workspace_id = @workspace_id, budget_monthly_cents = @budget_monthly_cents, updated_at = @now,
-    pause_reason = CASE WHEN @status::text <> 'paused' THEN NULL ELSE pause_reason END,
+    pause_reason = CASE WHEN @status::text <> 'paused' OR @clear_pause_reason::boolean THEN NULL ELSE pause_reason END,
     consecutive_failures = CASE WHEN @status::text <> status THEN 0 ELSE consecutive_failures END
 WHERE company_id = @company_id AND id = @id
 RETURNING *;
@@ -74,3 +74,13 @@ ORDER BY company_id, created_at, id;
 -- name: ResumePersonaFromBudget :execrows
 UPDATE personas SET status = 'idle', pause_reason = NULL, updated_at = @now
 WHERE id = @id AND status = 'paused' AND pause_reason IS NOT NULL;
+
+-- name: SetPersonaBudgetRefused :exec
+-- Checkout recusado só pela reserva de orçamento: a rede de segurança deixa a persona em paz por 10 min.
+UPDATE personas SET budget_refused_at = @now WHERE id = @id;
+
+-- name: ClearPersonaBudgetRefused :exec
+UPDATE personas SET budget_refused_at = NULL
+WHERE budget_refused_at IS NOT NULL
+  AND (sqlc.narg(persona_id)::uuid IS NULL OR id = sqlc.narg(persona_id)::uuid)
+  AND (sqlc.narg(company_id)::uuid IS NULL OR company_id = sqlc.narg(company_id)::uuid);

@@ -57,3 +57,7 @@ RETURNING *;
 
 -- name: SetTaskStatus :exec
 UPDATE tasks SET status = @status, updated_at = @now WHERE id = @id;
+
+-- name: TouchTaskHumanChange :exec
+-- Marca uma mudança não vista (status/atribuição por ator não-persona) para a rede de segurança do heartbeat.
+UPDATE tasks SET last_human_change_at = @now WHERE id = @id;

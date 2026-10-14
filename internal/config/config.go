@@ -61,6 +61,12 @@ type Auth struct {
 	Firebase       Firebase `yaml:"firebase"`
 	AllowedEmails  []string `yaml:"allowed_emails" env:"HANKO_AUTH_ALLOWED_EMAILS" envSeparator:","`
 	AllowedDomains []string `yaml:"allowed_domains" env:"HANKO_AUTH_ALLOWED_DOMAINS" envSeparator:","`
+	// OwnerEmail (provider firebase): o único e-mail que vira dono. Com HANKO_PUBLIC_URL fora de
+	// loopback e sem listas de admissão, é obrigatório (senão o primeiro visitante viraria dono).
+	OwnerEmail string `yaml:"owner_email" env:"HANKO_AUTH_OWNER_EMAIL"`
+	// WebBootstrap (provider local) libera o formulário web "Criar conta de dono" mesmo com
+	// HANKO_PUBLIC_URL fora de loopback; sem ele a tela manda usar `hanko auth create-owner`.
+	WebBootstrap bool `yaml:"web_bootstrap" env:"HANKO_AUTH_WEB_BOOTSTRAP"`
 }
 
 // Config é a configuração completa do processo.
@@ -87,6 +93,10 @@ type Config struct {
 	// AllowedHosts são hosts extras aceitos no cabeçalho Host (proteção contra DNS
 	// rebinding), além de localhost/loopback e do host de PublicURL.
 	AllowedHosts []string `yaml:"allowed_hosts" env:"HANKO_ALLOWED_HOSTS" envSeparator:","`
+	// TrustedProxies são as redes (CIDR) cujos pares podem informar o IP do cliente por
+	// X-Forwarded-For (HANKO_TRUSTED_PROXIES). Fora delas, o IP do cliente é o RemoteAddr.
+	// Atrás de proxy em outra rede (o Caddy do compose, via rede docker), inclua a sub-rede dela.
+	TrustedProxies []string `yaml:"trusted_proxies" env:"HANKO_TRUSTED_PROXIES" envSeparator:","`
 	// WorkspacesRoot é a raiz sob a qual todo workspace precisa estar (default $HOME/hanko-workspaces).
 	WorkspacesRoot string `yaml:"workspaces_root" env:"HANKO_WORKSPACES_ROOT"`
 	// RunReserveUSD é o piso (USD) da reserva de orçamento por run aberta: antes de abrir uma
@@ -109,6 +119,7 @@ func Defaults() Config {
 		MigrateOnBoot:     true,
 		Memory:            Memory{Provider: MemoryAIMemory, URL: "http://127.0.0.1:49374"},
 		Auth:              Auth{Provider: AuthLocal},
+		TrustedProxies:    []string{"127.0.0.1/32", "::1/128"},
 		ClaudeBin:         "claude",
 		CodexBin:          "codex",
 		Workers:           4,
@@ -170,6 +181,7 @@ func environFor(getenv func(string) string) map[string]string {
 		"HANKO_AGENT_ENV_ALLOW", "HANKO_ALLOWED_HOSTS", "HANKO_WORKSPACES_ROOT", "HANKO_RUN_RESERVE_USD",
 		"HANKO_AUTH_PROVIDER", "HANKO_AUTH_ALLOWED_EMAILS", "HANKO_AUTH_ALLOWED_DOMAINS",
 		"HANKO_FIREBASE_PROJECT_ID", "HANKO_FIREBASE_API_KEY", "HANKO_FIREBASE_AUTH_DOMAIN",
+		"HANKO_AUTH_OWNER_EMAIL", "HANKO_AUTH_WEB_BOOTSTRAP", "HANKO_TRUSTED_PROXIES",
 	}
 	m := make(map[string]string, len(keys))
 	for _, k := range keys {
@@ -192,6 +204,8 @@ func (c *Config) finalize() error {
 	c.Auth.Firebase.AuthDomain = strings.TrimSpace(c.Auth.Firebase.AuthDomain)
 	c.Auth.AllowedEmails = lowerList(c.Auth.AllowedEmails)
 	c.Auth.AllowedDomains = lowerList(c.Auth.AllowedDomains)
+	c.Auth.OwnerEmail = strings.ToLower(strings.TrimSpace(c.Auth.OwnerEmail))
+	c.TrustedProxies = cleanList(c.TrustedProxies)
 	c.LogLevel = strings.ToLower(strings.TrimSpace(c.LogLevel))
 	c.LogFormat = strings.ToLower(strings.TrimSpace(c.LogFormat))
 	c.Addr = strings.TrimSpace(c.Addr)
@@ -223,9 +237,9 @@ func (c *Config) finalize() error {
 		c.Warnings = append(c.Warnings,
 			"HANKO_SECRET não definido: gerado aleatoriamente neste boot; run tokens de runs em andamento não sobrevivem a restart")
 	}
-	if c.Mode == ModeAuthenticated && c.Auth.Provider == AuthFirebase && len(c.Auth.AllowedEmails)+len(c.Auth.AllowedDomains) == 0 {
+	if c.Mode == ModeAuthenticated && c.Auth.Provider == AuthFirebase && !c.Auth.ListsConfigured() && c.Auth.OwnerEmail == "" {
 		c.Warnings = append(c.Warnings,
-			"auth firebase sem HANKO_AUTH_ALLOWED_EMAILS/HANKO_AUTH_ALLOWED_DOMAINS: só o primeiro usuário a entrar (dono) é admitido; os demais são recusados")
+			"auth firebase sem HANKO_AUTH_ALLOWED_EMAILS/HANKO_AUTH_ALLOWED_DOMAINS nem HANKO_AUTH_OWNER_EMAIL (aceito só em loopback): só o primeiro usuário a entrar (dono) é admitido; os demais são recusados")
 	}
 	if c.Mode == ModeTrusted && !c.IsLoopback() {
 		c.Warnings = append(c.Warnings,
@@ -271,6 +285,11 @@ func (c Config) Validate() error {
 	if c.Secret != "" && len(c.Secret) < MinSecretLen {
 		add("HANKO_SECRET tem %d bytes: use no mínimo %d (ex.: openssl rand -hex 32)", len(c.Secret), MinSecretLen)
 	}
+	for _, e := range c.TrustedProxies {
+		if !validProxyEntry(e) {
+			add("HANKO_TRUSTED_PROXIES: %q inválido: use um CIDR (ex.: 172.18.0.0/16) ou IP", e)
+		}
+	}
 	if c.WorkspacesRoot != "" && !filepath.IsAbs(c.WorkspacesRoot) {
 		add("HANKO_WORKSPACES_ROOT %q deve ser um caminho absoluto", c.WorkspacesRoot)
 	}
@@ -313,16 +332,43 @@ func (c Config) validateAuthenticated(add func(string, ...any)) {
 		if c.Auth.Firebase.ProjectID == "" || c.Auth.Firebase.APIKey == "" || c.Auth.Firebase.AuthDomain == "" {
 			add("HANKO_AUTH_PROVIDER=firebase exige HANKO_FIREBASE_PROJECT_ID, HANKO_FIREBASE_API_KEY e HANKO_FIREBASE_AUTH_DOMAIN")
 		}
+		if c.Auth.OwnerEmail != "" && !strings.Contains(c.Auth.OwnerEmail, "@") {
+			add("HANKO_AUTH_OWNER_EMAIL %q inválido: use um e-mail", c.Auth.OwnerEmail)
+		}
+		if !c.PublicLoopback() && !c.Auth.ListsConfigured() && c.Auth.OwnerEmail == "" {
+			add("HANKO_AUTH_PROVIDER=firebase com HANKO_PUBLIC_URL público (%q) exige HANKO_AUTH_ALLOWED_EMAILS/HANKO_AUTH_ALLOWED_DOMAINS ou HANKO_AUTH_OWNER_EMAIL: sem isso o primeiro visitante que fizer login viraria dono", c.PublicURL)
+		}
 	default:
 		add("HANKO_AUTH_PROVIDER %q inválido: use %q ou %q", c.Auth.Provider, AuthLocal, AuthFirebase)
 	}
 }
+
+// ListsConfigured informa se há lista de admissão (e-mails e/ou domínios).
+func (a Auth) ListsConfigured() bool { return len(a.AllowedEmails)+len(a.AllowedDomains) > 0 }
+
+// PublicLoopback informa se o host de PublicURL é localhost/loopback.
+func (c Config) PublicLoopback() bool {
+	u, err := url.Parse(c.PublicURL)
+	return err == nil && loopbackHost(u.Hostname())
+}
+
+// WebBootstrapAllowed informa se a tela de entrada pode criar o primeiro dono (provider local):
+// só com PublicURL em loopback ou HANKO_AUTH_WEB_BOOTSTRAP=true.
+func (c Config) WebBootstrapAllowed() bool { return c.PublicLoopback() || c.Auth.WebBootstrap }
 
 // Authenticated informa se o servidor exige login de humanos.
 func (c Config) Authenticated() bool { return c.Mode == ModeAuthenticated }
 
 // SecureCookies informa se os cookies devem levar o atributo Secure (PublicURL https).
 func (c Config) SecureCookies() bool { return strings.HasPrefix(c.PublicURL, "https://") }
+
+func validProxyEntry(e string) bool {
+	if strings.Contains(e, "/") {
+		_, _, err := net.ParseCIDR(e)
+		return err == nil
+	}
+	return net.ParseIP(e) != nil
+}
 
 func loopbackHost(h string) bool {
 	if strings.EqualFold(h, "localhost") {

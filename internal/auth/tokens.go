@@ -15,6 +15,8 @@ const (
 	SessionCookie = "hanko_session"
 	// SessionTTL é a validade deslizante da sessão.
 	SessionTTL = 30 * 24 * time.Hour
+	// SessionAbsoluteTTL é o teto de vida da sessão desde o login, por mais que ela seja renovada.
+	SessionAbsoluteTTL = 90 * 24 * time.Hour
 	// TouchEvery limita a renovação de last_seen_at (e de last_used_at da API key) a 1 por minuto.
 	TouchEvery = time.Minute
 	// APIKeyPrefix distingue API keys de usuário de run tokens (JWT).

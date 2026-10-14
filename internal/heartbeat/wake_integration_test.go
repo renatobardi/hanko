@@ -190,7 +190,7 @@ func TestTickWakesTaskWhoseWakeWasLost(t *testing.T) {
 	if _, a := terminalRuns(t, svc, co.ID, task.ID); a != 0 {
 		t.Fatalf("task recém-criada não deveria ter run ainda: %d", a)
 	}
-	if _, err := svc.Pool.Exec(ctx, "UPDATE tasks SET updated_at = now() - interval '2 minutes' WHERE id = $1", task.ID); err != nil {
+	if _, err := svc.Pool.Exec(ctx, "UPDATE tasks SET updated_at = now() - interval '2 minutes', last_human_change_at = now() - interval '2 minutes' WHERE id = $1", task.ID); err != nil {
 		t.Fatal(err)
 	}
 	waitFor(t, 20*time.Second, "run aberta pela rede de segurança", func() bool { d, a := terminalRuns(t, svc, co.ID, task.ID); return a == 1 && d == 1 })

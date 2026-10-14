@@ -25,6 +25,9 @@ type FirebaseLogin struct {
 	ListsConfigured bool
 	// Admitted: o e-mail está nas listas.
 	Admitted bool
+	// OwnerEmail (HANKO_AUTH_OWNER_EMAIL, opcional): com ele, só esse e-mail vira dono (e é sempre
+	// admitido); os demais só entram se estiverem nas listas, como membros.
+	OwnerEmail string
 }
 
 func userFromRow(r store.User) domain.User {
@@ -99,7 +102,12 @@ func (s *Service) CreateOwner(ctx context.Context, email, name, password string)
 	if err := auth.ValidatePassword(password); err != nil {
 		return domain.User{}, domain.Invalid("password", err.Error())
 	}
+	release, err := s.PasswordGate.Acquire(ctx)
+	if err != nil {
+		return domain.User{}, err
+	}
 	hash, err := auth.HashPassword(password)
+	release()
 	if err != nil {
 		return domain.User{}, err
 	}
@@ -138,10 +146,20 @@ func (s *Service) AuthenticateLocal(ctx context.Context, email, password string)
 		if err != nil && !isNoRows(err) {
 			return domain.User{}, fmt.Errorf("authenticate: %w", err)
 		}
+		release, gerr := s.PasswordGate.Acquire(ctx)
+		if gerr != nil {
+			return domain.User{}, gerr
+		}
 		auth.BurnPassword(password)
+		release()
 		return domain.User{}, domain.ErrUnauthenticated
 	}
+	release, gerr := s.PasswordGate.Acquire(ctx)
+	if gerr != nil {
+		return domain.User{}, gerr
+	}
 	ok, verr := auth.VerifyPassword(password, *row.PasswordHash)
+	release()
 	if verr != nil || !ok {
 		return domain.User{}, domain.ErrUnauthenticated
 	}
@@ -164,6 +182,8 @@ func (s *Service) LoginFirebase(ctx context.Context, in FirebaseLogin) (domain.U
 		return domain.User{}, domain.Invalid("uid", "required")
 	}
 	name := strings.TrimSpace(in.Name)
+	ownerEmail := strings.ToLower(strings.TrimSpace(in.OwnerEmail))
+	isOwner := ownerEmail != "" && email == ownerEmail
 	var out domain.User
 	err = s.withTx(ctx, func(t *txc) error {
 		if err := t.q.LockUsers(ctx); err != nil {
@@ -173,7 +193,7 @@ func (s *Service) LoginFirebase(ctx context.Context, in FirebaseLogin) (domain.U
 		existing, err := t.q.GetUserByExternal(ctx, store.GetUserByExternalParams{Provider: string(domain.ProviderFirebase), ExternalID: &uid})
 		switch {
 		case err == nil:
-			if in.ListsConfigured && !in.Admitted {
+			if in.ListsConfigured && !in.Admitted && !isOwner {
 				return fmt.Errorf("e-mail fora da lista de admissão: %w", domain.ErrNotAllowed)
 			}
 			if name == "" {
@@ -194,15 +214,26 @@ func (s *Service) LoginFirebase(ctx context.Context, in FirebaseLogin) (domain.U
 			return fmt.Errorf("count users: %w", err)
 		}
 		role := domain.RoleMember
-		if n == 0 {
-			role = domain.RoleOwner
-		}
-		if in.ListsConfigured {
+		switch {
+		case ownerEmail != "":
+			// dono nomeado: só o e-mail dele vira dono; os demais precisam estar nas listas
+			if isOwner {
+				role = domain.RoleOwner
+			} else if !in.ListsConfigured || !in.Admitted {
+				return fmt.Errorf("e-mail fora da lista de admissão e diferente do dono configurado: %w", domain.ErrNotAllowed)
+			}
+		case in.ListsConfigured:
 			if !in.Admitted {
 				return fmt.Errorf("e-mail fora da lista de admissão: %w", domain.ErrNotAllowed)
 			}
-		} else if n > 0 {
-			return fmt.Errorf("sem lista de admissão e já existe usuário: %w", domain.ErrNotAllowed)
+			if n == 0 {
+				role = domain.RoleOwner
+			}
+		default:
+			if n > 0 {
+				return fmt.Errorf("sem lista de admissão e já existe usuário: %w", domain.ErrNotAllowed)
+			}
+			role = domain.RoleOwner
 		}
 		row, err := t.q.CreateUser(ctx, store.CreateUserParams{ID: domain.NewID(), Email: email, Name: name,
 			Provider: string(domain.ProviderFirebase), ExternalID: &uid, Role: string(role), Now: t.now})
@@ -233,7 +264,7 @@ func (s *Service) CreateSession(ctx context.Context, userID domain.ID, meta Sess
 			return fmt.Errorf("purge sessions: %w", err)
 		}
 		row, err := t.q.CreateSession(ctx, store.CreateSessionParams{ID: domain.NewID(), UserID: userID, TokenHash: hash,
-			ExpiresAt: t.now.Add(auth.SessionTTL), UserAgent: clip(meta.UserAgent, 300), Ip: clip(meta.IP, 64), Now: t.now})
+			ExpiresAt: t.now.Add(auth.SessionTTL), AbsoluteExpiresAt: t.now.Add(auth.SessionAbsoluteTTL), UserAgent: clip(meta.UserAgent, 300), Ip: clip(meta.IP, 64), Now: t.now})
 		if err != nil {
 			return mapErr(err, "create session")
 		}
@@ -244,8 +275,23 @@ func (s *Service) CreateSession(ctx context.Context, userID domain.ID, meta Sess
 	return tok, out, err
 }
 
+// stillAdmitted aplica a política de admissão a quem já tem credencial: com listas configuradas, um
+// usuário firebase cujo e-mail não passa mais nelas perde o acesso (sair da lista vale na hora, não só
+// no próximo login). O dono configurado (HANKO_AUTH_OWNER_EMAIL) é o único que sempre passa.
+func (s *Service) stillAdmitted(u store.User) bool {
+	if u.Provider != string(domain.ProviderFirebase) || !s.Admission.Configured() {
+		return true
+	}
+	if s.OwnerEmail != "" && strings.EqualFold(strings.TrimSpace(u.Email), s.OwnerEmail) {
+		return true
+	}
+	return s.Admission.Allows(u.Email)
+}
+
 // ResolveSession devolve o usuário do token de sessão, renovando a validade deslizante
-// (no máximo uma vez por minuto). Sessão desconhecida ou expirada = ErrUnauthenticated.
+// (no máximo uma vez por minuto, nunca além do teto absoluto de auth.SessionAbsoluteTTL).
+// Sessão desconhecida ou expirada = ErrUnauthenticated; no provider firebase, com listas de
+// admissão, usuário que saiu delas também.
 func (s *Service) ResolveSession(ctx context.Context, token string) (domain.User, error) {
 	if token == "" {
 		return domain.User{}, domain.ErrUnauthenticated
@@ -265,6 +311,10 @@ func (s *Service) ResolveSession(ctx context.Context, token string) (domain.User
 			return domain.User{}, domain.ErrUnauthenticated
 		}
 		return domain.User{}, fmt.Errorf("get session user: %w", err)
+	}
+	if !s.stillAdmitted(u) {
+		_ = q.DeleteSessionByHash(ctx, auth.HashToken(token))
+		return domain.User{}, domain.ErrUnauthenticated
 	}
 	if now.Sub(sess.LastSeenAt) >= auth.TouchEvery {
 		if err := q.TouchSession(ctx, store.TouchSessionParams{ID: sess.ID, Now: now, ExpiresAt: now.Add(auth.SessionTTL)}); err != nil {
@@ -347,6 +397,9 @@ func (s *Service) ResolveAPIKey(ctx context.Context, key string) (domain.User, e
 			return domain.User{}, domain.ErrUnauthenticated
 		}
 		return domain.User{}, fmt.Errorf("get api key user: %w", err)
+	}
+	if !s.stillAdmitted(u) {
+		return domain.User{}, domain.ErrUnauthenticated
 	}
 	now := s.Now().UTC()
 	if k.LastUsedAt == nil || now.Sub(*k.LastUsedAt) >= auth.TouchEvery {

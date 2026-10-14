@@ -409,7 +409,7 @@ func (q *Queries) HasPendingGateOfKind(ctx context.Context, arg HasPendingGateOf
 }
 
 const listErrorPersonas = `-- name: ListErrorPersonas :many
-SELECT id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason FROM personas WHERE company_id = $1 AND status = 'error' ORDER BY updated_at DESC, id
+SELECT id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason, budget_refused_at FROM personas WHERE company_id = $1 AND status = 'error' ORDER BY updated_at DESC, id
 `
 
 func (q *Queries) ListErrorPersonas(ctx context.Context, companyID uuid.UUID) ([]Persona, error) {
@@ -443,6 +443,7 @@ func (q *Queries) ListErrorPersonas(ctx context.Context, companyID uuid.UUID) ([
 			&i.ConsecutiveFailures,
 			&i.RequireReview,
 			&i.PauseReason,
+			&i.BudgetRefusedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -455,7 +456,7 @@ func (q *Queries) ListErrorPersonas(ctx context.Context, companyID uuid.UUID) ([
 }
 
 const listFailedRuns = `-- name: ListFailedRuns :many
-SELECT r.id, r.company_id, r.task_id, r.persona_id, r.status, r.trigger, r.agent, r.model, r.session_ref, r.trace_id, r.exit_code, r.error, r.summary, r.cost_usd, r.input_tokens, r.output_tokens, r.cache_read_tokens, r.cache_creation_tokens, r.handoff_in, r.handoff_out, r.created_at, r.started_at, r.finished_at, r.pending_result, r.cost_source, (c.task_prefix || '-' || t.number)::text AS task_key, t.title AS task_title, p.name AS persona_name
+SELECT r.id, r.company_id, r.task_id, r.persona_id, r.status, r.trigger, r.agent, r.model, r.session_ref, r.trace_id, r.exit_code, r.error, r.summary, r.cost_usd, r.input_tokens, r.output_tokens, r.cache_read_tokens, r.cache_creation_tokens, r.handoff_in, r.handoff_out, r.created_at, r.started_at, r.finished_at, r.pending_result, r.cost_source, r.next_event_seq, (c.task_prefix || '-' || t.number)::text AS task_key, t.title AS task_title, p.name AS persona_name
 FROM runs r
 JOIN tasks t ON t.id = r.task_id
 JOIN personas p ON p.id = r.persona_id
@@ -516,6 +517,7 @@ func (q *Queries) ListFailedRuns(ctx context.Context, arg ListFailedRunsParams) 
 			&i.Run.FinishedAt,
 			&i.Run.PendingResult,
 			&i.Run.CostSource,
+			&i.Run.NextEventSeq,
 			&i.TaskKey,
 			&i.TaskTitle,
 			&i.PersonaName,

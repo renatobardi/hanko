@@ -7,9 +7,11 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"math/big"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -295,5 +297,76 @@ func TestAdmission(t *testing.T) {
 	}
 	if (Admission{}).Configured() || !a.Configured() {
 		t.Error("Configured")
+	}
+}
+
+func TestFirebaseStaleJWKS(t *testing.T) {
+	k1 := newKey(t)
+	srv := newJWKS(t, map[string]*rsa.PrivateKey{"k1": k1})
+	now := fixedNow
+	var logs strings.Builder
+	v := newVerifier(srv, &now)
+	v.Log = slog.New(slog.NewTextHandler(&logs, nil))
+	ctx := context.Background()
+	at := func() []claimsOpt {
+		return []claimsOpt{set("iat", now.Add(-time.Minute).Unix()), set("exp", now.Add(time.Hour).Unix()), set("auth_time", now.Add(-time.Minute).Unix())}
+	}
+	if _, err := v.Verify(ctx, mint(t, k1, "k1")); err != nil {
+		t.Fatal(err)
+	}
+	srv.mu.Lock()
+	srv.status = 500
+	srv.mu.Unlock()
+
+	// cache vencido há 30 min com o endpoint fora: as chaves antigas ainda valem (com aviso)
+	now = fixedNow.Add(time.Hour + 30*time.Minute)
+	if _, err := v.Verify(ctx, mint(t, k1, "k1", at()...)); err != nil {
+		t.Fatalf("dentro da tolerância de 1 h deveria aceitar a chave em cache: %v", err)
+	}
+	if !strings.Contains(logs.String(), "level=WARN") || !strings.Contains(logs.String(), "vencidas") {
+		t.Fatalf("faltou o aviso de chave vencida: %q", logs.String())
+	}
+	// kid que o cache não conhece não passa por tolerância
+	if _, err := v.Verify(ctx, mint(t, newKey(t), "kx", at()...)); err == nil {
+		t.Fatal("kid desconhecido não pode ser aceito")
+	}
+
+	// passou de 1 h de vencido: falha fechado
+	now = fixedNow.Add(time.Hour + 61*time.Minute)
+	if _, err := v.Verify(ctx, mint(t, k1, "k1", at()...)); !errors.Is(err, ErrJWKSUnavailable) {
+		t.Fatalf("depois da tolerância deveria falhar fechado (ErrJWKSUnavailable): %v", err)
+	}
+
+	// o Google volta: recupera
+	srv.mu.Lock()
+	srv.status = 200
+	srv.mu.Unlock()
+	if _, err := v.Verify(ctx, mint(t, k1, "k1", at()...)); err != nil {
+		t.Fatalf("deveria se recuperar: %v", err)
+	}
+}
+
+func TestFirebaseStaleGraceThrottlesRefresh(t *testing.T) {
+	k1 := newKey(t)
+	srv := newJWKS(t, map[string]*rsa.PrivateKey{"k1": k1})
+	now := fixedNow
+	v := &FirebaseVerifier{ProjectID: testProject, JWKSURL: srv.URL, Now: func() time.Time { return now }} // MinRefresh padrão
+	ctx := context.Background()
+	if _, err := v.Verify(ctx, mint(t, k1, "k1")); err != nil {
+		t.Fatal(err)
+	}
+	srv.mu.Lock()
+	srv.status = 500
+	srv.mu.Unlock()
+	now = fixedNow.Add(time.Hour + time.Minute)
+	opts := []claimsOpt{set("iat", now.Add(-time.Minute).Unix()), set("exp", now.Add(time.Hour).Unix()), set("auth_time", now.Add(-time.Minute).Unix())}
+	before := srv.fetches.Load()
+	for i := 0; i < 5; i++ {
+		if _, err := v.Verify(ctx, mint(t, k1, "k1", opts...)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if n := srv.fetches.Load() - before; n != 1 {
+		t.Fatalf("com o endpoint fora, só 1 tentativa por intervalo mínimo; houve %d", n)
 	}
 }

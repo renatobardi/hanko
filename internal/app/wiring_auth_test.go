@@ -77,7 +77,9 @@ func TestWiringAuthenticatedLocal(t *testing.T) {
 	svc := service.New(pool, noopJobs{}, events.NewBroker())
 	tokens := auth.RunTokens{Secret: []byte("0123456789abcdef0123456789abcdef"), TTL: time.Hour}
 	metrics := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("m 1\n")) })
-	h, err := buildHandler(handlerDeps{Cfg: authCfg(), Version: "test", Logger: discard(), Svc: svc, Broker: events.NewBroker(), Pool: pool, Tokens: tokens, Metrics: metrics})
+	lcfg := authCfg()
+	lcfg.Auth.WebBootstrap = true // PublicURL é um host público: o formulário do dono precisa ser liberado
+	h, err := buildHandler(handlerDeps{Cfg: lcfg, Version: "test", Logger: discard(), Svc: svc, Broker: events.NewBroker(), Pool: pool, Tokens: tokens, Metrics: metrics})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -177,6 +179,39 @@ func TestWiringAuthenticatedLocal(t *testing.T) {
 			if resp, _ := send(t, ts.URL, call{method: "POST", path: p, body: mcpInit, hdr: mcp}); resp.StatusCode != 401 {
 				t.Errorf("%s com chave revogada: %d", p, resp.StatusCode)
 			}
+		}
+	})
+
+	t.Run("/memory-mcp não aceita API key", func(t *testing.T) {
+		u, err := svc.GetUserByEmail(ctx, "dona@exemplo.com")
+		if err != nil {
+			t.Fatal(err)
+		}
+		key, _, err := svc.CreateAPIKey(ctx, u.ID, "memoria")
+		if err != nil {
+			t.Fatal(err)
+		}
+		upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			t.Error("o proxy não pode encaminhar uma chamada autenticada só por API key")
+			w.WriteHeader(200)
+		}))
+		t.Cleanup(upstream.Close)
+		mcfg := lcfg
+		mcfg.Memory = config.Memory{Provider: config.MemoryAIMemory, URL: upstream.URL}
+		mh, err := buildHandler(handlerDeps{Cfg: mcfg, Version: "test", Logger: discard(), Svc: svc, Broker: events.NewBroker(), Pool: pool, Tokens: tokens})
+		if err != nil {
+			t.Fatal(err)
+		}
+		mts := httptest.NewServer(mh)
+		t.Cleanup(mts.Close)
+		hdr := map[string]string{"Authorization": "Bearer " + key, "Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
+		resp, body := send(t, mts.URL, call{method: "POST", path: "/memory-mcp", body: mcpInit, hdr: hdr})
+		if resp.StatusCode != 401 {
+			t.Fatalf("/memory-mcp com API key: %d %s (API key válida passa pelo Guard, mas o proxy só aceita run token)", resp.StatusCode, body)
+		}
+		// a mesma chave vale na API e no /mcp: o 401 é do proxy, não da chave
+		if resp, _ := send(t, mts.URL, call{method: "GET", path: "/api/v1/companies", hdr: map[string]string{"Authorization": "Bearer " + key}}); resp.StatusCode != 200 {
+			t.Fatalf("a chave deveria valer na API: %d", resp.StatusCode)
 		}
 	})
 
@@ -290,5 +325,47 @@ func TestWiringAuthenticatedFirebase(t *testing.T) {
 	s, _ := bad.SignedString(key)
 	if resp, _ := exchange(s); resp.StatusCode != 401 {
 		t.Fatalf("projeto errado: %d", resp.StatusCode)
+	}
+}
+
+// Em URL pública o formulário "Criar conta de dono" não existe sem HANKO_AUTH_WEB_BOOTSTRAP: a tela manda usar a CLI.
+func TestWiringOwnerBootstrapNeedsCLIOnPublicURL(t *testing.T) {
+	pool := testdb.New(t)
+	svc := service.New(pool, noopJobs{}, events.NewBroker())
+	cfg := authCfg() // https://hanko.example.test, sem WebBootstrap
+	h, err := buildHandler(handlerDeps{Cfg: cfg, Version: "test", Logger: discard(), Svc: svc, Broker: events.NewBroker(), Pool: pool,
+		Tokens: auth.RunTokens{Secret: []byte(cfg.Secret), TTL: time.Hour}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ts := httptest.NewServer(h)
+	t.Cleanup(ts.Close)
+	_, body := send(t, ts.URL, call{method: "GET", path: "/entrar"})
+	if !strings.Contains(body, "hanko auth create-owner") || strings.Contains(body, `action="/entrar/dono"`) {
+		t.Fatalf("tela sem formulário de dono esperada: %.400s", body)
+	}
+	form := "name=Intruso&email=i%40x.com&password=uma-senha-bem-longa"
+	resp, _ := send(t, ts.URL, call{method: "POST", path: "/entrar/dono", body: form,
+		hdr: map[string]string{"Sec-Fetch-Site": "same-origin", "Content-Type": "application/x-www-form-urlencoded"}})
+	if resp.StatusCode != 404 || sessionCookie(resp) != nil {
+		t.Fatalf("POST do dono em URL pública: %d", resp.StatusCode)
+	}
+	if n, _ := svc.CountUsers(context.Background()); n != 0 {
+		t.Fatalf("nenhum usuário pode ter sido criado: %d", n)
+	}
+
+	// em loopback o formulário continua
+	lcfg := authCfg()
+	lcfg.PublicURL = "http://127.0.0.1:7420"
+	lcfg.AllowedHosts = []string{"hanko.example.test"}
+	lh, err := buildHandler(handlerDeps{Cfg: lcfg, Version: "test", Logger: discard(), Svc: svc, Broker: events.NewBroker(), Pool: pool,
+		Tokens: auth.RunTokens{Secret: []byte(cfg.Secret), TTL: time.Hour}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lts := httptest.NewServer(lh)
+	t.Cleanup(lts.Close)
+	if _, body := send(t, lts.URL, call{method: "GET", path: "/entrar"}); !strings.Contains(body, `action="/entrar/dono"`) {
+		t.Fatal("loopback deveria oferecer o formulário")
 	}
 }

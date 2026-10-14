@@ -154,6 +154,90 @@ secret: 0123456789abcdef0123456789abcdef
 			},
 		},
 		{
+			name: "firebase público sem lista nem dono recusa o boot",
+			env: map[string]string{"HANKO_DATABASE_URL": db, "HANKO_MODE": "authenticated", "HANKO_SECRET": "0123456789abcdef0123456789abcdef",
+				"HANKO_PUBLIC_URL": "https://hanko.exemplo.com", "HANKO_AUTH_PROVIDER": "firebase", "HANKO_FIREBASE_PROJECT_ID": "p", "HANKO_FIREBASE_API_KEY": "k", "HANKO_FIREBASE_AUTH_DOMAIN": "p.firebaseapp.com"},
+			wantErr: "HANKO_AUTH_OWNER_EMAIL",
+		},
+		{
+			name: "firebase público com dono nomeado passa",
+			env: map[string]string{"HANKO_DATABASE_URL": db, "HANKO_MODE": "authenticated", "HANKO_SECRET": "0123456789abcdef0123456789abcdef",
+				"HANKO_PUBLIC_URL": "https://hanko.exemplo.com", "HANKO_AUTH_PROVIDER": "firebase", "HANKO_FIREBASE_PROJECT_ID": "p", "HANKO_FIREBASE_API_KEY": "k", "HANKO_FIREBASE_AUTH_DOMAIN": "p.firebaseapp.com",
+				"HANKO_AUTH_OWNER_EMAIL": " Dona@Exemplo.com "},
+			check: func(t *testing.T, c Config) {
+				if c.Auth.OwnerEmail != "dona@exemplo.com" || hasWarn(c, "primeiro usuário") {
+					t.Fatalf("cfg inesperada: %+v %v", c.Auth, c.Warnings)
+				}
+			},
+		},
+		{
+			name: "firebase público com lista de admissão passa",
+			env: map[string]string{"HANKO_DATABASE_URL": db, "HANKO_MODE": "authenticated", "HANKO_SECRET": "0123456789abcdef0123456789abcdef",
+				"HANKO_PUBLIC_URL": "https://hanko.exemplo.com", "HANKO_AUTH_PROVIDER": "firebase", "HANKO_FIREBASE_PROJECT_ID": "p", "HANKO_FIREBASE_API_KEY": "k", "HANKO_FIREBASE_AUTH_DOMAIN": "p.firebaseapp.com",
+				"HANKO_AUTH_ALLOWED_DOMAINS": "exemplo.com"},
+			check: func(t *testing.T, c Config) {
+				if !c.Auth.ListsConfigured() {
+					t.Fatalf("%+v", c.Auth)
+				}
+			},
+		},
+		{
+			name: "firebase com dono inválido",
+			env: map[string]string{"HANKO_DATABASE_URL": db, "HANKO_MODE": "authenticated", "HANKO_SECRET": "0123456789abcdef0123456789abcdef",
+				"HANKO_AUTH_PROVIDER": "firebase", "HANKO_FIREBASE_PROJECT_ID": "p", "HANKO_FIREBASE_API_KEY": "k", "HANKO_FIREBASE_AUTH_DOMAIN": "p.firebaseapp.com",
+				"HANKO_AUTH_OWNER_EMAIL": "dona"},
+			wantErr: "HANKO_AUTH_OWNER_EMAIL",
+		},
+		{
+			name: "bootstrap web só em loopback ou com a variável",
+			env:  map[string]string{"HANKO_DATABASE_URL": db, "HANKO_MODE": "authenticated", "HANKO_SECRET": "0123456789abcdef0123456789abcdef", "HANKO_PUBLIC_URL": "https://hanko.exemplo.com"},
+			check: func(t *testing.T, c Config) {
+				if c.WebBootstrapAllowed() {
+					t.Fatal("URL pública sem HANKO_AUTH_WEB_BOOTSTRAP não pode oferecer o formulário")
+				}
+				c.Auth.WebBootstrap = true
+				if !c.WebBootstrapAllowed() {
+					t.Fatal("HANKO_AUTH_WEB_BOOTSTRAP=true deveria liberar")
+				}
+				c.Auth.WebBootstrap, c.PublicURL = false, "http://localhost:7420"
+				if !c.WebBootstrapAllowed() {
+					t.Fatal("loopback deveria liberar")
+				}
+			},
+		},
+		{
+			name: "bootstrap web por env",
+			env:  map[string]string{"HANKO_DATABASE_URL": db, "HANKO_AUTH_WEB_BOOTSTRAP": "true"},
+			check: func(t *testing.T, c Config) {
+				if !c.Auth.WebBootstrap {
+					t.Fatal("HANKO_AUTH_WEB_BOOTSTRAP não lida")
+				}
+			},
+		},
+		{
+			name: "proxies confiáveis: default só loopback",
+			env:  map[string]string{"HANKO_DATABASE_URL": db},
+			check: func(t *testing.T, c Config) {
+				if len(c.TrustedProxies) != 2 || c.TrustedProxies[0] != "127.0.0.1/32" || c.TrustedProxies[1] != "::1/128" {
+					t.Fatalf("%v", c.TrustedProxies)
+				}
+			},
+		},
+		{
+			name: "proxies confiáveis por env",
+			env:  map[string]string{"HANKO_DATABASE_URL": db, "HANKO_TRUSTED_PROXIES": "127.0.0.1/32, 172.18.0.0/16,"},
+			check: func(t *testing.T, c Config) {
+				if len(c.TrustedProxies) != 2 || c.TrustedProxies[1] != "172.18.0.0/16" {
+					t.Fatalf("%v", c.TrustedProxies)
+				}
+			},
+		},
+		{
+			name:    "proxy confiável inválido",
+			env:     map[string]string{"HANKO_DATABASE_URL": db, "HANKO_TRUSTED_PROXIES": "10.0.0.0/99"},
+			wantErr: "HANKO_TRUSTED_PROXIES",
+		},
+		{
 			name:    "memory provider inválido",
 			env:     map[string]string{"HANKO_DATABASE_URL": db, "HANKO_MEMORY_PROVIDER": "redis"},
 			wantErr: "HANKO_MEMORY_PROVIDER",

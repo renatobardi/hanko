@@ -541,6 +541,8 @@ type LoginVM struct {
 	Notice   string
 	// FirstRun: no users yet. Local provider shows "Criar conta de dono".
 	FirstRun bool
+	// NeedsCLI: no users yet but the web form is off (public URL); the page points to `hanko auth create-owner`.
+	NeedsCLI bool
 	Firebase *FirebaseWeb
 	Version  string
 }

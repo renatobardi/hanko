@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -31,6 +32,9 @@ type fakeAuth struct {
 	keyOwner map[domain.ID]domain.ID
 	fbErr    error
 	rotated  []string
+	busy     bool                  // AuthenticateLocal/CreateOwner devolvem auth.ErrBusy
+	lastFB   service.FirebaseLogin // último LoginFirebase recebido
+	lastIP   string                // IP da última sessão aberta
 }
 
 func newFakeAuth() *fakeAuth {
@@ -58,6 +62,9 @@ func (f *fakeAuth) ListUsers(context.Context) ([]domain.User, error) {
 }
 
 func (f *fakeAuth) CreateOwner(_ context.Context, email, name, password string) (domain.User, error) {
+	if f.busy {
+		return domain.User{}, auth.ErrBusy
+	}
 	if len(f.users) > 0 {
 		return domain.User{}, domain.ErrConflict
 	}
@@ -70,6 +77,9 @@ func (f *fakeAuth) CreateOwner(_ context.Context, email, name, password string) 
 func (f *fakeAuth) AuthenticateLocal(_ context.Context, email, password string) (domain.User, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.busy {
+		return domain.User{}, auth.ErrBusy
+	}
 	for _, u := range f.users {
 		if strings.EqualFold(u.Email, email) && f.passes[u.ID] == password && password != "" {
 			return u, nil
@@ -79,6 +89,7 @@ func (f *fakeAuth) AuthenticateLocal(_ context.Context, email, password string) 
 }
 
 func (f *fakeAuth) LoginFirebase(_ context.Context, in service.FirebaseLogin) (domain.User, error) {
+	f.lastFB = in
 	if f.fbErr != nil {
 		return domain.User{}, f.fbErr
 	}
@@ -89,9 +100,10 @@ func (f *fakeAuth) LoginFirebase(_ context.Context, in service.FirebaseLogin) (d
 	return u, nil
 }
 
-func (f *fakeAuth) CreateSession(_ context.Context, userID domain.ID, _ service.SessionMeta, replace string) (string, domain.Session, error) {
+func (f *fakeAuth) CreateSession(_ context.Context, userID domain.ID, meta service.SessionMeta, replace string) (string, domain.Session, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.lastIP = meta.IP
 	if replace != "" {
 		delete(f.sessions, replace)
 		f.rotated = append(f.rotated, replace)
@@ -365,7 +377,7 @@ func TestSecureCookieWhenHTTPS(t *testing.T) {
 }
 
 func TestOwnerBootstrapUI(t *testing.T) {
-	e := newAuthEnv(t, AuthDeps{Provider: "local"})
+	e := newAuthEnv(t, AuthDeps{Provider: "local", WebBootstrap: true})
 	page := e.get(t, "/entrar")
 	wantContains(t, page, "Criar conta de dono", `action="/entrar/dono"`, `name="name"`)
 
@@ -613,5 +625,105 @@ func TestTrustedModeHasNoAuthRoutes(t *testing.T) {
 	e.post(t, "/c/hanko/tasks/HNK-221/comentarios", url.Values{"body": {"oi"}}, false)
 	if last := e.f.Comments[len(e.f.Comments)-1]; last.Author.ID != nil {
 		t.Fatalf("em trusted o ator humano não carrega ID: %+v", last.Author)
+	}
+}
+
+// Sem WebBootstrap (URL pública), o primeiro visitante não vira dono: a tela orienta a CLI e o POST some.
+func TestOwnerBootstrapOffWhenPublic(t *testing.T) {
+	e := newAuthEnv(t, AuthDeps{Provider: "local"})
+	page := e.get(t, "/entrar")
+	wantStatus(t, page, http.StatusOK)
+	wantContains(t, page, "hanko auth create-owner", "Criar conta de dono")
+	wantNotContains(t, page, `action="/entrar/dono"`, `name="password"`)
+
+	form := url.Values{"name": {"Intruso"}, "email": {"intruso@x.com"}, "password": {"senha-bem-longa"}}
+	rec := e.do(t, req{method: "POST", path: "/entrar/dono", form: form, hdr: map[string]string{"Sec-Fetch-Site": "same-origin"}})
+	wantStatus(t, rec, http.StatusNotFound)
+	if len(e.fa.users) != 0 || cookieOf(rec) != nil {
+		t.Fatal("o formulário público não pode criar o dono")
+	}
+
+	// com usuário existente a tela volta a ser só o login (sem a orientação de CLI)
+	e.fa.addUser("dono@x.com", "Dona", "senha-bem-longa")
+	wantNotContains(t, e.get(t, "/entrar"), "hanko auth create-owner")
+}
+
+func TestLoginBusyReturns503(t *testing.T) {
+	e := newAuthEnv(t, AuthDeps{Provider: "local", WebBootstrap: true})
+	e.fa.addUser("dono@x.com", "Dona", "senha-bem-longa")
+	e.fa.busy = true
+	rec := e.login(t, "dono@x.com", "senha-bem-longa", "")
+	wantStatus(t, rec, http.StatusServiceUnavailable)
+	wantContains(t, rec, "Tente de novo")
+	if rec.Header().Get("Retry-After") == "" || cookieOf(rec) != nil {
+		t.Fatalf("503 deveria trazer Retry-After e nenhum cookie: %v", rec.Header())
+	}
+	// ocupado não conta como falha: depois de 10 tentativas a senha certa ainda entra
+	for i := 0; i < 10; i++ {
+		wantStatus(t, e.login(t, "dono@x.com", "senha-bem-longa", ""), http.StatusServiceUnavailable)
+	}
+	e.fa.busy = false
+	wantStatus(t, e.login(t, "dono@x.com", "senha-bem-longa", ""), http.StatusSeeOther)
+
+	e2 := newAuthEnv(t, AuthDeps{Provider: "local", WebBootstrap: true})
+	e2.fa.busy = true
+	rec = e2.do(t, req{method: "POST", path: "/entrar/dono", form: url.Values{"name": {"D"}, "email": {"d@x.com"}, "password": {"senha-bem-longa"}},
+		hdr: map[string]string{"Sec-Fetch-Site": "same-origin"}})
+	wantStatus(t, rec, http.StatusServiceUnavailable)
+	if rec.Header().Get("Retry-After") == "" {
+		t.Fatal("criar dono ocupado: faltou Retry-After")
+	}
+}
+
+// X-Forwarded-For forjado não escapa do limite quando o par não é proxy confiável.
+func TestLoginRateLimitIgnoresForgedXFF(t *testing.T) {
+	e := newAuthEnv(t, AuthDeps{Provider: "local"}) // sem proxies confiáveis
+	e.fa.addUser("dono@x.com", "Dona", "senha-bem-longa")
+	do := func(i int, pass string) *httptest.ResponseRecorder {
+		return e.do(t, req{method: "POST", path: "/entrar", form: url.Values{"email": {"dono@x.com"}, "password": {pass}},
+			hdr: map[string]string{"Sec-Fetch-Site": "same-origin", "X-Forwarded-For": "198.51.100." + strconv.Itoa(i)}})
+	}
+	for i := 0; i < 5; i++ {
+		wantStatus(t, do(i, "errada"), http.StatusUnauthorized)
+	}
+	wantStatus(t, do(99, "senha-bem-longa"), http.StatusTooManyRequests)
+	rec := do(100, "senha-bem-longa")
+	wantStatus(t, rec, http.StatusTooManyRequests)
+}
+
+func TestSessionIPUsesTrustedProxies(t *testing.T) {
+	proxies, err := auth.ParseTrustedProxies([]string{"192.0.2.0/24"}) // RemoteAddr padrão do httptest
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct {
+		name string
+		deps AuthDeps
+		want string
+	}{
+		{"proxy confiável: IP do XFF", AuthDeps{Provider: "local", Proxies: proxies}, "203.0.113.7"},
+		{"sem proxies: RemoteAddr", AuthDeps{Provider: "local"}, "192.0.2.1"},
+	} {
+		e := newAuthEnv(t, c.deps)
+		e.fa.addUser("dono@x.com", "Dona", "senha-bem-longa")
+		rec := e.do(t, req{method: "POST", path: "/entrar", form: url.Values{"email": {"dono@x.com"}, "password": {"senha-bem-longa"}},
+			hdr: map[string]string{"Sec-Fetch-Site": "same-origin", "X-Forwarded-For": "203.0.113.7"}})
+		wantStatus(t, rec, http.StatusSeeOther)
+		if e.fa.lastIP != c.want {
+			t.Errorf("%s: IP da sessão = %q, quer %q", c.name, e.fa.lastIP, c.want)
+		}
+	}
+}
+
+func TestFirebaseLoginPassesOwnerEmail(t *testing.T) {
+	e := newAuthEnv(t, AuthDeps{Provider: "firebase", OwnerEmail: "dona@exemplo.com"})
+	rq := httptest.NewRequest("POST", "/auth/firebase", strings.NewReader(`{"id_token":"tok"}`))
+	rq.Header.Set("Sec-Fetch-Site", "same-origin")
+	rq.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	e.h.ServeHTTP(rec, rq)
+	wantStatus(t, rec, http.StatusOK)
+	if e.fa.lastFB.OwnerEmail != "dona@exemplo.com" || e.fa.lastFB.ListsConfigured {
+		t.Fatalf("LoginFirebase recebeu %+v", e.fa.lastFB)
 	}
 }

@@ -48,7 +48,7 @@ func TestSafeNext(t *testing.T) {
 	}
 }
 
-func TestClientIPAndLoopback(t *testing.T) {
+func TestIsDirectLoopback(t *testing.T) {
 	mk := func(remote, xff string) *http.Request {
 		r := httptest.NewRequest("GET", "/", nil)
 		r.RemoteAddr = remote
@@ -56,15 +56,6 @@ func TestClientIPAndLoopback(t *testing.T) {
 			r.Header.Set("X-Forwarded-For", xff)
 		}
 		return r
-	}
-	if got := ClientIP(mk("203.0.113.9:5555", "1.2.3.4")); got != "203.0.113.9" {
-		t.Errorf("XFF de cliente público deve ser ignorado, got %s", got)
-	}
-	if got := ClientIP(mk("127.0.0.1:5555", "9.9.9.9, 198.51.100.7")); got != "198.51.100.7" {
-		t.Errorf("proxy local: usa o último XFF, got %s", got)
-	}
-	if got := ClientIP(mk("10.0.0.2:1", "lixo")); got != "10.0.0.2" {
-		t.Errorf("XFF inválido ignorado, got %s", got)
 	}
 	if !IsDirectLoopback(mk("127.0.0.1:1", "")) || IsDirectLoopback(mk("127.0.0.1:1", "8.8.8.8")) || IsDirectLoopback(mk("10.0.0.1:1", "")) {
 		t.Error("IsDirectLoopback")

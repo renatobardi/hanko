@@ -235,6 +235,11 @@ func (t *txc) moveTask(actor domain.Actor, companyID domain.ID, cur store.Task, 
 	if err != nil {
 		return store.Task{}, mapErr(err, "update task")
 	}
+	if actor.Type != domain.ActorPersona {
+		if err := t.q.TouchTaskHumanChange(t.ctx, store.TouchTaskHumanChangeParams{ID: cur.ID, Now: &t.now}); err != nil {
+			return store.Task{}, fmt.Errorf("touch task: %w", err)
+		}
+	}
 	data := map[string]any{"from": from, "to": to}
 	for k, v := range extra {
 		data[k] = v

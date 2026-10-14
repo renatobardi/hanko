@@ -13,6 +13,8 @@ templ LoginPage(vm LoginVM) {
 				@firebaseCard(vm)
 			} else if vm.FirstRun {
 				@ownerCard(vm)
+			} else if vm.NeedsCLI {
+				@cliOwnerCard(vm)
 			} else {
 				@localCard(vm)
 			}
@@ -65,6 +67,16 @@ templ ownerCard(vm LoginVM) {
 		</div>
 		<button class="btn primary block" type="submit">Criar conta e entrar</button>
 	</form>
+}
+
+templ cliOwnerCard(vm LoginVM) {
+	<div class="card">
+		<h1>Criar conta de dono</h1>
+		<p class="sub muted">Ainda não há usuários. Por segurança, a primeira conta não é criada por esta página quando o endereço é público. No servidor, rode:</p>
+		@loginMessages(vm)
+		<pre class="mono"><code>hanko auth create-owner --email voce@exemplo.com --name "Seu Nome"</code></pre>
+		<p class="sub muted">Depois recarregue esta página e entre. Detalhes em docs/RUNBOOK.md, seção 5.1.</p>
+	</div>
 }
 
 templ firebaseCard(vm LoginVM) {
