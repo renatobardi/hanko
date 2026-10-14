@@ -33,7 +33,7 @@ func personaFromRow(r store.Persona) domain.Persona {
 		Instructions: r.Instructions, Agent: r.Agent, Model: r.Model, AdapterConfig: json.RawMessage(r.AdapterConfig),
 		Status: domain.PersonaStatus(r.Status), ReportsTo: r.ReportsTo, WorkspaceID: r.WorkspaceID,
 		HeartbeatIntervalSec: int(r.HeartbeatIntervalSec), BudgetMonthlyCents: r.BudgetMonthlyCents,
-		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt}
+		RequireReview: r.RequireReview, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt}
 }
 
 func taskFromRow(r store.Task, prefix string) domain.Task {
@@ -86,4 +86,19 @@ func activityFromRow(r store.ActivityEvent) domain.ActivityEvent {
 		e.EventID = *r.EventID
 	}
 	return e
+}
+
+func gateFromRow(r store.Gate) domain.Gate {
+	g := domain.Gate{ID: r.ID, CompanyID: r.CompanyID, Kind: domain.GateKind(r.Kind), Status: domain.GateStatus(r.Status),
+		Title: r.Title, Body: r.Body, TaskID: r.TaskID, RunID: r.RunID, PersonaID: r.PersonaID,
+		RequestedBy: actorOf(r.RequestedByType, r.RequestedByID), DecisionNote: r.DecisionNote,
+		CreatedAt: r.CreatedAt, DecidedAt: r.DecidedAt}
+	if r.DecidedByType != nil {
+		a := actorOf(*r.DecidedByType, r.DecidedByID)
+		g.DecidedBy = &a
+	}
+	if r.EventID != nil {
+		g.EventID = *r.EventID
+	}
+	return g
 }

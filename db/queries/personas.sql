@@ -48,3 +48,12 @@ UPDATE personas p SET
     updated_at = @now
 WHERE p.id = @id AND p.status = 'running'
   AND NOT EXISTS (SELECT 1 FROM runs r WHERE r.persona_id = p.id AND r.status IN ('queued', 'running'));
+
+-- name: LockOrg :exec
+-- Serializa mudanças de reports_to na empresa: duas edições concorrentes não criam ciclo.
+SELECT pg_advisory_xact_lock(hashtext('hanko:org:' || @company_id::text));
+
+-- name: SetPersonaOrg :one
+UPDATE personas SET reports_to = @reports_to, require_review = @require_review, updated_at = @now
+WHERE company_id = @company_id AND id = @id
+RETURNING *;

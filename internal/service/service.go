@@ -84,6 +84,8 @@ type HirePersonaInput struct {
 	WorkspaceID          *domain.ID
 	HeartbeatIntervalSec int
 	BudgetMonthlyCents   *int64
+	// RequireReview sends this persona's attempts to close a task through a task_review gate.
+	RequireReview bool
 }
 
 type UpdatePersonaInput struct {
@@ -92,6 +94,11 @@ type UpdatePersonaInput struct {
 	HeartbeatIntervalSec             *int
 	WorkspaceID                      *domain.ID
 	ClearWorkspace                   bool
+	// ReportsTo moves the persona under another one; ClearReportsTo makes it top-level.
+	// A move that would close a loop in the chart is rejected (ErrInvalid).
+	ReportsTo      *domain.ID
+	ClearReportsTo bool
+	RequireReview  *bool
 }
 
 type CreateTaskInput struct {
@@ -173,7 +180,7 @@ type DashboardStats struct {
 	TasksInProgress int     `json:"tasks_in_progress"`
 	OpenTasks       int     `json:"open_tasks"`
 	MonthCostUSD    float64 `json:"month_cost_usd"`
-	PendingGates    int     `json:"pending_gates"` // 0 until M3
+	PendingGates    int     `json:"pending_gates"`
 	RunningRuns     int     `json:"running_runs"`
 }
 

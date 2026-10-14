@@ -141,7 +141,7 @@ func (t *txc) cancelTaskRun(actor domain.Actor, companyID, taskID domain.ID, rea
 // Moves task todo → in_progress.
 func (s *Service) CheckoutRun(ctx context.Context, w Wake) (domain.Run, error) {
 	switch w.Trigger {
-	case domain.TriggerAssign, domain.TriggerComment, domain.TriggerManual, domain.TriggerHeartbeat:
+	case domain.TriggerAssign, domain.TriggerComment, domain.TriggerManual, domain.TriggerHeartbeat, domain.TriggerGate:
 	default:
 		return domain.Run{}, domain.Invalid("trigger", fmt.Sprintf("unknown trigger %q", w.Trigger))
 	}
@@ -164,6 +164,11 @@ func (s *Service) CheckoutRun(ctx context.Context, w Wake) (domain.Run, error) {
 		}
 		if !domain.PersonaStatus(p.Status).CanWork() {
 			return domain.Invalid("persona", fmt.Sprintf("persona status %q cannot work", p.Status))
+		}
+		if pending, err := t.q.HasPendingGateForTask(ctx, &task.ID); err != nil {
+			return fmt.Errorf("check pending gate: %w", err)
+		} else if pending {
+			return domain.Invalid("gate", "task has a pending gate; a human must decide it first")
 		}
 		if _, err := t.q.ActiveRunForTask(ctx, task.ID); err == nil {
 			return domain.ErrActiveRun
@@ -467,8 +472,8 @@ func (t *txc) personaAfterRun(personaID domain.ID, status domain.RunStatus, errM
 	return nil
 }
 
-// wakeForMissedComment re-enqueues a Wake when a human commented on the task while the run
-// was active (the run's prompt did not include it). A run the user cancelled is not retried.
+// wakeForMissedComment re-enqueues a Wake when a human commented on the task, or decided one
+// of its gates, while the run was active (the run's prompt did not include it). A run the user cancelled is not retried.
 func (t *txc) wakeForMissedComment(companyID domain.ID, task store.Task, run store.Run) error {
 	if run.StartedAt == nil || run.Status == string(domain.RunCancelled) || run.Status == string(domain.RunInterrupted) {
 		return nil
@@ -477,10 +482,18 @@ func (t *txc) wakeForMissedComment(companyID domain.ID, task store.Task, run sto
 	if err != nil {
 		return fmt.Errorf("check missed comment: %w", err)
 	}
-	if !found {
+	if found {
+		return t.wake(companyID, task.ID, task.PersonaID, domain.TaskStatus(task.Status), domain.TriggerComment, false)
+	}
+	// a gate decided while the run was active: the run did not see the decision
+	decided, err := t.q.HasGateDecidedSince(t.ctx, store.HasGateDecidedSinceParams{CompanyID: companyID, TaskID: &task.ID, Since: run.StartedAt})
+	if err != nil {
+		return fmt.Errorf("check missed gate decision: %w", err)
+	}
+	if !decided {
 		return nil
 	}
-	return t.wake(companyID, task.ID, task.PersonaID, domain.TaskStatus(task.Status), domain.TriggerComment, false)
+	return t.wake(companyID, task.ID, task.PersonaID, domain.TaskStatus(task.Status), domain.TriggerGate, false)
 }
 
 func runFact(v RunView, status domain.RunStatus, res adapter.Result, now time.Time) memory.Fact {

@@ -117,8 +117,10 @@ type Persona struct {
 	WorkspaceID          *ID             `json:"workspace_id,omitempty"`
 	HeartbeatIntervalSec int             `json:"heartbeat_interval_sec"`
 	BudgetMonthlyCents   *int64          `json:"budget_monthly_cents,omitempty"`
-	CreatedAt            time.Time       `json:"created_at"`
-	UpdatedAt            time.Time       `json:"updated_at"`
+	// RequireReview sends the persona's attempts to close a task through a task_review gate.
+	RequireReview bool      `json:"require_review"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
 }
 
 // TaskStatus follows the UI lists.
@@ -232,6 +234,7 @@ const (
 	TriggerComment   RunTrigger = "comment"
 	TriggerManual    RunTrigger = "manual"
 	TriggerHeartbeat RunTrigger = "heartbeat"
+	TriggerGate      RunTrigger = "gate" // a human decided a gate the persona was waiting on
 )
 
 // Usage holds token counts reported by the agent.

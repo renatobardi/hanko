@@ -61,9 +61,17 @@ func (s *Service) HirePersona(ctx context.Context, actor domain.Actor, companyID
 		if err != nil {
 			return mapErr(err, "hire persona")
 		}
+		if in.RequireReview {
+			row, err = t.q.SetPersonaOrg(ctx, store.SetPersonaOrgParams{CompanyID: companyID, ID: row.ID,
+				ReportsTo: row.ReportsTo, RequireReview: true, Now: t.now})
+			if err != nil {
+				return mapErr(err, "hire persona")
+			}
+		}
 		out = personaFromRow(row)
 		return t.activity(actor, companyID, "persona.hired", "persona", out.ID,
-			map[string]any{"slug": out.Slug, "name": out.Name, "agent": out.Agent}, "")
+			map[string]any{"slug": out.Slug, "name": out.Name, "agent": out.Agent, "reports_to": out.ReportsTo,
+				"require_review": out.RequireReview}, "")
 	})
 	return out, err
 }
@@ -109,9 +117,17 @@ func (s *Service) UpdatePersona(ctx context.Context, actor domain.Actor, company
 	if in.ClearWorkspace && in.WorkspaceID != nil {
 		return domain.Persona{}, domain.Invalid("workspace_id", "cannot set and clear at once")
 	}
+	if in.ClearReportsTo && in.ReportsTo != nil {
+		return domain.Persona{}, domain.Invalid("reports_to", "cannot set and clear at once")
+	}
 
 	var out domain.Persona
 	err := s.withTx(ctx, func(t *txc) error {
+		if in.ReportsTo != nil {
+			if err := t.q.LockOrg(ctx, companyID.String()); err != nil { // serializes concurrent chart edits
+				return fmt.Errorf("lock org: %w", err)
+			}
+		}
 		cur, err := t.q.GetPersonaByIDForUpdate(ctx, store.GetPersonaByIDForUpdateParams{CompanyID: companyID, ID: personaID})
 		if err != nil {
 			return mapErr(err, "get persona")
@@ -154,6 +170,29 @@ func (s *Service) UpdatePersona(ctx context.Context, actor domain.Actor, company
 			p.WorkspaceID = in.WorkspaceID
 			changed = append(changed, "workspace_id")
 		}
+		reports, review, orgChanged := cur.ReportsTo, cur.RequireReview, false
+		switch {
+		case in.ClearReportsTo && cur.ReportsTo != nil:
+			reports, orgChanged = nil, true
+			changed = append(changed, "reports_to")
+		case in.ReportsTo != nil && (cur.ReportsTo == nil || *cur.ReportsTo != *in.ReportsTo):
+			if _, err := t.q.GetPersonaByID(ctx, store.GetPersonaByIDParams{CompanyID: companyID, ID: *in.ReportsTo}); err != nil {
+				return domain.Invalid("reports_to", "persona not found in company")
+			}
+			parents, err := t.orgParents(companyID)
+			if err != nil {
+				return err
+			}
+			if parents.WouldCycle(personaID, *in.ReportsTo) {
+				return domain.Invalid("reports_to", "would create a cycle in the org chart")
+			}
+			reports, orgChanged = in.ReportsTo, true
+			changed = append(changed, "reports_to")
+		}
+		if in.RequireReview != nil && *in.RequireReview != cur.RequireReview {
+			review, orgChanged = *in.RequireReview, true
+			changed = append(changed, "require_review")
+		}
 		if len(changed) == 0 {
 			out = personaFromRow(cur)
 			return nil
@@ -161,6 +200,13 @@ func (s *Service) UpdatePersona(ctx context.Context, actor domain.Actor, company
 		row, err := t.q.UpdatePersona(ctx, p)
 		if err != nil {
 			return mapErr(err, "update persona")
+		}
+		if orgChanged {
+			row, err = t.q.SetPersonaOrg(ctx, store.SetPersonaOrgParams{CompanyID: companyID, ID: personaID,
+				ReportsTo: reports, RequireReview: review, Now: t.now})
+			if err != nil {
+				return mapErr(err, "update persona")
+			}
 		}
 		out = personaFromRow(row)
 		return t.activity(actor, companyID, "persona.updated", "persona", out.ID, map[string]any{"fields": changed}, "")

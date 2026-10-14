@@ -35,6 +35,26 @@ type Company struct {
 	UpdatedAt      time.Time
 }
 
+type Gate struct {
+	ID              uuid.UUID
+	CompanyID       uuid.UUID
+	Kind            string
+	Status          string
+	Title           string
+	Body            string
+	TaskID          *uuid.UUID
+	RunID           *uuid.UUID
+	PersonaID       *uuid.UUID
+	RequestedByType string
+	RequestedByID   *uuid.UUID
+	DecidedByType   *string
+	DecidedByID     *uuid.UUID
+	DecisionNote    string
+	EventID         *string
+	CreatedAt       time.Time
+	DecidedAt       *time.Time
+}
+
 type MemoryOutbox struct {
 	ID            uuid.UUID
 	CompanyID     uuid.UUID
@@ -70,6 +90,7 @@ type Persona struct {
 	LastError            *string
 	LastErrorAt          *time.Time
 	ConsecutiveFailures  int32
+	RequireReview        bool
 }
 
 type Project struct {

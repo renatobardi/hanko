@@ -50,6 +50,10 @@ func (s *Service) Dashboard(ctx context.Context, companyID domain.ID) (Dashboard
 	if err != nil {
 		return DashboardStats{}, fmt.Errorf("month cost: %w", err)
 	}
+	gates, err := q.CountPendingGates(ctx, companyID)
+	if err != nil {
+		return DashboardStats{}, fmt.Errorf("pending gates: %w", err)
+	}
 	return DashboardStats{ActivePersonas: int(c.ActivePersonas), TasksInProgress: int(c.TasksInProgress),
-		OpenTasks: int(c.OpenTasks), MonthCostUSD: cost, RunningRuns: int(c.RunningRuns)}, nil
+		OpenTasks: int(c.OpenTasks), MonthCostUSD: cost, PendingGates: int(gates), RunningRuns: int(c.RunningRuns)}, nil
 }

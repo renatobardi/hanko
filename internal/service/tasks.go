@@ -93,6 +93,9 @@ func (s *Service) CreateTask(ctx context.Context, actor domain.Actor, companyID 
 				if wsID == nil {
 					wsID = p.WorkspaceID
 				}
+				if err := t.checkDelegation(actor, companyID, in.PersonaID); err != nil {
+					return err
+				}
 			}
 			if in.ParentID != nil {
 				if _, err := t.q.GetTaskByID(ctx, store.GetTaskByIDParams{CompanyID: companyID, ID: *in.ParentID}); err != nil {
@@ -284,6 +287,9 @@ func (s *Service) UpdateTask(ctx context.Context, actor domain.Actor, companyID,
 				if _, err := t.q.GetPersonaByID(ctx, store.GetPersonaByIDParams{CompanyID: companyID, ID: *in.PersonaID}); err != nil {
 					return domain.Invalid("persona_id", "persona not found in company")
 				}
+				if err := t.checkDelegation(actor, companyID, in.PersonaID); err != nil {
+					return err
+				}
 				p.PersonaID = in.PersonaID
 				personaChanged = true
 				acts = append(acts, act{"task.assigned", map[string]any{"from": cur.PersonaID, "to": in.PersonaID}})
@@ -291,21 +297,43 @@ func (s *Service) UpdateTask(ctx context.Context, actor domain.Actor, companyID,
 
 			statusChanged, closedNow := false, false
 			from := domain.TaskStatus(cur.Status)
-			if in.Status != nil && *in.Status != from {
-				if !from.CanTransition(*in.Status) {
-					return domain.Invalid("status", fmt.Sprintf("invalid transition %s → %s", from, *in.Status))
+			want := in.Status
+			reviewGate := false // a persona with require_review closing the task: in_review + task_review gate
+			if want != nil && *want == domain.TaskDone && from.Open() {
+				if reviewGate, err = t.reviewRequired(actor, companyID); err != nil {
+					return err
+				}
+				if reviewGate {
+					inReview := domain.TaskInReview
+					want = &inReview
+				}
+			}
+			if want != nil && *want != from {
+				if !from.CanTransition(*want) {
+					return domain.Invalid("status", fmt.Sprintf("invalid transition %s → %s", from, *want))
 				}
 				statusChanged = true
-				p.Status = string(*in.Status)
-				acts = append(acts, act{"task.status_changed", map[string]any{"from": from, "to": *in.Status}})
-				if !in.Status.Open() {
+				p.Status = string(*want)
+				data := map[string]any{"from": from, "to": *want}
+				if reviewGate {
+					data["requested"] = domain.TaskDone
+				}
+				acts = append(acts, act{"task.status_changed", data})
+				if !want.Open() {
 					closedNow = true
 					c := t.now
 					p.ClosedAt = &c
-					acts = append(acts, act{"task.closed", map[string]any{"status": *in.Status}})
+					acts = append(acts, act{"task.closed", map[string]any{"status": *want}})
 				} else {
 					p.ClosedAt = nil
 				}
+			}
+			if len(acts) == 0 && reviewGate { // already in_review: make sure a review gate is pending
+				if err := t.requestTaskReview(actor, companyID, cur); err != nil {
+					return err
+				}
+				out, err = loadTaskView(ctx, t.q, companyID, taskID)
+				return err
 			}
 			if len(acts) == 0 {
 				out, err = loadTaskView(ctx, t.q, companyID, taskID)
@@ -325,15 +353,12 @@ func (s *Service) UpdateTask(ctx context.Context, actor domain.Actor, companyID,
 			}
 			newStatus := domain.TaskStatus(row.Status)
 			if closedNow {
-				c, err := t.q.GetCompanyByID(ctx, companyID)
-				if err != nil {
-					return mapErr(err, "company")
+				if err := t.taskClosedFact(companyID, row); err != nil {
+					return err
 				}
-				key := domain.TaskKey(c.TaskPrefix, row.Number)
-				f := taskFact("task.closed", key, row.Title, row.Description, newStatus, domain.Priority(row.Priority),
-					fmt.Sprintf("- Encerrada em: %s\n", t.now.Format("2006-01-02 15:04 UTC")))
-				if err := t.memoryFact(companyID, row.WorkspaceID, f,
-					fmt.Sprintf("task.closed:%s:%d", row.ID, t.now.Unix())); err != nil {
+			}
+			if reviewGate {
+				if err := t.requestTaskReview(actor, companyID, row); err != nil {
 					return err
 				}
 			}

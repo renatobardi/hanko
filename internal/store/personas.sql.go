@@ -19,7 +19,7 @@ INSERT INTO personas (id, company_id, slug, name, title, instructions, agent, mo
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9,
         $10, $11, $12, $13, $14,
         $15, $15)
-RETURNING id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures
+RETURNING id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review
 `
 
 type CreatePersonaParams struct {
@@ -79,12 +79,13 @@ func (q *Queries) CreatePersona(ctx context.Context, arg CreatePersonaParams) (P
 		&i.LastError,
 		&i.LastErrorAt,
 		&i.ConsecutiveFailures,
+		&i.RequireReview,
 	)
 	return i, err
 }
 
 const getPersonaByID = `-- name: GetPersonaByID :one
-SELECT id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures FROM personas WHERE company_id = $1 AND id = $2
+SELECT id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review FROM personas WHERE company_id = $1 AND id = $2
 `
 
 type GetPersonaByIDParams struct {
@@ -115,12 +116,13 @@ func (q *Queries) GetPersonaByID(ctx context.Context, arg GetPersonaByIDParams) 
 		&i.LastError,
 		&i.LastErrorAt,
 		&i.ConsecutiveFailures,
+		&i.RequireReview,
 	)
 	return i, err
 }
 
 const getPersonaByIDForUpdate = `-- name: GetPersonaByIDForUpdate :one
-SELECT id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures FROM personas WHERE company_id = $1 AND id = $2 FOR UPDATE
+SELECT id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review FROM personas WHERE company_id = $1 AND id = $2 FOR UPDATE
 `
 
 type GetPersonaByIDForUpdateParams struct {
@@ -151,12 +153,13 @@ func (q *Queries) GetPersonaByIDForUpdate(ctx context.Context, arg GetPersonaByI
 		&i.LastError,
 		&i.LastErrorAt,
 		&i.ConsecutiveFailures,
+		&i.RequireReview,
 	)
 	return i, err
 }
 
 const getPersonaBySlug = `-- name: GetPersonaBySlug :one
-SELECT id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures FROM personas WHERE company_id = $1 AND slug = $2
+SELECT id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review FROM personas WHERE company_id = $1 AND slug = $2
 `
 
 type GetPersonaBySlugParams struct {
@@ -187,12 +190,13 @@ func (q *Queries) GetPersonaBySlug(ctx context.Context, arg GetPersonaBySlugPara
 		&i.LastError,
 		&i.LastErrorAt,
 		&i.ConsecutiveFailures,
+		&i.RequireReview,
 	)
 	return i, err
 }
 
 const listPersonas = `-- name: ListPersonas :many
-SELECT id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures FROM personas WHERE company_id = $1 ORDER BY created_at, id
+SELECT id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review FROM personas WHERE company_id = $1 ORDER BY created_at, id
 `
 
 func (q *Queries) ListPersonas(ctx context.Context, companyID uuid.UUID) ([]Persona, error) {
@@ -224,6 +228,7 @@ func (q *Queries) ListPersonas(ctx context.Context, companyID uuid.UUID) ([]Pers
 			&i.LastError,
 			&i.LastErrorAt,
 			&i.ConsecutiveFailures,
+			&i.RequireReview,
 		); err != nil {
 			return nil, err
 		}
@@ -233,6 +238,16 @@ func (q *Queries) ListPersonas(ctx context.Context, companyID uuid.UUID) ([]Pers
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockOrg = `-- name: LockOrg :exec
+SELECT pg_advisory_xact_lock(hashtext('hanko:org:' || $1::text))
+`
+
+// Serializa mudanças de reports_to na empresa: duas edições concorrentes não criam ciclo.
+func (q *Queries) LockOrg(ctx context.Context, companyID string) error {
+	_, err := q.db.Exec(ctx, lockOrg, companyID)
+	return err
 }
 
 const setPersonaAfterRun = `-- name: SetPersonaAfterRun :exec
@@ -272,6 +287,54 @@ func (q *Queries) SetPersonaAfterRun(ctx context.Context, arg SetPersonaAfterRun
 	return err
 }
 
+const setPersonaOrg = `-- name: SetPersonaOrg :one
+UPDATE personas SET reports_to = $1, require_review = $2, updated_at = $3
+WHERE company_id = $4 AND id = $5
+RETURNING id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review
+`
+
+type SetPersonaOrgParams struct {
+	ReportsTo     *uuid.UUID
+	RequireReview bool
+	Now           time.Time
+	CompanyID     uuid.UUID
+	ID            uuid.UUID
+}
+
+func (q *Queries) SetPersonaOrg(ctx context.Context, arg SetPersonaOrgParams) (Persona, error) {
+	row := q.db.QueryRow(ctx, setPersonaOrg,
+		arg.ReportsTo,
+		arg.RequireReview,
+		arg.Now,
+		arg.CompanyID,
+		arg.ID,
+	)
+	var i Persona
+	err := row.Scan(
+		&i.ID,
+		&i.CompanyID,
+		&i.Slug,
+		&i.Name,
+		&i.Title,
+		&i.Instructions,
+		&i.Agent,
+		&i.Model,
+		&i.AdapterConfig,
+		&i.Status,
+		&i.ReportsTo,
+		&i.WorkspaceID,
+		&i.HeartbeatIntervalSec,
+		&i.BudgetMonthlyCents,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.LastError,
+		&i.LastErrorAt,
+		&i.ConsecutiveFailures,
+		&i.RequireReview,
+	)
+	return i, err
+}
+
 const setPersonaRunning = `-- name: SetPersonaRunning :exec
 UPDATE personas SET status = 'running', updated_at = $1
 WHERE id = $2 AND status IN ('active', 'idle', 'running')
@@ -294,7 +357,7 @@ SET name = $1, title = $2, instructions = $3, model = $4,
     workspace_id = $7, updated_at = $8,
     consecutive_failures = CASE WHEN $5::text <> status THEN 0 ELSE consecutive_failures END
 WHERE company_id = $9 AND id = $10
-RETURNING id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures
+RETURNING id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review
 `
 
 type UpdatePersonaParams struct {
@@ -344,6 +407,7 @@ func (q *Queries) UpdatePersona(ctx context.Context, arg UpdatePersonaParams) (P
 		&i.LastError,
 		&i.LastErrorAt,
 		&i.ConsecutiveFailures,
+		&i.RequireReview,
 	)
 	return i, err
 }
