@@ -18,6 +18,7 @@ import (
 	_ "github.com/riverqueue/river/riverdriver/riverpgxv5"
 	_ "github.com/riverqueue/river/rivermigrate"
 	_ "github.com/riverqueue/rivercontrib/otelriver"
+	_ "github.com/robfig/cron/v3"
 	_ "github.com/spf13/cobra"
 	_ "github.com/yuin/goldmark"
 	_ "go.opentelemetry.io/contrib/bridges/otelslog"
