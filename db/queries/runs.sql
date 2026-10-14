@@ -65,17 +65,40 @@ WHERE status IN ('queued', 'running')
 RETURNING *;
 
 -- name: ListWakeCandidates :many
+-- Tasks atribuídas, trabalháveis e sem run ativa nem gate pendente, de personas que podem trabalhar:
+--  (a) o intervalo de heartbeat da persona (> 0) passou desde a última run da task; ou
+--  (b) rede de segurança, independente do intervalo: a task mudou (ou recebeu comentário humano ou
+--      decisão) antes de @stale_before (agora - 1 minuto) e nenhuma run foi aberta depois da mudança, ou seja, o wake se perdeu.
 SELECT t.company_id, t.persona_id AS persona_id, t.id AS task_id
 FROM tasks t
 JOIN personas p ON p.id = t.persona_id
 WHERE t.status IN ('todo', 'in_progress')
   AND p.status IN ('active', 'idle', 'running')
-  AND p.heartbeat_interval_sec > 0
   AND NOT EXISTS (SELECT 1 FROM runs a WHERE a.task_id = t.id AND a.status IN ('queued', 'running'))
-  AND COALESCE((SELECT max(COALESCE(r.finished_at, r.created_at)) FROM runs r WHERE r.task_id = t.id), 'epoch'::timestamptz)
-      + make_interval(secs => p.heartbeat_interval_sec) <= @now
+  AND NOT EXISTS (SELECT 1 FROM gates g WHERE g.task_id = t.id AND g.status = 'pending')
+  AND (
+    (p.heartbeat_interval_sec > 0
+     AND COALESCE((SELECT max(COALESCE(r.finished_at, r.created_at)) FROM runs r WHERE r.task_id = t.id), 'epoch'::timestamptz)
+         + make_interval(secs => p.heartbeat_interval_sec) <= @now)
+    OR
+    (GREATEST(t.updated_at, COALESCE((SELECT max(c.created_at) FROM task_comments c
+                                      WHERE c.task_id = t.id AND c.author_type <> 'persona'), 'epoch'::timestamptz))
+         < @stale_before::timestamptz
+     AND NOT EXISTS (SELECT 1 FROM runs r WHERE r.task_id = t.id
+                     AND r.created_at >= GREATEST(t.updated_at, COALESCE((SELECT max(c.created_at) FROM task_comments c
+                                      WHERE c.task_id = t.id AND c.author_type <> 'persona'), 'epoch'::timestamptz))))
+  )
 ORDER BY t.updated_at
 LIMIT @lim;
+
+-- name: BumpWakeRequest :exec
+-- Registra um pedido de wake; o worker compara o contador antes e depois de processar.
+INSERT INTO wake_requests (company_id, persona_id, task_id, seq, updated_at)
+VALUES (@company_id, @persona_id, @task_id, 1, now())
+ON CONFLICT (persona_id, task_id) DO UPDATE SET seq = wake_requests.seq + 1, updated_at = now();
+
+-- name: GetWakeSeq :one
+SELECT COALESCE((SELECT seq FROM wake_requests WHERE persona_id = @persona_id AND task_id = @task_id), 0)::bigint AS seq;
 
 -- name: AppendRunEvent :one
 INSERT INTO run_events (id, company_id, run_id, seq, kind, text, payload, occurred_at, received_at)
@@ -91,3 +114,6 @@ SELECT * FROM run_events
 WHERE company_id = @company_id AND run_id = @run_id AND seq > @after_seq
 ORDER BY seq
 LIMIT @lim;
+
+-- name: ListWorkableTasksForPersona :many
+SELECT * FROM tasks WHERE persona_id = @persona_id AND status IN ('todo', 'in_progress') ORDER BY updated_at, id;

@@ -406,7 +406,14 @@ func TestInterruptOrphansAndWakeCandidates(t *testing.T) {
 		t.Fatalf("interval not elapsed: %+v", cands)
 	}
 	now = now.Add(11 * time.Minute)
-	if cands, _ = e.svc.WakeCandidates(ctx, 10); len(cands) != 1 {
+	// a: its interval elapsed. b: no interval at all, but untouched for over a minute with no run
+	// (the safety net for lost wakes). c is a backlog task: never.
+	cands, _ = e.svc.WakeCandidates(ctx, 10)
+	got := map[domain.ID]bool{}
+	for _, c := range cands {
+		got[c.TaskID] = true
+	}
+	if len(cands) != 2 || !got[a.ID] {
 		t.Fatalf("interval elapsed: %+v", cands)
 	}
 }

@@ -134,3 +134,19 @@ func (t *txc) reviewRequired(actor domain.Actor, companyID domain.ID) (bool, err
 	}
 	return p.RequireReview, nil
 }
+
+// checkTaskOwnership limits what a persona may change: tasks it owns, tasks owned by personas
+// below it in the chart, and unowned tasks. Humans and the system change any task.
+func (t *txc) checkTaskOwnership(actor domain.Actor, companyID domain.ID, owner *domain.ID) error {
+	if actor.Type != domain.ActorPersona || actor.ID == nil || owner == nil || *owner == *actor.ID {
+		return nil
+	}
+	parents, err := t.orgParents(companyID)
+	if err != nil {
+		return err
+	}
+	if !parents.IsDescendant(*actor.ID, *owner) {
+		return fmt.Errorf("update task: a persona changes only tasks it owns, or that belong to personas below it: %w", domain.ErrNotAllowed)
+	}
+	return nil
+}

@@ -37,14 +37,14 @@ ORDER BY next_fire_at, id
 LIMIT @lim;
 
 -- name: InsertFlowFire :one
--- Sem linhas quando (flow_id, scheduled_for) já existe.
-INSERT INTO flow_fires (id, flow_id, company_id, scheduled_for, created_at)
-VALUES (@id, @flow_id, @company_id, @scheduled_for, @now)
-ON CONFLICT (flow_id, scheduled_for) DO NOTHING
+-- Sem linhas quando (flow_id, scheduled_for, manual) já existe.
+INSERT INTO flow_fires (id, flow_id, company_id, scheduled_for, manual, created_at)
+VALUES (@id, @flow_id, @company_id, @scheduled_for, @manual, @now)
+ON CONFLICT (flow_id, scheduled_for, manual) DO NOTHING
 RETURNING *;
 
 -- name: GetFlowFire :one
-SELECT * FROM flow_fires WHERE flow_id = @flow_id AND scheduled_for = @scheduled_for;
+SELECT * FROM flow_fires WHERE flow_id = @flow_id AND scheduled_for = @scheduled_for AND manual = @manual;
 
 -- name: SetFlowFireTask :exec
 UPDATE flow_fires SET task_id = @task_id WHERE id = @id;
@@ -75,3 +75,11 @@ FROM flows f
 JOIN personas p ON p.id = f.persona_id
 LEFT JOIN projects pr ON pr.id = f.project_id
 WHERE f.company_id = @company_id AND f.id = @id;
+
+-- name: FlowHasOpenTask :one
+-- Alguma task criada por um disparo agendado deste Fluxo ainda está aberta? (O "Rodar agora" não conta.)
+SELECT t.id, t.number FROM flow_fires f
+JOIN tasks t ON t.id = f.task_id
+WHERE f.flow_id = @flow_id AND NOT f.manual AND t.status NOT IN ('done', 'cancelled')
+ORDER BY f.scheduled_for DESC
+LIMIT 1;

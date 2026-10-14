@@ -183,7 +183,11 @@ func TestDueAndFireFlowIdempotent(t *testing.T) {
 		t.Fatalf("still due after firing: %v", due)
 	}
 
-	// concurrent firings of the next occurrence create one task
+	// concurrent firings of the next occurrence create one task (the first one is done by then:
+	// an open task of an earlier firing would make the scheduler skip)
+	if _, err := e.svc.UpdateTask(ctx, domain.HumanActor, e.co.ID, r.Task.ID, service.UpdateTaskInput{Status: ptr(domain.TaskDone)}); err != nil {
+		t.Fatal(err)
+	}
 	next := *after.NextFireAt
 	e.svc.Now = func() time.Time { return next.Add(time.Second) }
 	var wg sync.WaitGroup

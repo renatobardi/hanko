@@ -140,6 +140,27 @@ func (q *Queries) DueFlows(ctx context.Context, arg DueFlowsParams) ([]Flow, err
 	return items, nil
 }
 
+const flowHasOpenTask = `-- name: FlowHasOpenTask :one
+SELECT t.id, t.number FROM flow_fires f
+JOIN tasks t ON t.id = f.task_id
+WHERE f.flow_id = $1 AND NOT f.manual AND t.status NOT IN ('done', 'cancelled')
+ORDER BY f.scheduled_for DESC
+LIMIT 1
+`
+
+type FlowHasOpenTaskRow struct {
+	ID     uuid.UUID
+	Number int64
+}
+
+// Alguma task criada por um disparo agendado deste Fluxo ainda está aberta? (O "Rodar agora" não conta.)
+func (q *Queries) FlowHasOpenTask(ctx context.Context, flowID uuid.UUID) (FlowHasOpenTaskRow, error) {
+	row := q.db.QueryRow(ctx, flowHasOpenTask, flowID)
+	var i FlowHasOpenTaskRow
+	err := row.Scan(&i.ID, &i.Number)
+	return i, err
+}
+
 const getFlowByID = `-- name: GetFlowByID :one
 SELECT id, company_id, slug, name, description, cron, timezone, enabled, persona_id, project_id, priority, task_title, task_description, last_fired_at, next_fire_at, created_at, updated_at FROM flows WHERE company_id = $1 AND id = $2
 `
@@ -238,16 +259,17 @@ func (q *Queries) GetFlowBySlug(ctx context.Context, arg GetFlowBySlugParams) (F
 }
 
 const getFlowFire = `-- name: GetFlowFire :one
-SELECT id, flow_id, company_id, scheduled_for, task_id, created_at FROM flow_fires WHERE flow_id = $1 AND scheduled_for = $2
+SELECT id, flow_id, company_id, scheduled_for, task_id, created_at, manual FROM flow_fires WHERE flow_id = $1 AND scheduled_for = $2 AND manual = $3
 `
 
 type GetFlowFireParams struct {
 	FlowID       uuid.UUID
 	ScheduledFor time.Time
+	Manual       bool
 }
 
 func (q *Queries) GetFlowFire(ctx context.Context, arg GetFlowFireParams) (FlowFire, error) {
-	row := q.db.QueryRow(ctx, getFlowFire, arg.FlowID, arg.ScheduledFor)
+	row := q.db.QueryRow(ctx, getFlowFire, arg.FlowID, arg.ScheduledFor, arg.Manual)
 	var i FlowFire
 	err := row.Scan(
 		&i.ID,
@@ -256,6 +278,7 @@ func (q *Queries) GetFlowFire(ctx context.Context, arg GetFlowFireParams) (FlowF
 		&i.ScheduledFor,
 		&i.TaskID,
 		&i.CreatedAt,
+		&i.Manual,
 	)
 	return i, err
 }
@@ -307,10 +330,10 @@ func (q *Queries) GetFlowView(ctx context.Context, arg GetFlowViewParams) (GetFl
 }
 
 const insertFlowFire = `-- name: InsertFlowFire :one
-INSERT INTO flow_fires (id, flow_id, company_id, scheduled_for, created_at)
-VALUES ($1, $2, $3, $4, $5)
-ON CONFLICT (flow_id, scheduled_for) DO NOTHING
-RETURNING id, flow_id, company_id, scheduled_for, task_id, created_at
+INSERT INTO flow_fires (id, flow_id, company_id, scheduled_for, manual, created_at)
+VALUES ($1, $2, $3, $4, $5, $6)
+ON CONFLICT (flow_id, scheduled_for, manual) DO NOTHING
+RETURNING id, flow_id, company_id, scheduled_for, task_id, created_at, manual
 `
 
 type InsertFlowFireParams struct {
@@ -318,16 +341,18 @@ type InsertFlowFireParams struct {
 	FlowID       uuid.UUID
 	CompanyID    uuid.UUID
 	ScheduledFor time.Time
+	Manual       bool
 	Now          time.Time
 }
 
-// Sem linhas quando (flow_id, scheduled_for) já existe.
+// Sem linhas quando (flow_id, scheduled_for, manual) já existe.
 func (q *Queries) InsertFlowFire(ctx context.Context, arg InsertFlowFireParams) (FlowFire, error) {
 	row := q.db.QueryRow(ctx, insertFlowFire,
 		arg.ID,
 		arg.FlowID,
 		arg.CompanyID,
 		arg.ScheduledFor,
+		arg.Manual,
 		arg.Now,
 	)
 	var i FlowFire
@@ -338,12 +363,13 @@ func (q *Queries) InsertFlowFire(ctx context.Context, arg InsertFlowFireParams) 
 		&i.ScheduledFor,
 		&i.TaskID,
 		&i.CreatedAt,
+		&i.Manual,
 	)
 	return i, err
 }
 
 const listFlowFires = `-- name: ListFlowFires :many
-SELECT f.id, f.flow_id, f.company_id, f.scheduled_for, f.task_id, f.created_at, COALESCE(c.task_prefix || '-' || t.number, '')::text AS task_key, t.title AS task_title, t.status AS task_status
+SELECT f.id, f.flow_id, f.company_id, f.scheduled_for, f.task_id, f.created_at, f.manual, COALESCE(c.task_prefix || '-' || t.number, '')::text AS task_key, t.title AS task_title, t.status AS task_status
 FROM flow_fires f
 LEFT JOIN tasks t ON t.id = f.task_id
 LEFT JOIN companies c ON c.id = f.company_id
@@ -365,6 +391,7 @@ type ListFlowFiresRow struct {
 	ScheduledFor time.Time
 	TaskID       *uuid.UUID
 	CreatedAt    time.Time
+	Manual       bool
 	TaskKey      string
 	TaskTitle    *string
 	TaskStatus   *string
@@ -386,6 +413,7 @@ func (q *Queries) ListFlowFires(ctx context.Context, arg ListFlowFiresParams) ([
 			&i.ScheduledFor,
 			&i.TaskID,
 			&i.CreatedAt,
+			&i.Manual,
 			&i.TaskKey,
 			&i.TaskTitle,
 			&i.TaskStatus,

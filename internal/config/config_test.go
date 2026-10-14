@@ -203,6 +203,29 @@ secret: 0123456789abcdef0123456789abcdef
 			wantErr: "HANKO_WORKSPACES_ROOT",
 		},
 		{
+			name: "reserva de orçamento por run",
+			env:  map[string]string{"HANKO_DATABASE_URL": db, "HANKO_RUN_RESERVE_USD": "2.5"},
+			check: func(t *testing.T, c Config) {
+				if c.RunReserveUSD != 2.5 {
+					t.Fatal(c.RunReserveUSD)
+				}
+			},
+		},
+		{
+			name: "reserva de orçamento padrão",
+			env:  map[string]string{"HANKO_DATABASE_URL": db},
+			check: func(t *testing.T, c Config) {
+				if c.RunReserveUSD != 1.0 {
+					t.Fatal(c.RunReserveUSD)
+				}
+			},
+		},
+		{
+			name:    "reserva negativa",
+			env:     map[string]string{"HANKO_DATABASE_URL": db, "HANKO_RUN_RESERVE_USD": "-1"},
+			wantErr: "HANKO_RUN_RESERVE_USD",
+		},
+		{
 			name: "public url explícita",
 			env:  map[string]string{"HANKO_DATABASE_URL": db, "HANKO_PUBLIC_URL": "https://hanko.oute.pro/"},
 			check: func(t *testing.T, c Config) {

@@ -71,6 +71,10 @@ subir (config inválida), de propósito. Com o modo `authenticated`, use o §5 e
 - Memória: o agente fala com `<HANKO_PUBLIC_URL>/memory-mcp` usando o run token; o Hanko injeta `HANKO_MEMORY_TOKEN` e o escopo
   (empresa/workspace) do lado do servidor. O token do ai-memory nunca vai ao agente.
 - Workspaces só podem apontar para dentro de `HANKO_WORKSPACES_ROOT` (padrão `$HOME/hanko-workspaces`), com caminho absoluto e limpo.
+- Orçamento: antes de abrir uma run, o Hanko soma o gasto do mês, a reserva de cada run `queued`/`running` e a reserva da nova;
+  se passar do teto da persona ou da empresa, a run não abre. A reserva de uma run é o maior entre a média de custo das últimas
+  10 runs da persona e `HANKO_RUN_RESERVE_USD` (padrão `1.00`). Persona pausada por orçamento volta sozinha quando o teto sobe
+  ou o mês vira.
 - Limites e recomendação de isolamento: `docs/adr/0017-modo-trusted-e-limites.md`. O modo `authenticated` (§5) remove o limite principal.
 
 ## 5. Modo authenticated (login, sessões e API keys)

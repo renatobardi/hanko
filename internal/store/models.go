@@ -57,6 +57,13 @@ type Company struct {
 	BudgetMonthlyCents *int64
 }
 
+type CostNotice struct {
+	CompanyID uuid.UUID
+	Model     string
+	Month     string
+	CreatedAt time.Time
+}
+
 type Flow struct {
 	ID              uuid.UUID
 	CompanyID       uuid.UUID
@@ -84,6 +91,7 @@ type FlowFire struct {
 	ScheduledFor time.Time
 	TaskID       *uuid.UUID
 	CreatedAt    time.Time
+	Manual       bool
 }
 
 type Gate struct {
@@ -104,6 +112,7 @@ type Gate struct {
 	EventID         *string
 	CreatedAt       time.Time
 	DecidedAt       *time.Time
+	RequestedStatus *string
 }
 
 type MemoryOutbox struct {
@@ -260,6 +269,14 @@ type User struct {
 	Role         string
 	CreatedAt    time.Time
 	LastLoginAt  *time.Time
+}
+
+type WakeRequest struct {
+	CompanyID uuid.UUID
+	PersonaID uuid.UUID
+	TaskID    uuid.UUID
+	Seq       int64
+	UpdatedAt time.Time
 }
 
 type Workspace struct {

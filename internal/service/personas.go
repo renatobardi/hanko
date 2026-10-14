@@ -223,7 +223,26 @@ func (s *Service) UpdatePersona(ctx context.Context, actor domain.Actor, company
 			}
 		}
 		out = personaFromRow(row)
-		return t.activity(actor, companyID, "persona.updated", "persona", out.ID, map[string]any{"fields": changed}, "")
+		if err := t.activity(actor, companyID, "persona.updated", "persona", out.ID, map[string]any{"fields": changed}, ""); err != nil {
+			return err
+		}
+		if in.ClearBudget || in.BudgetMonthlyCents != nil {
+			// a new ceiling re-arms the alerts and lifts a budget pause that no longer applies
+			co, err := t.q.GetCompanyByID(ctx, companyID)
+			if err != nil {
+				return mapErr(err, "get company")
+			}
+			if err := t.resetBudgetAlerts(co, personaID, row.BudgetMonthlyCents, &personaID); err != nil {
+				return err
+			}
+			if _, err := t.resumeBudgetPaused(&companyID, &personaID); err != nil {
+				return err
+			}
+			if upd, err := t.q.GetPersonaByID(ctx, store.GetPersonaByIDParams{CompanyID: companyID, ID: personaID}); err == nil {
+				out = personaFromRow(upd)
+			}
+		}
+		return nil
 	})
 	return out, err
 }

@@ -20,6 +20,10 @@ type RequestGateInput struct {
 	TaskID  *domain.ID
 	RunID   *domain.ID
 	EventID string // idempotency key (agents/MCP): repeating returns the existing gate
+
+	// requestedStatus is the status a persona with require_review asked for (done or cancelled);
+	// set only by requestTaskReview.
+	requestedStatus domain.TaskStatus
 }
 
 // DecideGateInput is the human answer to a pending gate.
@@ -64,6 +68,9 @@ const maxGateBody = 100000
 // (approval, hire) or in_review (task_review), and a blocking kind puts the persona in
 // awaiting_gate unless it has a run active on another task. Emits gate.requested.
 // The same EventID twice returns the existing gate.
+//
+// A persona may ask for a gate only on a task assigned to itself or on the task of its own
+// run (RunID); anything else is ErrNotAllowed, so a persona cannot park someone else's work.
 func (s *Service) RequestGate(ctx context.Context, actor domain.Actor, companyID domain.ID, in RequestGateInput) (GateView, error) {
 	title := strings.TrimSpace(in.Title)
 	if n := utf8.RuneCountInString(title); n < 1 || n > 300 {
@@ -101,9 +108,24 @@ func (s *Service) RequestGate(ctx context.Context, actor domain.Actor, companyID
 				}
 				task = &tk
 			}
+			var run *store.Run
 			if in.RunID != nil {
-				if _, err := t.q.GetRunByID(ctx, store.GetRunByIDParams{CompanyID: companyID, ID: *in.RunID}); err != nil {
+				r, err := t.q.GetRunByID(ctx, store.GetRunByIDParams{CompanyID: companyID, ID: *in.RunID})
+				if err != nil {
 					return domain.Invalid("run_id", "run not found in company")
+				}
+				run = &r
+			}
+			if actor.Type == domain.ActorPersona && actor.ID != nil {
+				if run != nil && run.PersonaID != *actor.ID {
+					return fmt.Errorf("request gate: the run belongs to another persona: %w", domain.ErrNotAllowed)
+				}
+				if task != nil {
+					owns := task.PersonaID != nil && *task.PersonaID == *actor.ID
+					ownRun := run != nil && run.TaskID == task.ID
+					if !owns && !ownRun {
+						return fmt.Errorf("request gate: a persona asks for gates only on tasks assigned to it: %w", domain.ErrNotAllowed)
+					}
 				}
 			}
 			var personaID *domain.ID
@@ -150,9 +172,14 @@ func (t *txc) createGate(actor domain.Actor, companyID domain.ID, in RequestGate
 	if in.EventID != "" {
 		eid = &in.EventID
 	}
+	var requested *string
+	if in.requestedStatus != "" {
+		requested = ptr(string(in.requestedStatus))
+	}
 	row, err := t.q.CreateGate(t.ctx, store.CreateGateParams{ID: domain.NewID(), CompanyID: companyID, Kind: string(in.Kind),
 		Title: in.Title, Body: in.Body, TaskID: in.TaskID, RunID: in.RunID, PersonaID: personaID,
-		RequestedByType: string(actor.Type), RequestedByID: actor.ID, EventID: eid, Now: t.now})
+		RequestedByType: string(actor.Type), RequestedByID: actor.ID, EventID: eid,
+		RequestedStatus: requested, Now: t.now})
 	if err != nil {
 		return domain.Gate{}, mapErr(err, "create gate")
 	}
@@ -222,6 +249,9 @@ func (t *txc) moveTask(actor domain.Actor, companyID domain.ID, cur store.Task, 
 		if err := t.taskClosedFact(companyID, row); err != nil {
 			return store.Task{}, err
 		}
+		if err := t.expireTaskGates(companyID, cur.ID, "task_closed"); err != nil {
+			return store.Task{}, err
+		}
 		if cur.PersonaID != nil {
 			if err := t.cancelTaskRun(actor, companyID, cur.ID, "task_closed"); err != nil {
 				return store.Task{}, err
@@ -229,6 +259,37 @@ func (t *txc) moveTask(actor domain.Actor, companyID domain.ID, cur store.Task, 
 		}
 	}
 	return row, nil
+}
+
+// expireTaskGates marks the gates still pending on a task just closed as expired (gate.expired),
+// so no decision is left waiting for a task that no longer exists as work. A persona held by an
+// expired blocking gate is released when nothing else holds it.
+func (t *txc) expireTaskGates(companyID, taskID domain.ID, reason string) error {
+	rows, err := t.q.ExpirePendingGatesForTask(t.ctx, store.ExpirePendingGatesForTaskParams{CompanyID: companyID, TaskID: &taskID, Now: &t.now})
+	if err != nil {
+		return fmt.Errorf("expire task gates: %w", err)
+	}
+	for _, r := range rows {
+		g := gateFromRow(r)
+		if err := t.activity(domain.SystemActor, companyID, "gate.expired", "gate", g.ID, map[string]any{
+			"kind": g.Kind, "title": g.Title, "task_id": g.TaskID, "persona_id": g.PersonaID, "reason": reason}, ""); err != nil {
+			return err
+		}
+		t.publish(companyTopic(companyID), "gate.updated", g)
+		if g.PersonaID == nil {
+			continue
+		}
+		n, err := t.q.CountBlockingGatesForPersona(t.ctx, g.PersonaID)
+		if err != nil {
+			return fmt.Errorf("count blocking gates: %w", err)
+		}
+		if n == 0 {
+			if err := t.q.ReleasePersonaFromGate(t.ctx, store.ReleasePersonaFromGateParams{ID: *g.PersonaID, Now: t.now}); err != nil {
+				return fmt.Errorf("release persona: %w", err)
+			}
+		}
+	}
+	return nil
 }
 
 // taskClosedFact records the task.closed memory fact for a task just closed in this transaction.
@@ -252,9 +313,9 @@ var gateDecisionLabel = map[domain.GateStatus]string{
 //
 // Effects (the work is parked only when a persona asked for the gate):
 //   - a system comment on the task states the decision and the note;
-//   - the task leaves blocked/in_review: approved → in_progress (task_review: done),
+//   - the task leaves blocked/in_review: approved → in_progress (task_review: the status asked for, done or cancelled),
 //     changes_requested → in_progress, rejected → todo (the persona is woken to pick another path);
-//   - the persona leaves awaiting_gate (when no other blocking gate holds it) and is woken (trigger gate);
+//   - the persona leaves awaiting_gate (when no other blocking gate holds it) and the task's current assignee is woken (trigger gate);
 //   - activity gate.decided and the memory fact gate.decided at hanko/decisions/<date>-<KEY>-<gate8>.md.
 func (s *Service) DecideGate(ctx context.Context, actor domain.Actor, companyID, gateID domain.ID, in DecideGateInput) (GateView, error) {
 	if actor.Type != domain.ActorHuman {
@@ -315,7 +376,7 @@ func (s *Service) DecideGate(ctx context.Context, actor domain.Actor, companyID,
 				return err
 			}
 			if g.PersonaID != nil {
-				if to, ok := statusAfterDecision(g.Kind, in.Decision, domain.TaskStatus(task.Status)); ok {
+				if to, ok := statusAfterDecision(g.Kind, in.Decision, g.RequestedStatus, domain.TaskStatus(task.Status)); ok {
 					moved, err := t.moveTask(actor, companyID, *task, to, map[string]any{"gate_id": g.ID, "decision": in.Decision})
 					if err != nil {
 						return err
@@ -335,7 +396,8 @@ func (s *Service) DecideGate(ctx context.Context, actor domain.Actor, companyID,
 				}
 			}
 			if task != nil {
-				if err := t.wake(companyID, task.ID, g.PersonaID, newStatus, domain.TriggerGate, false); err != nil {
+				// whoever owns the task now is woken, which is not necessarily who asked
+				if err := t.wake(companyID, task.ID, task.PersonaID, newStatus, domain.TriggerGate, false); err != nil {
 					return err
 				}
 			}
@@ -367,7 +429,7 @@ func (s *Service) DecideGate(ctx context.Context, actor domain.Actor, companyID,
 
 // statusAfterDecision is where a task goes when a gate asked by a persona is decided, given
 // where the task stands. Only a task still parked by the gate (blocked/in_review) moves.
-func statusAfterDecision(kind domain.GateKind, d domain.GateStatus, cur domain.TaskStatus) (domain.TaskStatus, bool) {
+func statusAfterDecision(kind domain.GateKind, d domain.GateStatus, requested, cur domain.TaskStatus) (domain.TaskStatus, bool) {
 	if cur != domain.TaskBlocked && cur != domain.TaskInReview {
 		return "", false
 	}
@@ -377,6 +439,9 @@ func statusAfterDecision(kind domain.GateKind, d domain.GateStatus, cur domain.T
 		to = domain.TaskInProgress
 		if kind == domain.GateTaskReview {
 			to = domain.TaskDone
+			if requested == domain.TaskCancelled {
+				to = domain.TaskCancelled
+			}
 		}
 	case domain.GateChangesRequested:
 		to = domain.TaskInProgress
@@ -545,8 +610,9 @@ func (s *Service) Inbox(ctx context.Context, companyID domain.ID) (Inbox, error)
 }
 
 // requestTaskReview opens the task_review gate of a persona with require_review that tried to
-// close the task (already moved to in_review by the caller). A review already pending is kept.
-func (t *txc) requestTaskReview(actor domain.Actor, companyID domain.ID, task store.Task) error {
+// close the task as requested (done or cancelled); the caller already moved it to in_review.
+// Approving the gate applies the requested status. A review already pending is kept.
+func (t *txc) requestTaskReview(actor domain.Actor, companyID domain.ID, task store.Task, requested domain.TaskStatus) error {
 	pending, err := t.q.HasPendingGateOfKind(t.ctx, store.HasPendingGateOfKindParams{TaskID: &task.ID, Kind: string(domain.GateTaskReview)})
 	if err != nil {
 		return fmt.Errorf("check pending review: %w", err)
@@ -559,9 +625,12 @@ func (t *txc) requestTaskReview(actor domain.Actor, companyID domain.ID, task st
 		return mapErr(err, "company")
 	}
 	key := domain.TaskKey(c.TaskPrefix, task.Number)
-	in := RequestGateInput{Kind: domain.GateTaskReview, TaskID: &task.ID,
-		Title: fmt.Sprintf("Revisar %s — %s", key, task.Title),
-		Body:  "A persona deu a task como pronta e esta persona exige revisão antes de concluir. Aprove para concluir, peça mudanças ou rejeite."}
+	body := "A persona deu a task como pronta e esta persona exige revisão antes de concluir. Aprove para concluir, peça mudanças ou rejeite."
+	if requested == domain.TaskCancelled {
+		body = "A persona quer cancelar a task e esta persona exige revisão antes de encerrar. Aprove para cancelar, peça mudanças ou rejeite."
+	}
+	in := RequestGateInput{Kind: domain.GateTaskReview, TaskID: &task.ID, requestedStatus: requested,
+		Title: fmt.Sprintf("Revisar %s — %s", key, task.Title), Body: body}
 	if run, err := t.q.ActiveRunForTask(t.ctx, task.ID); err == nil && actor.ID != nil && run.PersonaID == *actor.ID {
 		in.RunID = &run.ID
 	}

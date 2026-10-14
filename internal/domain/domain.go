@@ -364,5 +364,6 @@ type FlowFire struct {
 	CompanyID    ID        `json:"company_id"`
 	ScheduledFor time.Time `json:"scheduled_for"`
 	TaskID       *ID       `json:"task_id,omitempty"`
+	Manual       bool      `json:"manual,omitempty"` // "Rodar agora", not a cron occurrence
 	CreatedAt    time.Time `json:"created_at"`
 }

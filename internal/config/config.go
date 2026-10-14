@@ -89,6 +89,10 @@ type Config struct {
 	AllowedHosts []string `yaml:"allowed_hosts" env:"HANKO_ALLOWED_HOSTS" envSeparator:","`
 	// WorkspacesRoot é a raiz sob a qual todo workspace precisa estar (default $HOME/hanko-workspaces).
 	WorkspacesRoot string `yaml:"workspaces_root" env:"HANKO_WORKSPACES_ROOT"`
+	// RunReserveUSD é o piso (USD) da reserva de orçamento por run aberta: antes de abrir uma
+	// run, gasto + reservas das runs abertas + a reserva da nova não podem passar do teto. A reserva
+	// de cada run é o maior entre a média das últimas 10 runs da persona e este piso.
+	RunReserveUSD float64 `yaml:"run_reserve_usd" env:"HANKO_RUN_RESERVE_USD"`
 
 	// SecretGenerated indica que Secret foi gerado neste boot (run tokens não
 	// sobrevivem a restart). Preenchido por Load.
@@ -110,6 +114,7 @@ func Defaults() Config {
 		Workers:           4,
 		RunTimeout:        30 * time.Minute,
 		HeartbeatInterval: time.Minute,
+		RunReserveUSD:     1.0,
 		LogLevel:          "info",
 		LogFormat:         LogJSON,
 	}
@@ -162,7 +167,7 @@ func environFor(getenv func(string) string) map[string]string {
 		"HANKO_MIGRATE_ON_BOOT", "HANKO_MEMORY_PROVIDER", "HANKO_MEMORY_URL", "HANKO_MEMORY_TOKEN",
 		"HANKO_CLAUDE_BIN", "HANKO_CODEX_BIN", "HANKO_WORKERS", "HANKO_RUN_TIMEOUT",
 		"HANKO_HEARTBEAT_INTERVAL", "HANKO_LOG_LEVEL", "HANKO_LOG_FORMAT",
-		"HANKO_AGENT_ENV_ALLOW", "HANKO_ALLOWED_HOSTS", "HANKO_WORKSPACES_ROOT",
+		"HANKO_AGENT_ENV_ALLOW", "HANKO_ALLOWED_HOSTS", "HANKO_WORKSPACES_ROOT", "HANKO_RUN_RESERVE_USD",
 		"HANKO_AUTH_PROVIDER", "HANKO_AUTH_ALLOWED_EMAILS", "HANKO_AUTH_ALLOWED_DOMAINS",
 		"HANKO_FIREBASE_PROJECT_ID", "HANKO_FIREBASE_API_KEY", "HANKO_FIREBASE_AUTH_DOMAIN",
 	}
@@ -244,6 +249,9 @@ func (c Config) Validate() error {
 	}
 	if u, err := url.Parse(c.PublicURL); err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
 		add("HANKO_PUBLIC_URL %q inválido: use http(s)://host[:porta]", c.PublicURL)
+	}
+	if c.RunReserveUSD < 0 {
+		add("HANKO_RUN_RESERVE_USD %v inválido: use um valor >= 0 (0 usa o padrão de US$ 1,00)", c.RunReserveUSD)
 	}
 	if c.Mode != ModeTrusted && c.Mode != ModeAuthenticated {
 		add("HANKO_MODE %q inválido: use %q ou %q", c.Mode, ModeTrusted, ModeAuthenticated)

@@ -105,5 +105,8 @@ func gateFromRow(r store.Gate) domain.Gate {
 	if r.EventID != nil {
 		g.EventID = *r.EventID
 	}
+	if r.RequestedStatus != nil {
+		g.RequestedStatus = domain.TaskStatus(*r.RequestedStatus)
+	}
 	return g
 }

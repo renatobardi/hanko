@@ -38,10 +38,10 @@ func (q *Queries) CountPendingGates(ctx context.Context, companyID uuid.UUID) (i
 
 const createGate = `-- name: CreateGate :one
 INSERT INTO gates (id, company_id, kind, status, title, body, task_id, run_id, persona_id,
-                   requested_by_type, requested_by_id, event_id, created_at)
+                   requested_by_type, requested_by_id, event_id, requested_status, created_at)
 VALUES ($1, $2, $3, 'pending', $4, $5, $6, $7, $8,
-        $9, $10, $11, $12)
-RETURNING id, company_id, kind, status, title, body, task_id, run_id, persona_id, requested_by_type, requested_by_id, decided_by_type, decided_by_id, decision_note, event_id, created_at, decided_at
+        $9, $10, $11, $12, $13)
+RETURNING id, company_id, kind, status, title, body, task_id, run_id, persona_id, requested_by_type, requested_by_id, decided_by_type, decided_by_id, decision_note, event_id, created_at, decided_at, requested_status
 `
 
 type CreateGateParams struct {
@@ -56,6 +56,7 @@ type CreateGateParams struct {
 	RequestedByType string
 	RequestedByID   *uuid.UUID
 	EventID         *string
+	RequestedStatus *string
 	Now             time.Time
 }
 
@@ -72,6 +73,7 @@ func (q *Queries) CreateGate(ctx context.Context, arg CreateGateParams) (Gate, e
 		arg.RequestedByType,
 		arg.RequestedByID,
 		arg.EventID,
+		arg.RequestedStatus,
 		arg.Now,
 	)
 	var i Gate
@@ -93,6 +95,7 @@ func (q *Queries) CreateGate(ctx context.Context, arg CreateGateParams) (Gate, e
 		&i.EventID,
 		&i.CreatedAt,
 		&i.DecidedAt,
+		&i.RequestedStatus,
 	)
 	return i, err
 }
@@ -102,7 +105,7 @@ UPDATE gates
 SET status = $1, decided_by_type = $2, decided_by_id = $3,
     decision_note = $4, decided_at = $5
 WHERE company_id = $6 AND id = $7 AND status = 'pending'
-RETURNING id, company_id, kind, status, title, body, task_id, run_id, persona_id, requested_by_type, requested_by_id, decided_by_type, decided_by_id, decision_note, event_id, created_at, decided_at
+RETURNING id, company_id, kind, status, title, body, task_id, run_id, persona_id, requested_by_type, requested_by_id, decided_by_type, decided_by_id, decision_note, event_id, created_at, decided_at, requested_status
 `
 
 type DecideGateParams struct {
@@ -144,12 +147,66 @@ func (q *Queries) DecideGate(ctx context.Context, arg DecideGateParams) (Gate, e
 		&i.EventID,
 		&i.CreatedAt,
 		&i.DecidedAt,
+		&i.RequestedStatus,
 	)
 	return i, err
 }
 
+const expirePendingGatesForTask = `-- name: ExpirePendingGatesForTask :many
+UPDATE gates SET status = 'expired', decided_by_type = 'system', decided_at = $1,
+                 decision_note = 'Task encerrada antes da decisão.'
+WHERE company_id = $2 AND task_id = $3 AND status = 'pending'
+RETURNING id, company_id, kind, status, title, body, task_id, run_id, persona_id, requested_by_type, requested_by_id, decided_by_type, decided_by_id, decision_note, event_id, created_at, decided_at, requested_status
+`
+
+type ExpirePendingGatesForTaskParams struct {
+	Now       *time.Time
+	CompanyID uuid.UUID
+	TaskID    *uuid.UUID
+}
+
+// Task encerrada: os gates que ainda esperavam decisão perdem o objeto e expiram.
+func (q *Queries) ExpirePendingGatesForTask(ctx context.Context, arg ExpirePendingGatesForTaskParams) ([]Gate, error) {
+	rows, err := q.db.Query(ctx, expirePendingGatesForTask, arg.Now, arg.CompanyID, arg.TaskID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Gate{}
+	for rows.Next() {
+		var i Gate
+		if err := rows.Scan(
+			&i.ID,
+			&i.CompanyID,
+			&i.Kind,
+			&i.Status,
+			&i.Title,
+			&i.Body,
+			&i.TaskID,
+			&i.RunID,
+			&i.PersonaID,
+			&i.RequestedByType,
+			&i.RequestedByID,
+			&i.DecidedByType,
+			&i.DecidedByID,
+			&i.DecisionNote,
+			&i.EventID,
+			&i.CreatedAt,
+			&i.DecidedAt,
+			&i.RequestedStatus,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getGateByEventID = `-- name: GetGateByEventID :one
-SELECT id, company_id, kind, status, title, body, task_id, run_id, persona_id, requested_by_type, requested_by_id, decided_by_type, decided_by_id, decision_note, event_id, created_at, decided_at FROM gates WHERE company_id = $1 AND event_id = $2
+SELECT id, company_id, kind, status, title, body, task_id, run_id, persona_id, requested_by_type, requested_by_id, decided_by_type, decided_by_id, decision_note, event_id, created_at, decided_at, requested_status FROM gates WHERE company_id = $1 AND event_id = $2
 `
 
 type GetGateByEventIDParams struct {
@@ -178,12 +235,13 @@ func (q *Queries) GetGateByEventID(ctx context.Context, arg GetGateByEventIDPara
 		&i.EventID,
 		&i.CreatedAt,
 		&i.DecidedAt,
+		&i.RequestedStatus,
 	)
 	return i, err
 }
 
 const getGateByID = `-- name: GetGateByID :one
-SELECT id, company_id, kind, status, title, body, task_id, run_id, persona_id, requested_by_type, requested_by_id, decided_by_type, decided_by_id, decision_note, event_id, created_at, decided_at FROM gates WHERE company_id = $1 AND id = $2
+SELECT id, company_id, kind, status, title, body, task_id, run_id, persona_id, requested_by_type, requested_by_id, decided_by_type, decided_by_id, decision_note, event_id, created_at, decided_at, requested_status FROM gates WHERE company_id = $1 AND id = $2
 `
 
 type GetGateByIDParams struct {
@@ -212,12 +270,13 @@ func (q *Queries) GetGateByID(ctx context.Context, arg GetGateByIDParams) (Gate,
 		&i.EventID,
 		&i.CreatedAt,
 		&i.DecidedAt,
+		&i.RequestedStatus,
 	)
 	return i, err
 }
 
 const getGateByIDForUpdate = `-- name: GetGateByIDForUpdate :one
-SELECT id, company_id, kind, status, title, body, task_id, run_id, persona_id, requested_by_type, requested_by_id, decided_by_type, decided_by_id, decision_note, event_id, created_at, decided_at FROM gates WHERE company_id = $1 AND id = $2 FOR UPDATE
+SELECT id, company_id, kind, status, title, body, task_id, run_id, persona_id, requested_by_type, requested_by_id, decided_by_type, decided_by_id, decision_note, event_id, created_at, decided_at, requested_status FROM gates WHERE company_id = $1 AND id = $2 FOR UPDATE
 `
 
 type GetGateByIDForUpdateParams struct {
@@ -246,12 +305,13 @@ func (q *Queries) GetGateByIDForUpdate(ctx context.Context, arg GetGateByIDForUp
 		&i.EventID,
 		&i.CreatedAt,
 		&i.DecidedAt,
+		&i.RequestedStatus,
 	)
 	return i, err
 }
 
 const getGateView = `-- name: GetGateView :one
-SELECT g.id, g.company_id, g.kind, g.status, g.title, g.body, g.task_id, g.run_id, g.persona_id, g.requested_by_type, g.requested_by_id, g.decided_by_type, g.decided_by_id, g.decision_note, g.event_id, g.created_at, g.decided_at, COALESCE(c.task_prefix || '-' || t.number, '')::text AS task_key, COALESCE(t.title, '')::text AS task_title,
+SELECT g.id, g.company_id, g.kind, g.status, g.title, g.body, g.task_id, g.run_id, g.persona_id, g.requested_by_type, g.requested_by_id, g.decided_by_type, g.decided_by_id, g.decision_note, g.event_id, g.created_at, g.decided_at, g.requested_status, COALESCE(c.task_prefix || '-' || t.number, '')::text AS task_key, COALESCE(t.title, '')::text AS task_title,
        COALESCE(p.name, '')::text AS persona_name
 FROM gates g
 JOIN companies c ON c.id = g.company_id
@@ -293,6 +353,7 @@ func (q *Queries) GetGateView(ctx context.Context, arg GetGateViewParams) (GetGa
 		&i.Gate.EventID,
 		&i.Gate.CreatedAt,
 		&i.Gate.DecidedAt,
+		&i.Gate.RequestedStatus,
 		&i.TaskKey,
 		&i.TaskTitle,
 		&i.PersonaName,
@@ -470,7 +531,7 @@ func (q *Queries) ListFailedRuns(ctx context.Context, arg ListFailedRunsParams) 
 }
 
 const listGateViews = `-- name: ListGateViews :many
-SELECT g.id, g.company_id, g.kind, g.status, g.title, g.body, g.task_id, g.run_id, g.persona_id, g.requested_by_type, g.requested_by_id, g.decided_by_type, g.decided_by_id, g.decision_note, g.event_id, g.created_at, g.decided_at, COALESCE(c.task_prefix || '-' || t.number, '')::text AS task_key, COALESCE(t.title, '')::text AS task_title,
+SELECT g.id, g.company_id, g.kind, g.status, g.title, g.body, g.task_id, g.run_id, g.persona_id, g.requested_by_type, g.requested_by_id, g.decided_by_type, g.decided_by_id, g.decision_note, g.event_id, g.created_at, g.decided_at, g.requested_status, COALESCE(c.task_prefix || '-' || t.number, '')::text AS task_key, COALESCE(t.title, '')::text AS task_title,
        COALESCE(p.name, '')::text AS persona_name
 FROM gates g
 JOIN companies c ON c.id = g.company_id
@@ -538,6 +599,7 @@ func (q *Queries) ListGateViews(ctx context.Context, arg ListGateViewsParams) ([
 			&i.Gate.EventID,
 			&i.Gate.CreatedAt,
 			&i.Gate.DecidedAt,
+			&i.Gate.RequestedStatus,
 			&i.TaskKey,
 			&i.TaskTitle,
 			&i.PersonaName,

@@ -124,7 +124,10 @@ func TestDelegationFollowsTheChart(t *testing.T) {
 	if got, err := e.svc.UpdateTask(ctx, cto0, e.co.ID, tv.ID, service.UpdateTaskInput{PersonaID: &qa.ID}); err != nil || got.PersonaID == nil || *got.PersonaID != qa.ID {
 		t.Fatalf("cto reassigns to qa: %v", err)
 	}
-	if _, err := e.svc.UpdateTask(ctx, domain.PersonaActor(eng.ID), e.co.ID, tv.ID, service.UpdateTaskInput{Unassign: true}); err != nil {
-		t.Fatalf("unassign: %v", err)
+	// eng no longer owns it (and qa is not below eng): it cannot unassign it either
+	_, err = e.svc.UpdateTask(ctx, domain.PersonaActor(eng.ID), e.co.ID, tv.ID, service.UpdateTaskInput{Unassign: true})
+	wantErr(t, err, domain.ErrNotAllowed)
+	if _, err := e.svc.UpdateTask(ctx, domain.PersonaActor(qa.ID), e.co.ID, tv.ID, service.UpdateTaskInput{Unassign: true}); err != nil {
+		t.Fatalf("owner unassigns: %v", err)
 	}
 }

@@ -199,6 +199,62 @@ func (q *Queries) GetPersonaBySlug(ctx context.Context, arg GetPersonaBySlugPara
 	return i, err
 }
 
+const listBudgetPausedPersonas = `-- name: ListBudgetPausedPersonas :many
+SELECT id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason FROM personas
+WHERE status = 'paused' AND pause_reason IS NOT NULL
+  AND ($1::uuid IS NULL OR company_id = $1::uuid)
+  AND ($2::uuid IS NULL OR id = $2::uuid)
+ORDER BY company_id, created_at, id
+`
+
+type ListBudgetPausedPersonasParams struct {
+	CompanyID *uuid.UUID
+	PersonaID *uuid.UUID
+}
+
+// Pausadas por orçamento (pause_reason preenchido), da empresa ou, sem empresa, de todas.
+func (q *Queries) ListBudgetPausedPersonas(ctx context.Context, arg ListBudgetPausedPersonasParams) ([]Persona, error) {
+	rows, err := q.db.Query(ctx, listBudgetPausedPersonas, arg.CompanyID, arg.PersonaID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Persona{}
+	for rows.Next() {
+		var i Persona
+		if err := rows.Scan(
+			&i.ID,
+			&i.CompanyID,
+			&i.Slug,
+			&i.Name,
+			&i.Title,
+			&i.Instructions,
+			&i.Agent,
+			&i.Model,
+			&i.AdapterConfig,
+			&i.Status,
+			&i.ReportsTo,
+			&i.WorkspaceID,
+			&i.HeartbeatIntervalSec,
+			&i.BudgetMonthlyCents,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.LastError,
+			&i.LastErrorAt,
+			&i.ConsecutiveFailures,
+			&i.RequireReview,
+			&i.PauseReason,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPersonas = `-- name: ListPersonas :many
 SELECT id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason FROM personas WHERE company_id = $1 ORDER BY created_at, id
 `
@@ -255,7 +311,7 @@ func (q *Queries) LockOrg(ctx context.Context, companyID string) error {
 	return err
 }
 
-const pausePersonaForBudget = `-- name: PausePersonaForBudget :exec
+const pausePersonaForBudget = `-- name: PausePersonaForBudget :execrows
 UPDATE personas SET status = 'paused', pause_reason = $1, updated_at = $2
 WHERE id = $3 AND status IN ('active', 'idle', 'running')
 `
@@ -267,9 +323,30 @@ type PausePersonaForBudgetParams struct {
 }
 
 // Hard stop de orçamento: só pausa quem ainda pode trabalhar.
-func (q *Queries) PausePersonaForBudget(ctx context.Context, arg PausePersonaForBudgetParams) error {
-	_, err := q.db.Exec(ctx, pausePersonaForBudget, arg.Reason, arg.Now, arg.ID)
-	return err
+func (q *Queries) PausePersonaForBudget(ctx context.Context, arg PausePersonaForBudgetParams) (int64, error) {
+	result, err := q.db.Exec(ctx, pausePersonaForBudget, arg.Reason, arg.Now, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const resumePersonaFromBudget = `-- name: ResumePersonaFromBudget :execrows
+UPDATE personas SET status = 'idle', pause_reason = NULL, updated_at = $1
+WHERE id = $2 AND status = 'paused' AND pause_reason IS NOT NULL
+`
+
+type ResumePersonaFromBudgetParams struct {
+	Now time.Time
+	ID  uuid.UUID
+}
+
+func (q *Queries) ResumePersonaFromBudget(ctx context.Context, arg ResumePersonaFromBudgetParams) (int64, error) {
+	result, err := q.db.Exec(ctx, resumePersonaFromBudget, arg.Now, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const setPersonaAfterRun = `-- name: SetPersonaAfterRun :exec

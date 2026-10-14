@@ -55,9 +55,12 @@ type Gate struct {
 	RequestedBy  Actor      `json:"requested_by"`
 	DecidedBy    *Actor     `json:"decided_by,omitempty"`
 	DecisionNote string     `json:"decision_note,omitempty"`
-	EventID      string     `json:"event_id,omitempty"`
-	CreatedAt    time.Time  `json:"created_at"`
-	DecidedAt    *time.Time `json:"decided_at,omitempty"`
+	// RequestedStatus is, in a task_review gate, the status the persona asked for (done or
+	// cancelled); approving the gate applies it.
+	RequestedStatus TaskStatus `json:"requested_status,omitempty"`
+	EventID         string     `json:"event_id,omitempty"`
+	CreatedAt       time.Time  `json:"created_at"`
+	DecidedAt       *time.Time `json:"decided_at,omitempty"`
 }
 
 // OrgParents maps a persona to the persona it reports to (nil = top of the chart).

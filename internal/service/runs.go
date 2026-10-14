@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+
 	"github.com/renatobardi/hanko/internal/adapter"
 	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/events"
@@ -171,7 +173,13 @@ func (s *Service) CheckoutRun(ctx context.Context, w Wake) (domain.Run, error) {
 		} else if pending {
 			return domain.Invalid("gate", "task has a pending gate; a human must decide it first")
 		}
-		// Hard stop: the budget check runs (and its pause/alerts commit) before any run is opened.
+		if _, err := t.q.ActiveRunForTask(ctx, task.ID); err == nil {
+			return domain.ErrActiveRun
+		} else if !isNoRows(err) {
+			return fmt.Errorf("check active run: %w", err)
+		}
+		// Hard stop: the budget check (spent plus the reservation of every open run plus this
+		// one) runs, and its pause/alerts commit, before any run is opened.
 		co, err := t.q.GetCompanyByID(ctx, w.CompanyID)
 		if err != nil {
 			return mapErr(err, "get company")
@@ -179,11 +187,6 @@ func (s *Service) CheckoutRun(ctx context.Context, w Wake) (domain.Run, error) {
 		if berr := t.checkBudgets(co, p, true); berr != nil {
 			blocked = berr
 			return nil
-		}
-		if _, err := t.q.ActiveRunForTask(ctx, task.ID); err == nil {
-			return domain.ErrActiveRun
-		} else if !isNoRows(err) {
-			return fmt.Errorf("check active run: %w", err)
 		}
 		row, err := t.q.CreateRun(ctx, store.CreateRunParams{ID: domain.NewID(), CompanyID: w.CompanyID, TaskID: task.ID,
 			PersonaID: p.ID, Trigger: string(w.Trigger), Agent: p.Agent, Model: p.Model, Now: t.now})
@@ -395,7 +398,7 @@ func (s *Service) FinishRun(ctx context.Context, companyID, runID domain.ID, in 
 		if res.Model != "" {
 			model = res.Model
 		}
-		cost, source, err := t.costFor(model, res)
+		cost, source, fallback, err := t.costFor(model, res)
 		if err != nil {
 			return err
 		}
@@ -438,6 +441,11 @@ func (s *Service) FinishRun(ctx context.Context, companyID, runID domain.ID, in 
 			p, err := t.q.GetPersonaByID(ctx, store.GetPersonaByIDParams{CompanyID: companyID, ID: row.PersonaID})
 			if err != nil {
 				return mapErr(err, "get persona")
+			}
+			if fallback {
+				if err := t.noteUnknownModel(co, model, runID); err != nil {
+					return err
+				}
 			}
 			if err := t.checkBudgets(co, p, false); err != nil {
 				return err
@@ -587,10 +595,16 @@ func (s *Service) InterruptOrphanRuns(ctx context.Context) (int, error) {
 	return n, nil
 }
 
-// WakeCandidates lists assigned workable tasks with no active run whose persona CanWork
-// and has heartbeat_interval_sec > 0 elapsed since its last run on that task.
+// wakeStaleAfter is how long a task may sit changed and unattended before the heartbeat wakes its
+// assignee regardless of heartbeat_interval_sec (safety net for a wake the queue lost).
+const wakeStaleAfter = time.Minute
+
+// WakeCandidates lists assigned workable tasks with no active run and no pending gate whose
+// persona CanWork and either has heartbeat_interval_sec > 0 elapsed since its last run on the
+// task, or (safety net, whatever the interval) whose task changed more than a minute ago with no
+// run opened since: the wake that should have followed the change was lost.
 func (s *Service) WakeCandidates(ctx context.Context, limit int) ([]WakeCandidate, error) {
-	rows, err := s.read().ListWakeCandidates(ctx, store.ListWakeCandidatesParams{Now: ptr(s.Now().UTC()), Lim: int32(clamp(limit, 100, 1000))})
+	rows, err := s.read().ListWakeCandidates(ctx, store.ListWakeCandidatesParams{Now: ptr(s.Now().UTC()), StaleBefore: s.Now().UTC().Add(-wakeStaleAfter), Lim: int32(clamp(limit, 100, 1000))})
 	if err != nil {
 		return nil, fmt.Errorf("wake candidates: %w", err)
 	}
@@ -602,4 +616,25 @@ func (s *Service) WakeCandidates(ctx context.Context, limit int) ([]WakeCandidat
 		out = append(out, WakeCandidate{CompanyID: r.CompanyID, PersonaID: *r.PersonaID, TaskID: r.TaskID})
 	}
 	return out, nil
+}
+
+// BumpWakeRequestTx records, inside tx, that a wake for (persona, task) was requested. The
+// heartbeat calls it for every wake it enqueues; the counter lets a worker notice a request that
+// the queue coalesced into the job it was already running (see WakeSeq).
+func BumpWakeRequestTx(ctx context.Context, tx pgx.Tx, w Wake) error {
+	if err := store.New(tx).BumpWakeRequest(ctx, store.BumpWakeRequestParams{CompanyID: w.CompanyID, PersonaID: w.PersonaID, TaskID: w.TaskID}); err != nil {
+		return fmt.Errorf("bump wake request: %w", err)
+	}
+	return nil
+}
+
+// WakeSeq is how many wakes were requested for (persona, task) so far. A worker reads it before
+// checking the task out and, if it changed by the time the checkout opened no run, retries:
+// the request that moved it was coalesced into the running job and would otherwise be lost.
+func (s *Service) WakeSeq(ctx context.Context, personaID, taskID domain.ID) (int64, error) {
+	n, err := s.read().GetWakeSeq(ctx, store.GetWakeSeqParams{PersonaID: personaID, TaskID: taskID})
+	if err != nil {
+		return 0, fmt.Errorf("wake seq: %w", err)
+	}
+	return n, nil
 }

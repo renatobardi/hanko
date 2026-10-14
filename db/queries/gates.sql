@@ -1,8 +1,8 @@
 -- name: CreateGate :one
 INSERT INTO gates (id, company_id, kind, status, title, body, task_id, run_id, persona_id,
-                   requested_by_type, requested_by_id, event_id, created_at)
+                   requested_by_type, requested_by_id, event_id, requested_status, created_at)
 VALUES (@id, @company_id, @kind, 'pending', @title, @body, @task_id, @run_id, @persona_id,
-        @requested_by_type, @requested_by_id, @event_id, @now)
+        @requested_by_type, @requested_by_id, @event_id, @requested_status, @now)
 RETURNING *;
 
 -- name: GetGateByID :one
@@ -95,3 +95,10 @@ LIMIT @lim;
 
 -- name: ListErrorPersonas :many
 SELECT * FROM personas WHERE company_id = @company_id AND status = 'error' ORDER BY updated_at DESC, id;
+
+-- name: ExpirePendingGatesForTask :many
+-- Task encerrada: os gates que ainda esperavam decisão perdem o objeto e expiram.
+UPDATE gates SET status = 'expired', decided_by_type = 'system', decided_at = @now,
+                 decision_note = 'Task encerrada antes da decisão.'
+WHERE company_id = @company_id AND task_id = @task_id AND status = 'pending'
+RETURNING *;

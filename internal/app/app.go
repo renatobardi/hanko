@@ -64,6 +64,7 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 	}
 	svc := service.New(pool, hb, broker)
 	svc.WorkspacesRoot = cfg.WorkspacesRoot
+	svc.RunReserveUSD = cfg.RunReserveUSD
 
 	mem := newMemory(ctx, cfg, logger)
 	reg := adapter.Registry{

@@ -12,6 +12,49 @@ import (
 	"github.com/google/uuid"
 )
 
+const activeRunReserves = `-- name: ActiveRunReserves :many
+SELECT r.persona_id, count(*)::bigint AS active,
+       GREATEST(COALESCE((SELECT avg(x.cost_usd) FROM (
+                   SELECT cost_usd FROM runs WHERE persona_id = r.persona_id AND cost_usd IS NOT NULL
+                   ORDER BY created_at DESC, id DESC LIMIT 10) x), 0), $1::float8)::float8 AS reserve_usd
+FROM runs r
+WHERE r.company_id = $2 AND r.status IN ('queued', 'running')
+GROUP BY r.persona_id
+`
+
+type ActiveRunReservesParams struct {
+	DefaultReserve float64
+	CompanyID      uuid.UUID
+}
+
+type ActiveRunReservesRow struct {
+	PersonaID  uuid.UUID
+	Active     int64
+	ReserveUsd float64
+}
+
+// Reserva por persona com runs queued/running: o maior entre a média de custo das últimas 10
+// runs com custo e o piso @default_reserve, vezes o número de runs abertas.
+func (q *Queries) ActiveRunReserves(ctx context.Context, arg ActiveRunReservesParams) ([]ActiveRunReservesRow, error) {
+	rows, err := q.db.Query(ctx, activeRunReserves, arg.DefaultReserve, arg.CompanyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ActiveRunReservesRow{}
+	for rows.Next() {
+		var i ActiveRunReservesRow
+		if err := rows.Scan(&i.PersonaID, &i.Active, &i.ReserveUsd); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const costBreakdown = `-- name: CostBreakdown :many
 SELECT
   (CASE $1::text
@@ -96,6 +139,21 @@ func (q *Queries) CostBreakdown(ctx context.Context, arg CostBreakdownParams) ([
 	return items, nil
 }
 
+const deleteBudgetAlert = `-- name: DeleteBudgetAlert :exec
+DELETE FROM budget_alerts WHERE target_id = $1 AND month = $2 AND level = $3
+`
+
+type DeleteBudgetAlertParams struct {
+	TargetID uuid.UUID
+	Month    string
+	Level    string
+}
+
+func (q *Queries) DeleteBudgetAlert(ctx context.Context, arg DeleteBudgetAlertParams) error {
+	_, err := q.db.Exec(ctx, deleteBudgetAlert, arg.TargetID, arg.Month, arg.Level)
+	return err
+}
+
 const getModelPrice = `-- name: GetModelPrice :one
 SELECT id, model, input_per_mtok, output_per_mtok, cache_read_per_mtok, cache_creation_per_mtok, fixed, effective_at, created_at FROM model_prices
 WHERE starts_with($1::text, model) AND effective_at <= $2::timestamptz
@@ -167,6 +225,38 @@ func (q *Queries) InsertBudgetAlert(ctx context.Context, arg InsertBudgetAlertPa
 	return i, err
 }
 
+const insertCostNotice = `-- name: InsertCostNotice :one
+INSERT INTO cost_notices (company_id, model, month, created_at)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT (company_id, model, month) DO NOTHING
+RETURNING company_id, model, month, created_at
+`
+
+type InsertCostNoticeParams struct {
+	CompanyID uuid.UUID
+	Model     string
+	Month     string
+	Now       time.Time
+}
+
+// Linha só na primeira vez do (empresa, modelo, mês).
+func (q *Queries) InsertCostNotice(ctx context.Context, arg InsertCostNoticeParams) (CostNotice, error) {
+	row := q.db.QueryRow(ctx, insertCostNotice,
+		arg.CompanyID,
+		arg.Model,
+		arg.Month,
+		arg.Now,
+	)
+	var i CostNotice
+	err := row.Scan(
+		&i.CompanyID,
+		&i.Model,
+		&i.Month,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const listModelPrices = `-- name: ListModelPrices :many
 SELECT id, model, input_per_mtok, output_per_mtok, cache_read_per_mtok, cache_creation_per_mtok, fixed, effective_at, created_at FROM model_prices ORDER BY model, effective_at DESC
 `
@@ -199,6 +289,68 @@ func (q *Queries) ListModelPrices(ctx context.Context) ([]ModelPrice, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const listRunningRunIDs = `-- name: ListRunningRunIDs :many
+SELECT id FROM runs
+WHERE company_id = $1 AND status = 'running'
+  AND ($2::uuid IS NULL OR persona_id = $2::uuid)
+ORDER BY created_at, id
+`
+
+type ListRunningRunIDsParams struct {
+	CompanyID uuid.UUID
+	PersonaID *uuid.UUID
+}
+
+// Runs em execução da persona (ou, sem persona, da empresa inteira).
+func (q *Queries) ListRunningRunIDs(ctx context.Context, arg ListRunningRunIDsParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listRunningRunIDs, arg.CompanyID, arg.PersonaID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const lockBudget = `-- name: LockBudget :exec
+SELECT pg_advisory_xact_lock(hashtext('hanko:budget:' || $1::text))
+`
+
+// Serializa a checagem de orçamento da empresa: duas runs abrindo juntas não furam o teto.
+func (q *Queries) LockBudget(ctx context.Context, companyID string) error {
+	_, err := q.db.Exec(ctx, lockBudget, companyID)
+	return err
+}
+
+const personaRunReserve = `-- name: PersonaRunReserve :one
+SELECT GREATEST(COALESCE((SELECT avg(x.cost_usd) FROM (
+                   SELECT cost_usd FROM runs WHERE persona_id = $1 AND cost_usd IS NOT NULL
+                   ORDER BY created_at DESC, id DESC LIMIT 10) x), 0), $2::float8)::float8 AS reserve_usd
+`
+
+type PersonaRunReserveParams struct {
+	PersonaID      uuid.UUID
+	DefaultReserve float64
+}
+
+// Reserva de uma run nova da persona (mesma regra de ActiveRunReserves).
+func (q *Queries) PersonaRunReserve(ctx context.Context, arg PersonaRunReserveParams) (float64, error) {
+	row := q.db.QueryRow(ctx, personaRunReserve, arg.PersonaID, arg.DefaultReserve)
+	var reserve_usd float64
+	err := row.Scan(&reserve_usd)
+	return reserve_usd, err
 }
 
 const spendBetween = `-- name: SpendBetween :one

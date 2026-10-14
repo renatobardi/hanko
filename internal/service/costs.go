@@ -7,6 +7,7 @@ import (
 
 	"github.com/renatobardi/hanko/internal/adapter"
 	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/events"
 	"github.com/renatobardi/hanko/internal/store"
 )
 
@@ -278,8 +279,16 @@ func (s *Service) SetCompanyBudget(ctx context.Context, actor domain.Actor, comp
 			return mapErr(err, "set company budget")
 		}
 		out = companyFromRow(row)
-		return t.activity(actor, companyID, "budget.updated", "company", companyID,
-			map[string]any{"scope": "company", "from": cur.BudgetMonthlyCents, "to": cents}, "")
+		if err := t.activity(actor, companyID, "budget.updated", "company", companyID,
+			map[string]any{"scope": "company", "from": cur.BudgetMonthlyCents, "to": cents}, ""); err != nil {
+			return err
+		}
+		// a higher (or removed) ceiling lifts the budget pause and re-arms the alerts
+		if err := t.resetBudgetAlerts(row, companyID, cents, nil); err != nil {
+			return err
+		}
+		_, err = t.resumeBudgetPaused(&companyID, nil)
+		return err
 	})
 	return out, err
 }
@@ -301,34 +310,74 @@ func (s *Service) ListModelPrices(ctx context.Context) ([]store.ModelPrice, erro
 }
 
 // costFor decides a run's cost and its source: the harness figure when informed, else an
-// estimate from the price in force at t.now, else unknown.
-func (t *txc) costFor(model string, res adapter.Result) (*float64, domain.CostSource, error) {
+// estimate from the price in force at t.now, else unknown. A model with no price of its own
+// is estimated with the fallback price (empty prefix) so it still counts against budgets;
+// fallback reports that, and the caller records a cost.unknown_model notice.
+func (t *txc) costFor(model string, res adapter.Result) (cost *float64, source domain.CostSource, fallback bool, err error) {
 	if res.CostUSD != nil {
-		return res.CostUSD, domain.CostReported, nil
+		return res.CostUSD, domain.CostReported, false, nil
 	}
 	u := res.Usage
-	if model == "" {
-		return nil, domain.CostNone, nil
-	}
 	price, err := t.q.GetModelPrice(t.ctx, store.GetModelPriceParams{Model: model, At: t.now})
 	if isNoRows(err) {
-		return nil, domain.CostNone, nil
+		return nil, domain.CostNone, false, nil
 	}
 	if err != nil {
-		return nil, "", fmt.Errorf("get model price: %w", err)
+		return nil, "", false, fmt.Errorf("get model price: %w", err)
 	}
-	if u.InputTokens+u.OutputTokens+u.CacheReadTokens+u.CacheCreationTokens == 0 && price.Fixed == 0 {
-		return nil, domain.CostNone, nil
+	tokens := u.InputTokens + u.OutputTokens + u.CacheReadTokens + u.CacheCreationTokens
+	if tokens == 0 && price.Fixed == 0 {
+		return nil, domain.CostNone, false, nil
 	}
-	cost := (float64(u.InputTokens)*price.InputPerMtok+float64(u.OutputTokens)*price.OutputPerMtok+
+	c := (float64(u.InputTokens)*price.InputPerMtok+float64(u.OutputTokens)*price.OutputPerMtok+
 		float64(u.CacheReadTokens)*price.CacheReadPerMtok+float64(u.CacheCreationTokens)*price.CacheCreationPerMtok)/1e6 + price.Fixed
-	return &cost, domain.CostEstimated, nil
+	return &c, domain.CostEstimated, price.Model == "" && tokens > 0, nil
 }
+
+// noteUnknownModel records cost.unknown_model once per company, model and month.
+func (t *txc) noteUnknownModel(company store.Company, model string, runID domain.ID) error {
+	_, _, month := monthWindow(company.Timezone, t.now)
+	label := model
+	if label == "" {
+		label = "(não informado)"
+	}
+	_, err := t.q.InsertCostNotice(t.ctx, store.InsertCostNoticeParams{CompanyID: company.ID, Model: model, Month: month, Now: t.now})
+	if isNoRows(err) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("insert cost notice: %w", err)
+	}
+	return t.activity(domain.SystemActor, company.ID, "cost.unknown_model", "run", runID,
+		map[string]any{"model": label, "month": month, "note": "modelo sem preço na tabela: custo estimado com o preço de reserva"}, "")
+}
+
+// reserveEpsilon absorbs float noise when comparing projected spend with a ceiling.
+const reserveEpsilon = 1e-9
+
+// runReserve is the floor of the per-run reservation (USD), HANKO_RUN_RESERVE_USD.
+func (s *Service) runReserve() float64 {
+	if s.RunReserveUSD > 0 {
+		return s.RunReserveUSD
+	}
+	return DefaultRunReserveUSD
+}
+
+// DefaultRunReserveUSD is the reservation floor per open run when none is configured.
+const DefaultRunReserveUSD = 1.0
 
 // checkBudgets looks at the persona and company ceilings for the current month. Crossing
 // 80% records a budget.warning and 100% a budget.exceeded (each at most once per month and
-// target). With enforce, an exceeded ceiling also pauses the persona and returns an error
-// wrapping domain.ErrBudgetExceeded; the caller must commit the transaction anyway.
+// target); a new budget.exceeded also asks the target's running runs to stop (run.cancel
+// after commit). With enforce it also holds the line before a run opens:
+//   - spent at or over the ceiling pauses the persona (persona.paused with the reason);
+//   - spent plus the reservation of every queued/running run plus the reservation of the run
+//     about to open over the ceiling refuses it without pausing (it fits again once runs end).
+//
+// A reservation is max(average cost of the persona's last 10 runs with cost, run reserve
+// floor). Both refusals return an error wrapping domain.ErrBudgetExceeded; the caller must
+// commit the transaction anyway. Enforcing takes a per-company lock, so concurrent
+// checkouts see each other's reservations.
 func (t *txc) checkBudgets(company store.Company, persona store.Persona, enforce bool) error {
 	from, to, month := monthWindow(company.Timezone, t.now)
 	targets := []struct {
@@ -341,7 +390,16 @@ func (t *txc) checkBudgets(company store.Company, persona store.Persona, enforce
 		{"persona", persona.ID, persona.Name, persona.BudgetMonthlyCents, &persona.ID},
 		{"company", company.ID, company.Name, company.BudgetMonthlyCents, nil},
 	}
-	var blocked error
+	var (
+		blocked  error
+		reserves map[domain.ID]float64 // active reservations per persona, loaded on demand
+		newRes   float64
+	)
+	if enforce && (persona.BudgetMonthlyCents != nil || company.BudgetMonthlyCents != nil) {
+		if err := t.q.LockBudget(t.ctx, company.ID.String()); err != nil {
+			return fmt.Errorf("lock budget: %w", err)
+		}
+	}
 	for _, tg := range targets {
 		if tg.budget == nil {
 			continue
@@ -351,37 +409,227 @@ func (t *txc) checkBudgets(company store.Company, persona store.Persona, enforce
 			return fmt.Errorf("month spend: %w", err)
 		}
 		st := budgetStatus(tg.budget, spent)
-		if st.State != BudgetWarning && st.State != BudgetExceeded {
-			continue
-		}
-		verb, level := "budget.warning", "warning"
-		if st.State == BudgetExceeded {
-			verb, level = "budget.exceeded", "exceeded"
-		}
-		_, err = t.q.InsertBudgetAlert(t.ctx, store.InsertBudgetAlertParams{ID: domain.NewID(), CompanyID: company.ID,
-			Scope: tg.scope, TargetID: tg.id, Month: month, Level: level, Now: t.now})
-		if err == nil {
-			data := map[string]any{"scope": tg.scope, "name": tg.name, "month": month, "budget_cents": *tg.budget,
-				"spent_usd": spent, "percent": st.Percent}
-			if err := t.activity(domain.SystemActor, company.ID, verb, tg.scope, tg.id, data, ""); err != nil {
+		if st.State == BudgetWarning || st.State == BudgetExceeded {
+			if err := t.budgetAlert(company, tg.scope, tg.id, tg.name, tg.pid, month, *tg.budget, spent, st); err != nil {
 				return err
 			}
-			t.publish(companyTopic(company.ID), verb, data)
-		} else if !isNoRows(err) {
-			return fmt.Errorf("insert budget alert: %w", err)
 		}
-		if enforce && st.State == BudgetExceeded && blocked == nil {
-			reason := "Orçamento mensal da persona estourado"
-			if tg.scope == "company" {
-				reason = "Orçamento mensal da empresa estourado"
-			}
-			if err := t.q.PausePersonaForBudget(t.ctx, store.PausePersonaForBudgetParams{ID: persona.ID, Reason: &reason, Now: t.now}); err != nil {
+		if !enforce || blocked != nil {
+			continue
+		}
+		reason := "Orçamento mensal da persona estourado"
+		if tg.scope == "company" {
+			reason = "Orçamento mensal da empresa estourado"
+		}
+		if st.State == BudgetExceeded {
+			n, err := t.q.PausePersonaForBudget(t.ctx, store.PausePersonaForBudgetParams{ID: persona.ID, Reason: &reason, Now: t.now})
+			if err != nil {
 				return fmt.Errorf("pause persona: %w", err)
 			}
+			if n > 0 {
+				data := map[string]any{"reason": reason, "scope": tg.scope, "month": month, "budget_cents": *tg.budget, "spent_usd": spent}
+				if err := t.activity(domain.SystemActor, company.ID, "persona.paused", "persona", persona.ID, data, ""); err != nil {
+					return err
+				}
+				t.publish(companyTopic(company.ID), "persona.paused", data)
+			}
 			blocked = fmt.Errorf("%s: %w", reason, domain.ErrBudgetExceeded)
+			continue
+		}
+		if reserves == nil {
+			if reserves, newRes, err = t.reservations(company.ID, persona.ID); err != nil {
+				return err
+			}
+		}
+		active := 0.0
+		for pid, v := range reserves {
+			if tg.pid == nil || *tg.pid == pid {
+				active += v
+			}
+		}
+		if spent+active+newRes > float64(*tg.budget)/100+reserveEpsilon {
+			what := "persona"
+			if tg.scope == "company" {
+				what = "empresa"
+			}
+			blocked = fmt.Errorf("orçamento mensal da %s não comporta mais uma execução (gasto %.2f + reservas %.2f + nova %.2f > teto %.2f): %w",
+				what, spent, active, newRes, float64(*tg.budget)/100, domain.ErrBudgetExceeded)
 		}
 	}
 	return blocked
+}
+
+// reservations loads the USD reserved by the open runs of each persona of the company and
+// the reservation a new run of persona would add.
+func (t *txc) reservations(companyID, personaID domain.ID) (map[domain.ID]float64, float64, error) {
+	floor := t.s.runReserve()
+	rows, err := t.q.ActiveRunReserves(t.ctx, store.ActiveRunReservesParams{CompanyID: companyID, DefaultReserve: floor})
+	if err != nil {
+		return nil, 0, fmt.Errorf("active run reserves: %w", err)
+	}
+	m := make(map[domain.ID]float64, len(rows))
+	for _, r := range rows {
+		m[r.PersonaID] = float64(r.Active) * r.ReserveUsd
+	}
+	nr, err := t.q.PersonaRunReserve(t.ctx, store.PersonaRunReserveParams{PersonaID: personaID, DefaultReserve: floor})
+	if err != nil {
+		return nil, 0, fmt.Errorf("persona run reserve: %w", err)
+	}
+	return m, nr, nil
+}
+
+// budgetAlert records budget.warning / budget.exceeded once per (target, month, level). A new
+// exceeded alert also asks the running runs of the target to stop.
+func (t *txc) budgetAlert(company store.Company, scope string, id domain.ID, name string, pid *domain.ID, month string,
+	budgetCents int64, spent float64, st BudgetStatus) error {
+	verb, level := "budget.warning", "warning"
+	if st.State == BudgetExceeded {
+		verb, level = "budget.exceeded", "exceeded"
+	}
+	_, err := t.q.InsertBudgetAlert(t.ctx, store.InsertBudgetAlertParams{ID: domain.NewID(), CompanyID: company.ID,
+		Scope: scope, TargetID: id, Month: month, Level: level, Now: t.now})
+	if isNoRows(err) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("insert budget alert: %w", err)
+	}
+	data := map[string]any{"scope": scope, "name": name, "month": month, "budget_cents": budgetCents,
+		"spent_usd": spent, "percent": st.Percent}
+	if err := t.activity(domain.SystemActor, company.ID, verb, scope, id, data, ""); err != nil {
+		return err
+	}
+	t.publish(companyTopic(company.ID), verb, data)
+	if st.State != BudgetExceeded {
+		return nil
+	}
+	return t.stopRunning(company.ID, pid, "budget_exceeded")
+}
+
+// stopRunning asks every running run of the persona (or, with nil, of the company) to stop:
+// run.cancel is published after commit and the request is recorded. The runs are not locked, so
+// this cannot deadlock with runs finishing; cancelling twice is harmless.
+func (t *txc) stopRunning(companyID domain.ID, personaID *domain.ID, reason string) error {
+	ids, err := t.q.ListRunningRunIDs(t.ctx, store.ListRunningRunIDsParams{CompanyID: companyID, PersonaID: personaID})
+	if err != nil {
+		return fmt.Errorf("list running runs: %w", err)
+	}
+	for _, id := range ids {
+		if err := t.activity(domain.SystemActor, companyID, "run.cancelled", "run", id,
+			map[string]any{"was": "running", "requested": true, "reason": reason}, ""); err != nil {
+			return err
+		}
+		t.publish(events.RunTopic(id.String()), "run.cancel", id)
+	}
+	return nil
+}
+
+// resetBudgetAlerts forgets the alerts of a target whose ceiling just changed and that no longer
+// reach their level, so crossing the new ceiling later in the month alerts (and stops runs) again.
+func (t *txc) resetBudgetAlerts(company store.Company, id domain.ID, budget *int64, pid *domain.ID) error {
+	_, _, month := monthWindow(company.Timezone, t.now)
+	from, to, _ := monthWindow(company.Timezone, t.now)
+	var st BudgetStatus
+	if budget != nil {
+		spent, err := t.q.SpendBetween(t.ctx, store.SpendBetweenParams{CompanyID: company.ID, PersonaID: pid, FromTs: from, ToTs: to})
+		if err != nil {
+			return fmt.Errorf("month spend: %w", err)
+		}
+		st = budgetStatus(budget, spent)
+	} else {
+		st = BudgetStatus{State: BudgetNone}
+	}
+	if st.State != BudgetExceeded {
+		if err := t.q.DeleteBudgetAlert(t.ctx, store.DeleteBudgetAlertParams{TargetID: id, Month: month, Level: "exceeded"}); err != nil {
+			return fmt.Errorf("reset budget alert: %w", err)
+		}
+	}
+	if st.State != BudgetExceeded && st.State != BudgetWarning {
+		if err := t.q.DeleteBudgetAlert(t.ctx, store.DeleteBudgetAlertParams{TargetID: id, Month: month, Level: "warning"}); err != nil {
+			return fmt.Errorf("reset budget alert: %w", err)
+		}
+	}
+	return nil
+}
+
+// resumeBudgetPaused brings back personas paused by a budget (pause_reason set) whose company
+// and own ceilings are no longer exceeded, and wakes their open tasks. companyID and personaID
+// narrow the scan (nil = everything). Returns how many were resumed.
+func (t *txc) resumeBudgetPaused(companyID, personaID *domain.ID) (int, error) {
+	rows, err := t.q.ListBudgetPausedPersonas(t.ctx, store.ListBudgetPausedPersonasParams{CompanyID: companyID, PersonaID: personaID})
+	if err != nil {
+		return 0, fmt.Errorf("list budget-paused personas: %w", err)
+	}
+	companies := map[domain.ID]store.Company{}
+	over := map[domain.ID]bool{} // company ceiling exceeded
+	n := 0
+	for _, p := range rows {
+		co, ok := companies[p.CompanyID]
+		if !ok {
+			if co, err = t.q.GetCompanyByID(t.ctx, p.CompanyID); err != nil {
+				return n, mapErr(err, "get company")
+			}
+			companies[p.CompanyID] = co
+			from, to, _ := monthWindow(co.Timezone, t.now)
+			spent, err := t.q.SpendBetween(t.ctx, store.SpendBetweenParams{CompanyID: co.ID, FromTs: from, ToTs: to})
+			if err != nil {
+				return n, fmt.Errorf("month spend: %w", err)
+			}
+			over[co.ID] = budgetStatus(co.BudgetMonthlyCents, spent).State == BudgetExceeded
+		}
+		if over[co.ID] {
+			continue
+		}
+		if p.BudgetMonthlyCents != nil {
+			from, to, _ := monthWindow(co.Timezone, t.now)
+			spent, err := t.q.SpendBetween(t.ctx, store.SpendBetweenParams{CompanyID: co.ID, PersonaID: &p.ID, FromTs: from, ToTs: to})
+			if err != nil {
+				return n, fmt.Errorf("month spend: %w", err)
+			}
+			if budgetStatus(p.BudgetMonthlyCents, spent).State == BudgetExceeded {
+				continue
+			}
+		}
+		rows, err := t.q.ResumePersonaFromBudget(t.ctx, store.ResumePersonaFromBudgetParams{ID: p.ID, Now: t.now})
+		if err != nil {
+			return n, fmt.Errorf("resume persona: %w", err)
+		}
+		if rows == 0 {
+			continue
+		}
+		n++
+		reason := ""
+		if p.PauseReason != nil {
+			reason = *p.PauseReason
+		}
+		if err := t.activity(domain.SystemActor, co.ID, "persona.resumed", "persona", p.ID,
+			map[string]any{"reason": "budget_ok", "was": reason}, ""); err != nil {
+			return n, err
+		}
+		tasks, err := t.q.ListWorkableTasksForPersona(t.ctx, &p.ID)
+		if err != nil {
+			return n, fmt.Errorf("list persona tasks: %w", err)
+		}
+		for _, tk := range tasks {
+			if err := t.wake(co.ID, tk.ID, &p.ID, domain.TaskStatus(tk.Status), domain.TriggerHeartbeat, true); err != nil {
+				return n, err
+			}
+		}
+	}
+	return n, nil
+}
+
+// ResumeBudgetPaused resumes every persona paused by a budget whose ceilings are no longer
+// exceeded (the ceiling went up, or a new month began) and wakes their open tasks. The
+// heartbeat calls it on every tick, which covers the first tick of a new month.
+func (s *Service) ResumeBudgetPaused(ctx context.Context) (int, error) {
+	n := 0
+	err := s.withTx(ctx, func(t *txc) error {
+		var err error
+		n, err = t.resumeBudgetPaused(nil, nil)
+		return err
+	})
+	return n, err
 }
 
 // BudgetFor computes spend versus ceiling for callers that already know both

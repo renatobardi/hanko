@@ -58,7 +58,19 @@ SELECT pg_advisory_xact_lock(hashtext('hanko:org:' || @company_id::text));
 UPDATE personas SET reports_to = @reports_to, require_review = @require_review, updated_at = @now
 WHERE company_id = @company_id AND id = @id
 RETURNING *;
--- name: PausePersonaForBudget :exec
+-- name: PausePersonaForBudget :execrows
 -- Hard stop de orçamento: só pausa quem ainda pode trabalhar.
 UPDATE personas SET status = 'paused', pause_reason = @reason, updated_at = @now
 WHERE id = @id AND status IN ('active', 'idle', 'running');
+
+-- name: ListBudgetPausedPersonas :many
+-- Pausadas por orçamento (pause_reason preenchido), da empresa ou, sem empresa, de todas.
+SELECT * FROM personas
+WHERE status = 'paused' AND pause_reason IS NOT NULL
+  AND (sqlc.narg(company_id)::uuid IS NULL OR company_id = sqlc.narg(company_id)::uuid)
+  AND (sqlc.narg(persona_id)::uuid IS NULL OR id = sqlc.narg(persona_id)::uuid)
+ORDER BY company_id, created_at, id;
+
+-- name: ResumePersonaFromBudget :execrows
+UPDATE personas SET status = 'idle', pause_reason = NULL, updated_at = @now
+WHERE id = @id AND status = 'paused' AND pause_reason IS NOT NULL;

@@ -66,14 +66,19 @@ func TestFinishRunCostSource(t *testing.T) {
 		t.Fatalf("gpt: %+v", r)
 	}
 
-	// unknown model, or no tokens: cost stays unknown
-	r = e.spend(t, p, now, nil, adapter.Result{Model: "mistral-x", Usage: domain.Usage{InputTokens: 10}})
-	if r.CostSource != domain.CostNone || r.CostUSD != nil {
+	// unknown model with tokens: estimated with the fallback price (opus values), never free
+	r = e.spend(t, p, now, nil, adapter.Result{Model: "mistral-x", Usage: domain.Usage{InputTokens: 1_000_000}})
+	if r.CostSource != domain.CostEstimated || r.CostUSD == nil || !approx(*r.CostUSD, 15) {
 		t.Fatalf("unknown model: %+v", r)
 	}
+	// no tokens: nothing to estimate
 	r = e.spend(t, p, now, nil, adapter.Result{Model: "claude-sonnet-4-5"})
 	if r.CostSource != domain.CostNone || r.CostUSD != nil {
 		t.Fatalf("no tokens: %+v", r)
+	}
+	r = e.spend(t, p, now, nil, adapter.Result{Model: "mistral-x"})
+	if r.CostSource != domain.CostNone || r.CostUSD != nil {
+		t.Fatalf("unknown model without tokens: %+v", r)
 	}
 }
 
@@ -215,7 +220,10 @@ func TestPersonaBudgetHardStopAndAlertsOncePerMonth(t *testing.T) {
 	ch, unsub := e.broker.Subscribe(events.CompanyTopic(e.co.ID.String()), 128)
 	defer unsub()
 
-	e.spend(t, p, march, nil, usd(7.9))
+	for i := 0; i < 7; i++ { // small runs: each next run still fits in the reservation
+		e.spend(t, p, march, nil, usd(1.0))
+	}
+	e.spend(t, p, march, nil, usd(0.9))
 	if countVerb(t, e, "budget.warning") != 0 {
 		t.Fatal("warning below 80%")
 	}

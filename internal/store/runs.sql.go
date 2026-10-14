@@ -96,6 +96,24 @@ func (q *Queries) AppendRunEvent(ctx context.Context, arg AppendRunEventParams) 
 	return i, err
 }
 
+const bumpWakeRequest = `-- name: BumpWakeRequest :exec
+INSERT INTO wake_requests (company_id, persona_id, task_id, seq, updated_at)
+VALUES ($1, $2, $3, 1, now())
+ON CONFLICT (persona_id, task_id) DO UPDATE SET seq = wake_requests.seq + 1, updated_at = now()
+`
+
+type BumpWakeRequestParams struct {
+	CompanyID uuid.UUID
+	PersonaID uuid.UUID
+	TaskID    uuid.UUID
+}
+
+// Registra um pedido de wake; o worker compara o contador antes e depois de processar.
+func (q *Queries) BumpWakeRequest(ctx context.Context, arg BumpWakeRequestParams) error {
+	_, err := q.db.Exec(ctx, bumpWakeRequest, arg.CompanyID, arg.PersonaID, arg.TaskID)
+	return err
+}
+
 const cancelQueuedRun = `-- name: CancelQueuedRun :one
 UPDATE runs SET status = 'cancelled', finished_at = $1
 WHERE company_id = $2 AND id = $3 AND status = 'queued'
@@ -419,6 +437,22 @@ func (q *Queries) GetRunView(ctx context.Context, arg GetRunViewParams) (GetRunV
 	return i, err
 }
 
+const getWakeSeq = `-- name: GetWakeSeq :one
+SELECT COALESCE((SELECT seq FROM wake_requests WHERE persona_id = $1 AND task_id = $2), 0)::bigint AS seq
+`
+
+type GetWakeSeqParams struct {
+	PersonaID uuid.UUID
+	TaskID    uuid.UUID
+}
+
+func (q *Queries) GetWakeSeq(ctx context.Context, arg GetWakeSeqParams) (int64, error) {
+	row := q.db.QueryRow(ctx, getWakeSeq, arg.PersonaID, arg.TaskID)
+	var seq int64
+	err := row.Scan(&seq)
+	return seq, err
+}
+
 const interruptActiveRuns = `-- name: InterruptActiveRuns :many
 UPDATE runs SET status = 'interrupted', finished_at = $1,
     error = CASE WHEN error = '' THEN 'interrupted: process restarted' ELSE error END
@@ -611,17 +645,28 @@ FROM tasks t
 JOIN personas p ON p.id = t.persona_id
 WHERE t.status IN ('todo', 'in_progress')
   AND p.status IN ('active', 'idle', 'running')
-  AND p.heartbeat_interval_sec > 0
   AND NOT EXISTS (SELECT 1 FROM runs a WHERE a.task_id = t.id AND a.status IN ('queued', 'running'))
-  AND COALESCE((SELECT max(COALESCE(r.finished_at, r.created_at)) FROM runs r WHERE r.task_id = t.id), 'epoch'::timestamptz)
-      + make_interval(secs => p.heartbeat_interval_sec) <= $1
+  AND NOT EXISTS (SELECT 1 FROM gates g WHERE g.task_id = t.id AND g.status = 'pending')
+  AND (
+    (p.heartbeat_interval_sec > 0
+     AND COALESCE((SELECT max(COALESCE(r.finished_at, r.created_at)) FROM runs r WHERE r.task_id = t.id), 'epoch'::timestamptz)
+         + make_interval(secs => p.heartbeat_interval_sec) <= $1)
+    OR
+    (GREATEST(t.updated_at, COALESCE((SELECT max(c.created_at) FROM task_comments c
+                                      WHERE c.task_id = t.id AND c.author_type <> 'persona'), 'epoch'::timestamptz))
+         < $2::timestamptz
+     AND NOT EXISTS (SELECT 1 FROM runs r WHERE r.task_id = t.id
+                     AND r.created_at >= GREATEST(t.updated_at, COALESCE((SELECT max(c.created_at) FROM task_comments c
+                                      WHERE c.task_id = t.id AND c.author_type <> 'persona'), 'epoch'::timestamptz))))
+  )
 ORDER BY t.updated_at
-LIMIT $2
+LIMIT $3
 `
 
 type ListWakeCandidatesParams struct {
-	Now *time.Time
-	Lim int32
+	Now         *time.Time
+	StaleBefore time.Time
+	Lim         int32
 }
 
 type ListWakeCandidatesRow struct {
@@ -630,8 +675,13 @@ type ListWakeCandidatesRow struct {
 	TaskID    uuid.UUID
 }
 
+// Tasks atribuídas, trabalháveis e sem run ativa nem gate pendente, de personas que podem trabalhar:
+//
+//	(a) o intervalo de heartbeat da persona (> 0) passou desde a última run da task; ou
+//	(b) rede de segurança, independente do intervalo: a task mudou (ou recebeu comentário humano ou
+//	    decisão) antes de @stale_before (agora - 1 minuto) e nenhuma run foi aberta depois da mudança, ou seja, o wake se perdeu.
 func (q *Queries) ListWakeCandidates(ctx context.Context, arg ListWakeCandidatesParams) ([]ListWakeCandidatesRow, error) {
-	rows, err := q.db.Query(ctx, listWakeCandidates, arg.Now, arg.Lim)
+	rows, err := q.db.Query(ctx, listWakeCandidates, arg.Now, arg.StaleBefore, arg.Lim)
 	if err != nil {
 		return nil, err
 	}
@@ -640,6 +690,47 @@ func (q *Queries) ListWakeCandidates(ctx context.Context, arg ListWakeCandidates
 	for rows.Next() {
 		var i ListWakeCandidatesRow
 		if err := rows.Scan(&i.CompanyID, &i.PersonaID, &i.TaskID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkableTasksForPersona = `-- name: ListWorkableTasksForPersona :many
+SELECT id, company_id, number, title, description, status, priority, persona_id, project_id, workspace_id, parent_id, created_by_type, created_by_id, created_at, updated_at, closed_at FROM tasks WHERE persona_id = $1 AND status IN ('todo', 'in_progress') ORDER BY updated_at, id
+`
+
+func (q *Queries) ListWorkableTasksForPersona(ctx context.Context, personaID *uuid.UUID) ([]Task, error) {
+	rows, err := q.db.Query(ctx, listWorkableTasksForPersona, personaID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Task{}
+	for rows.Next() {
+		var i Task
+		if err := rows.Scan(
+			&i.ID,
+			&i.CompanyID,
+			&i.Number,
+			&i.Title,
+			&i.Description,
+			&i.Status,
+			&i.Priority,
+			&i.PersonaID,
+			&i.ProjectID,
+			&i.WorkspaceID,
+			&i.ParentID,
+			&i.CreatedByType,
+			&i.CreatedByID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ClosedAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

@@ -235,7 +235,10 @@ func (s *Service) GetTask(ctx context.Context, companyID domain.ID, ref string) 
 }
 
 // UpdateTask applies changes; (re)assignment to a workable task enqueues a Wake.
-// Closing a task (done/cancelled) sets closed_at and records a memory fact. Closing,
+// A persona changes only tasks it owns, tasks of personas below it in the chart, or tasks
+// nobody owns (ErrNotAllowed otherwise), and a persona with require_review cannot close a task
+// (done or cancelled) without a task_review gate that applies the status it asked for.
+// Closing a task (done/cancelled) sets closed_at, records a memory fact and expires its pending gates. Closing,
 // unassigning or reassigning a task cancels its active run (queued → cancelled in the tx;
 // running → run.cancel is published after commit).
 func (s *Service) UpdateTask(ctx context.Context, actor domain.Actor, companyID, taskID domain.ID, in UpdateTaskInput) (TaskView, error) {
@@ -260,6 +263,9 @@ func (s *Service) UpdateTask(ctx context.Context, actor domain.Actor, companyID,
 			cur, err := t.q.GetTaskByIDForUpdate(ctx, store.GetTaskByIDForUpdateParams{CompanyID: companyID, ID: taskID})
 			if err != nil {
 				return mapErr(err, "get task")
+			}
+			if err := t.checkTaskOwnership(actor, companyID, cur.PersonaID); err != nil {
+				return err
 			}
 			if in.EventID != "" {
 				_, err := t.q.GetActivityByEventID(ctx, store.GetActivityByEventIDParams{CompanyID: companyID, EventID: &in.EventID})
@@ -328,11 +334,13 @@ func (s *Service) UpdateTask(ctx context.Context, actor domain.Actor, companyID,
 			from := domain.TaskStatus(cur.Status)
 			want := in.Status
 			reviewGate := false // a persona with require_review closing the task: in_review + task_review gate
-			if want != nil && *want == domain.TaskDone && from.Open() {
+			requested := domain.TaskDone
+			if want != nil && !want.Open() && from.Open() { // done or cancelled
 				if reviewGate, err = t.reviewRequired(actor, companyID); err != nil {
 					return err
 				}
 				if reviewGate {
+					requested = *want
 					inReview := domain.TaskInReview
 					want = &inReview
 				}
@@ -345,7 +353,7 @@ func (s *Service) UpdateTask(ctx context.Context, actor domain.Actor, companyID,
 				p.Status = string(*want)
 				data := map[string]any{"from": from, "to": *want}
 				if reviewGate {
-					data["requested"] = domain.TaskDone
+					data["requested"] = requested
 				}
 				acts = append(acts, act{"task.status_changed", data})
 				if !want.Open() {
@@ -358,7 +366,7 @@ func (s *Service) UpdateTask(ctx context.Context, actor domain.Actor, companyID,
 				}
 			}
 			if len(acts) == 0 && reviewGate { // already in_review: make sure a review gate is pending
-				if err := t.requestTaskReview(actor, companyID, cur); err != nil {
+				if err := t.requestTaskReview(actor, companyID, cur, requested); err != nil {
 					return err
 				}
 				out, err = loadTaskView(ctx, t.q, companyID, taskID)
@@ -385,9 +393,12 @@ func (s *Service) UpdateTask(ctx context.Context, actor domain.Actor, companyID,
 				if err := t.taskClosedFact(companyID, row); err != nil {
 					return err
 				}
+				if err := t.expireTaskGates(companyID, taskID, "task_closed"); err != nil {
+					return err
+				}
 			}
 			if reviewGate {
-				if err := t.requestTaskReview(actor, companyID, row); err != nil {
+				if err := t.requestTaskReview(actor, companyID, row, requested); err != nil {
 					return err
 				}
 			}

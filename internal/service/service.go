@@ -48,6 +48,9 @@ type Service struct {
 	// WorkspacesRoot restringe o caminho de novos workspaces a esta raiz (HANKO_WORKSPACES_ROOT).
 	// Vazio = sem restrição de raiz (só caminho absoluto e limpo); o app sempre define.
 	WorkspacesRoot string
+	// RunReserveUSD é o piso da reserva de orçamento por run aberta (HANKO_RUN_RESERVE_USD);
+	// 0 usa DefaultRunReserveUSD.
+	RunReserveUSD float64
 }
 
 func New(pool *pgxpool.Pool, jobs Jobs, broker *events.Broker) *Service {
