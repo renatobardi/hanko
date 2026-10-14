@@ -62,6 +62,9 @@ type fakeBackend struct {
 	fireErr      map[domain.ID]error
 	fired        []time.Time
 	firedIDs     []domain.ID
+	seqs         []int64 // WakeSeq answers, one per call (the last repeats)
+	seqCalls     int
+	resumed      int
 }
 
 func (f *fakeBackend) CheckoutRun(_ context.Context, w service.Wake) (domain.Run, error) {
@@ -114,6 +117,17 @@ func (f *fakeBackend) SavePendingResult(_ context.Context, _, _ domain.ID, in se
 	f.rc.PendingResult = &cp
 	return nil
 }
+func (f *fakeBackend) WakeSeq(context.Context, domain.ID, domain.ID) (int64, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.seqs) == 0 {
+		return 0, nil
+	}
+	i := min(f.seqCalls, len(f.seqs)-1)
+	f.seqCalls++
+	return f.seqs[i], nil
+}
+func (f *fakeBackend) ResumeBudgetPaused(context.Context) (int, error)  { return f.resumed, nil }
 func (f *fakeBackend) InterruptOrphanRuns(context.Context) (int, error) { return f.orphans, nil }
 func (f *fakeBackend) WakeCandidates(context.Context, int) ([]service.WakeCandidate, error) {
 	return f.cands, nil
@@ -802,6 +816,30 @@ func TestWakeSnoozesWhileRunActive(t *testing.T) {
 	}
 	if err := h.wake(context.Background(), WakeArgs{}, 3*time.Hour); err != nil {
 		t.Fatalf("acima do teto de 2 h deve desistir sem erro, got %v", err)
+	}
+}
+
+// A wake requested while the worker was deciding (seq moved) must not be lost: when the checkout
+// opened no run the job snoozes briefly and tries again; with seq unchanged it just ends.
+func TestWakeRetriesWhenRequestedMeanwhile(t *testing.T) {
+	for _, err := range []error{domain.ErrInvalid, domain.ErrNotFound, domain.ErrBudgetExceeded} {
+		be := &fakeBackend{seqs: []int64{3, 4}, checkout: func(service.Wake) (domain.Run, error) { return domain.Run{}, err }}
+		h, _ := newTestHB(t, be, okAdapter(), nil, Options{})
+		var sn *rivertype.JobSnoozeError
+		if got := h.wake(context.Background(), WakeArgs{}, 0); !errors.As(got, &sn) || sn.Duration != time.Second {
+			t.Fatalf("%v: want snooze 1s, got %v", err, got)
+		}
+		be = &fakeBackend{seqs: []int64{3, 3}, checkout: func(service.Wake) (domain.Run, error) { return domain.Run{}, err }}
+		h, _ = newTestHB(t, be, okAdapter(), nil, Options{})
+		if got := h.wake(context.Background(), WakeArgs{}, 0); got != nil {
+			t.Fatalf("%v: seq igual deve terminar sem erro, got %v", err, got)
+		}
+	}
+	// run opened: nothing to retry even if seq moved
+	be := &fakeBackend{seqs: []int64{3, 4}, checkout: func(service.Wake) (domain.Run, error) { return domain.Run{ID: domain.NewID()}, nil }}
+	h, _ := newTestHB(t, be, okAdapter(), nil, Options{})
+	if got := h.wake(context.Background(), WakeArgs{}, 0); got != nil {
+		t.Fatalf("run aberta: want nil, got %v", got)
 	}
 }
 

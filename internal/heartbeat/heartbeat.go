@@ -77,6 +77,8 @@ type backend interface {
 	SavePendingResult(ctx context.Context, companyID, runID domain.ID, in service.FinishRunInput) error
 	InterruptOrphanRuns(ctx context.Context) (int, error)
 	WakeCandidates(ctx context.Context, limit int) ([]service.WakeCandidate, error)
+	WakeSeq(ctx context.Context, personaID, taskID domain.ID) (int64, error)
+	ResumeBudgetPaused(ctx context.Context) (int, error)
 	GetMemoryItem(ctx context.Context, id domain.ID) (service.MemoryItem, error)
 	MarkMemorySent(ctx context.Context, id domain.ID) error
 	MarkMemoryFailed(ctx context.Context, id domain.ID, errMsg string, permanent bool) error
@@ -217,8 +219,13 @@ func (h *Heartbeat) Stop(ctx context.Context) error {
 
 // ---- service.Jobs ----
 
-// WakeTx enqueues a coalesced wake inside tx.
+// WakeTx enqueues a coalesced wake inside tx. Every request also bumps wake_requests (same tx),
+// even when the queue coalesces it into a job that is already running: the running worker sees
+// the counter move and retries instead of losing the request.
 func (h *Heartbeat) WakeTx(ctx context.Context, tx pgx.Tx, w service.Wake) error {
+	if err := service.BumpWakeRequestTx(ctx, tx, w); err != nil {
+		return err
+	}
 	_, err := h.client.InsertTx(ctx, tx, WakeArgs{CompanyID: w.CompanyID, PersonaID: w.PersonaID, TaskID: w.TaskID, Trigger: w.Trigger}, nil)
 	if err != nil {
 		return fmt.Errorf("enqueue wake: %w", err)

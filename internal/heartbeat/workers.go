@@ -28,19 +28,40 @@ func (w *wakeWorker) Work(ctx context.Context, job *river.Job[WakeArgs]) error {
 }
 
 const (
-	wakeSnooze   = 30 * time.Second // re-check interval while the task has an active run
-	wakeGiveUp   = 2 * time.Hour    // a wake older than this stops waiting for the active run
-	finishSnooze = time.Minute      // re-check interval while a run could not be finalized
-	finishGiveUp = 24 * time.Hour
+	wakeSnooze    = 30 * time.Second // re-check interval while the task has an active run
+	wakeGiveUp    = 2 * time.Hour    // a wake older than this stops waiting for the active run
+	wakeSeqSnooze = time.Second      // retry after a wake request arrived while the worker was deciding
+	finishSnooze  = time.Minute      // re-check interval while a run could not be finalized
+	finishGiveUp  = 24 * time.Hour
 )
 
 // wake checks the task out. While another run is active the wake is snoozed (not dropped),
 // so a comment or reassignment that arrives mid-run still produces a run afterwards; it
 // stays one job per (persona, task), so further wakes keep coalescing. age is how long the
 // wake has existed.
+//
+// A wake enqueued while this job is running is coalesced into it (the queue treats a running job
+// as unique), so its request would vanish if the checkout had already looked at the old state.
+// Every request bumps wake_requests.seq in its own transaction; the worker reads seq before the
+// checkout and, when the checkout opened no run and seq moved, snoozes briefly and tries again.
 func (h *Heartbeat) wake(ctx context.Context, a WakeArgs, age time.Duration) error {
 	if h.svc == nil {
 		return errNotAttached
+	}
+	seq, err := h.svc.WakeSeq(ctx, a.PersonaID, a.TaskID)
+	if err != nil {
+		return fmt.Errorf("wake: %w", err)
+	}
+	retryIfRequested := func() error {
+		now, err := h.svc.WakeSeq(ctx, a.PersonaID, a.TaskID)
+		if err != nil {
+			return fmt.Errorf("wake: %w", err)
+		}
+		if now != seq {
+			h.log.Debug("wake: novo pedido durante o processamento, tentando de novo", "task_id", a.TaskID, "persona_id", a.PersonaID)
+			return river.JobSnooze(wakeSeqSnooze)
+		}
+		return nil
 	}
 	run, err := h.svc.CheckoutRun(ctx, service.Wake{CompanyID: a.CompanyID, PersonaID: a.PersonaID, TaskID: a.TaskID, Trigger: a.Trigger})
 	switch {
@@ -57,10 +78,10 @@ func (h *Heartbeat) wake(ctx context.Context, a WakeArgs, age time.Duration) err
 	case errors.Is(err, domain.ErrBudgetExceeded):
 		// Hard stop: the service already paused the persona and recorded the alert.
 		h.log.Info("wake: orçamento estourado, run não aberta", "task_id", a.TaskID, "persona_id", a.PersonaID, "reason", err)
-		return nil
+		return retryIfRequested()
 	case errors.Is(err, domain.ErrInvalid), errors.Is(err, domain.ErrNotFound):
 		h.log.Debug("wake: nada a fazer", "task_id", a.TaskID, "persona_id", a.PersonaID, "reason", err)
-		return nil
+		return retryIfRequested()
 	}
 	return fmt.Errorf("wake: %w", err)
 }
@@ -157,6 +178,13 @@ func (w *tickWorker) Work(ctx context.Context, _ *river.Job[HeartbeatTickArgs]) 
 	h := w.h
 	if h.svc == nil {
 		return errNotAttached
+	}
+	// Personas paused by a budget come back once their ceiling allows it (it went up, or a new
+	// month began); their open tasks are woken in the same transaction.
+	if n, err := h.svc.ResumeBudgetPaused(ctx); err != nil {
+		h.log.Warn("heartbeat_tick: retomar personas pausadas por orçamento", "err", err)
+	} else if n > 0 {
+		h.log.Info("heartbeat_tick: personas retomadas", "count", n)
 	}
 	cands, err := h.svc.WakeCandidates(ctx, scanLimit)
 	if err != nil {
