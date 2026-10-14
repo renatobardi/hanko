@@ -30,6 +30,7 @@ type hirePersonaIn struct {
 		Workspace            string         `json:"workspace,omitempty" doc:"Id ou slug do workspace."`
 		HeartbeatIntervalSec int            `json:"heartbeat_interval_sec,omitempty" minimum:"0" example:"300"`
 		BudgetMonthlyCents   *int64         `json:"budget_monthly_cents,omitempty" minimum:"0"`
+		RequireReview        bool           `json:"require_review,omitempty" doc:"Concluir uma task passa por um gate de revisão."`
 	}
 }
 
@@ -49,6 +50,9 @@ type updatePersonaIn struct {
 		HeartbeatIntervalSec *int    `json:"heartbeat_interval_sec,omitempty" minimum:"0"`
 		Workspace            string  `json:"workspace,omitempty" doc:"Id ou slug do novo workspace."`
 		ClearWorkspace       bool    `json:"clear_workspace,omitempty" doc:"Remove o workspace da persona."`
+		ReportsTo            string  `json:"reports_to,omitempty" doc:"Id ou slug da persona superior. Rejeitado (422) se criar um ciclo no organograma."`
+		ClearReportsTo       bool    `json:"clear_reports_to,omitempty" doc:"Põe a persona no topo do organograma."`
+		RequireReview        *bool   `json:"require_review,omitempty" doc:"Exige revisão (gate task_review) para concluir tasks."`
 	}
 }
 
@@ -80,7 +84,8 @@ func (s *server) registerPersonas(api huma.API) {
 			p, err := s.svc.HirePersona(ctx, sc.Actor, cid, service.HirePersonaInput{
 				Name: in.Body.Name, Slug: in.Body.Slug, Title: in.Body.Title, Instructions: in.Body.Instructions,
 				Agent: in.Body.Agent, Model: in.Body.Model, AdapterConfig: cfg, ReportsTo: reports, WorkspaceID: ws,
-				HeartbeatIntervalSec: in.Body.HeartbeatIntervalSec, BudgetMonthlyCents: in.Body.BudgetMonthlyCents})
+				HeartbeatIntervalSec: in.Body.HeartbeatIntervalSec, BudgetMonthlyCents: in.Body.BudgetMonthlyCents,
+				RequireReview: in.Body.RequireReview})
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}
@@ -130,9 +135,14 @@ func (s *server) registerPersonas(api huma.API) {
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}
+			reports, err := s.personaRef(ctx, sc.Company.ID, in.Body.ReportsTo)
+			if err != nil {
+				return nil, s.fail(ctx, err)
+			}
 			up := service.UpdatePersonaInput{
 				Name: in.Body.Name, Title: in.Body.Title, Instructions: in.Body.Instructions, Model: in.Body.Model,
-				HeartbeatIntervalSec: in.Body.HeartbeatIntervalSec, WorkspaceID: ws, ClearWorkspace: in.Body.ClearWorkspace}
+				HeartbeatIntervalSec: in.Body.HeartbeatIntervalSec, WorkspaceID: ws, ClearWorkspace: in.Body.ClearWorkspace,
+				ReportsTo: reports, ClearReportsTo: in.Body.ClearReportsTo, RequireReview: in.Body.RequireReview}
 			if in.Body.Status != nil {
 				st := domain.PersonaStatus(*in.Body.Status)
 				up.Status = &st

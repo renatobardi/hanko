@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -173,6 +174,7 @@ func (e *env) personaCmd() *cobra.Command {
 		interval                                                 int
 		budget                                                   int64
 		cfg                                                      map[string]string
+		review                                                   bool
 	)
 	hire := &cobra.Command{
 		Use: "hire <nome>", Short: "Contrata uma persona", Args: cobra.ExactArgs(1),
@@ -189,7 +191,7 @@ func (e *env) personaCmd() *cobra.Command {
 				instr = string(b)
 			}
 			req := client.HirePersonaReq{Name: args[0], Slug: slug, Title: title, Instructions: instr, Agent: agent, Model: model,
-				ReportsTo: reports, Workspace: ws, HeartbeatIntervalSec: interval}
+				ReportsTo: reports, Workspace: ws, HeartbeatIntervalSec: interval, RequireReview: review}
 			if cmd.Flags().Changed("budget-cents") {
 				req.BudgetMonthlyCents = &budget
 			}
@@ -222,6 +224,7 @@ func (e *env) personaCmd() *cobra.Command {
 	hf.IntVar(&interval, "interval", 0, "intervalo do heartbeat em segundos (0 desliga)")
 	hf.Int64Var(&budget, "budget-cents", 0, "orçamento mensal em centavos de dólar")
 	hf.StringToStringVar(&cfg, "config", nil, "adapter_config chave=valor (repetível)")
+	hf.BoolVar(&review, "require-review", false, "concluir uma task passa por um gate de revisão")
 	_ = hire.MarkFlagRequired("agent")
 
 	ls := &cobra.Command{
@@ -267,6 +270,7 @@ func (e *env) personaCmd() *cobra.Command {
 			e.kv([2]string{"Persona", fmt.Sprintf("%s (%s)", p.Name, p.Slug)}, [2]string{"ID", p.ID},
 				[2]string{"Cargo", dash(p.Title)}, [2]string{"Agente", p.Agent}, [2]string{"Modelo", dash(p.Model)},
 				[2]string{"Status", p.Status}, [2]string{"Heartbeat", heartbeat(p.HeartbeatIntervalSec)},
+				[2]string{"Reporta a", dash(p.ReportsTo)}, [2]string{"Exige revisão", yesNo(p.RequireReview)},
 				[2]string{"Contratada em", fmtTime(p.CreatedAt)})
 			if p.Instructions != "" {
 				fmt.Fprintf(e.out, "\nInstruções:\n%s\n", strings.TrimSpace(p.Instructions))
@@ -274,8 +278,55 @@ func (e *env) personaCmd() *cobra.Command {
 			return nil
 		},
 	}
-	c.AddCommand(hire, ls, show)
+
+	var (
+		upReports string
+		upTop     bool
+		upReview  string
+	)
+	update := &cobra.Command{
+		Use: "update <persona>", Short: "Muda a quem a persona reporta e a revisão obrigatória", Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			co, err := e.needCompany()
+			if err != nil {
+				return err
+			}
+			req := client.UpdatePersonaReq{ReportsTo: upReports, ClearReportsTo: upTop}
+			switch upReview {
+			case "":
+			case "true", "false":
+				v := upReview == "true"
+				req.RequireReview = &v
+			default:
+				return usageError{errors.New("--require-review aceita true ou false")}
+			}
+			if upReports == "" && !upTop && req.RequireReview == nil {
+				return usageError{errors.New("nada a alterar: use --reports-to, --top ou --require-review")}
+			}
+			p, err := e.client().UpdatePersona(cmd.Context(), co, args[0], req)
+			if err != nil {
+				return err
+			}
+			if e.asJSON {
+				return e.printJSON(p)
+			}
+			fmt.Fprintf(e.out, "Persona atualizada: %s (%s) — reporta a %s, revisão obrigatória: %s\n", p.Name, p.Slug, dash(p.ReportsTo), yesNo(p.RequireReview))
+			return nil
+		},
+	}
+	uf := update.Flags()
+	uf.StringVar(&upReports, "reports-to", "", "persona superior (id ou slug)")
+	uf.BoolVar(&upTop, "top", false, "põe a persona no topo do organograma")
+	uf.StringVar(&upReview, "require-review", "", "true ou false")
+	c.AddCommand(hire, ls, show, update)
 	return c
+}
+
+func yesNo(b bool) string {
+	if b {
+		return "sim"
+	}
+	return "não"
 }
 
 func heartbeat(sec int) string {

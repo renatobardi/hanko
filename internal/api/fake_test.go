@@ -33,6 +33,12 @@ type fakeSvc struct {
 	lastComment service.AddCommentInput
 	lastRunF    service.RunFilter
 	failWith    error
+
+	gates         []service.GateView
+	lastGateIn    service.RequestGateInput
+	lastGateF     service.GateFilter
+	lastDecide    service.DecideGateInput
+	lastPersonaUp service.UpdatePersonaInput
 }
 
 func (f *fakeSvc) GetCompany(_ context.Context, ref string) (domain.Company, error) {

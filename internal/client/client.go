@@ -193,6 +193,7 @@ type HirePersonaReq struct {
 	Workspace            string         `json:"workspace,omitempty"`
 	HeartbeatIntervalSec int            `json:"heartbeat_interval_sec,omitempty"`
 	BudgetMonthlyCents   *int64         `json:"budget_monthly_cents,omitempty"`
+	RequireReview        bool           `json:"require_review,omitempty"`
 }
 
 type CreateTaskReq struct {
