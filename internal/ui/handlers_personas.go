@@ -198,7 +198,7 @@ func (s *server) handlePersona(w http.ResponseWriter, r *http.Request, co domain
 	if pb, err := s.be.PersonaBudget(ctx, co.ID, p.ID); err == nil {
 		b := budgetBox("Orçamento do mês", pb, base+"/personas/"+p.Slug+"/orcamento", base+"/custos")
 		if pb.State == service.BudgetExceeded {
-			b.StateText = "Limite atingido: a persona foi pausada e não abre execuções novas até o limite subir ou o mês virar."
+			b.StateText = "Limite atingido: a persona foi pausada, não abre execuções novas e volta sozinha quando o limite subir ou o mês virar."
 		}
 		vm.Budget = &b
 	}

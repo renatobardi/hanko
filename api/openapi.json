@@ -905,6 +905,10 @@
             "format": "uuid",
             "type": "string"
           },
+          "manual": {
+            "description": "true no disparo de \"Rodar agora\" (não é uma ocorrência do cron).",
+            "type": "boolean"
+          },
           "scheduled_for": {
             "format": "date-time",
             "type": "string"
@@ -1004,6 +1008,14 @@
           },
           "requested_by": {
             "$ref": "#/components/schemas/ActorRef"
+          },
+          "requested_status": {
+            "description": "Em task_review: o status que a persona pediu; aprovar o aplica.",
+            "enum": [
+              "done",
+              "cancelled"
+            ],
+            "type": "string"
           },
           "run_id": {
             "format": "uuid",
@@ -1755,7 +1767,7 @@
             "type": "string"
           },
           "kind": {
-            "description": "Padrão approval.",
+            "description": "Padrão approval. Com run token (persona) é sempre approval.",
             "enum": [
               "approval",
               "task_review",

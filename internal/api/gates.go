@@ -14,31 +14,32 @@ import (
 
 // Gate é um ponto em que um humano decide: aprovar, rejeitar ou pedir mudanças.
 type Gate struct {
-	ID           string     `json:"id" format:"uuid"`
-	CompanyID    string     `json:"company_id" format:"uuid"`
-	Kind         string     `json:"kind" enum:"approval,task_review,hire" doc:"approval: ação irreversível, merge, deploy, gasto; task_review: revisão para concluir uma task; hire: contratação."`
-	Status       string     `json:"status" enum:"pending,approved,rejected,changes_requested,expired"`
-	Title        string     `json:"title" example:"Fazer deploy em produção"`
-	Body         string     `json:"body" doc:"Pedido em Markdown: o que está sendo decidido, evidência e impacto."`
-	TaskID       string     `json:"task_id,omitempty" format:"uuid"`
-	TaskKey      string     `json:"task_key,omitempty" example:"HNK-12"`
-	TaskTitle    string     `json:"task_title,omitempty"`
-	RunID        string     `json:"run_id,omitempty" format:"uuid"`
-	PersonaID    string     `json:"persona_id,omitempty" format:"uuid" doc:"Persona que pediu (e espera a decisão)."`
-	PersonaName  string     `json:"persona_name,omitempty"`
-	RequestedBy  ActorRef   `json:"requested_by"`
-	DecidedBy    *ActorRef  `json:"decided_by,omitempty"`
-	DecisionNote string     `json:"decision_note,omitempty"`
-	EventID      string     `json:"event_id,omitempty"`
-	CreatedAt    time.Time  `json:"created_at"`
-	DecidedAt    *time.Time `json:"decided_at,omitempty"`
+	ID              string     `json:"id" format:"uuid"`
+	CompanyID       string     `json:"company_id" format:"uuid"`
+	Kind            string     `json:"kind" enum:"approval,task_review,hire" doc:"approval: ação irreversível, merge, deploy, gasto; task_review: revisão para concluir uma task; hire: contratação."`
+	Status          string     `json:"status" enum:"pending,approved,rejected,changes_requested,expired"`
+	Title           string     `json:"title" example:"Fazer deploy em produção"`
+	Body            string     `json:"body" doc:"Pedido em Markdown: o que está sendo decidido, evidência e impacto."`
+	TaskID          string     `json:"task_id,omitempty" format:"uuid"`
+	TaskKey         string     `json:"task_key,omitempty" example:"HNK-12"`
+	TaskTitle       string     `json:"task_title,omitempty"`
+	RunID           string     `json:"run_id,omitempty" format:"uuid"`
+	PersonaID       string     `json:"persona_id,omitempty" format:"uuid" doc:"Persona que pediu (e espera a decisão)."`
+	PersonaName     string     `json:"persona_name,omitempty"`
+	RequestedBy     ActorRef   `json:"requested_by"`
+	DecidedBy       *ActorRef  `json:"decided_by,omitempty"`
+	DecisionNote    string     `json:"decision_note,omitempty"`
+	RequestedStatus string     `json:"requested_status,omitempty" enum:"done,cancelled" doc:"Em task_review: o status que a persona pediu; aprovar o aplica."`
+	EventID         string     `json:"event_id,omitempty"`
+	CreatedAt       time.Time  `json:"created_at"`
+	DecidedAt       *time.Time `json:"decided_at,omitempty"`
 }
 
 func gateOut(g service.GateView) Gate {
 	o := Gate{ID: idStr(g.ID), CompanyID: idStr(g.CompanyID), Kind: string(g.Kind), Status: string(g.Status), Title: g.Title,
 		Body: g.Body, TaskID: idPtr(g.TaskID), TaskKey: g.TaskKey, TaskTitle: g.TaskTitle, RunID: idPtr(g.RunID),
 		PersonaID: idPtr(g.PersonaID), PersonaName: g.PersonaName, RequestedBy: actorRef(g.RequestedBy),
-		DecisionNote: g.DecisionNote, EventID: g.EventID, CreatedAt: g.CreatedAt, DecidedAt: g.DecidedAt}
+		DecisionNote: g.DecisionNote, RequestedStatus: string(g.RequestedStatus), EventID: g.EventID, CreatedAt: g.CreatedAt, DecidedAt: g.DecidedAt}
 	if g.DecidedBy != nil {
 		a := actorRef(*g.DecidedBy)
 		o.DecidedBy = &a
@@ -96,7 +97,7 @@ type listGatesIn struct {
 type requestGateIn struct {
 	CompanyPath
 	Body struct {
-		Kind    string `json:"kind,omitempty" enum:"approval,task_review,hire" doc:"Padrão approval."`
+		Kind    string `json:"kind,omitempty" enum:"approval,task_review,hire" doc:"Padrão approval. Com run token (persona) é sempre approval."`
 		Title   string `json:"title" minLength:"1" maxLength:"300" example:"Fazer deploy em produção"`
 		Body    string `json:"body,omitempty" doc:"Pedido em Markdown: o que está sendo decidido, evidência e impacto."`
 		Task    string `json:"task,omitempty" doc:"Id ou chave da task; com run token, padrão é a task da execução."`
@@ -178,8 +179,10 @@ func (s *server) registerGates(api huma.API) {
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}
+			kind := domain.GateKind(b.Kind)
 			var runID *domain.ID
 			if sc.Claims != nil { // persona: a execução e (por padrão) a task vêm do token
+				kind = domain.GateApproval // como no MCP: persona só pede aprovação; revisão e contratação são abertas pelo Hanko
 				if id, err := domain.ParseID(sc.Claims.RunID); err == nil {
 					runID = &id
 				}
@@ -189,7 +192,7 @@ func (s *server) registerGates(api huma.API) {
 					}
 				}
 			}
-			g, err := s.svc.RequestGate(ctx, sc.Actor, sc.Company.ID, service.RequestGateInput{Kind: domain.GateKind(b.Kind),
+			g, err := s.svc.RequestGate(ctx, sc.Actor, sc.Company.ID, service.RequestGateInput{Kind: kind,
 				Title: b.Title, Body: b.Body, TaskID: task, RunID: runID, EventID: b.EventID})
 			if err != nil {
 				return nil, s.fail(ctx, err)

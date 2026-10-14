@@ -277,6 +277,7 @@ type FlowFire struct {
 	TaskKey      string    `json:"task_key,omitempty" example:"HNK-12"`
 	TaskTitle    string    `json:"task_title,omitempty"`
 	TaskStatus   string    `json:"task_status,omitempty"`
+	Manual       bool      `json:"manual,omitempty" doc:"true no disparo de \"Rodar agora\" (não é uma ocorrência do cron)."`
 	CreatedAt    time.Time `json:"created_at"`
 }
 
@@ -396,12 +397,12 @@ func flowOut(f service.FlowView) Flow {
 
 func flowFireOut(f service.FlowFireView) FlowFire {
 	return FlowFire{ID: idStr(f.ID), FlowID: idStr(f.FlowID), ScheduledFor: f.ScheduledFor, TaskID: idPtr(f.TaskID),
-		TaskKey: f.TaskKey, TaskTitle: f.TaskTitle, TaskStatus: f.TaskStatus, CreatedAt: f.CreatedAt}
+		TaskKey: f.TaskKey, TaskTitle: f.TaskTitle, TaskStatus: f.TaskStatus, Manual: f.Manual, CreatedAt: f.CreatedAt}
 }
 
 func flowRunOut(r service.FlowFireResult) FlowRun {
 	out := FlowRun{Fire: FlowFire{ID: idStr(r.Fire.ID), FlowID: idStr(r.Fire.FlowID), ScheduledFor: r.Fire.ScheduledFor,
-		TaskID: idPtr(r.Fire.TaskID), CreatedAt: r.Fire.CreatedAt}, Duplicate: r.Duplicate}
+		TaskID: idPtr(r.Fire.TaskID), Manual: r.Fire.Manual, CreatedAt: r.Fire.CreatedAt}, Duplicate: r.Duplicate}
 	if r.Task != nil {
 		t := taskOut(*r.Task)
 		out.Task = &t

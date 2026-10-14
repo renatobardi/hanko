@@ -213,6 +213,36 @@ func TestGateRequestByPersonaTakesTaskAndRunFromToken(t *testing.T) {
 	}
 }
 
+// A persona (run token) only asks for approvals, as in MCP: it cannot open task_review or hire
+// gates, which would park its own or someone else's work under another kind.
+func TestGateRequestByPersonaIsAlwaysApproval(t *testing.T) {
+	f, c, _ := gateFixtureAPI(t)
+	tokens := &auth.RunTokens{Secret: []byte("0123456789abcdef0123456789abcdef"), TTL: time.Hour}
+	ts, _ := newTestServer(t, f, func(d *Deps) { d.Tokens = tokens })
+	pid, rid := domain.NewID(), domain.NewID()
+	f.runs = map[domain.ID]service.RunView{rid: {Run: domain.Run{ID: rid, CompanyID: c.ID, Status: domain.RunRunning}}}
+	tok, _ := tokens.Issue(c.ID, pid, rid, f.tasks[0].ID)
+	bearer := map[string]string{"Authorization": "Bearer " + tok}
+
+	for _, kind := range []string{"task_review", "hire", "approval", ""} {
+		body := `{"title":"x","kind":"` + kind + `"}`
+		if kind == "" {
+			body = `{"title":"x"}`
+		}
+		resp, b := do(t, "POST", ts.URL+"/api/v1/companies/acme/gates", body, bearer)
+		if resp.StatusCode != 201 {
+			t.Fatalf("kind %q: %d %s", kind, resp.StatusCode, b)
+		}
+		if f.lastGateIn.Kind != domain.GateApproval {
+			t.Fatalf("kind %q reached the service as %q, want approval", kind, f.lastGateIn.Kind)
+		}
+	}
+	// a human keeps choosing the kind
+	if resp, b := do(t, "POST", ts.URL+"/api/v1/companies/acme/gates", `{"title":"x","kind":"hire"}`, nil); resp.StatusCode != 201 || f.lastGateIn.Kind != domain.GateHire {
+		t.Fatalf("human hire: %d %s kind=%q", resp.StatusCode, b, f.lastGateIn.Kind)
+	}
+}
+
 func TestOrgChartAndPersonaPatch(t *testing.T) {
 	f, c, _ := gateFixtureAPI(t)
 	boss := domain.Persona{ID: domain.NewID(), CompanyID: c.ID, Slug: "boss", Name: "Boss"}
