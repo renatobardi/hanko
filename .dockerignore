@@ -1,0 +1,10 @@
+.git
+.github
+bin
+dist
+node_modules
+.env
+*.md
+!README.md
+deploy
+docs

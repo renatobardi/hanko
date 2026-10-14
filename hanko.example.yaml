@@ -1,0 +1,18 @@
+# Copie para hanko.yaml. Variáveis HANKO_* sobrescrevem estes valores.
+database_url: postgres://hanko:hanko@127.0.0.1:5432/hanko?sslmode=disable
+addr: 127.0.0.1:7420
+# public_url: http://127.0.0.1:7420
+mode: trusted            # trusted | authenticated (authenticated chega no M5)
+# secret: ""             # prefira HANKO_SECRET; vazio = gerado por boot
+migrate_on_boot: true
+memory:
+  provider: ai-memory    # ai-memory | none
+  url: http://127.0.0.1:49374
+  # token: ""            # prefira HANKO_MEMORY_TOKEN
+claude_bin: claude
+codex_bin: codex
+workers: 4
+run_timeout: 30m
+heartbeat_interval: 1m
+log_level: info
+log_format: json

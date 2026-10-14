@@ -1,0 +1,23 @@
+# syntax=docker/dockerfile:1
+# Variante com os CLIs de agentes (claude, codex) para quem quer executar runs
+# dentro do container. Imagem maior que a distroless; use só se precisar.
+FROM golang:1.27 AS builder
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+ARG VERSION=dev
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o /out/hanko ./cmd/hanko
+
+FROM node:22-bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates git \
+    && rm -rf /var/lib/apt/lists/* \
+    && npm install -g @anthropic-ai/claude-code @openai/codex \
+    && npm cache clean --force
+COPY --from=builder /out/hanko /usr/local/bin/hanko
+# usuário "node" (uid 1000) já existe na imagem base
+USER node
+WORKDIR /home/node
+EXPOSE 7420
+ENV HANKO_ADDR=0.0.0.0:7420 HANKO_CLAUDE_BIN=claude HANKO_CODEX_BIN=codex
+ENTRYPOINT ["hanko","serve"]
