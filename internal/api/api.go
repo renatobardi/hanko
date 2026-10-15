@@ -214,6 +214,8 @@ func (s *server) register(api huma.API) {
 	s.registerFlows(api)
 	s.registerMembers(api)
 	s.registerExport(api)
+	s.registerSkills(api)
+	s.registerIntegrations(api)
 }
 
 // op monta uma huma.Operation com o prefixo da API.
