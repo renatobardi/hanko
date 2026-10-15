@@ -104,6 +104,13 @@ type Backend interface {
 	ListFlowFires(ctx context.Context, companyID, flowID domain.ID, limit int) ([]service.FlowFireView, error)
 	RunFlowNow(ctx context.Context, actor domain.Actor, companyID, flowID domain.ID) (service.FlowFireResult, error)
 
+	ListConversations(ctx context.Context, companyID domain.ID, f service.ConversationFilter) ([]service.ConversationView, error)
+	GetConversation(ctx context.Context, companyID, id domain.ID) (service.ConversationView, error)
+	ListConversationMessages(ctx context.Context, companyID, id domain.ID, limit int) ([]domain.ConversationMessage, error)
+	CreateConversation(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.CreateConversationInput) (service.ConversationView, error)
+	SendMessage(ctx context.Context, actor domain.Actor, companyID, conversationID domain.ID, body string) (domain.ConversationMessage, error)
+	SetConversationStatus(ctx context.Context, actor domain.Actor, companyID, id domain.ID, status domain.ConversationStatus) (service.ConversationView, error)
+
 	MyRole(ctx context.Context, companyID domain.ID) (domain.MemberRole, error)
 	ListMembers(ctx context.Context, companyID domain.ID) ([]domain.Member, error)
 	ListInvites(ctx context.Context, companyID domain.ID) ([]domain.Invite, error)
@@ -257,6 +264,13 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("GET /c/{company}/gates", co(s.handleGates))
 	mux.HandleFunc("GET /c/{company}/gates/{gate}", co(s.handleGate))
 	mux.HandleFunc("POST /c/{company}/gates/{gate}/decidir", post(co(s.handleDecideGate)))
+	mux.HandleFunc("GET /c/{company}/chat", co(s.handleChats))
+	mux.HandleFunc("POST /c/{company}/chat/nova", post(co(s.handleCreateChat)))
+	mux.HandleFunc("GET /c/{company}/chat/{conversation}", co(s.handleChat))
+	mux.HandleFunc("GET /c/{company}/chat/{conversation}/mensagens", co(s.handleChatThread))
+	mux.HandleFunc("POST /c/{company}/chat/{conversation}/mensagens", post(co(s.handleChatSend)))
+	mux.HandleFunc("POST /c/{company}/chat/{conversation}/arquivar", post(co(s.handleChatStatus(domain.ConversationArchived))))
+	mux.HandleFunc("POST /c/{company}/chat/{conversation}/reabrir", post(co(s.handleChatStatus(domain.ConversationOpen))))
 	mux.HandleFunc("GET /c/{company}/organograma", co(s.handleOrg))
 
 	mux.HandleFunc("GET /c/{company}/configuracoes", co(s.handleSettings))
@@ -400,6 +414,9 @@ func friendly(ctx context.Context, err error) (int, string, string) {
 		}
 		if errors.Is(err, domain.ErrActiveRun) {
 			return st, i18n.T(ctx, "Já existe uma execução ativa"), i18n.T(ctx, "Esta task já tem uma execução em andamento; espere ela terminar.")
+		}
+		if errors.Is(err, domain.ErrPersonaUnavailable) {
+			return st, i18n.T(ctx, "Persona indisponível"), strings.ToUpper(err.Error()[:1]) + err.Error()[1:] + "."
 		}
 		return st, i18n.T(ctx, "Conflito"), i18n.T(ctx, "Esse registro já existe ou foi alterado por outra pessoa.")
 	case http.StatusForbidden:

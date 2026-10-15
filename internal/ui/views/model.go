@@ -270,6 +270,8 @@ type PersonaVM struct {
 	Hired         string
 	Slug          string
 	Tasks         []TaskRow
+	Chats         []ChatRow // conversations with this persona
+	NewChatHref   string    // opens a conversation with it ("" = the viewer cannot write)
 	Runs          []RunRow
 	Budget        *BudgetBox       // monthly spend vs ceiling
 	Notice        string           // flash after an action
@@ -366,6 +368,7 @@ type RunVM struct {
 	TaskKey      string
 	TaskHref     string
 	TaskTitle    string
+	Chat         bool // the run answers a conversation, not a task (TaskKey/TaskHref/TaskTitle then point at it)
 	Trigger      string
 	Started      string
 	Duration     string

@@ -103,22 +103,34 @@ func (h *Heartbeat) executeRunJob(ctx context.Context, a ExecuteRunArgs, ji jobI
 		return nil
 	}
 	agent, model := effectiveHarness(rc)
-	log = log.With("task_key", rc.Task.Key, "agent", agent)
+	log = log.With("agent", agent)
+	if rc.Chat != nil {
+		log = log.With("conversation_id", rc.Chat.Conversation.ID)
+	} else {
+		log = log.With("task_key", rc.Task.Key)
+	}
 
 	ad, ok := h.reg.Get(agent)
 	if !ok {
 		h.failEarly(ctx, a, fmt.Errorf("adapter desconhecido: %q", agent))
 		return nil
 	}
+	if rc.Chat != nil && !adapter.ResumesSessions(ad) {
+		rc.Chat.ResumeSession = "" // the harness cannot resume: the prompt carries the history
+	}
 
 	ctx, span := otel.Tracer("hanko/heartbeat").Start(ctx, "hanko.run", trace.WithAttributes(
 		attribute.String("hanko.company_id", rc.Company.ID.String()),
 		attribute.String("hanko.persona_id", rc.Persona.ID.String()),
 		attribute.String("hanko.run_id", rc.Run.ID.String()),
-		attribute.String("hanko.task_id", rc.Task.ID.String()),
 		attribute.String("hanko.agent", agent),
 		attribute.String("hanko.model", model),
 	))
+	if rc.Chat != nil {
+		span.SetAttributes(attribute.String("hanko.conversation_id", rc.Chat.Conversation.ID.String()))
+	} else {
+		span.SetAttributes(attribute.String("hanko.task_id", rc.Task.ID.String()))
+	}
 	defer span.End()
 	traceID := ""
 	if sc := span.SpanContext(); sc.HasTraceID() {
@@ -329,7 +341,11 @@ func (h *Heartbeat) buildSpec(rc service.RunContext, briefing, handoff string, s
 	var extraMCP map[string]json.RawMessage
 	if !review {
 		var err error
-		token, err = h.tokens.Issue(rc.Company.ID, rc.Persona.ID, rc.Run.ID, rc.Task.ID)
+		if rc.Chat != nil {
+			token, err = h.tokens.IssueForConversation(rc.Company.ID, rc.Persona.ID, rc.Run.ID, rc.Chat.Conversation.ID)
+		} else {
+			token, err = h.tokens.Issue(rc.Company.ID, rc.Persona.ID, rc.Run.ID, rc.Task.ID)
+		}
 		if err != nil {
 			return adapter.Spec{}, nil, fmt.Errorf("emitir run token: %w", err)
 		}
@@ -344,7 +360,16 @@ func (h *Heartbeat) buildSpec(rc service.RunContext, briefing, handoff string, s
 	if err != nil {
 		return adapter.Spec{}, nil, err
 	}
-	system, prompt := BuildPrompt(rc, briefing, handoff)
+	system, prompt := "", ""
+	if rc.Chat != nil {
+		system, prompt = BuildChatPrompt(rc, briefing, handoff)
+	} else {
+		system, prompt = BuildPrompt(rc, briefing, handoff)
+	}
+	sessionRef := ""
+	if rc.Chat != nil {
+		sessionRef = rc.Chat.ResumeSession
+	}
 	cfg := rc.Persona.AdapterConfig
 	if review {
 		system, prompt = BuildReviewPrompt(rc, briefing)
@@ -358,8 +383,8 @@ func (h *Heartbeat) buildSpec(rc service.RunContext, briefing, handoff string, s
 	agent, model := effectiveHarness(rc)
 	return adapter.Spec{
 		RunID: rc.Run.ID, CompanyID: rc.Company.ID, PersonaID: rc.Persona.ID, TaskID: rc.Task.ID, TaskKey: rc.Task.Key,
-		Agent: agent, Model: model, Dir: dir,
-		System: system, Prompt: prompt, SessionRef: "",
+		ConversationID: conversationID(rc), Agent: agent, Model: model, Dir: dir,
+		System: system, Prompt: prompt, SessionRef: sessionRef,
 		Env:       buildEnv(os.Getenv("OTEL_RESOURCE_ATTRIBUTES"), publicURL, token, rc),
 		MCPConfig: mcpCfg, Config: cfg, ReadOnly: review,
 	}, cleanup, nil
@@ -434,4 +459,12 @@ func effectiveHarness(rc service.RunContext) (agent, model string) {
 		return rc.Run.Agent, rc.Run.Model
 	}
 	return rc.Persona.Agent, rc.Persona.Model
+}
+
+// conversationID is the conversation of a chat run (zero for a task run).
+func conversationID(rc service.RunContext) domain.ID {
+	if rc.Chat == nil {
+		return domain.ID{}
+	}
+	return rc.Chat.Conversation.ID
 }

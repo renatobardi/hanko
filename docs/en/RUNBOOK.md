@@ -416,3 +416,26 @@ Requires `HANKO_MEMORY_PROVIDER=ai-memory` (ADR-0030). With `none`, the Memory s
 | Proposal `failed` | ai-memory down or refused | see the error in the Memory section; retry is automatic, or `hanko memory retry` |
 | Many proposals | unknown tool names are held for safety | approve/reject; see ADR-0030 |
 | Consolidation does not run | curator paused or out of budget | check Inbox/alerts; expires in 6 h |
+
+## Chat with a persona
+
+A direct conversation between a human and a persona, outside a task (ADR-0027). In the UI: **Chat** in the menu (`/c/{company}/chat`). On the CLI:
+
+```
+hanko chat cto "What is the risk of Friday's migration?"       # opens the conversation, waits and prints the answer
+hanko chat cto "And plan B?" --conversation 01a13f51           # continues a conversation (id or prefix)
+hanko chat cto "Summarize the day" --no-wait                   # only sends; follow with `hanko chat show <id>`
+hanko chat list --persona cto
+```
+
+- Each human message triggers a **run** with the `chat` trigger: it shows in Runs (marked as Chat, linked to the conversation) and in Costs
+  (a "Chat" row), and counts toward the persona and company budgets and the subscription weekly guard.
+- A persona that is paused, in error, over budget or behind the weekly guard **does not receive the message**: the UI, the API (409) and the CLI show why.
+  Reactivate the persona or raise the limit and send again.
+- Messages sent while the persona is answering wait (up to 20) and the next run answers them together. A chat run that fails, is cancelled or
+  interrupted leaves a system notice in the conversation; waiting messages stay queued until the next message.
+- With `claude` (and `fake`) the harness session is resumed between messages; a harness without that ability gets the recent history
+  (up to 24 KiB) in the prompt on every message.
+- The persona can open a task from the conversation (`hanko_task_create`); its description cites the conversation. A chat run has no task,
+  so `hanko_gate_request` needs the `task` argument.
+- To see how an answer was produced, open the message's "run" link (the run's live log).

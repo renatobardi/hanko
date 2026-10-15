@@ -110,6 +110,10 @@ func clip(s string, max int) string {
 func buildEnv(base, publicURL, token string, rc service.RunContext) map[string]string {
 	attrs := fmt.Sprintf("hanko.company_id=%s,hanko.persona_id=%s,hanko.run_id=%s,hanko.task_id=%s",
 		rc.Company.ID, rc.Persona.ID, rc.Run.ID, rc.Task.ID)
+	if rc.Chat != nil {
+		attrs = fmt.Sprintf("hanko.company_id=%s,hanko.persona_id=%s,hanko.run_id=%s,hanko.conversation_id=%s",
+			rc.Company.ID, rc.Persona.ID, rc.Run.ID, rc.Chat.Conversation.ID)
+	}
 	if base = strings.TrimSpace(base); base != "" {
 		attrs = strings.TrimRight(base, ",") + "," + attrs
 	}
@@ -118,6 +122,9 @@ func buildEnv(base, publicURL, token string, rc service.RunContext) map[string]s
 		"CLAUDE_CODE_ENABLE_TELEMETRY": "1",
 		"HANKO_RUN_ID":                 rc.Run.ID.String(),
 		"HANKO_TASK_KEY":               rc.Task.Key,
+	}
+	if rc.Chat != nil {
+		env["HANKO_CONVERSATION_ID"] = rc.Chat.Conversation.ID.String()
 	}
 	// No token means a credential-less (review) run: it does not even learn where Hanko is.
 	if token != "" {

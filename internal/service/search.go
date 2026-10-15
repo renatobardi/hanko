@@ -317,8 +317,16 @@ func (s *Service) searchRuns(ctx context.Context, q *store.Queries, co store.Com
 			name = r.ID.String()[:8]
 		}
 		at := r.CreatedAt
+		// a chat run has no task (ADR-0027): no key or title
+		var key, title string
+		if r.Number != nil {
+			key = taskKeyOf(r.TaskPrefix, *r.Number)
+		}
+		if r.TaskTitle != nil {
+			title = *r.TaskTitle
+		}
 		g.Hits = append(g.Hits, SearchHit{Type: SearchRun, ID: r.ID, Ref: r.ID.String(), Title: search.Mark(name, pq),
-			Snippet: search.Snippet(r.Summary, pq, snippetWidth), TaskKey: taskKeyOf(r.TaskPrefix, r.Number), TaskTitle: r.TaskTitle,
+			Snippet: search.Snippet(r.Summary, pq, snippetWidth), TaskKey: key, TaskTitle: title,
 			Status: r.Status, Persona: r.PersonaName, At: &at, Score: r.Score})
 	}
 	return g, nil

@@ -267,6 +267,15 @@ func (s *server) renderPersona(w http.ResponseWriter, r *http.Request, co domain
 	for _, rv := range runs {
 		vm.Runs = append(vm.Runs, runRow(ctx, rv, base, now, loc))
 	}
+	chats, err := s.be.ListConversations(ctx, co.ID, service.ConversationFilter{PersonaID: &p.ID, Limit: 10})
+	if err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
+	vm.Chats = chatRows(ctx, chats, base, now, loc)
+	if views.RoleFrom(ctx).AtLeast(domain.MemberMember) {
+		vm.NewChatHref = base + "/chat?persona=" + p.Slug
+	}
 	sh := s.shell(r, co, "personas", p.Name, views.Crumb{Label: i18n.T(ctx, "Personas"), Href: base + "/personas"}, views.Crumb{Label: p.Name})
 	if sh.CanWrite() {
 		sh.Action = &views.Action{Label: i18n.T(ctx, "Nova task"), Href: base + "/tasks/nova?persona=" + p.ID.String(), Icon: "plus"}

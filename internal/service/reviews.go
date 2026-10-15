@@ -126,10 +126,17 @@ func (t *txc) lockTaskOfReviewRun(companyID, runID domain.ID) error {
 	if err != nil {
 		return mapErr(err, "get run")
 	}
-	if tr := domain.RunTrigger(peek.Trigger); tr != domain.TriggerReview && tr != domain.TriggerMemory {
+	switch tr := domain.RunTrigger(peek.Trigger); {
+	case tr == domain.TriggerChat && peek.ConversationID != nil:
+		// Run de chat: a conversa é a trava (mesma ordem de SendMessage: conversa antes da run).
+		if _, err := t.q.GetConversationForUpdate(t.ctx, store.GetConversationForUpdateParams{CompanyID: companyID, ID: *peek.ConversationID}); err != nil {
+			return mapErr(err, "get conversation")
+		}
+		return nil
+	case tr != domain.TriggerReview && tr != domain.TriggerMemory, peek.TaskID == nil:
 		return nil
 	}
-	if _, err := t.q.GetTaskByIDForUpdate(t.ctx, store.GetTaskByIDForUpdateParams{CompanyID: companyID, ID: peek.TaskID}); err != nil {
+	if _, err := t.q.GetTaskByIDForUpdate(t.ctx, store.GetTaskByIDForUpdateParams{CompanyID: companyID, ID: *peek.TaskID}); err != nil {
 		return mapErr(err, "get task")
 	}
 	return nil
@@ -331,7 +338,7 @@ func (t *txc) completeReview(rv store.Review, task store.Task, _ *store.Run, sta
 // are not running (already cancelled, or never linked) are left alone.
 func (t *txc) reviewRunEnded(run store.Run, status domain.RunStatus, summary, errMsg string) error {
 	// Canonical lock order: task before review (callers already hold the run).
-	if _, err := t.q.GetTaskByIDForUpdate(t.ctx, store.GetTaskByIDForUpdateParams{CompanyID: run.CompanyID, ID: run.TaskID}); err != nil {
+	if _, err := t.q.GetTaskByIDForUpdate(t.ctx, store.GetTaskByIDForUpdateParams{CompanyID: run.CompanyID, ID: idOrZero(run.TaskID)}); err != nil {
 		return mapErr(err, "get task")
 	}
 	rv, err := t.q.GetReviewByRunIDForUpdate(t.ctx, &run.ID)

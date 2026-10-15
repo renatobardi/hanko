@@ -116,7 +116,10 @@ func (s *Service) RecordMemoryProposal(ctx context.Context, companyID domain.ID,
 			} else if !isNoRows(err) {
 				return fmt.Errorf("lookup proposal: %w", err)
 			}
-			task, err := t.q.GetTaskByID(ctx, store.GetTaskByIDParams{CompanyID: companyID, ID: r.TaskID})
+			if r.TaskID == nil {
+				return domain.Invalid("run", "a consolidation run has a task")
+			}
+			task, err := t.q.GetTaskByID(ctx, store.GetTaskByIDParams{CompanyID: companyID, ID: *r.TaskID})
 			if err != nil {
 				return mapErr(err, "get task")
 			}

@@ -12,21 +12,23 @@ import (
 
 // Spec is everything an adapter needs to execute one run.
 type Spec struct {
-	RunID      domain.ID
-	CompanyID  domain.ID
-	PersonaID  domain.ID
-	TaskID     domain.ID
-	TaskKey    string
-	Agent      string // claude | codex | acp | fake
-	Model      string
-	Dir        string // working directory (workspace path); empty = temp dir
-	System     string // persona instructions + Hanko protocol (appended system prompt)
-	Prompt     string // task + thread + memory briefing
-	SessionRef string // previous agent session id to resume, if any
-	Env        map[string]string
-	MCPConfig  json.RawMessage // {"mcpServers":{...}} written to a temp file for the harness
-	Config     json.RawMessage // persona.adapter_config
-	Timeout    time.Duration
+	RunID     domain.ID
+	CompanyID domain.ID
+	PersonaID domain.ID
+	TaskID    domain.ID
+	TaskKey   string
+	// ConversationID is set (and TaskID zero) on a chat run, which belongs to a conversation, not a task.
+	ConversationID domain.ID
+	Agent          string // claude | codex | acp | fake
+	Model          string
+	Dir            string // working directory (workspace path); empty = temp dir
+	System         string // persona instructions + Hanko protocol (appended system prompt)
+	Prompt         string // task + thread + memory briefing
+	SessionRef     string // previous agent session id to resume, if any
+	Env            map[string]string
+	MCPConfig      json.RawMessage // {"mcpServers":{...}} written to a temp file for the harness
+	Config         json.RawMessage // persona.adapter_config
+	Timeout        time.Duration
 	// ReadOnly forces the harness into its read-only mode (review runs), ignoring any
 	// permissive adapter_config (permission mode, sandbox, extra args).
 	ReadOnly bool
@@ -66,6 +68,16 @@ type Result struct {
 type Adapter interface {
 	Name() string
 	Run(ctx context.Context, spec Spec, sink Sink) (Result, error)
+}
+
+// SessionResumer is implemented by adapters that can resume the harness session named by Spec.SessionRef
+// (a chat run resumes the session of the previous run of its conversation).
+type SessionResumer interface{ ResumesSessions() bool }
+
+// ResumesSessions reports whether a can resume Spec.SessionRef.
+func ResumesSessions(a Adapter) bool {
+	r, ok := a.(SessionResumer)
+	return ok && r.ResumesSessions()
 }
 
 // Registry resolves adapters by agent name.

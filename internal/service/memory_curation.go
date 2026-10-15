@@ -446,8 +446,10 @@ func consolidationOutcome(status domain.RunStatus) (domain.MemoryConsolidationSt
 // memoryRunEnded fecha a rodada e a task de sistema quando a run de curadoria termina (qualquer desfecho).
 // As propostas abertas seguem vivas: o gate é do humano e independe da run.
 func (t *txc) memoryRunEnded(run store.Run, status domain.RunStatus, summary string) error {
-	taskID := run.TaskID
-	c, err := t.q.GetMemoryConsolidationByTaskForUpdate(t.ctx, &taskID)
+	if run.TaskID == nil {
+		return nil
+	}
+	c, err := t.q.GetMemoryConsolidationByTaskForUpdate(t.ctx, run.TaskID)
 	if isNoRows(err) {
 		return nil
 	}

@@ -11,6 +11,7 @@ One term per concept. Code, API, MCP and database use English; the UI is in Braz
 | agent | — | The harness that executes a persona in a run: `claude`, `codex`, `acp` (any ACP agent), `fake`. Appears only in adapter/config. | — |
 | task | Task | A unit of work assigned to a persona. Status: backlog, todo, in_progress, in_review, blocked, done, cancelled. Priority: critical, high, medium, low. | issue, ticket |
 | run | Execução | One execution of a persona on a task, triggered by the heartbeat. Status: queued, running, done, interrupted, failed, cancelled, expired. One task has 0..n runs; at most one active run per task. | job |
+| conversation | Conversa (Chat) | A direct conversation between a human and a persona, outside a task (ADR-0027). Each human message triggers a run with the `chat` trigger; the run's final summary is the reply. Status: open, archived. One active run per conversation; messages that arrive while it runs wait and are answered together by the next one. | thread (that is the task's), room |
 | gate | Gate | A point where a human decides (approve, reject, request changes). Always amber in the UI. Audit trail in activity. | approval, review |
 | flow | Fluxo | A definition plus triggers (cron, event, manual) that creates tasks/runs. | routine, schedule |
 | workspace | Workspace | The directory (and, as metadata, repository and branch) where runs work; lives inside `HANKO_WORKSPACES_ROOT`. Scope of memory (ai-memory) and artifacts. Run precedence: task > project > persona (ADR-0025). | repo |

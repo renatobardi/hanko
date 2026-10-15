@@ -4,7 +4,7 @@
 
 -- Novo gatilho de run: a curadoria de memória (run de sistema da persona curadora). Mantém todos os existentes.
 ALTER TABLE runs DROP CONSTRAINT runs_trigger_check;
-ALTER TABLE runs ADD CONSTRAINT runs_trigger_check CHECK (trigger IN ('assign','comment','manual','heartbeat','gate','flow','review','memory'));
+ALTER TABLE runs ADD CONSTRAINT runs_trigger_check CHECK (trigger IN ('assign','comment','manual','heartbeat','gate','flow','review','chat','memory'));
 
 -- Novo tipo de gate: proposta de curadoria que remove, funde ou reescreve conteúdo.
 ALTER TABLE gates DROP CONSTRAINT gates_kind_check;
@@ -106,4 +106,4 @@ ALTER TABLE gates DROP CONSTRAINT gates_kind_check;
 ALTER TABLE gates ADD CONSTRAINT gates_kind_check CHECK (kind IN ('approval','task_review','hire'));
 UPDATE runs SET trigger = 'manual' WHERE trigger = 'memory';
 ALTER TABLE runs DROP CONSTRAINT runs_trigger_check;
-ALTER TABLE runs ADD CONSTRAINT runs_trigger_check CHECK (trigger IN ('assign','comment','manual','heartbeat','gate','flow','review'));
+ALTER TABLE runs ADD CONSTRAINT runs_trigger_check CHECK (trigger IN ('assign','comment','manual','heartbeat','gate','flow','review','chat'));
