@@ -206,6 +206,7 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("GET /c/{company}/execucoes/{run}/sse", co(s.handleRunSSE))
 	mux.HandleFunc("POST /c/{company}/execucoes/{run}/cancelar", post(co(s.handleCancelRun)))
 
+	mux.HandleFunc("POST /c/{company}/personas/{persona}/revisor", post(co(s.handlePersonaReviewer)))
 	mux.HandleFunc("POST /c/{company}/personas/{persona}/organizacao", post(co(s.handlePersonaOrg)))
 
 	mux.HandleFunc("GET /c/{company}/caixa", co(s.handleInbox))
@@ -279,6 +280,7 @@ func (s *server) render(w http.ResponseWriter, r *http.Request, status int, c te
 	if id, ok := auth.IdentityFrom(ctx); ok {
 		ctx = views.WithUser(ctx, views.UserRef{Name: id.User.DisplayName(), Email: id.User.Email})
 	}
+	ctx = s.withSwitcher(ctx, r)
 	if err := c.Render(ctx, &buf); err != nil {
 		s.log.Error("ui render", "path", r.URL.Path, "err", err)
 		http.Error(w, i18n.T(ctx, "erro ao renderizar a página"), http.StatusInternalServerError)

@@ -230,6 +230,9 @@ func (f *Fake) UpdatePersona(_ context.Context, _ domain.Actor, _, personaID dom
 		if in.RequireReview != nil {
 			p.RequireReview = *in.RequireReview
 		}
+		if err := f.applyReviewer(&p, in); err != nil {
+			return domain.Persona{}, err
+		}
 		if in.ClearBudget {
 			p.BudgetMonthlyCents = nil
 		} else if in.BudgetMonthlyCents != nil {
@@ -563,4 +566,43 @@ func mustUUID(s string) [16]byte {
 func uuidParse(s string) ([16]byte, error) {
 	u, err := uuid.Parse(s)
 	return [16]byte(u), err
+}
+
+// applyReviewer mirrors the service rules for the reviewer of a persona: another persona of the
+// company or an alternate harness, never both, never itself, never the author's own harness+model.
+func (f *Fake) applyReviewer(p *domain.Persona, in service.UpdatePersonaInput) error {
+	switch {
+	case in.ClearReviewer:
+		if in.ReviewerPersona != nil || in.ReviewerAgent != nil || in.ReviewerModel != nil {
+			return domain.Invalid("reviewer", "cannot set and clear at once")
+		}
+		p.ReviewerPersonaID, p.ReviewerAgent, p.ReviewerModel = nil, "", ""
+	case in.ReviewerPersona != nil:
+		if *in.ReviewerPersona == p.ID {
+			return domain.Invalid("reviewer", "a persona cannot review itself; use an alternate harness instead")
+		}
+		if f.personaName(in.ReviewerPersona) == "" {
+			return domain.Invalid("reviewer", "persona not found in company")
+		}
+		id := *in.ReviewerPersona
+		p.ReviewerPersonaID, p.ReviewerAgent, p.ReviewerModel = &id, "", ""
+	case in.ReviewerAgent != nil || in.ReviewerModel != nil:
+		agent, model := "", ""
+		if in.ReviewerAgent != nil {
+			agent = *in.ReviewerAgent
+		}
+		if in.ReviewerModel != nil {
+			model = *in.ReviewerModel
+		}
+		switch {
+		case agent == "" && model != "":
+			return domain.Invalid("reviewer_agent", "required when reviewer_model is set")
+		case agent != "" && !domain.ValidAgent(agent):
+			return domain.Invalid("reviewer_agent", "unknown agent "+agent)
+		case agent != "" && agent == p.Agent && model == p.Model:
+			return domain.Invalid("reviewer_agent", "the alternate harness is the same as the author's (same agent and model); change the agent or the model")
+		}
+		p.ReviewerPersonaID, p.ReviewerAgent, p.ReviewerModel = nil, agent, model
+	}
+	return nil
 }

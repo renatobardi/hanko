@@ -254,7 +254,8 @@ templ NewTaskPage(sh Shell, vm NewTaskVM) {
 			</div>
 			<div class="field">
 				<label for="t-model">{ i18n.T(ctx, "Modelo (opcional)") }</label>
-				<input class="input" id="t-model" name="model" value={ vm.Model } placeholder={ i18n.T(ctx, "vazio = o modelo da persona") } autocomplete="off"/>
+				<input class="input" id="t-model" name="model" value={ vm.Model } placeholder={ i18n.T(ctx, "vazio = o modelo da persona") } list="t-models" autocomplete="off"/>
+				@ModelDatalist("t-models")
 				<span class="hint">{ i18n.T(ctx, "Escolha manual: vence o modelo da persona nas execuções desta task.") }</span>
 			</div>
 			<div class="form-actions">

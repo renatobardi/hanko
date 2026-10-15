@@ -107,12 +107,7 @@ templ HirePersonaPage(sh Shell, vm HirePersonaVM) {
 				<div class="field">
 					<label for="p-model">{ i18n.T(ctx, "Modelo") }</label>
 					<input class="input" id="p-model" name="model" value={ vm.Model } placeholder={ i18n.T(ctx, "sonnet (vazio = padrão do harness)") } list="models"/>
-					<datalist id="models">
-						<option value="sonnet"></option>
-						<option value="opus"></option>
-						<option value="haiku"></option>
-						<option value="gpt-5"></option>
-					</datalist>
+					@ModelDatalist("models")
 					<span class="hint">{ i18n.T(ctx, "Lista sugerida · ou informe um ID manual.") }</span>
 				</div>
 				<div class="field">
@@ -212,6 +207,15 @@ templ PersonaPage(sh Shell, vm PersonaVM) {
 							<span class="muted">{ i18n.T(ctx, "Não") }</span>
 						}
 					</dd>
+					<dt>{ i18n.T(ctx, "Revisor") }</dt><dd>
+						if vm.Reviewer.Summary == "" {
+							<span class="muted">{ i18n.T(ctx, "Sem revisor") }</span>
+						} else if vm.Reviewer.Href != "" {
+							<a href={ templ.SafeURL(vm.Reviewer.Href) } style="text-decoration:underline;text-underline-offset:2px">{ vm.Reviewer.Summary }</a>
+						} else {
+							<span class="mono">{ vm.Reviewer.Summary }</span>
+						}
+					</dd>
 					if len(vm.Reports) > 0 {
 						<dt>{ i18n.T(ctx, "Equipe") }</dt><dd>
 							for i, r := range vm.Reports {
@@ -248,6 +252,35 @@ templ PersonaPage(sh Shell, vm PersonaVM) {
 					</label>
 				</div>
 				<div class="form-actions" style="margin-top:0"><button class="btn primary sm" type="submit">{ i18n.T(ctx, "Salvar organização") }</button></div>
+			</form>
+		</section>
+		<section class="card pad" id="revisor" style="margin-top:20px">
+			<div class="card-head"><div><h2>{ i18n.T(ctx, "Revisor") }</h2><p class="sub">{ i18n.T(ctx, "Quem faz a revisão automática antes do gate humano: outra persona, ou este mesmo papel rodando em outro harness ou modelo.") }</p></div></div>
+			<form method="post" action={ templ.SafeURL(vm.Reviewer.Action) } hx-boost="true" class="org-form">
+				if vm.Reviewer.Error != "" {
+					@Alert("danger", vm.Reviewer.Error)
+				}
+				<div class="field">
+					<span class="lbl">{ i18n.T(ctx, "Modo") }</span>
+					<label class="check"><input type="radio" name="mode" value="none" checked?={ vm.Reviewer.Mode == "none" }/><span>{ i18n.T(ctx, "Sem revisor") }</span></label>
+					<label class="check"><input type="radio" name="mode" value="persona" checked?={ vm.Reviewer.Mode == "persona" }/><span>{ i18n.T(ctx, "Outra persona") }</span></label>
+					<label class="check"><input type="radio" name="mode" value="harness" checked?={ vm.Reviewer.Mode == "harness" }/><span>{ i18n.T(ctx, "Mesmo papel com outro harness ou modelo") }</span></label>
+				</div>
+				<div class="field">
+					<label for="rv-persona">{ i18n.T(ctx, "Persona revisora") }</label>
+					@Select("reviewer_persona", "rv-persona", vm.Reviewer.Persona, false)
+				</div>
+				<div class="field">
+					<label for="rv-agent">Harness</label>
+					@Select("reviewer_agent", "rv-agent", vm.Reviewer.Agent, false)
+				</div>
+				<div class="field">
+					<label for="rv-model">{ i18n.T(ctx, "Modelo do revisor") }</label>
+					<input class="input" id="rv-model" name="reviewer_model" value={ vm.Reviewer.Model } placeholder={ i18n.T(ctx, "vazio = padrão do harness") } list="rv-models" autocomplete="off"/>
+					@ModelDatalist("rv-models")
+					<span class="hint">{ i18n.T(ctx, "Harness e modelo valem só no modo mesmo papel e precisam diferir dos da persona.") }</span>
+				</div>
+				<div class="form-actions" style="margin-top:0"><button class="btn primary sm" type="submit">{ i18n.T(ctx, "Salvar revisor") }</button></div>
 			</form>
 		</section>
 		<section class="card pad" id="assinatura" style="margin-top:20px">

@@ -28,6 +28,14 @@ templ OnboardingPage(vm OnboardingVM, version string) {
 				</div>
 				<button class="btn primary block" type="submit">{ i18n.T(ctx, "Criar empresa e continuar") }</button>
 			</form>
+			if cs := switcherFrom(ctx).Companies; len(cs) > 0 {
+				<div class="foot co-back">
+					<span>{ i18n.T(ctx, "Ou volte para uma empresa:") }</span>
+					for _, c := range cs {
+						<a href={ templ.SafeURL("/c/" + c.Slug + "/") }>{ c.Name }</a>
+					}
+				</div>
+			}
 			<div class="foot"><span>{ i18n.T(ctx, "Hanko · control plane de personas de IA") }</span></div>
 			@LangSwitch()
 		</div>
