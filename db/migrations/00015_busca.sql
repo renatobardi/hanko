@@ -28,6 +28,8 @@ ALTER TABLE task_comments ADD COLUMN search_tsv tsvector GENERATED ALWAYS AS (
     to_tsvector('simple', hanko_fold(left(body, 100000)))
 ) STORED;
 CREATE INDEX task_comments_search_idx ON task_comments USING gin (search_tsv);
+-- Termo comum: as 2000 candidatas mais recentes saem por este índice, sem ler o GIN inteiro (SearchComments).
+CREATE INDEX task_comments_company_created_idx ON task_comments (company_id, created_at DESC, id);
 
 ALTER TABLE personas ADD COLUMN search_tsv tsvector GENERATED ALWAYS AS (
     setweight(to_tsvector('simple', hanko_fold(left(name, 1000) || ' ' || left(slug, 1000))), 'A') ||
@@ -56,6 +58,7 @@ DROP INDEX IF EXISTS runs_search_idx;
 ALTER TABLE runs DROP COLUMN IF EXISTS search_tsv;
 DROP INDEX IF EXISTS personas_search_idx;
 ALTER TABLE personas DROP COLUMN IF EXISTS search_tsv;
+DROP INDEX IF EXISTS task_comments_company_created_idx;
 DROP INDEX IF EXISTS task_comments_search_idx;
 ALTER TABLE task_comments DROP COLUMN IF EXISTS search_tsv;
 DROP INDEX IF EXISTS tasks_search_idx;
