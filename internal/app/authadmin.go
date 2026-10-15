@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"os"
 	"strings"
 
 	"github.com/renatobardi/hanko/internal/auth"
@@ -30,7 +31,10 @@ func OpenAuthAdmin(ctx context.Context, cfg config.Config) (cli.AuthAdmin, error
 	if err != nil {
 		return nil, err
 	}
-	return &authAdmin{Service: service.New(pool, nil, nil), provider: cfg.Auth.Provider, closePool: pool.Close}, nil
+	svc := service.New(pool, nil, nil)
+	// o registro de auditoria das operações de conta vai para o stderr (o stdout é do resultado do comando)
+	svc.Log = slog.New(slog.NewTextHandler(os.Stderr, nil))
+	return &authAdmin{Service: svc, provider: cfg.Auth.Provider, closePool: pool.Close}, nil
 }
 
 // CreateOwner só vale com o provider local: no firebase, o primeiro login vira dono.

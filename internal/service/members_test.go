@@ -1,8 +1,11 @@
 package service_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"log/slog"
 	"strings"
 	"sync"
 	"testing"
@@ -852,5 +855,120 @@ func TestAcceptInviteLocalNameLimit(t *testing.T) {
 	}
 	if _, _, err := e.svc.AcceptInviteLocal(context.Background(), tok, strings.Repeat("é", 80), goodPass); err != nil {
 		t.Fatalf("nome de 80 caracteres: %v", err)
+	}
+}
+
+// Entrou pelo convite (login firebase cria a conta com invited=true) e nunca o aceitou: sem nenhuma empresa, a
+// marca não vale. O próximo login volta a depender das listas e a marca é limpa.
+func TestFirebaseInvitedSemEmpresaNaoFicaOrfao(t *testing.T) {
+	e := newEnv(t)
+	bg := context.Background()
+	own := mkUser(t, e, "own@x.com", domain.RoleOwner)
+	join(t, e, own, domain.MemberOwner)
+	_, tok, _ := e.svc.InviteMember(as(own), own.Actor(), e.co.ID, "conv@x.com", domain.MemberViewer)
+	in := service.FirebaseLogin{UID: "uid-1", Email: "conv@x.com", ListsConfigured: true, OwnerEmail: "own@x.com", InviteToken: tok}
+	u, err := e.svc.LoginFirebase(bg, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !invitedFlag(t, e, u.ID) {
+		t.Fatal("conta criada pelo convite começa invited")
+	}
+	// o aceite nunca acontece (aba fechada, convite revogado, erro de rede...)
+	in.InviteToken = ""
+	if _, err := e.svc.LoginFirebase(bg, in); !errors.Is(err, domain.ErrNotAllowed) {
+		t.Fatalf("sem empresa e fora das listas: o relogin deve ser recusado, veio %v", err)
+	}
+	if invitedFlag(t, e, u.ID) {
+		t.Fatal("a marca invited órfã deveria ter sido limpa, mesmo com a recusa")
+	}
+
+	// quem aceitou (tem empresa) continua admitido
+	_, tok2, _ := e.svc.InviteMember(as(own), own.Actor(), e.co.ID, "ok@x.com", domain.MemberViewer)
+	in2 := service.FirebaseLogin{UID: "uid-2", Email: "ok@x.com", ListsConfigured: true, OwnerEmail: "own@x.com", InviteToken: tok2}
+	u2, err := e.svc.LoginFirebase(bg, in2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.svc.AcceptInvite(bg, tok2, u2); err != nil {
+		t.Fatal(err)
+	}
+	in2.InviteToken = ""
+	if _, err := e.svc.LoginFirebase(bg, in2); err != nil {
+		t.Fatalf("convidado com empresa continua admitido: %v", err)
+	}
+	if !invitedFlag(t, e, u2.ID) {
+		t.Fatal("convidado com empresa mantém invited")
+	}
+}
+
+// reset-password e remove deixam registro estruturado (quem operou, em quem, o quê), sem a senha; tentativa
+// negada também fica registrada.
+func TestAdminUserOperationsAreAudited(t *testing.T) {
+	e := newEnv(t)
+	var buf bytes.Buffer
+	e.svc.Log = slog.New(slog.NewJSONHandler(&buf, nil))
+	inst := mkUser(t, e, "dono@x.com", domain.RoleOwner)
+	alvo := mkUser(t, e, "alvo@x.com", domain.RoleMember)
+	plain := mkUser(t, e, "comum@x.com", domain.RoleMember)
+
+	lines := func() []map[string]any {
+		var out []map[string]any
+		for _, l := range strings.Split(strings.TrimSpace(buf.String()), "\n") {
+			if l == "" {
+				continue
+			}
+			var m map[string]any
+			if err := json.Unmarshal([]byte(l), &m); err != nil {
+				t.Fatalf("log não é JSON: %q", l)
+			}
+			out = append(out, m)
+		}
+		return out
+	}
+
+	if _, _, err := e.svc.AdminResetPassword(as(plain), alvo.Email, ""); !errors.Is(err, domain.ErrForbidden) {
+		t.Fatal(err)
+	}
+	ls := lines()
+	if len(ls) != 1 || ls[0]["action"] != "user.reset_password" || ls[0]["result"] != "denied" || ls[0]["actor_email"] != plain.Email ||
+		ls[0]["target_email"] != alvo.Email || ls[0]["level"] != "WARN" {
+		t.Fatalf("tentativa negada: %v", ls)
+	}
+
+	buf.Reset()
+	_, tmp, err := e.svc.AdminResetPassword(as(inst), alvo.Email, "")
+	if err != nil || tmp == "" {
+		t.Fatalf("reset: %q %v", tmp, err)
+	}
+	ls = lines()
+	if len(ls) != 1 {
+		t.Fatalf("reset: %v", ls)
+	}
+	r := ls[0]
+	if r["action"] != "user.reset_password" || r["result"] != "ok" || r["actor_email"] != inst.Email || r["actor_id"] != inst.ID.String() ||
+		r["target_email"] != alvo.Email || r["target_id"] != alvo.ID.String() || r["level"] != "INFO" {
+		t.Fatalf("reset: %v", r)
+	}
+	if strings.Contains(buf.String(), tmp) {
+		t.Fatal("a senha temporária não pode ir para o log")
+	}
+
+	buf.Reset()
+	if err := e.svc.AdminRemoveUser(as(inst), alvo.Email); err != nil {
+		t.Fatal(err)
+	}
+	ls = lines()
+	if len(ls) != 1 || ls[0]["action"] != "user.remove" || ls[0]["result"] != "ok" || ls[0]["actor_email"] != inst.Email ||
+		ls[0]["target_email"] != alvo.Email || ls[0]["target_id"] != alvo.ID.String() {
+		t.Fatalf("remove: %v", ls)
+	}
+
+	buf.Reset() // recusa de regra de negócio (o dono não é removível) também fica registrada
+	if err := e.svc.AdminRemoveUser(as(inst), inst.Email); !errors.Is(err, domain.ErrConflict) {
+		t.Fatal(err)
+	}
+	if ls = lines(); len(ls) != 1 || ls[0]["result"] != "refused" {
+		t.Fatalf("remove recusado: %v", ls)
 	}
 }
