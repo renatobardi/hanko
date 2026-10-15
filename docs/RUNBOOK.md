@@ -86,7 +86,7 @@ subir (config inválida), de propósito. Com o modo `authenticated`, use o §5 e
 - Run tokens só valem enquanto o run está `queued`/`running`.
 - Memória: o agente fala com `<HANKO_PUBLIC_URL>/memory-mcp` usando o run token; o Hanko injeta `HANKO_MEMORY_TOKEN` e o escopo
   (empresa/workspace) do lado do servidor. O token do ai-memory nunca vai ao agente.
-- Workspaces só podem apontar para dentro de `HANKO_WORKSPACES_ROOT` (padrão `$HOME/hanko-workspaces`), com caminho absoluto e limpo.
+- Workspaces só podem apontar para dentro da subpasta da empresa na raiz, `HANKO_WORKSPACES_ROOT/<slug-da-empresa>/...` (raiz padrão `$HOME/hanko-workspaces`), com caminho absoluto e limpo; a raiz é compartilhada entre empresas e a subpasta as isola. Na execução o caminho é revalidado (symlinks resolvidos): fora da raiz, a run usa um diretório temporário e deixa um aviso.
 - Orçamento: antes de abrir uma run, o Hanko soma o gasto do mês, a reserva de cada run `queued`/`running` e a reserva da nova;
   se passar do teto da persona ou da empresa, a run não abre. A reserva de uma run é o maior entre a média de custo das últimas
   10 runs da persona e `HANKO_RUN_RESERVE_USD` (padrão `1.00`). Persona pausada por orçamento volta sozinha quando o teto sobe
@@ -333,7 +333,7 @@ Registre data e resultado em `docs/SESSION.md` ou no issue de operação.
 | `/mcp` responde 401 de fora | modo trusted só aceita sem token em loopback | normal: agentes usam run token; humanos usam a API/UI |
 | `421 host não permitido` | cabeçalho `Host` fora da lista | acrescente o nome em `HANKO_ALLOWED_HOSTS` ou ajuste `HANKO_PUBLIC_URL` |
 | `HANKO_SECRET tem N bytes` | secret curto | `openssl rand -hex 32` |
-| `path: must be inside the workspaces root` ao criar workspace | caminho fora de `HANKO_WORKSPACES_ROOT` | use um caminho dentro da raiz ou mude a raiz |
+| `path: must be inside the workspaces root` ao criar workspace | caminho fora de `HANKO_WORKSPACES_ROOT/<slug-da-empresa>` | use um caminho dentro da pasta da empresa na raiz ou mude a raiz |
 | Agente não enxerga uma variável de ambiente | env filtrado (allowlist) | `HANKO_AGENT_ENV_ALLOW=NOME` (ou `adapter_config.env` numa persona `acp`) |
 | Run `acp` falha com "não respondeu ao initialize" | o comando não fala ACP v1 por stdio (ou demora mais que `init_timeout_sec`) | rode o comando à mão; o erro traz as últimas linhas de stdout/stderr (§ Agentes ACP) |
 | Run `acp` termina em segundos sem editar nada | política `read_only` (padrão) recusou a edição | veja os eventos "permissão negada" no log; contrate com `permission: allow` se for o caso |
@@ -481,7 +481,7 @@ para um workspace e pode ter orçamento mensal (ADR-0025). Telas `/projetos` e `
 
 - **Pasta da run:** workspace da task > workspace do projeto > workspace da persona > diretório temporário. A origem fica em
   `runs.workspace_source` (`task|project|persona|none`).
-- **Caminho:** absoluto, limpo e dentro de `HANKO_WORKSPACES_ROOT`. Se o diretório não existe na máquina a UI mostra "diretório ausente"
+- **Caminho:** absoluto, limpo e dentro de `HANKO_WORKSPACES_ROOT/<slug-da-empresa>` (workspaces antigos fora da pasta da empresa seguem funcionando e a UI avisa). Se o diretório não existe na máquina a UI mostra "diretório ausente"
   e as runs usam um temporário; crie a pasta (o Hanko não faz `git clone`).
 - **Excluir workspace em uso** dá 409; `--unlink` (CLI), `?unlink=true` (API) ou a caixa na UI desvinculam personas, projetos e tasks.
 - **Orçamento do projeto:** estourou, a run é recusada com o motivo, sem pausar a persona; ≥ 80% abre alerta na Caixa de entrada. Suba o

@@ -199,6 +199,40 @@ func TestFix2RetryManualRecolocaNaFilaNaHora(t *testing.T) {
 	}
 }
 
+// Workspace salvo antes da regra da subpasta continua funcionando e a UI recebe o aviso.
+func TestFix2WorkspaceAntigoForaDaPastaDaEmpresaTemAviso(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	old := e.workspace(t, "Legado", func(in *service.CreateWorkspaceInput) { in.Path = "/srv/legado" }) // sem raiz configurada
+	e.svc.WorkspacesRoot = t.TempDir()
+	home := e.svc.WorkspacesRoot + "/" + e.co.Slug
+	novo := e.workspace(t, "Novo", func(in *service.CreateWorkspaceInput) { in.Path = home + "/novo" })
+
+	vs, err := e.svc.ListWorkspaceViews(ctx, e.co.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]bool{}
+	for _, v := range vs {
+		got[v.Slug] = v.OutsideRoot
+	}
+	if !got[old.Slug] || got[novo.Slug] {
+		t.Fatalf("OutsideRoot = %v", got)
+	}
+	if v, err := e.svc.GetWorkspaceView(ctx, e.co.ID, old.Slug); err != nil || !v.OutsideRoot || v.Path != "/srv/legado" {
+		t.Fatalf("detalhe: %+v %v", v, err)
+	}
+	// editar só o nome não revalida o caminho antigo; trocar o caminho exige a pasta da empresa
+	if _, err := e.svc.UpdateWorkspace(ctx, domain.HumanActor, e.co.ID, old.ID, service.UpdateWorkspaceInput{Name: ptr("Legado 2")}); err != nil {
+		t.Fatalf("renomear: %v", err)
+	}
+	_, err = e.svc.UpdateWorkspace(ctx, domain.HumanActor, e.co.ID, old.ID, service.UpdateWorkspaceInput{Path: ptr(e.svc.WorkspacesRoot + "/solto")})
+	wantErr(t, err, domain.ErrInvalid)
+	if _, err := e.svc.UpdateWorkspace(ctx, domain.HumanActor, e.co.ID, old.ID, service.UpdateWorkspaceInput{Path: ptr(home + "/legado")}); err != nil {
+		t.Fatalf("mover para a pasta da empresa: %v", err)
+	}
+}
+
 // Conversa recusada (persona pausada) não anuncia "conversation.created" de uma conversa que foi apagada.
 func TestFix2ConversaRecusadaNaoEmiteAtividadeDeCriacao(t *testing.T) {
 	ctx := context.Background()

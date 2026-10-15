@@ -43,22 +43,26 @@ func (e *env) project(t *testing.T, name string, mod func(*service.CreateProject
 func TestWorkspacePathValidation(t *testing.T) {
 	e := newEnv(t)
 	ctx := context.Background()
-	root := t.TempDir()
-	e.svc.WorkspacesRoot = root
+	base := t.TempDir()
+	e.svc.WorkspacesRoot = base
+	root := base + "/" + e.co.Slug // a pasta da empresa: os caminhos válidos ficam dentro dela
 
 	bad := map[string]string{
-		"relativo":              "api",
-		"relativo com ponto":    "./api",
-		"travessia":             root + "/../fora",
-		"travessia no meio":     root + "/a/../../fora",
-		"fora da raiz":          "/etc",
-		"a própria raiz":        root,
-		"irmão com prefixo":     root + "-irmao/x",
-		"barra dupla":           root + "//x",
-		"barra final":           root + "/x/",
-		"caractere de controle": root + "/x\ny",
-		"NUL":                   root + "/x\x00y",
-		"longo demais":          root + "/" + strings.Repeat("a", 1100),
+		"direto na raiz compartilhada": base + "/x",
+		"pasta de outra empresa":       base + "/outra/x",
+		"a raiz compartilhada":         base,
+		"relativo":                     "api",
+		"relativo com ponto":           "./api",
+		"travessia":                    root + "/../fora",
+		"travessia no meio":            root + "/a/../../fora",
+		"fora da raiz":                 "/etc",
+		"a própria raiz":               root,
+		"irmão com prefixo":            root + "-irmao/x",
+		"barra dupla":                  root + "//x",
+		"barra final":                  root + "/x/",
+		"caractere de controle":        root + "/x\ny",
+		"NUL":                          root + "/x\x00y",
+		"longo demais":                 root + "/" + strings.Repeat("a", 1100),
 	}
 	for name, p := range bad {
 		t.Run("recusa "+name, func(t *testing.T) {
@@ -69,6 +73,9 @@ func TestWorkspacePathValidation(t *testing.T) {
 	t.Run("recusa symlink que escapa da raiz", func(t *testing.T) {
 		outside := t.TempDir()
 		link := root + "/atalho"
+		if err := os.MkdirAll(root, 0o755); err != nil {
+			t.Fatal(err)
+		}
 		if err := os.Symlink(outside, link); err != nil {
 			t.Skipf("sem symlink: %v", err)
 		}

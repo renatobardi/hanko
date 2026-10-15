@@ -173,7 +173,7 @@ func (f *Fake) UpdateProject(_ context.Context, _ domain.Actor, _, id domain.ID,
 }
 
 func (f *Fake) workspaceView(w domain.Workspace, detail bool) service.WorkspaceView {
-	v := service.WorkspaceView{Workspace: w}
+	v := service.WorkspaceView{Workspace: w, OutsideRoot: w.Path != "" && !strings.HasPrefix(w.Path, f.companyRoot()+"/")}
 	for _, p := range f.Personas {
 		if p.WorkspaceID != nil && *p.WorkspaceID == w.ID {
 			v.PersonaCount++
@@ -225,8 +225,10 @@ func (f *Fake) GetWorkspaceView(_ context.Context, _ domain.ID, ref string) (ser
 	return service.WorkspaceView{}, domain.ErrNotFound
 }
 
-// WorkspacesRootPath é a raiz fictícia dos testes.
+// WorkspacesRootPath é a raiz fictícia dos testes; os caminhos válidos ficam em <raiz>/hanko/ (pasta da empresa).
 func (f *Fake) WorkspacesRootPath() string { return "/srv/hanko/workspaces" }
+
+func (f *Fake) companyRoot() string { return f.WorkspacesRootPath() + "/hanko" }
 
 func (f *Fake) CreateWorkspace(_ context.Context, _ domain.Actor, companyID domain.ID, in service.CreateWorkspaceInput) (domain.Workspace, error) {
 	f.mu.Lock()
@@ -238,7 +240,7 @@ func (f *Fake) CreateWorkspace(_ context.Context, _ domain.Actor, companyID doma
 	if strings.TrimSpace(in.Name) == "" {
 		return domain.Workspace{}, domain.Invalid("name", "obrigatório")
 	}
-	if !strings.HasPrefix(in.Path, f.WorkspacesRootPath()+"/") {
+	if !strings.HasPrefix(in.Path, f.companyRoot()+"/") {
 		return domain.Workspace{}, domain.Invalid("path", "fora da raiz de workspaces")
 	}
 	slug := in.Slug
@@ -273,7 +275,7 @@ func (f *Fake) UpdateWorkspace(_ context.Context, _ domain.Actor, _, id domain.I
 			w.Name = *in.Name
 		}
 		if in.Path != nil {
-			if *in.Path != "" && !strings.HasPrefix(*in.Path, f.WorkspacesRootPath()+"/") {
+			if *in.Path != "" && !strings.HasPrefix(*in.Path, f.companyRoot()+"/") {
 				return domain.Workspace{}, domain.Invalid("path", "fora da raiz de workspaces")
 			}
 			w.Path = *in.Path

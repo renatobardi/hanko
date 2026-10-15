@@ -38,9 +38,12 @@ type WorkspaceView struct {
 	PersonaCount int `json:"persona_count"`
 	ProjectCount int `json:"project_count"`
 	// OpenTasks conta as tasks abertas que escolheram este workspace de propósito.
-	OpenTasks int        `json:"open_tasks"`
-	Personas  []UsageRef `json:"personas,omitempty"`
-	Projects  []UsageRef `json:"projects,omitempty"`
+	OpenTasks int `json:"open_tasks"`
+	// OutsideRoot: o caminho salvo está fora da subpasta da empresa na raiz dos workspaces (criado antes da regra);
+	// segue funcionando, mas a UI avisa.
+	OutsideRoot bool       `json:"outside_root,omitempty"`
+	Personas    []UsageRef `json:"personas,omitempty"`
+	Projects    []UsageRef `json:"projects,omitempty"`
 }
 
 // InUse diz se o workspace está em uso (e portanto não pode ser excluído sem desvincular).
@@ -115,8 +118,10 @@ func checkBranch(raw string) (string, error) {
 
 // checkWorkspacePath valida o caminho de um workspace: vazio é aceito (workspace só de metadado); senão precisa
 // ser absoluto, limpo (sem "..", "//" ou "/" final), sem NUL nem caracteres de controle e, havendo WorkspacesRoot,
-// ficar estritamente dentro dela depois de resolver symlinks do trecho que já existe no disco.
-func (s *Service) checkWorkspacePath(raw string) (string, error) {
+// ficar estritamente dentro da subpasta da empresa (<raiz>/<slug-da-empresa>/...) depois de resolver symlinks do
+// trecho que já existe no disco. A raiz é compartilhada pela instalação; a subpasta por empresa impede que uma
+// empresa aponte para o diretório de outra (ADR-0025).
+func (s *Service) checkWorkspacePath(companySlug, raw string) (string, error) {
 	p := strings.TrimSpace(raw)
 	if p == "" {
 		return "", nil
@@ -138,12 +143,31 @@ func (s *Service) checkWorkspacePath(raw string) (string, error) {
 	if s.WorkspacesRoot == "" {
 		return p, nil
 	}
-	root := resolveExisting(filepath.Clean(s.WorkspacesRoot))
+	root := resolveExisting(filepath.Join(filepath.Clean(s.WorkspacesRoot), companySlug))
 	rel, err := filepath.Rel(root, resolveExisting(p))
 	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return "", domain.Invalid("path", "must be inside the workspaces root")
+		return "", domain.Invalid("path", "must be inside the company folder of the workspaces root (<root>/<company-slug>/...)")
 	}
 	return p, nil
+}
+
+// CompanyWorkspacesRoot é a pasta da empresa dentro da raiz dos workspaces (<raiz>/<slug>); vazia sem raiz.
+func (s *Service) CompanyWorkspacesRoot(companySlug string) string {
+	if s.WorkspacesRoot == "" {
+		return ""
+	}
+	return filepath.Join(filepath.Clean(s.WorkspacesRoot), companySlug)
+}
+
+// pathOutsideCompanyRoot diz se um caminho já salvo está fora da pasta da empresa (workspace criado antes da regra
+// da subpasta): ele segue funcionando, mas a UI avisa. Comparação léxica; sem raiz, nada está fora.
+func (s *Service) pathOutsideCompanyRoot(companySlug, path string) bool {
+	root := s.CompanyWorkspacesRoot(companySlug)
+	if root == "" || path == "" {
+		return false
+	}
+	rel, err := filepath.Rel(root, filepath.Clean(path))
+	return err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 // resolveExisting resolve symlinks do maior prefixo existente de p e reanexa o resto.
@@ -181,7 +205,11 @@ func (s *Service) CreateWorkspace(ctx context.Context, actor domain.Actor, compa
 	if err != nil {
 		return domain.Workspace{}, err
 	}
-	path, err := s.checkWorkspacePath(in.Path)
+	co, err := s.read().GetCompanyByID(ctx, companyID)
+	if err != nil {
+		return domain.Workspace{}, mapErr(err, "company")
+	}
+	path, err := s.checkWorkspacePath(co.Slug, in.Path)
 	if err != nil {
 		return domain.Workspace{}, err
 	}
@@ -238,7 +266,11 @@ func (s *Service) UpdateWorkspace(ctx context.Context, actor domain.Actor, compa
 			}
 		}
 		if in.Path != nil {
-			path, err := s.checkWorkspacePath(*in.Path)
+			co, err := t.q.GetCompanyByID(ctx, companyID)
+			if err != nil {
+				return mapErr(err, "company")
+			}
+			path, err := s.checkWorkspacePath(co.Slug, *in.Path)
 			if err != nil {
 				return err
 			}
@@ -379,6 +411,10 @@ func (s *Service) ListWorkspaceViews(ctx context.Context, companyID domain.ID) (
 		return nil, err
 	}
 	q := s.read()
+	co, err := q.GetCompanyByID(ctx, companyID)
+	if err != nil {
+		return nil, mapErr(err, "company")
+	}
 	rows, err := q.ListWorkspaces(ctx, companyID)
 	if err != nil {
 		return nil, fmt.Errorf("list workspaces: %w", err)
@@ -394,7 +430,8 @@ func (s *Service) ListWorkspaceViews(ctx context.Context, companyID domain.ID) (
 	out := make([]WorkspaceView, len(rows))
 	for i, r := range rows {
 		c := byID[r.ID]
-		out[i] = WorkspaceView{Workspace: workspaceFromRow(r), PersonaCount: int(c.Personas), ProjectCount: int(c.Projects), OpenTasks: int(c.OpenTasks)}
+		out[i] = WorkspaceView{Workspace: workspaceFromRow(r), PersonaCount: int(c.Personas), ProjectCount: int(c.Projects), OpenTasks: int(c.OpenTasks),
+			OutsideRoot: s.pathOutsideCompanyRoot(co.Slug, r.Path)}
 	}
 	return out, nil
 }
@@ -410,6 +447,9 @@ func (s *Service) GetWorkspaceView(ctx context.Context, companyID domain.ID, ref
 		return WorkspaceView{}, err
 	}
 	v.Workspace = ws
+	if co, err := s.read().GetCompanyByID(ctx, companyID); err == nil {
+		v.OutsideRoot = s.pathOutsideCompanyRoot(co.Slug, ws.Path)
+	}
 	return v, nil
 }
 

@@ -14,7 +14,7 @@ One term per concept. Code, API, MCP and database use English; the UI is in Braz
 | conversation | Conversa (Chat) | A direct conversation between a human and a persona, outside a task (ADR-0027). Each human message triggers a run with the `chat` trigger; the run's final summary is the reply. Status: open, archived. One active run per conversation; messages that arrive while it runs wait and are answered together by the next one. | thread (that is the task's), room |
 | gate | Gate | A point where a human decides (approve, reject, request changes). Always amber in the UI. Audit trail in activity. | approval, review |
 | flow | Fluxo | A definition plus triggers (cron, event, manual) that creates tasks/runs. | routine, schedule |
-| workspace | Workspace | The directory (and, as metadata, repository and branch) where runs work; lives inside `HANKO_WORKSPACES_ROOT`. Scope of memory (ai-memory) and artifacts. Run precedence: task > project > persona (ADR-0025). | repo |
+| workspace | Workspace | The directory (and, as metadata, repository and branch) where runs work; lives inside `HANKO_WORKSPACES_ROOT/<company-slug>`. Scope of memory (ai-memory) and artifacts. Run precedence: task > project > persona (ADR-0025). | repo |
 | integration | Integração | A connected external service (GitHub, Slack, ...). | connector, app |
 | goal / project | Meta / Projeto | Direction: a goal measures; a project groups tasks, points to a workspace, is active or archived and may have a monthly budget (ADR-0025). | — |
 | org_chart | Organograma | `reports_to` between personas; delegation follows the tree. | hierarchy |

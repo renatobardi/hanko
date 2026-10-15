@@ -35,6 +35,10 @@ type Options struct {
 	PeriodicInterval time.Duration // heartbeat_tick, flow_tick and alert_tick period; default 1 min
 	Logger           *slog.Logger
 
+	// WorkspacesRoot is HANKO_WORKSPACES_ROOT: a run only works in a workspace directory that, symlinks resolved,
+	// is strictly inside it (empty = no restriction).
+	WorkspacesRoot string
+
 	// MemorySweepInterval is the memory_sweep period; default 5 min.
 	MemorySweepInterval time.Duration
 

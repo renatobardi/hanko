@@ -95,6 +95,7 @@ type WorkspaceRow struct {
 	OpenTasks int
 	InUse     bool
 	Missing   bool // o diretório não existe neste servidor
+	Outside   bool // o caminho está fora da pasta da empresa na raiz dos workspaces
 }
 
 type WorkspacesVM struct {
@@ -128,6 +129,8 @@ type WorkspaceVM struct {
 	Name         string
 	Path         string
 	Missing      bool
+	Outside      bool   // o caminho está fora da pasta da empresa na raiz dos workspaces
+	Root         string // pasta da empresa na raiz dos workspaces
 	Notice       string
 	Error        string
 	Form         WorkspaceFormVM

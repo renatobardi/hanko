@@ -67,7 +67,7 @@ func Sample() *Fake {
 	linkedin := domain.Project{ID: ID("project:linkedin"), CompanyID: co.ID, Slug: "linkedin", Name: "LinkedIn", Status: domain.ProjectActive, CreatedAt: now, UpdatedAt: now}
 	kubo := domain.Project{ID: ID("project:kubo"), CompanyID: co.ID, Slug: "kubo", Name: "Kubo", Status: domain.ProjectActive, CreatedAt: now, UpdatedAt: now}
 	nas := domain.Project{ID: ID("project:nas"), CompanyID: co.ID, Slug: "nas-3d", Name: "NAS 3D", Status: domain.ProjectActive, CreatedAt: now, UpdatedAt: now}
-	site := domain.Workspace{ID: ID("workspace:site"), CompanyID: co.ID, Slug: "site", Name: "Site institucional", Path: f.WorkspacesRootPath() + "/site",
+	site := domain.Workspace{ID: ID("workspace:site"), CompanyID: co.ID, Slug: "site", Name: "Site institucional", Path: f.WorkspacesRootPath() + "/hanko/site",
 		RepoURL: "https://github.com/hanko/site", DefaultBranch: "main", CreatedAt: now, UpdatedAt: now}
 	f.Workspaces = []domain.Workspace{site}
 	kubo.WorkspaceID = &site.ID

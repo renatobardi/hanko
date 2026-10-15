@@ -10,8 +10,8 @@ O arquivo [`examples/demo-company.json`](../examples/demo-company.json) (formato
 
 ```bash
 # 1. servidor local (veja o RUNBOOK §1 e §5 para banco, HANKO_SECRET e o dono)
-mkdir -p /tmp/hanko-demo/demo && cd /tmp/hanko-demo/demo && git init -q   # workspace onde as personas trabalham
-export HANKO_WORKSPACES_ROOT=/tmp/hanko-demo      # o caminho do workspace do exemplo precisa ficar dentro desta raiz
+mkdir -p /tmp/hanko-demo/demo/app && cd /tmp/hanko-demo/demo/app && git init -q   # workspace onde as personas trabalham
+export HANKO_WORKSPACES_ROOT=/tmp/hanko-demo      # o workspace do exemplo fica em <raiz>/<slug-da-empresa>/app
 hanko serve &                                     # http://127.0.0.1:7420
 
 # 2. cliente (modo authenticated: uma API key do dono)

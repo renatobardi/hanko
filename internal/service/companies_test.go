@@ -73,12 +73,16 @@ func TestCreateWorkspaceRaiz(t *testing.T) {
 	e := newEnv(t)
 	ctx := context.Background()
 	e.svc.WorkspacesRoot = t.TempDir()
-	for _, p := range []string{"/etc", "relativo/x", e.svc.WorkspacesRoot + "/../x"} {
+	for _, p := range []string{"/etc", "relativo/x", e.svc.WorkspacesRoot + "/../x",
+		e.svc.WorkspacesRoot + "/w",               // direto na raiz compartilhada, sem a subpasta da empresa
+		e.svc.WorkspacesRoot + "/outra-empresa/w", // na pasta de outra empresa
+		e.svc.WorkspacesRoot + "/" + e.co.Slug} {  // a própria pasta da empresa não é um workspace
 		_, err := e.svc.CreateWorkspace(ctx, domain.HumanActor, e.co.ID, service.CreateWorkspaceInput{Name: "W", Path: p})
 		wantErr(t, err, domain.ErrInvalid)
 	}
-	ws, err := e.svc.CreateWorkspace(ctx, domain.HumanActor, e.co.ID, service.CreateWorkspaceInput{Name: "W", Path: e.svc.WorkspacesRoot + "/w"})
-	if err != nil || ws.Path != e.svc.WorkspacesRoot+"/w" {
+	home := e.svc.WorkspacesRoot + "/" + e.co.Slug
+	ws, err := e.svc.CreateWorkspace(ctx, domain.HumanActor, e.co.ID, service.CreateWorkspaceInput{Name: "W", Path: home + "/w"})
+	if err != nil || ws.Path != home+"/w" {
 		t.Fatalf("dentro da raiz: %+v %v", ws, err)
 	}
 }

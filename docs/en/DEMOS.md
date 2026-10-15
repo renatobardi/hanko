@@ -10,8 +10,8 @@ One script per milestone of the [ROADMAP](../ROADMAP.md) (Portuguese), each ≤3
 
 ```bash
 # 1. local server (RUNBOOK §1 and §5 cover the database, HANKO_SECRET and the owner)
-mkdir -p /tmp/hanko-demo/demo && cd /tmp/hanko-demo/demo && git init -q   # where the personas work
-export HANKO_WORKSPACES_ROOT=/tmp/hanko-demo      # the example workspace path must sit inside this root
+mkdir -p /tmp/hanko-demo/demo/app && cd /tmp/hanko-demo/demo/app && git init -q   # where the personas work
+export HANKO_WORKSPACES_ROOT=/tmp/hanko-demo      # the example workspace lives at <root>/<company-slug>/app
 hanko serve &                                     # http://127.0.0.1:7420
 
 # 2. client (authenticated mode: an owner API key)

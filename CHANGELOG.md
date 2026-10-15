@@ -22,6 +22,12 @@ English summary at the end of each release.
 - Seção "Memória" nas Configurações da empresa; API `/companies/{c}/memory`; CLI `hanko memory status|config|consolidate|history|proposals|approve|reject|retry|grants|grant|revoke`; variável `HANKO_MEMORY_READ_TOOL`.
 - Chat (ADR-0027): conversa direta de um humano com uma persona, fora de uma task. Cada mensagem dispara uma run com o gatilho `chat` (mesmo adapter, ledger, orçamento, trava semanal, alertas e log), retoma a sessão do harness quando ele sabe e responde com o resumo final; UI em `/c/{empresa}/chat`, API `/conversations`, CLI `hanko chat <persona> "mensagem"` (`--no-wait`, `--conversation`, `list`, `show`), conversas na página da persona e runs de chat identificadas em Execuções e Custos (migration 00018).
 
+### Correções da revisão
+- Curadoria de memória (ADR-0030): a task de sistema da consolidação sempre roda com gatilho `memory` (a rede de segurança do heartbeat não a faz mais virar uma run comum e contornar a política de propostas), não acorda por comentário nem por "Acordar" manual, e o proxy/executor decidem "é curadoria" pela task da run.
+- Aplicação de propostas: sem snooze longo (retry manual e varredura agem na hora), tentativa marcada antes da chamada (`attempt_started_at`, migration 00023) para repetir sem efeito duplicado, sha256 recalculado antes de aplicar, `company_id` nas queries de marcação, e o proxy só sobrepõe `workspace`/`project` que a chamada já traz.
+- Chat (ADR-0027): sem polling eterno com mensagens esperando sem run (aviso "Mensagens esperando resposta"), sem atividade/webhook `conversation.created` de conversa recusada, e runs de chat falhas na Caixa de entrada com link para a conversa.
+- Workspaces (ADR-0025): caminhos novos precisam ficar em `HANKO_WORKSPACES_ROOT/<slug-da-empresa>/...` (os antigos seguem funcionando, com aviso na UI) e o diretório é revalidado (symlinks) antes de cada run; fora da raiz, diretório temporário e evento de aviso. / Review fixes: curation runs cannot be bypassed by the wake trigger, proposal application is idempotent and verified, chat and workspace hardening.
+
 ## [Não lançado] — v0.1.0
 
 Primeira versão pública. Em produção em https://hanko.oute.pro desde 2026-10-14.

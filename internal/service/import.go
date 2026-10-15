@@ -189,7 +189,7 @@ func (s *Service) planImport(ctx context.Context, doc export.Document, opts Impo
 		// workspaces). Senão o workspace entra sem caminho (só nome, repositório e branch) e o import conta isso em
 		// workspace_paths_cleared: um arquivo de fora nunca aponta para fora da raiz, e mudar de máquina não
 		// derruba a importação inteira. Quem importa corrige o caminho depois, na tela do workspace.
-		if _, err := s.checkWorkspacePath(w.Path); err != nil {
+		if _, err := s.checkWorkspacePath(p.slug, w.Path); err != nil {
 			if p.clearedPaths == nil {
 				p.clearedPaths = map[string]bool{}
 			}

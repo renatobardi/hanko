@@ -18,9 +18,10 @@ func TestExportImportProjectsAndWorkspaces(t *testing.T) {
 	ctx := context.Background()
 	root := t.TempDir()
 	e.svc.WorkspacesRoot = root
+	home := root + "/" + e.co.Slug // pasta da empresa na raiz compartilhada
 
 	ws := e.workspace(t, "Site", func(in *service.CreateWorkspaceInput) {
-		in.Path, in.RepoURL, in.DefaultBranch = root+"/site", "https://github.com/o/site", "main"
+		in.Path, in.RepoURL, in.DefaultBranch = home+"/site", "https://github.com/o/site", "main"
 	})
 	pr := e.project(t, "Lançamento", func(in *service.CreateProjectInput) {
 		in.WorkspaceID, in.BudgetMonthlyCents = &ws.ID, ptr(int64(7500))
@@ -38,7 +39,7 @@ func TestExportImportProjectsAndWorkspaces(t *testing.T) {
 	if doc.Format != "hanko.company.v1" {
 		t.Fatalf("formato = %q", doc.Format)
 	}
-	if len(doc.Workspaces) != 1 || doc.Workspaces[0].DefaultBranch != "main" || doc.Workspaces[0].Path != root+"/site" {
+	if len(doc.Workspaces) != 1 || doc.Workspaces[0].DefaultBranch != "main" || doc.Workspaces[0].Path != home+"/site" {
 		t.Fatalf("workspaces: %+v", doc.Workspaces)
 	}
 	byslug := map[string]export.Project{}
@@ -59,12 +60,13 @@ func TestExportImportProjectsAndWorkspaces(t *testing.T) {
 	if res.Counts["workspaces"] != 1 || res.Counts["projects"] != 2 || res.Counts["tasks"] != 1 {
 		t.Fatalf("counts: %+v", res.Counts)
 	}
-	if _, cleared := res.Counts["workspace_paths_cleared"]; cleared {
-		t.Fatalf("o caminho era válido: %+v", res.Counts)
+	// o caminho era da pasta da empresa de origem: a cópia não pode apontar para o diretório de outra empresa
+	if res.Counts["workspace_paths_cleared"] != 1 {
+		t.Fatalf("o caminho da outra empresa deveria ser limpo: %+v", res.Counts)
 	}
 	cp := res.Company.ID
 	w2, err := e.svc.GetWorkspace(ctx, cp, "site")
-	if err != nil || w2.Path != root+"/site" || w2.RepoURL != "https://github.com/o/site" || w2.DefaultBranch != "main" {
+	if err != nil || w2.Path != "" || w2.RepoURL != "https://github.com/o/site" || w2.DefaultBranch != "main" {
 		t.Fatalf("workspace importado: %+v %v", w2, err)
 	}
 	p2, err := e.svc.GetProject(ctx, cp, "lancamento")
@@ -87,7 +89,8 @@ func TestImportWorkspacePathFromAnotherMachine(t *testing.T) {
 
 	doc := export.Document{Format: export.Format, ExportedAt: time.Now().UTC(), Company: export.Company{Name: "Vinda de fora"},
 		Workspaces: []export.Workspace{
-			{Slug: "ok", Name: "Dentro", Path: e.svc.WorkspacesRoot + "/ok", CreatedAt: time.Now().UTC()},
+			{Slug: "ok", Name: "Dentro", Path: e.svc.WorkspacesRoot + "/estrangeira/ok", CreatedAt: time.Now().UTC()},
+			{Slug: "solto", Name: "Direto na raiz", Path: e.svc.WorkspacesRoot + "/solto", CreatedAt: time.Now().UTC()},
 			{Slug: "outra", Name: "Outra máquina", Path: "/home/alguem/repo", RepoURL: "https://github.com/o/r", DefaultBranch: "dev", CreatedAt: time.Now().UTC()},
 			{Slug: "trav", Name: "Travessia", Path: e.svc.WorkspacesRoot + "/../etc", CreatedAt: time.Now().UTC()},
 		},
@@ -96,10 +99,10 @@ func TestImportWorkspacePathFromAnotherMachine(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Counts["workspaces"] != 3 || res.Counts["workspace_paths_cleared"] != 2 {
+	if res.Counts["workspaces"] != 4 || res.Counts["workspace_paths_cleared"] != 3 {
 		t.Fatalf("counts: %+v", res.Counts)
 	}
-	for slug, wantPath := range map[string]string{"ok": e.svc.WorkspacesRoot + "/ok", "outra": "", "trav": ""} {
+	for slug, wantPath := range map[string]string{"ok": e.svc.WorkspacesRoot + "/estrangeira/ok", "solto": "", "outra": "", "trav": ""} {
 		w, err := e.svc.GetWorkspace(ctx, res.Company.ID, slug)
 		if err != nil || w.Path != wantPath {
 			t.Errorf("%s: path = %q (%v), quer %q", slug, w.Path, err, wantPath)

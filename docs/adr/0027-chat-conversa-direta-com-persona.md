@@ -74,3 +74,8 @@ na run e deve valer igual para o chat.
 - Uma pessoa pode ter várias conversas com a mesma persona; elas são independentes (sessões e históricos próprios) e
   cada uma tem no máximo uma run ativa, mas a persona pode estar rodando uma task e conversas ao mesmo tempo (cada run
   responde ao próprio orçamento e à mesma trava semanal).
+
+## Adendo — correções da revisão (2026-10-15)
+- A thread só faz polling com run ativa. Mensagens que ficaram esperando sem run (cancelada ou interrompida) aparecem como aviso ("Mensagens esperando resposta: N"); a próxima mensagem humana abre uma run nova e recolhe todas as pendentes (comportamento já do service), sem polling eterno.
+- `CreateConversation` só grava a atividade `conversation.created` (e portanto o webhook) depois de a persona aceitar a primeira mensagem; uma conversa recusada e apagada não deixa rastro.
+- Runs de chat que falharam entram na Caixa de entrada (aba Falhas) com o título da conversa e link para ela; a retomada é a próxima mensagem. Uma run mais nova da mesma conversa supera a falha, como acontece com as tasks.

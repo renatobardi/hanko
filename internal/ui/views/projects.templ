@@ -319,6 +319,9 @@ templ WorkspacesPage(sh Shell, vm WorkspacesVM) {
 									if r.Missing {
 										<span class="badge warn" title={ i18n.T(ctx, "O diretório não existe neste servidor; as execuções usam um diretório temporário.") }>{ i18n.T(ctx, "diretório ausente") }</span>
 									}
+									if r.Outside {
+										<span class="badge warn" title={ i18n.T(ctx, "O caminho está fora da pasta da empresa na raiz dos workspaces; ele segue funcionando, mas novos caminhos precisam ficar dentro dela.") }>{ i18n.T(ctx, "fora da pasta da empresa") }</span>
+									}
 								</td>
 								<td class="hide-sm mono muted" style="font-size:12.5px">{ r.Path }</td>
 								<td class="hide-sm muted">
@@ -427,6 +430,9 @@ templ WorkspacePage(sh Shell, vm WorkspaceVM) {
 		</div>
 		if vm.Missing {
 			@Alert("warn", i18n.T(ctx, "O diretório não existe neste servidor. As execuções que dependem dele usam um diretório temporário até ele ser criado."))
+		}
+		if vm.Outside {
+			@Alert("warn", i18n.Tf(ctx, "Este caminho está fora da pasta da empresa (%s). Ele segue funcionando, mas ao editar o caminho ele precisa ficar dentro dela.", vm.Root))
 		}
 		<section class="card pad">
 			<div class="card-head"><h2>{ i18n.T(ctx, "Em uso por") }</h2></div>
