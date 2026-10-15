@@ -333,3 +333,19 @@ Record the date and result in `docs/SESSION.md` or in the operations issue.
 | Port 7420 in use | another instance | `HANKO_ADDR` |
 
 Logs are JSON on stderr with `trace_id`/`span_id`: copy the `trace_id` and look it up in Tempo (Grafana) to see the full trace of the request/run.
+
+## Projects and workspaces
+
+A **workspace** is a directory (optionally with `repo_url` and a default branch, metadata only) and a **project** groups tasks, points to a
+workspace and may have a monthly budget (ADR-0025). Screens `/projetos` and `/workspaces`; CLI `hanko project …`, `hanko workspace …`,
+`hanko task create --project`, `hanko cost --project`, `hanko budget set --project`.
+
+- **Run directory:** task workspace > project workspace > persona workspace > temporary directory. The origin is stored in
+  `runs.workspace_source` (`task|project|persona|none`).
+- **Path:** absolute, clean and inside `HANKO_WORKSPACES_ROOT`. If the directory is missing on the machine the UI shows "missing directory"
+  and runs use a temporary one; create the folder (Hanko does not `git clone`).
+- **Deleting a workspace in use** returns 409; `--unlink` (CLI), `?unlink=true` (API) or the checkbox in the UI unlink personas, projects and tasks.
+- **Project budget:** once exceeded, the run is refused with the reason and the persona is not paused; at 80% an alert is opened in the inbox.
+  Raise the cap (`hanko budget set --project <slug> <usd>`) to release it. Paid cost (subscription) is not allocated per project.
+- **Importing from another machine:** a path this installation does not accept is imported empty and `workspace_paths_cleared` reports it;
+  fix with `hanko workspace update <slug> --path …`.

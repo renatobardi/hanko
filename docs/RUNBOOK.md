@@ -378,3 +378,19 @@ O gate nasce com o parecer (veredito, justificativa, sha256 do pacote revisado e
 API, mas **a decisão continua humana**. Revisão que falha, expira, é interrompida ou não traz veredito válido abre o gate sem veredito,
 com o motivo; revisão pendente há mais de 2 h é resolvida da mesma forma. Se a task sai de `in_review` no meio, a revisão é cancelada.
 O sha256 cobre o pacote task + histórico + entrega mostrado ao revisor, não o estado git do workspace.
+
+## Projetos e workspaces
+
+Um **workspace** é um diretório (opcionalmente com `repo_url` e branch padrão, só metadado) e um **projeto** agrupa tasks, aponta
+para um workspace e pode ter orçamento mensal (ADR-0025). Telas `/projetos` e `/workspaces`; CLI `hanko project …`, `hanko workspace …`,
+`hanko task create --project`, `hanko cost --project`, `hanko budget set --project`.
+
+- **Pasta da run:** workspace da task > workspace do projeto > workspace da persona > diretório temporário. A origem fica em
+  `runs.workspace_source` (`task|project|persona|none`).
+- **Caminho:** absoluto, limpo e dentro de `HANKO_WORKSPACES_ROOT`. Se o diretório não existe na máquina a UI mostra "diretório ausente"
+  e as runs usam um temporário; crie a pasta (o Hanko não faz `git clone`).
+- **Excluir workspace em uso** dá 409; `--unlink` (CLI), `?unlink=true` (API) ou a caixa na UI desvinculam personas, projetos e tasks.
+- **Orçamento do projeto:** estourou, a run é recusada com o motivo, sem pausar a persona; ≥ 80% abre alerta na Caixa de entrada. Suba o
+  teto (`hanko budget set --project <slug> <usd>`) para liberar. O custo pago (mensalidade) não é rateado por projeto.
+- **Importar de outra máquina:** caminho que esta instalação não aceita entra vazio e a contagem `workspace_paths_cleared` avisa;
+  ajuste com `hanko workspace update <slug> --path …`.
