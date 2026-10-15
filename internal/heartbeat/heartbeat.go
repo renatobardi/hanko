@@ -93,6 +93,7 @@ type backend interface {
 
 var _ backend = (*service.Service)(nil)
 var _ service.Jobs = (*Heartbeat)(nil)
+var _ service.WebhookJobs = (*Heartbeat)(nil)
 
 // Heartbeat owns the river client and the workers.
 type Heartbeat struct {
@@ -142,6 +143,7 @@ func New(pool *pgxpool.Pool, opts Options) (*Heartbeat, error) {
 		river.AddWorkerSafely(workers, &flowTickWorker{h: h}),
 		river.AddWorkerSafely(workers, &alertTickWorker{h: h}),
 		river.AddWorkerSafely(workers, &startReviewWorker{h: h}),
+		river.AddWorkerSafely(workers, &deliverWebhookWorker{h: h}),
 	); err != nil {
 		return nil, fmt.Errorf("heartbeat workers: %w", err)
 	}
@@ -254,6 +256,14 @@ func (h *Heartbeat) ExecuteRunTx(ctx context.Context, tx pgx.Tx, companyID, runI
 func (h *Heartbeat) DeliverMemoryTx(ctx context.Context, tx pgx.Tx, outboxID domain.ID) error {
 	if _, err := h.client.InsertTx(ctx, tx, DeliverMemoryArgs{OutboxID: outboxID}, nil); err != nil {
 		return fmt.Errorf("enqueue deliver_memory: %w", err)
+	}
+	return nil
+}
+
+// DeliverWebhookTx enqueues the delivery of a webhook_deliveries row inside tx (same transaction as the fact).
+func (h *Heartbeat) DeliverWebhookTx(ctx context.Context, tx pgx.Tx, deliveryID domain.ID) error {
+	if _, err := h.client.InsertTx(ctx, tx, DeliverWebhookArgs{DeliveryID: deliveryID}, nil); err != nil {
+		return fmt.Errorf("enqueue deliver_webhook: %w", err)
 	}
 	return nil
 }

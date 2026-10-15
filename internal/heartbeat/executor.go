@@ -186,7 +186,8 @@ func (h *Heartbeat) executeRunJob(ctx context.Context, a ExecuteRunArgs, ji jobI
 	cleanup := func() {}
 	defer func() { cleanup() }()
 
-	spec, dirCleanup, specErr := h.buildSpec(rc, briefing, handoff, scope, emit)
+	extras := h.runExtras(execCtx, rc, emit)
+	spec, dirCleanup, specErr := h.buildSpec(rc, briefing, handoff, scope, extras, emit)
 	if dirCleanup != nil {
 		cleanup = dirCleanup
 	}
@@ -310,7 +311,7 @@ func (h *Heartbeat) finishFailed(ctx context.Context, a ExecuteRunArgs, ferr err
 
 // buildSpec assembles the adapter.Spec and resolves the working directory. The returned
 // cleanup removes a temp workspace; it may be nil.
-func (h *Heartbeat) buildSpec(rc service.RunContext, briefing, handoff string, scope memory.Scope, emit func(domain.RunEventKind, string)) (adapter.Spec, func(), error) {
+func (h *Heartbeat) buildSpec(rc service.RunContext, briefing, handoff string, scope memory.Scope, extras service.RunExtras, emit func(domain.RunEventKind, string)) (adapter.Spec, func(), error) {
 	publicURL := strings.TrimRight(h.opts.PublicURL, "/")
 	review := rc.Review != nil && rc.Run.Trigger == domain.TriggerReview
 	// A review run is headless and read-only: it gets no run token, no Hanko MCP and no
@@ -323,7 +324,7 @@ func (h *Heartbeat) buildSpec(rc service.RunContext, briefing, handoff string, s
 		if err != nil {
 			return adapter.Spec{}, nil, fmt.Errorf("emitir run token: %w", err)
 		}
-		extraMCP = h.mem.AgentMCP(scope, rc.Run.ID.String(), token)
+		extraMCP = mergeMCP(extras.MCP, h.mem.AgentMCP(scope, rc.Run.ID.String(), token))
 	}
 	mcpCfg, err := buildMCPConfig(publicURL, token, extraMCP)
 	if err != nil {
@@ -343,13 +344,65 @@ func (h *Heartbeat) buildSpec(rc service.RunContext, briefing, handoff string, s
 		}
 	}
 	agent, model := effectiveHarness(rc)
+	// Skills (ADR-0029): o claude as carrega nativamente de um diretório temporário da run; os demais
+	// harnesses recebem o índice no system prompt e buscam o corpo pela tool MCP hanko_skill_get.
+	// Uma run de revisão não usa skills.
+	var skills []domain.Skill
+	if !review && len(extras.Skills) > 0 {
+		if agent == "claude" {
+			skills = extras.Skills
+		} else {
+			system = strings.TrimSpace(system + "\n\n" + SkillIndex(extras.Skills))
+		}
+	}
 	return adapter.Spec{
 		RunID: rc.Run.ID, CompanyID: rc.Company.ID, PersonaID: rc.Persona.ID, TaskID: rc.Task.ID, TaskKey: rc.Task.Key,
 		Agent: agent, Model: model, Dir: dir,
 		System: system, Prompt: prompt, SessionRef: "",
 		Env:       buildEnv(os.Getenv("OTEL_RESOURCE_ATTRIBUTES"), publicURL, token, rc),
-		MCPConfig: mcpCfg, Config: cfg, ReadOnly: review,
+		MCPConfig: mcpCfg, Skills: skills, Config: cfg, ReadOnly: review,
 	}, cleanup, nil
+}
+
+// runExtrasBackend é o que o service oferece para skills e MCPs da empresa; opcional para que os fakes
+// de teste que não os usam continuem valendo.
+type runExtrasBackend interface {
+	RunExtras(ctx context.Context, companyID, personaID domain.ID) (service.RunExtras, error)
+}
+
+// runExtras busca as skills habilitadas e os servidores MCP da empresa para a run. É melhor esforço:
+// uma falha vira aviso no log da run e a execução segue sem os extras. Revisões não os recebem.
+func (h *Heartbeat) runExtras(ctx context.Context, rc service.RunContext, emit func(domain.RunEventKind, string)) service.RunExtras {
+	if rc.Review != nil && rc.Run.Trigger == domain.TriggerReview {
+		return service.RunExtras{}
+	}
+	eb, ok := h.svc.(runExtrasBackend)
+	if !ok {
+		return service.RunExtras{}
+	}
+	ex, err := eb.RunExtras(ctx, rc.Company.ID, rc.Persona.ID)
+	if err != nil {
+		emit(domain.EventSystem, "skills e integrações indisponíveis nesta execução: "+err.Error())
+		return service.RunExtras{}
+	}
+	for _, w := range ex.Warnings {
+		emit(domain.EventSystem, w)
+	}
+	return ex
+}
+
+// mergeMCP junta servidores MCP; em colisão de nome vale o último mapa.
+func mergeMCP(maps ...map[string]json.RawMessage) map[string]json.RawMessage {
+	var out map[string]json.RawMessage
+	for _, m := range maps {
+		for k, v := range m {
+			if out == nil {
+				out = map[string]json.RawMessage{}
+			}
+			out[k] = v
+		}
+	}
+	return out
 }
 
 // workspaceDir returns the workspace path when it exists on disk, otherwise a per-run
