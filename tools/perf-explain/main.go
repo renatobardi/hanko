@@ -25,6 +25,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+
+	"github.com/renatobardi/hanko/internal/search"
 )
 
 type result struct {
@@ -262,6 +264,17 @@ func buildCases(ctx context.Context, conn *pgx.Conn) ([]tcase, error) {
 	runCases := func(group, name, q string, args ...any) tcase {
 		return tcase{group: group, name: name, query: q, args: args}
 	}
+	searchCase := func(group, name, q string, nowT time.Time, company uuid.UUID, text string) tcase {
+		pq, err := search.Parse(text)
+		if err != nil {
+			panic(err)
+		}
+		args := []any{company, pq.TSQuery, nowT, int32(11)} // tasks, comentários, runs
+		if q == "searchPersonas" || q == "searchFlows" {
+			args = []any{pq.TSQuery, nowT, company, int32(11)}
+		}
+		return tcase{group: group, name: name, query: q, args: args}
+	}
 	cs := []tcase{
 		// Listagens paginadas
 		runCases("lista", "tasks pág.1", "listTaskViews", co, noS, (*uuid.UUID)(nil), (*uuid.UUID)(nil), (*string)(nil), int32(0), int32(100)),
@@ -324,6 +337,21 @@ func buildCases(ctx context.Context, conn *pgx.Conn) ([]tcase, error) {
 		runCases("eventos", "catch-up seq>0 (200)", "listRunEvents", co, env.runLong, int64(0), int32(200)),
 		runCases("eventos", "catch-up seq>20 (200)", "listRunEvents", co, env.runMid, int64(20), int32(200)),
 		runCases("eventos", "append evento", "appendRunEvent", uuid.New(), "assistant", "teste", []byte(nil), now, now, co, env.runLong),
+		// Busca única (ADR-0024): consultas reais do service, tsquery montada por internal/search.Parse.
+		// Limite 10 + 1 (como o service). "tarefa" casa todas as tasks da empresa (pior caso).
+		searchCase("busca", "tasks seletiva (migrar módulo 42)", "searchTasks", now, co, "migrar módulo 42"),
+		searchCase("busca", "tasks número (tarefa 12345)", "searchTasks", now, co, "tarefa 12345"),
+		searchCase("busca", "tasks prefixo (migr)", "searchTasks", now, co, "migr"),
+		searchCase("busca", "tasks comum (tarefa, 30 mil)", "searchTasks", now, co, "tarefa"),
+		searchCase("busca", "tasks comum + exclusão", "searchTasks", now, co, "tarefa -migrar"),
+		searchCase("busca", "tasks inexistente", "searchTasks", now, co, "zzzxyz"),
+		searchCase("busca", "comentários seletiva (comentário 4242)", "searchComments", now, co, "comentário 4242"),
+		searchCase("busca", "comentários comum (tarefa, 60 mil)", "searchComments", now, co, "tarefa"),
+		searchCase("busca", "runs seletiva (resumo da run 777)", "searchRuns", now, co, "resumo da run 777"),
+		searchCase("busca", "runs nome (run_1234)", "searchRuns", now, co, "Run_1234"),
+		searchCase("busca", "runs comum (resumo, 80 mil)", "searchRuns", now, co, "resumo"),
+		searchCase("busca", "personas", "searchPersonas", now, co, "persona"),
+		searchCase("busca", "fluxos", "searchFlows", now, co, "digest"),
 		// Export
 		runCases("export", "página de eventos", "exportRunEventsPage", env.runLong, int64(10), int32(500)),
 		runCases("export", "tasks da empresa", "exportTasks", co),

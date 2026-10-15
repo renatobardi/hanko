@@ -17,6 +17,7 @@ import (
 	"github.com/renatobardi/hanko/internal/auth"
 	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/events"
+	"github.com/renatobardi/hanko/internal/memory"
 )
 
 // ErrNotImplemented marks contract stubs not yet filled.
@@ -75,6 +76,8 @@ type Service struct {
 	ExportIdleTxTimeout, ExportStatementTimeout time.Duration
 	// ExportPageHook (só testes) roda antes de cada página de eventos do export; um erro interrompe a escrita.
 	ExportPageHook func(page int) error
+	// Memory é o provider de memória (ADR-0015), usado só pela busca (ADR-0024); nil ou Noop = sem memória na busca.
+	Memory memory.Provider
 	// Log recebe o registro de auditoria das operações administrativas da instalação (hanko auth user ...);
 	// nil descarta.
 	Log *slog.Logger

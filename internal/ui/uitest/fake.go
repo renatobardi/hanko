@@ -43,6 +43,11 @@ type Fake struct {
 	Subs       []service.SubscriptionStatus
 	Members    []domain.Member
 	Invites    []domain.Invite
+	// SearchRes é o que Search devolve (e SearchQ/SearchF a última chamada); Memory liga MemoryAvailable.
+	SearchRes service.SearchResult
+	SearchQ   string
+	SearchF   service.SearchFilter
+	Memory    bool
 	// MyRoleIs é o papel do usuário logado nesta empresa (vazio = owner).
 	MyRoleIs domain.MemberRole
 	nextTask int64
@@ -516,6 +521,22 @@ func (f *Fake) CancelRun(_ context.Context, _ domain.Actor, _, runID domain.ID) 
 		}
 	}
 	return service.RunView{}, domain.ErrNotFound
+}
+
+func (f *Fake) Search(_ context.Context, _ domain.ID, q string, fl service.SearchFilter) (service.SearchResult, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if err := f.fail("Search"); err != nil {
+		return service.SearchResult{}, err
+	}
+	f.SearchQ, f.SearchF = q, fl
+	return f.SearchRes, nil
+}
+
+func (f *Fake) MemoryAvailable() bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.Memory
 }
 
 func (f *Fake) ListActivity(_ context.Context, _ domain.ID, fl service.ActivityFilter) ([]domain.ActivityEvent, error) {

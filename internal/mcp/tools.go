@@ -76,6 +76,38 @@ type projectListIn struct {
 	All     bool   `json:"all,omitempty" jsonschema:"inclui os projetos arquivados (padrão: só os ativos)"`
 }
 
+type searchIn struct {
+	Company string `json:"company,omitempty" jsonschema:"slug ou id da empresa (obrigatório só sem token de run)"`
+	Query   string `json:"query" jsonschema:"o que buscar (palavras, \"frase exata\", -excluir, OR) ou a chave de uma task (HNK-12)"`
+	Types   string `json:"types,omitempty" jsonschema:"tipos separados por vírgula: task,comment,persona,run,flow,memory (padrão: todos)"`
+	Limit   int    `json:"limit,omitempty" jsonschema:"máximo de resultados por tipo (padrão 10, máx 50)"`
+}
+
+type searchHitOut struct {
+	Type      string `json:"type" jsonschema:"task, comment, persona, run, flow ou memory"`
+	Ref       string `json:"ref" jsonschema:"chave da task, slug da persona/fluxo, id da execução ou path da memória"`
+	Title     string `json:"title"`
+	Snippet   string `json:"snippet,omitempty" jsonschema:"trecho que casou; as palavras que casaram vêm entre « e »"`
+	TaskKey   string `json:"task_key,omitempty"`
+	TaskTitle string `json:"task_title,omitempty"`
+	Status    string `json:"status,omitempty"`
+	Author    string `json:"author,omitempty"`
+	Exact     bool   `json:"exact,omitempty"`
+}
+
+type searchGroupOut struct {
+	Type        string         `json:"type"`
+	Hits        []searchHitOut `json:"hits"`
+	More        bool           `json:"more,omitempty"`
+	Unavailable bool           `json:"unavailable,omitempty"`
+}
+
+type searchOut struct {
+	Query  string           `json:"query"`
+	Total  int              `json:"total"`
+	Groups []searchGroupOut `json:"groups"`
+}
+
 type runGetIn struct {
 	Company string `json:"company,omitempty" jsonschema:"slug ou id da empresa (obrigatório só sem token de run)"`
 	ID      string `json:"id,omitempty" jsonschema:"id (UUID) da execução; padrão = a execução do seu token"`
@@ -274,6 +306,13 @@ func registerTools(s *sdk.Server, t *tools) {
 		Description: "Lista os projetos da empresa (slug, status, progresso, estado do orçamento) para saber onde criar uma task (hanko_task_create com project).",
 		Annotations: &sdk.ToolAnnotations{ReadOnlyHint: true},
 	}, t.projectList)
+	sdk.AddTool(s, &sdk.Tool{
+		Name: "hanko_search",
+		Description: "Busca na empresa inteira de uma vez: tasks (chave, título, descrição), comentários, personas, execuções, fluxos e a memória da empresa. " +
+			"Várias palavras = todas; \"frase exata\"; -excluir; OR entre alternativas; a última palavra casa por prefixo; a chave exata de uma task (HNK-12) vai direto a ela. " +
+			"Devolve grupos por tipo, com trecho do que casou. Use antes de criar uma task (já existe algo parecido?) ou de repetir um trabalho.",
+		Annotations: &sdk.ToolAnnotations{ReadOnlyHint: true},
+	}, t.search)
 	sdk.AddTool(s, &sdk.Tool{
 		Name:        "hanko_run_get",
 		Description: "Consulta uma execução (run): status, resumo, custo. Sem id, devolve a execução do seu token.",

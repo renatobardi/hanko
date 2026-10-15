@@ -287,6 +287,97 @@ func (p *provider) Record(ctx context.Context, s memory.Scope, f memory.Fact) er
 	return nil
 }
 
+// SearchTool é o nome da tool de busca do ai-memory. O contrato (nome, argumentos workspace/query/limit e formato do
+// resultado) NÃO está confirmado contra um servidor real: o teste usa um servidor MCP falso e parseSearch aceita
+// JSON ({"results":[…]} ou […]) ou texto livre. Se o nome real for outro, é só esta constante (ADR-0024).
+const SearchTool = "memory_search"
+
+// Search consulta a memória da empresa inteira (todos os projetos do workspace).
+func (p *provider) Search(ctx context.Context, s memory.Scope, query string, limit int) ([]memory.Hit, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+	txt, err := p.callTool(ctx, SearchTool, map[string]any{"workspace": s.Workspace, "query": query, "limit": limit})
+	if err != nil {
+		return nil, err
+	}
+	hits := parseSearch(txt)
+	if len(hits) > limit {
+		hits = hits[:limit]
+	}
+	return hits, nil
+}
+
+// parseSearch entende o resultado da tool de busca: JSON (lista, ou objeto com results/hits/pages/items) com
+// path/title/snippet; ou texto livre, em que cada bloco separado por linha em branco vira um resultado.
+func parseSearch(txt string) []memory.Hit {
+	txt = strings.TrimSpace(txt)
+	if txt == "" {
+		return nil
+	}
+	type raw struct {
+		Path    string  `json:"path"`
+		Title   string  `json:"title"`
+		Snippet string  `json:"snippet"`
+		Excerpt string  `json:"excerpt"`
+		Content string  `json:"content"`
+		Body    string  `json:"body"`
+		Score   float64 `json:"score"`
+	}
+	conv := func(rs []raw) []memory.Hit {
+		out := make([]memory.Hit, 0, len(rs))
+		for _, r := range rs {
+			sn := firstNonEmpty(r.Snippet, r.Excerpt, r.Content, r.Body)
+			if r.Path == "" && r.Title == "" && sn == "" {
+				continue
+			}
+			out = append(out, memory.Hit{Path: r.Path, Title: r.Title, Snippet: clip(strings.TrimSpace(sn), 2000), Score: r.Score})
+		}
+		return out
+	}
+	if txt[0] == '[' {
+		var rs []raw
+		if json.Unmarshal([]byte(txt), &rs) == nil {
+			return conv(rs)
+		}
+	}
+	if txt[0] == '{' {
+		var env struct {
+			Results []raw `json:"results"`
+			Hits    []raw `json:"hits"`
+			Pages   []raw `json:"pages"`
+			Items   []raw `json:"items"`
+		}
+		if json.Unmarshal([]byte(txt), &env) == nil {
+			for _, rs := range [][]raw{env.Results, env.Hits, env.Pages, env.Items} {
+				if len(rs) > 0 {
+					return conv(rs)
+				}
+			}
+			return nil
+		}
+	}
+	var out []memory.Hit
+	for _, blk := range strings.Split(txt, "\n\n") {
+		blk = strings.TrimSpace(blk)
+		if blk == "" {
+			continue
+		}
+		first, rest, _ := strings.Cut(blk, "\n")
+		out = append(out, memory.Hit{Title: clip(strings.TrimLeft(strings.TrimSpace(first), "#-* "), 200), Snippet: clip(strings.TrimSpace(rest), 2000)})
+	}
+	return out
+}
+
+func firstNonEmpty(ss ...string) string {
+	for _, s := range ss {
+		if strings.TrimSpace(s) != "" {
+			return s
+		}
+	}
+	return ""
+}
+
 type hookItem struct {
 	URL  string         `json:"url"`
 	Body map[string]any `json:"body"`

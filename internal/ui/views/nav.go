@@ -22,7 +22,7 @@ type NavGroup struct {
 // Nav is the full sidebar of the Kubo DS.
 var Nav = []NavGroup{
 	{Items: []NavItem{
-		{Key: "buscar", Label: i18n.N("Buscar"), Icon: "search", Milestone: "M3", Blurb: i18n.N("Busca em tasks, personas, execuções e na memória da empresa.")},
+		{Key: "buscar", Label: i18n.N("Buscar"), Icon: "search", Path: "/buscar"},
 		{Key: "painel", Label: i18n.N("Painel"), Icon: "layout-grid"},
 		{Key: "caixa", Label: i18n.N("Caixa de entrada"), Icon: "mail", Path: "/caixa"},
 		{Key: "chat", Label: i18n.N("Chat"), Icon: "message-square", Milestone: "v0.2", Blurb: i18n.N("Conversa direta com uma persona, fora de uma task.")},
