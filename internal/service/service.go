@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -67,6 +68,11 @@ type Service struct {
 	// conta com senha. Falso (provider local), o link do convite é a prova de identidade e convidar
 	// e-mail sem conta exige owner da empresa (ADR-0021).
 	ExternalIdentity bool
+	// ExportPageSize é quantos eventos de uma execução o export lê por página; 0 usa o padrão (1000).
+	ExportPageSize int
+	// Log recebe o registro de auditoria das operações administrativas da instalação (hanko auth user ...);
+	// nil descarta.
+	Log *slog.Logger
 }
 
 func New(pool *pgxpool.Pool, jobs Jobs, broker *events.Broker) *Service {

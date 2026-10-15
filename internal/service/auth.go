@@ -200,6 +200,7 @@ func (s *Service) LoginFirebase(ctx context.Context, in FirebaseLogin) (domain.U
 	ownerEmail := auth.FoldEmail(in.OwnerEmail)
 	isOwner := ownerEmail != "" && email == ownerEmail
 	var out domain.User
+	var denied error
 	err = s.withTx(ctx, func(t *txc) error {
 		if err := t.q.LockUsers(ctx); err != nil {
 			return fmt.Errorf("lock users: %w", err)
@@ -214,8 +215,25 @@ func (s *Service) LoginFirebase(ctx context.Context, in FirebaseLogin) (domain.U
 		existing, err := t.q.GetUserByExternal(ctx, store.GetUserByExternalParams{Provider: string(domain.ProviderFirebase), ExternalID: &uid})
 		switch {
 		case err == nil:
-			if in.ListsConfigured && !in.Admitted && !isOwner && !invited && !existing.Invited {
-				return fmt.Errorf("e-mail fora da lista de admissão: %w", domain.ErrNotAllowed)
+			// users.invited só vale enquanto a pessoa tem alguma empresa (ADR-0021). Quem entrou pelo convite
+			// e nunca o aceitou (ou perdeu todas as empresas) volta a depender das listas: limpa a marca.
+			wasInvited := existing.Invited
+			if wasInvited && !invited {
+				n, err := t.q.CountUserMemberships(ctx, existing.ID)
+				if err != nil {
+					return fmt.Errorf("count memberships: %w", err)
+				}
+				if n == 0 {
+					if err := t.q.ClearUserInvited(ctx, existing.ID); err != nil {
+						return fmt.Errorf("clear invited: %w", err)
+					}
+					wasInvited = false
+				}
+			}
+			if in.ListsConfigured && !in.Admitted && !isOwner && !invited && !wasInvited {
+				// a recusa sai depois do commit, para a limpeza acima não ser desfeita
+				denied = fmt.Errorf("e-mail fora da lista de admissão: %w", domain.ErrNotAllowed)
+				return nil
 			}
 			if name == "" {
 				name = existing.Name
@@ -271,6 +289,9 @@ func (s *Service) LoginFirebase(ctx context.Context, in FirebaseLogin) (domain.U
 		}
 		return nil
 	})
+	if err == nil && denied != nil {
+		return domain.User{}, denied
+	}
 	return out, err
 }
 

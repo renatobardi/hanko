@@ -3320,26 +3320,24 @@
     },
     "/api/v1/companies/import": {
       "post": {
+        "description": "Por padrão a empresa entra PAUSADA (personas pausadas, fluxos desligados); `paused=false` liga. Corpo de até 64 MiB, decodificado em fluxo; um corpo inválido nunca é devolvido na resposta.",
         "operationId": "import-company",
         "parameters": [
           {
             "description": "Slug da empresa nova; vazio = o do arquivo.",
-            "explode": false,
             "in": "query",
             "name": "slug",
             "schema": {
-              "description": "Slug da empresa nova; vazio = o do arquivo.",
               "pattern": "^[a-z0-9][a-z0-9-]{0,62}$",
               "type": "string"
             }
           },
           {
-            "description": "Importa personas pausadas e fluxos desligados.",
-            "explode": false,
+            "description": "Importa personas pausadas e fluxos desligados (padrão). `false` as deixa como no arquivo.",
             "in": "query",
             "name": "paused",
             "schema": {
-              "description": "Importa personas pausadas e fluxos desligados.",
+              "default": true,
               "type": "boolean"
             }
           }
@@ -3380,7 +3378,17 @@
                 }
               }
             },
-            "description": "Created"
+            "description": "Empresa criada."
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "JSON inválido."
           },
           "401": {
             "content": {
@@ -3390,7 +3398,7 @@
                 }
               }
             },
-            "description": "Unauthorized"
+            "description": "Não autenticado."
           },
           "403": {
             "content": {
@@ -3400,17 +3408,7 @@
                 }
               }
             },
-            "description": "Forbidden"
-          },
-          "404": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Found"
+            "description": "Sem permissão (run token, ou usuário comum da instalação)."
           },
           "409": {
             "content": {
@@ -3420,7 +3418,17 @@
                 }
               }
             },
-            "description": "Conflict"
+            "description": "Slug em uso."
+          },
+          "413": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Arquivo maior que o limite."
           },
           "422": {
             "content": {
@@ -3430,7 +3438,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Arquivo inválido; nada foi gravado."
           },
           "500": {
             "content": {
@@ -3440,7 +3448,7 @@
                 }
               }
             },
-            "description": "Internal Server Error"
+            "description": "Erro interno."
           }
         },
         "summary": "Cria uma empresa NOVA a partir de um arquivo exportado; tudo ou nada (só humanos)",
@@ -4057,12 +4065,12 @@
             }
           },
           {
-            "description": "Inclui também os eventos (log) das execuções; implica with_runs.",
+            "description": "Inclui também os eventos (log) das execuções; implica with_runs. O arquivo é escrito em fluxo, run a run.",
             "explode": false,
             "in": "query",
             "name": "with_logs",
             "schema": {
-              "description": "Inclui também os eventos (log) das execuções; implica with_runs.",
+              "description": "Inclui também os eventos (log) das execuções; implica with_runs. O arquivo é escrito em fluxo, run a run.",
               "type": "boolean"
             }
           }
@@ -4093,7 +4101,7 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Arquivo hanko.company.v1."
           },
           "401": {
             "content": {
@@ -7297,7 +7305,7 @@
     },
     "/api/v1/companies/{company}/runs/{run}/stream": {
       "get": {
-        "description": "Replay do log a partir de `after` (ou do header `Last-Event-ID`) e depois eventos ao vivo. Eventos: `run.event` (`id` = seq; `data` = RunEvent) e `run.status` (`data` = Run), este último ao ficar terminal, quando a conexão é encerrada. Comentários `: ping` a cada 15 s.",
+        "description": "Replay do log a partir de `after` (ou do header `Last-Event-ID`) e depois eventos ao vivo. Eventos: `run.event` (`id` = seq; `data` = RunEvent) e `run.status` (`data` = Run), este último ao ficar terminal, quando a conexão é encerrada. Comentários `: ping` a cada 15 s; a cada ping a sessão (ou API key) e o papel na empresa são reverificados, e o stream é encerrado se a credencial caiu (logout, senha redefinida, key revogada, conta removida).",
         "operationId": "stream-run",
         "parameters": [
           {

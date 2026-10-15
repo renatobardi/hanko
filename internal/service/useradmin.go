@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base32"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/renatobardi/hanko/internal/auth"
@@ -36,6 +37,22 @@ func (s *Service) requireInstallOwner(ctx context.Context, q *store.Queries) err
 	return nil
 }
 
+// auditAdmin registra uma operação administrativa da instalação em log estruturado: quem operou, em quem e o
+// quê. Nunca recebe senha nem token. (Os eventos de atividade são por empresa; estas operações são da
+// instalação, então o log é o registro.)
+func (s *Service) auditAdmin(ctx context.Context, level slog.Level, action, target string, attrs ...any) {
+	log := s.Log
+	if log == nil {
+		return
+	}
+	actor, actorID := "", ""
+	if id, ok := auth.IdentityFrom(ctx); ok {
+		actor, actorID = id.User.Email, id.User.ID.String()
+	}
+	log.Log(ctx, level, "admin: "+action, append([]any{"audit", true, "action", action, "actor_email", actor, "actor_id", actorID,
+		"target_email", strings.TrimSpace(target)}, attrs...)...)
+}
+
 // AdminListUsers lista todos os usuários da instalação. Só o dono da instalação.
 func (s *Service) AdminListUsers(ctx context.Context) ([]domain.User, error) {
 	if err := s.requireInstallOwner(ctx, s.read()); err != nil {
@@ -48,6 +65,7 @@ func (s *Service) AdminListUsers(ctx context.Context) ([]domain.User, error) {
 // newPassword, gera uma senha temporária e a devolve (a única vez em que existe em claro).
 func (s *Service) AdminResetPassword(ctx context.Context, email, newPassword string) (domain.User, string, error) {
 	if err := s.requireInstallOwner(ctx, s.read()); err != nil {
+		s.auditAdmin(ctx, slog.LevelWarn, "user.reset_password", email, "result", "denied")
 		return domain.User{}, "", err
 	}
 	row, err := s.read().GetUserByEmail(ctx, strings.TrimSpace(email))
@@ -90,6 +108,8 @@ func (s *Service) AdminResetPassword(ctx context.Context, email, newPassword str
 	if err != nil {
 		return domain.User{}, "", err
 	}
+	s.auditAdmin(ctx, slog.LevelInfo, "user.reset_password", row.Email, "target_id", row.ID.String(), "result", "ok",
+		"temporary_password_generated", generated)
 	if !generated {
 		newPassword = ""
 	}
@@ -100,9 +120,11 @@ func (s *Service) AdminResetPassword(ctx context.Context, email, newPassword str
 // instalação e quem é o único owner de alguma empresa (ErrConflict).
 func (s *Service) AdminRemoveUser(ctx context.Context, email string) error {
 	if err := s.requireInstallOwner(ctx, s.read()); err != nil {
+		s.auditAdmin(ctx, slog.LevelWarn, "user.remove", email, "result", "denied")
 		return err
 	}
-	return s.withTx(ctx, func(t *txc) error {
+	var removed domain.ID
+	err := s.withTx(ctx, func(t *txc) error {
 		if err := t.q.LockUsers(ctx); err != nil {
 			return fmt.Errorf("lock users: %w", err)
 		}
@@ -123,8 +145,15 @@ func (s *Service) AdminRemoveUser(ctx context.Context, email string) error {
 		if _, err := t.q.DeleteUser(ctx, row.ID); err != nil {
 			return fmt.Errorf("delete user: %w", err)
 		}
+		removed = row.ID
 		return nil
 	})
+	if err != nil {
+		s.auditAdmin(ctx, slog.LevelWarn, "user.remove", email, "result", "refused")
+		return err
+	}
+	s.auditAdmin(ctx, slog.LevelInfo, "user.remove", email, "target_id", removed.String(), "result", "ok")
+	return nil
 }
 
 // TempPassword gera uma senha temporária aleatória (20 caracteres base32, 100 bits).

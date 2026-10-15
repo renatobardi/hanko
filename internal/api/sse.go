@@ -13,6 +13,7 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
+	"github.com/renatobardi/hanko/internal/auth"
 	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/events"
 	"github.com/renatobardi/hanko/internal/service"
@@ -49,7 +50,8 @@ func (s *server) registerStreamDoc(api huma.API) {
 		Summary:     "Acompanha uma execução ao vivo (SSE)",
 		Description: "Replay do log a partir de `after` (ou do header `Last-Event-ID`) e depois eventos ao vivo. " +
 			"Eventos: `run.event` (`id` = seq; `data` = RunEvent) e `run.status` (`data` = Run), este último ao ficar terminal, " +
-			"quando a conexão é encerrada. Comentários `: ping` a cada 15 s.",
+			"quando a conexão é encerrada. Comentários `: ping` a cada 15 s; a cada ping a sessão (ou API key) e o papel na empresa " +
+			"são reverificados, e o stream é encerrado se a credencial caiu (logout, senha redefinida, key revogada, conta removida).",
 		Parameters: []*huma.Param{
 			{Name: "company", In: "path", Required: true, Description: "Id ou slug da empresa.", Schema: &huma.Schema{Type: "string"}},
 			{Name: "run", In: "path", Required: true, Description: "Id da execução.", Schema: &huma.Schema{Type: "string", Format: "uuid"}},
@@ -91,7 +93,34 @@ func (s *server) handleStream(w http.ResponseWriter, r *http.Request) {
 	} else {
 		broker = events.NewBroker()
 	}
-	streamRun(ctx, w, s.svc, broker, s.log, sc.Company.ID, rid, after, pingEvery)
+	streamRun(ctx, w, s.svc, broker, s.log, sc.Company.ID, rid, after, pingEvery, s.credentialCheck(r))
+}
+
+// credentialCheck devolve a reverificação da credencial que abriu o stream (nil = nada a reverificar: modo
+// trusted ou run token, que já expira com a execução). A identidade no contexto foi resolvida uma vez, na
+// abertura; sem isto, uma redefinição de senha, o logout, a revogação da API key ou a remoção da conta não
+// encerrariam um stream aberto.
+func (s *server) credentialCheck(r *http.Request) func(context.Context) error {
+	id, ok := auth.IdentityFrom(r.Context())
+	if !ok {
+		return nil
+	}
+	switch id.Via {
+	case auth.ViaSession:
+		c, err := r.Cookie(auth.SessionCookie)
+		if err != nil || c.Value == "" {
+			return nil
+		}
+		token := c.Value
+		return func(ctx context.Context) error { _, err := s.svc.ResolveSession(ctx, token); return err }
+	case auth.ViaAPIKey:
+		key, ok := auth.BearerToken(r.Header.Get("Authorization"))
+		if !ok {
+			return nil
+		}
+		return func(ctx context.Context) error { _, err := s.svc.ResolveAPIKey(ctx, key); return err }
+	}
+	return nil
 }
 
 // streamCursor lê o ponto de partida: Last-Event-ID (reconexão) vence `after`.
@@ -114,7 +143,7 @@ func streamCursor(r *http.Request) (int64, error) {
 // streamRun faz replay a partir de after e depois repassa eventos ao vivo do broker,
 // até a execução ficar terminal ou o cliente sair.
 func streamRun(ctx context.Context, w http.ResponseWriter, src runSource, broker *events.Broker, log *slog.Logger,
-	companyID, runID domain.ID, after int64, ping time.Duration) {
+	companyID, runID domain.ID, after int64, ping time.Duration, credential func(context.Context) error) {
 	// Assina antes de ler: nada se perde entre o replay e o ao vivo (duplicatas saem pelo seq).
 	ch, cancel := broker.Subscribe(events.RunTopic(runID.String()), 256)
 	defer cancel()
@@ -250,8 +279,14 @@ func streamRun(ctx context.Context, w http.ResponseWriter, src runSource, broker
 				}
 			}
 		case <-tick.C:
-			// Re-checa o acesso a cada tick (GetRun passa pelo papel do service): quem perdeu o papel
-			// na empresa com o stream aberto não continua recebendo eventos.
+			// Re-checa a credencial (sessão ou API key ainda válida?) e o acesso (GetRun passa pelo papel do
+			// service) a cada tick: quem saiu, teve a senha redefinida ou perdeu o papel na empresa com o
+			// stream aberto não continua recebendo eventos. Falha transitória do banco não derruba o stream.
+			if credential != nil {
+				if cerr := credential(ctx); errors.Is(cerr, domain.ErrUnauthenticated) {
+					return
+				}
+			}
 			cur, gerr := src.GetRun(ctx, companyID, runID)
 			if accessLost(gerr) {
 				return

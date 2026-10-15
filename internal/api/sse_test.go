@@ -224,7 +224,7 @@ func TestSSEHeartbeatERecuperaDescartes(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		streamRun(ctx, rec, f, br, discardLogger(), c.ID, rid, 0, 20*time.Millisecond)
+		streamRun(ctx, rec, f, br, discardLogger(), c.ID, rid, 0, 20*time.Millisecond, nil)
 	}()
 	ch := readFrames(t, rec.reader())
 	if fr := next(t, ch); fr.Event != "ping" {

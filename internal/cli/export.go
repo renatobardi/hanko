@@ -51,9 +51,9 @@ func (e *env) exportCmd() *cobra.Command {
 
 func (e *env) importCmd() *cobra.Command {
 	var slug string
-	var paused bool
+	var active, paused bool
 	c := &cobra.Command{
-		Use: "import " + e.t("<arquivo|->"), Short: e.t("Cria uma empresa NOVA a partir de um arquivo exportado (tudo ou nada)"), Args: cobra.ExactArgs(1),
+		Use: "import " + e.t("<arquivo|->"), Short: e.t("Cria uma empresa NOVA, pausada, a partir de um arquivo exportado (tudo ou nada)"), Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var b []byte
 			var err error
@@ -65,10 +65,13 @@ func (e *env) importCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf(e.t("ler %s: %w"), args[0], err)
 			}
+			if active && paused {
+				return usageError{errors.New(e.t("--active e --paused são excludentes"))}
+			}
 			if !json.Valid(b) {
 				return usageError{errors.New(e.t("o arquivo não é um JSON válido"))}
 			}
-			res, err := e.client().ImportCompany(cmd.Context(), b, slug, paused)
+			res, err := e.client().ImportCompany(cmd.Context(), b, slug, active)
 			if err != nil {
 				return err
 			}
@@ -90,6 +93,8 @@ func (e *env) importCmd() *cobra.Command {
 		},
 	}
 	c.Flags().StringVar(&slug, "slug", "", e.t("slug da empresa nova (padrão: o do arquivo)"))
-	c.Flags().BoolVar(&paused, "paused", false, e.t("personas entram pausadas e fluxos desligados"))
+	c.Flags().BoolVar(&active, "active", false, e.t("liga o que o arquivo traz ligado (padrão: personas pausadas e fluxos desligados)"))
+	c.Flags().BoolVar(&paused, "paused", false, e.t("(padrão) personas entram pausadas e fluxos desligados"))
+	_ = c.Flags().MarkHidden("paused")
 	return c
 }

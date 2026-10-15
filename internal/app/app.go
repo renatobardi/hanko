@@ -64,6 +64,7 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 		return fmt.Errorf("app: heartbeat: %w", err)
 	}
 	svc := service.New(pool, hb, broker)
+	svc.Log = logger
 	svc.WorkspacesRoot = cfg.WorkspacesRoot
 	svc.RunReserveUSD = cfg.RunReserveUSD
 	svc.Alerts = service.AlertConfig{SilentFactor: cfg.AlertSilentFactor, RunStuckAfter: cfg.AlertRunStuckAfter}

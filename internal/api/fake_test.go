@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -208,10 +209,21 @@ func do(t *testing.T, method, url, body string, hdr map[string]string) (*http.Re
 	return resp, string(b)
 }
 
-func (f *fakeSvc) ExportCompany(context.Context, domain.ID, service.ExportOptions) (export.Document, error) {
-	return export.Document{Format: export.Format}, f.failWith
+func (f *fakeSvc) OpenExport(context.Context, domain.ID, service.ExportOptions) (*service.ExportStream, error) {
+	if f.failWith == nil {
+		return nil, errors.New("fakeSvc: OpenExport sem banco")
+	}
+	return nil, f.failWith
 }
 
 func (f *fakeSvc) ImportCompany(context.Context, domain.Actor, export.Document, service.ImportOptions) (service.ImportResult, error) {
 	return service.ImportResult{}, f.failWith
+}
+
+func (f *fakeSvc) ResolveSession(context.Context, string) (domain.User, error) {
+	return domain.User{}, f.failWith
+}
+
+func (f *fakeSvc) ResolveAPIKey(context.Context, string) (domain.User, error) {
+	return domain.User{}, f.failWith
 }

@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -17,8 +19,10 @@ import (
 
 // ImportOptions controla a criação da empresa a partir de um arquivo.
 type ImportOptions struct {
-	Slug   string // slug da empresa nova; vazio = o do arquivo (ou derivado do nome)
-	Paused bool   // personas entram pausadas e fluxos desligados: nada trabalha até alguém liberar
+	Slug string // slug da empresa nova; vazio = o do arquivo (ou derivado do nome)
+	// Active liga o que o arquivo traz ligado. O padrão (false) é seguro: personas entram pausadas e fluxos
+	// desligados, e nada trabalha até alguém liberar.
+	Active bool
 }
 
 // ImportResult resume o que foi criado.
@@ -42,7 +46,7 @@ func (s *Service) ImportCompany(ctx context.Context, actor domain.Actor, doc exp
 		}
 		creator = &id.User
 	}
-	p, err := s.planImport(doc, opts)
+	p, err := s.planImport(ctx, doc, opts)
 	if err != nil {
 		return ImportResult{}, err
 	}
@@ -77,7 +81,7 @@ func (s *Service) ImportCompany(ctx context.Context, actor domain.Actor, doc exp
 		}
 		res = ImportResult{Company: companyFromRow(row), Counts: p.counts(doc)}
 		return t.activity(actor, cid, "company.imported", "company", cid, map[string]any{
-			"slug": p.slug, "source_slug": doc.Company.Slug, "format": export.Format, "paused": opts.Paused, "counts": res.Counts}, "")
+			"slug": p.slug, "source_slug": doc.Company.Slug, "format": export.Format, "paused": !opts.Active, "counts": res.Counts}, "")
 	})
 	if err != nil {
 		return ImportResult{}, err
@@ -121,7 +125,7 @@ func uniqueIdx[T any](path string, items []T, key func(T) string, what string) (
 }
 
 // planImport valida o arquivo inteiro sem tocar no banco.
-func (s *Service) planImport(doc export.Document, opts ImportOptions) (importPlan, error) {
+func (s *Service) planImport(ctx context.Context, doc export.Document, opts ImportOptions) (importPlan, error) {
 	var p importPlan
 	if doc.Format != export.Format {
 		return p, domain.Invalid("format", fmt.Sprintf("unsupported format %q (want %q)", doc.Format, export.Format))
@@ -154,6 +158,9 @@ func (s *Service) planImport(doc export.Document, opts ImportOptions) (importPla
 	}
 	if c.BudgetMonthlyCents != nil && *c.BudgetMonthlyCents < 0 {
 		return p, domain.Invalid("company.budget_monthly_cents", "must be >= 0")
+	}
+	if c.NextTaskNumber < 0 || c.NextTaskNumber > maxTaskNumber+1 {
+		return p, domain.Invalid("company.next_task_number", fmt.Sprintf("must be between 0 and %d", maxTaskNumber+1))
 	}
 
 	// workspaces e projetos
@@ -202,6 +209,9 @@ func (s *Service) planImport(doc export.Document, opts ImportOptions) (importPla
 			return p, domain.Invalid(iv("subscriptions", i, "name"), err.Error())
 		}
 		for j, per := range x.Periods {
+			if per.StartedAt.IsZero() {
+				return p, domain.Invalid(fmt.Sprintf("subscriptions[%d].periods[%d].started_at", i, j), "required")
+			}
 			if per.EndedAt != nil && per.EndedAt.Before(per.StartedAt) {
 				return p, domain.Invalid(fmt.Sprintf("subscriptions[%d].periods[%d].ended_at", i, j), "before started_at")
 			}
@@ -302,6 +312,9 @@ func (s *Service) planImport(doc export.Document, opts ImportOptions) (importPla
 		runKeys[r.Key] = i
 	}
 	for i, x := range doc.Tasks {
+		if err := ctx.Err(); err != nil {
+			return p, err
+		}
 		maxNum = max(maxNum, x.Number)
 		if n := utf8.RuneCountInString(x.Title); n < 1 || n > 500 {
 			return p, domain.Invalid(iv("tasks", i, "title"), "must have 1 to 500 characters")
@@ -344,10 +357,6 @@ func (s *Service) planImport(doc export.Document, opts ImportOptions) (importPla
 			}
 		}
 	}
-	for i, x := range doc.Tasks {
-		_ = x
-		_ = i
-	}
 	if p.taskOrder, err = orderTasks(doc.Tasks, tk); err != nil {
 		return p, err
 	}
@@ -358,6 +367,9 @@ func (s *Service) planImport(doc export.Document, opts ImportOptions) (importPla
 		return p, err
 	}
 	for i, x := range doc.Flows {
+		if err := ctx.Err(); err != nil {
+			return p, err
+		}
 		if !domain.ValidSlug(x.Slug) {
 			return p, domain.Invalid(iv("flows", i, "slug"), "must be lowercase letters, digits and dashes (1-63 chars)")
 		}
@@ -384,6 +396,12 @@ func (s *Service) planImport(doc export.Document, opts ImportOptions) (importPla
 	// execuções
 	names := map[string]bool{}
 	for i, r := range doc.Runs {
+		if err := ctx.Err(); err != nil {
+			return p, err
+		}
+		if err := nonNegativeRun(i, r); err != nil {
+			return p, err
+		}
 		if _, ok := tk[r.Task]; !ok {
 			return p, domain.Invalid(iv("runs", i, "task"), fmt.Sprintf("task %d not found", r.Task))
 		}
@@ -420,6 +438,11 @@ func (s *Service) planImport(doc export.Document, opts ImportOptions) (importPla
 		}
 		var last int64
 		for j, e := range r.Events {
+			if j%1024 == 0 {
+				if err := ctx.Err(); err != nil {
+					return p, err
+				}
+			}
 			path := fmt.Sprintf("runs[%d].events[%d]", i, j)
 			if e.Seq <= last {
 				return p, domain.Invalid(path+".seq", "must be positive and strictly increasing")
@@ -437,6 +460,29 @@ func (s *Service) planImport(doc export.Document, opts ImportOptions) (importPla
 		}
 	}
 	return p, nil
+}
+
+// nonNegativeRun recusa custos e tokens negativos: eles entrariam nos totais de custo da empresa nova.
+func nonNegativeRun(i int, r export.Run) error {
+	for _, f := range []struct {
+		name string
+		v    *float64
+	}{{"cost_usd", r.CostUSD}, {"list_cost_usd", r.ListCostUSD}} {
+		if f.v != nil && (*f.v < 0 || math.IsNaN(*f.v) || math.IsInf(*f.v, 0)) {
+			return domain.Invalid(iv("runs", i, f.name), "must be >= 0")
+		}
+	}
+	u := r.Usage
+	for _, f := range []struct {
+		name string
+		v    int64
+	}{{"input_tokens", u.InputTokens}, {"output_tokens", u.OutputTokens}, {"cache_read_tokens", u.CacheReadTokens},
+		{"cache_creation_tokens", u.CacheCreationTokens}} {
+		if f.v < 0 {
+			return domain.Invalid(fmt.Sprintf("runs[%d].usage.%s", i, f.name), "must be >= 0")
+		}
+	}
+	return nil
 }
 
 func validTrigger(t string) bool {
@@ -471,11 +517,14 @@ func checkActor(path string, a export.Actor, personas map[string]int) error {
 	return nil
 }
 
+// maxTaskNumber é o maior número de task aceito na importação (evita overflow da numeração e de "HNK-n").
+const maxTaskNumber = 1_000_000_000
+
 func uniqueNum(path string, tasks []export.Task) (map[int64]int, error) {
 	m := make(map[int64]int, len(tasks))
 	for i, t := range tasks {
-		if t.Number < 1 {
-			return nil, domain.Invalid(iv(path, i, "number"), "must be >= 1")
+		if t.Number < 1 || t.Number > maxTaskNumber {
+			return nil, domain.Invalid(iv(path, i, "number"), fmt.Sprintf("must be between 1 and %d", maxTaskNumber))
 		}
 		if _, dup := m[t.Number]; dup {
 			return nil, domain.Invalid(iv(path, i, "number"), fmt.Sprintf("duplicate %d", t.Number))
@@ -505,12 +554,16 @@ func orderTasks(tasks []export.Task, byNum map[int64]int) ([]int, error) {
 	for i := range idx {
 		idx[i] = i
 	}
-	// por número, estável
-	for i := 1; i < len(idx); i++ {
-		for j := i; j > 0 && tasks[idx[j]].Number < tasks[idx[j-1]].Number; j-- {
-			idx[j], idx[j-1] = idx[j-1], idx[j]
+	// por número, estável (O(n log n): o arquivo pode ter dezenas de milhares de tasks)
+	slices.SortStableFunc(idx, func(a, b int) int {
+		switch {
+		case tasks[a].Number < tasks[b].Number:
+			return -1
+		case tasks[a].Number > tasks[b].Number:
+			return 1
 		}
-	}
+		return 0
+	})
 	state := make([]int, len(tasks)) // 0 novo, 1 visitando, 2 pronto
 	out := make([]int, 0, len(tasks))
 	var visit func(i int) error
@@ -585,7 +638,7 @@ func (t *txc) runImport(cid domain.ID, doc export.Document, p importPlan, opts I
 	for i, x := range doc.Personas {
 		id := domain.NewID()
 		status := x.Status
-		if opts.Paused && (status == string(domain.PersonaActive) || status == string(domain.PersonaIdle)) {
+		if !opts.Active && (status == string(domain.PersonaActive) || status == string(domain.PersonaIdle)) {
 			status = string(domain.PersonaPaused)
 		}
 		if _, err := t.q.ImportPersona(ctx, store.ImportPersonaParams{ID: id, CompanyID: cid, Slug: x.Slug, Name: strings.TrimSpace(x.Name),
@@ -643,7 +696,7 @@ func (t *txc) runImport(cid domain.ID, doc export.Document, p importPlan, opts I
 	}
 
 	for _, x := range doc.Flows {
-		enabled := x.Enabled && !opts.Paused
+		enabled := x.Enabled && opts.Active
 		next, err := NextCron(x.Cron, x.Timezone, t.now)
 		if err != nil {
 			return err

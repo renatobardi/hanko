@@ -46,12 +46,19 @@ func (q *Queries) ExportComments(ctx context.Context, companyID uuid.UUID) ([]Ta
 	return items, nil
 }
 
-const exportRunEvents = `-- name: ExportRunEvents :many
-SELECT id, company_id, run_id, seq, kind, text, payload, occurred_at, received_at FROM run_events WHERE company_id = $1 ORDER BY run_id, seq
+const exportRunEventsPage = `-- name: ExportRunEventsPage :many
+SELECT id, company_id, run_id, seq, kind, text, payload, occurred_at, received_at FROM run_events WHERE run_id = $1 AND seq > $2 ORDER BY seq LIMIT $3
 `
 
-func (q *Queries) ExportRunEvents(ctx context.Context, companyID uuid.UUID) ([]RunEvent, error) {
-	rows, err := q.db.Query(ctx, exportRunEvents, companyID)
+type ExportRunEventsPageParams struct {
+	RunID    uuid.UUID
+	AfterSeq int64
+	PageSize int32
+}
+
+// Uma página dos eventos de UMA execução (keyset por seq): o export nunca carrega o log inteiro da empresa.
+func (q *Queries) ExportRunEventsPage(ctx context.Context, arg ExportRunEventsPageParams) ([]RunEvent, error) {
+	rows, err := q.db.Query(ctx, exportRunEventsPage, arg.RunID, arg.AfterSeq, arg.PageSize)
 	if err != nil {
 		return nil, err
 	}
