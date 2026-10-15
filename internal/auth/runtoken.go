@@ -19,6 +19,8 @@ type RunClaims struct {
 	PersonaID string `json:"pid"`
 	RunID     string `json:"rid"`
 	TaskID    string `json:"tid"`
+	// ConversationID is set instead of TaskID on the token of a chat run (ADR-0027).
+	ConversationID string `json:"cvid,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -40,6 +42,15 @@ func (t RunTokens) now() time.Time {
 
 // Issue creates a token for a run.
 func (t RunTokens) Issue(companyID, personaID, runID, taskID domain.ID) (string, error) {
+	return t.issue(RunClaims{CompanyID: companyID.String(), PersonaID: personaID.String(), RunID: runID.String(), TaskID: taskID.String()})
+}
+
+// IssueForConversation creates the token of a chat run: it has a conversation and no task.
+func (t RunTokens) IssueForConversation(companyID, personaID, runID, conversationID domain.ID) (string, error) {
+	return t.issue(RunClaims{CompanyID: companyID.String(), PersonaID: personaID.String(), RunID: runID.String(), ConversationID: conversationID.String()})
+}
+
+func (t RunTokens) issue(c RunClaims) (string, error) {
 	if len(t.Secret) < 16 {
 		return "", errors.New("run token secret too short")
 	}
@@ -48,12 +59,9 @@ func (t RunTokens) Issue(companyID, personaID, runID, taskID domain.ID) (string,
 		ttl = 6 * time.Hour
 	}
 	now := t.now()
-	c := RunClaims{
-		CompanyID: companyID.String(), PersonaID: personaID.String(), RunID: runID.String(), TaskID: taskID.String(),
-		RegisteredClaims: jwt.RegisteredClaims{
-			Issuer: "hanko", Subject: "run:" + runID.String(),
-			IssuedAt: jwt.NewNumericDate(now), ExpiresAt: jwt.NewNumericDate(now.Add(ttl)),
-		},
+	c.RegisteredClaims = jwt.RegisteredClaims{
+		Issuer: "hanko", Subject: "run:" + c.RunID,
+		IssuedAt: jwt.NewNumericDate(now), ExpiresAt: jwt.NewNumericDate(now.Add(ttl)),
 	}
 	return jwt.NewWithClaims(jwt.SigningMethodHS256, c).SignedString(t.Secret)
 }

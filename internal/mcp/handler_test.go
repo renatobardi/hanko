@@ -216,6 +216,7 @@ type env struct {
 	tokens auth.RunTokens
 	tok    string
 	runID  domain.ID
+	cs     *sdk.ClientSession // set by chatSession (chat_test.go)
 }
 
 func setup(t *testing.T, trusted bool) *env {

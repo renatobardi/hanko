@@ -20,6 +20,7 @@ English summary at the end of each release.
 
 - Consolidação de memória governada (ADR-0030): persona curadora periódica como run de sistema (gatilho `memory`, custo no ledger, desligada por padrão), propostas que removem/fundem/reescrevem com gate `memory` no Inbox e aplicação por job com retry, permissões de memória por workspace no proxy `/memory-mcp`.
 - Seção "Memória" nas Configurações da empresa; API `/companies/{c}/memory`; CLI `hanko memory status|config|consolidate|history|proposals|approve|reject|retry|grants|grant|revoke`; variável `HANKO_MEMORY_READ_TOOL`.
+- Chat (ADR-0027): conversa direta de um humano com uma persona, fora de uma task. Cada mensagem dispara uma run com o gatilho `chat` (mesmo adapter, ledger, orçamento, trava semanal, alertas e log), retoma a sessão do harness quando ele sabe e responde com o resumo final; UI em `/c/{empresa}/chat`, API `/conversations`, CLI `hanko chat <persona> "mensagem"` (`--no-wait`, `--conversation`, `list`, `show`), conversas na página da persona e runs de chat identificadas em Execuções e Custos (migration 00018).
 
 ## [Não lançado] — v0.1.0
 

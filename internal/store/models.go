@@ -105,6 +105,30 @@ type CompanyMember struct {
 	UpdatedAt time.Time
 }
 
+type Conversation struct {
+	ID            uuid.UUID
+	CompanyID     uuid.UUID
+	PersonaID     uuid.UUID
+	Title         string
+	Status        string
+	CreatedByType string
+	CreatedByID   *uuid.UUID
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	LastMessageAt time.Time
+}
+
+type ConversationMessage struct {
+	ID             uuid.UUID
+	CompanyID      uuid.UUID
+	ConversationID uuid.UUID
+	AuthorType     string
+	AuthorID       *uuid.UUID
+	Body           string
+	RunID          *uuid.UUID
+	CreatedAt      time.Time
+}
+
 type CostNotice struct {
 	CompanyID uuid.UUID
 	Model     string
@@ -357,7 +381,7 @@ type Review struct {
 type Run struct {
 	ID                  uuid.UUID
 	CompanyID           uuid.UUID
-	TaskID              uuid.UUID
+	TaskID              *uuid.UUID
 	PersonaID           uuid.UUID
 	Status              string
 	Trigger             string
@@ -388,6 +412,7 @@ type Run struct {
 	SearchTsv           interface{}
 	WorkspaceID         *uuid.UUID
 	WorkspaceSource     string
+	ConversationID      *uuid.UUID
 }
 
 type RunEvent struct {

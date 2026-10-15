@@ -88,6 +88,15 @@ func taskRow(ctx context.Context, t service.TaskView, base string, now time.Time
 }
 
 func runRow(ctx context.Context, r service.RunView, base string, now time.Time, loc *time.Location) views.RunRow {
+	if r.ConversationID != nil {
+		// a chat run has no task: the row points at its conversation (ADR-0027)
+		return views.RunRow{
+			Name: r.Name, Short: shortID(r.ID), Href: base + "/execucoes/" + r.ID.String(), Persona: r.PersonaName,
+			TaskKey: i18n.T(ctx, "Chat"), TaskHref: base + "/chat/" + r.ConversationID.String(), TaskTitle: r.ConversationTitle,
+			Badge: runBadge(ctx, r.Status), Agent: agentModel(r.Agent, r.Model), Duration: runDuration(r.Run, now),
+			Cost: fmtCostPtrCtx(ctx, r.CostUSD), Tokens: fmtUsageCtx(ctx, r.Usage), When: relTimeCtx(ctx, r.CreatedAt, now, loc),
+		}
+	}
 	return views.RunRow{
 		Name:      r.Name,
 		Short:     shortID(r.ID),

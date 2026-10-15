@@ -339,6 +339,123 @@
         },
         "type": "object"
       },
+      "Conversation": {
+        "additionalProperties": false,
+        "properties": {
+          "active_run_id": {
+            "description": "Execução que está respondendo agora; ausente quando a persona está ociosa.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "company_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "cost_usd": {
+            "description": "Custo somado das execuções da conversa.",
+            "format": "double",
+            "type": "number"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "created_by": {
+            "$ref": "#/components/schemas/ActorRef"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "last_message_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "pending_messages": {
+            "description": "Mensagens humanas que ainda esperam uma execução.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "persona_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "persona_name": {
+            "type": "string"
+          },
+          "persona_slug": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "open",
+              "archived"
+            ],
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "company_id",
+          "persona_id",
+          "persona_name",
+          "persona_slug",
+          "title",
+          "status",
+          "created_by",
+          "pending_messages",
+          "cost_usd",
+          "created_at",
+          "updated_at",
+          "last_message_at"
+        ],
+        "type": "object"
+      },
+      "ConversationMessage": {
+        "additionalProperties": false,
+        "properties": {
+          "author": {
+            "$ref": "#/components/schemas/ActorRef",
+            "description": "Humano, persona (resposta de uma execução) ou sistema (aviso)."
+          },
+          "body": {
+            "description": "Markdown.",
+            "type": "string"
+          },
+          "conversation_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "run_id": {
+            "description": "Na resposta da persona (ou no aviso), a execução que a produziu; na mensagem humana, a que a recolheu (ausente enquanto espera).",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "conversation_id",
+          "author",
+          "body",
+          "created_at"
+        ],
+        "type": "object"
+      },
       "CostRow": {
         "additionalProperties": false,
         "properties": {
@@ -566,6 +683,33 @@
         },
         "required": [
           "name"
+        ],
+        "type": "object"
+      },
+      "CreateConversationInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "message": {
+            "description": "Primeira mensagem (markdown); a persona responde por uma execução.",
+            "maxLength": 20000,
+            "type": "string"
+          },
+          "persona": {
+            "description": "Id ou slug da persona com quem conversar.",
+            "examples": [
+              "cto"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": {
+            "description": "Derivado da primeira mensagem quando omitido.",
+            "maxLength": 200,
+            "type": "string"
+          }
+        },
+        "required": [
+          "persona"
         ],
         "type": "object"
       },
@@ -2004,6 +2148,68 @@
             "description": "Itens da página.",
             "items": {
               "$ref": "#/components/schemas/Company"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "limit": {
+            "description": "Limite aplicado.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "offset": {
+            "description": "Deslocamento aplicado.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "limit",
+          "offset"
+        ],
+        "type": "object"
+      },
+      "ListBodyConversation": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "description": "Itens da página.",
+            "items": {
+              "$ref": "#/components/schemas/Conversation"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "limit": {
+            "description": "Limite aplicado.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "offset": {
+            "description": "Deslocamento aplicado.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "limit",
+          "offset"
+        ],
+        "type": "object"
+      },
+      "ListBodyConversationMessage": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "description": "Itens da página.",
+            "items": {
+              "$ref": "#/components/schemas/ConversationMessage"
             },
             "type": [
               "array",
@@ -3550,6 +3756,14 @@
             "format": "uuid",
             "type": "string"
           },
+          "conversation_id": {
+            "description": "Conversa de uma execução de chat (gatilho chat); ausente nas execuções de task.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "conversation_title": {
+            "type": "string"
+          },
           "cost_source": {
             "description": "Origem do custo: informado pelo harness, estimado pela tabela de preços ou desconhecido.",
             "enum": [
@@ -3641,6 +3855,7 @@
             "type": "string"
           },
           "task_id": {
+            "description": "Task da execução; ausente numa execução de chat.",
             "format": "uuid",
             "type": "string"
           },
@@ -3664,7 +3879,9 @@
               "heartbeat",
               "gate",
               "flow",
-              "review"
+              "review",
+              "memory",
+              "chat"
             ],
             "type": "string"
           },
@@ -3675,7 +3892,6 @@
         "required": [
           "id",
           "company_id",
-          "task_id",
           "persona_id",
           "status",
           "trigger",
@@ -3911,6 +4127,21 @@
         },
         "required": [
           "text"
+        ],
+        "type": "object"
+      },
+      "SendMessageInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "message": {
+            "description": "Mensagem em markdown. Enquanto uma execução da conversa roda, a mensagem espera e a execução seguinte responde a todas juntas.",
+            "maxLength": 20000,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
         ],
         "type": "object"
       },
@@ -5727,6 +5958,814 @@
         "summary": "Lista a atividade da empresa",
         "tags": [
           "activity"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/conversations": {
+      "get": {
+        "operationId": "list-conversations",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Máximo de itens retornados.",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "description": "Máximo de itens retornados.",
+              "format": "int64",
+              "maximum": 500,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Quantos itens pular.",
+            "explode": false,
+            "in": "query",
+            "name": "offset",
+            "schema": {
+              "default": 0,
+              "description": "Quantos itens pular.",
+              "format": "int64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Id ou slug da persona.",
+            "explode": false,
+            "in": "query",
+            "name": "persona",
+            "schema": {
+              "description": "Id ou slug da persona.",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Só conversas neste estado; omitido = todas.",
+            "explode": false,
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "description": "Só conversas neste estado; omitido = todas.",
+              "enum": [
+                "open",
+                "archived"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListBodyConversation"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Lista conversas",
+        "tags": [
+          "chat"
+        ]
+      },
+      "post": {
+        "operationId": "create-conversation",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateConversationInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Conversation"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Abre uma conversa com uma persona",
+        "tags": [
+          "chat"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/conversations/{conversation}": {
+      "get": {
+        "operationId": "get-conversation",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id da conversa.",
+            "in": "path",
+            "name": "conversation",
+            "required": true,
+            "schema": {
+              "description": "Id da conversa.",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Conversation"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Obtém uma conversa",
+        "tags": [
+          "chat"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/conversations/{conversation}/archive": {
+      "post": {
+        "operationId": "archive-conversation",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id da conversa.",
+            "in": "path",
+            "name": "conversation",
+            "required": true,
+            "schema": {
+              "description": "Id da conversa.",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Conversation"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Arquiva uma conversa",
+        "tags": [
+          "chat"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/conversations/{conversation}/messages": {
+      "get": {
+        "operationId": "list-conversation-messages",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id da conversa.",
+            "in": "path",
+            "name": "conversation",
+            "required": true,
+            "schema": {
+              "description": "Id da conversa.",
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Quantas mensagens mais recentes (em ordem cronológica).",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 200,
+              "description": "Quantas mensagens mais recentes (em ordem cronológica).",
+              "format": "int64",
+              "maximum": 500,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListBodyConversationMessage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Lista as mensagens de uma conversa",
+        "tags": [
+          "chat"
+        ]
+      },
+      "post": {
+        "operationId": "send-conversation-message",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id da conversa.",
+            "in": "path",
+            "name": "conversation",
+            "required": true,
+            "schema": {
+              "description": "Id da conversa.",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendMessageInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationMessage"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Envia uma mensagem à persona",
+        "tags": [
+          "chat"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/conversations/{conversation}/reopen": {
+      "post": {
+        "operationId": "reopen-conversation",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id da conversa.",
+            "in": "path",
+            "name": "conversation",
+            "required": true,
+            "schema": {
+              "description": "Id da conversa.",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Conversation"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Reabre uma conversa arquivada",
+        "tags": [
+          "chat"
         ]
       }
     },

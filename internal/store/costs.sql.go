@@ -60,13 +60,13 @@ SELECT
   (CASE $1::text
      WHEN 'day' THEN to_char(r.created_at AT TIME ZONE $2::text, 'YYYY-MM-DD')
      WHEN 'persona' THEN r.persona_id::text
-     WHEN 'project' THEN COALESCE(t.project_id::text, '')
+     WHEN 'project' THEN CASE WHEN r.conversation_id IS NOT NULL THEN 'chat' ELSE COALESCE(t.project_id::text, '') END
      WHEN 'model' THEN r.model
      ELSE r.agent END)::text AS key,
   (CASE $1::text
      WHEN 'day' THEN to_char(r.created_at AT TIME ZONE $2::text, 'YYYY-MM-DD')
      WHEN 'persona' THEN p.name
-     WHEN 'project' THEN COALESCE(pr.name, '')
+     WHEN 'project' THEN CASE WHEN r.conversation_id IS NOT NULL THEN 'Chat' ELSE COALESCE(pr.name, '') END
      WHEN 'model' THEN r.model
      ELSE r.agent END)::text AS label,
   COALESCE(SUM(r.cost_usd), 0)::float8 AS cost_usd,
@@ -78,7 +78,7 @@ SELECT
   COALESCE(SUM(r.cache_read_tokens + r.cache_creation_tokens), 0)::bigint AS cache_tokens
 FROM runs r
 JOIN personas p ON p.id = r.persona_id
-JOIN tasks t ON t.id = r.task_id
+LEFT JOIN tasks t ON t.id = r.task_id
 LEFT JOIN projects pr ON pr.id = t.project_id
 WHERE r.company_id = $3 AND r.created_at >= $4 AND r.created_at < $5
   AND ($6::uuid IS NULL OR t.project_id = $6::uuid)

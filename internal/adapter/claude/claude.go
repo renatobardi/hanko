@@ -54,6 +54,9 @@ func (discard) Write(p []byte) (int, error) { return len(p), nil }
 
 func (a *Adapter) Name() string { return "claude" }
 
+// ResumesSessions: the claude harness resumes a session with --resume.
+func (a *Adapter) ResumesSessions() bool { return true }
+
 // Config is the claude-specific part of persona.adapter_config.
 type Config struct {
 	PermissionMode string   `json:"permission_mode"`

@@ -51,12 +51,12 @@ RETURNING *;
 SELECT r.id, r.subscription_id,
        to_char(r.created_at AT TIME ZONE @tz::text, 'YYYY-MM-DD')::text AS day,
        r.persona_id::text AS persona_key,
-       COALESCE(t.project_id::text, '')::text AS project_key,
+       CASE WHEN r.conversation_id IS NOT NULL THEN 'chat' ELSE COALESCE(t.project_id::text, '') END::text AS project_key,
        r.model AS model_key,
        r.agent AS harness_key,
        COALESCE(r.list_cost_usd, r.cost_usd, 0)::float8 AS weight
 FROM runs r
-JOIN tasks t ON t.id = r.task_id
+LEFT JOIN tasks t ON t.id = r.task_id
 WHERE r.company_id = @company_id AND r.subscription_id IS NOT NULL
   AND r.created_at >= @from_ts AND r.created_at < @to_ts
 ORDER BY r.created_at, r.id;

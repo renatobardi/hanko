@@ -37,6 +37,9 @@ func New(o Options) *Adapter {
 
 func (*Adapter) Name() string { return "fake" }
 
+// ResumesSessions: the fake pretends to resume sessions so chat flows can be exercised end to end.
+func (*Adapter) ResumesSessions() bool { return true }
+
 // Config is read from persona.adapter_config.
 type Config struct {
 	DelayMS *int   `json:"delay_ms"` // overrides Options.Delay
@@ -62,6 +65,14 @@ func (a *Adapter) Run(ctx context.Context, spec adapter.Spec, sink adapter.Sink)
 	}
 	session := "fake-" + spec.RunID.String()
 	summary := fmt.Sprintf("Fake concluiu %s: análise registrada. Próximo passo: revisar o resultado.", key)
+	chat := spec.ConversationID != (domain.ID{})
+	if chat {
+		key = "conversa"
+		summary = "Fake respondeu na conversa: resposta registrada."
+		if spec.SessionRef != "" {
+			summary = "Fake respondeu na conversa (sessão retomada): resposta registrada."
+		}
+	}
 	if cfg.Summary != "" {
 		summary = cfg.Summary
 	}

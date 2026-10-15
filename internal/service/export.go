@@ -402,7 +402,7 @@ func (s *Service) buildDoc(ctx context.Context, q *store.Queries, companyID doma
 				exit = &v
 			}
 			st.runIDs = append(st.runIDs, r.ID)
-			doc.Runs = append(doc.Runs, export.Run{Key: runKey[r.ID], Name: r.Name, Task: taskNum[r.TaskID], Persona: peSlug[r.PersonaID],
+			doc.Runs = append(doc.Runs, export.Run{Key: runKey[r.ID], Name: r.Name, Task: taskNum[idOrZero(r.TaskID)], Persona: peSlug[r.PersonaID],
 				Status: r.Status, Trigger: r.Trigger, Agent: r.Agent, Model: r.Model, ModelSource: r.ModelSource,
 				Subscription: refSlug(subName, r.SubscriptionID), ExitCode: exit, Error: red(r.Error), Summary: red(r.Summary),
 				CostUSD: r.CostUsd, CostSource: r.CostSource, ListCostUSD: r.ListCostUsd,

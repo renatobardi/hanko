@@ -771,7 +771,7 @@ func (t *txc) runImport(cid domain.ID, doc export.Document, p importPlan, opts I
 		if costSource == "" {
 			costSource = string(domain.CostNone)
 		}
-		if _, err := t.q.ImportRun(ctx, store.ImportRunParams{ID: runID[r.Key], CompanyID: cid, TaskID: taskID[r.Task], PersonaID: peID[r.Persona],
+		if _, err := t.q.ImportRun(ctx, store.ImportRunParams{ID: runID[r.Key], CompanyID: cid, TaskID: ptr(taskID[r.Task]), PersonaID: peID[r.Persona],
 			Status: r.Status, Trigger: r.Trigger, Agent: r.Agent, Model: r.Model, ModelSource: modelSource,
 			SubscriptionID: optID(subID, r.Subscription), Name: r.Name, ExitCode: exit, Error: r.Error, Summary: r.Summary,
 			CostUsd: r.CostUSD, CostSource: costSource, ListCostUsd: r.ListCostUSD, InputTokens: r.Usage.InputTokens,

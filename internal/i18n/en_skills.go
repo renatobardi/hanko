@@ -208,7 +208,6 @@ var enSkills = map[string]string{
 	"próxima tentativa":                                           "next attempt",
 	"quando usar a skill (padrão: o do frontmatter)":              "when to use the skill (default: the frontmatter's)",
 	"recurso indisponível neste servidor":                         "feature unavailable on this server",
-	"sistema":                                                     "system",
 	"stdio executa um comando na máquina do servidor e só funciona se o operador o liberou na configuração.": "stdio runs a command on the server machine and only works if the operator allowed it in the configuration.",
 	"teste":                              "test",
 	"tipo: mcp ou webhook (obrigatório)": "kind: mcp or webhook (required)",

@@ -236,7 +236,7 @@ SELECT r.id, r.name, left(r.summary, 20000)::text AS summary, r.status, r.create
        co.task_prefix, t.number, t.title AS task_title, p.name AS persona_name, top.score
 FROM top
 JOIN runs r ON r.id = top.id
-JOIN tasks t ON t.id = r.task_id
+LEFT JOIN tasks t ON t.id = r.task_id -- run de chat não tem task (ADR-0027)
 JOIN personas p ON p.id = r.persona_id
 JOIN companies co ON co.id = r.company_id
 ORDER BY top.score DESC, r.created_at DESC, r.id
@@ -256,8 +256,8 @@ type SearchRunsRow struct {
 	Status      string
 	CreatedAt   time.Time
 	TaskPrefix  string
-	Number      int64
-	TaskTitle   string
+	Number      *int64
+	TaskTitle   *string
 	PersonaName string
 	Score       float64
 }

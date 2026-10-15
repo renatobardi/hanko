@@ -128,6 +128,8 @@ func triggerLabelCtx(ctx context.Context, t domain.RunTrigger) string {
 		return i18n.T(ctx, "verificação periódica")
 	case domain.TriggerGate:
 		return i18n.T(ctx, "decisão de gate")
+	case domain.TriggerChat:
+		return i18n.T(ctx, "conversa (chat)")
 	}
 	return string(t)
 }

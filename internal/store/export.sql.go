@@ -90,10 +90,10 @@ func (q *Queries) ExportRunEventsPage(ctx context.Context, arg ExportRunEventsPa
 }
 
 const exportRuns = `-- name: ExportRuns :many
-SELECT id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, search_tsv, workspace_id, workspace_source FROM runs WHERE company_id = $1 AND status NOT IN ('queued', 'running') ORDER BY created_at, id
+SELECT id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, search_tsv, workspace_id, workspace_source, conversation_id FROM runs WHERE company_id = $1 AND status NOT IN ('queued', 'running') AND task_id IS NOT NULL ORDER BY created_at, id
 `
 
-// Só execuções encerradas: uma execução em voo ainda não é um fato histórico.
+// Só execuções encerradas: uma execução em voo ainda não é um fato histórico. Runs de chat (sem task) ficam de fora (ADR-0027).
 func (q *Queries) ExportRuns(ctx context.Context, companyID uuid.UUID) ([]Run, error) {
 	rows, err := q.db.Query(ctx, exportRuns, companyID)
 	if err != nil {
@@ -137,6 +137,7 @@ func (q *Queries) ExportRuns(ctx context.Context, companyID uuid.UUID) ([]Run, e
 			&i.SearchTsv,
 			&i.WorkspaceID,
 			&i.WorkspaceSource,
+			&i.ConversationID,
 		); err != nil {
 			return nil, err
 		}
@@ -453,13 +454,13 @@ INSERT INTO runs (id, company_id, task_id, persona_id, status, trigger, agent, m
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
         $12, $13, $14, $15, $16, $17, $18, $19,
         $20, $21, $22, $23, $24, $25)
-RETURNING id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, search_tsv, workspace_id, workspace_source
+RETURNING id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, search_tsv, workspace_id, workspace_source, conversation_id
 `
 
 type ImportRunParams struct {
 	ID                  uuid.UUID
 	CompanyID           uuid.UUID
-	TaskID              uuid.UUID
+	TaskID              *uuid.UUID
 	PersonaID           uuid.UUID
 	Status              string
 	Trigger             string
@@ -547,6 +548,7 @@ func (q *Queries) ImportRun(ctx context.Context, arg ImportRunParams) (Run, erro
 		&i.SearchTsv,
 		&i.WorkspaceID,
 		&i.WorkspaceSource,
+		&i.ConversationID,
 	)
 	return i, err
 }

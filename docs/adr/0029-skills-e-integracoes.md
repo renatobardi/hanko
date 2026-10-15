@@ -87,6 +87,10 @@ Por isso a decisão trata, junto, de entrega, limites, segredos e SSRF.
     `gate.opened`/`gate.decided`: esses eventos são só dos gates `approval`, `task_review` e `hire`. A run de curadoria
     segue as regras comuns (`run.failed` se falhar; a task de sistema dela emite `task.completed`).
 
+16. **Chat.** Runs de chat são runs normais da persona: recebem as skills habilitadas e os MCPs da empresa como as de
+    task (o `hanko_skill_get` resolve a persona pelo run token, que no chat carrega a conversa em vez da task). Uma run de
+    chat que falha emite `run.failed` como qualquer outra.
+
 ## Consequências
 - Personas reaproveitam habilidades sem copiar texto, e a mesma skill chega ao Claude como skill de verdade e ao
   Codex/ACP pelo índice e pela tool MCP. A carga sob demanda no Codex depende de o agente chamar `hanko_skill_get`;
