@@ -142,7 +142,7 @@ func (c *Client) do(ctx context.Context, method, path string, q url.Values, in, 
 	return nil
 }
 
-func list[T any](c *Client, ctx context.Context, path string, q url.Values) ([]T, error) {
+func list[T any](ctx context.Context, c *Client, path string, q url.Values) ([]T, error) {
 	var out api.ListBody[T]
 	if err := c.do(ctx, http.MethodGet, path, q, nil, &out); err != nil {
 		return nil, err
@@ -324,7 +324,7 @@ func (c *Client) CreateCompany(ctx context.Context, in CreateCompanyReq) (api.Co
 }
 
 func (c *Client) Companies(ctx context.Context) ([]api.Company, error) {
-	return list[api.Company](c, ctx, "/companies", url.Values{"limit": {"500"}})
+	return list[api.Company](ctx, c, "/companies", url.Values{"limit": {"500"}})
 }
 
 func (c *Client) CreateWorkspace(ctx context.Context, company string, in CreateWorkspaceReq) (api.Workspace, error) {
@@ -332,7 +332,7 @@ func (c *Client) CreateWorkspace(ctx context.Context, company string, in CreateW
 }
 
 func (c *Client) Workspaces(ctx context.Context, company string) ([]api.Workspace, error) {
-	return list[api.Workspace](c, ctx, cp(company)+"/workspaces", url.Values{"limit": {"500"}})
+	return list[api.Workspace](ctx, c, cp(company)+"/workspaces", url.Values{"limit": {"500"}})
 }
 
 func (c *Client) CreateProject(ctx context.Context, company string, in CreateProjectReq) (api.Project, error) {
@@ -340,7 +340,7 @@ func (c *Client) CreateProject(ctx context.Context, company string, in CreatePro
 }
 
 func (c *Client) Projects(ctx context.Context, company string) ([]api.Project, error) {
-	return list[api.Project](c, ctx, cp(company)+"/projects", url.Values{"limit": {"500"}})
+	return list[api.Project](ctx, c, cp(company)+"/projects", url.Values{"limit": {"500"}})
 }
 
 func (c *Client) HirePersona(ctx context.Context, company string, in HirePersonaReq) (api.Persona, error) {
@@ -348,7 +348,7 @@ func (c *Client) HirePersona(ctx context.Context, company string, in HirePersona
 }
 
 func (c *Client) Personas(ctx context.Context, company string) ([]api.Persona, error) {
-	return list[api.Persona](c, ctx, cp(company)+"/personas", url.Values{"limit": {"500"}})
+	return list[api.Persona](ctx, c, cp(company)+"/personas", url.Values{"limit": {"500"}})
 }
 
 func (c *Client) Persona(ctx context.Context, company, ref string) (api.Persona, error) {
@@ -374,7 +374,7 @@ func (c *Client) CreateFlow(ctx context.Context, company string, in CreateFlowRe
 }
 
 func (c *Client) Flows(ctx context.Context, company string) ([]api.Flow, error) {
-	return list[api.Flow](c, ctx, cp(company)+"/flows", url.Values{"limit": {"500"}})
+	return list[api.Flow](ctx, c, cp(company)+"/flows", url.Values{"limit": {"500"}})
 }
 
 func (c *Client) Flow(ctx context.Context, company, ref string) (api.Flow, error) {
@@ -390,7 +390,7 @@ func (c *Client) RunFlow(ctx context.Context, company, ref string) (api.FlowRun,
 }
 
 func (c *Client) FlowFires(ctx context.Context, company, ref string) ([]api.FlowFire, error) {
-	return list[api.FlowFire](c, ctx, cp(company)+"/flows/"+url.PathEscape(ref)+"/fires", url.Values{"limit": {"30"}})
+	return list[api.FlowFire](ctx, c, cp(company)+"/flows/"+url.PathEscape(ref)+"/fires", url.Values{"limit": {"30"}})
 }
 
 func (c *Client) CreateTask(ctx context.Context, company string, in CreateTaskReq) (api.Task, error) {
@@ -398,7 +398,7 @@ func (c *Client) CreateTask(ctx context.Context, company string, in CreateTaskRe
 }
 
 func (c *Client) Tasks(ctx context.Context, company string, q TaskQuery) ([]api.Task, error) {
-	return list[api.Task](c, ctx, cp(company)+"/tasks", q.values())
+	return list[api.Task](ctx, c, cp(company)+"/tasks", q.values())
 }
 
 func (c *Client) Task(ctx context.Context, company, ref string) (api.Task, error) {
@@ -414,7 +414,7 @@ func (c *Client) AddComment(ctx context.Context, company, ref string, in AddComm
 }
 
 func (c *Client) Comments(ctx context.Context, company, ref string) ([]api.Comment, error) {
-	return list[api.Comment](c, ctx, cp(company)+"/tasks/"+url.PathEscape(ref)+"/comments", url.Values{"limit": {"500"}})
+	return list[api.Comment](ctx, c, cp(company)+"/tasks/"+url.PathEscape(ref)+"/comments", url.Values{"limit": {"500"}})
 }
 
 func (c *Client) WakeTask(ctx context.Context, company, ref string) error {
@@ -422,7 +422,7 @@ func (c *Client) WakeTask(ctx context.Context, company, ref string) error {
 }
 
 func (c *Client) Runs(ctx context.Context, company string, q RunQuery) ([]api.Run, error) {
-	return list[api.Run](c, ctx, cp(company)+"/runs", q.values())
+	return list[api.Run](ctx, c, cp(company)+"/runs", q.values())
 }
 
 func (c *Client) Run(ctx context.Context, company, id string) (api.Run, error) {
@@ -440,7 +440,7 @@ func (c *Client) RunEvents(ctx context.Context, company, id string, after int64,
 	if limit > 0 {
 		q.Set("limit", strconv.Itoa(limit))
 	}
-	return list[api.RunEvent](c, ctx, cp(company)+"/runs/"+url.PathEscape(id)+"/events", q)
+	return list[api.RunEvent](ctx, c, cp(company)+"/runs/"+url.PathEscape(id)+"/events", q)
 }
 
 // AllRunEvents lê o log inteiro a partir de after.

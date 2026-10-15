@@ -6,6 +6,7 @@ package md
 import (
 	"bytes"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/yuin/goldmark"
@@ -75,11 +76,11 @@ func escapeSegment(ln string) string {
 	var keep []string
 	ln = autolink.ReplaceAllStringFunc(ln, func(m string) string {
 		keep = append(keep, m)
-		return "\x00" + string(rune('A'+len(keep)-1)) + "\x00"
+		return "\x00" + strconv.Itoa(len(keep)-1) + "\x00"
 	})
 	ln = strings.ReplaceAll(ln, "<", "&lt;")
 	for i, m := range keep {
-		ln = strings.Replace(ln, "\x00"+string(rune('A'+i))+"\x00", m, 1)
+		ln = strings.Replace(ln, "\x00"+strconv.Itoa(i)+"\x00", m, 1)
 	}
 	return ln
 }

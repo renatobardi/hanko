@@ -114,7 +114,7 @@ func (s *server) renderLogin(w http.ResponseWriter, r *http.Request, status int,
 
 func (s *server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	if _, ok := auth.IdentityFrom(r.Context()); ok {
-		http.Redirect(w, r, auth.SafeNext(r.URL.Query().Get("next")), http.StatusSeeOther)
+		http.Redirect(w, r, auth.SafeNext(r.URL.Query().Get("next")), http.StatusSeeOther) //nolint:gosec // SafeNext só aceita caminho local
 		return
 	}
 	s.renderLogin(w, r, http.StatusOK, s.loginVM(r))
@@ -130,13 +130,14 @@ func (s *server) startSession(w http.ResponseWriter, r *http.Request, u domain.U
 	if err != nil {
 		return err
 	}
-	http.SetCookie(w, &http.Cookie{Name: auth.SessionCookie, Value: tok, Path: "/", Expires: sess.ExpiresAt,
+	// Secure acompanha HANKO_PUBLIC_URL (https em prd); HttpOnly e SameSite=Lax sempre.
+	http.SetCookie(w, &http.Cookie{Name: auth.SessionCookie, Value: tok, Path: "/", Expires: sess.ExpiresAt, //nolint:gosec // Secure vem da config (https)
 		MaxAge: int(auth.SessionTTL / time.Second), HttpOnly: true, Secure: s.auth.Secure, SameSite: http.SameSiteLaxMode})
 	return nil
 }
 
 func (s *server) clearSessionCookie(w http.ResponseWriter) {
-	http.SetCookie(w, &http.Cookie{Name: auth.SessionCookie, Value: "", Path: "/", MaxAge: -1, Expires: time.Unix(0, 0),
+	http.SetCookie(w, &http.Cookie{Name: auth.SessionCookie, Value: "", Path: "/", MaxAge: -1, Expires: time.Unix(0, 0), //nolint:gosec // Secure vem da config (https)
 		HttpOnly: true, Secure: s.auth.Secure, SameSite: http.SameSiteLaxMode})
 }
 

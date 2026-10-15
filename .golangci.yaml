@@ -40,6 +40,8 @@ linters:
     rules:
       - path: _test\.go
         linters: [gosec, errcheck]
+      - path: internal/ui/preview/ # ferramenta de QA visual local, não roda em produção
+        linters: [gosec]
 
 issues:
   max-issues-per-linter: 0

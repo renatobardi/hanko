@@ -51,7 +51,7 @@ func (c *Client) RequestGate(ctx context.Context, company string, in RequestGate
 }
 
 func (c *Client) Gates(ctx context.Context, company string, q GateQuery) ([]api.Gate, error) {
-	return list[api.Gate](c, ctx, cp(company)+"/gates", q.values())
+	return list[api.Gate](ctx, c, cp(company)+"/gates", q.values())
 }
 
 func (c *Client) Gate(ctx context.Context, company, id string) (api.Gate, error) {
