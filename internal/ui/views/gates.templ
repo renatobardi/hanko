@@ -9,31 +9,40 @@ import (
 // GateDecideForm answers a pending gate. compact (inbox, dashboard) has no note field and
 // no "Pedir mudanças" (that one needs a note). next says where to go afterwards.
 templ GateDecideForm(g GateRow, next string, compact bool) {
-	<form
-		class={ "gate-decide", templ.KV("compact", compact) }
-		method="post"
-		action={ templ.SafeURL(g.DecideHref) }
-		hx-post={ g.DecideHref }
-		hx-swap="none"
-	>
-		<input type="hidden" name="next" value={ next }/>
-		if !compact {
-			<textarea class="textarea" name="note" rows="3" aria-label={ i18n.T(ctx, "Nota da decisão") } placeholder={ i18n.T(ctx, "Nota para a persona e para o registro (obrigatória ao pedir mudanças). Markdown.") }></textarea>
-		}
-		<div class="gate-actions">
+	if !canDecide(ctx, g.Kind) {
+		<div class="gate-ro">
 			if compact {
 				<a class="btn ghost sm" href={ templ.SafeURL(g.Href) }>{ i18n.T(ctx, "Abrir") }</a>
 			}
-			if !compact {
-				<button class="btn outline sm" type="submit" name="decision" value="changes_requested">{ i18n.T(ctx, "Pedir mudanças") }</button>
-			}
-			<button class="btn outline sm" type="submit" name="decision" value="rejected">{ i18n.T(ctx, "Rejeitar") }</button>
-			<button class="btn primary sm" type="submit" name="decision" value="approved">
-				@Icon("check")
-				{ i18n.T(ctx, "Aprovar") }
-			</button>
+			@NeedRole(decideNeed(g.Kind))
 		</div>
-	</form>
+	} else {
+		<form
+			class={ "gate-decide", templ.KV("compact", compact) }
+			method="post"
+			action={ templ.SafeURL(g.DecideHref) }
+			hx-post={ g.DecideHref }
+			hx-swap="none"
+		>
+			<input type="hidden" name="next" value={ next }/>
+			if !compact {
+				<textarea class="textarea" name="note" rows="3" aria-label={ i18n.T(ctx, "Nota da decisão") } placeholder={ i18n.T(ctx, "Nota para a persona e para o registro (obrigatória ao pedir mudanças). Markdown.") }></textarea>
+			}
+			<div class="gate-actions">
+				if compact {
+					<a class="btn ghost sm" href={ templ.SafeURL(g.Href) }>{ i18n.T(ctx, "Abrir") }</a>
+				}
+				if !compact {
+					<button class="btn outline sm" type="submit" name="decision" value="changes_requested">{ i18n.T(ctx, "Pedir mudanças") }</button>
+				}
+				<button class="btn outline sm" type="submit" name="decision" value="rejected">{ i18n.T(ctx, "Rejeitar") }</button>
+				<button class="btn primary sm" type="submit" name="decision" value="approved">
+					@Icon("check")
+					{ i18n.T(ctx, "Aprovar") }
+				</button>
+			</div>
+		</form>
+	}
 }
 
 // GateBanner is the amber notice on a task that waits for a human decision.

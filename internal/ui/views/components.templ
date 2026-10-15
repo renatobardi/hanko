@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/i18n"
 )
 
@@ -112,10 +113,14 @@ templ TaskTable(vm TasksVM) {
 	<div id="tasks-list">
 		if vm.Total == 0 {
 			@EmptyCard("list", emptyTasksTitle(ctx, vm), emptyTasksText(ctx, vm), true) {
-				<a class="btn outline" href={ templ.SafeURL(vm.NewHref) }>
-					@Icon("plus")
-					{ i18n.T(ctx, "Nova task") }
-				</a>
+				if canWrite(ctx) {
+					<a class="btn outline" href={ templ.SafeURL(vm.NewHref) }>
+						@Icon("plus")
+						{ i18n.T(ctx, "Nova task") }
+					</a>
+				} else {
+					@NeedRole(domain.MemberMember)
+				}
 			}
 		} else {
 			<div class="table-wrap">

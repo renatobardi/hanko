@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/i18n"
 )
 
@@ -19,10 +20,14 @@ templ PersonasPage(sh Shell, vm PersonasVM) {
 		</div>
 		if len(vm.Rows) == 0 {
 			@EmptyCard("bot", i18n.T(ctx, "Você ainda não tem personas."), i18n.T(ctx, "Contrate a primeira, escolha o harness e o modelo e defina o intervalo de verificação."), true) {
-				<a class="btn outline" href={ templ.SafeURL(sh.Base() + "/personas/nova") }>
-					@Icon("plus")
-					{ i18n.T(ctx, "Contratar persona") }
-				</a>
+				if sh.CanAdmin() {
+					<a class="btn outline" href={ templ.SafeURL(sh.Base() + "/personas/nova") }>
+						@Icon("plus")
+						{ i18n.T(ctx, "Contratar persona") }
+					</a>
+				} else {
+					@NeedRole(domain.MemberAdmin)
+				}
 			}
 		} else {
 			<div class="table-wrap">
@@ -66,81 +71,85 @@ templ HirePersonaPage(sh Shell, vm HirePersonaVM) {
 	@Layout(sh) {
 		@PageHead(i18n.T(ctx, "Contratar persona"), i18n.T(ctx, "Identidade, harness e modelo. A persona é acordada assim que tiver uma task.")) {
 		}
-		<form class="card pad form-card" method="post" action={ templ.SafeURL(sh.Base() + "/personas/nova") } hx-boost="true">
-			if vm.Error != "" {
-				@Alert("danger", vm.Error)
-			}
-			<div class="form-grid">
-				<div class="field">
-					<label for="p-name">{ i18n.T(ctx, "Nome") }</label>
-					<input class="input" id="p-name" name="name" value={ vm.Name } required maxlength="80" placeholder={ i18n.T(ctx, "Ada") } autofocus/>
-					if e := vm.FieldErr["name"]; e != "" {
-						<span class="err">{ e }</span>
-					}
+		if sh.CanAdmin() {
+			<form class="card pad form-card" method="post" action={ templ.SafeURL(sh.Base() + "/personas/nova") } hx-boost="true">
+				if vm.Error != "" {
+					@Alert("danger", vm.Error)
+				}
+				<div class="form-grid">
+					<div class="field">
+						<label for="p-name">{ i18n.T(ctx, "Nome") }</label>
+						<input class="input" id="p-name" name="name" value={ vm.Name } required maxlength="80" placeholder={ i18n.T(ctx, "Ada") } autofocus/>
+						if e := vm.FieldErr["name"]; e != "" {
+							<span class="err">{ e }</span>
+						}
+					</div>
+					<div class="field">
+						<label for="p-title">{ i18n.T(ctx, "Cargo") }</label>
+						<input class="input" id="p-title" name="title" value={ vm.Title } maxlength="120" placeholder={ i18n.T(ctx, "Chief of staff") }/>
+					</div>
 				</div>
 				<div class="field">
-					<label for="p-title">{ i18n.T(ctx, "Cargo") }</label>
-					<input class="input" id="p-title" name="title" value={ vm.Title } maxlength="120" placeholder={ i18n.T(ctx, "Chief of staff") }/>
+					<span class="lbl">Harness</span>
+					<div class="radio-cards">
+						<label>
+							<input type="radio" name="agent" value="claude" checked?={ vm.Agent == "claude" }/>
+							<span class="rc"><b>@Icon("bot") Claude Code</b><span>{ i18n.T(ctx, "Local · sessão preservada · skills nativas") }</span></span>
+						</label>
+						<label>
+							<input type="radio" name="agent" value="codex" checked?={ vm.Agent == "codex" }/>
+							<span class="rc"><b>@Icon("bot") Codex</b><span>{ i18n.T(ctx, "Local · OpenAI · exec em JSONL") }</span></span>
+						</label>
+						<label>
+							<input type="radio" name="agent" value="fake" checked?={ vm.Agent == "fake" }/>
+							<span class="rc"><b>
+								@Icon("bot")
+								{ i18n.T(ctx, "Simulado") }
+							</b><span>{ i18n.T(ctx, "Sem processo e sem custo · demo e testes") }</span></span>
+						</label>
+					</div>
 				</div>
-			</div>
-			<div class="field">
-				<span class="lbl">Harness</span>
-				<div class="radio-cards">
-					<label>
-						<input type="radio" name="agent" value="claude" checked?={ vm.Agent == "claude" }/>
-						<span class="rc"><b>@Icon("bot") Claude Code</b><span>{ i18n.T(ctx, "Local · sessão preservada · skills nativas") }</span></span>
-					</label>
-					<label>
-						<input type="radio" name="agent" value="codex" checked?={ vm.Agent == "codex" }/>
-						<span class="rc"><b>@Icon("bot") Codex</b><span>{ i18n.T(ctx, "Local · OpenAI · exec em JSONL") }</span></span>
-					</label>
-					<label>
-						<input type="radio" name="agent" value="fake" checked?={ vm.Agent == "fake" }/>
-						<span class="rc"><b>
-							@Icon("bot")
-							{ i18n.T(ctx, "Simulado") }
-						</b><span>{ i18n.T(ctx, "Sem processo e sem custo · demo e testes") }</span></span>
-					</label>
+				<div class="form-grid">
+					<div class="field">
+						<label for="p-model">{ i18n.T(ctx, "Modelo") }</label>
+						<input class="input" id="p-model" name="model" value={ vm.Model } placeholder={ i18n.T(ctx, "sonnet (vazio = padrão do harness)") } list="models"/>
+						@ModelDatalist("models")
+						<span class="hint">{ i18n.T(ctx, "Lista sugerida · ou informe um ID manual.") }</span>
+					</div>
+					<div class="field">
+						<label for="p-hb">{ i18n.T(ctx, "Acordar a cada (min)") }</label>
+						<input class="input" id="p-hb" name="heartbeat" type="number" min="0" max="1440" value={ vm.Heartbeat } inputmode="numeric"/>
+						<span class="hint">{ i18n.T(ctx, "Intervalo de verificação: de quanto em quanto tempo a persona é acordada por task. 0 = só manual.") }</span>
+					</div>
 				</div>
-			</div>
-			<div class="form-grid">
+				<div class="form-grid">
+					<div class="field">
+						<label for="p-reports">{ i18n.T(ctx, "Reporta a") }</label>
+						@Select("reports_to", "p-reports", vm.ReportsTo, false)
+						<span class="hint">{ i18n.T(ctx, "Define o organograma. Uma persona só delega tasks para si e para quem reporta a ela.") }</span>
+					</div>
+					<div class="field">
+						<span class="lbl">{ i18n.T(ctx, "Revisão") }</span>
+						<label class="check">
+							<input type="checkbox" name="require_review" value="1" checked?={ vm.RequireReview }/>
+							<span>{ i18n.T(ctx, "Exige revisão") }</span>
+						</label>
+						<span class="hint">{ i18n.T(ctx, "Ao dar uma task como concluída, ela passa por um gate de revisão antes de fechar.") }</span>
+					</div>
+				</div>
 				<div class="field">
-					<label for="p-model">{ i18n.T(ctx, "Modelo") }</label>
-					<input class="input" id="p-model" name="model" value={ vm.Model } placeholder={ i18n.T(ctx, "sonnet (vazio = padrão do harness)") } list="models"/>
-					@ModelDatalist("models")
-					<span class="hint">{ i18n.T(ctx, "Lista sugerida · ou informe um ID manual.") }</span>
+					<label for="p-instr">{ i18n.T(ctx, "Instruções") }</label>
+					<textarea class="textarea mono" id="p-instr" name="instructions" rows="8" placeholder={ i18n.T(ctx, "Você é a Ada, Chief of staff. Receba a meta, delegue e conclua com evidência.") }>{ vm.Instructions }</textarea>
+					<span class="hint">{ i18n.T(ctx, "Vira o prompt de sistema da persona em cada execução.") }</span>
 				</div>
-				<div class="field">
-					<label for="p-hb">{ i18n.T(ctx, "Acordar a cada (min)") }</label>
-					<input class="input" id="p-hb" name="heartbeat" type="number" min="0" max="1440" value={ vm.Heartbeat } inputmode="numeric"/>
-					<span class="hint">{ i18n.T(ctx, "Intervalo de verificação: de quanto em quanto tempo a persona é acordada por task. 0 = só manual.") }</span>
+				<div class="form-actions">
+					<a class="btn ghost" href={ templ.SafeURL(sh.Base() + "/personas") }>{ i18n.T(ctx, "Cancelar") }</a>
+					<button class="btn primary" type="submit">{ i18n.T(ctx, "Contratar") }</button>
 				</div>
-			</div>
-			<div class="form-grid">
-				<div class="field">
-					<label for="p-reports">{ i18n.T(ctx, "Reporta a") }</label>
-					@Select("reports_to", "p-reports", vm.ReportsTo, false)
-					<span class="hint">{ i18n.T(ctx, "Define o organograma. Uma persona só delega tasks para si e para quem reporta a ela.") }</span>
-				</div>
-				<div class="field">
-					<span class="lbl">{ i18n.T(ctx, "Revisão") }</span>
-					<label class="check">
-						<input type="checkbox" name="require_review" value="1" checked?={ vm.RequireReview }/>
-						<span>{ i18n.T(ctx, "Exige revisão") }</span>
-					</label>
-					<span class="hint">{ i18n.T(ctx, "Ao dar uma task como concluída, ela passa por um gate de revisão antes de fechar.") }</span>
-				</div>
-			</div>
-			<div class="field">
-				<label for="p-instr">{ i18n.T(ctx, "Instruções") }</label>
-				<textarea class="textarea mono" id="p-instr" name="instructions" rows="8" placeholder={ i18n.T(ctx, "Você é a Ada, Chief of staff. Receba a meta, delegue e conclua com evidência.") }>{ vm.Instructions }</textarea>
-				<span class="hint">{ i18n.T(ctx, "Vira o prompt de sistema da persona em cada execução.") }</span>
-			</div>
-			<div class="form-actions">
-				<a class="btn ghost" href={ templ.SafeURL(sh.Base() + "/personas") }>{ i18n.T(ctx, "Cancelar") }</a>
-				<button class="btn primary" type="submit">{ i18n.T(ctx, "Contratar") }</button>
-			</div>
-		</form>
+			</form>
+		} else {
+			@Alert("warn", i18n.T(ctx, "Seu papel nesta empresa não permite esta ação."))
+		}
 	}
 }
 
@@ -164,7 +173,7 @@ templ PersonaPage(sh Shell, vm PersonaVM) {
 				</p>
 			</div>
 		</div>
-		if len(vm.Controls) > 0 {
+		if len(vm.Controls) > 0 && sh.CanAdmin() {
 			<div class="persona-controls" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">
 				for _, c := range vm.Controls {
 					<form method="post" action={ templ.SafeURL(c.Href) } hx-post={ c.Href } hx-swap="none">
@@ -240,58 +249,70 @@ templ PersonaPage(sh Shell, vm PersonaVM) {
 		</div>
 		<section class="card pad" id="organizacao" style="margin-top:20px">
 			<div class="card-head"><div><h2>{ i18n.T(ctx, "Organização") }</h2><p class="sub">{ i18n.T(ctx, "Quem esta persona reporta e se o trabalho dela passa por revisão antes de concluir.") }</p></div></div>
-			<form method="post" action={ templ.SafeURL(vm.OrgAction) } hx-post={ vm.OrgAction } hx-swap="none" class="org-form">
-				<div class="field">
-					<label for="o-reports">{ i18n.T(ctx, "Reporta a") }</label>
-					@Select("reports_to", "o-reports", vm.OrgOptions, false)
-				</div>
-				<div class="field">
-					<label class="check">
-						<input type="checkbox" name="require_review" value="1" checked?={ vm.RequireReview }/>
-						<span>{ i18n.T(ctx, "Exige revisão") }</span>
-					</label>
-				</div>
-				<div class="form-actions" style="margin-top:0"><button class="btn primary sm" type="submit">{ i18n.T(ctx, "Salvar organização") }</button></div>
-			</form>
+			if canAdmin(ctx) {
+				<form method="post" action={ templ.SafeURL(vm.OrgAction) } hx-post={ vm.OrgAction } hx-swap="none" class="org-form">
+					<div class="field">
+						<label for="o-reports">{ i18n.T(ctx, "Reporta a") }</label>
+						@Select("reports_to", "o-reports", vm.OrgOptions, false)
+					</div>
+					<div class="field">
+						<label class="check">
+							<input type="checkbox" name="require_review" value="1" checked?={ vm.RequireReview }/>
+							<span>{ i18n.T(ctx, "Exige revisão") }</span>
+						</label>
+					</div>
+					<div class="form-actions" style="margin-top:0"><button class="btn primary sm" type="submit">{ i18n.T(ctx, "Salvar organização") }</button></div>
+				</form>
+			} else {
+				@NeedRole(domain.MemberAdmin)
+			}
 		</section>
 		<section class="card pad" id="revisor" style="margin-top:20px">
 			<div class="card-head"><div><h2>{ i18n.T(ctx, "Revisor") }</h2><p class="sub">{ i18n.T(ctx, "Quem faz a revisão automática antes do gate humano: outra persona, ou este mesmo papel rodando em outro harness ou modelo.") }</p></div></div>
-			<form method="post" action={ templ.SafeURL(vm.Reviewer.Action) } hx-boost="true" class="org-form">
-				if vm.Reviewer.Error != "" {
-					@Alert("danger", vm.Reviewer.Error)
-				}
-				<div class="field">
-					<span class="lbl">{ i18n.T(ctx, "Modo") }</span>
-					<label class="check"><input type="radio" name="mode" value="none" checked?={ vm.Reviewer.Mode == "none" }/><span>{ i18n.T(ctx, "Sem revisor") }</span></label>
-					<label class="check"><input type="radio" name="mode" value="persona" checked?={ vm.Reviewer.Mode == "persona" }/><span>{ i18n.T(ctx, "Outra persona") }</span></label>
-					<label class="check"><input type="radio" name="mode" value="harness" checked?={ vm.Reviewer.Mode == "harness" }/><span>{ i18n.T(ctx, "Mesmo papel com outro harness ou modelo") }</span></label>
-				</div>
-				<div class="field">
-					<label for="rv-persona">{ i18n.T(ctx, "Persona revisora") }</label>
-					@Select("reviewer_persona", "rv-persona", vm.Reviewer.Persona, false)
-				</div>
-				<div class="field">
-					<label for="rv-agent">Harness</label>
-					@Select("reviewer_agent", "rv-agent", vm.Reviewer.Agent, false)
-				</div>
-				<div class="field">
-					<label for="rv-model">{ i18n.T(ctx, "Modelo do revisor") }</label>
-					<input class="input" id="rv-model" name="reviewer_model" value={ vm.Reviewer.Model } placeholder={ i18n.T(ctx, "vazio = padrão do harness") } list="rv-models" autocomplete="off"/>
-					@ModelDatalist("rv-models")
-					<span class="hint">{ i18n.T(ctx, "Harness e modelo valem só no modo mesmo papel e precisam diferir dos da persona.") }</span>
-				</div>
-				<div class="form-actions" style="margin-top:0"><button class="btn primary sm" type="submit">{ i18n.T(ctx, "Salvar revisor") }</button></div>
-			</form>
+			if canAdmin(ctx) {
+				<form method="post" action={ templ.SafeURL(vm.Reviewer.Action) } hx-boost="true" class="org-form">
+					if vm.Reviewer.Error != "" {
+						@Alert("danger", vm.Reviewer.Error)
+					}
+					<div class="field">
+						<span class="lbl">{ i18n.T(ctx, "Modo") }</span>
+						<label class="check"><input type="radio" name="mode" value="none" checked?={ vm.Reviewer.Mode == "none" }/><span>{ i18n.T(ctx, "Sem revisor") }</span></label>
+						<label class="check"><input type="radio" name="mode" value="persona" checked?={ vm.Reviewer.Mode == "persona" }/><span>{ i18n.T(ctx, "Outra persona") }</span></label>
+						<label class="check"><input type="radio" name="mode" value="harness" checked?={ vm.Reviewer.Mode == "harness" }/><span>{ i18n.T(ctx, "Mesmo papel com outro harness ou modelo") }</span></label>
+					</div>
+					<div class="field">
+						<label for="rv-persona">{ i18n.T(ctx, "Persona revisora") }</label>
+						@Select("reviewer_persona", "rv-persona", vm.Reviewer.Persona, false)
+					</div>
+					<div class="field">
+						<label for="rv-agent">Harness</label>
+						@Select("reviewer_agent", "rv-agent", vm.Reviewer.Agent, false)
+					</div>
+					<div class="field">
+						<label for="rv-model">{ i18n.T(ctx, "Modelo do revisor") }</label>
+						<input class="input" id="rv-model" name="reviewer_model" value={ vm.Reviewer.Model } placeholder={ i18n.T(ctx, "vazio = padrão do harness") } list="rv-models" autocomplete="off"/>
+						@ModelDatalist("rv-models")
+						<span class="hint">{ i18n.T(ctx, "Harness e modelo valem só no modo mesmo papel e precisam diferir dos da persona.") }</span>
+					</div>
+					<div class="form-actions" style="margin-top:0"><button class="btn primary sm" type="submit">{ i18n.T(ctx, "Salvar revisor") }</button></div>
+				</form>
+			} else {
+				@NeedRole(domain.MemberAdmin)
+			}
 		</section>
 		<section class="card pad" id="assinatura" style="margin-top:20px">
 			<div class="card-head"><div><h2>{ i18n.T(ctx, "Assinatura") }</h2><p class="sub">{ i18n.T(ctx, "Plano que cobre as execuções desta persona: a mensalidade é rateada no custo pago e a trava semanal vale para ela.") }</p></div><a class="more" href={ templ.SafeURL(sh.Base() + "/custos#assinaturas") }>{ i18n.T(ctx, "Custos") }</a></div>
-			<form method="post" action={ templ.SafeURL(vm.SubAction) } hx-post={ vm.SubAction } hx-swap="none" class="org-form">
-				<div class="field">
-					<label for="o-sub">{ i18n.T(ctx, "Assinatura") }</label>
-					@Select("subscription", "o-sub", vm.SubOptions, false)
-				</div>
-				<div class="form-actions" style="margin-top:0"><button class="btn primary sm" type="submit">{ i18n.T(ctx, "Salvar assinatura") }</button></div>
-			</form>
+			if canAdmin(ctx) {
+				<form method="post" action={ templ.SafeURL(vm.SubAction) } hx-post={ vm.SubAction } hx-swap="none" class="org-form">
+					<div class="field">
+						<label for="o-sub">{ i18n.T(ctx, "Assinatura") }</label>
+						@Select("subscription", "o-sub", vm.SubOptions, false)
+					</div>
+					<div class="form-actions" style="margin-top:0"><button class="btn primary sm" type="submit">{ i18n.T(ctx, "Salvar assinatura") }</button></div>
+				</form>
+			} else {
+				@NeedRole(domain.MemberAdmin)
+			}
 		</section>
 		if vm.Budget != nil {
 			<section class={ "card pad budget-card", "b-" + vm.Budget.State } style="margin-top:20px">

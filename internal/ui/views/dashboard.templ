@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/i18n"
 )
 
@@ -14,10 +15,14 @@ templ DashboardPage(sh Shell, vm DashboardVM) {
 				@Icon("play")
 				{ i18n.T(ctx, "Ver ao vivo") }
 			</a>
-			<a class="btn primary" href={ templ.SafeURL(sh.Base() + "/tasks/nova") }>
-				@Icon("plus")
-				{ i18n.T(ctx, "Nova task") }
-			</a>
+			if sh.CanWrite() {
+				<a class="btn primary" href={ templ.SafeURL(sh.Base() + "/tasks/nova") }>
+					@Icon("plus")
+					{ i18n.T(ctx, "Nova task") }
+				</a>
+			} else {
+				@NeedRole(domain.MemberMember)
+			}
 		}
 		if vm.Notice != "" {
 			@Alert("warn", vm.Notice)
@@ -39,10 +44,14 @@ templ DashboardPage(sh Shell, vm DashboardVM) {
 		<div class="grid-dash">
 			if !vm.HasPersonas {
 				@EmptyCard("bot", i18n.T(ctx, "Você ainda não tem personas."), i18n.T(ctx, "Contrate a primeira e defina o intervalo de verificação. A partir daí, toda task atribuída começa a rodar sozinha."), true) {
-					<a class="btn outline" href={ templ.SafeURL(sh.Base() + "/personas/nova") }>
-						@Icon("plus")
-						{ i18n.T(ctx, "Contratar persona") }
-					</a>
+					if sh.CanAdmin() {
+						<a class="btn outline" href={ templ.SafeURL(sh.Base() + "/personas/nova") }>
+							@Icon("plus")
+							{ i18n.T(ctx, "Contratar persona") }
+						</a>
+					} else {
+						@NeedRole(domain.MemberAdmin)
+					}
 				}
 			} else {
 				<section class="card pad">
@@ -118,10 +127,14 @@ templ DashboardPage(sh Shell, vm DashboardVM) {
 			}
 			if len(vm.Tasks) == 0 {
 				@EmptyCard("list", i18n.T(ctx, "Nenhuma task."), i18n.T(ctx, "Crie uma e atribua a uma persona para ver uma execução acontecer."), false) {
-					<a class="btn outline sm" href={ templ.SafeURL(sh.Base() + "/tasks/nova") }>
-						@Icon("plus")
-						{ i18n.T(ctx, "Nova task") }
-					</a>
+					if sh.CanWrite() {
+						<a class="btn outline sm" href={ templ.SafeURL(sh.Base() + "/tasks/nova") }>
+							@Icon("plus")
+							{ i18n.T(ctx, "Nova task") }
+						</a>
+					} else {
+						@NeedRole(domain.MemberMember)
+					}
 				}
 			} else {
 				<section class="card pad">
@@ -142,7 +155,11 @@ templ DashboardPage(sh Shell, vm DashboardVM) {
 				</section>
 			} else {
 				@EmptyCard("database", i18n.T(ctx, "Sem orçamento definido."), i18n.T(ctx, "Sem limite, as personas trabalham até você pausar."), false) {
-					<a class="btn outline sm" href={ templ.SafeURL(sh.Base() + "/custos") }>{ i18n.T(ctx, "Definir limite mensal") }</a>
+					if sh.CanAdmin() {
+						<a class="btn outline sm" href={ templ.SafeURL(sh.Base() + "/custos") }>{ i18n.T(ctx, "Definir limite mensal") }</a>
+					} else {
+						@NeedRole(domain.MemberAdmin)
+					}
 				}
 			}
 		</div>

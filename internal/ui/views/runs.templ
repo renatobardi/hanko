@@ -93,7 +93,7 @@ templ RunHeader(vm RunVM) {
 				<div class="sub">Task <a class="mono" href={ templ.SafeURL(vm.TaskHref) }>{ vm.TaskKey }</a> · { vm.Trigger } · { i18n.T(ctx, "iniciada") } { vm.Started }</div>
 			</div>
 		</div>
-		if vm.Active && vm.CancelHref != "" {
+		if vm.Active && vm.CancelHref != "" && canWrite(ctx) {
 			<form method="post" action={ templ.SafeURL(vm.CancelHref) } hx-post={ vm.CancelHref } hx-swap="none">
 				<button class="btn danger" type="submit">
 					@Icon("square")

@@ -78,7 +78,7 @@ func (s *server) handleFlows(w http.ResponseWriter, r *http.Request, co domain.C
 		vm.Last = agoCtx(ctx, *last, now, loc)
 	}
 	sort.SliceStable(vm.Rows, func(i, j int) bool { return vm.Rows[i].Enabled && !vm.Rows[j].Enabled })
-	sh := s.shell(co, "fluxos", i18n.T(ctx, "Fluxos"), views.Crumb{Label: i18n.T(ctx, "Fluxos")})
+	sh := s.shell(r, co, "fluxos", i18n.T(ctx, "Fluxos"), views.Crumb{Label: i18n.T(ctx, "Fluxos")})
 	s.render(w, r, http.StatusOK, views.FlowsPage(sh, vm))
 }
 
@@ -131,7 +131,7 @@ func (s *server) handleNewFlow(w http.ResponseWriter, r *http.Request, co domain
 func (s *server) renderNewFlow(w http.ResponseWriter, r *http.Request, co domain.Company, status int, vm views.FlowFormVM) {
 	base := "/c/" + co.Slug
 	ctx := r.Context()
-	sh := s.shell(co, "fluxos", i18n.T(ctx, "Novo fluxo"), views.Crumb{Label: i18n.T(ctx, "Fluxos"), Href: base + "/fluxos"}, views.Crumb{Label: i18n.T(ctx, "Novo")})
+	sh := s.shell(r, co, "fluxos", i18n.T(ctx, "Novo fluxo"), views.Crumb{Label: i18n.T(ctx, "Fluxos"), Href: base + "/fluxos"}, views.Crumb{Label: i18n.T(ctx, "Novo")})
 	s.render(w, r, status, views.NewFlowPage(sh, vm))
 }
 
@@ -282,7 +282,7 @@ func (s *server) buildFlowVM(r *http.Request, co domain.Company, f service.FlowV
 
 func (s *server) renderFlow(w http.ResponseWriter, r *http.Request, co domain.Company, status int, f service.FlowView, vm views.FlowVM) {
 	base := "/c/" + co.Slug
-	sh := s.shell(co, "fluxos", f.Name, views.Crumb{Label: i18n.T(r.Context(), "Fluxos"), Href: base + "/fluxos"}, views.Crumb{Label: f.Name})
+	sh := s.shell(r, co, "fluxos", f.Name, views.Crumb{Label: i18n.T(r.Context(), "Fluxos"), Href: base + "/fluxos"}, views.Crumb{Label: f.Name})
 	s.render(w, r, status, views.FlowPage(sh, vm))
 }
 

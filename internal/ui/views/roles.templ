@@ -1,0 +1,8 @@
+package views
+
+import "github.com/renatobardi/hanko/internal/domain"
+
+// NeedRole é o aviso discreto no lugar de um controle que o papel atual não tem.
+templ NeedRole(min domain.MemberRole) {
+	<span class="role-note" data-need={ string(min) }>{ needText(ctx, min) }</span>
+}

@@ -111,8 +111,10 @@ func (s *server) handleTasks(w http.ResponseWriter, r *http.Request, co domain.C
 		s.render(w, r, http.StatusOK, views.TaskTable(vm))
 		return
 	}
-	sh := s.shell(co, "tasks", i18n.T(ctx, "Tasks"), views.Crumb{Label: i18n.T(ctx, "Tasks")})
-	sh.Action = &views.Action{Label: i18n.T(ctx, "Nova task"), Href: base + "/tasks/nova", Icon: "plus"}
+	sh := s.shell(r, co, "tasks", i18n.T(ctx, "Tasks"), views.Crumb{Label: i18n.T(ctx, "Tasks")})
+	if sh.CanWrite() {
+		sh.Action = &views.Action{Label: i18n.T(ctx, "Nova task"), Href: base + "/tasks/nova", Icon: "plus"}
+	}
 	s.render(w, r, http.StatusOK, views.TasksPage(sh, vm))
 }
 
@@ -257,7 +259,7 @@ func (s *server) handleTask(w http.ResponseWriter, r *http.Request, co domain.Co
 		return
 	}
 	base := "/c/" + co.Slug
-	sh := s.shell(co, "tasks", t.Key+" · "+t.Title, views.Crumb{Label: i18n.T(r.Context(), "Tasks"), Href: base + "/tasks"}, views.Crumb{Label: t.Key})
+	sh := s.shell(r, co, "tasks", t.Key+" · "+t.Title, views.Crumb{Label: i18n.T(r.Context(), "Tasks"), Href: base + "/tasks"}, views.Crumb{Label: t.Key})
 	sh.Flush = true
 	s.render(w, r, http.StatusOK, views.TaskPage(sh, vm, base))
 }
@@ -405,7 +407,7 @@ func (s *server) handleNewTask(w http.ResponseWriter, r *http.Request, co domain
 func (s *server) renderNewTask(w http.ResponseWriter, r *http.Request, co domain.Company, status int, vm views.NewTaskVM) {
 	base := "/c/" + co.Slug
 	ctx := r.Context()
-	sh := s.shell(co, "tasks", i18n.T(ctx, "Nova task"), views.Crumb{Label: i18n.T(ctx, "Tasks"), Href: base + "/tasks"}, views.Crumb{Label: i18n.T(ctx, "Nova")})
+	sh := s.shell(r, co, "tasks", i18n.T(ctx, "Nova task"), views.Crumb{Label: i18n.T(ctx, "Tasks"), Href: base + "/tasks"}, views.Crumb{Label: i18n.T(ctx, "Nova")})
 	s.render(w, r, status, views.NewTaskPage(sh, vm))
 }
 

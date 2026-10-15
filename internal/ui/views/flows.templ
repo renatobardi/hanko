@@ -4,15 +4,22 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/i18n"
 )
 
 templ FlowSwitch(on bool, href, name string) {
-	<form method="post" action={ templ.SafeURL(href) } hx-post={ href } hx-swap="none" class="switch-form">
-		<button class={ "switch", templ.KV("on", on) } type="submit" role="switch" aria-checked={ fmt.Sprint(on) } aria-label={ flowSwitchLabel(ctx, name, on) }>
+	if !canAdmin(ctx) {
+		<button class={ "switch", templ.KV("on", on) } type="button" role="switch" disabled aria-checked={ fmt.Sprint(on) } aria-label={ flowSwitchLabel(ctx, name, on) } title={ needText(ctx, domain.MemberAdmin) }>
 			<i></i>
 		</button>
-	</form>
+	} else {
+		<form method="post" action={ templ.SafeURL(href) } hx-post={ href } hx-swap="none" class="switch-form">
+			<button class={ "switch", templ.KV("on", on) } type="submit" role="switch" aria-checked={ fmt.Sprint(on) } aria-label={ flowSwitchLabel(ctx, name, on) }>
+				<i></i>
+			</button>
+		</form>
+	}
 }
 
 func flowSwitchLabel(ctx context.Context, name string, on bool) string {
@@ -25,10 +32,14 @@ func flowSwitchLabel(ctx context.Context, name string, on bool) string {
 templ FlowsPage(sh Shell, vm FlowsVM) {
 	@Layout(sh) {
 		@PageHead(i18n.T(ctx, "Fluxos"), vm.Subtitle) {
-			<a class="btn primary" href={ templ.SafeURL(vm.NewHref) }>
-				@Icon("plus")
-				{ i18n.T(ctx, "Novo fluxo") }
-			</a>
+			if sh.CanAdmin() {
+				<a class="btn primary" href={ templ.SafeURL(vm.NewHref) }>
+					@Icon("plus")
+					{ i18n.T(ctx, "Novo fluxo") }
+				</a>
+			} else {
+				@NeedRole(domain.MemberAdmin)
+			}
 		}
 		if vm.Notice != "" {
 			@Alert("warn", vm.Notice)
@@ -41,10 +52,14 @@ templ FlowsPage(sh Shell, vm FlowsVM) {
 		</div>
 		if len(vm.Rows) == 0 {
 			@EmptyCard("workflow", i18n.T(ctx, "Você ainda não tem fluxos."), i18n.T(ctx, "Um fluxo é um trabalho recorrente definido uma vez: a cada ocorrência da agenda ele cria uma task para a persona escolhida."), true) {
-				<a class="btn outline" href={ templ.SafeURL(vm.NewHref) }>
-					@Icon("plus")
-					{ i18n.T(ctx, "Criar fluxo") }
-				</a>
+				if sh.CanAdmin() {
+					<a class="btn outline" href={ templ.SafeURL(vm.NewHref) }>
+						@Icon("plus")
+						{ i18n.T(ctx, "Criar fluxo") }
+					</a>
+				} else {
+					@NeedRole(domain.MemberAdmin)
+				}
 			}
 		} else {
 			<div class="table-wrap">
@@ -83,12 +98,16 @@ templ FlowsPage(sh Shell, vm FlowsVM) {
 								<td class="act-col">
 									<div class="row-acts">
 										@FlowSwitch(r.Enabled, r.ToggleHref, r.Name)
-										<form method="post" action={ templ.SafeURL(r.RunHref) } hx-post={ r.RunHref } hx-swap="none">
-											<button class="btn outline sm" type="submit">
-												@Icon("play")
-												{ i18n.T(ctx, "Rodar agora") }
-											</button>
-										</form>
+										if canAdmin(ctx) {
+											<form method="post" action={ templ.SafeURL(r.RunHref) } hx-post={ r.RunHref } hx-swap="none">
+												<button class="btn outline sm" type="submit">
+													@Icon("play")
+													{ i18n.T(ctx, "Rodar agora") }
+												</button>
+											</form>
+										} else {
+											@NeedRole(domain.MemberAdmin)
+										}
 									</div>
 								</td>
 							</tr>
@@ -217,7 +236,11 @@ templ NewFlowPage(sh Shell, vm FlowFormVM) {
 	@Layout(sh) {
 		@PageHead(i18n.T(ctx, "Novo fluxo"), i18n.T(ctx, "Defina uma vez; cada disparo vira uma task atribuída à persona, com sua execução.")) {
 		}
-		@FlowForm(vm)
+		if sh.CanAdmin() {
+			@FlowForm(vm)
+		} else {
+			@Alert("warn", i18n.T(ctx, "Seu papel nesta empresa não permite esta ação."))
+		}
 	}
 }
 
@@ -236,12 +259,16 @@ templ FlowPage(sh Shell, vm FlowVM) {
 			</div>
 			<div class="flow-acts">
 				@FlowSwitch(vm.Enabled, vm.ToggleHref, vm.Name)
-				<form method="post" action={ templ.SafeURL(vm.RunHref) } hx-post={ vm.RunHref } hx-swap="none">
-					<button class="btn primary" type="submit">
-						@Icon("play")
-						{ i18n.T(ctx, "Rodar agora") }
-					</button>
-				</form>
+				if canAdmin(ctx) {
+					<form method="post" action={ templ.SafeURL(vm.RunHref) } hx-post={ vm.RunHref } hx-swap="none">
+						<button class="btn primary" type="submit">
+							@Icon("play")
+							{ i18n.T(ctx, "Rodar agora") }
+						</button>
+					</form>
+				} else {
+					@NeedRole(domain.MemberAdmin)
+				}
 			</div>
 		</div>
 		<div class="stats4" style="margin-bottom:20px">
@@ -251,7 +278,11 @@ templ FlowPage(sh Shell, vm FlowVM) {
 			<div class="stat"><div class="l">{ i18n.T(ctx, "Último disparo") }</div><div class="v">{ vm.Last }</div></div>
 		</div>
 		<h2 class="side-h" style="margin:8px 0 12px">{ i18n.T(ctx, "Definição") }</h2>
-		@FlowForm(vm.Form)
+		if canAdmin(ctx) {
+			@FlowForm(vm.Form)
+		} else {
+			@NeedRole(domain.MemberAdmin)
+		}
 		<h2 class="side-h" style="margin:28px 0 12px">{ i18n.Tf(ctx, "Histórico de disparos · %s", fmt.Sprint(vm.Fired)) }</h2>
 		if len(vm.Fires) == 0 {
 			@EmptyCard("clock", i18n.T(ctx, "Nenhum disparo ainda."), i18n.T(ctx, "Os disparos aparecem aqui, cada um com a task que gerou. Use Rodar agora para testar."), false)

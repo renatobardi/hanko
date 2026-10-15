@@ -325,7 +325,7 @@ func (s *server) handleCosts(w http.ResponseWriter, r *http.Request, co domain.C
 		{Key: "anterior", Label: i18n.T(ctx, "Mês anterior"), Href: base + "/custos?p=anterior", On: key == "anterior"},
 		{Key: "30d", Label: i18n.T(ctx, "30 dias"), Href: base + "/custos?p=30d", On: key == "30d"},
 	}
-	sh := s.shell(co, "custos", i18n.T(ctx, "Custos"), views.Crumb{Label: i18n.T(ctx, "Custos")})
+	sh := s.shell(r, co, "custos", i18n.T(ctx, "Custos"), views.Crumb{Label: i18n.T(ctx, "Custos")})
 	s.render(w, r, http.StatusOK, views.CostsPage(sh, vm))
 }
 

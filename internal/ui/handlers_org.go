@@ -123,7 +123,7 @@ func (s *server) handleOrg(w http.ResponseWriter, r *http.Request, co domain.Com
 	default:
 		vm.Subtitle = i18n.Tf(ctx, "%d personas em %d níveis · quem reporta a quem. A delegação de tasks segue a árvore.", chart.Total, chart.Depth)
 	}
-	sh := s.shell(co, "organograma", i18n.T(ctx, "Organograma"), views.Crumb{Label: i18n.T(ctx, "Organograma")})
+	sh := s.shell(r, co, "organograma", i18n.T(ctx, "Organograma"), views.Crumb{Label: i18n.T(ctx, "Organograma")})
 	s.render(w, r, http.StatusOK, views.OrgPage(sh, vm))
 }
 

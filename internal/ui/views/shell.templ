@@ -114,7 +114,11 @@ templ sidebarFoot(sh Shell) {
 		<details class="usermenu">
 			<summary class="sidebar-foot">
 				<span class="avatar-sq">{ initial(u.Name) }</span>
-				<div class="me"><b>{ u.Name }</b><span>{ u.Email }</span></div>
+				<div class="me"><b>{ u.Name }</b><span>{ u.Email }</span>
+					if r := RoleFrom(ctx); r != "" {
+						<span class="role-tag" data-role={ string(r) }>{ roleBadge(ctx, r) }</span>
+					}
+				</div>
 				<span class="gear">@Icon("chevron-down")</span>
 			</summary>
 			<div class="menu" role="menu">
