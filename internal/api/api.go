@@ -16,6 +16,7 @@ import (
 	"github.com/renatobardi/hanko/internal/auth"
 	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/events"
+	"github.com/renatobardi/hanko/internal/export"
 	"github.com/renatobardi/hanko/internal/service"
 )
 
@@ -99,6 +100,8 @@ type backend interface {
 	GetFlow(ctx context.Context, companyID domain.ID, ref string) (service.FlowView, error)
 	ListFlowFires(ctx context.Context, companyID, flowID domain.ID, limit int) ([]service.FlowFireView, error)
 	RunFlowNow(ctx context.Context, actor domain.Actor, companyID, flowID domain.ID) (service.FlowFireResult, error)
+	ExportCompany(ctx context.Context, companyID domain.ID, opts service.ExportOptions) (export.Document, error)
+	ImportCompany(ctx context.Context, actor domain.Actor, doc export.Document, opts service.ImportOptions) (service.ImportResult, error)
 	ListMembers(ctx context.Context, companyID domain.ID) ([]domain.Member, error)
 	ListInvites(ctx context.Context, companyID domain.ID) ([]domain.Invite, error)
 	InviteMember(ctx context.Context, actor domain.Actor, companyID domain.ID, email string, role domain.MemberRole) (domain.Invite, string, error)
@@ -197,6 +200,7 @@ func (s *server) register(api huma.API) {
 	s.registerSubscriptions(api)
 	s.registerFlows(api)
 	s.registerMembers(api)
+	s.registerExport(api)
 }
 
 // op monta uma huma.Operation com o prefixo da API.

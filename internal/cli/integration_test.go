@@ -4,9 +4,12 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -227,4 +230,46 @@ func TestCLIPersonaRevisorNomeEExecucao(t *testing.T) {
 			t.Errorf("cost sem %q:\n%s", want, out)
 		}
 	}
+}
+
+// hanko export | hanko import contra o servidor de verdade.
+func TestCLIExportImport(t *testing.T) {
+	svc, co, env := realServer(t)
+	if _, err := svc.HirePersona(context.Background(), domain.HumanActor, co.ID, service.HirePersonaInput{
+		Name: "Ada", Agent: "fake", Model: "m", AdapterConfig: json.RawMessage(`{"max_turns":3,"api_key":"sk-segredo-1234567890"}`)}); err != nil {
+		t.Fatal(err)
+	}
+	doc := mustOK(t, env, "export")
+	if !strings.Contains(doc, `"format": "hanko.company.v1"`) || !strings.Contains(doc, "Ada") || strings.Contains(doc, "sk-segredo") {
+		t.Fatalf("export: %s", doc)
+	}
+
+	file := filepath.Join(t.TempDir(), "arq.json")
+	if out := mustOK(t, env, "export", "-o", file, "--with-runs"); !strings.Contains(out, file) {
+		t.Fatalf("export -o: %q", out)
+	}
+	if st, err := os.Stat(file); err != nil || st.Mode().Perm() != 0o600 {
+		t.Fatalf("arquivo: %v %v", st, err)
+	}
+
+	out := mustOK(t, env, "import", file, "--slug", "copia")
+	if !strings.Contains(out, "copia") || !strings.Contains(out, "personas") {
+		t.Fatalf("import: %q", out)
+	}
+	env2 := map[string]string{"HANKO_URL": env["HANKO_URL"], "HANKO_COMPANY": "copia"}
+	if out := mustOK(t, env2, "persona", "list"); !strings.Contains(out, "Ada") {
+		t.Fatalf("persona da cópia: %q", out)
+	}
+
+	mustFail(t, env, 1, "slug", "import", file, "--slug", "copia") // já existe
+	bad := filepath.Join(t.TempDir(), "ruim.json")
+	if err := os.WriteFile(bad, []byte(`{"format":"outro","company":{}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	mustFail(t, env, 1, "422", "import", bad, "--slug", "ruim")
+	notJSON := filepath.Join(t.TempDir(), "x.json")
+	if err := os.WriteFile(notJSON, []byte("nada"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	mustFail(t, env, 2, "JSON", "import", notJSON)
 }
