@@ -95,6 +95,7 @@ type importPlan struct {
 	nextTask               int64
 	taskOrder              []int // índices de doc.Tasks, pais antes dos filhos
 	personaCfg             []json.RawMessage
+	si                     skillsIntegrationsPlan // skills e integrações (ADR-0029)
 }
 
 func (p importPlan) counts(d export.Document) map[string]int {
@@ -106,7 +107,8 @@ func (p importPlan) counts(d export.Document) map[string]int {
 		events += len(r.Events)
 	}
 	return map[string]int{"workspaces": len(d.Workspaces), "projects": len(d.Projects), "subscriptions": len(d.Subscriptions),
-		"personas": len(d.Personas), "tasks": len(d.Tasks), "comments": comments, "flows": len(d.Flows), "runs": len(d.Runs), "run_events": events}
+		"personas": len(d.Personas), "tasks": len(d.Tasks), "comments": comments, "flows": len(d.Flows), "runs": len(d.Runs), "run_events": events,
+		"skills": len(d.Skills), "integrations": len(d.Integrations)}
 }
 
 func uniqueIdx[T any](path string, items []T, key func(T) string, what string) (map[string]int, error) {
@@ -459,6 +461,9 @@ func (s *Service) planImport(ctx context.Context, doc export.Document, opts Impo
 			}
 		}
 	}
+	if p.si, err = s.planSkillsIntegrations(doc, pe); err != nil {
+		return p, err
+	}
 	return p, nil
 }
 
@@ -745,7 +750,7 @@ func (t *txc) runImport(cid domain.ID, doc export.Document, p importPlan, opts I
 			}
 		}
 	}
-	return nil
+	return t.importSkillsIntegrations(cid, doc, p.si, peID)
 }
 
 // optID resolve um slug opcional no id novo; vazio ou desconhecido = nil.

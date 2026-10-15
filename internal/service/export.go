@@ -390,6 +390,10 @@ func (s *Service) buildDoc(ctx context.Context, q *store.Queries, companyID doma
 			Priority: f.Priority, TaskTitle: red(f.TaskTitle), TaskDescription: red(f.TaskDescription), CreatedAt: f.CreatedAt})
 	}
 
+	if err := exportSkillsIntegrations(ctx, q, companyID, &doc, peSlug); err != nil {
+		return doc, err
+	}
+
 	if opts.WithRuns {
 		for _, r := range runRows {
 			var exit *int
