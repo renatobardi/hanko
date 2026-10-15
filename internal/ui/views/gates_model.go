@@ -139,6 +139,9 @@ type InboxVM struct {
 // ---- organograma ----
 
 type OrgNodeVM struct {
+	ID          string // persona id (the island's key)
+	Slug        string
+	ParentID    string // reports_to ("" = top of the chart)
 	X, Y, W, H  int
 	Name        string
 	Title       string
@@ -162,4 +165,9 @@ type OrgVM struct {
 	Edges    []OrgEdgeVM
 	Total    int
 	HireHref string
+	// Island: props of the interactive org chart (ADR-0026); the static SVG stays as the no-JS version.
+	IslandNodes string // JSON
+	IslandAPI   string
+	IslandMsgs  string // JSON
+	CanEdit     bool   // admin/owner may drag
 }

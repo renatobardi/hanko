@@ -216,6 +216,10 @@ type Comment struct {
 	Body      string    `json:"body"`
 	EventID   string    `json:"event_id,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
+	// Anchor is the passage this comment is about (nil on a plain comment); AnchorState says where that
+	// passage is in the current version of its document (filled when comments are listed or created).
+	Anchor      *Anchor      `json:"anchor,omitempty"`
+	AnchorState *AnchorState `json:"anchor_state,omitempty"`
 }
 
 // RunStatus is the lifecycle of an execution.

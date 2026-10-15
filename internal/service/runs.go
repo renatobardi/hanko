@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -81,6 +82,28 @@ func (s *Service) ListRunEvents(ctx context.Context, companyID, runID domain.ID,
 	out := make([]domain.RunEvent, len(rows))
 	for i, r := range rows {
 		out[i] = runEventFromRow(r)
+	}
+	return out, nil
+}
+
+// ListRunEventsBefore is the backward page of the log: the limit events right before beforeSeq, ascending.
+// beforeSeq <= 0 means "from the end" (the last limit events). Together with ListRunEvents (forward from a seq)
+// it lets a viewer load the tail first and older history on demand, with seq as the cursor.
+func (s *Service) ListRunEventsBefore(ctx context.Context, companyID, runID domain.ID, beforeSeq int64, limit int) ([]domain.RunEvent, error) {
+	if err := s.require(ctx, companyID, domain.MemberViewer); err != nil {
+		return nil, err
+	}
+	if beforeSeq <= 0 {
+		beforeSeq = math.MaxInt64
+	}
+	rows, err := s.read().ListRunEventsBefore(ctx, store.ListRunEventsBeforeParams{CompanyID: companyID, RunID: runID,
+		BeforeSeq: beforeSeq, Lim: i32(clamp(limit, 200, 1000))})
+	if err != nil {
+		return nil, fmt.Errorf("list run events before: %w", err)
+	}
+	out := make([]domain.RunEvent, len(rows))
+	for i, r := range rows { // the query is newest-first; the API contract is ascending
+		out[len(rows)-1-i] = runEventFromRow(r)
 	}
 	return out, nil
 }

@@ -26,8 +26,10 @@ type listRunsIn struct {
 
 type listRunEventsIn struct {
 	RunPath
-	After int64 `query:"after" minimum:"0" default:"0" doc:"Devolve eventos com seq maior que este valor."`
-	Limit int   `query:"limit" minimum:"1" maximum:"1000" default:"200" doc:"Máximo de eventos."`
+	After  int64 `query:"after" minimum:"0" default:"0" doc:"Devolve eventos com seq maior que este valor (página para frente)."`
+	Before int64 `query:"before" minimum:"0" default:"0" doc:"Devolve os eventos imediatamente anteriores a este seq (página para trás, cursor de histórico); 0 = não usar."`
+	Tail   bool  `query:"tail" default:"false" doc:"Devolve os últimos eventos do log (equivale a before = fim). Em ordem crescente de seq."`
+	Limit  int   `query:"limit" minimum:"1" maximum:"1000" default:"200" doc:"Máximo de eventos."`
 }
 
 // runListCap é o teto de execuções que o service devolve por consulta.
@@ -86,7 +88,7 @@ func (s *server) registerRuns(api huma.API) {
 			return &ItemOut[Run]{Body: runOut(r)}, nil
 		})
 
-	huma.Register(api, op("list-run-events", http.MethodGet, "/companies/{company}/runs/{run}/events", "runs", "Lista o log de uma execução"),
+	huma.Register(api, op("list-run-events", http.MethodGet, "/companies/{company}/runs/{run}/events", "runs", "Lista o log de uma execução (por cursor de seq)"),
 		func(ctx context.Context, in *listRunEventsIn) (*ListOut[RunEvent], error) {
 			sc, err := s.scope(ctx, in.Company)
 			if err != nil {
@@ -96,7 +98,15 @@ func (s *server) registerRuns(api huma.API) {
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}
-			es, err := s.svc.ListRunEvents(ctx, sc.Company.ID, rid, in.After, in.Limit)
+			var es []domain.RunEvent
+			if in.Tail || in.Before > 0 {
+				if in.After > 0 {
+					return nil, s.fail(ctx, domain.Invalid("after", "não combine com before/tail"))
+				}
+				es, err = s.svc.ListRunEventsBefore(ctx, sc.Company.ID, rid, in.Before, in.Limit)
+			} else {
+				es, err = s.svc.ListRunEvents(ctx, sc.Company.ID, rid, in.After, in.Limit)
+			}
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}

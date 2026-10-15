@@ -563,6 +563,24 @@ func TestTaskComment(t *testing.T) {
 	if c.Body != "feito" || c.EventID != "c-1" || c.RunID == nil || *c.RunID != e.runID {
 		t.Errorf("comment = %+v", c)
 	}
+	// comentário ancorado: quote na descrição; quote + quote_run no resumo de uma execução
+	if r := call(t, cs, "hanko_task_comment", map[string]any{"key": "HNK-1", "body": "por quê?", "quote": "login"}); r.IsError {
+		t.Fatal(text(r))
+	}
+	if a := e.f.lastComment.Anchor; a == nil || a.Target != domain.AnchorTaskDescription || a.Quote != "login" || a.RunID != nil {
+		t.Errorf("anchor = %+v", a)
+	}
+	if r := call(t, cs, "hanko_task_comment", map[string]any{"key": "HNK-1", "body": "ok", "quote": "entrega", "quote_run": e.runID.String()}); r.IsError {
+		t.Fatal(text(r))
+	}
+	if a := e.f.lastComment.Anchor; a == nil || a.Target != domain.AnchorRunSummary || a.RunID == nil || *a.RunID != e.runID {
+		t.Errorf("anchor de run = %+v", a)
+	}
+	for _, bad := range []map[string]any{{"key": "HNK-1", "body": "x", "quote_run": e.runID.String()}, {"key": "HNK-1", "body": "x", "quote": "a", "quote_run": "nao-uuid"}} {
+		if r := call(t, cs, "hanko_task_comment", bad); !r.IsError {
+			t.Errorf("%v deveria falhar", bad)
+		}
+	}
 	for _, bad := range []map[string]any{{"key": "HNK-1", "body": " "}, {"key": "", "body": "x"}, {"key": "HNK-404", "body": "x"}} {
 		if r := call(t, cs, "hanko_task_comment", bad); !r.IsError {
 			t.Errorf("%v deveria falhar", bad)

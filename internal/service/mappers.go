@@ -69,6 +69,12 @@ func commentFromRow(r store.TaskComment) domain.Comment {
 	if r.EventID != nil {
 		c.EventID = *r.EventID
 	}
+	if len(r.Anchor) > 0 {
+		var a domain.Anchor
+		if json.Unmarshal(r.Anchor, &a) == nil && a.Target.Valid() {
+			c.Anchor = &a
+		}
+	}
 	return c
 }
 

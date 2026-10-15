@@ -82,6 +82,10 @@
       "AddCommentInBody": {
         "additionalProperties": false,
         "properties": {
+          "anchor": {
+            "$ref": "#/components/schemas/Anchor",
+            "description": "Ancora o comentário a um trecho da descrição da task ou do resumo de uma execução; o trecho precisa existir no documento (422 se não)."
+          },
           "body": {
             "description": "Texto do comentário (Markdown).",
             "minLength": 1,
@@ -100,6 +104,81 @@
         },
         "required": [
           "body"
+        ],
+        "type": "object"
+      },
+      "Anchor": {
+        "additionalProperties": false,
+        "properties": {
+          "doc_hash": {
+            "description": "Hash do documento no momento do comentário; definido pelo servidor.",
+            "type": "string"
+          },
+          "end": {
+            "description": "Posição final (exclusiva), em code points.",
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "quote": {
+            "description": "Texto citado, exatamente como está no documento.",
+            "maxLength": 2000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "run_id": {
+            "description": "Execução cujo resumo é o alvo (obrigatório com run_summary).",
+            "format": "uuid",
+            "type": "string"
+          },
+          "start": {
+            "description": "Posição inicial da citação, em code points do documento (dica; o servidor recalcula).",
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "target": {
+            "description": "Documento-alvo.",
+            "enum": [
+              "task_description",
+              "run_summary"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "target",
+          "quote",
+          "start",
+          "end"
+        ],
+        "type": "object"
+      },
+      "AnchorState": {
+        "additionalProperties": false,
+        "properties": {
+          "end": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "start": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "status": {
+            "description": "exact = documento igual; moved = documento mudou e o trecho foi reencontrado; lost = trecho não existe mais.",
+            "enum": [
+              "exact",
+              "moved",
+              "lost"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "start",
+          "end"
         ],
         "type": "object"
       },
@@ -141,6 +220,14 @@
       "Comment": {
         "additionalProperties": false,
         "properties": {
+          "anchor": {
+            "$ref": "#/components/schemas/Anchor",
+            "description": "Trecho do documento a que o comentário se refere (comentário ancorado)."
+          },
+          "anchor_state": {
+            "$ref": "#/components/schemas/AnchorState",
+            "description": "Onde o trecho está na versão atual do documento; 'lost' = âncora perdida."
+          },
           "author": {
             "$ref": "#/components/schemas/ActorRef"
           },
@@ -7244,16 +7331,40 @@
             }
           },
           {
-            "description": "Devolve eventos com seq maior que este valor.",
+            "description": "Devolve eventos com seq maior que este valor (página para frente).",
             "explode": false,
             "in": "query",
             "name": "after",
             "schema": {
               "default": 0,
-              "description": "Devolve eventos com seq maior que este valor.",
+              "description": "Devolve eventos com seq maior que este valor (página para frente).",
               "format": "int64",
               "minimum": 0,
               "type": "integer"
+            }
+          },
+          {
+            "description": "Devolve os eventos imediatamente anteriores a este seq (página para trás, cursor de histórico); 0 = não usar.",
+            "explode": false,
+            "in": "query",
+            "name": "before",
+            "schema": {
+              "default": 0,
+              "description": "Devolve os eventos imediatamente anteriores a este seq (página para trás, cursor de histórico); 0 = não usar.",
+              "format": "int64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Devolve os últimos eventos do log (equivale a before = fim). Em ordem crescente de seq.",
+            "explode": false,
+            "in": "query",
+            "name": "tail",
+            "schema": {
+              "default": false,
+              "description": "Devolve os últimos eventos do log (equivale a before = fim). Em ordem crescente de seq.",
+              "type": "boolean"
             }
           },
           {
@@ -7343,7 +7454,7 @@
             "description": "Internal Server Error"
           }
         },
-        "summary": "Lista o log de uma execução",
+        "summary": "Lista o log de uma execução (por cursor de seq)",
         "tags": [
           "runs"
         ]

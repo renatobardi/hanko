@@ -60,7 +60,7 @@ Note on vocabulary: the generic names above were later replaced by the domain te
 | CSS | The host uses its own CSS (`internal/ui/static/hanko.css`) with Kubo DS tokens as CSS vars, light/dark theme, no Tailwind (ADR-0005 addendum, 2026-10-14). The Portuguese STACK still lists Tailwind standalone CLI |
 | Vendored JS | `sortable.js` (kanban). At most 3 vendored files |
 | Scripts | `tools/bundle` (esbuild via Go) also bundles the Firebase Auth SDK (modular) for the `firebase` provider; it is a host script and does not count as an island |
-| Islands | React + TS bundled by **esbuild via Go** (`go run ./tools/bundle`); deps in `ui/islands/package.json` (npm only for dev/CI). Planned: virtualized log viewer, interactive org chart, editor. Cap of 3; a 4th requires an ADR |
+| Islands | React + TS in `ui/islands/` (exact versions + lockfile), bundled by **esbuild (npm, dev/CI only)** into `internal/ui/static/islands/` (committed, `make islands`; CI checks the diff). Delivered in v0.2: virtualized run log, interactive org chart, anchored comments (ADR-0026). Cap of 3; a 4th requires an ADR |
 | Markdown | `goldmark`, server-side |
 | i18n | `go-i18n`: pt-BR (M1), en (M6) |
 | E2E | `chromedp` or `rod` against the binary |
@@ -71,7 +71,7 @@ Host/island contract:
 1. The host decides route, auth, layout, navigation and list data.
 2. An island is a leaf: it receives props via `data-*`/JSON in the HTML, emits DOM events or calls the API. It never routes, never holds global state, never lists.
 3. One CSS, the same tokens. No global component kit; headless primitives only inside the island that needs them.
-4. Bundling only through esbuild (Go). No Vite, pnpm workspace, React Router or TanStack.
+4. Bundling only through esbuild (npm, ADR-0026). No Vite, pnpm workspace, React Router or TanStack.
 5. Cap of 3 islands until v0.2. Post-M2 checkpoint: if UI takes more than 50% of the hours, reassess.
 
 ## 4. Repository layout

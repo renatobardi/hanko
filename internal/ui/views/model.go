@@ -151,6 +151,9 @@ type Msg struct {
 	Body     HTML
 	When     string
 	RunHref  string
+	// Quote is the passage an anchored comment is about; QuoteLost = its anchor no longer exists in the document.
+	Quote     string
+	QuoteLost bool
 }
 
 type RunMini struct {
@@ -190,6 +193,12 @@ type TaskVM struct {
 	Notice          string // flash after an action
 	Error           string
 	Draft           string
+	// Anchored-comment island on the description (ADR-0026).
+	TaskKey     string
+	DescDoc     string // description as anchors see it (\n line endings)
+	DescAnchors string // JSON
+	IslandAPI   string
+	AnchorMsgs  string // JSON
 }
 
 type NewTaskVM struct {
@@ -370,6 +379,14 @@ type RunVM struct {
 	SSEHref      string
 	Lines        []LogLine
 	LastSeq      int64
+	// Islands (ADR-0026): virtualized log and anchored comments on the summary.
+	IslandAPI      string
+	LogMsgs        string // JSON
+	TZ             string
+	Lang           string
+	SummaryDoc     string // summary as anchors see it
+	SummaryAnchors string // JSON
+	AnchorMsgs     string // JSON
 }
 
 // ---- activity ----
@@ -707,4 +724,16 @@ type InviteVM struct {
 	Name     string
 	Error    string
 	Firebase *FirebaseWeb
+}
+
+// AnchorBoxVM are the props of the anchored-comments island (ADR-0026).
+type AnchorBoxVM struct {
+	API        string
+	TaskKey    string
+	Target     string // task_description | run_summary
+	RunID      string
+	Doc        string
+	Anchors    string // JSON
+	CanComment bool
+	Msgs       string // JSON
 }

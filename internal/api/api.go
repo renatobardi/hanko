@@ -83,6 +83,7 @@ type backend interface {
 	ListRuns(ctx context.Context, companyID domain.ID, f service.RunFilter) ([]service.RunView, error)
 	GetRun(ctx context.Context, companyID, runID domain.ID) (service.RunView, error)
 	ListRunEvents(ctx context.Context, companyID, runID domain.ID, afterSeq int64, limit int) ([]domain.RunEvent, error)
+	ListRunEventsBefore(ctx context.Context, companyID, runID domain.ID, beforeSeq int64, limit int) ([]domain.RunEvent, error)
 	CancelRun(ctx context.Context, actor domain.Actor, companyID, runID domain.ID) (service.RunView, error)
 	ListActivity(ctx context.Context, companyID domain.ID, f service.ActivityFilter) ([]domain.ActivityEvent, error)
 	Dashboard(ctx context.Context, companyID domain.ID) (service.DashboardStats, error)

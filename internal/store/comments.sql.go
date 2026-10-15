@@ -13,9 +13,9 @@ import (
 )
 
 const createComment = `-- name: CreateComment :one
-INSERT INTO task_comments (id, company_id, task_id, author_type, author_id, run_id, body, event_id, created_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-RETURNING id, company_id, task_id, author_type, author_id, run_id, body, event_id, created_at
+INSERT INTO task_comments (id, company_id, task_id, author_type, author_id, run_id, body, event_id, anchor, created_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+RETURNING id, company_id, task_id, author_type, author_id, run_id, body, event_id, created_at, anchor
 `
 
 type CreateCommentParams struct {
@@ -27,6 +27,7 @@ type CreateCommentParams struct {
 	RunID      *uuid.UUID
 	Body       string
 	EventID    *string
+	Anchor     []byte
 	Now        time.Time
 }
 
@@ -40,6 +41,7 @@ func (q *Queries) CreateComment(ctx context.Context, arg CreateCommentParams) (T
 		arg.RunID,
 		arg.Body,
 		arg.EventID,
+		arg.Anchor,
 		arg.Now,
 	)
 	var i TaskComment
@@ -53,12 +55,13 @@ func (q *Queries) CreateComment(ctx context.Context, arg CreateCommentParams) (T
 		&i.Body,
 		&i.EventID,
 		&i.CreatedAt,
+		&i.Anchor,
 	)
 	return i, err
 }
 
 const getCommentByEventID = `-- name: GetCommentByEventID :one
-SELECT id, company_id, task_id, author_type, author_id, run_id, body, event_id, created_at FROM task_comments WHERE company_id = $1 AND event_id = $2
+SELECT id, company_id, task_id, author_type, author_id, run_id, body, event_id, created_at, anchor FROM task_comments WHERE company_id = $1 AND event_id = $2
 `
 
 type GetCommentByEventIDParams struct {
@@ -79,6 +82,7 @@ func (q *Queries) GetCommentByEventID(ctx context.Context, arg GetCommentByEvent
 		&i.Body,
 		&i.EventID,
 		&i.CreatedAt,
+		&i.Anchor,
 	)
 	return i, err
 }
@@ -104,7 +108,7 @@ func (q *Queries) HasHumanCommentSince(ctx context.Context, arg HasHumanCommentS
 }
 
 const listComments = `-- name: ListComments :many
-SELECT id, company_id, task_id, author_type, author_id, run_id, body, event_id, created_at FROM task_comments WHERE company_id = $1 AND task_id = $2 ORDER BY created_at, id
+SELECT id, company_id, task_id, author_type, author_id, run_id, body, event_id, created_at, anchor FROM task_comments WHERE company_id = $1 AND task_id = $2 ORDER BY created_at, id
 `
 
 type ListCommentsParams struct {
@@ -131,6 +135,7 @@ func (q *Queries) ListComments(ctx context.Context, arg ListCommentsParams) ([]T
 			&i.Body,
 			&i.EventID,
 			&i.CreatedAt,
+			&i.Anchor,
 		); err != nil {
 			return nil, err
 		}

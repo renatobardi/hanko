@@ -197,6 +197,11 @@ func (s *server) buildTaskVM(r *http.Request, co domain.Company, t service.TaskV
 		PriorityOptions: priorityOptions(ctx, t.Priority),
 		PersonaOptions:  personaOptions(personas, t.PersonaID, i18n.T(ctx, "Sem dono")),
 		Notice:          i18n.T(ctx, notices[r.URL.Query().Get("ok")]),
+		TaskKey:         t.Key,
+		DescDoc:         docOf(t.Description),
+		DescAnchors:     anchorViewsJSON(ctx, comments, names, loc, domain.AnchorTaskDescription, nil),
+		IslandAPI:       islandAPI(co),
+		AnchorMsgs:      anchorMsgs(ctx),
 	}
 	vm.Created = fmtDateTime(ctx, t.CreatedAt, loc)
 	if t.PersonaID != nil {
@@ -220,6 +225,7 @@ func (s *server) buildTaskVM(r *http.Request, co domain.Company, t service.TaskV
 		if c.RunID != nil {
 			m.RunHref = base + "/execucoes/" + c.RunID.String()
 		}
+		m.Quote, m.QuoteLost = quoteOf(c)
 		vm.Thread = append(vm.Thread, m)
 	}
 
