@@ -62,3 +62,13 @@ Usuários novos só veem as empresas às quais foram convidados. A UI ainda most
 (o service recusa com 403 e uma mensagem clara); esconder os controles por papel nas demais telas fica para depois. O
 link do convite não pode ser recuperado depois de criado (só o hash existe). Remover alguém da empresa não encerra a
 sessão global dele: ele apenas perde o acesso àquela empresa. O estado do limitador continua por processo (ADR-0018).
+
+**Provider local: o link vale como prova de identidade.** Quem abre o link cria a conta com o e-mail do convite
+sem confirmar a posse da caixa de entrada. Mitigações: (a) convidar um e-mail que ainda não tem conta só é permitido
+a owner da empresa (admin só convida contas existentes; no provider firebase o ID token prova o e-mail e a regra não
+vale); (b) o `member.joined` registra `invited_by`, então a trilha mostra quem abriu a porta; (c) `users.invited` só
+marca conta criada pelo convite e zera quando a pessoa fica sem nenhuma empresa; (d) o dono da instalação
+(`users.role = owner`) tem `hanko auth user list|reset-password|remove` para listar contas, redefinir senha (senha
+temporária impressa uma única vez, ou `HANKO_USER_PASSWORD`; as sessões da conta caem) e remover contas, sem mexer no
+banco. O service reconfere o papel no banco a cada chamada; o dono da instalação e o único owner de uma empresa não
+são removidos. Quem não participa de nenhuma empresa vê a página "nenhuma empresa" em vez do onboarding.

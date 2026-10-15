@@ -63,6 +63,10 @@ type Service struct {
 	Alerts AlertConfig
 	// OwnerEmail é HANKO_AUTH_OWNER_EMAIL (minúsculas): o dono nomeado passa mesmo fora das listas.
 	OwnerEmail string
+	// ExternalIdentity: o provider (firebase) prova a identidade por fora, então um convite não cria
+	// conta com senha. Falso (provider local), o link do convite é a prova de identidade e convidar
+	// e-mail sem conta exige owner da empresa (ADR-0021).
+	ExternalIdentity bool
 }
 
 func New(pool *pgxpool.Pool, jobs Jobs, broker *events.Broker) *Service {

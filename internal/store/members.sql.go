@@ -97,6 +97,20 @@ func (q *Queries) CountOwners(ctx context.Context, companyID uuid.UUID) (int64, 
 	return count, err
 }
 
+const countSoleOwnedCompanies = `-- name: CountSoleOwnedCompanies :one
+SELECT count(*) FROM company_members m
+WHERE m.user_id = $1 AND m.role = 'owner'
+  AND (SELECT count(*) FROM company_members o WHERE o.company_id = m.company_id AND o.role = 'owner') = 1
+`
+
+// Empresas em que o usuário é o único owner (remover o usuário as deixaria sem dono).
+func (q *Queries) CountSoleOwnedCompanies(ctx context.Context, userID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countSoleOwnedCompanies, userID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countUserMemberships = `-- name: CountUserMemberships :one
 SELECT count(*) FROM company_members WHERE user_id = $1
 `

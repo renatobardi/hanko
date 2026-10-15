@@ -103,6 +103,10 @@ func (s *Service) InviteMember(ctx context.Context, actor domain.Actor, companyI
 			}
 		} else if !isNoRows(err) {
 			return fmt.Errorf("get user: %w", err)
+		} else if !s.ExternalIdentity && by != domain.MemberOwner {
+			// provider local, e-mail sem conta: quem abrir o link cria a conta e assume a identidade
+			// do e-mail; só o owner da empresa assume esse risco
+			return fmt.Errorf("convidar um e-mail sem conta exige owner da empresa: %w", domain.ErrForbidden)
 		}
 		if err := t.q.RevokeOpenInvitesForEmail(ctx, store.RevokeOpenInvitesForEmailParams{CompanyID: companyID, Email: email, Now: &t.now}); err != nil {
 			return fmt.Errorf("revoke previous invites: %w", err)
@@ -344,7 +348,7 @@ func (t *txc) acceptInvite(token string, u domain.User) (domain.Member, error) {
 		return domain.Member{}, mapErr(err, "add member")
 	}
 	if err := t.activity(u.Actor(), inv.CompanyID, "member.joined", "user", u.ID,
-		map[string]any{"email": u.Email, "role": role, "invite_id": inv.ID}, ""); err != nil {
+		map[string]any{"email": u.Email, "role": role, "invite_id": inv.ID, "invited_by": inv.InvitedBy}, ""); err != nil {
 		return domain.Member{}, err
 	}
 	return domain.Member{CompanyID: inv.CompanyID, UserID: u.ID, Email: u.Email, Name: u.Name, Provider: u.Provider, Role: role, InvitedBy: inv.InvitedBy, CreatedAt: t.now}, nil

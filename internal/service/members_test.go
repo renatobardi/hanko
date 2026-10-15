@@ -47,6 +47,7 @@ func join(t *testing.T, e *env, u domain.User, role domain.MemberRole) {
 
 func TestRoleMatrix(t *testing.T) {
 	e := newEnv(t)
+	e.svc.ExternalIdentity = true // a regra do convite a e-mail sem conta (provider local) tem teste próprio
 	bg := context.Background()
 	p := e.persona(t, "Ana", nil)
 	tk := e.task(t, service.CreateTaskInput{Title: "t"})
@@ -294,6 +295,7 @@ func TestAdminLimits(t *testing.T) {
 	join(t, e, own, domain.MemberOwner)
 	join(t, e, adm, domain.MemberAdmin)
 	join(t, e, mem, domain.MemberMember)
+	mkUser(t, e, "x@x.com", domain.RoleMember) // e-mail com conta: admin pode convidar
 	ctx := as(adm)
 	for _, r := range []domain.MemberRole{domain.MemberAdmin, domain.MemberOwner} {
 		if _, _, err := e.svc.InviteMember(ctx, adm.Actor(), e.co.ID, "x@x.com", r); !errors.Is(err, domain.ErrForbidden) {
@@ -681,5 +683,126 @@ func TestFirebaseRemovedInviteeLosesAdmission(t *testing.T) {
 	in.InviteToken = ""
 	if _, err := e.svc.LoginFirebase(bg, in); !errors.Is(err, domain.ErrNotAllowed) {
 		t.Fatalf("relogin sem convite: %v", err)
+	}
+}
+
+// Provider local: o link do convite é a prova de identidade. Convidar e-mail sem conta só o owner da empresa.
+func TestInviteNewEmailNeedsOwnerOnLocal(t *testing.T) {
+	e := newEnv(t)
+	own := mkUser(t, e, "own@x.com", domain.RoleMember)
+	adm := mkUser(t, e, "adm@x.com", domain.RoleMember)
+	join(t, e, own, domain.MemberOwner)
+	join(t, e, adm, domain.MemberAdmin)
+	known := mkUser(t, e, "known@x.com", domain.RoleMember)
+
+	if _, _, err := e.svc.InviteMember(as(adm), adm.Actor(), e.co.ID, "novo@x.com", domain.MemberMember); !errors.Is(err, domain.ErrForbidden) {
+		t.Fatalf("admin convidando e-mail sem conta no provider local: %v", err)
+	}
+	if _, _, err := e.svc.InviteMember(as(adm), adm.Actor(), e.co.ID, known.Email, domain.MemberMember); err != nil {
+		t.Fatalf("admin convidando conta existente: %v", err)
+	}
+	inv, tok, err := e.svc.InviteMember(as(own), own.Actor(), e.co.ID, "novo@x.com", domain.MemberMember)
+	if err != nil {
+		t.Fatalf("owner convidando e-mail sem conta: %v", err)
+	}
+	// com identidade externa (firebase) o admin também pode: o ID token prova o e-mail
+	e.svc.ExternalIdentity = true
+	if _, _, err := e.svc.InviteMember(as(adm), adm.Actor(), e.co.ID, "outro@x.com", domain.MemberMember); err != nil {
+		t.Fatalf("admin com provider externo: %v", err)
+	}
+
+	// o aceite registra quem convidou em member.joined
+	u, _, err := e.svc.AcceptInviteLocal(context.Background(), tok, "Novo", goodPass)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var by string
+	if err := e.svc.Pool.QueryRow(context.Background(),
+		`SELECT data->>'invited_by' FROM activity_events WHERE verb = 'member.joined' AND subject_id = $1`, u.ID).Scan(&by); err != nil {
+		t.Fatal(err)
+	}
+	if by != own.ID.String() || inv.InvitedBy == nil || inv.InvitedBy.String() != by {
+		t.Fatalf("invited_by = %q, quer %s", by, own.ID)
+	}
+}
+
+func TestInstallOwnerUserAdmin(t *testing.T) {
+	e := newEnv(t)
+	bg := context.Background()
+	inst := mkUser(t, e, "dono@x.com", domain.RoleOwner)
+	join(t, e, inst, domain.MemberOwner)
+	plain := mkUser(t, e, "comum@x.com", domain.RoleMember)
+	join(t, e, plain, domain.MemberAdmin)
+	sole := mkUser(t, e, "unico@x.com", domain.RoleMember)
+	co2, err := e.svc.CreateCompany(bg, domain.HumanActor, service.CreateCompanyInput{Name: "Outra"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.svc.Pool.Exec(bg, `INSERT INTO company_members (company_id, user_id, role) VALUES ($1,$2,'owner')`, co2.ID, sole.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	// só o dono da instalação (papel no banco), nunca admin de empresa nem contexto sem usuário
+	for name, ctx := range map[string]context.Context{"admin": as(plain), "anônimo": bg, "papel forjado no contexto": as(domain.User{ID: plain.ID, Role: domain.RoleOwner})} {
+		if _, err := e.svc.AdminListUsers(ctx); !errors.Is(err, domain.ErrForbidden) {
+			t.Errorf("list como %s: %v", name, err)
+		}
+		if _, _, err := e.svc.AdminResetPassword(ctx, plain.Email, ""); !errors.Is(err, domain.ErrForbidden) {
+			t.Errorf("reset como %s: %v", name, err)
+		}
+		if err := e.svc.AdminRemoveUser(ctx, plain.Email); !errors.Is(err, domain.ErrForbidden) {
+			t.Errorf("remove como %s: %v", name, err)
+		}
+	}
+	us, err := e.svc.AdminListUsers(as(inst))
+	if err != nil || len(us) != 3 {
+		t.Fatalf("list: %d %v", len(us), err)
+	}
+
+	// reset: senha temporária só volta uma vez, a antiga deixa de valer e as sessões caem
+	if _, err := e.svc.GetUserByEmail(bg, plain.Email); err != nil {
+		t.Fatal(err)
+	}
+	_, tok, _ := e.svc.InviteMember(as(inst), inst.Actor(), e.co.ID, "criada@x.com", domain.MemberMember)
+	created, _, err := e.svc.AcceptInviteLocal(bg, tok, "Criada", goodPass)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secret, _, _ := e.svc.CreateSession(bg, created.ID, service.SessionMeta{}, "")
+	_, tmp, err := e.svc.AdminResetPassword(as(inst), "CRIADA@x.com", "")
+	if err != nil || len(tmp) < auth.MinPasswordLen {
+		t.Fatalf("reset: %q %v", tmp, err)
+	}
+	if _, err := e.svc.AuthenticateLocal(bg, created.Email, goodPass); !errors.Is(err, domain.ErrUnauthenticated) {
+		t.Fatalf("senha antiga ainda vale: %v", err)
+	}
+	if _, err := e.svc.AuthenticateLocal(bg, created.Email, tmp); err != nil {
+		t.Fatalf("senha temporária: %v", err)
+	}
+	if _, err := e.svc.ResolveSession(bg, secret); !errors.Is(err, domain.ErrUnauthenticated) {
+		t.Fatalf("sessão sobrevive ao reset: %v", err)
+	}
+	if _, pw, err := e.svc.AdminResetPassword(as(inst), created.Email, "outra-senha-longa"); err != nil || pw != "" {
+		t.Fatalf("senha informada não é devolvida: %q %v", pw, err)
+	}
+	if _, _, err := e.svc.AdminResetPassword(as(inst), created.Email, "curta"); !errors.Is(err, domain.ErrInvalid) {
+		t.Fatalf("senha curta: %v", err)
+	}
+	if _, _, err := e.svc.AdminResetPassword(as(inst), "nao@existe.com", ""); !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("inexistente: %v", err)
+	}
+
+	// remove: não o dono da instalação, não quem é único owner de uma empresa
+	if err := e.svc.AdminRemoveUser(as(inst), inst.Email); !errors.Is(err, domain.ErrConflict) {
+		t.Fatalf("remover o dono da instalação: %v", err)
+	}
+	if err := e.svc.AdminRemoveUser(as(inst), sole.Email); !errors.Is(err, domain.ErrConflict) {
+		t.Fatalf("remover único owner de %s: %v", co2.Slug, err)
+	}
+	if err := e.svc.AdminRemoveUser(as(inst), created.Email); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.svc.GetUserByEmail(bg, created.Email); !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("usuário removido ainda existe: %v", err)
 	}
 }

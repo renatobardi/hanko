@@ -16,11 +16,13 @@ import (
 
 // fakeAdmin é um AuthAdmin em memória.
 type fakeAdmin struct {
-	users  []domain.User
-	keys   []domain.APIKey
-	closed int
-	gotPW  string
-	err    error
+	users   []domain.User
+	keys    []domain.APIKey
+	closed  int
+	gotPW   string
+	gotAs   string
+	removed []string
+	err     error
 }
 
 func (f *fakeAdmin) CreateOwner(_ context.Context, email, name, password string) (domain.User, error) {
@@ -67,6 +69,27 @@ func (f *fakeAdmin) RevokeAPIKey(_ context.Context, uid, kid domain.ID) (domain.
 		}
 	}
 	return domain.APIKey{}, domain.ErrNotFound
+}
+func (f *fakeAdmin) AdminListUsers(_ context.Context, as string) ([]domain.User, error) {
+	f.gotAs = as
+	return f.users, f.err
+}
+func (f *fakeAdmin) AdminResetPassword(_ context.Context, as, email, pw string) (string, error) {
+	f.gotAs, f.gotPW = as, pw
+	if f.err != nil {
+		return "", f.err
+	}
+	if pw != "" {
+		return "", nil
+	}
+	return "temp-gerada-unica", nil
+}
+func (f *fakeAdmin) AdminRemoveUser(_ context.Context, as, email string) error {
+	f.gotAs = as
+	if f.err == nil {
+		f.removed = append(f.removed, email)
+	}
+	return f.err
 }
 func (f *fakeAdmin) Close() { f.closed++ }
 
@@ -193,5 +216,35 @@ func TestClienteEnviaAPIKeyComoBearer(t *testing.T) {
 	}
 	if got := f.last().Auth; got != "Bearer hk_minha-chave" {
 		t.Fatalf("Authorization = %q", got)
+	}
+}
+
+func TestAuthUser(t *testing.T) {
+	f := &fakeAdmin{users: []domain.User{{ID: domain.NewID(), Email: "dono@x.com", Name: "Dono", Role: domain.RoleOwner, Provider: domain.ProviderLocal}}}
+	code, out, errOut := exec(t, authRT(f), nil, "", "auth", "user", "list", "--as", "dono@x.com")
+	if code != 0 || !strings.Contains(out, "dono@x.com") || f.gotAs != "dono@x.com" {
+		t.Fatalf("list: %d %q %q as=%q", code, out, errOut, f.gotAs)
+	}
+
+	// sem senha no ambiente: gera, imprime uma vez na saída padrão (o aviso vai ao stderr)
+	code, out, errOut = exec(t, authRT(f), nil, "", "auth", "user", "reset-password", "a@x.com")
+	if code != 0 || strings.TrimSpace(out) != "temp-gerada-unica" || !strings.Contains(errOut, "uma única vez") {
+		t.Fatalf("reset gerado: %d %q %q", code, out, errOut)
+	}
+	// senha pelo ambiente: nunca ecoada
+	code, out, errOut = exec(t, authRT(f), map[string]string{userPasswordEnv: "senha-do-env-123"}, "", "auth", "user", "reset-password", "a@x.com")
+	if code != 0 || f.gotPW != "senha-do-env-123" || strings.Contains(out+errOut, "senha-do-env-123") {
+		t.Fatalf("reset por env: %d %q %q pw=%q", code, out, errOut, f.gotPW)
+	}
+
+	code, out, _ = exec(t, authRT(f), nil, "", "auth", "user", "remove", "a@x.com")
+	if code != 0 || len(f.removed) != 1 || !strings.Contains(out, "a@x.com removida") {
+		t.Fatalf("remove: %d %q %v", code, out, f.removed)
+	}
+
+	f.err = domain.ErrForbidden
+	code, _, errOut = exec(t, authRT(f), nil, "", "auth", "user", "remove", "b@x.com")
+	if code == 0 || !strings.Contains(errOut, "dono da instalação") {
+		t.Fatalf("não-dono: %d %q", code, errOut)
 	}
 }

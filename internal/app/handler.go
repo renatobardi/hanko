@@ -39,6 +39,7 @@ func buildHandler(d handlerDeps) (http.Handler, error) {
 	cfg := d.Cfg
 	d.Svc.Admission = auth.Admission{Emails: cfg.Auth.AllowedEmails, Domains: cfg.Auth.AllowedDomains}
 	d.Svc.OwnerEmail = cfg.Auth.OwnerEmail
+	d.Svc.ExternalIdentity = cfg.Auth.Provider == config.AuthFirebase
 	mux := http.NewServeMux()
 	api.Mount(mux, api.Deps{Svc: d.Svc, Broker: d.Broker, Logger: d.Logger, Version: d.Version, Tokens: &d.Tokens, DB: d.Pool,
 		Authenticated: cfg.Authenticated()})

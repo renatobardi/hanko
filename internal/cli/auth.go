@@ -22,11 +22,20 @@ type AuthAdmin interface {
 	CreateAPIKey(ctx context.Context, userID domain.ID, name string) (string, domain.APIKey, error)
 	ListAPIKeys(ctx context.Context, userID domain.ID) ([]domain.APIKey, error)
 	RevokeAPIKey(ctx context.Context, userID, keyID domain.ID) (domain.APIKey, error)
+	// Administração de contas pelo dono da instalação (users.role = owner). ownerEmail identifica
+	// quem opera; vazio = o único dono da instalação. O service confere o papel no banco.
+	AdminListUsers(ctx context.Context, ownerEmail string) ([]domain.User, error)
+	AdminResetPassword(ctx context.Context, ownerEmail, email, newPassword string) (string, error)
+	AdminRemoveUser(ctx context.Context, ownerEmail, email string) error
 	Close()
 }
 
 // ownerPasswordEnv é a variável lida para a senha do dono (alternativa à stdin).
 const ownerPasswordEnv = "HANKO_OWNER_PASSWORD"
+
+// userPasswordEnv é a variável lida para a nova senha em `auth user reset-password`; sem ela, o
+// comando gera uma senha temporária e a imprime uma única vez.
+const userPasswordEnv = "HANKO_USER_PASSWORD"
 
 func (e *env) openAuth(ctx context.Context) (AuthAdmin, error) {
 	if e.rt.Auth == nil {
@@ -46,7 +55,7 @@ func (e *env) authCmd() *cobra.Command {
 		Long: "Comandos administrativos de autenticação. Falam direto com o banco configurado " +
 			"(HANKO_DATABASE_URL), sem o servidor no ar; rode `hanko migrate` antes.",
 	}
-	c.AddCommand(e.authCreateOwnerCmd(), e.authTokenCmd())
+	c.AddCommand(e.authCreateOwnerCmd(), e.authTokenCmd(), e.authUserCmd())
 	return c
 }
 
@@ -99,6 +108,8 @@ func friendlyAuthErr(err error) error {
 		return fmt.Errorf("já existe um usuário: o dono só pode ser criado em um banco sem usuários (%w)", err)
 	case errors.Is(err, domain.ErrNotFound):
 		return fmt.Errorf("não encontrado: %w", err)
+	case errors.Is(err, domain.ErrForbidden):
+		return fmt.Errorf("só o dono da instalação (users.role = owner) pode fazer isto: %w", err)
 	}
 	return err
 }
@@ -223,5 +234,100 @@ func (e *env) authTokenCmd() *cobra.Command {
 		},
 	}
 	c.AddCommand(create, list, revoke)
+	return c
+}
+
+func (e *env) authUserCmd() *cobra.Command {
+	var as string
+	c := &cobra.Command{
+		Use:   "user",
+		Short: "Contas da instalação (só o dono da instalação)",
+		Long: "Lista, redefine a senha e remove contas. Quem opera é o dono da instalação (users.role = owner): " +
+			"--as informa o e-mail dele; omitido, vale o único dono. No provider local, o link de convite é a " +
+			"prova de identidade de quem aceita; estes comandos são o remédio para uma conta indevida.",
+	}
+	c.PersistentFlags().StringVar(&as, "as", "", "e-mail do dono da instalação que opera (omita se houver um só)")
+
+	list := &cobra.Command{
+		Use:   "list",
+		Short: "Lista as contas",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			a, err := e.openAuth(cmd.Context())
+			if err != nil {
+				return err
+			}
+			defer a.Close()
+			us, err := a.AdminListUsers(cmd.Context(), as)
+			if err != nil {
+				return friendlyAuthErr(err)
+			}
+			if e.asJSON {
+				return e.printJSON(us)
+			}
+			rows := make([][]string, 0, len(us))
+			for _, u := range us {
+				rows = append(rows, []string{u.Email, u.Name, string(u.Role), string(u.Provider), fmtTime(u.CreatedAt), fmtTimePtr(u.LastLoginAt)})
+			}
+			e.table([]string{"E-MAIL", "NOME", "PAPEL", "PROVIDER", "CRIADA", "ÚLTIMO LOGIN"}, rows)
+			return nil
+		},
+	}
+
+	reset := &cobra.Command{
+		Use:   "reset-password <e-mail>",
+		Short: "Redefine a senha de uma conta local e encerra as sessões dela",
+		Long: "A nova senha vem de " + userPasswordEnv + "; sem ela, o comando gera uma senha temporária e a imprime " +
+			"uma única vez (entregue por um canal seguro). Provider local apenas.",
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			a, err := e.openAuth(cmd.Context())
+			if err != nil {
+				return err
+			}
+			defer a.Close()
+			tmp, err := a.AdminResetPassword(cmd.Context(), as, args[0], e.getenv(userPasswordEnv))
+			if err != nil {
+				return friendlyAuthErr(err)
+			}
+			if e.asJSON {
+				out := map[string]any{"email": args[0]}
+				if tmp != "" {
+					out["temporary_password"] = tmp
+				}
+				return e.printJSON(out)
+			}
+			if tmp == "" {
+				_, err = fmt.Fprintf(e.out, "Senha de %s redefinida; sessões encerradas.\n", args[0])
+				return err
+			}
+			fmt.Fprintf(e.errOut, "Senha temporária de %s (exibida uma única vez; sessões encerradas):\n", args[0])
+			_, err = fmt.Fprintln(e.out, tmp)
+			return err
+		},
+	}
+
+	remove := &cobra.Command{
+		Use:   "remove <e-mail>",
+		Short: "Remove uma conta (sessões, API keys e vínculos com empresas)",
+		Long:  "Recusa o dono da instalação e quem é o único owner de alguma empresa.",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			a, err := e.openAuth(cmd.Context())
+			if err != nil {
+				return err
+			}
+			defer a.Close()
+			if err := a.AdminRemoveUser(cmd.Context(), as, args[0]); err != nil {
+				return friendlyAuthErr(err)
+			}
+			if e.asJSON {
+				return e.printJSON(map[string]any{"removed": args[0]})
+			}
+			_, err = fmt.Fprintf(e.out, "Conta %s removida.\n", args[0])
+			return err
+		},
+	}
+	c.AddCommand(list, reset, remove)
 	return c
 }

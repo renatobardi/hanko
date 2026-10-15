@@ -74,3 +74,9 @@ UPDATE users SET invited = true WHERE id = @id;
 
 -- name: ClearUserInvited :exec
 UPDATE users SET invited = false WHERE id = @id;
+
+-- name: CountSoleOwnedCompanies :one
+-- Empresas em que o usuário é o único owner (remover o usuário as deixaria sem dono).
+SELECT count(*) FROM company_members m
+WHERE m.user_id = @user_id AND m.role = 'owner'
+  AND (SELECT count(*) FROM company_members o WHERE o.company_id = m.company_id AND o.role = 'owner') = 1;

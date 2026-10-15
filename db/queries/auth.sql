@@ -63,3 +63,12 @@ RETURNING *;
 
 -- name: TouchAPIKey :exec
 UPDATE api_keys SET last_used_at = @now::timestamptz WHERE id = @id;
+
+-- name: SetUserPassword :execrows
+UPDATE users SET password_hash = @password_hash WHERE id = @id AND provider = 'local';
+
+-- name: DeleteSessionsByUser :exec
+DELETE FROM sessions WHERE user_id = @user_id;
+
+-- name: DeleteUser :execrows
+DELETE FROM users WHERE id = @id;
