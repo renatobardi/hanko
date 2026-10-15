@@ -40,6 +40,24 @@ func TestLoad(t *testing.T) {
 			},
 		},
 		{
+			name: "agent url herda a pública e aceita override interno",
+			env:  map[string]string{"HANKO_DATABASE_URL": db, "HANKO_PUBLIC_URL": "http://127.0.0.1:9000", "HANKO_AGENT_URL": "http://127.0.0.1:7420/"},
+			check: func(t *testing.T, c Config) {
+				if c.AgentURL != "http://127.0.0.1:7420" {
+					t.Fatalf("AgentURL = %q", c.AgentURL)
+				}
+			},
+		},
+		{
+			name: "agent url vazia usa a pública",
+			env:  map[string]string{"HANKO_DATABASE_URL": db, "HANKO_PUBLIC_URL": "http://127.0.0.1:9000"},
+			check: func(t *testing.T, c Config) {
+				if c.AgentURL != "http://127.0.0.1:9000" {
+					t.Fatalf("AgentURL = %q", c.AgentURL)
+				}
+			},
+		},
+		{
 			name: "trusted explícito gera secret e avisa",
 			env:  map[string]string{"HANKO_DATABASE_URL": db, "HANKO_MODE": "trusted"},
 			check: func(t *testing.T, c Config) {

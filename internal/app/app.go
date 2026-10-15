@@ -58,7 +58,7 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 	broker := events.NewBroker()
 	hb, err := heartbeat.New(pool, heartbeat.Options{
 		Workers:          cfg.Workers,
-		PublicURL:        cfg.PublicURL,
+		PublicURL:        cfg.AgentURL,
 		RunTimeout:       cfg.RunTimeout,
 		PeriodicInterval: cfg.HeartbeatInterval,
 		WorkspacesRoot:   cfg.WorkspacesRoot,
@@ -190,7 +190,7 @@ func newMemory(ctx context.Context, cfg config.Config, logger *slog.Logger) memo
 		logger.Info("memória desligada (HANKO_MEMORY_PROVIDER=none)")
 		return memory.Noop{}
 	}
-	p := aimemory.New(aimemory.Options{URL: cfg.Memory.URL, Token: cfg.Memory.Token, PublicURL: cfg.PublicURL, ReadPageTool: cfg.Memory.ReadTool, Logger: logger})
+	p := aimemory.New(aimemory.Options{URL: cfg.Memory.URL, Token: cfg.Memory.Token, PublicURL: cfg.AgentURL, ReadPageTool: cfg.Memory.ReadTool, Logger: logger})
 	go func() {
 		pctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 		defer cancel()

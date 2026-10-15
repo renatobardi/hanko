@@ -97,8 +97,11 @@ type Config struct {
 	DatabaseURL string `yaml:"database_url" env:"HANKO_DATABASE_URL"`
 	Addr        string `yaml:"addr" env:"HANKO_ADDR"`
 	PublicURL   string `yaml:"public_url" env:"HANKO_PUBLIC_URL"`
-	Mode        string `yaml:"mode" env:"HANKO_MODE"`
-	Secret      string `yaml:"secret" env:"HANKO_SECRET"`
+	// AgentURL é a base pela qual os agentes (processos filhos, no mesmo container) chamam /mcp.
+	// Vazio = PublicURL. Em prd use http://127.0.0.1:7420 para não depender de DNS/proxy/TLS públicos.
+	AgentURL string `yaml:"agent_url" env:"HANKO_AGENT_URL"`
+	Mode     string `yaml:"mode" env:"HANKO_MODE"`
+	Secret   string `yaml:"secret" env:"HANKO_SECRET"`
 	// SecretKey cifra em repouso os segredos das integrações (AES-256-GCM, ADR-0029); SecretKeyPrevious é a
 	// chave anterior durante uma rotação (só decifra). Sem SecretKey, integrações com segredo não podem ser salvas.
 	SecretKey         string        `yaml:"secret_key" env:"HANKO_SECRET_KEY"`
@@ -258,6 +261,10 @@ func (c *Config) finalize() error {
 		c.PublicURL = "http://" + c.Addr
 	}
 	c.PublicURL = strings.TrimRight(c.PublicURL, "/")
+	c.AgentURL = strings.TrimRight(strings.TrimSpace(c.AgentURL), "/")
+	if c.AgentURL == "" {
+		c.AgentURL = c.PublicURL
+	}
 	c.AgentEnvAllow = cleanList(c.AgentEnvAllow)
 	c.AllowedHosts = cleanList(c.AllowedHosts)
 	c.WorkspacesRoot = strings.TrimSpace(c.WorkspacesRoot)
@@ -311,6 +318,9 @@ func (c Config) Validate() error {
 	}
 	if u, err := url.Parse(c.PublicURL); err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
 		add("HANKO_PUBLIC_URL %q inválido: use http(s)://host[:porta]", c.PublicURL)
+	}
+	if u, err := url.Parse(c.AgentURL); err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
+		add("HANKO_AGENT_URL %q inválido: use http(s)://host[:porta]", c.AgentURL)
 	}
 	if c.RunReserveUSD < 0 {
 		add("HANKO_RUN_RESERVE_USD %v inválido: use um valor >= 0 (0 usa o padrão de US$ 1,00)", c.RunReserveUSD)
