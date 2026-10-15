@@ -39,4 +39,8 @@ Entregue em 2026-10-15 (antes do planejado):
 - PWA e CLI em inglês.
 - Quatro revisões independentes e as correções de todos os achados.
 
-Pendente: confirmar o catálogo de tools do ai-memory (busca e curadoria), tag `v0.1.0`/`v0.2.0` e demos.
+Pendente: tag `v0.1.0`/`v0.2.0` e demos.
+
+## Depois (ideias, sem data)
+- Modelo local no Mac (oMLX) por persona: harness `claude` com `adapter_config.env` (`ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_MODEL`) apontando ao endpoint Anthropic do oMLX; não suportado oficialmente pela Anthropic para modelos não-Claude, a validar com tool calling real.
+- Harness Pi (`pi --mode json -p`, sem MCP: tools do Hanko pela CLI `hanko` com o run token) e Devin CLI (provavelmente via o harness ACP existente, `devin acp`); adiados por decisão do dono.

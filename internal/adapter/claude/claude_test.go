@@ -381,3 +381,28 @@ func TestParserDiagnosticoMCPeNegacoes(t *testing.T) {
 		t.Fatalf("result = %+v", evs)
 	}
 }
+
+// adapter_config.env: variáveis só da persona (ex.: apontar o claude a um servidor compatível com a API
+// Anthropic); as da run vencem e o que parece credencial é redigido.
+func TestRunEnvDaPersona(t *testing.T) {
+	c := &collector{}
+	spec := adapter.Spec{
+		RunID: domain.NewID(), Dir: t.TempDir(), Prompt: "x",
+		Env:    map[string]string{"FOO": "da-run"},
+		Config: json.RawMessage(`{"env":{"ANTHROPIC_BASE_URL":"http://mac:8000","ANTHROPIC_AUTH_TOKEN":"tok-local-123456","FOO":"da-persona","BAR":"b"}}`),
+	}
+	if _, err := newFake().Run(context.Background(), spec, c); err != nil {
+		t.Fatal(err)
+	}
+	errs := c.texts(domain.EventStderr)
+	if got := findPrefix(errs, "ENV_FOO: "); got != "ENV_FOO: da-run" {
+		t.Errorf("a env da run deveria vencer: %q", got)
+	}
+	got := findPrefix(errs, "ENV_PERSONA: ")
+	if !strings.HasPrefix(got, "ENV_PERSONA: http://mac:8000|") || !strings.HasSuffix(got, "|b") {
+		t.Fatalf("env da persona não chegou ao harness: %q", got)
+	}
+	if strings.Contains(got, "tok-local-123456") {
+		t.Errorf("credencial da persona vazou no log: %q", got)
+	}
+}

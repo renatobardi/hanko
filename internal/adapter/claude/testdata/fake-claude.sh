@@ -8,6 +8,7 @@ set -u
 echo "ARGS: $*" >&2
 echo "CWD: $(pwd)" >&2
 echo "ENV_FOO: ${FOO:-}" >&2
+echo "ENV_PERSONA: ${ANTHROPIC_BASE_URL:-}|${ANTHROPIC_AUTH_TOKEN:-}|${BAR:-}" >&2
 echo "ENV_LEAK: secret=${HANKO_SECRET:-}|db=${HANKO_DATABASE_URL:-}|mem=${HANKO_MEMORY_TOKEN:-}|aws=${AWS_SECRET_ACCESS_KEY:-}|run=${HANKO_RUN_TOKEN:-}|path=${PATH:+set}" >&2
 
 prev=""

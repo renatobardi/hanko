@@ -20,6 +20,7 @@ English summary at the end of each release.
 - Comentário humano em task `in_review` ou `blocked` acorda a persona e reabre a task (`in_progress`); antes o wake era enfileirado e o checkout o recusava sem aviso. Heartbeat e atribuição seguem exigindo `todo`/`in_progress`.
 - Diagnóstico das runs `claude`: o evento inicial lista o estado de cada servidor MCP (`mcp: hanko=connected`) e o final lista as tools negadas por permissão.
 - Busca de memória lê o formato real do ai-memory (`{"hits":[{id,path,title,snippet,rank}]}`); `rank` vira score.
+- Personas `claude` aceitam `adapter_config.env` (variáveis só da persona, ex.: `ANTHROPIC_BASE_URL`/`ANTHROPIC_AUTH_TOKEN`/`ANTHROPIC_MODEL` para um servidor compatível com a API Anthropic); as variáveis da run vencem e credenciais são redigidas dos eventos.
 - `HANKO_MEMORY_READ_TOOL` passa a ter padrão `memory_read_page` (tool real do ai-memory): o diff da curadoria mostra o conteúdo atual sem configuração.
 - CI: Actions em majors com runtime Node 24 (checkout, setup-go, setup-node v7; golangci-lint-action v9; goreleaser-action v7) e runners em `ubuntu-26.04`, validado em ramo antes da troca do `ubuntu-latest` (19/10/2026; runner-images#14748).
 - Deploy do prd: snapshots do LXC só com `--snapshot` (o backup pré-deploy continua); CI de integração roda `-p 1 -timeout 30m`.

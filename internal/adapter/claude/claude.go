@@ -61,6 +61,9 @@ func (a *Adapter) ResumesSessions() bool { return true }
 type Config struct {
 	PermissionMode string   `json:"permission_mode"`
 	ExtraArgs      []string `json:"extra_args"`
+	// Env são variáveis só desta persona (ex.: ANTHROPIC_BASE_URL/ANTHROPIC_AUTH_TOKEN/ANTHROPIC_MODEL para apontar
+	// o harness a um servidor compatível com a API Anthropic). As variáveis da própria run (run token, OTel) vencem.
+	Env map[string]string `json:"env"`
 }
 
 // BuildArgs returns the CLI arguments for spec; mcpFile is the temp MCP config path ("" = none) and
@@ -106,6 +109,22 @@ func BuildArgs(spec adapter.Spec, cfg Config, mcpFile, skillsDir string) []strin
 // Run executes the harness. Cancelling ctx terminates the whole process group; the
 // partial Result is returned with a nil error (the caller inspects ctx).
 func (a *Adapter) Run(ctx context.Context, spec adapter.Spec, sink adapter.Sink) (adapter.Result, error) {
+	var cfg Config
+	if len(spec.Config) > 0 {
+		if err := json.Unmarshal(spec.Config, &cfg); err != nil {
+			return adapter.Result{ExitCode: -1}, fmt.Errorf("claude: adapter_config: %w", err)
+		}
+	}
+	// A env da persona entra primeiro; as variáveis da run sempre vencem. Tudo o que parece credencial
+	// (inclusive o da persona) entra na redação de segredos.
+	env := map[string]string{}
+	for k, v := range cfg.Env {
+		env[k] = v
+	}
+	for k, v := range spec.Env {
+		env[k] = v
+	}
+	spec.Env = env
 	secrets := adapter.SpecSecrets(spec)
 	res, err := a.run(ctx, spec, sink, secrets)
 	return adapter.RedactResult(res, secrets...), err

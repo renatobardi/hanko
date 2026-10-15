@@ -451,7 +451,7 @@ USER node
 ```
 
 Sem container, instale o agente no host/LXC do servidor (npm global, binário em `/usr/local/bin`, etc.) com o mesmo usuário que roda o Hanko.
-Credenciais do agente (chave de API etc.) entram por `HANKO_AGENT_ENV_ALLOW` (variáveis do servidor) ou por `adapter_config.env` (na persona).
+Credenciais do agente (chave de API etc.) entram por `HANKO_AGENT_ENV_ALLOW` (variáveis do servidor) ou por `adapter_config.env` (na persona; vale também para personas `claude`, e é o que permite apontar só uma persona a outro endpoint compatível, ex.: `{"env":{"ANTHROPIC_BASE_URL":"http://host:8000","ANTHROPIC_AUTH_TOKEN":"…","ANTHROPIC_MODEL":"…"}}`; as variáveis da run vencem e os valores saem mascarados na API/CLI).
 
 **Contratar uma persona ACP.** Na UI, escolha o harness ACP e preencha comando, argumentos e permissões. Pela CLI (listas e objetos
 precisam de `--config-json`) ou pela API (`adapter_config`):
