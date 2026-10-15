@@ -12,8 +12,8 @@ import (
 // tool e decide o destino: leitura e escrita aditiva seguem direto; o que remove, funde ou reescreve
 // conteúdo vira proposta e só é aplicado depois da decisão de um humano.
 //
-// Só quatro nomes de tool do ai-memory estão confirmados por teste de contrato (memory_briefing,
-// memory_status, memory_handoff_accept e memory_write_page). Para o resto a política não presume nomes: ela
+// Os nomes de tool do ai-memory confirmados contra um servidor real (tools/list, 2026-10-15) estão em
+// confirmedClass. Para qualquer outro nome (versões futuras) a política não presume nada: ela
 // olha as palavras do nome (get_x, list_x, search_x… são leitura; add_x, append_x… são aditivas) e, na
 // dúvida, RETÉM. Reter é o lado seguro: uma tool desconhecida vira proposta que um humano lê, nunca uma
 // remoção silenciosa.
@@ -52,6 +52,33 @@ const WritePageTool = "memory_write_page"
 // CuratorReportPrefix é a pasta de relatórios da própria curadoria: páginas novas ali são aditivas.
 const CuratorReportPrefix = "hanko/curadoria/"
 
+// confirmedClass são as tools do ai-memory vistas num servidor real. Valem antes da heurística de palavras
+// (ex.: memory_read_session_observations só lê, mas "session" a faria ser recusada).
+var confirmedClass = map[string]Class{
+	"memory_query":                     ClassRead,
+	"memory_read_page":                 ClassRead,
+	"memory_recent":                    ClassRead,
+	"memory_explore":                   ClassRead,
+	"memory_briefing":                  ClassRead,
+	"memory_status":                    ClassRead,
+	"memory_lint":                      ClassRead,
+	"memory_read_session_observations": ClassRead,
+	"memory_delete_page":               ClassHeld,
+	"memory_forget_sweep":              ClassHeld,
+	"memory_consolidate":               ClassHeld,
+	"memory_auto_improve":              ClassHeld,
+	"memory_feedback":                  ClassHeld,
+	"memory_message_send":              ClassHeld,
+	"memory_message_pop":               ClassHeld,
+	"memory_message_cancel":            ClassHeld,
+	"memory_message_list":              ClassHeld,
+	"memory_install_self_routing":      ClassHeld,
+	"memory_handoff_accept":            ClassDeny,
+	"memory_handoff_begin":             ClassDeny,
+	"memory_handoff_cancel":            ClassDeny,
+	"memory_handoff_list":              ClassDeny,
+}
+
 var (
 	denyTokens = tokenSet("handoff", "finalize", "session", "hook")
 	// destructiveTokens: uma palavra destas em qualquer posição do nome retém a chamada.
@@ -88,6 +115,9 @@ func Classify(tool string, args map[string]any) Class {
 			return ClassAdditive
 		}
 		return ClassHeld
+	}
+	if c, ok := confirmedClass[strings.ToLower(strings.TrimSpace(tool))]; ok {
+		return c
 	}
 	toks := tokens(tool)
 	if len(toks) == 0 {

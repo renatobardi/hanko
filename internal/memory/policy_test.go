@@ -26,6 +26,18 @@ func TestClassify(t *testing.T) {
 		{"memory_frobnicate", nil, ClassHeld}, // desconhecida: retém
 		{"", nil, ClassHeld},
 		{"memory_handoff_accept", nil, ClassDeny},
+		// catálogo real do ai-memory (2026-10-15)
+		{"memory_query", nil, ClassRead},
+		{"memory_read_page", nil, ClassRead},
+		{"memory_recent", nil, ClassRead},
+		{"memory_explore", nil, ClassRead},
+		{"memory_lint", nil, ClassRead},
+		{"memory_read_session_observations", nil, ClassRead},
+		{"memory_forget_sweep", nil, ClassHeld},
+		{"memory_consolidate", nil, ClassHeld},
+		{"memory_auto_improve", nil, ClassHeld},
+		{"memory_handoff_begin", nil, ClassDeny},
+		{"memory_handoff_list", nil, ClassDeny},
 		{"memory_session_finalize", nil, ClassDeny},
 		// write_page: aditivo só na pasta de relatórios da curadoria.
 		{"memory_write_page", map[string]any{"path": "hanko/curadoria/2026-01-01"}, ClassAdditive},

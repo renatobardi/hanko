@@ -1,4 +1,4 @@
-// Lista as tools que o servidor ai-memory expõe (MCP tools/list). Roda DENTRO do container do Hanko:
+// Lista as tools do ai-memory (MCP tools/list) e o schema de entrada das que o Hanko usa. Roda DENTRO do container do Hanko:
 //   ssh oute-server 'lxc exec hanko-prd -- docker compose -f /opt/app/docker-compose.yml exec -T hanko node -' < tools/ai-memory-tools.mjs
 const url = (process.env.HANKO_MEMORY_URL || "http://ai-memory:49374") + "/mcp";
 const base = {
@@ -21,5 +21,9 @@ const text = await res.text();
 // resposta JSON ou SSE ("data: {...}")
 const line = text.split("\n").find((l) => l.startsWith("data:")) ?? text;
 const json = JSON.parse(line.replace(/^data:\s*/, ""));
-for (const t of json.result?.tools ?? []) console.log(t.name, "-", (t.description ?? "").split("\n")[0]);
+const want = new Set(["memory_query", "memory_read_page", "memory_recent", "memory_delete_page"]);
+for (const t of json.result?.tools ?? []) {
+  console.log(t.name);
+  if (want.has(t.name)) console.log(JSON.stringify(t.inputSchema));
+}
 if (!json.result) console.log(text.slice(0, 2000));
