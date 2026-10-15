@@ -98,12 +98,48 @@ func (t *txc) requestReview(companyID domain.ID, task store.Task, author store.P
 	return nil
 }
 
+// lockReview takes the locks of a review in the canonical order of the service (task → run →
+// review): the task first, then the review. UpdateTask and the run-cancel paths lock in that order,
+// so locking the review first would deadlock against them. A missing review returns ErrNoRows-like
+// store errors (isNoRows).
+func (t *txc) lockReview(companyID, reviewID domain.ID) (store.Review, store.Task, error) {
+	peek, err := t.q.GetReviewByID(t.ctx, store.GetReviewByIDParams{CompanyID: companyID, ID: reviewID})
+	if err != nil {
+		return store.Review{}, store.Task{}, err
+	}
+	task, err := t.q.GetTaskByIDForUpdate(t.ctx, store.GetTaskByIDForUpdateParams{CompanyID: companyID, ID: peek.TaskID})
+	if err != nil {
+		return store.Review{}, store.Task{}, mapErr(err, "get task")
+	}
+	rv, err := t.q.GetReviewByIDForUpdate(t.ctx, store.GetReviewByIDForUpdateParams{CompanyID: companyID, ID: reviewID})
+	return rv, task, err
+}
+
+// lockTaskOfReviewRun locks the task of a review run before the run itself (canonical order).
+// It is a no-op for any other run.
+func (t *txc) lockTaskOfReviewRun(companyID, runID domain.ID) error {
+	peek, err := t.q.GetRunByID(t.ctx, store.GetRunByIDParams{CompanyID: companyID, ID: runID})
+	if isNoRows(err) {
+		return nil // the caller's own lookup reports it
+	}
+	if err != nil {
+		return mapErr(err, "get run")
+	}
+	if domain.RunTrigger(peek.Trigger) != domain.TriggerReview {
+		return nil
+	}
+	if _, err := t.q.GetTaskByIDForUpdate(t.ctx, store.GetTaskByIDForUpdateParams{CompanyID: companyID, ID: peek.TaskID}); err != nil {
+		return mapErr(err, "get task")
+	}
+	return nil
+}
+
 // StartReview opens the headless review run of a pending review. While the task still has an
 // active run (typically the author's, which asked to close it) it returns domain.ErrActiveRun and
 // changes nothing, so the job tries again later.
 func (s *Service) StartReview(ctx context.Context, companyID, reviewID domain.ID) error {
 	return s.withTx(ctx, func(t *txc) error {
-		rv, err := t.q.GetReviewByIDForUpdate(ctx, store.GetReviewByIDForUpdateParams{CompanyID: companyID, ID: reviewID})
+		rv, task, err := t.lockReview(companyID, reviewID)
 		if isNoRows(err) {
 			return nil
 		}
@@ -112,10 +148,6 @@ func (s *Service) StartReview(ctx context.Context, companyID, reviewID domain.ID
 		}
 		if rv.Status != "pending" {
 			return nil
-		}
-		task, err := t.q.GetTaskByIDForUpdate(ctx, store.GetTaskByIDForUpdateParams{CompanyID: companyID, ID: rv.TaskID})
-		if err != nil {
-			return mapErr(err, "get task")
 		}
 		if domain.TaskStatus(task.Status) != domain.TaskInReview {
 			return t.cancelReview(rv, "task_left_review")
@@ -156,11 +188,9 @@ func (s *Service) StartReview(ctx context.Context, companyID, reviewID domain.ID
 		}
 		sum := sha256.Sum256([]byte(artifact))
 		sha := hex.EncodeToString(sum[:])
-		// The harness of the review may differ from the persona's: the subscription must cover that one.
-		billed := runPersona
-		billed.Agent = rv.Agent
+		// The harness of the review may differ from the persona's: charge the subscription of that harness.
 		model, modelSource := domain.ResolveModel("", rv.Model)
-		sub, err := t.subscriptionFor(billed, model)
+		sub, err := t.subscriptionForHarness(runPersona, rv.Agent, model)
 		if err != nil {
 			return err
 		}
@@ -204,7 +234,7 @@ func (s *Service) StartReview(ctx context.Context, companyID, reviewID domain.ID
 // without a verdict, with the reason.
 func (s *Service) FailReview(ctx context.Context, companyID, reviewID domain.ID, reason string) error {
 	return s.withTx(ctx, func(t *txc) error {
-		rv, err := t.q.GetReviewByIDForUpdate(ctx, store.GetReviewByIDForUpdateParams{CompanyID: companyID, ID: reviewID})
+		rv, _, err := t.lockReview(companyID, reviewID)
 		if isNoRows(err) {
 			return nil
 		}
@@ -294,6 +324,10 @@ func (t *txc) completeReview(rv store.Review, task store.Task, _ *store.Run, sta
 // reviewRunEnded advances the review of a run with trigger review that just ended. Reviews that
 // are not running (already cancelled, or never linked) are left alone.
 func (t *txc) reviewRunEnded(run store.Run, status domain.RunStatus, summary, errMsg string) error {
+	// Canonical lock order: task before review (callers already hold the run).
+	if _, err := t.q.GetTaskByIDForUpdate(t.ctx, store.GetTaskByIDForUpdateParams{CompanyID: run.CompanyID, ID: run.TaskID}); err != nil {
+		return mapErr(err, "get task")
+	}
 	rv, err := t.q.GetReviewByRunIDForUpdate(t.ctx, &run.ID)
 	if isNoRows(err) {
 		return nil
@@ -347,7 +381,7 @@ func (s *Service) ResolveStaleReviews(ctx context.Context) (int, error) {
 	var errs []error
 	for _, rv := range rows {
 		err := s.withTx(ctx, func(t *txc) error {
-			cur, err := t.q.GetReviewByIDForUpdate(ctx, store.GetReviewByIDForUpdateParams{CompanyID: rv.CompanyID, ID: rv.ID})
+			cur, _, err := t.lockReview(rv.CompanyID, rv.ID)
 			if err != nil {
 				return mapErr(err, "get review")
 			}

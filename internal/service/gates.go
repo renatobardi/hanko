@@ -281,6 +281,20 @@ func (t *txc) expireTaskGates(companyID, taskID domain.ID, reason string) error 
 	if err != nil {
 		return fmt.Errorf("expire task gates: %w", err)
 	}
+	// The review's own run (if already open) stops with it: lock run before review (canonical order).
+	if open, oerr := t.q.OpenReviewForTask(t.ctx, taskID); oerr == nil && open.RunID != nil {
+		cur, err := t.q.GetRunByIDForUpdate(t.ctx, store.GetRunByIDForUpdateParams{CompanyID: companyID, ID: *open.RunID})
+		if err != nil {
+			return mapErr(err, "get review run")
+		}
+		if domain.RunStatus(cur.Status).Active() {
+			if err := t.cancelRun(domain.SystemActor, companyID, cur, map[string]any{"reason": reason, "review_id": open.ID}); err != nil {
+				return err
+			}
+		}
+	} else if oerr != nil && !isNoRows(oerr) {
+		return fmt.Errorf("open review: %w", oerr)
+	}
 	revs, err := t.q.CancelOpenReviewsForTask(t.ctx, store.CancelOpenReviewsForTaskParams{TaskID: taskID, Now: &t.now})
 	if err != nil {
 		return fmt.Errorf("cancel task reviews: %w", err)
@@ -587,6 +601,18 @@ type Inbox struct {
 	Alerts        []domain.Alert // operational alerts still open (alert_tick closes them when the condition is gone)
 	// GuardedSubscriptions are the subscriptions whose weekly guard is tripped: new runs they cover are refused.
 	GuardedSubscriptions []SubscriptionStatus
+	// UnderReview are in_review tasks whose automatic review is still running: informational, there is
+	// no gate yet and nothing for the human to do, so they are not part of Count.
+	UnderReview []InboxReview
+}
+
+// InboxReview is an automatic review in progress on a task.
+type InboxReview struct {
+	Task      TaskView
+	Status    string // pending (waiting to start) | running
+	Agent     string
+	Model     string
+	CreatedAt time.Time
 }
 
 // Count is the number of items waiting.
@@ -643,6 +669,19 @@ func (s *Service) Inbox(ctx context.Context, companyID domain.ID) (Inbox, error)
 	}
 	if in.GuardedSubscriptions, err = s.GuardedSubscriptions(ctx, companyID); err != nil {
 		return in, err
+	}
+	reviews, err := q.ListOpenReviewsForCompany(ctx, companyID)
+	if err != nil {
+		return in, fmt.Errorf("list open reviews: %w", err)
+	}
+	for _, rv := range reviews {
+		tv, err := loadTaskView(ctx, q, companyID, rv.TaskID)
+		if err != nil {
+			return in, err
+		}
+		if tv.Status == domain.TaskInReview && !withGate[tv.ID] {
+			in.UnderReview = append(in.UnderReview, InboxReview{Task: tv, Status: rv.Status, Agent: rv.Agent, Model: rv.Model, CreatedAt: rv.CreatedAt})
+		}
 	}
 	return in, nil
 }

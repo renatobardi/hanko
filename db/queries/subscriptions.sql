@@ -60,3 +60,17 @@ JOIN tasks t ON t.id = r.task_id
 WHERE r.company_id = @company_id AND r.subscription_id IS NOT NULL
   AND r.created_at >= @from_ts AND r.created_at < @to_ts
 ORDER BY r.created_at, r.id;
+
+-- name: OpenSubscriptionPeriod :exec
+INSERT INTO subscription_periods (subscription_id, started_at) VALUES (@subscription_id, @now);
+
+-- name: CloseSubscriptionPeriod :exec
+UPDATE subscription_periods SET ended_at = GREATEST(@now::timestamptz, started_at)
+WHERE subscription_id = @subscription_id AND ended_at IS NULL;
+
+-- name: ListSubscriptionPeriods :many
+-- Períodos de vigência das assinaturas da empresa (rateio do custo pago: só os meses cobertos por algum período).
+SELECT sp.* FROM subscription_periods sp
+JOIN subscriptions s ON s.id = sp.subscription_id
+WHERE s.company_id = @company_id
+ORDER BY sp.subscription_id, sp.started_at;

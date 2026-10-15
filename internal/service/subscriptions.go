@@ -133,6 +133,11 @@ func (s *Service) CreateSubscription(ctx context.Context, actor domain.Actor, co
 			return mapErr(err, "create subscription")
 		}
 		out = subscriptionFromRow(row)
+		if out.Active {
+			if err := t.q.OpenSubscriptionPeriod(ctx, store.OpenSubscriptionPeriodParams{SubscriptionID: out.ID, Now: t.now}); err != nil {
+				return fmt.Errorf("open subscription period: %w", err)
+			}
+		}
 		return t.activity(actor, companyID, "subscription.created", "subscription", out.ID,
 			map[string]any{"name": out.Name, "agent": out.Agent, "monthly_usd": out.MonthlyUSD, "weekly_limit_usd": out.WeeklyLimitUSD}, "")
 	})
@@ -246,6 +251,16 @@ func (s *Service) UpdateSubscription(ctx context.Context, actor domain.Actor, co
 			return mapErr(err, "update subscription")
 		}
 		out = subscriptionFromRow(row)
+		if row.Active != cur.Active { // switching off closes the period; switching on opens a new one
+			if row.Active {
+				err = t.q.OpenSubscriptionPeriod(ctx, store.OpenSubscriptionPeriodParams{SubscriptionID: id, Now: t.now})
+			} else {
+				err = t.q.CloseSubscriptionPeriod(ctx, store.CloseSubscriptionPeriodParams{SubscriptionID: id, Now: t.now})
+			}
+			if err != nil {
+				return fmt.Errorf("subscription period: %w", err)
+			}
+		}
 		return t.activity(actor, companyID, "subscription.updated", "subscription", id, map[string]any{"fields": changed}, "")
 	})
 	return out, err
@@ -306,6 +321,28 @@ func (t *txc) subscriptionFor(p store.Persona, model string) (*domain.Subscripti
 		return nil, nil
 	}
 	return &sub, nil
+}
+
+// subscriptionForHarness is subscriptionFor for a run that executes in agent, which may differ from the
+// persona's own harness (review runs): the persona's subscription when it covers that harness, otherwise
+// the company's oldest active subscription of that agent that covers the model.
+func (t *txc) subscriptionForHarness(p store.Persona, agent, model string) (*domain.Subscription, error) {
+	own := p
+	own.Agent = agent
+	sub, err := t.subscriptionFor(own, model)
+	if err != nil || sub != nil || agent == p.Agent {
+		return sub, err
+	}
+	rows, err := t.q.ListSubscriptions(t.ctx, p.CompanyID)
+	if err != nil {
+		return nil, fmt.Errorf("list subscriptions: %w", err)
+	}
+	for _, r := range rows {
+		if c := subscriptionFromRow(r); c.Covers(agent, model) {
+			return &c, nil
+		}
+	}
+	return nil, nil
 }
 
 // checkWeeklyGuard refuses a new run when the subscription's estimated usage of the week reached

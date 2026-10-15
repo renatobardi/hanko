@@ -80,6 +80,16 @@ func (s *server) handleInbox(w http.ResponseWriter, r *http.Request, co domain.C
 	if show("gates") {
 		vm.Gates = gateRows(ctx, in.Gates, base, now, loc, names)
 	}
+	if show("gates") {
+		for _, rv := range in.UnderReview {
+			h := rv.Agent
+			if rv.Model != "" {
+				h += " · " + rv.Model
+			}
+			vm.Reviewing = append(vm.Reviewing, views.InboxReview{Key: rv.Task.Key, Href: base + "/tasks/" + rv.Task.Key, Title: rv.Task.Title,
+				Persona: rv.Task.PersonaName, Reviewer: h, Waiting: rv.Status == "pending", When: agoCtx(ctx, rv.CreatedAt, now, loc)})
+		}
+	}
 	if show("bloqueadas") {
 		for _, t := range in.BlockedTasks {
 			vm.Blocked = append(vm.Blocked, views.InboxTask{

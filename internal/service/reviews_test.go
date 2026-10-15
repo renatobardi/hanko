@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -386,5 +387,264 @@ func TestReviewerConfigValidacao(t *testing.T) {
 	}
 	if _, err := e.svc.HirePersona(ctx, domain.HumanActor, e.co.ID, service.HirePersonaInput{Name: "D", Agent: "claude", ReviewerPersona: &b.ID, ReviewerAgent: "codex"}); err == nil {
 		t.Error("os dois juntos deveria falhar")
+	}
+}
+
+// O parecer do revisor vive no gate: a run de revisão não posta comentário na task.
+func TestReviewNaoPostaComentario(t *testing.T) {
+	ctx := context.Background()
+	r := newReviewEnv(t, withReviewerPersona(t))
+	r.closeTask(t)
+	r.finishAuthor(t)
+	before, _ := r.svc.ListComments(ctx, r.co.ID, r.task.ID)
+	run := r.startReview(t)
+	r.finishReview(t, run, domain.RunDone, "VEREDITO: APROVADO\nTudo certo.")
+	after, _ := r.svc.ListComments(ctx, r.co.ID, r.task.ID)
+	if len(after) != len(before) {
+		t.Fatalf("revisão postou comentário: %d -> %d", len(before), len(after))
+	}
+	for _, c := range after {
+		if strings.Contains(c.Body, "VEREDITO") {
+			t.Fatalf("parecer vazou para a thread: %q", c.Body)
+		}
+	}
+}
+
+// Ordem de locks task → run → review: StartReview e o fim da run de revisão correm contra o
+// fechamento da task sem deadlock (o Postgres aborta um deles com 40P01 se a ordem divergir).
+func TestReviewLockOrderSemDeadlock(t *testing.T) {
+	ctx := context.Background()
+	race := func(t *testing.T, a, b func() error) {
+		t.Helper()
+		errs := make(chan error, 2)
+		start := make(chan struct{})
+		var wg sync.WaitGroup
+		for _, f := range []func() error{a, b} {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				<-start
+				errs <- f()
+			}()
+		}
+		close(start)
+		done := make(chan struct{})
+		go func() { wg.Wait(); close(done) }()
+		select {
+		case <-done:
+		case <-time.After(20 * time.Second):
+			t.Fatal("travou: possível deadlock")
+		}
+		close(errs)
+		for err := range errs {
+			if err != nil && (strings.Contains(err.Error(), "deadlock") || strings.Contains(err.Error(), "40P01")) {
+				t.Fatalf("deadlock: %v", err)
+			}
+		}
+	}
+	cancelTask := func(r *reviewEnv) func() error {
+		return func() error {
+			c := domain.TaskCancelled
+			_, err := r.svc.UpdateTask(ctx, domain.HumanActor, r.co.ID, r.task.ID, service.UpdateTaskInput{Status: &c})
+			return err
+		}
+	}
+	for i := 0; i < 8; i++ {
+		t.Run("start", func(t *testing.T) {
+			r := newReviewEnv(t, withReviewerPersona(t))
+			r.closeTask(t)
+			r.finishAuthor(t)
+			race(t, func() error { return r.svc.StartReview(ctx, r.co.ID, r.jobs.reviews[0]) }, cancelTask(r))
+		})
+		t.Run("finish", func(t *testing.T) {
+			r := newReviewEnv(t, withReviewerPersona(t))
+			r.closeTask(t)
+			r.finishAuthor(t)
+			run := r.startReview(t)
+			if _, err := r.svc.MarkRunStarted(ctx, r.co.ID, run.ID, "tr", ""); err != nil {
+				t.Fatal(err)
+			}
+			race(t, func() error {
+				_, err := r.svc.FinishRun(ctx, r.co.ID, run.ID, service.FinishRunInput{Status: domain.RunDone, Result: adapter.Result{Summary: "VEREDITO: APROVADO\nok"}})
+				return err
+			}, cancelTask(r))
+		})
+	}
+}
+
+// Teste determinístico da ordem: com a task travada por outra transação, StartReview e FinishRun
+// da revisão esperam NA task sem segurar a linha da revisão/run (ordem task → run → review).
+func TestReviewLockOrderTaskPrimeiro(t *testing.T) {
+	ctx := context.Background()
+	hold := func(t *testing.T, r *reviewEnv, f func() error, free string, id domain.ID) {
+		t.Helper()
+		tx, err := r.svc.Pool.Begin(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = tx.Rollback(ctx) }()
+		if _, err := tx.Exec(ctx, `SELECT 1 FROM tasks WHERE id = $1 FOR UPDATE`, r.task.ID); err != nil {
+			t.Fatal(err)
+		}
+		done := make(chan error, 1)
+		go func() { done <- f() }()
+		time.Sleep(400 * time.Millisecond) // a chamada já bloqueou na task
+		sp, err := tx.Begin(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := sp.Exec(ctx, `SELECT 1 FROM `+free+` WHERE id = $1 FOR UPDATE NOWAIT`, id); err != nil {
+			t.Errorf("a chamada segurou %s antes de travar a task: %v", free, err)
+		}
+		_ = sp.Rollback(ctx)
+		if err := tx.Rollback(ctx); err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Errorf("chamada: %v", err)
+			}
+		case <-time.After(10 * time.Second):
+			t.Fatal("chamada não terminou depois de soltar a task")
+		}
+	}
+	t.Run("StartReview", func(t *testing.T) {
+		r := newReviewEnv(t, withReviewerPersona(t))
+		r.closeTask(t)
+		r.finishAuthor(t)
+		hold(t, r, func() error { return r.svc.StartReview(ctx, r.co.ID, r.jobs.reviews[0]) }, "reviews", r.jobs.reviews[0])
+	})
+	t.Run("FinishRun", func(t *testing.T) {
+		r := newReviewEnv(t, withReviewerPersona(t))
+		r.closeTask(t)
+		r.finishAuthor(t)
+		run := r.startReview(t)
+		if _, err := r.svc.MarkRunStarted(ctx, r.co.ID, run.ID, "tr", ""); err != nil {
+			t.Fatal(err)
+		}
+		hold(t, r, func() error {
+			_, err := r.svc.FinishRun(ctx, r.co.ID, run.ID, service.FinishRunInput{Status: domain.RunDone, Result: adapter.Result{Summary: "VEREDITO: APROVADO\nok"}})
+			return err
+		}, "runs", run.ID)
+	})
+}
+
+// Fechar a task cancela a run de revisão aberta mesmo sem persona atribuída (cancelTaskRun não roda).
+func TestReviewFecharCancelaARunDeRevisao(t *testing.T) {
+	ctx := context.Background()
+	r := newReviewEnv(t, withReviewerPersona(t))
+	r.closeTask(t)
+	r.finishAuthor(t)
+	run := r.startReview(t)
+	if _, err := r.svc.Pool.Exec(ctx, `UPDATE tasks SET persona_id = NULL WHERE id = $1`, r.task.ID); err != nil {
+		t.Fatal(err)
+	}
+	cancelled := domain.TaskCancelled
+	if _, err := r.svc.UpdateTask(ctx, domain.HumanActor, r.co.ID, r.task.ID, service.UpdateTaskInput{Status: &cancelled}); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := r.svc.GetRun(ctx, r.co.ID, run.ID)
+	if got.Status != domain.RunCancelled {
+		t.Fatalf("run de revisão = %s", got.Status)
+	}
+	var n int
+	if err := r.svc.Pool.QueryRow(ctx, `SELECT count(*) FROM activity_events WHERE subject_id = $1 AND verb = 'run.cancelled'`, run.ID).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("run.cancelled = %d %v", n, err)
+	}
+}
+
+// A revisão em harness alternativo é cobrada na assinatura ativa da empresa desse harness
+// (a persona autora pode ter assinatura de outro) e respeita a trava semanal dela.
+func TestReviewCobradaNaAssinaturaDoHarness(t *testing.T) {
+	ctx := context.Background()
+	altHarness := func(in *service.HirePersonaInput, e *env) domain.Persona {
+		in.ReviewerAgent, in.ReviewerModel = "codex", "gpt-rev"
+		return domain.Persona{}
+	}
+	t.Run("cobre", func(t *testing.T) {
+		r := newReviewEnv(t, altHarness)
+		claudeSub := r.sub(t, func(in *service.CreateSubscriptionInput) { in.Name = "Claude"; in.Agent = "claude" })
+		codexSub := r.sub(t, func(in *service.CreateSubscriptionInput) { in.Name = "Codex"; in.Agent = "codex" })
+		if _, err := r.svc.UpdatePersona(ctx, domain.HumanActor, r.co.ID, r.author.ID, service.UpdatePersonaInput{SubscriptionID: &claudeSub.ID}); err != nil {
+			t.Fatal(err)
+		}
+		r.closeTask(t)
+		r.finishAuthor(t)
+		run := r.startReview(t)
+		if run.SubscriptionID == nil || *run.SubscriptionID != codexSub.ID {
+			t.Fatalf("assinatura da run de revisão = %v, want %s", run.SubscriptionID, codexSub.ID)
+		}
+	})
+	t.Run("trava semanal", func(t *testing.T) {
+		r := newReviewEnv(t, altHarness)
+		codexSub := r.sub(t, func(in *service.CreateSubscriptionInput) {
+			in.Name, in.Agent, in.WeeklyLimitUSD, in.WeeklyGuardPct = "Codex", "codex", ptr(10.0), 80
+		})
+		other := r.persona(t, "Outra", func(in *service.HirePersonaInput) { in.Agent = "codex"; in.SubscriptionID = &codexSub.ID })
+		r.spend(t, other, time.Now(), nil, usd(9))
+		r.svc.Now = time.Now
+		r.closeTask(t)
+		r.finishAuthor(t)
+		if err := r.svc.StartReview(ctx, r.co.ID, r.jobs.reviews[0]); err != nil {
+			t.Fatal(err)
+		}
+		gs := r.pendingGates(t)
+		if len(gs) != 1 || gs[0].Review == nil || gs[0].Review.Verdict != "" || !strings.Contains(gs[0].Review.Justification, "trava semanal") {
+			t.Fatalf("gate: %+v", gs)
+		}
+	})
+}
+
+// Revisor alternativo igual à autora (mesmo agent e mesmo modelo) não é segunda opinião.
+func TestReviewerAlternativoIgualAAutora(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	a, err := e.svc.HirePersona(ctx, domain.HumanActor, e.co.ID, service.HirePersonaInput{Name: "A", Agent: "claude", Model: "m1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	upd := func(in service.UpdatePersonaInput) error {
+		_, err := e.svc.UpdatePersona(ctx, domain.HumanActor, e.co.ID, a.ID, in)
+		return err
+	}
+	if err := upd(service.UpdatePersonaInput{ReviewerAgent: ptr("claude"), ReviewerModel: ptr("m1")}); err == nil {
+		t.Error("mesmo agent e modelo deveria falhar")
+	}
+	if err := upd(service.UpdatePersonaInput{ReviewerAgent: ptr("claude"), ReviewerModel: ptr("m2")}); err != nil {
+		t.Errorf("modelo diferente: %v", err)
+	}
+	if err := upd(service.UpdatePersonaInput{ReviewerAgent: ptr("codex"), ReviewerModel: ptr("m1")}); err != nil {
+		t.Errorf("agent diferente: %v", err)
+	}
+	if err := upd(service.UpdatePersonaInput{ReviewerAgent: ptr("claude"), ReviewerModel: ptr("m2")}); err != nil {
+		t.Fatal(err)
+	}
+	// a autora passando a usar o modelo do revisor também é refutada
+	if err := upd(service.UpdatePersonaInput{Model: ptr("m2")}); err == nil {
+		t.Error("autora igualando o revisor deveria falhar")
+	}
+	if _, err := e.svc.HirePersona(ctx, domain.HumanActor, e.co.ID, service.HirePersonaInput{Name: "B", Agent: "claude", Model: "m1", ReviewerAgent: "claude", ReviewerModel: "m1"}); err == nil {
+		t.Error("contratar com revisor igual deveria falhar")
+	}
+}
+
+// A Caixa de entrada mostra a revisão em andamento (informativa: não conta como pendência) até o gate nascer.
+func TestInboxMostraRevisaoEmAndamento(t *testing.T) {
+	ctx := context.Background()
+	r := newReviewEnv(t, withReviewerPersona(t))
+	r.closeTask(t)
+	in, err := r.svc.Inbox(ctx, r.co.ID)
+	if err != nil || len(in.UnderReview) != 1 || in.UnderReview[0].Status != "pending" || in.UnderReview[0].Task.ID != r.task.ID || in.Count() != 0 {
+		t.Fatalf("pending: %+v count=%d %v", in.UnderReview, in.Count(), err)
+	}
+	r.finishAuthor(t)
+	run := r.startReview(t)
+	if in, _ = r.svc.Inbox(ctx, r.co.ID); len(in.UnderReview) != 1 || in.UnderReview[0].Status != "running" {
+		t.Fatalf("running: %+v", in.UnderReview)
+	}
+	r.finishReview(t, run, domain.RunDone, "VEREDITO: APROVADO\nok")
+	if in, _ = r.svc.Inbox(ctx, r.co.ID); len(in.UnderReview) != 0 || len(in.Gates) != 1 {
+		t.Fatalf("depois do gate: review=%+v gates=%d", in.UnderReview, len(in.Gates))
 	}
 }

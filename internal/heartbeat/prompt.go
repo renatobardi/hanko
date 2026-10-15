@@ -116,11 +116,12 @@ func buildEnv(base, publicURL, token string, rc service.RunContext) map[string]s
 	env := map[string]string{
 		"OTEL_RESOURCE_ATTRIBUTES":     attrs,
 		"CLAUDE_CODE_ENABLE_TELEMETRY": "1",
-		"HANKO_URL":                    publicURL,
 		"HANKO_RUN_ID":                 rc.Run.ID.String(),
 		"HANKO_TASK_KEY":               rc.Task.Key,
 	}
+	// No token means a credential-less (review) run: it does not even learn where Hanko is.
 	if token != "" {
+		env["HANKO_URL"] = publicURL
 		env["HANKO_RUN_TOKEN"] = token
 	}
 	return env

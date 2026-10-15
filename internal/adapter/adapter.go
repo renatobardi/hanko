@@ -27,6 +27,9 @@ type Spec struct {
 	MCPConfig  json.RawMessage // {"mcpServers":{...}} written to a temp file for the harness
 	Config     json.RawMessage // persona.adapter_config
 	Timeout    time.Duration
+	// ReadOnly forces the harness into its read-only mode (review runs), ignoring any
+	// permissive adapter_config (permission mode, sandbox, extra args).
+	ReadOnly bool
 }
 
 // Event is one normalized log entry emitted while the agent runs.

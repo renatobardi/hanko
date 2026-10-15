@@ -29,3 +29,7 @@ nem tinha como impedir que uma semana de uso pesado esgotasse a cota do plano an
 - O pago histórico usa a mensalidade atual da assinatura (não há histórico de mensalidade).
 - A trava conta runs finalizados; runs em voo não reservam cota, então a semana pode passar um pouco do teto.
 - Inserção de preço novo continua por migration/seed (sem API) até haver conferência automática de preços.
+- Desativar e reativar uma assinatura não cobra os meses inativos: `subscription_periods` guarda cada vigência (abre ao
+  ativar, fecha ao desativar) e o rateio só conta os meses tocados por algum período (granularidade de mês, como antes).
+- O rateio opera em dias locais inteiros: `from` é arredondado para baixo e `to` para cima até a meia-noite local, para
+  que as runs do primeiro e do último dia entrem no rateio do dia.

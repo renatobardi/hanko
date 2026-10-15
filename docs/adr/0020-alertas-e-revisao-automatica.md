@@ -25,3 +25,17 @@ revisão (`task_review`) chegava ao humano sem nenhuma segunda opinião, mesmo h
 - A constraint `runs_trigger_check` agora inclui `review`; migration que redefinir a lista precisa mantê-lo.
 - O sha256 cobre o pacote mostrado ao revisor, não o estado git do workspace.
 - Configuração do revisor por API e CLI; o formulário na UI fica para depois.
+- A run de revisão não carrega credencial nenhuma: sem run token, sem MCP do Hanko, sem MCP de memória (o proxy
+  autentica pelo run token) e sem `HANKO_URL` no ambiente. O harness roda forçado em somente leitura, ignorando o
+  `adapter_config` da persona (claude: `--permission-mode plan` e edição desabilitada; codex: `--sandbox read-only`;
+  `extra_args` descartados).
+- O parecer vive só no gate: a run de revisão não posta o resumo como comentário da persona nem a acorda por
+  comentário perdido.
+- Ordem única de locks: task → run → review. `StartReview`, `FailReview`, a varredura de revisões e o fim/cancelamento
+  de uma run de revisão travam a task antes da run/revisão, a mesma ordem de `UpdateTask` e `cancelTaskRun`. Fechar a
+  task cancela também a run de revisão aberta.
+- Revisão em harness alternativo é cobrada na assinatura ativa da empresa cujo `agent` é o do revisor (a da persona
+  quando ela cobre esse harness) e respeita a trava semanal dela. O revisor alternativo precisa diferir da autora em
+  agent ou modelo.
+- A Caixa de entrada lista, de forma informativa (não conta como pendência), as tasks `in_review` cuja revisão ainda
+  não abriu o gate.

@@ -28,6 +28,8 @@ type txc struct {
 	q     *store.Queries
 	now   time.Time
 	after []func()
+	// cancelled: runs whose cancellation this transaction already recorded (cancelRun is idempotent).
+	cancelled map[domain.ID]bool
 }
 
 // withTx runs fn in a single transaction. Broker notifications queued by fn are

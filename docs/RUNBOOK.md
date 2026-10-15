@@ -229,8 +229,10 @@ ssh oute-server "lxc exec hanko-prd -- /opt/app/deploy/oute-server/restore.sh --
 # saída esperada: tabelas=<N> / migration=<versão> / "drill ok (prd intocado)"
 ```
 
-**Restore a partir da cópia local (mesmo LXC):** para o hanko e o ai-memory, recria o banco `hanko`, faz `pg_restore`, repõe o volume
-do ai-memory e sobe a stack. Pede confirmação (`--yes` dispensa).
+**Restore a partir da cópia local (mesmo LXC):** para o hanko e o ai-memory, renomeia o banco atual para `hanko_pre_restore_<ts>`
+(nunca o dropa), restaura o dump num banco novo `hanko`, repõe o volume do ai-memory, sobe a stack e espera o `/readyz`. Se o
+`pg_restore` falhar, o nome antigo volta e a stack sobe sozinha. Só depois do readyz o script mostra o comando para descartar
+o banco antigo (`DROP DATABASE hanko_pre_restore_<ts>`). Pede confirmação (`--yes` dispensa).
 
 ```bash
 ssh -t oute-server "lxc exec hanko-prd -- /opt/app/deploy/oute-server/restore.sh --apply"

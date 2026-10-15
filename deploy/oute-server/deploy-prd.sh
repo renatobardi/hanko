@@ -153,7 +153,7 @@ WantedBy=timers.target
 UNIT
 chmod 755 /opt/app/deploy/oute-server/backup.sh /opt/app/deploy/oute-server/restore.sh
 systemctl daemon-reload && systemctl enable --now hanko-backup.timer"
-x "systemctl start hanko-backup.service && ls -1 /var/backups/hanko && systemctl list-timers hanko-backup.timer --no-pager"
+x "systemctl start hanko-backup.service || echo 'AVISO: backup inicial falhou (veja journalctl -u hanko-backup.service); o deploy segue'; ls -1 /var/backups/hanko || true; systemctl list-timers hanko-backup.timer --no-pager || true"
 r "lxc snapshot ${NAME} deploy-\$(date +%Y%m%d%H%M%S)"
 
 # 5) Borda pública (host): mesmo padrão de lab/scripts/ops/deploy-vault-vhost.sh —

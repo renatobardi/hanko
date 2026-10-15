@@ -5,6 +5,9 @@ VALUES (@id, @company_id, @task_id, @author_persona_id, @author_run_id, @reviewe
         @requested_status, 'pending', @now)
 RETURNING *;
 
+-- name: GetReviewByID :one
+SELECT * FROM reviews WHERE company_id = @company_id AND id = @id;
+
 -- name: GetReviewByIDForUpdate :one
 SELECT * FROM reviews WHERE company_id = @company_id AND id = @id FOR UPDATE;
 
@@ -47,3 +50,7 @@ UPDATE personas SET reviewer_persona_id = @reviewer_persona_id, reviewer_agent =
                     reviewer_model = @reviewer_model, updated_at = @now
 WHERE company_id = @company_id AND id = @id
 RETURNING *;
+
+-- name: ListOpenReviewsForCompany :many
+-- Revisões automáticas ainda sem gate (pending/running): a Caixa de entrada mostra "revisão em andamento".
+SELECT * FROM reviews WHERE company_id = @company_id AND status IN ('pending', 'running') ORDER BY created_at, id;
