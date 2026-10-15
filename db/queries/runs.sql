@@ -1,6 +1,8 @@
 -- name: CreateRun :one
-INSERT INTO runs (id, company_id, task_id, persona_id, status, trigger, agent, model, model_source, subscription_id, name, created_at)
-VALUES (@id, @company_id, @task_id, @persona_id, 'queued', @trigger, @agent, @model, @model_source, @subscription_id, @name, @now)
+INSERT INTO runs (id, company_id, task_id, persona_id, status, trigger, agent, model, model_source, subscription_id, name,
+                  workspace_id, workspace_source, created_at)
+VALUES (@id, @company_id, @task_id, @persona_id, 'queued', @trigger, @agent, @model, @model_source, @subscription_id, @name,
+        @workspace_id, @workspace_source, @now)
 RETURNING *;
 
 -- name: GetRunByID :one

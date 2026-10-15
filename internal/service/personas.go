@@ -322,7 +322,7 @@ func (s *Service) UpdatePersona(ctx context.Context, actor domain.Actor, company
 			if err != nil {
 				return mapErr(err, "get company")
 			}
-			if err := t.resetBudgetAlerts(co, personaID, row.BudgetMonthlyCents, &personaID); err != nil {
+			if err := t.resetBudgetAlerts(co, personaID, row.BudgetMonthlyCents, &personaID, nil); err != nil {
 				return err
 			}
 			if err := t.q.ClearPersonaBudgetRefused(ctx, store.ClearPersonaBudgetRefusedParams{PersonaID: &personaID}); err != nil {

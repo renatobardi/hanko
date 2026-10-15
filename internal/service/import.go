@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"slices"
@@ -95,6 +96,9 @@ type importPlan struct {
 	nextTask               int64
 	taskOrder              []int // índices de doc.Tasks, pais antes dos filhos
 	personaCfg             []json.RawMessage
+	// clearedPaths: slugs dos workspaces cujo caminho esta instalação não aceita (outra máquina, fora da raiz):
+	// entram só como metadado, sem caminho (ADR-0025).
+	clearedPaths map[string]bool
 }
 
 func (p importPlan) counts(d export.Document) map[string]int {
@@ -105,8 +109,12 @@ func (p importPlan) counts(d export.Document) map[string]int {
 	for _, r := range d.Runs {
 		events += len(r.Events)
 	}
-	return map[string]int{"workspaces": len(d.Workspaces), "projects": len(d.Projects), "subscriptions": len(d.Subscriptions),
+	out := map[string]int{"workspaces": len(d.Workspaces), "projects": len(d.Projects), "subscriptions": len(d.Subscriptions),
 		"personas": len(d.Personas), "tasks": len(d.Tasks), "comments": comments, "flows": len(d.Flows), "runs": len(d.Runs), "run_events": events}
+	if n := len(p.clearedPaths); n > 0 {
+		out["workspace_paths_cleared"] = n
+	}
+	return out
 }
 
 func uniqueIdx[T any](path string, items []T, key func(T) string, what string) (map[string]int, error) {
@@ -175,8 +183,21 @@ func (s *Service) planImport(ctx context.Context, doc export.Document, opts Impo
 		if strings.TrimSpace(w.Name) == "" {
 			return p, domain.Invalid(iv("workspaces", i, "name"), "required")
 		}
+		// O caminho é da máquina de origem: vale se esta instalação o aceita (absoluto, limpo, dentro da raiz de
+		// workspaces). Senão o workspace entra sem caminho (só nome, repositório e branch) e o import conta isso em
+		// workspace_paths_cleared: um arquivo de fora nunca aponta para fora da raiz, e mudar de máquina não
+		// derruba a importação inteira. Quem importa corrige o caminho depois, na tela do workspace.
 		if _, err := s.checkWorkspacePath(w.Path); err != nil {
-			return p, domain.Invalid(iv("workspaces", i, "path"), "not accepted by this installation: "+err.Error())
+			if p.clearedPaths == nil {
+				p.clearedPaths = map[string]bool{}
+			}
+			p.clearedPaths[w.Slug] = true
+		}
+		if _, err := checkRepoURL(w.RepoURL); err != nil {
+			return p, domain.Invalid(iv("workspaces", i, "repo_url"), invalidReason(err))
+		}
+		if _, err := checkBranch(w.DefaultBranch); err != nil {
+			return p, domain.Invalid(iv("workspaces", i, "default_branch"), invalidReason(err))
 		}
 	}
 	pr, err := uniqueIdx("projects", doc.Projects, func(x export.Project) string { return x.Slug }, "slug")
@@ -192,6 +213,12 @@ func (s *Service) planImport(ctx context.Context, doc export.Document, opts Impo
 		}
 		if err := ref("projects", i, "workspace", x.Workspace, ws); err != nil {
 			return p, err
+		}
+		if x.Status != "" && !domain.ProjectStatus(x.Status).Valid() {
+			return p, domain.Invalid(iv("projects", i, "status"), "want active or archived")
+		}
+		if x.BudgetMonthlyCents != nil && *x.BudgetMonthlyCents < 0 {
+			return p, domain.Invalid(iv("projects", i, "budget_monthly_cents"), "must be >= 0")
 		}
 	}
 
@@ -598,8 +625,13 @@ func (t *txc) runImport(cid domain.ID, doc export.Document, p importPlan, opts I
 	wsID := map[string]domain.ID{}
 	for _, w := range doc.Workspaces {
 		id := domain.NewID()
+		path := strings.TrimSpace(w.Path)
+		if p.clearedPaths[w.Slug] {
+			path = ""
+		}
 		if _, err := t.q.ImportWorkspace(ctx, store.ImportWorkspaceParams{ID: id, CompanyID: cid, Slug: w.Slug, Name: strings.TrimSpace(w.Name),
-			Path: strings.TrimSpace(w.Path), RepoUrl: w.RepoURL, CreatedAt: w.CreatedAt, UpdatedAt: w.CreatedAt}); err != nil {
+			Path: path, RepoUrl: strings.TrimSpace(w.RepoURL), DefaultBranch: strings.TrimSpace(w.DefaultBranch),
+			CreatedAt: w.CreatedAt, UpdatedAt: w.CreatedAt}); err != nil {
 			return mapErr(err, "import workspace "+w.Slug)
 		}
 		wsID[w.Slug] = id
@@ -607,8 +639,13 @@ func (t *txc) runImport(cid domain.ID, doc export.Document, p importPlan, opts I
 	prID := map[string]domain.ID{}
 	for _, x := range doc.Projects {
 		id := domain.NewID()
+		status := x.Status
+		if status == "" {
+			status = string(domain.ProjectActive)
+		}
 		if _, err := t.q.ImportProject(ctx, store.ImportProjectParams{ID: id, CompanyID: cid, Slug: x.Slug, Name: strings.TrimSpace(x.Name),
-			Description: x.Description, WorkspaceID: optID(wsID, x.Workspace), CreatedAt: x.CreatedAt, UpdatedAt: x.CreatedAt}); err != nil {
+			Description: x.Description, WorkspaceID: optID(wsID, x.Workspace), Status: status, BudgetMonthlyCents: x.BudgetMonthlyCents,
+			CreatedAt: x.CreatedAt, UpdatedAt: x.CreatedAt}); err != nil {
 			return mapErr(err, "import project "+x.Slug)
 		}
 		prID[x.Slug] = id
@@ -757,4 +794,13 @@ func optID(m map[string]domain.ID, key string) *uuid.UUID {
 		return &id
 	}
 	return nil
+}
+
+// invalidReason é o motivo de um erro de validação, para reaproveitá-lo sob o caminho do campo do arquivo.
+func invalidReason(err error) string {
+	var ve *domain.ValidationError
+	if errors.As(err, &ve) {
+		return ve.Reason
+	}
+	return err.Error()
 }

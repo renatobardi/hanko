@@ -225,14 +225,16 @@ type Persona struct {
 }
 
 type Project struct {
-	ID          uuid.UUID
-	CompanyID   uuid.UUID
-	Slug        string
-	Name        string
-	Description string
-	WorkspaceID *uuid.UUID
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	ID                 uuid.UUID
+	CompanyID          uuid.UUID
+	Slug               string
+	Name               string
+	Description        string
+	WorkspaceID        *uuid.UUID
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	Status             string
+	BudgetMonthlyCents *int64
 }
 
 type Review struct {
@@ -288,6 +290,8 @@ type Run struct {
 	SubscriptionID      *uuid.UUID
 	ListCostUsd         *float64
 	Name                string
+	WorkspaceID         *uuid.UUID
+	WorkspaceSource     string
 }
 
 type RunEvent struct {
@@ -397,12 +401,13 @@ type WakeRequest struct {
 }
 
 type Workspace struct {
-	ID        uuid.UUID
-	CompanyID uuid.UUID
-	Slug      string
-	Name      string
-	Path      string
-	RepoUrl   string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID            uuid.UUID
+	CompanyID     uuid.UUID
+	Slug          string
+	Name          string
+	Path          string
+	RepoUrl       string
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	DefaultBranch string
 }

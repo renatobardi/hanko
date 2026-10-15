@@ -95,12 +95,14 @@ type CreateCompanyInput struct {
 }
 
 type CreateWorkspaceInput struct {
-	Name, Slug, Path, RepoURL string
+	Name, Slug, Path, RepoURL, DefaultBranch string
 }
 
 type CreateProjectInput struct {
 	Name, Slug, Description string
 	WorkspaceID             *domain.ID
+	// BudgetMonthlyCents is the project's monthly ceiling (USD cents); nil = none.
+	BudgetMonthlyCents *int64
 }
 
 type HirePersonaInput struct {
@@ -158,7 +160,7 @@ type CreateTaskInput struct {
 	Priority    domain.Priority   // default medium
 	PersonaID   *domain.ID
 	ProjectID   *domain.ID
-	WorkspaceID *domain.ID // default: project's workspace, else persona's workspace
+	WorkspaceID *domain.ID // explicit choice; wins over the project's and the persona's workspace at run time (ADR-0025)
 	Model       string     // manual model choice (wins over the persona's); empty = none
 	ParentID    *domain.ID
 	EventID     string // idempotency key (agents/MCP)
@@ -174,8 +176,10 @@ type UpdateTaskInput struct {
 	PersonaID   *domain.ID
 	Unassign    bool
 	ProjectID   *domain.ID
-	Model       *string // manual model choice; empty string clears it
-	EventID     string
+	// ClearProject takes the task out of its project.
+	ClearProject bool
+	Model        *string // manual model choice; empty string clears it
+	EventID      string
 }
 
 type TaskFilter struct {

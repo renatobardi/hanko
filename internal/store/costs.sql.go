@@ -81,6 +81,7 @@ JOIN personas p ON p.id = r.persona_id
 JOIN tasks t ON t.id = r.task_id
 LEFT JOIN projects pr ON pr.id = t.project_id
 WHERE r.company_id = $3 AND r.created_at >= $4 AND r.created_at < $5
+  AND ($6::uuid IS NULL OR t.project_id = $6::uuid)
 GROUP BY 1, 2
 ORDER BY 1
 `
@@ -91,6 +92,7 @@ type CostBreakdownParams struct {
 	CompanyID uuid.UUID
 	FromTs    time.Time
 	ToTs      time.Time
+	ProjectID *uuid.UUID
 }
 
 type CostBreakdownRow struct {
@@ -113,6 +115,7 @@ func (q *Queries) CostBreakdown(ctx context.Context, arg CostBreakdownParams) ([
 		arg.CompanyID,
 		arg.FromTs,
 		arg.ToTs,
+		arg.ProjectID,
 	)
 	if err != nil {
 		return nil, err

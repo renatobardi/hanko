@@ -55,27 +55,55 @@ type Company struct {
 
 // Workspace is a directory/repository where personas work; it scopes memory.
 type Workspace struct {
-	ID        ID        `json:"id"`
-	CompanyID ID        `json:"company_id"`
-	Slug      string    `json:"slug"`
-	Name      string    `json:"name"`
-	Path      string    `json:"path"`
-	RepoURL   string    `json:"repo_url,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID        ID     `json:"id"`
+	CompanyID ID     `json:"company_id"`
+	Slug      string `json:"slug"`
+	Name      string `json:"name"`
+	Path      string `json:"path"`
+	RepoURL   string `json:"repo_url,omitempty"`
+	// DefaultBranch is the branch the team works on; metadata only (Hanko never clones or switches branches).
+	DefaultBranch string    `json:"default_branch,omitempty"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
 }
 
-// Project groups tasks.
+// ProjectStatus is the lifecycle of a project: an archived one takes no new tasks.
+type ProjectStatus string
+
+const (
+	ProjectActive   ProjectStatus = "active"
+	ProjectArchived ProjectStatus = "archived"
+)
+
+// Valid reports whether s is a known project status.
+func (s ProjectStatus) Valid() bool { return s == ProjectActive || s == ProjectArchived }
+
+// Project groups tasks. It may own a workspace (the working directory of its tasks' runs) and a monthly
+// budget of its own.
 type Project struct {
-	ID          ID        `json:"id"`
-	CompanyID   ID        `json:"company_id"`
-	Slug        string    `json:"slug"`
-	Name        string    `json:"name"`
-	Description string    `json:"description,omitempty"`
-	WorkspaceID *ID       `json:"workspace_id,omitempty"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID          ID            `json:"id"`
+	CompanyID   ID            `json:"company_id"`
+	Slug        string        `json:"slug"`
+	Name        string        `json:"name"`
+	Description string        `json:"description,omitempty"`
+	WorkspaceID *ID           `json:"workspace_id,omitempty"`
+	Status      ProjectStatus `json:"status"`
+	// BudgetMonthlyCents is the project's monthly ceiling in USD cents; nil = no ceiling.
+	BudgetMonthlyCents *int64    `json:"budget_monthly_cents,omitempty"`
+	CreatedAt          time.Time `json:"created_at"`
+	UpdatedAt          time.Time `json:"updated_at"`
 }
+
+// WorkspaceSource tells where the working directory of a run came from. Precedence: the workspace chosen on the
+// task > the project's > the persona's > none (a per-run temporary directory).
+type WorkspaceSource string
+
+const (
+	WorkspaceFromTask    WorkspaceSource = "task"
+	WorkspaceFromProject WorkspaceSource = "project"
+	WorkspaceFromPersona WorkspaceSource = "persona"
+	WorkspaceNone        WorkspaceSource = "none"
+)
 
 // PersonaStatus is the lifecycle state of a persona.
 type PersonaStatus string
@@ -153,6 +181,9 @@ const (
 	TaskDone       TaskStatus = "done"
 	TaskCancelled  TaskStatus = "cancelled"
 )
+
+// TaskStatuses lists every task status in board order.
+var TaskStatuses = []TaskStatus{TaskBacklog, TaskTodo, TaskInProgress, TaskInReview, TaskBlocked, TaskDone, TaskCancelled}
 
 func (s TaskStatus) Valid() bool {
 	switch s {
@@ -352,12 +383,15 @@ type Run struct {
 	ListCostUSD    *float64    `json:"list_cost_usd,omitempty"`
 	ModelSource    ModelSource `json:"model_source,omitempty"`
 	SubscriptionID *ID         `json:"subscription_id,omitempty"`
-	Usage          Usage       `json:"usage"`
-	HandoffIn      string      `json:"handoff_in,omitempty"`
-	HandoffOut     string      `json:"handoff_out,omitempty"`
-	CreatedAt      time.Time   `json:"created_at"`
-	StartedAt      *time.Time  `json:"started_at,omitempty"`
-	FinishedAt     *time.Time  `json:"finished_at,omitempty"`
+	// WorkspaceID and WorkspaceSource record which workspace the run used and why (empty source = older run).
+	WorkspaceID     *ID             `json:"workspace_id,omitempty"`
+	WorkspaceSource WorkspaceSource `json:"workspace_source,omitempty"`
+	Usage           Usage           `json:"usage"`
+	HandoffIn       string          `json:"handoff_in,omitempty"`
+	HandoffOut      string          `json:"handoff_out,omitempty"`
+	CreatedAt       time.Time       `json:"created_at"`
+	StartedAt       *time.Time      `json:"started_at,omitempty"`
+	FinishedAt      *time.Time      `json:"finished_at,omitempty"`
 }
 
 // RunEventKind classifies a line of the run log.
