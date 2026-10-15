@@ -45,6 +45,7 @@ type fakeSvc struct {
 	lastDecide    service.DecideGateInput
 	lastPersonaUp service.UpdatePersonaInput
 	m4            costFlowFake // custos e fluxos
+	chatF         *chatFake    // conversas (chat_test.go)
 }
 
 func (f *fakeSvc) GetCompany(_ context.Context, ref string) (domain.Company, error) {
