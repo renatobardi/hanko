@@ -1,3 +1,5 @@
+> English: [docs/en/GLOSSARY.md](en/GLOSSARY.md)
+
 # Glossário — Hanko (ADR-0016, aceita)
 
 Um termo por conceito. Código, API, MCP e banco em inglês; UI em pt-BR. Em dúvida, o termo da UI decide.
