@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -178,7 +179,7 @@ func streamRun(ctx context.Context, w http.ResponseWriter, src runSource, broker
 		for werr == nil {
 			es, err := src.ListRunEvents(ctx, companyID, runID, last, replayPage)
 			if err != nil {
-				if ctx.Err() == nil {
+				if ctx.Err() == nil && !accessLost(err) {
 					log.ErrorContext(ctx, "stream: ListRunEvents", "err", err, "run_id", runID.String())
 				}
 				return false
@@ -249,6 +250,12 @@ func streamRun(ctx context.Context, w http.ResponseWriter, src runSource, broker
 				}
 			}
 		case <-tick.C:
+			// Re-checa o acesso a cada tick (GetRun passa pelo papel do service): quem perdeu o papel
+			// na empresa com o stream aberto não continua recebendo eventos.
+			cur, gerr := src.GetRun(ctx, companyID, runID)
+			if accessLost(gerr) {
+				return
+			}
 			if _, err := io.WriteString(w, ": ping\n\n"); err != nil {
 				return
 			}
@@ -257,7 +264,7 @@ func streamRun(ctx context.Context, w http.ResponseWriter, src runSource, broker
 			if !catchUp() {
 				return
 			}
-			if cur, err := src.GetRun(ctx, companyID, runID); err == nil && cur.Status.Terminal() {
+			if gerr == nil && cur.Status.Terminal() {
 				finish(cur.Status)
 				return
 			}
@@ -266,6 +273,11 @@ func streamRun(ctx context.Context, w http.ResponseWriter, src runSource, broker
 			return
 		}
 	}
+}
+
+// accessLost: o chamador não lê mais esta empresa (papel removido, vínculo desfeito, sessão encerrada).
+func accessLost(err error) bool {
+	return errors.Is(err, domain.ErrForbidden) || errors.Is(err, domain.ErrNotFound) || errors.Is(err, domain.ErrUnauthenticated)
 }
 
 func flusherOf(w http.ResponseWriter) (http.Flusher, bool) {

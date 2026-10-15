@@ -767,6 +767,26 @@ func TestRunSSE(t *testing.T) {
 		wantStatus(t, e.get(t, "/c/hanko/execucoes/lixo/sse"), http.StatusNotFound)
 	})
 
+	t.Run("perder o acesso encerra o stream", func(t *testing.T) {
+		for name, lost := range map[string]error{"papel insuficiente": domain.ErrForbidden, "sem vínculo": domain.ErrNotFound} {
+			e := newEnv(t, uitest.Sample())
+			run := e.f.Runs[0]
+			r := openSSE(t, e, "/c/hanko/execucoes/"+run.ID.String()+"/sse?after=999", nil)
+			if ev, _, _ := r.next(t); ev != "run-status" {
+				t.Fatalf("%s: primeiro evento %q", name, ev)
+			}
+			e.f.SetErr("GetRun", lost) // o service passa a recusar: o papel caiu com o stream aberto
+			deadline := time.After(3 * time.Second)
+			for open := true; open; {
+				select {
+				case _, open = <-r.lines:
+				case <-deadline:
+					t.Fatalf("%s: o stream continuou aberto depois que o acesso caiu", name)
+				}
+			}
+		}
+	})
+
 	t.Run("desconectar libera a assinatura", func(t *testing.T) {
 		e := newEnv(t, uitest.Sample())
 		run := e.f.Runs[0]

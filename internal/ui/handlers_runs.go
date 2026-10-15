@@ -3,6 +3,7 @@ package ui
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -202,6 +203,13 @@ func asRunEvent(v any) (domain.RunEvent, bool) {
 	return domain.RunEvent{}, false
 }
 
+// accessLost: the caller no longer reads this company (role removed or lowered below viewer, membership
+// gone, session ended). SSE re-reads through the service on every tick, which re-checks the role, so
+// this is what ends a stream that was opened while access still held.
+func accessLost(err error) bool {
+	return errors.Is(err, domain.ErrForbidden) || errors.Is(err, domain.ErrNotFound) || errors.Is(err, domain.ErrUnauthenticated)
+}
+
 // handleRunSSE streams the run to the page: "run-event" carries one rendered
 // log line, "run-status" the refreshed header, "run-end" closes the stream.
 // It replays from ?after= (or Last-Event-ID) before following the broker, and
@@ -260,6 +268,9 @@ func (s *server) handleRunSSE(w http.ResponseWriter, r *http.Request, co domain.
 		for {
 			evs, err := s.be.ListRunEvents(ctx, co.ID, runID, after, 200)
 			if err != nil {
+				if accessLost(err) { // perdeu o papel na empresa: encerra o stream
+					return false
+				}
 				s.log.Warn("ui sse events", "run", runID, "err", err)
 				return true
 			}
@@ -277,6 +288,9 @@ func (s *server) handleRunSSE(w http.ResponseWriter, r *http.Request, co domain.
 	status := func(force bool) (terminal, ok bool) {
 		cur, err := s.be.GetRun(ctx, co.ID, runID)
 		if err != nil {
+			if accessLost(err) {
+				return false, false
+			}
 			s.log.Warn("ui sse run", "run", runID, "err", err)
 			return false, true
 		}

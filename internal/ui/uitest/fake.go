@@ -56,6 +56,16 @@ func (f *Fake) fail(name string) error {
 	return f.Err[name]
 }
 
+// SetErr injects (or clears, with nil) a failure for a method while handlers are running.
+func (f *Fake) SetErr(name string, err error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.Err == nil {
+		f.Err = map[string]error{}
+	}
+	f.Err[name] = err
+}
+
 func (f *Fake) note(name string) { f.Calls = append(f.Calls, name) }
 
 // Called reports whether a mutating method was invoked.
