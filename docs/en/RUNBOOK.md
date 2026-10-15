@@ -333,3 +333,26 @@ Record the date and result in `docs/SESSION.md` or in the operations issue.
 | Port 7420 in use | another instance | `HANKO_ADDR` |
 
 Logs are JSON on stderr with `trace_id`/`span_id`: copy the `trace_id` and look it up in Tempo (Grafana) to see the full trace of the request/run.
+
+## Chat with a persona
+
+A direct conversation between a human and a persona, outside a task (ADR-0027). In the UI: **Chat** in the menu (`/c/{company}/chat`). On the CLI:
+
+```
+hanko chat cto "What is the risk of Friday's migration?"       # opens the conversation, waits and prints the answer
+hanko chat cto "And plan B?" --conversation 01a13f51           # continues a conversation (id or prefix)
+hanko chat cto "Summarize the day" --no-wait                   # only sends; follow with `hanko chat show <id>`
+hanko chat list --persona cto
+```
+
+- Each human message triggers a **run** with the `chat` trigger: it shows in Runs (marked as Chat, linked to the conversation) and in Costs
+  (a "Chat" row), and counts toward the persona and company budgets and the subscription weekly guard.
+- A persona that is paused, in error, over budget or behind the weekly guard **does not receive the message**: the UI, the API (409) and the CLI show why.
+  Reactivate the persona or raise the limit and send again.
+- Messages sent while the persona is answering wait (up to 20) and the next run answers them together. A chat run that fails, is cancelled or
+  interrupted leaves a system notice in the conversation; waiting messages stay queued until the next message.
+- With `claude` (and `fake`) the harness session is resumed between messages; a harness without that ability gets the recent history
+  (up to 24 KiB) in the prompt on every message.
+- The persona can open a task from the conversation (`hanko_task_create`); its description cites the conversation. A chat run has no task,
+  so `hanko_gate_request` needs the `task` argument.
+- To see how an answer was produced, open the message's "run" link (the run's live log).

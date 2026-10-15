@@ -378,3 +378,26 @@ O gate nasce com o parecer (veredito, justificativa, sha256 do pacote revisado e
 API, mas **a decisão continua humana**. Revisão que falha, expira, é interrompida ou não traz veredito válido abre o gate sem veredito,
 com o motivo; revisão pendente há mais de 2 h é resolvida da mesma forma. Se a task sai de `in_review` no meio, a revisão é cancelada.
 O sha256 cobre o pacote task + histórico + entrega mostrado ao revisor, não o estado git do workspace.
+
+## Chat com uma persona
+
+Conversa direta de um humano com uma persona, fora de uma task (ADR-0027). Na UI: **Chat** no menu (`/c/{empresa}/chat`). Na CLI:
+
+```
+hanko chat cto "Qual o risco da migração de sexta?"          # abre a conversa, espera e imprime a resposta
+hanko chat cto "E o plano B?" --conversation 01a13f51          # continua uma conversa (id ou prefixo)
+hanko chat cto "Resuma o dia" --no-wait                        # só envia; acompanhe com `hanko chat show <id>`
+hanko chat list --persona cto
+```
+
+- Cada mensagem humana dispara uma **run** com o gatilho `chat`: aparece em Execuções (identificada como Chat, ligada à conversa)
+  e em Custos (linha "Chat"), e conta no orçamento da persona e da empresa e na trava semanal da assinatura.
+- Persona pausada, em erro, sem orçamento ou com a trava semanal atingida **não recebe a mensagem**: a UI, a API (409) e a CLI mostram o motivo.
+  Reative a persona ou suba o limite e envie de novo.
+- Mensagens enviadas enquanto a persona responde esperam (até 20) e a run seguinte as responde juntas. Uma run de chat que falha,
+  é cancelada ou interrompida deixa um aviso de sistema na conversa; as mensagens em espera seguem na fila até a próxima mensagem.
+- Com `claude` (e `fake`) a sessão do harness é retomada entre as mensagens; harness sem essa capacidade recebe o histórico recente
+  (até 24 KiB) no prompt a cada mensagem.
+- A persona pode abrir uma task a partir da conversa (`hanko_task_create`); a descrição cita a conversa. Não há task na run de chat,
+  então `hanko_gate_request` exige o argumento `task`.
+- Ver o raciocínio de uma resposta: abra o link "execução" da mensagem (log ao vivo da run).
