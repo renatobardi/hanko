@@ -99,3 +99,7 @@ há memória, o que ela guardou. As próprias personas precisam do mesmo para n�
   25 palavras, termo onipresente: `de:*` 40 ms contra 20 ms da palavra exata; `d:*` 53 ms e `e:*` 70 ms). Cada grupo roda numa
   transação somente leitura com `SET LOCAL statement_timeout` de 2 s (`SearchStatementTimeout`); estourar vira `ErrSearchTooSlow`
   (422, mensagem amigável na tela). Isso troca o pool direto por uma transação curta por grupo.
+
+## Adendo (2026-10-15): contrato real do ai-memory
+
+O catálogo de um servidor real (`tools/list`) confirmou que a tool de busca é **`memory_query`**, não `memory_search`. Argumentos: `query` (expressão FTS5), `limit` (máx. 100) e o escopo, que é `workspace` + `project` juntos ou `scopes=[{workspace,project}]`. O Hanko consulta o projeto `default` da empresa mais um escopo por workspace dela (até 10) e **nunca** usa `global=true`, que varreria as memórias de todas as empresas. A consulta do usuário vira palavras entre aspas (sintaxe FTS5 segura) e o realce HTML do snippet vira texto. Se o servidor recusar a chamada com vários escopos (um projeto inexistente, por exemplo), o provider tenta um escopo por vez.

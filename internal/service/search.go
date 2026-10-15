@@ -403,7 +403,7 @@ func (s *Service) searchMemory(ctx context.Context, co store.Company, raw string
 	g := SearchGroup{Type: SearchMemory, Hits: []SearchHit{}}
 	mctx, cancel := context.WithTimeout(ctx, memoryTimeout)
 	defer cancel()
-	hits, err := s.Memory.Search(mctx, memory.Scope{Workspace: co.Slug}, raw, lim+1)
+	hits, err := s.Memory.Search(mctx, s.memoryScopes(mctx, co), raw, lim+1)
 	if err != nil {
 		if s.Log != nil {
 			s.Log.Warn("busca na memória falhou", "company", co.Slug, "err", err.Error())
@@ -421,4 +421,26 @@ func (s *Service) searchMemory(ctx context.Context, co store.Company, raw string
 			Snippet: search.Snippet(h.Snippet, pq, snippetWidth), Score: h.Score})
 	}
 	return g
+}
+
+// maxMemoryScopes limita quantos projetos de memória uma busca consulta (o "default" mais os workspaces da empresa).
+const maxMemoryScopes = 10
+
+// memoryScopes são os escopos de memória da empresa: o projeto "default" e um por workspace do Hanko. Só a empresa
+// dada: a busca nunca sai do workspace de memória dela.
+func (s *Service) memoryScopes(ctx context.Context, co store.Company) []memory.Scope {
+	out := []memory.Scope{{Workspace: co.Slug, Project: "default"}}
+	rows, err := s.read().ListWorkspaces(ctx, co.ID)
+	if err != nil {
+		return out
+	}
+	for _, w := range rows {
+		if len(out) >= maxMemoryScopes {
+			break
+		}
+		if w.Slug != "" && w.Slug != "default" {
+			out = append(out, memory.Scope{Workspace: co.Slug, Project: w.Slug})
+		}
+	}
+	return out
 }

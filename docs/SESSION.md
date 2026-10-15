@@ -8,5 +8,5 @@ Data: 2026-10-15 · main em `b62fd94` (migrations até 00025)
 ## Pendente
 - Deploy no prd (ainda não feito): janela calma, pois a 00015 reescreve 5 tabelas sob ACCESS EXCLUSIVE (~25 s no volume sintético) e a 00024 recria colunas `search_tsv`.
 - Variáveis novas no prd: `HANKO_SECRET_KEY`, `HANKO_WORKSPACES_ROOT`, `HANKO_ACP_ALLOW`/`HANKO_ACP_COMMANDS`, `HANKO_INTEGRATIONS_ALLOW_STDIO` (opcional).
-- Catálogo real de tools do ai-memory (`memory_search` é suposição; diff exige `HANKO_MEMORY_READ_TOOL`).
+- Catálogo do ai-memory confirmado em 2026-10-15 (busca = `memory_query`); falta conferir o formato da resposta com dados reais; o diff da curadoria exige `HANKO_MEMORY_READ_TOOL` (provável `memory_read_page`).
 - Tag e demos ficam com o dono.

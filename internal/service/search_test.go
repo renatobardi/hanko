@@ -405,8 +405,8 @@ type memStub struct {
 }
 
 func (m *memStub) Name() string { return "stub" }
-func (m *memStub) Search(_ context.Context, s memory.Scope, _ string, _ int) ([]memory.Hit, error) {
-	m.got = append(m.got, s)
+func (m *memStub) Search(_ context.Context, scopes []memory.Scope, _ string, _ int) ([]memory.Hit, error) {
+	m.got = append(m.got, scopes...)
 	return m.hits, m.err
 }
 
@@ -428,8 +428,13 @@ func TestSearchMemoria(t *testing.T) {
 	if len(h) != 1 || h[0].Ref != "hanko/runs/x.md" || !anyMarked(h[0].Snippet) || !anyMarked(h[0].Title) {
 		t.Fatalf("memória: %+v", h)
 	}
-	if len(m.got) != 1 || m.got[0].Workspace != s.e.co.Slug {
-		t.Errorf("escopo da memória deve ser a empresa: %+v", m.got)
+	if len(m.got) < 1 || m.got[0] != (memory.Scope{Workspace: s.e.co.Slug, Project: "default"}) {
+		t.Errorf("o primeiro escopo da memória deve ser o default da empresa: %+v", m.got)
+	}
+	for _, sc := range m.got {
+		if sc.Workspace != s.e.co.Slug {
+			t.Errorf("escopo de outra empresa na busca: %+v", sc)
+		}
 	}
 	// só tipos que não incluem memória: o provider nem é chamado
 	m.got = nil

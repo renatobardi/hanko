@@ -526,5 +526,5 @@ formatting characters). Operating notes:
   not holding the lock while the GIN is built.
 - **Per-query ceiling.** Each search group runs in a read-only transaction with a 2 s `statement_timeout`; exceeding it returns 422
   ("search took too long; use more specific words"). The last word matches by prefix only from 2 letters (3 in comments).
-- **Memory in search.** The "Memory" group appears only when the memory server lists the `memory_search` tool (read from `tools/list`,
+- **Memory in search.** The "Memory" group appears only when the memory server lists the `memory_query` tool (read from `tools/list`,
   cached for 5 min). Without it the group disappears and the log carries one warning; consolidation (ADR-0030) does not depend on it.

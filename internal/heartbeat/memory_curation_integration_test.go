@@ -43,7 +43,7 @@ type toolCall struct {
 }
 
 func (m *curationMemory) Name() string { return "ai-memory" }
-func (m *curationMemory) Search(context.Context, memory.Scope, string, int) ([]memory.Hit, error) {
+func (m *curationMemory) Search(context.Context, []memory.Scope, string, int) ([]memory.Hit, error) {
 	return nil, nil
 }
 func (m *curationMemory) Briefing(context.Context, memory.Scope) (string, error) {

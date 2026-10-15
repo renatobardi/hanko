@@ -15,6 +15,8 @@ English summary at the end of each release.
 
 ### Correções da revisão
 
+- Memória na busca usa a tool real `memory_query` do ai-memory (confirmada em `tools/list`): um escopo por workspace da empresa, nunca `global`; consulta sanitizada para o FTS5 e realce HTML do resultado vira texto. A política de curadoria passou a conhecer os nomes reais das tools do ai-memory.
+
 - ACP (ADR-0023): o comando do harness `acp` virou decisão do operador. `HANKO_ACP_ALLOW` (padrão desligado) liga o harness e `HANKO_ACP_COMMANDS` restringe a uma lista de executáveis; a checagem vale ao contratar/importar (422) e de novo ao iniciar a run.
 - `adapter_config.env` (e valores de flags como `--api-key`) voltam mascarados (`***`) na API e na CLI; só os nomes das variáveis aparecem.
 - Webhooks: a poda do histórico só apaga entregas encerradas (pending/retrying não se perdem); entrega que sumiu da tabela encerra o job com erro registrado; `run.failed` também dispara para run `interrupted`.

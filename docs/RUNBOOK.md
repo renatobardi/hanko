@@ -575,5 +575,5 @@ caracteres de formatação Unicode). Pontos de operação:
   não segurar o bloqueio durante a construção do GIN.
 - **Teto por consulta.** Cada grupo da busca roda numa transação somente leitura com `statement_timeout` de 2 s; estourar devolve 422
   ("a busca demorou demais; use palavras mais específicas"). A última palavra só casa por prefixo com 2+ letras (3+ em comentários).
-- **Memória na busca.** O grupo "Memória" só aparece se o servidor de memória lista a tool `memory_search` (lido de `tools/list`, com
+- **Memória na busca.** O grupo "Memória" só aparece se o servidor de memória lista a tool `memory_query` (lido de `tools/list`, com
   cache de 5 min). Sem ela o grupo some e o log registra um aviso uma única vez; a consolidação (ADR-0030) não depende dessa tool.

@@ -49,7 +49,7 @@ func TestSearchSupportedAusenteLogaUmaVezECacheia(t *testing.T) {
 	ctx := context.Background()
 	for i := 0; i < 5; i++ { // várias "teclas": uma só consulta e um só aviso
 		if prov.SearchSupported(ctx) {
-			t.Fatal("sem a tool memory_search: não deveria ser suportado")
+			t.Fatal("sem a tool memory_query: não deveria ser suportado")
 		}
 	}
 	if n := strings.Count(buf.String(), "level=WARN"); n != 1 {

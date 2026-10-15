@@ -49,9 +49,10 @@ type Provider interface {
 	// never carry the provider's own credentials: agents authenticate with their run token
 	// against Hanko's memory proxy, which injects the provider credentials server-side.
 	AgentMCP(s Scope, runID, runToken string) map[string]json.RawMessage
-	// Search looks the query up in the company's memory (Scope.Workspace = company slug; Scope.Project is
-	// ignored: the search spans every project of the company). Noop returns nothing.
-	Search(ctx context.Context, s Scope, query string, limit int) ([]Hit, error)
+	// Search looks the query up in the given scopes (Workspace = company slug, Project = memory project: the
+	// company's "default" plus one per Hanko workspace). Only the listed scopes are read, never other companies.
+	// Noop returns nothing.
+	Search(ctx context.Context, scopes []Scope, query string, limit int) ([]Hit, error)
 	// Ping checks availability.
 	Ping(ctx context.Context) error
 }
@@ -65,7 +66,7 @@ func (Noop) AcceptHandoff(context.Context, Scope) (string, error)         { retu
 func (Noop) Record(context.Context, Scope, Fact) error                    { return nil }
 func (Noop) FinalizeSession(context.Context, Scope, string, string) error { return nil }
 func (Noop) AgentMCP(Scope, string, string) map[string]json.RawMessage    { return nil }
-func (Noop) Search(context.Context, Scope, string, int) ([]Hit, error)    { return nil, nil }
+func (Noop) Search(context.Context, []Scope, string, int) ([]Hit, error)  { return nil, nil }
 func (Noop) Ping(context.Context) error                                   { return nil }
 
 // SearchCapable é a capacidade opcional de dizer se o servidor realmente tem a tool de busca (ADR-0024, adendo).

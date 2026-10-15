@@ -8,13 +8,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
@@ -307,26 +310,104 @@ func (p *provider) Record(ctx context.Context, s memory.Scope, f memory.Fact) er
 	return nil
 }
 
-// SearchTool é o nome da tool de busca do ai-memory. O contrato (nome, argumentos workspace/query/limit e formato do
-// resultado) NÃO está confirmado contra um servidor real: o teste usa um servidor MCP falso e parseSearch aceita
-// JSON ({"results":[…]} ou […]) ou texto livre. Se o nome real for outro, é só esta constante (ADR-0024).
-const SearchTool = "memory_search"
+// SearchTool é a tool de busca do ai-memory, confirmada num servidor real (tools/list, 2026-10-15). Argumentos:
+// query (expressão FTS5), limit (máx. 100) e o escopo: workspace+project juntos, ou scopes=[{workspace,project}]
+// (não combina com os dois). Nunca usamos global=true: ele varre as memórias de todas as empresas.
+const SearchTool = "memory_query"
 
-// Search consulta a memória da empresa inteira (todos os projetos do workspace).
-func (p *provider) Search(ctx context.Context, s memory.Scope, query string, limit int) ([]memory.Hit, error) {
+const maxSearchLimit = 100
+
+// Search consulta a memória nos escopos dados (a empresa e os projetos dela).
+func (p *provider) Search(ctx context.Context, scopes []memory.Scope, query string, limit int) ([]memory.Hit, error) {
 	if limit <= 0 {
 		limit = 10
 	}
-	txt, err := p.callTool(ctx, SearchTool, map[string]any{"workspace": s.Workspace, "query": query, "limit": limit})
+	limit = min(limit, maxSearchLimit)
+	q := ftsQuery(query)
+	if q == "" || len(scopes) == 0 {
+		return nil, nil
+	}
+	args := map[string]any{"query": q, "limit": limit}
+	if len(scopes) == 1 {
+		sa := scopeArgs(scopes[0])
+		args["workspace"], args["project"] = sa["workspace"], sa["project"]
+	} else {
+		list := make([]map[string]any, 0, len(scopes))
+		for _, s := range scopes {
+			list = append(list, scopeArgs(s))
+		}
+		args["scopes"] = list
+	}
+	txt, err := p.callTool(ctx, SearchTool, args)
+	var rej *rejectedError
+	if err != nil && len(scopes) > 1 && errors.As(err, &rej) {
+		return p.searchEach(ctx, scopes, q, limit) // um escopo inexistente pode recusar a chamada inteira
+	}
 	if err != nil {
 		return nil, err
 	}
-	hits := parseSearch(txt)
-	if len(hits) > limit {
-		hits = hits[:limit]
-	}
-	return hits, nil
+	return capHits(parseSearch(txt), limit), nil
 }
+
+// searchEach consulta um escopo por vez e junta o que vier, ignorando os que o servidor recusa. Só falha se todos falharem.
+func (p *provider) searchEach(ctx context.Context, scopes []memory.Scope, q string, limit int) ([]memory.Hit, error) {
+	var out []memory.Hit
+	seen := map[string]bool{}
+	var lastErr error
+	ok := false
+	for _, s := range scopes {
+		sa := scopeArgs(s)
+		txt, err := p.callTool(ctx, SearchTool, map[string]any{"query": q, "limit": limit, "workspace": sa["workspace"], "project": sa["project"]})
+		if err != nil {
+			lastErr = err
+			var rej *rejectedError
+			if errors.As(err, &rej) {
+				continue
+			}
+			return nil, err
+		}
+		ok = true
+		for _, h := range parseSearch(txt) {
+			k := h.Path
+			if k == "" {
+				k = h.Title + "\x00" + h.Snippet
+			}
+			if !seen[k] {
+				seen[k] = true
+				out = append(out, h)
+			}
+		}
+	}
+	if !ok {
+		return nil, lastErr
+	}
+	return capHits(out, limit), nil
+}
+
+func capHits(hits []memory.Hit, limit int) []memory.Hit {
+	if len(hits) > limit {
+		return hits[:limit]
+	}
+	return hits
+}
+
+// ftsQuery transforma o texto do usuário numa expressão FTS5 segura: cada palavra entre aspas, unidas por espaço
+// (E implícito). Aspas, hífen, dois-pontos e * soltos no texto quebrariam a sintaxe do FTS5.
+func ftsQuery(raw string) string {
+	words := strings.FieldsFunc(raw, func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '_' })
+	if len(words) > 16 {
+		words = words[:16]
+	}
+	for i, w := range words {
+		words[i] = `"` + w + `"`
+	}
+	return strings.Join(words, " ")
+}
+
+// plain tira as marcas HTML (o snippet do ai-memory vem com realce em HTML) e desfaz as entidades.
+var htmlTag = regexp.MustCompile(`<[^>]*>`)
+
+func plain(s string) string { return html.UnescapeString(htmlTag.ReplaceAllString(s, "")) }
 
 const (
 	capTTL    = 5 * time.Minute  // validade da lista de tools lida com sucesso
@@ -415,7 +496,7 @@ func parseSearch(txt string) []memory.Hit {
 			if r.Path == "" && r.Title == "" && sn == "" {
 				continue
 			}
-			out = append(out, memory.Hit{Path: r.Path, Title: r.Title, Snippet: clip(strings.TrimSpace(sn), 2000), Score: r.Score})
+			out = append(out, memory.Hit{Path: r.Path, Title: plain(r.Title), Snippet: clip(strings.TrimSpace(plain(sn)), 2000), Score: r.Score})
 		}
 		return out
 	}
