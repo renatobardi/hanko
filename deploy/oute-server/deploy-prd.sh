@@ -14,7 +14,7 @@ set -euo pipefail
 HOST="${OUTE_HOST:-oute-server}"
 NAME="${HANKO_LXC:-hanko-prd}"
 IP="${HANKO_LXC_IP:-}"
-PORT="${HANKO_PORT:-3790}"
+PORT="${HANKO_PORT:-3810}"
 GATEWAY="${LXC_GATEWAY:-10.173.117.1}"
 DOMAIN="${HANKO_DOMAIN:-hanko.oute.pro}"
 # IP Tailscale do host: o split DNS da tailnet resolve *.oute.pro para ele, e os vhosts do lab
@@ -76,6 +76,7 @@ if $DRY || ! ssh -n "$HOST" "lxc exec ${NAME} -- sh -c 'command -v docker >/dev/
   x "for i in \$(seq 1 30); do getent hosts archive.ubuntu.com >/dev/null && break; sleep 2; done; apt-get update && apt-get install -y ca-certificates curl git openssl docker.io docker-compose-v2"
   r "lxc config set ${NAME} boot.autostart true"
 fi
+r "lxc config set ${NAME} limits.memory ${HANKO_LXC_MEMORY:-4GiB}"  # teto declarado no inventário do lab
 
 # 2) Código: bundle git (o repo é privado; nada de credencial dentro do LXC)
 BUNDLE="$(mktemp -t hanko-XXXXXX).bundle"
@@ -188,9 +189,7 @@ cat <<EOT
 ==> Pronto: ${NAME} (${IP}:${PORT}) rodando Hanko ${REV}.
 Próximos passos:
   - Primeira vez sem --edge? rode de novo com --edge para nginx + certificado de ${DOMAIN}.
-  - Registrar no inventário do lab (no repo lab):
-      python3 tools/add-container.py servers/oute-server/inventory.yaml ${NAME} --app hanko --port ${PORT} --public --nesting --no-tailscale \\
-        --notes "Hanko control plane; deploy via Hanko deploy/oute-server/deploy-prd.sh"
-      python3 tools/gen-ports.py servers/oute-server/inventory.yaml > servers/oute-server/PORTS.md
+  - Inventário do lab: hanko-prd (${IP}:${PORT}, limits.memory 4GiB) e o vhost ${DOMAIN} estão em
+    servers/oute-server/inventory.yaml do repo lab; mudou IP, porta ou vhost? atualize lá também.
   - Login do Claude para as personas (uma vez):  ssh -t ${HOST} lxc exec ${NAME} -- docker compose -f /opt/app/docker-compose.yml exec hanko claude
 EOT

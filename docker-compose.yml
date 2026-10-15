@@ -22,7 +22,7 @@ services:
       HANKO_WORKSPACES_ROOT: /home/node/hanko-workspaces
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-lgtm:4317
     ports:
-      - "${HANKO_PORT:-3790}:7420"          # o nginx do host conecta em <ip-do-lxc>:3790
+      - "${HANKO_PORT:-3810}:7420"          # o nginx do host conecta em <ip-do-lxc>:3810
     volumes:
       - agent-home:/home/node               # login do claude/codex e workspaces das personas
     depends_on:
