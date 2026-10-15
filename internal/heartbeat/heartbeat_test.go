@@ -970,6 +970,35 @@ func TestStartReviewWorker(t *testing.T) {
 	}
 }
 
+// A revisão automática de uma persona acp sem revisor dedicado roda no mesmo harness: o adapter_config
+// (o comando) tem de ir junto, senão a run falha sempre. Com outro harness de revisão, não vai.
+func TestBuildSpecReviewKeepsConfigOnlyForSameHarness(t *testing.T) {
+	h, _ := newTestHB(t, &fakeBackend{}, okAdapter(), &memStub{}, Options{PublicURL: "http://h:7420"})
+	rc := sampleContext()
+	rc.Persona.Agent = "acp"
+	rc.Persona.AdapterConfig = []byte(`{"command":"meu-agente"}`)
+	rc.Run.Trigger = domain.TriggerReview
+	rc.Run.Agent = "acp"
+	rc.Review = &service.ReviewContext{ID: domain.NewID(), Artifact: "x", AuthorName: "Ana"} // sem revisor dedicado
+	build := func() adapter.Spec {
+		spec, cleanup, err := h.buildSpec(rc, "", "", memory.Scope{Workspace: "acme"}, service.RunExtras{}, func(domain.RunEventKind, string) {})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cleanup != nil {
+			defer cleanup()
+		}
+		return spec
+	}
+	if sp := build(); sp.Agent != "acp" || string(sp.Config) != `{"command":"meu-agente"}` || !sp.ReadOnly {
+		t.Fatalf("mesmo harness: agent=%q config=%s readOnly=%v", sp.Agent, sp.Config, sp.ReadOnly)
+	}
+	rc.Run.Agent = "claude" // harness alternativo de revisão
+	if sp := build(); sp.Agent != "claude" || sp.Config != nil || !sp.ReadOnly {
+		t.Fatalf("outro harness: agent=%q config=%s readOnly=%v", sp.Agent, sp.Config, sp.ReadOnly)
+	}
+}
+
 // A review run must carry no credential at all: no run token, no Hanko MCP, no credentialed
 // memory MCP, no HANKO_URL/token in the env, and a forced read-only harness.
 func TestBuildSpecReviewHasNoCredentials(t *testing.T) {
