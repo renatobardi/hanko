@@ -112,10 +112,10 @@ func Run(ctx context.Context, o Options) (Result, error) {
 	waitErr := cmd.Wait()
 	close(done)
 	wg.Wait()
-	// Leader is gone; make sure no stragglers keep running.
-	if cancelled {
-		_ = syscall.Kill(-pgid, syscall.SIGKILL)
-	}
+	// Leader is gone; make sure no stragglers keep running. Not only after a cancel: a child the leader
+	// started (an stdio MCP server, a helper) can outlive a normal exit, and nobody else would reap it.
+	// While any member lives the pgid cannot be reused, so the signal cannot reach an unrelated group.
+	_ = syscall.Kill(-pgid, syscall.SIGKILL)
 	flush(cmd.Stdout, cmd.Stderr)
 
 	res := Result{Cancelled: cancelled, ExitCode: cmd.ProcessState.ExitCode()}
