@@ -75,6 +75,9 @@ type Service struct {
 	ExportIdleTxTimeout, ExportStatementTimeout time.Duration
 	// ExportPageHook (só testes) roda antes de cada página de eventos do export; um erro interrompe a escrita.
 	ExportPageHook func(page int) error
+	// Integrations é a política e o cofre das integrações (ADR-0029). O zero value é o seguro: stdio desligado,
+	// destinos internos bloqueados e sem chave de cifragem.
+	Integrations IntegrationsConfig
 	// Log recebe o registro de auditoria das operações administrativas da instalação (hanko auth user ...);
 	// nil descarta.
 	Log *slog.Logger
