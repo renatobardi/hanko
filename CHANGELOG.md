@@ -29,6 +29,17 @@ English summary at the end of each release.
 - Seção "Memória" nas Configurações da empresa; API `/companies/{c}/memory`; CLI `hanko memory status|config|consolidate|history|proposals|approve|reject|retry|grants|grant|revoke`; variável `HANKO_MEMORY_READ_TOOL`.
 - Chat (ADR-0027): conversa direta de um humano com uma persona, fora de uma task. Cada mensagem dispara uma run com o gatilho `chat` (mesmo adapter, ledger, orçamento, trava semanal, alertas e log), retoma a sessão do harness quando ele sabe e responde com o resumo final; UI em `/c/{empresa}/chat`, API `/conversations`, CLI `hanko chat <persona> "mensagem"` (`--no-wait`, `--conversation`, `list`, `show`), conversas na página da persona e runs de chat identificadas em Execuções e Custos (migration 00018).
 
+### Correções da revisão (artefatos e metas)
+
+- Cota de artefatos por empresa não é mais furável por uploads simultâneos de nomes diferentes (trava consultiva por empresa antes da trava da cadeia).
+- A meta da própria task entra sempre no briefing da run (o corte em 5 podia descartá-la).
+- `hanko_artifact_put`: o corpo aceito pelo transporte MCP acompanha `HANKO_ARTIFACT_MAX_BYTES` (antes ~3 MiB de arquivo, pelo padrão de 4 MiB do SDK).
+- Run token de chat (sem task) publica artefatos pela API REST; informar `task` com esse token é recusado.
+- Migration 00025: `artifacts.task_id` passa a `ON DELETE CASCADE` (apagar a task apaga as versões dela em vez de fundi-las à cadeia sem task).
+- Nome de artefato recusa caracteres de formatação Unicode (bidi, largura zero), na publicação e na importação.
+- O corpo da rota de envio da API usa o limite configurado, não o máximo absoluto de 16 MiB.
+- Markdown de artefato não carrega imagem externa (vira link): sem pixel de rastreio.
+
 ## [Não lançado] — v0.1.0
 
 Primeira versão pública. Em produção em https://hanko.oute.pro desde 2026-10-14.

@@ -98,3 +98,25 @@ execução) e na mesma Caixa de entrada.
 - Os fatos `artifact.created` e `goal.achieved` já saem na atividade, mas **não** são eventos assináveis dos webhooks
   (ADR-0029) nesta versão. Assiná-los exige acrescentar `artifact.published` e `goal.reached` à lista de eventos e ao
   mapeamento de verbos em `webhookEventFor`: fica como evolução futura.
+
+## Adendo: correções da revisão independente
+- **Cota sob concorrência.** A trava por cadeia só serializa a numeração; a cota é por empresa. `PutArtifact` agora
+  toma antes `pg_advisory_xact_lock(hashtextextended('artifacts:'||company_id, 0))` e só então a trava da cadeia (ordem
+  fixa, sem ciclo: a exclusão toma só a da cadeia). O uso é lido e consumido sob a trava da empresa, então uploads
+  simultâneos de nomes diferentes não passam da cota. O custo é serializar as gravações de artefatos de uma mesma empresa.
+- **Briefing.** `ListGoalsForBriefing` ordena a meta da própria task primeiro; o corte em 5 nunca a descarta.
+- **Corpo do MCP.** O transporte MCP limitava o corpo a 4 MiB (cerca de 3 MiB de arquivo em base64), abaixo do limite
+  configurado. O corpo aceito agora é `max(4 MiB, HANKO_ARTIFACT_MAX_BYTES x 4/3 + 64 KiB)`. Vale para todas as chamadas
+  MCP autenticadas, não só para `hanko_artifact_put`. O caminho de arquivos grandes é `content_base64`: texto em
+  `content` pode crescer mais no JSON (escapes).
+- **Run de chat na API.** O run token de chat não tem task: a API aceita só `run_id` (o do token) e recusa `task`.
+- **Vínculo com a task.** `artifacts.task_id` passou a `ON DELETE CASCADE` (migration 00025): com `SET NULL` as versões
+  se fundiam à cadeia "sem task" do mesmo nome e podiam violar o índice único de versão. Run, projeto e persona seguem
+  `SET NULL`. Substitui o "apagar a task não apaga o arquivo" da Decisão.
+- **Nome.** Caracteres Unicode de formatação (categoria Cf: bidi como U+202E, largura zero) são recusados na
+  publicação e na importação, para que o nome não disfarce a extensão.
+- **Corpo da API.** O limite do corpo da rota de envio vem do `HANKO_ARTIFACT_MAX_BYTES` configurado (base64 x 4/3 +
+  64 KiB) no registro da rota, não do máximo absoluto de 16 MiB.
+- **Imagens no Markdown.** O render de artefato não carrega imagem de URL externa (vira link com `rel="noopener
+  noreferrer nofollow"`); imagem de caminho relativo sai com `loading="lazy"` e `referrerpolicy="no-referrer"`. Os demais
+  usos de Markdown (comentários, descrições) não mudam.
