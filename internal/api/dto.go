@@ -55,26 +55,71 @@ type Company struct {
 
 // Workspace é um diretório/repositório onde personas trabalham.
 type Workspace struct {
-	ID        string    `json:"id" format:"uuid"`
-	CompanyID string    `json:"company_id" format:"uuid"`
-	Slug      string    `json:"slug" example:"api"`
-	Name      string    `json:"name" example:"API"`
-	Path      string    `json:"path" example:"/srv/work/api" doc:"Diretório de trabalho."`
-	RepoURL   string    `json:"repo_url,omitempty" example:"https://example.com/acme/api.git"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID        string `json:"id" format:"uuid"`
+	CompanyID string `json:"company_id" format:"uuid"`
+	Slug      string `json:"slug" example:"api"`
+	Name      string `json:"name" example:"API"`
+	Path      string `json:"path" example:"/srv/work/api" doc:"Diretório de trabalho."`
+	RepoURL   string `json:"repo_url,omitempty" example:"https://example.com/acme/api.git" doc:"Metadado: https://, ssh:// ou formato scp (usuario@host:dono/repo). O Hanko não clona."`
+	// DefaultBranch é metadado (o Hanko não troca de branch).
+	DefaultBranch string `json:"default_branch,omitempty" example:"main"`
+	// Uso do workspace: vem na lista e no detalhe. Tasks abertas contam as que escolheram o workspace de propósito.
+	Usage     *WorkspaceUsage `json:"usage,omitempty"`
+	CreatedAt time.Time       `json:"created_at"`
+	UpdatedAt time.Time       `json:"updated_at"`
 }
 
-// Project agrupa tasks.
+// UsageRef identifica uma persona ou projeto que usa um workspace.
+type UsageRef struct {
+	ID   string `json:"id" format:"uuid"`
+	Slug string `json:"slug"`
+	Name string `json:"name"`
+}
+
+// WorkspaceUsage diz quem usa o workspace; um workspace em uso não é excluído sem desvincular.
+type WorkspaceUsage struct {
+	Personas     int        `json:"personas" doc:"Personas que o têm como padrão."`
+	Projects     int        `json:"projects"`
+	OpenTasks    int        `json:"open_tasks" doc:"Tasks abertas que escolheram este workspace."`
+	PersonaItems []UsageRef `json:"persona_items,omitempty" doc:"Só no detalhe."`
+	ProjectItems []UsageRef `json:"project_items,omitempty" doc:"Só no detalhe."`
+}
+
+// Project agrupa tasks; pode ter workspace e orçamento mensal próprios.
 type Project struct {
-	ID          string    `json:"id" format:"uuid"`
-	CompanyID   string    `json:"company_id" format:"uuid"`
-	Slug        string    `json:"slug" example:"lancamento"`
-	Name        string    `json:"name" example:"Lançamento"`
-	Description string    `json:"description,omitempty"`
-	WorkspaceID string    `json:"workspace_id,omitempty" format:"uuid"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID          string `json:"id" format:"uuid"`
+	CompanyID   string `json:"company_id" format:"uuid"`
+	Slug        string `json:"slug" example:"lancamento"`
+	Name        string `json:"name" example:"Lançamento"`
+	Description string `json:"description,omitempty"`
+	WorkspaceID string `json:"workspace_id,omitempty" format:"uuid"`
+	Status      string `json:"status" enum:"active,archived" doc:"Projeto arquivado não recebe tasks novas."`
+	// BudgetMonthlyCents é o teto mensal do projeto em centavos de dólar; ausente = sem teto. Estourado, nenhuma
+	// execução de task do projeto abre até o teto subir ou o mês virar.
+	BudgetMonthlyCents *int64        `json:"budget_monthly_cents,omitempty"`
+	Stats              *ProjectStats `json:"stats,omitempty" doc:"Progresso e custo do mês; vem na lista e no detalhe."`
+	CreatedAt          time.Time     `json:"created_at"`
+	UpdatedAt          time.Time     `json:"updated_at"`
+}
+
+// ProjectPersona é uma persona com tasks no projeto.
+type ProjectPersona struct {
+	ID        string `json:"id" format:"uuid"`
+	Slug      string `json:"slug"`
+	Name      string `json:"name"`
+	Tasks     int    `json:"tasks"`
+	OpenTasks int    `json:"open_tasks"`
+}
+
+// ProjectStats é o painel do projeto: tasks por status, progresso, custo do mês contra o teto e personas.
+type ProjectStats struct {
+	WorkspaceSlug   string           `json:"workspace_slug,omitempty"`
+	WorkspaceName   string           `json:"workspace_name,omitempty"`
+	Tasks           map[string]int   `json:"tasks" doc:"Tasks por status (todos os status presentes)."`
+	TasksTotal      int              `json:"tasks_total"`
+	ProgressPercent float64          `json:"progress_percent" doc:"done / (total - canceladas), de 0 a 100."`
+	Budget          Budget           `json:"budget" doc:"Gasto do mês do projeto contra o teto dele."`
+	Personas        []ProjectPersona `json:"personas,omitempty" doc:"Só no detalhe."`
 }
 
 // Persona é um papel contratado pela empresa.
@@ -333,12 +378,43 @@ func companyOut(c domain.Company) Company {
 
 func workspaceOut(w domain.Workspace) Workspace {
 	return Workspace{ID: idStr(w.ID), CompanyID: idStr(w.CompanyID), Slug: w.Slug, Name: w.Name,
-		Path: w.Path, RepoURL: w.RepoURL, CreatedAt: w.CreatedAt, UpdatedAt: w.UpdatedAt}
+		Path: w.Path, RepoURL: w.RepoURL, DefaultBranch: w.DefaultBranch, CreatedAt: w.CreatedAt, UpdatedAt: w.UpdatedAt}
+}
+
+func usageRefs(rs []service.UsageRef) []UsageRef {
+	out := make([]UsageRef, len(rs))
+	for i, r := range rs {
+		out[i] = UsageRef{ID: idStr(r.ID), Slug: r.Slug, Name: r.Name}
+	}
+	return out
+}
+
+func workspaceViewOut(v service.WorkspaceView) Workspace {
+	w := workspaceOut(v.Workspace)
+	w.Usage = &WorkspaceUsage{Personas: v.PersonaCount, Projects: v.ProjectCount, OpenTasks: v.OpenTasks,
+		PersonaItems: usageRefs(v.Personas), ProjectItems: usageRefs(v.Projects)}
+	return w
 }
 
 func projectOut(p domain.Project) Project {
 	return Project{ID: idStr(p.ID), CompanyID: idStr(p.CompanyID), Slug: p.Slug, Name: p.Name,
-		Description: p.Description, WorkspaceID: idPtr(p.WorkspaceID), CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt}
+		Description: p.Description, WorkspaceID: idPtr(p.WorkspaceID), Status: string(p.Status),
+		BudgetMonthlyCents: p.BudgetMonthlyCents, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt}
+}
+
+func projectViewOut(v service.ProjectView) Project {
+	p := projectOut(v.Project)
+	tasks := make(map[string]int, len(v.Tasks))
+	for st, n := range v.Tasks {
+		tasks[string(st)] = n
+	}
+	st := &ProjectStats{WorkspaceSlug: v.WorkspaceSlug, WorkspaceName: v.WorkspaceName, Tasks: tasks, TasksTotal: v.TasksTotal,
+		ProgressPercent: v.Progress, Budget: budgetOut(v.Budget)}
+	for _, pe := range v.Personas {
+		st.Personas = append(st.Personas, ProjectPersona{ID: idStr(pe.ID), Slug: pe.Slug, Name: pe.Name, Tasks: pe.Tasks, OpenTasks: pe.OpenTasks})
+	}
+	p.Stats = st
+	return p
 }
 
 func personaOut(p domain.Persona) Persona {
