@@ -388,3 +388,23 @@ func TestReviewerConfigValidacao(t *testing.T) {
 		t.Error("os dois juntos deveria falhar")
 	}
 }
+
+// O parecer do revisor vive no gate: a run de revisão não posta comentário na task.
+func TestReviewNaoPostaComentario(t *testing.T) {
+	ctx := context.Background()
+	r := newReviewEnv(t, withReviewerPersona(t))
+	r.closeTask(t)
+	r.finishAuthor(t)
+	before, _ := r.svc.ListComments(ctx, r.co.ID, r.task.ID)
+	run := r.startReview(t)
+	r.finishReview(t, run, domain.RunDone, "VEREDITO: APROVADO\nTudo certo.")
+	after, _ := r.svc.ListComments(ctx, r.co.ID, r.task.ID)
+	if len(after) != len(before) {
+		t.Fatalf("revisão postou comentário: %d -> %d", len(before), len(after))
+	}
+	for _, c := range after {
+		if strings.Contains(c.Body, "VEREDITO") {
+			t.Fatalf("parecer vazou para a thread: %q", c.Body)
+		}
+	}
+}

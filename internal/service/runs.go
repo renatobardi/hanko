@@ -558,7 +558,9 @@ func (s *Service) FinishRun(ctx context.Context, companyID, runID domain.ID, in 
 		}
 		pactor := domain.PersonaActor(row.PersonaID)
 
-		if in.Status == domain.RunDone && strings.TrimSpace(res.Summary) != "" {
+		isReview := domain.RunTrigger(row.Trigger) == domain.TriggerReview
+		// A review run's report already lives on the gate: it is not posted as a persona comment.
+		if in.Status == domain.RunDone && !isReview && strings.TrimSpace(res.Summary) != "" {
 			c, err := t.q.CreateComment(ctx, store.CreateCommentParams{ID: domain.NewID(), CompanyID: companyID,
 				TaskID: row.TaskID, AuthorType: string(domain.ActorPersona), AuthorID: &row.PersonaID, RunID: &runID,
 				Body: res.Summary, EventID: ptr("run.summary:" + runID.String()), Now: t.now})
@@ -574,7 +576,7 @@ func (s *Service) FinishRun(ctx context.Context, companyID, runID domain.ID, in 
 		if err := t.personaAfterRun(row.PersonaID, in.Status, res.Error); err != nil {
 			return err
 		}
-		if domain.RunTrigger(row.Trigger) == domain.TriggerReview {
+		if isReview {
 			if err := t.reviewRunEnded(row, in.Status, res.Summary, res.Error); err != nil {
 				return err
 			}
@@ -615,8 +617,10 @@ func (s *Service) FinishRun(ctx context.Context, companyID, runID domain.ID, in 
 			"run.finished:"+runID.String()); err != nil {
 			return err
 		}
-		if err := t.wakeForMissedComment(companyID, task, row); err != nil {
-			return err
+		if !isReview {
+			if err := t.wakeForMissedComment(companyID, task, row); err != nil {
+				return err
+			}
 		}
 		t.publishRunStatus(out)
 		if tv, err := loadTaskView(ctx, t.q, companyID, row.TaskID); err == nil {
