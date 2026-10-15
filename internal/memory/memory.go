@@ -68,6 +68,12 @@ func (Noop) AgentMCP(Scope, string, string) map[string]json.RawMessage    { retu
 func (Noop) Search(context.Context, Scope, string, int) ([]Hit, error)    { return nil, nil }
 func (Noop) Ping(context.Context) error                                   { return nil }
 
+// SearchCapable é a capacidade opcional de dizer se o servidor realmente tem a tool de busca (ADR-0024, adendo).
+// Provedor que não a implementa é tratado como capaz de buscar. A resposta pode vir de cache de alguns minutos.
+type SearchCapable interface {
+	SearchSupported(ctx context.Context) bool
+}
+
 // ErrUnsupported: o provedor não tem a capacidade pedida (ou ela não foi configurada).
 var ErrUnsupported = errors.New("memory: capacidade não suportada pelo provedor")
 

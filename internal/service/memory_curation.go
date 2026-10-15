@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/memory"
 	"github.com/renatobardi/hanko/internal/store"
 )
 
@@ -66,6 +67,19 @@ func (s *Service) MemoryAvailable() bool {
 	}
 	p := strings.TrimSpace(s.MemoryProvider)
 	return p != "" && p != "none"
+}
+
+// MemorySearchAvailable diz se a busca (ADR-0024) deve incluir o grupo Memória: há provider ligado e, quando ele sabe
+// dizer, o servidor tem a tool de busca. É separado de MemoryAvailable, que a consolidação (ADR-0030) usa e que não
+// depende da tool de busca.
+func (s *Service) MemorySearchAvailable(ctx context.Context) bool {
+	if s.Memory == nil || s.Memory.Name() == "none" {
+		return false
+	}
+	if c, ok := s.Memory.(memory.SearchCapable); ok {
+		return c.SearchSupported(ctx)
+	}
+	return true
 }
 
 // errMemoryOff é a mensagem clara de quando a memória está desligada.

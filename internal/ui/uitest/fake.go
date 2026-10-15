@@ -50,7 +50,7 @@ type Fake struct {
 	ArtifactQuotaBytes int64
 	Goals              []domain.Goal
 	GoalUpdates        []domain.GoalUpdate
-	// SearchRes é o que Search devolve (e SearchQ/SearchF a última chamada); Memory liga MemoryAvailable.
+	// SearchRes é o que Search devolve (e SearchQ/SearchF a última chamada); Memory liga MemorySearchAvailable.
 	SearchRes service.SearchResult
 	SearchQ   string
 	SearchF   service.SearchFilter
@@ -552,7 +552,7 @@ func (f *Fake) Search(_ context.Context, _ domain.ID, q string, fl service.Searc
 	return f.SearchRes, nil
 }
 
-func (f *Fake) MemoryAvailable() bool {
+func (f *Fake) MemorySearchAvailable(context.Context) bool {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.Memory

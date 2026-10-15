@@ -162,7 +162,7 @@ func (s *Service) Search(ctx context.Context, companyID domain.ID, q string, f S
 		if !want[t] {
 			continue
 		}
-		if t == SearchMemory && !s.MemoryAvailable() {
+		if t == SearchMemory && !s.MemorySearchAvailable(ctx) {
 			continue
 		}
 		wg.Add(1)
