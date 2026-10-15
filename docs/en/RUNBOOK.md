@@ -27,7 +27,9 @@ make dev          # starts Hanko locally at http://127.0.0.1:7420 (migrations ru
 Tests: `export HANKO_TEST_DATABASE_URL=postgres://postgres:...@127.0.0.1:5432/hanko_test?sslmode=disable; make test`
 (integration tests skip without the variable).
 
-**UI language.** The web UI speaks pt-BR (default) and English. The language comes from the `hanko_lang` cookie (set by the selector in the sidebar footer and on the sign-in screen, via `POST /idioma`) and, without it, from `Accept-Language` (`en*` is English, anything else pt-BR). User data, run logs and API errors are never translated; the CLI stays in pt-BR.
+**UI language.** The web UI speaks pt-BR (default) and English. The language comes from the `hanko_lang` cookie (set by the selector in the sidebar footer and on the sign-in screen, via `POST /idioma`) and, without it, from `Accept-Language` (`en*` is English, anything else pt-BR). User data, run logs and API errors are never translated.
+
+**CLI language.** The CLI (`hanko …`) speaks pt-BR (default) and English too, including `--help`, tables, messages and prompts. The language is resolved once at start-up: `HANKO_LANG` (`pt-BR` or `en`) wins; without it `LC_ALL`, `LC_MESSAGES` and `LANG` apply, in that order (the first one that is set decides; `en*` is English, any other value is pt-BR); with none, pt-BR. E.g. `HANKO_LANG=en hanko task list`. In English, dates print as `yyyy-mm-dd hh:mm` and amounts as `$1.00`. Messages coming from the API or the domain, `--json` output and the parsing errors cobra itself raises (unknown flag etc.) are not translated. New CLI texts go in `internal/i18n/en_cli.go` (same rule as the UI catalog: the key is the pt-BR text) and `TestCatalogCoversSources` covers both UI and CLI.
 
 ## 2. Deploy on LXC (oute-server)
 

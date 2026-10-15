@@ -11,18 +11,18 @@ import (
 	"github.com/renatobardi/hanko/internal/domain"
 )
 
-func checkRole(role string) error {
+func (e *env) checkRole(role string) error {
 	if !domain.MemberRole(role).Valid() {
-		return usageError{fmt.Errorf("papel inválido %q: use owner, admin, member ou viewer", role)}
+		return usageError{fmt.Errorf(e.t("papel inválido %q: use owner, admin, member ou viewer"), role)}
 	}
 	return nil
 }
 
 func (e *env) memberCmd() *cobra.Command {
-	c := &cobra.Command{Use: "member", Aliases: []string{"members"}, Short: "Membros da empresa: papéis e convites"}
+	c := &cobra.Command{Use: "member", Aliases: []string{"members"}, Short: e.t("Membros da empresa: papéis e convites")}
 
 	ls := &cobra.Command{
-		Use: "list", Aliases: []string{"ls"}, Short: "Lista os membros (e, para admin/owner, os convites abertos)", Args: cobra.NoArgs,
+		Use: "list", Aliases: []string{"ls"}, Short: e.t("Lista os membros (e, para admin/owner, os convites abertos)"), Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			co, err := e.needCompany()
 			if err != nil {
@@ -46,20 +46,20 @@ func (e *env) memberCmd() *cobra.Command {
 			}
 			rows := make([][]string, len(ms))
 			for i, m := range ms {
-				rows[i] = []string{m.Email, dash(m.Name), m.Role, fmtTime(m.CreatedAt)}
+				rows[i] = []string{m.Email, dash(m.Name), m.Role, e.fmtTime(m.CreatedAt)}
 			}
-			e.table([]string{"E-MAIL", "NOME", "PAPEL", "DESDE"}, rows)
+			e.table([]string{e.t("E-MAIL"), e.t("NOME"), e.t("PAPEL"), e.t("DESDE")}, rows)
 			if len(invs) > 0 {
-				fmt.Fprintln(e.out, "\nConvites abertos:")
+				fmt.Fprintln(e.out, e.t("\nConvites abertos:"))
 				ir := make([][]string, len(invs))
 				for i, in := range invs {
-					state := fmtTime(in.ExpiresAt)
+					state := e.fmtTime(in.ExpiresAt)
 					if in.Expired {
 						state = "expirado"
 					}
 					ir[i] = []string{short(in.ID), in.Email, in.Role, state}
 				}
-				e.table([]string{"ID", "E-MAIL", "PAPEL", "VALIDADE"}, ir)
+				e.table([]string{e.t("ID"), e.t("E-MAIL"), e.t("PAPEL"), e.t("VALIDADE")}, ir)
 			}
 			return nil
 		},
@@ -67,13 +67,13 @@ func (e *env) memberCmd() *cobra.Command {
 
 	var role string
 	invite := &cobra.Command{
-		Use: "invite <e-mail>", Short: "Convida alguém e imprime o link (o Hanko não envia e-mail)", Args: cobra.ExactArgs(1),
+		Use: "invite " + e.t("<e-mail>"), Short: e.t("Convida alguém e imprime o link (o Hanko não envia e-mail)"), Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			co, err := e.needCompany()
 			if err != nil {
 				return err
 			}
-			if err := checkRole(role); err != nil {
+			if err := e.checkRole(role); err != nil {
 				return err
 			}
 			inv, err := e.client().InviteMember(cmd.Context(), co, args[0], role)
@@ -84,15 +84,15 @@ func (e *env) memberCmd() *cobra.Command {
 			if e.asJSON {
 				return e.printJSON(map[string]any{"invite": inv, "link": link})
 			}
-			fmt.Fprintf(e.out, "Convite criado para %s como %s (vale até %s).\n", inv.Email, inv.Role, fmtTime(inv.ExpiresAt))
-			fmt.Fprintf(e.out, "Link (só aparece agora; troque o host pelo endereço público se for outro):\n%s\n", link)
+			fmt.Fprintf(e.out, e.t("Convite criado para %s como %s (vale até %s).\n"), inv.Email, inv.Role, e.fmtTime(inv.ExpiresAt))
+			fmt.Fprintf(e.out, e.t("Link (só aparece agora; troque o host pelo endereço público se for outro):\n%s\n"), link)
 			return nil
 		},
 	}
-	invite.Flags().StringVar(&role, "role", "member", "papel: owner, admin, member ou viewer")
+	invite.Flags().StringVar(&role, "role", "member", e.t("papel: owner, admin, member ou viewer"))
 
 	revoke := &cobra.Command{
-		Use: "revoke <id-do-convite>", Short: "Revoga um convite aberto", Args: cobra.ExactArgs(1),
+		Use: "revoke " + e.t("<id-do-convite>"), Short: e.t("Revoga um convite aberto"), Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			co, err := e.needCompany()
 			if err != nil {
@@ -105,19 +105,19 @@ func (e *env) memberCmd() *cobra.Command {
 			if err := e.client().RevokeInvite(cmd.Context(), co, id); err != nil {
 				return err
 			}
-			fmt.Fprintln(e.out, "Convite revogado.")
+			fmt.Fprintln(e.out, e.t("Convite revogado."))
 			return nil
 		},
 	}
 
 	setRole := &cobra.Command{
-		Use: "role <e-mail|id> <papel>", Short: "Troca o papel de um membro", Args: cobra.ExactArgs(2),
+		Use: "role " + e.t("<e-mail|id>") + " " + e.t("<papel>"), Short: e.t("Troca o papel de um membro"), Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			co, err := e.needCompany()
 			if err != nil {
 				return err
 			}
-			if err := checkRole(args[1]); err != nil {
+			if err := e.checkRole(args[1]); err != nil {
 				return err
 			}
 			m, err := e.client().SetMemberRole(cmd.Context(), co, args[0], args[1])
@@ -127,13 +127,13 @@ func (e *env) memberCmd() *cobra.Command {
 			if e.asJSON {
 				return e.printJSON(m)
 			}
-			fmt.Fprintf(e.out, "%s agora é %s.\n", m.Email, m.Role)
+			fmt.Fprintf(e.out, e.t("%s agora é %s.\n"), m.Email, m.Role)
 			return nil
 		},
 	}
 
 	remove := &cobra.Command{
-		Use: "remove <e-mail|id>", Aliases: []string{"rm"}, Short: "Remove um membro da empresa", Args: cobra.ExactArgs(1),
+		Use: "remove " + e.t("<e-mail|id>"), Aliases: []string{"rm"}, Short: e.t("Remove um membro da empresa"), Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			co, err := e.needCompany()
 			if err != nil {
@@ -142,7 +142,7 @@ func (e *env) memberCmd() *cobra.Command {
 			if err := e.client().RemoveMember(cmd.Context(), co, args[0]); err != nil {
 				return err
 			}
-			fmt.Fprintln(e.out, "Membro removido.")
+			fmt.Fprintln(e.out, e.t("Membro removido."))
 			return nil
 		},
 	}
@@ -164,13 +164,13 @@ func (e *env) resolveInvite(cmd *cobra.Command, company, ref string) (string, er
 	for _, in := range invs {
 		if len(ref) > 0 && len(in.ID) >= len(ref) && in.ID[:len(ref)] == ref {
 			if found != "" {
-				return "", usageError{errors.New("prefixo ambíguo: use mais caracteres do id do convite")}
+				return "", usageError{errors.New(e.t("prefixo ambíguo: use mais caracteres do id do convite"))}
 			}
 			found = in.ID
 		}
 	}
 	if found == "" {
-		return "", fmt.Errorf("convite %q não encontrado", ref)
+		return "", fmt.Errorf(e.t("convite %q não encontrado"), ref)
 	}
 	return found, nil
 }

@@ -5,7 +5,8 @@
 // (en.go); any text without an entry (user data, domain errors, a key someone
 // forgot) is returned unchanged. The language travels in the request context.
 //
-// The CLI is out of scope and stays in pt-BR.
+// The CLI uses the same layer: its language is resolved once from the environment
+// (FromEnv) and carried in a context.
 package i18n
 
 import (
@@ -85,6 +86,33 @@ func FromAccept(header string) Lang {
 		}
 	}
 	return best
+}
+
+// EnvVar is the environment variable that forces the CLI language ("pt-BR" or "en").
+const EnvVar = "HANKO_LANG"
+
+// FromEnv resolves the CLI language: HANKO_LANG (pt*/en*, case-insensitive; any other value is
+// ignored) wins; otherwise the first non-empty of LC_ALL, LC_MESSAGES and LANG decides (en* is
+// English, anything else pt-BR); with none set, pt-BR.
+func FromEnv(getenv func(string) string) Lang {
+	if getenv == nil {
+		return PT
+	}
+	switch v := strings.ToLower(strings.TrimSpace(getenv(EnvVar))); {
+	case v == "en" || strings.HasPrefix(v, "en-") || strings.HasPrefix(v, "en_"):
+		return EN
+	case v == "pt" || strings.HasPrefix(v, "pt-") || strings.HasPrefix(v, "pt_"):
+		return PT
+	}
+	for _, k := range []string{"LC_ALL", "LC_MESSAGES", "LANG"} {
+		if v := strings.ToLower(strings.TrimSpace(getenv(k))); v != "" {
+			if strings.HasPrefix(v, "en") {
+				return EN
+			}
+			return PT
+		}
+	}
+	return PT
 }
 
 // T translates s (a pt-BR text) for the language of ctx. Unknown text is returned as is.

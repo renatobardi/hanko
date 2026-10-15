@@ -88,3 +88,35 @@ func TestCatalog(t *testing.T) {
 		}
 	}
 }
+
+func TestFromEnv(t *testing.T) {
+	cases := []struct {
+		name string
+		env  map[string]string
+		want Lang
+	}{
+		{"nothing set", nil, PT},
+		{"HANKO_LANG en", map[string]string{"HANKO_LANG": "en"}, EN},
+		{"HANKO_LANG pt-BR", map[string]string{"HANKO_LANG": "pt-BR"}, PT},
+		{"HANKO_LANG is case-insensitive", map[string]string{"HANKO_LANG": "EN"}, EN},
+		{"HANKO_LANG beats the locale", map[string]string{"HANKO_LANG": "pt-BR", "LC_ALL": "en_US.UTF-8"}, PT},
+		{"HANKO_LANG en beats a pt locale", map[string]string{"HANKO_LANG": "en", "LANG": "pt_BR.UTF-8"}, EN},
+		{"unknown HANKO_LANG falls through", map[string]string{"HANKO_LANG": "fr", "LANG": "en_US.UTF-8"}, EN},
+		{"LC_ALL beats LC_MESSAGES and LANG", map[string]string{"LC_ALL": "pt_BR.UTF-8", "LC_MESSAGES": "en_US", "LANG": "en_US"}, PT},
+		{"LC_MESSAGES beats LANG", map[string]string{"LC_MESSAGES": "en_GB.UTF-8", "LANG": "pt_BR.UTF-8"}, EN},
+		{"LANG alone", map[string]string{"LANG": "en_US.UTF-8"}, EN},
+		{"C locale is not English", map[string]string{"LANG": "C"}, PT},
+		{"empty LC_ALL is skipped", map[string]string{"LC_ALL": "", "LANG": "en_US.UTF-8"}, EN},
+		{"another language", map[string]string{"LANG": "de_DE.UTF-8"}, PT},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := FromEnv(func(k string) string { return c.env[k] }); got != c.want {
+				t.Errorf("FromEnv = %v, want %v", got, c.want)
+			}
+		})
+	}
+	if FromEnv(nil) != PT {
+		t.Error("FromEnv(nil) must be pt-BR")
+	}
+}

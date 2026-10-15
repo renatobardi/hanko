@@ -11,26 +11,26 @@ import (
 	"github.com/renatobardi/hanko/internal/client"
 )
 
-func weeklyLine(s api.Subscription) string {
+func (e *env) weeklyLine(s api.Subscription) string {
 	if s.WeeklyLimitUSD == nil {
-		return "sem trava semanal"
+		return e.t("sem trava semanal")
 	}
-	state := "livre"
+	state := e.t("livre")
 	if s.Blocked {
-		state = "TRAVADA: novas execuções bloqueadas"
+		state = e.t("TRAVADA: novas execuções bloqueadas")
 	}
-	return fmt.Sprintf("%s de %s (%.0f%%), trava em %d%% — %s", usd(s.WeekUsageUSD), usd(*s.WeeklyLimitUSD), s.WeekPercent, s.WeeklyGuardPct, state)
+	return e.tf("%s de %s (%.0f%%), trava em %d%% — %s", e.usd(s.WeekUsageUSD), e.usd(*s.WeeklyLimitUSD), s.WeekPercent, s.WeeklyGuardPct, state)
 }
 
-func prefixesLine(p []string) string {
+func (e *env) prefixesLine(p []string) string {
 	if len(p) == 0 {
-		return "todos os modelos do harness"
+		return e.t("todos os modelos do harness")
 	}
 	return strings.Join(p, ", ")
 }
 
 func (e *env) subscriptionCmd() *cobra.Command {
-	c := &cobra.Command{Use: "subscription", Aliases: []string{"sub"}, Short: "Assinaturas: mensalidade, modelos cobertos e trava semanal"}
+	c := &cobra.Command{Use: "subscription", Aliases: []string{"sub"}, Short: e.t("Assinaturas: mensalidade, modelos cobertos e trava semanal")}
 
 	var (
 		agent           string
@@ -40,7 +40,7 @@ func (e *env) subscriptionCmd() *cobra.Command {
 		inactive        bool
 	)
 	create := &cobra.Command{
-		Use: "create <nome>", Short: "Cria uma assinatura", Args: cobra.ExactArgs(1),
+		Use: "create " + e.t("<nome>"), Short: e.t("Cria uma assinatura"), Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			co, err := e.needCompany()
 			if err != nil {
@@ -58,21 +58,21 @@ func (e *env) subscriptionCmd() *cobra.Command {
 			if e.asJSON {
 				return e.printJSON(s)
 			}
-			fmt.Fprintf(e.out, "Assinatura criada: %s — %s, %s por mês, cobre %s\n", s.Name, s.Agent, usd(s.MonthlyUSD), prefixesLine(s.ModelPrefixes))
+			fmt.Fprintf(e.out, e.t("Assinatura criada: %s — %s, %s por mês, cobre %s\n"), s.Name, s.Agent, e.usd(s.MonthlyUSD), e.prefixesLine(s.ModelPrefixes))
 			return nil
 		},
 	}
 	cf := create.Flags()
-	cf.StringVar(&agent, "agent", "", "harness/provedor do plano: claude, codex ou fake (obrigatório)")
-	cf.Float64Var(&monthly, "monthly", 0, "mensalidade em dólares")
-	cf.StringSliceVar(&prefixes, "models", nil, "prefixos de modelo cobertos (vírgula ou repetido); vazio = todos do harness")
-	cf.Float64Var(&weekly, "weekly-limit", 0, "teto semanal de uso estimado em dólares (liga a trava semanal)")
-	cf.IntVar(&pct, "guard-pct", 0, "trava semanal: percentual do teto que bloqueia novas execuções (padrão 90)")
-	cf.BoolVar(&inactive, "inactive", false, "cria desligada")
+	cf.StringVar(&agent, "agent", "", e.t("harness/provedor do plano: claude, codex ou fake (obrigatório)"))
+	cf.Float64Var(&monthly, "monthly", 0, e.t("mensalidade em dólares"))
+	cf.StringSliceVar(&prefixes, "models", nil, e.t("prefixos de modelo cobertos (vírgula ou repetido); vazio = todos do harness"))
+	cf.Float64Var(&weekly, "weekly-limit", 0, e.t("teto semanal de uso estimado em dólares (liga a trava semanal)"))
+	cf.IntVar(&pct, "guard-pct", 0, e.t("trava semanal: percentual do teto que bloqueia novas execuções (padrão 90)"))
+	cf.BoolVar(&inactive, "inactive", false, e.t("cria desligada"))
 	_ = create.MarkFlagRequired("agent")
 
 	ls := &cobra.Command{
-		Use: "list", Aliases: []string{"ls"}, Short: "Lista as assinaturas e o uso da semana", Args: cobra.NoArgs,
+		Use: "list", Aliases: []string{"ls"}, Short: e.t("Lista as assinaturas e o uso da semana"), Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			co, err := e.needCompany()
 			if err != nil {
@@ -86,27 +86,27 @@ func (e *env) subscriptionCmd() *cobra.Command {
 				return e.printJSON(ss)
 			}
 			if len(ss) == 0 {
-				fmt.Fprintln(e.out, "Nenhuma assinatura. Crie uma com: hanko subscription create <nome> --agent claude --monthly 200")
+				fmt.Fprintln(e.out, e.t("Nenhuma assinatura. Crie uma com: hanko subscription create <nome> --agent claude --monthly 200"))
 				return nil
 			}
 			rows := make([][]string, 0, len(ss))
 			for _, s := range ss {
 				week := "-"
 				if s.WeeklyLimitUSD != nil {
-					week = fmt.Sprintf("%s / %s", usd(s.WeekUsageUSD), usd(*s.WeeklyLimitUSD))
+					week = fmt.Sprintf("%s / %s", e.usd(s.WeekUsageUSD), e.usd(*s.WeeklyLimitUSD))
 					if s.Blocked {
-						week += " TRAVADA"
+						week += " " + e.t("TRAVADA")
 					}
 				}
-				rows = append(rows, []string{s.Name, s.Agent, usd(s.MonthlyUSD), onOff2(s.Active), week})
+				rows = append(rows, []string{s.Name, s.Agent, e.usd(s.MonthlyUSD), e.onOff2(s.Active), week})
 			}
-			e.table([]string{"NOME", "HARNESS", "MENSALIDADE", "ESTADO", "USO DA SEMANA"}, rows)
+			e.table([]string{e.t("NOME"), e.t("HARNESS"), e.t("MENSALIDADE"), e.t("ESTADO"), e.t("USO DA SEMANA")}, rows)
 			return nil
 		},
 	}
 
 	show := &cobra.Command{
-		Use: "show <assinatura>", Short: "Mostra uma assinatura", Args: cobra.ExactArgs(1),
+		Use: "show " + e.t("<assinatura>"), Short: e.t("Mostra uma assinatura"), Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			co, err := e.needCompany()
 			if err != nil {
@@ -119,9 +119,9 @@ func (e *env) subscriptionCmd() *cobra.Command {
 			if e.asJSON {
 				return e.printJSON(s)
 			}
-			e.kv([2]string{"Assinatura", s.Name}, [2]string{"ID", s.ID}, [2]string{"Harness", s.Agent},
-				[2]string{"Mensalidade", usd(s.MonthlyUSD)}, [2]string{"Estado", onOff2(s.Active)},
-				[2]string{"Modelos cobertos", prefixesLine(s.ModelPrefixes)}, [2]string{"Semana", weeklyLine(s)})
+			e.kv([2]string{e.t("Assinatura"), s.Name}, [2]string{e.t("ID"), s.ID}, [2]string{e.t("Harness"), s.Agent},
+				[2]string{e.t("Mensalidade"), e.usd(s.MonthlyUSD)}, [2]string{e.t("Estado"), e.onOff2(s.Active)},
+				[2]string{e.t("Modelos cobertos"), e.prefixesLine(s.ModelPrefixes)}, [2]string{e.t("Semana"), e.weeklyLine(s)})
 			return nil
 		},
 	}
@@ -134,7 +134,7 @@ func (e *env) subscriptionCmd() *cobra.Command {
 		upOn, upOff               bool
 	)
 	update := &cobra.Command{
-		Use: "update <assinatura>", Short: "Altera uma assinatura", Args: cobra.ExactArgs(1),
+		Use: "update " + e.t("<assinatura>"), Short: e.t("Altera uma assinatura"), Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			co, err := e.needCompany()
 			if err != nil {
@@ -142,7 +142,7 @@ func (e *env) subscriptionCmd() *cobra.Command {
 			}
 			f := cmd.Flags()
 			if upOn && upOff {
-				return usageError{errors.New("--on e --off não combinam")}
+				return usageError{errors.New(e.t("--on e --off não combinam"))}
 			}
 			req := client.UpdateSubscriptionReq{ClearWeeklyLimit: upNoWeekly}
 			if f.Changed("name") {
@@ -179,7 +179,7 @@ func (e *env) subscriptionCmd() *cobra.Command {
 			changed := f.Changed("name") || f.Changed("agent") || f.Changed("monthly") || f.Changed("models") || f.Changed("weekly-limit") ||
 				f.Changed("guard-pct") || upNoWeekly || upOn || upOff
 			if !changed {
-				return usageError{errors.New("nada a alterar: veja hanko subscription update --help")}
+				return usageError{errors.New(e.t("nada a alterar: veja hanko subscription update --help"))}
 			}
 			s, err := e.client().UpdateSubscription(cmd.Context(), co, args[0], req)
 			if err != nil {
@@ -188,23 +188,23 @@ func (e *env) subscriptionCmd() *cobra.Command {
 			if e.asJSON {
 				return e.printJSON(s)
 			}
-			fmt.Fprintf(e.out, "Assinatura atualizada: %s — %s por mês, %s\n", s.Name, usd(s.MonthlyUSD), weeklyLine(s))
+			fmt.Fprintf(e.out, e.t("Assinatura atualizada: %s — %s por mês, %s\n"), s.Name, e.usd(s.MonthlyUSD), e.weeklyLine(s))
 			return nil
 		},
 	}
 	uf := update.Flags()
-	uf.StringVar(&upName, "name", "", "novo nome")
-	uf.StringVar(&upAgent, "agent", "", "harness/provedor")
-	uf.Float64Var(&upMonthly, "monthly", 0, "mensalidade em dólares")
-	uf.StringVar(&upModels, "models", "", "prefixos de modelo cobertos, separados por vírgula (vazio = todos)")
-	uf.Float64Var(&upWeekly, "weekly-limit", 0, "teto semanal em dólares")
-	uf.BoolVar(&upNoWeekly, "no-weekly-limit", false, "remove o teto semanal (e a trava)")
-	uf.IntVar(&upPct, "guard-pct", 0, "percentual do teto que trava novas execuções")
-	uf.BoolVar(&upOn, "on", false, "liga a assinatura")
-	uf.BoolVar(&upOff, "off", false, "desliga a assinatura")
+	uf.StringVar(&upName, "name", "", e.t("novo nome"))
+	uf.StringVar(&upAgent, "agent", "", e.t("harness/provedor"))
+	uf.Float64Var(&upMonthly, "monthly", 0, e.t("mensalidade em dólares"))
+	uf.StringVar(&upModels, "models", "", e.t("prefixos de modelo cobertos, separados por vírgula (vazio = todos)"))
+	uf.Float64Var(&upWeekly, "weekly-limit", 0, e.t("teto semanal em dólares"))
+	uf.BoolVar(&upNoWeekly, "no-weekly-limit", false, e.t("remove o teto semanal (e a trava)"))
+	uf.IntVar(&upPct, "guard-pct", 0, e.t("percentual do teto que trava novas execuções"))
+	uf.BoolVar(&upOn, "on", false, e.t("liga a assinatura"))
+	uf.BoolVar(&upOff, "off", false, e.t("desliga a assinatura"))
 
 	del := &cobra.Command{
-		Use: "delete <assinatura>", Aliases: []string{"rm"}, Short: "Remove uma assinatura sem execuções (com histórico, use update --off)", Args: cobra.ExactArgs(1),
+		Use: "delete " + e.t("<assinatura>"), Aliases: []string{"rm"}, Short: e.t("Remove uma assinatura sem execuções (com histórico, use update --off)"), Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			co, err := e.needCompany()
 			if err != nil {
@@ -213,7 +213,7 @@ func (e *env) subscriptionCmd() *cobra.Command {
 			if err := e.client().DeleteSubscription(cmd.Context(), co, args[0]); err != nil {
 				return err
 			}
-			fmt.Fprintf(e.out, "Assinatura %s removida.\n", args[0])
+			fmt.Fprintf(e.out, e.t("Assinatura %s removida.\n"), args[0])
 			return nil
 		},
 	}
@@ -222,9 +222,9 @@ func (e *env) subscriptionCmd() *cobra.Command {
 	return c
 }
 
-func onOff2(b bool) string {
+func (e *env) onOff2(b bool) string {
 	if b {
-		return "ligada"
+		return e.t("ligada")
 	}
-	return "desligada"
+	return e.t("desligada")
 }
