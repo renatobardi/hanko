@@ -68,6 +68,13 @@ que muda de um agente para outro é só o comando.
     e áudio no prompt, modos/comandos/forks de sessão, `compaction_*`, `$/cancel_request` e permissão decidida por
     humano durante a run (a política é fixa por persona).
 
+12. **Adendo (revisão independente): o comando é decisão do operador.** O `adapter_config.command` é escrito por um
+    admin de empresa e roda na máquina do servidor; sem trava, um admin escolheria `/bin/sh` com argumentos livres. Como
+    no MCP stdio do ADR-0029: `HANKO_ACP_ALLOW` (padrão `false`) liga o harness e `HANKO_ACP_COMMANDS` (opcional, lista de
+    nomes ou caminhos absolutos) o restringe. A checagem vale na contratação e na importação (422 com o motivo) e de novo
+    em `acp.Adapter.Run` (persona antiga ou config alterada: a run falha sem iniciar o processo). Nome simples só casa com
+    comando simples igual; caminho absoluto só casa com o mesmo caminho.
+
 ## Consequências
 - Qualquer agente que fale ACP v1 roda sem código novo: contratar a persona com o comando basta, e o mapeamento dos
   eventos fica num lugar só.

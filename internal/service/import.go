@@ -318,7 +318,7 @@ func (s *Service) planImport(ctx context.Context, doc export.Document, opts Impo
 				return p, domain.Invalid(iv("personas", i, "adapter_config"), "not valid JSON")
 			}
 		}
-		if err := adapterConfigProblem(x.Agent, cfg); err != nil {
+		if err := s.adapterConfigProblem(x.Agent, cfg); err != nil {
 			return p, domain.Invalid(iv("personas", i, "adapter_config"), err.Error())
 		}
 		p.personaCfg[i] = cfg

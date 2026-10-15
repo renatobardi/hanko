@@ -67,6 +67,17 @@ type Integrations struct {
 	AllowPrivateDestinations bool `yaml:"allow_private_destinations" env:"HANKO_INTEGRATIONS_ALLOW_PRIVATE"`
 }
 
+// ACP configura o harness acp (ADR-0023). Quem escreve o adapter_config é o admin de uma empresa, e o comando
+// roda na máquina do servidor; por isso é decisão do operador, e vem desligado.
+type ACP struct {
+	// Allow liga o harness acp (HANKO_ACP_ALLOW). Desligado, persona acp não pode ser contratada/importada e as
+	// existentes falham ao rodar com um motivo claro.
+	Allow bool `yaml:"allow" env:"HANKO_ACP_ALLOW"`
+	// Commands restringe Allow a estes executáveis (nome simples, resolvido pelo PATH, ou caminho absoluto).
+	// Vazio = qualquer comando.
+	Commands []string `yaml:"commands" env:"HANKO_ACP_COMMANDS" envSeparator:","`
+}
+
 // Auth configura a autenticação de humanos (vale no modo authenticated).
 type Auth struct {
 	Provider       string   `yaml:"provider" env:"HANKO_AUTH_PROVIDER"` // local (default) | firebase
@@ -93,6 +104,7 @@ type Config struct {
 	SecretKey         string        `yaml:"secret_key" env:"HANKO_SECRET_KEY"`
 	SecretKeyPrevious string        `yaml:"secret_key_previous" env:"HANKO_SECRET_KEY_PREVIOUS"`
 	Integrations      Integrations  `yaml:"integrations"`
+	ACP               ACP           `yaml:"acp"`
 	MigrateOnBoot     bool          `yaml:"migrate_on_boot" env:"HANKO_MIGRATE_ON_BOOT"`
 	Memory            Memory        `yaml:"memory"`
 	Auth              Auth          `yaml:"auth"`
@@ -207,6 +219,7 @@ func environFor(getenv func(string) string) map[string]string {
 		"HANKO_FIREBASE_PROJECT_ID", "HANKO_FIREBASE_API_KEY", "HANKO_FIREBASE_AUTH_DOMAIN",
 		"HANKO_AUTH_OWNER_EMAIL", "HANKO_AUTH_WEB_BOOTSTRAP", "HANKO_TRUSTED_PROXIES",
 		"HANKO_SECRET_KEY", "HANKO_SECRET_KEY_PREVIOUS", "HANKO_INTEGRATIONS_ALLOW_STDIO", "HANKO_INTEGRATIONS_ALLOW_PRIVATE",
+		"HANKO_ACP_ALLOW", "HANKO_ACP_COMMANDS",
 	}
 	m := make(map[string]string, len(keys))
 	for _, k := range keys {

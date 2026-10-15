@@ -3,6 +3,7 @@ package service_test
 import (
 	"context"
 	"errors"
+	"github.com/renatobardi/hanko/internal/adapter/acp"
 	"sync"
 	"testing"
 
@@ -81,6 +82,7 @@ func newEnv(t *testing.T) *env {
 	jobs := &fakeJobs{}
 	broker := events.NewBroker()
 	svc := service.New(pool, jobs, broker)
+	svc.ACP = acp.Policy{Allow: true} // o operador liga o harness acp (ADR-0023)
 	e := &env{svc: svc, jobs: jobs, broker: broker}
 	co, err := svc.CreateCompany(context.Background(), domain.HumanActor, service.CreateCompanyInput{Name: "Acme Corp"})
 	if err != nil {

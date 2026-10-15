@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/renatobardi/hanko/internal/adapter"
+	"github.com/renatobardi/hanko/internal/adapter/acp"
 	"github.com/renatobardi/hanko/internal/auth"
 	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/events"
@@ -79,6 +80,9 @@ type Service struct {
 	// Integrations é a política e o cofre das integrações (ADR-0029). O zero value é o seguro: stdio desligado,
 	// destinos internos bloqueados e sem chave de cifragem.
 	Integrations IntegrationsConfig
+	// ACP é a política do operador para o harness acp (HANKO_ACP_ALLOW / HANKO_ACP_COMMANDS, ADR-0023). O zero
+	// value recusa: persona acp não pode ser contratada nem importada.
+	ACP acp.Policy
 	// Memory é o provider de memória (ADR-0015), usado só pela busca (ADR-0024); nil ou Noop = sem memória na busca.
 	Memory memory.Provider
 

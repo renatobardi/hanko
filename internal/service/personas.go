@@ -41,7 +41,7 @@ func (s *Service) HirePersona(ctx context.Context, actor domain.Actor, companyID
 	if !json.Valid(cfg) {
 		return domain.Persona{}, domain.Invalid("adapter_config", "not valid JSON")
 	}
-	if err := validateAdapterConfig(in.Agent, cfg); err != nil {
+	if err := s.validateAdapterConfig(in.Agent, cfg); err != nil {
 		return domain.Persona{}, err
 	}
 
@@ -104,20 +104,25 @@ func (s *Service) HirePersona(ctx context.Context, actor domain.Actor, companyID
 // validateAdapterConfig checks the adapter_config of harnesses that need one to run. Only acp does:
 // without a command there is nothing to execute, so the mistake is refused when the persona is
 // hired, with a message that says what to fix, instead of failing every run later.
-func validateAdapterConfig(agent string, cfg []byte) error {
-	if err := adapterConfigProblem(agent, cfg); err != nil {
+func (s *Service) validateAdapterConfig(agent string, cfg []byte) error {
+	if err := s.adapterConfigProblem(agent, cfg); err != nil {
 		return domain.Invalid("adapter_config", err.Error())
 	}
 	return nil
 }
 
-// adapterConfigProblem is the reason an adapter_config cannot run on agent (nil = fine).
-func adapterConfigProblem(agent string, cfg []byte) error {
+// adapterConfigProblem is the reason an adapter_config cannot run on agent (nil = fine). For acp that
+// includes the operator's gate (HANKO_ACP_ALLOW / HANKO_ACP_COMMANDS, ADR-0023): the command is chosen
+// by a company admin, so it is checked here and again by the adapter when the run starts.
+func (s *Service) adapterConfigProblem(agent string, cfg []byte) error {
 	if agent != "acp" {
 		return nil
 	}
-	_, err := acp.ParseConfig(cfg)
-	return err
+	c, err := acp.ParseConfig(cfg)
+	if err != nil {
+		return err
+	}
+	return s.ACP.Check(c.Command)
 }
 
 func (s *Service) ListPersonas(ctx context.Context, companyID domain.ID) ([]domain.Persona, error) {
