@@ -462,7 +462,7 @@ func HirePersonaPage(sh Shell, vm HirePersonaVM) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 37, "\" placeholder=\"claude-sonnet (vazio = padrão do harness)\" list=\"models\"> <datalist id=\"models\"><option value=\"claude-sonnet\"></option> <option value=\"claude-opus\"></option> <option value=\"claude-haiku\"></option> <option value=\"gpt-5\"></option></datalist> <span class=\"hint\">Lista sugerida · ou informe um ID manual.</span></div><div class=\"field\"><label for=\"p-hb\">Acordar a cada (min)</label> <input class=\"input\" id=\"p-hb\" name=\"heartbeat\" type=\"number\" min=\"0\" max=\"1440\" value=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 37, "\" placeholder=\"sonnet (vazio = padrão do harness)\" list=\"models\"> <datalist id=\"models\"><option value=\"sonnet\"></option> <option value=\"opus\"></option> <option value=\"haiku\"></option> <option value=\"gpt-5\"></option></datalist> <span class=\"hint\">Lista sugerida · ou informe um ID manual.</span></div><div class=\"field\"><label for=\"p-hb\">Acordar a cada (min)</label> <input class=\"input\" id=\"p-hb\" name=\"heartbeat\" type=\"number\" min=\"0\" max=\"1440\" value=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

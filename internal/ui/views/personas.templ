@@ -95,11 +95,11 @@ templ HirePersonaPage(sh Shell, vm HirePersonaVM) {
 			<div class="form-grid">
 				<div class="field">
 					<label for="p-model">Modelo</label>
-					<input class="input" id="p-model" name="model" value={ vm.Model } placeholder="claude-sonnet (vazio = padrão do harness)" list="models"/>
+					<input class="input" id="p-model" name="model" value={ vm.Model } placeholder="sonnet (vazio = padrão do harness)" list="models"/>
 					<datalist id="models">
-						<option value="claude-sonnet"></option>
-						<option value="claude-opus"></option>
-						<option value="claude-haiku"></option>
+						<option value="sonnet"></option>
+						<option value="opus"></option>
+						<option value="haiku"></option>
 						<option value="gpt-5"></option>
 					</datalist>
 					<span class="hint">Lista sugerida · ou informe um ID manual.</span>

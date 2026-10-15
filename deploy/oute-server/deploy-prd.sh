@@ -92,7 +92,7 @@ if [ ! -f .env ]; then
   printf 'POSTGRES_PASSWORD=%s\nHANKO_SECRET=%s\nAI_MEMORY_AUTH_TOKEN=%s\n' \"\$(openssl rand -hex 24)\" \"\$(openssl rand -hex 32)\" \"\$(openssl rand -hex 24)\" > .env.secrets
   cp .env.secrets .env
 fi
-grep -v -E '^(HANKO_(MODE|PUBLIC_URL|ALLOWED_HOSTS|TRUSTED_PROXIES|AUTH_PROVIDER|AUTH_OWNER_EMAIL|FIREBASE_PROJECT_ID|FIREBASE_API_KEY|FIREBASE_AUTH_DOMAIN|MEMORY_PROVIDER|VERSION|PORT|LOG_FORMAT))=' .env > .env.tmp || true
+grep -v -E '^(HANKO_(MODE|PUBLIC_URL|ALLOWED_HOSTS|TRUSTED_PROXIES|AUTH_PROVIDER|AUTH_OWNER_EMAIL|FIREBASE_PROJECT_ID|FIREBASE_API_KEY|FIREBASE_AUTH_DOMAIN|MEMORY_PROVIDER|VERSION|PORT|LOG_FORMAT)|COMPOSE_PROFILES)=' .env > .env.tmp || true
 cat >> .env.tmp <<'CFG'
 HANKO_MODE=authenticated
 HANKO_PUBLIC_URL=https://${DOMAIN}
@@ -107,12 +107,20 @@ HANKO_MEMORY_PROVIDER=ai-memory
 HANKO_VERSION=${REV}
 HANKO_PORT=${PORT}
 HANKO_LOG_FORMAT=json
+COMPOSE_PROFILES=memory
 CFG
-mv .env.tmp .env; chmod 600 .env; rm -f .env.secrets"
+mv .env.tmp .env; chmod 600 .env; rm -f .env.secrets
+# ai-memory (ADR-0015): digest fixado no primeiro deploy; atualizar = trocar AI_MEMORY_IMAGE no .env de propósito
+if ! grep -q '^AI_MEMORY_IMAGE=' .env; then
+  docker pull -q akitaonrails/ai-memory:latest >/dev/null
+  d=\$(docker image inspect --format '{{index .RepoDigests 0}}' akitaonrails/ai-memory:latest)
+  echo \"AI_MEMORY_IMAGE=\$d\" >> .env; echo \"==> ai-memory fixado em \$d\"
+fi"
 
 # 4) Sobe e valida
 x "cd /opt/app && docker compose up -d --build"
 x "for i in \$(seq 1 90); do curl -fsS --max-time 2 http://127.0.0.1:${PORT}/readyz >/dev/null && echo 'readyz ok' && exit 0; sleep 2; done; docker compose -f /opt/app/docker-compose.yml logs --tail 80 hanko; exit 1"
+x "for i in \$(seq 1 30); do s=\$(docker inspect -f '{{.State.Health.Status}}' \$(docker compose -f /opt/app/docker-compose.yml ps -q ai-memory) 2>/dev/null); [ \"\$s\" = healthy ] && echo 'ai-memory ok' && exit 0; sleep 2; done; echo \"AVISO: ai-memory \${s:-ausente}; o Hanko segue sem memória (outbox)\"; docker compose -f /opt/app/docker-compose.yml logs --tail 30 ai-memory"
 r "lxc snapshot ${NAME} deploy-\$(date +%Y%m%d%H%M%S)"
 
 # 5) Borda pública (host): mesmo padrão de lab/scripts/ops/deploy-vault-vhost.sh —

@@ -67,8 +67,8 @@ func BuildArgs(spec adapter.Spec, cfg Config, mcpFile string) []string {
 		mode = "acceptEdits"
 	}
 	args := []string{"-p", "--output-format", "stream-json", "--verbose", "--permission-mode", mode}
-	if spec.Model != "" {
-		args = append(args, "--model", spec.Model)
+	if m := cliModel(spec.Model); m != "" {
+		args = append(args, "--model", m)
 	}
 	if spec.System != "" {
 		args = append(args, "--append-system-prompt", spec.System)
@@ -203,4 +203,19 @@ func (a *Adapter) run(ctx context.Context, spec adapter.Spec, sink adapter.Sink,
 		return res, fmt.Errorf("claude: sink: %w", sinkErr)
 	}
 	return res, nil
+}
+
+// cliModel traduz o nome de família usado no Hanko (claude-haiku, claude-sonnet,
+// claude-opus — também a chave da tabela de preços) para o alias que o CLI aceita.
+// IDs completos (claude-sonnet-4-5, …) e aliases passam intactos.
+func cliModel(m string) string {
+	switch strings.ToLower(strings.TrimSpace(m)) {
+	case "claude-haiku":
+		return "haiku"
+	case "claude-sonnet":
+		return "sonnet"
+	case "claude-opus":
+		return "opus"
+	}
+	return strings.TrimSpace(m)
 }

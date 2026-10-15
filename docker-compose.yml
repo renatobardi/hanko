@@ -55,8 +55,9 @@ services:
       - lgtm:/data
     networks: [hanko]
 
-  # Memória entre sessões (ADR-0015). Fica num profile até o digest da imagem ser fixado em AI_MEMORY_IMAGE;
-  # sem ele o Hanko sobe normalmente e degrada (fatos ficam no outbox até a memória aparecer).
+  # Memória entre sessões (ADR-0015), no profile `memory`. Em prd o deploy-prd.sh liga o profile
+  # (COMPOSE_PROFILES=memory) e fixa o digest em AI_MEMORY_IMAGE. Sem LLM: FTS + fatos declarados.
+  # Se cair, o Hanko segue e os fatos ficam no outbox até a memória voltar.
   ai-memory:
     profiles: [memory]
     image: ${AI_MEMORY_IMAGE:-akitaonrails/ai-memory:latest}
@@ -64,6 +65,7 @@ services:
     environment:
       AI_MEMORY_AUTH_TOKEN: ${AI_MEMORY_AUTH_TOKEN:-}
       AI_MEMORY_BIND: 0.0.0.0:49374
+      AI_MEMORY_ALLOWED_HOSTS: ai-memory,localhost,127.0.0.1   # o Hanko chega por http://ai-memory:49374
     volumes:
       - aimemory:/data
     networks: [hanko]

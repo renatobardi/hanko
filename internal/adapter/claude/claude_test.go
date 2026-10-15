@@ -286,3 +286,14 @@ func TestRunEnvAllowlistERedacao(t *testing.T) {
 		t.Errorf("mensagem do assistente não foi mascarada: %s", all.String())
 	}
 }
+
+func TestCliModel(t *testing.T) {
+	for in, want := range map[string]string{
+		"claude-haiku": "haiku", "Claude-Sonnet ": "sonnet", "claude-opus": "opus",
+		"opus": "opus", "claude-sonnet-4-5": "claude-sonnet-4-5", "": "",
+	} {
+		if got := cliModel(in); got != want {
+			t.Errorf("cliModel(%q) = %q, quer %q", in, got, want)
+		}
+	}
+}
