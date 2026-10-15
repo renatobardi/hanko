@@ -103,6 +103,11 @@ type Config struct {
 	// run, gasto + reservas das runs abertas + a reserva da nova não podem passar do teto. A reserva
 	// de cada run é o maior entre a média das últimas 10 runs da persona e este piso.
 	RunReserveUSD float64 `yaml:"run_reserve_usd" env:"HANKO_RUN_RESERVE_USD"`
+	// AlertSilentFactor é o N do alerta "persona sem heartbeat": a persona com trabalho esperando e
+	// sem ser acordada além de N vezes o intervalo dela abre o alerta. AlertRunStuckAfter é o tempo
+	// sem nenhum evento a partir do qual uma run em running vira alerta "execução presa".
+	AlertSilentFactor  int           `yaml:"alert_silent_factor" env:"HANKO_ALERT_SILENT_FACTOR"`
+	AlertRunStuckAfter time.Duration `yaml:"alert_run_stuck_after" env:"HANKO_ALERT_RUN_STUCK_AFTER"`
 
 	// SecretGenerated indica que Secret foi gerado neste boot (run tokens não
 	// sobrevivem a restart). Preenchido por Load.
@@ -114,20 +119,22 @@ type Config struct {
 // Defaults devolve a configuração padrão.
 func Defaults() Config {
 	return Config{
-		Addr:              "127.0.0.1:7420",
-		Mode:              ModeAuthenticated,
-		MigrateOnBoot:     true,
-		Memory:            Memory{Provider: MemoryAIMemory, URL: "http://127.0.0.1:49374"},
-		Auth:              Auth{Provider: AuthLocal},
-		TrustedProxies:    []string{"127.0.0.1/32", "::1/128"},
-		ClaudeBin:         "claude",
-		CodexBin:          "codex",
-		Workers:           4,
-		RunTimeout:        30 * time.Minute,
-		HeartbeatInterval: time.Minute,
-		RunReserveUSD:     1.0,
-		LogLevel:          "info",
-		LogFormat:         LogJSON,
+		Addr:               "127.0.0.1:7420",
+		Mode:               ModeAuthenticated,
+		MigrateOnBoot:      true,
+		Memory:             Memory{Provider: MemoryAIMemory, URL: "http://127.0.0.1:49374"},
+		Auth:               Auth{Provider: AuthLocal},
+		TrustedProxies:     []string{"127.0.0.1/32", "::1/128"},
+		ClaudeBin:          "claude",
+		CodexBin:           "codex",
+		Workers:            4,
+		RunTimeout:         30 * time.Minute,
+		HeartbeatInterval:  time.Minute,
+		RunReserveUSD:      1.0,
+		AlertSilentFactor:  3,
+		AlertRunStuckAfter: 15 * time.Minute,
+		LogLevel:           "info",
+		LogFormat:          LogJSON,
 	}
 }
 
@@ -178,7 +185,7 @@ func environFor(getenv func(string) string) map[string]string {
 		"HANKO_MIGRATE_ON_BOOT", "HANKO_MEMORY_PROVIDER", "HANKO_MEMORY_URL", "HANKO_MEMORY_TOKEN",
 		"HANKO_CLAUDE_BIN", "HANKO_CODEX_BIN", "HANKO_WORKERS", "HANKO_RUN_TIMEOUT",
 		"HANKO_HEARTBEAT_INTERVAL", "HANKO_LOG_LEVEL", "HANKO_LOG_FORMAT",
-		"HANKO_AGENT_ENV_ALLOW", "HANKO_ALLOWED_HOSTS", "HANKO_WORKSPACES_ROOT", "HANKO_RUN_RESERVE_USD",
+		"HANKO_AGENT_ENV_ALLOW", "HANKO_ALLOWED_HOSTS", "HANKO_WORKSPACES_ROOT", "HANKO_RUN_RESERVE_USD", "HANKO_ALERT_SILENT_FACTOR", "HANKO_ALERT_RUN_STUCK_AFTER",
 		"HANKO_AUTH_PROVIDER", "HANKO_AUTH_ALLOWED_EMAILS", "HANKO_AUTH_ALLOWED_DOMAINS",
 		"HANKO_FIREBASE_PROJECT_ID", "HANKO_FIREBASE_API_KEY", "HANKO_FIREBASE_AUTH_DOMAIN",
 		"HANKO_AUTH_OWNER_EMAIL", "HANKO_AUTH_WEB_BOOTSTRAP", "HANKO_TRUSTED_PROXIES",
@@ -270,6 +277,12 @@ func (c Config) Validate() error {
 	}
 	if c.RunReserveUSD < 0 {
 		add("HANKO_RUN_RESERVE_USD %v inválido: use um valor >= 0 (0 usa o padrão de US$ 1,00)", c.RunReserveUSD)
+	}
+	if c.AlertSilentFactor < 1 {
+		add("HANKO_ALERT_SILENT_FACTOR %d inválido: use um valor >= 1 (padrão 3)", c.AlertSilentFactor)
+	}
+	if c.AlertRunStuckAfter <= 0 {
+		add("HANKO_ALERT_RUN_STUCK_AFTER deve ser positivo (ex.: 15m)")
 	}
 	if c.Mode != ModeTrusted && c.Mode != ModeAuthenticated {
 		add("HANKO_MODE %q inválido: use %q ou %q", c.Mode, ModeTrusted, ModeAuthenticated)

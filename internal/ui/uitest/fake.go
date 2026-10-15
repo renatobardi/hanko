@@ -32,6 +32,7 @@ type Fake struct {
 	Events    map[domain.ID][]domain.RunEvent
 	Activity  []domain.ActivityEvent
 	Health    map[domain.ID]service.PersonaHealth
+	Alerts    []domain.Alert
 	Gates     []service.GateView
 	Calls     []string // names of mutating calls, in order
 	Ledger    []LedgerEntry

@@ -553,18 +553,19 @@ type PersonaAlert struct {
 	PersonaHealth
 }
 
-// Inbox is what waits for the human: gates to decide, blocked tasks, runs that failed and
-// personas in error.
+// Inbox is what waits for the human: gates to decide, blocked tasks, runs that failed,
+// personas in error and open operational alerts.
 type Inbox struct {
 	Gates         []GateView
 	BlockedTasks  []TaskView // blocked tasks that have no pending gate (the gate already covers those)
 	FailedRuns    []RunView  // failed/expired runs of open tasks not superseded by a newer run
 	ErrorPersonas []PersonaAlert
+	Alerts        []domain.Alert // operational alerts still open (alert_tick closes them when the condition is gone)
 }
 
 // Count is the number of items waiting.
 func (i Inbox) Count() int {
-	return len(i.Gates) + len(i.BlockedTasks) + len(i.FailedRuns) + len(i.ErrorPersonas)
+	return len(i.Gates) + len(i.BlockedTasks) + len(i.FailedRuns) + len(i.ErrorPersonas) + len(i.Alerts)
 }
 
 const inboxFailedWindow = 7 * 24 * time.Hour
@@ -610,6 +611,9 @@ func (s *Service) Inbox(ctx context.Context, companyID domain.ID) (Inbox, error)
 			a.LastError = *p.LastError
 		}
 		in.ErrorPersonas = append(in.ErrorPersonas, a)
+	}
+	if in.Alerts, err = s.ListOpenAlerts(ctx, companyID, 100); err != nil {
+		return in, err
 	}
 	return in, nil
 }

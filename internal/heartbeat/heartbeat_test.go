@@ -37,6 +37,8 @@ func sampleContext() service.RunContext {
 
 type fakeBackend struct {
 	mu           sync.Mutex
+	alertTicks   int
+	alertErr     error
 	rc           service.RunContext
 	loadErr      error
 	startErr     error
@@ -158,6 +160,13 @@ func (f *fakeBackend) FireFlow(_ context.Context, id domain.ID, at time.Time) (s
 	}
 	f.fired, f.firedIDs = append(f.fired, at), append(f.firedIDs, id)
 	return service.FlowFireResult{Task: &service.TaskView{}}, nil
+}
+
+func (f *fakeBackend) EvaluateAlerts(context.Context) (service.AlertEval, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.alertTicks++
+	return service.AlertEval{}, f.alertErr
 }
 
 func (f *fakeBackend) texts(k domain.RunEventKind) (out []string) {
@@ -889,6 +898,25 @@ func TestFlowTick(t *testing.T) {
 
 func TestFlowTickRegistered(t *testing.T) {
 	if k := (FlowTickArgs{}).Kind(); k != "flow_tick" {
+		t.Fatalf("kind = %q", k)
+	}
+}
+
+func TestAlertTick(t *testing.T) {
+	be := &fakeBackend{}
+	h, _ := newTestHB(t, be, okAdapter(), nil, Options{})
+	if err := h.alertTick(context.Background()); err != nil || be.alertTicks != 1 {
+		t.Fatalf("err=%v ticks=%d", err, be.alertTicks)
+	}
+	be.alertErr = errors.New("db")
+	if err := h.alertTick(context.Background()); err == nil || !strings.Contains(err.Error(), "alert_tick") {
+		t.Fatalf("a falha deve ser reportada, got %v", err)
+	}
+	h2, _ := New(lazyPool(t), Options{})
+	if err := h2.alertTick(context.Background()); !errors.Is(err, errNotAttached) {
+		t.Fatalf("got %v", err)
+	}
+	if k := (AlertTickArgs{}).Kind(); k != "alert_tick" {
 		t.Fatalf("kind = %q", k)
 	}
 }

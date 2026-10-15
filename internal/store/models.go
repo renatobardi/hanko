@@ -24,6 +24,20 @@ type ActivityEvent struct {
 	ReceivedAt  time.Time
 }
 
+type Alert struct {
+	ID          uuid.UUID
+	CompanyID   uuid.UUID
+	Kind        string
+	SubjectType string
+	SubjectID   uuid.UUID
+	Severity    string
+	Message     string
+	Data        []byte
+	OpenedAt    time.Time
+	LastSeenAt  time.Time
+	ClosedAt    *time.Time
+}
+
 type ApiKey struct {
 	ID         uuid.UUID
 	UserID     uuid.UUID

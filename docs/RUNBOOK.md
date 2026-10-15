@@ -253,3 +253,20 @@ Registre data e resultado em `docs/SESSION.md` ou no issue de operação.
 | Porta 7420 ocupada | outra instância | `HANKO_ADDR` |
 
 Logs são JSON no stderr com `trace_id`/`span_id`: copie o `trace_id` e busque no Tempo (Grafana) para ver o trace completo da requisição/run.
+
+## Alertas operacionais
+
+O job periódico `alert_tick` (mesmo período do `heartbeat_tick`, `HANKO_HEARTBEAT_INTERVAL`) compara as condições de agora com os
+alertas abertos: abre o que apareceu, atualiza o que continua e **fecha sozinho** quando a condição some. Há no máximo um alerta
+aberto por (empresa, tipo, sujeito), então avaliar de novo nunca duplica. Cada abertura e fechamento é um fato de atividade
+(`alert.opened`, `alert.closed`). Os alertas abertos aparecem na Caixa de entrada (aba Alertas) e no gauge
+`hanko_alerts_open{kind=...}` de `/metrics` (um ponto por tipo, zero incluído).
+
+| Tipo (`kind`) | Condição | Limite (padrão) | Severidade |
+|---|---|---|---|
+| `persona_silent` | persona `active`/`idle` com `heartbeat_interval_sec > 0` e ao menos uma task trabalhável (`todo`/`in_progress`) sem run ativa nem gate pendente, cuja última atividade (criação, fim da última run ou última mudança humana numa task dela) passou de N× o intervalo dela. Persona barrada por reserva de orçamento fica de fora (o alerta de orçamento a cobre) | `HANKO_ALERT_SILENT_FACTOR` (3) | warning |
+| `run_stuck` | run em `running` sem nenhum evento no log (ou, sem eventos, desde o início) há mais que o limite | `HANKO_ALERT_RUN_STUCK_AFTER` (15m) | critical |
+| `budget_near_limit` | gasto do mês em 80% ou mais do teto da empresa ou da persona (mesma conta do painel de custos, no fuso da empresa); subir o teto ou virar o mês fecha | fixo em 80% | warning; critical a partir de 100% |
+
+O critério é sempre estado do banco (runs, eventos, tasks, gastos), nunca texto de log. O livro `budget_alerts` segue como o
+registro de "já avisei neste mês" que gera `budget.warning`/`budget.exceeded`; o alerta aberto é o estado atual, que o livro não guarda.

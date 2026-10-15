@@ -57,6 +57,8 @@ type Service struct {
 	// Admission é a política de admissão do provider firebase (HANKO_AUTH_ALLOWED_EMAILS/DOMAINS):
 	// com listas, uma sessão (ou API key) de usuário firebase cujo e-mail saiu delas deixa de valer.
 	Admission auth.Admission
+	// Alerts são os limites dos alertas operacionais (HANKO_ALERT_*); zero usa os padrões.
+	Alerts AlertConfig
 	// OwnerEmail é HANKO_AUTH_OWNER_EMAIL (minúsculas): o dono nomeado passa mesmo fora das listas.
 	OwnerEmail string
 }

@@ -322,6 +322,34 @@ secret: 0123456789abcdef0123456789abcdef
 			wantErr: "HANKO_RUN_RESERVE_USD",
 		},
 		{
+			name: "limites de alerta padrão",
+			env:  map[string]string{"HANKO_DATABASE_URL": db},
+			check: func(t *testing.T, c Config) {
+				if c.AlertSilentFactor != 3 || c.AlertRunStuckAfter != 15*time.Minute {
+					t.Fatal(c.AlertSilentFactor, c.AlertRunStuckAfter)
+				}
+			},
+		},
+		{
+			name: "limites de alerta por ambiente",
+			env:  map[string]string{"HANKO_DATABASE_URL": db, "HANKO_ALERT_SILENT_FACTOR": "5", "HANKO_ALERT_RUN_STUCK_AFTER": "40m"},
+			check: func(t *testing.T, c Config) {
+				if c.AlertSilentFactor != 5 || c.AlertRunStuckAfter != 40*time.Minute {
+					t.Fatal(c.AlertSilentFactor, c.AlertRunStuckAfter)
+				}
+			},
+		},
+		{
+			name:    "fator de alerta inválido",
+			env:     map[string]string{"HANKO_DATABASE_URL": db, "HANKO_ALERT_SILENT_FACTOR": "0"},
+			wantErr: "HANKO_ALERT_SILENT_FACTOR",
+		},
+		{
+			name:    "limite de run presa inválido",
+			env:     map[string]string{"HANKO_DATABASE_URL": db, "HANKO_ALERT_RUN_STUCK_AFTER": "-5m"},
+			wantErr: "HANKO_ALERT_RUN_STUCK_AFTER",
+		},
+		{
 			name: "public url explícita",
 			env:  map[string]string{"HANKO_DATABASE_URL": db, "HANKO_PUBLIC_URL": "https://hanko.oute.pro/"},
 			check: func(t *testing.T, c Config) {

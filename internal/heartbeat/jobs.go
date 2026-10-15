@@ -90,3 +90,10 @@ type MemorySweepArgs struct{}
 func (MemorySweepArgs) Kind() string { return "memory_sweep" }
 
 func (MemorySweepArgs) InsertOpts() river.InsertOpts { return river.InsertOpts{MaxAttempts: 1} }
+
+// AlertTickArgs is the periodic evaluation of operational alerts (job "alert_tick").
+type AlertTickArgs struct{}
+
+func (AlertTickArgs) Kind() string { return "alert_tick" }
+
+func (AlertTickArgs) InsertOpts() river.InsertOpts { return river.InsertOpts{MaxAttempts: 1} }

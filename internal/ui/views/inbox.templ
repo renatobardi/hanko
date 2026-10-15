@@ -15,7 +15,33 @@ templ InboxPage(sh Shell, vm InboxVM) {
 		<div class="inbox-grid">
 			<div class="stack">
 				if vm.Total == 0 {
-					@EmptyCard("circle-check", "Você está em dia.", "Nada espera por você: sem gates, bloqueios, execuções que falharam ou personas com erro.", true)
+					@EmptyCard("circle-check", "Você está em dia.", "Nada espera por você: sem gates, bloqueios, execuções que falharam, personas com erro ou alertas.", true)
+				}
+				if len(vm.Alerts) > 0 {
+					<section class="card inbox-sec">
+						<div class="inbox-h">@Icon("alert") Alertas operacionais <span class="cnt">{ fmt.Sprint(len(vm.Alerts)) }</span></div>
+						for _, a := range vm.Alerts {
+							<div class="inbox-row">
+								<span class="mini-avatar">@Icon("alert")</span>
+								<div class="main">
+									<div class="t">
+										{ a.Message }
+										if a.Critical {
+											<span class="badge danger">Crítico</span>
+										} else {
+											<span class="badge warn">Atenção</span>
+										}
+									</div>
+									<div class="s">{ a.KindText } · aberto { a.When } · fecha sozinho quando a condição some</div>
+								</div>
+								if a.Href != "" {
+									<form class="inbox-act" method="get" action={ templ.SafeURL(a.Href) }>
+										<a class="btn outline sm" href={ templ.SafeURL(a.Href) }>{ a.Link }</a>
+									</form>
+								}
+							</div>
+						}
+					</section>
 				}
 				if len(vm.Gates) > 0 {
 					<section class="card inbox-sec">

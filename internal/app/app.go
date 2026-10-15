@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.opentelemetry.io/otel"
 
 	"github.com/renatobardi/hanko/internal/adapter"
 	"github.com/renatobardi/hanko/internal/adapter/claude"
@@ -65,6 +66,10 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 	svc := service.New(pool, hb, broker)
 	svc.WorkspacesRoot = cfg.WorkspacesRoot
 	svc.RunReserveUSD = cfg.RunReserveUSD
+	svc.Alerts = service.AlertConfig{SilentFactor: cfg.AlertSilentFactor, RunStuckAfter: cfg.AlertRunStuckAfter}
+	if err := registerAlertMetrics(otel.Meter(serviceName), svc); err != nil {
+		return err
+	}
 
 	mem := newMemory(ctx, cfg, logger)
 	reg := adapter.Registry{

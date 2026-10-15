@@ -84,6 +84,16 @@ type InboxPersona struct {
 	ActionHref string // POST: reactivate
 }
 
+// InboxAlert é um alerta operacional aberto (condição que some sozinha quando resolvida).
+type InboxAlert struct {
+	Message  string
+	KindText string // "Persona sem heartbeat", "Execução presa", "Orçamento"
+	Critical bool
+	Href     string
+	Link     string // texto do link para o sujeito
+	When     string
+}
+
 type InboxVM struct {
 	Subtitle     string
 	Tabs         []TabLink
@@ -91,6 +101,7 @@ type InboxVM struct {
 	Blocked      []InboxTask
 	Failed       []InboxRun
 	Personas     []InboxPersona
+	Alerts       []InboxAlert
 	Total        int // items shown in the current tab
 	Notice       string
 	Pending      int

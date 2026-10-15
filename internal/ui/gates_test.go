@@ -188,6 +188,29 @@ func TestInboxPage(t *testing.T) {
 	wantContains(t, clean.get(t, "/c/hanko/caixa"), "Você está em dia.", "Hoje, nada.")
 }
 
+func TestInboxAlerts(t *testing.T) {
+	f := uitest.Sample()
+	at := time.Now().UTC().Add(-5 * time.Minute)
+	run := f.Runs[0]
+	f.Alerts = []domain.Alert{
+		{ID: domain.NewID(), Kind: domain.AlertRunStuck, SubjectType: "run", SubjectID: run.ID, Severity: domain.AlertCritical,
+			Message: "Execução HNK-1 (Ada) sem eventos há 20 min (limite 15 min)", OpenedAt: at},
+		{ID: domain.NewID(), Kind: domain.AlertPersonaSilent, SubjectType: "persona", SubjectID: domain.NewID(), Severity: domain.AlertWarning,
+			Message: "Persona Mika sem heartbeat há 12 min", Data: []byte(`{"persona_slug":"mika"}`), OpenedAt: at},
+		{ID: domain.NewID(), Kind: domain.AlertBudgetNearLimit, SubjectType: "company", SubjectID: domain.NewID(), Severity: domain.AlertWarning,
+			Message: "Orçamento mensal da empresa em 85%", OpenedAt: at},
+	}
+	e := newEnv(t, f)
+	rec := e.get(t, "/c/hanko/caixa")
+	wantStatus(t, rec, http.StatusOK)
+	wantContains(t, rec, "Alertas operacionais", "sem eventos há 20 min", "Crítico", "Atenção", "Execução presa", "Persona sem heartbeat",
+		"/c/hanko/execucoes/"+run.ID.String(), "/c/hanko/personas/mika", "/c/hanko/custos", "fecha sozinho")
+	rec = e.get(t, "/c/hanko/caixa?aba=alertas")
+	wantContains(t, rec, "Alertas operacionais")
+	wantNotContains(t, rec, "Precisa de você · gates")
+	wantNotContains(t, e.get(t, "/c/hanko/caixa?aba=falhas"), "Alertas operacionais")
+}
+
 func TestInboxActions(t *testing.T) {
 	t.Run("desbloquear", func(t *testing.T) {
 		f := uitest.Sample()

@@ -1,7 +1,9 @@
 package ui
 
 import (
+	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/service"
@@ -19,7 +21,7 @@ var inboxNotices = map[string]string{
 
 type inboxTab struct{ key, label string }
 
-var inboxTabs = []inboxTab{{"tudo", "Tudo"}, {"gates", "Gates"}, {"bloqueadas", "Bloqueadas"}, {"falhas", "Falhas"}, {"personas", "Personas"}}
+var inboxTabs = []inboxTab{{"tudo", "Tudo"}, {"gates", "Gates"}, {"bloqueadas", "Bloqueadas"}, {"falhas", "Falhas"}, {"personas", "Personas"}, {"alertas", "Alertas"}}
 
 func (s *server) handleInbox(w http.ResponseWriter, r *http.Request, co domain.Company) {
 	ctx := r.Context()
@@ -65,7 +67,7 @@ func (s *server) handleInbox(w http.ResponseWriter, r *http.Request, co domain.C
 			vm.DecidedToday++
 		}
 	}
-	counts := map[string]int{"tudo": in.Count(), "gates": len(in.Gates), "bloqueadas": len(in.BlockedTasks), "falhas": len(in.FailedRuns), "personas": len(in.ErrorPersonas)}
+	counts := map[string]int{"tudo": in.Count(), "gates": len(in.Gates), "bloqueadas": len(in.BlockedTasks), "falhas": len(in.FailedRuns), "personas": len(in.ErrorPersonas), "alertas": len(in.Alerts)}
 	for _, t := range inboxTabs {
 		vm.Tabs = append(vm.Tabs, views.TabLink{Key: t.key, Label: t.label, Href: base + "/caixa?aba=" + t.key, Count: counts[t.key], On: t.key == cur})
 	}
@@ -103,14 +105,19 @@ func (s *server) handleInbox(w http.ResponseWriter, r *http.Request, co domain.C
 			vm.Personas = append(vm.Personas, p)
 		}
 	}
-	vm.Total = len(vm.Gates) + len(vm.Blocked) + len(vm.Failed) + len(vm.Personas)
+	if show("alertas") {
+		for _, a := range in.Alerts {
+			vm.Alerts = append(vm.Alerts, alertRow(a, base, now, loc))
+		}
+	}
+	vm.Total = len(vm.Gates) + len(vm.Blocked) + len(vm.Failed) + len(vm.Personas) + len(vm.Alerts)
 	switch n := in.Count(); n {
 	case 0:
-		vm.Subtitle = "Gates, bloqueios, falhas e personas com erro que esperam por você. Hoje, nada."
+		vm.Subtitle = "Gates, bloqueios, falhas, personas com erro e alertas que esperam por você. Hoje, nada."
 	case 1:
-		vm.Subtitle = "1 item espera por você: gates para decidir, bloqueios, falhas e personas com erro."
+		vm.Subtitle = "1 item espera por você: gates para decidir, bloqueios, falhas, personas com erro e alertas."
 	default:
-		vm.Subtitle = fmtInt(n) + " itens esperam por você: gates para decidir, bloqueios, falhas e personas com erro."
+		vm.Subtitle = fmtInt(n) + " itens esperam por você: gates para decidir, bloqueios, falhas, personas com erro e alertas."
 	}
 	sh := s.shell(co, "caixa", "Caixa de entrada", views.Crumb{Label: "Caixa de entrada"})
 	s.render(w, r, http.StatusOK, views.InboxPage(sh, vm))
@@ -166,4 +173,29 @@ func (s *server) handleInboxReactivate(w http.ResponseWriter, r *http.Request, c
 		return
 	}
 	s.inboxDone(w, r, co, "reativou")
+}
+
+var alertKindText = map[domain.AlertKind]string{
+	domain.AlertPersonaSilent:   "Persona sem heartbeat",
+	domain.AlertRunStuck:        "Execução presa",
+	domain.AlertBudgetNearLimit: "Orçamento",
+}
+
+// alertRow prepara um alerta operacional para a Caixa de entrada, com o link para o sujeito dele.
+func alertRow(a domain.Alert, base string, now time.Time, loc *time.Location) views.InboxAlert {
+	row := views.InboxAlert{Message: a.Message, KindText: alertKindText[a.Kind], Critical: a.Severity == domain.AlertCritical,
+		When: ago(a.OpenedAt, now, loc)}
+	var d struct {
+		PersonaSlug string `json:"persona_slug"`
+	}
+	_ = json.Unmarshal(a.Data, &d)
+	switch {
+	case a.SubjectType == "run":
+		row.Href, row.Link = base+"/execucoes/"+a.SubjectID.String(), "Ver execução"
+	case a.SubjectType == "persona" && d.PersonaSlug != "":
+		row.Href, row.Link = base+"/personas/"+d.PersonaSlug, "Abrir persona"
+	case a.SubjectType == "company":
+		row.Href, row.Link = base+"/custos", "Ver custos"
+	}
+	return row
 }

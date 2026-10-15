@@ -173,6 +173,7 @@ func (f *Fake) Inbox(ctx context.Context, companyID domain.ID) (service.Inbox, e
 			in.ErrorPersonas = append(in.ErrorPersonas, service.PersonaAlert{Persona: p, PersonaHealth: f.Health[p.ID]})
 		}
 	}
+	in.Alerts = append(in.Alerts, f.Alerts...)
 	return in, nil
 }
 
