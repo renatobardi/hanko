@@ -149,32 +149,34 @@ type Usage struct {
 
 // Run é uma execução de uma persona sobre uma task.
 type Run struct {
-	ID             string     `json:"id" format:"uuid"`
-	Name           string     `json:"name,omitempty" example:"Veloz_Raposa" doc:"Nome amigável Adjetivo_Substantivo, único na empresa; vazio em execuções anteriores a ele."`
-	CompanyID      string     `json:"company_id" format:"uuid"`
-	TaskID         string     `json:"task_id" format:"uuid"`
-	TaskKey        string     `json:"task_key,omitempty" example:"HNK-12"`
-	TaskTitle      string     `json:"task_title,omitempty"`
-	PersonaID      string     `json:"persona_id" format:"uuid"`
-	PersonaName    string     `json:"persona_name,omitempty"`
-	Status         string     `json:"status" enum:"queued,running,done,interrupted,failed,cancelled,expired"`
-	Trigger        string     `json:"trigger" enum:"assign,comment,manual,heartbeat,gate,flow,review"`
-	Agent          string     `json:"agent" enum:"claude,codex,fake"`
-	Model          string     `json:"model,omitempty"`
-	SessionRef     string     `json:"session_ref,omitempty"`
-	TraceID        string     `json:"trace_id,omitempty"`
-	ExitCode       *int       `json:"exit_code,omitempty"`
-	Error          string     `json:"error,omitempty"`
-	Summary        string     `json:"summary,omitempty"`
-	CostUSD        *float64   `json:"cost_usd,omitempty"`
-	CostSource     string     `json:"cost_source,omitempty" enum:"reported,estimated,none" doc:"Origem do custo: informado pelo harness, estimado pela tabela de preços ou desconhecido."`
-	ListCostUSD    *float64   `json:"list_cost_usd,omitempty" doc:"Custo de lista: tokens × preço de tabela vigente quando a execução terminou."`
-	ModelSource    string     `json:"model_source,omitempty" enum:"task,persona,harness_default" doc:"Quem escolheu o modelo: a task (manual), a persona ou o padrão do harness."`
-	SubscriptionID string     `json:"subscription_id,omitempty" format:"uuid" doc:"Assinatura que cobre a execução."`
-	Usage          Usage      `json:"usage"`
-	CreatedAt      time.Time  `json:"created_at"`
-	StartedAt      *time.Time `json:"started_at,omitempty"`
-	FinishedAt     *time.Time `json:"finished_at,omitempty"`
+	ID                string     `json:"id" format:"uuid"`
+	Name              string     `json:"name,omitempty" example:"Veloz_Raposa" doc:"Nome amigável Adjetivo_Substantivo, único na empresa; vazio em execuções anteriores a ele."`
+	CompanyID         string     `json:"company_id" format:"uuid"`
+	TaskID            string     `json:"task_id,omitempty" format:"uuid" doc:"Task da execução; ausente numa execução de chat."`
+	TaskKey           string     `json:"task_key,omitempty" example:"HNK-12"`
+	TaskTitle         string     `json:"task_title,omitempty"`
+	ConversationID    string     `json:"conversation_id,omitempty" format:"uuid" doc:"Conversa de uma execução de chat (gatilho chat); ausente nas execuções de task."`
+	ConversationTitle string     `json:"conversation_title,omitempty"`
+	PersonaID         string     `json:"persona_id" format:"uuid"`
+	PersonaName       string     `json:"persona_name,omitempty"`
+	Status            string     `json:"status" enum:"queued,running,done,interrupted,failed,cancelled,expired"`
+	Trigger           string     `json:"trigger" enum:"assign,comment,manual,heartbeat,gate,flow,review,chat"`
+	Agent             string     `json:"agent" enum:"claude,codex,fake"`
+	Model             string     `json:"model,omitempty"`
+	SessionRef        string     `json:"session_ref,omitempty"`
+	TraceID           string     `json:"trace_id,omitempty"`
+	ExitCode          *int       `json:"exit_code,omitempty"`
+	Error             string     `json:"error,omitempty"`
+	Summary           string     `json:"summary,omitempty"`
+	CostUSD           *float64   `json:"cost_usd,omitempty"`
+	CostSource        string     `json:"cost_source,omitempty" enum:"reported,estimated,none" doc:"Origem do custo: informado pelo harness, estimado pela tabela de preços ou desconhecido."`
+	ListCostUSD       *float64   `json:"list_cost_usd,omitempty" doc:"Custo de lista: tokens × preço de tabela vigente quando a execução terminou."`
+	ModelSource       string     `json:"model_source,omitempty" enum:"task,persona,harness_default" doc:"Quem escolheu o modelo: a task (manual), a persona ou o padrão do harness."`
+	SubscriptionID    string     `json:"subscription_id,omitempty" format:"uuid" doc:"Assinatura que cobre a execução."`
+	Usage             Usage      `json:"usage"`
+	CreatedAt         time.Time  `json:"created_at"`
+	StartedAt         *time.Time `json:"started_at,omitempty"`
+	FinishedAt        *time.Time `json:"finished_at,omitempty"`
 }
 
 // RunEvent é uma linha do log de uma execução.
@@ -366,8 +368,12 @@ func commentOut(c domain.Comment) Comment {
 }
 
 func runOut(r service.RunView) Run {
-	return Run{ID: idStr(r.ID), Name: r.Name, CompanyID: idStr(r.CompanyID), TaskID: idStr(r.TaskID), TaskKey: r.TaskKey,
-		TaskTitle: r.TaskTitle, PersonaID: idStr(r.PersonaID), PersonaName: r.PersonaName, Status: string(r.Status),
+	taskID := ""
+	if r.TaskID != (domain.ID{}) {
+		taskID = idStr(r.TaskID)
+	}
+	return Run{ID: idStr(r.ID), Name: r.Name, CompanyID: idStr(r.CompanyID), TaskID: taskID, TaskKey: r.TaskKey,
+		ConversationID: idPtr(r.ConversationID), ConversationTitle: r.ConversationTitle, TaskTitle: r.TaskTitle, PersonaID: idStr(r.PersonaID), PersonaName: r.PersonaName, Status: string(r.Status),
 		CostSource: string(r.CostSource), ListCostUSD: r.ListCostUSD, ModelSource: string(r.ModelSource), SubscriptionID: idPtr(r.SubscriptionID),
 		Trigger: string(r.Trigger), Agent: r.Agent, Model: r.Model, SessionRef: r.SessionRef, TraceID: r.TraceID,
 		ExitCode: r.ExitCode, Error: r.Error, Summary: r.Summary, CostUSD: r.CostUSD, Usage: Usage(r.Usage),

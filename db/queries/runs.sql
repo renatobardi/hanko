@@ -1,6 +1,6 @@
 -- name: CreateRun :one
-INSERT INTO runs (id, company_id, task_id, persona_id, status, trigger, agent, model, model_source, subscription_id, name, created_at)
-VALUES (@id, @company_id, @task_id, @persona_id, 'queued', @trigger, @agent, @model, @model_source, @subscription_id, @name, @now)
+INSERT INTO runs (id, company_id, task_id, conversation_id, persona_id, status, trigger, agent, model, model_source, subscription_id, name, created_at)
+VALUES (@id, @company_id, @task_id, @conversation_id, @persona_id, 'queued', @trigger, @agent, @model, @model_source, @subscription_id, @name, @now)
 RETURNING *;
 
 -- name: GetRunByID :one
@@ -10,21 +10,26 @@ SELECT * FROM runs WHERE company_id = @company_id AND id = @id;
 SELECT * FROM runs WHERE company_id = @company_id AND id = @id FOR UPDATE;
 
 -- name: GetRunView :one
-SELECT sqlc.embed(r), (c.task_prefix || '-' || t.number)::text AS task_key, t.title AS task_title, p.name AS persona_name
+SELECT sqlc.embed(r), COALESCE(c.task_prefix || '-' || t.number, '')::text AS task_key, COALESCE(t.title, '')::text AS task_title,
+       p.name AS persona_name, COALESCE(cv.title, '')::text AS conversation_title
 FROM runs r
-JOIN tasks t ON t.id = r.task_id
+LEFT JOIN tasks t ON t.id = r.task_id
+LEFT JOIN conversations cv ON cv.id = r.conversation_id
 JOIN personas p ON p.id = r.persona_id
 JOIN companies c ON c.id = r.company_id
 WHERE r.company_id = @company_id AND r.id = @id;
 
 -- name: ListRunViews :many
-SELECT sqlc.embed(r), (c.task_prefix || '-' || t.number)::text AS task_key, t.title AS task_title, p.name AS persona_name
+SELECT sqlc.embed(r), COALESCE(c.task_prefix || '-' || t.number, '')::text AS task_key, COALESCE(t.title, '')::text AS task_title,
+       p.name AS persona_name, COALESCE(cv.title, '')::text AS conversation_title
 FROM runs r
-JOIN tasks t ON t.id = r.task_id
+LEFT JOIN tasks t ON t.id = r.task_id
+LEFT JOIN conversations cv ON cv.id = r.conversation_id
 JOIN personas p ON p.id = r.persona_id
 JOIN companies c ON c.id = r.company_id
 WHERE r.company_id = @company_id
   AND (sqlc.narg(task_id)::uuid IS NULL OR r.task_id = sqlc.narg(task_id)::uuid)
+  AND (sqlc.narg(conversation_id)::uuid IS NULL OR r.conversation_id = sqlc.narg(conversation_id)::uuid)
   AND (sqlc.narg(persona_id)::uuid IS NULL OR r.persona_id = sqlc.narg(persona_id)::uuid)
   AND (sqlc.narg(statuses)::text[] IS NULL OR r.status = ANY(sqlc.narg(statuses)::text[]))
   AND (sqlc.narg(name)::text IS NULL OR lower(r.name) = lower(sqlc.narg(name)::text))
@@ -32,7 +37,7 @@ ORDER BY r.created_at DESC, r.id DESC
 LIMIT @lim;
 
 -- name: ActiveRunForTask :one
-SELECT * FROM runs WHERE task_id = @task_id AND status IN ('queued', 'running');
+SELECT * FROM runs WHERE task_id = @task_id::uuid AND status IN ('queued', 'running');
 
 -- name: MarkRunStarted :one
 UPDATE runs SET status = 'running', started_at = @now, trace_id = @trace_id, handoff_in = @handoff_in

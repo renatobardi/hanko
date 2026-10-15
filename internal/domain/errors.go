@@ -20,6 +20,10 @@ var (
 // ErrSubscriptionGuard: the weekly guard of the persona's subscription tripped; no run is opened until the next week.
 var ErrSubscriptionGuard = fmt.Errorf("weekly subscription guard: %w", ErrConflict)
 
+// ErrPersonaUnavailable: the persona cannot take a chat message now (paused, in error, off...); the reason
+// travels in the message.
+var ErrPersonaUnavailable = fmt.Errorf("persona unavailable: %w", ErrConflict)
+
 // ValidationError carries a field-level reason and unwraps to ErrInvalid.
 type ValidationError struct {
 	Field  string

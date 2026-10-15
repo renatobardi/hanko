@@ -32,11 +32,11 @@ ORDER BY p.company_id, p.id;
 -- Runs em 'running' cujo último evento (ou, sem eventos, o início) é anterior a @cutoff.
 -- Último evento = o de maior seq (uma sonda no índice (run_id, seq) por run, em vez de ler todos os eventos da run).
 SELECT r.id, r.company_id, r.persona_id, r.task_id, p.name AS persona_name, r.name AS run_name,
-       (c.task_prefix || '-' || t.number)::text AS task_key,
+       COALESCE(c.task_prefix || '-' || t.number, '')::text AS task_key,
        COALESCE(ev.last_at, r.started_at, r.created_at)::timestamptz AS last_event_at
 FROM runs r
 JOIN personas p ON p.id = r.persona_id
-JOIN tasks t ON t.id = r.task_id
+LEFT JOIN tasks t ON t.id = r.task_id
 JOIN companies c ON c.id = r.company_id
 LEFT JOIN LATERAL (SELECT e.received_at AS last_at FROM run_events e WHERE e.run_id = r.id ORDER BY e.seq DESC LIMIT 1) ev ON true
 WHERE r.status = 'running'

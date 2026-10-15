@@ -8,8 +8,8 @@ SELECT * FROM tasks WHERE company_id = @company_id ORDER BY number;
 SELECT * FROM task_comments WHERE company_id = @company_id ORDER BY created_at, id;
 
 -- name: ExportRuns :many
--- Só execuções encerradas: uma execução em voo ainda não é um fato histórico.
-SELECT * FROM runs WHERE company_id = @company_id AND status NOT IN ('queued', 'running') ORDER BY created_at, id;
+-- Só execuções encerradas: uma execução em voo ainda não é um fato histórico. Runs de chat (sem task) ficam de fora (ADR-0027).
+SELECT * FROM runs WHERE company_id = @company_id AND status NOT IN ('queued', 'running') AND task_id IS NOT NULL ORDER BY created_at, id;
 
 -- name: ExportRunEventsPage :many
 -- Uma página dos eventos de UMA execução (keyset por seq): o export nunca carrega o log inteiro da empresa.

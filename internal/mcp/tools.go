@@ -118,6 +118,8 @@ type whoamiOut struct {
 	RunID       string `json:"run_id,omitempty"`
 	TaskID      string `json:"task_id,omitempty"`
 	TaskKey     string `json:"task_key,omitempty"`
+	// ConversationID is set instead of the task when the run is a chat.
+	ConversationID string `json:"conversation_id,omitempty"`
 }
 
 type taskOut struct {
@@ -364,7 +366,8 @@ func (t *tools) whoami(ctx context.Context, _ *sdk.CallToolRequest, in whoamiIn)
 	if !ok {
 		return nil, whoamiOut{}, errors.New("chamada sem identidade")
 	}
-	out := whoamiOut{Actor: string(id.Actor.Type), PersonaID: idStr(id.PersonaID), RunID: idStr(id.RunID), TaskID: idStr(id.TaskID)}
+	out := whoamiOut{Actor: string(id.Actor.Type), PersonaID: idStr(id.PersonaID), RunID: idStr(id.RunID), TaskID: idStr(id.TaskID),
+		ConversationID: idStr(id.ConversationID)}
 	var company domain.ID
 	if id.CompanyID != nil {
 		company = *id.CompanyID
@@ -405,6 +408,9 @@ func (t *tools) whoami(ctx context.Context, _ *sdk.CallToolRequest, in whoamiIn)
 	}
 	if out.TaskKey != "" {
 		fmt.Fprintf(&sb, "; task atual %s", out.TaskKey)
+	}
+	if out.ConversationID != "" {
+		fmt.Fprintf(&sb, "; conversa %s (chat, sem task)", out.ConversationID)
 	}
 	if out.RunID != "" {
 		fmt.Fprintf(&sb, "; run %s", out.RunID)
@@ -536,11 +542,27 @@ func (t *tools) taskCreate(ctx context.Context, _ *sdk.CallToolRequest, in taskC
 	case id.ViaToken && id.TaskID != nil:
 		ci.ParentID = id.TaskID
 	}
+	if id.ViaToken && id.ConversationID != nil {
+		ci.Description = t.conversationOrigin(ctx, company, *id.ConversationID, ci.Description)
+	}
 	v, err := t.b.CreateTask(ctx, id.Actor, company, ci)
 	if err != nil {
 		return nil, taskWriteOut{}, opErr("criar task", err)
 	}
 	return textResult("Task criada: %s", taskLine(v)), taskWriteOut{Task: toTask(v)}, nil
+}
+
+// conversationOrigin appends to a task description the conversation it was opened from.
+func (t *tools) conversationOrigin(ctx context.Context, company, conversation domain.ID, description string) string {
+	ref := "/chat/" + conversation.String()
+	if c, err := t.b.GetCompany(ctx, company.String()); err == nil {
+		ref = "/c/" + c.Slug + ref
+	}
+	note := fmt.Sprintf("Aberta a partir da conversa %s (%s).", conversation, ref)
+	if strings.TrimSpace(description) == "" {
+		return note
+	}
+	return strings.TrimRight(description, "\n ") + "\n\n---\n" + note
 }
 
 func (t *tools) taskUpdate(ctx context.Context, _ *sdk.CallToolRequest, in taskUpdateIn) (*sdk.CallToolResult, taskWriteOut, error) {
@@ -667,6 +689,9 @@ func (t *tools) runGet(ctx context.Context, _ *sdk.CallToolRequest, in runGetIn)
 		o.FinishedAt = v.FinishedAt.UTC().Format("2006-01-02T15:04:05Z")
 	}
 	txt := fmt.Sprintf("Run %s da task %s (%s): %s", o.ID, o.TaskKey, o.Persona, o.Status)
+	if o.TaskKey == "" {
+		txt = fmt.Sprintf("Run %s de conversa (%s): %s", o.ID, o.Persona, o.Status)
+	}
 	if o.Error != "" {
 		txt += "; erro: " + o.Error
 	}
@@ -726,6 +751,9 @@ func (t *tools) gateRequest(ctx context.Context, _ *sdk.CallToolRequest, in gate
 	task, err := t.gateTask(ctx, id, company, in.Task)
 	if err != nil {
 		return nil, gateWriteOut{}, err
+	}
+	if task == nil && id.ConversationID != nil {
+		return nil, gateWriteOut{}, errors.New("esta execução é uma conversa (chat) e não tem task: informe o argumento task com a chave de uma task existente ou abra uma com hanko_task_create e peça o gate nela")
 	}
 	req := service.RequestGateInput{Kind: domain.GateApproval, Title: in.Title, Body: in.Body, TaskID: task, EventID: in.EventID}
 	if id.ViaToken {

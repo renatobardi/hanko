@@ -117,6 +117,12 @@ type backend interface {
 	RevokeInvite(ctx context.Context, actor domain.Actor, companyID, inviteID domain.ID) error
 	SetMemberRole(ctx context.Context, actor domain.Actor, companyID, userID domain.ID, role domain.MemberRole) (domain.Member, error)
 	RemoveMember(ctx context.Context, actor domain.Actor, companyID, userID domain.ID) error
+	ListConversations(ctx context.Context, companyID domain.ID, f service.ConversationFilter) ([]service.ConversationView, error)
+	GetConversation(ctx context.Context, companyID, id domain.ID) (service.ConversationView, error)
+	ListConversationMessages(ctx context.Context, companyID, id domain.ID, limit int) ([]domain.ConversationMessage, error)
+	CreateConversation(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.CreateConversationInput) (service.ConversationView, error)
+	SendMessage(ctx context.Context, actor domain.Actor, companyID, conversationID domain.ID, body string) (domain.ConversationMessage, error)
+	SetConversationStatus(ctx context.Context, actor domain.Actor, companyID, id domain.ID, status domain.ConversationStatus) (service.ConversationView, error)
 }
 
 var _ backend = (*service.Service)(nil)
@@ -214,6 +220,7 @@ func (s *server) register(api huma.API) {
 	s.registerFlows(api)
 	s.registerMembers(api)
 	s.registerExport(api)
+	s.registerChat(api)
 }
 
 // op monta uma huma.Operation com o prefixo da API.

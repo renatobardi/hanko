@@ -72,8 +72,16 @@ func commentFromRow(r store.TaskComment) domain.Comment {
 	return c
 }
 
+// idOrZero devolve o id apontado, ou o uuid nil (run de chat não tem task).
+func idOrZero(p *uuid.UUID) domain.ID {
+	if p == nil {
+		return domain.ID{}
+	}
+	return *p
+}
+
 func runFromRow(r store.Run) domain.Run {
-	run := domain.Run{ID: r.ID, Name: r.Name, CompanyID: r.CompanyID, TaskID: r.TaskID, PersonaID: r.PersonaID,
+	run := domain.Run{ID: r.ID, Name: r.Name, CompanyID: r.CompanyID, TaskID: idOrZero(r.TaskID), ConversationID: r.ConversationID, PersonaID: r.PersonaID,
 		Status: domain.RunStatus(r.Status), Trigger: domain.RunTrigger(r.Trigger), Agent: r.Agent, Model: r.Model,
 		SessionRef: r.SessionRef, TraceID: r.TraceID, Error: r.Error, Summary: r.Summary, CostUSD: r.CostUsd,
 		CostSource: domain.CostSource(r.CostSource), ListCostUSD: r.ListCostUsd,

@@ -194,9 +194,10 @@ type AddCommentInput struct {
 }
 
 type RunFilter struct {
-	TaskID    *domain.ID
-	PersonaID *domain.ID
-	Statuses  []domain.RunStatus
+	TaskID         *domain.ID
+	ConversationID *domain.ID
+	PersonaID      *domain.ID
+	Statuses       []domain.RunStatus
 	// Name busca pelo nome amigável (sem diferenciar caixa nem acento: agil_falcao acha Ágil_Falcão).
 	Name  string
 	Limit int // default 50, max 500
@@ -228,6 +229,8 @@ type RunView struct {
 	TaskKey     string `json:"task_key"`
 	TaskTitle   string `json:"task_title"`
 	PersonaName string `json:"persona_name"`
+	// ConversationTitle is the title of the conversation of a chat run (empty for task runs).
+	ConversationTitle string `json:"conversation_title,omitempty"`
 }
 
 // DashboardStats feeds the Painel.
@@ -256,6 +259,8 @@ type RunContext struct {
 	PendingResult *FinishRunInput
 	// Review is set for runs with trigger review.
 	Review *ReviewContext
+	// Chat is set for runs with trigger chat (no task: Task and Comments are empty).
+	Chat *ChatContext
 }
 
 // WakeCandidate is an (assigned, workable, idle) task found by the periodic heartbeat.

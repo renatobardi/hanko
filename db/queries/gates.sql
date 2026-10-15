@@ -80,7 +80,7 @@ SELECT EXISTS (
 -- A persona espera o gate, a menos que tenha run ativa em outra task.
 UPDATE personas p SET status = 'awaiting_gate', updated_at = @now
 WHERE p.id = @id AND p.status IN ('active', 'idle', 'running')
-  AND NOT EXISTS (SELECT 1 FROM runs r WHERE r.persona_id = p.id AND r.status IN ('queued', 'running') AND r.task_id <> @task_id);
+  AND NOT EXISTS (SELECT 1 FROM runs r WHERE r.persona_id = p.id AND r.status IN ('queued', 'running') AND r.task_id IS DISTINCT FROM @task_id::uuid);
 
 -- name: ReleasePersonaFromGate :exec
 -- Fecha a espera: volta a running se ainda há run ativa, senão idle.

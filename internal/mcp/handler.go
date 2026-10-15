@@ -56,7 +56,9 @@ type identity struct {
 	PersonaID *domain.ID
 	RunID     *domain.ID
 	TaskID    *domain.ID
-	ViaToken  bool
+	// ConversationID is set on the token of a chat run, which has no task (ADR-0027).
+	ConversationID *domain.ID
+	ViaToken       bool
 }
 
 func identityFrom(ctx context.Context) (identity, bool) {
@@ -158,8 +160,11 @@ func authenticate(r *http.Request, d Deps, b Backend) (identity, error) {
 	if rid, err := domain.ParseID(claims.RunID); err == nil {
 		id.RunID = &rid
 	}
-	if tid, err := domain.ParseID(claims.TaskID); err == nil {
+	if tid, err := domain.ParseID(claims.TaskID); err == nil && tid != (domain.ID{}) {
 		id.TaskID = &tid
+	}
+	if cvid, err := domain.ParseID(claims.ConversationID); err == nil {
+		id.ConversationID = &cvid
 	}
 	return id, nil
 }
