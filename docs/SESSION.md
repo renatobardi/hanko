@@ -1,12 +1,15 @@
-# Estado da última sessão (lote v0.2 fechado)
-Data: 2026-10-15 · main em `b62fd94` (migrations até 00025)
+# Estado da última sessão (lote v0.2 no prd)
+Data: 2026-10-15 · prd em `b4b04c8` (migrations até 00025)
 
 ## Feito
-- Oito trilhas: ACP, ilhas, busca, projetos/workspaces, chat, memória governada, artefatos/metas, skills/integrações (ADR-0023 a 0030).
-- Quatro revisões independentes; todos os achados corrigidos (migrations 00023 a 00025).
-- Integração completa verde em `b62fd94`.
+- Oito trilhas (ACP, ilhas, busca, projetos/workspaces, chat, memória governada, artefatos/metas, skills/integrações; ADR-0023 a 0030), quatro revisões independentes com todos os achados corrigidos.
+- Deploy no prd feito e validado: `HANKO_SECRET_KEY`, `HANKO_ACP_ALLOW`, `HANKO_INTEGRATIONS_ALLOW_STDIO` no `.env`; UI saudável; snapshots do LXC opt-in.
+- Busca de memória na tool real `memory_query`, formato da resposta confirmado com dados do prd.
+- Persona `claude` atua no prd: `--allowedTools mcp__hanko`, `HANKO_AGENT_URL` (loopback), comentário reabre `in_review`/`blocked`; diagnóstico de MCP e tools negadas nos eventos.
+- CI em Actions Node 24 e runners `ubuntu-24.04`.
 ## Pendente
-- Deploy no prd (ainda não feito): janela calma, pois a 00015 reescreve 5 tabelas sob ACCESS EXCLUSIVE (~25 s no volume sintético) e a 00024 recria colunas `search_tsv`.
-- Variáveis novas no prd: `HANKO_SECRET_KEY`, `HANKO_WORKSPACES_ROOT`, `HANKO_ACP_ALLOW`/`HANKO_ACP_COMMANDS`, `HANKO_INTEGRATIONS_ALLOW_STDIO` (opcional).
-- Catálogo do ai-memory confirmado em 2026-10-15 (busca = `memory_query`); falta conferir o formato da resposta com dados reais; o diff da curadoria exige `HANKO_MEMORY_READ_TOOL` (provável `memory_read_page`).
-- Tag e demos ficam com o dono.
+- `HANKO_MEMORY_READ_TOOL=memory_read_page` no `.env` do prd (diff da curadoria).
+- `HANKO_ACP_COMMANDS` quando o binário do agente ACP for escolhido.
+- Guardar `HANKO_SECRET_KEY` no Vaultwarden (dono).
+- Migrar runners para `ubuntu-26.04` antes de 19/11/2026 (testar em ramo).
+- Tag `v0.1.0`/`v0.2.0` e demos ficam com o dono.

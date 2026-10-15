@@ -13,6 +13,17 @@ English summary at the end of each release.
 - Metas no briefing da run e tools MCP `hanko_goal_list` e `hanko_goal_update`; "Metas atingidas" (informativo) na Caixa de entrada.
 - English summary: versioned artifacts (upload, versions, text diff, safe serving, quota, export/import with `--with-artifacts`) and measurable goals (progress, achieved on crossing the target, run briefing, MCP tools, inbox) replace the two "coming soon" screens.
 
+### Correções pós-deploy (prd, 2026-10-15)
+
+- Personas no prd (adapter `claude`): `--allowedTools mcp__hanko` em runs com escrita (o modo headless negava as tools MCP do Hanko); revisão somente leitura não recebe a liberação.
+- `HANKO_AGENT_URL`: base pela qual o agente (processo filho) chama `/mcp` e `/memory-mcp`; vazio = `HANKO_PUBLIC_URL`. O deploy do prd usa o loopback interno (`http://127.0.0.1:7420`), sem depender de DNS/TLS públicos.
+- Comentário humano em task `in_review` ou `blocked` acorda a persona e reabre a task (`in_progress`); antes o wake era enfileirado e o checkout o recusava sem aviso. Heartbeat e atribuição seguem exigindo `todo`/`in_progress`.
+- Diagnóstico das runs `claude`: o evento inicial lista o estado de cada servidor MCP (`mcp: hanko=connected`) e o final lista as tools negadas por permissão.
+- Busca de memória lê o formato real do ai-memory (`{"hits":[{id,path,title,snippet,rank}]}`); `rank` vira score.
+- CI: Actions em majors com runtime Node 24 (checkout, setup-go, setup-node v7; golangci-lint-action v9; goreleaser-action v7) e runners fixados em `ubuntu-24.04` (o `ubuntu-latest` passa a 26.04 em 19/10/2026; runner-images#14748).
+- Deploy do prd: snapshots do LXC só com `--snapshot` (o backup pré-deploy continua); CI de integração roda `-p 1 -timeout 30m`.
+- English summary: prd persona fixes (MCP tool permission, internal agent URL, comments reopening in_review/blocked tasks, MCP/denial diagnostics), real ai-memory search format, Node 24 Actions and pinned ubuntu-24.04 runners.
+
 ### Correções da revisão
 
 - Memória na busca usa a tool real `memory_query` do ai-memory (confirmada em `tools/list`): um escopo por workspace da empresa, nunca `global`; consulta sanitizada para o FTS5 e realce HTML do resultado vira texto. A política de curadoria passou a conhecer os nomes reais das tools do ai-memory.
