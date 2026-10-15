@@ -1,5 +1,7 @@
 # RUNBOOK — Hanko
 
+> English: [docs/en/RUNBOOK.md](en/RUNBOOK.md)
+
 Operação do dia a dia. Decisões em `docs/adr/` (0007/0014 auth, 0008 deploy, 0011 Postgres, 0013 OTel, 0015 memória).
 
 ## 1. Rodar local em 5 minutos
