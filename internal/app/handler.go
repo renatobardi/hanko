@@ -46,7 +46,7 @@ func buildHandler(d handlerDeps) (http.Handler, error) {
 	api.Mount(mux, api.Deps{Svc: d.Svc, Broker: d.Broker, Logger: d.Logger, Version: d.Version, Tokens: &d.Tokens, DB: d.Pool,
 		Authenticated: cfg.Authenticated()})
 	ui.Mount(mux, ui.Deps{Svc: d.Svc, Broker: d.Broker, Logger: d.Logger, Version: d.Version, Auth: uiAuth(d), Secure: cfg.SecureCookies()})
-	mux.Handle("/mcp", mcp.Handler(mcp.Deps{Svc: d.Svc, Tokens: d.Tokens, Logger: d.Logger, Version: d.Version, Trusted: cfg.TrustedMCP()}))
+	mux.Handle("/mcp", mcp.Handler(mcp.Deps{Svc: d.Svc, Tokens: d.Tokens, Logger: d.Logger, Version: d.Version, Trusted: cfg.TrustedMCP(), ArtifactMaxBytes: cfg.ArtifactMaxBytes}))
 	if cfg.Memory.Provider == config.MemoryAIMemory {
 		mp, err := mcp.MemoryProxy(mcp.MemoryProxyDeps{Backend: d.Svc, Tokens: d.Tokens, URL: cfg.Memory.URL, Token: cfg.Memory.Token,
 			Pages: pageReader(d.Memory), Logger: d.Logger})

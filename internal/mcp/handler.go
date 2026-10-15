@@ -52,6 +52,21 @@ type Deps struct {
 	// Trusted permite chamadas sem token (loopback): ator humano, empresa por argumento.
 	// No modo authenticated é false: só run token ou API key (via auth.Guard).
 	Trusted bool
+	// ArtifactMaxBytes é o limite por arquivo de artefato (HANKO_ARTIFACT_MAX_BYTES). O corpo aceito pelo transporte
+	// MCP cresce para caber esse arquivo em base64; zero mantém o padrão do SDK.
+	ArtifactMaxBytes int64
+}
+
+// requestBodyLimit é o maior corpo de uma chamada MCP: o padrão do SDK (4 MiB) ou, se maior, um arquivo de
+// artefato do tamanho máximo em base64 (x4/3) mais folga para o envelope JSON-RPC.
+func requestBodyLimit(artifactMax int64) int64 {
+	limit := int64(sdk.DefaultMaxRequestBodyBytes)
+	if artifactMax > 0 {
+		if need := artifactMax*4/3 + 64<<10; need > limit {
+			limit = need
+		}
+	}
+	return limit
 }
 
 type ctxKey struct{}
@@ -96,7 +111,8 @@ func newHandler(b Backend, d Deps) http.Handler {
 	inner := sdk.NewStreamableHTTPHandler(func(*http.Request) *sdk.Server { return srv },
 		// A proteção contra DNS rebinding é do app (host check 421 com HANKO_PUBLIC_URL/HANKO_ALLOWED_HOSTS);
 		// a do SDK recusaria o Host público quando um proxy reverso fala com o Hanko em loopback.
-		&sdk.StreamableHTTPOptions{Stateless: true, JSONResponse: true, Logger: logger, DisableLocalhostProtection: true})
+		&sdk.StreamableHTTPOptions{Stateless: true, JSONResponse: true, Logger: logger, DisableLocalhostProtection: true,
+			MaxRequestBodyBytes: requestBodyLimit(d.ArtifactMaxBytes)})
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id, err := authenticate(r, d, b)

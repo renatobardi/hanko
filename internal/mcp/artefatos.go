@@ -80,7 +80,7 @@ func registerArtifactTools(s *sdk.Server, t *tools) {
 		Name: "hanko_artifact_put",
 		Description: "Publica um arquivo que você produziu (relatório, plano, dados, imagem) como artefato da task, para o humano abrir na tela Artefatos. " +
 			"Com token de run ele fica ligado à sua task e execução. Publicar de novo o mesmo nome na mesma task cria a versão seguinte (o mesmo conteúdo não duplica). " +
-			"Prefira artefato a colar texto longo em comentário. Texto em content; binário em content_base64.",
+			"Prefira artefato a colar texto longo em comentário. Texto em content; binário em content_base64. O tamanho máximo do arquivo é HANKO_ARTIFACT_MAX_BYTES (padrão 5 MiB); acima disso a publicação é recusada.",
 	}, t.artifactPut)
 	sdk.AddTool(s, &sdk.Tool{
 		Name:        "hanko_goal_list",
