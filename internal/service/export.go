@@ -22,6 +22,9 @@ import (
 type ExportOptions struct {
 	WithRuns bool // execuções encerradas
 	WithLogs bool // e os eventos (log) delas; implica WithRuns
+	// WithArtifacts inclui todas as versões dos artefatos com o conteúdo (ADR-0028). O conteúdo sai em fluxo, um
+	// artefato por vez; o total é limitado por MaxExportArtifactBytes para o arquivo caber na importação.
+	WithArtifacts bool
 }
 
 // exportStatus: estados transitórios de persona não são configuração e voltam como idle.
@@ -73,14 +76,16 @@ const (
 // em memória, numa transação de snapshot que fica aberta até Close; os logs saem run a run, em páginas, durante
 // WriteTo, então o log inteiro da empresa nunca fica na memória. Chame Close sempre.
 type ExportStream struct {
-	tx       pgx.Tx
-	q        *store.Queries
-	doc      export.Document
-	runIDs   []domain.ID // paralelo a doc.Runs
-	withLogs bool
-	pageSize int
-	pages    int
-	hook     func(page int) error
+	tx        pgx.Tx
+	companyID domain.ID
+	q         *store.Queries
+	doc       export.Document
+	runIDs    []domain.ID // paralelo a doc.Runs
+	artIDs    []domain.ID // paralelo a doc.Artifacts (o conteúdo é lido na hora de escrever)
+	withLogs  bool
+	pageSize  int
+	pages     int
+	hook      func(page int) error
 }
 
 // Pages devolve quantas páginas de eventos foram lidas (para testes e métricas).
@@ -108,7 +113,7 @@ func (s *Service) OpenExport(ctx context.Context, companyID domain.ID, opts Expo
 	if err != nil {
 		return nil, fmt.Errorf("begin export tx: %w", err)
 	}
-	st := &ExportStream{tx: tx, q: store.New(tx), withLogs: opts.WithLogs, pageSize: s.ExportPageSize, hook: s.ExportPageHook}
+	st := &ExportStream{tx: tx, q: store.New(tx), companyID: companyID, withLogs: opts.WithLogs, pageSize: s.ExportPageSize, hook: s.ExportPageHook}
 	if err := s.limitExportTx(ctx, tx); err != nil {
 		st.Close()
 		return nil, err
@@ -149,6 +154,13 @@ func (s *Service) ExportCompany(ctx context.Context, companyID domain.ID, opts E
 		return export.Document{}, err
 	}
 	defer st.Close()
+	for i, id := range st.artIDs {
+		b, err := st.q.GetArtifactContent(ctx, store.GetArtifactContentParams{CompanyID: companyID, ArtifactID: id})
+		if err != nil {
+			return export.Document{}, fmt.Errorf("export artifact content: %w", err)
+		}
+		st.doc.Artifacts[i].Content = b
+	}
 	if st.withLogs {
 		for i, id := range st.runIDs {
 			err := st.eachEvent(ctx, id, func(e export.RunEvent) error {
@@ -193,61 +205,89 @@ func (e *ExportStream) eachEvent(ctx context.Context, runID domain.ID, fn func(e
 	}
 }
 
-// WriteTo escreve o JSON do arquivo: o documento (sem execuções), depois as execuções uma a uma, e os eventos de
-// cada uma em páginas. A saída é a mesma de json.Marshal(Document) com os eventos dentro de cada run.
+// WriteTo escreve o JSON do arquivo: o documento (sem artefatos nem execuções), depois os artefatos um a um (o
+// conteúdo é lido na hora), depois as execuções uma a uma, e os eventos de cada uma em páginas. A saída é a mesma
+// de json.Marshal(Document) com o conteúdo e os eventos dentro de cada item.
 func (e *ExportStream) WriteTo(ctx context.Context, w io.Writer) error {
 	bw := bufio.NewWriterSize(w, 64<<10)
-	runs := e.doc.Runs
+	runs, arts := e.doc.Runs, e.doc.Artifacts
 	head := e.doc
-	head.Runs = nil
+	head.Runs, head.Artifacts = nil, nil
 	b, err := json.Marshal(head)
 	if err != nil {
 		return fmt.Errorf("marshal export: %w", err)
 	}
-	if len(runs) == 0 {
+	if len(runs) == 0 && len(arts) == 0 {
 		_, _ = bw.Write(b)
 		return flushAfter(bw, nil)
 	}
 	_, _ = bw.Write(b[:len(b)-1]) // sem o "}" final
-	_, _ = bw.WriteString(`,"runs":[`)
-	for i, r := range runs {
-		if i > 0 {
-			_ = bw.WriteByte(',')
-		}
-		r.Events = nil
-		rb, err := json.Marshal(r)
-		if err != nil {
-			return fmt.Errorf("marshal run: %w", err)
-		}
-		if !e.withLogs {
-			_, _ = bw.Write(rb)
-			continue
-		}
-		_, _ = bw.Write(rb[:len(rb)-1])
-		first := true
-		err = e.eachEvent(ctx, e.runIDs[i], func(ev export.RunEvent) error {
-			eb, err := json.Marshal(ev)
-			if err != nil {
-				return fmt.Errorf("marshal run event: %w", err)
+	if len(arts) > 0 {
+		_, _ = bw.WriteString(`,"artifacts":[`)
+		for i, a := range arts {
+			if err := ctx.Err(); err != nil {
+				return err
 			}
-			if first {
-				_, _ = bw.WriteString(`,"events":[`)
-				first = false
-			} else {
+			if i > 0 {
 				_ = bw.WriteByte(',')
 			}
-			_, err = bw.Write(eb)
-			return err
-		})
-		if err != nil {
-			return err
+			if a.Content == nil {
+				if a.Content, err = e.q.GetArtifactContent(ctx, store.GetArtifactContentParams{CompanyID: e.companyID, ArtifactID: e.artIDs[i]}); err != nil {
+					return fmt.Errorf("export artifact content: %w", err)
+				}
+			}
+			ab, err := json.Marshal(a)
+			if err != nil {
+				return fmt.Errorf("marshal artifact: %w", err)
+			}
+			if _, err := bw.Write(ab); err != nil {
+				return err
+			}
 		}
-		if !first {
-			_ = bw.WriteByte(']')
-		}
-		_ = bw.WriteByte('}')
+		_ = bw.WriteByte(']')
 	}
-	_, _ = bw.WriteString("]}")
+	if len(runs) > 0 {
+		_, _ = bw.WriteString(`,"runs":[`)
+		for i, r := range runs {
+			if i > 0 {
+				_ = bw.WriteByte(',')
+			}
+			r.Events = nil
+			rb, err := json.Marshal(r)
+			if err != nil {
+				return fmt.Errorf("marshal run: %w", err)
+			}
+			if !e.withLogs {
+				_, _ = bw.Write(rb)
+				continue
+			}
+			_, _ = bw.Write(rb[:len(rb)-1])
+			first := true
+			err = e.eachEvent(ctx, e.runIDs[i], func(ev export.RunEvent) error {
+				eb, err := json.Marshal(ev)
+				if err != nil {
+					return fmt.Errorf("marshal run event: %w", err)
+				}
+				if first {
+					_, _ = bw.WriteString(`,"events":[`)
+					first = false
+				} else {
+					_ = bw.WriteByte(',')
+				}
+				_, err = bw.Write(eb)
+				return err
+			})
+			if err != nil {
+				return err
+			}
+			if !first {
+				_ = bw.WriteByte(']')
+			}
+			_ = bw.WriteByte('}')
+		}
+		_ = bw.WriteByte(']')
+	}
+	_ = bw.WriteByte('}')
 	return flushAfter(bw, nil)
 }
 
@@ -388,6 +428,12 @@ func (s *Service) buildDoc(ctx context.Context, q *store.Queries, companyID doma
 		doc.Flows = append(doc.Flows, export.Flow{Slug: f.Slug, Name: f.Name, Description: red(f.Description), Cron: f.Cron,
 			Timezone: f.Timezone, Enabled: f.Enabled, Persona: peSlug[f.PersonaID], Project: refSlug(prSlug, f.ProjectID),
 			Priority: f.Priority, TaskTitle: red(f.TaskTitle), TaskDescription: red(f.TaskDescription), CreatedAt: f.CreatedAt})
+	}
+
+	if opts.WithArtifacts {
+		if err := s.exportArtifacts(ctx, q, companyID, st, &doc, peSlug, runKey); err != nil {
+			return doc, err
+		}
 	}
 
 	if opts.WithRuns {

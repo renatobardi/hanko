@@ -5978,6 +5978,16 @@
               "description": "Inclui também os eventos (log) das execuções; implica with_runs. O arquivo é escrito em fluxo, run a run.",
               "type": "boolean"
             }
+          },
+          {
+            "description": "Inclui todas as versões dos artefatos, com o conteúdo em base64 (até 20 MiB no total, para o arquivo caber na importação).",
+            "explode": false,
+            "in": "query",
+            "name": "with_artifacts",
+            "schema": {
+              "description": "Inclui todas as versões dos artefatos, com o conteúdo em base64 (até 20 MiB no total, para o arquivo caber na importação).",
+              "type": "boolean"
+            }
           }
         ],
         "responses": {

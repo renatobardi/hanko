@@ -111,6 +111,9 @@ func (p importPlan) counts(d export.Document) map[string]int {
 	}
 	out := map[string]int{"workspaces": len(d.Workspaces), "projects": len(d.Projects), "subscriptions": len(d.Subscriptions),
 		"personas": len(d.Personas), "tasks": len(d.Tasks), "comments": comments, "flows": len(d.Flows), "runs": len(d.Runs), "run_events": events}
+	if n := len(d.Artifacts); n > 0 {
+		out["artifacts"] = n
+	}
 	if n := len(p.clearedPaths); n > 0 {
 		out["workspace_paths_cleared"] = n
 	}
@@ -489,6 +492,9 @@ func (s *Service) planImport(ctx context.Context, doc export.Document, opts Impo
 			}
 		}
 	}
+	if err := s.planArtifacts(doc, tk, pe, pr, runKeys); err != nil {
+		return p, err
+	}
 	return p, nil
 }
 
@@ -785,7 +791,7 @@ func (t *txc) runImport(cid domain.ID, doc export.Document, p importPlan, opts I
 			}
 		}
 	}
-	return nil
+	return t.importArtifacts(cid, doc, taskID, prID, peID, runID)
 }
 
 // optID resolve um slug opcional no id novo; vazio ou desconhecido = nil.
