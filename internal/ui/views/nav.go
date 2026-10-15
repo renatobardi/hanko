@@ -39,8 +39,8 @@ var Nav = []NavGroup{
 	{Label: i18n.N("Organização"), Items: []NavItem{
 		{Key: "personas", Label: i18n.N("Personas"), Icon: "bot", Path: "/personas"},
 		{Key: "organograma", Label: i18n.N("Organograma"), Icon: "network", Path: "/organograma"},
-		{Key: "skills", Label: i18n.N("Skills"), Icon: "sparkles", Milestone: "v0.2", Blurb: i18n.N("Habilidades reutilizáveis habilitadas por persona.")},
-		{Key: "integracoes", Label: i18n.N("Integrações"), Icon: "link", Milestone: "v0.2", Blurb: i18n.N("Serviços externos conectados à empresa.")},
+		{Key: "skills", Label: i18n.N("Skills"), Icon: "sparkles", Path: "/skills"},
+		{Key: "integracoes", Label: i18n.N("Integrações"), Icon: "link", Path: "/integracoes"},
 		{Key: "gates", Label: i18n.N("Gates"), Icon: "shield", Path: "/gates"},
 		{Key: "configuracoes", Label: i18n.N("Configurações"), Icon: "settings", Path: "/configuracoes"},
 	}},

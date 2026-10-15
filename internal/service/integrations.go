@@ -69,6 +69,8 @@ var (
 	envNameRe    = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]{0,63}$`)
 	// reservedIntegrationSlugs são as chaves do mcpServers que o Hanko usa para si.
 	reservedIntegrationSlugs = []string{"hanko", "ai-memory", "memory"}
+	// reservedUISlugs são segmentos fixos das rotas da UI que um slug de skill ou integração não pode ocupar.
+	reservedUISlugs = []string{"nova", "preview"}
 )
 
 // integrationSecrets é o conteúdo cifrado: o que nunca sai do servidor.
@@ -362,6 +364,9 @@ func (s *Service) CreateIntegration(ctx context.Context, actor domain.Actor, com
 	slug, err := resolveSlug(in.Slug, name)
 	if err != nil {
 		return IntegrationView{}, err
+	}
+	if slices.Contains(reservedUISlugs, slug) {
+		return IntegrationView{}, domain.Invalid("slug", fmt.Sprintf("%q is reserved", slug))
 	}
 	if in.Kind == domain.IntegrationMCP && slices.Contains(reservedIntegrationSlugs, slug) {
 		return IntegrationView{}, domain.Invalid("slug", fmt.Sprintf("%q is reserved", slug))

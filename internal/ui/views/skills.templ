@@ -1,0 +1,644 @@
+package views
+
+import (
+	"fmt"
+
+	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/i18n"
+)
+
+// ToggleSwitch é o interruptor de uma linha: um POST com o novo valor em enabled.
+templ ToggleSwitch(on bool, href, label string) {
+	if !canAdmin(ctx) {
+		<button class={ "switch", templ.KV("on", on) } type="button" role="switch" disabled aria-checked={ fmt.Sprint(on) } aria-label={ label } title={ needText(ctx, domain.MemberAdmin) }>
+			<i></i>
+		</button>
+	} else {
+		<form method="post" action={ templ.SafeURL(href) } hx-post={ href } hx-swap="none" class="switch-form">
+			<input type="hidden" name="enabled" value={ toggleValue(!on) }/>
+			<button class={ "switch", templ.KV("on", on) } type="submit" role="switch" aria-checked={ fmt.Sprint(on) } aria-label={ label }>
+				<i></i>
+			</button>
+		</form>
+	}
+}
+
+func toggleValue(on bool) string {
+	if on {
+		return "1"
+	}
+	return "0"
+}
+
+// ToggleList lista linhas com interruptor (personas de uma skill, skills de uma persona...).
+templ ToggleList(rows []ToggleRow) {
+	<ul class="toggle-list">
+		for _, r := range rows {
+			<li class="toggle-row">
+				<div class="toggle-main">
+					if r.Href != "" {
+						<a href={ templ.SafeURL(r.Href) }>{ r.Name }</a>
+					} else {
+						<span>{ r.Name }</span>
+					}
+					if r.Note != "" {
+						<div class="note">{ r.Note }</div>
+					}
+				</div>
+				if r.Fixed {
+					<span class="badge soft">{ i18n.T(ctx, "todas as personas") }</span>
+				} else {
+					@ToggleSwitch(r.Enabled, r.ToggleHref, r.Name)
+				}
+			</li>
+		}
+	</ul>
+}
+
+// ---- skills ----
+
+templ SkillsPage(sh Shell, vm SkillsVM) {
+	@Layout(sh) {
+		@PageHead(i18n.T(ctx, "Skills"), vm.Subtitle) {
+			if sh.CanAdmin() {
+				<a class="btn primary" href={ templ.SafeURL(vm.NewHref) }>
+					@Icon("plus")
+					{ i18n.T(ctx, "Nova skill") }
+				</a>
+			} else {
+				@NeedRole(domain.MemberAdmin)
+			}
+		}
+		if vm.Notice != "" {
+			@Alert("warn", vm.Notice)
+		}
+		if len(vm.Rows) == 0 {
+			@EmptyCard("sparkles", i18n.T(ctx, "Você ainda não tem skills."), i18n.T(ctx, "Uma skill é uma habilidade reutilizável em markdown (um SKILL.md): a persona a carrega sob demanda quando a descrição bate com o trabalho."), true) {
+				if sh.CanAdmin() {
+					<a class="btn outline" href={ templ.SafeURL(vm.NewHref) }>
+						@Icon("plus")
+						{ i18n.T(ctx, "Criar skill") }
+					</a>
+				} else {
+					@NeedRole(domain.MemberAdmin)
+				}
+			}
+		} else {
+			<div class="table-wrap">
+				<table class="table">
+					<thead>
+						<tr>
+							<th>{ i18n.T(ctx, "Skill") }</th>
+							<th class="hide-sm">{ i18n.T(ctx, "Descrição") }</th>
+							<th class="hide-sm">{ i18n.T(ctx, "Versão") }</th>
+							<th>{ i18n.T(ctx, "Personas") }</th>
+							<th class="hide-sm">{ i18n.T(ctx, "Atualizada") }</th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, r := range vm.Rows {
+							<tr class="row">
+								<td class="ttl">
+									<a href={ templ.SafeURL(r.Href) }>{ r.Name }</a>
+									<div class="note mono">{ r.Slug }</div>
+								</td>
+								<td class="hide-sm muted">{ r.Description }</td>
+								<td class="hide-sm muted">v{ fmt.Sprint(r.Version) }</td>
+								<td>{ fmt.Sprint(r.Personas) }</td>
+								<td class="hide-sm muted">{ r.Updated }</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+	}
+}
+
+// SkillPreview é o fragmento de pré-visualização do markdown (htmx).
+templ SkillPreview(body HTML) {
+	<div id="md-preview" class="md-preview md" aria-live="polite">
+		if body == "" {
+			<p class="muted">{ i18n.T(ctx, "A pré-visualização aparece aqui.") }</p>
+		} else {
+			@templ.Raw(string(body))
+		}
+	</div>
+}
+
+templ SkillEditorPage(sh Shell, vm SkillEditorVM) {
+	@Layout(sh) {
+		if vm.Notice != "" {
+			@Alert("warn", vm.Notice)
+		}
+		if vm.Error != "" {
+			@Alert("danger", vm.Error)
+		}
+		if vm.Edit {
+			<div class="flow-head">
+				<div>
+					<h1>{ vm.Name }</h1>
+					<p class="muted" style="margin-top:6px;font-size:13.5px"><span class="mono">{ vm.Slug }</span> · v{ fmt.Sprint(vm.Version) } · { i18n.T(ctx, "atualizada") } { vm.Updated } · { vm.UpdatedBy }</p>
+				</div>
+			</div>
+		} else {
+			@PageHead(i18n.T(ctx, "Nova skill"), i18n.T(ctx, "Escreva o SKILL.md: nome, quando usar e as instruções. O frontmatter é opcional.")) {
+			}
+		}
+		if canAdmin(ctx) {
+			<form class="card pad form-card" method="post" action={ templ.SafeURL(vm.Action) } hx-boost="true">
+				<div class="form-grid">
+					<div class="field">
+						<label for="s-name">{ i18n.T(ctx, "Nome") }</label>
+						<input class="input" id="s-name" name="name" value={ vm.Name } required maxlength="120" placeholder={ i18n.T(ctx, "Revisar pull request") }/>
+						if e := vm.FieldErr["name"]; e != "" {
+							<span class="err">{ e }</span>
+						}
+					</div>
+					if !vm.Edit {
+						<div class="field">
+							<label for="s-slug">{ i18n.T(ctx, "Identificador (slug)") }</label>
+							<input class="input mono" id="s-slug" name="slug" value={ vm.Slug } maxlength="63" pattern="[a-z0-9][a-z0-9-]*" placeholder={ i18n.T(ctx, "derivado do nome") } autocomplete="off"/>
+							if e := vm.FieldErr["slug"]; e != "" {
+								<span class="err">{ e }</span>
+							}
+						</div>
+					}
+				</div>
+				<div class="field">
+					<label for="s-desc">{ i18n.T(ctx, "Descrição: quando usar") }</label>
+					<input class="input" id="s-desc" name="description" value={ vm.Description } maxlength="400" placeholder={ i18n.T(ctx, "Use ao revisar um pull request: checklist de segurança, testes e estilo.") }/>
+					<span class="hint">{ i18n.T(ctx, "É o que o agente lê para decidir se carrega a skill; seja específico.") }</span>
+					if e := vm.FieldErr["description"]; e != "" {
+						<span class="err">{ e }</span>
+					}
+				</div>
+				<div class="md-split">
+					<div class="field">
+						<label for="s-body">{ i18n.T(ctx, "Instruções (markdown)") }</label>
+						<textarea class="textarea mono" id="s-body" name="body" rows="18" required spellcheck="false"
+							hx-post={ vm.PreviewHref } hx-trigger="input changed delay:400ms, load" hx-target="#md-preview" hx-swap="outerHTML" hx-include="#s-body">{ vm.Body }</textarea>
+						<span class="hint">{ i18n.Tf(ctx, "Máximo de %d KiB. Um SKILL.md inteiro (com frontmatter) também vale: ele completa nome e descrição.", vm.MaxBodyKiB) }</span>
+						if e := vm.FieldErr["body"]; e != "" {
+							<span class="err">{ e }</span>
+						}
+					</div>
+					<div class="field">
+						<span class="lbl">{ i18n.T(ctx, "Pré-visualização") }</span>
+						@SkillPreview(vm.Preview)
+					</div>
+				</div>
+				<div class="form-actions">
+					<a class="btn ghost" href={ templ.SafeURL(vm.CancelHref) }>{ i18n.T(ctx, "Cancelar") }</a>
+					<button class="btn primary" type="submit">
+						if vm.Edit {
+							{ i18n.T(ctx, "Salvar alterações") }
+						} else {
+							{ i18n.T(ctx, "Criar skill") }
+						}
+					</button>
+				</div>
+			</form>
+		} else {
+			@NeedRole(domain.MemberAdmin)
+			<section class="card pad">
+				<p class="muted">{ vm.Description }</p>
+				<div class="md">@templ.Raw(string(vm.Preview))</div>
+			</section>
+		}
+		if vm.Edit {
+			<section class="card pad" id="personas" style="margin-top:20px">
+				<div class="card-head"><div><h2>{ i18n.T(ctx, "Personas") }</h2><p class="sub">{ i18n.T(ctx, "Quem pode usar esta skill. Ligue para as personas que devem carregá-la nas execuções.") }</p></div></div>
+				if len(vm.Personas) == 0 {
+					<p class="muted">{ i18n.T(ctx, "Nenhuma persona na empresa ainda.") }</p>
+				} else {
+					@ToggleList(vm.Personas)
+				}
+			</section>
+			if canAdmin(ctx) {
+				<section class="card pad" style="margin-top:20px">
+					<div class="card-head"><div><h2>{ i18n.T(ctx, "Apagar skill") }</h2><p class="sub">{ i18n.T(ctx, "Remove a skill e o vínculo com todas as personas. As execuções futuras deixam de carregá-la.") }</p></div></div>
+					<form method="post" action={ templ.SafeURL(vm.DeleteHref) } hx-post={ vm.DeleteHref } hx-swap="none" hx-confirm={ i18n.T(ctx, "Apagar esta skill?") }>
+						<button class="btn outline sm danger" type="submit">{ i18n.T(ctx, "Apagar") }</button>
+					</form>
+				</section>
+			}
+		}
+	}
+}
+
+// ---- persona ----
+
+templ PersonaExtras(vm PersonaExtrasVM) {
+	if vm.Show {
+		<section class="card pad" id="skills" style="margin-top:20px">
+			<div class="card-head"><div><h2>{ i18n.T(ctx, "Skills") }</h2><p class="sub">{ i18n.T(ctx, "Habilidades que esta persona carrega nas execuções.") }</p></div><a class="more" href={ templ.SafeURL(vm.SkillsHref) }>{ i18n.T(ctx, "Skills") }</a></div>
+			if len(vm.Skills) == 0 {
+				<p class="muted">{ i18n.T(ctx, "Nenhuma skill criada ainda.") }</p>
+			} else {
+				@ToggleList(vm.Skills)
+			}
+		</section>
+		<section class="card pad" id="mcp" style="margin-top:20px">
+			<div class="card-head"><div><h2>{ i18n.T(ctx, "Servidores MCP") }</h2><p class="sub">{ i18n.T(ctx, "Servidores MCP da empresa que entram nas execuções desta persona, ao lado do Hanko e da memória.") }</p></div><a class="more" href={ templ.SafeURL(vm.IntegrationsHref) }>{ i18n.T(ctx, "Integrações") }</a></div>
+			if len(vm.MCPs) == 0 {
+				<p class="muted">{ i18n.T(ctx, "Nenhum servidor MCP cadastrado.") }</p>
+			} else {
+				@ToggleList(vm.MCPs)
+			}
+		</section>
+	}
+}
+
+// ---- integrações ----
+
+templ integrationTable(rows []IntegrationRow, webhook bool) {
+	<div class="table-wrap">
+		<table class="table">
+			<thead>
+				<tr>
+					<th>{ i18n.T(ctx, "Integração") }</th>
+					<th class="hide-sm">{ i18n.T(ctx, "Destino") }</th>
+					<th class="hide-sm">
+						if webhook {
+							{ i18n.T(ctx, "Eventos") }
+						} else {
+							{ i18n.T(ctx, "Vale para") }
+						}
+					</th>
+					if webhook {
+						<th class="hide-sm">{ i18n.T(ctx, "Última entrega") }</th>
+					}
+					<th class="act-col"></th>
+				</tr>
+			</thead>
+			<tbody>
+				for _, r := range rows {
+					<tr class={ "row", templ.KV("is-off", !r.Enabled) }>
+						<td class="ttl">
+							<a href={ templ.SafeURL(r.Href) }>{ r.Name }</a>
+							<div class="note mono">{ r.Slug }</div>
+						</td>
+						<td class="hide-sm muted mono">{ r.Target }</td>
+						<td class="hide-sm muted">{ r.Scope }</td>
+						if webhook {
+							<td class="hide-sm">
+								if r.Last != "" {
+									@BadgeEl(r.LastBadge)
+								} else {
+									<span class="muted">—</span>
+								}
+							</td>
+						}
+						<td class="act-col">
+							<div class="row-acts">
+								@ToggleSwitch(r.Enabled, r.ToggleHref, r.Name)
+							</div>
+						</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+	</div>
+}
+
+templ IntegrationsPage(sh Shell, vm IntegrationsVM) {
+	@Layout(sh) {
+		@PageHead(i18n.T(ctx, "Integrações"), vm.Subtitle) {
+			if sh.CanAdmin() {
+				<a class="btn outline" href={ templ.SafeURL(vm.NewMCPHref) }>
+					@Icon("plus")
+					{ i18n.T(ctx, "Servidor MCP") }
+				</a>
+				<a class="btn primary" href={ templ.SafeURL(vm.NewWebhookHref) }>
+					@Icon("plus")
+					{ i18n.T(ctx, "Webhook") }
+				</a>
+			} else {
+				@NeedRole(domain.MemberAdmin)
+			}
+		}
+		if vm.Notice != "" {
+			@Alert("warn", vm.Notice)
+		}
+		<h2 class="side-h" style="margin:8px 0 12px">{ i18n.T(ctx, "Servidores MCP") }</h2>
+		if len(vm.MCP) == 0 {
+			@EmptyCard("link", i18n.T(ctx, "Nenhum servidor MCP."), i18n.T(ctx, "Conecte um servidor MCP (http, ou stdio se o operador liberou) e ele entra nas execuções das personas que você escolher."), false)
+		} else {
+			@integrationTable(vm.MCP, false)
+		}
+		<h2 class="side-h" style="margin:28px 0 12px">{ i18n.T(ctx, "Webhooks de saída") }</h2>
+		if len(vm.Webhooks) == 0 {
+			@EmptyCard("zap", i18n.T(ctx, "Nenhum webhook."), i18n.T(ctx, "Receba no seu sistema, assinado com HMAC, o que acontece no Hanko: task criada ou concluída, gate aberto ou decidido, execução com falha, alerta aberto."), false)
+		} else {
+			@integrationTable(vm.Webhooks, true)
+		}
+	}
+}
+
+templ IntegrationForm(vm IntegrationFormVM) {
+	<form class="card pad form-card" method="post" action={ templ.SafeURL(vm.Action) } hx-boost="true">
+		if vm.Error != "" {
+			@Alert("danger", vm.Error)
+		}
+		<div class="form-grid">
+			<div class="field">
+				<label for="i-name">{ i18n.T(ctx, "Nome") }</label>
+				<input class="input" id="i-name" name="name" value={ vm.Name } required maxlength="120"/>
+				if e := vm.FieldErr["name"]; e != "" {
+					<span class="err">{ e }</span>
+				}
+			</div>
+			<div class="field">
+				<label for="i-url">
+					if vm.Kind == "webhook" {
+						{ i18n.T(ctx, "URL de destino (https)") }
+					} else {
+						{ i18n.T(ctx, "URL do servidor MCP") }
+					}
+				</label>
+				<input class="input mono" id="i-url" name="url" value={ vm.URL } maxlength="2000" autocomplete="off" spellcheck="false" placeholder="https://"/>
+				if e := vm.FieldErr["url"]; e != "" {
+					<span class="err">{ e }</span>
+				}
+			</div>
+		</div>
+		if vm.Kind == "mcp" {
+			if !vm.Edit {
+				<div class="field">
+					<label for="i-transport">{ i18n.T(ctx, "Transporte") }</label>
+					@Select("transport", "i-transport", vm.TransportOptions, false)
+					<span class="hint">{ i18n.T(ctx, "stdio executa um comando na máquina do servidor e só funciona se o operador o liberou na configuração.") }</span>
+				</div>
+			}
+			<div class="field">
+				<label for="i-command">{ i18n.T(ctx, "Comando (stdio)") }</label>
+				<input class="input mono" id="i-command" name="command" value={ vm.Command } maxlength="500" autocomplete="off" spellcheck="false" placeholder="npx"/>
+				if e := vm.FieldErr["command"]; e != "" {
+					<span class="err">{ e }</span>
+				}
+			</div>
+			<div class="field">
+				<label for="i-args">{ i18n.T(ctx, "Argumentos (stdio), um por linha") }</label>
+				<textarea class="textarea mono" id="i-args" name="args" rows="3" spellcheck="false">{ vm.ArgsText }</textarea>
+			</div>
+			<div class="field">
+				<label for="i-headers">{ i18n.T(ctx, "Headers (http), um por linha: Nome: valor") }</label>
+				<textarea class="textarea mono" id="i-headers" name="headers" rows="3" spellcheck="false" autocomplete="off" placeholder="Authorization: Bearer ..."></textarea>
+				<span class="hint">{ i18n.T(ctx, "Os valores são segredos: ficam cifrados e nunca voltam para a tela. Aqui só aparecem os nomes.") }</span>
+				if len(vm.HeaderNames) > 0 {
+					<span class="hint">{ i18n.T(ctx, "Guardados:") } <code>{ joinNames(vm.HeaderNames) }</code></span>
+				}
+				if e := vm.FieldErr["headers"]; e != "" {
+					<span class="err">{ e }</span>
+				}
+			</div>
+			if vm.Edit {
+				<div class="field">
+					<label for="i-dropheaders">{ i18n.T(ctx, "Remover headers (nomes separados por vírgula)") }</label>
+					<input class="input mono" id="i-dropheaders" name="drop_headers" value={ vm.DropHeaders } autocomplete="off" spellcheck="false"/>
+				</div>
+			}
+			<div class="field">
+				<label for="i-env">{ i18n.T(ctx, "Variáveis de ambiente (stdio), uma por linha: NOME=valor") }</label>
+				<textarea class="textarea mono" id="i-env" name="env" rows="3" spellcheck="false" autocomplete="off"></textarea>
+				if len(vm.EnvNames) > 0 {
+					<span class="hint">{ i18n.T(ctx, "Guardadas:") } <code>{ joinNames(vm.EnvNames) }</code></span>
+				}
+				if e := vm.FieldErr["env"]; e != "" {
+					<span class="err">{ e }</span>
+				}
+			</div>
+			if vm.Edit {
+				<div class="field">
+					<label for="i-dropenv">{ i18n.T(ctx, "Remover variáveis (nomes separados por vírgula)") }</label>
+					<input class="input mono" id="i-dropenv" name="drop_env" value={ vm.DropEnv } autocomplete="off" spellcheck="false"/>
+				</div>
+			}
+			<label class="check-line">
+				<input type="checkbox" name="all_personas" value="1" checked?={ vm.AllPersonas }/>
+				<span>{ i18n.T(ctx, "Vale para todas as personas") }</span>
+			</label>
+		} else {
+			<div class="field">
+				<span class="lbl">{ i18n.T(ctx, "Eventos") }</span>
+				for _, o := range vm.EventOptions {
+					<label class="check-line">
+						<input type="checkbox" name="events" value={ o.Value } checked?={ o.Checked }/>
+						<span>{ o.Label } <code class="faint">{ o.Value }</code></span>
+					</label>
+				}
+				if e := vm.FieldErr["events"]; e != "" {
+					<span class="err">{ e }</span>
+				}
+			</div>
+			<div class="field">
+				<label for="i-secret">
+					if vm.Edit {
+						{ i18n.T(ctx, "Novo segredo HMAC (opcional)") }
+					} else {
+						{ i18n.T(ctx, "Segredo HMAC (opcional)") }
+					}
+				</label>
+				<input class="input mono" id="i-secret" name="secret" value="" minlength="16" maxlength="200" autocomplete="off" spellcheck="false"/>
+				<span class="hint">
+					if vm.Edit {
+						{ i18n.T(ctx, "Em branco mantém o segredo atual.") }
+					} else {
+						{ i18n.T(ctx, "Em branco, o Hanko gera um segredo e o mostra uma única vez.") }
+					}
+					{ i18n.T(ctx, "Cada entrega leva o cabeçalho X-Hanko-Signature (HMAC-SHA256).") }
+				</span>
+				if vm.SecretSet && vm.SecretHint != "" {
+					<span class="hint">{ i18n.T(ctx, "Segredo atual começa com") } <code>{ vm.SecretHint }</code></span>
+				}
+				if e := vm.FieldErr["secret"]; e != "" {
+					<span class="err">{ e }</span>
+				}
+			</div>
+			if vm.Edit {
+				<label class="check-line">
+					<input type="checkbox" name="rotate_secret" value="1" checked?={ vm.RotateSecret }/>
+					<span>{ i18n.T(ctx, "Gerar um novo segredo e mostrá-lo uma vez") }</span>
+				</label>
+			}
+		}
+		<label class="check-line">
+			<input type="checkbox" name="enabled" value="1" checked?={ vm.Enabled }/>
+			<span>{ i18n.T(ctx, "Integração ligada") }</span>
+		</label>
+		<div class="form-actions">
+			<a class="btn ghost" href={ templ.SafeURL(vm.CancelHref) }>{ i18n.T(ctx, "Cancelar") }</a>
+			<button class="btn primary" type="submit">
+				if vm.Edit {
+					{ i18n.T(ctx, "Salvar alterações") }
+				} else {
+					{ i18n.T(ctx, "Criar integração") }
+				}
+			</button>
+		</div>
+	</form>
+}
+
+func joinNames(ns []string) string {
+	out := ""
+	for i, n := range ns {
+		if i > 0 {
+			out += ", "
+		}
+		out += n
+	}
+	return out
+}
+
+templ NewIntegrationPage(sh Shell, vm IntegrationFormVM) {
+	@Layout(sh) {
+		if vm.Kind == "webhook" {
+			@PageHead(i18n.T(ctx, "Novo webhook"), i18n.T(ctx, "O Hanko envia um POST assinado com HMAC-SHA256 para o endereço, a cada evento escolhido.")) {
+			}
+		} else {
+			@PageHead(i18n.T(ctx, "Novo servidor MCP"), i18n.T(ctx, "O servidor entra no mcpServers das execuções, ao lado do Hanko e da memória.")) {
+			}
+		}
+		if sh.CanAdmin() {
+			@IntegrationForm(vm)
+		} else {
+			@NeedRole(domain.MemberAdmin)
+		}
+	}
+}
+
+templ IntegrationTestResult(vm IntegrationTestVM) {
+	<div id="test-result" class="test-result" aria-live="polite">
+		if vm.OK {
+			<span class="badge done">{ i18n.T(ctx, "Funcionou") }</span>
+		} else {
+			<span class="badge danger">{ i18n.T(ctx, "Falhou") }</span>
+		}
+		if vm.Status != "" {
+			<span class="muted">HTTP { vm.Status }</span>
+		}
+		if vm.Latency != "" {
+			<span class="muted">{ vm.Latency }</span>
+		}
+		if vm.Error != "" {
+			<div class="err">{ vm.Error }</div>
+		}
+		if vm.Note != "" {
+			<div class="muted">{ vm.Note }</div>
+		}
+	</div>
+}
+
+templ IntegrationPage(sh Shell, vm IntegrationVM) {
+	@Layout(sh) {
+		if vm.Notice != "" {
+			@Alert("warn", vm.Notice)
+		}
+		if vm.RevealedSecret != "" {
+			<div class="alert warn secret-box" role="status">
+				@Icon("alert")
+				<div>
+					<b>{ i18n.T(ctx, "Segredo do webhook: copie agora, ele não será mostrado de novo.") }</b>
+					<div><code class="mono secret-val">{ vm.RevealedSecret }</code></div>
+				</div>
+			</div>
+		}
+		<div class="flow-head">
+			<div>
+				<h1>{ vm.Name } @BadgeEl(vm.Badge)</h1>
+				<p class="muted" style="margin-top:6px;font-size:13.5px">{ vm.KindLabel } · <span class="mono">{ vm.Target }</span>
+					if vm.Scope != "" {
+						· { vm.Scope }
+					}
+				</p>
+			</div>
+			<div class="flow-acts">
+				@ToggleSwitch(vm.Enabled, vm.ToggleHref, vm.Name)
+				if canAdmin(ctx) {
+					<form method="post" action={ templ.SafeURL(vm.TestHref) } hx-post={ vm.TestHref } hx-target="#test-result" hx-swap="outerHTML">
+						<button class="btn primary" type="submit">
+							@Icon("play")
+							if vm.Kind == "webhook" {
+								{ i18n.T(ctx, "Testar entrega") }
+							} else {
+								{ i18n.T(ctx, "Testar conexão") }
+							}
+						</button>
+					</form>
+				} else {
+					@NeedRole(domain.MemberAdmin)
+				}
+			</div>
+		</div>
+		<div id="test-result" class="test-result" aria-live="polite"></div>
+		<h2 class="side-h" style="margin:20px 0 12px">{ i18n.T(ctx, "Configuração") }</h2>
+		if canAdmin(ctx) {
+			@IntegrationForm(vm.Form)
+		} else {
+			@NeedRole(domain.MemberAdmin)
+		}
+		if vm.Kind == "mcp" {
+			<section class="card pad" id="personas" style="margin-top:20px">
+				<div class="card-head"><div><h2>{ i18n.T(ctx, "Personas") }</h2><p class="sub">{ i18n.T(ctx, "Quem recebe este servidor MCP nas execuções.") }</p></div></div>
+				if len(vm.Personas) == 0 {
+					<p class="muted">{ i18n.T(ctx, "Nenhuma persona na empresa ainda.") }</p>
+				} else {
+					@ToggleList(vm.Personas)
+				}
+			</section>
+		} else {
+			<h2 class="side-h" style="margin:28px 0 12px">{ i18n.T(ctx, "Últimas entregas") }</h2>
+			if len(vm.Deliveries) == 0 {
+				@EmptyCard("zap", i18n.T(ctx, "Nenhuma entrega ainda."), i18n.T(ctx, "As entregas aparecem aqui, com o código HTTP e a latência. Use Testar entrega para mandar um evento ping."), false)
+			} else {
+				<div class="table-wrap">
+					<table class="table">
+						<thead>
+							<tr>
+								<th>{ i18n.T(ctx, "Quando") }</th>
+								<th>{ i18n.T(ctx, "Evento") }</th>
+								<th>{ i18n.T(ctx, "Estado") }</th>
+								<th class="hide-sm">{ i18n.T(ctx, "Tentativas") }</th>
+								<th class="hide-sm">HTTP</th>
+								<th class="hide-sm">{ i18n.T(ctx, "Latência") }</th>
+								<th>{ i18n.T(ctx, "Erro") }</th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, d := range vm.Deliveries {
+								<tr class="row">
+									<td class="muted">{ d.When }</td>
+									<td class="mono">
+										{ d.Event }
+										if d.Test {
+											<span class="badge soft">{ i18n.T(ctx, "teste") }</span>
+										}
+									</td>
+									<td>
+										@BadgeEl(d.Badge)
+										if d.Next != "" {
+											<div class="note">{ i18n.T(ctx, "próxima tentativa") } { d.Next }</div>
+										}
+									</td>
+									<td class="hide-sm">{ fmt.Sprint(d.Attempts) }</td>
+									<td class="hide-sm mono">{ d.HTTP }</td>
+									<td class="hide-sm muted">{ d.Latency }</td>
+									<td class="muted">{ d.Error }</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+		}
+		if canAdmin(ctx) {
+			<section class="card pad" style="margin-top:20px">
+				<div class="card-head"><div><h2>{ i18n.T(ctx, "Apagar integração") }</h2><p class="sub">{ i18n.T(ctx, "Remove a integração, os segredos guardados e o histórico de entregas.") }</p></div></div>
+				<form method="post" action={ templ.SafeURL(vm.DeleteHref) } hx-post={ vm.DeleteHref } hx-swap="none" hx-confirm={ i18n.T(ctx, "Apagar esta integração?") }>
+					<button class="btn outline sm danger" type="submit">{ i18n.T(ctx, "Apagar") }</button>
+				</form>
+			</section>
+		}
+	}
+}

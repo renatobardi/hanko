@@ -199,6 +199,7 @@ func (s *server) renderPersona(w http.ResponseWriter, r *http.Request, co domain
 		vm.Reviewer.Persona = reviewerPersonaOptions(ctx, all, p.ID, rv.Persona)
 		vm.Reviewer.Agent = reviewerAgentOptions(ctx, rv.Agent)
 	}
+	vm.Extras = s.personaExtras(ctx, co, p)
 	vm.SubAction = base + "/personas/" + p.Slug + "/assinatura"
 	vm.SubOptions = []views.Option{{Value: "", Label: i18n.T(ctx, "Sem assinatura"), Selected: p.SubscriptionID == nil}}
 	if subs, err := s.be.ListSubscriptions(ctx, co.ID); err == nil {

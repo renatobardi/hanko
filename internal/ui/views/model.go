@@ -269,6 +269,7 @@ type PersonaVM struct {
 	OrgAction     string   // POST target of the organisation form
 	OrgOptions    []Option // "Reporta a" choices
 	Reviewer      ReviewerVM
+	Extras        PersonaExtrasVM // skills e servidores MCP (ADR-0029)
 }
 
 // ReviewerVM is the reviewer block of the persona page: the configured reviewer (summary) and the

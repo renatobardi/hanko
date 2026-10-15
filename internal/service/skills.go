@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -87,6 +88,9 @@ func (s *Service) CreateSkill(ctx context.Context, actor domain.Actor, companyID
 	slug, err := resolveSlug(in.Slug, name)
 	if err != nil {
 		return domain.Skill{}, err
+	}
+	if slices.Contains(reservedUISlugs, slug) { // rotas fixas da UI (/skills/nova, /skills/preview)
+		return domain.Skill{}, domain.Invalid("slug", fmt.Sprintf("%q is reserved", slug))
 	}
 	var out domain.Skill
 	err = s.withTx(ctx, func(t *txc) error {
