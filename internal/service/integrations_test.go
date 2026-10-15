@@ -720,7 +720,7 @@ func TestDeliverWebhookRetryThenGiveUp(t *testing.T) {
 			t.Fatalf("tentativa %d registrada: %+v", attempt, d)
 		}
 		want := service.WebhookBackoff(attempt)
-		if got := d.NextAttemptAt.Sub(time.Now()); got <= 0 || got > want+time.Second {
+		if got := time.Until(*d.NextAttemptAt); got <= 0 || got > want+time.Second {
 			t.Fatalf("próxima tentativa em %v, esperado até %v", got, want)
 		}
 	}
