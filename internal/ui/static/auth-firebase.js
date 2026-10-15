@@ -64,7 +64,7 @@ async function exchange(user) {
     method: "POST",
     credentials: "same-origin",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ id_token: idToken, next: form.dataset.next || "/" }),
+    body: JSON.stringify({ id_token: idToken, next: form.dataset.next || "/", invite: form.dataset.invite || "" }),
   });
   let data = {};
   try { data = await res.json(); } catch (_) { /* corpo vazio */ }

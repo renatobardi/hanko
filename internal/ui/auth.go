@@ -29,6 +29,9 @@ type AuthBackend interface {
 	CreateAPIKey(ctx context.Context, userID domain.ID, name string) (string, domain.APIKey, error)
 	ListAPIKeys(ctx context.Context, userID domain.ID) ([]domain.APIKey, error)
 	RevokeAPIKey(ctx context.Context, userID, keyID domain.ID) (domain.APIKey, error)
+	PreviewInvite(ctx context.Context, token string) (service.InvitePreview, error)
+	AcceptInvite(ctx context.Context, token string, u domain.User) (domain.Member, error)
+	AcceptInviteLocal(ctx context.Context, token, name, password string) (domain.User, domain.Member, error)
 }
 
 var _ AuthBackend = (*service.Service)(nil)
@@ -88,6 +91,8 @@ func (s *server) authRoutes(mux handlerRegistry) {
 	mux.HandleFunc("POST "+auth.LoginPath, s.sameOrigin(s.handleLoginLocal))
 	mux.HandleFunc("POST /entrar/dono", s.sameOrigin(s.handleCreateOwner))
 	mux.HandleFunc("POST /auth/firebase", s.handleFirebase)
+	mux.HandleFunc("GET "+auth.InvitePath+"{token}", s.handleInvitePage)
+	mux.HandleFunc("POST "+auth.InvitePath+"{token}", s.sameOrigin(s.handleInviteAccept))
 	mux.HandleFunc("POST /sair", s.sameOrigin(s.handleLogout))
 }
 
@@ -237,6 +242,7 @@ func (s *server) handleLogout(w http.ResponseWriter, r *http.Request) {
 type firebaseReq struct {
 	IDToken string `json:"id_token"`
 	Next    string `json:"next"`
+	Invite  string `json:"invite"` // token de convite (página /convite/{token}); opcional
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
@@ -292,10 +298,25 @@ func (s *server) handleFirebase(w http.ResponseWriter, r *http.Request) {
 		jsonErr(w, http.StatusUnauthorized, "invalid_token", i18n.T(r.Context(), "Credencial inválida ou expirada. Tente entrar de novo."))
 		return
 	}
+	redirectTo := auth.SafeNext(in.Next)
+	if in.Invite != "" { // aceite de convite: o e-mail do ID token (confirmado) tem de ser o do convite
+		pv, err := s.auth.be.PreviewInvite(r.Context(), in.Invite)
+		if err != nil {
+			if errors.Is(err, domain.ErrInviteInvalid) {
+				s.auth.Limiter.Fail(ip, "")
+				jsonErr(w, http.StatusForbidden, "invite_invalid", i18n.T(r.Context(), "Convite inválido, expirado ou para outro e-mail."))
+				return
+			}
+			s.log.Error("ui: ver convite", "err", err)
+			jsonErr(w, http.StatusInternalServerError, "internal", i18n.T(r.Context(), "Erro interno. Tente de novo."))
+			return
+		}
+		redirectTo = "/c/" + pv.CompanySlug + "/"
+	}
 	u, err := s.auth.be.LoginFirebase(r.Context(), service.FirebaseLogin{
 		UID: claims.UID, Email: claims.Email, Name: claims.Name,
 		ListsConfigured: s.auth.Admission.Configured(), Admitted: s.auth.Admission.Allows(claims.Email),
-		OwnerEmail: s.auth.OwnerEmail,
+		OwnerEmail: s.auth.OwnerEmail, InviteToken: in.Invite,
 	})
 	switch {
 	case err == nil:
@@ -311,12 +332,24 @@ func (s *server) handleFirebase(w http.ResponseWriter, r *http.Request) {
 		jsonErr(w, http.StatusInternalServerError, "internal", i18n.T(r.Context(), "Erro interno. Tente de novo."))
 		return
 	}
+	if in.Invite != "" {
+		if _, err := s.auth.be.AcceptInvite(r.Context(), in.Invite, u); err != nil {
+			if errors.Is(err, domain.ErrInviteInvalid) {
+				s.auth.Limiter.Fail(ip, "")
+				jsonErr(w, http.StatusForbidden, "invite_invalid", i18n.T(r.Context(), "Convite inválido, expirado ou para outro e-mail."))
+				return
+			}
+			s.log.Error("ui: aceitar convite", "err", err)
+			jsonErr(w, http.StatusInternalServerError, "internal", i18n.T(r.Context(), "Erro interno. Tente de novo."))
+			return
+		}
+	}
 	if err := s.startSession(w, r, u); err != nil {
 		s.log.Error("ui: abrir sessão", "err", err)
 		jsonErr(w, http.StatusInternalServerError, "internal", i18n.T(r.Context(), "Erro interno. Tente de novo."))
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"redirect": auth.SafeNext(in.Next)})
+	writeJSON(w, http.StatusOK, map[string]string{"redirect": redirectTo})
 }
 
 // ---------- settings: account and API keys ----------
@@ -365,6 +398,14 @@ func roleLabel(ctx context.Context, r domain.UserRole) string {
 
 func (s *server) renderSettings(w http.ResponseWriter, r *http.Request, co domain.Company, status int, vm views.SettingsVM) {
 	ctx := r.Context()
+	pre := vm.Members // NewLink, Email e Error vindos do handler
+	mv, err := s.membersVM(r, co)
+	if err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
+	mv.NewLink, mv.NewLinkEmail, mv.Email, mv.Error = pre.NewLink, pre.NewLinkEmail, pre.Email, pre.Error
+	vm.Members = mv
 	s.render(w, r, status, views.SettingsPage(s.shell(co, "", i18n.T(ctx, "Configurações"), views.Crumb{Label: i18n.T(ctx, "Configurações")}), vm))
 }
 

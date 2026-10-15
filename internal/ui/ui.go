@@ -90,6 +90,14 @@ type Backend interface {
 	UpdateFlow(ctx context.Context, actor domain.Actor, companyID, flowID domain.ID, in service.UpdateFlowInput) (service.FlowView, error)
 	ListFlowFires(ctx context.Context, companyID, flowID domain.ID, limit int) ([]service.FlowFireView, error)
 	RunFlowNow(ctx context.Context, actor domain.Actor, companyID, flowID domain.ID) (service.FlowFireResult, error)
+
+	MyRole(ctx context.Context, companyID domain.ID) (domain.MemberRole, error)
+	ListMembers(ctx context.Context, companyID domain.ID) ([]domain.Member, error)
+	ListInvites(ctx context.Context, companyID domain.ID) ([]domain.Invite, error)
+	InviteMember(ctx context.Context, actor domain.Actor, companyID domain.ID, email string, role domain.MemberRole) (domain.Invite, string, error)
+	RevokeInvite(ctx context.Context, actor domain.Actor, companyID, inviteID domain.ID) error
+	SetMemberRole(ctx context.Context, actor domain.Actor, companyID, userID domain.ID, role domain.MemberRole) (domain.Member, error)
+	RemoveMember(ctx context.Context, actor domain.Actor, companyID, userID domain.ID) error
 }
 
 var _ Backend = (*service.Service)(nil)
@@ -221,6 +229,10 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("GET /c/{company}/configuracoes", co(s.handleSettings))
 	mux.HandleFunc("POST /c/{company}/configuracoes/chaves", post(co(s.handleCreateKey)))
 	mux.HandleFunc("POST /c/{company}/configuracoes/chaves/{key}/revogar", post(co(s.handleRevokeKey)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/membros/convites", post(co(s.handleInviteMember)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/membros/convites/{invite}/revogar", post(co(s.handleRevokeInvite)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/membros/{user}/papel", post(co(s.handleMemberRole)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/membros/{user}/remover", post(co(s.handleMemberRemove)))
 	s.authRoutes(mux)
 
 	mux.HandleFunc("GET /c/{company}/atividade", co(s.handleActivity))
@@ -340,6 +352,9 @@ func friendly(ctx context.Context, err error) (int, string, string) {
 		}
 		return st, i18n.T(ctx, "Conflito"), i18n.T(ctx, "Esse registro já existe ou foi alterado por outra pessoa.")
 	case http.StatusForbidden:
+		if errors.Is(err, domain.ErrForbidden) {
+			return st, i18n.T(ctx, "Ação não permitida"), i18n.T(ctx, "Seu papel nesta empresa não permite esta ação.")
+		}
 		return st, i18n.T(ctx, "Ação não permitida"), i18n.T(ctx, "A requisição foi bloqueada por segurança (origem diferente).")
 	case http.StatusNotImplemented:
 		return st, i18n.T(ctx, "Ainda não implementado"), i18n.T(ctx, "Esta função depende de uma parte do servidor que ainda não está disponível.")

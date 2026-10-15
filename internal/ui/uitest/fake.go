@@ -40,7 +40,11 @@ type Fake struct {
 	Flows     []service.FlowView
 	Fires     []service.FlowFireView
 	Subs      []service.SubscriptionStatus
-	nextTask  int64
+	Members   []domain.Member
+	Invites   []domain.Invite
+	// MyRoleIs é o papel do usuário logado nesta empresa (vazio = owner).
+	MyRoleIs domain.MemberRole
+	nextTask int64
 }
 
 var _ = (*Fake)(nil)

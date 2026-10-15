@@ -626,4 +626,61 @@ type SettingsVM struct {
 	NewKey  string
 	KeyName string
 	Error   string
+	// Members is the company's "Membros" section (authenticated mode only).
+	Members MembersVM
+}
+
+// MemberRow is one member in the "Membros" table.
+type MemberRow struct {
+	ID        string
+	Name      string
+	Email     string
+	Role      string // owner|admin|member|viewer
+	RoleLabel string
+	Joined    string
+	Self      bool
+	CanEdit   bool // the viewer of the page can change this member's role or remove them
+}
+
+// InviteRow is one open invite.
+type InviteRow struct {
+	ID        string
+	Email     string
+	RoleLabel string
+	Expires   string
+	Expired   bool
+	CanRevoke bool
+}
+
+// RoleOption is a role the page's user may grant.
+type RoleOption struct{ Value, Label string }
+
+// MembersVM drives the "Membros" section of the company settings.
+type MembersVM struct {
+	Show      bool
+	MyRole    string
+	Members   []MemberRow
+	Invites   []InviteRow
+	CanInvite bool
+	Roles     []RoleOption // roles the user may grant (invite or change to)
+	// NewLink is the invite link, shown once right after creation.
+	NewLink      string
+	NewLinkEmail string
+	Email        string // form value kept after an error
+	Error        string
+}
+
+// InviteVM drives the public /convite/{token} page.
+type InviteVM struct {
+	Version   string
+	Token     string
+	Company   string
+	Email     string
+	RoleLabel string
+	// State: "invalid" | "confirm" (signed in as the invited e-mail) | "wrong" (signed in as someone else)
+	// | "login" (local, account exists) | "create" (local, no account) | "firebase".
+	State    string
+	Name     string
+	Error    string
+	Firebase *FirebaseWeb
 }

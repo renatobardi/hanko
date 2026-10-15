@@ -284,6 +284,16 @@ func verbPhraseCtx(ctx context.Context, v string) string {
 		return i18n.T(ctx, "removeu a assinatura")
 	case "subscription.guard_blocked":
 		return i18n.T(ctx, "travou a assinatura")
+	case "member.invited":
+		return i18n.T(ctx, "convidou")
+	case "invite.revoked":
+		return i18n.T(ctx, "revogou o convite de")
+	case "member.joined":
+		return i18n.T(ctx, "entrou na empresa")
+	case "member.role_changed":
+		return i18n.T(ctx, "mudou o papel de")
+	case "member.removed":
+		return i18n.T(ctx, "removeu da empresa")
 	}
 	return v
 }
