@@ -29,6 +29,9 @@ type OrgChart struct {
 // OrgChart builds the tree from reports_to. Personas whose superior no longer exists are roots.
 // Siblings are ordered by hiring date.
 func (s *Service) OrgChart(ctx context.Context, companyID domain.ID) (OrgChart, error) {
+	if err := s.require(ctx, companyID, domain.MemberViewer); err != nil {
+		return OrgChart{}, err
+	}
 	q := s.read()
 	if _, err := q.GetCompanyByID(ctx, companyID); err != nil {
 		return OrgChart{}, mapErr(err, "get company")

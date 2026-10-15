@@ -34,6 +34,9 @@ func validateTitle(title string) (string, error) {
 // CanWork and status is Workable, enqueues a Wake (trigger assign) in the same tx.
 // Same EventID twice → returns the existing task (idempotent).
 func (s *Service) CreateTask(ctx context.Context, actor domain.Actor, companyID domain.ID, in CreateTaskInput) (TaskView, error) {
+	if err := s.require(ctx, companyID, domain.MemberMember); err != nil {
+		return TaskView{}, err
+	}
 	if _, err := normalizeNewTask(in); err != nil {
 		return TaskView{}, err
 	}
@@ -194,6 +197,9 @@ func taskFact(kind, key, title, desc string, status domain.TaskStatus, prio doma
 }
 
 func (s *Service) ListTasks(ctx context.Context, companyID domain.ID, f TaskFilter) ([]TaskView, error) {
+	if err := s.require(ctx, companyID, domain.MemberViewer); err != nil {
+		return nil, err
+	}
 	p := store.ListTaskViewsParams{CompanyID: companyID, PersonaID: f.PersonaID, ProjectID: f.ProjectID,
 		Lim: i32(clamp(f.Limit, 100, 500)), Off: i32(max(f.Offset, 0))}
 	if len(f.Statuses) > 0 {
@@ -222,6 +228,9 @@ func (s *Service) ListTasks(ctx context.Context, companyID domain.ID, f TaskFilt
 
 // GetTask resolves ref as UUID or task key ("HNK-12").
 func (s *Service) GetTask(ctx context.Context, companyID domain.ID, ref string) (TaskView, error) {
+	if err := s.require(ctx, companyID, domain.MemberViewer); err != nil {
+		return TaskView{}, err
+	}
 	q := s.read()
 	if id, err := uuid.Parse(ref); err == nil {
 		return loadTaskView(ctx, q, companyID, id)
@@ -248,6 +257,9 @@ func (s *Service) GetTask(ctx context.Context, companyID domain.ID, ref string) 
 // unassigning or reassigning a task cancels its active run (queued → cancelled in the tx;
 // running → run.cancel is published after commit).
 func (s *Service) UpdateTask(ctx context.Context, actor domain.Actor, companyID, taskID domain.ID, in UpdateTaskInput) (TaskView, error) {
+	if err := s.require(ctx, companyID, domain.MemberMember); err != nil {
+		return TaskView{}, err
+	}
 	if in.Title != nil {
 		if _, err := validateTitle(*in.Title); err != nil {
 			return TaskView{}, err
@@ -454,6 +466,9 @@ func (s *Service) UpdateTask(ctx context.Context, actor domain.Actor, companyID,
 
 // WakeTask enqueues a manual Wake for the assignee. No assignee → ErrInvalid.
 func (s *Service) WakeTask(ctx context.Context, actor domain.Actor, companyID, taskID domain.ID) error {
+	if err := s.require(ctx, companyID, domain.MemberMember); err != nil {
+		return err
+	}
 	return s.withTx(ctx, func(t *txc) error {
 		task, err := t.q.GetTaskByID(ctx, store.GetTaskByIDParams{CompanyID: companyID, ID: taskID})
 		if err != nil {

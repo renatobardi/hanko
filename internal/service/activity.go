@@ -10,6 +10,9 @@ import (
 )
 
 func (s *Service) ListActivity(ctx context.Context, companyID domain.ID, f ActivityFilter) ([]domain.ActivityEvent, error) {
+	if err := s.require(ctx, companyID, domain.MemberViewer); err != nil {
+		return nil, err
+	}
 	p := store.ListActivityParams{CompanyID: companyID, SubjectID: f.SubjectID, Before: f.Before,
 		Lim: i32(clamp(f.Limit, 50, 500))}
 	if f.SubjectType != "" {
@@ -29,6 +32,9 @@ func (s *Service) ListActivity(ctx context.Context, companyID domain.ID, f Activ
 // Dashboard aggregates the Painel numbers. Month cost covers runs created in the
 // current calendar month of the company's time zone.
 func (s *Service) Dashboard(ctx context.Context, companyID domain.ID) (DashboardStats, error) {
+	if err := s.require(ctx, companyID, domain.MemberViewer); err != nil {
+		return DashboardStats{}, err
+	}
 	q := s.read()
 	company, err := q.GetCompanyByID(ctx, companyID)
 	if err != nil {

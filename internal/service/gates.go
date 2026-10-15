@@ -74,6 +74,9 @@ const maxGateBody = 100000
 // A persona may ask for a gate only on a task assigned to itself or on the task of its own
 // run (RunID); anything else is ErrNotAllowed, so a persona cannot park someone else's work.
 func (s *Service) RequestGate(ctx context.Context, actor domain.Actor, companyID domain.ID, in RequestGateInput) (GateView, error) {
+	if err := s.require(ctx, companyID, domain.MemberMember); err != nil {
+		return GateView{}, err
+	}
 	title := strings.TrimSpace(in.Title)
 	if n := utf8.RuneCountInString(title); n < 1 || n > 300 {
 		return GateView{}, domain.Invalid("title", "must have 1-300 characters")
@@ -354,6 +357,9 @@ var gateDecisionLabel = map[domain.GateStatus]string{
 //   - the persona leaves awaiting_gate (when no other blocking gate holds it) and the task's current assignee is woken (trigger gate);
 //   - activity gate.decided and the memory fact gate.decided at hanko/decisions/<date>-<KEY>-<gate8>.md.
 func (s *Service) DecideGate(ctx context.Context, actor domain.Actor, companyID, gateID domain.ID, in DecideGateInput) (GateView, error) {
+	if err := s.require(ctx, companyID, domain.MemberMember); err != nil {
+		return GateView{}, err
+	}
 	if actor.Type != domain.ActorHuman {
 		return GateView{}, fmt.Errorf("decide gate: only a human decides gates: %w", domain.ErrNotAllowed)
 	}
@@ -376,6 +382,11 @@ func (s *Service) DecideGate(ctx context.Context, actor domain.Actor, companyID,
 		}
 		if domain.GateStatus(cur.Status) != domain.GatePending {
 			return fmt.Errorf("gate already %s: %w", cur.Status, domain.ErrConflict)
+		}
+		if domain.GateKind(cur.Kind) == domain.GateHire { // contratar persona é decisão de admin (ADR-0021)
+			if err := s.require(ctx, companyID, domain.MemberAdmin); err != nil {
+				return err
+			}
 		}
 		row, err := t.q.DecideGate(ctx, store.DecideGateParams{CompanyID: companyID, ID: gateID, Status: string(in.Decision),
 			DecidedByType: ptr(string(actor.Type)), DecidedByID: actor.ID, DecisionNote: note, Now: &t.now})
@@ -555,6 +566,9 @@ func actorLabelPtr(a *domain.Actor) string {
 
 // ListGates lists gates, pending ones first (oldest first), then the decided, newest first.
 func (s *Service) ListGates(ctx context.Context, companyID domain.ID, f GateFilter) ([]GateView, error) {
+	if err := s.require(ctx, companyID, domain.MemberViewer); err != nil {
+		return nil, err
+	}
 	p := store.ListGateViewsParams{CompanyID: companyID, TaskID: f.TaskID, PersonaID: f.PersonaID,
 		Lim: i32(clamp(f.Limit, 100, 500)), Off: i32(max(f.Offset, 0))}
 	for _, st := range f.Statuses {
@@ -582,6 +596,9 @@ func (s *Service) ListGates(ctx context.Context, companyID domain.ID, f GateFilt
 
 // GetGate returns one gate of the company.
 func (s *Service) GetGate(ctx context.Context, companyID, gateID domain.ID) (GateView, error) {
+	if err := s.require(ctx, companyID, domain.MemberViewer); err != nil {
+		return GateView{}, err
+	}
 	return loadGateView(ctx, s.read(), companyID, gateID)
 }
 
@@ -624,6 +641,9 @@ const inboxFailedWindow = 7 * 24 * time.Hour
 
 // Inbox assembles the Caixa de entrada.
 func (s *Service) Inbox(ctx context.Context, companyID domain.ID) (Inbox, error) {
+	if err := s.require(ctx, companyID, domain.MemberViewer); err != nil {
+		return Inbox{}, err
+	}
 	q := s.read()
 	var in Inbox
 	gates, err := s.ListGates(ctx, companyID, GateFilter{Statuses: []domain.GateStatus{domain.GatePending}, Limit: 200})

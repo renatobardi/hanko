@@ -153,6 +153,7 @@ templ SettingsPage(sh Shell, vm SettingsVM) {
 					<dd>{ vm.Role }</dd>
 				</dl>
 			</div>
+			@membersCard(sh, vm.Members)
 			<div class="card pad form-card" style="margin-bottom:20px">
 				<div class="card-head">
 					<div>
@@ -216,4 +217,262 @@ templ SettingsPage(sh Shell, vm SettingsVM) {
 			</div>
 		}
 	}
+}
+
+templ membersCard(sh Shell, m MembersVM) {
+	if m.Show {
+		<div class="card pad form-card" style="margin-bottom:20px" id="membros">
+			<div class="card-head">
+				<div>
+					<h2>{ i18n.T(ctx, "Membros") }</h2>
+					<p class="sub">{ i18n.T(ctx, "Quem acessa esta empresa e com qual papel. Dono gerencia membros; admin gerencia personas, orçamentos, assinaturas e fluxos; membro opera tasks, comentários e decisões; leitor só vê.") }</p>
+				</div>
+			</div>
+			if m.Error != "" {
+				@Alert("danger", m.Error)
+			}
+			if m.NewLink != "" {
+				<div class="alert warn" role="status">
+					@Icon("key")
+					<div>
+						<b>{ i18n.Tf(ctx, "Convite para %s criado. Copie o link e envie por onde preferir: o Hanko não envia e-mail e o link não será mostrado de novo.", m.NewLinkEmail) }</b>
+						<div class="mono keybox" id="invite-link">{ m.NewLink }</div>
+					</div>
+				</div>
+			}
+			if m.CanInvite {
+				<form method="post" action={ templ.SafeURL(sh.Base() + "/configuracoes/membros/convites") } class="inline-form">
+					<input class="input" name="email" type="email" value={ m.Email } placeholder={ i18n.T(ctx, "E-mail da pessoa") } required maxlength="254" aria-label={ i18n.T(ctx, "E-mail da pessoa") }/>
+					<select class="input" name="role" aria-label={ i18n.T(ctx, "Papel") }>
+						for _, r := range m.Roles {
+							<option value={ r.Value } selected?={ r.Value == "member" }>{ r.Label }</option>
+						}
+					</select>
+					<button class="btn primary" type="submit">
+						@Icon("plus")
+						{ i18n.T(ctx, "Convidar") }
+					</button>
+				</form>
+			}
+			<div class="table-wrap" style="margin-top:16px">
+				<table class="table">
+					<thead>
+						<tr>
+							<th>{ i18n.T(ctx, "Nome") }</th>
+							<th>{ i18n.T(ctx, "Papel") }</th>
+							<th class="hide-sm">{ i18n.T(ctx, "Desde") }</th>
+							<th></th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, mb := range m.Members {
+							<tr class="row">
+								<td>
+									{ mb.Name }
+									if mb.Self {
+										<span class="badge outline">{ i18n.T(ctx, "você") }</span>
+									}
+									<div class="mono muted">{ mb.Email }</div>
+								</td>
+								<td>
+									if mb.CanEdit {
+										<form method="post" action={ templ.SafeURL(sh.Base() + "/configuracoes/membros/" + mb.ID + "/papel") } class="inline-form">
+											<select class="input" name="role" aria-label={ i18n.T(ctx, "Papel") }>
+												for _, r := range m.Roles {
+													<option value={ r.Value } selected?={ r.Value == mb.Role }>{ r.Label }</option>
+												}
+											</select>
+											<button class="btn sm" type="submit">{ i18n.T(ctx, "Salvar") }</button>
+										</form>
+									} else {
+										<span class="badge outline">{ mb.RoleLabel }</span>
+									}
+								</td>
+								<td class="when hide-sm">{ mb.Joined }</td>
+								<td style="text-align:right">
+									if mb.CanEdit || mb.Self {
+										<form method="post" action={ templ.SafeURL(sh.Base() + "/configuracoes/membros/" + mb.ID + "/remover") }>
+											<button class="btn sm danger" type="submit">
+												if mb.Self {
+													{ i18n.T(ctx, "Sair da empresa") }
+												} else {
+													{ i18n.T(ctx, "Remover") }
+												}
+											</button>
+										</form>
+									}
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+			if len(m.Invites) > 0 {
+				<h3 style="margin-top:20px">{ i18n.T(ctx, "Convites abertos") }</h3>
+				<div class="table-wrap">
+					<table class="table">
+						<thead>
+							<tr>
+								<th>{ i18n.T(ctx, "E-mail") }</th>
+								<th>{ i18n.T(ctx, "Papel") }</th>
+								<th class="hide-sm">{ i18n.T(ctx, "Validade") }</th>
+								<th></th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, in := range m.Invites {
+								<tr class="row">
+									<td class="mono">{ in.Email }</td>
+									<td><span class="badge outline">{ in.RoleLabel }</span></td>
+									<td class="when hide-sm">
+										if in.Expired {
+											<span class="badge danger">{ i18n.T(ctx, "Expirado") }</span>
+										} else {
+											{ in.Expires }
+										}
+									</td>
+									<td style="text-align:right">
+										if in.CanRevoke {
+											<form method="post" action={ templ.SafeURL(sh.Base() + "/configuracoes/membros/convites/" + in.ID + "/revogar") }>
+												<button class="btn sm danger" type="submit">{ i18n.T(ctx, "Revogar") }</button>
+											</form>
+										}
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+		</div>
+	}
+}
+
+// InvitePage is the public /convite/{token} screen: accept an invite (local: create the account
+// or sign in; firebase: sign in with the invited e-mail).
+templ InvitePage(vm InviteVM) {
+	@Bare(i18n.T(ctx, "Convite"), vm.Version) {
+		<div class="auth">
+			<div class="mark">
+				@Mark(40)
+				<b>Hanko</b>
+			</div>
+			switch vm.State {
+				case "invalid":
+					<div class="card">
+						<h1>{ i18n.T(ctx, "Convite inválido") }</h1>
+						<p class="sub muted">{ i18n.T(ctx, "Este convite não existe, expirou, foi revogado ou já foi usado. Peça um novo link a quem convidou.") }</p>
+					</div>
+				case "firebase":
+					@inviteHead(vm)
+					@firebaseInvite(vm)
+				case "confirm":
+					<form class="card" method="post" action={ templ.SafeURL("/convite/" + vm.Token) }>
+						@inviteIntro(vm)
+						if vm.Error != "" {
+							@Alert("danger", vm.Error)
+						}
+						<button class="btn primary block" type="submit">{ i18n.T(ctx, "Aceitar convite") }</button>
+					</form>
+				case "wrong":
+					<div class="card">
+						@inviteIntro(vm)
+						@Alert("danger", i18n.T(ctx, "Você está conectado com outro e-mail. Saia e entre com a conta convidada."))
+						<form method="post" action="/sair">
+							<button class="btn outline block" type="submit">{ i18n.T(ctx, "Sair") }</button>
+						</form>
+					</div>
+				case "login":
+					<form class="card" method="post" action={ templ.SafeURL("/convite/" + vm.Token) }>
+						@inviteIntro(vm)
+						if vm.Error != "" {
+							@Alert("danger", vm.Error)
+						}
+						<div class="field">
+							<label for="i-pass">{ i18n.T(ctx, "Senha") }</label>
+							<input class="input" id="i-pass" name="password" type="password" required autocomplete="current-password" autofocus/>
+						</div>
+						<button class="btn primary block" type="submit">{ i18n.T(ctx, "Entrar e aceitar") }</button>
+					</form>
+				default:
+					<form class="card" method="post" action={ templ.SafeURL("/convite/" + vm.Token) }>
+						@inviteIntro(vm)
+						if vm.Error != "" {
+							@Alert("danger", vm.Error)
+						}
+						<div class="field">
+							<label for="i-name">{ i18n.T(ctx, "Nome") }</label>
+							<input class="input" id="i-name" name="name" value={ vm.Name } required maxlength="80" autocomplete="name" autofocus/>
+						</div>
+						<div class="field">
+							<label for="i-pass">{ i18n.T(ctx, "Senha") }</label>
+							<input class="input" id="i-pass" name="password" type="password" required minlength="10" maxlength="256" autocomplete="new-password"/>
+							<span class="hint">{ i18n.T(ctx, "Mínimo de 10 caracteres.") }</span>
+						</div>
+						<button class="btn primary block" type="submit">{ i18n.T(ctx, "Criar conta e aceitar") }</button>
+					</form>
+			}
+			@LangSwitch()
+		</div>
+	}
+}
+
+templ inviteIntro(vm InviteVM) {
+	<h1>{ i18n.T(ctx, "Convite") }</h1>
+	<p class="sub muted">{ i18n.Tf(ctx, "Você foi convidado para %s como %s.", vm.Company, vm.RoleLabel) }</p>
+	<dl class="dl">
+		<dt>{ i18n.T(ctx, "E-mail") }</dt>
+		<dd class="mono">{ vm.Email }</dd>
+	</dl>
+}
+
+templ inviteHead(vm InviteVM) {
+	<div class="card">
+		@inviteIntro(vm)
+		<p class="sub muted">{ i18n.T(ctx, "Entre com este mesmo e-mail (confirmado) para aceitar.") }</p>
+	</div>
+}
+
+templ firebaseInvite(vm InviteVM) {
+	<form
+		class="card"
+		id="fb-form"
+		method="post"
+		action="/entrar"
+		data-api-key={ vm.Firebase.APIKey }
+		data-auth-domain={ vm.Firebase.AuthDomain }
+		data-project-id={ vm.Firebase.ProjectID }
+		data-next="/"
+		data-invite={ vm.Token }
+		data-email={ vm.Email }
+	>
+		<h1 id="fb-title">{ i18n.T(ctx, "Entrar") }</h1>
+		<p class="sub muted" id="fb-sub">{ i18n.T(ctx, "Use suas credenciais para acessar o Hanko.") }</p>
+		if vm.Error != "" {
+			@Alert("danger", vm.Error)
+		}
+		<div id="fb-msg" aria-live="polite"></div>
+		<noscript><div class="alert danger" role="alert">@Icon("alert")<div>{ i18n.T(ctx, "Ative o JavaScript para entrar com o Firebase.") }</div></div></noscript>
+		<div class="field">
+			<label for="f-email">{ i18n.T(ctx, "E-mail") }</label>
+			<input class="input" id="f-email" name="email" type="email" value={ vm.Email } required autocomplete="username" autofocus/>
+		</div>
+		<div class="field">
+			<div class="lbl-row">
+				<label for="f-pass">{ i18n.T(ctx, "Senha") }</label>
+				<button class="link" type="button" id="fb-reset">{ i18n.T(ctx, "Esqueci a senha") }</button>
+			</div>
+			<input class="input" id="f-pass" name="password" type="password" required minlength="6" autocomplete="current-password"/>
+		</div>
+		<button class="btn primary block" type="submit" id="fb-submit">{ i18n.T(ctx, "Entrar") }</button>
+		<div class="or"><span>{ i18n.T(ctx, "ou") }</span></div>
+		<button class="btn outline block" type="button" id="fb-google">{ i18n.T(ctx, "Continuar com Google") }</button>
+	</form>
+	<div class="foot">
+		<span>
+			<span id="fb-toggle-text">{ i18n.T(ctx, "Não tem conta?") }</span>
+			<button class="link" type="button" id="fb-toggle">{ i18n.T(ctx, "Criar conta") }</button>
+		</span>
+	</div>
+	<script type="module" src={ "/static/auth-firebase.js?v=" + vm.Version }></script>
 }

@@ -30,6 +30,9 @@ func loadRunView(ctx context.Context, q *store.Queries, companyID, runID domain.
 }
 
 func (s *Service) ListRuns(ctx context.Context, companyID domain.ID, f RunFilter) ([]RunView, error) {
+	if err := s.require(ctx, companyID, domain.MemberViewer); err != nil {
+		return nil, err
+	}
 	p := store.ListRunViewsParams{CompanyID: companyID, TaskID: f.TaskID, PersonaID: f.PersonaID,
 		Lim: i32(clamp(f.Limit, 50, 500))}
 	if len(f.Statuses) > 0 {
@@ -59,11 +62,17 @@ func (s *Service) ListRuns(ctx context.Context, companyID domain.ID, f RunFilter
 }
 
 func (s *Service) GetRun(ctx context.Context, companyID, runID domain.ID) (RunView, error) {
+	if err := s.require(ctx, companyID, domain.MemberViewer); err != nil {
+		return RunView{}, err
+	}
 	return loadRunView(ctx, s.read(), companyID, runID)
 }
 
 // ListRunEvents returns events with seq > afterSeq, ascending.
 func (s *Service) ListRunEvents(ctx context.Context, companyID, runID domain.ID, afterSeq int64, limit int) ([]domain.RunEvent, error) {
+	if err := s.require(ctx, companyID, domain.MemberViewer); err != nil {
+		return nil, err
+	}
 	rows, err := s.read().ListRunEvents(ctx, store.ListRunEventsParams{CompanyID: companyID, RunID: runID,
 		AfterSeq: afterSeq, Lim: i32(clamp(limit, 200, 1000))})
 	if err != nil {
@@ -79,6 +88,9 @@ func (s *Service) ListRunEvents(ctx context.Context, companyID, runID domain.ID,
 // CancelRun marks a queued run cancelled; for a running run it records the request and
 // publishes run.cancel on the broker (the executor cancels its context).
 func (s *Service) CancelRun(ctx context.Context, actor domain.Actor, companyID, runID domain.ID) (RunView, error) {
+	if err := s.require(ctx, companyID, domain.MemberMember); err != nil {
+		return RunView{}, err
+	}
 	var out RunView
 	err := s.withTx(ctx, func(t *txc) error {
 		if err := t.lockTaskOfReviewRun(companyID, runID); err != nil {

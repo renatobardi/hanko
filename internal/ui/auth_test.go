@@ -32,9 +32,11 @@ type fakeAuth struct {
 	keyOwner map[domain.ID]domain.ID
 	fbErr    error
 	rotated  []string
-	busy     bool                  // AuthenticateLocal/CreateOwner devolvem auth.ErrBusy
-	lastFB   service.FirebaseLogin // último LoginFirebase recebido
-	lastIP   string                // IP da última sessão aberta
+	busy     bool                             // AuthenticateLocal/CreateOwner devolvem auth.ErrBusy
+	lastFB   service.FirebaseLogin            // último LoginFirebase recebido
+	lastIP   string                           // IP da última sessão aberta
+	invites  map[string]service.InvitePreview // token -> convite aberto
+	accepted []string                         // tokens aceitos
 }
 
 func newFakeAuth() *fakeAuth {
@@ -726,4 +728,65 @@ func TestFirebaseLoginPassesOwnerEmail(t *testing.T) {
 	if e.fa.lastFB.OwnerEmail != "dona@exemplo.com" || e.fa.lastFB.ListsConfigured {
 		t.Fatalf("LoginFirebase recebeu %+v", e.fa.lastFB)
 	}
+}
+
+// ---------- convites ----------
+
+func (f *fakeAuth) addInvite(token string, pv service.InvitePreview) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.invites == nil {
+		f.invites = map[string]service.InvitePreview{}
+	}
+	f.invites[token] = pv
+}
+
+func (f *fakeAuth) PreviewInvite(_ context.Context, token string) (service.InvitePreview, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	pv, ok := f.invites[token]
+	if !ok {
+		return service.InvitePreview{}, domain.ErrInviteInvalid
+	}
+	pv.HasAccount = false
+	for _, u := range f.users {
+		if strings.EqualFold(u.Email, pv.Email) {
+			pv.HasAccount = true
+		}
+	}
+	return pv, nil
+}
+
+func (f *fakeAuth) AcceptInvite(_ context.Context, token string, u domain.User) (domain.Member, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	pv, ok := f.invites[token]
+	if !ok || !strings.EqualFold(pv.Email, u.Email) {
+		return domain.Member{}, domain.ErrInviteInvalid
+	}
+	delete(f.invites, token)
+	f.accepted = append(f.accepted, token)
+	return domain.Member{UserID: u.ID, Role: pv.Role}, nil
+}
+
+func (f *fakeAuth) AcceptInviteLocal(_ context.Context, token, name, password string) (domain.User, domain.Member, error) {
+	f.mu.Lock()
+	pv, ok := f.invites[token]
+	f.mu.Unlock()
+	if !ok {
+		return domain.User{}, domain.Member{}, domain.ErrInviteInvalid
+	}
+	if f.busy {
+		return domain.User{}, domain.Member{}, auth.ErrBusy
+	}
+	if strings.TrimSpace(name) == "" {
+		return domain.User{}, domain.Member{}, domain.Invalid("name", "required")
+	}
+	if err := auth.ValidatePassword(password); err != nil {
+		return domain.User{}, domain.Member{}, domain.Invalid("password", err.Error())
+	}
+	u := f.addUser(pv.Email, name, password)
+	u.Role = domain.RoleMember
+	m, err := f.AcceptInvite(context.Background(), token, u)
+	return u, m, err
 }

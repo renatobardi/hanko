@@ -88,7 +88,7 @@ func TestWiringAuthenticatedLocal(t *testing.T) {
 	same := map[string]string{"Sec-Fetch-Site": "same-origin", "Content-Type": "application/x-www-form-urlencoded"}
 
 	t.Run("rotas livres e protegidas sem login", func(t *testing.T) {
-		for p, want := range map[string]int{"/healthz": 200, "/readyz": 200, "/static/hanko.css": 200, "/entrar": 200, "/metrics": 200} {
+		for p, want := range map[string]int{"/healthz": 200, "/readyz": 200, "/static/hanko.css": 200, "/entrar": 200, "/metrics": 200, "/convite/inexistente": 404} {
 			if resp, _ := send(t, ts.URL, call{method: "GET", path: p}); resp.StatusCode != want {
 				t.Errorf("%s: %d, quer %d", p, resp.StatusCode, want)
 			}

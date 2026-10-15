@@ -107,7 +107,7 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (S
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (id, email, name, provider, external_id, password_hash, role, created_at, last_login_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)
-RETURNING id, email, name, provider, external_id, password_hash, role, created_at, last_login_at
+RETURNING id, email, name, provider, external_id, password_hash, role, created_at, last_login_at, invited
 `
 
 type CreateUserParams struct {
@@ -143,6 +143,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.Role,
 		&i.CreatedAt,
 		&i.LastLoginAt,
+		&i.Invited,
 	)
 	return i, err
 }
@@ -212,7 +213,7 @@ func (q *Queries) GetSessionByHash(ctx context.Context, arg GetSessionByHashPara
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, name, provider, external_id, password_hash, role, created_at, last_login_at FROM users WHERE lower(email) = lower($1)
+SELECT id, email, name, provider, external_id, password_hash, role, created_at, last_login_at, invited FROM users WHERE lower(email) = lower($1)
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
@@ -228,12 +229,13 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.Role,
 		&i.CreatedAt,
 		&i.LastLoginAt,
+		&i.Invited,
 	)
 	return i, err
 }
 
 const getUserByExternal = `-- name: GetUserByExternal :one
-SELECT id, email, name, provider, external_id, password_hash, role, created_at, last_login_at FROM users WHERE provider = $1 AND external_id = $2
+SELECT id, email, name, provider, external_id, password_hash, role, created_at, last_login_at, invited FROM users WHERE provider = $1 AND external_id = $2
 `
 
 type GetUserByExternalParams struct {
@@ -254,12 +256,13 @@ func (q *Queries) GetUserByExternal(ctx context.Context, arg GetUserByExternalPa
 		&i.Role,
 		&i.CreatedAt,
 		&i.LastLoginAt,
+		&i.Invited,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, name, provider, external_id, password_hash, role, created_at, last_login_at FROM users WHERE id = $1
+SELECT id, email, name, provider, external_id, password_hash, role, created_at, last_login_at, invited FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
@@ -275,6 +278,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.Role,
 		&i.CreatedAt,
 		&i.LastLoginAt,
+		&i.Invited,
 	)
 	return i, err
 }
@@ -313,7 +317,7 @@ func (q *Queries) ListAPIKeys(ctx context.Context, userID uuid.UUID) ([]ApiKey, 
 }
 
 const listUsers = `-- name: ListUsers :many
-SELECT id, email, name, provider, external_id, password_hash, role, created_at, last_login_at FROM users ORDER BY created_at, id
+SELECT id, email, name, provider, external_id, password_hash, role, created_at, last_login_at, invited FROM users ORDER BY created_at, id
 `
 
 func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
@@ -335,6 +339,7 @@ func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
 			&i.Role,
 			&i.CreatedAt,
 			&i.LastLoginAt,
+			&i.Invited,
 		); err != nil {
 			return nil, err
 		}
@@ -428,7 +433,7 @@ func (q *Queries) TouchUserLogin(ctx context.Context, arg TouchUserLoginParams) 
 
 const updateUserProfile = `-- name: UpdateUserProfile :one
 UPDATE users SET email = $1, name = $2, last_login_at = $3::timestamptz WHERE id = $4
-RETURNING id, email, name, provider, external_id, password_hash, role, created_at, last_login_at
+RETURNING id, email, name, provider, external_id, password_hash, role, created_at, last_login_at, invited
 `
 
 type UpdateUserProfileParams struct {
@@ -456,6 +461,7 @@ func (q *Queries) UpdateUserProfile(ctx context.Context, arg UpdateUserProfilePa
 		&i.Role,
 		&i.CreatedAt,
 		&i.LastLoginAt,
+		&i.Invited,
 	)
 	return i, err
 }

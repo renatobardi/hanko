@@ -28,6 +28,10 @@ type FirebaseLogin struct {
 	// OwnerEmail (HANKO_AUTH_OWNER_EMAIL, opcional): com ele, só esse e-mail vira dono (e é sempre
 	// admitido); os demais só entram se estiverem nas listas, como membros.
 	OwnerEmail string
+	// InviteToken (opcional): token de um convite aberto para este e-mail. Vale como admissão
+	// (como membro), mesmo fora das listas e com o dono já criado (ADR-0021). O aceite é à parte
+	// (AcceptInvite) e é ele que consome o convite.
+	InviteToken string
 }
 
 func userFromRow(r store.User) domain.User {
@@ -190,10 +194,16 @@ func (s *Service) LoginFirebase(ctx context.Context, in FirebaseLogin) (domain.U
 			return fmt.Errorf("lock users: %w", err)
 		}
 		uid := in.UID
+		invited := false
+		if in.InviteToken != "" {
+			if inv, err := openInvite(ctx, t.q, in.InviteToken, t.now); err == nil && strings.EqualFold(inv.Email, email) {
+				invited = true
+			}
+		}
 		existing, err := t.q.GetUserByExternal(ctx, store.GetUserByExternalParams{Provider: string(domain.ProviderFirebase), ExternalID: &uid})
 		switch {
 		case err == nil:
-			if in.ListsConfigured && !in.Admitted && !isOwner {
+			if in.ListsConfigured && !in.Admitted && !isOwner && !invited && !existing.Invited {
 				return fmt.Errorf("e-mail fora da lista de admissão: %w", domain.ErrNotAllowed)
 			}
 			if name == "" {
@@ -215,6 +225,8 @@ func (s *Service) LoginFirebase(ctx context.Context, in FirebaseLogin) (domain.U
 		}
 		role := domain.RoleMember
 		switch {
+		case invited:
+			// convite aberto para este e-mail: entra como membro (o papel na empresa vem do convite)
 		case ownerEmail != "":
 			// dono nomeado: só o e-mail dele vira dono; os demais precisam estar nas listas
 			if isOwner {
@@ -279,7 +291,7 @@ func (s *Service) CreateSession(ctx context.Context, userID domain.ID, meta Sess
 // usuário firebase cujo e-mail não passa mais nelas perde o acesso (sair da lista vale na hora, não só
 // no próximo login). O dono configurado (HANKO_AUTH_OWNER_EMAIL) é o único que sempre passa.
 func (s *Service) stillAdmitted(u store.User) bool {
-	if u.Provider != string(domain.ProviderFirebase) || !s.Admission.Configured() {
+	if u.Provider != string(domain.ProviderFirebase) || !s.Admission.Configured() || u.Invited {
 		return true
 	}
 	if s.OwnerEmail != "" && strings.EqualFold(strings.TrimSpace(u.Email), s.OwnerEmail) {

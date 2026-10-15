@@ -13,6 +13,9 @@ import (
 )
 
 func (s *Service) HirePersona(ctx context.Context, actor domain.Actor, companyID domain.ID, in HirePersonaInput) (domain.Persona, error) {
+	if err := s.require(ctx, companyID, domain.MemberAdmin); err != nil {
+		return domain.Persona{}, err
+	}
 	name := strings.TrimSpace(in.Name)
 	if name == "" {
 		return domain.Persona{}, domain.Invalid("name", "required")
@@ -95,6 +98,9 @@ func (s *Service) HirePersona(ctx context.Context, actor domain.Actor, companyID
 }
 
 func (s *Service) ListPersonas(ctx context.Context, companyID domain.ID) ([]domain.Persona, error) {
+	if err := s.require(ctx, companyID, domain.MemberViewer); err != nil {
+		return nil, err
+	}
 	rows, err := s.read().ListPersonas(ctx, companyID)
 	if err != nil {
 		return nil, fmt.Errorf("list personas: %w", err)
@@ -108,6 +114,9 @@ func (s *Service) ListPersonas(ctx context.Context, companyID domain.ID) ([]doma
 
 // GetPersona resolves ref as UUID or slug within the company.
 func (s *Service) GetPersona(ctx context.Context, companyID domain.ID, ref string) (domain.Persona, error) {
+	if err := s.require(ctx, companyID, domain.MemberViewer); err != nil {
+		return domain.Persona{}, err
+	}
 	q := s.read()
 	var row store.Persona
 	var err error
@@ -123,6 +132,9 @@ func (s *Service) GetPersona(ctx context.Context, companyID domain.ID, ref strin
 }
 
 func (s *Service) UpdatePersona(ctx context.Context, actor domain.Actor, companyID, personaID domain.ID, in UpdatePersonaInput) (domain.Persona, error) {
+	if err := s.require(ctx, companyID, domain.MemberAdmin); err != nil {
+		return domain.Persona{}, err
+	}
 	if in.Name != nil && strings.TrimSpace(*in.Name) == "" {
 		return domain.Persona{}, domain.Invalid("name", "must not be empty")
 	}
@@ -330,6 +342,9 @@ func (s *Service) UpdatePersona(ctx context.Context, actor domain.Actor, company
 
 // GetPersonaHealth returns the last failure and the consecutive-failure counter of a persona.
 func (s *Service) GetPersonaHealth(ctx context.Context, companyID, personaID domain.ID) (PersonaHealth, error) {
+	if err := s.require(ctx, companyID, domain.MemberViewer); err != nil {
+		return PersonaHealth{}, err
+	}
 	row, err := s.read().GetPersonaByID(ctx, store.GetPersonaByIDParams{CompanyID: companyID, ID: personaID})
 	if err != nil {
 		return PersonaHealth{}, mapErr(err, "get persona")

@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestTokens(t *testing.T) {
@@ -86,5 +87,19 @@ func TestSameOrigin(t *testing.T) {
 		if got := SameOrigin(mk(c.h)); got != c.want {
 			t.Errorf("%v: got %v", c.h, got)
 		}
+	}
+}
+
+func TestNewInviteToken(t *testing.T) {
+	a, ha, err := NewInviteToken()
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _, _ := NewInviteToken()
+	if a == b || len(a) < 43 || ha != HashToken(a) || ha == a {
+		t.Fatalf("token %q hash %q", a, ha)
+	}
+	if InviteTTL != 7*24*time.Hour {
+		t.Fatalf("validade: %v", InviteTTL)
 	}
 }

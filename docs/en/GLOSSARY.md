@@ -23,7 +23,9 @@ One term per concept. Code, API, MCP and database use English; the UI is in Braz
 | activity | Atividade | `activity_event`: every domain fact, written in the same transaction, with `actor_type` (persona, human, system), `occurred_at` and `received_at`. | log, audit (it is the use, not the name) |
 | heartbeat | — | A mechanism, never shown in the UI: the scheduler that wakes personas and dispatches runs (river). | — |
 | handoff | Handoff | The summary one session leaves for the next (ai-memory). | — |
-| user | Usuário | An authenticated human (authenticated mode): `local` or `firebase` provider, role owner, admin or member. The `human` actor of a fact carries the user's `id`. | account, member |
+| user | Usuário | An authenticated human (authenticated mode): `local` or `firebase` provider, installation role owner, admin or member (`owner` sees every company). The `human` actor of a fact carries the user's `id`. | account |
+| member | Membro | A user's link to a company with the role owner, admin, member or viewer (ADR-0021). A non-member cannot see the company (404). | — |
+| invite | Convite | Email invite with a role, random token (only its hash is stored), valid for 7 days, accepted at `/convite/{token}`. No email is sent: the link is shown to the admin. | — |
 | session | Sessão | A user's `hanko_session` cookie (30-day sliding); only the token hash is stored in the database. | — |
 | api key | Chave de API | An `hk_...` key belonging to a user, for API, MCP and CLI; only the hash is stored; revocable. Not the persona's run token. | token (ambiguous) |
 | skill, artifact, secret | Skill, Artefato, Segredo | Named as shown. | plugin (only in the harness's native sense) |
