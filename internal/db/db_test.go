@@ -93,3 +93,29 @@ func TestOpenSemPostgres(t *testing.T) {
 		t.Fatalf("retry demorou %v", time.Since(start))
 	}
 }
+
+func TestCtypeIsC(t *testing.T) {
+	for in, want := range map[string]bool{"C": true, "POSIX": true, " c ": true, "C.UTF-8": false, "en_US.UTF-8": false, "pt_BR.utf8": false, "": false} {
+		if got := CtypeIsC(in); got != want {
+			t.Errorf("CtypeIsC(%q) = %v, quer %v", in, got, want)
+		}
+	}
+}
+
+func TestCheckLocaleAvisaSoEmC(t *testing.T) {
+	ctx := context.Background()
+	pool, err := Open(ctx, testURL(t), testLogger())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+	var buf strings.Builder
+	CheckLocale(ctx, pool, slog.New(slog.NewTextHandler(&buf, nil)))
+	var ctype string
+	if err := pool.QueryRow(ctx, `SELECT datctype FROM pg_database WHERE datname = current_database()`).Scan(&ctype); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Contains(buf.String(), "lc_ctype=C"); got != CtypeIsC(ctype) {
+		t.Errorf("aviso = %v para lc_ctype %q: %q", got, ctype, buf.String())
+	}
+}
