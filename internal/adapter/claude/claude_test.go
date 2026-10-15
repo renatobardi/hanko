@@ -93,7 +93,7 @@ func TestBuildArgs(t *testing.T) {
 	spec := adapter.Spec{Model: "opus", System: "SYS", SessionRef: "ref1"}
 	got := BuildArgs(spec, Config{ExtraArgs: []string{"--max-turns", "5"}}, "/tmp/m.json", "")
 	want := []string{"-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "acceptEdits",
-		"--model", "opus", "--append-system-prompt", "SYS", "--mcp-config", "/tmp/m.json", "--resume", "ref1", "--max-turns", "5"}
+		"--model", "opus", "--append-system-prompt", "SYS", "--mcp-config", "/tmp/m.json", "--allowedTools", "mcp__hanko", "--resume", "ref1", "--max-turns", "5"}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Fatal(diff)
 	}

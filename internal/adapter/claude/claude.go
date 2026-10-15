@@ -85,6 +85,11 @@ func BuildArgs(spec adapter.Spec, cfg Config, mcpFile, skillsDir string) []strin
 	}
 	if mcpFile != "" {
 		args = append(args, "--mcp-config", mcpFile)
+		if !spec.ReadOnly {
+			// Headless (-p) nega tool MCP sem permissão explícita: libera só o servidor do próprio Hanko
+			// (o token da run já limita o escopo). Revisão somente leitura não recebe a liberação.
+			args = append(args, "--allowedTools", "mcp__hanko")
+		}
 	}
 	if skillsDir != "" {
 		args = append(args, "--add-dir", skillsDir)
