@@ -37,6 +37,7 @@ type Fake struct {
 	Ledger    []LedgerEntry
 	Flows     []service.FlowView
 	Fires     []service.FlowFireView
+	Subs      []service.SubscriptionStatus
 	nextTask  int64
 }
 
@@ -232,6 +233,12 @@ func (f *Fake) UpdatePersona(_ context.Context, _ domain.Actor, _, personaID dom
 		} else if in.BudgetMonthlyCents != nil {
 			p.BudgetMonthlyCents = in.BudgetMonthlyCents
 		}
+		if in.ClearSubscription {
+			p.SubscriptionID = nil
+		} else if in.SubscriptionID != nil {
+			id := *in.SubscriptionID
+			p.SubscriptionID = &id
+		}
 		f.Personas[i] = p
 		return p, nil
 	}
@@ -264,7 +271,7 @@ func (f *Fake) CreateTask(_ context.Context, _ domain.Actor, companyID domain.ID
 	n := f.nextTask
 	now := time.Now().UTC()
 	tv := service.TaskView{Task: domain.Task{ID: domain.NewID(), CompanyID: companyID, Number: n, Key: domain.TaskKey("HNK", n), Title: in.Title, Description: in.Description,
-		Status: in.Status, Priority: in.Priority, PersonaID: in.PersonaID, ProjectID: in.ProjectID, CreatedBy: domain.HumanActor, CreatedAt: now, UpdatedAt: now}}
+		Status: in.Status, Priority: in.Priority, PersonaID: in.PersonaID, ProjectID: in.ProjectID, Model: in.Model, CreatedBy: domain.HumanActor, CreatedAt: now, UpdatedAt: now}}
 	tv.PersonaName = f.personaName(in.PersonaID)
 	f.Tasks = append(f.Tasks, tv)
 	return tv, nil

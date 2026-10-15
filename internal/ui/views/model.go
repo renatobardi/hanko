@@ -181,6 +181,7 @@ type TaskVM struct {
 	CanWake         bool
 	ActiveRun       *RunMini
 	Cost            string
+	Model           string // manual model of the task (wins over the persona's)
 	Notice          string // flash after an action
 	Error           string
 	Draft           string
@@ -188,6 +189,7 @@ type TaskVM struct {
 
 type NewTaskVM struct {
 	Title           string
+	Model           string
 	Description     string
 	PriorityOptions []Option
 	StatusOptions   []Option
@@ -256,6 +258,9 @@ type PersonaVM struct {
 	ReportsHref   string
 	Reports       []PersonaRef // personas that report to this one
 	RequireReview bool
+	Subscription  string   // name of the subscription that covers the persona ("" = none)
+	SubOptions    []Option // subscriptions to link
+	SubAction     string
 	OrgAction     string   // POST target of the organisation form
 	OrgOptions    []Option // "Reporta a" choices
 }
@@ -307,32 +312,36 @@ type LogLine struct {
 }
 
 type RunVM struct {
-	Short       string
-	ID          string
-	Badge       Badge
-	Persona     string
-	PersonaHref string
-	TaskKey     string
-	TaskHref    string
-	TaskTitle   string
-	Trigger     string
-	Started     string
-	Duration    string
-	Events      int
-	Tokens      string
-	Cost        string
-	Agent       string
-	Model       string
-	Session     string
-	ExitCode    string
-	Error       string
-	Summary     HTML
-	Active      bool
-	Terminal    bool
-	CancelHref  string
-	SSEHref     string
-	Lines       []LogLine
-	LastSeq     int64
+	Short        string
+	ID           string
+	Badge        Badge
+	Persona      string
+	PersonaHref  string
+	TaskKey      string
+	TaskHref     string
+	TaskTitle    string
+	Trigger      string
+	Started      string
+	Duration     string
+	Events       int
+	Tokens       string
+	Cost         string
+	ListCost     string // tokens x list price in force when the run finished
+	CostSource   string // where Cost comes from: real, estimated…
+	Agent        string
+	Model        string
+	ModelSource  string // who chose the model: task, persona or harness default
+	Subscription string
+	Session      string
+	ExitCode     string
+	Error        string
+	Summary      HTML
+	Active       bool
+	Terminal     bool
+	CancelHref   string
+	SSEHref      string
+	Lines        []LogLine
+	LastSeq      int64
 }
 
 // ---- activity ----
@@ -389,6 +398,8 @@ type CostRowVM struct {
 	Label     string
 	Href      string
 	Cost      string
+	List      string // list cost
+	Paid      string // share of the subscription fees
 	Runs      string
 	Tokens    string
 	Share     int
@@ -420,8 +431,51 @@ type DayChart struct {
 	Mid     string
 }
 
+// DayCostVM is one day of the four-costs table.
+type DayCostVM struct {
+	Label     string
+	Real      string
+	Estimated string
+	List      string
+	Paid      string
+	Unused    bool // a subscription existed but nobody used it that day: "sem uso"
+	Idle      string
+	HasData   bool
+}
+
+// SubRowVM is a subscription on the costs page.
+type SubRowVM struct {
+	Name         string
+	Agent        string
+	Monthly      string
+	Models       string
+	Active       bool
+	Blocked      bool
+	WeekUsage    string
+	WeekLimit    string // "" = no weekly ceiling
+	WeekPercent  int
+	WeekPctTxt   string
+	GuardPct     int
+	Paid         string // period
+	Idle         string // period
+	Runs         string
+	MonthlyValue string // form
+	LimitValue   string
+	ModelsValue  string
+	UpdateAction string
+	DeleteAction string
+	CanDelete    bool
+}
+
 type CostsVM struct {
 	Subtitle   string
+	Paid       string
+	PaidNote   string
+	Days       []DayCostVM
+	HasSubs    bool
+	Subs       []SubRowVM
+	SubCreate  string // POST target of the new-subscription form
+	AgentOpts  []Option
 	Tabs       []TabLink
 	Total      string
 	TotalNote  string

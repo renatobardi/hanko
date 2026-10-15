@@ -101,6 +101,27 @@ templ InboxPage(sh Shell, vm InboxVM) {
 						}
 					</section>
 				}
+				if len(vm.Subs) > 0 {
+					<section class="card inbox-sec">
+						<div class="inbox-h">@Icon("shield") Assinaturas travadas <span class="cnt">{ fmt.Sprint(len(vm.Subs)) }</span></div>
+						for _, s := range vm.Subs {
+							<div class="inbox-row">
+								<span class="mini-avatar gate">@Icon("shield")</span>
+								<div class="main">
+									<div class="t">
+										<a href={ templ.SafeURL(s.Href) }>{ s.Name }</a>
+										<span class="badge danger">Trava semanal</span>
+									</div>
+									<p class="x">Uso estimado de { s.Usage } de { s.Limit } ({ s.Percent }) passou da trava de { fmt.Sprint(s.Guard) }%: novas execuções cobertas por esta assinatura ficam bloqueadas.</p>
+									<div class="s">semana de { s.Week } · libera na virada da semana ou ao subir o teto</div>
+								</div>
+								<form class="inbox-act" method="get" action={ templ.SafeURL(s.Href) }>
+									<button class="btn outline sm" type="submit">Ajustar teto</button>
+								</form>
+							</div>
+						}
+					</section>
+				}
 				if len(vm.Personas) > 0 {
 					<section class="card inbox-sec">
 						<div class="inbox-h">@Icon("bot") Personas com erro <span class="cnt">{ fmt.Sprint(len(vm.Personas)) }</span></div>

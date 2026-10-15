@@ -73,29 +73,33 @@ func (s *server) runVM(co domain.Company, rv service.RunView, personaSlug string
 		started = fmtClock(*rv.StartedAt, loc)
 	}
 	vm := views.RunVM{
-		Short:     shortID(rv.ID),
-		ID:        rv.ID.String(),
-		Badge:     runBadge(rv.Status),
-		Persona:   rv.PersonaName,
-		TaskKey:   rv.TaskKey,
-		TaskHref:  base + "/tasks/" + rv.TaskKey,
-		TaskTitle: rv.TaskTitle,
-		Trigger:   triggerLabel(rv.Trigger),
-		Started:   started,
-		Duration:  runDuration(rv.Run, now),
-		Events:    int(lastSeq),
-		Tokens:    fmtUsage(rv.Usage),
-		Cost:      fmtCostPtr(rv.CostUSD),
-		Agent:     rv.Agent,
-		Model:     rv.Model,
-		Session:   rv.SessionRef,
-		ExitCode:  "—",
-		Error:     rv.Error,
-		Summary:   renderMD(rv.Summary),
-		Active:    rv.Status.Active(),
-		Terminal:  rv.Status.Terminal(),
-		Lines:     lines,
-		LastSeq:   lastSeq,
+		Short:        shortID(rv.ID),
+		ID:           rv.ID.String(),
+		Badge:        runBadge(rv.Status),
+		Persona:      rv.PersonaName,
+		TaskKey:      rv.TaskKey,
+		TaskHref:     base + "/tasks/" + rv.TaskKey,
+		TaskTitle:    rv.TaskTitle,
+		Trigger:      triggerLabel(rv.Trigger),
+		Started:      started,
+		Duration:     runDuration(rv.Run, now),
+		Events:       int(lastSeq),
+		Tokens:       fmtUsage(rv.Usage),
+		Cost:         fmtCostPtr(rv.CostUSD),
+		Agent:        rv.Agent,
+		Model:        rv.Model,
+		ModelSource:  modelSourceLabel(rv.ModelSource),
+		ListCost:     fmtCostPtr(rv.ListCostUSD),
+		CostSource:   costSourceLabel(rv.CostSource),
+		Subscription: subscriptionLabel(rv.SubscriptionID),
+		Session:      rv.SessionRef,
+		ExitCode:     "—",
+		Error:        rv.Error,
+		Summary:      renderMD(rv.Summary),
+		Active:       rv.Status.Active(),
+		Terminal:     rv.Status.Terminal(),
+		Lines:        lines,
+		LastSeq:      lastSeq,
 	}
 	if rv.ExitCode != nil {
 		vm.ExitCode = strconv.Itoa(*rv.ExitCode)
@@ -351,4 +355,33 @@ func (s *server) handleRunSSE(w http.ResponseWriter, r *http.Request, co domain.
 			}
 		}
 	}
+}
+
+func modelSourceLabel(s domain.ModelSource) string {
+	switch s {
+	case domain.ModelFromTask:
+		return "escolha manual na task"
+	case domain.ModelFromPersona:
+		return "modelo da persona"
+	case domain.ModelFromHarnessDefault:
+		return "padrão do harness"
+	}
+	return "—"
+}
+
+func costSourceLabel(s domain.CostSource) string {
+	switch s {
+	case domain.CostReported:
+		return "real, informado pelo harness"
+	case domain.CostEstimated:
+		return "estimado pela tabela de preços"
+	}
+	return "desconhecido"
+}
+
+func subscriptionLabel(id *domain.ID) string {
+	if id == nil {
+		return "—"
+	}
+	return "coberta por assinatura"
 }

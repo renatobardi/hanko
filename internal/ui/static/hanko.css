@@ -767,3 +767,8 @@ button.link:hover { color: var(--ink); }
 .keybox { margin-top: 8px; padding: 8px 10px; background: var(--surface); border-radius: var(--r-sm); font-size: 12.5px; user-select: all; overflow-wrap: anywhere; color: var(--ink); }
 .auth .btn.outline { background: var(--surface-recessed); border-color: transparent; }
 .auth .btn.outline:hover { background: var(--line); }
+
+/* Custos: legenda dos quatro custos e formulários de assinatura */
+.cost-legend .kv dd { font-family: var(--font-sans, inherit); font-size: 13px; }
+.cost-legend .kv { grid-template-columns: 90px 1fr; }
+@media (max-width: 640px) { .cost-legend .kv { grid-template-columns: 1fr; } }

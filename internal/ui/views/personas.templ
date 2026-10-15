@@ -239,6 +239,16 @@ templ PersonaPage(sh Shell, vm PersonaVM) {
 				<div class="form-actions" style="margin-top:0"><button class="btn primary sm" type="submit">Salvar organização</button></div>
 			</form>
 		</section>
+		<section class="card pad" id="assinatura" style="margin-top:20px">
+			<div class="card-head"><div><h2>Assinatura</h2><p class="sub">Plano que cobre as execuções desta persona: a mensalidade é rateada no custo pago e a trava semanal vale para ela.</p></div><a class="more" href={ templ.SafeURL(sh.Base() + "/custos#assinaturas") }>Custos</a></div>
+			<form method="post" action={ templ.SafeURL(vm.SubAction) } hx-post={ vm.SubAction } hx-swap="none" class="org-form">
+				<div class="field">
+					<label for="o-sub">Assinatura</label>
+					@Select("subscription", "o-sub", vm.SubOptions, false)
+				</div>
+				<div class="form-actions" style="margin-top:0"><button class="btn primary sm" type="submit">Salvar assinatura</button></div>
+			</form>
+		</section>
 		if vm.Budget != nil {
 			<section class={ "card pad budget-card", "b-" + vm.Budget.State } style="margin-top:20px">
 				<div class="card-head"><h2>Orçamento do mês</h2><a class="more" href={ templ.SafeURL(vm.Budget.Href) }>Custos</a></div>
