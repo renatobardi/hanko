@@ -91,20 +91,20 @@ func TestParserResult(t *testing.T) {
 
 func TestBuildArgs(t *testing.T) {
 	spec := adapter.Spec{Model: "opus", System: "SYS", SessionRef: "ref1"}
-	got := BuildArgs(spec, Config{ExtraArgs: []string{"--max-turns", "5"}}, "/tmp/m.json")
+	got := BuildArgs(spec, Config{ExtraArgs: []string{"--max-turns", "5"}}, "/tmp/m.json", "")
 	want := []string{"-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "acceptEdits",
 		"--model", "opus", "--append-system-prompt", "SYS", "--mcp-config", "/tmp/m.json", "--resume", "ref1", "--max-turns", "5"}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Fatal(diff)
 	}
-	got = BuildArgs(adapter.Spec{}, Config{PermissionMode: "plan"}, "")
+	got = BuildArgs(adapter.Spec{}, Config{PermissionMode: "plan"}, "", "")
 	if diff := cmp.Diff([]string{"-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "plan"}, got); diff != "" {
 		t.Fatal(diff)
 	}
 }
 
 func TestBuildArgsReadOnly(t *testing.T) {
-	got := BuildArgs(adapter.Spec{ReadOnly: true}, Config{PermissionMode: "bypassPermissions", ExtraArgs: []string{"--dangerously-skip-permissions"}}, "")
+	got := BuildArgs(adapter.Spec{ReadOnly: true}, Config{PermissionMode: "bypassPermissions", ExtraArgs: []string{"--dangerously-skip-permissions"}}, "", "")
 	want := []string{"-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "plan", "--disallowedTools", "Edit", "Write", "NotebookEdit"}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Fatal(diff)
@@ -206,6 +206,70 @@ func TestRunProcess(t *testing.T) {
 		domain.EventToolUse, domain.EventToolResult, domain.EventAssistant, domain.EventResult}
 	if diff := cmp.Diff(want, kinds); diff != "" {
 		t.Fatalf("kinds (-want +got):\n%s", diff)
+	}
+}
+
+func TestBuildArgsSkillsDir(t *testing.T) {
+	got := BuildArgs(adapter.Spec{SessionRef: "r"}, Config{}, "", "/tmp/sk")
+	if diff := cmp.Diff([]string{"-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "acceptEdits",
+		"--add-dir", "/tmp/sk", "--resume", "r"}, got); diff != "" {
+		t.Fatal(diff)
+	}
+}
+
+// As skills vão para um diretório temporário da run (--add-dir), nunca para o workspace, e somem ao fim.
+func TestRunWritesSkillsToTempDirAndCleansUp(t *testing.T) {
+	dir := t.TempDir()
+	c := &collector{}
+	spec := adapter.Spec{RunID: domain.NewID(), Dir: dir, Prompt: "x", Skills: []domain.Skill{
+		{Slug: "revisar-pr", Name: "Revisar PR", Description: "Como revisar um PR", Body: "# Passos\n1. leia o diff"},
+		{Slug: "deploy", Name: "Deploy", Description: "Como publicar", Body: "rode o deploy"},
+	}}
+	if _, err := newFake().Run(context.Background(), spec, c); err != nil {
+		t.Fatal(err)
+	}
+	errs := c.texts(domain.EventStderr)
+	add := strings.TrimPrefix(findPrefix(errs, "ADDDIR: "), "ADDDIR: ")
+	if add == "" {
+		t.Fatalf("--add-dir ausente: %v", errs)
+	}
+	if strings.HasPrefix(add, dir) {
+		t.Errorf("skills no workspace: %s", add)
+	}
+	var found []string
+	for _, e := range errs {
+		if strings.HasPrefix(e, "SKILL: ") {
+			found = append(found, e)
+		}
+	}
+	if len(found) != 2 || !strings.Contains(found[0], "/.claude/skills/deploy/SKILL.md") || !strings.Contains(found[1], "/.claude/skills/revisar-pr/SKILL.md") ||
+		!strings.Contains(found[1], "name: revisar-pr") || !strings.Contains(found[1], "description:") || !strings.Contains(found[1], "1. leia o diff") {
+		t.Fatalf("skills vistas pelo harness: %q", found)
+	}
+	if _, err := os.Stat(add); !os.IsNotExist(err) {
+		t.Errorf("diretório de skills não foi removido: %v", err)
+	}
+	if entries, _ := os.ReadDir(dir); len(entries) != 0 {
+		t.Errorf("o workspace foi sujo: %v", entries)
+	}
+
+	// review (somente leitura) não carrega skills
+	c = &collector{}
+	spec.ReadOnly = true
+	if _, err := newFake().Run(context.Background(), spec, c); err != nil {
+		t.Fatal(err)
+	}
+	if got := findPrefix(c.texts(domain.EventStderr), "ADDDIR: "); got != "" {
+		t.Errorf("review carregou skills: %s", got)
+	}
+}
+
+func TestWriteSkillsRejectsTraversal(t *testing.T) {
+	for _, slug := range []string{"", "..", "../x", "a/b", "."} {
+		if d, err := WriteSkills([]domain.Skill{{Slug: slug}}); err == nil {
+			_ = os.RemoveAll(d)
+			t.Errorf("slug %q deveria ser recusado", slug)
+		}
 	}
 }
 

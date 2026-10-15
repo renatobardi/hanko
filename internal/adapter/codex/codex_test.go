@@ -94,6 +94,23 @@ func TestMCPOverridesAndArgs(t *testing.T) {
 	}
 }
 
+func TestMCPOverridesStdio(t *testing.T) {
+	raw := json.RawMessage(`{"mcpServers":{"local":{"type":"stdio","command":"npx","args":["-y","@acme/mcp"],"env":{"ACME_TOKEN":"acme_tok_987654321","PATH":"/evil","HANKO_RUN_TOKEN":"x"}}}}`)
+	args, env := mcpOverrides(raw)
+	joined := strings.Join(args, " ")
+	for _, w := range []string{`mcp_servers.local.command="npx"`, `mcp_servers.local.args=["-y","@acme/mcp"]`, `mcp_servers.local.env_vars=["ACME_TOKEN"]`} {
+		if !strings.Contains(joined, w) {
+			t.Errorf("%q lacks %q", joined, w)
+		}
+	}
+	if strings.Contains(joined, "acme_tok") || strings.Contains(joined, "evil") {
+		t.Errorf("valor de env na linha de comando: %q", joined)
+	}
+	if env["ACME_TOKEN"] != "acme_tok_987654321" || len(env) != 1 {
+		t.Errorf("env=%v", env)
+	}
+}
+
 func TestBuildArgsReadOnly(t *testing.T) {
 	got := BuildArgs(adapter.Spec{ReadOnly: true}, Config{Sandbox: "danger-full-access", ExtraArgs: []string{"--sandbox", "danger-full-access"}}, "/w", nil)
 	want := []string{"exec", "--json", "--skip-git-repo-check", "--sandbox", "read-only", "-C", "/w", "-"}

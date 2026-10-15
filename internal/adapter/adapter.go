@@ -25,8 +25,12 @@ type Spec struct {
 	SessionRef string // previous agent session id to resume, if any
 	Env        map[string]string
 	MCPConfig  json.RawMessage // {"mcpServers":{...}} written to a temp file for the harness
-	Config     json.RawMessage // persona.adapter_config
-	Timeout    time.Duration
+	// Skills são as skills habilitadas da persona que o harness carrega nativamente (hoje só o claude, via
+	// um diretório temporário da run; ADR-0029). Nos demais harnesses o índice vai em System e o corpo
+	// sai pela tool MCP hanko_skill_get, então o campo fica vazio.
+	Skills  []domain.Skill
+	Config  json.RawMessage // persona.adapter_config
+	Timeout time.Duration
 	// ReadOnly forces the harness into its read-only mode (review runs), ignoring any
 	// permissive adapter_config (permission mode, sandbox, extra args).
 	ReadOnly bool
