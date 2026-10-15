@@ -498,3 +498,26 @@ and link tasks; admin creates, edits, abandons and reopens.
 | Export with `--with-artifacts` refused | content above 20 MiB | export without the option |
 | HTML or PDF downloads instead of opening | by design: only text, Markdown and raster images open | open the downloaded file |
 | An achieved goal rejects progress | status `achieved` | reopen it (admin) by switching to active; refused while the current value already reaches the target |
+
+## Search (ADR-0024)
+
+Search uses Postgres full-text over `search_tsv` columns generated from `hanko_fold(text)` (case, accents, ASCII punctuation and Unicode
+formatting characters). Operating notes:
+
+- **Database locale.** The database **must not use `lc_ctype=C`/`POSIX`**: there `lower()` and the tokenizer only understand ASCII, and
+  search stops finding upper-case or non-ASCII letters. Use a UTF-8 locale (`C.UTF-8`, `en_US.UTF-8`, ...). `hanko serve` reads
+  `pg_database.datctype` at boot and logs a warning (`o banco está com lc_ctype=C`) when it is `C`. Changing the locale means
+  recreating the database (dump/restore).
+- **Changing `hanko_fold` requires a migration that recreates the columns.** The function backs stored generated columns and GIN
+  indexes: `CREATE OR REPLACE FUNCTION` neither recomputes existing rows nor reindexes. Any change to the fold must drop the indexes
+  and `search_tsv` columns, replace the function and rebuild them (migration 00024 does it), together with the Go table in
+  `internal/search` (a parity test checks both sides).
+- **Large installations.** Migrations 00015 and 00024 rewrite `tasks`, `task_comments`, `personas`, `runs` and `flows` and build the
+  GIN indexes under a write lock (~25 s with 80k runs, 60k comments and 30k tasks). If the window does not fit, apply the concurrent
+  variant by hand before starting the new version: add the generated column, create each index with `CREATE INDEX CONCURRENTLY`
+  (outside a transaction), then mark the migration as applied. `ADD COLUMN … GENERATED … STORED` still rewrites the table; the gain is
+  not holding the lock while the GIN is built.
+- **Per-query ceiling.** Each search group runs in a read-only transaction with a 2 s `statement_timeout`; exceeding it returns 422
+  ("search took too long; use more specific words"). The last word matches by prefix only from 2 letters (3 in comments).
+- **Memory in search.** The "Memory" group appears only when the memory server lists the `memory_search` tool (read from `tools/list`,
+  cached for 5 min). Without it the group disappears and the log carries one warning; consolidation (ADR-0030) does not depend on it.

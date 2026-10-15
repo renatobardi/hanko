@@ -77,3 +77,25 @@ há memória, o que ela guardou. As próprias personas precisam do mesmo para n�
   todas as empresas e filtram depois. Aceito enquanto o índice for pequeno; o remédio, se doer, é particionar por empresa.
 - Sem stemming: "implantar" não acha "implantação"; a busca por prefixo da última palavra cobre o caso comum de digitação.
 - A busca da lista de tasks (`?q=` com `ILIKE`) continua como está; unificá-la com esta é trabalho futuro.
+
+## Adendo (2026-10-15) — correções da revisão independente
+- **Memória só com a tool.** O contrato `memory_search` continua suposição. `memory.SearchCapable` (opcional) deixa o provider dizer se a
+  tool existe: o `aimemory` lê `tools/list` e guarda a resposta por 5 min (30 s quando listar falha, caso em que supõe que existe e a
+  busca marca o grupo indisponível). Sem a tool o grupo some e o log avisa **uma vez**, não a cada tecla. `Service.MemorySearchAvailable`
+  (busca) é separado de `Service.MemoryAvailable` (consolidação, ADR-0030), que não depende da tool.
+- **Histórico.** O campo com `hx-trigger` de digitação usa `hx-replace-url` (uma entrada de histórico, não uma por pausa).
+- **Dobra de formatação.** Migration `00024_busca_dobra_formatacao.sql`: `hanko_fold` passa a remover os caracteres Unicode Cf (hífen suave,
+  ZWJ/ZWNJ/ZWSP, marcas de direção, BOM, tags: 170 pontos), que o tokenizador do Postgres tratava ora como letra, ora como separador.
+  A lista é fixa (Unicode 17) nos dois lados (`internal/search.formatRunes`). Em Go, `isWordRune` passou a incluir Nl, marcas combinantes
+  (M) e `Other_Alphabetic`, que é o que o tokenizador do Postgres trata como palavra (medido em `C.UTF-8`). **Custo:** alterar uma função
+  usada por coluna gerada não recalcula as linhas nem os GIN, então a migration derruba índices e colunas `search_tsv` de `tasks`,
+  `task_comments`, `personas`, `runs` e `flows`, troca a função e recria tudo: mesmo custo da 00015 (reescrita das tabelas e bloqueio de
+  escrita; ~25 s com 80 mil runs, 60 mil comentários e 30 mil tasks). As colunas voltam ao fim da tabela, o que reordena os campos dos
+  modelos gerados pelo sqlc. O Down recria a função da 00015.
+- **Paridade.** `TestFoldParidadeGoSQLTodosOsPontos` compara `Fold` e `hanko_fold` com igualdade estrita em todos os pontos de código
+  prometidos (Latin até U+024F, pontuação ASCII e Cf); `TestTokenizacaoParidadeGoSQL` compara as palavras que o Postgres tokeniza com
+  as do Go em textos exóticos. O banco **não pode estar em `lc_ctype=C`** (RUNBOOK); o `serve` avisa no boot.
+- **Custo patológico.** A última palavra só casa por prefixo (`:*`) com 2+ runas, e 3+ em comentários (medido com 60 mil comentários de
+  25 palavras, termo onipresente: `de:*` 40 ms contra 20 ms da palavra exata; `d:*` 53 ms e `e:*` 70 ms). Cada grupo roda numa
+  transação somente leitura com `SET LOCAL statement_timeout` de 2 s (`SearchStatementTimeout`); estourar vira `ErrSearchTooSlow`
+  (422, mensagem amigável na tela). Isso troca o pool direto por uma transação curta por grupo.
