@@ -35,7 +35,7 @@ const ownerPasswordEnv = "HANKO_OWNER_PASSWORD"
 
 // userPasswordEnv é a variável lida para a nova senha em `auth user reset-password`; sem ela, o
 // comando gera uma senha temporária e a imprime uma única vez.
-const userPasswordEnv = "HANKO_USER_PASSWORD"
+const userPasswordEnv = "HANKO_USER_PASSWORD" //nolint:gosec // nome da variável de ambiente, não uma senha
 
 func (e *env) openAuth(ctx context.Context) (AuthAdmin, error) {
 	if e.rt.Auth == nil {

@@ -50,13 +50,13 @@ func (a *authAdmin) CreateOwner(ctx context.Context, email, name, password strin
 func (a *authAdmin) ownerCtx(ctx context.Context, ownerEmail string) (context.Context, error) {
 	var u domain.User
 	if strings.TrimSpace(ownerEmail) != "" {
-		got, err := a.Service.GetUserByEmail(ctx, ownerEmail)
+		got, err := a.GetUserByEmail(ctx, ownerEmail)
 		if err != nil {
 			return nil, fmt.Errorf("dono %q: %w", ownerEmail, err)
 		}
 		u = got
 	} else {
-		us, err := a.Service.ListUsers(ctx)
+		us, err := a.ListUsers(ctx)
 		if err != nil {
 			return nil, err
 		}
