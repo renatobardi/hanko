@@ -50,6 +50,8 @@ type Options struct {
 	ExitWait time.Duration
 	// EnvAllow lists extra server environment variables passed to the agent (see procrun.HarnessEnv).
 	EnvAllow []string
+	// Policy is the operator's gate (HANKO_ACP_ALLOW / HANKO_ACP_COMMANDS); the zero value refuses to run.
+	Policy Policy
 }
 
 // Adapter implements adapter.Adapter for generic ACP agents.
@@ -60,6 +62,7 @@ type Adapter struct {
 	cancelWait time.Duration
 	exitWait   time.Duration
 	envAllow   []string
+	policy     Policy
 }
 
 // New returns the acp adapter.
@@ -68,7 +71,7 @@ func New(o Options) *Adapter {
 	if log == nil {
 		log = slog.New(slog.NewTextHandler(io.Discard, nil))
 	}
-	a := &Adapter{log: log, version: o.Version, grace: o.Grace, cancelWait: o.CancelWait, exitWait: o.ExitWait, envAllow: o.EnvAllow}
+	a := &Adapter{log: log, version: o.Version, grace: o.Grace, cancelWait: o.CancelWait, exitWait: o.ExitWait, envAllow: o.EnvAllow, policy: o.Policy}
 	if a.version == "" {
 		a.version = "dev"
 	}
@@ -91,6 +94,9 @@ func (a *Adapter) Run(ctx context.Context, spec adapter.Spec, sink adapter.Sink)
 	cfg, err := ParseConfig(spec.Config)
 	if err != nil {
 		return adapter.Result{ExitCode: -1, IsError: true, Error: err.Error()}, fmt.Errorf("acp: adapter_config: %w", err)
+	}
+	if err := a.policy.Check(cfg.Command); err != nil {
+		return adapter.Result{ExitCode: -1, IsError: true, Error: err.Error()}, fmt.Errorf("acp: %w", err)
 	}
 	// The persona's env goes first; the run's own variables (run token, OTel) always win.
 	env := map[string]string{}

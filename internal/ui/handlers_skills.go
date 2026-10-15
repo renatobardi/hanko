@@ -38,16 +38,26 @@ func (s *server) unavailable(w http.ResponseWriter, r *http.Request) {
 }
 
 // skillRoutes registra as rotas de skills e integrações; chamada por routes().
+// maxSkillFormBytes é o teto do corpo dos formulários de skill (corpo de 32 KiB mais os outros campos).
+const maxSkillFormBytes = 128 << 10
+
 func (s *server) skillRoutes(mux langMux) {
 	co := func(h companyHandler) http.HandlerFunc { return s.withCompany(h) }
 	post := func(h http.HandlerFunc) http.HandlerFunc { return s.sameOrigin(h) }
+	// the forms that carry a skill body stop reading at maxSkillFormBytes
+	capped := func(h http.HandlerFunc) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			r.Body = http.MaxBytesReader(w, r.Body, maxSkillFormBytes)
+			h(w, r)
+		}
+	}
 
 	mux.HandleFunc("GET /c/{company}/skills", co(s.handleSkills))
 	mux.HandleFunc("GET /c/{company}/skills/nova", co(s.handleNewSkill))
-	mux.HandleFunc("POST /c/{company}/skills/nova", post(co(s.handleCreateSkill)))
-	mux.HandleFunc("POST /c/{company}/skills/preview", post(co(s.handleSkillPreview)))
+	mux.HandleFunc("POST /c/{company}/skills/nova", capped(post(co(s.handleCreateSkill))))
+	mux.HandleFunc("POST /c/{company}/skills/preview", capped(post(co(s.handleSkillPreview))))
 	mux.HandleFunc("GET /c/{company}/skills/{skill}", co(s.handleSkill))
-	mux.HandleFunc("POST /c/{company}/skills/{skill}", post(co(s.handleUpdateSkill)))
+	mux.HandleFunc("POST /c/{company}/skills/{skill}", capped(post(co(s.handleUpdateSkill))))
 	mux.HandleFunc("POST /c/{company}/skills/{skill}/remover", post(co(s.handleDeleteSkill)))
 	mux.HandleFunc("POST /c/{company}/skills/{skill}/personas/{persona}", post(co(s.handleSkillPersona(false))))
 	mux.HandleFunc("POST /c/{company}/personas/{persona}/skills/{skill}", post(co(s.handleSkillPersona(true))))

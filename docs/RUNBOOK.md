@@ -432,6 +432,13 @@ se for proposital). "HANKO_SECRET_KEY não está configurada": defina a chave. M
 O harness `acp` (ADR-0023) roda qualquer agente que fale o Agent Client Protocol v1 por stdio. O Hanko não traz agente algum: o
 operador instala o programa e a persona aponta para ele.
 
+**Ligar o harness (decisão do operador).** Quem escreve o comando da persona é o admin de uma empresa, e o comando roda na máquina do
+servidor com os privilégios do Hanko. Por isso o harness vem **desligado**: com `HANKO_ACP_ALLOW=false` (padrão), contratar ou importar
+uma persona `acp` dá 422 ("o harness acp está desligado neste servidor") e uma persona antiga falha ao rodar com o mesmo motivo. Ligue
+com `HANKO_ACP_ALLOW=true` e, de preferência, restrinja com `HANKO_ACP_COMMANDS=meu-agente,/opt/agentes/outro` (nome simples, resolvido
+pelo `PATH`, ou caminho absoluto; com a lista definida, só esses executáveis valem). A checagem acontece na contratação/importação e de
+novo no início de cada run (uma config que mudou depois não escapa).
+
 **Instalar o agente.** O executável precisa existir no `PATH` do processo do Hanko (ou ser usado por caminho absoluto) e estar
 autenticado fora do Hanko (autenticação interativa não é suportada). O `Dockerfile` oficial (distroless) não tem como rodar agentes;
 use a variante `Dockerfile.agents` ou uma imagem sua derivada dela, por exemplo (**exemplo ilustrativo**, o pacote é fictício):

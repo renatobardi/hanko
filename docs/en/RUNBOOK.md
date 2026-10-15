@@ -362,6 +362,13 @@ attempts (30 s, 2 min, 8 min, 32 min, ~2 h, 6 h). Delivery is at-least-once; ded
 The `acp` harness (ADR-0023) runs any agent that speaks the Agent Client Protocol v1 over stdio. Hanko ships no agent: the operator
 installs the program and the persona points at it.
 
+**Turning the harness on (operator decision).** Whoever writes a persona's command is a company admin, and the command runs on the server
+machine with Hanko's privileges. So the harness ships **off**: with `HANKO_ACP_ALLOW=false` (default), hiring or importing an `acp` persona
+returns 422 ("o harness acp está desligado neste servidor", the acp harness is off on this server) and an older persona fails at run start with
+the same reason. Turn it on with `HANKO_ACP_ALLOW=true` and preferably narrow it with `HANKO_ACP_COMMANDS=my-agent,/opt/agents/other` (a bare
+name, resolved through `PATH`, or an absolute path; when the list is set only those executables are accepted). The check runs on
+hire/import and again at the start of every run (a config changed later does not slip through).
+
 **Installing the agent.** The executable must exist on the `PATH` of the Hanko process (or be used by absolute path) and be authenticated
 outside Hanko (interactive authentication is not supported). The official (distroless) `Dockerfile` cannot run agents; use the
 `Dockerfile.agents` variant or an image of your own derived from it, for example (**illustrative example**, the package is fictional):

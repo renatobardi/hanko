@@ -371,17 +371,17 @@ func (h *Heartbeat) buildSpec(rc service.RunContext, briefing, handoff string, s
 	if rc.Chat != nil {
 		sessionRef = rc.Chat.ResumeSession
 	}
+	agent, model := effectiveHarness(rc)
 	cfg := rc.Persona.AdapterConfig
 	if review {
 		system, prompt = BuildReviewPrompt(rc, briefing)
-		if !rc.Review.Independent {
-			cfg = nil // the author's adapter_config targets the author's harness, not this one
+		if agent != rc.Persona.Agent {
+			cfg = nil // the persona's adapter_config targets its own harness, not the alternate one that reviews
 		}
 	}
 	if rc.Run.Trigger == domain.TriggerMemory {
 		system, prompt = BuildMemoryPrompt(rc, briefing)
 	}
-	agent, model := effectiveHarness(rc)
 	// Skills (ADR-0029): o claude as carrega nativamente de um diretório temporário da run; os demais
 	// harnesses recebem o índice no system prompt e buscam o corpo pela tool MCP hanko_skill_get.
 	// Uma run de revisão não usa skills.

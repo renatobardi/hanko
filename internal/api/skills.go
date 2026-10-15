@@ -142,8 +142,14 @@ type setSkillPersonaIn struct {
 	Body EnabledBody
 }
 
+// maxSkillRequestBytes é o teto do corpo de requisição das rotas que gravam uma skill: o corpo da skill
+// (32 KiB) pode crescer até 6x ao ser escapado em JSON, mais os outros campos.
+const maxSkillRequestBytes = 256 << 10
+
+func capBody(o huma.Operation) huma.Operation { o.MaxBodyBytes = maxSkillRequestBytes; return o }
+
 func (s *server) registerSkills(api huma.API) {
-	huma.Register(api, created(op("create-skill", http.MethodPost, "/companies/{company}/skills", "skills", "Cria uma skill")),
+	huma.Register(api, capBody(created(op("create-skill", http.MethodPost, "/companies/{company}/skills", "skills", "Cria uma skill"))),
 		func(ctx context.Context, in *createSkillIn) (*ItemOut[Skill], error) {
 			if err := forbidPersona(ctx); err != nil {
 				return nil, err
@@ -198,7 +204,7 @@ func (s *server) registerSkills(api huma.API) {
 			return &ItemOut[Skill]{Body: skillOut(k, true)}, nil
 		})
 
-	huma.Register(api, op("update-skill", http.MethodPatch, "/companies/{company}/skills/{skill}", "skills", "Atualiza uma skill (a versão sobe)"),
+	huma.Register(api, capBody(op("update-skill", http.MethodPatch, "/companies/{company}/skills/{skill}", "skills", "Atualiza uma skill (a versão sobe)")),
 		func(ctx context.Context, in *updateSkillIn) (*ItemOut[Skill], error) {
 			if err := forbidPersona(ctx); err != nil {
 				return nil, err

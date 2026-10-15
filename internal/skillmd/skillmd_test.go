@@ -1,6 +1,7 @@
 package skillmd
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/renatobardi/hanko/internal/domain"
@@ -32,6 +33,20 @@ func TestParse(t *testing.T) {
 		if got != c.want {
 			t.Errorf("%s:\n got %+v\nwant %+v", c.name, got, c.want)
 		}
+	}
+}
+
+// O teto vale antes do parse YAML: um texto enorme nem chega ao decoder.
+func TestParseRejectsOversizedSource(t *testing.T) {
+	big := "---\nname: a\ndescription: " + strings.Repeat("x ", MaxSourceBytes) + "\n---\ncorpo"
+	if _, err := Parse(big); err == nil || !strings.Contains(err.Error(), "KiB") {
+		t.Fatalf("frontmatter gigante: %v", err)
+	}
+	if _, err := Parse(strings.Repeat("y", MaxSourceBytes+1)); err == nil {
+		t.Fatal("corpo gigante sem frontmatter")
+	}
+	if _, err := Parse("---\nname: a\ndescription: d\n---\n" + strings.Repeat("y", domain.MaxSkillBodyBytes)); err != nil {
+		t.Fatalf("corpo no limite com frontmatter: %v", err)
 	}
 }
 

@@ -348,6 +348,26 @@ func (t *txc) checkPersonasInCompany(companyID domain.ID, ids []domain.ID) error
 	return nil
 }
 
+// checkIntegrationSlug recusa os slugs que a criação e a importação não podem aceitar: segmentos fixos das
+// rotas da UI e, no MCP, as chaves do mcpServers que o Hanko usa para si.
+func checkIntegrationSlug(kind domain.IntegrationKind, slug string) error {
+	if slices.Contains(reservedUISlugs, slug) {
+		return domain.Invalid("slug", fmt.Sprintf("%q is reserved", slug))
+	}
+	if kind == domain.IntegrationMCP && slices.Contains(reservedIntegrationSlugs, slug) {
+		return domain.Invalid("slug", fmt.Sprintf("%q is reserved", slug))
+	}
+	return nil
+}
+
+// checkStdioAllowed é o interruptor do operador (HANKO_INTEGRATIONS_ALLOW_STDIO) para MCP stdio.
+func (s *Service) checkStdioAllowed() error {
+	if !s.Integrations.AllowStdio {
+		return domain.Invalid("transport", "stdio está desligado neste servidor (HANKO_INTEGRATIONS_ALLOW_STDIO)")
+	}
+	return nil
+}
+
 // CreateIntegration cria uma integração. A resposta nunca traz segredo, exceto o segredo de webhook gerado
 // pelo servidor (RevealedSecret), mostrado só agora.
 func (s *Service) CreateIntegration(ctx context.Context, actor domain.Actor, companyID domain.ID, in CreateIntegrationInput) (IntegrationView, error) {
@@ -365,11 +385,8 @@ func (s *Service) CreateIntegration(ctx context.Context, actor domain.Actor, com
 	if err != nil {
 		return IntegrationView{}, err
 	}
-	if slices.Contains(reservedUISlugs, slug) {
-		return IntegrationView{}, domain.Invalid("slug", fmt.Sprintf("%q is reserved", slug))
-	}
-	if in.Kind == domain.IntegrationMCP && slices.Contains(reservedIntegrationSlugs, slug) {
-		return IntegrationView{}, domain.Invalid("slug", fmt.Sprintf("%q is reserved", slug))
+	if err := checkIntegrationSlug(in.Kind, slug); err != nil {
+		return IntegrationView{}, err
 	}
 	enabled := in.Enabled == nil || *in.Enabled
 
@@ -398,8 +415,8 @@ func (s *Service) CreateIntegration(ctx context.Context, actor domain.Actor, com
 			sec.Headers = in.Headers
 			cfg.HeaderNames = sortedKeys(in.Headers)
 		case domain.TransportStdio:
-			if !s.Integrations.AllowStdio {
-				return IntegrationView{}, domain.Invalid("transport", "stdio está desligado neste servidor (HANKO_INTEGRATIONS_ALLOW_STDIO)")
+			if err := s.checkStdioAllowed(); err != nil {
+				return IntegrationView{}, err
 			}
 			if cfg.Command, err = validateStdio(in.Command, in.Args); err != nil {
 				return IntegrationView{}, err

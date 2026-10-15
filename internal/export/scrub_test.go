@@ -41,3 +41,34 @@ func TestScrubConfig(t *testing.T) {
 		t.Fatal("vazio e tudo-sensível viram nil")
 	}
 }
+
+func TestMaskConfigKeepsNamesHidesValues(t *testing.T) {
+	in := map[string]any{
+		"command":    "meu-agente",
+		"permission": "read_only",
+		"args":       []any{"--stdio", "--api-key", "abc123", "--token=xyz", "--max-turns=5"},
+		"env":        map[string]any{"MY_HOME": "/data", "MY_KEY": "s3cr3t"},
+		"api_key":    "sk-ant-aaaaaaaaaaaa",
+		"note":       "usa sk-ant-bbbbbbbbbbbb para tudo",
+		"sandbox":    "workspace-write",
+	}
+	want := map[string]any{
+		"command":    "meu-agente",
+		"permission": "read_only",
+		"args":       []any{"--stdio", "--api-key", "***", "--token=***", "--max-turns=5"},
+		"env":        map[string]any{"MY_HOME": "***", "MY_KEY": "***"},
+		"api_key":    "***",
+		"note":       "***",
+		"sandbox":    "workspace-write",
+	}
+	got := MaskConfig(in)
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got  %#v\nwant %#v", got, want)
+	}
+	if in["env"].(map[string]any)["MY_KEY"] != "s3cr3t" || in["args"].([]any)[2] != "abc123" {
+		t.Fatal("a entrada não pode ser alterada")
+	}
+	if MaskConfig(nil) != nil || len(MaskConfig(map[string]any{})) != 0 {
+		t.Fatal("vazio fica vazio")
+	}
+}

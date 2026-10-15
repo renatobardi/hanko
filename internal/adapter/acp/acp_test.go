@@ -70,7 +70,7 @@ func (c *collector) dump() string {
 }
 
 func testAdapter() *Adapter {
-	return New(Options{Grace: 300 * time.Millisecond, CancelWait: time.Second, ExitWait: time.Second, Version: "test"})
+	return New(Options{Grace: 300 * time.Millisecond, CancelWait: time.Second, ExitWait: time.Second, Version: "test", Policy: Policy{Allow: true}})
 }
 
 // fakeSpec builds a Spec whose agent is this test binary in fake mode.

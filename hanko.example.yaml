@@ -11,6 +11,9 @@ mode: trusted            # trusted | authenticated (login; exige secret >= 32 by
 # integrations:
 #   allow_stdio: false              # libera MCP stdio (executa comando no servidor); HANKO_INTEGRATIONS_ALLOW_STDIO
 #   allow_private_destinations: false # libera webhooks para loopback/redes privadas; HANKO_INTEGRATIONS_ALLOW_PRIVATE
+# acp:
+#   allow: false          # liga o harness acp (executa o comando da persona no servidor); HANKO_ACP_ALLOW
+#   commands: []          # opcional: só estes executáveis (nome ou caminho absoluto); HANKO_ACP_COMMANDS
 # agent_env_allow: []    # env extra do servidor repassado aos agentes (HANKO_AGENT_ENV_ALLOW)
 # auth:                  # só vale com mode: authenticated (docs/RUNBOOK.md §5)
 #   provider: firebase   # local | firebase

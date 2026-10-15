@@ -68,6 +68,19 @@ que muda de um agente para outro é só o comando.
     e áudio no prompt, modos/comandos/forks de sessão, `compaction_*`, `$/cancel_request` e permissão decidida por
     humano durante a run (a política é fixa por persona).
 
+12. **Adendo (revisão independente): o comando é decisão do operador.** O `adapter_config.command` é escrito por um
+    admin de empresa e roda na máquina do servidor; sem trava, um admin escolheria `/bin/sh` com argumentos livres. Como
+    no MCP stdio do ADR-0029: `HANKO_ACP_ALLOW` (padrão `false`) liga o harness e `HANKO_ACP_COMMANDS` (opcional, lista de
+    nomes ou caminhos absolutos) o restringe. A checagem vale na contratação e na importação (422 com o motivo) e de novo
+    em `acp.Adapter.Run` (persona antiga ou config alterada: a run falha sem iniciar o processo). Nome simples só casa com
+    comando simples igual; caminho absoluto só casa com o mesmo caminho.
+13. **Adendo: `env` não volta em claro.** A API (e, por ela, a CLI `persona show`) devolve `adapter_config` com os
+    **nomes** das variáveis de `env` e os valores mascarados (`***`), assim como valores de chaves com cara de credencial
+    e o valor que segue uma flag como `--api-key` (`export.MaskConfig`); a UI não exibe o `adapter_config`. A contratação
+    segue aceitando valores. **Limite conhecido:** o `adapter_config` ainda é guardado em claro no banco (o runner precisa
+    dele inteiro); cifrá-lo com `internal/secretbox` exige migrar a coluna e o caminho de leitura do runner e fica para
+    outra decisão. Quem precisa de uma credencial fora do banco usa `HANKO_AGENT_ENV_ALLOW` (variável do servidor).
+
 ## Consequências
 - Qualquer agente que fale ACP v1 roda sem código novo: contratar a persona com o comando basta, e o mapeamento dos
   eventos fica num lugar só.

@@ -12,6 +12,16 @@ English summary at the end of each release.
 - Metas (ADR-0028, `goals`, `goal_updates`, `tasks.goal_id`): valor inicial, alvo e atual, progresso de 0 a 100%, atingida ao cruzar o alvo (atividade `goal.achieved`); API `…/goals`, CLI `hanko goal …` e `hanko task create --goal`, tela `/metas` com gráfico SVG, quadro "Metas" no projeto e meta na página da task.
 - Metas no briefing da run e tools MCP `hanko_goal_list` e `hanko_goal_update`; "Metas atingidas" (informativo) na Caixa de entrada.
 - English summary: versioned artifacts (upload, versions, text diff, safe serving, quota, export/import with `--with-artifacts`) and measurable goals (progress, achieved on crossing the target, run briefing, MCP tools, inbox) replace the two "coming soon" screens.
+
+### Correções da revisão
+
+- ACP (ADR-0023): o comando do harness `acp` virou decisão do operador. `HANKO_ACP_ALLOW` (padrão desligado) liga o harness e `HANKO_ACP_COMMANDS` restringe a uma lista de executáveis; a checagem vale ao contratar/importar (422) e de novo ao iniciar a run.
+- `adapter_config.env` (e valores de flags como `--api-key`) voltam mascarados (`***`) na API e na CLI; só os nomes das variáveis aparecem.
+- Webhooks: a poda do histórico só apaga entregas encerradas (pending/retrying não se perdem); entrega que sumiu da tabela encerra o job com erro registrado; `run.failed` também dispara para run `interrupted`.
+- Revisão automática de persona ACP sem revisor dedicado mantém o `adapter_config` quando o harness é o mesmo da autora.
+- procrun: depois do `Wait`, o grupo de processos sempre recebe SIGKILL (sem órfãos de MCP stdio); ACP `fs/*` recusa arquivo não regular (FIFO, device) antes de abrir.
+- Import aplica os slugs reservados de integração e o gate de MCP stdio; `skillmd.Parse` e as rotas de skills limitam o tamanho antes do parse; o máximo de `deliveries?limit` é 100 na API e no service.
+
 - Skills (ADR-0029): habilidades reutilizáveis em `SKILL.md`, ligadas por persona; o Claude as recebe como skills de verdade (`--add-dir`) e codex/ACP por índice no prompt e pela tool MCP `hanko_skill_get`; limites por skill e por run; `hanko skill …`, tela `/skills` com editor e pré-visualização, painel na persona, campo opcional `skills` no `hanko.company.v1`.
 - Integrações (ADR-0029): servidores MCP da empresa (http, ou stdio só se `HANKO_INTEGRATIONS_ALLOW_STDIO`) injetados nas runs, e webhooks de saída assinados com HMAC-SHA256 (`X-Hanko-Signature`), entrega por outbox transacional com retry exponencial, histórico de entregas, proteção SSRF; `hanko integration …`, tela `/integracoes`.
 - Segredos de integração cifrados em repouso (AES-256-GCM, `HANKO_SECRET_KEY`, rotação com `HANKO_SECRET_KEY_PREVIOUS` e `hanko integration rekey`), nunca devolvidos pela API, UI, CLI, export, eventos ou logs; o segredo de webhook gerado pelo servidor aparece uma única vez.

@@ -79,6 +79,10 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 	svc.Integrations = service.IntegrationsConfig{
 		AllowStdio: cfg.Integrations.AllowStdio, AllowPrivate: cfg.Integrations.AllowPrivateDestinations, Secrets: box,
 	}
+	svc.ACP = acp.Policy{Allow: cfg.ACP.Allow, Commands: cfg.ACP.Commands}
+	if cfg.ACP.Allow {
+		logger.Warn("acp: harness liberado (HANKO_ACP_ALLOW); personas acp executam comandos nesta máquina", "commands", cfg.ACP.Commands)
+	}
 	switch {
 	case !box.Enabled():
 		logger.Info("integrações: sem HANKO_SECRET_KEY; integrações com segredo (headers de MCP, webhooks) não podem ser salvas")
@@ -100,8 +104,9 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 	reg := adapter.Registry{
 		"claude": claude.New(claude.Options{Bin: cfg.ClaudeBin, Logger: logger, EnvAllow: cfg.AgentEnvAllow}),
 		"codex":  codex.New(codex.Options{Bin: cfg.CodexBin, Logger: logger, EnvAllow: cfg.AgentEnvAllow}),
-		"acp":    acp.New(acp.Options{Logger: logger, Version: version, EnvAllow: cfg.AgentEnvAllow}),
-		"fake":   fake.New(fake.Options{}),
+		"acp": acp.New(acp.Options{Logger: logger, Version: version, EnvAllow: cfg.AgentEnvAllow,
+			Policy: acp.Policy{Allow: cfg.ACP.Allow, Commands: cfg.ACP.Commands}}),
+		"fake": fake.New(fake.Options{}),
 	}
 	tokens := auth.RunTokens{Secret: []byte(cfg.Secret), TTL: cfg.RunTimeout + 5*time.Minute}
 	hb.Attach(svc, reg, mem, broker, tokens)

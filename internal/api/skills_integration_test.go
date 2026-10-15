@@ -33,6 +33,14 @@ func TestAPISkillsCRUDAndPersonaLinks(t *testing.T) {
 		}
 	}
 
+	// o corpo da requisição tem teto próprio (413), bem acima do limite da skill (422 acima)
+	if status, b := e.call("POST", base, `{"name":"A","description":"d","body":"`+strings.Repeat("x", 300<<10)+`"}`, nil); status != 413 {
+		t.Errorf("requisição gigante: status %d: %.200s", status, b)
+	}
+	if status, b := e.call("PATCH", base+"/revisar-pr", `{"body":"`+strings.Repeat("x", 300<<10)+`"}`, nil); status != 413 {
+		t.Errorf("patch gigante: status %d: %.200s", status, b)
+	}
+
 	// leitura por slug e por id; a listagem não traz o corpo e conta as personas
 	var got api.Skill
 	e.want(200, "GET", base+"/revisar-pr", "", &got)
@@ -157,6 +165,8 @@ func TestAPIIntegrationsNeverReturnSecrets(t *testing.T) {
 		t.Fatalf("teste: %+v", tr)
 	}
 	var dl api.ListBody[api.WebhookDelivery]
+	e.want(422, "GET", base+"/notifica/deliveries?limit=101", "", nil) // o teto é 100, o mesmo do service
+	e.want(200, "GET", base+"/notifica/deliveries?limit=100", "", &dl)
 	e.want(200, "GET", base+"/notifica/deliveries?limit=5", "", &dl)
 	if len(dl.Items) != 1 || dl.Items[0].ID != tr.Delivery.ID {
 		t.Fatalf("entregas: %+v", dl.Items)

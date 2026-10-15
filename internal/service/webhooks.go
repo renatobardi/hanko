@@ -68,7 +68,12 @@ func webhookEventFor(verb string, data json.RawMessage) (string, bool) {
 		return domain.EventGateDecided, true
 	case "run.finished":
 		_ = json.Unmarshal(data, &d)
-		return domain.EventRunFailed, d.Status == string(domain.RunFailed) || d.Status == string(domain.RunExpired)
+		// interrupted (run órfã encontrada na recuperação) também é uma run que não terminou bem.
+		switch domain.RunStatus(d.Status) {
+		case domain.RunFailed, domain.RunExpired, domain.RunInterrupted:
+			return domain.EventRunFailed, true
+		}
+		return domain.EventRunFailed, false
 	case "alert.opened":
 		return domain.EventAlertOpened, true
 	}
@@ -172,7 +177,9 @@ func (s *Service) DeliverWebhook(ctx context.Context, deliveryID domain.ID, atte
 	q := s.read()
 	d, err := q.GetWebhookDelivery(ctx, deliveryID)
 	if isNoRows(err) {
-		return WebhookDone, nil
+		// A linha é o outbox: sumir com o job ainda na fila é aviso perdido (a integração foi apagada ou alguém
+		// mexeu no banco; a poda só apaga entregas encerradas), não sucesso. Não há o que repetir; o worker loga.
+		return WebhookGiveUp, fmt.Errorf("webhook delivery %s not found", deliveryID)
 	}
 	if err != nil {
 		return WebhookRetry, fmt.Errorf("get webhook delivery: %w", err)

@@ -3,8 +3,11 @@ package procrun
 import (
 	"context"
 	"io"
+	"os"
+	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -27,6 +30,36 @@ func TestRunLinesAndExit(t *testing.T) {
 	if strings.Join(out, "|") != "got:hello|a|tail" || strings.Join(errs, "|") != "b" {
 		t.Fatalf("out=%v errs=%v", out, errs)
 	}
+}
+
+// A child left behind by a process that exits on its own (an stdio MCP server, say) must not survive the run.
+func TestRunNormalExitKillsOrphans(t *testing.T) {
+	var pid int
+	res, err := Run(context.Background(), Options{
+		Bin: "bash", Args: []string{"-c", `sleep 60 >/dev/null 2>&1 & echo $!; exit 0`},
+		OnStdout: func(l []byte) { pid, _ = strconv.Atoi(strings.TrimSpace(string(l))) },
+	})
+	if err != nil || res.ExitCode != 0 || res.Cancelled || pid <= 1 {
+		t.Fatalf("res=%+v err=%v pid=%d", res, err, pid)
+	}
+	deadline := time.Now().Add(3 * time.Second)
+	for procAlive(pid) {
+		if time.Now().After(deadline) {
+			_ = syscall.Kill(pid, syscall.SIGKILL)
+			t.Fatalf("o órfão %d sobreviveu ao fim da run", pid)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+// procAlive: the process exists and is not a zombie (an unreaped orphan stays listed as Z).
+func procAlive(pid int) bool {
+	b, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/stat")
+	if err != nil {
+		return false
+	}
+	i := strings.LastIndexByte(string(b), ')')
+	return i >= 0 && i+2 < len(b) && b[i+2] != 'Z'
 }
 
 func TestRunStartError(t *testing.T) {

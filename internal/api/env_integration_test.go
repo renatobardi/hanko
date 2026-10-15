@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/renatobardi/hanko/internal/adapter/acp"
 	"io"
 	"log/slog"
 	"net/http"
@@ -44,6 +45,7 @@ func newAPIEnvWith(t *testing.T, mod func(*api.Deps)) *apiEnv {
 	pool := testdb.New(t)
 	broker := events.NewBroker()
 	svc := service.New(pool, noopJobs{}, broker)
+	svc.ACP = acp.Policy{Allow: true} // o operador liga o harness acp (ADR-0023)
 	e := &apiEnv{t: t, svc: svc, tokens: &auth.RunTokens{Secret: []byte("0123456789abcdef0123456789abcdef"), TTL: time.Hour}}
 	e.setNow(time.Date(2026, 3, 10, 12, 0, 0, 0, time.UTC))
 	svc.Now = func() time.Time { return time.Unix(0, e.clock.Load()).UTC() }
