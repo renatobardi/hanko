@@ -76,6 +76,38 @@ type projectListIn struct {
 	All     bool   `json:"all,omitempty" jsonschema:"inclui os projetos arquivados (padrão: só os ativos)"`
 }
 
+type searchIn struct {
+	Company string `json:"company,omitempty" jsonschema:"slug ou id da empresa (obrigatório só sem token de run)"`
+	Query   string `json:"query" jsonschema:"o que buscar (palavras, \"frase exata\", -excluir, OR) ou a chave de uma task (HNK-12)"`
+	Types   string `json:"types,omitempty" jsonschema:"tipos separados por vírgula: task,comment,persona,run,flow,memory (padrão: todos)"`
+	Limit   int    `json:"limit,omitempty" jsonschema:"máximo de resultados por tipo (padrão 10, máx 50)"`
+}
+
+type searchHitOut struct {
+	Type      string `json:"type" jsonschema:"task, comment, persona, run, flow ou memory"`
+	Ref       string `json:"ref" jsonschema:"chave da task, slug da persona/fluxo, id da execução ou path da memória"`
+	Title     string `json:"title"`
+	Snippet   string `json:"snippet,omitempty" jsonschema:"trecho que casou; as palavras que casaram vêm entre « e »"`
+	TaskKey   string `json:"task_key,omitempty"`
+	TaskTitle string `json:"task_title,omitempty"`
+	Status    string `json:"status,omitempty"`
+	Author    string `json:"author,omitempty"`
+	Exact     bool   `json:"exact,omitempty"`
+}
+
+type searchGroupOut struct {
+	Type        string         `json:"type"`
+	Hits        []searchHitOut `json:"hits"`
+	More        bool           `json:"more,omitempty"`
+	Unavailable bool           `json:"unavailable,omitempty"`
+}
+
+type searchOut struct {
+	Query  string           `json:"query"`
+	Total  int              `json:"total"`
+	Groups []searchGroupOut `json:"groups"`
+}
+
 type runGetIn struct {
 	Company string `json:"company,omitempty" jsonschema:"slug ou id da empresa (obrigatório só sem token de run)"`
 	ID      string `json:"id,omitempty" jsonschema:"id (UUID) da execução; padrão = a execução do seu token"`
@@ -127,6 +159,8 @@ type whoamiOut struct {
 	RunID       string `json:"run_id,omitempty"`
 	TaskID      string `json:"task_id,omitempty"`
 	TaskKey     string `json:"task_key,omitempty"`
+	// ConversationID is set instead of the task when the run is a chat.
+	ConversationID string `json:"conversation_id,omitempty"`
 }
 
 type taskOut struct {
@@ -275,11 +309,19 @@ func registerTools(s *sdk.Server, t *tools) {
 		Annotations: &sdk.ToolAnnotations{ReadOnlyHint: true},
 	}, t.projectList)
 	sdk.AddTool(s, &sdk.Tool{
+		Name: "hanko_search",
+		Description: "Busca na empresa inteira de uma vez: tasks (chave, título, descrição), comentários, personas, execuções, fluxos e a memória da empresa. " +
+			"Várias palavras = todas; \"frase exata\"; -excluir; OR entre alternativas; a última palavra casa por prefixo; a chave exata de uma task (HNK-12) vai direto a ela. " +
+			"Devolve grupos por tipo, com trecho do que casou. Use antes de criar uma task (já existe algo parecido?) ou de repetir um trabalho.",
+		Annotations: &sdk.ToolAnnotations{ReadOnlyHint: true},
+	}, t.search)
+	sdk.AddTool(s, &sdk.Tool{
 		Name:        "hanko_run_get",
 		Description: "Consulta uma execução (run): status, resumo, custo. Sem id, devolve a execução do seu token.",
 		Annotations: &sdk.ToolAnnotations{ReadOnlyHint: true},
 	}, t.runGet)
 	registerArtifactTools(s, t)
+	registerSkillTools(s, t)
 }
 
 // ---- resolução de empresa ----
@@ -411,7 +453,8 @@ func (t *tools) whoami(ctx context.Context, _ *sdk.CallToolRequest, in whoamiIn)
 	if !ok {
 		return nil, whoamiOut{}, errors.New("chamada sem identidade")
 	}
-	out := whoamiOut{Actor: string(id.Actor.Type), PersonaID: idStr(id.PersonaID), RunID: idStr(id.RunID), TaskID: idStr(id.TaskID)}
+	out := whoamiOut{Actor: string(id.Actor.Type), PersonaID: idStr(id.PersonaID), RunID: idStr(id.RunID), TaskID: idStr(id.TaskID),
+		ConversationID: idStr(id.ConversationID)}
 	var company domain.ID
 	if id.CompanyID != nil {
 		company = *id.CompanyID
@@ -452,6 +495,9 @@ func (t *tools) whoami(ctx context.Context, _ *sdk.CallToolRequest, in whoamiIn)
 	}
 	if out.TaskKey != "" {
 		fmt.Fprintf(&sb, "; task atual %s", out.TaskKey)
+	}
+	if out.ConversationID != "" {
+		fmt.Fprintf(&sb, "; conversa %s (chat, sem task)", out.ConversationID)
 	}
 	if out.RunID != "" {
 		fmt.Fprintf(&sb, "; run %s", out.RunID)
@@ -597,11 +643,27 @@ func (t *tools) taskCreate(ctx context.Context, _ *sdk.CallToolRequest, in taskC
 	case id.ViaToken && id.TaskID != nil:
 		ci.ParentID = id.TaskID
 	}
+	if id.ViaToken && id.ConversationID != nil {
+		ci.Description = t.conversationOrigin(ctx, company, *id.ConversationID, ci.Description)
+	}
 	v, err := t.b.CreateTask(ctx, id.Actor, company, ci)
 	if err != nil {
 		return nil, taskWriteOut{}, opErr("criar task", err)
 	}
 	return textResult("Task criada: %s", taskLine(v)), taskWriteOut{Task: toTask(v)}, nil
+}
+
+// conversationOrigin appends to a task description the conversation it was opened from.
+func (t *tools) conversationOrigin(ctx context.Context, company, conversation domain.ID, description string) string {
+	ref := "/chat/" + conversation.String()
+	if c, err := t.b.GetCompany(ctx, company.String()); err == nil {
+		ref = "/c/" + c.Slug + ref
+	}
+	note := fmt.Sprintf("Aberta a partir da conversa %s (%s).", conversation, ref)
+	if strings.TrimSpace(description) == "" {
+		return note
+	}
+	return strings.TrimRight(description, "\n ") + "\n\n---\n" + note
 }
 
 func (t *tools) taskUpdate(ctx context.Context, _ *sdk.CallToolRequest, in taskUpdateIn) (*sdk.CallToolResult, taskWriteOut, error) {
@@ -764,6 +826,9 @@ func (t *tools) runGet(ctx context.Context, _ *sdk.CallToolRequest, in runGetIn)
 		o.FinishedAt = v.FinishedAt.UTC().Format("2006-01-02T15:04:05Z")
 	}
 	txt := fmt.Sprintf("Run %s da task %s (%s): %s", o.ID, o.TaskKey, o.Persona, o.Status)
+	if o.TaskKey == "" {
+		txt = fmt.Sprintf("Run %s de conversa (%s): %s", o.ID, o.Persona, o.Status)
+	}
 	if o.Error != "" {
 		txt += "; erro: " + o.Error
 	}
@@ -823,6 +888,9 @@ func (t *tools) gateRequest(ctx context.Context, _ *sdk.CallToolRequest, in gate
 	task, err := t.gateTask(ctx, id, company, in.Task)
 	if err != nil {
 		return nil, gateWriteOut{}, err
+	}
+	if task == nil && id.ConversationID != nil {
+		return nil, gateWriteOut{}, errors.New("esta execução é uma conversa (chat) e não tem task: informe o argumento task com a chave de uma task existente ou abra uma com hanko_task_create e peça o gate nela")
 	}
 	req := service.RequestGateInput{Kind: domain.GateApproval, Title: in.Title, Body: in.Body, TaskID: task, EventID: in.EventID}
 	if id.ViaToken {

@@ -142,6 +142,10 @@ func clip(s string, max int) string {
 func buildEnv(base, publicURL, token string, rc service.RunContext) map[string]string {
 	attrs := fmt.Sprintf("hanko.company_id=%s,hanko.persona_id=%s,hanko.run_id=%s,hanko.task_id=%s",
 		rc.Company.ID, rc.Persona.ID, rc.Run.ID, rc.Task.ID)
+	if rc.Chat != nil {
+		attrs = fmt.Sprintf("hanko.company_id=%s,hanko.persona_id=%s,hanko.run_id=%s,hanko.conversation_id=%s",
+			rc.Company.ID, rc.Persona.ID, rc.Run.ID, rc.Chat.Conversation.ID)
+	}
 	if base = strings.TrimSpace(base); base != "" {
 		attrs = strings.TrimRight(base, ",") + "," + attrs
 	}
@@ -150,6 +154,9 @@ func buildEnv(base, publicURL, token string, rc service.RunContext) map[string]s
 		"CLAUDE_CODE_ENABLE_TELEMETRY": "1",
 		"HANKO_RUN_ID":                 rc.Run.ID.String(),
 		"HANKO_TASK_KEY":               rc.Task.Key,
+	}
+	if rc.Chat != nil {
+		env["HANKO_CONVERSATION_ID"] = rc.Chat.Conversation.ID.String()
 	}
 	// No token means a credential-less (review) run: it does not even learn where Hanko is.
 	if token != "" {
@@ -212,5 +219,54 @@ func BuildReviewPrompt(rc service.RunContext, briefing string) (system, prompt s
 		pb.WriteString("\n## Memória do projeto\n\n" + b + "\n")
 	}
 	pb.WriteString("\n---\nRevise agora e responda começando por `VEREDITO: APROVADO` ou `VEREDITO: REPROVADO`.\n")
+	return system, pb.String()
+}
+
+// SkillIndex é o índice de skills que entra no system prompt dos harnesses sem carga nativa de skills
+// (codex, acp): nome e descrição de cada uma, com o corpo sob demanda pela tool MCP hanko_skill_get.
+func SkillIndex(skills []domain.Skill) string {
+	var sb strings.Builder
+	sb.WriteString("## Skills disponíveis\n\n")
+	sb.WriteString("Habilidades reutilizáveis habilitadas para você. Quando a descrição de uma bater com o trabalho, ")
+	sb.WriteString("carregue as instruções completas com a tool MCP `hanko_skill_get` (argumento `slug`) antes de agir e siga-as.\n\n")
+	for _, s := range skills {
+		desc := strings.Join(strings.Fields(s.Description), " ")
+		fmt.Fprintf(&sb, "- `%s`: %s\n", s.Slug, desc)
+	}
+	return strings.TrimRight(sb.String(), "\n")
+}
+
+// BuildMemoryPrompt builds the prompts of a memory curation run (trigger memory, ADR-0030): the persona's
+// own instructions, the curation protocol and the workspace to curate. It is pure.
+func BuildMemoryPrompt(rc service.RunContext, briefing string) (system, prompt string) {
+	p, c, t := rc.Persona, rc.Company, rc.Task
+	project := "default"
+	if rc.Workspace != nil && rc.Workspace.Slug != "" {
+		project = rc.Workspace.Slug
+	}
+	var sb strings.Builder
+	if s := strings.TrimSpace(p.Instructions); s != "" {
+		sb.WriteString(s)
+		sb.WriteString("\n\n")
+	}
+	sb.WriteString("## Protocolo de curadoria de memória Hanko\n\n")
+	fmt.Fprintf(&sb, "Você é a persona curadora %s da empresa %s e hoje cuida da memória do workspace **%s** (projeto `%s` no ai-memory).\n", p.Name, c.Name, project, project)
+	sb.WriteString("- Objetivo: deduplicar, fundir páginas redundantes, marcar o que ficou obsoleto e resumir o que ficou longo, mantendo a memória enxuta e fiel.\n")
+	sb.WriteString("- Use as tools do servidor MCP `ai-memory` (liste as tools disponíveis e leia as páginas antes de mudar qualquer coisa). Você só alcança a memória deste workspace.\n")
+	sb.WriteString("- NUNCA apague nem reescreva fatos com decisão humana: as páginas em `hanko/decisions/` e qualquer página que registre uma decisão de gate são preservadas literalmente, inclusive dentro de fusões e resumos.\n")
+	sb.WriteString("- Escritas que removem, fundem ou reescrevem conteúdo NÃO são aplicadas na hora: o Hanko as registra como proposta e um humano decide. Quando a tool responder que a proposta foi registrada, siga em frente; não repita a chamada nem tente contornar por outra tool.\n")
+	sb.WriteString("- Escritas novas e aditivas valem direto. Registre o relatório desta rodada numa página nova em `hanko/curadoria/` (por exemplo `hanko/curadoria/AAAA-MM-DD-relatorio.md`).\n")
+	sb.WriteString("- Não consuma handoff nem encerre sessões de memória.\n")
+	sb.WriteString("- Prefira poucas propostas bem fundamentadas, cada uma sobre uma página ou um grupo coeso de páginas, em vez de muitas mudanças pequenas.\n")
+	sb.WriteString("- Termine com um resumo objetivo: o que examinou, o que propôs (quantas fusões, remoções e reescritas), o que deixou como está e por quê.\n")
+	system = strings.TrimSpace(sb.String())
+
+	var pb strings.Builder
+	fmt.Fprintf(&pb, "# Curadoria de memória: %s\n\n", t.Title)
+	fmt.Fprintf(&pb, "- Workspace: %s\n- Execução: %s (gatilho: %s)\n\n", project, rc.Run.ID, rc.Run.Trigger)
+	if b := strings.TrimSpace(briefing); b != "" {
+		pb.WriteString("## Briefing da memória\n\n" + b + "\n\n")
+	}
+	pb.WriteString("---\nExecute a curadoria agora.\n")
 	return system, pb.String()
 }

@@ -127,7 +127,7 @@ func (s *Service) RequestGate(ctx context.Context, actor domain.Actor, companyID
 				}
 				if task != nil {
 					owns := task.PersonaID != nil && *task.PersonaID == *actor.ID
-					ownRun := run != nil && run.TaskID == task.ID
+					ownRun := run != nil && run.TaskID != nil && *run.TaskID == task.ID
 					if !owns && !ownRun {
 						return fmt.Errorf("request gate: a persona asks for gates only on tasks assigned to it: %w", domain.ErrNotAllowed)
 					}
@@ -399,6 +399,12 @@ func (s *Service) DecideGate(ctx context.Context, actor domain.Actor, companyID,
 			"note": note}, ""); err != nil {
 			return err
 		}
+		var memWS *domain.ID // gate memory: a decisão vale para a proposta de curadoria e vira memória do workspace dela
+		if g.Kind == domain.GateMemory {
+			if memWS, err = t.memoryProposalDecided(actor, g, in.Decision, note); err != nil {
+				return err
+			}
+		}
 
 		var task *store.Task
 		taskKey := "GATE"
@@ -452,6 +458,9 @@ func (s *Service) DecideGate(ctx context.Context, actor domain.Actor, companyID,
 		var wsID *domain.ID
 		if task != nil {
 			wsID = task.WorkspaceID
+		}
+		if wsID == nil {
+			wsID = memWS
 		}
 		if err := t.memoryFact(companyID, wsID, gateFact(g, taskKey, t.now), "gate.decided:"+g.ID.String()); err != nil {
 			return err
@@ -677,7 +686,7 @@ func (s *Service) Inbox(ctx context.Context, companyID domain.ID) (Inbox, error)
 		return in, fmt.Errorf("list failed runs: %w", err)
 	}
 	for _, r := range failed {
-		in.FailedRuns = append(in.FailedRuns, runViewFromParts(r.Run, r.TaskKey, r.TaskTitle, r.PersonaName))
+		in.FailedRuns = append(in.FailedRuns, runViewFromParts(r.Run, r.TaskKey, r.TaskTitle, r.PersonaName, ""))
 	}
 	errs, err := q.ListErrorPersonas(ctx, companyID)
 	if err != nil {

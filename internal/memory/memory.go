@@ -5,6 +5,7 @@ package memory
 import (
 	"context"
 	"encoding/json"
+	"errors"
 )
 
 // Scope identifies a memory project. Workspace = the Hanko company slug,
@@ -24,6 +25,14 @@ type Fact struct {
 	Tags  []string `json:"tags,omitempty"`
 }
 
+// Hit is one memory search result (ADR-0024).
+type Hit struct {
+	Path    string  `json:"path"`    // wiki page path, when the provider has one
+	Title   string  `json:"title"`   // page title (may be empty)
+	Snippet string  `json:"snippet"` // matching text, plain (never HTML)
+	Score   float64 `json:"score,omitempty"`
+}
+
 // Provider is implemented by ai-memory and by Noop.
 type Provider interface {
 	Name() string
@@ -40,6 +49,9 @@ type Provider interface {
 	// never carry the provider's own credentials: agents authenticate with their run token
 	// against Hanko's memory proxy, which injects the provider credentials server-side.
 	AgentMCP(s Scope, runID, runToken string) map[string]json.RawMessage
+	// Search looks the query up in the company's memory (Scope.Workspace = company slug; Scope.Project is
+	// ignored: the search spans every project of the company). Noop returns nothing.
+	Search(ctx context.Context, s Scope, query string, limit int) ([]Hit, error)
 	// Ping checks availability.
 	Ping(ctx context.Context) error
 }
@@ -53,4 +65,21 @@ func (Noop) AcceptHandoff(context.Context, Scope) (string, error)         { retu
 func (Noop) Record(context.Context, Scope, Fact) error                    { return nil }
 func (Noop) FinalizeSession(context.Context, Scope, string, string) error { return nil }
 func (Noop) AgentMCP(Scope, string, string) map[string]json.RawMessage    { return nil }
+func (Noop) Search(context.Context, Scope, string, int) ([]Hit, error)    { return nil, nil }
 func (Noop) Ping(context.Context) error                                   { return nil }
+
+// ErrUnsupported: o provedor não tem a capacidade pedida (ou ela não foi configurada).
+var ErrUnsupported = errors.New("memory: capacidade não suportada pelo provedor")
+
+// ToolCaller é a capacidade opcional de repetir uma chamada de tool no servidor de memória com as
+// credenciais do Hanko. A aprovação de uma proposta de curadoria aplica a chamada retida por aqui
+// (ADR-0030). O escopo (empresa/workspace) sobrepõe qualquer valor que os argumentos tragam.
+type ToolCaller interface {
+	CallTool(ctx context.Context, s Scope, tool string, args map[string]any) (string, error)
+}
+
+// PageReader é a capacidade opcional de ler uma página da wiki, usada para mostrar o conteúdo atual no
+// diff de uma proposta. Melhor esforço: ErrUnsupported quando a tool de leitura não está configurada.
+type PageReader interface {
+	ReadPage(ctx context.Context, s Scope, path string) (string, error)
+}

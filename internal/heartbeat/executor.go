@@ -103,22 +103,34 @@ func (h *Heartbeat) executeRunJob(ctx context.Context, a ExecuteRunArgs, ji jobI
 		return nil
 	}
 	agent, model := effectiveHarness(rc)
-	log = log.With("task_key", rc.Task.Key, "agent", agent)
+	log = log.With("agent", agent)
+	if rc.Chat != nil {
+		log = log.With("conversation_id", rc.Chat.Conversation.ID)
+	} else {
+		log = log.With("task_key", rc.Task.Key)
+	}
 
 	ad, ok := h.reg.Get(agent)
 	if !ok {
 		h.failEarly(ctx, a, fmt.Errorf("adapter desconhecido: %q", agent))
 		return nil
 	}
+	if rc.Chat != nil && !adapter.ResumesSessions(ad) {
+		rc.Chat.ResumeSession = "" // the harness cannot resume: the prompt carries the history
+	}
 
 	ctx, span := otel.Tracer("hanko/heartbeat").Start(ctx, "hanko.run", trace.WithAttributes(
 		attribute.String("hanko.company_id", rc.Company.ID.String()),
 		attribute.String("hanko.persona_id", rc.Persona.ID.String()),
 		attribute.String("hanko.run_id", rc.Run.ID.String()),
-		attribute.String("hanko.task_id", rc.Task.ID.String()),
 		attribute.String("hanko.agent", agent),
 		attribute.String("hanko.model", model),
 	))
+	if rc.Chat != nil {
+		span.SetAttributes(attribute.String("hanko.conversation_id", rc.Chat.Conversation.ID.String()))
+	} else {
+		span.SetAttributes(attribute.String("hanko.task_id", rc.Task.ID.String()))
+	}
 	defer span.End()
 	traceID := ""
 	if sc := span.SpanContext(); sc.HasTraceID() {
@@ -152,12 +164,18 @@ func (h *Heartbeat) executeRunJob(ctx context.Context, a ExecuteRunArgs, ji jobI
 	}
 
 	scope := scopeFor(rc.Company.Slug, rc.Workspace)
+	curating := rc.Run.Trigger == domain.TriggerMemory
 
-	// Memory is best effort: failures become warnings in the run log.
+	// Memory is best effort: failures become warnings in the run log. A curation run only reads the briefing:
+	// it never takes the pending handoff (it belongs to the next working session) nor closes a session.
 	var warnings []string
-	handoff, herr := h.callMemory(execCtx, func(c context.Context) (string, error) { return h.mem.AcceptHandoff(c, scope) })
-	if herr != nil {
-		warnings = append(warnings, "memória indisponível: "+herr.Error())
+	var handoff string
+	var herr error
+	if !curating {
+		handoff, herr = h.callMemory(execCtx, func(c context.Context) (string, error) { return h.mem.AcceptHandoff(c, scope) })
+		if herr != nil {
+			warnings = append(warnings, "memória indisponível: "+herr.Error())
+		}
 	}
 	briefing, berr := h.callMemory(execCtx, func(c context.Context) (string, error) { return h.mem.Briefing(c, scope) })
 	if berr != nil && herr == nil {
@@ -186,7 +204,8 @@ func (h *Heartbeat) executeRunJob(ctx context.Context, a ExecuteRunArgs, ji jobI
 	cleanup := func() {}
 	defer func() { cleanup() }()
 
-	spec, dirCleanup, specErr := h.buildSpec(rc, briefing, handoff, scope, emit)
+	extras := h.runExtras(execCtx, rc, emit)
+	spec, dirCleanup, specErr := h.buildSpec(rc, briefing, handoff, scope, extras, emit)
 	if dirCleanup != nil {
 		cleanup = dirCleanup
 	}
@@ -232,7 +251,9 @@ func (h *Heartbeat) executeRunJob(ctx context.Context, a ExecuteRunArgs, ji jobI
 	}
 	log.Info("run finalizada", "status", status, "exit_code", res.ExitCode)
 
-	h.finalizeMemorySession(fctx, scope, agent, res.SessionRef, log)
+	if !curating {
+		h.finalizeMemorySession(fctx, scope, agent, res.SessionRef, log)
+	}
 	return nil
 }
 
@@ -245,8 +266,10 @@ func (h *Heartbeat) finishPending(ctx context.Context, a ExecuteRunArgs, rc serv
 	log.Info("run finalizada (resultado pendente)", "status", in.Status, "exit_code", in.Result.ExitCode)
 	fctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), finishTimeout)
 	defer cancel()
-	pagent, _ := effectiveHarness(rc)
-	h.finalizeMemorySession(fctx, scopeFor(rc.Company.Slug, rc.Workspace), pagent, in.Result.SessionRef, log)
+	if rc.Run.Trigger != domain.TriggerMemory {
+		pagent, _ := effectiveHarness(rc)
+		h.finalizeMemorySession(fctx, scopeFor(rc.Company.Slug, rc.Workspace), pagent, in.Result.SessionRef, log)
+	}
 	return nil
 }
 
@@ -310,7 +333,7 @@ func (h *Heartbeat) finishFailed(ctx context.Context, a ExecuteRunArgs, ferr err
 
 // buildSpec assembles the adapter.Spec and resolves the working directory. The returned
 // cleanup removes a temp workspace; it may be nil.
-func (h *Heartbeat) buildSpec(rc service.RunContext, briefing, handoff string, scope memory.Scope, emit func(domain.RunEventKind, string)) (adapter.Spec, func(), error) {
+func (h *Heartbeat) buildSpec(rc service.RunContext, briefing, handoff string, scope memory.Scope, extras service.RunExtras, emit func(domain.RunEventKind, string)) (adapter.Spec, func(), error) {
 	publicURL := strings.TrimRight(h.opts.PublicURL, "/")
 	review := rc.Review != nil && rc.Run.Trigger == domain.TriggerReview
 	// A review run is headless and read-only: it gets no run token, no Hanko MCP and no
@@ -319,11 +342,15 @@ func (h *Heartbeat) buildSpec(rc service.RunContext, briefing, handoff string, s
 	var extraMCP map[string]json.RawMessage
 	if !review {
 		var err error
-		token, err = h.tokens.Issue(rc.Company.ID, rc.Persona.ID, rc.Run.ID, rc.Task.ID)
+		if rc.Chat != nil {
+			token, err = h.tokens.IssueForConversation(rc.Company.ID, rc.Persona.ID, rc.Run.ID, rc.Chat.Conversation.ID)
+		} else {
+			token, err = h.tokens.Issue(rc.Company.ID, rc.Persona.ID, rc.Run.ID, rc.Task.ID)
+		}
 		if err != nil {
 			return adapter.Spec{}, nil, fmt.Errorf("emitir run token: %w", err)
 		}
-		extraMCP = h.mem.AgentMCP(scope, rc.Run.ID.String(), token)
+		extraMCP = mergeMCP(extras.MCP, h.mem.AgentMCP(scope, rc.Run.ID.String(), token))
 	}
 	mcpCfg, err := buildMCPConfig(publicURL, token, extraMCP)
 	if err != nil {
@@ -334,7 +361,16 @@ func (h *Heartbeat) buildSpec(rc service.RunContext, briefing, handoff string, s
 	if err != nil {
 		return adapter.Spec{}, nil, err
 	}
-	system, prompt := BuildPrompt(rc, briefing, handoff)
+	system, prompt := "", ""
+	if rc.Chat != nil {
+		system, prompt = BuildChatPrompt(rc, briefing, handoff)
+	} else {
+		system, prompt = BuildPrompt(rc, briefing, handoff)
+	}
+	sessionRef := ""
+	if rc.Chat != nil {
+		sessionRef = rc.Chat.ResumeSession
+	}
 	cfg := rc.Persona.AdapterConfig
 	if review {
 		system, prompt = BuildReviewPrompt(rc, briefing)
@@ -342,14 +378,70 @@ func (h *Heartbeat) buildSpec(rc service.RunContext, briefing, handoff string, s
 			cfg = nil // the author's adapter_config targets the author's harness, not this one
 		}
 	}
+	if rc.Run.Trigger == domain.TriggerMemory {
+		system, prompt = BuildMemoryPrompt(rc, briefing)
+	}
 	agent, model := effectiveHarness(rc)
+	// Skills (ADR-0029): o claude as carrega nativamente de um diretório temporário da run; os demais
+	// harnesses recebem o índice no system prompt e buscam o corpo pela tool MCP hanko_skill_get.
+	// Uma run de revisão não usa skills.
+	var skills []domain.Skill
+	if !review && len(extras.Skills) > 0 {
+		if agent == "claude" {
+			skills = extras.Skills
+		} else {
+			system = strings.TrimSpace(system + "\n\n" + SkillIndex(extras.Skills))
+		}
+	}
 	return adapter.Spec{
 		RunID: rc.Run.ID, CompanyID: rc.Company.ID, PersonaID: rc.Persona.ID, TaskID: rc.Task.ID, TaskKey: rc.Task.Key,
-		Agent: agent, Model: model, Dir: dir,
-		System: system, Prompt: prompt, SessionRef: "",
+		ConversationID: conversationID(rc), Agent: agent, Model: model, Dir: dir,
+		System: system, Prompt: prompt, SessionRef: sessionRef,
 		Env:       buildEnv(os.Getenv("OTEL_RESOURCE_ATTRIBUTES"), publicURL, token, rc),
-		MCPConfig: mcpCfg, Config: cfg, ReadOnly: review,
+		MCPConfig: mcpCfg, Skills: skills, Config: cfg, ReadOnly: review,
 	}, cleanup, nil
+}
+
+// runExtrasBackend é o que o service oferece para skills e MCPs da empresa; opcional para que os fakes
+// de teste que não os usam continuem valendo.
+type runExtrasBackend interface {
+	RunExtras(ctx context.Context, companyID, personaID domain.ID) (service.RunExtras, error)
+}
+
+// runExtras busca as skills habilitadas e os servidores MCP da empresa para a run. É melhor esforço:
+// uma falha vira aviso no log da run e a execução segue sem os extras. Revisões e a curadoria de memória
+// (gatilho memory) não os recebem: são runs de sistema, restritas ao que o protocolo delas define (ADR-0029).
+func (h *Heartbeat) runExtras(ctx context.Context, rc service.RunContext, emit func(domain.RunEventKind, string)) service.RunExtras {
+	if rc.Review != nil && rc.Run.Trigger == domain.TriggerReview || rc.Run.Trigger == domain.TriggerMemory {
+		return service.RunExtras{}
+	}
+	eb, ok := h.svc.(runExtrasBackend)
+	if !ok {
+		return service.RunExtras{}
+	}
+	ex, err := eb.RunExtras(ctx, rc.Company.ID, rc.Persona.ID)
+	if err != nil {
+		emit(domain.EventSystem, "skills e integrações indisponíveis nesta execução: "+err.Error())
+		return service.RunExtras{}
+	}
+	for _, w := range ex.Warnings {
+		emit(domain.EventSystem, w)
+	}
+	return ex
+}
+
+// mergeMCP junta servidores MCP; em colisão de nome vale o último mapa.
+func mergeMCP(maps ...map[string]json.RawMessage) map[string]json.RawMessage {
+	var out map[string]json.RawMessage
+	for _, m := range maps {
+		for k, v := range m {
+			if out == nil {
+				out = map[string]json.RawMessage{}
+			}
+			out[k] = v
+		}
+	}
+	return out
 }
 
 // workspaceDir returns the workspace path when it exists on disk, otherwise a per-run
@@ -421,4 +513,12 @@ func effectiveHarness(rc service.RunContext) (agent, model string) {
 		return rc.Run.Agent, rc.Run.Model
 	}
 	return rc.Persona.Agent, rc.Persona.Model
+}
+
+// conversationID is the conversation of a chat run (zero for a task run).
+func conversationID(rc service.RunContext) domain.ID {
+	if rc.Chat == nil {
+		return domain.ID{}
+	}
+	return rc.Chat.Conversation.ID
 }

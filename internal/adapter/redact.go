@@ -119,10 +119,15 @@ func SpecSecrets(spec Spec) []string {
 		var cfg struct {
 			Servers map[string]struct {
 				Headers map[string]string `json:"headers"`
+				Env     map[string]string `json:"env"`
 			} `json:"mcpServers"`
 		}
 		if json.Unmarshal(spec.MCPConfig, &cfg) == nil {
 			for _, s := range cfg.Servers {
+				// servidores stdio da empresa (ADR-0029): todo valor de env é tratado como segredo
+				for _, v := range s.Env {
+					out = append(out, v)
+				}
 				for _, v := range s.Headers {
 					out = append(out, v)
 					if rest, ok := strings.CutPrefix(v, "Bearer "); ok {

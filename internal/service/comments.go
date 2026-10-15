@@ -141,7 +141,7 @@ func anchorDoc(ctx context.Context, q *store.Queries, companyID domain.ID, task 
 			}
 			return "", fmt.Errorf("anchor run: %w", err)
 		}
-		if r.TaskID != task.ID {
+		if r.TaskID == nil || *r.TaskID != task.ID {
 			return "", domain.Invalid("anchor.run_id", "run belongs to another task")
 		}
 		cache[key] = r.Summary

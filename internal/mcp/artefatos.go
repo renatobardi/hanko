@@ -134,7 +134,7 @@ func (t *tools) artifactPut(ctx context.Context, _ *sdk.CallToolRequest, in arti
 		if err != nil {
 			return nil, artifactPutOut{}, toolErr("task", tk, err)
 		}
-		if id.ViaToken && id.TaskID != nil && v.ID != *id.TaskID {
+		if id.ViaToken && (id.TaskID == nil || v.ID != *id.TaskID) {
 			return nil, artifactPutOut{}, errors.New("com token de run o artefato é sempre da task da sua execução; omita task")
 		}
 		pi.TaskID = &v.ID

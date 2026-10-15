@@ -96,6 +96,7 @@ type importPlan struct {
 	nextTask               int64
 	taskOrder              []int // índices de doc.Tasks, pais antes dos filhos
 	personaCfg             []json.RawMessage
+	si                     skillsIntegrationsPlan // skills e integrações (ADR-0029)
 	// clearedPaths: slugs dos workspaces cujo caminho esta instalação não aceita (outra máquina, fora da raiz):
 	// entram só como metadado, sem caminho (ADR-0025).
 	clearedPaths map[string]bool
@@ -110,7 +111,8 @@ func (p importPlan) counts(d export.Document) map[string]int {
 		events += len(r.Events)
 	}
 	out := map[string]int{"workspaces": len(d.Workspaces), "projects": len(d.Projects), "subscriptions": len(d.Subscriptions),
-		"personas": len(d.Personas), "tasks": len(d.Tasks), "comments": comments, "flows": len(d.Flows), "runs": len(d.Runs), "run_events": events}
+		"personas": len(d.Personas), "tasks": len(d.Tasks), "comments": comments, "flows": len(d.Flows), "runs": len(d.Runs), "run_events": events,
+		"skills": len(d.Skills), "integrations": len(d.Integrations)}
 	if n := len(d.Artifacts); n > 0 {
 		out["artifacts"] = n
 	}
@@ -492,6 +494,9 @@ func (s *Service) planImport(ctx context.Context, doc export.Document, opts Impo
 			}
 		}
 	}
+	if p.si, err = s.planSkillsIntegrations(doc, pe); err != nil {
+		return p, err
+	}
 	if err := s.planArtifacts(doc, tk, pe, pr, runKeys); err != nil {
 		return p, err
 	}
@@ -524,7 +529,7 @@ func nonNegativeRun(i int, r export.Run) error {
 func validTrigger(t string) bool {
 	switch domain.RunTrigger(t) {
 	case domain.TriggerAssign, domain.TriggerComment, domain.TriggerManual, domain.TriggerHeartbeat, domain.TriggerGate,
-		domain.TriggerFlow, domain.TriggerReview:
+		domain.TriggerFlow, domain.TriggerReview, domain.TriggerMemory:
 		return true
 	}
 	return false
@@ -772,7 +777,7 @@ func (t *txc) runImport(cid domain.ID, doc export.Document, p importPlan, opts I
 		if costSource == "" {
 			costSource = string(domain.CostNone)
 		}
-		if _, err := t.q.ImportRun(ctx, store.ImportRunParams{ID: runID[r.Key], CompanyID: cid, TaskID: taskID[r.Task], PersonaID: peID[r.Persona],
+		if _, err := t.q.ImportRun(ctx, store.ImportRunParams{ID: runID[r.Key], CompanyID: cid, TaskID: ptr(taskID[r.Task]), PersonaID: peID[r.Persona],
 			Status: r.Status, Trigger: r.Trigger, Agent: r.Agent, Model: r.Model, ModelSource: modelSource,
 			SubscriptionID: optID(subID, r.Subscription), Name: r.Name, ExitCode: exit, Error: r.Error, Summary: r.Summary,
 			CostUsd: r.CostUSD, CostSource: costSource, ListCostUsd: r.ListCostUSD, InputTokens: r.Usage.InputTokens,
@@ -790,6 +795,9 @@ func (t *txc) runImport(cid domain.ID, doc export.Document, p importPlan, opts I
 				return mapErr(err, "import run event")
 			}
 		}
+	}
+	if err := t.importSkillsIntegrations(cid, doc, p.si, peID); err != nil {
+		return err
 	}
 	return t.importArtifacts(cid, doc, taskID, prID, peID, runID)
 }

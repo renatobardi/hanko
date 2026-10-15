@@ -278,6 +278,8 @@ type PersonaVM struct {
 	Hired         string
 	Slug          string
 	Tasks         []TaskRow
+	Chats         []ChatRow // conversations with this persona
+	NewChatHref   string    // opens a conversation with it ("" = the viewer cannot write)
 	Runs          []RunRow
 	Budget        *BudgetBox       // monthly spend vs ceiling
 	Notice        string           // flash after an action
@@ -295,6 +297,7 @@ type PersonaVM struct {
 	OrgAction     string   // POST target of the organisation form
 	OrgOptions    []Option // "Reporta a" choices
 	Reviewer      ReviewerVM
+	Extras        PersonaExtrasVM // skills e servidores MCP (ADR-0029)
 }
 
 // ReviewerVM is the reviewer block of the persona page: the configured reviewer (summary) and the
@@ -374,6 +377,7 @@ type RunVM struct {
 	TaskKey      string
 	TaskHref     string
 	TaskTitle    string
+	Chat         bool // the run answers a conversation, not a task (TaskKey/TaskHref/TaskTitle then point at it)
 	Trigger      string
 	Started      string
 	Duration     string
@@ -692,6 +696,8 @@ type SettingsVM struct {
 	Error   string
 	// Members is the company's "Membros" section (authenticated mode only).
 	Members MembersVM
+	// Memory is the company's "Memória" section (memory consolidation, ADR-0030).
+	Memory MemoryVM
 }
 
 // MemberRow is one member in the "Membros" table.

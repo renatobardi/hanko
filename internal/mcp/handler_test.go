@@ -30,6 +30,7 @@ type fake struct {
 	tasks    []service.TaskView
 	comments []domain.Comment
 	runs     map[domain.ID]service.RunView
+	skills   map[domain.ID][]domain.Skill // habilitadas por persona
 
 	lastActor    domain.Actor
 	lastCreate   service.CreateTaskInput
@@ -46,6 +47,7 @@ type fake struct {
 	lastGoal  domain.ID
 	lastValue float64
 	lastNote  string
+	search    searchRec // hanko_search (search_test.go)
 }
 
 func newFake() *fake {
@@ -221,6 +223,7 @@ type env struct {
 	tokens auth.RunTokens
 	tok    string
 	runID  domain.ID
+	cs     *sdk.ClientSession // set by chatSession (chat_test.go)
 }
 
 func setup(t *testing.T, trusted bool) *env {
@@ -313,7 +316,7 @@ func TestListTools(t *testing.T) {
 		}
 	}
 	sort.Strings(got)
-	want := []string{"hanko_artifact_put", "hanko_gate_request", "hanko_gate_status", "hanko_goal_list", "hanko_goal_update", "hanko_persona_list", "hanko_project_list", "hanko_run_get", "hanko_task_comment", "hanko_task_create", "hanko_task_get", "hanko_task_list", "hanko_task_update", "hanko_whoami"}
+	want := []string{"hanko_artifact_put", "hanko_gate_request", "hanko_gate_status", "hanko_goal_list", "hanko_goal_update", "hanko_persona_list", "hanko_project_list", "hanko_run_get", "hanko_search", "hanko_skill_get", "hanko_skill_list", "hanko_task_comment", "hanko_task_create", "hanko_task_get", "hanko_task_list", "hanko_task_update", "hanko_whoami"}
 	if d := cmp.Diff(want, got); d != "" {
 		t.Errorf("tools (-want +got):\n%s", d)
 	}

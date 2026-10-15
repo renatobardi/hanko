@@ -95,6 +95,7 @@ type backend interface {
 	CancelRun(ctx context.Context, actor domain.Actor, companyID, runID domain.ID) (service.RunView, error)
 	ListActivity(ctx context.Context, companyID domain.ID, f service.ActivityFilter) ([]domain.ActivityEvent, error)
 	Dashboard(ctx context.Context, companyID domain.ID) (service.DashboardStats, error)
+	Search(ctx context.Context, companyID domain.ID, q string, f service.SearchFilter) (service.SearchResult, error)
 	RequestGate(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.RequestGateInput) (service.GateView, error)
 	DecideGate(ctx context.Context, actor domain.Actor, companyID, gateID domain.ID, in service.DecideGateInput) (service.GateView, error)
 	ListGates(ctx context.Context, companyID domain.ID, f service.GateFilter) ([]service.GateView, error)
@@ -140,6 +141,12 @@ type backend interface {
 	GetGoal(ctx context.Context, companyID domain.ID, ref string) (domain.Goal, error)
 	ListGoalViews(ctx context.Context, companyID domain.ID, f service.GoalFilter) ([]service.GoalView, error)
 	GetGoalView(ctx context.Context, companyID domain.ID, ref string) (service.GoalView, error)
+	ListConversations(ctx context.Context, companyID domain.ID, f service.ConversationFilter) ([]service.ConversationView, error)
+	GetConversation(ctx context.Context, companyID, id domain.ID) (service.ConversationView, error)
+	ListConversationMessages(ctx context.Context, companyID, id domain.ID, limit int) ([]domain.ConversationMessage, error)
+	CreateConversation(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.CreateConversationInput) (service.ConversationView, error)
+	SendMessage(ctx context.Context, actor domain.Actor, companyID, conversationID domain.ID, body string) (domain.ConversationMessage, error)
+	SetConversationStatus(ctx context.Context, actor domain.Actor, companyID, id domain.ID, status domain.ConversationStatus) (service.ConversationView, error)
 }
 
 var _ backend = (*service.Service)(nil)
@@ -236,10 +243,15 @@ func (s *server) register(api huma.API) {
 	s.registerProjects(api)
 	s.registerSubscriptions(api)
 	s.registerFlows(api)
+	s.registerMemory(api)
 	s.registerMembers(api)
 	s.registerExport(api)
 	s.registerArtifacts(api)
 	s.registerGoals(api)
+	s.registerSkills(api)
+	s.registerIntegrations(api)
+	s.registerChat(api)
+	s.registerSearch(api)
 }
 
 // op monta uma huma.Operation com o prefixo da API.

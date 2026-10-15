@@ -18,8 +18,8 @@ import (
 	"github.com/renatobardi/hanko/internal/store"
 )
 
-func runViewFromParts(r store.Run, taskKey, taskTitle, personaName string) RunView {
-	return RunView{Run: runFromRow(r), TaskKey: taskKey, TaskTitle: taskTitle, PersonaName: personaName}
+func runViewFromParts(r store.Run, taskKey, taskTitle, personaName, conversationTitle string) RunView {
+	return RunView{Run: runFromRow(r), TaskKey: taskKey, TaskTitle: taskTitle, PersonaName: personaName, ConversationTitle: conversationTitle}
 }
 
 func loadRunView(ctx context.Context, q *store.Queries, companyID, runID domain.ID) (RunView, error) {
@@ -27,14 +27,14 @@ func loadRunView(ctx context.Context, q *store.Queries, companyID, runID domain.
 	if err != nil {
 		return RunView{}, mapErr(err, "get run")
 	}
-	return runViewFromParts(r.Run, r.TaskKey, r.TaskTitle, r.PersonaName), nil
+	return runViewFromParts(r.Run, r.TaskKey, r.TaskTitle, r.PersonaName, r.ConversationTitle), nil
 }
 
 func (s *Service) ListRuns(ctx context.Context, companyID domain.ID, f RunFilter) ([]RunView, error) {
 	if err := s.require(ctx, companyID, domain.MemberViewer); err != nil {
 		return nil, err
 	}
-	p := store.ListRunViewsParams{CompanyID: companyID, TaskID: f.TaskID, PersonaID: f.PersonaID,
+	p := store.ListRunViewsParams{CompanyID: companyID, TaskID: f.TaskID, ConversationID: f.ConversationID, PersonaID: f.PersonaID,
 		Lim: i32(clamp(f.Limit, 50, 500))}
 	if len(f.Statuses) > 0 {
 		p.Statuses = make([]string, len(f.Statuses))
@@ -57,7 +57,7 @@ func (s *Service) ListRuns(ctx context.Context, companyID domain.ID, f RunFilter
 	}
 	out := make([]RunView, len(rows))
 	for i, r := range rows {
-		out[i] = runViewFromParts(r.Run, r.TaskKey, r.TaskTitle, r.PersonaName)
+		out[i] = runViewFromParts(r.Run, r.TaskKey, r.TaskTitle, r.PersonaName, r.ConversationTitle)
 	}
 	return out, nil
 }
@@ -160,8 +160,18 @@ func (t *txc) cancelRun(actor domain.Actor, companyID domain.ID, cur store.Run, 
 			return err
 		}
 		t.publishRunStatus(runFromRow(row))
-		if domain.RunTrigger(row.Trigger) == domain.TriggerReview {
+		switch domain.RunTrigger(row.Trigger) {
+		case domain.TriggerReview:
 			if err := t.reviewRunEnded(row, domain.RunCancelled, "", ""); err != nil {
+				return err
+			}
+		case domain.TriggerMemory:
+			if err := t.memoryRunEnded(row, domain.RunCancelled, ""); err != nil {
+				return err
+			}
+		}
+		if row.ConversationID != nil {
+			if err := t.chatRunEnded(row, domain.RunCancelled, "", ""); err != nil {
 				return err
 			}
 		}
@@ -200,7 +210,7 @@ func (t *txc) cancelTaskRun(actor domain.Actor, companyID, taskID domain.ID, rea
 // Moves task todo → in_progress.
 func (s *Service) CheckoutRun(ctx context.Context, w Wake) (domain.Run, error) {
 	switch w.Trigger {
-	case domain.TriggerAssign, domain.TriggerComment, domain.TriggerManual, domain.TriggerHeartbeat, domain.TriggerGate, domain.TriggerFlow:
+	case domain.TriggerAssign, domain.TriggerComment, domain.TriggerManual, domain.TriggerHeartbeat, domain.TriggerGate, domain.TriggerFlow, domain.TriggerMemory:
 	default:
 		return domain.Run{}, domain.Invalid("trigger", fmt.Sprintf("unknown trigger %q", w.Trigger))
 	}
@@ -327,12 +337,18 @@ func (s *Service) CheckoutRun(ctx context.Context, w Wake) (domain.Run, error) {
 // A race on the same name or on the one-active-run-per-task index is ErrActiveRun, so the wake is retried.
 func (t *txc) createRun(companyID, taskID, personaID domain.ID, agent, model string, modelSource domain.ModelSource, subID *domain.ID,
 	ws *domain.ID, wsSource domain.WorkspaceSource, trigger domain.RunTrigger) (store.Run, error) {
+	return t.insertRun(companyID, &taskID, nil, personaID, agent, model, modelSource, subID, ws, wsSource, trigger)
+}
+
+// insertRun creates the queued run of a task (taskID) or of a conversation (convID), exactly one of them.
+func (t *txc) insertRun(companyID domain.ID, taskID, convID *domain.ID, personaID domain.ID, agent, model string, modelSource domain.ModelSource, subID *domain.ID,
+	ws *domain.ID, wsSource domain.WorkspaceSource, trigger domain.RunTrigger) (store.Run, error) {
 	id := domain.NewID()
 	name, err := t.freeRunName(companyID, id)
 	if err != nil {
 		return store.Run{}, err
 	}
-	row, err := t.q.CreateRun(t.ctx, store.CreateRunParams{ID: id, CompanyID: companyID, TaskID: taskID,
+	row, err := t.q.CreateRun(t.ctx, store.CreateRunParams{ID: id, CompanyID: companyID, TaskID: taskID, ConversationID: convID,
 		PersonaID: personaID, Trigger: string(trigger), Agent: agent, Model: model, ModelSource: string(modelSource), SubscriptionID: subID, Name: name,
 		WorkspaceID: ws, WorkspaceSource: string(wsSource), Now: t.now})
 	if err != nil {
@@ -429,13 +445,17 @@ func (s *Service) LoadRunContext(ctx context.Context, companyID, runID domain.ID
 	if err != nil {
 		return RunContext{}, mapErr(err, "get persona")
 	}
-	task, err := loadTaskView(ctx, q, companyID, run.TaskID)
-	if err != nil {
-		return RunContext{}, err
-	}
-	comments, err := q.ListComments(ctx, store.ListCommentsParams{CompanyID: companyID, TaskID: run.TaskID})
-	if err != nil {
-		return RunContext{}, fmt.Errorf("list comments: %w", err)
+	var (
+		task     TaskView
+		comments []store.TaskComment
+	)
+	if run.TaskID != nil { // a chat run has no task
+		if task, err = loadTaskView(ctx, q, companyID, *run.TaskID); err != nil {
+			return RunContext{}, err
+		}
+		if comments, err = q.ListComments(ctx, store.ListCommentsParams{CompanyID: companyID, TaskID: *run.TaskID}); err != nil {
+			return RunContext{}, fmt.Errorf("list comments: %w", err)
+		}
 	}
 	rc := RunContext{Run: runFromRow(run), Company: companyFromRow(company), Persona: personaFromRow(persona),
 		Task: task, Comments: make([]domain.Comment, len(comments))}
@@ -462,6 +482,13 @@ func (s *Service) LoadRunContext(ctx context.Context, companyID, runID domain.ID
 			rc.Review = &ReviewContext{ID: rv.ID, Artifact: rv.Artifact, ArtifactSHA256: rv.ArtifactSha256,
 				RequestedStatus: domain.TaskStatus(rv.RequestedStatus), AuthorName: ap.Name, Independent: rv.ReviewerPersonaID != nil}
 		}
+	}
+	if run.ConversationID != nil {
+		cc, err := loadChatContext(ctx, q, rc.Run, rc.Persona)
+		if err != nil {
+			return RunContext{}, err
+		}
+		rc.Chat = cc
 	}
 	// The workspace was chosen when the run opened (and recorded on it); runs older than that, or whose workspace
 	// was deleted since, resolve it again from the task, the project and the persona.
@@ -631,15 +658,18 @@ func (s *Service) FinishRun(ctx context.Context, companyID, runID domain.ID, in 
 		pactor := domain.PersonaActor(row.PersonaID)
 
 		isReview := domain.RunTrigger(row.Trigger) == domain.TriggerReview
+		isChat := row.ConversationID != nil
+		isMemory := domain.RunTrigger(row.Trigger) == domain.TriggerMemory
 		// A review run's report already lives on the gate: it is not posted as a persona comment.
-		if in.Status == domain.RunDone && !isReview && strings.TrimSpace(res.Summary) != "" {
+		// A chat run's summary is the persona's reply in the conversation (chatRunEnded below).
+		if in.Status == domain.RunDone && !isReview && !isChat && strings.TrimSpace(res.Summary) != "" {
 			c, err := t.q.CreateComment(ctx, store.CreateCommentParams{ID: domain.NewID(), CompanyID: companyID,
-				TaskID: row.TaskID, AuthorType: string(domain.ActorPersona), AuthorID: &row.PersonaID, RunID: &runID,
+				TaskID: idOrZero(row.TaskID), AuthorType: string(domain.ActorPersona), AuthorID: &row.PersonaID, RunID: &runID,
 				Body: res.Summary, EventID: ptr("run.summary:" + runID.String()), Now: t.now})
 			if err != nil {
 				return mapErr(err, "post run summary")
 			}
-			if err := t.activity(pactor, companyID, "comment.added", "task", row.TaskID,
+			if err := t.activity(pactor, companyID, "comment.added", "task", idOrZero(row.TaskID),
 				map[string]any{"comment_id": c.ID, "run_id": runID}, ""); err != nil {
 				return err
 			}
@@ -650,6 +680,11 @@ func (s *Service) FinishRun(ctx context.Context, companyID, runID domain.ID, in 
 		}
 		if isReview {
 			if err := t.reviewRunEnded(row, in.Status, res.Summary, res.Error); err != nil {
+				return err
+			}
+		}
+		if isMemory {
+			if err := t.memoryRunEnded(row, in.Status, res.Summary); err != nil {
 				return err
 			}
 		}
@@ -667,13 +702,16 @@ func (s *Service) FinishRun(ctx context.Context, companyID, runID domain.ID, in 
 					return err
 				}
 			}
-			ft, err := t.q.GetTaskByID(ctx, store.GetTaskByIDParams{CompanyID: companyID, ID: row.TaskID})
-			if err != nil {
-				return mapErr(err, "get task")
-			}
-			project, err := t.projectOf(companyID, ft.ProjectID)
-			if err != nil {
-				return err
+			// a chat run has no task, hence no project: only the persona and company budgets apply
+			var project *store.Project
+			if row.TaskID != nil {
+				ft, err := t.q.GetTaskByID(ctx, store.GetTaskByIDParams{CompanyID: companyID, ID: *row.TaskID})
+				if err != nil {
+					return mapErr(err, "get task")
+				}
+				if project, err = t.projectOf(companyID, ft.ProjectID); err != nil {
+					return err
+				}
 			}
 			if err := t.checkBudgets(co, p, project, false); err != nil {
 				return err
@@ -685,29 +723,47 @@ func (s *Service) FinishRun(ctx context.Context, companyID, runID domain.ID, in 
 			verb = "run.cancelled"
 		}
 		if err := t.activity(pactor, companyID, verb, "run", runID, map[string]any{
-			"status": in.Status, "task_id": row.TaskID, "cost_usd": cost, "cost_source": source, "error": res.Error}, ""); err != nil {
+			"status": in.Status, "task_id": row.TaskID, "conversation_id": row.ConversationID, "cost_usd": cost, "cost_source": source, "error": res.Error}, ""); err != nil {
 			return err
 		}
 
-		task, err := t.q.GetTaskByID(ctx, store.GetTaskByIDParams{CompanyID: companyID, ID: row.TaskID})
+		if isChat {
+			ws, err := t.personaWorkspaceID(companyID, row.PersonaID)
+			if err != nil {
+				return err
+			}
+			if err := t.memoryFact(companyID, ws, chatRunFact(view, in.Status, res, t.now), "run.finished:"+runID.String()); err != nil {
+				return err
+			}
+			if err := t.chatRunEnded(row, in.Status, res.Summary, res.Error); err != nil {
+				return err
+			}
+			t.publishRunStatus(out)
+			return nil
+		}
+
+		task, err := t.q.GetTaskByID(ctx, store.GetTaskByIDParams{CompanyID: companyID, ID: *row.TaskID})
 		if err != nil {
 			return mapErr(err, "get task")
 		}
-		memWS := row.WorkspaceID
-		if memWS == nil {
-			memWS = task.WorkspaceID
+		// A curadoria de memória não se documenta na própria memória (nem a task, nem a run).
+		if !isMemory {
+			memWS := row.WorkspaceID
+			if memWS == nil {
+				memWS = task.WorkspaceID
+			}
+			if err := t.memoryFact(companyID, memWS, runFact(view, in.Status, res, t.now),
+				"run.finished:"+runID.String()); err != nil {
+				return err
+			}
 		}
-		if err := t.memoryFact(companyID, memWS, runFact(view, in.Status, res, t.now),
-			"run.finished:"+runID.String()); err != nil {
-			return err
-		}
-		if !isReview {
+		if !isReview && !isMemory {
 			if err := t.wakeForMissedComment(companyID, task, row); err != nil {
 				return err
 			}
 		}
 		t.publishRunStatus(out)
-		if tv, err := loadTaskView(ctx, t.q, companyID, row.TaskID); err == nil {
+		if tv, err := loadTaskView(ctx, t.q, companyID, task.ID); err == nil {
 			t.publish(companyTopic(companyID), "task.updated", tv)
 		}
 		return nil
@@ -806,18 +862,30 @@ func (s *Service) InterruptOrphanRuns(ctx context.Context) (int, error) {
 			if err := t.personaAfterRun(r.PersonaID, domain.RunInterrupted, ""); err != nil {
 				return err
 			}
-			if domain.RunTrigger(r.Trigger) == domain.TriggerReview {
+			switch domain.RunTrigger(r.Trigger) {
+			case domain.TriggerReview:
 				if err := t.reviewRunEnded(r, domain.RunInterrupted, "", r.Error); err != nil {
+					return err
+				}
+			case domain.TriggerMemory:
+				if err := t.memoryRunEnded(r, domain.RunInterrupted, ""); err != nil {
 					return err
 				}
 			}
 			if err := t.activity(domain.SystemActor, r.CompanyID, "run.finished", "run", r.ID,
-				map[string]any{"status": domain.RunInterrupted, "task_id": r.TaskID, "reason": "orphan"}, ""); err != nil {
+				map[string]any{"status": domain.RunInterrupted, "task_id": r.TaskID, "conversation_id": r.ConversationID, "reason": "orphan"}, ""); err != nil {
 				return err
 			}
 			t.publishRunStatus(runFromRow(r))
+			if r.ConversationID != nil {
+				// A chat has no task to wake: the conversation gets a notice and waits for the next message.
+				if err := t.chatRunEnded(r, domain.RunInterrupted, "", r.Error); err != nil {
+					return err
+				}
+				continue
+			}
 			// The work was cut short: wake the assignee so the task is not left waiting for the next scan.
-			task, err := t.q.GetTaskByID(ctx, store.GetTaskByIDParams{CompanyID: r.CompanyID, ID: r.TaskID})
+			task, err := t.q.GetTaskByID(ctx, store.GetTaskByIDParams{CompanyID: r.CompanyID, ID: idOrZero(r.TaskID)})
 			if err != nil {
 				return mapErr(err, "get task")
 			}

@@ -346,6 +346,7 @@ templ PersonaPage(sh Shell, vm PersonaVM) {
 				@BudgetForm(*vm.Budget, "persona-budget")
 			</section>
 		}
+		@PersonaExtras(vm.Extras)
 		<h2 class="side-h" style="margin:28px 0 12px">{ i18n.T(ctx, "Tasks atribuídas") }</h2>
 		if len(vm.Tasks) == 0 {
 			@EmptyCard("list", i18n.T(ctx, "Nenhuma task atribuída."), i18n.T(ctx, "Atribua uma task a esta persona para ela começar a trabalhar."), false)
@@ -365,6 +366,19 @@ templ PersonaPage(sh Shell, vm PersonaVM) {
 					</tbody>
 				</table>
 			</div>
+		}
+		<h2 class="side-h" id="conversas" style="margin:28px 0 12px">{ i18n.T(ctx, "Conversas") }</h2>
+		if len(vm.Chats) == 0 {
+			@EmptyCard("message-square", i18n.T(ctx, "Nenhuma conversa com esta persona."), i18n.T(ctx, "Converse direto com ela, fora de uma task."), false) {
+				if vm.NewChatHref != "" {
+					<a class="btn outline sm" href={ templ.SafeURL(vm.NewChatHref) }>{ i18n.T(ctx, "Nova conversa") }</a>
+				}
+			}
+		} else {
+			@ChatRows(vm.Chats)
+			if vm.NewChatHref != "" {
+				<p style="margin-top:12px"><a class="btn outline sm" href={ templ.SafeURL(vm.NewChatHref) }>{ i18n.T(ctx, "Nova conversa") }</a></p>
+			}
 		}
 		<h2 class="side-h" id="execucoes" style="margin:28px 0 12px">{ i18n.T(ctx, "Execuções recentes") }</h2>
 		@RunsTable(vm.Runs, false)

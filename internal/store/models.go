@@ -128,6 +128,30 @@ type CompanyMember struct {
 	UpdatedAt time.Time
 }
 
+type Conversation struct {
+	ID            uuid.UUID
+	CompanyID     uuid.UUID
+	PersonaID     uuid.UUID
+	Title         string
+	Status        string
+	CreatedByType string
+	CreatedByID   *uuid.UUID
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	LastMessageAt time.Time
+}
+
+type ConversationMessage struct {
+	ID             uuid.UUID
+	CompanyID      uuid.UUID
+	ConversationID uuid.UUID
+	AuthorType     string
+	AuthorID       *uuid.UUID
+	Body           string
+	RunID          *uuid.UUID
+	CreatedAt      time.Time
+}
+
 type CostNotice struct {
 	CompanyID uuid.UUID
 	Model     string
@@ -153,6 +177,7 @@ type Flow struct {
 	NextFireAt      *time.Time
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
+	SearchTsv       interface{}
 }
 
 type FlowFire struct {
@@ -224,6 +249,53 @@ type GoalUpdate struct {
 	CreatedAt  time.Time
 }
 
+type Integration struct {
+	ID            uuid.UUID
+	CompanyID     uuid.UUID
+	Kind          string
+	Slug          string
+	Name          string
+	Enabled       bool
+	AllPersonas   bool
+	Config        []byte
+	Events        []string
+	SecretEnc     string
+	SecretHint    string
+	CreatedByType string
+	CreatedByID   *uuid.UUID
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
+type IntegrationPersona struct {
+	CompanyID     uuid.UUID
+	IntegrationID uuid.UUID
+	PersonaID     uuid.UUID
+}
+
+type MemoryConsolidation struct {
+	ID            uuid.UUID
+	CompanyID     uuid.UUID
+	WorkspaceID   *uuid.UUID
+	WorkspaceSlug string
+	TaskID        *uuid.UUID
+	RunID         *uuid.UUID
+	Origin        string
+	ScheduledFor  time.Time
+	Status        string
+	Summary       string
+	CreatedAt     time.Time
+	FinishedAt    *time.Time
+}
+
+type MemoryGrant struct {
+	CompanyID   uuid.UUID
+	PersonaID   uuid.UUID
+	WorkspaceID uuid.UUID
+	Access      string
+	CreatedAt   time.Time
+}
+
 type MemoryOutbox struct {
 	ID            uuid.UUID
 	CompanyID     uuid.UUID
@@ -237,6 +309,44 @@ type MemoryOutbox struct {
 	CreatedAt     time.Time
 	SentAt        *time.Time
 	NextAttemptAt *time.Time
+}
+
+type MemoryProposal struct {
+	ID              uuid.UUID
+	CompanyID       uuid.UUID
+	WorkspaceID     *uuid.UUID
+	WorkspaceSlug   string
+	RunID           *uuid.UUID
+	GateID          *uuid.UUID
+	Kind            string
+	Status          string
+	Tool            string
+	Arguments       []byte
+	Targets         []string
+	ProposedContent string
+	CurrentContent  string
+	Diff            string
+	Sha256          string
+	Attempts        int32
+	LastError       string
+	NextAttemptAt   *time.Time
+	DecidedByType   *string
+	DecidedByID     *uuid.UUID
+	DecisionNote    string
+	DecidedAt       *time.Time
+	AppliedAt       *time.Time
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
+type MemorySetting struct {
+	CompanyID        uuid.UUID
+	Enabled          bool
+	IntervalHours    int32
+	CuratorPersonaID *uuid.UUID
+	LastFiredAt      *time.Time
+	NextFireAt       *time.Time
+	UpdatedAt        time.Time
 }
 
 type ModelPrice struct {
@@ -278,6 +388,15 @@ type Persona struct {
 	ReviewerPersonaID    *uuid.UUID
 	ReviewerAgent        string
 	ReviewerModel        string
+	SearchTsv            interface{}
+}
+
+type PersonaSkill struct {
+	CompanyID uuid.UUID
+	PersonaID uuid.UUID
+	SkillID   uuid.UUID
+	Enabled   bool
+	UpdatedAt time.Time
 }
 
 type Project struct {
@@ -318,7 +437,7 @@ type Review struct {
 type Run struct {
 	ID                  uuid.UUID
 	CompanyID           uuid.UUID
-	TaskID              uuid.UUID
+	TaskID              *uuid.UUID
 	PersonaID           uuid.UUID
 	Status              string
 	Trigger             string
@@ -346,8 +465,10 @@ type Run struct {
 	SubscriptionID      *uuid.UUID
 	ListCostUsd         *float64
 	Name                string
+	SearchTsv           interface{}
 	WorkspaceID         *uuid.UUID
 	WorkspaceSource     string
+	ConversationID      *uuid.UUID
 }
 
 type RunEvent struct {
@@ -372,6 +493,22 @@ type Session struct {
 	UserAgent         string
 	Ip                string
 	AbsoluteExpiresAt time.Time
+}
+
+type Skill struct {
+	ID            uuid.UUID
+	CompanyID     uuid.UUID
+	Slug          string
+	Name          string
+	Description   string
+	Body          string
+	Version       int32
+	CreatedByType string
+	CreatedByID   *uuid.UUID
+	UpdatedByType string
+	UpdatedByID   *uuid.UUID
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 type Subscription struct {
@@ -421,6 +558,7 @@ type Task struct {
 	ClosedAt          *time.Time
 	LastHumanChangeAt *time.Time
 	Model             string
+	SearchTsv         interface{}
 	GoalID            *uuid.UUID
 }
 
@@ -434,6 +572,7 @@ type TaskComment struct {
 	Body       string
 	EventID    *string
 	CreatedAt  time.Time
+	SearchTsv  interface{}
 	Anchor     []byte
 }
 
@@ -456,6 +595,24 @@ type WakeRequest struct {
 	TaskID    uuid.UUID
 	Seq       int64
 	UpdatedAt time.Time
+}
+
+type WebhookDelivery struct {
+	ID            uuid.UUID
+	CompanyID     uuid.UUID
+	IntegrationID uuid.UUID
+	Event         string
+	ActivityID    *uuid.UUID
+	Test          bool
+	Payload       string
+	Status        string
+	Attempts      int32
+	HttpStatus    *int32
+	LatencyMs     *int32
+	Error         string
+	NextAttemptAt *time.Time
+	CreatedAt     time.Time
+	DeliveredAt   *time.Time
 }
 
 type Workspace struct {

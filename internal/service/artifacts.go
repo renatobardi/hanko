@@ -249,10 +249,12 @@ func (s *Service) PutArtifact(ctx context.Context, actor domain.Actor, companyID
 			if err != nil {
 				return domain.Invalid("run_id", "run not found in company")
 			}
-			if taskID == nil {
-				tid := run.TaskID
+			// uma run de chat não tem task (run.TaskID nulo): o artefato fica só com a run
+			switch {
+			case taskID == nil && run.TaskID != nil:
+				tid := domain.ID(*run.TaskID)
 				taskID = &tid
-			} else if *taskID != run.TaskID {
+			case taskID != nil && (run.TaskID == nil || *taskID != domain.ID(*run.TaskID)):
 				return domain.Invalid("run_id", "run belongs to another task")
 			}
 		}

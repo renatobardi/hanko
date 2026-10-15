@@ -292,6 +292,8 @@ const (
 	TriggerGate      RunTrigger = "gate" // a human decided a gate the persona was waiting on
 	TriggerFlow      RunTrigger = "flow"
 	TriggerReview    RunTrigger = "review" // revisão headless que antecede o gate task_review
+	TriggerChat      RunTrigger = "chat"   // mensagem humana numa conversa (sem task; ADR-0027)
+	TriggerMemory    RunTrigger = "memory" // consolidação de memória: run de sistema da persona curadora (ADR-0030)
 )
 
 // CostSource tells where a run's cost came from.
@@ -368,22 +370,25 @@ type Usage struct {
 
 // Run is one execution of a persona over a task.
 type Run struct {
-	ID         ID         `json:"id"`
-	Name       string     `json:"name,omitempty"` // nome amigável Adjetivo_Substantivo, único na empresa (vazio em runs antigas sem backfill)
-	CompanyID  ID         `json:"company_id"`
-	TaskID     ID         `json:"task_id"`
-	PersonaID  ID         `json:"persona_id"`
-	Status     RunStatus  `json:"status"`
-	Trigger    RunTrigger `json:"trigger"`
-	Agent      string     `json:"agent"`
-	Model      string     `json:"model,omitempty"`
-	SessionRef string     `json:"session_ref,omitempty"`
-	TraceID    string     `json:"trace_id,omitempty"`
-	ExitCode   *int       `json:"exit_code,omitempty"`
-	Error      string     `json:"error,omitempty"`
-	Summary    string     `json:"summary,omitempty"`
-	CostUSD    *float64   `json:"cost_usd,omitempty"`
-	CostSource CostSource `json:"cost_source,omitempty"`
+	ID        ID     `json:"id"`
+	Name      string `json:"name,omitempty"` // nome amigável Adjetivo_Substantivo, único na empresa (vazio em runs antigas sem backfill)
+	CompanyID ID     `json:"company_id"`
+	// TaskID é o zero (uuid nil) numa run de chat, que pertence a uma conversa e não a uma task.
+	TaskID ID `json:"task_id"`
+	// ConversationID é a conversa de uma run de chat; nil nas demais.
+	ConversationID *ID        `json:"conversation_id,omitempty"`
+	PersonaID      ID         `json:"persona_id"`
+	Status         RunStatus  `json:"status"`
+	Trigger        RunTrigger `json:"trigger"`
+	Agent          string     `json:"agent"`
+	Model          string     `json:"model,omitempty"`
+	SessionRef     string     `json:"session_ref,omitempty"`
+	TraceID        string     `json:"trace_id,omitempty"`
+	ExitCode       *int       `json:"exit_code,omitempty"`
+	Error          string     `json:"error,omitempty"`
+	Summary        string     `json:"summary,omitempty"`
+	CostUSD        *float64   `json:"cost_usd,omitempty"`
+	CostSource     CostSource `json:"cost_source,omitempty"`
 	// ListCostUSD is tokens x the list price in force when the run finished (stored once, never recalculated).
 	ListCostUSD    *float64    `json:"list_cost_usd,omitempty"`
 	ModelSource    ModelSource `json:"model_source,omitempty"`

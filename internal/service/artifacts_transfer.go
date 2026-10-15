@@ -130,7 +130,7 @@ func (t *txc) importArtifacts(cid domain.ID, doc export.Document, taskID map[int
 		run := optID(runID, a.Run)
 		if run != nil && task == nil { // a task vem da run
 			for _, r := range doc.Runs {
-				if r.Key == a.Run {
+				if r.Key == a.Run && r.Task != 0 { // run de chat não tem task
 					id := taskID[r.Task]
 					task = &id
 				}

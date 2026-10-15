@@ -62,6 +62,8 @@ type env struct {
 	sleep       func(time.Duration)
 	followRetry int
 	followWait  time.Duration
+	// chatPoll is how often `hanko chat` asks whether the persona has answered.
+	chatPoll time.Duration
 	// ctx carrega o idioma da CLI, resolvido uma vez (HANKO_LANG > LC_ALL > LC_MESSAGES > LANG > pt-BR).
 	ctx context.Context
 }
@@ -77,7 +79,7 @@ func (e *env) lang() i18n.Lang { return i18n.FromContext(e.ctx) }
 
 func run(ctx context.Context, version string, rt Runtime, args []string, in io.Reader, out, errOut io.Writer, getenv func(string) string) int {
 	e := &env{in: in, out: out, errOut: errOut, getenv: getenv, version: version, rt: rt,
-		sleep: time.Sleep, followRetry: 5, followWait: time.Second}
+		sleep: time.Sleep, followRetry: 5, followWait: time.Second, chatPoll: chatPollEvery}
 	root := e.root() // resolve o idioma antes de montar os comandos (Short/Long/flags já saem traduzidos)
 	root.SetArgs(args)
 	root.SetOut(out)
@@ -136,8 +138,9 @@ func (e *env) root() *cobra.Command {
 	f.BoolVar(&e.asJSON, "json", false, e.t("saída em JSON"))
 
 	root.AddCommand(e.serveCmd(), e.migrateCmd(), e.versionCmd(), e.openapiCmd(),
-		e.companyCmd(), e.workspaceCmd(), e.projectCmd(), e.personaCmd(), e.taskCmd(), e.runCmd(), e.gateCmd(), e.orgCmd(),
-		e.costCmd(), e.budgetCmd(), e.subscriptionCmd(), e.flowCmd(), e.memberCmd(), e.authCmd(), e.exportCmd(), e.importCmd(), e.artifactCmd(), e.goalCmd())
+		e.companyCmd(), e.workspaceCmd(), e.projectCmd(), e.personaCmd(), e.taskCmd(), e.runCmd(), e.gateCmd(), e.chatCmd(), e.orgCmd(),
+		e.costCmd(), e.budgetCmd(), e.subscriptionCmd(), e.flowCmd(), e.memoryCmd(), e.memberCmd(), e.authCmd(), e.exportCmd(), e.importCmd(), e.searchCmd(), e.skillCmd(), e.integrationCmd(),
+		e.artifactCmd(), e.goalCmd())
 	e.localizeHelp(root)
 	return root
 }

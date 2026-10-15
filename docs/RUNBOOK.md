@@ -350,6 +350,24 @@ Registre data e resultado em `docs/SESSION.md` ou no issue de operação.
 
 Logs são JSON no stderr com `trace_id`/`span_id`: copie o `trace_id` e busque no Tempo (Grafana) para ver o trace completo da requisição/run.
 
+## Memória consolidada (curadoria governada)
+
+Requer `HANKO_MEMORY_PROVIDER=ai-memory` (ADR-0030). Com `none` a seção "Memória" das Configurações mostra "Memória desligada" e a API responde 422 com o motivo.
+
+- **Ligar:** Configurações da empresa → Memória (ou `hanko memory config --enable --interval 24 --curator <persona>`). O intervalo vai de 1 a 720 h; desligada por padrão. Prefira um curador com modelo barato.
+- **Rodar agora:** botão "Consolidar agora" ou `hanko memory consolidate [workspace]`. Cria uma task de sistema por workspace; o custo entra no ledger e no orçamento como qualquer run. Uma rodada aberta por workspace; a que nunca rodou expira em 6 h.
+- **Gate `memory`:** remoções, fusões e reescritas da curadoria não chegam ao ai-memory; viram proposta e um gate na aba "Memória" do Inbox (diff e sha256). Aprovar enfileira `apply_memory_proposal`; rejeitar descarta. CLI: `hanko memory proposals|approve|reject <id>`.
+- **Falha ao aplicar:** a proposta fica `failed` com o erro e é tentada de novo (1 min a 6 h, 20 tentativas). Depois disso: `hanko memory retry <id>` ou o botão "Tentar de novo". Nada se perde.
+- **Concessões:** uma persona só alcança a memória do próprio workspace. Para outro workspace da empresa: `hanko memory grant <persona> <workspace> --access read|write` (`grants`, `revoke` para listar e remover).
+- **Diff com conteúdo atual:** defina `HANKO_MEMORY_READ_TOOL` (`memory.read_tool` no YAML) com o nome da tool de leitura de página do ai-memory; sem ela o diff mostra só o proposto.
+
+| Sintoma | Causa provável | Ação |
+|---|---|---|
+| "Memória desligada" / 422 ao ligar | `HANKO_MEMORY_PROVIDER=none` | configurar o ai-memory e reiniciar |
+| Proposta `failed` | ai-memory fora do ar ou recusou | ver o erro na seção Memória; o retry é automático, ou `hanko memory retry` |
+| Muitas propostas | tool de nome desconhecido é retida por segurança | aprovar/rejeitar; ver ADR-0030 |
+| Consolidação não roda | curador pausado ou sem orçamento | ver Inbox/alertas; expira em 6 h |
+
 ## Alertas operacionais
 
 O job periódico `alert_tick` (mesmo período do `heartbeat_tick`, `HANKO_HEARTBEAT_INTERVAL`) compara as condições de agora com os
@@ -381,6 +399,34 @@ API, mas **a decisão continua humana**. Revisão que falha, expira, é interrom
 com o motivo; revisão pendente há mais de 2 h é resolvida da mesma forma. Se a task sai de `in_review` no meio, a revisão é cancelada.
 O sha256 cobre o pacote task + histórico + entrega mostrado ao revisor, não o estado git do workspace.
 
+## Skills e integrações (ADR-0029)
+
+Configuração do operador (a empresa não consegue ligar sozinha):
+
+| Variável | Padrão | Efeito |
+|---|---|---|
+| `HANKO_SECRET_KEY` | vazio | Chave (mínimo 32 caracteres) que cifra os segredos das integrações (AES-256-GCM). Vazia: o Hanko sobe, mas recusa guardar segredos de integração. |
+| `HANKO_SECRET_KEY_PREVIOUS` | vazio | Chave anterior, só durante a rotação. |
+| `HANKO_INTEGRATIONS_ALLOW_STDIO` | `false` | Libera servidores MCP `stdio`, que executam um comando **na máquina do servidor**. |
+| `HANKO_INTEGRATIONS_ALLOW_PRIVATE` | `false` | Libera webhooks e testes de conexão para loopback, link-local e redes privadas (sem isso, bloqueio SSRF). |
+
+**Gerar a chave:** `openssl rand -hex 32`. Guarde-a junto com o `HANKO_SECRET` e no backup do operador; perder a chave perde os
+segredos guardados (as integrações ficam, sem credenciais, e é só informá-los de novo).
+
+**Rotacionar a chave:**
+1. Gere a nova. Ponha a nova em `HANKO_SECRET_KEY` e a antiga em `HANKO_SECRET_KEY_PREVIOUS`; reinicie.
+2. `hanko integration rekey` (ou `POST /api/v1/integrations/rekey-secrets`; só o dono da instalação): reescreve todos os
+   segredos com a chave atual e imprime quantos.
+3. Tire `HANKO_SECRET_KEY_PREVIOUS` e reinicie. Enquanto ela estiver definida, segredos antigos continuam abrindo.
+
+**Webhooks.** Cada entrega leva `X-Hanko-Signature: t=<unix>,v1=<hex>`, `X-Hanko-Event` e `X-Hanko-Delivery`. O receptor calcula
+`HMAC-SHA256(segredo, "<t>.<corpo>")`, compara em tempo constante e descarta `t` muito antigo. Falhou: 7 tentativas
+(30 s, 2 min, 8 min, 32 min, ~2 h, 6 h). É entrega ao menos uma vez; deduplique por `X-Hanko-Delivery`. Histórico em
+`/integracoes/<slug>` ou `hanko integration deliveries <slug>`.
+
+**Problemas comuns.** "destino não permitido": o endereço resolve para rede interna (ligue `HANKO_INTEGRATIONS_ALLOW_PRIVATE`
+se for proposital). "HANKO_SECRET_KEY não está configurada": defina a chave. MCP stdio ignorado na run: falta
+`HANKO_INTEGRATIONS_ALLOW_STDIO=true`.
 ## Agentes ACP (harness `acp`)
 
 O harness `acp` (ADR-0023) roda qualquer agente que fale o Agent Client Protocol v1 por stdio. O Hanko não traz agente algum: o
@@ -442,3 +488,26 @@ para um workspace e pode ter orçamento mensal (ADR-0025). Telas `/projetos` e `
   teto (`hanko budget set --project <slug> <usd>`) para liberar. O custo pago (mensalidade) não é rateado por projeto.
 - **Importar de outra máquina:** caminho que esta instalação não aceita entra vazio e a contagem `workspace_paths_cleared` avisa;
   ajuste com `hanko workspace update <slug> --path …`.
+
+## Chat com uma persona
+
+Conversa direta de um humano com uma persona, fora de uma task (ADR-0027). Na UI: **Chat** no menu (`/c/{empresa}/chat`). Na CLI:
+
+```
+hanko chat cto "Qual o risco da migração de sexta?"          # abre a conversa, espera e imprime a resposta
+hanko chat cto "E o plano B?" --conversation 01a13f51          # continua uma conversa (id ou prefixo)
+hanko chat cto "Resuma o dia" --no-wait                        # só envia; acompanhe com `hanko chat show <id>`
+hanko chat list --persona cto
+```
+
+- Cada mensagem humana dispara uma **run** com o gatilho `chat`: aparece em Execuções (identificada como Chat, ligada à conversa)
+  e em Custos (linha "Chat"), e conta no orçamento da persona e da empresa e na trava semanal da assinatura.
+- Persona pausada, em erro, sem orçamento ou com a trava semanal atingida **não recebe a mensagem**: a UI, a API (409) e a CLI mostram o motivo.
+  Reative a persona ou suba o limite e envie de novo.
+- Mensagens enviadas enquanto a persona responde esperam (até 20) e a run seguinte as responde juntas. Uma run de chat que falha,
+  é cancelada ou interrompida deixa um aviso de sistema na conversa; as mensagens em espera seguem na fila até a próxima mensagem.
+- Com `claude` (e `fake`) a sessão do harness é retomada entre as mensagens; harness sem essa capacidade recebe o histórico recente
+  (até 24 KiB) no prompt a cada mensagem.
+- A persona pode abrir uma task a partir da conversa (`hanko_task_create`); a descrição cita a conversa. Não há task na run de chat,
+  então `hanko_gate_request` exige o argumento `task`.
+- Ver o raciocínio de uma resposta: abra o link "execução" da mensagem (log ao vivo da run).

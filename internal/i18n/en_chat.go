@@ -1,0 +1,68 @@
+package i18n
+
+// enChat holds the English texts of the Chat (ADR-0027): the conversations page, the thread, the persona
+// page section and the `hanko chat` command. init merges them into the same catalog as the rest (en.go);
+// same rules: the key is the pt-BR text, and a key already translated elsewhere is not repeated here (a
+// duplicate panics at start-up and fails the tests).
+var enChat = map[string]string{
+	// UI: conversations page
+	"Nova conversa":          "New conversation",
+	"Primeira mensagem":      "First message",
+	"Conversar":              "Start chat",
+	"Arquivadas":             "Archived",
+	"Última mensagem":        "Last message",
+	"Nenhuma conversa aqui.": "No conversations here.",
+	"As conversas com as personas aparecem aqui.":                           "Conversations with personas show up here.",
+	"Nenhuma persona para conversar.":                                       "No persona to talk to.",
+	"Contrate uma persona para abrir uma conversa.":                         "Hire a persona to open a conversation.",
+	"Pergunte ou peça algo à persona. Markdown.":                            "Ask the persona something or make a request. Markdown.",
+	"A persona responde por uma execução: o custo entra no orçamento dela.": "The persona answers through a run: its cost counts against her budget.",
+	"Escolha a persona.":                                                    "Pick the persona.",
+	"Escreva a primeira mensagem.":                                          "Write the first message.",
+	"Aberta":                                                                "Open",
+	"Arquivada":                                                             "Archived",
+	"Respondendo":                                                           "Answering",
+	"Persona indisponível":                                                  "Persona unavailable",
+	"A persona %s está %s e não pode responder agora.":                      "Persona %s is %s and cannot answer right now.",
+	"conversa (chat)":                                                       "conversation (chat)",
+	// UI: thread
+	"Nenhuma mensagem ainda.": "No messages yet.",
+	"pensando…":               "thinking…",
+	"Mensagem":                "Message",
+	"mensagem":                "message",
+	"Arquivar":                "Archive",
+	"Reabrir":                 "Reopen",
+	"Conversa arquivada: reabra para continuar.":                                                          "Archived conversation: reopen it to continue.",
+	"Escreva uma mensagem (markdown). Se a persona estiver respondendo, ela lê esta junto com a próxima.": "Write a message (markdown). If the persona is answering, she reads this one together with the next run.",
+	// UI: persona page
+	"Conversas":                                  "Conversations",
+	"Nenhuma conversa com esta persona.":         "No conversations with this persona.",
+	"Converse direto com ela, fora de uma task.": "Talk to her directly, outside a task.",
+	// CLI
+	"Conversa direta com uma persona, fora de uma task": "Direct conversation with a persona, outside a task",
+	"<persona> <mensagem>":                              "<persona> <message>",
+	"<conversa>":                                        "<conversation>",
+	"Abre uma conversa com a persona (id ou slug) e envia a mensagem; a persona responde por uma execução com o gatilho chat, que entra no custo e no orçamento dela. O comando espera a resposta e a imprime (--no-wait volta já, com o id da conversa). Use --conversation para continuar uma conversa existente.": "Opens a conversation with the persona (id or slug) and sends the message; the persona answers through a run with the chat trigger, which counts toward her cost and budget. The command waits for the answer and prints it (--no-wait returns right away, with the conversation id). Use --conversation to continue an existing conversation.",
+	"  hanko chat cto \"Qual o risco da migração de sexta?\"\n  hanko chat cto \"E o plano B?\" --conversation 01a13f51\n  hanko chat cto \"Resuma o dia\" --no-wait":                                                                                                                                                "  hanko chat cto \"What is the risk of Friday's migration?\"\n  hanko chat cto \"And what about plan B?\" --conversation 01a13f51\n  hanko chat cto \"Summarize the day\" --no-wait",
+	"continua esta conversa (id ou prefixo) em vez de abrir uma nova":                                      "continues this conversation (id or prefix) instead of opening a new one",
+	"não espera a resposta: imprime o id da conversa e sai":                                                "does not wait for the answer: prints the conversation id and exits",
+	"quanto esperar pela resposta":                                                                         "how long to wait for the answer",
+	"título da nova conversa (padrão: derivado da mensagem)":                                               "title of the new conversation (default: derived from the message)",
+	"a mensagem está vazia":                                                                                "the message is empty",
+	"Mensagem enviada. Conversa %s; acompanhe com: hanko chat show %s":                                     "Message sent. Conversation %s; follow it with: hanko chat show %s",
+	"tempo esgotado esperando a resposta (a persona segue trabalhando); acompanhe com: hanko chat show %s": "timed out waiting for the answer (the persona keeps working); follow it with: hanko chat show %s",
+	"a conversa ficou ociosa sem resposta; veja: hanko chat show %s":                                       "the conversation went idle without an answer; see: hanko chat show %s",
+	"a persona não respondeu (veja o aviso acima)":                                                         "the persona did not answer (see the notice above)",
+	"-- conversa %s":                               "-- conversation %s",
+	" · execução %s":                               " · run %s",
+	"conversa %q não encontrada":                   "conversation %q not found",
+	"prefixo %q é ambíguo (%d conversas)":          "prefix %q is ambiguous (%d conversations)",
+	"Lista conversas (mais recentes primeiro)":     "Lists conversations (most recent first)",
+	"Mostra uma conversa e as últimas mensagens":   "Shows a conversation and its latest messages",
+	"Nenhuma conversa.":                            "No conversations.",
+	"open ou archived":                             "open or archived",
+	"quantas mensagens mostrar (as mais recentes)": "how many messages to show (the most recent)",
+	"respondendo":                                  "answering",
+	"sistema":                                      "system",
+	"ÚLTIMA MENSAGEM":                              "LAST MESSAGE",
+}

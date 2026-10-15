@@ -174,7 +174,6 @@ func TestPagesRender(t *testing.T) {
 		{"/c/hanko/decisoes", []string{"Decisões", "Publicar o digest semanal", "Aprovado"}},
 		{"/c/hanko/gates", []string{"Gates", "Pendentes", "Contratar Yuki (Dados)"}},
 		{"/c/hanko/organograma", []string{"Organograma", `class="org-svg"`, "Ada", "Kenji"}},
-		{"/c/hanko/em-breve/buscar", []string{"Buscar", "M3"}},
 		{"/c/hanko/custos", []string{"Custos e orçamentos", "Gasto por dia", "Orçamento da empresa", "Orçamento por persona", "<svg"}},
 		{"/c/hanko/fluxos", []string{"Fluxos", "Digest semanal de fontes", "Rodar agora", "Toda sexta às 07:00"}},
 		{"/c/hanko/fluxos/novo", []string{"Novo fluxo", `name="cron"`, "Modelos de agenda"}},

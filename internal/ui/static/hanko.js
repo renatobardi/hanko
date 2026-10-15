@@ -31,6 +31,25 @@
     sel.selectedIndex = 0;
   });
 
+  // "/" focuses the search: on the Buscar screen it focuses the field; elsewhere it opens that screen.
+  document.addEventListener("keydown", function (e) {
+    if (e.key !== "/" || e.ctrlKey || e.metaKey || e.altKey || e.defaultPrevented) return;
+    var t = e.target;
+    if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+    var field = document.getElementById("q-search");
+    if (field) {
+      e.preventDefault();
+      field.focus();
+      field.select();
+      return;
+    }
+    var link = document.querySelector('.sidebar a[href$="/buscar"]');
+    if (link) {
+      e.preventDefault();
+      link.click();
+    }
+  });
+
   // Live log: stick to the bottom unless the reader scrolled up.
   function watchLog() {
     var log = document.getElementById("run-log");

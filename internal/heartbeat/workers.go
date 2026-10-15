@@ -189,6 +189,11 @@ func (w *tickWorker) Work(ctx context.Context, _ *river.Job[HeartbeatTickArgs]) 
 	} else if n > 0 {
 		h.log.Info("heartbeat_tick: personas retomadas", "count", n)
 	}
+	if n, err := h.svc.ResolveStaleConsolidations(ctx); err != nil {
+		h.log.Warn("heartbeat_tick: consolidações de memória perdidas", "err", err)
+	} else if n > 0 {
+		h.log.Info("heartbeat_tick: consolidações de memória expiradas", "count", n)
+	}
 	if n, err := h.svc.ResolveStaleReviews(ctx); err != nil {
 		h.log.Warn("heartbeat_tick: revisões perdidas", "err", err)
 	} else if n > 0 {
@@ -231,5 +236,54 @@ func (w *sweepWorker) Work(ctx context.Context, _ *river.Job[MemorySweepArgs]) e
 	if len(ids) > 0 {
 		h.log.Debug("memory_sweep", "pending", len(ids))
 	}
-	return nil
+	return h.sweepProposals(ctx)
+}
+
+// ---- deliver_webhook ----
+
+// webhookTimeout cobre uma tentativa inteira (conexão, TLS, envio e leitura); o cliente HTTP do service
+// tem um teto menor, este é só a rede de segurança do worker.
+const webhookTimeout = 45 * time.Second
+
+// webhookBackend é o que o service oferece para entregar webhooks; opcional como os demais.
+type webhookBackend interface {
+	DeliverWebhook(ctx context.Context, deliveryID domain.ID, attempt, maxAttempts int) (service.WebhookOutcome, error)
+}
+
+type deliverWebhookWorker struct {
+	river.WorkerDefaults[DeliverWebhookArgs]
+	h *Heartbeat
+}
+
+func (w *deliverWebhookWorker) Timeout(*river.Job[DeliverWebhookArgs]) time.Duration {
+	return webhookTimeout
+}
+
+// NextRetry usa o backoff exponencial do service (30s, 2m, 8m, 32m, ~2h, 6h).
+func (w *deliverWebhookWorker) NextRetry(job *river.Job[DeliverWebhookArgs]) time.Time {
+	return time.Now().Add(service.WebhookBackoff(job.Attempt))
+}
+
+func (w *deliverWebhookWorker) Work(ctx context.Context, job *river.Job[DeliverWebhookArgs]) error {
+	return w.h.deliverWebhook(ctx, job.Args, job.Attempt, job.MaxAttempts)
+}
+
+func (h *Heartbeat) deliverWebhook(ctx context.Context, a DeliverWebhookArgs, attempt, maxAttempts int) error {
+	wb, ok := h.svc.(webhookBackend)
+	if !ok {
+		return errNotAttached
+	}
+	out, err := wb.DeliverWebhook(ctx, a.DeliveryID, attempt, maxAttempts)
+	switch out {
+	case service.WebhookRetry:
+		if err == nil {
+			err = errors.New("entrega de webhook falhou")
+		}
+		return err // a fila tenta de novo no NextRetry
+	default:
+		if err != nil {
+			h.log.Warn("deliver_webhook: encerrada com falha", "delivery_id", a.DeliveryID, "err", err)
+		}
+		return nil
+	}
 }

@@ -181,9 +181,13 @@ func (t *txc) alertConditions(cfg AlertConfig) ([]alertCond, error) {
 		return nil, fmt.Errorf("list stuck runs: %w", err)
 	}
 	for _, r := range stuck {
+		what := r.TaskKey
+		if what == "" {
+			what = "chat" // run de conversa: não tem task
+		}
 		out = append(out, alertCond{companyID: r.CompanyID, kind: domain.AlertRunStuck, subjectType: "run", subjectID: r.ID,
 			severity: domain.AlertCritical,
-			message: fmt.Sprintf("Execução %s (%s, %s) sem eventos há %s (limite %s)", runLabel(r.RunName, r.ID), r.TaskKey, r.PersonaName,
+			message: fmt.Sprintf("Execução %s (%s, %s) sem eventos há %s (limite %s)", runLabel(r.RunName, r.ID), what, r.PersonaName,
 				humanDuration(t.now.Sub(r.LastEventAt)), humanDuration(cfg.RunStuckAfter)),
 			data: map[string]any{"run_id": r.ID, "run_name": r.RunName, "task_key": r.TaskKey, "persona_name": r.PersonaName,
 				"last_event_at": r.LastEventAt, "limit_sec": int(cfg.RunStuckAfter.Seconds())}})

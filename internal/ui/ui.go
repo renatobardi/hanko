@@ -79,6 +79,8 @@ type Backend interface {
 	CancelRun(ctx context.Context, actor domain.Actor, companyID, runID domain.ID) (service.RunView, error)
 
 	ListActivity(ctx context.Context, companyID domain.ID, f service.ActivityFilter) ([]domain.ActivityEvent, error)
+	Search(ctx context.Context, companyID domain.ID, q string, f service.SearchFilter) (service.SearchResult, error)
+	MemoryAvailable() bool
 	Dashboard(ctx context.Context, companyID domain.ID) (service.DashboardStats, error)
 
 	ListGates(ctx context.Context, companyID domain.ID, f service.GateFilter) ([]service.GateView, error)
@@ -117,6 +119,12 @@ type Backend interface {
 	RecordGoalProgress(ctx context.Context, actor domain.Actor, companyID, goalID domain.ID, value float64, note string) (service.GoalView, error)
 	ListGoalViews(ctx context.Context, companyID domain.ID, f service.GoalFilter) ([]service.GoalView, error)
 	GetGoalView(ctx context.Context, companyID domain.ID, ref string) (service.GoalView, error)
+	ListConversations(ctx context.Context, companyID domain.ID, f service.ConversationFilter) ([]service.ConversationView, error)
+	GetConversation(ctx context.Context, companyID, id domain.ID) (service.ConversationView, error)
+	ListConversationMessages(ctx context.Context, companyID, id domain.ID, limit int) ([]domain.ConversationMessage, error)
+	CreateConversation(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.CreateConversationInput) (service.ConversationView, error)
+	SendMessage(ctx context.Context, actor domain.Actor, companyID, conversationID domain.ID, body string) (domain.ConversationMessage, error)
+	SetConversationStatus(ctx context.Context, actor domain.Actor, companyID, id domain.ID, status domain.ConversationStatus) (service.ConversationView, error)
 
 	MyRole(ctx context.Context, companyID domain.ID) (domain.MemberRole, error)
 	ListMembers(ctx context.Context, companyID domain.ID) ([]domain.Member, error)
@@ -271,11 +279,21 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("GET /c/{company}/gates", co(s.handleGates))
 	mux.HandleFunc("GET /c/{company}/gates/{gate}", co(s.handleGate))
 	mux.HandleFunc("POST /c/{company}/gates/{gate}/decidir", post(co(s.handleDecideGate)))
+	mux.HandleFunc("GET /c/{company}/chat", co(s.handleChats))
+	mux.HandleFunc("POST /c/{company}/chat/nova", post(co(s.handleCreateChat)))
+	mux.HandleFunc("GET /c/{company}/chat/{conversation}", co(s.handleChat))
+	mux.HandleFunc("GET /c/{company}/chat/{conversation}/mensagens", co(s.handleChatThread))
+	mux.HandleFunc("POST /c/{company}/chat/{conversation}/mensagens", post(co(s.handleChatSend)))
+	mux.HandleFunc("POST /c/{company}/chat/{conversation}/arquivar", post(co(s.handleChatStatus(domain.ConversationArchived))))
+	mux.HandleFunc("POST /c/{company}/chat/{conversation}/reabrir", post(co(s.handleChatStatus(domain.ConversationOpen))))
 	mux.HandleFunc("GET /c/{company}/organograma", co(s.handleOrg))
 
 	mux.HandleFunc("GET /c/{company}/configuracoes", co(s.handleSettings))
 	mux.HandleFunc("POST /c/{company}/configuracoes/chaves", post(co(s.handleCreateKey)))
 	mux.HandleFunc("POST /c/{company}/configuracoes/chaves/{key}/revogar", post(co(s.handleRevokeKey)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/memoria", post(co(s.handleMemorySave)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/memoria/consolidar", post(co(s.handleMemoryConsolidate)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/memoria/propostas/{proposal}/repetir", post(co(s.handleMemoryRetry)))
 	mux.HandleFunc("POST /c/{company}/configuracoes/membros/convites", post(co(s.handleInviteMember)))
 	mux.HandleFunc("POST /c/{company}/configuracoes/membros/convites/{invite}/revogar", post(co(s.handleRevokeInvite)))
 	mux.HandleFunc("POST /c/{company}/configuracoes/membros/{user}/papel", post(co(s.handleMemberRole)))
@@ -299,7 +317,9 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("POST /c/{company}/metas/{goal}/status", post(co(s.handleGoalStatus)))
 	mux.HandleFunc("POST /c/{company}/metas/{goal}/tasks", post(co(s.handleGoalLinkTask)))
 
+	mux.HandleFunc("GET /c/{company}/buscar", co(s.handleSearch))
 	mux.HandleFunc("GET /c/{company}/em-breve/{item}", co(s.handleSoon))
+	s.skillRoutes(mux)
 }
 
 // ---------- middleware ----------
@@ -430,6 +450,9 @@ func friendly(ctx context.Context, err error) (int, string, string) {
 		}
 		if errors.Is(err, domain.ErrActiveRun) {
 			return st, i18n.T(ctx, "Já existe uma execução ativa"), i18n.T(ctx, "Esta task já tem uma execução em andamento; espere ela terminar.")
+		}
+		if errors.Is(err, domain.ErrPersonaUnavailable) {
+			return st, i18n.T(ctx, "Persona indisponível"), strings.ToUpper(err.Error()[:1]) + err.Error()[1:] + "."
 		}
 		return st, i18n.T(ctx, "Conflito"), i18n.T(ctx, "Esse registro já existe ou foi alterado por outra pessoa.")
 	case http.StatusForbidden:

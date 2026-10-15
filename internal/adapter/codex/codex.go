@@ -63,6 +63,32 @@ type mcpServer struct {
 	Type    string            `json:"type"`
 	URL     string            `json:"url"`
 	Headers map[string]string `json:"headers"`
+	// stdio (servidores MCP da empresa, ADR-0029)
+	Command string            `json:"command"`
+	Args    []string          `json:"args"`
+	Env     map[string]string `json:"env"`
+}
+
+// unsafeEnvName diz se uma variável de servidor stdio não pode ir para o ambiente do harness: ela
+// substituiria algo do próprio Hanko ou do carregador de bibliotecas.
+func unsafeEnvName(n string) bool {
+	u := strings.ToUpper(n)
+	return strings.HasPrefix(u, "HANKO_") || u == "PATH" || u == "HOME" || u == "SHELL" ||
+		strings.HasPrefix(u, "LD_") || strings.HasPrefix(u, "DYLD_") || strings.HasPrefix(u, "CODEX_")
+}
+
+func tomlString(v string) string {
+	b, _ := json.Marshal(v)
+	return string(b)
+}
+
+// tomlStrings escreve uma lista de strings como array TOML (basic strings; JSON é um subconjunto compatível).
+func tomlStrings(in []string) string {
+	parts := make([]string, len(in))
+	for i, v := range in {
+		parts[i] = tomlString(v)
+	}
+	return "[" + strings.Join(parts, ",") + "]"
 }
 
 // mcpOverrides translates http MCP servers into `-c` config overrides. Bearer tokens
@@ -85,10 +111,34 @@ func mcpOverrides(raw json.RawMessage) (args []string, env map[string]string) {
 	env = map[string]string{}
 	for _, n := range names {
 		var s mcpServer
-		if json.Unmarshal(cfg.Servers[n], &s) != nil || s.URL == "" {
+		if json.Unmarshal(cfg.Servers[n], &s) != nil {
 			continue
 		}
 		key := "mcp_servers." + nonEnv.ReplaceAllString(n, "_")
+		if s.URL == "" {
+			if s.Command == "" {
+				continue
+			}
+			// stdio: comando e argumentos vão na linha de comando (não são segredo); os valores de env
+			// vão pelo ambiente do harness e são repassados ao servidor por nome (env_vars).
+			args = append(args, "-c", fmt.Sprintf("%s.command=%s", key, tomlString(s.Command)))
+			if len(s.Args) > 0 {
+				args = append(args, "-c", fmt.Sprintf("%s.args=%s", key, tomlStrings(s.Args)))
+			}
+			var names []string
+			for k, v := range s.Env {
+				if unsafeEnvName(k) {
+					continue
+				}
+				env[k] = v
+				names = append(names, k)
+			}
+			if len(names) > 0 {
+				sort.Strings(names)
+				args = append(args, "-c", fmt.Sprintf("%s.env_vars=%s", key, tomlStrings(names)))
+			}
+			continue
+		}
 		args = append(args, "-c", fmt.Sprintf("%s.url=%q", key, s.URL))
 		hnames := make([]string, 0, len(s.Headers))
 		for h := range s.Headers {

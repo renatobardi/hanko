@@ -54,14 +54,18 @@ func (discard) Write(p []byte) (int, error) { return len(p), nil }
 
 func (a *Adapter) Name() string { return "claude" }
 
+// ResumesSessions: the claude harness resumes a session with --resume.
+func (a *Adapter) ResumesSessions() bool { return true }
+
 // Config is the claude-specific part of persona.adapter_config.
 type Config struct {
 	PermissionMode string   `json:"permission_mode"`
 	ExtraArgs      []string `json:"extra_args"`
 }
 
-// BuildArgs returns the CLI arguments for spec; mcpFile is the temp MCP config path ("" = none).
-func BuildArgs(spec adapter.Spec, cfg Config, mcpFile string) []string {
+// BuildArgs returns the CLI arguments for spec; mcpFile is the temp MCP config path ("" = none) and
+// skillsDir the temp directory whose .claude/skills the harness loads through --add-dir ("" = none).
+func BuildArgs(spec adapter.Spec, cfg Config, mcpFile, skillsDir string) []string {
 	mode := cfg.PermissionMode
 	if mode == "" {
 		mode = "acceptEdits"
@@ -81,6 +85,9 @@ func BuildArgs(spec adapter.Spec, cfg Config, mcpFile string) []string {
 	}
 	if mcpFile != "" {
 		args = append(args, "--mcp-config", mcpFile)
+	}
+	if skillsDir != "" {
+		args = append(args, "--add-dir", skillsDir)
 	}
 	if spec.SessionRef != "" {
 		args = append(args, "--resume", spec.SessionRef)
@@ -135,6 +142,16 @@ func (a *Adapter) run(ctx context.Context, spec adapter.Spec, sink adapter.Sink,
 		}
 	}
 
+	var skillsDir string
+	if len(spec.Skills) > 0 && !spec.ReadOnly {
+		d, err := WriteSkills(spec.Skills)
+		if err != nil {
+			return adapter.Result{ExitCode: -1}, fmt.Errorf("claude: skills: %w", err)
+		}
+		skillsDir = d
+		defer os.RemoveAll(d)
+	}
+
 	env := procrun.HarnessEnv(os.Environ(), a.envAllow, spec.Env)
 	sink = adapter.RedactingSink(sink, secrets...)
 
@@ -160,7 +177,7 @@ func (a *Adapter) run(ctx context.Context, spec adapter.Spec, sink adapter.Sink,
 
 	grace := a.grace
 	pr, err := procrun.Run(ctx, procrun.Options{
-		Bin: a.bin, Args: BuildArgs(spec, cfg, mcpFile), Dir: dir, Env: env, Stdin: spec.Prompt, Grace: grace,
+		Bin: a.bin, Args: BuildArgs(spec, cfg, mcpFile, skillsDir), Dir: dir, Env: env, Stdin: spec.Prompt, Grace: grace,
 		OnStdout: func(line []byte) {
 			for _, e := range p.Feed(line) {
 				emit(e)

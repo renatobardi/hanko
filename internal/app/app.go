@@ -24,6 +24,7 @@ import (
 	"github.com/renatobardi/hanko/internal/heartbeat"
 	"github.com/renatobardi/hanko/internal/memory"
 	"github.com/renatobardi/hanko/internal/memory/aimemory"
+	"github.com/renatobardi/hanko/internal/secretbox"
 	"github.com/renatobardi/hanko/internal/service"
 	"github.com/renatobardi/hanko/internal/telemetry"
 )
@@ -69,7 +70,21 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 	svc.WorkspacesRoot = cfg.WorkspacesRoot
 	svc.RunReserveUSD = cfg.RunReserveUSD
 	svc.ArtifactMaxBytes, svc.ArtifactQuotaBytes = cfg.ArtifactMaxBytes, cfg.ArtifactQuotaBytes
+	svc.MemoryProvider = cfg.Memory.Provider
 	svc.Alerts = service.AlertConfig{SilentFactor: cfg.AlertSilentFactor, RunStuckAfter: cfg.AlertRunStuckAfter}
+	box, err := secretbox.New(cfg.SecretKey, cfg.SecretKeyPrevious)
+	if err != nil {
+		return fmt.Errorf("app: HANKO_SECRET_KEY: %w", err)
+	}
+	svc.Integrations = service.IntegrationsConfig{
+		AllowStdio: cfg.Integrations.AllowStdio, AllowPrivate: cfg.Integrations.AllowPrivateDestinations, Secrets: box,
+	}
+	switch {
+	case !box.Enabled():
+		logger.Info("integrações: sem HANKO_SECRET_KEY; integrações com segredo (headers de MCP, webhooks) não podem ser salvas")
+	case cfg.Integrations.AllowStdio:
+		logger.Warn("integrações: servidores MCP stdio liberados (HANKO_INTEGRATIONS_ALLOW_STDIO); eles executam comandos nesta máquina")
+	}
 	if err := registerAlertMetrics(otel.Meter(serviceName), svc); err != nil {
 		return err
 	}
@@ -90,9 +105,10 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 	}
 	tokens := auth.RunTokens{Secret: []byte(cfg.Secret), TTL: cfg.RunTimeout + 5*time.Minute}
 	hb.Attach(svc, reg, mem, broker, tokens)
+	svc.Memory = mem
 
 	handler, err := buildHandler(handlerDeps{Cfg: cfg, Version: version, Logger: logger, Svc: svc, Broker: broker,
-		Pool: pool, Tokens: tokens, Metrics: tel.MetricsHandler()})
+		Pool: pool, Tokens: tokens, Metrics: tel.MetricsHandler(), Memory: mem})
 	if err != nil {
 		return err
 	}
@@ -167,7 +183,7 @@ func newMemory(ctx context.Context, cfg config.Config, logger *slog.Logger) memo
 		logger.Info("memória desligada (HANKO_MEMORY_PROVIDER=none)")
 		return memory.Noop{}
 	}
-	p := aimemory.New(aimemory.Options{URL: cfg.Memory.URL, Token: cfg.Memory.Token, PublicURL: cfg.PublicURL, Logger: logger})
+	p := aimemory.New(aimemory.Options{URL: cfg.Memory.URL, Token: cfg.Memory.Token, PublicURL: cfg.PublicURL, ReadPageTool: cfg.Memory.ReadTool, Logger: logger})
 	go func() {
 		pctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 		defer cancel()

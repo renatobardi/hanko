@@ -17,6 +17,7 @@ import (
 	"github.com/renatobardi/hanko/internal/auth"
 	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/events"
+	"github.com/renatobardi/hanko/internal/memory"
 )
 
 // ErrNotImplemented marks contract stubs not yet filled.
@@ -78,6 +79,15 @@ type Service struct {
 	// ArtifactMaxBytes é o tamanho máximo de um artefato (HANKO_ARTIFACT_MAX_BYTES) e ArtifactQuotaBytes a cota
 	// por empresa, somando todas as versões (HANKO_ARTIFACT_QUOTA_BYTES); zero usa os padrões (5 MiB e 512 MiB).
 	ArtifactMaxBytes, ArtifactQuotaBytes int64
+	// Integrations é a política e o cofre das integrações (ADR-0029). O zero value é o seguro: stdio desligado,
+	// destinos internos bloqueados e sem chave de cifragem.
+	Integrations IntegrationsConfig
+	// Memory é o provider de memória (ADR-0015), usado só pela busca (ADR-0024); nil ou Noop = sem memória na busca.
+	Memory memory.Provider
+
+	// MemoryProvider é o provedor de memória em uso ("ai-memory" ou "none"; vazio = none). Sem provedor a
+	// consolidação de memória fica desligada (ADR-0030).
+	MemoryProvider string
 	// Log recebe o registro de auditoria das operações administrativas da instalação (hanko auth user ...);
 	// nil descarta.
 	Log *slog.Logger
@@ -170,6 +180,8 @@ type CreateTaskInput struct {
 	EventID     string // idempotency key (agents/MCP)
 
 	trigger domain.RunTrigger // wake trigger; default assign (flows use flow)
+	// noMemoryFact: a task de sistema da consolidação de memória não vira página na própria memória.
+	noMemoryFact bool
 }
 
 type UpdateTaskInput struct {
@@ -209,9 +221,10 @@ type AddCommentInput struct {
 }
 
 type RunFilter struct {
-	TaskID    *domain.ID
-	PersonaID *domain.ID
-	Statuses  []domain.RunStatus
+	TaskID         *domain.ID
+	ConversationID *domain.ID
+	PersonaID      *domain.ID
+	Statuses       []domain.RunStatus
 	// Name busca pelo nome amigável (sem diferenciar caixa nem acento: agil_falcao acha Ágil_Falcão).
 	Name  string
 	Limit int // default 50, max 500
@@ -243,6 +256,8 @@ type RunView struct {
 	TaskKey     string `json:"task_key"`
 	TaskTitle   string `json:"task_title"`
 	PersonaName string `json:"persona_name"`
+	// ConversationTitle is the title of the conversation of a chat run (empty for task runs).
+	ConversationTitle string `json:"conversation_title,omitempty"`
 }
 
 // DashboardStats feeds the Painel.
@@ -273,6 +288,8 @@ type RunContext struct {
 	Review *ReviewContext
 	// Goals são as metas ativas do projeto da task (e a da própria task), em formato curto (ADR-0028).
 	Goals []GoalBrief
+	// Chat is set for runs with trigger chat (no task: Task and Comments are empty).
+	Chat *ChatContext
 }
 
 // WakeCandidate is an (assigned, workable, idle) task found by the periodic heartbeat.

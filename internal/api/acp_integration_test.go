@@ -34,7 +34,7 @@ func TestAPIPersonaACP(t *testing.T) {
 		"chave desconhecida": {`{"name":"A4","agent":"acp","adapter_config":{"command":"a","permision":"allow"}}`, `unknown field "permision"`},
 	} {
 		status, b := e.call("POST", ps, c.body, nil)
-		if status != http.StatusUnprocessableEntity || !strings.Contains(string(b), "adapter_config") || !strings.Contains(string(b), c.msg) {
+		if status != http.StatusUnprocessableEntity || !strings.Contains(string(b), "adapter_config") || !strings.Contains(strings.ReplaceAll(string(b), `\"`, `"`), c.msg) {
 			t.Errorf("%s: status %d: %s", name, status, b)
 		}
 	}

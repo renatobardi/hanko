@@ -61,10 +61,10 @@ func TestRedactingSinkTextoEPayload(t *testing.T) {
 func TestSpecSecrets(t *testing.T) {
 	spec := Spec{
 		Env:       map[string]string{"HANKO_RUN_TOKEN": "tok-run", "HANKO_URL": "http://x", "MY_API_KEY": "k-123456"},
-		MCPConfig: json.RawMessage(`{"mcpServers":{"hanko":{"headers":{"Authorization":"Bearer tok-mcp-abc"}}}}`),
+		MCPConfig: json.RawMessage(`{"mcpServers":{"hanko":{"headers":{"Authorization":"Bearer tok-mcp-abc"}},"local":{"command":"x","env":{"ACME_DSN":"dsn-secreto-777"}}}}`),
 	}
 	s := strings.Join(SpecSecrets(spec), ",")
-	for _, want := range []string{"tok-run", "k-123456", "tok-mcp-abc", "Bearer tok-mcp-abc"} {
+	for _, want := range []string{"tok-run", "k-123456", "tok-mcp-abc", "Bearer tok-mcp-abc", "dsn-secreto-777"} {
 		if !strings.Contains(s, want) {
 			t.Errorf("faltou %q em %q", want, s)
 		}
