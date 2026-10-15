@@ -70,6 +70,11 @@ type Service struct {
 	ExternalIdentity bool
 	// ExportPageSize é quantos eventos de uma execução o export lê por página; 0 usa o padrão (1000).
 	ExportPageSize int
+	// ExportIdleTxTimeout e ExportStatementTimeout são os tetos SET LOCAL da transação de snapshot do export;
+	// 0 usa DefaultExportIdleTxTimeout/DefaultExportStatementTimeout.
+	ExportIdleTxTimeout, ExportStatementTimeout time.Duration
+	// ExportPageHook (só testes) roda antes de cada página de eventos do export; um erro interrompe a escrita.
+	ExportPageHook func(page int) error
 	// Log recebe o registro de auditoria das operações administrativas da instalação (hanko auth user ...);
 	// nil descarta.
 	Log *slog.Logger

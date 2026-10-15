@@ -41,7 +41,7 @@ func (s *Service) withTx(ctx context.Context, fn func(t *txc) error) error {
 	}
 	t := &txc{s: s, ctx: ctx, tx: tx, q: store.New(tx), now: s.Now().UTC()}
 	if err := fn(t); err != nil {
-		_ = tx.Rollback(context.WithoutCancel(ctx))
+		rollbackTx(tx)
 		return err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -51,6 +51,14 @@ func (s *Service) withTx(ctx context.Context, fn func(t *txc) error) error {
 		f()
 	}
 	return nil
+}
+
+// rollbackTx desfaz a transação sem depender do ctx da requisição (que pode já estar cancelado), mas com
+// teto de rollbackTimeout: um banco travado não pode prender a goroutine nem a conexão para sempre.
+func rollbackTx(tx pgx.Tx) {
+	ctx, cancel := context.WithTimeout(context.Background(), rollbackTimeout)
+	defer cancel()
+	_ = tx.Rollback(ctx)
 }
 
 // read returns queries bound to the pool for read-only use cases.

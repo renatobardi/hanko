@@ -21,10 +21,16 @@ de outras empresas; o que se quer é um arquivo legível, versionável e seguro 
    transitórios de persona (`running`, `error`, `awaiting_gate`) voltam como `idle`. Os logs saem **em fluxo**: a
    configuração e as execuções (sem eventos) são montadas em memória, mas os eventos são lidos por execução, em páginas
    de 1000 (keyset por `seq`), e escritos direto na resposta; o log inteiro da empresa nunca fica na memória. Um erro
-   no meio da escrita (o status 200 já foi enviado) deixa o arquivo truncado, isto é, JSON inválido, que o cliente
-   detecta ao ler.
+   no meio da escrita (o status 200 já foi enviado) **aborta a conexão** (`panic(http.ErrAbortHandler)`, que o
+   middleware de recover re-propaga): o cliente vê erro de transporte, nunca um 200 que pareça completo. A CLI
+   grava `-o` num arquivo temporário e só o renomeia no fim.
 5. **Exportação consistente.** Uma transação `REPEATABLE READ` somente leitura: o arquivo é um instante único (a
-   transação fica aberta enquanto a resposta é escrita).
+   transação fica aberta enquanto a resposta é escrita, prendendo uma das conexões do pool). Por isso tem tetos:
+   `context.WithTimeout` de 15 min sobre OpenExport+WriteTo; prazo de escrita da resposta de 60 s **renovado a cada
+   flush** (leitor parado estoura, a escrita falha e a transação sofre rollback com teto de 2 s);
+   `SET LOCAL idle_in_transaction_session_timeout` (2 min) e `statement_timeout` (2 min), de modo que o próprio
+   banco derruba a sessão se o handler travar. No máximo **2 exportações simultâneas** por servidor; acima, 503 com
+   `Retry-After`.
 6. **Importação cria uma empresa NOVA**, nunca mescla: `--slug` (ou o do arquivo; colisão é 409, nada é gravado).
    Tudo numa transação: o arquivo é validado por inteiro antes de qualquer escrita (formato, referências, duplicatas,
    ciclos no organograma e entre tasks pai/filha, enums, cron e fuso, agentes conhecidos, caminho de workspace aceito
@@ -39,10 +45,14 @@ de outras empresas; o que se quer é um arquivo legível, versionável e seguro 
    Importar cria uma empresa, então vale a regra de criar empresa: `users.role` owner ou admin; quem importa vira
    owner da nova. Run tokens de persona recebem 403 nos dois endpoints. No modo trusted não há restrição.
 9. **API e CLI.** `GET /api/v1/companies/{c}/export?with_runs&with_logs` e `POST /api/v1/companies/import?slug=&paused=`
-   (`paused` vale `true` se omitido). A importação é um handler HTTP direto, fora do huma: o corpo (até **64 MiB**; o
-   padrão de 1 MiB não comporta logs) é decodificado em fluxo por `json.Decoder`, sem cópia nem validação de esquema
-   em memória (o service valida tudo), com prazo de leitura de 5 min (o padrão do huma, 5 s, devolvia 408 em upload
-   grande). Acima do limite é 413; corpo inválido é 400 e **a resposta nunca ecoa o corpo**. No OpenAPI o arquivo é um
+   (`paused` vale `true` se omitido). A importação é um handler HTTP direto, fora do huma: o corpo (até **32 MiB**; o
+   padrão de 1 MiB não comporta logs) passa por `json.Decoder`, **que bufferiza o valor JSON inteiro antes de
+   decodificá-lo** (não há decodificação incremental de um objeto): o pico de memória por importação é o arquivo mais
+   o documento decodificado, e por isso o teto é baixo e há no máximo **2 importações simultâneas** por servidor
+   (acima, 503 com `Retry-After`). Um `Content-Length` acima do limite é 413 sem ler o corpo; sem tamanho declarado,
+   o limite vale durante a leitura. O prazo de leitura (o padrão do huma, 5 s, devolvia 408 em upload grande) é
+   **renovado por inatividade**: 60 s a partir da última renovação, que ocorre a cada 16 KiB lidos, com **teto
+   absoluto de 15 min** (esgotado: 408). Corpo inválido é 400 e **a resposta nunca ecoa o corpo**. No OpenAPI o arquivo é um
    objeto livre com `format` e `company` obrigatórios (os tipos do arquivo colidiriam com os da API; quem valida é o
    service). CLI: `hanko export [-o arq] [--with-runs] [--with-logs]` e `hanko import <arq|-> [--slug x] [--active]`.
 10. **O arquivo não é anônimo.** Textos livres (instruções, descrições, títulos, comentários, resumos e erros de

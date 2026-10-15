@@ -36,7 +36,10 @@ type apiEnv struct {
 	co     domain.Company
 }
 
-func newAPIEnv(t *testing.T) *apiEnv {
+func newAPIEnv(t *testing.T) *apiEnv { return newAPIEnvWith(t, nil) }
+
+// newAPIEnvWith permite ajustar as Deps (ex.: prazos e tetos de export/import) antes de montar o servidor.
+func newAPIEnvWith(t *testing.T, mod func(*api.Deps)) *apiEnv {
 	t.Helper()
 	pool := testdb.New(t)
 	broker := events.NewBroker()
@@ -46,7 +49,11 @@ func newAPIEnv(t *testing.T) *apiEnv {
 	svc.Now = func() time.Time { return time.Unix(0, e.clock.Load()).UTC() }
 
 	mux := http.NewServeMux()
-	api.Mount(mux, api.Deps{Svc: svc, Broker: broker, Logger: slog.New(slog.DiscardHandler), Version: "it", DB: pool, Tokens: e.tokens})
+	deps := api.Deps{Svc: svc, Broker: broker, Logger: slog.New(slog.DiscardHandler), Version: "it", DB: pool, Tokens: e.tokens}
+	if mod != nil {
+		mod(&deps)
+	}
+	api.Mount(mux, deps)
 	ts := httptest.NewServer(mux)
 	t.Cleanup(ts.Close)
 	e.url = ts.URL

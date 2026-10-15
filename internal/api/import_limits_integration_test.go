@@ -40,7 +40,7 @@ func TestAPIImportNaoEcoaOCorpo(t *testing.T) {
 // Acima do limite é 413, sem alocar o arquivo inteiro.
 func TestAPIImportAcimaDoLimite413(t *testing.T) {
 	e := newAPIEnv(t)
-	big := `{"format":"hanko.company.v1","company":{"name":"` + strings.Repeat("a", 65<<20) + `"}}`
+	big := `{"format":"hanko.company.v1","company":{"name":"` + strings.Repeat("a", 33<<20) + `"}}`
 	st, b := e.call("POST", "/api/v1/companies/import?slug=grande", big, nil)
 	if st != 413 {
 		t.Fatalf("status %d: %.200s", st, b)

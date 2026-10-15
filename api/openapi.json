@@ -3320,7 +3320,7 @@
     },
     "/api/v1/companies/import": {
       "post": {
-        "description": "Por padrão a empresa entra PAUSADA (personas pausadas, fluxos desligados); `paused=false` liga. Corpo de até 64 MiB, decodificado em fluxo; um corpo inválido nunca é devolvido na resposta.",
+        "description": "Por padrão a empresa entra PAUSADA (personas pausadas, fluxos desligados); `paused=false` liga. Corpo de até 32 MiB (Content-Length maior é recusado com 413 sem ler o corpo), lido com prazo renovado por inatividade e teto absoluto; um corpo inválido nunca é devolvido na resposta. No máximo 0 importações simultâneas por servidor.",
         "operationId": "import-company",
         "parameters": [
           {
@@ -3410,6 +3410,16 @@
             },
             "description": "Sem permissão (run token, ou usuário comum da instalação)."
           },
+          "408": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Tempo esgotado ao receber o arquivo (sem progresso por muito tempo, ou acima do teto absoluto do upload)."
+          },
           "409": {
             "content": {
               "application/problem+json": {
@@ -3449,6 +3459,24 @@
               }
             },
             "description": "Erro interno."
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Importações demais em andamento; tente de novo depois de Retry-After.",
+            "headers": {
+              "Retry-After": {
+                "description": "Segundos até tentar de novo.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         },
         "summary": "Cria uma empresa NOVA a partir de um arquivo exportado; tudo ou nada (só humanos)",
@@ -4162,6 +4190,24 @@
               }
             },
             "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Exportações demais em andamento; tente de novo depois de Retry-After.",
+            "headers": {
+              "Retry-After": {
+                "description": "Segundos até tentar de novo.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         },
         "summary": "Exporta a empresa como arquivo portátil (hanko.company.v1), sem segredos (admin ou owner)",

@@ -102,15 +102,19 @@ func (s *server) middleware(next http.Handler) http.Handler {
 		sw := &statusWriter{ResponseWriter: w, status: http.StatusOK}
 
 		defer func() {
+			aborted := false
 			if rec := recover(); rec != nil {
 				if rec == http.ErrAbortHandler {
-					panic(rec)
-				}
-				s.log.ErrorContext(ctx, "panic no handler", "panic", rec, "stack", string(debug.Stack()), "request_id", id)
-				if !sw.wrote {
-					writeProblem(sw, problem(http.StatusInternalServerError, "erro interno do servidor"))
+					// o handler quer romper a conexão (ex.: export interrompido no meio do arquivo): registra a
+					// requisição e re-panica para o net/http fechar o transporte sem terminar a resposta
+					aborted = true
 				} else {
-					sw.status = http.StatusInternalServerError
+					s.log.ErrorContext(ctx, "panic no handler", "panic", rec, "stack", string(debug.Stack()), "request_id", id)
+					if !sw.wrote {
+						writeProblem(sw, problem(http.StatusInternalServerError, "erro interno do servidor"))
+					} else {
+						sw.status = http.StatusInternalServerError
+					}
 				}
 			}
 			level := slog.LevelInfo
@@ -126,7 +130,10 @@ func (s *server) middleware(next http.Handler) http.Handler {
 			}
 			s.log.LogAttrs(ctx, level, "http",
 				slog.String("method", r.Method), slog.String("route", route), slog.Int("status", sw.status),
-				slog.Duration("duration", time.Since(start)), slog.String("request_id", id))
+				slog.Duration("duration", time.Since(start)), slog.String("request_id", id), slog.Bool("aborted", aborted))
+			if aborted {
+				panic(http.ErrAbortHandler)
+			}
 		}()
 
 		if s.cors(sw, r) {

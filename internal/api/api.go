@@ -44,12 +44,17 @@ type Deps struct {
 	DB Pinger
 	// CORSOrigins lista origens permitidas. Vazio = CORS desligado.
 	CORSOrigins []string
+	// Transfer ajusta os tetos de export/import (zero = padrões; os testes encurtam os prazos).
+	Transfer TransferLimits
 }
 
 type server struct {
 	d   Deps
 	svc backend
 	log *slog.Logger
+	// xfer são os tetos de export/import já com os padrões; exportGate/importGate limitam quantos rodam ao mesmo tempo.
+	xfer                   TransferLimits
+	exportGate, importGate gate
 }
 
 // backend é o subconjunto de *service.Service usado pelos handlers; existe para
@@ -118,7 +123,8 @@ var _ backend = (*service.Service)(nil)
 func Mount(mux *http.ServeMux, d Deps) { newServer(d).mount(mux) }
 
 func newServer(d Deps) *server {
-	s := &server{d: d, log: d.Logger}
+	s := &server{d: d, log: d.Logger, xfer: d.Transfer.withDefaults()}
+	s.exportGate, s.importGate = newGate(s.xfer.MaxExports), newGate(s.xfer.MaxImports)
 	if s.log == nil {
 		s.log = slog.New(slog.DiscardHandler)
 	}

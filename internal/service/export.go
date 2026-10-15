@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strconv"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -33,6 +35,18 @@ func exportStatus(s string) string {
 // defaultExportPageSize é quantos eventos de uma execução o export lê por vez.
 const defaultExportPageSize = 1000
 
+const (
+	// DefaultExportIdleTxTimeout é o idle_in_transaction_session_timeout da transação de snapshot do export:
+	// entre duas páginas a transação fica ociosa enquanto a resposta é escrita para um cliente lento, e uma
+	// conexão do pool (20, compartilhadas com heartbeat, SSE, UI e API) não pode ficar presa por um leitor
+	// parado. Precisa ser maior que o prazo de escrita por flush da API (60 s).
+	DefaultExportIdleTxTimeout = 2 * time.Minute
+	// DefaultExportStatementTimeout limita cada consulta do export.
+	DefaultExportStatementTimeout = 2 * time.Minute
+	// rollbackTimeout limita o ROLLBACK que libera a conexão (o ctx da requisição pode já estar cancelado).
+	rollbackTimeout = 2 * time.Second
+)
+
 // red mascara credenciais que tenham ido parar em texto livre (instruções, descrições, comentários, logs):
 // o arquivo é feito para ser compartilhado (ADR-0022). Não o torna anônimo.
 func red(s string) string { return adapter.Redact(s) }
@@ -48,6 +62,7 @@ type ExportStream struct {
 	withLogs bool
 	pageSize int
 	pages    int
+	hook     func(page int) error
 }
 
 // Pages devolve quantas páginas de eventos foram lidas (para testes e métricas).
@@ -56,7 +71,7 @@ func (e *ExportStream) Pages() int { return e.pages }
 // Close encerra a transação de snapshot.
 func (e *ExportStream) Close() {
 	if e.tx != nil {
-		_ = e.tx.Rollback(context.Background())
+		rollbackTx(e.tx)
 		e.tx = nil
 	}
 }
@@ -75,7 +90,11 @@ func (s *Service) OpenExport(ctx context.Context, companyID domain.ID, opts Expo
 	if err != nil {
 		return nil, fmt.Errorf("begin export tx: %w", err)
 	}
-	st := &ExportStream{tx: tx, q: store.New(tx), withLogs: opts.WithLogs, pageSize: s.ExportPageSize}
+	st := &ExportStream{tx: tx, q: store.New(tx), withLogs: opts.WithLogs, pageSize: s.ExportPageSize, hook: s.ExportPageHook}
+	if err := s.limitExportTx(ctx, tx); err != nil {
+		st.Close()
+		return nil, err
+	}
 	if st.pageSize <= 0 {
 		st.pageSize = defaultExportPageSize
 	}
@@ -84,6 +103,24 @@ func (s *Service) OpenExport(ctx context.Context, companyID domain.ID, opts Expo
 		return nil, err
 	}
 	return st, nil
+}
+
+// limitExportTx põe os tetos de tempo na transação de snapshot (SET LOCAL): o servidor do banco derruba a
+// conexão se a transação ficar ociosa demais (leitor lento ou parado) e cancela consultas longas demais.
+func (s *Service) limitExportTx(ctx context.Context, tx pgx.Tx) error {
+	idle, stmt := s.ExportIdleTxTimeout, s.ExportStatementTimeout
+	if idle <= 0 {
+		idle = DefaultExportIdleTxTimeout
+	}
+	if stmt <= 0 {
+		stmt = DefaultExportStatementTimeout
+	}
+	ms := func(d time.Duration) string { return strconv.FormatInt(d.Milliseconds(), 10) + "ms" }
+	if _, err := tx.Exec(ctx, `SELECT set_config('idle_in_transaction_session_timeout', $1, true), set_config('statement_timeout', $2, true)`,
+		ms(idle), ms(stmt)); err != nil {
+		return fmt.Errorf("export tx limits: %w", err)
+	}
+	return nil
 }
 
 // ExportCompany devolve o arquivo inteiro em memória, logs incluídos (uso programático e testes; a API usa
@@ -114,6 +151,11 @@ func (e *ExportStream) eachEvent(ctx context.Context, runID domain.ID, fn func(e
 	for {
 		if err := ctx.Err(); err != nil {
 			return err
+		}
+		if e.hook != nil {
+			if err := e.hook(e.pages + 1); err != nil {
+				return err
+			}
 		}
 		rows, err := e.q.ExportRunEventsPage(ctx, store.ExportRunEventsPageParams{RunID: runID, AfterSeq: after, PageSize: i32(e.pageSize)})
 		if err != nil {
