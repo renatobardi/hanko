@@ -222,6 +222,16 @@ templ ProjectPage(sh Shell, vm ProjectVM) {
 				}
 			</div>
 		</section>
+		<div class="grid-2" style="margin-top:20px;align-items:start">
+			<section class="card pad">
+				<div class="card-head"><h2>{ i18n.T(ctx, "Metas") }</h2></div>
+				@GoalMiniList(vm.Goals, vm.GoalsHref)
+			</section>
+			<section class="card pad">
+				<div class="card-head"><h2>{ i18n.T(ctx, "Artefatos") }</h2></div>
+				@ArtifactMiniList(vm.Artifacts, vm.ArtifactsHref)
+			</section>
+		</div>
 		<div class="grid-2" style="margin-top:20px">
 			<section class="card pad">
 				<div class="card-head"><h2>{ i18n.T(ctx, "Personas envolvidas") }</h2></div>

@@ -134,6 +134,16 @@ func (s *server) handleInbox(w http.ResponseWriter, r *http.Request, co domain.C
 				Limit: limit, Percent: pct, Guard: g.WeeklyGuardPct, Week: weekLabel(ctx, g.WeekStart.In(loc))})
 		}
 	}
+	if cur == "tudo" {
+		for _, g := range in.AchievedGoals {
+			at := g.UpdatedAt
+			if g.AchievedAt != nil {
+				at = *g.AchievedAt
+			}
+			vm.Goals = append(vm.Goals, views.AchievedGoalRow{Title: g.Title, Href: base + "/metas/" + g.Slug,
+				Text: i18n.Tf(ctx, "A meta chegou ao alvo: %s.", goalValues(ctx, g.Goal)), When: agoCtx(ctx, at, now, loc)})
+		}
+	}
 	vm.Total = len(vm.Gates) + len(vm.Blocked) + len(vm.Failed) + len(vm.Personas) + len(vm.Alerts) + len(vm.Subs)
 	switch n := in.Count(); n {
 	case 0:

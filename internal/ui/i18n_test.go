@@ -119,7 +119,9 @@ var enPages = []struct {
 	{"/c/hanko/custos", []string{"Costs and budgets", "Spend per day", "Company budget"}},
 	{"/c/hanko/fluxos", []string{"Flows", "Run now", "Every Friday at 07:00"}},
 	{"/c/hanko/fluxos/novo", []string{"New flow", "Schedule templates"}},
-	{"/c/hanko/em-breve/metas", []string{"Goals", "coming soon"}},
+	{"/c/hanko/metas", []string{"Goals", "Active goals", "Overdue", "Achieved"}},
+	{"/c/hanko/metas/cem-seguidores", []string{"Progress history", "Linked tasks", "Record progress", "Initial"}},
+	{"/c/hanko/artefatos", []string{"Artifacts", "Upload artifact", "Updated", "All personas"}},
 }
 
 func TestEnglishPages(t *testing.T) {

@@ -155,3 +155,11 @@ lê e escreve dentro do diretório da run por `fs/read_text_file` e `fs/write_te
 MCP http (o próprio `/mcp` do Hanko) só são repassados se o agente anuncia `mcpCapabilities.http`. Fora do escopo: `terminal/*`,
 autenticação interativa e ACP v2. `acp` não serve de harness alternativo de revisão (`reviewer_agent`), só de persona revisora.
 Instalação do agente e solução de problemas: `docs/RUNBOOK.md`.
+
+## 10. Artefatos e metas (ADR-0028)
+Artefatos ficam no Postgres (`artifacts` com os metadados e `artifact_blobs` com o `bytea`), sem diretório extra no backup;
+limites por arquivo e por empresa em `HANKO_ARTIFACT_MAX_BYTES` e `HANKO_ARTIFACT_QUOTA_BYTES`. `internal/artifactsrv` é o único
+lugar que entrega os bytes (nosniff, CSP com sandbox, inline só para texto puro, Markdown e imagem raster) e `internal/textdiff`
+calcula o diff de texto entre versões, sem dependência nova. Metas (`goals`, `goal_updates`, `tasks.goal_id`) calculam o progresso
+no serviço e a UI desenha o histórico em SVG no servidor, sem script. Export/import: `artifacts` opcional (`--with-artifacts`, até
+20 MiB); metas não viajam.

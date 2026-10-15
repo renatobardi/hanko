@@ -198,6 +198,7 @@ func Sample() *Fake {
 		f.Activity = append(f.Activity, ev)
 	}
 	sampleCostsAndFlows(f, now)
+	sampleArtefMetas(f, now)
 	return f
 }
 

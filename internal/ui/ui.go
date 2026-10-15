@@ -21,6 +21,7 @@ import (
 	"github.com/renatobardi/hanko/internal/events"
 	"github.com/renatobardi/hanko/internal/i18n"
 	"github.com/renatobardi/hanko/internal/service"
+	"github.com/renatobardi/hanko/internal/textdiff"
 	"github.com/renatobardi/hanko/internal/ui/views"
 )
 
@@ -104,6 +105,20 @@ type Backend interface {
 	ListFlowFires(ctx context.Context, companyID, flowID domain.ID, limit int) ([]service.FlowFireView, error)
 	RunFlowNow(ctx context.Context, actor domain.Actor, companyID, flowID domain.ID) (service.FlowFireResult, error)
 
+	PutArtifact(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.PutArtifactInput) (service.ArtifactView, error)
+	ListArtifacts(ctx context.Context, companyID domain.ID, f service.ArtifactFilter) ([]service.ArtifactView, error)
+	GetArtifactView(ctx context.Context, companyID, id domain.ID) (service.ArtifactView, error)
+	ArtifactVersions(ctx context.Context, companyID, id domain.ID) ([]domain.Artifact, error)
+	ArtifactContent(ctx context.Context, companyID, id domain.ID) (domain.Artifact, []byte, error)
+	ArtifactDiff(ctx context.Context, companyID, from, to domain.ID) (textdiff.Result, error)
+	DeleteArtifact(ctx context.Context, actor domain.Actor, companyID, id domain.ID) error
+	GetArtifactUsage(ctx context.Context, companyID domain.ID) (service.ArtifactUsage, error)
+
+	CreateGoal(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.CreateGoalInput) (domain.Goal, error)
+	UpdateGoal(ctx context.Context, actor domain.Actor, companyID, goalID domain.ID, in service.UpdateGoalInput) (domain.Goal, error)
+	RecordGoalProgress(ctx context.Context, actor domain.Actor, companyID, goalID domain.ID, value float64, note string) (service.GoalView, error)
+	ListGoalViews(ctx context.Context, companyID domain.ID, f service.GoalFilter) ([]service.GoalView, error)
+	GetGoalView(ctx context.Context, companyID domain.ID, ref string) (service.GoalView, error)
 	ListConversations(ctx context.Context, companyID domain.ID, f service.ConversationFilter) ([]service.ConversationView, error)
 	GetConversation(ctx context.Context, companyID, id domain.ID) (service.ConversationView, error)
 	ListConversationMessages(ctx context.Context, companyID, id domain.ID, limit int) ([]domain.ConversationMessage, error)
@@ -286,6 +301,22 @@ func (s *server) routes(root *http.ServeMux) {
 	s.authRoutes(mux)
 
 	mux.HandleFunc("GET /c/{company}/atividade", co(s.handleActivity))
+	mux.HandleFunc("GET /c/{company}/artefatos", co(s.handleArtifacts))
+	mux.HandleFunc("GET /c/{company}/artefatos/novo", co(s.handleNewArtifact))
+	mux.HandleFunc("POST /c/{company}/artefatos/novo", post(co(s.handleUploadArtifact)))
+	mux.HandleFunc("GET /c/{company}/artefatos/{artifact}", co(s.handleArtifact))
+	mux.HandleFunc("GET /c/{company}/artefatos/{artifact}/conteudo", co(s.handleArtifactContent))
+	mux.HandleFunc("POST /c/{company}/artefatos/{artifact}/excluir", post(co(s.handleDeleteArtifact)))
+
+	mux.HandleFunc("GET /c/{company}/metas", co(s.handleGoals))
+	mux.HandleFunc("GET /c/{company}/metas/nova", co(s.handleNewGoal))
+	mux.HandleFunc("POST /c/{company}/metas/nova", post(co(s.handleCreateGoal)))
+	mux.HandleFunc("GET /c/{company}/metas/{goal}", co(s.handleGoal))
+	mux.HandleFunc("POST /c/{company}/metas/{goal}", post(co(s.handleUpdateGoal)))
+	mux.HandleFunc("POST /c/{company}/metas/{goal}/progresso", post(co(s.handleGoalProgress)))
+	mux.HandleFunc("POST /c/{company}/metas/{goal}/status", post(co(s.handleGoalStatus)))
+	mux.HandleFunc("POST /c/{company}/metas/{goal}/tasks", post(co(s.handleGoalLinkTask)))
+
 	mux.HandleFunc("GET /c/{company}/buscar", co(s.handleSearch))
 	mux.HandleFunc("GET /c/{company}/em-breve/{item}", co(s.handleSoon))
 	s.skillRoutes(mux)
@@ -393,6 +424,10 @@ func friendly(ctx context.Context, err error) (int, string, string) {
 	case http.StatusNotFound:
 		return st, i18n.T(ctx, "Não encontrado"), i18n.T(ctx, "O registro que você procura não existe nesta empresa.")
 	case http.StatusUnprocessableEntity:
+		var lim *service.ArtifactLimitError
+		if errors.As(err, &lim) {
+			return st, i18n.T(ctx, "Arquivo recusado"), artifactLimitMessage(ctx, lim)
+		}
 		var ve *domain.ValidationError
 		if errors.As(err, &ve) {
 			return st, i18n.T(ctx, "Dados inválidos"), ve.Field + ": " + ve.Reason + "."

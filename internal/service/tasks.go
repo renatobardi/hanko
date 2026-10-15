@@ -147,6 +147,11 @@ func (t *txc) createTask(actor domain.Actor, companyID domain.ID, in CreateTaskI
 			return TaskView{}, domain.Invalid("parent_id", "task not found in company")
 		}
 	}
+	if in.GoalID != nil {
+		if err := t.checkLinkableGoal(companyID, *in.GoalID); err != nil {
+			return TaskView{}, err
+		}
+	}
 
 	num, err := t.q.AllocateTaskNumber(ctx, companyID)
 	if err != nil {
@@ -156,7 +161,7 @@ func (t *txc) createTask(actor domain.Actor, companyID domain.ID, in CreateTaskI
 		ID: domain.NewID(), CompanyID: companyID, Number: num.Number, Title: title, Description: in.Description,
 		Status: string(status), Priority: string(prio), PersonaID: in.PersonaID, ProjectID: in.ProjectID,
 		WorkspaceID: wsID, ParentID: in.ParentID, CreatedByType: string(actor.Type), CreatedByID: actor.ID,
-		Model: strings.TrimSpace(in.Model), Now: t.now})
+		Model: strings.TrimSpace(in.Model), GoalID: in.GoalID, Now: t.now})
 	if err != nil {
 		return TaskView{}, mapErr(err, "create task")
 	}
@@ -209,7 +214,7 @@ func (s *Service) ListTasks(ctx context.Context, companyID domain.ID, f TaskFilt
 	if err := s.require(ctx, companyID, domain.MemberViewer); err != nil {
 		return nil, err
 	}
-	p := store.ListTaskViewsParams{CompanyID: companyID, PersonaID: f.PersonaID, ProjectID: f.ProjectID,
+	p := store.ListTaskViewsParams{CompanyID: companyID, PersonaID: f.PersonaID, ProjectID: f.ProjectID, GoalID: f.GoalID,
 		Lim: i32(clamp(f.Limit, 100, 500)), Off: i32(max(f.Offset, 0))}
 	if len(f.Statuses) > 0 {
 		p.Statuses = make([]string, len(f.Statuses))
@@ -352,6 +357,22 @@ func (s *Service) UpdateTask(ctx context.Context, actor domain.Actor, companyID,
 				p.ProjectID = in.ProjectID
 				fields = append(fields, "project_id")
 			}
+			if in.ClearGoal && in.GoalID != nil {
+				return domain.Invalid("goal_id", "cannot set and clear the goal at once")
+			}
+			newGoal, goalChanged := cur.GoalID, false
+			switch {
+			case in.ClearGoal && cur.GoalID != nil:
+				newGoal, goalChanged = nil, true
+			case in.GoalID != nil && !sameID(cur.GoalID, in.GoalID):
+				if err := t.checkLinkableGoal(companyID, *in.GoalID); err != nil {
+					return err
+				}
+				newGoal, goalChanged = in.GoalID, true
+			}
+			if goalChanged {
+				fields = append(fields, "goal_id")
+			}
 			if len(fields) > 0 {
 				acts = append(acts, act{"task.updated", map[string]any{"fields": fields}})
 			}
@@ -424,6 +445,12 @@ func (s *Service) UpdateTask(ctx context.Context, actor domain.Actor, companyID,
 			row, err := t.q.UpdateTask(ctx, p)
 			if err != nil {
 				return mapErr(err, "update task")
+			}
+			if goalChanged {
+				if err := t.q.SetTaskGoal(ctx, store.SetTaskGoalParams{CompanyID: companyID, ID: taskID, GoalID: newGoal, Now: t.now}); err != nil {
+					return fmt.Errorf("set task goal: %w", err)
+				}
+				row.GoalID = newGoal
 			}
 			if actor.Type != domain.ActorPersona && (statusChanged || personaChanged) {
 				// status/assignment by a human or the system: the one kind of edit the safety net may wake for

@@ -147,6 +147,16 @@ func (s *server) handleRun(w http.ResponseWriter, r *http.Request, co domain.Com
 	vm := s.runVM(ctx, co, rv, "", lines, last)
 	vm.IslandAPI, vm.LogMsgs, vm.TZ, vm.Lang = islandAPI(co), runLogMsgs(ctx), co.Timezone, string(i18n.FromContext(ctx))
 	vm.AnchorMsgs, vm.SummaryDoc = anchorMsgs(ctx), docOf(rv.Summary)
+	const runArtifactsMax = 20
+	arts, err := s.be.ListArtifacts(ctx, co.ID, service.ArtifactFilter{RunID: &rv.ID, AllVersions: true, Limit: runArtifactsMax})
+	if err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
+	vm.Artifacts = artifactMinis(ctx, arts, "/c/"+co.Slug)
+	if len(arts) == runArtifactsMax {
+		vm.ArtifactsHref = "/c/" + co.Slug + "/artefatos?execucao=" + rv.ID.String()
+	}
 	vm.SummaryAnchors = "[]"
 	if strings.TrimSpace(rv.Summary) != "" {
 		if cs, err := s.be.ListComments(ctx, co.ID, rv.TaskID); err == nil {

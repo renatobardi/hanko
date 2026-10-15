@@ -242,6 +242,7 @@ type CreateTaskReq struct {
 	Persona     string `json:"persona,omitempty"`
 	Project     string `json:"project,omitempty"`
 	Workspace   string `json:"workspace,omitempty"`
+	Goal        string `json:"goal,omitempty"`
 	Parent      string `json:"parent,omitempty"`
 	Model       string `json:"model,omitempty"`
 	EventID     string `json:"event_id,omitempty"`
@@ -256,6 +257,8 @@ type UpdateTaskReq struct {
 	Unassign     bool    `json:"unassign,omitempty"`
 	Project      string  `json:"project,omitempty"`
 	ClearProject bool    `json:"clear_project,omitempty"`
+	Goal         string  `json:"goal,omitempty"`
+	ClearGoal    bool    `json:"clear_goal,omitempty"`
 	Model        *string `json:"model,omitempty"`
 }
 
@@ -268,13 +271,13 @@ type AddCommentReq struct {
 
 // TaskQuery são os filtros de ListTasks.
 type TaskQuery struct {
-	Status, Persona, Project, Q string
-	Limit, Offset               int
+	Status, Persona, Project, Q, Goal string
+	Limit, Offset                     int
 }
 
 func (t TaskQuery) values() url.Values {
 	q := url.Values{}
-	for k, v := range map[string]string{"status": t.Status, "persona": t.Persona, "project": t.Project, "q": t.Q} {
+	for k, v := range map[string]string{"status": t.Status, "persona": t.Persona, "project": t.Project, "q": t.Q, "goal": t.Goal} {
 		if v != "" {
 			q.Set(k, v)
 		}

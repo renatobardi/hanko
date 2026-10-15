@@ -10,10 +10,12 @@ import (
 	"sort"
 
 	"github.com/spf13/cobra"
+
+	"github.com/renatobardi/hanko/internal/client"
 )
 
 func (e *env) exportCmd() *cobra.Command {
-	var withRuns, withLogs bool
+	var withRuns, withLogs, withArtifacts bool
 	var outFile string
 	c := &cobra.Command{
 		Use: "export", Short: e.t("Exporta a empresa como arquivo JSON portátil (sem segredos): hanko export > arq.json"), Args: cobra.NoArgs,
@@ -22,7 +24,7 @@ func (e *env) exportCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			raw, err := e.client().ExportCompany(cmd.Context(), co, withRuns, withLogs)
+			raw, err := e.client().ExportCompany(cmd.Context(), co, client.ExportOpts{Runs: withRuns, Logs: withLogs, Artifacts: withArtifacts})
 			if err != nil {
 				return err
 			}
@@ -46,6 +48,7 @@ func (e *env) exportCmd() *cobra.Command {
 	}
 	c.Flags().BoolVar(&withRuns, "with-runs", false, e.t("inclui as execuções encerradas (sem logs)"))
 	c.Flags().BoolVar(&withLogs, "with-logs", false, e.t("inclui também os logs das execuções (implica --with-runs)"))
+	c.Flags().BoolVar(&withArtifacts, "with-artifacts", false, e.t("inclui as versões dos artefatos, com o conteúdo (até 20 MiB no total)"))
 	c.Flags().StringVarP(&outFile, "output", "o", "", e.t("grava neste arquivo (permissão 0600) em vez da saída padrão"))
 	return c
 }

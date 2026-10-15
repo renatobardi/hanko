@@ -9,14 +9,22 @@ import (
 	"github.com/renatobardi/hanko/internal/api"
 )
 
+// ExportOpts escolhe o que mais entra no arquivo exportado.
+type ExportOpts struct {
+	Runs, Logs, Artifacts bool
+}
+
 // ExportCompany devolve o arquivo hanko.company.v1 exatamente como o servidor o gerou.
-func (c *Client) ExportCompany(ctx context.Context, company string, withRuns, withLogs bool) (json.RawMessage, error) {
+func (c *Client) ExportCompany(ctx context.Context, company string, o ExportOpts) (json.RawMessage, error) {
 	q := url.Values{}
-	if withRuns {
+	if o.Runs {
 		q.Set("with_runs", "true")
 	}
-	if withLogs {
+	if o.Logs {
 		q.Set("with_logs", "true")
+	}
+	if o.Artifacts {
+		q.Set("with_artifacts", "true")
 	}
 	var out json.RawMessage
 	if err := c.doWith(ctx, c.longHTTP(), http.MethodGet, cp(company)+"/export", q, nil, &out); err != nil {

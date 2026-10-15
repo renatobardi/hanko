@@ -69,6 +69,7 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 	svc.Log = logger
 	svc.WorkspacesRoot = cfg.WorkspacesRoot
 	svc.RunReserveUSD = cfg.RunReserveUSD
+	svc.ArtifactMaxBytes, svc.ArtifactQuotaBytes = cfg.ArtifactMaxBytes, cfg.ArtifactQuotaBytes
 	svc.MemoryProvider = cfg.Memory.Provider
 	svc.Alerts = service.AlertConfig{SilentFactor: cfg.AlertSilentFactor, RunStuckAfter: cfg.AlertRunStuckAfter}
 	box, err := secretbox.New(cfg.SecretKey, cfg.SecretKeyPrevious)

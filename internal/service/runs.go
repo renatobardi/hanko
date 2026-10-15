@@ -515,6 +515,9 @@ func (s *Service) LoadRunContext(ctx context.Context, companyID, runID domain.ID
 			return RunContext{}, fmt.Errorf("get workspace: %w", err)
 		}
 	}
+	if rc.Goals, err = goalBriefs(ctx, q, companyID, task); err != nil {
+		return RunContext{}, err
+	}
 	return rc, nil
 }
 

@@ -27,6 +27,8 @@ type Document struct {
 	Skills        []Skill        `json:"skills,omitempty" doc:"Skills da empresa (SKILL.md); a ligação com as personas está em personas[].skills. Opcional (ADR-0029)."`
 	Integrations  []Integration  `json:"integrations,omitempty" doc:"Integrações SEM segredos (headers, variáveis, segredo HMAC); entram desligadas na importação. Opcional (ADR-0029)."`
 	Runs          []Run          `json:"runs,omitempty" doc:"Só com with_runs: execuções encerradas, sem logs a menos que with_logs."`
+	// Artifacts só vem com with_artifacts (ADR-0028); arquivos antigos não têm o campo, e o formato continua v1.
+	Artifacts []Artifact `json:"artifacts,omitempty" doc:"Só com with_artifacts: todas as versões dos artefatos, com o conteúdo em base64."`
 }
 
 // Company são os dados da empresa. Os preços de modelo são da instalação, não da empresa, e não viajam.
@@ -184,4 +186,21 @@ type Run struct {
 	StartedAt    *time.Time `json:"started_at,omitempty"`
 	FinishedAt   *time.Time `json:"finished_at,omitempty"`
 	Events       []RunEvent `json:"events,omitempty" doc:"Só com with_logs."`
+}
+
+// Artifact é uma versão de artefato (ADR-0028). Referências por número de task, slug e chave de run, como o resto
+// do arquivo; as versões de um mesmo artefato (task, nome) vêm em ordem crescente.
+type Artifact struct {
+	Name      string    `json:"name"`
+	Mime      string    `json:"mime"`
+	Version   int       `json:"version"`
+	Task      int64     `json:"task,omitempty" doc:"Número da task; ausente = artefato da empresa."`
+	Project   string    `json:"project,omitempty"`
+	Persona   string    `json:"persona,omitempty" doc:"Slug da persona autora."`
+	Run       string    `json:"run,omitempty" doc:"Chave (key) da execução, quando o arquivo traz runs."`
+	Author    Actor     `json:"author"`
+	SHA256    string    `json:"sha256"`
+	SizeBytes int64     `json:"size_bytes"`
+	Content   []byte    `json:"content" doc:"Conteúdo em base64."`
+	CreatedAt time.Time `json:"created_at"`
 }

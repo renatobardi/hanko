@@ -17,6 +17,12 @@ templ TasksPage(sh Shell, vm TasksVM) {
 				<a href={ templ.SafeURL(vm.ClearHref) }>{ i18n.T(ctx, "limpar filtro") }</a>
 			</p>
 		}
+		if vm.Goal != "" {
+			<p class="filter-chip">
+				<span class="chip soft">@Icon("trending-up") { i18n.T(ctx, "Meta") } <a href={ templ.SafeURL(vm.GoalHref) }>{ vm.GoalTitle }</a></span>
+				<a href={ templ.SafeURL(vm.GoalClear) }>{ i18n.T(ctx, "limpar filtro") }</a>
+			</p>
+		}
 		<div class="toolbar">
 			@Tabs(vm.Tabs)
 			<span class="grow"></span>
@@ -24,6 +30,9 @@ templ TasksPage(sh Shell, vm TasksVM) {
 				<input type="hidden" name="aba" value={ vm.Tab }/>
 				if vm.Project != "" {
 					<input type="hidden" name="projeto" value={ vm.Project }/>
+				}
+				if vm.Goal != "" {
+					<input type="hidden" name="meta" value={ vm.Goal }/>
 				}
 				<input
 					class="input"
@@ -33,7 +42,7 @@ templ TasksPage(sh Shell, vm TasksVM) {
 					placeholder={ i18n.T(ctx, "Buscar tasks...") }
 					aria-label={ i18n.T(ctx, "Buscar tasks") }
 					hx-get={ sh.Base() + "/tasks" }
-					hx-include="[name='aba'], [name='projeto']"
+					hx-include="[name='aba'], [name='projeto'], [name='meta']"
 					hx-trigger="input changed delay:300ms, search"
 					hx-target="#tasks-list"
 					hx-swap="outerHTML"
@@ -198,6 +207,9 @@ templ TaskSide(vm TaskVM, base string) {
 				<label class="prop"><span>{ i18n.T(ctx, "Prioridade") }</span>@Select("priority", "f-priority", vm.PriorityOptions, true)</label>
 				<label class="prop"><span>Persona</span>@Select("persona", "f-persona", vm.PersonaOptions, true)</label>
 				<label class="prop"><span>{ i18n.T(ctx, "Projeto") }</span>@Select("project", "f-project", vm.ProjectOptions, true)</label>
+				if len(vm.GoalOptions) > 1 {
+					<label class="prop"><span>{ i18n.T(ctx, "Meta") }</span>@Select("goal", "f-goal", vm.GoalOptions, true)</label>
+				}
 				<div class="prop"><span>{ i18n.T(ctx, "Criada") }</span><span class="mono" style="font-size:12.5px">{ vm.Created }</span></div>
 				<div class="prop"><span>{ i18n.T(ctx, "Atualizada") }</span><span class="mono" style="font-size:12.5px">{ vm.Updated }</span></div>
 			</div>
@@ -213,6 +225,10 @@ templ TaskSide(vm TaskVM, base string) {
 			if vm.Model != "" {
 				<div class="prop"><span>{ i18n.T(ctx, "Modelo (manual)") }</span><span class="mono" style="text-align:right">{ vm.Model }</span></div>
 			}
+		</div>
+		<div class="side-sec">
+			<div class="side-h" style="display:flex;justify-content:space-between"><span>{ i18n.T(ctx, "Artefatos") }</span><a href={ templ.SafeURL(vm.ArtifactsHref) } style="text-transform:none;letter-spacing:0;font-weight:400">{ i18n.T(ctx, "Ver todos") }</a></div>
+			@ArtifactMiniList(vm.Artifacts, "")
 		</div>
 		<div class="side-sec">
 			<div class="side-h" style="display:flex;justify-content:space-between"><span>{ i18n.T(ctx, "Execuções") }</span><a href={ templ.SafeURL(base + "/execucoes") } style="text-transform:none;letter-spacing:0;font-weight:400">{ i18n.T(ctx, "Ver todas") }</a></div>
@@ -281,6 +297,12 @@ templ NewTaskPage(sh Shell, vm NewTaskVM) {
 						<div class="field">
 							<label for="t-proj">{ i18n.T(ctx, "Projeto") }</label>
 							@Select("project", "t-proj", vm.ProjectOptions, false)
+						</div>
+					}
+					if len(vm.GoalOptions) > 1 {
+						<div class="field">
+							<label for="t-goal">{ i18n.T(ctx, "Meta") }</label>
+							@Select("goal", "t-goal", vm.GoalOptions, false)
 						</div>
 					}
 				</div>

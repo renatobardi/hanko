@@ -60,6 +60,29 @@ type ApiKey struct {
 	RevokedAt  *time.Time
 }
 
+type Artifact struct {
+	ID         uuid.UUID
+	CompanyID  uuid.UUID
+	TaskID     *uuid.UUID
+	RunID      *uuid.UUID
+	ProjectID  *uuid.UUID
+	PersonaID  *uuid.UUID
+	AuthorType string
+	AuthorID   *uuid.UUID
+	Name       string
+	Mime       string
+	SizeBytes  int64
+	Sha256     string
+	Version    int32
+	CreatedAt  time.Time
+}
+
+type ArtifactBlob struct {
+	ArtifactID uuid.UUID
+	CompanyID  uuid.UUID
+	Content    []byte
+}
+
 type BudgetAlert struct {
 	ID        uuid.UUID
 	CompanyID uuid.UUID
@@ -191,6 +214,39 @@ type Gate struct {
 	ReviewJustification  string
 	ReviewArtifactSha256 string
 	ReviewRunID          *uuid.UUID
+}
+
+type Goal struct {
+	ID             uuid.UUID
+	CompanyID      uuid.UUID
+	ProjectID      *uuid.UUID
+	Slug           string
+	Title          string
+	Description    string
+	Metric         string
+	Unit           string
+	StartValue     float64
+	TargetValue    float64
+	CurrentValue   float64
+	DueDate        *time.Time
+	Status         string
+	OwnerPersonaID *uuid.UUID
+	CreatedByType  string
+	CreatedByID    *uuid.UUID
+	AchievedAt     *time.Time
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
+type GoalUpdate struct {
+	ID         uuid.UUID
+	CompanyID  uuid.UUID
+	GoalID     uuid.UUID
+	Value      float64
+	Note       string
+	AuthorType string
+	AuthorID   *uuid.UUID
+	CreatedAt  time.Time
 }
 
 type Integration struct {
@@ -503,6 +559,7 @@ type Task struct {
 	LastHumanChangeAt *time.Time
 	Model             string
 	SearchTsv         interface{}
+	GoalID            *uuid.UUID
 }
 
 type TaskComment struct {

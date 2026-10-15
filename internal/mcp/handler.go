@@ -34,6 +34,10 @@ type Backend interface {
 	RequestGate(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.RequestGateInput) (service.GateView, error)
 	GetGate(ctx context.Context, companyID, gateID domain.ID) (service.GateView, error)
 	ListGates(ctx context.Context, companyID domain.ID, f service.GateFilter) ([]service.GateView, error)
+	PutArtifact(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.PutArtifactInput) (service.ArtifactView, error)
+	GetGoal(ctx context.Context, companyID domain.ID, ref string) (domain.Goal, error)
+	ListGoalViews(ctx context.Context, companyID domain.ID, f service.GoalFilter) ([]service.GoalView, error)
+	RecordGoalProgress(ctx context.Context, actor domain.Actor, companyID, goalID domain.ID, value float64, note string) (service.GoalView, error)
 	Search(ctx context.Context, companyID domain.ID, q string, f service.SearchFilter) (service.SearchResult, error)
 }
 
@@ -84,7 +88,7 @@ func newHandler(b Backend, d Deps) http.Handler {
 		version = "dev"
 	}
 	srv := sdk.NewServer(&sdk.Implementation{Name: "hanko", Title: "Hanko", Version: version}, &sdk.ServerOptions{
-		Instructions: "Hanko: control plane de agentes. Use as tools hanko_* para ler e atualizar tasks, comentar e consultar execuções.",
+		Instructions: "Hanko: control plane de agentes. Use as tools hanko_* para ler e atualizar tasks, comentar, publicar artefatos, registrar o progresso de metas e consultar execuções.",
 		Logger:       logger,
 	})
 	registerTools(srv, &tools{b: b, log: logger})

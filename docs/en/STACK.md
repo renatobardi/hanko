@@ -149,3 +149,11 @@ inside the run directory through `fs/read_text_file` and `fs/write_text_file` (w
 (Hanko's own `/mcp`) are passed only if the agent advertises `mcpCapabilities.http`. Out of scope: `terminal/*`, interactive
 authentication and ACP v2. `acp` cannot be an alternate review harness (`reviewer_agent`), only a reviewer persona.
 Installing the agent and troubleshooting: `docs/en/RUNBOOK.md`.
+
+## 10. Artifacts and goals (ADR-0028)
+Artifacts live in Postgres (`artifacts` for metadata and `artifact_blobs` for the `bytea`), so there is no extra directory to back
+up; limits per file and per company are `HANKO_ARTIFACT_MAX_BYTES` and `HANKO_ARTIFACT_QUOTA_BYTES`. `internal/artifactsrv` is the
+only place that serves the bytes (nosniff, a sandboxing CSP, inline only for plain text, Markdown and raster images) and
+`internal/textdiff` computes the text diff between versions with no new dependency. Goals (`goals`, `goal_updates`,
+`tasks.goal_id`) compute progress in the service and the UI draws the history as server-side SVG, with no script. Export/import:
+`artifacts` is optional (`--with-artifacts`, up to 20 MiB); goals do not travel.

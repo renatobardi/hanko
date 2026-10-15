@@ -22,6 +22,7 @@ type listTasksIn struct {
 	Persona string `query:"persona" doc:"Id ou slug da persona atribuída."`
 	Project string `query:"project" doc:"Id ou slug do projeto."`
 	Q       string `query:"q" doc:"Busca textual em título e descrição."`
+	Goal    string `query:"goal" doc:"Id ou slug da meta a que as tasks servem."`
 }
 
 type createTaskIn struct {
@@ -34,6 +35,7 @@ type createTaskIn struct {
 		Persona     string `json:"persona,omitempty" doc:"Id ou slug da persona; atribuir uma task workable acorda a persona."`
 		Project     string `json:"project,omitempty" doc:"Id ou slug do projeto."`
 		Workspace   string `json:"workspace,omitempty" doc:"Id ou slug do workspace."`
+		Goal        string `json:"goal,omitempty" doc:"Id ou slug de uma meta ativa a que a task serve."`
 		Model       string `json:"model,omitempty" example:"claude-opus-4-5" doc:"Modelo escolhido à mão; vence o da persona."`
 		Parent      string `json:"parent,omitempty" doc:"Id ou chave da task pai."`
 		EventID     string `json:"event_id,omitempty" maxLength:"200" doc:"Chave de idempotência: repetir devolve a task existente."`
@@ -51,6 +53,8 @@ type updateTaskIn struct {
 		Unassign     bool    `json:"unassign,omitempty" doc:"Remove a atribuição."`
 		Project      string  `json:"project,omitempty" doc:"Id ou slug do projeto."`
 		ClearProject bool    `json:"clear_project,omitempty" doc:"Tira a task do projeto."`
+		Goal         string  `json:"goal,omitempty" doc:"Id ou slug de uma meta ativa a que a task passa a servir."`
+		ClearGoal    bool    `json:"clear_goal,omitempty" doc:"Desliga a task da meta."`
 		Model        *string `json:"model,omitempty" doc:"Modelo escolhido à mão; vazio remove a escolha (volta ao da persona)."`
 		EventID      string  `json:"event_id,omitempty" maxLength:"200" doc:"Chave de idempotência."`
 	}
@@ -121,6 +125,10 @@ func (s *server) registerTasks(api huma.API) {
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}
+			goal, err := s.goalRef(ctx, cid, b.Goal)
+			if err != nil {
+				return nil, s.fail(ctx, err)
+			}
 			if b.Model != "" {
 				if err := forbidPersona(ctx); err != nil {
 					return nil, err
@@ -128,7 +136,7 @@ func (s *server) registerTasks(api huma.API) {
 			}
 			t, err := s.svc.CreateTask(ctx, sc.Actor, cid, service.CreateTaskInput{
 				Title: b.Title, Description: b.Description, Status: domain.TaskStatus(b.Status),
-				Priority: domain.Priority(b.Priority), PersonaID: persona, ProjectID: project, WorkspaceID: ws,
+				Priority: domain.Priority(b.Priority), PersonaID: persona, ProjectID: project, WorkspaceID: ws, GoalID: goal,
 				ParentID: parent, Model: b.Model, EventID: b.EventID})
 			if err != nil {
 				return nil, s.fail(ctx, err)
@@ -154,8 +162,12 @@ func (s *server) registerTasks(api huma.API) {
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}
+			goal, err := s.goalRef(ctx, sc.Company.ID, in.Goal)
+			if err != nil {
+				return nil, s.fail(ctx, err)
+			}
 			ts, err := s.svc.ListTasks(ctx, sc.Company.ID, service.TaskFilter{
-				Statuses: statuses, PersonaID: persona, ProjectID: project, Query: in.Q, Limit: in.Limit, Offset: in.Offset})
+				Statuses: statuses, PersonaID: persona, ProjectID: project, GoalID: goal, Query: in.Q, Limit: in.Limit, Offset: in.Offset})
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}
@@ -216,6 +228,10 @@ func (s *server) registerTasks(api huma.API) {
 			if up.ProjectID, err = s.projectRef(ctx, sc.Company.ID, b.Project); err != nil {
 				return nil, s.fail(ctx, err)
 			}
+			if up.GoalID, err = s.goalRef(ctx, sc.Company.ID, b.Goal); err != nil {
+				return nil, s.fail(ctx, err)
+			}
+			up.ClearGoal = b.ClearGoal
 			t, err := s.svc.UpdateTask(ctx, sc.Actor, sc.Company.ID, cur.ID, up)
 			if err != nil {
 				return nil, s.fail(ctx, err)

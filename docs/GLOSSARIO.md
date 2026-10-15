@@ -18,7 +18,8 @@ Um termo por conceito. Código, API, MCP e banco em inglês; UI em pt-BR. Em dú
 | flow | Fluxo | Definição + gatilhos (cron, evento, manual) → cria tasks/runs. | routine, schedule |
 | workspace | Workspace | Diretório (e, como metadado, repositório e branch) onde as runs trabalham; vive dentro de `HANKO_WORKSPACES_ROOT`. Escopo da memória (ai-memory) e dos artefatos. Precedência na run: task > projeto > persona (ADR-0025). | repo |
 | integration | Integração | Serviço externo conectado (GitHub, Slack…). | connector, app |
-| goal / project | Meta / Projeto | Direção: meta mede; projeto agrupa tasks, aponta para um workspace, está ativo ou arquivado e pode ter orçamento mensal (ADR-0025). | — |
+| goal | Meta | Objetivo mensurável: valor inicial, alvo e valor atual; o progresso vai de 0 a 100% e a meta é atingida ao cruzar o alvo. Tasks se ligam a uma meta ativa (ADR-0028). | objetivo, OKR |
+| project | Projeto | Agrupa tasks, aponta para um workspace, está ativo ou arquivado e pode ter orçamento mensal (ADR-0025). | — |
 | org_chart | Organograma | `reports_to` entre personas; delegação segue a árvore. | hierarchy |
 | inbox / decision | Caixa de entrada / Decisão | O que espera o humano: gates, bloqueios, alertas. | — |
 | cost / budget | Custos e orçamentos | Ledger por run → persona → company; orçamento com hard stop. | spend |
@@ -33,7 +34,8 @@ Um termo por conceito. Código, API, MCP e banco em inglês; UI em pt-BR. Em dú
 | api key | Chave de API | `hk_…` de um usuário para API, MCP e CLI; só o hash fica no banco; revogável. Não é o run token da persona. | token (ambíguo) |
 | skill | Skill | Habilidade reutilizável em markdown (`SKILL.md`) que uma persona carrega sob demanda; ligada por persona (ADR-0029). | plugin (só no sentido nativo do harness) |
 | integration | Integração | Serviço externo da empresa: servidor MCP injetado nas runs ou webhook de saída assinado com HMAC (ADR-0029). Os segredos ficam cifrados e nunca voltam. | connector |
-| artifact · secret | Artefato · Segredo | Como nomeados. | — |
+| artifact | Artefato | Arquivo entregue por uma persona ou enviado por uma pessoa, com versões imutáveis: o mesmo nome na mesma task cria a versão seguinte (ADR-0028). | anexo, work product |
+| secret | Segredo | Como nomeado. | — |
 | memory consolidation | Consolidação de memória | Run de sistema (gatilho `memory`) em que a persona curadora deduplica e resume a memória de um workspace; custo no ledger. | — |
 | memory proposal | Proposta de curadoria | Escrita destrutiva da curadoria retida pelo proxy, com diff e sha256; só vai ao ai-memory após o gate `memory`. | pending write (ambíguo) |
 | memory grant | Concessão de memória | Permissão persona × workspace (`read`/`write`) para alcançar a memória de outro workspace da empresa. | — |

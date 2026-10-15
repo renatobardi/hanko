@@ -907,7 +907,7 @@ func (q *Queries) ListWakeCandidates(ctx context.Context, arg ListWakeCandidates
 }
 
 const listWorkableTasksForPersona = `-- name: ListWorkableTasksForPersona :many
-SELECT id, company_id, number, title, description, status, priority, persona_id, project_id, workspace_id, parent_id, created_by_type, created_by_id, created_at, updated_at, closed_at, last_human_change_at, model, search_tsv FROM tasks WHERE persona_id = $1 AND status IN ('todo', 'in_progress') ORDER BY updated_at, id
+SELECT id, company_id, number, title, description, status, priority, persona_id, project_id, workspace_id, parent_id, created_by_type, created_by_id, created_at, updated_at, closed_at, last_human_change_at, model, search_tsv, goal_id FROM tasks WHERE persona_id = $1 AND status IN ('todo', 'in_progress') ORDER BY updated_at, id
 `
 
 func (q *Queries) ListWorkableTasksForPersona(ctx context.Context, personaID *uuid.UUID) ([]Task, error) {
@@ -939,6 +939,7 @@ func (q *Queries) ListWorkableTasksForPersona(ctx context.Context, personaID *uu
 			&i.LastHumanChangeAt,
 			&i.Model,
 			&i.SearchTsv,
+			&i.GoalID,
 		); err != nil {
 			return nil, err
 		}

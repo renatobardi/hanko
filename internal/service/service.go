@@ -76,6 +76,9 @@ type Service struct {
 	ExportIdleTxTimeout, ExportStatementTimeout time.Duration
 	// ExportPageHook (só testes) roda antes de cada página de eventos do export; um erro interrompe a escrita.
 	ExportPageHook func(page int) error
+	// ArtifactMaxBytes é o tamanho máximo de um artefato (HANKO_ARTIFACT_MAX_BYTES) e ArtifactQuotaBytes a cota
+	// por empresa, somando todas as versões (HANKO_ARTIFACT_QUOTA_BYTES); zero usa os padrões (5 MiB e 512 MiB).
+	ArtifactMaxBytes, ArtifactQuotaBytes int64
 	// Integrations é a política e o cofre das integrações (ADR-0029). O zero value é o seguro: stdio desligado,
 	// destinos internos bloqueados e sem chave de cifragem.
 	Integrations IntegrationsConfig
@@ -171,6 +174,7 @@ type CreateTaskInput struct {
 	PersonaID   *domain.ID
 	ProjectID   *domain.ID
 	WorkspaceID *domain.ID // explicit choice; wins over the project's and the persona's workspace at run time (ADR-0025)
+	GoalID      *domain.ID // meta a que a task serve (ADR-0028); só meta ativa
 	Model       string     // manual model choice (wins over the persona's); empty = none
 	ParentID    *domain.ID
 	EventID     string // idempotency key (agents/MCP)
@@ -190,14 +194,18 @@ type UpdateTaskInput struct {
 	ProjectID   *domain.ID
 	// ClearProject takes the task out of its project.
 	ClearProject bool
-	Model        *string // manual model choice; empty string clears it
-	EventID      string
+	// GoalID liga a task a uma meta ativa; ClearGoal desliga (ADR-0028).
+	GoalID    *domain.ID
+	ClearGoal bool
+	Model     *string // manual model choice; empty string clears it
+	EventID   string
 }
 
 type TaskFilter struct {
 	Statuses  []domain.TaskStatus
 	PersonaID *domain.ID
 	ProjectID *domain.ID
+	GoalID    *domain.ID
 	Query     string
 	Limit     int // default 100, max 500
 	Offset    int
@@ -278,6 +286,8 @@ type RunContext struct {
 	PendingResult *FinishRunInput
 	// Review is set for runs with trigger review.
 	Review *ReviewContext
+	// Goals são as metas ativas do projeto da task (e a da própria task), em formato curto (ADR-0028).
+	Goals []GoalBrief
 	// Chat is set for runs with trigger chat (no task: Task and Comments are empty).
 	Chat *ChatContext
 }

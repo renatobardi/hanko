@@ -74,8 +74,9 @@ var slugParamRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,62}$`)
 
 type exportIn struct {
 	CompanyPath
-	WithRuns bool `query:"with_runs" doc:"Inclui as execuções encerradas (sem os logs)."`
-	WithLogs bool `query:"with_logs" doc:"Inclui também os eventos (log) das execuções; implica with_runs. O arquivo é escrito em fluxo, run a run."`
+	WithRuns      bool `query:"with_runs" doc:"Inclui as execuções encerradas (sem os logs)."`
+	WithLogs      bool `query:"with_logs" doc:"Inclui também os eventos (log) das execuções; implica with_runs. O arquivo é escrito em fluxo, run a run."`
+	WithArtifacts bool `query:"with_artifacts" doc:"Inclui todas as versões dos artefatos, com o conteúdo em base64 (até 20 MiB no total, para o arquivo caber na importação)."`
 }
 
 // exportDoc é o arquivo portátil no OpenAPI: um objeto livre (o formato é documentado no ADR-0022 e
@@ -120,7 +121,7 @@ func (s *server) registerExport(api huma.API) {
 		ectx, cancel := context.WithTimeout(ctx, s.xfer.ExportTimeout)
 		// OpenExport confere o papel e monta tudo menos os logs ANTES do primeiro byte: os erros ainda viram
 		// status HTTP. Os eventos saem run a run, em páginas, durante a escrita.
-		st, err := s.svc.OpenExport(ectx, sc.Company.ID, service.ExportOptions{WithRuns: in.WithRuns, WithLogs: in.WithLogs})
+		st, err := s.svc.OpenExport(ectx, sc.Company.ID, service.ExportOptions{WithRuns: in.WithRuns, WithLogs: in.WithLogs, WithArtifacts: in.WithArtifacts})
 		if err != nil {
 			cancel()
 			s.exportGate.release()
