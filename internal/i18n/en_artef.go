@@ -1,0 +1,110 @@
+package i18n
+
+// enArtef holds the English texts of artifacts and goals (ADR-0028): the /artefatos and /metas screens, the artifact
+// and goal sections of the task, run, project and inbox pages, and the CLI commands for both. init merges them into
+// the catalog; a key that is already translated elsewhere is not repeated here (a duplicate panics at start-up).
+var enArtef = map[string]string{
+	// CLI: artifact
+	"Publica e consulta artefatos (arquivos com versões)":                                  "Publishes and queries artifacts (versioned files)",
+	"Publica um arquivo como artefato (o mesmo nome na mesma task cria a versão seguinte)": "Publishes a file as an artifact (the same name on the same task creates the next version)",
+	"com entrada padrão (-), informe --name":                                               "with standard input (-), give --name",
+	"o arquivo passa de %d bytes":                                                          "the file is larger than %d bytes",
+	"Artefato %s v%d publicado (%s, %s)\n":                                                 "Artifact %s v%d published (%s, %s)\n",
+	"id: %s\n":                                                                             "id: %s\n",
+	"nome do artefato (padrão: o nome do arquivo)":                                         "artifact name (default: the file name)",
+	"tipo do conteúdo (padrão: deduzido do nome e do conteúdo)":                            "content type (default: inferred from the name and the content)",
+	"task a que pertence (id ou chave)":                                                    "task it belongs to (id or key)",
+	"execução de origem (id)":                                                              "originating run (id)",
+	"projeto (id ou slug); padrão: o da task":                                              "project (id or slug); default: the task's",
+	"Lista artefatos (a versão mais nova de cada um)":                                      "Lists artifacts (the newest version of each)",
+	"VERSÃO":    "VERSION",
+	"TAMANHO":   "SIZE",
+	"CRIADO EM": "CREATED AT",
+	"filtra pela persona autora (id ou slug)":    "filters by author persona (id or slug)",
+	"filtra por execução (id)":                   "filters by run (id)",
+	"tipo: markdown, text, image ou other":       "kind: markdown, text, image or other",
+	"busca pelo nome":                            "searches by name",
+	"lista todas as versões, não só a mais nova": "lists all versions, not only the newest",
+	"Baixa o conteúdo de uma versão (saída padrão ou -o arquivo); --info mostra os metadados e as versões": "Downloads the content of a version (standard output or -o file); --info shows the metadata and the versions",
+	"Tamanho":              "Size",
+	"Versão":               "Version",
+	"AUTOR":                "AUTHOR",
+	"gravado em %s (%s)\n": "written to %s (%s)\n",
+	"mostra os metadados e o histórico de versões em vez do conteúdo": "shows the metadata and the version history instead of the content",
+	"Compara o texto de uma versão com a anterior (ou com --against)": "Compares the text of a version with the previous one (or with --against)",
+	"v%d → v%d: +%d −%d\n":                                   "v%d → v%d: +%d −%d\n",
+	"id da versão a comparar (padrão: a anterior)":           "id of the version to compare with (default: the previous one)",
+	"Apaga o artefato com todas as versões (admin)":          "Deletes the artifact with all its versions (admin)",
+	"Artefato %s apagado.\n":                                 "Artifact %s deleted.\n",
+	"Mostra o espaço de artefatos usado e a cota da empresa": "Shows the artifact space used and the company quota",
+	"Usado":              "Used",
+	"Cota":               "Quota",
+	"Versões":            "Versions",
+	"Máximo por arquivo": "Maximum per file",
+	"inclui as versões dos artefatos, com o conteúdo (até 20 MiB no total)": "includes the artifact versions, with their content (up to 20 MiB in total)",
+
+	// CLI: goal
+	"%.0f%% (%s de %s%s)": "%.0f%% (%s of %s%s)",
+	"ativa":               "active",
+	"atingida":            "achieved",
+	"abandonada":          "abandoned",
+	"Gerencia metas (objetivos mensuráveis)":                            "Manages goals (measurable objectives)",
+	"Cria uma meta: sai do valor inicial e deve chegar ao alvo (admin)": "Creates a goal: it starts at the initial value and must reach the target (admin)",
+	"informe o alvo com --target":                                       "give the target with --target",
+	"Meta criada: %s (%s)\n":                                            "Goal created: %s (%s)\n",
+	"slug (derivado do título se omitido)":                              "slug (derived from the title if omitted)",
+	"o que se mede (ex.: usuários ativos)":                              "what is measured (e.g. active users)",
+	"unidade (ex.: usuários, ms, %)":                                    "unit (e.g. users, ms, %)",
+	"valor inicial":                                                     "initial value",
+	"valor a atingir (pode ser menor que o inicial)":                    "value to reach (may be lower than the initial one)",
+	"valor atual (padrão: o inicial)":                                   "current value (default: the initial one)",
+	"prazo, AAAA-MM-DD":                                                 "due date, YYYY-MM-DD",
+	"persona dona da meta (id ou slug)":                                 "persona that owns the goal (id or slug)",
+	"Lista metas com progresso":                                         "Lists goals with progress",
+	"PRAZO":                                                             "DUE",
+	"filtra: active, achieved ou abandoned":                             "filters: active, achieved or abandoned",
+	"<meta>":                                                            "<goal>",
+	"Mostra uma meta, as tasks ligadas e o histórico de progresso":      "Shows a goal, its linked tasks and the progress history",
+	"Métrica":             "Metric",
+	"Inicial":             "Initial",
+	"Prazo":               "Due date",
+	"Dona":                "Owner",
+	"\nHistórico (%d):\n": "\nHistory (%d):\n",
+	"Altera uma meta, reabre ou abandona (admin)": "Changes a goal, reopens or abandons it (admin)",
+	"Meta atualizada: %s (%s) — %s\n":             "Goal updated: %s (%s) — %s\n",
+	"novo título":                                 "new title",
+	"o que se mede":                               "what is measured",
+	"unidade":                                     "unit",
+	"alvo":                                        "target",
+	"remove o prazo":                              "removes the due date",
+	"tira a meta do projeto":                      "takes the goal out of the project",
+	"persona dona (id ou slug)":                   "owner persona (id or slug)",
+	"remove a dona":                               "removes the owner",
+	"active (reabre) ou abandoned":                "active (reopens) or abandoned",
+	"<valor>":                                     "<value>",
+	"Registra o valor atual da meta; ao cruzar o alvo ela é atingida": "Records the current value of the goal; when it crosses the target it is achieved",
+	"valor inválido: %q":       "invalid value: %q",
+	"Meta atingida.":           "Goal achieved.",
+	"nota sobre este registro": "note about this record",
+
+	// CLI: task
+	"meta a que a task serve (id ou slug)": "goal the task serves (id or slug)",
+	"filtra por meta (id ou slug)":         "filters by goal (id or slug)",
+	"Meta":                                 "Goal",
+	"\nArtefatos (%d):\n":                  "\nArtifacts (%d):\n",
+	"[meta]":                               "[goal]",
+	"Liga a task a uma meta ativa (ou a desliga com --none)": "Links the task to an active goal (or unlinks it with --none)",
+	"informe a meta ou use --none (um dos dois)":             "give the goal or use --none (one of the two)",
+	"%s sem meta.\n":         "%s has no goal now.\n",
+	"%s ligada à meta %s.\n": "%s is now linked to goal %s.\n",
+	"desliga a task da meta": "unlinks the task from the goal",
+}
+
+func init() {
+	for k, v := range enArtef {
+		if _, dup := en[k]; dup {
+			panic("i18n: duplicate catalog key " + k)
+		}
+		en[k] = v
+	}
+}

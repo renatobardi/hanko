@@ -29,7 +29,7 @@ func (e *env) taskCmd() *cobra.Command {
 	c := &cobra.Command{Use: "task", Short: e.t("Gerencia tasks")}
 
 	var (
-		desc, persona, project, priority, status, ws, parent, eventID, model string
+		desc, persona, project, priority, status, ws, parent, eventID, model, goal string
 	)
 	create := &cobra.Command{
 		Use: "create " + e.t("<título>"), Short: e.t("Cria uma task"), Args: cobra.ExactArgs(1),
@@ -39,7 +39,7 @@ func (e *env) taskCmd() *cobra.Command {
 				return err
 			}
 			t, err := e.client().CreateTask(cmd.Context(), co, client.CreateTaskReq{Title: args[0], Description: desc, Status: status,
-				Priority: priority, Persona: persona, Project: project, Workspace: ws, Parent: parent, Model: model, EventID: eventID})
+				Priority: priority, Persona: persona, Project: project, Workspace: ws, Goal: goal, Parent: parent, Model: model, EventID: eventID})
 			if err != nil {
 				return err
 			}
@@ -61,6 +61,7 @@ func (e *env) taskCmd() *cobra.Command {
 	cf.StringVar(&priority, "priority", "", e.t("critical, high, medium ou low (padrão medium)"))
 	cf.StringVar(&status, "status", "", e.t("status inicial (padrão todo)"))
 	cf.StringVar(&ws, "workspace", "", e.t("workspace (id ou slug)"))
+	cf.StringVar(&goal, "goal", "", e.t("meta a que a task serve (id ou slug)"))
 	cf.StringVar(&parent, "parent", "", e.t("task pai (id ou chave)"))
 	cf.StringVar(&eventID, "event-id", "", e.t("chave de idempotência"))
 	cf.StringVar(&model, "model", "", e.t("modelo escolhido à mão (vence o da persona)"))
@@ -92,6 +93,7 @@ func (e *env) taskCmd() *cobra.Command {
 	lf.StringVar(&q.Status, "status", "", e.t("status separados por vírgula (ex.: todo,in_progress)"))
 	lf.StringVarP(&q.Persona, "persona", "p", "", e.t("filtra por persona (id ou slug)"))
 	lf.StringVar(&q.Project, "project", "", e.t("filtra por projeto (id ou slug)"))
+	lf.StringVar(&q.Goal, "goal", "", e.t("filtra por meta (id ou slug)"))
 	lf.StringVarP(&q.Q, "query", "q", "", e.t("busca em título e descrição"))
 	lf.IntVar(&q.Limit, "limit", 50, e.t("máximo de itens"))
 	lf.IntVar(&q.Offset, "offset", 0, e.t("itens a pular"))
@@ -116,16 +118,30 @@ func (e *env) taskCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			// os artefatos são um complemento: um servidor sem a rota (versão anterior) não derruba o show
+			arts, _ := cl.Artifacts(ctx, co, client.ArtifactQuery{Task: t.ID, Limit: 100})
+			goalLine := "-"
+			if t.GoalID != "" {
+				if g, err := cl.Goal(ctx, co, t.GoalID); err == nil {
+					goalLine = g.Title + " (" + g.Slug + ")"
+				}
+			}
 			if e.asJSON {
-				return e.printJSON(map[string]any{"task": t, "comments": cs, "runs": rs})
+				return e.printJSON(map[string]any{"task": t, "comments": cs, "runs": rs, "artifacts": arts})
 			}
 			fmt.Fprintf(e.out, "%s  %s\n\n", t.Key, t.Title)
 			persona := dash(t.PersonaName)
 			e.kv([2]string{e.t("Status"), t.Status}, [2]string{e.t("Prioridade"), t.Priority}, [2]string{e.t("Persona"), persona},
-				[2]string{e.t("Projeto"), dash(t.ProjectName)}, [2]string{e.t("Modelo (manual)"), dash(t.Model)}, [2]string{e.t("Execução ativa"), dash(t.ActiveRunID)},
+				[2]string{e.t("Projeto"), dash(t.ProjectName)}, [2]string{e.t("Meta"), goalLine}, [2]string{e.t("Modelo (manual)"), dash(t.Model)}, [2]string{e.t("Execução ativa"), dash(t.ActiveRunID)},
 				[2]string{e.t("Criada em"), e.fmtTime(t.CreatedAt)}, [2]string{e.t("Atualizada em"), e.fmtTime(t.UpdatedAt)})
 			if strings.TrimSpace(t.Description) != "" {
 				fmt.Fprintf(e.out, e.t("\nDescrição:\n%s\n"), strings.TrimSpace(t.Description))
+			}
+			if len(arts) > 0 {
+				fmt.Fprintf(e.out, e.t("\nArtefatos (%d):\n"), len(arts))
+				for _, a := range arts {
+					fmt.Fprintf(e.out, "  %s v%d (%s, %s) %s\n", a.Name, a.Version, a.Mime, humanBytes(a.SizeBytes), short(a.ID))
+				}
 			}
 			fmt.Fprintf(e.out, e.t("\nComentários (%d):\n"), len(cs))
 			for _, cm := range cs {
@@ -234,6 +250,38 @@ func (e *env) taskCmd() *cobra.Command {
 	}
 	projectCmd.Flags().BoolVar(&noProject, "none", false, e.t("tira a task do projeto"))
 
+	var noGoal bool
+	goalCmd := &cobra.Command{
+		Use: "goal " + e.t("<task>") + " " + e.t("[meta]"), Short: e.t("Liga a task a uma meta ativa (ou a desliga com --none)"), Args: cobra.RangeArgs(1, 2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			co, err := e.needCompany()
+			if err != nil {
+				return err
+			}
+			if noGoal == (len(args) == 2) {
+				return usageError{errors.New(e.t("informe a meta ou use --none (um dos dois)"))}
+			}
+			req := client.UpdateTaskReq{ClearGoal: noGoal}
+			if !noGoal {
+				req.Goal = args[1]
+			}
+			t, err := e.client().UpdateTask(cmd.Context(), co, args[0], req)
+			if err != nil {
+				return err
+			}
+			if e.asJSON {
+				return e.printJSON(t)
+			}
+			if t.GoalID == "" {
+				fmt.Fprintf(e.out, e.t("%s sem meta.\n"), t.Key)
+			} else {
+				fmt.Fprintf(e.out, e.t("%s ligada à meta %s.\n"), t.Key, args[1])
+			}
+			return nil
+		},
+	}
+	goalCmd.Flags().BoolVar(&noGoal, "none", false, e.t("desliga a task da meta"))
+
 	var clearModel bool
 	modelCmd := &cobra.Command{
 		Use: "model " + e.t("<task>") + " " + e.t("[modelo]"), Short: e.t("Escolhe à mão o modelo da task (vence o da persona); --clear remove"), Args: cobra.RangeArgs(1, 2),
@@ -328,7 +376,7 @@ func (e *env) taskCmd() *cobra.Command {
 		},
 	}
 
-	c.AddCommand(create, ls, show, assign, statusCmd, projectCmd, modelCmd, comment, wake)
+	c.AddCommand(create, ls, show, assign, statusCmd, projectCmd, goalCmd, modelCmd, comment, wake)
 	return c
 }
 

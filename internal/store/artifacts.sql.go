@@ -136,7 +136,7 @@ LEFT JOIN tasks t ON t.id = a.task_id
 LEFT JOIN projects pr ON pr.id = a.project_id
 LEFT JOIN personas pe ON pe.id = a.persona_id
 WHERE a.company_id = $1
-ORDER BY a.created_at, a.id
+ORDER BY a.created_at, a.version, a.id
 `
 
 type ExportArtifactsRow struct {

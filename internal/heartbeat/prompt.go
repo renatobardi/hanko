@@ -3,6 +3,7 @@ package heartbeat
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/renatobardi/hanko/internal/domain"
@@ -34,6 +35,8 @@ func BuildPrompt(rc service.RunContext, briefing, handoff string) (system, promp
 	fmt.Fprintf(&sb, "- Trabalhe na task %s e somente nela.\n", t.Key)
 	sb.WriteString("- Use as tools MCP `hanko_*` (por exemplo `hanko_task_get`, `hanko_task_comment`, `hanko_task_update`) para ler a task, comentar e atualizar status e prioridade.\n")
 	sb.WriteString("- Registre decisões e bloqueios como comentário na task; mude o status quando o trabalho avançar (`in_review` quando pronto para revisão, `blocked` quando depender de alguém).\n")
+	sb.WriteString("- Entregue arquivos (relatório, plano, dados, imagem) como artefato com `hanko_artifact_put` em vez de colar texto longo em comentário; o mesmo nome na mesma task cria a versão seguinte.\n")
+	sb.WriteString("- Se o seu trabalho mede uma das metas listadas, registre o valor atual (medido de fato) com `hanko_goal_update`; `hanko_goal_list` mostra todas as metas.\n")
 	sb.WriteString("- Antes de uma ação irreversível (merge, deploy, gasto, contratação, apagar dados), peça a decisão de um humano com `hanko_gate_request` e encerre a execução; você será acordada com a decisão e a nota. Consulte `hanko_gate_status` se precisar.\n")
 	sb.WriteString("- Termine com um resumo objetivo do que fez e do próximo passo. Esse resumo é publicado automaticamente como comentário na task; não o repita via tool.\n")
 	system = strings.TrimSpace(sb.String())
@@ -67,6 +70,14 @@ func BuildPrompt(rc service.RunContext, briefing, handoff string) (system, promp
 		}
 	}
 
+	if len(rc.Goals) > 0 {
+		pb.WriteString("## Metas ativas\n\n")
+		for _, g := range rc.Goals {
+			pb.WriteString(goalLine(g))
+		}
+		pb.WriteString("\n")
+	}
+
 	handoff, briefing = strings.TrimSpace(handoff), strings.TrimSpace(briefing)
 	if handoff != "" || briefing != "" {
 		pb.WriteString("## Memória do projeto\n\n")
@@ -80,6 +91,27 @@ func BuildPrompt(rc service.RunContext, briefing, handoff string) (system, promp
 	pb.WriteString("---\nExecute o trabalho desta task agora.\n")
 	return system, pb.String()
 }
+
+// goalLine é uma meta em uma linha: progresso, valores e prazo; "(esta task serve a ela)" marca a meta da task.
+func goalLine(g service.GoalBrief) string {
+	unit := ""
+	if g.Unit != "" {
+		unit = " " + g.Unit
+	}
+	line := fmt.Sprintf("- `%s` %s: %.0f%% (%s de %s%s)", g.Slug, clip(g.Title, 120), g.Progress, fmtNum(g.Current), fmtNum(g.Target), unit)
+	if g.Metric != "" {
+		line += ", mede " + clip(g.Metric, 80)
+	}
+	if g.DueDate != nil {
+		line += ", prazo " + g.DueDate.Format("2006-01-02")
+	}
+	if g.Linked {
+		line += " (esta task serve a ela)"
+	}
+	return line + "\n"
+}
+
+func fmtNum(v float64) string { return strconv.FormatFloat(v, 'f', -1, 64) }
 
 func authorName(rc service.RunContext, a domain.Actor) string {
 	switch a.Type {

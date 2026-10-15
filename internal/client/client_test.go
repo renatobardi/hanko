@@ -118,7 +118,7 @@ func TestExportImportSemTimeoutTotal(t *testing.T) {
 	if _, err := c.Companies(context.Background()); err == nil {
 		t.Fatal("a chamada curta deveria estourar o timeout padrão encurtado")
 	}
-	raw, err := c.ExportCompany(context.Background(), "acme", false, false)
+	raw, err := c.ExportCompany(context.Background(), "acme", ExportOpts{})
 	if err != nil || !strings.Contains(string(raw), "hanko.company.v1") {
 		t.Fatalf("export: %q %v", raw, err)
 	}
@@ -129,7 +129,7 @@ func TestExportImportSemTimeoutTotal(t *testing.T) {
 	// o cancelamento continua valendo pelo ctx
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
-	if _, err := c.ExportCompany(ctx, "acme", false, false); err == nil {
+	if _, err := c.ExportCompany(ctx, "acme", ExportOpts{}); err == nil {
 		t.Fatal("o ctx cancelado deveria interromper o export")
 	}
 	// o cliente do chamador não é alterado
