@@ -294,3 +294,37 @@ func TestFailLogRedactsInviteToken(t *testing.T) {
 		t.Fatalf("log vaza o token ou não mascara o caminho: %s", out)
 	}
 }
+
+// Quem não participa de nenhuma empresa e não pode criar uma (usuário comum da instalação) vê "peça um
+// convite", não o formulário de criar empresa que devolveria 403.
+func TestNoCompanyPageForPlainUser(t *testing.T) {
+	e := newAuthEnv(t, AuthDeps{Provider: "local"})
+	e.fa.addUser("comum@x.com", "Comum", pass10)
+	e.fa.users[0].Role = domain.RoleMember
+	cookie := cookieOf(e.login(t, "comum@x.com", pass10, "/"))
+	savedCompanies := e.f.Companies
+	e.f.Companies = nil
+
+	rec := e.withCookie(t, cookie, req{method: "GET", path: "/"})
+	wantStatus(t, rec, http.StatusSeeOther)
+	if loc := rec.Header().Get("Location"); loc != "/bem-vindo" {
+		t.Fatalf("Location %q", loc)
+	}
+	rec = e.withCookie(t, cookie, req{method: "GET", path: "/bem-vindo"})
+	wantStatus(t, rec, http.StatusOK)
+	wantContains(t, rec, "Você ainda não participa de nenhuma empresa", "Peça um convite", `action="/sair"`)
+	wantNotContains(t, rec, `action="/empresas"`, "Criar empresa")
+
+	// com empresa visível, volta para ela
+	e.f.Companies = savedCompanies
+	rec = e.withCookie(t, cookie, req{method: "GET", path: "/bem-vindo"})
+	wantStatus(t, rec, http.StatusSeeOther)
+	if loc := rec.Header().Get("Location"); !strings.HasPrefix(loc, "/c/") {
+		t.Fatalf("Location %q", loc)
+	}
+
+	// dono da instalação continua vendo o formulário
+	e.fa.users[0].Role = domain.RoleOwner
+	e.f.Companies = nil
+	wantContains(t, e.withCookie(t, cookie, req{method: "GET", path: "/bem-vindo"}), "Criar empresa", `action="/empresas"`)
+}

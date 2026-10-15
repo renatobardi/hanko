@@ -42,6 +42,28 @@ templ OnboardingPage(vm OnboardingVM, version string) {
 	}
 }
 
+// NoCompanyPage is what a signed-in person sees when they belong to no company and cannot create one
+// (in authenticated mode only the installation owner/admin creates companies).
+templ NoCompanyPage(version string) {
+	@Bare(i18n.T(ctx, "Bem-vindo"), version) {
+		<div class="auth" style="max-width:440px">
+			<div class="mark">
+				@Mark(40)
+				<b>Hanko</b>
+			</div>
+			<div class="card">
+				<h1>{ i18n.T(ctx, "Você ainda não participa de nenhuma empresa") }</h1>
+				<p class="sub muted">{ i18n.T(ctx, "Peça um convite a quem administra a empresa e abra o link recebido para entrar.") }</p>
+				<form method="post" action="/sair">
+					<button class="btn outline block" type="submit">{ i18n.T(ctx, "Sair") }</button>
+				</form>
+			</div>
+			<div class="foot"><span>{ i18n.T(ctx, "Hanko · control plane de personas de IA") }</span></div>
+			@LangSwitch()
+		</div>
+	}
+}
+
 templ ErrorPage(sh Shell, vm ErrorVM) {
 	@Layout(sh) {
 		@errorBody(vm)

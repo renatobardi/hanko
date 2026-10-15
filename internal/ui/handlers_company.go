@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/renatobardi/hanko/internal/auth"
 	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/i18n"
 	"github.com/renatobardi/hanko/internal/service"
@@ -24,8 +25,8 @@ func (s *server) handleRoot(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/c/"+cs[0].Slug+"/", http.StatusSeeOther)
 }
 
-// visibleCompanies are the companies the person may see and switch to. Today that is every
-// company; the access rules of the multi-user work narrow it here and only here.
+// visibleCompanies are the companies the person may see and switch to: the service narrows them
+// to the memberships of the signed-in user (all of them for the installation owner and in trusted mode).
 func (s *server) visibleCompanies(ctx context.Context) ([]domain.Company, error) {
 	return s.be.ListCompanies(ctx)
 }
@@ -55,6 +56,21 @@ func (s *server) withSwitcher(ctx context.Context, r *http.Request) context.Cont
 }
 
 func (s *server) handleOnboarding(w http.ResponseWriter, r *http.Request) {
+	// Em modo authenticated só dono/admin da instalação cria empresa. Quem não pode e não participa de
+	// nenhuma vê "peça um convite" (e não um formulário que devolveria 403); quem já tem empresa volta.
+	if id, ok := auth.IdentityFrom(r.Context()); ok && id.User.Role == domain.RoleMember {
+		cs, err := s.visibleCompanies(r.Context())
+		if err != nil {
+			s.fail(w, r, nil, err)
+			return
+		}
+		if len(cs) > 0 {
+			http.Redirect(w, r, "/c/"+cs[0].Slug+"/", http.StatusSeeOther)
+			return
+		}
+		s.render(w, r, http.StatusOK, views.NoCompanyPage(s.version))
+		return
+	}
 	s.render(w, r, http.StatusOK, views.OnboardingPage(views.OnboardingVM{TaskPrefix: "HNK"}, s.version))
 }
 
