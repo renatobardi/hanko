@@ -323,7 +323,7 @@ func (s *Service) GetFlow(ctx context.Context, companyID domain.ID, ref string) 
 
 // ListFlowFires returns the latest firings of a flow with the tasks they created.
 func (s *Service) ListFlowFires(ctx context.Context, companyID, flowID domain.ID, limit int) ([]FlowFireView, error) {
-	rows, err := s.read().ListFlowFires(ctx, store.ListFlowFiresParams{FlowID: flowID, CompanyID: companyID, Lim: int32(clamp(limit, 30, 200))})
+	rows, err := s.read().ListFlowFires(ctx, store.ListFlowFiresParams{FlowID: flowID, CompanyID: companyID, Lim: i32(clamp(limit, 30, 200))})
 	if err != nil {
 		return nil, fmt.Errorf("list flow fires: %w", err)
 	}

@@ -280,7 +280,7 @@ func humanDuration(d time.Duration) string {
 
 // ListOpenAlerts devolve os alertas abertos da empresa, críticos primeiro.
 func (s *Service) ListOpenAlerts(ctx context.Context, companyID domain.ID, limit int) ([]domain.Alert, error) {
-	rows, err := s.read().ListOpenAlertsForCompany(ctx, store.ListOpenAlertsForCompanyParams{CompanyID: companyID, Lim: int32(clamp(limit, 100, 500))})
+	rows, err := s.read().ListOpenAlertsForCompany(ctx, store.ListOpenAlertsForCompanyParams{CompanyID: companyID, Lim: i32(clamp(limit, 100, 500))})
 	if err != nil {
 		return nil, fmt.Errorf("list alerts: %w", err)
 	}

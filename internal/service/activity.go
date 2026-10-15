@@ -11,7 +11,7 @@ import (
 
 func (s *Service) ListActivity(ctx context.Context, companyID domain.ID, f ActivityFilter) ([]domain.ActivityEvent, error) {
 	p := store.ListActivityParams{CompanyID: companyID, SubjectID: f.SubjectID, Before: f.Before,
-		Lim: int32(clamp(f.Limit, 50, 500))}
+		Lim: i32(clamp(f.Limit, 50, 500))}
 	if f.SubjectType != "" {
 		p.SubjectType = &f.SubjectType
 	}

@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"net/http"
 	"net/url"
 	"strings"
@@ -112,7 +113,7 @@ func TestFlowsUI(t *testing.T) {
 	// toggle
 	rec = e.post(t, "/c/hanko/fluxos/relatorio-diario/desativar", nil, true)
 	wantStatus(t, rec, http.StatusNoContent)
-	if g, _ := e.f.GetFlow(nil, e.f.Companies[0].ID, "relatorio-diario"); g.Enabled {
+	if g, _ := e.f.GetFlow(context.Background(), e.f.Companies[0].ID, "relatorio-diario"); g.Enabled {
 		t.Error("fluxo deveria estar desativado")
 	}
 	rec = e.post(t, "/c/hanko/fluxos/relatorio-diario/ativar?de=detalhe", nil, false)
@@ -123,7 +124,7 @@ func TestFlowsUI(t *testing.T) {
 	// edit
 	rec = e.post(t, "/c/hanko/fluxos/relatorio-diario", url.Values{"name": {"Relatório diário"}, "persona": {pid}, "cron": {"0 9 * * *"}, "timezone": {"UTC"}, "priority": {"high"}}, false)
 	wantStatus(t, rec, http.StatusSeeOther)
-	g, _ := e.f.GetFlow(nil, e.f.Companies[0].ID, "relatorio-diario")
+	g, _ := e.f.GetFlow(context.Background(), e.f.Companies[0].ID, "relatorio-diario")
 	if g.Cron != "0 9 * * *" || g.Enabled {
 		t.Errorf("edição não aplicada: %+v", g.Flow)
 	}

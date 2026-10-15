@@ -31,7 +31,7 @@ func loadRunView(ctx context.Context, q *store.Queries, companyID, runID domain.
 
 func (s *Service) ListRuns(ctx context.Context, companyID domain.ID, f RunFilter) ([]RunView, error) {
 	p := store.ListRunViewsParams{CompanyID: companyID, TaskID: f.TaskID, PersonaID: f.PersonaID,
-		Lim: int32(clamp(f.Limit, 50, 500))}
+		Lim: i32(clamp(f.Limit, 50, 500))}
 	if len(f.Statuses) > 0 {
 		p.Statuses = make([]string, len(f.Statuses))
 		for i, st := range f.Statuses {
@@ -65,7 +65,7 @@ func (s *Service) GetRun(ctx context.Context, companyID, runID domain.ID) (RunVi
 // ListRunEvents returns events with seq > afterSeq, ascending.
 func (s *Service) ListRunEvents(ctx context.Context, companyID, runID domain.ID, afterSeq int64, limit int) ([]domain.RunEvent, error) {
 	rows, err := s.read().ListRunEvents(ctx, store.ListRunEventsParams{CompanyID: companyID, RunID: runID,
-		AfterSeq: afterSeq, Lim: int32(clamp(limit, 200, 1000))})
+		AfterSeq: afterSeq, Lim: i32(clamp(limit, 200, 1000))})
 	if err != nil {
 		return nil, fmt.Errorf("list run events: %w", err)
 	}
@@ -211,7 +211,28 @@ func (s *Service) CheckoutRun(ctx context.Context, w Wake) (domain.Run, error) {
 				return fmt.Errorf("clear budget refused: %w", err)
 			}
 		}
-		row, err := t.createRun(w.CompanyID, task.ID, p.ID, p.Agent, p.Model, w.Trigger)
+		// The model comes from the task (manual) first, then the persona, else the harness default; the
+		// subscription that covers it (if any) is fixed now and its weekly guard holds the line.
+		model, modelSource := domain.ResolveModel(task.Model, p.Model)
+		sub, err := t.subscriptionFor(p, model)
+		if err != nil {
+			return err
+		}
+		var subID *domain.ID
+		if sub != nil {
+			subID = &sub.ID
+			if gerr := t.checkWeeklyGuard(co, *sub); gerr != nil {
+				if !errors.Is(gerr, domain.ErrSubscriptionGuard) {
+					return gerr
+				}
+				blocked = gerr
+				if err := t.q.SetPersonaBudgetRefused(ctx, store.SetPersonaBudgetRefusedParams{ID: p.ID, Now: &t.now}); err != nil {
+					return fmt.Errorf("mark budget refused: %w", err)
+				}
+				return nil
+			}
+		}
+		row, err := t.createRun(w.CompanyID, task.ID, p.ID, p.Agent, model, modelSource, subID, w.Trigger)
 		if err != nil {
 			return err
 		}
@@ -252,14 +273,14 @@ func (s *Service) CheckoutRun(ctx context.Context, w Wake) (domain.Run, error) {
 // createRun inserts a queued run with its friendly name. The name comes from the run id; when the
 // pair is already taken in the company the next variation of the hash is used (see domain.RunName).
 // A race on the same name or on the one-active-run-per-task index is ErrActiveRun, so the wake is retried.
-func (t *txc) createRun(companyID, taskID, personaID domain.ID, agent, model string, trigger domain.RunTrigger) (store.Run, error) {
+func (t *txc) createRun(companyID, taskID, personaID domain.ID, agent, model string, modelSource domain.ModelSource, subID *domain.ID, trigger domain.RunTrigger) (store.Run, error) {
 	id := domain.NewID()
 	name, err := t.freeRunName(companyID, id)
 	if err != nil {
 		return store.Run{}, err
 	}
 	row, err := t.q.CreateRun(t.ctx, store.CreateRunParams{ID: id, CompanyID: companyID, TaskID: taskID,
-		PersonaID: personaID, Trigger: string(trigger), Agent: agent, Model: model, Name: name, Now: t.now})
+		PersonaID: personaID, Trigger: string(trigger), Agent: agent, Model: model, ModelSource: string(modelSource), SubscriptionID: subID, Name: name, Now: t.now})
 	if err != nil {
 		if isUnique(err) {
 			return store.Run{}, domain.ErrActiveRun
@@ -512,17 +533,18 @@ func (s *Service) FinishRun(ctx context.Context, companyID, runID domain.ID, in 
 			return nil
 		}
 		res := in.Result
-		code := int32(res.ExitCode)
+		code := i32(res.ExitCode)
 		model := cur.Model
 		if res.Model != "" {
 			model = res.Model
 		}
-		cost, source, fallback, err := t.costFor(model, res)
+		cr, err := t.costFor(model, res, t.now)
 		if err != nil {
 			return err
 		}
+		cost, source, fallback := cr.cost, cr.source, cr.fallback
 		row, err := t.q.FinishRun(ctx, store.FinishRunParams{CompanyID: companyID, ID: runID, Status: string(in.Status),
-			ExitCode: &code, Error: res.Error, Summary: res.Summary, CostUsd: cost, CostSource: string(source),
+			ExitCode: &code, Error: res.Error, Summary: res.Summary, CostUsd: cost, CostSource: string(source), ListCostUsd: cr.list,
 			InputTokens: res.Usage.InputTokens, OutputTokens: res.Usage.OutputTokens,
 			CacheReadTokens: res.Usage.CacheReadTokens, CacheCreationTokens: res.Usage.CacheCreationTokens,
 			SessionRef: res.SessionRef, Model: model, Now: &t.now})
@@ -742,7 +764,7 @@ const wakeStaleAfter = time.Minute
 func (s *Service) WakeCandidates(ctx context.Context, limit int) ([]WakeCandidate, error) {
 	now := s.Now().UTC()
 	rows, err := s.read().ListWakeCandidates(ctx, store.ListWakeCandidatesParams{Now: now, StaleBefore: now.Add(-wakeStaleAfter),
-		BudgetCutoff: now.Add(-budgetRefusedQuiet), Lim: int32(clamp(limit, 100, 1000))})
+		BudgetCutoff: now.Add(-budgetRefusedQuiet), Lim: i32(clamp(limit, 100, 1000))})
 	if err != nil {
 		return nil, fmt.Errorf("wake candidates: %w", err)
 	}

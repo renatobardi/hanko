@@ -142,7 +142,7 @@ func (c *Client) do(ctx context.Context, method, path string, q url.Values, in, 
 	return nil
 }
 
-func list[T any](c *Client, ctx context.Context, path string, q url.Values) ([]T, error) {
+func list[T any](ctx context.Context, c *Client, path string, q url.Values) ([]T, error) {
 	var out api.ListBody[T]
 	if err := c.do(ctx, http.MethodGet, path, q, nil, &out); err != nil {
 		return nil, err
@@ -150,7 +150,7 @@ func list[T any](c *Client, ctx context.Context, path string, q url.Values) ([]T
 	return out.Items, nil
 }
 
-func get[T any](c *Client, ctx context.Context, method, path string, in any) (T, error) {
+func get[T any](ctx context.Context, c *Client, method, path string, in any) (T, error) {
 	var out T
 	err := c.do(ctx, method, path, nil, in, &out)
 	return out, err
@@ -197,6 +197,7 @@ type HirePersonaReq struct {
 	Reviewer             string         `json:"reviewer,omitempty"`
 	ReviewerAgent        string         `json:"reviewer_agent,omitempty"`
 	ReviewerModel        string         `json:"reviewer_model,omitempty"`
+	Subscription         string         `json:"subscription,omitempty"`
 }
 
 type CreateTaskReq struct {
@@ -208,6 +209,7 @@ type CreateTaskReq struct {
 	Project     string `json:"project,omitempty"`
 	Workspace   string `json:"workspace,omitempty"`
 	Parent      string `json:"parent,omitempty"`
+	Model       string `json:"model,omitempty"`
 	EventID     string `json:"event_id,omitempty"`
 }
 
@@ -219,6 +221,7 @@ type UpdateTaskReq struct {
 	Persona     string  `json:"persona,omitempty"`
 	Unassign    bool    `json:"unassign,omitempty"`
 	Project     string  `json:"project,omitempty"`
+	Model       *string `json:"model,omitempty"`
 }
 
 type AddCommentReq struct {
@@ -288,6 +291,8 @@ type UpdatePersonaReq struct {
 	ReviewerAgent      *string `json:"reviewer_agent,omitempty"`
 	ReviewerModel      *string `json:"reviewer_model,omitempty"`
 	ClearReviewer      bool    `json:"clear_reviewer,omitempty"`
+	Subscription       string  `json:"subscription,omitempty"`
+	ClearSubscription  bool    `json:"clear_subscription,omitempty"`
 }
 
 // CostQuery são os parâmetros de Costs.
@@ -327,47 +332,47 @@ type UpdateFlowReq struct {
 // ---------- operações ----------
 
 func (c *Client) CreateCompany(ctx context.Context, in CreateCompanyReq) (api.Company, error) {
-	return get[api.Company](c, ctx, http.MethodPost, "/companies", in)
+	return get[api.Company](ctx, c, http.MethodPost, "/companies", in)
 }
 
 func (c *Client) Companies(ctx context.Context) ([]api.Company, error) {
-	return list[api.Company](c, ctx, "/companies", url.Values{"limit": {"500"}})
+	return list[api.Company](ctx, c, "/companies", url.Values{"limit": {"500"}})
 }
 
 func (c *Client) CreateWorkspace(ctx context.Context, company string, in CreateWorkspaceReq) (api.Workspace, error) {
-	return get[api.Workspace](c, ctx, http.MethodPost, cp(company)+"/workspaces", in)
+	return get[api.Workspace](ctx, c, http.MethodPost, cp(company)+"/workspaces", in)
 }
 
 func (c *Client) Workspaces(ctx context.Context, company string) ([]api.Workspace, error) {
-	return list[api.Workspace](c, ctx, cp(company)+"/workspaces", url.Values{"limit": {"500"}})
+	return list[api.Workspace](ctx, c, cp(company)+"/workspaces", url.Values{"limit": {"500"}})
 }
 
 func (c *Client) CreateProject(ctx context.Context, company string, in CreateProjectReq) (api.Project, error) {
-	return get[api.Project](c, ctx, http.MethodPost, cp(company)+"/projects", in)
+	return get[api.Project](ctx, c, http.MethodPost, cp(company)+"/projects", in)
 }
 
 func (c *Client) Projects(ctx context.Context, company string) ([]api.Project, error) {
-	return list[api.Project](c, ctx, cp(company)+"/projects", url.Values{"limit": {"500"}})
+	return list[api.Project](ctx, c, cp(company)+"/projects", url.Values{"limit": {"500"}})
 }
 
 func (c *Client) HirePersona(ctx context.Context, company string, in HirePersonaReq) (api.Persona, error) {
-	return get[api.Persona](c, ctx, http.MethodPost, cp(company)+"/personas", in)
+	return get[api.Persona](ctx, c, http.MethodPost, cp(company)+"/personas", in)
 }
 
 func (c *Client) Personas(ctx context.Context, company string) ([]api.Persona, error) {
-	return list[api.Persona](c, ctx, cp(company)+"/personas", url.Values{"limit": {"500"}})
+	return list[api.Persona](ctx, c, cp(company)+"/personas", url.Values{"limit": {"500"}})
 }
 
 func (c *Client) Persona(ctx context.Context, company, ref string) (api.Persona, error) {
-	return get[api.Persona](c, ctx, http.MethodGet, cp(company)+"/personas/"+url.PathEscape(ref), nil)
+	return get[api.Persona](ctx, c, http.MethodGet, cp(company)+"/personas/"+url.PathEscape(ref), nil)
 }
 
 func (c *Client) UpdatePersona(ctx context.Context, company, ref string, in UpdatePersonaReq) (api.Persona, error) {
-	return get[api.Persona](c, ctx, http.MethodPatch, cp(company)+"/personas/"+url.PathEscape(ref), in)
+	return get[api.Persona](ctx, c, http.MethodPatch, cp(company)+"/personas/"+url.PathEscape(ref), in)
 }
 
 func (c *Client) UpdateCompany(ctx context.Context, company string, in UpdateCompanyReq) (api.Company, error) {
-	return get[api.Company](c, ctx, http.MethodPatch, cp(company), in)
+	return get[api.Company](ctx, c, http.MethodPatch, cp(company), in)
 }
 
 func (c *Client) Costs(ctx context.Context, company string, q CostQuery) (api.CostSummary, error) {
@@ -377,51 +382,51 @@ func (c *Client) Costs(ctx context.Context, company string, q CostQuery) (api.Co
 }
 
 func (c *Client) CreateFlow(ctx context.Context, company string, in CreateFlowReq) (api.Flow, error) {
-	return get[api.Flow](c, ctx, http.MethodPost, cp(company)+"/flows", in)
+	return get[api.Flow](ctx, c, http.MethodPost, cp(company)+"/flows", in)
 }
 
 func (c *Client) Flows(ctx context.Context, company string) ([]api.Flow, error) {
-	return list[api.Flow](c, ctx, cp(company)+"/flows", url.Values{"limit": {"500"}})
+	return list[api.Flow](ctx, c, cp(company)+"/flows", url.Values{"limit": {"500"}})
 }
 
 func (c *Client) Flow(ctx context.Context, company, ref string) (api.Flow, error) {
-	return get[api.Flow](c, ctx, http.MethodGet, cp(company)+"/flows/"+url.PathEscape(ref), nil)
+	return get[api.Flow](ctx, c, http.MethodGet, cp(company)+"/flows/"+url.PathEscape(ref), nil)
 }
 
 func (c *Client) UpdateFlow(ctx context.Context, company, ref string, in UpdateFlowReq) (api.Flow, error) {
-	return get[api.Flow](c, ctx, http.MethodPatch, cp(company)+"/flows/"+url.PathEscape(ref), in)
+	return get[api.Flow](ctx, c, http.MethodPatch, cp(company)+"/flows/"+url.PathEscape(ref), in)
 }
 
 func (c *Client) RunFlow(ctx context.Context, company, ref string) (api.FlowRun, error) {
-	return get[api.FlowRun](c, ctx, http.MethodPost, cp(company)+"/flows/"+url.PathEscape(ref)+"/run", nil)
+	return get[api.FlowRun](ctx, c, http.MethodPost, cp(company)+"/flows/"+url.PathEscape(ref)+"/run", nil)
 }
 
 func (c *Client) FlowFires(ctx context.Context, company, ref string) ([]api.FlowFire, error) {
-	return list[api.FlowFire](c, ctx, cp(company)+"/flows/"+url.PathEscape(ref)+"/fires", url.Values{"limit": {"30"}})
+	return list[api.FlowFire](ctx, c, cp(company)+"/flows/"+url.PathEscape(ref)+"/fires", url.Values{"limit": {"30"}})
 }
 
 func (c *Client) CreateTask(ctx context.Context, company string, in CreateTaskReq) (api.Task, error) {
-	return get[api.Task](c, ctx, http.MethodPost, cp(company)+"/tasks", in)
+	return get[api.Task](ctx, c, http.MethodPost, cp(company)+"/tasks", in)
 }
 
 func (c *Client) Tasks(ctx context.Context, company string, q TaskQuery) ([]api.Task, error) {
-	return list[api.Task](c, ctx, cp(company)+"/tasks", q.values())
+	return list[api.Task](ctx, c, cp(company)+"/tasks", q.values())
 }
 
 func (c *Client) Task(ctx context.Context, company, ref string) (api.Task, error) {
-	return get[api.Task](c, ctx, http.MethodGet, cp(company)+"/tasks/"+url.PathEscape(ref), nil)
+	return get[api.Task](ctx, c, http.MethodGet, cp(company)+"/tasks/"+url.PathEscape(ref), nil)
 }
 
 func (c *Client) UpdateTask(ctx context.Context, company, ref string, in UpdateTaskReq) (api.Task, error) {
-	return get[api.Task](c, ctx, http.MethodPatch, cp(company)+"/tasks/"+url.PathEscape(ref), in)
+	return get[api.Task](ctx, c, http.MethodPatch, cp(company)+"/tasks/"+url.PathEscape(ref), in)
 }
 
 func (c *Client) AddComment(ctx context.Context, company, ref string, in AddCommentReq) (api.Comment, error) {
-	return get[api.Comment](c, ctx, http.MethodPost, cp(company)+"/tasks/"+url.PathEscape(ref)+"/comments", in)
+	return get[api.Comment](ctx, c, http.MethodPost, cp(company)+"/tasks/"+url.PathEscape(ref)+"/comments", in)
 }
 
 func (c *Client) Comments(ctx context.Context, company, ref string) ([]api.Comment, error) {
-	return list[api.Comment](c, ctx, cp(company)+"/tasks/"+url.PathEscape(ref)+"/comments", url.Values{"limit": {"500"}})
+	return list[api.Comment](ctx, c, cp(company)+"/tasks/"+url.PathEscape(ref)+"/comments", url.Values{"limit": {"500"}})
 }
 
 func (c *Client) WakeTask(ctx context.Context, company, ref string) error {
@@ -429,15 +434,15 @@ func (c *Client) WakeTask(ctx context.Context, company, ref string) error {
 }
 
 func (c *Client) Runs(ctx context.Context, company string, q RunQuery) ([]api.Run, error) {
-	return list[api.Run](c, ctx, cp(company)+"/runs", q.values())
+	return list[api.Run](ctx, c, cp(company)+"/runs", q.values())
 }
 
 func (c *Client) Run(ctx context.Context, company, id string) (api.Run, error) {
-	return get[api.Run](c, ctx, http.MethodGet, cp(company)+"/runs/"+url.PathEscape(id), nil)
+	return get[api.Run](ctx, c, http.MethodGet, cp(company)+"/runs/"+url.PathEscape(id), nil)
 }
 
 func (c *Client) CancelRun(ctx context.Context, company, id string) (api.Run, error) {
-	return get[api.Run](c, ctx, http.MethodPost, cp(company)+"/runs/"+url.PathEscape(id)+"/cancel", nil)
+	return get[api.Run](ctx, c, http.MethodPost, cp(company)+"/runs/"+url.PathEscape(id)+"/cancel", nil)
 }
 
 // RunEvents devolve eventos com seq > after, em páginas de até 1000; chame de novo
@@ -447,7 +452,7 @@ func (c *Client) RunEvents(ctx context.Context, company, id string, after int64,
 	if limit > 0 {
 		q.Set("limit", strconv.Itoa(limit))
 	}
-	return list[api.RunEvent](c, ctx, cp(company)+"/runs/"+url.PathEscape(id)+"/events", q)
+	return list[api.RunEvent](ctx, c, cp(company)+"/runs/"+url.PathEscape(id)+"/events", q)
 }
 
 // AllRunEvents lê o log inteiro a partir de after.
@@ -541,4 +546,47 @@ func readFrames(r io.Reader, fn func(Frame) error) error {
 			}
 		}
 	}
+}
+
+// ---------- assinaturas ----------
+
+type CreateSubscriptionReq struct {
+	Name           string   `json:"name"`
+	Agent          string   `json:"agent"`
+	MonthlyUSD     float64  `json:"monthly_usd"`
+	ModelPrefixes  []string `json:"model_prefixes,omitempty"`
+	WeeklyLimitUSD *float64 `json:"weekly_limit_usd,omitempty"`
+	WeeklyGuardPct int      `json:"weekly_guard_pct,omitempty"`
+	Inactive       bool     `json:"inactive,omitempty"`
+}
+
+type UpdateSubscriptionReq struct {
+	Name             *string   `json:"name,omitempty"`
+	Agent            *string   `json:"agent,omitempty"`
+	MonthlyUSD       *float64  `json:"monthly_usd,omitempty"`
+	ModelPrefixes    *[]string `json:"model_prefixes,omitempty"`
+	WeeklyLimitUSD   *float64  `json:"weekly_limit_usd,omitempty"`
+	ClearWeeklyLimit bool      `json:"clear_weekly_limit,omitempty"`
+	WeeklyGuardPct   *int      `json:"weekly_guard_pct,omitempty"`
+	Active           *bool     `json:"active,omitempty"`
+}
+
+func (c *Client) CreateSubscription(ctx context.Context, company string, in CreateSubscriptionReq) (api.Subscription, error) {
+	return get[api.Subscription](ctx, c, http.MethodPost, cp(company)+"/subscriptions", in)
+}
+
+func (c *Client) Subscriptions(ctx context.Context, company string) ([]api.Subscription, error) {
+	return list[api.Subscription](ctx, c, cp(company)+"/subscriptions", url.Values{"limit": {"500"}})
+}
+
+func (c *Client) Subscription(ctx context.Context, company, ref string) (api.Subscription, error) {
+	return get[api.Subscription](ctx, c, http.MethodGet, cp(company)+"/subscriptions/"+url.PathEscape(ref), nil)
+}
+
+func (c *Client) UpdateSubscription(ctx context.Context, company, ref string, in UpdateSubscriptionReq) (api.Subscription, error) {
+	return get[api.Subscription](ctx, c, http.MethodPatch, cp(company)+"/subscriptions/"+url.PathEscape(ref), in)
+}
+
+func (c *Client) DeleteSubscription(ctx context.Context, company, ref string) error {
+	return c.do(ctx, http.MethodDelete, cp(company)+"/subscriptions/"+url.PathEscape(ref), nil, nil, nil)
 }

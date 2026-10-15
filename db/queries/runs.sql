@@ -1,6 +1,6 @@
 -- name: CreateRun :one
-INSERT INTO runs (id, company_id, task_id, persona_id, status, trigger, agent, model, name, created_at)
-VALUES (@id, @company_id, @task_id, @persona_id, 'queued', @trigger, @agent, @model, @name, @now)
+INSERT INTO runs (id, company_id, task_id, persona_id, status, trigger, agent, model, model_source, subscription_id, name, created_at)
+VALUES (@id, @company_id, @task_id, @persona_id, 'queued', @trigger, @agent, @model, @model_source, @subscription_id, @name, @now)
 RETURNING *;
 
 -- name: GetRunByID :one
@@ -44,7 +44,7 @@ UPDATE runs
 SET status = @status, exit_code = @exit_code, error = @error, summary = @summary, cost_usd = @cost_usd,
     input_tokens = @input_tokens, output_tokens = @output_tokens,
     cache_read_tokens = @cache_read_tokens, cache_creation_tokens = @cache_creation_tokens,
-    cost_source = @cost_source,
+    cost_source = @cost_source, list_cost_usd = @list_cost_usd,
     session_ref = @session_ref, model = @model, finished_at = @now, pending_result = NULL
 WHERE company_id = @company_id AND id = @id
 RETURNING *;

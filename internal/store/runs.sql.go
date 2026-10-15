@@ -13,7 +13,7 @@ import (
 )
 
 const activeRunForTask = `-- name: ActiveRunForTask :one
-SELECT id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, name FROM runs WHERE task_id = $1 AND status IN ('queued', 'running')
+SELECT id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name FROM runs WHERE task_id = $1 AND status IN ('queued', 'running')
 `
 
 func (q *Queries) ActiveRunForTask(ctx context.Context, taskID uuid.UUID) (Run, error) {
@@ -46,6 +46,9 @@ func (q *Queries) ActiveRunForTask(ctx context.Context, taskID uuid.UUID) (Run, 
 		&i.PendingResult,
 		&i.CostSource,
 		&i.NextEventSeq,
+		&i.ModelSource,
+		&i.SubscriptionID,
+		&i.ListCostUsd,
 		&i.Name,
 	)
 	return i, err
@@ -122,7 +125,7 @@ func (q *Queries) BumpWakeRequest(ctx context.Context, arg BumpWakeRequestParams
 const cancelQueuedRun = `-- name: CancelQueuedRun :one
 UPDATE runs SET status = 'cancelled', finished_at = $1
 WHERE company_id = $2 AND id = $3 AND status = 'queued'
-RETURNING id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, name
+RETURNING id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name
 `
 
 type CancelQueuedRunParams struct {
@@ -161,27 +164,32 @@ func (q *Queries) CancelQueuedRun(ctx context.Context, arg CancelQueuedRunParams
 		&i.PendingResult,
 		&i.CostSource,
 		&i.NextEventSeq,
+		&i.ModelSource,
+		&i.SubscriptionID,
+		&i.ListCostUsd,
 		&i.Name,
 	)
 	return i, err
 }
 
 const createRun = `-- name: CreateRun :one
-INSERT INTO runs (id, company_id, task_id, persona_id, status, trigger, agent, model, name, created_at)
-VALUES ($1, $2, $3, $4, 'queued', $5, $6, $7, $8, $9)
-RETURNING id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, name
+INSERT INTO runs (id, company_id, task_id, persona_id, status, trigger, agent, model, model_source, subscription_id, name, created_at)
+VALUES ($1, $2, $3, $4, 'queued', $5, $6, $7, $8, $9, $10, $11)
+RETURNING id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name
 `
 
 type CreateRunParams struct {
-	ID        uuid.UUID
-	CompanyID uuid.UUID
-	TaskID    uuid.UUID
-	PersonaID uuid.UUID
-	Trigger   string
-	Agent     string
-	Model     string
-	Name      string
-	Now       time.Time
+	ID             uuid.UUID
+	CompanyID      uuid.UUID
+	TaskID         uuid.UUID
+	PersonaID      uuid.UUID
+	Trigger        string
+	Agent          string
+	Model          string
+	ModelSource    string
+	SubscriptionID *uuid.UUID
+	Name           string
+	Now            time.Time
 }
 
 func (q *Queries) CreateRun(ctx context.Context, arg CreateRunParams) (Run, error) {
@@ -193,6 +201,8 @@ func (q *Queries) CreateRun(ctx context.Context, arg CreateRunParams) (Run, erro
 		arg.Trigger,
 		arg.Agent,
 		arg.Model,
+		arg.ModelSource,
+		arg.SubscriptionID,
 		arg.Name,
 		arg.Now,
 	)
@@ -224,6 +234,9 @@ func (q *Queries) CreateRun(ctx context.Context, arg CreateRunParams) (Run, erro
 		&i.PendingResult,
 		&i.CostSource,
 		&i.NextEventSeq,
+		&i.ModelSource,
+		&i.SubscriptionID,
+		&i.ListCostUsd,
 		&i.Name,
 	)
 	return i, err
@@ -234,10 +247,10 @@ UPDATE runs
 SET status = $1, exit_code = $2, error = $3, summary = $4, cost_usd = $5,
     input_tokens = $6, output_tokens = $7,
     cache_read_tokens = $8, cache_creation_tokens = $9,
-    cost_source = $10,
-    session_ref = $11, model = $12, finished_at = $13, pending_result = NULL
-WHERE company_id = $14 AND id = $15
-RETURNING id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, name
+    cost_source = $10, list_cost_usd = $11,
+    session_ref = $12, model = $13, finished_at = $14, pending_result = NULL
+WHERE company_id = $15 AND id = $16
+RETURNING id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name
 `
 
 type FinishRunParams struct {
@@ -251,6 +264,7 @@ type FinishRunParams struct {
 	CacheReadTokens     int64
 	CacheCreationTokens int64
 	CostSource          string
+	ListCostUsd         *float64
 	SessionRef          string
 	Model               string
 	Now                 *time.Time
@@ -270,6 +284,7 @@ func (q *Queries) FinishRun(ctx context.Context, arg FinishRunParams) (Run, erro
 		arg.CacheReadTokens,
 		arg.CacheCreationTokens,
 		arg.CostSource,
+		arg.ListCostUsd,
 		arg.SessionRef,
 		arg.Model,
 		arg.Now,
@@ -304,13 +319,16 @@ func (q *Queries) FinishRun(ctx context.Context, arg FinishRunParams) (Run, erro
 		&i.PendingResult,
 		&i.CostSource,
 		&i.NextEventSeq,
+		&i.ModelSource,
+		&i.SubscriptionID,
+		&i.ListCostUsd,
 		&i.Name,
 	)
 	return i, err
 }
 
 const getRunByID = `-- name: GetRunByID :one
-SELECT id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, name FROM runs WHERE company_id = $1 AND id = $2
+SELECT id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name FROM runs WHERE company_id = $1 AND id = $2
 `
 
 type GetRunByIDParams struct {
@@ -348,13 +366,16 @@ func (q *Queries) GetRunByID(ctx context.Context, arg GetRunByIDParams) (Run, er
 		&i.PendingResult,
 		&i.CostSource,
 		&i.NextEventSeq,
+		&i.ModelSource,
+		&i.SubscriptionID,
+		&i.ListCostUsd,
 		&i.Name,
 	)
 	return i, err
 }
 
 const getRunByIDForUpdate = `-- name: GetRunByIDForUpdate :one
-SELECT id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, name FROM runs WHERE company_id = $1 AND id = $2 FOR UPDATE
+SELECT id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name FROM runs WHERE company_id = $1 AND id = $2 FOR UPDATE
 `
 
 type GetRunByIDForUpdateParams struct {
@@ -392,13 +413,16 @@ func (q *Queries) GetRunByIDForUpdate(ctx context.Context, arg GetRunByIDForUpda
 		&i.PendingResult,
 		&i.CostSource,
 		&i.NextEventSeq,
+		&i.ModelSource,
+		&i.SubscriptionID,
+		&i.ListCostUsd,
 		&i.Name,
 	)
 	return i, err
 }
 
 const getRunView = `-- name: GetRunView :one
-SELECT r.id, r.company_id, r.task_id, r.persona_id, r.status, r.trigger, r.agent, r.model, r.session_ref, r.trace_id, r.exit_code, r.error, r.summary, r.cost_usd, r.input_tokens, r.output_tokens, r.cache_read_tokens, r.cache_creation_tokens, r.handoff_in, r.handoff_out, r.created_at, r.started_at, r.finished_at, r.pending_result, r.cost_source, r.next_event_seq, r.name, (c.task_prefix || '-' || t.number)::text AS task_key, t.title AS task_title, p.name AS persona_name
+SELECT r.id, r.company_id, r.task_id, r.persona_id, r.status, r.trigger, r.agent, r.model, r.session_ref, r.trace_id, r.exit_code, r.error, r.summary, r.cost_usd, r.input_tokens, r.output_tokens, r.cache_read_tokens, r.cache_creation_tokens, r.handoff_in, r.handoff_out, r.created_at, r.started_at, r.finished_at, r.pending_result, r.cost_source, r.next_event_seq, r.model_source, r.subscription_id, r.list_cost_usd, r.name, (c.task_prefix || '-' || t.number)::text AS task_key, t.title AS task_title, p.name AS persona_name
 FROM runs r
 JOIN tasks t ON t.id = r.task_id
 JOIN personas p ON p.id = r.persona_id
@@ -448,6 +472,9 @@ func (q *Queries) GetRunView(ctx context.Context, arg GetRunViewParams) (GetRunV
 		&i.Run.PendingResult,
 		&i.Run.CostSource,
 		&i.Run.NextEventSeq,
+		&i.Run.ModelSource,
+		&i.Run.SubscriptionID,
+		&i.Run.ListCostUsd,
 		&i.Run.Name,
 		&i.TaskKey,
 		&i.TaskTitle,
@@ -476,7 +503,7 @@ const interruptActiveRuns = `-- name: InterruptActiveRuns :many
 UPDATE runs SET status = 'interrupted', finished_at = $1,
     error = CASE WHEN error = '' THEN 'interrupted: process restarted' ELSE error END
 WHERE status IN ('queued', 'running')
-RETURNING id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, name
+RETURNING id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name
 `
 
 func (q *Queries) InterruptActiveRuns(ctx context.Context, now *time.Time) ([]Run, error) {
@@ -515,6 +542,9 @@ func (q *Queries) InterruptActiveRuns(ctx context.Context, now *time.Time) ([]Ru
 			&i.PendingResult,
 			&i.CostSource,
 			&i.NextEventSeq,
+			&i.ModelSource,
+			&i.SubscriptionID,
+			&i.ListCostUsd,
 			&i.Name,
 		); err != nil {
 			return nil, err
@@ -577,7 +607,7 @@ func (q *Queries) ListRunEvents(ctx context.Context, arg ListRunEventsParams) ([
 }
 
 const listRunViews = `-- name: ListRunViews :many
-SELECT r.id, r.company_id, r.task_id, r.persona_id, r.status, r.trigger, r.agent, r.model, r.session_ref, r.trace_id, r.exit_code, r.error, r.summary, r.cost_usd, r.input_tokens, r.output_tokens, r.cache_read_tokens, r.cache_creation_tokens, r.handoff_in, r.handoff_out, r.created_at, r.started_at, r.finished_at, r.pending_result, r.cost_source, r.next_event_seq, r.name, (c.task_prefix || '-' || t.number)::text AS task_key, t.title AS task_title, p.name AS persona_name
+SELECT r.id, r.company_id, r.task_id, r.persona_id, r.status, r.trigger, r.agent, r.model, r.session_ref, r.trace_id, r.exit_code, r.error, r.summary, r.cost_usd, r.input_tokens, r.output_tokens, r.cache_read_tokens, r.cache_creation_tokens, r.handoff_in, r.handoff_out, r.created_at, r.started_at, r.finished_at, r.pending_result, r.cost_source, r.next_event_seq, r.model_source, r.subscription_id, r.list_cost_usd, r.name, (c.task_prefix || '-' || t.number)::text AS task_key, t.title AS task_title, p.name AS persona_name
 FROM runs r
 JOIN tasks t ON t.id = r.task_id
 JOIN personas p ON p.id = r.persona_id
@@ -650,6 +680,9 @@ func (q *Queries) ListRunViews(ctx context.Context, arg ListRunViewsParams) ([]L
 			&i.Run.PendingResult,
 			&i.Run.CostSource,
 			&i.Run.NextEventSeq,
+			&i.Run.ModelSource,
+			&i.Run.SubscriptionID,
+			&i.Run.ListCostUsd,
 			&i.Run.Name,
 			&i.TaskKey,
 			&i.TaskTitle,
@@ -768,7 +801,7 @@ func (q *Queries) ListWakeCandidates(ctx context.Context, arg ListWakeCandidates
 }
 
 const listWorkableTasksForPersona = `-- name: ListWorkableTasksForPersona :many
-SELECT id, company_id, number, title, description, status, priority, persona_id, project_id, workspace_id, parent_id, created_by_type, created_by_id, created_at, updated_at, closed_at, last_human_change_at FROM tasks WHERE persona_id = $1 AND status IN ('todo', 'in_progress') ORDER BY updated_at, id
+SELECT id, company_id, number, title, description, status, priority, persona_id, project_id, workspace_id, parent_id, created_by_type, created_by_id, created_at, updated_at, closed_at, last_human_change_at, model FROM tasks WHERE persona_id = $1 AND status IN ('todo', 'in_progress') ORDER BY updated_at, id
 `
 
 func (q *Queries) ListWorkableTasksForPersona(ctx context.Context, personaID *uuid.UUID) ([]Task, error) {
@@ -798,6 +831,7 @@ func (q *Queries) ListWorkableTasksForPersona(ctx context.Context, personaID *uu
 			&i.UpdatedAt,
 			&i.ClosedAt,
 			&i.LastHumanChangeAt,
+			&i.Model,
 		); err != nil {
 			return nil, err
 		}
@@ -812,7 +846,7 @@ func (q *Queries) ListWorkableTasksForPersona(ctx context.Context, personaID *uu
 const markRunStarted = `-- name: MarkRunStarted :one
 UPDATE runs SET status = 'running', started_at = $1, trace_id = $2, handoff_in = $3
 WHERE company_id = $4 AND id = $5 AND status = 'queued'
-RETURNING id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, name
+RETURNING id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name
 `
 
 type MarkRunStartedParams struct {
@@ -859,6 +893,9 @@ func (q *Queries) MarkRunStarted(ctx context.Context, arg MarkRunStartedParams) 
 		&i.PendingResult,
 		&i.CostSource,
 		&i.NextEventSeq,
+		&i.ModelSource,
+		&i.SubscriptionID,
+		&i.ListCostUsd,
 		&i.Name,
 	)
 	return i, err

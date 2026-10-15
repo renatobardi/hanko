@@ -2,6 +2,8 @@ package ui
 
 import (
 	"encoding/json"
+	"fmt"
+	"math"
 	"net/http"
 	"time"
 
@@ -21,7 +23,7 @@ var inboxNotices = map[string]string{
 
 type inboxTab struct{ key, label string }
 
-var inboxTabs = []inboxTab{{"tudo", "Tudo"}, {"gates", "Gates"}, {"bloqueadas", "Bloqueadas"}, {"falhas", "Falhas"}, {"personas", "Personas"}, {"alertas", "Alertas"}}
+var inboxTabs = []inboxTab{{"tudo", "Tudo"}, {"gates", "Gates"}, {"bloqueadas", "Bloqueadas"}, {"falhas", "Falhas"}, {"personas", "Personas"}, {"alertas", "Alertas"}, {"assinaturas", "Assinaturas"}}
 
 func (s *server) handleInbox(w http.ResponseWriter, r *http.Request, co domain.Company) {
 	ctx := r.Context()
@@ -67,7 +69,7 @@ func (s *server) handleInbox(w http.ResponseWriter, r *http.Request, co domain.C
 			vm.DecidedToday++
 		}
 	}
-	counts := map[string]int{"tudo": in.Count(), "gates": len(in.Gates), "bloqueadas": len(in.BlockedTasks), "falhas": len(in.FailedRuns), "personas": len(in.ErrorPersonas), "alertas": len(in.Alerts)}
+	counts := map[string]int{"tudo": in.Count(), "gates": len(in.Gates), "bloqueadas": len(in.BlockedTasks), "falhas": len(in.FailedRuns), "personas": len(in.ErrorPersonas), "alertas": len(in.Alerts), "assinaturas": len(in.GuardedSubscriptions)}
 	for _, t := range inboxTabs {
 		vm.Tabs = append(vm.Tabs, views.TabLink{Key: t.key, Label: t.label, Href: base + "/caixa?aba=" + t.key, Count: counts[t.key], On: t.key == cur})
 	}
@@ -110,7 +112,17 @@ func (s *server) handleInbox(w http.ResponseWriter, r *http.Request, co domain.C
 			vm.Alerts = append(vm.Alerts, alertRow(a, base, now, loc))
 		}
 	}
-	vm.Total = len(vm.Gates) + len(vm.Blocked) + len(vm.Failed) + len(vm.Personas) + len(vm.Alerts)
+	if show("assinaturas") {
+		for _, g := range in.GuardedSubscriptions {
+			limit, pct := "—", ""
+			if g.WeeklyLimitUSD != nil {
+				limit, pct = fmtUSD(*g.WeeklyLimitUSD), fmt.Sprintf("%d%%", int(math.Round(g.WeekPercent)))
+			}
+			vm.Subs = append(vm.Subs, views.InboxSub{Name: g.Name, Href: base + "/custos#assinaturas", Usage: fmtUSD(g.WeekUsageUSD),
+				Limit: limit, Percent: pct, Guard: g.WeeklyGuardPct, Week: g.WeekStart.In(loc).Format("02/01")})
+		}
+	}
+	vm.Total = len(vm.Gates) + len(vm.Blocked) + len(vm.Failed) + len(vm.Personas) + len(vm.Alerts) + len(vm.Subs)
 	switch n := in.Count(); n {
 	case 0:
 		vm.Subtitle = "Gates, bloqueios, falhas, personas com erro e alertas que esperam por você. Hoje, nada."

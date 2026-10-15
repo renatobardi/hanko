@@ -187,6 +187,7 @@ func verbTail(v string) string {
 		"created": "criada", "updated": "atualizada", "assigned": "atribuída", "status_changed": "status",
 		"closed": "encerrada", "added": "adicionado", "hired": "contratada", "queued": "na fila",
 		"started": "iniciada", "finished": "concluída", "cancelled": "cancelada", "requested": "pedido", "decided": "decidido",
+		"guard_blocked": "travada", "deleted": "removida",
 	}[tail]; ok {
 		return pt
 	}
@@ -262,6 +263,14 @@ func verbPhrase(v string) string {
 		return "abriu o alerta"
 	case "alert.closed":
 		return "fechou o alerta"
+	case "subscription.created":
+		return "criou a assinatura"
+	case "subscription.updated":
+		return "atualizou a assinatura"
+	case "subscription.deleted":
+		return "removeu a assinatura"
+	case "subscription.guard_blocked":
+		return "travou a assinatura"
 	}
 	return v
 }

@@ -43,7 +43,7 @@ func Open(ctx context.Context, url string, logger *slog.Logger) (*pgxpool.Pool, 
 	cfg.MaxConnLifetime = time.Hour
 	cfg.MaxConnIdleTime = 15 * time.Minute
 	cfg.HealthCheckPeriod = time.Minute
-	cfg.ConnConfig.Tracer = otelpgx.NewTracer(otelpgx.WithTrimSQLInSpanName())
+	cfg.ConnConfig.Tracer = otelpgx.NewTracer()
 
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {

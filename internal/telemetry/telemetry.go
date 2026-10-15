@@ -26,7 +26,6 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	promexporter "go.opentelemetry.io/otel/exporters/prometheus"
-	otellog "go.opentelemetry.io/otel/log/global"
 	"go.opentelemetry.io/otel/propagation"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
@@ -163,7 +162,7 @@ func Setup(ctx context.Context, o Options) (*Telemetry, error) {
 
 	otel.SetTracerProvider(t.tp)
 	otel.SetMeterProvider(t.mp)
-	otellog.SetLoggerProvider(t.lp)
+	otel.SetLoggerProvider(t.lp)
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
 
 	t.Logger = slog.New(newFanout(level,

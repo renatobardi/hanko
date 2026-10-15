@@ -1,4 +1,15 @@
+> English: [docs/en/STACK.md](en/STACK.md)
+
 # HANKO — Stack & Convenções (v0.1)
+
+> **Estado real do código (2026-10-15).** Este documento é o plano de stack; onde ele diverge do código, vale o código e as ADRs:
+> - CLI real: `serve, migrate, version, openapi, company, workspace, project, persona, task, run, gate, org, cost, budget, flow, auth, subscription` — `onboard`, `test-drive`, `agent`, `export`, `import` não existem.
+> - Adapters em `internal/adapter`: `claude`, `codex`, `fake`. O adapter `http` (webhook) não foi feito.
+> - MCP: servidor `/mcp` (tools `hanko_*`) e proxy `/memory-mcp` para o ai-memory; não há gateway allow/ask/off.
+> - CSS próprio com tokens Kubo (adendo da ADR-0005), sem Tailwind; o JS do Firebase está versionado em `internal/ui/static/`, sem `tools/bundle`.
+> - Não existem ainda: `internal/secrets`, `internal/storage`, `tools/bundle`, embedded-postgres, testcontainers (os testes usam `HANKO_TEST_DATABASE_URL`), `go-i18n`.
+> - Imagem: `ghcr.io/renatobardi/hanko`.
+
 
 Control plane open-source para orquestrar times de agentes de IA (tasks, org chart, heartbeat, governança, budget). URL: https://hanko.oute.pro
 Conceitos de orquestração de agentes (company, agent, issue, heartbeat, run, approval, budget, routine) implementados do zero em Go. Nenhum código de terceiros.

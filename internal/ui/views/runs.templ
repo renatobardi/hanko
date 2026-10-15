@@ -160,6 +160,10 @@ templ RunPage(sh Shell, vm RunVM) {
 								—
 							}
 						</dd>
+						<dt>Origem do modelo</dt><dd>{ vm.ModelSource }</dd>
+						<dt>Custo de lista</dt><dd>{ vm.ListCost }</dd>
+						<dt>Origem do custo</dt><dd>{ vm.CostSource }</dd>
+						<dt>Assinatura</dt><dd>{ vm.Subscription }</dd>
 						<dt>Gatilho</dt><dd>{ vm.Trigger }</dd>
 						<dt>Sessão</dt><dd>
 							if vm.Session != "" {

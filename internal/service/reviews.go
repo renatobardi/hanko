@@ -156,7 +156,25 @@ func (s *Service) StartReview(ctx context.Context, companyID, reviewID domain.ID
 		}
 		sum := sha256.Sum256([]byte(artifact))
 		sha := hex.EncodeToString(sum[:])
-		run, err := t.createRun(companyID, task.ID, runPersona.ID, rv.Agent, rv.Model, domain.TriggerReview)
+		// The harness of the review may differ from the persona's: the subscription must cover that one.
+		billed := runPersona
+		billed.Agent = rv.Agent
+		model, modelSource := domain.ResolveModel("", rv.Model)
+		sub, err := t.subscriptionFor(billed, model)
+		if err != nil {
+			return err
+		}
+		var subID *domain.ID
+		if sub != nil {
+			subID = &sub.ID
+			if gerr := t.checkWeeklyGuard(co, *sub); gerr != nil {
+				if !errors.Is(gerr, domain.ErrSubscriptionGuard) {
+					return gerr
+				}
+				return t.completeReview(rv, task, nil, "failed", nil, "A revisão não rodou: "+gerr.Error(), label, nil)
+			}
+		}
+		run, err := t.createRun(companyID, task.ID, runPersona.ID, rv.Agent, model, modelSource, subID, domain.TriggerReview)
 		if err != nil {
 			return err
 		}

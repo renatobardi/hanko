@@ -174,6 +174,11 @@ func (f *Fake) Inbox(ctx context.Context, companyID domain.ID) (service.Inbox, e
 		}
 	}
 	in.Alerts = append(in.Alerts, f.Alerts...)
+	for _, s := range f.Subs {
+		if s.Blocked {
+			in.GuardedSubscriptions = append(in.GuardedSubscriptions, s)
+		}
+	}
 	return in, nil
 }
 

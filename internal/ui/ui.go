@@ -75,6 +75,11 @@ type Backend interface {
 	PersonaBudget(ctx context.Context, companyID, personaID domain.ID) (service.BudgetStatus, error)
 	SetCompanyBudget(ctx context.Context, actor domain.Actor, companyID domain.ID, cents *int64) (domain.Company, error)
 
+	ListSubscriptions(ctx context.Context, companyID domain.ID) ([]service.SubscriptionStatus, error)
+	CreateSubscription(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.CreateSubscriptionInput) (domain.Subscription, error)
+	UpdateSubscription(ctx context.Context, actor domain.Actor, companyID, id domain.ID, in service.UpdateSubscriptionInput) (domain.Subscription, error)
+	DeleteSubscription(ctx context.Context, actor domain.Actor, companyID, id domain.ID) error
+
 	ListFlows(ctx context.Context, companyID domain.ID) ([]service.FlowView, error)
 	GetFlow(ctx context.Context, companyID domain.ID, ref string) (service.FlowView, error)
 	CreateFlow(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.CreateFlowInput) (service.FlowView, error)
@@ -173,6 +178,10 @@ func (s *server) routes(mux *http.ServeMux) {
 
 	mux.HandleFunc("GET /c/{company}/custos", co(s.handleCosts))
 	mux.HandleFunc("POST /c/{company}/custos/orcamento", post(co(s.handleSetCompanyBudget)))
+	mux.HandleFunc("POST /c/{company}/custos/assinaturas", post(co(s.handleCreateSubscription)))
+	mux.HandleFunc("POST /c/{company}/custos/assinaturas/{sub}", post(co(s.handleUpdateSubscription)))
+	mux.HandleFunc("POST /c/{company}/custos/assinaturas/{sub}/remover", post(co(s.handleDeleteSubscription)))
+	mux.HandleFunc("POST /c/{company}/personas/{persona}/assinatura", post(co(s.handlePersonaSubscription)))
 
 	mux.HandleFunc("GET /c/{company}/fluxos", co(s.handleFlows))
 	mux.HandleFunc("GET /c/{company}/fluxos/novo", co(s.handleNewFlow))
@@ -314,6 +323,9 @@ func friendly(err error) (int, string, string) {
 	case http.StatusConflict:
 		if errors.Is(err, domain.ErrBudgetExceeded) {
 			return st, "Orçamento estourado", "O limite mensal foi atingido; nenhuma execução nova abre até o limite subir ou o mês virar."
+		}
+		if errors.Is(err, domain.ErrSubscriptionGuard) {
+			return st, "Trava semanal da assinatura", "O uso da semana chegou ao limite da assinatura; nenhuma execução nova abre até a semana virar ou o limite subir."
 		}
 		if errors.Is(err, domain.ErrActiveRun) {
 			return st, "Já existe uma execução ativa", "Esta task já tem uma execução em andamento; espere ela terminar."

@@ -26,6 +26,28 @@ func runRows(rs []api.Run) [][]string {
 	return rows
 }
 
+func modelSourceLabel(s string) string {
+	switch s {
+	case "task":
+		return "escolha manual na task"
+	case "persona":
+		return "modelo da persona"
+	case "harness_default":
+		return "padrão do harness"
+	}
+	return "-"
+}
+
+func costSourceLabel(s string) string {
+	switch s {
+	case "reported":
+		return "real, informado pelo harness"
+	case "estimated":
+		return "estimado pela tabela de preços"
+	}
+	return "desconhecido"
+}
+
 func cost(c *float64) string {
 	if c == nil {
 		return "-"
@@ -88,7 +110,9 @@ func (e *env) runCmd() *cobra.Command {
 				[2]string{"Persona", dash(r.PersonaName)}, [2]string{"Status", r.Status}, [2]string{"Gatilho", r.Trigger},
 				[2]string{"Agente", r.Agent + modelSuffix(r.Model)}, [2]string{"Criada em", fmtTime(r.CreatedAt)},
 				[2]string{"Início", fmtTimePtr(r.StartedAt)}, [2]string{"Fim", fmtTimePtr(r.FinishedAt)},
-				[2]string{"Custo", cost(r.CostUSD)},
+				[2]string{"Origem do modelo", modelSourceLabel(r.ModelSource)},
+				[2]string{"Custo", cost(r.CostUSD) + " (" + costSourceLabel(r.CostSource) + ")"}, [2]string{"Custo de lista", cost(r.ListCostUSD)},
+				[2]string{"Assinatura", dash(r.SubscriptionID)},
 				[2]string{"Tokens", fmt.Sprintf("entrada %d · saída %d · cache %d/%d", r.Usage.InputTokens, r.Usage.OutputTokens,
 					r.Usage.CacheReadTokens, r.Usage.CacheCreationTokens)})
 			if r.Error != "" {

@@ -14,10 +14,10 @@ import (
 
 const createTask = `-- name: CreateTask :one
 INSERT INTO tasks (id, company_id, number, title, description, status, priority, persona_id, project_id,
-                   workspace_id, parent_id, created_by_type, created_by_id, created_at, updated_at)
+                   workspace_id, parent_id, created_by_type, created_by_id, model, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9,
-        $10, $11, $12, $13, $14, $14)
-RETURNING id, company_id, number, title, description, status, priority, persona_id, project_id, workspace_id, parent_id, created_by_type, created_by_id, created_at, updated_at, closed_at, last_human_change_at
+        $10, $11, $12, $13, $14, $15, $15)
+RETURNING id, company_id, number, title, description, status, priority, persona_id, project_id, workspace_id, parent_id, created_by_type, created_by_id, created_at, updated_at, closed_at, last_human_change_at, model
 `
 
 type CreateTaskParams struct {
@@ -34,6 +34,7 @@ type CreateTaskParams struct {
 	ParentID      *uuid.UUID
 	CreatedByType string
 	CreatedByID   *uuid.UUID
+	Model         string
 	Now           time.Time
 }
 
@@ -52,6 +53,7 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, e
 		arg.ParentID,
 		arg.CreatedByType,
 		arg.CreatedByID,
+		arg.Model,
 		arg.Now,
 	)
 	var i Task
@@ -73,12 +75,13 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, e
 		&i.UpdatedAt,
 		&i.ClosedAt,
 		&i.LastHumanChangeAt,
+		&i.Model,
 	)
 	return i, err
 }
 
 const getTaskByID = `-- name: GetTaskByID :one
-SELECT id, company_id, number, title, description, status, priority, persona_id, project_id, workspace_id, parent_id, created_by_type, created_by_id, created_at, updated_at, closed_at, last_human_change_at FROM tasks WHERE company_id = $1 AND id = $2
+SELECT id, company_id, number, title, description, status, priority, persona_id, project_id, workspace_id, parent_id, created_by_type, created_by_id, created_at, updated_at, closed_at, last_human_change_at, model FROM tasks WHERE company_id = $1 AND id = $2
 `
 
 type GetTaskByIDParams struct {
@@ -107,12 +110,13 @@ func (q *Queries) GetTaskByID(ctx context.Context, arg GetTaskByIDParams) (Task,
 		&i.UpdatedAt,
 		&i.ClosedAt,
 		&i.LastHumanChangeAt,
+		&i.Model,
 	)
 	return i, err
 }
 
 const getTaskByIDForUpdate = `-- name: GetTaskByIDForUpdate :one
-SELECT id, company_id, number, title, description, status, priority, persona_id, project_id, workspace_id, parent_id, created_by_type, created_by_id, created_at, updated_at, closed_at, last_human_change_at FROM tasks WHERE company_id = $1 AND id = $2 FOR UPDATE
+SELECT id, company_id, number, title, description, status, priority, persona_id, project_id, workspace_id, parent_id, created_by_type, created_by_id, created_at, updated_at, closed_at, last_human_change_at, model FROM tasks WHERE company_id = $1 AND id = $2 FOR UPDATE
 `
 
 type GetTaskByIDForUpdateParams struct {
@@ -141,12 +145,13 @@ func (q *Queries) GetTaskByIDForUpdate(ctx context.Context, arg GetTaskByIDForUp
 		&i.UpdatedAt,
 		&i.ClosedAt,
 		&i.LastHumanChangeAt,
+		&i.Model,
 	)
 	return i, err
 }
 
 const getTaskView = `-- name: GetTaskView :one
-SELECT t.id, t.company_id, t.number, t.title, t.description, t.status, t.priority, t.persona_id, t.project_id, t.workspace_id, t.parent_id, t.created_by_type, t.created_by_id, t.created_at, t.updated_at, t.closed_at, t.last_human_change_at, COALESCE(p.name, '')::text AS persona_name, COALESCE(pr.name, '')::text AS project_name,
+SELECT t.id, t.company_id, t.number, t.title, t.description, t.status, t.priority, t.persona_id, t.project_id, t.workspace_id, t.parent_id, t.created_by_type, t.created_by_id, t.created_at, t.updated_at, t.closed_at, t.last_human_change_at, t.model, COALESCE(p.name, '')::text AS persona_name, COALESCE(pr.name, '')::text AS project_name,
        ar.id AS active_run_id, c.task_prefix
 FROM tasks t
 JOIN companies c ON c.id = t.company_id
@@ -190,6 +195,7 @@ func (q *Queries) GetTaskView(ctx context.Context, arg GetTaskViewParams) (GetTa
 		&i.Task.UpdatedAt,
 		&i.Task.ClosedAt,
 		&i.Task.LastHumanChangeAt,
+		&i.Task.Model,
 		&i.PersonaName,
 		&i.ProjectName,
 		&i.ActiveRunID,
@@ -199,7 +205,7 @@ func (q *Queries) GetTaskView(ctx context.Context, arg GetTaskViewParams) (GetTa
 }
 
 const getTaskViewByNumber = `-- name: GetTaskViewByNumber :one
-SELECT t.id, t.company_id, t.number, t.title, t.description, t.status, t.priority, t.persona_id, t.project_id, t.workspace_id, t.parent_id, t.created_by_type, t.created_by_id, t.created_at, t.updated_at, t.closed_at, t.last_human_change_at, COALESCE(p.name, '')::text AS persona_name, COALESCE(pr.name, '')::text AS project_name,
+SELECT t.id, t.company_id, t.number, t.title, t.description, t.status, t.priority, t.persona_id, t.project_id, t.workspace_id, t.parent_id, t.created_by_type, t.created_by_id, t.created_at, t.updated_at, t.closed_at, t.last_human_change_at, t.model, COALESCE(p.name, '')::text AS persona_name, COALESCE(pr.name, '')::text AS project_name,
        ar.id AS active_run_id, c.task_prefix
 FROM tasks t
 JOIN companies c ON c.id = t.company_id
@@ -243,6 +249,7 @@ func (q *Queries) GetTaskViewByNumber(ctx context.Context, arg GetTaskViewByNumb
 		&i.Task.UpdatedAt,
 		&i.Task.ClosedAt,
 		&i.Task.LastHumanChangeAt,
+		&i.Task.Model,
 		&i.PersonaName,
 		&i.ProjectName,
 		&i.ActiveRunID,
@@ -252,7 +259,7 @@ func (q *Queries) GetTaskViewByNumber(ctx context.Context, arg GetTaskViewByNumb
 }
 
 const listTaskViews = `-- name: ListTaskViews :many
-SELECT t.id, t.company_id, t.number, t.title, t.description, t.status, t.priority, t.persona_id, t.project_id, t.workspace_id, t.parent_id, t.created_by_type, t.created_by_id, t.created_at, t.updated_at, t.closed_at, t.last_human_change_at, COALESCE(p.name, '')::text AS persona_name, COALESCE(pr.name, '')::text AS project_name,
+SELECT t.id, t.company_id, t.number, t.title, t.description, t.status, t.priority, t.persona_id, t.project_id, t.workspace_id, t.parent_id, t.created_by_type, t.created_by_id, t.created_at, t.updated_at, t.closed_at, t.last_human_change_at, t.model, COALESCE(p.name, '')::text AS persona_name, COALESCE(pr.name, '')::text AS project_name,
        ar.id AS active_run_id, c.task_prefix
 FROM tasks t
 JOIN companies c ON c.id = t.company_id
@@ -322,6 +329,7 @@ func (q *Queries) ListTaskViews(ctx context.Context, arg ListTaskViewsParams) ([
 			&i.Task.UpdatedAt,
 			&i.Task.ClosedAt,
 			&i.Task.LastHumanChangeAt,
+			&i.Task.Model,
 			&i.PersonaName,
 			&i.ProjectName,
 			&i.ActiveRunID,
@@ -370,9 +378,9 @@ func (q *Queries) TouchTaskHumanChange(ctx context.Context, arg TouchTaskHumanCh
 const updateTask = `-- name: UpdateTask :one
 UPDATE tasks
 SET title = $1, description = $2, status = $3, priority = $4,
-    persona_id = $5, project_id = $6, closed_at = $7, updated_at = $8
-WHERE company_id = $9 AND id = $10
-RETURNING id, company_id, number, title, description, status, priority, persona_id, project_id, workspace_id, parent_id, created_by_type, created_by_id, created_at, updated_at, closed_at, last_human_change_at
+    persona_id = $5, project_id = $6, model = $7, closed_at = $8, updated_at = $9
+WHERE company_id = $10 AND id = $11
+RETURNING id, company_id, number, title, description, status, priority, persona_id, project_id, workspace_id, parent_id, created_by_type, created_by_id, created_at, updated_at, closed_at, last_human_change_at, model
 `
 
 type UpdateTaskParams struct {
@@ -382,6 +390,7 @@ type UpdateTaskParams struct {
 	Priority    string
 	PersonaID   *uuid.UUID
 	ProjectID   *uuid.UUID
+	Model       string
 	ClosedAt    *time.Time
 	Now         time.Time
 	CompanyID   uuid.UUID
@@ -396,6 +405,7 @@ func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, e
 		arg.Priority,
 		arg.PersonaID,
 		arg.ProjectID,
+		arg.Model,
 		arg.ClosedAt,
 		arg.Now,
 		arg.CompanyID,
@@ -420,6 +430,7 @@ func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, e
 		&i.UpdatedAt,
 		&i.ClosedAt,
 		&i.LastHumanChangeAt,
+		&i.Model,
 	)
 	return i, err
 }

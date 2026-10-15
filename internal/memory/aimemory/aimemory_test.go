@@ -169,7 +169,7 @@ func (f *fakeServer) newMCP() http.Handler {
 	inner := sdk.NewStreamableHTTPHandler(func(*http.Request) *sdk.Server { return s }, nil)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer "+testToken {
-			http.Error(w, "unauthorized", 401)
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
 		inner.ServeHTTP(w, r)

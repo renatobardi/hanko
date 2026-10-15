@@ -171,12 +171,12 @@ func (e *env) personaCmd() *cobra.Command {
 	c := &cobra.Command{Use: "persona", Short: "Gerencia personas (papéis contratados pela empresa)"}
 
 	var (
-		slug, title, instr, instrFile, agent, model, reports, ws string
-		interval                                                 int
-		budget                                                   int64
-		cfg                                                      map[string]string
-		review                                                   bool
-		revPersona, revAgent, revModel                           string
+		slug, title, instr, instrFile, agent, model, reports, ws, subscription string
+		interval                                                               int
+		budget                                                                 int64
+		cfg                                                                    map[string]string
+		review                                                                 bool
+		revPersona, revAgent, revModel                                         string
 	)
 	hire := &cobra.Command{
 		Use: "hire <nome>", Short: "Contrata uma persona", Args: cobra.ExactArgs(1),
@@ -193,7 +193,7 @@ func (e *env) personaCmd() *cobra.Command {
 				instr = string(b)
 			}
 			req := client.HirePersonaReq{Name: args[0], Slug: slug, Title: title, Instructions: instr, Agent: agent, Model: model,
-				ReportsTo: reports, Workspace: ws, HeartbeatIntervalSec: interval, RequireReview: review,
+				ReportsTo: reports, Workspace: ws, HeartbeatIntervalSec: interval, RequireReview: review, Subscription: subscription,
 				Reviewer: revPersona, ReviewerAgent: revAgent, ReviewerModel: revModel}
 			if cmd.Flags().Changed("budget-cents") {
 				req.BudgetMonthlyCents = &budget
@@ -222,6 +222,7 @@ func (e *env) personaCmd() *cobra.Command {
 	hf.StringVar(&instrFile, "instructions-file", "", "arquivo com as instruções")
 	hf.StringVar(&agent, "agent", "", "harness: claude, codex ou fake (obrigatório)")
 	hf.StringVar(&model, "model", "", "modelo")
+	hf.StringVar(&subscription, "subscription", "", "assinatura que cobre a persona (id ou nome)")
 	hf.StringVar(&reports, "reports-to", "", "persona superior (id ou slug)")
 	hf.StringVar(&ws, "workspace", "", "workspace (id ou slug)")
 	hf.IntVar(&interval, "interval", 0, "intervalo do heartbeat em segundos (0 desliga)")
@@ -274,7 +275,7 @@ func (e *env) personaCmd() *cobra.Command {
 				return e.printJSON(p)
 			}
 			e.kv([2]string{"Persona", fmt.Sprintf("%s (%s)", p.Name, p.Slug)}, [2]string{"ID", p.ID},
-				[2]string{"Cargo", dash(p.Title)}, [2]string{"Agente", p.Agent}, [2]string{"Modelo", dash(p.Model)},
+				[2]string{"Cargo", dash(p.Title)}, [2]string{"Agente", p.Agent}, [2]string{"Modelo", dash(p.Model)}, [2]string{"Assinatura", dash(p.SubscriptionID)},
 				[2]string{"Status", p.Status}, [2]string{"Heartbeat", heartbeat(p.HeartbeatIntervalSec)},
 				[2]string{"Reporta a", dash(p.ReportsTo)}, [2]string{"Exige revisão", yesNo(p.RequireReview)}, [2]string{"Revisor", reviewerOf(p)},
 				[2]string{"Orçamento", budgetValue(p.BudgetMonthlyCents)}, [2]string{"Contratada em", fmtTime(p.CreatedAt)})
@@ -292,17 +293,19 @@ func (e *env) personaCmd() *cobra.Command {
 		upReports                     string
 		upTop                         bool
 		upReview                      string
+		upSub                         string
+		upNoSub                       bool
 		upRev, upRevAgent, upRevModel string
 		upNoRev                       bool
 	)
 	update := &cobra.Command{
-		Use: "update <persona>", Short: "Muda a quem a persona reporta e a revisão obrigatória", Args: cobra.ExactArgs(1),
+		Use: "update <persona>", Short: "Muda a quem a persona reporta, a revisão obrigatória e a assinatura", Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			co, err := e.needCompany()
 			if err != nil {
 				return err
 			}
-			req := client.UpdatePersonaReq{ReportsTo: upReports, ClearReportsTo: upTop}
+			req := client.UpdatePersonaReq{ReportsTo: upReports, ClearReportsTo: upTop, Subscription: upSub, ClearSubscription: upNoSub}
 			switch upReview {
 			case "":
 			case "true", "false":
@@ -318,8 +321,12 @@ func (e *env) personaCmd() *cobra.Command {
 			if cmd.Flags().Changed("reviewer-model") {
 				req.ReviewerModel = &upRevModel
 			}
-			if upReports == "" && !upTop && req.RequireReview == nil && upRev == "" && !upNoRev && req.ReviewerAgent == nil && req.ReviewerModel == nil {
-				return usageError{errors.New("nada a alterar: use --reports-to, --top, --require-review ou --reviewer/--reviewer-agent/--no-reviewer")}
+			if upSub != "" && upNoSub {
+				return usageError{errors.New("--subscription e --no-subscription não combinam")}
+			}
+			if upReports == "" && !upTop && req.RequireReview == nil && upSub == "" && !upNoSub && upRev == "" && !upNoRev &&
+				req.ReviewerAgent == nil && req.ReviewerModel == nil {
+				return usageError{errors.New("nada a alterar: use --reports-to, --top, --require-review, --subscription, --no-subscription ou --reviewer/--reviewer-agent/--no-reviewer")}
 			}
 			p, err := e.client().UpdatePersona(cmd.Context(), co, args[0], req)
 			if err != nil {
@@ -340,6 +347,8 @@ func (e *env) personaCmd() *cobra.Command {
 	uf.StringVar(&upRevAgent, "reviewer-agent", "", "harness alternativo revisor")
 	uf.StringVar(&upRevModel, "reviewer-model", "", "modelo do harness revisor")
 	uf.BoolVar(&upNoRev, "no-reviewer", false, "remove o revisor automático")
+	uf.StringVar(&upSub, "subscription", "", "vincula a persona a uma assinatura (id ou nome)")
+	uf.BoolVar(&upNoSub, "no-subscription", false, "desvincula a persona da assinatura")
 	c.AddCommand(hire, ls, show, update)
 	return c
 }

@@ -172,6 +172,9 @@ templ TaskSide(vm TaskVM, base string) {
 		<div class="side-sec">
 			<div class="side-h">Custo</div>
 			<div class="prop"><span>Esta task</span><span class="mono" style="text-align:right">{ vm.Cost }</span></div>
+			if vm.Model != "" {
+				<div class="prop"><span>Modelo (manual)</span><span class="mono" style="text-align:right">{ vm.Model }</span></div>
+			}
 		</div>
 		<div class="side-sec">
 			<div class="side-h" style="display:flex;justify-content:space-between"><span>Execuções</span><a href={ templ.SafeURL(base + "/execucoes") } style="text-transform:none;letter-spacing:0;font-weight:400">Ver todas</a></div>
@@ -240,6 +243,11 @@ templ NewTaskPage(sh Shell, vm NewTaskVM) {
 						@Select("project", "t-proj", vm.ProjectOptions, false)
 					</div>
 				}
+			</div>
+			<div class="field">
+				<label for="t-model">Modelo (opcional)</label>
+				<input class="input" id="t-model" name="model" value={ vm.Model } placeholder="vazio = o modelo da persona" autocomplete="off"/>
+				<span class="hint">Escolha manual: vence o modelo da persona nas execuções desta task.</span>
 			</div>
 			<div class="form-actions">
 				<a class="btn ghost" href={ templ.SafeURL(sh.Base() + "/tasks") }>Cancelar</a>

@@ -299,6 +299,10 @@ func sampleCostsAndFlows(f *Fake, now time.Time) {
 		}
 		f.Flows = append(f.Flows, f.flowView(fl))
 	}
+	limit := 60.0
+	f.Subs = append(f.Subs, service.SubscriptionStatus{Subscription: domain.Subscription{ID: ID("sub:Claude Max"), CompanyID: f.Companies[0].ID,
+		Name: "Claude Max", Agent: "claude", MonthlyUSD: 200, ModelPrefixes: []string{"claude-opus", "claude-sonnet"}, WeeklyLimitUSD: &limit,
+		WeeklyGuardPct: 90, Active: true, CreatedAt: now.AddDate(0, -2, 0), UpdatedAt: now}, WeekUsageUSD: 22.5, WeekPercent: 37.5})
 	digest := f.Flows[0]
 	for i, k := range []struct {
 		ago time.Duration

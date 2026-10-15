@@ -121,6 +121,39 @@ fi"
 x "cd /opt/app && docker compose up -d --build"
 x "for i in \$(seq 1 90); do curl -fsS --max-time 2 http://127.0.0.1:${PORT}/readyz >/dev/null && echo 'readyz ok' && exit 0; sleep 2; done; docker compose -f /opt/app/docker-compose.yml logs --tail 80 hanko; exit 1"
 x "for i in \$(seq 1 30); do s=\$(docker inspect -f '{{.State.Health.Status}}' \$(docker compose -f /opt/app/docker-compose.yml ps -q ai-memory) 2>/dev/null); [ \"\$s\" = healthy ] && echo 'ai-memory ok' && exit 0; sleep 2; done; echo \"AVISO: ai-memory \${s:-ausente}; o Hanko segue sem memória (outbox)\"; docker compose -f /opt/app/docker-compose.yml logs --tail 30 ai-memory"
+x "BASE=http://127.0.0.1:${PORT} PUBLIC_HOST=${DOMAIN} bash /opt/app/deploy/oute-server/smoke.sh"
+
+# 4b) Backup: timer systemd DENTRO do LXC (diário 01:30 UTC) roda deploy/oute-server/backup.sh → /var/backups/hanko
+#     (pg_dump -Fc + tar do ai-memory com o container pausado). O restic semanal do lab coleta esse diretório
+#     e o próprio banco (inventário: strategy pg_dump + backup_paths). Idempotente: reescreve as units e reativa.
+x "set -e
+cat > /etc/systemd/system/hanko-backup.service <<'UNIT'
+[Unit]
+Description=Backup local do Hanko (pg_dump + ai-memory)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/app/deploy/oute-server/backup.sh
+TimeoutStartSec=30min
+Nice=10
+UNIT
+cat > /etc/systemd/system/hanko-backup.timer <<'UNIT'
+[Unit]
+Description=Backup diário do Hanko
+
+[Timer]
+OnCalendar=*-*-* 01:30:00
+RandomizedDelaySec=10min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+UNIT
+chmod 755 /opt/app/deploy/oute-server/backup.sh /opt/app/deploy/oute-server/restore.sh
+systemctl daemon-reload && systemctl enable --now hanko-backup.timer"
+x "systemctl start hanko-backup.service && ls -1 /var/backups/hanko && systemctl list-timers hanko-backup.timer --no-pager"
 r "lxc snapshot ${NAME} deploy-\$(date +%Y%m%d%H%M%S)"
 
 # 5) Borda pública (host): mesmo padrão de lab/scripts/ops/deploy-vault-vhost.sh —
@@ -199,5 +232,6 @@ Próximos passos:
   - Primeira vez sem --edge? rode de novo com --edge para nginx + certificado de ${DOMAIN}.
   - Inventário do lab: hanko-prd (${IP}:${PORT}, limits.memory 4GiB) e o vhost ${DOMAIN} estão em
     servers/oute-server/inventory.yaml do repo lab; mudou IP, porta ou vhost? atualize lá também.
+  - Backup: timer hanko-backup no LXC (diário) + restic semanal do lab; restore em docs/RUNBOOK.md ("Backup e restore do prd").
   - Login do Claude para as personas (uma vez):  ssh -t ${HOST} lxc exec ${NAME} -- docker compose -f /opt/app/docker-compose.yml exec hanko claude
 EOT

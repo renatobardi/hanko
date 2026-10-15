@@ -37,12 +37,25 @@ type CostFilter struct {
 	GroupBy  string
 }
 
-// CostRow is one bucket of a CostSummary.
+// CostRow is one bucket of a CostSummary. A run has up to four costs:
+//   - real (ReportedUSD): the figure the harness reported;
+//   - estimated (EstimatedUSD): tokens x price table, used when the harness reported none;
+//   - list (ListUSD): tokens x the list price in force when the run finished, always;
+//   - paid (PaidUSD): the share of a subscription fee charged to the bucket.
+//
+// CostUSD is real + estimated: what counts against budgets.
 type CostRow struct {
 	Key          string  `json:"key"`
 	Label        string  `json:"label"`
 	CostUSD      float64 `json:"cost_usd"`
+	ReportedUSD  float64 `json:"reported_usd"`
 	EstimatedUSD float64 `json:"estimated_usd"`
+	ListUSD      float64 `json:"list_usd"`
+	PaidUSD      float64 `json:"paid_usd"`
+	// IdleUSD is the fee of a day nobody used a subscription (day rows only); Unused flags a day
+	// whose whole accrual was idle: the UI says "sem uso".
+	IdleUSD      float64 `json:"idle_usd"`
+	Unused       bool    `json:"unused"`
 	Runs         int     `json:"runs"`
 	InputTokens  int64   `json:"input_tokens"`
 	OutputTokens int64   `json:"output_tokens"`
@@ -58,11 +71,18 @@ type CostSummary struct {
 	TotalUSD     float64   `json:"total_usd"`
 	ReportedUSD  float64   `json:"reported_usd"`
 	EstimatedUSD float64   `json:"estimated_usd"`
-	Runs         int       `json:"runs"`
-	InputTokens  int64     `json:"input_tokens"`
-	OutputTokens int64     `json:"output_tokens"`
-	CacheTokens  int64     `json:"cache_tokens"`
-	Rows         []CostRow `json:"rows"`
+	ListUSD      float64   `json:"list_usd"`
+	// PaidUSD + IdleUSD is the subscription fees accrued over the period, up to today: fee ÷ days of
+	// the month per day; the paid part went to runs, the idle part to days without use. Over a
+	// complete month it sums to the monthly fees.
+	PaidUSD       float64            `json:"paid_usd"`
+	IdleUSD       float64            `json:"idle_usd"`
+	Subscriptions []SubscriptionCost `json:"subscriptions"`
+	Runs          int                `json:"runs"`
+	InputTokens   int64              `json:"input_tokens"`
+	OutputTokens  int64              `json:"output_tokens"`
+	CacheTokens   int64              `json:"cache_tokens"`
+	Rows          []CostRow          `json:"rows"`
 }
 
 // BudgetStatus is spend versus ceiling for the current month.
@@ -146,10 +166,12 @@ func (s *Service) CostSummary(ctx context.Context, companyID domain.ID, f CostFi
 	}
 	out := CostSummary{From: from.UTC(), To: to.UTC(), Timezone: co.Timezone, GroupBy: group, Rows: []CostRow{}}
 	for _, r := range rows {
-		row := CostRow{Key: r.Key, Label: r.Label, CostUSD: r.CostUsd, EstimatedUSD: r.EstimatedUsd, Runs: int(r.Runs),
+		row := CostRow{Key: r.Key, Label: r.Label, CostUSD: r.CostUsd, ReportedUSD: r.CostUsd - r.EstimatedUsd,
+			EstimatedUSD: r.EstimatedUsd, ListUSD: r.ListUsd, Runs: int(r.Runs),
 			InputTokens: r.InputTokens, OutputTokens: r.OutputTokens, CacheTokens: r.CacheTokens}
 		out.TotalUSD += r.CostUsd
 		out.EstimatedUSD += r.EstimatedUsd
+		out.ListUSD += r.ListUsd
 		out.Runs += int(r.Runs)
 		out.InputTokens += r.InputTokens
 		out.OutputTokens += r.OutputTokens
@@ -157,6 +179,15 @@ func (s *Service) CostSummary(ctx context.Context, companyID domain.ID, f CostFi
 		out.Rows = append(out.Rows, row)
 	}
 	out.ReportedUSD = out.TotalUSD - out.EstimatedUSD
+	alloc, err := s.allocatePaid(ctx, q, co, from.UTC(), to.UTC())
+	if err != nil {
+		return CostSummary{}, err
+	}
+	out.PaidUSD, out.IdleUSD = alloc.paid, alloc.idle
+	out.Subscriptions = alloc.subs
+	if out.Subscriptions == nil {
+		out.Subscriptions = []SubscriptionCost{}
+	}
 	if group == GroupDay {
 		out.Rows = fillDays(out.Rows, from, to, loadLocation(co.Timezone))
 	} else {
@@ -175,6 +206,14 @@ func (s *Service) CostSummary(ctx context.Context, companyID domain.ID, f CostFi
 					out.Rows[i].Label = "Não informado"
 				}
 			}
+		}
+	}
+	for i := range out.Rows {
+		r := &out.Rows[i]
+		r.PaidUSD = alloc.byGroup[group][r.Key]
+		if group == GroupDay {
+			r.IdleUSD = alloc.idleDay[r.Key]
+			r.Unused = r.IdleUSD > 0 && r.PaidUSD == 0
 		}
 	}
 	return out, nil
@@ -312,29 +351,45 @@ func (s *Service) ListModelPrices(ctx context.Context) ([]store.ModelPrice, erro
 	return rows, nil
 }
 
-// costFor decides a run's cost and its source: the harness figure when informed, else an
-// estimate from the price in force at t.now, else unknown. A model with no price of its own
-// is estimated with the fallback price (empty prefix) so it still counts against budgets;
-// fallback reports that, and the caller records a cost.unknown_model notice.
-func (t *txc) costFor(model string, res adapter.Result) (cost *float64, source domain.CostSource, fallback bool, err error) {
-	if res.CostUSD != nil {
-		return res.CostUSD, domain.CostReported, false, nil
-	}
+// costResult is what costFor decides for a finished run.
+type costResult struct {
+	cost     *float64          // the figure that counts against budgets (reported, else estimated)
+	source   domain.CostSource // where cost came from
+	list     *float64          // tokens x list price in force at the fact time; nil when nothing to price
+	fallback bool              // cost was estimated with the fallback price (model without its own)
+}
+
+// costFor decides a run's costs at the instant of the fact (at = when the run finished): the
+// figure informed by the harness when there is one, else an estimate from the price in force at
+// `at`, else unknown. The list cost (tokens x list price in force at `at`) is computed in both
+// cases. Prices are an append-only history and the result is stored once on the run, so a price
+// inserted later never changes a cost already recorded. A model with no price of its own is
+// priced with the fallback price (empty prefix) so it still counts against budgets; fallback
+// reports that, and the caller records a cost.unknown_model notice.
+func (t *txc) costFor(model string, res adapter.Result, at time.Time) (costResult, error) {
 	u := res.Usage
-	price, err := t.q.GetModelPrice(t.ctx, store.GetModelPriceParams{Model: model, At: t.now})
-	if isNoRows(err) {
-		return nil, domain.CostNone, false, nil
+	price, err := t.q.GetModelPrice(t.ctx, store.GetModelPriceParams{Model: model, At: at})
+	hasPrice := err == nil
+	if err != nil && !isNoRows(err) {
+		return costResult{}, fmt.Errorf("get model price: %w", err)
 	}
-	if err != nil {
-		return nil, "", false, fmt.Errorf("get model price: %w", err)
-	}
+	var out costResult
 	tokens := u.InputTokens + u.OutputTokens + u.CacheReadTokens + u.CacheCreationTokens
-	if tokens == 0 && price.Fixed == 0 {
-		return nil, domain.CostNone, false, nil
+	if hasPrice && (tokens > 0 || price.Fixed != 0) {
+		c := (float64(u.InputTokens)*price.InputPerMtok+float64(u.OutputTokens)*price.OutputPerMtok+
+			float64(u.CacheReadTokens)*price.CacheReadPerMtok+float64(u.CacheCreationTokens)*price.CacheCreationPerMtok)/1e6 + price.Fixed
+		out.list = &c
 	}
-	c := (float64(u.InputTokens)*price.InputPerMtok+float64(u.OutputTokens)*price.OutputPerMtok+
-		float64(u.CacheReadTokens)*price.CacheReadPerMtok+float64(u.CacheCreationTokens)*price.CacheCreationPerMtok)/1e6 + price.Fixed
-	return &c, domain.CostEstimated, price.Model == "" && tokens > 0, nil
+	switch {
+	case res.CostUSD != nil:
+		out.cost, out.source = res.CostUSD, domain.CostReported
+	case out.list != nil:
+		out.cost, out.source = out.list, domain.CostEstimated
+		out.fallback = price.Model == "" && tokens > 0
+	default:
+		out.source = domain.CostNone
+	}
+	return out, nil
 }
 
 // noteUnknownModel records cost.unknown_model once per company, model and month.

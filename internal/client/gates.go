@@ -47,21 +47,21 @@ func (g GateQuery) values() url.Values {
 }
 
 func (c *Client) RequestGate(ctx context.Context, company string, in RequestGateReq) (api.Gate, error) {
-	return get[api.Gate](c, ctx, http.MethodPost, cp(company)+"/gates", in)
+	return get[api.Gate](ctx, c, http.MethodPost, cp(company)+"/gates", in)
 }
 
 func (c *Client) Gates(ctx context.Context, company string, q GateQuery) ([]api.Gate, error) {
-	return list[api.Gate](c, ctx, cp(company)+"/gates", q.values())
+	return list[api.Gate](ctx, c, cp(company)+"/gates", q.values())
 }
 
 func (c *Client) Gate(ctx context.Context, company, id string) (api.Gate, error) {
-	return get[api.Gate](c, ctx, http.MethodGet, cp(company)+"/gates/"+url.PathEscape(id), nil)
+	return get[api.Gate](ctx, c, http.MethodGet, cp(company)+"/gates/"+url.PathEscape(id), nil)
 }
 
 func (c *Client) DecideGate(ctx context.Context, company, id string, in DecideGateReq) (api.Gate, error) {
-	return get[api.Gate](c, ctx, http.MethodPost, cp(company)+"/gates/"+url.PathEscape(id)+"/decide", in)
+	return get[api.Gate](ctx, c, http.MethodPost, cp(company)+"/gates/"+url.PathEscape(id)+"/decide", in)
 }
 
 func (c *Client) OrgChart(ctx context.Context, company string) (api.OrgChart, error) {
-	return get[api.OrgChart](c, ctx, http.MethodGet, cp(company)+"/org-chart", nil)
+	return get[api.OrgChart](ctx, c, http.MethodGet, cp(company)+"/org-chart", nil)
 }

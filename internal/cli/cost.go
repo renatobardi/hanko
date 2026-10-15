@@ -55,13 +55,20 @@ func (e *env) costCmd() *cobra.Command {
 					if r.EstimatedUSD > 0 {
 						est = usd(r.EstimatedUSD)
 					}
-					rows = append(rows, []string{dash(r.Label), usd(r.CostUSD), est, strconv.Itoa(r.Runs),
+					paid := "-"
+					switch {
+					case r.Unused:
+						paid = "sem uso"
+					case r.PaidUSD > 0:
+						paid = usd(r.PaidUSD)
+					}
+					rows = append(rows, []string{dash(r.Label), usd(r.ReportedUSD), est, usd(r.ListUSD), paid, strconv.Itoa(r.Runs),
 						strconv.FormatInt(r.InputTokens, 10), strconv.FormatInt(r.OutputTokens, 10)})
 				}
-				e.table([]string{strings.ToUpper(sum.GroupBy), "CUSTO", "ESTIMADO", "EXECUÇÕES", "TOKENS ENTRADA", "TOKENS SAÍDA"}, rows)
+				e.table([]string{strings.ToUpper(sum.GroupBy), "REAL", "ESTIMADO", "LISTA", "PAGO", "EXECUÇÕES", "TOKENS ENTRADA", "TOKENS SAÍDA"}, rows)
 			}
-			fmt.Fprintf(e.out, "\nTotal: %s (informado %s, estimado %s) em %d execuções\nOrçamento do mês: %s\n",
-				usd(sum.TotalUSD), usd(sum.ReportedUSD), usd(sum.EstimatedUSD), sum.Runs, budgetLine(sum.Budget))
+			fmt.Fprintf(e.out, "\nTotal: %s (real %s, estimado %s) em %d execuções\nCusto de lista: %s · pago (mensalidades rateadas): %s · sem uso: %s\nOrçamento do mês: %s\n",
+				usd(sum.TotalUSD), usd(sum.ReportedUSD), usd(sum.EstimatedUSD), sum.Runs, usd(sum.ListUSD), usd(sum.PaidUSD), usd(sum.IdleUSD), budgetLine(sum.Budget))
 			return nil
 		},
 	}

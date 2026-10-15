@@ -178,6 +178,7 @@ func (s *server) buildTaskVM(r *http.Request, co domain.Company, t service.TaskV
 	vm := views.TaskVM{
 		Gates:           gateRows(pending, base, now, loc, names),
 		Key:             t.Key,
+		Model:           t.Model,
 		Title:           t.Title,
 		Description:     renderMD(t.Description),
 		HasDescription:  strings.TrimSpace(t.Description) != "",
@@ -412,7 +413,8 @@ func (s *server) handleCreateTask(w http.ResponseWriter, r *http.Request, co dom
 	}
 	vm.Title = trimForm(r, "title")
 	vm.Description = r.PostFormValue("description")
-	in := service.CreateTaskInput{Title: vm.Title, Description: vm.Description}
+	vm.Model = trimForm(r, "model")
+	in := service.CreateTaskInput{Title: vm.Title, Description: vm.Description, Model: vm.Model}
 	status := domain.TaskStatus(trimForm(r, "status"))
 	if status == "" {
 		status = domain.TaskTodo

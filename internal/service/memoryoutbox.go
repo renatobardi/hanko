@@ -76,7 +76,7 @@ func (s *Service) MarkMemoryFailed(ctx context.Context, id domain.ID, errMsg str
 func (s *Service) PendingMemory(ctx context.Context, limit int) ([]domain.ID, error) {
 	now := s.Now().UTC()
 	ids, err := s.read().ListPendingMemory(ctx, store.ListPendingMemoryParams{
-		OlderThan: now.Add(-memoryMinAge), Now: &now, Lim: int32(clamp(limit, 100, 1000))})
+		OlderThan: now.Add(-memoryMinAge), Now: &now, Lim: i32(clamp(limit, 100, 1000))})
 	if err != nil {
 		return nil, fmt.Errorf("pending memory: %w", err)
 	}

@@ -542,7 +542,7 @@ func actorLabelPtr(a *domain.Actor) string {
 // ListGates lists gates, pending ones first (oldest first), then the decided, newest first.
 func (s *Service) ListGates(ctx context.Context, companyID domain.ID, f GateFilter) ([]GateView, error) {
 	p := store.ListGateViewsParams{CompanyID: companyID, TaskID: f.TaskID, PersonaID: f.PersonaID,
-		Lim: int32(clamp(f.Limit, 100, 500)), Off: int32(max(f.Offset, 0))}
+		Lim: i32(clamp(f.Limit, 100, 500)), Off: i32(max(f.Offset, 0))}
 	for _, st := range f.Statuses {
 		if !st.Valid() {
 			return nil, domain.Invalid("status", fmt.Sprintf("unknown gate status %q", st))
@@ -585,11 +585,13 @@ type Inbox struct {
 	FailedRuns    []RunView  // failed/expired runs of open tasks not superseded by a newer run
 	ErrorPersonas []PersonaAlert
 	Alerts        []domain.Alert // operational alerts still open (alert_tick closes them when the condition is gone)
+	// GuardedSubscriptions are the subscriptions whose weekly guard is tripped: new runs they cover are refused.
+	GuardedSubscriptions []SubscriptionStatus
 }
 
 // Count is the number of items waiting.
 func (i Inbox) Count() int {
-	return len(i.Gates) + len(i.BlockedTasks) + len(i.FailedRuns) + len(i.ErrorPersonas) + len(i.Alerts)
+	return len(i.Gates) + len(i.BlockedTasks) + len(i.FailedRuns) + len(i.ErrorPersonas) + len(i.Alerts) + len(i.GuardedSubscriptions)
 }
 
 const inboxFailedWindow = 7 * 24 * time.Hour
@@ -637,6 +639,9 @@ func (s *Service) Inbox(ctx context.Context, companyID domain.ID) (Inbox, error)
 		in.ErrorPersonas = append(in.ErrorPersonas, a)
 	}
 	if in.Alerts, err = s.ListOpenAlerts(ctx, companyID, 100); err != nil {
+		return in, err
+	}
+	if in.GuardedSubscriptions, err = s.GuardedSubscriptions(ctx, companyID); err != nil {
 		return in, err
 	}
 	return in, nil
