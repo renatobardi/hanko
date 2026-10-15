@@ -97,3 +97,16 @@ type AlertTickArgs struct{}
 func (AlertTickArgs) Kind() string { return "alert_tick" }
 
 func (AlertTickArgs) InsertOpts() river.InsertOpts { return river.InsertOpts{MaxAttempts: 1} }
+
+// StartReviewArgs starts the headless review run of a pending review (job "start_review"). It waits
+// (snoozes) while the task still has an active run, typically the author's own.
+type StartReviewArgs struct {
+	CompanyID domain.ID `json:"company_id"`
+	ReviewID  domain.ID `json:"review_id" river:"unique"`
+}
+
+func (StartReviewArgs) Kind() string { return "start_review" }
+
+func (StartReviewArgs) InsertOpts() river.InsertOpts {
+	return river.InsertOpts{MaxAttempts: 5}
+}

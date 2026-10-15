@@ -109,24 +109,29 @@ type FlowFire struct {
 }
 
 type Gate struct {
-	ID              uuid.UUID
-	CompanyID       uuid.UUID
-	Kind            string
-	Status          string
-	Title           string
-	Body            string
-	TaskID          *uuid.UUID
-	RunID           *uuid.UUID
-	PersonaID       *uuid.UUID
-	RequestedByType string
-	RequestedByID   *uuid.UUID
-	DecidedByType   *string
-	DecidedByID     *uuid.UUID
-	DecisionNote    string
-	EventID         *string
-	CreatedAt       time.Time
-	DecidedAt       *time.Time
-	RequestedStatus *string
+	ID                   uuid.UUID
+	CompanyID            uuid.UUID
+	Kind                 string
+	Status               string
+	Title                string
+	Body                 string
+	TaskID               *uuid.UUID
+	RunID                *uuid.UUID
+	PersonaID            *uuid.UUID
+	RequestedByType      string
+	RequestedByID        *uuid.UUID
+	DecidedByType        *string
+	DecidedByID          *uuid.UUID
+	DecisionNote         string
+	EventID              *string
+	CreatedAt            time.Time
+	DecidedAt            *time.Time
+	RequestedStatus      *string
+	ReviewReviewer       string
+	ReviewVerdict        *string
+	ReviewJustification  string
+	ReviewArtifactSha256 string
+	ReviewRunID          *uuid.UUID
 }
 
 type MemoryOutbox struct {
@@ -179,6 +184,9 @@ type Persona struct {
 	RequireReview        bool
 	PauseReason          *string
 	BudgetRefusedAt      *time.Time
+	ReviewerPersonaID    *uuid.UUID
+	ReviewerAgent        string
+	ReviewerModel        string
 }
 
 type Project struct {
@@ -190,6 +198,28 @@ type Project struct {
 	WorkspaceID *uuid.UUID
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+}
+
+type Review struct {
+	ID                uuid.UUID
+	CompanyID         uuid.UUID
+	TaskID            uuid.UUID
+	AuthorPersonaID   uuid.UUID
+	AuthorRunID       *uuid.UUID
+	ReviewerPersonaID *uuid.UUID
+	Agent             string
+	Model             string
+	RequestedStatus   string
+	Status            string
+	RunID             *uuid.UUID
+	Artifact          string
+	ArtifactSha256    string
+	Verdict           *string
+	Justification     string
+	GateID            *uuid.UUID
+	CreatedAt         time.Time
+	StartedAt         *time.Time
+	FinishedAt        *time.Time
 }
 
 type Run struct {

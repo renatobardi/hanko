@@ -35,6 +35,8 @@ type Jobs interface {
 	WakeTx(ctx context.Context, tx pgx.Tx, w Wake) error
 	ExecuteRunTx(ctx context.Context, tx pgx.Tx, companyID, runID domain.ID) error
 	DeliverMemoryTx(ctx context.Context, tx pgx.Tx, outboxID domain.ID) error
+	// StartReviewTx enqueues the start of a pending review (revisão automática antes do gate).
+	StartReviewTx(ctx context.Context, tx pgx.Tx, companyID, reviewID domain.ID) error
 }
 
 // Clock is injectable for tests.
@@ -100,6 +102,11 @@ type HirePersonaInput struct {
 	BudgetMonthlyCents   *int64
 	// RequireReview sends this persona's attempts to close a task through a task_review gate.
 	RequireReview bool
+	// Reviewer (slug or id of another persona) or ReviewerAgent/ReviewerModel (same role on another
+	// harness/model) put an automatic review before that gate. Mutually exclusive.
+	ReviewerPersona *domain.ID
+	ReviewerAgent   string
+	ReviewerModel   string
 }
 
 type UpdatePersonaInput struct {
@@ -113,6 +120,12 @@ type UpdatePersonaInput struct {
 	ReportsTo      *domain.ID
 	ClearReportsTo bool
 	RequireReview  *bool
+	// ReviewerPersona sets the reviewer persona; ReviewerAgent/ReviewerModel set an alternate harness for
+	// the same role; ClearReviewer removes any reviewer. Setting one replaces the other.
+	ReviewerPersona *domain.ID
+	ReviewerAgent   *string
+	ReviewerModel   *string
+	ClearReviewer   bool
 	// BudgetMonthlyCents sets the persona's monthly budget (USD cents); ClearBudget removes it.
 	BudgetMonthlyCents *int64
 	ClearBudget        bool
@@ -219,6 +232,8 @@ type RunContext struct {
 	Workspace *domain.Workspace
 	// PendingResult is set when the harness already ran and only finalization is missing.
 	PendingResult *FinishRunInput
+	// Review is set for runs with trigger review.
+	Review *ReviewContext
 }
 
 // WakeCandidate is an (assigned, workable, idle) task found by the periodic heartbeat.

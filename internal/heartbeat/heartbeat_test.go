@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/riverqueue/river"
 	"strings"
 	"sync"
 	"testing"
@@ -38,6 +39,9 @@ func sampleContext() service.RunContext {
 type fakeBackend struct {
 	mu           sync.Mutex
 	alertTicks   int
+	reviewStarts int
+	reviewErr    error
+	reviewFails  []string
 	alertErr     error
 	rc           service.RunContext
 	loadErr      error
@@ -162,6 +166,19 @@ func (f *fakeBackend) FireFlow(_ context.Context, id domain.ID, at time.Time) (s
 	return service.FlowFireResult{Task: &service.TaskView{}}, nil
 }
 
+func (f *fakeBackend) StartReview(context.Context, domain.ID, domain.ID) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.reviewStarts++
+	return f.reviewErr
+}
+func (f *fakeBackend) FailReview(_ context.Context, _, _ domain.ID, reason string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.reviewFails = append(f.reviewFails, reason)
+	return nil
+}
+func (f *fakeBackend) ResolveStaleReviews(context.Context) (int, error) { return 0, nil }
 func (f *fakeBackend) EvaluateAlerts(context.Context) (service.AlertEval, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -918,5 +935,37 @@ func TestAlertTick(t *testing.T) {
 	}
 	if k := (AlertTickArgs{}).Kind(); k != "alert_tick" {
 		t.Fatalf("kind = %q", k)
+	}
+}
+
+func TestStartReviewWorker(t *testing.T) {
+	ctx := context.Background()
+	args := StartReviewArgs{CompanyID: domain.NewID(), ReviewID: domain.NewID()}
+	be := &fakeBackend{}
+	h, _ := newTestHB(t, be, okAdapter(), nil, Options{})
+	if err := h.startReview(ctx, args, 0, false); err != nil || be.reviewStarts != 1 {
+		t.Fatalf("err=%v starts=%d", err, be.reviewStarts)
+	}
+	// task com run ativa: espera (snooze), sem abrir o gate
+	be.reviewErr = domain.ErrActiveRun
+	err := h.startReview(ctx, args, time.Minute, false)
+	var snooze *river.JobSnoozeError
+	if !errors.As(err, &snooze) || len(be.reviewFails) != 0 {
+		t.Fatalf("esperava snooze, got %v fails=%v", err, be.reviewFails)
+	}
+	// esperou demais: gate abre sem veredito
+	if err := h.startReview(ctx, args, wakeGiveUp+time.Minute, false); err != nil || len(be.reviewFails) != 1 {
+		t.Fatalf("err=%v fails=%v", err, be.reviewFails)
+	}
+	// erro qualquer: tenta de novo; na última tentativa desiste e abre o gate
+	be.reviewErr = errors.New("db")
+	if err := h.startReview(ctx, args, 0, false); err == nil || len(be.reviewFails) != 1 {
+		t.Fatalf("deveria tentar de novo: %v", err)
+	}
+	if err := h.startReview(ctx, args, 0, true); err != nil || len(be.reviewFails) != 2 {
+		t.Fatalf("última tentativa: err=%v fails=%v", err, be.reviewFails)
+	}
+	if k := (StartReviewArgs{}).Kind(); k != "start_review" {
+		t.Fatal(k)
 	}
 }

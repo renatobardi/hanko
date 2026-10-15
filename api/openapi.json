@@ -1017,6 +1017,10 @@
             ],
             "type": "string"
           },
+          "review": {
+            "$ref": "#/components/schemas/GateReviewOut",
+            "description": "Revisão automática feita por outro modelo antes do gate; a decisão continua humana."
+          },
           "run_id": {
             "format": "uuid",
             "type": "string"
@@ -1060,6 +1064,38 @@
           "body",
           "requested_by",
           "created_at"
+        ],
+        "type": "object"
+      },
+      "GateReviewOut": {
+        "additionalProperties": false,
+        "properties": {
+          "artifact_sha256": {
+            "description": "sha256 do pacote revisado (task + entrega).",
+            "type": "string"
+          },
+          "justification": {
+            "type": "string"
+          },
+          "reviewer": {
+            "description": "Quem revisou (persona ou harness/modelo).",
+            "type": "string"
+          },
+          "run_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "verdict": {
+            "description": "Ausente quando a revisão não concluiu; a justificativa diz o motivo.",
+            "enum": [
+              "approved",
+              "rejected"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "reviewer"
         ],
         "type": "object"
       },
@@ -1121,6 +1157,22 @@
           "require_review": {
             "description": "Concluir uma task passa por um gate de revisão.",
             "type": "boolean"
+          },
+          "reviewer": {
+            "description": "Id ou slug da persona que revisa antes do gate (exclusivo com reviewer_agent).",
+            "type": "string"
+          },
+          "reviewer_agent": {
+            "description": "Harness alternativo revisor (ex.: autora claude, revisor codex).",
+            "enum": [
+              "claude",
+              "codex",
+              "fake"
+            ],
+            "type": "string"
+          },
+          "reviewer_model": {
+            "type": "string"
           },
           "slug": {
             "description": "Derivado do nome quando omitido.",
@@ -1656,6 +1708,24 @@
             "description": "Quando verdadeiro, concluir uma task passa por um gate de revisão (task_review).",
             "type": "boolean"
           },
+          "reviewer_agent": {
+            "description": "Harness alternativo que revisa no papel desta persona.",
+            "enum": [
+              "claude",
+              "codex",
+              "fake"
+            ],
+            "type": "string"
+          },
+          "reviewer_model": {
+            "description": "Modelo do harness revisor.",
+            "type": "string"
+          },
+          "reviewer_persona_id": {
+            "description": "Persona que revisa, em run headless, as entregas desta antes do gate.",
+            "format": "uuid",
+            "type": "string"
+          },
           "slug": {
             "examples": [
               "cto"
@@ -1902,7 +1972,8 @@
               "manual",
               "heartbeat",
               "gate",
-              "flow"
+              "flow",
+              "review"
             ],
             "type": "string"
           },
@@ -2173,6 +2244,10 @@
             "description": "Põe a persona no topo do organograma.",
             "type": "boolean"
           },
+          "clear_reviewer": {
+            "description": "Remove o revisor automático.",
+            "type": "boolean"
+          },
           "clear_workspace": {
             "description": "Remove o workspace da persona.",
             "type": "boolean"
@@ -2199,6 +2274,21 @@
           "require_review": {
             "description": "Exige revisão (gate task_review) para concluir tasks.",
             "type": "boolean"
+          },
+          "reviewer": {
+            "description": "Id ou slug da persona revisora (exclusivo com reviewer_agent).",
+            "type": "string"
+          },
+          "reviewer_agent": {
+            "enum": [
+              "claude",
+              "codex",
+              "fake"
+            ],
+            "type": "string"
+          },
+          "reviewer_model": {
+            "type": "string"
           },
           "status": {
             "enum": [

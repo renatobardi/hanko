@@ -14,25 +14,35 @@ import (
 
 // Gate é um ponto em que um humano decide: aprovar, rejeitar ou pedir mudanças.
 type Gate struct {
-	ID              string     `json:"id" format:"uuid"`
-	CompanyID       string     `json:"company_id" format:"uuid"`
-	Kind            string     `json:"kind" enum:"approval,task_review,hire" doc:"approval: ação irreversível, merge, deploy, gasto; task_review: revisão para concluir uma task; hire: contratação."`
-	Status          string     `json:"status" enum:"pending,approved,rejected,changes_requested,expired"`
-	Title           string     `json:"title" example:"Fazer deploy em produção"`
-	Body            string     `json:"body" doc:"Pedido em Markdown: o que está sendo decidido, evidência e impacto."`
-	TaskID          string     `json:"task_id,omitempty" format:"uuid"`
-	TaskKey         string     `json:"task_key,omitempty" example:"HNK-12"`
-	TaskTitle       string     `json:"task_title,omitempty"`
-	RunID           string     `json:"run_id,omitempty" format:"uuid"`
-	PersonaID       string     `json:"persona_id,omitempty" format:"uuid" doc:"Persona que pediu (e espera a decisão)."`
-	PersonaName     string     `json:"persona_name,omitempty"`
-	RequestedBy     ActorRef   `json:"requested_by"`
-	DecidedBy       *ActorRef  `json:"decided_by,omitempty"`
-	DecisionNote    string     `json:"decision_note,omitempty"`
-	RequestedStatus string     `json:"requested_status,omitempty" enum:"done,cancelled" doc:"Em task_review: o status que a persona pediu; aprovar o aplica."`
-	EventID         string     `json:"event_id,omitempty"`
-	CreatedAt       time.Time  `json:"created_at"`
-	DecidedAt       *time.Time `json:"decided_at,omitempty"`
+	ID              string         `json:"id" format:"uuid"`
+	CompanyID       string         `json:"company_id" format:"uuid"`
+	Kind            string         `json:"kind" enum:"approval,task_review,hire" doc:"approval: ação irreversível, merge, deploy, gasto; task_review: revisão para concluir uma task; hire: contratação."`
+	Status          string         `json:"status" enum:"pending,approved,rejected,changes_requested,expired"`
+	Title           string         `json:"title" example:"Fazer deploy em produção"`
+	Body            string         `json:"body" doc:"Pedido em Markdown: o que está sendo decidido, evidência e impacto."`
+	TaskID          string         `json:"task_id,omitempty" format:"uuid"`
+	TaskKey         string         `json:"task_key,omitempty" example:"HNK-12"`
+	TaskTitle       string         `json:"task_title,omitempty"`
+	RunID           string         `json:"run_id,omitempty" format:"uuid"`
+	PersonaID       string         `json:"persona_id,omitempty" format:"uuid" doc:"Persona que pediu (e espera a decisão)."`
+	PersonaName     string         `json:"persona_name,omitempty"`
+	RequestedBy     ActorRef       `json:"requested_by"`
+	DecidedBy       *ActorRef      `json:"decided_by,omitempty"`
+	DecisionNote    string         `json:"decision_note,omitempty"`
+	RequestedStatus string         `json:"requested_status,omitempty" enum:"done,cancelled" doc:"Em task_review: o status que a persona pediu; aprovar o aplica."`
+	EventID         string         `json:"event_id,omitempty"`
+	CreatedAt       time.Time      `json:"created_at"`
+	DecidedAt       *time.Time     `json:"decided_at,omitempty"`
+	Review          *GateReviewOut `json:"review,omitempty" doc:"Revisão automática feita por outro modelo antes do gate; a decisão continua humana."`
+}
+
+// GateReviewOut é o parecer do revisor automático registrado no gate.
+type GateReviewOut struct {
+	Reviewer       string `json:"reviewer" doc:"Quem revisou (persona ou harness/modelo)."`
+	Verdict        string `json:"verdict,omitempty" enum:"approved,rejected" doc:"Ausente quando a revisão não concluiu; a justificativa diz o motivo."`
+	Justification  string `json:"justification,omitempty"`
+	ArtifactSHA256 string `json:"artifact_sha256,omitempty" doc:"sha256 do pacote revisado (task + entrega)."`
+	RunID          string `json:"run_id,omitempty" format:"uuid"`
 }
 
 func gateOut(g service.GateView) Gate {
@@ -43,6 +53,10 @@ func gateOut(g service.GateView) Gate {
 	if g.DecidedBy != nil {
 		a := actorRef(*g.DecidedBy)
 		o.DecidedBy = &a
+	}
+	if r := g.Review; r != nil {
+		o.Review = &GateReviewOut{Reviewer: r.Reviewer, Verdict: string(r.Verdict), Justification: r.Justification,
+			ArtifactSHA256: r.ArtifactSHA256, RunID: idPtr(r.RunID)}
 	}
 	return o
 }

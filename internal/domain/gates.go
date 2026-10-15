@@ -41,6 +41,26 @@ func (s GateStatus) Decision() bool {
 	return s == GateApproved || s == GateRejected || s == GateChangesRequested
 }
 
+// ReviewVerdict é a opinião do revisor automático sobre uma entrega.
+type ReviewVerdict string
+
+const (
+	ReviewApproved ReviewVerdict = "approved"
+	ReviewRejected ReviewVerdict = "rejected"
+)
+
+func (v ReviewVerdict) Valid() bool { return v == ReviewApproved || v == ReviewRejected }
+
+// GateReview é a revisão automática que antecedeu um gate task_review. Verdict vazio = a revisão
+// não concluiu (Justification diz por quê). A decisão do gate continua humana.
+type GateReview struct {
+	Reviewer       string        `json:"reviewer"` // "Kenji (codex · gpt-5)"
+	Verdict        ReviewVerdict `json:"verdict,omitempty"`
+	Justification  string        `json:"justification,omitempty"`
+	ArtifactSHA256 string        `json:"artifact_sha256,omitempty"` // do pacote revisado (task + entrega)
+	RunID          *ID           `json:"run_id,omitempty"`
+}
+
 // Gate is a point where a human decides. Every request and decision is an activity event.
 type Gate struct {
 	ID           ID         `json:"id"`
@@ -58,9 +78,12 @@ type Gate struct {
 	// RequestedStatus is, in a task_review gate, the status the persona asked for (done or
 	// cancelled); approving the gate applies it.
 	RequestedStatus TaskStatus `json:"requested_status,omitempty"`
-	EventID         string     `json:"event_id,omitempty"`
-	CreatedAt       time.Time  `json:"created_at"`
-	DecidedAt       *time.Time `json:"decided_at,omitempty"`
+	// Review está presente quando uma revisão automática antecedeu o gate (Verdict reprovado = o gate nasceu
+	// marcado como reprovado pelo revisor; o humano ainda decide).
+	Review    *GateReview `json:"review,omitempty"`
+	EventID   string      `json:"event_id,omitempty"`
+	CreatedAt time.Time   `json:"created_at"`
+	DecidedAt *time.Time  `json:"decided_at,omitempty"`
 }
 
 // OrgParents maps a persona to the persona it reports to (nil = top of the chart).

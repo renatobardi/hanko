@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/renatobardi/hanko/internal/api"
 	"github.com/renatobardi/hanko/internal/client"
 )
 
@@ -175,6 +176,7 @@ func (e *env) personaCmd() *cobra.Command {
 		budget                                                   int64
 		cfg                                                      map[string]string
 		review                                                   bool
+		revPersona, revAgent, revModel                           string
 	)
 	hire := &cobra.Command{
 		Use: "hire <nome>", Short: "Contrata uma persona", Args: cobra.ExactArgs(1),
@@ -191,7 +193,8 @@ func (e *env) personaCmd() *cobra.Command {
 				instr = string(b)
 			}
 			req := client.HirePersonaReq{Name: args[0], Slug: slug, Title: title, Instructions: instr, Agent: agent, Model: model,
-				ReportsTo: reports, Workspace: ws, HeartbeatIntervalSec: interval, RequireReview: review}
+				ReportsTo: reports, Workspace: ws, HeartbeatIntervalSec: interval, RequireReview: review,
+				Reviewer: revPersona, ReviewerAgent: revAgent, ReviewerModel: revModel}
 			if cmd.Flags().Changed("budget-cents") {
 				req.BudgetMonthlyCents = &budget
 			}
@@ -225,6 +228,9 @@ func (e *env) personaCmd() *cobra.Command {
 	hf.Int64Var(&budget, "budget-cents", 0, "orçamento mensal em centavos de dólar")
 	hf.StringToStringVar(&cfg, "config", nil, "adapter_config chave=valor (repetível)")
 	hf.BoolVar(&review, "require-review", false, "concluir uma task passa por um gate de revisão")
+	hf.StringVar(&revPersona, "reviewer", "", "persona que revisa as entregas antes do gate (id ou slug)")
+	hf.StringVar(&revAgent, "reviewer-agent", "", "harness alternativo revisor: claude, codex ou fake")
+	hf.StringVar(&revModel, "reviewer-model", "", "modelo do harness revisor")
 	_ = hire.MarkFlagRequired("agent")
 
 	ls := &cobra.Command{
@@ -270,7 +276,7 @@ func (e *env) personaCmd() *cobra.Command {
 			e.kv([2]string{"Persona", fmt.Sprintf("%s (%s)", p.Name, p.Slug)}, [2]string{"ID", p.ID},
 				[2]string{"Cargo", dash(p.Title)}, [2]string{"Agente", p.Agent}, [2]string{"Modelo", dash(p.Model)},
 				[2]string{"Status", p.Status}, [2]string{"Heartbeat", heartbeat(p.HeartbeatIntervalSec)},
-				[2]string{"Reporta a", dash(p.ReportsTo)}, [2]string{"Exige revisão", yesNo(p.RequireReview)},
+				[2]string{"Reporta a", dash(p.ReportsTo)}, [2]string{"Exige revisão", yesNo(p.RequireReview)}, [2]string{"Revisor", reviewerOf(p)},
 				[2]string{"Orçamento", budgetValue(p.BudgetMonthlyCents)}, [2]string{"Contratada em", fmtTime(p.CreatedAt)})
 			if p.PauseReason != "" {
 				e.kv([2]string{"Pausada porque", p.PauseReason})
@@ -283,9 +289,11 @@ func (e *env) personaCmd() *cobra.Command {
 	}
 
 	var (
-		upReports string
-		upTop     bool
-		upReview  string
+		upReports                     string
+		upTop                         bool
+		upReview                      string
+		upRev, upRevAgent, upRevModel string
+		upNoRev                       bool
 	)
 	update := &cobra.Command{
 		Use: "update <persona>", Short: "Muda a quem a persona reporta e a revisão obrigatória", Args: cobra.ExactArgs(1),
@@ -303,8 +311,15 @@ func (e *env) personaCmd() *cobra.Command {
 			default:
 				return usageError{errors.New("--require-review aceita true ou false")}
 			}
-			if upReports == "" && !upTop && req.RequireReview == nil {
-				return usageError{errors.New("nada a alterar: use --reports-to, --top ou --require-review")}
+			req.Reviewer, req.ClearReviewer = upRev, upNoRev
+			if cmd.Flags().Changed("reviewer-agent") {
+				req.ReviewerAgent = &upRevAgent
+			}
+			if cmd.Flags().Changed("reviewer-model") {
+				req.ReviewerModel = &upRevModel
+			}
+			if upReports == "" && !upTop && req.RequireReview == nil && upRev == "" && !upNoRev && req.ReviewerAgent == nil && req.ReviewerModel == nil {
+				return usageError{errors.New("nada a alterar: use --reports-to, --top, --require-review ou --reviewer/--reviewer-agent/--no-reviewer")}
 			}
 			p, err := e.client().UpdatePersona(cmd.Context(), co, args[0], req)
 			if err != nil {
@@ -321,8 +336,23 @@ func (e *env) personaCmd() *cobra.Command {
 	uf.StringVar(&upReports, "reports-to", "", "persona superior (id ou slug)")
 	uf.BoolVar(&upTop, "top", false, "põe a persona no topo do organograma")
 	uf.StringVar(&upReview, "require-review", "", "true ou false")
+	uf.StringVar(&upRev, "reviewer", "", "persona revisora (id ou slug)")
+	uf.StringVar(&upRevAgent, "reviewer-agent", "", "harness alternativo revisor")
+	uf.StringVar(&upRevModel, "reviewer-model", "", "modelo do harness revisor")
+	uf.BoolVar(&upNoRev, "no-reviewer", false, "remove o revisor automático")
 	c.AddCommand(hire, ls, show, update)
 	return c
+}
+
+// reviewerOf descreve o revisor automático configurado na persona.
+func reviewerOf(p api.Persona) string {
+	switch {
+	case p.ReviewerPersonaID != "":
+		return p.ReviewerPersonaID
+	case p.ReviewerAgent != "":
+		return strings.TrimSpace(p.ReviewerAgent + " " + p.ReviewerModel)
+	}
+	return "—"
 }
 
 func yesNo(b bool) string {

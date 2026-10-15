@@ -22,6 +22,17 @@ type GateRow struct {
 	Pending     bool
 	Aged        bool // pending for more than 24 h
 	DecideHref  string
+	// Revisão automática (outro modelo) feita antes do gate; a decisão segue humana.
+	Review *ReviewInfo
+}
+
+// ReviewInfo é o parecer do revisor automático exibido junto do gate.
+type ReviewInfo struct {
+	Badge         Badge
+	Reviewer      string
+	Justification string
+	SHA           string
+	Rejected      bool
 }
 
 type GatesVM struct {

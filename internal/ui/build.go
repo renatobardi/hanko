@@ -206,7 +206,7 @@ func decisionWord(d string) string {
 }
 
 func subjectLabel(t string) string {
-	if pt, ok := map[string]string{"comment": "comentário", "run": "execução", "project": "projeto", "company": "empresa", "gate": "gate", "alert": "alerta"}[t]; ok {
+	if pt, ok := map[string]string{"comment": "comentário", "run": "execução", "project": "projeto", "company": "empresa", "gate": "gate", "alert": "alerta", "review": "revisão"}[t]; ok {
 		return pt
 	}
 	return t
@@ -248,6 +248,16 @@ func verbPhrase(v string) string {
 		return "pediu a decisão"
 	case "gate.decided":
 		return "decidiu"
+	case "review.requested":
+		return "pediu a revisão automática"
+	case "review.started":
+		return "iniciou a revisão automática"
+	case "review.finished":
+		return "concluiu a revisão automática"
+	case "review.failed":
+		return "não concluiu a revisão automática"
+	case "review.cancelled":
+		return "cancelou a revisão automática"
 	case "alert.opened":
 		return "abriu o alerta"
 	case "alert.closed":

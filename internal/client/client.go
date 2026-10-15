@@ -194,6 +194,9 @@ type HirePersonaReq struct {
 	HeartbeatIntervalSec int            `json:"heartbeat_interval_sec,omitempty"`
 	BudgetMonthlyCents   *int64         `json:"budget_monthly_cents,omitempty"`
 	RequireReview        bool           `json:"require_review,omitempty"`
+	Reviewer             string         `json:"reviewer,omitempty"`
+	ReviewerAgent        string         `json:"reviewer_agent,omitempty"`
+	ReviewerModel        string         `json:"reviewer_model,omitempty"`
 }
 
 type CreateTaskReq struct {
@@ -276,11 +279,15 @@ type UpdateCompanyReq struct {
 
 // UpdatePersonaReq muda o orçamento, o organograma e a revisão obrigatória de uma persona.
 type UpdatePersonaReq struct {
-	ReportsTo          string `json:"reports_to,omitempty"`
-	ClearReportsTo     bool   `json:"clear_reports_to,omitempty"`
-	RequireReview      *bool  `json:"require_review,omitempty"`
-	BudgetMonthlyCents *int64 `json:"budget_monthly_cents,omitempty"`
-	ClearBudget        bool   `json:"clear_budget,omitempty"`
+	ReportsTo          string  `json:"reports_to,omitempty"`
+	ClearReportsTo     bool    `json:"clear_reports_to,omitempty"`
+	RequireReview      *bool   `json:"require_review,omitempty"`
+	BudgetMonthlyCents *int64  `json:"budget_monthly_cents,omitempty"`
+	ClearBudget        bool    `json:"clear_budget,omitempty"`
+	Reviewer           string  `json:"reviewer,omitempty"`
+	ReviewerAgent      *string `json:"reviewer_agent,omitempty"`
+	ReviewerModel      *string `json:"reviewer_model,omitempty"`
+	ClearReviewer      bool    `json:"clear_reviewer,omitempty"`
 }
 
 // CostQuery são os parâmetros de Costs.

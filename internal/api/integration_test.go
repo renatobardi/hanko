@@ -30,9 +30,10 @@ import (
 // noopJobs dispensa o heartbeat: o teste dirige CheckoutRun/AppendRunEvent/FinishRun à mão.
 type noopJobs struct{}
 
-func (noopJobs) WakeTx(context.Context, pgx.Tx, service.Wake) error               { return nil }
-func (noopJobs) ExecuteRunTx(context.Context, pgx.Tx, domain.ID, domain.ID) error { return nil }
-func (noopJobs) DeliverMemoryTx(context.Context, pgx.Tx, domain.ID) error         { return nil }
+func (noopJobs) WakeTx(context.Context, pgx.Tx, service.Wake) error                { return nil }
+func (noopJobs) ExecuteRunTx(context.Context, pgx.Tx, domain.ID, domain.ID) error  { return nil }
+func (noopJobs) StartReviewTx(context.Context, pgx.Tx, domain.ID, domain.ID) error { return nil }
+func (noopJobs) DeliverMemoryTx(context.Context, pgx.Tx, domain.ID) error          { return nil }
 
 func setup(t *testing.T) (*service.Service, *client.Client, *events.Broker) {
 	t.Helper()

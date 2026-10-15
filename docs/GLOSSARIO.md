@@ -10,6 +10,7 @@ Um termo por conceito. Código, API, MCP e banco em inglês; UI em pt-BR. Em dú
 | task | Task | Unidade de trabalho atribuída a uma persona. Status: backlog · todo · in_progress · in_review · blocked · done · cancelled. Prioridade: critical · high · medium · low. | issue, ticket |
 | run | Execução | Uma execução de uma persona sobre uma task, disparada pelo heartbeat. Status: queued · running · done · interrupted · failed · cancelled · expired. 1 task → 0..n runs; 1 run ativo por task. | job |
 | run name | Nome da execução | `Adjetivo_Substantivo` em pt-BR (ex.: `Veloz_Raposa`) derivado do id da run, gravado nela e único na empresa; aparece ao lado do id na UI e na CLI e serve de referência em `hanko run logs <nome>`. | apelido, alias |
+| automatic review | Revisão automática | Parecer de outro modelo (persona revisora ou harness alternativo) registrado no gate `task_review` antes da decisão humana: veredito aprovado/reprovado, justificativa e sha256 do pacote revisado. Não decide nada. | aprovação automática |
 | gate | Gate | Ponto em que um humano decide (aprovar, recusar, pedir mudança). Sempre âmbar na UI. Audit trail em activity. | approval, review |
 | flow | Fluxo | Definição + gatilhos (cron, evento, manual) → cria tasks/runs. | routine, schedule |
 | workspace | Workspace | Diretório/repositório onde personas trabalham. Escopo da memória (ai-memory) e dos artefatos. | repo |

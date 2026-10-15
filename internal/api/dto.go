@@ -95,6 +95,9 @@ type Persona struct {
 	BudgetMonthlyCents   *int64         `json:"budget_monthly_cents,omitempty" doc:"Orçamento mensal em centavos de dólar."`
 	RequireReview        bool           `json:"require_review" doc:"Quando verdadeiro, concluir uma task passa por um gate de revisão (task_review)."`
 	PauseReason          string         `json:"pause_reason,omitempty" doc:"Motivo de uma pausa automática (orçamento estourado)."`
+	ReviewerPersonaID    string         `json:"reviewer_persona_id,omitempty" format:"uuid" doc:"Persona que revisa, em run headless, as entregas desta antes do gate."`
+	ReviewerAgent        string         `json:"reviewer_agent,omitempty" enum:"claude,codex,fake" doc:"Harness alternativo que revisa no papel desta persona."`
+	ReviewerModel        string         `json:"reviewer_model,omitempty" doc:"Modelo do harness revisor."`
 	CreatedAt            time.Time      `json:"created_at"`
 	UpdatedAt            time.Time      `json:"updated_at"`
 }
@@ -153,7 +156,7 @@ type Run struct {
 	PersonaID   string     `json:"persona_id" format:"uuid"`
 	PersonaName string     `json:"persona_name,omitempty"`
 	Status      string     `json:"status" enum:"queued,running,done,interrupted,failed,cancelled,expired"`
-	Trigger     string     `json:"trigger" enum:"assign,comment,manual,heartbeat,gate,flow"`
+	Trigger     string     `json:"trigger" enum:"assign,comment,manual,heartbeat,gate,flow,review"`
 	Agent       string     `json:"agent" enum:"claude,codex,fake"`
 	Model       string     `json:"model,omitempty"`
 	SessionRef  string     `json:"session_ref,omitempty"`
@@ -332,7 +335,7 @@ func personaOut(p domain.Persona) Persona {
 	return Persona{ID: idStr(p.ID), CompanyID: idStr(p.CompanyID), Slug: p.Slug, Name: p.Name, Title: p.Title,
 		Instructions: p.Instructions, Agent: p.Agent, Model: p.Model, AdapterConfig: cfg, Status: string(p.Status),
 		ReportsTo: idPtr(p.ReportsTo), WorkspaceID: idPtr(p.WorkspaceID), HeartbeatIntervalSec: p.HeartbeatIntervalSec,
-		BudgetMonthlyCents: p.BudgetMonthlyCents, PauseReason: p.PauseReason, RequireReview: p.RequireReview, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt}
+		BudgetMonthlyCents: p.BudgetMonthlyCents, PauseReason: p.PauseReason, RequireReview: p.RequireReview, ReviewerPersonaID: idPtr(p.ReviewerPersonaID), ReviewerAgent: p.ReviewerAgent, ReviewerModel: p.ReviewerModel, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt}
 }
 
 func taskOut(t service.TaskView) Task {

@@ -37,7 +37,8 @@ func personaFromRow(r store.Persona) domain.Persona {
 		Instructions: r.Instructions, Agent: r.Agent, Model: r.Model, AdapterConfig: json.RawMessage(r.AdapterConfig),
 		Status: domain.PersonaStatus(r.Status), ReportsTo: r.ReportsTo, WorkspaceID: r.WorkspaceID,
 		HeartbeatIntervalSec: int(r.HeartbeatIntervalSec), BudgetMonthlyCents: r.BudgetMonthlyCents,
-		RequireReview: r.RequireReview, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt}
+		RequireReview: r.RequireReview, ReviewerPersonaID: r.ReviewerPersonaID, ReviewerAgent: r.ReviewerAgent,
+		ReviewerModel: r.ReviewerModel, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt}
 }
 
 func taskFromRow(r store.Task, prefix string) domain.Task {
@@ -107,6 +108,13 @@ func gateFromRow(r store.Gate) domain.Gate {
 	}
 	if r.RequestedStatus != nil {
 		g.RequestedStatus = domain.TaskStatus(*r.RequestedStatus)
+	}
+	if r.ReviewReviewer != "" {
+		g.Review = &domain.GateReview{Reviewer: r.ReviewReviewer, Justification: r.ReviewJustification,
+			ArtifactSHA256: r.ReviewArtifactSha256, RunID: r.ReviewRunID}
+		if r.ReviewVerdict != nil {
+			g.Review.Verdict = domain.ReviewVerdict(*r.ReviewVerdict)
+		}
 	}
 	return g
 }

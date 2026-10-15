@@ -46,3 +46,8 @@ export HANKO_TOKEN=$(./bin/hanko auth token create --name mac | grep -oE 'hk_[A-
 
 ## Próximo
 Restante do M5: deploy LXC `hanko-stg`/`hanko-prd` (RUNBOOK §3), versão en, `v0.1.0`.
+
+## T6 (alertas, nome de run, revisor)
+- Feito: alertas operacionais (job `alert_tick`, Caixa e `/metrics`), nome amigável da run (`hanko run logs <nome>`), revisão automática por outro modelo antes do gate. Migration 00009.
+- Bloqueado: nada. Fora do escopo: formulário na UI para configurar o revisor (só API/CLI).
+- Próximo: revisar o merge com a 00008 (`runs_trigger_check` redefinido na 00009).

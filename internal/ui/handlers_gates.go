@@ -73,6 +73,18 @@ func gateRow(g service.GateView, base string, now time.Time, loc *time.Location,
 		Pending:    g.Status == domain.GatePending,
 		DecideHref: base + "/gates/" + g.ID.String() + "/decidir",
 	}
+	if rv := g.Review; rv != nil {
+		info := &views.ReviewInfo{Reviewer: rv.Reviewer, Justification: rv.Justification, SHA: rv.ArtifactSHA256,
+			Badge: views.Badge{Label: "Sem veredito do revisor", Class: "outline"}}
+		switch rv.Verdict {
+		case domain.ReviewApproved:
+			info.Badge = views.Badge{Label: "Aprovado pelo revisor", Class: "done"}
+		case domain.ReviewRejected:
+			info.Badge = views.Badge{Label: "Reprovado pelo revisor", Class: "danger"}
+			info.Rejected = true
+		}
+		row.Review = info
+	}
 	if g.TaskKey != "" {
 		row.TaskHref = base + "/tasks/" + g.TaskKey
 	}

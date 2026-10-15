@@ -86,6 +86,9 @@ type backend interface {
 	DueFlows(ctx context.Context, now time.Time) ([]domain.Flow, error)
 	FireFlow(ctx context.Context, flowID domain.ID, scheduledFor time.Time) (service.FlowFireResult, error)
 	EvaluateAlerts(ctx context.Context) (service.AlertEval, error)
+	StartReview(ctx context.Context, companyID, reviewID domain.ID) error
+	FailReview(ctx context.Context, companyID, reviewID domain.ID, reason string) error
+	ResolveStaleReviews(ctx context.Context) (int, error)
 }
 
 var _ backend = (*service.Service)(nil)
@@ -138,6 +141,7 @@ func New(pool *pgxpool.Pool, opts Options) (*Heartbeat, error) {
 		river.AddWorkerSafely(workers, &sweepWorker{h: h}),
 		river.AddWorkerSafely(workers, &flowTickWorker{h: h}),
 		river.AddWorkerSafely(workers, &alertTickWorker{h: h}),
+		river.AddWorkerSafely(workers, &startReviewWorker{h: h}),
 	); err != nil {
 		return nil, fmt.Errorf("heartbeat workers: %w", err)
 	}
@@ -250,6 +254,14 @@ func (h *Heartbeat) ExecuteRunTx(ctx context.Context, tx pgx.Tx, companyID, runI
 func (h *Heartbeat) DeliverMemoryTx(ctx context.Context, tx pgx.Tx, outboxID domain.ID) error {
 	if _, err := h.client.InsertTx(ctx, tx, DeliverMemoryArgs{OutboxID: outboxID}, nil); err != nil {
 		return fmt.Errorf("enqueue deliver_memory: %w", err)
+	}
+	return nil
+}
+
+// StartReviewTx enqueues the start of a pending review inside tx.
+func (h *Heartbeat) StartReviewTx(ctx context.Context, tx pgx.Tx, companyID, reviewID domain.ID) error {
+	if _, err := h.client.InsertTx(ctx, tx, StartReviewArgs{CompanyID: companyID, ReviewID: reviewID}, nil); err != nil {
+		return fmt.Errorf("enqueue start_review: %w", err)
 	}
 	return nil
 }

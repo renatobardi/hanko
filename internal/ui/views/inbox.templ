@@ -59,6 +59,9 @@ templ InboxPage(sh Shell, vm InboxVM) {
 										if g.Aged {
 											<span class="badge outline">há mais de 24 h</span>
 										}
+										if g.Review != nil {
+											@BadgeEl(g.Review.Badge)
+										}
 									</div>
 									if g.Excerpt != "" {
 										<p class="x">{ g.Excerpt }</p>

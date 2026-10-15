@@ -44,6 +44,9 @@ templ GateBanner(g GateRow) {
 			</span>
 		</div>
 		<h3><a href={ templ.SafeURL(g.Href) }>{ g.Title }</a></h3>
+		if g.Review != nil {
+			<p class="gate-excerpt">@BadgeEl(g.Review.Badge) <span>{ g.Review.Reviewer }</span></p>
+		}
 		if g.Excerpt != "" {
 			<p class="gate-excerpt">{ g.Excerpt }</p>
 		}
@@ -133,6 +136,9 @@ templ GatePage(sh Shell, vm GateVM) {
 				<h1>{ vm.Row.Title }</h1>
 				<div class="chips" style="margin-top:2px">
 					@BadgeEl(vm.Row.Badge)
+					if vm.Row.Review != nil {
+						@BadgeEl(vm.Row.Review.Badge)
+					}
 					if vm.Row.Persona != "" {
 						<a class="chip" href={ templ.SafeURL(vm.Row.PersonaHref) }>@Icon("bot")<span>{ vm.Row.Persona }</span></a>
 					}
@@ -142,6 +148,19 @@ templ GatePage(sh Shell, vm GateVM) {
 				</div>
 				if vm.Notice != "" {
 					<div style="margin-top:16px">@Alert("warn", vm.Notice)</div>
+				}
+				if vm.Row.Review != nil {
+					<div style="margin-top:16px">
+						if vm.Row.Review.Rejected {
+							@Alert("warn", "Reprovado pelo revisor "+vm.Row.Review.Reviewer+". A decisão continua sendo sua.")
+						}
+						if vm.Row.Review.Justification != "" {
+							<p class="gate-excerpt">{ vm.Row.Review.Justification }</p>
+						}
+						if vm.Row.Review.SHA != "" {
+							<p class="faint mono" style="font-size:12px">sha256 revisado: { vm.Row.Review.SHA }</p>
+						}
+					</div>
 				}
 				<div class="brief" style="margin-top:20px">
 					<div class="side-h">Pedido</div>

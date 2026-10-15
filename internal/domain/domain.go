@@ -120,11 +120,23 @@ type Persona struct {
 	HeartbeatIntervalSec int             `json:"heartbeat_interval_sec"`
 	BudgetMonthlyCents   *int64          `json:"budget_monthly_cents,omitempty"`
 	// RequireReview sends the persona's attempts to close a task through a task_review gate.
-	RequireReview bool      `json:"require_review"`
-	PauseReason   string    `json:"pause_reason,omitempty"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
+	RequireReview bool `json:"require_review"`
+	// ReviewerPersonaID (outra persona) ou ReviewerAgent/ReviewerModel (o mesmo papel em outro
+	// harness/modelo) mandam o fechamento da task por uma revisão automática antes do gate humano.
+	// Os dois são exclusivos; sem nenhum, o gate abre direto.
+	ReviewerPersonaID *ID       `json:"reviewer_persona_id,omitempty"`
+	ReviewerAgent     string    `json:"reviewer_agent,omitempty"`
+	ReviewerModel     string    `json:"reviewer_model,omitempty"`
+	PauseReason       string    `json:"pause_reason,omitempty"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
 }
+
+// HasReviewer diz se o fechamento de tasks desta persona passa por uma revisão automática.
+func (p Persona) HasReviewer() bool { return HasReviewer(p.ReviewerPersonaID, p.ReviewerAgent) }
+
+// HasReviewer é HasReviewer de Persona para quem só tem os campos soltos (linhas do banco).
+func HasReviewer(persona *ID, agent string) bool { return persona != nil || agent != "" }
 
 // TaskStatus follows the UI lists.
 type TaskStatus string
@@ -239,6 +251,7 @@ const (
 	TriggerHeartbeat RunTrigger = "heartbeat"
 	TriggerGate      RunTrigger = "gate" // a human decided a gate the persona was waiting on
 	TriggerFlow      RunTrigger = "flow"
+	TriggerReview    RunTrigger = "review" // revisão headless que antecede o gate task_review
 )
 
 // CostSource tells where a run's cost came from.

@@ -1,8 +1,10 @@
 -- name: CreateGate :one
 INSERT INTO gates (id, company_id, kind, status, title, body, task_id, run_id, persona_id,
-                   requested_by_type, requested_by_id, event_id, requested_status, created_at)
+                   requested_by_type, requested_by_id, event_id, requested_status,
+                   review_reviewer, review_verdict, review_justification, review_artifact_sha256, review_run_id, created_at)
 VALUES (@id, @company_id, @kind, 'pending', @title, @body, @task_id, @run_id, @persona_id,
-        @requested_by_type, @requested_by_id, @event_id, @requested_status, @now)
+        @requested_by_type, @requested_by_id, @event_id, @requested_status,
+        @review_reviewer, @review_verdict, @review_justification, @review_artifact_sha256, @review_run_id, @now)
 RETURNING *;
 
 -- name: GetGateByID :one

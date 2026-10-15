@@ -21,9 +21,33 @@ func gateRows(gs []api.Gate) [][]string {
 		if g.PersonaName != "" {
 			by = g.PersonaName
 		}
-		rows = append(rows, []string{shortID(g.ID), g.Status, g.Kind, dash(g.TaskKey), dash(by), oneLine(g.Title, 60)})
+		rows = append(rows, []string{shortID(g.ID), g.Status, g.Kind, dash(g.TaskKey), dash(by), oneLine(reviewTag(g)+g.Title, 60)})
 	}
 	return rows
+}
+
+// reviewLine resume o parecer do revisor automático; a decisão segue humana.
+func reviewLine(r *api.GateReviewOut) string {
+	v := "sem veredito"
+	switch r.Verdict {
+	case "approved":
+		v = "aprovado"
+	case "rejected":
+		v = "REPROVADO"
+	}
+	s := r.Reviewer + ": " + v
+	if r.Justification != "" {
+		s += " — " + oneLine(r.Justification, 200)
+	}
+	return s
+}
+
+// reviewTag marca na lista os gates que o revisor automático reprovou.
+func reviewTag(g api.Gate) string {
+	if g.Review != nil && g.Review.Verdict == "rejected" {
+		return "[reprovado pelo revisor] "
+	}
+	return ""
 }
 
 func shortID(id string) string {
@@ -116,6 +140,9 @@ func (e *env) gateCmd() *cobra.Command {
 				[2]string{"Task", strings.TrimSpace(g.TaskKey + " " + g.TaskTitle)}, [2]string{"Pedido por", by},
 				[2]string{"Criado em", fmtTime(g.CreatedAt)}, [2]string{"Decidido em", fmtTimePtr(g.DecidedAt)},
 				[2]string{"Nota da decisão", g.DecisionNote})
+			if rv := g.Review; rv != nil {
+				e.kv([2]string{"Revisão automática", reviewLine(rv)}, [2]string{"sha256 revisado", dash(rv.ArtifactSHA256)})
+			}
 			if g.Body != "" {
 				fmt.Fprintf(e.out, "\n%s\n", strings.TrimSpace(g.Body))
 			}

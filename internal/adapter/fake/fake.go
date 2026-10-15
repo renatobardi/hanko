@@ -39,8 +39,9 @@ func (*Adapter) Name() string { return "fake" }
 
 // Config is read from persona.adapter_config.
 type Config struct {
-	DelayMS *int `json:"delay_ms"` // overrides Options.Delay
-	Fail    bool `json:"fail"`     // makes the run report an error
+	DelayMS *int   `json:"delay_ms"` // overrides Options.Delay
+	Fail    bool   `json:"fail"`     // makes the run report an error
+	Summary string `json:"summary"`  // overrides the final answer (e.g. a reviewer verdict)
 }
 
 // Run emits a fixed script of events and returns a deterministic Result.
@@ -61,6 +62,9 @@ func (a *Adapter) Run(ctx context.Context, spec adapter.Spec, sink adapter.Sink)
 	}
 	session := "fake-" + spec.RunID.String()
 	summary := fmt.Sprintf("Fake concluiu %s: análise registrada. Próximo passo: revisar o resultado.", key)
+	if cfg.Summary != "" {
+		summary = cfg.Summary
+	}
 	toolInput := json.RawMessage(fmt.Sprintf(`{"name":"hanko_task_get","input":{"task":%q}}`, key))
 
 	steps := []adapter.Event{

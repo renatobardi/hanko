@@ -2,9 +2,13 @@ package heartbeat
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"time"
 
 	"github.com/riverqueue/river"
+
+	"github.com/renatobardi/hanko/internal/domain"
 )
 
 type alertTickWorker struct {
@@ -29,6 +33,47 @@ func (h *Heartbeat) alertTick(ctx context.Context) error {
 	}
 	if ev.Opened > 0 || ev.Closed > 0 {
 		h.log.Info("alert_tick", "opened", ev.Opened, "closed", ev.Closed, "open", ev.Open)
+	}
+	return nil
+}
+
+// ---- start_review ----
+
+type startReviewWorker struct {
+	river.WorkerDefaults[StartReviewArgs]
+	h *Heartbeat
+}
+
+func (w *startReviewWorker) Work(ctx context.Context, job *river.Job[StartReviewArgs]) error {
+	return w.h.startReview(ctx, job.Args, time.Since(job.CreatedAt), job.Attempt >= job.MaxAttempts)
+}
+
+// startReview opens the review run. While the task has an active run it waits (snooze); after
+// wakeGiveUp, or when the last attempt still fails, the gate opens without a verdict so the task
+// is never left in review with nobody to decide.
+func (h *Heartbeat) startReview(ctx context.Context, a StartReviewArgs, age time.Duration, final bool) error {
+	if h.svc == nil {
+		return errNotAttached
+	}
+	err := h.svc.StartReview(ctx, a.CompanyID, a.ReviewID)
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, domain.ErrActiveRun):
+		if age <= wakeGiveUp {
+			return river.JobSnooze(h.opts.WakeSnooze)
+		}
+		return h.failReview(ctx, a, "A revisão não conseguiu iniciar: a task manteve uma execução ativa por tempo demais.")
+	case final:
+		h.log.Warn("start_review: desistindo", "review_id", a.ReviewID, "err", err)
+		return h.failReview(ctx, a, "A revisão não conseguiu iniciar: "+err.Error())
+	}
+	return fmt.Errorf("start_review: %w", err)
+}
+
+func (h *Heartbeat) failReview(ctx context.Context, a StartReviewArgs, reason string) error {
+	if err := h.svc.FailReview(ctx, a.CompanyID, a.ReviewID, reason); err != nil {
+		return fmt.Errorf("start_review: fail review: %w", err)
 	}
 	return nil
 }

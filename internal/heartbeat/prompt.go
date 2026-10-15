@@ -113,14 +113,17 @@ func buildEnv(base, publicURL, token string, rc service.RunContext) map[string]s
 	if base = strings.TrimSpace(base); base != "" {
 		attrs = strings.TrimRight(base, ",") + "," + attrs
 	}
-	return map[string]string{
+	env := map[string]string{
 		"OTEL_RESOURCE_ATTRIBUTES":     attrs,
 		"CLAUDE_CODE_ENABLE_TELEMETRY": "1",
 		"HANKO_URL":                    publicURL,
-		"HANKO_RUN_TOKEN":              token,
 		"HANKO_RUN_ID":                 rc.Run.ID.String(),
 		"HANKO_TASK_KEY":               rc.Task.Key,
 	}
+	if token != "" {
+		env["HANKO_RUN_TOKEN"] = token
+	}
+	return env
 }
 
 // buildMCPConfig renders {"mcpServers":{...}} with the Hanko server first-class and the
@@ -138,10 +141,43 @@ func buildMCPConfig(publicURL, token string, extra map[string]json.RawMessage) (
 	for k, v := range extra {
 		servers[k] = v
 	}
-	servers["hanko"] = hanko
+	if token != "" {
+		servers["hanko"] = hanko
+	}
 	out, err := json.Marshal(map[string]any{"mcpServers": servers})
 	if err != nil {
 		return nil, fmt.Errorf("mcp config: %w", err)
 	}
 	return out, nil
+}
+
+// BuildReviewPrompt builds the prompts of a review run: the reviewer's protocol (and, when the run
+// belongs to another persona, that persona's instructions) and the artifact to judge. It is pure.
+func BuildReviewPrompt(rc service.RunContext, briefing string) (system, prompt string) {
+	rv, t := rc.Review, rc.Task
+	var sb strings.Builder
+	if rv.Independent {
+		if s := strings.TrimSpace(rc.Persona.Instructions); s != "" {
+			sb.WriteString(s)
+			sb.WriteString("\n\n")
+		}
+	}
+	sb.WriteString("## Protocolo de revisão Hanko\n\n")
+	fmt.Fprintf(&sb, "Você é o revisor independente da entrega de %s na task %s da empresa %s. Não é a autora: avalie com ceticismo e sem presumir que o trabalho está certo.\n", rv.AuthorName, t.Key, rc.Company.Name)
+	sb.WriteString("- A revisão é somente leitura: não edite arquivos, não mude status, não abra gates nem comente na task.\n")
+	sb.WriteString("- Confira se a entrega cumpre a descrição da task. Se houver workspace, inspecione os arquivos para verificar as afirmações da autora.\n")
+	sb.WriteString("- Sua resposta final DEVE começar com uma linha `VEREDITO: APROVADO` ou `VEREDITO: REPROVADO`, seguida da justificativa objetiva (o que está certo, o que falta ou está errado).\n")
+	sb.WriteString("- A decisão final é de um humano; seu veredito é uma recomendação registrada no gate.\n")
+	system = strings.TrimSpace(sb.String())
+
+	var pb strings.Builder
+	fmt.Fprintf(&pb, "# Revisão da task %s: %s\n\n", t.Key, t.Title)
+	fmt.Fprintf(&pb, "- Execução de revisão: %s\n- sha256 do artefato: %s\n- Status pedido pela autora: %s\n\n", rc.Run.ID, rv.ArtifactSHA256, rv.RequestedStatus)
+	pb.WriteString("## Artefato a revisar\n\n")
+	pb.WriteString(rv.Artifact)
+	if b := strings.TrimSpace(briefing); b != "" {
+		pb.WriteString("\n## Memória do projeto\n\n" + b + "\n")
+	}
+	pb.WriteString("\n---\nRevise agora e responda começando por `VEREDITO: APROVADO` ou `VEREDITO: REPROVADO`.\n")
+	return system, pb.String()
 }

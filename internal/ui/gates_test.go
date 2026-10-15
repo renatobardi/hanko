@@ -419,3 +419,18 @@ func TestTriggerLabelGate(t *testing.T) {
 		t.Errorf("triggerLabel = %q", got)
 	}
 }
+
+func TestGateRevisaoAutomatica(t *testing.T) {
+	f := uitest.Sample()
+	id := uitest.ID("gate:plan")
+	for i := range f.Gates {
+		if f.Gates[i].ID == id {
+			f.Gates[i].Review = &domain.GateReview{Reviewer: "Kenji (codex · m)", Verdict: domain.ReviewRejected,
+				Justification: "Faltam testes.", ArtifactSHA256: "abc123"}
+		}
+	}
+	e := newEnv(t, f)
+	wantContains(t, e.get(t, gatePath("plan")), "Reprovado pelo revisor", "Faltam testes.", "abc123", "A decisão continua sendo sua")
+	wantContains(t, e.get(t, "/c/hanko/caixa"), "Reprovado pelo revisor")
+	wantNotContains(t, e.get(t, gatePath("slides")), "pelo revisor")
+}

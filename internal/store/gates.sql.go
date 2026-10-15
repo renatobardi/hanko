@@ -38,26 +38,33 @@ func (q *Queries) CountPendingGates(ctx context.Context, companyID uuid.UUID) (i
 
 const createGate = `-- name: CreateGate :one
 INSERT INTO gates (id, company_id, kind, status, title, body, task_id, run_id, persona_id,
-                   requested_by_type, requested_by_id, event_id, requested_status, created_at)
+                   requested_by_type, requested_by_id, event_id, requested_status,
+                   review_reviewer, review_verdict, review_justification, review_artifact_sha256, review_run_id, created_at)
 VALUES ($1, $2, $3, 'pending', $4, $5, $6, $7, $8,
-        $9, $10, $11, $12, $13)
-RETURNING id, company_id, kind, status, title, body, task_id, run_id, persona_id, requested_by_type, requested_by_id, decided_by_type, decided_by_id, decision_note, event_id, created_at, decided_at, requested_status
+        $9, $10, $11, $12,
+        $13, $14, $15, $16, $17, $18)
+RETURNING id, company_id, kind, status, title, body, task_id, run_id, persona_id, requested_by_type, requested_by_id, decided_by_type, decided_by_id, decision_note, event_id, created_at, decided_at, requested_status, review_reviewer, review_verdict, review_justification, review_artifact_sha256, review_run_id
 `
 
 type CreateGateParams struct {
-	ID              uuid.UUID
-	CompanyID       uuid.UUID
-	Kind            string
-	Title           string
-	Body            string
-	TaskID          *uuid.UUID
-	RunID           *uuid.UUID
-	PersonaID       *uuid.UUID
-	RequestedByType string
-	RequestedByID   *uuid.UUID
-	EventID         *string
-	RequestedStatus *string
-	Now             time.Time
+	ID                   uuid.UUID
+	CompanyID            uuid.UUID
+	Kind                 string
+	Title                string
+	Body                 string
+	TaskID               *uuid.UUID
+	RunID                *uuid.UUID
+	PersonaID            *uuid.UUID
+	RequestedByType      string
+	RequestedByID        *uuid.UUID
+	EventID              *string
+	RequestedStatus      *string
+	ReviewReviewer       string
+	ReviewVerdict        *string
+	ReviewJustification  string
+	ReviewArtifactSha256 string
+	ReviewRunID          *uuid.UUID
+	Now                  time.Time
 }
 
 func (q *Queries) CreateGate(ctx context.Context, arg CreateGateParams) (Gate, error) {
@@ -74,6 +81,11 @@ func (q *Queries) CreateGate(ctx context.Context, arg CreateGateParams) (Gate, e
 		arg.RequestedByID,
 		arg.EventID,
 		arg.RequestedStatus,
+		arg.ReviewReviewer,
+		arg.ReviewVerdict,
+		arg.ReviewJustification,
+		arg.ReviewArtifactSha256,
+		arg.ReviewRunID,
 		arg.Now,
 	)
 	var i Gate
@@ -96,6 +108,11 @@ func (q *Queries) CreateGate(ctx context.Context, arg CreateGateParams) (Gate, e
 		&i.CreatedAt,
 		&i.DecidedAt,
 		&i.RequestedStatus,
+		&i.ReviewReviewer,
+		&i.ReviewVerdict,
+		&i.ReviewJustification,
+		&i.ReviewArtifactSha256,
+		&i.ReviewRunID,
 	)
 	return i, err
 }
@@ -105,7 +122,7 @@ UPDATE gates
 SET status = $1, decided_by_type = $2, decided_by_id = $3,
     decision_note = $4, decided_at = $5
 WHERE company_id = $6 AND id = $7 AND status = 'pending'
-RETURNING id, company_id, kind, status, title, body, task_id, run_id, persona_id, requested_by_type, requested_by_id, decided_by_type, decided_by_id, decision_note, event_id, created_at, decided_at, requested_status
+RETURNING id, company_id, kind, status, title, body, task_id, run_id, persona_id, requested_by_type, requested_by_id, decided_by_type, decided_by_id, decision_note, event_id, created_at, decided_at, requested_status, review_reviewer, review_verdict, review_justification, review_artifact_sha256, review_run_id
 `
 
 type DecideGateParams struct {
@@ -148,6 +165,11 @@ func (q *Queries) DecideGate(ctx context.Context, arg DecideGateParams) (Gate, e
 		&i.CreatedAt,
 		&i.DecidedAt,
 		&i.RequestedStatus,
+		&i.ReviewReviewer,
+		&i.ReviewVerdict,
+		&i.ReviewJustification,
+		&i.ReviewArtifactSha256,
+		&i.ReviewRunID,
 	)
 	return i, err
 }
@@ -156,7 +178,7 @@ const expirePendingGatesForTask = `-- name: ExpirePendingGatesForTask :many
 UPDATE gates SET status = 'expired', decided_by_type = 'system', decided_at = $1,
                  decision_note = 'Task encerrada antes da decisão.'
 WHERE company_id = $2 AND task_id = $3 AND status = 'pending'
-RETURNING id, company_id, kind, status, title, body, task_id, run_id, persona_id, requested_by_type, requested_by_id, decided_by_type, decided_by_id, decision_note, event_id, created_at, decided_at, requested_status
+RETURNING id, company_id, kind, status, title, body, task_id, run_id, persona_id, requested_by_type, requested_by_id, decided_by_type, decided_by_id, decision_note, event_id, created_at, decided_at, requested_status, review_reviewer, review_verdict, review_justification, review_artifact_sha256, review_run_id
 `
 
 type ExpirePendingGatesForTaskParams struct {
@@ -194,6 +216,11 @@ func (q *Queries) ExpirePendingGatesForTask(ctx context.Context, arg ExpirePendi
 			&i.CreatedAt,
 			&i.DecidedAt,
 			&i.RequestedStatus,
+			&i.ReviewReviewer,
+			&i.ReviewVerdict,
+			&i.ReviewJustification,
+			&i.ReviewArtifactSha256,
+			&i.ReviewRunID,
 		); err != nil {
 			return nil, err
 		}
@@ -206,7 +233,7 @@ func (q *Queries) ExpirePendingGatesForTask(ctx context.Context, arg ExpirePendi
 }
 
 const getGateByEventID = `-- name: GetGateByEventID :one
-SELECT id, company_id, kind, status, title, body, task_id, run_id, persona_id, requested_by_type, requested_by_id, decided_by_type, decided_by_id, decision_note, event_id, created_at, decided_at, requested_status FROM gates WHERE company_id = $1 AND event_id = $2
+SELECT id, company_id, kind, status, title, body, task_id, run_id, persona_id, requested_by_type, requested_by_id, decided_by_type, decided_by_id, decision_note, event_id, created_at, decided_at, requested_status, review_reviewer, review_verdict, review_justification, review_artifact_sha256, review_run_id FROM gates WHERE company_id = $1 AND event_id = $2
 `
 
 type GetGateByEventIDParams struct {
@@ -236,12 +263,17 @@ func (q *Queries) GetGateByEventID(ctx context.Context, arg GetGateByEventIDPara
 		&i.CreatedAt,
 		&i.DecidedAt,
 		&i.RequestedStatus,
+		&i.ReviewReviewer,
+		&i.ReviewVerdict,
+		&i.ReviewJustification,
+		&i.ReviewArtifactSha256,
+		&i.ReviewRunID,
 	)
 	return i, err
 }
 
 const getGateByID = `-- name: GetGateByID :one
-SELECT id, company_id, kind, status, title, body, task_id, run_id, persona_id, requested_by_type, requested_by_id, decided_by_type, decided_by_id, decision_note, event_id, created_at, decided_at, requested_status FROM gates WHERE company_id = $1 AND id = $2
+SELECT id, company_id, kind, status, title, body, task_id, run_id, persona_id, requested_by_type, requested_by_id, decided_by_type, decided_by_id, decision_note, event_id, created_at, decided_at, requested_status, review_reviewer, review_verdict, review_justification, review_artifact_sha256, review_run_id FROM gates WHERE company_id = $1 AND id = $2
 `
 
 type GetGateByIDParams struct {
@@ -271,12 +303,17 @@ func (q *Queries) GetGateByID(ctx context.Context, arg GetGateByIDParams) (Gate,
 		&i.CreatedAt,
 		&i.DecidedAt,
 		&i.RequestedStatus,
+		&i.ReviewReviewer,
+		&i.ReviewVerdict,
+		&i.ReviewJustification,
+		&i.ReviewArtifactSha256,
+		&i.ReviewRunID,
 	)
 	return i, err
 }
 
 const getGateByIDForUpdate = `-- name: GetGateByIDForUpdate :one
-SELECT id, company_id, kind, status, title, body, task_id, run_id, persona_id, requested_by_type, requested_by_id, decided_by_type, decided_by_id, decision_note, event_id, created_at, decided_at, requested_status FROM gates WHERE company_id = $1 AND id = $2 FOR UPDATE
+SELECT id, company_id, kind, status, title, body, task_id, run_id, persona_id, requested_by_type, requested_by_id, decided_by_type, decided_by_id, decision_note, event_id, created_at, decided_at, requested_status, review_reviewer, review_verdict, review_justification, review_artifact_sha256, review_run_id FROM gates WHERE company_id = $1 AND id = $2 FOR UPDATE
 `
 
 type GetGateByIDForUpdateParams struct {
@@ -306,12 +343,17 @@ func (q *Queries) GetGateByIDForUpdate(ctx context.Context, arg GetGateByIDForUp
 		&i.CreatedAt,
 		&i.DecidedAt,
 		&i.RequestedStatus,
+		&i.ReviewReviewer,
+		&i.ReviewVerdict,
+		&i.ReviewJustification,
+		&i.ReviewArtifactSha256,
+		&i.ReviewRunID,
 	)
 	return i, err
 }
 
 const getGateView = `-- name: GetGateView :one
-SELECT g.id, g.company_id, g.kind, g.status, g.title, g.body, g.task_id, g.run_id, g.persona_id, g.requested_by_type, g.requested_by_id, g.decided_by_type, g.decided_by_id, g.decision_note, g.event_id, g.created_at, g.decided_at, g.requested_status, COALESCE(c.task_prefix || '-' || t.number, '')::text AS task_key, COALESCE(t.title, '')::text AS task_title,
+SELECT g.id, g.company_id, g.kind, g.status, g.title, g.body, g.task_id, g.run_id, g.persona_id, g.requested_by_type, g.requested_by_id, g.decided_by_type, g.decided_by_id, g.decision_note, g.event_id, g.created_at, g.decided_at, g.requested_status, g.review_reviewer, g.review_verdict, g.review_justification, g.review_artifact_sha256, g.review_run_id, COALESCE(c.task_prefix || '-' || t.number, '')::text AS task_key, COALESCE(t.title, '')::text AS task_title,
        COALESCE(p.name, '')::text AS persona_name
 FROM gates g
 JOIN companies c ON c.id = g.company_id
@@ -354,6 +396,11 @@ func (q *Queries) GetGateView(ctx context.Context, arg GetGateViewParams) (GetGa
 		&i.Gate.CreatedAt,
 		&i.Gate.DecidedAt,
 		&i.Gate.RequestedStatus,
+		&i.Gate.ReviewReviewer,
+		&i.Gate.ReviewVerdict,
+		&i.Gate.ReviewJustification,
+		&i.Gate.ReviewArtifactSha256,
+		&i.Gate.ReviewRunID,
 		&i.TaskKey,
 		&i.TaskTitle,
 		&i.PersonaName,
@@ -409,7 +456,7 @@ func (q *Queries) HasPendingGateOfKind(ctx context.Context, arg HasPendingGateOf
 }
 
 const listErrorPersonas = `-- name: ListErrorPersonas :many
-SELECT id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason, budget_refused_at FROM personas WHERE company_id = $1 AND status = 'error' ORDER BY updated_at DESC, id
+SELECT id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason, budget_refused_at, reviewer_persona_id, reviewer_agent, reviewer_model FROM personas WHERE company_id = $1 AND status = 'error' ORDER BY updated_at DESC, id
 `
 
 func (q *Queries) ListErrorPersonas(ctx context.Context, companyID uuid.UUID) ([]Persona, error) {
@@ -444,6 +491,9 @@ func (q *Queries) ListErrorPersonas(ctx context.Context, companyID uuid.UUID) ([
 			&i.RequireReview,
 			&i.PauseReason,
 			&i.BudgetRefusedAt,
+			&i.ReviewerPersonaID,
+			&i.ReviewerAgent,
+			&i.ReviewerModel,
 		); err != nil {
 			return nil, err
 		}
@@ -534,7 +584,7 @@ func (q *Queries) ListFailedRuns(ctx context.Context, arg ListFailedRunsParams) 
 }
 
 const listGateViews = `-- name: ListGateViews :many
-SELECT g.id, g.company_id, g.kind, g.status, g.title, g.body, g.task_id, g.run_id, g.persona_id, g.requested_by_type, g.requested_by_id, g.decided_by_type, g.decided_by_id, g.decision_note, g.event_id, g.created_at, g.decided_at, g.requested_status, COALESCE(c.task_prefix || '-' || t.number, '')::text AS task_key, COALESCE(t.title, '')::text AS task_title,
+SELECT g.id, g.company_id, g.kind, g.status, g.title, g.body, g.task_id, g.run_id, g.persona_id, g.requested_by_type, g.requested_by_id, g.decided_by_type, g.decided_by_id, g.decision_note, g.event_id, g.created_at, g.decided_at, g.requested_status, g.review_reviewer, g.review_verdict, g.review_justification, g.review_artifact_sha256, g.review_run_id, COALESCE(c.task_prefix || '-' || t.number, '')::text AS task_key, COALESCE(t.title, '')::text AS task_title,
        COALESCE(p.name, '')::text AS persona_name
 FROM gates g
 JOIN companies c ON c.id = g.company_id
@@ -603,6 +653,11 @@ func (q *Queries) ListGateViews(ctx context.Context, arg ListGateViewsParams) ([
 			&i.Gate.CreatedAt,
 			&i.Gate.DecidedAt,
 			&i.Gate.RequestedStatus,
+			&i.Gate.ReviewReviewer,
+			&i.Gate.ReviewVerdict,
+			&i.Gate.ReviewJustification,
+			&i.Gate.ReviewArtifactSha256,
+			&i.Gate.ReviewRunID,
 			&i.TaskKey,
 			&i.TaskTitle,
 			&i.PersonaName,

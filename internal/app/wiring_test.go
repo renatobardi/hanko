@@ -22,9 +22,10 @@ import (
 
 type noopJobs struct{}
 
-func (noopJobs) WakeTx(context.Context, pgx.Tx, service.Wake) error               { return nil }
-func (noopJobs) ExecuteRunTx(context.Context, pgx.Tx, domain.ID, domain.ID) error { return nil }
-func (noopJobs) DeliverMemoryTx(context.Context, pgx.Tx, domain.ID) error         { return nil }
+func (noopJobs) WakeTx(context.Context, pgx.Tx, service.Wake) error                { return nil }
+func (noopJobs) ExecuteRunTx(context.Context, pgx.Tx, domain.ID, domain.ID) error  { return nil }
+func (noopJobs) StartReviewTx(context.Context, pgx.Tx, domain.ID, domain.ID) error { return nil }
+func (noopJobs) DeliverMemoryTx(context.Context, pgx.Tx, domain.ID) error          { return nil }
 
 func get(t *testing.T, base, method, path, host, bearer, body string) (int, string) {
 	t.Helper()

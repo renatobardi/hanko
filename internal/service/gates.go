@@ -24,6 +24,8 @@ type RequestGateInput struct {
 	// requestedStatus is the status a persona with require_review asked for (done or cancelled);
 	// set only by requestTaskReview.
 	requestedStatus domain.TaskStatus
+	// review is the outcome of the automatic review that preceded the gate; set only by completeReview.
+	review *gateReviewData
 }
 
 // DecideGateInput is the human answer to a pending gate.
@@ -176,10 +178,15 @@ func (t *txc) createGate(actor domain.Actor, companyID domain.ID, in RequestGate
 	if in.requestedStatus != "" {
 		requested = ptr(string(in.requestedStatus))
 	}
-	row, err := t.q.CreateGate(t.ctx, store.CreateGateParams{ID: domain.NewID(), CompanyID: companyID, Kind: string(in.Kind),
+	p := store.CreateGateParams{ID: domain.NewID(), CompanyID: companyID, Kind: string(in.Kind),
 		Title: in.Title, Body: in.Body, TaskID: in.TaskID, RunID: in.RunID, PersonaID: personaID,
 		RequestedByType: string(actor.Type), RequestedByID: actor.ID, EventID: eid,
-		RequestedStatus: requested, Now: t.now})
+		RequestedStatus: requested, Now: t.now}
+	if r := in.review; r != nil {
+		p.ReviewReviewer, p.ReviewVerdict, p.ReviewJustification = r.reviewer, r.verdict, r.justification
+		p.ReviewArtifactSha256, p.ReviewRunID = r.sha, r.runID
+	}
+	row, err := t.q.CreateGate(t.ctx, p)
 	if err != nil {
 		return domain.Gate{}, mapErr(err, "create gate")
 	}
@@ -273,6 +280,16 @@ func (t *txc) expireTaskGates(companyID, taskID domain.ID, reason string) error 
 	rows, err := t.q.ExpirePendingGatesForTask(t.ctx, store.ExpirePendingGatesForTaskParams{CompanyID: companyID, TaskID: &taskID, Now: &t.now})
 	if err != nil {
 		return fmt.Errorf("expire task gates: %w", err)
+	}
+	revs, err := t.q.CancelOpenReviewsForTask(t.ctx, store.CancelOpenReviewsForTaskParams{TaskID: taskID, Now: &t.now})
+	if err != nil {
+		return fmt.Errorf("cancel task reviews: %w", err)
+	}
+	for _, rv := range revs {
+		if err := t.activity(domain.SystemActor, companyID, "review.cancelled", "review", rv.ID,
+			map[string]any{"task_id": taskID, "reason": reason}, ""); err != nil {
+			return err
+		}
 	}
 	for _, r := range rows {
 		g := gateFromRow(r)
@@ -483,6 +500,13 @@ func gateFact(g domain.Gate, taskKey string, now time.Time) memory.Fact {
 		fmt.Fprintf(&b, "- Task: %s\n", taskKey)
 	}
 	fmt.Fprintf(&b, "- Pedido por: %s\n- Decidido por: %s\n- Gate: %s\n", actorLabel(g.RequestedBy), actorLabelPtr(g.DecidedBy), g.ID)
+	if g.Review != nil {
+		res := "sem veredito"
+		if g.Review.Verdict != "" {
+			res = string(g.Review.Verdict)
+		}
+		fmt.Fprintf(&b, "- Revisão automática (%s): %s\n", g.Review.Reviewer, res)
+	}
 	if g.DecisionNote != "" {
 		fmt.Fprintf(&b, "\n## Nota\n\n%s\n", g.DecisionNote)
 	}
@@ -629,17 +653,21 @@ func (t *txc) requestTaskReview(actor domain.Actor, companyID domain.ID, task st
 	if pending {
 		return nil
 	}
+	if actor.Type == domain.ActorPersona && actor.ID != nil {
+		author, err := t.q.GetPersonaByID(t.ctx, store.GetPersonaByIDParams{CompanyID: companyID, ID: *actor.ID})
+		if err != nil {
+			return mapErr(err, "persona")
+		}
+		if domain.HasReviewer(author.ReviewerPersonaID, author.ReviewerAgent) {
+			// A revisão automática vem antes: o gate nasce quando ela termina (reviews.go).
+			return t.requestReview(companyID, task, author, requested)
+		}
+	}
 	c, err := t.q.GetCompanyByID(t.ctx, companyID)
 	if err != nil {
 		return mapErr(err, "company")
 	}
-	key := domain.TaskKey(c.TaskPrefix, task.Number)
-	body := "A persona deu a task como pronta e esta persona exige revisão antes de concluir. Aprove para concluir, peça mudanças ou rejeite."
-	if requested == domain.TaskCancelled {
-		body = "A persona quer cancelar a task e esta persona exige revisão antes de encerrar. Aprove para cancelar, peça mudanças ou rejeite."
-	}
-	in := RequestGateInput{Kind: domain.GateTaskReview, TaskID: &task.ID, requestedStatus: requested,
-		Title: fmt.Sprintf("Revisar %s — %s", key, task.Title), Body: body}
+	in := taskReviewInput(domain.TaskKey(c.TaskPrefix, task.Number), task, requested, nil)
 	if run, err := t.q.ActiveRunForTask(t.ctx, task.ID); err == nil && actor.ID != nil && run.PersonaID == *actor.ID {
 		in.RunID = &run.ID
 	}

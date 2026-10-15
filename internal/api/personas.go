@@ -31,6 +31,9 @@ type hirePersonaIn struct {
 		HeartbeatIntervalSec int            `json:"heartbeat_interval_sec,omitempty" minimum:"0" example:"300"`
 		BudgetMonthlyCents   *int64         `json:"budget_monthly_cents,omitempty" minimum:"0"`
 		RequireReview        bool           `json:"require_review,omitempty" doc:"Concluir uma task passa por um gate de revisão."`
+		Reviewer             string         `json:"reviewer,omitempty" doc:"Id ou slug da persona que revisa antes do gate (exclusivo com reviewer_agent)."`
+		ReviewerAgent        string         `json:"reviewer_agent,omitempty" enum:"claude,codex,fake" doc:"Harness alternativo revisor (ex.: autora claude, revisor codex)."`
+		ReviewerModel        string         `json:"reviewer_model,omitempty"`
 	}
 }
 
@@ -55,6 +58,10 @@ type updatePersonaIn struct {
 		RequireReview        *bool   `json:"require_review,omitempty" doc:"Exige revisão (gate task_review) para concluir tasks."`
 		BudgetMonthlyCents   *int64  `json:"budget_monthly_cents,omitempty" minimum:"0" doc:"Orçamento mensal da persona em centavos de dólar."`
 		ClearBudget          bool    `json:"clear_budget,omitempty" doc:"Remove o teto de orçamento da persona."`
+		Reviewer             string  `json:"reviewer,omitempty" doc:"Id ou slug da persona revisora (exclusivo com reviewer_agent)."`
+		ReviewerAgent        *string `json:"reviewer_agent,omitempty" enum:"claude,codex,fake"`
+		ReviewerModel        *string `json:"reviewer_model,omitempty"`
+		ClearReviewer        bool    `json:"clear_reviewer,omitempty" doc:"Remove o revisor automático."`
 	}
 }
 
@@ -77,6 +84,10 @@ func (s *server) registerPersonas(api huma.API) {
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}
+			rev, err := s.personaRef(ctx, cid, in.Body.Reviewer)
+			if err != nil {
+				return nil, s.fail(ctx, err)
+			}
 			var cfg json.RawMessage
 			if len(in.Body.AdapterConfig) > 0 {
 				if cfg, err = json.Marshal(in.Body.AdapterConfig); err != nil {
@@ -87,7 +98,8 @@ func (s *server) registerPersonas(api huma.API) {
 				Name: in.Body.Name, Slug: in.Body.Slug, Title: in.Body.Title, Instructions: in.Body.Instructions,
 				Agent: in.Body.Agent, Model: in.Body.Model, AdapterConfig: cfg, ReportsTo: reports, WorkspaceID: ws,
 				HeartbeatIntervalSec: in.Body.HeartbeatIntervalSec, BudgetMonthlyCents: in.Body.BudgetMonthlyCents,
-				RequireReview: in.Body.RequireReview})
+				RequireReview: in.Body.RequireReview, ReviewerPersona: rev, ReviewerAgent: in.Body.ReviewerAgent,
+				ReviewerModel: in.Body.ReviewerModel})
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}
@@ -141,11 +153,16 @@ func (s *server) registerPersonas(api huma.API) {
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}
+			rev, err := s.personaRef(ctx, sc.Company.ID, in.Body.Reviewer)
+			if err != nil {
+				return nil, s.fail(ctx, err)
+			}
 			up := service.UpdatePersonaInput{
 				Name: in.Body.Name, Title: in.Body.Title, Instructions: in.Body.Instructions, Model: in.Body.Model,
 				HeartbeatIntervalSec: in.Body.HeartbeatIntervalSec, WorkspaceID: ws, ClearWorkspace: in.Body.ClearWorkspace,
 				ReportsTo: reports, ClearReportsTo: in.Body.ClearReportsTo, RequireReview: in.Body.RequireReview,
-				BudgetMonthlyCents: in.Body.BudgetMonthlyCents, ClearBudget: in.Body.ClearBudget}
+				BudgetMonthlyCents: in.Body.BudgetMonthlyCents, ClearBudget: in.Body.ClearBudget,
+				ReviewerPersona: rev, ReviewerAgent: in.Body.ReviewerAgent, ReviewerModel: in.Body.ReviewerModel, ClearReviewer: in.Body.ClearReviewer}
 			if in.Body.Status != nil {
 				st := domain.PersonaStatus(*in.Body.Status)
 				up.Status = &st

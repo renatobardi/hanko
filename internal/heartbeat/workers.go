@@ -186,6 +186,11 @@ func (w *tickWorker) Work(ctx context.Context, _ *river.Job[HeartbeatTickArgs]) 
 	} else if n > 0 {
 		h.log.Info("heartbeat_tick: personas retomadas", "count", n)
 	}
+	if n, err := h.svc.ResolveStaleReviews(ctx); err != nil {
+		h.log.Warn("heartbeat_tick: revisões perdidas", "err", err)
+	} else if n > 0 {
+		h.log.Info("heartbeat_tick: revisões resolvidas", "count", n)
+	}
 	cands, err := h.svc.WakeCandidates(ctx, scanLimit)
 	if err != nil {
 		return fmt.Errorf("heartbeat_tick: %w", err)

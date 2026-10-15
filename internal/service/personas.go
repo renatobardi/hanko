@@ -68,10 +68,22 @@ func (s *Service) HirePersona(ctx context.Context, actor domain.Actor, companyID
 				return mapErr(err, "hire persona")
 			}
 		}
+		if in.ReviewerPersona != nil || in.ReviewerAgent != "" || in.ReviewerModel != "" {
+			rp, ra, rm, err := t.checkReviewer(companyID, row.ID, in.ReviewerPersona, in.ReviewerAgent, in.ReviewerModel)
+			if err != nil {
+				return err
+			}
+			row, err = t.q.SetPersonaReviewer(ctx, store.SetPersonaReviewerParams{CompanyID: companyID, ID: row.ID,
+				ReviewerPersonaID: rp, ReviewerAgent: ra, ReviewerModel: rm, Now: t.now})
+			if err != nil {
+				return mapErr(err, "hire persona")
+			}
+		}
 		out = personaFromRow(row)
 		return t.activity(actor, companyID, "persona.hired", "persona", out.ID,
 			map[string]any{"slug": out.Slug, "name": out.Name, "agent": out.Agent, "reports_to": out.ReportsTo,
-				"require_review": out.RequireReview}, "")
+				"require_review": out.RequireReview, "reviewer_persona_id": out.ReviewerPersonaID,
+				"reviewer_agent": out.ReviewerAgent}, "")
 	})
 	return out, err
 }
@@ -122,6 +134,9 @@ func (s *Service) UpdatePersona(ctx context.Context, actor domain.Actor, company
 	}
 	if in.ClearBudget && in.BudgetMonthlyCents != nil {
 		return domain.Persona{}, domain.Invalid("budget_monthly_cents", "cannot set and clear at once")
+	}
+	if in.ClearReviewer && (in.ReviewerPersona != nil || in.ReviewerAgent != nil || in.ReviewerModel != nil) {
+		return domain.Persona{}, domain.Invalid("reviewer", "cannot set and clear at once")
 	}
 	if in.BudgetMonthlyCents != nil && *in.BudgetMonthlyCents < 0 {
 		return domain.Persona{}, domain.Invalid("budget_monthly_cents", "must be >= 0")
@@ -215,6 +230,28 @@ func (s *Service) UpdatePersona(ctx context.Context, actor domain.Actor, company
 			p.BudgetMonthlyCents = in.BudgetMonthlyCents
 			changed = append(changed, "budget_monthly_cents")
 		}
+		rvPersona, rvAgent, rvModel := cur.ReviewerPersonaID, cur.ReviewerAgent, cur.ReviewerModel
+		switch {
+		case in.ClearReviewer:
+			rvPersona, rvAgent, rvModel = nil, "", ""
+		case in.ReviewerPersona != nil: // a reviewer persona replaces an alternate harness
+			rvPersona, rvAgent, rvModel = in.ReviewerPersona, "", ""
+		case in.ReviewerAgent != nil || in.ReviewerModel != nil: // an alternate harness replaces a reviewer persona
+			if in.ReviewerAgent != nil {
+				rvAgent = *in.ReviewerAgent
+			}
+			if in.ReviewerModel != nil {
+				rvModel = *in.ReviewerModel
+			}
+			rvPersona = nil
+		}
+		reviewerChanged := !sameID(rvPersona, cur.ReviewerPersonaID) || rvAgent != cur.ReviewerAgent || rvModel != cur.ReviewerModel
+		if reviewerChanged {
+			if rvPersona, rvAgent, rvModel, err = t.checkReviewer(companyID, personaID, rvPersona, rvAgent, rvModel); err != nil {
+				return err
+			}
+			changed = append(changed, "reviewer")
+		}
 		if len(changed) == 0 {
 			out = personaFromRow(cur)
 			return nil
@@ -222,6 +259,13 @@ func (s *Service) UpdatePersona(ctx context.Context, actor domain.Actor, company
 		row, err := t.q.UpdatePersona(ctx, p)
 		if err != nil {
 			return mapErr(err, "update persona")
+		}
+		if reviewerChanged {
+			row, err = t.q.SetPersonaReviewer(ctx, store.SetPersonaReviewerParams{CompanyID: companyID, ID: personaID,
+				ReviewerPersonaID: rvPersona, ReviewerAgent: rvAgent, ReviewerModel: rvModel, Now: t.now})
+			if err != nil {
+				return mapErr(err, "update persona")
+			}
 		}
 		if orgChanged {
 			row, err = t.q.SetPersonaOrg(ctx, store.SetPersonaOrgParams{CompanyID: companyID, ID: personaID,
@@ -269,4 +313,34 @@ func (s *Service) GetPersonaHealth(ctx context.Context, companyID, personaID dom
 		h.LastError = *row.LastError
 	}
 	return h, nil
+}
+
+func sameID(a, b *domain.ID) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return *a == *b
+}
+
+// checkReviewer validates a reviewer configuration: either another persona of the company or an
+// alternate harness (agent, optionally a model) for the same role, never both and never itself.
+func (t *txc) checkReviewer(companyID, personaID domain.ID, reviewer *domain.ID, agent, model string) (*domain.ID, string, string, error) {
+	agent, model = strings.TrimSpace(agent), strings.TrimSpace(model)
+	switch {
+	case reviewer != nil && (agent != "" || model != ""):
+		return nil, "", "", domain.Invalid("reviewer", "choose a reviewer persona or an alternate harness, not both")
+	case reviewer != nil:
+		if *reviewer == personaID {
+			return nil, "", "", domain.Invalid("reviewer", "a persona cannot review itself; use an alternate harness instead")
+		}
+		if _, err := t.q.GetPersonaByID(t.ctx, store.GetPersonaByIDParams{CompanyID: companyID, ID: *reviewer}); err != nil {
+			return nil, "", "", domain.Invalid("reviewer", "persona not found in company")
+		}
+		return reviewer, "", "", nil
+	case agent == "" && model != "":
+		return nil, "", "", domain.Invalid("reviewer_agent", "required when reviewer_model is set")
+	case agent != "" && !domain.ValidAgent(agent):
+		return nil, "", "", domain.Invalid("reviewer_agent", fmt.Sprintf("unknown agent %q (want one of %v)", agent, domain.KnownAgents))
+	}
+	return nil, agent, model, nil
 }

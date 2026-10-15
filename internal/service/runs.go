@@ -115,6 +115,11 @@ func (t *txc) cancelRun(actor domain.Actor, companyID domain.ID, cur store.Run, 
 			return err
 		}
 		t.publishRunStatus(runFromRow(row))
+		if domain.RunTrigger(row.Trigger) == domain.TriggerReview {
+			if err := t.reviewRunEnded(row, domain.RunCancelled, "", ""); err != nil {
+				return err
+			}
+		}
 	case domain.RunRunning:
 		data["was"], data["requested"] = "running", true
 		if err := t.activity(actor, companyID, "run.cancelled", "run", cur.ID, data, ""); err != nil {
@@ -206,7 +211,7 @@ func (s *Service) CheckoutRun(ctx context.Context, w Wake) (domain.Run, error) {
 				return fmt.Errorf("clear budget refused: %w", err)
 			}
 		}
-		row, err := t.createRun(w.CompanyID, task.ID, p, w.Trigger)
+		row, err := t.createRun(w.CompanyID, task.ID, p.ID, p.Agent, p.Model, w.Trigger)
 		if err != nil {
 			return err
 		}
@@ -247,14 +252,14 @@ func (s *Service) CheckoutRun(ctx context.Context, w Wake) (domain.Run, error) {
 // createRun inserts a queued run with its friendly name. The name comes from the run id; when the
 // pair is already taken in the company the next variation of the hash is used (see domain.RunName).
 // A race on the same name or on the one-active-run-per-task index is ErrActiveRun, so the wake is retried.
-func (t *txc) createRun(companyID, taskID domain.ID, p store.Persona, trigger domain.RunTrigger) (store.Run, error) {
+func (t *txc) createRun(companyID, taskID, personaID domain.ID, agent, model string, trigger domain.RunTrigger) (store.Run, error) {
 	id := domain.NewID()
 	name, err := t.freeRunName(companyID, id)
 	if err != nil {
 		return store.Run{}, err
 	}
 	row, err := t.q.CreateRun(t.ctx, store.CreateRunParams{ID: id, CompanyID: companyID, TaskID: taskID,
-		PersonaID: p.ID, Trigger: string(trigger), Agent: p.Agent, Model: p.Model, Name: name, Now: t.now})
+		PersonaID: personaID, Trigger: string(trigger), Agent: agent, Model: model, Name: name, Now: t.now})
 	if err != nil {
 		if isUnique(err) {
 			return store.Run{}, domain.ErrActiveRun
@@ -368,6 +373,20 @@ func (s *Service) LoadRunContext(ctx context.Context, companyID, runID domain.ID
 	}
 	for i, c := range comments {
 		rc.Comments[i] = commentFromRow(c)
+	}
+	if rc.Run.Trigger == domain.TriggerReview {
+		rv, err := q.GetReviewByRunID(ctx, &runID)
+		if err != nil && !isNoRows(err) {
+			return RunContext{}, fmt.Errorf("get review: %w", err)
+		}
+		if err == nil {
+			ap, aerr := q.GetPersonaByID(ctx, store.GetPersonaByIDParams{CompanyID: companyID, ID: rv.AuthorPersonaID})
+			if aerr != nil {
+				return RunContext{}, mapErr(aerr, "author persona")
+			}
+			rc.Review = &ReviewContext{ID: rv.ID, Artifact: rv.Artifact, ArtifactSHA256: rv.ArtifactSha256,
+				RequestedStatus: domain.TaskStatus(rv.RequestedStatus), AuthorName: ap.Name, Independent: rv.ReviewerPersonaID != nil}
+		}
 	}
 	wsID := task.WorkspaceID
 	if wsID == nil {
@@ -533,6 +552,11 @@ func (s *Service) FinishRun(ctx context.Context, companyID, runID domain.ID, in 
 		if err := t.personaAfterRun(row.PersonaID, in.Status, res.Error); err != nil {
 			return err
 		}
+		if domain.RunTrigger(row.Trigger) == domain.TriggerReview {
+			if err := t.reviewRunEnded(row, in.Status, res.Summary, res.Error); err != nil {
+				return err
+			}
+		}
 		if cost != nil {
 			co, err := t.q.GetCompanyByID(ctx, companyID)
 			if err != nil {
@@ -671,6 +695,11 @@ func (s *Service) InterruptOrphanRuns(ctx context.Context) (int, error) {
 		for _, r := range rows {
 			if err := t.personaAfterRun(r.PersonaID, domain.RunInterrupted, ""); err != nil {
 				return err
+			}
+			if domain.RunTrigger(r.Trigger) == domain.TriggerReview {
+				if err := t.reviewRunEnded(r, domain.RunInterrupted, "", r.Error); err != nil {
+					return err
+				}
 			}
 			if err := t.activity(domain.SystemActor, r.CompanyID, "run.finished", "run", r.ID,
 				map[string]any{"status": domain.RunInterrupted, "task_id": r.TaskID, "reason": "orphan"}, ""); err != nil {

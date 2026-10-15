@@ -88,3 +88,27 @@ func TestPersonaUpdate(t *testing.T) {
 		t.Fatalf("código = %d", code)
 	}
 }
+
+func TestPersonaRevisor(t *testing.T) {
+	ts, f := newFakeAPI(t, map[string]http.HandlerFunc{
+		"PATCH /api/v1/companies/acme/personas/davi": jsonResp(200, api.Persona{Name: "Davi", Slug: "davi", ReviewerAgent: "codex"}),
+	})
+	code, _, _ := exec(t, Runtime{}, gateEnv(ts.URL), "", "persona", "update", "davi", "--reviewer-agent", "codex", "--reviewer-model", "m")
+	if b := f.last().Body; code != 0 || !strings.Contains(b, `"reviewer_agent":"codex"`) || !strings.Contains(b, `"reviewer_model":"m"`) {
+		t.Fatalf("%d body %q", code, f.last().Body)
+	}
+	exec(t, Runtime{}, gateEnv(ts.URL), "", "persona", "update", "davi", "--no-reviewer")
+	if !strings.Contains(f.last().Body, `"clear_reviewer":true`) {
+		t.Fatalf("body %q", f.last().Body)
+	}
+}
+
+func TestGateShowRevisao(t *testing.T) {
+	g := gate1
+	g.Review = &api.GateReviewOut{Reviewer: "Kenji", Verdict: "rejected", Justification: "Faltam testes.", ArtifactSHA256: "abc"}
+	ts, _ := newFakeAPI(t, map[string]http.HandlerFunc{"GET /api/v1/companies/acme/gates/" + gid: jsonResp(200, g)})
+	_, out, _ := exec(t, Runtime{}, gateEnv(ts.URL), "", "gate", "show", gid)
+	if !strings.Contains(out, "REPROVADO") || !strings.Contains(out, "Faltam testes.") || !strings.Contains(out, "abc") {
+		t.Fatalf("%q", out)
+	}
+}

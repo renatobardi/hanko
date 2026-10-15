@@ -270,3 +270,17 @@ aberto por (empresa, tipo, sujeito), então avaliar de novo nunca duplica. Cada 
 
 O critério é sempre estado do banco (runs, eventos, tasks, gastos), nunca texto de log. O livro `budget_alerts` segue como o
 registro de "já avisei neste mês" que gera `budget.warning`/`budget.exceeded`; o alerta aberto é o estado atual, que o livro não guarda.
+
+## Revisão por outro modelo antes do gate
+
+Persona com `require_review` pode ter um **revisor automático**: uma outra persona (`--reviewer <persona>`) ou um harness/modelo
+alternativo no mesmo papel (`--reviewer-agent codex --reviewer-model <modelo>`; ex.: autora `claude`, revisor `codex`). São exclusivos
+entre si e a persona não revisa a si mesma. Sem revisor configurado nada muda: o gate `task_review` abre direto.
+
+Com revisor, quando a persona pede para fechar a task, o Hanko registra uma revisão e o job `start_review` espera a run da autora
+terminar (uma run ativa por task), então abre uma run headless `trigger=review`, somente leitura e sem credenciais do Hanko, que recebe
+a task, o histórico e a entrega. A resposta deve ter a linha `VEREDITO: APROVADO` ou `VEREDITO: REPROVADO` seguida da justificativa.
+O gate nasce com o parecer (veredito, justificativa, sha256 do pacote revisado e a run). Reprovado aparece marcado na UI, na CLI e na
+API, mas **a decisão continua humana**. Revisão que falha, expira, é interrompida ou não traz veredito válido abre o gate sem veredito,
+com o motivo; revisão pendente há mais de 2 h é resolvida da mesma forma. Se a task sai de `in_review` no meio, a revisão é cancelada.
+O sha256 cobre o pacote task + histórico + entrega mostrado ao revisor, não o estado git do workspace.

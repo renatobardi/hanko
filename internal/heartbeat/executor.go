@@ -101,11 +101,12 @@ func (h *Heartbeat) executeRunJob(ctx context.Context, a ExecuteRunArgs, ji jobI
 		log.Debug("execute_run: run não está na fila", "status", rc.Run.Status)
 		return nil
 	}
-	log = log.With("task_key", rc.Task.Key, "agent", rc.Persona.Agent)
+	agent, model := effectiveHarness(rc)
+	log = log.With("task_key", rc.Task.Key, "agent", agent)
 
-	ad, ok := h.reg.Get(rc.Persona.Agent)
+	ad, ok := h.reg.Get(agent)
 	if !ok {
-		h.failEarly(ctx, a, fmt.Errorf("adapter desconhecido: %q", rc.Persona.Agent))
+		h.failEarly(ctx, a, fmt.Errorf("adapter desconhecido: %q", agent))
 		return nil
 	}
 
@@ -114,8 +115,8 @@ func (h *Heartbeat) executeRunJob(ctx context.Context, a ExecuteRunArgs, ji jobI
 		attribute.String("hanko.persona_id", rc.Persona.ID.String()),
 		attribute.String("hanko.run_id", rc.Run.ID.String()),
 		attribute.String("hanko.task_id", rc.Task.ID.String()),
-		attribute.String("hanko.agent", rc.Persona.Agent),
-		attribute.String("hanko.model", rc.Persona.Model),
+		attribute.String("hanko.agent", agent),
+		attribute.String("hanko.model", model),
 	))
 	defer span.End()
 	traceID := ""
@@ -230,7 +231,7 @@ func (h *Heartbeat) executeRunJob(ctx context.Context, a ExecuteRunArgs, ji jobI
 	}
 	log.Info("run finalizada", "status", status, "exit_code", res.ExitCode)
 
-	h.finalizeMemorySession(fctx, scope, rc.Persona.Agent, res.SessionRef, log)
+	h.finalizeMemorySession(fctx, scope, agent, res.SessionRef, log)
 	return nil
 }
 
@@ -243,7 +244,8 @@ func (h *Heartbeat) finishPending(ctx context.Context, a ExecuteRunArgs, rc serv
 	log.Info("run finalizada (resultado pendente)", "status", in.Status, "exit_code", in.Result.ExitCode)
 	fctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), finishTimeout)
 	defer cancel()
-	h.finalizeMemorySession(fctx, scopeFor(rc.Company.Slug, rc.Workspace), rc.Persona.Agent, in.Result.SessionRef, log)
+	pagent, _ := effectiveHarness(rc)
+	h.finalizeMemorySession(fctx, scopeFor(rc.Company.Slug, rc.Workspace), pagent, in.Result.SessionRef, log)
 	return nil
 }
 
@@ -313,7 +315,13 @@ func (h *Heartbeat) buildSpec(rc service.RunContext, briefing, handoff string, s
 		return adapter.Spec{}, nil, fmt.Errorf("emitir run token: %w", err)
 	}
 	publicURL := strings.TrimRight(h.opts.PublicURL, "/")
-	mcpCfg, err := buildMCPConfig(publicURL, token, h.mem.AgentMCP(scope, rc.Run.ID.String(), token))
+	review := rc.Review != nil && rc.Run.Trigger == domain.TriggerReview
+	hankoToken := token
+	if review {
+		// Headless review: read-only, no Hanko tools or credentials (the artifact is in the prompt).
+		hankoToken = ""
+	}
+	mcpCfg, err := buildMCPConfig(publicURL, hankoToken, h.mem.AgentMCP(scope, rc.Run.ID.String(), token))
 	if err != nil {
 		return adapter.Spec{}, nil, err
 	}
@@ -323,12 +331,20 @@ func (h *Heartbeat) buildSpec(rc service.RunContext, briefing, handoff string, s
 		return adapter.Spec{}, nil, err
 	}
 	system, prompt := BuildPrompt(rc, briefing, handoff)
+	cfg := rc.Persona.AdapterConfig
+	if review {
+		system, prompt = BuildReviewPrompt(rc, briefing)
+		if !rc.Review.Independent {
+			cfg = nil // the author's adapter_config targets the author's harness, not this one
+		}
+	}
+	agent, model := effectiveHarness(rc)
 	return adapter.Spec{
 		RunID: rc.Run.ID, CompanyID: rc.Company.ID, PersonaID: rc.Persona.ID, TaskID: rc.Task.ID, TaskKey: rc.Task.Key,
-		Agent: rc.Persona.Agent, Model: rc.Persona.Model, Dir: dir,
+		Agent: agent, Model: model, Dir: dir,
 		System: system, Prompt: prompt, SessionRef: "",
-		Env:       buildEnv(os.Getenv("OTEL_RESOURCE_ATTRIBUTES"), publicURL, token, rc),
-		MCPConfig: mcpCfg, Config: rc.Persona.AdapterConfig,
+		Env:       buildEnv(os.Getenv("OTEL_RESOURCE_ATTRIBUTES"), publicURL, hankoToken, rc),
+		MCPConfig: mcpCfg, Config: cfg,
 	}, cleanup, nil
 }
 
@@ -392,4 +408,13 @@ func (h *Heartbeat) failEarly(ctx context.Context, a ExecuteRunArgs, cause error
 	if err != nil {
 		h.log.Error("execute_run: finalizar run com falha", "run_id", a.RunID, "err", err)
 	}
+}
+
+// effectiveHarness is the harness and model a run executes with: the persona's, except for a
+// review run, which carries the reviewer's (possibly another harness than the author's).
+func effectiveHarness(rc service.RunContext) (agent, model string) {
+	if rc.Run.Trigger == domain.TriggerReview && rc.Run.Agent != "" {
+		return rc.Run.Agent, rc.Run.Model
+	}
+	return rc.Persona.Agent, rc.Persona.Model
 }

@@ -21,6 +21,7 @@ type fakeJobs struct {
 	wakes   []service.Wake
 	execs   []domain.ID
 	outbox  []domain.ID
+	reviews []domain.ID
 	wakeErr error
 }
 
@@ -38,6 +39,13 @@ func (f *fakeJobs) ExecuteRunTx(_ context.Context, _ pgx.Tx, _, runID domain.ID)
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.execs = append(f.execs, runID)
+	return nil
+}
+
+func (f *fakeJobs) StartReviewTx(_ context.Context, _ pgx.Tx, _, reviewID domain.ID) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.reviews = append(f.reviews, reviewID)
 	return nil
 }
 
