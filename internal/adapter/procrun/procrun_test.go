@@ -2,6 +2,7 @@ package procrun
 
 import (
 	"context"
+	"io"
 	"strings"
 	"sync"
 	"testing"
@@ -76,5 +77,26 @@ func TestLongLineTruncated(t *testing.T) {
 	}
 	if got != MaxLine {
 		t.Fatalf("len=%d", got)
+	}
+}
+
+func TestRunInteractiveStdin(t *testing.T) {
+	var mu sync.Mutex
+	var out []string
+	res, err := Run(context.Background(), Options{
+		Bin: "bash", Args: []string{"-c", `while read l; do echo "echo:$l"; done`},
+		OnStdin: func(w io.WriteCloser) {
+			go func() {
+				_, _ = io.WriteString(w, "a\nb\n")
+				_ = w.Close() // EOF ends the loop
+			}()
+		},
+		OnStdout: func(l []byte) { mu.Lock(); out = append(out, string(l)); mu.Unlock() },
+	})
+	if err != nil || res.ExitCode != 0 || res.Cancelled {
+		t.Fatalf("res=%+v err=%v", res, err)
+	}
+	if strings.Join(out, "|") != "echo:a|echo:b" {
+		t.Fatalf("out=%v", out)
 	}
 }

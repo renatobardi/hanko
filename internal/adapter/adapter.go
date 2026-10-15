@@ -1,4 +1,4 @@
-// Package adapter runs a persona's agent harness (claude, codex, fake) for one run
+// Package adapter runs a persona's agent harness (claude, codex, acp, fake) for one run
 // and streams normalized events back to Hanko.
 package adapter
 
@@ -17,7 +17,7 @@ type Spec struct {
 	PersonaID  domain.ID
 	TaskID     domain.ID
 	TaskKey    string
-	Agent      string // claude | codex | fake
+	Agent      string // claude | codex | acp | fake
 	Model      string
 	Dir        string // working directory (workspace path); empty = temp dir
 	System     string // persona instructions + Hanko protocol (appended system prompt)

@@ -32,7 +32,7 @@ Note on vocabulary: the generic names above were later replaced by the domain te
 | Migrations | `goose` v3, plain SQL, `//go:embed` | `hanko migrate` runs at boot (configurable) |
 | Jobs / heartbeat | `river` (Postgres-native queue on pgx) | wakeup queue, retries, periodic jobs (flows), unique jobs = coalescing |
 | Atomic checkout | `SELECT ... FOR UPDATE SKIP LOCKED` + per-task execution lock | 1 assignee, 1 active run |
-| Adapters | `Adapter` interface in `internal/adapter`. v0.1 engines: `claude` (`claude -p --output-format stream-json --verbose`), `codex` (`codex exec --json`) and `fake` (tests). A generic `http` (webhook) engine is described in the Portuguese doc but is not in the code yet | `acp` = v0.2 (ADR-0004); out-of-process plugins = v1 |
+| Adapters | `Adapter` interface in `internal/adapter`. Engines: `claude` (`claude -p --output-format stream-json --verbose`), `codex` (`codex exec --json`), `acp` (any agent that speaks ACP v1 over stdio, ADR-0023) and `fake` (tests). A generic `http` (webhook) engine is described in the Portuguese doc but is not in the code yet | `acp` (ACP v1 over stdio, own JSON-RPC client) has existed since v0.2 (ADR-0004, ADR-0023); out-of-process plugins = v1 |
 | MCP | `github.com/modelcontextprotocol/go-sdk` | Hanko as an MCP **server** (task and gate tools) and as a memory **proxy** (`/memory-mcp`) |
 | Memory | ai-memory **on by default** (ADR-0015). Personas: MCP + hooks per run, project = workspace, session = run_id, `finalize-session`. Hanko: MCP client (`go-sdk`), writes facts (task, gate, run, delegation) through `memory_outbox` + river; reads `memory_briefing` + handoff at dispatch; search in the UI. Unavailable = degrade, never block | Governance stays in Postgres |
 | LLM SDKs | `anthropic-sdk-go`, `openai-go` | evals and cost metadata only; the core never calls an LLM |
@@ -116,7 +116,36 @@ Layers: handler -> service -> store. A handler never touches the DB. The store h
 - No `panic` outside `main`. No `log.Fatal` outside `cmd/`.
 
 ## 7. Out of scope for v0.1
-SQLite; WebSocket; GraphQL; ACP; React islands; out-of-process plugins; RLS; remote sandboxes; OIDC; multi-human roles; org switching in the UI; desktop; native mobile; PWA; agent chat; chat connectors (Slack/Discord/Telegram); editor with anchored comments; interactive org chart; virtualized log viewer.
+SQLite; WebSocket; GraphQL; React islands; out-of-process plugins; RLS; remote sandboxes; OIDC; multi-human roles; org switching in the UI; desktop; native mobile; PWA; agent chat; chat connectors (Slack/Discord/Telegram); editor with anchored comments; interactive org chart; virtualized log viewer.
 
 ## 8. License (ADR-0003)
 Apache-2.0 + DCO (`git commit -s`). `ee/` is reserved for enterprise features under a commercial license. No third-party code copied; `THIRD_PARTY_NOTICES` from the goreleaser SBOM.
+
+## 9. ACP adapter (ADR-0023)
+
+`agent = "acp"` runs **any agent that speaks the Agent Client Protocol v1 over stdio**: Hanko is the client, starts the persona's
+command (`adapter_config.command`) as a child process and talks JSON-RPC 2.0 (`internal/adapter/acp`, stdlib only).
+Lifecycle: `initialize` → `session/new` (or `session/load` to resume) → `session/prompt` → `stopReason`.
+
+`adapter_config` (validated when the persona is hired and when a file is imported; unknown keys are rejected):
+
+| Key | Type | Meaning |
+|---|---|---|
+| `command` | string, required | the executable only (resolved on the server's `PATH`); arguments go in `args` |
+| `args` | list of strings | arguments, one per element (no shell) |
+| `env` | object name→value | extra variables for the agent; `HANKO_*` is reserved; added to the server allowlist (`HANKO_AGENT_ENV_ALLOW`) |
+| `permission` | `allow` \| `reject` \| `read_only` | policy for the agent's permission requests; default `read_only` (approves read/search, refuses edit/execute); review runs are always `read_only` |
+| `model` | string | best-effort model, used only when the persona has no `model`; the agent must advertise model selection, otherwise a warning is logged |
+| `init_timeout_sec` | integer 0–300 | wait for `initialize` (0 = 30 s) |
+
+Example (**illustrative**: replace it with the command of the agent installed on the server):
+
+```json
+{"agent": "acp", "adapter_config": {"command": "my-acp-agent", "args": ["--stdio"], "env": {"MY_AGENT_HOME": "/data/agent"}, "permission": "read_only"}}
+```
+
+The prompt is two text blocks (persona instructions + Hanko protocol, then the task briefing). Files: the agent reads and writes only
+inside the run directory through `fs/read_text_file` and `fs/write_text_file` (writes only with `permission: allow`). HTTP MCP servers
+(Hanko's own `/mcp`) are passed only if the agent advertises `mcpCapabilities.http`. Out of scope: `terminal/*`, interactive
+authentication and ACP v2. `acp` cannot be an alternate review harness (`reviewer_agent`), only a reviewer persona.
+Installing the agent and troubleshooting: `docs/en/RUNBOOK.md`.

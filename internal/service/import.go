@@ -276,8 +276,8 @@ func (s *Service) planImport(ctx context.Context, doc export.Document, opts Impo
 		case x.ReviewerAgent == "" && x.ReviewerModel != "":
 			return p, domain.Invalid(iv("personas", i, "reviewer_agent"), "required when reviewer_model is set")
 		case x.ReviewerAgent != "":
-			if !domain.ValidAgent(x.ReviewerAgent) {
-				return p, domain.Invalid(iv("personas", i, "reviewer_agent"), fmt.Sprintf("unknown agent %q", x.ReviewerAgent))
+			if !domain.ValidReviewerAgent(x.ReviewerAgent) {
+				return p, domain.Invalid(iv("personas", i, "reviewer_agent"), fmt.Sprintf("unknown or unsupported reviewer agent %q (want one of %v)", x.ReviewerAgent, domain.ReviewerAgents))
 			}
 			if x.ReviewerAgent == x.Agent && strings.TrimSpace(x.ReviewerModel) == strings.TrimSpace(x.Model) {
 				return p, domain.Invalid(iv("personas", i, "reviewer_agent"), "the alternate harness is the same as the author's")
@@ -288,6 +288,9 @@ func (s *Service) planImport(ctx context.Context, doc export.Document, opts Impo
 			if cfg, err = json.Marshal(sc); err != nil {
 				return p, domain.Invalid(iv("personas", i, "adapter_config"), "not valid JSON")
 			}
+		}
+		if err := adapterConfigProblem(x.Agent, cfg); err != nil {
+			return p, domain.Invalid(iv("personas", i, "adapter_config"), err.Error())
 		}
 		p.personaCfg[i] = cfg
 	}

@@ -338,6 +338,10 @@ svg.ic { width: 16px; height: 16px; flex: none; stroke: currentColor; fill: none
 .radio-cards .rc span { display: block; font-size: 12px; color: var(--ink-soft); margin-top: 3px; }
 .radio-cards input:checked + .rc { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
 .radio-cards input:focus-visible + .rc { outline: 2px solid var(--ink-soft); outline-offset: 2px; }
+.radio-cards.rc2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* Campos do harness ACP: só aparecem com o cartão ACP escolhido (sem JS). */
+.acp-only { display: none; }
+form:has(input[name="agent"][value="acp"]:checked) .acp-only { display: block; }
 
 /* ---------- tables ---------- */
 .table-wrap { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); overflow-x: auto; }

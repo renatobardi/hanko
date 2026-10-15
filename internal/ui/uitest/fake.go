@@ -176,7 +176,7 @@ func (f *Fake) HirePersona(_ context.Context, _ domain.Actor, companyID domain.I
 		}
 	}
 	p := domain.Persona{ID: domain.NewID(), CompanyID: companyID, Slug: in.Slug, Name: in.Name, Title: in.Title, Instructions: in.Instructions,
-		Agent: in.Agent, Model: in.Model, Status: domain.PersonaIdle, HeartbeatIntervalSec: in.HeartbeatIntervalSec, ReportsTo: in.ReportsTo, RequireReview: in.RequireReview,
+		Agent: in.Agent, Model: in.Model, AdapterConfig: in.AdapterConfig, Status: domain.PersonaIdle, HeartbeatIntervalSec: in.HeartbeatIntervalSec, ReportsTo: in.ReportsTo, RequireReview: in.RequireReview,
 		CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
 	f.Personas = append(f.Personas, p)
 	return p, nil
