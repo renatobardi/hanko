@@ -7,7 +7,7 @@ LDFLAGS  := -X main.version=$(VERSION)
 COMPOSE  := docker compose -f deploy/compose.yaml --env-file .env
 # Testes de integração leem HANKO_TEST_DATABASE_URL do ambiente (e fazem skip se vazio).
 
-.PHONY: help build test test-integration lint fmt fmt-check vet generate openapi dev up down logs clean
+.PHONY: help build test test-integration lint fmt fmt-check vet generate openapi dev up down logs clean perf-seed perf-explain
 
 help: ## lista os alvos
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-18s %s\n", $$1, $$2}'
@@ -53,6 +53,12 @@ down: ## derruba a stack
 
 logs: ## segue os logs da stack
 	$(COMPOSE) logs -f --tail=100
+
+perf-seed: ## carga sintética grande em HANKO_TEST_DATABASE_URL (APAGA o schema public; ver docs/PERF.md)
+	$(GO) run ./tools/seed-load -reset
+
+perf-explain: ## EXPLAIN (ANALYZE, BUFFERS) das consultas quentes no banco semeado (ver docs/PERF.md)
+	$(GO) run ./tools/perf-explain
 
 clean: ## remove artefatos
 	rm -rf bin dist
