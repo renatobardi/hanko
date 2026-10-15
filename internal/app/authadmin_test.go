@@ -41,3 +41,27 @@ func TestAuthAdminUserCommandsNeedInstallOwner(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// O dono da instalação opera e lê a auditoria pelo mesmo caminho da CLI; usuário comum é recusado.
+func TestAuthAdminAudit(t *testing.T) {
+	pool := testdb.New(t)
+	ctx := context.Background()
+	svc := service.New(pool, noopJobs{}, events.NewBroker())
+	a := &authAdmin{Service: svc, provider: "local", closePool: func() {}}
+	if _, err := svc.CreateOwner(ctx, "dono@x.com", "Dono", "senha-do-dono-123"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO users (id, email, name, provider, password_hash, role) VALUES ($1,'comum@x.com','C','local','x','member')`, domain.NewID()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.AdminResetPassword(ctx, "", "comum@x.com", ""); err != nil {
+		t.Fatal(err)
+	}
+	es, err := a.AdminListAudit(ctx, "", 10)
+	if err != nil || len(es) != 1 || es[0].Action != "user.reset_password" || es[0].Result != "ok" || es[0].ActorEmail != "dono@x.com" {
+		t.Fatalf("auditoria: %+v %v", es, err)
+	}
+	if _, err := a.AdminListAudit(ctx, "comum@x.com", 10); !errors.Is(err, domain.ErrForbidden) {
+		t.Fatalf("comum lendo a auditoria: %v", err)
+	}
+}

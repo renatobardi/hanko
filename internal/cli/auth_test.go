@@ -16,13 +16,15 @@ import (
 
 // fakeAdmin é um AuthAdmin em memória.
 type fakeAdmin struct {
-	users   []domain.User
-	keys    []domain.APIKey
-	closed  int
-	gotPW   string
-	gotAs   string
-	removed []string
-	err     error
+	users    []domain.User
+	keys     []domain.APIKey
+	closed   int
+	gotPW    string
+	gotAs    string
+	removed  []string
+	err      error
+	audit    []domain.AdminAuditEntry
+	gotLimit int
 }
 
 func (f *fakeAdmin) CreateOwner(_ context.Context, email, name, password string) (domain.User, error) {
@@ -90,6 +92,10 @@ func (f *fakeAdmin) AdminRemoveUser(_ context.Context, as, email string) error {
 		f.removed = append(f.removed, email)
 	}
 	return f.err
+}
+func (f *fakeAdmin) AdminListAudit(_ context.Context, as string, limit int) ([]domain.AdminAuditEntry, error) {
+	f.gotAs, f.gotLimit = as, limit
+	return f.audit, f.err
 }
 func (f *fakeAdmin) Close() { f.closed++ }
 
@@ -246,5 +252,41 @@ func TestAuthUser(t *testing.T) {
 	code, _, errOut = exec(t, authRT(f), nil, "", "auth", "user", "remove", "b@x.com")
 	if code == 0 || !strings.Contains(errOut, "dono da instalação") {
 		t.Fatalf("não-dono: %d %q", code, errOut)
+	}
+}
+
+func TestAuthUserAudit(t *testing.T) {
+	at := time.Date(2026, 10, 15, 9, 30, 0, 0, time.UTC)
+	f := &fakeAdmin{audit: []domain.AdminAuditEntry{
+		{ID: domain.NewID(), At: at, ActorEmail: "dono@x.com", Action: "user.remove", TargetEmail: "alvo@x.com", Result: "ok"},
+		{ID: domain.NewID(), At: at.Add(-time.Hour), ActorEmail: "comum@x.com", Action: "user.reset_password", TargetEmail: "alvo@x.com", Result: "denied"},
+	}}
+	code, out, errOut := exec(t, authRT(f), nil, "", "auth", "user", "audit", "--as", "dono@x.com", "--limit", "5")
+	if code != 0 || f.gotAs != "dono@x.com" || f.gotLimit != 5 || f.closed != 1 {
+		t.Fatalf("%d err=%q as=%q limit=%d closed=%d", code, errOut, f.gotAs, f.gotLimit, f.closed)
+	}
+	for _, want := range []string{"QUANDO", "OPERADOR", "AÇÃO", "ALVO", "RESULTADO", "user.remove", "alvo@x.com", "denied", "comum@x.com"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("saída sem %q:\n%s", want, out)
+		}
+	}
+	// padrão do limite e saída JSON
+	f = &fakeAdmin{audit: f.audit}
+	_, out, _ = exec(t, authRT(f), nil, "", "auth", "user", "audit", "--json")
+	if f.gotLimit != 100 || !strings.Contains(out, `"action": "user.remove"`) {
+		t.Fatalf("limit=%d out=%s", f.gotLimit, out)
+	}
+	// vazio
+	if _, out, _ = exec(t, authRT(&fakeAdmin{}), nil, "", "auth", "user", "audit"); !strings.Contains(out, "Nenhum registro de auditoria") {
+		t.Fatalf("vazio: %q", out)
+	}
+	// em inglês
+	if _, out, _ = exec(t, authRT(&fakeAdmin{audit: f.audit}), envLang("en"), "", "auth", "user", "audit"); !strings.Contains(out, "OPERATOR") || strings.Contains(out, "OPERADOR") {
+		t.Fatalf("en: %q", out)
+	}
+	// quem não é o dono da instalação
+	code, _, errOut = exec(t, authRT(&fakeAdmin{err: domain.ErrForbidden}), nil, "", "auth", "user", "audit")
+	if code != 1 || !strings.Contains(errOut, "só o dono da instalação") {
+		t.Fatalf("%d %q", code, errOut)
 	}
 }

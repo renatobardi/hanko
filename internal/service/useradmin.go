@@ -37,20 +37,79 @@ func (s *Service) requireInstallOwner(ctx context.Context, q *store.Queries) err
 	return nil
 }
 
-// auditAdmin registra uma operação administrativa da instalação em log estruturado: quem operou, em quem e o
-// quê. Nunca recebe senha nem token. (Os eventos de atividade são por empresa; estas operações são da
-// instalação, então o log é o registro.)
-func (s *Service) auditAdmin(ctx context.Context, level slog.Level, action, target string, attrs ...any) {
+// Auditoria das operações administrativas da instalação (hanko auth user ...): além do log estruturado, cada
+// operação grava uma linha em admin_audit (quem operou, em quem, o quê e o resultado; nunca senha nem token).
+// O resultado "ok" é gravado NA MESMA transação da operação (ou ambos ou nenhum); "denied" e "refused" não têm
+// transação de sucesso, então a linha é gravada à parte (falha ao gravar é registrada no log, não mascara o erro
+// da operação). Os eventos de atividade são por empresa; estas operações são da instalação.
+
+// operatorOf devolve o operador da identidade no contexto (vazio se não houver).
+func operatorOf(ctx context.Context) (id *domain.ID, email string) {
+	if i, ok := auth.IdentityFrom(ctx); ok {
+		uid := i.User.ID
+		return &uid, i.User.Email
+	}
+	return nil, ""
+}
+
+// recordAdmin grava a linha de auditoria com q (uma transação ou o pool).
+func (s *Service) recordAdmin(ctx context.Context, q *store.Queries, action, target string, targetID *domain.ID, result string) error {
+	actorID, actorEmail := operatorOf(ctx)
+	if err := q.InsertAdminAudit(ctx, store.InsertAdminAuditParams{ID: domain.NewID(), At: s.Now().UTC(), ActorID: actorID,
+		ActorEmail: actorEmail, Action: action, TargetID: targetID, TargetEmail: strings.TrimSpace(target), Result: result}); err != nil {
+		return fmt.Errorf("admin audit: %w", err)
+	}
+	return nil
+}
+
+// logAdmin registra a operação em log estruturado: quem operou, em quem e o quê.
+func (s *Service) logAdmin(ctx context.Context, level slog.Level, action, target string, targetID *domain.ID, result string, attrs ...any) {
 	log := s.Log
 	if log == nil {
 		return
 	}
-	actor, actorID := "", ""
+	_, actor := operatorOf(ctx)
+	actorID := ""
 	if id, ok := auth.IdentityFrom(ctx); ok {
-		actor, actorID = id.User.Email, id.User.ID.String()
+		actorID = id.User.ID.String()
+	}
+	tid := ""
+	if targetID != nil {
+		tid = targetID.String()
 	}
 	log.Log(ctx, level, "admin: "+action, append([]any{"audit", true, "action", action, "actor_email", actor, "actor_id", actorID,
-		"target_email", strings.TrimSpace(target)}, attrs...)...)
+		"target_email", strings.TrimSpace(target), "target_id", tid, "result", result}, attrs...)...)
+}
+
+// auditAdmin registra uma operação sem transação própria (recusada ou negada): linha avulsa mais o log.
+func (s *Service) auditAdmin(ctx context.Context, level slog.Level, action, target string, targetID *domain.ID, result string, attrs ...any) {
+	if err := s.recordAdmin(ctx, s.read(), action, target, targetID, result); err != nil && s.Log != nil {
+		s.Log.ErrorContext(ctx, "admin: falha ao gravar a auditoria", "action", action, "err", err)
+	}
+	s.logAdmin(ctx, level, action, target, targetID, result, attrs...)
+}
+
+// AdminListAudit lista a auditoria das operações administrativas, da mais recente para a mais antiga (limit 0 =
+// 100; máximo 1000). Só o dono da instalação.
+func (s *Service) AdminListAudit(ctx context.Context, limit int) ([]domain.AdminAuditEntry, error) {
+	q := s.read()
+	if err := s.requireInstallOwner(ctx, q); err != nil {
+		return nil, err
+	}
+	if limit <= 0 {
+		limit = 100
+	}
+	limit = min(limit, 1000)
+	rows, err := q.ListAdminAudit(ctx, i32(limit))
+	if err != nil {
+		return nil, fmt.Errorf("list admin audit: %w", err)
+	}
+	out := make([]domain.AdminAuditEntry, len(rows))
+	for i, r := range rows {
+		out[i] = domain.AdminAuditEntry{ID: r.ID, At: r.At, ActorID: r.ActorID, ActorEmail: r.ActorEmail, Action: r.Action,
+			TargetID: r.TargetID, TargetEmail: r.TargetEmail, Result: r.Result}
+	}
+	return out, nil
 }
 
 // AdminListUsers lista todos os usuários da instalação. Só o dono da instalação.
@@ -65,7 +124,7 @@ func (s *Service) AdminListUsers(ctx context.Context) ([]domain.User, error) {
 // newPassword, gera uma senha temporária e a devolve (a única vez em que existe em claro).
 func (s *Service) AdminResetPassword(ctx context.Context, email, newPassword string) (domain.User, string, error) {
 	if err := s.requireInstallOwner(ctx, s.read()); err != nil {
-		s.auditAdmin(ctx, slog.LevelWarn, "user.reset_password", email, "result", "denied")
+		s.auditAdmin(ctx, slog.LevelWarn, "user.reset_password", email, nil, "denied")
 		return domain.User{}, "", err
 	}
 	row, err := s.read().GetUserByEmail(ctx, strings.TrimSpace(email))
@@ -103,13 +162,12 @@ func (s *Service) AdminResetPassword(ctx context.Context, email, newPassword str
 		if err := t.q.DeleteSessionsByUser(ctx, row.ID); err != nil {
 			return fmt.Errorf("end sessions: %w", err)
 		}
-		return nil
+		return s.recordAdmin(ctx, t.q, "user.reset_password", row.Email, &row.ID, "ok")
 	})
 	if err != nil {
 		return domain.User{}, "", err
 	}
-	s.auditAdmin(ctx, slog.LevelInfo, "user.reset_password", row.Email, "target_id", row.ID.String(), "result", "ok",
-		"temporary_password_generated", generated)
+	s.logAdmin(ctx, slog.LevelInfo, "user.reset_password", row.Email, &row.ID, "ok", "temporary_password_generated", generated)
 	if !generated {
 		newPassword = ""
 	}
@@ -120,7 +178,7 @@ func (s *Service) AdminResetPassword(ctx context.Context, email, newPassword str
 // instalação e quem é o único owner de alguma empresa (ErrConflict).
 func (s *Service) AdminRemoveUser(ctx context.Context, email string) error {
 	if err := s.requireInstallOwner(ctx, s.read()); err != nil {
-		s.auditAdmin(ctx, slog.LevelWarn, "user.remove", email, "result", "denied")
+		s.auditAdmin(ctx, slog.LevelWarn, "user.remove", email, nil, "denied")
 		return err
 	}
 	var removed domain.ID
@@ -146,13 +204,13 @@ func (s *Service) AdminRemoveUser(ctx context.Context, email string) error {
 			return fmt.Errorf("delete user: %w", err)
 		}
 		removed = row.ID
-		return nil
+		return s.recordAdmin(ctx, t.q, "user.remove", row.Email, &row.ID, "ok")
 	})
 	if err != nil {
-		s.auditAdmin(ctx, slog.LevelWarn, "user.remove", email, "result", "refused")
+		s.auditAdmin(ctx, slog.LevelWarn, "user.remove", email, nil, "refused")
 		return err
 	}
-	s.auditAdmin(ctx, slog.LevelInfo, "user.remove", email, "target_id", removed.String(), "result", "ok")
+	s.logAdmin(ctx, slog.LevelInfo, "user.remove", email, &removed, "ok")
 	return nil
 }
 

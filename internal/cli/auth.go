@@ -27,6 +27,8 @@ type AuthAdmin interface {
 	AdminListUsers(ctx context.Context, ownerEmail string) ([]domain.User, error)
 	AdminResetPassword(ctx context.Context, ownerEmail, email, newPassword string) (string, error)
 	AdminRemoveUser(ctx context.Context, ownerEmail, email string) error
+	// AdminListAudit lista a auditoria das operações acima (admin_audit), da mais recente para a mais antiga.
+	AdminListAudit(ctx context.Context, ownerEmail string, limit int) ([]domain.AdminAuditEntry, error)
 	Close()
 }
 
@@ -321,6 +323,38 @@ func (e *env) authUserCmd() *cobra.Command {
 			return err
 		},
 	}
-	c.AddCommand(list, reset, remove)
+	var limit int
+	audit := &cobra.Command{
+		Use:   "audit",
+		Short: e.t("Lista a auditoria das operações de conta (quem operou, em quem, o quê e o resultado)"),
+		Long:  e.t("Cada reset de senha e remoção de conta, inclusive as negadas e as recusadas, fica gravada no banco. Só o dono da instalação lê."),
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			a, err := e.openAuth(cmd.Context())
+			if err != nil {
+				return err
+			}
+			defer a.Close()
+			es, err := a.AdminListAudit(cmd.Context(), as, limit)
+			if err != nil {
+				return e.friendlyAuthErr(err)
+			}
+			if e.asJSON {
+				return e.printJSON(es)
+			}
+			if len(es) == 0 {
+				_, err = fmt.Fprintln(e.out, e.t("Nenhum registro de auditoria."))
+				return err
+			}
+			rows := make([][]string, 0, len(es))
+			for _, r := range es {
+				rows = append(rows, []string{e.fmtTime(r.At), r.ActorEmail, r.Action, r.TargetEmail, r.Result})
+			}
+			e.table([]string{e.t("QUANDO"), e.t("OPERADOR"), e.t("AÇÃO"), e.t("ALVO"), e.t("RESULTADO")}, rows)
+			return nil
+		},
+	}
+	audit.Flags().IntVar(&limit, "limit", 100, e.t("máximo de registros (1 a 1000)"))
+	c.AddCommand(list, reset, remove, audit)
 	return c
 }

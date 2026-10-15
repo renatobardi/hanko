@@ -77,3 +77,16 @@ type APIKey struct {
 
 // Active informa se a chave ainda vale.
 func (k APIKey) Active() bool { return k.RevokedAt == nil }
+
+// AdminAuditEntry é um registro da auditoria das operações administrativas da instalação (hanko auth user ...).
+// Sem senha nem token, nunca.
+type AdminAuditEntry struct {
+	ID          ID        `json:"id"`
+	At          time.Time `json:"at"`
+	ActorID     *ID       `json:"actor_id,omitempty"`
+	ActorEmail  string    `json:"actor_email"`
+	Action      string    `json:"action"`
+	TargetID    *ID       `json:"target_id,omitempty"`
+	TargetEmail string    `json:"target_email"`
+	Result      string    `json:"result"`
+}

@@ -72,4 +72,6 @@ marca conta criada pelo convite e zera quando a pessoa fica sem nenhuma empresa;
 (`users.role = owner`) tem `hanko auth user list|reset-password|remove` para listar contas, redefinir senha (senha
 temporária impressa uma única vez, ou `HANKO_USER_PASSWORD`; as sessões da conta caem) e remover contas, sem mexer no
 banco. O service reconfere o papel no banco a cada chamada; o dono da instalação e o único owner de uma empresa não
-são removidos. Quem não participa de nenhuma empresa vê a página "nenhuma empresa" em vez do onboarding.
+são removidos. Cada operação (ok, negada ou recusada) vai ao log e à tabela `admin_audit` (quem operou, em quem, o
+quê, o resultado; nunca senha nem token), o "ok" na mesma transação da operação; `hanko auth user audit [--limit N]`
+a lista, só para o dono da instalação. Quem não participa de nenhuma empresa vê a página "nenhuma empresa" em vez do onboarding.

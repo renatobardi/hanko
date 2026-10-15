@@ -103,4 +103,12 @@ func (a *authAdmin) AdminRemoveUser(ctx context.Context, ownerEmail, email strin
 	return a.Service.AdminRemoveUser(ctx, email)
 }
 
+func (a *authAdmin) AdminListAudit(ctx context.Context, ownerEmail string, limit int) ([]domain.AdminAuditEntry, error) {
+	ctx, err := a.ownerCtx(ctx, ownerEmail)
+	if err != nil {
+		return nil, err
+	}
+	return a.Service.AdminListAudit(ctx, limit)
+}
+
 func (a *authAdmin) Close() { a.closePool() }

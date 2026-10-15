@@ -24,6 +24,17 @@ type ActivityEvent struct {
 	ReceivedAt  time.Time
 }
 
+type AdminAudit struct {
+	ID          uuid.UUID
+	At          time.Time
+	ActorID     *uuid.UUID
+	ActorEmail  string
+	Action      string
+	TargetID    *uuid.UUID
+	TargetEmail string
+	Result      string
+}
+
 type Alert struct {
 	ID          uuid.UUID
 	CompanyID   uuid.UUID
