@@ -3,6 +3,7 @@ package domain
 import (
 	"crypto/sha256"
 	"encoding/binary"
+	"strconv"
 	"strings"
 )
 
@@ -39,9 +40,7 @@ func RunNameSpace() int { return len(runAdjectives) * len(runNouns) }
 func runNameHash(id ID, attempt int) uint64 {
 	h := sha256.New()
 	h.Write(id[:])
-	var a [8]byte
-	binary.BigEndian.PutUint64(a[:], uint64(attempt))
-	h.Write(a[:])
+	h.Write([]byte(strconv.Itoa(attempt))) // decimal, sem conversão de sinal
 	sum := h.Sum(nil)
 	return binary.BigEndian.Uint64(sum[:8])
 }
