@@ -62,8 +62,10 @@ func (m *curationMemory) FinalizeSession(context.Context, memory.Scope, string, 
 	m.finalized++
 	return nil
 }
-func (m *curationMemory) AgentMCP(memory.Scope, string, string) map[string]json.RawMessage { return nil }
-func (m *curationMemory) Ping(context.Context) error                                       { return nil }
+func (m *curationMemory) AgentMCP(memory.Scope, string, string) map[string]json.RawMessage {
+	return nil
+}
+func (m *curationMemory) Ping(context.Context) error { return nil }
 func (m *curationMemory) CallTool(_ context.Context, s memory.Scope, tool string, args map[string]any) (string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
