@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/renatobardi/hanko/internal/domain"
 )
@@ -74,7 +75,12 @@ func (f *fileRoot) Read(path string, line, limit int) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	file, err := f.root.Open(rel)
+	// A FIFO or device would block the open (and the agent's read loop with it): look before opening, and
+	// open non-blocking so that a swap between the two cannot hang either.
+	if err := f.requireRegular(rel); err != nil {
+		return "", err
+	}
+	file, err := f.root.OpenFile(rel, os.O_RDONLY|syscall.O_NONBLOCK, 0)
 	if err != nil {
 		return "", err
 	}
@@ -84,7 +90,7 @@ func (f *fileRoot) Read(path string, line, limit int) (string, error) {
 		return "", err
 	}
 	if !st.Mode().IsRegular() {
-		return "", errors.New("not a regular file")
+		return "", errNotRegular
 	}
 	data, err := io.ReadAll(io.LimitReader(file, maxReadBytes+1))
 	if err != nil {
@@ -132,10 +138,48 @@ func (f *fileRoot) Write(path, content string) (string, error) {
 			return "", err
 		}
 	}
-	if err := f.root.WriteFile(rel, []byte(content), 0o644); err != nil { //nolint:gosec // source files are world-readable like anywhere else in the workspace
+	if err := f.requireRegular(rel); err != nil {
+		return "", err
+	}
+	// Non-blocking and no O_TRUNC at open: truncating happens only after fstat says it is a regular file.
+	file, err := f.root.OpenFile(rel, os.O_WRONLY|os.O_CREATE|syscall.O_NONBLOCK, 0o644) //nolint:gosec // source files are world-readable like anywhere else in the workspace
+	if err != nil {
+		return "", err
+	}
+	defer file.Close() //nolint:errcheck // the write error below is the one that matters
+	st, err := file.Stat()
+	if err != nil {
+		return "", err
+	}
+	if !st.Mode().IsRegular() {
+		return "", errNotRegular
+	}
+	if err := file.Truncate(0); err != nil {
+		return "", err
+	}
+	if _, err := file.WriteString(content); err != nil {
 		return "", err
 	}
 	return rel, nil
+}
+
+var errNotRegular = errors.New("not a regular file")
+
+// requireRegular refuses an existing path that is not a regular file (FIFO, device, socket, directory).
+// A missing path is fine (Write creates it; Read reports not-found on open). Symlinks are followed by
+// os.Root only inside the tree.
+func (f *fileRoot) requireRegular(rel string) error {
+	st, err := f.root.Stat(rel)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
+		return err
+	}
+	if !st.Mode().IsRegular() {
+		return errNotRegular
+	}
+	return nil
 }
 
 // ---- fs/* handlers --------------------------------------------------------------------------
