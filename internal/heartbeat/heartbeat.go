@@ -142,7 +142,7 @@ func New(pool *pgxpool.Pool, opts Options) (*Heartbeat, error) {
 
 	rescue := opts.RunTimeout + time.Hour
 	client, err := river.NewClient(riverpgxv5.New(pool), &river.Config{
-		Logger:  opts.Logger,
+		Logger:  slog.New(minLevel{opts.Logger.Handler(), slog.LevelWarn}),
 		Workers: workers,
 		Queues: map[string]river.QueueConfig{
 			QueueDefault: {MaxWorkers: opts.Workers},
@@ -248,3 +248,18 @@ func (h *Heartbeat) DeliverMemoryTx(ctx context.Context, tx pgx.Tx, outboxID dom
 	}
 	return nil
 }
+
+// minLevel filtra registros abaixo de min (a fila loga contagens a cada minuto em INFO).
+type minLevel struct {
+	slog.Handler
+	min slog.Level
+}
+
+func (h minLevel) Enabled(ctx context.Context, l slog.Level) bool {
+	return l >= h.min && h.Handler.Enabled(ctx, l)
+}
+
+func (h minLevel) WithAttrs(a []slog.Attr) slog.Handler {
+	return minLevel{h.Handler.WithAttrs(a), h.min}
+}
+func (h minLevel) WithGroup(n string) slog.Handler { return minLevel{h.Handler.WithGroup(n), h.min} }
