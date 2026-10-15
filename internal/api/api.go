@@ -212,6 +212,7 @@ func (s *server) register(api huma.API) {
 	s.registerCosts(api)
 	s.registerSubscriptions(api)
 	s.registerFlows(api)
+	s.registerMemory(api)
 	s.registerMembers(api)
 	s.registerExport(api)
 }
