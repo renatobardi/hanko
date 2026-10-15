@@ -117,9 +117,6 @@ type SearchResult struct {
 	Total  int           `json:"total"`
 }
 
-// MemoryAvailable diz se há provider de memória que busca (para a UI/CLI decidirem o que mostrar).
-func (s *Service) MemoryAvailable() bool { return s.Memory != nil && s.Memory.Name() != "none" }
-
 // Search busca q na empresa. Exige leitura da empresa (viewer ou mais); não-membro = ErrNotFound. Consulta vazia
 // (sem nenhum termo) é ErrInvalid. A chave exata de uma task (HNK-123) sempre abre o grupo de tasks.
 func (s *Service) Search(ctx context.Context, companyID domain.ID, q string, f SearchFilter) (SearchResult, error) {

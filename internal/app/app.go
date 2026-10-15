@@ -68,6 +68,7 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 	svc.Log = logger
 	svc.WorkspacesRoot = cfg.WorkspacesRoot
 	svc.RunReserveUSD = cfg.RunReserveUSD
+	svc.MemoryProvider = cfg.Memory.Provider
 	svc.Alerts = service.AlertConfig{SilentFactor: cfg.AlertSilentFactor, RunStuckAfter: cfg.AlertRunStuckAfter}
 	if err := registerAlertMetrics(otel.Meter(serviceName), svc); err != nil {
 		return err
@@ -92,7 +93,7 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 	svc.Memory = mem
 
 	handler, err := buildHandler(handlerDeps{Cfg: cfg, Version: version, Logger: logger, Svc: svc, Broker: broker,
-		Pool: pool, Tokens: tokens, Metrics: tel.MetricsHandler()})
+		Pool: pool, Tokens: tokens, Metrics: tel.MetricsHandler(), Memory: mem})
 	if err != nil {
 		return err
 	}
@@ -167,7 +168,7 @@ func newMemory(ctx context.Context, cfg config.Config, logger *slog.Logger) memo
 		logger.Info("memória desligada (HANKO_MEMORY_PROVIDER=none)")
 		return memory.Noop{}
 	}
-	p := aimemory.New(aimemory.Options{URL: cfg.Memory.URL, Token: cfg.Memory.Token, PublicURL: cfg.PublicURL, Logger: logger})
+	p := aimemory.New(aimemory.Options{URL: cfg.Memory.URL, Token: cfg.Memory.Token, PublicURL: cfg.PublicURL, ReadPageTool: cfg.Memory.ReadTool, Logger: logger})
 	go func() {
 		pctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 		defer cancel()

@@ -29,6 +29,9 @@ One term per concept. Code, API, MCP and database use English; the UI is in Braz
 | session | Sessão | A user's `hanko_session` cookie (30-day sliding); only the token hash is stored in the database. | — |
 | api key | Chave de API | An `hk_...` key belonging to a user, for API, MCP and CLI; only the hash is stored; revocable. Not the persona's run token. | token (ambiguous) |
 | skill, artifact, secret | Skill, Artefato, Segredo | Named as shown. | plugin (only in the harness's native sense) |
+| memory consolidation | Consolidação de memória | System run (`memory` trigger) where the curator persona deduplicates and summarises a workspace's memory; cost goes to the ledger. | — |
+| memory proposal | Proposta de curadoria | A destructive curator write held by the proxy, with diff and sha256; reaches ai-memory only after the `memory` gate. | pending write (ambiguous) |
+| memory grant | Concessão de memória | Persona × workspace permission (`read`/`write`) to reach another workspace's memory in the same company. | — |
 
 ## How the core terms fit together
 

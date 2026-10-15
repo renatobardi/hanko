@@ -30,4 +30,6 @@ Entregue em 2026-10-15 (antes do planejado):
 - `hanko export` / `hanko import` de empresa (ADR-0022).
 - Busca única da empresa: tela Buscar, API, CLI e tool MCP, full-text do Postgres e memória (ADR-0024).
 
-Pendente: ACP (bloqueado aguardando acesso à especificação), ilhas (log virtualizado, organograma interativo, editor ancorado), consolidação de memória via gateway, PWA, CLI em en.
+- Consolidação de memória governada: curadoria periódica como run de sistema, propostas com gate humano, permissões por workspace (ADR-0030).
+
+Pendente: ACP (bloqueado aguardando acesso à especificação), ilhas (log virtualizado, organograma interativo, editor ancorado), PWA, CLI em en.

@@ -16,6 +16,7 @@ import (
 
 	"github.com/renatobardi/hanko/internal/auth"
 	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/memory"
 	"github.com/renatobardi/hanko/internal/service"
 )
 
@@ -35,6 +36,10 @@ type MemoryBackend interface {
 	GetTask(ctx context.Context, companyID domain.ID, ref string) (service.TaskView, error)
 	GetWorkspace(ctx context.Context, companyID domain.ID, ref string) (domain.Workspace, error)
 	GetRun(ctx context.Context, companyID, runID domain.ID) (service.RunView, error)
+	// MemoryAccessTo: concessão da persona à memória de outro workspace (vazio = nenhuma). ADR-0030.
+	MemoryAccessTo(ctx context.Context, companyID, personaID domain.ID, workspaceSlug string) (domain.MemoryAccess, error)
+	// RecordMemoryProposal retém uma escrita da curadoria como proposta com gate humano. ADR-0030.
+	RecordMemoryProposal(ctx context.Context, companyID domain.ID, in service.RecordProposalInput) (service.MemoryProposalView, bool, error)
 }
 
 var _ MemoryBackend = (*service.Service)(nil)
@@ -47,6 +52,8 @@ type MemoryProxyDeps struct {
 	URL string
 	// Token é o bearer do servidor de memória. Nunca chega ao agente.
 	Token string
+	// Pages é opcional: lê o conteúdo atual de uma página para o diff das propostas de curadoria.
+	Pages memory.PageReader
 	// Transport é opcional (testes).
 	Transport http.RoundTripper
 	Logger    *slog.Logger
@@ -113,9 +120,11 @@ func (p *memoryProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		p.unauthorized(w, "missing bearer run token")
 		return
 	}
+	var run service.RunView
 	claims, err := p.d.Tokens.VerifyActive(r.Context(), tok, func(ctx context.Context, cid, rid domain.ID) (domain.RunStatus, error) {
-		run, err := p.d.Backend.GetRun(ctx, cid, rid)
-		return run.Status, err
+		rv, err := p.d.Backend.GetRun(ctx, cid, rid)
+		run = rv
+		return rv.Status, err
 	})
 	if err != nil {
 		if errors.Is(err, auth.ErrBadToken) {
@@ -137,6 +146,11 @@ func (p *memoryProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			http.Error(w, "corpo inválido ou grande demais", http.StatusRequestEntityTooLarge)
 			return
+		}
+		var done bool
+		body, sc, done = p.screen(r.Context(), w, claims, run, sc, body)
+		if done {
+			return // respondido aqui (proposta registrada, chamada recusada)
 		}
 		body = pinScopeArgs(body, sc)
 		r.Body = io.NopCloser(bytes.NewReader(body))

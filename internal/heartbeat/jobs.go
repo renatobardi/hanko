@@ -110,3 +110,32 @@ func (StartReviewArgs) Kind() string { return "start_review" }
 func (StartReviewArgs) InsertOpts() river.InsertOpts {
 	return river.InsertOpts{MaxAttempts: 5}
 }
+
+// MemoryTickArgs is the periodic scan for due memory consolidations (job "memory_consolidation_tick").
+type MemoryTickArgs struct{}
+
+func (MemoryTickArgs) Kind() string { return "memory_consolidation_tick" }
+
+func (MemoryTickArgs) InsertOpts() river.InsertOpts { return river.InsertOpts{MaxAttempts: 1} }
+
+// ApplyMemoryProposalArgs applies an approved memory proposal to the memory provider (job
+// "apply_memory_proposal"). A failure keeps the proposal failed with the next attempt scheduled; nothing is lost.
+type ApplyMemoryProposalArgs struct {
+	CompanyID  domain.ID `json:"company_id"`
+	ProposalID domain.ID `json:"proposal_id"`
+}
+
+func (ApplyMemoryProposalArgs) Kind() string { return "apply_memory_proposal" }
+
+func (ApplyMemoryProposalArgs) InsertOpts() river.InsertOpts {
+	return river.InsertOpts{
+		MaxAttempts: 5,
+		UniqueOpts: river.UniqueOpts{
+			ByArgs: true,
+			ByState: []rivertype.JobState{
+				rivertype.JobStateAvailable, rivertype.JobStatePending, rivertype.JobStateScheduled,
+				rivertype.JobStateRetryable, rivertype.JobStateRunning,
+			},
+		},
+	}
+}

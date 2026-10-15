@@ -681,6 +681,8 @@ type SettingsVM struct {
 	Error   string
 	// Members is the company's "Membros" section (authenticated mode only).
 	Members MembersVM
+	// Memory is the company's "Memória" section (memory consolidation, ADR-0030).
+	Memory MemoryVM
 }
 
 // MemberRow is one member in the "Membros" table.

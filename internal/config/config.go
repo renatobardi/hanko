@@ -45,6 +45,8 @@ type Memory struct {
 	Provider string `yaml:"provider" env:"HANKO_MEMORY_PROVIDER"`
 	URL      string `yaml:"url" env:"HANKO_MEMORY_URL"`
 	Token    string `yaml:"token" env:"HANKO_MEMORY_TOKEN"`
+	// ReadTool é a tool do provedor que lê uma página por caminho (diff das propostas de curadoria, ADR-0030).
+	ReadTool string `yaml:"read_tool" env:"HANKO_MEMORY_READ_TOOL"`
 }
 
 // Firebase configura o provider de auth firebase (ADR-0014). Os três valores são
@@ -182,7 +184,7 @@ func LoadFrom(getenv func(string) string, readFile func(string) ([]byte, error))
 func environFor(getenv func(string) string) map[string]string {
 	keys := []string{
 		"HANKO_DATABASE_URL", "HANKO_ADDR", "HANKO_PUBLIC_URL", "HANKO_MODE", "HANKO_SECRET",
-		"HANKO_MIGRATE_ON_BOOT", "HANKO_MEMORY_PROVIDER", "HANKO_MEMORY_URL", "HANKO_MEMORY_TOKEN",
+		"HANKO_MIGRATE_ON_BOOT", "HANKO_MEMORY_PROVIDER", "HANKO_MEMORY_URL", "HANKO_MEMORY_TOKEN", "HANKO_MEMORY_READ_TOOL",
 		"HANKO_CLAUDE_BIN", "HANKO_CODEX_BIN", "HANKO_WORKERS", "HANKO_RUN_TIMEOUT",
 		"HANKO_HEARTBEAT_INTERVAL", "HANKO_LOG_LEVEL", "HANKO_LOG_FORMAT",
 		"HANKO_AGENT_ENV_ALLOW", "HANKO_ALLOWED_HOSTS", "HANKO_WORKSPACES_ROOT", "HANKO_RUN_RESERVE_USD", "HANKO_ALERT_SILENT_FACTOR", "HANKO_ALERT_RUN_STUCK_AFTER",

@@ -398,3 +398,21 @@ workspace and may have a monthly budget (ADR-0025). Screens `/projetos` and `/wo
   Raise the cap (`hanko budget set --project <slug> <usd>`) to release it. Paid cost (subscription) is not allocated per project.
 - **Importing from another machine:** a path this installation does not accept is imported empty and `workspace_paths_cleared` reports it;
   fix with `hanko workspace update <slug> --path …`.
+
+## Consolidated memory (governed curation)
+
+Requires `HANKO_MEMORY_PROVIDER=ai-memory` (ADR-0030). With `none`, the Memory section of company Settings shows "Memory off" and the API answers 422 with the reason.
+
+- **Enable:** company Settings → Memory (or `hanko memory config --enable --interval 24 --curator <persona>`). Interval 1 to 720 h; off by default. Prefer a curator on a cheap model.
+- **Run now:** "Consolidate now" button or `hanko memory consolidate [workspace]`. Creates one system task per workspace; cost goes through the ledger and budget like any run. One open round per workspace; one that never ran expires after 6 h.
+- **`memory` gate:** removals, merges and rewrites by the curator never reach ai-memory; they become a proposal and a gate in the Inbox "Memory" tab (diff and sha256). Approving queues `apply_memory_proposal`; rejecting discards. CLI: `hanko memory proposals|approve|reject <id>`.
+- **Apply failure:** the proposal stays `failed` with the error and is retried (1 min to 6 h, 20 attempts). After that: `hanko memory retry <id>` or the retry button. Nothing is lost.
+- **Grants:** a persona only reaches its own workspace memory. For another workspace of the company: `hanko memory grant <persona> <workspace> --access read|write` (`grants`, `revoke` to list and remove).
+- **Diff with current content:** set `HANKO_MEMORY_READ_TOOL` (`memory.read_tool` in YAML) to ai-memory's page-read tool name; without it the diff shows only the proposed content.
+
+| Symptom | Likely cause | Action |
+|---|---|---|
+| "Memory off" / 422 when enabling | `HANKO_MEMORY_PROVIDER=none` | configure ai-memory and restart |
+| Proposal `failed` | ai-memory down or refused | see the error in the Memory section; retry is automatic, or `hanko memory retry` |
+| Many proposals | unknown tool names are held for safety | approve/reject; see ADR-0030 |
+| Consolidation does not run | curator paused or out of budget | check Inbox/alerts; expires in 6 h |

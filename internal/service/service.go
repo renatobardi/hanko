@@ -78,6 +78,10 @@ type Service struct {
 	ExportPageHook func(page int) error
 	// Memory é o provider de memória (ADR-0015), usado só pela busca (ADR-0024); nil ou Noop = sem memória na busca.
 	Memory memory.Provider
+
+	// MemoryProvider é o provedor de memória em uso ("ai-memory" ou "none"; vazio = none). Sem provedor a
+	// consolidação de memória fica desligada (ADR-0030).
+	MemoryProvider string
 	// Log recebe o registro de auditoria das operações administrativas da instalação (hanko auth user ...);
 	// nil descarta.
 	Log *slog.Logger
@@ -169,6 +173,8 @@ type CreateTaskInput struct {
 	EventID     string // idempotency key (agents/MCP)
 
 	trigger domain.RunTrigger // wake trigger; default assign (flows use flow)
+	// noMemoryFact: a task de sistema da consolidação de memória não vira página na própria memória.
+	noMemoryFact bool
 }
 
 type UpdateTaskInput struct {

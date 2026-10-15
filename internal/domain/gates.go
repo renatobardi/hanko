@@ -9,9 +9,12 @@ const (
 	GateApproval   GateKind = "approval"    // irreversible action, merge, deploy, spend
 	GateTaskReview GateKind = "task_review" // a persona with require_review wants to close a task
 	GateHire       GateKind = "hire"        // hiring a persona
+	GateMemory     GateKind = "memory"      // proposta da consolidação de memória que remove, funde ou reescreve conteúdo (ADR-0030)
 )
 
-func (k GateKind) Valid() bool { return k == GateApproval || k == GateTaskReview || k == GateHire }
+func (k GateKind) Valid() bool {
+	return k == GateApproval || k == GateTaskReview || k == GateHire || k == GateMemory
+}
 
 // Blocking reports whether a pending gate of this kind holds the requesting persona
 // (awaiting_gate) and blocks its task. A task review only parks the task in in_review.
