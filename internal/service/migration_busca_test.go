@@ -65,7 +65,7 @@ func TestMigrationBuscaDobraDownEUp(t *testing.T) {
 	if _, err := p.DownTo(ctx, 23); err != nil {
 		t.Fatalf("down: %v", err)
 	}
-	if got := fold(); got != "co­operar" || idx() != 5 {
+	if got := fold(); got != "co\u00adoperar" || idx() != 5 {
 		t.Errorf("depois do down: fold=%q índices=%d", got, idx())
 	}
 	if _, err := p.Up(ctx); err != nil {
