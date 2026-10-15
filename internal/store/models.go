@@ -168,6 +168,29 @@ type Gate struct {
 	ReviewRunID          *uuid.UUID
 }
 
+type MemoryConsolidation struct {
+	ID            uuid.UUID
+	CompanyID     uuid.UUID
+	WorkspaceID   *uuid.UUID
+	WorkspaceSlug string
+	TaskID        *uuid.UUID
+	RunID         *uuid.UUID
+	Origin        string
+	ScheduledFor  time.Time
+	Status        string
+	Summary       string
+	CreatedAt     time.Time
+	FinishedAt    *time.Time
+}
+
+type MemoryGrant struct {
+	CompanyID   uuid.UUID
+	PersonaID   uuid.UUID
+	WorkspaceID uuid.UUID
+	Access      string
+	CreatedAt   time.Time
+}
+
 type MemoryOutbox struct {
 	ID            uuid.UUID
 	CompanyID     uuid.UUID
@@ -181,6 +204,44 @@ type MemoryOutbox struct {
 	CreatedAt     time.Time
 	SentAt        *time.Time
 	NextAttemptAt *time.Time
+}
+
+type MemoryProposal struct {
+	ID              uuid.UUID
+	CompanyID       uuid.UUID
+	WorkspaceID     *uuid.UUID
+	WorkspaceSlug   string
+	RunID           *uuid.UUID
+	GateID          *uuid.UUID
+	Kind            string
+	Status          string
+	Tool            string
+	Arguments       []byte
+	Targets         []string
+	ProposedContent string
+	CurrentContent  string
+	Diff            string
+	Sha256          string
+	Attempts        int32
+	LastError       string
+	NextAttemptAt   *time.Time
+	DecidedByType   *string
+	DecidedByID     *uuid.UUID
+	DecisionNote    string
+	DecidedAt       *time.Time
+	AppliedAt       *time.Time
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
+type MemorySetting struct {
+	CompanyID        uuid.UUID
+	Enabled          bool
+	IntervalHours    int32
+	CuratorPersonaID *uuid.UUID
+	LastFiredAt      *time.Time
+	NextFireAt       *time.Time
+	UpdatedAt        time.Time
 }
 
 type ModelPrice struct {

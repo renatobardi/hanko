@@ -137,8 +137,13 @@ func (t *txc) cancelRun(actor domain.Actor, companyID domain.ID, cur store.Run, 
 			return err
 		}
 		t.publishRunStatus(runFromRow(row))
-		if domain.RunTrigger(row.Trigger) == domain.TriggerReview {
+		switch domain.RunTrigger(row.Trigger) {
+		case domain.TriggerReview:
 			if err := t.reviewRunEnded(row, domain.RunCancelled, "", ""); err != nil {
+				return err
+			}
+		case domain.TriggerMemory:
+			if err := t.memoryRunEnded(row, domain.RunCancelled, ""); err != nil {
 				return err
 			}
 		}
@@ -177,7 +182,7 @@ func (t *txc) cancelTaskRun(actor domain.Actor, companyID, taskID domain.ID, rea
 // Moves task todo → in_progress.
 func (s *Service) CheckoutRun(ctx context.Context, w Wake) (domain.Run, error) {
 	switch w.Trigger {
-	case domain.TriggerAssign, domain.TriggerComment, domain.TriggerManual, domain.TriggerHeartbeat, domain.TriggerGate, domain.TriggerFlow:
+	case domain.TriggerAssign, domain.TriggerComment, domain.TriggerManual, domain.TriggerHeartbeat, domain.TriggerGate, domain.TriggerFlow, domain.TriggerMemory:
 	default:
 		return domain.Run{}, domain.Invalid("trigger", fmt.Sprintf("unknown trigger %q", w.Trigger))
 	}
@@ -584,6 +589,7 @@ func (s *Service) FinishRun(ctx context.Context, companyID, runID domain.ID, in 
 		pactor := domain.PersonaActor(row.PersonaID)
 
 		isReview := domain.RunTrigger(row.Trigger) == domain.TriggerReview
+		isMemory := domain.RunTrigger(row.Trigger) == domain.TriggerMemory
 		// A review run's report already lives on the gate: it is not posted as a persona comment.
 		if in.Status == domain.RunDone && !isReview && strings.TrimSpace(res.Summary) != "" {
 			c, err := t.q.CreateComment(ctx, store.CreateCommentParams{ID: domain.NewID(), CompanyID: companyID,
@@ -603,6 +609,11 @@ func (s *Service) FinishRun(ctx context.Context, companyID, runID domain.ID, in 
 		}
 		if isReview {
 			if err := t.reviewRunEnded(row, in.Status, res.Summary, res.Error); err != nil {
+				return err
+			}
+		}
+		if isMemory {
+			if err := t.memoryRunEnded(row, in.Status, res.Summary); err != nil {
 				return err
 			}
 		}
@@ -638,11 +649,14 @@ func (s *Service) FinishRun(ctx context.Context, companyID, runID domain.ID, in 
 		if err != nil {
 			return mapErr(err, "get task")
 		}
-		if err := t.memoryFact(companyID, task.WorkspaceID, runFact(view, in.Status, res, t.now),
-			"run.finished:"+runID.String()); err != nil {
-			return err
+		// A curadoria de memória não se documenta na própria memória (nem a task, nem a run).
+		if !isMemory {
+			if err := t.memoryFact(companyID, task.WorkspaceID, runFact(view, in.Status, res, t.now),
+				"run.finished:"+runID.String()); err != nil {
+				return err
+			}
 		}
-		if !isReview {
+		if !isReview && !isMemory {
 			if err := t.wakeForMissedComment(companyID, task, row); err != nil {
 				return err
 			}
@@ -747,8 +761,13 @@ func (s *Service) InterruptOrphanRuns(ctx context.Context) (int, error) {
 			if err := t.personaAfterRun(r.PersonaID, domain.RunInterrupted, ""); err != nil {
 				return err
 			}
-			if domain.RunTrigger(r.Trigger) == domain.TriggerReview {
+			switch domain.RunTrigger(r.Trigger) {
+			case domain.TriggerReview:
 				if err := t.reviewRunEnded(r, domain.RunInterrupted, "", r.Error); err != nil {
+					return err
+				}
+			case domain.TriggerMemory:
+				if err := t.memoryRunEnded(r, domain.RunInterrupted, ""); err != nil {
 					return err
 				}
 			}

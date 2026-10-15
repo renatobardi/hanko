@@ -75,6 +75,9 @@ type Service struct {
 	ExportIdleTxTimeout, ExportStatementTimeout time.Duration
 	// ExportPageHook (só testes) roda antes de cada página de eventos do export; um erro interrompe a escrita.
 	ExportPageHook func(page int) error
+	// MemoryProvider é o provedor de memória em uso ("ai-memory" ou "none"; vazio = none). Sem provedor a
+	// consolidação de memória fica desligada (ADR-0030).
+	MemoryProvider string
 	// Log recebe o registro de auditoria das operações administrativas da instalação (hanko auth user ...);
 	// nil descarta.
 	Log *slog.Logger
@@ -164,6 +167,8 @@ type CreateTaskInput struct {
 	EventID     string // idempotency key (agents/MCP)
 
 	trigger domain.RunTrigger // wake trigger; default assign (flows use flow)
+	// noMemoryFact: a task de sistema da consolidação de memória não vira página na própria memória.
+	noMemoryFact bool
 }
 
 type UpdateTaskInput struct {

@@ -256,6 +256,7 @@ const (
 	TriggerGate      RunTrigger = "gate" // a human decided a gate the persona was waiting on
 	TriggerFlow      RunTrigger = "flow"
 	TriggerReview    RunTrigger = "review" // revisão headless que antecede o gate task_review
+	TriggerMemory    RunTrigger = "memory" // consolidação de memória: run de sistema da persona curadora (ADR-0030)
 )
 
 // CostSource tells where a run's cost came from.

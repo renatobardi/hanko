@@ -164,9 +164,11 @@ func (t *txc) createTask(actor domain.Actor, companyID domain.ID, in CreateTaskI
 	}, in.EventID); err != nil {
 		return TaskView{}, err
 	}
-	if err := t.memoryFact(companyID, wsID, taskFact("task.created", key, title, in.Description, status, prio, ""),
-		"task.created:"+row.ID.String()); err != nil {
-		return TaskView{}, err
+	if !in.noMemoryFact {
+		if err := t.memoryFact(companyID, wsID, taskFact("task.created", key, title, in.Description, status, prio, ""),
+			"task.created:"+row.ID.String()); err != nil {
+			return TaskView{}, err
+		}
 	}
 	trigger := in.trigger
 	if trigger == "" {

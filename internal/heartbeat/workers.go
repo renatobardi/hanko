@@ -189,6 +189,11 @@ func (w *tickWorker) Work(ctx context.Context, _ *river.Job[HeartbeatTickArgs]) 
 	} else if n > 0 {
 		h.log.Info("heartbeat_tick: personas retomadas", "count", n)
 	}
+	if n, err := h.svc.ResolveStaleConsolidations(ctx); err != nil {
+		h.log.Warn("heartbeat_tick: consolidações de memória perdidas", "err", err)
+	} else if n > 0 {
+		h.log.Info("heartbeat_tick: consolidações de memória expiradas", "count", n)
+	}
 	if n, err := h.svc.ResolveStaleReviews(ctx); err != nil {
 		h.log.Warn("heartbeat_tick: revisões perdidas", "err", err)
 	} else if n > 0 {
@@ -231,5 +236,5 @@ func (w *sweepWorker) Work(ctx context.Context, _ *river.Job[MemorySweepArgs]) e
 	if len(ids) > 0 {
 		h.log.Debug("memory_sweep", "pending", len(ids))
 	}
-	return nil
+	return h.sweepProposals(ctx)
 }

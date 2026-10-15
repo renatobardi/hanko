@@ -89,10 +89,18 @@ type backend interface {
 	StartReview(ctx context.Context, companyID, reviewID domain.ID) error
 	FailReview(ctx context.Context, companyID, reviewID domain.ID, reason string) error
 	ResolveStaleReviews(ctx context.Context) (int, error)
+	DueMemorySettings(ctx context.Context, now time.Time) ([]domain.MemorySettings, error)
+	FireMemoryConsolidation(ctx context.Context, companyID domain.ID, scheduledFor time.Time) ([]domain.MemoryConsolidation, error)
+	ResolveStaleConsolidations(ctx context.Context) (int, error)
+	LoadMemoryProposalForApply(ctx context.Context, companyID, id domain.ID) (service.MemoryApplyItem, error)
+	MarkMemoryProposalApplied(ctx context.Context, companyID, id domain.ID) error
+	MarkMemoryProposalFailed(ctx context.Context, companyID, id domain.ID, errMsg string) (time.Duration, error)
+	DueMemoryProposals(ctx context.Context, limit int) ([]service.MemoryProposalRef, error)
 }
 
 var _ backend = (*service.Service)(nil)
 var _ service.Jobs = (*Heartbeat)(nil)
+var _ service.ProposalJobs = (*Heartbeat)(nil)
 
 // Heartbeat owns the river client and the workers.
 type Heartbeat struct {
@@ -109,6 +117,7 @@ type Heartbeat struct {
 	// Enqueue seams outside a transaction (periodic scans); tests replace them.
 	enqueueWake    func(context.Context, WakeArgs) error
 	enqueueDeliver func(context.Context, DeliverMemoryArgs) error
+	enqueueApply   func(context.Context, ApplyMemoryProposalArgs) error
 
 	// finishBackoff are the waits between local FinishRun attempts (len+1 attempts); tests shrink it.
 	finishBackoff []time.Duration
@@ -142,6 +151,8 @@ func New(pool *pgxpool.Pool, opts Options) (*Heartbeat, error) {
 		river.AddWorkerSafely(workers, &flowTickWorker{h: h}),
 		river.AddWorkerSafely(workers, &alertTickWorker{h: h}),
 		river.AddWorkerSafely(workers, &startReviewWorker{h: h}),
+		river.AddWorkerSafely(workers, &memoryTickWorker{h: h}),
+		river.AddWorkerSafely(workers, &applyProposalWorker{h: h}),
 	); err != nil {
 		return nil, fmt.Errorf("heartbeat workers: %w", err)
 	}
@@ -172,6 +183,9 @@ func New(pool *pgxpool.Pool, opts Options) (*Heartbeat, error) {
 			river.NewPeriodicJob(river.PeriodicInterval(opts.PeriodicInterval),
 				func() (river.JobArgs, *river.InsertOpts) { return AlertTickArgs{}, nil },
 				&river.PeriodicJobOpts{ID: "alert_tick"}),
+			river.NewPeriodicJob(river.PeriodicInterval(opts.PeriodicInterval),
+				func() (river.JobArgs, *river.InsertOpts) { return MemoryTickArgs{}, nil },
+				&river.PeriodicJobOpts{ID: "memory_consolidation_tick"}),
 		},
 	})
 	if err != nil {
@@ -180,6 +194,7 @@ func New(pool *pgxpool.Pool, opts Options) (*Heartbeat, error) {
 	h.client = client
 	h.enqueueWake = func(ctx context.Context, a WakeArgs) error { _, err := client.Insert(ctx, a, nil); return err }
 	h.enqueueDeliver = func(ctx context.Context, a DeliverMemoryArgs) error { _, err := client.Insert(ctx, a, nil); return err }
+	h.enqueueApply = func(ctx context.Context, a ApplyMemoryProposalArgs) error { _, err := client.Insert(ctx, a, nil); return err }
 	return h, nil
 }
 

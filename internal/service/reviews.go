@@ -116,6 +116,7 @@ func (t *txc) lockReview(companyID, reviewID domain.ID) (store.Review, store.Tas
 }
 
 // lockTaskOfReviewRun locks the task of a review run before the run itself (canonical order).
+// The same goes for the consolidation of memory (trigger memory), which closes its task when the run ends.
 // It is a no-op for any other run.
 func (t *txc) lockTaskOfReviewRun(companyID, runID domain.ID) error {
 	peek, err := t.q.GetRunByID(t.ctx, store.GetRunByIDParams{CompanyID: companyID, ID: runID})
@@ -125,7 +126,7 @@ func (t *txc) lockTaskOfReviewRun(companyID, runID domain.ID) error {
 	if err != nil {
 		return mapErr(err, "get run")
 	}
-	if domain.RunTrigger(peek.Trigger) != domain.TriggerReview {
+	if tr := domain.RunTrigger(peek.Trigger); tr != domain.TriggerReview && tr != domain.TriggerMemory {
 		return nil
 	}
 	if _, err := t.q.GetTaskByIDForUpdate(t.ctx, store.GetTaskByIDForUpdateParams{CompanyID: companyID, ID: peek.TaskID}); err != nil {

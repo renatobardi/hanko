@@ -5,6 +5,7 @@ package memory
 import (
 	"context"
 	"encoding/json"
+	"errors"
 )
 
 // Scope identifies a memory project. Workspace = the Hanko company slug,
@@ -54,3 +55,19 @@ func (Noop) Record(context.Context, Scope, Fact) error                    { retu
 func (Noop) FinalizeSession(context.Context, Scope, string, string) error { return nil }
 func (Noop) AgentMCP(Scope, string, string) map[string]json.RawMessage    { return nil }
 func (Noop) Ping(context.Context) error                                   { return nil }
+
+// ErrUnsupported: o provedor não tem a capacidade pedida (ou ela não foi configurada).
+var ErrUnsupported = errors.New("memory: capacidade não suportada pelo provedor")
+
+// ToolCaller é a capacidade opcional de repetir uma chamada de tool no servidor de memória com as
+// credenciais do Hanko. A aprovação de uma proposta de curadoria aplica a chamada retida por aqui
+// (ADR-0030). O escopo (empresa/workspace) sobrepõe qualquer valor que os argumentos tragam.
+type ToolCaller interface {
+	CallTool(ctx context.Context, s Scope, tool string, args map[string]any) (string, error)
+}
+
+// PageReader é a capacidade opcional de ler uma página da wiki, usada para mostrar o conteúdo atual no
+// diff de uma proposta. Melhor esforço: ErrUnsupported quando a tool de leitura não está configurada.
+type PageReader interface {
+	ReadPage(ctx context.Context, s Scope, path string) (string, error)
+}

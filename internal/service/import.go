@@ -488,7 +488,7 @@ func nonNegativeRun(i int, r export.Run) error {
 func validTrigger(t string) bool {
 	switch domain.RunTrigger(t) {
 	case domain.TriggerAssign, domain.TriggerComment, domain.TriggerManual, domain.TriggerHeartbeat, domain.TriggerGate,
-		domain.TriggerFlow, domain.TriggerReview:
+		domain.TriggerFlow, domain.TriggerReview, domain.TriggerMemory:
 		return true
 	}
 	return false
