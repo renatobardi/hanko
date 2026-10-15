@@ -3,6 +3,14 @@
 Formato: [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) · versões: [SemVer](https://semver.org/lang/pt-BR/).
 English summary at the end of each release.
 
+## [Unreleased]
+
+- Skills (ADR-0029): habilidades reutilizáveis em `SKILL.md`, ligadas por persona; o Claude as recebe como skills de verdade (`--add-dir`) e codex/ACP por índice no prompt e pela tool MCP `hanko_skill_get`; limites por skill e por run; `hanko skill …`, tela `/skills` com editor e pré-visualização, painel na persona, campo opcional `skills` no `hanko.company.v1`.
+- Integrações (ADR-0029): servidores MCP da empresa (http, ou stdio só se `HANKO_INTEGRATIONS_ALLOW_STDIO`) injetados nas runs, e webhooks de saída assinados com HMAC-SHA256 (`X-Hanko-Signature`), entrega por outbox transacional com retry exponencial, histórico de entregas, proteção SSRF; `hanko integration …`, tela `/integracoes`.
+- Segredos de integração cifrados em repouso (AES-256-GCM, `HANKO_SECRET_KEY`, rotação com `HANKO_SECRET_KEY_PREVIOUS` e `hanko integration rekey`), nunca devolvidos pela API, UI, CLI, export, eventos ou logs; o segredo de webhook gerado pelo servidor aparece uma única vez.
+- Export/import: `integrations` (sem segredos; importadas desligadas), `skills` e `personas[].skills` são campos opcionais do `hanko.company.v1`.
+- Migration 00020 (`skills`, `persona_skills`, `integrations`, `integration_personas`, `webhook_deliveries`).
+
 ## [Não lançado] — v0.1.0
 
 Primeira versão pública. Em produção em https://hanko.oute.pro desde 2026-10-14.

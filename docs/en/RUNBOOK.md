@@ -333,3 +333,25 @@ Record the date and result in `docs/SESSION.md` or in the operations issue.
 | Port 7420 in use | another instance | `HANKO_ADDR` |
 
 Logs are JSON on stderr with `trace_id`/`span_id`: copy the `trace_id` and look it up in Tempo (Grafana) to see the full trace of the request/run.
+
+## Skills and integrations (ADR-0029)
+
+Operator settings (a company cannot turn these on by itself):
+
+| Variable | Default | Effect |
+|---|---|---|
+| `HANKO_SECRET_KEY` | empty | Key (32+ characters) that encrypts integration secrets (AES-256-GCM). Empty: Hanko starts but refuses to store integration secrets. |
+| `HANKO_SECRET_KEY_PREVIOUS` | empty | The previous key, only during rotation. |
+| `HANKO_INTEGRATIONS_ALLOW_STDIO` | `false` | Allows `stdio` MCP servers, which run a command **on the server machine**. |
+| `HANKO_INTEGRATIONS_ALLOW_PRIVATE` | `false` | Allows webhooks and connection tests to loopback, link-local and private networks (otherwise SSRF blocking applies). |
+
+**Generate the key:** `openssl rand -hex 32`. Keep it with `HANKO_SECRET` and in the operator's backup; losing it loses the
+stored secrets (integrations remain, without credentials; enter them again).
+
+**Rotate the key:** set the new key in `HANKO_SECRET_KEY` and the old one in `HANKO_SECRET_KEY_PREVIOUS`, restart, run
+`hanko integration rekey` (or `POST /api/v1/integrations/rekey-secrets`; installation owner only), then remove
+`HANKO_SECRET_KEY_PREVIOUS` and restart.
+
+**Webhooks.** Each delivery carries `X-Hanko-Signature: t=<unix>,v1=<hex>`, `X-Hanko-Event` and `X-Hanko-Delivery`. The receiver
+computes `HMAC-SHA256(secret, "<t>.<body>")`, compares in constant time and rejects an old `t`. Failures retry up to 7
+attempts (30 s, 2 min, 8 min, 32 min, ~2 h, 6 h). Delivery is at-least-once; deduplicate on `X-Hanko-Delivery`.
