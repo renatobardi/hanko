@@ -17,7 +17,7 @@ INSERT INTO tasks (id, company_id, number, title, description, status, priority,
                    workspace_id, parent_id, created_by_type, created_by_id, model, goal_id, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9,
         $10, $11, $12, $13, $14, $15, $16, $16)
-RETURNING id, company_id, number, title, description, status, priority, persona_id, project_id, workspace_id, parent_id, created_by_type, created_by_id, created_at, updated_at, closed_at, last_human_change_at, model, search_tsv, goal_id
+RETURNING id, company_id, number, title, description, status, priority, persona_id, project_id, workspace_id, parent_id, created_by_type, created_by_id, created_at, updated_at, closed_at, last_human_change_at, model, goal_id, search_tsv
 `
 
 type CreateTaskParams struct {
@@ -78,14 +78,14 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, e
 		&i.ClosedAt,
 		&i.LastHumanChangeAt,
 		&i.Model,
-		&i.SearchTsv,
 		&i.GoalID,
+		&i.SearchTsv,
 	)
 	return i, err
 }
 
 const getTaskByID = `-- name: GetTaskByID :one
-SELECT id, company_id, number, title, description, status, priority, persona_id, project_id, workspace_id, parent_id, created_by_type, created_by_id, created_at, updated_at, closed_at, last_human_change_at, model, search_tsv, goal_id FROM tasks WHERE company_id = $1 AND id = $2
+SELECT id, company_id, number, title, description, status, priority, persona_id, project_id, workspace_id, parent_id, created_by_type, created_by_id, created_at, updated_at, closed_at, last_human_change_at, model, goal_id, search_tsv FROM tasks WHERE company_id = $1 AND id = $2
 `
 
 type GetTaskByIDParams struct {
@@ -115,14 +115,14 @@ func (q *Queries) GetTaskByID(ctx context.Context, arg GetTaskByIDParams) (Task,
 		&i.ClosedAt,
 		&i.LastHumanChangeAt,
 		&i.Model,
-		&i.SearchTsv,
 		&i.GoalID,
+		&i.SearchTsv,
 	)
 	return i, err
 }
 
 const getTaskByIDForUpdate = `-- name: GetTaskByIDForUpdate :one
-SELECT id, company_id, number, title, description, status, priority, persona_id, project_id, workspace_id, parent_id, created_by_type, created_by_id, created_at, updated_at, closed_at, last_human_change_at, model, search_tsv, goal_id FROM tasks WHERE company_id = $1 AND id = $2 FOR UPDATE
+SELECT id, company_id, number, title, description, status, priority, persona_id, project_id, workspace_id, parent_id, created_by_type, created_by_id, created_at, updated_at, closed_at, last_human_change_at, model, goal_id, search_tsv FROM tasks WHERE company_id = $1 AND id = $2 FOR UPDATE
 `
 
 type GetTaskByIDForUpdateParams struct {
@@ -152,14 +152,14 @@ func (q *Queries) GetTaskByIDForUpdate(ctx context.Context, arg GetTaskByIDForUp
 		&i.ClosedAt,
 		&i.LastHumanChangeAt,
 		&i.Model,
-		&i.SearchTsv,
 		&i.GoalID,
+		&i.SearchTsv,
 	)
 	return i, err
 }
 
 const getTaskView = `-- name: GetTaskView :one
-SELECT t.id, t.company_id, t.number, t.title, t.description, t.status, t.priority, t.persona_id, t.project_id, t.workspace_id, t.parent_id, t.created_by_type, t.created_by_id, t.created_at, t.updated_at, t.closed_at, t.last_human_change_at, t.model, t.search_tsv, t.goal_id, COALESCE(p.name, '')::text AS persona_name, COALESCE(pr.name, '')::text AS project_name,
+SELECT t.id, t.company_id, t.number, t.title, t.description, t.status, t.priority, t.persona_id, t.project_id, t.workspace_id, t.parent_id, t.created_by_type, t.created_by_id, t.created_at, t.updated_at, t.closed_at, t.last_human_change_at, t.model, t.goal_id, t.search_tsv, COALESCE(p.name, '')::text AS persona_name, COALESCE(pr.name, '')::text AS project_name,
        ar.id AS active_run_id, c.task_prefix,
        EXISTS (SELECT 1 FROM memory_consolidations mc WHERE mc.task_id = t.id)::boolean AS system_task
 FROM tasks t
@@ -206,8 +206,8 @@ func (q *Queries) GetTaskView(ctx context.Context, arg GetTaskViewParams) (GetTa
 		&i.Task.ClosedAt,
 		&i.Task.LastHumanChangeAt,
 		&i.Task.Model,
-		&i.Task.SearchTsv,
 		&i.Task.GoalID,
+		&i.Task.SearchTsv,
 		&i.PersonaName,
 		&i.ProjectName,
 		&i.ActiveRunID,
@@ -218,7 +218,7 @@ func (q *Queries) GetTaskView(ctx context.Context, arg GetTaskViewParams) (GetTa
 }
 
 const getTaskViewByNumber = `-- name: GetTaskViewByNumber :one
-SELECT t.id, t.company_id, t.number, t.title, t.description, t.status, t.priority, t.persona_id, t.project_id, t.workspace_id, t.parent_id, t.created_by_type, t.created_by_id, t.created_at, t.updated_at, t.closed_at, t.last_human_change_at, t.model, t.search_tsv, t.goal_id, COALESCE(p.name, '')::text AS persona_name, COALESCE(pr.name, '')::text AS project_name,
+SELECT t.id, t.company_id, t.number, t.title, t.description, t.status, t.priority, t.persona_id, t.project_id, t.workspace_id, t.parent_id, t.created_by_type, t.created_by_id, t.created_at, t.updated_at, t.closed_at, t.last_human_change_at, t.model, t.goal_id, t.search_tsv, COALESCE(p.name, '')::text AS persona_name, COALESCE(pr.name, '')::text AS project_name,
        ar.id AS active_run_id, c.task_prefix,
        EXISTS (SELECT 1 FROM memory_consolidations mc WHERE mc.task_id = t.id)::boolean AS system_task
 FROM tasks t
@@ -265,8 +265,8 @@ func (q *Queries) GetTaskViewByNumber(ctx context.Context, arg GetTaskViewByNumb
 		&i.Task.ClosedAt,
 		&i.Task.LastHumanChangeAt,
 		&i.Task.Model,
-		&i.Task.SearchTsv,
 		&i.Task.GoalID,
+		&i.Task.SearchTsv,
 		&i.PersonaName,
 		&i.ProjectName,
 		&i.ActiveRunID,
@@ -289,7 +289,7 @@ WITH page AS (
     ORDER BY t0.updated_at DESC, t0.number DESC
     LIMIT $8 OFFSET $7
 )
-SELECT t.id, t.company_id, t.number, t.title, t.description, t.status, t.priority, t.persona_id, t.project_id, t.workspace_id, t.parent_id, t.created_by_type, t.created_by_id, t.created_at, t.updated_at, t.closed_at, t.last_human_change_at, t.model, t.search_tsv, t.goal_id, COALESCE(p.name, '')::text AS persona_name, COALESCE(pr.name, '')::text AS project_name,
+SELECT t.id, t.company_id, t.number, t.title, t.description, t.status, t.priority, t.persona_id, t.project_id, t.workspace_id, t.parent_id, t.created_by_type, t.created_by_id, t.created_at, t.updated_at, t.closed_at, t.last_human_change_at, t.model, t.goal_id, t.search_tsv, COALESCE(p.name, '')::text AS persona_name, COALESCE(pr.name, '')::text AS project_name,
        ar.id AS active_run_id, c.task_prefix
 FROM page
 JOIN tasks t ON t.id = page.id
@@ -359,8 +359,8 @@ func (q *Queries) ListTaskViews(ctx context.Context, arg ListTaskViewsParams) ([
 			&i.Task.ClosedAt,
 			&i.Task.LastHumanChangeAt,
 			&i.Task.Model,
-			&i.Task.SearchTsv,
 			&i.Task.GoalID,
+			&i.Task.SearchTsv,
 			&i.PersonaName,
 			&i.ProjectName,
 			&i.ActiveRunID,
@@ -411,7 +411,7 @@ UPDATE tasks
 SET title = $1, description = $2, status = $3, priority = $4,
     persona_id = $5, project_id = $6, model = $7, closed_at = $8, updated_at = $9
 WHERE company_id = $10 AND id = $11
-RETURNING id, company_id, number, title, description, status, priority, persona_id, project_id, workspace_id, parent_id, created_by_type, created_by_id, created_at, updated_at, closed_at, last_human_change_at, model, search_tsv, goal_id
+RETURNING id, company_id, number, title, description, status, priority, persona_id, project_id, workspace_id, parent_id, created_by_type, created_by_id, created_at, updated_at, closed_at, last_human_change_at, model, goal_id, search_tsv
 `
 
 type UpdateTaskParams struct {
@@ -462,8 +462,8 @@ func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, e
 		&i.ClosedAt,
 		&i.LastHumanChangeAt,
 		&i.Model,
-		&i.SearchTsv,
 		&i.GoalID,
+		&i.SearchTsv,
 	)
 	return i, err
 }

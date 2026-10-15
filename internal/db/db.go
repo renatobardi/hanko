@@ -122,3 +122,25 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool, logger *slog.Logger, opts 
 	}
 	return nil
 }
+
+// CtypeIsC diz se o lc_ctype do banco é C/POSIX: nele lower() e o tokenizador full-text só entendem ASCII, e a busca
+// (ADR-0024, hanko_fold) deixa de achar maiúsculas e letras fora do ASCII que não estão na tabela de acentos.
+func CtypeIsC(ctype string) bool {
+	switch strings.ToUpper(strings.TrimSpace(ctype)) {
+	case "C", "POSIX":
+		return true
+	}
+	return false
+}
+
+// CheckLocale avisa no log (uma vez, no boot) quando o banco está em lc_ctype=C. Só informa: o Hanko sobe do mesmo jeito.
+func CheckLocale(ctx context.Context, pool *pgxpool.Pool, logger *slog.Logger) {
+	var ctype string
+	if err := pool.QueryRow(ctx, `SELECT datctype FROM pg_database WHERE datname = current_database()`).Scan(&ctype); err != nil {
+		logger.Debug("não foi possível ler o lc_ctype do banco", "err", err.Error())
+		return
+	}
+	if CtypeIsC(ctype) {
+		logger.Warn("o banco está com lc_ctype=C: a busca não acha maiúsculas nem letras fora do ASCII; recrie o banco com um locale UTF-8 (ex.: C.UTF-8 ou en_US.UTF-8)", "lc_ctype", ctype)
+	}
+}

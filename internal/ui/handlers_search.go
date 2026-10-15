@@ -77,7 +77,7 @@ func (s *server) handleSearch(w http.ResponseWriter, r *http.Request, co domain.
 		}
 	}
 	base := "/c/" + co.Slug
-	hasMem := s.memoryAvailable()
+	hasMem := s.be.MemorySearchAvailable(ctx)
 	vm := views.SearchVM{Query: q, Type: typ, HasMemo: hasMem,
 		Subtitle: i18n.T(ctx, "Uma busca só em tasks, comentários, personas, execuções, fluxos e na memória da empresa.")}
 
@@ -113,6 +113,8 @@ func (s *server) handleSearch(w http.ResponseWriter, r *http.Request, co domain.
 			for _, g := range res.Groups {
 				vm.Groups = append(vm.Groups, s.searchGroupVM(ctx, base, g, now, loc))
 			}
+		case errors.Is(err, service.ErrSearchTooSlow):
+			vm.Error = i18n.T(ctx, "A busca demorou demais; use palavras mais específicas.")
 		case errors.Is(err, domain.ErrInvalid):
 			vm.Error = i18n.T(ctx, "Use ao menos uma palavra (letras ou números) na busca.")
 		default:
@@ -128,8 +130,6 @@ func (s *server) handleSearch(w http.ResponseWriter, r *http.Request, co domain.
 	sh := s.shell(r, co, "buscar", i18n.T(ctx, "Buscar"), views.Crumb{Label: i18n.T(ctx, "Buscar")})
 	s.render(w, r, http.StatusOK, views.SearchPage(sh, vm))
 }
-
-func (s *server) memoryAvailable() bool { return s.be.MemoryAvailable() }
 
 func (s *server) searchGroupVM(ctx context.Context, base string, g service.SearchGroup, now time.Time, loc *time.Location) views.SearchGroupVM {
 	gv := views.SearchGroupVM{Icon: searchTypeIcon(g.Type), Label: searchTypeLabel(ctx, g.Type), Count: len(g.Hits), More: g.More, Unavailable: g.Unavailable}

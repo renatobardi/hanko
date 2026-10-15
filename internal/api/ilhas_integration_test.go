@@ -152,3 +152,27 @@ func TestAPIMoverNoOrganograma(t *testing.T) {
 		t.Fatalf("ao topo: %+v", got)
 	}
 }
+
+// Eventos de uma run de OUTRA empresa (ou inexistente) dão 404 em tail, before e after, como GET /runs/{id}: a janela
+// vazia não pode confirmar que o id existe.
+func TestAPIEventosDeRunDeOutraEmpresa(t *testing.T) {
+	e := newAPIEnv(t)
+	e.seedEventsRun(e.co, 3, 10)
+	other := e.company("Outra", "outra")
+	e.seedEventsRun(other, 5, 10)
+	var theirs, mine api.ListBody[api.Run]
+	e.want(200, "GET", "/api/v1/companies/"+other.Slug+"/runs", "", &theirs)
+	e.want(200, "GET", e.base()+"/runs", "", &mine)
+	if len(theirs.Items) != 1 || len(mine.Items) != 1 {
+		t.Fatalf("runs: %d %d", len(theirs.Items), len(mine.Items))
+	}
+	for _, q := range []string{"", "?tail=true", "?before=3", "?after=0", "?after=2&limit=5"} {
+		if status, b := e.call("GET", e.base()+"/runs/"+theirs.Items[0].ID+"/events"+q, "", nil); status != http.StatusNotFound {
+			t.Errorf("run de outra empresa %q: %d %s", q, status, b)
+		}
+		if status, b := e.call("GET", e.base()+"/runs/"+domain.NewID().String()+"/events"+q, "", nil); status != http.StatusNotFound {
+			t.Errorf("run inexistente %q: %d %s", q, status, b)
+		}
+	}
+	e.want(200, "GET", e.base()+"/runs/"+mine.Items[0].ID+"/events?tail=true", "", nil)
+}

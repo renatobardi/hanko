@@ -508,7 +508,7 @@ func (q *Queries) ListErrorPersonas(ctx context.Context, companyID uuid.UUID) ([
 }
 
 const listFailedRuns = `-- name: ListFailedRuns :many
-SELECT r.id, r.company_id, r.task_id, r.persona_id, r.status, r.trigger, r.agent, r.model, r.session_ref, r.trace_id, r.exit_code, r.error, r.summary, r.cost_usd, r.input_tokens, r.output_tokens, r.cache_read_tokens, r.cache_creation_tokens, r.handoff_in, r.handoff_out, r.created_at, r.started_at, r.finished_at, r.pending_result, r.cost_source, r.next_event_seq, r.model_source, r.subscription_id, r.list_cost_usd, r.name, r.search_tsv, r.workspace_id, r.workspace_source, r.conversation_id, COALESCE(c.task_prefix || '-' || t.number, '')::text AS task_key, COALESCE(t.title, '')::text AS task_title,
+SELECT r.id, r.company_id, r.task_id, r.persona_id, r.status, r.trigger, r.agent, r.model, r.session_ref, r.trace_id, r.exit_code, r.error, r.summary, r.cost_usd, r.input_tokens, r.output_tokens, r.cache_read_tokens, r.cache_creation_tokens, r.handoff_in, r.handoff_out, r.created_at, r.started_at, r.finished_at, r.pending_result, r.cost_source, r.next_event_seq, r.model_source, r.subscription_id, r.list_cost_usd, r.name, r.workspace_id, r.workspace_source, r.conversation_id, r.search_tsv, COALESCE(c.task_prefix || '-' || t.number, '')::text AS task_key, COALESCE(t.title, '')::text AS task_title,
        p.name AS persona_name, COALESCE(cv.title, '')::text AS conversation_title
 FROM runs r
 LEFT JOIN tasks t ON t.id = r.task_id
@@ -580,10 +580,10 @@ func (q *Queries) ListFailedRuns(ctx context.Context, arg ListFailedRunsParams) 
 			&i.Run.SubscriptionID,
 			&i.Run.ListCostUsd,
 			&i.Run.Name,
-			&i.Run.SearchTsv,
 			&i.Run.WorkspaceID,
 			&i.Run.WorkspaceSource,
 			&i.Run.ConversationID,
+			&i.Run.SearchTsv,
 			&i.TaskKey,
 			&i.TaskTitle,
 			&i.PersonaName,

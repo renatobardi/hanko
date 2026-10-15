@@ -56,6 +56,10 @@ English summary at the end of each release.
 - O corpo da rota de envio da API usa o limite configurado, não o máximo absoluto de 16 MiB.
 - Markdown de artefato não carrega imagem externa (vira link): sem pixel de rastreio.
 
+- Busca (ADR-0024, migration 00024): o grupo Memória só aparece quando o servidor tem a tool `memory_search` (aviso único no log); `hanko_fold` remove caracteres de formatação (hífen suave, ZWJ, BOM...) e a tokenização Go x Postgres ficou coerente (Nl, marcas combinantes), com testes de paridade estritos; prefixo só com 2+ letras (3+ em comentários) e teto de 2 s por consulta com mensagem amigável; o campo de busca usa `hx-replace-url`; `serve` avisa se o banco está em `lc_ctype=C`; RUNBOOK com locale, mudança de `hanko_fold` e instalações grandes.
+- Ilhas (ADR-0026): `mountReact` restaura o HTML do servidor se a ilha quebrar ao renderizar; destaque da busca do log com offsets corretos (`İ`); `GET /runs/{id}/events` de run de outra empresa ou inexistente dá 404; bundles reconstruídos.
+- English summary: review fixes — search memory group only with the `memory_search` tool, formatting-character folding (migration 00024), strict Go/SQL parity tests, prefix floor and 2 s statement timeout, `hx-replace-url`; islands restore the server HTML on render errors, correct highlight offsets, 404 for foreign-company run events.
+
 ## [Não lançado] — v0.1.0
 
 Primeira versão pública. Em produção em https://hanko.oute.pro desde 2026-10-14.

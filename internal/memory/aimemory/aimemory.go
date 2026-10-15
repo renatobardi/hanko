@@ -60,6 +60,13 @@ type provider struct {
 
 	mu   sync.Mutex
 	sess *sdk.ClientSession
+
+	now       func() time.Time
+	capMu     sync.Mutex
+	capAt     time.Time
+	capKnown  bool // a lista de tools foi lida (capOK vale); senão o palpite é "suportado"
+	capOK     bool
+	capLogged bool
 }
 
 // New cria o provider. Não conecta: a sessão MCP é aberta na primeira chamada.
@@ -70,6 +77,7 @@ func New(o Options) memory.Provider {
 		public:  strings.TrimRight(strings.TrimSpace(o.PublicURL), "/"),
 		log:     o.Logger,
 		timeout: o.Timeout,
+		now:     time.Now,
 
 		readTool: strings.TrimSpace(o.ReadPageTool),
 	}
@@ -318,6 +326,70 @@ func (p *provider) Search(ctx context.Context, s memory.Scope, query string, lim
 		hits = hits[:limit]
 	}
 	return hits, nil
+}
+
+const (
+	capTTL    = 5 * time.Minute  // validade da lista de tools lida com sucesso
+	capErrTTL = 30 * time.Second // validade do "não sei" quando listar falha (evita um timeout por tecla)
+)
+
+// SearchSupported diz se o servidor expõe a tool de busca (SearchTool). Lê tools/list e guarda o resultado por
+// alguns minutos; se não conseguir listar (servidor fora), responde que sim — a busca em si marcará o grupo como
+// indisponível. Quando a tool não existe, registra um aviso uma única vez (não a cada tecla).
+func (p *provider) SearchSupported(ctx context.Context) bool {
+	p.capMu.Lock()
+	defer p.capMu.Unlock()
+	if !p.capAt.IsZero() {
+		ttl := capTTL
+		if !p.capKnown {
+			ttl = capErrTTL
+		}
+		if p.now().Sub(p.capAt) < ttl {
+			return !p.capKnown || p.capOK
+		}
+	}
+	names, err := p.listTools(ctx)
+	p.capAt = p.now()
+	if err != nil {
+		p.capKnown = false
+		p.log.Debug("ai-memory: não foi possível listar as tools", "err", err.Error())
+		return true
+	}
+	p.capKnown = true
+	p.capOK = false
+	for _, n := range names {
+		if n == SearchTool {
+			p.capOK = true
+			break
+		}
+	}
+	if !p.capOK && !p.capLogged {
+		p.capLogged = true
+		p.log.Warn("ai-memory não expõe a tool de busca; o grupo Memória fica fora da busca", "tool", SearchTool)
+	}
+	if p.capOK {
+		p.capLogged = false
+	}
+	return p.capOK
+}
+
+func (p *provider) listTools(ctx context.Context) ([]string, error) {
+	ctx, cancel := context.WithTimeout(ctx, p.timeout)
+	defer cancel()
+	cs, _, err := p.session(ctx)
+	if err != nil {
+		return nil, err
+	}
+	res, err := bounded(ctx, func() (*sdk.ListToolsResult, error) { return cs.ListTools(ctx, nil) }, nil)
+	if err != nil {
+		p.drop(cs)
+		return nil, err
+	}
+	names := make([]string, 0, len(res.Tools))
+	for _, t := range res.Tools {
+		names = append(names, t.Name)
+	}
+	return names, nil
 }
 
 // parseSearch entende o resultado da tool de busca: JSON (lista, ou objeto com results/hits/pages/items) com

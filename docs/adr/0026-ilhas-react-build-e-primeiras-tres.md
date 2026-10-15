@@ -82,3 +82,14 @@ orçamento de tamanho.
 - Âncoras não entram no export/import de empresa (referenciam runs e offsets locais); o comentário é exportado sem elas.
 - Mover persona no organograma é só por arrasto (ponteiro); o teclado continua editando `reports_to` na página da persona.
 - A busca do log filtra por texto e tipo; o conteúdo de `payload` não é pesquisado (só exibido ao expandir).
+
+## Adendo (2026-10-15) — correções da revisão independente
+- **`mountReact` não deixa a tela em branco.** O HTML do host é guardado (os próprios nós, com os listeners do htmx) antes de limpar o
+  elemento; um `ErrorBoundary` em volta da ilha, ao pegar erro de renderização, desmonta a raiz e devolve os nós originais
+  (`data-island-failed="1"`, erro no console). Erros em handlers e promessas não passam por boundary e seguem como estavam.
+- **Run-log: destaque com offsets corretos.** `highlightParts` usa regex (`giu`, caracteres especiais escapados) sobre o texto original em
+  vez de baixar a caixa do texto inteiro: a minúscula de `İ` tem 2 unidades e deslocava as marcas seguintes.
+- **Eventos de outra empresa.** `GET /runs/{id}/events` (`tail`, `before`, `after`) confere a run na empresa antes de listar: run de
+  outra empresa ou inexistente é 404, como `GET /runs/{id}`, em vez de uma janela vazia que confirmaria o id.
+- **Bundle.** Reconstruído com `make islands` (o chunk `vendor` ganhou outro hash, pois o `Component` do React entrou nele); duas
+  construções seguidas produzem arquivos idênticos.

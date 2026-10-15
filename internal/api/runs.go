@@ -98,6 +98,10 @@ func (s *server) registerRuns(api huma.API) {
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}
+			// run de outra empresa (ou inexistente) é 404, como GET /runs/{id}; sem isso a janela vazia vazaria a existência
+			if _, err := s.svc.GetRun(ctx, sc.Company.ID, rid); err != nil {
+				return nil, s.fail(ctx, err)
+			}
 			var es []domain.RunEvent
 			if in.Tail || in.Before > 0 {
 				if in.After > 0 {

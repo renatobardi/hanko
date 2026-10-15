@@ -45,6 +45,7 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 		return err
 	}
 	defer pool.Close()
+	db.CheckLocale(ctx, pool, logger)
 
 	if cfg.MigrateOnBoot {
 		if err := db.Migrate(ctx, pool, logger, migrateOptions()); err != nil {

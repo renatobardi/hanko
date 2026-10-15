@@ -554,3 +554,26 @@ histórico, tasks ligadas (uma meta ativa por task) e o quadro "Metas" no projet
 | Exportação com `--with-artifacts` recusada | conteúdo acima de 20 MiB | exporte sem a opção |
 | HTML ou PDF baixa em vez de abrir | proposital: só texto, Markdown e imagem raster abrem | abra o arquivo baixado |
 | Meta atingida não aceita progresso | status `achieved` | reabra (admin) trocando para ativa; recusado enquanto o valor atual já alcança o alvo |
+
+## Busca (ADR-0024)
+
+A busca usa full-text do Postgres sobre colunas `search_tsv` geradas a partir de `hanko_fold(texto)` (caixa, acentos, pontuação ASCII e
+caracteres de formatação Unicode). Pontos de operação:
+
+- **Locale do banco.** O banco **não pode estar em `lc_ctype=C`/`POSIX`**: nele `lower()` e o tokenizador só entendem ASCII, e a
+  busca deixa de achar maiúsculas e letras fora do ASCII. Use um locale UTF-8 (`C.UTF-8`, `en_US.UTF-8`, `pt_BR.UTF-8`). O `hanko serve`
+  consulta `pg_database.datctype` no boot e registra um aviso (`o banco está com lc_ctype=C`) se for o caso. Confira com
+  `SELECT datctype FROM pg_database WHERE datname = current_database();`. Trocar o locale exige recriar o banco (dump/restore).
+- **Alterar `hanko_fold` exige migration que recrie as colunas.** A função é usada por colunas geradas (`STORED`) e por índices GIN:
+  `CREATE OR REPLACE FUNCTION` não recalcula as linhas existentes nem reindexa. Toda mudança na dobra (nova letra na tabela, outra
+  regra) precisa derrubar índices e colunas `search_tsv`, trocar a função e recriar tudo, como faz a migration 00024; e a tabela
+  equivalente em Go (`internal/search`) muda junto (o teste de paridade confere os dois lados).
+- **Instalações grandes.** As migrations 00015 e 00024 reescrevem `tasks`, `task_comments`, `personas`, `runs` e `flows` e constroem
+  os GIN com bloqueio de escrita (~25 s com 80 mil runs, 60 mil comentários e 30 mil tasks). Se a janela não couber, aplique a mão, antes
+  de subir a versão, a variante concorrente: adicione a coluna gerada e crie cada índice com `CREATE INDEX CONCURRENTLY` (fora de
+  transação) e só então marque a migration como aplicada. O `ADD COLUMN … GENERATED … STORED` ainda reescreve a tabela; o ganho é
+  não segurar o bloqueio durante a construção do GIN.
+- **Teto por consulta.** Cada grupo da busca roda numa transação somente leitura com `statement_timeout` de 2 s; estourar devolve 422
+  ("a busca demorou demais; use palavras mais específicas"). A última palavra só casa por prefixo com 2+ letras (3+ em comentários).
+- **Memória na busca.** O grupo "Memória" só aparece se o servidor de memória lista a tool `memory_search` (lido de `tools/list`, com
+  cache de 5 min). Sem ela o grupo some e o log registra um aviso uma única vez; a consolidação (ADR-0030) não depende dessa tool.

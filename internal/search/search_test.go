@@ -15,7 +15,10 @@ func TestParse(t *testing.T) {
 		{"foo-bar", `(('foo' <-> 'bar':*))`},
 		{"deploy -staging", `('deploy':* & !'staging')`},
 		{"login OR logout", `('login') | ('logout':*)`},
-		{"a'; drop table x; --", `('a' & 'drop' & 'table' & 'x':*)`},
+		{"a'; drop table x; --", `('a' & 'drop' & 'table' & 'x')`}, // "x" tem 1 runa: sem prefixo
+		{"deploy a", `('deploy' & 'a')`},
+		{"deploy ab", `('deploy' & 'ab':*)`},
+		{"co\u00ADoperar", `('cooperar':*)`},
 	}
 	for _, c := range cases {
 		q, err := Parse(c.in)
@@ -111,5 +114,73 @@ func TestMarkTitulo(t *testing.T) {
 	}
 	if n != 2 {
 		t.Errorf("marcas = %d, quer 2", n)
+	}
+}
+
+// Prefixo de uma letra varre o índice inteiro: só vale a partir de MinPrefixRunes; comentários pedem mais (WithMinPrefix).
+func TestPrefixoMinimo(t *testing.T) {
+	q, err := Parse("erro de")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if q.TSQuery != `('erro' & 'de':*)` || !q.Terms[1].Prefix {
+		t.Fatalf("2 runas ainda casam por prefixo: %s %+v", q.TSQuery, q.Terms)
+	}
+	c := q.WithMinPrefix(3)
+	if c.TSQuery != `('erro' & 'de')` || c.Terms[1].Prefix {
+		t.Errorf("com mínimo 3 'de' é exato (e não é destacado como prefixo): %s %+v", c.TSQuery, c.Terms)
+	}
+	if q.TSQuery != `('erro' & 'de':*)` {
+		t.Error("WithMinPrefix não pode alterar a consulta original")
+	}
+	if got := c.WithMinPrefix(0).TSQuery; got != `('erro' & 'de':*)` {
+		t.Errorf("mínimo abaixo do piso vale o piso: %s", got)
+	}
+	// runa, não byte: "só" tem 3 bytes e 2 runas
+	if q, _ := Parse("só"); q.TSQuery != `('so':*)` {
+		t.Errorf("duas runas: %s", q.TSQuery)
+	}
+	// frase com prefixo no fim
+	if q, _ := Parse(`"erro de r"`); q.TSQuery != `(('erro' <-> 'de' <-> 'r'))` {
+		t.Errorf("frase terminando em 1 runa: %s", q.TSQuery)
+	}
+}
+
+// Caracteres de formatação (Cf) somem da dobra e do texto mostrado; offsets do destaque seguem alinhados.
+func TestFoldRemoveFormatacao(t *testing.T) {
+	in := "co\u00ADoperar a\u200Db \uFEFFx\u200Bz"
+	if got := Fold(in); got != "cooperar ab xz" {
+		t.Errorf("Fold = %q", got)
+	}
+	q, _ := Parse("cooperar")
+	segs := Snippet("vamos co\u00ADoperar já", q, 100)
+	if got := Plain(segs); got != "vamos cooperar já" {
+		t.Errorf("texto mostrado = %q", got)
+	}
+	var marked []string
+	for _, sg := range segs {
+		if sg.Match {
+			marked = append(marked, sg.Text)
+		}
+	}
+	if len(marked) != 1 || marked[0] != "cooperar" {
+		t.Errorf("marcas = %q", marked)
+	}
+}
+
+// Números-letra (Nl), marcas combinantes e letras circuladas são palavra, como no tokenizador do Postgres.
+func TestPalavrasUnicode(t *testing.T) {
+	cases := map[string][]string{
+		"Ⅷ capítulo":  {"ⅷ", "capitulo"},
+		"e\u0301cole": {"e\u0301cole"}, // "é" decomposto não parte a palavra
+		"Ⓐbc def":     {"ⓐbc", "def"},
+		"a\u2019b":    {"a", "b"}, // apóstrofo tipográfico separa
+		"日本語のテキスト":    {"日本語のテキスト"},
+	}
+	for in, want := range cases {
+		got := words(Fold(in))
+		if strings.Join(got, "|") != strings.Join(want, "|") {
+			t.Errorf("words(%q) = %q, quer %q", in, got, want)
+		}
 	}
 }

@@ -28,7 +28,7 @@ templ SearchPage(sh Shell, vm SearchVM) {
 				hx-trigger="input changed delay:250ms, search"
 				hx-target="#search-results"
 				hx-swap="outerHTML"
-				hx-push-url="true"
+				hx-replace-url="true"
 			/>
 			if vm.Type != "" {
 				<input type="hidden" name="tipo" value={ vm.Type }/>

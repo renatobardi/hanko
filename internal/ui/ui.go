@@ -80,7 +80,7 @@ type Backend interface {
 
 	ListActivity(ctx context.Context, companyID domain.ID, f service.ActivityFilter) ([]domain.ActivityEvent, error)
 	Search(ctx context.Context, companyID domain.ID, q string, f service.SearchFilter) (service.SearchResult, error)
-	MemoryAvailable() bool
+	MemorySearchAvailable(ctx context.Context) bool
 	Dashboard(ctx context.Context, companyID domain.ID) (service.DashboardStats, error)
 
 	ListGates(ctx context.Context, companyID domain.ID, f service.GateFilter) ([]service.GateView, error)

@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { Component, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 
 /** Textos já traduzidos pelo host (data-msgs, JSON). Não há catálogo no JS: chave ausente cai na própria chave. */
@@ -33,9 +33,44 @@ export function readJSON<V>(el: HTMLElement, name: string, fallback: V): V {
   }
 }
 
-/** Monta a ilha no elemento. Os filhos do host (versão htmx) ficam como fallback até o React assumir. */
+/**
+ * Pega erro de renderização da ilha e chama onError (uma vez). Renderiza nada: quem restaura o HTML do host é o
+ * mountReact, depois de desmontar a raiz (desmontar de dentro do commit que falhou não é seguro).
+ */
+class IslandBoundary extends Component<{ onError: (e: unknown) => void; children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  componentDidCatch(error: unknown) {
+    this.props.onError(error);
+  }
+  render() {
+    return this.state.failed ? null : this.props.children;
+  }
+}
+
+/**
+ * Monta a ilha no elemento. Os filhos do host (versão htmx/SVG) ficam guardados e voltam, intactos, se a ilha
+ * quebrar ao renderizar: a tela nunca fica em branco por causa do JS (ADR-0026, "sem JS" é o fallback).
+ */
 export function mountReact(el: HTMLElement, node: ReactNode): void {
+  const original = Array.from(el.childNodes); // os próprios nós (com listeners do htmx), não uma cópia do HTML
   el.replaceChildren();
-  createRoot(el).render(node);
+  const root = createRoot(el);
+  let restored = false;
+  const restore = (error: unknown) => {
+    if (restored) return;
+    restored = true;
+    console.error("hanko: a ilha falhou ao renderizar; restaurando o HTML do servidor", error);
+    // fora do commit com erro: primeiro desmonta, depois devolve o HTML original
+    setTimeout(() => {
+      root.unmount();
+      el.replaceChildren(...original);
+      delete el.dataset.islandMounted;
+      el.dataset.islandFailed = "1";
+    }, 0);
+  };
+  root.render(<IslandBoundary onError={restore}>{node}</IslandBoundary>);
   el.dataset.islandMounted = "1";
 }

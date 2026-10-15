@@ -2,7 +2,7 @@ import { memo, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMem
 import type { ReactElement } from "react";
 import { ApiError, requestJSON, type FetchLike } from "../shared/api";
 import { makeT, type Msgs } from "../shared/island";
-import { clock, kindLabel, oneLine, prettyPayload } from "./format";
+import { clock, highlightParts, kindLabel, oneLine, prettyPayload } from "./format";
 import { KINDS, filterEvents, lowerBoundSeq, mergeEvents, type RunEvent } from "./store";
 import { makeLayout, visibleRange, ROW_H } from "./virtual";
 
@@ -353,16 +353,8 @@ const Row = memo(function Row({ e, index, total, top, height, open, onToggle, qu
 });
 
 function Highlight({ text, q }: { text: string; q: string }) {
-  const needle = q.trim().toLowerCase();
-  if (!needle) return <>{text}</>;
-  const hay = text.toLowerCase();
-  const out: (string | ReactElement)[] = [];
-  let from = 0;
-  for (let i = hay.indexOf(needle); i >= 0; i = hay.indexOf(needle, from)) {
-    if (i > from) out.push(text.slice(from, i));
-    out.push(<mark key={i}>{text.slice(i, i + needle.length)}</mark>);
-    from = i + needle.length;
-  }
-  out.push(text.slice(from));
+  const parts = highlightParts(text, q);
+  if (parts.every((p) => !p.match)) return <>{text}</>;
+  const out: (string | ReactElement)[] = parts.map((p, i) => (p.match ? <mark key={i}>{p.text}</mark> : p.text));
   return <>{out}</>;
 }
