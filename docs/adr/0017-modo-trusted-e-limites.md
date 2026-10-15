@@ -1,5 +1,5 @@
 # ADR-0017 — Modo trusted: premissas, limites e mitigações do v0.1
-Data: 2026-10-13 · Status: aceita (decisão de isolamento pendente do dono)
+Data: 2026-10-13 · Status: aceita (decisão do dono em 2026-10-14: `authenticated` sempre — ver seção "Decisão")
 
 ## Contexto
 O modo `trusted` (ADR-0007) não autentica humanos: quem alcança o Hanko age como operador. O Hanko também executa harnesses

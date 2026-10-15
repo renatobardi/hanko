@@ -20,8 +20,11 @@ Requisitos: Go 1.27 e Docker (Compose v2).
 ```bash
 cp .env.example .env                      # ajuste senhas e AI_MEMORY_IMAGE
 docker compose -f deploy/compose.yaml --env-file .env up -d postgres ai-memory otel-lgtm
-make dev                                  # http://127.0.0.1:7420
+export HANKO_SECRET=$(openssl rand -hex 32)  # o modo padrão é authenticated: exige segredo e um dono
+go run ./cmd/hanko auth create-owner --email voce@exemplo.com --name "Seu nome"   # senha em HANKO_OWNER_PASSWORD ou na stdin
+make dev                                  # http://127.0.0.1:7420 → /entrar
 ```
+Passo a passo completo (personas, tasks, runs): `docs/SESSION.md`, seção "Teste em 5 minutos".
 
 Outros alvos: `make build`, `make test`, `make lint`, `make up` (stack completa em container).
 Configuração: `hanko.example.yaml` e variáveis `HANKO_*` (ver `.env.example`); OpenTelemetry sempre ligado, exportando para `OTEL_EXPORTER_OTLP_ENDPOINT` (default `localhost:4317`).
