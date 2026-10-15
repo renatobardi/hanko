@@ -1,0 +1,159 @@
+package views
+
+import "github.com/renatobardi/hanko/internal/i18n"
+
+// memoryCard is the "Memória" section of the company settings: consolidation switch, interval, curator,
+// run now, and the history of curation rounds and proposals. Writes that remove, merge or rewrite pages
+// are decided in the Inbox; here the human only follows them.
+templ memoryCard(sh Shell, m MemoryVM) {
+	if m.Show {
+		<div class="card pad form-card" style="margin-bottom:20px" id="memoria">
+			<div class="card-head">
+				<div>
+					<h2>{ i18n.T(ctx, "Memória") }</h2>
+					<p class="sub">{ i18n.T(ctx, "Uma persona curadora organiza a memória da empresa em intervalos: deduplica, funde páginas redundantes, marca o que ficou obsoleto e resume o que é longo. A curadoria é uma execução como as outras, com custo e orçamento. Tudo o que remove, funde ou reescreve vira uma proposta que um humano decide na Caixa de entrada.") }</p>
+				</div>
+			</div>
+			if m.Error != "" {
+				@Alert("danger", m.Error)
+			}
+			if m.Notice != "" {
+				<div class="alert" role="status"><div>{ m.Notice }</div></div>
+			}
+			if !m.Available {
+				@EmptyCard("database", i18n.T(ctx, "Memória desligada"), i18n.T(ctx, "O provedor de memória está desligado (HANKO_MEMORY_PROVIDER=none), então não há o que consolidar. Ligue o ai-memory para usar a consolidação."), false)
+			} else {
+				<dl class="dl" style="margin-top:14px">
+					<dt>{ i18n.T(ctx, "Provedor") }</dt>
+					<dd class="mono">{ m.Provider }</dd>
+					<dt>{ i18n.T(ctx, "Última rodada") }</dt>
+					<dd>{ m.LastFire }</dd>
+					<dt>{ i18n.T(ctx, "Próxima rodada") }</dt>
+					<dd>{ m.NextFire }</dd>
+					<dt>{ i18n.T(ctx, "Propostas pendentes") }</dt>
+					<dd>
+						if m.Pending > 0 {
+							<a href={ templ.SafeURL(m.InboxHref) }>{ i18n.Tf(ctx, "%d esperando decisão", m.Pending) }</a>
+						} else {
+							{ i18n.T(ctx, "nenhuma") }
+						}
+					</dd>
+				</dl>
+				if m.CanAdmin {
+					<form method="post" action={ templ.SafeURL(sh.Base() + "/configuracoes/memoria") } style="margin-top:16px">
+						<label class="check-line">
+							<input type="checkbox" name="enabled" value="1" checked?={ m.Enabled }/>
+							<span>{ i18n.T(ctx, "Consolidação periódica ligada") }</span>
+						</label>
+						<div class="row2">
+							<div class="field">
+								<label for="mem-interval">{ i18n.T(ctx, "Intervalo (horas)") }</label>
+								<input class="input" id="mem-interval" name="interval_hours" type="number" min="1" max="720" value={ itoa(m.IntervalHours) }/>
+							</div>
+							<div class="field">
+								<label for="mem-curator">{ i18n.T(ctx, "Persona curadora") }</label>
+								@Select("curator", "mem-curator", m.Curators, false)
+								<span class="hint">{ i18n.T(ctx, "Use uma persona com um modelo barato: a curadoria lê muito e escreve pouco.") }</span>
+							</div>
+						</div>
+						<div class="form-actions">
+							<button class="btn primary" type="submit">{ i18n.T(ctx, "Salvar") }</button>
+						</div>
+					</form>
+					<form method="post" action={ templ.SafeURL(sh.Base() + "/configuracoes/memoria/consolidar") } class="inline-form" style="margin-top:12px">
+						@Select("workspace", "mem-ws", m.Workspaces, false)
+						<button class="btn" type="submit">{ i18n.T(ctx, "Consolidar agora") }</button>
+					</form>
+				}
+				if len(m.Consolidations) > 0 {
+					<h3 style="margin-top:20px">{ i18n.T(ctx, "Consolidações") }</h3>
+					<div class="table-wrap">
+						<table class="table">
+							<thead>
+								<tr>
+									<th>{ i18n.T(ctx, "Quando") }</th>
+									<th>{ i18n.T(ctx, "Workspace") }</th>
+									<th class="hide-sm">{ i18n.T(ctx, "Origem") }</th>
+									<th>{ i18n.T(ctx, "Estado") }</th>
+									<th class="hide-sm">{ i18n.T(ctx, "Task") }</th>
+									<th class="hide-sm">{ i18n.T(ctx, "Propostas") }</th>
+									<th class="hide-sm">{ i18n.T(ctx, "Custo") }</th>
+								</tr>
+							</thead>
+							<tbody>
+								for _, c := range m.Consolidations {
+									<tr class="row">
+										<td class="when">{ c.When }</td>
+										<td>{ c.Workspace }</td>
+										<td class="hide-sm">{ c.Origin }</td>
+										<td>@BadgeEl(c.Status)</td>
+										<td class="id hide-sm">
+											if c.TaskHref != "" {
+												<a href={ templ.SafeURL(c.TaskHref) }>{ c.TaskKey }</a>
+											} else {
+												—
+											}
+										</td>
+										<td class="hide-sm">{ itoa(c.Proposals) }</td>
+										<td class="hide-sm">{ c.Cost }</td>
+									</tr>
+								}
+							</tbody>
+						</table>
+					</div>
+				}
+				if len(m.Proposals) > 0 {
+					<h3 style="margin-top:20px">{ i18n.T(ctx, "Propostas de curadoria") }</h3>
+					<div class="table-wrap">
+						<table class="table">
+							<thead>
+								<tr>
+									<th>{ i18n.T(ctx, "Quando") }</th>
+									<th>{ i18n.T(ctx, "Tipo") }</th>
+									<th>{ i18n.T(ctx, "Alvo") }</th>
+									<th>{ i18n.T(ctx, "Estado") }</th>
+									<th></th>
+								</tr>
+							</thead>
+							<tbody>
+								for _, p := range m.Proposals {
+									<tr class="row">
+										<td class="when">{ p.When }</td>
+										<td>{ p.Kind }</td>
+										<td>
+											<span class="mono">{ p.Target }</span>
+											<div class="sub">{ p.Workspace }</div>
+											if p.Diff != "" {
+												<details>
+													<summary>{ i18n.T(ctx, "Ver diff") }</summary>
+													<pre class="mono" style="white-space:pre-wrap">{ p.Diff }</pre>
+												</details>
+											}
+											if p.Error != "" {
+												<div class="sub">{ i18n.Tf(ctx, "Erro ao aplicar: %s", p.Error) }</div>
+											}
+											if p.NextTry != "" {
+												<div class="sub">{ i18n.Tf(ctx, "Próxima tentativa: %s", p.NextTry) }</div>
+											}
+										</td>
+										<td>@BadgeEl(p.Status)</td>
+										<td style="text-align:right">
+											if p.GateHref != "" {
+												<a class="btn sm" href={ templ.SafeURL(p.GateHref) }>{ i18n.T(ctx, "Abrir") }</a>
+											}
+											if p.CanRetry {
+												<form method="post" action={ templ.SafeURL(p.RetryHref) } style="display:inline">
+													<button class="btn sm" type="submit">{ i18n.T(ctx, "Tentar de novo") }</button>
+												</form>
+											}
+										</td>
+									</tr>
+								}
+							</tbody>
+						</table>
+					</div>
+				}
+			}
+		</div>
+	}
+}
