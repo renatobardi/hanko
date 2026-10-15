@@ -308,6 +308,28 @@ func (t *txc) subscriptionFor(p store.Persona, model string) (*domain.Subscripti
 	return &sub, nil
 }
 
+// subscriptionForHarness is subscriptionFor for a run that executes in agent, which may differ from the
+// persona's own harness (review runs): the persona's subscription when it covers that harness, otherwise
+// the company's oldest active subscription of that agent that covers the model.
+func (t *txc) subscriptionForHarness(p store.Persona, agent, model string) (*domain.Subscription, error) {
+	own := p
+	own.Agent = agent
+	sub, err := t.subscriptionFor(own, model)
+	if err != nil || sub != nil || agent == p.Agent {
+		return sub, err
+	}
+	rows, err := t.q.ListSubscriptions(t.ctx, p.CompanyID)
+	if err != nil {
+		return nil, fmt.Errorf("list subscriptions: %w", err)
+	}
+	for _, r := range rows {
+		if c := subscriptionFromRow(r); c.Covers(agent, model) {
+			return &c, nil
+		}
+	}
+	return nil, nil
+}
+
 // checkWeeklyGuard refuses a new run when the subscription's estimated usage of the week reached
 // its guard (weekly_guard_pct of the weekly limit). Same hard-stop mechanism as the budget: the
 // error wraps domain.ErrSubscriptionGuard and the caller commits the transaction anyway. The first

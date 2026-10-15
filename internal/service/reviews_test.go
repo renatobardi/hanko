@@ -553,3 +553,78 @@ func TestReviewFecharCancelaARunDeRevisao(t *testing.T) {
 		t.Fatalf("run.cancelled = %d %v", n, err)
 	}
 }
+
+// A revisão em harness alternativo é cobrada na assinatura ativa da empresa desse harness
+// (a persona autora pode ter assinatura de outro) e respeita a trava semanal dela.
+func TestReviewCobradaNaAssinaturaDoHarness(t *testing.T) {
+	ctx := context.Background()
+	altHarness := func(in *service.HirePersonaInput, e *env) domain.Persona {
+		in.ReviewerAgent, in.ReviewerModel = "codex", "gpt-rev"
+		return domain.Persona{}
+	}
+	t.Run("cobre", func(t *testing.T) {
+		r := newReviewEnv(t, altHarness)
+		claudeSub := r.sub(t, func(in *service.CreateSubscriptionInput) { in.Name = "Claude"; in.Agent = "claude" })
+		codexSub := r.sub(t, func(in *service.CreateSubscriptionInput) { in.Name = "Codex"; in.Agent = "codex" })
+		if _, err := r.svc.UpdatePersona(ctx, domain.HumanActor, r.co.ID, r.author.ID, service.UpdatePersonaInput{SubscriptionID: &claudeSub.ID}); err != nil {
+			t.Fatal(err)
+		}
+		r.closeTask(t)
+		r.finishAuthor(t)
+		run := r.startReview(t)
+		if run.SubscriptionID == nil || *run.SubscriptionID != codexSub.ID {
+			t.Fatalf("assinatura da run de revisão = %v, want %s", run.SubscriptionID, codexSub.ID)
+		}
+	})
+	t.Run("trava semanal", func(t *testing.T) {
+		r := newReviewEnv(t, altHarness)
+		codexSub := r.sub(t, func(in *service.CreateSubscriptionInput) {
+			in.Name, in.Agent, in.WeeklyLimitUSD, in.WeeklyGuardPct = "Codex", "codex", ptr(10.0), 80
+		})
+		other := r.persona(t, "Outra", func(in *service.HirePersonaInput) { in.Agent = "codex"; in.SubscriptionID = &codexSub.ID })
+		r.spend(t, other, time.Now(), nil, usd(9))
+		r.svc.Now = time.Now
+		r.closeTask(t)
+		r.finishAuthor(t)
+		if err := r.svc.StartReview(ctx, r.co.ID, r.jobs.reviews[0]); err != nil {
+			t.Fatal(err)
+		}
+		gs := r.pendingGates(t)
+		if len(gs) != 1 || gs[0].Review == nil || gs[0].Review.Verdict != "" || !strings.Contains(gs[0].Review.Justification, "trava semanal") {
+			t.Fatalf("gate: %+v", gs)
+		}
+	})
+}
+
+// Revisor alternativo igual à autora (mesmo agent e mesmo modelo) não é segunda opinião.
+func TestReviewerAlternativoIgualAAutora(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	a, err := e.svc.HirePersona(ctx, domain.HumanActor, e.co.ID, service.HirePersonaInput{Name: "A", Agent: "claude", Model: "m1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	upd := func(in service.UpdatePersonaInput) error {
+		_, err := e.svc.UpdatePersona(ctx, domain.HumanActor, e.co.ID, a.ID, in)
+		return err
+	}
+	if err := upd(service.UpdatePersonaInput{ReviewerAgent: ptr("claude"), ReviewerModel: ptr("m1")}); err == nil {
+		t.Error("mesmo agent e modelo deveria falhar")
+	}
+	if err := upd(service.UpdatePersonaInput{ReviewerAgent: ptr("claude"), ReviewerModel: ptr("m2")}); err != nil {
+		t.Errorf("modelo diferente: %v", err)
+	}
+	if err := upd(service.UpdatePersonaInput{ReviewerAgent: ptr("codex"), ReviewerModel: ptr("m1")}); err != nil {
+		t.Errorf("agent diferente: %v", err)
+	}
+	if err := upd(service.UpdatePersonaInput{ReviewerAgent: ptr("claude"), ReviewerModel: ptr("m2")}); err != nil {
+		t.Fatal(err)
+	}
+	// a autora passando a usar o modelo do revisor também é refutada
+	if err := upd(service.UpdatePersonaInput{Model: ptr("m2")}); err == nil {
+		t.Error("autora igualando o revisor deveria falhar")
+	}
+	if _, err := e.svc.HirePersona(ctx, domain.HumanActor, e.co.ID, service.HirePersonaInput{Name: "B", Agent: "claude", Model: "m1", ReviewerAgent: "claude", ReviewerModel: "m1"}); err == nil {
+		t.Error("contratar com revisor igual deveria falhar")
+	}
+}

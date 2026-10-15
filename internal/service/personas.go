@@ -75,7 +75,7 @@ func (s *Service) HirePersona(ctx context.Context, actor domain.Actor, companyID
 			}
 		}
 		if in.ReviewerPersona != nil || in.ReviewerAgent != "" || in.ReviewerModel != "" {
-			rp, ra, rm, err := t.checkReviewer(companyID, row.ID, in.ReviewerPersona, in.ReviewerAgent, in.ReviewerModel)
+			rp, ra, rm, err := t.checkReviewer(companyID, row.ID, row.Agent, row.Model, in.ReviewerPersona, in.ReviewerAgent, in.ReviewerModel)
 			if err != nil {
 				return err
 			}
@@ -255,11 +255,14 @@ func (s *Service) UpdatePersona(ctx context.Context, actor domain.Actor, company
 			rvPersona = nil
 		}
 		reviewerChanged := !sameID(rvPersona, cur.ReviewerPersonaID) || rvAgent != cur.ReviewerAgent || rvModel != cur.ReviewerModel
-		if reviewerChanged {
-			if rvPersona, rvAgent, rvModel, err = t.checkReviewer(companyID, personaID, rvPersona, rvAgent, rvModel); err != nil {
+		// An alternate harness must stay different from the author's: also re-check when only the author's model moved.
+		if reviewerChanged || (p.Model != cur.Model && rvPersona == nil && rvAgent != "") {
+			if rvPersona, rvAgent, rvModel, err = t.checkReviewer(companyID, personaID, cur.Agent, p.Model, rvPersona, rvAgent, rvModel); err != nil {
 				return err
 			}
-			changed = append(changed, "reviewer")
+			if reviewerChanged {
+				changed = append(changed, "reviewer")
+			}
 		}
 		if in.ClearSubscription && cur.SubscriptionID != nil {
 			p.SubscriptionID = nil
@@ -342,8 +345,9 @@ func sameID(a, b *domain.ID) bool {
 }
 
 // checkReviewer validates a reviewer configuration: either another persona of the company or an
-// alternate harness (agent, optionally a model) for the same role, never both and never itself.
-func (t *txc) checkReviewer(companyID, personaID domain.ID, reviewer *domain.ID, agent, model string) (*domain.ID, string, string, error) {
+// alternate harness (agent, optionally a model) for the same role, never both and never itself. An
+// alternate harness identical to the author's own (same agent and same model) is no second opinion.
+func (t *txc) checkReviewer(companyID, personaID domain.ID, authorAgent, authorModel string, reviewer *domain.ID, agent, model string) (*domain.ID, string, string, error) {
 	agent, model = strings.TrimSpace(agent), strings.TrimSpace(model)
 	switch {
 	case reviewer != nil && (agent != "" || model != ""):
@@ -360,6 +364,9 @@ func (t *txc) checkReviewer(companyID, personaID domain.ID, reviewer *domain.ID,
 		return nil, "", "", domain.Invalid("reviewer_agent", "required when reviewer_model is set")
 	case agent != "" && !domain.ValidAgent(agent):
 		return nil, "", "", domain.Invalid("reviewer_agent", fmt.Sprintf("unknown agent %q (want one of %v)", agent, domain.KnownAgents))
+	}
+	if agent != "" && agent == authorAgent && model == strings.TrimSpace(authorModel) {
+		return nil, "", "", domain.Invalid("reviewer_agent", "the alternate harness is the same as the author's (same agent and model); change the agent or the model")
 	}
 	return nil, agent, model, nil
 }

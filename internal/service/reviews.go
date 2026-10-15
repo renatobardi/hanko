@@ -188,11 +188,9 @@ func (s *Service) StartReview(ctx context.Context, companyID, reviewID domain.ID
 		}
 		sum := sha256.Sum256([]byte(artifact))
 		sha := hex.EncodeToString(sum[:])
-		// The harness of the review may differ from the persona's: the subscription must cover that one.
-		billed := runPersona
-		billed.Agent = rv.Agent
+		// The harness of the review may differ from the persona's: charge the subscription of that harness.
 		model, modelSource := domain.ResolveModel("", rv.Model)
-		sub, err := t.subscriptionFor(billed, model)
+		sub, err := t.subscriptionForHarness(runPersona, rv.Agent, model)
 		if err != nil {
 			return err
 		}
