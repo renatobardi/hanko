@@ -12,11 +12,11 @@ PUBLIC_HOST="${PUBLIC_HOST:-hanko.oute.pro}"
 COMPOSE="${COMPOSE:-/opt/app/docker-compose.yml}"
 fail=0
 
-check() { # nome, status esperado, curl args...
+check() { # nome, status(es) esperado(s) separados por |, curl args...
   local name="$1" want="$2"; shift 2
   local got
   got="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$@")"
-  if [[ "$got" == "$want" ]]; then
+  if [[ "|$want|" == *"|$got|"* ]]; then
     printf '  ok    %-44s %s\n' "$name" "$got"
   else
     printf '  FALHA %-44s esperado %s, veio %s\n' "$name" "$want" "$got"
@@ -27,7 +27,8 @@ check() { # nome, status esperado, curl args...
 echo "==> smoke ${BASE} (Host: ${PUBLIC_HOST})"
 check "healthz"                          200 -H "Host: ${PUBLIC_HOST}" "${BASE}/healthz"
 check "readyz (Postgres + migrations)"   200 -H "Host: ${PUBLIC_HOST}" "${BASE}/readyz"
-check "metrics"                          200 -H "Host: ${PUBLIC_HOST}" "${BASE}/metrics"
+# /metrics: 200 só no loopback direto ou com API key; atrás do NAT do Docker (prd) a recusa 401 é o esperado
+check "metrics (200 local, 401 sem chave)"  "200|401" -H "Host: ${PUBLIC_HOST}" "${BASE}/metrics"
 check "tela de login"                    200 -H "Host: ${PUBLIC_HOST}" "${BASE}/entrar"
 check "UI sem sessão redireciona"        303 -H "Host: ${PUBLIC_HOST}" "${BASE}/"
 check "API sem token é recusada"         401 -H "Host: ${PUBLIC_HOST}" "${BASE}/api/v1/companies"
