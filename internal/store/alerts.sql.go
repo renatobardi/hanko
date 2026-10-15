@@ -314,7 +314,7 @@ FROM runs r
 JOIN personas p ON p.id = r.persona_id
 JOIN tasks t ON t.id = r.task_id
 JOIN companies c ON c.id = r.company_id
-LEFT JOIN LATERAL (SELECT max(e.received_at) AS last_at FROM run_events e WHERE e.run_id = r.id) ev ON true
+LEFT JOIN LATERAL (SELECT e.received_at AS last_at FROM run_events e WHERE e.run_id = r.id ORDER BY e.seq DESC LIMIT 1) ev ON true
 WHERE r.status = 'running'
   AND COALESCE(ev.last_at, r.started_at, r.created_at) <= $1::timestamptz
 ORDER BY r.company_id, r.id
@@ -332,6 +332,7 @@ type ListStuckRunsRow struct {
 }
 
 // Runs em 'running' cujo último evento (ou, sem eventos, o início) é anterior a @cutoff.
+// Último evento = o de maior seq (uma sonda no índice (run_id, seq) por run, em vez de ler todos os eventos da run).
 func (q *Queries) ListStuckRuns(ctx context.Context, cutoff time.Time) ([]ListStuckRunsRow, error) {
 	rows, err := q.db.Query(ctx, listStuckRuns, cutoff)
 	if err != nil {

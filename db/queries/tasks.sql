@@ -32,21 +32,29 @@ LEFT JOIN runs ar ON ar.task_id = t.id AND ar.status IN ('queued', 'running')
 WHERE t.company_id = @company_id AND t.number = @number;
 
 -- name: ListTaskViews :many
+-- Ordem: updated_at DESC, number DESC (índice tasks_company_updated_idx). A página é escolhida primeiro só pelas
+-- chaves (CTE "page": com OFFSET grande o custo é de varrer o índice, sem juntar nada das linhas puladas) e só
+-- então recebe os joins; a ordenação é repetida porque o join não preserva a ordem.
+WITH page AS (
+    SELECT t0.id FROM tasks t0
+    WHERE t0.company_id = @company_id
+      AND (sqlc.narg(statuses)::text[] IS NULL OR t0.status = ANY(sqlc.narg(statuses)::text[]))
+      AND (sqlc.narg(persona_id)::uuid IS NULL OR t0.persona_id = sqlc.narg(persona_id)::uuid)
+      AND (sqlc.narg(project_id)::uuid IS NULL OR t0.project_id = sqlc.narg(project_id)::uuid)
+      AND (sqlc.narg(q)::text IS NULL OR t0.title ILIKE '%' || sqlc.narg(q)::text || '%'
+           OR t0.description ILIKE '%' || sqlc.narg(q)::text || '%')
+    ORDER BY t0.updated_at DESC, t0.number DESC
+    LIMIT @lim OFFSET @off
+)
 SELECT sqlc.embed(t), COALESCE(p.name, '')::text AS persona_name, COALESCE(pr.name, '')::text AS project_name,
        ar.id AS active_run_id, c.task_prefix
-FROM tasks t
+FROM page
+JOIN tasks t ON t.id = page.id
 JOIN companies c ON c.id = t.company_id
 LEFT JOIN personas p ON p.id = t.persona_id
 LEFT JOIN projects pr ON pr.id = t.project_id
 LEFT JOIN runs ar ON ar.task_id = t.id AND ar.status IN ('queued', 'running')
-WHERE t.company_id = @company_id
-  AND (sqlc.narg(statuses)::text[] IS NULL OR t.status = ANY(sqlc.narg(statuses)::text[]))
-  AND (sqlc.narg(persona_id)::uuid IS NULL OR t.persona_id = sqlc.narg(persona_id)::uuid)
-  AND (sqlc.narg(project_id)::uuid IS NULL OR t.project_id = sqlc.narg(project_id)::uuid)
-  AND (sqlc.narg(q)::text IS NULL OR t.title ILIKE '%' || sqlc.narg(q)::text || '%'
-       OR t.description ILIKE '%' || sqlc.narg(q)::text || '%')
-ORDER BY t.updated_at DESC, t.number DESC
-LIMIT @lim OFFSET @off;
+ORDER BY t.updated_at DESC, t.number DESC;
 
 -- name: UpdateTask :one
 UPDATE tasks

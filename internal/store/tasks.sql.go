@@ -259,21 +259,26 @@ func (q *Queries) GetTaskViewByNumber(ctx context.Context, arg GetTaskViewByNumb
 }
 
 const listTaskViews = `-- name: ListTaskViews :many
+WITH page AS (
+    SELECT t0.id FROM tasks t0
+    WHERE t0.company_id = $1
+      AND ($2::text[] IS NULL OR t0.status = ANY($2::text[]))
+      AND ($3::uuid IS NULL OR t0.persona_id = $3::uuid)
+      AND ($4::uuid IS NULL OR t0.project_id = $4::uuid)
+      AND ($5::text IS NULL OR t0.title ILIKE '%' || $5::text || '%'
+           OR t0.description ILIKE '%' || $5::text || '%')
+    ORDER BY t0.updated_at DESC, t0.number DESC
+    LIMIT $7 OFFSET $6
+)
 SELECT t.id, t.company_id, t.number, t.title, t.description, t.status, t.priority, t.persona_id, t.project_id, t.workspace_id, t.parent_id, t.created_by_type, t.created_by_id, t.created_at, t.updated_at, t.closed_at, t.last_human_change_at, t.model, COALESCE(p.name, '')::text AS persona_name, COALESCE(pr.name, '')::text AS project_name,
        ar.id AS active_run_id, c.task_prefix
-FROM tasks t
+FROM page
+JOIN tasks t ON t.id = page.id
 JOIN companies c ON c.id = t.company_id
 LEFT JOIN personas p ON p.id = t.persona_id
 LEFT JOIN projects pr ON pr.id = t.project_id
 LEFT JOIN runs ar ON ar.task_id = t.id AND ar.status IN ('queued', 'running')
-WHERE t.company_id = $1
-  AND ($2::text[] IS NULL OR t.status = ANY($2::text[]))
-  AND ($3::uuid IS NULL OR t.persona_id = $3::uuid)
-  AND ($4::uuid IS NULL OR t.project_id = $4::uuid)
-  AND ($5::text IS NULL OR t.title ILIKE '%' || $5::text || '%'
-       OR t.description ILIKE '%' || $5::text || '%')
 ORDER BY t.updated_at DESC, t.number DESC
-LIMIT $7 OFFSET $6
 `
 
 type ListTaskViewsParams struct {
@@ -294,6 +299,9 @@ type ListTaskViewsRow struct {
 	TaskPrefix  string
 }
 
+// Ordem: updated_at DESC, number DESC (índice tasks_company_updated_idx). A página é escolhida primeiro só pelas
+// chaves (CTE "page": com OFFSET grande o custo é de varrer o índice, sem juntar nada das linhas puladas) e só
+// então recebe os joins; a ordenação é repetida porque o join não preserva a ordem.
 func (q *Queries) ListTaskViews(ctx context.Context, arg ListTaskViewsParams) ([]ListTaskViewsRow, error) {
 	rows, err := q.db.Query(ctx, listTaskViews,
 		arg.CompanyID,

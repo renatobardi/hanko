@@ -588,20 +588,26 @@ func (q *Queries) ListFailedRuns(ctx context.Context, arg ListFailedRunsParams) 
 }
 
 const listGateViews = `-- name: ListGateViews :many
+WITH page AS (
+    SELECT g0.id FROM gates g0
+    WHERE g0.company_id = $1
+      AND ($2::text[] IS NULL OR g0.status = ANY($2::text[]))
+      AND ($3::text[] IS NULL OR g0.kind = ANY($3::text[]))
+      AND ($4::uuid IS NULL OR g0.task_id = $4::uuid)
+      AND ($5::uuid IS NULL OR g0.persona_id = $5::uuid)
+    ORDER BY CASE WHEN g0.status = 'pending' THEN g0.created_at END ASC NULLS LAST,
+             g0.decided_at DESC NULLS LAST, g0.created_at DESC, g0.id DESC
+    LIMIT $7 OFFSET $6
+)
 SELECT g.id, g.company_id, g.kind, g.status, g.title, g.body, g.task_id, g.run_id, g.persona_id, g.requested_by_type, g.requested_by_id, g.decided_by_type, g.decided_by_id, g.decision_note, g.event_id, g.created_at, g.decided_at, g.requested_status, g.review_reviewer, g.review_verdict, g.review_justification, g.review_artifact_sha256, g.review_run_id, COALESCE(c.task_prefix || '-' || t.number, '')::text AS task_key, COALESCE(t.title, '')::text AS task_title,
        COALESCE(p.name, '')::text AS persona_name
-FROM gates g
+FROM page
+JOIN gates g ON g.id = page.id
 JOIN companies c ON c.id = g.company_id
 LEFT JOIN tasks t ON t.id = g.task_id
 LEFT JOIN personas p ON p.id = g.persona_id
-WHERE g.company_id = $1
-  AND ($2::text[] IS NULL OR g.status = ANY($2::text[]))
-  AND ($3::text[] IS NULL OR g.kind = ANY($3::text[]))
-  AND ($4::uuid IS NULL OR g.task_id = $4::uuid)
-  AND ($5::uuid IS NULL OR g.persona_id = $5::uuid)
 ORDER BY CASE WHEN g.status = 'pending' THEN g.created_at END ASC NULLS LAST,
          g.decided_at DESC NULLS LAST, g.created_at DESC, g.id DESC
-LIMIT $7 OFFSET $6
 `
 
 type ListGateViewsParams struct {
@@ -621,6 +627,8 @@ type ListGateViewsRow struct {
 	PersonaName string
 }
 
+// Pendentes primeiro (mais antigas primeiro), depois as decididas (mais recentes primeiro). A página é escolhida
+// só na tabela gates (CTE "page") e só então recebe os joins; a ordenação é repetida porque o join não a preserva.
 func (q *Queries) ListGateViews(ctx context.Context, arg ListGateViewsParams) ([]ListGateViewsRow, error) {
 	rows, err := q.db.Query(ctx, listGateViews,
 		arg.CompanyID,

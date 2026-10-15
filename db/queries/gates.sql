@@ -26,20 +26,28 @@ LEFT JOIN personas p ON p.id = g.persona_id
 WHERE g.company_id = @company_id AND g.id = @id;
 
 -- name: ListGateViews :many
+-- Pendentes primeiro (mais antigas primeiro), depois as decididas (mais recentes primeiro). A página é escolhida
+-- só na tabela gates (CTE "page") e só então recebe os joins; a ordenação é repetida porque o join não a preserva.
+WITH page AS (
+    SELECT g0.id FROM gates g0
+    WHERE g0.company_id = @company_id
+      AND (sqlc.narg(statuses)::text[] IS NULL OR g0.status = ANY(sqlc.narg(statuses)::text[]))
+      AND (sqlc.narg(kinds)::text[] IS NULL OR g0.kind = ANY(sqlc.narg(kinds)::text[]))
+      AND (sqlc.narg(task_id)::uuid IS NULL OR g0.task_id = sqlc.narg(task_id)::uuid)
+      AND (sqlc.narg(persona_id)::uuid IS NULL OR g0.persona_id = sqlc.narg(persona_id)::uuid)
+    ORDER BY CASE WHEN g0.status = 'pending' THEN g0.created_at END ASC NULLS LAST,
+             g0.decided_at DESC NULLS LAST, g0.created_at DESC, g0.id DESC
+    LIMIT @lim OFFSET @off
+)
 SELECT sqlc.embed(g), COALESCE(c.task_prefix || '-' || t.number, '')::text AS task_key, COALESCE(t.title, '')::text AS task_title,
        COALESCE(p.name, '')::text AS persona_name
-FROM gates g
+FROM page
+JOIN gates g ON g.id = page.id
 JOIN companies c ON c.id = g.company_id
 LEFT JOIN tasks t ON t.id = g.task_id
 LEFT JOIN personas p ON p.id = g.persona_id
-WHERE g.company_id = @company_id
-  AND (sqlc.narg(statuses)::text[] IS NULL OR g.status = ANY(sqlc.narg(statuses)::text[]))
-  AND (sqlc.narg(kinds)::text[] IS NULL OR g.kind = ANY(sqlc.narg(kinds)::text[]))
-  AND (sqlc.narg(task_id)::uuid IS NULL OR g.task_id = sqlc.narg(task_id)::uuid)
-  AND (sqlc.narg(persona_id)::uuid IS NULL OR g.persona_id = sqlc.narg(persona_id)::uuid)
 ORDER BY CASE WHEN g.status = 'pending' THEN g.created_at END ASC NULLS LAST,
-         g.decided_at DESC NULLS LAST, g.created_at DESC, g.id DESC
-LIMIT @lim OFFSET @off;
+         g.decided_at DESC NULLS LAST, g.created_at DESC, g.id DESC;
 
 -- name: DecideGate :one
 UPDATE gates
