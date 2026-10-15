@@ -1,26 +1,30 @@
 package views
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/renatobardi/hanko/internal/i18n"
+)
 
 templ RunsTable(rows []RunRow, showPersona bool) {
 	if len(rows) == 0 {
-		@EmptyCard("activity", "Nenhuma execução ainda.", "Cada vez que uma persona é acordada vira uma execução auditável: status, eventos, saída e custo.", false)
+		@EmptyCard("activity", i18n.T(ctx, "Nenhuma execução ainda."), i18n.T(ctx, "Cada vez que uma persona é acordada vira uma execução auditável: status, eventos, saída e custo."), false)
 	} else {
 		<div class="table-wrap">
 			<table class="table">
 				<thead>
 					<tr>
-						<th>Execução</th>
+						<th>{ i18n.T(ctx, "Execução") }</th>
 						if showPersona {
-							<th>Persona · task</th>
+							<th>{ i18n.T(ctx, "Persona · task") }</th>
 						} else {
 							<th>Task</th>
 						}
-						<th>Status</th>
-						<th class="hide-sm num">Duração</th>
+						<th>{ i18n.T(ctx, "Status") }</th>
+						<th class="hide-sm num">{ i18n.T(ctx, "Duração") }</th>
 						<th class="hide-sm num">Tokens</th>
-						<th class="num">Custo</th>
-						<th class="hide-sm num">Quando</th>
+						<th class="num">{ i18n.T(ctx, "Custo") }</th>
+						<th class="hide-sm num">{ i18n.T(ctx, "Quando") }</th>
 					</tr>
 				</thead>
 				<tbody>
@@ -59,9 +63,9 @@ templ RunsTable(rows []RunRow, showPersona bool) {
 
 templ RunsPage(sh Shell, vm RunsVM) {
 	@Layout(sh) {
-		@PageHead("Execuções", vm.Subtitle) {
+		@PageHead(i18n.T(ctx, "Execuções"), vm.Subtitle) {
 			if vm.Live > 0 {
-				<span class="badge run"><i class="pulse"></i> { fmt.Sprint(vm.Live) } ao vivo</span>
+				<span class="badge run"><i class="pulse"></i> { fmt.Sprint(vm.Live) } { i18n.T(ctx, "ao vivo") }</span>
 			}
 		}
 		<div class="toolbar">
@@ -78,7 +82,7 @@ templ RunHeader(vm RunVM) {
 			<span class="mini-avatar" style="width:38px;height:38px">@Icon("bot")</span>
 			<div>
 				<h2>
-					Execução
+					{ i18n.T(ctx, "Execução") }
 					if vm.Name != "" {
 						{ vm.Name } <span class="mono">{ vm.Short }</span>
 					} else {
@@ -86,20 +90,23 @@ templ RunHeader(vm RunVM) {
 					}
 					· { vm.Persona } @BadgeEl(vm.Badge)
 				</h2>
-				<div class="sub">Task <a class="mono" href={ templ.SafeURL(vm.TaskHref) }>{ vm.TaskKey }</a> · { vm.Trigger } · iniciada { vm.Started }</div>
+				<div class="sub">Task <a class="mono" href={ templ.SafeURL(vm.TaskHref) }>{ vm.TaskKey }</a> · { vm.Trigger } · { i18n.T(ctx, "iniciada") } { vm.Started }</div>
 			</div>
 		</div>
 		if vm.Active && vm.CancelHref != "" {
 			<form method="post" action={ templ.SafeURL(vm.CancelHref) } hx-post={ vm.CancelHref } hx-swap="none">
-				<button class="btn danger" type="submit">@Icon("square") Interromper</button>
+				<button class="btn danger" type="submit">
+					@Icon("square")
+					{ i18n.T(ctx, "Interromper") }
+				</button>
 			</form>
 		}
 	</div>
 	<div class="stats4">
-		<div class="stat"><div class="l">Duração</div><div class="v">{ vm.Duration }</div></div>
-		<div class="stat"><div class="l">Eventos</div><div class="v">{ fmt.Sprint(vm.Events) }</div></div>
+		<div class="stat"><div class="l">{ i18n.T(ctx, "Duração") }</div><div class="v">{ vm.Duration }</div></div>
+		<div class="stat"><div class="l">{ i18n.T(ctx, "Eventos") }</div><div class="v">{ fmt.Sprint(vm.Events) }</div></div>
 		<div class="stat"><div class="l">Tokens</div><div class="v">{ vm.Tokens }</div></div>
-		<div class="stat"><div class="l">Custo</div><div class="v">{ vm.Cost }</div></div>
+		<div class="stat"><div class="l">{ i18n.T(ctx, "Custo") }</div><div class="v">{ vm.Cost }</div></div>
 	</div>
 	if vm.Error != "" {
 		<div class="err-box">{ vm.Error }</div>
@@ -129,7 +136,7 @@ templ RunPage(sh Shell, vm RunVM) {
 								@RunLine(l)
 							}
 							if len(vm.Lines) == 0 {
-								<div class="log-empty" id="log-empty">Aguardando eventos…</div>
+								<div class="log-empty" id="log-empty">{ i18n.T(ctx, "Aguardando eventos…") }</div>
 							}
 						</div>
 					</div>
@@ -143,45 +150,45 @@ templ RunPage(sh Shell, vm RunVM) {
 							@RunLine(l)
 						}
 						if len(vm.Lines) == 0 {
-							<div class="log-empty">Sem eventos registrados.</div>
+							<div class="log-empty">{ i18n.T(ctx, "Sem eventos registrados.") }</div>
 						}
 					</div>
 				}
 			</section>
 			<div class="grid-2" style="align-items:start">
 				<section class="card pad">
-					<div class="card-head"><h2 style="font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);font-weight:500">Invocação</h2></div>
+					<div class="card-head"><h2 style="font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);font-weight:500">{ i18n.T(ctx, "Invocação") }</h2></div>
 					<dl class="kv">
 						<dt>Harness</dt><dd>{ vm.Agent }</dd>
-						<dt>Modelo</dt><dd>
+						<dt>{ i18n.T(ctx, "Modelo") }</dt><dd>
 							if vm.Model != "" {
 								{ vm.Model }
 							} else {
 								—
 							}
 						</dd>
-						<dt>Origem do modelo</dt><dd>{ vm.ModelSource }</dd>
-						<dt>Custo de lista</dt><dd>{ vm.ListCost }</dd>
-						<dt>Origem do custo</dt><dd>{ vm.CostSource }</dd>
-						<dt>Assinatura</dt><dd>{ vm.Subscription }</dd>
-						<dt>Gatilho</dt><dd>{ vm.Trigger }</dd>
-						<dt>Sessão</dt><dd>
+						<dt>{ i18n.T(ctx, "Origem do modelo") }</dt><dd>{ vm.ModelSource }</dd>
+						<dt>{ i18n.T(ctx, "Custo de lista") }</dt><dd>{ vm.ListCost }</dd>
+						<dt>{ i18n.T(ctx, "Origem do custo") }</dt><dd>{ vm.CostSource }</dd>
+						<dt>{ i18n.T(ctx, "Assinatura") }</dt><dd>{ vm.Subscription }</dd>
+						<dt>{ i18n.T(ctx, "Gatilho") }</dt><dd>{ vm.Trigger }</dd>
+						<dt>{ i18n.T(ctx, "Sessão") }</dt><dd>
 							if vm.Session != "" {
 								{ vm.Session }
 							} else {
 								—
 							}
 						</dd>
-						<dt>Saída</dt><dd>{ vm.ExitCode }</dd>
+						<dt>{ i18n.T(ctx, "Saída") }</dt><dd>{ vm.ExitCode }</dd>
 						<dt>ID</dt><dd>{ vm.ID }</dd>
 					</dl>
 				</section>
 				<section class="card pad">
-					<div class="card-head"><h2 style="font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);font-weight:500">Resumo</h2></div>
+					<div class="card-head"><h2 style="font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);font-weight:500">{ i18n.T(ctx, "Resumo") }</h2></div>
 					if vm.Summary != "" {
 						<div class="md">@templ.Raw(string(vm.Summary))</div>
 					} else {
-						<p class="muted">O resumo aparece quando a execução termina.</p>
+						<p class="muted">{ i18n.T(ctx, "O resumo aparece quando a execução termina.") }</p>
 					}
 				</section>
 			</div>

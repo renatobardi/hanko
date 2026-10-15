@@ -1,9 +1,13 @@
 package views
 
+import (
+	"github.com/renatobardi/hanko/internal/i18n"
+)
+
 // LoginPage is the "Entrar" screen. local: e-mail/senha (or "Criar conta de dono" on first
 // run); firebase: e-mail/senha and Google through the Firebase web SDK (static/auth-firebase.js).
 templ LoginPage(vm LoginVM) {
-	@Bare("Entrar", vm.Version) {
+	@Bare(i18n.T(ctx, "Entrar"), vm.Version) {
 		<div class="auth">
 			<div class="mark">
 				@Mark(40)
@@ -20,62 +24,63 @@ templ LoginPage(vm LoginVM) {
 			}
 			<div class="foot">
 				if vm.Provider == "firebase" {
-					<span>Autenticação pelo Firebase · e-mail e senha ou Google</span>
+					<span>{ i18n.T(ctx, "Autenticação pelo Firebase · e-mail e senha ou Google") }</span>
 				} else {
-					<span>Autenticação local · e-mail e senha</span>
+					<span>{ i18n.T(ctx, "Autenticação local · e-mail e senha") }</span>
 				}
 			</div>
+			@LangSwitch()
 		</div>
 	}
 }
 
 templ localCard(vm LoginVM) {
 	<form class="card" method="post" action="/entrar">
-		<h1>Entrar</h1>
-		<p class="sub muted">Use suas credenciais para acessar o Hanko.</p>
+		<h1>{ i18n.T(ctx, "Entrar") }</h1>
+		<p class="sub muted">{ i18n.T(ctx, "Use suas credenciais para acessar o Hanko.") }</p>
 		@loginMessages(vm)
 		<input type="hidden" name="next" value={ vm.Next }/>
 		<div class="field">
-			<label for="l-email">E-mail</label>
+			<label for="l-email">{ i18n.T(ctx, "E-mail") }</label>
 			<input class="input" id="l-email" name="email" type="email" value={ vm.Email } required autocomplete="username" autofocus/>
 		</div>
 		<div class="field">
-			<label for="l-pass">Senha</label>
+			<label for="l-pass">{ i18n.T(ctx, "Senha") }</label>
 			<input class="input" id="l-pass" name="password" type="password" required autocomplete="current-password"/>
 		</div>
-		<button class="btn primary block" type="submit">Entrar</button>
+		<button class="btn primary block" type="submit">{ i18n.T(ctx, "Entrar") }</button>
 	</form>
 }
 
 templ ownerCard(vm LoginVM) {
 	<form class="card" method="post" action="/entrar/dono">
-		<h1>Criar conta de dono</h1>
-		<p class="sub muted">Ainda não há usuários. A primeira conta vira dona desta instalação.</p>
+		<h1>{ i18n.T(ctx, "Criar conta de dono") }</h1>
+		<p class="sub muted">{ i18n.T(ctx, "Ainda não há usuários. A primeira conta vira dona desta instalação.") }</p>
 		@loginMessages(vm)
 		<div class="field">
-			<label for="o-name">Nome</label>
+			<label for="o-name">{ i18n.T(ctx, "Nome") }</label>
 			<input class="input" id="o-name" name="name" value={ vm.Name } required maxlength="80" autocomplete="name" autofocus/>
 		</div>
 		<div class="field">
-			<label for="o-email">E-mail</label>
+			<label for="o-email">{ i18n.T(ctx, "E-mail") }</label>
 			<input class="input" id="o-email" name="email" type="email" value={ vm.Email } required autocomplete="username"/>
 		</div>
 		<div class="field">
-			<label for="o-pass">Senha</label>
+			<label for="o-pass">{ i18n.T(ctx, "Senha") }</label>
 			<input class="input" id="o-pass" name="password" type="password" required minlength="10" maxlength="256" autocomplete="new-password"/>
-			<span class="hint">Mínimo de 10 caracteres.</span>
+			<span class="hint">{ i18n.T(ctx, "Mínimo de 10 caracteres.") }</span>
 		</div>
-		<button class="btn primary block" type="submit">Criar conta e entrar</button>
+		<button class="btn primary block" type="submit">{ i18n.T(ctx, "Criar conta e entrar") }</button>
 	</form>
 }
 
 templ cliOwnerCard(vm LoginVM) {
 	<div class="card">
-		<h1>Criar conta de dono</h1>
-		<p class="sub muted">Ainda não há usuários. Por segurança, a primeira conta não é criada por esta página quando o endereço é público. No servidor, rode:</p>
+		<h1>{ i18n.T(ctx, "Criar conta de dono") }</h1>
+		<p class="sub muted">{ i18n.T(ctx, "Ainda não há usuários. Por segurança, a primeira conta não é criada por esta página quando o endereço é público. No servidor, rode:") }</p>
 		@loginMessages(vm)
 		<pre class="mono"><code>hanko auth create-owner --email voce@exemplo.com --name "Seu Nome"</code></pre>
-		<p class="sub muted">Depois recarregue esta página e entre. Detalhes em docs/RUNBOOK.md, seção 5.1.</p>
+		<p class="sub muted">{ i18n.T(ctx, "Depois recarregue esta página e entre. Detalhes em docs/RUNBOOK.md, seção 5.1.") }</p>
 	</div>
 }
 
@@ -90,30 +95,30 @@ templ firebaseCard(vm LoginVM) {
 		data-project-id={ vm.Firebase.ProjectID }
 		data-next={ vm.Next }
 	>
-		<h1 id="fb-title">Entrar</h1>
-		<p class="sub muted" id="fb-sub">Use suas credenciais para acessar o Hanko.</p>
+		<h1 id="fb-title">{ i18n.T(ctx, "Entrar") }</h1>
+		<p class="sub muted" id="fb-sub">{ i18n.T(ctx, "Use suas credenciais para acessar o Hanko.") }</p>
 		@loginMessages(vm)
 		<div id="fb-msg" aria-live="polite"></div>
-		<noscript><div class="alert danger" role="alert">@Icon("alert")<div>Ative o JavaScript para entrar com o Firebase.</div></div></noscript>
+		<noscript><div class="alert danger" role="alert">@Icon("alert")<div>{ i18n.T(ctx, "Ative o JavaScript para entrar com o Firebase.") }</div></div></noscript>
 		<div class="field">
-			<label for="f-email">E-mail</label>
+			<label for="f-email">{ i18n.T(ctx, "E-mail") }</label>
 			<input class="input" id="f-email" name="email" type="email" value={ vm.Email } required autocomplete="username" autofocus/>
 		</div>
 		<div class="field">
 			<div class="lbl-row">
-				<label for="f-pass">Senha</label>
-				<button class="link" type="button" id="fb-reset">Esqueci a senha</button>
+				<label for="f-pass">{ i18n.T(ctx, "Senha") }</label>
+				<button class="link" type="button" id="fb-reset">{ i18n.T(ctx, "Esqueci a senha") }</button>
 			</div>
 			<input class="input" id="f-pass" name="password" type="password" required minlength="6" autocomplete="current-password"/>
 		</div>
-		<button class="btn primary block" type="submit" id="fb-submit">Entrar</button>
-		<div class="or"><span>ou</span></div>
-		<button class="btn outline block" type="button" id="fb-google">Continuar com Google</button>
+		<button class="btn primary block" type="submit" id="fb-submit">{ i18n.T(ctx, "Entrar") }</button>
+		<div class="or"><span>{ i18n.T(ctx, "ou") }</span></div>
+		<button class="btn outline block" type="button" id="fb-google">{ i18n.T(ctx, "Continuar com Google") }</button>
 	</form>
 	<div class="foot">
 		<span>
-			<span id="fb-toggle-text">Não tem conta?</span>
-			<button class="link" type="button" id="fb-toggle">Criar conta</button>
+			<span id="fb-toggle-text">{ i18n.T(ctx, "Não tem conta?") }</span>
+			<button class="link" type="button" id="fb-toggle">{ i18n.T(ctx, "Criar conta") }</button>
 		</span>
 	</div>
 	<script type="module" src={ "/static/auth-firebase.js?v=" + vm.Version }></script>
@@ -131,28 +136,28 @@ templ loginMessages(vm LoginVM) {
 // SettingsPage shows the account and its API keys.
 templ SettingsPage(sh Shell, vm SettingsVM) {
 	@Layout(sh) {
-		@PageHead("Configurações", "Sua conta e as chaves de API usadas pela CLI e por integrações.")
+		@PageHead(i18n.T(ctx, "Configurações"), i18n.T(ctx, "Sua conta e as chaves de API usadas pela CLI e por integrações."))
 		if !vm.Authenticated {
-			@EmptyCard("lock", "Modo trusted", "Contas e chaves de API existem no modo authenticated (HANKO_MODE=authenticated). Veja o RUNBOOK.", true)
+			@EmptyCard("lock", i18n.T(ctx, "Modo trusted"), i18n.T(ctx, "Contas e chaves de API existem no modo authenticated (HANKO_MODE=authenticated). Veja o RUNBOOK."), true)
 		} else {
 			<div class="card pad form-card" style="margin-bottom:20px">
-				<h2>Conta</h2>
+				<h2>{ i18n.T(ctx, "Conta") }</h2>
 				<dl class="dl" style="margin-top:14px">
-					<dt>Nome</dt>
+					<dt>{ i18n.T(ctx, "Nome") }</dt>
 					<dd>{ vm.Name }</dd>
-					<dt>E-mail</dt>
+					<dt>{ i18n.T(ctx, "E-mail") }</dt>
 					<dd class="mono">{ vm.Email }</dd>
-					<dt>Login</dt>
+					<dt>{ i18n.T(ctx, "Login") }</dt>
 					<dd>{ vm.Provider }</dd>
-					<dt>Papel</dt>
+					<dt>{ i18n.T(ctx, "Papel") }</dt>
 					<dd>{ vm.Role }</dd>
 				</dl>
 			</div>
 			<div class="card pad form-card" style="margin-bottom:20px">
 				<div class="card-head">
 					<div>
-						<h2>Chaves de API</h2>
-						<p class="sub">Use <span class="mono">Authorization: Bearer hk_…</span> na API e no MCP, ou <span class="mono">HANKO_TOKEN</span> na CLI. A chave aparece uma única vez.</p>
+						<h2>{ i18n.T(ctx, "Chaves de API") }</h2>
+						<p class="sub">{ i18n.T(ctx, "Use") } <span class="mono">Authorization: Bearer hk_…</span> { i18n.T(ctx, "na API e no MCP, ou") } <span class="mono">HANKO_TOKEN</span> { i18n.T(ctx, "na CLI. A chave aparece uma única vez.") }</p>
 					</div>
 				</div>
 				if vm.Error != "" {
@@ -162,24 +167,27 @@ templ SettingsPage(sh Shell, vm SettingsVM) {
 					<div class="alert warn" role="status">
 						@Icon("key")
 						<div>
-							<b>Copie agora a chave “{ vm.KeyName }”. Ela não será mostrada de novo.</b>
+							<b>{ i18n.Tf(ctx, "Copie agora a chave “%s”. Ela não será mostrada de novo.", vm.KeyName) }</b>
 							<div class="mono keybox">{ vm.NewKey }</div>
 						</div>
 					</div>
 				}
 				<form method="post" action={ templ.SafeURL(sh.Base() + "/configuracoes/chaves") } class="inline-form">
-					<input class="input" name="name" placeholder="Nome (ex.: CLI do notebook)" required maxlength="80" aria-label="Nome da chave"/>
-					<button class="btn primary" type="submit">@Icon("plus") Criar chave</button>
+					<input class="input" name="name" placeholder={ i18n.T(ctx, "Nome (ex.: CLI do notebook)") } required maxlength="80" aria-label={ i18n.T(ctx, "Nome da chave") }/>
+					<button class="btn primary" type="submit">
+						@Icon("plus")
+						{ i18n.T(ctx, "Criar chave") }
+					</button>
 				</form>
 				if len(vm.Keys) > 0 {
 					<div class="table-wrap" style="margin-top:16px">
 						<table class="table">
 							<thead>
 								<tr>
-									<th>Nome</th>
-									<th>Prefixo</th>
-									<th class="hide-sm">Criada</th>
-									<th class="hide-sm">Último uso</th>
+									<th>{ i18n.T(ctx, "Nome") }</th>
+									<th>{ i18n.T(ctx, "Prefixo") }</th>
+									<th class="hide-sm">{ i18n.T(ctx, "Criada") }</th>
+									<th class="hide-sm">{ i18n.T(ctx, "Último uso") }</th>
 									<th></th>
 								</tr>
 							</thead>
@@ -192,10 +200,10 @@ templ SettingsPage(sh Shell, vm SettingsVM) {
 										<td class="when hide-sm">{ k.LastUsed }</td>
 										<td style="text-align:right">
 											if k.Revoked {
-												<span class="badge outline">Revogada</span>
+												<span class="badge outline">{ i18n.T(ctx, "Revogada") }</span>
 											} else {
 												<form method="post" action={ templ.SafeURL(sh.Base() + "/configuracoes/chaves/" + k.ID + "/revogar") }>
-													<button class="btn sm danger" type="submit">Revogar</button>
+													<button class="btn sm danger" type="submit">{ i18n.T(ctx, "Revogar") }</button>
 												</form>
 											}
 										</td>

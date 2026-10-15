@@ -19,6 +19,7 @@ import (
 	"github.com/renatobardi/hanko/internal/auth"
 	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/events"
+	"github.com/renatobardi/hanko/internal/i18n"
 	"github.com/renatobardi/hanko/internal/service"
 	"github.com/renatobardi/hanko/internal/ui/views"
 )
@@ -33,6 +34,9 @@ type Deps struct {
 	Auth *AuthDeps
 	// Now overrides the clock (tests, previews). Optional.
 	Now func() time.Time
+	// Secure marks the language cookie Secure (PUBLIC_URL is https). Authenticated mode also
+	// honours Auth.Secure.
+	Secure bool
 }
 
 // Backend is the subset of *service.Service the UI uses. It exists so handlers
@@ -100,6 +104,7 @@ type server struct {
 	version string
 	now     func() time.Time
 	auth    *authState // nil in trusted mode
+	secure  bool       // language cookie is Secure
 	// sseTick is how often the SSE handler re-reads the database as a safety
 	// net for dropped broker messages.
 	sseTick time.Duration
@@ -127,13 +132,14 @@ func MountBackend(mux *http.ServeMux, be Backend, d Deps) {
 	if now == nil {
 		now = func() time.Time { return time.Now().UTC() }
 	}
-	s := &server{be: be, broker: broker, log: log, version: d.Version, now: now, sseTick: 2 * time.Second}
+	s := &server{be: be, broker: broker, log: log, version: d.Version, now: now, sseTick: 2 * time.Second, secure: d.Secure}
 	if d.Auth != nil {
 		ab := d.Auth.Backend
 		if ab == nil {
 			ab = d.Svc
 		}
 		s.auth = newAuthState(*d.Auth, ab, now)
+		s.secure = s.secure || d.Auth.Secure
 	}
 	s.routes(mux)
 }
@@ -144,7 +150,8 @@ func (discard) Write(p []byte) (int, error) { return len(p), nil }
 
 type companyHandler func(w http.ResponseWriter, r *http.Request, co domain.Company)
 
-func (s *server) routes(mux *http.ServeMux) {
+func (s *server) routes(root *http.ServeMux) {
+	mux := langMux{root}
 	co := func(h companyHandler) http.HandlerFunc { return s.withCompany(h) }
 	post := func(h http.HandlerFunc) http.HandlerFunc { return s.sameOrigin(h) }
 
@@ -152,6 +159,7 @@ func (s *server) routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /{$}", s.handleRoot)
 	mux.HandleFunc("GET /bem-vindo", s.handleOnboarding)
 	mux.HandleFunc("POST /empresas", post(s.handleCreateCompany))
+	mux.HandleFunc("POST "+langPath, post(s.handleLang))
 
 	mux.HandleFunc("GET /c/{company}/{$}", co(s.handleDashboard))
 	mux.HandleFunc("GET /c/{company}", func(w http.ResponseWriter, r *http.Request) {
@@ -273,7 +281,7 @@ func (s *server) render(w http.ResponseWriter, r *http.Request, status int, c te
 	}
 	if err := c.Render(ctx, &buf); err != nil {
 		s.log.Error("ui render", "path", r.URL.Path, "err", err)
-		http.Error(w, "erro ao renderizar a página", http.StatusInternalServerError)
+		http.Error(w, i18n.T(ctx, "erro ao renderizar a página"), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -309,39 +317,39 @@ func statusFor(err error) int {
 }
 
 // friendly turns an error into a title and a message for people.
-func friendly(err error) (int, string, string) {
+func friendly(ctx context.Context, err error) (int, string, string) {
 	st := statusFor(err)
 	switch st {
 	case http.StatusNotFound:
-		return st, "Não encontrado", "O registro que você procura não existe nesta empresa."
+		return st, i18n.T(ctx, "Não encontrado"), i18n.T(ctx, "O registro que você procura não existe nesta empresa.")
 	case http.StatusUnprocessableEntity:
 		var ve *domain.ValidationError
 		if errors.As(err, &ve) {
-			return st, "Dados inválidos", ve.Field + ": " + ve.Reason + "."
+			return st, i18n.T(ctx, "Dados inválidos"), ve.Field + ": " + ve.Reason + "."
 		}
-		return st, "Dados inválidos", "Confira os campos e tente de novo."
+		return st, i18n.T(ctx, "Dados inválidos"), i18n.T(ctx, "Confira os campos e tente de novo.")
 	case http.StatusConflict:
 		if errors.Is(err, domain.ErrBudgetExceeded) {
-			return st, "Orçamento estourado", "O limite mensal foi atingido; nenhuma execução nova abre até o limite subir ou o mês virar."
+			return st, i18n.T(ctx, "Orçamento estourado"), i18n.T(ctx, "O limite mensal foi atingido; nenhuma execução nova abre até o limite subir ou o mês virar.")
 		}
 		if errors.Is(err, domain.ErrSubscriptionGuard) {
-			return st, "Trava semanal da assinatura", "O uso da semana chegou ao limite da assinatura; nenhuma execução nova abre até a semana virar ou o limite subir."
+			return st, i18n.T(ctx, "Trava semanal da assinatura"), i18n.T(ctx, "O uso da semana chegou ao limite da assinatura; nenhuma execução nova abre até a semana virar ou o limite subir.")
 		}
 		if errors.Is(err, domain.ErrActiveRun) {
-			return st, "Já existe uma execução ativa", "Esta task já tem uma execução em andamento; espere ela terminar."
+			return st, i18n.T(ctx, "Já existe uma execução ativa"), i18n.T(ctx, "Esta task já tem uma execução em andamento; espere ela terminar.")
 		}
-		return st, "Conflito", "Esse registro já existe ou foi alterado por outra pessoa."
+		return st, i18n.T(ctx, "Conflito"), i18n.T(ctx, "Esse registro já existe ou foi alterado por outra pessoa.")
 	case http.StatusForbidden:
-		return st, "Ação não permitida", "A requisição foi bloqueada por segurança (origem diferente)."
+		return st, i18n.T(ctx, "Ação não permitida"), i18n.T(ctx, "A requisição foi bloqueada por segurança (origem diferente).")
 	case http.StatusNotImplemented:
-		return st, "Ainda não implementado", "Esta função depende de uma parte do servidor que ainda não está disponível."
+		return st, i18n.T(ctx, "Ainda não implementado"), i18n.T(ctx, "Esta função depende de uma parte do servidor que ainda não está disponível.")
 	}
-	return st, "Algo deu errado", "Erro interno. Tente novamente em instantes."
+	return st, i18n.T(ctx, "Algo deu errado"), i18n.T(ctx, "Erro interno. Tente novamente em instantes.")
 }
 
 // fail renders an error as a page (full navigation) or fragment (htmx).
 func (s *server) fail(w http.ResponseWriter, r *http.Request, co *domain.Company, err error) {
-	st, title, msg := friendly(err)
+	st, title, msg := friendly(r.Context(), err)
 	if st >= 500 {
 		s.log.Error("ui handler", "method", r.Method, "path", r.URL.Path, "err", err)
 	}

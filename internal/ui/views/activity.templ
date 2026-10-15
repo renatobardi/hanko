@@ -1,11 +1,15 @@
 package views
 
+import (
+	"github.com/renatobardi/hanko/internal/i18n"
+)
+
 templ ActivityPage(sh Shell, vm ActivityVM) {
 	@Layout(sh) {
-		@PageHead("Atividade", vm.Subtitle) {
+		@PageHead(i18n.T(ctx, "Atividade"), vm.Subtitle) {
 		}
 		if len(vm.Days) == 0 {
-			@EmptyCard("clock", "Nenhuma atividade ainda.", "Execuções, comentários e mudanças de status aparecem aqui.", true)
+			@EmptyCard("clock", i18n.T(ctx, "Nenhuma atividade ainda."), i18n.T(ctx, "Execuções, comentários e mudanças de status aparecem aqui."), true)
 		} else {
 			<div class="feed">
 				for _, d := range vm.Days {

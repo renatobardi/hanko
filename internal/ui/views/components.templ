@@ -1,6 +1,11 @@
 package views
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+
+	"github.com/renatobardi/hanko/internal/i18n"
+)
 
 templ BadgeEl(b Badge) {
 	<span class={ "badge " + b.Class }>
@@ -75,7 +80,7 @@ templ PersonaChip(name string) {
 
 templ OwnerCell(name string) {
 	if name == "" {
-		<span class="who none"><span class="mini-avatar">@Icon("user")</span><span>Sem dono</span></span>
+		<span class="who none"><span class="mini-avatar">@Icon("user")</span><span>{ i18n.T(ctx, "Sem dono") }</span></span>
 	} else {
 		@PersonaChip(name)
 	}
@@ -106,8 +111,11 @@ templ Tabs(tabs []TabLink) {
 templ TaskTable(vm TasksVM) {
 	<div id="tasks-list">
 		if vm.Total == 0 {
-			@EmptyCard("list", emptyTasksTitle(vm), emptyTasksText(vm), true) {
-				<a class="btn outline" href={ templ.SafeURL(vm.NewHref) }>@Icon("plus") Nova task</a>
+			@EmptyCard("list", emptyTasksTitle(ctx, vm), emptyTasksText(ctx, vm), true) {
+				<a class="btn outline" href={ templ.SafeURL(vm.NewHref) }>
+					@Icon("plus")
+					{ i18n.T(ctx, "Nova task") }
+				</a>
 			}
 		} else {
 			<div class="table-wrap">
@@ -116,11 +124,11 @@ templ TaskTable(vm TasksVM) {
 						<tr>
 							<th class="hide-sm"></th>
 							<th>ID</th>
-							<th>Título</th>
+							<th>{ i18n.T(ctx, "Título") }</th>
 							<th class="hide-sm">Persona</th>
-							<th class="hide-sm">Projeto</th>
-							<th>Status</th>
-							<th class="num hide-sm">Atualizada</th>
+							<th class="hide-sm">{ i18n.T(ctx, "Projeto") }</th>
+							<th>{ i18n.T(ctx, "Status") }</th>
+							<th class="num hide-sm">{ i18n.T(ctx, "Atualizada") }</th>
 						</tr>
 					</thead>
 					<tbody>
@@ -142,18 +150,18 @@ templ TaskTable(vm TasksVM) {
 	</div>
 }
 
-func emptyTasksTitle(vm TasksVM) string {
+func emptyTasksTitle(ctx context.Context, vm TasksVM) string {
 	if vm.Query != "" {
-		return "Nada encontrado."
+		return i18n.T(ctx, "Nada encontrado.")
 	}
-	return "Nenhuma task aqui."
+	return i18n.T(ctx, "Nenhuma task aqui.")
 }
 
-func emptyTasksText(vm TasksVM) string {
+func emptyTasksText(ctx context.Context, vm TasksVM) string {
 	if vm.Query != "" {
-		return "Nenhuma task corresponde a “" + vm.Query + "”. Tente outro termo."
+		return i18n.Tf(ctx, "Nenhuma task corresponde a “%s”. Tente outro termo.", vm.Query)
 	}
-	return "Crie uma task e atribua a uma persona para ver uma execução acontecer."
+	return i18n.T(ctx, "Crie uma task e atribua a uma persona para ver uma execução acontecer.")
 }
 
 templ TaskRowEl(r TaskRow) {

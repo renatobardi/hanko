@@ -75,6 +75,7 @@ func TestGuardRoutes(t *testing.T) {
 		{name: "entrar/dono livre", method: "POST", path: "/entrar/dono", want: 200},
 		{name: "auth/firebase livre", method: "POST", path: "/auth/firebase", want: 200},
 		{name: "sair livre", method: "POST", path: "/sair", want: 200},
+		{name: "idioma livre", method: "POST", path: "/idioma", want: 200},
 
 		{name: "UI sem sessão redireciona", method: "GET", path: "/c/acme/tasks?status=todo", want: 303, loc: "/entrar?next=%2Fc%2Facme%2Ftasks%3Fstatus%3Dtodo"},
 		{name: "raiz sem sessão redireciona", method: "GET", path: "/", want: 303, loc: "/entrar"},

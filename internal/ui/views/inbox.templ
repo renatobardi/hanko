@@ -1,10 +1,14 @@
 package views
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/renatobardi/hanko/internal/i18n"
+)
 
 templ InboxPage(sh Shell, vm InboxVM) {
 	@Layout(sh) {
-		@PageHead("Caixa de entrada", vm.Subtitle) {
+		@PageHead(i18n.T(ctx, "Caixa de entrada"), vm.Subtitle) {
 		}
 		if vm.Notice != "" {
 			@Alert("warn", vm.Notice)
@@ -15,11 +19,14 @@ templ InboxPage(sh Shell, vm InboxVM) {
 		<div class="inbox-grid">
 			<div class="stack">
 				if vm.Total == 0 {
-					@EmptyCard("circle-check", "Você está em dia.", "Nada espera por você: sem gates, bloqueios, execuções que falharam, personas com erro ou alertas.", true)
+					@EmptyCard("circle-check", i18n.T(ctx, "Você está em dia."), i18n.T(ctx, "Nada espera por você: sem gates, bloqueios, execuções que falharam, personas com erro ou alertas."), true)
 				}
 				if len(vm.Alerts) > 0 {
 					<section class="card inbox-sec">
-						<div class="inbox-h">@Icon("alert") Alertas operacionais <span class="cnt">{ fmt.Sprint(len(vm.Alerts)) }</span></div>
+						<div class="inbox-h">
+							@Icon("alert")
+							{ i18n.T(ctx, "Alertas operacionais") }
+						<span class="cnt">{ fmt.Sprint(len(vm.Alerts)) }</span></div>
 						for _, a := range vm.Alerts {
 							<div class="inbox-row">
 								<span class="mini-avatar">@Icon("alert")</span>
@@ -27,12 +34,12 @@ templ InboxPage(sh Shell, vm InboxVM) {
 									<div class="t">
 										{ a.Message }
 										if a.Critical {
-											<span class="badge danger">Crítico</span>
+											<span class="badge danger">{ i18n.T(ctx, "Crítico") }</span>
 										} else {
-											<span class="badge warn">Atenção</span>
+											<span class="badge warn">{ i18n.T(ctx, "Atenção") }</span>
 										}
 									</div>
-									<div class="s">{ a.KindText } · aberto { a.When } · fecha sozinho quando a condição some</div>
+									<div class="s">{ a.KindText } · { i18n.T(ctx, "aberto") } { a.When } · { i18n.T(ctx, "fecha sozinho quando a condição some") }</div>
 								</div>
 								if a.Href != "" {
 									<form class="inbox-act" method="get" action={ templ.SafeURL(a.Href) }>
@@ -45,7 +52,10 @@ templ InboxPage(sh Shell, vm InboxVM) {
 				}
 				if len(vm.Gates) > 0 {
 					<section class="card inbox-sec">
-						<div class="inbox-h">@Icon("shield") Precisa de você · gates <span class="cnt">{ fmt.Sprint(len(vm.Gates)) }</span></div>
+						<div class="inbox-h">
+							@Icon("shield")
+							{ i18n.T(ctx, "Precisa de você · gates") }
+						<span class="cnt">{ fmt.Sprint(len(vm.Gates)) }</span></div>
 						for _, g := range vm.Gates {
 							<div class="inbox-row gate">
 								<span class="mini-avatar gate">@Icon("shield")</span>
@@ -57,7 +67,7 @@ templ InboxPage(sh Shell, vm InboxVM) {
 										<a href={ templ.SafeURL(g.Href) }>{ g.Title }</a>
 										<span class="badge warn">{ g.KindLabel }</span>
 										if g.Aged {
-											<span class="badge outline">há mais de 24 h</span>
+											<span class="badge outline">{ i18n.T(ctx, "há mais de 24 h") }</span>
 										}
 										if g.Review != nil {
 											@BadgeEl(g.Review.Badge)
@@ -68,7 +78,7 @@ templ InboxPage(sh Shell, vm InboxVM) {
 									}
 									<div class="s">
 										if g.Persona != "" {
-											pedido por { g.Persona } ·
+											{ i18n.T(ctx, "pedido por") } { g.Persona } ·
 										}
 										{ g.Created }
 									</div>
@@ -80,7 +90,10 @@ templ InboxPage(sh Shell, vm InboxVM) {
 				}
 				if len(vm.Blocked) > 0 {
 					<section class="card inbox-sec">
-						<div class="inbox-h">@Icon("alert") Tasks bloqueadas <span class="cnt">{ fmt.Sprint(len(vm.Blocked)) }</span></div>
+						<div class="inbox-h">
+							@Icon("alert")
+							{ i18n.T(ctx, "Tasks bloqueadas") }
+						<span class="cnt">{ fmt.Sprint(len(vm.Blocked)) }</span></div>
 						for _, t := range vm.Blocked {
 							<div class="inbox-row">
 								<span class="mini-avatar">@Icon("list")</span>
@@ -88,17 +101,17 @@ templ InboxPage(sh Shell, vm InboxVM) {
 									<div class="t">
 										<a class="mono id" href={ templ.SafeURL(t.Href) }>{ t.Key }</a>
 										<a href={ templ.SafeURL(t.Href) }>{ t.Title }</a>
-										<span class="badge danger">Bloqueada</span>
+										<span class="badge danger">{ i18n.T(ctx, "Bloqueada") }</span>
 									</div>
 									<div class="s">
 										if t.Persona != "" {
 											{ t.Persona } ·
 										}
-										{ t.When } · sem gate pendente: alguém precisa destravar
+										{ t.When } · { i18n.T(ctx, "sem gate pendente: alguém precisa destravar") }
 									</div>
 								</div>
 								<form class="inbox-act" method="post" action={ templ.SafeURL(t.ActionHref) } hx-post={ t.ActionHref } hx-swap="none">
-									<a class="btn ghost sm" href={ templ.SafeURL(t.Href) }>Abrir</a>
+									<a class="btn ghost sm" href={ templ.SafeURL(t.Href) }>{ i18n.T(ctx, "Abrir") }</a>
 									<button class="btn outline sm" type="submit">{ t.ActionLabel }</button>
 								</form>
 							</div>
@@ -107,7 +120,10 @@ templ InboxPage(sh Shell, vm InboxVM) {
 				}
 				if len(vm.Failed) > 0 {
 					<section class="card inbox-sec">
-						<div class="inbox-h">@Icon("activity") Execuções que falharam <span class="cnt">{ fmt.Sprint(len(vm.Failed)) }</span></div>
+						<div class="inbox-h">
+							@Icon("activity")
+							{ i18n.T(ctx, "Execuções que falharam") }
+						<span class="cnt">{ fmt.Sprint(len(vm.Failed)) }</span></div>
 						for _, r := range vm.Failed {
 							<div class="inbox-row">
 								<span class="mini-avatar">@Icon("activity")</span>
@@ -115,20 +131,23 @@ templ InboxPage(sh Shell, vm InboxVM) {
 									<div class="t">
 										<a class="mono id" href={ templ.SafeURL(r.TaskHref) }>{ r.TaskKey }</a>
 										<a href={ templ.SafeURL(r.Href) }>{ r.TaskTitle }</a>
-										<span class="badge danger">Falhou</span>
+										<span class="badge danger">{ i18n.T(ctx, "Falhou") }</span>
 									</div>
 									if r.Error != "" {
 										<p class="x">{ r.Error }</p>
 									}
-									<div class="s">{ r.Persona } · execução
+									<div class="s">{ r.Persona } · { i18n.T(ctx, "execução") }
 										if r.Name != "" {
 											{ r.Name }
 										}
 										<span class="mono">{ r.Short }</span> · { r.When }</div>
 								</div>
 								<form class="inbox-act" method="post" action={ templ.SafeURL(r.ActionHref) } hx-post={ r.ActionHref } hx-swap="none">
-									<a class="btn ghost sm" href={ templ.SafeURL(r.Href) }>Ver log</a>
-									<button class="btn outline sm" type="submit">@Icon("zap") Acordar de novo</button>
+									<a class="btn ghost sm" href={ templ.SafeURL(r.Href) }>{ i18n.T(ctx, "Ver log") }</a>
+									<button class="btn outline sm" type="submit">
+										@Icon("zap")
+										{ i18n.T(ctx, "Acordar de novo") }
+									</button>
 								</form>
 							</div>
 						}
@@ -136,20 +155,23 @@ templ InboxPage(sh Shell, vm InboxVM) {
 				}
 				if len(vm.Subs) > 0 {
 					<section class="card inbox-sec">
-						<div class="inbox-h">@Icon("shield") Assinaturas travadas <span class="cnt">{ fmt.Sprint(len(vm.Subs)) }</span></div>
+						<div class="inbox-h">
+							@Icon("shield")
+							{ i18n.T(ctx, "Assinaturas travadas") }
+						<span class="cnt">{ fmt.Sprint(len(vm.Subs)) }</span></div>
 						for _, s := range vm.Subs {
 							<div class="inbox-row">
 								<span class="mini-avatar gate">@Icon("shield")</span>
 								<div class="main">
 									<div class="t">
 										<a href={ templ.SafeURL(s.Href) }>{ s.Name }</a>
-										<span class="badge danger">Trava semanal</span>
+										<span class="badge danger">{ i18n.T(ctx, "Trava semanal") }</span>
 									</div>
-									<p class="x">Uso estimado de { s.Usage } de { s.Limit } ({ s.Percent }) passou da trava de { fmt.Sprint(s.Guard) }%: novas execuções cobertas por esta assinatura ficam bloqueadas.</p>
-									<div class="s">semana de { s.Week } · libera na virada da semana ou ao subir o teto</div>
+									<p class="x">{ i18n.Tf(ctx, "Uso estimado de %s de %s (%s) passou da trava de %s%%: novas execuções cobertas por esta assinatura ficam bloqueadas.", s.Usage, s.Limit, s.Percent, fmt.Sprint(s.Guard)) }</p>
+									<div class="s">{ i18n.Tf(ctx, "semana de %s · libera na virada da semana ou ao subir o teto", s.Week) }</div>
 								</div>
 								<form class="inbox-act" method="get" action={ templ.SafeURL(s.Href) }>
-									<button class="btn outline sm" type="submit">Ajustar teto</button>
+									<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Ajustar teto") }</button>
 								</form>
 							</div>
 						}
@@ -157,14 +179,17 @@ templ InboxPage(sh Shell, vm InboxVM) {
 				}
 				if len(vm.Personas) > 0 {
 					<section class="card inbox-sec">
-						<div class="inbox-h">@Icon("bot") Personas com erro <span class="cnt">{ fmt.Sprint(len(vm.Personas)) }</span></div>
+						<div class="inbox-h">
+							@Icon("bot")
+							{ i18n.T(ctx, "Personas com erro") }
+						<span class="cnt">{ fmt.Sprint(len(vm.Personas)) }</span></div>
 						for _, p := range vm.Personas {
 							<div class="inbox-row">
 								<span class="mini-avatar">@Icon("bot")</span>
 								<div class="main">
 									<div class="t">
 										<a href={ templ.SafeURL(p.Href) }>{ p.Name }</a>
-										<span class="badge danger">Erro</span>
+										<span class="badge danger">{ i18n.T(ctx, "Erro") }</span>
 									</div>
 									if p.Error != "" {
 										<p class="x">{ p.Error }</p>
@@ -172,7 +197,7 @@ templ InboxPage(sh Shell, vm InboxVM) {
 									<div class="s">
 										{ p.Title }
 										if p.Failures > 0 {
-											· { fmt.Sprint(p.Failures) } falhas seguidas
+											· { i18n.Tf(ctx, "%d falhas seguidas", p.Failures) }
 										}
 										if p.When != "" {
 											· { p.When }
@@ -180,8 +205,8 @@ templ InboxPage(sh Shell, vm InboxVM) {
 									</div>
 								</div>
 								<form class="inbox-act" method="post" action={ templ.SafeURL(p.ActionHref) } hx-post={ p.ActionHref } hx-swap="none">
-									<a class="btn ghost sm" href={ templ.SafeURL(p.Href) }>Abrir</a>
-									<button class="btn outline sm" type="submit">Reativar</button>
+									<a class="btn ghost sm" href={ templ.SafeURL(p.Href) }>{ i18n.T(ctx, "Abrir") }</a>
+									<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Reativar") }</button>
 								</form>
 							</div>
 						}
@@ -190,16 +215,16 @@ templ InboxPage(sh Shell, vm InboxVM) {
 			</div>
 			<aside class="stack">
 				<section class="card pad">
-					<h2>Decisões</h2>
-					<p class="sub">Gates esperam por um humano. Nada anda sem a sua resposta.</p>
+					<h2>{ i18n.T(ctx, "Decisões") }</h2>
+					<p class="sub">{ i18n.T(ctx, "Gates esperam por um humano. Nada anda sem a sua resposta.") }</p>
 					<dl class="inbox-stats">
-						<div><dt>Aguardando</dt><dd class="mono">{ fmt.Sprint(vm.Pending) }</dd></div>
-						<div><dt>Envelhecendo (&gt; 24 h)</dt><dd class="mono">{ fmt.Sprint(vm.Aged) }</dd></div>
-						<div><dt>Decididas hoje</dt><dd class="mono">{ fmt.Sprint(vm.DecidedToday) }</dd></div>
+						<div><dt>{ i18n.T(ctx, "Aguardando") }</dt><dd class="mono">{ fmt.Sprint(vm.Pending) }</dd></div>
+						<div><dt>{ i18n.T(ctx, "Envelhecendo (> 24 h)") }</dt><dd class="mono">{ fmt.Sprint(vm.Aged) }</dd></div>
+						<div><dt>{ i18n.T(ctx, "Decididas hoje") }</dt><dd class="mono">{ fmt.Sprint(vm.DecidedToday) }</dd></div>
 					</dl>
 					<div style="display:grid;gap:8px;margin-top:14px">
-						<a class="btn outline block" href={ templ.SafeURL(vm.GatesURL) }>Abrir gates</a>
-						<a class="btn ghost block" href={ templ.SafeURL(vm.DecisionsURL) }>Histórico de decisões</a>
+						<a class="btn outline block" href={ templ.SafeURL(vm.GatesURL) }>{ i18n.T(ctx, "Abrir gates") }</a>
+						<a class="btn ghost block" href={ templ.SafeURL(vm.DecisionsURL) }>{ i18n.T(ctx, "Histórico de decisões") }</a>
 					</div>
 				</section>
 			</aside>

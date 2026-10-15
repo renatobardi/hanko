@@ -25,7 +25,7 @@ const LoginPath = "/entrar"
 // Guard é o middleware do modo authenticated. Resolve a identidade (cookie de sessão ou
 // API key) e aplica a regra por rota:
 //
-//	livres:      /healthz, /readyz, /static/, /entrar (e /entrar/…), /sair, /auth/
+//	livres:      /healthz, /readyz, /static/, /entrar (e /entrar/…), /sair, /idioma, /auth/
 //	/metrics:    loopback direto ou API key
 //	/api/…:      sessão (CSRF same-origin em métodos que mudam estado), API key ou run token
 //	/mcp, /memory-mcp: API key ou run token (run token é validado pelo handler)
@@ -97,7 +97,7 @@ func (g *guard) wrap(next http.Handler) http.Handler {
 				return
 			}
 			g.deny(w, r, "autenticação necessária")
-		case path == LoginPath || strings.HasPrefix(path, LoginPath+"/") || path == "/sair" || strings.HasPrefix(path, "/auth/"):
+		case path == LoginPath || strings.HasPrefix(path, LoginPath+"/") || path == "/sair" || path == "/idioma" || strings.HasPrefix(path, "/auth/"):
 			next.ServeHTTP(w, r)
 		case strings.HasPrefix(path, "/api/"):
 			switch {

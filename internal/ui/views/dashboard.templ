@@ -1,46 +1,60 @@
 package views
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+
+	"github.com/renatobardi/hanko/internal/i18n"
+)
 
 templ DashboardPage(sh Shell, vm DashboardVM) {
 	@Layout(sh) {
-		@PageHead("Painel", vm.Subtitle) {
-			<a class="btn outline" href={ templ.SafeURL(sh.Base() + "/execucoes") }>@Icon("play") Ver ao vivo</a>
-			<a class="btn primary" href={ templ.SafeURL(sh.Base() + "/tasks/nova") }>@Icon("plus") Nova task</a>
+		@PageHead(i18n.T(ctx, "Painel"), vm.Subtitle) {
+			<a class="btn outline" href={ templ.SafeURL(sh.Base() + "/execucoes") }>
+				@Icon("play")
+				{ i18n.T(ctx, "Ver ao vivo") }
+			</a>
+			<a class="btn primary" href={ templ.SafeURL(sh.Base() + "/tasks/nova") }>
+				@Icon("plus")
+				{ i18n.T(ctx, "Nova task") }
+			</a>
 		}
 		if vm.Notice != "" {
 			@Alert("warn", vm.Notice)
 		}
 		if vm.Budget != nil && vm.Budget.State == "exceeded" {
-			@Alert("danger", "Orçamento do mês estourado: nenhuma persona abre execução nova até o limite subir ou o mês virar.")
+			@Alert("danger", i18n.T(ctx, "Orçamento do mês estourado: nenhuma persona abre execução nova até o limite subir ou o mês virar."))
 		} else if vm.Budget != nil && vm.Budget.State == "warning" {
-			@Alert("warn", "O gasto do mês passou de 80% do orçamento da empresa.")
+			@Alert("warn", i18n.T(ctx, "O gasto do mês passou de 80% do orçamento da empresa."))
 		}
 		<div class="kpis">
-			@Kpi("bot", fmt.Sprint(vm.ActivePersonas), "Personas ativas", false)
-			@Kpi("activity", fmt.Sprint(vm.TasksInProgress), "Tasks em andamento", false)
-			@Kpi("database", vm.MonthCost, monthCostLabel(vm.Budget), vm.Budget != nil && (vm.Budget.State == "warning" || vm.Budget.State == "exceeded"))
-			@Kpi("shield", fmt.Sprint(vm.PendingGates), "Gates pendentes", vm.PendingGates > 0)
+			@Kpi("bot", fmt.Sprint(vm.ActivePersonas), i18n.T(ctx, "Personas ativas"), false)
+			@Kpi("activity", fmt.Sprint(vm.TasksInProgress), i18n.T(ctx, "Tasks em andamento"), false)
+			@Kpi("database", vm.MonthCost, monthCostLabel(ctx, vm.Budget), vm.Budget != nil && (vm.Budget.State == "warning" || vm.Budget.State == "exceeded"))
+			@Kpi("shield", fmt.Sprint(vm.PendingGates), i18n.T(ctx, "Gates pendentes"), vm.PendingGates > 0)
 		</div>
 		if len(vm.Gates) > 0 {
 			<div style="margin-bottom:20px">@PendingGatesCard(vm.Gates, sh.Base())</div>
 		}
 		<div class="grid-dash">
 			if !vm.HasPersonas {
-				@EmptyCard("bot", "Você ainda não tem personas.", "Contrate a primeira e defina o intervalo de verificação. A partir daí, toda task atribuída começa a rodar sozinha.", true) {
-					<a class="btn outline" href={ templ.SafeURL(sh.Base() + "/personas/nova") }>@Icon("plus") Contratar persona</a>
+				@EmptyCard("bot", i18n.T(ctx, "Você ainda não tem personas."), i18n.T(ctx, "Contrate a primeira e defina o intervalo de verificação. A partir daí, toda task atribuída começa a rodar sozinha."), true) {
+					<a class="btn outline" href={ templ.SafeURL(sh.Base() + "/personas/nova") }>
+						@Icon("plus")
+						{ i18n.T(ctx, "Contratar persona") }
+					</a>
 				}
 			} else {
 				<section class="card pad">
 					<div class="card-head">
 						<div>
-							<h2>Tasks por status</h2>
-							<p class="sub">{ fmt.Sprint(vm.OpenTasks) } tasks abertas</p>
+							<h2>{ i18n.T(ctx, "Tasks por status") }</h2>
+							<p class="sub">{ i18n.Tf(ctx, "%s tasks abertas", fmt.Sprint(vm.OpenTasks)) }</p>
 						</div>
-						<a class="more" href={ templ.SafeURL(sh.Base() + "/tasks") }>Ver todas</a>
+						<a class="more" href={ templ.SafeURL(sh.Base() + "/tasks") }>{ i18n.T(ctx, "Ver todas") }</a>
 					</div>
 					if len(vm.Bars) == 0 {
-						<p class="muted">Nenhuma task ainda.</p>
+						<p class="muted">{ i18n.T(ctx, "Nenhuma task ainda.") }</p>
 					} else {
 						<div class="bars">
 							for _, b := range vm.Bars {
@@ -55,8 +69,8 @@ templ DashboardPage(sh Shell, vm DashboardVM) {
 				</section>
 			}
 			<section class="card pad">
-				<h2>Primeiros passos</h2>
-				<p class="sub">{ fmt.Sprint(vm.StepsDone) } de { fmt.Sprint(len(vm.Steps)) } · você pode retomar depois</p>
+				<h2>{ i18n.T(ctx, "Primeiros passos") }</h2>
+				<p class="sub">{ i18n.Tf(ctx, "%s de %s · você pode retomar depois", fmt.Sprint(vm.StepsDone), fmt.Sprint(len(vm.Steps))) }</p>
 				<div class="progress"><i style={ pct(vm.StepsPct) }></i></div>
 				<ol class="steps">
 					for _, s := range vm.Steps {
@@ -80,10 +94,10 @@ templ DashboardPage(sh Shell, vm DashboardVM) {
 		</div>
 		<div class="grid-3">
 			if len(vm.Activity) == 0 {
-				@EmptyCard("clock", "Nenhuma atividade ainda.", "Execuções, comentários e mudanças de status aparecem aqui.", false)
+				@EmptyCard("clock", i18n.T(ctx, "Nenhuma atividade ainda."), i18n.T(ctx, "Execuções, comentários e mudanças de status aparecem aqui."), false)
 			} else {
 				<section class="card pad">
-					<div class="card-head"><h2>Atividade recente</h2><a class="more" href={ templ.SafeURL(sh.Base() + "/atividade") }>Ver tudo</a></div>
+					<div class="card-head"><h2>{ i18n.T(ctx, "Atividade recente") }</h2><a class="more" href={ templ.SafeURL(sh.Base() + "/atividade") }>{ i18n.T(ctx, "Ver tudo") }</a></div>
 					<ul class="list">
 						for _, a := range vm.Activity {
 							<li>
@@ -103,12 +117,15 @@ templ DashboardPage(sh Shell, vm DashboardVM) {
 				</section>
 			}
 			if len(vm.Tasks) == 0 {
-				@EmptyCard("list", "Nenhuma task.", "Crie uma e atribua a uma persona para ver uma execução acontecer.", false) {
-					<a class="btn outline sm" href={ templ.SafeURL(sh.Base() + "/tasks/nova") }>@Icon("plus") Nova task</a>
+				@EmptyCard("list", i18n.T(ctx, "Nenhuma task."), i18n.T(ctx, "Crie uma e atribua a uma persona para ver uma execução acontecer."), false) {
+					<a class="btn outline sm" href={ templ.SafeURL(sh.Base() + "/tasks/nova") }>
+						@Icon("plus")
+						{ i18n.T(ctx, "Nova task") }
+					</a>
 				}
 			} else {
 				<section class="card pad">
-					<div class="card-head"><h2>Tasks recentes</h2><a class="more" href={ templ.SafeURL(sh.Base() + "/tasks") }>Ver todas</a></div>
+					<div class="card-head"><h2>{ i18n.T(ctx, "Tasks recentes") }</h2><a class="more" href={ templ.SafeURL(sh.Base() + "/tasks") }>{ i18n.T(ctx, "Ver todas") }</a></div>
 					for _, t := range vm.Tasks {
 						<div class="trow">
 							<a class="id mono muted" style="font-size:12px" href={ templ.SafeURL(t.Href) }>{ t.Key }</a>
@@ -120,12 +137,12 @@ templ DashboardPage(sh Shell, vm DashboardVM) {
 			}
 			if vm.Budget != nil && vm.Budget.Limit != "" {
 				<section class={ "card pad budget-card", "b-" + vm.Budget.State }>
-					<div class="card-head"><h2>Orçamento do mês</h2><a class="more" href={ templ.SafeURL(sh.Base() + "/custos") }>Custos</a></div>
+					<div class="card-head"><h2>{ i18n.T(ctx, "Orçamento do mês") }</h2><a class="more" href={ templ.SafeURL(sh.Base() + "/custos") }>{ i18n.T(ctx, "Custos") }</a></div>
 					@BudgetMeter(*vm.Budget)
 				</section>
 			} else {
-				@EmptyCard("database", "Sem orçamento definido.", "Sem limite, as personas trabalham até você pausar.", false) {
-					<a class="btn outline sm" href={ templ.SafeURL(sh.Base() + "/custos") }>Definir limite mensal</a>
+				@EmptyCard("database", i18n.T(ctx, "Sem orçamento definido."), i18n.T(ctx, "Sem limite, as personas trabalham até você pausar."), false) {
+					<a class="btn outline sm" href={ templ.SafeURL(sh.Base() + "/custos") }>{ i18n.T(ctx, "Definir limite mensal") }</a>
 				}
 			}
 		</div>
@@ -135,16 +152,16 @@ templ DashboardPage(sh Shell, vm DashboardVM) {
 templ actorAvatar(a ActivityItem) {
 	if a.Persona {
 		<span class="mini-avatar">@Icon("bot")</span>
-	} else if a.Actor == "Sistema" {
+	} else if a.System {
 		<span class="mini-avatar">@Icon("zap")</span>
 	} else {
 		<span class="mini-avatar you">{ initial(a.Actor) }</span>
 	}
 }
 
-func monthCostLabel(b *BudgetBox) string {
+func monthCostLabel(ctx context.Context, b *BudgetBox) string {
 	if b == nil || b.Limit == "" {
-		return "Gasto do mês"
+		return i18n.T(ctx, "Gasto do mês")
 	}
-	return "Gasto do mês · " + b.PercentTxt + " de " + b.Limit
+	return i18n.Tf(ctx, "Gasto do mês · %s de %s", b.PercentTxt, b.Limit)
 }

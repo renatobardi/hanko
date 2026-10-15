@@ -1,6 +1,10 @@
 package views
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/renatobardi/hanko/internal/i18n"
+)
 
 // BudgetMeter is the spend-versus-ceiling bar. The tinted red state is reserved
 // for an exceeded budget (hard stop); the warning state is amber.
@@ -9,10 +13,10 @@ templ BudgetMeter(b BudgetBox) {
 		<div class="meter-top">
 			<span class="meter-spent mono">{ b.Spent }</span>
 			if b.Limit != "" {
-				<span class="muted">de <span class="mono">{ b.Limit }</span></span>
+				<span class="muted">{ i18n.T(ctx, "de") } <span class="mono">{ b.Limit }</span></span>
 				<span class="meter-pct mono">{ b.PercentTxt }</span>
 			} else {
-				<span class="muted">sem limite definido</span>
+				<span class="muted">{ i18n.T(ctx, "sem limite definido") }</span>
 			}
 		</div>
 		if b.Limit != "" {
@@ -26,19 +30,19 @@ templ BudgetMeter(b BudgetBox) {
 
 templ BudgetForm(b BudgetBox, id string) {
 	<form class="budget-form" method="post" action={ templ.SafeURL(b.Action) }>
-		<label class="sr-only" for={ id }>Limite mensal em dólares</label>
+		<label class="sr-only" for={ id }>{ i18n.T(ctx, "Limite mensal em dólares") }</label>
 		<span class="usd-field">
-			<span class="pre mono">US$</span>
-			<input class="input sm mono" id={ id } name="budget" inputmode="decimal" value={ b.Value } placeholder="sem limite" autocomplete="off"/>
+			<span class="pre mono">{ i18n.T(ctx, "US$") }</span>
+			<input class="input sm mono" id={ id } name="budget" inputmode="decimal" value={ b.Value } placeholder={ i18n.T(ctx, "sem limite") } autocomplete="off"/>
 		</span>
-		<button class="btn outline sm" type="submit">Salvar limite</button>
+		<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Salvar limite") }</button>
 	</form>
 }
 
 templ DayChartEl(c DayChart) {
 	<div class="chart">
 		if !c.HasData {
-			<p class="muted chart-empty">Nenhum gasto no período.</p>
+			<p class="muted chart-empty">{ i18n.T(ctx, "Nenhum gasto no período.") }</p>
 		} else {
 			<svg class="chart-svg" viewBox={ fmt.Sprintf("0 0 %d %d", c.W, c.H) } preserveAspectRatio="none" role="img" aria-label={ "Gasto por dia, " + c.Peak }>
 				<line class="grid" x1="0" x2={ fmt.Sprint(c.W) } y1={ fmt.Sprint(c.H - 1) } y2={ fmt.Sprint(c.H - 1) }></line>
@@ -56,7 +60,7 @@ templ DayChartEl(c DayChart) {
 				}
 			</svg>
 			<div class="chart-axis"><span>{ c.First }</span><span class="hide-sm">{ c.Mid }</span><span>{ c.Last }</span></div>
-			<div class="chart-legend"><span><i class="sw rep"></i>Reportado pelo harness</span><span><i class="sw est"></i>Estimado pela tabela de preços</span></div>
+			<div class="chart-legend"><span><i class="sw rep"></i>{ i18n.T(ctx, "Reportado pelo harness") }</span><span><i class="sw est"></i>{ i18n.T(ctx, "Estimado pela tabela de preços") }</span></div>
 		}
 	</div>
 }
@@ -65,11 +69,11 @@ templ CostTable(t CostTableVM) {
 	<section class="card pad">
 		<div class="card-head"><h2>{ t.Title }</h2></div>
 		if len(t.Rows) == 0 {
-			<p class="muted">Sem dados no período.</p>
+			<p class="muted">{ i18n.T(ctx, "Sem dados no período.") }</p>
 		} else {
 			<table class="table mini">
 				<thead>
-					<tr><th>{ t.Title }</th><th class="num" title="Real + estimado">Gasto</th><th class="num hide-sm" title="Tokens × preço de tabela vigente">Lista</th><th class="num hide-sm" title="Rateio da mensalidade das assinaturas">Pago</th><th class="num hide-sm">Execuções</th><th class="num hide-sm">Tokens</th></tr>
+					<tr><th>{ t.Title }</th><th class="num" title={ i18n.T(ctx, "Real + estimado") }>{ i18n.T(ctx, "Gasto") }</th><th class="num hide-sm" title={ i18n.T(ctx, "Tokens × preço de tabela vigente") }>{ i18n.T(ctx, "Lista") }</th><th class="num hide-sm" title={ i18n.T(ctx, "Rateio da mensalidade das assinaturas") }>{ i18n.T(ctx, "Pago") }</th><th class="num hide-sm">{ i18n.T(ctx, "Execuções") }</th><th class="num hide-sm">Tokens</th></tr>
 				</thead>
 				<tbody>
 					for _, r := range t.Rows {
@@ -85,7 +89,7 @@ templ CostTable(t CostTableVM) {
 							<td class="num mono">
 								{ r.Cost }
 								if r.Estimated {
-									<span class="est-mark" title="Inclui valor estimado pela tabela de preços">est.</span>
+									<span class="est-mark" title={ i18n.T(ctx, "Inclui valor estimado pela tabela de preços") }>est.</span>
 								}
 							</td>
 							<td class="num mono hide-sm">{ r.List }</td>
@@ -103,21 +107,21 @@ templ CostTable(t CostTableVM) {
 // CostLegend explains the four costs of a run.
 templ CostLegend() {
 	<section class="card pad cost-legend" style="margin-top:20px">
-		<div class="card-head"><h2>Os quatro custos</h2></div>
+		<div class="card-head"><h2>{ i18n.T(ctx, "Os quatro custos") }</h2></div>
 		<dl class="kv">
-			<dt>Real</dt><dd>Valor informado pelo harness ao fim da execução. É o que conta no orçamento.</dd>
-			<dt>Estimado</dt><dd>Tokens × tabela de preços, usado quando o harness não informa o valor. Também conta no orçamento.</dd>
-			<dt>Lista</dt><dd>Tokens × preço de tabela vigente quando a execução terminou, sempre calculado. Mostra quanto custaria sem assinatura.</dd>
-			<dt>Pago</dt><dd>Mensalidade da assinatura ÷ dias do mês, dividida entre as execuções do dia em proporção ao custo de lista. Dia sem uso aparece como "sem uso".</dd>
+			<dt>{ i18n.T(ctx, "Real") }</dt><dd>{ i18n.T(ctx, "Valor informado pelo harness ao fim da execução. É o que conta no orçamento.") }</dd>
+			<dt>{ i18n.T(ctx, "Estimado") }</dt><dd>{ i18n.T(ctx, "Tokens × tabela de preços, usado quando o harness não informa o valor. Também conta no orçamento.") }</dd>
+			<dt>{ i18n.T(ctx, "Lista") }</dt><dd>{ i18n.T(ctx, "Tokens × preço de tabela vigente quando a execução terminou, sempre calculado. Mostra quanto custaria sem assinatura.") }</dd>
+			<dt>{ i18n.T(ctx, "Pago") }</dt><dd>{ i18n.T(ctx, "Mensalidade da assinatura ÷ dias do mês, dividida entre as execuções do dia em proporção ao custo de lista. Dia sem uso aparece como \"sem uso\".") }</dd>
 		</dl>
 	</section>
 }
 
 templ DayCostTable(days []DayCostVM) {
 	<section class="card pad" style="margin-top:20px">
-		<div class="card-head"><h2>Custos por dia</h2></div>
+		<div class="card-head"><h2>{ i18n.T(ctx, "Custos por dia") }</h2></div>
 		<table class="table mini">
-			<thead><tr><th>Dia</th><th class="num">Real</th><th class="num">Estimado</th><th class="num hide-sm">Lista</th><th class="num">Pago</th></tr></thead>
+			<thead><tr><th>{ i18n.T(ctx, "Dia") }</th><th class="num">{ i18n.T(ctx, "Real") }</th><th class="num">{ i18n.T(ctx, "Estimado") }</th><th class="num hide-sm">{ i18n.T(ctx, "Lista") }</th><th class="num">{ i18n.T(ctx, "Pago") }</th></tr></thead>
 			<tbody>
 				for _, d := range days {
 					<tr>
@@ -127,7 +131,7 @@ templ DayCostTable(days []DayCostVM) {
 						<td class="num mono hide-sm">{ d.List }</td>
 						<td class="num mono">
 							if d.Unused {
-								<span class="muted" title={ "Mensalidade do dia sem uso: " + d.Idle }>sem uso</span>
+								<span class="muted" title={ "Mensalidade do dia sem uso: " + d.Idle }>{ i18n.T(ctx, "sem uso") }</span>
 							} else {
 								{ d.Paid }
 							}
@@ -143,15 +147,15 @@ templ SubscriptionsSection(vm CostsVM) {
 	<section class="card pad" id="assinaturas" style="margin-top:20px">
 		<div class="card-head">
 			<div>
-				<h2>Assinaturas</h2>
-				<p class="sub">Plano de um harness: a mensalidade é rateada nas execuções (custo pago). Quando o uso estimado da semana chega ao percentual de trava do teto semanal, novas execuções cobertas ficam bloqueadas.</p>
+				<h2>{ i18n.T(ctx, "Assinaturas") }</h2>
+				<p class="sub">{ i18n.T(ctx, "Plano de um harness: a mensalidade é rateada nas execuções (custo pago). Quando o uso estimado da semana chega ao percentual de trava do teto semanal, novas execuções cobertas ficam bloqueadas.") }</p>
 			</div>
 		</div>
 		if len(vm.Subs) == 0 {
-			<p class="muted">Nenhuma assinatura. Cadastre abaixo e vincule personas a ela na página da persona.</p>
+			<p class="muted">{ i18n.T(ctx, "Nenhuma assinatura. Cadastre abaixo e vincule personas a ela na página da persona.") }</p>
 		} else {
 			<table class="table mini pb-table">
-				<thead><tr><th>Assinatura</th><th class="num">Mensalidade</th><th class="hide-sm">Uso da semana</th><th class="num hide-sm">Pago no período</th><th>Ajustes</th></tr></thead>
+				<thead><tr><th>{ i18n.T(ctx, "Assinatura") }</th><th class="num">{ i18n.T(ctx, "Mensalidade") }</th><th class="hide-sm">{ i18n.T(ctx, "Uso da semana") }</th><th class="num hide-sm">{ i18n.T(ctx, "Pago no período") }</th><th>{ i18n.T(ctx, "Ajustes") }</th></tr></thead>
 				<tbody>
 					for i, s := range vm.Subs {
 						<tr class={ templ.KV("b-exceeded", s.Blocked) }>
@@ -159,10 +163,10 @@ templ SubscriptionsSection(vm CostsVM) {
 								<b>{ s.Name }</b>
 								<div class="sub-line">{ s.Agent } · { s.Models }
 									if !s.Active {
-										· <span class="badge outline">desligada</span>
+										· <span class="badge outline">{ i18n.T(ctx, "desligada") }</span>
 									}
 									if s.Blocked {
-										· <span class="badge danger">travada</span>
+										· <span class="badge danger">{ i18n.T(ctx, "travada") }</span>
 									}
 								</div>
 							</td>
@@ -170,27 +174,27 @@ templ SubscriptionsSection(vm CostsVM) {
 							<td class="hide-sm">
 								if s.WeekLimit != "" {
 									<div class={ "pb-use", templ.KV("m-exceeded", s.Blocked) }><div class="progress meter-bar"><i style={ pct(s.WeekPercent) }></i></div><span class="mono">{ s.WeekPctTxt }</span></div>
-									<div class="meter-note">{ s.WeekUsage } de { s.WeekLimit } · trava em { fmt.Sprint(s.GuardPct) }%</div>
+									<div class="meter-note">{ i18n.Tf(ctx, "%s de %s · trava em %s%%", s.WeekUsage, s.WeekLimit, fmt.Sprint(s.GuardPct)) }</div>
 								} else {
-									<span class="muted">sem trava semanal</span>
+									<span class="muted">{ i18n.T(ctx, "sem trava semanal") }</span>
 								}
 							</td>
-							<td class="num mono hide-sm">{ s.Paid }<div class="meter-note">sem uso: { s.Idle }</div></td>
+							<td class="num mono hide-sm">{ s.Paid }<div class="meter-note">{ i18n.T(ctx, "sem uso") }: { s.Idle }</div></td>
 							<td>
 								<form class="budget-form" method="post" action={ templ.SafeURL(s.UpdateAction) } style="flex-wrap:wrap;gap:6px">
-									<label class="sr-only" for={ fmt.Sprintf("sub-monthly-%d", i) }>Mensalidade em dólares</label>
-									<span class="usd-field"><span class="pre mono">US$</span><input class="input sm mono" id={ fmt.Sprintf("sub-monthly-%d", i) } name="monthly" inputmode="decimal" value={ s.MonthlyValue } autocomplete="off" title="Mensalidade"/></span>
-									<label class="sr-only" for={ fmt.Sprintf("sub-limit-%d", i) }>Teto semanal em dólares</label>
-									<span class="usd-field"><span class="pre mono">sem.</span><input class="input sm mono" id={ fmt.Sprintf("sub-limit-%d", i) } name="weekly_limit" inputmode="decimal" value={ s.LimitValue } placeholder="sem trava" autocomplete="off" title="Teto semanal"/></span>
-									<label class="sr-only" for={ fmt.Sprintf("sub-guard-%d", i) }>Trava em %</label>
-									<span class="usd-field"><input class="input sm mono" id={ fmt.Sprintf("sub-guard-%d", i) } name="guard_pct" inputmode="numeric" value={ fmt.Sprint(s.GuardPct) } autocomplete="off" title="Trava em % do teto semanal" style="width:56px"/><span class="pre mono">%</span></span>
-									<label class="sr-only" for={ fmt.Sprintf("sub-models-%d", i) }>Prefixos de modelo cobertos</label>
-									<input class="input sm" id={ fmt.Sprintf("sub-models-%d", i) } name="models" value={ s.ModelsValue } placeholder="todos os modelos" autocomplete="off" title="Prefixos de modelo cobertos, separados por vírgula"/>
-									<label class="check"><input type="checkbox" name="active" value="1" checked?={ s.Active }/><span>Ligada</span></label>
-									<button class="btn outline sm" type="submit">Salvar</button>
+									<label class="sr-only" for={ fmt.Sprintf("sub-monthly-%d", i) }>{ i18n.T(ctx, "Mensalidade em dólares") }</label>
+									<span class="usd-field"><span class="pre mono">{ i18n.T(ctx, "US$") }</span><input class="input sm mono" id={ fmt.Sprintf("sub-monthly-%d", i) } name="monthly" inputmode="decimal" value={ s.MonthlyValue } autocomplete="off" title={ i18n.T(ctx, "Mensalidade") }/></span>
+									<label class="sr-only" for={ fmt.Sprintf("sub-limit-%d", i) }>{ i18n.T(ctx, "Teto semanal em dólares") }</label>
+									<span class="usd-field"><span class="pre mono">{ i18n.T(ctx, "sem.") }</span><input class="input sm mono" id={ fmt.Sprintf("sub-limit-%d", i) } name="weekly_limit" inputmode="decimal" value={ s.LimitValue } placeholder={ i18n.T(ctx, "sem trava") } autocomplete="off" title={ i18n.T(ctx, "Teto semanal") }/></span>
+									<label class="sr-only" for={ fmt.Sprintf("sub-guard-%d", i) }>{ i18n.T(ctx, "Trava em %") }</label>
+									<span class="usd-field"><input class="input sm mono" id={ fmt.Sprintf("sub-guard-%d", i) } name="guard_pct" inputmode="numeric" value={ fmt.Sprint(s.GuardPct) } autocomplete="off" title={ i18n.T(ctx, "Trava em % do teto semanal") } style="width:56px"/><span class="pre mono">%</span></span>
+									<label class="sr-only" for={ fmt.Sprintf("sub-models-%d", i) }>{ i18n.T(ctx, "Prefixos de modelo cobertos") }</label>
+									<input class="input sm" id={ fmt.Sprintf("sub-models-%d", i) } name="models" value={ s.ModelsValue } placeholder={ i18n.T(ctx, "todos os modelos") } autocomplete="off" title={ i18n.T(ctx, "Prefixos de modelo cobertos, separados por vírgula") }/>
+									<label class="check"><input type="checkbox" name="active" value="1" checked?={ s.Active }/><span>{ i18n.T(ctx, "Ligada") }</span></label>
+									<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Salvar") }</button>
 								</form>
 								if s.CanDelete {
-									<form method="post" action={ templ.SafeURL(s.DeleteAction) } style="margin-top:6px"><button class="btn ghost sm" type="submit">Remover</button></form>
+									<form method="post" action={ templ.SafeURL(s.DeleteAction) } style="margin-top:6px"><button class="btn ghost sm" type="submit">{ i18n.T(ctx, "Remover") }</button></form>
 								}
 							</td>
 						</tr>
@@ -198,28 +202,28 @@ templ SubscriptionsSection(vm CostsVM) {
 				</tbody>
 			</table>
 		}
-		<h3 class="side-h" style="margin:22px 0 10px">Nova assinatura</h3>
+		<h3 class="side-h" style="margin:22px 0 10px">{ i18n.T(ctx, "Nova assinatura") }</h3>
 		<form class="budget-form" method="post" action={ templ.SafeURL(vm.SubCreate) } style="flex-wrap:wrap;gap:8px">
-			<label class="sr-only" for="sub-new-name">Nome</label>
-			<input class="input sm" id="sub-new-name" name="name" required maxlength="120" placeholder="Nome (ex.: Claude Max)" autocomplete="off"/>
+			<label class="sr-only" for="sub-new-name">{ i18n.T(ctx, "Nome") }</label>
+			<input class="input sm" id="sub-new-name" name="name" required maxlength="120" placeholder={ i18n.T(ctx, "Nome (ex.: Claude Max)") } autocomplete="off"/>
 			<label class="sr-only" for="sub-new-agent">Harness</label>
 			@Select("agent", "sub-new-agent", vm.AgentOpts, true)
-			<label class="sr-only" for="sub-new-monthly">Mensalidade em dólares</label>
-			<span class="usd-field"><span class="pre mono">US$</span><input class="input sm mono" id="sub-new-monthly" name="monthly" inputmode="decimal" required placeholder="mensalidade" autocomplete="off"/></span>
-			<label class="sr-only" for="sub-new-limit">Teto semanal em dólares</label>
-			<span class="usd-field"><span class="pre mono">sem.</span><input class="input sm mono" id="sub-new-limit" name="weekly_limit" inputmode="decimal" placeholder="teto semanal" autocomplete="off"/></span>
-			<label class="sr-only" for="sub-new-guard">Trava em %</label>
+			<label class="sr-only" for="sub-new-monthly">{ i18n.T(ctx, "Mensalidade em dólares") }</label>
+			<span class="usd-field"><span class="pre mono">{ i18n.T(ctx, "US$") }</span><input class="input sm mono" id="sub-new-monthly" name="monthly" inputmode="decimal" required placeholder={ i18n.T(ctx, "mensalidade") } autocomplete="off"/></span>
+			<label class="sr-only" for="sub-new-limit">{ i18n.T(ctx, "Teto semanal em dólares") }</label>
+			<span class="usd-field"><span class="pre mono">{ i18n.T(ctx, "sem.") }</span><input class="input sm mono" id="sub-new-limit" name="weekly_limit" inputmode="decimal" placeholder={ i18n.T(ctx, "teto semanal") } autocomplete="off"/></span>
+			<label class="sr-only" for="sub-new-guard">{ i18n.T(ctx, "Trava em %") }</label>
 			<span class="usd-field"><input class="input sm mono" id="sub-new-guard" name="guard_pct" inputmode="numeric" value="90" autocomplete="off" style="width:56px"/><span class="pre mono">%</span></span>
-			<label class="sr-only" for="sub-new-models">Prefixos de modelo cobertos</label>
-			<input class="input sm" id="sub-new-models" name="models" placeholder="modelos cobertos (prefixos, vírgula)" autocomplete="off"/>
-			<button class="btn primary sm" type="submit">Criar assinatura</button>
+			<label class="sr-only" for="sub-new-models">{ i18n.T(ctx, "Prefixos de modelo cobertos") }</label>
+			<input class="input sm" id="sub-new-models" name="models" placeholder={ i18n.T(ctx, "modelos cobertos (prefixos, vírgula)") } autocomplete="off"/>
+			<button class="btn primary sm" type="submit">{ i18n.T(ctx, "Criar assinatura") }</button>
 		</form>
 	</section>
 }
 
 templ CostsPage(sh Shell, vm CostsVM) {
 	@Layout(sh) {
-		@PageHead("Custos e orçamentos", vm.Subtitle) {
+		@PageHead(i18n.T(ctx, "Custos e orçamentos"), vm.Subtitle) {
 			@Tabs(vm.Tabs)
 		}
 		if vm.Notice != "" {
@@ -238,8 +242,8 @@ templ CostsPage(sh Shell, vm CostsVM) {
 		<section class={ "card pad budget-card", "b-" + vm.Company.State }>
 			<div class="card-head">
 				<div>
-					<h2>Orçamento da empresa · { vm.Month }</h2>
-					<p class="sub">Ao chegar em 100% do limite, nenhuma persona abre execução nova até o limite subir ou o mês virar.</p>
+					<h2>{ i18n.T(ctx, "Orçamento da empresa") } · { vm.Month }</h2>
+					<p class="sub">{ i18n.T(ctx, "Ao chegar em 100% do limite, nenhuma persona abre execução nova até o limite subir ou o mês virar.") }</p>
 				</div>
 			</div>
 			@BudgetMeter(vm.Company)
@@ -247,7 +251,7 @@ templ CostsPage(sh Shell, vm CostsVM) {
 		</section>
 		<div class="costs-grid">
 			<section class="card pad">
-				<div class="card-head"><h2>Gasto por dia</h2><span class="sub">{ vm.Chart.Peak }</span></div>
+				<div class="card-head"><h2>{ i18n.T(ctx, "Gasto por dia") }</h2><span class="sub">{ vm.Chart.Peak }</span></div>
 				@DayChartEl(vm.Chart)
 			</section>
 		</div>
@@ -256,12 +260,12 @@ templ CostsPage(sh Shell, vm CostsVM) {
 		}
 		@SubscriptionsSection(vm)
 		<section class="card pad" style="margin-top:20px">
-			<div class="card-head"><h2>Orçamento por persona</h2><span class="sub">{ vm.Month }</span></div>
+			<div class="card-head"><h2>{ i18n.T(ctx, "Orçamento por persona") }</h2><span class="sub">{ vm.Month }</span></div>
 			if len(vm.Personas) == 0 {
-				<p class="muted">Nenhuma persona contratada.</p>
+				<p class="muted">{ i18n.T(ctx, "Nenhuma persona contratada.") }</p>
 			} else {
 				<table class="table mini pb-table">
-					<thead><tr><th>Persona</th><th class="num">Gasto</th><th class="hide-sm">Uso do limite</th><th>Limite mensal</th></tr></thead>
+					<thead><tr><th>Persona</th><th class="num">{ i18n.T(ctx, "Gasto") }</th><th class="hide-sm">{ i18n.T(ctx, "Uso do limite") }</th><th>{ i18n.T(ctx, "Limite mensal") }</th></tr></thead>
 					<tbody>
 						for i, p := range vm.Personas {
 							<tr class={ "b-" + p.State }>
@@ -274,7 +278,7 @@ templ CostsPage(sh Shell, vm CostsVM) {
 											<div class="meter-note">{ p.StateText }</div>
 										}
 									} else {
-										<span class="muted">sem limite</span>
+										<span class="muted">{ i18n.T(ctx, "sem limite") }</span>
 									}
 								</td>
 								<td>@BudgetForm(p, fmt.Sprintf("persona-budget-%d", i))</td>

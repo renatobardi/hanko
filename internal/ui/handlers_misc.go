@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/i18n"
 	"github.com/renatobardi/hanko/internal/service"
 	"github.com/renatobardi/hanko/internal/ui/views"
 )
@@ -33,17 +34,17 @@ func (s *server) handleActivity(w http.ResponseWriter, r *http.Request, co domai
 	base := "/c/" + co.Slug
 
 	sort.SliceStable(acts, func(i, j int) bool { return acts[i].OccurredAt.After(acts[j].OccurredAt) })
-	vm := views.ActivityVM{Subtitle: "Quem fez o quê, em qual registro, quando. Cada linha leva de volta à task ou à persona responsável."}
+	vm := views.ActivityVM{Subtitle: i18n.T(ctx, "Quem fez o quê, em qual registro, quando. Cada linha leva de volta à task ou à persona responsável.")}
 	var lastDay time.Time
 	for _, a := range acts {
 		if len(vm.Days) == 0 || !sameDay(a.OccurredAt, lastDay, loc) {
-			vm.Days = append(vm.Days, views.ActivityDay{Label: dayLabel(a.OccurredAt, now, loc)})
+			vm.Days = append(vm.Days, views.ActivityDay{Label: dayLabel(ctx, a.OccurredAt, now, loc)})
 			lastDay = a.OccurredAt
 		}
 		d := &vm.Days[len(vm.Days)-1]
-		d.Items = append(d.Items, s.activityItem(a, base, names, now, loc, false))
+		d.Items = append(d.Items, s.activityItem(ctx, a, base, names, now, loc, false))
 	}
-	sh := s.shell(co, "atividade", "Atividade", views.Crumb{Label: "Atividade"})
+	sh := s.shell(co, "atividade", i18n.T(ctx, "Atividade"), views.Crumb{Label: i18n.T(ctx, "Atividade")})
 	s.render(w, r, http.StatusOK, views.ActivityPage(sh, vm))
 }
 
@@ -53,6 +54,8 @@ func (s *server) handleSoon(w http.ResponseWriter, r *http.Request, co domain.Co
 		s.fail(w, r, &co, domain.ErrNotFound)
 		return
 	}
-	sh := s.shell(co, it.Key, it.Label, views.Crumb{Label: it.Label})
-	s.render(w, r, http.StatusOK, views.SoonPage(sh, views.SoonVM{Label: it.Label, Milestone: it.Milestone, Blurb: it.Blurb}))
+	ctx := r.Context()
+	label := i18n.T(ctx, it.Label)
+	sh := s.shell(co, it.Key, label, views.Crumb{Label: label})
+	s.render(w, r, http.StatusOK, views.SoonPage(sh, views.SoonVM{Label: label, Milestone: it.Milestone, Blurb: i18n.T(ctx, it.Blurb)}))
 }

@@ -13,6 +13,7 @@ import (
 
 	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/events"
+	"github.com/renatobardi/hanko/internal/i18n"
 	"github.com/renatobardi/hanko/internal/service"
 	"github.com/renatobardi/hanko/internal/ui/views"
 )
@@ -23,10 +24,10 @@ type runTab struct {
 }
 
 var runTabs = []runTab{
-	{"todas", "Todas", nil},
-	{"ao-vivo", "Ao vivo", []domain.RunStatus{domain.RunQueued, domain.RunRunning}},
-	{"concluidas", "Concluídas", []domain.RunStatus{domain.RunDone}},
-	{"falhas", "Falhas", []domain.RunStatus{domain.RunFailed, domain.RunExpired, domain.RunInterrupted}},
+	{"todas", i18n.N("Todas"), nil},
+	{"ao-vivo", i18n.N("Ao vivo"), []domain.RunStatus{domain.RunQueued, domain.RunRunning}},
+	{"concluidas", i18n.N("Concluídas"), []domain.RunStatus{domain.RunDone}},
+	{"falhas", i18n.N("Falhas"), []domain.RunStatus{domain.RunFailed, domain.RunExpired, domain.RunInterrupted}},
 }
 
 func (s *server) handleRuns(w http.ResponseWriter, r *http.Request, co domain.Company) {
@@ -51,20 +52,20 @@ func (s *server) handleRuns(w http.ResponseWriter, r *http.Request, co domain.Co
 		s.fail(w, r, &co, err)
 		return
 	}
-	vm := views.RunsVM{Live: len(live), Subtitle: "Cada vez que uma persona é acordada vira uma execução auditável: status, eventos, saída, custo e a task de origem."}
+	vm := views.RunsVM{Live: len(live), Subtitle: i18n.T(ctx, "Cada vez que uma persona é acordada vira uma execução auditável: status, eventos, saída, custo e a task de origem.")}
 	for _, t := range runTabs {
-		vm.Tabs = append(vm.Tabs, views.TabLink{Key: t.key, Label: t.label, Href: base + "/execucoes?aba=" + t.key, On: t.key == cur.key})
+		vm.Tabs = append(vm.Tabs, views.TabLink{Key: t.key, Label: i18n.T(ctx, t.label), Href: base + "/execucoes?aba=" + t.key, On: t.key == cur.key})
 	}
 	for _, rv := range runs {
-		vm.Rows = append(vm.Rows, runRow(rv, base, now, loc))
+		vm.Rows = append(vm.Rows, runRow(ctx, rv, base, now, loc))
 	}
-	sh := s.shell(co, "execucoes", "Execuções", views.Crumb{Label: "Execuções"})
+	sh := s.shell(co, "execucoes", i18n.T(ctx, "Execuções"), views.Crumb{Label: i18n.T(ctx, "Execuções")})
 	s.render(w, r, http.StatusOK, views.RunsPage(sh, vm))
 }
 
 const pageEvents = 1000
 
-func (s *server) runVM(co domain.Company, rv service.RunView, personaSlug string, lines []views.LogLine, lastSeq int64) views.RunVM {
+func (s *server) runVM(ctx context.Context, co domain.Company, rv service.RunView, personaSlug string, lines []views.LogLine, lastSeq int64) views.RunVM {
 	base := "/c/" + co.Slug
 	loc := loadLoc(co.Timezone)
 	now := s.now()
@@ -76,23 +77,23 @@ func (s *server) runVM(co domain.Company, rv service.RunView, personaSlug string
 		Name:         rv.Name,
 		Short:        shortID(rv.ID),
 		ID:           rv.ID.String(),
-		Badge:        runBadge(rv.Status),
+		Badge:        runBadge(ctx, rv.Status),
 		Persona:      rv.PersonaName,
 		TaskKey:      rv.TaskKey,
 		TaskHref:     base + "/tasks/" + rv.TaskKey,
 		TaskTitle:    rv.TaskTitle,
-		Trigger:      triggerLabel(rv.Trigger),
+		Trigger:      triggerLabelCtx(ctx, rv.Trigger),
 		Started:      started,
 		Duration:     runDuration(rv.Run, now),
 		Events:       int(lastSeq),
-		Tokens:       fmtUsage(rv.Usage),
-		Cost:         fmtCostPtr(rv.CostUSD),
+		Tokens:       fmtUsageCtx(ctx, rv.Usage),
+		Cost:         fmtCostPtrCtx(ctx, rv.CostUSD),
 		Agent:        rv.Agent,
 		Model:        rv.Model,
-		ModelSource:  modelSourceLabel(rv.ModelSource),
-		ListCost:     fmtCostPtr(rv.ListCostUSD),
-		CostSource:   costSourceLabel(rv.CostSource),
-		Subscription: subscriptionLabel(rv.SubscriptionID),
+		ModelSource:  modelSourceLabel(ctx, rv.ModelSource),
+		ListCost:     fmtCostPtrCtx(ctx, rv.ListCostUSD),
+		CostSource:   costSourceLabel(ctx, rv.CostSource),
+		Subscription: subscriptionLabel(ctx, rv.SubscriptionID),
 		Session:      rv.SessionRef,
 		ExitCode:     "—",
 		Error:        rv.Error,
@@ -137,14 +138,15 @@ func (s *server) handleRun(w http.ResponseWriter, r *http.Request, co domain.Com
 		lines = append(lines, logLine(e, loc))
 		last = e.Seq
 	}
-	vm := s.runVM(co, rv, "", lines, last)
+	ctx := r.Context()
+	vm := s.runVM(ctx, co, rv, "", lines, last)
 	base := "/c/" + co.Slug
 	if !rv.Status.Terminal() {
 		vm.SSEHref = base + "/execucoes/" + rv.ID.String() + "/sse?after=" + strconv.FormatInt(last, 10)
 	} else if len(evs) == pageEvents {
-		vm.Error = strings.TrimSpace(vm.Error + " Log truncado nos primeiros " + strconv.Itoa(pageEvents) + " eventos.")
+		vm.Error = strings.TrimSpace(vm.Error + " " + i18n.Tf(ctx, "Log truncado nos primeiros %d eventos.", pageEvents))
 	}
-	sh := s.shell(co, "execucoes", "Execução "+nameOrShort(vm.Name, vm.Short), views.Crumb{Label: "Execuções", Href: base + "/execucoes"}, views.Crumb{Label: nameOrShort(vm.Name, vm.Short)})
+	sh := s.shell(co, "execucoes", i18n.T(ctx, "Execução")+" "+nameOrShort(vm.Name, vm.Short), views.Crumb{Label: i18n.T(ctx, "Execuções"), Href: base + "/execucoes"}, views.Crumb{Label: nameOrShort(vm.Name, vm.Short)})
 	s.render(w, r, http.StatusOK, views.RunPage(sh, vm))
 }
 
@@ -281,7 +283,7 @@ func (s *server) handleRunSSE(w http.ResponseWriter, r *http.Request, co domain.
 		key := fmt.Sprintf("%s|%d|%v", cur.Status, after, cur.CostUSD)
 		if force || key != lastKey {
 			lastKey = key
-			html, err := renderString(ctx, views.RunHeader(s.runVM(co, cur, "", nil, after)))
+			html, err := renderString(ctx, views.RunHeader(s.runVM(ctx, co, cur, "", nil, after)))
 			if err == nil && !write(0, "run-status", html) {
 				return false, false
 			}
@@ -366,31 +368,31 @@ func nameOrShort(name, short string) string {
 	return short
 }
 
-func modelSourceLabel(s domain.ModelSource) string {
+func modelSourceLabel(ctx context.Context, s domain.ModelSource) string {
 	switch s {
 	case domain.ModelFromTask:
-		return "escolha manual na task"
+		return i18n.T(ctx, "escolha manual na task")
 	case domain.ModelFromPersona:
-		return "modelo da persona"
+		return i18n.T(ctx, "modelo da persona")
 	case domain.ModelFromHarnessDefault:
-		return "padrão do harness"
+		return i18n.T(ctx, "padrão do harness")
 	}
 	return "—"
 }
 
-func costSourceLabel(s domain.CostSource) string {
+func costSourceLabel(ctx context.Context, s domain.CostSource) string {
 	switch s {
 	case domain.CostReported:
-		return "real, informado pelo harness"
+		return i18n.T(ctx, "real, informado pelo harness")
 	case domain.CostEstimated:
-		return "estimado pela tabela de preços"
+		return i18n.T(ctx, "estimado pela tabela de preços")
 	}
-	return "desconhecido"
+	return i18n.T(ctx, "desconhecido")
 }
 
-func subscriptionLabel(id *domain.ID) string {
+func subscriptionLabel(ctx context.Context, id *domain.ID) string {
 	if id == nil {
 		return "—"
 	}
-	return "coberta por assinatura"
+	return i18n.T(ctx, "coberta por assinatura")
 }

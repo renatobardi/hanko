@@ -1,20 +1,28 @@
 package views
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+
+	"github.com/renatobardi/hanko/internal/i18n"
+)
 
 templ PersonasPage(sh Shell, vm PersonasVM) {
 	@Layout(sh) {
-		@PageHead("Personas", vm.Subtitle) {
+		@PageHead(i18n.T(ctx, "Personas"), vm.Subtitle) {
 		}
 		<div class="kpis">
-			@Kpi("bot", fmt.Sprint(vm.Active), "Ativas agora", false)
-			@Kpi("activity", fmt.Sprint(vm.Running), "Executando", false)
-			@Kpi("alert", fmt.Sprint(vm.Paused), "Pausadas", false)
-			@Kpi("shield", fmt.Sprint(vm.Awaiting), "Aguardando gate", vm.Awaiting > 0)
+			@Kpi("bot", fmt.Sprint(vm.Active), i18n.T(ctx, "Ativas agora"), false)
+			@Kpi("activity", fmt.Sprint(vm.Running), i18n.T(ctx, "Executando"), false)
+			@Kpi("alert", fmt.Sprint(vm.Paused), i18n.T(ctx, "Pausadas"), false)
+			@Kpi("shield", fmt.Sprint(vm.Awaiting), i18n.T(ctx, "Aguardando gate"), vm.Awaiting > 0)
 		</div>
 		if len(vm.Rows) == 0 {
-			@EmptyCard("bot", "Você ainda não tem personas.", "Contrate a primeira, escolha o harness e o modelo e defina o intervalo de verificação.", true) {
-				<a class="btn outline" href={ templ.SafeURL(sh.Base() + "/personas/nova") }>@Icon("plus") Contratar persona</a>
+			@EmptyCard("bot", i18n.T(ctx, "Você ainda não tem personas."), i18n.T(ctx, "Contrate a primeira, escolha o harness e o modelo e defina o intervalo de verificação."), true) {
+				<a class="btn outline" href={ templ.SafeURL(sh.Base() + "/personas/nova") }>
+					@Icon("plus")
+					{ i18n.T(ctx, "Contratar persona") }
+				</a>
 			}
 		} else {
 			<div class="table-wrap">
@@ -22,10 +30,10 @@ templ PersonasPage(sh Shell, vm PersonasVM) {
 					<thead>
 						<tr>
 							<th>Persona</th>
-							<th>Status</th>
-							<th class="hide-sm">Harness · modelo</th>
+							<th>{ i18n.T(ctx, "Status") }</th>
+							<th class="hide-sm">{ i18n.T(ctx, "Harness · modelo") }</th>
 							<th class="num">Tasks</th>
-							<th class="hide-sm">Acorda</th>
+							<th class="hide-sm">{ i18n.T(ctx, "Acorda") }</th>
 						</tr>
 					</thead>
 					<tbody>
@@ -56,7 +64,7 @@ templ PersonasPage(sh Shell, vm PersonasVM) {
 
 templ HirePersonaPage(sh Shell, vm HirePersonaVM) {
 	@Layout(sh) {
-		@PageHead("Contratar persona", "Identidade, harness e modelo. A persona é acordada assim que tiver uma task.") {
+		@PageHead(i18n.T(ctx, "Contratar persona"), i18n.T(ctx, "Identidade, harness e modelo. A persona é acordada assim que tiver uma task.")) {
 		}
 		<form class="card pad form-card" method="post" action={ templ.SafeURL(sh.Base() + "/personas/nova") } hx-boost="true">
 			if vm.Error != "" {
@@ -64,15 +72,15 @@ templ HirePersonaPage(sh Shell, vm HirePersonaVM) {
 			}
 			<div class="form-grid">
 				<div class="field">
-					<label for="p-name">Nome</label>
-					<input class="input" id="p-name" name="name" value={ vm.Name } required maxlength="80" placeholder="Ada" autofocus/>
+					<label for="p-name">{ i18n.T(ctx, "Nome") }</label>
+					<input class="input" id="p-name" name="name" value={ vm.Name } required maxlength="80" placeholder={ i18n.T(ctx, "Ada") } autofocus/>
 					if e := vm.FieldErr["name"]; e != "" {
 						<span class="err">{ e }</span>
 					}
 				</div>
 				<div class="field">
-					<label for="p-title">Cargo</label>
-					<input class="input" id="p-title" name="title" value={ vm.Title } maxlength="120" placeholder="Chief of staff"/>
+					<label for="p-title">{ i18n.T(ctx, "Cargo") }</label>
+					<input class="input" id="p-title" name="title" value={ vm.Title } maxlength="120" placeholder={ i18n.T(ctx, "Chief of staff") }/>
 				</div>
 			</div>
 			<div class="field">
@@ -80,59 +88,62 @@ templ HirePersonaPage(sh Shell, vm HirePersonaVM) {
 				<div class="radio-cards">
 					<label>
 						<input type="radio" name="agent" value="claude" checked?={ vm.Agent == "claude" }/>
-						<span class="rc"><b>@Icon("bot") Claude Code</b><span>Local · sessão preservada · skills nativas</span></span>
+						<span class="rc"><b>@Icon("bot") Claude Code</b><span>{ i18n.T(ctx, "Local · sessão preservada · skills nativas") }</span></span>
 					</label>
 					<label>
 						<input type="radio" name="agent" value="codex" checked?={ vm.Agent == "codex" }/>
-						<span class="rc"><b>@Icon("bot") Codex</b><span>Local · OpenAI · exec em JSONL</span></span>
+						<span class="rc"><b>@Icon("bot") Codex</b><span>{ i18n.T(ctx, "Local · OpenAI · exec em JSONL") }</span></span>
 					</label>
 					<label>
 						<input type="radio" name="agent" value="fake" checked?={ vm.Agent == "fake" }/>
-						<span class="rc"><b>@Icon("bot") Simulado</b><span>Sem processo e sem custo · demo e testes</span></span>
+						<span class="rc"><b>
+							@Icon("bot")
+							{ i18n.T(ctx, "Simulado") }
+						</b><span>{ i18n.T(ctx, "Sem processo e sem custo · demo e testes") }</span></span>
 					</label>
 				</div>
 			</div>
 			<div class="form-grid">
 				<div class="field">
-					<label for="p-model">Modelo</label>
-					<input class="input" id="p-model" name="model" value={ vm.Model } placeholder="sonnet (vazio = padrão do harness)" list="models"/>
+					<label for="p-model">{ i18n.T(ctx, "Modelo") }</label>
+					<input class="input" id="p-model" name="model" value={ vm.Model } placeholder={ i18n.T(ctx, "sonnet (vazio = padrão do harness)") } list="models"/>
 					<datalist id="models">
 						<option value="sonnet"></option>
 						<option value="opus"></option>
 						<option value="haiku"></option>
 						<option value="gpt-5"></option>
 					</datalist>
-					<span class="hint">Lista sugerida · ou informe um ID manual.</span>
+					<span class="hint">{ i18n.T(ctx, "Lista sugerida · ou informe um ID manual.") }</span>
 				</div>
 				<div class="field">
-					<label for="p-hb">Acordar a cada (min)</label>
+					<label for="p-hb">{ i18n.T(ctx, "Acordar a cada (min)") }</label>
 					<input class="input" id="p-hb" name="heartbeat" type="number" min="0" max="1440" value={ vm.Heartbeat } inputmode="numeric"/>
-					<span class="hint">Intervalo de verificação: de quanto em quanto tempo a persona é acordada por task. 0 = só manual.</span>
+					<span class="hint">{ i18n.T(ctx, "Intervalo de verificação: de quanto em quanto tempo a persona é acordada por task. 0 = só manual.") }</span>
 				</div>
 			</div>
 			<div class="form-grid">
 				<div class="field">
-					<label for="p-reports">Reporta a</label>
+					<label for="p-reports">{ i18n.T(ctx, "Reporta a") }</label>
 					@Select("reports_to", "p-reports", vm.ReportsTo, false)
-					<span class="hint">Define o organograma. Uma persona só delega tasks para si e para quem reporta a ela.</span>
+					<span class="hint">{ i18n.T(ctx, "Define o organograma. Uma persona só delega tasks para si e para quem reporta a ela.") }</span>
 				</div>
 				<div class="field">
-					<span class="lbl">Revisão</span>
+					<span class="lbl">{ i18n.T(ctx, "Revisão") }</span>
 					<label class="check">
 						<input type="checkbox" name="require_review" value="1" checked?={ vm.RequireReview }/>
-						<span>Exige revisão</span>
+						<span>{ i18n.T(ctx, "Exige revisão") }</span>
 					</label>
-					<span class="hint">Ao dar uma task como concluída, ela passa por um gate de revisão antes de fechar.</span>
+					<span class="hint">{ i18n.T(ctx, "Ao dar uma task como concluída, ela passa por um gate de revisão antes de fechar.") }</span>
 				</div>
 			</div>
 			<div class="field">
-				<label for="p-instr">Instruções</label>
-				<textarea class="textarea mono" id="p-instr" name="instructions" rows="8" placeholder="Você é a Ada, Chief of staff. Receba a meta, delegue e conclua com evidência.">{ vm.Instructions }</textarea>
-				<span class="hint">Vira o prompt de sistema da persona em cada execução.</span>
+				<label for="p-instr">{ i18n.T(ctx, "Instruções") }</label>
+				<textarea class="textarea mono" id="p-instr" name="instructions" rows="8" placeholder={ i18n.T(ctx, "Você é a Ada, Chief of staff. Receba a meta, delegue e conclua com evidência.") }>{ vm.Instructions }</textarea>
+				<span class="hint">{ i18n.T(ctx, "Vira o prompt de sistema da persona em cada execução.") }</span>
 			</div>
 			<div class="form-actions">
-				<a class="btn ghost" href={ templ.SafeURL(sh.Base() + "/personas") }>Cancelar</a>
-				<button class="btn primary" type="submit">Contratar</button>
+				<a class="btn ghost" href={ templ.SafeURL(sh.Base() + "/personas") }>{ i18n.T(ctx, "Cancelar") }</a>
+				<button class="btn primary" type="submit">{ i18n.T(ctx, "Contratar") }</button>
 			</div>
 		</form>
 	}
@@ -144,7 +155,7 @@ templ PersonaPage(sh Shell, vm PersonaVM) {
 			@Alert("warn", vm.Notice)
 		}
 		if vm.LastError != "" {
-			@Alert("danger", personaErrorText(vm))
+			@Alert("danger", personaErrorText(ctx, vm))
 		}
 		<div class="persona-head">
 			<span class="mini-avatar">@Icon("bot")</span>
@@ -154,7 +165,7 @@ templ PersonaPage(sh Shell, vm PersonaVM) {
 					if vm.Model != "" {
 						<span class="mono" style="font-size:12.5px"> · { vm.Model }</span>
 					}
-					· intervalo de verificação: { vm.Heartbeat }
+					· { i18n.T(ctx, "intervalo de verificação:") } { vm.Heartbeat }
 				</p>
 			</div>
 		</div>
@@ -168,41 +179,41 @@ templ PersonaPage(sh Shell, vm PersonaVM) {
 			</div>
 		}
 		<div class="tabs" style="margin-bottom:22px">
-			<a href="#visao" aria-current="page">Visão geral</a>
-			<a href="#execucoes">Execuções</a>
+			<a href="#visao" aria-current="page">{ i18n.T(ctx, "Visão geral") }</a>
+			<a href="#execucoes">{ i18n.T(ctx, "Execuções") }</a>
 		</div>
 		<div class="grid-2" id="visao" style="align-items:start">
 			<section class="card pad">
-				<div class="card-head"><h2>Identidade</h2></div>
+				<div class="card-head"><h2>{ i18n.T(ctx, "Identidade") }</h2></div>
 				<dl class="dl">
-					<dt>Nome</dt><dd>{ vm.Name }</dd>
-					<dt>Cargo</dt><dd>{ vm.Title }</dd>
+					<dt>{ i18n.T(ctx, "Nome") }</dt><dd>{ vm.Name }</dd>
+					<dt>{ i18n.T(ctx, "Cargo") }</dt><dd>{ vm.Title }</dd>
 					<dt>Slug</dt><dd class="mono">{ vm.Slug }</dd>
 					<dt>Harness</dt><dd class="mono">{ vm.Agent }</dd>
-					<dt>Modelo</dt><dd class="mono">
+					<dt>{ i18n.T(ctx, "Modelo") }</dt><dd class="mono">
 						if vm.Model != "" {
 							{ vm.Model }
 						} else {
-							<span class="faint">padrão do harness</span>
+							<span class="faint">{ i18n.T(ctx, "padrão do harness") }</span>
 						}
 					</dd>
-					<dt>Intervalo de verificação</dt><dd>{ vm.Heartbeat }</dd>
-					<dt>Reporta a</dt><dd>
+					<dt>{ i18n.T(ctx, "Intervalo de verificação") }</dt><dd>{ vm.Heartbeat }</dd>
+					<dt>{ i18n.T(ctx, "Reporta a") }</dt><dd>
 						if vm.ReportsHref != "" {
 							<a href={ templ.SafeURL(vm.ReportsHref) } style="text-decoration:underline;text-underline-offset:2px">{ vm.ReportsTo }</a>
 						} else {
-							<span>Você (dono)</span>
+							<span>{ i18n.T(ctx, "Você (dono)") }</span>
 						}
 					</dd>
-					<dt>Exige revisão</dt><dd>
+					<dt>{ i18n.T(ctx, "Exige revisão") }</dt><dd>
 						if vm.RequireReview {
-							<span class="badge warn">Sim</span>
+							<span class="badge warn">{ i18n.T(ctx, "Sim") }</span>
 						} else {
-							<span class="muted">Não</span>
+							<span class="muted">{ i18n.T(ctx, "Não") }</span>
 						}
 					</dd>
 					if len(vm.Reports) > 0 {
-						<dt>Equipe</dt><dd>
+						<dt>{ i18n.T(ctx, "Equipe") }</dt><dd>
 							for i, r := range vm.Reports {
 								if i > 0 {
 									<span>, </span>
@@ -211,54 +222,54 @@ templ PersonaPage(sh Shell, vm PersonaVM) {
 							}
 						</dd>
 					}
-					<dt>Contratada</dt><dd>{ vm.Hired }</dd>
+					<dt>{ i18n.T(ctx, "Contratada") }</dt><dd>{ vm.Hired }</dd>
 				</dl>
 			</section>
 			<section class="card pad">
-				<div class="card-head"><h2>Instruções</h2></div>
+				<div class="card-head"><h2>{ i18n.T(ctx, "Instruções") }</h2></div>
 				if vm.Instructions == "" {
-					<p class="muted">Sem instruções.</p>
+					<p class="muted">{ i18n.T(ctx, "Sem instruções.") }</p>
 				} else {
 					<div class="instr">{ vm.Instructions }</div>
 				}
 			</section>
 		</div>
 		<section class="card pad" id="organizacao" style="margin-top:20px">
-			<div class="card-head"><div><h2>Organização</h2><p class="sub">Quem esta persona reporta e se o trabalho dela passa por revisão antes de concluir.</p></div></div>
+			<div class="card-head"><div><h2>{ i18n.T(ctx, "Organização") }</h2><p class="sub">{ i18n.T(ctx, "Quem esta persona reporta e se o trabalho dela passa por revisão antes de concluir.") }</p></div></div>
 			<form method="post" action={ templ.SafeURL(vm.OrgAction) } hx-post={ vm.OrgAction } hx-swap="none" class="org-form">
 				<div class="field">
-					<label for="o-reports">Reporta a</label>
+					<label for="o-reports">{ i18n.T(ctx, "Reporta a") }</label>
 					@Select("reports_to", "o-reports", vm.OrgOptions, false)
 				</div>
 				<div class="field">
 					<label class="check">
 						<input type="checkbox" name="require_review" value="1" checked?={ vm.RequireReview }/>
-						<span>Exige revisão</span>
+						<span>{ i18n.T(ctx, "Exige revisão") }</span>
 					</label>
 				</div>
-				<div class="form-actions" style="margin-top:0"><button class="btn primary sm" type="submit">Salvar organização</button></div>
+				<div class="form-actions" style="margin-top:0"><button class="btn primary sm" type="submit">{ i18n.T(ctx, "Salvar organização") }</button></div>
 			</form>
 		</section>
 		<section class="card pad" id="assinatura" style="margin-top:20px">
-			<div class="card-head"><div><h2>Assinatura</h2><p class="sub">Plano que cobre as execuções desta persona: a mensalidade é rateada no custo pago e a trava semanal vale para ela.</p></div><a class="more" href={ templ.SafeURL(sh.Base() + "/custos#assinaturas") }>Custos</a></div>
+			<div class="card-head"><div><h2>{ i18n.T(ctx, "Assinatura") }</h2><p class="sub">{ i18n.T(ctx, "Plano que cobre as execuções desta persona: a mensalidade é rateada no custo pago e a trava semanal vale para ela.") }</p></div><a class="more" href={ templ.SafeURL(sh.Base() + "/custos#assinaturas") }>{ i18n.T(ctx, "Custos") }</a></div>
 			<form method="post" action={ templ.SafeURL(vm.SubAction) } hx-post={ vm.SubAction } hx-swap="none" class="org-form">
 				<div class="field">
-					<label for="o-sub">Assinatura</label>
+					<label for="o-sub">{ i18n.T(ctx, "Assinatura") }</label>
 					@Select("subscription", "o-sub", vm.SubOptions, false)
 				</div>
-				<div class="form-actions" style="margin-top:0"><button class="btn primary sm" type="submit">Salvar assinatura</button></div>
+				<div class="form-actions" style="margin-top:0"><button class="btn primary sm" type="submit">{ i18n.T(ctx, "Salvar assinatura") }</button></div>
 			</form>
 		</section>
 		if vm.Budget != nil {
 			<section class={ "card pad budget-card", "b-" + vm.Budget.State } style="margin-top:20px">
-				<div class="card-head"><h2>Orçamento do mês</h2><a class="more" href={ templ.SafeURL(vm.Budget.Href) }>Custos</a></div>
+				<div class="card-head"><h2>{ i18n.T(ctx, "Orçamento do mês") }</h2><a class="more" href={ templ.SafeURL(vm.Budget.Href) }>{ i18n.T(ctx, "Custos") }</a></div>
 				@BudgetMeter(*vm.Budget)
 				@BudgetForm(*vm.Budget, "persona-budget")
 			</section>
 		}
-		<h2 class="side-h" style="margin:28px 0 12px">Tasks atribuídas</h2>
+		<h2 class="side-h" style="margin:28px 0 12px">{ i18n.T(ctx, "Tasks atribuídas") }</h2>
 		if len(vm.Tasks) == 0 {
-			@EmptyCard("list", "Nenhuma task atribuída.", "Atribua uma task a esta persona para ela começar a trabalhar.", false)
+			@EmptyCard("list", i18n.T(ctx, "Nenhuma task atribuída."), i18n.T(ctx, "Atribua uma task a esta persona para ela começar a trabalhar."), false)
 		} else {
 			<div class="table-wrap">
 				<table class="table">
@@ -276,18 +287,18 @@ templ PersonaPage(sh Shell, vm PersonaVM) {
 				</table>
 			</div>
 		}
-		<h2 class="side-h" id="execucoes" style="margin:28px 0 12px">Execuções recentes</h2>
+		<h2 class="side-h" id="execucoes" style="margin:28px 0 12px">{ i18n.T(ctx, "Execuções recentes") }</h2>
 		@RunsTable(vm.Runs, false)
 	}
 }
 
-func personaErrorText(vm PersonaVM) string {
-	msg := "Última execução falhou"
+func personaErrorText(ctx context.Context, vm PersonaVM) string {
+	msg := i18n.T(ctx, "Última execução falhou")
 	if vm.LastErrorAt != "" {
-		msg += " em " + vm.LastErrorAt
+		msg += " " + i18n.Tf(ctx, "em %s", vm.LastErrorAt)
 	}
 	if vm.Failures > 1 {
-		msg += " (" + fmt.Sprint(vm.Failures) + " falhas seguidas)"
+		msg += " (" + i18n.Tf(ctx, "%d falhas seguidas", vm.Failures) + ")"
 	}
 	return msg + ": " + vm.LastError
 }
