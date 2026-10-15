@@ -4,6 +4,7 @@ package domain
 
 import (
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -119,6 +120,8 @@ type Persona struct {
 	WorkspaceID          *ID             `json:"workspace_id,omitempty"`
 	HeartbeatIntervalSec int             `json:"heartbeat_interval_sec"`
 	BudgetMonthlyCents   *int64          `json:"budget_monthly_cents,omitempty"`
+	// SubscriptionID is the optional plan (assinatura) that covers this persona's runs.
+	SubscriptionID *ID `json:"subscription_id,omitempty"`
 	// RequireReview sends the persona's attempts to close a task through a task_review gate.
 	RequireReview bool      `json:"require_review"`
 	PauseReason   string    `json:"pause_reason,omitempty"`
@@ -184,6 +187,7 @@ type Task struct {
 	ProjectID   *ID        `json:"project_id,omitempty"`
 	WorkspaceID *ID        `json:"workspace_id,omitempty"`
 	ParentID    *ID        `json:"parent_id,omitempty"`
+	Model       string     `json:"model,omitempty"` // manual model choice; wins over the persona's
 	CreatedBy   Actor      `json:"created_by"`
 	CreatedAt   time.Time  `json:"created_at"`
 	UpdatedAt   time.Time  `json:"updated_at"`
@@ -250,6 +254,61 @@ const (
 	CostNone      CostSource = "none"      // unknown
 )
 
+// ModelSource tells who chose the model of a run. Precedence: task (manual) > persona > harness default.
+type ModelSource string
+
+const (
+	ModelFromTask           ModelSource = "task"
+	ModelFromPersona        ModelSource = "persona"
+	ModelFromHarnessDefault ModelSource = "harness_default"
+)
+
+// ResolveModel applies the precedence manual (task) > persona > harness default (empty model).
+func ResolveModel(taskModel, personaModel string) (string, ModelSource) {
+	switch {
+	case taskModel != "":
+		return taskModel, ModelFromTask
+	case personaModel != "":
+		return personaModel, ModelFromPersona
+	}
+	return "", ModelFromHarnessDefault
+}
+
+// Subscription (Assinatura) is a plan of a harness: monthly fee, the model prefixes it covers and a
+// weekly guard. WeeklyLimitUSD is the weekly ceiling; once the week's estimated usage reaches
+// WeeklyGuardPct of it, new runs covered by the subscription are blocked until the next week.
+type Subscription struct {
+	ID             ID         `json:"id"`
+	CompanyID      ID         `json:"company_id"`
+	Name           string     `json:"name"`
+	Agent          string     `json:"agent"` // harness/provider: claude, codex…
+	MonthlyUSD     float64    `json:"monthly_usd"`
+	ModelPrefixes  []string   `json:"model_prefixes"`
+	WeeklyLimitUSD *float64   `json:"weekly_limit_usd,omitempty"`
+	WeeklyGuardPct int        `json:"weekly_guard_pct"`
+	Active         bool       `json:"active"`
+	EndedAt        *time.Time `json:"ended_at,omitempty"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
+}
+
+// Covers reports whether a run of agent with model falls under the subscription. An empty model
+// (the harness default) belongs to the plan; with no prefixes every model of the harness does.
+func (s Subscription) Covers(agent, model string) bool {
+	if !s.Active || s.Agent != agent {
+		return false
+	}
+	if len(s.ModelPrefixes) == 0 || model == "" {
+		return true
+	}
+	for _, p := range s.ModelPrefixes {
+		if strings.HasPrefix(model, p) {
+			return true
+		}
+	}
+	return false
+}
+
 // Usage holds token counts reported by the agent.
 type Usage struct {
 	InputTokens         int64 `json:"input_tokens"`
@@ -275,12 +334,16 @@ type Run struct {
 	Summary    string     `json:"summary,omitempty"`
 	CostUSD    *float64   `json:"cost_usd,omitempty"`
 	CostSource CostSource `json:"cost_source,omitempty"`
-	Usage      Usage      `json:"usage"`
-	HandoffIn  string     `json:"handoff_in,omitempty"`
-	HandoffOut string     `json:"handoff_out,omitempty"`
-	CreatedAt  time.Time  `json:"created_at"`
-	StartedAt  *time.Time `json:"started_at,omitempty"`
-	FinishedAt *time.Time `json:"finished_at,omitempty"`
+	// ListCostUSD is tokens x the list price in force when the run finished (stored once, never recalculated).
+	ListCostUSD    *float64    `json:"list_cost_usd,omitempty"`
+	ModelSource    ModelSource `json:"model_source,omitempty"`
+	SubscriptionID *ID         `json:"subscription_id,omitempty"`
+	Usage          Usage       `json:"usage"`
+	HandoffIn      string      `json:"handoff_in,omitempty"`
+	HandoffOut     string      `json:"handoff_out,omitempty"`
+	CreatedAt      time.Time   `json:"created_at"`
+	StartedAt      *time.Time  `json:"started_at,omitempty"`
+	FinishedAt     *time.Time  `json:"finished_at,omitempty"`
 }
 
 // RunEventKind classifies a line of the run log.

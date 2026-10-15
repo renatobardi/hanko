@@ -53,11 +53,17 @@ func (s *Service) HirePersona(ctx context.Context, actor domain.Actor, companyID
 				return domain.Invalid("workspace_id", "workspace not found in company")
 			}
 		}
+		if in.SubscriptionID != nil {
+			if _, err := t.q.GetSubscriptionByID(ctx, store.GetSubscriptionByIDParams{CompanyID: companyID, ID: *in.SubscriptionID}); err != nil {
+				return domain.Invalid("subscription_id", "subscription not found in company")
+			}
+		}
 		row, err := t.q.CreatePersona(ctx, store.CreatePersonaParams{
 			ID: domain.NewID(), CompanyID: companyID, Slug: slug, Name: name, Title: strings.TrimSpace(in.Title),
 			Instructions: in.Instructions, Agent: in.Agent, Model: strings.TrimSpace(in.Model), AdapterConfig: cfg,
 			Status: string(domain.PersonaActive), ReportsTo: in.ReportsTo, WorkspaceID: in.WorkspaceID,
-			HeartbeatIntervalSec: int32(in.HeartbeatIntervalSec), BudgetMonthlyCents: in.BudgetMonthlyCents, Now: t.now})
+			HeartbeatIntervalSec: int32(in.HeartbeatIntervalSec), BudgetMonthlyCents: in.BudgetMonthlyCents,
+			SubscriptionID: in.SubscriptionID, Now: t.now})
 		if err != nil {
 			return mapErr(err, "hire persona")
 		}
@@ -71,7 +77,7 @@ func (s *Service) HirePersona(ctx context.Context, actor domain.Actor, companyID
 		out = personaFromRow(row)
 		return t.activity(actor, companyID, "persona.hired", "persona", out.ID,
 			map[string]any{"slug": out.Slug, "name": out.Name, "agent": out.Agent, "reports_to": out.ReportsTo,
-				"require_review": out.RequireReview}, "")
+				"require_review": out.RequireReview, "subscription_id": out.SubscriptionID}, "")
 	})
 	return out, err
 }
@@ -126,6 +132,9 @@ func (s *Service) UpdatePersona(ctx context.Context, actor domain.Actor, company
 	if in.BudgetMonthlyCents != nil && *in.BudgetMonthlyCents < 0 {
 		return domain.Persona{}, domain.Invalid("budget_monthly_cents", "must be >= 0")
 	}
+	if in.ClearSubscription && in.SubscriptionID != nil {
+		return domain.Persona{}, domain.Invalid("subscription_id", "cannot set and clear at once")
+	}
 
 	var out domain.Persona
 	err := s.withTx(ctx, func(t *txc) error {
@@ -141,7 +150,7 @@ func (s *Service) UpdatePersona(ctx context.Context, actor domain.Actor, company
 		p := store.UpdatePersonaParams{CompanyID: companyID, ID: personaID, Name: cur.Name, Title: cur.Title,
 			Instructions: cur.Instructions, Model: cur.Model, Status: cur.Status,
 			HeartbeatIntervalSec: cur.HeartbeatIntervalSec, WorkspaceID: cur.WorkspaceID,
-			BudgetMonthlyCents: cur.BudgetMonthlyCents, Now: t.now}
+			BudgetMonthlyCents: cur.BudgetMonthlyCents, SubscriptionID: cur.SubscriptionID, Now: t.now}
 		var changed []string
 		if in.Name != nil && strings.TrimSpace(*in.Name) != cur.Name {
 			p.Name = strings.TrimSpace(*in.Name)
@@ -214,6 +223,16 @@ func (s *Service) UpdatePersona(ctx context.Context, actor domain.Actor, company
 		} else if in.BudgetMonthlyCents != nil && (cur.BudgetMonthlyCents == nil || *cur.BudgetMonthlyCents != *in.BudgetMonthlyCents) {
 			p.BudgetMonthlyCents = in.BudgetMonthlyCents
 			changed = append(changed, "budget_monthly_cents")
+		}
+		if in.ClearSubscription && cur.SubscriptionID != nil {
+			p.SubscriptionID = nil
+			changed = append(changed, "subscription_id")
+		} else if in.SubscriptionID != nil && (cur.SubscriptionID == nil || *cur.SubscriptionID != *in.SubscriptionID) {
+			if _, err := t.q.GetSubscriptionByID(ctx, store.GetSubscriptionByIDParams{CompanyID: companyID, ID: *in.SubscriptionID}); err != nil {
+				return domain.Invalid("subscription_id", "subscription not found in company")
+			}
+			p.SubscriptionID = in.SubscriptionID
+			changed = append(changed, "subscription_id")
 		}
 		if len(changed) == 0 {
 			out = personaFromRow(cur)

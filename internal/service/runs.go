@@ -200,8 +200,30 @@ func (s *Service) CheckoutRun(ctx context.Context, w Wake) (domain.Run, error) {
 				return fmt.Errorf("clear budget refused: %w", err)
 			}
 		}
+		// The model comes from the task (manual) first, then the persona, else the harness default; the
+		// subscription that covers it (if any) is fixed now and its weekly guard holds the line.
+		model, modelSource := domain.ResolveModel(task.Model, p.Model)
+		sub, err := t.subscriptionFor(p, model)
+		if err != nil {
+			return err
+		}
+		var subID *domain.ID
+		if sub != nil {
+			subID = &sub.ID
+			if gerr := t.checkWeeklyGuard(co, *sub); gerr != nil {
+				if !errors.Is(gerr, domain.ErrSubscriptionGuard) {
+					return gerr
+				}
+				blocked = gerr
+				if err := t.q.SetPersonaBudgetRefused(ctx, store.SetPersonaBudgetRefusedParams{ID: p.ID, Now: &t.now}); err != nil {
+					return fmt.Errorf("mark budget refused: %w", err)
+				}
+				return nil
+			}
+		}
 		row, err := t.q.CreateRun(ctx, store.CreateRunParams{ID: domain.NewID(), CompanyID: w.CompanyID, TaskID: task.ID,
-			PersonaID: p.ID, Trigger: string(w.Trigger), Agent: p.Agent, Model: p.Model, Now: t.now})
+			PersonaID: p.ID, Trigger: string(w.Trigger), Agent: p.Agent, Model: model, ModelSource: string(modelSource),
+			SubscriptionID: subID, Now: t.now})
 		if err != nil {
 			if isUnique(err) {
 				return domain.ErrActiveRun
@@ -406,12 +428,13 @@ func (s *Service) FinishRun(ctx context.Context, companyID, runID domain.ID, in 
 		if res.Model != "" {
 			model = res.Model
 		}
-		cost, source, fallback, err := t.costFor(model, res)
+		cr, err := t.costFor(model, res, t.now)
 		if err != nil {
 			return err
 		}
+		cost, source, fallback := cr.cost, cr.source, cr.fallback
 		row, err := t.q.FinishRun(ctx, store.FinishRunParams{CompanyID: companyID, ID: runID, Status: string(in.Status),
-			ExitCode: &code, Error: res.Error, Summary: res.Summary, CostUsd: cost, CostSource: string(source),
+			ExitCode: &code, Error: res.Error, Summary: res.Summary, CostUsd: cost, CostSource: string(source), ListCostUsd: cr.list,
 			InputTokens: res.Usage.InputTokens, OutputTokens: res.Usage.OutputTokens,
 			CacheReadTokens: res.Usage.CacheReadTokens, CacheCreationTokens: res.Usage.CacheCreationTokens,
 			SessionRef: res.SessionRef, Model: model, Now: &t.now})

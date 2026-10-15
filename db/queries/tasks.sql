@@ -1,8 +1,8 @@
 -- name: CreateTask :one
 INSERT INTO tasks (id, company_id, number, title, description, status, priority, persona_id, project_id,
-                   workspace_id, parent_id, created_by_type, created_by_id, created_at, updated_at)
+                   workspace_id, parent_id, created_by_type, created_by_id, model, created_at, updated_at)
 VALUES (@id, @company_id, @number, @title, @description, @status, @priority, @persona_id, @project_id,
-        @workspace_id, @parent_id, @created_by_type, @created_by_id, @now, @now)
+        @workspace_id, @parent_id, @created_by_type, @created_by_id, @model, @now, @now)
 RETURNING *;
 
 -- name: GetTaskByID :one
@@ -51,7 +51,7 @@ LIMIT @lim OFFSET @off;
 -- name: UpdateTask :one
 UPDATE tasks
 SET title = @title, description = @description, status = @status, priority = @priority,
-    persona_id = @persona_id, project_id = @project_id, closed_at = @closed_at, updated_at = @now
+    persona_id = @persona_id, project_id = @project_id, model = @model, closed_at = @closed_at, updated_at = @now
 WHERE company_id = @company_id AND id = @id
 RETURNING *;
 

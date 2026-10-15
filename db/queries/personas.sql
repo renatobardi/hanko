@@ -1,9 +1,9 @@
 -- name: CreatePersona :one
 INSERT INTO personas (id, company_id, slug, name, title, instructions, agent, model, adapter_config,
-                      status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents,
+                      status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, subscription_id,
                       created_at, updated_at)
 VALUES (@id, @company_id, @slug, @name, @title, @instructions, @agent, @model, @adapter_config,
-        @status, @reports_to, @workspace_id, @heartbeat_interval_sec, @budget_monthly_cents,
+        @status, @reports_to, @workspace_id, @heartbeat_interval_sec, @budget_monthly_cents, @subscription_id,
         @now, @now)
 RETURNING *;
 
@@ -23,7 +23,7 @@ SELECT * FROM personas WHERE company_id = @company_id ORDER BY created_at, id;
 UPDATE personas
 SET name = @name, title = @title, instructions = @instructions, model = @model,
     status = @status, heartbeat_interval_sec = @heartbeat_interval_sec,
-    workspace_id = @workspace_id, budget_monthly_cents = @budget_monthly_cents, updated_at = @now,
+    workspace_id = @workspace_id, budget_monthly_cents = @budget_monthly_cents, subscription_id = @subscription_id, updated_at = @now,
     pause_reason = CASE WHEN @status::text <> 'paused' OR @clear_pause_reason::boolean THEN NULL ELSE pause_reason END,
     consecutive_failures = CASE WHEN @status::text <> status THEN 0 ELSE consecutive_failures END
 WHERE company_id = @company_id AND id = @id
