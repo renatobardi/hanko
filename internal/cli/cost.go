@@ -11,24 +11,41 @@ import (
 
 	"github.com/renatobardi/hanko/internal/api"
 	"github.com/renatobardi/hanko/internal/client"
+	"github.com/renatobardi/hanko/internal/i18n"
 )
 
-func usd(v float64) string { return fmt.Sprintf("US$ %.2f", v) }
+// usd formata dólares: "US$ 1.00" em pt-BR, "$1.00" em inglês.
+func (e *env) usd(v float64) string { return e.money("%.2f", v) }
 
-func centsUSD(c int64) string { return fmt.Sprintf("US$ %.2f", float64(c)/100) }
+func (e *env) centsUSD(c int64) string { return e.usd(float64(c) / 100) }
 
-func budgetLine(b api.Budget) string {
-	if b.BudgetMonthlyCents == nil {
-		return "sem teto definido"
+func (e *env) money(format string, v float64) string {
+	if e.lang() == i18n.EN {
+		return "$" + fmt.Sprintf(format, v)
 	}
-	state := map[string]string{"ok": "dentro do teto", "warning": "atenção: acima de 80%", "exceeded": "estourado: execuções travadas"}[b.State]
-	return fmt.Sprintf("%s de %s (%.0f%%) — %s", usd(b.SpentUSD), centsUSD(*b.BudgetMonthlyCents), b.Percent, state)
+	return "US$ " + fmt.Sprintf(format, v)
+}
+
+func (e *env) budgetLine(b api.Budget) string {
+	if b.BudgetMonthlyCents == nil {
+		return e.t("sem teto definido")
+	}
+	state := ""
+	switch b.State {
+	case "ok":
+		state = e.t("dentro do teto")
+	case "warning":
+		state = e.t("atenção: acima de 80%")
+	case "exceeded":
+		state = e.t("estourado: execuções travadas")
+	}
+	return e.tf("%s de %s (%.0f%%) — %s", e.usd(b.SpentUSD), e.centsUSD(*b.BudgetMonthlyCents), b.Percent, state)
 }
 
 func (e *env) costCmd() *cobra.Command {
 	var by, from, to string
 	c := &cobra.Command{
-		Use: "cost", Short: "Mostra os custos do mês (ou de um período) por dimensão", Args: cobra.NoArgs,
+		Use: "cost", Short: e.t("Mostra os custos do mês (ou de um período) por dimensão"), Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			co, err := e.needCompany()
 			if err != nil {
@@ -37,7 +54,7 @@ func (e *env) costCmd() *cobra.Command {
 			switch by {
 			case "", "day", "persona", "project", "model", "harness":
 			default:
-				return usageError{fmt.Errorf("--by %q inválido: use day, persona, project, model ou harness", by)}
+				return usageError{fmt.Errorf(e.t("--by %q inválido: use day, persona, project, model ou harness"), by)}
 			}
 			sum, err := e.client().Costs(cmd.Context(), co, client.CostQuery{From: from, To: to, GroupBy: by})
 			if err != nil {
@@ -47,64 +64,64 @@ func (e *env) costCmd() *cobra.Command {
 				return e.printJSON(sum)
 			}
 			if len(sum.Rows) == 0 {
-				fmt.Fprintln(e.out, "Nenhum custo no período.")
+				fmt.Fprintln(e.out, e.t("Nenhum custo no período."))
 			} else {
 				rows := make([][]string, 0, len(sum.Rows)+1)
 				for _, r := range sum.Rows {
 					est := "-"
 					if r.EstimatedUSD > 0 {
-						est = usd(r.EstimatedUSD)
+						est = e.usd(r.EstimatedUSD)
 					}
 					paid := "-"
 					switch {
 					case r.Unused:
-						paid = "sem uso"
+						paid = e.t("sem uso")
 					case r.PaidUSD > 0:
-						paid = usd(r.PaidUSD)
+						paid = e.usd(r.PaidUSD)
 					}
-					rows = append(rows, []string{dash(r.Label), usd(r.ReportedUSD), est, usd(r.ListUSD), paid, strconv.Itoa(r.Runs),
+					rows = append(rows, []string{dash(r.Label), e.usd(r.ReportedUSD), est, e.usd(r.ListUSD), paid, strconv.Itoa(r.Runs),
 						strconv.FormatInt(r.InputTokens, 10), strconv.FormatInt(r.OutputTokens, 10)})
 				}
-				e.table([]string{strings.ToUpper(sum.GroupBy), "REAL", "ESTIMADO", "LISTA", "PAGO", "EXECUÇÕES", "TOKENS ENTRADA", "TOKENS SAÍDA"}, rows)
+				e.table([]string{strings.ToUpper(sum.GroupBy), e.t("REAL"), e.t("ESTIMADO"), e.t("LISTA"), e.t("PAGO"), e.t("EXECUÇÕES"), e.t("TOKENS ENTRADA"), e.t("TOKENS SAÍDA")}, rows)
 			}
-			fmt.Fprintf(e.out, "\nTotal: %s (real %s, estimado %s) em %d execuções\nCusto de lista: %s · pago (mensalidades rateadas): %s · sem uso: %s\nOrçamento do mês: %s\n",
-				usd(sum.TotalUSD), usd(sum.ReportedUSD), usd(sum.EstimatedUSD), sum.Runs, usd(sum.ListUSD), usd(sum.PaidUSD), usd(sum.IdleUSD), budgetLine(sum.Budget))
+			fmt.Fprintf(e.out, e.t("\nTotal: %s (real %s, estimado %s) em %d execuções\nCusto de lista: %s · pago (mensalidades rateadas): %s · sem uso: %s\nOrçamento do mês: %s\n"),
+				e.usd(sum.TotalUSD), e.usd(sum.ReportedUSD), e.usd(sum.EstimatedUSD), sum.Runs, e.usd(sum.ListUSD), e.usd(sum.PaidUSD), e.usd(sum.IdleUSD), e.budgetLine(sum.Budget))
 			return nil
 		},
 	}
 	f := c.Flags()
-	f.StringVar(&by, "by", "day", "agrupar por: day, persona, project, model ou harness")
-	f.StringVar(&from, "from", "", "início (AAAA-MM-DD); padrão: início do mês")
-	f.StringVar(&to, "to", "", "fim inclusivo (AAAA-MM-DD); padrão: fim do mês")
+	f.StringVar(&by, "by", "day", e.t("agrupar por: day, persona, project, model ou harness"))
+	f.StringVar(&from, "from", "", e.t("início (AAAA-MM-DD); padrão: início do mês"))
+	f.StringVar(&to, "to", "", e.t("fim inclusivo (AAAA-MM-DD); padrão: fim do mês"))
 	return c
 }
 
 // parseUSD converte "50" ou "12.50" em centavos.
-func parseUSD(s string) (int64, error) {
+func (e *env) parseUSD(s string) (int64, error) {
 	v, err := strconv.ParseFloat(strings.TrimSpace(strings.ReplaceAll(s, ",", ".")), 64)
 	if err != nil || math.IsNaN(v) || math.IsInf(v, 0) || v < 0 {
-		return 0, usageError{fmt.Errorf("valor inválido %q: informe dólares, ex.: 50 ou 12.50", s)}
+		return 0, usageError{fmt.Errorf(e.t("valor inválido %q: informe dólares, ex.: 50 ou 12.50"), s)}
 	}
 	return int64(math.Round(v * 100)), nil
 }
 
 func (e *env) budgetCmd() *cobra.Command {
-	c := &cobra.Command{Use: "budget", Short: "Orçamento mensal (hard stop ao atingir 100%)"}
+	c := &cobra.Command{Use: "budget", Short: e.t("Orçamento mensal (hard stop ao atingir 100%)")}
 	var persona string
 	var clear bool
 	set := &cobra.Command{
-		Use: "set [valor-em-dólares]", Short: "Define o orçamento mensal da empresa (ou de uma persona com --persona)", Args: cobra.MaximumNArgs(1),
+		Use: "set " + e.t("[valor-em-dólares]"), Short: e.t("Define o orçamento mensal da empresa (ou de uma persona com --persona)"), Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			co, err := e.needCompany()
 			if err != nil {
 				return err
 			}
 			if clear == (len(args) == 1) {
-				return usageError{errors.New("informe o valor em dólares ou --clear (um dos dois)")}
+				return usageError{errors.New(e.t("informe o valor em dólares ou --clear (um dos dois)"))}
 			}
 			var cents *int64
 			if !clear {
-				v, err := parseUSD(args[0])
+				v, err := e.parseUSD(args[0])
 				if err != nil {
 					return err
 				}
@@ -118,7 +135,7 @@ func (e *env) budgetCmd() *cobra.Command {
 				if e.asJSON {
 					return e.printJSON(p)
 				}
-				fmt.Fprintf(e.out, "Orçamento de %s: %s\n", p.Name, budgetValue(p.BudgetMonthlyCents))
+				fmt.Fprintf(e.out, e.t("Orçamento de %s: %s\n"), p.Name, e.budgetValue(p.BudgetMonthlyCents))
 				return nil
 			}
 			cm, err := e.client().UpdateCompany(cmd.Context(), co, client.UpdateCompanyReq{BudgetMonthlyCents: cents, ClearBudget: clear})
@@ -128,14 +145,14 @@ func (e *env) budgetCmd() *cobra.Command {
 			if e.asJSON {
 				return e.printJSON(cm)
 			}
-			fmt.Fprintf(e.out, "Orçamento da empresa %s: %s\n", cm.Name, budgetValue(cm.BudgetMonthlyCents))
+			fmt.Fprintf(e.out, e.t("Orçamento da empresa %s: %s\n"), cm.Name, e.budgetValue(cm.BudgetMonthlyCents))
 			return nil
 		},
 	}
-	set.Flags().StringVar(&persona, "persona", "", "persona (id ou slug); sem isso vale para a empresa")
-	set.Flags().BoolVar(&clear, "clear", false, "remove o teto")
+	set.Flags().StringVar(&persona, "persona", "", e.t("persona (id ou slug); sem isso vale para a empresa"))
+	set.Flags().BoolVar(&clear, "clear", false, e.t("remove o teto"))
 	show := &cobra.Command{
-		Use: "show", Short: "Mostra o orçamento da empresa e das personas", Args: cobra.NoArgs,
+		Use: "show", Short: e.t("Mostra o orçamento da empresa e das personas"), Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			co, err := e.needCompany()
 			if err != nil {
@@ -152,18 +169,18 @@ func (e *env) budgetCmd() *cobra.Command {
 			if e.asJSON {
 				return e.printJSON(map[string]any{"company": sum.Budget, "personas": ps})
 			}
-			fmt.Fprintf(e.out, "Empresa: %s\n", budgetLine(sum.Budget))
+			fmt.Fprintf(e.out, e.t("Empresa: %s\n"), e.budgetLine(sum.Budget))
 			spent := map[string]float64{}
 			for _, r := range sum.Rows {
 				spent[r.Key] = r.CostUSD
 			}
 			rows := [][]string{}
 			for _, p := range ps {
-				rows = append(rows, []string{p.Slug, budgetValue(p.BudgetMonthlyCents), usd(spent[p.ID]), p.Status})
+				rows = append(rows, []string{p.Slug, e.budgetValue(p.BudgetMonthlyCents), e.usd(spent[p.ID]), p.Status})
 			}
 			if len(rows) > 0 {
 				fmt.Fprintln(e.out)
-				e.table([]string{"PERSONA", "TETO", "GASTO NO MÊS", "STATUS"}, rows)
+				e.table([]string{e.t("PERSONA"), e.t("TETO"), e.t("GASTO NO MÊS"), e.t("STATUS")}, rows)
 			}
 			return nil
 		},
@@ -172,9 +189,9 @@ func (e *env) budgetCmd() *cobra.Command {
 	return c
 }
 
-func budgetValue(c *int64) string {
+func (e *env) budgetValue(c *int64) string {
 	if c == nil {
-		return "sem teto"
+		return e.t("sem teto")
 	}
-	return centsUSD(*c) + " por mês"
+	return e.tf("%s por mês", e.centsUSD(*c))
 }

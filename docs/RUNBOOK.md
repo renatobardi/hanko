@@ -27,7 +27,9 @@ make dev          # sobe o Hanko local em http://127.0.0.1:7420 (migrations roda
 Testes: `export HANKO_TEST_DATABASE_URL=postgres://postgres:...@127.0.0.1:5432/hanko_test?sslmode=disable; make test`
 (testes de integração fazem skip sem a variável).
 
-**Idioma da UI.** A interface web fala pt-BR (padrão) e inglês. O idioma vem do cookie `hanko_lang` (gravado pelo seletor no rodapé da barra lateral e na tela de entrada, via `POST /idioma`) e, sem ele, do `Accept-Language` (`en*` é inglês, qualquer outro é pt-BR). Dados do usuário, logs de execução e erros da API não são traduzidos; a CLI continua em pt-BR.
+**Idioma da UI.** A interface web fala pt-BR (padrão) e inglês. O idioma vem do cookie `hanko_lang` (gravado pelo seletor no rodapé da barra lateral e na tela de entrada, via `POST /idioma`) e, sem ele, do `Accept-Language` (`en*` é inglês, qualquer outro é pt-BR). Dados do usuário, logs de execução e erros da API não são traduzidos.
+
+**Idioma da CLI.** A CLI (`hanko …`) também fala pt-BR (padrão) e inglês, incluindo o `--help`, tabelas, mensagens e prompts. O idioma é resolvido uma vez, na partida: `HANKO_LANG` (`pt-BR` ou `en`) vence; sem ele valem `LC_ALL`, `LC_MESSAGES` e `LANG`, nessa ordem (o primeiro que estiver definido decide; `en*` é inglês, qualquer outro valor é pt-BR); sem nenhuma, pt-BR. Ex.: `HANKO_LANG=en hanko task list`. Em inglês, datas saem como `aaaa-mm-dd hh:mm` e valores como `$1.00`. Mensagens vindas da API ou do domínio, a saída `--json` e as mensagens de erro de parsing do próprio cobra (flag desconhecida etc.) não são traduzidas. Novos textos da CLI entram em `internal/i18n/en_cli.go` (mesma regra do catálogo da UI: a chave é o texto em pt-BR) e o teste `TestCatalogCoversSources` cobre UI e CLI.
 
 ## 2. Deploy em LXC (oute-server)
 

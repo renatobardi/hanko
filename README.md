@@ -27,7 +27,7 @@ Multi-company from day one: `company_id` is on every domain table.
 
 v0.1 is running in production at https://hanko.oute.pro. Implemented: companies, workspaces, projects, personas, tasks, runs, gates, org chart, inbox/decisions, costs and budgets, flows, MCP server, memory integration, and authentication (`authenticated` mode with `local` or `firebase` login, sessions and API keys). Adapters for `claude` and `codex` (plus a `fake` one for tests). Not in v0.1: ACP adapter, interactive React islands, multi-human roles, OIDC. See [docs/ROADMAP.md](docs/ROADMAP.md) (Portuguese) for scope and what is next.
 
-The UI is currently in Brazilian Portuguese; the API, CLI flags, MCP tools and database use English terms (see the [glossary](docs/en/GLOSSARY.md)). Some CLI help text is still in Portuguese.
+The web UI and the CLI (including `--help`) speak Brazilian Portuguese (default) and English: the UI follows the language selector or `Accept-Language`, the CLI follows `HANKO_LANG` (`pt-BR` or `en`) and, without it, `LC_ALL`/`LC_MESSAGES`/`LANG`. The API, CLI flags, MCP tools and database use English terms (see the [glossary](docs/en/GLOSSARY.md)).
 
 ## Quickstart
 

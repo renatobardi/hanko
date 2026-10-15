@@ -18,7 +18,16 @@ import (
 // callRe finds i18n.T(ctx, "..."), i18n.Tf(ctx, "...") and i18n.N("...") with a literal text.
 var callRe = regexp.MustCompile(`i18n\.(?:Tf?\(\s*[^,()]+(?:\([^()]*\))?\s*,|N\()\s*("(?:[^"\\]|\\.)*")`)
 
-// Every text marked for translation in the .templ and .go sources must have an English entry.
+// cliCallRe finds the CLI helpers e.t("...") and e.tf("...") (internal/cli) with a literal text;
+// i18n.N("...") in the CLI is found by callRe.
+var cliCallRe = regexp.MustCompile(`\be\.tf?\(\s*("(?:[^"\\]|\\.)*")`)
+
+// cliAnyCallRe finds every e.t(/e.tf( call, literal or not: a non-literal one must say so with
+// the marker comment i18n:dyn (the text it passes was marked with i18n.N elsewhere).
+var cliAnyCallRe = regexp.MustCompile(`\be\.tf?\(`)
+
+// Every text marked for translation in the .templ and .go sources of the UI and in the CLI
+// (internal/cli) must have an English entry, and every entry must be used by one of them.
 func TestCatalogCoversSources(t *testing.T) {
 	var files []string
 	for _, pat := range []string{"*.go", "views/*.templ", "views/*.go"} {
@@ -28,6 +37,14 @@ func TestCatalogCoversSources(t *testing.T) {
 		}
 		files = append(files, m...)
 	}
+	cli, err := filepath.Glob("../cli/*.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cli) == 0 {
+		t.Fatal("no CLI sources found; the scan is broken")
+	}
+	files = append(files, cli...)
 	cat := i18n.English()
 	seen := map[string]bool{}
 	var missing []string
@@ -40,7 +57,18 @@ func TestCatalogCoversSources(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, m := range callRe.FindAllStringSubmatch(string(b), -1) {
+		matches := callRe.FindAllStringSubmatch(string(b), -1)
+		if strings.Contains(filepath.ToSlash(f), "cli/") {
+			matches = append(matches, cliCallRe.FindAllStringSubmatch(string(b), -1)...)
+			if all, lit := len(cliAnyCallRe.FindAllString(string(b), -1)), len(cliCallRe.FindAllString(string(b), -1)); all != lit {
+				for i, line := range strings.Split(string(b), "\n") {
+					if cliAnyCallRe.MatchString(line) && !cliCallRe.MatchString(line) && !strings.Contains(line, "i18n:dyn") && !strings.Contains(line, "func (e *env) t") {
+						t.Errorf("%s:%d: e.t/e.tf with a non-literal text (mark with i18n:dyn if intended): %s", f, i+1, strings.TrimSpace(line))
+					}
+				}
+			}
+		}
+		for _, m := range matches {
 			k, err := strconv.Unquote(m[1])
 			if err != nil {
 				t.Fatalf("%s: %s: %v", f, m[1], err)

@@ -13,10 +13,10 @@ import (
 )
 
 func (e *env) companyCmd() *cobra.Command {
-	c := &cobra.Command{Use: "company", Short: "Gerencia empresas"}
+	c := &cobra.Command{Use: "company", Short: e.t("Gerencia empresas")}
 	var slug, prefix, tz string
 	create := &cobra.Command{
-		Use: "create <nome>", Short: "Cria uma empresa", Args: cobra.ExactArgs(1),
+		Use: "create " + e.t("<nome>"), Short: e.t("Cria uma empresa"), Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			co, err := e.client().CreateCompany(cmd.Context(), client.CreateCompanyReq{Name: args[0], Slug: slug, TaskPrefix: prefix, Timezone: tz})
 			if err != nil {
@@ -25,15 +25,15 @@ func (e *env) companyCmd() *cobra.Command {
 			if e.asJSON {
 				return e.printJSON(co)
 			}
-			fmt.Fprintf(e.out, "Empresa criada: %s (%s) — prefixo %s\nUse: export HANKO_COMPANY=%s\n", co.Name, co.ID, co.TaskPrefix, co.Slug)
+			fmt.Fprintf(e.out, e.t("Empresa criada: %s (%s) — prefixo %s\nUse: export HANKO_COMPANY=%s\n"), co.Name, co.ID, co.TaskPrefix, co.Slug)
 			return nil
 		},
 	}
-	create.Flags().StringVar(&slug, "slug", "", "slug (derivado do nome se omitido)")
-	create.Flags().StringVar(&prefix, "prefix", "", "prefixo das chaves de task (padrão HNK)")
-	create.Flags().StringVar(&tz, "timezone", "", "fuso IANA (padrão America/Sao_Paulo)")
+	create.Flags().StringVar(&slug, "slug", "", e.t("slug (derivado do nome se omitido)"))
+	create.Flags().StringVar(&prefix, "prefix", "", e.t("prefixo das chaves de task (padrão HNK)"))
+	create.Flags().StringVar(&tz, "timezone", "", e.t("fuso IANA (padrão America/Sao_Paulo)"))
 	ls := &cobra.Command{
-		Use: "list", Aliases: []string{"ls"}, Short: "Lista empresas", Args: cobra.NoArgs,
+		Use: "list", Aliases: []string{"ls"}, Short: e.t("Lista empresas"), Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cs, err := e.client().Companies(cmd.Context())
 			if err != nil {
@@ -43,14 +43,14 @@ func (e *env) companyCmd() *cobra.Command {
 				return e.printJSON(cs)
 			}
 			if len(cs) == 0 {
-				fmt.Fprintln(e.out, "Nenhuma empresa. Crie uma com: hanko company create <nome>")
+				fmt.Fprintln(e.out, e.t("Nenhuma empresa. Crie uma com: hanko company create <nome>"))
 				return nil
 			}
 			rows := make([][]string, 0, len(cs))
 			for _, co := range cs {
 				rows = append(rows, []string{co.Slug, co.Name, co.TaskPrefix, co.Timezone, co.ID})
 			}
-			e.table([]string{"SLUG", "NOME", "PREFIXO", "FUSO", "ID"}, rows)
+			e.table([]string{e.t("SLUG"), e.t("NOME"), e.t("PREFIXO"), e.t("FUSO"), e.t("ID")}, rows)
 			return nil
 		},
 	}
@@ -59,10 +59,10 @@ func (e *env) companyCmd() *cobra.Command {
 }
 
 func (e *env) workspaceCmd() *cobra.Command {
-	c := &cobra.Command{Use: "workspace", Short: "Gerencia workspaces (diretórios onde as personas trabalham)"}
+	c := &cobra.Command{Use: "workspace", Short: e.t("Gerencia workspaces (diretórios onde as personas trabalham)")}
 	var slug, path, repo string
 	create := &cobra.Command{
-		Use: "create <nome>", Short: "Cria um workspace", Args: cobra.ExactArgs(1),
+		Use: "create " + e.t("<nome>"), Short: e.t("Cria um workspace"), Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			co, err := e.needCompany()
 			if err != nil {
@@ -75,16 +75,16 @@ func (e *env) workspaceCmd() *cobra.Command {
 			if e.asJSON {
 				return e.printJSON(w)
 			}
-			fmt.Fprintf(e.out, "Workspace criado: %s (%s) em %s\n", w.Name, w.Slug, w.Path)
+			fmt.Fprintf(e.out, e.t("Workspace criado: %s (%s) em %s\n"), w.Name, w.Slug, w.Path)
 			return nil
 		},
 	}
-	create.Flags().StringVar(&slug, "slug", "", "slug (derivado do nome se omitido)")
-	create.Flags().StringVar(&path, "path", "", "diretório de trabalho (obrigatório)")
-	create.Flags().StringVar(&repo, "repo", "", "URL do repositório")
+	create.Flags().StringVar(&slug, "slug", "", e.t("slug (derivado do nome se omitido)"))
+	create.Flags().StringVar(&path, "path", "", e.t("diretório de trabalho (obrigatório)"))
+	create.Flags().StringVar(&repo, "repo", "", e.t("URL do repositório"))
 	_ = create.MarkFlagRequired("path")
 	ls := &cobra.Command{
-		Use: "list", Aliases: []string{"ls"}, Short: "Lista workspaces", Args: cobra.NoArgs,
+		Use: "list", Aliases: []string{"ls"}, Short: e.t("Lista workspaces"), Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			co, err := e.needCompany()
 			if err != nil {
@@ -98,14 +98,14 @@ func (e *env) workspaceCmd() *cobra.Command {
 				return e.printJSON(ws)
 			}
 			if len(ws) == 0 {
-				fmt.Fprintln(e.out, "Nenhum workspace.")
+				fmt.Fprintln(e.out, e.t("Nenhum workspace."))
 				return nil
 			}
 			rows := make([][]string, 0, len(ws))
 			for _, w := range ws {
 				rows = append(rows, []string{w.Slug, w.Name, w.Path, dash(w.RepoURL)})
 			}
-			e.table([]string{"SLUG", "NOME", "CAMINHO", "REPOSITÓRIO"}, rows)
+			e.table([]string{e.t("SLUG"), e.t("NOME"), e.t("CAMINHO"), e.t("REPOSITÓRIO")}, rows)
 			return nil
 		},
 	}
@@ -114,10 +114,10 @@ func (e *env) workspaceCmd() *cobra.Command {
 }
 
 func (e *env) projectCmd() *cobra.Command {
-	c := &cobra.Command{Use: "project", Short: "Gerencia projetos"}
+	c := &cobra.Command{Use: "project", Short: e.t("Gerencia projetos")}
 	var slug, desc, ws string
 	create := &cobra.Command{
-		Use: "create <nome>", Short: "Cria um projeto", Args: cobra.ExactArgs(1),
+		Use: "create " + e.t("<nome>"), Short: e.t("Cria um projeto"), Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			co, err := e.needCompany()
 			if err != nil {
@@ -130,15 +130,15 @@ func (e *env) projectCmd() *cobra.Command {
 			if e.asJSON {
 				return e.printJSON(p)
 			}
-			fmt.Fprintf(e.out, "Projeto criado: %s (%s)\n", p.Name, p.Slug)
+			fmt.Fprintf(e.out, e.t("Projeto criado: %s (%s)\n"), p.Name, p.Slug)
 			return nil
 		},
 	}
-	create.Flags().StringVar(&slug, "slug", "", "slug (derivado do nome se omitido)")
-	create.Flags().StringVarP(&desc, "description", "d", "", "descrição")
-	create.Flags().StringVar(&ws, "workspace", "", "workspace padrão (id ou slug)")
+	create.Flags().StringVar(&slug, "slug", "", e.t("slug (derivado do nome se omitido)"))
+	create.Flags().StringVarP(&desc, "description", "d", "", e.t("descrição"))
+	create.Flags().StringVar(&ws, "workspace", "", e.t("workspace padrão (id ou slug)"))
 	ls := &cobra.Command{
-		Use: "list", Aliases: []string{"ls"}, Short: "Lista projetos", Args: cobra.NoArgs,
+		Use: "list", Aliases: []string{"ls"}, Short: e.t("Lista projetos"), Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			co, err := e.needCompany()
 			if err != nil {
@@ -152,14 +152,14 @@ func (e *env) projectCmd() *cobra.Command {
 				return e.printJSON(ps)
 			}
 			if len(ps) == 0 {
-				fmt.Fprintln(e.out, "Nenhum projeto.")
+				fmt.Fprintln(e.out, e.t("Nenhum projeto."))
 				return nil
 			}
 			rows := make([][]string, 0, len(ps))
 			for _, p := range ps {
 				rows = append(rows, []string{p.Slug, p.Name, oneLine(dash(p.Description), 60)})
 			}
-			e.table([]string{"SLUG", "NOME", "DESCRIÇÃO"}, rows)
+			e.table([]string{e.t("SLUG"), e.t("NOME"), e.t("DESCRIÇÃO")}, rows)
 			return nil
 		},
 	}
@@ -168,7 +168,7 @@ func (e *env) projectCmd() *cobra.Command {
 }
 
 func (e *env) personaCmd() *cobra.Command {
-	c := &cobra.Command{Use: "persona", Short: "Gerencia personas (papéis contratados pela empresa)"}
+	c := &cobra.Command{Use: "persona", Short: e.t("Gerencia personas (papéis contratados pela empresa)")}
 
 	var (
 		slug, title, instr, instrFile, agent, model, reports, ws, subscription string
@@ -179,7 +179,7 @@ func (e *env) personaCmd() *cobra.Command {
 		revPersona, revAgent, revModel                                         string
 	)
 	hire := &cobra.Command{
-		Use: "hire <nome>", Short: "Contrata uma persona", Args: cobra.ExactArgs(1),
+		Use: "hire " + e.t("<nome>"), Short: e.t("Contrata uma persona"), Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			co, err := e.needCompany()
 			if err != nil {
@@ -188,7 +188,7 @@ func (e *env) personaCmd() *cobra.Command {
 			if instrFile != "" {
 				b, err := os.ReadFile(instrFile)
 				if err != nil {
-					return fmt.Errorf("ler %s: %w", instrFile, err)
+					return fmt.Errorf(e.t("ler %s: %w"), instrFile, err)
 				}
 				instr = string(b)
 			}
@@ -211,31 +211,31 @@ func (e *env) personaCmd() *cobra.Command {
 			if e.asJSON {
 				return e.printJSON(p)
 			}
-			fmt.Fprintf(e.out, "Persona contratada: %s (%s) — agente %s\n", p.Name, p.Slug, p.Agent)
+			fmt.Fprintf(e.out, e.t("Persona contratada: %s (%s) — agente %s\n"), p.Name, p.Slug, p.Agent)
 			return nil
 		},
 	}
 	hf := hire.Flags()
-	hf.StringVar(&slug, "slug", "", "slug (derivado do nome se omitido)")
-	hf.StringVar(&title, "title", "", "cargo (ex.: CTO)")
-	hf.StringVarP(&instr, "instructions", "i", "", "instruções da persona")
-	hf.StringVar(&instrFile, "instructions-file", "", "arquivo com as instruções")
-	hf.StringVar(&agent, "agent", "", "harness: claude, codex ou fake (obrigatório)")
-	hf.StringVar(&model, "model", "", "modelo")
-	hf.StringVar(&subscription, "subscription", "", "assinatura que cobre a persona (id ou nome)")
-	hf.StringVar(&reports, "reports-to", "", "persona superior (id ou slug)")
-	hf.StringVar(&ws, "workspace", "", "workspace (id ou slug)")
-	hf.IntVar(&interval, "interval", 0, "intervalo do heartbeat em segundos (0 desliga)")
-	hf.Int64Var(&budget, "budget-cents", 0, "orçamento mensal em centavos de dólar")
-	hf.StringToStringVar(&cfg, "config", nil, "adapter_config chave=valor (repetível)")
-	hf.BoolVar(&review, "require-review", false, "concluir uma task passa por um gate de revisão")
-	hf.StringVar(&revPersona, "reviewer", "", "persona que revisa as entregas antes do gate (id ou slug)")
-	hf.StringVar(&revAgent, "reviewer-agent", "", "harness alternativo revisor: claude, codex ou fake")
-	hf.StringVar(&revModel, "reviewer-model", "", "modelo do harness revisor")
+	hf.StringVar(&slug, "slug", "", e.t("slug (derivado do nome se omitido)"))
+	hf.StringVar(&title, "title", "", e.t("cargo (ex.: CTO)"))
+	hf.StringVarP(&instr, "instructions", "i", "", e.t("instruções da persona"))
+	hf.StringVar(&instrFile, "instructions-file", "", e.t("arquivo com as instruções"))
+	hf.StringVar(&agent, "agent", "", e.t("harness: claude, codex ou fake (obrigatório)"))
+	hf.StringVar(&model, "model", "", e.t("modelo"))
+	hf.StringVar(&subscription, "subscription", "", e.t("assinatura que cobre a persona (id ou nome)"))
+	hf.StringVar(&reports, "reports-to", "", e.t("persona superior (id ou slug)"))
+	hf.StringVar(&ws, "workspace", "", e.t("workspace (id ou slug)"))
+	hf.IntVar(&interval, "interval", 0, e.t("intervalo do heartbeat em segundos (0 desliga)"))
+	hf.Int64Var(&budget, "budget-cents", 0, e.t("orçamento mensal em centavos de dólar"))
+	hf.StringToStringVar(&cfg, "config", nil, e.t("adapter_config chave=valor (repetível)"))
+	hf.BoolVar(&review, "require-review", false, e.t("concluir uma task passa por um gate de revisão"))
+	hf.StringVar(&revPersona, "reviewer", "", e.t("persona que revisa as entregas antes do gate (id ou slug)"))
+	hf.StringVar(&revAgent, "reviewer-agent", "", e.t("harness alternativo revisor: claude, codex ou fake"))
+	hf.StringVar(&revModel, "reviewer-model", "", e.t("modelo do harness revisor"))
 	_ = hire.MarkFlagRequired("agent")
 
 	ls := &cobra.Command{
-		Use: "list", Aliases: []string{"ls"}, Short: "Lista personas", Args: cobra.NoArgs,
+		Use: "list", Aliases: []string{"ls"}, Short: e.t("Lista personas"), Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			co, err := e.needCompany()
 			if err != nil {
@@ -249,19 +249,19 @@ func (e *env) personaCmd() *cobra.Command {
 				return e.printJSON(ps)
 			}
 			if len(ps) == 0 {
-				fmt.Fprintln(e.out, "Nenhuma persona. Contrate uma com: hanko persona hire <nome> --agent claude")
+				fmt.Fprintln(e.out, e.t("Nenhuma persona. Contrate uma com: hanko persona hire <nome> --agent claude"))
 				return nil
 			}
 			rows := make([][]string, 0, len(ps))
 			for _, p := range ps {
 				rows = append(rows, []string{p.Slug, p.Name, dash(p.Title), p.Agent, dash(p.Model), p.Status})
 			}
-			e.table([]string{"SLUG", "NOME", "CARGO", "AGENTE", "MODELO", "STATUS"}, rows)
+			e.table([]string{e.t("SLUG"), e.t("NOME"), e.t("CARGO"), e.t("AGENTE"), e.t("MODELO"), e.t("STATUS")}, rows)
 			return nil
 		},
 	}
 	show := &cobra.Command{
-		Use: "show <persona>", Short: "Mostra uma persona", Args: cobra.ExactArgs(1),
+		Use: "show " + e.t("<persona>"), Short: e.t("Mostra uma persona"), Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			co, err := e.needCompany()
 			if err != nil {
@@ -274,16 +274,16 @@ func (e *env) personaCmd() *cobra.Command {
 			if e.asJSON {
 				return e.printJSON(p)
 			}
-			e.kv([2]string{"Persona", fmt.Sprintf("%s (%s)", p.Name, p.Slug)}, [2]string{"ID", p.ID},
-				[2]string{"Cargo", dash(p.Title)}, [2]string{"Agente", p.Agent}, [2]string{"Modelo", dash(p.Model)}, [2]string{"Assinatura", dash(p.SubscriptionID)},
-				[2]string{"Status", p.Status}, [2]string{"Heartbeat", heartbeat(p.HeartbeatIntervalSec)},
-				[2]string{"Reporta a", dash(p.ReportsTo)}, [2]string{"Exige revisão", yesNo(p.RequireReview)}, [2]string{"Revisor", reviewerOf(p)},
-				[2]string{"Orçamento", budgetValue(p.BudgetMonthlyCents)}, [2]string{"Contratada em", fmtTime(p.CreatedAt)})
+			e.kv([2]string{e.t("Persona"), fmt.Sprintf("%s (%s)", p.Name, p.Slug)}, [2]string{e.t("ID"), p.ID},
+				[2]string{e.t("Cargo"), dash(p.Title)}, [2]string{e.t("Agente"), p.Agent}, [2]string{e.t("Modelo"), dash(p.Model)}, [2]string{e.t("Assinatura"), dash(p.SubscriptionID)},
+				[2]string{e.t("Status"), p.Status}, [2]string{e.t("Heartbeat"), e.heartbeat(p.HeartbeatIntervalSec)},
+				[2]string{e.t("Reporta a"), dash(p.ReportsTo)}, [2]string{e.t("Exige revisão"), e.yesNo(p.RequireReview)}, [2]string{e.t("Revisor"), e.reviewerOf(p)},
+				[2]string{e.t("Orçamento"), e.budgetValue(p.BudgetMonthlyCents)}, [2]string{e.t("Contratada em"), e.fmtTime(p.CreatedAt)})
 			if p.PauseReason != "" {
-				e.kv([2]string{"Pausada porque", p.PauseReason})
+				e.kv([2]string{e.t("Pausada porque"), p.PauseReason})
 			}
 			if p.Instructions != "" {
-				fmt.Fprintf(e.out, "\nInstruções:\n%s\n", strings.TrimSpace(p.Instructions))
+				fmt.Fprintf(e.out, e.t("\nInstruções:\n%s\n"), strings.TrimSpace(p.Instructions))
 			}
 			return nil
 		},
@@ -299,7 +299,7 @@ func (e *env) personaCmd() *cobra.Command {
 		upNoRev                       bool
 	)
 	update := &cobra.Command{
-		Use: "update <persona>", Short: "Muda a quem a persona reporta, a revisão obrigatória e a assinatura", Args: cobra.ExactArgs(1),
+		Use: "update " + e.t("<persona>"), Short: e.t("Muda a quem a persona reporta, a revisão obrigatória e a assinatura"), Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			co, err := e.needCompany()
 			if err != nil {
@@ -312,7 +312,7 @@ func (e *env) personaCmd() *cobra.Command {
 				v := upReview == "true"
 				req.RequireReview = &v
 			default:
-				return usageError{errors.New("--require-review aceita true ou false")}
+				return usageError{errors.New(e.t("--require-review aceita true ou false"))}
 			}
 			req.Reviewer, req.ClearReviewer = upRev, upNoRev
 			if cmd.Flags().Changed("reviewer-agent") {
@@ -322,11 +322,11 @@ func (e *env) personaCmd() *cobra.Command {
 				req.ReviewerModel = &upRevModel
 			}
 			if upSub != "" && upNoSub {
-				return usageError{errors.New("--subscription e --no-subscription não combinam")}
+				return usageError{errors.New(e.t("--subscription e --no-subscription não combinam"))}
 			}
 			if upReports == "" && !upTop && req.RequireReview == nil && upSub == "" && !upNoSub && upRev == "" && !upNoRev &&
 				req.ReviewerAgent == nil && req.ReviewerModel == nil {
-				return usageError{errors.New("nada a alterar: use --reports-to, --top, --require-review, --subscription, --no-subscription ou --reviewer/--reviewer-agent/--no-reviewer")}
+				return usageError{errors.New(e.t("nada a alterar: use --reports-to, --top, --require-review, --subscription, --no-subscription ou --reviewer/--reviewer-agent/--no-reviewer"))}
 			}
 			p, err := e.client().UpdatePersona(cmd.Context(), co, args[0], req)
 			if err != nil {
@@ -335,26 +335,26 @@ func (e *env) personaCmd() *cobra.Command {
 			if e.asJSON {
 				return e.printJSON(p)
 			}
-			fmt.Fprintf(e.out, "Persona atualizada: %s (%s) — reporta a %s, revisão obrigatória: %s\n", p.Name, p.Slug, dash(p.ReportsTo), yesNo(p.RequireReview))
+			fmt.Fprintf(e.out, e.t("Persona atualizada: %s (%s) — reporta a %s, revisão obrigatória: %s\n"), p.Name, p.Slug, dash(p.ReportsTo), e.yesNo(p.RequireReview))
 			return nil
 		},
 	}
 	uf := update.Flags()
-	uf.StringVar(&upReports, "reports-to", "", "persona superior (id ou slug)")
-	uf.BoolVar(&upTop, "top", false, "põe a persona no topo do organograma")
-	uf.StringVar(&upReview, "require-review", "", "true ou false")
-	uf.StringVar(&upRev, "reviewer", "", "persona revisora (id ou slug)")
-	uf.StringVar(&upRevAgent, "reviewer-agent", "", "harness alternativo revisor")
-	uf.StringVar(&upRevModel, "reviewer-model", "", "modelo do harness revisor")
-	uf.BoolVar(&upNoRev, "no-reviewer", false, "remove o revisor automático")
-	uf.StringVar(&upSub, "subscription", "", "vincula a persona a uma assinatura (id ou nome)")
-	uf.BoolVar(&upNoSub, "no-subscription", false, "desvincula a persona da assinatura")
+	uf.StringVar(&upReports, "reports-to", "", e.t("persona superior (id ou slug)"))
+	uf.BoolVar(&upTop, "top", false, e.t("põe a persona no topo do organograma"))
+	uf.StringVar(&upReview, "require-review", "", e.t("true ou false"))
+	uf.StringVar(&upRev, "reviewer", "", e.t("persona revisora (id ou slug)"))
+	uf.StringVar(&upRevAgent, "reviewer-agent", "", e.t("harness alternativo revisor"))
+	uf.StringVar(&upRevModel, "reviewer-model", "", e.t("modelo do harness revisor"))
+	uf.BoolVar(&upNoRev, "no-reviewer", false, e.t("remove o revisor automático"))
+	uf.StringVar(&upSub, "subscription", "", e.t("vincula a persona a uma assinatura (id ou nome)"))
+	uf.BoolVar(&upNoSub, "no-subscription", false, e.t("desvincula a persona da assinatura"))
 	c.AddCommand(hire, ls, show, update)
 	return c
 }
 
 // reviewerOf descreve o revisor automático configurado na persona.
-func reviewerOf(p api.Persona) string {
+func (e *env) reviewerOf(p api.Persona) string {
 	switch {
 	case p.ReviewerPersonaID != "":
 		return p.ReviewerPersonaID
@@ -364,16 +364,16 @@ func reviewerOf(p api.Persona) string {
 	return "—"
 }
 
-func yesNo(b bool) string {
+func (e *env) yesNo(b bool) string {
 	if b {
-		return "sim"
+		return e.t("sim")
 	}
-	return "não"
+	return e.t("não")
 }
 
-func heartbeat(sec int) string {
+func (e *env) heartbeat(sec int) string {
 	if sec <= 0 {
-		return "desligado"
+		return e.t("desligado")
 	}
-	return fmt.Sprintf("a cada %ds", sec)
+	return e.tf("a cada %ds", sec)
 }
