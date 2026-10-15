@@ -145,6 +145,8 @@ type TasksVM struct {
 	Total    int
 	// Project filters the list (?projeto=): slug, name, link to its page and the link that clears the filter.
 	Project, ProjectName, ProjectHref, ClearHref string
+	// Goal filters the list (?meta=): slug, title, link to its page and the link that clears the filter.
+	Goal, GoalTitle, GoalHref, GoalClear string
 }
 
 type Msg struct {
@@ -183,6 +185,11 @@ type TaskVM struct {
 	ProjectName     string
 	ProjectHref     string
 	ProjectOptions  []Option
+	GoalOptions     []Option // metas ativas (e a da task); só vale com mais de uma opção
+	GoalName        string
+	GoalHref        string
+	Artifacts       []ArtifactMini
+	ArtifactsHref   string
 	Created         string
 	Updated         string
 	StatusOptions   []Option
@@ -214,6 +221,7 @@ type NewTaskVM struct {
 	StatusOptions   []Option
 	PersonaOptions  []Option
 	ProjectOptions  []Option
+	GoalOptions     []Option
 	Error           string
 	FieldErr        map[string]string
 }
@@ -396,6 +404,9 @@ type RunVM struct {
 	SummaryDoc     string // summary as anchors see it
 	SummaryAnchors string // JSON
 	AnchorMsgs     string // JSON
+	// Artefatos que a execução publicou (todas as versões).
+	Artifacts     []ArtifactMini
+	ArtifactsHref string
 }
 
 // ---- activity ----

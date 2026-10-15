@@ -60,27 +60,31 @@ type ProjectFormVM struct {
 }
 
 type ProjectVM struct {
-	Name         string
-	Description  string
-	Archived     bool
-	Badge        Badge
-	Notice       string
-	Error        string
-	Form         ProjectFormVM
-	Budget       BudgetBox
-	Workspace    string
-	WorkspaceURL string
-	Statuses     []StatusCount
-	Total        int
-	Progress     int
-	ProgressTxt  string
-	Spent        string
-	Personas     []ProjectPersonaRow
-	Tasks        []TaskRow
-	TasksHref    string
-	NewTaskHref  string
-	CostHref     string
-	ToggleHref   string // arquivar / reativar
+	Name          string
+	Description   string
+	Archived      bool
+	Badge         Badge
+	Notice        string
+	Error         string
+	Form          ProjectFormVM
+	Budget        BudgetBox
+	Workspace     string
+	WorkspaceURL  string
+	Statuses      []StatusCount
+	Total         int
+	Progress      int
+	ProgressTxt   string
+	Spent         string
+	Personas      []ProjectPersonaRow
+	Tasks         []TaskRow
+	TasksHref     string
+	NewTaskHref   string
+	CostHref      string
+	ToggleHref    string // arquivar / reativar
+	Goals         []GoalMini
+	GoalsHref     string
+	Artifacts     []ArtifactMini
+	ArtifactsHref string
 }
 
 // WorkspaceRow é uma linha da lista de workspaces.

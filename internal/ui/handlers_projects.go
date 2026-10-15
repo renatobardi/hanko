@@ -256,6 +256,19 @@ func (s *server) buildProjectVM(r *http.Request, co domain.Company, p service.Pr
 			vm.Tasks = append(vm.Tasks, taskRow(ctx, tv, base, now, loc))
 		}
 	}
+	if goals, err := s.be.ListGoalViews(ctx, co.ID, service.GoalFilter{ProjectID: &p.ID}); err == nil {
+		for _, g := range goals {
+			if g.Status == domain.GoalAbandoned || len(vm.Goals) >= 5 {
+				continue
+			}
+			vm.Goals = append(vm.Goals, goalMini(ctx, g, base, now, loc))
+		}
+	}
+	vm.GoalsHref = base + "/metas?aba=todas&projeto=" + url.QueryEscape(p.Slug)
+	if arts, err := s.be.ListArtifacts(ctx, co.ID, service.ArtifactFilter{ProjectID: &p.ID, Limit: 5}); err == nil {
+		vm.Artifacts = artifactMinis(ctx, arts, base)
+	}
+	vm.ArtifactsHref = base + "/artefatos?projeto=" + url.QueryEscape(p.Slug)
 	ws := p.WorkspaceID
 	vm.Form = views.ProjectFormVM{Action: base + "/projetos/" + p.Slug, CancelHref: base + "/projetos", Edit: true, FieldErr: map[string]string{},
 		Name: p.Name, Description: p.Description, Budget: usdField(ctx, p.BudgetMonthlyCents), WorkspaceOptions: s.workspaceOptions(r, co, ws)}

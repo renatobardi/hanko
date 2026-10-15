@@ -43,6 +43,13 @@ type Fake struct {
 	Subs       []service.SubscriptionStatus
 	Members    []domain.Member
 	Invites    []domain.Invite
+	// Artefatos e metas (ADR-0028). ArtifactData guarda o conteúdo de cada versão; os limites zerados valem o padrão.
+	Artifacts          []domain.Artifact
+	ArtifactData       map[domain.ID][]byte
+	ArtifactMaxBytes   int64
+	ArtifactQuotaBytes int64
+	Goals              []domain.Goal
+	GoalUpdates        []domain.GoalUpdate
 	// MyRoleIs é o papel do usuário logado nesta empresa (vazio = owner).
 	MyRoleIs domain.MemberRole
 	nextTask int64
@@ -291,7 +298,7 @@ func (f *Fake) CreateTask(_ context.Context, _ domain.Actor, companyID domain.ID
 	n := f.nextTask
 	now := time.Now().UTC()
 	tv := service.TaskView{Task: domain.Task{ID: domain.NewID(), CompanyID: companyID, Number: n, Key: domain.TaskKey("HNK", n), Title: in.Title, Description: in.Description,
-		Status: in.Status, Priority: in.Priority, PersonaID: in.PersonaID, ProjectID: in.ProjectID, Model: in.Model, CreatedBy: domain.HumanActor, CreatedAt: now, UpdatedAt: now}}
+		Status: in.Status, Priority: in.Priority, PersonaID: in.PersonaID, ProjectID: in.ProjectID, GoalID: in.GoalID, Model: in.Model, CreatedBy: domain.HumanActor, CreatedAt: now, UpdatedAt: now}}
 	tv.PersonaName = f.personaName(in.PersonaID)
 	f.Tasks = append(f.Tasks, tv)
 	return tv, nil
@@ -318,6 +325,9 @@ func (f *Fake) ListTasks(_ context.Context, _ domain.ID, fl service.TaskFilter) 
 			continue
 		}
 		if fl.ProjectID != nil && (t.ProjectID == nil || *t.ProjectID != *fl.ProjectID) {
+			continue
+		}
+		if fl.GoalID != nil && (t.GoalID == nil || *t.GoalID != *fl.GoalID) {
 			continue
 		}
 		if q := strings.ToLower(fl.Query); q != "" && !strings.Contains(strings.ToLower(t.Title+" "+t.Key), q) {
@@ -377,6 +387,12 @@ func (f *Fake) UpdateTask(_ context.Context, _ domain.Actor, _, taskID domain.ID
 	if in.PersonaID != nil {
 		t.PersonaID = in.PersonaID
 		t.PersonaName = f.personaName(in.PersonaID)
+	}
+	if in.ClearGoal {
+		t.GoalID = nil
+	}
+	if in.GoalID != nil {
+		t.GoalID = in.GoalID
 	}
 	if in.ClearProject {
 		t.ProjectID, t.ProjectName = nil, ""

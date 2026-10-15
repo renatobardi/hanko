@@ -19,6 +19,30 @@ templ InboxPage(sh Shell, vm InboxVM) {
 		</div>
 		<div class="inbox-grid">
 			<div class="stack">
+				if len(vm.Goals) > 0 {
+					<section class="card inbox-sec">
+						<div class="inbox-h">
+							@Icon("trending-up")
+							{ i18n.T(ctx, "Metas atingidas") }
+						<span class="cnt">{ fmt.Sprint(len(vm.Goals)) }</span></div>
+						for _, g := range vm.Goals {
+							<div class="inbox-row">
+								<span class="mini-avatar">@Icon("circle-check")</span>
+								<div class="main">
+									<div class="t">
+										<a href={ templ.SafeURL(g.Href) }>{ g.Title }</a>
+										<span class="badge done">{ i18n.T(ctx, "Atingida") }</span>
+									</div>
+									<p class="x">{ g.Text }</p>
+									<div class="s">{ g.When }</div>
+								</div>
+								<div class="inbox-act">
+									<a class="btn ghost sm" href={ templ.SafeURL(g.Href) }>{ i18n.T(ctx, "Abrir") }</a>
+								</div>
+							</div>
+						}
+					</section>
+				}
 				if vm.Total == 0 {
 					@EmptyCard("circle-check", i18n.T(ctx, "Você está em dia."), i18n.T(ctx, "Nada espera por você: sem gates, bloqueios, execuções que falharam, personas com erro ou alertas."), true)
 				}

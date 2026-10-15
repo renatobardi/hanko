@@ -901,3 +901,33 @@ button.link:hover { color: var(--ink); }
   .org-stage { height: 440px; }
   .log-detail { padding-left: 0; }
 }
+
+/* Artefatos e metas (ADR-0028) */
+.art-filters .input[type="search"] { max-width: 240px; }
+.art-pre { margin: 0; padding: 12px 14px; background: var(--term-bg); color: var(--term-ink); border-radius: var(--r-md); overflow: auto; max-height: 560px; font-family: var(--font-mono); font-size: 12.5px; line-height: 1.5; white-space: pre; }
+.art-pre code { background: none; padding: 0; color: inherit; }
+.art-img { max-width: 100%; height: auto; border-radius: var(--r-md); border: 1px solid var(--line); background: var(--surface-recessed); }
+.diff { font-family: var(--font-mono); font-size: 12.5px; border: 1px solid var(--line); border-radius: var(--r-md); overflow-x: auto; }
+.diff-row { display: grid; grid-template-columns: 44px 44px minmax(0, 1fr); min-width: max-content; width: 100%; }
+.diff-row .no { text-align: right; padding: 0 8px; color: var(--ink-soft); user-select: none; }
+.diff-row .tx { white-space: pre; padding-right: 12px; }
+.diff-row .op { display: inline-block; width: 1.4em; color: var(--ink-soft); }
+.diff-row.add { background: rgba(46, 160, 67, .16); }
+.diff-row.del { background: var(--danger-tint); }
+.diff-row.skip { background: var(--surface-recessed); color: var(--ink-soft); font-style: italic; }
+.diff-add-n { color: var(--ink); font-weight: 600; margin-right: 8px; }
+.diff-del-n { color: var(--danger-deep); font-weight: 600; }
+.danger-text { color: var(--danger-deep); font-weight: 500; }
+.goal-prog { min-width: 180px; }
+.goal-prog .progress { margin: 0 0 6px; }
+.goal-mini-row { padding: 8px 0; border-bottom: 1px solid var(--line); }
+.goal-mini-row:last-child { border-bottom: 0; }
+.goal-mini-row .progress { margin: 6px 0; }
+.goal-chart { width: 100%; height: auto; max-height: 260px; display: block; }
+.goal-chart .gc-axis { stroke: var(--line); stroke-width: 1; }
+.goal-chart .gc-target { stroke: var(--primary); stroke-width: 1; stroke-dasharray: 4 4; }
+.goal-chart .gc-start { stroke: var(--line); stroke-width: 1; stroke-dasharray: 2 4; }
+.goal-chart .gc-line { stroke: var(--primary); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.goal-chart .gc-area { fill: var(--primary); opacity: .08; }
+.goal-chart .gc-dot { fill: var(--surface); stroke: var(--primary); stroke-width: 2; }
+.goal-chart .gc-lbl { fill: var(--ink-soft); font-size: 11px; font-family: var(--font-mono); }

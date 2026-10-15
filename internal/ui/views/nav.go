@@ -32,8 +32,8 @@ var Nav = []NavGroup{
 		{Key: "tasks", Label: i18n.N("Tasks"), Icon: "list", Path: "/tasks"},
 		{Key: "projetos", Label: i18n.N("Projetos"), Icon: "layers", Path: "/projetos"},
 		{Key: "fluxos", Label: i18n.N("Fluxos"), Icon: "workflow", Path: "/fluxos"},
-		{Key: "metas", Label: i18n.N("Metas"), Icon: "trending-up", Milestone: "v0.2", Blurb: i18n.N("Metas mensuráveis ligadas a projetos.")},
-		{Key: "artefatos", Label: i18n.N("Artefatos"), Icon: "file", Milestone: "v0.2", Blurb: i18n.N("Documentos e arquivos produzidos pelas personas.")},
+		{Key: "metas", Label: i18n.N("Metas"), Icon: "trending-up", Path: "/metas"},
+		{Key: "artefatos", Label: i18n.N("Artefatos"), Icon: "file", Path: "/artefatos"},
 		{Key: "workspaces", Label: i18n.N("Workspaces"), Icon: "git-branch", Path: "/workspaces"},
 	}},
 	{Label: i18n.N("Organização"), Items: []NavItem{

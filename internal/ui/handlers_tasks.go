@@ -68,6 +68,16 @@ func (s *server) handleTasks(w http.ResponseWriter, r *http.Request, co domain.C
 		proj = &pv
 		filter.ProjectID = &pv.ID
 	}
+	var goal *service.GoalView
+	if ref := strings.TrimSpace(r.URL.Query().Get("meta")); ref != "" {
+		gv, err := s.be.GetGoalView(ctx, co.ID, ref)
+		if err != nil {
+			s.fail(w, r, &co, err)
+			return
+		}
+		goal = &gv
+		filter.GoalID = &gv.ID
+	}
 	all, err := s.be.ListTasks(ctx, co.ID, filter)
 	if err != nil {
 		s.fail(w, r, &co, err)
@@ -79,8 +89,13 @@ func (s *server) handleTasks(w http.ResponseWriter, r *http.Request, co domain.C
 
 	vm := views.TasksVM{Query: q, Tab: cur.key, NewHref: base + "/tasks/nova"}
 	projQS := ""
+	if goal != nil {
+		projQS = "&meta=" + url.QueryEscape(goal.Slug)
+		vm.Goal, vm.GoalTitle, vm.GoalHref = goal.Slug, goal.Title, base+"/metas/"+goal.Slug
+		vm.GoalClear = base + "/tasks?aba=" + cur.key
+	}
 	if proj != nil {
-		projQS = "&projeto=" + url.QueryEscape(proj.Slug)
+		projQS += "&projeto=" + url.QueryEscape(proj.Slug)
 		vm.Project, vm.ProjectName, vm.ProjectHref = proj.Slug, proj.Name, base+"/projetos/"+proj.Slug
 		vm.ClearHref = base + "/tasks?aba=" + cur.key
 		vm.NewHref += "?projeto=" + url.QueryEscape(proj.Slug)
@@ -279,6 +294,14 @@ func (s *server) buildTaskVM(r *http.Request, co domain.Company, t service.TaskV
 		vm.Runs = append(vm.Runs, mini)
 	}
 	vm.Cost = fmtUSDCtx(ctx, cost)
+
+	vm.GoalOptions = s.taskGoalOptions(r, co, t.GoalID)
+	arts, err := s.be.ListArtifacts(ctx, co.ID, service.ArtifactFilter{TaskID: &t.ID, Limit: 8})
+	if err != nil {
+		return views.TaskVM{}, err
+	}
+	vm.Artifacts = artifactMinis(ctx, arts, base)
+	vm.ArtifactsHref = base + "/artefatos?task=" + url.QueryEscape(t.Key)
 	return vm, nil
 }
 
@@ -353,6 +376,22 @@ func (s *server) handleUpdateTask(w http.ResponseWriter, r *http.Request, co dom
 			}
 			if t.ProjectID == nil || *t.ProjectID != id {
 				in.ProjectID, changed = &id, true
+			}
+		}
+	}
+	if _, present := r.PostForm["goal"]; present {
+		v := trimForm(r, "goal")
+		switch {
+		case v == "" && t.GoalID != nil:
+			in.ClearGoal, changed = true, true
+		case v != "":
+			id, err := domain.ParseID(v)
+			if err != nil {
+				s.fail(w, r, &co, domain.Invalid("goal", i18n.T(ctx, "id inválido")))
+				return
+			}
+			if t.GoalID == nil || *t.GoalID != id {
+				in.GoalID, changed = &id, true
 			}
 		}
 	}
@@ -433,6 +472,7 @@ func (s *server) newTaskVM(r *http.Request, co domain.Company) (views.NewTaskVM,
 		FieldErr:        map[string]string{},
 	}
 	vm.ProjectOptions = s.taskProjectOptions(r, co, nil)
+	vm.GoalOptions = s.taskGoalOptions(r, co, nil)
 	return vm, nil
 }
 
@@ -452,6 +492,12 @@ func (s *server) handleNewTask(w http.ResponseWriter, r *http.Request, co domain
 	if p := r.URL.Query().Get("projeto"); p != "" {
 		for i := range vm.ProjectOptions {
 			vm.ProjectOptions[i].Selected = vm.ProjectOptions[i].Slug == p
+		}
+	}
+	// ?meta=<slug> pre-selects the goal (links from the goal page)
+	if g := r.URL.Query().Get("meta"); g != "" {
+		for i := range vm.GoalOptions {
+			vm.GoalOptions[i].Selected = vm.GoalOptions[i].Slug == g
 		}
 	}
 	s.renderNewTask(w, r, co, http.StatusOK, vm)
@@ -488,6 +534,7 @@ func (s *server) handleCreateTask(w http.ResponseWriter, r *http.Request, co dom
 	vm.StatusOptions = statusOptions(ctx, status, domain.TaskBacklog, domain.TaskTodo)
 	selectOption(vm.PersonaOptions, trimForm(r, "persona"))
 	selectOption(vm.ProjectOptions, trimForm(r, "project"))
+	selectOption(vm.GoalOptions, trimForm(r, "goal"))
 
 	if vm.Title == "" {
 		vm.FieldErr["title"] = i18n.T(ctx, "Dê um título à task.")
@@ -512,6 +559,15 @@ func (s *server) handleCreateTask(w http.ResponseWriter, r *http.Request, co dom
 			return
 		}
 		in.ProjectID = &id
+	}
+	if v := trimForm(r, "goal"); v != "" {
+		id, err := domain.ParseID(v)
+		if err != nil {
+			vm.Error = i18n.T(ctx, "Meta inválida.")
+			s.renderNewTask(w, r, co, http.StatusUnprocessableEntity, vm)
+			return
+		}
+		in.GoalID = &id
 	}
 	t, err := s.be.CreateTask(r.Context(), actorFrom(r.Context()), co.ID, in)
 	if err != nil {

@@ -1,0 +1,356 @@
+package views
+
+import (
+	"fmt"
+
+	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/i18n"
+)
+
+// Artefatos (ADR-0028): arquivos versionados produzidos pelas personas ou enviados por um humano. Ler é de qualquer
+// membro; enviar é de member; excluir é de admin.
+
+templ ArtifactsPage(sh Shell, vm ArtifactsVM) {
+	@Layout(sh) {
+		@PageHead(i18n.T(ctx, "Artefatos"), vm.Subtitle) {
+			if sh.CanWrite() {
+				<a class="btn primary" href={ templ.SafeURL(vm.NewHref) }>
+					@Icon("plus")
+					{ i18n.T(ctx, "Enviar artefato") }
+				</a>
+			} else {
+				@NeedRole(domain.MemberMember)
+			}
+		}
+		if vm.Notice != "" {
+			@Alert("warn", vm.Notice)
+		}
+		<div class="kpis">
+			@Kpi("file", vm.Chains, i18n.T(ctx, "Versões"), false)
+			@Kpi("database", vm.Used, i18n.Tf(ctx, "Usado de %s", vm.Quota), vm.UsedPct >= 90)
+		</div>
+		if vm.Empty {
+			@EmptyCard("file", i18n.T(ctx, "Nenhum artefato ainda."), i18n.T(ctx, "Relatórios, planos, dados e imagens que as personas produzem aparecem aqui, com histórico de versões. Você também pode enviar um arquivo."), true) {
+				if sh.CanWrite() {
+					<a class="btn outline" href={ templ.SafeURL(vm.NewHref) }>
+						@Icon("plus")
+						{ i18n.T(ctx, "Enviar artefato") }
+					</a>
+				} else {
+					@NeedRole(domain.MemberMember)
+				}
+			}
+		} else {
+			<form class="toolbar art-filters" method="get" action={ templ.SafeURL(vm.Filters.Action) } role="search">
+				<input class="input" type="search" name="q" value={ vm.Filters.Query } placeholder={ i18n.T(ctx, "Buscar pelo nome...") } aria-label={ i18n.T(ctx, "Buscar pelo nome") }/>
+				@Select("projeto", "f-art-projeto", vm.Filters.ProjectOptions, true)
+				<input class="input mono" style="max-width:130px" name="task" value={ vm.Filters.Task } placeholder="HNK-12" aria-label={ i18n.T(ctx, "Task") } autocomplete="off"/>
+				@Select("persona", "f-art-persona", vm.Filters.PersonaOptions, true)
+				@Select("tipo", "f-art-tipo", vm.Filters.KindOptions, true)
+				<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Filtrar") }</button>
+				if vm.Filters.Active {
+					<a class="btn ghost sm" href={ templ.SafeURL(vm.Filters.ClearHref) }>{ i18n.T(ctx, "limpar filtros") }</a>
+				}
+			</form>
+			if len(vm.Rows) == 0 {
+				@EmptyCard("file", i18n.T(ctx, "Nenhum artefato com esses filtros."), "", false)
+			} else {
+				<div class="table-wrap">
+					<table class="table art-table">
+						<thead>
+							<tr>
+								<th>{ i18n.T(ctx, "Artefato") }</th>
+								<th class="hide-sm">{ i18n.T(ctx, "Tipo") }</th>
+								<th class="num hide-sm">{ i18n.T(ctx, "Tamanho") }</th>
+								<th class="hide-sm">Task</th>
+								<th class="hide-sm">Persona</th>
+								<th>{ i18n.T(ctx, "Atualizado") }</th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, r := range vm.Rows {
+								<tr class="row">
+									<td class="ttl">
+										<a href={ templ.SafeURL(r.Href) }>{ r.Name }</a>
+										<span class="badge soft mono">{ fmt.Sprintf("v%d", r.Version) }</span>
+										if r.Versions > 1 {
+											<span class="faint" style="font-size:12px">{ i18n.Tf(ctx, "%d versões", r.Versions) }</span>
+										}
+										if r.Project != "" {
+											<div class="note"><a href={ templ.SafeURL(r.ProjectHref) }>{ r.Project }</a></div>
+										}
+									</td>
+									<td class="hide-sm muted">{ r.Kind }</td>
+									<td class="num mono hide-sm">{ r.Size }</td>
+									<td class="hide-sm">
+										if r.TaskKey != "" {
+											<a class="mono" href={ templ.SafeURL(r.TaskHref) } title={ r.TaskTitle }>{ r.TaskKey }</a>
+										} else {
+											<span class="faint">—</span>
+										}
+									</td>
+									<td class="hide-sm">
+										if r.Persona != "" {
+											<a href={ templ.SafeURL(r.PersonaHref) }>{ r.Persona }</a>
+										} else {
+											<span class="faint">—</span>
+										}
+									</td>
+									<td class="muted">{ r.When }</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+				if vm.More {
+					<p style="margin-top:12px"><a class="btn outline sm" href={ templ.SafeURL(vm.MoreHref) }>{ i18n.T(ctx, "Ver mais") }</a></p>
+				}
+			}
+		}
+	}
+}
+
+templ ArtifactFormPage(sh Shell, vm ArtifactFormVM) {
+	@Layout(sh) {
+		@PageHead(i18n.T(ctx, "Enviar artefato"), i18n.T(ctx, "Publique um arquivo. O mesmo nome na mesma task cria a versão seguinte.")) {
+		}
+		if sh.CanWrite() {
+			<form class="card pad form-card" method="post" action={ templ.SafeURL(vm.Action) } enctype="multipart/form-data">
+				if vm.Error != "" {
+					@Alert("danger", vm.Error)
+				}
+				<div class="field">
+					<label for="a-file">{ i18n.T(ctx, "Arquivo") }</label>
+					<input class="input" id="a-file" type="file" name="file" required/>
+					<span class="hint">{ i18n.Tf(ctx, "Até %s por arquivo. HTML e SVG são sempre baixados, nunca abertos no navegador.", vm.MaxFile) }</span>
+					if e := vm.FieldErr["file"]; e != "" {
+						<span class="err">{ e }</span>
+					}
+				</div>
+				<div class="form-grid">
+					<div class="field">
+						<label for="a-name">{ i18n.T(ctx, "Nome (opcional)") }</label>
+						<input class="input" id="a-name" name="name" value={ vm.Name } maxlength="200" placeholder={ i18n.T(ctx, "vazio = o nome do arquivo") } autocomplete="off"/>
+						if e := vm.FieldErr["name"]; e != "" {
+							<span class="err">{ e }</span>
+						}
+					</div>
+					<div class="field">
+						<label for="a-task">{ i18n.T(ctx, "Task (opcional)") }</label>
+						<input class="input mono" id="a-task" name="task" value={ vm.Task } maxlength="40" placeholder="HNK-12" autocomplete="off"/>
+						if e := vm.FieldErr["task"]; e != "" {
+							<span class="err">{ e }</span>
+						}
+					</div>
+				</div>
+				if len(vm.ProjectOptions) > 1 {
+					<div class="field">
+						<label for="a-proj">{ i18n.T(ctx, "Projeto (opcional)") }</label>
+						@Select("project", "a-proj", vm.ProjectOptions, false)
+						<span class="hint">{ i18n.T(ctx, "Vazio = o projeto da task, se houver.") }</span>
+					</div>
+				}
+				<div class="form-actions">
+					<a class="btn ghost" href={ templ.SafeURL(vm.CancelHref) }>{ i18n.T(ctx, "Cancelar") }</a>
+					<button class="btn primary" type="submit">{ i18n.T(ctx, "Enviar") }</button>
+				</div>
+			</form>
+		} else {
+			@Alert("warn", i18n.T(ctx, "Seu papel nesta empresa não permite esta ação."))
+		}
+	}
+}
+
+templ ArtifactDiffBox(d DiffVM) {
+	<section class="card pad" id="diff" style="margin-top:20px">
+		<div class="card-head">
+			<h2>{ i18n.Tf(ctx, "Diferenças: v%d → v%d", d.FromVersion, d.ToVersion) }</h2>
+			<a class="sub" href={ templ.SafeURL(d.CloseHref) }>{ i18n.T(ctx, "Fechar") }</a>
+		</div>
+		if d.Error != "" {
+			@Alert("warn", d.Error)
+		} else if d.Same {
+			<p class="muted">{ i18n.T(ctx, "As duas versões têm o mesmo texto.") }</p>
+		} else {
+			<p class="muted" style="font-size:13px">
+				<span class="diff-add-n">{ fmt.Sprintf("+%d", d.Added) }</span>
+				<span class="diff-del-n">{ fmt.Sprintf("−%d", d.Removed) }</span>
+				if d.Coarse {
+					· { i18n.T(ctx, "Trecho muito grande: mostrado sem refinar linha a linha.") }
+				}
+			</p>
+			<div class="diff" role="table" aria-label={ i18n.T(ctx, "Diferenças entre versões") }>
+				for _, l := range d.Lines {
+					if l.Op == "~" {
+						<div class="diff-row skip" role="row"><span class="no"></span><span class="no"></span><span class="tx">{ i18n.Tf(ctx, "… %d linhas iguais …", l.Skipped) }</span></div>
+					} else {
+						<div class={ "diff-row", diffClass(l.Op) } role="row">
+							<span class="no">{ l.OldNo }</span>
+							<span class="no">{ l.NewNo }</span>
+							<span class="tx"><span class="op" aria-hidden="true">{ l.Op }</span>{ l.Text }</span>
+						</div>
+					}
+				}
+			</div>
+			if d.Cut > 0 {
+				<p class="muted" style="font-size:12.5px;margin-top:10px">{ i18n.Tf(ctx, "Mostrando as primeiras linhas; %d omitidas. Baixe as versões para comparar tudo.", d.Cut) }</p>
+			}
+		}
+	</section>
+}
+
+func diffClass(op string) string {
+	switch op {
+	case "+":
+		return "add"
+	case "-":
+		return "del"
+	}
+	return "eq"
+}
+
+templ ArtifactPage(sh Shell, vm ArtifactVM) {
+	@Layout(sh) {
+		if vm.Notice != "" {
+			@Alert("warn", vm.Notice)
+		}
+		if vm.Error != "" {
+			@Alert("danger", vm.Error)
+		}
+		<div class="flow-head">
+			<div>
+				<h1>{ vm.Name } <span class="badge soft mono">{ fmt.Sprintf("v%d", vm.Version) }</span></h1>
+				<p class="muted" style="margin-top:6px;font-size:13.5px">
+					{ vm.Kind } · { vm.Size }
+					if !vm.Latest {
+						· <span class="badge warn">{ i18n.T(ctx, "versão antiga") }</span>
+						<a href={ templ.SafeURL(vm.LatestHref) }>{ i18n.T(ctx, "ver a mais nova") }</a>
+					}
+				</p>
+			</div>
+			<div class="flow-acts">
+				<a class="btn outline" href={ templ.SafeURL(vm.DownloadHref) }>{ i18n.T(ctx, "Baixar") }</a>
+				if canAdmin(ctx) {
+					<form method="post" action={ templ.SafeURL(vm.DeleteHref) } hx-post={ vm.DeleteHref } hx-swap="none" hx-confirm={ i18n.T(ctx, "Apagar este artefato com todas as versões?") }>
+						<button class="btn outline" type="submit">{ i18n.T(ctx, "Excluir artefato") }</button>
+					</form>
+				}
+			</div>
+		</div>
+		<div class="grid-2" style="align-items:start">
+			<section class="card pad">
+				<div class="card-head"><h2>{ i18n.T(ctx, "Detalhes") }</h2></div>
+				<dl class="kv">
+					<dt>{ i18n.T(ctx, "Tipo MIME") }</dt><dd class="mono">{ vm.Mime }</dd>
+					<dt>{ i18n.T(ctx, "Tamanho") }</dt><dd>{ vm.Size }</dd>
+					<dt>{ i18n.T(ctx, "Publicado") }</dt><dd>{ vm.Created }</dd>
+					<dt>{ i18n.T(ctx, "Autor") }</dt><dd>{ vm.Author }</dd>
+					<dt>Task</dt>
+					<dd>
+						if vm.TaskKey != "" {
+							<a class="mono" href={ templ.SafeURL(vm.TaskHref) }>{ vm.TaskKey }</a> { vm.TaskTitle }
+						} else {
+							<span class="faint">—</span>
+						}
+					</dd>
+					<dt>{ i18n.T(ctx, "Projeto") }</dt>
+					<dd>
+						if vm.Project != "" {
+							<a href={ templ.SafeURL(vm.ProjectHref) }>{ vm.Project }</a>
+						} else {
+							<span class="faint">—</span>
+						}
+					</dd>
+					<dt>Persona</dt>
+					<dd>
+						if vm.Persona != "" {
+							<a href={ templ.SafeURL(vm.PersonaHref) }>{ vm.Persona }</a>
+						} else {
+							<span class="faint">—</span>
+						}
+					</dd>
+					<dt>{ i18n.T(ctx, "Execução") }</dt>
+					<dd>
+						if vm.Run != "" {
+							<a class="mono" href={ templ.SafeURL(vm.RunHref) }>{ vm.Run }</a>
+						} else {
+							<span class="faint">—</span>
+						}
+					</dd>
+					<dt>SHA-256</dt><dd class="mono" style="font-size:12px;overflow-wrap:anywhere">{ vm.SHA }</dd>
+				</dl>
+			</section>
+			<section class="card pad">
+				<div class="card-head"><h2>{ i18n.T(ctx, "Versões") }</h2></div>
+				<table class="table mini">
+					<thead><tr><th>{ i18n.T(ctx, "Versão") }</th><th>{ i18n.T(ctx, "Publicado") }</th><th class="num">{ i18n.T(ctx, "Tamanho") }</th><th></th></tr></thead>
+					<tbody>
+						for _, v := range vm.Versions {
+							<tr>
+								<td>
+									if v.Current {
+										<b class="mono">{ fmt.Sprintf("v%d", v.Version) }</b>
+									} else {
+										<a class="mono" href={ templ.SafeURL(v.Href) }>{ fmt.Sprintf("v%d", v.Version) }</a>
+									}
+								</td>
+								<td class="muted" style="font-size:12.5px">
+									{ v.When }
+									if v.Author != "" {
+										· { v.Author }
+									}
+									if v.Run != "" {
+										· <a class="mono" href={ templ.SafeURL(v.RunHref) }>{ v.Run }</a>
+									}
+								</td>
+								<td class="num mono">{ v.Size }</td>
+								<td class="num">
+									if v.DiffHref != "" {
+										<a href={ templ.SafeURL(v.DiffHref) }>{ i18n.T(ctx, "comparar com a anterior") }</a>
+									}
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</section>
+		</div>
+		<section class="card pad" style="margin-top:20px">
+			<div class="card-head"><h2>{ i18n.T(ctx, "Prévia") }</h2></div>
+			switch vm.Preview {
+				case "markdown":
+					<div class="md">@templ.Raw(string(vm.PreviewHTML))</div>
+				case "text":
+					<pre class="art-pre"><code>{ vm.PreviewText }</code></pre>
+				case "image":
+					<img class="art-img" src={ vm.ContentHref } alt={ vm.Name } loading="lazy"/>
+				default:
+					<p class="muted">{ i18n.T(ctx, "Sem prévia para este tipo de arquivo. Use Baixar.") }</p>
+			}
+			if vm.Truncated {
+				<p class="muted" style="font-size:12.5px;margin-top:10px">{ i18n.T(ctx, "Prévia limitada ao começo do arquivo. Baixe para ver tudo.") }</p>
+			}
+		</section>
+		if vm.Diff != nil {
+			@ArtifactDiffBox(*vm.Diff)
+		}
+	}
+}
+
+// ArtifactMiniList é a seção "Artefatos" das páginas de task e de execução.
+templ ArtifactMiniList(items []ArtifactMini, all string) {
+	if len(items) == 0 {
+		<p class="muted" style="font-size:13px">{ i18n.T(ctx, "Nenhum artefato ainda.") }</p>
+	}
+	for _, a := range items {
+		<a class="side-run" href={ templ.SafeURL(a.Href) } title={ a.Kind }>
+			@Icon("file")
+			<span>{ a.Name }</span>
+			<span class="badge soft mono">{ fmt.Sprintf("v%d", a.Version) }</span>
+			<span class="d mono">{ a.Size }</span>
+		</a>
+	}
+	if all != "" {
+		<p style="margin-top:8px;font-size:13px"><a href={ templ.SafeURL(all) }>{ i18n.T(ctx, "Ver todos") }</a></p>
+	}
+}
