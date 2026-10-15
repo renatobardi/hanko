@@ -86,6 +86,7 @@ English:
 - [Stack and conventions](docs/en/STACK.md)
 - [Glossary](docs/en/GLOSSARY.md)
 - [Runbook](docs/en/RUNBOOK.md) (deploy, auth, backup/restore, troubleshooting)
+- [Demos](docs/en/DEMOS.md) (recording scripts per milestone, sample company `examples/demo-company.json`)
 - [ADR index](docs/en/adr/README.md)
 - [Contributing](CONTRIBUTING.md)
 

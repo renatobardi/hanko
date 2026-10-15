@@ -8,6 +8,7 @@ Single binary em Go. Postgres como única dependência de dados. Observabilidade
 - Stack e convenções: `docs/STACK.md`
 - Decisões (ADR): `docs/adr/`
 - Roadmap v0.1: `docs/ROADMAP.md`
+- Demos por milestone (roteiros de gravação e empresa de exemplo `examples/demo-company.json`): `docs/DEMOS.md`
 - Protocolo de início de sessão (humanos e agentes): `AGENTS.md`
 - Licença: Apache-2.0 (ver `LICENSE`, `CONTRIBUTING.md`)
 
