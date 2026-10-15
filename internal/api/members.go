@@ -43,7 +43,7 @@ func memberOut(m domain.Member) Member {
 
 func (s *server) inviteOut(i domain.Invite) Invite {
 	return Invite{ID: idStr(i.ID), Email: i.Email, Role: string(i.Role), CreatedAt: i.CreatedAt, ExpiresAt: i.ExpiresAt,
-		Expired: !time.Now().Before(i.ExpiresAt)}
+		Expired: i.Expired(s.now())}
 }
 
 type InvitePath struct {
@@ -200,4 +200,12 @@ func (s *server) memberRef(ctx context.Context, cid domain.ID, ref string) (doma
 		}
 	}
 	return domain.ID{}, s.fail(ctx, domain.ErrNotFound)
+}
+
+// now é o relógio do service quando ele expõe um (o mesmo da validade dos convites); senão, o do sistema.
+func (s *server) now() time.Time {
+	if c, ok := s.svc.(interface{ Clock() time.Time }); ok {
+		return c.Clock()
+	}
+	return time.Now()
 }

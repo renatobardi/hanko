@@ -18,6 +18,9 @@ import (
 //   - member e viewer: só enxergam a lista de membros.
 // Nunca fica uma empresa sem owner.
 
+// MaxNameLen é o tamanho máximo (em caracteres) do nome de quem aceita um convite.
+const MaxNameLen = 80
+
 func memberFromRow(companyID, userID domain.ID, role string, invitedBy *domain.ID, created time.Time, email, name, provider string) domain.Member {
 	return domain.Member{CompanyID: companyID, UserID: userID, Email: email, Name: name, Provider: domain.AuthProvider(provider),
 		Role: domain.MemberRole(role), InvitedBy: invitedBy, CreatedAt: created}
@@ -309,12 +312,6 @@ func (s *Service) PreviewInvite(ctx context.Context, token string) (InvitePrevie
 	return InvitePreview{CompanyName: co.Name, CompanySlug: co.Slug, Email: inv.Email, Role: domain.MemberRole(inv.Role), HasAccount: uerr == nil}, nil
 }
 
-// InviteValidFor informa se o token é um convite aberto para o e-mail (admissão no login).
-func (s *Service) InviteValidFor(ctx context.Context, token, email string) bool {
-	inv, err := openInvite(ctx, s.read(), token, s.Now().UTC())
-	return err == nil && SameEmail(inv.Email, email)
-}
-
 // acceptInTx consome o convite para o usuário (e-mail precisa bater). Chamar dentro da transação.
 func (t *txc) acceptInvite(token string, u domain.User) (domain.Member, error) {
 	inv, err := openInvite(t.ctx, t.q, token, t.now)
@@ -374,6 +371,9 @@ func (s *Service) AcceptInviteLocal(ctx context.Context, token, name, password s
 	if name == "" {
 		return domain.User{}, domain.Member{}, domain.Invalid("name", "required")
 	}
+	if len([]rune(name)) > MaxNameLen {
+		return domain.User{}, domain.Member{}, domain.Invalid("name", "máximo de 80 caracteres")
+	}
 	if err := auth.ValidatePassword(password); err != nil {
 		return domain.User{}, domain.Member{}, domain.Invalid("password", err.Error())
 	}
@@ -419,3 +419,6 @@ func (s *Service) AcceptInviteLocal(ctx context.Context, token, name, password s
 	})
 	return user, mem, err
 }
+
+// Clock é o relógio do service (o mesmo que decide a validade dos convites).
+func (s *Service) Clock() time.Time { return s.Now().UTC() }

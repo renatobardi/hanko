@@ -841,3 +841,16 @@ func TestInviteEmailNotFoldedWithKelvin(t *testing.T) {
 		t.Fatalf("login firebase com o e-mail do convite: %v", err)
 	}
 }
+
+func TestAcceptInviteLocalNameLimit(t *testing.T) {
+	e := newEnv(t)
+	own := mkUser(t, e, "own@x.com", domain.RoleOwner)
+	join(t, e, own, domain.MemberOwner)
+	_, tok, _ := e.svc.InviteMember(as(own), own.Actor(), e.co.ID, "n@x.com", domain.MemberViewer)
+	if _, _, err := e.svc.AcceptInviteLocal(context.Background(), tok, strings.Repeat("a", 81), goodPass); !errors.Is(err, domain.ErrInvalid) {
+		t.Fatalf("nome de 81 caracteres: %v", err)
+	}
+	if _, _, err := e.svc.AcceptInviteLocal(context.Background(), tok, strings.Repeat("é", 80), goodPass); err != nil {
+		t.Fatalf("nome de 80 caracteres: %v", err)
+	}
+}
