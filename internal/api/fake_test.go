@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/export"
 	"github.com/renatobardi/hanko/internal/service"
 )
 
@@ -205,4 +206,12 @@ func do(t *testing.T, method, url, body string, hdr map[string]string) (*http.Re
 	defer resp.Body.Close()
 	b, _ := io.ReadAll(resp.Body)
 	return resp, string(b)
+}
+
+func (f *fakeSvc) ExportCompany(context.Context, domain.ID, service.ExportOptions) (export.Document, error) {
+	return export.Document{Format: export.Format}, f.failWith
+}
+
+func (f *fakeSvc) ImportCompany(context.Context, domain.Actor, export.Document, service.ImportOptions) (service.ImportResult, error) {
+	return service.ImportResult{}, f.failWith
 }

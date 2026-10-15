@@ -367,6 +367,15 @@ func TestReviewerConfigValidacao(t *testing.T) {
 	if _, err := upd(service.UpdatePersonaInput{ReviewerPersona: &b.ID, ClearReviewer: true}); err == nil {
 		t.Error("definir e limpar juntos deveria falhar")
 	}
+	// persona revisora e harness alternativo juntos: erro, como na contratação (antes o harness era ignorado)
+	if _, err := upd(service.UpdatePersonaInput{ReviewerPersona: &b.ID, ReviewerAgent: ptr("codex")}); err == nil {
+		t.Error("persona e harness alternativo juntos deveria falhar")
+	} else {
+		wantErr(t, err, domain.ErrInvalid)
+	}
+	if got, _ := e.svc.GetPersona(ctx, e.co.ID, a.ID.String()); got.HasReviewer() {
+		t.Error("o pedido recusado não pode ter gravado revisor")
+	}
 	p, err := upd(service.UpdatePersonaInput{ReviewerPersona: &b.ID})
 	if err != nil || p.ReviewerPersonaID == nil || *p.ReviewerPersonaID != b.ID || !p.HasReviewer() {
 		t.Fatalf("persona revisora: %+v %v", p, err)

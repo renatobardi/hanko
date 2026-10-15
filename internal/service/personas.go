@@ -156,6 +156,10 @@ func (s *Service) UpdatePersona(ctx context.Context, actor domain.Actor, company
 	if in.ClearReviewer && (in.ReviewerPersona != nil || in.ReviewerAgent != nil || in.ReviewerModel != nil) {
 		return domain.Persona{}, domain.Invalid("reviewer", "cannot set and clear at once")
 	}
+	if in.ReviewerPersona != nil && (in.ReviewerAgent != nil || in.ReviewerModel != nil) {
+		// the hire path refuses this combination too; silently dropping the harness would hide the mistake
+		return domain.Persona{}, domain.Invalid("reviewer", "choose a reviewer persona or an alternate harness, not both")
+	}
 	if in.BudgetMonthlyCents != nil && *in.BudgetMonthlyCents < 0 {
 		return domain.Persona{}, domain.Invalid("budget_monthly_cents", "must be >= 0")
 	}
