@@ -116,7 +116,7 @@ func (h *Heartbeat) applyMemoryProposal(ctx context.Context, a ApplyMemoryPropos
 	rctx, cancel := context.WithTimeout(ctx, applyProposalTimeout)
 	defer cancel()
 	if _, err := caller.CallTool(rctx, scope, item.Tool, item.Arguments); err != nil {
-		if !(item.PriorAttempt && memory.IsNotFound(err)) {
+		if !item.PriorAttempt || !memory.IsNotFound(err) {
 			h.log.Warn("apply_memory_proposal: aplicação falhou, nova tentativa agendada", "proposal_id", a.ProposalID, "err", err)
 			return fail(err.Error())
 		}
