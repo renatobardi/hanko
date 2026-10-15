@@ -49,7 +49,7 @@ func TestSSEEncerraQuandoOAcessoCai(t *testing.T) {
 			done := make(chan struct{})
 			go func() {
 				defer close(done)
-				streamRun(ctx, rec, src, events.NewBroker(), discardLogger(), c.ID, rid, 0, 20*time.Millisecond)
+				streamRun(ctx, rec, src, events.NewBroker(), discardLogger(), c.ID, rid, 0, 20*time.Millisecond, nil)
 			}()
 			ch := readFrames(t, rec.reader())
 			if fr := next(t, ch); fr.Event != "ping" {
@@ -62,5 +62,40 @@ func TestSSEEncerraQuandoOAcessoCai(t *testing.T) {
 				t.Fatal("o stream continuou aberto depois que o acesso caiu")
 			}
 		})
+	}
+}
+
+// Sessão encerrada, senha redefinida ou API key revogada com o stream aberto: o tick reverifica a credencial
+// e encerra, mesmo que o papel na empresa continue valendo.
+func TestSSEEncerraQuandoACredencialCai(t *testing.T) {
+	f := &fakeSvc{runs: map[domain.ID]service.RunView{}, events: map[domain.ID][]domain.RunEvent{}}
+	c := seedCompany(f)
+	rid := domain.NewID()
+	f.runs[rid] = service.RunView{Run: domain.Run{ID: rid, CompanyID: c.ID, Status: domain.RunRunning}}
+
+	var revoked atomic.Bool
+	credential := func(context.Context) error {
+		if revoked.Load() {
+			return domain.ErrUnauthenticated
+		}
+		return nil
+	}
+	rec := newFlushRecorder()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		streamRun(ctx, rec, f, events.NewBroker(), discardLogger(), c.ID, rid, 0, 20*time.Millisecond, credential)
+	}()
+	ch := readFrames(t, rec.reader())
+	if fr := next(t, ch); fr.Event != "ping" {
+		t.Fatalf("esperava ping com a credencial válida, veio %+v", fr)
+	}
+	revoked.Store(true)
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("o stream continuou aberto depois que a credencial caiu")
 	}
 }

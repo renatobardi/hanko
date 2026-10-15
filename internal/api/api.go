@@ -100,7 +100,9 @@ type backend interface {
 	GetFlow(ctx context.Context, companyID domain.ID, ref string) (service.FlowView, error)
 	ListFlowFires(ctx context.Context, companyID, flowID domain.ID, limit int) ([]service.FlowFireView, error)
 	RunFlowNow(ctx context.Context, actor domain.Actor, companyID, flowID domain.ID) (service.FlowFireResult, error)
-	ExportCompany(ctx context.Context, companyID domain.ID, opts service.ExportOptions) (export.Document, error)
+	ResolveSession(ctx context.Context, token string) (domain.User, error)
+	ResolveAPIKey(ctx context.Context, key string) (domain.User, error)
+	OpenExport(ctx context.Context, companyID domain.ID, opts service.ExportOptions) (*service.ExportStream, error)
 	ImportCompany(ctx context.Context, actor domain.Actor, doc export.Document, opts service.ImportOptions) (service.ImportResult, error)
 	ListMembers(ctx context.Context, companyID domain.ID) ([]domain.Member, error)
 	ListInvites(ctx context.Context, companyID domain.ID) ([]domain.Invite, error)
@@ -131,6 +133,8 @@ func (s *server) mount(mux *http.ServeMux) {
 	api := humago.New(wm, config())
 	s.register(api)
 	s.registerStream(wm, api)
+	s.registerImportDoc(api)
+	wm.HandleFunc("POST "+importPath, s.handleImport)
 
 	if len(s.d.CORSOrigins) > 0 { // preflight cai aqui; o middleware responde quando a origem é permitida
 		wm.HandleFunc("OPTIONS "+Prefix+"/", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusNoContent) })
@@ -182,6 +186,7 @@ func Spec() ([]byte, error) {
 	s := &server{log: slog.New(slog.DiscardHandler)}
 	s.register(api)
 	s.registerStreamDoc(api)
+	s.registerImportDoc(api)
 	b, err := json.MarshalIndent(api.OpenAPI(), "", "  ")
 	if err != nil {
 		return nil, fmt.Errorf("openapi: %w", err)

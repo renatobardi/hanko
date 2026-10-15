@@ -11,8 +11,9 @@ SELECT * FROM task_comments WHERE company_id = @company_id ORDER BY created_at, 
 -- Só execuções encerradas: uma execução em voo ainda não é um fato histórico.
 SELECT * FROM runs WHERE company_id = @company_id AND status NOT IN ('queued', 'running') ORDER BY created_at, id;
 
--- name: ExportRunEvents :many
-SELECT * FROM run_events WHERE company_id = @company_id ORDER BY run_id, seq;
+-- name: ExportRunEventsPage :many
+-- Uma página dos eventos de UMA execução (keyset por seq): o export nunca carrega o log inteiro da empresa.
+SELECT * FROM run_events WHERE run_id = @run_id AND seq > @after_seq ORDER BY seq LIMIT @page_size;
 
 -- name: ImportWorkspace :one
 INSERT INTO workspaces (id, company_id, slug, name, path, repo_url, created_at, updated_at)

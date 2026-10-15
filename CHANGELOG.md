@@ -48,7 +48,7 @@ Primeira versão pública. Em produção em https://hanko.oute.pro desde 2026-10
 - Multi-humano: papéis por empresa (owner/admin/member/viewer), autorização no service (API, UI, MCP e SSE),
   convites por link de uso único, `hanko member …`, `hanko auth user …` para o dono da instalação (ADR-0021).
 - Troca de empresa na sidebar; formulário do revisor na persona; página "nenhuma empresa".
-- `hanko export` / `hanko import` de uma empresa em JSON `hanko.company.v1`, sem ids nem segredos (ADR-0022).
+- `hanko export` / `hanko import` de uma empresa em JSON `hanko.company.v1`, sem ids nem segredos (ADR-0022); a empresa importada entra pausada (`--active` liga), o export de logs sai em fluxo e o arquivo não é anônimo.
 - UI e CLI bilíngues pt-BR/en (UI: cookie `hanko_lang` > `Accept-Language`; CLI: `HANKO_LANG` > locale).
 - Deploy: backup consistente antes de subir versão nova; restore com rollback do banco anterior.
 - Documentação em inglês (`README.md`, `CONTRIBUTING.md`, `docs/en/`).

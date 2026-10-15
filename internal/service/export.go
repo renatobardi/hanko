@@ -1,12 +1,15 @@
 package service
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 
 	"github.com/jackc/pgx/v5"
 
+	"github.com/renatobardi/hanko/internal/adapter"
 	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/export"
 	"github.com/renatobardi/hanko/internal/store"
@@ -27,22 +30,185 @@ func exportStatus(s string) string {
 	return s
 }
 
-// ExportCompany monta o arquivo portátil da empresa (ADR-0022) numa leitura consistente (uma única
-// transação de snapshot). Exige admin: as instruções das personas e o histórico não são para qualquer membro.
-func (s *Service) ExportCompany(ctx context.Context, companyID domain.ID, opts ExportOptions) (export.Document, error) {
+// defaultExportPageSize é quantos eventos de uma execução o export lê por vez.
+const defaultExportPageSize = 1000
+
+// red mascara credenciais que tenham ido parar em texto livre (instruções, descrições, comentários, logs):
+// o arquivo é feito para ser compartilhado (ADR-0022). Não o torna anônimo.
+func red(s string) string { return adapter.Redact(s) }
+
+// ExportStream é uma exportação aberta: a configuração e o histórico de execuções (sem logs) já estão montados
+// em memória, numa transação de snapshot que fica aberta até Close; os logs saem run a run, em páginas, durante
+// WriteTo, então o log inteiro da empresa nunca fica na memória. Chame Close sempre.
+type ExportStream struct {
+	tx       pgx.Tx
+	q        *store.Queries
+	doc      export.Document
+	runIDs   []domain.ID // paralelo a doc.Runs
+	withLogs bool
+	pageSize int
+	pages    int
+}
+
+// Pages devolve quantas páginas de eventos foram lidas (para testes e métricas).
+func (e *ExportStream) Pages() int { return e.pages }
+
+// Close encerra a transação de snapshot.
+func (e *ExportStream) Close() {
+	if e.tx != nil {
+		_ = e.tx.Rollback(context.Background())
+		e.tx = nil
+	}
+}
+
+// OpenExport confere o papel (admin: as instruções das personas e o histórico não são para qualquer membro) e
+// monta o arquivo portátil da empresa (ADR-0022) numa leitura consistente (uma única transação de snapshot).
+// Os erros de autorização e de montagem saem aqui, antes de qualquer byte da resposta.
+func (s *Service) OpenExport(ctx context.Context, companyID domain.ID, opts ExportOptions) (*ExportStream, error) {
 	if err := s.require(ctx, companyID, domain.MemberAdmin); err != nil {
-		return export.Document{}, err
+		return nil, err
 	}
 	if opts.WithLogs {
 		opts.WithRuns = true
 	}
 	tx, err := s.Pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
 	if err != nil {
-		return export.Document{}, fmt.Errorf("begin export tx: %w", err)
+		return nil, fmt.Errorf("begin export tx: %w", err)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
-	q := store.New(tx)
+	st := &ExportStream{tx: tx, q: store.New(tx), withLogs: opts.WithLogs, pageSize: s.ExportPageSize}
+	if st.pageSize <= 0 {
+		st.pageSize = defaultExportPageSize
+	}
+	if err := s.buildExport(ctx, st, companyID, opts); err != nil {
+		st.Close()
+		return nil, err
+	}
+	return st, nil
+}
 
+// ExportCompany devolve o arquivo inteiro em memória, logs incluídos (uso programático e testes; a API usa
+// OpenExport e escreve em fluxo).
+func (s *Service) ExportCompany(ctx context.Context, companyID domain.ID, opts ExportOptions) (export.Document, error) {
+	st, err := s.OpenExport(ctx, companyID, opts)
+	if err != nil {
+		return export.Document{}, err
+	}
+	defer st.Close()
+	if st.withLogs {
+		for i, id := range st.runIDs {
+			err := st.eachEvent(ctx, id, func(e export.RunEvent) error {
+				st.doc.Runs[i].Events = append(st.doc.Runs[i].Events, e)
+				return nil
+			})
+			if err != nil {
+				return export.Document{}, err
+			}
+		}
+	}
+	return st.doc, nil
+}
+
+// eachEvent percorre os eventos de uma execução em páginas por seq.
+func (e *ExportStream) eachEvent(ctx context.Context, runID domain.ID, fn func(export.RunEvent) error) error {
+	var after int64
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		rows, err := e.q.ExportRunEventsPage(ctx, store.ExportRunEventsPageParams{RunID: runID, AfterSeq: after, PageSize: int32(e.pageSize)})
+		if err != nil {
+			return fmt.Errorf("export run events: %w", err)
+		}
+		e.pages++
+		for _, r := range rows {
+			if err := fn(export.RunEvent{Seq: r.Seq, Kind: r.Kind, Text: red(r.Text), Payload: adapter.RedactJSON(r.Payload),
+				OccurredAt: r.OccurredAt}); err != nil {
+				return err
+			}
+			after = r.Seq
+		}
+		if len(rows) < e.pageSize {
+			return nil
+		}
+	}
+}
+
+// WriteTo escreve o JSON do arquivo: o documento (sem execuções), depois as execuções uma a uma, e os eventos de
+// cada uma em páginas. A saída é a mesma de json.Marshal(Document) com os eventos dentro de cada run.
+func (e *ExportStream) WriteTo(ctx context.Context, w io.Writer) error {
+	bw := bufio.NewWriterSize(w, 64<<10)
+	runs := e.doc.Runs
+	head := e.doc
+	head.Runs = nil
+	b, err := json.Marshal(head)
+	if err != nil {
+		return fmt.Errorf("marshal export: %w", err)
+	}
+	if len(runs) == 0 {
+		_, _ = bw.Write(b)
+		return flushAfter(bw, nil)
+	}
+	_, _ = bw.Write(b[:len(b)-1]) // sem o "}" final
+	_, _ = bw.WriteString(`,"runs":[`)
+	for i, r := range runs {
+		if i > 0 {
+			_ = bw.WriteByte(',')
+		}
+		r.Events = nil
+		rb, err := json.Marshal(r)
+		if err != nil {
+			return fmt.Errorf("marshal run: %w", err)
+		}
+		if !e.withLogs {
+			_, _ = bw.Write(rb)
+			continue
+		}
+		_, _ = bw.Write(rb[:len(rb)-1])
+		first := true
+		err = e.eachEvent(ctx, e.runIDs[i], func(ev export.RunEvent) error {
+			eb, err := json.Marshal(ev)
+			if err != nil {
+				return fmt.Errorf("marshal run event: %w", err)
+			}
+			if first {
+				_, _ = bw.WriteString(`,"events":[`)
+				first = false
+			} else {
+				_ = bw.WriteByte(',')
+			}
+			_, err = bw.Write(eb)
+			return err
+		})
+		if err != nil {
+			return err
+		}
+		if !first {
+			_ = bw.WriteByte(']')
+		}
+		_ = bw.WriteByte('}')
+	}
+	_, _ = bw.WriteString("]}")
+	return flushAfter(bw, nil)
+}
+
+func flushAfter(bw *bufio.Writer, err error) error {
+	if err != nil {
+		return err
+	}
+	return bw.Flush()
+}
+
+// buildExport lê tudo menos os eventos das execuções.
+func (s *Service) buildExport(ctx context.Context, st *ExportStream, companyID domain.ID, opts ExportOptions) error {
+	doc, err := s.buildDoc(ctx, st.q, companyID, opts, st)
+	if err != nil {
+		return err
+	}
+	st.doc = doc
+	return nil
+}
+
+func (s *Service) buildDoc(ctx context.Context, q *store.Queries, companyID domain.ID, opts ExportOptions, st *ExportStream) (export.Document, error) {
 	co, err := q.GetCompanyByID(ctx, companyID)
 	if err != nil {
 		return export.Document{}, mapErr(err, "get company")
@@ -67,7 +233,7 @@ func (s *Service) ExportCompany(ctx context.Context, companyID domain.ID, opts E
 	prSlug := map[domain.ID]string{}
 	for _, p := range prRows {
 		prSlug[p.ID] = p.Slug
-		doc.Projects = append(doc.Projects, export.Project{Slug: p.Slug, Name: p.Name, Description: p.Description,
+		doc.Projects = append(doc.Projects, export.Project{Slug: p.Slug, Name: p.Name, Description: red(p.Description),
 			Workspace: refSlug(wsSlug, p.WorkspaceID), CreatedAt: p.CreatedAt})
 	}
 
@@ -106,7 +272,7 @@ func (s *Service) ExportCompany(ctx context.Context, companyID domain.ID, opts E
 				return doc, fmt.Errorf("export persona %s: adapter_config: %w", p.Slug, err)
 			}
 		}
-		doc.Personas = append(doc.Personas, export.Persona{Slug: p.Slug, Name: p.Name, Title: p.Title, Instructions: p.Instructions,
+		doc.Personas = append(doc.Personas, export.Persona{Slug: p.Slug, Name: p.Name, Title: red(p.Title), Instructions: red(p.Instructions),
 			Agent: p.Agent, Model: p.Model, AdapterConfig: export.ScrubConfig(cfg), Status: exportStatus(p.Status),
 			ReportsTo: refSlug(peSlug, p.ReportsTo), Workspace: refSlug(wsSlug, p.WorkspaceID),
 			HeartbeatIntervalSec: int(p.HeartbeatIntervalSec), BudgetMonthlyCents: p.BudgetMonthlyCents,
@@ -141,10 +307,10 @@ func (s *Service) ExportCompany(ctx context.Context, companyID domain.ID, opts E
 	comments := map[domain.ID][]export.Comment{}
 	for _, c := range comRows {
 		comments[c.TaskID] = append(comments[c.TaskID], export.Comment{Author: exportActor(c.AuthorType, c.AuthorID, peSlug),
-			Body: c.Body, Run: refSlug(runKey, c.RunID), CreatedAt: c.CreatedAt})
+			Body: red(c.Body), Run: refSlug(runKey, c.RunID), CreatedAt: c.CreatedAt})
 	}
 	for _, t := range taskRows {
-		et := export.Task{Number: t.Number, Title: t.Title, Description: t.Description, Status: t.Status, Priority: t.Priority,
+		et := export.Task{Number: t.Number, Title: red(t.Title), Description: red(t.Description), Status: t.Status, Priority: t.Priority,
 			Persona: refSlug(peSlug, t.PersonaID), Project: refSlug(prSlug, t.ProjectID), Workspace: refSlug(wsSlug, t.WorkspaceID),
 			Model: t.Model, CreatedBy: exportActor(t.CreatedByType, t.CreatedByID, peSlug), CreatedAt: t.CreatedAt,
 			UpdatedAt: t.UpdatedAt, ClosedAt: t.ClosedAt, Comments: comments[t.ID]}
@@ -159,36 +325,26 @@ func (s *Service) ExportCompany(ctx context.Context, companyID domain.ID, opts E
 		return doc, fmt.Errorf("export flows: %w", err)
 	}
 	for _, f := range flRows {
-		doc.Flows = append(doc.Flows, export.Flow{Slug: f.Slug, Name: f.Name, Description: f.Description, Cron: f.Cron,
+		doc.Flows = append(doc.Flows, export.Flow{Slug: f.Slug, Name: f.Name, Description: red(f.Description), Cron: f.Cron,
 			Timezone: f.Timezone, Enabled: f.Enabled, Persona: peSlug[f.PersonaID], Project: refSlug(prSlug, f.ProjectID),
-			Priority: f.Priority, TaskTitle: f.TaskTitle, TaskDescription: f.TaskDescription, CreatedAt: f.CreatedAt})
+			Priority: f.Priority, TaskTitle: red(f.TaskTitle), TaskDescription: red(f.TaskDescription), CreatedAt: f.CreatedAt})
 	}
 
 	if opts.WithRuns {
-		events := map[domain.ID][]export.RunEvent{}
-		if opts.WithLogs {
-			evRows, err := q.ExportRunEvents(ctx, companyID)
-			if err != nil {
-				return doc, fmt.Errorf("export run events: %w", err)
-			}
-			for _, e := range evRows {
-				events[e.RunID] = append(events[e.RunID], export.RunEvent{Seq: e.Seq, Kind: e.Kind, Text: e.Text,
-					Payload: e.Payload, OccurredAt: e.OccurredAt})
-			}
-		}
 		for _, r := range runRows {
 			var exit *int
 			if r.ExitCode != nil {
 				v := int(*r.ExitCode)
 				exit = &v
 			}
+			st.runIDs = append(st.runIDs, r.ID)
 			doc.Runs = append(doc.Runs, export.Run{Key: runKey[r.ID], Name: r.Name, Task: taskNum[r.TaskID], Persona: peSlug[r.PersonaID],
 				Status: r.Status, Trigger: r.Trigger, Agent: r.Agent, Model: r.Model, ModelSource: r.ModelSource,
-				Subscription: refSlug(subName, r.SubscriptionID), ExitCode: exit, Error: r.Error, Summary: r.Summary,
+				Subscription: refSlug(subName, r.SubscriptionID), ExitCode: exit, Error: red(r.Error), Summary: red(r.Summary),
 				CostUSD: r.CostUsd, CostSource: r.CostSource, ListCostUSD: r.ListCostUsd,
 				Usage: export.Usage{InputTokens: r.InputTokens, OutputTokens: r.OutputTokens, CacheReadTokens: r.CacheReadTokens,
 					CacheCreationTokens: r.CacheCreationTokens},
-				CreatedAt: r.CreatedAt, StartedAt: r.StartedAt, FinishedAt: r.FinishedAt, Events: events[r.ID]})
+				CreatedAt: r.CreatedAt, StartedAt: r.StartedAt, FinishedAt: r.FinishedAt})
 		}
 	}
 	return doc, nil

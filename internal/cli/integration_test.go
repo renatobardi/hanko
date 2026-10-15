@@ -261,6 +261,26 @@ func TestCLIExportImport(t *testing.T) {
 		t.Fatalf("persona da cópia: %q", out)
 	}
 
+	status := func(slug string) domain.PersonaStatus {
+		c, err := svc.GetCompany(context.Background(), slug)
+		if err != nil {
+			t.Fatal(err)
+		}
+		p, err := svc.GetPersona(context.Background(), c.ID, "ada")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return p.Status
+	}
+	if st := status("copia"); st != domain.PersonaPaused {
+		t.Fatalf("o import padrão deveria entrar pausado: %s", st)
+	}
+	mustOK(t, env, "import", file, "--slug", "ativa", "--active")
+	if st := status("ativa"); st == domain.PersonaPaused {
+		t.Fatalf("--active deveria manter a persona ligada: %s", st)
+	}
+	mustFail(t, env, 2, "excludentes", "import", file, "--slug", "ambas", "--active", "--paused")
+
 	mustFail(t, env, 1, "slug", "import", file, "--slug", "copia") // já existe
 	bad := filepath.Join(t.TempDir(), "ruim.json")
 	if err := os.WriteFile(bad, []byte(`{"format":"outro","company":{}}`), 0o600); err != nil {

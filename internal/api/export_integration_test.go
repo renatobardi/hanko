@@ -109,7 +109,7 @@ func TestAPIExportImportIdaEVolta(t *testing.T) {
 			Company struct{ Slug string } `json:"company"`
 			Counts  map[string]int
 		}
-		e.want(201, "POST", "/api/v1/companies/import?slug=copia", string(raw), &created)
+		e.want(201, "POST", "/api/v1/companies/import?slug=copia&paused=false", string(raw), &created)
 		if created.Company.Slug != "copia" || created.Counts["personas"] != 4 || created.Counts["tasks"] != 3 {
 			t.Fatalf("q=%q: %+v", q, created)
 		}
@@ -284,6 +284,15 @@ func TestAPIImportInvalidoNaoGravaNada(t *testing.T) {
 		}},
 		{"status de task desconhecido", 422, func(m map[string]any) { last(m, "tasks")["status"] = "quase" }},
 		{"cron inválido", 422, func(m map[string]any) { first(m, "flows")["cron"] = "de vez em quando" }},
+		{"número de task acima do limite", 422, func(m map[string]any) { last(m, "tasks")["number"] = 2_000_000_000 }},
+		{"número de task zero", 422, func(m map[string]any) { last(m, "tasks")["number"] = 0 }},
+		{"próximo número absurdo", 422, func(m map[string]any) { m["company"].(map[string]any)["next_task_number"] = int64(9e18) }},
+		{"custo negativo", 422, func(m map[string]any) { first(m, "runs")["cost_usd"] = -3.5 }},
+		{"custo de tabela negativo", 422, func(m map[string]any) { first(m, "runs")["list_cost_usd"] = -0.01 }},
+		{"tokens negativos", 422, func(m map[string]any) { first(m, "runs")["usage"] = map[string]any{"input_tokens": -5} }},
+		{"período sem início", 422, func(m map[string]any) {
+			first(m, "subscriptions")["periods"].([]any)[0].(map[string]any)["started_at"] = "0001-01-01T00:00:00Z"
+		}},
 		{"evento de run fora de ordem", 422, func(m map[string]any) {
 			r := first(m, "runs")
 			r["events"].([]any)[0].(map[string]any)["seq"] = 0
@@ -314,23 +323,50 @@ func TestAPIImportSlugDerivadoEPausado(t *testing.T) {
 	e := newAPIEnv(t)
 	e.seedRich()
 	raw := e.exportRaw("rica", "")
-	// sem ?slug, o do arquivo já existe: 409; com outro slug e paused, ninguém trabalha
+	// sem ?slug, o do arquivo já existe: 409
 	e.want(409, "POST", "/api/v1/companies/import", string(raw), nil)
-	e.want(201, "POST", "/api/v1/companies/import?slug=pausada&paused=true", string(raw), nil)
-	ps, err := e.svc.ListPersonas(context.Background(), mustCompany(t, e, "pausada").ID)
-	if err != nil {
-		t.Fatal(err)
+
+	statuses := func(slug string) (map[string]domain.PersonaStatus, bool) {
+		co := mustCompany(t, e, slug)
+		ps, err := e.svc.ListPersonas(context.Background(), co.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		out := map[string]domain.PersonaStatus{}
+		for _, p := range ps {
+			out[p.Slug] = p.Status
+		}
+		fl, err := e.svc.ListFlows(context.Background(), co.ID)
+		if err != nil || len(fl) == 0 {
+			t.Fatalf("fluxos: %+v %v", fl, err)
+		}
+		return out, fl[0].Enabled
 	}
-	for _, p := range ps {
-		if p.Status != domain.PersonaPaused {
-			t.Fatalf("%s deveria entrar pausada: %s", p.Slug, p.Status)
+
+	// padrão: entra PAUSADA, sem precisar pedir (nada trabalha até alguém liberar)
+	e.want(201, "POST", "/api/v1/companies/import?slug=pausada", string(raw), nil)
+	ps, flowOn := statuses("pausada")
+	for slug, st := range ps {
+		if st != domain.PersonaPaused {
+			t.Fatalf("%s deveria entrar pausada por padrão: %s", slug, st)
 		}
 	}
-	fl, err := e.svc.ListFlows(context.Background(), mustCompany(t, e, "pausada").ID)
-	if err != nil || len(fl) == 0 || fl[0].Enabled {
-		t.Fatalf("fluxo deveria entrar desligado: %+v %v", fl, err)
+	if flowOn {
+		t.Fatal("fluxo deveria entrar desligado por padrão")
+	}
+	// paused=false liga o que o arquivo traz ligado
+	e.want(201, "POST", "/api/v1/companies/import?slug=ativa&paused=false", string(raw), nil)
+	ps, flowOn = statuses("ativa")
+	if !flowOn {
+		t.Fatal("paused=false deveria manter o fluxo ligado")
+	}
+	for slug, st := range ps {
+		if st == domain.PersonaPaused {
+			t.Fatalf("%s não deveria estar pausada com paused=false", slug)
+		}
 	}
 	e.want(422, "POST", "/api/v1/companies/import?slug=Inválido!", string(raw), nil)
+	e.want(422, "POST", "/api/v1/companies/import?slug=x&paused=talvez", string(raw), nil)
 }
 
 func mustCompany(t *testing.T, e *apiEnv, slug string) domain.Company {
