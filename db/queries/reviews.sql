@@ -5,6 +5,9 @@ VALUES (@id, @company_id, @task_id, @author_persona_id, @author_run_id, @reviewe
         @requested_status, 'pending', @now)
 RETURNING *;
 
+-- name: GetReviewByID :one
+SELECT * FROM reviews WHERE company_id = @company_id AND id = @id;
+
 -- name: GetReviewByIDForUpdate :one
 SELECT * FROM reviews WHERE company_id = @company_id AND id = @id FOR UPDATE;
 

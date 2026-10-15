@@ -281,6 +281,20 @@ func (t *txc) expireTaskGates(companyID, taskID domain.ID, reason string) error 
 	if err != nil {
 		return fmt.Errorf("expire task gates: %w", err)
 	}
+	// The review's own run (if already open) stops with it: lock run before review (canonical order).
+	if open, oerr := t.q.OpenReviewForTask(t.ctx, taskID); oerr == nil && open.RunID != nil {
+		cur, err := t.q.GetRunByIDForUpdate(t.ctx, store.GetRunByIDForUpdateParams{CompanyID: companyID, ID: *open.RunID})
+		if err != nil {
+			return mapErr(err, "get review run")
+		}
+		if domain.RunStatus(cur.Status).Active() {
+			if err := t.cancelRun(domain.SystemActor, companyID, cur, map[string]any{"reason": reason, "review_id": open.ID}); err != nil {
+				return err
+			}
+		}
+	} else if oerr != nil && !isNoRows(oerr) {
+		return fmt.Errorf("open review: %w", oerr)
+	}
 	revs, err := t.q.CancelOpenReviewsForTask(t.ctx, store.CancelOpenReviewsForTaskParams{TaskID: taskID, Now: &t.now})
 	if err != nil {
 		return fmt.Errorf("cancel task reviews: %w", err)

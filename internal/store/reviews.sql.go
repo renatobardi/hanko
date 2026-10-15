@@ -171,6 +171,42 @@ func (q *Queries) FinishReview(ctx context.Context, arg FinishReviewParams) (Rev
 	return i, err
 }
 
+const getReviewByID = `-- name: GetReviewByID :one
+SELECT id, company_id, task_id, author_persona_id, author_run_id, reviewer_persona_id, agent, model, requested_status, status, run_id, artifact, artifact_sha256, verdict, justification, gate_id, created_at, started_at, finished_at FROM reviews WHERE company_id = $1 AND id = $2
+`
+
+type GetReviewByIDParams struct {
+	CompanyID uuid.UUID
+	ID        uuid.UUID
+}
+
+func (q *Queries) GetReviewByID(ctx context.Context, arg GetReviewByIDParams) (Review, error) {
+	row := q.db.QueryRow(ctx, getReviewByID, arg.CompanyID, arg.ID)
+	var i Review
+	err := row.Scan(
+		&i.ID,
+		&i.CompanyID,
+		&i.TaskID,
+		&i.AuthorPersonaID,
+		&i.AuthorRunID,
+		&i.ReviewerPersonaID,
+		&i.Agent,
+		&i.Model,
+		&i.RequestedStatus,
+		&i.Status,
+		&i.RunID,
+		&i.Artifact,
+		&i.ArtifactSha256,
+		&i.Verdict,
+		&i.Justification,
+		&i.GateID,
+		&i.CreatedAt,
+		&i.StartedAt,
+		&i.FinishedAt,
+	)
+	return i, err
+}
+
 const getReviewByIDForUpdate = `-- name: GetReviewByIDForUpdate :one
 SELECT id, company_id, task_id, author_persona_id, author_run_id, reviewer_persona_id, agent, model, requested_status, status, run_id, artifact, artifact_sha256, verdict, justification, gate_id, created_at, started_at, finished_at FROM reviews WHERE company_id = $1 AND id = $2 FOR UPDATE
 `

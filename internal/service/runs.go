@@ -81,6 +81,9 @@ func (s *Service) ListRunEvents(ctx context.Context, companyID, runID domain.ID,
 func (s *Service) CancelRun(ctx context.Context, actor domain.Actor, companyID, runID domain.ID) (RunView, error) {
 	var out RunView
 	err := s.withTx(ctx, func(t *txc) error {
+		if err := t.lockTaskOfReviewRun(companyID, runID); err != nil {
+			return err
+		}
 		cur, err := t.q.GetRunByIDForUpdate(ctx, store.GetRunByIDForUpdateParams{CompanyID: companyID, ID: runID})
 		if err != nil {
 			return mapErr(err, "get run")
@@ -100,6 +103,13 @@ func (s *Service) CancelRun(ctx context.Context, actor domain.Actor, companyID, 
 // cancelRun cancels a locked, active run inside the transaction: queued → cancelled right
 // away; running → records the request and publishes run.cancel after commit.
 func (t *txc) cancelRun(actor domain.Actor, companyID domain.ID, cur store.Run, extra map[string]any) error {
+	if t.cancelled[cur.ID] {
+		return nil
+	}
+	if t.cancelled == nil {
+		t.cancelled = map[domain.ID]bool{}
+	}
+	t.cancelled[cur.ID] = true
 	data := map[string]any{}
 	for k, v := range extra {
 		data[k] = v
@@ -524,6 +534,9 @@ func (s *Service) FinishRun(ctx context.Context, companyID, runID domain.ID, in 
 	}
 	var out domain.Run
 	err := s.withTx(ctx, func(t *txc) error {
+		if err := t.lockTaskOfReviewRun(companyID, runID); err != nil {
+			return err
+		}
 		cur, err := t.q.GetRunByIDForUpdate(ctx, store.GetRunByIDForUpdateParams{CompanyID: companyID, ID: runID})
 		if err != nil {
 			return mapErr(err, "get run")
