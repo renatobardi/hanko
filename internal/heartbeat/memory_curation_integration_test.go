@@ -284,9 +284,20 @@ func TestApplyMemoryProposalRetriesUntilProviderIsBack(t *testing.T) {
 	if _, err := m.pool.Exec(ctx, "UPDATE memory_proposals SET next_attempt_at = now() WHERE id = $1", p.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := m.pool.Exec(ctx, "UPDATE river_job SET scheduled_at = now() WHERE kind = 'apply_memory_proposal' AND state IN ('scheduled','retryable')"); err != nil {
-		t.Fatal(err)
-	}
+	// o job só vira "scheduled" depois do snooze, que pode chegar um instante após a proposta marcada como falha:
+	// repete o puxão até a proposta ser aplicada
+	stop := make(chan struct{})
+	defer close(stop)
+	go func() {
+		for {
+			_, _ = m.pool.Exec(ctx, "UPDATE river_job SET scheduled_at = now() WHERE kind = 'apply_memory_proposal' AND state IN ('scheduled','retryable')")
+			select {
+			case <-stop:
+				return
+			case <-time.After(300 * time.Millisecond):
+			}
+		}
+	}()
 	applied := waitProposal(domain.ProposalApplied)
 	if applied.AppliedAt == nil || applied.LastError != "" {
 		t.Fatalf("aplicada: %+v", applied)
