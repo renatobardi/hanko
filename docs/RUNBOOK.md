@@ -27,6 +27,13 @@ Testes: `export HANKO_TEST_DATABASE_URL=postgres://postgres:...@127.0.0.1:5432/h
 
 ## 2. Deploy em LXC (oute-server)
 
+**Produção (caminho atual):** `deploy/oute-server/deploy-prd.sh` — roda no Mac, segue as convenções do repo `lab`
+(`docs/oute-server-app-setup.md`): LXC `hanko-prd` não privilegiado com nesting em `10.173.117.41`, app em `/opt/app`
+com o `docker-compose.yml` da raiz (porta `3790`), `.env` gerado dentro do LXC, borda pública por nginx + certbot no host
+(`--edge`, mesmo padrão de `lab/scripts/ops/deploy-vault-vhost.sh`). Depois registre o container no `inventory.yaml` do lab
+(comando impresso no fim do script). O texto abaixo descreve a variante genérica com `deploy/compose.yaml`.
+
+
 Dois containers: `hanko-stg` (branch `develop`) e `hanko-prd` (tag `v*`). Acesso via Tailscale (split-horizon, como no runbook do kura-dev).
 
 1. No oute-server: `deploy/lxc/setup.sh hanko-stg` (cria o container Ubuntu 24.04 com Docker, restic e psql).

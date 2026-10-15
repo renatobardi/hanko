@@ -1,0 +1,78 @@
+# Stack de produção no oute-server (convenção do repo lab: docker-compose.yml na raiz, app em /opt/app
+# dentro de um LXC próprio, nginx + certbot no host fazendo a borda pública).
+# O .env é gerado DENTRO do LXC por deploy/oute-server/deploy-prd.sh (segredos nunca saem de lá).
+# Dev local continua em deploy/compose.yaml.
+name: hanko
+
+services:
+  hanko:
+    build:
+      context: .
+      dockerfile: Dockerfile.agents        # inclui os CLIs claude e codex para as personas
+      args:
+        VERSION: ${HANKO_VERSION:-prd}
+    image: hanko:${HANKO_VERSION:-prd}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      HANKO_DATABASE_URL: postgres://hanko:${POSTGRES_PASSWORD:?gere o .env com deploy-prd.sh}@postgres:5432/hanko?sslmode=disable
+      HANKO_ADDR: 0.0.0.0:7420
+      HANKO_MEMORY_URL: http://ai-memory:49374
+      HANKO_MEMORY_TOKEN: ${AI_MEMORY_AUTH_TOKEN:-}
+      HANKO_WORKSPACES_ROOT: /home/node/hanko-workspaces
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-lgtm:4317
+    ports:
+      - "${HANKO_PORT:-3790}:7420"          # o nginx do host conecta em <ip-do-lxc>:3790
+    volumes:
+      - agent-home:/home/node               # login do claude/codex e workspaces das personas
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [hanko]
+
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: hanko
+      POSTGRES_DB: hanko
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?gere o .env com deploy-prd.sh}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hanko -d hanko"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [hanko]
+
+  otel-lgtm:
+    image: ${OTEL_LGTM_IMAGE:-grafana/otel-lgtm:latest}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"               # Grafana só por túnel: ssh -L 3000:<ip-do-lxc>:3000 … (ou lxc exec)
+    volumes:
+      - lgtm:/data
+    networks: [hanko]
+
+  # Memória entre sessões (ADR-0015). Fica num profile até o digest da imagem ser fixado em AI_MEMORY_IMAGE;
+  # sem ele o Hanko sobe normalmente e degrada (fatos ficam no outbox até a memória aparecer).
+  ai-memory:
+    profiles: [memory]
+    image: ${AI_MEMORY_IMAGE:-akitaonrails/ai-memory:latest}
+    restart: unless-stopped
+    environment:
+      AI_MEMORY_AUTH_TOKEN: ${AI_MEMORY_AUTH_TOKEN:-}
+      AI_MEMORY_BIND: 0.0.0.0:49374
+    volumes:
+      - aimemory:/data
+    networks: [hanko]
+
+volumes:
+  pgdata:
+  agent-home:
+  lgtm:
+  aimemory:
+
+networks:
+  hanko:
