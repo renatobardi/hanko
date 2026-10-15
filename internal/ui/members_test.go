@@ -141,8 +141,10 @@ func TestInvitePageStates(t *testing.T) {
 	wantStatus(t, rec, http.StatusOK)
 	wantContains(t, rec, "Hanko Co", "nova@x.com", "Criar conta e aceitar", `name="name"`, `name="password"`)
 	wantNotContains(t, rec, "tok-bom/") // a página não vaza o token além do action
-	if rec.Header().Get("Referrer-Policy") != "no-referrer" {
-		t.Fatal("convite deve ir com Referrer-Policy: no-referrer")
+	// same-origin (e não no-referrer): o POST do formulário precisa de Origin no originOK; ainda assim
+	// nada do caminho com o token vai a outro site.
+	if rec.Header().Get("Referrer-Policy") != "same-origin" {
+		t.Fatalf("convite deve ir com Referrer-Policy: same-origin, veio %q", rec.Header().Get("Referrer-Policy"))
 	}
 
 	// token ruim: 404 genérico, mesma página para qualquer motivo
@@ -270,6 +272,15 @@ func TestInviteFirebase(t *testing.T) {
 	wantContains(t, rec, "invite_invalid")
 	if cookieOf(rec) != nil {
 		t.Fatal("sem sessão")
+	}
+}
+
+func TestInviteAcceptPostSameOriginPolicy(t *testing.T) {
+	e := newAuthEnv(t, AuthDeps{Provider: "local"})
+	e.fa.addInvite("tok", service.InvitePreview{CompanyName: "Hanko Co", CompanySlug: "hanko", Email: "nova@x.com", Role: domain.MemberViewer})
+	rec := e.post(t, "/convite/tok", url.Values{"name": {"Nova"}, "password": {"curta"}}, false)
+	if got := rec.Header().Get("Referrer-Policy"); got != "same-origin" {
+		t.Fatalf("POST do convite: Referrer-Policy %q", got)
 	}
 }
 

@@ -237,7 +237,7 @@ func (s *server) handleInvitePage(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	w.Header().Set("Referrer-Policy", "no-referrer")
+	w.Header().Set("Referrer-Policy", "same-origin")
 	s.render(w, r, http.StatusOK, views.InvitePage(vm))
 }
 
@@ -246,7 +246,7 @@ func (s *server) handleInviteAccept(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	w.Header().Set("Referrer-Policy", "no-referrer")
+	w.Header().Set("Referrer-Policy", "same-origin")
 	ctx := r.Context()
 	ip := s.auth.Proxies.ClientIP(r)
 	token := vm.Token
