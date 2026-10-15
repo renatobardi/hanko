@@ -128,7 +128,7 @@ func newMemHB(t *testing.T) *memHB {
 		t.Fatal(err)
 	}
 	broker := events.NewBroker()
-	hb, err := heartbeat.New(pool, heartbeat.Options{Workers: 2, PeriodicInterval: 400 * time.Millisecond, RunTimeout: time.Minute})
+	hb, err := heartbeat.New(pool, heartbeat.Options{Workers: 2, PeriodicInterval: 400 * time.Millisecond, MemorySweepInterval: 400 * time.Millisecond, RunTimeout: time.Minute})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -282,25 +282,16 @@ func TestApplyMemoryProposalRetriesUntilProviderIsBack(t *testing.T) {
 		t.Fatalf("falha sem rastro: %+v", failed)
 	}
 
-	// ai-memory volta; puxa o job adiado para agora (a espera de produção é de minutos)
+	// ai-memory volta; a espera de produção é de minutos e vale pelo next_attempt_at: a varredura recoloca a
+	// proposta na fila quando ele chega (não há job adormecido). Puxa a data para agora.
 	m.mem.setDown(false)
 	if _, err := m.pool.Exec(ctx, "UPDATE memory_proposals SET next_attempt_at = now() WHERE id = $1", p.ID); err != nil {
 		t.Fatal(err)
 	}
-	// o job só vira "scheduled" depois do snooze, que pode chegar um instante após a proposta marcada como falha:
-	// repete o puxão até a proposta ser aplicada
-	stop := make(chan struct{})
-	defer close(stop)
-	go func() {
-		for {
-			_, _ = m.pool.Exec(ctx, "UPDATE river_job SET scheduled_at = now() WHERE kind = 'apply_memory_proposal' AND state IN ('scheduled','retryable')")
-			select {
-			case <-stop:
-				return
-			case <-time.After(300 * time.Millisecond):
-			}
-		}
-	}()
+	var sleeping int
+	if err := m.pool.QueryRow(ctx, "SELECT count(*) FROM river_job WHERE kind = 'apply_memory_proposal' AND state IN ('scheduled','retryable')").Scan(&sleeping); err != nil || sleeping != 0 {
+		t.Fatalf("o job de aplicação não pode ficar adormecido esperando a próxima tentativa: %d %v", sleeping, err)
+	}
 	applied := waitProposal(domain.ProposalApplied)
 	if applied.AppliedAt == nil || applied.LastError != "" {
 		t.Fatalf("aplicada: %+v", applied)

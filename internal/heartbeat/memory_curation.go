@@ -11,12 +11,17 @@ import (
 
 	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/memory"
+	"github.com/renatobardi/hanko/internal/service"
 )
 
 // Consolidação de memória governada (ADR-0030): o tick periódico que dispara as rodadas de curadoria e o
 // job que aplica no provedor de memória as propostas aprovadas.
 
-const applyProposalTimeout = 60 * time.Second
+const (
+	applyProposalTimeout      = 60 * time.Second
+	markAppliedAttempts       = 3
+	defaultMarkAppliedBackoff = 300 * time.Millisecond
+)
 
 type memoryTickWorker struct {
 	river.WorkerDefaults[MemoryTickArgs]
@@ -77,51 +82,68 @@ func (h *Heartbeat) ApplyMemoryProposalTx(ctx context.Context, tx pgx.Tx, compan
 // applyMemoryProposal repete no provedor de memória a chamada aprovada pelo humano. Provedor fora do ar (ou
 // que recusa) deixa a proposta falha, com o erro e a próxima tentativa agendada: nenhum dado se perde e a
 // decisão humana segue valendo. Já aplicada, rejeitada ou fora do prazo = no-op.
+//
+// O job nunca dorme à espera da próxima tentativa (um snooze longo prenderia o job e neutralizaria o retry
+// manual e a varredura, que dependem de enfileirar um job novo): a falha termina o job e é a varredura
+// periódica, pelo next_attempt_at, que o recoloca na fila; o retry manual enfileira na hora.
+//
+// A tentativa é marcada no banco antes da chamada. Se a chamada deu certo mas não deu para registrar a
+// aplicação, o job é refeito; na repetição, um alvo que já não existe conta como aplicado.
 func (h *Heartbeat) applyMemoryProposal(ctx context.Context, a ApplyMemoryProposalArgs) error {
 	if h.svc == nil {
 		return errNotAttached
 	}
-	item, err := h.svc.LoadMemoryProposalForApply(ctx, a.CompanyID, a.ProposalID)
+	item, err := h.svc.BeginMemoryProposalApply(ctx, a.CompanyID, a.ProposalID)
 	switch {
-	case errors.Is(err, domain.ErrNotFound), errors.Is(err, domain.ErrConflict):
+	case errors.Is(err, domain.ErrNotFound), errors.Is(err, domain.ErrConflict), errors.Is(err, service.ErrProposalNotDue):
 		h.log.Debug("apply_memory_proposal: nada a aplicar", "proposal_id", a.ProposalID, "reason", err)
 		return nil
 	case err != nil:
-		return fmt.Errorf("apply_memory_proposal: load: %w", err)
+		return fmt.Errorf("apply_memory_proposal: begin: %w", err)
 	}
 	p := item.Proposal
-	if p.Status == domain.ProposalFailed && p.NextAttemptAt == nil {
-		return nil // desistiu depois de muitas tentativas; só o retry manual recoloca na fila
-	}
-	if p.NextAttemptAt != nil {
-		if wait := time.Until(*p.NextAttemptAt); wait > time.Second {
-			return river.JobSnooze(wait)
+	fail := func(msg string) error {
+		if _, merr := h.svc.MarkMemoryProposalFailed(ctx, a.CompanyID, a.ProposalID, msg); merr != nil {
+			return fmt.Errorf("apply_memory_proposal: mark failed: %w", merr)
 		}
+		return nil
 	}
 	caller, ok := h.mem.(memory.ToolCaller)
 	if !ok {
-		wait, merr := h.svc.MarkMemoryProposalFailed(ctx, a.CompanyID, a.ProposalID, "o provedor de memória não aplica propostas")
-		if merr != nil {
-			return fmt.Errorf("apply_memory_proposal: mark failed: %w", merr)
-		}
-		return river.JobSnooze(wait)
+		return fail("o provedor de memória não aplica propostas")
 	}
 	scope := memory.Scope{Workspace: item.CompanySlug, Project: p.WorkspaceSlug}
 	rctx, cancel := context.WithTimeout(ctx, applyProposalTimeout)
 	defer cancel()
 	if _, err := caller.CallTool(rctx, scope, item.Tool, item.Arguments); err != nil {
-		wait, merr := h.svc.MarkMemoryProposalFailed(ctx, a.CompanyID, a.ProposalID, err.Error())
-		if merr != nil {
-			return fmt.Errorf("apply_memory_proposal: mark failed: %w", merr)
+		if !(item.PriorAttempt && memory.IsNotFound(err)) {
+			h.log.Warn("apply_memory_proposal: aplicação falhou, nova tentativa agendada", "proposal_id", a.ProposalID, "err", err)
+			return fail(err.Error())
 		}
-		h.log.Warn("apply_memory_proposal: aplicação falhou, nova tentativa agendada", "proposal_id", a.ProposalID, "err", err)
-		return river.JobSnooze(wait)
+		h.log.Info("apply_memory_proposal: alvo já não existe depois de uma tentativa anterior; tratado como aplicado",
+			"proposal_id", a.ProposalID, "err", err)
 	}
-	if err := h.svc.MarkMemoryProposalApplied(ctx, a.CompanyID, a.ProposalID); err != nil {
+	if err := h.markApplied(ctx, a); err != nil {
 		return fmt.Errorf("apply_memory_proposal: mark applied: %w", err)
 	}
 	h.log.Info("apply_memory_proposal: proposta aplicada", "proposal_id", a.ProposalID, "kind", p.Kind)
 	return nil
+}
+
+// markApplied registra a aplicação com algumas tentativas locais antes de devolver o erro (que refaz o job).
+func (h *Heartbeat) markApplied(ctx context.Context, a ApplyMemoryProposalArgs) error {
+	var err error
+	for i := 0; i < markAppliedAttempts; i++ {
+		if err = h.svc.MarkMemoryProposalApplied(ctx, a.CompanyID, a.ProposalID); err == nil {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return errors.Join(err, ctx.Err())
+		case <-time.After(h.markAppliedBackoff * time.Duration(i+1)):
+		}
+	}
+	return err
 }
 
 // sweepProposals re-enqueues the proposals whose application is due (the job was lost, or the backoff elapsed).

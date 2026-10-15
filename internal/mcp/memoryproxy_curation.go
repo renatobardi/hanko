@@ -151,11 +151,19 @@ func (p *memoryProxy) screenCuration(ctx context.Context, w http.ResponseWriter,
 			fmt.Sprintf("a tool %q não cabe numa curadoria de memória (handoff e sessão não são usados aqui)", c.name))
 		return nil, sc, true
 	}
-	args := make(map[string]any, len(c.args)+2)
+	// Só sobrepõe workspace/project quando a chamada original já os traz (como pinScopeArgs): o hash da proposta
+	// cobre a chamada que o agente fez, não argumentos que a tool não declara. O escopo da aplicação vem do
+	// workspace da proposta.
+	args := make(map[string]any, len(c.args))
 	for k, v := range c.args {
 		args[k] = v
 	}
-	args["workspace"], args["project"] = sc.workspace, sc.project
+	if _, has := args["workspace"]; has {
+		args["workspace"] = sc.workspace
+	}
+	if _, has := args["project"]; has {
+		args["project"] = sc.project
+	}
 	current := p.readCurrent(ctx, sc, memory.TargetsOf(args))
 	rctx, cancel := context.WithTimeout(ctx, lookupTimeout)
 	defer cancel()

@@ -240,7 +240,7 @@ func (s *server) buildTaskVM(r *http.Request, co domain.Company, t service.TaskV
 			}
 		}
 	}
-	vm.CanWake = t.PersonaID != nil && t.Status.Open() && t.ActiveRunID == nil
+	vm.CanWake = t.PersonaID != nil && t.Status.Open() && t.ActiveRunID == nil && !t.System
 
 	sort.SliceStable(comments, func(i, j int) bool { return comments[i].CreatedAt.Before(comments[j].CreatedAt) })
 	for _, c := range comments {

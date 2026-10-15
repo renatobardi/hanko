@@ -240,6 +240,9 @@ type TaskView struct {
 	PersonaName string     `json:"persona_name,omitempty"`
 	ProjectName string     `json:"project_name,omitempty"`
 	ActiveRunID *domain.ID `json:"active_run_id,omitempty"`
+	// System marca a task de sistema de uma rodada de curadoria de memória (ADR-0030): o Hanko a cria, a
+	// acorda e a encerra; ninguém a acorda à mão nem por comentário.
+	System bool `json:"system,omitempty"`
 }
 
 // RunView is a run with display-ready joins.

@@ -19,7 +19,9 @@ func loadTaskView(ctx context.Context, q *store.Queries, companyID, id domain.ID
 	if err != nil {
 		return TaskView{}, mapErr(err, "get task")
 	}
-	return taskView(r.Task, r.TaskPrefix, r.PersonaName, r.ProjectName, r.ActiveRunID), nil
+	tv := taskView(r.Task, r.TaskPrefix, r.PersonaName, r.ProjectName, r.ActiveRunID)
+	tv.System = r.SystemTask
+	return tv, nil
 }
 
 func validateTitle(title string) (string, error) {
@@ -255,7 +257,9 @@ func (s *Service) GetTask(ctx context.Context, companyID domain.ID, ref string) 
 	if r.TaskPrefix != prefix {
 		return TaskView{}, notFound("get task " + strconv.Quote(ref))
 	}
-	return taskView(r.Task, r.TaskPrefix, r.PersonaName, r.ProjectName, r.ActiveRunID), nil
+	tv := taskView(r.Task, r.TaskPrefix, r.PersonaName, r.ProjectName, r.ActiveRunID)
+	tv.System = r.SystemTask
+	return tv, nil
 }
 
 // UpdateTask applies changes; (re)assignment to a workable task enqueues a Wake.
@@ -496,6 +500,11 @@ func (s *Service) WakeTask(ctx context.Context, actor domain.Actor, companyID, t
 		}
 		if task.PersonaID == nil {
 			return domain.Invalid("persona_id", "task has no assignee")
+		}
+		if system, err := t.isSystemTask(task.ID); err != nil {
+			return err
+		} else if system {
+			return domain.Invalid("task", errSystemTaskWake)
 		}
 		p, err := t.q.GetPersonaByID(ctx, store.GetPersonaByIDParams{CompanyID: companyID, ID: *task.PersonaID})
 		if err != nil {

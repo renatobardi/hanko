@@ -13,7 +13,8 @@ SELECT * FROM runs WHERE company_id = @company_id AND id = @id FOR UPDATE;
 
 -- name: GetRunView :one
 SELECT sqlc.embed(r), COALESCE(c.task_prefix || '-' || t.number, '')::text AS task_key, COALESCE(t.title, '')::text AS task_title,
-       p.name AS persona_name, COALESCE(cv.title, '')::text AS conversation_title
+       p.name AS persona_name, COALESCE(cv.title, '')::text AS conversation_title,
+       EXISTS (SELECT 1 FROM memory_consolidations mc WHERE mc.task_id = r.task_id)::boolean AS curation_task
 FROM runs r
 LEFT JOIN tasks t ON t.id = r.task_id
 LEFT JOIN conversations cv ON cv.id = r.conversation_id

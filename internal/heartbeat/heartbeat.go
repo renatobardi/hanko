@@ -92,7 +92,7 @@ type backend interface {
 	DueMemorySettings(ctx context.Context, now time.Time) ([]domain.MemorySettings, error)
 	FireMemoryConsolidation(ctx context.Context, companyID domain.ID, scheduledFor time.Time) ([]domain.MemoryConsolidation, error)
 	ResolveStaleConsolidations(ctx context.Context) (int, error)
-	LoadMemoryProposalForApply(ctx context.Context, companyID, id domain.ID) (service.MemoryApplyItem, error)
+	BeginMemoryProposalApply(ctx context.Context, companyID, id domain.ID) (service.MemoryApplyItem, error)
 	MarkMemoryProposalApplied(ctx context.Context, companyID, id domain.ID) error
 	MarkMemoryProposalFailed(ctx context.Context, companyID, id domain.ID, errMsg string) (time.Duration, error)
 	DueMemoryProposals(ctx context.Context, limit int) ([]service.MemoryProposalRef, error)
@@ -122,6 +122,8 @@ type Heartbeat struct {
 
 	// finishBackoff are the waits between local FinishRun attempts (len+1 attempts); tests shrink it.
 	finishBackoff []time.Duration
+	// markAppliedBackoff is the unit wait between local attempts to record an applied memory proposal.
+	markAppliedBackoff time.Duration
 }
 
 // Migrate brings the river schema up to the latest version.
@@ -140,7 +142,7 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 func New(pool *pgxpool.Pool, opts Options) (*Heartbeat, error) {
 	opts.defaults()
 	h := &Heartbeat{opts: opts, log: opts.Logger, mem: memory.Noop{},
-		finishBackoff: []time.Duration{5 * time.Second, 15 * time.Second, 30 * time.Second, time.Minute}}
+		finishBackoff: []time.Duration{5 * time.Second, 15 * time.Second, 30 * time.Second, time.Minute}, markAppliedBackoff: defaultMarkAppliedBackoff}
 
 	workers := river.NewWorkers()
 	if err := errors.Join(

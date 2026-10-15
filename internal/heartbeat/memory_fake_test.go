@@ -21,7 +21,7 @@ func (f *fakeBackend) FireMemoryConsolidation(context.Context, domain.ID, time.T
 
 func (f *fakeBackend) ResolveStaleConsolidations(context.Context) (int, error) { return 0, nil }
 
-func (f *fakeBackend) LoadMemoryProposalForApply(context.Context, domain.ID, domain.ID) (service.MemoryApplyItem, error) {
+func (f *fakeBackend) BeginMemoryProposalApply(context.Context, domain.ID, domain.ID) (service.MemoryApplyItem, error) {
 	return service.MemoryApplyItem{}, domain.ErrNotFound
 }
 

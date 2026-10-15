@@ -38,6 +38,10 @@ UPDATE memory_consolidations SET task_id = @task_id WHERE id = @id;
 -- name: GetMemoryConsolidationByTaskForUpdate :one
 SELECT * FROM memory_consolidations WHERE task_id = @task_id FOR UPDATE;
 
+-- name: IsMemoryConsolidationTask :one
+-- A task é a task de sistema de uma rodada de curadoria (qualquer estado da rodada).
+SELECT EXISTS (SELECT 1 FROM memory_consolidations WHERE task_id = @task_id)::boolean;
+
 -- name: FinishMemoryConsolidation :one
 UPDATE memory_consolidations
 SET status = @status, run_id = @run_id, summary = @summary, finished_at = @now
@@ -107,16 +111,22 @@ RETURNING *;
 
 -- name: MarkMemoryProposalApplied :one
 UPDATE memory_proposals
-SET status = 'applied', applied_at = @now, last_error = '', next_attempt_at = NULL, attempts = attempts + 1, updated_at = @now
-WHERE id = @id AND status IN ('approved','failed')
+SET status = 'applied', applied_at = @now, last_error = '', next_attempt_at = NULL, attempt_started_at = NULL,
+    attempts = attempts + 1, updated_at = @now
+WHERE company_id = @company_id AND id = @id AND status IN ('approved','failed')
 RETURNING *;
 
 -- name: MarkMemoryProposalFailed :one
 -- A aplicação falhou: fica falha com a próxima tentativa agendada (next_attempt_at nulo = desistiu; só retry manual).
 UPDATE memory_proposals
-SET status = 'failed', attempts = attempts + 1, last_error = @last_error, next_attempt_at = @next_attempt_at, updated_at = @now
-WHERE id = @id AND status IN ('approved','failed')
+SET status = 'failed', attempts = attempts + 1, last_error = @last_error, next_attempt_at = @next_attempt_at,
+    attempt_started_at = NULL, updated_at = @now
+WHERE company_id = @company_id AND id = @id AND status IN ('approved','failed')
 RETURNING *;
+
+-- name: SetMemoryProposalAttemptStarted :exec
+-- Marca o início de uma tentativa de aplicação, antes de chamar o provedor de memória.
+UPDATE memory_proposals SET attempt_started_at = @now, updated_at = @now WHERE company_id = @company_id AND id = @id;
 
 -- name: RetryMemoryProposal :one
 UPDATE memory_proposals

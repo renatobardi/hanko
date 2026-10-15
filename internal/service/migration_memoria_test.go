@@ -53,7 +53,8 @@ func TestMigrationMemoriaDownEUp(t *testing.T) {
 	      VALUES ('22222222-2222-4222-8222-222222222222','11111111-1111-4111-8111-111111111111','memory','pending','t','b','system')`
 	exec(insertGate)
 
-	if _, err := p.Down(ctx); err != nil {
+	// desce até antes da migração da memória (as posteriores, como as correções da revisão, descem junto)
+	if _, err := p.DownTo(ctx, 20); err != nil {
 		t.Fatalf("down: %v", err)
 	}
 	for _, tbl := range []string{"memory_settings", "memory_consolidations", "memory_proposals", "memory_grants"} {
@@ -69,7 +70,7 @@ func TestMigrationMemoriaDownEUp(t *testing.T) {
 	if _, err := pool.Exec(ctx, insertGate); err == nil {
 		t.Error("depois do down, a constraint não deveria aceitar o kind memory")
 	}
-	if _, err := p.UpByOne(ctx); err != nil {
+	if _, err := p.Up(ctx); err != nil {
 		t.Fatalf("up de novo: %v", err)
 	}
 }

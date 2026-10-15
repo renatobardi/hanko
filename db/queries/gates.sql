@@ -91,15 +91,20 @@ UPDATE personas p SET
 WHERE p.id = @id AND p.status = 'awaiting_gate';
 
 -- name: ListFailedRuns :many
--- Execuções que falharam e ainda não foram superadas por outra execução da mesma task.
-SELECT sqlc.embed(r), (c.task_prefix || '-' || t.number)::text AS task_key, t.title AS task_title, p.name AS persona_name
+-- Execuções que falharam e ainda não foram superadas por outra execução da mesma task (ou, numa run de chat,
+-- da mesma conversa). Uma run de chat não tem task: entra pelo LEFT JOIN, com o título da conversa.
+SELECT sqlc.embed(r), COALESCE(c.task_prefix || '-' || t.number, '')::text AS task_key, COALESCE(t.title, '')::text AS task_title,
+       p.name AS persona_name, COALESCE(cv.title, '')::text AS conversation_title
 FROM runs r
-JOIN tasks t ON t.id = r.task_id
+LEFT JOIN tasks t ON t.id = r.task_id
+LEFT JOIN conversations cv ON cv.id = r.conversation_id
 JOIN personas p ON p.id = r.persona_id
 JOIN companies c ON c.id = r.company_id
 WHERE r.company_id = @company_id AND r.status IN ('failed', 'expired') AND r.created_at > @since
-  AND t.status NOT IN ('done', 'cancelled')
-  AND NOT EXISTS (SELECT 1 FROM runs n WHERE n.task_id = r.task_id AND n.created_at > r.created_at)
+  AND (t.id IS NULL OR t.status NOT IN ('done', 'cancelled'))
+  AND (r.task_id IS NOT NULL OR r.conversation_id IS NOT NULL)
+  AND NOT EXISTS (SELECT 1 FROM runs n WHERE n.created_at > r.created_at
+                  AND (n.task_id = r.task_id OR n.conversation_id = r.conversation_id))
 ORDER BY r.created_at DESC, r.id DESC
 LIMIT @lim;
 

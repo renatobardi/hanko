@@ -100,11 +100,17 @@ func (s *server) handleInbox(w http.ResponseWriter, r *http.Request, co domain.C
 	}
 	if show("falhas") {
 		for _, rv := range in.FailedRuns {
-			vm.Failed = append(vm.Failed, views.InboxRun{
+			row := views.InboxRun{
 				Name: rv.Name, Short: shortID(rv.ID), Href: base + "/execucoes/" + rv.ID.String(), TaskKey: rv.TaskKey, TaskHref: base + "/tasks/" + rv.TaskKey,
 				TaskTitle: rv.TaskTitle, Persona: rv.PersonaName, Error: excerpt(rv.Error, 200), When: agoCtx(ctx, rv.CreatedAt, now, loc),
-				ActionHref: base + "/caixa/tasks/" + rv.TaskID.String() + "/acordar",
-			})
+			}
+			if rv.ConversationID != nil && rv.TaskID == (domain.ID{}) {
+				// run de chat: sem task, o título e o link são da conversa; a retomada é a próxima mensagem humana
+				row.TaskKey, row.TaskHref, row.TaskTitle = i18n.T(ctx, "Chat"), base+"/chat/"+rv.ConversationID.String(), rv.ConversationTitle
+			} else {
+				row.ActionHref = base + "/caixa/tasks/" + rv.TaskID.String() + "/acordar"
+			}
+			vm.Failed = append(vm.Failed, row)
 		}
 	}
 	if show("personas") {

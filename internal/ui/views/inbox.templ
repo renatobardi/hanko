@@ -175,7 +175,12 @@ templ InboxPage(sh Shell, vm InboxVM) {
 										}
 										<span class="mono">{ r.Short }</span> · { r.When }</div>
 								</div>
-								if canWrite(ctx) {
+								if r.ActionHref == "" {
+									<div class="inbox-act">
+										<a class="btn ghost sm" href={ templ.SafeURL(r.Href) }>{ i18n.T(ctx, "Ver log") }</a>
+										<a class="btn outline sm" href={ templ.SafeURL(r.TaskHref) }>{ i18n.T(ctx, "Abrir conversa") }</a>
+									</div>
+								} else if canWrite(ctx) {
 									<form class="inbox-act" method="post" action={ templ.SafeURL(r.ActionHref) } hx-post={ r.ActionHref } hx-swap="none">
 										<a class="btn ghost sm" href={ templ.SafeURL(r.Href) }>{ i18n.T(ctx, "Ver log") }</a>
 										<button class="btn outline sm" type="submit">

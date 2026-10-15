@@ -27,7 +27,11 @@ func loadRunView(ctx context.Context, q *store.Queries, companyID, runID domain.
 	if err != nil {
 		return RunView{}, mapErr(err, "get run")
 	}
-	return runViewFromParts(r.Run, r.TaskKey, r.TaskTitle, r.PersonaName, r.ConversationTitle), nil
+	v := runViewFromParts(r.Run, r.TaskKey, r.TaskTitle, r.PersonaName, r.ConversationTitle)
+	if r.CurationTask {
+		v.Trigger = domain.TriggerMemory // quem decide é a task da run, não o gatilho gravado (ADR-0030)
+	}
+	return v, nil
 }
 
 func (s *Service) ListRuns(ctx context.Context, companyID domain.ID, f RunFilter) ([]RunView, error) {
@@ -309,7 +313,7 @@ func (s *Service) CheckoutRun(ctx context.Context, w Wake) (domain.Run, error) {
 			}
 		}
 		if err := t.activity(domain.SystemActor, w.CompanyID, "run.queued", "run", row.ID,
-			map[string]any{"task_id": task.ID, "persona_id": p.ID, "trigger": w.Trigger}, ""); err != nil {
+			map[string]any{"task_id": task.ID, "persona_id": p.ID, "trigger": row.Trigger}, ""); err != nil {
 			return err
 		}
 		if s.Jobs != nil {
@@ -337,6 +341,14 @@ func (s *Service) CheckoutRun(ctx context.Context, w Wake) (domain.Run, error) {
 // A race on the same name or on the one-active-run-per-task index is ErrActiveRun, so the wake is retried.
 func (t *txc) createRun(companyID, taskID, personaID domain.ID, agent, model string, modelSource domain.ModelSource, subID *domain.ID,
 	ws *domain.ID, wsSource domain.WorkspaceSource, trigger domain.RunTrigger) (store.Run, error) {
+	// A run da task de sistema da curadoria é sempre uma run de curadoria, seja qual for o caminho que a acordou
+	// (rede de segurança do heartbeat, retomada): senão o proxy e o executor a tratariam como run comum e a
+	// política de propostas (ADR-0030) seria contornável.
+	if system, err := t.isSystemTask(taskID); err != nil {
+		return store.Run{}, err
+	} else if system {
+		trigger = domain.TriggerMemory
+	}
 	return t.insertRun(companyID, &taskID, nil, personaID, agent, model, modelSource, subID, ws, wsSource, trigger)
 }
 
@@ -459,6 +471,9 @@ func (s *Service) LoadRunContext(ctx context.Context, companyID, runID domain.ID
 	}
 	rc := RunContext{Run: runFromRow(run), Company: companyFromRow(company), Persona: personaFromRow(persona),
 		Task: task, Comments: make([]domain.Comment, len(comments))}
+	if task.System {
+		rc.Run.Trigger = domain.TriggerMemory // runs antigas ou acordadas por outro gatilho continuam sendo curadoria
+	}
 	if len(run.PendingResult) > 0 {
 		var in FinishRunInput
 		if err := json.Unmarshal(run.PendingResult, &in); err != nil {

@@ -432,6 +432,18 @@ func (s *Service) ListMemoryConsolidations(ctx context.Context, companyID domain
 	return out, nil
 }
 
+// errSystemTaskWake é a recusa de acordar à mão a task de sistema da curadoria.
+const errSystemTaskWake = "esta é a task de sistema de uma consolidação de memória: o Hanko a acorda sozinho; use \"Executar agora\" em Memória"
+
+// isSystemTask diz se a task é a task de sistema de uma rodada de curadoria (vínculo memory_consolidations.task_id).
+func (t *txc) isSystemTask(taskID domain.ID) (bool, error) {
+	ok, err := t.q.IsMemoryConsolidationTask(t.ctx, &taskID)
+	if err != nil {
+		return false, fmt.Errorf("is memory consolidation task: %w", err)
+	}
+	return ok, nil
+}
+
 // consolidationOutcome mapeia o fim da run no estado da rodada e da task.
 func consolidationOutcome(status domain.RunStatus) (domain.MemoryConsolidationStatus, domain.TaskStatus) {
 	switch status {

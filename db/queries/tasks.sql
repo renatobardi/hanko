@@ -13,7 +13,8 @@ SELECT * FROM tasks WHERE company_id = @company_id AND id = @id FOR UPDATE;
 
 -- name: GetTaskView :one
 SELECT sqlc.embed(t), COALESCE(p.name, '')::text AS persona_name, COALESCE(pr.name, '')::text AS project_name,
-       ar.id AS active_run_id, c.task_prefix
+       ar.id AS active_run_id, c.task_prefix,
+       EXISTS (SELECT 1 FROM memory_consolidations mc WHERE mc.task_id = t.id)::boolean AS system_task
 FROM tasks t
 JOIN companies c ON c.id = t.company_id
 LEFT JOIN personas p ON p.id = t.persona_id
@@ -23,7 +24,8 @@ WHERE t.company_id = @company_id AND t.id = @id;
 
 -- name: GetTaskViewByNumber :one
 SELECT sqlc.embed(t), COALESCE(p.name, '')::text AS persona_name, COALESCE(pr.name, '')::text AS project_name,
-       ar.id AS active_run_id, c.task_prefix
+       ar.id AS active_run_id, c.task_prefix,
+       EXISTS (SELECT 1 FROM memory_consolidations mc WHERE mc.task_id = t.id)::boolean AS system_task
 FROM tasks t
 JOIN companies c ON c.id = t.company_id
 LEFT JOIN personas p ON p.id = t.persona_id

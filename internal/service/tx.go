@@ -137,6 +137,15 @@ func (t *txc) wake(companyID, taskID domain.ID, personaID *domain.ID, status dom
 	if requireWorkable && !status.Workable() || !requireWorkable && !status.Open() {
 		return nil
 	}
+	if trigger == domain.TriggerComment || trigger == domain.TriggerManual {
+		// A task de sistema da curadoria só acorda pela máquina da consolidação (memory) ou pela rede de
+		// segurança do heartbeat, nunca por comentário nem à mão (ADR-0030).
+		if system, err := t.isSystemTask(taskID); err != nil {
+			return err
+		} else if system {
+			return nil
+		}
+	}
 	p, err := t.q.GetPersonaByID(t.ctx, store.GetPersonaByIDParams{CompanyID: companyID, ID: *personaID})
 	if err != nil {
 		return fmt.Errorf("load persona for wake: %w", mapErr(err, "persona"))

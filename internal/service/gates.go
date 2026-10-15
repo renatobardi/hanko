@@ -680,7 +680,7 @@ func (s *Service) Inbox(ctx context.Context, companyID domain.ID) (Inbox, error)
 		return in, fmt.Errorf("list failed runs: %w", err)
 	}
 	for _, r := range failed {
-		in.FailedRuns = append(in.FailedRuns, runViewFromParts(r.Run, r.TaskKey, r.TaskTitle, r.PersonaName, ""))
+		in.FailedRuns = append(in.FailedRuns, runViewFromParts(r.Run, r.TaskKey, r.TaskTitle, r.PersonaName, r.ConversationTitle))
 	}
 	errs, err := q.ListErrorPersonas(ctx, companyID)
 	if err != nil {

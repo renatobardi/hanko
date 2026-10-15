@@ -155,7 +155,8 @@ func (q *Queries) GetTaskByIDForUpdate(ctx context.Context, arg GetTaskByIDForUp
 
 const getTaskView = `-- name: GetTaskView :one
 SELECT t.id, t.company_id, t.number, t.title, t.description, t.status, t.priority, t.persona_id, t.project_id, t.workspace_id, t.parent_id, t.created_by_type, t.created_by_id, t.created_at, t.updated_at, t.closed_at, t.last_human_change_at, t.model, t.search_tsv, COALESCE(p.name, '')::text AS persona_name, COALESCE(pr.name, '')::text AS project_name,
-       ar.id AS active_run_id, c.task_prefix
+       ar.id AS active_run_id, c.task_prefix,
+       EXISTS (SELECT 1 FROM memory_consolidations mc WHERE mc.task_id = t.id)::boolean AS system_task
 FROM tasks t
 JOIN companies c ON c.id = t.company_id
 LEFT JOIN personas p ON p.id = t.persona_id
@@ -175,6 +176,7 @@ type GetTaskViewRow struct {
 	ProjectName string
 	ActiveRunID *uuid.UUID
 	TaskPrefix  string
+	SystemTask  bool
 }
 
 func (q *Queries) GetTaskView(ctx context.Context, arg GetTaskViewParams) (GetTaskViewRow, error) {
@@ -204,13 +206,15 @@ func (q *Queries) GetTaskView(ctx context.Context, arg GetTaskViewParams) (GetTa
 		&i.ProjectName,
 		&i.ActiveRunID,
 		&i.TaskPrefix,
+		&i.SystemTask,
 	)
 	return i, err
 }
 
 const getTaskViewByNumber = `-- name: GetTaskViewByNumber :one
 SELECT t.id, t.company_id, t.number, t.title, t.description, t.status, t.priority, t.persona_id, t.project_id, t.workspace_id, t.parent_id, t.created_by_type, t.created_by_id, t.created_at, t.updated_at, t.closed_at, t.last_human_change_at, t.model, t.search_tsv, COALESCE(p.name, '')::text AS persona_name, COALESCE(pr.name, '')::text AS project_name,
-       ar.id AS active_run_id, c.task_prefix
+       ar.id AS active_run_id, c.task_prefix,
+       EXISTS (SELECT 1 FROM memory_consolidations mc WHERE mc.task_id = t.id)::boolean AS system_task
 FROM tasks t
 JOIN companies c ON c.id = t.company_id
 LEFT JOIN personas p ON p.id = t.persona_id
@@ -230,6 +234,7 @@ type GetTaskViewByNumberRow struct {
 	ProjectName string
 	ActiveRunID *uuid.UUID
 	TaskPrefix  string
+	SystemTask  bool
 }
 
 func (q *Queries) GetTaskViewByNumber(ctx context.Context, arg GetTaskViewByNumberParams) (GetTaskViewByNumberRow, error) {
@@ -259,6 +264,7 @@ func (q *Queries) GetTaskViewByNumber(ctx context.Context, arg GetTaskViewByNumb
 		&i.ProjectName,
 		&i.ActiveRunID,
 		&i.TaskPrefix,
+		&i.SystemTask,
 	)
 	return i, err
 }
