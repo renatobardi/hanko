@@ -50,6 +50,15 @@ type streamLine struct {
 	TotalCostUSD *float64 `json:"total_cost_usd"`
 	Usage        *usage   `json:"usage"`
 	Errors       []string `json:"errors"`
+	// result: tools que o harness negou por falta de permissão (diagnóstico)
+	PermissionDenials []struct {
+		ToolName string `json:"tool_name"`
+	} `json:"permission_denials"`
+	// init: estado de conexão de cada servidor MCP
+	MCPServers []struct {
+		Name   string `json:"name"`
+		Status string `json:"status"`
+	} `json:"mcp_servers"`
 }
 
 type usage struct {
@@ -103,6 +112,13 @@ func (p *parser) Feed(line []byte) []adapter.Event {
 		}
 		if l.Model != "" {
 			txt += " (" + l.Model + ")"
+		}
+		if len(l.MCPServers) > 0 {
+			var ms []string
+			for _, m := range l.MCPServers {
+				ms = append(ms, m.Name+"="+m.Status)
+			}
+			txt += " · mcp: " + strings.Join(ms, ", ")
 		}
 		return []adapter.Event{p.ev(domain.EventSystem, txt, raw)}
 	case "assistant":
@@ -182,7 +198,19 @@ func (p *parser) resultLine(l streamLine, raw json.RawMessage) []adapter.Event {
 	if txt == "" && l.IsError {
 		txt = r.Error
 	}
-	return []adapter.Event{p.ev(domain.EventResult, txt, raw)}
+	evs := []adapter.Event{p.ev(domain.EventResult, txt, raw)}
+	if len(l.PermissionDenials) > 0 {
+		seen := map[string]bool{}
+		var names []string
+		for _, d := range l.PermissionDenials {
+			if d.ToolName != "" && !seen[d.ToolName] {
+				seen[d.ToolName] = true
+				names = append(names, d.ToolName)
+			}
+		}
+		evs = append([]adapter.Event{p.ev(domain.EventSystem, "tools negadas por permissão: "+strings.Join(names, ", "), nil)}, evs...)
+	}
+	return evs
 }
 
 func (p *parser) ev(k domain.RunEventKind, text string, payload json.RawMessage) adapter.Event {

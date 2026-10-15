@@ -369,3 +369,15 @@ func TestCliModel(t *testing.T) {
 		}
 	}
 }
+
+func TestParserDiagnosticoMCPeNegacoes(t *testing.T) {
+	p := newParser(fixedNow)
+	evs := p.Feed([]byte(`{"type":"system","subtype":"init","session_id":"s1","model":"m","mcp_servers":[{"name":"hanko","status":"failed"},{"name":"ai-memory","status":"connected"}]}`))
+	if len(evs) != 1 || !strings.Contains(evs[0].Text, "mcp: hanko=failed, ai-memory=connected") {
+		t.Fatalf("init = %+v", evs)
+	}
+	evs = p.Feed([]byte(`{"type":"result","subtype":"success","result":"ok","permission_denials":[{"tool_name":"mcp__hanko__update_task"},{"tool_name":"mcp__hanko__update_task"}]}`))
+	if len(evs) != 2 || evs[0].Text != "tools negadas por permissão: mcp__hanko__update_task" || evs[1].Text != "ok" {
+		t.Fatalf("result = %+v", evs)
+	}
+}
