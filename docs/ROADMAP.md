@@ -32,4 +32,11 @@ Entregue em 2026-10-15 (antes do planejado):
 
 - Consolidação de memória governada: curadoria periódica como run de sistema, propostas com gate humano, permissões por workspace (ADR-0030).
 
-Pendente: ACP (bloqueado aguardando acesso à especificação), ilhas (log virtualizado, organograma interativo, editor ancorado), PWA, CLI em en.
+- ACP: harness genérico por stdio (JSON-RPC), liberado pelo operador com `HANKO_ACP_ALLOW` (ADR-0023).
+- Ilhas React: log de run virtualizado, organograma interativo, editor ancorado de comentários (ADR-0026).
+- Projetos e workspaces com raiz por empresa e orçamento de projeto (ADR-0025); chat direto com persona (ADR-0027).
+- Artefatos versionados e metas (ADR-0028); skills e integrações MCP/webhook (ADR-0029).
+- PWA e CLI em inglês.
+- Quatro revisões independentes e as correções de todos os achados.
+
+Pendente: confirmar o catálogo de tools do ai-memory (busca e curadoria), tag `v0.1.0`/`v0.2.0` e demos.
