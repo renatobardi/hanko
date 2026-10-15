@@ -45,6 +45,12 @@ Primeira versão pública. Em produção em https://hanko.oute.pro desde 2026-10
 - Alertas operacionais (persona silenciosa, run travada, orçamento ≥ 80%) na Caixa de entrada e em `/metrics`;
   nome amigável de run (`Adjetivo_Substantivo`); revisão automática por outro modelo antes do gate humano (ADR-0020).
 - Modelo do Claude: `claude-haiku/sonnet/opus` traduzidos para os aliases do CLI.
+- Multi-humano: papéis por empresa (owner/admin/member/viewer), autorização no service (API, UI, MCP e SSE),
+  convites por link de uso único, `hanko member …`, `hanko auth user …` para o dono da instalação (ADR-0021).
+- Troca de empresa na sidebar; formulário do revisor na persona; página "nenhuma empresa".
+- `hanko export` / `hanko import` de uma empresa em JSON `hanko.company.v1`, sem ids nem segredos (ADR-0022).
+- UI bilíngue pt-BR/en (cookie `hanko_lang` > `Accept-Language`).
+- Deploy: backup consistente antes de subir versão nova; restore com rollback do banco anterior.
 - Documentação em inglês (`README.md`, `CONTRIBUTING.md`, `docs/en/`).
 - CI no GitHub: golangci-lint (gosec, revive, staticcheck), govulncheck, testes com `-race` e integração com Postgres,
   diff de openapi/templ/sqlc e dry-run do goreleaser.
@@ -54,6 +60,10 @@ Primeira versão pública. Em produção em https://hanko.oute.pro desde 2026-10
   estouro de orçamento, laço de runs, wake perdido, gate em task alheia, primeiro visitante virando dono, entre outros),
   cada um com teste.
 - `heartbeat_interval_sec` acima do int4 era truncado; agora é recusado (0 a 30 dias).
+- Duas revisões independentes do lote de 2026-10-15 (24 achados): run de revisão recebia o token do Hanko pela config do
+  MCP de memória e podia editar o workspace; ordem de locks com risco de deadlock; restore destrutivo sem volta;
+  token de convite em traces/logs; flag de convidado permanente; posse de identidade no provider local; comparação
+  de e-mail com dobra Unicode; entre outros — cada um com teste.
 
 **English:** first public release — single Go binary control plane for AI agent teams: tasks, org chart, heartbeat,
 human approval gates, budgets with hard stop, scheduled flows, cross-session memory, subscriptions and four-way cost

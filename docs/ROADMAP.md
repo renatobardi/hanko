@@ -1,6 +1,6 @@
 # Roadmap v0.1
 
-**Status 2026-10-14 (02h):** M0–M4 implementados, revisados por agente independente e corrigidos; M5 com autenticação pronta (local + Firebase) — faltam deploy real, versão en e as demos gravadas que fecham os gates/tags. Ver `docs/SESSION.md`.
+**Status 2026-10-15:** M0–M5 entregues e em produção (https://hanko.oute.pro). Falta só o gate humano do processo: demos gravadas e tags `v0.1.0-mN`/`v0.1.0`. Parte do v0.2 já entrou (abaixo). Ver `docs/SESSION.md`.
 
 **Capacidade declarada: 60 h/semana (40 h dias úteis + 20 h fim de semana).** Meta: **6 semanas** (5 de entrega + 1 de folga). Gargalo deixa de ser hora de código e passa a ser o gate humano (revisão, decisão, demo) — por isso a folga.
 
@@ -18,8 +18,15 @@ Regras de parada:
 | M2 ✅ | 2 | UI host (Kubo DS): painel, tasks/board, task + thread, execuções ao vivo, contratar persona. MCP server. **ai-memory ligado**: personas (MCP+hooks) e Hanko (outbox + briefing no despacho). | Run 2 no mesmo workspace recebe handoff do run 1. Dogfood começa. |
 | M3 ✅ | 3 | Organograma (reports_to, delegação, checkout atômico) + Gates (audit trail, Caixa de entrada/Decisões). | Persona delega; humano decide gate; decisão vira memória. |
 | M4 ✅ | 4 | Custos e orçamentos (ledger, hard stop, assinaturas) + Fluxos (river periodic). | Orçamento estoura → run bloqueado. Fluxo diário cria task sozinho. |
-| M5 🟡 | 5 | ✅ Auth firebase/local; ⏳ deploy `hanko-prd` (pg17 + ai-memory + LGTM + caddy), docs, en, `v0.1.0`. | hanko.oute.pro com login Google. |
+| M5 ✅ | 5 | Auth firebase/local; deploy `hanko-prd` (pg17 + ai-memory + LGTM; borda nginx do host), backup/restore, smoke, docs en, UI pt-BR/en, CHANGELOG. | hanko.oute.pro com login Google. |
 | — | 6 | Folga: estouro, bugs do dogfood, polish. | — |
 
-## v0.2 (não planejado)
-ACP; ilhas (log virtualizado, organograma interativo, editor ancorado); multi-humano; troca de empresa na UI; consolidação de memória via gateway; PWA.
+## v0.2
+Entregue em 2026-10-15 (antes do planejado):
+- Assinaturas, quatro custos, trava semanal, origem do modelo (ADR-0019).
+- Alertas operacionais, nome amigável de run, revisão automática por outro modelo (ADR-0020).
+- Multi-humano: papéis por empresa (owner/admin/member/viewer), convites, autorização no service (ADR-0021).
+- Troca de empresa na UI; formulário do revisor; UI bilíngue (pt-BR/en).
+- `hanko export` / `hanko import` de empresa (ADR-0022).
+
+Pendente: ACP (bloqueado aguardando acesso à especificação), ilhas (log virtualizado, organograma interativo, editor ancorado), consolidação de memória via gateway, PWA, CLI em en.
