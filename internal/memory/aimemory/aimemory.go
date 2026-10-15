@@ -488,6 +488,7 @@ func parseSearch(txt string) []memory.Hit {
 		Content string  `json:"content"`
 		Body    string  `json:"body"`
 		Score   float64 `json:"score"`
+		Rank    float64 `json:"rank"` // memory_query/memory_recent do ai-memory usam "rank" (já vem ordenado)
 	}
 	conv := func(rs []raw) []memory.Hit {
 		out := make([]memory.Hit, 0, len(rs))
@@ -496,7 +497,7 @@ func parseSearch(txt string) []memory.Hit {
 			if r.Path == "" && r.Title == "" && sn == "" {
 				continue
 			}
-			out = append(out, memory.Hit{Path: r.Path, Title: plain(r.Title), Snippet: clip(strings.TrimSpace(plain(sn)), 2000), Score: r.Score})
+			out = append(out, memory.Hit{Path: r.Path, Title: plain(r.Title), Snippet: clip(strings.TrimSpace(plain(sn)), 2000), Score: firstNonZero(r.Score, r.Rank)})
 		}
 		return out
 	}
@@ -532,6 +533,13 @@ func parseSearch(txt string) []memory.Hit {
 		out = append(out, memory.Hit{Title: clip(strings.TrimLeft(strings.TrimSpace(first), "#-* "), 200), Snippet: clip(strings.TrimSpace(rest), 2000)})
 	}
 	return out
+}
+
+func firstNonZero(a, b float64) float64 {
+	if a != 0 {
+		return a
+	}
+	return b
 }
 
 func firstNonEmpty(ss ...string) string {

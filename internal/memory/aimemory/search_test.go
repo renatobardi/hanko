@@ -129,3 +129,16 @@ func TestFTSQuery(t *testing.T) {
 		}
 	}
 }
+
+// Formato real do ai-memory (memory_query em prd, 2026-10-15): envelope {"hits":[{id,path,title,snippet,rank}]}
+// com realce <mark> no snippet.
+func TestParseSearchFormatoReal(t *testing.T) {
+	txt := "{\n  \"hits\": [\n    {\"id\":\"1\",\"path\":\"hanko/tasks/OTE-1.md\",\"title\":\"OTE-1 — test mutation\",\"snippet\":\"# OTE-1\\n\\n- Status: todo\\n\",\"rank\":-0.0177},\n    {\"id\":\"2\",\"path\":\"hanko/runs/x.md\",\"title\":\"Run OTE-1 (done)\",\"snippet\":\"…alterado no <mark>Hanko</mark> nesta…\",\"rank\":-0.0174}\n  ]\n}"
+	hits := parseSearch(txt)
+	if len(hits) != 2 || hits[0].Path != "hanko/tasks/OTE-1.md" || hits[0].Score != -0.0177 {
+		t.Fatalf("hits = %+v", hits)
+	}
+	if strings.Contains(hits[1].Snippet, "<mark>") || !strings.Contains(hits[1].Snippet, "no Hanko nesta") {
+		t.Fatalf("snippet = %q", hits[1].Snippet)
+	}
+}
