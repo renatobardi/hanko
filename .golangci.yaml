@@ -42,6 +42,8 @@ linters:
         linters: [gosec, errcheck]
       - path: internal/ui/preview/ # ferramenta de QA visual local, não roda em produção
         linters: [gosec]
+      - path: tools/ # ferramentas de desenvolvimento (carga, planos); caminhos vêm de flags do operador
+        linters: [gosec]
       - path: internal/i18n/ # catálogo de textos da UI ("senha", "chave de API"…), não credenciais
         text: G101
 
