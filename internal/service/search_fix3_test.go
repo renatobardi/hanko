@@ -84,10 +84,12 @@ func TestTokenizacaoParidadeGoSQL(t *testing.T) {
 	for _, in := range samples {
 		var sqlWords []string
 		err := e.svc.Pool.QueryRow(context.Background(),
-			`SELECT coalesce(array_agg(lexeme ORDER BY lexeme), '{}') FROM unnest(to_tsvector('simple', hanko_fold($1)))`, in).Scan(&sqlWords)
+			`SELECT coalesce(array_agg(lexeme), '{}') FROM unnest(to_tsvector('simple', hanko_fold($1)))`, in).Scan(&sqlWords)
 		if err != nil {
 			t.Fatal(err)
 		}
+		slices.Sort(sqlWords) // ordem por bytes dos dois lados: o ORDER BY do banco segue a collation
+		sqlWords = slices.Compact(sqlWords)
 		// Parse devolve as palavras positivas na ordem; sem aspas/hífen no começo da palavra elas são as do texto
 		q, err := search.Parse(strings.ReplaceAll(strings.ReplaceAll(in, `"`, " "), "“", " "))
 		var goWords []string
