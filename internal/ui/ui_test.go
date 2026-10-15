@@ -209,7 +209,11 @@ func TestShellNavigation(t *testing.T) {
 	wantContains(t, rec,
 		"Buscar", "Caixa de entrada", "Decisões", "Trabalho", "Projetos", "Fluxos", "Metas", "Artefatos", "Workspaces",
 		"Organização", "Organograma", "Skills", "Integrações", "Gates", "Supervisão", "Custos",
-		`href="/c/hanko/gates"`, `href="/c/hanko/tasks" aria-current`, `href="/c/hanko/personas"`, `href="/c/hanko/execucoes"`)
+		`href="/c/hanko/gates"`, `href="/c/hanko/tasks" aria-current`, `href="/c/hanko/personas"`, `href="/c/hanko/execucoes"`, `href="/c/hanko/configuracoes"`)
+	// Configurações fica no menu lateral, marcada quando aberta.
+	rec = e.get(t, "/c/hanko/configuracoes")
+	wantStatus(t, rec, http.StatusOK)
+	wantContains(t, rec, `href="/c/hanko/configuracoes" aria-current`)
 }
 
 func TestNotFoundAndErrors(t *testing.T) {

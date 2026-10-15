@@ -406,7 +406,7 @@ func (s *server) renderSettings(w http.ResponseWriter, r *http.Request, co domai
 	}
 	mv.NewLink, mv.NewLinkEmail, mv.Email, mv.Error = pre.NewLink, pre.NewLinkEmail, pre.Email, pre.Error
 	vm.Members = mv
-	s.render(w, r, status, views.SettingsPage(s.shell(r, co, "", i18n.T(ctx, "Configurações"), views.Crumb{Label: i18n.T(ctx, "Configurações")}), vm))
+	s.render(w, r, status, views.SettingsPage(s.shell(r, co, "configuracoes", i18n.T(ctx, "Configurações"), views.Crumb{Label: i18n.T(ctx, "Configurações")}), vm))
 }
 
 func (s *server) handleSettings(w http.ResponseWriter, r *http.Request, co domain.Company) {
