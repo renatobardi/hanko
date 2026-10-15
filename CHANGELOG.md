@@ -3,6 +3,13 @@
 Formato: [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) · versões: [SemVer](https://semver.org/lang/pt-BR/).
 English summary at the end of each release.
 
+## [Unreleased]
+
+- Ilhas React (ADR-0026): infraestrutura de build em `ui/islands/` (esbuild, versões fixas, `make islands`, bundle commitado e conferido no CI, orçamento de tamanho por ilha).
+- Log da run virtualizado (10 mil+ eventos fluidos): carga pelo fim com histórico por cursor (`GET …/events?tail=true` e `before=<seq>`), SSE para o resto sem perder nem duplicar, pausa ao rolar para cima, filtro por tipo, busca e payload de tool call expansível.
+- Organograma interativo: arrastar uma persona sobre outra muda `reports_to` (ciclos recusados), zoom/pan, colapsar ramos e indicador de run ativa; viewer e member não arrastam.
+- Comentários ancorados a um trecho da descrição da task ou do resumo de uma run (migration 00017, `anchor` na API, `hanko task comment --quote`, MCP `quote`): a âncora é re-localizada pelo texto e vira "âncora perdida" quando o trecho some.
+
 ## [Não lançado] — v0.1.0
 
 Primeira versão pública. Em produção em https://hanko.oute.pro desde 2026-10-14.

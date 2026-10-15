@@ -65,7 +65,7 @@ Decisões em `docs/adr/`. Este arquivo é o resumo vigente; ADR vence em conflit
 | CSS | Tailwind **standalone CLI** (binário, sem Node); tokens em CSS vars; dark mode; **1 CSS** p/ host e ilhas |
 | JS vendorizado | `sortable.js` (kanban). Máx. 3 arquivos vendorizados |
 | Scripts | `tools/bundle` (esbuild via Go) também empacota o Firebase Auth SDK (modular) p/ o provider `firebase` — é script do host, não conta como ilha |
-| Ilhas | React + TS bundladas por **esbuild via Go** (`go run ./tools/bundle`); deps em `ui/islands/package.json` (npm só dev/CI). Previstas: log viewer virtualizado, org chart (react-flow), editor (CodeMirror 6). Teto 3; a 4ª exige ADR |
+| Ilhas | React + TS em `ui/islands/` (versões exatas + lockfile), bundladas por **esbuild (npm, só dev/CI)** para `internal/ui/static/islands/` (commitado, `make islands`; CI confere o diff). Entregues no v0.2: log de run virtualizado, organograma interativo, comentários ancorados (ADR-0026). Teto 3; a 4ª exige ADR |
 | Markdown | `goldmark` server-side |
 | i18n | `go-i18n`: pt-BR (M1), en (M6) |
 | E2E | `chromedp` ou `rod` contra o binário |
@@ -76,7 +76,7 @@ Contrato host/ilha:
 1. Host decide rota, auth, layout, navegação, dados de lista.
 2. Ilha é folha: recebe props via `data-*`/JSON no HTML, emite eventos DOM ou chama a API. Nunca roteia, nunca tem estado global, nunca lista.
 3. Um CSS, mesmos tokens. Sem shadcn global; Radix só dentro da ilha que precisar.
-4. Bundling só por esbuild (Go). Sem Vite, pnpm workspace, React Router, TanStack.
+4. Bundling só por esbuild (npm, ADR-0026). Sem Vite, pnpm workspace, React Router, TanStack.
 5. Teto de 3 ilhas até v0.2. Checkpoint pós-M2: UI >50% das horas → reavaliar.
 
 ## 4. Layout do repositório
