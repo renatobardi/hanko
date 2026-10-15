@@ -86,6 +86,28 @@ type ArtifactFilter struct {
 	Limit, Offset                       int // padrão 100, máx. 500
 }
 
+// ArtifactLimitError é a recusa de um artefato por tamanho (acima do limite por arquivo) ou por cota (a empresa já
+// usa espaço demais). É um erro de validação (422) que a tela sabe explicar com os números.
+type ArtifactLimitError struct {
+	Quota bool  // verdadeiro: cota da empresa; falso: limite por arquivo
+	Limit int64 // o limite que valeu, em bytes
+	Used  int64 // só na cota: o espaço já usado
+	Size  int64 // o tamanho do arquivo recusado
+	err   *domain.ValidationError
+}
+
+// NewArtifactLimitError monta a recusa por tamanho (quota=false) ou por cota (quota=true).
+func NewArtifactLimitError(quota bool, limit, used, size int64) *ArtifactLimitError {
+	msg := fmt.Sprintf("too large (%d bytes; max %d)", size, limit)
+	if quota {
+		msg = fmt.Sprintf("company artifact quota exceeded (%d of %d bytes used)", used, limit)
+	}
+	return &ArtifactLimitError{Quota: quota, Limit: limit, Used: used, Size: size, err: &domain.ValidationError{Field: "content", Reason: msg}}
+}
+
+func (e *ArtifactLimitError) Error() string { return e.err.Error() }
+func (e *ArtifactLimitError) Unwrap() error { return e.err }
+
 // ArtifactUsage é o espaço usado pela empresa contra a cota.
 type ArtifactUsage struct {
 	UsedBytes    int64 `json:"used_bytes"`
@@ -206,7 +228,7 @@ func (s *Service) PutArtifact(ctx context.Context, actor domain.Actor, companyID
 	case len(in.Content) == 0:
 		return ArtifactView{}, domain.Invalid("content", "required")
 	case int64(len(in.Content)) > maxFile:
-		return ArtifactView{}, domain.Invalid("content", fmt.Sprintf("too large (%d bytes; max %d)", len(in.Content), maxFile))
+		return ArtifactView{}, NewArtifactLimitError(false, maxFile, 0, int64(len(in.Content)))
 	}
 	mt, err := normalizeMime(in.Mime, name, in.Content)
 	if err != nil {
@@ -276,7 +298,7 @@ func (s *Service) PutArtifact(ctx context.Context, actor domain.Actor, companyID
 			return fmt.Errorf("artifact usage: %w", err)
 		}
 		if usage.UsedBytes+int64(len(in.Content)) > quota {
-			return domain.Invalid("content", fmt.Sprintf("company artifact quota exceeded (%d of %d bytes used)", usage.UsedBytes, quota))
+			return NewArtifactLimitError(true, quota, usage.UsedBytes, int64(len(in.Content)))
 		}
 		at := t.now
 		if !in.createdAt.IsZero() {

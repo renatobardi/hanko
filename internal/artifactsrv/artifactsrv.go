@@ -17,11 +17,14 @@ const csp = "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'
 // Disposition devolve o valor de Content-Disposition: inline só para os tipos seguros, attachment para o resto.
 // O nome do arquivo vai codificado por mime.FormatMediaType (sem injeção de cabeçalho).
 func Disposition(a domain.Artifact) string {
-	kind := "attachment"
 	if domain.InlineSafe(a.Mime) {
-		kind = "inline"
+		return disposition("inline", a.Name)
 	}
-	if v := mime.FormatMediaType(kind, map[string]string{"filename": a.Name}); v != "" {
+	return disposition("attachment", a.Name)
+}
+
+func disposition(kind, name string) string {
+	if v := mime.FormatMediaType(kind, map[string]string{"filename": name}); v != "" {
 		return v
 	}
 	return kind // nome que o formato não aceita: sem filename
@@ -48,8 +51,14 @@ func Headers(set func(k, v string), a domain.Artifact) {
 }
 
 // Serve escreve o artefato na resposta.
-func Serve(w http.ResponseWriter, a domain.Artifact, content []byte) {
+func Serve(w http.ResponseWriter, a domain.Artifact, content []byte) { ServeAs(w, a, content, false) }
+
+// ServeAs é Serve com a opção de forçar o download (attachment), mesmo para os tipos que abrem no navegador.
+func ServeAs(w http.ResponseWriter, a domain.Artifact, content []byte, download bool) {
 	Headers(w.Header().Set, a)
+	if download {
+		w.Header().Set("Content-Disposition", disposition("attachment", a.Name))
+	}
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(content)
 }

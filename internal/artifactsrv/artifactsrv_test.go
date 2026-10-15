@@ -45,3 +45,26 @@ func TestServe(t *testing.T) {
 		t.Errorf("cabeçalhos: %v", h)
 	}
 }
+
+// ServeAs com download força attachment até nos tipos que abrem no navegador, sem perder os cabeçalhos de segurança.
+func TestServeAsDownload(t *testing.T) {
+	a := domain.Artifact{Name: "nota.md", Mime: "text/markdown", SizeBytes: 4, SHA256: "ab"}
+	inline := httptest.NewRecorder()
+	ServeAs(inline, a, []byte("# oi"), false)
+	if got := inline.Header().Get("Content-Disposition"); !strings.HasPrefix(got, "inline") {
+		t.Errorf("sem download: %q", got)
+	}
+	dl := httptest.NewRecorder()
+	ServeAs(dl, a, []byte("# oi"), true)
+	if got := dl.Header().Get("Content-Disposition"); got != `attachment; filename=nota.md` {
+		t.Errorf("com download: %q", got)
+	}
+	for _, h := range []string{"X-Content-Type-Options", "Content-Security-Policy", "Cross-Origin-Resource-Policy"} {
+		if dl.Header().Get(h) == "" {
+			t.Errorf("sem o cabeçalho %s", h)
+		}
+	}
+	if dl.Body.String() != "# oi" {
+		t.Errorf("corpo = %q", dl.Body.String())
+	}
+}
