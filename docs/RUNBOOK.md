@@ -252,6 +252,19 @@ ssh oute-server "lxc exec hanko-prd -- curl -fsS http://127.0.0.1:3810/readyz"
 #   restore.sh --apply --pgdump /var/backups/hanko/hanko-<UTC>.pgdump --aimemory /var/backups/hanko/aimemory-<UTC>.tar.gz
 ```
 
+**Voltar um deploy que trouxe migrations (código + banco):** o `restore.sh --apply` sobe a stack com o código que estiver em
+`/opt/app` e com o `HANKO_VERSION` do `.env`. Se isso ainda for a versão nova, o boot migra o banco restaurado para a frente de
+novo e nada volta. Para voltar de verdade, primeiro o código e a tag, depois o banco (o dump pré-deploy é o mais novo de `/var/backups/hanko`):
+
+```bash
+ssh oute-server "lxc exec hanko-prd -- bash -lc 'cd /opt/app && git reset --hard <rev-anterior> && sed -i \"s/^HANKO_VERSION=.*/HANKO_VERSION=<rev-anterior>/\" .env && docker image ls hanko'"
+ssh -t oute-server "lxc exec hanko-prd -- /opt/app/deploy/oute-server/restore.sh --apply"
+```
+
+Se a imagem `hanko:<rev-anterior>` ainda existe no LXC, o `up -d` do restore a usa sem recompilar; senão ele compila (alguns minutos).
+Atalho sem restaurar dados: o binário anterior sobe sobre o schema novo (as migrations 00008–00013 só acrescentam tabelas, colunas
+com valor padrão e índices) — é o caminho mais rápido, mas o banco fica na versão nova e os dados criados depois do deploy continuam lá.
+
 **Restore a partir do restic do lab (LXC perdido ou cópia local corrompida):** no oute-server, como root (precisa do
 `/etc/oute/backup.env` do lab para o repositório e a senha do restic). Recrie o LXC com `deploy-prd.sh` primeiro (ele sobe a stack
 vazia), depois:
