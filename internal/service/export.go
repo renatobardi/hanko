@@ -8,6 +8,7 @@ import (
 	"io"
 	"strconv"
 	"time"
+	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
 
@@ -50,6 +51,23 @@ const (
 // red mascara credenciais que tenham ido parar em texto livre (instruções, descrições, comentários, logs):
 // o arquivo é feito para ser compartilhado (ADR-0022). Não o torna anônimo.
 func red(s string) string { return adapter.Redact(s) }
+
+// redMax é red com teto em runas: o mascaramento pode ALONGAR o texto (uma senha curta de URL de banco vira
+// "[REDACTED]"), e o arquivo exportado tem de continuar dentro dos limites que a importação valida (título de task
+// 500, comentário 100000). Acima do teto, corta.
+func redMax(s string, max int) string {
+	s = red(s)
+	if utf8.RuneCountInString(s) <= max {
+		return s
+	}
+	return string([]rune(s)[:max])
+}
+
+// Limites de texto validados na importação (veja import.go).
+const (
+	maxTaskTitleRunes   = 500
+	maxCommentBodyRunes = 100000
+)
 
 // ExportStream é uma exportação aberta: a configuração e o histórico de execuções (sem logs) já estão montados
 // em memória, numa transação de snapshot que fica aberta até Close; os logs saem run a run, em páginas, durante
@@ -349,10 +367,10 @@ func (s *Service) buildDoc(ctx context.Context, q *store.Queries, companyID doma
 	comments := map[domain.ID][]export.Comment{}
 	for _, c := range comRows {
 		comments[c.TaskID] = append(comments[c.TaskID], export.Comment{Author: exportActor(c.AuthorType, c.AuthorID, peSlug),
-			Body: red(c.Body), Run: refSlug(runKey, c.RunID), CreatedAt: c.CreatedAt})
+			Body: redMax(c.Body, maxCommentBodyRunes), Run: refSlug(runKey, c.RunID), CreatedAt: c.CreatedAt})
 	}
 	for _, t := range taskRows {
-		et := export.Task{Number: t.Number, Title: red(t.Title), Description: red(t.Description), Status: t.Status, Priority: t.Priority,
+		et := export.Task{Number: t.Number, Title: redMax(t.Title, maxTaskTitleRunes), Description: red(t.Description), Status: t.Status, Priority: t.Priority,
 			Persona: refSlug(peSlug, t.PersonaID), Project: refSlug(prSlug, t.ProjectID), Workspace: refSlug(wsSlug, t.WorkspaceID),
 			Model: t.Model, CreatedBy: exportActor(t.CreatedByType, t.CreatedByID, peSlug), CreatedAt: t.CreatedAt,
 			UpdatedAt: t.UpdatedAt, ClosedAt: t.ClosedAt, Comments: comments[t.ID]}

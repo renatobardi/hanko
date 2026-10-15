@@ -316,7 +316,7 @@ func (s *Service) planImport(ctx context.Context, doc export.Document, opts Impo
 			return p, err
 		}
 		maxNum = max(maxNum, x.Number)
-		if n := utf8.RuneCountInString(x.Title); n < 1 || n > 500 {
+		if n := utf8.RuneCountInString(x.Title); n < 1 || n > maxTaskTitleRunes {
 			return p, domain.Invalid(iv("tasks", i, "title"), "must have 1 to 500 characters")
 		}
 		if !domain.TaskStatus(x.Status).Valid() {
@@ -344,7 +344,7 @@ func (s *Service) planImport(ctx context.Context, doc export.Document, opts Impo
 		}
 		for j, cm := range x.Comments {
 			path := fmt.Sprintf("tasks[%d].comments[%d]", i, j)
-			if n := utf8.RuneCountInString(cm.Body); n < 1 || n > 100000 {
+			if n := utf8.RuneCountInString(cm.Body); n < 1 || n > maxCommentBodyRunes {
 				return p, domain.Invalid(path+".body", "must have 1 to 100000 characters")
 			}
 			if err := checkActor(path+".author", cm.Author, pe); err != nil {

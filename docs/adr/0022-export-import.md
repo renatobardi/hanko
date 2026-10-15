@@ -59,7 +59,9 @@ de outras empresas; o que se quer é um arquivo legível, versionável e seguro 
     execução, logs) passam por `adapter.Redact`, que mascara credenciais conhecidas (Bearer, JWT, chaves de API, URL de
     banco com senha) como `[REDACTED]`. Isso não torna o arquivo anônimo: ele contém nomes de pessoas e personas, o
     texto de instruções e tasks, URLs de repositório e **caminhos de workspace** da instalação de origem. Revise-o
-    antes de compartilhar fora da organização.
+    antes de compartilhar fora da organização. O mascaramento não distingue exemplo de segredo: um exemplo didático de
+    chave colado numa instrução também sai como `[REDACTED]`. Se o mascaramento alongar o título de uma task além de
+    500 caracteres (o limite da importação), o título é truncado para caber (idem o corpo de um comentário, 100000), para o arquivo continuar importável.
 
 ## Consequências
 - O round trip export → import → export é igual, exceto `exported_at` e o slug (testado, com e sem execuções/logs).
