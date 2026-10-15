@@ -570,3 +570,27 @@ func TestActivityFilterAndDashboardEmpty(t *testing.T) {
 	_, err = e.svc.Dashboard(ctx, domain.NewID())
 	wantErr(t, err, domain.ErrNotFound)
 }
+
+// Comentário humano em in_review/blocked acorda a persona e reabre a task (in_progress); heartbeat e
+// atribuição continuam exigindo todo/in_progress.
+func TestCheckoutRunComentarioReabreInReviewEBlocked(t *testing.T) {
+	ctx := context.Background()
+	for _, st := range []domain.TaskStatus{domain.TaskInReview, domain.TaskBlocked} {
+		t.Run(string(st), func(t *testing.T) {
+			e, p, _ := runFixture(t)
+			tv := e.task(t, service.CreateTaskInput{Title: "Revisar", PersonaID: &p.ID, Status: st})
+			e.jobs.reset()
+			if _, err := e.svc.CheckoutRun(ctx, wakeOf(p, tv, domain.TriggerHeartbeat)); !errors.Is(err, domain.ErrInvalid) {
+				t.Fatalf("heartbeat deveria recusar %s: %v", st, err)
+			}
+			run, err := e.svc.CheckoutRun(ctx, wakeOf(p, tv, domain.TriggerComment))
+			if err != nil {
+				t.Fatalf("comment em %s: %v", st, err)
+			}
+			got, _ := e.svc.GetTask(ctx, e.co.ID, tv.Key)
+			if got.Status != domain.TaskInProgress || got.ActiveRunID == nil || *got.ActiveRunID != run.ID {
+				t.Fatalf("task após reabrir: %+v", got)
+			}
+		})
+	}
+}

@@ -229,7 +229,9 @@ func (s *Service) CheckoutRun(ctx context.Context, w Wake) (domain.Run, error) {
 			return domain.Invalid("persona_id", "task is not assigned to this persona")
 		}
 		from := domain.TaskStatus(task.Status)
-		if !from.Workable() {
+		// Um comentário humano é feedback: acorda a persona também em in_review e blocked (a task volta a in_progress).
+		reopens := w.Trigger == domain.TriggerComment && (from == domain.TaskInReview || from == domain.TaskBlocked)
+		if !from.Workable() && !reopens {
 			return domain.Invalid("status", fmt.Sprintf("task status %q is not workable", from))
 		}
 		p, err := t.q.GetPersonaByID(ctx, store.GetPersonaByIDParams{CompanyID: w.CompanyID, ID: w.PersonaID})
@@ -303,7 +305,7 @@ func (s *Service) CheckoutRun(ctx context.Context, w Wake) (domain.Run, error) {
 			return err
 		}
 		out = runFromRow(row)
-		if from == domain.TaskTodo {
+		if from == domain.TaskTodo || reopens {
 			if err := t.q.SetTaskStatus(ctx, store.SetTaskStatusParams{ID: task.ID, Status: string(domain.TaskInProgress), Now: t.now}); err != nil {
 				return fmt.Errorf("set task in_progress: %w", err)
 			}
