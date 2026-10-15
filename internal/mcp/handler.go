@@ -32,6 +32,7 @@ type Backend interface {
 	RequestGate(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.RequestGateInput) (service.GateView, error)
 	GetGate(ctx context.Context, companyID, gateID domain.ID) (service.GateView, error)
 	ListGates(ctx context.Context, companyID domain.ID, f service.GateFilter) ([]service.GateView, error)
+	Search(ctx context.Context, companyID domain.ID, q string, f service.SearchFilter) (service.SearchResult, error)
 }
 
 var _ Backend = (*service.Service)(nil)

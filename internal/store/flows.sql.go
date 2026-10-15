@@ -28,7 +28,7 @@ INSERT INTO flows (id, company_id, slug, name, description, cron, timezone, enab
                    priority, task_title, task_description, next_fire_at, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
         $11, $12, $13, $14, $15, $15)
-RETURNING id, company_id, slug, name, description, cron, timezone, enabled, persona_id, project_id, priority, task_title, task_description, last_fired_at, next_fire_at, created_at, updated_at
+RETURNING id, company_id, slug, name, description, cron, timezone, enabled, persona_id, project_id, priority, task_title, task_description, last_fired_at, next_fire_at, created_at, updated_at, search_tsv
 `
 
 type CreateFlowParams struct {
@@ -86,12 +86,13 @@ func (q *Queries) CreateFlow(ctx context.Context, arg CreateFlowParams) (Flow, e
 		&i.NextFireAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SearchTsv,
 	)
 	return i, err
 }
 
 const dueFlows = `-- name: DueFlows :many
-SELECT id, company_id, slug, name, description, cron, timezone, enabled, persona_id, project_id, priority, task_title, task_description, last_fired_at, next_fire_at, created_at, updated_at FROM flows
+SELECT id, company_id, slug, name, description, cron, timezone, enabled, persona_id, project_id, priority, task_title, task_description, last_fired_at, next_fire_at, created_at, updated_at, search_tsv FROM flows
 WHERE enabled AND next_fire_at IS NOT NULL AND next_fire_at <= $1
 ORDER BY next_fire_at, id
 LIMIT $2
@@ -129,6 +130,7 @@ func (q *Queries) DueFlows(ctx context.Context, arg DueFlowsParams) ([]Flow, err
 			&i.NextFireAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.SearchTsv,
 		); err != nil {
 			return nil, err
 		}
@@ -162,7 +164,7 @@ func (q *Queries) FlowHasOpenTask(ctx context.Context, flowID uuid.UUID) (FlowHa
 }
 
 const getFlowByID = `-- name: GetFlowByID :one
-SELECT id, company_id, slug, name, description, cron, timezone, enabled, persona_id, project_id, priority, task_title, task_description, last_fired_at, next_fire_at, created_at, updated_at FROM flows WHERE company_id = $1 AND id = $2
+SELECT id, company_id, slug, name, description, cron, timezone, enabled, persona_id, project_id, priority, task_title, task_description, last_fired_at, next_fire_at, created_at, updated_at, search_tsv FROM flows WHERE company_id = $1 AND id = $2
 `
 
 type GetFlowByIDParams struct {
@@ -191,12 +193,13 @@ func (q *Queries) GetFlowByID(ctx context.Context, arg GetFlowByIDParams) (Flow,
 		&i.NextFireAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SearchTsv,
 	)
 	return i, err
 }
 
 const getFlowByIDForUpdate = `-- name: GetFlowByIDForUpdate :one
-SELECT id, company_id, slug, name, description, cron, timezone, enabled, persona_id, project_id, priority, task_title, task_description, last_fired_at, next_fire_at, created_at, updated_at FROM flows WHERE id = $1 FOR UPDATE
+SELECT id, company_id, slug, name, description, cron, timezone, enabled, persona_id, project_id, priority, task_title, task_description, last_fired_at, next_fire_at, created_at, updated_at, search_tsv FROM flows WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) GetFlowByIDForUpdate(ctx context.Context, id uuid.UUID) (Flow, error) {
@@ -220,12 +223,13 @@ func (q *Queries) GetFlowByIDForUpdate(ctx context.Context, id uuid.UUID) (Flow,
 		&i.NextFireAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SearchTsv,
 	)
 	return i, err
 }
 
 const getFlowBySlug = `-- name: GetFlowBySlug :one
-SELECT id, company_id, slug, name, description, cron, timezone, enabled, persona_id, project_id, priority, task_title, task_description, last_fired_at, next_fire_at, created_at, updated_at FROM flows WHERE company_id = $1 AND slug = $2
+SELECT id, company_id, slug, name, description, cron, timezone, enabled, persona_id, project_id, priority, task_title, task_description, last_fired_at, next_fire_at, created_at, updated_at, search_tsv FROM flows WHERE company_id = $1 AND slug = $2
 `
 
 type GetFlowBySlugParams struct {
@@ -254,6 +258,7 @@ func (q *Queries) GetFlowBySlug(ctx context.Context, arg GetFlowBySlugParams) (F
 		&i.NextFireAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SearchTsv,
 	)
 	return i, err
 }
@@ -284,7 +289,7 @@ func (q *Queries) GetFlowFire(ctx context.Context, arg GetFlowFireParams) (FlowF
 }
 
 const getFlowView = `-- name: GetFlowView :one
-SELECT f.id, f.company_id, f.slug, f.name, f.description, f.cron, f.timezone, f.enabled, f.persona_id, f.project_id, f.priority, f.task_title, f.task_description, f.last_fired_at, f.next_fire_at, f.created_at, f.updated_at, p.name AS persona_name, COALESCE(pr.name, '')::text AS project_name
+SELECT f.id, f.company_id, f.slug, f.name, f.description, f.cron, f.timezone, f.enabled, f.persona_id, f.project_id, f.priority, f.task_title, f.task_description, f.last_fired_at, f.next_fire_at, f.created_at, f.updated_at, f.search_tsv, p.name AS persona_name, COALESCE(pr.name, '')::text AS project_name
 FROM flows f
 JOIN personas p ON p.id = f.persona_id
 LEFT JOIN projects pr ON pr.id = f.project_id
@@ -323,6 +328,7 @@ func (q *Queries) GetFlowView(ctx context.Context, arg GetFlowViewParams) (GetFl
 		&i.Flow.NextFireAt,
 		&i.Flow.CreatedAt,
 		&i.Flow.UpdatedAt,
+		&i.Flow.SearchTsv,
 		&i.PersonaName,
 		&i.ProjectName,
 	)
@@ -429,7 +435,7 @@ func (q *Queries) ListFlowFires(ctx context.Context, arg ListFlowFiresParams) ([
 }
 
 const listFlowViews = `-- name: ListFlowViews :many
-SELECT f.id, f.company_id, f.slug, f.name, f.description, f.cron, f.timezone, f.enabled, f.persona_id, f.project_id, f.priority, f.task_title, f.task_description, f.last_fired_at, f.next_fire_at, f.created_at, f.updated_at, p.name AS persona_name, COALESCE(pr.name, '')::text AS project_name
+SELECT f.id, f.company_id, f.slug, f.name, f.description, f.cron, f.timezone, f.enabled, f.persona_id, f.project_id, f.priority, f.task_title, f.task_description, f.last_fired_at, f.next_fire_at, f.created_at, f.updated_at, f.search_tsv, p.name AS persona_name, COALESCE(pr.name, '')::text AS project_name
 FROM flows f
 JOIN personas p ON p.id = f.persona_id
 LEFT JOIN projects pr ON pr.id = f.project_id
@@ -470,6 +476,7 @@ func (q *Queries) ListFlowViews(ctx context.Context, companyID uuid.UUID) ([]Lis
 			&i.Flow.NextFireAt,
 			&i.Flow.CreatedAt,
 			&i.Flow.UpdatedAt,
+			&i.Flow.SearchTsv,
 			&i.PersonaName,
 			&i.ProjectName,
 		); err != nil {
@@ -484,7 +491,7 @@ func (q *Queries) ListFlowViews(ctx context.Context, companyID uuid.UUID) ([]Lis
 }
 
 const listFlows = `-- name: ListFlows :many
-SELECT id, company_id, slug, name, description, cron, timezone, enabled, persona_id, project_id, priority, task_title, task_description, last_fired_at, next_fire_at, created_at, updated_at FROM flows WHERE company_id = $1 ORDER BY enabled DESC, name, id
+SELECT id, company_id, slug, name, description, cron, timezone, enabled, persona_id, project_id, priority, task_title, task_description, last_fired_at, next_fire_at, created_at, updated_at, search_tsv FROM flows WHERE company_id = $1 ORDER BY enabled DESC, name, id
 `
 
 func (q *Queries) ListFlows(ctx context.Context, companyID uuid.UUID) ([]Flow, error) {
@@ -514,6 +521,7 @@ func (q *Queries) ListFlows(ctx context.Context, companyID uuid.UUID) ([]Flow, e
 			&i.NextFireAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.SearchTsv,
 		); err != nil {
 			return nil, err
 		}
@@ -568,7 +576,7 @@ SET name = $1, description = $2, cron = $3, timezone = $4, enabled = $5,
     task_title = $9, task_description = $10,
     next_fire_at = $11, updated_at = $12
 WHERE company_id = $13 AND id = $14
-RETURNING id, company_id, slug, name, description, cron, timezone, enabled, persona_id, project_id, priority, task_title, task_description, last_fired_at, next_fire_at, created_at, updated_at
+RETURNING id, company_id, slug, name, description, cron, timezone, enabled, persona_id, project_id, priority, task_title, task_description, last_fired_at, next_fire_at, created_at, updated_at, search_tsv
 `
 
 type UpdateFlowParams struct {
@@ -624,6 +632,7 @@ func (q *Queries) UpdateFlow(ctx context.Context, arg UpdateFlowParams) (Flow, e
 		&i.NextFireAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SearchTsv,
 	)
 	return i, err
 }

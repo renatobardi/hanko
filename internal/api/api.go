@@ -86,6 +86,7 @@ type backend interface {
 	CancelRun(ctx context.Context, actor domain.Actor, companyID, runID domain.ID) (service.RunView, error)
 	ListActivity(ctx context.Context, companyID domain.ID, f service.ActivityFilter) ([]domain.ActivityEvent, error)
 	Dashboard(ctx context.Context, companyID domain.ID) (service.DashboardStats, error)
+	Search(ctx context.Context, companyID domain.ID, q string, f service.SearchFilter) (service.SearchResult, error)
 	RequestGate(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.RequestGateInput) (service.GateView, error)
 	DecideGate(ctx context.Context, actor domain.Actor, companyID, gateID domain.ID, in service.DecideGateInput) (service.GateView, error)
 	ListGates(ctx context.Context, companyID domain.ID, f service.GateFilter) ([]service.GateView, error)
@@ -214,6 +215,7 @@ func (s *server) register(api huma.API) {
 	s.registerFlows(api)
 	s.registerMembers(api)
 	s.registerExport(api)
+	s.registerSearch(api)
 }
 
 // op monta uma huma.Operation com o prefixo da API.

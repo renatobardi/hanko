@@ -130,6 +130,7 @@ type Flow struct {
 	NextFireAt      *time.Time
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
+	SearchTsv       interface{}
 }
 
 type FlowFire struct {
@@ -222,6 +223,7 @@ type Persona struct {
 	ReviewerPersonaID    *uuid.UUID
 	ReviewerAgent        string
 	ReviewerModel        string
+	SearchTsv            interface{}
 }
 
 type Project struct {
@@ -288,6 +290,7 @@ type Run struct {
 	SubscriptionID      *uuid.UUID
 	ListCostUsd         *float64
 	Name                string
+	SearchTsv           interface{}
 }
 
 type RunEvent struct {
@@ -361,6 +364,7 @@ type Task struct {
 	ClosedAt          *time.Time
 	LastHumanChangeAt *time.Time
 	Model             string
+	SearchTsv         interface{}
 }
 
 type TaskComment struct {
@@ -373,6 +377,7 @@ type TaskComment struct {
 	Body       string
 	EventID    *string
 	CreatedAt  time.Time
+	SearchTsv  interface{}
 }
 
 type User struct {

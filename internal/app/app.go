@@ -87,6 +87,7 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 	}
 	tokens := auth.RunTokens{Secret: []byte(cfg.Secret), TTL: cfg.RunTimeout + 5*time.Minute}
 	hb.Attach(svc, reg, mem, broker, tokens)
+	svc.Memory = mem
 
 	handler, err := buildHandler(handlerDeps{Cfg: cfg, Version: version, Logger: logger, Svc: svc, Broker: broker,
 		Pool: pool, Tokens: tokens, Metrics: tel.MetricsHandler()})
