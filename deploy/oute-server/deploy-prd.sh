@@ -117,7 +117,9 @@ if ! grep -q '^AI_MEMORY_IMAGE=' .env; then
   echo \"AI_MEMORY_IMAGE=\$d\" >> .env; echo \"==> ai-memory fixado em \$d\"
 fi"
 
-# 4) Sobe e valida
+# 4) Sobe e valida. Antes, se já há banco no ar, um backup consistente (pg_dump -Fc + ai-memory em /var/backups/hanko):
+#    a versão nova pode trazer migrations; voltar é `deploy/oute-server/restore.sh --apply` com esse dump.
+x "if docker compose -f /opt/app/docker-compose.yml ps -q postgres 2>/dev/null | grep -q .; then bash /opt/app/deploy/oute-server/backup.sh && echo 'backup pré-deploy ok'; else echo 'sem banco no ar: primeira instalação, sem backup pré-deploy'; fi"
 x "cd /opt/app && docker compose up -d --build"
 x "for i in \$(seq 1 90); do curl -fsS --max-time 2 http://127.0.0.1:${PORT}/readyz >/dev/null && echo 'readyz ok' && exit 0; sleep 2; done; docker compose -f /opt/app/docker-compose.yml logs --tail 80 hanko; exit 1"
 x "for i in \$(seq 1 30); do s=\$(docker inspect -f '{{.State.Health.Status}}' \$(docker compose -f /opt/app/docker-compose.yml ps -q ai-memory) 2>/dev/null); [ \"\$s\" = healthy ] && echo 'ai-memory ok' && exit 0; sleep 2; done; echo \"AVISO: ai-memory \${s:-ausente}; o Hanko segue sem memória (outbox)\"; docker compose -f /opt/app/docker-compose.yml logs --tail 30 ai-memory"
