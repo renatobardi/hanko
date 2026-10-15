@@ -113,6 +113,8 @@ func (s *server) handleSearch(w http.ResponseWriter, r *http.Request, co domain.
 			for _, g := range res.Groups {
 				vm.Groups = append(vm.Groups, s.searchGroupVM(ctx, base, g, now, loc))
 			}
+		case errors.Is(err, service.ErrSearchTooSlow):
+			vm.Error = i18n.T(ctx, "A busca demorou demais; use palavras mais específicas.")
 		case errors.Is(err, domain.ErrInvalid):
 			vm.Error = i18n.T(ctx, "Use ao menos uma palavra (letras ou números) na busca.")
 		default:

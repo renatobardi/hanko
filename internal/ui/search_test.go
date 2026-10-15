@@ -93,6 +93,11 @@ func TestSearchEstados(t *testing.T) {
 	rec = e.get(t, "/c/hanko/buscar?q=!!!", "HX-Request", "true")
 	wantStatus(t, rec, http.StatusOK)
 	wantContains(t, rec, "Use ao menos uma palavra")
+	// consulta que estoura o tempo do banco: mensagem amigável, não erro de servidor
+	f.Err = map[string]error{"Search": service.ErrSearchTooSlow}
+	rec = e.get(t, "/c/hanko/buscar?q=a", "HX-Request", "true")
+	wantStatus(t, rec, http.StatusOK)
+	wantContains(t, rec, "A busca demorou demais")
 	// erro de verdade vira a página de erro
 	f.Err = map[string]error{"Search": domain.ErrNotFound}
 	wantStatus(t, e.get(t, "/c/hanko/buscar?q=x"), http.StatusNotFound)

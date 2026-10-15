@@ -9,6 +9,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+
 	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/memory"
 	"github.com/renatobardi/hanko/internal/search"
@@ -68,7 +71,41 @@ const (
 
 	snippetWidth  = 180
 	memoryTimeout = 3 * time.Second
+
+	// DefaultSearchStatementTimeout é o teto de cada consulta do banco da busca (SET LOCAL statement_timeout).
+	DefaultSearchStatementTimeout = 2 * time.Second
+	// commentMinPrefix: nos comentários (o texto mais denso) a última palavra só casa por prefixo com 3+ runas.
+	commentMinPrefix = 3
 )
+
+// ErrSearchTooSlow: uma consulta da busca passou do teto de tempo do banco. É ErrInvalid (422): o remédio é do usuário
+// (termos mais específicos), não um erro do servidor.
+var ErrSearchTooSlow = domain.Invalid("q", "a busca demorou demais; use palavras mais específicas")
+
+// searchTx executa fn numa transação somente leitura com SET LOCAL statement_timeout, para uma consulta patológica
+// (prefixo curto num texto enorme) nunca prender uma conexão do pool. Estouro vira ErrSearchTooSlow.
+func (s *Service) searchTx(ctx context.Context, fn func(tx pgx.Tx) error) error {
+	tx, err := s.Pool.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
+	if err != nil {
+		return fmt.Errorf("begin search tx: %w", err)
+	}
+	defer rollbackTx(tx)
+	d := s.SearchStatementTimeout
+	if d <= 0 {
+		d = DefaultSearchStatementTimeout
+	}
+	if _, err := tx.Exec(ctx, "SELECT set_config('statement_timeout', $1, true)", strconv.FormatInt(d.Milliseconds(), 10)); err != nil {
+		return fmt.Errorf("search statement_timeout: %w", err)
+	}
+	if err := fn(tx); err != nil {
+		var pe *pgconn.PgError
+		if errors.As(err, &pe) && pe.Code == "57014" { // query_canceled: statement_timeout
+			return ErrSearchTooSlow
+		}
+		return err
+	}
+	return nil
+}
 
 // SearchFilter restringe a busca. Types vazio = todos os tipos; Limit é por tipo.
 type SearchFilter struct {
@@ -150,7 +187,6 @@ func (s *Service) Search(ctx context.Context, companyID domain.ID, q string, f S
 		return SearchResult{}, mapErr(err, "search company")
 	}
 	now := s.Now()
-	base := store.New(s.Pool)
 
 	type out struct {
 		g   SearchGroup
@@ -170,20 +206,27 @@ func (s *Service) Search(ctx context.Context, companyID domain.ID, q string, f S
 			defer wg.Done()
 			var g SearchGroup
 			var err error
-			switch t {
-			case SearchTask:
-				g, err = s.searchTasks(ctx, base, co, q, pq, lim, now)
-			case SearchComment:
-				g, err = s.searchComments(ctx, base, co, pq, lim, now)
-			case SearchPersona:
-				g, err = s.searchPersonas(ctx, base, co, pq, lim, now)
-			case SearchRun:
-				g, err = s.searchRuns(ctx, base, co, pq, lim, now)
-			case SearchFlow:
-				g, err = s.searchFlows(ctx, base, co, pq, lim, now)
-			case SearchMemory:
-				g = s.searchMemory(ctx, co, q, pq, lim)
+			if t == SearchMemory {
+				results[i] = out{s.searchMemory(ctx, co, q, pq, lim), nil}
+				return
 			}
+			err = s.searchTx(ctx, func(tx pgx.Tx) error {
+				base := store.New(tx)
+				var e error
+				switch t {
+				case SearchTask:
+					g, e = s.searchTasks(ctx, base, co, q, pq, lim, now)
+				case SearchComment:
+					g, e = s.searchComments(ctx, base, co, pq.WithMinPrefix(commentMinPrefix), lim, now)
+				case SearchPersona:
+					g, e = s.searchPersonas(ctx, base, co, pq, lim, now)
+				case SearchRun:
+					g, e = s.searchRuns(ctx, base, co, pq, lim, now)
+				case SearchFlow:
+					g, e = s.searchFlows(ctx, base, co, pq, lim, now)
+				}
+				return e
+			})
 			results[i] = out{g, err}
 		}()
 	}
@@ -191,6 +234,9 @@ func (s *Service) Search(ctx context.Context, companyID domain.ID, q string, f S
 
 	res := SearchResult{Query: q, Groups: []SearchGroup{}}
 	for _, r := range results {
+		if errors.Is(r.err, ErrSearchTooSlow) {
+			return SearchResult{}, ErrSearchTooSlow
+		}
 		if r.err != nil {
 			return SearchResult{}, fmt.Errorf("search: %w", r.err)
 		}

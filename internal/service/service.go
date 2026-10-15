@@ -50,6 +50,8 @@ type Service struct {
 	Jobs   Jobs
 	Broker *events.Broker
 	Now    Clock
+	// SearchStatementTimeout é o teto de cada consulta do banco da busca (ADR-0024); 0 usa DefaultSearchStatementTimeout.
+	SearchStatementTimeout time.Duration
 	// WorkspacesRoot restringe o caminho de novos workspaces a esta raiz (HANKO_WORKSPACES_ROOT).
 	// Vazio = sem restrição de raiz (só caminho absoluto e limpo); o app sempre define.
 	WorkspacesRoot string
