@@ -46,7 +46,7 @@ type Result struct {
 // failure to start is. If ctx ends first the process group is terminated and
 // Result.Cancelled is set (the error is nil; the caller inspects ctx).
 func Run(ctx context.Context, o Options) (Result, error) {
-	cmd := exec.Command(o.Bin, o.Args...)
+	cmd := exec.Command(o.Bin, o.Args...) //nolint:gosec // executar o CLI do harness configurado é o propósito do adapter; argv sem shell
 	cmd.Dir = o.Dir
 	if o.Env != nil {
 		cmd.Env = o.Env

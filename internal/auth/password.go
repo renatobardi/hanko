@@ -85,10 +85,10 @@ func VerifyPassword(pw, encoded string) (bool, error) {
 		return false, errBadHash
 	}
 	want, err := base64.RawStdEncoding.DecodeString(parts[5])
-	if err != nil || len(want) < 16 {
+	if err != nil || len(want) < 16 || len(want) > 1024 {
 		return false, errBadHash
 	}
-	got := argon2.IDKey([]byte(pw), salt, p.Time, p.Memory, p.Threads, uint32(len(want)))
+	got := argon2.IDKey([]byte(pw), salt, p.Time, p.Memory, p.Threads, uint32(len(want))) //nolint:gosec // len(want) limitado a [16, 1024] acima
 	return subtle.ConstantTimeCompare(got, want) == 1, nil
 }
 

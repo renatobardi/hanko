@@ -518,7 +518,7 @@ func actorLabelPtr(a *domain.Actor) string {
 // ListGates lists gates, pending ones first (oldest first), then the decided, newest first.
 func (s *Service) ListGates(ctx context.Context, companyID domain.ID, f GateFilter) ([]GateView, error) {
 	p := store.ListGateViewsParams{CompanyID: companyID, TaskID: f.TaskID, PersonaID: f.PersonaID,
-		Lim: int32(clamp(f.Limit, 100, 500)), Off: int32(max(f.Offset, 0))}
+		Lim: i32(clamp(f.Limit, 100, 500)), Off: i32(max(f.Offset, 0))}
 	for _, st := range f.Statuses {
 		if !st.Valid() {
 			return nil, domain.Invalid("status", fmt.Sprintf("unknown gate status %q", st))

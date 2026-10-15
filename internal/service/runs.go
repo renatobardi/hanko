@@ -31,7 +31,7 @@ func loadRunView(ctx context.Context, q *store.Queries, companyID, runID domain.
 
 func (s *Service) ListRuns(ctx context.Context, companyID domain.ID, f RunFilter) ([]RunView, error) {
 	p := store.ListRunViewsParams{CompanyID: companyID, TaskID: f.TaskID, PersonaID: f.PersonaID,
-		Lim: int32(clamp(f.Limit, 50, 500))}
+		Lim: i32(clamp(f.Limit, 50, 500))}
 	if len(f.Statuses) > 0 {
 		p.Statuses = make([]string, len(f.Statuses))
 		for i, st := range f.Statuses {
@@ -59,7 +59,7 @@ func (s *Service) GetRun(ctx context.Context, companyID, runID domain.ID) (RunVi
 // ListRunEvents returns events with seq > afterSeq, ascending.
 func (s *Service) ListRunEvents(ctx context.Context, companyID, runID domain.ID, afterSeq int64, limit int) ([]domain.RunEvent, error) {
 	rows, err := s.read().ListRunEvents(ctx, store.ListRunEventsParams{CompanyID: companyID, RunID: runID,
-		AfterSeq: afterSeq, Lim: int32(clamp(limit, 200, 1000))})
+		AfterSeq: afterSeq, Lim: i32(clamp(limit, 200, 1000))})
 	if err != nil {
 		return nil, fmt.Errorf("list run events: %w", err)
 	}
@@ -401,7 +401,7 @@ func (s *Service) FinishRun(ctx context.Context, companyID, runID domain.ID, in 
 			return nil
 		}
 		res := in.Result
-		code := int32(res.ExitCode)
+		code := i32(res.ExitCode)
 		model := cur.Model
 		if res.Model != "" {
 			model = res.Model
@@ -621,7 +621,7 @@ const wakeStaleAfter = time.Minute
 func (s *Service) WakeCandidates(ctx context.Context, limit int) ([]WakeCandidate, error) {
 	now := s.Now().UTC()
 	rows, err := s.read().ListWakeCandidates(ctx, store.ListWakeCandidatesParams{Now: now, StaleBefore: now.Add(-wakeStaleAfter),
-		BudgetCutoff: now.Add(-budgetRefusedQuiet), Lim: int32(clamp(limit, 100, 1000))})
+		BudgetCutoff: now.Add(-budgetRefusedQuiet), Lim: i32(clamp(limit, 100, 1000))})
 	if err != nil {
 		return nil, fmt.Errorf("wake candidates: %w", err)
 	}

@@ -194,7 +194,7 @@ func taskFact(kind, key, title, desc string, status domain.TaskStatus, prio doma
 
 func (s *Service) ListTasks(ctx context.Context, companyID domain.ID, f TaskFilter) ([]TaskView, error) {
 	p := store.ListTaskViewsParams{CompanyID: companyID, PersonaID: f.PersonaID, ProjectID: f.ProjectID,
-		Lim: int32(clamp(f.Limit, 100, 500)), Off: int32(max(f.Offset, 0))}
+		Lim: i32(clamp(f.Limit, 100, 500)), Off: i32(max(f.Offset, 0))}
 	if len(f.Statuses) > 0 {
 		p.Statuses = make([]string, len(f.Statuses))
 		for i, st := range f.Statuses {

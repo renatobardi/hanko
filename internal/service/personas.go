@@ -24,8 +24,8 @@ func (s *Service) HirePersona(ctx context.Context, actor domain.Actor, companyID
 	if !domain.ValidAgent(in.Agent) {
 		return domain.Persona{}, domain.Invalid("agent", fmt.Sprintf("unknown agent %q (want one of %v)", in.Agent, domain.KnownAgents))
 	}
-	if in.HeartbeatIntervalSec < 0 {
-		return domain.Persona{}, domain.Invalid("heartbeat_interval_sec", "must be >= 0")
+	if in.HeartbeatIntervalSec < 0 || in.HeartbeatIntervalSec > maxHeartbeatIntervalSec {
+		return domain.Persona{}, domain.Invalid("heartbeat_interval_sec", fmt.Sprintf("must be between 0 and %d", maxHeartbeatIntervalSec))
 	}
 	if in.BudgetMonthlyCents != nil && *in.BudgetMonthlyCents < 0 {
 		return domain.Persona{}, domain.Invalid("budget_monthly_cents", "must be >= 0")
@@ -57,7 +57,7 @@ func (s *Service) HirePersona(ctx context.Context, actor domain.Actor, companyID
 			ID: domain.NewID(), CompanyID: companyID, Slug: slug, Name: name, Title: strings.TrimSpace(in.Title),
 			Instructions: in.Instructions, Agent: in.Agent, Model: strings.TrimSpace(in.Model), AdapterConfig: cfg,
 			Status: string(domain.PersonaActive), ReportsTo: in.ReportsTo, WorkspaceID: in.WorkspaceID,
-			HeartbeatIntervalSec: int32(in.HeartbeatIntervalSec), BudgetMonthlyCents: in.BudgetMonthlyCents, Now: t.now})
+			HeartbeatIntervalSec: i32(in.HeartbeatIntervalSec), BudgetMonthlyCents: in.BudgetMonthlyCents, Now: t.now})
 		if err != nil {
 			return mapErr(err, "hire persona")
 		}
@@ -111,8 +111,8 @@ func (s *Service) UpdatePersona(ctx context.Context, actor domain.Actor, company
 	if in.Status != nil && !in.Status.Valid() {
 		return domain.Persona{}, domain.Invalid("status", fmt.Sprintf("unknown status %q", *in.Status))
 	}
-	if in.HeartbeatIntervalSec != nil && *in.HeartbeatIntervalSec < 0 {
-		return domain.Persona{}, domain.Invalid("heartbeat_interval_sec", "must be >= 0")
+	if in.HeartbeatIntervalSec != nil && (*in.HeartbeatIntervalSec < 0 || *in.HeartbeatIntervalSec > maxHeartbeatIntervalSec) {
+		return domain.Persona{}, domain.Invalid("heartbeat_interval_sec", fmt.Sprintf("must be between 0 and %d", maxHeartbeatIntervalSec))
 	}
 	if in.ClearWorkspace && in.WorkspaceID != nil {
 		return domain.Persona{}, domain.Invalid("workspace_id", "cannot set and clear at once")
@@ -171,8 +171,8 @@ func (s *Service) UpdatePersona(ctx context.Context, actor domain.Actor, company
 				changed = append(changed, "pause_reason")
 			}
 		}
-		if in.HeartbeatIntervalSec != nil && int32(*in.HeartbeatIntervalSec) != cur.HeartbeatIntervalSec {
-			p.HeartbeatIntervalSec = int32(*in.HeartbeatIntervalSec)
+		if in.HeartbeatIntervalSec != nil && i32(*in.HeartbeatIntervalSec) != cur.HeartbeatIntervalSec {
+			p.HeartbeatIntervalSec = i32(*in.HeartbeatIntervalSec)
 			changed = append(changed, "heartbeat_interval_sec")
 		}
 		if in.ClearWorkspace && cur.WorkspaceID != nil {

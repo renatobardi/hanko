@@ -2,6 +2,7 @@ package service_test
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -372,5 +373,20 @@ func TestMemoryBackoff(t *testing.T) {
 		if got := service.MemoryBackoff(attempts); got != want {
 			t.Errorf("MemoryBackoff(%d) = %v, want %v", attempts, got, want)
 		}
+	}
+}
+
+// heartbeat_interval_sec acima de 30 dias seria truncado ao virar int4: recusa em vez de gravar outro valor.
+func TestHeartbeatIntervalLimite(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	_, err := e.svc.HirePersona(ctx, domain.HumanActor, e.co.ID, service.HirePersonaInput{Name: "X", Agent: "fake", HeartbeatIntervalSec: 1 << 31})
+	if !errors.Is(err, domain.ErrInvalid) {
+		t.Fatalf("hire com intervalo gigante: %v", err)
+	}
+	p := e.persona(t, "Y", nil)
+	big := 30*24*3600 + 1
+	if _, err := e.svc.UpdatePersona(ctx, domain.HumanActor, e.co.ID, p.ID, service.UpdatePersonaInput{HeartbeatIntervalSec: &big}); !errors.Is(err, domain.ErrInvalid) {
+		t.Fatalf("update com intervalo gigante: %v", err)
 	}
 }

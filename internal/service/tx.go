@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 	_ "time/tzdata" // zone database for company timezones, independent of the host
@@ -162,6 +163,21 @@ func isUniqueOn(err error, constraint string) bool {
 }
 
 func notFound(what string) error { return fmt.Errorf("%s: %w", what, domain.ErrNotFound) }
+
+// maxHeartbeatIntervalSec é o maior intervalo de heartbeat aceito (30 dias); acima disso a
+// persona é, na prática, sob demanda (intervalo 0).
+const maxHeartbeatIntervalSec = 30 * 24 * 3600
+
+// i32 converte para int32 saturando nos limites, para parâmetros de consulta e colunas int4.
+func i32(n int) int32 {
+	if n > math.MaxInt32 {
+		return math.MaxInt32
+	}
+	if n < math.MinInt32 {
+		return math.MinInt32
+	}
+	return int32(n)
+}
 
 func clamp(n, def, max int) int {
 	if n <= 0 {
