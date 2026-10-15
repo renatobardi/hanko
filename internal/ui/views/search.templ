@@ -1,0 +1,137 @@
+package views
+
+import (
+	"fmt"
+
+	"github.com/renatobardi/hanko/internal/i18n"
+)
+
+templ SearchPage(sh Shell, vm SearchVM) {
+	@Layout(sh) {
+		@PageHead(i18n.T(ctx, "Buscar"), vm.Subtitle) {
+		}
+		<form method="get" action={ templ.SafeURL(sh.Base() + "/buscar") } class="search-big" role="search">
+			@Icon("search")
+			<input
+				class="input"
+				id="q-search"
+				type="search"
+				name="q"
+				value={ vm.Query }
+				autofocus
+				autocomplete="off"
+				placeholder={ i18n.T(ctx, "Buscar tasks, comentários, personas, execuções, fluxos...") }
+				aria-label={ i18n.T(ctx, "Buscar") }
+				aria-controls="search-results"
+				hx-get={ sh.Base() + "/buscar" }
+				hx-include="[name='tipo']"
+				hx-trigger="input changed delay:250ms, search"
+				hx-target="#search-results"
+				hx-swap="outerHTML"
+				hx-push-url="true"
+			/>
+			if vm.Type != "" {
+				<input type="hidden" name="tipo" value={ vm.Type }/>
+			}
+			<kbd class="kbd" title={ i18n.T(ctx, "Atalho para focar a busca") }>/</kbd>
+		</form>
+		<div class="toolbar">
+			@Tabs(vm.Tabs)
+		</div>
+		@SearchResults(vm)
+	}
+}
+
+// SearchResults é o fragmento trocado pelo htmx a cada digitação.
+templ SearchResults(vm SearchVM) {
+	<div id="search-results" aria-live="polite">
+		switch {
+			case vm.Error != "":
+				@EmptyCard("search", i18n.T(ctx, "Nada para buscar ainda"), vm.Error, true) {
+				}
+			case vm.Query == "":
+				@EmptyCard("search", i18n.T(ctx, "Busque em tudo da empresa"), i18n.T(ctx, "Digite uma palavra: a busca olha tasks, comentários, personas, execuções, fluxos e a memória. Use \"frase exata\", -excluir e OR; a chave de uma task (HNK-12) vai direto a ela."), true) {
+				}
+			case len(vm.Groups) == 0:
+				@EmptyCard("search", i18n.T(ctx, "Nada encontrado."), i18n.Tf(ctx, "Nenhum resultado para “%s”. Tente outro termo ou menos palavras.", vm.Query), true) {
+				}
+			default:
+				<p class="muted search-count">{ i18n.Tf(ctx, "%d resultados para “%s”", vm.Total, vm.Query) }</p>
+				for _, g := range vm.Groups {
+					@searchGroup(g)
+				}
+		}
+	</div>
+}
+
+templ searchGroup(g SearchGroupVM) {
+	<section class="card search-group">
+		<div class="card-head">
+			<h2 class="search-h">
+				@Icon(g.Icon)
+				{ g.Label }
+				if !g.Unavailable {
+					<span class="cnt">
+						{ fmt.Sprint(g.Count) }
+						if g.More {
+							+
+						}
+					</span>
+				}
+			</h2>
+		</div>
+		if g.Unavailable {
+			<p class="muted" style="padding:0 20px 16px">{ i18n.T(ctx, "A memória não respondeu agora. Os outros resultados valem; tente de novo em instantes.") }</p>
+		}
+		<ul class="hits">
+			for _, h := range g.Hits {
+				<li class={ "hit", templ.KV("exact", h.Exact) }>
+					if h.Href != "" {
+						<a class="hit-main" href={ templ.SafeURL(h.Href) }>
+							@hitBody(h)
+						</a>
+					} else {
+						<div class="hit-main">
+							@hitBody(h)
+						</div>
+					}
+				</li>
+			}
+		</ul>
+	</section>
+}
+
+templ hitBody(h SearchHitVM) {
+	<div class="hit-top">
+		if h.Ref != "" {
+			<span class="mono hit-ref">{ h.Ref }</span>
+		}
+		<span class="hit-title">@Marked(h.Title)</span>
+		if h.Badge != nil {
+			@BadgeEl(*h.Badge)
+		}
+	</div>
+	if len(h.Snippet) > 0 {
+		<div class="hit-snip muted">@Marked(h.Snippet)</div>
+	}
+	if h.Meta != "" || h.When != "" {
+		<div class="hit-meta muted">
+			{ h.Meta }
+			if h.Meta != "" && h.When != "" {
+				<span>·</span>
+			}
+			{ h.When }
+		</div>
+	}
+}
+
+// Marked escreve os segmentos; só o que casou ganha <mark>.
+templ Marked(segs []Seg) {
+	for _, s := range segs {
+		if s.Match {
+			<mark>{ s.Text }</mark>
+		} else {
+			{ s.Text }
+		}
+	}
+}
