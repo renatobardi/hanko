@@ -7,6 +7,7 @@
 #   (sem flags)  provisiona/atualiza o LXC hanko-prd e sobe a stack; valida o /healthz.
 #   --edge       também emite o certificado e instala o vhost nginx público de hanko.oute.pro no host
 #                (sudo no oute-server; senha do Keychain `lab-oute-sudo`, como nos scripts do lab).
+#   --snapshot   tira snapshots do LXC inteiro antes e depois do deploy (padrão: não).
 #   --dry-run    só imprime os comandos.
 # Requisitos: `ssh oute-server` funcionando (usuário ubuntu, grupo lxd), working tree limpo.
 set -euo pipefail
@@ -20,8 +21,8 @@ DOMAIN="${HANKO_DOMAIN:-hanko.oute.pro}"
 # IP Tailscale do host: o split DNS da tailnet resolve *.oute.pro para ele, e os vhosts do lab
 # escutam nele explicitamente — sem este listen o nginx não acha o SNI ("unrecognized name").
 TS_IP="${OUTE_TAILSCALE_IP:-100.66.254.24}"
-EDGE=false; DRY=false
-for a in "$@"; do case "$a" in --edge) EDGE=true ;; --dry-run) DRY=true ;; *) echo "uso: $0 [--edge] [--dry-run]" >&2; exit 2 ;; esac; done
+EDGE=false; DRY=false; SNAP=false
+for a in "$@"; do case "$a" in --edge) EDGE=true ;; --dry-run) DRY=true ;; --snapshot) SNAP=true ;; *) echo "uso: $0 [--edge] [--dry-run] [--snapshot]" >&2; exit 2 ;; esac; done
 
 cd "$(git rev-parse --show-toplevel)"
 [[ -z "$(git status --porcelain)" ]] || { echo "erro: working tree com mudanças; commite antes do deploy" >&2; exit 1; }
@@ -79,7 +80,8 @@ fi
 r "lxc config set ${NAME} limits.memory ${HANKO_LXC_MEMORY:-4GiB}"  # teto declarado no inventário do lab
 
 # 1b) Ponto de volta do LXC inteiro (código, imagens e banco) ANTES de trocar o código: `lxc restore ${NAME} pre-deploy-<ts>`.
-r "lxc snapshot ${NAME} pre-deploy-\$(date +%Y%m%d%H%M%S)"
+# Desligado por padrão (cada snapshot copia o LXC inteiro e enche o disco); ligue com --snapshot quando houver dados que importem.
+$SNAP && r "lxc snapshot ${NAME} pre-deploy-\$(date +%Y%m%d%H%M%S)"
 
 # 2) Código: bundle git (o repo é privado; nada de credencial dentro do LXC)
 BUNDLE="$(mktemp -t hanko-XXXXXX).bundle"
@@ -159,7 +161,7 @@ UNIT
 chmod 755 /opt/app/deploy/oute-server/backup.sh /opt/app/deploy/oute-server/restore.sh
 systemctl daemon-reload && systemctl enable --now hanko-backup.timer"
 x "systemctl start hanko-backup.service || echo 'AVISO: backup inicial falhou (veja journalctl -u hanko-backup.service); o deploy segue'; ls -1 /var/backups/hanko || true; systemctl list-timers hanko-backup.timer --no-pager || true"
-r "lxc snapshot ${NAME} deploy-\$(date +%Y%m%d%H%M%S)"
+$SNAP && r "lxc snapshot ${NAME} deploy-\$(date +%Y%m%d%H%M%S)"
 
 # 5) Borda pública (host): mesmo padrão de lab/scripts/ops/deploy-vault-vhost.sh —
 #    certbot --webroot pelo catch-all ACME da porta 80, vhost 443 público, senha sudo do Keychain (lab-oute-sudo).
