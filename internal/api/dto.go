@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/export"
 	"github.com/renatobardi/hanko/internal/service"
 )
 
@@ -132,7 +133,7 @@ type Persona struct {
 	Instructions         string         `json:"instructions" doc:"Instruções permanentes da persona."`
 	Agent                string         `json:"agent" enum:"claude,codex,acp,fake" doc:"Harness que executa a persona."`
 	Model                string         `json:"model,omitempty" example:"claude-sonnet-4-5"`
-	AdapterConfig        map[string]any `json:"adapter_config,omitempty" doc:"Configuração específica do adapter."`
+	AdapterConfig        map[string]any `json:"adapter_config,omitempty" doc:"Configuração específica do adapter. Valores de env e segredos voltam mascarados (***); os nomes ficam."`
 	Status               string         `json:"status" enum:"active,idle,running,paused,error,awaiting_gate,off"`
 	ReportsTo            string         `json:"reports_to,omitempty" format:"uuid" doc:"Persona à qual esta reporta."`
 	WorkspaceID          string         `json:"workspace_id,omitempty" format:"uuid"`
@@ -445,7 +446,7 @@ func personaOut(p domain.Persona) Persona {
 		_ = json.Unmarshal(p.AdapterConfig, &cfg)
 	}
 	return Persona{ID: idStr(p.ID), CompanyID: idStr(p.CompanyID), Slug: p.Slug, Name: p.Name, Title: p.Title,
-		Instructions: p.Instructions, Agent: p.Agent, Model: p.Model, AdapterConfig: cfg, Status: string(p.Status),
+		Instructions: p.Instructions, Agent: p.Agent, Model: p.Model, AdapterConfig: export.MaskConfig(cfg), Status: string(p.Status),
 		ReportsTo: idPtr(p.ReportsTo), WorkspaceID: idPtr(p.WorkspaceID), HeartbeatIntervalSec: p.HeartbeatIntervalSec,
 		BudgetMonthlyCents: p.BudgetMonthlyCents, PauseReason: p.PauseReason, SubscriptionID: idPtr(p.SubscriptionID), RequireReview: p.RequireReview, ReviewerPersonaID: idPtr(p.ReviewerPersonaID), ReviewerAgent: p.ReviewerAgent, ReviewerModel: p.ReviewerModel, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt}
 }

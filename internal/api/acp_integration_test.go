@@ -3,6 +3,7 @@
 package api_test
 
 import (
+	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
@@ -24,6 +25,26 @@ func TestAPIPersonaACP(t *testing.T) {
 	e.want(200, "GET", ps+"/"+p.Slug, "", &got)
 	if got.Agent != "acp" || got.AdapterConfig["command"] != "meu-agente" {
 		t.Fatalf("get: %+v", got)
+	}
+
+	// env nunca volta em claro: só os nomes das variáveis (a contratação aceita os valores)
+	var sec api.Persona
+	e.want(201, "POST", ps, `{"name":"Com Env","agent":"acp","adapter_config":{"command":"meu-agente","args":["--stdio","--api-key","sk-ant-api03-abcdefghijklmnop"],"env":{"MY_KEY":"s3cr3t-valor","MY_HOME":"/data"}}}`, &sec)
+	var back api.Persona
+	e.want(200, "GET", ps+"/"+sec.Slug, "", &back)
+	var list api.ListBody[api.Persona]
+	e.want(200, "GET", ps, "", &list)
+	for _, c := range []map[string]any{sec.AdapterConfig, back.AdapterConfig} {
+		b, _ := json.Marshal(c)
+		if s := string(b); strings.Contains(s, "s3cr3t-valor") || strings.Contains(s, "/data") || strings.Contains(s, "sk-ant") ||
+			!strings.Contains(s, `"MY_KEY":"***"`) || !strings.Contains(s, `"MY_HOME":"***"`) || !strings.Contains(s, `"command":"meu-agente"`) {
+			t.Fatalf("adapter_config deve mascarar os valores de env e de --api-key: %s", s)
+		}
+	}
+	for _, it := range list.Items {
+		if b, _ := json.Marshal(it.AdapterConfig); strings.Contains(string(b), "s3cr3t-valor") {
+			t.Fatalf("listagem vaza env: %s", b)
+		}
 	}
 
 	// erros amigáveis: 422 apontando adapter_config e dizendo o que falta
