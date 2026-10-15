@@ -116,6 +116,7 @@ func (t *txc) lockReview(companyID, reviewID domain.ID) (store.Review, store.Tas
 }
 
 // lockTaskOfReviewRun locks the task of a review run before the run itself (canonical order).
+// The same goes for the consolidation of memory (trigger memory), which closes its task when the run ends.
 // It is a no-op for any other run.
 func (t *txc) lockTaskOfReviewRun(companyID, runID domain.ID) error {
 	peek, err := t.q.GetRunByID(t.ctx, store.GetRunByIDParams{CompanyID: companyID, ID: runID})
@@ -125,14 +126,14 @@ func (t *txc) lockTaskOfReviewRun(companyID, runID domain.ID) error {
 	if err != nil {
 		return mapErr(err, "get run")
 	}
-	if domain.RunTrigger(peek.Trigger) == domain.TriggerChat && peek.ConversationID != nil {
+	switch tr := domain.RunTrigger(peek.Trigger); {
+	case tr == domain.TriggerChat && peek.ConversationID != nil:
 		// Run de chat: a conversa é a trava (mesma ordem de SendMessage: conversa antes da run).
 		if _, err := t.q.GetConversationForUpdate(t.ctx, store.GetConversationForUpdateParams{CompanyID: companyID, ID: *peek.ConversationID}); err != nil {
 			return mapErr(err, "get conversation")
 		}
 		return nil
-	}
-	if domain.RunTrigger(peek.Trigger) != domain.TriggerReview || peek.TaskID == nil {
+	case tr != domain.TriggerReview && tr != domain.TriggerMemory, peek.TaskID == nil:
 		return nil
 	}
 	if _, err := t.q.GetTaskByIDForUpdate(t.ctx, store.GetTaskByIDForUpdateParams{CompanyID: companyID, ID: *peek.TaskID}); err != nil {
@@ -186,7 +187,11 @@ func (s *Service) StartReview(ctx context.Context, companyID, reviewID domain.ID
 		if err != nil {
 			return mapErr(err, "get company")
 		}
-		if berr := t.checkBudgets(co, runPersona, true); berr != nil {
+		project, err := t.projectOf(companyID, task.ProjectID)
+		if err != nil {
+			return err
+		}
+		if berr := t.checkBudgets(co, runPersona, project, true); berr != nil {
 			return t.completeReview(rv, task, nil, "failed", nil, "A revisão não rodou: "+berr.Error(), label, nil)
 		}
 		artifact, err := t.reviewArtifact(co, task, author, domain.TaskStatus(rv.RequestedStatus))
@@ -211,7 +216,8 @@ func (s *Service) StartReview(ctx context.Context, companyID, reviewID domain.ID
 				return t.completeReview(rv, task, nil, "failed", nil, "A revisão não rodou: "+gerr.Error(), label, nil)
 			}
 		}
-		run, err := t.createRun(companyID, task.ID, runPersona.ID, rv.Agent, model, modelSource, subID, domain.TriggerReview)
+		ws, wsSource := pickWorkspace(task.WorkspaceID, project, runPersona)
+		run, err := t.createRun(companyID, task.ID, runPersona.ID, rv.Agent, model, modelSource, subID, ws, wsSource, domain.TriggerReview)
 		if err != nil {
 			return err
 		}

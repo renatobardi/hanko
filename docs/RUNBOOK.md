@@ -334,7 +334,9 @@ Registre data e resultado em `docs/SESSION.md` ou no issue de operação.
 | `421 host não permitido` | cabeçalho `Host` fora da lista | acrescente o nome em `HANKO_ALLOWED_HOSTS` ou ajuste `HANKO_PUBLIC_URL` |
 | `HANKO_SECRET tem N bytes` | secret curto | `openssl rand -hex 32` |
 | `path: must be inside the workspaces root` ao criar workspace | caminho fora de `HANKO_WORKSPACES_ROOT` | use um caminho dentro da raiz ou mude a raiz |
-| Agente não enxerga uma variável de ambiente | env filtrado (allowlist) | `HANKO_AGENT_ENV_ALLOW=NOME` |
+| Agente não enxerga uma variável de ambiente | env filtrado (allowlist) | `HANKO_AGENT_ENV_ALLOW=NOME` (ou `adapter_config.env` numa persona `acp`) |
+| Run `acp` falha com "não respondeu ao initialize" | o comando não fala ACP v1 por stdio (ou demora mais que `init_timeout_sec`) | rode o comando à mão; o erro traz as últimas linhas de stdout/stderr (§ Agentes ACP) |
+| Run `acp` termina em segundos sem editar nada | política `read_only` (padrão) recusou a edição | veja os eventos "permissão negada" no log; contrate com `permission: allow` se for o caso |
 | `HANKO_SECRET exige…` / `HANKO_PUBLIC_URL exige https` no boot | modo authenticated sem secret de 32 bytes ou com URL http fora de loopback | `openssl rand -hex 32`; use `https://…` (ou loopback para teste local) |
 | `/entrar` mostra "Criar conta de dono" | banco sem usuários | `hanko auth create-owner` (§5.1) antes de expor; em URL pública o formulário só existe com `HANKO_AUTH_WEB_BOOTSTRAP=true` |
 | Boot recusado: `HANKO_AUTH_PROVIDER=firebase com HANKO_PUBLIC_URL público exige…` | firebase sem listas nem dono nomeado | defina `HANKO_AUTH_ALLOWED_EMAILS/DOMAINS` ou `HANKO_AUTH_OWNER_EMAIL` (§5.2) |
@@ -347,6 +349,24 @@ Registre data e resultado em `docs/SESSION.md` ou no issue de operação.
 | Porta 7420 ocupada | outra instância | `HANKO_ADDR` |
 
 Logs são JSON no stderr com `trace_id`/`span_id`: copie o `trace_id` e busque no Tempo (Grafana) para ver o trace completo da requisição/run.
+
+## Memória consolidada (curadoria governada)
+
+Requer `HANKO_MEMORY_PROVIDER=ai-memory` (ADR-0030). Com `none` a seção "Memória" das Configurações mostra "Memória desligada" e a API responde 422 com o motivo.
+
+- **Ligar:** Configurações da empresa → Memória (ou `hanko memory config --enable --interval 24 --curator <persona>`). O intervalo vai de 1 a 720 h; desligada por padrão. Prefira um curador com modelo barato.
+- **Rodar agora:** botão "Consolidar agora" ou `hanko memory consolidate [workspace]`. Cria uma task de sistema por workspace; o custo entra no ledger e no orçamento como qualquer run. Uma rodada aberta por workspace; a que nunca rodou expira em 6 h.
+- **Gate `memory`:** remoções, fusões e reescritas da curadoria não chegam ao ai-memory; viram proposta e um gate na aba "Memória" do Inbox (diff e sha256). Aprovar enfileira `apply_memory_proposal`; rejeitar descarta. CLI: `hanko memory proposals|approve|reject <id>`.
+- **Falha ao aplicar:** a proposta fica `failed` com o erro e é tentada de novo (1 min a 6 h, 20 tentativas). Depois disso: `hanko memory retry <id>` ou o botão "Tentar de novo". Nada se perde.
+- **Concessões:** uma persona só alcança a memória do próprio workspace. Para outro workspace da empresa: `hanko memory grant <persona> <workspace> --access read|write` (`grants`, `revoke` para listar e remover).
+- **Diff com conteúdo atual:** defina `HANKO_MEMORY_READ_TOOL` (`memory.read_tool` no YAML) com o nome da tool de leitura de página do ai-memory; sem ela o diff mostra só o proposto.
+
+| Sintoma | Causa provável | Ação |
+|---|---|---|
+| "Memória desligada" / 422 ao ligar | `HANKO_MEMORY_PROVIDER=none` | configurar o ai-memory e reiniciar |
+| Proposta `failed` | ai-memory fora do ar ou recusou | ver o erro na seção Memória; o retry é automático, ou `hanko memory retry` |
+| Muitas propostas | tool de nome desconhecido é retida por segurança | aprovar/rejeitar; ver ADR-0030 |
+| Consolidação não roda | curador pausado ou sem orçamento | ver Inbox/alertas; expira em 6 h |
 
 ## Alertas operacionais
 
@@ -378,6 +398,68 @@ O gate nasce com o parecer (veredito, justificativa, sha256 do pacote revisado e
 API, mas **a decisão continua humana**. Revisão que falha, expira, é interrompida ou não traz veredito válido abre o gate sem veredito,
 com o motivo; revisão pendente há mais de 2 h é resolvida da mesma forma. Se a task sai de `in_review` no meio, a revisão é cancelada.
 O sha256 cobre o pacote task + histórico + entrega mostrado ao revisor, não o estado git do workspace.
+
+## Agentes ACP (harness `acp`)
+
+O harness `acp` (ADR-0023) roda qualquer agente que fale o Agent Client Protocol v1 por stdio. O Hanko não traz agente algum: o
+operador instala o programa e a persona aponta para ele.
+
+**Instalar o agente.** O executável precisa existir no `PATH` do processo do Hanko (ou ser usado por caminho absoluto) e estar
+autenticado fora do Hanko (autenticação interativa não é suportada). O `Dockerfile` oficial (distroless) não tem como rodar agentes;
+use a variante `Dockerfile.agents` ou uma imagem sua derivada dela, por exemplo (**exemplo ilustrativo**, o pacote é fictício):
+
+```dockerfile
+FROM minha-imagem-hanko-agents
+USER root
+RUN npm install -g pacote-do-agente-acp && npm cache clean --force
+USER node
+```
+
+Sem container, instale o agente no host/LXC do servidor (npm global, binário em `/usr/local/bin`, etc.) com o mesmo usuário que roda o Hanko.
+Credenciais do agente (chave de API etc.) entram por `HANKO_AGENT_ENV_ALLOW` (variáveis do servidor) ou por `adapter_config.env` (na persona).
+
+**Contratar uma persona ACP.** Na UI, escolha o harness ACP e preencha comando, argumentos e permissões. Pela CLI (listas e objetos
+precisam de `--config-json`) ou pela API (`adapter_config`):
+
+```sh
+# EXEMPLO: troque "meu-agente-acp" pelo comando real do seu agente
+hanko persona hire "Externo" --agent acp \
+  --config-json '{"command":"meu-agente-acp","args":["--stdio"],"permission":"read_only"}'
+```
+
+`permission`: `read_only` (padrão) aprova leitura, busca, raciocínio e consulta externa (`read`, `search`, `think`, `fetch`) e recusa
+edição, remoção, mover, executar e o resto; `allow` aprova tudo (inclusive executar comandos: use só com agentes e workspaces em que você
+confia); `reject` recusa tudo. A escrita por `fs/write_text_file` só é aceita com `allow`. Runs de revisão ignoram a configuração e usam `read_only`.
+Cada decisão aparece no log da run como evento "permissão concedida/negada".
+
+**Limites conhecidos.**
+- O confinamento ao diretório do workspace vale para o que passa pelo Hanko (`fs/*`). O processo do agente tem os privilégios do usuário que
+  roda o Hanko; para isolar de verdade, rode o Hanko num container/usuário sem acesso ao que o agente não deve ver.
+- O servidor MCP do próprio Hanko é http; um agente que não anuncia `mcpCapabilities.http` roda sem as tools `hanko_*` (há um aviso no log).
+- Sem terminal (`terminal/*`), sem autenticação interativa, sem ACP v2. Mudar o comando de uma persona exige contratar outra.
+- Cancelar uma run envia `session/cancel` e espera até 3 s; o agente que não obedece é morto (grupo de processos inteiro).
+- Uma persona ACP pode ser **persona revisora**, mas `acp` não pode ser o harness alternativo de revisão (`--reviewer-agent`).
+- Exportar uma empresa remove de `adapter_config` chaves e flags com credencial; depois de importar, reponha a chave do agente.
+
+**Diagnóstico.** Erros comuns da run: "não respondeu ao initialize em N s" (o comando não fala ACP por stdio; teste-o à mão e veja as linhas
+de stdout/stderr no erro), "versão do ACP incompatível" (o agente só fala outra versão do protocolo), "o agente exige autenticação"
+(autentique-o fora do Hanko) e "não foi possível iniciar o agente ACP" (comando fora do `PATH` do Hanko).
+
+## Projetos e workspaces
+
+Um **workspace** é um diretório (opcionalmente com `repo_url` e branch padrão, só metadado) e um **projeto** agrupa tasks, aponta
+para um workspace e pode ter orçamento mensal (ADR-0025). Telas `/projetos` e `/workspaces`; CLI `hanko project …`, `hanko workspace …`,
+`hanko task create --project`, `hanko cost --project`, `hanko budget set --project`.
+
+- **Pasta da run:** workspace da task > workspace do projeto > workspace da persona > diretório temporário. A origem fica em
+  `runs.workspace_source` (`task|project|persona|none`).
+- **Caminho:** absoluto, limpo e dentro de `HANKO_WORKSPACES_ROOT`. Se o diretório não existe na máquina a UI mostra "diretório ausente"
+  e as runs usam um temporário; crie a pasta (o Hanko não faz `git clone`).
+- **Excluir workspace em uso** dá 409; `--unlink` (CLI), `?unlink=true` (API) ou a caixa na UI desvinculam personas, projetos e tasks.
+- **Orçamento do projeto:** estourou, a run é recusada com o motivo, sem pausar a persona; ≥ 80% abre alerta na Caixa de entrada. Suba o
+  teto (`hanko budget set --project <slug> <usd>`) para liberar. O custo pago (mensalidade) não é rateado por projeto.
+- **Importar de outra máquina:** caminho que esta instalação não aceita entra vazio e a contagem `workspace_paths_cleared` avisa;
+  ajuste com `hanko workspace update <slug> --path …`.
 
 ## Chat com uma persona
 

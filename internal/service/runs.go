@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -85,6 +86,28 @@ func (s *Service) ListRunEvents(ctx context.Context, companyID, runID domain.ID,
 	return out, nil
 }
 
+// ListRunEventsBefore is the backward page of the log: the limit events right before beforeSeq, ascending.
+// beforeSeq <= 0 means "from the end" (the last limit events). Together with ListRunEvents (forward from a seq)
+// it lets a viewer load the tail first and older history on demand, with seq as the cursor.
+func (s *Service) ListRunEventsBefore(ctx context.Context, companyID, runID domain.ID, beforeSeq int64, limit int) ([]domain.RunEvent, error) {
+	if err := s.require(ctx, companyID, domain.MemberViewer); err != nil {
+		return nil, err
+	}
+	if beforeSeq <= 0 {
+		beforeSeq = math.MaxInt64
+	}
+	rows, err := s.read().ListRunEventsBefore(ctx, store.ListRunEventsBeforeParams{CompanyID: companyID, RunID: runID,
+		BeforeSeq: beforeSeq, Lim: i32(clamp(limit, 200, 1000))})
+	if err != nil {
+		return nil, fmt.Errorf("list run events before: %w", err)
+	}
+	out := make([]domain.RunEvent, len(rows))
+	for i, r := range rows { // the query is newest-first; the API contract is ascending
+		out[len(rows)-1-i] = runEventFromRow(r)
+	}
+	return out, nil
+}
+
 // CancelRun marks a queued run cancelled; for a running run it records the request and
 // publishes run.cancel on the broker (the executor cancels its context).
 func (s *Service) CancelRun(ctx context.Context, actor domain.Actor, companyID, runID domain.ID) (RunView, error) {
@@ -137,8 +160,13 @@ func (t *txc) cancelRun(actor domain.Actor, companyID domain.ID, cur store.Run, 
 			return err
 		}
 		t.publishRunStatus(runFromRow(row))
-		if domain.RunTrigger(row.Trigger) == domain.TriggerReview {
+		switch domain.RunTrigger(row.Trigger) {
+		case domain.TriggerReview:
 			if err := t.reviewRunEnded(row, domain.RunCancelled, "", ""); err != nil {
+				return err
+			}
+		case domain.TriggerMemory:
+			if err := t.memoryRunEnded(row, domain.RunCancelled, ""); err != nil {
 				return err
 			}
 		}
@@ -182,7 +210,7 @@ func (t *txc) cancelTaskRun(actor domain.Actor, companyID, taskID domain.ID, rea
 // Moves task todo → in_progress.
 func (s *Service) CheckoutRun(ctx context.Context, w Wake) (domain.Run, error) {
 	switch w.Trigger {
-	case domain.TriggerAssign, domain.TriggerComment, domain.TriggerManual, domain.TriggerHeartbeat, domain.TriggerGate, domain.TriggerFlow:
+	case domain.TriggerAssign, domain.TriggerComment, domain.TriggerManual, domain.TriggerHeartbeat, domain.TriggerGate, domain.TriggerFlow, domain.TriggerMemory:
 	default:
 		return domain.Run{}, domain.Invalid("trigger", fmt.Sprintf("unknown trigger %q", w.Trigger))
 	}
@@ -223,10 +251,16 @@ func (s *Service) CheckoutRun(ctx context.Context, w Wake) (domain.Run, error) {
 		if err != nil {
 			return mapErr(err, "get company")
 		}
-		if berr := t.checkBudgets(co, p, true); berr != nil {
+		project, err := t.projectOf(w.CompanyID, task.ProjectID)
+		if err != nil {
+			return err
+		}
+		if berr := t.checkBudgets(co, p, project, true); berr != nil {
 			blocked = berr
 			var rr *reservationRefused
-			if errors.As(berr, &rr) { // refused only by the reservation: keep the safety net off this persona for a while
+			// refused only by the persona's or company's reservation: keep the safety net off this persona for a
+			// while. A project's budget never silences the persona (its other tasks may run).
+			if errors.As(berr, &rr) && rr.scope != "project" {
 				if err := t.q.SetPersonaBudgetRefused(ctx, store.SetPersonaBudgetRefusedParams{ID: p.ID, Now: &t.now}); err != nil {
 					return fmt.Errorf("mark budget refused: %w", err)
 				}
@@ -259,7 +293,8 @@ func (s *Service) CheckoutRun(ctx context.Context, w Wake) (domain.Run, error) {
 				return nil
 			}
 		}
-		row, err := t.createRun(w.CompanyID, task.ID, p.ID, p.Agent, model, modelSource, subID, w.Trigger)
+		ws, wsSource := pickWorkspace(task.WorkspaceID, project, p)
+		row, err := t.createRun(w.CompanyID, task.ID, p.ID, p.Agent, model, modelSource, subID, ws, wsSource, w.Trigger)
 		if err != nil {
 			return err
 		}
@@ -300,19 +335,22 @@ func (s *Service) CheckoutRun(ctx context.Context, w Wake) (domain.Run, error) {
 // createRun inserts a queued run with its friendly name. The name comes from the run id; when the
 // pair is already taken in the company the next variation of the hash is used (see domain.RunName).
 // A race on the same name or on the one-active-run-per-task index is ErrActiveRun, so the wake is retried.
-func (t *txc) createRun(companyID, taskID, personaID domain.ID, agent, model string, modelSource domain.ModelSource, subID *domain.ID, trigger domain.RunTrigger) (store.Run, error) {
-	return t.insertRun(companyID, &taskID, nil, personaID, agent, model, modelSource, subID, trigger)
+func (t *txc) createRun(companyID, taskID, personaID domain.ID, agent, model string, modelSource domain.ModelSource, subID *domain.ID,
+	ws *domain.ID, wsSource domain.WorkspaceSource, trigger domain.RunTrigger) (store.Run, error) {
+	return t.insertRun(companyID, &taskID, nil, personaID, agent, model, modelSource, subID, ws, wsSource, trigger)
 }
 
 // insertRun creates the queued run of a task (taskID) or of a conversation (convID), exactly one of them.
-func (t *txc) insertRun(companyID domain.ID, taskID, convID *domain.ID, personaID domain.ID, agent, model string, modelSource domain.ModelSource, subID *domain.ID, trigger domain.RunTrigger) (store.Run, error) {
+func (t *txc) insertRun(companyID domain.ID, taskID, convID *domain.ID, personaID domain.ID, agent, model string, modelSource domain.ModelSource, subID *domain.ID,
+	ws *domain.ID, wsSource domain.WorkspaceSource, trigger domain.RunTrigger) (store.Run, error) {
 	id := domain.NewID()
 	name, err := t.freeRunName(companyID, id)
 	if err != nil {
 		return store.Run{}, err
 	}
 	row, err := t.q.CreateRun(t.ctx, store.CreateRunParams{ID: id, CompanyID: companyID, TaskID: taskID, ConversationID: convID,
-		PersonaID: personaID, Trigger: string(trigger), Agent: agent, Model: model, ModelSource: string(modelSource), SubscriptionID: subID, Name: name, Now: t.now})
+		PersonaID: personaID, Trigger: string(trigger), Agent: agent, Model: model, ModelSource: string(modelSource), SubscriptionID: subID, Name: name,
+		WorkspaceID: ws, WorkspaceSource: string(wsSource), Now: t.now})
 	if err != nil {
 		if isUnique(err) {
 			return store.Run{}, domain.ErrActiveRun
@@ -452,9 +490,21 @@ func (s *Service) LoadRunContext(ctx context.Context, companyID, runID domain.ID
 		}
 		rc.Chat = cc
 	}
-	wsID := task.WorkspaceID
+	// The workspace was chosen when the run opened (and recorded on it); runs older than that, or whose workspace
+	// was deleted since, resolve it again from the task, the project and the persona.
+	wsID := run.WorkspaceID
 	if wsID == nil {
-		wsID = persona.WorkspaceID
+		var project *store.Project
+		if task.ProjectID != nil {
+			pr, err := q.GetProjectByID(ctx, store.GetProjectByIDParams{CompanyID: companyID, ID: *task.ProjectID})
+			if err != nil && !isNoRows(err) {
+				return RunContext{}, fmt.Errorf("get project: %w", err)
+			}
+			if err == nil {
+				project = &pr
+			}
+		}
+		wsID, _ = pickWorkspace(task.WorkspaceID, project, persona)
 	}
 	if wsID != nil {
 		ws, err := q.GetWorkspaceByID(ctx, store.GetWorkspaceByIDParams{CompanyID: companyID, ID: *wsID})
@@ -606,6 +656,7 @@ func (s *Service) FinishRun(ctx context.Context, companyID, runID domain.ID, in 
 
 		isReview := domain.RunTrigger(row.Trigger) == domain.TriggerReview
 		isChat := row.ConversationID != nil
+		isMemory := domain.RunTrigger(row.Trigger) == domain.TriggerMemory
 		// A review run's report already lives on the gate: it is not posted as a persona comment.
 		// A chat run's summary is the persona's reply in the conversation (chatRunEnded below).
 		if in.Status == domain.RunDone && !isReview && !isChat && strings.TrimSpace(res.Summary) != "" {
@@ -629,6 +680,11 @@ func (s *Service) FinishRun(ctx context.Context, companyID, runID domain.ID, in 
 				return err
 			}
 		}
+		if isMemory {
+			if err := t.memoryRunEnded(row, in.Status, res.Summary); err != nil {
+				return err
+			}
+		}
 		if cost != nil {
 			co, err := t.q.GetCompanyByID(ctx, companyID)
 			if err != nil {
@@ -643,7 +699,18 @@ func (s *Service) FinishRun(ctx context.Context, companyID, runID domain.ID, in 
 					return err
 				}
 			}
-			if err := t.checkBudgets(co, p, false); err != nil {
+			// a chat run has no task, hence no project: only the persona and company budgets apply
+			var project *store.Project
+			if row.TaskID != nil {
+				ft, err := t.q.GetTaskByID(ctx, store.GetTaskByIDParams{CompanyID: companyID, ID: *row.TaskID})
+				if err != nil {
+					return mapErr(err, "get task")
+				}
+				if project, err = t.projectOf(companyID, ft.ProjectID); err != nil {
+					return err
+				}
+			}
+			if err := t.checkBudgets(co, p, project, false); err != nil {
 				return err
 			}
 		}
@@ -676,11 +743,18 @@ func (s *Service) FinishRun(ctx context.Context, companyID, runID domain.ID, in 
 		if err != nil {
 			return mapErr(err, "get task")
 		}
-		if err := t.memoryFact(companyID, task.WorkspaceID, runFact(view, in.Status, res, t.now),
-			"run.finished:"+runID.String()); err != nil {
-			return err
+		// A curadoria de memória não se documenta na própria memória (nem a task, nem a run).
+		if !isMemory {
+			memWS := row.WorkspaceID
+			if memWS == nil {
+				memWS = task.WorkspaceID
+			}
+			if err := t.memoryFact(companyID, memWS, runFact(view, in.Status, res, t.now),
+				"run.finished:"+runID.String()); err != nil {
+				return err
+			}
 		}
-		if !isReview {
+		if !isReview && !isMemory {
 			if err := t.wakeForMissedComment(companyID, task, row); err != nil {
 				return err
 			}
@@ -785,8 +859,13 @@ func (s *Service) InterruptOrphanRuns(ctx context.Context) (int, error) {
 			if err := t.personaAfterRun(r.PersonaID, domain.RunInterrupted, ""); err != nil {
 				return err
 			}
-			if domain.RunTrigger(r.Trigger) == domain.TriggerReview {
+			switch domain.RunTrigger(r.Trigger) {
+			case domain.TriggerReview:
 				if err := t.reviewRunEnded(r, domain.RunInterrupted, "", r.Error); err != nil {
+					return err
+				}
+			case domain.TriggerMemory:
+				if err := t.memoryRunEnded(r, domain.RunInterrupted, ""); err != nil {
 					return err
 				}
 			}

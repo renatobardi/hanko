@@ -1,4 +1,4 @@
-// Package adapter runs a persona's agent harness (claude, codex, fake) for one run
+// Package adapter runs a persona's agent harness (claude, codex, acp, fake) for one run
 // and streams normalized events back to Hanko.
 package adapter
 
@@ -19,7 +19,7 @@ type Spec struct {
 	TaskKey   string
 	// ConversationID is set (and TaskID zero) on a chat run, which belongs to a conversation, not a task.
 	ConversationID domain.ID
-	Agent          string // claude | codex | fake
+	Agent          string // claude | codex | acp | fake
 	Model          string
 	Dir            string // working directory (workspace path); empty = temp dir
 	System         string // persona instructions + Hanko protocol (appended system prompt)

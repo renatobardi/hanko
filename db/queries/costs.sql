@@ -43,6 +43,7 @@ JOIN personas p ON p.id = r.persona_id
 LEFT JOIN tasks t ON t.id = r.task_id
 LEFT JOIN projects pr ON pr.id = t.project_id
 WHERE r.company_id = @company_id AND r.created_at >= @from_ts AND r.created_at < @to_ts
+  AND (sqlc.narg(project_id)::uuid IS NULL OR t.project_id = sqlc.narg(project_id)::uuid)
 GROUP BY 1, 2
 ORDER BY 1;
 

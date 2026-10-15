@@ -409,7 +409,7 @@ func (t *txc) openChatRun(conv store.Conversation) (run store.Run, blocked, err 
 	if err != nil {
 		return run, nil, mapErr(err, "get company")
 	}
-	if berr := t.checkBudgets(co, p, true); berr != nil {
+	if berr := t.checkBudgets(co, p, nil, true); berr != nil {
 		return run, berr, nil
 	}
 	model, modelSource := domain.ResolveModel("", p.Model)
@@ -427,7 +427,9 @@ func (t *txc) openChatRun(conv store.Conversation) (run store.Run, blocked, err 
 			return run, gerr, nil
 		}
 	}
-	run, err = t.insertRun(conv.CompanyID, nil, &conv.ID, p.ID, p.Agent, model, modelSource, subID, domain.TriggerChat)
+	// A chat has no task or project: it works in the persona's workspace (or a temporary directory).
+	ws, wsSource := pickWorkspace(nil, nil, p)
+	run, err = t.insertRun(conv.CompanyID, nil, &conv.ID, p.ID, p.Agent, model, modelSource, subID, ws, wsSource, domain.TriggerChat)
 	if err != nil {
 		return run, nil, err
 	}

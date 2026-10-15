@@ -399,6 +399,12 @@ func (s *Service) DecideGate(ctx context.Context, actor domain.Actor, companyID,
 			"note": note}, ""); err != nil {
 			return err
 		}
+		var memWS *domain.ID // gate memory: a decisão vale para a proposta de curadoria e vira memória do workspace dela
+		if g.Kind == domain.GateMemory {
+			if memWS, err = t.memoryProposalDecided(actor, g, in.Decision, note); err != nil {
+				return err
+			}
+		}
 
 		var task *store.Task
 		taskKey := "GATE"
@@ -452,6 +458,9 @@ func (s *Service) DecideGate(ctx context.Context, actor domain.Actor, companyID,
 		var wsID *domain.ID
 		if task != nil {
 			wsID = task.WorkspaceID
+		}
+		if wsID == nil {
+			wsID = memWS
 		}
 		if err := t.memoryFact(companyID, wsID, gateFact(g, taskKey, t.now), "gate.decided:"+g.ID.String()); err != nil {
 			return err

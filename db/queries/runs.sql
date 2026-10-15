@@ -1,6 +1,8 @@
 -- name: CreateRun :one
-INSERT INTO runs (id, company_id, task_id, conversation_id, persona_id, status, trigger, agent, model, model_source, subscription_id, name, created_at)
-VALUES (@id, @company_id, @task_id, @conversation_id, @persona_id, 'queued', @trigger, @agent, @model, @model_source, @subscription_id, @name, @now)
+INSERT INTO runs (id, company_id, task_id, conversation_id, persona_id, status, trigger, agent, model, model_source, subscription_id, name,
+                  workspace_id, workspace_source, created_at)
+VALUES (@id, @company_id, @task_id, @conversation_id, @persona_id, 'queued', @trigger, @agent, @model, @model_source, @subscription_id, @name,
+        @workspace_id, @workspace_source, @now)
 RETURNING *;
 
 -- name: GetRunByID :one
@@ -127,6 +129,14 @@ RETURNING *;
 SELECT * FROM run_events
 WHERE company_id = @company_id AND run_id = @run_id AND seq > @after_seq
 ORDER BY seq
+LIMIT @lim;
+
+-- name: ListRunEventsBefore :many
+-- Página anterior do log (cursor por seq): os @lim eventos imediatamente antes de @before_seq, do mais novo para o mais antigo
+-- (o service devolve em ordem crescente). Usa o índice único (run_id, seq).
+SELECT * FROM run_events
+WHERE company_id = @company_id AND run_id = @run_id AND seq < @before_seq
+ORDER BY seq DESC
 LIMIT @lim;
 
 -- name: ListWorkableTasksForPersona :many

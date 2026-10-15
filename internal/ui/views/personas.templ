@@ -91,7 +91,7 @@ templ HirePersonaPage(sh Shell, vm HirePersonaVM) {
 				</div>
 				<div class="field">
 					<span class="lbl">Harness</span>
-					<div class="radio-cards">
+					<div class="radio-cards rc2">
 						<label>
 							<input type="radio" name="agent" value="claude" checked?={ vm.Agent == "claude" }/>
 							<span class="rc"><b>@Icon("bot") Claude Code</b><span>{ i18n.T(ctx, "Local · sessão preservada · skills nativas") }</span></span>
@@ -101,12 +101,37 @@ templ HirePersonaPage(sh Shell, vm HirePersonaVM) {
 							<span class="rc"><b>@Icon("bot") Codex</b><span>{ i18n.T(ctx, "Local · OpenAI · exec em JSONL") }</span></span>
 						</label>
 						<label>
+							<input type="radio" name="agent" value="acp" checked?={ vm.Agent == "acp" }/>
+							<span class="rc"><b>@Icon("bot") ACP</b><span>{ i18n.T(ctx, "Local · qualquer harness que fale ACP · você informa o comando") }</span></span>
+						</label>
+						<label>
 							<input type="radio" name="agent" value="fake" checked?={ vm.Agent == "fake" }/>
 							<span class="rc"><b>
 								@Icon("bot")
 								{ i18n.T(ctx, "Simulado") }
 							</b><span>{ i18n.T(ctx, "Sem processo e sem custo · demo e testes") }</span></span>
 						</label>
+					</div>
+				</div>
+				<div class="acp-only">
+					<div class="form-grid">
+						<div class="field">
+							<label for="p-acp-cmd">{ i18n.T(ctx, "Comando do harness ACP") }</label>
+							<input class="input mono" id="p-acp-cmd" name="acp_command" value={ vm.AcpCommand } maxlength="500" placeholder="meu-comando-acp" autocomplete="off" spellcheck="false"/>
+							if e := vm.FieldErr["acp_command"]; e != "" {
+								<span class="err">{ e }</span>
+							}
+							<span class="hint">{ i18n.T(ctx, "Só o executável, que fala ACP por stdio e precisa estar instalado no servidor. Argumentos vão no campo abaixo; variáveis de ambiente extras, pela API ou pela CLI.") }</span>
+						</div>
+						<div class="field">
+							<label for="p-acp-perm">{ i18n.T(ctx, "Permissões do harness") }</label>
+							@Select("acp_permission", "p-acp-perm", vm.AcpPermission, false)
+							<span class="hint">{ i18n.T(ctx, "Somente leitura aprova leitura e busca e recusa edição e execução. Permitir tudo aprova qualquer pedido do harness.") }</span>
+						</div>
+					</div>
+					<div class="field">
+						<label for="p-acp-args">{ i18n.T(ctx, "Argumentos do comando (um por linha)") }</label>
+						<textarea class="textarea mono" id="p-acp-args" name="acp_args" rows="3" spellcheck="false">{ vm.AcpArgs }</textarea>
 					</div>
 				</div>
 				<div class="form-grid">

@@ -9,3 +9,7 @@ v0.1: interface `Adapter` + engines `cli` (`claude -p --output-format stream-jso
 
 ## Consequências
 Sem sessão persistente nem permissões interativas no v0.1. Troca de engine não toca domínio. Agentes ACP são npm; "zero Node" vale só pro binário.
+
+## Adendo (2026-10-15)
+O adapter ACP foi feito na v0.2 como harness genérico `acp`, em `internal/adapter/acp` (não `internal/acp`): ver o
+[ADR-0023](0023-acp-harness-generico.md). A decisão acima (CLI primeiro, interface `Adapter`) continua valendo para `claude` e `codex`.

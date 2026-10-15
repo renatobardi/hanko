@@ -66,6 +66,25 @@ jobs:
           templ generate -path internal/ui/views   # mesmo caminho do código versionado (FileName relativo)
           git diff --exit-code
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22" # só ferramenta de build das ilhas (ADR-0005/0026); o binário não depende de Node
+          cache: npm
+          cache-dependency-path: ui/islands/package-lock.json
+      - name: ilhas (npm ci, typecheck, testes, build)
+        working-directory: ui/islands
+        run: |
+          npm ci
+          npm run typecheck
+          npm test
+          npm run build
+          npm run smoke # monta o bundle minificado num DOM (jsdom)
+      - name: ilhas build diff
+        # o bundle versionado tem que ser exatamente o que o código-fonte gera (inclusive arquivos novos/removidos)
+        run: |
+          git diff --exit-code -- internal/ui/static/islands
+          test -z "$(git status --porcelain -- internal/ui/static/islands)"
+
       - uses: sqlc-dev/setup-sqlc@v4
         with:
           sqlc-version: "1.31.1"

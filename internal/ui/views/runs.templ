@@ -127,6 +127,41 @@ templ RunLine(l LogLine) {
 	</div>
 }
 
+// RunLogBox is the mount point of the virtualized log island; the plain log inside is the version without JS.
+templ RunLogBox(vm RunVM, live bool) {
+	<div
+		class="log-host"
+		data-island="run-log"
+		data-api={ vm.IslandAPI }
+		data-run={ vm.ID }
+		data-live={ flag(live) }
+		data-tz={ vm.TZ }
+		data-lang={ vm.Lang }
+		data-msgs={ vm.LogMsgs }
+	>
+		{ children... }
+	</div>
+}
+
+// AnchorBox is the mount point of the anchored-comments island; the rendered document inside is the version
+// without JS.
+templ AnchorBox(vm AnchorBoxVM) {
+	<div
+		class="anchor-host"
+		data-island="anchor-editor"
+		data-api={ vm.API }
+		data-task={ vm.TaskKey }
+		data-target={ vm.Target }
+		data-run={ vm.RunID }
+		data-doc={ vm.Doc }
+		data-anchors={ vm.Anchors }
+		data-can-comment={ flag(vm.CanComment) }
+		data-msgs={ vm.Msgs }
+	>
+		{ children... }
+	</div>
+}
+
 templ RunPage(sh Shell, vm RunVM) {
 	@Layout(sh) {
 		<div class="runs-grid">
@@ -137,28 +172,32 @@ templ RunPage(sh Shell, vm RunVM) {
 							@RunHeader(vm)
 						</div>
 						<div class="side-h" style="margin:4px 0 10px">Log</div>
-						<div id="run-log" class="log" role="log" aria-live="off" sse-swap="run-event" hx-swap="beforeend" tabindex="0">
-							for _, l := range vm.Lines {
-								@RunLine(l)
-							}
-							if len(vm.Lines) == 0 {
-								<div class="log-empty" id="log-empty">{ i18n.T(ctx, "Aguardando eventos…") }</div>
-							}
-						</div>
+						@RunLogBox(vm, true) {
+							<div id="run-log" class="log" role="log" aria-live="off" sse-swap="run-event" hx-swap="beforeend" tabindex="0">
+								for _, l := range vm.Lines {
+									@RunLine(l)
+								}
+								if len(vm.Lines) == 0 {
+									<div class="log-empty" id="log-empty">{ i18n.T(ctx, "Aguardando eventos…") }</div>
+								}
+							</div>
+						}
 					</div>
 				} else {
 					<div id="run-head">
 						@RunHeader(vm)
 					</div>
 					<div class="side-h" style="margin:4px 0 10px">Log</div>
-					<div id="run-log" class="log" role="log" tabindex="0">
-						for _, l := range vm.Lines {
-							@RunLine(l)
-						}
-						if len(vm.Lines) == 0 {
-							<div class="log-empty">{ i18n.T(ctx, "Sem eventos registrados.") }</div>
-						}
-					</div>
+					@RunLogBox(vm, false) {
+						<div id="run-log" class="log" role="log" tabindex="0">
+							for _, l := range vm.Lines {
+								@RunLine(l)
+							}
+							if len(vm.Lines) == 0 {
+								<div class="log-empty">{ i18n.T(ctx, "Sem eventos registrados.") }</div>
+							}
+						</div>
+					}
 				}
 			</section>
 			<div class="grid-2" style="align-items:start">
@@ -192,7 +231,9 @@ templ RunPage(sh Shell, vm RunVM) {
 				<section class="card pad">
 					<div class="card-head"><h2 style="font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);font-weight:500">{ i18n.T(ctx, "Resumo") }</h2></div>
 					if vm.Summary != "" {
-						<div class="md">@templ.Raw(string(vm.Summary))</div>
+						@AnchorBox(AnchorBoxVM{API: vm.IslandAPI, TaskKey: vm.TaskKey, Target: "run_summary", RunID: vm.ID, Doc: vm.SummaryDoc, Anchors: vm.SummaryAnchors, CanComment: canWrite(ctx), Msgs: vm.AnchorMsgs}) {
+							<div class="md">@templ.Raw(string(vm.Summary))</div>
+						}
 					} else {
 						<p class="muted">{ i18n.T(ctx, "O resumo aparece quando a execução termina.") }</p>
 					}

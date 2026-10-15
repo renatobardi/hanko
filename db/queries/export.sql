@@ -16,13 +16,13 @@ SELECT * FROM runs WHERE company_id = @company_id AND status NOT IN ('queued', '
 SELECT * FROM run_events WHERE run_id = @run_id AND seq > @after_seq ORDER BY seq LIMIT @page_size;
 
 -- name: ImportWorkspace :one
-INSERT INTO workspaces (id, company_id, slug, name, path, repo_url, created_at, updated_at)
-VALUES (@id, @company_id, @slug, @name, @path, @repo_url, @created_at, @updated_at)
+INSERT INTO workspaces (id, company_id, slug, name, path, repo_url, default_branch, created_at, updated_at)
+VALUES (@id, @company_id, @slug, @name, @path, @repo_url, @default_branch, @created_at, @updated_at)
 RETURNING *;
 
 -- name: ImportProject :one
-INSERT INTO projects (id, company_id, slug, name, description, workspace_id, created_at, updated_at)
-VALUES (@id, @company_id, @slug, @name, @description, @workspace_id, @created_at, @updated_at)
+INSERT INTO projects (id, company_id, slug, name, description, workspace_id, status, budget_monthly_cents, created_at, updated_at)
+VALUES (@id, @company_id, @slug, @name, @description, @workspace_id, @status, @budget_monthly_cents, @created_at, @updated_at)
 RETURNING *;
 
 -- name: ImportSubscription :one

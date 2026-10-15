@@ -43,30 +43,51 @@ type createTaskIn struct {
 type updateTaskIn struct {
 	TaskPath
 	Body struct {
-		Title       *string `json:"title,omitempty" minLength:"1" maxLength:"300"`
-		Description *string `json:"description,omitempty"`
-		Status      *string `json:"status,omitempty" enum:"backlog,todo,in_progress,in_review,blocked,done,cancelled"`
-		Priority    *string `json:"priority,omitempty" enum:"critical,high,medium,low"`
-		Persona     string  `json:"persona,omitempty" doc:"Id ou slug da persona (re)atribuída."`
-		Unassign    bool    `json:"unassign,omitempty" doc:"Remove a atribuição."`
-		Project     string  `json:"project,omitempty" doc:"Id ou slug do projeto."`
-		Model       *string `json:"model,omitempty" doc:"Modelo escolhido à mão; vazio remove a escolha (volta ao da persona)."`
-		EventID     string  `json:"event_id,omitempty" maxLength:"200" doc:"Chave de idempotência."`
+		Title        *string `json:"title,omitempty" minLength:"1" maxLength:"300"`
+		Description  *string `json:"description,omitempty"`
+		Status       *string `json:"status,omitempty" enum:"backlog,todo,in_progress,in_review,blocked,done,cancelled"`
+		Priority     *string `json:"priority,omitempty" enum:"critical,high,medium,low"`
+		Persona      string  `json:"persona,omitempty" doc:"Id ou slug da persona (re)atribuída."`
+		Unassign     bool    `json:"unassign,omitempty" doc:"Remove a atribuição."`
+		Project      string  `json:"project,omitempty" doc:"Id ou slug do projeto."`
+		ClearProject bool    `json:"clear_project,omitempty" doc:"Tira a task do projeto."`
+		Model        *string `json:"model,omitempty" doc:"Modelo escolhido à mão; vazio remove a escolha (volta ao da persona)."`
+		EventID      string  `json:"event_id,omitempty" maxLength:"200" doc:"Chave de idempotência."`
 	}
 }
 
 type addCommentIn struct {
 	TaskPath
 	Body struct {
-		Body    string `json:"body" minLength:"1" doc:"Texto do comentário (Markdown)."`
-		RunID   string `json:"run_id,omitempty" format:"uuid" doc:"Execução de origem; para run tokens, padrão é a execução do token."`
-		EventID string `json:"event_id,omitempty" maxLength:"200" doc:"Chave de idempotência."`
+		Body    string  `json:"body" minLength:"1" doc:"Texto do comentário (Markdown)."`
+		RunID   string  `json:"run_id,omitempty" format:"uuid" doc:"Execução de origem; para run tokens, padrão é a execução do token."`
+		EventID string  `json:"event_id,omitempty" maxLength:"200" doc:"Chave de idempotência."`
+		Anchor  *Anchor `json:"anchor,omitempty" doc:"Ancora o comentário a um trecho da descrição da task ou do resumo de uma execução; o trecho precisa existir no documento (422 se não)."`
 	}
 }
 
 type listCommentsIn struct {
 	TaskPath
 	Page
+}
+
+// anchorIn converte a âncora do corpo da requisição para o domínio.
+func anchorIn(a *Anchor) (*domain.Anchor, error) {
+	if a == nil {
+		return nil, nil
+	}
+	out := &domain.Anchor{Target: domain.AnchorTarget(a.Target), Quote: a.Quote, Start: a.Start, End: a.End, DocHash: a.DocHash}
+	if !out.Target.Valid() {
+		return nil, domain.Invalid("anchor.target", "deve ser task_description ou run_summary")
+	}
+	if a.RunID != "" {
+		id, err := domain.ParseID(a.RunID)
+		if err != nil {
+			return nil, domain.Invalid("anchor.run_id", "não é um uuid")
+		}
+		out.RunID = &id
+	}
+	return out, nil
 }
 
 func (s *server) registerTasks(api huma.API) {
@@ -173,7 +194,8 @@ func (s *server) registerTasks(api huma.API) {
 					return nil, err
 				}
 			}
-			up := service.UpdateTaskInput{Title: b.Title, Description: b.Description, Unassign: b.Unassign, Model: b.Model, EventID: b.EventID}
+			up := service.UpdateTaskInput{Title: b.Title, Description: b.Description, Unassign: b.Unassign, Model: b.Model, EventID: b.EventID,
+				ClearProject: b.ClearProject}
 			if b.Status != nil {
 				st := domain.TaskStatus(*b.Status)
 				if !st.Valid() {
@@ -224,8 +246,12 @@ func (s *server) registerTasks(api huma.API) {
 					runID = &id
 				}
 			}
+			anchor, err := anchorIn(in.Body.Anchor)
+			if err != nil {
+				return nil, s.fail(ctx, err)
+			}
 			c, err := s.svc.AddComment(ctx, sc.Actor, sc.Company.ID, cur.ID, service.AddCommentInput{
-				Body: in.Body.Body, RunID: runID, EventID: in.Body.EventID})
+				Body: in.Body.Body, RunID: runID, EventID: in.Body.EventID, Anchor: anchor})
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}

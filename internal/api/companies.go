@@ -29,7 +29,8 @@ type createWorkspaceIn struct {
 		Name    string `json:"name" minLength:"1" maxLength:"120" example:"API"`
 		Slug    string `json:"slug,omitempty" pattern:"^[a-z0-9][a-z0-9-]{0,62}$" example:"api"`
 		Path    string `json:"path" minLength:"1" example:"/srv/work/api" doc:"Diretório de trabalho das personas."`
-		RepoURL string `json:"repo_url,omitempty" example:"https://example.com/acme/api.git"`
+		RepoURL string `json:"repo_url,omitempty" example:"https://example.com/acme/api.git" doc:"https://, ssh:// ou formato scp (metadado)."`
+		Branch  string `json:"default_branch,omitempty" example:"main" doc:"Branch padrão (metadado)."`
 	}
 }
 
@@ -40,6 +41,7 @@ type createProjectIn struct {
 		Slug        string `json:"slug,omitempty" pattern:"^[a-z0-9][a-z0-9-]{0,62}$" example:"lancamento"`
 		Description string `json:"description,omitempty"`
 		Workspace   string `json:"workspace,omitempty" doc:"Id ou slug do workspace padrão do projeto." example:"api"`
+		Budget      *int64 `json:"budget_monthly_cents,omitempty" minimum:"0" doc:"Orçamento mensal do projeto em centavos de dólar."`
 	}
 }
 
@@ -97,7 +99,7 @@ func (s *server) registerCompanies(api huma.API) {
 				return nil, err
 			}
 			w, err := s.svc.CreateWorkspace(ctx, sc.Actor, sc.Company.ID, service.CreateWorkspaceInput{
-				Name: in.Body.Name, Slug: in.Body.Slug, Path: in.Body.Path, RepoURL: in.Body.RepoURL})
+				Name: in.Body.Name, Slug: in.Body.Slug, Path: in.Body.Path, RepoURL: in.Body.RepoURL, DefaultBranch: in.Body.Branch})
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}
@@ -110,11 +112,15 @@ func (s *server) registerCompanies(api huma.API) {
 			if err != nil {
 				return nil, err
 			}
-			ws, err := s.svc.ListWorkspaces(ctx, sc.Company.ID)
+			ws, err := s.svc.ListWorkspaceViews(ctx, sc.Company.ID)
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}
-			return listOf(ws, in.Page, workspaceOut), nil
+			return listOf(ws, in.Page, func(v service.WorkspaceView) Workspace {
+				w := workspaceOut(v.Workspace)
+				w.Usage = &WorkspaceUsage{Personas: v.PersonaCount, Projects: v.ProjectCount, OpenTasks: v.OpenTasks}
+				return w
+			}), nil
 		})
 
 	huma.Register(api, created(op("create-project", http.MethodPost, "/companies/{company}/projects", "projects", "Cria um projeto")),
@@ -131,7 +137,7 @@ func (s *server) registerCompanies(api huma.API) {
 				return nil, s.fail(ctx, err)
 			}
 			p, err := s.svc.CreateProject(ctx, sc.Actor, sc.Company.ID, service.CreateProjectInput{
-				Name: in.Body.Name, Slug: in.Body.Slug, Description: in.Body.Description, WorkspaceID: wsID})
+				Name: in.Body.Name, Slug: in.Body.Slug, Description: in.Body.Description, WorkspaceID: wsID, BudgetMonthlyCents: in.Body.Budget})
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}
@@ -144,10 +150,10 @@ func (s *server) registerCompanies(api huma.API) {
 			if err != nil {
 				return nil, err
 			}
-			ps, err := s.svc.ListProjects(ctx, sc.Company.ID)
+			ps, err := s.svc.ListProjectViews(ctx, sc.Company.ID)
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}
-			return listOf(ps, in.Page, projectOut), nil
+			return listOf(ps, in.Page, projectViewOut), nil
 		})
 }

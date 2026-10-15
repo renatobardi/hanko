@@ -119,7 +119,7 @@ var enPages = []struct {
 	{"/c/hanko/custos", []string{"Costs and budgets", "Spend per day", "Company budget"}},
 	{"/c/hanko/fluxos", []string{"Flows", "Run now", "Every Friday at 07:00"}},
 	{"/c/hanko/fluxos/novo", []string{"New flow", "Schedule templates"}},
-	{"/c/hanko/em-breve/projetos", []string{"Projects", "coming soon"}},
+	{"/c/hanko/em-breve/metas", []string{"Goals", "coming soon"}},
 }
 
 func TestEnglishPages(t *testing.T) {

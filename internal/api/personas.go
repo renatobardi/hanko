@@ -23,9 +23,9 @@ type hirePersonaIn struct {
 		Slug                 string         `json:"slug,omitempty" pattern:"^[a-z0-9][a-z0-9-]{0,62}$" example:"cto" doc:"Derivado do nome quando omitido."`
 		Title                string         `json:"title,omitempty" example:"CTO"`
 		Instructions         string         `json:"instructions,omitempty" doc:"Instruções permanentes da persona."`
-		Agent                string         `json:"agent" enum:"claude,codex,fake" example:"claude" doc:"Harness que executa a persona."`
+		Agent                string         `json:"agent" enum:"claude,codex,acp,fake" example:"claude" doc:"Harness que executa a persona."`
 		Model                string         `json:"model,omitempty" example:"claude-sonnet-4-5"`
-		AdapterConfig        map[string]any `json:"adapter_config,omitempty" doc:"Configuração específica do adapter (ex.: permission_mode, extra_args)."`
+		AdapterConfig        map[string]any `json:"adapter_config,omitempty" doc:"Configuração específica do adapter (ex.: permission_mode, extra_args). Para agent acp é obrigatória: command (executável do agente ACP), args, env, permission (allow, reject ou read_only; padrão read_only), model e init_timeout_sec."`
 		ReportsTo            string         `json:"reports_to,omitempty" doc:"Id ou slug da persona superior."`
 		Workspace            string         `json:"workspace,omitempty" doc:"Id ou slug do workspace."`
 		HeartbeatIntervalSec int            `json:"heartbeat_interval_sec,omitempty" minimum:"0" example:"300"`

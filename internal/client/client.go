@@ -187,13 +187,32 @@ type CreateWorkspaceReq struct {
 	Slug    string `json:"slug,omitempty"`
 	Path    string `json:"path"`
 	RepoURL string `json:"repo_url,omitempty"`
+	Branch  string `json:"default_branch,omitempty"`
+}
+
+type UpdateWorkspaceReq struct {
+	Name    *string `json:"name,omitempty"`
+	Path    *string `json:"path,omitempty"`
+	RepoURL *string `json:"repo_url,omitempty"`
+	Branch  *string `json:"default_branch,omitempty"`
 }
 
 type CreateProjectReq struct {
-	Name        string `json:"name"`
-	Slug        string `json:"slug,omitempty"`
-	Description string `json:"description,omitempty"`
-	Workspace   string `json:"workspace,omitempty"`
+	Name               string `json:"name"`
+	Slug               string `json:"slug,omitempty"`
+	Description        string `json:"description,omitempty"`
+	Workspace          string `json:"workspace,omitempty"`
+	BudgetMonthlyCents *int64 `json:"budget_monthly_cents,omitempty"`
+}
+
+type UpdateProjectReq struct {
+	Name               *string `json:"name,omitempty"`
+	Description        *string `json:"description,omitempty"`
+	Workspace          string  `json:"workspace,omitempty"`
+	ClearWorkspace     bool    `json:"clear_workspace,omitempty"`
+	Status             *string `json:"status,omitempty"`
+	BudgetMonthlyCents *int64  `json:"budget_monthly_cents,omitempty"`
+	ClearBudget        bool    `json:"clear_budget,omitempty"`
 }
 
 type HirePersonaReq struct {
@@ -229,20 +248,22 @@ type CreateTaskReq struct {
 }
 
 type UpdateTaskReq struct {
-	Title       *string `json:"title,omitempty"`
-	Description *string `json:"description,omitempty"`
-	Status      *string `json:"status,omitempty"`
-	Priority    *string `json:"priority,omitempty"`
-	Persona     string  `json:"persona,omitempty"`
-	Unassign    bool    `json:"unassign,omitempty"`
-	Project     string  `json:"project,omitempty"`
-	Model       *string `json:"model,omitempty"`
+	Title        *string `json:"title,omitempty"`
+	Description  *string `json:"description,omitempty"`
+	Status       *string `json:"status,omitempty"`
+	Priority     *string `json:"priority,omitempty"`
+	Persona      string  `json:"persona,omitempty"`
+	Unassign     bool    `json:"unassign,omitempty"`
+	Project      string  `json:"project,omitempty"`
+	ClearProject bool    `json:"clear_project,omitempty"`
+	Model        *string `json:"model,omitempty"`
 }
 
 type AddCommentReq struct {
-	Body    string `json:"body"`
-	RunID   string `json:"run_id,omitempty"`
-	EventID string `json:"event_id,omitempty"`
+	Body    string      `json:"body"`
+	RunID   string      `json:"run_id,omitempty"`
+	EventID string      `json:"event_id,omitempty"`
+	Anchor  *api.Anchor `json:"anchor,omitempty"`
 }
 
 // TaskQuery são os filtros de ListTasks.
@@ -312,12 +333,12 @@ type UpdatePersonaReq struct {
 
 // CostQuery são os parâmetros de Costs.
 type CostQuery struct {
-	From, To, GroupBy string
+	From, To, GroupBy, Project string
 }
 
 func (c CostQuery) values() url.Values {
 	q := url.Values{}
-	for k, v := range map[string]string{"from": c.From, "to": c.To, "group_by": c.GroupBy} {
+	for k, v := range map[string]string{"from": c.From, "to": c.To, "group_by": c.GroupBy, "project": c.Project} {
 		if v != "" {
 			q.Set(k, v)
 		}
@@ -360,6 +381,31 @@ func (c *Client) CreateWorkspace(ctx context.Context, company string, in CreateW
 
 func (c *Client) Workspaces(ctx context.Context, company string) ([]api.Workspace, error) {
 	return list[api.Workspace](ctx, c, cp(company)+"/workspaces", url.Values{"limit": {"500"}})
+}
+
+func (c *Client) Workspace(ctx context.Context, company, ref string) (api.Workspace, error) {
+	return get[api.Workspace](ctx, c, http.MethodGet, cp(company)+"/workspaces/"+url.PathEscape(ref), nil)
+}
+
+func (c *Client) UpdateWorkspace(ctx context.Context, company, ref string, in UpdateWorkspaceReq) (api.Workspace, error) {
+	return get[api.Workspace](ctx, c, http.MethodPatch, cp(company)+"/workspaces/"+url.PathEscape(ref), in)
+}
+
+// DeleteWorkspace exclui o workspace; com unlink, desvincula antes quem o usa.
+func (c *Client) DeleteWorkspace(ctx context.Context, company, ref string, unlink bool) error {
+	q := url.Values{}
+	if unlink {
+		q.Set("unlink", "true")
+	}
+	return c.do(ctx, http.MethodDelete, cp(company)+"/workspaces/"+url.PathEscape(ref), q, nil, nil)
+}
+
+func (c *Client) Project(ctx context.Context, company, ref string) (api.Project, error) {
+	return get[api.Project](ctx, c, http.MethodGet, cp(company)+"/projects/"+url.PathEscape(ref), nil)
+}
+
+func (c *Client) UpdateProject(ctx context.Context, company, ref string, in UpdateProjectReq) (api.Project, error) {
+	return get[api.Project](ctx, c, http.MethodPatch, cp(company)+"/projects/"+url.PathEscape(ref), in)
 }
 
 func (c *Client) CreateProject(ctx context.Context, company string, in CreateProjectReq) (api.Project, error) {

@@ -108,19 +108,26 @@ func (t *txc) createTask(actor domain.Actor, companyID domain.ID, in CreateTaskI
 		}
 	}
 
+	// The task stores a workspace only when one was chosen on purpose; the project's and the persona's are
+	// resolved when the run opens (resolveRunWorkspace), so changing them later still takes effect. memWS is the
+	// workspace the task would run in today, used only to scope its memory fact.
 	wsID := in.WorkspaceID
 	if wsID != nil {
 		if _, err := t.q.GetWorkspaceByID(ctx, store.GetWorkspaceByIDParams{CompanyID: companyID, ID: *wsID}); err != nil {
 			return TaskView{}, domain.Invalid("workspace_id", "workspace not found in company")
 		}
 	}
+	memWS := wsID
 	if in.ProjectID != nil {
 		pr, err := t.q.GetProjectByID(ctx, store.GetProjectByIDParams{CompanyID: companyID, ID: *in.ProjectID})
 		if err != nil {
 			return TaskView{}, domain.Invalid("project_id", "project not found in company")
 		}
-		if wsID == nil {
-			wsID = pr.WorkspaceID
+		if domain.ProjectStatus(pr.Status) == domain.ProjectArchived {
+			return TaskView{}, domain.Invalid("project_id", "project is archived")
+		}
+		if memWS == nil {
+			memWS = pr.WorkspaceID
 		}
 	}
 	if in.PersonaID != nil {
@@ -128,8 +135,8 @@ func (t *txc) createTask(actor domain.Actor, companyID domain.ID, in CreateTaskI
 		if err != nil {
 			return TaskView{}, domain.Invalid("persona_id", "persona not found in company")
 		}
-		if wsID == nil {
-			wsID = p.WorkspaceID
+		if memWS == nil {
+			memWS = p.WorkspaceID
 		}
 		if err := t.checkDelegation(actor, companyID, in.PersonaID); err != nil {
 			return TaskView{}, err
@@ -164,9 +171,11 @@ func (t *txc) createTask(actor domain.Actor, companyID domain.ID, in CreateTaskI
 	}, in.EventID); err != nil {
 		return TaskView{}, err
 	}
-	if err := t.memoryFact(companyID, wsID, taskFact("task.created", key, title, in.Description, status, prio, ""),
-		"task.created:"+row.ID.String()); err != nil {
-		return TaskView{}, err
+	if !in.noMemoryFact {
+		if err := t.memoryFact(companyID, memWS, taskFact("task.created", key, title, in.Description, status, prio, ""),
+			"task.created:"+row.ID.String()); err != nil {
+			return TaskView{}, err
+		}
 	}
 	trigger := in.trigger
 	if trigger == "" {
@@ -325,9 +334,20 @@ func (s *Service) UpdateTask(ctx context.Context, actor domain.Actor, companyID,
 					fields = append(fields, "model")
 				}
 			}
-			if in.ProjectID != nil && (cur.ProjectID == nil || *cur.ProjectID != *in.ProjectID) {
-				if _, err := t.q.GetProjectByID(ctx, store.GetProjectByIDParams{CompanyID: companyID, ID: *in.ProjectID}); err != nil {
+			if in.ClearProject && in.ProjectID != nil {
+				return domain.Invalid("project_id", "cannot set and clear the project at once")
+			}
+			switch {
+			case in.ClearProject && cur.ProjectID != nil:
+				p.ProjectID = nil
+				fields = append(fields, "project_id")
+			case in.ProjectID != nil && (cur.ProjectID == nil || *cur.ProjectID != *in.ProjectID):
+				pr, err := t.q.GetProjectByID(ctx, store.GetProjectByIDParams{CompanyID: companyID, ID: *in.ProjectID})
+				if err != nil {
 					return domain.Invalid("project_id", "project not found in company")
+				}
+				if domain.ProjectStatus(pr.Status) == domain.ProjectArchived {
+					return domain.Invalid("project_id", "project is archived")
 				}
 				p.ProjectID = in.ProjectID
 				fields = append(fields, "project_id")

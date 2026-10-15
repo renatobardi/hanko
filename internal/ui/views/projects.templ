@@ -1,0 +1,490 @@
+package views
+
+import (
+	"fmt"
+
+	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/i18n"
+)
+
+// Projetos e workspaces (ADR-0025). Criar, alterar, arquivar e excluir é de admin; ler é de qualquer membro.
+
+templ ProgressBar(percent int, label string) {
+	<div class="progress meter-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={ fmt.Sprint(percent) } aria-label={ label }><i style={ pct(percent) }></i></div>
+}
+
+templ ProjectsPage(sh Shell, vm ProjectsVM) {
+	@Layout(sh) {
+		@PageHead(i18n.T(ctx, "Projetos"), vm.Subtitle) {
+			if sh.CanAdmin() {
+				<a class="btn primary" href={ templ.SafeURL(vm.NewHref) }>
+					@Icon("plus")
+					{ i18n.T(ctx, "Novo projeto") }
+				</a>
+			} else {
+				@NeedRole(domain.MemberAdmin)
+			}
+		}
+		if vm.Notice != "" {
+			@Alert("warn", vm.Notice)
+		}
+		<div class="kpis">
+			@Kpi("layers", fmt.Sprint(vm.Active), i18n.T(ctx, "Projetos ativos"), false)
+			@Kpi("list", fmt.Sprint(vm.OpenTask), i18n.T(ctx, "Tasks abertas"), false)
+			@Kpi("database", vm.Spent, i18n.T(ctx, "Gasto no mês"), false)
+			@Kpi("clock", fmt.Sprint(vm.Archived), i18n.T(ctx, "Arquivados"), false)
+		</div>
+		if vm.Empty {
+			@EmptyCard("layers", i18n.T(ctx, "Você ainda não tem projetos."), i18n.T(ctx, "Um projeto agrupa tasks, pode ter workspace e orçamento próprios, e mostra o progresso do trabalho."), true) {
+				if sh.CanAdmin() {
+					<a class="btn outline" href={ templ.SafeURL(vm.NewHref) }>
+						@Icon("plus")
+						{ i18n.T(ctx, "Criar projeto") }
+					</a>
+				} else {
+					@NeedRole(domain.MemberAdmin)
+				}
+			}
+		} else {
+			<div class="toolbar">
+				@Tabs(vm.Tabs)
+			</div>
+			if len(vm.Rows) == 0 {
+				@EmptyCard("layers", i18n.T(ctx, "Nenhum projeto aqui."), "", false)
+			} else {
+				<div class="table-wrap">
+					<table class="table projects-table">
+						<thead>
+							<tr>
+								<th>{ i18n.T(ctx, "Projeto") }</th>
+								<th class="hide-sm">Workspace</th>
+								<th>{ i18n.T(ctx, "Progresso") }</th>
+								<th class="num hide-sm">{ i18n.T(ctx, "Abertas") }</th>
+								<th class="num">{ i18n.T(ctx, "Gasto no mês") }</th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, r := range vm.Rows {
+								<tr class={ "row", templ.KV("is-off", r.Archived) }>
+									<td class="ttl">
+										<a href={ templ.SafeURL(r.Href) }>{ r.Name }</a>
+										if r.Archived {
+											<span class="badge soft">{ i18n.T(ctx, "Arquivado") }</span>
+										}
+										if r.Description != "" {
+											<div class="note">{ r.Description }</div>
+										}
+									</td>
+									<td class="hide-sm muted">{ dash(r.Workspace) }</td>
+									<td>
+										@ProgressBar(r.Progress, i18n.T(ctx, "Progresso"))
+										<span class="muted mono" style="font-size:12px">{ r.ProgressTxt }</span>
+									</td>
+									<td class="num mono hide-sm">{ fmt.Sprint(r.Open) }</td>
+									<td class="num mono">
+										{ r.Spent }
+										if r.Limit != "" {
+											<div class={ "meter m-" + r.BudgetState }><span class="meter-note">{ i18n.T(ctx, "de") } { r.Limit } · { r.BudgetPct }</span></div>
+										}
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+		}
+	}
+}
+
+templ ProjectForm(vm ProjectFormVM) {
+	<form class="card pad form-card" method="post" action={ templ.SafeURL(vm.Action) } hx-boost="true">
+		if vm.Error != "" {
+			@Alert("danger", vm.Error)
+		}
+		<div class="form-grid">
+			<div class="field">
+				<label for="p-name">{ i18n.T(ctx, "Nome") }</label>
+				<input class="input" id="p-name" name="name" value={ vm.Name } required maxlength="120" placeholder={ i18n.T(ctx, "Lançamento v1") }/>
+				if e := vm.FieldErr["name"]; e != "" {
+					<span class="err">{ e }</span>
+				}
+			</div>
+			<div class="field">
+				<label for="p-ws">Workspace</label>
+				@Select("workspace", "p-ws", vm.WorkspaceOptions, false)
+				<span class="hint">{ i18n.T(ctx, "Diretório de trabalho das execuções das tasks do projeto. Vale antes do workspace da persona.") }</span>
+				if e := vm.FieldErr["workspace"]; e != "" {
+					<span class="err">{ e }</span>
+				}
+			</div>
+		</div>
+		<div class="field">
+			<label for="p-desc">{ i18n.T(ctx, "Descrição") }</label>
+			<input class="input" id="p-desc" name="description" value={ vm.Description } maxlength="300" placeholder={ i18n.T(ctx, "Para que serve este projeto") }/>
+		</div>
+		<div class="field">
+			<label for="p-budget">{ i18n.T(ctx, "Orçamento mensal em dólares") }</label>
+			<span class="usd-field">
+				<span class="pre mono">{ i18n.T(ctx, "US$") }</span>
+				<input class="input sm mono" id="p-budget" name="budget" inputmode="decimal" value={ vm.Budget } placeholder={ i18n.T(ctx, "sem limite") } autocomplete="off"/>
+			</span>
+			<span class="hint">{ i18n.T(ctx, "Ao chegar em 100%, nenhuma execução das tasks do projeto abre até o limite subir ou o mês virar. Alerta a partir de 80%.") }</span>
+			if e := vm.FieldErr["budget"]; e != "" {
+				<span class="err">{ e }</span>
+			}
+		</div>
+		<div class="form-actions">
+			<a class="btn ghost" href={ templ.SafeURL(vm.CancelHref) }>{ i18n.T(ctx, "Cancelar") }</a>
+			<button class="btn primary" type="submit">
+				if vm.Edit {
+					{ i18n.T(ctx, "Salvar alterações") }
+				} else {
+					{ i18n.T(ctx, "Criar projeto") }
+				}
+			</button>
+		</div>
+	</form>
+}
+
+templ NewProjectPage(sh Shell, vm ProjectFormVM) {
+	@Layout(sh) {
+		@PageHead(i18n.T(ctx, "Novo projeto"), i18n.T(ctx, "Agrupe tasks por projeto, com workspace e orçamento próprios.")) {
+		}
+		if sh.CanAdmin() {
+			@ProjectForm(vm)
+		} else {
+			@Alert("warn", i18n.T(ctx, "Seu papel nesta empresa não permite esta ação."))
+		}
+	}
+}
+
+templ ProjectPage(sh Shell, vm ProjectVM) {
+	@Layout(sh) {
+		if vm.Notice != "" {
+			@Alert("warn", vm.Notice)
+		}
+		if vm.Error != "" {
+			@Alert("danger", vm.Error)
+		}
+		<div class="flow-head">
+			<div>
+				<h1>{ vm.Name } @BadgeEl(vm.Badge)</h1>
+				if vm.Description != "" {
+					<p class="muted" style="margin-top:6px;font-size:13.5px">{ vm.Description }</p>
+				}
+			</div>
+			<div class="flow-acts">
+				if canWrite(ctx) && !vm.Archived {
+					<a class="btn primary" href={ templ.SafeURL(vm.NewTaskHref) }>
+						@Icon("plus")
+						{ i18n.T(ctx, "Nova task") }
+					</a>
+				}
+				if canAdmin(ctx) {
+					<form method="post" action={ templ.SafeURL(vm.ToggleHref) } hx-post={ vm.ToggleHref } hx-swap="none">
+						<button class="btn outline" type="submit">
+							if vm.Archived {
+								{ i18n.T(ctx, "Reativar projeto") }
+							} else {
+								{ i18n.T(ctx, "Arquivar projeto") }
+							}
+						</button>
+					</form>
+				}
+			</div>
+		</div>
+		<div class="stats4" style="margin-bottom:20px">
+			<div class="stat"><div class="l">{ i18n.T(ctx, "Progresso") }</div><div class="v">{ vm.ProgressTxt }</div></div>
+			<div class="stat"><div class="l">Tasks</div><div class="v"><a href={ templ.SafeURL(vm.TasksHref) }>{ fmt.Sprint(vm.Total) }</a></div></div>
+			<div class="stat"><div class="l">{ i18n.T(ctx, "Gasto no mês") }</div><div class="v"><a href={ templ.SafeURL(vm.CostHref) }>{ vm.Spent }</a></div></div>
+			<div class="stat">
+				<div class="l">Workspace</div>
+				<div class="v">
+					if vm.WorkspaceURL != "" {
+						<a href={ templ.SafeURL(vm.WorkspaceURL) }>{ vm.Workspace }</a>
+					} else {
+						<span class="faint">—</span>
+					}
+				</div>
+			</div>
+		</div>
+		<section class="card pad">
+			<div class="card-head"><h2>{ i18n.T(ctx, "Orçamento do mês") }</h2></div>
+			@BudgetMeter(vm.Budget)
+		</section>
+		<section class="card pad" style="margin-top:20px">
+			<div class="card-head"><h2>{ i18n.T(ctx, "Tasks por status") }</h2><a class="sub" href={ templ.SafeURL(vm.TasksHref) }>{ i18n.T(ctx, "Ver todas") }</a></div>
+			@ProgressBar(vm.Progress, i18n.T(ctx, "Progresso"))
+			<div class="chips" style="display:flex;gap:8px;flex-wrap:wrap">
+				for _, st := range vm.Statuses {
+					<a class="chip soft" href={ templ.SafeURL(st.Href) }>{ st.Label } <b class="mono">{ fmt.Sprint(st.Count) }</b></a>
+				}
+			</div>
+		</section>
+		<div class="grid-2" style="margin-top:20px">
+			<section class="card pad">
+				<div class="card-head"><h2>{ i18n.T(ctx, "Personas envolvidas") }</h2></div>
+				if len(vm.Personas) == 0 {
+					<p class="muted">{ i18n.T(ctx, "Nenhuma persona tem tasks neste projeto ainda.") }</p>
+				} else {
+					<table class="table mini">
+						<thead><tr><th>Persona</th><th class="num">{ i18n.T(ctx, "Abertas") }</th><th class="num">Total</th></tr></thead>
+						<tbody>
+							for _, p := range vm.Personas {
+								<tr>
+									<td><a href={ templ.SafeURL(p.Href) }>{ p.Name }</a></td>
+									<td class="num mono">{ fmt.Sprint(p.Open) }</td>
+									<td class="num mono">{ fmt.Sprint(p.Total) }</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				}
+			</section>
+			<section class="card pad">
+				<div class="card-head"><h2>{ i18n.T(ctx, "Tasks recentes") }</h2></div>
+				if len(vm.Tasks) == 0 {
+					<p class="muted">{ i18n.T(ctx, "Nenhuma task neste projeto ainda.") }</p>
+				} else {
+					<table class="table mini">
+						<tbody>
+							for _, r := range vm.Tasks {
+								<tr>
+									<td class="id">{ r.Key }</td>
+									<td class="ttl"><a href={ templ.SafeURL(r.Href) }>{ r.Title }</a></td>
+									<td>@BadgeEl(r.Badge)</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				}
+			</section>
+		</div>
+		<h2 class="side-h" style="margin:28px 0 12px">{ i18n.T(ctx, "Definição") }</h2>
+		if canAdmin(ctx) {
+			@ProjectForm(vm.Form)
+		} else {
+			@NeedRole(domain.MemberAdmin)
+		}
+	}
+}
+
+templ WorkspacesPage(sh Shell, vm WorkspacesVM) {
+	@Layout(sh) {
+		@PageHead(i18n.T(ctx, "Workspaces"), vm.Subtitle) {
+			if sh.CanAdmin() {
+				<a class="btn primary" href={ templ.SafeURL(vm.NewHref) }>
+					@Icon("plus")
+					{ i18n.T(ctx, "Novo workspace") }
+				</a>
+			} else {
+				@NeedRole(domain.MemberAdmin)
+			}
+		}
+		if vm.Notice != "" {
+			@Alert("warn", vm.Notice)
+		}
+		<div class="kpis">
+			@Kpi("database", fmt.Sprint(len(vm.Rows)), i18n.T(ctx, "Workspaces"), false)
+			@Kpi("bot", fmt.Sprint(vm.InUse), i18n.T(ctx, "Em uso"), false)
+		</div>
+		if len(vm.Rows) == 0 {
+			@EmptyCard("database", i18n.T(ctx, "Você ainda não tem workspaces."), i18n.T(ctx, "Um workspace é um diretório (e, se quiser, um repositório) onde as personas trabalham. Fica dentro da raiz de workspaces do servidor."), true) {
+				if sh.CanAdmin() {
+					<a class="btn outline" href={ templ.SafeURL(vm.NewHref) }>
+						@Icon("plus")
+						{ i18n.T(ctx, "Criar workspace") }
+					</a>
+				} else {
+					@NeedRole(domain.MemberAdmin)
+				}
+			}
+		} else {
+			<div class="table-wrap">
+				<table class="table">
+					<thead>
+						<tr>
+							<th>Workspace</th>
+							<th class="hide-sm">{ i18n.T(ctx, "Caminho") }</th>
+							<th class="hide-sm">{ i18n.T(ctx, "Repositório") }</th>
+							<th>{ i18n.T(ctx, "Em uso por") }</th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, r := range vm.Rows {
+							<tr class="row">
+								<td class="ttl">
+									<a href={ templ.SafeURL(r.Href) }>{ r.Name }</a>
+									if r.Missing {
+										<span class="badge warn" title={ i18n.T(ctx, "O diretório não existe neste servidor; as execuções usam um diretório temporário.") }>{ i18n.T(ctx, "diretório ausente") }</span>
+									}
+								</td>
+								<td class="hide-sm mono muted" style="font-size:12.5px">{ r.Path }</td>
+								<td class="hide-sm muted">
+									{ dash(r.RepoURL) }
+									if r.Branch != "" {
+										<span class="chip soft">{ r.Branch }</span>
+									}
+								</td>
+								<td class="muted">
+									if r.InUse {
+										{ i18n.Tf(ctx, "%s persona(s), %s projeto(s), %s task(s) aberta(s)", fmt.Sprint(r.Personas), fmt.Sprint(r.Projects), fmt.Sprint(r.OpenTasks)) }
+									} else {
+										{ i18n.T(ctx, "ninguém") }
+									}
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+	}
+}
+
+templ WorkspaceForm(vm WorkspaceFormVM) {
+	<form class="card pad form-card" method="post" action={ templ.SafeURL(vm.Action) } hx-boost="true">
+		if vm.Error != "" {
+			@Alert("danger", vm.Error)
+		}
+		<div class="form-grid">
+			<div class="field">
+				<label for="w-name">{ i18n.T(ctx, "Nome") }</label>
+				<input class="input" id="w-name" name="name" value={ vm.Name } required maxlength="120" placeholder={ i18n.T(ctx, "Site institucional") }/>
+				if e := vm.FieldErr["name"]; e != "" {
+					<span class="err">{ e }</span>
+				}
+			</div>
+			<div class="field">
+				<label for="w-branch">{ i18n.T(ctx, "Branch padrão") }</label>
+				<input class="input mono" id="w-branch" name="branch" value={ vm.Branch } maxlength="100" placeholder="main" autocomplete="off" spellcheck="false"/>
+				if e := vm.FieldErr["branch"]; e != "" {
+					<span class="err">{ e }</span>
+				}
+			</div>
+		</div>
+		<div class="field">
+			<label for="w-path">{ i18n.T(ctx, "Caminho no servidor") }</label>
+			<input class="input mono" id="w-path" name="path" value={ vm.Path } required maxlength="1024" placeholder={ vm.Root + "/meu-projeto" } autocomplete="off" spellcheck="false"/>
+			<span class="hint">
+				if vm.Root != "" {
+					{ i18n.Tf(ctx, "Caminho absoluto dentro de %s. O Hanko não cria nem clona o diretório.", vm.Root) }
+				} else {
+					{ i18n.T(ctx, "Caminho absoluto e limpo (sem .. nem //). O Hanko não cria nem clona o diretório.") }
+				}
+			</span>
+			if e := vm.FieldErr["path"]; e != "" {
+				<span class="err">{ e }</span>
+			}
+		</div>
+		<div class="field">
+			<label for="w-repo">{ i18n.T(ctx, "URL do repositório (opcional)") }</label>
+			<input class="input mono" id="w-repo" name="repo_url" value={ vm.RepoURL } maxlength="500" placeholder="https://github.com/org/repo" autocomplete="off" spellcheck="false"/>
+			<span class="hint">{ i18n.T(ctx, "https://, ssh:// ou formato scp. É só um metadado: o Hanko não clona nem troca de branch, e a URL não leva usuário e senha.") }</span>
+			if e := vm.FieldErr["repo_url"]; e != "" {
+				<span class="err">{ e }</span>
+			}
+		</div>
+		<div class="form-actions">
+			<a class="btn ghost" href={ templ.SafeURL(vm.CancelHref) }>{ i18n.T(ctx, "Cancelar") }</a>
+			<button class="btn primary" type="submit">
+				if vm.Edit {
+					{ i18n.T(ctx, "Salvar alterações") }
+				} else {
+					{ i18n.T(ctx, "Criar workspace") }
+				}
+			</button>
+		</div>
+	</form>
+}
+
+templ NewWorkspacePage(sh Shell, vm WorkspaceFormVM) {
+	@Layout(sh) {
+		@PageHead(i18n.T(ctx, "Novo workspace"), i18n.T(ctx, "Diretórios e repositórios onde as personas trabalham.")) {
+		}
+		if sh.CanAdmin() {
+			@WorkspaceForm(vm)
+		} else {
+			@Alert("warn", i18n.T(ctx, "Seu papel nesta empresa não permite esta ação."))
+		}
+	}
+}
+
+templ WorkspacePage(sh Shell, vm WorkspaceVM) {
+	@Layout(sh) {
+		if vm.Notice != "" {
+			@Alert("warn", vm.Notice)
+		}
+		if vm.Error != "" {
+			@Alert("danger", vm.Error)
+		}
+		<div class="flow-head">
+			<div>
+				<h1>{ vm.Name }</h1>
+				<p class="muted mono" style="margin-top:6px;font-size:13px">{ vm.Path }</p>
+			</div>
+		</div>
+		if vm.Missing {
+			@Alert("warn", i18n.T(ctx, "O diretório não existe neste servidor. As execuções que dependem dele usam um diretório temporário até ele ser criado."))
+		}
+		<section class="card pad">
+			<div class="card-head"><h2>{ i18n.T(ctx, "Em uso por") }</h2></div>
+			if !vm.InUse {
+				<p class="muted">{ i18n.T(ctx, "Nenhuma persona, projeto ou task aberta usa este workspace.") }</p>
+			} else {
+				<dl class="kv" style="grid-template-columns:120px 1fr">
+					<dt>Personas</dt>
+					<dd>
+						if len(vm.Personas) == 0 {
+							—
+						}
+						for i, p := range vm.Personas {
+							if i > 0 {
+								,&nbsp;
+							}
+							<a href={ templ.SafeURL(p.Href) }>{ p.Name }</a>
+						}
+					</dd>
+					<dt>{ i18n.T(ctx, "Projetos") }</dt>
+					<dd>
+						if len(vm.Projects) == 0 {
+							—
+						}
+						for i, p := range vm.Projects {
+							if i > 0 {
+								,&nbsp;
+							}
+							<a href={ templ.SafeURL(p.Href) }>{ p.Name }</a>
+						}
+					</dd>
+					<dt>{ i18n.T(ctx, "Tasks abertas") }</dt>
+					<dd>{ fmt.Sprint(vm.OpenTasks) }</dd>
+				</dl>
+			}
+		</section>
+		<h2 class="side-h" style="margin:28px 0 12px">{ i18n.T(ctx, "Definição") }</h2>
+		if canAdmin(ctx) {
+			@WorkspaceForm(vm.Form)
+			<details class="card pad danger-zone" style="margin-top:20px">
+				<summary>{ i18n.T(ctx, "Excluir workspace") }</summary>
+				<form method="post" action={ templ.SafeURL(vm.DeleteAction) } hx-boost="true" style="margin-top:12px">
+					if vm.InUse {
+						<p class="muted">{ i18n.T(ctx, "O workspace está em uso. Para excluir, marque a opção abaixo: personas, projetos e tasks que o usam ficam sem workspace.") }</p>
+						<label class="check-line">
+							<input type="checkbox" name="unlink" value="1"/>
+							<span>{ i18n.T(ctx, "Desvincular quem usa e excluir") }</span>
+						</label>
+					} else {
+						<p class="muted">{ i18n.T(ctx, "O diretório no disco não é apagado; só o cadastro some.") }</p>
+					}
+					<div class="form-actions">
+						<button class="btn outline" type="submit">{ i18n.T(ctx, "Excluir workspace") }</button>
+					</div>
+				</form>
+			</details>
+		} else {
+			@NeedRole(domain.MemberAdmin)
+		}
+	}
+}

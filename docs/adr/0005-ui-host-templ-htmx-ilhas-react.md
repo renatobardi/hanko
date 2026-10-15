@@ -12,3 +12,7 @@ Visual utilitário no v0.1. Node volta só como ferramenta de build. Checkpoint 
 
 ## Adendo 2026-10-14 — CSS próprio (decisão do dono)
 O host usa CSS próprio (`internal/ui/static/hanko.css`) com os tokens do Kubo DS em CSS vars, sem Tailwind. Mantido por decisão do Bardi: zero ferramenta de build para estilo, fidelidade direta ao DS, tema claro/escuro por tokens. Ilhas React (v0.2+) consomem as mesmas vars.
+
+## Adendo 2026-10-15 — build das ilhas
+O esbuild das ilhas roda pelo npm (`ui/islands/build.mjs`), não pelo pacote Go, e o bundle é commitado; detalhes, versões,
+orçamento e as três ilhas entregues no ADR-0026. O teto de 3 ilhas continua valendo.

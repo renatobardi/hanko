@@ -82,6 +82,10 @@
       "AddCommentInBody": {
         "additionalProperties": false,
         "properties": {
+          "anchor": {
+            "$ref": "#/components/schemas/Anchor",
+            "description": "Ancora o comentário a um trecho da descrição da task ou do resumo de uma execução; o trecho precisa existir no documento (422 se não)."
+          },
           "body": {
             "description": "Texto do comentário (Markdown).",
             "minLength": 1,
@@ -100,6 +104,81 @@
         },
         "required": [
           "body"
+        ],
+        "type": "object"
+      },
+      "Anchor": {
+        "additionalProperties": false,
+        "properties": {
+          "doc_hash": {
+            "description": "Hash do documento no momento do comentário; definido pelo servidor.",
+            "type": "string"
+          },
+          "end": {
+            "description": "Posição final (exclusiva), em code points.",
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "quote": {
+            "description": "Texto citado, exatamente como está no documento.",
+            "maxLength": 2000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "run_id": {
+            "description": "Execução cujo resumo é o alvo (obrigatório com run_summary).",
+            "format": "uuid",
+            "type": "string"
+          },
+          "start": {
+            "description": "Posição inicial da citação, em code points do documento (dica; o servidor recalcula).",
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "target": {
+            "description": "Documento-alvo.",
+            "enum": [
+              "task_description",
+              "run_summary"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "target",
+          "quote",
+          "start",
+          "end"
+        ],
+        "type": "object"
+      },
+      "AnchorState": {
+        "additionalProperties": false,
+        "properties": {
+          "end": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "start": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "status": {
+            "description": "exact = documento igual; moved = documento mudou e o trecho foi reencontrado; lost = trecho não existe mais.",
+            "enum": [
+              "exact",
+              "moved",
+              "lost"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "start",
+          "end"
         ],
         "type": "object"
       },
@@ -141,6 +220,14 @@
       "Comment": {
         "additionalProperties": false,
         "properties": {
+          "anchor": {
+            "$ref": "#/components/schemas/Anchor",
+            "description": "Trecho do documento a que o comentário se refere (comentário ancorado)."
+          },
+          "anchor_state": {
+            "$ref": "#/components/schemas/AnchorState",
+            "description": "Onde o trecho está na versão atual do documento; 'lost' = âncora perdida."
+          },
           "author": {
             "$ref": "#/components/schemas/ActorRef"
           },
@@ -240,6 +327,16 @@
           "created_at",
           "updated_at"
         ],
+        "type": "object"
+      },
+      "ConsolidateMemoryInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "workspace": {
+            "description": "Id ou slug do workspace. Vazio = todos.",
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "Conversation": {
@@ -700,6 +797,12 @@
       "CreateProjectInBody": {
         "additionalProperties": false,
         "properties": {
+          "budget_monthly_cents": {
+            "description": "Orçamento mensal do projeto em centavos de dólar.",
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
           "description": {
             "type": "string"
           },
@@ -739,6 +842,7 @@
             "enum": [
               "claude",
               "codex",
+              "acp",
               "fake"
             ],
             "examples": [
@@ -872,6 +976,13 @@
       "CreateWorkspaceInBody": {
         "additionalProperties": false,
         "properties": {
+          "default_branch": {
+            "description": "Branch padrão (metadado).",
+            "examples": [
+              "main"
+            ],
+            "type": "string"
+          },
           "name": {
             "examples": [
               "API"
@@ -889,6 +1000,7 @@
             "type": "string"
           },
           "repo_url": {
+            "description": "https://, ssh:// ou formato scp (metadado).",
             "examples": [
               "https://example.com/acme/api.git"
             ],
@@ -985,6 +1097,16 @@
         "required": [
           "decision"
         ],
+        "type": "object"
+      },
+      "DecideMemoryProposalInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "note": {
+            "description": "Comentário da decisão; vai para a trilha de auditoria.",
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "ErrorDetail": {
@@ -1265,11 +1387,12 @@
             "type": "string"
           },
           "kind": {
-            "description": "approval: ação irreversível, merge, deploy, gasto; task_review: revisão para concluir uma task; hire: contratação.",
+            "description": "approval: ação irreversível, merge, deploy, gasto; task_review: revisão para concluir uma task; hire: contratação; memory: proposta de curadoria de memória que remove, funde ou reescreve conteúdo.",
             "enum": [
               "approval",
               "task_review",
-              "hire"
+              "hire",
+              "memory"
             ],
             "type": "string"
           },
@@ -1374,12 +1497,40 @@
         ],
         "type": "object"
       },
+      "GrantMemoryInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "access": {
+            "enum": [
+              "read",
+              "write"
+            ],
+            "type": "string"
+          },
+          "persona": {
+            "description": "Id ou slug da persona.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "workspace": {
+            "description": "Id ou slug do workspace cuja memória ela poderá acessar.",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "persona",
+          "workspace",
+          "access"
+        ],
+        "type": "object"
+      },
       "HirePersonaInBody": {
         "additionalProperties": false,
         "properties": {
           "adapter_config": {
             "additionalProperties": {},
-            "description": "Configuração específica do adapter (ex.: permission_mode, extra_args).",
+            "description": "Configuração específica do adapter (ex.: permission_mode, extra_args). Para agent acp é obrigatória: command (executável do agente ACP), args, env, permission (allow, reject ou read_only; padrão read_only), model e init_timeout_sec.",
             "type": "object"
           },
           "agent": {
@@ -1387,6 +1538,7 @@
             "enum": [
               "claude",
               "codex",
+              "acp",
               "fake"
             ],
             "examples": [
@@ -1888,6 +2040,99 @@
         ],
         "type": "object"
       },
+      "ListBodyMemoryConsolidationOut": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "description": "Itens da página.",
+            "items": {
+              "$ref": "#/components/schemas/MemoryConsolidationOut"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "limit": {
+            "description": "Limite aplicado.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "offset": {
+            "description": "Deslocamento aplicado.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "limit",
+          "offset"
+        ],
+        "type": "object"
+      },
+      "ListBodyMemoryGrantOut": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "description": "Itens da página.",
+            "items": {
+              "$ref": "#/components/schemas/MemoryGrantOut"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "limit": {
+            "description": "Limite aplicado.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "offset": {
+            "description": "Deslocamento aplicado.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "limit",
+          "offset"
+        ],
+        "type": "object"
+      },
+      "ListBodyMemoryProposalOut": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "description": "Itens da página.",
+            "items": {
+              "$ref": "#/components/schemas/MemoryProposalOut"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "limit": {
+            "description": "Limite aplicado.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "offset": {
+            "description": "Deslocamento aplicado.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "limit",
+          "offset"
+        ],
+        "type": "object"
+      },
       "ListBodyPersona": {
         "additionalProperties": false,
         "properties": {
@@ -2142,6 +2387,319 @@
         ],
         "type": "object"
       },
+      "MemoryConsolidationOut": {
+        "additionalProperties": false,
+        "properties": {
+          "cost_usd": {
+            "description": "Custo da run de curadoria (vai para o ledger como qualquer run).",
+            "format": "double",
+            "type": "number"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "finished_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "origin": {
+            "enum": [
+              "scheduled",
+              "manual"
+            ],
+            "type": "string"
+          },
+          "proposals": {
+            "description": "Propostas geradas pela run.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "run_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "run_name": {
+            "type": "string"
+          },
+          "run_status": {
+            "type": "string"
+          },
+          "scheduled_for": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "description": "open: task criada, a run não terminou; expired: nunca chegou a rodar.",
+            "enum": [
+              "open",
+              "done",
+              "failed",
+              "cancelled",
+              "expired"
+            ],
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "task_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "task_key": {
+            "examples": [
+              "HNK-31"
+            ],
+            "type": "string"
+          },
+          "workspace_slug": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "workspace_slug",
+          "origin",
+          "status",
+          "scheduled_for",
+          "proposals",
+          "created_at"
+        ],
+        "type": "object"
+      },
+      "MemoryGrantOut": {
+        "additionalProperties": false,
+        "properties": {
+          "access": {
+            "enum": [
+              "read",
+              "write"
+            ],
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "persona_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "persona_name": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "workspace_slug": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "persona_id",
+          "persona_name",
+          "workspace_id",
+          "workspace_slug",
+          "access",
+          "created_at"
+        ],
+        "type": "object"
+      },
+      "MemoryProposalOut": {
+        "additionalProperties": false,
+        "properties": {
+          "applied_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "attempts": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "current": {
+            "type": "string"
+          },
+          "decided_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "decided_by": {
+            "$ref": "#/components/schemas/ActorRef"
+          },
+          "decision_note": {
+            "type": "string"
+          },
+          "diff": {
+            "type": "string"
+          },
+          "gate_id": {
+            "description": "Gate do Inbox em que a proposta é decidida.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "merge",
+              "delete",
+              "rewrite"
+            ],
+            "type": "string"
+          },
+          "last_error": {
+            "type": "string"
+          },
+          "next_attempt_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "persona_name": {
+            "type": "string"
+          },
+          "proposed": {
+            "type": "string"
+          },
+          "run_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "run_name": {
+            "type": "string"
+          },
+          "sha256": {
+            "description": "Hash da chamada que será aplicada: o que foi aprovado é exatamente isto.",
+            "type": "string"
+          },
+          "status": {
+            "description": "pending: espera decisão; approved: aplicação na fila; applied: feita no ai-memory; failed: a aplicação falhou, nova tentativa agendada.",
+            "enum": [
+              "pending",
+              "approved",
+              "rejected",
+              "applied",
+              "failed"
+            ],
+            "type": "string"
+          },
+          "targets": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "tool": {
+            "description": "Tool do provedor de memória que será repetida ao aprovar.",
+            "type": "string"
+          },
+          "workspace_slug": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "workspace_slug",
+          "kind",
+          "status",
+          "tool",
+          "targets",
+          "sha256",
+          "attempts",
+          "created_at"
+        ],
+        "type": "object"
+      },
+      "MemorySettingsOut": {
+        "additionalProperties": false,
+        "properties": {
+          "curator_name": {
+            "type": "string"
+          },
+          "curator_persona_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "curator_slug": {
+            "type": "string"
+          },
+          "enabled": {
+            "description": "Consolidação periódica ligada. Desligada por padrão.",
+            "type": "boolean"
+          },
+          "interval_hours": {
+            "description": "Horas entre as rodadas.",
+            "format": "int64",
+            "maximum": 720,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "last_fired_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "next_fire_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "enabled",
+          "interval_hours"
+        ],
+        "type": "object"
+      },
+      "MemoryStatusOut": {
+        "additionalProperties": false,
+        "properties": {
+          "available": {
+            "description": "Há provedor de memória.",
+            "type": "boolean"
+          },
+          "pending_proposals": {
+            "description": "Propostas esperando decisão no Inbox.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "provider": {
+            "description": "Provedor de memória; none = desligado (a consolidação não existe).",
+            "examples": [
+              "ai-memory"
+            ],
+            "type": "string"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/MemorySettingsOut"
+          },
+          "workspaces": {
+            "description": "Quantos workspaces a curadoria percorre.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "provider",
+          "available",
+          "settings",
+          "workspaces",
+          "pending_proposals"
+        ],
+        "type": "object"
+      },
       "OrgChart": {
         "additionalProperties": false,
         "properties": {
@@ -2224,6 +2782,7 @@
             "enum": [
               "claude",
               "codex",
+              "acp",
               "fake"
             ],
             "type": "string"
@@ -2354,6 +2913,10 @@
       "Project": {
         "additionalProperties": false,
         "properties": {
+          "budget_monthly_cents": {
+            "format": "int64",
+            "type": "integer"
+          },
           "company_id": {
             "format": "uuid",
             "type": "string"
@@ -2381,6 +2944,18 @@
             ],
             "type": "string"
           },
+          "stats": {
+            "$ref": "#/components/schemas/ProjectStats",
+            "description": "Progresso e custo do mês; vem na lista e no detalhe."
+          },
+          "status": {
+            "description": "Projeto arquivado não recebe tasks novas.",
+            "enum": [
+              "active",
+              "archived"
+            ],
+            "type": "string"
+          },
           "updated_at": {
             "format": "date-time",
             "type": "string"
@@ -2395,8 +2970,89 @@
           "company_id",
           "slug",
           "name",
+          "status",
           "created_at",
           "updated_at"
+        ],
+        "type": "object"
+      },
+      "ProjectPersona": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "open_tasks": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "tasks": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "tasks",
+          "open_tasks"
+        ],
+        "type": "object"
+      },
+      "ProjectStats": {
+        "additionalProperties": false,
+        "properties": {
+          "budget": {
+            "$ref": "#/components/schemas/Budget",
+            "description": "Gasto do mês do projeto contra o teto dele."
+          },
+          "personas": {
+            "description": "Só no detalhe.",
+            "items": {
+              "$ref": "#/components/schemas/ProjectPersona"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "progress_percent": {
+            "description": "done / (total - canceladas), de 0 a 100.",
+            "format": "double",
+            "type": "number"
+          },
+          "tasks": {
+            "additionalProperties": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "description": "Tasks por status (todos os status presentes).",
+            "type": "object"
+          },
+          "tasks_total": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "workspace_name": {
+            "type": "string"
+          },
+          "workspace_slug": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "tasks",
+          "tasks_total",
+          "progress_percent",
+          "budget"
         ],
         "type": "object"
       },
@@ -2446,6 +3102,7 @@
             "enum": [
               "claude",
               "codex",
+              "acp",
               "fake"
             ],
             "type": "string"
@@ -2578,6 +3235,7 @@
               "gate",
               "flow",
               "review",
+              "memory",
               "chat"
             ],
             "type": "string"
@@ -2654,6 +3312,179 @@
         ],
         "type": "object"
       },
+      "SearchGroup": {
+        "additionalProperties": false,
+        "properties": {
+          "hits": {
+            "items": {
+              "$ref": "#/components/schemas/SearchHit"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "more": {
+            "description": "Há mais resultados além do limite.",
+            "type": "boolean"
+          },
+          "type": {
+            "enum": [
+              "task",
+              "comment",
+              "persona",
+              "run",
+              "flow",
+              "memory"
+            ],
+            "type": "string"
+          },
+          "unavailable": {
+            "description": "O tipo não pôde ser consultado agora (memória fora do ar); os demais valem.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "type",
+          "hits"
+        ],
+        "type": "object"
+      },
+      "SearchHit": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "description": "Última atualização (criação, para comentários e execuções).",
+            "format": "date-time",
+            "type": "string"
+          },
+          "author": {
+            "description": "Autor do comentário: nome da persona, human ou system.",
+            "type": "string"
+          },
+          "exact": {
+            "description": "A consulta é exatamente a chave desta task.",
+            "type": "boolean"
+          },
+          "id": {
+            "description": "Id da task, comentário, persona, execução ou fluxo (ausente na memória).",
+            "format": "uuid",
+            "type": "string"
+          },
+          "persona": {
+            "description": "Persona da execução.",
+            "type": "string"
+          },
+          "ref": {
+            "description": "Referência para navegar: chave da task (também nos comentários), slug da persona ou do fluxo, id da execução, path da página na memória.",
+            "examples": [
+              "HNK-12"
+            ],
+            "type": "string"
+          },
+          "score": {
+            "description": "Relevância (ts_rank × recência); só serve para ordenar dentro do grupo.",
+            "format": "double",
+            "type": "number"
+          },
+          "snippet": {
+            "description": "Trecho que casou (ou o início do texto, sem marcas).",
+            "items": {
+              "$ref": "#/components/schemas/SearchSegment"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "status": {
+            "description": "Status da task, persona ou execução; enabled/disabled no fluxo.",
+            "type": "string"
+          },
+          "task_key": {
+            "description": "Task do comentário ou da execução.",
+            "type": "string"
+          },
+          "task_title": {
+            "type": "string"
+          },
+          "title": {
+            "description": "Título/nome, com as palavras que casaram marcadas.",
+            "items": {
+              "$ref": "#/components/schemas/SearchSegment"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "type": {
+            "description": "Tipo do resultado.",
+            "enum": [
+              "task",
+              "comment",
+              "persona",
+              "run",
+              "flow",
+              "memory"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "ref",
+          "title",
+          "score"
+        ],
+        "type": "object"
+      },
+      "SearchResult": {
+        "additionalProperties": false,
+        "properties": {
+          "groups": {
+            "description": "Grupos na ordem task, comment, persona, run, flow, memory.",
+            "items": {
+              "$ref": "#/components/schemas/SearchGroup"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "query": {
+            "type": "string"
+          },
+          "total": {
+            "description": "Resultados nos grupos devolvidos.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "query",
+          "total",
+          "groups"
+        ],
+        "type": "object"
+      },
+      "SearchSegment": {
+        "additionalProperties": false,
+        "properties": {
+          "match": {
+            "description": "Verdadeiro quando este pedaço casou com a consulta.",
+            "type": "boolean"
+          },
+          "text": {
+            "description": "Texto original (sem HTML; quem exibe deve escapar).",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "type": "object"
+      },
       "SendMessageInBody": {
         "additionalProperties": false,
         "properties": {
@@ -2697,6 +3528,7 @@
             "enum": [
               "claude",
               "codex",
+              "acp",
               "fake"
             ],
             "type": "string"
@@ -3021,6 +3853,29 @@
         },
         "type": "object"
       },
+      "UpdateMemoryInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "clear_curator": {
+            "type": "boolean"
+          },
+          "curator": {
+            "description": "Id ou slug da persona curadora (de preferência com um modelo barato).",
+            "type": "string"
+          },
+          "enabled": {
+            "description": "Liga ou desliga a consolidação periódica. Ligar exige provedor de memória e curador.",
+            "type": "boolean"
+          },
+          "interval_hours": {
+            "format": "int64",
+            "maximum": 720,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "UpdatePersonaInBody": {
         "additionalProperties": false,
         "properties": {
@@ -3114,6 +3969,46 @@
         },
         "type": "object"
       },
+      "UpdateProjectInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "budget_monthly_cents": {
+            "description": "Orçamento mensal do projeto em centavos de dólar.",
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "clear_budget": {
+            "description": "Remove o teto do projeto.",
+            "type": "boolean"
+          },
+          "clear_workspace": {
+            "description": "Remove o workspace do projeto.",
+            "type": "boolean"
+          },
+          "description": {
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "status": {
+            "description": "archived: o projeto não recebe tasks novas.",
+            "enum": [
+              "active",
+              "archived"
+            ],
+            "type": "string"
+          },
+          "workspace": {
+            "description": "Id ou slug do workspace do projeto.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "UpdateSubscriptionInBody": {
         "additionalProperties": false,
         "properties": {
@@ -3125,6 +4020,7 @@
             "enum": [
               "claude",
               "codex",
+              "acp",
               "fake"
             ],
             "type": "string"
@@ -3166,6 +4062,10 @@
       "UpdateTaskInBody": {
         "additionalProperties": false,
         "properties": {
+          "clear_project": {
+            "description": "Tira a task do projeto.",
+            "type": "boolean"
+          },
           "description": {
             "type": "string"
           },
@@ -3219,6 +4119,29 @@
         },
         "type": "object"
       },
+      "UpdateWorkspaceInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "default_branch": {
+            "description": "Branch padrão (metadado); vazio limpa.",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "path": {
+            "description": "Absoluto, limpo e dentro da raiz de workspaces; vazio limpa.",
+            "type": "string"
+          },
+          "repo_url": {
+            "description": "https://, ssh:// ou formato scp; vazio limpa.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "Usage": {
         "additionalProperties": false,
         "properties": {
@@ -3247,6 +4170,27 @@
         ],
         "type": "object"
       },
+      "UsageRef": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "name"
+        ],
+        "type": "object"
+      },
       "WakeResult": {
         "additionalProperties": false,
         "properties": {
@@ -3271,6 +4215,12 @@
             "format": "date-time",
             "type": "string"
           },
+          "default_branch": {
+            "examples": [
+              "main"
+            ],
+            "type": "string"
+          },
           "id": {
             "format": "uuid",
             "type": "string"
@@ -3289,6 +4239,7 @@
             "type": "string"
           },
           "repo_url": {
+            "description": "Metadado: https://, ssh:// ou formato scp (usuario@host:dono/repo). O Hanko não clona.",
             "examples": [
               "https://example.com/acme/api.git"
             ],
@@ -3303,6 +4254,9 @@
           "updated_at": {
             "format": "date-time",
             "type": "string"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/WorkspaceUsage"
           }
         },
         "required": [
@@ -3313,6 +4267,51 @@
           "path",
           "created_at",
           "updated_at"
+        ],
+        "type": "object"
+      },
+      "WorkspaceUsage": {
+        "additionalProperties": false,
+        "properties": {
+          "open_tasks": {
+            "description": "Tasks abertas que escolheram este workspace.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "persona_items": {
+            "description": "Só no detalhe.",
+            "items": {
+              "$ref": "#/components/schemas/UsageRef"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "personas": {
+            "description": "Personas que o têm como padrão.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "project_items": {
+            "description": "Só no detalhe.",
+            "items": {
+              "$ref": "#/components/schemas/UsageRef"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "projects": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "personas",
+          "projects",
+          "open_tasks"
         ],
         "type": "object"
       }
@@ -4927,6 +5926,16 @@
               ],
               "type": "string"
             }
+          },
+          {
+            "description": "Id ou slug do projeto: só as execuções das tasks dele. O custo pago (assinaturas) não é rateado por projeto.",
+            "explode": false,
+            "in": "query",
+            "name": "project",
+            "schema": {
+              "description": "Id ou slug do projeto: só as execuções das tasks dele. O custo pago (assinaturas) não é rateado por projeto.",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -5995,12 +7004,12 @@
             }
           },
           {
-            "description": "Tipos separados por vírgula: approval,task_review,hire.",
+            "description": "Tipos separados por vírgula: approval,task_review,hire,memory.",
             "explode": false,
             "in": "query",
             "name": "kind",
             "schema": {
-              "description": "Tipos separados por vírgula: approval,task_review,hire.",
+              "description": "Tipos separados por vírgula: approval,task_review,hire,memory.",
               "type": "string"
             }
           },
@@ -7100,6 +8109,1295 @@
         ]
       }
     },
+    "/api/v1/companies/{company}/memory": {
+      "get": {
+        "operationId": "get-memory",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryStatusOut"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Estado da memória e da consolidação",
+        "tags": [
+          "memory"
+        ]
+      },
+      "patch": {
+        "operationId": "update-memory",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMemoryInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryStatusOut"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Configura a consolidação (ligar, intervalo, curador); só administradores",
+        "tags": [
+          "memory"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/memory/consolidate": {
+      "post": {
+        "operationId": "consolidate-memory",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConsolidateMemoryInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListBodyMemoryConsolidationOut"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Roda a consolidação agora (um workspace ou todos); só administradores",
+        "tags": [
+          "memory"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/memory/consolidations": {
+      "get": {
+        "operationId": "list-memory-consolidations",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 30,
+              "format": "int64",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListBodyMemoryConsolidationOut"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Histórico de consolidações (mais recentes primeiro)",
+        "tags": [
+          "memory"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/memory/grants": {
+      "get": {
+        "operationId": "list-memory-grants",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListBodyMemoryGrantOut"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Permissões de memória por workspace (além do workspace da própria run)",
+        "tags": [
+          "memory"
+        ]
+      },
+      "put": {
+        "operationId": "grant-memory-access",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GrantMemoryInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryGrantOut"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Concede a uma persona leitura (ou leitura e escrita) na memória de outro workspace; só administradores",
+        "tags": [
+          "memory"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/memory/grants/{persona}/{workspace}": {
+      "delete": {
+        "operationId": "revoke-memory-access",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug da persona.",
+            "in": "path",
+            "name": "persona",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da persona.",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug do workspace.",
+            "in": "path",
+            "name": "workspace",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug do workspace.",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Retira a permissão de memória de uma persona sobre um workspace; só administradores",
+        "tags": [
+          "memory"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/memory/proposals": {
+      "get": {
+        "operationId": "list-memory-proposals",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Estados separados por vírgula: pending,approved,rejected,applied,failed. Vazio = todos.",
+            "explode": false,
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "description": "Estados separados por vírgula: pending,approved,rejected,applied,failed. Vazio = todos.",
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "format": "int64",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListBodyMemoryProposalOut"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Propostas de curadoria (pendentes primeiro)",
+        "tags": [
+          "memory"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/memory/proposals/{proposal}": {
+      "get": {
+        "operationId": "get-memory-proposal",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id da proposta.",
+            "in": "path",
+            "name": "proposal",
+            "required": true,
+            "schema": {
+              "description": "Id da proposta.",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryProposalOut"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Obtém uma proposta de curadoria, com o diff",
+        "tags": [
+          "memory"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/memory/proposals/{proposal}/approve": {
+      "post": {
+        "operationId": "approve-memory-proposal",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id da proposta.",
+            "in": "path",
+            "name": "proposal",
+            "required": true,
+            "schema": {
+              "description": "Id da proposta.",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecideMemoryProposalInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryProposalOut"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Aprova uma proposta: o Hanko aplica a escrita no ai-memory (job com retry); só humanos",
+        "tags": [
+          "memory"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/memory/proposals/{proposal}/reject": {
+      "post": {
+        "operationId": "reject-memory-proposal",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id da proposta.",
+            "in": "path",
+            "name": "proposal",
+            "required": true,
+            "schema": {
+              "description": "Id da proposta.",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecideMemoryProposalInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryProposalOut"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Rejeita uma proposta: a escrita é descartada; só humanos",
+        "tags": [
+          "memory"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/memory/proposals/{proposal}/retry": {
+      "post": {
+        "operationId": "retry-memory-proposal",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id da proposta.",
+            "in": "path",
+            "name": "proposal",
+            "required": true,
+            "schema": {
+              "description": "Id da proposta.",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryProposalOut"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Recoloca na fila a aplicação de uma proposta aprovada que falhou",
+        "tags": [
+          "memory"
+        ]
+      }
+    },
     "/api/v1/companies/{company}/org-chart": {
       "get": {
         "operationId": "get-org-chart",
@@ -7876,6 +10174,232 @@
         ]
       }
     },
+    "/api/v1/companies/{company}/projects/{project}": {
+      "get": {
+        "operationId": "get-project",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug do projeto.",
+            "in": "path",
+            "name": "project",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug do projeto.",
+              "examples": [
+                "lancamento"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Project"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Obtém um projeto com progresso, custo do mês e personas",
+        "tags": [
+          "projects"
+        ]
+      },
+      "patch": {
+        "operationId": "update-project",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug do projeto.",
+            "in": "path",
+            "name": "project",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug do projeto.",
+              "examples": [
+                "lancamento"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProjectInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Project"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Atualiza um projeto (nome, workspace, status, orçamento)",
+        "tags": [
+          "projects"
+        ]
+      }
+    },
     "/api/v1/companies/{company}/runs": {
       "get": {
         "operationId": "list-runs",
@@ -8282,16 +10806,40 @@
             }
           },
           {
-            "description": "Devolve eventos com seq maior que este valor.",
+            "description": "Devolve eventos com seq maior que este valor (página para frente).",
             "explode": false,
             "in": "query",
             "name": "after",
             "schema": {
               "default": 0,
-              "description": "Devolve eventos com seq maior que este valor.",
+              "description": "Devolve eventos com seq maior que este valor (página para frente).",
               "format": "int64",
               "minimum": 0,
               "type": "integer"
+            }
+          },
+          {
+            "description": "Devolve os eventos imediatamente anteriores a este seq (página para trás, cursor de histórico); 0 = não usar.",
+            "explode": false,
+            "in": "query",
+            "name": "before",
+            "schema": {
+              "default": 0,
+              "description": "Devolve os eventos imediatamente anteriores a este seq (página para trás, cursor de histórico); 0 = não usar.",
+              "format": "int64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Devolve os últimos eventos do log (equivale a before = fim). Em ordem crescente de seq.",
+            "explode": false,
+            "in": "query",
+            "name": "tail",
+            "schema": {
+              "default": false,
+              "description": "Devolve os últimos eventos do log (equivale a before = fim). Em ordem crescente de seq.",
+              "type": "boolean"
             }
           },
           {
@@ -8381,7 +10929,7 @@
             "description": "Internal Server Error"
           }
         },
-        "summary": "Lista o log de uma execução",
+        "summary": "Lista o log de uma execução (por cursor de seq)",
         "tags": [
           "runs"
         ]
@@ -8448,6 +10996,145 @@
         "summary": "Acompanha uma execução ao vivo (SSE)",
         "tags": [
           "runs"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/search": {
+      "get": {
+        "operationId": "search",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "O que buscar. Palavras separadas por espaço (todas), \"frase exata\", -excluir, OR; a última palavra casa por prefixo. A chave exata de uma task (HNK-12) vai direto a ela.",
+            "explode": false,
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "description": "O que buscar. Palavras separadas por espaço (todas), \"frase exata\", -excluir, OR; a última palavra casa por prefixo. A chave exata de uma task (HNK-12) vai direto a ela.",
+              "examples": [
+                "deploy produção"
+              ],
+              "maxLength": 512,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Tipos separados por vírgula: task,comment,persona,run,flow,memory. Vazio = todos.",
+            "explode": false,
+            "in": "query",
+            "name": "types",
+            "schema": {
+              "description": "Tipos separados por vírgula: task,comment,persona,run,flow,memory. Vazio = todos.",
+              "examples": [
+                "task,comment"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Máximo de resultados por tipo.",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 10,
+              "description": "Máximo de resultados por tipo.",
+              "format": "int64",
+              "maximum": 50,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResult"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Busca na empresa",
+        "tags": [
+          "search"
         ]
       }
     },
@@ -10084,6 +12771,342 @@
           }
         },
         "summary": "Cria um workspace",
+        "tags": [
+          "workspaces"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/workspaces/{workspace}": {
+      "delete": {
+        "operationId": "delete-workspace",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug do workspace.",
+            "in": "path",
+            "name": "workspace",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug do workspace.",
+              "examples": [
+                "api"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Desvincula personas, projetos e tasks que usam o workspace e exclui. Sem isto, um workspace em uso responde 409.",
+            "explode": false,
+            "in": "query",
+            "name": "unlink",
+            "schema": {
+              "description": "Desvincula personas, projetos e tasks que usam o workspace e exclui. Sem isto, um workspace em uso responde 409.",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Exclui um workspace (recusa se estiver em uso, a menos que unlink=true)",
+        "tags": [
+          "workspaces"
+        ]
+      },
+      "get": {
+        "operationId": "get-workspace",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug do workspace.",
+            "in": "path",
+            "name": "workspace",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug do workspace.",
+              "examples": [
+                "api"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Workspace"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Obtém um workspace e quem o usa",
+        "tags": [
+          "workspaces"
+        ]
+      },
+      "patch": {
+        "operationId": "update-workspace",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug do workspace.",
+            "in": "path",
+            "name": "workspace",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug do workspace.",
+              "examples": [
+                "api"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWorkspaceInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Workspace"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Atualiza um workspace",
         "tags": [
           "workspaces"
         ]

@@ -36,7 +36,7 @@ INSERT INTO personas (id, company_id, slug, name, title, instructions, agent, mo
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9,
         $10, $11, $12, $13, $14, $15,
         $16, $16)
-RETURNING id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason, budget_refused_at, subscription_id, reviewer_persona_id, reviewer_agent, reviewer_model
+RETURNING id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason, budget_refused_at, subscription_id, reviewer_persona_id, reviewer_agent, reviewer_model, search_tsv
 `
 
 type CreatePersonaParams struct {
@@ -105,12 +105,13 @@ func (q *Queries) CreatePersona(ctx context.Context, arg CreatePersonaParams) (P
 		&i.ReviewerPersonaID,
 		&i.ReviewerAgent,
 		&i.ReviewerModel,
+		&i.SearchTsv,
 	)
 	return i, err
 }
 
 const getPersonaByID = `-- name: GetPersonaByID :one
-SELECT id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason, budget_refused_at, subscription_id, reviewer_persona_id, reviewer_agent, reviewer_model FROM personas WHERE company_id = $1 AND id = $2
+SELECT id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason, budget_refused_at, subscription_id, reviewer_persona_id, reviewer_agent, reviewer_model, search_tsv FROM personas WHERE company_id = $1 AND id = $2
 `
 
 type GetPersonaByIDParams struct {
@@ -148,12 +149,13 @@ func (q *Queries) GetPersonaByID(ctx context.Context, arg GetPersonaByIDParams) 
 		&i.ReviewerPersonaID,
 		&i.ReviewerAgent,
 		&i.ReviewerModel,
+		&i.SearchTsv,
 	)
 	return i, err
 }
 
 const getPersonaByIDForUpdate = `-- name: GetPersonaByIDForUpdate :one
-SELECT id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason, budget_refused_at, subscription_id, reviewer_persona_id, reviewer_agent, reviewer_model FROM personas WHERE company_id = $1 AND id = $2 FOR UPDATE
+SELECT id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason, budget_refused_at, subscription_id, reviewer_persona_id, reviewer_agent, reviewer_model, search_tsv FROM personas WHERE company_id = $1 AND id = $2 FOR UPDATE
 `
 
 type GetPersonaByIDForUpdateParams struct {
@@ -191,12 +193,13 @@ func (q *Queries) GetPersonaByIDForUpdate(ctx context.Context, arg GetPersonaByI
 		&i.ReviewerPersonaID,
 		&i.ReviewerAgent,
 		&i.ReviewerModel,
+		&i.SearchTsv,
 	)
 	return i, err
 }
 
 const getPersonaBySlug = `-- name: GetPersonaBySlug :one
-SELECT id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason, budget_refused_at, subscription_id, reviewer_persona_id, reviewer_agent, reviewer_model FROM personas WHERE company_id = $1 AND slug = $2
+SELECT id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason, budget_refused_at, subscription_id, reviewer_persona_id, reviewer_agent, reviewer_model, search_tsv FROM personas WHERE company_id = $1 AND slug = $2
 `
 
 type GetPersonaBySlugParams struct {
@@ -234,12 +237,13 @@ func (q *Queries) GetPersonaBySlug(ctx context.Context, arg GetPersonaBySlugPara
 		&i.ReviewerPersonaID,
 		&i.ReviewerAgent,
 		&i.ReviewerModel,
+		&i.SearchTsv,
 	)
 	return i, err
 }
 
 const listBudgetPausedPersonas = `-- name: ListBudgetPausedPersonas :many
-SELECT id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason, budget_refused_at, subscription_id, reviewer_persona_id, reviewer_agent, reviewer_model FROM personas
+SELECT id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason, budget_refused_at, subscription_id, reviewer_persona_id, reviewer_agent, reviewer_model, search_tsv FROM personas
 WHERE status = 'paused' AND pause_reason IS NOT NULL
   AND ($1::uuid IS NULL OR company_id = $1::uuid)
   AND ($2::uuid IS NULL OR id = $2::uuid)
@@ -288,6 +292,7 @@ func (q *Queries) ListBudgetPausedPersonas(ctx context.Context, arg ListBudgetPa
 			&i.ReviewerPersonaID,
 			&i.ReviewerAgent,
 			&i.ReviewerModel,
+			&i.SearchTsv,
 		); err != nil {
 			return nil, err
 		}
@@ -300,7 +305,7 @@ func (q *Queries) ListBudgetPausedPersonas(ctx context.Context, arg ListBudgetPa
 }
 
 const listPersonas = `-- name: ListPersonas :many
-SELECT id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason, budget_refused_at, subscription_id, reviewer_persona_id, reviewer_agent, reviewer_model FROM personas WHERE company_id = $1 ORDER BY created_at, id
+SELECT id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason, budget_refused_at, subscription_id, reviewer_persona_id, reviewer_agent, reviewer_model, search_tsv FROM personas WHERE company_id = $1 ORDER BY created_at, id
 `
 
 func (q *Queries) ListPersonas(ctx context.Context, companyID uuid.UUID) ([]Persona, error) {
@@ -339,6 +344,7 @@ func (q *Queries) ListPersonas(ctx context.Context, companyID uuid.UUID) ([]Pers
 			&i.ReviewerPersonaID,
 			&i.ReviewerAgent,
 			&i.ReviewerModel,
+			&i.SearchTsv,
 		); err != nil {
 			return nil, err
 		}
@@ -453,7 +459,7 @@ func (q *Queries) SetPersonaBudgetRefused(ctx context.Context, arg SetPersonaBud
 const setPersonaOrg = `-- name: SetPersonaOrg :one
 UPDATE personas SET reports_to = $1, require_review = $2, updated_at = $3
 WHERE company_id = $4 AND id = $5
-RETURNING id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason, budget_refused_at, subscription_id, reviewer_persona_id, reviewer_agent, reviewer_model
+RETURNING id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason, budget_refused_at, subscription_id, reviewer_persona_id, reviewer_agent, reviewer_model, search_tsv
 `
 
 type SetPersonaOrgParams struct {
@@ -500,6 +506,7 @@ func (q *Queries) SetPersonaOrg(ctx context.Context, arg SetPersonaOrgParams) (P
 		&i.ReviewerPersonaID,
 		&i.ReviewerAgent,
 		&i.ReviewerModel,
+		&i.SearchTsv,
 	)
 	return i, err
 }
@@ -527,7 +534,7 @@ SET name = $1, title = $2, instructions = $3, model = $4,
     pause_reason = CASE WHEN $5::text <> 'paused' OR $11::boolean THEN NULL ELSE pause_reason END,
     consecutive_failures = CASE WHEN $5::text <> status THEN 0 ELSE consecutive_failures END
 WHERE company_id = $12 AND id = $13
-RETURNING id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason, budget_refused_at, subscription_id, reviewer_persona_id, reviewer_agent, reviewer_model
+RETURNING id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason, budget_refused_at, subscription_id, reviewer_persona_id, reviewer_agent, reviewer_model, search_tsv
 `
 
 type UpdatePersonaParams struct {
@@ -590,6 +597,7 @@ func (q *Queries) UpdatePersona(ctx context.Context, arg UpdatePersonaParams) (P
 		&i.ReviewerPersonaID,
 		&i.ReviewerAgent,
 		&i.ReviewerModel,
+		&i.SearchTsv,
 	)
 	return i, err
 }

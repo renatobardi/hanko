@@ -46,6 +46,17 @@ type Backend interface {
 	GetCompany(ctx context.Context, ref string) (domain.Company, error)
 	ListCompanies(ctx context.Context) ([]domain.Company, error)
 	ListProjects(ctx context.Context, companyID domain.ID) ([]domain.Project, error)
+	ListProjectViews(ctx context.Context, companyID domain.ID) ([]service.ProjectView, error)
+	GetProjectView(ctx context.Context, companyID domain.ID, ref string) (service.ProjectView, error)
+	CreateProject(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.CreateProjectInput) (domain.Project, error)
+	UpdateProject(ctx context.Context, actor domain.Actor, companyID, projectID domain.ID, in service.UpdateProjectInput) (domain.Project, error)
+
+	ListWorkspaceViews(ctx context.Context, companyID domain.ID) ([]service.WorkspaceView, error)
+	GetWorkspaceView(ctx context.Context, companyID domain.ID, ref string) (service.WorkspaceView, error)
+	CreateWorkspace(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.CreateWorkspaceInput) (domain.Workspace, error)
+	UpdateWorkspace(ctx context.Context, actor domain.Actor, companyID, workspaceID domain.ID, in service.UpdateWorkspaceInput) (domain.Workspace, error)
+	DeleteWorkspace(ctx context.Context, actor domain.Actor, companyID, workspaceID domain.ID, unlink bool) error
+	WorkspacesRootPath() string
 
 	HirePersona(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.HirePersonaInput) (domain.Persona, error)
 	ListPersonas(ctx context.Context, companyID domain.ID) ([]domain.Persona, error)
@@ -67,6 +78,8 @@ type Backend interface {
 	CancelRun(ctx context.Context, actor domain.Actor, companyID, runID domain.ID) (service.RunView, error)
 
 	ListActivity(ctx context.Context, companyID domain.ID, f service.ActivityFilter) ([]domain.ActivityEvent, error)
+	Search(ctx context.Context, companyID domain.ID, q string, f service.SearchFilter) (service.SearchResult, error)
+	MemoryAvailable() bool
 	Dashboard(ctx context.Context, companyID domain.ID) (service.DashboardStats, error)
 
 	ListGates(ctx context.Context, companyID domain.ID, f service.GateFilter) ([]service.GateView, error)
@@ -202,6 +215,22 @@ func (s *server) routes(root *http.ServeMux) {
 
 	mux.HandleFunc("POST /c/{company}/personas/{persona}/orcamento", post(co(s.handleSetPersonaBudget)))
 
+	mux.HandleFunc("GET /c/{company}/projetos", co(s.handleProjects))
+	mux.HandleFunc("GET /c/{company}/projetos/novo", co(s.handleNewProject))
+	mux.HandleFunc("POST /c/{company}/projetos/novo", post(co(s.handleCreateProject)))
+	mux.HandleFunc("GET /c/{company}/projetos/{project}", co(s.handleProject))
+	mux.HandleFunc("POST /c/{company}/projetos/{project}", post(co(s.handleUpdateProject)))
+	mux.HandleFunc("POST /c/{company}/projetos/{project}/arquivar", post(co(s.handleProjectArchive(true))))
+	mux.HandleFunc("POST /c/{company}/projetos/{project}/reativar", post(co(s.handleProjectArchive(false))))
+	mux.HandleFunc("POST /c/{company}/projetos/{project}/orcamento", post(co(s.handleSetProjectBudget)))
+
+	mux.HandleFunc("GET /c/{company}/workspaces", co(s.handleWorkspaces))
+	mux.HandleFunc("GET /c/{company}/workspaces/novo", co(s.handleNewWorkspace))
+	mux.HandleFunc("POST /c/{company}/workspaces/novo", post(co(s.handleCreateWorkspace)))
+	mux.HandleFunc("GET /c/{company}/workspaces/{workspace}", co(s.handleWorkspace))
+	mux.HandleFunc("POST /c/{company}/workspaces/{workspace}", post(co(s.handleUpdateWorkspace)))
+	mux.HandleFunc("POST /c/{company}/workspaces/{workspace}/excluir", post(co(s.handleDeleteWorkspace)))
+
 	mux.HandleFunc("GET /c/{company}/custos", co(s.handleCosts))
 	mux.HandleFunc("POST /c/{company}/custos/orcamento", post(co(s.handleSetCompanyBudget)))
 	mux.HandleFunc("POST /c/{company}/custos/assinaturas", post(co(s.handleCreateSubscription)))
@@ -247,6 +276,9 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("GET /c/{company}/configuracoes", co(s.handleSettings))
 	mux.HandleFunc("POST /c/{company}/configuracoes/chaves", post(co(s.handleCreateKey)))
 	mux.HandleFunc("POST /c/{company}/configuracoes/chaves/{key}/revogar", post(co(s.handleRevokeKey)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/memoria", post(co(s.handleMemorySave)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/memoria/consolidar", post(co(s.handleMemoryConsolidate)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/memoria/propostas/{proposal}/repetir", post(co(s.handleMemoryRetry)))
 	mux.HandleFunc("POST /c/{company}/configuracoes/membros/convites", post(co(s.handleInviteMember)))
 	mux.HandleFunc("POST /c/{company}/configuracoes/membros/convites/{invite}/revogar", post(co(s.handleRevokeInvite)))
 	mux.HandleFunc("POST /c/{company}/configuracoes/membros/{user}/papel", post(co(s.handleMemberRole)))
@@ -254,6 +286,7 @@ func (s *server) routes(root *http.ServeMux) {
 	s.authRoutes(mux)
 
 	mux.HandleFunc("GET /c/{company}/atividade", co(s.handleActivity))
+	mux.HandleFunc("GET /c/{company}/buscar", co(s.handleSearch))
 	mux.HandleFunc("GET /c/{company}/em-breve/{item}", co(s.handleSoon))
 }
 
@@ -365,6 +398,14 @@ func friendly(ctx context.Context, err error) (int, string, string) {
 		}
 		return st, i18n.T(ctx, "Dados inválidos"), i18n.T(ctx, "Confira os campos e tente de novo.")
 	case http.StatusConflict:
+		var inUse *service.WorkspaceInUseError
+		if errors.As(err, &inUse) {
+			return st, i18n.T(ctx, "Workspace em uso"), i18n.T(ctx, "Há personas, projetos ou tasks abertas usando este workspace. Desvincule-os ou marque a opção de desvincular ao excluir.")
+		}
+		var blocked *service.BudgetBlockedError
+		if errors.As(err, &blocked) && blocked.Scope == "project" {
+			return st, i18n.T(ctx, "Orçamento do projeto estourado"), i18n.T(ctx, "O limite mensal do projeto foi atingido; nenhuma execução das tasks dele abre até o limite subir ou o mês virar.")
+		}
 		if errors.Is(err, domain.ErrBudgetExceeded) {
 			return st, i18n.T(ctx, "Orçamento estourado"), i18n.T(ctx, "O limite mensal foi atingido; nenhuma execução nova abre até o limite subir ou o mês virar.")
 		}

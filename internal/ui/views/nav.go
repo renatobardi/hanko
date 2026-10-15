@@ -22,7 +22,7 @@ type NavGroup struct {
 // Nav is the full sidebar of the Kubo DS.
 var Nav = []NavGroup{
 	{Items: []NavItem{
-		{Key: "buscar", Label: i18n.N("Buscar"), Icon: "search", Milestone: "M3", Blurb: i18n.N("Busca em tasks, personas, execuções e na memória da empresa.")},
+		{Key: "buscar", Label: i18n.N("Buscar"), Icon: "search", Path: "/buscar"},
 		{Key: "painel", Label: i18n.N("Painel"), Icon: "layout-grid"},
 		{Key: "caixa", Label: i18n.N("Caixa de entrada"), Icon: "mail", Path: "/caixa"},
 		{Key: "chat", Label: i18n.N("Chat"), Icon: "message-square", Path: "/chat"},
@@ -30,11 +30,11 @@ var Nav = []NavGroup{
 	}},
 	{Label: i18n.N("Trabalho"), Items: []NavItem{
 		{Key: "tasks", Label: i18n.N("Tasks"), Icon: "list", Path: "/tasks"},
-		{Key: "projetos", Label: i18n.N("Projetos"), Icon: "layers", Milestone: "M3", Blurb: i18n.N("Agrupe tasks por projeto, com workspace e orçamento próprios.")},
+		{Key: "projetos", Label: i18n.N("Projetos"), Icon: "layers", Path: "/projetos"},
 		{Key: "fluxos", Label: i18n.N("Fluxos"), Icon: "workflow", Path: "/fluxos"},
 		{Key: "metas", Label: i18n.N("Metas"), Icon: "trending-up", Milestone: "v0.2", Blurb: i18n.N("Metas mensuráveis ligadas a projetos.")},
 		{Key: "artefatos", Label: i18n.N("Artefatos"), Icon: "file", Milestone: "v0.2", Blurb: i18n.N("Documentos e arquivos produzidos pelas personas.")},
-		{Key: "workspaces", Label: i18n.N("Workspaces"), Icon: "git-branch", Milestone: "M3", Blurb: i18n.N("Diretórios e repositórios onde as personas trabalham.")},
+		{Key: "workspaces", Label: i18n.N("Workspaces"), Icon: "git-branch", Path: "/workspaces"},
 	}},
 	{Label: i18n.N("Organização"), Items: []NavItem{
 		{Key: "personas", Label: i18n.N("Personas"), Icon: "bot", Path: "/personas"},

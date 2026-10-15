@@ -212,25 +212,37 @@ func (t *txc) budgetConditions() ([]alertCond, error) {
 	var out []alertCond
 	add := func(c store.Company, scope string, id domain.ID, name, slug string, pid *domain.ID, budget int64) error {
 		from, to, month := monthWindow(c.Timezone, t.now)
-		spent, err := t.q.SpendBetween(t.ctx, store.SpendBetweenParams{CompanyID: c.ID, PersonaID: pid, FromTs: from, ToTs: to})
+		tg := budgetTarget{personaID: pid}
+		if scope == "project" {
+			tg.projectID = &id
+		}
+		spent, err := t.spendOf(c, tg, from, to)
 		if err != nil {
-			return fmt.Errorf("month spend: %w", err)
+			return err
 		}
 		st := budgetStatus(&budget, spent)
 		if st.State != BudgetWarning && st.State != BudgetExceeded {
 			return nil
 		}
 		what, sev := "da empresa", domain.AlertWarning
-		if scope == "persona" {
+		switch scope {
+		case "persona":
 			what = "da persona " + name
+		case "project":
+			what = "do projeto " + name
 		}
 		if st.State == BudgetExceeded {
 			sev = domain.AlertCritical
 		}
+		data := map[string]any{"scope": scope, "name": name, "persona_slug": slug, "month": month, "percent": st.Percent,
+			"spent_usd": spent, "budget_cents": budget, "state": st.State}
+		if scope == "project" {
+			delete(data, "persona_slug")
+			data["project_slug"] = slug
+		}
 		out = append(out, alertCond{companyID: c.ID, kind: domain.AlertBudgetNearLimit, subjectType: scope, subjectID: id, severity: sev,
 			message: fmt.Sprintf("Orçamento mensal %s em %.0f%% (US$ %.2f de US$ %.2f)", what, st.Percent, spent, float64(budget)/100),
-			data: map[string]any{"scope": scope, "name": name, "persona_slug": slug, "month": month, "percent": st.Percent,
-				"spent_usd": spent, "budget_cents": budget, "state": st.State}})
+			data:    data})
 		return nil
 	}
 	for _, c := range companies {
@@ -255,6 +267,19 @@ func (t *txc) budgetConditions() ([]alertCond, error) {
 		}
 		pid := p.ID
 		if err := add(c, "persona", p.ID, p.Name, p.Slug, &pid, *p.BudgetMonthlyCents); err != nil {
+			return nil, err
+		}
+	}
+	projects, err := t.q.ListBudgetedProjects(t.ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list budgeted projects: %w", err)
+	}
+	for _, p := range projects {
+		c, ok := byID[p.CompanyID]
+		if !ok || p.BudgetMonthlyCents == nil {
+			continue
+		}
+		if err := add(c, "project", p.ID, p.Name, p.Slug, nil, *p.BudgetMonthlyCents); err != nil {
 			return nil, err
 		}
 	}

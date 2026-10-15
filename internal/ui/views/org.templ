@@ -33,7 +33,15 @@ templ OrgPage(sh Shell, vm OrgVM) {
 				}
 			}
 		} else {
-			<div class="org-scroll">
+			<div
+				class="org-host"
+				data-island="org-chart"
+				data-api={ vm.IslandAPI }
+				data-nodes={ vm.IslandNodes }
+				data-can-edit={ flag(vm.CanEdit) }
+				data-msgs={ vm.IslandMsgs }
+			>
+				<div class="org-scroll">
 				<svg
 					class="org-svg"
 					viewBox={ fmt.Sprintf("0 0 %d %d", vm.Width, vm.Height) }
@@ -57,6 +65,7 @@ templ OrgPage(sh Shell, vm OrgVM) {
 						</a>
 					}
 				</svg>
+				</div>
 			</div>
 			<p class="muted org-note">{ i18n.T(ctx, "A delegação segue a árvore: uma persona só cria ou atribui tasks para si e para quem reporta a ela, direta ou indiretamente. Quem decide é sempre um humano. Clique numa persona para abrir ou editar quem ela reporta.") }</p>
 		}

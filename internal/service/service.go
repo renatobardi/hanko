@@ -17,6 +17,7 @@ import (
 	"github.com/renatobardi/hanko/internal/auth"
 	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/events"
+	"github.com/renatobardi/hanko/internal/memory"
 )
 
 // ErrNotImplemented marks contract stubs not yet filled.
@@ -75,6 +76,12 @@ type Service struct {
 	ExportIdleTxTimeout, ExportStatementTimeout time.Duration
 	// ExportPageHook (só testes) roda antes de cada página de eventos do export; um erro interrompe a escrita.
 	ExportPageHook func(page int) error
+	// Memory é o provider de memória (ADR-0015), usado só pela busca (ADR-0024); nil ou Noop = sem memória na busca.
+	Memory memory.Provider
+
+	// MemoryProvider é o provedor de memória em uso ("ai-memory" ou "none"; vazio = none). Sem provedor a
+	// consolidação de memória fica desligada (ADR-0030).
+	MemoryProvider string
 	// Log recebe o registro de auditoria das operações administrativas da instalação (hanko auth user ...);
 	// nil descarta.
 	Log *slog.Logger
@@ -95,12 +102,14 @@ type CreateCompanyInput struct {
 }
 
 type CreateWorkspaceInput struct {
-	Name, Slug, Path, RepoURL string
+	Name, Slug, Path, RepoURL, DefaultBranch string
 }
 
 type CreateProjectInput struct {
 	Name, Slug, Description string
 	WorkspaceID             *domain.ID
+	// BudgetMonthlyCents is the project's monthly ceiling (USD cents); nil = none.
+	BudgetMonthlyCents *int64
 }
 
 type HirePersonaInput struct {
@@ -108,7 +117,7 @@ type HirePersonaInput struct {
 	Slug                 string
 	Title                string
 	Instructions         string
-	Agent                string // claude | codex | fake
+	Agent                string // claude | codex | acp | fake
 	Model                string
 	AdapterConfig        json.RawMessage
 	ReportsTo            *domain.ID
@@ -158,12 +167,14 @@ type CreateTaskInput struct {
 	Priority    domain.Priority   // default medium
 	PersonaID   *domain.ID
 	ProjectID   *domain.ID
-	WorkspaceID *domain.ID // default: project's workspace, else persona's workspace
+	WorkspaceID *domain.ID // explicit choice; wins over the project's and the persona's workspace at run time (ADR-0025)
 	Model       string     // manual model choice (wins over the persona's); empty = none
 	ParentID    *domain.ID
 	EventID     string // idempotency key (agents/MCP)
 
 	trigger domain.RunTrigger // wake trigger; default assign (flows use flow)
+	// noMemoryFact: a task de sistema da consolidação de memória não vira página na própria memória.
+	noMemoryFact bool
 }
 
 type UpdateTaskInput struct {
@@ -174,8 +185,10 @@ type UpdateTaskInput struct {
 	PersonaID   *domain.ID
 	Unassign    bool
 	ProjectID   *domain.ID
-	Model       *string // manual model choice; empty string clears it
-	EventID     string
+	// ClearProject takes the task out of its project.
+	ClearProject bool
+	Model        *string // manual model choice; empty string clears it
+	EventID      string
 }
 
 type TaskFilter struct {
@@ -191,6 +204,9 @@ type AddCommentInput struct {
 	Body    string
 	RunID   *domain.ID
 	EventID string
+	// Anchor, when set, ties the comment to a passage of the task description or of a run summary
+	// (ADR-0026). The service checks that the quote exists in the target document and fills offsets and hash.
+	Anchor *domain.Anchor
 }
 
 type RunFilter struct {

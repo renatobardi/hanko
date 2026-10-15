@@ -56,6 +56,7 @@ type Option struct {
 	Value    string
 	Label    string
 	Selected bool
+	Slug     string // optional: slug of the thing the option stands for (projects)
 }
 
 // ---- dashboard ----
@@ -142,6 +143,8 @@ type TasksVM struct {
 	Tab      string
 	Groups   []TaskGroup
 	Total    int
+	// Project filters the list (?projeto=): slug, name, link to its page and the link that clears the filter.
+	Project, ProjectName, ProjectHref, ClearHref string
 }
 
 type Msg struct {
@@ -151,6 +154,9 @@ type Msg struct {
 	Body     HTML
 	When     string
 	RunHref  string
+	// Quote is the passage an anchored comment is about; QuoteLost = its anchor no longer exists in the document.
+	Quote     string
+	QuoteLost bool
 }
 
 type RunMini struct {
@@ -175,6 +181,8 @@ type TaskVM struct {
 	PersonaName     string
 	PersonaHref     string
 	ProjectName     string
+	ProjectHref     string
+	ProjectOptions  []Option
 	Created         string
 	Updated         string
 	StatusOptions   []Option
@@ -190,6 +198,12 @@ type TaskVM struct {
 	Notice          string // flash after an action
 	Error           string
 	Draft           string
+	// Anchored-comment island on the description (ADR-0026).
+	TaskKey     string
+	DescDoc     string // description as anchors see it (\n line endings)
+	DescAnchors string // JSON
+	IslandAPI   string
+	AnchorMsgs  string // JSON
 }
 
 type NewTaskVM struct {
@@ -238,6 +252,10 @@ type HirePersonaVM struct {
 	RequireReview bool
 	Error         string
 	FieldErr      map[string]string
+	// ACP harness (shown only while the ACP card is selected).
+	AcpCommand    string
+	AcpArgs       string   // one argument per line
+	AcpPermission []Option // allow | reject | read_only
 }
 
 type PersonaVM struct {
@@ -373,6 +391,14 @@ type RunVM struct {
 	SSEHref      string
 	Lines        []LogLine
 	LastSeq      int64
+	// Islands (ADR-0026): virtualized log and anchored comments on the summary.
+	IslandAPI      string
+	LogMsgs        string // JSON
+	TZ             string
+	Lang           string
+	SummaryDoc     string // summary as anchors see it
+	SummaryAnchors string // JSON
+	AnchorMsgs     string // JSON
 }
 
 // ---- activity ----
@@ -499,30 +525,33 @@ type SubRowVM struct {
 }
 
 type CostsVM struct {
-	Subtitle   string
-	Paid       string
-	PaidNote   string
-	Days       []DayCostVM
-	HasSubs    bool
-	Subs       []SubRowVM
-	SubCreate  string // POST target of the new-subscription form
-	AgentOpts  []Option
-	Tabs       []TabLink
-	Total      string
-	TotalNote  string
-	Runs       string
-	Estimated  string
-	EstNote    string
-	Company    BudgetBox
-	Personas   []BudgetBox
-	Chart      DayChart
-	Tables     []CostTableVM
-	Notice     string
-	Error      string
-	Month      string
-	HasSpend   bool
-	BudgetKpi  string
-	BudgetNote string
+	Subtitle  string
+	Paid      string
+	PaidNote  string
+	Days      []DayCostVM
+	HasSubs   bool
+	Subs      []SubRowVM
+	SubCreate string // POST target of the new-subscription form
+	AgentOpts []Option
+	Tabs      []TabLink
+	Total     string
+	TotalNote string
+	Runs      string
+	Estimated string
+	EstNote   string
+	Company   BudgetBox
+	Personas  []BudgetBox
+	Projects  []BudgetBox // projetos com orçamento próprio (ADR-0025)
+	// FilterProject filtra a tela por projeto (?projeto=): nome, link da página e link que limpa o filtro.
+	FilterProject, FilterHref, ClearHref string
+	Chart                                DayChart
+	Tables                               []CostTableVM
+	Notice                               string
+	Error                                string
+	Month                                string
+	HasSpend                             bool
+	BudgetKpi                            string
+	BudgetNote                           string
 }
 
 // ---- fluxos ----
@@ -655,6 +684,8 @@ type SettingsVM struct {
 	Error   string
 	// Members is the company's "Membros" section (authenticated mode only).
 	Members MembersVM
+	// Memory is the company's "Memória" section (memory consolidation, ADR-0030).
+	Memory MemoryVM
 }
 
 // MemberRow is one member in the "Membros" table.
@@ -710,4 +741,16 @@ type InviteVM struct {
 	Name     string
 	Error    string
 	Firebase *FirebaseWeb
+}
+
+// AnchorBoxVM are the props of the anchored-comments island (ADR-0026).
+type AnchorBoxVM struct {
+	API        string
+	TaskKey    string
+	Target     string // task_description | run_summary
+	RunID      string
+	Doc        string
+	Anchors    string // JSON
+	CanComment bool
+	Msgs       string // JSON
 }

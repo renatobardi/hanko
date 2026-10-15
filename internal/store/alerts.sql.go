@@ -159,6 +159,46 @@ func (q *Queries) ListBudgetedPersonas(ctx context.Context) ([]ListBudgetedPerso
 	return items, nil
 }
 
+const listBudgetedProjects = `-- name: ListBudgetedProjects :many
+SELECT id, company_id, slug, name, budget_monthly_cents FROM projects
+WHERE budget_monthly_cents IS NOT NULL AND status = 'active'
+ORDER BY company_id, id
+`
+
+type ListBudgetedProjectsRow struct {
+	ID                 uuid.UUID
+	CompanyID          uuid.UUID
+	Slug               string
+	Name               string
+	BudgetMonthlyCents *int64
+}
+
+func (q *Queries) ListBudgetedProjects(ctx context.Context) ([]ListBudgetedProjectsRow, error) {
+	rows, err := q.db.Query(ctx, listBudgetedProjects)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListBudgetedProjectsRow{}
+	for rows.Next() {
+		var i ListBudgetedProjectsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CompanyID,
+			&i.Slug,
+			&i.Name,
+			&i.BudgetMonthlyCents,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listOpenAlerts = `-- name: ListOpenAlerts :many
 SELECT id, company_id, kind, subject_type, subject_id, severity, message, data, opened_at, last_seen_at, closed_at FROM alerts WHERE closed_at IS NULL ORDER BY company_id, opened_at, id
 `
