@@ -230,7 +230,8 @@ type Task struct {
 	ProjectID   *ID        `json:"project_id,omitempty"`
 	WorkspaceID *ID        `json:"workspace_id,omitempty"`
 	ParentID    *ID        `json:"parent_id,omitempty"`
-	Model       string     `json:"model,omitempty"` // manual model choice; wins over the persona's
+	GoalID      *ID        `json:"goal_id,omitempty"` // meta a que a task serve (ADR-0028)
+	Model       string     `json:"model,omitempty"`   // manual model choice; wins over the persona's
 	CreatedBy   Actor      `json:"created_by"`
 	CreatedAt   time.Time  `json:"created_at"`
 	UpdatedAt   time.Time  `json:"updated_at"`

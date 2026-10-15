@@ -148,7 +148,7 @@ func (q *Queries) ExportRuns(ctx context.Context, companyID uuid.UUID) ([]Run, e
 
 const exportTasks = `-- name: ExportTasks :many
 
-SELECT id, company_id, number, title, description, status, priority, persona_id, project_id, workspace_id, parent_id, created_by_type, created_by_id, created_at, updated_at, closed_at, last_human_change_at, model FROM tasks WHERE company_id = $1 ORDER BY number
+SELECT id, company_id, number, title, description, status, priority, persona_id, project_id, workspace_id, parent_id, created_by_type, created_by_id, created_at, updated_at, closed_at, last_human_change_at, model, goal_id FROM tasks WHERE company_id = $1 ORDER BY number
 `
 
 // Exportação e importação de empresa (ADR-0022). Leitura em bloco e inserção com carimbos de tempo
@@ -181,6 +181,7 @@ func (q *Queries) ExportTasks(ctx context.Context, companyID uuid.UUID) ([]Task,
 			&i.ClosedAt,
 			&i.LastHumanChangeAt,
 			&i.Model,
+			&i.GoalID,
 		); err != nil {
 			return nil, err
 		}
@@ -650,7 +651,7 @@ INSERT INTO tasks (id, company_id, number, title, description, status, priority,
                    workspace_id, parent_id, created_by_type, created_by_id, model, created_at, updated_at, closed_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9,
         $10, $11, $12, $13, $14, $15, $16, $17)
-RETURNING id, company_id, number, title, description, status, priority, persona_id, project_id, workspace_id, parent_id, created_by_type, created_by_id, created_at, updated_at, closed_at, last_human_change_at, model
+RETURNING id, company_id, number, title, description, status, priority, persona_id, project_id, workspace_id, parent_id, created_by_type, created_by_id, created_at, updated_at, closed_at, last_human_change_at, model, goal_id
 `
 
 type ImportTaskParams struct {
@@ -713,6 +714,7 @@ func (q *Queries) ImportTask(ctx context.Context, arg ImportTaskParams) (Task, e
 		&i.ClosedAt,
 		&i.LastHumanChangeAt,
 		&i.Model,
+		&i.GoalID,
 	)
 	return i, err
 }

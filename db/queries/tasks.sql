@@ -1,8 +1,8 @@
 -- name: CreateTask :one
 INSERT INTO tasks (id, company_id, number, title, description, status, priority, persona_id, project_id,
-                   workspace_id, parent_id, created_by_type, created_by_id, model, created_at, updated_at)
+                   workspace_id, parent_id, created_by_type, created_by_id, model, goal_id, created_at, updated_at)
 VALUES (@id, @company_id, @number, @title, @description, @status, @priority, @persona_id, @project_id,
-        @workspace_id, @parent_id, @created_by_type, @created_by_id, @model, @now, @now)
+        @workspace_id, @parent_id, @created_by_type, @created_by_id, @model, @goal_id, @now, @now)
 RETURNING *;
 
 -- name: GetTaskByID :one
@@ -41,6 +41,7 @@ WITH page AS (
       AND (sqlc.narg(statuses)::text[] IS NULL OR t0.status = ANY(sqlc.narg(statuses)::text[]))
       AND (sqlc.narg(persona_id)::uuid IS NULL OR t0.persona_id = sqlc.narg(persona_id)::uuid)
       AND (sqlc.narg(project_id)::uuid IS NULL OR t0.project_id = sqlc.narg(project_id)::uuid)
+      AND (sqlc.narg(goal_id)::uuid IS NULL OR t0.goal_id = sqlc.narg(goal_id)::uuid)
       AND (sqlc.narg(q)::text IS NULL OR t0.title ILIKE '%' || sqlc.narg(q)::text || '%'
            OR t0.description ILIKE '%' || sqlc.narg(q)::text || '%')
     ORDER BY t0.updated_at DESC, t0.number DESC

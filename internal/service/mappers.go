@@ -56,7 +56,7 @@ func taskFromRow(r store.Task, prefix string) domain.Task {
 	return domain.Task{ID: r.ID, CompanyID: r.CompanyID, Number: r.Number, Key: domain.TaskKey(prefix, r.Number),
 		Title: r.Title, Description: r.Description, Status: domain.TaskStatus(r.Status),
 		Priority: domain.Priority(r.Priority), PersonaID: r.PersonaID, ProjectID: r.ProjectID,
-		WorkspaceID: r.WorkspaceID, ParentID: r.ParentID, Model: r.Model, CreatedBy: actorOf(r.CreatedByType, r.CreatedByID),
+		WorkspaceID: r.WorkspaceID, ParentID: r.ParentID, GoalID: r.GoalID, Model: r.Model, CreatedBy: actorOf(r.CreatedByType, r.CreatedByID),
 		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, ClosedAt: r.ClosedAt}
 }
 

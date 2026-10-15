@@ -621,6 +621,8 @@ type Inbox struct {
 	// UnderReview are in_review tasks whose automatic review is still running: informational, there is
 	// no gate yet and nothing for the human to do, so they are not part of Count.
 	UnderReview []InboxReview
+	// AchievedGoals são as metas atingidas nos últimos dias: informativo (ninguém precisa agir), fora de Count.
+	AchievedGoals []GoalView
 }
 
 // InboxReview is an automatic review in progress on a task.
@@ -637,7 +639,11 @@ func (i Inbox) Count() int {
 	return len(i.Gates) + len(i.BlockedTasks) + len(i.FailedRuns) + len(i.ErrorPersonas) + len(i.Alerts) + len(i.GuardedSubscriptions)
 }
 
-const inboxFailedWindow = 7 * 24 * time.Hour
+const (
+	inboxFailedWindow = 7 * 24 * time.Hour
+	// inboxGoalWindow é por quanto tempo uma meta atingida aparece na Caixa de entrada.
+	inboxGoalWindow = 7 * 24 * time.Hour
+)
 
 // Inbox assembles the Caixa de entrada.
 func (s *Service) Inbox(ctx context.Context, companyID domain.ID) (Inbox, error) {
@@ -702,6 +708,9 @@ func (s *Service) Inbox(ctx context.Context, companyID domain.ID) (Inbox, error)
 		if tv.Status == domain.TaskInReview && !withGate[tv.ID] {
 			in.UnderReview = append(in.UnderReview, InboxReview{Task: tv, Status: rv.Status, Agent: rv.Agent, Model: rv.Model, CreatedAt: rv.CreatedAt})
 		}
+	}
+	if in.AchievedGoals, err = s.recentlyAchievedGoals(ctx, q, companyID, s.Now().UTC().Add(-inboxGoalWindow)); err != nil {
+		return in, err
 	}
 	return in, nil
 }
