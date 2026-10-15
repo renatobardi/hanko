@@ -78,6 +78,9 @@ if $DRY || ! ssh -n "$HOST" "lxc exec ${NAME} -- sh -c 'command -v docker >/dev/
 fi
 r "lxc config set ${NAME} limits.memory ${HANKO_LXC_MEMORY:-4GiB}"  # teto declarado no inventário do lab
 
+# 1b) Ponto de volta do LXC inteiro (código, imagens e banco) ANTES de trocar o código: `lxc restore ${NAME} pre-deploy-<ts>`.
+r "lxc snapshot ${NAME} pre-deploy-\$(date +%Y%m%d%H%M%S)"
+
 # 2) Código: bundle git (o repo é privado; nada de credencial dentro do LXC)
 BUNDLE="$(mktemp -t hanko-XXXXXX).bundle"
 git bundle create "$BUNDLE" HEAD main >/dev/null 2>&1 || git bundle create "$BUNDLE" HEAD
