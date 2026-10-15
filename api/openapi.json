@@ -3340,7 +3340,7 @@
         "properties": {
           "adapter_config": {
             "additionalProperties": {},
-            "description": "Configuração específica do adapter.",
+            "description": "Configuração específica do adapter. Valores de env e segredos voltam mascarados (***); os nomes ficam.",
             "type": "object"
           },
           "agent": {
@@ -8935,7 +8935,7 @@
               "default": 20,
               "description": "Máximo de entregas (mais recentes primeiro).",
               "format": "int64",
-              "maximum": 200,
+              "maximum": 100,
               "minimum": 1,
               "type": "integer"
             }

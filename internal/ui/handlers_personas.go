@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -169,6 +170,11 @@ func (s *server) handleHirePersona(w http.ResponseWriter, r *http.Request, co do
 	if err != nil {
 		_, title, msg := friendly(ctx, err)
 		vm.Error = title + ". " + msg
+		var ve *domain.ValidationError
+		if errors.As(err, &ve) && ve.Field == "adapter_config" && strings.Contains(ve.Reason, "HANKO_ACP_") {
+			// the operator's gate (ADR-0023): say who decides, in the reader's language
+			vm.Error = i18n.T(ctx, "O harness ACP não está liberado neste servidor para este comando: quem opera a instalação define HANKO_ACP_ALLOW (e HANKO_ACP_COMMANDS, se houver lista).")
+		}
 		s.renderHire(w, r, co, statusFor(err), vm)
 		return
 	}

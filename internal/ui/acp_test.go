@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/ui/uitest"
 )
 
@@ -14,6 +15,17 @@ func TestHireACPPersona(t *testing.T) {
 		rec := newEnv(t, uitest.Sample()).get(t, "/c/hanko/personas/nova")
 		wantContains(t, rec, `value="acp"`, `name="acp_command"`, `name="acp_args"`, `name="acp_permission"`,
 			`value="read_only" selected`, "Somente leitura (padrão)", "Permitir tudo", "Recusar tudo")
+	})
+	t.Run("the operator's gate explains itself, in the reader's language", func(t *testing.T) {
+		f := uitest.Sample()
+		f.SetErr("HirePersona", domain.Invalid("adapter_config", "o harness acp está desligado neste servidor (o operador precisa definir HANKO_ACP_ALLOW=true)"))
+		e := newEnv(t, f)
+		rec := e.do(t, req{method: "POST", path: "/c/hanko/personas/nova", form: url.Values{"name": {"Agente Externo"}, "agent": {"acp"}, "acp_command": {"meu-agente"}},
+			hdr: map[string]string{"Sec-Fetch-Site": "same-origin", "Accept-Language": "en"}})
+		wantStatus(t, rec, http.StatusUnprocessableEntity)
+		wantContains(t, rec, "The ACP harness is not enabled on this server", "HANKO_ACP_ALLOW")
+		rec = e.post(t, "/c/hanko/personas/nova", url.Values{"name": {"Agente Externo"}, "agent": {"acp"}, "acp_command": {"meu-agente"}}, false)
+		wantContains(t, rec, "O harness ACP não está liberado neste servidor")
 	})
 	t.Run("hire stores the adapter_config", func(t *testing.T) {
 		f := uitest.Sample()
