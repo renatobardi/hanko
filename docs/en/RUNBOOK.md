@@ -226,8 +226,10 @@ ssh oute-server "lxc exec hanko-prd -- /opt/app/deploy/oute-server/restore.sh --
 # expected output: tables=<N> / migration=<version> / "drill ok (prd untouched)"
 ```
 
-**Restore from the local copy (same LXC):** stops hanko and ai-memory, recreates the `hanko` database, runs `pg_restore`, puts back the
-ai-memory volume and starts the stack. It asks for confirmation (`--yes` skips it).
+**Restore from the local copy (same LXC):** stops hanko and ai-memory, renames the current database to `hanko_pre_restore_<ts>` (it is
+never dropped), restores the dump into a new `hanko` database, puts back the ai-memory volume, starts the stack and waits for `/readyz`.
+If `pg_restore` fails the old name comes back and the stack starts by itself. Only after readyz does the script print the command to drop
+the old database (`DROP DATABASE hanko_pre_restore_<ts>`). It asks for confirmation (`--yes` skips it).
 
 ```bash
 ssh -t oute-server "lxc exec hanko-prd -- /opt/app/deploy/oute-server/restore.sh --apply"
