@@ -103,6 +103,14 @@ func TestBuildArgs(t *testing.T) {
 	}
 }
 
+func TestBuildArgsReadOnly(t *testing.T) {
+	got := BuildArgs(adapter.Spec{ReadOnly: true}, Config{PermissionMode: "bypassPermissions", ExtraArgs: []string{"--dangerously-skip-permissions"}}, "")
+	want := []string{"-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "plan", "--disallowedTools", "Edit", "Write", "NotebookEdit"}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Fatal(diff)
+	}
+}
+
 type collector struct {
 	mu sync.Mutex
 	ev []adapter.Event

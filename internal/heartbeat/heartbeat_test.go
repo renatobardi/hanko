@@ -969,3 +969,49 @@ func TestStartReviewWorker(t *testing.T) {
 		t.Fatal(k)
 	}
 }
+
+// A review run must carry no credential at all: no run token, no Hanko MCP, no credentialed
+// memory MCP, no HANKO_URL/token in the env, and a forced read-only harness.
+func TestBuildSpecReviewHasNoCredentials(t *testing.T) {
+	h, _ := newTestHB(t, &fakeBackend{}, okAdapter(), &memStub{}, Options{PublicURL: "http://h:7420"})
+	rc := sampleContext()
+	rc.Run.Trigger = domain.TriggerReview
+	rc.Review = &service.ReviewContext{ID: domain.NewID(), Artifact: "x", AuthorName: "Ana"}
+	scope := memory.Scope{Workspace: "acme"}
+	spec, cleanup, err := h.buildSpec(rc, "", "", scope, func(domain.RunEventKind, string) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cleanup != nil {
+		defer cleanup()
+	}
+	if !spec.ReadOnly {
+		t.Error("review spec must be read-only")
+	}
+	var cfg struct {
+		Servers map[string]json.RawMessage `json:"mcpServers"`
+	}
+	if err := json.Unmarshal(spec.MCPConfig, &cfg); err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Servers) != 0 {
+		t.Errorf("review run has MCP servers: %s", spec.MCPConfig)
+	}
+	for _, k := range []string{"HANKO_URL", "HANKO_RUN_TOKEN"} {
+		if _, ok := spec.Env[k]; ok {
+			t.Errorf("env leaks %s", k)
+		}
+	}
+	// A normal run still gets them.
+	rc.Run.Trigger, rc.Review = domain.TriggerAssign, nil
+	spec, cleanup, err = h.buildSpec(rc, "", "", scope, func(domain.RunEventKind, string) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cleanup != nil {
+		defer cleanup()
+	}
+	if spec.ReadOnly || !strings.Contains(string(spec.MCPConfig), `"hanko"`) || spec.Env["HANKO_RUN_TOKEN"] == "" {
+		t.Errorf("normal run lost credentials: %s %v", spec.MCPConfig, spec.Env)
+	}
+}

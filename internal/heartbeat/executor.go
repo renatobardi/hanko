@@ -2,6 +2,7 @@ package heartbeat
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -310,18 +311,21 @@ func (h *Heartbeat) finishFailed(ctx context.Context, a ExecuteRunArgs, ferr err
 // buildSpec assembles the adapter.Spec and resolves the working directory. The returned
 // cleanup removes a temp workspace; it may be nil.
 func (h *Heartbeat) buildSpec(rc service.RunContext, briefing, handoff string, scope memory.Scope, emit func(domain.RunEventKind, string)) (adapter.Spec, func(), error) {
-	token, err := h.tokens.Issue(rc.Company.ID, rc.Persona.ID, rc.Run.ID, rc.Task.ID)
-	if err != nil {
-		return adapter.Spec{}, nil, fmt.Errorf("emitir run token: %w", err)
-	}
 	publicURL := strings.TrimRight(h.opts.PublicURL, "/")
 	review := rc.Review != nil && rc.Run.Trigger == domain.TriggerReview
-	hankoToken := token
-	if review {
-		// Headless review: read-only, no Hanko tools or credentials (the artifact is in the prompt).
-		hankoToken = ""
+	// A review run is headless and read-only: it gets no run token, no Hanko MCP and no
+	// credentialed memory MCP (the artifact to judge is in the prompt).
+	var token string
+	var extraMCP map[string]json.RawMessage
+	if !review {
+		var err error
+		token, err = h.tokens.Issue(rc.Company.ID, rc.Persona.ID, rc.Run.ID, rc.Task.ID)
+		if err != nil {
+			return adapter.Spec{}, nil, fmt.Errorf("emitir run token: %w", err)
+		}
+		extraMCP = h.mem.AgentMCP(scope, rc.Run.ID.String(), token)
 	}
-	mcpCfg, err := buildMCPConfig(publicURL, hankoToken, h.mem.AgentMCP(scope, rc.Run.ID.String(), token))
+	mcpCfg, err := buildMCPConfig(publicURL, token, extraMCP)
 	if err != nil {
 		return adapter.Spec{}, nil, err
 	}
@@ -343,8 +347,8 @@ func (h *Heartbeat) buildSpec(rc service.RunContext, briefing, handoff string, s
 		RunID: rc.Run.ID, CompanyID: rc.Company.ID, PersonaID: rc.Persona.ID, TaskID: rc.Task.ID, TaskKey: rc.Task.Key,
 		Agent: agent, Model: model, Dir: dir,
 		System: system, Prompt: prompt, SessionRef: "",
-		Env:       buildEnv(os.Getenv("OTEL_RESOURCE_ATTRIBUTES"), publicURL, hankoToken, rc),
-		MCPConfig: mcpCfg, Config: cfg,
+		Env:       buildEnv(os.Getenv("OTEL_RESOURCE_ATTRIBUTES"), publicURL, token, rc),
+		MCPConfig: mcpCfg, Config: cfg, ReadOnly: review,
 	}, cleanup, nil
 }
 

@@ -94,6 +94,14 @@ func TestMCPOverridesAndArgs(t *testing.T) {
 	}
 }
 
+func TestBuildArgsReadOnly(t *testing.T) {
+	got := BuildArgs(adapter.Spec{ReadOnly: true}, Config{Sandbox: "danger-full-access", ExtraArgs: []string{"--sandbox", "danger-full-access"}}, "/w", nil)
+	want := []string{"exec", "--json", "--skip-git-repo-check", "--sandbox", "read-only", "-C", "/w", "-"}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Fatal(diff)
+	}
+}
+
 type collector struct {
 	mu sync.Mutex
 	ev []adapter.Event
