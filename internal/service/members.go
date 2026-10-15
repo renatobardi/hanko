@@ -228,6 +228,17 @@ func (s *Service) RemoveMember(ctx context.Context, actor domain.Actor, companyI
 		if _, err := t.q.RemoveMember(ctx, store.RemoveMemberParams{CompanyID: companyID, UserID: userID}); err != nil {
 			return fmt.Errorf("remove member: %w", err)
 		}
+		// quem fica sem nenhuma empresa perde a marca de admitido por convite: a admissão dele
+		// volta a depender das listas (ADR-0021)
+		n, err := t.q.CountUserMemberships(ctx, userID)
+		if err != nil {
+			return fmt.Errorf("count memberships: %w", err)
+		}
+		if n == 0 {
+			if err := t.q.ClearUserInvited(ctx, userID); err != nil {
+				return fmt.Errorf("clear invited: %w", err)
+			}
+		}
 		return t.activity(actor, companyID, "member.removed", "user", userID, map[string]any{"email": cur.Email, "role": old}, "")
 	})
 }
@@ -318,9 +329,6 @@ func (t *txc) acceptInvite(token string, u domain.User) (domain.Member, error) {
 		}
 		return domain.Member{}, fmt.Errorf("accept invite: %w", err)
 	}
-	if err := t.q.MarkUserInvited(t.ctx, u.ID); err != nil {
-		return domain.Member{}, fmt.Errorf("mark invited: %w", err)
-	}
 	role := domain.MemberRole(inv.Role)
 	if cur, err := t.q.GetMemberRole(t.ctx, store.GetMemberRoleParams{CompanyID: inv.CompanyID, UserID: u.ID}); err == nil {
 		// já era membro (convite antigo): mantém o maior dos dois papéis
@@ -398,6 +406,10 @@ func (s *Service) AcceptInviteLocal(ctx context.Context, token, name, password s
 			return mapErr(err, "create user")
 		}
 		user = userFromRow(row)
+		// conta criada pelo convite: a marca "invited" vale só para quem entrou por ele
+		if err := t.q.MarkUserInvited(ctx, user.ID); err != nil {
+			return fmt.Errorf("mark invited: %w", err)
+		}
 		mem, err = t.acceptInvite(token, user)
 		return err
 	})

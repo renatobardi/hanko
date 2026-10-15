@@ -253,6 +253,11 @@ func (s *Service) LoginFirebase(ctx context.Context, in FirebaseLogin) (domain.U
 			return mapErr(err, "create user")
 		}
 		out = userFromRow(row)
+		if invited { // conta criada pelo convite: a marca vale só para quem entrou por ele
+			if err := t.q.MarkUserInvited(ctx, out.ID); err != nil {
+				return fmt.Errorf("mark invited: %w", err)
+			}
+		}
 		return nil
 	})
 	return out, err

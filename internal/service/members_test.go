@@ -588,3 +588,98 @@ func TestFirebaseInviteAdmission(t *testing.T) {
 		t.Fatal("x")
 	}
 }
+
+func invitedFlag(t *testing.T, e *env, id domain.ID) bool {
+	t.Helper()
+	var v bool
+	if err := e.svc.Pool.QueryRow(context.Background(), `SELECT invited FROM users WHERE id = $1`, id).Scan(&v); err != nil {
+		t.Fatal(err)
+	}
+	return v
+}
+
+// users.invited só marca conta CRIADA pelo convite, e some quando a pessoa fica sem nenhuma empresa.
+func TestInvitedFlagLifecycle(t *testing.T) {
+	e := newEnv(t)
+	bg := context.Background()
+	own := mkUser(t, e, "own@x.com", domain.RoleOwner)
+	join(t, e, own, domain.MemberOwner)
+
+	// conta que já existia aceita convite: não vira "invited"
+	old := mkUser(t, e, "velha@x.com", domain.RoleMember)
+	_, tok, err := e.svc.InviteMember(as(own), own.Actor(), e.co.ID, "velha@x.com", domain.MemberMember)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.svc.AcceptInvite(bg, tok, old); err != nil {
+		t.Fatal(err)
+	}
+	if invitedFlag(t, e, old.ID) {
+		t.Fatal("conta pré-existente não é marcada como invited")
+	}
+
+	// conta criada pelo convite: invited; continua enquanto houver outra empresa
+	_, tok, _ = e.svc.InviteMember(as(own), own.Actor(), e.co.ID, "nova@x.com", domain.MemberMember)
+	nova, _, err := e.svc.AcceptInviteLocal(bg, tok, "Nova", goodPass)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !invitedFlag(t, e, nova.ID) {
+		t.Fatal("conta criada pelo convite deve ficar invited")
+	}
+	co2, err := e.svc.CreateCompany(as(own), own.Actor(), service.CreateCompanyInput{Name: "Segunda"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, tok2, err := e.svc.InviteMember(as(own), own.Actor(), co2.ID, "nova@x.com", domain.MemberViewer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.svc.AcceptInvite(bg, tok2, nova); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.svc.RemoveMember(as(own), own.Actor(), e.co.ID, nova.ID); err != nil {
+		t.Fatal(err)
+	}
+	if !invitedFlag(t, e, nova.ID) {
+		t.Fatal("ainda tem uma empresa: continua invited")
+	}
+	if err := e.svc.RemoveMember(as(own), own.Actor(), co2.ID, nova.ID); err != nil {
+		t.Fatal(err)
+	}
+	if invitedFlag(t, e, nova.ID) {
+		t.Fatal("sem nenhuma empresa: invited zera")
+	}
+}
+
+// Firebase com listas: quem entrou por convite e foi removido de todas as empresas não entra mais.
+func TestFirebaseRemovedInviteeLosesAdmission(t *testing.T) {
+	e := newEnv(t)
+	bg := context.Background()
+	own := mkUser(t, e, "own@x.com", domain.RoleOwner)
+	join(t, e, own, domain.MemberOwner)
+	_, tok, _ := e.svc.InviteMember(as(own), own.Actor(), e.co.ID, "conv@x.com", domain.MemberViewer)
+	in := service.FirebaseLogin{UID: "uid-1", Email: "conv@x.com", ListsConfigured: true, OwnerEmail: "own@x.com", InviteToken: tok}
+	u, err := e.svc.LoginFirebase(bg, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.svc.AcceptInvite(bg, tok, u); err != nil {
+		t.Fatal(err)
+	}
+	e.svc.Admission = auth.Admission{Emails: []string{"own@x.com"}}
+	secret, _, _ := e.svc.CreateSession(bg, u.ID, service.SessionMeta{}, "")
+	if _, err := e.svc.ResolveSession(bg, secret); err != nil {
+		t.Fatalf("convidado ativo: %v", err)
+	}
+	if err := e.svc.RemoveMember(as(own), own.Actor(), e.co.ID, u.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.svc.ResolveSession(bg, secret); !errors.Is(err, domain.ErrUnauthenticated) {
+		t.Fatalf("removido de tudo e fora das listas: sessão deve cair, veio %v", err)
+	}
+	in.InviteToken = ""
+	if _, err := e.svc.LoginFirebase(bg, in); !errors.Is(err, domain.ErrNotAllowed) {
+		t.Fatalf("relogin sem convite: %v", err)
+	}
+}

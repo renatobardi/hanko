@@ -77,6 +77,15 @@ func (q *Queries) AddMember(ctx context.Context, arg AddMemberParams) (CompanyMe
 	return i, err
 }
 
+const clearUserInvited = `-- name: ClearUserInvited :exec
+UPDATE users SET invited = false WHERE id = $1
+`
+
+func (q *Queries) ClearUserInvited(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, clearUserInvited, id)
+	return err
+}
+
 const countOwners = `-- name: CountOwners :one
 SELECT count(*) FROM company_members WHERE company_id = $1 AND role = 'owner'
 `
@@ -250,23 +259,6 @@ func (q *Queries) GetMemberRole(ctx context.Context, arg GetMemberRoleParams) (s
 	var role string
 	err := row.Scan(&role)
 	return role, err
-}
-
-const hasOpenInviteForEmail = `-- name: HasOpenInviteForEmail :one
-SELECT EXISTS (SELECT 1 FROM company_invites
-  WHERE lower(email) = lower($1) AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > $2)
-`
-
-type HasOpenInviteForEmailParams struct {
-	Email string
-	Now   time.Time
-}
-
-func (q *Queries) HasOpenInviteForEmail(ctx context.Context, arg HasOpenInviteForEmailParams) (bool, error) {
-	row := q.db.QueryRow(ctx, hasOpenInviteForEmail, arg.Email, arg.Now)
-	var exists bool
-	err := row.Scan(&exists)
-	return exists, err
 }
 
 const listCompaniesForUser = `-- name: ListCompaniesForUser :many

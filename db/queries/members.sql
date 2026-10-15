@@ -69,9 +69,8 @@ UPDATE company_invites SET accepted_at = @now, accepted_by = @user_id
 WHERE id = @id AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > @now
 RETURNING *;
 
--- name: HasOpenInviteForEmail :one
-SELECT EXISTS (SELECT 1 FROM company_invites
-  WHERE lower(email) = lower(@email) AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > @now);
-
 -- name: MarkUserInvited :exec
 UPDATE users SET invited = true WHERE id = @id;
+
+-- name: ClearUserInvited :exec
+UPDATE users SET invited = false WHERE id = @id;
