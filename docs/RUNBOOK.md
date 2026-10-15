@@ -84,7 +84,7 @@ subir (config inválida), de propósito. Com o modo `authenticated`, use o §5 e
   prefixo com `*`) liberar. `HANKO_*` do servidor nunca passa.
 - Saída dos agentes é varrida para segredos (run token, Bearer, JWT, chaves de API, senhas em URL de banco) antes de virar log de run.
 - Run tokens só valem enquanto o run está `queued`/`running`.
-- Memória: o agente fala com `<HANKO_PUBLIC_URL>/memory-mcp` usando o run token; o Hanko injeta `HANKO_MEMORY_TOKEN` e o escopo
+- Memória: o agente fala com `<HANKO_AGENT_URL>/memory-mcp` (padrão = `HANKO_PUBLIC_URL`; no prd, loopback interno `http://127.0.0.1:7420`, sem depender de DNS/TLS público) usando o run token; o Hanko injeta `HANKO_MEMORY_TOKEN` e o escopo
   (empresa/workspace) do lado do servidor. O token do ai-memory nunca vai ao agente.
 - Workspaces só podem apontar para dentro da subpasta da empresa na raiz, `HANKO_WORKSPACES_ROOT/<slug-da-empresa>/...` (raiz padrão `$HOME/hanko-workspaces`), com caminho absoluto e limpo; a raiz é compartilhada entre empresas e a subpasta as isola. Na execução o caminho é revalidado (symlinks resolvidos): fora da raiz, a run usa um diretório temporário e deixa um aviso.
 - Orçamento: antes de abrir uma run, o Hanko soma o gasto do mês, a reserva de cada run `queued`/`running` e a reserva da nova;
