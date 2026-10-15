@@ -122,7 +122,7 @@ func (s *server) middleware(next http.Handler) http.Handler {
 			}
 			route := r.Pattern
 			if route == "" {
-				route = r.URL.Path
+				route = auth.RedactPath(r.URL.Path)
 			}
 			s.log.LogAttrs(ctx, level, "http",
 				slog.String("method", r.Method), slog.String("route", route), slog.Int("status", sw.status),

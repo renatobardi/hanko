@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -58,10 +59,10 @@ func buildHandler(d handlerDeps) (http.Handler, error) {
 	if cfg.Authenticated() {
 		inner = auth.Guard(d.Svc, d.Logger)(inner)
 	}
-	h := otelhttp.NewHandler(inner, serviceName,
+	h := redactForTrace(otelhttp.NewHandler(restoreRequest(inner), serviceName,
 		otelhttp.WithFilter(traceRequest),
 		otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string { return r.Method + " " + r.URL.Path }),
-	)
+	))
 	return hostHandler(cfg.PublicURL, cfg.AllowedHosts, h), nil
 }
 
@@ -86,4 +87,31 @@ func uiAuth(d handlerDeps) *ui.AuthDeps {
 		a.Verifier = &auth.FirebaseVerifier{ProjectID: fb.ProjectID, JWKSURL: d.JWKSURL, Log: d.Logger}
 	}
 	return a
+}
+
+type origRequestKey struct{}
+
+// redactForTrace entrega ao otelhttp uma cópia da requisição com o caminho mascarado
+// (/convite/<token> → /convite/…): nome do span e atributos de URL nunca veem o token. O
+// restoreRequest, por dentro do otelhttp, devolve a requisição original (com o contexto do span)
+// ao mux.
+func redactForTrace(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if red := auth.RedactPath(r.URL.Path); red != r.URL.Path {
+			r2 := r.Clone(context.WithValue(r.Context(), origRequestKey{}, r))
+			r2.URL.Path, r2.URL.RawPath, r2.URL.RawQuery, r2.URL.Fragment = red, "", "", ""
+			r2.RequestURI = red
+			r = r2
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func restoreRequest(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if orig, ok := r.Context().Value(origRequestKey{}).(*http.Request); ok {
+			r = orig.WithContext(r.Context())
+		}
+		next.ServeHTTP(w, r)
+	})
 }

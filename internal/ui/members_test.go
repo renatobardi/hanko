@@ -2,6 +2,8 @@ package ui
 
 import (
 	"encoding/json"
+	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -268,5 +270,16 @@ func TestInviteFirebase(t *testing.T) {
 	wantContains(t, rec, "invite_invalid")
 	if cookieOf(rec) != nil {
 		t.Fatal("sem sessão")
+	}
+}
+
+// Erro 5xx numa rota com segredo no caminho não pode ir ao log com o segredo.
+func TestFailLogRedactsInviteToken(t *testing.T) {
+	var buf strings.Builder
+	s := &server{log: slog.New(slog.NewTextHandler(&buf, nil)), version: "test", now: uitest.Now}
+	r := httptest.NewRequest(http.MethodGet, "/convite/SEGREDO-123", nil)
+	s.fail(httptest.NewRecorder(), r, nil, errors.New("falha interna"))
+	if out := buf.String(); strings.Contains(out, "SEGREDO-123") || !strings.Contains(out, "/convite/…") {
+		t.Fatalf("log vaza o token ou não mascara o caminho: %s", out)
 	}
 }

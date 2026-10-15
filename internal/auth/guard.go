@@ -25,6 +25,15 @@ const LoginPath = "/entrar"
 // InvitePath é o prefixo público de aceite de convite (/convite/{token}); a própria página decide o que exigir.
 const InvitePath = "/convite/"
 
+// RedactPath esconde o segredo que viaja no caminho: /convite/<token> vira /convite/…. Use em
+// qualquer log, nome de span ou atributo que carregue o caminho da requisição.
+func RedactPath(path string) string {
+	if strings.HasPrefix(path, InvitePath) {
+		return InvitePath + "…"
+	}
+	return path
+}
+
 // Guard é o middleware do modo authenticated. Resolve a identidade (cookie de sessão ou
 // API key) e aplica a regra por rota:
 //

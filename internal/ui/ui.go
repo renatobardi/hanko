@@ -294,7 +294,7 @@ func (s *server) render(w http.ResponseWriter, r *http.Request, status int, c te
 	}
 	ctx = s.withSwitcher(ctx, r)
 	if err := c.Render(ctx, &buf); err != nil {
-		s.log.Error("ui render", "path", r.URL.Path, "err", err)
+		s.log.Error("ui render", "path", auth.RedactPath(r.URL.Path), "err", err)
 		http.Error(w, i18n.T(ctx, "erro ao renderizar a página"), http.StatusInternalServerError)
 		return
 	}
@@ -368,7 +368,7 @@ func friendly(ctx context.Context, err error) (int, string, string) {
 func (s *server) fail(w http.ResponseWriter, r *http.Request, co *domain.Company, err error) {
 	st, title, msg := friendly(r.Context(), err)
 	if st >= 500 {
-		s.log.Error("ui handler", "method", r.Method, "path", r.URL.Path, "err", err)
+		s.log.Error("ui handler", "method", r.Method, "path", auth.RedactPath(r.URL.Path), "err", err)
 	}
 	vm := views.ErrorVM{Status: st, Title: title, Message: msg}
 	if isHX(r) {
