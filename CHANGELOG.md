@@ -62,7 +62,7 @@ Primeira versão pública. Em produção em https://hanko.oute.pro desde 2026-10
   estouro de orçamento, laço de runs, wake perdido, gate em task alheia, primeiro visitante virando dono, entre outros),
   cada um com teste.
 - `heartbeat_interval_sec` acima do int4 era truncado; agora é recusado (0 a 30 dias).
-- Duas revisões independentes do lote de 2026-10-15 (24 achados): run de revisão recebia o token do Hanko pela config do
+- Quatro revisões independentes do lote de 2026-10-15 (50+ achados): run de revisão recebia o token do Hanko pela config do
   MCP de memória e podia editar o workspace; ordem de locks com risco de deadlock; restore destrutivo sem volta;
   token de convite em traces/logs; flag de convidado permanente; posse de identidade no provider local; comparação
   de e-mail com dobra Unicode; entre outros — cada um com teste.
