@@ -42,6 +42,9 @@ type Fake struct {
 	Subs      []service.SubscriptionStatus
 	Members   []domain.Member
 	Invites   []domain.Invite
+	// Conversations and ConvMessages are the chat (ADR-0027).
+	Conversations []service.ConversationView
+	ConvMessages  []domain.ConversationMessage
 	// MyRoleIs é o papel do usuário logado nesta empresa (vazio = owner).
 	MyRoleIs domain.MemberRole
 	nextTask int64

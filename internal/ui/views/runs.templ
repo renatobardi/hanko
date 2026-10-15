@@ -90,7 +90,13 @@ templ RunHeader(vm RunVM) {
 					}
 					· { vm.Persona } @BadgeEl(vm.Badge)
 				</h2>
-				<div class="sub">Task <a class="mono" href={ templ.SafeURL(vm.TaskHref) }>{ vm.TaskKey }</a> · { vm.Trigger } · { i18n.T(ctx, "iniciada") } { vm.Started }</div>
+				<div class="sub">
+					if vm.Chat {
+						<a href={ templ.SafeURL(vm.TaskHref) }>{ vm.TaskKey }: { vm.TaskTitle }</a>
+					} else {
+						Task <a class="mono" href={ templ.SafeURL(vm.TaskHref) }>{ vm.TaskKey }</a>
+					}
+					· { vm.Trigger } · { i18n.T(ctx, "iniciada") } { vm.Started }</div>
 			</div>
 		</div>
 		if vm.Active && vm.CancelHref != "" && canWrite(ctx) {

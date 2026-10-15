@@ -114,6 +114,7 @@ var enPages = []struct {
 	{"/c/hanko/caixa", []string{"Inbox", "Blocked tasks", "Failed runs"}},
 	{"/c/hanko/decisoes", []string{"Decisions", "Approved"}},
 	{"/c/hanko/gates", []string{"Gates", "Pending"}},
+	{"/c/hanko/chat", []string{"Chat", "New conversation", "First message", "No conversations here."}},
 	{"/c/hanko/organograma", []string{"Org chart", "Persona org chart"}},
 	{"/c/hanko/custos", []string{"Costs and budgets", "Spend per day", "Company budget"}},
 	{"/c/hanko/fluxos", []string{"Flows", "Run now", "Every Friday at 07:00"}},

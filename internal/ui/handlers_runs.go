@@ -104,6 +104,10 @@ func (s *server) runVM(ctx context.Context, co domain.Company, rv service.RunVie
 		Lines:        lines,
 		LastSeq:      lastSeq,
 	}
+	if rv.ConversationID != nil {
+		vm.Chat, vm.TaskKey, vm.TaskTitle = true, i18n.T(ctx, "Chat"), rv.ConversationTitle
+		vm.TaskHref = base + "/chat/" + rv.ConversationID.String()
+	}
 	if rv.ExitCode != nil {
 		vm.ExitCode = strconv.Itoa(*rv.ExitCode)
 	}
