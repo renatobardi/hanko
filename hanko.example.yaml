@@ -6,6 +6,11 @@ mode: trusted            # trusted | authenticated (login; exige secret >= 32 by
 # secret: ""             # prefira HANKO_SECRET (mínimo 32 bytes); vazio = gerado por boot
 # allowed_hosts: []      # hosts extras aceitos no cabeçalho Host (HANKO_ALLOWED_HOSTS)
 # workspaces_root: ""    # raiz dos workspaces (HANKO_WORKSPACES_ROOT); padrão $HOME/hanko-workspaces
+# secret_key: ""        # cifra os segredos das integrações em repouso (HANKO_SECRET_KEY, mínimo 32 bytes; ADR-0029)
+# secret_key_previous: "" # chave antiga durante a rotação (HANKO_SECRET_KEY_PREVIOUS)
+# integrations:
+#   allow_stdio: false              # libera MCP stdio (executa comando no servidor); HANKO_INTEGRATIONS_ALLOW_STDIO
+#   allow_private_destinations: false # libera webhooks para loopback/redes privadas; HANKO_INTEGRATIONS_ALLOW_PRIVATE
 # agent_env_allow: []    # env extra do servidor repassado aos agentes (HANKO_AGENT_ENV_ALLOW)
 # auth:                  # só vale com mode: authenticated (docs/RUNBOOK.md §5)
 #   provider: firebase   # local | firebase
