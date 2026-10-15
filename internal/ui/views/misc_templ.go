@@ -60,7 +60,7 @@ func OnboardingPage(vm OnboardingVM, version string) templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Criar empresa"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/misc.templ`, Line: 15, Col: 38}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `misc.templ`, Line: 15, Col: 38}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -73,7 +73,7 @@ func OnboardingPage(vm OnboardingVM, version string) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "A empresa isola personas, tasks e execuções. Dá para criar outras depois."))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/misc.templ`, Line: 16, Col: 118}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `misc.templ`, Line: 16, Col: 118}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -96,7 +96,7 @@ func OnboardingPage(vm OnboardingVM, version string) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Nome da empresa"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/misc.templ`, Line: 21, Col: 57}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `misc.templ`, Line: 21, Col: 57}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -109,7 +109,7 @@ func OnboardingPage(vm OnboardingVM, version string) templ.Component {
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.ResolveAttributeValue(vm.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/misc.templ`, Line: 22, Col: 65}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `misc.templ`, Line: 22, Col: 65}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
 			if templ_7745c5c3_Err != nil {
@@ -122,7 +122,7 @@ func OnboardingPage(vm OnboardingVM, version string) templ.Component {
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Prefixo das tasks"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/misc.templ`, Line: 25, Col: 61}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `misc.templ`, Line: 25, Col: 61}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {
@@ -135,7 +135,7 @@ func OnboardingPage(vm OnboardingVM, version string) templ.Component {
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.ResolveAttributeValue(vm.TaskPrefix)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/misc.templ`, Line: 26, Col: 75}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `misc.templ`, Line: 26, Col: 75}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var8)
 			if templ_7745c5c3_Err != nil {
@@ -148,7 +148,7 @@ func OnboardingPage(vm OnboardingVM, version string) templ.Component {
 			var templ_7745c5c3_Var9 string
 			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.ResolveAttributeValue(i18n.T(ctx, "HNK"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/misc.templ`, Line: 26, Col: 125}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `misc.templ`, Line: 26, Col: 125}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var9)
 			if templ_7745c5c3_Err != nil {
@@ -161,7 +161,7 @@ func OnboardingPage(vm OnboardingVM, version string) templ.Component {
 			var templ_7745c5c3_Var10 string
 			templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "As tasks viram HNK-1, HNK-2…"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/misc.templ`, Line: 27, Col: 71}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `misc.templ`, Line: 27, Col: 71}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 			if templ_7745c5c3_Err != nil {
@@ -174,7 +174,7 @@ func OnboardingPage(vm OnboardingVM, version string) templ.Component {
 			var templ_7745c5c3_Var11 string
 			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Criar empresa e continuar"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/misc.templ`, Line: 29, Col: 94}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `misc.templ`, Line: 29, Col: 94}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 			if templ_7745c5c3_Err != nil {
@@ -187,7 +187,7 @@ func OnboardingPage(vm OnboardingVM, version string) templ.Component {
 			var templ_7745c5c3_Var12 string
 			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Hanko · control plane de personas de IA"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/misc.templ`, Line: 31, Col: 84}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `misc.templ`, Line: 31, Col: 84}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 			if templ_7745c5c3_Err != nil {
@@ -362,7 +362,7 @@ func errorBody(vm ErrorVM) templ.Component {
 				var templ_7745c5c3_Var19 templ.SafeURL
 				templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(vm.Back))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/misc.templ`, Line: 55, Col: 56}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `misc.templ`, Line: 55, Col: 56}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 				if templ_7745c5c3_Err != nil {
@@ -375,7 +375,7 @@ func errorBody(vm ErrorVM) templ.Component {
 				var templ_7745c5c3_Var20 string
 				templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Voltar"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/misc.templ`, Line: 55, Col: 82}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `misc.templ`, Line: 55, Col: 82}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 				if templ_7745c5c3_Err != nil {
@@ -437,7 +437,7 @@ func ErrorFragment(vm ErrorVM) templ.Component {
 		var templ_7745c5c3_Var22 string
 		templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/misc.templ`, Line: 65, Col: 20}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `misc.templ`, Line: 65, Col: 20}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 		if templ_7745c5c3_Err != nil {
@@ -450,7 +450,7 @@ func ErrorFragment(vm ErrorVM) templ.Component {
 		var templ_7745c5c3_Var23 string
 		templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Message)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/misc.templ`, Line: 65, Col: 39}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `misc.templ`, Line: 65, Col: 39}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 		if templ_7745c5c3_Err != nil {
@@ -520,7 +520,7 @@ func SoonPage(sh Shell, vm SoonVM) templ.Component {
 				var templ_7745c5c3_Var27 string
 				templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Previsto para"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/misc.templ`, Line: 73, Col: 59}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `misc.templ`, Line: 73, Col: 59}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 				if templ_7745c5c3_Err != nil {
@@ -533,7 +533,7 @@ func SoonPage(sh Shell, vm SoonVM) templ.Component {
 				var templ_7745c5c3_Var28 string
 				templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Milestone)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/misc.templ`, Line: 73, Col: 76}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `misc.templ`, Line: 73, Col: 76}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
 				if templ_7745c5c3_Err != nil {
@@ -546,7 +546,7 @@ func SoonPage(sh Shell, vm SoonVM) templ.Component {
 				var templ_7745c5c3_Var29 templ.SafeURL
 				templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(sh.Base() + "/"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/misc.templ`, Line: 74, Col: 64}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `misc.templ`, Line: 74, Col: 64}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
 				if templ_7745c5c3_Err != nil {
@@ -559,7 +559,7 @@ func SoonPage(sh Shell, vm SoonVM) templ.Component {
 				var templ_7745c5c3_Var30 string
 				templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Voltar ao painel"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/misc.templ`, Line: 74, Col: 100}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `misc.templ`, Line: 74, Col: 100}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var30))
 				if templ_7745c5c3_Err != nil {

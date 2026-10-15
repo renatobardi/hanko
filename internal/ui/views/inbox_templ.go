@@ -105,7 +105,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 				var templ_7745c5c3_Var4 string
 				templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Alertas operacionais"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 28, Col: 44}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 28, Col: 44}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 				if templ_7745c5c3_Err != nil {
@@ -118,7 +118,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 				var templ_7745c5c3_Var5 string
 				templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprint(len(vm.Alerts)))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 29, Col: 52}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 29, Col: 52}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 				if templ_7745c5c3_Err != nil {
@@ -144,7 +144,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var6 string
 					templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(a.Message)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 35, Col: 21}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 35, Col: 21}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 					if templ_7745c5c3_Err != nil {
@@ -162,7 +162,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 						var templ_7745c5c3_Var7 string
 						templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Crítico"))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 37, Col: 63}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 37, Col: 63}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 						if templ_7745c5c3_Err != nil {
@@ -180,7 +180,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 						var templ_7745c5c3_Var8 string
 						templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Atenção"))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 39, Col: 62}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 39, Col: 62}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 						if templ_7745c5c3_Err != nil {
@@ -198,7 +198,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var9 string
 					templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(a.KindText)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 42, Col: 36}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 42, Col: 36}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 					if templ_7745c5c3_Err != nil {
@@ -211,7 +211,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var10 string
 					templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "aberto"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 42, Col: 65}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 42, Col: 65}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 					if templ_7745c5c3_Err != nil {
@@ -224,7 +224,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var11 string
 					templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(a.When)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 42, Col: 76}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 42, Col: 76}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 					if templ_7745c5c3_Err != nil {
@@ -237,7 +237,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var12 string
 					templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "fecha sozinho quando a condição some"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 42, Col: 137}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 42, Col: 137}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 					if templ_7745c5c3_Err != nil {
@@ -255,7 +255,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 						var templ_7745c5c3_Var13 templ.SafeURL
 						templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(a.Href))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 45, Col: 76}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 45, Col: 76}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 						if templ_7745c5c3_Err != nil {
@@ -268,7 +268,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 						var templ_7745c5c3_Var14 templ.SafeURL
 						templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(a.Href))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 46, Col: 64}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 46, Col: 64}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 						if templ_7745c5c3_Err != nil {
@@ -281,7 +281,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 						var templ_7745c5c3_Var15 string
 						templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(a.Link)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 46, Col: 75}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 46, Col: 75}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 						if templ_7745c5c3_Err != nil {
@@ -318,7 +318,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 				var templ_7745c5c3_Var16 string
 				templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Precisa de você · gates"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 57, Col: 49}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 57, Col: 49}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 				if templ_7745c5c3_Err != nil {
@@ -331,7 +331,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 				var templ_7745c5c3_Var17 string
 				templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprint(len(vm.Gates)))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 58, Col: 51}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 58, Col: 51}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 				if templ_7745c5c3_Err != nil {
@@ -362,7 +362,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 						var templ_7745c5c3_Var18 templ.SafeURL
 						templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(g.TaskHref))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 65, Col: 62}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 65, Col: 62}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 						if templ_7745c5c3_Err != nil {
@@ -375,7 +375,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 						var templ_7745c5c3_Var19 string
 						templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(g.TaskKey)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 65, Col: 76}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 65, Col: 76}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 						if templ_7745c5c3_Err != nil {
@@ -393,7 +393,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var20 templ.SafeURL
 					templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(g.Href))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 67, Col: 41}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 67, Col: 41}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 					if templ_7745c5c3_Err != nil {
@@ -406,7 +406,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var21 string
 					templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(g.Title)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 67, Col: 53}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 67, Col: 53}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 					if templ_7745c5c3_Err != nil {
@@ -419,7 +419,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var22 string
 					templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(g.KindLabel)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 68, Col: 48}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 68, Col: 48}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 					if templ_7745c5c3_Err != nil {
@@ -437,7 +437,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 						var templ_7745c5c3_Var23 string
 						templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "há mais de 24 h"))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 70, Col: 72}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 70, Col: 72}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 						if templ_7745c5c3_Err != nil {
@@ -466,7 +466,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 						var templ_7745c5c3_Var24 string
 						templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(g.Excerpt)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 77, Col: 34}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 77, Col: 34}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 						if templ_7745c5c3_Err != nil {
@@ -485,7 +485,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 						var templ_7745c5c3_Var25 string
 						templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "pedido por"))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 81, Col: 38}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 81, Col: 38}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 						if templ_7745c5c3_Err != nil {
@@ -498,7 +498,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 						var templ_7745c5c3_Var26 string
 						templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(g.Persona)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 81, Col: 52}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 81, Col: 52}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 						if templ_7745c5c3_Err != nil {
@@ -512,7 +512,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var27 string
 					templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(g.Created)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 83, Col: 21}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 83, Col: 21}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 					if templ_7745c5c3_Err != nil {
@@ -552,7 +552,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 				var templ_7745c5c3_Var28 string
 				templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Tasks bloqueadas"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 95, Col: 40}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 95, Col: 40}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
 				if templ_7745c5c3_Err != nil {
@@ -565,7 +565,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 				var templ_7745c5c3_Var29 string
 				templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprint(len(vm.Blocked)))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 96, Col: 53}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 96, Col: 53}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
 				if templ_7745c5c3_Err != nil {
@@ -591,7 +591,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var30 templ.SafeURL
 					templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(t.Href))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 102, Col: 57}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 102, Col: 57}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var30))
 					if templ_7745c5c3_Err != nil {
@@ -604,7 +604,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var31 string
 					templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinStringErrs(t.Key)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 102, Col: 67}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 102, Col: 67}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var31))
 					if templ_7745c5c3_Err != nil {
@@ -617,7 +617,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var32 templ.SafeURL
 					templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(t.Href))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 103, Col: 41}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 103, Col: 41}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var32))
 					if templ_7745c5c3_Err != nil {
@@ -630,7 +630,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var33 string
 					templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.JoinStringErrs(t.Title)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 103, Col: 53}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 103, Col: 53}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var33))
 					if templ_7745c5c3_Err != nil {
@@ -643,7 +643,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var34 string
 					templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Bloqueada"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 104, Col: 63}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 104, Col: 63}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
 					if templ_7745c5c3_Err != nil {
@@ -657,7 +657,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 						var templ_7745c5c3_Var35 string
 						templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.JoinStringErrs(t.Persona)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 108, Col: 22}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 108, Col: 22}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var35))
 						if templ_7745c5c3_Err != nil {
@@ -671,7 +671,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var36 string
 					templ_7745c5c3_Var36, templ_7745c5c3_Err = templ.JoinStringErrs(t.When)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 110, Col: 18}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 110, Col: 18}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var36))
 					if templ_7745c5c3_Err != nil {
@@ -684,7 +684,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var37 string
 					templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "sem gate pendente: alguém precisa destravar"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 110, Col: 85}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 110, Col: 85}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var37))
 					if templ_7745c5c3_Err != nil {
@@ -697,7 +697,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var38 templ.SafeURL
 					templ_7745c5c3_Var38, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(t.ActionHref))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 113, Col: 82}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 113, Col: 82}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var38))
 					if templ_7745c5c3_Err != nil {
@@ -710,7 +710,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var39 string
 					templ_7745c5c3_Var39, templ_7745c5c3_Err = templ.ResolveAttributeValue(t.ActionHref)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 113, Col: 107}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 113, Col: 107}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var39)
 					if templ_7745c5c3_Err != nil {
@@ -723,7 +723,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var40 templ.SafeURL
 					templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(t.Href))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 114, Col: 61}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 114, Col: 61}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var40))
 					if templ_7745c5c3_Err != nil {
@@ -736,7 +736,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var41 string
 					templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Abrir"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 114, Col: 86}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 114, Col: 86}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var41))
 					if templ_7745c5c3_Err != nil {
@@ -749,7 +749,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var42 string
 					templ_7745c5c3_Var42, templ_7745c5c3_Err = templ.JoinStringErrs(t.ActionLabel)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 115, Col: 69}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 115, Col: 69}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var42))
 					if templ_7745c5c3_Err != nil {
@@ -781,7 +781,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 				var templ_7745c5c3_Var43 string
 				templ_7745c5c3_Var43, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Execuções que falharam"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 125, Col: 48}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 125, Col: 48}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var43))
 				if templ_7745c5c3_Err != nil {
@@ -794,7 +794,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 				var templ_7745c5c3_Var44 string
 				templ_7745c5c3_Var44, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprint(len(vm.Failed)))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 126, Col: 52}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 126, Col: 52}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var44))
 				if templ_7745c5c3_Err != nil {
@@ -820,7 +820,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var45 templ.SafeURL
 					templ_7745c5c3_Var45, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(r.TaskHref))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 132, Col: 61}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 132, Col: 61}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var45))
 					if templ_7745c5c3_Err != nil {
@@ -833,7 +833,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var46 string
 					templ_7745c5c3_Var46, templ_7745c5c3_Err = templ.JoinStringErrs(r.TaskKey)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 132, Col: 75}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 132, Col: 75}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var46))
 					if templ_7745c5c3_Err != nil {
@@ -846,7 +846,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var47 templ.SafeURL
 					templ_7745c5c3_Var47, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(r.Href))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 133, Col: 41}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 133, Col: 41}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var47))
 					if templ_7745c5c3_Err != nil {
@@ -859,7 +859,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var48 string
 					templ_7745c5c3_Var48, templ_7745c5c3_Err = templ.JoinStringErrs(r.TaskTitle)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 133, Col: 57}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 133, Col: 57}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var48))
 					if templ_7745c5c3_Err != nil {
@@ -872,7 +872,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var49 string
 					templ_7745c5c3_Var49, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Falhou"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 134, Col: 60}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 134, Col: 60}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var49))
 					if templ_7745c5c3_Err != nil {
@@ -890,7 +890,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 						var templ_7745c5c3_Var50 string
 						templ_7745c5c3_Var50, templ_7745c5c3_Err = templ.JoinStringErrs(r.Error)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 137, Col: 32}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 137, Col: 32}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var50))
 						if templ_7745c5c3_Err != nil {
@@ -908,7 +908,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var51 string
 					templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.JoinStringErrs(r.Persona)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 139, Col: 35}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 139, Col: 35}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var51))
 					if templ_7745c5c3_Err != nil {
@@ -921,7 +921,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var52 string
 					templ_7745c5c3_Var52, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "execução"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 139, Col: 68}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 139, Col: 68}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var52))
 					if templ_7745c5c3_Err != nil {
@@ -935,7 +935,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 						var templ_7745c5c3_Var53 string
 						templ_7745c5c3_Var53, templ_7745c5c3_Err = templ.JoinStringErrs(r.Name)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 141, Col: 19}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 141, Col: 19}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var53))
 						if templ_7745c5c3_Err != nil {
@@ -953,7 +953,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var54 string
 					templ_7745c5c3_Var54, templ_7745c5c3_Err = templ.JoinStringErrs(r.Short)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 143, Col: 38}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 143, Col: 38}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var54))
 					if templ_7745c5c3_Err != nil {
@@ -966,7 +966,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var55 string
 					templ_7745c5c3_Var55, templ_7745c5c3_Err = templ.JoinStringErrs(r.When)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 143, Col: 59}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 143, Col: 59}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var55))
 					if templ_7745c5c3_Err != nil {
@@ -979,7 +979,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var56 templ.SafeURL
 					templ_7745c5c3_Var56, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(r.ActionHref))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 145, Col: 82}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 145, Col: 82}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var56))
 					if templ_7745c5c3_Err != nil {
@@ -992,7 +992,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var57 string
 					templ_7745c5c3_Var57, templ_7745c5c3_Err = templ.ResolveAttributeValue(r.ActionHref)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 145, Col: 107}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 145, Col: 107}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var57)
 					if templ_7745c5c3_Err != nil {
@@ -1005,7 +1005,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var58 templ.SafeURL
 					templ_7745c5c3_Var58, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(r.Href))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 146, Col: 61}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 146, Col: 61}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var58))
 					if templ_7745c5c3_Err != nil {
@@ -1018,7 +1018,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var59 string
 					templ_7745c5c3_Var59, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Ver log"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 146, Col: 88}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 146, Col: 88}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var59))
 					if templ_7745c5c3_Err != nil {
@@ -1039,7 +1039,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var60 string
 					templ_7745c5c3_Var60, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Acordar de novo"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 149, Col: 42}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 149, Col: 42}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var60))
 					if templ_7745c5c3_Err != nil {
@@ -1071,7 +1071,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 				var templ_7745c5c3_Var61 string
 				templ_7745c5c3_Var61, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Assinaturas travadas"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 160, Col: 44}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 160, Col: 44}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var61))
 				if templ_7745c5c3_Err != nil {
@@ -1084,7 +1084,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 				var templ_7745c5c3_Var62 string
 				templ_7745c5c3_Var62, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprint(len(vm.Subs)))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 161, Col: 50}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 161, Col: 50}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var62))
 				if templ_7745c5c3_Err != nil {
@@ -1110,7 +1110,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var63 templ.SafeURL
 					templ_7745c5c3_Var63, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(s.Href))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 167, Col: 41}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 167, Col: 41}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var63))
 					if templ_7745c5c3_Err != nil {
@@ -1123,7 +1123,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var64 string
 					templ_7745c5c3_Var64, templ_7745c5c3_Err = templ.JoinStringErrs(s.Name)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 167, Col: 52}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 167, Col: 52}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var64))
 					if templ_7745c5c3_Err != nil {
@@ -1136,7 +1136,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var65 string
 					templ_7745c5c3_Var65, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Trava semanal"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 168, Col: 67}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 168, Col: 67}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var65))
 					if templ_7745c5c3_Err != nil {
@@ -1149,7 +1149,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var66 string
 					templ_7745c5c3_Var66, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.Tf(ctx, "Uso estimado de %s de %s (%s) passou da trava de %s%%: novas execuções cobertas por esta assinatura ficam bloqueadas.", s.Usage, s.Limit, s.Percent, fmt.Sprint(s.Guard)))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 170, Col: 209}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 170, Col: 209}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var66))
 					if templ_7745c5c3_Err != nil {
@@ -1162,7 +1162,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var67 string
 					templ_7745c5c3_Var67, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.Tf(ctx, "semana de %s · libera na virada da semana ou ao subir o teto", s.Week))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 171, Col: 111}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 171, Col: 111}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var67))
 					if templ_7745c5c3_Err != nil {
@@ -1175,7 +1175,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var68 templ.SafeURL
 					templ_7745c5c3_Var68, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(s.Href))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 173, Col: 75}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 173, Col: 75}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var68))
 					if templ_7745c5c3_Err != nil {
@@ -1188,7 +1188,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var69 string
 					templ_7745c5c3_Var69, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Ajustar teto"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 174, Col: 83}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 174, Col: 83}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var69))
 					if templ_7745c5c3_Err != nil {
@@ -1220,7 +1220,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 				var templ_7745c5c3_Var70 string
 				templ_7745c5c3_Var70, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Personas com erro"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 184, Col: 41}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 184, Col: 41}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var70))
 				if templ_7745c5c3_Err != nil {
@@ -1233,7 +1233,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 				var templ_7745c5c3_Var71 string
 				templ_7745c5c3_Var71, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprint(len(vm.Personas)))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 185, Col: 54}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 185, Col: 54}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var71))
 				if templ_7745c5c3_Err != nil {
@@ -1259,7 +1259,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var72 templ.SafeURL
 					templ_7745c5c3_Var72, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(p.Href))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 191, Col: 41}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 191, Col: 41}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var72))
 					if templ_7745c5c3_Err != nil {
@@ -1272,7 +1272,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var73 string
 					templ_7745c5c3_Var73, templ_7745c5c3_Err = templ.JoinStringErrs(p.Name)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 191, Col: 52}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 191, Col: 52}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var73))
 					if templ_7745c5c3_Err != nil {
@@ -1285,7 +1285,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var74 string
 					templ_7745c5c3_Var74, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Erro"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 192, Col: 58}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 192, Col: 58}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var74))
 					if templ_7745c5c3_Err != nil {
@@ -1303,7 +1303,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 						var templ_7745c5c3_Var75 string
 						templ_7745c5c3_Var75, templ_7745c5c3_Err = templ.JoinStringErrs(p.Error)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 195, Col: 32}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 195, Col: 32}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var75))
 						if templ_7745c5c3_Err != nil {
@@ -1321,7 +1321,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var76 string
 					templ_7745c5c3_Var76, templ_7745c5c3_Err = templ.JoinStringErrs(p.Title)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 198, Col: 19}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 198, Col: 19}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var76))
 					if templ_7745c5c3_Err != nil {
@@ -1339,7 +1339,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 						var templ_7745c5c3_Var77 string
 						templ_7745c5c3_Var77, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.Tf(ctx, "%d falhas seguidas", p.Failures))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 200, Col: 62}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 200, Col: 62}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var77))
 						if templ_7745c5c3_Err != nil {
@@ -1358,7 +1358,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 						var templ_7745c5c3_Var78 string
 						templ_7745c5c3_Var78, templ_7745c5c3_Err = templ.JoinStringErrs(p.When)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 203, Col: 22}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 203, Col: 22}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var78))
 						if templ_7745c5c3_Err != nil {
@@ -1372,7 +1372,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var79 templ.SafeURL
 					templ_7745c5c3_Var79, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(p.ActionHref))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 207, Col: 82}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 207, Col: 82}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var79))
 					if templ_7745c5c3_Err != nil {
@@ -1385,7 +1385,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var80 string
 					templ_7745c5c3_Var80, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.ActionHref)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 207, Col: 107}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 207, Col: 107}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var80)
 					if templ_7745c5c3_Err != nil {
@@ -1398,7 +1398,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var81 templ.SafeURL
 					templ_7745c5c3_Var81, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(p.Href))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 208, Col: 61}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 208, Col: 61}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var81))
 					if templ_7745c5c3_Err != nil {
@@ -1411,7 +1411,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var82 string
 					templ_7745c5c3_Var82, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Abrir"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 208, Col: 86}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 208, Col: 86}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var82))
 					if templ_7745c5c3_Err != nil {
@@ -1424,7 +1424,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 					var templ_7745c5c3_Var83 string
 					templ_7745c5c3_Var83, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Reativar"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 209, Col: 79}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 209, Col: 79}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var83))
 					if templ_7745c5c3_Err != nil {
@@ -1447,7 +1447,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 			var templ_7745c5c3_Var84 string
 			templ_7745c5c3_Var84, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Decisões"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 218, Col: 35}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 218, Col: 35}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var84))
 			if templ_7745c5c3_Err != nil {
@@ -1460,7 +1460,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 			var templ_7745c5c3_Var85 string
 			templ_7745c5c3_Var85, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Gates esperam por um humano. Nada anda sem a sua resposta."))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 219, Col: 95}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 219, Col: 95}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var85))
 			if templ_7745c5c3_Err != nil {
@@ -1473,7 +1473,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 			var templ_7745c5c3_Var86 string
 			templ_7745c5c3_Var86, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Aguardando"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 221, Col: 42}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 221, Col: 42}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var86))
 			if templ_7745c5c3_Err != nil {
@@ -1486,7 +1486,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 			var templ_7745c5c3_Var87 string
 			templ_7745c5c3_Var87, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprint(vm.Pending))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 221, Col: 90}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 221, Col: 90}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var87))
 			if templ_7745c5c3_Err != nil {
@@ -1499,7 +1499,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 			var templ_7745c5c3_Var88 string
 			templ_7745c5c3_Var88, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Envelhecendo (> 24 h)"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 222, Col: 53}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 222, Col: 53}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var88))
 			if templ_7745c5c3_Err != nil {
@@ -1512,7 +1512,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 			var templ_7745c5c3_Var89 string
 			templ_7745c5c3_Var89, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprint(vm.Aged))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 222, Col: 98}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 222, Col: 98}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var89))
 			if templ_7745c5c3_Err != nil {
@@ -1525,7 +1525,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 			var templ_7745c5c3_Var90 string
 			templ_7745c5c3_Var90, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Decididas hoje"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 223, Col: 46}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 223, Col: 46}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var90))
 			if templ_7745c5c3_Err != nil {
@@ -1538,7 +1538,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 			var templ_7745c5c3_Var91 string
 			templ_7745c5c3_Var91, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprint(vm.DecidedToday))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 223, Col: 99}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 223, Col: 99}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var91))
 			if templ_7745c5c3_Err != nil {
@@ -1551,7 +1551,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 			var templ_7745c5c3_Var92 templ.SafeURL
 			templ_7745c5c3_Var92, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(vm.GatesURL))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 226, Col: 68}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 226, Col: 68}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var92))
 			if templ_7745c5c3_Err != nil {
@@ -1564,7 +1564,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 			var templ_7745c5c3_Var93 string
 			templ_7745c5c3_Var93, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Abrir gates"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 226, Col: 99}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 226, Col: 99}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var93))
 			if templ_7745c5c3_Err != nil {
@@ -1577,7 +1577,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 			var templ_7745c5c3_Var94 templ.SafeURL
 			templ_7745c5c3_Var94, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(vm.DecisionsURL))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 227, Col: 70}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 227, Col: 70}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var94))
 			if templ_7745c5c3_Err != nil {
@@ -1590,7 +1590,7 @@ func InboxPage(sh Shell, vm InboxVM) templ.Component {
 			var templ_7745c5c3_Var95 string
 			templ_7745c5c3_Var95, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Histórico de decisões"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/inbox.templ`, Line: 227, Col: 113}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `inbox.templ`, Line: 227, Col: 113}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var95))
 			if templ_7745c5c3_Err != nil {

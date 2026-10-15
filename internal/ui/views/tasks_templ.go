@@ -80,7 +80,7 @@ func TasksPage(sh Shell, vm TasksVM) templ.Component {
 			var templ_7745c5c3_Var4 templ.SafeURL
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(sh.Base() + "/tasks"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 16, Col: 66}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 16, Col: 66}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -93,7 +93,7 @@ func TasksPage(sh Shell, vm TasksVM) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.ResolveAttributeValue(vm.Tab)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 17, Col: 50}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 17, Col: 50}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
 			if templ_7745c5c3_Err != nil {
@@ -106,7 +106,7 @@ func TasksPage(sh Shell, vm TasksVM) templ.Component {
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.ResolveAttributeValue(vm.Query)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 22, Col: 21}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 22, Col: 21}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
 			if templ_7745c5c3_Err != nil {
@@ -119,7 +119,7 @@ func TasksPage(sh Shell, vm TasksVM) templ.Component {
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.ResolveAttributeValue(i18n.T(ctx, "Buscar tasks..."))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 23, Col: 49}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 23, Col: 49}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var7)
 			if templ_7745c5c3_Err != nil {
@@ -132,7 +132,7 @@ func TasksPage(sh Shell, vm TasksVM) templ.Component {
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.ResolveAttributeValue(i18n.T(ctx, "Buscar tasks"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 24, Col: 45}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 24, Col: 45}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var8)
 			if templ_7745c5c3_Err != nil {
@@ -145,7 +145,7 @@ func TasksPage(sh Shell, vm TasksVM) templ.Component {
 			var templ_7745c5c3_Var9 string
 			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.ResolveAttributeValue(sh.Base() + "/tasks")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 25, Col: 34}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 25, Col: 34}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var9)
 			if templ_7745c5c3_Err != nil {
@@ -210,7 +210,7 @@ func TaskPage(sh Shell, vm TaskVM, base string) templ.Component {
 			var templ_7745c5c3_Var12 string
 			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Key)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 45, Col: 32}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 45, Col: 32}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 			if templ_7745c5c3_Err != nil {
@@ -228,7 +228,7 @@ func TaskPage(sh Shell, vm TaskVM, base string) templ.Component {
 				var templ_7745c5c3_Var13 string
 				templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(vm.ProjectName)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 48, Col: 36}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 48, Col: 36}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 				if templ_7745c5c3_Err != nil {
@@ -246,7 +246,7 @@ func TaskPage(sh Shell, vm TaskVM, base string) templ.Component {
 			var templ_7745c5c3_Var14 string
 			templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "criada"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 51, Col: 34}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 51, Col: 34}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 			if templ_7745c5c3_Err != nil {
@@ -259,7 +259,7 @@ func TaskPage(sh Shell, vm TaskVM, base string) templ.Component {
 			var templ_7745c5c3_Var15 string
 			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Created)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 51, Col: 49}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 51, Col: 49}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 			if templ_7745c5c3_Err != nil {
@@ -272,7 +272,7 @@ func TaskPage(sh Shell, vm TaskVM, base string) templ.Component {
 			var templ_7745c5c3_Var16 string
 			templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Title)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 53, Col: 18}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 53, Col: 18}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 			if templ_7745c5c3_Err != nil {
@@ -327,7 +327,7 @@ func TaskPage(sh Shell, vm TaskVM, base string) templ.Component {
 			var templ_7745c5c3_Var17 string
 			templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Pedido"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 65, Col: 48}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 65, Col: 48}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 			if templ_7745c5c3_Err != nil {
@@ -358,7 +358,7 @@ func TaskPage(sh Shell, vm TaskVM, base string) templ.Component {
 				var templ_7745c5c3_Var18 string
 				templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Sem descrição."))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 69, Col: 56}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 69, Col: 56}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 				if templ_7745c5c3_Err != nil {
@@ -376,7 +376,7 @@ func TaskPage(sh Shell, vm TaskVM, base string) templ.Component {
 			var templ_7745c5c3_Var19 string
 			templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Conversa"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 72, Col: 75}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 72, Col: 75}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 			if templ_7745c5c3_Err != nil {
@@ -398,7 +398,7 @@ func TaskPage(sh Shell, vm TaskVM, base string) templ.Component {
 				var templ_7745c5c3_Var20 string
 				templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Execução"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 77, Col: 34}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 77, Col: 34}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 				if templ_7745c5c3_Err != nil {
@@ -411,7 +411,7 @@ func TaskPage(sh Shell, vm TaskVM, base string) templ.Component {
 				var templ_7745c5c3_Var21 string
 				templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(vm.ActiveRun.Short)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 77, Col: 76}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 77, Col: 76}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 				if templ_7745c5c3_Err != nil {
@@ -424,7 +424,7 @@ func TaskPage(sh Shell, vm TaskVM, base string) templ.Component {
 				var templ_7745c5c3_Var22 string
 				templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "em andamento"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 77, Col: 115}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 77, Col: 115}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 				if templ_7745c5c3_Err != nil {
@@ -437,7 +437,7 @@ func TaskPage(sh Shell, vm TaskVM, base string) templ.Component {
 				var templ_7745c5c3_Var23 templ.SafeURL
 				templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(vm.ActiveRun.Href))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 78, Col: 49}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 78, Col: 49}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 				if templ_7745c5c3_Err != nil {
@@ -450,7 +450,7 @@ func TaskPage(sh Shell, vm TaskVM, base string) templ.Component {
 				var templ_7745c5c3_Var24 string
 				templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Inspecionar"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 78, Col: 157}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 78, Col: 157}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 				if templ_7745c5c3_Err != nil {
@@ -515,7 +515,7 @@ func TaskChips(vm TaskVM, oob bool) templ.Component {
 		var templ_7745c5c3_Var26 string
 		templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.ResolveAttributeValue(oobAttr(oob))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 90, Col: 85}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 90, Col: 85}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var26)
 		if templ_7745c5c3_Err != nil {
@@ -544,7 +544,7 @@ func TaskChips(vm TaskVM, oob bool) templ.Component {
 		var templ_7745c5c3_Var27 string
 		templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(vm.PriorityLabel)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 92, Col: 85}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 92, Col: 85}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 		if templ_7745c5c3_Err != nil {
@@ -562,7 +562,7 @@ func TaskChips(vm TaskVM, oob bool) templ.Component {
 			var templ_7745c5c3_Var28 templ.SafeURL
 			templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(vm.PersonaHref))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 94, Col: 55}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 94, Col: 55}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
 			if templ_7745c5c3_Err != nil {
@@ -583,7 +583,7 @@ func TaskChips(vm TaskVM, oob bool) templ.Component {
 			var templ_7745c5c3_Var29 string
 			templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(vm.PersonaName)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 94, Col: 92}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 94, Col: 92}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
 			if templ_7745c5c3_Err != nil {
@@ -601,7 +601,7 @@ func TaskChips(vm TaskVM, oob bool) templ.Component {
 			var templ_7745c5c3_Var30 string
 			templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Sem dono"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 96, Col: 52}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 96, Col: 52}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var30))
 			if templ_7745c5c3_Err != nil {
@@ -653,7 +653,7 @@ func Thread(vm TaskVM, base string) templ.Component {
 			var templ_7745c5c3_Var32 string
 			templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Nenhum comentário ainda. Escreva abaixo para orientar a persona."))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 104, Col: 109}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 104, Col: 109}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var32))
 			if templ_7745c5c3_Err != nil {
@@ -681,7 +681,7 @@ func Thread(vm TaskVM, base string) templ.Component {
 				var templ_7745c5c3_Var33 string
 				templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Você ·"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 110, Col: 54}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 110, Col: 54}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var33))
 				if templ_7745c5c3_Err != nil {
@@ -694,7 +694,7 @@ func Thread(vm TaskVM, base string) templ.Component {
 				var templ_7745c5c3_Var34 string
 				templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinStringErrs(m.When)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 110, Col: 84}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 110, Col: 84}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
 				if templ_7745c5c3_Err != nil {
@@ -720,7 +720,7 @@ func Thread(vm TaskVM, base string) templ.Component {
 				var templ_7745c5c3_Var35 string
 				templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.JoinStringErrs(m.Author)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 116, Col: 37}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 116, Col: 37}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var35))
 				if templ_7745c5c3_Err != nil {
@@ -733,7 +733,7 @@ func Thread(vm TaskVM, base string) templ.Component {
 				var templ_7745c5c3_Var36 string
 				templ_7745c5c3_Var36, templ_7745c5c3_Err = templ.JoinStringErrs(m.When)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 116, Col: 70}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 116, Col: 70}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var36))
 				if templ_7745c5c3_Err != nil {
@@ -751,7 +751,7 @@ func Thread(vm TaskVM, base string) templ.Component {
 					var templ_7745c5c3_Var37 templ.SafeURL
 					templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(m.RunHref))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 118, Col: 42}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 118, Col: 42}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var37))
 					if templ_7745c5c3_Err != nil {
@@ -764,7 +764,7 @@ func Thread(vm TaskVM, base string) templ.Component {
 					var templ_7745c5c3_Var38 string
 					templ_7745c5c3_Var38, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "execução"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 118, Col: 106}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 118, Col: 106}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var38))
 					if templ_7745c5c3_Err != nil {
@@ -825,7 +825,7 @@ func CommentForm(vm TaskVM, base string) templ.Component {
 		var templ_7745c5c3_Var40 templ.SafeURL
 		templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(base + "/tasks/" + vm.Key + "/comentarios"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 133, Col: 68}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 133, Col: 68}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var40))
 		if templ_7745c5c3_Err != nil {
@@ -838,7 +838,7 @@ func CommentForm(vm TaskVM, base string) templ.Component {
 		var templ_7745c5c3_Var41 string
 		templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.ResolveAttributeValue(base + "/tasks/" + vm.Key + "/comentarios")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 134, Col: 54}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 134, Col: 54}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var41)
 		if templ_7745c5c3_Err != nil {
@@ -851,7 +851,7 @@ func CommentForm(vm TaskVM, base string) templ.Component {
 		var templ_7745c5c3_Var42 string
 		templ_7745c5c3_Var42, templ_7745c5c3_Err = templ.ResolveAttributeValue(i18n.T(ctx, "Escreva um comentário (markdown). Fica na fila se a persona estiver ocupada."))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 139, Col: 139}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 139, Col: 139}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var42)
 		if templ_7745c5c3_Err != nil {
@@ -864,7 +864,7 @@ func CommentForm(vm TaskVM, base string) templ.Component {
 		var templ_7745c5c3_Var43 string
 		templ_7745c5c3_Var43, templ_7745c5c3_Err = templ.ResolveAttributeValue(i18n.T(ctx, "Comentário"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 139, Col: 181}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 139, Col: 181}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var43)
 		if templ_7745c5c3_Err != nil {
@@ -877,7 +877,7 @@ func CommentForm(vm TaskVM, base string) templ.Component {
 		var templ_7745c5c3_Var44 string
 		templ_7745c5c3_Var44, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Draft)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 139, Col: 194}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 139, Col: 194}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var44))
 		if templ_7745c5c3_Err != nil {
@@ -890,7 +890,7 @@ func CommentForm(vm TaskVM, base string) templ.Component {
 		var templ_7745c5c3_Var45 string
 		templ_7745c5c3_Var45, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Markdown · HTML é escapado"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 141, Col: 67}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 141, Col: 67}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var45))
 		if templ_7745c5c3_Err != nil {
@@ -911,7 +911,7 @@ func CommentForm(vm TaskVM, base string) templ.Component {
 		var templ_7745c5c3_Var46 string
 		templ_7745c5c3_Var46, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Comentar"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 144, Col: 29}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 144, Col: 29}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var46))
 		if templ_7745c5c3_Err != nil {
@@ -953,7 +953,7 @@ func TaskSide(vm TaskVM, base string) templ.Component {
 		var templ_7745c5c3_Var48 templ.SafeURL
 		templ_7745c5c3_Var48, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(base + "/tasks/" + vm.Key))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 156, Col: 52}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 156, Col: 52}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var48))
 		if templ_7745c5c3_Err != nil {
@@ -966,7 +966,7 @@ func TaskSide(vm TaskVM, base string) templ.Component {
 		var templ_7745c5c3_Var49 string
 		templ_7745c5c3_Var49, templ_7745c5c3_Err = templ.ResolveAttributeValue(base + "/tasks/" + vm.Key)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 157, Col: 38}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 157, Col: 38}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var49)
 		if templ_7745c5c3_Err != nil {
@@ -979,7 +979,7 @@ func TaskSide(vm TaskVM, base string) templ.Component {
 		var templ_7745c5c3_Var50 string
 		templ_7745c5c3_Var50, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Propriedades"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 162, Col: 52}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 162, Col: 52}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var50))
 		if templ_7745c5c3_Err != nil {
@@ -992,7 +992,7 @@ func TaskSide(vm TaskVM, base string) templ.Component {
 		var templ_7745c5c3_Var51 string
 		templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Status"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 164, Col: 53}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 164, Col: 53}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var51))
 		if templ_7745c5c3_Err != nil {
@@ -1013,7 +1013,7 @@ func TaskSide(vm TaskVM, base string) templ.Component {
 		var templ_7745c5c3_Var52 string
 		templ_7745c5c3_Var52, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Prioridade"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 165, Col: 57}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 165, Col: 57}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var52))
 		if templ_7745c5c3_Err != nil {
@@ -1042,7 +1042,7 @@ func TaskSide(vm TaskVM, base string) templ.Component {
 		var templ_7745c5c3_Var53 string
 		templ_7745c5c3_Var53, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Projeto"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 167, Col: 52}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 167, Col: 52}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var53))
 		if templ_7745c5c3_Err != nil {
@@ -1056,7 +1056,7 @@ func TaskSide(vm TaskVM, base string) templ.Component {
 			var templ_7745c5c3_Var54 string
 			templ_7745c5c3_Var54, templ_7745c5c3_Err = templ.JoinStringErrs(vm.ProjectName)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 169, Col: 22}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 169, Col: 22}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var54))
 			if templ_7745c5c3_Err != nil {
@@ -1075,7 +1075,7 @@ func TaskSide(vm TaskVM, base string) templ.Component {
 		var templ_7745c5c3_Var55 string
 		templ_7745c5c3_Var55, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Criada"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 174, Col: 51}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 174, Col: 51}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var55))
 		if templ_7745c5c3_Err != nil {
@@ -1088,7 +1088,7 @@ func TaskSide(vm TaskVM, base string) templ.Component {
 		var templ_7745c5c3_Var56 string
 		templ_7745c5c3_Var56, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Created)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 174, Col: 116}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 174, Col: 116}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var56))
 		if templ_7745c5c3_Err != nil {
@@ -1101,7 +1101,7 @@ func TaskSide(vm TaskVM, base string) templ.Component {
 		var templ_7745c5c3_Var57 string
 		templ_7745c5c3_Var57, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Atualizada"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 175, Col: 55}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 175, Col: 55}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var57))
 		if templ_7745c5c3_Err != nil {
@@ -1114,7 +1114,7 @@ func TaskSide(vm TaskVM, base string) templ.Component {
 		var templ_7745c5c3_Var58 string
 		templ_7745c5c3_Var58, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Updated)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 175, Col: 120}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 175, Col: 120}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var58))
 		if templ_7745c5c3_Err != nil {
@@ -1127,7 +1127,7 @@ func TaskSide(vm TaskVM, base string) templ.Component {
 		var templ_7745c5c3_Var59 string
 		templ_7745c5c3_Var59, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Salvar"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 177, Col: 97}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 177, Col: 97}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var59))
 		if templ_7745c5c3_Err != nil {
@@ -1140,7 +1140,7 @@ func TaskSide(vm TaskVM, base string) templ.Component {
 		var templ_7745c5c3_Var60 string
 		templ_7745c5c3_Var60, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Custo"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 180, Col: 45}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 180, Col: 45}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var60))
 		if templ_7745c5c3_Err != nil {
@@ -1153,7 +1153,7 @@ func TaskSide(vm TaskVM, base string) templ.Component {
 		var templ_7745c5c3_Var61 string
 		templ_7745c5c3_Var61, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Esta task"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 181, Col: 53}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 181, Col: 53}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var61))
 		if templ_7745c5c3_Err != nil {
@@ -1166,7 +1166,7 @@ func TaskSide(vm TaskVM, base string) templ.Component {
 		var templ_7745c5c3_Var62 string
 		templ_7745c5c3_Var62, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Cost)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 181, Col: 115}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 181, Col: 115}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var62))
 		if templ_7745c5c3_Err != nil {
@@ -1184,7 +1184,7 @@ func TaskSide(vm TaskVM, base string) templ.Component {
 			var templ_7745c5c3_Var63 string
 			templ_7745c5c3_Var63, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Modelo (manual)"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 183, Col: 60}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 183, Col: 60}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var63))
 			if templ_7745c5c3_Err != nil {
@@ -1197,7 +1197,7 @@ func TaskSide(vm TaskVM, base string) templ.Component {
 			var templ_7745c5c3_Var64 string
 			templ_7745c5c3_Var64, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Model)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 183, Col: 123}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 183, Col: 123}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var64))
 			if templ_7745c5c3_Err != nil {
@@ -1215,7 +1215,7 @@ func TaskSide(vm TaskVM, base string) templ.Component {
 		var templ_7745c5c3_Var65 string
 		templ_7745c5c3_Var65, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Execuções"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 187, Col: 108}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 187, Col: 108}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var65))
 		if templ_7745c5c3_Err != nil {
@@ -1228,7 +1228,7 @@ func TaskSide(vm TaskVM, base string) templ.Component {
 		var templ_7745c5c3_Var66 templ.SafeURL
 		templ_7745c5c3_Var66, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(base + "/execucoes"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 187, Col: 161}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 187, Col: 161}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var66))
 		if templ_7745c5c3_Err != nil {
@@ -1241,7 +1241,7 @@ func TaskSide(vm TaskVM, base string) templ.Component {
 		var templ_7745c5c3_Var67 string
 		templ_7745c5c3_Var67, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Ver todas"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 187, Col: 251}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 187, Col: 251}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var67))
 		if templ_7745c5c3_Err != nil {
@@ -1259,7 +1259,7 @@ func TaskSide(vm TaskVM, base string) templ.Component {
 			var templ_7745c5c3_Var68 string
 			templ_7745c5c3_Var68, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Nenhuma execução ainda."))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 189, Col: 86}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 189, Col: 86}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var68))
 			if templ_7745c5c3_Err != nil {
@@ -1278,7 +1278,7 @@ func TaskSide(vm TaskVM, base string) templ.Component {
 			var templ_7745c5c3_Var69 templ.SafeURL
 			templ_7745c5c3_Var69, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(r.Href))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 192, Col: 52}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 192, Col: 52}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var69))
 			if templ_7745c5c3_Err != nil {
@@ -1300,7 +1300,7 @@ func TaskSide(vm TaskVM, base string) templ.Component {
 			var templ_7745c5c3_Var71 string
 			templ_7745c5c3_Var71, templ_7745c5c3_Err = templ.ResolveAttributeValue(templ.CSSClasses(templ_7745c5c3_Var70).String())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 1, Col: 0}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 1, Col: 0}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var71)
 			if templ_7745c5c3_Err != nil {
@@ -1318,7 +1318,7 @@ func TaskSide(vm TaskVM, base string) templ.Component {
 				var templ_7745c5c3_Var72 string
 				templ_7745c5c3_Var72, templ_7745c5c3_Err = templ.ResolveAttributeValue(r.Short)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 195, Col: 27}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 195, Col: 27}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var72)
 				if templ_7745c5c3_Err != nil {
@@ -1331,7 +1331,7 @@ func TaskSide(vm TaskVM, base string) templ.Component {
 				var templ_7745c5c3_Var73 string
 				templ_7745c5c3_Var73, templ_7745c5c3_Err = templ.JoinStringErrs(r.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 195, Col: 38}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 195, Col: 38}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var73))
 				if templ_7745c5c3_Err != nil {
@@ -1349,7 +1349,7 @@ func TaskSide(vm TaskVM, base string) templ.Component {
 				var templ_7745c5c3_Var74 string
 				templ_7745c5c3_Var74, templ_7745c5c3_Err = templ.JoinStringErrs(r.Short)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 197, Col: 34}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 197, Col: 34}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var74))
 				if templ_7745c5c3_Err != nil {
@@ -1367,7 +1367,7 @@ func TaskSide(vm TaskVM, base string) templ.Component {
 			var templ_7745c5c3_Var75 string
 			templ_7745c5c3_Var75, templ_7745c5c3_Err = templ.JoinStringErrs(r.Label)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 199, Col: 20}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 199, Col: 20}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var75))
 			if templ_7745c5c3_Err != nil {
@@ -1380,7 +1380,7 @@ func TaskSide(vm TaskVM, base string) templ.Component {
 			var templ_7745c5c3_Var76 string
 			templ_7745c5c3_Var76, templ_7745c5c3_Err = templ.JoinStringErrs(r.When)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 200, Col: 34}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 200, Col: 34}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var76))
 			if templ_7745c5c3_Err != nil {
@@ -1399,7 +1399,7 @@ func TaskSide(vm TaskVM, base string) templ.Component {
 			var templ_7745c5c3_Var77 templ.SafeURL
 			templ_7745c5c3_Var77, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(base + "/tasks/" + vm.Key + "/acordar"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 204, Col: 86}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 204, Col: 86}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var77))
 			if templ_7745c5c3_Err != nil {
@@ -1412,7 +1412,7 @@ func TaskSide(vm TaskVM, base string) templ.Component {
 			var templ_7745c5c3_Var78 string
 			templ_7745c5c3_Var78, templ_7745c5c3_Err = templ.ResolveAttributeValue(base + "/tasks/" + vm.Key + "/acordar")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 204, Col: 137}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 204, Col: 137}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var78)
 			if templ_7745c5c3_Err != nil {
@@ -1433,7 +1433,7 @@ func TaskSide(vm TaskVM, base string) templ.Component {
 			var templ_7745c5c3_Var79 string
 			templ_7745c5c3_Var79, templ_7745c5c3_Err = templ.JoinStringErrs(" " + i18n.T(ctx, "Acordar") + " " + vm.PersonaName)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 206, Col: 53}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 206, Col: 53}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var79))
 			if templ_7745c5c3_Err != nil {
@@ -1511,7 +1511,7 @@ func NewTaskPage(sh Shell, vm NewTaskVM) templ.Component {
 			var templ_7745c5c3_Var83 templ.SafeURL
 			templ_7745c5c3_Var83, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(sh.Base() + "/tasks/nova"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 219, Col: 98}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 219, Col: 98}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var83))
 			if templ_7745c5c3_Err != nil {
@@ -1534,7 +1534,7 @@ func NewTaskPage(sh Shell, vm NewTaskVM) templ.Component {
 			var templ_7745c5c3_Var84 string
 			templ_7745c5c3_Var84, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Título"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 224, Col: 49}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 224, Col: 49}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var84))
 			if templ_7745c5c3_Err != nil {
@@ -1547,7 +1547,7 @@ func NewTaskPage(sh Shell, vm NewTaskVM) templ.Component {
 			var templ_7745c5c3_Var85 string
 			templ_7745c5c3_Var85, templ_7745c5c3_Err = templ.ResolveAttributeValue(vm.Title)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 225, Col: 67}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 225, Col: 67}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var85)
 			if templ_7745c5c3_Err != nil {
@@ -1560,7 +1560,7 @@ func NewTaskPage(sh Shell, vm NewTaskVM) templ.Component {
 			var templ_7745c5c3_Var86 string
 			templ_7745c5c3_Var86, templ_7745c5c3_Err = templ.ResolveAttributeValue(i18n.T(ctx, "Ex.: Docslide: AI-first SDLC no banco"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 225, Col: 161}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 225, Col: 161}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var86)
 			if templ_7745c5c3_Err != nil {
@@ -1578,7 +1578,7 @@ func NewTaskPage(sh Shell, vm NewTaskVM) templ.Component {
 				var templ_7745c5c3_Var87 string
 				templ_7745c5c3_Var87, templ_7745c5c3_Err = templ.JoinStringErrs(e)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 227, Col: 26}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 227, Col: 26}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var87))
 				if templ_7745c5c3_Err != nil {
@@ -1596,7 +1596,7 @@ func NewTaskPage(sh Shell, vm NewTaskVM) templ.Component {
 			var templ_7745c5c3_Var88 string
 			templ_7745c5c3_Var88, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Descrição"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 231, Col: 52}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 231, Col: 52}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var88))
 			if templ_7745c5c3_Err != nil {
@@ -1609,7 +1609,7 @@ func NewTaskPage(sh Shell, vm NewTaskVM) templ.Component {
 			var templ_7745c5c3_Var89 string
 			templ_7745c5c3_Var89, templ_7745c5c3_Err = templ.ResolveAttributeValue(i18n.T(ctx, "O que precisa ser feito, contexto e critério de pronto. Markdown."))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 232, Col: 166}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 232, Col: 166}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var89)
 			if templ_7745c5c3_Err != nil {
@@ -1622,7 +1622,7 @@ func NewTaskPage(sh Shell, vm NewTaskVM) templ.Component {
 			var templ_7745c5c3_Var90 string
 			templ_7745c5c3_Var90, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Description)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 232, Col: 185}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 232, Col: 185}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var90))
 			if templ_7745c5c3_Err != nil {
@@ -1635,7 +1635,7 @@ func NewTaskPage(sh Shell, vm NewTaskVM) templ.Component {
 			var templ_7745c5c3_Var91 string
 			templ_7745c5c3_Var91, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Markdown. HTML é escapado."))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 233, Col: 67}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 233, Col: 67}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var91))
 			if templ_7745c5c3_Err != nil {
@@ -1656,7 +1656,7 @@ func NewTaskPage(sh Shell, vm NewTaskVM) templ.Component {
 			var templ_7745c5c3_Var92 string
 			templ_7745c5c3_Var92, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Prioridade"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 241, Col: 52}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 241, Col: 52}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var92))
 			if templ_7745c5c3_Err != nil {
@@ -1677,7 +1677,7 @@ func NewTaskPage(sh Shell, vm NewTaskVM) templ.Component {
 			var templ_7745c5c3_Var93 string
 			templ_7745c5c3_Var93, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Status inicial"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 245, Col: 58}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 245, Col: 58}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var93))
 			if templ_7745c5c3_Err != nil {
@@ -1703,7 +1703,7 @@ func NewTaskPage(sh Shell, vm NewTaskVM) templ.Component {
 				var templ_7745c5c3_Var94 string
 				templ_7745c5c3_Var94, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Projeto"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 250, Col: 50}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 250, Col: 50}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var94))
 				if templ_7745c5c3_Err != nil {
@@ -1729,7 +1729,7 @@ func NewTaskPage(sh Shell, vm NewTaskVM) templ.Component {
 			var templ_7745c5c3_Var95 string
 			templ_7745c5c3_Var95, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Modelo (opcional)"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 256, Col: 59}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 256, Col: 59}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var95))
 			if templ_7745c5c3_Err != nil {
@@ -1742,7 +1742,7 @@ func NewTaskPage(sh Shell, vm NewTaskVM) templ.Component {
 			var templ_7745c5c3_Var96 string
 			templ_7745c5c3_Var96, templ_7745c5c3_Err = templ.ResolveAttributeValue(vm.Model)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 257, Col: 67}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 257, Col: 67}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var96)
 			if templ_7745c5c3_Err != nil {
@@ -1755,7 +1755,7 @@ func NewTaskPage(sh Shell, vm NewTaskVM) templ.Component {
 			var templ_7745c5c3_Var97 string
 			templ_7745c5c3_Var97, templ_7745c5c3_Err = templ.ResolveAttributeValue(i18n.T(ctx, "vazio = o modelo da persona"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 257, Col: 126}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 257, Col: 126}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var97)
 			if templ_7745c5c3_Err != nil {
@@ -1768,7 +1768,7 @@ func NewTaskPage(sh Shell, vm NewTaskVM) templ.Component {
 			var templ_7745c5c3_Var98 string
 			templ_7745c5c3_Var98, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Escolha manual: vence o modelo da persona nas execuções desta task."))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 258, Col: 109}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 258, Col: 109}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var98))
 			if templ_7745c5c3_Err != nil {
@@ -1781,7 +1781,7 @@ func NewTaskPage(sh Shell, vm NewTaskVM) templ.Component {
 			var templ_7745c5c3_Var99 templ.SafeURL
 			templ_7745c5c3_Var99, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(sh.Base() + "/tasks"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 261, Col: 67}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 261, Col: 67}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var99))
 			if templ_7745c5c3_Err != nil {
@@ -1794,7 +1794,7 @@ func NewTaskPage(sh Shell, vm NewTaskVM) templ.Component {
 			var templ_7745c5c3_Var100 string
 			templ_7745c5c3_Var100, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Cancelar"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 261, Col: 95}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 261, Col: 95}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var100))
 			if templ_7745c5c3_Err != nil {
@@ -1807,7 +1807,7 @@ func NewTaskPage(sh Shell, vm NewTaskVM) templ.Component {
 			var templ_7745c5c3_Var101 string
 			templ_7745c5c3_Var101, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Criar task"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/tasks.templ`, Line: 262, Col: 73}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tasks.templ`, Line: 262, Col: 73}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var101))
 			if templ_7745c5c3_Err != nil {

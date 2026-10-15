@@ -49,7 +49,7 @@ func GateDecideForm(g GateRow, next string, compact bool) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.ResolveAttributeValue(templ.CSSClasses(templ_7745c5c3_Var2).String())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 1, Col: 0}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 1, Col: 0}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var3)
 		if templ_7745c5c3_Err != nil {
@@ -62,7 +62,7 @@ func GateDecideForm(g GateRow, next string, compact bool) templ.Component {
 		var templ_7745c5c3_Var4 templ.SafeURL
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(g.DecideHref))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 15, Col: 38}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 15, Col: 38}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 		if templ_7745c5c3_Err != nil {
@@ -75,7 +75,7 @@ func GateDecideForm(g GateRow, next string, compact bool) templ.Component {
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.ResolveAttributeValue(g.DecideHref)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 16, Col: 24}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 16, Col: 24}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
 		if templ_7745c5c3_Err != nil {
@@ -88,7 +88,7 @@ func GateDecideForm(g GateRow, next string, compact bool) templ.Component {
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.ResolveAttributeValue(next)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 19, Col: 47}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 19, Col: 47}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
 		if templ_7745c5c3_Err != nil {
@@ -106,7 +106,7 @@ func GateDecideForm(g GateRow, next string, compact bool) templ.Component {
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.ResolveAttributeValue(i18n.T(ctx, "Nota da decisão"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 21, Col: 95}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 21, Col: 95}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var7)
 			if templ_7745c5c3_Err != nil {
@@ -119,7 +119,7 @@ func GateDecideForm(g GateRow, next string, compact bool) templ.Component {
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.ResolveAttributeValue(i18n.T(ctx, "Nota para a persona e para o registro (obrigatória ao pedir mudanças). Markdown."))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 21, Col: 209}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 21, Col: 209}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var8)
 			if templ_7745c5c3_Err != nil {
@@ -142,7 +142,7 @@ func GateDecideForm(g GateRow, next string, compact bool) templ.Component {
 			var templ_7745c5c3_Var9 templ.SafeURL
 			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(g.Href))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 25, Col: 56}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 25, Col: 56}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 			if templ_7745c5c3_Err != nil {
@@ -155,7 +155,7 @@ func GateDecideForm(g GateRow, next string, compact bool) templ.Component {
 			var templ_7745c5c3_Var10 string
 			templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Abrir"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 25, Col: 81}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 25, Col: 81}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 			if templ_7745c5c3_Err != nil {
@@ -174,7 +174,7 @@ func GateDecideForm(g GateRow, next string, compact bool) templ.Component {
 			var templ_7745c5c3_Var11 string
 			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Pedir mudanças"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 28, Col: 123}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 28, Col: 123}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 			if templ_7745c5c3_Err != nil {
@@ -192,7 +192,7 @@ func GateDecideForm(g GateRow, next string, compact bool) templ.Component {
 		var templ_7745c5c3_Var12 string
 		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Rejeitar"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 30, Col: 106}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 30, Col: 106}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 		if templ_7745c5c3_Err != nil {
@@ -213,7 +213,7 @@ func GateDecideForm(g GateRow, next string, compact bool) templ.Component {
 		var templ_7745c5c3_Var13 string
 		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Aprovar"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 33, Col: 28}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 33, Col: 28}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 		if templ_7745c5c3_Err != nil {
@@ -256,7 +256,7 @@ func GateBanner(g GateRow) templ.Component {
 		var templ_7745c5c3_Var15 string
 		templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.ResolveAttributeValue(i18n.T(ctx, "Decisão pendente"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 41, Col: 75}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 41, Col: 75}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var15)
 		if templ_7745c5c3_Err != nil {
@@ -277,7 +277,7 @@ func GateBanner(g GateRow) templ.Component {
 		var templ_7745c5c3_Var16 string
 		templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Gate pendente"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 44, Col: 36}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 44, Col: 36}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 		if templ_7745c5c3_Err != nil {
@@ -290,7 +290,7 @@ func GateBanner(g GateRow) templ.Component {
 		var templ_7745c5c3_Var17 string
 		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(g.KindLabel)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 45, Col: 41}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 45, Col: 41}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 		if templ_7745c5c3_Err != nil {
@@ -304,7 +304,7 @@ func GateBanner(g GateRow) templ.Component {
 			var templ_7745c5c3_Var18 string
 			templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "pedido por"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 48, Col: 32}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 48, Col: 32}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 			if templ_7745c5c3_Err != nil {
@@ -317,7 +317,7 @@ func GateBanner(g GateRow) templ.Component {
 			var templ_7745c5c3_Var19 string
 			templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(g.Persona)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 48, Col: 46}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 48, Col: 46}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 			if templ_7745c5c3_Err != nil {
@@ -331,7 +331,7 @@ func GateBanner(g GateRow) templ.Component {
 		var templ_7745c5c3_Var20 string
 		templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(g.Created)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 50, Col: 15}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 50, Col: 15}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 		if templ_7745c5c3_Err != nil {
@@ -344,7 +344,7 @@ func GateBanner(g GateRow) templ.Component {
 		var templ_7745c5c3_Var21 templ.SafeURL
 		templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(g.Href))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 53, Col: 37}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 53, Col: 37}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 		if templ_7745c5c3_Err != nil {
@@ -357,7 +357,7 @@ func GateBanner(g GateRow) templ.Component {
 		var templ_7745c5c3_Var22 string
 		templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(g.Title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 53, Col: 49}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 53, Col: 49}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 		if templ_7745c5c3_Err != nil {
@@ -383,7 +383,7 @@ func GateBanner(g GateRow) templ.Component {
 			var templ_7745c5c3_Var23 string
 			templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(g.Review.Reviewer)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 55, Col: 77}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 55, Col: 77}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 			if templ_7745c5c3_Err != nil {
@@ -402,7 +402,7 @@ func GateBanner(g GateRow) templ.Component {
 			var templ_7745c5c3_Var24 string
 			templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(g.Excerpt)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 58, Col: 38}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 58, Col: 38}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 			if templ_7745c5c3_Err != nil {
@@ -459,7 +459,7 @@ func GateRows(rows []GateRow, empty string) templ.Component {
 			var templ_7745c5c3_Var26 string
 			templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Pedido por"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 73, Col: 53}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 73, Col: 53}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 			if templ_7745c5c3_Err != nil {
@@ -472,7 +472,7 @@ func GateRows(rows []GateRow, empty string) templ.Component {
 			var templ_7745c5c3_Var27 string
 			templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Status"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 75, Col: 33}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 75, Col: 33}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 			if templ_7745c5c3_Err != nil {
@@ -485,7 +485,7 @@ func GateRows(rows []GateRow, empty string) templ.Component {
 			var templ_7745c5c3_Var28 string
 			templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Quando"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 76, Col: 53}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 76, Col: 53}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
 			if templ_7745c5c3_Err != nil {
@@ -503,7 +503,7 @@ func GateRows(rows []GateRow, empty string) templ.Component {
 				var templ_7745c5c3_Var29 templ.SafeURL
 				templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(r.Href))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 83, Col: 39}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 83, Col: 39}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
 				if templ_7745c5c3_Err != nil {
@@ -516,7 +516,7 @@ func GateRows(rows []GateRow, empty string) templ.Component {
 				var templ_7745c5c3_Var30 string
 				templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(r.Title)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 83, Col: 51}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 83, Col: 51}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var30))
 				if templ_7745c5c3_Err != nil {
@@ -529,7 +529,7 @@ func GateRows(rows []GateRow, empty string) templ.Component {
 				var templ_7745c5c3_Var31 string
 				templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinStringErrs(r.KindLabel)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 84, Col: 43}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 84, Col: 43}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var31))
 				if templ_7745c5c3_Err != nil {
@@ -542,7 +542,7 @@ func GateRows(rows []GateRow, empty string) templ.Component {
 				var templ_7745c5c3_Var32 string
 				templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinStringErrs(r.Short)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 84, Col: 77}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 84, Col: 77}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var32))
 				if templ_7745c5c3_Err != nil {
@@ -575,7 +575,7 @@ func GateRows(rows []GateRow, empty string) templ.Component {
 					var templ_7745c5c3_Var33 templ.SafeURL
 					templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(r.TaskHref))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 95, Col: 134}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 95, Col: 134}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var33))
 					if templ_7745c5c3_Err != nil {
@@ -588,7 +588,7 @@ func GateRows(rows []GateRow, empty string) templ.Component {
 					var templ_7745c5c3_Var34 string
 					templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinStringErrs(r.TaskKey)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 95, Col: 148}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 95, Col: 148}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
 					if templ_7745c5c3_Err != nil {
@@ -620,7 +620,7 @@ func GateRows(rows []GateRow, empty string) templ.Component {
 					var templ_7745c5c3_Var35 string
 					templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.JoinStringErrs(r.Created)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 103, Col: 20}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 103, Col: 20}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var35))
 					if templ_7745c5c3_Err != nil {
@@ -630,7 +630,7 @@ func GateRows(rows []GateRow, empty string) templ.Component {
 					var templ_7745c5c3_Var36 string
 					templ_7745c5c3_Var36, templ_7745c5c3_Err = templ.JoinStringErrs(r.Decided)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 105, Col: 20}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 105, Col: 20}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var36))
 					if templ_7745c5c3_Err != nil {
@@ -782,7 +782,7 @@ func GatePage(sh Shell, vm GateVM) templ.Component {
 			var templ_7745c5c3_Var42 string
 			templ_7745c5c3_Var42, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Row.Short)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 137, Col: 38}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 137, Col: 38}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var42))
 			if templ_7745c5c3_Err != nil {
@@ -795,7 +795,7 @@ func GatePage(sh Shell, vm GateVM) templ.Component {
 			var templ_7745c5c3_Var43 string
 			templ_7745c5c3_Var43, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Row.KindLabel)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 139, Col: 29}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 139, Col: 29}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var43))
 			if templ_7745c5c3_Err != nil {
@@ -808,7 +808,7 @@ func GatePage(sh Shell, vm GateVM) templ.Component {
 			var templ_7745c5c3_Var44 string
 			templ_7745c5c3_Var44, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "pedido"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 141, Col: 34}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 141, Col: 34}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var44))
 			if templ_7745c5c3_Err != nil {
@@ -821,7 +821,7 @@ func GatePage(sh Shell, vm GateVM) templ.Component {
 			var templ_7745c5c3_Var45 string
 			templ_7745c5c3_Var45, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Created)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 141, Col: 49}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 141, Col: 49}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var45))
 			if templ_7745c5c3_Err != nil {
@@ -834,7 +834,7 @@ func GatePage(sh Shell, vm GateVM) templ.Component {
 			var templ_7745c5c3_Var46 string
 			templ_7745c5c3_Var46, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Row.Title)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 143, Col: 22}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 143, Col: 22}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var46))
 			if templ_7745c5c3_Err != nil {
@@ -862,7 +862,7 @@ func GatePage(sh Shell, vm GateVM) templ.Component {
 				var templ_7745c5c3_Var47 templ.SafeURL
 				templ_7745c5c3_Var47, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(vm.Row.PersonaHref))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 150, Col: 62}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 150, Col: 62}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var47))
 				if templ_7745c5c3_Err != nil {
@@ -883,7 +883,7 @@ func GatePage(sh Shell, vm GateVM) templ.Component {
 				var templ_7745c5c3_Var48 string
 				templ_7745c5c3_Var48, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Row.Persona)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 150, Col: 99}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 150, Col: 99}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var48))
 				if templ_7745c5c3_Err != nil {
@@ -902,7 +902,7 @@ func GatePage(sh Shell, vm GateVM) templ.Component {
 				var templ_7745c5c3_Var49 templ.SafeURL
 				templ_7745c5c3_Var49, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(vm.Row.TaskHref))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 153, Col: 59}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 153, Col: 59}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var49))
 				if templ_7745c5c3_Err != nil {
@@ -915,7 +915,7 @@ func GatePage(sh Shell, vm GateVM) templ.Component {
 				var templ_7745c5c3_Var50 string
 				templ_7745c5c3_Var50, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Row.TaskKey)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 153, Col: 97}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 153, Col: 97}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var50))
 				if templ_7745c5c3_Err != nil {
@@ -963,7 +963,7 @@ func GatePage(sh Shell, vm GateVM) templ.Component {
 					var templ_7745c5c3_Var51 string
 					templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Row.Review.Justification)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 165, Col: 60}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 165, Col: 60}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var51))
 					if templ_7745c5c3_Err != nil {
@@ -982,7 +982,7 @@ func GatePage(sh Shell, vm GateVM) templ.Component {
 					var templ_7745c5c3_Var52 string
 					templ_7745c5c3_Var52, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "sha256 revisado:"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 168, Col: 85}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 168, Col: 85}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var52))
 					if templ_7745c5c3_Err != nil {
@@ -995,7 +995,7 @@ func GatePage(sh Shell, vm GateVM) templ.Component {
 					var templ_7745c5c3_Var53 string
 					templ_7745c5c3_Var53, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Row.Review.SHA)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 168, Col: 107}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 168, Col: 107}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var53))
 					if templ_7745c5c3_Err != nil {
@@ -1018,7 +1018,7 @@ func GatePage(sh Shell, vm GateVM) templ.Component {
 			var templ_7745c5c3_Var54 string
 			templ_7745c5c3_Var54, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Pedido"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 173, Col: 48}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 173, Col: 48}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var54))
 			if templ_7745c5c3_Err != nil {
@@ -1049,7 +1049,7 @@ func GatePage(sh Shell, vm GateVM) templ.Component {
 				var templ_7745c5c3_Var55 string
 				templ_7745c5c3_Var55, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Sem detalhes além do título."))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 177, Col: 70}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 177, Col: 70}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var55))
 				if templ_7745c5c3_Err != nil {
@@ -1072,7 +1072,7 @@ func GatePage(sh Shell, vm GateVM) templ.Component {
 				var templ_7745c5c3_Var56 string
 				templ_7745c5c3_Var56, templ_7745c5c3_Err = templ.ResolveAttributeValue(i18n.T(ctx, "Decidir"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 181, Col: 93}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 181, Col: 93}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var56)
 				if templ_7745c5c3_Err != nil {
@@ -1093,7 +1093,7 @@ func GatePage(sh Shell, vm GateVM) templ.Component {
 				var templ_7745c5c3_Var57 string
 				templ_7745c5c3_Var57, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Sua decisão"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 182, Col: 77}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 182, Col: 77}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var57))
 				if templ_7745c5c3_Err != nil {
@@ -1106,7 +1106,7 @@ func GatePage(sh Shell, vm GateVM) templ.Component {
 				var templ_7745c5c3_Var58 string
 				templ_7745c5c3_Var58, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "a persona fica parada até você responder"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 182, Col: 167}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 182, Col: 167}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var58))
 				if templ_7745c5c3_Err != nil {
@@ -1132,7 +1132,7 @@ func GatePage(sh Shell, vm GateVM) templ.Component {
 				var templ_7745c5c3_Var59 string
 				templ_7745c5c3_Var59, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Decisão"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 187, Col: 58}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 187, Col: 58}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var59))
 				if templ_7745c5c3_Err != nil {
@@ -1153,7 +1153,7 @@ func GatePage(sh Shell, vm GateVM) templ.Component {
 				var templ_7745c5c3_Var60 string
 				templ_7745c5c3_Var60, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.Tf(ctx, "por %s", vm.Row.DecidedBy))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 190, Col: 70}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 190, Col: 70}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var60))
 				if templ_7745c5c3_Err != nil {
@@ -1166,7 +1166,7 @@ func GatePage(sh Shell, vm GateVM) templ.Component {
 				var templ_7745c5c3_Var61 string
 				templ_7745c5c3_Var61, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Decided)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 190, Col: 88}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 190, Col: 88}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var61))
 				if templ_7745c5c3_Err != nil {
@@ -1184,7 +1184,7 @@ func GatePage(sh Shell, vm GateVM) templ.Component {
 					var templ_7745c5c3_Var62 string
 					templ_7745c5c3_Var62, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Row.Note)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 193, Col: 50}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 193, Col: 50}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var62))
 					if templ_7745c5c3_Err != nil {
@@ -1202,7 +1202,7 @@ func GatePage(sh Shell, vm GateVM) templ.Component {
 					var templ_7745c5c3_Var63 string
 					templ_7745c5c3_Var63, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Sem nota."))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 195, Col: 73}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 195, Col: 73}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var63))
 					if templ_7745c5c3_Err != nil {
@@ -1225,7 +1225,7 @@ func GatePage(sh Shell, vm GateVM) templ.Component {
 			var templ_7745c5c3_Var64 string
 			templ_7745c5c3_Var64, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Propriedades"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 202, Col: 54}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 202, Col: 54}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var64))
 			if templ_7745c5c3_Err != nil {
@@ -1238,7 +1238,7 @@ func GatePage(sh Shell, vm GateVM) templ.Component {
 			var templ_7745c5c3_Var65 string
 			templ_7745c5c3_Var65, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Tipo"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 204, Col: 51}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 204, Col: 51}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var65))
 			if templ_7745c5c3_Err != nil {
@@ -1251,7 +1251,7 @@ func GatePage(sh Shell, vm GateVM) templ.Component {
 			var templ_7745c5c3_Var66 string
 			templ_7745c5c3_Var66, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Row.KindLabel)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 204, Col: 84}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 204, Col: 84}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var66))
 			if templ_7745c5c3_Err != nil {
@@ -1264,7 +1264,7 @@ func GatePage(sh Shell, vm GateVM) templ.Component {
 			var templ_7745c5c3_Var67 string
 			templ_7745c5c3_Var67, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Status"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 205, Col: 53}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 205, Col: 53}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var67))
 			if templ_7745c5c3_Err != nil {
@@ -1290,7 +1290,7 @@ func GatePage(sh Shell, vm GateVM) templ.Component {
 				var templ_7745c5c3_Var68 templ.SafeURL
 				templ_7745c5c3_Var68, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(vm.Row.TaskHref))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 208, Col: 138}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 208, Col: 138}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var68))
 				if templ_7745c5c3_Err != nil {
@@ -1303,7 +1303,7 @@ func GatePage(sh Shell, vm GateVM) templ.Component {
 				var templ_7745c5c3_Var69 string
 				templ_7745c5c3_Var69, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Row.TaskKey)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 208, Col: 157}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 208, Col: 157}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var69))
 				if templ_7745c5c3_Err != nil {
@@ -1326,7 +1326,7 @@ func GatePage(sh Shell, vm GateVM) templ.Component {
 			var templ_7745c5c3_Var70 string
 			templ_7745c5c3_Var70, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Execução"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 213, Col: 57}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 213, Col: 57}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var70))
 			if templ_7745c5c3_Err != nil {
@@ -1344,7 +1344,7 @@ func GatePage(sh Shell, vm GateVM) templ.Component {
 				var templ_7745c5c3_Var71 templ.SafeURL
 				templ_7745c5c3_Var71, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(vm.RunHref))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 215, Col: 133}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 215, Col: 133}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var71))
 				if templ_7745c5c3_Err != nil {
@@ -1357,7 +1357,7 @@ func GatePage(sh Shell, vm GateVM) templ.Component {
 				var templ_7745c5c3_Var72 string
 				templ_7745c5c3_Var72, templ_7745c5c3_Err = templ.JoinStringErrs(vm.RunShort)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 215, Col: 149}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 215, Col: 149}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var72))
 				if templ_7745c5c3_Err != nil {
@@ -1380,7 +1380,7 @@ func GatePage(sh Shell, vm GateVM) templ.Component {
 			var templ_7745c5c3_Var73 string
 			templ_7745c5c3_Var73, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Pedido em"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 220, Col: 56}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 220, Col: 56}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var73))
 			if templ_7745c5c3_Err != nil {
@@ -1393,7 +1393,7 @@ func GatePage(sh Shell, vm GateVM) templ.Component {
 			var templ_7745c5c3_Var74 string
 			templ_7745c5c3_Var74, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Created)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 220, Col: 121}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 220, Col: 121}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var74))
 			if templ_7745c5c3_Err != nil {
@@ -1411,7 +1411,7 @@ func GatePage(sh Shell, vm GateVM) templ.Component {
 				var templ_7745c5c3_Var75 string
 				templ_7745c5c3_Var75, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Decidido em"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 222, Col: 59}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 222, Col: 59}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var75))
 				if templ_7745c5c3_Err != nil {
@@ -1424,7 +1424,7 @@ func GatePage(sh Shell, vm GateVM) templ.Component {
 				var templ_7745c5c3_Var76 string
 				templ_7745c5c3_Var76, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Decided)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 222, Col: 124}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 222, Col: 124}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var76))
 				if templ_7745c5c3_Err != nil {
@@ -1442,7 +1442,7 @@ func GatePage(sh Shell, vm GateVM) templ.Component {
 			var templ_7745c5c3_Var77 string
 			templ_7745c5c3_Var77, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "O que acontece"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 227, Col: 56}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 227, Col: 56}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var77))
 			if templ_7745c5c3_Err != nil {
@@ -1455,7 +1455,7 @@ func GatePage(sh Shell, vm GateVM) templ.Component {
 			var templ_7745c5c3_Var78 string
 			templ_7745c5c3_Var78, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Aprovar ou pedir mudanças devolve a task a Em andamento; rejeitar a devolve a A fazer com a sua nota. Em todos os casos a persona é acordada e a decisão vira memória da empresa."))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 228, Col: 243}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 228, Col: 243}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var78))
 			if templ_7745c5c3_Err != nil {
@@ -1527,7 +1527,7 @@ func DecisionsPage(sh Shell, vm DecisionsVM) templ.Component {
 				var templ_7745c5c3_Var82 templ.SafeURL
 				templ_7745c5c3_Var82, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(sh.Base() + "/gates"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 238, Col: 68}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 238, Col: 68}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var82))
 				if templ_7745c5c3_Err != nil {
@@ -1548,7 +1548,7 @@ func DecisionsPage(sh Shell, vm DecisionsVM) templ.Component {
 				var templ_7745c5c3_Var83 string
 				templ_7745c5c3_Var83, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Ver gates"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 240, Col: 30}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 240, Col: 30}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var83))
 				if templ_7745c5c3_Err != nil {
@@ -1602,7 +1602,7 @@ func DecisionsPage(sh Shell, vm DecisionsVM) templ.Component {
 					var templ_7745c5c3_Var84 string
 					templ_7745c5c3_Var84, templ_7745c5c3_Err = templ.JoinStringErrs(r.KindLabel)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 254, Col: 44}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 254, Col: 44}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var84))
 					if templ_7745c5c3_Err != nil {
@@ -1615,7 +1615,7 @@ func DecisionsPage(sh Shell, vm DecisionsVM) templ.Component {
 					var templ_7745c5c3_Var85 string
 					templ_7745c5c3_Var85, templ_7745c5c3_Err = templ.JoinStringErrs(r.DecidedBy)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 255, Col: 43}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 255, Col: 43}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var85))
 					if templ_7745c5c3_Err != nil {
@@ -1628,7 +1628,7 @@ func DecisionsPage(sh Shell, vm DecisionsVM) templ.Component {
 					var templ_7745c5c3_Var86 string
 					templ_7745c5c3_Var86, templ_7745c5c3_Err = templ.JoinStringErrs(r.Decided)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 255, Col: 60}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 255, Col: 60}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var86))
 					if templ_7745c5c3_Err != nil {
@@ -1641,7 +1641,7 @@ func DecisionsPage(sh Shell, vm DecisionsVM) templ.Component {
 					var templ_7745c5c3_Var87 templ.SafeURL
 					templ_7745c5c3_Var87, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(r.Href))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 257, Col: 41}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 257, Col: 41}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var87))
 					if templ_7745c5c3_Err != nil {
@@ -1654,7 +1654,7 @@ func DecisionsPage(sh Shell, vm DecisionsVM) templ.Component {
 					var templ_7745c5c3_Var88 string
 					templ_7745c5c3_Var88, templ_7745c5c3_Err = templ.JoinStringErrs(r.Title)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 257, Col: 53}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 257, Col: 53}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var88))
 					if templ_7745c5c3_Err != nil {
@@ -1672,7 +1672,7 @@ func DecisionsPage(sh Shell, vm DecisionsVM) templ.Component {
 						var templ_7745c5c3_Var89 string
 						templ_7745c5c3_Var89, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "pedido por"))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 260, Col: 41}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 260, Col: 41}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var89))
 						if templ_7745c5c3_Err != nil {
@@ -1685,7 +1685,7 @@ func DecisionsPage(sh Shell, vm DecisionsVM) templ.Component {
 						var templ_7745c5c3_Var90 string
 						templ_7745c5c3_Var90, templ_7745c5c3_Err = templ.JoinStringErrs(r.Persona)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 260, Col: 55}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 260, Col: 55}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var90))
 						if templ_7745c5c3_Err != nil {
@@ -1704,7 +1704,7 @@ func DecisionsPage(sh Shell, vm DecisionsVM) templ.Component {
 						var templ_7745c5c3_Var91 templ.SafeURL
 						templ_7745c5c3_Var91, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(r.TaskHref))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 263, Col: 56}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 263, Col: 56}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var91))
 						if templ_7745c5c3_Err != nil {
@@ -1717,7 +1717,7 @@ func DecisionsPage(sh Shell, vm DecisionsVM) templ.Component {
 						var templ_7745c5c3_Var92 string
 						templ_7745c5c3_Var92, templ_7745c5c3_Err = templ.JoinStringErrs(r.TaskKey)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 263, Col: 70}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 263, Col: 70}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var92))
 						if templ_7745c5c3_Err != nil {
@@ -1740,7 +1740,7 @@ func DecisionsPage(sh Shell, vm DecisionsVM) templ.Component {
 						var templ_7745c5c3_Var93 string
 						templ_7745c5c3_Var93, templ_7745c5c3_Err = templ.JoinStringErrs(r.Note)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 267, Col: 45}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 267, Col: 45}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var93))
 						if templ_7745c5c3_Err != nil {
@@ -1800,7 +1800,7 @@ func PendingGatesCard(rows []GateRow, base string) templ.Component {
 		var templ_7745c5c3_Var95 string
 		templ_7745c5c3_Var95, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Decisões pendentes"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 281, Col: 44}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 281, Col: 44}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var95))
 		if templ_7745c5c3_Err != nil {
@@ -1813,7 +1813,7 @@ func PendingGatesCard(rows []GateRow, base string) templ.Component {
 		var templ_7745c5c3_Var96 string
 		templ_7745c5c3_Var96, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.Tf(ctx, "%s esperando por você · as personas ficam paradas até a resposta", fmt.Sprint(len(rows))))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 282, Col: 127}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 282, Col: 127}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var96))
 		if templ_7745c5c3_Err != nil {
@@ -1826,7 +1826,7 @@ func PendingGatesCard(rows []GateRow, base string) templ.Component {
 		var templ_7745c5c3_Var97 templ.SafeURL
 		templ_7745c5c3_Var97, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(base + "/gates"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 284, Col: 56}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 284, Col: 56}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var97))
 		if templ_7745c5c3_Err != nil {
@@ -1839,7 +1839,7 @@ func PendingGatesCard(rows []GateRow, base string) templ.Component {
 		var templ_7745c5c3_Var98 string
 		templ_7745c5c3_Var98, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Ver todos"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 284, Col: 85}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 284, Col: 85}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var98))
 		if templ_7745c5c3_Err != nil {
@@ -1865,7 +1865,7 @@ func PendingGatesCard(rows []GateRow, base string) templ.Component {
 			var templ_7745c5c3_Var99 templ.SafeURL
 			templ_7745c5c3_Var99, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(g.Href))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 291, Col: 50}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 291, Col: 50}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var99))
 			if templ_7745c5c3_Err != nil {
@@ -1878,7 +1878,7 @@ func PendingGatesCard(rows []GateRow, base string) templ.Component {
 			var templ_7745c5c3_Var100 string
 			templ_7745c5c3_Var100, templ_7745c5c3_Err = templ.JoinStringErrs(g.Title)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 291, Col: 62}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 291, Col: 62}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var100))
 			if templ_7745c5c3_Err != nil {
@@ -1891,7 +1891,7 @@ func PendingGatesCard(rows []GateRow, base string) templ.Component {
 			var templ_7745c5c3_Var101 string
 			templ_7745c5c3_Var101, templ_7745c5c3_Err = templ.JoinStringErrs(g.KindLabel)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 293, Col: 45}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 293, Col: 45}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var101))
 			if templ_7745c5c3_Err != nil {
@@ -1909,7 +1909,7 @@ func PendingGatesCard(rows []GateRow, base string) templ.Component {
 				var templ_7745c5c3_Var102 string
 				templ_7745c5c3_Var102, templ_7745c5c3_Err = templ.JoinStringErrs(g.TaskKey)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 295, Col: 38}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 295, Col: 38}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var102))
 				if templ_7745c5c3_Err != nil {
@@ -1928,7 +1928,7 @@ func PendingGatesCard(rows []GateRow, base string) templ.Component {
 				var templ_7745c5c3_Var103 string
 				templ_7745c5c3_Var103, templ_7745c5c3_Err = templ.JoinStringErrs(g.Persona)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 298, Col: 25}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 298, Col: 25}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var103))
 				if templ_7745c5c3_Err != nil {
@@ -1946,7 +1946,7 @@ func PendingGatesCard(rows []GateRow, base string) templ.Component {
 			var templ_7745c5c3_Var104 string
 			templ_7745c5c3_Var104, templ_7745c5c3_Err = templ.JoinStringErrs(g.Created)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/gates.templ`, Line: 300, Col: 24}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `gates.templ`, Line: 300, Col: 24}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var104))
 			if templ_7745c5c3_Err != nil {
