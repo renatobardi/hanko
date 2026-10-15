@@ -69,3 +69,24 @@ jobs:
           sqlc-version: "1.31.1"
       - name: sqlc diff
         run: sqlc diff
+
+  release-dry-run:
+    # valida a config do goreleaser e compila os binários de todas as plataformas sem publicar,
+    # para a tag v* não ser o primeiro lugar onde a release quebra
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27"
+          cache: true
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: check
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: build --snapshot --clean

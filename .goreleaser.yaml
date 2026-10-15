@@ -20,7 +20,7 @@ archives:
   - id: default
     formats: [tar.gz]
     name_template: "hanko_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-    files: [LICENSE, README.md, hanko.example.yaml]
+    files: [LICENSE, README.md, README.pt-BR.md, CHANGELOG.md, hanko.example.yaml]
 
 checksum:
   name_template: checksums.txt
