@@ -61,7 +61,7 @@ jobs:
 
       - name: templ generate diff
         run: |
-          templ generate
+          templ generate -path internal/ui/views   # mesmo caminho do código versionado (FileName relativo)
           git diff --exit-code
 
       - uses: sqlc-dev/setup-sqlc@v4

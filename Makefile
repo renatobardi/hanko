@@ -13,7 +13,7 @@ help: ## lista os alvos
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-18s %s\n", $$1, $$2}'
 
 build: ## compila bin/hanko (gera templ antes, se houver)
-	@if find . -name '*.templ' -not -path './node_modules/*' | grep -q .; then templ generate; fi
+	@if find . -name '*.templ' -not -path './node_modules/*' | grep -q .; then templ generate -path internal/ui/views; fi
 	CGO_ENABLED=0 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(BIN) $(PKG)
 
 test: ## testes unitários (integração roda se HANKO_TEST_DATABASE_URL apontar para um Postgres)
@@ -36,7 +36,7 @@ vet: ## go vet
 
 generate: ## sqlc + templ
 	sqlc generate
-	templ generate
+	templ generate -path internal/ui/views
 
 openapi: build ## regenera api/openapi.json
 	$(BIN) openapi > api/openapi.json
