@@ -64,6 +64,18 @@ func TestChatThreadPage(t *testing.T) {
 	wantStatus(t, e.get(t, "/c/hanko/chat/"+uitest.ID("conv:nope").String()), http.StatusNotFound)
 }
 
+// Mensagens esperando sem run (cancelada/interrompida) não mantêm a thread em polling eterno: aviso, sem hx-trigger.
+func TestChatStrandedMessagesDoNotPollForever(t *testing.T) {
+	e, cv := chatEnv(t)
+	path := "/c/hanko/chat/" + cv.ID.String()
+	e.f.Stranded(cv.ID, 2)
+	rec := e.get(t, path)
+	wantContains(t, rec, "Mensagens esperando resposta: 2.", "recolhê-las")
+	wantNotContains(t, rec, "pensando…", `hx-trigger="every 2s"`)
+	rec = e.get(t, path+"/mensagens", "HX-Request", "true")
+	wantNotContains(t, rec, `hx-trigger="every 2s"`)
+}
+
 func TestChatSendAndPolling(t *testing.T) {
 	e, cv := chatEnv(t)
 	path := "/c/hanko/chat/" + cv.ID.String()

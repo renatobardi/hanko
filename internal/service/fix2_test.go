@@ -199,6 +199,34 @@ func TestFix2RetryManualRecolocaNaFilaNaHora(t *testing.T) {
 	}
 }
 
+// Conversa recusada (persona pausada) não anuncia "conversation.created" de uma conversa que foi apagada.
+func TestFix2ConversaRecusadaNaoEmiteAtividadeDeCriacao(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	p := e.persona(t, "Ana", nil)
+	if _, err := e.svc.UpdatePersona(ctx, domain.HumanActor, e.co.ID, p.ID, service.UpdatePersonaInput{Status: ptr(domain.PersonaPaused)}); err != nil {
+		t.Fatal(err)
+	}
+	_, err := e.svc.CreateConversation(ctx, domain.HumanActor, e.co.ID, service.CreateConversationInput{PersonaID: p.ID, Message: "oi"})
+	wantErr(t, err, domain.ErrPersonaUnavailable)
+	if n := countVerb(t, e, "conversation.created"); n != 0 {
+		t.Fatalf("conversation.created = %d; esperava 0 para uma conversa recusada", n)
+	}
+	if n := countVerb(t, e, "conversation.message"); n != 0 {
+		t.Fatalf("conversation.message = %d", n)
+	}
+	// aceita: uma de cada
+	if _, err := e.svc.UpdatePersona(ctx, domain.HumanActor, e.co.ID, p.ID, service.UpdatePersonaInput{Status: ptr(domain.PersonaActive)}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.svc.CreateConversation(ctx, domain.HumanActor, e.co.ID, service.CreateConversationInput{PersonaID: p.ID, Message: "oi"}); err != nil {
+		t.Fatal(err)
+	}
+	if countVerb(t, e, "conversation.created") != 1 || countVerb(t, e, "conversation.message") != 1 {
+		t.Fatal("conversa aceita: uma criação e uma mensagem")
+	}
+}
+
 // Uma run de chat que falhou aparece na Caixa de entrada, com o título da conversa; a próxima mensagem a supera.
 func TestFix2RunDeChatQueFalhouApareceNaCaixaDeEntrada(t *testing.T) {
 	ctx := context.Background()

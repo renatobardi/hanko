@@ -165,7 +165,9 @@ func (s *server) buildChatVM(r *http.Request, co domain.Company, cv service.Conv
 	vm := views.ChatVM{
 		Title: cv.Title, Persona: cv.PersonaName, PersonaHref: base + "/personas/" + cv.PersonaSlug,
 		Badge: chatBadge(ctx, cv), Archived: cv.Status == domain.ConversationArchived,
-		Busy:       cv.ActiveRunID != nil || cv.PendingMessages > 0,
+		// Busy (a polling thread) only while a run is answering. Messages waiting with no run (it was cancelled or
+		// interrupted) are shown as a notice: polling would never end.
+		Busy:       cv.ActiveRunID != nil,
 		ThreadHref: base + "/chat/" + cv.ID.String() + "/mensagens", SendHref: base + "/chat/" + cv.ID.String() + "/mensagens",
 		ListHref: base + "/chat", Cost: fmtUSDCtx(ctx, cv.CostUSD),
 	}
@@ -176,6 +178,8 @@ func (s *server) buildChatVM(r *http.Request, co domain.Company, cv service.Conv
 	}
 	if cv.ActiveRunID != nil {
 		vm.RunHref = base + "/execucoes/" + cv.ActiveRunID.String()
+	} else if cv.PendingMessages > 0 {
+		vm.Waiting = cv.PendingMessages
 	}
 	for _, m := range msgs {
 		cm := views.ChatMsg{Kind: string(m.Kind), Author: names.actorName(m.Author), When: fmtDateTime(ctx, m.CreatedAt, loc)}

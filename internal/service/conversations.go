@@ -209,20 +209,28 @@ func (s *Service) CreateConversation(ctx context.Context, actor domain.Actor, co
 		if err != nil {
 			return mapErr(err, "create conversation")
 		}
-		if err := t.activity(actor, companyID, "conversation.created", "conversation", conv.ID,
-			map[string]any{"persona_id": p.ID, "title": title}, ""); err != nil {
-			return err
-		}
+		// With a first message the persona must be able to take the run before anything is announced: a refused
+		// conversation is deleted and leaves no activity (nor webhook) of a conversation that never existed. The
+		// side effects of the refusal itself (pause, alerts) stay.
+		var run *store.Run
 		if msg != "" {
-			_, berr, err := t.sendChatMessage(conv, actor, msg)
+			r, berr, err := t.openChatRun(conv)
 			if err != nil {
 				return err
 			}
 			if berr != nil {
-				// The persona cannot answer: do not leave an empty conversation behind. The side effects of the
-				// refusal (pause, alerts) stay.
 				blocked = berr
 				return t.q.DeleteConversation(ctx, store.DeleteConversationParams{CompanyID: companyID, ID: conv.ID})
+			}
+			run = &r
+		}
+		if err := t.activity(actor, companyID, "conversation.created", "conversation", conv.ID,
+			map[string]any{"persona_id": p.ID, "title": title}, ""); err != nil {
+			return err
+		}
+		if run != nil {
+			if _, err := t.storeChatMessage(conv, actor, msg, run); err != nil {
+				return err
 			}
 		}
 		out, err = loadConversationView(ctx, t.q, companyID, conv.ID)
@@ -342,24 +350,30 @@ func (t *txc) sendChatMessage(conv store.Conversation, actor domain.Actor, body 
 	default:
 		return msg, nil, fmt.Errorf("active run for conversation: %w", aerr)
 	}
+	msg, err = t.storeChatMessage(conv, actor, body, run)
+	return msg, nil, err
+}
+
+// storeChatMessage inserts the human message, records the activity and, when a run was opened for it, launches it.
+func (t *txc) storeChatMessage(conv store.Conversation, actor domain.Actor, body string, run *store.Run) (msg store.ConversationMessage, err error) {
 	msg, err = t.q.InsertConversationMessage(t.ctx, store.InsertConversationMessageParams{ID: domain.NewID(), CompanyID: conv.CompanyID,
 		ConversationID: conv.ID, AuthorType: string(domain.MessageHuman), AuthorID: actor.ID, Body: body, Now: t.now})
 	if err != nil {
-		return msg, nil, fmt.Errorf("insert message: %w", err)
+		return msg, fmt.Errorf("insert message: %w", err)
 	}
 	if err := t.q.TouchConversation(t.ctx, store.TouchConversationParams{ID: conv.ID, Now: t.now}); err != nil {
-		return msg, nil, fmt.Errorf("touch conversation: %w", err)
+		return msg, fmt.Errorf("touch conversation: %w", err)
 	}
 	if err := t.activity(actor, conv.CompanyID, "conversation.message", "conversation", conv.ID,
 		map[string]any{"message_id": msg.ID, "persona_id": conv.PersonaID, "queued": run == nil}, ""); err != nil {
-		return msg, nil, err
+		return msg, err
 	}
 	if run != nil {
 		if err := t.launchChatRun(conv, *run); err != nil {
-			return msg, nil, err
+			return msg, err
 		}
 	}
-	return msg, nil, nil
+	return msg, nil
 }
 
 // personaBlockedError is the refusal of a persona that cannot take a chat run; Error() is the reason.

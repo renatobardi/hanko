@@ -5,6 +5,7 @@ package i18n
 // already translated is not repeated here).
 var enFix2 = map[string]string{
 	"Abrir conversa": "Open conversation",
+	"Mensagens esperando resposta: %d. Envie uma nova mensagem para a persona recolhê-las.": "Messages waiting for an answer: %d. Send a new message so the persona picks them up.",
 }
 
 func init() {

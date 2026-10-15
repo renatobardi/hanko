@@ -128,6 +128,8 @@ func (f *Fake) CreateConversation(_ context.Context, actor domain.Actor, company
 		f.ConvMessages = append(f.ConvMessages, domain.ConversationMessage{ID: domain.NewID(), CompanyID: companyID, ConversationID: c.ID,
 			Author: actor, Kind: domain.MessageHuman, Body: msg, CreatedAt: now})
 		c.PendingMessages = 1
+		runID := domain.NewID()
+		c.ActiveRunID = &runID
 	}
 	f.Conversations = append(f.Conversations, c)
 	return c, nil
@@ -163,6 +165,10 @@ func (f *Fake) SendMessage(_ context.Context, actor domain.Actor, companyID, id 
 			Kind: domain.MessageHuman, Body: body, CreatedAt: now}
 		f.ConvMessages = append(f.ConvMessages, m)
 		c.PendingMessages++
+		if c.ActiveRunID == nil {
+			runID := domain.NewID()
+			c.ActiveRunID = &runID
+		}
 		c.LastMessageAt, c.UpdatedAt = now, now
 		return m, nil
 	}
@@ -214,6 +220,17 @@ func (f *Fake) Working(convID, runID domain.ID) {
 	for i := range f.Conversations {
 		if f.Conversations[i].ID == convID {
 			f.Conversations[i].ActiveRunID = &runID
+		}
+	}
+}
+
+// Stranded leaves n messages waiting with no run to answer them (the run was cancelled or interrupted).
+func (f *Fake) Stranded(convID domain.ID, n int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for i := range f.Conversations {
+		if f.Conversations[i].ID == convID {
+			f.Conversations[i].PendingMessages, f.Conversations[i].ActiveRunID = n, nil
 		}
 	}
 }

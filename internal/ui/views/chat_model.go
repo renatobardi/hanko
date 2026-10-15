@@ -43,7 +43,8 @@ type ChatVM struct {
 	PersonaHref string
 	Badge       Badge
 	Archived    bool
-	Busy        bool // a run is answering or messages wait for one
+	Busy        bool // a run is answering
+	Waiting     int  // messages waiting with no run to answer them (the next human message picks them up)
 	Messages    []ChatMsg
 	ThreadHref  string
 	SendHref    string
