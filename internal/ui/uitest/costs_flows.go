@@ -97,12 +97,21 @@ func (f *Fake) CostSummary(_ context.Context, _ domain.ID, in service.CostFilter
 		out.Runs++
 		out.InputTokens += e.In
 		out.OutputTokens += e.Out
+		r.ListUSD += e.CostUSD
+		out.ListUSD += e.CostUSD
 		if e.Estimated {
 			r.EstimatedUSD += e.CostUSD
 			out.EstimatedUSD += e.CostUSD
 		}
 	}
 	out.ReportedUSD = out.TotalUSD - out.EstimatedUSD
+	for i := range out.Rows {
+		out.Rows[i].ReportedUSD = out.Rows[i].CostUSD - out.Rows[i].EstimatedUSD
+	}
+	out.Subscriptions = []service.SubscriptionCost{}
+	for _, s := range f.Subs {
+		out.Subscriptions = append(out.Subscriptions, service.SubscriptionCost{ID: s.ID, Name: s.Name, Agent: s.Agent, MonthlyUSD: s.MonthlyUSD})
+	}
 	if group == service.GroupDay {
 		by := map[string]service.CostRow{}
 		for _, r := range out.Rows {
@@ -116,6 +125,19 @@ func (f *Fake) CostSummary(_ context.Context, _ domain.ID, in service.CostFilter
 			r, ok := by[k]
 			if !ok {
 				r = service.CostRow{Key: k, Label: k}
+			}
+			if len(f.Subs) > 0 && !d.After(time.Now().In(loc)) {
+				daily := 0.0
+				for _, s := range f.Subs {
+					daily += s.MonthlyUSD / float64(time.Date(d.Year(), d.Month()+1, 0, 0, 0, 0, 0, loc).Day())
+				}
+				if r.CostUSD > 0 {
+					r.PaidUSD = daily
+					out.PaidUSD += daily
+				} else {
+					r.IdleUSD, r.Unused = daily, true
+					out.IdleUSD += daily
+				}
 			}
 			out.Rows = append(out.Rows, r)
 			d = d.AddDate(0, 0, 1)
@@ -374,4 +396,84 @@ func (f *Fake) RunFlowNow(_ context.Context, _ domain.Actor, companyID, flowID d
 		return service.FlowFireResult{Fire: fire, Task: &tv}, nil
 	}
 	return service.FlowFireResult{}, domain.ErrNotFound
+}
+
+func (f *Fake) ListSubscriptions(_ context.Context, _ domain.ID) ([]service.SubscriptionStatus, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if err := f.fail("ListSubscriptions"); err != nil {
+		return nil, err
+	}
+	return append([]service.SubscriptionStatus(nil), f.Subs...), nil
+}
+
+func (f *Fake) CreateSubscription(_ context.Context, _ domain.Actor, companyID domain.ID, in service.CreateSubscriptionInput) (domain.Subscription, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.note("CreateSubscription")
+	if err := f.fail("CreateSubscription"); err != nil {
+		return domain.Subscription{}, err
+	}
+	if in.WeeklyGuardPct == 0 {
+		in.WeeklyGuardPct = 90
+	}
+	if strings.TrimSpace(in.Name) == "" {
+		return domain.Subscription{}, domain.Invalid("name", "required")
+	}
+	now := time.Now().UTC()
+	sub := domain.Subscription{ID: ID("sub:" + in.Name), CompanyID: companyID, Name: in.Name, Agent: in.Agent, MonthlyUSD: in.MonthlyUSD,
+		ModelPrefixes: in.ModelPrefixes, WeeklyLimitUSD: in.WeeklyLimitUSD, WeeklyGuardPct: in.WeeklyGuardPct, Active: !in.Inactive,
+		CreatedAt: now, UpdatedAt: now}
+	f.Subs = append(f.Subs, service.SubscriptionStatus{Subscription: sub})
+	return sub, nil
+}
+
+func (f *Fake) UpdateSubscription(_ context.Context, _ domain.Actor, _, id domain.ID, in service.UpdateSubscriptionInput) (domain.Subscription, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.note("UpdateSubscription")
+	if err := f.fail("UpdateSubscription"); err != nil {
+		return domain.Subscription{}, err
+	}
+	for i := range f.Subs {
+		s := &f.Subs[i]
+		if s.ID != id {
+			continue
+		}
+		if in.MonthlyUSD != nil {
+			s.MonthlyUSD = *in.MonthlyUSD
+		}
+		if in.ClearWeeklyLimit {
+			s.WeeklyLimitUSD = nil
+		} else if in.WeeklyLimitUSD != nil {
+			s.WeeklyLimitUSD = in.WeeklyLimitUSD
+		}
+		if in.WeeklyGuardPct != nil {
+			s.WeeklyGuardPct = *in.WeeklyGuardPct
+		}
+		if in.ModelPrefixes != nil {
+			s.ModelPrefixes = *in.ModelPrefixes
+		}
+		if in.Active != nil {
+			s.Active = *in.Active
+		}
+		return s.Subscription, nil
+	}
+	return domain.Subscription{}, domain.ErrNotFound
+}
+
+func (f *Fake) DeleteSubscription(_ context.Context, _ domain.Actor, _, id domain.ID) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.note("DeleteSubscription")
+	if err := f.fail("DeleteSubscription"); err != nil {
+		return err
+	}
+	for i := range f.Subs {
+		if f.Subs[i].ID == id {
+			f.Subs = append(f.Subs[:i], f.Subs[i+1:]...)
+			return nil
+		}
+	}
+	return domain.ErrNotFound
 }

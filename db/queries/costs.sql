@@ -33,6 +33,7 @@ SELECT
      ELSE r.agent END)::text AS label,
   COALESCE(SUM(r.cost_usd), 0)::float8 AS cost_usd,
   COALESCE(SUM(r.cost_usd) FILTER (WHERE r.cost_source = 'estimated'), 0)::float8 AS estimated_usd,
+  COALESCE(SUM(r.list_cost_usd), 0)::float8 AS list_usd,
   count(*)::bigint AS runs,
   COALESCE(SUM(r.input_tokens), 0)::bigint AS input_tokens,
   COALESCE(SUM(r.output_tokens), 0)::bigint AS output_tokens,

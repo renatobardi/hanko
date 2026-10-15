@@ -17,6 +17,9 @@ var (
 	ErrBudgetExceeded = fmt.Errorf("monthly budget exceeded: %w", ErrConflict)
 )
 
+// ErrSubscriptionGuard: the weekly guard of the persona's subscription tripped; no run is opened until the next week.
+var ErrSubscriptionGuard = fmt.Errorf("weekly subscription guard: %w", ErrConflict)
+
 // ValidationError carries a field-level reason and unwraps to ErrInvalid.
 type ValidationError struct {
 	Field  string

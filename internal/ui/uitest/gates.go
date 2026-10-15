@@ -173,6 +173,11 @@ func (f *Fake) Inbox(ctx context.Context, companyID domain.ID) (service.Inbox, e
 			in.ErrorPersonas = append(in.ErrorPersonas, service.PersonaAlert{Persona: p, PersonaHealth: f.Health[p.ID]})
 		}
 	}
+	for _, s := range f.Subs {
+		if s.Blocked {
+			in.GuardedSubscriptions = append(in.GuardedSubscriptions, s)
+		}
+	}
 	return in, nil
 }
 

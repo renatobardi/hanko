@@ -180,6 +180,19 @@ func (s *server) handlePersona(w http.ResponseWriter, r *http.Request, co domain
 		return
 	}
 	vm.OrgOptions = reportsOptions(all, &p, p.ReportsTo)
+	vm.SubAction = base + "/personas/" + p.Slug + "/assinatura"
+	vm.SubOptions = []views.Option{{Value: "", Label: "Sem assinatura", Selected: p.SubscriptionID == nil}}
+	if subs, err := s.be.ListSubscriptions(ctx, co.ID); err == nil {
+		for _, sub := range subs {
+			isCur := p.SubscriptionID != nil && *p.SubscriptionID == sub.ID
+			if sub.Active || isCur {
+				vm.SubOptions = append(vm.SubOptions, views.Option{Value: sub.ID.String(), Label: sub.Name + " · " + sub.Agent, Selected: isCur})
+			}
+			if isCur {
+				vm.Subscription = sub.Name
+			}
+		}
+	}
 	for _, o := range all {
 		if p.ReportsTo != nil && o.ID == *p.ReportsTo {
 			vm.ReportsTo, vm.ReportsHref = o.Name, base+"/personas/"+o.Slug
@@ -219,6 +232,7 @@ var personaNotices = map[string]string{
 	"reativada":   "Persona reativada: volta a ser acordada normalmente.",
 	"organizacao": "Organização atualizada.",
 	"orcamento":   "Orçamento da persona atualizado.",
+	"assinatura":  "Assinatura da persona atualizada.",
 }
 
 // handlePersonaOrg changes who the persona reports to and whether its work needs review.
@@ -253,6 +267,32 @@ func (s *server) handlePersonaOrg(w http.ResponseWriter, r *http.Request, co dom
 		}
 	}
 	redirect(w, r, "/c/"+co.Slug+"/personas/"+p.Slug+"?ok=organizacao")
+}
+
+// handlePersonaSubscription links the persona to a subscription (or unlinks it).
+func (s *server) handlePersonaSubscription(w http.ResponseWriter, r *http.Request, co domain.Company) {
+	ctx := r.Context()
+	p, err := s.be.GetPersona(ctx, co.ID, r.PathValue("persona"))
+	if err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
+	var in service.UpdatePersonaInput
+	if v := trimForm(r, "subscription"); v == "" {
+		in.ClearSubscription = true
+	} else {
+		id, err := domain.ParseID(v)
+		if err != nil {
+			s.fail(w, r, &co, domain.Invalid("assinatura", "assinatura inválida"))
+			return
+		}
+		in.SubscriptionID = &id
+	}
+	if _, err := s.be.UpdatePersona(ctx, actorFrom(ctx), co.ID, p.ID, in); err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
+	redirect(w, r, "/c/"+co.Slug+"/personas/"+p.Slug+"?ok=assinatura")
 }
 
 // personaControls lists the actions that make sense for the persona's current status.

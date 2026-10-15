@@ -194,6 +194,7 @@ type HirePersonaReq struct {
 	HeartbeatIntervalSec int            `json:"heartbeat_interval_sec,omitempty"`
 	BudgetMonthlyCents   *int64         `json:"budget_monthly_cents,omitempty"`
 	RequireReview        bool           `json:"require_review,omitempty"`
+	Subscription         string         `json:"subscription,omitempty"`
 }
 
 type CreateTaskReq struct {
@@ -205,6 +206,7 @@ type CreateTaskReq struct {
 	Project     string `json:"project,omitempty"`
 	Workspace   string `json:"workspace,omitempty"`
 	Parent      string `json:"parent,omitempty"`
+	Model       string `json:"model,omitempty"`
 	EventID     string `json:"event_id,omitempty"`
 }
 
@@ -216,6 +218,7 @@ type UpdateTaskReq struct {
 	Persona     string  `json:"persona,omitempty"`
 	Unassign    bool    `json:"unassign,omitempty"`
 	Project     string  `json:"project,omitempty"`
+	Model       *string `json:"model,omitempty"`
 }
 
 type AddCommentReq struct {
@@ -281,6 +284,8 @@ type UpdatePersonaReq struct {
 	RequireReview      *bool  `json:"require_review,omitempty"`
 	BudgetMonthlyCents *int64 `json:"budget_monthly_cents,omitempty"`
 	ClearBudget        bool   `json:"clear_budget,omitempty"`
+	Subscription       string `json:"subscription,omitempty"`
+	ClearSubscription  bool   `json:"clear_subscription,omitempty"`
 }
 
 // CostQuery são os parâmetros de Costs.
@@ -534,4 +539,47 @@ func readFrames(r io.Reader, fn func(Frame) error) error {
 			}
 		}
 	}
+}
+
+// ---------- assinaturas ----------
+
+type CreateSubscriptionReq struct {
+	Name           string   `json:"name"`
+	Agent          string   `json:"agent"`
+	MonthlyUSD     float64  `json:"monthly_usd"`
+	ModelPrefixes  []string `json:"model_prefixes,omitempty"`
+	WeeklyLimitUSD *float64 `json:"weekly_limit_usd,omitempty"`
+	WeeklyGuardPct int      `json:"weekly_guard_pct,omitempty"`
+	Inactive       bool     `json:"inactive,omitempty"`
+}
+
+type UpdateSubscriptionReq struct {
+	Name             *string   `json:"name,omitempty"`
+	Agent            *string   `json:"agent,omitempty"`
+	MonthlyUSD       *float64  `json:"monthly_usd,omitempty"`
+	ModelPrefixes    *[]string `json:"model_prefixes,omitempty"`
+	WeeklyLimitUSD   *float64  `json:"weekly_limit_usd,omitempty"`
+	ClearWeeklyLimit bool      `json:"clear_weekly_limit,omitempty"`
+	WeeklyGuardPct   *int      `json:"weekly_guard_pct,omitempty"`
+	Active           *bool     `json:"active,omitempty"`
+}
+
+func (c *Client) CreateSubscription(ctx context.Context, company string, in CreateSubscriptionReq) (api.Subscription, error) {
+	return get[api.Subscription](c, ctx, http.MethodPost, cp(company)+"/subscriptions", in)
+}
+
+func (c *Client) Subscriptions(ctx context.Context, company string) ([]api.Subscription, error) {
+	return list[api.Subscription](ctx, c, cp(company)+"/subscriptions", url.Values{"limit": {"500"}})
+}
+
+func (c *Client) Subscription(ctx context.Context, company, ref string) (api.Subscription, error) {
+	return get[api.Subscription](c, ctx, http.MethodGet, cp(company)+"/subscriptions/"+url.PathEscape(ref), nil)
+}
+
+func (c *Client) UpdateSubscription(ctx context.Context, company, ref string, in UpdateSubscriptionReq) (api.Subscription, error) {
+	return get[api.Subscription](c, ctx, http.MethodPatch, cp(company)+"/subscriptions/"+url.PathEscape(ref), in)
+}
+
+func (c *Client) DeleteSubscription(ctx context.Context, company, ref string) error {
+	return c.do(ctx, http.MethodDelete, cp(company)+"/subscriptions/"+url.PathEscape(ref), nil, nil, nil)
 }

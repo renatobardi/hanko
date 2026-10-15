@@ -34,6 +34,7 @@ type createTaskIn struct {
 		Persona     string `json:"persona,omitempty" doc:"Id ou slug da persona; atribuir uma task workable acorda a persona."`
 		Project     string `json:"project,omitempty" doc:"Id ou slug do projeto."`
 		Workspace   string `json:"workspace,omitempty" doc:"Id ou slug do workspace."`
+		Model       string `json:"model,omitempty" example:"claude-opus-4-5" doc:"Modelo escolhido à mão; vence o da persona."`
 		Parent      string `json:"parent,omitempty" doc:"Id ou chave da task pai."`
 		EventID     string `json:"event_id,omitempty" maxLength:"200" doc:"Chave de idempotência: repetir devolve a task existente."`
 	}
@@ -49,6 +50,7 @@ type updateTaskIn struct {
 		Persona     string  `json:"persona,omitempty" doc:"Id ou slug da persona (re)atribuída."`
 		Unassign    bool    `json:"unassign,omitempty" doc:"Remove a atribuição."`
 		Project     string  `json:"project,omitempty" doc:"Id ou slug do projeto."`
+		Model       *string `json:"model,omitempty" doc:"Modelo escolhido à mão; vazio remove a escolha (volta ao da persona)."`
 		EventID     string  `json:"event_id,omitempty" maxLength:"200" doc:"Chave de idempotência."`
 	}
 }
@@ -98,10 +100,15 @@ func (s *server) registerTasks(api huma.API) {
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}
+			if b.Model != "" {
+				if err := forbidPersona(ctx); err != nil {
+					return nil, err
+				}
+			}
 			t, err := s.svc.CreateTask(ctx, sc.Actor, cid, service.CreateTaskInput{
 				Title: b.Title, Description: b.Description, Status: domain.TaskStatus(b.Status),
 				Priority: domain.Priority(b.Priority), PersonaID: persona, ProjectID: project, WorkspaceID: ws,
-				ParentID: parent, EventID: b.EventID})
+				ParentID: parent, Model: b.Model, EventID: b.EventID})
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}
@@ -161,7 +168,12 @@ func (s *server) registerTasks(api huma.API) {
 			if b.Unassign && b.Persona != "" {
 				return nil, s.fail(ctx, domain.Invalid("unassign", "não combina com persona"))
 			}
-			up := service.UpdateTaskInput{Title: b.Title, Description: b.Description, Unassign: b.Unassign, EventID: b.EventID}
+			if b.Model != nil {
+				if err := forbidPersona(ctx); err != nil {
+					return nil, err
+				}
+			}
+			up := service.UpdateTaskInput{Title: b.Title, Description: b.Description, Unassign: b.Unassign, Model: b.Model, EventID: b.EventID}
 			if b.Status != nil {
 				st := domain.TaskStatus(*b.Status)
 				if !st.Valid() {

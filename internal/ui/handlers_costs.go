@@ -160,7 +160,7 @@ func costTable(title string, sum service.CostSummary, href func(service.CostRow)
 		if sum.TotalUSD > 0 {
 			share = int(math.Round(r.CostUSD / sum.TotalUSD * 100))
 		}
-		row := views.CostRowVM{Label: r.Label, Cost: fmtUSD(r.CostUSD), Runs: fmtInt(r.Runs),
+		row := views.CostRowVM{Label: r.Label, Cost: fmtUSD(r.CostUSD), List: fmtUSD(r.ListUSD), Paid: fmtUSD(r.PaidUSD), Runs: fmtInt(r.Runs),
 			Tokens: fmtTokens(r.InputTokens + r.OutputTokens + r.CacheTokens), Share: share, Estimated: r.EstimatedUSD > 0}
 		if href != nil {
 			row.Href = href(r)
@@ -171,8 +171,11 @@ func costTable(title string, sum service.CostSummary, href func(service.CostRow)
 }
 
 var costNotices = map[string]string{
-	"empresa": "Orçamento da empresa atualizado.",
-	"persona": "Orçamento da persona atualizado.",
+	"empresa":         "Orçamento da empresa atualizado.",
+	"persona":         "Orçamento da persona atualizado.",
+	"assinatura":      "Assinatura salva.",
+	"assinatura-nova": "Assinatura criada.",
+	"assinatura-saiu": "Assinatura removida.",
 }
 
 func (s *server) handleCosts(w http.ResponseWriter, r *http.Request, co domain.Company) {
@@ -234,6 +237,47 @@ func (s *server) handleCosts(w http.ResponseWriter, r *http.Request, co domain.C
 		vm.BudgetKpi = "Sem limite"
 		vm.BudgetNote = "Orçamento da empresa"
 	}
+	vm.Paid = fmtUSD(day.PaidUSD)
+	if len(day.Subscriptions) == 0 {
+		vm.PaidNote = "Pago: sem assinaturas cadastradas"
+	} else {
+		vm.PaidNote = "Pago (mensalidades rateadas) · sem uso " + fmtUSD(day.IdleUSD)
+	}
+	for _, d := range day.Rows {
+		if d.CostUSD == 0 && d.PaidUSD == 0 && !d.Unused && d.ListUSD == 0 {
+			continue
+		}
+		vm.Days = append(vm.Days, views.DayCostVM{Label: dayName(d.Key), Real: fmtUSD(d.ReportedUSD), Estimated: fmtUSD(d.EstimatedUSD),
+			List: fmtUSD(d.ListUSD), Paid: fmtUSD(d.PaidUSD), Unused: d.Unused, Idle: fmtUSD(d.IdleUSD)})
+	}
+	subs, err := s.be.ListSubscriptions(ctx, co.ID)
+	if err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
+	periodCost := map[domain.ID]service.SubscriptionCost{}
+	for _, c := range day.Subscriptions {
+		periodCost[c.ID] = c
+	}
+	vm.HasSubs = len(subs) > 0
+	vm.SubCreate = base + "/custos/assinaturas"
+	vm.AgentOpts = []views.Option{{Value: "claude", Label: "Claude Code", Selected: true}, {Value: "codex", Label: "Codex"}, {Value: "fake", Label: "Simulado"}}
+	for _, sub := range subs {
+		pc := periodCost[sub.ID]
+		row := views.SubRowVM{Name: sub.Name, Agent: sub.Agent, Monthly: fmtUSD(sub.MonthlyUSD), Models: modelsLabel(sub.ModelPrefixes),
+			Active: sub.Active, Blocked: sub.Blocked, WeekUsage: fmtUSD(sub.WeekUsageUSD), GuardPct: sub.WeeklyGuardPct,
+			Paid: fmtUSD(pc.PaidUSD), Idle: fmtUSD(pc.IdleUSD), Runs: fmtInt(pc.Runs),
+			MonthlyValue: usdFloatField(sub.MonthlyUSD), ModelsValue: strings.Join(sub.ModelPrefixes, ", "),
+			UpdateAction: base + "/custos/assinaturas/" + sub.ID.String(), DeleteAction: base + "/custos/assinaturas/" + sub.ID.String() + "/remover",
+			CanDelete: pc.Runs == 0}
+		if sub.WeeklyLimitUSD != nil {
+			row.WeekLimit = fmtUSD(*sub.WeeklyLimitUSD)
+			row.LimitValue = usdFloatField(*sub.WeeklyLimitUSD)
+			row.WeekPercent = int(math.Min(100, math.Round(sub.WeekPercent)))
+			row.WeekPctTxt = fmt.Sprintf("%d%%", int(math.Round(sub.WeekPercent)))
+		}
+		vm.Subs = append(vm.Subs, row)
+	}
 	vm.Tables = []views.CostTableVM{
 		costTable("Persona", sums[service.GroupPersona], func(r service.CostRow) string {
 			if slug := slugByID[r.Key]; slug != "" {
@@ -289,4 +333,126 @@ func (s *server) handleSetPersonaBudget(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 	redirect(w, r, "/c/"+co.Slug+"/personas/"+p.Slug+"?ok=orcamento")
+}
+
+func modelsLabel(prefixes []string) string {
+	if len(prefixes) == 0 {
+		return "todos os modelos do harness"
+	}
+	return strings.Join(prefixes, ", ")
+}
+
+// usdFloatField formats dollars for an input: "200", "12,50".
+func usdFloatField(v float64) string {
+	if v == math.Trunc(v) {
+		return strconv.FormatInt(int64(v), 10)
+	}
+	return strings.Replace(fmt.Sprintf("%.2f", v), ".", ",", 1)
+}
+
+// dollars reads a typed dollar amount ("200", "12,50") as float dollars; empty means nil.
+func dollars(raw string) (*float64, error) {
+	c, err := parseUSD(raw)
+	if err != nil || c == nil {
+		return nil, err
+	}
+	v := centsToUSD(*c)
+	return &v, nil
+}
+
+func splitModels(raw string) []string {
+	out := []string{}
+	for _, m := range strings.FieldsFunc(raw, func(r rune) bool { return r == ',' || r == ';' || r == '\n' }) {
+		if m = strings.TrimSpace(m); m != "" {
+			out = append(out, m)
+		}
+	}
+	return out
+}
+
+func guardPct(raw string) (int, error) {
+	raw = strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(raw), "%"))
+	if raw == "" {
+		return 0, nil
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0, domain.Invalid("trava", "informe o percentual do teto semanal, como 90")
+	}
+	return n, nil
+}
+
+func (s *server) handleCreateSubscription(w http.ResponseWriter, r *http.Request, co domain.Company) {
+	monthly, err := dollars(r.PostFormValue("monthly"))
+	if err == nil && monthly == nil {
+		err = domain.Invalid("mensalidade", "informe a mensalidade em dólares")
+	}
+	var limit *float64
+	if err == nil {
+		limit, err = dollars(r.PostFormValue("weekly_limit"))
+	}
+	pct := 0
+	if err == nil {
+		pct, err = guardPct(r.PostFormValue("guard_pct"))
+	}
+	if err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
+	in := service.CreateSubscriptionInput{Name: trimForm(r, "name"), Agent: trimForm(r, "agent"), MonthlyUSD: *monthly,
+		ModelPrefixes: splitModels(r.PostFormValue("models")), WeeklyLimitUSD: limit, WeeklyGuardPct: pct}
+	if _, err := s.be.CreateSubscription(r.Context(), actorFrom(r.Context()), co.ID, in); err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
+	redirect(w, r, "/c/"+co.Slug+"/custos?ok=assinatura-nova#assinaturas")
+}
+
+func (s *server) handleUpdateSubscription(w http.ResponseWriter, r *http.Request, co domain.Company) {
+	id, err := domain.ParseID(r.PathValue("sub"))
+	if err != nil {
+		s.fail(w, r, &co, domain.ErrNotFound)
+		return
+	}
+	monthly, err := dollars(r.PostFormValue("monthly"))
+	if err == nil && monthly == nil {
+		err = domain.Invalid("mensalidade", "informe a mensalidade em dólares")
+	}
+	var limit *float64
+	if err == nil {
+		limit, err = dollars(r.PostFormValue("weekly_limit"))
+	}
+	pct := 0
+	if err == nil {
+		pct, err = guardPct(r.PostFormValue("guard_pct"))
+	}
+	if err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
+	prefixes := splitModels(r.PostFormValue("models"))
+	active := r.PostFormValue("active") != ""
+	in := service.UpdateSubscriptionInput{MonthlyUSD: monthly, WeeklyLimitUSD: limit, ClearWeeklyLimit: limit == nil,
+		ModelPrefixes: &prefixes, Active: &active}
+	if pct > 0 {
+		in.WeeklyGuardPct = &pct
+	}
+	if _, err := s.be.UpdateSubscription(r.Context(), actorFrom(r.Context()), co.ID, id, in); err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
+	redirect(w, r, "/c/"+co.Slug+"/custos?ok=assinatura#assinaturas")
+}
+
+func (s *server) handleDeleteSubscription(w http.ResponseWriter, r *http.Request, co domain.Company) {
+	id, err := domain.ParseID(r.PathValue("sub"))
+	if err != nil {
+		s.fail(w, r, &co, domain.ErrNotFound)
+		return
+	}
+	if err := s.be.DeleteSubscription(r.Context(), actorFrom(r.Context()), co.ID, id); err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
+	redirect(w, r, "/c/"+co.Slug+"/custos?ok=assinatura-saiu#assinaturas")
 }

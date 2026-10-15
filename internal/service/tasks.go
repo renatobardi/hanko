@@ -145,7 +145,8 @@ func (t *txc) createTask(actor domain.Actor, companyID domain.ID, in CreateTaskI
 	row, err := t.q.CreateTask(ctx, store.CreateTaskParams{
 		ID: domain.NewID(), CompanyID: companyID, Number: num.Number, Title: title, Description: in.Description,
 		Status: string(status), Priority: string(prio), PersonaID: in.PersonaID, ProjectID: in.ProjectID,
-		WorkspaceID: wsID, ParentID: in.ParentID, CreatedByType: string(actor.Type), CreatedByID: actor.ID, Now: t.now})
+		WorkspaceID: wsID, ParentID: in.ParentID, CreatedByType: string(actor.Type), CreatedByID: actor.ID,
+		Model: strings.TrimSpace(in.Model), Now: t.now})
 	if err != nil {
 		return TaskView{}, mapErr(err, "create task")
 	}
@@ -285,7 +286,7 @@ func (s *Service) UpdateTask(ctx context.Context, actor domain.Actor, companyID,
 
 			p := store.UpdateTaskParams{CompanyID: companyID, ID: taskID, Title: cur.Title, Description: cur.Description,
 				Status: cur.Status, Priority: cur.Priority, PersonaID: cur.PersonaID, ProjectID: cur.ProjectID,
-				ClosedAt: cur.ClosedAt, Now: t.now}
+				Model: cur.Model, ClosedAt: cur.ClosedAt, Now: t.now}
 			type act struct {
 				verb string
 				data map[string]any
@@ -305,6 +306,12 @@ func (s *Service) UpdateTask(ctx context.Context, actor domain.Actor, companyID,
 			if in.Priority != nil && string(*in.Priority) != cur.Priority {
 				p.Priority = string(*in.Priority)
 				fields = append(fields, "priority")
+			}
+			if in.Model != nil {
+				if v := strings.TrimSpace(*in.Model); v != cur.Model {
+					p.Model = v
+					fields = append(fields, "model")
+				}
 			}
 			if in.ProjectID != nil && (cur.ProjectID == nil || *cur.ProjectID != *in.ProjectID) {
 				if _, err := t.q.GetProjectByID(ctx, store.GetProjectByIDParams{CompanyID: companyID, ID: *in.ProjectID}); err != nil {

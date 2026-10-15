@@ -165,6 +165,7 @@ type Persona struct {
 	RequireReview        bool
 	PauseReason          *string
 	BudgetRefusedAt      *time.Time
+	SubscriptionID       *uuid.UUID
 }
 
 type Project struct {
@@ -205,6 +206,9 @@ type Run struct {
 	PendingResult       []byte
 	CostSource          string
 	NextEventSeq        int64
+	ModelSource         string
+	SubscriptionID      *uuid.UUID
+	ListCostUsd         *float64
 }
 
 type RunEvent struct {
@@ -231,6 +235,27 @@ type Session struct {
 	AbsoluteExpiresAt time.Time
 }
 
+type Subscription struct {
+	ID             uuid.UUID
+	CompanyID      uuid.UUID
+	Name           string
+	Agent          string
+	MonthlyUsd     float64
+	ModelPrefixes  []string
+	WeeklyLimitUsd *float64
+	WeeklyGuardPct int32
+	Active         bool
+	EndedAt        *time.Time
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
+type SubscriptionGuardAlert struct {
+	SubscriptionID uuid.UUID
+	Week           string
+	CreatedAt      time.Time
+}
+
 type Task struct {
 	ID                uuid.UUID
 	CompanyID         uuid.UUID
@@ -249,6 +274,7 @@ type Task struct {
 	UpdatedAt         time.Time
 	ClosedAt          *time.Time
 	LastHumanChangeAt *time.Time
+	Model             string
 }
 
 type TaskComment struct {

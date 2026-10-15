@@ -31,6 +31,7 @@ type hirePersonaIn struct {
 		HeartbeatIntervalSec int            `json:"heartbeat_interval_sec,omitempty" minimum:"0" example:"300"`
 		BudgetMonthlyCents   *int64         `json:"budget_monthly_cents,omitempty" minimum:"0"`
 		RequireReview        bool           `json:"require_review,omitempty" doc:"Concluir uma task passa por um gate de revisão."`
+		Subscription         string         `json:"subscription,omitempty" doc:"Id ou nome da assinatura que cobre as execuções da persona."`
 	}
 }
 
@@ -55,6 +56,8 @@ type updatePersonaIn struct {
 		RequireReview        *bool   `json:"require_review,omitempty" doc:"Exige revisão (gate task_review) para concluir tasks."`
 		BudgetMonthlyCents   *int64  `json:"budget_monthly_cents,omitempty" minimum:"0" doc:"Orçamento mensal da persona em centavos de dólar."`
 		ClearBudget          bool    `json:"clear_budget,omitempty" doc:"Remove o teto de orçamento da persona."`
+		Subscription         string  `json:"subscription,omitempty" doc:"Id ou nome da assinatura que cobre as execuções da persona."`
+		ClearSubscription    bool    `json:"clear_subscription,omitempty" doc:"Desvincula a persona da assinatura."`
 	}
 }
 
@@ -77,6 +80,10 @@ func (s *server) registerPersonas(api huma.API) {
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}
+			sub, err := s.subscriptionRef(ctx, cid, in.Body.Subscription)
+			if err != nil {
+				return nil, s.fail(ctx, err)
+			}
 			var cfg json.RawMessage
 			if len(in.Body.AdapterConfig) > 0 {
 				if cfg, err = json.Marshal(in.Body.AdapterConfig); err != nil {
@@ -87,7 +94,7 @@ func (s *server) registerPersonas(api huma.API) {
 				Name: in.Body.Name, Slug: in.Body.Slug, Title: in.Body.Title, Instructions: in.Body.Instructions,
 				Agent: in.Body.Agent, Model: in.Body.Model, AdapterConfig: cfg, ReportsTo: reports, WorkspaceID: ws,
 				HeartbeatIntervalSec: in.Body.HeartbeatIntervalSec, BudgetMonthlyCents: in.Body.BudgetMonthlyCents,
-				RequireReview: in.Body.RequireReview})
+				RequireReview: in.Body.RequireReview, SubscriptionID: sub})
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}
@@ -145,7 +152,11 @@ func (s *server) registerPersonas(api huma.API) {
 				Name: in.Body.Name, Title: in.Body.Title, Instructions: in.Body.Instructions, Model: in.Body.Model,
 				HeartbeatIntervalSec: in.Body.HeartbeatIntervalSec, WorkspaceID: ws, ClearWorkspace: in.Body.ClearWorkspace,
 				ReportsTo: reports, ClearReportsTo: in.Body.ClearReportsTo, RequireReview: in.Body.RequireReview,
-				BudgetMonthlyCents: in.Body.BudgetMonthlyCents, ClearBudget: in.Body.ClearBudget}
+				BudgetMonthlyCents: in.Body.BudgetMonthlyCents, ClearBudget: in.Body.ClearBudget,
+				ClearSubscription: in.Body.ClearSubscription}
+			if up.SubscriptionID, err = s.subscriptionRef(ctx, sc.Company.ID, in.Body.Subscription); err != nil {
+				return nil, s.fail(ctx, err)
+			}
 			if in.Body.Status != nil {
 				st := domain.PersonaStatus(*in.Body.Status)
 				up.Status = &st

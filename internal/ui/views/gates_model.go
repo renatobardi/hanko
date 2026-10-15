@@ -84,7 +84,19 @@ type InboxPersona struct {
 	ActionHref string // POST: reactivate
 }
 
+// InboxSub is a subscription whose weekly guard tripped.
+type InboxSub struct {
+	Name    string
+	Href    string
+	Usage   string
+	Limit   string
+	Percent string
+	Guard   int
+	Week    string
+}
+
 type InboxVM struct {
+	Subs         []InboxSub
 	Subtitle     string
 	Tabs         []TabLink
 	Gates        []GateRow

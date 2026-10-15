@@ -27,7 +27,7 @@ func (e *env) taskCmd() *cobra.Command {
 	c := &cobra.Command{Use: "task", Short: "Gerencia tasks"}
 
 	var (
-		desc, persona, project, priority, status, ws, parent, eventID string
+		desc, persona, project, priority, status, ws, parent, eventID, model string
 	)
 	create := &cobra.Command{
 		Use: "create <título>", Short: "Cria uma task", Args: cobra.ExactArgs(1),
@@ -37,7 +37,7 @@ func (e *env) taskCmd() *cobra.Command {
 				return err
 			}
 			t, err := e.client().CreateTask(cmd.Context(), co, client.CreateTaskReq{Title: args[0], Description: desc, Status: status,
-				Priority: priority, Persona: persona, Project: project, Workspace: ws, Parent: parent, EventID: eventID})
+				Priority: priority, Persona: persona, Project: project, Workspace: ws, Parent: parent, Model: model, EventID: eventID})
 			if err != nil {
 				return err
 			}
@@ -61,6 +61,7 @@ func (e *env) taskCmd() *cobra.Command {
 	cf.StringVar(&ws, "workspace", "", "workspace (id ou slug)")
 	cf.StringVar(&parent, "parent", "", "task pai (id ou chave)")
 	cf.StringVar(&eventID, "event-id", "", "chave de idempotência")
+	cf.StringVar(&model, "model", "", "modelo escolhido à mão (vence o da persona)")
 
 	var q client.TaskQuery
 	ls := &cobra.Command{
@@ -119,7 +120,7 @@ func (e *env) taskCmd() *cobra.Command {
 			fmt.Fprintf(e.out, "%s  %s\n\n", t.Key, t.Title)
 			persona := dash(t.PersonaName)
 			e.kv([2]string{"Status", t.Status}, [2]string{"Prioridade", t.Priority}, [2]string{"Persona", persona},
-				[2]string{"Projeto", dash(t.ProjectName)}, [2]string{"Execução ativa", dash(t.ActiveRunID)},
+				[2]string{"Projeto", dash(t.ProjectName)}, [2]string{"Modelo (manual)", dash(t.Model)}, [2]string{"Execução ativa", dash(t.ActiveRunID)},
 				[2]string{"Criada em", fmtTime(t.CreatedAt)}, [2]string{"Atualizada em", fmtTime(t.UpdatedAt)})
 			if strings.TrimSpace(t.Description) != "" {
 				fmt.Fprintf(e.out, "\nDescrição:\n%s\n", strings.TrimSpace(t.Description))
@@ -192,6 +193,38 @@ func (e *env) taskCmd() *cobra.Command {
 		},
 	}
 
+	var clearModel bool
+	modelCmd := &cobra.Command{
+		Use: "model <task> [modelo]", Short: "Escolhe à mão o modelo da task (vence o da persona); --clear remove", Args: cobra.RangeArgs(1, 2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			co, err := e.needCompany()
+			if err != nil {
+				return err
+			}
+			if clearModel == (len(args) == 2) {
+				return usageError{errors.New("informe o modelo ou use --clear (um dos dois)")}
+			}
+			m := ""
+			if !clearModel {
+				m = args[1]
+			}
+			t, err := e.client().UpdateTask(cmd.Context(), co, args[0], client.UpdateTaskReq{Model: &m})
+			if err != nil {
+				return err
+			}
+			if e.asJSON {
+				return e.printJSON(t)
+			}
+			if t.Model == "" {
+				fmt.Fprintf(e.out, "%s sem modelo manual: vale o da persona.\n", t.Key)
+			} else {
+				fmt.Fprintf(e.out, "%s usa o modelo %s.\n", t.Key, t.Model)
+			}
+			return nil
+		},
+	}
+	modelCmd.Flags().BoolVar(&clearModel, "clear", false, "remove a escolha manual")
+
 	comment := &cobra.Command{
 		Use: "comment <task> <texto...>", Short: "Comenta na task (use '-' para ler do stdin)", Args: cobra.MinimumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -240,7 +273,7 @@ func (e *env) taskCmd() *cobra.Command {
 		},
 	}
 
-	c.AddCommand(create, ls, show, assign, statusCmd, comment, wake)
+	c.AddCommand(create, ls, show, assign, statusCmd, modelCmd, comment, wake)
 	return c
 }
 

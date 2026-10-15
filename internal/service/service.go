@@ -96,6 +96,8 @@ type HirePersonaInput struct {
 	WorkspaceID          *domain.ID
 	HeartbeatIntervalSec int
 	BudgetMonthlyCents   *int64
+	// SubscriptionID links the persona to a plan (assinatura) of the company.
+	SubscriptionID *domain.ID
 	// RequireReview sends this persona's attempts to close a task through a task_review gate.
 	RequireReview bool
 }
@@ -114,6 +116,9 @@ type UpdatePersonaInput struct {
 	// BudgetMonthlyCents sets the persona's monthly budget (USD cents); ClearBudget removes it.
 	BudgetMonthlyCents *int64
 	ClearBudget        bool
+	// SubscriptionID links the persona to a subscription; ClearSubscription removes the link.
+	SubscriptionID    *domain.ID
+	ClearSubscription bool
 }
 
 type CreateTaskInput struct {
@@ -124,6 +129,7 @@ type CreateTaskInput struct {
 	PersonaID   *domain.ID
 	ProjectID   *domain.ID
 	WorkspaceID *domain.ID // default: project's workspace, else persona's workspace
+	Model       string     // manual model choice (wins over the persona's); empty = none
 	ParentID    *domain.ID
 	EventID     string // idempotency key (agents/MCP)
 
@@ -138,6 +144,7 @@ type UpdateTaskInput struct {
 	PersonaID   *domain.ID
 	Unassign    bool
 	ProjectID   *domain.ID
+	Model       *string // manual model choice; empty string clears it
 	EventID     string
 }
 
