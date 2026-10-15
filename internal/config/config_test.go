@@ -31,7 +31,7 @@ func TestLoad(t *testing.T) {
 			name: "defaults",
 			env:  map[string]string{"HANKO_DATABASE_URL": db},
 			check: func(t *testing.T, c Config) {
-				if c.Addr != "127.0.0.1:7420" || c.PublicURL != "http://127.0.0.1:7420" || c.Mode != "authenticated" ||
+				if c.Memory.ReadTool != "memory_read_page" || c.Addr != "127.0.0.1:7420" || c.PublicURL != "http://127.0.0.1:7420" || c.Mode != "authenticated" ||
 					!c.MigrateOnBoot || c.Memory.Provider != "ai-memory" || c.Memory.URL != "http://127.0.0.1:49374" ||
 					c.Workers != 4 || c.RunTimeout != 30*time.Minute || c.HeartbeatInterval != time.Minute ||
 					c.LogLevel != "info" || c.LogFormat != "json" {

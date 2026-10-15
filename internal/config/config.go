@@ -158,7 +158,7 @@ func Defaults() Config {
 		Addr:               "127.0.0.1:7420",
 		Mode:               ModeAuthenticated,
 		MigrateOnBoot:      true,
-		Memory:             Memory{Provider: MemoryAIMemory, URL: "http://127.0.0.1:49374"},
+		Memory:             Memory{Provider: MemoryAIMemory, URL: "http://127.0.0.1:49374", ReadTool: "memory_read_page"},
 		Auth:               Auth{Provider: AuthLocal},
 		TrustedProxies:     []string{"127.0.0.1/32", "::1/128"},
 		ClaudeBin:          "claude",

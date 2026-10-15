@@ -436,7 +436,7 @@ Requires `HANKO_MEMORY_PROVIDER=ai-memory` (ADR-0030). With `none`, the Memory s
 - **`memory` gate:** removals, merges and rewrites by the curator never reach ai-memory; they become a proposal and a gate in the Inbox "Memory" tab (diff and sha256). Approving queues `apply_memory_proposal`; rejecting discards. CLI: `hanko memory proposals|approve|reject <id>`.
 - **Apply failure:** the proposal stays `failed` with the error and is retried (1 min to 6 h, 20 attempts). After that: `hanko memory retry <id>` or the retry button. Nothing is lost.
 - **Grants:** a persona only reaches its own workspace memory. For another workspace of the company: `hanko memory grant <persona> <workspace> --access read|write` (`grants`, `revoke` to list and remove).
-- **Diff with current content:** set `HANKO_MEMORY_READ_TOOL` (`memory.read_tool` in YAML) to ai-memory's page-read tool name; without it the diff shows only the proposed content.
+- **Diff with current content:** the default is `memory_read_page` (ai-memory's real tool); `HANKO_MEMORY_READ_TOOL` (`memory.read_tool` in YAML) overrides the name; with none configured the diff shows only the proposed content.
 
 | Symptom | Likely cause | Action |
 |---|---|---|

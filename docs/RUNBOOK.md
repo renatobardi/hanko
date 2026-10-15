@@ -359,7 +359,7 @@ Requer `HANKO_MEMORY_PROVIDER=ai-memory` (ADR-0030). Com `none` a seção "Memó
 - **Gate `memory`:** remoções, fusões e reescritas da curadoria não chegam ao ai-memory; viram proposta e um gate na aba "Memória" do Inbox (diff e sha256). Aprovar enfileira `apply_memory_proposal`; rejeitar descarta. CLI: `hanko memory proposals|approve|reject <id>`.
 - **Falha ao aplicar:** a proposta fica `failed` com o erro e é tentada de novo (1 min a 6 h, 20 tentativas). Depois disso: `hanko memory retry <id>` ou o botão "Tentar de novo". Nada se perde.
 - **Concessões:** uma persona só alcança a memória do próprio workspace. Para outro workspace da empresa: `hanko memory grant <persona> <workspace> --access read|write` (`grants`, `revoke` para listar e remover).
-- **Diff com conteúdo atual:** defina `HANKO_MEMORY_READ_TOOL` (`memory.read_tool` no YAML) com o nome da tool de leitura de página do ai-memory; sem ela o diff mostra só o proposto.
+- **Diff com conteúdo atual:** o padrão é `memory_read_page` (tool real do ai-memory); `HANKO_MEMORY_READ_TOOL` (`memory.read_tool` no YAML) troca o nome; sem nenhuma o diff mostra só o proposto.
 
 | Sintoma | Causa provável | Ação |
 |---|---|---|
