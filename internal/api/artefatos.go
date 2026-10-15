@@ -16,8 +16,17 @@ import (
 // ferramenta MCP); o download é bruto, com cabeçalhos de segurança (artifactsrv). Um run token publica só na
 // própria task/run; apagar é de admin humano.
 
-// maxArtifactBody é o teto do corpo de um envio: o maior arquivo (16 MiB) em base64 mais o envelope JSON.
-const maxArtifactBody = (service.MaxArtifactMaxBytes*4/3 + 64<<10)
+// artifactBodyLimit é o teto do corpo de um envio: o limite de arquivo configurado (HANKO_ARTIFACT_MAX_BYTES) em
+// base64 (x4/3) mais o envelope JSON. Sem o limite configurado à mão, vale o máximo absoluto (16 MiB).
+func (s *server) artifactBodyLimit() int64 {
+	maxFile := service.MaxArtifactMaxBytes
+	if l, ok := s.svc.(interface{ ArtifactLimits() (int64, int64) }); ok {
+		if m, _ := l.ArtifactLimits(); m > 0 && m < maxFile {
+			maxFile = m
+		}
+	}
+	return maxFile*4/3 + 64<<10
+}
 
 // Artifact é uma versão de um artefato (sem o conteúdo).
 type Artifact struct {
@@ -140,17 +149,30 @@ func (s *server) artifactID(ctx context.Context, ref string) (domain.ID, error) 
 	return id, nil
 }
 
-// runScope devolve a task e a run que um run token pode usar; o token só publica na própria execução.
+// runScope devolve a task e a run que um run token pode usar; o token só publica na própria execução. O token de
+// uma run de chat não tem task: o artefato fica só com a run, e informar uma task é recusado.
 func runScope(sc scope, task, run *domain.ID) (*domain.ID, *domain.ID, error) {
 	if sc.Claims == nil {
 		return task, run, nil
 	}
-	tid, terr := domain.ParseID(sc.Claims.TaskID)
 	rid, rerr := domain.ParseID(sc.Claims.RunID)
-	if terr != nil || rerr != nil {
+	if rerr != nil {
 		return nil, nil, problem(http.StatusForbidden, "o token não identifica uma execução")
 	}
-	if (task != nil && *task != tid) || (run != nil && *run != rid) {
+	if run != nil && *run != rid {
+		return nil, nil, problem(http.StatusForbidden, "o token só publica na própria execução")
+	}
+	if sc.Claims.TaskID == "" {
+		if task != nil {
+			return nil, nil, problem(http.StatusForbidden, "o token de uma execução de chat não tem task; omita task")
+		}
+		return nil, &rid, nil
+	}
+	tid, terr := domain.ParseID(sc.Claims.TaskID)
+	if terr != nil {
+		return nil, nil, problem(http.StatusForbidden, "o token não identifica uma execução")
+	}
+	if task != nil && *task != tid {
 		return nil, nil, problem(http.StatusForbidden, "o token só publica na própria execução")
 	}
 	return &tid, &rid, nil
@@ -159,7 +181,7 @@ func runScope(sc scope, task, run *domain.ID) (*domain.ID, *domain.ID, error) {
 func (s *server) registerArtifacts(api huma.API) {
 	put := created(op("put-artifact", http.MethodPost, "/companies/{company}/artifacts", "artifacts",
 		"Publica um artefato (nova versão se o nome já existe na task)"))
-	put.MaxBodyBytes = maxArtifactBody
+	put.MaxBodyBytes = s.artifactBodyLimit()
 	huma.Register(api, put, func(ctx context.Context, in *putArtifactIn) (*ItemOut[Artifact], error) {
 		sc, err := s.scope(ctx, in.Company)
 		if err != nil {
