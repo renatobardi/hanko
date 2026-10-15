@@ -57,6 +57,14 @@ Primeira versão pública. Em produção em https://hanko.oute.pro desde 2026-10
 - PWA instalável: manifest, ícones (192/512/maskable), service worker só com assets estáticos versionados e página
   `/offline` bilíngue; nenhum HTML autenticado, API ou SSE entra no cache.
 
+### Desempenho
+- Migration `00013_indices_desempenho.sql` e ajustes de consulta medidos com `tools/seed-load` + `tools/perf-explain`
+  numa carga de 5 M de eventos de run, 1 M de atividades, 200 mil runs e 50 mil tasks (`docs/PERF.md`): wake candidates do
+  heartbeat 1,3 s → 1,5 ms, personas silenciosas (alert_tick) 177 → 3 ms, runs por nome/por task 25–100 ms → 0,1 ms, Caixa
+  de entrada (runs que falharam) 68 → 3 ms, listagem de tasks 48 → 1 ms, de gates 21 → 4 ms. `fillfactor 80` em `runs`
+  torna HOT o UPDATE de `next_event_seq` de cada evento anexado. Em bases grandes, criar os índices antes com
+  `CREATE INDEX CONCURRENTLY` (ver o cabeçalho da migration).
+
 ### Corrigido
 - 37 achados das revisões independentes do M1–M5 (token de API não validado, segredos herdados pelo agente,
   estouro de orçamento, laço de runs, wake perdido, gate em task alheia, primeiro visitante virando dono, entre outros),
