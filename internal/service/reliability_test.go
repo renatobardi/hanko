@@ -315,7 +315,9 @@ func TestMemoryOutboxBackoff(t *testing.T) {
 		t.Fatalf("outbox = %d", len(e.jobs.outbox))
 	}
 	id := e.jobs.outbox[0]
-	now := time.Date(2026, 10, 14, 12, 0, 0, 0, time.UTC)
+	// relógio a partir de agora: o created_at do fato vem do banco (now()), e uma data fixa
+	// no passado deixaria o fato "novo demais" para o sweep.
+	now := time.Now().UTC().Truncate(time.Second)
 	e.svc.Now = func() time.Time { return now }
 	sweep := now.Add(time.Hour) // far past memoryMinAge
 
