@@ -35,6 +35,8 @@ Por isso a decisão trata, junto, de entrega, limites, segredos e SSRF.
    (`integration_personas`); entra no `mcpServers` da run ao lado do Hanko e da memória, e um nome do usuário nunca
    substitui os servidores do Hanko. **Webhook de saída**: URL https, segredo HMAC e lista de eventos
    (`task.created`, `task.completed`, `gate.opened`, `gate.decided`, `run.failed`, `alert.opened`).
+   `run.failed` dispara quando a run termina em `failed`, `expired` ou `interrupted` (a órfã que a recuperação
+   encontra depois de uma queda); `done` e `cancelled` não disparam.
 6. **stdio é decisão do operador.** Um MCP stdio executa um comando na máquina do servidor. Só funciona com
    `HANKO_INTEGRATIONS_ALLOW_STDIO=true` (padrão desligado); sem isso a criação é recusada e uma integração stdio já
    existente é ignorada na run. No codex o comando e os argumentos vão na linha de comando e as variáveis por nome

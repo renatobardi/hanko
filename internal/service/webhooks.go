@@ -68,7 +68,12 @@ func webhookEventFor(verb string, data json.RawMessage) (string, bool) {
 		return domain.EventGateDecided, true
 	case "run.finished":
 		_ = json.Unmarshal(data, &d)
-		return domain.EventRunFailed, d.Status == string(domain.RunFailed) || d.Status == string(domain.RunExpired)
+		// interrupted (run órfã encontrada na recuperação) também é uma run que não terminou bem.
+		switch domain.RunStatus(d.Status) {
+		case domain.RunFailed, domain.RunExpired, domain.RunInterrupted:
+			return domain.EventRunFailed, true
+		}
+		return domain.EventRunFailed, false
 	case "alert.opened":
 		return domain.EventAlertOpened, true
 	}
