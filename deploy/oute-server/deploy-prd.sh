@@ -13,7 +13,7 @@ set -euo pipefail
 
 HOST="${OUTE_HOST:-oute-server}"
 NAME="${HANKO_LXC:-hanko-prd}"
-IP="${HANKO_LXC_IP:-10.173.117.41}"
+IP="${HANKO_LXC_IP:-}"
 PORT="${HANKO_PORT:-3790}"
 GATEWAY="${LXC_GATEWAY:-10.173.117.1}"
 DOMAIN="${HANKO_DOMAIN:-hanko.oute.pro}"
@@ -31,16 +31,46 @@ x() { # executa dentro do LXC
   r "lxc exec ${NAME} -- bash -lc $(printf '%q' "$*")"
 }
 
-echo "==> Hanko ${REV} → ${HOST}:${NAME} (${IP}:${PORT}, https://${DOMAIN})"
+echo "==> Hanko ${REV} → ${HOST}:${NAME} (porta ${PORT}, https://${DOMAIN})"
 
-# 1) LXC (idempotente)
-if $DRY || ! ssh -n "$HOST" "lxc info ${NAME}" >/dev/null 2>&1; then
+# 0) IP: o PORTS.md do lab pode estar defasado; escolhe o primeiro livre olhando o LXD de verdade
+if [[ -z "$IP" ]]; then
+  if ssh -n "$HOST" "lxc info ${NAME}" >/dev/null 2>&1 && \
+     cur="$(ssh -n "$HOST" "lxc config device get ${NAME} eth0 ipv4.address" 2>/dev/null)" && [[ -n "$cur" ]]; then
+    IP="$cur"
+  else
+    IP="$(ssh -n "$HOST" "lxc list --format json" | python3 -c '
+import json, sys
+used = set()
+for c in json.load(sys.stdin):
+    eth0 = (c.get("expanded_devices") or {}).get("eth0") or {}
+    if eth0.get("ipv4.address"): used.add(eth0["ipv4.address"])
+    for net in ((c.get("state") or {}).get("network") or {}).values():
+        for a in net.get("addresses", []):
+            if a.get("family") == "inet": used.add(a["address"])
+for i in range(41, 250):
+    ip = f"10.173.117.{i}"
+    if ip not in used:
+        print(ip); break
+')"
+  fi
+  [[ -n "$IP" ]] || { echo "erro: não achei IP livre em 10.173.117.0/24" >&2; exit 1; }
+fi
+echo "==> IP do LXC: ${IP}"
+
+# 1) LXC (idempotente: cria se não existe; completa o provisionamento se ficou pela metade)
+if ! $DRY && ! ssh -n "$HOST" "lxc info ${NAME}" >/dev/null 2>&1; then
   r "lxc launch ubuntu:24.04 ${NAME} --config security.nesting=true"
-  r "lxc config device override ${NAME} eth0 ipv4.address=${IP}"
+fi
+$DRY && r "lxc launch ubuntu:24.04 ${NAME} --config security.nesting=true"
+if $DRY || [[ "$(ssh -n "$HOST" "lxc config device get ${NAME} eth0 ipv4.address" 2>/dev/null || true)" != "$IP" ]]; then
+  r "lxc config device override ${NAME} eth0 ipv4.address=${IP} 2>/dev/null || lxc config device set ${NAME} eth0 ipv4.address=${IP}"
   x "printf '%s\n' 'network: {config: disabled}' > /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg && printf '%s\n' 'network:' '  version: 2' '  ethernets:' '    eth0:' '      addresses:' '        - ${IP}/24' '      routes:' '        - to: default' '          via: ${GATEWAY}' '      nameservers:' '        addresses: [8.8.8.8, 1.1.1.1]' > /etc/netplan/99-oute-static.yaml && chmod 600 /etc/netplan/99-oute-static.yaml"
-  r "lxc exec ${NAME} -- netplan apply"
+  r "lxc restart ${NAME}"
   r "lxc exec ${NAME} -- cloud-init status --wait"
-  x "apt-get update && apt-get install -y ca-certificates curl git openssl docker.io docker-compose-v2"
+fi
+if $DRY || ! ssh -n "$HOST" "lxc exec ${NAME} -- sh -c 'command -v docker >/dev/null && docker compose version >/dev/null'" >/dev/null 2>&1; then
+  x "for i in \$(seq 1 30); do getent hosts archive.ubuntu.com >/dev/null && break; sleep 2; done; apt-get update && apt-get install -y ca-certificates curl git openssl docker.io docker-compose-v2"
   r "lxc config set ${NAME} boot.autostart true"
 fi
 
