@@ -147,6 +147,12 @@ func (s *server) handleHirePersona(w http.ResponseWriter, r *http.Request, co do
 }
 
 func (s *server) handlePersona(w http.ResponseWriter, r *http.Request, co domain.Company) {
+	s.renderPersona(w, r, co, http.StatusOK, nil)
+}
+
+// renderPersona draws the persona page. A non-nil rv is a reviewer form that failed validation:
+// it replaces the saved values so the person sees what they typed next to the error.
+func (s *server) renderPersona(w http.ResponseWriter, r *http.Request, co domain.Company, status int, rv *views.ReviewerVM) {
 	ctx := r.Context()
 	p, err := s.be.GetPersona(ctx, co.ID, r.PathValue("persona"))
 	if err != nil {
@@ -184,6 +190,13 @@ func (s *server) handlePersona(w http.ResponseWriter, r *http.Request, co domain
 		return
 	}
 	vm.OrgOptions = reportsOptions(ctx, all, &p, p.ReportsTo)
+	vm.Reviewer = reviewerVM(ctx, all, p, base)
+	if rv != nil {
+		vm.Reviewer.Mode, vm.Reviewer.Error = rv.Mode, rv.Error
+		vm.Reviewer.Model = rv.Model
+		vm.Reviewer.Persona = reviewerPersonaOptions(ctx, all, p.ID, rv.Persona)
+		vm.Reviewer.Agent = reviewerAgentOptions(ctx, rv.Agent)
+	}
 	vm.SubAction = base + "/personas/" + p.Slug + "/assinatura"
 	vm.SubOptions = []views.Option{{Value: "", Label: i18n.T(ctx, "Sem assinatura"), Selected: p.SubscriptionID == nil}}
 	if subs, err := s.be.ListSubscriptions(ctx, co.ID); err == nil {
@@ -227,7 +240,7 @@ func (s *server) handlePersona(w http.ResponseWriter, r *http.Request, co domain
 	}
 	sh := s.shell(co, "personas", p.Name, views.Crumb{Label: i18n.T(ctx, "Personas"), Href: base + "/personas"}, views.Crumb{Label: p.Name})
 	sh.Action = &views.Action{Label: i18n.T(ctx, "Nova task"), Href: base + "/tasks/nova?persona=" + p.ID.String(), Icon: "plus"}
-	s.render(w, r, http.StatusOK, views.PersonaPage(sh, vm))
+	s.render(w, r, status, views.PersonaPage(sh, vm))
 }
 
 var personaNotices = map[string]string{
@@ -235,6 +248,7 @@ var personaNotices = map[string]string{
 	"retomada":    i18n.N("Persona retomada."),
 	"reativada":   i18n.N("Persona reativada: volta a ser acordada normalmente."),
 	"organizacao": i18n.N("Organização atualizada."),
+	"revisor":     i18n.N("Revisor atualizado."),
 	"orcamento":   i18n.N("Orçamento da persona atualizado."),
 	"assinatura":  i18n.N("Assinatura da persona atualizada."),
 }
@@ -333,4 +347,139 @@ func (s *server) handlePersonaControl(to domain.PersonaStatus, notice string) co
 		}
 		redirect(w, r, "/c/"+co.Slug+"/personas/"+p.Slug+"?ok="+notice)
 	}
+}
+
+// reviewerVM is the reviewer block as saved: the summary line and the form pre-filled with it.
+func reviewerVM(ctx context.Context, all []domain.Persona, p domain.Persona, base string) views.ReviewerVM {
+	rv := views.ReviewerVM{Action: base + "/personas/" + p.Slug + "/revisor", Mode: "none", Model: p.ReviewerModel}
+	var sel *domain.ID
+	switch {
+	case p.ReviewerPersonaID != nil:
+		rv.Mode, sel = "persona", p.ReviewerPersonaID
+		for _, o := range all {
+			if o.ID == *p.ReviewerPersonaID {
+				rv.Summary, rv.Href = o.Name, base+"/personas/"+o.Slug
+			}
+		}
+	case p.ReviewerAgent != "":
+		rv.Mode = "harness"
+		rv.Summary = p.ReviewerAgent
+		if p.ReviewerModel != "" {
+			rv.Summary += " · " + p.ReviewerModel
+		}
+		rv.Summary += " (" + i18n.T(ctx, "mesmo papel") + ")"
+	}
+	rv.Persona = reviewerPersonaOptions(ctx, all, p.ID, sel)
+	rv.Agent = reviewerAgentOptions(ctx, p.ReviewerAgent)
+	return rv
+}
+
+func reviewerPersonaOptions(ctx context.Context, all []domain.Persona, self domain.ID, sel any) []views.Option {
+	out := []views.Option{{Value: "", Label: i18n.T(ctx, "Escolha uma persona")}}
+	var selID string
+	switch v := sel.(type) {
+	case *domain.ID:
+		if v != nil {
+			selID = v.String()
+		}
+	case []views.Option:
+		for _, o := range v {
+			if o.Selected {
+				selID = o.Value
+			}
+		}
+	}
+	for _, o := range all {
+		if o.ID == self {
+			continue
+		}
+		out = append(out, views.Option{Value: o.ID.String(), Label: o.Name, Selected: o.ID.String() == selID})
+	}
+	return out
+}
+
+func reviewerAgentOptions(ctx context.Context, sel any) []views.Option {
+	var selAgent string
+	switch v := sel.(type) {
+	case string:
+		selAgent = v
+	case []views.Option:
+		for _, o := range v {
+			if o.Selected {
+				selAgent = o.Value
+			}
+		}
+	}
+	out := []views.Option{{Value: "", Label: i18n.T(ctx, "Escolha um harness"), Selected: selAgent == ""}}
+	for _, a := range domain.KnownAgents {
+		out = append(out, views.Option{Value: a, Label: a, Selected: a == selAgent})
+	}
+	return out
+}
+
+// handlePersonaReviewer saves the reviewer of the persona from the form: no reviewer, another
+// persona, or the same role on another harness/model. Form-level mistakes get a message in the
+// language of the screen; the rules that need data (self review, same harness as the author,
+// unknown persona) are the service's and come back as its validation error, on the page.
+func (s *server) handlePersonaReviewer(w http.ResponseWriter, r *http.Request, co domain.Company) {
+	ctx := r.Context()
+	p, err := s.be.GetPersona(ctx, co.ID, r.PathValue("persona"))
+	if err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
+	mode := trimForm(r, "mode")
+	rv := views.ReviewerVM{Mode: mode, Model: trimForm(r, "reviewer_model")}
+	agent := trimForm(r, "reviewer_agent")
+	var rvID *domain.ID
+	if v := trimForm(r, "reviewer_persona"); v != "" {
+		if id, err := domain.ParseID(v); err == nil {
+			rvID = &id
+		}
+	}
+	// What the person typed goes back into the form on error.
+	rv.Persona = []views.Option{{Value: trimForm(r, "reviewer_persona"), Selected: true}}
+	rv.Agent = []views.Option{{Value: agent, Selected: true}}
+	bad := func(st int, msg string) {
+		rv.Error = msg
+		s.renderPersona(w, r, co, st, &rv)
+	}
+	var in service.UpdatePersonaInput
+	switch mode {
+	case "none":
+		if !domain.HasReviewer(p.ReviewerPersonaID, p.ReviewerAgent) {
+			redirect(w, r, "/c/"+co.Slug+"/personas/"+p.Slug+"?ok=revisor")
+			return
+		}
+		in.ClearReviewer = true
+	case "persona":
+		if rvID == nil {
+			bad(http.StatusUnprocessableEntity, i18n.T(ctx, "Escolha a persona revisora."))
+			return
+		}
+		in.ReviewerPersona = rvID
+	case "harness":
+		switch {
+		case agent == "":
+			bad(http.StatusUnprocessableEntity, i18n.T(ctx, "Escolha o harness do revisor."))
+			return
+		case !domain.ValidAgent(agent):
+			bad(http.StatusUnprocessableEntity, i18n.T(ctx, "Harness desconhecido: use claude, codex ou fake."))
+			return
+		}
+		in.ReviewerAgent, in.ReviewerModel = &agent, &rv.Model
+	default:
+		bad(http.StatusUnprocessableEntity, i18n.T(ctx, "Escolha como a revisão é feita."))
+		return
+	}
+	if _, err := s.be.UpdatePersona(ctx, actorFrom(ctx), co.ID, p.ID, in); err != nil {
+		st, title, msg := friendly(ctx, err)
+		if st >= 500 {
+			s.fail(w, r, &co, err)
+			return
+		}
+		bad(st, title+". "+msg)
+		return
+	}
+	redirect(w, r, "/c/"+co.Slug+"/personas/"+p.Slug+"?ok=revisor")
 }

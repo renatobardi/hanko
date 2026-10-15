@@ -265,6 +265,27 @@ type PersonaVM struct {
 	SubAction     string
 	OrgAction     string   // POST target of the organisation form
 	OrgOptions    []Option // "Reporta a" choices
+	Reviewer      ReviewerVM
+}
+
+// ReviewerVM is the reviewer block of the persona page: the configured reviewer (summary) and the
+// edit form with its three modes (none, another persona, same role on another harness/model).
+type ReviewerVM struct {
+	Summary string // human text of the configured reviewer ("" = none)
+	Href    string // link to the reviewer persona, when it is one
+	Action  string // POST target
+	Mode    string // none | persona | harness
+	Persona []Option
+	Agent   []Option
+	Model   string
+	Error   string
+}
+
+// CompanyLink is one entry of the company switcher.
+type CompanyLink struct {
+	Slug    string
+	Name    string
+	Current bool
 }
 
 // PersonaRef is a link to another persona.

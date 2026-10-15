@@ -782,3 +782,23 @@ button.link:hover { color: var(--ink); }
 .lang-switch button:hover { background: var(--surface-recessed); color: var(--ink); }
 .lang-switch button[aria-current] { color: var(--ink); background: var(--surface-recessed); cursor: default; }
 .auth .lang-switch { justify-content: center; padding: 0; margin-top: 4px; }
+
+/* Seletor de empresa no topo da sidebar */
+.co-switch { position: relative; border-bottom: 1px solid var(--line); }
+.co-switch > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 10px; padding: 10px 16px; font-size: 13.5px; font-weight: 500; }
+.co-switch > summary::-webkit-details-marker { display: none; }
+.co-switch > summary:hover { background: var(--surface-recessed); }
+.co-switch .co-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.co-switch[open] > summary .gear svg { transform: rotate(180deg); }
+.co-switch .menu {
+  position: absolute; left: 10px; right: 10px; top: calc(100% + 4px); z-index: 20;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.12); padding: 4px; display: grid; gap: 2px;
+}
+.co-switch .menu a { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--r-sm); font-size: 13px; color: var(--ink); }
+.co-switch .menu a:hover { background: var(--surface-recessed); }
+.co-switch .menu a[aria-current] { font-weight: 600; }
+.co-switch .co-new { border-top: 1px solid var(--line); border-radius: 0 0 var(--r-sm) var(--r-sm); margin-top: 2px; }
+.avatar-sq.sm { width: 18px; height: 18px; font-size: 10px; }
+.co-back { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.co-back a { text-decoration: underline; text-underline-offset: 2px; }

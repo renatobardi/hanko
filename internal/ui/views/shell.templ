@@ -27,6 +27,7 @@ templ Layout(sh Shell) {
 						@Mark(22)
 						<span>Hanko</span>
 					</a>
+					@companySwitch(sh)
 					<nav class="nav" aria-label={ i18n.T(ctx, "Principal") }>
 						for _, g := range Nav {
 							<div class="nav-group">
@@ -161,4 +162,45 @@ func langName(l i18n.Lang) string {
 		return "English"
 	}
 	return "Português (Brasil)"
+}
+
+// companySwitch is the company selector at the top of the sidebar: the current company and a menu
+// with the others (same section when it makes sense) and "Nova empresa".
+templ companySwitch(sh Shell) {
+	<details class="co-switch">
+		<summary title={ i18n.T(ctx, "Trocar de empresa") }>
+			<span class="avatar-sq">{ initial(sh.Company.Name) }</span>
+			<span class="co-name">{ sh.Company.Name }</span>
+			<span class="gear">@Icon("chevron-down")</span>
+		</summary>
+		<div class="menu" role="menu">
+			for _, c := range switcherFrom(ctx).Companies {
+				if c.Slug == sh.Company.Slug {
+					<a href={ templ.SafeURL("/c/" + c.Slug + "/" + switcherFrom(ctx).Section) } role="menuitem" aria-current="true">
+						@Icon("check")
+						<span>{ c.Name }</span>
+					</a>
+				} else {
+					<a href={ templ.SafeURL("/c/" + c.Slug + "/" + switcherFrom(ctx).Section) } role="menuitem">
+						<span class="avatar-sq sm">{ initial(c.Name) }</span>
+						<span>{ c.Name }</span>
+					</a>
+				}
+			}
+			<a href="/bem-vindo" role="menuitem" class="co-new">
+				@Icon("plus")
+				<span>{ i18n.T(ctx, "Nova empresa") }</span>
+			</a>
+		</div>
+	</details>
+}
+
+// ModelDatalist is the suggestion list of model aliases (the CLI accepts them as is).
+templ ModelDatalist(id string) {
+	<datalist id={ id }>
+		<option value="haiku"></option>
+		<option value="sonnet"></option>
+		<option value="opus"></option>
+		<option value="gpt-5"></option>
+	</datalist>
 }
