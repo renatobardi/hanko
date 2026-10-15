@@ -231,6 +231,69 @@ func TestMemoryTickFiresConsolidationThatRuns(t *testing.T) {
 	}
 }
 
+// Se o wake `memory` se perde (orçamento recusado, fila) e a rede de segurança do heartbeat acorda a task de
+// sistema com outro gatilho, a run continua sendo de curadoria: gatilho gravado `memory`, sem handoff nem
+// fechamento de sessão, e a política de propostas vale (a remoção vira proposta).
+func TestHeartbeatWakeOfCurationTaskStillRunsAsCuration(t *testing.T) {
+	ctx := context.Background()
+	m := newMemHB(t)
+	m.enable(t)
+	cs, err := m.svc.ConsolidateMemoryNow(ctx, domain.HumanActor, m.co.ID, "site")
+	if err != nil || len(cs) != 1 {
+		t.Fatalf("consolidar: %v %v", cs, err)
+	}
+	// o wake `memory` do disparo "se perdeu"; só o do heartbeat sobra
+	if _, err := m.pool.Exec(ctx, "DELETE FROM river_job WHERE kind = 'wake'"); err != nil {
+		t.Fatal(err)
+	}
+	tx, err := m.pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := m.hb.WakeTx(ctx, tx, service.Wake{CompanyID: m.co.ID, PersonaID: m.cur.ID, TaskID: *cs[0].TaskID, Trigger: domain.TriggerHeartbeat}); err != nil {
+		_ = tx.Rollback(ctx)
+		t.Fatal(err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	m.start(t)
+
+	deadline := time.Now().Add(40 * time.Second)
+	var h service.MemoryConsolidationView
+	for {
+		hist, err := m.svc.ListMemoryConsolidations(ctx, m.co.ID, 5)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(hist) > 0 && hist[0].Status != domain.ConsolidationOpen {
+			h = hist[0]
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("a consolidação não terminou: %+v", hist)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if h.RunID == nil {
+		t.Fatalf("sem run: %+v", h)
+	}
+	var trigger string
+	if err := m.pool.QueryRow(ctx, "SELECT trigger FROM runs WHERE id = $1", *h.RunID).Scan(&trigger); err != nil || trigger != "memory" {
+		t.Fatalf("runs.trigger = %q (%v); esperava memory", trigger, err)
+	}
+	m.mem.mu.Lock()
+	handoffs, finalized := m.mem.handoffs, m.mem.finalized
+	m.mem.mu.Unlock()
+	if handoffs != 0 || finalized != 0 {
+		t.Errorf("curadoria não aceita handoff nem fecha sessão: handoffs=%d finalized=%d", handoffs, finalized)
+	}
+	// o proxy decide "é curadoria" pela task da run: a run é vista como curadoria mesmo que o gatilho gravado fosse outro
+	if rv, err := m.svc.GetRun(ctx, m.co.ID, *h.RunID); err != nil || rv.Trigger != domain.TriggerMemory {
+		t.Fatalf("GetRun: %v %v", rv.Trigger, err)
+	}
+}
+
 // Proposta aprovada com o ai-memory fora do ar fica falha (com o erro e a próxima tentativa), nada se perde;
 // quando o ai-memory volta, o job aplica a mesma chamada aprovada, com o escopo do workspace da proposta.
 func TestApplyMemoryProposalRetriesUntilProviderIsBack(t *testing.T) {
