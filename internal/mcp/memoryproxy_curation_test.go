@@ -163,3 +163,29 @@ func TestMemoryProxyCuradoriaFalhaAoRegistrarNaoEscreve(t *testing.T) {
 		t.Error("nada pode chegar ao ai-memory quando a proposta não foi registrada")
 	}
 }
+
+// A proposta guarda a chamada que o agente fez: workspace/project só são sobrepostos quando a chamada já os traz.
+func TestMemoryProxyCuradoriaNaoInjetaEscopoQueAToolNaoTem(t *testing.T) {
+	m := setupMem(t, "t", nil)
+	m.asCuration()
+	m.post(t, m.tok, toolCallBody(1, "memory_delete_page", `{"path":"wiki/a"}`), nil)
+	if len(m.backend.proposals) != 1 {
+		t.Fatalf("propostas = %d", len(m.backend.proposals))
+	}
+	args := m.backend.proposals[0].Arguments
+	if _, has := args["workspace"]; has {
+		t.Errorf("workspace injetado sem a tool pedir: %v", args)
+	}
+	if _, has := args["project"]; has {
+		t.Errorf("project injetado sem a tool pedir: %v", args)
+	}
+	// só um dos dois: só esse é fixado
+	m.post(t, m.tok, toolCallBody(2, "memory_delete_page", `{"path":"wiki/b","project":"alheio"}`), nil)
+	args = m.backend.proposals[1].Arguments
+	if args["project"] != "default" {
+		t.Errorf("project informado deve ser fixado no escopo do token: %v", args)
+	}
+	if _, has := args["workspace"]; has {
+		t.Errorf("workspace não informado não deve aparecer: %v", args)
+	}
+}

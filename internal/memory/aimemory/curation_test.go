@@ -16,8 +16,8 @@ import (
 
 type pageIn struct {
 	Path      string `json:"path"`
-	Workspace string `json:"workspace"`
-	Project   string `json:"project"`
+	Workspace string `json:"workspace,omitempty"`
+	Project   string `json:"project,omitempty"`
 }
 
 // curationServer é um ai-memory falso com uma tool de remoção e uma de leitura de página.
@@ -132,5 +132,19 @@ func TestReadPageComToolConfigurada(t *testing.T) {
 	}
 	if _, err := p.ReadPage(context.Background(), memory.Scope{Workspace: "acme", Project: "api"}, "wiki/ausente"); err == nil {
 		t.Error("página inexistente deveria dar erro")
+	}
+}
+
+// Uma proposta aprovada cuja tool não traz workspace/project é repetida como foi proposta: o Hanko não acrescenta
+// argumentos que a tool não declara (o escopo vai nos cabeçalhos).
+func TestCallToolNaoAcrescentaEscopoAusente(t *testing.T) {
+	cs := newCurationServer(t)
+	p := New(Options{URL: cs.srv.URL, Token: testToken, Timeout: 3 * time.Second}).(memory.ToolCaller)
+	if _, err := p.CallTool(context.Background(), memory.Scope{Workspace: "acme", Project: "api"}, "memory_delete_page",
+		map[string]any{"path": "wiki/a"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := cs.last(t); got.Workspace != "" || got.Project != "" || got.Path != "wiki/a" {
+		t.Errorf("chamada = %+v; esperava só o path", got)
 	}
 }

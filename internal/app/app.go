@@ -60,6 +60,7 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 		PublicURL:        cfg.PublicURL,
 		RunTimeout:       cfg.RunTimeout,
 		PeriodicInterval: cfg.HeartbeatInterval,
+		WorkspacesRoot:   cfg.WorkspacesRoot,
 		Logger:           logger,
 	})
 	if err != nil {

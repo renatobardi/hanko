@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/renatobardi/hanko/internal/adapter"
 	"github.com/renatobardi/hanko/internal/domain"
@@ -39,6 +40,7 @@ func (m *memJobs) applied() []domain.ID {
 type memEnv struct {
 	*env
 	mj      *memJobs
+	pool    *pgxpool.Pool
 	curator domain.Persona
 	ws      domain.Workspace
 	now     time.Time
@@ -51,7 +53,7 @@ func newMemEnv(t *testing.T, provider string) *memEnv {
 	mj := &memJobs{fakeJobs: &fakeJobs{}}
 	svc := service.New(pool, mj, events.NewBroker())
 	svc.MemoryProvider = provider
-	m := &memEnv{env: &env{svc: svc, jobs: mj.fakeJobs, broker: events.NewBroker()}, mj: mj, now: time.Date(2026, 10, 15, 12, 0, 0, 0, time.UTC)}
+	m := &memEnv{env: &env{svc: svc, jobs: mj.fakeJobs, broker: events.NewBroker()}, mj: mj, pool: pool, now: time.Date(2026, 10, 15, 12, 0, 0, 0, time.UTC)}
 	svc.Now = func() time.Time { return m.now }
 	co, err := svc.CreateCompany(context.Background(), domain.HumanActor, service.CreateCompanyInput{Name: "Acme Corp"})
 	if err != nil {
@@ -329,7 +331,7 @@ func TestMemoriaPropostaViraGateEAprovacaoEnfileiraAplicacao(t *testing.T) {
 	}
 
 	// o job: carrega, falha (ai-memory fora), tenta de novo e aplica
-	item, err := m.svc.LoadMemoryProposalForApply(ctx, m.co.ID, p.ID)
+	item, err := m.svc.BeginMemoryProposalApply(ctx, m.co.ID, p.ID)
 	if err != nil || item.Tool != "memory_delete_page" || item.CompanySlug != m.co.Slug || item.Arguments["path"] != "wiki/a" {
 		t.Fatalf("carregar para aplicar: %+v %v", item, err)
 	}
@@ -341,11 +343,13 @@ func TestMemoriaPropostaViraGateEAprovacaoEnfileiraAplicacao(t *testing.T) {
 	if got.Status != domain.ProposalFailed || got.Attempts != 1 || !strings.Contains(got.LastError, "fora do ar") || got.NextAttemptAt == nil {
 		t.Fatalf("proposta falha: %+v", got)
 	}
-	// nada se perde: a falha continua carregável e o retry manual a recoloca
-	if _, err := m.svc.LoadMemoryProposalForApply(ctx, m.co.ID, p.ID); err != nil {
-		t.Fatalf("falha ainda é aplicável: %v", err)
-	}
+	// nada se perde: a falha segue aplicável, mas só quando a próxima tentativa chega (o job não espera dentro dele)
+	_, err = m.svc.BeginMemoryProposalApply(ctx, m.co.ID, p.ID)
+	wantErr(t, err, service.ErrProposalNotDue)
 	m.now = m.now.Add(wait + time.Second)
+	if item, err := m.svc.BeginMemoryProposalApply(ctx, m.co.ID, p.ID); err != nil || item.PriorAttempt {
+		t.Fatalf("falha ainda é aplicável (falha registrada não é tentativa pendente): %+v %v", item, err)
+	}
 	if due, err := m.svc.DueMemoryProposals(ctx, 10); err != nil || len(due) != 1 || due[0].ID != p.ID {
 		t.Fatalf("a varredura deve achar a devida: %+v %v", due, err)
 	}
@@ -360,7 +364,7 @@ func TestMemoriaPropostaViraGateEAprovacaoEnfileiraAplicacao(t *testing.T) {
 		t.Fatalf("aplicada: %+v", got)
 	}
 	// aplicada não volta para a fila
-	_, err = m.svc.LoadMemoryProposalForApply(ctx, m.co.ID, p.ID)
+	_, err = m.svc.BeginMemoryProposalApply(ctx, m.co.ID, p.ID)
 	wantErr(t, err, domain.ErrConflict)
 	_, err = m.svc.RetryMemoryProposal(ctx, domain.HumanActor, m.co.ID, p.ID)
 	wantErr(t, err, domain.ErrConflict)
@@ -383,7 +387,7 @@ func TestMemoriaPropostaRejeitadaNaoAplica(t *testing.T) {
 	if len(m.mj.applied()) != 0 {
 		t.Fatal("rejeitada não é aplicada")
 	}
-	_, err = m.svc.LoadMemoryProposalForApply(ctx, m.co.ID, p.ID)
+	_, err = m.svc.BeginMemoryProposalApply(ctx, m.co.ID, p.ID)
 	wantErr(t, err, domain.ErrConflict)
 	// decidir de novo não vale
 	_, err = m.svc.DecideMemoryProposal(ctx, domain.HumanActor, m.co.ID, p.ID, service.DecideGateInput{Decision: domain.GateApproved})
@@ -426,7 +430,7 @@ func TestMemoriaPropostaDeOutraEmpresaNaoApareceNemDecide(t *testing.T) {
 	if _, err := m.svc.DecideMemoryProposal(ctx, domain.HumanActor, other.ID, p.ID, service.DecideGateInput{Decision: domain.GateApproved}); err == nil {
 		t.Fatal("decisão cruzada deveria falhar")
 	}
-	if _, err := m.svc.LoadMemoryProposalForApply(ctx, other.ID, p.ID); err == nil {
+	if _, err := m.svc.BeginMemoryProposalApply(ctx, other.ID, p.ID); err == nil {
 		t.Fatal("aplicação cruzada deveria falhar")
 	}
 }

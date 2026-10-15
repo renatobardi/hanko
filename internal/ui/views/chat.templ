@@ -1,6 +1,8 @@
 package views
 
 import (
+	"fmt"
+
 	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/i18n"
 )
@@ -115,6 +117,11 @@ templ ChatThread(vm ChatVM) {
 						</div>
 					</div>
 			}
+		}
+		if !vm.Busy && vm.Waiting > 0 {
+			<div class="run-sep" role="status">
+				<span>{ fmt.Sprintf(i18n.T(ctx, "Mensagens esperando resposta: %d. Envie uma nova mensagem para a persona recolhê-las."), vm.Waiting) }</span>
+			</div>
 		}
 		if vm.Busy {
 			<div class="msg typing" role="status">

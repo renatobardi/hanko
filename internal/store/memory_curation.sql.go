@@ -33,7 +33,7 @@ UPDATE memory_proposals
 SET status = $1, decided_by_type = $2, decided_by_id = $3,
     decision_note = $4, decided_at = $5, next_attempt_at = $6, updated_at = $5
 WHERE company_id = $7 AND id = $8 AND status = 'pending'
-RETURNING id, company_id, workspace_id, workspace_slug, run_id, gate_id, kind, status, tool, arguments, targets, proposed_content, current_content, diff, sha256, attempts, last_error, next_attempt_at, decided_by_type, decided_by_id, decision_note, decided_at, applied_at, created_at, updated_at
+RETURNING id, company_id, workspace_id, workspace_slug, run_id, gate_id, kind, status, tool, arguments, targets, proposed_content, current_content, diff, sha256, attempts, last_error, next_attempt_at, decided_by_type, decided_by_id, decision_note, decided_at, applied_at, created_at, updated_at, attempt_started_at
 `
 
 type DecideMemoryProposalParams struct {
@@ -85,6 +85,7 @@ func (q *Queries) DecideMemoryProposal(ctx context.Context, arg DecideMemoryProp
 		&i.AppliedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AttemptStartedAt,
 	)
 	return i, err
 }
@@ -267,7 +268,7 @@ func (q *Queries) GetMemoryGrantAccess(ctx context.Context, arg GetMemoryGrantAc
 }
 
 const getMemoryProposal = `-- name: GetMemoryProposal :one
-SELECT id, company_id, workspace_id, workspace_slug, run_id, gate_id, kind, status, tool, arguments, targets, proposed_content, current_content, diff, sha256, attempts, last_error, next_attempt_at, decided_by_type, decided_by_id, decision_note, decided_at, applied_at, created_at, updated_at FROM memory_proposals WHERE company_id = $1 AND id = $2
+SELECT id, company_id, workspace_id, workspace_slug, run_id, gate_id, kind, status, tool, arguments, targets, proposed_content, current_content, diff, sha256, attempts, last_error, next_attempt_at, decided_by_type, decided_by_id, decision_note, decided_at, applied_at, created_at, updated_at, attempt_started_at FROM memory_proposals WHERE company_id = $1 AND id = $2
 `
 
 type GetMemoryProposalParams struct {
@@ -304,12 +305,13 @@ func (q *Queries) GetMemoryProposal(ctx context.Context, arg GetMemoryProposalPa
 		&i.AppliedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AttemptStartedAt,
 	)
 	return i, err
 }
 
 const getMemoryProposalByGateForUpdate = `-- name: GetMemoryProposalByGateForUpdate :one
-SELECT id, company_id, workspace_id, workspace_slug, run_id, gate_id, kind, status, tool, arguments, targets, proposed_content, current_content, diff, sha256, attempts, last_error, next_attempt_at, decided_by_type, decided_by_id, decision_note, decided_at, applied_at, created_at, updated_at FROM memory_proposals WHERE company_id = $1 AND gate_id = $2 FOR UPDATE
+SELECT id, company_id, workspace_id, workspace_slug, run_id, gate_id, kind, status, tool, arguments, targets, proposed_content, current_content, diff, sha256, attempts, last_error, next_attempt_at, decided_by_type, decided_by_id, decision_note, decided_at, applied_at, created_at, updated_at, attempt_started_at FROM memory_proposals WHERE company_id = $1 AND gate_id = $2 FOR UPDATE
 `
 
 type GetMemoryProposalByGateForUpdateParams struct {
@@ -346,12 +348,13 @@ func (q *Queries) GetMemoryProposalByGateForUpdate(ctx context.Context, arg GetM
 		&i.AppliedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AttemptStartedAt,
 	)
 	return i, err
 }
 
 const getMemoryProposalByRunSHA = `-- name: GetMemoryProposalByRunSHA :one
-SELECT id, company_id, workspace_id, workspace_slug, run_id, gate_id, kind, status, tool, arguments, targets, proposed_content, current_content, diff, sha256, attempts, last_error, next_attempt_at, decided_by_type, decided_by_id, decision_note, decided_at, applied_at, created_at, updated_at FROM memory_proposals WHERE run_id = $1 AND sha256 = $2
+SELECT id, company_id, workspace_id, workspace_slug, run_id, gate_id, kind, status, tool, arguments, targets, proposed_content, current_content, diff, sha256, attempts, last_error, next_attempt_at, decided_by_type, decided_by_id, decision_note, decided_at, applied_at, created_at, updated_at, attempt_started_at FROM memory_proposals WHERE run_id = $1 AND sha256 = $2
 `
 
 type GetMemoryProposalByRunSHAParams struct {
@@ -388,12 +391,13 @@ func (q *Queries) GetMemoryProposalByRunSHA(ctx context.Context, arg GetMemoryPr
 		&i.AppliedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AttemptStartedAt,
 	)
 	return i, err
 }
 
 const getMemoryProposalForUpdate = `-- name: GetMemoryProposalForUpdate :one
-SELECT id, company_id, workspace_id, workspace_slug, run_id, gate_id, kind, status, tool, arguments, targets, proposed_content, current_content, diff, sha256, attempts, last_error, next_attempt_at, decided_by_type, decided_by_id, decision_note, decided_at, applied_at, created_at, updated_at FROM memory_proposals WHERE company_id = $1 AND id = $2 FOR UPDATE
+SELECT id, company_id, workspace_id, workspace_slug, run_id, gate_id, kind, status, tool, arguments, targets, proposed_content, current_content, diff, sha256, attempts, last_error, next_attempt_at, decided_by_type, decided_by_id, decision_note, decided_at, applied_at, created_at, updated_at, attempt_started_at FROM memory_proposals WHERE company_id = $1 AND id = $2 FOR UPDATE
 `
 
 type GetMemoryProposalForUpdateParams struct {
@@ -430,6 +434,7 @@ func (q *Queries) GetMemoryProposalForUpdate(ctx context.Context, arg GetMemoryP
 		&i.AppliedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AttemptStartedAt,
 	)
 	return i, err
 }
@@ -526,7 +531,7 @@ INSERT INTO memory_proposals (id, company_id, workspace_id, workspace_slug, run_
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9,
         $10, $11, $12, $13, $14, $14)
 ON CONFLICT DO NOTHING
-RETURNING id, company_id, workspace_id, workspace_slug, run_id, gate_id, kind, status, tool, arguments, targets, proposed_content, current_content, diff, sha256, attempts, last_error, next_attempt_at, decided_by_type, decided_by_id, decision_note, decided_at, applied_at, created_at, updated_at
+RETURNING id, company_id, workspace_id, workspace_slug, run_id, gate_id, kind, status, tool, arguments, targets, proposed_content, current_content, diff, sha256, attempts, last_error, next_attempt_at, decided_by_type, decided_by_id, decision_note, decided_at, applied_at, created_at, updated_at, attempt_started_at
 `
 
 type InsertMemoryProposalParams struct {
@@ -591,8 +596,21 @@ func (q *Queries) InsertMemoryProposal(ctx context.Context, arg InsertMemoryProp
 		&i.AppliedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AttemptStartedAt,
 	)
 	return i, err
+}
+
+const isMemoryConsolidationTask = `-- name: IsMemoryConsolidationTask :one
+SELECT EXISTS (SELECT 1 FROM memory_consolidations WHERE task_id = $1)::boolean
+`
+
+// A task é a task de sistema de uma rodada de curadoria (qualquer estado da rodada).
+func (q *Queries) IsMemoryConsolidationTask(ctx context.Context, taskID *uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, isMemoryConsolidationTask, taskID)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const listMemoryConsolidations = `-- name: ListMemoryConsolidations :many
@@ -709,7 +727,7 @@ func (q *Queries) ListMemoryGrants(ctx context.Context, companyID uuid.UUID) ([]
 }
 
 const listMemoryProposals = `-- name: ListMemoryProposals :many
-SELECT id, company_id, workspace_id, workspace_slug, run_id, gate_id, kind, status, tool, arguments, targets, proposed_content, current_content, diff, sha256, attempts, last_error, next_attempt_at, decided_by_type, decided_by_id, decision_note, decided_at, applied_at, created_at, updated_at FROM memory_proposals
+SELECT id, company_id, workspace_id, workspace_slug, run_id, gate_id, kind, status, tool, arguments, targets, proposed_content, current_content, diff, sha256, attempts, last_error, next_attempt_at, decided_by_type, decided_by_id, decision_note, decided_at, applied_at, created_at, updated_at, attempt_started_at FROM memory_proposals
 WHERE company_id = $1
   AND ($2::text[] IS NULL OR status = ANY($2::text[]))
 ORDER BY CASE WHEN status = 'pending' THEN created_at END ASC NULLS LAST, created_at DESC, id DESC
@@ -757,6 +775,7 @@ func (q *Queries) ListMemoryProposals(ctx context.Context, arg ListMemoryProposa
 			&i.AppliedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.AttemptStartedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -839,18 +858,20 @@ func (q *Queries) MarkMemoryFired(ctx context.Context, arg MarkMemoryFiredParams
 
 const markMemoryProposalApplied = `-- name: MarkMemoryProposalApplied :one
 UPDATE memory_proposals
-SET status = 'applied', applied_at = $1, last_error = '', next_attempt_at = NULL, attempts = attempts + 1, updated_at = $1
-WHERE id = $2 AND status IN ('approved','failed')
-RETURNING id, company_id, workspace_id, workspace_slug, run_id, gate_id, kind, status, tool, arguments, targets, proposed_content, current_content, diff, sha256, attempts, last_error, next_attempt_at, decided_by_type, decided_by_id, decision_note, decided_at, applied_at, created_at, updated_at
+SET status = 'applied', applied_at = $1, last_error = '', next_attempt_at = NULL, attempt_started_at = NULL,
+    attempts = attempts + 1, updated_at = $1
+WHERE company_id = $2 AND id = $3 AND status IN ('approved','failed')
+RETURNING id, company_id, workspace_id, workspace_slug, run_id, gate_id, kind, status, tool, arguments, targets, proposed_content, current_content, diff, sha256, attempts, last_error, next_attempt_at, decided_by_type, decided_by_id, decision_note, decided_at, applied_at, created_at, updated_at, attempt_started_at
 `
 
 type MarkMemoryProposalAppliedParams struct {
-	Now *time.Time
-	ID  uuid.UUID
+	Now       *time.Time
+	CompanyID uuid.UUID
+	ID        uuid.UUID
 }
 
 func (q *Queries) MarkMemoryProposalApplied(ctx context.Context, arg MarkMemoryProposalAppliedParams) (MemoryProposal, error) {
-	row := q.db.QueryRow(ctx, markMemoryProposalApplied, arg.Now, arg.ID)
+	row := q.db.QueryRow(ctx, markMemoryProposalApplied, arg.Now, arg.CompanyID, arg.ID)
 	var i MemoryProposal
 	err := row.Scan(
 		&i.ID,
@@ -878,21 +899,24 @@ func (q *Queries) MarkMemoryProposalApplied(ctx context.Context, arg MarkMemoryP
 		&i.AppliedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AttemptStartedAt,
 	)
 	return i, err
 }
 
 const markMemoryProposalFailed = `-- name: MarkMemoryProposalFailed :one
 UPDATE memory_proposals
-SET status = 'failed', attempts = attempts + 1, last_error = $1, next_attempt_at = $2, updated_at = $3
-WHERE id = $4 AND status IN ('approved','failed')
-RETURNING id, company_id, workspace_id, workspace_slug, run_id, gate_id, kind, status, tool, arguments, targets, proposed_content, current_content, diff, sha256, attempts, last_error, next_attempt_at, decided_by_type, decided_by_id, decision_note, decided_at, applied_at, created_at, updated_at
+SET status = 'failed', attempts = attempts + 1, last_error = $1, next_attempt_at = $2,
+    attempt_started_at = NULL, updated_at = $3
+WHERE company_id = $4 AND id = $5 AND status IN ('approved','failed')
+RETURNING id, company_id, workspace_id, workspace_slug, run_id, gate_id, kind, status, tool, arguments, targets, proposed_content, current_content, diff, sha256, attempts, last_error, next_attempt_at, decided_by_type, decided_by_id, decision_note, decided_at, applied_at, created_at, updated_at, attempt_started_at
 `
 
 type MarkMemoryProposalFailedParams struct {
 	LastError     string
 	NextAttemptAt *time.Time
 	Now           time.Time
+	CompanyID     uuid.UUID
 	ID            uuid.UUID
 }
 
@@ -902,6 +926,7 @@ func (q *Queries) MarkMemoryProposalFailed(ctx context.Context, arg MarkMemoryPr
 		arg.LastError,
 		arg.NextAttemptAt,
 		arg.Now,
+		arg.CompanyID,
 		arg.ID,
 	)
 	var i MemoryProposal
@@ -931,6 +956,7 @@ func (q *Queries) MarkMemoryProposalFailed(ctx context.Context, arg MarkMemoryPr
 		&i.AppliedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AttemptStartedAt,
 	)
 	return i, err
 }
@@ -939,7 +965,7 @@ const retryMemoryProposal = `-- name: RetryMemoryProposal :one
 UPDATE memory_proposals
 SET status = 'approved', next_attempt_at = $1, updated_at = $1
 WHERE company_id = $2 AND id = $3 AND status = 'failed'
-RETURNING id, company_id, workspace_id, workspace_slug, run_id, gate_id, kind, status, tool, arguments, targets, proposed_content, current_content, diff, sha256, attempts, last_error, next_attempt_at, decided_by_type, decided_by_id, decision_note, decided_at, applied_at, created_at, updated_at
+RETURNING id, company_id, workspace_id, workspace_slug, run_id, gate_id, kind, status, tool, arguments, targets, proposed_content, current_content, diff, sha256, attempts, last_error, next_attempt_at, decided_by_type, decided_by_id, decision_note, decided_at, applied_at, created_at, updated_at, attempt_started_at
 `
 
 type RetryMemoryProposalParams struct {
@@ -977,6 +1003,7 @@ func (q *Queries) RetryMemoryProposal(ctx context.Context, arg RetryMemoryPropos
 		&i.AppliedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AttemptStartedAt,
 	)
 	return i, err
 }
@@ -992,6 +1019,22 @@ type SetMemoryConsolidationTaskParams struct {
 
 func (q *Queries) SetMemoryConsolidationTask(ctx context.Context, arg SetMemoryConsolidationTaskParams) error {
 	_, err := q.db.Exec(ctx, setMemoryConsolidationTask, arg.TaskID, arg.ID)
+	return err
+}
+
+const setMemoryProposalAttemptStarted = `-- name: SetMemoryProposalAttemptStarted :exec
+UPDATE memory_proposals SET attempt_started_at = $1, updated_at = $1 WHERE company_id = $2 AND id = $3
+`
+
+type SetMemoryProposalAttemptStartedParams struct {
+	Now       *time.Time
+	CompanyID uuid.UUID
+	ID        uuid.UUID
+}
+
+// Marca o início de uma tentativa de aplicação, antes de chamar o provedor de memória.
+func (q *Queries) SetMemoryProposalAttemptStarted(ctx context.Context, arg SetMemoryProposalAttemptStartedParams) error {
+	_, err := q.db.Exec(ctx, setMemoryProposalAttemptStarted, arg.Now, arg.CompanyID, arg.ID)
 	return err
 }
 

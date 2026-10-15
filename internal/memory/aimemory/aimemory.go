@@ -103,6 +103,11 @@ func (b *bearerTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 		r = r.Clone(r.Context())
 		r.Header.Set("Authorization", "Bearer "+b.token)
 	}
+	if sh, ok := r.Context().Value(scopeHeadersKey{}).(scopeHeaders); ok && r.Header.Get("X-Memory-Workspace") == "" {
+		r = r.Clone(r.Context())
+		r.Header.Set("X-Memory-Workspace", sh.workspace)
+		r.Header.Set("X-Memory-Project", sh.project)
+	}
 	return b.next.RoundTrip(r)
 }
 

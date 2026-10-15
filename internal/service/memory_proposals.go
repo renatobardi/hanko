@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -413,35 +414,75 @@ type MemoryApplyItem struct {
 	CompanySlug string
 	Tool        string
 	Arguments   map[string]any
+	// PriorAttempt: uma tentativa anterior chegou a começar e não foi resolvida (nem aplicada nem falha
+	// registrada). A chamada pode ter tido efeito; um alvo que já não existe conta como aplicado.
+	PriorAttempt bool
 }
 
-// LoadMemoryProposalForApply carrega uma proposta aprovada (ou falha, em nova tentativa). Qualquer outro
-// estado é ErrConflict: o job vira no-op.
-func (s *Service) LoadMemoryProposalForApply(ctx context.Context, companyID, id domain.ID) (MemoryApplyItem, error) {
-	q := s.read()
-	r, err := q.GetMemoryProposal(ctx, store.GetMemoryProposalParams{CompanyID: companyID, ID: id})
+// ErrProposalNotDue: a próxima tentativa da proposta ainda não chegou. O job vira no-op; quem a recoloca na
+// fila é a varredura (ou o retry manual), nunca uma espera longa dentro do job.
+var ErrProposalNotDue = errors.New("a próxima tentativa da proposta ainda não chegou")
+
+// BeginMemoryProposalApply carrega uma proposta aprovada (ou falha, em nova tentativa), confere o sha256 da
+// chamada e marca o início da tentativa, tudo antes de o job chamar o provedor. Qualquer outro estado é
+// ErrConflict, tentativa futura é ErrProposalNotDue (o job vira no-op). Uma chamada que não bate com o sha256
+// aprovado nunca sai: a proposta falha de vez, sem chamar o provedor.
+func (s *Service) BeginMemoryProposalApply(ctx context.Context, companyID, id domain.ID) (MemoryApplyItem, error) {
+	var out MemoryApplyItem
+	var refused error
+	err := s.withTx(ctx, func(t *txc) error {
+		r, err := t.q.GetMemoryProposalForUpdate(ctx, store.GetMemoryProposalForUpdateParams{CompanyID: companyID, ID: id})
+		if err != nil {
+			return mapErr(err, "get memory proposal")
+		}
+		st := domain.MemoryProposalStatus(r.Status)
+		if st != domain.ProposalApproved && st != domain.ProposalFailed {
+			return fmt.Errorf("proposal is %s: %w", r.Status, domain.ErrConflict)
+		}
+		if st == domain.ProposalFailed && r.NextAttemptAt == nil {
+			return fmt.Errorf("proposal gave up: %w", domain.ErrConflict) // só o retry manual a recoloca na fila
+		}
+		if r.NextAttemptAt != nil && r.NextAttemptAt.After(t.now.Add(time.Second)) {
+			return ErrProposalNotDue
+		}
+		var args map[string]any
+		if err := json.Unmarshal(r.Arguments, &args); err != nil {
+			return fmt.Errorf("decode proposal arguments: %w", err)
+		}
+		if sum, _, err := proposalSHA256(r.Tool, args); err != nil || sum != r.Sha256 {
+			refused = fmt.Errorf("a chamada guardada não bate com o sha256 aprovado (%s): não aplicada: %w", r.Sha256, domain.ErrConflict)
+			row, ferr := t.q.MarkMemoryProposalFailed(ctx, store.MarkMemoryProposalFailedParams{CompanyID: companyID, ID: id,
+				LastError: clipText(refused.Error(), 1000), NextAttemptAt: nil, Now: t.now})
+			if ferr != nil {
+				return mapErr(ferr, "mark proposal failed")
+			}
+			return t.activity(domain.SystemActor, companyID, "memory.proposal_failed", "gate", derefID(row.GateID, row.ID), map[string]any{
+				"proposal_id": row.ID, "attempts": row.Attempts, "error": row.LastError, "will_retry": false, "sha256_mismatch": true}, "")
+		}
+		co, err := t.q.GetCompanyByID(ctx, companyID)
+		if err != nil {
+			return mapErr(err, "company")
+		}
+		if err := t.q.SetMemoryProposalAttemptStarted(ctx, store.SetMemoryProposalAttemptStartedParams{CompanyID: companyID, ID: id, Now: &t.now}); err != nil {
+			return fmt.Errorf("mark attempt started: %w", err)
+		}
+		out = MemoryApplyItem{Proposal: proposalFromRow(r), CompanySlug: co.Slug, Tool: r.Tool, Arguments: args, PriorAttempt: r.AttemptStartedAt != nil}
+		return nil
+	})
 	if err != nil {
-		return MemoryApplyItem{}, mapErr(err, "get memory proposal")
+		return MemoryApplyItem{}, err
 	}
-	if st := domain.MemoryProposalStatus(r.Status); st != domain.ProposalApproved && st != domain.ProposalFailed {
-		return MemoryApplyItem{}, fmt.Errorf("proposal is %s: %w", r.Status, domain.ErrConflict)
+	if refused != nil {
+		return MemoryApplyItem{}, refused
 	}
-	co, err := q.GetCompanyByID(ctx, companyID)
-	if err != nil {
-		return MemoryApplyItem{}, mapErr(err, "company")
-	}
-	var args map[string]any
-	if err := json.Unmarshal(r.Arguments, &args); err != nil {
-		return MemoryApplyItem{}, fmt.Errorf("decode proposal arguments: %w", err)
-	}
-	return MemoryApplyItem{Proposal: proposalFromRow(r), CompanySlug: co.Slug, Tool: r.Tool, Arguments: args}, nil
+	return out, nil
 }
 
 // MarkMemoryProposalApplied registra a aplicação e deixa um relato na própria memória (página em
 // hanko/curadoria/, aditiva) pelo outbox.
 func (s *Service) MarkMemoryProposalApplied(ctx context.Context, companyID, id domain.ID) error {
 	return s.withTx(ctx, func(t *txc) error {
-		row, err := t.q.MarkMemoryProposalApplied(ctx, store.MarkMemoryProposalAppliedParams{ID: id, Now: &t.now})
+		row, err := t.q.MarkMemoryProposalApplied(ctx, store.MarkMemoryProposalAppliedParams{CompanyID: companyID, ID: id, Now: &t.now})
 		if isNoRows(err) {
 			return nil // já aplicada ou fora do ciclo
 		}
@@ -493,7 +534,7 @@ func (s *Service) MarkMemoryProposalFailed(ctx context.Context, companyID, id do
 			n := t.now.Add(wait)
 			next = &n
 		}
-		row, err := t.q.MarkMemoryProposalFailed(ctx, store.MarkMemoryProposalFailedParams{ID: id, LastError: clipText(errMsg, 1000),
+		row, err := t.q.MarkMemoryProposalFailed(ctx, store.MarkMemoryProposalFailedParams{CompanyID: companyID, ID: id, LastError: clipText(errMsg, 1000),
 			NextAttemptAt: next, Now: t.now})
 		if isNoRows(err) {
 			return nil

@@ -312,31 +312,32 @@ type MemoryOutbox struct {
 }
 
 type MemoryProposal struct {
-	ID              uuid.UUID
-	CompanyID       uuid.UUID
-	WorkspaceID     *uuid.UUID
-	WorkspaceSlug   string
-	RunID           *uuid.UUID
-	GateID          *uuid.UUID
-	Kind            string
-	Status          string
-	Tool            string
-	Arguments       []byte
-	Targets         []string
-	ProposedContent string
-	CurrentContent  string
-	Diff            string
-	Sha256          string
-	Attempts        int32
-	LastError       string
-	NextAttemptAt   *time.Time
-	DecidedByType   *string
-	DecidedByID     *uuid.UUID
-	DecisionNote    string
-	DecidedAt       *time.Time
-	AppliedAt       *time.Time
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	ID               uuid.UUID
+	CompanyID        uuid.UUID
+	WorkspaceID      *uuid.UUID
+	WorkspaceSlug    string
+	RunID            *uuid.UUID
+	GateID           *uuid.UUID
+	Kind             string
+	Status           string
+	Tool             string
+	Arguments        []byte
+	Targets          []string
+	ProposedContent  string
+	CurrentContent   string
+	Diff             string
+	Sha256           string
+	Attempts         int32
+	LastError        string
+	NextAttemptAt    *time.Time
+	DecidedByType    *string
+	DecidedByID      *uuid.UUID
+	DecisionNote     string
+	DecidedAt        *time.Time
+	AppliedAt        *time.Time
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+	AttemptStartedAt *time.Time
 }
 
 type MemorySetting struct {

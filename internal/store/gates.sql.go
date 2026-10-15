@@ -508,14 +508,18 @@ func (q *Queries) ListErrorPersonas(ctx context.Context, companyID uuid.UUID) ([
 }
 
 const listFailedRuns = `-- name: ListFailedRuns :many
-SELECT r.id, r.company_id, r.task_id, r.persona_id, r.status, r.trigger, r.agent, r.model, r.session_ref, r.trace_id, r.exit_code, r.error, r.summary, r.cost_usd, r.input_tokens, r.output_tokens, r.cache_read_tokens, r.cache_creation_tokens, r.handoff_in, r.handoff_out, r.created_at, r.started_at, r.finished_at, r.pending_result, r.cost_source, r.next_event_seq, r.model_source, r.subscription_id, r.list_cost_usd, r.name, r.search_tsv, r.workspace_id, r.workspace_source, r.conversation_id, (c.task_prefix || '-' || t.number)::text AS task_key, t.title AS task_title, p.name AS persona_name
+SELECT r.id, r.company_id, r.task_id, r.persona_id, r.status, r.trigger, r.agent, r.model, r.session_ref, r.trace_id, r.exit_code, r.error, r.summary, r.cost_usd, r.input_tokens, r.output_tokens, r.cache_read_tokens, r.cache_creation_tokens, r.handoff_in, r.handoff_out, r.created_at, r.started_at, r.finished_at, r.pending_result, r.cost_source, r.next_event_seq, r.model_source, r.subscription_id, r.list_cost_usd, r.name, r.search_tsv, r.workspace_id, r.workspace_source, r.conversation_id, COALESCE(c.task_prefix || '-' || t.number, '')::text AS task_key, COALESCE(t.title, '')::text AS task_title,
+       p.name AS persona_name, COALESCE(cv.title, '')::text AS conversation_title
 FROM runs r
-JOIN tasks t ON t.id = r.task_id
+LEFT JOIN tasks t ON t.id = r.task_id
+LEFT JOIN conversations cv ON cv.id = r.conversation_id
 JOIN personas p ON p.id = r.persona_id
 JOIN companies c ON c.id = r.company_id
 WHERE r.company_id = $1 AND r.status IN ('failed', 'expired') AND r.created_at > $2
-  AND t.status NOT IN ('done', 'cancelled')
-  AND NOT EXISTS (SELECT 1 FROM runs n WHERE n.task_id = r.task_id AND n.created_at > r.created_at)
+  AND (t.id IS NULL OR t.status NOT IN ('done', 'cancelled'))
+  AND (r.task_id IS NOT NULL OR r.conversation_id IS NOT NULL)
+  AND NOT EXISTS (SELECT 1 FROM runs n WHERE n.created_at > r.created_at
+                  AND (n.task_id = r.task_id OR n.conversation_id = r.conversation_id))
 ORDER BY r.created_at DESC, r.id DESC
 LIMIT $3
 `
@@ -527,13 +531,15 @@ type ListFailedRunsParams struct {
 }
 
 type ListFailedRunsRow struct {
-	Run         Run
-	TaskKey     string
-	TaskTitle   string
-	PersonaName string
+	Run               Run
+	TaskKey           string
+	TaskTitle         string
+	PersonaName       string
+	ConversationTitle string
 }
 
-// Execuções que falharam e ainda não foram superadas por outra execução da mesma task.
+// Execuções que falharam e ainda não foram superadas por outra execução da mesma task (ou, numa run de chat,
+// da mesma conversa). Uma run de chat não tem task: entra pelo LEFT JOIN, com o título da conversa.
 func (q *Queries) ListFailedRuns(ctx context.Context, arg ListFailedRunsParams) ([]ListFailedRunsRow, error) {
 	rows, err := q.db.Query(ctx, listFailedRuns, arg.CompanyID, arg.Since, arg.Lim)
 	if err != nil {
@@ -581,6 +587,7 @@ func (q *Queries) ListFailedRuns(ctx context.Context, arg ListFailedRunsParams) 
 			&i.TaskKey,
 			&i.TaskTitle,
 			&i.PersonaName,
+			&i.ConversationTitle,
 		); err != nil {
 			return nil, err
 		}

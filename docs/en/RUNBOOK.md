@@ -85,7 +85,7 @@ to start (invalid config), on purpose. With `authenticated` mode, follow §5 and
 - Run tokens are only valid while the run is `queued`/`running`.
 - Memory: the agent talks to `<HANKO_PUBLIC_URL>/memory-mcp` using the run token; Hanko injects `HANKO_MEMORY_TOKEN` and the scope
   (company/workspace) on the server side. The ai-memory token never reaches the agent.
-- Workspaces can only point inside `HANKO_WORKSPACES_ROOT` (default `$HOME/hanko-workspaces`), with an absolute, clean path.
+- Workspaces can only point inside the company folder of the root, `HANKO_WORKSPACES_ROOT/<company-slug>/...` (default root `$HOME/hanko-workspaces`), with an absolute, clean path; the root is shared by companies and the subfolder isolates them. At run time the path is revalidated (symlinks resolved): outside the root, the run uses a temporary directory and leaves a warning.
 - Budget: before opening a run, Hanko sums the month's spend, the reservation of every `queued`/`running` run, and the reservation of the new one;
   if that exceeds the persona's or the company's cap, the run does not open. A run's reservation is the larger of the average cost of the persona's last
   10 runs and `HANKO_RUN_RESERVE_USD` (default `1.00`). A persona paused by budget comes back on its own when the cap is raised
@@ -319,7 +319,7 @@ Record the date and result in `docs/SESSION.md` or in the operations issue.
 | `/mcp` answers 401 from outside | trusted mode only accepts no token on loopback | expected: agents use the run token; humans use the API/UI |
 | `421 host não permitido` (host not allowed) | `Host` header not in the list | add the name to `HANKO_ALLOWED_HOSTS` or adjust `HANKO_PUBLIC_URL` |
 | `HANKO_SECRET tem N bytes` (has N bytes) | short secret | `openssl rand -hex 32` |
-| `path: must be inside the workspaces root` when creating a workspace | path outside `HANKO_WORKSPACES_ROOT` | use a path inside the root or change the root |
+| `path: must be inside the workspaces root` when creating a workspace | path outside `HANKO_WORKSPACES_ROOT/<company-slug>` | use a path inside the root company folder or change the root |
 | The agent cannot see an environment variable | filtered env (allowlist) | `HANKO_AGENT_ENV_ALLOW=NAME` |
 | `HANKO_SECRET exige…` / `HANKO_PUBLIC_URL exige https` at boot | authenticated mode without a 32-byte secret, or with an http URL outside loopback | `openssl rand -hex 32`; use `https://…` (or loopback for a local test) |
 | `/entrar` shows "Criar conta de dono" (Create owner account) | database has no users | `hanko auth create-owner` (§5.1) before exposing it; on a public URL the form only exists with `HANKO_AUTH_WEB_BOOTSTRAP=true` |
@@ -419,7 +419,7 @@ workspace and may have a monthly budget (ADR-0025). Screens `/projetos` and `/wo
 
 - **Run directory:** task workspace > project workspace > persona workspace > temporary directory. The origin is stored in
   `runs.workspace_source` (`task|project|persona|none`).
-- **Path:** absolute, clean and inside `HANKO_WORKSPACES_ROOT`. If the directory is missing on the machine the UI shows "missing directory"
+- **Path:** absolute, clean and inside `HANKO_WORKSPACES_ROOT/<company-slug>` (old workspaces outside the company folder keep working and the UI warns). If the directory is missing on the machine the UI shows "missing directory"
   and runs use a temporary one; create the folder (Hanko does not `git clone`).
 - **Deleting a workspace in use** returns 409; `--unlink` (CLI), `?unlink=true` (API) or the checkbox in the UI unlink personas, projects and tasks.
 - **Project budget:** once exceeded, the run is refused with the reason and the persona is not paused; at 80% an alert is opened in the inbox.

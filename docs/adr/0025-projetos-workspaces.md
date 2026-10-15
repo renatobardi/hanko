@@ -68,3 +68,7 @@ tasks, limitar o gasto de uma iniciativa e dizer, de forma auditável, em que di
 - Importar entre máquinas é seguro por padrão (nunca confia em caminho alheio), ao custo de reconfigurar o `path`.
 - gosec: a validação do caminho usa só `filepath.Clean`/`filepath.Rel` sobre valor já validado; o binário gosec não
   estava disponível no ambiente de desenvolvimento, então a checagem fica a cargo do CI (golangci-lint).
+
+## Adendo — correções da revisão (2026-10-15)
+- **Subpasta por empresa.** `HANKO_WORKSPACES_ROOT` é compartilhada entre as empresas da instalação; para que uma não aponte para o diretório de outra, o caminho de novos workspaces (criação, edição e import) precisa ficar estritamente dentro de `<raiz>/<slug-da-empresa>/...` (mesma comparação com `filepath.Rel` depois de resolver symlinks). Workspaces já salvos fora dessa pasta continuam funcionando; a lista e o detalhe mostram o aviso "fora da pasta da empresa" (`WorkspaceView.outside_root`) e a regra vale quando o caminho for editado. O exemplo `demo-company.json` passou a `/tmp/hanko-demo/demo/app`.
+- **Revalidação no uso.** O executor resolve os symlinks do diretório e confere de novo (dentro da raiz, nunca a própria raiz) logo antes de usá-lo, e usa o caminho já resolvido: um symlink trocado depois de salvar o workspace faz a run cair no diretório temporário e deixar um evento de aviso no log, em vez de trabalhar fora da raiz.

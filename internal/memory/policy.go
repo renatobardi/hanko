@@ -306,3 +306,19 @@ func SortedTargets(ts []string) []string {
 	sort.Strings(out)
 	return out
 }
+
+// IsNotFound diz se o erro do provedor significa que o alvo (página) não existe. Heurística sobre a
+// mensagem, porque o provedor devolve o erro da tool em texto: serve só para tratar a repetição de uma
+// aplicação que talvez já tenha tido efeito.
+func IsNotFound(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	for _, m := range []string{"not found", "does not exist", "no such", "não encontrad", "nao encontrad", "inexistente", "não existe", "nao existe"} {
+		if strings.Contains(msg, m) {
+			return true
+		}
+	}
+	return false
+}

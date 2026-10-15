@@ -372,6 +372,15 @@ func (s *server) handleSetProjectBudget(w http.ResponseWriter, r *http.Request, 
 
 // ---------- workspaces ----------
 
+// workspacesRoot é a pasta da empresa dentro da raiz dos workspaces (<raiz>/<slug>); vazia sem raiz configurada.
+func (s *server) workspacesRoot(co domain.Company) string {
+	root := s.be.WorkspacesRootPath()
+	if root == "" {
+		return ""
+	}
+	return strings.TrimRight(root, "/") + "/" + co.Slug
+}
+
 func (s *server) handleWorkspaces(w http.ResponseWriter, r *http.Request, co domain.Company) {
 	ctx := r.Context()
 	list, err := s.be.ListWorkspaceViews(ctx, co.ID)
@@ -380,7 +389,7 @@ func (s *server) handleWorkspaces(w http.ResponseWriter, r *http.Request, co dom
 		return
 	}
 	base := "/c/" + co.Slug
-	vm := views.WorkspacesVM{NewHref: base + "/workspaces/novo", Root: s.be.WorkspacesRootPath(),
+	vm := views.WorkspacesVM{NewHref: base + "/workspaces/novo", Root: s.workspacesRoot(co),
 		Notice:   i18n.T(ctx, projectNotices[r.URL.Query().Get("ok")]),
 		Subtitle: i18n.T(ctx, "Diretórios e repositórios onde as personas trabalham.")}
 	for _, wv := range list {
@@ -389,7 +398,7 @@ func (s *server) handleWorkspaces(w http.ResponseWriter, r *http.Request, co dom
 		}
 		vm.Rows = append(vm.Rows, views.WorkspaceRow{Name: wv.Name, Href: base + "/workspaces/" + wv.Slug, Path: wv.Path, RepoURL: wv.RepoURL,
 			Branch: wv.DefaultBranch, Personas: wv.PersonaCount, Projects: wv.ProjectCount, OpenTasks: wv.OpenTasks, InUse: wv.InUse(),
-			Missing: wv.Path != "" && !dirExists(wv.Path)})
+			Missing: wv.Path != "" && !dirExists(wv.Path), Outside: wv.OutsideRoot})
 	}
 	sh := s.shell(r, co, "workspaces", i18n.T(ctx, "Workspaces"), views.Crumb{Label: i18n.T(ctx, "Workspaces")})
 	s.render(w, r, http.StatusOK, views.WorkspacesPage(sh, vm))
@@ -443,12 +452,12 @@ func (s *server) renderNewWorkspace(w http.ResponseWriter, r *http.Request, co d
 }
 
 func (s *server) handleNewWorkspace(w http.ResponseWriter, r *http.Request, co domain.Company) {
-	s.renderNewWorkspace(w, r, co, http.StatusOK, s.blankWorkspaceForm(co, s.be.WorkspacesRootPath()))
+	s.renderNewWorkspace(w, r, co, http.StatusOK, s.blankWorkspaceForm(co, s.workspacesRoot(co)))
 }
 
 func (s *server) handleCreateWorkspace(w http.ResponseWriter, r *http.Request, co domain.Company) {
 	ctx := r.Context()
-	vm := s.blankWorkspaceForm(co, s.be.WorkspacesRootPath())
+	vm := s.blankWorkspaceForm(co, s.workspacesRoot(co))
 	workspaceFormValues(r, &vm)
 	ws, err := s.be.CreateWorkspace(ctx, actorFrom(ctx), co.ID, service.CreateWorkspaceInput{Name: vm.Name, Path: vm.Path, RepoURL: vm.RepoURL, DefaultBranch: vm.Branch})
 	if err != nil {
@@ -461,10 +470,10 @@ func (s *server) handleCreateWorkspace(w http.ResponseWriter, r *http.Request, c
 
 func (s *server) buildWorkspaceVM(r *http.Request, co domain.Company, wv service.WorkspaceView) views.WorkspaceVM {
 	base := "/c/" + co.Slug
-	vm := views.WorkspaceVM{Name: wv.Name, Path: wv.Path, Missing: wv.Path != "" && !dirExists(wv.Path),
+	vm := views.WorkspaceVM{Name: wv.Name, Path: wv.Path, Missing: wv.Path != "" && !dirExists(wv.Path), Outside: wv.OutsideRoot, Root: s.workspacesRoot(co),
 		Notice:    i18n.T(r.Context(), projectNotices[r.URL.Query().Get("ok")]),
 		OpenTasks: wv.OpenTasks, InUse: wv.InUse(), DeleteAction: base + "/workspaces/" + wv.Slug + "/excluir",
-		Form: views.WorkspaceFormVM{Action: base + "/workspaces/" + wv.Slug, CancelHref: base + "/workspaces", Edit: true, Root: s.be.WorkspacesRootPath(),
+		Form: views.WorkspaceFormVM{Action: base + "/workspaces/" + wv.Slug, CancelHref: base + "/workspaces", Edit: true, Root: s.workspacesRoot(co),
 			FieldErr: map[string]string{}, Name: wv.Name, Path: wv.Path, RepoURL: wv.RepoURL, Branch: wv.DefaultBranch}}
 	for _, p := range wv.Personas {
 		vm.Personas = append(vm.Personas, views.UsageLink{Name: p.Name, Href: base + "/personas/" + p.Slug})

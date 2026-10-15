@@ -26,8 +26,8 @@ func TestProjectPagesRender(t *testing.T) {
 		{"/c/hanko/projetos/novo", []string{"Novo projeto", `name="name"`, `name="workspace"`, `name="budget"`}},
 		{"/c/hanko/projetos/kubo", []string{"Kubo", "Tasks por status", "Personas envolvidas", "Tasks recentes", "Orçamento do mês", "Arquivar projeto",
 			`href="/c/hanko/tasks?aba=todas&amp;projeto=kubo"`, `href="/c/hanko/custos?projeto=kubo"`, `href="/c/hanko/workspaces/site"`, "Salvar alterações"}},
-		{"/c/hanko/workspaces", []string{"Workspaces", "Site institucional", "/srv/hanko/workspaces/site", "https://github.com/hanko/site", "diretório ausente"}},
-		{"/c/hanko/workspaces/novo", []string{"Novo workspace", `name="path"`, `name="repo_url"`, `name="branch"`, "/srv/hanko/workspaces"}},
+		{"/c/hanko/workspaces", []string{"Workspaces", "Site institucional", "/srv/hanko/workspaces/hanko/site", "https://github.com/hanko/site", "diretório ausente"}},
+		{"/c/hanko/workspaces/novo", []string{"Novo workspace", `name="path"`, `name="repo_url"`, `name="branch"`, "/srv/hanko/workspaces/hanko"}},
 		{"/c/hanko/workspaces/site", []string{"Site institucional", "Em uso por", "Kubo", "Excluir workspace", "Desvincular quem usa e excluir"}},
 	}
 	for _, p := range pages {
@@ -92,6 +92,18 @@ func TestCreateAndArchiveProject(t *testing.T) {
 		wantStatus(t, rec, http.StatusUnprocessableEntity)
 		wantContains(t, rec, "Informe um valor em dólares")
 	})
+	t.Run("a raiz sem a subpasta da empresa é recusada", func(t *testing.T) {
+		rec := e.post(t, "/c/hanko/workspaces/novo", url.Values{"name": {"Solto"}, "path": {"/srv/hanko/workspaces/solto"}}, false)
+		wantStatus(t, rec, http.StatusUnprocessableEntity)
+		wantContains(t, rec, "Caminho inválido", "/srv/hanko/workspaces/hanko")
+	})
+	t.Run("workspace antigo fora da pasta da empresa segue funcionando com aviso", func(t *testing.T) {
+		f.Workspaces[0].Path = "/srv/hanko/workspaces/site" // criado antes da regra da subpasta
+		wantContains(t, e.get(t, "/c/hanko/workspaces"), "fora da pasta da empresa")
+		wantContains(t, e.get(t, "/c/hanko/workspaces/site"), "fora da pasta da empresa", "/srv/hanko/workspaces/hanko")
+		f.Workspaces[0].Path = "/srv/hanko/workspaces/hanko/site"
+		wantNotContains(t, e.get(t, "/c/hanko/workspaces"), "fora da pasta da empresa")
+	})
 	t.Run("editar", func(t *testing.T) {
 		rec := e.post(t, "/c/hanko/projetos/lancamento", url.Values{"name": {"Lançamento v2"}, "description": {""}, "workspace": {""}, "budget": {""}}, false)
 		wantStatus(t, rec, http.StatusSeeOther)
@@ -128,7 +140,7 @@ func TestWorkspaceCRUD(t *testing.T) {
 	f := uitest.Sample()
 	e := newEnv(t, f)
 
-	rec := e.post(t, "/c/hanko/workspaces/novo", url.Values{"name": {"API"}, "path": {"/srv/hanko/workspaces/api"}, "repo_url": {"https://github.com/hanko/api"}, "branch": {"main"}}, false)
+	rec := e.post(t, "/c/hanko/workspaces/novo", url.Values{"name": {"API"}, "path": {"/srv/hanko/workspaces/hanko/api"}, "repo_url": {"https://github.com/hanko/api"}, "branch": {"main"}}, false)
 	wantStatus(t, rec, http.StatusSeeOther)
 	if loc := rec.Header().Get("Location"); loc != "/c/hanko/workspaces/api?ok=w-criado" {
 		t.Fatalf("Location = %q", loc)
@@ -141,7 +153,7 @@ func TestWorkspaceCRUD(t *testing.T) {
 		wantContains(t, rec, "Caminho inválido", `value="/etc"`)
 	})
 	t.Run("editar", func(t *testing.T) {
-		rec := e.post(t, "/c/hanko/workspaces/api", url.Values{"name": {"API v2"}, "path": {"/srv/hanko/workspaces/api"}, "repo_url": {""}, "branch": {"develop"}}, false)
+		rec := e.post(t, "/c/hanko/workspaces/api", url.Values{"name": {"API v2"}, "path": {"/srv/hanko/workspaces/hanko/api"}, "repo_url": {""}, "branch": {"develop"}}, false)
 		wantStatus(t, rec, http.StatusSeeOther)
 		wantContains(t, e.get(t, "/c/hanko/workspaces/api"), "API v2", `value="develop"`)
 	})

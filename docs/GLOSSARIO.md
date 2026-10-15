@@ -16,7 +16,7 @@ Um termo por conceito. Código, API, MCP e banco em inglês; UI em pt-BR. Em dú
 | automatic review | Revisão automática | Parecer de outro modelo (persona revisora ou harness alternativo) registrado no gate `task_review` antes da decisão humana: veredito aprovado/reprovado, justificativa e sha256 do pacote revisado. Não decide nada. | aprovação automática |
 | gate | Gate | Ponto em que um humano decide (aprovar, recusar, pedir mudança). Sempre âmbar na UI. Audit trail em activity. | approval, review |
 | flow | Fluxo | Definição + gatilhos (cron, evento, manual) → cria tasks/runs. | routine, schedule |
-| workspace | Workspace | Diretório (e, como metadado, repositório e branch) onde as runs trabalham; vive dentro de `HANKO_WORKSPACES_ROOT`. Escopo da memória (ai-memory) e dos artefatos. Precedência na run: task > projeto > persona (ADR-0025). | repo |
+| workspace | Workspace | Diretório (e, como metadado, repositório e branch) onde as runs trabalham; vive dentro de `HANKO_WORKSPACES_ROOT/<slug-da-empresa>`. Escopo da memória (ai-memory) e dos artefatos. Precedência na run: task > projeto > persona (ADR-0025). | repo |
 | integration | Integração | Serviço externo conectado (GitHub, Slack…). | connector, app |
 | goal | Meta | Objetivo mensurável: valor inicial, alvo e valor atual; o progresso vai de 0 a 100% e a meta é atingida ao cruzar o alvo. Tasks se ligam a uma meta ativa (ADR-0028). | objetivo, OKR |
 | project | Projeto | Agrupa tasks, aponta para um workspace, está ativo ou arquivado e pode ter orçamento mensal (ADR-0025). | — |

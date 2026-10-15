@@ -357,7 +357,7 @@ func (h *Heartbeat) buildSpec(rc service.RunContext, briefing, handoff string, s
 		return adapter.Spec{}, nil, err
 	}
 
-	dir, cleanup, err := workspaceDir(rc, emit)
+	dir, cleanup, err := workspaceDir(rc, h.opts.WorkspacesRoot, emit)
 	if err != nil {
 		return adapter.Spec{}, nil, err
 	}
@@ -445,13 +445,16 @@ func mergeMCP(maps ...map[string]json.RawMessage) map[string]json.RawMessage {
 }
 
 // workspaceDir returns the workspace path when it exists on disk, otherwise a per-run
-// temp dir (removed by cleanup).
-func workspaceDir(rc service.RunContext, emit func(domain.RunEventKind, string)) (string, func(), error) {
+// temp dir (removed by cleanup). With a workspaces root configured the path is revalidated right before use
+// (symlinks resolved, strictly inside the root): a symlink swapped in after the workspace was saved makes the run
+// fall back to the temp dir with a warning event instead of working outside the root (ADR-0025).
+func workspaceDir(rc service.RunContext, root string, emit func(domain.RunEventKind, string)) (string, func(), error) {
 	if rc.Workspace != nil && rc.Workspace.Path != "" {
-		if st, err := os.Stat(rc.Workspace.Path); err == nil && st.IsDir() {
-			return rc.Workspace.Path, nil, nil
+		dir, ok, why := usableWorkspaceDir(rc.Workspace.Path, root)
+		if ok {
+			return dir, nil, nil
 		}
-		emit(domain.EventSystem, fmt.Sprintf("workspace %q não encontrado no disco; usando diretório temporário", rc.Workspace.Path))
+		emit(domain.EventSystem, why)
 	}
 	d, err := os.MkdirTemp("", "hanko-run-*")
 	if err != nil {
