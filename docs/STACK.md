@@ -4,7 +4,7 @@
 
 > **Estado real do código (2026-10-15).** Este documento é o plano de stack; onde ele diverge do código, vale o código e as ADRs:
 > - CLI real: `serve, migrate, version, openapi, company, workspace, project, persona, task, run, gate, org, cost, budget, flow, auth, subscription` — `onboard`, `test-drive`, `agent`, `export`, `import` não existem.
-> - Adapters em `internal/adapter`: `claude`, `codex`, `fake`. O adapter `http` (webhook) não foi feito.
+> - Adapters em `internal/adapter`: `claude`, `codex`, `acp` (qualquer agente que fale ACP v1 por stdio, ADR-0023) e `fake`. O adapter `http` (webhook) não foi feito.
 > - MCP: servidor `/mcp` (tools `hanko_*`) e proxy `/memory-mcp` para o ai-memory; não há gateway allow/ask/off.
 > - CSS próprio com tokens Kubo (adendo da ADR-0005), sem Tailwind; o JS do Firebase está versionado em `internal/ui/static/`, sem `tools/bundle`.
 > - Não existem ainda: `internal/secrets`, `internal/storage`, `tools/bundle`, embedded-postgres, testcontainers (os testes usam `HANKO_TEST_DATABASE_URL`), `go-i18n`.
@@ -37,7 +37,7 @@ Decisões em `docs/adr/`. Este arquivo é o resumo vigente; ADR vence em conflit
 | Migrations | `goose` v3, SQL puro, `//go:embed` | `hanko migrate` roda no boot (configurável) |
 | Jobs / heartbeat | `river` (fila Postgres-nativa sobre pgx) | wakeup queue, retries, periodic jobs (routines), unique jobs = coalescing |
 | Checkout atômico | `SELECT ... FOR UPDATE SKIP LOCKED` + execution lock por issue | 1 assignee, 1 run ativo |
-| Adapters | interface `Adapter` em `internal/adapters`. v0.1: `cli` (`claude -p --output-format stream-json --verbose`, `codex exec --json`) e `http` (webhook) | `acp` = v0.2 (ADR-0004); plugins out-of-process = v1 |
+| Adapters | interface `Adapter` em `internal/adapters`. v0.1: `cli` (`claude -p --output-format stream-json --verbose`, `codex exec --json`) e `http` (webhook) | `acp` (ACP v1 por stdio, cliente JSON-RPC próprio) existe desde a v0.2 (ADR-0004, ADR-0023); plugins out-of-process = v1 |
 | MCP | `github.com/modelcontextprotocol/go-sdk` | Hanko como MCP **server** (tools de task) e **gateway** (allow/ask/off) |
 | Memória | ai-memory **ligado por padrão** (ADR-0015). Personas: MCP+hooks por run, projeto = workspace, sessão = run_id, `finalize-session`. Hanko: MCP client (`go-sdk`) — escreve fatos (task, gate, run, delegação) via `memory_outbox` + river; lê `memory_briefing` + handoff no despacho; busca na UI. Indisponível = degrada, nunca bloqueia | Governança fica no Postgres |
 | LLM SDKs | `anthropic-sdk-go`, `openai-go` | só evals e metadata de custo; core não chama LLM |
@@ -65,7 +65,7 @@ Decisões em `docs/adr/`. Este arquivo é o resumo vigente; ADR vence em conflit
 | CSS | Tailwind **standalone CLI** (binário, sem Node); tokens em CSS vars; dark mode; **1 CSS** p/ host e ilhas |
 | JS vendorizado | `sortable.js` (kanban). Máx. 3 arquivos vendorizados |
 | Scripts | `tools/bundle` (esbuild via Go) também empacota o Firebase Auth SDK (modular) p/ o provider `firebase` — é script do host, não conta como ilha |
-| Ilhas | React + TS bundladas por **esbuild via Go** (`go run ./tools/bundle`); deps em `ui/islands/package.json` (npm só dev/CI). Previstas: log viewer virtualizado, org chart (react-flow), editor (CodeMirror 6). Teto 3; a 4ª exige ADR |
+| Ilhas | React + TS em `ui/islands/` (versões exatas + lockfile), bundladas por **esbuild (npm, só dev/CI)** para `internal/ui/static/islands/` (commitado, `make islands`; CI confere o diff). Entregues no v0.2: log de run virtualizado, organograma interativo, comentários ancorados (ADR-0026). Teto 3; a 4ª exige ADR |
 | Markdown | `goldmark` server-side |
 | i18n | `go-i18n`: pt-BR (M1), en (M6) |
 | E2E | `chromedp` ou `rod` contra o binário |
@@ -76,7 +76,7 @@ Contrato host/ilha:
 1. Host decide rota, auth, layout, navegação, dados de lista.
 2. Ilha é folha: recebe props via `data-*`/JSON no HTML, emite eventos DOM ou chama a API. Nunca roteia, nunca tem estado global, nunca lista.
 3. Um CSS, mesmos tokens. Sem shadcn global; Radix só dentro da ilha que precisar.
-4. Bundling só por esbuild (Go). Sem Vite, pnpm workspace, React Router, TanStack.
+4. Bundling só por esbuild (npm, ADR-0026). Sem Vite, pnpm workspace, React Router, TanStack.
 5. Teto de 3 ilhas até v0.2. Checkpoint pós-M2: UI >50% das horas → reavaliar.
 
 ## 4. Layout do repositório
@@ -89,7 +89,7 @@ hanko/
     service/     casos de uso; transações; emite activity events
     store/       sqlc gerado + repositórios
     heartbeat/   river workers, scheduler, wakeup, recovery
-    adapters/    cli/, http/   (acp/ em v0.2)
+    adapter/     claude/, codex/, acp/, fake/, procrun/   (http/ não feito)
     mcp/         server + gateway
     auth/ secrets/ storage/ config/ activity/
     ui/          templ pages + components, static/ (embed.go)
@@ -122,7 +122,36 @@ Camadas: handler → service → store. Handler não toca DB. Store não contém
 - Nenhum `panic` fora de `main`. Nenhum `log.Fatal` fora de `cmd/`.
 
 ## 7. Fora de escopo v0.1
-SQLite; WebSocket; GraphQL; ACP; ilhas React; plugins out-of-process; RLS; sandboxes remotos (e2b/Daytona); OIDC; multi-humano; troca de org na UI; desktop; mobile nativo; PWA; Agent Chat; chat connectors (Slack/Discord/Telegram); editor com comentários ancorados; org chart interativo; log viewer virtualizado.
+SQLite; WebSocket; GraphQL; ilhas React; plugins out-of-process; RLS; sandboxes remotos (e2b/Daytona); OIDC; multi-humano; troca de org na UI; desktop; mobile nativo; PWA; Agent Chat; chat connectors (Slack/Discord/Telegram); editor com comentários ancorados; org chart interativo; log viewer virtualizado.
 
 ## 8. Licença (ADR-0003)
 Apache-2.0 + DCO (`git commit -s`). `ee/` reservado p/ features enterprise sob licença comercial. Sem código de terceiros copiado; `THIRD_PARTY_NOTICES` via SBOM do goreleaser.
+
+## 9. Adapter ACP (ADR-0023)
+
+`agent = "acp"` roda **qualquer agente que fale o Agent Client Protocol v1 por stdio**: o Hanko é o cliente, inicia o comando
+da persona (`adapter_config.command`) como processo filho e conversa JSON-RPC 2.0 (`internal/adapter/acp`, só stdlib).
+Ciclo: `initialize` → `session/new` (ou `session/load` para retomar) → `session/prompt` → `stopReason`.
+
+`adapter_config` (validado ao contratar a persona e ao importar um arquivo; chaves desconhecidas são recusadas):
+
+| Chave | Tipo | Significado |
+|---|---|---|
+| `command` | texto, obrigatório | só o executável (resolvido no `PATH` do servidor); argumentos vão em `args` |
+| `args` | lista de textos | argumentos, um por elemento (sem shell) |
+| `env` | objeto nome→valor | variáveis extras do agente; `HANKO_*` é reservado; somada à allowlist do servidor (`HANKO_AGENT_ENV_ALLOW`) |
+| `permission` | `allow` \| `reject` \| `read_only` | política para os pedidos de permissão do agente; padrão `read_only` (aprova leitura/busca, recusa edição/execução); runs de revisão sempre `read_only` |
+| `model` | texto | modelo em melhor esforço, usado só se a persona não tem `model`; o agente precisa anunciar a escolha de modelo, senão há um aviso no log |
+| `init_timeout_sec` | inteiro 0–300 | espera pelo `initialize` (0 = 30 s) |
+
+Exemplo (**ilustrativo**: troque pelo comando do agente instalado no servidor):
+
+```json
+{"agent": "acp", "adapter_config": {"command": "meu-agente-acp", "args": ["--stdio"], "env": {"MEU_AGENTE_HOME": "/dados/agente"}, "permission": "read_only"}}
+```
+
+O prompt vai em dois blocos de texto (instruções da persona + protocolo Hanko, depois o briefing da task). Arquivos: o agente só
+lê e escreve dentro do diretório da run por `fs/read_text_file` e `fs/write_text_file` (escrita só com `permission: allow`). Servidores
+MCP http (o próprio `/mcp` do Hanko) só são repassados se o agente anuncia `mcpCapabilities.http`. Fora do escopo: `terminal/*`,
+autenticação interativa e ACP v2. `acp` não serve de harness alternativo de revisão (`reviewer_agent`), só de persona revisora.
+Instalação do agente e solução de problemas: `docs/RUNBOOK.md`.

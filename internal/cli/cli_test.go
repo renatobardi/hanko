@@ -261,6 +261,18 @@ func TestTaskCreateAssignStatusComment(t *testing.T) {
 	if diff := cmp.Diff(map[string]any{"body": "linha 1\nlinha 2"}, body()); diff != "" {
 		t.Fatal(diff)
 	}
+	// comentário ancorado: --quote na descrição, --quote-run no resumo de uma execução
+	exec(t, Runtime{}, env, "", "task", "comment", "HNK-1", "por quê?", "--quote", "login com OAuth")
+	if diff := cmp.Diff(map[string]any{"body": "por quê?", "anchor": map[string]any{"target": "task_description", "quote": "login com OAuth", "start": float64(0), "end": float64(0)}}, body()); diff != "" {
+		t.Fatal(diff)
+	}
+	exec(t, Runtime{}, env, "", "task", "comment", "HNK-1", "ok", "--quote", "entrega", "--quote-run", "run-9")
+	if diff := cmp.Diff(map[string]any{"body": "ok", "anchor": map[string]any{"target": "run_summary", "run_id": "run-9", "quote": "entrega", "start": float64(0), "end": float64(0)}}, body()); diff != "" {
+		t.Fatal(diff)
+	}
+	if code, _, errOut := exec(t, Runtime{}, env, "", "task", "comment", "HNK-1", "x", "--quote-run", "run-9"); code != 2 || !strings.Contains(errOut, "--quote-run exige --quote") {
+		t.Fatalf("quote-run sem quote: %d %q", code, errOut)
+	}
 
 	code, out, _ = exec(t, Runtime{}, env, "", "task", "wake", "HNK-1")
 	if code != 0 || !strings.Contains(out, "acordada") {

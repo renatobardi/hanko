@@ -20,12 +20,13 @@ func companyFromRow(r store.Company) domain.Company {
 
 func workspaceFromRow(r store.Workspace) domain.Workspace {
 	return domain.Workspace{ID: r.ID, CompanyID: r.CompanyID, Slug: r.Slug, Name: r.Name, Path: r.Path,
-		RepoURL: r.RepoUrl, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt}
+		RepoURL: r.RepoUrl, DefaultBranch: r.DefaultBranch, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt}
 }
 
 func projectFromRow(r store.Project) domain.Project {
 	return domain.Project{ID: r.ID, CompanyID: r.CompanyID, Slug: r.Slug, Name: r.Name,
-		Description: r.Description, WorkspaceID: r.WorkspaceID, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt}
+		Description: r.Description, WorkspaceID: r.WorkspaceID, Status: domain.ProjectStatus(r.Status),
+		BudgetMonthlyCents: r.BudgetMonthlyCents, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt}
 }
 
 func personaFromRow(r store.Persona) domain.Persona {
@@ -69,6 +70,12 @@ func commentFromRow(r store.TaskComment) domain.Comment {
 	if r.EventID != nil {
 		c.EventID = *r.EventID
 	}
+	if len(r.Anchor) > 0 {
+		var a domain.Anchor
+		if json.Unmarshal(r.Anchor, &a) == nil && a.Target.Valid() {
+			c.Anchor = &a
+		}
+	}
 	return c
 }
 
@@ -78,6 +85,7 @@ func runFromRow(r store.Run) domain.Run {
 		SessionRef: r.SessionRef, TraceID: r.TraceID, Error: r.Error, Summary: r.Summary, CostUSD: r.CostUsd,
 		CostSource: domain.CostSource(r.CostSource), ListCostUSD: r.ListCostUsd,
 		ModelSource: domain.ModelSource(r.ModelSource), SubscriptionID: r.SubscriptionID,
+		WorkspaceID: r.WorkspaceID, WorkspaceSource: domain.WorkspaceSource(r.WorkspaceSource),
 		Usage: domain.Usage{InputTokens: r.InputTokens, OutputTokens: r.OutputTokens,
 			CacheReadTokens: r.CacheReadTokens, CacheCreationTokens: r.CacheCreationTokens},
 		HandoffIn: r.HandoffIn, HandoffOut: r.HandoffOut, CreatedAt: r.CreatedAt,

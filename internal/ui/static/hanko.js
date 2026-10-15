@@ -31,6 +31,25 @@
     sel.selectedIndex = 0;
   });
 
+  // "/" focuses the search: on the Buscar screen it focuses the field; elsewhere it opens that screen.
+  document.addEventListener("keydown", function (e) {
+    if (e.key !== "/" || e.ctrlKey || e.metaKey || e.altKey || e.defaultPrevented) return;
+    var t = e.target;
+    if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+    var field = document.getElementById("q-search");
+    if (field) {
+      e.preventDefault();
+      field.focus();
+      field.select();
+      return;
+    }
+    var link = document.querySelector('.sidebar a[href$="/buscar"]');
+    if (link) {
+      e.preventDefault();
+      link.click();
+    }
+  });
+
   // Live log: stick to the bottom unless the reader scrolled up.
   function watchLog() {
     var log = document.getElementById("run-log");
@@ -49,6 +68,33 @@
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", watchLog);
   else watchLog();
+
+  // Islands (ADR-0005/ADR-0026): <div data-island="name" data-…> is enhanced by /static/islands/<name>.js
+  // (React, built from ui/islands). The host's own markup inside the element is the no-JS version and
+  // stays when the bundle fails to load. Same-origin module scripts only; no inline code.
+  var ISLANDS = { "run-log": 1, "org-chart": 1, "anchor-editor": 1 };
+  var islandsV = "";
+  try {
+    islandsV = new URL(document.currentScript.src).searchParams.get("v") || "";
+  } catch (e) {}
+  function loadIslands() {
+    var els = document.querySelectorAll("[data-island]");
+    Array.prototype.forEach.call(els, function (el) {
+      var name = el.getAttribute("data-island");
+      if (!ISLANDS[name] || el.dataset.islandState) return;
+      el.dataset.islandState = "loading";
+      import("/static/islands/" + name + ".js" + (islandsV ? "?v=" + encodeURIComponent(islandsV) : ""))
+        .then(function (m) {
+          m.mount(el);
+          el.dataset.islandState = "ready";
+        })
+        .catch(function () {
+          el.dataset.islandState = "failed";
+        });
+    });
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", loadIslands);
+  else loadIslands();
 
   // PWA: register the service worker (scope "/") only in a secure context (https or localhost).
   // It caches versioned static assets and serves an offline page; it never caches data.

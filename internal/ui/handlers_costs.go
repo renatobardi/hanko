@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -204,6 +205,7 @@ func costTable(ctx context.Context, title string, sum service.CostSummary, href 
 var costNotices = map[string]string{
 	"empresa":         i18n.N("Orçamento da empresa atualizado."),
 	"persona":         i18n.N("Orçamento da persona atualizado."),
+	"projeto":         i18n.N("Orçamento do projeto atualizado."),
 	"assinatura":      i18n.N("Assinatura salva."),
 	"assinatura-nova": i18n.N("Assinatura criada."),
 	"assinatura-saiu": i18n.N("Assinatura removida."),
@@ -216,9 +218,33 @@ func (s *server) handleCosts(w http.ResponseWriter, r *http.Request, co domain.C
 	base := "/c/" + co.Slug
 	from, to, key, label := costPeriod(ctx, r.URL.Query().Get("p"), now, loc)
 
+	projects, err := s.be.ListProjectViews(ctx, co.ID)
+	if err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
+	var filter *service.ProjectView
+	if ref := strings.TrimSpace(r.URL.Query().Get("projeto")); ref != "" {
+		for i := range projects {
+			if projects[i].Slug == ref || projects[i].ID.String() == ref {
+				filter = &projects[i]
+			}
+		}
+		if filter == nil {
+			s.fail(w, r, &co, domain.ErrNotFound)
+			return
+		}
+	}
+	var filterID *domain.ID
+	projQS := ""
+	if filter != nil {
+		filterID = &filter.ID
+		projQS = "projeto=" + url.QueryEscape(filter.Slug)
+	}
+
 	sums := map[string]service.CostSummary{}
 	for _, g := range []string{service.GroupDay, service.GroupPersona, service.GroupProject, service.GroupModel, service.GroupHarness} {
-		sum, err := s.be.CostSummary(ctx, co.ID, service.CostFilter{From: from, To: to, GroupBy: g})
+		sum, err := s.be.CostSummary(ctx, co.ID, service.CostFilter{From: from, To: to, GroupBy: g, ProjectID: filterID})
 		if err != nil {
 			s.fail(w, r, &co, err)
 			return
@@ -269,7 +295,9 @@ func (s *server) handleCosts(w http.ResponseWriter, r *http.Request, co domain.C
 		vm.BudgetNote = i18n.T(ctx, "Orçamento da empresa")
 	}
 	vm.Paid = fmtUSDCtx(ctx, day.PaidUSD)
-	if len(day.Subscriptions) == 0 {
+	if filter != nil {
+		vm.PaidNote = i18n.T(ctx, "Pago: mensalidades não são rateadas por projeto")
+	} else if len(day.Subscriptions) == 0 {
 		vm.PaidNote = i18n.T(ctx, "Pago: sem assinaturas cadastradas")
 	} else {
 		vm.PaidNote = i18n.Tf(ctx, "Pago (mensalidades rateadas) · sem uso %s", fmtUSDCtx(ctx, day.IdleUSD))
@@ -292,7 +320,7 @@ func (s *server) handleCosts(w http.ResponseWriter, r *http.Request, co domain.C
 	}
 	vm.HasSubs = len(subs) > 0
 	vm.SubCreate = base + "/custos/assinaturas"
-	vm.AgentOpts = []views.Option{{Value: "claude", Label: "Claude Code", Selected: true}, {Value: "codex", Label: "Codex"}, {Value: "fake", Label: i18n.T(ctx, "Simulado")}}
+	vm.AgentOpts = []views.Option{{Value: "claude", Label: "Claude Code", Selected: true}, {Value: "codex", Label: "Codex"}, {Value: "acp", Label: "ACP"}, {Value: "fake", Label: i18n.T(ctx, "Simulado")}}
 	for _, sub := range subs {
 		pc := periodCost[sub.ID]
 		row := views.SubRowVM{Name: sub.Name, Agent: sub.Agent, Monthly: fmtUSDCtx(ctx, sub.MonthlyUSD), Models: modelsLabel(ctx, sub.ModelPrefixes),
@@ -316,14 +344,47 @@ func (s *server) handleCosts(w http.ResponseWriter, r *http.Request, co domain.C
 			}
 			return ""
 		}),
-		costTable(ctx, i18n.T(ctx, "Projeto"), sums[service.GroupProject], nil),
+		costTable(ctx, i18n.T(ctx, "Projeto"), sums[service.GroupProject], func(r service.CostRow) string {
+			for _, p := range projects {
+				if p.ID.String() == r.Key || p.Name == r.Key {
+					return base + "/custos?projeto=" + url.QueryEscape(p.Slug)
+				}
+			}
+			return ""
+		}),
 		costTable(ctx, i18n.T(ctx, "Modelo"), sums[service.GroupModel], nil),
 		costTable(ctx, "Harness", sums[service.GroupHarness], nil),
 	}
+	for _, p := range projects {
+		if p.BudgetMonthlyCents == nil || p.Status == domain.ProjectArchived {
+			continue
+		}
+		vm.Projects = append(vm.Projects, budgetBox(ctx, p.Name, p.Budget, base+"/projetos/"+p.Slug+"/orcamento?next=custos", base+"/projetos/"+p.Slug))
+	}
+	tabHref := func(p string) string {
+		var qs []string
+		if p != "" {
+			qs = append(qs, "p="+p)
+		}
+		if projQS != "" {
+			qs = append(qs, projQS)
+		}
+		if len(qs) == 0 {
+			return base + "/custos"
+		}
+		return base + "/custos?" + strings.Join(qs, "&")
+	}
 	vm.Tabs = []views.TabLink{
-		{Key: "mes", Label: i18n.T(ctx, "Este mês"), Href: base + "/custos", On: key == "mes"},
-		{Key: "anterior", Label: i18n.T(ctx, "Mês anterior"), Href: base + "/custos?p=anterior", On: key == "anterior"},
-		{Key: "30d", Label: i18n.T(ctx, "30 dias"), Href: base + "/custos?p=30d", On: key == "30d"},
+		{Key: "mes", Label: i18n.T(ctx, "Este mês"), Href: tabHref(""), On: key == "mes"},
+		{Key: "anterior", Label: i18n.T(ctx, "Mês anterior"), Href: tabHref("anterior"), On: key == "anterior"},
+		{Key: "30d", Label: i18n.T(ctx, "30 dias"), Href: tabHref("30d"), On: key == "30d"},
+	}
+	if filter != nil {
+		vm.FilterProject, vm.FilterHref = filter.Name, base+"/projetos/"+filter.Slug
+		vm.ClearHref = base + "/custos"
+		if key != "mes" {
+			vm.ClearHref += "?p=" + key
+		}
 	}
 	sh := s.shell(r, co, "custos", i18n.T(ctx, "Custos"), views.Crumb{Label: i18n.T(ctx, "Custos")})
 	s.render(w, r, http.StatusOK, views.CostsPage(sh, vm))

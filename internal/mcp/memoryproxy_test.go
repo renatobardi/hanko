@@ -14,11 +14,31 @@ import (
 
 	"github.com/renatobardi/hanko/internal/auth"
 	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/service"
 )
 
 type memFake struct {
 	*fake
 	ws map[domain.ID]domain.Workspace
+	// consolidação governada (ADR-0030)
+	access    map[string]domain.MemoryAccess
+	proposals []service.RecordProposalInput
+	recordErr error
+}
+
+func (m *memFake) MemoryAccessTo(_ context.Context, _, _ domain.ID, slug string) (domain.MemoryAccess, error) {
+	return m.access[slug], nil
+}
+
+func (m *memFake) RecordMemoryProposal(_ context.Context, _ domain.ID, in service.RecordProposalInput) (service.MemoryProposalView, bool, error) {
+	if m.recordErr != nil {
+		return service.MemoryProposalView{}, false, m.recordErr
+	}
+	m.proposals = append(m.proposals, in)
+	v := service.MemoryProposalView{}
+	v.ID = domain.NewID()
+	v.Kind = domain.ProposalDelete
+	return v, true, nil
 }
 
 func (m *memFake) GetWorkspace(_ context.Context, _ domain.ID, ref string) (domain.Workspace, error) {
@@ -43,6 +63,7 @@ type memEnv struct {
 	mu       sync.Mutex
 	calls    []upstreamCall
 	backend  *memFake
+	pages    *fakePages
 }
 
 func (m *memEnv) last(t *testing.T) upstreamCall {
@@ -58,7 +79,7 @@ func (m *memEnv) last(t *testing.T) upstreamCall {
 func setupMem(t *testing.T, memToken string, upstream http.HandlerFunc) *memEnv {
 	t.Helper()
 	e := setup(t, false)
-	m := &memEnv{env: e, backend: &memFake{fake: e.f, ws: map[domain.ID]domain.Workspace{}}}
+	m := &memEnv{env: e, backend: &memFake{fake: e.f, ws: map[domain.ID]domain.Workspace{}}, pages: &fakePages{pages: map[string]string{}}}
 	if upstream == nil {
 		upstream = func(w http.ResponseWriter, r *http.Request) {
 			b, _ := io.ReadAll(r.Body)
@@ -71,7 +92,7 @@ func setupMem(t *testing.T, memToken string, upstream http.HandlerFunc) *memEnv 
 	}
 	m.upstream = httptest.NewServer(upstream)
 	t.Cleanup(m.upstream.Close)
-	h, err := MemoryProxy(MemoryProxyDeps{Backend: m.backend, Tokens: e.tokens, URL: m.upstream.URL + "/", Token: memToken})
+	h, err := MemoryProxy(MemoryProxyDeps{Backend: m.backend, Tokens: e.tokens, URL: m.upstream.URL + "/", Token: memToken, Pages: m.pages})
 	if err != nil {
 		t.Fatal(err)
 	}

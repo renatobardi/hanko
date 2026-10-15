@@ -43,7 +43,7 @@ func (e *env) budgetLine(b api.Budget) string {
 }
 
 func (e *env) costCmd() *cobra.Command {
-	var by, from, to string
+	var by, from, to, project string
 	c := &cobra.Command{
 		Use: "cost", Short: e.t("Mostra os custos do mês (ou de um período) por dimensão"), Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -56,7 +56,7 @@ func (e *env) costCmd() *cobra.Command {
 			default:
 				return usageError{fmt.Errorf(e.t("--by %q inválido: use day, persona, project, model ou harness"), by)}
 			}
-			sum, err := e.client().Costs(cmd.Context(), co, client.CostQuery{From: from, To: to, GroupBy: by})
+			sum, err := e.client().Costs(cmd.Context(), co, client.CostQuery{From: from, To: to, GroupBy: by, Project: project})
 			if err != nil {
 				return err
 			}
@@ -93,6 +93,7 @@ func (e *env) costCmd() *cobra.Command {
 	f.StringVar(&by, "by", "day", e.t("agrupar por: day, persona, project, model ou harness"))
 	f.StringVar(&from, "from", "", e.t("início (AAAA-MM-DD); padrão: início do mês"))
 	f.StringVar(&to, "to", "", e.t("fim inclusivo (AAAA-MM-DD); padrão: fim do mês"))
+	f.StringVar(&project, "project", "", e.t("só as execuções das tasks de um projeto (id ou slug)"))
 	return c
 }
 
@@ -107,10 +108,10 @@ func (e *env) parseUSD(s string) (int64, error) {
 
 func (e *env) budgetCmd() *cobra.Command {
 	c := &cobra.Command{Use: "budget", Short: e.t("Orçamento mensal (hard stop ao atingir 100%)")}
-	var persona string
+	var persona, project string
 	var clear bool
 	set := &cobra.Command{
-		Use: "set " + e.t("[valor-em-dólares]"), Short: e.t("Define o orçamento mensal da empresa (ou de uma persona com --persona)"), Args: cobra.MaximumNArgs(1),
+		Use: "set " + e.t("[valor-em-dólares]"), Short: e.t("Define o orçamento mensal da empresa (ou de uma persona com --persona, de um projeto com --project)"), Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			co, err := e.needCompany()
 			if err != nil {
@@ -126,6 +127,20 @@ func (e *env) budgetCmd() *cobra.Command {
 					return err
 				}
 				cents = &v
+			}
+			if persona != "" && project != "" {
+				return usageError{errors.New(e.t("use --persona ou --project, não os dois"))}
+			}
+			if project != "" {
+				p, err := e.client().UpdateProject(cmd.Context(), co, project, client.UpdateProjectReq{BudgetMonthlyCents: cents, ClearBudget: clear})
+				if err != nil {
+					return err
+				}
+				if e.asJSON {
+					return e.printJSON(p)
+				}
+				fmt.Fprintf(e.out, e.t("Orçamento do projeto %s: %s\n"), p.Name, e.budgetValue(p.BudgetMonthlyCents))
+				return nil
 			}
 			if persona != "" {
 				p, err := e.client().UpdatePersona(cmd.Context(), co, persona, client.UpdatePersonaReq{BudgetMonthlyCents: cents, ClearBudget: clear})
@@ -150,6 +165,7 @@ func (e *env) budgetCmd() *cobra.Command {
 		},
 	}
 	set.Flags().StringVar(&persona, "persona", "", e.t("persona (id ou slug); sem isso vale para a empresa"))
+	set.Flags().StringVar(&project, "project", "", e.t("projeto (id ou slug)"))
 	set.Flags().BoolVar(&clear, "clear", false, e.t("remove o teto"))
 	show := &cobra.Command{
 		Use: "show", Short: e.t("Mostra o orçamento da empresa e das personas"), Args: cobra.NoArgs,
@@ -166,8 +182,12 @@ func (e *env) budgetCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			prs, err := e.client().Projects(cmd.Context(), co)
+			if err != nil {
+				return err
+			}
 			if e.asJSON {
-				return e.printJSON(map[string]any{"company": sum.Budget, "personas": ps})
+				return e.printJSON(map[string]any{"company": sum.Budget, "personas": ps, "projects": prs})
 			}
 			fmt.Fprintf(e.out, e.t("Empresa: %s\n"), e.budgetLine(sum.Budget))
 			spent := map[string]float64{}
@@ -181,6 +201,17 @@ func (e *env) budgetCmd() *cobra.Command {
 			if len(rows) > 0 {
 				fmt.Fprintln(e.out)
 				e.table([]string{e.t("PERSONA"), e.t("TETO"), e.t("GASTO NO MÊS"), e.t("STATUS")}, rows)
+			}
+			prows := [][]string{}
+			for _, p := range prs {
+				if p.BudgetMonthlyCents == nil || p.Stats == nil {
+					continue
+				}
+				prows = append(prows, []string{p.Slug, e.budgetValue(p.BudgetMonthlyCents), e.usd(p.Stats.Budget.SpentUSD), p.Stats.Budget.State})
+			}
+			if len(prows) > 0 {
+				fmt.Fprintln(e.out)
+				e.table([]string{e.t("PROJETO"), e.t("TETO"), e.t("GASTO NO MÊS"), e.t("ESTADO")}, prows)
 			}
 			return nil
 		},

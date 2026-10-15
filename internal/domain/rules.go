@@ -80,11 +80,26 @@ func (s TaskStatus) CanTransition(t TaskStatus) bool {
 	return true
 }
 
-// Agents supported by the adapter layer in v0.1.
-var KnownAgents = []string{"claude", "codex", "fake"}
+// Agents supported by the adapter layer. "acp" runs any agent that speaks the Agent Client
+// Protocol; its command comes from the persona's adapter_config (ADR-0023).
+var KnownAgents = []string{"claude", "codex", "acp", "fake"}
+
+// ReviewerAgents are the harnesses that can be an alternate reviewer of a persona. "acp" is not
+// one of them: an alternate harness carries no adapter_config, and an ACP agent is unusable without
+// its command. An ACP agent can still review through a reviewer persona.
+var ReviewerAgents = []string{"claude", "codex", "fake"}
 
 func ValidAgent(a string) bool {
 	for _, k := range KnownAgents {
+		if a == k {
+			return true
+		}
+	}
+	return false
+}
+
+func ValidReviewerAgent(a string) bool {
+	for _, k := range ReviewerAgents {
 		if a == k {
 			return true
 		}

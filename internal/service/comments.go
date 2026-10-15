@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"unicode/utf8"
@@ -40,13 +41,20 @@ func (s *Service) AddComment(ctx context.Context, actor domain.Actor, companyID,
 					return fmt.Errorf("lookup event: %w", err)
 				}
 			}
+			anchor, anchorJSON, state, err := prepareAnchor(ctx, t.q, companyID, task, in.Anchor)
+			if err != nil {
+				return err
+			}
 			row, err := t.q.CreateComment(ctx, store.CreateCommentParams{ID: domain.NewID(), CompanyID: companyID,
 				TaskID: taskID, AuthorType: string(actor.Type), AuthorID: actor.ID, RunID: in.RunID, Body: body,
-				EventID: eid, Now: t.now})
+				EventID: eid, Anchor: anchorJSON, Now: t.now})
 			if err != nil {
 				return mapErr(err, "add comment")
 			}
 			out = commentFromRow(row)
+			if anchor != nil {
+				out.AnchorState = &state
+			}
 			if err := t.activity(actor, companyID, "comment.added", "task", taskID,
 				map[string]any{"comment_id": row.ID}, ""); err != nil {
 				return err
@@ -88,7 +96,8 @@ func (s *Service) ListComments(ctx context.Context, companyID, taskID domain.ID)
 		return nil, err
 	}
 	q := s.read()
-	if _, err := q.GetTaskByID(ctx, store.GetTaskByIDParams{CompanyID: companyID, ID: taskID}); err != nil {
+	task, err := q.GetTaskByID(ctx, store.GetTaskByIDParams{CompanyID: companyID, ID: taskID})
+	if err != nil {
 		return nil, mapErr(err, "get task")
 	}
 	rows, err := q.ListComments(ctx, store.ListCommentsParams{CompanyID: companyID, TaskID: taskID})
@@ -96,8 +105,80 @@ func (s *Service) ListComments(ctx context.Context, companyID, taskID domain.ID)
 		return nil, fmt.Errorf("list comments: %w", err)
 	}
 	out := make([]domain.Comment, len(rows))
+	docs := map[string]string{} // documents already loaded in this call
 	for i, r := range rows {
 		out[i] = commentFromRow(r)
+		if a := out[i].Anchor; a != nil {
+			doc, err := anchorDoc(ctx, q, companyID, task, *a, docs)
+			st := domain.AnchorState{Status: domain.AnchorLost}
+			if err == nil {
+				st = a.Locate(doc)
+			}
+			out[i].AnchorState = &st
+		}
 	}
 	return out, nil
+}
+
+// anchorDoc loads the current text of the document an anchor points into. A run summary of another task,
+// or a run that no longer exists, is an error (the caller treats it as a lost anchor when listing).
+func anchorDoc(ctx context.Context, q *store.Queries, companyID domain.ID, task store.Task, a domain.Anchor, cache map[string]string) (string, error) {
+	switch a.Target {
+	case domain.AnchorTaskDescription:
+		return task.Description, nil
+	case domain.AnchorRunSummary:
+		if a.RunID == nil {
+			return "", domain.Invalid("anchor.run_id", "required when target is run_summary")
+		}
+		key := a.RunID.String()
+		if d, ok := cache[key]; ok {
+			return d, nil
+		}
+		r, err := q.GetRunByID(ctx, store.GetRunByIDParams{CompanyID: companyID, ID: *a.RunID})
+		if err != nil {
+			if isNoRows(err) {
+				return "", domain.Invalid("anchor.run_id", "run not found")
+			}
+			return "", fmt.Errorf("anchor run: %w", err)
+		}
+		if r.TaskID != task.ID {
+			return "", domain.Invalid("anchor.run_id", "run belongs to another task")
+		}
+		cache[key] = r.Summary
+		return r.Summary, nil
+	}
+	return "", domain.Invalid("anchor.target", "must be task_description or run_summary")
+}
+
+// prepareAnchor validates an anchor against the target document and returns it canonical (offsets and
+// hash set by the server) together with its JSON and state. A nil anchor yields zero values.
+func prepareAnchor(ctx context.Context, q *store.Queries, companyID domain.ID, task store.Task, in *domain.Anchor) (*domain.Anchor, []byte, domain.AnchorState, error) {
+	if in == nil {
+		return nil, nil, domain.AnchorState{}, nil
+	}
+	a := *in
+	if n := utf8.RuneCountInString(a.Quote); n < 1 || n > domain.MaxAnchorQuoteRunes {
+		return nil, nil, domain.AnchorState{}, domain.Invalid("anchor.quote", fmt.Sprintf("must have 1-%d characters", domain.MaxAnchorQuoteRunes))
+	}
+	if a.Start < 0 {
+		a.Start = 0
+	}
+	if a.Target != domain.AnchorRunSummary {
+		a.RunID = nil
+	}
+	doc, err := anchorDoc(ctx, q, companyID, task, a, map[string]string{})
+	if err != nil {
+		return nil, nil, domain.AnchorState{}, err
+	}
+	st := a.Locate(doc)
+	if st.Status == domain.AnchorLost {
+		return nil, nil, domain.AnchorState{}, domain.Invalid("anchor.quote", "text not found in the target document")
+	}
+	a.Start, a.End, a.DocHash = st.Start, st.End, domain.DocHash(doc)
+	st.Status = domain.AnchorExact
+	b, err := json.Marshal(a)
+	if err != nil {
+		return nil, nil, domain.AnchorState{}, fmt.Errorf("marshal anchor: %w", err)
+	}
+	return &a, b, st, nil
 }

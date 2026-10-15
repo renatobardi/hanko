@@ -2,9 +2,11 @@ package ui
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/i18n"
@@ -77,6 +79,7 @@ func (s *server) handleNewPersona(w http.ResponseWriter, r *http.Request, co dom
 }
 
 func (s *server) renderHire(w http.ResponseWriter, r *http.Request, co domain.Company, status int, vm views.HirePersonaVM) {
+	vm.AcpPermission = acpPermissionOptions(r.Context(), vm.AcpPermission)
 	if personas, err := s.be.ListPersonas(r.Context(), co.ID); err == nil {
 		var sel *domain.ID
 		if id, err := domain.ParseID(trimForm(r, "reports_to")); err == nil {
@@ -95,6 +98,8 @@ func (s *server) handleHirePersona(w http.ResponseWriter, r *http.Request, co do
 		Name: trimForm(r, "name"), Title: trimForm(r, "title"), Agent: trimForm(r, "agent"), Model: trimForm(r, "model"),
 		Instructions: r.PostFormValue("instructions"), Heartbeat: trimForm(r, "heartbeat"), FieldErr: map[string]string{},
 		RequireReview: r.PostFormValue("require_review") != "",
+		AcpCommand:    trimForm(r, "acp_command"), AcpArgs: r.PostFormValue("acp_args"),
+		AcpPermission: []views.Option{{Value: trimForm(r, "acp_permission"), Selected: true}},
 	}
 	ctx := r.Context()
 	var reportsTo *domain.ID
@@ -120,11 +125,33 @@ func (s *server) handleHirePersona(w http.ResponseWriter, r *http.Request, co do
 		bad("name", i18n.T(ctx, "Dê um nome à persona."))
 		return
 	}
-	switch vm.Agent {
-	case "claude", "codex", "fake":
-	default:
-		bad("agent", i18n.T(ctx, "Harness desconhecido: use claude, codex ou fake."))
+	if !domain.ValidAgent(vm.Agent) {
+		bad("agent", i18n.T(ctx, "Harness desconhecido: use claude, codex, acp ou fake."))
 		return
+	}
+	var adapterCfg json.RawMessage
+	if vm.Agent == "acp" {
+		switch {
+		case vm.AcpCommand == "":
+			bad("acp_command", i18n.T(ctx, "Informe o comando do harness ACP."))
+			return
+		case strings.ContainsAny(vm.AcpCommand, " \t") && !strings.HasPrefix(vm.AcpCommand, "/"):
+			bad("acp_command", i18n.T(ctx, "O comando deve ser só o executável; ponha os argumentos no campo de argumentos."))
+			return
+		}
+		cfg := map[string]any{"command": vm.AcpCommand}
+		if p := selectedValue(vm.AcpPermission); p != "" {
+			cfg["permission"] = p
+		}
+		if args := splitLines(vm.AcpArgs); len(args) > 0 {
+			cfg["args"] = args
+		}
+		b, err := json.Marshal(cfg)
+		if err != nil {
+			bad("acp_command", i18n.T(ctx, "Informe o comando do harness ACP."))
+			return
+		}
+		adapterCfg = b
 	}
 	minutes := 15
 	if vm.Heartbeat != "" {
@@ -137,7 +164,7 @@ func (s *server) handleHirePersona(w http.ResponseWriter, r *http.Request, co do
 	}
 	p, err := s.be.HirePersona(r.Context(), actorFrom(r.Context()), co.ID, service.HirePersonaInput{
 		Name: vm.Name, Slug: domain.Slugify(vm.Name), Title: vm.Title, Instructions: vm.Instructions,
-		Agent: vm.Agent, Model: vm.Model, HeartbeatIntervalSec: minutes * 60, ReportsTo: reportsTo, RequireReview: vm.RequireReview,
+		Agent: vm.Agent, Model: vm.Model, AdapterConfig: adapterCfg, HeartbeatIntervalSec: minutes * 60, ReportsTo: reportsTo, RequireReview: vm.RequireReview,
 	})
 	if err != nil {
 		_, title, msg := friendly(ctx, err)
@@ -416,7 +443,7 @@ func reviewerAgentOptions(ctx context.Context, sel any) []views.Option {
 		}
 	}
 	out := []views.Option{{Value: "", Label: i18n.T(ctx, "Escolha um harness"), Selected: selAgent == ""}}
-	for _, a := range domain.KnownAgents {
+	for _, a := range domain.ReviewerAgents {
 		out = append(out, views.Option{Value: a, Label: a, Selected: a == selAgent})
 	}
 	return out
@@ -468,7 +495,10 @@ func (s *server) handlePersonaReviewer(w http.ResponseWriter, r *http.Request, c
 		case agent == "":
 			bad(http.StatusUnprocessableEntity, i18n.T(ctx, "Escolha o harness do revisor."))
 			return
-		case !domain.ValidAgent(agent):
+		case agent == "acp":
+			bad(http.StatusUnprocessableEntity, i18n.T(ctx, "O ACP não pode ser o harness alternativo do revisor; use uma persona revisora que rode em ACP."))
+			return
+		case !domain.ValidReviewerAgent(agent):
 			bad(http.StatusUnprocessableEntity, i18n.T(ctx, "Harness desconhecido: use claude, codex ou fake."))
 			return
 		}
@@ -487,4 +517,38 @@ func (s *server) handlePersonaReviewer(w http.ResponseWriter, r *http.Request, c
 		return
 	}
 	redirect(w, r, "/c/"+co.Slug+"/personas/"+p.Slug+"?ok=revisor")
+}
+
+// acpPermissionOptions lists the permission policies of the ACP harness; sel is the option
+// chosen so far (the default policy, read_only, when none).
+func acpPermissionOptions(ctx context.Context, sel []views.Option) []views.Option {
+	cur := selectedValue(sel)
+	if cur == "" {
+		cur = "read_only"
+	}
+	return []views.Option{
+		{Value: "read_only", Label: i18n.T(ctx, "Somente leitura (padrão)"), Selected: cur == "read_only"},
+		{Value: "allow", Label: i18n.T(ctx, "Permitir tudo"), Selected: cur == "allow"},
+		{Value: "reject", Label: i18n.T(ctx, "Recusar tudo"), Selected: cur == "reject"},
+	}
+}
+
+func selectedValue(opts []views.Option) string {
+	for _, o := range opts {
+		if o.Selected {
+			return o.Value
+		}
+	}
+	return ""
+}
+
+// splitLines returns the non-empty trimmed lines of s.
+func splitLines(s string) []string {
+	var out []string
+	for _, l := range strings.Split(strings.ReplaceAll(s, "\r\n", "\n"), "\n") {
+		if l = strings.TrimSpace(l); l != "" {
+			out = append(out, l)
+		}
+	}
+	return out
 }

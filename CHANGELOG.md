@@ -10,6 +10,16 @@ English summary at the end of each release.
 - Segredos de integração cifrados em repouso (AES-256-GCM, `HANKO_SECRET_KEY`, rotação com `HANKO_SECRET_KEY_PREVIOUS` e `hanko integration rekey`), nunca devolvidos pela API, UI, CLI, export, eventos ou logs; o segredo de webhook gerado pelo servidor aparece uma única vez.
 - Export/import: `integrations` (sem segredos; importadas desligadas), `skills` e `personas[].skills` são campos opcionais do `hanko.company.v1`.
 - Migration 00020 (`skills`, `persona_skills`, `integrations`, `integration_personas`, `webhook_deliveries`).
+- Ilhas React (ADR-0026): infraestrutura de build em `ui/islands/` (esbuild, versões fixas, `make islands`, bundle commitado e conferido no CI, orçamento de tamanho por ilha).
+- Log da run virtualizado (10 mil+ eventos fluidos): carga pelo fim com histórico por cursor (`GET …/events?tail=true` e `before=<seq>`), SSE para o resto sem perder nem duplicar, pausa ao rolar para cima, filtro por tipo, busca e payload de tool call expansível.
+- Organograma interativo: arrastar uma persona sobre outra muda `reports_to` (ciclos recusados), zoom/pan, colapsar ramos e indicador de run ativa; viewer e member não arrastam.
+- Comentários ancorados a um trecho da descrição da task ou do resumo de uma run (migration 00017, `anchor` na API, `hanko task comment --quote`, MCP `quote`): a âncora é re-localizada pelo texto e vira "âncora perdida" quando o trecho some.
+- Adapter `acp` (ADR-0023): `agent = "acp"` roda qualquer agente que fale o Agent Client Protocol v1 por stdio, com o comando em `adapter_config` (validado ao contratar/importar), política de permissão `allow`/`reject`/`read_only`, `fs/*` confinado ao workspace, cancelamento por `session/cancel`; migration 00014; contratação pela UI, CLI (`--config-json`) e API. / `acp` adapter: runs any ACP v1 agent over stdio.
+
+- Busca única da empresa (ADR-0024): tela Buscar (`/` foca o campo), `GET /api/v1/companies/{c}/search`, `hanko search` e a tool MCP `hanko_search`, com full-text do Postgres sem extensão (acento e caixa dobrados, prefixo na última palavra, `"frase"`, `-excluir`, `OR`, chave `HNK-n` direta), ranking por relevância e recência, trecho com marcas sem HTML, e a memória da empresa quando há provider (migration `00015`).
+
+- Consolidação de memória governada (ADR-0030): persona curadora periódica como run de sistema (gatilho `memory`, custo no ledger, desligada por padrão), propostas que removem/fundem/reescrevem com gate `memory` no Inbox e aplicação por job com retry, permissões de memória por workspace no proxy `/memory-mcp`.
+- Seção "Memória" nas Configurações da empresa; API `/companies/{c}/memory`; CLI `hanko memory status|config|consolidate|history|proposals|approve|reject|retry|grants|grant|revoke`; variável `HANKO_MEMORY_READ_TOOL`.
 
 ## [Não lançado] — v0.1.0
 
@@ -57,6 +67,7 @@ Primeira versão pública. Em produção em https://hanko.oute.pro desde 2026-10
   convites por link de uso único, `hanko member …`, `hanko auth user …` para o dono da instalação (ADR-0021).
 - Troca de empresa na sidebar; formulário do revisor na persona; página "nenhuma empresa".
 - `hanko export` / `hanko import` de uma empresa em JSON `hanko.company.v1`, sem ids nem segredos (ADR-0022); a empresa importada entra pausada (`--active` liga), o export de logs sai em fluxo e o arquivo não é anônimo.
+- Projetos e workspaces de primeira classe: CRUD em UI, API, CLI e MCP; caminho validado dentro de `HANKO_WORKSPACES_ROOT`; orçamento mensal por projeto no guard do ADR-0020 (recusa a run, alerta a 80%); filtro por projeto em tasks e custos; pasta da run por task > projeto > persona com a origem gravada; export/import com os campos novos (ADR-0025).
 - UI e CLI bilíngues pt-BR/en (UI: cookie `hanko_lang` > `Accept-Language`; CLI: `HANKO_LANG` > locale).
 - Deploy: backup consistente antes de subir versão nova; restore com rollback do banco anterior.
 - Documentação em inglês (`README.md`, `CONTRIBUTING.md`, `docs/en/`).

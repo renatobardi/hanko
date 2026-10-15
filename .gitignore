@@ -6,5 +6,4 @@
 bin/
 coverage.out
 dist/
-internal/ui/static/js/islands/
 ui/islands/node_modules/

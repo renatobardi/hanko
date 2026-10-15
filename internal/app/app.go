@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel"
 
 	"github.com/renatobardi/hanko/internal/adapter"
+	"github.com/renatobardi/hanko/internal/adapter/acp"
 	"github.com/renatobardi/hanko/internal/adapter/claude"
 	"github.com/renatobardi/hanko/internal/adapter/codex"
 	"github.com/renatobardi/hanko/internal/adapter/fake"
@@ -68,6 +69,7 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 	svc.Log = logger
 	svc.WorkspacesRoot = cfg.WorkspacesRoot
 	svc.RunReserveUSD = cfg.RunReserveUSD
+	svc.MemoryProvider = cfg.Memory.Provider
 	svc.Alerts = service.AlertConfig{SilentFactor: cfg.AlertSilentFactor, RunStuckAfter: cfg.AlertRunStuckAfter}
 	box, err := secretbox.New(cfg.SecretKey, cfg.SecretKeyPrevious)
 	if err != nil {
@@ -97,13 +99,15 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 	reg := adapter.Registry{
 		"claude": claude.New(claude.Options{Bin: cfg.ClaudeBin, Logger: logger, EnvAllow: cfg.AgentEnvAllow}),
 		"codex":  codex.New(codex.Options{Bin: cfg.CodexBin, Logger: logger, EnvAllow: cfg.AgentEnvAllow}),
+		"acp":    acp.New(acp.Options{Logger: logger, Version: version, EnvAllow: cfg.AgentEnvAllow}),
 		"fake":   fake.New(fake.Options{}),
 	}
 	tokens := auth.RunTokens{Secret: []byte(cfg.Secret), TTL: cfg.RunTimeout + 5*time.Minute}
 	hb.Attach(svc, reg, mem, broker, tokens)
+	svc.Memory = mem
 
 	handler, err := buildHandler(handlerDeps{Cfg: cfg, Version: version, Logger: logger, Svc: svc, Broker: broker,
-		Pool: pool, Tokens: tokens, Metrics: tel.MetricsHandler()})
+		Pool: pool, Tokens: tokens, Metrics: tel.MetricsHandler(), Memory: mem})
 	if err != nil {
 		return err
 	}
@@ -178,7 +182,7 @@ func newMemory(ctx context.Context, cfg config.Config, logger *slog.Logger) memo
 		logger.Info("memória desligada (HANKO_MEMORY_PROVIDER=none)")
 		return memory.Noop{}
 	}
-	p := aimemory.New(aimemory.Options{URL: cfg.Memory.URL, Token: cfg.Memory.Token, PublicURL: cfg.PublicURL, Logger: logger})
+	p := aimemory.New(aimemory.Options{URL: cfg.Memory.URL, Token: cfg.Memory.Token, PublicURL: cfg.PublicURL, ReadPageTool: cfg.Memory.ReadTool, Logger: logger})
 	go func() {
 		pctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 		defer cancel()

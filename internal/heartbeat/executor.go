@@ -152,12 +152,18 @@ func (h *Heartbeat) executeRunJob(ctx context.Context, a ExecuteRunArgs, ji jobI
 	}
 
 	scope := scopeFor(rc.Company.Slug, rc.Workspace)
+	curating := rc.Run.Trigger == domain.TriggerMemory
 
-	// Memory is best effort: failures become warnings in the run log.
+	// Memory is best effort: failures become warnings in the run log. A curation run only reads the briefing:
+	// it never takes the pending handoff (it belongs to the next working session) nor closes a session.
 	var warnings []string
-	handoff, herr := h.callMemory(execCtx, func(c context.Context) (string, error) { return h.mem.AcceptHandoff(c, scope) })
-	if herr != nil {
-		warnings = append(warnings, "memória indisponível: "+herr.Error())
+	var handoff string
+	var herr error
+	if !curating {
+		handoff, herr = h.callMemory(execCtx, func(c context.Context) (string, error) { return h.mem.AcceptHandoff(c, scope) })
+		if herr != nil {
+			warnings = append(warnings, "memória indisponível: "+herr.Error())
+		}
 	}
 	briefing, berr := h.callMemory(execCtx, func(c context.Context) (string, error) { return h.mem.Briefing(c, scope) })
 	if berr != nil && herr == nil {
@@ -233,7 +239,9 @@ func (h *Heartbeat) executeRunJob(ctx context.Context, a ExecuteRunArgs, ji jobI
 	}
 	log.Info("run finalizada", "status", status, "exit_code", res.ExitCode)
 
-	h.finalizeMemorySession(fctx, scope, agent, res.SessionRef, log)
+	if !curating {
+		h.finalizeMemorySession(fctx, scope, agent, res.SessionRef, log)
+	}
 	return nil
 }
 
@@ -246,8 +254,10 @@ func (h *Heartbeat) finishPending(ctx context.Context, a ExecuteRunArgs, rc serv
 	log.Info("run finalizada (resultado pendente)", "status", in.Status, "exit_code", in.Result.ExitCode)
 	fctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), finishTimeout)
 	defer cancel()
-	pagent, _ := effectiveHarness(rc)
-	h.finalizeMemorySession(fctx, scopeFor(rc.Company.Slug, rc.Workspace), pagent, in.Result.SessionRef, log)
+	if rc.Run.Trigger != domain.TriggerMemory {
+		pagent, _ := effectiveHarness(rc)
+		h.finalizeMemorySession(fctx, scopeFor(rc.Company.Slug, rc.Workspace), pagent, in.Result.SessionRef, log)
+	}
 	return nil
 }
 
@@ -343,6 +353,9 @@ func (h *Heartbeat) buildSpec(rc service.RunContext, briefing, handoff string, s
 			cfg = nil // the author's adapter_config targets the author's harness, not this one
 		}
 	}
+	if rc.Run.Trigger == domain.TriggerMemory {
+		system, prompt = BuildMemoryPrompt(rc, briefing)
+	}
 	agent, model := effectiveHarness(rc)
 	// Skills (ADR-0029): o claude as carrega nativamente de um diretório temporário da run; os demais
 	// harnesses recebem o índice no system prompt e buscam o corpo pela tool MCP hanko_skill_get.
@@ -371,9 +384,10 @@ type runExtrasBackend interface {
 }
 
 // runExtras busca as skills habilitadas e os servidores MCP da empresa para a run. É melhor esforço:
-// uma falha vira aviso no log da run e a execução segue sem os extras. Revisões não os recebem.
+// uma falha vira aviso no log da run e a execução segue sem os extras. Revisões e a curadoria de memória
+// (gatilho memory) não os recebem: são runs de sistema, restritas ao que o protocolo delas define (ADR-0029).
 func (h *Heartbeat) runExtras(ctx context.Context, rc service.RunContext, emit func(domain.RunEventKind, string)) service.RunExtras {
-	if rc.Review != nil && rc.Run.Trigger == domain.TriggerReview {
+	if rc.Review != nil && rc.Run.Trigger == domain.TriggerReview || rc.Run.Trigger == domain.TriggerMemory {
 		return service.RunExtras{}
 	}
 	eb, ok := h.svc.(runExtrasBackend)

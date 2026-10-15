@@ -174,7 +174,7 @@ func TestPagesRender(t *testing.T) {
 		{"/c/hanko/decisoes", []string{"Decisões", "Publicar o digest semanal", "Aprovado"}},
 		{"/c/hanko/gates", []string{"Gates", "Pendentes", "Contratar Yuki (Dados)"}},
 		{"/c/hanko/organograma", []string{"Organograma", `class="org-svg"`, "Ada", "Kenji"}},
-		{"/c/hanko/em-breve/projetos", []string{"Projetos", "M3"}},
+		{"/c/hanko/em-breve/metas", []string{"Metas", "v0.2"}},
 		{"/c/hanko/custos", []string{"Custos e orçamentos", "Gasto por dia", "Orçamento da empresa", "Orçamento por persona", "<svg"}},
 		{"/c/hanko/fluxos", []string{"Fluxos", "Digest semanal de fontes", "Rodar agora", "Toda sexta às 07:00"}},
 		{"/c/hanko/fluxos/novo", []string{"Novo fluxo", `name="cron"`, "Modelos de agenda"}},
@@ -362,10 +362,21 @@ func TestTaskDetailXSS(t *testing.T) {
 	e := newEnv(t, f)
 	rec := e.get(t, "/c/hanko/tasks/HNK-221")
 	wantStatus(t, rec, http.StatusOK)
-	wantNotContains(t, rec, "<script>alert", "<iframe", "javascript:", "<img src=x", "onerror=alert(1)>")
+	// A ilha do editor ancorado recebe o texto bruto da descrição em data-doc (escapado no atributo, inerte);
+	// o resto da página não pode ter nada executável.
+	body := rec.Body.String()
+	docAttr := regexp.MustCompile(`data-doc="[^"]*"`)
+	attrs := docAttr.FindAllString(body, -1)
+	if len(attrs) != 1 || strings.Contains(attrs[0], "<") || !strings.Contains(attrs[0], "&lt;script&gt;") {
+		t.Errorf("data-doc deve existir uma vez e vir escapado: %q", attrs)
+	}
+	for _, bad := range []string{"<script>alert", "<iframe", "javascript:", "<img src=x", "onerror=alert(1)>"} {
+		if strings.Contains(docAttr.ReplaceAllString(body, ""), bad) {
+			t.Errorf("body must not contain %q", bad)
+		}
+	}
 	wantContains(t, rec, "&lt;script", "<strong>ok</strong>")
 	// o único <script> permitido é o dos arquivos estáticos
-	body := rec.Body.String()
 	for _, part := range strings.Split(body, "<script")[1:] {
 		if !strings.HasPrefix(part, ` src="/static/`) {
 			t.Errorf("<script inesperado: %.80s", part)

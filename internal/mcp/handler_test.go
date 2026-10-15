@@ -26,6 +26,7 @@ type fake struct {
 	mu       sync.Mutex
 	company  domain.Company
 	personas []domain.Persona
+	projects []service.ProjectView
 	tasks    []service.TaskView
 	comments []domain.Comment
 	runs     map[domain.ID]service.RunView
@@ -39,6 +40,7 @@ type fake struct {
 	createdByEvt map[string]service.TaskView
 	gates        []service.GateView
 	lastGate     service.RequestGateInput
+	search       searchRec // hanko_search (search_test.go)
 }
 
 func newFake() *fake {
@@ -66,6 +68,17 @@ func (f *fake) GetCompany(_ context.Context, ref string) (domain.Company, error)
 		return f.company, nil
 	}
 	return domain.Company{}, domain.ErrNotFound
+}
+func (f *fake) ListProjectViews(context.Context, domain.ID) ([]service.ProjectView, error) {
+	return f.projects, nil
+}
+func (f *fake) GetProject(_ context.Context, _ domain.ID, ref string) (domain.Project, error) {
+	for _, p := range f.projects {
+		if p.Slug == ref || p.ID.String() == ref {
+			return p.Project, nil
+		}
+	}
+	return domain.Project{}, domain.ErrNotFound
 }
 func (f *fake) ListPersonas(context.Context, domain.ID) ([]domain.Persona, error) {
 	return f.personas, nil
@@ -295,7 +308,7 @@ func TestListTools(t *testing.T) {
 		}
 	}
 	sort.Strings(got)
-	want := []string{"hanko_gate_request", "hanko_gate_status", "hanko_persona_list", "hanko_run_get", "hanko_skill_get", "hanko_skill_list", "hanko_task_comment", "hanko_task_create", "hanko_task_get", "hanko_task_list", "hanko_task_update", "hanko_whoami"}
+	want := []string{"hanko_gate_request", "hanko_gate_status", "hanko_persona_list", "hanko_project_list", "hanko_run_get", "hanko_search", "hanko_skill_get", "hanko_skill_list", "hanko_task_comment", "hanko_task_create", "hanko_task_get", "hanko_task_list", "hanko_task_update", "hanko_whoami"}
 	if d := cmp.Diff(want, got); d != "" {
 		t.Errorf("tools (-want +got):\n%s", d)
 	}
@@ -563,6 +576,24 @@ func TestTaskComment(t *testing.T) {
 	c := e.f.lastComment
 	if c.Body != "feito" || c.EventID != "c-1" || c.RunID == nil || *c.RunID != e.runID {
 		t.Errorf("comment = %+v", c)
+	}
+	// comentário ancorado: quote na descrição; quote + quote_run no resumo de uma execução
+	if r := call(t, cs, "hanko_task_comment", map[string]any{"key": "HNK-1", "body": "por quê?", "quote": "login"}); r.IsError {
+		t.Fatal(text(r))
+	}
+	if a := e.f.lastComment.Anchor; a == nil || a.Target != domain.AnchorTaskDescription || a.Quote != "login" || a.RunID != nil {
+		t.Errorf("anchor = %+v", a)
+	}
+	if r := call(t, cs, "hanko_task_comment", map[string]any{"key": "HNK-1", "body": "ok", "quote": "entrega", "quote_run": e.runID.String()}); r.IsError {
+		t.Fatal(text(r))
+	}
+	if a := e.f.lastComment.Anchor; a == nil || a.Target != domain.AnchorRunSummary || a.RunID == nil || *a.RunID != e.runID {
+		t.Errorf("anchor de run = %+v", a)
+	}
+	for _, bad := range []map[string]any{{"key": "HNK-1", "body": "x", "quote_run": e.runID.String()}, {"key": "HNK-1", "body": "x", "quote": "a", "quote_run": "nao-uuid"}} {
+		if r := call(t, cs, "hanko_task_comment", bad); !r.IsError {
+			t.Errorf("%v deveria falhar", bad)
+		}
 	}
 	for _, bad := range []map[string]any{{"key": "HNK-1", "body": " "}, {"key": "", "body": "x"}, {"key": "HNK-404", "body": "x"}} {
 		if r := call(t, cs, "hanko_task_comment", bad); !r.IsError {

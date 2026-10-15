@@ -11,11 +11,20 @@ templ TasksPage(sh Shell, vm TasksVM) {
 	@Layout(sh) {
 		@PageHead(i18n.T(ctx, "Tasks"), vm.Subtitle) {
 		}
+		if vm.Project != "" {
+			<p class="filter-chip">
+				<span class="chip soft">@Icon("layers") { i18n.T(ctx, "Projeto") } <a href={ templ.SafeURL(vm.ProjectHref) }>{ vm.ProjectName }</a></span>
+				<a href={ templ.SafeURL(vm.ClearHref) }>{ i18n.T(ctx, "limpar filtro") }</a>
+			</p>
+		}
 		<div class="toolbar">
 			@Tabs(vm.Tabs)
 			<span class="grow"></span>
 			<form method="get" action={ templ.SafeURL(sh.Base() + "/tasks") } class="search" role="search">
 				<input type="hidden" name="aba" value={ vm.Tab }/>
+				if vm.Project != "" {
+					<input type="hidden" name="projeto" value={ vm.Project }/>
+				}
 				<input
 					class="input"
 					type="search"
@@ -24,7 +33,7 @@ templ TasksPage(sh Shell, vm TasksVM) {
 					placeholder={ i18n.T(ctx, "Buscar tasks...") }
 					aria-label={ i18n.T(ctx, "Buscar tasks") }
 					hx-get={ sh.Base() + "/tasks" }
-					hx-include="[name='aba']"
+					hx-include="[name='aba'], [name='projeto']"
 					hx-trigger="input changed delay:300ms, search"
 					hx-target="#tasks-list"
 					hx-swap="outerHTML"
@@ -46,7 +55,7 @@ templ TaskPage(sh Shell, vm TaskVM, base string) {
 					<span class="mono">{ vm.Key }</span>
 					if vm.ProjectName != "" {
 						<span>·</span>
-						<span>Projeto { vm.ProjectName }</span>
+						<span>{ i18n.T(ctx, "Projeto") } <a href={ templ.SafeURL(vm.ProjectHref) }>{ vm.ProjectName }</a></span>
 					}
 					<span>·</span>
 					<span>{ i18n.T(ctx, "criada") } { vm.Created }</span>
@@ -65,7 +74,9 @@ templ TaskPage(sh Shell, vm TaskVM, base string) {
 				<div class="brief" style="margin-top:20px">
 					<div class="side-h">{ i18n.T(ctx, "Pedido") }</div>
 					if vm.HasDescription {
-						<div class="md">@templ.Raw(string(vm.Description))</div>
+						@AnchorBox(AnchorBoxVM{API: vm.IslandAPI, TaskKey: vm.TaskKey, Target: "task_description", Doc: vm.DescDoc, Anchors: vm.DescAnchors, CanComment: canWrite(ctx), Msgs: vm.AnchorMsgs}) {
+							<div class="md">@templ.Raw(string(vm.Description))</div>
+						}
 					} else {
 						<p class="muted">{ i18n.T(ctx, "Sem descrição.") }</p>
 					}
@@ -107,7 +118,10 @@ templ Thread(vm TaskVM, base string) {
 		for _, m := range vm.Thread {
 			if m.Human {
 				<div class="msg me">
-					<div class="bubble"><div class="md">@templ.Raw(string(m.Body))</div></div>
+					<div class="bubble">
+						@MsgQuote(m)
+						<div class="md">@templ.Raw(string(m.Body))</div>
+					</div>
 					<div class="meta"><span>{ i18n.T(ctx, "Você ·") } <time class="mono">{ m.When }</time></span></div>
 				</div>
 			} else {
@@ -119,12 +133,25 @@ templ Thread(vm TaskVM, base string) {
 								<a href={ templ.SafeURL(m.RunHref) } style="text-decoration:underline">{ i18n.T(ctx, "execução") }</a>
 							}
 						</div>
+						@MsgQuote(m)
 						<div class="body md">@templ.Raw(string(m.Body))</div>
 					</div>
 				</div>
 			}
 		}
 	</div>
+}
+
+// MsgQuote shows the passage an anchored comment is about, and flags a lost anchor.
+templ MsgQuote(m Msg) {
+	if m.Quote != "" {
+		<blockquote class={ "msg-quote", templ.KV("is-lost", m.QuoteLost) }>
+			{ m.Quote }
+			if m.QuoteLost {
+				<span class="chip soft">{ i18n.T(ctx, "âncora perdida") }</span>
+			}
+		</blockquote>
+	}
 }
 
 templ CommentForm(vm TaskVM, base string) {
@@ -170,13 +197,7 @@ templ TaskSide(vm TaskVM, base string) {
 				<label class="prop"><span>{ i18n.T(ctx, "Status") }</span>@Select("status", "f-status", vm.StatusOptions, true)</label>
 				<label class="prop"><span>{ i18n.T(ctx, "Prioridade") }</span>@Select("priority", "f-priority", vm.PriorityOptions, true)</label>
 				<label class="prop"><span>Persona</span>@Select("persona", "f-persona", vm.PersonaOptions, true)</label>
-				<div class="prop"><span>{ i18n.T(ctx, "Projeto") }</span><span>
-					if vm.ProjectName != "" {
-						{ vm.ProjectName }
-					} else {
-						<span class="faint">—</span>
-					}
-				</span></div>
+				<label class="prop"><span>{ i18n.T(ctx, "Projeto") }</span>@Select("project", "f-project", vm.ProjectOptions, true)</label>
 				<div class="prop"><span>{ i18n.T(ctx, "Criada") }</span><span class="mono" style="font-size:12.5px">{ vm.Created }</span></div>
 				<div class="prop"><span>{ i18n.T(ctx, "Atualizada") }</span><span class="mono" style="font-size:12.5px">{ vm.Updated }</span></div>
 			</div>

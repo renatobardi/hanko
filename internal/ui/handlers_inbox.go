@@ -219,6 +219,7 @@ func alertRow(ctx context.Context, a domain.Alert, base string, now time.Time, l
 		When: agoCtx(ctx, a.OpenedAt, now, loc)}
 	var d struct {
 		PersonaSlug string `json:"persona_slug"`
+		ProjectSlug string `json:"project_slug"`
 	}
 	_ = json.Unmarshal(a.Data, &d)
 	switch {
@@ -226,6 +227,8 @@ func alertRow(ctx context.Context, a domain.Alert, base string, now time.Time, l
 		row.Href, row.Link = base+"/execucoes/"+a.SubjectID.String(), i18n.T(ctx, "Ver execução")
 	case a.SubjectType == "persona" && d.PersonaSlug != "":
 		row.Href, row.Link = base+"/personas/"+d.PersonaSlug, i18n.T(ctx, "Abrir persona")
+	case a.SubjectType == "project" && d.ProjectSlug != "":
+		row.Href, row.Link = base+"/projetos/"+d.ProjectSlug, i18n.T(ctx, "Abrir projeto")
 	case a.SubjectType == "company":
 		row.Href, row.Link = base+"/custos", i18n.T(ctx, "Ver custos")
 	}

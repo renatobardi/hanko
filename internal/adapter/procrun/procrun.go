@@ -28,6 +28,10 @@ type Options struct {
 	Dir   string
 	Env   []string // full environment; nil = HarnessEnv(os.Environ()) (allowlist, sem HANKO_*)
 	Stdin string
+	// OnStdin, when set, switches to interactive mode: it is called once after the process
+	// starts with the pipe to the child's stdin and Stdin is ignored. The caller owns writes
+	// and must close the pipe to signal EOF (it is closed anyway when the process exits).
+	OnStdin func(io.WriteCloser)
 	// Grace between SIGTERM and SIGKILL on cancellation; 0 = DefaultGrace.
 	Grace time.Duration
 	// OnStdout / OnStderr receive one line each (without the newline). They are never
@@ -54,7 +58,16 @@ func Run(ctx context.Context, o Options) (Result, error) {
 		cmd.Env = HarnessEnv(os.Environ(), nil, nil)
 	}
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	cmd.Stdin = bytes.NewReader([]byte(o.Stdin))
+	var stdinPipe io.WriteCloser
+	if o.OnStdin != nil {
+		p, err := cmd.StdinPipe()
+		if err != nil {
+			return Result{ExitCode: -1}, fmt.Errorf("stdin %s: %w", o.Bin, err)
+		}
+		stdinPipe = p
+	} else {
+		cmd.Stdin = bytes.NewReader([]byte(o.Stdin))
+	}
 
 	var mu sync.Mutex
 	cmd.Stdout = &lineWriter{mu: &mu, fn: o.OnStdout}
@@ -65,6 +78,9 @@ func Run(ctx context.Context, o Options) (Result, error) {
 		return Result{ExitCode: -1}, fmt.Errorf("start %s: %w", o.Bin, err)
 	}
 	pgid := cmd.Process.Pid
+	if stdinPipe != nil {
+		o.OnStdin(stdinPipe)
+	}
 
 	done := make(chan struct{})
 	var cancelled bool

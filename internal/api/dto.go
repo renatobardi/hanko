@@ -55,26 +55,71 @@ type Company struct {
 
 // Workspace é um diretório/repositório onde personas trabalham.
 type Workspace struct {
-	ID        string    `json:"id" format:"uuid"`
-	CompanyID string    `json:"company_id" format:"uuid"`
-	Slug      string    `json:"slug" example:"api"`
-	Name      string    `json:"name" example:"API"`
-	Path      string    `json:"path" example:"/srv/work/api" doc:"Diretório de trabalho."`
-	RepoURL   string    `json:"repo_url,omitempty" example:"https://example.com/acme/api.git"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID        string `json:"id" format:"uuid"`
+	CompanyID string `json:"company_id" format:"uuid"`
+	Slug      string `json:"slug" example:"api"`
+	Name      string `json:"name" example:"API"`
+	Path      string `json:"path" example:"/srv/work/api" doc:"Diretório de trabalho."`
+	RepoURL   string `json:"repo_url,omitempty" example:"https://example.com/acme/api.git" doc:"Metadado: https://, ssh:// ou formato scp (usuario@host:dono/repo). O Hanko não clona."`
+	// DefaultBranch é metadado (o Hanko não troca de branch).
+	DefaultBranch string `json:"default_branch,omitempty" example:"main"`
+	// Uso do workspace: vem na lista e no detalhe. Tasks abertas contam as que escolheram o workspace de propósito.
+	Usage     *WorkspaceUsage `json:"usage,omitempty"`
+	CreatedAt time.Time       `json:"created_at"`
+	UpdatedAt time.Time       `json:"updated_at"`
 }
 
-// Project agrupa tasks.
+// UsageRef identifica uma persona ou projeto que usa um workspace.
+type UsageRef struct {
+	ID   string `json:"id" format:"uuid"`
+	Slug string `json:"slug"`
+	Name string `json:"name"`
+}
+
+// WorkspaceUsage diz quem usa o workspace; um workspace em uso não é excluído sem desvincular.
+type WorkspaceUsage struct {
+	Personas     int        `json:"personas" doc:"Personas que o têm como padrão."`
+	Projects     int        `json:"projects"`
+	OpenTasks    int        `json:"open_tasks" doc:"Tasks abertas que escolheram este workspace."`
+	PersonaItems []UsageRef `json:"persona_items,omitempty" doc:"Só no detalhe."`
+	ProjectItems []UsageRef `json:"project_items,omitempty" doc:"Só no detalhe."`
+}
+
+// Project agrupa tasks; pode ter workspace e orçamento mensal próprios.
 type Project struct {
-	ID          string    `json:"id" format:"uuid"`
-	CompanyID   string    `json:"company_id" format:"uuid"`
-	Slug        string    `json:"slug" example:"lancamento"`
-	Name        string    `json:"name" example:"Lançamento"`
-	Description string    `json:"description,omitempty"`
-	WorkspaceID string    `json:"workspace_id,omitempty" format:"uuid"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID          string `json:"id" format:"uuid"`
+	CompanyID   string `json:"company_id" format:"uuid"`
+	Slug        string `json:"slug" example:"lancamento"`
+	Name        string `json:"name" example:"Lançamento"`
+	Description string `json:"description,omitempty"`
+	WorkspaceID string `json:"workspace_id,omitempty" format:"uuid"`
+	Status      string `json:"status" enum:"active,archived" doc:"Projeto arquivado não recebe tasks novas."`
+	// BudgetMonthlyCents é o teto mensal do projeto em centavos de dólar; ausente = sem teto. Estourado, nenhuma
+	// execução de task do projeto abre até o teto subir ou o mês virar.
+	BudgetMonthlyCents *int64        `json:"budget_monthly_cents,omitempty"`
+	Stats              *ProjectStats `json:"stats,omitempty" doc:"Progresso e custo do mês; vem na lista e no detalhe."`
+	CreatedAt          time.Time     `json:"created_at"`
+	UpdatedAt          time.Time     `json:"updated_at"`
+}
+
+// ProjectPersona é uma persona com tasks no projeto.
+type ProjectPersona struct {
+	ID        string `json:"id" format:"uuid"`
+	Slug      string `json:"slug"`
+	Name      string `json:"name"`
+	Tasks     int    `json:"tasks"`
+	OpenTasks int    `json:"open_tasks"`
+}
+
+// ProjectStats é o painel do projeto: tasks por status, progresso, custo do mês contra o teto e personas.
+type ProjectStats struct {
+	WorkspaceSlug   string           `json:"workspace_slug,omitempty"`
+	WorkspaceName   string           `json:"workspace_name,omitempty"`
+	Tasks           map[string]int   `json:"tasks" doc:"Tasks por status (todos os status presentes)."`
+	TasksTotal      int              `json:"tasks_total"`
+	ProgressPercent float64          `json:"progress_percent" doc:"done / (total - canceladas), de 0 a 100."`
+	Budget          Budget           `json:"budget" doc:"Gasto do mês do projeto contra o teto dele."`
+	Personas        []ProjectPersona `json:"personas,omitempty" doc:"Só no detalhe."`
 }
 
 // Persona é um papel contratado pela empresa.
@@ -85,7 +130,7 @@ type Persona struct {
 	Name                 string         `json:"name" example:"Marina"`
 	Title                string         `json:"title" example:"CTO"`
 	Instructions         string         `json:"instructions" doc:"Instruções permanentes da persona."`
-	Agent                string         `json:"agent" enum:"claude,codex,fake" doc:"Harness que executa a persona."`
+	Agent                string         `json:"agent" enum:"claude,codex,acp,fake" doc:"Harness que executa a persona."`
 	Model                string         `json:"model,omitempty" example:"claude-sonnet-4-5"`
 	AdapterConfig        map[string]any `json:"adapter_config,omitempty" doc:"Configuração específica do adapter."`
 	Status               string         `json:"status" enum:"active,idle,running,paused,error,awaiting_gate,off"`
@@ -129,14 +174,34 @@ type Task struct {
 
 // Comment é uma mensagem na thread de uma task.
 type Comment struct {
-	ID        string    `json:"id" format:"uuid"`
-	CompanyID string    `json:"company_id" format:"uuid"`
-	TaskID    string    `json:"task_id" format:"uuid"`
-	Author    ActorRef  `json:"author"`
-	RunID     string    `json:"run_id,omitempty" format:"uuid"`
-	Body      string    `json:"body"`
-	EventID   string    `json:"event_id,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
+	ID          string       `json:"id" format:"uuid"`
+	CompanyID   string       `json:"company_id" format:"uuid"`
+	TaskID      string       `json:"task_id" format:"uuid"`
+	Author      ActorRef     `json:"author"`
+	RunID       string       `json:"run_id,omitempty" format:"uuid"`
+	Body        string       `json:"body"`
+	EventID     string       `json:"event_id,omitempty"`
+	CreatedAt   time.Time    `json:"created_at"`
+	Anchor      *Anchor      `json:"anchor,omitempty" doc:"Trecho do documento a que o comentário se refere (comentário ancorado)."`
+	AnchorState *AnchorState `json:"anchor_state,omitempty" doc:"Onde o trecho está na versão atual do documento; 'lost' = âncora perdida."`
+}
+
+// Anchor liga um comentário a um trecho da descrição da task ou do resumo (entrega) de uma execução.
+// A citação é a fonte da verdade: se o documento mudar, o trecho é procurado de novo pelo texto.
+type Anchor struct {
+	Target  string `json:"target" enum:"task_description,run_summary" doc:"Documento-alvo."`
+	RunID   string `json:"run_id,omitempty" format:"uuid" doc:"Execução cujo resumo é o alvo (obrigatório com run_summary)."`
+	Quote   string `json:"quote" minLength:"1" maxLength:"2000" doc:"Texto citado, exatamente como está no documento."`
+	Start   int    `json:"start" minimum:"0" doc:"Posição inicial da citação, em code points do documento (dica; o servidor recalcula)."`
+	End     int    `json:"end" minimum:"0" doc:"Posição final (exclusiva), em code points."`
+	DocHash string `json:"doc_hash,omitempty" doc:"Hash do documento no momento do comentário; definido pelo servidor."`
+}
+
+// AnchorState é a posição atual de uma âncora.
+type AnchorState struct {
+	Status string `json:"status" enum:"exact,moved,lost" doc:"exact = documento igual; moved = documento mudou e o trecho foi reencontrado; lost = trecho não existe mais."`
+	Start  int    `json:"start"`
+	End    int    `json:"end"`
 }
 
 // Usage são contagens de tokens reportadas pelo agente.
@@ -159,7 +224,7 @@ type Run struct {
 	PersonaName    string     `json:"persona_name,omitempty"`
 	Status         string     `json:"status" enum:"queued,running,done,interrupted,failed,cancelled,expired"`
 	Trigger        string     `json:"trigger" enum:"assign,comment,manual,heartbeat,gate,flow,review"`
-	Agent          string     `json:"agent" enum:"claude,codex,fake"`
+	Agent          string     `json:"agent" enum:"claude,codex,acp,fake"`
 	Model          string     `json:"model,omitempty"`
 	SessionRef     string     `json:"session_ref,omitempty"`
 	TraceID        string     `json:"trace_id,omitempty"`
@@ -333,12 +398,43 @@ func companyOut(c domain.Company) Company {
 
 func workspaceOut(w domain.Workspace) Workspace {
 	return Workspace{ID: idStr(w.ID), CompanyID: idStr(w.CompanyID), Slug: w.Slug, Name: w.Name,
-		Path: w.Path, RepoURL: w.RepoURL, CreatedAt: w.CreatedAt, UpdatedAt: w.UpdatedAt}
+		Path: w.Path, RepoURL: w.RepoURL, DefaultBranch: w.DefaultBranch, CreatedAt: w.CreatedAt, UpdatedAt: w.UpdatedAt}
+}
+
+func usageRefs(rs []service.UsageRef) []UsageRef {
+	out := make([]UsageRef, len(rs))
+	for i, r := range rs {
+		out[i] = UsageRef{ID: idStr(r.ID), Slug: r.Slug, Name: r.Name}
+	}
+	return out
+}
+
+func workspaceViewOut(v service.WorkspaceView) Workspace {
+	w := workspaceOut(v.Workspace)
+	w.Usage = &WorkspaceUsage{Personas: v.PersonaCount, Projects: v.ProjectCount, OpenTasks: v.OpenTasks,
+		PersonaItems: usageRefs(v.Personas), ProjectItems: usageRefs(v.Projects)}
+	return w
 }
 
 func projectOut(p domain.Project) Project {
 	return Project{ID: idStr(p.ID), CompanyID: idStr(p.CompanyID), Slug: p.Slug, Name: p.Name,
-		Description: p.Description, WorkspaceID: idPtr(p.WorkspaceID), CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt}
+		Description: p.Description, WorkspaceID: idPtr(p.WorkspaceID), Status: string(p.Status),
+		BudgetMonthlyCents: p.BudgetMonthlyCents, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt}
+}
+
+func projectViewOut(v service.ProjectView) Project {
+	p := projectOut(v.Project)
+	tasks := make(map[string]int, len(v.Tasks))
+	for st, n := range v.Tasks {
+		tasks[string(st)] = n
+	}
+	st := &ProjectStats{WorkspaceSlug: v.WorkspaceSlug, WorkspaceName: v.WorkspaceName, Tasks: tasks, TasksTotal: v.TasksTotal,
+		ProgressPercent: v.Progress, Budget: budgetOut(v.Budget)}
+	for _, pe := range v.Personas {
+		st.Personas = append(st.Personas, ProjectPersona{ID: idStr(pe.ID), Slug: pe.Slug, Name: pe.Name, Tasks: pe.Tasks, OpenTasks: pe.OpenTasks})
+	}
+	p.Stats = st
+	return p
 }
 
 func personaOut(p domain.Persona) Persona {
@@ -361,8 +457,15 @@ func taskOut(t service.TaskView) Task {
 }
 
 func commentOut(c domain.Comment) Comment {
-	return Comment{ID: idStr(c.ID), CompanyID: idStr(c.CompanyID), TaskID: idStr(c.TaskID), Author: actorRef(c.Author),
+	out := Comment{ID: idStr(c.ID), CompanyID: idStr(c.CompanyID), TaskID: idStr(c.TaskID), Author: actorRef(c.Author),
 		RunID: idPtr(c.RunID), Body: c.Body, EventID: c.EventID, CreatedAt: c.CreatedAt}
+	if a := c.Anchor; a != nil {
+		out.Anchor = &Anchor{Target: string(a.Target), RunID: idPtr(a.RunID), Quote: a.Quote, Start: a.Start, End: a.End, DocHash: a.DocHash}
+	}
+	if st := c.AnchorState; st != nil {
+		out.AnchorState = &AnchorState{Status: st.Status, Start: st.Start, End: st.End}
+	}
+	return out
 }
 
 func runOut(r service.RunView) Run {
@@ -461,7 +564,7 @@ type Subscription struct {
 	ID             string    `json:"id" format:"uuid"`
 	CompanyID      string    `json:"company_id" format:"uuid"`
 	Name           string    `json:"name" example:"Claude Max"`
-	Agent          string    `json:"agent" enum:"claude,codex,fake"`
+	Agent          string    `json:"agent" enum:"claude,codex,acp,fake"`
 	MonthlyUSD     float64   `json:"monthly_usd"`
 	ModelPrefixes  []string  `json:"model_prefixes" doc:"Prefixos de modelo cobertos; vazio = todos os do harness."`
 	WeeklyLimitUSD *float64  `json:"weekly_limit_usd,omitempty" doc:"Teto semanal de uso estimado em dólares."`

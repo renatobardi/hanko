@@ -147,6 +147,21 @@ func (f *fakeSvc) ListRunEvents(_ context.Context, cid, rid domain.ID, after int
 	return out, nil
 }
 
+func (f *fakeSvc) ListRunEventsBefore(_ context.Context, cid, rid domain.ID, before int64, limit int) ([]domain.RunEvent, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var all []domain.RunEvent
+	for _, e := range f.events[rid] {
+		if before <= 0 || e.Seq < before {
+			all = append(all, e)
+		}
+	}
+	if limit > 0 && len(all) > limit {
+		all = all[len(all)-limit:]
+	}
+	return all, nil
+}
+
 func (f *fakeSvc) setStatus(rid domain.ID, st domain.RunStatus) {
 	f.mu.Lock()
 	defer f.mu.Unlock()

@@ -330,6 +330,8 @@ Record the date and result in `docs/SESSION.md` or in the operations issue.
 | Firebase: "domínio não autorizado" (domain not authorized) in the popup | domain not in Authorized domains | Console → Authentication → Settings |
 | Firebase: 503 `Não foi possível validar o login` (could not validate the login) | server cannot reach `www.googleapis.com` | allow the server's HTTPS egress to Google's JWKS |
 | A local agent gets 401 after authenticated mode is turned on | it omitted the token (ADR-0017) | use the injected run token or an API key (§5.4) |
+| `acp` run fails with "não respondeu ao initialize" (did not answer initialize) | the command does not speak ACP v1 over stdio (or takes longer than `init_timeout_sec`) | run the command by hand; the error carries the last stdout/stderr lines (§ ACP agents) |
+| `acp` run ends in seconds without editing anything | the `read_only` policy (default) refused the edit | look for "permissão negada" (permission denied) events in the log; hire with `permission: allow` if intended |
 | Port 7420 in use | another instance | `HANKO_ADDR` |
 
 Logs are JSON on stderr with `trace_id`/`span_id`: copy the `trace_id` and look it up in Tempo (Grafana) to see the full trace of the request/run.
@@ -355,3 +357,83 @@ stored secrets (integrations remain, without credentials; enter them again).
 **Webhooks.** Each delivery carries `X-Hanko-Signature: t=<unix>,v1=<hex>`, `X-Hanko-Event` and `X-Hanko-Delivery`. The receiver
 computes `HMAC-SHA256(secret, "<t>.<body>")`, compares in constant time and rejects an old `t`. Failures retry up to 7
 attempts (30 s, 2 min, 8 min, 32 min, ~2 h, 6 h). Delivery is at-least-once; deduplicate on `X-Hanko-Delivery`.
+## ACP agents (`acp` harness)
+
+The `acp` harness (ADR-0023) runs any agent that speaks the Agent Client Protocol v1 over stdio. Hanko ships no agent: the operator
+installs the program and the persona points at it.
+
+**Installing the agent.** The executable must exist on the `PATH` of the Hanko process (or be used by absolute path) and be authenticated
+outside Hanko (interactive authentication is not supported). The official (distroless) `Dockerfile` cannot run agents; use the
+`Dockerfile.agents` variant or an image of your own derived from it, for example (**illustrative example**, the package is fictional):
+
+```dockerfile
+FROM my-hanko-agents-image
+USER root
+RUN npm install -g acp-agent-package && npm cache clean --force
+USER node
+```
+
+Without a container, install the agent on the server host/LXC (global npm, a binary in `/usr/local/bin`, …) for the same user that runs Hanko.
+Agent credentials (API key, …) go in through `HANKO_AGENT_ENV_ALLOW` (server variables) or `adapter_config.env` (on the persona).
+
+**Hiring an ACP persona.** In the UI, pick the ACP harness and fill in command, arguments and permissions. From the CLI (lists and objects
+need `--config-json`) or the API (`adapter_config`):
+
+```sh
+# EXAMPLE: replace "my-acp-agent" with the real command of your agent
+hanko persona hire "External" --agent acp \
+  --config-json '{"command":"my-acp-agent","args":["--stdio"],"permission":"read_only"}'
+```
+
+`permission`: `read_only` (default) approves reading, search, thinking and external lookups (`read`, `search`, `think`, `fetch`) and refuses
+edit, delete, move, execute and the rest; `allow` approves everything (including running commands: use it only with agents and workspaces you
+trust); `reject` refuses everything. Writing through `fs/write_text_file` is accepted only with `allow`. Review runs ignore the setting and use
+`read_only`. Every decision shows up in the run log as a "permissão concedida/negada" (permission granted/denied) event.
+
+**Known limits.**
+- Confinement to the workspace directory applies to what goes through Hanko (`fs/*`). The agent process has the privileges of the user running
+  Hanko; to really isolate it, run Hanko in a container/user with no access to what the agent must not see.
+- Hanko's own MCP server is http; an agent that does not advertise `mcpCapabilities.http` runs without the `hanko_*` tools (a warning is logged).
+- No terminal (`terminal/*`), no interactive authentication, no ACP v2. Changing a persona's command means hiring another persona.
+- Cancelling a run sends `session/cancel` and waits up to 3 s; an agent that does not obey is killed (the whole process group).
+- An ACP persona can be a **reviewer persona**, but `acp` cannot be the alternate review harness (`--reviewer-agent`).
+- Exporting a company strips credential keys and flags from `adapter_config`; after importing, put the agent's key back.
+
+**Diagnosis.** Common run errors: "não respondeu ao initialize em N s" (did not answer initialize in N s: the command does not speak ACP over
+stdio; try it by hand and read the stdout/stderr lines in the error), "versão do ACP incompatível" (incompatible ACP version: the agent speaks
+another protocol version), "o agente exige autenticação" (the agent requires authentication: authenticate it outside Hanko) and "não foi possível
+iniciar o agente ACP" (could not start the ACP agent: the command is not on Hanko's `PATH`).
+
+## Projects and workspaces
+
+A **workspace** is a directory (optionally with `repo_url` and a default branch, metadata only) and a **project** groups tasks, points to a
+workspace and may have a monthly budget (ADR-0025). Screens `/projetos` and `/workspaces`; CLI `hanko project …`, `hanko workspace …`,
+`hanko task create --project`, `hanko cost --project`, `hanko budget set --project`.
+
+- **Run directory:** task workspace > project workspace > persona workspace > temporary directory. The origin is stored in
+  `runs.workspace_source` (`task|project|persona|none`).
+- **Path:** absolute, clean and inside `HANKO_WORKSPACES_ROOT`. If the directory is missing on the machine the UI shows "missing directory"
+  and runs use a temporary one; create the folder (Hanko does not `git clone`).
+- **Deleting a workspace in use** returns 409; `--unlink` (CLI), `?unlink=true` (API) or the checkbox in the UI unlink personas, projects and tasks.
+- **Project budget:** once exceeded, the run is refused with the reason and the persona is not paused; at 80% an alert is opened in the inbox.
+  Raise the cap (`hanko budget set --project <slug> <usd>`) to release it. Paid cost (subscription) is not allocated per project.
+- **Importing from another machine:** a path this installation does not accept is imported empty and `workspace_paths_cleared` reports it;
+  fix with `hanko workspace update <slug> --path …`.
+
+## Consolidated memory (governed curation)
+
+Requires `HANKO_MEMORY_PROVIDER=ai-memory` (ADR-0030). With `none`, the Memory section of company Settings shows "Memory off" and the API answers 422 with the reason.
+
+- **Enable:** company Settings → Memory (or `hanko memory config --enable --interval 24 --curator <persona>`). Interval 1 to 720 h; off by default. Prefer a curator on a cheap model.
+- **Run now:** "Consolidate now" button or `hanko memory consolidate [workspace]`. Creates one system task per workspace; cost goes through the ledger and budget like any run. One open round per workspace; one that never ran expires after 6 h.
+- **`memory` gate:** removals, merges and rewrites by the curator never reach ai-memory; they become a proposal and a gate in the Inbox "Memory" tab (diff and sha256). Approving queues `apply_memory_proposal`; rejecting discards. CLI: `hanko memory proposals|approve|reject <id>`.
+- **Apply failure:** the proposal stays `failed` with the error and is retried (1 min to 6 h, 20 attempts). After that: `hanko memory retry <id>` or the retry button. Nothing is lost.
+- **Grants:** a persona only reaches its own workspace memory. For another workspace of the company: `hanko memory grant <persona> <workspace> --access read|write` (`grants`, `revoke` to list and remove).
+- **Diff with current content:** set `HANKO_MEMORY_READ_TOOL` (`memory.read_tool` in YAML) to ai-memory's page-read tool name; without it the diff shows only the proposed content.
+
+| Symptom | Likely cause | Action |
+|---|---|---|
+| "Memory off" / 422 when enabling | `HANKO_MEMORY_PROVIDER=none` | configure ai-memory and restart |
+| Proposal `failed` | ai-memory down or refused | see the error in the Memory section; retry is automatic, or `hanko memory retry` |
+| Many proposals | unknown tool names are held for safety | approve/reject; see ADR-0030 |
+| Consolidation does not run | curator paused or out of budget | check Inbox/alerts; expires in 6 h |

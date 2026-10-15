@@ -71,3 +71,11 @@ func itoa(n int) string {
 	}
 	return string(b[i:])
 }
+
+// flag is the data-* spelling of a boolean ("1"/"0").
+func flag(b bool) string {
+	if b {
+		return "1"
+	}
+	return "0"
+}

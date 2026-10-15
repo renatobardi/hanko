@@ -150,6 +150,64 @@ Com o banco de produção pequeno isso leva centenas de milissegundos. Em bases 
 
 O Down remove os índices novos, restaura `tasks_persona_idx` e o `fillfactor` padrão.
 
+## Busca única (migration 00015, ADR-0024)
+
+Mesma carga (`seed-load -scale 1`; empresa `perf-a`: 30 mil tasks, 60 mil comentários, 80 mil runs), banco com `VACUUM ANALYZE`.
+Medição: `go run ./tools/perf-explain -only busca -plans busca-planos.txt` (o grupo `busca` chama `internal/search.Parse` e
+usa a `tsquery` exata do app; o limite é 10 + 1, como o service). Mediana de 3 repetições, tudo em memória.
+
+| Consulta | Tempo | Buffers |
+|---|---:|---:|
+| tasks, termo seletivo (`migrar módulo 42`) | 2,4 ms | 225 |
+| tasks, número (`tarefa 12345`) | 0,1 ms | 10 |
+| tasks, prefixo (`migr`, ~30 mil casam) | 24 ms | 11.928 |
+| tasks, termo em todas (`tarefa`, 30 mil casam) | 18 ms | 2.037 |
+| tasks, termo comum com exclusão | 24 ms | 2.427 |
+| tasks, inexistente | 0,06 ms | 3 |
+| comentários, seletivo | 2,8 ms | 66 |
+| comentários, termo em 60 mil | 62 ms | 2.991 |
+| runs, seletivo / por nome amigável | 0,6 ms | 123–137 |
+| runs, termo em ~97 mil | 313 ms | 11.161 |
+| personas / fluxos | 0,02–0,06 ms | 1–4 |
+
+Leitura honesta: **tudo que é seletivo, e o caso real de um termo que casa dezenas ou centenas de documentos, fica entre
+0,1 e 3 ms (meta < 50 ms cumprida com folga)**. Só os termos que aparecem em 60 % de todas as linhas da empresa
+(`resumo` em quase todo run sintético; `tarefa` em todo comentário gerado) passam de 50 ms (comentários 62 ms, runs até
+313 ms). O gerador de carga repete as mesmas palavras em todas as linhas; num banco real, uma consulta assim não filtra nada.
+
+Desenho para chegar nisso (ADR-0024):
+- Sem candidatas limitadas, ranquear todas as linhas que casam custava 94 ms (tasks), 465 ms (comentários) e 490 ms (runs)
+  para `tarefa`/`resumo`. As consultas grandes escolhem até **2000 candidatas, as mais recentes primeiro** (`cand`),
+  ranqueiam só elas (`top`) e só então fazem os joins e trazem o texto. Termo raro: o planner usa o GIN; termo comum: usa
+  `tasks_company_updated_idx`, `runs_company_created_idx` ou o novo `task_comments_company_created_idx`.
+- A `tsquery` entra como parâmetro direto, **sem CTE**: dentro de uma CTE o planner não enxerga a frequência do termo e
+  sempre escolhia o GIN (tasks comum: 73 → 18 ms).
+- Limite que sobra: a última palavra é sempre prefixo (`:*`), e o Postgres não estima a frequência de prefixos
+  (seletividade padrão). Para runs e comentários com um prefixo onipresente o planner ainda prefere o bitmap do GIN, que
+  lê todas as linhas que casam antes de cortar nas 2000 mais recentes. Remédio, se doer: particionar por empresa ou
+  gravar o termo de busca em uma tabela própria (ADR-0024, consequências).
+
+### Custo da migration 00015
+
+| Item | Valor |
+|---|---|
+| Tempo no volume acima (rewrite + GIN, em uma transação) | ~25 s (`runs` 10 s, `tasks` 8 s, `task_comments` 3 s + índice 1,6 s) |
+| Espaço | `tasks_search_idx` 3,3 MB; `task_comments_search_idx` 6 MB; `runs_search_idx` 12 MB; `task_comments_company_created_idx` 5,8 MB; personas/flows 16 kB |
+| Bloqueio | `ALTER TABLE … ADD COLUMN … STORED` reescreve `tasks`, `task_comments`, `personas`, `runs` e `flows` com bloqueio de escrita |
+
+### Efeito nas consultas existentes (antes/depois da 00015)
+
+Comparação das 61 consultas quentes com o mesmo `perf-explain` (antes = store sem a coluna, depois = com a coluna e os GIN).
+A máquina é compartilhada e o ruído é de ±30 %, então os tempos só servem para ordem de grandeza. O sinal limpo é o de
+buffers: os `SELECT *` do sqlc passam a ler `search_tsv` junto das linhas, e as consultas que varrem muita linha leem
+**+10 a 40 % de buffers** (`export/comentários` 2.881 → 4.140; `export/runs` 13.432 → 15.958; `custos/breakdown` 5.270 →
+6.500, por ler `runs` inteiras). Consultas de página (`LIMIT 20-50`)
+não mudam (± 5 buffers). `UPDATE runs SET next_event_seq = …` continua HOT (medido: 933 de 1.000 `UPDATE`s HOT; o resto é página cheia): o Postgres só recalcula coluna gerada quando uma
+coluna de que ela depende muda, e nenhuma das colunas quentes (`next_event_seq`, `status`, `updated_at`) entra no
+`search_tsv`. Se a leitura dos exports pesar, nomeie as colunas nas consultas de export (não feito agora).
+
+Reproduzir: carregue com `seed-load`, aplique a 00015, `VACUUM ANALYZE`, e rode o comando acima.
+
 ## Avaliado e não aplicado
 
 | Ideia | Resultado | Motivo |

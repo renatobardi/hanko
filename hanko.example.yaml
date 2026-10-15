@@ -28,6 +28,7 @@ memory:
   provider: ai-memory    # ai-memory | none
   url: http://127.0.0.1:49374
   # token: ""            # prefira HANKO_MEMORY_TOKEN
+  # read_tool: ""        # tool de leitura de página, para o diff das propostas de curadoria (HANKO_MEMORY_READ_TOOL)
 claude_bin: claude
 codex_bin: codex
 workers: 4

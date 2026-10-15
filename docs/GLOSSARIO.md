@@ -8,16 +8,16 @@ Um termo por conceito. Código, API, MCP e banco em inglês; UI em pt-BR. Em dú
 |---|---|---|---|
 | company | Empresa | Unidade de isolamento multi-org. `company_id` em toda tabela de domínio. | org, tenant |
 | persona | Persona | Papel contratado na empresa (CTO, engenheira, revisor): instruções, modelo, orçamento, posição no organograma. | agent |
-| agent | — | O harness que executa uma persona num run: `claude`, `codex`. Só aparece em adapter/config. | — |
+| agent | — | O harness que executa uma persona num run: `claude`, `codex`, `acp` (qualquer agente ACP), `fake`. Só aparece em adapter/config. | — |
 | task | Task | Unidade de trabalho atribuída a uma persona. Status: backlog · todo · in_progress · in_review · blocked · done · cancelled. Prioridade: critical · high · medium · low. | issue, ticket |
 | run | Execução | Uma execução de uma persona sobre uma task, disparada pelo heartbeat. Status: queued · running · done · interrupted · failed · cancelled · expired. 1 task → 0..n runs; 1 run ativo por task. | job |
 | run name | Nome da execução | `Adjetivo_Substantivo` em pt-BR (ex.: `Veloz_Raposa`) derivado do id da run, gravado nela e único na empresa; aparece ao lado do id na UI e na CLI e serve de referência em `hanko run logs <nome>`. | apelido, alias |
 | automatic review | Revisão automática | Parecer de outro modelo (persona revisora ou harness alternativo) registrado no gate `task_review` antes da decisão humana: veredito aprovado/reprovado, justificativa e sha256 do pacote revisado. Não decide nada. | aprovação automática |
 | gate | Gate | Ponto em que um humano decide (aprovar, recusar, pedir mudança). Sempre âmbar na UI. Audit trail em activity. | approval, review |
 | flow | Fluxo | Definição + gatilhos (cron, evento, manual) → cria tasks/runs. | routine, schedule |
-| workspace | Workspace | Diretório/repositório onde personas trabalham. Escopo da memória (ai-memory) e dos artefatos. | repo |
+| workspace | Workspace | Diretório (e, como metadado, repositório e branch) onde as runs trabalham; vive dentro de `HANKO_WORKSPACES_ROOT`. Escopo da memória (ai-memory) e dos artefatos. Precedência na run: task > projeto > persona (ADR-0025). | repo |
 | integration | Integração | Serviço externo conectado (GitHub, Slack…). | connector, app |
-| goal / project | Meta / Projeto | Direção: meta mede, projeto agrupa tasks. | — |
+| goal / project | Meta / Projeto | Direção: meta mede; projeto agrupa tasks, aponta para um workspace, está ativo ou arquivado e pode ter orçamento mensal (ADR-0025). | — |
 | org_chart | Organograma | `reports_to` entre personas; delegação segue a árvore. | hierarchy |
 | inbox / decision | Caixa de entrada / Decisão | O que espera o humano: gates, bloqueios, alertas. | — |
 | cost / budget | Custos e orçamentos | Ledger por run → persona → company; orçamento com hard stop. | spend |
@@ -33,3 +33,6 @@ Um termo por conceito. Código, API, MCP e banco em inglês; UI em pt-BR. Em dú
 | skill | Skill | Habilidade reutilizável em markdown (`SKILL.md`) que uma persona carrega sob demanda; ligada por persona (ADR-0029). | plugin (só no sentido nativo do harness) |
 | integration | Integração | Serviço externo da empresa: servidor MCP injetado nas runs ou webhook de saída assinado com HMAC (ADR-0029). Os segredos ficam cifrados e nunca voltam. | connector |
 | artifact · secret | Artefato · Segredo | Como nomeados. | — |
+| memory consolidation | Consolidação de memória | Run de sistema (gatilho `memory`) em que a persona curadora deduplica e resume a memória de um workspace; custo no ledger. | — |
+| memory proposal | Proposta de curadoria | Escrita destrutiva da curadoria retida pelo proxy, com diff e sha256; só vai ao ai-memory após o gate `memory`. | pending write (ambíguo) |
+| memory grant | Concessão de memória | Permissão persona × workspace (`read`/`write`) para alcançar a memória de outro workspace da empresa. | — |

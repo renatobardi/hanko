@@ -63,7 +63,7 @@ func (e *env) subscriptionCmd() *cobra.Command {
 		},
 	}
 	cf := create.Flags()
-	cf.StringVar(&agent, "agent", "", e.t("harness/provedor do plano: claude, codex ou fake (obrigatório)"))
+	cf.StringVar(&agent, "agent", "", e.t("harness/provedor do plano: claude, codex, acp ou fake (obrigatório)"))
 	cf.Float64Var(&monthly, "monthly", 0, e.t("mensalidade em dólares"))
 	cf.StringSliceVar(&prefixes, "models", nil, e.t("prefixos de modelo cobertos (vírgula ou repetido); vazio = todos do harness"))
 	cf.Float64Var(&weekly, "weekly-limit", 0, e.t("teto semanal de uso estimado em dólares (liga a trava semanal)"))

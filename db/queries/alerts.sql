@@ -48,6 +48,11 @@ SELECT id, company_id, slug, name, budget_monthly_cents FROM personas
 WHERE budget_monthly_cents IS NOT NULL
 ORDER BY company_id, id;
 
+-- name: ListBudgetedProjects :many
+SELECT id, company_id, slug, name, budget_monthly_cents FROM projects
+WHERE budget_monthly_cents IS NOT NULL AND status = 'active'
+ORDER BY company_id, id;
+
 -- name: ListOpenAlerts :many
 SELECT * FROM alerts WHERE closed_at IS NULL ORDER BY company_id, opened_at, id;
 

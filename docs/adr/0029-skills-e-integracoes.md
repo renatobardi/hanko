@@ -79,6 +79,14 @@ Por isso a decisão trata, junto, de entrega, limites, segredos e SSRF.
     elas entram **desligadas**, mesmo com `--active`, e quem importa informa os segredos de novo. Um arquivo sem os
     campos continua válido.
 
+14. **Runs de sistema e ACP.** A curadoria de memória (gatilho `memory`, ADR-0030) e a revisão automática NÃO recebem
+    skills nem MCPs da empresa: são runs de sistema com protocolo próprio. O adapter `acp` recebe as skills pelo índice
+    no prompt (como o codex) e os MCPs da empresa pelo `mcpServers` da sessão; o MCP http só chega se o agente
+    anunciar `mcpCapabilities.http` (o que o adapter já filtra, com aviso na run).
+15. **Webhooks e a curadoria.** As propostas de memória usam verbos próprios (`memory.proposal_*`) e NÃO geram
+    `gate.opened`/`gate.decided`: esses eventos são só dos gates `approval`, `task_review` e `hire`. A run de curadoria
+    segue as regras comuns (`run.failed` se falhar; a task de sistema dela emite `task.completed`).
+
 ## Consequências
 - Personas reaproveitam habilidades sem copiar texto, e a mesma skill chega ao Claude como skill de verdade e ao
   Codex/ACP pelo índice e pela tool MCP. A carga sob demanda no Codex depende de o agente chamar `hanko_skill_get`;

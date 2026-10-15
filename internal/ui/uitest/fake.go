@@ -21,27 +21,33 @@ import (
 // Fake is a mutable in-memory backend. Err injects a failure per method name
 // (e.g. Err["GetTask"] = domain.ErrNotFound).
 type Fake struct {
-	mu        sync.Mutex
-	Err       map[string]error
-	Companies []domain.Company
-	Personas  []domain.Persona
-	Projects  []domain.Project
-	Tasks     []service.TaskView
-	Comments  []domain.Comment
-	Runs      []service.RunView
-	Events    map[domain.ID][]domain.RunEvent
-	Activity  []domain.ActivityEvent
-	Health    map[domain.ID]service.PersonaHealth
-	Alerts    []domain.Alert
-	Reviewing []service.InboxReview // automatic reviews in progress (Caixa de entrada)
-	Gates     []service.GateView
-	Calls     []string // names of mutating calls, in order
-	Ledger    []LedgerEntry
-	Flows     []service.FlowView
-	Fires     []service.FlowFireView
-	Subs      []service.SubscriptionStatus
-	Members   []domain.Member
-	Invites   []domain.Invite
+	mu         sync.Mutex
+	Err        map[string]error
+	Companies  []domain.Company
+	Personas   []domain.Persona
+	Projects   []domain.Project
+	Workspaces []domain.Workspace
+	Tasks      []service.TaskView
+	Comments   []domain.Comment
+	Runs       []service.RunView
+	Events     map[domain.ID][]domain.RunEvent
+	Activity   []domain.ActivityEvent
+	Health     map[domain.ID]service.PersonaHealth
+	Alerts     []domain.Alert
+	Reviewing  []service.InboxReview // automatic reviews in progress (Caixa de entrada)
+	Gates      []service.GateView
+	Calls      []string // names of mutating calls, in order
+	Ledger     []LedgerEntry
+	Flows      []service.FlowView
+	Fires      []service.FlowFireView
+	Subs       []service.SubscriptionStatus
+	Members    []domain.Member
+	Invites    []domain.Invite
+	// SearchRes é o que Search devolve (e SearchQ/SearchF a última chamada); Memory liga MemoryAvailable.
+	SearchRes service.SearchResult
+	SearchQ   string
+	SearchF   service.SearchFilter
+	Memory    bool
 	// MyRoleIs é o papel do usuário logado nesta empresa (vazio = owner).
 	MyRoleIs domain.MemberRole
 	nextTask int64
@@ -176,7 +182,7 @@ func (f *Fake) HirePersona(_ context.Context, _ domain.Actor, companyID domain.I
 		}
 	}
 	p := domain.Persona{ID: domain.NewID(), CompanyID: companyID, Slug: in.Slug, Name: in.Name, Title: in.Title, Instructions: in.Instructions,
-		Agent: in.Agent, Model: in.Model, Status: domain.PersonaIdle, HeartbeatIntervalSec: in.HeartbeatIntervalSec, ReportsTo: in.ReportsTo, RequireReview: in.RequireReview,
+		Agent: in.Agent, Model: in.Model, AdapterConfig: in.AdapterConfig, Status: domain.PersonaIdle, HeartbeatIntervalSec: in.HeartbeatIntervalSec, ReportsTo: in.ReportsTo, RequireReview: in.RequireReview,
 		CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
 	f.Personas = append(f.Personas, p)
 	return p, nil
@@ -316,6 +322,9 @@ func (f *Fake) ListTasks(_ context.Context, _ domain.ID, fl service.TaskFilter) 
 		if fl.PersonaID != nil && (t.PersonaID == nil || *t.PersonaID != *fl.PersonaID) {
 			continue
 		}
+		if fl.ProjectID != nil && (t.ProjectID == nil || *t.ProjectID != *fl.ProjectID) {
+			continue
+		}
 		if q := strings.ToLower(fl.Query); q != "" && !strings.Contains(strings.ToLower(t.Title+" "+t.Key), q) {
 			continue
 		}
@@ -373,6 +382,20 @@ func (f *Fake) UpdateTask(_ context.Context, _ domain.Actor, _, taskID domain.ID
 	if in.PersonaID != nil {
 		t.PersonaID = in.PersonaID
 		t.PersonaName = f.personaName(in.PersonaID)
+	}
+	if in.ClearProject {
+		t.ProjectID, t.ProjectName = nil, ""
+	}
+	if in.ProjectID != nil {
+		t.ProjectID, t.ProjectName = in.ProjectID, ""
+		for _, p := range f.Projects {
+			if p.ID == *in.ProjectID {
+				if p.Status == domain.ProjectArchived {
+					return service.TaskView{}, domain.Invalid("project", "arquivado")
+				}
+				t.ProjectName = p.Name
+			}
+		}
 	}
 	t.UpdatedAt = time.Now().UTC()
 	return *t, nil
@@ -498,6 +521,22 @@ func (f *Fake) CancelRun(_ context.Context, _ domain.Actor, _, runID domain.ID) 
 		}
 	}
 	return service.RunView{}, domain.ErrNotFound
+}
+
+func (f *Fake) Search(_ context.Context, _ domain.ID, q string, fl service.SearchFilter) (service.SearchResult, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if err := f.fail("Search"); err != nil {
+		return service.SearchResult{}, err
+	}
+	f.SearchQ, f.SearchF = q, fl
+	return f.SearchRes, nil
+}
+
+func (f *Fake) MemoryAvailable() bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.Memory
 }
 
 func (f *Fake) ListActivity(_ context.Context, _ domain.ID, fl service.ActivityFilter) ([]domain.ActivityEvent, error) {

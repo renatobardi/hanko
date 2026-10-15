@@ -16,6 +16,7 @@ type costsIn struct {
 	From    string `query:"from" doc:"Início do período: data (AAAA-MM-DD, no fuso da empresa) ou RFC 3339. Padrão: início do mês corrente." example:"2026-03-01"`
 	To      string `query:"to" doc:"Fim do período: data (inclusiva, no fuso da empresa) ou RFC 3339 (exclusivo). Padrão: fim do mês corrente." example:"2026-03-31"`
 	GroupBy string `query:"group_by" enum:"day,persona,project,model,harness" default:"day" doc:"Dimensão de agrupamento."`
+	Project string `query:"project" doc:"Id ou slug do projeto: só as execuções das tasks dele. O custo pago (assinaturas) não é rateado por projeto."`
 }
 
 type updateCompanyIn struct {
@@ -77,7 +78,11 @@ func (s *server) registerCosts(api huma.API) {
 					to = ms.AddDate(0, 1, 0).UTC()
 				}
 			}
-			sum, err := s.svc.CostSummary(ctx, sc.Company.ID, service.CostFilter{From: from, To: to, GroupBy: in.GroupBy})
+			project, err := s.projectRef(ctx, sc.Company.ID, in.Project)
+			if err != nil {
+				return nil, s.fail(ctx, err)
+			}
+			sum, err := s.svc.CostSummary(ctx, sc.Company.ID, service.CostFilter{From: from, To: to, GroupBy: in.GroupBy, ProjectID: project})
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}
