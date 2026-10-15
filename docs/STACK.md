@@ -1,3 +1,5 @@
+> English: [docs/en/STACK.md](en/STACK.md)
+
 # HANKO — Stack & Convenções (v0.1)
 
 Control plane open-source para orquestrar times de agentes de IA (tasks, org chart, heartbeat, governança, budget). URL: https://hanko.oute.pro
