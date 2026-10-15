@@ -10,7 +10,9 @@ import (
 	"time"
 
 	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/events"
 	"github.com/renatobardi/hanko/internal/service"
+	"github.com/renatobardi/hanko/internal/testdb"
 )
 
 // Correções da revisão de Artefatos + Metas (ADR-0028).
@@ -93,4 +95,39 @@ func TestArtifactNameRejectsFormatChars(t *testing.T) {
 		wantErr(t, err, domain.ErrInvalid)
 	}
 	e.put(t, domain.HumanActor, service.PutArtifactInput{Name: "relatório-ação.md", Content: []byte("x")})
+}
+
+// Apagar a task apaga as versões dos artefatos dela, em vez de fundi-las à cadeia "sem task" do mesmo nome (que
+// colidiria no índice único de versão).
+func TestArtifactTaskDeleteCascades(t *testing.T) {
+	pool := testdb.New(t)
+	ctx := context.Background()
+	svc := service.New(pool, &fakeJobs{}, events.NewBroker())
+	co, err := svc.CreateCompany(ctx, domain.HumanActor, service.CreateCompanyInput{Name: "Acme Corp"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tk, err := svc.CreateTask(ctx, domain.HumanActor, co.ID, service.CreateTaskInput{Title: "t"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, in := range []service.PutArtifactInput{
+		{Name: "plano.md", Content: []byte("solto 1")},
+		{Name: "plano.md", Content: []byte("task 1"), TaskID: &tk.ID},
+	} {
+		if _, err := svc.PutArtifact(ctx, domain.HumanActor, co.ID, in); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := pool.Exec(ctx, "DELETE FROM tasks WHERE id = $1", tk.ID); err != nil {
+		t.Fatalf("apagar a task: %v", err)
+	}
+	all, err := svc.ListArtifacts(ctx, co.ID, service.ArtifactFilter{AllVersions: true})
+	if err != nil || len(all) != 1 || all[0].TaskID != nil || all[0].Version != 1 {
+		t.Fatalf("depois de apagar a task sobra só a cadeia sem task: %+v %v", all, err)
+	}
+	var blobs int
+	if err := pool.QueryRow(ctx, "SELECT count(*) FROM artifact_blobs").Scan(&blobs); err != nil || blobs != 1 {
+		t.Fatalf("blobs órfãos: %d %v", blobs, err)
+	}
 }
