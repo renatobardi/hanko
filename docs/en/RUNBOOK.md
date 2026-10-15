@@ -197,6 +197,15 @@ The `hanko auth` commands use `HANKO_DATABASE_URL` (and the rest of the configur
 Run tokens keep working (API, `/mcp`, `/memory-mcp`). Local agents that **omitted the token** and talked to loopback as if they were
 the human (ADR-0017) now get **401**; use the run token (already injected by Hanko) or a dedicated API key.
 
+### 5.5 Installable PWA
+
+The UI is installable (manifest at `/manifest.webmanifest`, service worker at `/sw.js`, icons under `/static/icons/`) and shows an
+`/offline` page when the network drops. The service worker only caches versioned static assets (`/static/…?v=`): authenticated HTML,
+the API, SSE, `/auth/*`, `/convite/*` and any POST never go through the cache. It needs https (or `localhost`); the manifest, `sw.js` and
+`/offline` are public (they carry no data). Every deploy changes `sw.js` (binary version), which updates the worker and drops the old cache.
+If the installed app looks stale: reload twice or "Unregister" the service worker in the browser devtools. Regenerate the PNGs from the
+seal with `python3 scripts/gen-pwa-icons.py` (Pillow).
+
 ## 3. Backup and restore
 
 ### 3.1 Production (`hanko-prd`, oute-server)

@@ -5,6 +5,9 @@ package i18n
 // appear in the UI sources, and run the ui catalog-coverage test after adding
 // any new T/Tf/N literal.
 var en = map[string]string{
+	"Sem conexão": "Offline",
+	"Não foi possível falar com o servidor. Confira a rede e tente de novo; nada do que você vê aqui está salvo no aparelho.": "Could not reach the server. Check your network and try again; nothing you see here is stored on this device.",
+	"Tentar de novo": "Try again",
 	"Muitas tentativas. Tente novamente em %d min.":               "Too many attempts. Try again in %d min.",
 	"E-mail ou senha incorretos.":                                 "Incorrect email or password.",
 	"Muitos logins ao mesmo tempo. Tente de novo em instantes.":   "Too many sign-ins at once. Try again in a moment.",

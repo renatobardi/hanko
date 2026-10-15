@@ -14,6 +14,7 @@ templ Layout(sh Shell) {
 			<meta name="color-scheme" content="light dark"/>
 			<title>{ sh.Title } · Hanko</title>
 			<link rel="icon" href="/static/favicon.svg" type="image/svg+xml"/>
+			@pwaHead()
 			<link rel="stylesheet" href={ "/static/hanko.css?v=" + sh.Version }/>
 			<script src={ "/static/vendor/htmx.min.js" } defer></script>
 			<script src={ "/static/vendor/sse.min.js" } defer></script>
@@ -93,6 +94,7 @@ templ Bare(title, version string) {
 			<meta name="color-scheme" content="light dark"/>
 			<title>{ title } · Hanko</title>
 			<link rel="icon" href="/static/favicon.svg" type="image/svg+xml"/>
+			@pwaHead()
 			<link rel="stylesheet" href={ "/static/hanko.css?v=" + version }/>
 			<script src="/static/vendor/htmx.min.js" defer></script>
 			<script src={ "/static/hanko.js?v=" + version } defer></script>

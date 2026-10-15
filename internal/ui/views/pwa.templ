@@ -1,0 +1,30 @@
+package views
+
+import "github.com/renatobardi/hanko/internal/i18n"
+
+// pwaHead holds the install/theme tags shared by every page head (manifest, theme-color per scheme,
+// iOS home-screen icon).
+templ pwaHead() {
+	<link rel="manifest" href="/manifest.webmanifest"/>
+	<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)"/>
+	<meta name="theme-color" content="#0c0a09" media="(prefers-color-scheme: dark)"/>
+	<link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png"/>
+}
+
+// Offline is the page the service worker shows when a navigation fails without network.
+// Public: no session, no user data.
+templ Offline(version string) {
+	@Bare(i18n.T(ctx, "Sem conexão"), version) {
+		<div class="auth" style="max-width:440px">
+			<div class="mark">
+				@Mark(40)
+				<b>Hanko</b>
+			</div>
+			<div class="card">
+				<h1>{ i18n.T(ctx, "Sem conexão") }</h1>
+				<p class="sub muted">{ i18n.T(ctx, "Não foi possível falar com o servidor. Confira a rede e tente de novo; nada do que você vê aqui está salvo no aparelho.") }</p>
+				<a class="btn primary block" href="/">{ i18n.T(ctx, "Tentar de novo") }</a>
+			</div>
+		</div>
+	}
+}

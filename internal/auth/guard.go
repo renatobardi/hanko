@@ -34,10 +34,16 @@ func RedactPath(path string) string {
 	return path
 }
 
+// isPWAPath: manifest, service worker e página offline são públicos (o navegador os busca sem cookie
+// e o SW precisa deles antes de qualquer login). Não carregam dado algum.
+func isPWAPath(p string) bool {
+	return p == "/manifest.webmanifest" || p == "/sw.js" || p == "/offline"
+}
+
 // Guard é o middleware do modo authenticated. Resolve a identidade (cookie de sessão ou
 // API key) e aplica a regra por rota:
 //
-//	livres:      /healthz, /readyz, /static/, /entrar (e /entrar/…), /sair, /idioma, /auth/, /convite/
+//	livres:      /healthz, /readyz, /static/, /manifest.webmanifest, /sw.js, /offline (PWA), /entrar (e /entrar/…), /sair, /idioma, /auth/, /convite/
 //	/metrics:    loopback direto ou API key
 //	/api/…:      sessão (CSRF same-origin em métodos que mudam estado), API key ou run token
 //	/mcp, /memory-mcp: API key ou run token (run token é validado pelo handler)
@@ -59,7 +65,7 @@ func (g *guard) wrap(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
 		switch {
-		case path == "/healthz" || path == "/readyz" || strings.HasPrefix(path, "/static/"):
+		case path == "/healthz" || path == "/readyz" || strings.HasPrefix(path, "/static/") || isPWAPath(path):
 			next.ServeHTTP(w, r)
 			return
 		}

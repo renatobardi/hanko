@@ -49,4 +49,12 @@
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", watchLog);
   else watchLog();
+
+  // PWA: register the service worker (scope "/") only in a secure context (https or localhost).
+  // It caches versioned static assets and serves an offline page; it never caches data.
+  if ("serviceWorker" in navigator && window.isSecureContext) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {});
+    });
+  }
 })();

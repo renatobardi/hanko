@@ -54,6 +54,8 @@ Primeira versão pública. Em produção em https://hanko.oute.pro desde 2026-10
 - Documentação em inglês (`README.md`, `CONTRIBUTING.md`, `docs/en/`).
 - CI no GitHub: golangci-lint (gosec, revive, staticcheck), govulncheck, testes com `-race` e integração com Postgres,
   diff de openapi/templ/sqlc e dry-run do goreleaser.
+- PWA instalável: manifest, ícones (192/512/maskable), service worker só com assets estáticos versionados e página
+  `/offline` bilíngue; nenhum HTML autenticado, API ou SSE entra no cache.
 
 ### Corrigido
 - 37 achados das revisões independentes do M1–M5 (token de API não validado, segredos herdados pelo agente,
