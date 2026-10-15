@@ -138,7 +138,7 @@ func SearchPage(sh Shell, vm SearchVM) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "\" hx-include=\"[name='tipo']\" hx-trigger=\"input changed delay:250ms, search\" hx-target=\"#search-results\" hx-swap=\"outerHTML\" hx-push-url=\"true\"> ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "\" hx-include=\"[name='tipo']\" hx-trigger=\"input changed delay:250ms, search\" hx-target=\"#search-results\" hx-swap=\"outerHTML\" hx-replace-url=\"true\"> ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

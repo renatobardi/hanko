@@ -38,8 +38,9 @@ func TestSearchPage(t *testing.T) {
 	// sem consulta: estado inicial, sem chamar o service
 	rec := e.get(t, "/c/hanko/buscar")
 	wantStatus(t, rec, http.StatusOK)
-	wantContains(t, rec, "Busque em tudo da empresa", `id="q-search"`, `hx-get="/c/hanko/buscar"`, `hx-push-url="true"`, `hx-trigger="input changed delay:250ms, search"`,
+	wantContains(t, rec, "Busque em tudo da empresa", `id="q-search"`, `hx-get="/c/hanko/buscar"`, `hx-replace-url="true"`, `hx-trigger="input changed delay:250ms, search"`,
 		`id="search-results"`, "Memória")
+	wantNotContains(t, rec, `hx-push-url`) // digitar não empilha uma entrada de histórico por pausa
 	if f.SearchQ != "" {
 		t.Errorf("sem q não deve buscar: %q", f.SearchQ)
 	}
