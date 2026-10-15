@@ -50,3 +50,7 @@ UPDATE personas SET reviewer_persona_id = @reviewer_persona_id, reviewer_agent =
                     reviewer_model = @reviewer_model, updated_at = @now
 WHERE company_id = @company_id AND id = @id
 RETURNING *;
+
+-- name: ListOpenReviewsForCompany :many
+-- Revisões automáticas ainda sem gate (pending/running): a Caixa de entrada mostra "revisão em andamento".
+SELECT * FROM reviews WHERE company_id = @company_id AND status IN ('pending', 'running') ORDER BY created_at, id;

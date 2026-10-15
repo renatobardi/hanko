@@ -126,7 +126,8 @@ type InboxVM struct {
 	Failed       []InboxRun
 	Personas     []InboxPersona
 	Alerts       []InboxAlert
-	Total        int // items shown in the current tab
+	Reviewing    []InboxReview // revisões automáticas em andamento (informativo; não contam como pendência)
+	Total        int           // items shown in the current tab
 	Notice       string
 	Pending      int
 	Aged         int

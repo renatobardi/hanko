@@ -78,6 +78,31 @@ templ InboxPage(sh Shell, vm InboxVM) {
 						}
 					</section>
 				}
+				if len(vm.Reviewing) > 0 {
+					<section class="card inbox-sec">
+						<div class="inbox-h">@Icon("shield") Revisão em andamento <span class="cnt">{ fmt.Sprint(len(vm.Reviewing)) }</span></div>
+						for _, rv := range vm.Reviewing {
+							<div class="inbox-row">
+								<span class="mini-avatar">@Icon("shield")</span>
+								<div class="main">
+									<div class="t">
+										<a class="mono id" href={ templ.SafeURL(rv.Href) }>{ rv.Key }</a>
+										<a href={ templ.SafeURL(rv.Href) }>{ rv.Title }</a>
+										<span class="badge outline">Em revisão</span>
+									</div>
+									<div class="s">
+										if rv.Waiting {
+											{ rv.Reviewer } vai revisar a entrega de { rv.Persona } assim que ela terminar · { rv.When }
+										} else {
+											{ rv.Reviewer } revisa a entrega de { rv.Persona } · { rv.When }
+										}
+										· o gate abre quando a revisão terminar
+									</div>
+								</div>
+							</div>
+						}
+					</section>
+				}
 				if len(vm.Blocked) > 0 {
 					<section class="card inbox-sec">
 						<div class="inbox-h">@Icon("alert") Tasks bloqueadas <span class="cnt">{ fmt.Sprint(len(vm.Blocked)) }</span></div>

@@ -211,6 +211,18 @@ func TestInboxAlerts(t *testing.T) {
 	wantNotContains(t, e.get(t, "/c/hanko/caixa?aba=falhas"), "Alertas operacionais")
 }
 
+func TestInboxRevisaoEmAndamento(t *testing.T) {
+	f := uitest.Sample()
+	tv := f.Tasks[0]
+	f.Reviewing = []service.InboxReview{{Task: tv, Status: "running", Agent: "codex", Model: "gpt-rev", CreatedAt: uitest.Now().Add(-5 * time.Minute)}}
+	e := newEnv(t, f)
+	rec := e.get(t, "/c/hanko/caixa")
+	wantStatus(t, rec, http.StatusOK)
+	wantContains(t, rec, "Revisão em andamento", "Em revisão", "codex · gpt-rev revisa a entrega", "/c/hanko/tasks/"+tv.Key)
+	wantContains(t, e.get(t, "/c/hanko/caixa?aba=gates"), "Revisão em andamento")
+	wantNotContains(t, e.get(t, "/c/hanko/caixa?aba=falhas"), "Revisão em andamento")
+}
+
 func TestInboxActions(t *testing.T) {
 	t.Run("desbloquear", func(t *testing.T) {
 		f := uitest.Sample()

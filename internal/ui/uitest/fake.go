@@ -33,6 +33,7 @@ type Fake struct {
 	Activity  []domain.ActivityEvent
 	Health    map[domain.ID]service.PersonaHealth
 	Alerts    []domain.Alert
+	Reviewing []service.InboxReview // automatic reviews in progress (Caixa de entrada)
 	Gates     []service.GateView
 	Calls     []string // names of mutating calls, in order
 	Ledger    []LedgerEntry

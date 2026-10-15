@@ -305,6 +305,51 @@ func (q *Queries) GetReviewByRunIDForUpdate(ctx context.Context, runID *uuid.UUI
 	return i, err
 }
 
+const listOpenReviewsForCompany = `-- name: ListOpenReviewsForCompany :many
+SELECT id, company_id, task_id, author_persona_id, author_run_id, reviewer_persona_id, agent, model, requested_status, status, run_id, artifact, artifact_sha256, verdict, justification, gate_id, created_at, started_at, finished_at FROM reviews WHERE company_id = $1 AND status IN ('pending', 'running') ORDER BY created_at, id
+`
+
+// Revisões automáticas ainda sem gate (pending/running): a Caixa de entrada mostra "revisão em andamento".
+func (q *Queries) ListOpenReviewsForCompany(ctx context.Context, companyID uuid.UUID) ([]Review, error) {
+	rows, err := q.db.Query(ctx, listOpenReviewsForCompany, companyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Review{}
+	for rows.Next() {
+		var i Review
+		if err := rows.Scan(
+			&i.ID,
+			&i.CompanyID,
+			&i.TaskID,
+			&i.AuthorPersonaID,
+			&i.AuthorRunID,
+			&i.ReviewerPersonaID,
+			&i.Agent,
+			&i.Model,
+			&i.RequestedStatus,
+			&i.Status,
+			&i.RunID,
+			&i.Artifact,
+			&i.ArtifactSha256,
+			&i.Verdict,
+			&i.Justification,
+			&i.GateID,
+			&i.CreatedAt,
+			&i.StartedAt,
+			&i.FinishedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listStaleReviews = `-- name: ListStaleReviews :many
 SELECT rv.id, rv.company_id, rv.task_id, rv.author_persona_id, rv.author_run_id, rv.reviewer_persona_id, rv.agent, rv.model, rv.requested_status, rv.status, rv.run_id, rv.artifact, rv.artifact_sha256, rv.verdict, rv.justification, rv.gate_id, rv.created_at, rv.started_at, rv.finished_at FROM reviews rv
 LEFT JOIN runs r ON r.id = rv.run_id

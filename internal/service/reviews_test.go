@@ -628,3 +628,23 @@ func TestReviewerAlternativoIgualAAutora(t *testing.T) {
 		t.Error("contratar com revisor igual deveria falhar")
 	}
 }
+
+// A Caixa de entrada mostra a revisão em andamento (informativa: não conta como pendência) até o gate nascer.
+func TestInboxMostraRevisaoEmAndamento(t *testing.T) {
+	ctx := context.Background()
+	r := newReviewEnv(t, withReviewerPersona(t))
+	r.closeTask(t)
+	in, err := r.svc.Inbox(ctx, r.co.ID)
+	if err != nil || len(in.UnderReview) != 1 || in.UnderReview[0].Status != "pending" || in.UnderReview[0].Task.ID != r.task.ID || in.Count() != 0 {
+		t.Fatalf("pending: %+v count=%d %v", in.UnderReview, in.Count(), err)
+	}
+	r.finishAuthor(t)
+	run := r.startReview(t)
+	if in, _ = r.svc.Inbox(ctx, r.co.ID); len(in.UnderReview) != 1 || in.UnderReview[0].Status != "running" {
+		t.Fatalf("running: %+v", in.UnderReview)
+	}
+	r.finishReview(t, run, domain.RunDone, "VEREDITO: APROVADO\nok")
+	if in, _ = r.svc.Inbox(ctx, r.co.ID); len(in.UnderReview) != 0 || len(in.Gates) != 1 {
+		t.Fatalf("depois do gate: review=%+v gates=%d", in.UnderReview, len(in.Gates))
+	}
+}
