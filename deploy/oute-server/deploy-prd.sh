@@ -121,6 +121,7 @@ fi"
 x "cd /opt/app && docker compose up -d --build"
 x "for i in \$(seq 1 90); do curl -fsS --max-time 2 http://127.0.0.1:${PORT}/readyz >/dev/null && echo 'readyz ok' && exit 0; sleep 2; done; docker compose -f /opt/app/docker-compose.yml logs --tail 80 hanko; exit 1"
 x "for i in \$(seq 1 30); do s=\$(docker inspect -f '{{.State.Health.Status}}' \$(docker compose -f /opt/app/docker-compose.yml ps -q ai-memory) 2>/dev/null); [ \"\$s\" = healthy ] && echo 'ai-memory ok' && exit 0; sleep 2; done; echo \"AVISO: ai-memory \${s:-ausente}; o Hanko segue sem memória (outbox)\"; docker compose -f /opt/app/docker-compose.yml logs --tail 30 ai-memory"
+x "BASE=http://127.0.0.1:${PORT} PUBLIC_HOST=${DOMAIN} bash /opt/app/deploy/oute-server/smoke.sh"
 r "lxc snapshot ${NAME} deploy-\$(date +%Y%m%d%H%M%S)"
 
 # 5) Borda pública (host): mesmo padrão de lab/scripts/ops/deploy-vault-vhost.sh —
