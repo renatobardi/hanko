@@ -196,6 +196,70 @@ fossem o humano (ADR-0017) passam a receber **401**; use o run token (já injeta
 
 ## 3. Backup e restore
 
+### 3.1 Produção (`hanko-prd`, oute-server)
+
+Duas camadas, que falham de formas diferentes:
+
+| Camada | O quê | Quando | Onde |
+|---|---|---|---|
+| Local (LXC) | `deploy/oute-server/backup.sh`: `pg_dump -Fc` do banco `hanko` + tar do volume do ai-memory (container pausado durante o tar, para o índice SQLite sair consistente) | diário ~01:30 UTC (timer `hanko-backup`, instalado pelo `deploy-prd.sh`) | `/var/backups/hanko` no LXC, 3 gerações + `SHA256SUMS` |
+| Lab (restic) | `pg_dump` do banco feito pelo próprio lab + o diretório acima (`backup_paths`) | semanal, sábado 02:00 (`oute-backup-weekly`) | restic em `/var/backups/restic-oute` no host + sync offsite; alerta no Kuma |
+
+O timer roda antes do sábado 02:00, então o restic leva uma cópia local fresca. O `agent-home` (login do claude/codex) e o
+`lgtm` (telemetria) **não** entram no backup: login se refaz (§ "Login do Claude" ao fim do deploy) e a telemetria é descartável.
+A fonte da verdade de governança está toda no Postgres (ADR-0015, regra 5); o ai-memory é recall (não é fonte de verdade),
+mas o tar dele é guardado para não perder o histórico de sessões.
+
+Verificar (no Mac):
+
+```bash
+ssh oute-server "lxc exec hanko-prd -- systemctl list-timers hanko-backup.timer --no-pager"
+ssh oute-server "lxc exec hanko-prd -- bash -lc 'systemctl start hanko-backup.service && ls -l /var/backups/hanko && cd /var/backups/hanko && sha256sum -c SHA256SUMS'"
+```
+
+**Drill mensal (não toca no prd):** restaura o dump mais novo num banco descartável `hanko_restore_check`, imprime o nº de
+tabelas e a última migration aplicada, e apaga o banco.
+
+```bash
+ssh oute-server "lxc exec hanko-prd -- /opt/app/deploy/oute-server/restore.sh --check"
+# saída esperada: tabelas=<N> / migration=<versão> / "drill ok (prd intocado)"
+```
+
+**Restore a partir da cópia local (mesmo LXC):** para o hanko e o ai-memory, recria o banco `hanko`, faz `pg_restore`, repõe o volume
+do ai-memory e sobe a stack. Pede confirmação (`--yes` dispensa).
+
+```bash
+ssh -t oute-server "lxc exec hanko-prd -- /opt/app/deploy/oute-server/restore.sh --apply"
+ssh oute-server "lxc exec hanko-prd -- curl -fsS http://127.0.0.1:3810/readyz"
+# uma geração específica:
+#   restore.sh --apply --pgdump /var/backups/hanko/hanko-<UTC>.pgdump --aimemory /var/backups/hanko/aimemory-<UTC>.tar.gz
+```
+
+**Restore a partir do restic do lab (LXC perdido ou cópia local corrompida):** no oute-server, como root (precisa do
+`/etc/oute/backup.env` do lab para o repositório e a senha do restic). Recrie o LXC com `deploy-prd.sh` primeiro (ele sobe a stack
+vazia), depois:
+
+```bash
+. /etc/oute/backup.env; export RESTIC_REPOSITORY RESTIC_PASSWORD
+restic snapshots --tag hanko-prd | tail
+restic dump latest containers/hanko-prd/hanko.pgdump > /tmp/hanko.pgdump       # dump do próprio lab
+restic dump latest containers/hanko-prd/files/hanko.tar > /tmp/hanko-local.tar  # cópia local + memória
+mkdir -p /tmp/hanko-local && tar xf /tmp/hanko-local.tar -C /tmp/hanko-local && ls /tmp/hanko-local
+lxc file push /tmp/hanko.pgdump hanko-prd/root/hanko.pgdump
+lxc file push /tmp/hanko-local/aimemory-*.tar.gz hanko-prd/root/aimemory.tar.gz   # se existir
+lxc exec hanko-prd -- /opt/app/deploy/oute-server/restore.sh --apply --yes \
+  --pgdump /root/hanko.pgdump --aimemory /root/aimemory.tar.gz
+rm -f /tmp/hanko.pgdump /tmp/hanko-local.tar; rm -rf /tmp/hanko-local
+```
+
+(`--aimemory` é opcional; sem ele só o banco é restaurado. O nome exato do arquivo no restic está em `restic ls latest --tag hanko-prd`.)
+Depois do restore: `/readyz` ok, login pelo Firebase, e registre data e resultado em `docs/SESSION.md`. O `.env` (segredos) **não**
+está em nenhum backup: ele é gerado dentro do LXC na primeira vez; ao recriar o LXC, o `POSTGRES_PASSWORD` novo vale porque o banco
+restaurado é recriado pelo próprio postgres do compose, mas `HANKO_SECRET` novo invalida sessões e API keys emitidas — guarde uma
+cópia do `.env` no cofre depois do primeiro deploy.
+
+### 3.2 Variante genérica (compose de dev/stg)
+
 Backup diário (cron do usuário `hanko` no container): `pg_dump` + `restic` para o bucket R2.
 
 ```bash
