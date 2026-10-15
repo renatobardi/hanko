@@ -57,8 +57,10 @@ fi
 mv "${tmp}/hanko.pgdump" "${OUT}/hanko-${TS}.pgdump"
 [[ ! -f "${tmp}/aimemory.tar.gz" ]] || mv "${tmp}/aimemory.tar.gz" "${OUT}/aimemory-${TS}.tar.gz"
 for prefix in hanko aimemory; do
+  # sem nenhuma geração do prefixo (ex.: ai-memory fora do ar) o ls falha e, com pipefail, derrubaria o script aqui
   # shellcheck disable=SC2012
-  ls -1 "${OUT}/${prefix}-"*.* 2>/dev/null | sort -r | tail -n +$((KEEP + 1)) | xargs -r rm -f --
+  { ls -1 "${OUT}/${prefix}-"*.* 2>/dev/null || true; } | sort -r | tail -n +$((KEEP + 1)) | xargs -r rm -f --
 done
-( cd "$OUT" && sha256sum hanko-*.pgdump aimemory-*.tar.gz 2>/dev/null > SHA256SUMS.new && mv SHA256SUMS.new SHA256SUMS )
+# nullglob: padrão sem arquivo some em vez de virar texto literal (senão o sha256sum falha e o mv nunca roda)
+( shopt -s nullglob; cd "$OUT" && sha256sum hanko-*.pgdump aimemory-*.tar.gz > SHA256SUMS.new && mv SHA256SUMS.new SHA256SUMS )
 log "ok: $(ls -1 "$OUT" | tr '\n' ' ')"
