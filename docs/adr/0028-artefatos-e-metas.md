@@ -92,3 +92,9 @@ execução) e na mesma Caixa de entrada.
 - O cliente Go `ExportCompany` passou a receber `ExportOpts{Runs, Logs, Artifacts}`.
 - O progresso usa `double precision`: metas de dinheiro com centavos exigem cuidado de arredondamento no consumidor; a
   tela mostra até duas casas decimais.
+- Run de chat não tem task (ADR-0027): um artefato publicado nela fica só com a run (e o projeto, se informado); a
+  exportação grava `task: 0` e a importação não inventa task. Com token de run, `hanko_artifact_put` aceita `task` só
+  se for a task da execução.
+- Os fatos `artifact.created` e `goal.achieved` já saem na atividade, mas **não** são eventos assináveis dos webhooks
+  (ADR-0029) nesta versão. Assiná-los exige acrescentar `artifact.published` e `goal.reached` à lista de eventos e ao
+  mapeamento de verbos em `webhookEventFor`: fica como evolução futura.

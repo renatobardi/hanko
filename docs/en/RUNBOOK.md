@@ -460,3 +460,41 @@ hanko chat list --persona cto
 - The persona can open a task from the conversation (`hanko_task_create`); its description cites the conversation. A chat run has no task,
   so `hanko_gate_request` needs the `task` argument.
 - To see how an answer was produced, open the message's "run" link (the run's live log).
+
+## Artifacts and goals
+
+**Artifacts** (ADR-0028) are files with immutable versions: the same name on the same task creates the next version; publishing
+the same content again does not create one. The `/artefatos` screen (filters by project, task, persona, type and name; upload;
+a detail page with preview, versions and a text diff) and sections on the task, run and project pages. Roles: viewer reads, member
+publishes, admin deletes (the whole chain, with no trash).
+
+| Variable | Default | Effect |
+|---|---|---|
+| `HANKO_ARTIFACT_MAX_BYTES` | 5 MiB (1 to 16 MiB) | Maximum size of one file. |
+| `HANKO_ARTIFACT_QUOTA_BYTES` | 512 MiB | Company quota, summing every version. |
+
+- **Publishing:** the UI upload, `hanko artifact put <file|-> [--task HNK-1]` (also `list`, `get <id> [-o file] [--info]`,
+  `diff <id> [--against <id>]`, `rm <id>`, `usage`), the `…/artifacts` API and the MCP tool `hanko_artifact_put` (text in `content`,
+  binary in `content_base64`). A persona publishes only on its own task and run.
+- **Safe serving:** content never becomes a page. Only plain text, Markdown and raster images (png, jpeg, gif, webp) open in the
+  browser; HTML, SVG, PDF and everything else download. The response carries `nosniff`, a CSP with `sandbox` and
+  `Cross-Origin-Resource-Policy`.
+- **Exporting with artifacts:** `hanko export --with-artifacts` (API `with_artifacts=true`); artifact content is capped at 20 MiB
+  in the file. Without the option the file is as before; old files import normally. Goals are not exported.
+- **Backup:** files live in Postgres, so the dump grows; check `hanko artifact usage` before raising the quota.
+
+**Goals** (ADR-0028): a start value, a target (it may be lower, for reduction goals) and a current value; progress = (current −
+start) / (target − start), from 0 to 100%. Recording a value that reaches the target marks the goal as achieved, writes the
+`goal.achieved` activity and shows an informational inbox item for 7 days. The `/metas` screen (active, achieved, abandoned tabs), a
+goal page with the history, linked tasks (one active goal per task) and a "Metas" panel on the project. CLI: `hanko goal
+create|list|show|update|progress`, `hanko task create --goal`. Active goals go into the run briefing, and the persona records the
+measured value with `hanko_goal_update` (`hanko_goal_list` lists them). Roles: viewer reads; member and persona record progress
+and link tasks; admin creates, edits, abandons and reopens.
+
+| Symptom | Cause | Action |
+|---|---|---|
+| Upload refused: "over the N MiB per-file limit" | file above `HANKO_ARTIFACT_MAX_BYTES` | split the file or raise the limit (up to 16 MiB) |
+| Upload refused: company artifact quota | versions sum above `HANKO_ARTIFACT_QUOTA_BYTES` | delete old artifacts (admin) or raise the quota |
+| Export with `--with-artifacts` refused | content above 20 MiB | export without the option |
+| HTML or PDF downloads instead of opening | by design: only text, Markdown and raster images open | open the downloaded file |
+| An achieved goal rejects progress | status `achieved` | reopen it (admin) by switching to active; refused while the current value already reaches the target |

@@ -67,3 +67,8 @@ de outras empresas; o que se quer é um arquivo legível, versionável e seguro 
 - O round trip export → import → export é igual, exceto `exported_at` e o slug (testado, com e sem execuções/logs).
 - Memória do ai-memory, gates, alertas, orçamentos consumidos e fires de fluxo não viajam: são estado de operação.
 - Mudança incompatível no formato exige `hanko.company.v2`; o importador recusa formatos que não conhece.
+- Adendo (ADR-0028): o formato segue `hanko.company.v1`. O campo `artifacts` é **opcional** e só é escrito com
+  `--with-artifacts` (API `with_artifacts=true`): cada item leva nome, versão, tipo, sha256, tamanho, task/projeto/
+  persona/run por referência (nunca id) e o conteúdo em base64. O arquivo com artefatos tem teto de 20 MiB de conteúdo
+  (cabe nos 32 MiB do corpo da importação); acima disso a exportação é recusada. A importação valida nomes, versões
+  contíguas, sha256, referências e a cota antes de gravar. Metas não são exportadas nem importadas.

@@ -511,3 +511,39 @@ hanko chat list --persona cto
 - A persona pode abrir uma task a partir da conversa (`hanko_task_create`); a descrição cita a conversa. Não há task na run de chat,
   então `hanko_gate_request` exige o argumento `task`.
 - Ver o raciocínio de uma resposta: abra o link "execução" da mensagem (log ao vivo da run).
+
+## Artefatos e metas
+
+**Artefatos** (ADR-0028) são arquivos com versões imutáveis: o mesmo nome na mesma task cria a versão seguinte; publicar o mesmo
+conteúdo de novo não cria versão. Tela `/artefatos` (filtros por projeto, task, persona, tipo e nome; envio; detalhe com prévia,
+versões e diff de texto), seções nas páginas da task, da execução e do projeto. Papéis: viewer lê, member publica, admin exclui
+(a cadeia inteira, sem lixeira).
+
+| Variável | Padrão | Efeito |
+|---|---|---|
+| `HANKO_ARTIFACT_MAX_BYTES` | 5 MiB (de 1 a 16 MiB) | Tamanho máximo de um arquivo. |
+| `HANKO_ARTIFACT_QUOTA_BYTES` | 512 MiB | Cota da empresa, somando todas as versões. |
+
+- **Publicar:** UI (envio na tela), `hanko artifact put <arquivo|-> [--task HNK-1]` (também `list`, `get <id> [-o arquivo] [--info]`,
+  `diff <id> [--against <id>]`, `rm <id>`, `usage`), API `…/artifacts` e a tool MCP `hanko_artifact_put` (texto em `content`, binário em
+  `content_base64`). A persona publica só na própria task e execução.
+- **Entrega segura:** o conteúdo nunca vira página. Só texto puro, Markdown e imagem raster (png, jpeg, gif, webp) abrem no
+  navegador; HTML, SVG, PDF e o resto baixam. A resposta leva `nosniff`, CSP com `sandbox` e `Cross-Origin-Resource-Policy`.
+- **Exportar com artefatos:** `hanko export --with-artifacts` (API `with_artifacts=true`); o conteúdo dos artefatos tem teto de
+  20 MiB no arquivo. Sem a opção o arquivo sai como sempre; arquivos antigos importam normalmente. Metas não são exportadas.
+- **Backup:** os arquivos estão no Postgres, então crescem o dump; confira `hanko artifact usage` antes de subir a cota.
+
+**Metas** (ADR-0028): valor inicial, alvo (pode ser menor, para metas de redução) e valor atual; progresso = (atual − inicial) /
+(alvo − inicial), de 0 a 100%. Registrar um valor que alcança o alvo marca a meta como atingida, grava a atividade `goal.achieved` e
+mostra um item informativo na Caixa de entrada por 7 dias. Tela `/metas` (abas ativas, atingidas, abandonadas), página da meta com o
+histórico, tasks ligadas (uma meta ativa por task) e o quadro "Metas" no projeto. CLI: `hanko goal create|list|show|update|progress`,
+`hanko task create --goal`. As metas ativas entram no briefing da run, e a persona registra o valor medido com `hanko_goal_update`
+(`hanko_goal_list` lista). Papéis: viewer lê; member e persona registram progresso e ligam tasks; admin cria, edita, abandona e reabre.
+
+| Sintoma | Causa | Ação |
+|---|---|---|
+| Envio recusado: "passa do limite de N MiB por arquivo" | arquivo acima de `HANKO_ARTIFACT_MAX_BYTES` | divida o arquivo ou suba o limite (até 16 MiB) |
+| Envio recusado: "cota de artefatos da empresa" | soma das versões acima de `HANKO_ARTIFACT_QUOTA_BYTES` | apague artefatos antigos (admin) ou suba a cota |
+| Exportação com `--with-artifacts` recusada | conteúdo acima de 20 MiB | exporte sem a opção |
+| HTML ou PDF baixa em vez de abrir | proposital: só texto, Markdown e imagem raster abrem | abra o arquivo baixado |
+| Meta atingida não aceita progresso | status `achieved` | reabra (admin) trocando para ativa; recusado enquanto o valor atual já alcança o alvo |
