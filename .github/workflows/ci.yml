@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   check:
-    runs-on: ubuntu-24.04 # fixo: ubuntu-latest vira 26.04 em 19/10/2026 (runner-images#14748); migrar testando ubuntu-26.04
+    runs-on: ubuntu-26.04
     services:
       postgres:
         image: postgres:17
@@ -94,7 +94,7 @@ jobs:
   release-dry-run:
     # valida a config do goreleaser e compila os binários de todas as plataformas sem publicar,
     # para a tag v* não ser o primeiro lugar onde a release quebra
-    runs-on: ubuntu-24.04 # fixo: ubuntu-latest vira 26.04 em 19/10/2026 (runner-images#14748); migrar testando ubuntu-26.04
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
         with:
