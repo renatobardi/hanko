@@ -114,6 +114,9 @@ func guardTripped(usage, limit float64, guardPct int) bool {
 
 // CreateSubscription registers a plan of a harness for the company.
 func (s *Service) CreateSubscription(ctx context.Context, actor domain.Actor, companyID domain.ID, in CreateSubscriptionInput) (domain.Subscription, error) {
+	if err := s.require(ctx, companyID, domain.MemberAdmin); err != nil {
+		return domain.Subscription{}, err
+	}
 	if in.WeeklyGuardPct == 0 {
 		in.WeeklyGuardPct = defaultGuardPct
 	}
@@ -146,6 +149,9 @@ func (s *Service) CreateSubscription(ctx context.Context, actor domain.Actor, co
 
 // ListSubscriptions returns the company's subscriptions with this week's usage.
 func (s *Service) ListSubscriptions(ctx context.Context, companyID domain.ID) ([]SubscriptionStatus, error) {
+	if err := s.require(ctx, companyID, domain.MemberViewer); err != nil {
+		return nil, err
+	}
 	q := s.read()
 	co, err := q.GetCompanyByID(ctx, companyID)
 	if err != nil {
@@ -168,6 +174,9 @@ func (s *Service) ListSubscriptions(ctx context.Context, companyID domain.ID) ([
 
 // GetSubscription returns one subscription, found by id or by name, with this week's usage.
 func (s *Service) GetSubscription(ctx context.Context, companyID domain.ID, ref string) (SubscriptionStatus, error) {
+	if err := s.require(ctx, companyID, domain.MemberViewer); err != nil {
+		return SubscriptionStatus{}, err
+	}
 	q := s.read()
 	co, err := q.GetCompanyByID(ctx, companyID)
 	if err != nil {
@@ -188,6 +197,9 @@ func (s *Service) GetSubscription(ctx context.Context, companyID domain.ID, ref 
 // UpdateSubscription changes a subscription. Switching it off records when (the paid-cost accrual
 // stops after that month); switching it back on clears it.
 func (s *Service) UpdateSubscription(ctx context.Context, actor domain.Actor, companyID, id domain.ID, in UpdateSubscriptionInput) (domain.Subscription, error) {
+	if err := s.require(ctx, companyID, domain.MemberAdmin); err != nil {
+		return domain.Subscription{}, err
+	}
 	if in.ClearWeeklyLimit && in.WeeklyLimitUSD != nil {
 		return domain.Subscription{}, domain.Invalid("weekly_limit_usd", "cannot set and clear at once")
 	}
@@ -269,6 +281,9 @@ func (s *Service) UpdateSubscription(ctx context.Context, actor domain.Actor, co
 // DeleteSubscription removes a subscription that no run was ever charged to; one with history is
 // switched off instead (the paid-cost history stays readable). Personas linked to it are unlinked.
 func (s *Service) DeleteSubscription(ctx context.Context, actor domain.Actor, companyID, id domain.ID) error {
+	if err := s.require(ctx, companyID, domain.MemberAdmin); err != nil {
+		return err
+	}
 	return s.withTx(ctx, func(t *txc) error {
 		cur, err := t.q.GetSubscriptionByIDForUpdate(ctx, store.GetSubscriptionByIDForUpdateParams{CompanyID: companyID, ID: id})
 		if err != nil {

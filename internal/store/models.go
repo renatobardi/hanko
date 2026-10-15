@@ -71,6 +71,29 @@ type Company struct {
 	BudgetMonthlyCents *int64
 }
 
+type CompanyInvite struct {
+	ID         uuid.UUID
+	CompanyID  uuid.UUID
+	Email      string
+	Role       string
+	TokenHash  string
+	InvitedBy  *uuid.UUID
+	CreatedAt  time.Time
+	ExpiresAt  time.Time
+	AcceptedAt *time.Time
+	AcceptedBy *uuid.UUID
+	RevokedAt  *time.Time
+}
+
+type CompanyMember struct {
+	CompanyID uuid.UUID
+	UserID    uuid.UUID
+	Role      string
+	InvitedBy *uuid.UUID
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
 type CostNotice struct {
 	CompanyID uuid.UUID
 	Model     string
@@ -351,6 +374,7 @@ type User struct {
 	Role         string
 	CreatedAt    time.Time
 	LastLoginAt  *time.Time
+	Invited      bool
 }
 
 type WakeRequest struct {

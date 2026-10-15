@@ -69,3 +69,15 @@ func BearerToken(header string) (string, bool) {
 	tok = strings.TrimSpace(tok)
 	return tok, tok != ""
 }
+
+// InviteTTL é a validade de um convite de empresa.
+const InviteTTL = 7 * 24 * time.Hour
+
+// NewInviteToken gera o token de um convite (32 bytes de entropia) e seu hash. Só o hash vai ao banco.
+func NewInviteToken() (token, hash string, err error) {
+	token, err = randomToken(32)
+	if err != nil {
+		return "", "", err
+	}
+	return token, HashToken(token), nil
+}
