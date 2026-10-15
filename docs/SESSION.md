@@ -8,12 +8,13 @@ Data: 2026-10-15 (madrugada, ~23h→07h) · Orquestração: Opus 5.5 · Execuç�
 - **v0.2 adiantado:** multi-humano com papéis e convites (ADR-0021), troca de empresa, controles por papel, formulário do revisor, export/import de empresa (ADR-0022), PWA instalável; índices e consultas quentes otimizados (`docs/PERF.md`, heartbeat 1,3 s → 1,5 ms em 5M eventos).
 - **Revisões:** 4 rodadas independentes, achados corrigidos com teste (ver CHANGELOG). Roteiros de demo em `docs/DEMOS.md` + `examples/demo-company.json`.
 
-## Para colocar em produção (no Mac) — ensaiado localmente: migrations em ~64 ms, dados íntegros, smoke ok, restore e down ok
-1. `cd ~/Projects/Github/Hanko && git pull` (a main local já está contida na remota).
-2. `deploy/oute-server/deploy-prd.sh` — snapshot `pre-deploy-<ts>` do LXC, troca o código, backup consistente (`backup pré-deploy ok`), sobe (migrations 00008–00013), `readyz ok`, `ai-memory ok`, `==> smoke ok`. Qualquer `FALHA` no smoke: pare e volte.
-3. Conferir: `docker compose logs hanko | grep "migration aplicada"` (8 a 13), login Google, tasks/runs/custos, e `company_members` com você como `owner`.
-4. Voltar, se preciso (RUNBOOK, "Voltar um deploy que trouxe migrations"): só o binário (`git reset --hard 9858b84` em `/opt/app` + `HANKO_VERSION` + `docker compose up -d`), restore completo (`restore.sh --apply`) ou `lxc restore hanko-prd pre-deploy-<ts>`.
-5. lab: mergear PR #281 (backup do hanko-prd) e rodar `tools/deploy-backup.sh --dry-run` e depois sem a flag.
+## Em produção (2026-10-15 ~07h20)
+- `hanko-prd` roda `2b8ddec`: migrations 00008–00013 aplicadas, `readyz ok`, `ai-memory ok`, `==> smoke ok`.
+- `/metrics` responde 401 no smoke de dentro do LXC (o NAT do Docker não é loopback); é o esperado.
+- Timer `hanko-backup` ativo (diário, ~01h30 UTC); backups em `/var/backups/hanko`.
+- Falta conferir: login Google, tasks/runs/custos, `company_members` com o dono como `owner`.
+- Voltar, se preciso (RUNBOOK, "Voltar um deploy que trouxe migrations"): só o binário (`git reset --hard 9858b84` em `/opt/app` + `HANKO_VERSION` + `docker compose up -d`), restore completo (`restore.sh --apply`) ou `lxc restore hanko-prd pre-deploy-<ts>`.
+- lab: mergear PR #281 (backup do hanko-prd) e rodar `tools/deploy-backup.sh --dry-run` e depois sem a flag.
 
 ## Travado
 - Adapter ACP: a leitura da especificação pediu permissão (WebFetch) que não foi respondida; nada implementado.
