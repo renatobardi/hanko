@@ -25,7 +25,9 @@ func (f *fakeBackend) LoadMemoryProposalForApply(context.Context, domain.ID, dom
 	return service.MemoryApplyItem{}, domain.ErrNotFound
 }
 
-func (f *fakeBackend) MarkMemoryProposalApplied(context.Context, domain.ID, domain.ID) error { return nil }
+func (f *fakeBackend) MarkMemoryProposalApplied(context.Context, domain.ID, domain.ID) error {
+	return nil
+}
 
 func (f *fakeBackend) MarkMemoryProposalFailed(context.Context, domain.ID, domain.ID, string) (time.Duration, error) {
 	return time.Minute, nil

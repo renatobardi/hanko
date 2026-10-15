@@ -14,6 +14,7 @@ import (
 	"github.com/renatobardi/hanko/internal/config"
 	"github.com/renatobardi/hanko/internal/events"
 	"github.com/renatobardi/hanko/internal/mcp"
+	"github.com/renatobardi/hanko/internal/memory"
 	"github.com/renatobardi/hanko/internal/service"
 	"github.com/renatobardi/hanko/internal/ui"
 	"github.com/renatobardi/hanko/internal/ui/views"
@@ -28,7 +29,8 @@ type handlerDeps struct {
 	Broker  *events.Broker
 	Pool    *pgxpool.Pool
 	Tokens  auth.RunTokens
-	Metrics http.Handler // opcional
+	Memory  memory.Provider // opcional; lê páginas para o diff das propostas de curadoria
+	Metrics http.Handler    // opcional
 	// JWKSURL substitui a origem das chaves públicas do Firebase (testes).
 	JWKSURL string
 }
@@ -46,7 +48,8 @@ func buildHandler(d handlerDeps) (http.Handler, error) {
 	ui.Mount(mux, ui.Deps{Svc: d.Svc, Broker: d.Broker, Logger: d.Logger, Version: d.Version, Auth: uiAuth(d), Secure: cfg.SecureCookies()})
 	mux.Handle("/mcp", mcp.Handler(mcp.Deps{Svc: d.Svc, Tokens: d.Tokens, Logger: d.Logger, Version: d.Version, Trusted: cfg.TrustedMCP()}))
 	if cfg.Memory.Provider == config.MemoryAIMemory {
-		mp, err := mcp.MemoryProxy(mcp.MemoryProxyDeps{Backend: d.Svc, Tokens: d.Tokens, URL: cfg.Memory.URL, Token: cfg.Memory.Token, Logger: d.Logger})
+		mp, err := mcp.MemoryProxy(mcp.MemoryProxyDeps{Backend: d.Svc, Tokens: d.Tokens, URL: cfg.Memory.URL, Token: cfg.Memory.Token,
+			Pages: pageReader(d.Memory), Logger: d.Logger})
 		if err != nil {
 			return nil, fmt.Errorf("app: proxy de memória: %w", err)
 		}
@@ -115,4 +118,10 @@ func restoreRequest(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// pageReader devolve o provedor de memória como leitor de páginas, quando ele sabe ler (senão nil).
+func pageReader(p memory.Provider) memory.PageReader {
+	pr, _ := p.(memory.PageReader)
+	return pr
 }

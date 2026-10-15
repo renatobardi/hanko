@@ -194,7 +194,10 @@ func New(pool *pgxpool.Pool, opts Options) (*Heartbeat, error) {
 	h.client = client
 	h.enqueueWake = func(ctx context.Context, a WakeArgs) error { _, err := client.Insert(ctx, a, nil); return err }
 	h.enqueueDeliver = func(ctx context.Context, a DeliverMemoryArgs) error { _, err := client.Insert(ctx, a, nil); return err }
-	h.enqueueApply = func(ctx context.Context, a ApplyMemoryProposalArgs) error { _, err := client.Insert(ctx, a, nil); return err }
+	h.enqueueApply = func(ctx context.Context, a ApplyMemoryProposalArgs) error {
+		_, err := client.Insert(ctx, a, nil)
+		return err
+	}
 	return h, nil
 }
 

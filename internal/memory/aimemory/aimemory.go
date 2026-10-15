@@ -43,6 +43,9 @@ type Options struct {
 	HTTP      *http.Client  // opcional
 	Logger    *slog.Logger  // opcional
 	Timeout   time.Duration // por chamada; padrão 5s
+	// ReadPageTool é o nome da tool que lê uma página por caminho (ex. a do ai-memory), usada só para mostrar o
+	// conteúdo atual no diff das propostas de curadoria. Vazio = o diff mostra só o conteúdo proposto.
+	ReadPageTool string
 }
 
 type provider struct {
@@ -52,6 +55,8 @@ type provider struct {
 	hc      *http.Client // com Authorization injetado, usado no MCP e nos hooks
 	log     *slog.Logger
 	timeout time.Duration
+
+	readTool string
 
 	mu   sync.Mutex
 	sess *sdk.ClientSession
@@ -65,6 +70,8 @@ func New(o Options) memory.Provider {
 		public:  strings.TrimRight(strings.TrimSpace(o.PublicURL), "/"),
 		log:     o.Logger,
 		timeout: o.Timeout,
+
+		readTool: strings.TrimSpace(o.ReadPageTool),
 	}
 	if p.log == nil {
 		p.log = slog.New(slog.NewTextHandler(io.Discard, nil))
