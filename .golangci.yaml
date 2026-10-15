@@ -30,9 +30,17 @@ linters:
         - G104 # coberto pelo errcheck
   exclusions:
     generated: lax
+    presets: # exclusões padrão do golangci v2 (defer Close/Remove, fmt.Fprint* no terminal, comentários)
+      - comments
+      - std-error-handling
+      - common-false-positives
     paths:
       - internal/store/gen
       - ".*_templ\\.go$"
     rules:
       - path: _test\.go
         linters: [gosec, errcheck]
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
