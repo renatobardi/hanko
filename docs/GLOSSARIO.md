@@ -15,9 +15,9 @@ Um termo por conceito. Código, API, MCP e banco em inglês; UI em pt-BR. Em dú
 | automatic review | Revisão automática | Parecer de outro modelo (persona revisora ou harness alternativo) registrado no gate `task_review` antes da decisão humana: veredito aprovado/reprovado, justificativa e sha256 do pacote revisado. Não decide nada. | aprovação automática |
 | gate | Gate | Ponto em que um humano decide (aprovar, recusar, pedir mudança). Sempre âmbar na UI. Audit trail em activity. | approval, review |
 | flow | Fluxo | Definição + gatilhos (cron, evento, manual) → cria tasks/runs. | routine, schedule |
-| workspace | Workspace | Diretório/repositório onde personas trabalham. Escopo da memória (ai-memory) e dos artefatos. | repo |
+| workspace | Workspace | Diretório (e, como metadado, repositório e branch) onde as runs trabalham; vive dentro de `HANKO_WORKSPACES_ROOT`. Escopo da memória (ai-memory) e dos artefatos. Precedência na run: task > projeto > persona (ADR-0025). | repo |
 | integration | Integração | Serviço externo conectado (GitHub, Slack…). | connector, app |
-| goal / project | Meta / Projeto | Direção: meta mede, projeto agrupa tasks. | — |
+| goal / project | Meta / Projeto | Direção: meta mede; projeto agrupa tasks, aponta para um workspace, está ativo ou arquivado e pode ter orçamento mensal (ADR-0025). | — |
 | org_chart | Organograma | `reports_to` entre personas; delegação segue a árvore. | hierarchy |
 | inbox / decision | Caixa de entrada / Decisão | O que espera o humano: gates, bloqueios, alertas. | — |
 | cost / budget | Custos e orçamentos | Ledger por run → persona → company; orçamento com hard stop. | spend |

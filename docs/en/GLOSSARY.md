@@ -13,9 +13,9 @@ One term per concept. Code, API, MCP and database use English; the UI is in Braz
 | run | Execução | One execution of a persona on a task, triggered by the heartbeat. Status: queued, running, done, interrupted, failed, cancelled, expired. One task has 0..n runs; at most one active run per task. | job |
 | gate | Gate | A point where a human decides (approve, reject, request changes). Always amber in the UI. Audit trail in activity. | approval, review |
 | flow | Fluxo | A definition plus triggers (cron, event, manual) that creates tasks/runs. | routine, schedule |
-| workspace | Workspace | The directory/repository where personas work. Scope of memory (ai-memory) and artifacts. | repo |
+| workspace | Workspace | The directory (and, as metadata, repository and branch) where runs work; lives inside `HANKO_WORKSPACES_ROOT`. Scope of memory (ai-memory) and artifacts. Run precedence: task > project > persona (ADR-0025). | repo |
 | integration | Integração | A connected external service (GitHub, Slack, ...). | connector, app |
-| goal / project | Meta / Projeto | Direction: a goal measures, a project groups tasks. | — |
+| goal / project | Meta / Projeto | Direction: a goal measures; a project groups tasks, points to a workspace, is active or archived and may have a monthly budget (ADR-0025). | — |
 | org_chart | Organograma | `reports_to` between personas; delegation follows the tree. | hierarchy |
 | inbox / decision | Caixa de entrada / Decisão | What is waiting on a human: gates, blockers, alerts. | — |
 | cost / budget | Custos e orçamentos | A ledger per run, rolling up to persona and company; budgets with a hard stop. | spend |

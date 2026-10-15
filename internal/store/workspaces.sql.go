@@ -12,20 +12,84 @@ import (
 	"github.com/google/uuid"
 )
 
+const activeRunReservesProject = `-- name: ActiveRunReservesProject :many
+SELECT r.persona_id, count(*)::bigint AS active,
+       GREATEST(COALESCE((SELECT avg(x.cost_usd) FROM (
+                   SELECT cost_usd FROM runs WHERE persona_id = r.persona_id AND cost_usd IS NOT NULL
+                   ORDER BY created_at DESC, id DESC LIMIT 10) x), 0), $1::float8)::float8 AS reserve_usd
+FROM runs r
+JOIN tasks t ON t.id = r.task_id
+WHERE r.company_id = $2 AND t.project_id = $3 AND r.status IN ('queued', 'running')
+GROUP BY r.persona_id
+`
+
+type ActiveRunReservesProjectParams struct {
+	DefaultReserve float64
+	CompanyID      uuid.UUID
+	ProjectID      *uuid.UUID
+}
+
+type ActiveRunReservesProjectRow struct {
+	PersonaID  uuid.UUID
+	Active     int64
+	ReserveUsd float64
+}
+
+// Como ActiveRunReserves, mas só das runs abertas de tasks do projeto.
+func (q *Queries) ActiveRunReservesProject(ctx context.Context, arg ActiveRunReservesProjectParams) ([]ActiveRunReservesProjectRow, error) {
+	rows, err := q.db.Query(ctx, activeRunReservesProject, arg.DefaultReserve, arg.CompanyID, arg.ProjectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ActiveRunReservesProjectRow{}
+	for rows.Next() {
+		var i ActiveRunReservesProjectRow
+		if err := rows.Scan(&i.PersonaID, &i.Active, &i.ReserveUsd); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const countWorkspaceOpenTasks = `-- name: CountWorkspaceOpenTasks :one
+SELECT count(*)::bigint FROM tasks
+WHERE company_id = $1 AND workspace_id = $2 AND status NOT IN ('done', 'cancelled')
+`
+
+type CountWorkspaceOpenTasksParams struct {
+	CompanyID   uuid.UUID
+	WorkspaceID *uuid.UUID
+}
+
+// Tasks abertas com este workspace escolhido de propósito (as fechadas não seguram a exclusão).
+func (q *Queries) CountWorkspaceOpenTasks(ctx context.Context, arg CountWorkspaceOpenTasksParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countWorkspaceOpenTasks, arg.CompanyID, arg.WorkspaceID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const createProject = `-- name: CreateProject :one
-INSERT INTO projects (id, company_id, slug, name, description, workspace_id, created_at, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
-RETURNING id, company_id, slug, name, description, workspace_id, created_at, updated_at
+INSERT INTO projects (id, company_id, slug, name, description, workspace_id, status, budget_monthly_cents, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)
+RETURNING id, company_id, slug, name, description, workspace_id, created_at, updated_at, status, budget_monthly_cents
 `
 
 type CreateProjectParams struct {
-	ID          uuid.UUID
-	CompanyID   uuid.UUID
-	Slug        string
-	Name        string
-	Description string
-	WorkspaceID *uuid.UUID
-	Now         time.Time
+	ID                 uuid.UUID
+	CompanyID          uuid.UUID
+	Slug               string
+	Name               string
+	Description        string
+	WorkspaceID        *uuid.UUID
+	Status             string
+	BudgetMonthlyCents *int64
+	Now                time.Time
 }
 
 func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (Project, error) {
@@ -36,6 +100,8 @@ func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (P
 		arg.Name,
 		arg.Description,
 		arg.WorkspaceID,
+		arg.Status,
+		arg.BudgetMonthlyCents,
 		arg.Now,
 	)
 	var i Project
@@ -48,24 +114,27 @@ func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (P
 		&i.WorkspaceID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Status,
+		&i.BudgetMonthlyCents,
 	)
 	return i, err
 }
 
 const createWorkspace = `-- name: CreateWorkspace :one
-INSERT INTO workspaces (id, company_id, slug, name, path, repo_url, created_at, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
-RETURNING id, company_id, slug, name, path, repo_url, created_at, updated_at
+INSERT INTO workspaces (id, company_id, slug, name, path, repo_url, default_branch, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)
+RETURNING id, company_id, slug, name, path, repo_url, created_at, updated_at, default_branch
 `
 
 type CreateWorkspaceParams struct {
-	ID        uuid.UUID
-	CompanyID uuid.UUID
-	Slug      string
-	Name      string
-	Path      string
-	RepoUrl   string
-	Now       time.Time
+	ID            uuid.UUID
+	CompanyID     uuid.UUID
+	Slug          string
+	Name          string
+	Path          string
+	RepoUrl       string
+	DefaultBranch string
+	Now           time.Time
 }
 
 func (q *Queries) CreateWorkspace(ctx context.Context, arg CreateWorkspaceParams) (Workspace, error) {
@@ -76,6 +145,7 @@ func (q *Queries) CreateWorkspace(ctx context.Context, arg CreateWorkspaceParams
 		arg.Name,
 		arg.Path,
 		arg.RepoUrl,
+		arg.DefaultBranch,
 		arg.Now,
 	)
 	var i Workspace
@@ -88,12 +158,30 @@ func (q *Queries) CreateWorkspace(ctx context.Context, arg CreateWorkspaceParams
 		&i.RepoUrl,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DefaultBranch,
 	)
 	return i, err
 }
 
+const deleteWorkspace = `-- name: DeleteWorkspace :execrows
+DELETE FROM workspaces WHERE company_id = $1 AND id = $2
+`
+
+type DeleteWorkspaceParams struct {
+	CompanyID uuid.UUID
+	ID        uuid.UUID
+}
+
+func (q *Queries) DeleteWorkspace(ctx context.Context, arg DeleteWorkspaceParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteWorkspace, arg.CompanyID, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const getProjectByID = `-- name: GetProjectByID :one
-SELECT id, company_id, slug, name, description, workspace_id, created_at, updated_at FROM projects WHERE company_id = $1 AND id = $2
+SELECT id, company_id, slug, name, description, workspace_id, created_at, updated_at, status, budget_monthly_cents FROM projects WHERE company_id = $1 AND id = $2
 `
 
 type GetProjectByIDParams struct {
@@ -113,12 +201,14 @@ func (q *Queries) GetProjectByID(ctx context.Context, arg GetProjectByIDParams) 
 		&i.WorkspaceID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Status,
+		&i.BudgetMonthlyCents,
 	)
 	return i, err
 }
 
 const getProjectBySlug = `-- name: GetProjectBySlug :one
-SELECT id, company_id, slug, name, description, workspace_id, created_at, updated_at FROM projects WHERE company_id = $1 AND slug = $2
+SELECT id, company_id, slug, name, description, workspace_id, created_at, updated_at, status, budget_monthly_cents FROM projects WHERE company_id = $1 AND slug = $2
 `
 
 type GetProjectBySlugParams struct {
@@ -138,12 +228,14 @@ func (q *Queries) GetProjectBySlug(ctx context.Context, arg GetProjectBySlugPara
 		&i.WorkspaceID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Status,
+		&i.BudgetMonthlyCents,
 	)
 	return i, err
 }
 
 const getWorkspaceByID = `-- name: GetWorkspaceByID :one
-SELECT id, company_id, slug, name, path, repo_url, created_at, updated_at FROM workspaces WHERE company_id = $1 AND id = $2
+SELECT id, company_id, slug, name, path, repo_url, created_at, updated_at, default_branch FROM workspaces WHERE company_id = $1 AND id = $2
 `
 
 type GetWorkspaceByIDParams struct {
@@ -163,12 +255,13 @@ func (q *Queries) GetWorkspaceByID(ctx context.Context, arg GetWorkspaceByIDPara
 		&i.RepoUrl,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DefaultBranch,
 	)
 	return i, err
 }
 
 const getWorkspaceBySlug = `-- name: GetWorkspaceBySlug :one
-SELECT id, company_id, slug, name, path, repo_url, created_at, updated_at FROM workspaces WHERE company_id = $1 AND slug = $2
+SELECT id, company_id, slug, name, path, repo_url, created_at, updated_at, default_branch FROM workspaces WHERE company_id = $1 AND slug = $2
 `
 
 type GetWorkspaceBySlugParams struct {
@@ -188,12 +281,13 @@ func (q *Queries) GetWorkspaceBySlug(ctx context.Context, arg GetWorkspaceBySlug
 		&i.RepoUrl,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DefaultBranch,
 	)
 	return i, err
 }
 
 const listProjects = `-- name: ListProjects :many
-SELECT id, company_id, slug, name, description, workspace_id, created_at, updated_at FROM projects WHERE company_id = $1 ORDER BY created_at, id
+SELECT id, company_id, slug, name, description, workspace_id, created_at, updated_at, status, budget_monthly_cents FROM projects WHERE company_id = $1 ORDER BY created_at, id
 `
 
 func (q *Queries) ListProjects(ctx context.Context, companyID uuid.UUID) ([]Project, error) {
@@ -214,6 +308,8 @@ func (q *Queries) ListProjects(ctx context.Context, companyID uuid.UUID) ([]Proj
 			&i.WorkspaceID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Status,
+			&i.BudgetMonthlyCents,
 		); err != nil {
 			return nil, err
 		}
@@ -225,8 +321,111 @@ func (q *Queries) ListProjects(ctx context.Context, companyID uuid.UUID) ([]Proj
 	return items, nil
 }
 
+const listRunningRunIDsForProject = `-- name: ListRunningRunIDsForProject :many
+SELECT r.id FROM runs r
+JOIN tasks t ON t.id = r.task_id
+WHERE r.company_id = $1 AND t.project_id = $2 AND r.status = 'running'
+ORDER BY r.created_at, r.id
+`
+
+type ListRunningRunIDsForProjectParams struct {
+	CompanyID uuid.UUID
+	ProjectID *uuid.UUID
+}
+
+func (q *Queries) ListRunningRunIDsForProject(ctx context.Context, arg ListRunningRunIDsForProjectParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listRunningRunIDsForProject, arg.CompanyID, arg.ProjectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkspacePersonas = `-- name: ListWorkspacePersonas :many
+SELECT id, slug, name FROM personas WHERE company_id = $1 AND workspace_id = $2 ORDER BY name, id
+`
+
+type ListWorkspacePersonasParams struct {
+	CompanyID   uuid.UUID
+	WorkspaceID *uuid.UUID
+}
+
+type ListWorkspacePersonasRow struct {
+	ID   uuid.UUID
+	Slug string
+	Name string
+}
+
+// Personas que usam o workspace como padrão.
+func (q *Queries) ListWorkspacePersonas(ctx context.Context, arg ListWorkspacePersonasParams) ([]ListWorkspacePersonasRow, error) {
+	rows, err := q.db.Query(ctx, listWorkspacePersonas, arg.CompanyID, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWorkspacePersonasRow{}
+	for rows.Next() {
+		var i ListWorkspacePersonasRow
+		if err := rows.Scan(&i.ID, &i.Slug, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkspaceProjects = `-- name: ListWorkspaceProjects :many
+SELECT id, slug, name FROM projects WHERE company_id = $1 AND workspace_id = $2 ORDER BY name, id
+`
+
+type ListWorkspaceProjectsParams struct {
+	CompanyID   uuid.UUID
+	WorkspaceID *uuid.UUID
+}
+
+type ListWorkspaceProjectsRow struct {
+	ID   uuid.UUID
+	Slug string
+	Name string
+}
+
+func (q *Queries) ListWorkspaceProjects(ctx context.Context, arg ListWorkspaceProjectsParams) ([]ListWorkspaceProjectsRow, error) {
+	rows, err := q.db.Query(ctx, listWorkspaceProjects, arg.CompanyID, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWorkspaceProjectsRow{}
+	for rows.Next() {
+		var i ListWorkspaceProjectsRow
+		if err := rows.Scan(&i.ID, &i.Slug, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listWorkspaces = `-- name: ListWorkspaces :many
-SELECT id, company_id, slug, name, path, repo_url, created_at, updated_at FROM workspaces WHERE company_id = $1 ORDER BY created_at, id
+SELECT id, company_id, slug, name, path, repo_url, created_at, updated_at, default_branch FROM workspaces WHERE company_id = $1 ORDER BY created_at, id
 `
 
 func (q *Queries) ListWorkspaces(ctx context.Context, companyID uuid.UUID) ([]Workspace, error) {
@@ -247,6 +446,408 @@ func (q *Queries) ListWorkspaces(ctx context.Context, companyID uuid.UUID) ([]Wo
 			&i.RepoUrl,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.DefaultBranch,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const projectPersonas = `-- name: ProjectPersonas :many
+SELECT p.id, p.slug, p.name, count(*)::bigint AS tasks,
+       (count(*) FILTER (WHERE t.status NOT IN ('done', 'cancelled')))::bigint AS open_tasks
+FROM tasks t
+JOIN personas p ON p.id = t.persona_id
+WHERE t.company_id = $1 AND t.project_id = $2
+GROUP BY p.id, p.slug, p.name
+ORDER BY open_tasks DESC, p.name, p.id
+`
+
+type ProjectPersonasParams struct {
+	CompanyID uuid.UUID
+	ProjectID *uuid.UUID
+}
+
+type ProjectPersonasRow struct {
+	ID        uuid.UUID
+	Slug      string
+	Name      string
+	Tasks     int64
+	OpenTasks int64
+}
+
+// Personas com task no projeto, com a contagem de tasks abertas e totais.
+func (q *Queries) ProjectPersonas(ctx context.Context, arg ProjectPersonasParams) ([]ProjectPersonasRow, error) {
+	rows, err := q.db.Query(ctx, projectPersonas, arg.CompanyID, arg.ProjectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ProjectPersonasRow{}
+	for rows.Next() {
+		var i ProjectPersonasRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Slug,
+			&i.Name,
+			&i.Tasks,
+			&i.OpenTasks,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const projectTaskCounts = `-- name: ProjectTaskCounts :many
+SELECT status, count(*)::bigint AS n FROM tasks
+WHERE company_id = $1 AND project_id = $2
+GROUP BY status
+`
+
+type ProjectTaskCountsParams struct {
+	CompanyID uuid.UUID
+	ProjectID *uuid.UUID
+}
+
+type ProjectTaskCountsRow struct {
+	Status string
+	N      int64
+}
+
+// Tasks do projeto por status (progresso).
+func (q *Queries) ProjectTaskCounts(ctx context.Context, arg ProjectTaskCountsParams) ([]ProjectTaskCountsRow, error) {
+	rows, err := q.db.Query(ctx, projectTaskCounts, arg.CompanyID, arg.ProjectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ProjectTaskCountsRow{}
+	for rows.Next() {
+		var i ProjectTaskCountsRow
+		if err := rows.Scan(&i.Status, &i.N); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const projectTaskCountsAll = `-- name: ProjectTaskCountsAll :many
+SELECT project_id, status, count(*)::bigint AS n FROM tasks
+WHERE company_id = $1 AND project_id IS NOT NULL
+GROUP BY project_id, status
+`
+
+type ProjectTaskCountsAllRow struct {
+	ProjectID *uuid.UUID
+	Status    string
+	N         int64
+}
+
+// Tasks de todos os projetos da empresa por (projeto, status): a lista de projetos.
+func (q *Queries) ProjectTaskCountsAll(ctx context.Context, companyID uuid.UUID) ([]ProjectTaskCountsAllRow, error) {
+	rows, err := q.db.Query(ctx, projectTaskCountsAll, companyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ProjectTaskCountsAllRow{}
+	for rows.Next() {
+		var i ProjectTaskCountsAllRow
+		if err := rows.Scan(&i.ProjectID, &i.Status, &i.N); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const spendBetweenProject = `-- name: SpendBetweenProject :one
+SELECT COALESCE(SUM(r.cost_usd), 0)::float8 AS spend
+FROM tasks t
+JOIN runs r ON r.task_id = t.id
+WHERE t.company_id = $1 AND t.project_id = $2
+  AND r.created_at >= $3 AND r.created_at < $4
+`
+
+type SpendBetweenProjectParams struct {
+	CompanyID uuid.UUID
+	ProjectID *uuid.UUID
+	FromTs    time.Time
+	ToTs      time.Time
+}
+
+// Gasto em USD das runs das tasks de um projeto no intervalo [from, to).
+func (q *Queries) SpendBetweenProject(ctx context.Context, arg SpendBetweenProjectParams) (float64, error) {
+	row := q.db.QueryRow(ctx, spendBetweenProject,
+		arg.CompanyID,
+		arg.ProjectID,
+		arg.FromTs,
+		arg.ToTs,
+	)
+	var spend float64
+	err := row.Scan(&spend)
+	return spend, err
+}
+
+const spendByProject = `-- name: SpendByProject :many
+SELECT t.project_id, COALESCE(SUM(r.cost_usd), 0)::float8 AS spend
+FROM runs r
+JOIN tasks t ON t.id = r.task_id
+WHERE t.company_id = $1 AND t.project_id IS NOT NULL
+  AND r.created_at >= $2 AND r.created_at < $3
+GROUP BY t.project_id
+`
+
+type SpendByProjectParams struct {
+	CompanyID uuid.UUID
+	FromTs    time.Time
+	ToTs      time.Time
+}
+
+type SpendByProjectRow struct {
+	ProjectID *uuid.UUID
+	Spend     float64
+}
+
+// Gasto em USD por projeto no intervalo [from, to): só runs de tasks com projeto.
+func (q *Queries) SpendByProject(ctx context.Context, arg SpendByProjectParams) ([]SpendByProjectRow, error) {
+	rows, err := q.db.Query(ctx, spendByProject, arg.CompanyID, arg.FromTs, arg.ToTs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SpendByProjectRow{}
+	for rows.Next() {
+		var i SpendByProjectRow
+		if err := rows.Scan(&i.ProjectID, &i.Spend); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const unlinkWorkspacePersonas = `-- name: UnlinkWorkspacePersonas :many
+UPDATE personas SET workspace_id = NULL, updated_at = $1
+WHERE company_id = $2 AND workspace_id = $3
+RETURNING id
+`
+
+type UnlinkWorkspacePersonasParams struct {
+	Now         time.Time
+	CompanyID   uuid.UUID
+	WorkspaceID *uuid.UUID
+}
+
+func (q *Queries) UnlinkWorkspacePersonas(ctx context.Context, arg UnlinkWorkspacePersonasParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, unlinkWorkspacePersonas, arg.Now, arg.CompanyID, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const unlinkWorkspaceProjects = `-- name: UnlinkWorkspaceProjects :many
+UPDATE projects SET workspace_id = NULL, updated_at = $1
+WHERE company_id = $2 AND workspace_id = $3
+RETURNING id
+`
+
+type UnlinkWorkspaceProjectsParams struct {
+	Now         time.Time
+	CompanyID   uuid.UUID
+	WorkspaceID *uuid.UUID
+}
+
+func (q *Queries) UnlinkWorkspaceProjects(ctx context.Context, arg UnlinkWorkspaceProjectsParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, unlinkWorkspaceProjects, arg.Now, arg.CompanyID, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const unlinkWorkspaceTasks = `-- name: UnlinkWorkspaceTasks :execrows
+UPDATE tasks SET workspace_id = NULL
+WHERE company_id = $1 AND workspace_id = $2
+`
+
+type UnlinkWorkspaceTasksParams struct {
+	CompanyID   uuid.UUID
+	WorkspaceID *uuid.UUID
+}
+
+func (q *Queries) UnlinkWorkspaceTasks(ctx context.Context, arg UnlinkWorkspaceTasksParams) (int64, error) {
+	result, err := q.db.Exec(ctx, unlinkWorkspaceTasks, arg.CompanyID, arg.WorkspaceID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const updateProject = `-- name: UpdateProject :one
+UPDATE projects
+SET name = $1, description = $2, workspace_id = $3, status = $4,
+    budget_monthly_cents = $5, updated_at = $6
+WHERE company_id = $7 AND id = $8
+RETURNING id, company_id, slug, name, description, workspace_id, created_at, updated_at, status, budget_monthly_cents
+`
+
+type UpdateProjectParams struct {
+	Name               string
+	Description        string
+	WorkspaceID        *uuid.UUID
+	Status             string
+	BudgetMonthlyCents *int64
+	Now                time.Time
+	CompanyID          uuid.UUID
+	ID                 uuid.UUID
+}
+
+func (q *Queries) UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error) {
+	row := q.db.QueryRow(ctx, updateProject,
+		arg.Name,
+		arg.Description,
+		arg.WorkspaceID,
+		arg.Status,
+		arg.BudgetMonthlyCents,
+		arg.Now,
+		arg.CompanyID,
+		arg.ID,
+	)
+	var i Project
+	err := row.Scan(
+		&i.ID,
+		&i.CompanyID,
+		&i.Slug,
+		&i.Name,
+		&i.Description,
+		&i.WorkspaceID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Status,
+		&i.BudgetMonthlyCents,
+	)
+	return i, err
+}
+
+const updateWorkspace = `-- name: UpdateWorkspace :one
+UPDATE workspaces
+SET name = $1, path = $2, repo_url = $3, default_branch = $4, updated_at = $5
+WHERE company_id = $6 AND id = $7
+RETURNING id, company_id, slug, name, path, repo_url, created_at, updated_at, default_branch
+`
+
+type UpdateWorkspaceParams struct {
+	Name          string
+	Path          string
+	RepoUrl       string
+	DefaultBranch string
+	Now           time.Time
+	CompanyID     uuid.UUID
+	ID            uuid.UUID
+}
+
+func (q *Queries) UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams) (Workspace, error) {
+	row := q.db.QueryRow(ctx, updateWorkspace,
+		arg.Name,
+		arg.Path,
+		arg.RepoUrl,
+		arg.DefaultBranch,
+		arg.Now,
+		arg.CompanyID,
+		arg.ID,
+	)
+	var i Workspace
+	err := row.Scan(
+		&i.ID,
+		&i.CompanyID,
+		&i.Slug,
+		&i.Name,
+		&i.Path,
+		&i.RepoUrl,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DefaultBranch,
+	)
+	return i, err
+}
+
+const workspaceUsageCounts = `-- name: WorkspaceUsageCounts :many
+SELECT w.id,
+       (SELECT count(*) FROM personas p WHERE p.workspace_id = w.id)::bigint AS personas,
+       (SELECT count(*) FROM projects pr WHERE pr.workspace_id = w.id)::bigint AS projects,
+       (SELECT count(*) FROM tasks t WHERE t.workspace_id = w.id AND t.status NOT IN ('done', 'cancelled'))::bigint AS open_tasks
+FROM workspaces w
+WHERE w.company_id = $1
+`
+
+type WorkspaceUsageCountsRow struct {
+	ID        uuid.UUID
+	Personas  int64
+	Projects  int64
+	OpenTasks int64
+}
+
+// Quantas personas, projetos e tasks abertas usam cada workspace da empresa.
+func (q *Queries) WorkspaceUsageCounts(ctx context.Context, companyID uuid.UUID) ([]WorkspaceUsageCountsRow, error) {
+	rows, err := q.db.Query(ctx, workspaceUsageCounts, companyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []WorkspaceUsageCountsRow{}
+	for rows.Next() {
+		var i WorkspaceUsageCountsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Personas,
+			&i.Projects,
+			&i.OpenTasks,
 		); err != nil {
 			return nil, err
 		}

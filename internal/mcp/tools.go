@@ -29,6 +29,7 @@ type taskListIn struct {
 	Company string `json:"company,omitempty" jsonschema:"slug ou id da empresa (obrigatório só sem token de run)"`
 	Status  string `json:"status,omitempty" jsonschema:"status separados por vírgula: backlog,todo,in_progress,in_review,blocked,done,cancelled"`
 	Persona string `json:"persona,omitempty" jsonschema:"'me' para as suas tasks, ou o slug de uma persona"`
+	Project string `json:"project,omitempty" jsonschema:"slug do projeto: só as tasks dele"`
 	Limit   int    `json:"limit,omitempty" jsonschema:"máximo de tasks (padrão 50, máx 200)"`
 }
 
@@ -43,6 +44,7 @@ type taskCreateIn struct {
 	Description string `json:"description,omitempty" jsonschema:"descrição em markdown: contexto, critérios de aceite"`
 	Priority    string `json:"priority,omitempty" jsonschema:"critical, high, medium (padrão) ou low"`
 	Assignee    string `json:"assignee,omitempty" jsonschema:"slug da persona responsável; vazio = sem responsável"`
+	Project     string `json:"project,omitempty" jsonschema:"slug do projeto onde a task nasce (veja hanko_project_list); vazio = sem projeto"`
 	Parent      string `json:"parent,omitempty" jsonschema:"chave da task pai; com token de run o padrão é a task do run atual"`
 	EventID     string `json:"event_id,omitempty" jsonschema:"chave de idempotência: repetir a chamada com o mesmo event_id não duplica a task"`
 }
@@ -67,6 +69,11 @@ type taskCommentIn struct {
 
 type personaListIn struct {
 	Company string `json:"company,omitempty" jsonschema:"slug ou id da empresa (obrigatório só sem token de run)"`
+}
+
+type projectListIn struct {
+	Company string `json:"company,omitempty" jsonschema:"slug ou id da empresa (obrigatório só sem token de run)"`
+	All     bool   `json:"all,omitempty" jsonschema:"inclui os projetos arquivados (padrão: só os ativos)"`
 }
 
 type runGetIn struct {
@@ -131,6 +138,8 @@ type taskOut struct {
 	Priority    string `json:"priority"`
 	PersonaID   string `json:"persona_id,omitempty"`
 	PersonaName string `json:"persona_name,omitempty"`
+	ProjectID   string `json:"project_id,omitempty"`
+	ProjectName string `json:"project_name,omitempty"`
 	ParentID    string `json:"parent_id,omitempty"`
 	ActiveRunID string `json:"active_run_id,omitempty"`
 	UpdatedAt   string `json:"updated_at"`
@@ -195,6 +204,23 @@ type runGetOut struct {
 	Run runOut `json:"run"`
 }
 
+type projectOut struct {
+	ID          string  `json:"id"`
+	Slug        string  `json:"slug"`
+	Name        string  `json:"name"`
+	Description string  `json:"description,omitempty"`
+	Status      string  `json:"status"`
+	Workspace   string  `json:"workspace,omitempty"`
+	Tasks       int     `json:"tasks"`
+	OpenTasks   int     `json:"open_tasks"`
+	Progress    float64 `json:"progress_percent"`
+	BudgetState string  `json:"budget_state" jsonschema:"none, ok, warning ou exceeded (estourado: nenhuma execução do projeto abre)"`
+}
+
+type projectListOut struct {
+	Projects []projectOut `json:"projects"`
+}
+
 func registerTools(s *sdk.Server, t *tools) {
 	sdk.AddTool(s, &sdk.Tool{
 		Name:        "hanko_whoami",
@@ -243,6 +269,11 @@ func registerTools(s *sdk.Server, t *tools) {
 		Description: "Lista as personas da empresa (slug, cargo, agente, status) para saber a quem delegar.",
 		Annotations: &sdk.ToolAnnotations{ReadOnlyHint: true},
 	}, t.personaList)
+	sdk.AddTool(s, &sdk.Tool{
+		Name:        "hanko_project_list",
+		Description: "Lista os projetos da empresa (slug, status, progresso, estado do orçamento) para saber onde criar uma task (hanko_task_create com project).",
+		Annotations: &sdk.ToolAnnotations{ReadOnlyHint: true},
+	}, t.projectList)
 	sdk.AddTool(s, &sdk.Tool{
 		Name:        "hanko_run_get",
 		Description: "Consulta uma execução (run): status, resumo, custo. Sem id, devolve a execução do seu token.",
@@ -327,7 +358,7 @@ func toTask(v service.TaskView) taskOut {
 	o := taskOut{
 		ID: v.ID.String(), Key: v.Key, Title: v.Title, Description: v.Description,
 		Status: string(v.Status), Priority: string(v.Priority),
-		PersonaID: idStr(v.PersonaID), PersonaName: v.PersonaName,
+		PersonaID: idStr(v.PersonaID), PersonaName: v.PersonaName, ProjectID: idStr(v.ProjectID), ProjectName: v.ProjectName,
 		ParentID: idStr(v.ParentID), ActiveRunID: idStr(v.ActiveRunID),
 		UpdatedAt: v.UpdatedAt.UTC().Format("2006-01-02T15:04:05Z"),
 	}
@@ -356,6 +387,9 @@ func taskLine(v service.TaskView) string {
 	who := "sem responsável"
 	if v.PersonaName != "" {
 		who = "@" + v.PersonaName
+	}
+	if v.ProjectName != "" {
+		who += " · projeto " + v.ProjectName
 	}
 	return fmt.Sprintf("%s [%s/%s] %s — %s", v.Key, v.Status, v.Priority, v.Title, who)
 }
@@ -467,6 +501,13 @@ func (t *tools) taskList(ctx context.Context, _ *sdk.CallToolRequest, in taskLis
 			return nil, taskListOut{}, err
 		}
 	}
+	if p := strings.TrimSpace(in.Project); p != "" {
+		pr, err := t.b.GetProject(ctx, company, p)
+		if err != nil {
+			return nil, taskListOut{}, toolErr("projeto", p, err)
+		}
+		f.ProjectID = &pr.ID
+	}
 	list, err := t.b.ListTasks(ctx, company, f)
 	if err != nil {
 		return nil, taskListOut{}, opErr("listar tasks", err)
@@ -537,6 +578,13 @@ func (t *tools) taskCreate(ctx context.Context, _ *sdk.CallToolRequest, in taskC
 		if ci.PersonaID, err = t.resolveAssignee(ctx, company, a); err != nil {
 			return nil, taskWriteOut{}, err
 		}
+	}
+	if p := strings.TrimSpace(in.Project); p != "" {
+		pr, err := t.b.GetProject(ctx, company, p)
+		if err != nil {
+			return nil, taskWriteOut{}, toolErr("projeto", p, err)
+		}
+		ci.ProjectID = &pr.ID
 	}
 	switch parent := strings.TrimSpace(in.Parent); {
 	case parent != "":
@@ -659,6 +707,29 @@ func (t *tools) personaList(ctx context.Context, _ *sdk.CallToolRequest, in pers
 		fmt.Fprintf(&sb, "\n- %s (%s) — %s [%s, %s]", p.Slug, p.Name, p.Title, p.Agent, p.Status)
 	}
 	return textResult("%s", sb.String()), out, nil
+}
+
+func (t *tools) projectList(ctx context.Context, _ *sdk.CallToolRequest, in projectListIn) (*sdk.CallToolResult, projectListOut, error) {
+	_, company, err := t.scope(ctx, in.Company)
+	if err != nil {
+		return nil, projectListOut{}, err
+	}
+	list, err := t.b.ListProjectViews(ctx, company)
+	if err != nil {
+		return nil, projectListOut{}, opErr("listar projetos", err)
+	}
+	out := projectListOut{Projects: make([]projectOut, 0, len(list))}
+	var sb strings.Builder
+	for _, p := range list {
+		if p.Status == domain.ProjectArchived && !in.All {
+			continue
+		}
+		open := p.TasksTotal - p.Tasks[domain.TaskDone] - p.Tasks[domain.TaskCancelled]
+		out.Projects = append(out.Projects, projectOut{ID: p.ID.String(), Slug: p.Slug, Name: p.Name, Description: p.Description,
+			Status: string(p.Status), Workspace: p.WorkspaceSlug, Tasks: p.TasksTotal, OpenTasks: open, Progress: p.Progress, BudgetState: p.Budget.State})
+		fmt.Fprintf(&sb, "\n- %s (%s) — %s, %d task(s) abertas de %d, progresso %.0f%%, orçamento %s", p.Slug, p.Name, p.Status, open, p.TasksTotal, p.Progress, p.Budget.State)
+	}
+	return textResult("%d projeto(s)%s", len(out.Projects), sb.String()), out, nil
 }
 
 func (t *tools) runGet(ctx context.Context, _ *sdk.CallToolRequest, in runGetIn) (*sdk.CallToolResult, runGetOut, error) {

@@ -11,11 +11,20 @@ templ TasksPage(sh Shell, vm TasksVM) {
 	@Layout(sh) {
 		@PageHead(i18n.T(ctx, "Tasks"), vm.Subtitle) {
 		}
+		if vm.Project != "" {
+			<p class="filter-chip">
+				<span class="chip soft">@Icon("layers") { i18n.T(ctx, "Projeto") } <a href={ templ.SafeURL(vm.ProjectHref) }>{ vm.ProjectName }</a></span>
+				<a href={ templ.SafeURL(vm.ClearHref) }>{ i18n.T(ctx, "limpar filtro") }</a>
+			</p>
+		}
 		<div class="toolbar">
 			@Tabs(vm.Tabs)
 			<span class="grow"></span>
 			<form method="get" action={ templ.SafeURL(sh.Base() + "/tasks") } class="search" role="search">
 				<input type="hidden" name="aba" value={ vm.Tab }/>
+				if vm.Project != "" {
+					<input type="hidden" name="projeto" value={ vm.Project }/>
+				}
 				<input
 					class="input"
 					type="search"
@@ -24,7 +33,7 @@ templ TasksPage(sh Shell, vm TasksVM) {
 					placeholder={ i18n.T(ctx, "Buscar tasks...") }
 					aria-label={ i18n.T(ctx, "Buscar tasks") }
 					hx-get={ sh.Base() + "/tasks" }
-					hx-include="[name='aba']"
+					hx-include="[name='aba'], [name='projeto']"
 					hx-trigger="input changed delay:300ms, search"
 					hx-target="#tasks-list"
 					hx-swap="outerHTML"
@@ -46,7 +55,7 @@ templ TaskPage(sh Shell, vm TaskVM, base string) {
 					<span class="mono">{ vm.Key }</span>
 					if vm.ProjectName != "" {
 						<span>·</span>
-						<span>Projeto { vm.ProjectName }</span>
+						<span>{ i18n.T(ctx, "Projeto") } <a href={ templ.SafeURL(vm.ProjectHref) }>{ vm.ProjectName }</a></span>
 					}
 					<span>·</span>
 					<span>{ i18n.T(ctx, "criada") } { vm.Created }</span>
@@ -188,13 +197,7 @@ templ TaskSide(vm TaskVM, base string) {
 				<label class="prop"><span>{ i18n.T(ctx, "Status") }</span>@Select("status", "f-status", vm.StatusOptions, true)</label>
 				<label class="prop"><span>{ i18n.T(ctx, "Prioridade") }</span>@Select("priority", "f-priority", vm.PriorityOptions, true)</label>
 				<label class="prop"><span>Persona</span>@Select("persona", "f-persona", vm.PersonaOptions, true)</label>
-				<div class="prop"><span>{ i18n.T(ctx, "Projeto") }</span><span>
-					if vm.ProjectName != "" {
-						{ vm.ProjectName }
-					} else {
-						<span class="faint">—</span>
-					}
-				</span></div>
+				<label class="prop"><span>{ i18n.T(ctx, "Projeto") }</span>@Select("project", "f-project", vm.ProjectOptions, true)</label>
 				<div class="prop"><span>{ i18n.T(ctx, "Criada") }</span><span class="mono" style="font-size:12.5px">{ vm.Created }</span></div>
 				<div class="prop"><span>{ i18n.T(ctx, "Atualizada") }</span><span class="mono" style="font-size:12.5px">{ vm.Updated }</span></div>
 			</div>

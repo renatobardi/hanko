@@ -21,6 +21,8 @@ import (
 type Backend interface {
 	GetCompany(ctx context.Context, ref string) (domain.Company, error)
 	ListPersonas(ctx context.Context, companyID domain.ID) ([]domain.Persona, error)
+	ListProjectViews(ctx context.Context, companyID domain.ID) ([]service.ProjectView, error)
+	GetProject(ctx context.Context, companyID domain.ID, ref string) (domain.Project, error)
 	GetPersona(ctx context.Context, companyID domain.ID, ref string) (domain.Persona, error)
 	CreateTask(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.CreateTaskInput) (service.TaskView, error)
 	ListTasks(ctx context.Context, companyID domain.ID, f service.TaskFilter) ([]service.TaskView, error)

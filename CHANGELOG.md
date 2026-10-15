@@ -57,6 +57,7 @@ Primeira versão pública. Em produção em https://hanko.oute.pro desde 2026-10
   convites por link de uso único, `hanko member …`, `hanko auth user …` para o dono da instalação (ADR-0021).
 - Troca de empresa na sidebar; formulário do revisor na persona; página "nenhuma empresa".
 - `hanko export` / `hanko import` de uma empresa em JSON `hanko.company.v1`, sem ids nem segredos (ADR-0022); a empresa importada entra pausada (`--active` liga), o export de logs sai em fluxo e o arquivo não é anônimo.
+- Projetos e workspaces de primeira classe: CRUD em UI, API, CLI e MCP; caminho validado dentro de `HANKO_WORKSPACES_ROOT`; orçamento mensal por projeto no guard do ADR-0020 (recusa a run, alerta a 80%); filtro por projeto em tasks e custos; pasta da run por task > projeto > persona com a origem gravada; export/import com os campos novos (ADR-0025).
 - UI e CLI bilíngues pt-BR/en (UI: cookie `hanko_lang` > `Accept-Language`; CLI: `HANKO_LANG` > locale).
 - Deploy: backup consistente antes de subir versão nova; restore com rollback do banco anterior.
 - Documentação em inglês (`README.md`, `CONTRIBUTING.md`, `docs/en/`).

@@ -426,3 +426,19 @@ Cada decisão aparece no log da run como evento "permissão concedida/negada".
 **Diagnóstico.** Erros comuns da run: "não respondeu ao initialize em N s" (o comando não fala ACP por stdio; teste-o à mão e veja as linhas
 de stdout/stderr no erro), "versão do ACP incompatível" (o agente só fala outra versão do protocolo), "o agente exige autenticação"
 (autentique-o fora do Hanko) e "não foi possível iniciar o agente ACP" (comando fora do `PATH` do Hanko).
+
+## Projetos e workspaces
+
+Um **workspace** é um diretório (opcionalmente com `repo_url` e branch padrão, só metadado) e um **projeto** agrupa tasks, aponta
+para um workspace e pode ter orçamento mensal (ADR-0025). Telas `/projetos` e `/workspaces`; CLI `hanko project …`, `hanko workspace …`,
+`hanko task create --project`, `hanko cost --project`, `hanko budget set --project`.
+
+- **Pasta da run:** workspace da task > workspace do projeto > workspace da persona > diretório temporário. A origem fica em
+  `runs.workspace_source` (`task|project|persona|none`).
+- **Caminho:** absoluto, limpo e dentro de `HANKO_WORKSPACES_ROOT`. Se o diretório não existe na máquina a UI mostra "diretório ausente"
+  e as runs usam um temporário; crie a pasta (o Hanko não faz `git clone`).
+- **Excluir workspace em uso** dá 409; `--unlink` (CLI), `?unlink=true` (API) ou a caixa na UI desvinculam personas, projetos e tasks.
+- **Orçamento do projeto:** estourou, a run é recusada com o motivo, sem pausar a persona; ≥ 80% abre alerta na Caixa de entrada. Suba o
+  teto (`hanko budget set --project <slug> <usd>`) para liberar. O custo pago (mensalidade) não é rateado por projeto.
+- **Importar de outra máquina:** caminho que esta instalação não aceita entra vazio e a contagem `workspace_paths_cleared` avisa;
+  ajuste com `hanko workspace update <slug> --path …`.

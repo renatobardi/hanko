@@ -38,19 +38,24 @@ type Company struct {
 }
 
 type Workspace struct {
-	Slug      string    `json:"slug"`
-	Name      string    `json:"name"`
-	Path      string    `json:"path"`
-	RepoURL   string    `json:"repo_url,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
+	Slug    string `json:"slug"`
+	Name    string `json:"name"`
+	Path    string `json:"path"`
+	RepoURL string `json:"repo_url,omitempty"`
+	// DefaultBranch é metadado; opcional (arquivos antigos não têm).
+	DefaultBranch string    `json:"default_branch,omitempty"`
+	CreatedAt     time.Time `json:"created_at"`
 }
 
 type Project struct {
-	Slug        string    `json:"slug"`
-	Name        string    `json:"name"`
-	Description string    `json:"description,omitempty"`
-	Workspace   string    `json:"workspace,omitempty" doc:"Slug do workspace padrão."`
-	CreatedAt   time.Time `json:"created_at"`
+	Slug        string `json:"slug"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	Workspace   string `json:"workspace,omitempty" doc:"Slug do workspace padrão."`
+	// Status e BudgetMonthlyCents são opcionais: arquivos antigos não têm (status vazio = active, sem teto).
+	Status             string    `json:"status,omitempty" enum:"active,archived"`
+	BudgetMonthlyCents *int64    `json:"budget_monthly_cents,omitempty" doc:"Orçamento mensal do projeto em centavos de dólar."`
+	CreatedAt          time.Time `json:"created_at"`
 }
 
 // Period é uma vigência da assinatura (liga/desliga).

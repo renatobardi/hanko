@@ -134,9 +134,9 @@ func TestWorkspacesAndProjects(t *testing.T) {
 		t.Fatalf("list projects: %v %v", l, err)
 	}
 
-	// task inherits the project's workspace
+	// a task no longer copies the project's workspace: the run resolves it at checkout (ADR-0025)
 	tv := e.task(t, service.CreateTaskInput{ProjectID: &pr.ID})
-	if tv.WorkspaceID == nil || *tv.WorkspaceID != ws.ID || tv.ProjectName != "Lançamento" {
+	if tv.WorkspaceID != nil || tv.ProjectName != "Lançamento" {
 		t.Fatalf("task workspace/project: %+v", tv)
 	}
 }

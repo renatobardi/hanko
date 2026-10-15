@@ -43,15 +43,16 @@ type createTaskIn struct {
 type updateTaskIn struct {
 	TaskPath
 	Body struct {
-		Title       *string `json:"title,omitempty" minLength:"1" maxLength:"300"`
-		Description *string `json:"description,omitempty"`
-		Status      *string `json:"status,omitempty" enum:"backlog,todo,in_progress,in_review,blocked,done,cancelled"`
-		Priority    *string `json:"priority,omitempty" enum:"critical,high,medium,low"`
-		Persona     string  `json:"persona,omitempty" doc:"Id ou slug da persona (re)atribuída."`
-		Unassign    bool    `json:"unassign,omitempty" doc:"Remove a atribuição."`
-		Project     string  `json:"project,omitempty" doc:"Id ou slug do projeto."`
-		Model       *string `json:"model,omitempty" doc:"Modelo escolhido à mão; vazio remove a escolha (volta ao da persona)."`
-		EventID     string  `json:"event_id,omitempty" maxLength:"200" doc:"Chave de idempotência."`
+		Title        *string `json:"title,omitempty" minLength:"1" maxLength:"300"`
+		Description  *string `json:"description,omitempty"`
+		Status       *string `json:"status,omitempty" enum:"backlog,todo,in_progress,in_review,blocked,done,cancelled"`
+		Priority     *string `json:"priority,omitempty" enum:"critical,high,medium,low"`
+		Persona      string  `json:"persona,omitempty" doc:"Id ou slug da persona (re)atribuída."`
+		Unassign     bool    `json:"unassign,omitempty" doc:"Remove a atribuição."`
+		Project      string  `json:"project,omitempty" doc:"Id ou slug do projeto."`
+		ClearProject bool    `json:"clear_project,omitempty" doc:"Tira a task do projeto."`
+		Model        *string `json:"model,omitempty" doc:"Modelo escolhido à mão; vazio remove a escolha (volta ao da persona)."`
+		EventID      string  `json:"event_id,omitempty" maxLength:"200" doc:"Chave de idempotência."`
 	}
 }
 
@@ -193,7 +194,8 @@ func (s *server) registerTasks(api huma.API) {
 					return nil, err
 				}
 			}
-			up := service.UpdateTaskInput{Title: b.Title, Description: b.Description, Unassign: b.Unassign, Model: b.Model, EventID: b.EventID}
+			up := service.UpdateTaskInput{Title: b.Title, Description: b.Description, Unassign: b.Unassign, Model: b.Model, EventID: b.EventID,
+				ClearProject: b.ClearProject}
 			if b.Status != nil {
 				st := domain.TaskStatus(*b.Status)
 				if !st.Valid() {
