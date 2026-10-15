@@ -4,9 +4,12 @@ package skillmd
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/renatobardi/hanko/internal/domain"
 )
 
 // Doc é um SKILL.md lido.
@@ -20,9 +23,16 @@ type Doc struct {
 
 const bom = "\xef\xbb\xbf"
 
+// MaxSourceBytes é o maior SKILL.md que Parse aceita: o corpo (domain.MaxSkillBodyBytes) mais folga para o
+// frontmatter. O teto vale antes do parse YAML, que não deve processar um texto arbitrariamente grande.
+const MaxSourceBytes = domain.MaxSkillBodyBytes + 8<<10
+
 // Parse separa o frontmatter do corpo. Sem frontmatter, o texto todo é o corpo. Um frontmatter aberto e não
 // fechado, ou com YAML inválido, é erro (melhor recusar do que gravar o YAML dentro do corpo).
 func Parse(src string) (Doc, error) {
+	if len(src) > MaxSourceBytes {
+		return Doc{}, fmt.Errorf("at most %d KiB (the body plus the frontmatter)", MaxSourceBytes>>10)
+	}
 	src = strings.TrimPrefix(src, bom)
 	src = strings.ReplaceAll(src, "\r\n", "\n")
 	lines := strings.Split(strings.TrimLeft(src, "\n"), "\n")

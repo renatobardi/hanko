@@ -203,7 +203,7 @@ type listIntegrationsIn struct {
 
 type deliveriesIn struct {
 	IntegrationPath
-	Limit int `query:"limit" minimum:"1" maximum:"200" default:"20" doc:"Máximo de entregas (mais recentes primeiro)."`
+	Limit int `query:"limit" minimum:"1" maximum:"100" default:"20" doc:"Máximo de entregas (mais recentes primeiro)."`
 }
 
 type setIntegrationPersonaIn struct {

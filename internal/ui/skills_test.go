@@ -271,6 +271,20 @@ func TestSkillEditorAndPreview(t *testing.T) {
 	wantNotContains(t, rec, "<script>")
 }
 
+// O corpo dos formulários de skill tem teto: um POST gigante não é lido inteiro.
+func TestSkillFormBodyIsCapped(t *testing.T) {
+	e, f := newSkillsEnv(t, domain.MemberAdmin)
+	rec := e.post(t, "/c/hanko/skills/preview", url.Values{"body": {strings.Repeat("x", 300<<10)}}, true)
+	wantNotContains(t, rec, strings.Repeat("x", 1000))
+	// o backend de teste não valida nada: o que chega a ele mostra até onde o formulário foi lido
+	rec = e.post(t, "/c/hanko/skills/nova", url.Values{"name": {"Grande"}, "description": {"d"}, "body": {strings.Repeat("x", 300<<10)}}, false)
+	for _, k := range f.skills {
+		if len(k.Body) > maxSkillFormBytes {
+			t.Fatalf("o formulário foi lido além do teto: %d bytes (code %d)", len(k.Body), rec.Code)
+		}
+	}
+}
+
 func TestSkillCreateUpdateDelete(t *testing.T) {
 	e, f := newSkillsEnv(t, domain.MemberAdmin)
 	rec := e.post(t, "/c/hanko/skills/nova", url.Values{"name": {"Escrever testes"}, "description": {"Use ao testar."}, "body": {"Corpo."}}, false)
