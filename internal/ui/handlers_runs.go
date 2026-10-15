@@ -60,7 +60,7 @@ func (s *server) handleRuns(w http.ResponseWriter, r *http.Request, co domain.Co
 	for _, rv := range runs {
 		vm.Rows = append(vm.Rows, runRow(ctx, rv, base, now, loc))
 	}
-	sh := s.shell(co, "execucoes", i18n.T(ctx, "Execuções"), views.Crumb{Label: i18n.T(ctx, "Execuções")})
+	sh := s.shell(r, co, "execucoes", i18n.T(ctx, "Execuções"), views.Crumb{Label: i18n.T(ctx, "Execuções")})
 	s.render(w, r, http.StatusOK, views.RunsPage(sh, vm))
 }
 
@@ -147,7 +147,7 @@ func (s *server) handleRun(w http.ResponseWriter, r *http.Request, co domain.Com
 	} else if len(evs) == pageEvents {
 		vm.Error = strings.TrimSpace(vm.Error + " " + i18n.Tf(ctx, "Log truncado nos primeiros %d eventos.", pageEvents))
 	}
-	sh := s.shell(co, "execucoes", i18n.T(ctx, "Execução")+" "+nameOrShort(vm.Name, vm.Short), views.Crumb{Label: i18n.T(ctx, "Execuções"), Href: base + "/execucoes"}, views.Crumb{Label: nameOrShort(vm.Name, vm.Short)})
+	sh := s.shell(r, co, "execucoes", i18n.T(ctx, "Execução")+" "+nameOrShort(vm.Name, vm.Short), views.Crumb{Label: i18n.T(ctx, "Execuções"), Href: base + "/execucoes"}, views.Crumb{Label: nameOrShort(vm.Name, vm.Short)})
 	s.render(w, r, http.StatusOK, views.RunPage(sh, vm))
 }
 

@@ -3,6 +3,7 @@ package views
 import (
 	"fmt"
 
+	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/i18n"
 )
 
@@ -127,24 +128,28 @@ templ Thread(vm TaskVM, base string) {
 }
 
 templ CommentForm(vm TaskVM, base string) {
-	<form
-		class="composer"
-		method="post"
-		action={ templ.SafeURL(base + "/tasks/" + vm.Key + "/comentarios") }
-		hx-post={ base + "/tasks/" + vm.Key + "/comentarios" }
-		hx-target="#thread"
-		hx-swap="outerHTML"
-		hx-on::after-request="if(event.detail.successful){this.reset();}"
-	>
-		<textarea name="body" required placeholder={ i18n.T(ctx, "Escreva um comentário (markdown). Fica na fila se a persona estiver ocupada.") } aria-label={ i18n.T(ctx, "Comentário") }>{ vm.Draft }</textarea>
-		<div class="row">
-			<span class="hint">{ i18n.T(ctx, "Markdown · HTML é escapado") }</span>
-			<button type="submit" class="btn primary sm">
-				@Icon("send")
-				{ i18n.T(ctx, "Comentar") }
-			</button>
-		</div>
-	</form>
+	if !canWrite(ctx) {
+		<p class="composer-ro">@NeedRole(domain.MemberMember)</p>
+	} else {
+		<form
+			class="composer"
+			method="post"
+			action={ templ.SafeURL(base + "/tasks/" + vm.Key + "/comentarios") }
+			hx-post={ base + "/tasks/" + vm.Key + "/comentarios" }
+			hx-target="#thread"
+			hx-swap="outerHTML"
+			hx-on::after-request="if(event.detail.successful){this.reset();}"
+		>
+			<textarea name="body" required placeholder={ i18n.T(ctx, "Escreva um comentário (markdown). Fica na fila se a persona estiver ocupada.") } aria-label={ i18n.T(ctx, "Comentário") }>{ vm.Draft }</textarea>
+			<div class="row">
+				<span class="hint">{ i18n.T(ctx, "Markdown · HTML é escapado") }</span>
+				<button type="submit" class="btn primary sm">
+					@Icon("send")
+					{ i18n.T(ctx, "Comentar") }
+				</button>
+			</div>
+		</form>
+	}
 }
 
 templ TaskSide(vm TaskVM, base string) {
@@ -160,6 +165,7 @@ templ TaskSide(vm TaskVM, base string) {
 			hx-swap="outerHTML"
 		>
 			<div class="side-h">{ i18n.T(ctx, "Propriedades") }</div>
+			<fieldset class="props-fs" disabled?={ !canWrite(ctx) }>
 			<div class="props">
 				<label class="prop"><span>{ i18n.T(ctx, "Status") }</span>@Select("status", "f-status", vm.StatusOptions, true)</label>
 				<label class="prop"><span>{ i18n.T(ctx, "Prioridade") }</span>@Select("priority", "f-priority", vm.PriorityOptions, true)</label>
@@ -174,6 +180,10 @@ templ TaskSide(vm TaskVM, base string) {
 				<div class="prop"><span>{ i18n.T(ctx, "Criada") }</span><span class="mono" style="font-size:12.5px">{ vm.Created }</span></div>
 				<div class="prop"><span>{ i18n.T(ctx, "Atualizada") }</span><span class="mono" style="font-size:12.5px">{ vm.Updated }</span></div>
 			</div>
+			</fieldset>
+			if !canWrite(ctx) {
+				@NeedRole(domain.MemberMember)
+			}
 			<noscript><button class="btn sm" type="submit" style="margin-top:12px">{ i18n.T(ctx, "Salvar") }</button></noscript>
 		</form>
 		<div class="side-sec">
@@ -200,7 +210,7 @@ templ TaskSide(vm TaskVM, base string) {
 					<span class="d mono">{ r.When }</span>
 				</a>
 			}
-			if vm.CanWake {
+			if vm.CanWake && canWrite(ctx) {
 				<form method="post" action={ templ.SafeURL(base + "/tasks/" + vm.Key + "/acordar") } hx-post={ base + "/tasks/" + vm.Key + "/acordar" } hx-swap="none" style="margin-top:12px">
 					<button class="btn outline sm block" type="submit">@Icon("zap")
 { " " + i18n.T(ctx, "Acordar") + " " + vm.PersonaName }</button>
@@ -216,53 +226,57 @@ templ NewTaskPage(sh Shell, vm NewTaskVM) {
 	@Layout(sh) {
 		@PageHead(i18n.T(ctx, "Nova task"), i18n.T(ctx, "Descreva o pedido; se atribuir a uma persona, ela é acordada na hora.")) {
 		}
-		<form class="card pad form-card" method="post" action={ templ.SafeURL(sh.Base() + "/tasks/nova") } hx-boost="true">
-			if vm.Error != "" {
-				@Alert("danger", vm.Error)
-			}
-			<div class="field">
-				<label for="t-title">{ i18n.T(ctx, "Título") }</label>
-				<input class="input" id="t-title" name="title" value={ vm.Title } required maxlength="200" placeholder={ i18n.T(ctx, "Ex.: Docslide: AI-first SDLC no banco") } autofocus/>
-				if e := vm.FieldErr["title"]; e != "" {
-					<span class="err">{ e }</span>
+		if sh.CanWrite() {
+			<form class="card pad form-card" method="post" action={ templ.SafeURL(sh.Base() + "/tasks/nova") } hx-boost="true">
+				if vm.Error != "" {
+					@Alert("danger", vm.Error)
 				}
-			</div>
-			<div class="field">
-				<label for="t-desc">{ i18n.T(ctx, "Descrição") }</label>
-				<textarea class="textarea" id="t-desc" name="description" rows="8" placeholder={ i18n.T(ctx, "O que precisa ser feito, contexto e critério de pronto. Markdown.") }>{ vm.Description }</textarea>
-				<span class="hint">{ i18n.T(ctx, "Markdown. HTML é escapado.") }</span>
-			</div>
-			<div class="form-grid">
 				<div class="field">
-					<label for="t-persona">Persona</label>
-					@Select("persona", "t-persona", vm.PersonaOptions, false)
+					<label for="t-title">{ i18n.T(ctx, "Título") }</label>
+					<input class="input" id="t-title" name="title" value={ vm.Title } required maxlength="200" placeholder={ i18n.T(ctx, "Ex.: Docslide: AI-first SDLC no banco") } autofocus/>
+					if e := vm.FieldErr["title"]; e != "" {
+						<span class="err">{ e }</span>
+					}
 				</div>
 				<div class="field">
-					<label for="t-prio">{ i18n.T(ctx, "Prioridade") }</label>
-					@Select("priority", "t-prio", vm.PriorityOptions, false)
+					<label for="t-desc">{ i18n.T(ctx, "Descrição") }</label>
+					<textarea class="textarea" id="t-desc" name="description" rows="8" placeholder={ i18n.T(ctx, "O que precisa ser feito, contexto e critério de pronto. Markdown.") }>{ vm.Description }</textarea>
+					<span class="hint">{ i18n.T(ctx, "Markdown. HTML é escapado.") }</span>
 				</div>
-				<div class="field">
-					<label for="t-status">{ i18n.T(ctx, "Status inicial") }</label>
-					@Select("status", "t-status", vm.StatusOptions, false)
-				</div>
-				if len(vm.ProjectOptions) > 1 {
+				<div class="form-grid">
 					<div class="field">
-						<label for="t-proj">{ i18n.T(ctx, "Projeto") }</label>
-						@Select("project", "t-proj", vm.ProjectOptions, false)
+						<label for="t-persona">Persona</label>
+						@Select("persona", "t-persona", vm.PersonaOptions, false)
 					</div>
-				}
-			</div>
-			<div class="field">
-				<label for="t-model">{ i18n.T(ctx, "Modelo (opcional)") }</label>
-				<input class="input" id="t-model" name="model" value={ vm.Model } placeholder={ i18n.T(ctx, "vazio = o modelo da persona") } list="t-models" autocomplete="off"/>
-				@ModelDatalist("t-models")
-				<span class="hint">{ i18n.T(ctx, "Escolha manual: vence o modelo da persona nas execuções desta task.") }</span>
-			</div>
-			<div class="form-actions">
-				<a class="btn ghost" href={ templ.SafeURL(sh.Base() + "/tasks") }>{ i18n.T(ctx, "Cancelar") }</a>
-				<button class="btn primary" type="submit">{ i18n.T(ctx, "Criar task") }</button>
-			</div>
-		</form>
+					<div class="field">
+						<label for="t-prio">{ i18n.T(ctx, "Prioridade") }</label>
+						@Select("priority", "t-prio", vm.PriorityOptions, false)
+					</div>
+					<div class="field">
+						<label for="t-status">{ i18n.T(ctx, "Status inicial") }</label>
+						@Select("status", "t-status", vm.StatusOptions, false)
+					</div>
+					if len(vm.ProjectOptions) > 1 {
+						<div class="field">
+							<label for="t-proj">{ i18n.T(ctx, "Projeto") }</label>
+							@Select("project", "t-proj", vm.ProjectOptions, false)
+						</div>
+					}
+				</div>
+				<div class="field">
+					<label for="t-model">{ i18n.T(ctx, "Modelo (opcional)") }</label>
+					<input class="input" id="t-model" name="model" value={ vm.Model } placeholder={ i18n.T(ctx, "vazio = o modelo da persona") } list="t-models" autocomplete="off"/>
+					@ModelDatalist("t-models")
+					<span class="hint">{ i18n.T(ctx, "Escolha manual: vence o modelo da persona nas execuções desta task.") }</span>
+				</div>
+				<div class="form-actions">
+					<a class="btn ghost" href={ templ.SafeURL(sh.Base() + "/tasks") }>{ i18n.T(ctx, "Cancelar") }</a>
+					<button class="btn primary" type="submit">{ i18n.T(ctx, "Criar task") }</button>
+				</div>
+			</form>
+		} else {
+			@Alert("warn", i18n.T(ctx, "Seu papel nesta empresa não permite esta ação."))
+		}
 	}
 }
 

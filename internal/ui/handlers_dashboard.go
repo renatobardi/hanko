@@ -131,7 +131,9 @@ func (s *server) handleDashboard(w http.ResponseWriter, r *http.Request, co doma
 		vm.Tasks = append(vm.Tasks, taskRow(ctx, t, base, now, loc))
 	}
 
-	sh := s.shell(co, "painel", i18n.T(ctx, "Painel"), views.Crumb{Label: i18n.T(ctx, "Painel")})
-	sh.Action = &views.Action{Label: i18n.T(ctx, "Contratar persona"), Href: base + "/personas/nova", Icon: "plus"}
+	sh := s.shell(r, co, "painel", i18n.T(ctx, "Painel"), views.Crumb{Label: i18n.T(ctx, "Painel")})
+	if sh.CanAdmin() {
+		sh.Action = &views.Action{Label: i18n.T(ctx, "Contratar persona"), Href: base + "/personas/nova", Icon: "plus"}
+	}
 	s.render(w, r, http.StatusOK, views.DashboardPage(sh, vm))
 }

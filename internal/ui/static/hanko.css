@@ -802,3 +802,11 @@ button.link:hover { color: var(--ink); }
 .avatar-sq.sm { width: 18px; height: 18px; font-size: 10px; }
 .co-back { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
 .co-back a { text-decoration: underline; text-underline-offset: 2px; }
+
+/* papéis (ADR-0021): aviso discreto no lugar do controle que o papel não tem */
+.role-note { font-size: 12px; color: var(--ink-faint, var(--ink-soft)); font-style: italic; white-space: nowrap; }
+.sidebar-foot .me span.role-tag { color: var(--ink-faint, var(--ink-soft)); }
+.composer-ro { padding: 8px 0; }
+.gate-ro { display: flex; gap: 8px; align-items: center; justify-content: flex-end; flex-wrap: wrap; }
+.props-fs { border: 0; padding: 0; margin: 0; min-width: 0; }
+.switch[disabled] { opacity: .5; cursor: not-allowed; }

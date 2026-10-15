@@ -65,8 +65,10 @@ func (s *server) handlePersonas(w http.ResponseWriter, r *http.Request, co domai
 	default:
 		vm.Subtitle = i18n.Tf(ctx, "%d personas · qualquer harness, qualquer modelo. Se é acordada para trabalhar, está contratada.", len(personas))
 	}
-	sh := s.shell(co, "personas", i18n.T(ctx, "Personas"), views.Crumb{Label: i18n.T(ctx, "Personas")})
-	sh.Action = &views.Action{Label: i18n.T(ctx, "Contratar persona"), Href: base + "/personas/nova", Icon: "plus"}
+	sh := s.shell(r, co, "personas", i18n.T(ctx, "Personas"), views.Crumb{Label: i18n.T(ctx, "Personas")})
+	if sh.CanAdmin() {
+		sh.Action = &views.Action{Label: i18n.T(ctx, "Contratar persona"), Href: base + "/personas/nova", Icon: "plus"}
+	}
 	s.render(w, r, http.StatusOK, views.PersonasPage(sh, vm))
 }
 
@@ -84,7 +86,7 @@ func (s *server) renderHire(w http.ResponseWriter, r *http.Request, co domain.Co
 	}
 	base := "/c/" + co.Slug
 	ctx := r.Context()
-	sh := s.shell(co, "personas", i18n.T(ctx, "Contratar persona"), views.Crumb{Label: i18n.T(ctx, "Personas"), Href: base + "/personas"}, views.Crumb{Label: i18n.T(ctx, "Contratar")})
+	sh := s.shell(r, co, "personas", i18n.T(ctx, "Contratar persona"), views.Crumb{Label: i18n.T(ctx, "Personas"), Href: base + "/personas"}, views.Crumb{Label: i18n.T(ctx, "Contratar")})
 	s.render(w, r, status, views.HirePersonaPage(sh, vm))
 }
 
@@ -238,8 +240,10 @@ func (s *server) renderPersona(w http.ResponseWriter, r *http.Request, co domain
 	for _, rv := range runs {
 		vm.Runs = append(vm.Runs, runRow(ctx, rv, base, now, loc))
 	}
-	sh := s.shell(co, "personas", p.Name, views.Crumb{Label: i18n.T(ctx, "Personas"), Href: base + "/personas"}, views.Crumb{Label: p.Name})
-	sh.Action = &views.Action{Label: i18n.T(ctx, "Nova task"), Href: base + "/tasks/nova?persona=" + p.ID.String(), Icon: "plus"}
+	sh := s.shell(r, co, "personas", p.Name, views.Crumb{Label: i18n.T(ctx, "Personas"), Href: base + "/personas"}, views.Crumb{Label: p.Name})
+	if sh.CanWrite() {
+		sh.Action = &views.Action{Label: i18n.T(ctx, "Nova task"), Href: base + "/tasks/nova?persona=" + p.ID.String(), Icon: "plus"}
+	}
 	s.render(w, r, status, views.PersonaPage(sh, vm))
 }
 

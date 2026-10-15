@@ -3,6 +3,8 @@
 // they carry display-ready strings so templates stay logic-free.
 package views
 
+import "github.com/renatobardi/hanko/internal/domain"
+
 // HTML is markup that has already been sanitised by its producer
 // (markdown renderer, log-line renderer). Templates emit it verbatim.
 type HTML string
@@ -34,8 +36,9 @@ type Shell struct {
 	Crumbs  []Crumb
 	Action  *Action
 	Version string
-	Owner   string // display name of the human owner
-	Flush   bool   // content area without padding (two-pane pages)
+	Owner   string            // display name of the human owner
+	Role    domain.MemberRole // papel da pessoa nesta empresa (só UX; o service é a barreira)
+	Flush   bool              // content area without padding (two-pane pages)
 }
 
 // Base returns the company-scoped URL prefix, e.g. "/c/hanko".

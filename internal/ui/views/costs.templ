@@ -3,6 +3,7 @@ package views
 import (
 	"fmt"
 
+	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/i18n"
 )
 
@@ -29,14 +30,18 @@ templ BudgetMeter(b BudgetBox) {
 }
 
 templ BudgetForm(b BudgetBox, id string) {
-	<form class="budget-form" method="post" action={ templ.SafeURL(b.Action) }>
-		<label class="sr-only" for={ id }>{ i18n.T(ctx, "Limite mensal em dólares") }</label>
-		<span class="usd-field">
-			<span class="pre mono">{ i18n.T(ctx, "US$") }</span>
-			<input class="input sm mono" id={ id } name="budget" inputmode="decimal" value={ b.Value } placeholder={ i18n.T(ctx, "sem limite") } autocomplete="off"/>
-		</span>
-		<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Salvar limite") }</button>
-	</form>
+	if !canAdmin(ctx) {
+		@NeedRole(domain.MemberAdmin)
+	} else {
+		<form class="budget-form" method="post" action={ templ.SafeURL(b.Action) }>
+			<label class="sr-only" for={ id }>{ i18n.T(ctx, "Limite mensal em dólares") }</label>
+			<span class="usd-field">
+				<span class="pre mono">{ i18n.T(ctx, "US$") }</span>
+				<input class="input sm mono" id={ id } name="budget" inputmode="decimal" value={ b.Value } placeholder={ i18n.T(ctx, "sem limite") } autocomplete="off"/>
+			</span>
+			<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Salvar limite") }</button>
+		</form>
+	}
 }
 
 templ DayChartEl(c DayChart) {
@@ -181,19 +186,23 @@ templ SubscriptionsSection(vm CostsVM) {
 							</td>
 							<td class="num mono hide-sm">{ s.Paid }<div class="meter-note">{ i18n.T(ctx, "sem uso") }: { s.Idle }</div></td>
 							<td>
-								<form class="budget-form" method="post" action={ templ.SafeURL(s.UpdateAction) } style="flex-wrap:wrap;gap:6px">
-									<label class="sr-only" for={ fmt.Sprintf("sub-monthly-%d", i) }>{ i18n.T(ctx, "Mensalidade em dólares") }</label>
-									<span class="usd-field"><span class="pre mono">{ i18n.T(ctx, "US$") }</span><input class="input sm mono" id={ fmt.Sprintf("sub-monthly-%d", i) } name="monthly" inputmode="decimal" value={ s.MonthlyValue } autocomplete="off" title={ i18n.T(ctx, "Mensalidade") }/></span>
-									<label class="sr-only" for={ fmt.Sprintf("sub-limit-%d", i) }>{ i18n.T(ctx, "Teto semanal em dólares") }</label>
-									<span class="usd-field"><span class="pre mono">{ i18n.T(ctx, "sem.") }</span><input class="input sm mono" id={ fmt.Sprintf("sub-limit-%d", i) } name="weekly_limit" inputmode="decimal" value={ s.LimitValue } placeholder={ i18n.T(ctx, "sem trava") } autocomplete="off" title={ i18n.T(ctx, "Teto semanal") }/></span>
-									<label class="sr-only" for={ fmt.Sprintf("sub-guard-%d", i) }>{ i18n.T(ctx, "Trava em %") }</label>
-									<span class="usd-field"><input class="input sm mono" id={ fmt.Sprintf("sub-guard-%d", i) } name="guard_pct" inputmode="numeric" value={ fmt.Sprint(s.GuardPct) } autocomplete="off" title={ i18n.T(ctx, "Trava em % do teto semanal") } style="width:56px"/><span class="pre mono">%</span></span>
-									<label class="sr-only" for={ fmt.Sprintf("sub-models-%d", i) }>{ i18n.T(ctx, "Prefixos de modelo cobertos") }</label>
-									<input class="input sm" id={ fmt.Sprintf("sub-models-%d", i) } name="models" value={ s.ModelsValue } placeholder={ i18n.T(ctx, "todos os modelos") } autocomplete="off" title={ i18n.T(ctx, "Prefixos de modelo cobertos, separados por vírgula") }/>
-									<label class="check"><input type="checkbox" name="active" value="1" checked?={ s.Active }/><span>{ i18n.T(ctx, "Ligada") }</span></label>
-									<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Salvar") }</button>
-								</form>
-								if s.CanDelete {
+								if canAdmin(ctx) {
+									<form class="budget-form" method="post" action={ templ.SafeURL(s.UpdateAction) } style="flex-wrap:wrap;gap:6px">
+										<label class="sr-only" for={ fmt.Sprintf("sub-monthly-%d", i) }>{ i18n.T(ctx, "Mensalidade em dólares") }</label>
+										<span class="usd-field"><span class="pre mono">{ i18n.T(ctx, "US$") }</span><input class="input sm mono" id={ fmt.Sprintf("sub-monthly-%d", i) } name="monthly" inputmode="decimal" value={ s.MonthlyValue } autocomplete="off" title={ i18n.T(ctx, "Mensalidade") }/></span>
+										<label class="sr-only" for={ fmt.Sprintf("sub-limit-%d", i) }>{ i18n.T(ctx, "Teto semanal em dólares") }</label>
+										<span class="usd-field"><span class="pre mono">{ i18n.T(ctx, "sem.") }</span><input class="input sm mono" id={ fmt.Sprintf("sub-limit-%d", i) } name="weekly_limit" inputmode="decimal" value={ s.LimitValue } placeholder={ i18n.T(ctx, "sem trava") } autocomplete="off" title={ i18n.T(ctx, "Teto semanal") }/></span>
+										<label class="sr-only" for={ fmt.Sprintf("sub-guard-%d", i) }>{ i18n.T(ctx, "Trava em %") }</label>
+										<span class="usd-field"><input class="input sm mono" id={ fmt.Sprintf("sub-guard-%d", i) } name="guard_pct" inputmode="numeric" value={ fmt.Sprint(s.GuardPct) } autocomplete="off" title={ i18n.T(ctx, "Trava em % do teto semanal") } style="width:56px"/><span class="pre mono">%</span></span>
+										<label class="sr-only" for={ fmt.Sprintf("sub-models-%d", i) }>{ i18n.T(ctx, "Prefixos de modelo cobertos") }</label>
+										<input class="input sm" id={ fmt.Sprintf("sub-models-%d", i) } name="models" value={ s.ModelsValue } placeholder={ i18n.T(ctx, "todos os modelos") } autocomplete="off" title={ i18n.T(ctx, "Prefixos de modelo cobertos, separados por vírgula") }/>
+										<label class="check"><input type="checkbox" name="active" value="1" checked?={ s.Active }/><span>{ i18n.T(ctx, "Ligada") }</span></label>
+										<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Salvar") }</button>
+									</form>
+								} else {
+									@NeedRole(domain.MemberAdmin)
+								}
+								if s.CanDelete && canAdmin(ctx) {
 									<form method="post" action={ templ.SafeURL(s.DeleteAction) } style="margin-top:6px"><button class="btn ghost sm" type="submit">{ i18n.T(ctx, "Remover") }</button></form>
 								}
 							</td>
@@ -202,22 +211,26 @@ templ SubscriptionsSection(vm CostsVM) {
 				</tbody>
 			</table>
 		}
-		<h3 class="side-h" style="margin:22px 0 10px">{ i18n.T(ctx, "Nova assinatura") }</h3>
-		<form class="budget-form" method="post" action={ templ.SafeURL(vm.SubCreate) } style="flex-wrap:wrap;gap:8px">
-			<label class="sr-only" for="sub-new-name">{ i18n.T(ctx, "Nome") }</label>
-			<input class="input sm" id="sub-new-name" name="name" required maxlength="120" placeholder={ i18n.T(ctx, "Nome (ex.: Claude Max)") } autocomplete="off"/>
-			<label class="sr-only" for="sub-new-agent">Harness</label>
-			@Select("agent", "sub-new-agent", vm.AgentOpts, true)
-			<label class="sr-only" for="sub-new-monthly">{ i18n.T(ctx, "Mensalidade em dólares") }</label>
-			<span class="usd-field"><span class="pre mono">{ i18n.T(ctx, "US$") }</span><input class="input sm mono" id="sub-new-monthly" name="monthly" inputmode="decimal" required placeholder={ i18n.T(ctx, "mensalidade") } autocomplete="off"/></span>
-			<label class="sr-only" for="sub-new-limit">{ i18n.T(ctx, "Teto semanal em dólares") }</label>
-			<span class="usd-field"><span class="pre mono">{ i18n.T(ctx, "sem.") }</span><input class="input sm mono" id="sub-new-limit" name="weekly_limit" inputmode="decimal" placeholder={ i18n.T(ctx, "teto semanal") } autocomplete="off"/></span>
-			<label class="sr-only" for="sub-new-guard">{ i18n.T(ctx, "Trava em %") }</label>
-			<span class="usd-field"><input class="input sm mono" id="sub-new-guard" name="guard_pct" inputmode="numeric" value="90" autocomplete="off" style="width:56px"/><span class="pre mono">%</span></span>
-			<label class="sr-only" for="sub-new-models">{ i18n.T(ctx, "Prefixos de modelo cobertos") }</label>
-			<input class="input sm" id="sub-new-models" name="models" placeholder={ i18n.T(ctx, "modelos cobertos (prefixos, vírgula)") } autocomplete="off"/>
-			<button class="btn primary sm" type="submit">{ i18n.T(ctx, "Criar assinatura") }</button>
-		</form>
+		if canAdmin(ctx) {
+			<h3 class="side-h" style="margin:22px 0 10px">{ i18n.T(ctx, "Nova assinatura") }</h3>
+			<form class="budget-form" method="post" action={ templ.SafeURL(vm.SubCreate) } style="flex-wrap:wrap;gap:8px">
+				<label class="sr-only" for="sub-new-name">{ i18n.T(ctx, "Nome") }</label>
+				<input class="input sm" id="sub-new-name" name="name" required maxlength="120" placeholder={ i18n.T(ctx, "Nome (ex.: Claude Max)") } autocomplete="off"/>
+				<label class="sr-only" for="sub-new-agent">Harness</label>
+				@Select("agent", "sub-new-agent", vm.AgentOpts, true)
+				<label class="sr-only" for="sub-new-monthly">{ i18n.T(ctx, "Mensalidade em dólares") }</label>
+				<span class="usd-field"><span class="pre mono">{ i18n.T(ctx, "US$") }</span><input class="input sm mono" id="sub-new-monthly" name="monthly" inputmode="decimal" required placeholder={ i18n.T(ctx, "mensalidade") } autocomplete="off"/></span>
+				<label class="sr-only" for="sub-new-limit">{ i18n.T(ctx, "Teto semanal em dólares") }</label>
+				<span class="usd-field"><span class="pre mono">{ i18n.T(ctx, "sem.") }</span><input class="input sm mono" id="sub-new-limit" name="weekly_limit" inputmode="decimal" placeholder={ i18n.T(ctx, "teto semanal") } autocomplete="off"/></span>
+				<label class="sr-only" for="sub-new-guard">{ i18n.T(ctx, "Trava em %") }</label>
+				<span class="usd-field"><input class="input sm mono" id="sub-new-guard" name="guard_pct" inputmode="numeric" value="90" autocomplete="off" style="width:56px"/><span class="pre mono">%</span></span>
+				<label class="sr-only" for="sub-new-models">{ i18n.T(ctx, "Prefixos de modelo cobertos") }</label>
+				<input class="input sm" id="sub-new-models" name="models" placeholder={ i18n.T(ctx, "modelos cobertos (prefixos, vírgula)") } autocomplete="off"/>
+				<button class="btn primary sm" type="submit">{ i18n.T(ctx, "Criar assinatura") }</button>
+			</form>
+		} else {
+			@NeedRole(domain.MemberAdmin)
+		}
 	</section>
 }
 

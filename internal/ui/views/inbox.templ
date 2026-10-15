@@ -3,6 +3,7 @@ package views
 import (
 	"fmt"
 
+	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/i18n"
 )
 
@@ -135,10 +136,17 @@ templ InboxPage(sh Shell, vm InboxVM) {
 										{ t.When } · { i18n.T(ctx, "sem gate pendente: alguém precisa destravar") }
 									</div>
 								</div>
-								<form class="inbox-act" method="post" action={ templ.SafeURL(t.ActionHref) } hx-post={ t.ActionHref } hx-swap="none">
-									<a class="btn ghost sm" href={ templ.SafeURL(t.Href) }>{ i18n.T(ctx, "Abrir") }</a>
-									<button class="btn outline sm" type="submit">{ t.ActionLabel }</button>
-								</form>
+								if canWrite(ctx) {
+									<form class="inbox-act" method="post" action={ templ.SafeURL(t.ActionHref) } hx-post={ t.ActionHref } hx-swap="none">
+										<a class="btn ghost sm" href={ templ.SafeURL(t.Href) }>{ i18n.T(ctx, "Abrir") }</a>
+										<button class="btn outline sm" type="submit">{ t.ActionLabel }</button>
+									</form>
+								} else {
+									<div class="inbox-act">
+										<a class="btn ghost sm" href={ templ.SafeURL(t.Href) }>{ i18n.T(ctx, "Abrir") }</a>
+										@NeedRole(domain.MemberMember)
+									</div>
+								}
 							</div>
 						}
 					</section>
@@ -167,13 +175,20 @@ templ InboxPage(sh Shell, vm InboxVM) {
 										}
 										<span class="mono">{ r.Short }</span> · { r.When }</div>
 								</div>
-								<form class="inbox-act" method="post" action={ templ.SafeURL(r.ActionHref) } hx-post={ r.ActionHref } hx-swap="none">
-									<a class="btn ghost sm" href={ templ.SafeURL(r.Href) }>{ i18n.T(ctx, "Ver log") }</a>
-									<button class="btn outline sm" type="submit">
-										@Icon("zap")
-										{ i18n.T(ctx, "Acordar de novo") }
-									</button>
-								</form>
+								if canWrite(ctx) {
+									<form class="inbox-act" method="post" action={ templ.SafeURL(r.ActionHref) } hx-post={ r.ActionHref } hx-swap="none">
+										<a class="btn ghost sm" href={ templ.SafeURL(r.Href) }>{ i18n.T(ctx, "Ver log") }</a>
+										<button class="btn outline sm" type="submit">
+											@Icon("zap")
+											{ i18n.T(ctx, "Acordar de novo") }
+										</button>
+									</form>
+								} else {
+									<div class="inbox-act">
+										<a class="btn ghost sm" href={ templ.SafeURL(r.Href) }>{ i18n.T(ctx, "Ver log") }</a>
+										@NeedRole(domain.MemberMember)
+									</div>
+								}
 							</div>
 						}
 					</section>
@@ -195,9 +210,15 @@ templ InboxPage(sh Shell, vm InboxVM) {
 									<p class="x">{ i18n.Tf(ctx, "Uso estimado de %s de %s (%s) passou da trava de %s%%: novas execuções cobertas por esta assinatura ficam bloqueadas.", s.Usage, s.Limit, s.Percent, fmt.Sprint(s.Guard)) }</p>
 									<div class="s">{ i18n.Tf(ctx, "semana de %s · libera na virada da semana ou ao subir o teto", s.Week) }</div>
 								</div>
-								<form class="inbox-act" method="get" action={ templ.SafeURL(s.Href) }>
-									<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Ajustar teto") }</button>
-								</form>
+								if canAdmin(ctx) {
+									<form class="inbox-act" method="get" action={ templ.SafeURL(s.Href) }>
+										<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Ajustar teto") }</button>
+									</form>
+								} else {
+									<div class="inbox-act">
+										@NeedRole(domain.MemberAdmin)
+									</div>
+								}
 							</div>
 						}
 					</section>
@@ -229,10 +250,17 @@ templ InboxPage(sh Shell, vm InboxVM) {
 										}
 									</div>
 								</div>
-								<form class="inbox-act" method="post" action={ templ.SafeURL(p.ActionHref) } hx-post={ p.ActionHref } hx-swap="none">
-									<a class="btn ghost sm" href={ templ.SafeURL(p.Href) }>{ i18n.T(ctx, "Abrir") }</a>
-									<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Reativar") }</button>
-								</form>
+								if canAdmin(ctx) {
+									<form class="inbox-act" method="post" action={ templ.SafeURL(p.ActionHref) } hx-post={ p.ActionHref } hx-swap="none">
+										<a class="btn ghost sm" href={ templ.SafeURL(p.Href) }>{ i18n.T(ctx, "Abrir") }</a>
+										<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Reativar") }</button>
+									</form>
+								} else {
+									<div class="inbox-act">
+										<a class="btn ghost sm" href={ templ.SafeURL(p.Href) }>{ i18n.T(ctx, "Abrir") }</a>
+										@NeedRole(domain.MemberAdmin)
+									</div>
+								}
 							</div>
 						}
 					</section>

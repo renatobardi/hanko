@@ -276,7 +276,12 @@ func (s *server) withCompany(h companyHandler) http.HandlerFunc {
 			s.fail(w, r, nil, err)
 			return
 		}
-		h(w, r, co)
+		role, err := s.be.MyRole(r.Context(), co.ID)
+		if err != nil {
+			s.fail(w, r, nil, err)
+			return
+		}
+		h(w, r.WithContext(views.WithRole(r.Context(), role)), co)
 	}
 }
 
@@ -379,14 +384,14 @@ func (s *server) fail(w http.ResponseWriter, r *http.Request, co *domain.Company
 	}
 	if co != nil {
 		vm.Back = "/c/" + co.Slug + "/"
-		s.render(w, r, st, views.ErrorPage(s.shell(*co, "", title), vm))
+		s.render(w, r, st, views.ErrorPage(s.shell(r, *co, "", title), vm))
 		return
 	}
 	vm.Back = "/"
 	s.render(w, r, st, views.ErrorBare(vm, s.version))
 }
 
-func (s *server) shell(co domain.Company, active, title string, crumbs ...views.Crumb) views.Shell {
+func (s *server) shell(r *http.Request, co domain.Company, active, title string, crumbs ...views.Crumb) views.Shell {
 	base := "/c/" + co.Slug
 	cs := []views.Crumb{{Label: co.Name, Href: base + "/"}}
 	cs = append(cs, crumbs...)
@@ -397,6 +402,7 @@ func (s *server) shell(co domain.Company, active, title string, crumbs ...views.
 		Crumbs:  cs,
 		Version: s.version,
 		Owner:   ownerName,
+		Role:    views.RoleFrom(r.Context()),
 	}
 }
 

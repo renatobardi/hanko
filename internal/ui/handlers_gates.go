@@ -231,7 +231,7 @@ func (s *server) handleGates(w http.ResponseWriter, r *http.Request, co domain.C
 		vm.Subtitle = i18n.Tf(ctx, "Pontos em que um humano decide. %d pendentes: as personas ficam paradas até a sua resposta.", pending)
 	}
 	vm.Empty = i18n.T(ctx, "Nenhum gate corresponde a este filtro. Uma persona pede um gate antes de uma ação irreversível, merge, deploy, gasto ou contratação.")
-	sh := s.shell(co, "gates", i18n.T(ctx, "Gates"), views.Crumb{Label: i18n.T(ctx, "Gates")})
+	sh := s.shell(r, co, "gates", i18n.T(ctx, "Gates"), views.Crumb{Label: i18n.T(ctx, "Gates")})
 	s.render(w, r, http.StatusOK, views.GatesPage(sh, vm))
 }
 
@@ -267,7 +267,7 @@ func (s *server) handleGate(w http.ResponseWriter, r *http.Request, co domain.Co
 	if g.RunID != nil {
 		vm.RunHref, vm.RunShort = base+"/execucoes/"+g.RunID.String(), shortID(*g.RunID)
 	}
-	sh := s.shell(co, "gates", g.Title, views.Crumb{Label: i18n.T(ctx, "Gates"), Href: base + "/gates"}, views.Crumb{Label: shortID(g.ID)})
+	sh := s.shell(r, co, "gates", g.Title, views.Crumb{Label: i18n.T(ctx, "Gates"), Href: base + "/gates"}, views.Crumb{Label: shortID(g.ID)})
 	s.render(w, r, http.StatusOK, views.GatePage(sh, vm))
 }
 
@@ -371,6 +371,6 @@ func (s *server) handleDecisions(w http.ResponseWriter, r *http.Request, co doma
 		return a.After(b)
 	})
 	vm.Rows = gateRows(ctx, shown, base, now, loc, names)
-	sh := s.shell(co, "decisoes", i18n.T(ctx, "Decisões"), views.Crumb{Label: i18n.T(ctx, "Decisões")})
+	sh := s.shell(r, co, "decisoes", i18n.T(ctx, "Decisões"), views.Crumb{Label: i18n.T(ctx, "Decisões")})
 	s.render(w, r, http.StatusOK, views.DecisionsPage(sh, vm))
 }

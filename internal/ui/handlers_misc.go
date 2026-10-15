@@ -44,7 +44,7 @@ func (s *server) handleActivity(w http.ResponseWriter, r *http.Request, co domai
 		d := &vm.Days[len(vm.Days)-1]
 		d.Items = append(d.Items, s.activityItem(ctx, a, base, names, now, loc, false))
 	}
-	sh := s.shell(co, "atividade", i18n.T(ctx, "Atividade"), views.Crumb{Label: i18n.T(ctx, "Atividade")})
+	sh := s.shell(r, co, "atividade", i18n.T(ctx, "Atividade"), views.Crumb{Label: i18n.T(ctx, "Atividade")})
 	s.render(w, r, http.StatusOK, views.ActivityPage(sh, vm))
 }
 
@@ -56,6 +56,6 @@ func (s *server) handleSoon(w http.ResponseWriter, r *http.Request, co domain.Co
 	}
 	ctx := r.Context()
 	label := i18n.T(ctx, it.Label)
-	sh := s.shell(co, it.Key, label, views.Crumb{Label: label})
+	sh := s.shell(r, co, it.Key, label, views.Crumb{Label: label})
 	s.render(w, r, http.StatusOK, views.SoonPage(sh, views.SoonVM{Label: label, Milestone: it.Milestone, Blurb: i18n.T(ctx, it.Blurb)}))
 }

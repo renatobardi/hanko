@@ -772,4 +772,7 @@ var en = map[string]string{
 	"você":                                "you",
 	"Você ainda não participa de nenhuma empresa":                                     "You do not belong to any company yet",
 	"Peça um convite a quem administra a empresa e abra o link recebido para entrar.": "Ask whoever runs the company for an invite and open the link you receive to join.",
+	"somente leitura": "read-only",
+	"requer admin":    "requires admin",
+	"você: %s":        "you: %s",
 }

@@ -143,7 +143,7 @@ func (s *server) handleInbox(w http.ResponseWriter, r *http.Request, co domain.C
 	default:
 		vm.Subtitle = i18n.Tf(ctx, "%d itens esperam por você: gates para decidir, bloqueios, falhas, personas com erro e alertas.", n)
 	}
-	sh := s.shell(co, "caixa", i18n.T(ctx, "Caixa de entrada"), views.Crumb{Label: i18n.T(ctx, "Caixa de entrada")})
+	sh := s.shell(r, co, "caixa", i18n.T(ctx, "Caixa de entrada"), views.Crumb{Label: i18n.T(ctx, "Caixa de entrada")})
 	s.render(w, r, http.StatusOK, views.InboxPage(sh, vm))
 }
 

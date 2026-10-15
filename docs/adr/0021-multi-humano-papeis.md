@@ -58,8 +58,9 @@ vê, quem opera e quem administra, por empresa, sem mudar o comportamento de que
    Configurações da empresa (modo authenticated). CLI: `hanko member list|invite|role|remove|revoke`.
 
 ## Consequências
-Usuários novos só veem as empresas às quais foram convidados. A UI ainda mostra botões de escrita para quem é viewer
-(o service recusa com 403 e uma mensagem clara); esconder os controles por papel nas demais telas fica para depois. O
+Usuários novos só veem as empresas às quais foram convidados. A UI esconde (ou desabilita, com um aviso discreto "somente leitura" / "requer admin")
+os controles que o papel não tem e mostra "você: <papel>" na barra lateral; é só UX, o service segue recusando com 403 e
+uma mensagem clara se alguém forjar o POST. O
 link do convite não pode ser recuperado depois de criado (só o hash existe). Remover alguém da empresa não encerra a
 sessão global dele: ele apenas perde o acesso àquela empresa. O estado do limitador continua por processo (ADR-0018).
 
