@@ -19,7 +19,7 @@ func (c *Client) ExportCompany(ctx context.Context, company string, withRuns, wi
 		q.Set("with_logs", "true")
 	}
 	var out json.RawMessage
-	if err := c.do(ctx, http.MethodGet, cp(company)+"/export", q, nil, &out); err != nil {
+	if err := c.doWith(ctx, c.longHTTP(), http.MethodGet, cp(company)+"/export", q, nil, &out); err != nil {
 		return nil, err
 	}
 	return out, nil
@@ -36,6 +36,6 @@ func (c *Client) ImportCompany(ctx context.Context, doc json.RawMessage, slug st
 		q.Set("paused", "false")
 	}
 	var out api.ImportedCompany
-	err := c.do(ctx, http.MethodPost, "/companies/import", q, doc, &out)
+	err := c.doWith(ctx, c.longHTTP(), http.MethodPost, "/companies/import", q, doc, &out)
 	return out, err
 }

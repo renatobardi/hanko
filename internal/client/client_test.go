@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 )
@@ -93,5 +94,46 @@ func TestReadFramesLinhaGigante(t *testing.T) {
 	err := readFrames(strings.NewReader("event: run.status\ndata: "+big+"\n\n"), func(f Frame) error { got = f.Data; return nil })
 	if err != nil || got != big {
 		t.Fatalf("err=%v len=%d", err, len(got))
+	}
+}
+
+// Export e import são transferências longas: não podem herdar o Timeout total (30 s) do cliente padrão.
+func TestExportImportSemTimeoutTotal(t *testing.T) {
+	old := defaultTimeout
+	defaultTimeout = 50 * time.Millisecond
+	t.Cleanup(func() { defaultTimeout = old })
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(300 * time.Millisecond) // mais que o timeout padrão (encurtado)
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method == http.MethodPost {
+			w.WriteHeader(201)
+			_, _ = w.Write([]byte(`{"company":{"slug":"x"},"counts":{"tasks":1}}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"format":"hanko.company.v1"}`))
+	}))
+	defer ts.Close()
+	c := New(ts.URL, "")
+	// controle: uma chamada curta continua com o timeout padrão
+	if _, err := c.Companies(context.Background()); err == nil {
+		t.Fatal("a chamada curta deveria estourar o timeout padrão encurtado")
+	}
+	raw, err := c.ExportCompany(context.Background(), "acme", false, false)
+	if err != nil || !strings.Contains(string(raw), "hanko.company.v1") {
+		t.Fatalf("export: %q %v", raw, err)
+	}
+	res, err := c.ImportCompany(context.Background(), []byte(`{"format":"hanko.company.v1"}`), "x", false)
+	if err != nil || res.Counts["tasks"] != 1 {
+		t.Fatalf("import: %+v %v", res, err)
+	}
+	// o cancelamento continua valendo pelo ctx
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	if _, err := c.ExportCompany(ctx, "acme", false, false); err == nil {
+		t.Fatal("o ctx cancelado deveria interromper o export")
+	}
+	// o cliente do chamador não é alterado
+	if c.http().Timeout != defaultTimeout {
+		t.Fatalf("Timeout do cliente padrão mudou: %v", c.http().Timeout)
 	}
 }

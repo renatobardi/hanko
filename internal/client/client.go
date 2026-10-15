@@ -36,11 +36,22 @@ func New(baseURL, token string) *Client {
 	return &Client{BaseURL: strings.TrimRight(baseURL, "/"), Token: token}
 }
 
+// defaultTimeout é o prazo total das chamadas curtas (var para os testes o encurtarem).
+var defaultTimeout = 30 * time.Second
+
 func (c *Client) http() *http.Client {
 	if c.HTTP != nil {
 		return c.HTTP
 	}
-	return &http.Client{Timeout: 30 * time.Second}
+	return &http.Client{Timeout: defaultTimeout}
+}
+
+// longHTTP é o cliente das transferências longas (export/import, streams): uma cópia sem Timeout total, que
+// cortaria arquivos grandes em 30 s. O cancelamento fica com o ctx da chamada (o do cobra).
+func (c *Client) longHTTP() *http.Client {
+	hc := *c.http()
+	hc.Timeout = 0
+	return &hc
 }
 
 // Error é uma resposta de erro da API (RFC 9457).
@@ -120,11 +131,15 @@ func (c *Client) newRequest(ctx context.Context, method, path string, q url.Valu
 }
 
 func (c *Client) do(ctx context.Context, method, path string, q url.Values, in, out any) error {
+	return c.doWith(ctx, c.http(), method, path, q, in, out)
+}
+
+func (c *Client) doWith(ctx context.Context, hc *http.Client, method, path string, q url.Values, in, out any) error {
 	req, err := c.newRequest(ctx, method, path, q, in)
 	if err != nil {
 		return err
 	}
-	resp, err := c.http().Do(req)
+	resp, err := hc.Do(req)
 	if err != nil {
 		return fmt.Errorf("falha ao falar com %s: %w", c.BaseURL, err)
 	}
@@ -492,9 +507,7 @@ func (c *Client) Stream(ctx context.Context, company, id string, after int64, fn
 		return err
 	}
 	req.Header.Set("Accept", "text/event-stream")
-	hc := *c.http()
-	hc.Timeout = 0 // stream longo
-	resp, err := hc.Do(req)
+	resp, err := c.longHTTP().Do(req) // stream longo: sem Timeout total
 	if err != nil {
 		return fmt.Errorf("falha ao falar com %s: %w", c.BaseURL, err)
 	}

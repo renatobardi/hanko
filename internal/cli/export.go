@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"sort"
 
 	"github.com/spf13/cobra"
@@ -36,7 +37,7 @@ func (e *env) exportCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf(e.t("codificar JSON: %w"), err)
 			}
-			if err := os.WriteFile(outFile, append(b, '\n'), 0o600); err != nil {
+			if err := writeFileAtomic(outFile, append(b, '\n')); err != nil {
 				return fmt.Errorf(e.t("gravar %s: %w"), outFile, err)
 			}
 			fmt.Fprintf(e.out, e.t("exportado para %s\n"), outFile)
@@ -97,4 +98,30 @@ func (e *env) importCmd() *cobra.Command {
 	c.Flags().BoolVar(&paused, "paused", false, e.t("(padrão) personas entram pausadas e fluxos desligados"))
 	_ = c.Flags().MarkHidden("paused")
 	return c
+}
+
+// writeFileAtomic grava num arquivo temporário (0600) no mesmo diretório e só o renomeia para path no fim: em
+// qualquer erro o destino fica como estava (nunca um arquivo pela metade) e o temporário é removido.
+func writeFileAtomic(path string, data []byte) (err error) {
+	f, err := os.CreateTemp(filepath.Dir(path), ".hanko-export-*.tmp")
+	if err != nil {
+		return err
+	}
+	tmp := f.Name()
+	defer func() {
+		if err != nil {
+			_ = f.Close()
+			_ = os.Remove(tmp)
+		}
+	}()
+	if _, err = f.Write(data); err != nil {
+		return err
+	}
+	if err = f.Sync(); err != nil {
+		return err
+	}
+	if err = f.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
 }
