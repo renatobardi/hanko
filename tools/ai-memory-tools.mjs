@@ -28,11 +28,14 @@ for (const t of json.result?.tools ?? []) {
 }
 if (!json.result) console.log(text.slice(0, 2000));
 
-// Consulta de amostra (confere o formato da resposta): -e Q=palavra -e WS=<slug-da-empresa> -e PJ=default
-if (process.env.Q && process.env.WS) {
-  const r = await post(headers, {
-    jsonrpc: "2.0", id: 3, method: "tools/call",
-    params: { name: "memory_query", arguments: { query: `"${process.env.Q}"`, workspace: process.env.WS, project: process.env.PJ || "default", limit: 3 } },
-  });
-  console.log("\n--- memory_query ---\n" + (await r.text()).slice(0, 4000));
+// Amostra do formato das respostas (com WS = slug da empresa): memory_recent e, se houver Q, memory_query.
+//   -e WS=<slug> -e PJ=default -e Q=palavra
+if (process.env.WS) {
+  const scope = { workspace: process.env.WS, project: process.env.PJ || "default" };
+  const call = async (id, name, args) => {
+    const r = await post(headers, { jsonrpc: "2.0", id, method: "tools/call", params: { name, arguments: args } });
+    console.log(`\n--- ${name} ---\n` + (await r.text()).slice(0, 3000));
+  };
+  await call(3, "memory_recent", { ...scope, limit: 3 });
+  if (process.env.Q) await call(4, "memory_query", { ...scope, query: `"${process.env.Q}"`, limit: 3 });
 }
