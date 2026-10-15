@@ -125,6 +125,9 @@ func loadFlowView(ctx context.Context, q *store.Queries, companyID, id domain.ID
 
 // CreateFlow creates a Fluxo. The cron expression and time zone are validated.
 func (s *Service) CreateFlow(ctx context.Context, actor domain.Actor, companyID domain.ID, in CreateFlowInput) (FlowView, error) {
+	if err := s.require(ctx, companyID, domain.MemberAdmin); err != nil {
+		return FlowView{}, err
+	}
 	name := strings.TrimSpace(in.Name)
 	if name == "" {
 		return FlowView{}, domain.Invalid("name", "required")
@@ -195,6 +198,9 @@ func (t *txc) checkFlowRefs(companyID domain.ID, personaID, projectID *domain.ID
 // UpdateFlow changes a Fluxo; enabling it or changing its schedule recomputes the next
 // occurrence from now (no catch-up of what was missed while it was off).
 func (s *Service) UpdateFlow(ctx context.Context, actor domain.Actor, companyID, flowID domain.ID, in UpdateFlowInput) (FlowView, error) {
+	if err := s.require(ctx, companyID, domain.MemberAdmin); err != nil {
+		return FlowView{}, err
+	}
 	if in.Name != nil && strings.TrimSpace(*in.Name) == "" {
 		return FlowView{}, domain.Invalid("name", "must not be empty")
 	}
@@ -297,6 +303,9 @@ func (s *Service) UpdateFlow(ctx context.Context, actor domain.Actor, companyID,
 }
 
 func (s *Service) ListFlows(ctx context.Context, companyID domain.ID) ([]FlowView, error) {
+	if err := s.require(ctx, companyID, domain.MemberViewer); err != nil {
+		return nil, err
+	}
 	rows, err := s.read().ListFlowViews(ctx, companyID)
 	if err != nil {
 		return nil, fmt.Errorf("list flows: %w", err)
@@ -310,6 +319,9 @@ func (s *Service) ListFlows(ctx context.Context, companyID domain.ID) ([]FlowVie
 
 // GetFlow resolves ref as UUID or slug within the company.
 func (s *Service) GetFlow(ctx context.Context, companyID domain.ID, ref string) (FlowView, error) {
+	if err := s.require(ctx, companyID, domain.MemberViewer); err != nil {
+		return FlowView{}, err
+	}
 	q := s.read()
 	if id, err := uuid.Parse(ref); err == nil {
 		return loadFlowView(ctx, q, companyID, id)
@@ -323,6 +335,9 @@ func (s *Service) GetFlow(ctx context.Context, companyID domain.ID, ref string) 
 
 // ListFlowFires returns the latest firings of a flow with the tasks they created.
 func (s *Service) ListFlowFires(ctx context.Context, companyID, flowID domain.ID, limit int) ([]FlowFireView, error) {
+	if err := s.require(ctx, companyID, domain.MemberViewer); err != nil {
+		return nil, err
+	}
 	rows, err := s.read().ListFlowFires(ctx, store.ListFlowFiresParams{FlowID: flowID, CompanyID: companyID, Lim: i32(clamp(limit, 30, 200))})
 	if err != nil {
 		return nil, fmt.Errorf("list flow fires: %w", err)
@@ -373,6 +388,9 @@ func (s *Service) FireFlow(ctx context.Context, flowID domain.ID, scheduledFor t
 // the minute (two clicks in the same minute create one task). It never collides with the cron
 // occurrence of the same minute, does not move the schedule and ignores an open earlier task.
 func (s *Service) RunFlowNow(ctx context.Context, actor domain.Actor, companyID, flowID domain.ID) (FlowFireResult, error) {
+	if err := s.require(ctx, companyID, domain.MemberAdmin); err != nil {
+		return FlowFireResult{}, err
+	}
 	return s.fireFlow(ctx, actor, &companyID, flowID, s.Now().UTC().Truncate(time.Minute), false)
 }
 

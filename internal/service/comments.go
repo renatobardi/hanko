@@ -14,6 +14,9 @@ import (
 // AddComment appends to the thread. A human comment on an assigned open task enqueues
 // a Wake (trigger comment). Same EventID twice → returns the existing comment.
 func (s *Service) AddComment(ctx context.Context, actor domain.Actor, companyID, taskID domain.ID, in AddCommentInput) (domain.Comment, error) {
+	if err := s.require(ctx, companyID, domain.MemberMember); err != nil {
+		return domain.Comment{}, err
+	}
 	body := strings.TrimSpace(in.Body)
 	if n := utf8.RuneCountInString(body); n < 1 || n > 100000 {
 		return domain.Comment{}, domain.Invalid("body", "must have 1-100000 characters")
@@ -81,6 +84,9 @@ func (s *Service) AddComment(ctx context.Context, actor domain.Actor, companyID,
 }
 
 func (s *Service) ListComments(ctx context.Context, companyID, taskID domain.ID) ([]domain.Comment, error) {
+	if err := s.require(ctx, companyID, domain.MemberViewer); err != nil {
+		return nil, err
+	}
 	q := s.read()
 	if _, err := q.GetTaskByID(ctx, store.GetTaskByIDParams{CompanyID: companyID, ID: taskID}); err != nil {
 		return nil, mapErr(err, "get task")

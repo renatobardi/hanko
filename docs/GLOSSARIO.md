@@ -25,7 +25,9 @@ Um termo por conceito. Código, API, MCP e banco em inglês; UI em pt-BR. Em dú
 | activity | Atividade | `activity_event`: todo fato de domínio, na mesma transação, com `actor_type` (persona, human, system), `occurred_at`, `received_at`. | log, audit (é o uso, não o nome) |
 | heartbeat | — | Mecanismo: scheduler que acorda personas e despacha runs (river). Nunca na UI. | — |
 | handoff | Handoff | Resumo que uma sessão deixa para a próxima (ai-memory). | — |
-| user | Usuário | Humano autenticado (modo authenticated): provider `local` ou `firebase`, papel owner · admin · member. O ator `human` de um fato carrega o `id` do usuário. | account, member |
+| user | Usuário | Humano autenticado (modo authenticated): provider `local` ou `firebase`, papel na instalação owner · admin · member (`owner` vê todas as empresas). O ator `human` de um fato carrega o `id` do usuário. | account |
+| member | Membro | Vínculo de um usuário com uma empresa, com papel owner · admin · member · viewer (ADR-0021). Quem não é membro não enxerga a empresa (404). | — |
+| invite | Convite | Convite por e-mail com papel, token aleatório (só o hash fica no banco), válido por 7 dias, aceito em `/convite/{token}`. Sem envio de e-mail: o link é mostrado ao admin. | — |
 | session | Sessão | Cookie `hanko_session` de um usuário (30 dias deslizantes); só o hash do token fica no banco. | — |
 | api key | Chave de API | `hk_…` de um usuário para API, MCP e CLI; só o hash fica no banco; revogável. Não é o run token da persona. | token (ambíguo) |
 | skill · artifact · secret | Skill · Artefato · Segredo | Como nomeados. | plugin (só no sentido nativo do harness) |

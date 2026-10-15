@@ -133,6 +133,9 @@ func monthWindow(tz string, now time.Time) (from, to time.Time, key string) {
 
 // CostSummary aggregates the run ledger of a company. Days follow the company time zone.
 func (s *Service) CostSummary(ctx context.Context, companyID domain.ID, f CostFilter) (CostSummary, error) {
+	if err := s.require(ctx, companyID, domain.MemberViewer); err != nil {
+		return CostSummary{}, err
+	}
 	group := f.GroupBy
 	if group == "" {
 		group = GroupDay
@@ -250,11 +253,17 @@ func fillDays(rows []CostRow, from, to time.Time, loc *time.Location) []CostRow 
 
 // MonthSpend is the company spend (USD) in the current month of its time zone.
 func (s *Service) MonthSpend(ctx context.Context, companyID domain.ID) (float64, error) {
+	if err := s.require(ctx, companyID, domain.MemberViewer); err != nil {
+		return 0, err
+	}
 	return s.monthSpend(ctx, companyID, nil)
 }
 
 // MonthSpendPersona is the spend (USD) of one persona in the current month.
 func (s *Service) MonthSpendPersona(ctx context.Context, companyID, personaID domain.ID) (float64, error) {
+	if err := s.require(ctx, companyID, domain.MemberViewer); err != nil {
+		return 0, err
+	}
 	return s.monthSpend(ctx, companyID, &personaID)
 }
 
@@ -274,6 +283,9 @@ func (s *Service) monthSpend(ctx context.Context, companyID domain.ID, personaID
 
 // CompanyBudget is the company's spend versus its monthly ceiling.
 func (s *Service) CompanyBudget(ctx context.Context, companyID domain.ID) (BudgetStatus, error) {
+	if err := s.require(ctx, companyID, domain.MemberViewer); err != nil {
+		return BudgetStatus{}, err
+	}
 	co, err := s.read().GetCompanyByID(ctx, companyID)
 	if err != nil {
 		return BudgetStatus{}, mapErr(err, "get company")
@@ -287,6 +299,9 @@ func (s *Service) CompanyBudget(ctx context.Context, companyID domain.ID) (Budge
 
 // PersonaBudget is a persona's spend versus its monthly ceiling.
 func (s *Service) PersonaBudget(ctx context.Context, companyID, personaID domain.ID) (BudgetStatus, error) {
+	if err := s.require(ctx, companyID, domain.MemberViewer); err != nil {
+		return BudgetStatus{}, err
+	}
 	p, err := s.read().GetPersonaByID(ctx, store.GetPersonaByIDParams{CompanyID: companyID, ID: personaID})
 	if err != nil {
 		return BudgetStatus{}, mapErr(err, "get persona")
@@ -300,6 +315,9 @@ func (s *Service) PersonaBudget(ctx context.Context, companyID, personaID domain
 
 // SetCompanyBudget sets (or, with nil, removes) the company's monthly ceiling in USD cents.
 func (s *Service) SetCompanyBudget(ctx context.Context, actor domain.Actor, companyID domain.ID, cents *int64) (domain.Company, error) {
+	if err := s.require(ctx, companyID, domain.MemberAdmin); err != nil {
+		return domain.Company{}, err
+	}
 	if cents != nil && *cents < 0 {
 		return domain.Company{}, domain.Invalid("budget_monthly_cents", "must be >= 0")
 	}

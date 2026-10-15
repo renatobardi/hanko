@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/renatobardi/hanko/internal/auth"
 	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/store"
 )
@@ -52,6 +53,15 @@ func (s *Service) CreateCompany(ctx context.Context, actor domain.Actor, in Crea
 		return domain.Company{}, domain.Invalid("timezone", "unknown IANA time zone")
 	}
 
+	// Em modo authenticated só dono/admin da instalação cria empresa; o criador vira owner dela.
+	var creator *domain.User
+	if id, ok := auth.IdentityFrom(ctx); ok {
+		if id.User.Role == domain.RoleMember {
+			return domain.Company{}, domain.ErrForbidden
+		}
+		creator = &id.User
+	}
+
 	var out domain.Company
 	err = s.withTx(ctx, func(t *txc) error {
 		row, err := t.q.CreateCompany(ctx, store.CreateCompanyParams{
@@ -60,13 +70,19 @@ func (s *Service) CreateCompany(ctx context.Context, actor domain.Actor, in Crea
 			return mapErr(err, "create company")
 		}
 		out = companyFromRow(row)
+		if creator != nil {
+			if _, err := t.q.AddMember(ctx, store.AddMemberParams{CompanyID: out.ID, UserID: creator.ID,
+				Role: string(domain.MemberOwner), Now: t.now}); err != nil {
+				return mapErr(err, "add owner")
+			}
+		}
 		return t.activity(actor, out.ID, "company.created", "company", out.ID,
 			map[string]any{"slug": out.Slug, "name": out.Name}, "")
 	})
 	return out, err
 }
 
-// GetCompany resolves ref as UUID or slug.
+// GetCompany resolves ref as UUID or slug. A user who is not a member gets ErrNotFound.
 func (s *Service) GetCompany(ctx context.Context, ref string) (domain.Company, error) {
 	q := s.read()
 	var row store.Company
@@ -79,11 +95,22 @@ func (s *Service) GetCompany(ctx context.Context, ref string) (domain.Company, e
 	if err != nil {
 		return domain.Company{}, mapErr(err, "get company")
 	}
+	if err := s.require(ctx, row.ID, domain.MemberViewer); err != nil {
+		return domain.Company{}, err
+	}
 	return companyFromRow(row), nil
 }
 
+// ListCompanies lists the companies the caller can see: all of them without a user in the
+// context or for the installation owner, otherwise only those the user is a member of.
 func (s *Service) ListCompanies(ctx context.Context) ([]domain.Company, error) {
-	rows, err := s.read().ListCompanies(ctx)
+	var rows []store.Company
+	var err error
+	if id, ok := auth.IdentityFrom(ctx); ok && id.User.Role != domain.RoleOwner {
+		rows, err = s.read().ListCompaniesForUser(ctx, id.User.ID)
+	} else {
+		rows, err = s.read().ListCompanies(ctx)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("list companies: %w", err)
 	}
@@ -95,6 +122,9 @@ func (s *Service) ListCompanies(ctx context.Context) ([]domain.Company, error) {
 }
 
 func (s *Service) CreateWorkspace(ctx context.Context, actor domain.Actor, companyID domain.ID, in CreateWorkspaceInput) (domain.Workspace, error) {
+	if err := s.require(ctx, companyID, domain.MemberAdmin); err != nil {
+		return domain.Workspace{}, err
+	}
 	name := strings.TrimSpace(in.Name)
 	if name == "" {
 		return domain.Workspace{}, domain.Invalid("name", "required")
@@ -167,6 +197,9 @@ func resolveExisting(p string) string {
 }
 
 func (s *Service) ListWorkspaces(ctx context.Context, companyID domain.ID) ([]domain.Workspace, error) {
+	if err := s.require(ctx, companyID, domain.MemberViewer); err != nil {
+		return nil, err
+	}
 	rows, err := s.read().ListWorkspaces(ctx, companyID)
 	if err != nil {
 		return nil, fmt.Errorf("list workspaces: %w", err)
@@ -180,6 +213,9 @@ func (s *Service) ListWorkspaces(ctx context.Context, companyID domain.ID) ([]do
 
 // GetWorkspace resolves ref as UUID or slug within the company.
 func (s *Service) GetWorkspace(ctx context.Context, companyID domain.ID, ref string) (domain.Workspace, error) {
+	if err := s.require(ctx, companyID, domain.MemberViewer); err != nil {
+		return domain.Workspace{}, err
+	}
 	q := s.read()
 	var row store.Workspace
 	var err error
@@ -195,6 +231,9 @@ func (s *Service) GetWorkspace(ctx context.Context, companyID domain.ID, ref str
 }
 
 func (s *Service) CreateProject(ctx context.Context, actor domain.Actor, companyID domain.ID, in CreateProjectInput) (domain.Project, error) {
+	if err := s.require(ctx, companyID, domain.MemberMember); err != nil {
+		return domain.Project{}, err
+	}
 	name := strings.TrimSpace(in.Name)
 	if name == "" {
 		return domain.Project{}, domain.Invalid("name", "required")
@@ -226,6 +265,9 @@ func (s *Service) CreateProject(ctx context.Context, actor domain.Actor, company
 }
 
 func (s *Service) ListProjects(ctx context.Context, companyID domain.ID) ([]domain.Project, error) {
+	if err := s.require(ctx, companyID, domain.MemberViewer); err != nil {
+		return nil, err
+	}
 	rows, err := s.read().ListProjects(ctx, companyID)
 	if err != nil {
 		return nil, fmt.Errorf("list projects: %w", err)
@@ -239,6 +281,9 @@ func (s *Service) ListProjects(ctx context.Context, companyID domain.ID) ([]doma
 
 // GetProject resolves ref as UUID or slug within the company.
 func (s *Service) GetProject(ctx context.Context, companyID domain.ID, ref string) (domain.Project, error) {
+	if err := s.require(ctx, companyID, domain.MemberViewer); err != nil {
+		return domain.Project{}, err
+	}
 	q := s.read()
 	var row store.Project
 	var err error
