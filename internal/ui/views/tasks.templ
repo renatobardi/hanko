@@ -65,7 +65,9 @@ templ TaskPage(sh Shell, vm TaskVM, base string) {
 				<div class="brief" style="margin-top:20px">
 					<div class="side-h">{ i18n.T(ctx, "Pedido") }</div>
 					if vm.HasDescription {
-						<div class="md">@templ.Raw(string(vm.Description))</div>
+						@AnchorBox(AnchorBoxVM{API: vm.IslandAPI, TaskKey: vm.TaskKey, Target: "task_description", Doc: vm.DescDoc, Anchors: vm.DescAnchors, CanComment: canWrite(ctx), Msgs: vm.AnchorMsgs}) {
+							<div class="md">@templ.Raw(string(vm.Description))</div>
+						}
 					} else {
 						<p class="muted">{ i18n.T(ctx, "Sem descrição.") }</p>
 					}
@@ -107,7 +109,10 @@ templ Thread(vm TaskVM, base string) {
 		for _, m := range vm.Thread {
 			if m.Human {
 				<div class="msg me">
-					<div class="bubble"><div class="md">@templ.Raw(string(m.Body))</div></div>
+					<div class="bubble">
+						@MsgQuote(m)
+						<div class="md">@templ.Raw(string(m.Body))</div>
+					</div>
 					<div class="meta"><span>{ i18n.T(ctx, "Você ·") } <time class="mono">{ m.When }</time></span></div>
 				</div>
 			} else {
@@ -119,12 +124,25 @@ templ Thread(vm TaskVM, base string) {
 								<a href={ templ.SafeURL(m.RunHref) } style="text-decoration:underline">{ i18n.T(ctx, "execução") }</a>
 							}
 						</div>
+						@MsgQuote(m)
 						<div class="body md">@templ.Raw(string(m.Body))</div>
 					</div>
 				</div>
 			}
 		}
 	</div>
+}
+
+// MsgQuote shows the passage an anchored comment is about, and flags a lost anchor.
+templ MsgQuote(m Msg) {
+	if m.Quote != "" {
+		<blockquote class={ "msg-quote", templ.KV("is-lost", m.QuoteLost) }>
+			{ m.Quote }
+			if m.QuoteLost {
+				<span class="chip soft">{ i18n.T(ctx, "âncora perdida") }</span>
+			}
+		</blockquote>
+	}
 }
 
 templ CommentForm(vm TaskVM, base string) {

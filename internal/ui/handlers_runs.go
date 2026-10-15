@@ -141,6 +141,15 @@ func (s *server) handleRun(w http.ResponseWriter, r *http.Request, co domain.Com
 	}
 	ctx := r.Context()
 	vm := s.runVM(ctx, co, rv, "", lines, last)
+	vm.IslandAPI, vm.LogMsgs, vm.TZ, vm.Lang = islandAPI(co), runLogMsgs(ctx), co.Timezone, string(i18n.FromContext(ctx))
+	vm.AnchorMsgs, vm.SummaryDoc = anchorMsgs(ctx), docOf(rv.Summary)
+	vm.SummaryAnchors = "[]"
+	if strings.TrimSpace(rv.Summary) != "" {
+		if cs, err := s.be.ListComments(ctx, co.ID, rv.TaskID); err == nil {
+			names := s.lookup(ctx, nil, nil)
+			vm.SummaryAnchors = anchorViewsJSON(ctx, cs, names, loc, domain.AnchorRunSummary, &rv.ID)
+		}
+	}
 	base := "/c/" + co.Slug
 	if !rv.Status.Terminal() {
 		vm.SSEHref = base + "/execucoes/" + rv.ID.String() + "/sse?after=" + strconv.FormatInt(last, 10)

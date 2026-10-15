@@ -80,7 +80,12 @@ func layoutOrgCtx(ctx context.Context, chart service.OrgChart, base string) view
 		default:
 			meta = " · " + i18n.Tf(ctx, "%d tasks", n.OpenTasks)
 		}
+		parentID := ""
+		if p.ReportsTo != nil {
+			parentID = p.ReportsTo.String()
+		}
 		node := views.OrgNodeVM{
+			ID: p.ID.String(), Slug: p.Slug, ParentID: parentID,
 			X: cx - orgCardW/2, Y: orgPad + n.Depth*(orgCardH+orgGapY), W: orgCardW, H: orgCardH,
 			Name: clip(p.Name, 22), Title: clip(p.Title, 28), Meta: meta, Status: status, StatusClass: orgStatusClass(p.Status),
 			Href: base + "/personas/" + p.Slug, Initials: initialsOf(p.Name),
@@ -115,6 +120,8 @@ func (s *server) handleOrg(w http.ResponseWriter, r *http.Request, co domain.Com
 	base := "/c/" + co.Slug
 	ctx := r.Context()
 	vm := layoutOrgCtx(ctx, chart, base)
+	vm.IslandNodes, vm.IslandAPI, vm.IslandMsgs = orgNodesJSON(vm), islandAPI(co), orgMsgs(ctx)
+	vm.CanEdit = views.RoleFrom(r.Context()).AtLeast(domain.MemberAdmin)
 	switch chart.Total {
 	case 0:
 		vm.Subtitle = i18n.T(ctx, "Quem reporta a quem. A delegação de tasks segue a árvore.")
