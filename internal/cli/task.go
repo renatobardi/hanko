@@ -195,6 +195,38 @@ func (e *env) taskCmd() *cobra.Command {
 		},
 	}
 
+	var noProject bool
+	projectCmd := &cobra.Command{
+		Use: "project " + e.t("<task>") + " " + e.t("[projeto]"), Short: e.t("Põe a task num projeto (ou a tira dele com --none)"), Args: cobra.RangeArgs(1, 2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			co, err := e.needCompany()
+			if err != nil {
+				return err
+			}
+			if noProject == (len(args) == 2) {
+				return usageError{errors.New(e.t("informe o projeto ou use --none (um dos dois)"))}
+			}
+			req := client.UpdateTaskReq{ClearProject: noProject}
+			if !noProject {
+				req.Project = args[1]
+			}
+			t, err := e.client().UpdateTask(cmd.Context(), co, args[0], req)
+			if err != nil {
+				return err
+			}
+			if e.asJSON {
+				return e.printJSON(t)
+			}
+			if t.ProjectName == "" {
+				fmt.Fprintf(e.out, e.t("%s sem projeto.\n"), t.Key)
+			} else {
+				fmt.Fprintf(e.out, e.t("%s no projeto %s.\n"), t.Key, t.ProjectName)
+			}
+			return nil
+		},
+	}
+	projectCmd.Flags().BoolVar(&noProject, "none", false, e.t("tira a task do projeto"))
+
 	var clearModel bool
 	modelCmd := &cobra.Command{
 		Use: "model " + e.t("<task>") + " " + e.t("[modelo]"), Short: e.t("Escolhe à mão o modelo da task (vence o da persona); --clear remove"), Args: cobra.RangeArgs(1, 2),
@@ -275,7 +307,7 @@ func (e *env) taskCmd() *cobra.Command {
 		},
 	}
 
-	c.AddCommand(create, ls, show, assign, statusCmd, modelCmd, comment, wake)
+	c.AddCommand(create, ls, show, assign, statusCmd, projectCmd, modelCmd, comment, wake)
 	return c
 }
 
