@@ -86,6 +86,11 @@ type backend interface {
 	GetGate(ctx context.Context, companyID, gateID domain.ID) (service.GateView, error)
 	OrgChart(ctx context.Context, companyID domain.ID) (service.OrgChart, error)
 	CostSummary(ctx context.Context, companyID domain.ID, f service.CostFilter) (service.CostSummary, error)
+	CreateSubscription(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.CreateSubscriptionInput) (domain.Subscription, error)
+	ListSubscriptions(ctx context.Context, companyID domain.ID) ([]service.SubscriptionStatus, error)
+	GetSubscription(ctx context.Context, companyID domain.ID, ref string) (service.SubscriptionStatus, error)
+	UpdateSubscription(ctx context.Context, actor domain.Actor, companyID, id domain.ID, in service.UpdateSubscriptionInput) (domain.Subscription, error)
+	DeleteSubscription(ctx context.Context, actor domain.Actor, companyID, id domain.ID) error
 	CompanyBudget(ctx context.Context, companyID domain.ID) (service.BudgetStatus, error)
 	SetCompanyBudget(ctx context.Context, actor domain.Actor, companyID domain.ID, cents *int64) (domain.Company, error)
 	CreateFlow(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.CreateFlowInput) (service.FlowView, error)
@@ -183,6 +188,7 @@ func (s *server) register(api huma.API) {
 	s.registerGates(api)
 	s.registerMisc(api)
 	s.registerCosts(api)
+	s.registerSubscriptions(api)
 	s.registerFlows(api)
 }
 
