@@ -1,0 +1,158 @@
+{
+  "format": "hanko.company.v1",
+  "exported_at": "2026-10-15T12:00:00Z",
+  "company": {
+    "name": "Demo",
+    "slug": "demo",
+    "task_prefix": "DEMO",
+    "timezone": "America/Sao_Paulo",
+    "budget_monthly_cents": 5000,
+    "next_task_number": 5
+  },
+  "workspaces": [
+    {
+      "slug": "demo",
+      "name": "Demo",
+      "path": "/tmp/hanko-demo/demo",
+      "created_at": "2026-10-01T09:00:00Z"
+    }
+  ],
+  "projects": [
+    {
+      "slug": "demo",
+      "name": "Demo",
+      "description": "Projeto de exemplo para as demos dos milestones.",
+      "workspace": "demo",
+      "created_at": "2026-10-01T09:01:00Z"
+    }
+  ],
+  "subscriptions": [
+    {
+      "name": "Plano Claude",
+      "agent": "claude",
+      "monthly_usd": 20,
+      "model_prefixes": ["claude"],
+      "weekly_limit_usd": 10,
+      "weekly_guard_pct": 90,
+      "active": true,
+      "created_at": "2026-10-01T09:02:00Z"
+    }
+  ],
+  "personas": [
+    {
+      "slug": "cto",
+      "name": "Carla",
+      "title": "CTO",
+      "instructions": "Você é a CTO da empresa Demo. Quebre o trabalho em tasks pequenas, delegue para quem reporta a você (use hanko_task_create com parent e assignee) e peça um gate quando precisar de decisão humana (hanko_gate_request). Seja breve.",
+      "agent": "claude",
+      "model": "sonnet",
+      "status": "idle",
+      "workspace": "demo",
+      "subscription": "Plano Claude",
+      "created_at": "2026-10-01T09:10:00Z"
+    },
+    {
+      "slug": "ana",
+      "name": "Ana",
+      "title": "Engenheira",
+      "instructions": "Você é engenheira da empresa Demo. Faça a task atribuída no workspace, comente o que fez na task e conclua. Suas entregas passam por revisão antes do gate humano.",
+      "agent": "claude",
+      "model": "haiku",
+      "status": "idle",
+      "reports_to": "cto",
+      "workspace": "demo",
+      "budget_monthly_cents": 1000,
+      "subscription": "Plano Claude",
+      "require_review": true,
+      "reviewer": "rui",
+      "created_at": "2026-10-01T09:11:00Z"
+    },
+    {
+      "slug": "rui",
+      "name": "Rui",
+      "title": "Revisor",
+      "instructions": "Você revisa entregas de outras personas. Somente leitura: aponte problemas objetivos e termine com APROVADO ou MUDANÇAS.",
+      "agent": "codex",
+      "status": "idle",
+      "reports_to": "cto",
+      "workspace": "demo",
+      "created_at": "2026-10-01T09:12:00Z"
+    }
+  ],
+  "tasks": [
+    {
+      "number": 1,
+      "title": "Descrever o repositório",
+      "description": "Leia o workspace e escreva em um comentário um resumo de 5 linhas do que há nele.",
+      "status": "todo",
+      "priority": "medium",
+      "persona": "ana",
+      "project": "demo",
+      "workspace": "demo",
+      "created_by": { "type": "human" },
+      "created_at": "2026-10-01T10:00:00Z",
+      "updated_at": "2026-10-01T10:00:00Z"
+    },
+    {
+      "number": 2,
+      "title": "Planejar o MVP do Demo",
+      "description": "Quebre o MVP em 2 ou 3 tasks filhas e delegue para a Ana. Peça um gate antes de dar como concluído.",
+      "status": "todo",
+      "priority": "high",
+      "persona": "cto",
+      "project": "demo",
+      "workspace": "demo",
+      "created_by": { "type": "human" },
+      "created_at": "2026-10-01T10:05:00Z",
+      "updated_at": "2026-10-01T10:05:00Z"
+    },
+    {
+      "number": 3,
+      "title": "Escrever o README do Demo",
+      "description": "Crie README.md no workspace com título, o que é e como rodar. Passa por revisão da Rui.",
+      "status": "backlog",
+      "priority": "medium",
+      "persona": "ana",
+      "project": "demo",
+      "workspace": "demo",
+      "parent": 2,
+      "created_by": { "type": "persona", "persona": "cto" },
+      "created_at": "2026-10-01T10:10:00Z",
+      "updated_at": "2026-10-01T10:10:00Z",
+      "comments": [
+        {
+          "author": { "type": "persona", "persona": "cto" },
+          "body": "Ana, esta é a parte do plano que cabe a você. Comece pelo README.",
+          "created_at": "2026-10-01T10:11:00Z"
+        }
+      ]
+    },
+    {
+      "number": 4,
+      "title": "Ideias para depois",
+      "description": "Task sem dono, só para o quadro não ficar vazio.",
+      "status": "backlog",
+      "priority": "low",
+      "project": "demo",
+      "created_by": { "type": "human" },
+      "created_at": "2026-10-01T10:15:00Z",
+      "updated_at": "2026-10-01T10:15:00Z"
+    }
+  ],
+  "flows": [
+    {
+      "slug": "resumo-diario",
+      "name": "Resumo diário",
+      "description": "Todo dia às 9h a CTO resume o que ficou aberto.",
+      "cron": "0 9 * * *",
+      "timezone": "America/Sao_Paulo",
+      "enabled": true,
+      "persona": "cto",
+      "project": "demo",
+      "priority": "low",
+      "task_title": "Resumo diário {{data}}",
+      "task_description": "Liste as tasks abertas do projeto Demo e comente um resumo de 3 linhas.",
+      "created_at": "2026-10-01T09:20:00Z"
+    }
+  ]
+}
