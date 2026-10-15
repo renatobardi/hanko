@@ -99,6 +99,12 @@ type backend interface {
 	GetFlow(ctx context.Context, companyID domain.ID, ref string) (service.FlowView, error)
 	ListFlowFires(ctx context.Context, companyID, flowID domain.ID, limit int) ([]service.FlowFireView, error)
 	RunFlowNow(ctx context.Context, actor domain.Actor, companyID, flowID domain.ID) (service.FlowFireResult, error)
+	ListMembers(ctx context.Context, companyID domain.ID) ([]domain.Member, error)
+	ListInvites(ctx context.Context, companyID domain.ID) ([]domain.Invite, error)
+	InviteMember(ctx context.Context, actor domain.Actor, companyID domain.ID, email string, role domain.MemberRole) (domain.Invite, string, error)
+	RevokeInvite(ctx context.Context, actor domain.Actor, companyID, inviteID domain.ID) error
+	SetMemberRole(ctx context.Context, actor domain.Actor, companyID, userID domain.ID, role domain.MemberRole) (domain.Member, error)
+	RemoveMember(ctx context.Context, actor domain.Actor, companyID, userID domain.ID) error
 }
 
 var _ backend = (*service.Service)(nil)
@@ -190,6 +196,7 @@ func (s *server) register(api huma.API) {
 	s.registerCosts(api)
 	s.registerSubscriptions(api)
 	s.registerFlows(api)
+	s.registerMembers(api)
 }
 
 // op monta uma huma.Operation com o prefixo da API.

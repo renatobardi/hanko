@@ -590,3 +590,30 @@ func (c *Client) UpdateSubscription(ctx context.Context, company, ref string, in
 func (c *Client) DeleteSubscription(ctx context.Context, company, ref string) error {
 	return c.do(ctx, http.MethodDelete, cp(company)+"/subscriptions/"+url.PathEscape(ref), nil, nil, nil)
 }
+
+// ---------- membros e convites ----------
+
+func (c *Client) Members(ctx context.Context, company string) ([]api.Member, error) {
+	return list[api.Member](ctx, c, cp(company)+"/members", url.Values{"limit": {"500"}})
+}
+
+func (c *Client) Invites(ctx context.Context, company string) ([]api.Invite, error) {
+	return list[api.Invite](ctx, c, cp(company)+"/invites", url.Values{"limit": {"500"}})
+}
+
+// InviteMember cria o convite; a resposta traz o token e o caminho do link uma única vez.
+func (c *Client) InviteMember(ctx context.Context, company, email, role string) (api.Invite, error) {
+	return get[api.Invite](ctx, c, http.MethodPost, cp(company)+"/invites", map[string]string{"email": email, "role": role})
+}
+
+func (c *Client) RevokeInvite(ctx context.Context, company, inviteID string) error {
+	return c.do(ctx, http.MethodDelete, cp(company)+"/invites/"+url.PathEscape(inviteID), nil, nil, nil)
+}
+
+func (c *Client) SetMemberRole(ctx context.Context, company, member, role string) (api.Member, error) {
+	return get[api.Member](ctx, c, http.MethodPatch, cp(company)+"/members/"+url.PathEscape(member), map[string]string{"role": role})
+}
+
+func (c *Client) RemoveMember(ctx context.Context, company, member string) error {
+	return c.do(ctx, http.MethodDelete, cp(company)+"/members/"+url.PathEscape(member), nil, nil, nil)
+}
