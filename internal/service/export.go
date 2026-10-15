@@ -115,7 +115,7 @@ func (e *ExportStream) eachEvent(ctx context.Context, runID domain.ID, fn func(e
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		rows, err := e.q.ExportRunEventsPage(ctx, store.ExportRunEventsPageParams{RunID: runID, AfterSeq: after, PageSize: int32(e.pageSize)})
+		rows, err := e.q.ExportRunEventsPage(ctx, store.ExportRunEventsPageParams{RunID: runID, AfterSeq: after, PageSize: i32(e.pageSize)})
 		if err != nil {
 			return fmt.Errorf("export run events: %w", err)
 		}
