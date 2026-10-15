@@ -7,6 +7,7 @@ import (
 	"errors"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 // ErrEmpty: a consulta não tem nenhum termo positivo (vazia, só pontuação ou só exclusões).
@@ -16,6 +17,10 @@ const (
 	maxWords   = 12 // palavras positivas e negativas somadas; o resto é ignorado
 	maxWordLen = 64 // runas por palavra
 	maxRaw     = 512
+
+	// MinPrefixRunes: a última palavra só casa por prefixo (:*) com este tamanho em runas. Um prefixo de uma letra
+	// ("a:*") varre uma fatia enorme do índice e não ajuda quem digita (ADR-0024, adendo da revisão).
+	MinPrefixRunes = 2
 )
 
 // Segment é um pedaço de texto; Match marca o que casou com a consulta.
@@ -37,6 +42,18 @@ type Query struct {
 	TSQuery string
 	// Terms são as palavras positivas (para marcar trechos).
 	Terms []Term
+
+	groups       [][]item // plano da consulta, para refazer o texto com outro tamanho mínimo de prefixo
+	lastG, lastI int
+}
+
+// WithMinPrefix refaz TSQuery e Terms exigindo n runas na última palavra para casar por prefixo (n <
+// MinPrefixRunes vale MinPrefixRunes). Serve a tipos de texto muito denso, onde um prefixo curto custa caro.
+func (q Query) WithMinPrefix(n int) Query {
+	if q.groups == nil {
+		return q
+	}
+	return build(q.groups, q.lastG, q.lastI, max(n, MinPrefixRunes))
 }
 
 // foldTable espelha o translate() de hanko_fold: acentos latinos comuns e pontuação ASCII → espaço.
@@ -55,6 +72,27 @@ var foldTable = func() map[rune]rune {
 	return m
 }()
 
+// formatRunes são os caracteres de formatação (categoria Cf do Unicode 17: hífen suave, ZWJ/ZWNJ/ZWSP, marcas de
+// direção, BOM, tags...). O tokenizador do Postgres trata alguns como letra e outros como separador, e eles são
+// invisíveis para quem lê; a dobra os remove dos dois lados (hanko_fold, migration 00024). A lista é fixa, como a
+// do SQL: um Go com Unicode mais novo não muda o que a dobra faz.
+var formatRunes = &unicode.RangeTable{
+	R16: []unicode.Range16{
+		{Lo: 0x00AD, Hi: 0x00AD, Stride: 1}, {Lo: 0x0600, Hi: 0x0605, Stride: 1}, {Lo: 0x061C, Hi: 0x061C, Stride: 1},
+		{Lo: 0x06DD, Hi: 0x06DD, Stride: 1}, {Lo: 0x070F, Hi: 0x070F, Stride: 1}, {Lo: 0x0890, Hi: 0x0891, Stride: 1},
+		{Lo: 0x08E2, Hi: 0x08E2, Stride: 1}, {Lo: 0x180E, Hi: 0x180E, Stride: 1}, {Lo: 0x200B, Hi: 0x200F, Stride: 1},
+		{Lo: 0x202A, Hi: 0x202E, Stride: 1}, {Lo: 0x2060, Hi: 0x2064, Stride: 1}, {Lo: 0x2066, Hi: 0x206F, Stride: 1},
+		{Lo: 0xFEFF, Hi: 0xFEFF, Stride: 1}, {Lo: 0xFFF9, Hi: 0xFFFB, Stride: 1},
+	},
+	R32: []unicode.Range32{
+		{Lo: 0x110BD, Hi: 0x110BD, Stride: 1}, {Lo: 0x110CD, Hi: 0x110CD, Stride: 1}, {Lo: 0x13430, Hi: 0x1343F, Stride: 1},
+		{Lo: 0x1BCA0, Hi: 0x1BCA3, Stride: 1}, {Lo: 0x1D173, Hi: 0x1D17A, Stride: 1}, {Lo: 0xE0001, Hi: 0xE0001, Stride: 1},
+		{Lo: 0xE0020, Hi: 0xE007F, Stride: 1},
+	},
+}
+
+func isFormat(r rune) bool { return unicode.Is(formatRunes, r) }
+
 func foldRune(r rune) rune {
 	if f, ok := foldTable[r]; ok {
 		return f
@@ -62,16 +100,26 @@ func foldRune(r rune) rune {
 	return unicode.ToLower(r)
 }
 
-// Fold dobra caixa e acentos e troca pontuação ASCII por espaço, runa a runa (o comprimento em runas é preservado).
+// Fold dobra caixa e acentos, troca pontuação ASCII por espaço e remove os caracteres de formatação (Cf), como
+// hanko_fold. Fora os Cf removidos, o comprimento em runas é preservado.
 func Fold(s string) string {
-	rs := []rune(s)
-	for i, r := range rs {
-		rs[i] = foldRune(r)
+	rs := make([]rune, 0, len(s))
+	for _, r := range s {
+		if isFormat(r) {
+			continue
+		}
+		rs = append(rs, foldRune(r))
 	}
 	return string(rs)
 }
 
-func isWordRune(r rune) bool { return unicode.IsLetter(r) || unicode.IsDigit(r) }
+// isWordRune diz se r compõe uma palavra para o tokenizador do Postgres (classe alfanumérica da libc em UTF-8):
+// letras, dígitos, números-letra (Nl, "Ⅷ"), marcas combinantes (Mn/Mc/Me, o acento solto de um "é" decomposto) e as
+// letras "Other_Alphabetic" (círculos de "Ⓐ"). Os Cf já saíram na dobra.
+func isWordRune(r rune) bool {
+	return unicode.IsLetter(r) || unicode.IsDigit(r) || unicode.IsMark(r) || unicode.Is(unicode.Nl, r) ||
+		unicode.Is(unicode.Other_Alphabetic, r)
+}
 
 // words divide s (já dobrada) em palavras de letras e dígitos.
 func words(s string) []string {
@@ -154,7 +202,7 @@ func Parse(raw string) (Query, error) {
 		*g = append(*g, item{words: ws, neg: neg})
 	}
 
-	// a última palavra positiva do último grupo não vazio recebe o prefixo
+	// a última palavra positiva do último grupo não vazio recebe o prefixo (se tiver runas suficientes)
 	lastG, lastI := -1, -1
 	for gi := len(groups) - 1; gi >= 0 && lastG < 0; gi-- {
 		for ii := len(groups[gi]) - 1; ii >= 0; ii-- {
@@ -167,8 +215,16 @@ func Parse(raw string) (Query, error) {
 	if lastG < 0 {
 		return Query{}, ErrEmpty
 	}
+	q := build(groups, lastG, lastI, MinPrefixRunes)
+	if q.TSQuery == "" {
+		return Query{}, ErrEmpty
+	}
+	return q, nil
+}
 
-	var q Query
+// build monta a tsquery e os termos a partir do plano; a palavra (lastG, lastI) leva o prefixo se tiver minPrefix runas.
+func build(groups [][]item, lastG, lastI, minPrefix int) Query {
+	q := Query{groups: groups, lastG: lastG, lastI: lastI}
 	var parts []string
 	for gi, g := range groups {
 		var conj []string
@@ -177,7 +233,7 @@ func Parse(raw string) (Query, error) {
 			prefix := gi == lastG && ii == lastI
 			var lex []string
 			for wi, w := range it.words {
-				p := prefix && wi == len(it.words)-1
+				p := prefix && wi == len(it.words)-1 && utf8.RuneCountInString(w) >= minPrefix
 				l := "'" + w + "'"
 				if p {
 					l += ":*"
@@ -203,11 +259,8 @@ func Parse(raw string) (Query, error) {
 		}
 		parts = append(parts, "("+strings.Join(conj, " & ")+")")
 	}
-	if len(parts) == 0 {
-		return Query{}, ErrEmpty
-	}
 	q.TSQuery = strings.Join(parts, " | ")
-	return q, nil
+	return q
 }
 
 // span é um intervalo [a,b) de runas.
@@ -218,6 +271,9 @@ func prep(text string, maxRunes int) (orig, folded []rune) {
 	orig = make([]rune, 0, min(len(text), maxRunes))
 	space := true
 	for _, r := range text {
+		if isFormat(r) { // invisível e removido da dobra do banco: sai do texto mostrado, mantendo os offsets
+			continue
+		}
 		if unicode.IsSpace(r) {
 			if !space {
 				orig = append(orig, ' ')

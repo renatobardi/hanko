@@ -465,10 +465,10 @@ type Run struct {
 	SubscriptionID      *uuid.UUID
 	ListCostUsd         *float64
 	Name                string
-	SearchTsv           interface{}
 	WorkspaceID         *uuid.UUID
 	WorkspaceSource     string
 	ConversationID      *uuid.UUID
+	SearchTsv           interface{}
 }
 
 type RunEvent struct {
@@ -558,8 +558,8 @@ type Task struct {
 	ClosedAt          *time.Time
 	LastHumanChangeAt *time.Time
 	Model             string
-	SearchTsv         interface{}
 	GoalID            *uuid.UUID
+	SearchTsv         interface{}
 }
 
 type TaskComment struct {
@@ -572,8 +572,8 @@ type TaskComment struct {
 	Body       string
 	EventID    *string
 	CreatedAt  time.Time
-	SearchTsv  interface{}
 	Anchor     []byte
+	SearchTsv  interface{}
 }
 
 type User struct {

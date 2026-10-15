@@ -377,8 +377,8 @@ func TestFoldIgualAoSQL(t *testing.T) {
 		if err := e.svc.Pool.QueryRow(context.Background(), `SELECT hanko_fold($1)`, in).Scan(&sqlOut); err != nil {
 			t.Fatal(err)
 		}
-		// no SQL o resultado é minúsculo pelo lower() do banco; compara só o que as duas dobras prometem (Latin + ASCII)
-		if got := search.Fold(in); !strings.EqualFold(sqlOut, got) && onlyKnown(in) {
+		// igualdade estrita (sem EqualFold) para o que as duas dobras prometem (Latin + ASCII)
+		if got := search.Fold(in); sqlOut != got && onlyKnown(in) {
 			t.Errorf("dobra diverge para %q:\n go  = %q\n sql = %q", in, got, sqlOut)
 		}
 	}

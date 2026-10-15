@@ -13,7 +13,7 @@ import (
 )
 
 const activeRunForConversation = `-- name: ActiveRunForConversation :one
-SELECT id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, search_tsv, workspace_id, workspace_source, conversation_id FROM runs WHERE conversation_id = $1 AND status IN ('queued', 'running')
+SELECT id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv FROM runs WHERE conversation_id = $1 AND status IN ('queued', 'running')
 `
 
 func (q *Queries) ActiveRunForConversation(ctx context.Context, conversationID *uuid.UUID) (Run, error) {
@@ -50,10 +50,10 @@ func (q *Queries) ActiveRunForConversation(ctx context.Context, conversationID *
 		&i.SubscriptionID,
 		&i.ListCostUsd,
 		&i.Name,
-		&i.SearchTsv,
 		&i.WorkspaceID,
 		&i.WorkspaceSource,
 		&i.ConversationID,
+		&i.SearchTsv,
 	)
 	return i, err
 }
@@ -279,7 +279,7 @@ func (q *Queries) InsertConversationMessage(ctx context.Context, arg InsertConve
 }
 
 const latestRunOfConversation = `-- name: LatestRunOfConversation :one
-SELECT id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, search_tsv, workspace_id, workspace_source, conversation_id FROM runs WHERE conversation_id = $1 AND id <> $2
+SELECT id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv FROM runs WHERE conversation_id = $1 AND id <> $2
 ORDER BY created_at DESC, id DESC LIMIT 1
 `
 
@@ -323,10 +323,10 @@ func (q *Queries) LatestRunOfConversation(ctx context.Context, arg LatestRunOfCo
 		&i.SubscriptionID,
 		&i.ListCostUsd,
 		&i.Name,
-		&i.SearchTsv,
 		&i.WorkspaceID,
 		&i.WorkspaceSource,
 		&i.ConversationID,
+		&i.SearchTsv,
 	)
 	return i, err
 }
