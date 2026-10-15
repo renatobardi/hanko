@@ -27,8 +27,13 @@ há memória, o que ela guardou. As próprias personas precisam do mesmo para n�
    (422). A **chave exata** de uma task (`HNK-123`, com o prefixo da empresa) abre o grupo de tasks com essa task primeiro
    (`exact`); o resto da busca segue (menções da chave em comentários continuam acháveis).
 4. **Ranking.** `ts_rank(search_tsv, q, 1) × (0,5 + 0,5 / (1 + idade_em_dias/30))` — relevância com os pesos A/B/C,
-   normalizada pelo tamanho do documento, e um fator de recência de 1,0 (agora) a 0,5 (muito antigo); desempate por
-   data e id. O relógio é o do service (`Now`), então é testável.
+   normalizada pelo tamanho do documento, e um fator de recência de 1,0 (agora), 0,75 aos 30 dias e 0,5 (muito antigo);
+   desempate por data e id. O relógio é o do service (`Now`), então é testável. **Tasks, comentários e runs ranqueiam
+   só as 2000 candidatas mais recentes que casam** (CTE `cand` → `top` → joins): ranquear as 60 mil linhas de um termo
+   onipresente custava ~0,5 s, e uma consulta que casa mais de 2000 documentos é genérica demais para um ranking global.
+   Vale o mesmo limite nas três; personas e flows (poucas linhas) ranqueiam tudo. A `tsquery` entra como parâmetro
+   direto (não numa CTE) para o planner enxergar a frequência do termo. Comentários ganham o índice
+   `task_comments (company_id, created_at DESC, id)` para o caminho "termo comum".
 5. **Trecho com marcas, sem HTML.** Em vez de `ts_headline` (que acha palavras no texto original, onde "ação" não casa
    com a consulta dobrada "acao", e devolve a marcação como texto), o trecho é montado em Go sobre as primeiras 20 000
    runas do texto, com a mesma dobra: janela de ~180 runas em torno da primeira palavra que casou e segmentos
@@ -58,15 +63,16 @@ há memória, o que ela guardou. As próprias personas precisam do mesmo para n�
    da importação (o Postgres as calcula); coberto pelos testes de export/import existentes, que rodam sobre o schema novo.
 
 ## Consequências
-- Busca acentuada, ranqueada e com trecho em todas as telas de dados, sem dependência nova. Medidas e números em
-  `docs/PERF.md`.
+- Busca acentuada, ranqueada e com trecho em todas as telas de dados, sem dependência nova. Termos seletivos custam 0,1–3 ms
+  e tasks com termo onipresente ~20 ms; só termos em ~60 % de todas as linhas de comentários/runs passam de 50 ms
+  (62–313 ms, porque o prefixo da última palavra não tem estimativa de frequência). Tabelas em `docs/PERF.md`.
 - **Custo de escrita e de espaço:** uma coluna `tsvector` e um GIN por tabela. O custo vem em `INSERT`/`UPDATE` das colunas
   de texto (`tasks.title/description`, `runs.name/summary`...). `UPDATE runs SET next_event_seq = …` (o mais quente) não
   mexe nas colunas de origem, então a coluna gerada não é recalculada e o `UPDATE` continua HOT.
 - **Custo de leitura:** os `SELECT *` do sqlc passam a trazer `search_tsv` (o modelo `store.Task` etc. ganha o campo
   `SearchTsv`, não usado). Medido em `docs/PERF.md`. Quem listar muitas linhas e quiser evitar o tráfego deve nomear as colunas.
 - Aplicar a migration reescreve `tasks`, `task_comments`, `personas`, `runs` e `flows` (`ADD COLUMN … STORED`) e
-  constrói os GIN, com bloqueio de escrita; em base grande, planeje a janela (tempo medido em `docs/PERF.md`).
+  constrói os GIN, com bloqueio de escrita; em base grande, planeje a janela (~25 s com 80 mil runs, 60 mil comentários e 30 mil tasks; `docs/PERF.md`).
 - O GIN não inclui `company_id` (sem `btree_gin`, que é extensão): termos muito comuns varrem os mesmos índices para
   todas as empresas e filtram depois. Aceito enquanto o índice for pequeno; o remédio, se doer, é particionar por empresa.
 - Sem stemming: "implantar" não acha "implantação"; a busca por prefixo da última palavra cobre o caso comum de digitação.
