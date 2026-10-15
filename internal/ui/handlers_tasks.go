@@ -57,7 +57,18 @@ func (s *server) handleTasks(w http.ResponseWriter, r *http.Request, co domain.C
 			cur = t
 		}
 	}
-	all, err := s.be.ListTasks(ctx, co.ID, service.TaskFilter{Query: q, Limit: 500})
+	filter := service.TaskFilter{Query: q, Limit: 500}
+	var proj *service.ProjectView
+	if ref := strings.TrimSpace(r.URL.Query().Get("projeto")); ref != "" {
+		pv, err := s.be.GetProjectView(ctx, co.ID, ref)
+		if err != nil {
+			s.fail(w, r, &co, err)
+			return
+		}
+		proj = &pv
+		filter.ProjectID = &pv.ID
+	}
+	all, err := s.be.ListTasks(ctx, co.ID, filter)
 	if err != nil {
 		s.fail(w, r, &co, err)
 		return
@@ -67,6 +78,16 @@ func (s *server) handleTasks(w http.ResponseWriter, r *http.Request, co domain.C
 	now := s.now()
 
 	vm := views.TasksVM{Query: q, Tab: cur.key, NewHref: base + "/tasks/nova"}
+	projQS := ""
+	if proj != nil {
+		projQS = "&projeto=" + url.QueryEscape(proj.Slug)
+		vm.Project, vm.ProjectName, vm.ProjectHref = proj.Slug, proj.Name, base+"/projetos/"+proj.Slug
+		vm.ClearHref = base + "/tasks?aba=" + cur.key
+		vm.NewHref += "?projeto=" + url.QueryEscape(proj.Slug)
+		if q != "" {
+			vm.ClearHref += "&q=" + url.QueryEscape(q)
+		}
+	}
 	for _, t := range taskTabs {
 		n := 0
 		for _, tv := range all {
@@ -74,7 +95,7 @@ func (s *server) handleTasks(w http.ResponseWriter, r *http.Request, co domain.C
 				n++
 			}
 		}
-		href := base + "/tasks?aba=" + t.key
+		href := base + "/tasks?aba=" + t.key + projQS
 		if q != "" {
 			href += "&q=" + url.QueryEscape(q)
 		}
@@ -113,7 +134,7 @@ func (s *server) handleTasks(w http.ResponseWriter, r *http.Request, co domain.C
 	}
 	sh := s.shell(r, co, "tasks", i18n.T(ctx, "Tasks"), views.Crumb{Label: i18n.T(ctx, "Tasks")})
 	if sh.CanWrite() {
-		sh.Action = &views.Action{Label: i18n.T(ctx, "Nova task"), Href: base + "/tasks/nova", Icon: "plus"}
+		sh.Action = &views.Action{Label: i18n.T(ctx, "Nova task"), Href: vm.NewHref, Icon: "plus"}
 	}
 	s.render(w, r, http.StatusOK, views.TasksPage(sh, vm))
 }
@@ -192,6 +213,7 @@ func (s *server) buildTaskVM(r *http.Request, co domain.Company, t service.TaskV
 		PriorityLabel:   priorityLabel(ctx, t.Priority),
 		PersonaName:     t.PersonaName,
 		ProjectName:     t.ProjectName,
+		ProjectOptions:  s.taskProjectOptions(r, co, t.ProjectID),
 		Updated:         fmtDateTime(ctx, t.UpdatedAt, loc),
 		StatusOptions:   statusOptions(ctx, t.Status),
 		PriorityOptions: priorityOptions(ctx, t.Priority),
@@ -203,6 +225,13 @@ func (s *server) buildTaskVM(r *http.Request, co domain.Company, t service.TaskV
 		for _, p := range personas {
 			if p.ID == *t.PersonaID {
 				vm.PersonaHref = base + "/personas/" + p.Slug
+			}
+		}
+	}
+	if t.ProjectID != nil {
+		for _, o := range vm.ProjectOptions {
+			if o.Selected {
+				vm.ProjectHref = base + "/projetos/" + o.Slug
 			}
 		}
 	}
@@ -305,6 +334,22 @@ func (s *server) handleUpdateTask(w http.ResponseWriter, r *http.Request, co dom
 			}
 		}
 	}
+	if _, present := r.PostForm["project"]; present {
+		v := trimForm(r, "project")
+		switch {
+		case v == "" && t.ProjectID != nil:
+			in.ClearProject, changed = true, true
+		case v != "":
+			id, err := domain.ParseID(v)
+			if err != nil {
+				s.fail(w, r, &co, domain.Invalid("project", i18n.T(ctx, "id inválido")))
+				return
+			}
+			if t.ProjectID == nil || *t.ProjectID != id {
+				in.ProjectID, changed = &id, true
+			}
+		}
+	}
 	if changed {
 		t, err = s.be.UpdateTask(ctx, actorFrom(ctx), co.ID, t.ID, in)
 		if err != nil {
@@ -374,7 +419,6 @@ func (s *server) newTaskVM(r *http.Request, co domain.Company) (views.NewTaskVM,
 	if err != nil {
 		return views.NewTaskVM{}, err
 	}
-	projects, _ := s.be.ListProjects(r.Context(), co.ID) // optional: the form works without projects
 	ctx := r.Context()
 	vm := views.NewTaskVM{
 		PriorityOptions: priorityOptions(ctx, domain.PriorityMedium),
@@ -382,10 +426,7 @@ func (s *server) newTaskVM(r *http.Request, co domain.Company) (views.NewTaskVM,
 		PersonaOptions:  personaOptions(personas, nil, i18n.T(ctx, "Sem dono (backlog)")),
 		FieldErr:        map[string]string{},
 	}
-	vm.ProjectOptions = []views.Option{{Value: "", Label: i18n.T(ctx, "Nenhum"), Selected: true}}
-	for _, p := range projects {
-		vm.ProjectOptions = append(vm.ProjectOptions, views.Option{Value: p.ID.String(), Label: p.Name})
-	}
+	vm.ProjectOptions = s.taskProjectOptions(r, co, nil)
 	return vm, nil
 }
 
@@ -399,6 +440,12 @@ func (s *server) handleNewTask(w http.ResponseWriter, r *http.Request, co domain
 	if p := r.URL.Query().Get("persona"); p != "" {
 		for i := range vm.PersonaOptions {
 			vm.PersonaOptions[i].Selected = vm.PersonaOptions[i].Value == p
+		}
+	}
+	// ?projeto=<slug> pre-selects the project (links from the project page)
+	if p := r.URL.Query().Get("projeto"); p != "" {
+		for i := range vm.ProjectOptions {
+			vm.ProjectOptions[i].Selected = vm.ProjectOptions[i].Slug == p
 		}
 	}
 	s.renderNewTask(w, r, co, http.StatusOK, vm)

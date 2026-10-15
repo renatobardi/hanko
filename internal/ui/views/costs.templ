@@ -245,6 +245,12 @@ templ CostsPage(sh Shell, vm CostsVM) {
 		if vm.Error != "" {
 			@Alert("danger", vm.Error)
 		}
+		if vm.FilterProject != "" {
+			<p class="filter-chip">
+				<span class="chip soft">@Icon("layers") { i18n.T(ctx, "Projeto") } <a href={ templ.SafeURL(vm.FilterHref) }>{ vm.FilterProject }</a></span>
+				<a href={ templ.SafeURL(vm.ClearHref) }>{ i18n.T(ctx, "limpar filtro") }</a>
+			</p>
+		}
 		<div class="kpis">
 			@Kpi("database", vm.Total, vm.TotalNote, false)
 			@Kpi("trending-up", vm.BudgetKpi, vm.BudgetNote, vm.Company.State == "exceeded")
@@ -301,6 +307,33 @@ templ CostsPage(sh Shell, vm CostsVM) {
 				</table>
 			}
 		</section>
+		if len(vm.Projects) > 0 {
+			<section class="card pad" style="margin-top:20px">
+				<div class="card-head"><h2>{ i18n.T(ctx, "Orçamento por projeto") }</h2><span class="sub">{ vm.Month }</span></div>
+				<table class="table mini pb-table">
+					<thead><tr><th>{ i18n.T(ctx, "Projeto") }</th><th class="num">{ i18n.T(ctx, "Gasto") }</th><th class="hide-sm">{ i18n.T(ctx, "Uso do limite") }</th><th>{ i18n.T(ctx, "Limite mensal") }</th></tr></thead>
+					<tbody>
+						for i, p := range vm.Projects {
+							<tr class={ "b-" + p.State }>
+								<td><a href={ templ.SafeURL(p.Href) }><b>{ p.Label }</b></a></td>
+								<td class="num mono">{ p.Spent }</td>
+								<td class="hide-sm">
+									if p.Limit != "" {
+										<div class={ "pb-use", "m-" + p.State }><div class="progress meter-bar"><i style={ pct(p.Percent) }></i></div><span class="mono">{ p.PercentTxt }</span></div>
+										if p.StateText != "" {
+											<div class="meter-note">{ p.StateText }</div>
+										}
+									} else {
+										<span class="muted">{ i18n.T(ctx, "sem limite") }</span>
+									}
+								</td>
+								<td>@BudgetForm(p, fmt.Sprintf("project-budget-%d", i))</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</section>
+		}
 		<div class="grid-2 costs-tables">
 			for _, t := range vm.Tables {
 				@CostTable(t)

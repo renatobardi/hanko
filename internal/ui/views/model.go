@@ -56,6 +56,7 @@ type Option struct {
 	Value    string
 	Label    string
 	Selected bool
+	Slug     string // optional: slug of the thing the option stands for (projects)
 }
 
 // ---- dashboard ----
@@ -142,6 +143,8 @@ type TasksVM struct {
 	Tab      string
 	Groups   []TaskGroup
 	Total    int
+	// Project filters the list (?projeto=): slug, name, link to its page and the link that clears the filter.
+	Project, ProjectName, ProjectHref, ClearHref string
 }
 
 type Msg struct {
@@ -175,6 +178,8 @@ type TaskVM struct {
 	PersonaName     string
 	PersonaHref     string
 	ProjectName     string
+	ProjectHref     string
+	ProjectOptions  []Option
 	Created         string
 	Updated         string
 	StatusOptions   []Option
@@ -496,30 +501,33 @@ type SubRowVM struct {
 }
 
 type CostsVM struct {
-	Subtitle   string
-	Paid       string
-	PaidNote   string
-	Days       []DayCostVM
-	HasSubs    bool
-	Subs       []SubRowVM
-	SubCreate  string // POST target of the new-subscription form
-	AgentOpts  []Option
-	Tabs       []TabLink
-	Total      string
-	TotalNote  string
-	Runs       string
-	Estimated  string
-	EstNote    string
-	Company    BudgetBox
-	Personas   []BudgetBox
-	Chart      DayChart
-	Tables     []CostTableVM
-	Notice     string
-	Error      string
-	Month      string
-	HasSpend   bool
-	BudgetKpi  string
-	BudgetNote string
+	Subtitle  string
+	Paid      string
+	PaidNote  string
+	Days      []DayCostVM
+	HasSubs   bool
+	Subs      []SubRowVM
+	SubCreate string // POST target of the new-subscription form
+	AgentOpts []Option
+	Tabs      []TabLink
+	Total     string
+	TotalNote string
+	Runs      string
+	Estimated string
+	EstNote   string
+	Company   BudgetBox
+	Personas  []BudgetBox
+	Projects  []BudgetBox // projetos com orçamento próprio (ADR-0025)
+	// FilterProject filtra a tela por projeto (?projeto=): nome, link da página e link que limpa o filtro.
+	FilterProject, FilterHref, ClearHref string
+	Chart                                DayChart
+	Tables                               []CostTableVM
+	Notice                               string
+	Error                                string
+	Month                                string
+	HasSpend                             bool
+	BudgetKpi                            string
+	BudgetNote                           string
 }
 
 // ---- fluxos ----

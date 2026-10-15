@@ -64,9 +64,14 @@ func Sample() *Fake {
 	kenji.RequireReview = true
 	f.Personas = []domain.Persona{ada, hana, kenji, mika, sato}
 
-	linkedin := domain.Project{ID: ID("project:linkedin"), CompanyID: co.ID, Slug: "linkedin", Name: "LinkedIn", CreatedAt: now, UpdatedAt: now}
-	kubo := domain.Project{ID: ID("project:kubo"), CompanyID: co.ID, Slug: "kubo", Name: "Kubo", CreatedAt: now, UpdatedAt: now}
-	nas := domain.Project{ID: ID("project:nas"), CompanyID: co.ID, Slug: "nas-3d", Name: "NAS 3D", CreatedAt: now, UpdatedAt: now}
+	linkedin := domain.Project{ID: ID("project:linkedin"), CompanyID: co.ID, Slug: "linkedin", Name: "LinkedIn", Status: domain.ProjectActive, CreatedAt: now, UpdatedAt: now}
+	kubo := domain.Project{ID: ID("project:kubo"), CompanyID: co.ID, Slug: "kubo", Name: "Kubo", Status: domain.ProjectActive, CreatedAt: now, UpdatedAt: now}
+	nas := domain.Project{ID: ID("project:nas"), CompanyID: co.ID, Slug: "nas-3d", Name: "NAS 3D", Status: domain.ProjectActive, CreatedAt: now, UpdatedAt: now}
+	site := domain.Workspace{ID: ID("workspace:site"), CompanyID: co.ID, Slug: "site", Name: "Site institucional", Path: f.WorkspacesRootPath() + "/site",
+		RepoURL: "https://github.com/hanko/site", DefaultBranch: "main", CreatedAt: now, UpdatedAt: now}
+	f.Workspaces = []domain.Workspace{site}
+	kubo.WorkspaceID = &site.ID
+	kubo.BudgetMonthlyCents = func() *int64 { c := int64(5000); return &c }()
 	f.Projects = []domain.Project{linkedin, kubo, nas}
 
 	run1842, run1841, run1840, run1839, run1838 := rid("7c1842"), rid("7c1841"), rid("7c1840"), rid("7c1839"), rid("7c1838")

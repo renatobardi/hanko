@@ -51,8 +51,19 @@ func (f *Fake) CostSummary(_ context.Context, _ domain.ID, in service.CostFilter
 	}
 	out := service.CostSummary{From: from.UTC(), To: to.UTC(), Timezone: loc.String(), GroupBy: group, Rows: []service.CostRow{}}
 	idx := map[string]int{}
+	projName := ""
+	if in.ProjectID != nil {
+		for _, p := range f.Projects {
+			if p.ID == *in.ProjectID {
+				projName = p.Name
+			}
+		}
+	}
 	for _, e := range f.Ledger {
 		if e.At.Before(from) || !e.At.Before(to) {
+			continue
+		}
+		if in.ProjectID != nil && e.Project != projName {
 			continue
 		}
 		var key, label string

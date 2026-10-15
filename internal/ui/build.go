@@ -214,7 +214,7 @@ func decisionWord(ctx context.Context, d string) string {
 	return d
 }
 
-var subjectLabels = map[string]string{"comment": i18n.N("comentário"), "run": i18n.N("execução"), "project": i18n.N("projeto"), "company": i18n.N("empresa"),
+var subjectLabels = map[string]string{"comment": i18n.N("comentário"), "run": i18n.N("execução"), "project": i18n.N("projeto"), "workspace": i18n.N("workspace"), "company": i18n.N("empresa"),
 	"gate": i18n.N("gate"), "alert": i18n.N("alerta"), "review": i18n.N("revisão")}
 
 func subjectLabel(ctx context.Context, t string) string {
@@ -234,6 +234,12 @@ func verbPhraseCtx(ctx context.Context, v string) string {
 		return i18n.T(ctx, "criou o workspace")
 	case "project.created":
 		return i18n.T(ctx, "criou o projeto")
+	case "project.updated":
+		return i18n.T(ctx, "atualizou o projeto")
+	case "workspace.updated":
+		return i18n.T(ctx, "atualizou o workspace")
+	case "workspace.deleted":
+		return i18n.T(ctx, "excluiu o workspace")
 	case "persona.hired":
 		return i18n.T(ctx, "contratou")
 	case "persona.updated":
