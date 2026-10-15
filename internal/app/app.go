@@ -68,6 +68,7 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 	svc.Log = logger
 	svc.WorkspacesRoot = cfg.WorkspacesRoot
 	svc.RunReserveUSD = cfg.RunReserveUSD
+	svc.ArtifactMaxBytes, svc.ArtifactQuotaBytes = cfg.ArtifactMaxBytes, cfg.ArtifactQuotaBytes
 	svc.Alerts = service.AlertConfig{SilentFactor: cfg.AlertSilentFactor, RunStuckAfter: cfg.AlertRunStuckAfter}
 	if err := registerAlertMetrics(otel.Meter(serviceName), svc); err != nil {
 		return err

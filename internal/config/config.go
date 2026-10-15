@@ -103,6 +103,10 @@ type Config struct {
 	// run, gasto + reservas das runs abertas + a reserva da nova não podem passar do teto. A reserva
 	// de cada run é o maior entre a média das últimas 10 runs da persona e este piso.
 	RunReserveUSD float64 `yaml:"run_reserve_usd" env:"HANKO_RUN_RESERVE_USD"`
+	// ArtifactMaxBytes é o tamanho máximo de um artefato (1 byte a 16 MiB); ArtifactQuotaBytes, a cota por
+	// empresa somando todas as versões (ADR-0028).
+	ArtifactMaxBytes   int64 `yaml:"artifact_max_bytes" env:"HANKO_ARTIFACT_MAX_BYTES"`
+	ArtifactQuotaBytes int64 `yaml:"artifact_quota_bytes" env:"HANKO_ARTIFACT_QUOTA_BYTES"`
 	// AlertSilentFactor é o N do alerta "persona sem heartbeat": a persona com trabalho esperando e
 	// sem ser acordada além de N vezes o intervalo dela abre o alerta. AlertRunStuckAfter é o tempo
 	// sem nenhum evento a partir do qual uma run em running vira alerta "execução presa".
@@ -131,6 +135,8 @@ func Defaults() Config {
 		RunTimeout:         30 * time.Minute,
 		HeartbeatInterval:  time.Minute,
 		RunReserveUSD:      1.0,
+		ArtifactMaxBytes:   5 << 20,
+		ArtifactQuotaBytes: 512 << 20,
 		AlertSilentFactor:  3,
 		AlertRunStuckAfter: 15 * time.Minute,
 		LogLevel:           "info",
@@ -185,7 +191,7 @@ func environFor(getenv func(string) string) map[string]string {
 		"HANKO_MIGRATE_ON_BOOT", "HANKO_MEMORY_PROVIDER", "HANKO_MEMORY_URL", "HANKO_MEMORY_TOKEN",
 		"HANKO_CLAUDE_BIN", "HANKO_CODEX_BIN", "HANKO_WORKERS", "HANKO_RUN_TIMEOUT",
 		"HANKO_HEARTBEAT_INTERVAL", "HANKO_LOG_LEVEL", "HANKO_LOG_FORMAT",
-		"HANKO_AGENT_ENV_ALLOW", "HANKO_ALLOWED_HOSTS", "HANKO_WORKSPACES_ROOT", "HANKO_RUN_RESERVE_USD", "HANKO_ALERT_SILENT_FACTOR", "HANKO_ALERT_RUN_STUCK_AFTER",
+		"HANKO_AGENT_ENV_ALLOW", "HANKO_ALLOWED_HOSTS", "HANKO_WORKSPACES_ROOT", "HANKO_RUN_RESERVE_USD", "HANKO_ARTIFACT_MAX_BYTES", "HANKO_ARTIFACT_QUOTA_BYTES", "HANKO_ALERT_SILENT_FACTOR", "HANKO_ALERT_RUN_STUCK_AFTER",
 		"HANKO_AUTH_PROVIDER", "HANKO_AUTH_ALLOWED_EMAILS", "HANKO_AUTH_ALLOWED_DOMAINS",
 		"HANKO_FIREBASE_PROJECT_ID", "HANKO_FIREBASE_API_KEY", "HANKO_FIREBASE_AUTH_DOMAIN",
 		"HANKO_AUTH_OWNER_EMAIL", "HANKO_AUTH_WEB_BOOTSTRAP", "HANKO_TRUSTED_PROXIES",
@@ -277,6 +283,12 @@ func (c Config) Validate() error {
 	}
 	if c.RunReserveUSD < 0 {
 		add("HANKO_RUN_RESERVE_USD %v inválido: use um valor >= 0 (0 usa o padrão de US$ 1,00)", c.RunReserveUSD)
+	}
+	if c.ArtifactMaxBytes < 1 || c.ArtifactMaxBytes > 16<<20 {
+		add("HANKO_ARTIFACT_MAX_BYTES %d inválido: use de 1 a 16777216 (16 MiB; padrão 5 MiB)", c.ArtifactMaxBytes)
+	}
+	if c.ArtifactQuotaBytes < c.ArtifactMaxBytes {
+		add("HANKO_ARTIFACT_QUOTA_BYTES %d inválido: a cota por empresa precisa caber ao menos um artefato máximo (padrão 512 MiB)", c.ArtifactQuotaBytes)
 	}
 	if c.AlertSilentFactor < 1 {
 		add("HANKO_ALERT_SILENT_FACTOR %d inválido: use um valor >= 1 (padrão 3)", c.AlertSilentFactor)

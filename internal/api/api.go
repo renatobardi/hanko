@@ -18,6 +18,7 @@ import (
 	"github.com/renatobardi/hanko/internal/events"
 	"github.com/renatobardi/hanko/internal/export"
 	"github.com/renatobardi/hanko/internal/service"
+	"github.com/renatobardi/hanko/internal/textdiff"
 )
 
 // Prefix é o prefixo de todas as rotas REST.
@@ -125,6 +126,20 @@ type backend interface {
 	RevokeInvite(ctx context.Context, actor domain.Actor, companyID, inviteID domain.ID) error
 	SetMemberRole(ctx context.Context, actor domain.Actor, companyID, userID domain.ID, role domain.MemberRole) (domain.Member, error)
 	RemoveMember(ctx context.Context, actor domain.Actor, companyID, userID domain.ID) error
+	PutArtifact(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.PutArtifactInput) (service.ArtifactView, error)
+	ListArtifacts(ctx context.Context, companyID domain.ID, f service.ArtifactFilter) ([]service.ArtifactView, error)
+	GetArtifactView(ctx context.Context, companyID, id domain.ID) (service.ArtifactView, error)
+	ArtifactVersions(ctx context.Context, companyID, id domain.ID) ([]domain.Artifact, error)
+	ArtifactContent(ctx context.Context, companyID, id domain.ID) (domain.Artifact, []byte, error)
+	ArtifactDiff(ctx context.Context, companyID, from, to domain.ID) (textdiff.Result, error)
+	DeleteArtifact(ctx context.Context, actor domain.Actor, companyID, id domain.ID) error
+	GetArtifactUsage(ctx context.Context, companyID domain.ID) (service.ArtifactUsage, error)
+	CreateGoal(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.CreateGoalInput) (domain.Goal, error)
+	UpdateGoal(ctx context.Context, actor domain.Actor, companyID, goalID domain.ID, in service.UpdateGoalInput) (domain.Goal, error)
+	RecordGoalProgress(ctx context.Context, actor domain.Actor, companyID, goalID domain.ID, value float64, note string) (service.GoalView, error)
+	GetGoal(ctx context.Context, companyID domain.ID, ref string) (domain.Goal, error)
+	ListGoalViews(ctx context.Context, companyID domain.ID, f service.GoalFilter) ([]service.GoalView, error)
+	GetGoalView(ctx context.Context, companyID domain.ID, ref string) (service.GoalView, error)
 }
 
 var _ backend = (*service.Service)(nil)
@@ -223,6 +238,8 @@ func (s *server) register(api huma.API) {
 	s.registerFlows(api)
 	s.registerMembers(api)
 	s.registerExport(api)
+	s.registerArtifacts(api)
+	s.registerGoals(api)
 }
 
 // op monta uma huma.Operation com o prefixo da API.

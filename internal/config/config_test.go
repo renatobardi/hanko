@@ -322,6 +322,39 @@ secret: 0123456789abcdef0123456789abcdef
 			wantErr: "HANKO_RUN_RESERVE_USD",
 		},
 		{
+			name: "artefatos padrão",
+			env:  map[string]string{"HANKO_DATABASE_URL": db},
+			check: func(t *testing.T, c Config) {
+				if c.ArtifactMaxBytes != 5<<20 || c.ArtifactQuotaBytes != 512<<20 {
+					t.Fatal(c.ArtifactMaxBytes, c.ArtifactQuotaBytes)
+				}
+			},
+		},
+		{
+			name: "artefatos configurados",
+			env:  map[string]string{"HANKO_DATABASE_URL": db, "HANKO_ARTIFACT_MAX_BYTES": "1048576", "HANKO_ARTIFACT_QUOTA_BYTES": "2097152"},
+			check: func(t *testing.T, c Config) {
+				if c.ArtifactMaxBytes != 1<<20 || c.ArtifactQuotaBytes != 2<<20 {
+					t.Fatal(c.ArtifactMaxBytes, c.ArtifactQuotaBytes)
+				}
+			},
+		},
+		{
+			name:    "artefato maior que 16 MiB",
+			env:     map[string]string{"HANKO_DATABASE_URL": db, "HANKO_ARTIFACT_MAX_BYTES": "17825792"},
+			wantErr: "HANKO_ARTIFACT_MAX_BYTES",
+		},
+		{
+			name:    "artefato zero",
+			env:     map[string]string{"HANKO_DATABASE_URL": db, "HANKO_ARTIFACT_MAX_BYTES": "0"},
+			wantErr: "HANKO_ARTIFACT_MAX_BYTES",
+		},
+		{
+			name:    "cota menor que o artefato",
+			env:     map[string]string{"HANKO_DATABASE_URL": db, "HANKO_ARTIFACT_QUOTA_BYTES": "1000"},
+			wantErr: "HANKO_ARTIFACT_QUOTA_BYTES",
+		},
+		{
 			name: "limites de alerta padrão",
 			env:  map[string]string{"HANKO_DATABASE_URL": db},
 			check: func(t *testing.T, c Config) {

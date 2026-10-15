@@ -163,6 +163,7 @@ type Task struct {
 	ProjectID   string     `json:"project_id,omitempty" format:"uuid"`
 	ProjectName string     `json:"project_name,omitempty"`
 	WorkspaceID string     `json:"workspace_id,omitempty" format:"uuid"`
+	GoalID      string     `json:"goal_id,omitempty" format:"uuid" doc:"Meta a que a task serve."`
 	ParentID    string     `json:"parent_id,omitempty" format:"uuid"`
 	Model       string     `json:"model,omitempty" doc:"Modelo escolhido à mão para esta task; vence o da persona."`
 	ActiveRunID string     `json:"active_run_id,omitempty" format:"uuid" doc:"Execução em andamento, se houver."`
@@ -452,7 +453,7 @@ func taskOut(t service.TaskView) Task {
 	return Task{ID: idStr(t.ID), CompanyID: idStr(t.CompanyID), Number: t.Number, Key: t.Key, Title: t.Title,
 		Description: t.Description, Status: string(t.Status), Priority: string(t.Priority),
 		PersonaID: idPtr(t.PersonaID), PersonaName: t.PersonaName, ProjectID: idPtr(t.ProjectID), ProjectName: t.ProjectName,
-		WorkspaceID: idPtr(t.WorkspaceID), ParentID: idPtr(t.ParentID), Model: t.Model, ActiveRunID: idPtr(t.ActiveRunID),
+		WorkspaceID: idPtr(t.WorkspaceID), GoalID: idPtr(t.GoalID), ParentID: idPtr(t.ParentID), Model: t.Model, ActiveRunID: idPtr(t.ActiveRunID),
 		CreatedBy: actorRef(t.CreatedBy), CreatedAt: t.CreatedAt, UpdatedAt: t.UpdatedAt, ClosedAt: t.ClosedAt}
 }
 
