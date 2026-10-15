@@ -526,3 +526,15 @@ func (q *Queries) LockArtifactChain(ctx context.Context, key string) error {
 	_, err := q.db.Exec(ctx, lockArtifactChain, key)
 	return err
 }
+
+const lockArtifactCompany = `-- name: LockArtifactCompany :exec
+SELECT pg_advisory_xact_lock(hashtextextended('artifacts:' || ($1::uuid)::text, 0))
+`
+
+// Serializa as gravações de artefatos da mesma empresa: a leitura do uso contra a cota e a inserção acontecem sob a
+// mesma trava, senão uploads simultâneos de nomes diferentes (cadeias diferentes) leem o mesmo uso e estouram a
+// cota. Vale até o fim da transação; vem sempre antes da trava da cadeia.
+func (q *Queries) LockArtifactCompany(ctx context.Context, companyID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, lockArtifactCompany, companyID)
+	return err
+}

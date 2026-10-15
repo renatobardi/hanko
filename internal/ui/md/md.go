@@ -38,6 +38,35 @@ func Render(src string) string {
 	return rawHTMLOmitted.ReplaceAllString(buf.String(), "")
 }
 
+var (
+	imgTag  = regexp.MustCompile(`<img ([^>]*?)\s*/?>`)
+	imgSrc  = regexp.MustCompile(`\bsrc="([^"]*)"`)
+	imgAlt  = regexp.MustCompile(`\balt="([^"]*)"`)
+	extHref = regexp.MustCompile(`(?i)^(https?:)?//`)
+)
+
+// RenderArtifact renders markdown of a published artifact. Unlike Render it never loads an external image: the
+// author of an artifact is an agent or a file the reader did not write, and a remote <img> is a tracking pixel
+// that fires when the page is opened. External images become plain links (alt text, or the address); images with
+// a relative path (same origin) stay, lazy-loaded and without a referrer.
+func RenderArtifact(src string) string {
+	return imgTag.ReplaceAllStringFunc(Render(src), func(tag string) string {
+		m := imgSrc.FindStringSubmatch(tag)
+		if m == nil {
+			return tag
+		}
+		href := m[1]
+		if !extHref.MatchString(href) {
+			return strings.Replace(tag, "<img ", `<img loading="lazy" referrerpolicy="no-referrer" `, 1)
+		}
+		label := href
+		if a := imgAlt.FindStringSubmatch(tag); a != nil && strings.TrimSpace(a[1]) != "" {
+			label = a[1]
+		}
+		return `<a href="` + href + `" rel="noopener noreferrer nofollow" target="_blank">` + label + `</a>`
+	})
+}
+
 // escapeAngle escapes "<" outside fenced code so inline HTML becomes visible
 // text instead of markup. Autolinks written as <https://…> are preserved.
 func escapeAngle(s string) string {

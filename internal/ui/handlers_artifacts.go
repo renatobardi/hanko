@@ -18,6 +18,7 @@ import (
 	"github.com/renatobardi/hanko/internal/i18n"
 	"github.com/renatobardi/hanko/internal/service"
 	"github.com/renatobardi/hanko/internal/textdiff"
+	"github.com/renatobardi/hanko/internal/ui/md"
 	"github.com/renatobardi/hanko/internal/ui/views"
 )
 
@@ -405,7 +406,7 @@ func (s *server) previewOf(ctx context.Context, co domain.Company, a service.Art
 		return nil
 	}
 	if domain.PreviewOf(a.Mime) == domain.PreviewMarkdown {
-		vm.Preview, vm.PreviewHTML = string(domain.PreviewMarkdown), renderMD(string(content))
+		vm.Preview, vm.PreviewHTML = string(domain.PreviewMarkdown), views.HTML(md.RenderArtifact(string(content)))
 		return nil
 	}
 	vm.Preview, vm.PreviewText = string(domain.PreviewText), string(content)

@@ -54,12 +54,13 @@ GROUP BY goal_id, status;
 UPDATE tasks SET goal_id = @goal_id, updated_at = @now WHERE company_id = @company_id AND id = @id;
 
 -- name: ListGoalsForBriefing :many
--- Metas ativas do projeto da task, mais a meta da própria task (se ativa).
+-- Metas ativas do projeto da task, mais a meta da própria task (se ativa); a da task vem sempre primeiro, para
+-- não ser cortada pelo limite.
 SELECT * FROM goals
 WHERE company_id = @company_id AND status = 'active'
   AND ((sqlc.narg(project_id)::uuid IS NOT NULL AND project_id = sqlc.narg(project_id)::uuid)
        OR (sqlc.narg(goal_id)::uuid IS NOT NULL AND id = sqlc.narg(goal_id)::uuid))
-ORDER BY due_date NULLS LAST, created_at, id
+ORDER BY (sqlc.narg(goal_id)::uuid IS NOT NULL AND id = sqlc.narg(goal_id)::uuid) DESC, due_date NULLS LAST, created_at, id
 LIMIT 6;
 
 -- name: ListRecentlyAchievedGoals :many

@@ -45,6 +45,17 @@ English summary at the end of each release.
 - Chat (ADR-0027): sem polling eterno com mensagens esperando sem run (aviso "Mensagens esperando resposta"), sem atividade/webhook `conversation.created` de conversa recusada, e runs de chat falhas na Caixa de entrada com link para a conversa.
 - Workspaces (ADR-0025): caminhos novos precisam ficar em `HANKO_WORKSPACES_ROOT/<slug-da-empresa>/...` (os antigos seguem funcionando, com aviso na UI) e o diretório é revalidado (symlinks) antes de cada run; fora da raiz, diretório temporário e evento de aviso. / Review fixes: curation runs cannot be bypassed by the wake trigger, proposal application is idempotent and verified, chat and workspace hardening.
 
+### Correções da revisão (artefatos e metas)
+
+- Cota de artefatos por empresa não é mais furável por uploads simultâneos de nomes diferentes (trava consultiva por empresa antes da trava da cadeia).
+- A meta da própria task entra sempre no briefing da run (o corte em 5 podia descartá-la).
+- `hanko_artifact_put`: o corpo aceito pelo transporte MCP acompanha `HANKO_ARTIFACT_MAX_BYTES` (antes ~3 MiB de arquivo, pelo padrão de 4 MiB do SDK).
+- Run token de chat (sem task) publica artefatos pela API REST; informar `task` com esse token é recusado.
+- Migration 00025: `artifacts.task_id` passa a `ON DELETE CASCADE` (apagar a task apaga as versões dela em vez de fundi-las à cadeia sem task).
+- Nome de artefato recusa caracteres de formatação Unicode (bidi, largura zero), na publicação e na importação.
+- O corpo da rota de envio da API usa o limite configurado, não o máximo absoluto de 16 MiB.
+- Markdown de artefato não carrega imagem externa (vira link): sem pixel de rastreio.
+
 ## [Não lançado] — v0.1.0
 
 Primeira versão pública. Em produção em https://hanko.oute.pro desde 2026-10-14.

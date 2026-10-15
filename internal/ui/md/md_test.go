@@ -60,3 +60,23 @@ func TestInlineCodeKeepsAngle(t *testing.T) {
 		t.Errorf("unexpected: %s", got)
 	}
 }
+
+func TestRenderArtifactNoRemoteImages(t *testing.T) {
+	got := RenderArtifact("![logo](https://track.example/p.gif?u=1)\n\n![](//cdn.example/x.png)\n\n![local](/api/x.png)")
+	for _, bad := range []string{`src="https://track.example`, `src="//cdn.example`} {
+		if strings.Contains(got, bad) {
+			t.Errorf("imagem externa carregada (%s): %s", bad, got)
+		}
+	}
+	if !strings.Contains(got, `<a href="https://track.example/p.gif?u=1" rel="noopener noreferrer nofollow" target="_blank">logo</a>`) ||
+		!strings.Contains(got, `>//cdn.example/x.png</a>`) {
+		t.Errorf("imagem externa deveria virar link: %s", got)
+	}
+	if !strings.Contains(got, `loading="lazy" referrerpolicy="no-referrer" src="/api/x.png"`) {
+		t.Errorf("imagem local sem lazy/no-referrer: %s", got)
+	}
+	// Render comum não muda
+	if !strings.Contains(Render("![a](https://x.example/p.gif)"), `<img src="https://x.example/p.gif"`) {
+		t.Error("Render comum deveria manter a imagem")
+	}
+}
