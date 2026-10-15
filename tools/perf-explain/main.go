@@ -97,12 +97,12 @@ func run() error {
 	}
 	if *jsonOut != "" {
 		b, _ := json.MarshalIndent(results, "", " ")
-		if err := os.WriteFile(*jsonOut, b, 0o644); err != nil {
+		if err := os.WriteFile(*jsonOut, b, 0o600); err != nil {
 			return err
 		}
 	}
 	if *plansOut != "" {
-		if err := os.WriteFile(*plansOut, []byte(plans.String()), 0o644); err != nil {
+		if err := os.WriteFile(*plansOut, []byte(plans.String()), 0o600); err != nil {
 			return err
 		}
 	}
