@@ -3,6 +3,12 @@
 -- disputam o mesmo número de versão. A trava vale até o fim da transação.
 SELECT pg_advisory_xact_lock(hashtextextended(@key::text, 0));
 
+-- name: LockArtifactCompany :exec
+-- Serializa as gravações de artefatos da mesma empresa: a leitura do uso contra a cota e a inserção acontecem sob a
+-- mesma trava, senão uploads simultâneos de nomes diferentes (cadeias diferentes) leem o mesmo uso e estouram a
+-- cota. Vale até o fim da transação; vem sempre antes da trava da cadeia.
+SELECT pg_advisory_xact_lock(hashtextextended('artifacts:' || (@company_id::uuid)::text, 0));
+
 -- name: LatestArtifactInChain :one
 SELECT * FROM artifacts
 WHERE company_id = @company_id

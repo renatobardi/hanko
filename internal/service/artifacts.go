@@ -198,7 +198,8 @@ func cleanArtifactName(name string) (string, error) {
 		return "", domain.Invalid("name", "not a valid file name")
 	}
 	for _, r := range name {
-		if r == '/' || r == '\\' || unicode.IsControl(r) {
+		// Cf (formatação) inclui os caracteres bidi (U+202E...) que disfarçam a extensão do arquivo
+		if r == '/' || r == '\\' || unicode.IsControl(r) || unicode.Is(unicode.Cf, r) {
 			return "", domain.Invalid("name", "must not contain slashes or control characters")
 		}
 	}
@@ -280,6 +281,10 @@ func (s *Service) PutArtifact(ctx context.Context, actor domain.Actor, companyID
 			personaID = actor.ID
 		}
 
+		// primeiro a trava da empresa (a cota é lida e consumida sob ela), depois a da cadeia (numeração da versão)
+		if err := t.q.LockArtifactCompany(ctx, companyID); err != nil {
+			return fmt.Errorf("lock artifact company: %w", err)
+		}
 		if err := t.q.LockArtifactChain(ctx, chainKey(companyID, taskID, name)); err != nil {
 			return fmt.Errorf("lock artifact chain: %w", err)
 		}
