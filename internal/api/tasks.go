@@ -58,15 +58,35 @@ type updateTaskIn struct {
 type addCommentIn struct {
 	TaskPath
 	Body struct {
-		Body    string `json:"body" minLength:"1" doc:"Texto do comentário (Markdown)."`
-		RunID   string `json:"run_id,omitempty" format:"uuid" doc:"Execução de origem; para run tokens, padrão é a execução do token."`
-		EventID string `json:"event_id,omitempty" maxLength:"200" doc:"Chave de idempotência."`
+		Body    string  `json:"body" minLength:"1" doc:"Texto do comentário (Markdown)."`
+		RunID   string  `json:"run_id,omitempty" format:"uuid" doc:"Execução de origem; para run tokens, padrão é a execução do token."`
+		EventID string  `json:"event_id,omitempty" maxLength:"200" doc:"Chave de idempotência."`
+		Anchor  *Anchor `json:"anchor,omitempty" doc:"Ancora o comentário a um trecho da descrição da task ou do resumo de uma execução; o trecho precisa existir no documento (422 se não)."`
 	}
 }
 
 type listCommentsIn struct {
 	TaskPath
 	Page
+}
+
+// anchorIn converte a âncora do corpo da requisição para o domínio.
+func anchorIn(a *Anchor) (*domain.Anchor, error) {
+	if a == nil {
+		return nil, nil
+	}
+	out := &domain.Anchor{Target: domain.AnchorTarget(a.Target), Quote: a.Quote, Start: a.Start, End: a.End, DocHash: a.DocHash}
+	if !out.Target.Valid() {
+		return nil, domain.Invalid("anchor.target", "deve ser task_description ou run_summary")
+	}
+	if a.RunID != "" {
+		id, err := domain.ParseID(a.RunID)
+		if err != nil {
+			return nil, domain.Invalid("anchor.run_id", "não é um uuid")
+		}
+		out.RunID = &id
+	}
+	return out, nil
 }
 
 func (s *server) registerTasks(api huma.API) {
@@ -224,8 +244,12 @@ func (s *server) registerTasks(api huma.API) {
 					runID = &id
 				}
 			}
+			anchor, err := anchorIn(in.Body.Anchor)
+			if err != nil {
+				return nil, s.fail(ctx, err)
+			}
 			c, err := s.svc.AddComment(ctx, sc.Actor, sc.Company.ID, cur.ID, service.AddCommentInput{
-				Body: in.Body.Body, RunID: runID, EventID: in.Body.EventID})
+				Body: in.Body.Body, RunID: runID, EventID: in.Body.EventID, Anchor: anchor})
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}

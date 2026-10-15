@@ -57,10 +57,12 @@ type taskUpdateIn struct {
 }
 
 type taskCommentIn struct {
-	Company string `json:"company,omitempty" jsonschema:"slug ou id da empresa (obrigatório só sem token de run)"`
-	Key     string `json:"key" jsonschema:"chave da task (ex. HNK-12) ou id (UUID)"`
-	Body    string `json:"body" jsonschema:"texto do comentário em markdown"`
-	EventID string `json:"event_id,omitempty" jsonschema:"chave de idempotência: o mesmo event_id não duplica o comentário"`
+	Company  string `json:"company,omitempty" jsonschema:"slug ou id da empresa (obrigatório só sem token de run)"`
+	Key      string `json:"key" jsonschema:"chave da task (ex. HNK-12) ou id (UUID)"`
+	Body     string `json:"body" jsonschema:"texto do comentário em markdown"`
+	EventID  string `json:"event_id,omitempty" jsonschema:"chave de idempotência: o mesmo event_id não duplica o comentário"`
+	Quote    string `json:"quote,omitempty" jsonschema:"opcional: ancora o comentário a este trecho (texto exato) da descrição da task, ou do resumo da execução em quote_run; o trecho precisa existir"`
+	QuoteRun string `json:"quote_run,omitempty" jsonschema:"opcional: id da execução cujo resumo (entrega) contém o trecho de quote"`
 }
 
 type personaListIn struct {
@@ -139,6 +141,8 @@ type commentOut struct {
 	Author    string `json:"author" jsonschema:"human, persona:<id> ou system"`
 	Body      string `json:"body"`
 	CreatedAt string `json:"created_at"`
+	Quote     string `json:"quote,omitempty" jsonschema:"trecho a que o comentário está ancorado, se houver"`
+	Anchor    string `json:"anchor_status,omitempty" jsonschema:"exact, moved ou lost (âncora perdida)"`
 }
 
 type taskListOut struct {
@@ -216,8 +220,9 @@ func registerTools(s *sdk.Server, t *tools) {
 		Description: "Atualiza status, prioridade ou responsável de uma task. Marque in_review ou done ao concluir; blocked quando depender de alguém. Use event_id para idempotência.",
 	}, t.taskUpdate)
 	sdk.AddTool(s, &sdk.Tool{
-		Name:        "hanko_task_comment",
-		Description: "Comenta na thread de uma task (progresso, perguntas, resultado). Use event_id para não duplicar o comentário em retentativas.",
+		Name: "hanko_task_comment",
+		Description: "Comenta na thread de uma task (progresso, perguntas, resultado). Use event_id para não duplicar o comentário em retentativas. " +
+			"Com quote (texto exato) o comentário fica ancorado a esse trecho da descrição da task — ou do resumo de uma execução, com quote_run.",
 	}, t.taskComment)
 	sdk.AddTool(s, &sdk.Tool{
 		Name: "hanko_gate_request",
@@ -337,7 +342,14 @@ func actorStr(a domain.Actor) string {
 }
 
 func toComment(c domain.Comment) commentOut {
-	return commentOut{ID: c.ID.String(), Author: actorStr(c.Author), Body: c.Body, CreatedAt: c.CreatedAt.UTC().Format("2006-01-02T15:04:05Z")}
+	out := commentOut{ID: c.ID.String(), Author: actorStr(c.Author), Body: c.Body, CreatedAt: c.CreatedAt.UTC().Format("2006-01-02T15:04:05Z")}
+	if c.Anchor != nil {
+		out.Quote = c.Anchor.Quote
+		if c.AnchorState != nil {
+			out.Anchor = c.AnchorState.Status
+		}
+	}
+	return out
 }
 
 func taskLine(v service.TaskView) string {
@@ -607,6 +619,19 @@ func (t *tools) taskComment(ctx context.Context, _ *sdk.CallToolRequest, in task
 		return nil, commentWriteOut{}, toolErr("task", in.Key, err)
 	}
 	ai := service.AddCommentInput{Body: in.Body, EventID: in.EventID}
+	if in.Quote != "" {
+		a := &domain.Anchor{Target: domain.AnchorTaskDescription, Quote: in.Quote}
+		if rid := strings.TrimSpace(in.QuoteRun); rid != "" {
+			id, perr := domain.ParseID(rid)
+			if perr != nil {
+				return nil, commentWriteOut{}, errors.New("quote_run: não é um uuid")
+			}
+			a.Target, a.RunID = domain.AnchorRunSummary, &id
+		}
+		ai.Anchor = a
+	} else if strings.TrimSpace(in.QuoteRun) != "" {
+		return nil, commentWriteOut{}, errors.New("quote_run exige quote")
+	}
 	if id.ViaToken {
 		ai.RunID = id.RunID
 	}

@@ -240,9 +240,10 @@ type UpdateTaskReq struct {
 }
 
 type AddCommentReq struct {
-	Body    string `json:"body"`
-	RunID   string `json:"run_id,omitempty"`
-	EventID string `json:"event_id,omitempty"`
+	Body    string      `json:"body"`
+	RunID   string      `json:"run_id,omitempty"`
+	EventID string      `json:"event_id,omitempty"`
+	Anchor  *api.Anchor `json:"anchor,omitempty"`
 }
 
 // TaskQuery são os filtros de ListTasks.

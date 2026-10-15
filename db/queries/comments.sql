@@ -1,6 +1,6 @@
 -- name: CreateComment :one
-INSERT INTO task_comments (id, company_id, task_id, author_type, author_id, run_id, body, event_id, created_at)
-VALUES (@id, @company_id, @task_id, @author_type, @author_id, @run_id, @body, @event_id, @now)
+INSERT INTO task_comments (id, company_id, task_id, author_type, author_id, run_id, body, event_id, anchor, created_at)
+VALUES (@id, @company_id, @task_id, @author_type, @author_id, @run_id, @body, @event_id, @anchor, @now)
 RETURNING *;
 
 -- name: GetCommentByEventID :one

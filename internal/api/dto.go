@@ -129,14 +129,34 @@ type Task struct {
 
 // Comment é uma mensagem na thread de uma task.
 type Comment struct {
-	ID        string    `json:"id" format:"uuid"`
-	CompanyID string    `json:"company_id" format:"uuid"`
-	TaskID    string    `json:"task_id" format:"uuid"`
-	Author    ActorRef  `json:"author"`
-	RunID     string    `json:"run_id,omitempty" format:"uuid"`
-	Body      string    `json:"body"`
-	EventID   string    `json:"event_id,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
+	ID          string       `json:"id" format:"uuid"`
+	CompanyID   string       `json:"company_id" format:"uuid"`
+	TaskID      string       `json:"task_id" format:"uuid"`
+	Author      ActorRef     `json:"author"`
+	RunID       string       `json:"run_id,omitempty" format:"uuid"`
+	Body        string       `json:"body"`
+	EventID     string       `json:"event_id,omitempty"`
+	CreatedAt   time.Time    `json:"created_at"`
+	Anchor      *Anchor      `json:"anchor,omitempty" doc:"Trecho do documento a que o comentário se refere (comentário ancorado)."`
+	AnchorState *AnchorState `json:"anchor_state,omitempty" doc:"Onde o trecho está na versão atual do documento; 'lost' = âncora perdida."`
+}
+
+// Anchor liga um comentário a um trecho da descrição da task ou do resumo (entrega) de uma execução.
+// A citação é a fonte da verdade: se o documento mudar, o trecho é procurado de novo pelo texto.
+type Anchor struct {
+	Target  string `json:"target" enum:"task_description,run_summary" doc:"Documento-alvo."`
+	RunID   string `json:"run_id,omitempty" format:"uuid" doc:"Execução cujo resumo é o alvo (obrigatório com run_summary)."`
+	Quote   string `json:"quote" minLength:"1" maxLength:"2000" doc:"Texto citado, exatamente como está no documento."`
+	Start   int    `json:"start" minimum:"0" doc:"Posição inicial da citação, em code points do documento (dica; o servidor recalcula)."`
+	End     int    `json:"end" minimum:"0" doc:"Posição final (exclusiva), em code points."`
+	DocHash string `json:"doc_hash,omitempty" doc:"Hash do documento no momento do comentário; definido pelo servidor."`
+}
+
+// AnchorState é a posição atual de uma âncora.
+type AnchorState struct {
+	Status string `json:"status" enum:"exact,moved,lost" doc:"exact = documento igual; moved = documento mudou e o trecho foi reencontrado; lost = trecho não existe mais."`
+	Start  int    `json:"start"`
+	End    int    `json:"end"`
 }
 
 // Usage são contagens de tokens reportadas pelo agente.
@@ -361,8 +381,15 @@ func taskOut(t service.TaskView) Task {
 }
 
 func commentOut(c domain.Comment) Comment {
-	return Comment{ID: idStr(c.ID), CompanyID: idStr(c.CompanyID), TaskID: idStr(c.TaskID), Author: actorRef(c.Author),
+	out := Comment{ID: idStr(c.ID), CompanyID: idStr(c.CompanyID), TaskID: idStr(c.TaskID), Author: actorRef(c.Author),
 		RunID: idPtr(c.RunID), Body: c.Body, EventID: c.EventID, CreatedAt: c.CreatedAt}
+	if a := c.Anchor; a != nil {
+		out.Anchor = &Anchor{Target: string(a.Target), RunID: idPtr(a.RunID), Quote: a.Quote, Start: a.Start, End: a.End, DocHash: a.DocHash}
+	}
+	if st := c.AnchorState; st != nil {
+		out.AnchorState = &AnchorState{Status: st.Status, Start: st.Start, End: st.End}
+	}
+	return out
 }
 
 func runOut(r service.RunView) Run {

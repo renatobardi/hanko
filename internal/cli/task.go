@@ -130,6 +130,13 @@ func (e *env) taskCmd() *cobra.Command {
 			fmt.Fprintf(e.out, e.t("\nComentários (%d):\n"), len(cs))
 			for _, cm := range cs {
 				fmt.Fprintf(e.out, "  [%s] %s: %s\n", e.fmtTime(cm.CreatedAt), e.authorLabel(cm.Author), oneLine(cm.Body, 300))
+				if cm.Anchor != nil {
+					lost := ""
+					if cm.AnchorState != nil && cm.AnchorState.Status == "lost" {
+						lost = " " + e.t("(âncora perdida)")
+					}
+					fmt.Fprintf(e.out, e.t("      sobre: “%s”%s\n"), oneLine(cm.Anchor.Quote, 120), lost)
+				}
 			}
 			fmt.Fprintf(e.out, e.t("\nExecuções (%d):\n"), len(rs))
 			if len(rs) > 0 {
@@ -227,6 +234,7 @@ func (e *env) taskCmd() *cobra.Command {
 	}
 	modelCmd.Flags().BoolVar(&clearModel, "clear", false, e.t("remove a escolha manual"))
 
+	var quote, quoteRun string
 	comment := &cobra.Command{
 		Use: "comment " + e.t("<task>") + " " + e.t("<texto...>"), Short: e.t("Comenta na task (use '-' para ler do stdin)"), Args: cobra.MinimumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -245,7 +253,17 @@ func (e *env) taskCmd() *cobra.Command {
 			if body == "" {
 				return usageError{errors.New(e.t("comentário vazio"))}
 			}
-			cm, err := e.client().AddComment(cmd.Context(), co, args[0], client.AddCommentReq{Body: body})
+			req := client.AddCommentReq{Body: body}
+			if quote != "" {
+				a := &api.Anchor{Target: "task_description", Quote: quote}
+				if quoteRun != "" {
+					a.Target, a.RunID = "run_summary", quoteRun
+				}
+				req.Anchor = a
+			} else if quoteRun != "" {
+				return usageError{errors.New(e.t("--quote-run exige --quote"))}
+			}
+			cm, err := e.client().AddComment(cmd.Context(), co, args[0], req)
 			if err != nil {
 				return err
 			}
@@ -256,6 +274,9 @@ func (e *env) taskCmd() *cobra.Command {
 			return nil
 		},
 	}
+
+	comment.Flags().StringVar(&quote, "quote", "", e.t("ancora o comentário a este trecho da descrição da task (ou do resumo da execução, com --quote-run)"))
+	comment.Flags().StringVar(&quoteRun, "quote-run", "", e.t("id da execução cujo resumo contém o trecho de --quote"))
 
 	wake := &cobra.Command{
 		Use: "wake " + e.t("<task>"), Short: e.t("Acorda a persona atribuída para trabalhar na task"), Args: cobra.ExactArgs(1),

@@ -606,6 +606,57 @@ func (q *Queries) ListRunEvents(ctx context.Context, arg ListRunEventsParams) ([
 	return items, nil
 }
 
+const listRunEventsBefore = `-- name: ListRunEventsBefore :many
+SELECT id, company_id, run_id, seq, kind, text, payload, occurred_at, received_at FROM run_events
+WHERE company_id = $1 AND run_id = $2 AND seq < $3
+ORDER BY seq DESC
+LIMIT $4
+`
+
+type ListRunEventsBeforeParams struct {
+	CompanyID uuid.UUID
+	RunID     uuid.UUID
+	BeforeSeq int64
+	Lim       int32
+}
+
+// Página anterior do log (cursor por seq): os @lim eventos imediatamente antes de @before_seq, do mais novo para o mais antigo
+// (o service devolve em ordem crescente). Usa o índice único (run_id, seq).
+func (q *Queries) ListRunEventsBefore(ctx context.Context, arg ListRunEventsBeforeParams) ([]RunEvent, error) {
+	rows, err := q.db.Query(ctx, listRunEventsBefore,
+		arg.CompanyID,
+		arg.RunID,
+		arg.BeforeSeq,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []RunEvent{}
+	for rows.Next() {
+		var i RunEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.CompanyID,
+			&i.RunID,
+			&i.Seq,
+			&i.Kind,
+			&i.Text,
+			&i.Payload,
+			&i.OccurredAt,
+			&i.ReceivedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRunViews = `-- name: ListRunViews :many
 SELECT r.id, r.company_id, r.task_id, r.persona_id, r.status, r.trigger, r.agent, r.model, r.session_ref, r.trace_id, r.exit_code, r.error, r.summary, r.cost_usd, r.input_tokens, r.output_tokens, r.cache_read_tokens, r.cache_creation_tokens, r.handoff_in, r.handoff_out, r.created_at, r.started_at, r.finished_at, r.pending_result, r.cost_source, r.next_event_seq, r.model_source, r.subscription_id, r.list_cost_usd, r.name, (c.task_prefix || '-' || t.number)::text AS task_key, t.title AS task_title, p.name AS persona_name
 FROM runs r

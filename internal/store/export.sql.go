@@ -13,7 +13,7 @@ import (
 )
 
 const exportComments = `-- name: ExportComments :many
-SELECT id, company_id, task_id, author_type, author_id, run_id, body, event_id, created_at FROM task_comments WHERE company_id = $1 ORDER BY created_at, id
+SELECT id, company_id, task_id, author_type, author_id, run_id, body, event_id, created_at, anchor FROM task_comments WHERE company_id = $1 ORDER BY created_at, id
 `
 
 func (q *Queries) ExportComments(ctx context.Context, companyID uuid.UUID) ([]TaskComment, error) {
@@ -35,6 +35,7 @@ func (q *Queries) ExportComments(ctx context.Context, companyID uuid.UUID) ([]Ta
 			&i.Body,
 			&i.EventID,
 			&i.CreatedAt,
+			&i.Anchor,
 		); err != nil {
 			return nil, err
 		}
@@ -192,7 +193,7 @@ func (q *Queries) ExportTasks(ctx context.Context, companyID uuid.UUID) ([]Task,
 const importComment = `-- name: ImportComment :one
 INSERT INTO task_comments (id, company_id, task_id, author_type, author_id, run_id, body, created_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-RETURNING id, company_id, task_id, author_type, author_id, run_id, body, event_id, created_at
+RETURNING id, company_id, task_id, author_type, author_id, run_id, body, event_id, created_at, anchor
 `
 
 type ImportCommentParams struct {
@@ -228,6 +229,7 @@ func (q *Queries) ImportComment(ctx context.Context, arg ImportCommentParams) (T
 		&i.Body,
 		&i.EventID,
 		&i.CreatedAt,
+		&i.Anchor,
 	)
 	return i, err
 }

@@ -373,6 +373,7 @@ type TaskComment struct {
 	Body       string
 	EventID    *string
 	CreatedAt  time.Time
+	Anchor     []byte
 }
 
 type User struct {
