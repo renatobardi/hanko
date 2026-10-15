@@ -672,6 +672,7 @@ func (q *Queries) ListWebhooksForEvent(ctx context.Context, arg ListWebhooksForE
 const pruneWebhookDeliveries = `-- name: PruneWebhookDeliveries :exec
 DELETE FROM webhook_deliveries d
 WHERE d.integration_id = $1
+  AND d.status IN ('success', 'failed')
   AND d.id NOT IN (
     SELECT x.id FROM webhook_deliveries x WHERE x.integration_id = $1
     ORDER BY x.created_at DESC, x.id DESC LIMIT $2)
@@ -682,7 +683,8 @@ type PruneWebhookDeliveriesParams struct {
 	Keep          int32
 }
 
-// Mantém só as últimas @keep entregas da integração.
+// Mantém só as últimas @keep entregas da integração, mas só apaga as encerradas: uma entrega pending ou
+// retrying ainda tem um job na fila e apagá-la perderia o aviso em silêncio.
 func (q *Queries) PruneWebhookDeliveries(ctx context.Context, arg PruneWebhookDeliveriesParams) error {
 	_, err := q.db.Exec(ctx, pruneWebhookDeliveries, arg.IntegrationID, arg.Keep)
 	return err

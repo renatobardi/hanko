@@ -805,11 +805,11 @@ func TestDeliverWebhookDisabledIntegration(t *testing.T) {
 	if out, _ := e.svc.DeliverWebhook(ctx, id, 1, 7); out != service.WebhookGiveUp || len(srv.hits()) != 0 {
 		t.Fatalf("desligada: %v hits=%d", out, len(srv.hits()))
 	}
-	// apagar a integração apaga as entregas; o job que sobrou some em silêncio
+	// apagar a integração apaga as entregas; o job que sobrou encerra com erro (para o worker registrar), não com sucesso
 	if err := e.svc.DeleteIntegration(ctx, domain.HumanActor, e.co.ID, h.ID); err != nil {
 		t.Fatal(err)
 	}
-	if out, err := e.svc.DeliverWebhook(ctx, id, 2, 7); err != nil || out != service.WebhookDone {
+	if out, err := e.svc.DeliverWebhook(ctx, id, 2, 7); err == nil || out != service.WebhookGiveUp {
 		t.Fatalf("apagada: %v %v", out, err)
 	}
 }

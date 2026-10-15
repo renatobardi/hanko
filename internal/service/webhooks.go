@@ -172,7 +172,9 @@ func (s *Service) DeliverWebhook(ctx context.Context, deliveryID domain.ID, atte
 	q := s.read()
 	d, err := q.GetWebhookDelivery(ctx, deliveryID)
 	if isNoRows(err) {
-		return WebhookDone, nil
+		// A linha é o outbox: sumir com o job ainda na fila é aviso perdido (a integração foi apagada ou alguém
+		// mexeu no banco; a poda só apaga entregas encerradas), não sucesso. Não há o que repetir; o worker loga.
+		return WebhookGiveUp, fmt.Errorf("webhook delivery %s not found", deliveryID)
 	}
 	if err != nil {
 		return WebhookRetry, fmt.Errorf("get webhook delivery: %w", err)

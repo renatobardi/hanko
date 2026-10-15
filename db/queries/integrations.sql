@@ -101,9 +101,11 @@ ORDER BY created_at DESC, id DESC
 LIMIT @lim;
 
 -- name: PruneWebhookDeliveries :exec
--- Mantém só as últimas @keep entregas da integração.
+-- Mantém só as últimas @keep entregas da integração, mas só apaga as encerradas: uma entrega pending ou
+-- retrying ainda tem um job na fila e apagá-la perderia o aviso em silêncio.
 DELETE FROM webhook_deliveries d
 WHERE d.integration_id = @integration_id
+  AND d.status IN ('success', 'failed')
   AND d.id NOT IN (
     SELECT x.id FROM webhook_deliveries x WHERE x.integration_id = @integration_id
     ORDER BY x.created_at DESC, x.id DESC LIMIT @keep);
