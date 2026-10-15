@@ -34,6 +34,30 @@ export function oneLine(text: string, max = 400): string {
   return s.length > max ? s.slice(0, max) + "…" : s;
 }
 
+export type Part = { text: string; match: boolean };
+
+/**
+ * Divide o texto em pedaços, marcando onde a busca casa (sem diferenciar caixa). Os offsets vêm de uma regex sobre o
+ * texto ORIGINAL: baixar a caixa do texto inteiro muda o tamanho de algumas letras ("İ" vira "i" + ponto combinante)
+ * e deslocaria todas as marcas depois dela.
+ */
+export function highlightParts(text: string, q: string): Part[] {
+  const needle = q.trim();
+  if (!needle) return [{ text, match: false }];
+  const re = new RegExp(needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "giu");
+  const out: Part[] = [];
+  let from = 0;
+  for (const m of text.matchAll(re)) {
+    const i = m.index ?? 0;
+    if (m[0] === "") continue;
+    if (i > from) out.push({ text: text.slice(from, i), match: false });
+    out.push({ text: m[0], match: true });
+    from = i + m[0].length;
+  }
+  if (from < text.length || out.length === 0) out.push({ text: text.slice(from), match: false });
+  return out;
+}
+
 export function prettyPayload(payload: unknown, max = 20000): string {
   let s: string;
   try {

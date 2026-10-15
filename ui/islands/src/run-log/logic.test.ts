@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { highlightParts } from "./format";
 import { filterEvents, lowerBoundSeq, mergeEvents, type RunEvent } from "./store";
 import { makeLayout, visibleRange, ROW_H, EXPANDED_EXTRA } from "./virtual";
 
@@ -102,5 +103,44 @@ describe("virtualização", () => {
     const [a, b] = visibleRange(l, 10000, 10000 * ROW_H, 480);
     expect(b).toBe(10000);
     expect(a).toBeGreaterThan(9900);
+  });
+});
+
+describe("highlightParts", () => {
+  const marked = (text: string, q: string) => highlightParts(text, q).filter((p) => p.match).map((p) => p.text);
+  const joined = (text: string, q: string) => highlightParts(text, q).map((p) => p.text).join("");
+
+  it("marca sem diferenciar caixa e preserva o texto", () => {
+    expect(marked("Erro no DEPLOY: deploy falhou", "deploy")).toEqual(["DEPLOY", "deploy"]);
+    expect(joined("Erro no DEPLOY: deploy falhou", "deploy")).toBe("Erro no DEPLOY: deploy falhou");
+  });
+
+  it("offsets corretos quando a minúscula muda de tamanho (İ)", () => {
+    // "İ".toLowerCase() tem 2 unidades ("i" + U+0307): o texto baixado deslocaria a marca em 1 posição
+    const text = "İstanbul deploy İ deploy";
+    expect(marked(text, "deploy")).toEqual(["deploy", "deploy"]);
+    expect(joined(text, "deploy")).toBe(text);
+    const parts = highlightParts(text, "deploy");
+    expect(parts[0]).toEqual({ text: "İstanbul ", match: false });
+  });
+
+  it("caracteres especiais da busca são literais", () => {
+    expect(marked("a.b a+b (x) [y] a\\b", ".")).toEqual(["."]);
+    expect(marked("a.b a+b (x) [y]", "a+b")).toEqual(["a+b"]);
+    expect(marked("f(x) [y] $1 ^ | *", "(x)")).toEqual(["(x)"]);
+    expect(marked("tab\\ola", "\\o")).toEqual(["\\o"]);
+  });
+
+  it("sem busca ou sem acerto devolve o texto inteiro, sem marca", () => {
+    expect(highlightParts("abc", "  ")).toEqual([{ text: "abc", match: false }]);
+    expect(highlightParts("abc", "z")).toEqual([{ text: "abc", match: false }]);
+    expect(highlightParts("", "z")).toEqual([{ text: "", match: false }]);
+  });
+
+  it("acerto colado nas pontas", () => {
+    expect(highlightParts("abab", "ab")).toEqual([
+      { text: "ab", match: true },
+      { text: "ab", match: true },
+    ]);
   });
 });
