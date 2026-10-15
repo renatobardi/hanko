@@ -19,7 +19,7 @@ const defaultGuardPct = 90
 // CreateSubscriptionInput is the body of CreateSubscription.
 type CreateSubscriptionInput struct {
 	Name           string
-	Agent          string // claude | codex | fake
+	Agent          string // claude | codex | acp | fake
 	MonthlyUSD     float64
 	ModelPrefixes  []string
 	WeeklyLimitUSD *float64

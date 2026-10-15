@@ -108,7 +108,7 @@ type HirePersonaInput struct {
 	Slug                 string
 	Title                string
 	Instructions         string
-	Agent                string // claude | codex | fake
+	Agent                string // claude | codex | acp | fake
 	Model                string
 	AdapterConfig        json.RawMessage
 	ReportsTo            *domain.ID

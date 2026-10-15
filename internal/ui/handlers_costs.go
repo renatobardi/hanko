@@ -292,7 +292,7 @@ func (s *server) handleCosts(w http.ResponseWriter, r *http.Request, co domain.C
 	}
 	vm.HasSubs = len(subs) > 0
 	vm.SubCreate = base + "/custos/assinaturas"
-	vm.AgentOpts = []views.Option{{Value: "claude", Label: "Claude Code", Selected: true}, {Value: "codex", Label: "Codex"}, {Value: "fake", Label: i18n.T(ctx, "Simulado")}}
+	vm.AgentOpts = []views.Option{{Value: "claude", Label: "Claude Code", Selected: true}, {Value: "codex", Label: "Codex"}, {Value: "acp", Label: "ACP"}, {Value: "fake", Label: i18n.T(ctx, "Simulado")}}
 	for _, sub := range subs {
 		pc := periodCost[sub.ID]
 		row := views.SubRowVM{Name: sub.Name, Agent: sub.Agent, Monthly: fmtUSDCtx(ctx, sub.MonthlyUSD), Models: modelsLabel(ctx, sub.ModelPrefixes),

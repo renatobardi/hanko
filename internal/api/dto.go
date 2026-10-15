@@ -85,7 +85,7 @@ type Persona struct {
 	Name                 string         `json:"name" example:"Marina"`
 	Title                string         `json:"title" example:"CTO"`
 	Instructions         string         `json:"instructions" doc:"Instruções permanentes da persona."`
-	Agent                string         `json:"agent" enum:"claude,codex,fake" doc:"Harness que executa a persona."`
+	Agent                string         `json:"agent" enum:"claude,codex,acp,fake" doc:"Harness que executa a persona."`
 	Model                string         `json:"model,omitempty" example:"claude-sonnet-4-5"`
 	AdapterConfig        map[string]any `json:"adapter_config,omitempty" doc:"Configuração específica do adapter."`
 	Status               string         `json:"status" enum:"active,idle,running,paused,error,awaiting_gate,off"`
@@ -159,7 +159,7 @@ type Run struct {
 	PersonaName    string     `json:"persona_name,omitempty"`
 	Status         string     `json:"status" enum:"queued,running,done,interrupted,failed,cancelled,expired"`
 	Trigger        string     `json:"trigger" enum:"assign,comment,manual,heartbeat,gate,flow,review"`
-	Agent          string     `json:"agent" enum:"claude,codex,fake"`
+	Agent          string     `json:"agent" enum:"claude,codex,acp,fake"`
 	Model          string     `json:"model,omitempty"`
 	SessionRef     string     `json:"session_ref,omitempty"`
 	TraceID        string     `json:"trace_id,omitempty"`
@@ -461,7 +461,7 @@ type Subscription struct {
 	ID             string    `json:"id" format:"uuid"`
 	CompanyID      string    `json:"company_id" format:"uuid"`
 	Name           string    `json:"name" example:"Claude Max"`
-	Agent          string    `json:"agent" enum:"claude,codex,fake"`
+	Agent          string    `json:"agent" enum:"claude,codex,acp,fake"`
 	MonthlyUSD     float64   `json:"monthly_usd"`
 	ModelPrefixes  []string  `json:"model_prefixes" doc:"Prefixos de modelo cobertos; vazio = todos os do harness."`
 	WeeklyLimitUSD *float64  `json:"weekly_limit_usd,omitempty" doc:"Teto semanal de uso estimado em dólares."`

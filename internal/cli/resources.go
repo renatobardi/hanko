@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -175,6 +176,7 @@ func (e *env) personaCmd() *cobra.Command {
 		interval                                                               int
 		budget                                                                 int64
 		cfg                                                                    map[string]string
+		cfgJSON                                                                string
 		review                                                                 bool
 		revPersona, revAgent, revModel                                         string
 	)
@@ -198,8 +200,15 @@ func (e *env) personaCmd() *cobra.Command {
 			if cmd.Flags().Changed("budget-cents") {
 				req.BudgetMonthlyCents = &budget
 			}
+			if cfgJSON != "" {
+				if err := json.Unmarshal([]byte(cfgJSON), &req.AdapterConfig); err != nil {
+					return fmt.Errorf(e.t("--config-json não é um objeto JSON válido: %w"), err)
+				}
+			}
 			if len(cfg) > 0 {
-				req.AdapterConfig = map[string]any{}
+				if req.AdapterConfig == nil {
+					req.AdapterConfig = map[string]any{}
+				}
 				for k, v := range cfg {
 					req.AdapterConfig[k] = v
 				}
@@ -220,7 +229,7 @@ func (e *env) personaCmd() *cobra.Command {
 	hf.StringVar(&title, "title", "", e.t("cargo (ex.: CTO)"))
 	hf.StringVarP(&instr, "instructions", "i", "", e.t("instruções da persona"))
 	hf.StringVar(&instrFile, "instructions-file", "", e.t("arquivo com as instruções"))
-	hf.StringVar(&agent, "agent", "", e.t("harness: claude, codex ou fake (obrigatório)"))
+	hf.StringVar(&agent, "agent", "", e.t("harness: claude, codex, acp ou fake (obrigatório)"))
 	hf.StringVar(&model, "model", "", e.t("modelo"))
 	hf.StringVar(&subscription, "subscription", "", e.t("assinatura que cobre a persona (id ou nome)"))
 	hf.StringVar(&reports, "reports-to", "", e.t("persona superior (id ou slug)"))
@@ -228,6 +237,7 @@ func (e *env) personaCmd() *cobra.Command {
 	hf.IntVar(&interval, "interval", 0, e.t("intervalo do heartbeat em segundos (0 desliga)"))
 	hf.Int64Var(&budget, "budget-cents", 0, e.t("orçamento mensal em centavos de dólar"))
 	hf.StringToStringVar(&cfg, "config", nil, e.t("adapter_config chave=valor (repetível)"))
+	hf.StringVar(&cfgJSON, "config-json", "", e.t("adapter_config em JSON, para listas e objetos (ex.: acp: '{\"command\":\"meu-agente\",\"args\":[\"--stdio\"]}'); --config sobrepõe as chaves"))
 	hf.BoolVar(&review, "require-review", false, e.t("concluir uma task passa por um gate de revisão"))
 	hf.StringVar(&revPersona, "reviewer", "", e.t("persona que revisa as entregas antes do gate (id ou slug)"))
 	hf.StringVar(&revAgent, "reviewer-agent", "", e.t("harness alternativo revisor: claude, codex ou fake"))

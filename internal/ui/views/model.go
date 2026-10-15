@@ -238,6 +238,10 @@ type HirePersonaVM struct {
 	RequireReview bool
 	Error         string
 	FieldErr      map[string]string
+	// ACP harness (shown only while the ACP card is selected).
+	AcpCommand    string
+	AcpArgs       string   // one argument per line
+	AcpPermission []Option // allow | reject | read_only
 }
 
 type PersonaVM struct {

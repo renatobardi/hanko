@@ -595,6 +595,7 @@
             "enum": [
               "claude",
               "codex",
+              "acp",
               "fake"
             ],
             "examples": [
@@ -1235,7 +1236,7 @@
         "properties": {
           "adapter_config": {
             "additionalProperties": {},
-            "description": "Configuração específica do adapter (ex.: permission_mode, extra_args).",
+            "description": "Configuração específica do adapter (ex.: permission_mode, extra_args). Para agent acp é obrigatória: command (executável do agente ACP), args, env, permission (allow, reject ou read_only; padrão read_only), model e init_timeout_sec.",
             "type": "object"
           },
           "agent": {
@@ -1243,6 +1244,7 @@
             "enum": [
               "claude",
               "codex",
+              "acp",
               "fake"
             ],
             "examples": [
@@ -2018,6 +2020,7 @@
             "enum": [
               "claude",
               "codex",
+              "acp",
               "fake"
             ],
             "type": "string"
@@ -2240,6 +2243,7 @@
             "enum": [
               "claude",
               "codex",
+              "acp",
               "fake"
             ],
             "type": "string"
@@ -2467,6 +2471,7 @@
             "enum": [
               "claude",
               "codex",
+              "acp",
               "fake"
             ],
             "type": "string"
@@ -2895,6 +2900,7 @@
             "enum": [
               "claude",
               "codex",
+              "acp",
               "fake"
             ],
             "type": "string"
