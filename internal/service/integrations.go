@@ -109,7 +109,7 @@ func (s *Service) seal(id uuid.UUID, v integrationSecrets) (string, error) {
 	if !s.Integrations.Secrets.Enabled() {
 		return "", domain.Invalid("secrets", "HANKO_SECRET_KEY não está configurada neste servidor; sem ela não há como guardar segredos")
 	}
-	raw, err := json.Marshal(v)
+	raw, err := json.Marshal(v) //nolint:gosec // serializa os segredos só para cifrar logo abaixo (secretbox); nunca sai em claro
 	if err != nil {
 		return "", fmt.Errorf("marshal integration secrets: %w", err)
 	}

@@ -48,7 +48,8 @@ func fmtBytes(ctx context.Context, n int64) string {
 		v /= unit
 		i++
 	}
-	suffix := []string{"KiB", "MiB", "GiB", "TiB"}[i]
+	suffixes := [...]string{"KiB", "MiB", "GiB", "TiB"}
+	suffix := suffixes[max(0, min(i, len(suffixes)-1))]
 	s := strconv.FormatFloat(math.Round(v*10)/10, 'f', -1, 64)
 	return decimalComma(ctx, s) + " " + suffix
 }

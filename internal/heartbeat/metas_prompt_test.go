@@ -35,7 +35,7 @@ func TestBuildPromptGoals(t *testing.T) {
 	}
 	// a seção vem antes da memória do projeto e depois da thread
 	_, withMem := BuildPrompt(rc, "briefing X", "")
-	if g, m, th := strings.Index(withMem, "## Metas ativas"), strings.Index(withMem, "## Memória do projeto"), strings.Index(withMem, "## Thread"); !(th < g && g < m) {
+	if g, m, th := strings.Index(withMem, "## Metas ativas"), strings.Index(withMem, "## Memória do projeto"), strings.Index(withMem, "## Thread"); th >= g || g >= m {
 		t.Errorf("ordem das seções: thread=%d metas=%d memória=%d", th, g, m)
 	}
 	// título gigante é cortado
