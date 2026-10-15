@@ -8,9 +8,28 @@ import (
 	"github.com/renatobardi/hanko/internal/service"
 )
 
+// Now is the clock of the sample data and of the UI tests: noon of the current day in the company
+// time zone. Anchoring at noon keeps "today", "this week" and "this month" stable whatever the hour
+// the tests run (near midnight, UTC and the company day used to disagree).
+func Now() time.Time {
+	if !Fixed.IsZero() {
+		return Fixed
+	}
+	l, err := time.LoadLocation("America/Sao_Paulo")
+	if err != nil {
+		l = time.UTC
+	}
+	t := time.Now().In(l)
+	return time.Date(t.Year(), t.Month(), t.Day(), 12, 0, 0, 0, l).UTC()
+}
+
+// Fixed, when set, replaces Now: the UI tests pin the date because the sample month-to-date spend
+// grows with the day of the month.
+var Fixed time.Time
+
 // Empty returns a backend with one company and nothing else (fresh install).
 func Empty() *Fake {
-	now := time.Now().UTC()
+	now := Now()
 	return &Fake{Companies: []domain.Company{{ID: ID("company"), Slug: "hanko", Name: "Hanko", TaskPrefix: "HNK", Timezone: "America/Sao_Paulo", CreatedAt: now, UpdatedAt: now}}}
 }
 
@@ -27,7 +46,7 @@ func rid(n string) domain.ID {
 func Sample() *Fake {
 	f := Empty()
 	co := f.Companies[0]
-	now := time.Now().UTC()
+	now := Now()
 	ago := func(d time.Duration) time.Time { return now.Add(-d) }
 	mk := func(slug, name, title, agent, model string, st domain.PersonaStatus, hb int, instr string) domain.Persona {
 		return domain.Persona{ID: ID("persona:" + slug), CompanyID: co.ID, Slug: slug, Name: name, Title: title, Agent: agent, Model: model,

@@ -153,7 +153,7 @@ func TestInboxPage(t *testing.T) {
 	f := uitest.Sample()
 	mika := personaOf(f, "mika")
 	mika.Status = domain.PersonaError
-	at := time.Now().UTC().Add(-10 * time.Minute)
+	at := uitest.Now().Add(-10 * time.Minute)
 	f.Health = map[domain.ID]service.PersonaHealth{mika.ID: {LastError: "limite de uso atingido", LastErrorAt: &at, ConsecutiveFailures: 2}}
 	e := newEnv(t, f)
 
@@ -190,7 +190,7 @@ func TestInboxPage(t *testing.T) {
 
 func TestInboxAlerts(t *testing.T) {
 	f := uitest.Sample()
-	at := time.Now().UTC().Add(-5 * time.Minute)
+	at := uitest.Now().Add(-5 * time.Minute)
 	run := f.Runs[0]
 	f.Alerts = []domain.Alert{
 		{ID: domain.NewID(), Kind: domain.AlertRunStuck, SubjectType: "run", SubjectID: run.ID, Severity: domain.AlertCritical,

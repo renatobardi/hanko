@@ -208,7 +208,7 @@ func newAuthEnv(t *testing.T, d AuthDeps) *authEnv {
 		d.Verifier = fv
 		d.Firebase = views.FirebaseWeb{APIKey: "key", AuthDomain: "p.firebaseapp.com", ProjectID: "p"}
 	}
-	s := &server{be: f, broker: events.NewBroker(), log: testLogger(t), version: "test", now: func() time.Time { return time.Now().UTC() }, sseTick: 50 * time.Millisecond}
+	s := &server{be: f, broker: events.NewBroker(), log: testLogger(t), version: "test", now: uitest.Now, sseTick: 50 * time.Millisecond}
 	s.auth = newAuthState(d, fa, s.now)
 	mux := http.NewServeMux()
 	s.routes(mux)
@@ -432,7 +432,7 @@ func TestActivityShowsUserNames(t *testing.T) {
 	co := e.f.Companies[0]
 	id := u.ID
 	e.f.Activity = append([]domain.ActivityEvent{{ID: domain.NewID(), CompanyID: co.ID, Actor: domain.Actor{Type: domain.ActorHuman, ID: &id},
-		Verb: "task.created", SubjectType: "task", SubjectID: domain.NewID(), OccurredAt: time.Now().UTC(), Data: json.RawMessage(`{}`)}}, e.f.Activity...)
+		Verb: "task.created", SubjectType: "task", SubjectID: domain.NewID(), OccurredAt: uitest.Now(), Data: json.RawMessage(`{}`)}}, e.f.Activity...)
 	page := e.withCookie(t, c, req{method: "GET", path: "/c/hanko/atividade"})
 	wantStatus(t, page, http.StatusOK)
 	wantContains(t, page, "Dona da Silva")

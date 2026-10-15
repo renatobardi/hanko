@@ -30,7 +30,7 @@ type env struct {
 func newEnv(t *testing.T, f *uitest.Fake) *env {
 	t.Helper()
 	b := events.NewBroker()
-	s := &server{be: f, broker: b, log: nil, version: "test", now: func() time.Time { return time.Now().UTC() }, sseTick: 50 * time.Millisecond}
+	s := &server{be: f, broker: b, log: nil, version: "test", now: uitest.Now, sseTick: 50 * time.Millisecond}
 	s.log = testLogger(t)
 	mux := http.NewServeMux()
 	s.routes(mux)
@@ -354,7 +354,7 @@ func TestTaskDetailXSS(t *testing.T) {
 	tv := &f.Tasks[0]
 	tv.Title = `<img src=x onerror=alert(1)>`
 	tv.Description = "texto <script>alert('xss')</script> e [clique](javascript:alert(1))\n\n<iframe src=//evil></iframe>"
-	f.Comments = append(f.Comments, domain.Comment{ID: domain.NewID(), TaskID: tv.ID, Author: domain.HumanActor, Body: `<script>alert("c")</script> **ok**`, CreatedAt: time.Now()})
+	f.Comments = append(f.Comments, domain.Comment{ID: domain.NewID(), TaskID: tv.ID, Author: domain.HumanActor, Body: `<script>alert("c")</script> **ok**`, CreatedAt: uitest.Now()})
 	e := newEnv(t, f)
 	rec := e.get(t, "/c/hanko/tasks/HNK-221")
 	wantStatus(t, rec, http.StatusOK)
@@ -831,7 +831,7 @@ func TestPersonaControls(t *testing.T) {
 		f := uitest.Sample()
 		mika := personaOf(f, "mika")
 		mika.Status = domain.PersonaError
-		at := time.Now().UTC()
+		at := uitest.Now()
 		f.Health = map[domain.ID]service.PersonaHealth{mika.ID: {LastError: "limite de uso atingido", LastErrorAt: &at, ConsecutiveFailures: 3}}
 		e := newEnv(t, f)
 		rec := e.get(t, "/c/hanko/personas/mika")

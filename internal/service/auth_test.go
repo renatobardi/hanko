@@ -69,7 +69,12 @@ func TestCreateOwnerRace(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, err := e.svc.CreateOwner(context.Background(), "x"+string(rune('a'+i))+"@x.com", "N", goodPass)
+			var err error
+			for try := 0; try < 20; try++ { // cliente real repete no 503 (ErrBusy): o semáforo do argon2id lota sob -race
+				if _, err = e.svc.CreateOwner(context.Background(), "x"+string(rune('a'+i))+"@x.com", "N", goodPass); !errors.Is(err, auth.ErrBusy) {
+					break
+				}
+			}
 			mu.Lock()
 			defer mu.Unlock()
 			switch {

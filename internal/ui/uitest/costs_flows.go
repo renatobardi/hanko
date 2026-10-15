@@ -45,7 +45,7 @@ func (f *Fake) CostSummary(_ context.Context, _ domain.ID, in service.CostFilter
 	}
 	from, to := in.From, in.To
 	if from.IsZero() || to.IsZero() {
-		n := time.Now().In(loc)
+		n := Now().In(loc)
 		from = time.Date(n.Year(), n.Month(), 1, 0, 0, 0, 0, loc)
 		to = from.AddDate(0, 1, 0)
 	}
@@ -126,7 +126,7 @@ func (f *Fake) CostSummary(_ context.Context, _ domain.ID, in service.CostFilter
 			if !ok {
 				r = service.CostRow{Key: k, Label: k}
 			}
-			if len(f.Subs) > 0 && !d.After(time.Now().In(loc)) {
+			if len(f.Subs) > 0 && !d.After(Now().In(loc)) {
 				daily := 0.0
 				for _, s := range f.Subs {
 					daily += s.MonthlyUSD / float64(time.Date(d.Year(), d.Month()+1, 0, 0, 0, 0, 0, loc).Day())
@@ -150,7 +150,7 @@ func (f *Fake) CostSummary(_ context.Context, _ domain.ID, in service.CostFilter
 
 func (f *Fake) monthSpend(personaID *domain.ID) float64 {
 	loc := f.companyTZ()
-	n := time.Now().In(loc)
+	n := Now().In(loc)
 	from := time.Date(n.Year(), n.Month(), 1, 0, 0, 0, 0, loc)
 	var sum float64
 	for _, e := range f.Ledger {
@@ -263,7 +263,7 @@ func (f *Fake) CreateFlow(_ context.Context, _ domain.Actor, companyID domain.ID
 	if tz == "" {
 		tz = f.Companies[0].Timezone
 	}
-	next, err := service.NextCron(in.Cron, tz, time.Now())
+	next, err := service.NextCron(in.Cron, tz, Now())
 	if err != nil {
 		return service.FlowView{}, err
 	}
@@ -281,7 +281,7 @@ func (f *Fake) CreateFlow(_ context.Context, _ domain.Actor, companyID domain.ID
 	if prio == "" {
 		prio = domain.PriorityMedium
 	}
-	now := time.Now().UTC()
+	now := Now()
 	fl := domain.Flow{ID: domain.NewID(), CompanyID: companyID, Slug: slug, Name: in.Name, Description: in.Description, Cron: in.Cron, Timezone: tz,
 		Enabled: enabled, PersonaID: in.PersonaID, ProjectID: in.ProjectID, Priority: prio, TaskTitle: in.TaskTitle, TaskDescription: in.TaskDescription,
 		NextFireAt: &next, CreatedAt: now, UpdatedAt: now}
@@ -307,7 +307,7 @@ func (f *Fake) UpdateFlow(_ context.Context, _ domain.Actor, _, flowID domain.ID
 			if in.Timezone != nil {
 				tz = *in.Timezone
 			}
-			next, err := service.NextCron(*in.Cron, tz, time.Now())
+			next, err := service.NextCron(*in.Cron, tz, Now())
 			if err != nil {
 				return service.FlowView{}, err
 			}
@@ -381,7 +381,7 @@ func (f *Fake) RunFlowNow(_ context.Context, _ domain.Actor, companyID, flowID d
 		if v.ID != flowID {
 			continue
 		}
-		now := time.Now().UTC().Truncate(time.Minute)
+		now := Now().Truncate(time.Minute)
 		f.nextTask++
 		key := domain.TaskKey("HNK", f.nextTask)
 		t := domain.Task{ID: ID("task:" + key), CompanyID: companyID, Number: f.nextTask, Key: key, Title: v.Name, Status: domain.TaskTodo,
@@ -420,7 +420,7 @@ func (f *Fake) CreateSubscription(_ context.Context, _ domain.Actor, companyID d
 	if strings.TrimSpace(in.Name) == "" {
 		return domain.Subscription{}, domain.Invalid("name", "required")
 	}
-	now := time.Now().UTC()
+	now := Now()
 	sub := domain.Subscription{ID: ID("sub:" + in.Name), CompanyID: companyID, Name: in.Name, Agent: in.Agent, MonthlyUSD: in.MonthlyUSD,
 		ModelPrefixes: in.ModelPrefixes, WeeklyLimitUSD: in.WeeklyLimitUSD, WeeklyGuardPct: in.WeeklyGuardPct, Active: !in.Inactive,
 		CreatedAt: now, UpdatedAt: now}

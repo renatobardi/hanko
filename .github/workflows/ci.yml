@@ -50,7 +50,7 @@ jobs:
       - name: test
         run: go test -race ./...
       - name: test (integration)
-        run: go test -race -tags integration ./...
+        run: go test -race -p 1 -tags integration ./... # pacotes em série: todos resetam o schema do mesmo banco
       - name: build
         run: make build VERSION=ci
 
