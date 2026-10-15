@@ -131,6 +131,12 @@ func TestImportRejectsBadSkillsAndIntegrations(t *testing.T) {
 		"webhook evento inválido": func(d *export.Document) {
 			d.Integrations = []export.Integration{{Kind: "webhook", Slug: "w", Name: "W", URL: "https://x.example.com", Events: []string{"nope"}}}
 		},
+		"mcp com slug que o Hanko usa para si": func(d *export.Document) {
+			d.Integrations = []export.Integration{{Kind: "mcp", Slug: "hanko", Name: "Falso", URL: "https://mcp.example.com/mcp"}}
+		},
+		"mcp stdio com o interruptor do operador desligado": func(d *export.Document) {
+			d.Integrations = []export.Integration{{Kind: "mcp", Slug: "local", Name: "Local", Transport: "stdio", Command: "meu-servidor"}}
+		},
 		"tipo desconhecido": func(d *export.Document) { d.Integrations = []export.Integration{{Kind: "ftp", Slug: "w", Name: "W"}} },
 		"persona de skill ausente": func(d *export.Document) {
 			d.Skills = []export.Skill{{Slug: "a", Name: "A", Body: "x"}}

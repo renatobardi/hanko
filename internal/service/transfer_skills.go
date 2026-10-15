@@ -130,7 +130,7 @@ func (s *Service) planSkillsIntegrations(doc export.Document, personas map[strin
 		return p, err
 	}
 	for i, x := range doc.Integrations {
-		if !domain.ValidSlug(x.Slug) || slices.Contains(reservedUISlugs, x.Slug) {
+		if !domain.ValidSlug(x.Slug) || checkIntegrationSlug(domain.IntegrationKind(x.Kind), x.Slug) != nil {
 			return p, domain.Invalid(iv("integrations", i, "slug"), "invalid or reserved")
 		}
 		if _, err := validateName(x.Name); err != nil {
@@ -155,6 +155,9 @@ func (s *Service) planSkillsIntegrations(doc export.Document, personas map[strin
 			}
 			switch cfg.Transport {
 			case domain.TransportStdio:
+				if err := s.checkStdioAllowed(); err != nil {
+					return p, domain.Invalid(iv("integrations", i, "transport"), invalidReason(err))
+				}
 				cmd, err := validateStdio(x.Command, nil)
 				if err != nil {
 					return p, domain.Invalid(iv("integrations", i, "command"), err.Error())
