@@ -1,11 +1,13 @@
 package ui
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strconv"
 
 	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/i18n"
 	"github.com/renatobardi/hanko/internal/service"
 	"github.com/renatobardi/hanko/internal/ui/views"
 )
@@ -48,23 +50,23 @@ func (s *server) handlePersonas(w http.ResponseWriter, r *http.Request, co domai
 		}
 		title := p.Title
 		if p.ReportsTo != nil && nameOf[*p.ReportsTo] != "" {
-			title += " · reporta a " + nameOf[*p.ReportsTo]
+			title += " · " + i18n.Tf(ctx, "reporta a %s", nameOf[*p.ReportsTo])
 		}
 		vm.Rows = append(vm.Rows, views.PersonaRow{
 			Name: p.Name, Initials: initialsOf(p.Name), Title: title, Href: base + "/personas/" + p.Slug,
-			Badge: personaBadge(p.Status), Agent: p.Agent, Model: p.Model, OpenTasks: open[p.ID], Heartbeat: heartbeatLabel(p.HeartbeatIntervalSec),
+			Badge: personaBadge(ctx, p.Status), Agent: p.Agent, Model: p.Model, OpenTasks: open[p.ID], Heartbeat: heartbeatLabelCtx(ctx, p.HeartbeatIntervalSec),
 		})
 	}
 	switch len(personas) {
 	case 0:
-		vm.Subtitle = "Nenhuma persona ainda · qualquer harness, qualquer modelo. Se é acordada para trabalhar, está contratada."
+		vm.Subtitle = i18n.T(ctx, "Nenhuma persona ainda · qualquer harness, qualquer modelo. Se é acordada para trabalhar, está contratada.")
 	case 1:
-		vm.Subtitle = "1 persona · qualquer harness, qualquer modelo. Se é acordada para trabalhar, está contratada."
+		vm.Subtitle = i18n.T(ctx, "1 persona · qualquer harness, qualquer modelo. Se é acordada para trabalhar, está contratada.")
 	default:
-		vm.Subtitle = fmtInt(len(personas)) + " personas · qualquer harness, qualquer modelo. Se é acordada para trabalhar, está contratada."
+		vm.Subtitle = i18n.Tf(ctx, "%d personas · qualquer harness, qualquer modelo. Se é acordada para trabalhar, está contratada.", len(personas))
 	}
-	sh := s.shell(co, "personas", "Personas", views.Crumb{Label: "Personas"})
-	sh.Action = &views.Action{Label: "Contratar persona", Href: base + "/personas/nova", Icon: "plus"}
+	sh := s.shell(co, "personas", i18n.T(ctx, "Personas"), views.Crumb{Label: i18n.T(ctx, "Personas")})
+	sh.Action = &views.Action{Label: i18n.T(ctx, "Contratar persona"), Href: base + "/personas/nova", Icon: "plus"}
 	s.render(w, r, http.StatusOK, views.PersonasPage(sh, vm))
 }
 
@@ -78,10 +80,11 @@ func (s *server) renderHire(w http.ResponseWriter, r *http.Request, co domain.Co
 		if id, err := domain.ParseID(trimForm(r, "reports_to")); err == nil {
 			sel = &id
 		}
-		vm.ReportsTo = reportsOptions(personas, nil, sel)
+		vm.ReportsTo = reportsOptions(r.Context(), personas, nil, sel)
 	}
 	base := "/c/" + co.Slug
-	sh := s.shell(co, "personas", "Contratar persona", views.Crumb{Label: "Personas", Href: base + "/personas"}, views.Crumb{Label: "Contratar"})
+	ctx := r.Context()
+	sh := s.shell(co, "personas", i18n.T(ctx, "Contratar persona"), views.Crumb{Label: i18n.T(ctx, "Personas"), Href: base + "/personas"}, views.Crumb{Label: i18n.T(ctx, "Contratar")})
 	s.render(w, r, status, views.HirePersonaPage(sh, vm))
 }
 
@@ -91,12 +94,13 @@ func (s *server) handleHirePersona(w http.ResponseWriter, r *http.Request, co do
 		Instructions: r.PostFormValue("instructions"), Heartbeat: trimForm(r, "heartbeat"), FieldErr: map[string]string{},
 		RequireReview: r.PostFormValue("require_review") != "",
 	}
+	ctx := r.Context()
 	var reportsTo *domain.ID
 	if v := trimForm(r, "reports_to"); v != "" {
 		id, err := domain.ParseID(v)
 		if err != nil {
-			vm.FieldErr["reports_to"] = "Superior inválido."
-			vm.Error = "Superior inválido."
+			vm.FieldErr["reports_to"] = i18n.T(ctx, "Superior inválido.")
+			vm.Error = i18n.T(ctx, "Superior inválido.")
 			s.renderHire(w, r, co, http.StatusUnprocessableEntity, vm)
 			return
 		}
@@ -111,20 +115,20 @@ func (s *server) handleHirePersona(w http.ResponseWriter, r *http.Request, co do
 		s.renderHire(w, r, co, http.StatusUnprocessableEntity, vm)
 	}
 	if vm.Name == "" {
-		bad("name", "Dê um nome à persona.")
+		bad("name", i18n.T(ctx, "Dê um nome à persona."))
 		return
 	}
 	switch vm.Agent {
 	case "claude", "codex", "fake":
 	default:
-		bad("agent", "Harness desconhecido: use claude, codex ou fake.")
+		bad("agent", i18n.T(ctx, "Harness desconhecido: use claude, codex ou fake."))
 		return
 	}
 	minutes := 15
 	if vm.Heartbeat != "" {
 		n, err := strconv.Atoi(vm.Heartbeat)
 		if err != nil || n < 0 || n > 1440 {
-			bad("heartbeat", "O intervalo de verificação deve ser um número de minutos entre 0 e 1440.")
+			bad("heartbeat", i18n.T(ctx, "O intervalo de verificação deve ser um número de minutos entre 0 e 1440."))
 			return
 		}
 		minutes = n
@@ -134,7 +138,7 @@ func (s *server) handleHirePersona(w http.ResponseWriter, r *http.Request, co do
 		Agent: vm.Agent, Model: vm.Model, HeartbeatIntervalSec: minutes * 60, ReportsTo: reportsTo, RequireReview: vm.RequireReview,
 	})
 	if err != nil {
-		_, title, msg := friendly(err)
+		_, title, msg := friendly(ctx, err)
 		vm.Error = title + ". " + msg
 		s.renderHire(w, r, co, statusFor(err), vm)
 		return
@@ -168,10 +172,10 @@ func (s *server) handlePersona(w http.ResponseWriter, r *http.Request, co domain
 		return
 	}
 	vm := views.PersonaVM{
-		Notice: personaNotices[r.URL.Query().Get("ok")], Controls: personaControls(p, base),
-		Name: p.Name, Initials: initialsOf(p.Name), Title: p.Title, Badge: personaBadge(p.Status),
-		Agent: p.Agent, Model: p.Model, Heartbeat: heartbeatLabel(p.HeartbeatIntervalSec), Instructions: p.Instructions,
-		Hired: fmtDateTime(p.CreatedAt, loc), Slug: p.Slug,
+		Notice: i18n.T(ctx, personaNotices[r.URL.Query().Get("ok")]), Controls: personaControls(ctx, p, base),
+		Name: p.Name, Initials: initialsOf(p.Name), Title: p.Title, Badge: personaBadge(ctx, p.Status),
+		Agent: p.Agent, Model: p.Model, Heartbeat: heartbeatLabelCtx(ctx, p.HeartbeatIntervalSec), Instructions: p.Instructions,
+		Hired: fmtDateTime(ctx, p.CreatedAt, loc), Slug: p.Slug,
 		RequireReview: p.RequireReview, OrgAction: base + "/personas/" + p.Slug + "/organizacao",
 	}
 	all, err := s.be.ListPersonas(ctx, co.ID)
@@ -179,9 +183,9 @@ func (s *server) handlePersona(w http.ResponseWriter, r *http.Request, co domain
 		s.fail(w, r, &co, err)
 		return
 	}
-	vm.OrgOptions = reportsOptions(all, &p, p.ReportsTo)
+	vm.OrgOptions = reportsOptions(ctx, all, &p, p.ReportsTo)
 	vm.SubAction = base + "/personas/" + p.Slug + "/assinatura"
-	vm.SubOptions = []views.Option{{Value: "", Label: "Sem assinatura", Selected: p.SubscriptionID == nil}}
+	vm.SubOptions = []views.Option{{Value: "", Label: i18n.T(ctx, "Sem assinatura"), Selected: p.SubscriptionID == nil}}
 	if subs, err := s.be.ListSubscriptions(ctx, co.ID); err == nil {
 		for _, sub := range subs {
 			isCur := p.SubscriptionID != nil && *p.SubscriptionID == sub.ID
@@ -205,34 +209,34 @@ func (s *server) handlePersona(w http.ResponseWriter, r *http.Request, co domain
 	if health.LastError != "" && (p.Status == domain.PersonaError || health.ConsecutiveFailures > 0) {
 		vm.LastError, vm.Failures = health.LastError, health.ConsecutiveFailures
 		if health.LastErrorAt != nil {
-			vm.LastErrorAt = fmtDateTime(*health.LastErrorAt, loc)
+			vm.LastErrorAt = fmtDateTime(ctx, *health.LastErrorAt, loc)
 		}
 	}
 	if pb, err := s.be.PersonaBudget(ctx, co.ID, p.ID); err == nil {
-		b := budgetBox("Orçamento do mês", pb, base+"/personas/"+p.Slug+"/orcamento", base+"/custos")
+		b := budgetBox(ctx, i18n.T(ctx, "Orçamento do mês"), pb, base+"/personas/"+p.Slug+"/orcamento", base+"/custos")
 		if pb.State == service.BudgetExceeded {
-			b.StateText = "Limite atingido: a persona foi pausada, não abre execuções novas e volta sozinha quando o limite subir ou o mês virar."
+			b.StateText = i18n.T(ctx, "Limite atingido: a persona foi pausada, não abre execuções novas e volta sozinha quando o limite subir ou o mês virar.")
 		}
 		vm.Budget = &b
 	}
 	for _, t := range tasks {
-		vm.Tasks = append(vm.Tasks, taskRow(t, base, now, loc))
+		vm.Tasks = append(vm.Tasks, taskRow(ctx, t, base, now, loc))
 	}
 	for _, rv := range runs {
-		vm.Runs = append(vm.Runs, runRow(rv, base, now, loc))
+		vm.Runs = append(vm.Runs, runRow(ctx, rv, base, now, loc))
 	}
-	sh := s.shell(co, "personas", p.Name, views.Crumb{Label: "Personas", Href: base + "/personas"}, views.Crumb{Label: p.Name})
-	sh.Action = &views.Action{Label: "Nova task", Href: base + "/tasks/nova?persona=" + p.ID.String(), Icon: "plus"}
+	sh := s.shell(co, "personas", p.Name, views.Crumb{Label: i18n.T(ctx, "Personas"), Href: base + "/personas"}, views.Crumb{Label: p.Name})
+	sh.Action = &views.Action{Label: i18n.T(ctx, "Nova task"), Href: base + "/tasks/nova?persona=" + p.ID.String(), Icon: "plus"}
 	s.render(w, r, http.StatusOK, views.PersonaPage(sh, vm))
 }
 
 var personaNotices = map[string]string{
-	"pausada":     "Persona pausada: ela não será mais acordada.",
-	"retomada":    "Persona retomada.",
-	"reativada":   "Persona reativada: volta a ser acordada normalmente.",
-	"organizacao": "Organização atualizada.",
-	"orcamento":   "Orçamento da persona atualizado.",
-	"assinatura":  "Assinatura da persona atualizada.",
+	"pausada":     i18n.N("Persona pausada: ela não será mais acordada."),
+	"retomada":    i18n.N("Persona retomada."),
+	"reativada":   i18n.N("Persona reativada: volta a ser acordada normalmente."),
+	"organizacao": i18n.N("Organização atualizada."),
+	"orcamento":   i18n.N("Orçamento da persona atualizado."),
+	"assinatura":  i18n.N("Assinatura da persona atualizada."),
 }
 
 // handlePersonaOrg changes who the persona reports to and whether its work needs review.
@@ -250,7 +254,7 @@ func (s *server) handlePersonaOrg(w http.ResponseWriter, r *http.Request, co dom
 	default:
 		id, err := domain.ParseID(v)
 		if err != nil {
-			s.fail(w, r, &co, domain.Invalid("reporta a", "persona inválida"))
+			s.fail(w, r, &co, domain.Invalid(i18n.T(ctx, "reporta a"), i18n.T(ctx, "persona inválida")))
 			return
 		}
 		if p.ReportsTo == nil || *p.ReportsTo != id {
@@ -283,7 +287,7 @@ func (s *server) handlePersonaSubscription(w http.ResponseWriter, r *http.Reques
 	} else {
 		id, err := domain.ParseID(v)
 		if err != nil {
-			s.fail(w, r, &co, domain.Invalid("assinatura", "assinatura inválida"))
+			s.fail(w, r, &co, domain.Invalid(i18n.T(ctx, "assinatura"), i18n.T(ctx, "assinatura inválida")))
 			return
 		}
 		in.SubscriptionID = &id
@@ -296,15 +300,15 @@ func (s *server) handlePersonaSubscription(w http.ResponseWriter, r *http.Reques
 }
 
 // personaControls lists the actions that make sense for the persona's current status.
-func personaControls(p domain.Persona, base string) []views.PersonaControl {
+func personaControls(ctx context.Context, p domain.Persona, base string) []views.PersonaControl {
 	href := func(action string) string { return base + "/personas/" + p.Slug + "/" + action }
 	switch p.Status {
 	case domain.PersonaError:
-		return []views.PersonaControl{{Label: "Reativar", Href: href("reativar"), Icon: "zap", Hint: "Zera as falhas e volta a acordar a persona"}}
+		return []views.PersonaControl{{Label: i18n.T(ctx, "Reativar"), Href: href("reativar"), Icon: "zap", Hint: i18n.T(ctx, "Zera as falhas e volta a acordar a persona")}}
 	case domain.PersonaPaused, domain.PersonaOff:
-		return []views.PersonaControl{{Label: "Retomar", Href: href("retomar"), Icon: "play", Hint: "Volta a acordar a persona"}}
+		return []views.PersonaControl{{Label: i18n.T(ctx, "Retomar"), Href: href("retomar"), Icon: "play", Hint: i18n.T(ctx, "Volta a acordar a persona")}}
 	case domain.PersonaActive, domain.PersonaIdle, domain.PersonaRunning:
-		return []views.PersonaControl{{Label: "Pausar", Href: href("pausar"), Icon: "alert", Hint: "Para de acordar a persona"}}
+		return []views.PersonaControl{{Label: i18n.T(ctx, "Pausar"), Href: href("pausar"), Icon: "alert", Hint: i18n.T(ctx, "Para de acordar a persona")}}
 	}
 	return nil
 }
@@ -319,7 +323,7 @@ func (s *server) handlePersonaControl(to domain.PersonaStatus, notice string) co
 			s.fail(w, r, &co, err)
 			return
 		}
-		if len(personaControls(p, "")) == 0 || p.Status == to {
+		if len(personaControls(ctx, p, "")) == 0 || p.Status == to {
 			s.fail(w, r, &co, fmt.Errorf("persona %q já está %s: %w", p.Name, p.Status, domain.ErrConflict))
 			return
 		}

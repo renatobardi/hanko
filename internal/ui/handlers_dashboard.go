@@ -5,6 +5,7 @@ import (
 	"sort"
 
 	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/i18n"
 	"github.com/renatobardi/hanko/internal/service"
 	"github.com/renatobardi/hanko/internal/ui/views"
 )
@@ -49,25 +50,25 @@ func (s *server) handleDashboard(w http.ResponseWriter, r *http.Request, co doma
 	vm := views.DashboardVM{
 		ActivePersonas:  stats.ActivePersonas,
 		TasksInProgress: stats.TasksInProgress,
-		MonthCost:       fmtUSD(stats.MonthCostUSD),
+		MonthCost:       fmtUSDCtx(ctx, stats.MonthCostUSD),
 		PendingGates:    stats.PendingGates,
 		HasPersonas:     len(personas) > 0,
 		OpenTasks:       stats.OpenTasks,
-		Gates:           gateRows(pending, base, now, loc, names),
-		Notice:          gateNotices[r.URL.Query().Get("ok")],
+		Gates:           gateRows(ctx, pending, base, now, loc, names),
+		Notice:          i18n.T(ctx, gateNotices[r.URL.Query().Get("ok")]),
 	}
 	if stats.MonthBudgetCents != nil {
-		b := budgetBox("Orçamento do mês", service.BudgetStatus{BudgetCents: stats.MonthBudgetCents, SpentUSD: stats.MonthCostUSD,
+		b := budgetBox(ctx, i18n.T(ctx, "Orçamento do mês"), service.BudgetStatus{BudgetCents: stats.MonthBudgetCents, SpentUSD: stats.MonthCostUSD,
 			Percent: stats.BudgetPercent, State: stats.BudgetState}, "", "")
 		vm.Budget = &b
 	}
 	switch {
 	case stats.RunningRuns == 1:
-		vm.Subtitle = co.Name + " · 1 execução em andamento."
+		vm.Subtitle = co.Name + " · " + i18n.T(ctx, "1 execução em andamento.")
 	case stats.RunningRuns > 1:
-		vm.Subtitle = co.Name + " · " + fmtInt(stats.RunningRuns) + " execuções em andamento."
+		vm.Subtitle = co.Name + " · " + i18n.Tf(ctx, "%d execuções em andamento.", stats.RunningRuns)
 	default:
-		vm.Subtitle = co.Name + " · nada está rodando agora."
+		vm.Subtitle = co.Name + " · " + i18n.T(ctx, "nada está rodando agora.")
 	}
 
 	// first steps: done flags derived from what exists
@@ -80,11 +81,11 @@ func (s *server) handleDashboard(w http.ResponseWriter, r *http.Request, co doma
 		}
 	}
 	steps := []views.Step{
-		{Label: "Criar a empresa", Done: true},
-		{Label: "Contratar a primeira persona", Done: len(personas) > 0, Href: base + "/personas/nova"},
-		{Label: "Criar a primeira task", Done: hasTask, Href: base + "/tasks/nova"},
-		{Label: "Atribuir a task e ver a execução", Done: hasRun, Href: base + "/tasks"},
-		{Label: "Revisar o resultado e comentar na task", Done: reviewed, Href: base + "/tasks"},
+		{Label: i18n.T(ctx, "Criar a empresa"), Done: true},
+		{Label: i18n.T(ctx, "Contratar a primeira persona"), Done: len(personas) > 0, Href: base + "/personas/nova"},
+		{Label: i18n.T(ctx, "Criar a primeira task"), Done: hasTask, Href: base + "/tasks/nova"},
+		{Label: i18n.T(ctx, "Atribuir a task e ver a execução"), Done: hasRun, Href: base + "/tasks"},
+		{Label: i18n.T(ctx, "Revisar o resultado e comentar na task"), Done: reviewed, Href: base + "/tasks"},
 	}
 	firstUndone := true
 	for i := range steps {
@@ -114,11 +115,11 @@ func (s *server) handleDashboard(w http.ResponseWriter, r *http.Request, co doma
 		if counts[st] == 0 {
 			continue
 		}
-		vm.Bars = append(vm.Bars, views.Bar{Label: taskStatusLabel(st), Class: string(st), Count: counts[st], Pct: counts[st] * 100 / max})
+		vm.Bars = append(vm.Bars, views.Bar{Label: taskStatusLabel(ctx, st), Class: string(st), Count: counts[st], Pct: counts[st] * 100 / max})
 	}
 
 	for _, a := range acts {
-		vm.Activity = append(vm.Activity, s.activityItem(a, base, names, now, loc, true))
+		vm.Activity = append(vm.Activity, s.activityItem(ctx, a, base, names, now, loc, true))
 	}
 
 	recent := append([]service.TaskView(nil), tasks...)
@@ -127,10 +128,10 @@ func (s *server) handleDashboard(w http.ResponseWriter, r *http.Request, co doma
 		recent = recent[:5]
 	}
 	for _, t := range recent {
-		vm.Tasks = append(vm.Tasks, taskRow(t, base, now, loc))
+		vm.Tasks = append(vm.Tasks, taskRow(ctx, t, base, now, loc))
 	}
 
-	sh := s.shell(co, "painel", "Painel", views.Crumb{Label: "Painel"})
-	sh.Action = &views.Action{Label: "Contratar persona", Href: base + "/personas/nova", Icon: "plus"}
+	sh := s.shell(co, "painel", i18n.T(ctx, "Painel"), views.Crumb{Label: i18n.T(ctx, "Painel")})
+	sh.Action = &views.Action{Label: i18n.T(ctx, "Contratar persona"), Href: base + "/personas/nova", Icon: "plus"}
 	s.render(w, r, http.StatusOK, views.DashboardPage(sh, vm))
 }

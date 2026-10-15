@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -9,41 +10,43 @@ import (
 	"time"
 
 	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/i18n"
 	"github.com/renatobardi/hanko/internal/service"
 	"github.com/renatobardi/hanko/internal/ui/views"
 )
 
 var flowNotices = map[string]string{
-	"criado":     "Fluxo criado.",
-	"salvo":      "Fluxo atualizado.",
-	"executado":  "Disparo criado: a task foi atribuída à persona e a execução entra na fila.",
-	"duplicado":  "Já existe um disparo deste fluxo neste minuto; nada novo foi criado.",
-	"ativado":    "Fluxo ativado.",
-	"desativado": "Fluxo desativado: não dispara na agenda até ser ativado de novo.",
+	"criado":     i18n.N("Fluxo criado."),
+	"salvo":      i18n.N("Fluxo atualizado."),
+	"executado":  i18n.N("Disparo criado: a task foi atribuída à persona e a execução entra na fila."),
+	"duplicado":  i18n.N("Já existe um disparo deste fluxo neste minuto; nada novo foi criado."),
+	"ativado":    i18n.N("Fluxo ativado."),
+	"desativado": i18n.N("Fluxo desativado: não dispara na agenda até ser ativado de novo."),
 }
 
-func (s *server) flowRow(f service.FlowView, base string, now time.Time, loc *time.Location) views.FlowRow {
+func (s *server) flowRow(ctx context.Context, f service.FlowView, base string, now time.Time, loc *time.Location) views.FlowRow {
 	fl := base + "/fluxos/" + f.Slug
 	toggle := fl + "/desativar"
 	if !f.Enabled {
 		toggle = fl + "/ativar"
 	}
 	row := views.FlowRow{Name: f.Name, Href: fl, Description: f.Description, Persona: f.PersonaName, Project: f.ProjectName,
-		Schedule: describeCron(f.Cron), Cron: f.Cron, Enabled: f.Enabled, ToggleHref: toggle, RunHref: fl + "/executar", Last: "nunca"}
+		Schedule: describeCronCtx(ctx, f.Cron), Cron: f.Cron, Enabled: f.Enabled, ToggleHref: toggle, RunHref: fl + "/executar", Last: i18n.T(ctx, "nunca")}
 	if row.Schedule == "" {
 		row.Schedule = f.Cron
 	}
 	if f.NextFireAt != nil {
-		row.Next = fmtWhen(*f.NextFireAt, now, loc)
+		row.Next = fmtWhen(ctx, *f.NextFireAt, now, loc)
 	}
 	if f.LastFiredAt != nil {
-		row.Last = ago(*f.LastFiredAt, now, loc)
+		row.Last = agoCtx(ctx, *f.LastFiredAt, now, loc)
 	}
 	return row
 }
 
 func (s *server) handleFlows(w http.ResponseWriter, r *http.Request, co domain.Company) {
-	flows, err := s.be.ListFlows(r.Context(), co.ID)
+	ctx := r.Context()
+	flows, err := s.be.ListFlows(ctx, co.ID)
 	if err != nil {
 		s.fail(w, r, &co, err)
 		return
@@ -51,8 +54,8 @@ func (s *server) handleFlows(w http.ResponseWriter, r *http.Request, co domain.C
 	loc := loadLoc(co.Timezone)
 	now := s.now()
 	base := "/c/" + co.Slug
-	vm := views.FlowsVM{NewHref: base + "/fluxos/novo", Notice: flowNotices[r.URL.Query().Get("ok")], Next: "—", Last: "—",
-		Subtitle: "Trabalho recorrente definido uma vez. Cada disparo vira uma task atribuída à persona, com sua execução."}
+	vm := views.FlowsVM{NewHref: base + "/fluxos/novo", Notice: i18n.T(ctx, flowNotices[r.URL.Query().Get("ok")]), Next: "—", Last: "—",
+		Subtitle: i18n.T(ctx, "Trabalho recorrente definido uma vez. Cada disparo vira uma task atribuída à persona, com sua execução.")}
 	var next, last *time.Time
 	for _, f := range flows {
 		if f.Enabled {
@@ -66,22 +69,22 @@ func (s *server) handleFlows(w http.ResponseWriter, r *http.Request, co domain.C
 		if f.LastFiredAt != nil && (last == nil || f.LastFiredAt.After(*last)) {
 			last = f.LastFiredAt
 		}
-		vm.Rows = append(vm.Rows, s.flowRow(f, base, now, loc))
+		vm.Rows = append(vm.Rows, s.flowRow(ctx, f, base, now, loc))
 	}
 	if next != nil {
-		vm.Next = fmtWhen(*next, now, loc)
+		vm.Next = fmtWhen(ctx, *next, now, loc)
 	}
 	if last != nil {
-		vm.Last = ago(*last, now, loc)
+		vm.Last = agoCtx(ctx, *last, now, loc)
 	}
 	sort.SliceStable(vm.Rows, func(i, j int) bool { return vm.Rows[i].Enabled && !vm.Rows[j].Enabled })
-	sh := s.shell(co, "fluxos", "Fluxos", views.Crumb{Label: "Fluxos"})
+	sh := s.shell(co, "fluxos", i18n.T(ctx, "Fluxos"), views.Crumb{Label: i18n.T(ctx, "Fluxos")})
 	s.render(w, r, http.StatusOK, views.FlowsPage(sh, vm))
 }
 
 func (s *server) projectOptions(r *http.Request, co domain.Company, sel *domain.ID) []views.Option {
 	projects, _ := s.be.ListProjects(r.Context(), co.ID) // optional
-	out := []views.Option{{Value: "", Label: "Nenhum", Selected: sel == nil}}
+	out := []views.Option{{Value: "", Label: i18n.T(r.Context(), "Nenhum"), Selected: sel == nil}}
 	for _, p := range projects {
 		out = append(out, views.Option{Value: p.ID.String(), Label: p.Name, Selected: sel != nil && *sel == p.ID})
 	}
@@ -94,15 +97,26 @@ func (s *server) blankFlowForm(r *http.Request, co domain.Company) (views.FlowFo
 		return views.FlowFormVM{}, err
 	}
 	base := "/c/" + co.Slug
+	ctx := r.Context()
 	vm := views.FlowFormVM{
 		Action: base + "/fluxos/novo", CancelHref: base + "/fluxos", HintHref: base + "/fluxos/cron",
-		Timezone: co.Timezone, Enabled: true, Cron: "0 7 * * 5", FieldErr: map[string]string{}, Presets: cronPresets,
-		PersonaOptions:  personaOptions(personas, nil, "Escolha a persona"),
+		Timezone: co.Timezone, Enabled: true, Cron: "0 7 * * 5", FieldErr: map[string]string{}, Presets: presetOptions(ctx),
+		PersonaOptions:  personaOptions(personas, nil, i18n.T(ctx, "Escolha a persona")),
 		ProjectOptions:  s.projectOptions(r, co, nil),
-		PriorityOptions: priorityOptions(domain.PriorityMedium),
+		PriorityOptions: priorityOptions(ctx, domain.PriorityMedium),
 	}
-	vm.Hint = cronHint(vm.Cron, vm.Timezone, s.now(), loadLoc(co.Timezone))
+	vm.Hint = cronHint(ctx, vm.Cron, vm.Timezone, s.now(), loadLoc(co.Timezone))
 	return vm, nil
+}
+
+// presetOptions are the schedule templates of the flow form, in the language of ctx.
+func presetOptions(ctx context.Context) []views.Option {
+	out := make([]views.Option, len(cronPresets))
+	for i, o := range cronPresets {
+		o.Label = i18n.T(ctx, o.Label)
+		out[i] = o
+	}
+	return out
 }
 
 func (s *server) handleNewFlow(w http.ResponseWriter, r *http.Request, co domain.Company) {
@@ -116,7 +130,8 @@ func (s *server) handleNewFlow(w http.ResponseWriter, r *http.Request, co domain
 
 func (s *server) renderNewFlow(w http.ResponseWriter, r *http.Request, co domain.Company, status int, vm views.FlowFormVM) {
 	base := "/c/" + co.Slug
-	sh := s.shell(co, "fluxos", "Novo fluxo", views.Crumb{Label: "Fluxos", Href: base + "/fluxos"}, views.Crumb{Label: "Novo"})
+	ctx := r.Context()
+	sh := s.shell(co, "fluxos", i18n.T(ctx, "Novo fluxo"), views.Crumb{Label: i18n.T(ctx, "Fluxos"), Href: base + "/fluxos"}, views.Crumb{Label: i18n.T(ctx, "Novo")})
 	s.render(w, r, status, views.NewFlowPage(sh, vm))
 }
 
@@ -134,7 +149,7 @@ func (s *server) flowFormValues(r *http.Request, vm *views.FlowFormVM) {
 	selectOption(vm.PriorityOptions, trimForm(r, "priority"))
 }
 
-func (s *server) flowFormError(vm *views.FlowFormVM, err error) {
+func (s *server) flowFormError(ctx context.Context, vm *views.FlowFormVM, err error) {
 	var ve *domain.ValidationError
 	if errors.As(err, &ve) {
 		field := ve.Field
@@ -145,9 +160,9 @@ func (s *server) flowFormError(vm *views.FlowFormVM, err error) {
 			field = "cron"
 		}
 		msg := map[string]string{
-			"name":    "Dê um nome ao fluxo.",
-			"cron":    "Agenda inválida: use cinco campos (minuto hora dia mês dia-da-semana) e um fuso conhecido.",
-			"persona": "Escolha a persona responsável.",
+			"name":    i18n.T(ctx, "Dê um nome ao fluxo."),
+			"cron":    i18n.T(ctx, "Agenda inválida: use cinco campos (minuto hora dia mês dia-da-semana) e um fuso conhecido."),
+			"persona": i18n.T(ctx, "Escolha a persona responsável."),
 		}[field]
 		if msg == "" {
 			msg = ve.Field + ": " + ve.Reason + "."
@@ -156,7 +171,7 @@ func (s *server) flowFormError(vm *views.FlowFormVM, err error) {
 		vm.Error = msg
 		return
 	}
-	_, title, msg := friendly(err)
+	_, title, msg := friendly(ctx, err)
 	vm.Error = title + ". " + msg
 }
 
@@ -178,19 +193,19 @@ func (s *server) handleCreateFlow(w http.ResponseWriter, r *http.Request, co dom
 		return
 	}
 	s.flowFormValues(r, &vm)
-	vm.Hint = cronHint(vm.Cron, vm.Timezone, s.now(), loadLoc(co.Timezone))
+	vm.Hint = cronHint(r.Context(), vm.Cron, vm.Timezone, s.now(), loadLoc(co.Timezone))
 	bad := func(err error) {
-		s.flowFormError(&vm, err)
+		s.flowFormError(r.Context(), &vm, err)
 		s.renderNewFlow(w, r, co, statusFor(err), vm)
 	}
 	persona, ok := parseID(trimForm(r, "persona"))
 	if !ok || persona == nil {
-		bad(domain.Invalid("persona", "obrigatória"))
+		bad(domain.Invalid("persona", i18n.T(r.Context(), "obrigatória")))
 		return
 	}
 	project, ok := parseID(trimForm(r, "project"))
 	if !ok {
-		bad(domain.Invalid("project", "inválido"))
+		bad(domain.Invalid("project", i18n.T(r.Context(), "inválido")))
 		return
 	}
 	enabled := vm.Enabled
@@ -211,7 +226,7 @@ func (s *server) handleCronHint(w http.ResponseWriter, r *http.Request, co domai
 	if tz == "" {
 		tz = co.Timezone
 	}
-	s.render(w, r, http.StatusOK, views.CronHint(cronHint(r.URL.Query().Get("cron"), tz, s.now(), loadLoc(co.Timezone))))
+	s.render(w, r, http.StatusOK, views.CronHint(cronHint(r.Context(), r.URL.Query().Get("cron"), tz, s.now(), loadLoc(co.Timezone))))
 }
 
 func (s *server) buildFlowVM(r *http.Request, co domain.Company, f service.FlowView) (views.FlowVM, error) {
@@ -227,38 +242,38 @@ func (s *server) buildFlowVM(r *http.Request, co domain.Company, f service.FlowV
 	base := "/c/" + co.Slug
 	loc := loadLoc(co.Timezone)
 	now := s.now()
-	row := s.flowRow(f, base, now, loc)
+	row := s.flowRow(ctx, f, base, now, loc)
 	vm := views.FlowVM{
 		Name: f.Name, Enabled: f.Enabled, ToggleHref: row.ToggleHref + "?de=detalhe", RunHref: row.RunHref,
 		Schedule: row.Schedule, Cron: f.Cron, Timezone: f.Timezone, Next: "—", Last: row.Last, Fired: len(fires),
-		Notice: flowNotices[r.URL.Query().Get("ok")],
+		Notice: i18n.T(ctx, flowNotices[r.URL.Query().Get("ok")]),
 	}
 	if f.Enabled {
-		vm.Badge = views.Badge{Label: "Ativo", Class: "run"}
+		vm.Badge = views.Badge{Label: i18n.T(ctx, "Ativo"), Class: "run"}
 		vm.Next = row.Next
 	} else {
-		vm.Badge = views.Badge{Label: "Desativado", Class: "soft"}
+		vm.Badge = views.Badge{Label: i18n.T(ctx, "Desativado"), Class: "soft"}
 	}
-	meta := "responsável " + f.PersonaName
+	meta := i18n.T(ctx, "responsável") + " " + f.PersonaName
 	if f.ProjectName != "" {
-		meta = "projeto " + f.ProjectName + " · " + meta
+		meta = i18n.T(ctx, "projeto") + " " + f.ProjectName + " · " + meta
 	}
-	vm.Meta = meta + " · prioridade " + priorityLabel(f.Priority)
+	vm.Meta = meta + " · " + i18n.T(ctx, "prioridade") + " " + priorityLabel(ctx, f.Priority)
 	vm.Form = views.FlowFormVM{
 		Action: base + "/fluxos/" + f.Slug, Edit: true, CancelHref: base + "/fluxos", HintHref: base + "/fluxos/cron",
 		Name: f.Name, Description: f.Description, Cron: f.Cron, Timezone: f.Timezone, Enabled: f.Enabled,
-		TaskTitle: f.TaskTitle, TaskDescription: f.TaskDescription, FieldErr: map[string]string{}, Presets: cronPresets,
-		PersonaOptions:  personaOptions(personas, &f.PersonaID, "Escolha a persona"),
+		TaskTitle: f.TaskTitle, TaskDescription: f.TaskDescription, FieldErr: map[string]string{}, Presets: presetOptions(ctx),
+		PersonaOptions:  personaOptions(personas, &f.PersonaID, i18n.T(ctx, "Escolha a persona")),
 		ProjectOptions:  s.projectOptions(r, co, f.ProjectID),
-		PriorityOptions: priorityOptions(f.Priority),
-		Hint:            cronHint(f.Cron, f.Timezone, now, loc),
+		PriorityOptions: priorityOptions(ctx, f.Priority),
+		Hint:            cronHint(ctx, f.Cron, f.Timezone, now, loc),
 	}
 	for _, fe := range fires {
-		fr := views.FireRow{When: fmtDateTime(fe.ScheduledFor, loc), TaskKey: fe.TaskKey, Title: fe.TaskTitle}
+		fr := views.FireRow{When: fmtDateTime(ctx, fe.ScheduledFor, loc), TaskKey: fe.TaskKey, Title: fe.TaskTitle}
 		if fe.TaskKey != "" {
 			fr.TaskHref = base + "/tasks/" + fe.TaskKey
 			st := domain.TaskStatus(fe.TaskStatus)
-			fr.Badge = views.Badge{Label: taskStatusLabel(st), Class: taskBadge(service.TaskView{Task: domain.Task{Status: st}}).Class}
+			fr.Badge = views.Badge{Label: taskStatusLabel(ctx, st), Class: taskBadge(ctx, service.TaskView{Task: domain.Task{Status: st}}).Class}
 		}
 		vm.Fires = append(vm.Fires, fr)
 	}
@@ -267,7 +282,7 @@ func (s *server) buildFlowVM(r *http.Request, co domain.Company, f service.FlowV
 
 func (s *server) renderFlow(w http.ResponseWriter, r *http.Request, co domain.Company, status int, f service.FlowView, vm views.FlowVM) {
 	base := "/c/" + co.Slug
-	sh := s.shell(co, "fluxos", f.Name, views.Crumb{Label: "Fluxos", Href: base + "/fluxos"}, views.Crumb{Label: f.Name})
+	sh := s.shell(co, "fluxos", f.Name, views.Crumb{Label: i18n.T(r.Context(), "Fluxos"), Href: base + "/fluxos"}, views.Crumb{Label: f.Name})
 	s.render(w, r, status, views.FlowPage(sh, vm))
 }
 
@@ -298,20 +313,20 @@ func (s *server) handleUpdateFlow(w http.ResponseWriter, r *http.Request, co dom
 		return
 	}
 	s.flowFormValues(r, &vm.Form)
-	vm.Form.Hint = cronHint(vm.Form.Cron, vm.Form.Timezone, s.now(), loadLoc(co.Timezone))
+	vm.Form.Hint = cronHint(ctx, vm.Form.Cron, vm.Form.Timezone, s.now(), loadLoc(co.Timezone))
 	vm.Notice = ""
 	bad := func(err error) {
-		s.flowFormError(&vm.Form, err)
+		s.flowFormError(ctx, &vm.Form, err)
 		s.renderFlow(w, r, co, statusFor(err), f, vm)
 	}
 	persona, ok := parseID(trimForm(r, "persona"))
 	if !ok || persona == nil {
-		bad(domain.Invalid("persona", "obrigatória"))
+		bad(domain.Invalid("persona", i18n.T(r.Context(), "obrigatória")))
 		return
 	}
 	project, ok := parseID(trimForm(r, "project"))
 	if !ok {
-		bad(domain.Invalid("project", "inválido"))
+		bad(domain.Invalid("project", i18n.T(r.Context(), "inválido")))
 		return
 	}
 	prio := domain.Priority(trimForm(r, "priority"))

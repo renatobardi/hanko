@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/renatobardi/hanko/internal/i18n"
 	"github.com/renatobardi/hanko/internal/service"
 	"github.com/renatobardi/hanko/internal/ui/views"
 )
@@ -28,13 +29,13 @@ func (s *server) handleOnboarding(w http.ResponseWriter, r *http.Request) {
 func (s *server) handleCreateCompany(w http.ResponseWriter, r *http.Request) {
 	vm := views.OnboardingVM{Name: trimForm(r, "name"), TaskPrefix: strings.ToUpper(trimForm(r, "prefix"))}
 	if vm.Name == "" {
-		vm.Error = "Dê um nome à empresa."
+		vm.Error = i18n.T(r.Context(), "Dê um nome à empresa.")
 		s.render(w, r, http.StatusUnprocessableEntity, views.OnboardingPage(vm, s.version))
 		return
 	}
 	co, err := s.be.CreateCompany(r.Context(), actorFrom(r.Context()), service.CreateCompanyInput{Name: vm.Name, TaskPrefix: vm.TaskPrefix})
 	if err != nil {
-		_, title, msg := friendly(err)
+		_, title, msg := friendly(r.Context(), err)
 		vm.Error = title + ". " + msg
 		s.render(w, r, statusFor(err), views.OnboardingPage(vm, s.version))
 		return

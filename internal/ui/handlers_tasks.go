@@ -1,12 +1,14 @@
 package ui
 
 import (
+	"context"
 	"net/http"
 	"net/url"
 	"sort"
 	"strings"
 
 	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/i18n"
 	"github.com/renatobardi/hanko/internal/service"
 	"github.com/renatobardi/hanko/internal/ui/views"
 )
@@ -17,10 +19,10 @@ type tabDef struct {
 }
 
 var taskTabs = []tabDef{
-	{"ativas", "Ativas", []domain.TaskStatus{domain.TaskTodo, domain.TaskInProgress, domain.TaskInReview, domain.TaskBlocked}},
-	{"backlog", "Backlog", []domain.TaskStatus{domain.TaskBacklog}},
-	{"concluidas", "Concluídas", []domain.TaskStatus{domain.TaskDone, domain.TaskCancelled}},
-	{"todas", "Todas", nil},
+	{"ativas", i18n.N("Ativas"), []domain.TaskStatus{domain.TaskTodo, domain.TaskInProgress, domain.TaskInReview, domain.TaskBlocked}},
+	{"backlog", i18n.N("Backlog"), []domain.TaskStatus{domain.TaskBacklog}},
+	{"concluidas", i18n.N("Concluídas"), []domain.TaskStatus{domain.TaskDone, domain.TaskCancelled}},
+	{"todas", i18n.N("Todas"), nil},
 }
 
 var groupOrder = []domain.TaskStatus{
@@ -29,8 +31,8 @@ var groupOrder = []domain.TaskStatus{
 }
 
 var groupLabel = map[domain.TaskStatus]string{
-	domain.TaskInProgress: "Em andamento", domain.TaskInReview: "Em revisão", domain.TaskBlocked: "Bloqueadas",
-	domain.TaskTodo: "A fazer", domain.TaskBacklog: "Backlog", domain.TaskDone: "Concluídas", domain.TaskCancelled: "Canceladas",
+	domain.TaskInProgress: i18n.N("Em andamento"), domain.TaskInReview: i18n.N("Em revisão"), domain.TaskBlocked: i18n.N("Bloqueadas"),
+	domain.TaskTodo: i18n.N("A fazer"), domain.TaskBacklog: i18n.N("Backlog"), domain.TaskDone: i18n.N("Concluídas"), domain.TaskCancelled: i18n.N("Canceladas"),
 }
 
 func inStatuses(st domain.TaskStatus, list []domain.TaskStatus) bool {
@@ -46,6 +48,7 @@ func inStatuses(st domain.TaskStatus, list []domain.TaskStatus) bool {
 }
 
 func (s *server) handleTasks(w http.ResponseWriter, r *http.Request, co domain.Company) {
+	ctx := r.Context()
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
 	tab := r.URL.Query().Get("aba")
 	cur := taskTabs[0]
@@ -54,7 +57,7 @@ func (s *server) handleTasks(w http.ResponseWriter, r *http.Request, co domain.C
 			cur = t
 		}
 	}
-	all, err := s.be.ListTasks(r.Context(), co.ID, service.TaskFilter{Query: q, Limit: 500})
+	all, err := s.be.ListTasks(ctx, co.ID, service.TaskFilter{Query: q, Limit: 500})
 	if err != nil {
 		s.fail(w, r, &co, err)
 		return
@@ -75,7 +78,7 @@ func (s *server) handleTasks(w http.ResponseWriter, r *http.Request, co domain.C
 		if q != "" {
 			href += "&q=" + url.QueryEscape(q)
 		}
-		vm.Tabs = append(vm.Tabs, views.TabLink{Key: t.key, Label: t.label, Href: href, Count: n, On: t.key == cur.key})
+		vm.Tabs = append(vm.Tabs, views.TabLink{Key: t.key, Label: i18n.T(ctx, t.label), Href: href, Count: n, On: t.key == cur.key})
 	}
 	byStatus := map[domain.TaskStatus][]service.TaskView{}
 	for _, tv := range all {
@@ -90,9 +93,9 @@ func (s *server) handleTasks(w http.ResponseWriter, r *http.Request, co domain.C
 			continue
 		}
 		sort.SliceStable(list, func(i, j int) bool { return list[i].UpdatedAt.After(list[j].UpdatedAt) })
-		g := views.TaskGroup{Label: groupLabel[st], Count: len(list)}
+		g := views.TaskGroup{Label: i18n.T(ctx, groupLabel[st]), Count: len(list)}
 		for _, tv := range list {
-			g.Rows = append(g.Rows, taskRow(tv, base, now, loc))
+			g.Rows = append(g.Rows, taskRow(ctx, tv, base, now, loc))
 		}
 		vm.Groups = append(vm.Groups, g)
 	}
@@ -102,35 +105,35 @@ func (s *server) handleTasks(w http.ResponseWriter, r *http.Request, co domain.C
 			open++
 		}
 	}
-	vm.Subtitle = fmtInt(open) + " abertas · agrupadas por status. Uma task guarda dono, prioridade, histórico e execuções."
+	vm.Subtitle = i18n.Tf(ctx, "%d abertas · agrupadas por status. Uma task guarda dono, prioridade, histórico e execuções.", open)
 
 	if isHX(r) {
 		s.render(w, r, http.StatusOK, views.TaskTable(vm))
 		return
 	}
-	sh := s.shell(co, "tasks", "Tasks", views.Crumb{Label: "Tasks"})
-	sh.Action = &views.Action{Label: "Nova task", Href: base + "/tasks/nova", Icon: "plus"}
+	sh := s.shell(co, "tasks", i18n.T(ctx, "Tasks"), views.Crumb{Label: i18n.T(ctx, "Tasks")})
+	sh.Action = &views.Action{Label: i18n.T(ctx, "Nova task"), Href: base + "/tasks/nova", Icon: "plus"}
 	s.render(w, r, http.StatusOK, views.TasksPage(sh, vm))
 }
 
 // ---------- detail ----------
 
-func statusOptions(sel domain.TaskStatus, only ...domain.TaskStatus) []views.Option {
+func statusOptions(ctx context.Context, sel domain.TaskStatus, only ...domain.TaskStatus) []views.Option {
 	list := []domain.TaskStatus{domain.TaskBacklog, domain.TaskTodo, domain.TaskInProgress, domain.TaskInReview, domain.TaskBlocked, domain.TaskDone, domain.TaskCancelled}
 	if len(only) > 0 {
 		list = only
 	}
 	var out []views.Option
 	for _, st := range list {
-		out = append(out, views.Option{Value: string(st), Label: taskStatusLabel(st), Selected: st == sel})
+		out = append(out, views.Option{Value: string(st), Label: taskStatusLabel(ctx, st), Selected: st == sel})
 	}
 	return out
 }
 
-func priorityOptions(sel domain.Priority) []views.Option {
+func priorityOptions(ctx context.Context, sel domain.Priority) []views.Option {
 	var out []views.Option
 	for _, p := range []domain.Priority{domain.PriorityCritical, domain.PriorityHigh, domain.PriorityMedium, domain.PriorityLow} {
-		out = append(out, views.Option{Value: string(p), Label: priorityLabel(p), Selected: p == sel})
+		out = append(out, views.Option{Value: string(p), Label: priorityLabel(ctx, p), Selected: p == sel})
 	}
 	return out
 }
@@ -144,8 +147,8 @@ func personaOptions(personas []domain.Persona, sel *domain.ID, emptyLabel string
 }
 
 var notices = map[string]string{
-	"acordada":  "Persona acordada: a execução entra na fila.",
-	"criada":    "Task criada.",
+	"acordada":  i18n.N("Persona acordada: a execução entra na fila."),
+	"criada":    i18n.N("Task criada."),
 	"aprovado":  gateNotices["aprovado"],
 	"rejeitado": gateNotices["rejeitado"],
 	"mudancas":  gateNotices["mudancas"],
@@ -176,25 +179,24 @@ func (s *server) buildTaskVM(r *http.Request, co domain.Company, t service.TaskV
 	}
 
 	vm := views.TaskVM{
-		Gates:           gateRows(pending, base, now, loc, names),
+		Gates:           gateRows(ctx, pending, base, now, loc, names),
 		Key:             t.Key,
 		Model:           t.Model,
 		Title:           t.Title,
 		Description:     renderMD(t.Description),
 		HasDescription:  strings.TrimSpace(t.Description) != "",
-		Badge:           taskBadge(t),
+		Badge:           taskBadge(ctx, t),
 		Priority:        string(t.Priority),
-		PriorityLabel:   priorityLabel(t.Priority),
+		PriorityLabel:   priorityLabel(ctx, t.Priority),
 		PersonaName:     t.PersonaName,
 		ProjectName:     t.ProjectName,
-		Created:         ago(t.CreatedAt, now, loc),
-		Updated:         fmtDateTime(t.UpdatedAt, loc),
-		StatusOptions:   statusOptions(t.Status),
-		PriorityOptions: priorityOptions(t.Priority),
-		PersonaOptions:  personaOptions(personas, t.PersonaID, "Sem dono"),
-		Notice:          notices[r.URL.Query().Get("ok")],
+		Updated:         fmtDateTime(ctx, t.UpdatedAt, loc),
+		StatusOptions:   statusOptions(ctx, t.Status),
+		PriorityOptions: priorityOptions(ctx, t.Priority),
+		PersonaOptions:  personaOptions(personas, t.PersonaID, i18n.T(ctx, "Sem dono")),
+		Notice:          i18n.T(ctx, notices[r.URL.Query().Get("ok")]),
 	}
-	vm.Created = fmtDateTime(t.CreatedAt, loc)
+	vm.Created = fmtDateTime(ctx, t.CreatedAt, loc)
 	if t.PersonaID != nil {
 		for _, p := range personas {
 			if p.ID == *t.PersonaID {
@@ -210,7 +212,7 @@ func (s *server) buildTaskVM(r *http.Request, co domain.Company, t service.TaskV
 			Author:   names.actorName(c.Author),
 			Human:    c.Author.Type == domain.ActorHuman,
 			Body:     renderMD(c.Body),
-			When:     fmtDateTime(c.CreatedAt, loc),
+			When:     fmtDateTime(ctx, c.CreatedAt, loc),
 			Initials: initialsOf(names.actorName(c.Author)),
 		}
 		if c.RunID != nil {
@@ -228,7 +230,7 @@ func (s *server) buildTaskVM(r *http.Request, co domain.Company, t service.TaskV
 			Name:   rv.Name,
 			Short:  shortID(rv.ID),
 			Href:   base + "/execucoes/" + rv.ID.String(),
-			Label:  runLabel(rv.Status),
+			Label:  runLabel(ctx, rv.Status),
 			When:   runDuration(rv.Run, now),
 			Dot:    runDot(rv.Status),
 			Active: rv.Status.Active(),
@@ -239,7 +241,7 @@ func (s *server) buildTaskVM(r *http.Request, co domain.Company, t service.TaskV
 		}
 		vm.Runs = append(vm.Runs, mini)
 	}
-	vm.Cost = fmtUSD(cost)
+	vm.Cost = fmtUSDCtx(ctx, cost)
 	return vm, nil
 }
 
@@ -255,7 +257,7 @@ func (s *server) handleTask(w http.ResponseWriter, r *http.Request, co domain.Co
 		return
 	}
 	base := "/c/" + co.Slug
-	sh := s.shell(co, "tasks", t.Key+" · "+t.Title, views.Crumb{Label: "Tasks", Href: base + "/tasks"}, views.Crumb{Label: t.Key})
+	sh := s.shell(co, "tasks", t.Key+" · "+t.Title, views.Crumb{Label: i18n.T(r.Context(), "Tasks"), Href: base + "/tasks"}, views.Crumb{Label: t.Key})
 	sh.Flush = true
 	s.render(w, r, http.StatusOK, views.TaskPage(sh, vm, base))
 }
@@ -272,7 +274,7 @@ func (s *server) handleUpdateTask(w http.ResponseWriter, r *http.Request, co dom
 	if v := trimForm(r, "status"); v != "" && domain.TaskStatus(v) != t.Status {
 		st := domain.TaskStatus(v)
 		if !st.Valid() {
-			s.fail(w, r, &co, domain.Invalid("status", "valor desconhecido"))
+			s.fail(w, r, &co, domain.Invalid("status", i18n.T(ctx, "valor desconhecido")))
 			return
 		}
 		in.Status, changed = &st, true
@@ -280,7 +282,7 @@ func (s *server) handleUpdateTask(w http.ResponseWriter, r *http.Request, co dom
 	if v := trimForm(r, "priority"); v != "" && domain.Priority(v) != t.Priority {
 		p := domain.Priority(v)
 		if !p.Valid() {
-			s.fail(w, r, &co, domain.Invalid("priority", "valor desconhecido"))
+			s.fail(w, r, &co, domain.Invalid("priority", i18n.T(ctx, "valor desconhecido")))
 			return
 		}
 		in.Priority, changed = &p, true
@@ -293,7 +295,7 @@ func (s *server) handleUpdateTask(w http.ResponseWriter, r *http.Request, co dom
 		case v != "":
 			id, err := domain.ParseID(v)
 			if err != nil {
-				s.fail(w, r, &co, domain.Invalid("persona", "id inválido"))
+				s.fail(w, r, &co, domain.Invalid("persona", i18n.T(ctx, "id inválido")))
 				return
 			}
 			if t.PersonaID == nil || *t.PersonaID != id {
@@ -330,7 +332,7 @@ func (s *server) handleComment(w http.ResponseWriter, r *http.Request, co domain
 	}
 	body := strings.TrimSpace(r.PostFormValue("body"))
 	if body == "" {
-		s.fail(w, r, &co, domain.Invalid("comentário", "escreva algo antes de enviar"))
+		s.fail(w, r, &co, domain.Invalid(i18n.T(ctx, "comentário"), i18n.T(ctx, "escreva algo antes de enviar")))
 		return
 	}
 	if _, err := s.be.AddComment(ctx, actorFrom(ctx), co.ID, t.ID, service.AddCommentInput{Body: body}); err != nil {
@@ -371,13 +373,14 @@ func (s *server) newTaskVM(r *http.Request, co domain.Company) (views.NewTaskVM,
 		return views.NewTaskVM{}, err
 	}
 	projects, _ := s.be.ListProjects(r.Context(), co.ID) // optional: the form works without projects
+	ctx := r.Context()
 	vm := views.NewTaskVM{
-		PriorityOptions: priorityOptions(domain.PriorityMedium),
-		StatusOptions:   statusOptions(domain.TaskTodo, domain.TaskBacklog, domain.TaskTodo),
-		PersonaOptions:  personaOptions(personas, nil, "Sem dono (backlog)"),
+		PriorityOptions: priorityOptions(ctx, domain.PriorityMedium),
+		StatusOptions:   statusOptions(ctx, domain.TaskTodo, domain.TaskBacklog, domain.TaskTodo),
+		PersonaOptions:  personaOptions(personas, nil, i18n.T(ctx, "Sem dono (backlog)")),
 		FieldErr:        map[string]string{},
 	}
-	vm.ProjectOptions = []views.Option{{Value: "", Label: "Nenhum", Selected: true}}
+	vm.ProjectOptions = []views.Option{{Value: "", Label: i18n.T(ctx, "Nenhum"), Selected: true}}
 	for _, p := range projects {
 		vm.ProjectOptions = append(vm.ProjectOptions, views.Option{Value: p.ID.String(), Label: p.Name})
 	}
@@ -401,7 +404,8 @@ func (s *server) handleNewTask(w http.ResponseWriter, r *http.Request, co domain
 
 func (s *server) renderNewTask(w http.ResponseWriter, r *http.Request, co domain.Company, status int, vm views.NewTaskVM) {
 	base := "/c/" + co.Slug
-	sh := s.shell(co, "tasks", "Nova task", views.Crumb{Label: "Tasks", Href: base + "/tasks"}, views.Crumb{Label: "Nova"})
+	ctx := r.Context()
+	sh := s.shell(co, "tasks", i18n.T(ctx, "Nova task"), views.Crumb{Label: i18n.T(ctx, "Tasks"), Href: base + "/tasks"}, views.Crumb{Label: i18n.T(ctx, "Nova")})
 	s.render(w, r, status, views.NewTaskPage(sh, vm))
 }
 
@@ -424,21 +428,22 @@ func (s *server) handleCreateTask(w http.ResponseWriter, r *http.Request, co dom
 		prio = domain.PriorityMedium
 	}
 	in.Status, in.Priority = status, prio
-	vm.PriorityOptions = priorityOptions(prio)
-	vm.StatusOptions = statusOptions(status, domain.TaskBacklog, domain.TaskTodo)
+	ctx := r.Context()
+	vm.PriorityOptions = priorityOptions(ctx, prio)
+	vm.StatusOptions = statusOptions(ctx, status, domain.TaskBacklog, domain.TaskTodo)
 	selectOption(vm.PersonaOptions, trimForm(r, "persona"))
 	selectOption(vm.ProjectOptions, trimForm(r, "project"))
 
 	if vm.Title == "" {
-		vm.FieldErr["title"] = "Dê um título à task."
-		vm.Error = "Faltou o título."
+		vm.FieldErr["title"] = i18n.T(ctx, "Dê um título à task.")
+		vm.Error = i18n.T(ctx, "Faltou o título.")
 		s.renderNewTask(w, r, co, http.StatusUnprocessableEntity, vm)
 		return
 	}
 	if v := trimForm(r, "persona"); v != "" {
 		id, err := domain.ParseID(v)
 		if err != nil {
-			vm.Error = "Persona inválida."
+			vm.Error = i18n.T(ctx, "Persona inválida.")
 			s.renderNewTask(w, r, co, http.StatusUnprocessableEntity, vm)
 			return
 		}
@@ -447,7 +452,7 @@ func (s *server) handleCreateTask(w http.ResponseWriter, r *http.Request, co dom
 	if v := trimForm(r, "project"); v != "" {
 		id, err := domain.ParseID(v)
 		if err != nil {
-			vm.Error = "Projeto inválido."
+			vm.Error = i18n.T(ctx, "Projeto inválido.")
 			s.renderNewTask(w, r, co, http.StatusUnprocessableEntity, vm)
 			return
 		}
@@ -455,7 +460,7 @@ func (s *server) handleCreateTask(w http.ResponseWriter, r *http.Request, co dom
 	}
 	t, err := s.be.CreateTask(r.Context(), actorFrom(r.Context()), co.ID, in)
 	if err != nil {
-		_, title, msg := friendly(err)
+		_, title, msg := friendly(ctx, err)
 		vm.Error = title + ". " + msg
 		s.renderNewTask(w, r, co, statusFor(err), vm)
 		return

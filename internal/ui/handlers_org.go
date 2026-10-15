@@ -1,12 +1,14 @@
 package ui
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/i18n"
 	"github.com/renatobardi/hanko/internal/service"
 	"github.com/renatobardi/hanko/internal/ui/views"
 )
@@ -45,6 +47,11 @@ func orgStatusClass(s domain.PersonaStatus) string {
 // layoutOrg places the chart: leaves take consecutive columns, a parent is centred above its
 // children, each depth is a row. Everything is computed here so the template only draws.
 func layoutOrg(chart service.OrgChart, base string) views.OrgVM {
+	return layoutOrgCtx(context.Background(), chart, base)
+}
+
+// layoutOrgCtx is layoutOrg with the status and task counts in the language of ctx.
+func layoutOrgCtx(ctx context.Context, chart service.OrgChart, base string) views.OrgVM {
 	vm := views.OrgVM{Total: chart.Total, HireHref: base + "/personas/nova"}
 	if chart.Total == 0 {
 		return vm
@@ -64,14 +71,14 @@ func layoutOrg(chart service.OrgChart, base string) views.OrgVM {
 			cx = (vm.Nodes[kids[0]].X + vm.Nodes[kids[len(kids)-1]].X + orgCardW) / 2
 		}
 		p := n.Persona
-		status := personaBadge(p.Status).Label
+		status := personaBadge(ctx, p.Status).Label
 		meta := ""
 		switch n.OpenTasks {
 		case 0:
 		case 1:
-			meta = " · 1 task"
+			meta = " · " + i18n.T(ctx, "1 task")
 		default:
-			meta = fmt.Sprintf(" · %d tasks", n.OpenTasks)
+			meta = " · " + i18n.Tf(ctx, "%d tasks", n.OpenTasks)
 		}
 		node := views.OrgNodeVM{
 			X: cx - orgCardW/2, Y: orgPad + n.Depth*(orgCardH+orgGapY), W: orgCardW, H: orgCardH,
@@ -106,22 +113,23 @@ func (s *server) handleOrg(w http.ResponseWriter, r *http.Request, co domain.Com
 		return
 	}
 	base := "/c/" + co.Slug
-	vm := layoutOrg(chart, base)
+	ctx := r.Context()
+	vm := layoutOrgCtx(ctx, chart, base)
 	switch chart.Total {
 	case 0:
-		vm.Subtitle = "Quem reporta a quem. A delegação de tasks segue a árvore."
+		vm.Subtitle = i18n.T(ctx, "Quem reporta a quem. A delegação de tasks segue a árvore.")
 	case 1:
-		vm.Subtitle = "1 persona · quem reporta a quem. A delegação de tasks segue a árvore."
+		vm.Subtitle = i18n.T(ctx, "1 persona · quem reporta a quem. A delegação de tasks segue a árvore.")
 	default:
-		vm.Subtitle = fmt.Sprintf("%d personas em %d níveis · quem reporta a quem. A delegação de tasks segue a árvore.", chart.Total, chart.Depth)
+		vm.Subtitle = i18n.Tf(ctx, "%d personas em %d níveis · quem reporta a quem. A delegação de tasks segue a árvore.", chart.Total, chart.Depth)
 	}
-	sh := s.shell(co, "organograma", "Organograma", views.Crumb{Label: "Organograma"})
+	sh := s.shell(co, "organograma", i18n.T(ctx, "Organograma"), views.Crumb{Label: i18n.T(ctx, "Organograma")})
 	s.render(w, r, http.StatusOK, views.OrgPage(sh, vm))
 }
 
 // reportsOptions lists who a persona can report to: the owner, or any persona that is not the
 // persona itself nor below it (that would close a loop; the service rejects it as well).
-func reportsOptions(personas []domain.Persona, self *domain.Persona, sel *domain.ID) []views.Option {
+func reportsOptions(ctx context.Context, personas []domain.Persona, self *domain.Persona, sel *domain.ID) []views.Option {
 	parents := map[domain.ID]*domain.ID{}
 	for _, p := range personas {
 		parents[p.ID] = p.ReportsTo
@@ -136,7 +144,7 @@ func reportsOptions(personas []domain.Persona, self *domain.Persona, sel *domain
 		}
 		return false
 	}
-	out := []views.Option{{Value: "", Label: "Você (dono)", Selected: sel == nil}}
+	out := []views.Option{{Value: "", Label: i18n.T(ctx, "Você (dono)"), Selected: sel == nil}}
 	for _, p := range personas {
 		if self != nil && (p.ID == self.ID || below(self.ID, p.ID)) {
 			continue

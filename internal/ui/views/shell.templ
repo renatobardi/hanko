@@ -1,9 +1,13 @@
 package views
 
+import (
+	"github.com/renatobardi/hanko/internal/i18n"
+)
+
 // Layout is the application shell: sidebar, topbar with breadcrumb and the primary action.
 templ Layout(sh Shell) {
 	<!DOCTYPE html>
-	<html lang="pt-BR">
+	<html lang={ string(i18n.FromContext(ctx)) }>
 		<head>
 			<meta charset="utf-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1"/>
@@ -23,16 +27,16 @@ templ Layout(sh Shell) {
 						@Mark(22)
 						<span>Hanko</span>
 					</a>
-					<nav class="nav" aria-label="Principal">
+					<nav class="nav" aria-label={ i18n.T(ctx, "Principal") }>
 						for _, g := range Nav {
 							<div class="nav-group">
 								if g.Label != "" {
-									<div class="nav-label">{ g.Label }</div>
+									<div class="nav-label">{ i18n.T(ctx, g.Label) }</div>
 								}
 								for _, it := range g.Items {
 									<a href={ templ.SafeURL(it.Href(sh.Base())) } aria-current?={ it.Key == sh.Active }>
 										@Icon(it.Icon)
-										<span>{ it.Label }</span>
+										<span>{ i18n.T(ctx, it.Label) }</span>
 									</a>
 								}
 							</div>
@@ -43,10 +47,10 @@ templ Layout(sh Shell) {
 				<label class="scrim" for="nav-toggle"></label>
 				<div class="main">
 					<header class="topbar">
-						<label class="icon-btn" for="nav-toggle" title="Alternar menu">
+						<label class="icon-btn" for="nav-toggle" title={ i18n.T(ctx, "Alternar menu") }>
 							@Icon("panel-left")
 						</label>
-						<nav class="crumbs" aria-label="Trilha">
+						<nav class="crumbs" aria-label={ i18n.T(ctx, "Trilha") }>
 							for i, c := range sh.Crumbs {
 								if i > 0 {
 									@Icon("chevron-right")
@@ -81,7 +85,7 @@ templ Layout(sh Shell) {
 // Bare is a centered page without shell (onboarding, errors outside a company).
 templ Bare(title, version string) {
 	<!DOCTYPE html>
-	<html lang="pt-BR">
+	<html lang={ string(i18n.FromContext(ctx)) }>
 		<head>
 			<meta charset="utf-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1"/>
@@ -104,6 +108,7 @@ templ Bare(title, version string) {
 // (authenticated mode) it is a menu with settings and sign-out; in trusted mode it
 // shows the local owner.
 templ sidebarFoot(sh Shell) {
+	@LangSwitch()
 	if u, ok := userFrom(ctx); ok {
 		<details class="usermenu">
 			<summary class="sidebar-foot">
@@ -114,21 +119,46 @@ templ sidebarFoot(sh Shell) {
 			<div class="menu" role="menu">
 				<a href={ templ.SafeURL(sh.Base() + "/configuracoes") } role="menuitem">
 					@Icon("key")
-					<span>Chaves de API</span>
+					<span>{ i18n.T(ctx, "Chaves de API") }</span>
 				</a>
 				<form method="post" action="/sair">
 					<button type="submit" role="menuitem">
 						@Icon("log-out")
-						<span>Sair</span>
+						<span>{ i18n.T(ctx, "Sair") }</span>
 					</button>
 				</form>
 			</div>
 		</details>
 	} else {
 		<div class="sidebar-foot">
-			<span class="avatar-sq">{ initial(sh.Owner) }</span>
-			<div class="me"><b>{ sh.Owner }</b><span>Owner · admin</span></div>
+			<span class="avatar-sq">{ initial(i18n.T(ctx, sh.Owner)) }</span>
+			<div class="me"><b>{ i18n.T(ctx, sh.Owner) }</b><span>{ i18n.T(ctx, "Owner · admin") }</span></div>
 			<span class="gear">@Icon("settings")</span>
 		</div>
 	}
+}
+
+// LangSwitch is the discreet language toggle: a POST to /idioma that stores the cookie and
+// comes back to the page the person was on.
+templ LangSwitch() {
+	<form class="lang-switch" method="post" action="/idioma" aria-label={ i18n.T(ctx, "Idioma") }>
+		for _, l := range i18n.Langs {
+			<button type="submit" name="lang" value={ string(l) } lang={ string(l) } title={ langName(l) } aria-current?={ l == i18n.FromContext(ctx) }>{ langCode(l) }</button>
+		}
+	</form>
+}
+
+func langCode(l i18n.Lang) string {
+	if l == i18n.EN {
+		return "EN"
+	}
+	return "PT"
+}
+
+// langName is the language's own name (never translated).
+func langName(l i18n.Lang) string {
+	if l == i18n.EN {
+		return "English"
+	}
+	return "Português (Brasil)"
 }

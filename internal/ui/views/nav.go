@@ -1,5 +1,7 @@
 package views
 
+import "github.com/renatobardi/hanko/internal/i18n"
+
 // NavItem is a sidebar entry. Milestone is empty for implemented pages;
 // otherwise the item leads to a "Em breve" page for that milestone.
 type NavItem struct {
@@ -20,31 +22,31 @@ type NavGroup struct {
 // Nav is the full sidebar of the Kubo DS.
 var Nav = []NavGroup{
 	{Items: []NavItem{
-		{Key: "buscar", Label: "Buscar", Icon: "search", Milestone: "M3", Blurb: "Busca em tasks, personas, execuções e na memória da empresa."},
-		{Key: "painel", Label: "Painel", Icon: "layout-grid"},
-		{Key: "caixa", Label: "Caixa de entrada", Icon: "mail", Path: "/caixa"},
-		{Key: "chat", Label: "Chat", Icon: "message-square", Milestone: "v0.2", Blurb: "Conversa direta com uma persona, fora de uma task."},
-		{Key: "decisoes", Label: "Decisões", Icon: "circle-check", Path: "/decisoes"},
+		{Key: "buscar", Label: i18n.N("Buscar"), Icon: "search", Milestone: "M3", Blurb: i18n.N("Busca em tasks, personas, execuções e na memória da empresa.")},
+		{Key: "painel", Label: i18n.N("Painel"), Icon: "layout-grid"},
+		{Key: "caixa", Label: i18n.N("Caixa de entrada"), Icon: "mail", Path: "/caixa"},
+		{Key: "chat", Label: i18n.N("Chat"), Icon: "message-square", Milestone: "v0.2", Blurb: i18n.N("Conversa direta com uma persona, fora de uma task.")},
+		{Key: "decisoes", Label: i18n.N("Decisões"), Icon: "circle-check", Path: "/decisoes"},
 	}},
-	{Label: "Trabalho", Items: []NavItem{
-		{Key: "tasks", Label: "Tasks", Icon: "list", Path: "/tasks"},
-		{Key: "projetos", Label: "Projetos", Icon: "layers", Milestone: "M3", Blurb: "Agrupe tasks por projeto, com workspace e orçamento próprios."},
-		{Key: "fluxos", Label: "Fluxos", Icon: "workflow", Path: "/fluxos"},
-		{Key: "metas", Label: "Metas", Icon: "trending-up", Milestone: "v0.2", Blurb: "Metas mensuráveis ligadas a projetos."},
-		{Key: "artefatos", Label: "Artefatos", Icon: "file", Milestone: "v0.2", Blurb: "Documentos e arquivos produzidos pelas personas."},
-		{Key: "workspaces", Label: "Workspaces", Icon: "git-branch", Milestone: "M3", Blurb: "Diretórios e repositórios onde as personas trabalham."},
+	{Label: i18n.N("Trabalho"), Items: []NavItem{
+		{Key: "tasks", Label: i18n.N("Tasks"), Icon: "list", Path: "/tasks"},
+		{Key: "projetos", Label: i18n.N("Projetos"), Icon: "layers", Milestone: "M3", Blurb: i18n.N("Agrupe tasks por projeto, com workspace e orçamento próprios.")},
+		{Key: "fluxos", Label: i18n.N("Fluxos"), Icon: "workflow", Path: "/fluxos"},
+		{Key: "metas", Label: i18n.N("Metas"), Icon: "trending-up", Milestone: "v0.2", Blurb: i18n.N("Metas mensuráveis ligadas a projetos.")},
+		{Key: "artefatos", Label: i18n.N("Artefatos"), Icon: "file", Milestone: "v0.2", Blurb: i18n.N("Documentos e arquivos produzidos pelas personas.")},
+		{Key: "workspaces", Label: i18n.N("Workspaces"), Icon: "git-branch", Milestone: "M3", Blurb: i18n.N("Diretórios e repositórios onde as personas trabalham.")},
 	}},
-	{Label: "Organização", Items: []NavItem{
-		{Key: "personas", Label: "Personas", Icon: "bot", Path: "/personas"},
-		{Key: "organograma", Label: "Organograma", Icon: "network", Path: "/organograma"},
-		{Key: "skills", Label: "Skills", Icon: "sparkles", Milestone: "v0.2", Blurb: "Habilidades reutilizáveis habilitadas por persona."},
-		{Key: "integracoes", Label: "Integrações", Icon: "link", Milestone: "v0.2", Blurb: "Serviços externos conectados à empresa."},
-		{Key: "gates", Label: "Gates", Icon: "shield", Path: "/gates"},
+	{Label: i18n.N("Organização"), Items: []NavItem{
+		{Key: "personas", Label: i18n.N("Personas"), Icon: "bot", Path: "/personas"},
+		{Key: "organograma", Label: i18n.N("Organograma"), Icon: "network", Path: "/organograma"},
+		{Key: "skills", Label: i18n.N("Skills"), Icon: "sparkles", Milestone: "v0.2", Blurb: i18n.N("Habilidades reutilizáveis habilitadas por persona.")},
+		{Key: "integracoes", Label: i18n.N("Integrações"), Icon: "link", Milestone: "v0.2", Blurb: i18n.N("Serviços externos conectados à empresa.")},
+		{Key: "gates", Label: i18n.N("Gates"), Icon: "shield", Path: "/gates"},
 	}},
-	{Label: "Supervisão", Items: []NavItem{
-		{Key: "execucoes", Label: "Execuções", Icon: "activity", Path: "/execucoes"},
-		{Key: "custos", Label: "Custos", Icon: "database", Path: "/custos"},
-		{Key: "atividade", Label: "Atividade", Icon: "clock", Path: "/atividade"},
+	{Label: i18n.N("Supervisão"), Items: []NavItem{
+		{Key: "execucoes", Label: i18n.N("Execuções"), Icon: "activity", Path: "/execucoes"},
+		{Key: "custos", Label: i18n.N("Custos"), Icon: "database", Path: "/custos"},
+		{Key: "atividade", Label: i18n.N("Atividade"), Icon: "clock", Path: "/atividade"},
 	}},
 }
 

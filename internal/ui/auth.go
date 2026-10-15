@@ -12,6 +12,7 @@ import (
 
 	"github.com/renatobardi/hanko/internal/auth"
 	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/i18n"
 	"github.com/renatobardi/hanko/internal/service"
 	"github.com/renatobardi/hanko/internal/ui/views"
 )
@@ -79,7 +80,7 @@ func newAuthState(d AuthDeps, be AuthBackend, now func() time.Time) *authState {
 	return &authState{AuthDeps: d, be: be, now: now}
 }
 
-func (s *server) authRoutes(mux *http.ServeMux) {
+func (s *server) authRoutes(mux handlerRegistry) {
 	if s.auth == nil {
 		return
 	}
@@ -152,7 +153,7 @@ func (s *server) handleLoginLocal(w http.ResponseWriter, r *http.Request) {
 	ip := s.auth.Proxies.ClientIP(r)
 	if ok, wait := s.auth.Limiter.Allow(ip, vm.Email); !ok {
 		w.Header().Set("Retry-After", fmt.Sprint(int(wait.Seconds())+1))
-		vm.Error = fmt.Sprintf("Muitas tentativas. Tente novamente em %d min.", int(wait.Minutes())+1)
+		vm.Error = i18n.Tf(r.Context(), "Muitas tentativas. Tente novamente em %d min.", int(wait.Minutes())+1)
 		s.renderLogin(w, r, http.StatusTooManyRequests, vm)
 		return
 	}
@@ -164,7 +165,7 @@ func (s *server) handleLoginLocal(w http.ResponseWriter, r *http.Request) {
 		}
 		if errors.Is(err, domain.ErrUnauthenticated) {
 			s.auth.Limiter.Fail(ip, vm.Email)
-			vm.Error = "E-mail ou senha incorretos."
+			vm.Error = i18n.T(r.Context(), "E-mail ou senha incorretos.")
 			s.renderLogin(w, r, http.StatusUnauthorized, vm)
 			return
 		}
@@ -182,7 +183,7 @@ func (s *server) handleLoginLocal(w http.ResponseWriter, r *http.Request) {
 // busy answers 503 when every password-hashing slot is taken (the failure does not count against the limiter).
 func (s *server) busy(w http.ResponseWriter, r *http.Request, vm views.LoginVM) {
 	w.Header().Set("Retry-After", "2")
-	vm.Error = "Muitos logins ao mesmo tempo. Tente de novo em instantes."
+	vm.Error = i18n.T(r.Context(), "Muitos logins ao mesmo tempo. Tente de novo em instantes.")
 	s.renderLogin(w, r, http.StatusServiceUnavailable, vm)
 }
 
@@ -201,12 +202,12 @@ func (s *server) handleCreateOwner(w http.ResponseWriter, r *http.Request) {
 		return
 	case errors.Is(err, domain.ErrConflict):
 		vm.Email, vm.Name = "", ""
-		vm.Notice = "Já existe um usuário. Entre com a sua conta."
+		vm.Notice = i18n.T(r.Context(), "Já existe um usuário. Entre com a sua conta.")
 		s.renderLogin(w, r, http.StatusConflict, vm)
 		return
 	case errors.Is(err, domain.ErrInvalid):
 		var ve *domain.ValidationError
-		vm.Error = "Confira os dados."
+		vm.Error = i18n.T(r.Context(), "Confira os dados.")
 		if errors.As(err, &ve) {
 			vm.Error = ve.Field + ": " + ve.Reason + "."
 		}
@@ -256,39 +257,39 @@ func (s *server) handleFirebase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !auth.SameOrigin(r) {
-		jsonErr(w, http.StatusForbidden, "cross_origin", "Requisição de origem diferente bloqueada.")
+		jsonErr(w, http.StatusForbidden, "cross_origin", i18n.T(r.Context(), "Requisição de origem diferente bloqueada."))
 		return
 	}
 	if ct := r.Header.Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
-		jsonErr(w, http.StatusUnsupportedMediaType, "bad_request", "Use application/json.")
+		jsonErr(w, http.StatusUnsupportedMediaType, "bad_request", i18n.T(r.Context(), "Use application/json."))
 		return
 	}
 	var in firebaseReq
 	body, err := io.ReadAll(io.LimitReader(r.Body, 32<<10))
 	if err != nil || json.Unmarshal(body, &in) != nil || in.IDToken == "" {
-		jsonErr(w, http.StatusBadRequest, "bad_request", "Corpo inválido.")
+		jsonErr(w, http.StatusBadRequest, "bad_request", i18n.T(r.Context(), "Corpo inválido."))
 		return
 	}
 	ip := s.auth.Proxies.ClientIP(r)
 	if ok, wait := s.auth.Limiter.Allow(ip, ""); !ok {
 		w.Header().Set("Retry-After", fmt.Sprint(int(wait.Seconds())+1))
-		jsonErr(w, http.StatusTooManyRequests, "rate_limited", "Muitas tentativas. Tente de novo em alguns minutos.")
+		jsonErr(w, http.StatusTooManyRequests, "rate_limited", i18n.T(r.Context(), "Muitas tentativas. Tente de novo em alguns minutos."))
 		return
 	}
 	claims, err := s.auth.Verifier.Verify(r.Context(), in.IDToken)
 	switch {
 	case err == nil:
 	case errors.Is(err, auth.ErrUnverifiedEmail):
-		jsonErr(w, http.StatusForbidden, "email_not_verified", "Confirme seu e-mail pelo link que enviamos e tente de novo.")
+		jsonErr(w, http.StatusForbidden, "email_not_verified", i18n.T(r.Context(), "Confirme seu e-mail pelo link que enviamos e tente de novo."))
 		return
 	case errors.Is(err, auth.ErrJWKSUnavailable):
 		s.log.Error("ui: chaves públicas do Firebase indisponíveis", "err", err)
-		jsonErr(w, http.StatusServiceUnavailable, "unavailable", "Não foi possível validar o login agora. Tente de novo.")
+		jsonErr(w, http.StatusServiceUnavailable, "unavailable", i18n.T(r.Context(), "Não foi possível validar o login agora. Tente de novo."))
 		return
 	default:
 		s.auth.Limiter.Fail(ip, "")
 		s.log.Warn("ui: ID token do Firebase recusado", "err", err, "ip", ip)
-		jsonErr(w, http.StatusUnauthorized, "invalid_token", "Credencial inválida ou expirada. Tente entrar de novo.")
+		jsonErr(w, http.StatusUnauthorized, "invalid_token", i18n.T(r.Context(), "Credencial inválida ou expirada. Tente entrar de novo."))
 		return
 	}
 	u, err := s.auth.be.LoginFirebase(r.Context(), service.FirebaseLogin{
@@ -300,19 +301,19 @@ func (s *server) handleFirebase(w http.ResponseWriter, r *http.Request) {
 	case err == nil:
 	case errors.Is(err, domain.ErrNotAllowed):
 		s.log.Warn("ui: login firebase fora da política de admissão", "email", claims.Email)
-		jsonErr(w, http.StatusForbidden, "not_admitted", "Este e-mail não tem acesso a esta instalação do Hanko.")
+		jsonErr(w, http.StatusForbidden, "not_admitted", i18n.T(r.Context(), "Este e-mail não tem acesso a esta instalação do Hanko."))
 		return
 	case errors.Is(err, domain.ErrConflict):
-		jsonErr(w, http.StatusConflict, "email_taken", "Este e-mail já está cadastrado por outro método de login.")
+		jsonErr(w, http.StatusConflict, "email_taken", i18n.T(r.Context(), "Este e-mail já está cadastrado por outro método de login."))
 		return
 	default:
 		s.log.Error("ui: login firebase", "err", err)
-		jsonErr(w, http.StatusInternalServerError, "internal", "Erro interno. Tente de novo.")
+		jsonErr(w, http.StatusInternalServerError, "internal", i18n.T(r.Context(), "Erro interno. Tente de novo."))
 		return
 	}
 	if err := s.startSession(w, r, u); err != nil {
 		s.log.Error("ui: abrir sessão", "err", err)
-		jsonErr(w, http.StatusInternalServerError, "internal", "Erro interno. Tente de novo.")
+		jsonErr(w, http.StatusInternalServerError, "internal", i18n.T(r.Context(), "Erro interno. Tente de novo."))
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"redirect": auth.SafeNext(in.Next)})
@@ -328,42 +329,43 @@ func (s *server) settingsVM(r *http.Request) (views.SettingsVM, error) {
 		return vm, nil
 	}
 	u := id.User
-	vm.Name, vm.Email, vm.Provider, vm.Role = u.DisplayName(), u.Email, providerLabel(u.Provider), roleLabel(u.Role)
+	vm.Name, vm.Email, vm.Provider, vm.Role = u.DisplayName(), u.Email, providerLabel(r.Context(), u.Provider), roleLabel(r.Context(), u.Role)
 	keys, err := s.auth.be.ListAPIKeys(r.Context(), u.ID)
 	if err != nil {
 		return vm, err
 	}
 	now := s.now()
 	for _, k := range keys {
-		row := views.APIKeyRow{ID: k.ID.String(), Name: k.Name, Prefix: k.Prefix, Created: relTime(k.CreatedAt, now, time.UTC),
-			LastUsed: "nunca", Revoked: !k.Active()}
+		row := views.APIKeyRow{ID: k.ID.String(), Name: k.Name, Prefix: k.Prefix, Created: relTimeCtx(r.Context(), k.CreatedAt, now, time.UTC),
+			LastUsed: i18n.T(r.Context(), "nunca"), Revoked: !k.Active()}
 		if k.LastUsedAt != nil {
-			row.LastUsed = relTime(*k.LastUsedAt, now, time.UTC)
+			row.LastUsed = relTimeCtx(r.Context(), *k.LastUsedAt, now, time.UTC)
 		}
 		vm.Keys = append(vm.Keys, row)
 	}
 	return vm, nil
 }
 
-func providerLabel(p domain.AuthProvider) string {
+func providerLabel(ctx context.Context, p domain.AuthProvider) string {
 	if p == domain.ProviderFirebase {
-		return "Firebase (Google ou e-mail)"
+		return i18n.T(ctx, "Firebase (Google ou e-mail)")
 	}
-	return "Local (e-mail e senha)"
+	return i18n.T(ctx, "Local (e-mail e senha)")
 }
 
-func roleLabel(r domain.UserRole) string {
+func roleLabel(ctx context.Context, r domain.UserRole) string {
 	switch r {
 	case domain.RoleOwner:
-		return "Dono"
+		return i18n.T(ctx, "Dono")
 	case domain.RoleAdmin:
 		return "Admin"
 	}
-	return "Membro"
+	return i18n.T(ctx, "Membro")
 }
 
 func (s *server) renderSettings(w http.ResponseWriter, r *http.Request, co domain.Company, status int, vm views.SettingsVM) {
-	s.render(w, r, status, views.SettingsPage(s.shell(co, "", "Configurações", views.Crumb{Label: "Configurações"}), vm))
+	ctx := r.Context()
+	s.render(w, r, status, views.SettingsPage(s.shell(co, "", i18n.T(ctx, "Configurações"), views.Crumb{Label: i18n.T(ctx, "Configurações")}), vm))
 }
 
 func (s *server) handleSettings(w http.ResponseWriter, r *http.Request, co domain.Company) {
@@ -393,7 +395,7 @@ func (s *server) handleCreateKey(w http.ResponseWriter, r *http.Request, co doma
 			s.fail(w, r, &co, err)
 			return
 		}
-		_, title, msg := friendly(err)
+		_, title, msg := friendly(r.Context(), err)
 		vm.Error = title + ". " + msg
 		s.renderSettings(w, r, co, http.StatusUnprocessableEntity, vm)
 		return

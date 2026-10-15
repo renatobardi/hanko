@@ -1,30 +1,35 @@
 package views
 
+import (
+	"github.com/renatobardi/hanko/internal/i18n"
+)
+
 templ OnboardingPage(vm OnboardingVM, version string) {
-	@Bare("Bem-vindo", version) {
+	@Bare(i18n.T(ctx, "Bem-vindo"), version) {
 		<div class="auth" style="max-width:440px">
 			<div class="mark">
 				@Mark(40)
 				<b>Hanko</b>
 			</div>
 			<form class="card" method="post" action="/empresas" hx-boost="true">
-				<h1>Criar empresa</h1>
-				<p class="sub muted">A empresa isola personas, tasks e execuções. Dá para criar outras depois.</p>
+				<h1>{ i18n.T(ctx, "Criar empresa") }</h1>
+				<p class="sub muted">{ i18n.T(ctx, "A empresa isola personas, tasks e execuções. Dá para criar outras depois.") }</p>
 				if vm.Error != "" {
 					@Alert("danger", vm.Error)
 				}
 				<div class="field">
-					<label for="c-name">Nome da empresa</label>
+					<label for="c-name">{ i18n.T(ctx, "Nome da empresa") }</label>
 					<input class="input" id="c-name" name="name" value={ vm.Name } required maxlength="80" placeholder="Hanko" autofocus/>
 				</div>
 				<div class="field">
-					<label for="c-prefix">Prefixo das tasks</label>
-					<input class="input" id="c-prefix" name="prefix" value={ vm.TaskPrefix } maxlength="10" placeholder="HNK" style="text-transform:uppercase"/>
-					<span class="hint">As tasks viram HNK-1, HNK-2…</span>
+					<label for="c-prefix">{ i18n.T(ctx, "Prefixo das tasks") }</label>
+					<input class="input" id="c-prefix" name="prefix" value={ vm.TaskPrefix } maxlength="10" placeholder={ i18n.T(ctx, "HNK") } style="text-transform:uppercase"/>
+					<span class="hint">{ i18n.T(ctx, "As tasks viram HNK-1, HNK-2…") }</span>
 				</div>
-				<button class="btn primary block" type="submit">Criar empresa e continuar</button>
+				<button class="btn primary block" type="submit">{ i18n.T(ctx, "Criar empresa e continuar") }</button>
 			</form>
-			<div class="foot"><span>Hanko · control plane de personas de IA</span></div>
+			<div class="foot"><span>{ i18n.T(ctx, "Hanko · control plane de personas de IA") }</span></div>
+			@LangSwitch()
 		</div>
 	}
 }
@@ -47,7 +52,7 @@ templ errorBody(vm ErrorVM) {
 	<div class="soon-box">
 		@EmptyCard("alert", vm.Title, vm.Message, true) {
 			if vm.Back != "" {
-				<a class="btn outline" href={ templ.SafeURL(vm.Back) }>Voltar</a>
+				<a class="btn outline" href={ templ.SafeURL(vm.Back) }>{ i18n.T(ctx, "Voltar") }</a>
 			}
 		}
 	</div>
@@ -64,9 +69,9 @@ templ ErrorFragment(vm ErrorVM) {
 templ SoonPage(sh Shell, vm SoonVM) {
 	@Layout(sh) {
 		<div class="soon-box">
-			@EmptyCard("clock", vm.Label+" · em breve", vm.Blurb, true) {
-				<span class="badge soft">Previsto para { vm.Milestone }</span>
-				<a class="btn outline" href={ templ.SafeURL(sh.Base() + "/") }>Voltar ao painel</a>
+			@EmptyCard("clock", vm.Label+" · "+i18n.T(ctx, "em breve"), vm.Blurb, true) {
+				<span class="badge soft">{ i18n.T(ctx, "Previsto para") } { vm.Milestone }</span>
+				<a class="btn outline" href={ templ.SafeURL(sh.Base() + "/") }>{ i18n.T(ctx, "Voltar ao painel") }</a>
 			}
 		</div>
 	}

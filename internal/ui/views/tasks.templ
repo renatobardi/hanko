@@ -1,10 +1,14 @@
 package views
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/renatobardi/hanko/internal/i18n"
+)
 
 templ TasksPage(sh Shell, vm TasksVM) {
 	@Layout(sh) {
-		@PageHead("Tasks", vm.Subtitle) {
+		@PageHead(i18n.T(ctx, "Tasks"), vm.Subtitle) {
 		}
 		<div class="toolbar">
 			@Tabs(vm.Tabs)
@@ -16,8 +20,8 @@ templ TasksPage(sh Shell, vm TasksVM) {
 					type="search"
 					name="q"
 					value={ vm.Query }
-					placeholder="Buscar tasks..."
-					aria-label="Buscar tasks"
+					placeholder={ i18n.T(ctx, "Buscar tasks...") }
+					aria-label={ i18n.T(ctx, "Buscar tasks") }
 					hx-get={ sh.Base() + "/tasks" }
 					hx-include="[name='aba']"
 					hx-trigger="input changed delay:300ms, search"
@@ -44,7 +48,7 @@ templ TaskPage(sh Shell, vm TaskVM, base string) {
 						<span>Projeto { vm.ProjectName }</span>
 					}
 					<span>·</span>
-					<span>criada { vm.Created }</span>
+					<span>{ i18n.T(ctx, "criada") } { vm.Created }</span>
 				</div>
 				<h1>{ vm.Title }</h1>
 				@TaskChips(vm, false)
@@ -58,20 +62,20 @@ templ TaskPage(sh Shell, vm TaskVM, base string) {
 					@GateBanner(g)
 				}
 				<div class="brief" style="margin-top:20px">
-					<div class="side-h">Pedido</div>
+					<div class="side-h">{ i18n.T(ctx, "Pedido") }</div>
 					if vm.HasDescription {
 						<div class="md">@templ.Raw(string(vm.Description))</div>
 					} else {
-						<p class="muted">Sem descrição.</p>
+						<p class="muted">{ i18n.T(ctx, "Sem descrição.") }</p>
 					}
 				</div>
-				<h2 class="side-h" style="margin:28px 0 14px">Conversa</h2>
+				<h2 class="side-h" style="margin:28px 0 14px">{ i18n.T(ctx, "Conversa") }</h2>
 				@Thread(vm, base)
 				if vm.ActiveRun != nil {
 					<div class="run-sep" style="margin-bottom:16px">
 						<span>
-							Execução <span class="mono">{ vm.ActiveRun.Short }</span> em andamento ·
-							<a href={ templ.SafeURL(vm.ActiveRun.Href) } style="text-decoration:underline;text-underline-offset:2px;color:var(--ink)">Inspecionar</a>
+							{ i18n.T(ctx, "Execução") } <span class="mono">{ vm.ActiveRun.Short }</span> { i18n.T(ctx, "em andamento") } ·
+							<a href={ templ.SafeURL(vm.ActiveRun.Href) } style="text-decoration:underline;text-underline-offset:2px;color:var(--ink)">{ i18n.T(ctx, "Inspecionar") }</a>
 						</span>
 					</div>
 				}
@@ -89,7 +93,7 @@ templ TaskChips(vm TaskVM, oob bool) {
 		if vm.PersonaName != "" {
 			<a class="chip" href={ templ.SafeURL(vm.PersonaHref) }>@Icon("bot")<span>{ vm.PersonaName }</span></a>
 		} else {
-			<span class="chip soft">Sem dono</span>
+			<span class="chip soft">{ i18n.T(ctx, "Sem dono") }</span>
 		}
 	</div>
 }
@@ -97,13 +101,13 @@ templ TaskChips(vm TaskVM, oob bool) {
 templ Thread(vm TaskVM, base string) {
 	<div id="thread" class="thread" aria-live="polite">
 		if len(vm.Thread) == 0 {
-			<p class="thread-empty">Nenhum comentário ainda. Escreva abaixo para orientar a persona.</p>
+			<p class="thread-empty">{ i18n.T(ctx, "Nenhum comentário ainda. Escreva abaixo para orientar a persona.") }</p>
 		}
 		for _, m := range vm.Thread {
 			if m.Human {
 				<div class="msg me">
 					<div class="bubble"><div class="md">@templ.Raw(string(m.Body))</div></div>
-					<div class="meta"><span>Você · <time class="mono">{ m.When }</time></span></div>
+					<div class="meta"><span>{ i18n.T(ctx, "Você ·") } <time class="mono">{ m.When }</time></span></div>
 				</div>
 			} else {
 				<div class="msg">
@@ -111,7 +115,7 @@ templ Thread(vm TaskVM, base string) {
 					<div>
 						<div class="meta"><b>{ m.Author }</b><time class="mono">{ m.When }</time>
 							if m.RunHref != "" {
-								<a href={ templ.SafeURL(m.RunHref) } style="text-decoration:underline">execução</a>
+								<a href={ templ.SafeURL(m.RunHref) } style="text-decoration:underline">{ i18n.T(ctx, "execução") }</a>
 							}
 						</div>
 						<div class="body md">@templ.Raw(string(m.Body))</div>
@@ -132,10 +136,13 @@ templ CommentForm(vm TaskVM, base string) {
 		hx-swap="outerHTML"
 		hx-on::after-request="if(event.detail.successful){this.reset();}"
 	>
-		<textarea name="body" required placeholder="Escreva um comentário (markdown). Fica na fila se a persona estiver ocupada." aria-label="Comentário">{ vm.Draft }</textarea>
+		<textarea name="body" required placeholder={ i18n.T(ctx, "Escreva um comentário (markdown). Fica na fila se a persona estiver ocupada.") } aria-label={ i18n.T(ctx, "Comentário") }>{ vm.Draft }</textarea>
 		<div class="row">
-			<span class="hint">Markdown · HTML é escapado</span>
-			<button type="submit" class="btn primary sm">@Icon("send") Comentar</button>
+			<span class="hint">{ i18n.T(ctx, "Markdown · HTML é escapado") }</span>
+			<button type="submit" class="btn primary sm">
+				@Icon("send")
+				{ i18n.T(ctx, "Comentar") }
+			</button>
 		</div>
 	</form>
 }
@@ -152,34 +159,34 @@ templ TaskSide(vm TaskVM, base string) {
 			hx-target="#task-side"
 			hx-swap="outerHTML"
 		>
-			<div class="side-h">Propriedades</div>
+			<div class="side-h">{ i18n.T(ctx, "Propriedades") }</div>
 			<div class="props">
-				<label class="prop"><span>Status</span>@Select("status", "f-status", vm.StatusOptions, true)</label>
-				<label class="prop"><span>Prioridade</span>@Select("priority", "f-priority", vm.PriorityOptions, true)</label>
+				<label class="prop"><span>{ i18n.T(ctx, "Status") }</span>@Select("status", "f-status", vm.StatusOptions, true)</label>
+				<label class="prop"><span>{ i18n.T(ctx, "Prioridade") }</span>@Select("priority", "f-priority", vm.PriorityOptions, true)</label>
 				<label class="prop"><span>Persona</span>@Select("persona", "f-persona", vm.PersonaOptions, true)</label>
-				<div class="prop"><span>Projeto</span><span>
+				<div class="prop"><span>{ i18n.T(ctx, "Projeto") }</span><span>
 					if vm.ProjectName != "" {
 						{ vm.ProjectName }
 					} else {
 						<span class="faint">—</span>
 					}
 				</span></div>
-				<div class="prop"><span>Criada</span><span class="mono" style="font-size:12.5px">{ vm.Created }</span></div>
-				<div class="prop"><span>Atualizada</span><span class="mono" style="font-size:12.5px">{ vm.Updated }</span></div>
+				<div class="prop"><span>{ i18n.T(ctx, "Criada") }</span><span class="mono" style="font-size:12.5px">{ vm.Created }</span></div>
+				<div class="prop"><span>{ i18n.T(ctx, "Atualizada") }</span><span class="mono" style="font-size:12.5px">{ vm.Updated }</span></div>
 			</div>
-			<noscript><button class="btn sm" type="submit" style="margin-top:12px">Salvar</button></noscript>
+			<noscript><button class="btn sm" type="submit" style="margin-top:12px">{ i18n.T(ctx, "Salvar") }</button></noscript>
 		</form>
 		<div class="side-sec">
-			<div class="side-h">Custo</div>
-			<div class="prop"><span>Esta task</span><span class="mono" style="text-align:right">{ vm.Cost }</span></div>
+			<div class="side-h">{ i18n.T(ctx, "Custo") }</div>
+			<div class="prop"><span>{ i18n.T(ctx, "Esta task") }</span><span class="mono" style="text-align:right">{ vm.Cost }</span></div>
 			if vm.Model != "" {
-				<div class="prop"><span>Modelo (manual)</span><span class="mono" style="text-align:right">{ vm.Model }</span></div>
+				<div class="prop"><span>{ i18n.T(ctx, "Modelo (manual)") }</span><span class="mono" style="text-align:right">{ vm.Model }</span></div>
 			}
 		</div>
 		<div class="side-sec">
-			<div class="side-h" style="display:flex;justify-content:space-between"><span>Execuções</span><a href={ templ.SafeURL(base + "/execucoes") } style="text-transform:none;letter-spacing:0;font-weight:400">Ver todas</a></div>
+			<div class="side-h" style="display:flex;justify-content:space-between"><span>{ i18n.T(ctx, "Execuções") }</span><a href={ templ.SafeURL(base + "/execucoes") } style="text-transform:none;letter-spacing:0;font-weight:400">{ i18n.T(ctx, "Ver todas") }</a></div>
 			if len(vm.Runs) == 0 {
-				<p class="muted" style="font-size:13px">Nenhuma execução ainda.</p>
+				<p class="muted" style="font-size:13px">{ i18n.T(ctx, "Nenhuma execução ainda.") }</p>
 			}
 			for _, r := range vm.Runs {
 				<a class="side-run" href={ templ.SafeURL(r.Href) }>
@@ -195,7 +202,8 @@ templ TaskSide(vm TaskVM, base string) {
 			}
 			if vm.CanWake {
 				<form method="post" action={ templ.SafeURL(base + "/tasks/" + vm.Key + "/acordar") } hx-post={ base + "/tasks/" + vm.Key + "/acordar" } hx-swap="none" style="margin-top:12px">
-					<button class="btn outline sm block" type="submit">@Icon("zap") Acordar { vm.PersonaName }</button>
+					<button class="btn outline sm block" type="submit">@Icon("zap")
+{ " " + i18n.T(ctx, "Acordar") + " " + vm.PersonaName }</button>
 				</form>
 			}
 		</div>
@@ -206,23 +214,23 @@ templ TaskSide(vm TaskVM, base string) {
 
 templ NewTaskPage(sh Shell, vm NewTaskVM) {
 	@Layout(sh) {
-		@PageHead("Nova task", "Descreva o pedido; se atribuir a uma persona, ela é acordada na hora.") {
+		@PageHead(i18n.T(ctx, "Nova task"), i18n.T(ctx, "Descreva o pedido; se atribuir a uma persona, ela é acordada na hora.")) {
 		}
 		<form class="card pad form-card" method="post" action={ templ.SafeURL(sh.Base() + "/tasks/nova") } hx-boost="true">
 			if vm.Error != "" {
 				@Alert("danger", vm.Error)
 			}
 			<div class="field">
-				<label for="t-title">Título</label>
-				<input class="input" id="t-title" name="title" value={ vm.Title } required maxlength="200" placeholder="Ex.: Docslide: AI-first SDLC no banco" autofocus/>
+				<label for="t-title">{ i18n.T(ctx, "Título") }</label>
+				<input class="input" id="t-title" name="title" value={ vm.Title } required maxlength="200" placeholder={ i18n.T(ctx, "Ex.: Docslide: AI-first SDLC no banco") } autofocus/>
 				if e := vm.FieldErr["title"]; e != "" {
 					<span class="err">{ e }</span>
 				}
 			</div>
 			<div class="field">
-				<label for="t-desc">Descrição</label>
-				<textarea class="textarea" id="t-desc" name="description" rows="8" placeholder="O que precisa ser feito, contexto e critério de pronto. Markdown.">{ vm.Description }</textarea>
-				<span class="hint">Markdown. HTML é escapado.</span>
+				<label for="t-desc">{ i18n.T(ctx, "Descrição") }</label>
+				<textarea class="textarea" id="t-desc" name="description" rows="8" placeholder={ i18n.T(ctx, "O que precisa ser feito, contexto e critério de pronto. Markdown.") }>{ vm.Description }</textarea>
+				<span class="hint">{ i18n.T(ctx, "Markdown. HTML é escapado.") }</span>
 			</div>
 			<div class="form-grid">
 				<div class="field">
@@ -230,28 +238,28 @@ templ NewTaskPage(sh Shell, vm NewTaskVM) {
 					@Select("persona", "t-persona", vm.PersonaOptions, false)
 				</div>
 				<div class="field">
-					<label for="t-prio">Prioridade</label>
+					<label for="t-prio">{ i18n.T(ctx, "Prioridade") }</label>
 					@Select("priority", "t-prio", vm.PriorityOptions, false)
 				</div>
 				<div class="field">
-					<label for="t-status">Status inicial</label>
+					<label for="t-status">{ i18n.T(ctx, "Status inicial") }</label>
 					@Select("status", "t-status", vm.StatusOptions, false)
 				</div>
 				if len(vm.ProjectOptions) > 1 {
 					<div class="field">
-						<label for="t-proj">Projeto</label>
+						<label for="t-proj">{ i18n.T(ctx, "Projeto") }</label>
 						@Select("project", "t-proj", vm.ProjectOptions, false)
 					</div>
 				}
 			</div>
 			<div class="field">
-				<label for="t-model">Modelo (opcional)</label>
-				<input class="input" id="t-model" name="model" value={ vm.Model } placeholder="vazio = o modelo da persona" autocomplete="off"/>
-				<span class="hint">Escolha manual: vence o modelo da persona nas execuções desta task.</span>
+				<label for="t-model">{ i18n.T(ctx, "Modelo (opcional)") }</label>
+				<input class="input" id="t-model" name="model" value={ vm.Model } placeholder={ i18n.T(ctx, "vazio = o modelo da persona") } autocomplete="off"/>
+				<span class="hint">{ i18n.T(ctx, "Escolha manual: vence o modelo da persona nas execuções desta task.") }</span>
 			</div>
 			<div class="form-actions">
-				<a class="btn ghost" href={ templ.SafeURL(sh.Base() + "/tasks") }>Cancelar</a>
-				<button class="btn primary" type="submit">Criar task</button>
+				<a class="btn ghost" href={ templ.SafeURL(sh.Base() + "/tasks") }>{ i18n.T(ctx, "Cancelar") }</a>
+				<button class="btn primary" type="submit">{ i18n.T(ctx, "Criar task") }</button>
 			</div>
 		</form>
 	}

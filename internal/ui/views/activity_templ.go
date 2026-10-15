@@ -8,6 +8,10 @@ package views
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
+import (
+	"github.com/renatobardi/hanko/internal/i18n"
+)
+
 func ActivityPage(sh Shell, vm ActivityVM) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -55,12 +59,12 @@ func ActivityPage(sh Shell, vm ActivityVM) templ.Component {
 				ctx = templ.InitializeContext(ctx)
 				return nil
 			})
-			templ_7745c5c3_Err = PageHead("Atividade", vm.Subtitle).Render(templ.WithChildren(ctx, templ_7745c5c3_Var3), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = PageHead(i18n.T(ctx, "Atividade"), vm.Subtitle).Render(templ.WithChildren(ctx, templ_7745c5c3_Var3), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			if len(vm.Days) == 0 {
-				templ_7745c5c3_Err = EmptyCard("clock", "Nenhuma atividade ainda.", "Execuções, comentários e mudanças de status aparecem aqui.", true).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = EmptyCard("clock", i18n.T(ctx, "Nenhuma atividade ainda."), i18n.T(ctx, "Execuções, comentários e mudanças de status aparecem aqui."), true).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -77,7 +81,7 @@ func ActivityPage(sh Shell, vm ActivityVM) templ.Component {
 					var templ_7745c5c3_Var4 string
 					templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(d.Label)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `activity.templ`, Line: 12, Col: 31}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/activity.templ`, Line: 16, Col: 31}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 					if templ_7745c5c3_Err != nil {
@@ -95,7 +99,7 @@ func ActivityPage(sh Shell, vm ActivityVM) templ.Component {
 						var templ_7745c5c3_Var5 string
 						templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(e.When)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `activity.templ`, Line: 15, Col: 21}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/activity.templ`, Line: 19, Col: 21}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 						if templ_7745c5c3_Err != nil {
@@ -116,7 +120,7 @@ func ActivityPage(sh Shell, vm ActivityVM) templ.Component {
 						var templ_7745c5c3_Var6 string
 						templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(e.Actor)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `activity.templ`, Line: 18, Col: 20}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/activity.templ`, Line: 22, Col: 20}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 						if templ_7745c5c3_Err != nil {
@@ -129,7 +133,7 @@ func ActivityPage(sh Shell, vm ActivityVM) templ.Component {
 						var templ_7745c5c3_Var7 string
 						templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(e.Text)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `activity.templ`, Line: 18, Col: 35}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/activity.templ`, Line: 22, Col: 35}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 						if templ_7745c5c3_Err != nil {
@@ -147,7 +151,7 @@ func ActivityPage(sh Shell, vm ActivityVM) templ.Component {
 							var templ_7745c5c3_Var8 templ.SafeURL
 							templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(e.Href))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `activity.templ`, Line: 20, Col: 53}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/activity.templ`, Line: 24, Col: 53}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 							if templ_7745c5c3_Err != nil {
@@ -160,7 +164,7 @@ func ActivityPage(sh Shell, vm ActivityVM) templ.Component {
 							var templ_7745c5c3_Var9 string
 							templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(e.Subject)
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `activity.templ`, Line: 20, Col: 67}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/activity.templ`, Line: 24, Col: 67}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 							if templ_7745c5c3_Err != nil {
@@ -174,7 +178,7 @@ func ActivityPage(sh Shell, vm ActivityVM) templ.Component {
 							var templ_7745c5c3_Var10 string
 							templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(e.Subject)
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `activity.templ`, Line: 22, Col: 20}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/activity.templ`, Line: 26, Col: 20}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 							if templ_7745c5c3_Err != nil {
@@ -188,7 +192,7 @@ func ActivityPage(sh Shell, vm ActivityVM) templ.Component {
 						var templ_7745c5c3_Var11 string
 						templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(e.Detail)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `activity.templ`, Line: 25, Col: 35}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/views/activity.templ`, Line: 29, Col: 35}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 						if templ_7745c5c3_Err != nil {

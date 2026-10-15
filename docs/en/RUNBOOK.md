@@ -27,6 +27,8 @@ make dev          # starts Hanko locally at http://127.0.0.1:7420 (migrations ru
 Tests: `export HANKO_TEST_DATABASE_URL=postgres://postgres:...@127.0.0.1:5432/hanko_test?sslmode=disable; make test`
 (integration tests skip without the variable).
 
+**UI language.** The web UI speaks pt-BR (default) and English. The language comes from the `hanko_lang` cookie (set by the selector in the sidebar footer and on the sign-in screen, via `POST /idioma`) and, without it, from `Accept-Language` (`en*` is English, anything else pt-BR). User data, run logs and API errors are never translated; the CLI stays in pt-BR.
+
 ## 2. Deploy on LXC (oute-server)
 
 **Production (current path):** `deploy/oute-server/deploy-prd.sh`. It runs on the Mac and follows the conventions of the `lab` repo

@@ -75,6 +75,7 @@ type Bar struct {
 type ActivityItem struct {
 	Actor   string
 	Persona bool
+	System  bool   // the actor is the system (shown with the bolt icon)
 	Text    string // verb phrase
 	Subject string
 	Href    string

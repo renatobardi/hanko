@@ -1,16 +1,27 @@
 package views
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/renatobardi/hanko/internal/i18n"
+)
 
 templ OrgPage(sh Shell, vm OrgVM) {
 	@Layout(sh) {
-		@PageHead("Organograma", vm.Subtitle) {
-			<a class="btn outline" href={ templ.SafeURL(sh.Base() + "/personas") }>@Icon("bot") Personas</a>
-			<a class="btn primary" href={ templ.SafeURL(vm.HireHref) }>@Icon("plus") Contratar persona</a>
+		@PageHead(i18n.T(ctx, "Organograma"), vm.Subtitle) {
+			<a class="btn outline" href={ templ.SafeURL(sh.Base() + "/personas") }>@Icon("bot")
+{ " " + i18n.T(ctx, "Personas") }</a>
+			<a class="btn primary" href={ templ.SafeURL(vm.HireHref) }>
+				@Icon("plus")
+				{ i18n.T(ctx, "Contratar persona") }
+			</a>
 		}
 		if vm.Total == 0 {
-			@EmptyCard("network", "Nenhuma persona ainda.", "Contrate a primeira; quem reporta a quem aparece aqui, e a delegação de tasks segue essa árvore.", true) {
-				<a class="btn outline" href={ templ.SafeURL(vm.HireHref) }>@Icon("plus") Contratar persona</a>
+			@EmptyCard("network", i18n.T(ctx, "Nenhuma persona ainda."), i18n.T(ctx, "Contrate a primeira; quem reporta a quem aparece aqui, e a delegação de tasks segue essa árvore."), true) {
+				<a class="btn outline" href={ templ.SafeURL(vm.HireHref) }>
+					@Icon("plus")
+					{ i18n.T(ctx, "Contratar persona") }
+				</a>
 			}
 		} else {
 			<div class="org-scroll">
@@ -20,7 +31,7 @@ templ OrgPage(sh Shell, vm OrgVM) {
 					width={ fmt.Sprint(vm.Width) }
 					height={ fmt.Sprint(vm.Height) }
 					role="group"
-					aria-label="Organograma das personas"
+					aria-label={ i18n.T(ctx, "Organograma das personas") }
 				>
 					for _, e := range vm.Edges {
 						<path class="org-edge" d={ e.D }></path>
@@ -38,7 +49,7 @@ templ OrgPage(sh Shell, vm OrgVM) {
 					}
 				</svg>
 			</div>
-			<p class="muted org-note">A delegação segue a árvore: uma persona só cria ou atribui tasks para si e para quem reporta a ela, direta ou indiretamente. Quem decide é sempre um humano. Clique numa persona para abrir ou editar quem ela reporta.</p>
+			<p class="muted org-note">{ i18n.T(ctx, "A delegação segue a árvore: uma persona só cria ou atribui tasks para si e para quem reporta a ela, direta ou indiretamente. Quem decide é sempre um humano. Clique numa persona para abrir ou editar quem ela reporta.") }</p>
 		}
 	}
 }
