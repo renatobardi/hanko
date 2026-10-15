@@ -307,7 +307,7 @@ func (q *Queries) ListSilentPersonas(ctx context.Context, arg ListSilentPersonas
 }
 
 const listStuckRuns = `-- name: ListStuckRuns :many
-SELECT r.id, r.company_id, r.persona_id, r.task_id, p.name AS persona_name,
+SELECT r.id, r.company_id, r.persona_id, r.task_id, p.name AS persona_name, r.name AS run_name,
        (c.task_prefix || '-' || t.number)::text AS task_key,
        COALESCE(ev.last_at, r.started_at, r.created_at)::timestamptz AS last_event_at
 FROM runs r
@@ -326,6 +326,7 @@ type ListStuckRunsRow struct {
 	PersonaID   uuid.UUID
 	TaskID      uuid.UUID
 	PersonaName string
+	RunName     string
 	TaskKey     string
 	LastEventAt time.Time
 }
@@ -346,6 +347,7 @@ func (q *Queries) ListStuckRuns(ctx context.Context, cutoff time.Time) ([]ListSt
 			&i.PersonaID,
 			&i.TaskID,
 			&i.PersonaName,
+			&i.RunName,
 			&i.TaskKey,
 			&i.LastEventAt,
 		); err != nil {

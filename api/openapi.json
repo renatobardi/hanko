@@ -1843,6 +1843,13 @@
           "model": {
             "type": "string"
           },
+          "name": {
+            "description": "Nome amigável Adjetivo_Substantivo, único na empresa; vazio em execuções anteriores a ele.",
+            "examples": [
+              "Veloz_Raposa"
+            ],
+            "type": "string"
+          },
           "persona_id": {
             "format": "uuid",
             "type": "string"
@@ -5200,6 +5207,16 @@
             "name": "status",
             "schema": {
               "description": "Status separados por vírgula: queued,running,done,interrupted,failed,cancelled,expired.",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Nome amigável da execução (ex.: Veloz_Raposa); sem diferenciar caixa nem acento.",
+            "explode": false,
+            "in": "query",
+            "name": "name",
+            "schema": {
+              "description": "Nome amigável da execução (ex.: Veloz_Raposa); sem diferenciar caixa nem acento.",
               "type": "string"
             }
           }

@@ -21,5 +21,12 @@ CREATE TABLE alerts (
 CREATE UNIQUE INDEX alerts_open_uq ON alerts (company_id, kind, subject_id) WHERE closed_at IS NULL;
 CREATE INDEX alerts_open_company_idx ON alerts (company_id, opened_at DESC) WHERE closed_at IS NULL;
 
+-- Nome amigável da execução (Adjetivo_Substantivo, derivado do id; docs/GLOSSARIO.md). Único por empresa
+-- quando preenchido; runs antigas ficam com '' até o backfill do boot nomeá-las.
+ALTER TABLE runs ADD COLUMN name text NOT NULL DEFAULT '';
+CREATE UNIQUE INDEX runs_company_name_uq ON runs (company_id, name) WHERE name <> '';
+
 -- +goose Down
+DROP INDEX runs_company_name_uq;
+ALTER TABLE runs DROP COLUMN name;
 DROP TABLE alerts;

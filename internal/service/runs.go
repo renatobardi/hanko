@@ -41,6 +41,12 @@ func (s *Service) ListRuns(ctx context.Context, companyID domain.ID, f RunFilter
 			p.Statuses[i] = string(st)
 		}
 	}
+	if n := strings.TrimSpace(f.Name); n != "" {
+		if c, ok := domain.CanonicalRunName(n); ok {
+			n = c
+		}
+		p.Name = &n
+	}
 	rows, err := s.read().ListRunViews(ctx, p)
 	if err != nil {
 		return nil, fmt.Errorf("list runs: %w", err)
@@ -200,13 +206,9 @@ func (s *Service) CheckoutRun(ctx context.Context, w Wake) (domain.Run, error) {
 				return fmt.Errorf("clear budget refused: %w", err)
 			}
 		}
-		row, err := t.q.CreateRun(ctx, store.CreateRunParams{ID: domain.NewID(), CompanyID: w.CompanyID, TaskID: task.ID,
-			PersonaID: p.ID, Trigger: string(w.Trigger), Agent: p.Agent, Model: p.Model, Now: t.now})
+		row, err := t.createRun(w.CompanyID, task.ID, p, w.Trigger)
 		if err != nil {
-			if isUnique(err) {
-				return domain.ErrActiveRun
-			}
-			return fmt.Errorf("create run: %w", err)
+			return err
 		}
 		out = runFromRow(row)
 		if from == domain.TaskTodo {
@@ -240,6 +242,96 @@ func (s *Service) CheckoutRun(ctx context.Context, w Wake) (domain.Run, error) {
 		return domain.Run{}, blocked
 	}
 	return out, nil
+}
+
+// createRun inserts a queued run with its friendly name. The name comes from the run id; when the
+// pair is already taken in the company the next variation of the hash is used (see domain.RunName).
+// A race on the same name or on the one-active-run-per-task index is ErrActiveRun, so the wake is retried.
+func (t *txc) createRun(companyID, taskID domain.ID, p store.Persona, trigger domain.RunTrigger) (store.Run, error) {
+	id := domain.NewID()
+	name, err := t.freeRunName(companyID, id)
+	if err != nil {
+		return store.Run{}, err
+	}
+	row, err := t.q.CreateRun(t.ctx, store.CreateRunParams{ID: id, CompanyID: companyID, TaskID: taskID,
+		PersonaID: p.ID, Trigger: string(trigger), Agent: p.Agent, Model: p.Model, Name: name, Now: t.now})
+	if err != nil {
+		if isUnique(err) {
+			return store.Run{}, domain.ErrActiveRun
+		}
+		return store.Run{}, fmt.Errorf("create run: %w", err)
+	}
+	return row, nil
+}
+
+// freeRunName picks the first name for id not yet used in the company.
+func (t *txc) freeRunName(companyID, id domain.ID) (string, error) {
+	cands := make([]string, domain.RunNameAttempts)
+	for i := range cands {
+		cands[i] = domain.RunName(id, i)
+	}
+	taken, err := t.q.TakenRunNames(t.ctx, store.TakenRunNamesParams{CompanyID: companyID, Names: cands})
+	if err != nil {
+		return "", fmt.Errorf("taken run names: %w", err)
+	}
+	used := make(map[string]bool, len(taken))
+	for _, n := range taken {
+		used[n] = true
+	}
+	for _, c := range cands {
+		if !used[c] {
+			return c, nil
+		}
+	}
+	for n := 0; n < 50; n++ { // espaço da empresa quase esgotado: sufixo numérico
+		fb := domain.RunNameFallback(id, n)
+		ts, err := t.q.TakenRunNames(t.ctx, store.TakenRunNamesParams{CompanyID: companyID, Names: []string{fb}})
+		if err != nil {
+			return "", fmt.Errorf("taken run names: %w", err)
+		}
+		if len(ts) == 0 {
+			return fb, nil
+		}
+	}
+	return "", fmt.Errorf("sem nome livre para a run %s", id)
+}
+
+// BackfillRunNames gives a friendly name to the runs created before names existed. Idempotent;
+// returns how many runs were named. Called once at boot.
+func (s *Service) BackfillRunNames(ctx context.Context) (int, error) {
+	total := 0
+	for {
+		rows, err := s.read().ListRunsWithoutName(ctx, 500)
+		if err != nil {
+			return total, fmt.Errorf("list runs without name: %w", err)
+		}
+		if len(rows) == 0 {
+			return total, nil
+		}
+		named := 0
+		err = s.withTx(ctx, func(t *txc) error {
+			named = 0
+			for _, r := range rows {
+				name, err := t.freeRunName(r.CompanyID, r.ID)
+				if err != nil {
+					return err
+				}
+				n, err := t.q.SetRunName(ctx, store.SetRunNameParams{ID: r.ID, Name: name})
+				if err != nil {
+					return fmt.Errorf("set run name: %w", err)
+				}
+				named += int(n)
+			}
+			return nil
+		})
+		if err != nil {
+			return total, err
+		}
+		total += named
+		if named == 0 {
+			return total, nil
+		}
+	}
 }
 
 // LoadRunContext loads what the executor needs (run, company, persona, task, thread, workspace).

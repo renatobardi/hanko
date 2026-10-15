@@ -63,6 +63,7 @@ type InboxTask struct {
 }
 
 type InboxRun struct {
+	Name       string
 	Short      string
 	Href       string
 	TaskKey    string

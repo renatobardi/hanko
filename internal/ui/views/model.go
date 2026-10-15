@@ -150,6 +150,7 @@ type Msg struct {
 }
 
 type RunMini struct {
+	Name    string // nome amigável (pode estar vazio em runs antigas)
 	Short   string
 	Href    string
 	Label   string
@@ -277,6 +278,7 @@ type PersonaControl struct {
 // ---- runs ----
 
 type RunRow struct {
+	Name      string // nome amigável (pode estar vazio em runs antigas)
 	Short     string
 	Href      string
 	Persona   string
@@ -307,6 +309,7 @@ type LogLine struct {
 }
 
 type RunVM struct {
+	Name        string // nome amigável (pode estar vazio em runs antigas)
 	Short       string
 	ID          string
 	Badge       Badge

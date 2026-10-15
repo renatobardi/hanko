@@ -387,7 +387,7 @@ func TestWorkspaceEProject(t *testing.T) {
 
 func TestRunListShow(t *testing.T) {
 	cost := 0.0123
-	r := api.Run{ID: "run-1", TaskKey: "HNK-1", TaskTitle: "Login", PersonaName: "Marina", Status: "done", Trigger: "assign", Agent: "claude",
+	r := api.Run{ID: "run-1", Name: "Veloz_Raposa", TaskKey: "HNK-1", TaskTitle: "Login", PersonaName: "Marina", Status: "done", Trigger: "assign", Agent: "claude",
 		CostUSD: &cost, Summary: "Feito.", CreatedAt: time.Date(2026, 10, 13, 9, 0, 0, 0, time.UTC),
 		StartedAt: ptr(time.Date(2026, 10, 13, 9, 0, 5, 0, time.UTC))}
 	ts, f := newFakeAPI(t, map[string]http.HandlerFunc{
@@ -396,7 +396,7 @@ func TestRunListShow(t *testing.T) {
 	})
 	env := map[string]string{"HANKO_URL": ts.URL, "HANKO_COMPANY": "acme"}
 	_, out, _ := exec(t, Runtime{}, env, "", "run", "list", "--task", "HNK-1", "--status", "done", "--limit", "5")
-	want := "ID     TASK   PERSONA  STATUS  GATILHO  INÍCIO            CUSTO\nrun-1  HNK-1  Marina   done    assign   13/10/2026 09:00  US$ 0.0123\n"
+	want := "NOME          ID     TASK   PERSONA  STATUS  GATILHO  INÍCIO            CUSTO\nVeloz_Raposa  run-1  HNK-1  Marina   done    assign   13/10/2026 09:00  US$ 0.0123\n"
 	if diff := cmp.Diff(want, out); diff != "" {
 		t.Fatalf("tabela:\n%s", diff)
 	}
@@ -406,8 +406,54 @@ func TestRunListShow(t *testing.T) {
 		}
 	}
 	_, out, _ = exec(t, Runtime{}, env, "", "run", "show", "run-1")
-	if !strings.Contains(out, "Resumo:\nFeito.") || !strings.Contains(out, "US$ 0.0123") {
+	if !strings.Contains(out, "Resumo:\nFeito.") || !strings.Contains(out, "US$ 0.0123") || !strings.Contains(out, "Veloz_Raposa (run-1)") {
 		t.Fatalf("%q", out)
+	}
+}
+
+// Nome amigável no lugar do id: show, logs e cancel resolvem pelo nome (sem caixa nem acento) e
+// o texto que não é nome segue como id.
+func TestRunPorNome(t *testing.T) {
+	r := api.Run{ID: "0198f2a0-0000-7000-8000-0000000000aa", Name: "Ágil_Falcão", Status: "running"}
+	ts, f := newFakeAPI(t, map[string]http.HandlerFunc{
+		"GET /api/v1/companies/acme/runs": func(w http.ResponseWriter, req *http.Request) {
+			if req.URL.Query().Get("name") == "Ágil_Falcão" {
+				jsonResp(200, list(r))(w, req)
+				return
+			}
+			jsonResp(200, list[api.Run]())(w, req)
+		},
+		"GET /api/v1/companies/acme/runs/" + r.ID:              jsonResp(200, r),
+		"GET /api/v1/companies/acme/runs/" + r.ID + "/events":  jsonResp(200, list(api.RunEvent{Seq: 1, Kind: "assistant", Text: "oi", OccurredAt: time.Date(2026, 10, 13, 9, 0, 1, 0, time.UTC)})),
+		"POST /api/v1/companies/acme/runs/" + r.ID + "/cancel": jsonResp(200, api.Run{ID: r.ID, Name: r.Name, Status: "cancelled"}),
+	})
+	env := map[string]string{"HANKO_URL": ts.URL, "HANKO_COMPANY": "acme"}
+
+	code, out, _ := exec(t, Runtime{}, env, "", "run", "logs", "agil_falcao")
+	if code != 0 || !strings.Contains(out, "assistant   oi") {
+		t.Fatalf("logs por nome: %d %q", code, out)
+	}
+	if !strings.Contains(f.hits[0].Query, "name=%C3%81gil_Falc%C3%A3o") {
+		t.Fatalf("a busca deve usar o nome canônico: %q", f.hits[0].Query)
+	}
+	_, out, _ = exec(t, Runtime{}, env, "", "run", "show", "Ágil_Falcão")
+	if !strings.Contains(out, "Ágil_Falcão (0198f2a0-0000-7000-8000-0000000000aa)") {
+		t.Fatalf("show: %q", out)
+	}
+	_, out, _ = exec(t, Runtime{}, env, "", "run", "cancel", "ÁGIL_FALCÃO")
+	if !strings.Contains(out, "Execução Ágil_Falcão: cancelled") {
+		t.Fatalf("cancel: %q", out)
+	}
+	// nome com a forma certa mas que não existe
+	code, _, errOut := exec(t, Runtime{}, env, "", "run", "logs", "veloz_raposa")
+	if code == 0 || !strings.Contains(errOut, "não encontrada") {
+		t.Fatalf("inexistente: %d %q", code, errOut)
+	}
+	// id puro não faz busca por nome
+	n := len(f.hits)
+	exec(t, Runtime{}, env, "", "run", "logs", r.ID)
+	if f.hits[n].Path != "/api/v1/companies/acme/runs/"+r.ID+"/events" {
+		t.Fatalf("id deveria ir direto: %+v", f.hits[n])
 	}
 }
 

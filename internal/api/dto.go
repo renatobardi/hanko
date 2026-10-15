@@ -145,6 +145,7 @@ type Usage struct {
 // Run é uma execução de uma persona sobre uma task.
 type Run struct {
 	ID          string     `json:"id" format:"uuid"`
+	Name        string     `json:"name,omitempty" example:"Veloz_Raposa" doc:"Nome amigável Adjetivo_Substantivo, único na empresa; vazio em execuções anteriores a ele."`
 	CompanyID   string     `json:"company_id" format:"uuid"`
 	TaskID      string     `json:"task_id" format:"uuid"`
 	TaskKey     string     `json:"task_key,omitempty" example:"HNK-12"`
@@ -348,7 +349,7 @@ func commentOut(c domain.Comment) Comment {
 }
 
 func runOut(r service.RunView) Run {
-	return Run{ID: idStr(r.ID), CompanyID: idStr(r.CompanyID), TaskID: idStr(r.TaskID), TaskKey: r.TaskKey,
+	return Run{ID: idStr(r.ID), Name: r.Name, CompanyID: idStr(r.CompanyID), TaskID: idStr(r.TaskID), TaskKey: r.TaskKey,
 		TaskTitle: r.TaskTitle, PersonaID: idStr(r.PersonaID), PersonaName: r.PersonaName, Status: string(r.Status),
 		CostSource: string(r.CostSource),
 		Trigger:    string(r.Trigger), Agent: r.Agent, Model: r.Model, SessionRef: r.SessionRef, TraceID: r.TraceID,

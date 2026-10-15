@@ -30,7 +30,7 @@ ORDER BY p.company_id, p.id;
 
 -- name: ListStuckRuns :many
 -- Runs em 'running' cujo último evento (ou, sem eventos, o início) é anterior a @cutoff.
-SELECT r.id, r.company_id, r.persona_id, r.task_id, p.name AS persona_name,
+SELECT r.id, r.company_id, r.persona_id, r.task_id, p.name AS persona_name, r.name AS run_name,
        (c.task_prefix || '-' || t.number)::text AS task_key,
        COALESCE(ev.last_at, r.started_at, r.created_at)::timestamptz AS last_event_at
 FROM runs r

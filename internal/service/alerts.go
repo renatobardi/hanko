@@ -183,9 +183,9 @@ func (t *txc) alertConditions(cfg AlertConfig) ([]alertCond, error) {
 	for _, r := range stuck {
 		out = append(out, alertCond{companyID: r.CompanyID, kind: domain.AlertRunStuck, subjectType: "run", subjectID: r.ID,
 			severity: domain.AlertCritical,
-			message: fmt.Sprintf("Execução %s (%s) sem eventos há %s (limite %s)", r.TaskKey, r.PersonaName,
+			message: fmt.Sprintf("Execução %s (%s, %s) sem eventos há %s (limite %s)", runLabel(r.RunName, r.ID), r.TaskKey, r.PersonaName,
 				humanDuration(t.now.Sub(r.LastEventAt)), humanDuration(cfg.RunStuckAfter)),
-			data: map[string]any{"run_id": r.ID, "task_key": r.TaskKey, "persona_name": r.PersonaName,
+			data: map[string]any{"run_id": r.ID, "run_name": r.RunName, "task_key": r.TaskKey, "persona_name": r.PersonaName,
 				"last_event_at": r.LastEventAt, "limit_sec": int(cfg.RunStuckAfter.Seconds())}})
 	}
 
@@ -255,6 +255,14 @@ func (t *txc) budgetConditions() ([]alertCond, error) {
 		}
 	}
 	return out, nil
+}
+
+// runLabel is the friendly name of a run, or its short id for runs created before names existed.
+func runLabel(name string, id domain.ID) string {
+	if name != "" {
+		return name
+	}
+	return id.String()[:8]
 }
 
 // humanDuration arredonda para minutos (ou segundos, abaixo de 1 min) em pt-BR curto.

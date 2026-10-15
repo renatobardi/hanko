@@ -62,7 +62,7 @@ func commentFromRow(r store.TaskComment) domain.Comment {
 }
 
 func runFromRow(r store.Run) domain.Run {
-	run := domain.Run{ID: r.ID, CompanyID: r.CompanyID, TaskID: r.TaskID, PersonaID: r.PersonaID,
+	run := domain.Run{ID: r.ID, Name: r.Name, CompanyID: r.CompanyID, TaskID: r.TaskID, PersonaID: r.PersonaID,
 		Status: domain.RunStatus(r.Status), Trigger: domain.RunTrigger(r.Trigger), Agent: r.Agent, Model: r.Model,
 		SessionRef: r.SessionRef, TraceID: r.TraceID, Error: r.Error, Summary: r.Summary, CostUSD: r.CostUsd,
 		CostSource: domain.CostSource(r.CostSource),

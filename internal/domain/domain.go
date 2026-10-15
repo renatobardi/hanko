@@ -261,6 +261,7 @@ type Usage struct {
 // Run is one execution of a persona over a task.
 type Run struct {
 	ID         ID         `json:"id"`
+	Name       string     `json:"name,omitempty"` // nome amigável Adjetivo_Substantivo, único na empresa (vazio em runs antigas sem backfill)
 	CompanyID  ID         `json:"company_id"`
 	TaskID     ID         `json:"task_id"`
 	PersonaID  ID         `json:"persona_id"`

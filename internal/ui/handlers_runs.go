@@ -73,6 +73,7 @@ func (s *server) runVM(co domain.Company, rv service.RunView, personaSlug string
 		started = fmtClock(*rv.StartedAt, loc)
 	}
 	vm := views.RunVM{
+		Name:      rv.Name,
 		Short:     shortID(rv.ID),
 		ID:        rv.ID.String(),
 		Badge:     runBadge(rv.Status),
@@ -139,7 +140,7 @@ func (s *server) handleRun(w http.ResponseWriter, r *http.Request, co domain.Com
 	} else if len(evs) == pageEvents {
 		vm.Error = strings.TrimSpace(vm.Error + " Log truncado nos primeiros " + strconv.Itoa(pageEvents) + " eventos.")
 	}
-	sh := s.shell(co, "execucoes", "Execução "+vm.Short, views.Crumb{Label: "Execuções", Href: base + "/execucoes"}, views.Crumb{Label: vm.Short})
+	sh := s.shell(co, "execucoes", "Execução "+nameOrShort(vm.Name, vm.Short), views.Crumb{Label: "Execuções", Href: base + "/execucoes"}, views.Crumb{Label: nameOrShort(vm.Name, vm.Short)})
 	s.render(w, r, http.StatusOK, views.RunPage(sh, vm))
 }
 
@@ -351,4 +352,12 @@ func (s *server) handleRunSSE(w http.ResponseWriter, r *http.Request, co domain.
 			}
 		}
 	}
+}
+
+// nameOrShort is the friendly run name, or the short id for runs that have none.
+func nameOrShort(name, short string) string {
+	if name != "" {
+		return name
+	}
+	return short
 }

@@ -248,13 +248,13 @@ func (t TaskQuery) values() url.Values {
 
 // RunQuery são os filtros de ListRuns.
 type RunQuery struct {
-	Task, Persona, Status string
-	Limit, Offset         int
+	Task, Persona, Status, Name string
+	Limit, Offset               int
 }
 
 func (r RunQuery) values() url.Values {
 	q := url.Values{}
-	for k, v := range map[string]string{"task": r.Task, "persona": r.Persona, "status": r.Status} {
+	for k, v := range map[string]string{"task": r.Task, "persona": r.Persona, "status": r.Status, "name": r.Name} {
 		if v != "" {
 			q.Set(k, v)
 		}

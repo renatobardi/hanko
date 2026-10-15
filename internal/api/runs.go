@@ -21,6 +21,7 @@ type listRunsIn struct {
 	Task    string `query:"task" doc:"Id ou chave da task."`
 	Persona string `query:"persona" doc:"Id ou slug da persona."`
 	Status  string `query:"status" doc:"Status separados por vírgula: queued,running,done,interrupted,failed,cancelled,expired."`
+	Name    string `query:"name" doc:"Nome amigável da execução (ex.: Veloz_Raposa); sem diferenciar caixa nem acento."`
 }
 
 type listRunEventsIn struct {
@@ -61,7 +62,7 @@ func (s *server) registerRuns(api huma.API) {
 			}
 			// O service só pagina por limit; offset é aplicado aqui.
 			rs, err := s.svc.ListRuns(ctx, sc.Company.ID, service.RunFilter{
-				TaskID: task, PersonaID: persona, Statuses: statuses, Limit: min(in.Limit+in.Offset, runListCap)})
+				TaskID: task, PersonaID: persona, Statuses: statuses, Name: in.Name, Limit: min(in.Limit+in.Offset, runListCap)})
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}

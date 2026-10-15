@@ -87,7 +87,7 @@ func (s *server) handleInbox(w http.ResponseWriter, r *http.Request, co domain.C
 	if show("falhas") {
 		for _, rv := range in.FailedRuns {
 			vm.Failed = append(vm.Failed, views.InboxRun{
-				Short: shortID(rv.ID), Href: base + "/execucoes/" + rv.ID.String(), TaskKey: rv.TaskKey, TaskHref: base + "/tasks/" + rv.TaskKey,
+				Name: rv.Name, Short: shortID(rv.ID), Href: base + "/execucoes/" + rv.ID.String(), TaskKey: rv.TaskKey, TaskHref: base + "/tasks/" + rv.TaskKey,
 				TaskTitle: rv.TaskTitle, Persona: rv.PersonaName, Error: excerpt(rv.Error, 200), When: ago(rv.CreatedAt, now, loc),
 				ActionHref: base + "/caixa/tasks/" + rv.TaskID.String() + "/acordar",
 			})

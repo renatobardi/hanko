@@ -131,6 +131,24 @@ func TestRoot(t *testing.T) {
 	})
 }
 
+// O nome amigável da execução aparece ao lado do id curto: lista, detalhe, task e Caixa de entrada.
+func TestRunNameVisivel(t *testing.T) {
+	e := newEnv(t, uitest.Sample())
+	r0, failed := e.f.Runs[0], e.f.Runs[4]
+	for path, name := range map[string]string{
+		"/c/hanko/execucoes":                   r0.Name,
+		"/c/hanko/execucoes/" + r0.ID.String(): r0.Name,
+		"/c/hanko/tasks/HNK-221":               r0.Name,
+		"/c/hanko/caixa":                       failed.Name,
+	} {
+		if name == "" {
+			t.Fatal("amostra sem nome de execução")
+		}
+		wantContains(t, e.get(t, path), name)
+	}
+	wantContains(t, e.get(t, "/c/hanko/execucoes/"+r0.ID.String()), shortID(r0.ID))
+}
+
 func TestPagesRender(t *testing.T) {
 	e := newEnv(t, uitest.Sample())
 	run := e.f.Runs[0].ID.String()

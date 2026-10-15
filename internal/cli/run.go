@@ -16,12 +16,12 @@ import (
 	"github.com/renatobardi/hanko/internal/domain"
 )
 
-var runHeader = []string{"ID", "TASK", "PERSONA", "STATUS", "GATILHO", "INÍCIO", "CUSTO"}
+var runHeader = []string{"NOME", "ID", "TASK", "PERSONA", "STATUS", "GATILHO", "INÍCIO", "CUSTO"}
 
 func runRows(rs []api.Run) [][]string {
 	rows := make([][]string, 0, len(rs))
 	for _, r := range rs {
-		rows = append(rows, []string{r.ID, dash(r.TaskKey), dash(r.PersonaName), r.Status, r.Trigger, fmtTimePtr(r.StartedAt), cost(r.CostUSD)})
+		rows = append(rows, []string{dash(r.Name), r.ID, dash(r.TaskKey), dash(r.PersonaName), r.Status, r.Trigger, fmtTimePtr(r.StartedAt), cost(r.CostUSD)})
 	}
 	return rows
 }
@@ -67,20 +67,24 @@ func (e *env) runCmd() *cobra.Command {
 	lf.IntVar(&q.Offset, "offset", 0, "itens a pular")
 
 	show := &cobra.Command{
-		Use: "show <run>", Short: "Mostra uma execução", Args: cobra.ExactArgs(1),
+		Use: "show <run>", Short: "Mostra uma execução (id ou nome, ex.: Veloz_Raposa)", Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			co, err := e.needCompany()
 			if err != nil {
 				return err
 			}
-			r, err := e.client().Run(cmd.Context(), co, args[0])
+			id, err := e.resolveRun(cmd.Context(), co, args[0])
+			if err != nil {
+				return err
+			}
+			r, err := e.client().Run(cmd.Context(), co, id)
 			if err != nil {
 				return err
 			}
 			if e.asJSON {
 				return e.printJSON(r)
 			}
-			e.kv([2]string{"Execução", r.ID}, [2]string{"Task", fmt.Sprintf("%s %s", dash(r.TaskKey), r.TaskTitle)},
+			e.kv([2]string{"Execução", runTitle(r)}, [2]string{"Task", fmt.Sprintf("%s %s", dash(r.TaskKey), r.TaskTitle)},
 				[2]string{"Persona", dash(r.PersonaName)}, [2]string{"Status", r.Status}, [2]string{"Gatilho", r.Trigger},
 				[2]string{"Agente", r.Agent + modelSuffix(r.Model)}, [2]string{"Criada em", fmtTime(r.CreatedAt)},
 				[2]string{"Início", fmtTimePtr(r.StartedAt)}, [2]string{"Fim", fmtTimePtr(r.FinishedAt)},
@@ -100,16 +104,20 @@ func (e *env) runCmd() *cobra.Command {
 	var follow bool
 	var after int64
 	logs := &cobra.Command{
-		Use: "logs <run>", Short: "Mostra o log de uma execução (--follow acompanha ao vivo)", Args: cobra.ExactArgs(1),
+		Use: "logs <run>", Short: "Mostra o log de uma execução, por id ou nome (--follow acompanha ao vivo)", Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			co, err := e.needCompany()
 			if err != nil {
 				return err
 			}
-			if follow {
-				return e.followRun(cmd.Context(), co, args[0], after)
+			id, err := e.resolveRun(cmd.Context(), co, args[0])
+			if err != nil {
+				return err
 			}
-			es, err := e.client().AllRunEvents(cmd.Context(), co, args[0], after)
+			if follow {
+				return e.followRun(cmd.Context(), co, id, after)
+			}
+			es, err := e.client().AllRunEvents(cmd.Context(), co, id, after)
 			if err != nil {
 				return err
 			}
@@ -129,25 +137,65 @@ func (e *env) runCmd() *cobra.Command {
 	logs.Flags().Int64Var(&after, "after", 0, "só eventos com seq maior que este valor")
 
 	cancel := &cobra.Command{
-		Use: "cancel <run>", Short: "Cancela uma execução", Args: cobra.ExactArgs(1),
+		Use: "cancel <run>", Short: "Cancela uma execução (id ou nome)", Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			co, err := e.needCompany()
 			if err != nil {
 				return err
 			}
-			r, err := e.client().CancelRun(cmd.Context(), co, args[0])
+			id, err := e.resolveRun(cmd.Context(), co, args[0])
+			if err != nil {
+				return err
+			}
+			r, err := e.client().CancelRun(cmd.Context(), co, id)
 			if err != nil {
 				return err
 			}
 			if e.asJSON {
 				return e.printJSON(r)
 			}
-			fmt.Fprintf(e.out, "Execução %s: %s\n", short(r.ID), r.Status)
+			fmt.Fprintf(e.out, "Execução %s: %s\n", runLabel(r), r.Status)
 			return nil
 		},
 	}
 	c.AddCommand(ls, show, logs, cancel)
 	return c
+}
+
+// runTitle mostra o nome amigável ao lado do id.
+func runTitle(r api.Run) string {
+	if r.Name == "" {
+		return r.ID
+	}
+	return r.Name + " (" + r.ID + ")"
+}
+
+// runLabel é o nome amigável da execução, ou o id curto se ela não tem nome.
+func runLabel(r api.Run) string {
+	if r.Name != "" {
+		return r.Name
+	}
+	return short(r.ID)
+}
+
+// resolveRun aceita o id da execução ou o nome amigável (Veloz_Raposa; sem diferenciar caixa nem
+// acento) e devolve o id. Texto que não tem a forma de um nome vai direto para a API como id.
+func (e *env) resolveRun(ctx context.Context, company, ref string) (string, error) {
+	name, ok := domain.CanonicalRunName(ref)
+	if !ok {
+		return ref, nil
+	}
+	rs, err := e.client().Runs(ctx, company, client.RunQuery{Name: name, Limit: 2})
+	if err != nil {
+		return "", err
+	}
+	switch len(rs) {
+	case 0:
+		return "", fmt.Errorf("execução %q não encontrada nesta empresa", name)
+	case 1:
+		return rs[0].ID, nil
+	}
+	return "", fmt.Errorf("mais de uma execução com o nome %q; use o id", name)
 }
 
 func modelSuffix(m string) string {
@@ -196,7 +244,7 @@ func (e *env) followRun(ctx context.Context, company, run string, after int64) e
 				_, err := fmt.Fprintln(e.out, f.Data)
 				return err
 			}
-			fmt.Fprintf(e.out, "-- execução %s: %s\n", short(r.ID), r.Status)
+			fmt.Fprintf(e.out, "-- execução %s: %s\n", runLabel(r), r.Status)
 		}
 		return nil
 	}

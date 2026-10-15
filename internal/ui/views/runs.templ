@@ -26,7 +26,14 @@ templ RunsTable(rows []RunRow, showPersona bool) {
 				<tbody>
 					for _, r := range rows {
 						<tr class="row">
-							<td class="id"><a href={ templ.SafeURL(r.Href) }>{ r.Short }</a></td>
+							<td class="id">
+								if r.Name != "" {
+									<a href={ templ.SafeURL(r.Href) }>{ r.Name }</a>
+									<div class="sub-line mono">{ r.Short }</div>
+								} else {
+									<a href={ templ.SafeURL(r.Href) }>{ r.Short }</a>
+								}
+							</td>
 							<td>
 								<a href={ templ.SafeURL(r.Href) } class="ttl">
 									if showPersona {
@@ -70,7 +77,15 @@ templ RunHeader(vm RunVM) {
 		<div class="tt">
 			<span class="mini-avatar" style="width:38px;height:38px">@Icon("bot")</span>
 			<div>
-				<h2>Execução <span class="mono">{ vm.Short }</span> · { vm.Persona } @BadgeEl(vm.Badge)</h2>
+				<h2>
+					Execução
+					if vm.Name != "" {
+						{ vm.Name } <span class="mono">{ vm.Short }</span>
+					} else {
+						<span class="mono">{ vm.Short }</span>
+					}
+					· { vm.Persona } @BadgeEl(vm.Badge)
+				</h2>
 				<div class="sub">Task <a class="mono" href={ templ.SafeURL(vm.TaskHref) }>{ vm.TaskKey }</a> · { vm.Trigger } · iniciada { vm.Started }</div>
 			</div>
 		</div>

@@ -87,6 +87,7 @@ func taskRow(t service.TaskView, base string, now time.Time, loc *time.Location)
 
 func runRow(r service.RunView, base string, now time.Time, loc *time.Location) views.RunRow {
 	return views.RunRow{
+		Name:      r.Name,
 		Short:     shortID(r.ID),
 		Href:      base + "/execucoes/" + r.ID.String(),
 		Persona:   r.PersonaName,

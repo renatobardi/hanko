@@ -71,6 +71,13 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 		return err
 	}
 
+	// Runs de antes dos nomes amigáveis ganham o delas; falha aqui só deixa o nome vazio (a UI cai no id curto).
+	if n, err := svc.BackfillRunNames(ctx); err != nil {
+		logger.Warn("nomes amigáveis de execução: backfill falhou", "err", err)
+	} else if n > 0 {
+		logger.Info("nomes amigáveis de execução atribuídos", "count", n)
+	}
+
 	mem := newMemory(ctx, cfg, logger)
 	reg := adapter.Registry{
 		"claude": claude.New(claude.Options{Bin: cfg.ClaudeBin, Logger: logger, EnvAllow: cfg.AgentEnvAllow}),

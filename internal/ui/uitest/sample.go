@@ -103,7 +103,7 @@ func Sample() *Fake {
 	cost := func(v float64) *float64 { return &v }
 	st := func(d time.Duration) *time.Time { t := now.Add(-d); return &t }
 	run := func(id domain.ID, tk string, who domain.Persona, task string, stt domain.RunStatus, trig domain.RunTrigger, started, finished time.Duration, c *float64, in, out int64, errMsg, summary string) service.RunView {
-		r := domain.Run{ID: id, CompanyID: co.ID, TaskID: ID("task:" + tk), PersonaID: who.ID, Status: stt, Trigger: trig, Agent: who.Agent, Model: who.Model,
+		r := domain.Run{ID: id, Name: domain.RunName(id, 0), CompanyID: co.ID, TaskID: ID("task:" + tk), PersonaID: who.ID, Status: stt, Trigger: trig, Agent: who.Agent, Model: who.Model,
 			CreatedAt: now.Add(-started), StartedAt: st(started), CostUSD: c, Usage: domain.Usage{InputTokens: in, OutputTokens: out}, Error: errMsg, Summary: summary, SessionRef: "sess-" + tk}
 		if finished >= 0 {
 			r.FinishedAt = st(finished)

@@ -1,6 +1,6 @@
 -- name: CreateRun :one
-INSERT INTO runs (id, company_id, task_id, persona_id, status, trigger, agent, model, created_at)
-VALUES (@id, @company_id, @task_id, @persona_id, 'queued', @trigger, @agent, @model, @now)
+INSERT INTO runs (id, company_id, task_id, persona_id, status, trigger, agent, model, name, created_at)
+VALUES (@id, @company_id, @task_id, @persona_id, 'queued', @trigger, @agent, @model, @name, @now)
 RETURNING *;
 
 -- name: GetRunByID :one
@@ -27,6 +27,7 @@ WHERE r.company_id = @company_id
   AND (sqlc.narg(task_id)::uuid IS NULL OR r.task_id = sqlc.narg(task_id)::uuid)
   AND (sqlc.narg(persona_id)::uuid IS NULL OR r.persona_id = sqlc.narg(persona_id)::uuid)
   AND (sqlc.narg(statuses)::text[] IS NULL OR r.status = ANY(sqlc.narg(statuses)::text[]))
+  AND (sqlc.narg(name)::text IS NULL OR lower(r.name) = lower(sqlc.narg(name)::text))
 ORDER BY r.created_at DESC, r.id DESC
 LIMIT @lim;
 
@@ -125,3 +126,14 @@ LIMIT @lim;
 
 -- name: ListWorkableTasksForPersona :many
 SELECT * FROM tasks WHERE persona_id = @persona_id AND status IN ('todo', 'in_progress') ORDER BY updated_at, id;
+
+-- name: TakenRunNames :many
+-- Quais dos nomes candidatos já existem na empresa.
+SELECT name FROM runs WHERE company_id = @company_id AND name = ANY(@names::text[]);
+
+-- name: ListRunsWithoutName :many
+-- Runs anteriores aos nomes amigáveis (backfill no boot), mais antigas primeiro.
+SELECT id, company_id FROM runs WHERE name = '' ORDER BY created_at, id LIMIT @lim;
+
+-- name: SetRunName :execrows
+UPDATE runs SET name = @name WHERE id = @id AND name = '';

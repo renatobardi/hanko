@@ -162,7 +162,9 @@ type RunFilter struct {
 	TaskID    *domain.ID
 	PersonaID *domain.ID
 	Statuses  []domain.RunStatus
-	Limit     int // default 50, max 500
+	// Name busca pelo nome amigável (sem diferenciar caixa nem acento: agil_falcao acha Ágil_Falcão).
+	Name  string
+	Limit int // default 50, max 500
 }
 
 type ActivityFilter struct {

@@ -181,7 +181,11 @@ templ TaskSide(vm TaskVM, base string) {
 			for _, r := range vm.Runs {
 				<a class="side-run" href={ templ.SafeURL(r.Href) }>
 					<span class={ "dot", r.Dot }></span>
-					<span class="mono">{ r.Short }</span>
+					if r.Name != "" {
+						<span title={ r.Short }>{ r.Name }</span>
+					} else {
+						<span class="mono">{ r.Short }</span>
+					}
 					<span>{ r.Label }</span>
 					<span class="d mono">{ r.When }</span>
 				</a>

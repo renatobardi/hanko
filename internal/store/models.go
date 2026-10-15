@@ -219,6 +219,7 @@ type Run struct {
 	PendingResult       []byte
 	CostSource          string
 	NextEventSeq        int64
+	Name                string
 }
 
 type RunEvent struct {

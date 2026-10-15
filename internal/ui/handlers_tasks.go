@@ -224,6 +224,7 @@ func (s *server) buildTaskVM(r *http.Request, co domain.Company, t service.TaskV
 			cost += *rv.CostUSD
 		}
 		mini := views.RunMini{
+			Name:   rv.Name,
 			Short:  shortID(rv.ID),
 			Href:   base + "/execucoes/" + rv.ID.String(),
 			Label:  runLabel(rv.Status),
