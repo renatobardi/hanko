@@ -28,8 +28,8 @@ jobs:
     env:
       HANKO_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/hanko_test?sslmode=disable
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version: "1.27"
           cache: true
@@ -43,7 +43,7 @@ jobs:
         run: go vet ./...
       - name: govulncheck
         run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
-      - uses: golangci/golangci-lint-action@v8
+      - uses: golangci/golangci-lint-action@v9
         with:
           version: latest
           install-mode: goinstall # compila com o Go 1.27 do setup-go (binário pré-compilado pode ser mais antigo que o go.mod)
@@ -66,7 +66,7 @@ jobs:
           templ generate -path internal/ui/views   # mesmo caminho do código versionado (FileName relativo)
           git diff --exit-code
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "22" # só ferramenta de build das ilhas (ADR-0005/0026); o binário não depende de Node
           cache: npm
@@ -96,18 +96,18 @@ jobs:
     # para a tag v* não ser o primeiro lugar onde a release quebra
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version: "1.27"
           cache: true
-      - uses: goreleaser/goreleaser-action@v6
+      - uses: goreleaser/goreleaser-action@v7
         with:
           version: "~> v2"
           args: check
-      - uses: goreleaser/goreleaser-action@v6
+      - uses: goreleaser/goreleaser-action@v7
         with:
           version: "~> v2"
           args: build --snapshot --clean
