@@ -41,10 +41,13 @@ func daysInMonth(t time.Time) int {
 // allocatePaid spreads each subscription's monthly fee over the local days of [from, to) up to
 // today: fee ÷ days of the month per day, shared among that day's runs of the subscription in
 // proportion to their list cost. A day with no use (or whose runs have no list cost) is idle and
-// does not go to any run, so paid + idle over a full month equals the fee. Accrual runs from the
-// month the subscription was created to the month it was switched off.
+// does not go to any run, so paid + idle over a full month equals the fee. A month accrues when any
+// period (switch-on to switch-off) of the subscription touched it, so inactive months are not charged.
 func (s *Service) allocatePaid(ctx context.Context, q *store.Queries, co store.Company, from, to time.Time) (*paidAllocation, error) {
 	loc := loadLocation(co.Timezone)
+	// The period is whole local days: the loop below counts every day it touches, so the run query must
+	// cover those same days (a run at 00:30 local on the first day is before a UTC-midnight `from`).
+	from, to = localDayStart(from, loc), localDayEnd(to, loc)
 	subs, err := q.ListSubscriptions(ctx, co.ID)
 	if err != nil {
 		return nil, fmt.Errorf("list subscriptions: %w", err)
@@ -55,6 +58,19 @@ func (s *Service) allocatePaid(ctx context.Context, q *store.Queries, co store.C
 	}
 	if len(subs) == 0 {
 		return out, nil
+	}
+	periods, err := q.ListSubscriptionPeriods(ctx, co.ID)
+	if err != nil {
+		return nil, fmt.Errorf("subscription periods: %w", err)
+	}
+	type monthSpan struct{ first, last int }
+	spans := map[domain.ID][]monthSpan{}
+	for _, p := range periods {
+		last := 1 << 30
+		if p.EndedAt != nil {
+			last = monthIndex(p.EndedAt.In(loc))
+		}
+		spans[p.SubscriptionID] = append(spans[p.SubscriptionID], monthSpan{monthIndex(p.StartedAt.In(loc)), last})
 	}
 	runs, err := q.SubscriptionRunsInPeriod(ctx, store.SubscriptionRunsInPeriodParams{Tz: co.Timezone, CompanyID: co.ID, FromTs: from, ToTs: to})
 	if err != nil {
@@ -75,14 +91,15 @@ func (s *Service) allocatePaid(ctx context.Context, q *store.Queries, co store.C
 	today = time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, loc)
 	for _, sub := range subs {
 		sc := SubscriptionCost{ID: sub.ID, Name: sub.Name, Agent: sub.Agent, MonthlyUSD: sub.MonthlyUsd}
-		first := monthIndex(sub.CreatedAt.In(loc))
-		last := 1 << 30
-		if !sub.Active {
-			if sub.EndedAt == nil {
-				last = -1
-			} else {
-				last = monthIndex(sub.EndedAt.In(loc))
+		// A month accrues only if some period of the subscription touched it: months between a
+		// switch-off and the next switch-on are not charged.
+		accrues := func(mi int) bool {
+			for _, sp := range spans[sub.ID] {
+				if mi >= sp.first && mi <= sp.last {
+					return true
+				}
 			}
+			return false
 		}
 		d := from.In(loc)
 		d = time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, loc)
@@ -92,7 +109,7 @@ func (s *Service) allocatePaid(ctx context.Context, q *store.Queries, co store.C
 				sc.Runs++
 				sc.ListUSD += r.Weight
 			}
-			if mi := monthIndex(d); mi < first || mi > last {
+			if !accrues(monthIndex(d)) {
 				continue
 			}
 			daily := sub.MonthlyUsd / float64(daysInMonth(d))
@@ -120,4 +137,19 @@ func (s *Service) allocatePaid(ctx context.Context, q *store.Queries, co store.C
 		out.subs = append(out.subs, sc)
 	}
 	return out, nil
+}
+
+// localDayStart is the local midnight of t's day in loc.
+func localDayStart(t time.Time, loc *time.Location) time.Time {
+	l := t.In(loc)
+	return time.Date(l.Year(), l.Month(), l.Day(), 0, 0, 0, 0, loc)
+}
+
+// localDayEnd rounds an exclusive bound up to a local midnight (a bound already at midnight stays).
+func localDayEnd(t time.Time, loc *time.Location) time.Time {
+	start := localDayStart(t, loc)
+	if start.Before(t.In(loc)) {
+		return start.AddDate(0, 0, 1)
+	}
+	return start
 }

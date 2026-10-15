@@ -368,3 +368,64 @@ func TestModelSourcePrecedence(t *testing.T) {
 		t.Fatalf("clear task model: %+v %v", tv, err)
 	}
 }
+
+// Desativar e reativar não cobra os meses inativos: o rateio só conta meses tocados por algum período.
+func TestReactivationDoesNotChargeInactiveMonths(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	at := func(m time.Month, d int) time.Time { return time.Date(2026, m, d, 12, 0, 0, 0, time.UTC) }
+	e.svc.Now = func() time.Time { return at(time.January, 5) }
+	sub := e.sub(t, nil) // US$ 31 a month: US$ 1 a day in March and May
+	off, on := false, true
+	e.svc.Now = func() time.Time { return at(time.February, 10) }
+	if _, err := e.svc.UpdateSubscription(ctx, domain.HumanActor, e.co.ID, sub.ID, service.UpdateSubscriptionInput{Active: &off}); err != nil {
+		t.Fatal(err)
+	}
+	e.svc.Now = func() time.Time { return at(time.May, 20) }
+	if _, err := e.svc.UpdateSubscription(ctx, domain.HumanActor, e.co.ID, sub.ID, service.UpdateSubscriptionInput{Active: &on}); err != nil {
+		t.Fatal(err)
+	}
+	e.svc.Now = func() time.Time { return at(time.June, 15) }
+	month := func(m time.Month) float64 {
+		from := time.Date(2026, m, 1, 3, 0, 0, 0, time.UTC)
+		sum, err := e.svc.CostSummary(ctx, e.co.ID, service.CostFilter{From: from, To: from.AddDate(0, 1, 0), GroupBy: service.GroupDay})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return sum.PaidUSD + sum.IdleUSD
+	}
+	if got := month(time.March); got != 0 {
+		t.Errorf("março (inativa) = %v, want 0", got)
+	}
+	if got := month(time.April); got != 0 {
+		t.Errorf("abril (inativa) = %v, want 0", got)
+	}
+	if got := month(time.February); !near(got, 31) { // the month it was switched off still accrues whole
+		t.Errorf("fevereiro = %v, want 31", got)
+	}
+	if got := month(time.May); !near(got, 31) {
+		t.Errorf("maio (reativada) = %v, want 31", got)
+	}
+}
+
+// O período é de dias locais inteiros: runs entre 00:00 local e `from` (ou depois de `to` no último dia)
+// entram no rateio do dia, em vez de o dia virar ocioso.
+func TestAllocatePaidNormalizesToLocalDays(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	e.svc.Now = func() time.Time { return time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC) }
+	sub := e.sub(t, nil)
+	p := e.persona(t, "Eng", func(in *service.HirePersonaInput) { in.SubscriptionID = &sub.ID })
+	// America/Sao_Paulo is UTC-3: 13:00Z of the 9th is 10:00 local (before `from`); 01:00Z of the 11th is 22:00 local of the 10th (after `to`).
+	e.spend(t, p, time.Date(2026, 3, 9, 13, 0, 0, 0, time.UTC), nil, usd(2))
+	e.spend(t, p, time.Date(2026, 3, 11, 1, 0, 0, 0, time.UTC), nil, usd(2))
+	e.svc.Now = func() time.Time { return time.Date(2026, 4, 1, 12, 0, 0, 0, time.UTC) }
+	sum, err := e.svc.CostSummary(ctx, e.co.ID, service.CostFilter{
+		From: time.Date(2026, 3, 10, 0, 0, 0, 0, time.UTC), To: time.Date(2026, 3, 11, 0, 0, 0, 0, time.UTC), GroupBy: service.GroupDay})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !near(sum.PaidUSD, 2) || !near(sum.IdleUSD, 0) {
+		t.Fatalf("paid=%v idle=%v, want 2 and 0", sum.PaidUSD, sum.IdleUSD)
+	}
+}

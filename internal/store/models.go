@@ -301,6 +301,13 @@ type SubscriptionGuardAlert struct {
 	CreatedAt      time.Time
 }
 
+type SubscriptionPeriod struct {
+	ID             uuid.UUID
+	SubscriptionID uuid.UUID
+	StartedAt      time.Time
+	EndedAt        *time.Time
+}
+
 type Task struct {
 	ID                uuid.UUID
 	CompanyID         uuid.UUID

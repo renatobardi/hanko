@@ -12,6 +12,21 @@ import (
 	"github.com/google/uuid"
 )
 
+const closeSubscriptionPeriod = `-- name: CloseSubscriptionPeriod :exec
+UPDATE subscription_periods SET ended_at = GREATEST($1::timestamptz, started_at)
+WHERE subscription_id = $2 AND ended_at IS NULL
+`
+
+type CloseSubscriptionPeriodParams struct {
+	Now            time.Time
+	SubscriptionID uuid.UUID
+}
+
+func (q *Queries) CloseSubscriptionPeriod(ctx context.Context, arg CloseSubscriptionPeriodParams) error {
+	_, err := q.db.Exec(ctx, closeSubscriptionPeriod, arg.Now, arg.SubscriptionID)
+	return err
+}
+
 const createSubscription = `-- name: CreateSubscription :one
 INSERT INTO subscriptions (id, company_id, name, agent, monthly_usd, model_prefixes, weekly_limit_usd,
                            weekly_guard_pct, active, created_at, updated_at)
@@ -186,6 +201,39 @@ func (q *Queries) InsertSubscriptionGuardAlert(ctx context.Context, arg InsertSu
 	return i, err
 }
 
+const listSubscriptionPeriods = `-- name: ListSubscriptionPeriods :many
+SELECT sp.id, sp.subscription_id, sp.started_at, sp.ended_at FROM subscription_periods sp
+JOIN subscriptions s ON s.id = sp.subscription_id
+WHERE s.company_id = $1
+ORDER BY sp.subscription_id, sp.started_at
+`
+
+// Períodos de vigência das assinaturas da empresa (rateio do custo pago: só os meses cobertos por algum período).
+func (q *Queries) ListSubscriptionPeriods(ctx context.Context, companyID uuid.UUID) ([]SubscriptionPeriod, error) {
+	rows, err := q.db.Query(ctx, listSubscriptionPeriods, companyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SubscriptionPeriod{}
+	for rows.Next() {
+		var i SubscriptionPeriod
+		if err := rows.Scan(
+			&i.ID,
+			&i.SubscriptionID,
+			&i.StartedAt,
+			&i.EndedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSubscriptions = `-- name: ListSubscriptions :many
 SELECT id, company_id, name, agent, monthly_usd, model_prefixes, weekly_limit_usd, weekly_guard_pct, active, ended_at, created_at, updated_at FROM subscriptions WHERE company_id = $1 ORDER BY created_at, id
 `
@@ -221,6 +269,20 @@ func (q *Queries) ListSubscriptions(ctx context.Context, companyID uuid.UUID) ([
 		return nil, err
 	}
 	return items, nil
+}
+
+const openSubscriptionPeriod = `-- name: OpenSubscriptionPeriod :exec
+INSERT INTO subscription_periods (subscription_id, started_at) VALUES ($1, $2)
+`
+
+type OpenSubscriptionPeriodParams struct {
+	SubscriptionID uuid.UUID
+	Now            time.Time
+}
+
+func (q *Queries) OpenSubscriptionPeriod(ctx context.Context, arg OpenSubscriptionPeriodParams) error {
+	_, err := q.db.Exec(ctx, openSubscriptionPeriod, arg.SubscriptionID, arg.Now)
+	return err
 }
 
 const subscriptionHasRuns = `-- name: SubscriptionHasRuns :one

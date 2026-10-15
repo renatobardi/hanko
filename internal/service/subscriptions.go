@@ -133,6 +133,11 @@ func (s *Service) CreateSubscription(ctx context.Context, actor domain.Actor, co
 			return mapErr(err, "create subscription")
 		}
 		out = subscriptionFromRow(row)
+		if out.Active {
+			if err := t.q.OpenSubscriptionPeriod(ctx, store.OpenSubscriptionPeriodParams{SubscriptionID: out.ID, Now: t.now}); err != nil {
+				return fmt.Errorf("open subscription period: %w", err)
+			}
+		}
 		return t.activity(actor, companyID, "subscription.created", "subscription", out.ID,
 			map[string]any{"name": out.Name, "agent": out.Agent, "monthly_usd": out.MonthlyUSD, "weekly_limit_usd": out.WeeklyLimitUSD}, "")
 	})
@@ -246,6 +251,16 @@ func (s *Service) UpdateSubscription(ctx context.Context, actor domain.Actor, co
 			return mapErr(err, "update subscription")
 		}
 		out = subscriptionFromRow(row)
+		if row.Active != cur.Active { // switching off closes the period; switching on opens a new one
+			if row.Active {
+				err = t.q.OpenSubscriptionPeriod(ctx, store.OpenSubscriptionPeriodParams{SubscriptionID: id, Now: t.now})
+			} else {
+				err = t.q.CloseSubscriptionPeriod(ctx, store.CloseSubscriptionPeriodParams{SubscriptionID: id, Now: t.now})
+			}
+			if err != nil {
+				return fmt.Errorf("subscription period: %w", err)
+			}
+		}
 		return t.activity(actor, companyID, "subscription.updated", "subscription", id, map[string]any{"fields": changed}, "")
 	})
 	return out, err
