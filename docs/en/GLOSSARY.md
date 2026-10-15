@@ -8,7 +8,7 @@ One term per concept. Code, API, MCP and database use English; the UI is in Braz
 |---|---|---|---|
 | company | Empresa | The multi-org isolation unit. `company_id` is on every domain table. | org, tenant |
 | persona | Persona | A role hired into the company (CTO, engineer, reviewer): instructions, model, budget, and position in the org chart. | agent |
-| agent | — | The harness that executes a persona in a run: `claude`, `codex`. Appears only in adapter/config. | — |
+| agent | — | The harness that executes a persona in a run: `claude`, `codex`, `acp` (any ACP agent), `fake`. Appears only in adapter/config. | — |
 | task | Task | A unit of work assigned to a persona. Status: backlog, todo, in_progress, in_review, blocked, done, cancelled. Priority: critical, high, medium, low. | issue, ticket |
 | run | Execução | One execution of a persona on a task, triggered by the heartbeat. Status: queued, running, done, interrupted, failed, cancelled, expired. One task has 0..n runs; at most one active run per task. | job |
 | gate | Gate | A point where a human decides (approve, reject, request changes). Always amber in the UI. Audit trail in activity. | approval, review |

@@ -330,6 +330,55 @@ Record the date and result in `docs/SESSION.md` or in the operations issue.
 | Firebase: "domínio não autorizado" (domain not authorized) in the popup | domain not in Authorized domains | Console → Authentication → Settings |
 | Firebase: 503 `Não foi possível validar o login` (could not validate the login) | server cannot reach `www.googleapis.com` | allow the server's HTTPS egress to Google's JWKS |
 | A local agent gets 401 after authenticated mode is turned on | it omitted the token (ADR-0017) | use the injected run token or an API key (§5.4) |
+| `acp` run fails with "não respondeu ao initialize" (did not answer initialize) | the command does not speak ACP v1 over stdio (or takes longer than `init_timeout_sec`) | run the command by hand; the error carries the last stdout/stderr lines (§ ACP agents) |
+| `acp` run ends in seconds without editing anything | the `read_only` policy (default) refused the edit | look for "permissão negada" (permission denied) events in the log; hire with `permission: allow` if intended |
 | Port 7420 in use | another instance | `HANKO_ADDR` |
 
 Logs are JSON on stderr with `trace_id`/`span_id`: copy the `trace_id` and look it up in Tempo (Grafana) to see the full trace of the request/run.
+
+## ACP agents (`acp` harness)
+
+The `acp` harness (ADR-0023) runs any agent that speaks the Agent Client Protocol v1 over stdio. Hanko ships no agent: the operator
+installs the program and the persona points at it.
+
+**Installing the agent.** The executable must exist on the `PATH` of the Hanko process (or be used by absolute path) and be authenticated
+outside Hanko (interactive authentication is not supported). The official (distroless) `Dockerfile` cannot run agents; use the
+`Dockerfile.agents` variant or an image of your own derived from it, for example (**illustrative example**, the package is fictional):
+
+```dockerfile
+FROM my-hanko-agents-image
+USER root
+RUN npm install -g acp-agent-package && npm cache clean --force
+USER node
+```
+
+Without a container, install the agent on the server host/LXC (global npm, a binary in `/usr/local/bin`, …) for the same user that runs Hanko.
+Agent credentials (API key, …) go in through `HANKO_AGENT_ENV_ALLOW` (server variables) or `adapter_config.env` (on the persona).
+
+**Hiring an ACP persona.** In the UI, pick the ACP harness and fill in command, arguments and permissions. From the CLI (lists and objects
+need `--config-json`) or the API (`adapter_config`):
+
+```sh
+# EXAMPLE: replace "my-acp-agent" with the real command of your agent
+hanko persona hire "External" --agent acp \
+  --config-json '{"command":"my-acp-agent","args":["--stdio"],"permission":"read_only"}'
+```
+
+`permission`: `read_only` (default) approves reading, search, thinking and external lookups (`read`, `search`, `think`, `fetch`) and refuses
+edit, delete, move, execute and the rest; `allow` approves everything (including running commands: use it only with agents and workspaces you
+trust); `reject` refuses everything. Writing through `fs/write_text_file` is accepted only with `allow`. Review runs ignore the setting and use
+`read_only`. Every decision shows up in the run log as a "permissão concedida/negada" (permission granted/denied) event.
+
+**Known limits.**
+- Confinement to the workspace directory applies to what goes through Hanko (`fs/*`). The agent process has the privileges of the user running
+  Hanko; to really isolate it, run Hanko in a container/user with no access to what the agent must not see.
+- Hanko's own MCP server is http; an agent that does not advertise `mcpCapabilities.http` runs without the `hanko_*` tools (a warning is logged).
+- No terminal (`terminal/*`), no interactive authentication, no ACP v2. Changing a persona's command means hiring another persona.
+- Cancelling a run sends `session/cancel` and waits up to 3 s; an agent that does not obey is killed (the whole process group).
+- An ACP persona can be a **reviewer persona**, but `acp` cannot be the alternate review harness (`--reviewer-agent`).
+- Exporting a company strips credential keys and flags from `adapter_config`; after importing, put the agent's key back.
+
+**Diagnosis.** Common run errors: "não respondeu ao initialize em N s" (did not answer initialize in N s: the command does not speak ACP over
+stdio; try it by hand and read the stdout/stderr lines in the error), "versão do ACP incompatível" (incompatible ACP version: the agent speaks
+another protocol version), "o agente exige autenticação" (the agent requires authentication: authenticate it outside Hanko) and "não foi possível
+iniciar o agente ACP" (could not start the ACP agent: the command is not on Hanko's `PATH`).
