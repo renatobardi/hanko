@@ -8,14 +8,14 @@ mode: trusted            # trusted | authenticated (login; exige secret >= 32 by
 # workspaces_root: ""    # raiz dos workspaces (HANKO_WORKSPACES_ROOT); padrão $HOME/hanko-workspaces
 # agent_env_allow: []    # env extra do servidor repassado aos agentes (HANKO_AGENT_ENV_ALLOW)
 # auth:                  # só vale com mode: authenticated (docs/RUNBOOK.md §5)
-#   provider: local      # local | firebase
+#   provider: firebase   # local | firebase
 #   firebase:            # provider firebase: valores públicos do app Web (sem Admin SDK)
-#     project_id: ""
-#     api_key: ""
-#     auth_domain: ""    # ex.: meu-projeto.firebaseapp.com
+#     project_id: oute-sso
+#     api_key: AIzaSyCh2NEff6X4ylSY1jtiFvuNe3fESMKZ5VE   # pública
+#     auth_domain: oute-sso.firebaseapp.com
 #   allowed_emails: []   # e/ou allowed_domains; sem listas só o primeiro usuário (dono) entra
 #   allowed_domains: []
-#   owner_email: ""      # firebase: único e-mail que vira dono (obrigatório em public_url público sem listas)
+#   owner_email: renatobardicabral@gmail.com   # firebase: único e-mail que vira dono (obrigatório em public_url público sem listas)
 #   web_bootstrap: false # local: libera o formulário "Criar conta de dono" em public_url público
 # trusted_proxies: [127.0.0.1/32, ::1/128]   # CIDRs cujo X-Forwarded-For vale (HANKO_TRUSTED_PROXIES)
 migrate_on_boot: true
