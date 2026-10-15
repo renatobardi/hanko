@@ -49,7 +49,7 @@ Primeira versão pública. Em produção em https://hanko.oute.pro desde 2026-10
   convites por link de uso único, `hanko member …`, `hanko auth user …` para o dono da instalação (ADR-0021).
 - Troca de empresa na sidebar; formulário do revisor na persona; página "nenhuma empresa".
 - `hanko export` / `hanko import` de uma empresa em JSON `hanko.company.v1`, sem ids nem segredos (ADR-0022).
-- UI bilíngue pt-BR/en (cookie `hanko_lang` > `Accept-Language`).
+- UI e CLI bilíngues pt-BR/en (UI: cookie `hanko_lang` > `Accept-Language`; CLI: `HANKO_LANG` > locale).
 - Deploy: backup consistente antes de subir versão nova; restore com rollback do banco anterior.
 - Documentação em inglês (`README.md`, `CONTRIBUTING.md`, `docs/en/`).
 - CI no GitHub: golangci-lint (gosec, revive, staticcheck), govulncheck, testes com `-race` e integração com Postgres,
