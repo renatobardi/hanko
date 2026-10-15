@@ -383,3 +383,87 @@ func TestLoginFirebasePolicy(t *testing.T) {
 		}
 	})
 }
+
+// CheckSession revalida sem efeito colateral: N pings não mudam expires_at nem last_seen_at; ResolveSession (uso
+// de verdade) continua renovando.
+func TestCheckSessionNaoRenova(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	u := mustOwner(t, e)
+	clock := time.Date(2026, 10, 14, 12, 0, 0, 0, time.UTC)
+	e.svc.Now = func() time.Time { return clock }
+	tok, sess, err := e.svc.CreateSession(ctx, u.ID, service.SessionMeta{}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := func() (exp, seen time.Time) {
+		if err := e.svc.Pool.QueryRow(ctx, `SELECT expires_at, last_seen_at FROM sessions WHERE id=$1`, sess.ID).Scan(&exp, &seen); err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
+	exp0, seen0 := state()
+
+	for range 5 { // 5 pings, cada um bem depois de 1 min (quando ResolveSession renovaria)
+		clock = clock.Add(15 * time.Minute)
+		if got, err := e.svc.CheckSession(ctx, tok); err != nil || got.ID != u.ID {
+			t.Fatalf("CheckSession: %v", err)
+		}
+	}
+	if exp, seen := state(); !exp.Equal(exp0) || !seen.Equal(seen0) {
+		t.Fatalf("CheckSession mudou a sessão: expires %v -> %v, last_seen %v -> %v", exp0, exp, seen0, seen)
+	}
+	// controle: o uso real renova
+	if _, err := e.svc.ResolveSession(ctx, tok); err != nil {
+		t.Fatal(err)
+	}
+	if exp, _ := state(); !exp.After(exp0) {
+		t.Fatal("ResolveSession deveria renovar a validade")
+	}
+	// e o Check continua recusando o que não vale
+	clock = clock.Add(60 * 24 * time.Hour)
+	if _, err := e.svc.CheckSession(ctx, tok); !errors.Is(err, domain.ErrUnauthenticated) {
+		t.Fatalf("expirada: %v", err)
+	}
+	if _, err := e.svc.CheckSession(ctx, ""); !errors.Is(err, domain.ErrUnauthenticated) {
+		t.Fatalf("vazio: %v", err)
+	}
+}
+
+// CheckAPIKey não anota o último uso.
+func TestCheckAPIKeyNaoAnotaUso(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	u := mustOwner(t, e)
+	clock := time.Date(2026, 10, 14, 12, 0, 0, 0, time.UTC)
+	e.svc.Now = func() time.Time { return clock }
+	key, k, err := e.svc.CreateAPIKey(ctx, u.ID, "ping")
+	if err != nil {
+		t.Fatal(err)
+	}
+	lastUsed := func() *time.Time {
+		var x *time.Time
+		if err := e.svc.Pool.QueryRow(ctx, `SELECT last_used_at FROM api_keys WHERE id=$1`, k.ID).Scan(&x); err != nil {
+			t.Fatal(err)
+		}
+		return x
+	}
+	for range 5 {
+		clock = clock.Add(10 * time.Minute)
+		if _, err := e.svc.CheckAPIKey(ctx, key); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if lastUsed() != nil {
+		t.Fatal("CheckAPIKey anotou last_used_at")
+	}
+	if _, err := e.svc.ResolveAPIKey(ctx, key); err != nil {
+		t.Fatal(err)
+	}
+	if lastUsed() == nil {
+		t.Fatal("ResolveAPIKey deveria anotar o uso")
+	}
+	if _, err := e.svc.CheckAPIKey(ctx, "hk_inexistente"); !errors.Is(err, domain.ErrUnauthenticated) {
+		t.Fatalf("chave inválida: %v", err)
+	}
+}

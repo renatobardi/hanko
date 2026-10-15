@@ -342,6 +342,17 @@ func (s *Service) stillAdmitted(u store.User) bool {
 // Sessão desconhecida ou expirada = ErrUnauthenticated; no provider firebase, com listas de
 // admissão, usuário que saiu delas também.
 func (s *Service) ResolveSession(ctx context.Context, token string) (domain.User, error) {
+	return s.resolveSession(ctx, token, true)
+}
+
+// CheckSession faz as mesmas verificações de ResolveSession (sessão existente e não expirada, usuário presente e
+// ainda admitido) SEM efeito colateral: não renova a validade deslizante. É para revalidações automáticas (o ping
+// do SSE): um stream aberto não pode manter a sessão viva sozinho; só o uso de verdade (requisições) renova.
+func (s *Service) CheckSession(ctx context.Context, token string) (domain.User, error) {
+	return s.resolveSession(ctx, token, false)
+}
+
+func (s *Service) resolveSession(ctx context.Context, token string, touch bool) (domain.User, error) {
 	if token == "" {
 		return domain.User{}, domain.ErrUnauthenticated
 	}
@@ -365,7 +376,7 @@ func (s *Service) ResolveSession(ctx context.Context, token string) (domain.User
 		_ = q.DeleteSessionByHash(ctx, auth.HashToken(token))
 		return domain.User{}, domain.ErrUnauthenticated
 	}
-	if now.Sub(sess.LastSeenAt) >= auth.TouchEvery {
+	if touch && now.Sub(sess.LastSeenAt) >= auth.TouchEvery {
 		if err := q.TouchSession(ctx, store.TouchSessionParams{ID: sess.ID, Now: now, ExpiresAt: now.Add(auth.SessionTTL)}); err != nil {
 			return domain.User{}, fmt.Errorf("touch session: %w", err)
 		}
@@ -429,6 +440,15 @@ func (s *Service) RevokeAPIKey(ctx context.Context, userID, keyID domain.ID) (do
 
 // ResolveAPIKey devolve o dono de uma API key ativa e anota o último uso (no máximo 1×/min).
 func (s *Service) ResolveAPIKey(ctx context.Context, key string) (domain.User, error) {
+	return s.resolveAPIKey(ctx, key, true)
+}
+
+// CheckAPIKey é ResolveAPIKey sem efeito colateral: não anota o último uso (ver CheckSession).
+func (s *Service) CheckAPIKey(ctx context.Context, key string) (domain.User, error) {
+	return s.resolveAPIKey(ctx, key, false)
+}
+
+func (s *Service) resolveAPIKey(ctx context.Context, key string, touch bool) (domain.User, error) {
 	if !auth.IsAPIKey(key) {
 		return domain.User{}, domain.ErrUnauthenticated
 	}
@@ -451,7 +471,7 @@ func (s *Service) ResolveAPIKey(ctx context.Context, key string) (domain.User, e
 		return domain.User{}, domain.ErrUnauthenticated
 	}
 	now := s.Now().UTC()
-	if k.LastUsedAt == nil || now.Sub(*k.LastUsedAt) >= auth.TouchEvery {
+	if touch && (k.LastUsedAt == nil || now.Sub(*k.LastUsedAt) >= auth.TouchEvery) {
 		if err := q.TouchAPIKey(ctx, store.TouchAPIKeyParams{ID: k.ID, Now: now}); err != nil && !errors.Is(err, context.Canceled) {
 			return domain.User{}, fmt.Errorf("touch api key: %w", err)
 		}

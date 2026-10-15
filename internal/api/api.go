@@ -107,6 +107,8 @@ type backend interface {
 	RunFlowNow(ctx context.Context, actor domain.Actor, companyID, flowID domain.ID) (service.FlowFireResult, error)
 	ResolveSession(ctx context.Context, token string) (domain.User, error)
 	ResolveAPIKey(ctx context.Context, key string) (domain.User, error)
+	CheckSession(ctx context.Context, token string) (domain.User, error)
+	CheckAPIKey(ctx context.Context, key string) (domain.User, error)
 	OpenExport(ctx context.Context, companyID domain.ID, opts service.ExportOptions) (*service.ExportStream, error)
 	ImportCompany(ctx context.Context, actor domain.Actor, doc export.Document, opts service.ImportOptions) (service.ImportResult, error)
 	ListMembers(ctx context.Context, companyID domain.ID) ([]domain.Member, error)

@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -35,6 +36,8 @@ type fakeSvc struct {
 	lastComment service.AddCommentInput
 	lastRunF    service.RunFilter
 	failWith    error
+	// resolves conta as resoluções com efeito colateral (renovam sessão / último uso); checks, as sem efeito
+	resolves, checks atomic.Int64
 
 	gates         []service.GateView
 	lastGateIn    service.RequestGateInput
@@ -221,9 +224,21 @@ func (f *fakeSvc) ImportCompany(context.Context, domain.Actor, export.Document, 
 }
 
 func (f *fakeSvc) ResolveSession(context.Context, string) (domain.User, error) {
+	f.resolves.Add(1)
 	return domain.User{}, f.failWith
 }
 
 func (f *fakeSvc) ResolveAPIKey(context.Context, string) (domain.User, error) {
+	f.resolves.Add(1)
+	return domain.User{}, f.failWith
+}
+
+func (f *fakeSvc) CheckSession(context.Context, string) (domain.User, error) {
+	f.checks.Add(1)
+	return domain.User{}, f.failWith
+}
+
+func (f *fakeSvc) CheckAPIKey(context.Context, string) (domain.User, error) {
+	f.checks.Add(1)
 	return domain.User{}, f.failWith
 }

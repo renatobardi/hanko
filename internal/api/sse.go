@@ -112,13 +112,13 @@ func (s *server) credentialCheck(r *http.Request) func(context.Context) error {
 			return nil
 		}
 		token := c.Value
-		return func(ctx context.Context) error { _, err := s.svc.ResolveSession(ctx, token); return err }
+		return func(ctx context.Context) error { _, err := s.svc.CheckSession(ctx, token); return err }
 	case auth.ViaAPIKey:
 		key, ok := auth.BearerToken(r.Header.Get("Authorization"))
 		if !ok {
 			return nil
 		}
-		return func(ctx context.Context) error { _, err := s.svc.ResolveAPIKey(ctx, key); return err }
+		return func(ctx context.Context) error { _, err := s.svc.CheckAPIKey(ctx, key); return err }
 	}
 	return nil
 }
