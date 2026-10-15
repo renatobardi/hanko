@@ -404,7 +404,7 @@ SELECT id, company_id, project_id, slug, title, description, metric, unit, start
 WHERE company_id = $1 AND status = 'active'
   AND (($2::uuid IS NOT NULL AND project_id = $2::uuid)
        OR ($3::uuid IS NOT NULL AND id = $3::uuid))
-ORDER BY due_date NULLS LAST, created_at, id
+ORDER BY ($3::uuid IS NOT NULL AND id = $3::uuid) DESC, due_date NULLS LAST, created_at, id
 LIMIT 6
 `
 
@@ -414,7 +414,8 @@ type ListGoalsForBriefingParams struct {
 	GoalID    *uuid.UUID
 }
 
-// Metas ativas do projeto da task, mais a meta da própria task (se ativa).
+// Metas ativas do projeto da task, mais a meta da própria task (se ativa); a da task vem sempre primeiro, para
+// não ser cortada pelo limite.
 func (q *Queries) ListGoalsForBriefing(ctx context.Context, arg ListGoalsForBriefingParams) ([]Goal, error) {
 	rows, err := q.db.Query(ctx, listGoalsForBriefing, arg.CompanyID, arg.ProjectID, arg.GoalID)
 	if err != nil {
