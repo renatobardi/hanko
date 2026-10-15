@@ -429,10 +429,12 @@ var enCLI = map[string]string{
 }
 
 func init() {
-	for k, v := range enCLI {
-		if _, dup := en[k]; dup {
-			panic("i18n: duplicate catalog key " + k)
+	for _, extra := range []map[string]string{enCLI, enChat} {
+		for k, v := range extra {
+			if _, dup := en[k]; dup {
+				panic("i18n: duplicate catalog key " + k)
+			}
+			en[k] = v
 		}
-		en[k] = v
 	}
 }
