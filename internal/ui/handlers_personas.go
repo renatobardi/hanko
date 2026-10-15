@@ -244,8 +244,8 @@ func (s *server) handlePersonaOrg(w http.ResponseWriter, r *http.Request, co dom
 		return
 	}
 	var in service.UpdatePersonaInput
-	switch v := trimForm(r, "reports_to"); {
-	case v == "":
+	switch v := trimForm(r, "reports_to"); v {
+	case "":
 		in.ClearReportsTo = p.ReportsTo != nil
 	default:
 		id, err := domain.ParseID(v)

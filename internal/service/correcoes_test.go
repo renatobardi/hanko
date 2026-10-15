@@ -774,7 +774,7 @@ func TestWakeSeqCountsEveryRequest(t *testing.T) {
 	if n, _ := e.svc.WakeSeq(ctx, p.ID, tv.ID); n != 3 {
 		t.Fatalf("seq after rollback = %d", n)
 	}
-	var _ pgx.Tx = tx
+	_ = pgx.Tx(tx)
 }
 
 func TestWakeCandidatesSafetyNet(t *testing.T) {

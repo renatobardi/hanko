@@ -5,7 +5,6 @@ import (
 	"errors"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -65,7 +64,6 @@ type env struct {
 	jobs   *fakeJobs
 	broker *events.Broker
 	co     domain.Company
-	now    time.Time
 }
 
 // newEnv builds a service over a clean database with one company.

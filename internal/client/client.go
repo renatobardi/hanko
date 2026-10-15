@@ -150,7 +150,7 @@ func list[T any](ctx context.Context, c *Client, path string, q url.Values) ([]T
 	return out.Items, nil
 }
 
-func get[T any](c *Client, ctx context.Context, method, path string, in any) (T, error) {
+func get[T any](ctx context.Context, c *Client, method, path string, in any) (T, error) {
 	var out T
 	err := c.do(ctx, method, path, nil, in, &out)
 	return out, err
@@ -325,7 +325,7 @@ type UpdateFlowReq struct {
 // ---------- operações ----------
 
 func (c *Client) CreateCompany(ctx context.Context, in CreateCompanyReq) (api.Company, error) {
-	return get[api.Company](c, ctx, http.MethodPost, "/companies", in)
+	return get[api.Company](ctx, c, http.MethodPost, "/companies", in)
 }
 
 func (c *Client) Companies(ctx context.Context) ([]api.Company, error) {
@@ -333,7 +333,7 @@ func (c *Client) Companies(ctx context.Context) ([]api.Company, error) {
 }
 
 func (c *Client) CreateWorkspace(ctx context.Context, company string, in CreateWorkspaceReq) (api.Workspace, error) {
-	return get[api.Workspace](c, ctx, http.MethodPost, cp(company)+"/workspaces", in)
+	return get[api.Workspace](ctx, c, http.MethodPost, cp(company)+"/workspaces", in)
 }
 
 func (c *Client) Workspaces(ctx context.Context, company string) ([]api.Workspace, error) {
@@ -341,7 +341,7 @@ func (c *Client) Workspaces(ctx context.Context, company string) ([]api.Workspac
 }
 
 func (c *Client) CreateProject(ctx context.Context, company string, in CreateProjectReq) (api.Project, error) {
-	return get[api.Project](c, ctx, http.MethodPost, cp(company)+"/projects", in)
+	return get[api.Project](ctx, c, http.MethodPost, cp(company)+"/projects", in)
 }
 
 func (c *Client) Projects(ctx context.Context, company string) ([]api.Project, error) {
@@ -349,7 +349,7 @@ func (c *Client) Projects(ctx context.Context, company string) ([]api.Project, e
 }
 
 func (c *Client) HirePersona(ctx context.Context, company string, in HirePersonaReq) (api.Persona, error) {
-	return get[api.Persona](c, ctx, http.MethodPost, cp(company)+"/personas", in)
+	return get[api.Persona](ctx, c, http.MethodPost, cp(company)+"/personas", in)
 }
 
 func (c *Client) Personas(ctx context.Context, company string) ([]api.Persona, error) {
@@ -357,15 +357,15 @@ func (c *Client) Personas(ctx context.Context, company string) ([]api.Persona, e
 }
 
 func (c *Client) Persona(ctx context.Context, company, ref string) (api.Persona, error) {
-	return get[api.Persona](c, ctx, http.MethodGet, cp(company)+"/personas/"+url.PathEscape(ref), nil)
+	return get[api.Persona](ctx, c, http.MethodGet, cp(company)+"/personas/"+url.PathEscape(ref), nil)
 }
 
 func (c *Client) UpdatePersona(ctx context.Context, company, ref string, in UpdatePersonaReq) (api.Persona, error) {
-	return get[api.Persona](c, ctx, http.MethodPatch, cp(company)+"/personas/"+url.PathEscape(ref), in)
+	return get[api.Persona](ctx, c, http.MethodPatch, cp(company)+"/personas/"+url.PathEscape(ref), in)
 }
 
 func (c *Client) UpdateCompany(ctx context.Context, company string, in UpdateCompanyReq) (api.Company, error) {
-	return get[api.Company](c, ctx, http.MethodPatch, cp(company), in)
+	return get[api.Company](ctx, c, http.MethodPatch, cp(company), in)
 }
 
 func (c *Client) Costs(ctx context.Context, company string, q CostQuery) (api.CostSummary, error) {
@@ -375,7 +375,7 @@ func (c *Client) Costs(ctx context.Context, company string, q CostQuery) (api.Co
 }
 
 func (c *Client) CreateFlow(ctx context.Context, company string, in CreateFlowReq) (api.Flow, error) {
-	return get[api.Flow](c, ctx, http.MethodPost, cp(company)+"/flows", in)
+	return get[api.Flow](ctx, c, http.MethodPost, cp(company)+"/flows", in)
 }
 
 func (c *Client) Flows(ctx context.Context, company string) ([]api.Flow, error) {
@@ -383,15 +383,15 @@ func (c *Client) Flows(ctx context.Context, company string) ([]api.Flow, error) 
 }
 
 func (c *Client) Flow(ctx context.Context, company, ref string) (api.Flow, error) {
-	return get[api.Flow](c, ctx, http.MethodGet, cp(company)+"/flows/"+url.PathEscape(ref), nil)
+	return get[api.Flow](ctx, c, http.MethodGet, cp(company)+"/flows/"+url.PathEscape(ref), nil)
 }
 
 func (c *Client) UpdateFlow(ctx context.Context, company, ref string, in UpdateFlowReq) (api.Flow, error) {
-	return get[api.Flow](c, ctx, http.MethodPatch, cp(company)+"/flows/"+url.PathEscape(ref), in)
+	return get[api.Flow](ctx, c, http.MethodPatch, cp(company)+"/flows/"+url.PathEscape(ref), in)
 }
 
 func (c *Client) RunFlow(ctx context.Context, company, ref string) (api.FlowRun, error) {
-	return get[api.FlowRun](c, ctx, http.MethodPost, cp(company)+"/flows/"+url.PathEscape(ref)+"/run", nil)
+	return get[api.FlowRun](ctx, c, http.MethodPost, cp(company)+"/flows/"+url.PathEscape(ref)+"/run", nil)
 }
 
 func (c *Client) FlowFires(ctx context.Context, company, ref string) ([]api.FlowFire, error) {
@@ -399,7 +399,7 @@ func (c *Client) FlowFires(ctx context.Context, company, ref string) ([]api.Flow
 }
 
 func (c *Client) CreateTask(ctx context.Context, company string, in CreateTaskReq) (api.Task, error) {
-	return get[api.Task](c, ctx, http.MethodPost, cp(company)+"/tasks", in)
+	return get[api.Task](ctx, c, http.MethodPost, cp(company)+"/tasks", in)
 }
 
 func (c *Client) Tasks(ctx context.Context, company string, q TaskQuery) ([]api.Task, error) {
@@ -407,15 +407,15 @@ func (c *Client) Tasks(ctx context.Context, company string, q TaskQuery) ([]api.
 }
 
 func (c *Client) Task(ctx context.Context, company, ref string) (api.Task, error) {
-	return get[api.Task](c, ctx, http.MethodGet, cp(company)+"/tasks/"+url.PathEscape(ref), nil)
+	return get[api.Task](ctx, c, http.MethodGet, cp(company)+"/tasks/"+url.PathEscape(ref), nil)
 }
 
 func (c *Client) UpdateTask(ctx context.Context, company, ref string, in UpdateTaskReq) (api.Task, error) {
-	return get[api.Task](c, ctx, http.MethodPatch, cp(company)+"/tasks/"+url.PathEscape(ref), in)
+	return get[api.Task](ctx, c, http.MethodPatch, cp(company)+"/tasks/"+url.PathEscape(ref), in)
 }
 
 func (c *Client) AddComment(ctx context.Context, company, ref string, in AddCommentReq) (api.Comment, error) {
-	return get[api.Comment](c, ctx, http.MethodPost, cp(company)+"/tasks/"+url.PathEscape(ref)+"/comments", in)
+	return get[api.Comment](ctx, c, http.MethodPost, cp(company)+"/tasks/"+url.PathEscape(ref)+"/comments", in)
 }
 
 func (c *Client) Comments(ctx context.Context, company, ref string) ([]api.Comment, error) {
@@ -431,11 +431,11 @@ func (c *Client) Runs(ctx context.Context, company string, q RunQuery) ([]api.Ru
 }
 
 func (c *Client) Run(ctx context.Context, company, id string) (api.Run, error) {
-	return get[api.Run](c, ctx, http.MethodGet, cp(company)+"/runs/"+url.PathEscape(id), nil)
+	return get[api.Run](ctx, c, http.MethodGet, cp(company)+"/runs/"+url.PathEscape(id), nil)
 }
 
 func (c *Client) CancelRun(ctx context.Context, company, id string) (api.Run, error) {
-	return get[api.Run](c, ctx, http.MethodPost, cp(company)+"/runs/"+url.PathEscape(id)+"/cancel", nil)
+	return get[api.Run](ctx, c, http.MethodPost, cp(company)+"/runs/"+url.PathEscape(id)+"/cancel", nil)
 }
 
 // RunEvents devolve eventos com seq > after, em páginas de até 1000; chame de novo
@@ -565,7 +565,7 @@ type UpdateSubscriptionReq struct {
 }
 
 func (c *Client) CreateSubscription(ctx context.Context, company string, in CreateSubscriptionReq) (api.Subscription, error) {
-	return get[api.Subscription](c, ctx, http.MethodPost, cp(company)+"/subscriptions", in)
+	return get[api.Subscription](ctx, c, http.MethodPost, cp(company)+"/subscriptions", in)
 }
 
 func (c *Client) Subscriptions(ctx context.Context, company string) ([]api.Subscription, error) {
@@ -573,11 +573,11 @@ func (c *Client) Subscriptions(ctx context.Context, company string) ([]api.Subsc
 }
 
 func (c *Client) Subscription(ctx context.Context, company, ref string) (api.Subscription, error) {
-	return get[api.Subscription](c, ctx, http.MethodGet, cp(company)+"/subscriptions/"+url.PathEscape(ref), nil)
+	return get[api.Subscription](ctx, c, http.MethodGet, cp(company)+"/subscriptions/"+url.PathEscape(ref), nil)
 }
 
 func (c *Client) UpdateSubscription(ctx context.Context, company, ref string, in UpdateSubscriptionReq) (api.Subscription, error) {
-	return get[api.Subscription](c, ctx, http.MethodPatch, cp(company)+"/subscriptions/"+url.PathEscape(ref), in)
+	return get[api.Subscription](ctx, c, http.MethodPatch, cp(company)+"/subscriptions/"+url.PathEscape(ref), in)
 }
 
 func (c *Client) DeleteSubscription(ctx context.Context, company, ref string) error {

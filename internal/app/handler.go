@@ -58,7 +58,7 @@ func buildHandler(d handlerDeps) (http.Handler, error) {
 	if cfg.Authenticated() {
 		inner = auth.Guard(d.Svc, d.Logger)(inner)
 	}
-	var h http.Handler = otelhttp.NewHandler(inner, serviceName,
+	h := otelhttp.NewHandler(inner, serviceName,
 		otelhttp.WithFilter(traceRequest),
 		otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string { return r.Method + " " + r.URL.Path }),
 	)

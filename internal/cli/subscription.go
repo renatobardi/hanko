@@ -176,8 +176,9 @@ func (e *env) subscriptionCmd() *cobra.Command {
 				on := upOn
 				req.Active = &on
 			}
-			if !(f.Changed("name") || f.Changed("agent") || f.Changed("monthly") || f.Changed("models") || f.Changed("weekly-limit") ||
-				f.Changed("guard-pct") || upNoWeekly || upOn || upOff) {
+			changed := f.Changed("name") || f.Changed("agent") || f.Changed("monthly") || f.Changed("models") || f.Changed("weekly-limit") ||
+				f.Changed("guard-pct") || upNoWeekly || upOn || upOff
+			if !changed {
 				return usageError{errors.New("nada a alterar: veja hanko subscription update --help")}
 			}
 			s, err := e.client().UpdateSubscription(cmd.Context(), co, args[0], req)
