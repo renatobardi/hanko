@@ -17,6 +17,9 @@ IP="${HANKO_LXC_IP:-}"
 PORT="${HANKO_PORT:-3790}"
 GATEWAY="${LXC_GATEWAY:-10.173.117.1}"
 DOMAIN="${HANKO_DOMAIN:-hanko.oute.pro}"
+# IP Tailscale do host: o split DNS da tailnet resolve *.oute.pro para ele, e os vhosts do lab
+# escutam nele explicitamente — sem este listen o nginx não acha o SNI ("unrecognized name").
+TS_IP="${OUTE_TAILSCALE_IP:-100.66.254.24}"
 EDGE=false; DRY=false
 for a in "$@"; do case "$a" in --edge) EDGE=true ;; --dry-run) DRY=true ;; *) echo "uso: $0 [--edge] [--dry-run]" >&2; exit 2 ;; esac; done
 
@@ -122,7 +125,7 @@ if $EDGE; then
   REMOTE_TMP=/tmp/deploy-hanko-vhost.remote.sh
   ssh "$HOST" "cat > ${REMOTE_TMP}" <<'REMOTE'
 set -euo pipefail
-DOMAIN=${DOMAIN:?}; UPSTREAM=${UPSTREAM:?}
+DOMAIN=${DOMAIN:?}; UPSTREAM=${UPSTREAM:?}; TS_IP=${TS_IP:?}
 AVAILABLE="/etc/nginx/sites-available/${DOMAIN}"; ENABLED="/etc/nginx/sites-enabled/${DOMAIN}"
 if [ -d "/etc/letsencrypt/live/${DOMAIN}" ]; then
   echo "==> certificado já existe, reaproveitando"
@@ -155,6 +158,7 @@ server {
 
     listen 443 ssl;
     listen [::]:443 ssl;
+    listen ${TS_IP}:443 ssl;
     ssl_certificate /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
     include /etc/letsencrypt/options-ssl-nginx.conf;
@@ -167,14 +171,15 @@ systemctl reload nginx
 echo "==> nginx recarregado"
 REMOTE
   if $DRY; then
-    echo "(dry-run) remoto: sudo DOMAIN=${DOMAIN} UPSTREAM=${IP}:${PORT} bash ${REMOTE_TMP}"
+    echo "(dry-run) remoto: sudo DOMAIN=${DOMAIN} UPSTREAM=${IP}:${PORT} TS_IP=${TS_IP} bash ${REMOTE_TMP}"
     ssh "$HOST" "rm -f ${REMOTE_TMP}"
   else
-    if printf '%s\n' "${SUDO_PASS}" | ssh "$HOST" "sudo -S -p '' DOMAIN='${DOMAIN}' UPSTREAM='${IP}:${PORT}' bash ${REMOTE_TMP}"; then
+    if printf '%s\n' "${SUDO_PASS}" | ssh "$HOST" "sudo -S -p '' DOMAIN='${DOMAIN}' UPSTREAM='${IP}:${PORT}' TS_IP='${TS_IP}' bash ${REMOTE_TMP}"; then
       ssh "$HOST" "rm -f ${REMOTE_TMP}"
     else
       rc=$?; ssh "$HOST" "rm -f ${REMOTE_TMP}" || true; echo "FAIL: borda saiu ${rc}" >&2; exit "$rc"
     fi
+    sleep 3  # reload do nginx é assíncrono
     echo "==> https://${DOMAIN}/healthz: $(curl -fsS --max-time 10 "https://${DOMAIN}/healthz" || echo FALHOU)"
   fi
 fi
