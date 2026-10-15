@@ -190,6 +190,20 @@ func BuildReviewPrompt(rc service.RunContext, briefing string) (system, prompt s
 	return system, pb.String()
 }
 
+// SkillIndex é o índice de skills que entra no system prompt dos harnesses sem carga nativa de skills
+// (codex, acp): nome e descrição de cada uma, com o corpo sob demanda pela tool MCP hanko_skill_get.
+func SkillIndex(skills []domain.Skill) string {
+	var sb strings.Builder
+	sb.WriteString("## Skills disponíveis\n\n")
+	sb.WriteString("Habilidades reutilizáveis habilitadas para você. Quando a descrição de uma bater com o trabalho, ")
+	sb.WriteString("carregue as instruções completas com a tool MCP `hanko_skill_get` (argumento `slug`) antes de agir e siga-as.\n\n")
+	for _, s := range skills {
+		desc := strings.Join(strings.Fields(s.Description), " ")
+		fmt.Fprintf(&sb, "- `%s`: %s\n", s.Slug, desc)
+	}
+	return strings.TrimRight(sb.String(), "\n")
+}
+
 // BuildMemoryPrompt builds the prompts of a memory curation run (trigger memory, ADR-0030): the persona's
 // own instructions, the curation protocol and the workspace to curate. It is pure.
 func BuildMemoryPrompt(rc service.RunContext, briefing string) (system, prompt string) {

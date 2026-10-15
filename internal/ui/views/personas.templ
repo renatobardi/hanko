@@ -346,6 +346,7 @@ templ PersonaPage(sh Shell, vm PersonaVM) {
 				@BudgetForm(*vm.Budget, "persona-budget")
 			</section>
 		}
+		@PersonaExtras(vm.Extras)
 		<h2 class="side-h" style="margin:28px 0 12px">{ i18n.T(ctx, "Tasks atribuídas") }</h2>
 		if len(vm.Tasks) == 0 {
 			@EmptyCard("list", i18n.T(ctx, "Nenhuma task atribuída."), i18n.T(ctx, "Atribua uma task a esta persona para ela começar a trabalhar."), false)

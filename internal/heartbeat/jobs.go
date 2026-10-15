@@ -5,6 +5,7 @@ import (
 	"github.com/riverqueue/river/rivertype"
 
 	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/service"
 )
 
 // Queue names.
@@ -109,6 +110,18 @@ func (StartReviewArgs) Kind() string { return "start_review" }
 
 func (StartReviewArgs) InsertOpts() river.InsertOpts {
 	return river.InsertOpts{MaxAttempts: 5}
+}
+
+// DeliverWebhookArgs entrega um webhook de saída (job "deliver_webhook", ADR-0029). O retry é da fila:
+// WebhookMaxAttempts tentativas com o backoff exponencial do service (NextRetry do worker).
+type DeliverWebhookArgs struct {
+	DeliveryID domain.ID `json:"delivery_id"`
+}
+
+func (DeliverWebhookArgs) Kind() string { return "deliver_webhook" }
+
+func (DeliverWebhookArgs) InsertOpts() river.InsertOpts {
+	return river.InsertOpts{MaxAttempts: service.WebhookMaxAttempts}
 }
 
 // MemoryTickArgs is the periodic scan for due memory consolidations (job "memory_consolidation_tick").

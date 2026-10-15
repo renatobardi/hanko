@@ -16,6 +16,12 @@ for a in "$@"; do
     echo "MCPFILE: $a" >&2
     echo "MCP: $(tr -d '\n' < "$a")" >&2
   fi
+  if [ "$prev" = "--add-dir" ] && [ -d "$a" ]; then
+    echo "ADDDIR: $a" >&2
+    for f in "$a"/.claude/skills/*/SKILL.md; do
+      [ -f "$f" ] && echo "SKILL: $f :: $(tr '\n' '~' < "$f")" >&2
+    done
+  fi
   prev="$a"
 done
 

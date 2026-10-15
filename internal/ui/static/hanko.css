@@ -815,6 +815,17 @@ button.link:hover { color: var(--ink); }
 .props-fs { border: 0; padding: 0; margin: 0; min-width: 0; }
 .switch[disabled] { opacity: .5; cursor: not-allowed; }
 
+/* Skills e Integrações (ADR-0029) */
+.md-split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+@media (max-width: 800px) { .md-split { grid-template-columns: 1fr; } }
+.md-preview { border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface-raised); padding: 12px 16px; min-height: 160px; overflow-wrap: anywhere; }
+.toggle-list { display: flex; flex-direction: column; }
+.toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line-soft); }
+.toggle-row:first-child { border-top: 0; }
+.toggle-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.secret-box { margin: 12px 0; }
+.secret-val { display: block; margin-top: 6px; padding: 8px 10px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md, 6px); user-select: all; overflow-wrap: anywhere; }
+.test-result { margin-top: 12px; }
 /* ---------- ilhas React (ADR-0005/ADR-0026): mesmos tokens, um só CSS ---------- */
 .grow { flex: 1; }
 

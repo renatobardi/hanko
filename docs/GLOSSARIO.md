@@ -31,7 +31,9 @@ Um termo por conceito. Código, API, MCP e banco em inglês; UI em pt-BR. Em dú
 | invite | Convite | Convite por e-mail com papel, token aleatório (só o hash fica no banco), válido por 7 dias, aceito em `/convite/{token}`. Sem envio de e-mail: o link é mostrado ao admin. | — |
 | session | Sessão | Cookie `hanko_session` de um usuário (30 dias deslizantes); só o hash do token fica no banco. | — |
 | api key | Chave de API | `hk_…` de um usuário para API, MCP e CLI; só o hash fica no banco; revogável. Não é o run token da persona. | token (ambíguo) |
-| skill · artifact · secret | Skill · Artefato · Segredo | Como nomeados. | plugin (só no sentido nativo do harness) |
+| skill | Skill | Habilidade reutilizável em markdown (`SKILL.md`) que uma persona carrega sob demanda; ligada por persona (ADR-0029). | plugin (só no sentido nativo do harness) |
+| integration | Integração | Serviço externo da empresa: servidor MCP injetado nas runs ou webhook de saída assinado com HMAC (ADR-0029). Os segredos ficam cifrados e nunca voltam. | connector |
+| artifact · secret | Artefato · Segredo | Como nomeados. | — |
 | memory consolidation | Consolidação de memória | Run de sistema (gatilho `memory`) em que a persona curadora deduplica e resume a memória de um workspace; custo no ledger. | — |
 | memory proposal | Proposta de curadoria | Escrita destrutiva da curadoria retida pelo proxy, com diff e sha256; só vai ao ai-memory após o gate `memory`. | pending write (ambíguo) |
 | memory grant | Concessão de memória | Permissão persona × workspace (`read`/`write`) para alcançar a memória de outro workspace da empresa. | — |

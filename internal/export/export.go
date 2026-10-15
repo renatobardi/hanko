@@ -24,6 +24,8 @@ type Document struct {
 	Personas      []Persona      `json:"personas,omitempty" doc:"Em ordem de contratação; o organograma é o campo reports_to."`
 	Tasks         []Task         `json:"tasks,omitempty" doc:"Em ordem de número, com os comentários."`
 	Flows         []Flow         `json:"flows,omitempty"`
+	Skills        []Skill        `json:"skills,omitempty" doc:"Skills da empresa (SKILL.md); a ligação com as personas está em personas[].skills. Opcional (ADR-0029)."`
+	Integrations  []Integration  `json:"integrations,omitempty" doc:"Integrações SEM segredos (headers, variáveis, segredo HMAC); entram desligadas na importação. Opcional (ADR-0029)."`
 	Runs          []Run          `json:"runs,omitempty" doc:"Só com with_runs: execuções encerradas, sem logs a menos que with_logs."`
 }
 
@@ -95,6 +97,7 @@ type Persona struct {
 	Reviewer             string         `json:"reviewer,omitempty" doc:"Slug da persona revisora (exclusivo com reviewer_agent)."`
 	ReviewerAgent        string         `json:"reviewer_agent,omitempty" enum:"claude,codex,fake"`
 	ReviewerModel        string         `json:"reviewer_model,omitempty"`
+	Skills               []string       `json:"skills,omitempty" doc:"Slugs das skills habilitadas para a persona."`
 	CreatedAt            time.Time      `json:"created_at"`
 }
 

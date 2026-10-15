@@ -30,6 +30,7 @@ type fake struct {
 	tasks    []service.TaskView
 	comments []domain.Comment
 	runs     map[domain.ID]service.RunView
+	skills   map[domain.ID][]domain.Skill // habilitadas por persona
 
 	lastActor    domain.Actor
 	lastCreate   service.CreateTaskInput
@@ -308,7 +309,7 @@ func TestListTools(t *testing.T) {
 		}
 	}
 	sort.Strings(got)
-	want := []string{"hanko_gate_request", "hanko_gate_status", "hanko_persona_list", "hanko_project_list", "hanko_run_get", "hanko_search", "hanko_task_comment", "hanko_task_create", "hanko_task_get", "hanko_task_list", "hanko_task_update", "hanko_whoami"}
+	want := []string{"hanko_gate_request", "hanko_gate_status", "hanko_persona_list", "hanko_project_list", "hanko_run_get", "hanko_search", "hanko_skill_get", "hanko_skill_list", "hanko_task_comment", "hanko_task_create", "hanko_task_get", "hanko_task_list", "hanko_task_update", "hanko_whoami"}
 	if d := cmp.Diff(want, got); d != "" {
 		t.Errorf("tools (-want +got):\n%s", d)
 	}

@@ -97,6 +97,9 @@ func (t *txc) activity(actor domain.Actor, companyID domain.ID, verb, subjectTyp
 	if err != nil {
 		return fmt.Errorf("record activity %s: %w", verb, err)
 	}
+	if err := t.enqueueWebhooks(companyID, verb, row.ID, subjectType, subjectID, raw); err != nil {
+		return err
+	}
 	t.publish(events.CompanyTopic(companyID.String()), "activity", activityFromRow(row))
 	return nil
 }

@@ -193,6 +193,30 @@ type Gate struct {
 	ReviewRunID          *uuid.UUID
 }
 
+type Integration struct {
+	ID            uuid.UUID
+	CompanyID     uuid.UUID
+	Kind          string
+	Slug          string
+	Name          string
+	Enabled       bool
+	AllPersonas   bool
+	Config        []byte
+	Events        []string
+	SecretEnc     string
+	SecretHint    string
+	CreatedByType string
+	CreatedByID   *uuid.UUID
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
+type IntegrationPersona struct {
+	CompanyID     uuid.UUID
+	IntegrationID uuid.UUID
+	PersonaID     uuid.UUID
+}
+
 type MemoryConsolidation struct {
 	ID            uuid.UUID
 	CompanyID     uuid.UUID
@@ -311,6 +335,14 @@ type Persona struct {
 	SearchTsv            interface{}
 }
 
+type PersonaSkill struct {
+	CompanyID uuid.UUID
+	PersonaID uuid.UUID
+	SkillID   uuid.UUID
+	Enabled   bool
+	UpdatedAt time.Time
+}
+
 type Project struct {
 	ID                 uuid.UUID
 	CompanyID          uuid.UUID
@@ -407,6 +439,22 @@ type Session struct {
 	AbsoluteExpiresAt time.Time
 }
 
+type Skill struct {
+	ID            uuid.UUID
+	CompanyID     uuid.UUID
+	Slug          string
+	Name          string
+	Description   string
+	Body          string
+	Version       int32
+	CreatedByType string
+	CreatedByID   *uuid.UUID
+	UpdatedByType string
+	UpdatedByID   *uuid.UUID
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
 type Subscription struct {
 	ID             uuid.UUID
 	CompanyID      uuid.UUID
@@ -490,6 +538,24 @@ type WakeRequest struct {
 	TaskID    uuid.UUID
 	Seq       int64
 	UpdatedAt time.Time
+}
+
+type WebhookDelivery struct {
+	ID            uuid.UUID
+	CompanyID     uuid.UUID
+	IntegrationID uuid.UUID
+	Event         string
+	ActivityID    *uuid.UUID
+	Test          bool
+	Payload       string
+	Status        string
+	Attempts      int32
+	HttpStatus    *int32
+	LatencyMs     *int32
+	Error         string
+	NextAttemptAt *time.Time
+	CreatedAt     time.Time
+	DeliveredAt   *time.Time
 }
 
 type Workspace struct {

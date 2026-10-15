@@ -320,6 +320,7 @@ func registerTools(s *sdk.Server, t *tools) {
 		Description: "Consulta uma execução (run): status, resumo, custo. Sem id, devolve a execução do seu token.",
 		Annotations: &sdk.ToolAnnotations{ReadOnlyHint: true},
 	}, t.runGet)
+	registerSkillTools(s, t)
 }
 
 // ---- resolução de empresa ----

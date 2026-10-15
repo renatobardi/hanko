@@ -399,6 +399,34 @@ API, mas **a decisão continua humana**. Revisão que falha, expira, é interrom
 com o motivo; revisão pendente há mais de 2 h é resolvida da mesma forma. Se a task sai de `in_review` no meio, a revisão é cancelada.
 O sha256 cobre o pacote task + histórico + entrega mostrado ao revisor, não o estado git do workspace.
 
+## Skills e integrações (ADR-0029)
+
+Configuração do operador (a empresa não consegue ligar sozinha):
+
+| Variável | Padrão | Efeito |
+|---|---|---|
+| `HANKO_SECRET_KEY` | vazio | Chave (mínimo 32 caracteres) que cifra os segredos das integrações (AES-256-GCM). Vazia: o Hanko sobe, mas recusa guardar segredos de integração. |
+| `HANKO_SECRET_KEY_PREVIOUS` | vazio | Chave anterior, só durante a rotação. |
+| `HANKO_INTEGRATIONS_ALLOW_STDIO` | `false` | Libera servidores MCP `stdio`, que executam um comando **na máquina do servidor**. |
+| `HANKO_INTEGRATIONS_ALLOW_PRIVATE` | `false` | Libera webhooks e testes de conexão para loopback, link-local e redes privadas (sem isso, bloqueio SSRF). |
+
+**Gerar a chave:** `openssl rand -hex 32`. Guarde-a junto com o `HANKO_SECRET` e no backup do operador; perder a chave perde os
+segredos guardados (as integrações ficam, sem credenciais, e é só informá-los de novo).
+
+**Rotacionar a chave:**
+1. Gere a nova. Ponha a nova em `HANKO_SECRET_KEY` e a antiga em `HANKO_SECRET_KEY_PREVIOUS`; reinicie.
+2. `hanko integration rekey` (ou `POST /api/v1/integrations/rekey-secrets`; só o dono da instalação): reescreve todos os
+   segredos com a chave atual e imprime quantos.
+3. Tire `HANKO_SECRET_KEY_PREVIOUS` e reinicie. Enquanto ela estiver definida, segredos antigos continuam abrindo.
+
+**Webhooks.** Cada entrega leva `X-Hanko-Signature: t=<unix>,v1=<hex>`, `X-Hanko-Event` e `X-Hanko-Delivery`. O receptor calcula
+`HMAC-SHA256(segredo, "<t>.<corpo>")`, compara em tempo constante e descarta `t` muito antigo. Falhou: 7 tentativas
+(30 s, 2 min, 8 min, 32 min, ~2 h, 6 h). É entrega ao menos uma vez; deduplique por `X-Hanko-Delivery`. Histórico em
+`/integracoes/<slug>` ou `hanko integration deliveries <slug>`.
+
+**Problemas comuns.** "destino não permitido": o endereço resolve para rede interna (ligue `HANKO_INTEGRATIONS_ALLOW_PRIVATE`
+se for proposital). "HANKO_SECRET_KEY não está configurada": defina a chave. MCP stdio ignorado na run: falta
+`HANKO_INTEGRATIONS_ALLOW_STDIO=true`.
 ## Agentes ACP (harness `acp`)
 
 O harness `acp` (ADR-0023) roda qualquer agente que fale o Agent Client Protocol v1 por stdio. O Hanko não traz agente algum: o

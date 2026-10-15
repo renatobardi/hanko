@@ -231,6 +231,8 @@ func (s *server) register(api huma.API) {
 	s.registerMemory(api)
 	s.registerMembers(api)
 	s.registerExport(api)
+	s.registerSkills(api)
+	s.registerIntegrations(api)
 	s.registerChat(api)
 	s.registerSearch(api)
 }
