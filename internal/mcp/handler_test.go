@@ -26,6 +26,7 @@ type fake struct {
 	mu       sync.Mutex
 	company  domain.Company
 	personas []domain.Persona
+	projects []service.ProjectView
 	tasks    []service.TaskView
 	comments []domain.Comment
 	runs     map[domain.ID]service.RunView
@@ -65,6 +66,17 @@ func (f *fake) GetCompany(_ context.Context, ref string) (domain.Company, error)
 		return f.company, nil
 	}
 	return domain.Company{}, domain.ErrNotFound
+}
+func (f *fake) ListProjectViews(context.Context, domain.ID) ([]service.ProjectView, error) {
+	return f.projects, nil
+}
+func (f *fake) GetProject(_ context.Context, _ domain.ID, ref string) (domain.Project, error) {
+	for _, p := range f.projects {
+		if p.Slug == ref || p.ID.String() == ref {
+			return p.Project, nil
+		}
+	}
+	return domain.Project{}, domain.ErrNotFound
 }
 func (f *fake) ListPersonas(context.Context, domain.ID) ([]domain.Persona, error) {
 	return f.personas, nil
@@ -294,7 +306,7 @@ func TestListTools(t *testing.T) {
 		}
 	}
 	sort.Strings(got)
-	want := []string{"hanko_gate_request", "hanko_gate_status", "hanko_persona_list", "hanko_run_get", "hanko_task_comment", "hanko_task_create", "hanko_task_get", "hanko_task_list", "hanko_task_update", "hanko_whoami"}
+	want := []string{"hanko_gate_request", "hanko_gate_status", "hanko_persona_list", "hanko_project_list", "hanko_run_get", "hanko_task_comment", "hanko_task_create", "hanko_task_get", "hanko_task_list", "hanko_task_update", "hanko_whoami"}
 	if d := cmp.Diff(want, got); d != "" {
 		t.Errorf("tools (-want +got):\n%s", d)
 	}
