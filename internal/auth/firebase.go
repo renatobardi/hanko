@@ -286,19 +286,19 @@ func (a Admission) Configured() bool { return len(a.Emails) > 0 || len(a.Domains
 
 // Allows informa se o e-mail está em alguma lista.
 func (a Admission) Allows(email string) bool {
-	email = strings.ToLower(strings.TrimSpace(email))
+	email = FoldEmail(email)
 	at := strings.LastIndex(email, "@")
 	if at <= 0 {
 		return false
 	}
 	domain := email[at+1:]
 	for _, e := range a.Emails {
-		if strings.EqualFold(strings.TrimSpace(e), email) {
+		if FoldEmail(e) == email {
 			return true
 		}
 	}
 	for _, d := range a.Domains {
-		if strings.EqualFold(strings.TrimPrefix(strings.TrimSpace(d), "@"), domain) {
+		if FoldEmail(strings.TrimPrefix(strings.TrimSpace(d), "@")) == domain {
 			return true
 		}
 	}

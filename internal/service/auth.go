@@ -58,7 +58,18 @@ func NormalizeEmail(s string) (string, error) {
 	if err != nil || a.Address != s || a.Name != "" || strings.ContainsAny(s, " <>,;") || len(s) > 254 {
 		return "", domain.Invalid("email", "endereço inválido")
 	}
-	return strings.ToLower(s), nil
+	return auth.FoldEmail(s), nil
+}
+
+// SameEmail compara dois e-mails normalizando os DOIS lados com NormalizeEmail (nunca strings.EqualFold:
+// ele aproxima o sinal de Kelvin de "k"). Endereço inválido de qualquer lado = diferente.
+func SameEmail(a, b string) bool {
+	na, err := NormalizeEmail(a)
+	if err != nil {
+		return false
+	}
+	nb, err := NormalizeEmail(b)
+	return err == nil && na == nb
 }
 
 // CountUsers devolve quantos usuários existem.
@@ -186,7 +197,7 @@ func (s *Service) LoginFirebase(ctx context.Context, in FirebaseLogin) (domain.U
 		return domain.User{}, domain.Invalid("uid", "required")
 	}
 	name := strings.TrimSpace(in.Name)
-	ownerEmail := strings.ToLower(strings.TrimSpace(in.OwnerEmail))
+	ownerEmail := auth.FoldEmail(in.OwnerEmail)
 	isOwner := ownerEmail != "" && email == ownerEmail
 	var out domain.User
 	err = s.withTx(ctx, func(t *txc) error {
@@ -196,7 +207,7 @@ func (s *Service) LoginFirebase(ctx context.Context, in FirebaseLogin) (domain.U
 		uid := in.UID
 		invited := false
 		if in.InviteToken != "" {
-			if inv, err := openInvite(ctx, t.q, in.InviteToken, t.now); err == nil && strings.EqualFold(inv.Email, email) {
+			if inv, err := openInvite(ctx, t.q, in.InviteToken, t.now); err == nil && SameEmail(inv.Email, email) {
 				invited = true
 			}
 		}
@@ -299,7 +310,7 @@ func (s *Service) stillAdmitted(u store.User) bool {
 	if u.Provider != string(domain.ProviderFirebase) || !s.Admission.Configured() || u.Invited {
 		return true
 	}
-	if s.OwnerEmail != "" && strings.EqualFold(strings.TrimSpace(u.Email), s.OwnerEmail) {
+	if s.OwnerEmail != "" && SameEmail(u.Email, s.OwnerEmail) {
 		return true
 	}
 	return s.Admission.Allows(u.Email)

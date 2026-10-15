@@ -806,3 +806,38 @@ func TestInstallOwnerUserAdmin(t *testing.T) {
 		t.Fatalf("usuário removido ainda existe: %v", err)
 	}
 }
+
+// O sinal de Kelvin (U+212A) é "k" para EqualFold/ToLower, mas é outra caixa de correio: não vale como o
+// e-mail convidado.
+func TestInviteEmailNotFoldedWithKelvin(t *testing.T) {
+	const kelvin = "K"
+	if service.SameEmail("k@x.com", kelvin+"@x.com") || !service.SameEmail(" K@X.com", "k@x.com") || service.SameEmail("lixo", "lixo") {
+		t.Fatal("SameEmail")
+	}
+	if got, _ := service.NormalizeEmail(kelvin + "@x.com"); got != kelvin+"@x.com" {
+		t.Fatalf("NormalizeEmail aproximou o Kelvin de ASCII: %q", got)
+	}
+
+	e := newEnv(t)
+	bg := context.Background()
+	own := mkUser(t, e, "own@x.com", domain.RoleOwner)
+	join(t, e, own, domain.MemberOwner)
+	_, tok, err := e.svc.InviteMember(as(own), own.Actor(), e.co.ID, "k@x.com", domain.MemberMember)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// aceite logado: conta com e-mail Kelvin não aceita o convite de "k@x.com"
+	imp := domain.User{ID: domain.NewID(), Email: kelvin + "@x.com", Provider: domain.ProviderLocal, Role: domain.RoleMember}
+	if _, err := e.svc.AcceptInvite(bg, tok, imp); !errors.Is(err, domain.ErrInviteInvalid) {
+		t.Fatalf("aceite com e-mail Kelvin: %v", err)
+	}
+	// firebase: o ID token com e-mail Kelvin não ganha admissão pelo convite de "k@x.com"
+	_, err = e.svc.LoginFirebase(bg, service.FirebaseLogin{UID: "u-k", Email: kelvin + "@x.com", ListsConfigured: true, OwnerEmail: "own@x.com", InviteToken: tok})
+	if !errors.Is(err, domain.ErrNotAllowed) {
+		t.Fatalf("login firebase com Kelvin: %v", err)
+	}
+	// e o e-mail certo continua entrando
+	if _, err := e.svc.LoginFirebase(bg, service.FirebaseLogin{UID: "u-k2", Email: "K@x.com", ListsConfigured: true, OwnerEmail: "own@x.com", InviteToken: tok}); err != nil {
+		t.Fatalf("login firebase com o e-mail do convite: %v", err)
+	}
+}

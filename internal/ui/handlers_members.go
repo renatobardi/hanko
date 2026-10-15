@@ -216,7 +216,7 @@ func (s *server) resolveInvite(w http.ResponseWriter, r *http.Request) (service.
 	}
 	vm := s.inviteBase(r, pv, token)
 	switch me, signed := auth.IdentityFrom(r.Context()); {
-	case signed && strings.EqualFold(me.User.Email, pv.Email):
+	case signed && service.SameEmail(me.User.Email, pv.Email):
 		vm.State = "confirm"
 	case signed:
 		vm.State = "wrong"

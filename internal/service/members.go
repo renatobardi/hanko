@@ -312,7 +312,7 @@ func (s *Service) PreviewInvite(ctx context.Context, token string) (InvitePrevie
 // InviteValidFor informa se o token é um convite aberto para o e-mail (admissão no login).
 func (s *Service) InviteValidFor(ctx context.Context, token, email string) bool {
 	inv, err := openInvite(ctx, s.read(), token, s.Now().UTC())
-	return err == nil && strings.EqualFold(inv.Email, strings.TrimSpace(email))
+	return err == nil && SameEmail(inv.Email, email)
 }
 
 // acceptInTx consome o convite para o usuário (e-mail precisa bater). Chamar dentro da transação.
@@ -321,7 +321,7 @@ func (t *txc) acceptInvite(token string, u domain.User) (domain.Member, error) {
 	if err != nil {
 		return domain.Member{}, err
 	}
-	if !strings.EqualFold(inv.Email, u.Email) {
+	if !SameEmail(inv.Email, u.Email) {
 		return domain.Member{}, domain.ErrInviteInvalid
 	}
 	if err := t.q.LockCompanyMembers(t.ctx, inv.CompanyID); err != nil {

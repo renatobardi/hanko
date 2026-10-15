@@ -3,13 +3,13 @@ package api
 import (
 	"context"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/renatobardi/hanko/internal/auth"
 	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/service"
 )
 
 // InvitePathPrefix é o caminho público de um convite; o token vem depois.
@@ -195,7 +195,7 @@ func (s *server) memberRef(ctx context.Context, cid domain.ID, ref string) (doma
 		return domain.ID{}, s.fail(ctx, err)
 	}
 	for _, m := range ms {
-		if m.UserID.String() == ref || strings.EqualFold(m.Email, ref) {
+		if m.UserID.String() == ref || service.SameEmail(m.Email, ref) {
 			return m.UserID, nil
 		}
 	}
