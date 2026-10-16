@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"github.com/renatobardi/hanko/internal/store"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -38,6 +39,8 @@ type Deps struct {
 	// Secure marks the language cookie Secure (PUBLIC_URL is https). Authenticated mode also
 	// honours Auth.Secure.
 	Secure bool
+	// Platform descreve a instalação (telas Ambientes, Adapters e Plugins). Opcional.
+	Platform PlatformInfo
 }
 
 // Backend is the subset of *service.Service the UI uses. It exists so handlers
@@ -94,6 +97,7 @@ type Backend interface {
 	SetCompanyBudget(ctx context.Context, actor domain.Actor, companyID domain.ID, cents *int64) (domain.Company, error)
 
 	ListSubscriptions(ctx context.Context, companyID domain.ID) ([]service.SubscriptionStatus, error)
+	ListModelPrices(ctx context.Context) ([]store.ModelPrice, error)
 	CreateSubscription(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.CreateSubscriptionInput) (domain.Subscription, error)
 	UpdateSubscription(ctx context.Context, actor domain.Actor, companyID, id domain.ID, in service.UpdateSubscriptionInput) (domain.Subscription, error)
 	DeleteSubscription(ctx context.Context, actor domain.Actor, companyID, id domain.ID) error
@@ -148,6 +152,8 @@ type server struct {
 	now     func() time.Time
 	auth    *authState // nil in trusted mode
 	secure  bool       // language cookie is Secure
+	// platform é o que a instalação sabe de si (Configurações › Ambientes, Adapters, Plugins).
+	platform PlatformInfo
 	// sseTick is how often the SSE handler re-reads the database as a safety
 	// net for dropped broker messages.
 	sseTick time.Duration
@@ -175,7 +181,7 @@ func MountBackend(mux *http.ServeMux, be Backend, d Deps) {
 	if now == nil {
 		now = func() time.Time { return time.Now().UTC() }
 	}
-	s := &server{be: be, broker: broker, log: log, version: d.Version, now: now, sseTick: 2 * time.Second, secure: d.Secure}
+	s := &server{be: be, broker: broker, log: log, version: d.Version, now: now, sseTick: 2 * time.Second, secure: d.Secure, platform: d.Platform}
 	if d.Auth != nil {
 		ab := d.Auth.Backend
 		if ab == nil {
@@ -291,6 +297,9 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("GET /c/{company}/organograma", co(s.handleOrg))
 
 	mux.HandleFunc("GET /c/{company}/configuracoes", co(s.handleSettings))
+	mux.HandleFunc("GET /c/{company}/configuracoes/ambientes", co(s.handleEnvironments))
+	mux.HandleFunc("GET /c/{company}/configuracoes/adapters", co(s.handleAdapters))
+	mux.HandleFunc("GET /c/{company}/configuracoes/plugins", co(s.handlePlugins))
 	mux.HandleFunc("POST /c/{company}/configuracoes/chaves", post(co(s.handleCreateKey)))
 	mux.HandleFunc("POST /c/{company}/configuracoes/chaves/{key}/revogar", post(co(s.handleRevokeKey)))
 	mux.HandleFunc("POST /c/{company}/configuracoes/memoria", post(co(s.handleMemorySave)))

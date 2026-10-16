@@ -3,6 +3,7 @@ package uitest
 import (
 	"context"
 	"fmt"
+	"github.com/renatobardi/hanko/internal/store"
 	"sort"
 	"strings"
 	"time"
@@ -487,4 +488,21 @@ func (f *Fake) DeleteSubscription(_ context.Context, _ domain.Actor, _, id domai
 		}
 	}
 	return domain.ErrNotFound
+}
+
+// ListModelPrices devolve uma tabela de preços de exemplo (mais recente primeiro por modelo).
+func (f *Fake) ListModelPrices(context.Context) ([]store.ModelPrice, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.note("ListModelPrices")
+	if err := f.fail("ListModelPrices"); err != nil {
+		return nil, err
+	}
+	at := Now().Add(-30 * 24 * time.Hour)
+	return []store.ModelPrice{
+		{Model: "claude-opus", InputPerMtok: 15, OutputPerMtok: 75, EffectiveAt: at},
+		{Model: "claude-sonnet", InputPerMtok: 3, OutputPerMtok: 15, EffectiveAt: at},
+		{Model: "claude-haiku", InputPerMtok: 1, OutputPerMtok: 5, EffectiveAt: at},
+		{Model: "gpt-5", InputPerMtok: 1.25, OutputPerMtok: 10, EffectiveAt: at},
+	}, nil
 }

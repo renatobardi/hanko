@@ -1168,3 +1168,16 @@ a.hit-main:hover { background: var(--muted); }
 .tl-bar.st-run text { fill: var(--primary-foreground); }
 .tl-now { stroke: var(--warn); stroke-width: 1.5; stroke-dasharray: 4 3; }
 
+/* ---------- Configurações › Ambientes, Adapters, Plugins ---------- */
+.env-checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.env-checks.compact { gap: 6px; }
+.env-check { display: grid; grid-template-columns: 20px minmax(0, 1fr); column-gap: 8px; align-items: start; font-size: var(--text-sm); }
+.env-check .ec-ico { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--destructive-tint); color: var(--destructive); }
+.env-check.ok .ec-ico { background: var(--muted); color: var(--foreground); }
+.env-check .ec-ico svg.ic { width: 12px; height: 12px; }
+.env-check .ec-l { font-weight: 500; }
+.env-check .ec-d { grid-column: 2; font-size: var(--text-xs); color: var(--muted-foreground); overflow-wrap: anywhere; }
+.plugin-card .pc-head { display: flex; gap: 12px; align-items: flex-start; }
+.plugin-card .pc-t { min-width: 0; }
+.plugin-grid { align-items: stretch; }
+
