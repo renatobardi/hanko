@@ -131,7 +131,7 @@ type CompanyMember struct {
 type Conversation struct {
 	ID            uuid.UUID
 	CompanyID     uuid.UUID
-	PersonaID     uuid.UUID
+	PersonaID     *uuid.UUID
 	Title         string
 	Status        string
 	CreatedByType string
@@ -139,6 +139,8 @@ type Conversation struct {
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 	LastMessageAt time.Time
+	Kind          string
+	RoomSettings  []byte
 }
 
 type ConversationMessage struct {
@@ -150,6 +152,30 @@ type ConversationMessage struct {
 	Body           string
 	RunID          *uuid.UUID
 	CreatedAt      time.Time
+	PersonaID      *uuid.UUID
+	ReplyToID      *uuid.UUID
+	Mentions       []uuid.UUID
+}
+
+type ConversationMessageRun struct {
+	CompanyID       uuid.UUID
+	ConversationID  uuid.UUID
+	MessageID       uuid.UUID
+	PersonaID       uuid.UUID
+	RunID           *uuid.UUID
+	OriginMessageID uuid.UUID
+	Hop             int32
+	CreatedAt       time.Time
+}
+
+type ConversationParticipant struct {
+	CompanyID      uuid.UUID
+	ConversationID uuid.UUID
+	PersonaID      uuid.UUID
+	AddedAt        time.Time
+	AddedByType    string
+	AddedByID      *uuid.UUID
+	RemovedAt      *time.Time
 }
 
 type CostNotice struct {

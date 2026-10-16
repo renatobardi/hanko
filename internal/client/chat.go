@@ -19,6 +19,7 @@ type CreateConversationReq struct {
 // ConversationQuery são os filtros de Conversations.
 type ConversationQuery struct {
 	Persona, Status string
+	Kind            string // direct | room (ADR-0033); vazio = os dois
 	Limit, Offset   int
 }
 
@@ -29,6 +30,9 @@ func (c ConversationQuery) values() url.Values {
 	}
 	if c.Status != "" {
 		q.Set("status", c.Status)
+	}
+	if c.Kind != "" {
+		q.Set("kind", c.Kind)
 	}
 	if c.Limit > 0 {
 		q.Set("limit", strconv.Itoa(c.Limit))

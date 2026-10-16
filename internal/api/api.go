@@ -147,6 +147,11 @@ type backend interface {
 	CreateConversation(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.CreateConversationInput) (service.ConversationView, error)
 	SendMessage(ctx context.Context, actor domain.Actor, companyID, conversationID domain.ID, body string) (domain.ConversationMessage, error)
 	SetConversationStatus(ctx context.Context, actor domain.Actor, companyID, id domain.ID, status domain.ConversationStatus) (service.ConversationView, error)
+	// sala (ADR-0033)
+	CreateRoom(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.CreateRoomInput) (service.ConversationView, error)
+	AddRoomParticipant(ctx context.Context, actor domain.Actor, companyID, convID, personaID domain.ID) (service.ConversationView, error)
+	RemoveRoomParticipant(ctx context.Context, actor domain.Actor, companyID, convID, personaID domain.ID) (service.ConversationView, error)
+	UpdateRoomSettings(ctx context.Context, actor domain.Actor, companyID, convID domain.ID, in service.RoomSettingsPatch) (service.ConversationView, error)
 }
 
 var _ backend = (*service.Service)(nil)
@@ -251,6 +256,7 @@ func (s *server) register(api huma.API) {
 	s.registerSkills(api)
 	s.registerIntegrations(api)
 	s.registerChat(api)
+	s.registerRoom(api) // sala (ADR-0033)
 	s.registerSearch(api)
 }
 
