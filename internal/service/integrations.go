@@ -903,7 +903,8 @@ func (s *Service) RekeyIntegrationSecrets(ctx context.Context) (int, error) {
 		}
 		n++
 	}
-	return n, nil
+	m, err := s.rekeyEnvironmentSecrets(ctx) // ambientes de execução usam o mesmo cofre (ADR-0037)
+	return n + m, err
 }
 
 // redactSecrets mascara em texto livre os segredos da integração e os padrões conhecidos de credencial.

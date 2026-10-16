@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type ActivityEvent struct {
@@ -157,6 +158,38 @@ type CostNotice struct {
 	Model     string
 	Month     string
 	CreatedAt time.Time
+}
+
+type Environment struct {
+	ID              uuid.UUID
+	CompanyID       uuid.UUID
+	Slug            string
+	Name            string
+	Description     string
+	Driver          string
+	Status          string
+	Config          []byte
+	SecretEnc       string
+	IsDefault       bool
+	LastProbeAt     *time.Time
+	LastProbeOk     pgtype.Bool
+	LastProbeReport []byte
+	CreatedByType   string
+	CreatedByID     *uuid.UUID
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
+type EnvironmentLease struct {
+	ID            uuid.UUID
+	CompanyID     uuid.UUID
+	EnvironmentID uuid.UUID
+	RunID         uuid.UUID
+	Status        string
+	RemoteDir     string
+	AcquiredAt    time.Time
+	ReleasedAt    *time.Time
+	FailureReason string
 }
 
 type Flow struct {
@@ -391,6 +424,7 @@ type Persona struct {
 	ReviewerModel        string
 	SearchTsv            interface{}
 	Icon                 string
+	EnvironmentID        *uuid.UUID
 }
 
 type PersonaSkill struct {

@@ -35,6 +35,9 @@ type session struct {
 	policy   Permission
 	readOnly bool
 	files    *fileRoot
+	// remote: a run está num ambiente remoto (ADR-0037); os arquivos estão no alvo, não aqui, então o
+	// cliente não oferece fs/* e o agente usa o próprio sistema de arquivos de lá.
+	remote bool
 
 	emitMu  sync.Mutex // sink is single-goroutine; stderr arrives on another one
 	sinkErr error
@@ -190,8 +193,14 @@ func (s *session) HandleRequest(method string, params json.RawMessage) (any, *rp
 	case "session/request_permission":
 		return s.requestPermission(params)
 	case "fs/read_text_file":
+		if s.remote {
+			break
+		}
 		return s.readTextFile(params)
 	case "fs/write_text_file":
+		if s.remote {
+			break
+		}
 		return s.writeTextFile(params)
 	}
 	return nil, &rpcError{Code: codeMethodNotFound, Message: "method not supported by this client: " + method}
