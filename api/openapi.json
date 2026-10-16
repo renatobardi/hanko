@@ -107,6 +107,57 @@
         ],
         "type": "object"
       },
+      "AddToolRuleInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "effect": {
+            "enum": [
+              "include",
+              "exclude"
+            ],
+            "type": "string"
+          },
+          "integration": {
+            "description": "Id ou slug da integração MCP (obrigatório para integration e tool; opcional para risk).",
+            "type": "string"
+          },
+          "mode": {
+            "description": "Padrão allow; só vale na inclusão. MCP stdio não aceita ask.",
+            "enum": [
+              "allow",
+              "ask"
+            ],
+            "type": "string"
+          },
+          "risk": {
+            "description": "Nível de risco (target risk).",
+            "enum": [
+              "read",
+              "write",
+              "destructive",
+              "unknown"
+            ],
+            "type": "string"
+          },
+          "target": {
+            "enum": [
+              "integration",
+              "tool",
+              "risk"
+            ],
+            "type": "string"
+          },
+          "tool": {
+            "description": "Nome da tool (target tool).",
+            "type": "string"
+          }
+        },
+        "required": [
+          "target",
+          "effect"
+        ],
+        "type": "object"
+      },
       "Anchor": {
         "additionalProperties": false,
         "properties": {
@@ -436,6 +487,37 @@
           "sha256",
           "author",
           "created_at"
+        ],
+        "type": "object"
+      },
+      "BindToolProfileInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "persona": {
+            "description": "Id ou slug da persona (scope persona).",
+            "type": "string"
+          },
+          "priority": {
+            "format": "int64",
+            "maximum": 1000,
+            "minimum": -1000,
+            "type": "integer"
+          },
+          "project": {
+            "description": "Id ou slug do projeto (scope project).",
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "company",
+              "project",
+              "persona"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "scope"
         ],
         "type": "object"
       },
@@ -1051,6 +1133,33 @@
         ],
         "type": "object"
       },
+      "CreateGatewayTokenInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "actions": {
+            "description": "tools/list e/ou tools/call; padrão as duas.",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "expires_in_days": {
+            "description": "Padrão 90 dias.",
+            "format": "int64",
+            "maximum": 366,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "label": {
+            "maxLength": 120,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "CreateGoalInBody": {
         "additionalProperties": false,
         "properties": {
@@ -1426,6 +1535,77 @@
         ],
         "type": "object"
       },
+      "CreateToolGatewayInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "description": "Padrão: ligado.",
+            "type": "boolean"
+          },
+          "name": {
+            "examples": [
+              "Minha IDE"
+            ],
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "profile": {
+            "description": "Id ou slug do perfil de ferramentas do gateway.",
+            "type": "string"
+          },
+          "slug": {
+            "pattern": "^[a-z0-9][a-z0-9-]{0,62}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "profile"
+        ],
+        "type": "object"
+      },
+      "CreateToolProfileInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "default_action": {
+            "description": "Padrão deny.",
+            "enum": [
+              "deny",
+              "allow"
+            ],
+            "type": "string"
+          },
+          "description": {
+            "maxLength": 500,
+            "type": "string"
+          },
+          "name": {
+            "examples": [
+              "Seguro"
+            ],
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "rate_limit_per_min": {
+            "description": "Padrão 120.",
+            "format": "int64",
+            "maximum": 10000,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "slug": {
+            "description": "Derivado do nome quando omitido.",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,62}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
       "CreateWorkspaceInBody": {
         "additionalProperties": false,
         "properties": {
@@ -1560,6 +1740,129 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "EffectiveIntegration": {
+        "additionalProperties": false,
+        "properties": {
+          "integration_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "synced_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "tools": {
+            "items": {
+              "$ref": "#/components/schemas/EffectiveTool"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "transport": {
+            "enum": [
+              "http",
+              "stdio"
+            ],
+            "type": "string"
+          },
+          "verdict": {
+            "$ref": "#/components/schemas/ToolVerdict"
+          }
+        },
+        "required": [
+          "integration_id",
+          "slug",
+          "name",
+          "transport",
+          "verdict",
+          "tools"
+        ],
+        "type": "object"
+      },
+      "EffectiveTool": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "risk": {
+            "enum": [
+              "read",
+              "write",
+              "destructive",
+              "unknown"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "quarantined",
+              "disabled",
+              "removed"
+            ],
+            "type": "string"
+          },
+          "verdict": {
+            "$ref": "#/components/schemas/ToolVerdict"
+          },
+          "visible": {
+            "description": "Aparece no tools/list da persona.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "risk",
+          "status",
+          "visible",
+          "verdict"
+        ],
+        "type": "object"
+      },
+      "EffectiveTools": {
+        "additionalProperties": false,
+        "properties": {
+          "binding": {
+            "$ref": "#/components/schemas/ToolBinding",
+            "description": "O vínculo que escolheu o perfil."
+          },
+          "integrations": {
+            "items": {
+              "$ref": "#/components/schemas/EffectiveIntegration"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "persona_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "profile": {
+            "description": "Slug do perfil que vale (ausente = sem perfil).",
+            "type": "string"
+          },
+          "project_id": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "persona_id",
+          "integrations"
+        ],
         "type": "object"
       },
       "EnabledBody": {
@@ -1853,12 +2156,13 @@
             "type": "string"
           },
           "kind": {
-            "description": "approval: ação irreversível, merge, deploy, gasto; task_review: revisão para concluir uma task; hire: contratação; memory: proposta de curadoria de memória que remove, funde ou reescreve conteúdo.",
+            "description": "approval: ação irreversível, merge, deploy, gasto; task_review: revisão para concluir uma task; hire: contratação; memory: proposta de curadoria de memória que remove, funde ou reescreve conteúdo; tool: chamada de tool que pede aprovação antes (gateway de tools).",
             "enum": [
               "approval",
               "task_review",
               "hire",
-              "memory"
+              "memory",
+              "tool"
             ],
             "type": "string"
           },
@@ -1960,6 +2264,68 @@
         },
         "required": [
           "reviewer"
+        ],
+        "type": "object"
+      },
+      "GatewayToken": {
+        "additionalProperties": false,
+        "properties": {
+          "actions": {
+            "description": "tools/list e/ou tools/call.",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "gateway_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "last_used_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "prefix": {
+            "description": "Início do token, para reconhecê-lo.",
+            "examples": [
+              "hkgw_Ab12Cd"
+            ],
+            "type": "string"
+          },
+          "revoked_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "token": {
+            "description": "O token completo, SÓ na resposta da criação. Guarde-o: não é possível ler de novo.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "gateway_id",
+          "prefix",
+          "actions",
+          "expires_at",
+          "created_at"
         ],
         "type": "object"
       },
@@ -2535,6 +2901,95 @@
         },
         "required": [
           "ok"
+        ],
+        "type": "object"
+      },
+      "IntegrationTool": {
+        "additionalProperties": false,
+        "properties": {
+          "annotations": {
+            "$ref": "#/components/schemas/ToolAnnotations"
+          },
+          "description": {
+            "type": "string"
+          },
+          "first_seen_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "input_schema": {
+            "additionalProperties": {},
+            "description": "JSON Schema de entrada (objeto).",
+            "type": "object"
+          },
+          "integration_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "integration_slug": {
+            "type": "string"
+          },
+          "last_seen_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "name": {
+            "examples": [
+              "create_issue"
+            ],
+            "type": "string"
+          },
+          "reviewed_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "reviewed_by": {
+            "$ref": "#/components/schemas/ActorRef"
+          },
+          "risk": {
+            "description": "Derivado das anotações.",
+            "enum": [
+              "read",
+              "write",
+              "destructive",
+              "unknown"
+            ],
+            "type": "string"
+          },
+          "schema_sha256": {
+            "description": "Hash da definição (nome, descrição, schema e anotações): mudou, a tool mudou de contrato.",
+            "type": "string"
+          },
+          "status": {
+            "description": "quarantined: nova ou alterada e pode escrever; espera a revisão de um admin.",
+            "enum": [
+              "active",
+              "quarantined",
+              "disabled",
+              "removed"
+            ],
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "integration_id",
+          "integration_slug",
+          "name",
+          "input_schema",
+          "annotations",
+          "schema_sha256",
+          "risk",
+          "status",
+          "first_seen_at",
+          "last_seen_at"
         ],
         "type": "object"
       },
@@ -3430,6 +3885,99 @@
             "description": "Itens da página.",
             "items": {
               "$ref": "#/components/schemas/Task"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "limit": {
+            "description": "Limite aplicado.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "offset": {
+            "description": "Deslocamento aplicado.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "limit",
+          "offset"
+        ],
+        "type": "object"
+      },
+      "ListBodyToolGateway": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "description": "Itens da página.",
+            "items": {
+              "$ref": "#/components/schemas/ToolGateway"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "limit": {
+            "description": "Limite aplicado.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "offset": {
+            "description": "Deslocamento aplicado.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "limit",
+          "offset"
+        ],
+        "type": "object"
+      },
+      "ListBodyToolInvocation": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "description": "Itens da página.",
+            "items": {
+              "$ref": "#/components/schemas/ToolInvocation"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "limit": {
+            "description": "Limite aplicado.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "offset": {
+            "description": "Deslocamento aplicado.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "limit",
+          "offset"
+        ],
+        "type": "object"
+      },
+      "ListBodyToolProfile": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "description": "Itens da página.",
+            "items": {
+              "$ref": "#/components/schemas/ToolProfile"
             },
             "type": [
               "array",
@@ -4393,6 +4941,36 @@
         ],
         "type": "object"
       },
+      "ReviewResult": {
+        "additionalProperties": false,
+        "properties": {
+          "released": {
+            "description": "Quantas tools saíram da quarentena.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "released"
+        ],
+        "type": "object"
+      },
+      "ReviewToolsInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "tools": {
+            "description": "Tools a liberar da quarentena; vazio libera todas da integração.",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
       "Run": {
         "additionalProperties": false,
         "properties": {
@@ -4816,6 +5394,49 @@
         ],
         "type": "object"
       },
+      "SetToolChoicesInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "group": {
+            "description": "A integração inteira: default segue a ação padrão; off exclui tudo (excluir vence).",
+            "enum": [
+              "default",
+              "off",
+              "ask",
+              "allow"
+            ],
+            "type": "string"
+          },
+          "tools": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Por tool: default, off, ask ou allow.",
+            "type": "object"
+          }
+        },
+        "required": [
+          "group"
+        ],
+        "type": "object"
+      },
+      "SetToolStatusInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "description": "active libera (inclusive da quarentena); disabled desliga.",
+            "enum": [
+              "active",
+              "disabled"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "type": "object"
+      },
       "Skill": {
         "additionalProperties": false,
         "properties": {
@@ -5185,6 +5806,538 @@
           "created_by",
           "created_at",
           "updated_at"
+        ],
+        "type": "object"
+      },
+      "ToolAnnotations": {
+        "additionalProperties": false,
+        "properties": {
+          "destructive_hint": {
+            "description": "Pode destruir (vale quando não é só leitura).",
+            "type": "boolean"
+          },
+          "idempotent_hint": {
+            "type": "boolean"
+          },
+          "open_world_hint": {
+            "type": "boolean"
+          },
+          "read_only_hint": {
+            "description": "Só lê.",
+            "type": "boolean"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ToolBinding": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "persona_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "priority": {
+            "description": "No mesmo escopo, a maior vence; empatando, o vínculo mais novo.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "profile_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "project_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "company",
+              "project",
+              "persona"
+            ],
+            "type": "string"
+          },
+          "target_name": {
+            "description": "Nome do projeto ou da persona.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "profile_id",
+          "scope",
+          "priority",
+          "created_at"
+        ],
+        "type": "object"
+      },
+      "ToolCatalog": {
+        "additionalProperties": false,
+        "properties": {
+          "integration_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "integration_slug": {
+            "type": "string"
+          },
+          "last_error": {
+            "description": "Erro da última tentativa (sem segredos).",
+            "type": "string"
+          },
+          "stdio": {
+            "description": "MCP stdio não passa pelo gateway: não há catálogo e o perfil só inclui ou exclui a integração inteira.",
+            "type": "boolean"
+          },
+          "synced_at": {
+            "description": "Última descoberta bem-sucedida.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "tools": {
+            "items": {
+              "$ref": "#/components/schemas/IntegrationTool"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "tools_count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "transport": {
+            "enum": [
+              "http",
+              "stdio"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "integration_id",
+          "integration_slug",
+          "transport",
+          "stdio",
+          "tools_count",
+          "tools"
+        ],
+        "type": "object"
+      },
+      "ToolCatalogRefresh": {
+        "additionalProperties": false,
+        "properties": {
+          "baseline": {
+            "description": "Primeira descoberta: tudo entra ativo.",
+            "type": "boolean"
+          },
+          "changed": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "error": {
+            "description": "Falha de conexão ou recusa do servidor; o catálogo anterior segue valendo.",
+            "type": "string"
+          },
+          "new": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "quarantined": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "removed": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "skipped": {
+            "description": "Nomes inválidos ou acima do teto de 500 tools.",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "tools": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "ok",
+          "tools",
+          "new",
+          "changed",
+          "quarantined",
+          "removed",
+          "baseline"
+        ],
+        "type": "object"
+      },
+      "ToolGateway": {
+        "additionalProperties": false,
+        "properties": {
+          "active_tokens": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "endpoint": {
+            "description": "Caminho MCP (streamable http) relativo à URL pública do Hanko; use Authorization: Bearer hkgw_…",
+            "examples": [
+              "/mcp/gw/acme/minha-ide"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "last_used_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "profile": {
+            "description": "Slug do perfil.",
+            "type": "string"
+          },
+          "profile_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "slug": {
+            "examples": [
+              "minha-ide"
+            ],
+            "type": "string"
+          },
+          "tokens": {
+            "items": {
+              "$ref": "#/components/schemas/GatewayToken"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "profile_id",
+          "profile",
+          "enabled",
+          "active_tokens",
+          "endpoint",
+          "created_at",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "ToolInvocation": {
+        "additionalProperties": false,
+        "properties": {
+          "args_bytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "args_sha256": {
+            "description": "sha256 de integração + tool + argumentos canônicos.",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "decision": {
+            "enum": [
+              "allow",
+              "deny",
+              "ask",
+              "quarantined",
+              "error"
+            ],
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "gate_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "gateway": {
+            "type": "string"
+          },
+          "gateway_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "integration": {
+            "type": "string"
+          },
+          "integration_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "latency_ms": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "persona": {
+            "type": "string"
+          },
+          "persona_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "run_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "failed",
+              "blocked",
+              "pending"
+            ],
+            "type": "string"
+          },
+          "tool": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "integration",
+          "tool",
+          "args_sha256",
+          "args_bytes",
+          "decision",
+          "status",
+          "latency_ms",
+          "created_at"
+        ],
+        "type": "object"
+      },
+      "ToolProfile": {
+        "additionalProperties": false,
+        "properties": {
+          "bindings": {
+            "items": {
+              "$ref": "#/components/schemas/ToolBinding"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "created_by": {
+            "$ref": "#/components/schemas/ActorRef"
+          },
+          "default_action": {
+            "description": "O que vale para a tool que nenhuma regra alcança.",
+            "enum": [
+              "deny",
+              "allow"
+            ],
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "gateways": {
+            "description": "Gateways nomeados que usam o perfil.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "name": {
+            "examples": [
+              "Seguro"
+            ],
+            "type": "string"
+          },
+          "rate_limit_per_min": {
+            "description": "Chamadas repassadas por minuto por (persona ou gateway, integração).",
+            "format": "int64",
+            "type": "integer"
+          },
+          "rules": {
+            "items": {
+              "$ref": "#/components/schemas/ToolRule"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "slug": {
+            "examples": [
+              "seguro"
+            ],
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "default_action",
+          "rate_limit_per_min",
+          "rules",
+          "bindings",
+          "gateways",
+          "created_by",
+          "created_at",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "ToolRule": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "effect": {
+            "description": "Excluir vence incluir.",
+            "enum": [
+              "include",
+              "exclude"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "integration": {
+            "type": "string"
+          },
+          "integration_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "mode": {
+            "description": "Na inclusão: allow chama direto; ask abre um gate tool antes de cada chamada nova.",
+            "enum": [
+              "allow",
+              "ask"
+            ],
+            "type": "string"
+          },
+          "risk": {
+            "enum": [
+              "read",
+              "write",
+              "destructive",
+              "unknown"
+            ],
+            "type": "string"
+          },
+          "target": {
+            "enum": [
+              "integration",
+              "tool",
+              "risk"
+            ],
+            "type": "string"
+          },
+          "tool": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "target",
+          "effect",
+          "mode",
+          "created_at"
+        ],
+        "type": "object"
+      },
+      "ToolVerdict": {
+        "additionalProperties": false,
+        "properties": {
+          "allowed": {
+            "type": "boolean"
+          },
+          "mode": {
+            "enum": [
+              "allow",
+              "ask"
+            ],
+            "type": "string"
+          },
+          "rule_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "source": {
+            "description": "no_profile: sem perfil (tudo permitido); default: ação padrão; include/exclude: uma regra (rule_id); tools: alguma tool da integração está visível.",
+            "enum": [
+              "no_profile",
+              "default",
+              "include",
+              "exclude",
+              "tools"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "allowed",
+          "source"
         ],
         "type": "object"
       },
@@ -5704,6 +6857,51 @@
           "unassign": {
             "description": "Remove a atribuição.",
             "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "UpdateToolGatewayInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "profile": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "UpdateToolProfileInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "default_action": {
+            "enum": [
+              "deny",
+              "allow"
+            ],
+            "type": "string"
+          },
+          "description": {
+            "maxLength": 500,
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "rate_limit_per_min": {
+            "format": "int64",
+            "maximum": 10000,
+            "minimum": 1,
+            "type": "integer"
           }
         },
         "type": "object"
@@ -9496,12 +10694,12 @@
             }
           },
           {
-            "description": "Tipos separados por vírgula: approval,task_review,hire,memory.",
+            "description": "Tipos separados por vírgula: approval,task_review,hire,memory,tool.",
             "explode": false,
             "in": "query",
             "name": "kind",
             "schema": {
-              "description": "Tipos separados por vírgula: approval,task_review,hire,memory.",
+              "description": "Tipos separados por vírgula: approval,task_review,hire,memory,tool.",
               "type": "string"
             }
           },
@@ -11545,6 +12743,475 @@
         "summary": "Testa a integração: webhook envia um evento ping assinado; MCP http faz o initialize do protocolo",
         "tags": [
           "integrations"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/integrations/{integration}/tools": {
+      "get": {
+        "operationId": "list-integration-tools",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug da integração.",
+            "in": "path",
+            "name": "integration",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da integração.",
+              "examples": [
+                "docs"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolCatalog"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Catálogo de tools de uma integração MCP (risco, estado, quarentena)",
+        "tags": [
+          "tools"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/integrations/{integration}/tools/refresh": {
+      "post": {
+        "operationId": "refresh-integration-tools",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug da integração.",
+            "in": "path",
+            "name": "integration",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da integração.",
+              "examples": [
+                "docs"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolCatalogRefresh"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Redescobre o catálogo (tools/list pelo servidor, com a proteção SSRF)",
+        "tags": [
+          "tools"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/integrations/{integration}/tools/review": {
+      "post": {
+        "operationId": "review-integration-tools",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug da integração.",
+            "in": "path",
+            "name": "integration",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da integração.",
+              "examples": [
+                "docs"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewToolsInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewResult"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Libera da quarentena as tools revisadas (todas, se nenhuma for listada)",
+        "tags": [
+          "tools"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/integrations/{integration}/tools/{tool}": {
+      "patch": {
+        "operationId": "set-integration-tool-status",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug da integração.",
+            "in": "path",
+            "name": "integration",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da integração.",
+              "examples": [
+                "docs"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Nome da tool.",
+            "in": "path",
+            "name": "tool",
+            "required": true,
+            "schema": {
+              "description": "Nome da tool.",
+              "examples": [
+                "create_issue"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetToolStatusInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationTool"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Libera (active) ou desliga (disabled) uma tool do catálogo",
+        "tags": [
+          "tools"
         ]
       }
     },
@@ -17919,6 +19586,2260 @@
         "summary": "Acorda a persona atribuída",
         "tags": [
           "tasks"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/tool-gateways": {
+      "get": {
+        "operationId": "list-tool-gateways",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Máximo de itens retornados.",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "description": "Máximo de itens retornados.",
+              "format": "int64",
+              "maximum": 500,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Quantos itens pular.",
+            "explode": false,
+            "in": "query",
+            "name": "offset",
+            "schema": {
+              "default": 0,
+              "description": "Quantos itens pular.",
+              "format": "int64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListBodyToolGateway"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Lista os gateways nomeados",
+        "tags": [
+          "tools"
+        ]
+      },
+      "post": {
+        "operationId": "create-tool-gateway",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateToolGatewayInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolGateway"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Cria um gateway nomeado (endpoint MCP para clientes de fora)",
+        "tags": [
+          "tools"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/tool-gateways/{gateway}": {
+      "delete": {
+        "operationId": "delete-tool-gateway",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug do gateway.",
+            "in": "path",
+            "name": "gateway",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug do gateway.",
+              "examples": [
+                "minha-ide"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Apaga um gateway e seus tokens",
+        "tags": [
+          "tools"
+        ]
+      },
+      "get": {
+        "operationId": "get-tool-gateway",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug do gateway.",
+            "in": "path",
+            "name": "gateway",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug do gateway.",
+              "examples": [
+                "minha-ide"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolGateway"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Obtém um gateway com os tokens (sem valores)",
+        "tags": [
+          "tools"
+        ]
+      },
+      "patch": {
+        "operationId": "update-tool-gateway",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug do gateway.",
+            "in": "path",
+            "name": "gateway",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug do gateway.",
+              "examples": [
+                "minha-ide"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateToolGatewayInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolGateway"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Atualiza um gateway (nome, perfil, ligado)",
+        "tags": [
+          "tools"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/tool-gateways/{gateway}/tokens": {
+      "post": {
+        "operationId": "create-gateway-token",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug do gateway.",
+            "in": "path",
+            "name": "gateway",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug do gateway.",
+              "examples": [
+                "minha-ide"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateGatewayTokenInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GatewayToken"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Gera um token hkgw_ para o gateway (o valor só aparece nesta resposta)",
+        "tags": [
+          "tools"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/tool-gateways/{gateway}/tokens/{token}": {
+      "delete": {
+        "operationId": "revoke-gateway-token",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug do gateway.",
+            "in": "path",
+            "name": "gateway",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug do gateway.",
+              "examples": [
+                "minha-ide"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id do token.",
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "description": "Id do token.",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GatewayToken"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Revoga um token do gateway",
+        "tags": [
+          "tools"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/tool-invocations": {
+      "get": {
+        "operationId": "list-tool-invocations",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug da integração.",
+            "explode": false,
+            "in": "query",
+            "name": "integration",
+            "schema": {
+              "description": "Id ou slug da integração.",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug da persona.",
+            "explode": false,
+            "in": "query",
+            "name": "persona",
+            "schema": {
+              "description": "Id ou slug da persona.",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug do gateway nomeado.",
+            "explode": false,
+            "in": "query",
+            "name": "gateway",
+            "schema": {
+              "description": "Id ou slug do gateway nomeado.",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id da execução.",
+            "explode": false,
+            "in": "query",
+            "name": "run",
+            "schema": {
+              "description": "Id da execução.",
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "decision",
+            "schema": {
+              "enum": [
+                "allow",
+                "deny",
+                "ask",
+                "quarantined",
+                "error"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "tool",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "RFC 3339; só chamadas a partir daí.",
+            "explode": false,
+            "in": "query",
+            "name": "since",
+            "schema": {
+              "description": "RFC 3339; só chamadas a partir daí.",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Máximo de itens retornados.",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "description": "Máximo de itens retornados.",
+              "format": "int64",
+              "maximum": 500,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Quantos itens pular.",
+            "explode": false,
+            "in": "query",
+            "name": "offset",
+            "schema": {
+              "default": 0,
+              "description": "Quantos itens pular.",
+              "format": "int64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListBodyToolInvocation"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Auditoria das chamadas de tool pelo gateway (só admin; sem os argumentos)",
+        "tags": [
+          "tools"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/tool-profiles": {
+      "get": {
+        "operationId": "list-tool-profiles",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Máximo de itens retornados.",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "description": "Máximo de itens retornados.",
+              "format": "int64",
+              "maximum": 500,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Quantos itens pular.",
+            "explode": false,
+            "in": "query",
+            "name": "offset",
+            "schema": {
+              "default": 0,
+              "description": "Quantos itens pular.",
+              "format": "int64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListBodyToolProfile"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Lista os perfis de ferramentas",
+        "tags": [
+          "tools"
+        ]
+      },
+      "post": {
+        "operationId": "create-tool-profile",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateToolProfileInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolProfile"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Cria um perfil de ferramentas",
+        "tags": [
+          "tools"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/tool-profiles/effective": {
+      "get": {
+        "operationId": "effective-tools",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug da persona.",
+            "explode": false,
+            "in": "query",
+            "name": "persona",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da persona.",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug do projeto (o perfil do projeto vale para as tasks dele).",
+            "explode": false,
+            "in": "query",
+            "name": "project",
+            "schema": {
+              "description": "Id ou slug do projeto (o perfil do projeto vale para as tasks dele).",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EffectiveTools"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "O que uma persona enxerga das integrações MCP e de onde vem cada permissão",
+        "tags": [
+          "tools"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/tool-profiles/{profile}": {
+      "delete": {
+        "operationId": "delete-tool-profile",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug do perfil.",
+            "in": "path",
+            "name": "profile",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug do perfil.",
+              "examples": [
+                "seguro"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Apaga um perfil (não pode estar em uso por um gateway)",
+        "tags": [
+          "tools"
+        ]
+      },
+      "get": {
+        "operationId": "get-tool-profile",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug do perfil.",
+            "in": "path",
+            "name": "profile",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug do perfil.",
+              "examples": [
+                "seguro"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolProfile"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Obtém um perfil com regras e vínculos",
+        "tags": [
+          "tools"
+        ]
+      },
+      "patch": {
+        "operationId": "update-tool-profile",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug do perfil.",
+            "in": "path",
+            "name": "profile",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug do perfil.",
+              "examples": [
+                "seguro"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateToolProfileInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolProfile"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Atualiza um perfil",
+        "tags": [
+          "tools"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/tool-profiles/{profile}/bindings": {
+      "post": {
+        "operationId": "bind-tool-profile",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug do perfil.",
+            "in": "path",
+            "name": "profile",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug do perfil.",
+              "examples": [
+                "seguro"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BindToolProfileInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolBinding"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Liga o perfil à empresa, a um projeto ou a uma persona",
+        "tags": [
+          "tools"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/tool-profiles/{profile}/bindings/{binding}": {
+      "delete": {
+        "operationId": "unbind-tool-profile",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug do perfil.",
+            "in": "path",
+            "name": "profile",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug do perfil.",
+              "examples": [
+                "seguro"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id do vínculo.",
+            "in": "path",
+            "name": "binding",
+            "required": true,
+            "schema": {
+              "description": "Id do vínculo.",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Tira um vínculo do perfil",
+        "tags": [
+          "tools"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/tool-profiles/{profile}/integrations/{integration}": {
+      "put": {
+        "operationId": "set-tool-profile-integration",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug do perfil.",
+            "in": "path",
+            "name": "profile",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug do perfil.",
+              "examples": [
+                "seguro"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug da integração MCP.",
+            "in": "path",
+            "name": "integration",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da integração MCP.",
+              "examples": [
+                "docs"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetToolChoicesInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolProfile"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Reescreve as escolhas do perfil para uma integração (a integração inteira e por tool)",
+        "tags": [
+          "tools"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/tool-profiles/{profile}/rules": {
+      "post": {
+        "operationId": "add-tool-profile-rule",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug do perfil.",
+            "in": "path",
+            "name": "profile",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug do perfil.",
+              "examples": [
+                "seguro"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddToolRuleInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolRule"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Acrescenta (ou troca) uma regra do perfil",
+        "tags": [
+          "tools"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/tool-profiles/{profile}/rules/{rule}": {
+      "delete": {
+        "operationId": "delete-tool-profile-rule",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug do perfil.",
+            "in": "path",
+            "name": "profile",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug do perfil.",
+              "examples": [
+                "seguro"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id da regra.",
+            "in": "path",
+            "name": "rule",
+            "required": true,
+            "schema": {
+              "description": "Id da regra.",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Tira uma regra do perfil",
+        "tags": [
+          "tools"
         ]
       }
     },
