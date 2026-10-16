@@ -3,9 +3,9 @@
 Formato: [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) · versões: [SemVer](https://semver.org/lang/pt-BR/).
 English summary at the end of each release.
 
-## [0.2.0] — 2026-10-15
+## [Unreleased]
 
-### UI alinhada ao Kubo DS (2026-10-15)
+### UI alinhada ao Kubo DS
 
 - Fonte Inter Variable servida pelo próprio binário (sem CDN); tokens de cor com os nomes e valores OKLCH do Kubo DS (`--background`, `--foreground`, `--card`, `--muted`, `--border`, `--ring`, `--sidebar-*`), escuro também por `.dark`.
 - Cards planos com anel (sem borda nem sombra), raios na escala `--radius-*`, tipografia só na escala `--text-*`, shell com sidebar de 256px e cabeçalho de 72px.
@@ -14,6 +14,8 @@ English summary at the end of each release.
 - Quadro de tasks (`/tasks?visao=quadro`) com uma coluna por status; troca de tema claro · escuro · sistema no rodapé da sidebar (`POST /tema`, cookie `hanko_theme`); Configurações saiu do grupo Organização e ficou no rodapé.
 - Estilos inline dos templates viraram classes na escala de espaço do DS.
 - English summary: the UI now follows the Kubo DS (Inter, OKLCH tokens, ring cards, radius/type scales, pill controls, focus ring), with a per-persona glyph, a task board view and a light/dark/system theme toggle.
+
+## [0.2.0] — 2026-10-15
 
 - Artefatos versionados (ADR-0028, migration 00019 `artifacts` e `artifact_blobs`): arquivos de tasks, execuções e projetos com versões imutáveis (mesmo nome na mesma task = próxima versão; mesmo conteúdo não cria versão), limite por arquivo (`HANKO_ARTIFACT_MAX_BYTES`, 5 MiB) e cota por empresa (`HANKO_ARTIFACT_QUOTA_BYTES`, 512 MiB).
 - Artefatos na API (`…/artifacts`), na CLI (`hanko artifact put|list|get|diff|rm|usage`), no MCP (`hanko_artifact_put`) e na tela `/artefatos` (envio, filtros, prévia, versões e diff de texto); seções nas páginas da task, da execução e do projeto.
