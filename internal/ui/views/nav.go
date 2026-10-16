@@ -26,7 +26,7 @@ var Nav = []NavGroup{
 		{Key: "painel", Label: i18n.N("Painel"), Icon: "layout-grid"},
 		{Key: "caixa", Label: i18n.N("Caixa de entrada"), Icon: "mail", Path: "/caixa"},
 		{Key: "chat", Label: i18n.N("Chat"), Icon: "message-square", Path: "/chat"},
-		{Key: "sala", Label: i18n.N("Sala"), Icon: "users", Path: "/sala", Milestone: "v0.3", Blurb: i18n.N("Uma conversa com várias personas ao mesmo tempo.")},
+		{Key: "sala", Label: i18n.N("Sala"), Icon: "users", Path: "/sala"},
 		{Key: "decisoes", Label: i18n.N("Decisões"), Icon: "circle-check", Path: "/decisoes"},
 		{Key: "revisao", Label: i18n.N("Fila de revisão"), Icon: "clipboard-check", Path: "/revisao", Milestone: "v0.3", Blurb: i18n.N("Os itens de pipeline que esperam a sua decisão.")},
 	}},

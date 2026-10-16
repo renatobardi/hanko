@@ -401,6 +401,7 @@ templ PersonaPage(sh Shell, vm PersonaVM) {
 				<p class="mt-3"><a class="btn outline sm" href={ templ.SafeURL(vm.NewChatHref) }>{ i18n.T(ctx, "Nova conversa") }</a></p>
 			}
 		}
+		@RoomList(vm.Rooms)
 		<h2 class="side-h sec-h" id="execucoes">{ i18n.T(ctx, "Execuções recentes") }</h2>
 		@RunsTable(vm.Runs, false)
 	}

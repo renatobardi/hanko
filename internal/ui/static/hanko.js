@@ -243,3 +243,80 @@
     });
   }
 })();
+
+/* ---- sala (ADR-0033) ---- */
+// Rascunho por sala no sessionStorage, botões "@slug" que inserem a citação e o Feed do time recolhido no
+// celular. Tudo opcional: sem script a sala funciona igual.
+(function () {
+  "use strict";
+
+  function store() {
+    try {
+      return window.sessionStorage;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function restore(root) {
+    var base = root && root.querySelectorAll ? root : document;
+    var s = store();
+    base.querySelectorAll("form[data-draft]").forEach(function (f) {
+      var ta = f.querySelector("textarea");
+      if (!s || !ta || ta.value) return;
+      try {
+        var v = s.getItem(f.getAttribute("data-draft"));
+        if (v) ta.value = v;
+      } catch (e) {}
+    });
+    if (window.matchMedia && window.matchMedia("(max-width: 1100px)").matches) {
+      base.querySelectorAll("details.room-feed[open]:not([data-folded])").forEach(function (d) {
+        d.setAttribute("data-folded", "1");
+        d.removeAttribute("open");
+      });
+    }
+  }
+
+  document.addEventListener("input", function (e) {
+    var f = e.target.closest && e.target.closest("form[data-draft]");
+    var s = store();
+    if (!f || !s || e.target.tagName !== "TEXTAREA") return;
+    try {
+      s.setItem(f.getAttribute("data-draft"), e.target.value);
+    } catch (err) {}
+  });
+
+  document.addEventListener("htmx:afterRequest", function (e) {
+    var f = e.target.closest && e.target.closest("form[data-draft]");
+    var s = store();
+    if (!f || !s || !e.detail.successful) return;
+    try {
+      s.removeItem(f.getAttribute("data-draft"));
+    } catch (err) {}
+  });
+
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest && e.target.closest("[data-mention]");
+    if (!b) return;
+    var f = b.closest("form");
+    var ta = f && f.querySelector("textarea");
+    if (!ta) return;
+    var t = b.getAttribute("data-mention") + " ";
+    var p = typeof ta.selectionStart === "number" ? ta.selectionStart : ta.value.length;
+    ta.value = ta.value.slice(0, p) + t + ta.value.slice(p);
+    ta.focus();
+    ta.selectionStart = ta.selectionEnd = p + t.length;
+    ta.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+
+  document.addEventListener("htmx:load", function (e) {
+    restore(e.target);
+  });
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function () {
+      restore(document);
+    });
+  } else {
+    restore(document);
+  }
+})();
