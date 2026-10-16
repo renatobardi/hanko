@@ -315,11 +315,11 @@ func (q *Queries) ImportFlow(ctx context.Context, arg ImportFlowParams) (Flow, e
 const importPersona = `-- name: ImportPersona :one
 INSERT INTO personas (id, company_id, slug, name, title, instructions, agent, model, adapter_config, status,
                       workspace_id, heartbeat_interval_sec, budget_monthly_cents, subscription_id, require_review,
-                      reviewer_agent, reviewer_model, created_at, updated_at)
+                      reviewer_agent, reviewer_model, icon, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
         $11, $12, $13, $14, $15,
-        $16, $17, $18, $19)
-RETURNING id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason, budget_refused_at, subscription_id, reviewer_persona_id, reviewer_agent, reviewer_model, search_tsv
+        $16, $17, $18, $19, $20)
+RETURNING id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason, budget_refused_at, subscription_id, reviewer_persona_id, reviewer_agent, reviewer_model, search_tsv, icon
 `
 
 type ImportPersonaParams struct {
@@ -340,6 +340,7 @@ type ImportPersonaParams struct {
 	RequireReview        bool
 	ReviewerAgent        string
 	ReviewerModel        string
+	Icon                 string
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
 }
@@ -364,6 +365,7 @@ func (q *Queries) ImportPersona(ctx context.Context, arg ImportPersonaParams) (P
 		arg.RequireReview,
 		arg.ReviewerAgent,
 		arg.ReviewerModel,
+		arg.Icon,
 		arg.CreatedAt,
 		arg.UpdatedAt,
 	)
@@ -396,6 +398,7 @@ func (q *Queries) ImportPersona(ctx context.Context, arg ImportPersonaParams) (P
 		&i.ReviewerAgent,
 		&i.ReviewerModel,
 		&i.SearchTsv,
+		&i.Icon,
 	)
 	return i, err
 }

@@ -134,11 +134,11 @@ func (s PersonaStatus) CanWork() bool {
 // Persona is a role hired by a company (CTO, engineer, reviewer).
 // Agent is the harness that executes it (claude, codex, acp, fake).
 type Persona struct {
-	ID                   ID              `json:"id"`
-	CompanyID            ID              `json:"company_id"`
-	Slug                 string          `json:"slug"`
-	Name                 string          `json:"name"`
-	Title                string          `json:"title"`
+	ID        ID     `json:"id"`
+	CompanyID ID     `json:"company_id"`
+	Slug      string `json:"slug"`
+	Name      string `json:"name"`
+	Title     string `json:"title"`
 	// Icon é o glifo de linha da persona (um de PersonaIcons; padrão "bot").
 	Icon                 string          `json:"icon"`
 	Instructions         string          `json:"instructions"`

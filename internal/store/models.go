@@ -390,6 +390,7 @@ type Persona struct {
 	ReviewerAgent        string
 	ReviewerModel        string
 	SearchTsv            interface{}
+	Icon                 string
 }
 
 type PersonaSkill struct {
