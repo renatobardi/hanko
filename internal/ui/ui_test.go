@@ -593,12 +593,15 @@ func TestCancelRun(t *testing.T) {
 func TestStatic(t *testing.T) {
 	e := newEnv(t, uitest.Sample())
 	for path, ct := range map[string]string{
-		"/static/hanko.css":           "text/css",
-		"/static/hanko.js":            "javascript",
-		"/static/vendor/htmx.min.js":  "javascript",
-		"/static/vendor/sse.min.js":   "javascript",
-		"/static/favicon.svg":         "image/svg+xml",
-		"/static/vendor/LICENSE-htmx": "",
+		"/static/hanko.css":                               "text/css",
+		"/static/hanko.js":                                "javascript",
+		"/static/vendor/htmx.min.js":                      "javascript",
+		"/static/vendor/sse.min.js":                       "javascript",
+		"/static/favicon.svg":                             "image/svg+xml",
+		"/static/vendor/LICENSE-htmx":                     "",
+		"/static/fonts/inter-latin-wght-normal.woff2":     "font/woff2",
+		"/static/fonts/inter-latin-ext-wght-normal.woff2": "font/woff2",
+		"/static/fonts/LICENSE-inter":                     "",
 	} {
 		rec := e.get(t, path)
 		wantStatus(t, rec, http.StatusOK)

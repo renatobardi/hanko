@@ -96,7 +96,7 @@ templ TaskPage(sh Shell, vm TaskVM, base string) {
 					<div class="run-sep" style="margin-bottom:16px">
 						<span>
 							{ i18n.T(ctx, "Execução") } <span class="mono">{ vm.ActiveRun.Short }</span> { i18n.T(ctx, "em andamento") } ·
-							<a href={ templ.SafeURL(vm.ActiveRun.Href) } style="text-decoration:underline;text-underline-offset:2px;color:var(--ink)">{ i18n.T(ctx, "Inspecionar") }</a>
+							<a href={ templ.SafeURL(vm.ActiveRun.Href) } style="text-decoration:underline;text-underline-offset:2px;color:var(--foreground)">{ i18n.T(ctx, "Inspecionar") }</a>
 						</span>
 					</div>
 				}

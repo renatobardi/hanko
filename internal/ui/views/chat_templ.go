@@ -613,7 +613,7 @@ func ChatThread(vm ChatVM) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 47, "\" style=\"text-decoration:underline;text-underline-offset:2px;color:var(--ink)\">")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 47, "\" style=\"text-decoration:underline;text-underline-offset:2px;color:var(--foreground)\">")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
