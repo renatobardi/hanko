@@ -44,8 +44,8 @@ templ ChatsPage(sh Shell, vm ChatsVM) {
 					<a class="btn primary sm" href={ templ.SafeURL(sh.Base() + "/personas/nova") }>{ i18n.T(ctx, "Contratar persona") }</a>
 				}
 			} else {
-				<form class="card pad form-card" method="post" action={ templ.SafeURL(vm.NewAction) } hx-boost="true" style="margin-bottom:24px">
-					<h2 class="side-h" style="margin:0 0 4px">{ i18n.T(ctx, "Nova conversa") }</h2>
+				<form class="card pad form-card mb-6" method="post" action={ templ.SafeURL(vm.NewAction) } hx-boost="true">
+					<h2 class="side-h m-0 mb-1">{ i18n.T(ctx, "Nova conversa") }</h2>
 					if vm.Error != "" {
 						@Alert("danger", vm.Error)
 					}
@@ -100,7 +100,7 @@ templ ChatThread(vm ChatVM) {
 							{ m.Body }
 							<time class="mono">{ m.When }</time>
 							if m.RunHref != "" {
-								· <a href={ templ.SafeURL(m.RunHref) } style="text-decoration:underline;text-underline-offset:2px;color:var(--foreground)">{ i18n.T(ctx, "execução") }</a>
+								· <a class="link-u fg" href={ templ.SafeURL(m.RunHref) }>{ i18n.T(ctx, "execução") }</a>
 							}
 						</span>
 					</div>
@@ -110,7 +110,7 @@ templ ChatThread(vm ChatVM) {
 						<div>
 							<div class="meta"><b>{ m.Author }</b><time class="mono">{ m.When }</time>
 								if m.RunHref != "" {
-									<a href={ templ.SafeURL(m.RunHref) } style="text-decoration:underline">{ i18n.T(ctx, "execução") }</a>
+									<a class="link-u" href={ templ.SafeURL(m.RunHref) }>{ i18n.T(ctx, "execução") }</a>
 								}
 							</div>
 							<div class="body md">@templ.Raw(string(m.Body))</div>
@@ -130,7 +130,7 @@ templ ChatThread(vm ChatVM) {
 					<b>{ vm.Persona }</b>
 					<span class="badge run"><i class="pulse"></i>{ i18n.T(ctx, "pensando…") }</span>
 					if vm.RunHref != "" {
-						<a href={ templ.SafeURL(vm.RunHref) } style="text-decoration:underline">{ i18n.T(ctx, "Inspecionar") }</a>
+						<a class="link-u" href={ templ.SafeURL(vm.RunHref) }>{ i18n.T(ctx, "Inspecionar") }</a>
 					}
 				</div>
 			</div>
@@ -183,7 +183,7 @@ templ ChatPage(sh Shell, vm ChatVM) {
 				</form>
 			}
 		}
-		<div class="chips" style="margin-bottom:18px">
+		<div class="chips mb-4">
 			<a class="chip" href={ templ.SafeURL(vm.PersonaHref) }>@PersonaGlyph(vm.Persona)<span>{ vm.Persona }</span></a>
 			@BadgeEl(vm.Badge)
 			<span class="chip soft">{ vm.Cost }</span>

@@ -6,7 +6,7 @@ import (
 
 templ OnboardingPage(vm OnboardingVM, version string) {
 	@Bare(i18n.T(ctx, "Bem-vindo"), version) {
-		<div class="auth" style="max-width:440px">
+		<div class="auth wide">
 			<div class="mark">
 				@Mark(40)
 				<b>Hanko</b>
@@ -23,7 +23,7 @@ templ OnboardingPage(vm OnboardingVM, version string) {
 				</div>
 				<div class="field">
 					<label for="c-prefix">{ i18n.T(ctx, "Prefixo das tasks") }</label>
-					<input class="input" id="c-prefix" name="prefix" value={ vm.TaskPrefix } maxlength="10" placeholder={ i18n.T(ctx, "HNK") } style="text-transform:uppercase"/>
+					<input class="input uppercase" id="c-prefix" name="prefix" value={ vm.TaskPrefix } maxlength="10" placeholder={ i18n.T(ctx, "HNK") }/>
 					<span class="hint">{ i18n.T(ctx, "As tasks viram HNK-1, HNK-2…") }</span>
 				</div>
 				<button class="btn primary block" type="submit">{ i18n.T(ctx, "Criar empresa e continuar") }</button>
@@ -46,7 +46,7 @@ templ OnboardingPage(vm OnboardingVM, version string) {
 // (in authenticated mode only the installation owner/admin creates companies).
 templ NoCompanyPage(version string) {
 	@Bare(i18n.T(ctx, "Bem-vindo"), version) {
-		<div class="auth" style="max-width:440px">
+		<div class="auth wide">
 			<div class="mark">
 				@Mark(40)
 				<b>Hanko</b>
@@ -72,7 +72,7 @@ templ ErrorPage(sh Shell, vm ErrorVM) {
 
 templ ErrorBare(vm ErrorVM, version string) {
 	@Bare(vm.Title, version) {
-		<div style="width:100%;max-width:520px">
+		<div class="w-full maxw-lg">
 			@errorBody(vm)
 		</div>
 	}

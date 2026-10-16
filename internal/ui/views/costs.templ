@@ -111,7 +111,7 @@ templ CostTable(t CostTableVM) {
 
 // CostLegend explains the four costs of a run.
 templ CostLegend() {
-	<section class="card pad cost-legend" style="margin-top:20px">
+	<section class="card pad cost-legend mt-6">
 		<div class="card-head"><h2>{ i18n.T(ctx, "Os quatro custos") }</h2></div>
 		<dl class="kv">
 			<dt>{ i18n.T(ctx, "Real") }</dt><dd>{ i18n.T(ctx, "Valor informado pelo harness ao fim da execução. É o que conta no orçamento.") }</dd>
@@ -123,7 +123,7 @@ templ CostLegend() {
 }
 
 templ DayCostTable(days []DayCostVM) {
-	<section class="card pad" style="margin-top:20px">
+	<section class="card pad mt-6">
 		<div class="card-head"><h2>{ i18n.T(ctx, "Custos por dia") }</h2></div>
 		<table class="table mini">
 			<thead><tr><th>{ i18n.T(ctx, "Dia") }</th><th class="num">{ i18n.T(ctx, "Real") }</th><th class="num">{ i18n.T(ctx, "Estimado") }</th><th class="num hide-sm">{ i18n.T(ctx, "Lista") }</th><th class="num">{ i18n.T(ctx, "Pago") }</th></tr></thead>
@@ -149,7 +149,7 @@ templ DayCostTable(days []DayCostVM) {
 }
 
 templ SubscriptionsSection(vm CostsVM) {
-	<section class="card pad" id="assinaturas" style="margin-top:20px">
+	<section class="card pad mt-6" id="assinaturas">
 		<div class="card-head">
 			<div>
 				<h2>{ i18n.T(ctx, "Assinaturas") }</h2>
@@ -187,7 +187,7 @@ templ SubscriptionsSection(vm CostsVM) {
 							<td class="num mono hide-sm">{ s.Paid }<div class="meter-note">{ i18n.T(ctx, "sem uso") }: { s.Idle }</div></td>
 							<td>
 								if canAdmin(ctx) {
-									<form class="budget-form" method="post" action={ templ.SafeURL(s.UpdateAction) } style="flex-wrap:wrap;gap:6px">
+									<form class="budget-form wrap gap-2" method="post" action={ templ.SafeURL(s.UpdateAction) }>
 										<label class="sr-only" for={ fmt.Sprintf("sub-monthly-%d", i) }>{ i18n.T(ctx, "Mensalidade em dólares") }</label>
 										<span class="usd-field"><span class="pre mono">{ i18n.T(ctx, "US$") }</span><input class="input sm mono" id={ fmt.Sprintf("sub-monthly-%d", i) } name="monthly" inputmode="decimal" value={ s.MonthlyValue } autocomplete="off" title={ i18n.T(ctx, "Mensalidade") }/></span>
 										<label class="sr-only" for={ fmt.Sprintf("sub-limit-%d", i) }>{ i18n.T(ctx, "Teto semanal em dólares") }</label>
@@ -203,7 +203,7 @@ templ SubscriptionsSection(vm CostsVM) {
 									@NeedRole(domain.MemberAdmin)
 								}
 								if s.CanDelete && canAdmin(ctx) {
-									<form method="post" action={ templ.SafeURL(s.DeleteAction) } style="margin-top:6px"><button class="btn ghost sm" type="submit">{ i18n.T(ctx, "Remover") }</button></form>
+									<form class="mt-2" method="post" action={ templ.SafeURL(s.DeleteAction) }><button class="btn ghost sm" type="submit">{ i18n.T(ctx, "Remover") }</button></form>
 								}
 							</td>
 						</tr>
@@ -212,8 +212,8 @@ templ SubscriptionsSection(vm CostsVM) {
 			</table>
 		}
 		if canAdmin(ctx) {
-			<h3 class="side-h" style="margin:22px 0 10px">{ i18n.T(ctx, "Nova assinatura") }</h3>
-			<form class="budget-form" method="post" action={ templ.SafeURL(vm.SubCreate) } style="flex-wrap:wrap;gap:8px">
+			<h3 class="side-h sec-h">{ i18n.T(ctx, "Nova assinatura") }</h3>
+			<form class="budget-form wrap gap-2" method="post" action={ templ.SafeURL(vm.SubCreate) }>
 				<label class="sr-only" for="sub-new-name">{ i18n.T(ctx, "Nome") }</label>
 				<input class="input sm" id="sub-new-name" name="name" required maxlength="120" placeholder={ i18n.T(ctx, "Nome (ex.: Claude Max)") } autocomplete="off"/>
 				<label class="sr-only" for="sub-new-agent">Harness</label>
@@ -278,7 +278,7 @@ templ CostsPage(sh Shell, vm CostsVM) {
 			@DayCostTable(vm.Days)
 		}
 		@SubscriptionsSection(vm)
-		<section class="card pad" style="margin-top:20px">
+		<section class="card pad mt-6">
 			<div class="card-head"><h2>{ i18n.T(ctx, "Orçamento por persona") }</h2><span class="sub">{ vm.Month }</span></div>
 			if len(vm.Personas) == 0 {
 				<p class="muted">{ i18n.T(ctx, "Nenhuma persona contratada.") }</p>
@@ -308,7 +308,7 @@ templ CostsPage(sh Shell, vm CostsVM) {
 			}
 		</section>
 		if len(vm.Projects) > 0 {
-			<section class="card pad" style="margin-top:20px">
+			<section class="card pad mt-6">
 				<div class="card-head"><h2>{ i18n.T(ctx, "Orçamento por projeto") }</h2><span class="sub">{ vm.Month }</span></div>
 				<table class="table mini pb-table">
 					<thead><tr><th>{ i18n.T(ctx, "Projeto") }</th><th class="num">{ i18n.T(ctx, "Gasto") }</th><th class="hide-sm">{ i18n.T(ctx, "Uso do limite") }</th><th>{ i18n.T(ctx, "Limite mensal") }</th></tr></thead>

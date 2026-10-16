@@ -171,7 +171,7 @@ templ RunPage(sh Shell, vm RunVM) {
 						<div id="run-head" sse-swap="run-status" hx-swap="innerHTML">
 							@RunHeader(vm)
 						</div>
-						<div class="side-h" style="margin:4px 0 10px">Log</div>
+						<div class="side-h mt-1 mb-3">Log</div>
 						@RunLogBox(vm, true) {
 							<div id="run-log" class="log" role="log" aria-live="off" sse-swap="run-event" hx-swap="beforeend" tabindex="0">
 								for _, l := range vm.Lines {
@@ -187,7 +187,7 @@ templ RunPage(sh Shell, vm RunVM) {
 					<div id="run-head">
 						@RunHeader(vm)
 					</div>
-					<div class="side-h" style="margin:4px 0 10px">Log</div>
+					<div class="side-h mt-1 mb-3">Log</div>
 					@RunLogBox(vm, false) {
 						<div id="run-log" class="log" role="log" tabindex="0">
 							for _, l := range vm.Lines {
@@ -200,9 +200,9 @@ templ RunPage(sh Shell, vm RunVM) {
 					}
 				}
 			</section>
-			<div class="grid-2" style="align-items:start">
+			<div class="grid-2 items-start">
 				<section class="card pad">
-					<div class="card-head"><h2 style="font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted-foreground);font-weight:500">{ i18n.T(ctx, "Invocação") }</h2></div>
+					<div class="card-head"><h2 class="card-label">{ i18n.T(ctx, "Invocação") }</h2></div>
 					<dl class="kv">
 						<dt>Harness</dt><dd>{ vm.Agent }</dd>
 						<dt>{ i18n.T(ctx, "Modelo") }</dt><dd>
@@ -229,11 +229,11 @@ templ RunPage(sh Shell, vm RunVM) {
 					</dl>
 				</section>
 				<section class="card pad">
-					<div class="card-head"><h2 style="font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted-foreground);font-weight:500">{ i18n.T(ctx, "Artefatos") }</h2></div>
+					<div class="card-head"><h2 class="card-label">{ i18n.T(ctx, "Artefatos") }</h2></div>
 					@ArtifactMiniList(vm.Artifacts, vm.ArtifactsHref)
 				</section>
 				<section class="card pad">
-					<div class="card-head"><h2 style="font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted-foreground);font-weight:500">{ i18n.T(ctx, "Resumo") }</h2></div>
+					<div class="card-head"><h2 class="card-label">{ i18n.T(ctx, "Resumo") }</h2></div>
 					if vm.Summary != "" {
 						@AnchorBox(AnchorBoxVM{API: vm.IslandAPI, TaskKey: vm.TaskKey, Target: "run_summary", RunID: vm.ID, Doc: vm.SummaryDoc, Anchors: vm.SummaryAnchors, CanComment: canWrite(ctx), Msgs: vm.AnchorMsgs}) {
 							<div class="md">@templ.Raw(string(vm.Summary))</div>

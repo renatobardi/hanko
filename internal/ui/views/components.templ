@@ -188,7 +188,7 @@ func emptyTasksText(ctx context.Context, vm TasksVM) string {
 
 templ TaskRowEl(r TaskRow) {
 	<tr class="row">
-		<td class="hide-sm" style="width:36px;padding-right:0">@PrioIcon(r.Priority, r.PriorityLabel)</td>
+		<td class="hide-sm col-prio">@PrioIcon(r.Priority, r.PriorityLabel)</td>
 		<td class="id">{ r.Key }</td>
 		<td class="ttl">
 			<a href={ templ.SafeURL(r.Href) }>{ r.Title }</a>

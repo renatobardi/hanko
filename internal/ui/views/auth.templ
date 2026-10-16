@@ -140,9 +140,9 @@ templ SettingsPage(sh Shell, vm SettingsVM) {
 		if !vm.Authenticated {
 			@EmptyCard("lock", i18n.T(ctx, "Modo trusted"), i18n.T(ctx, "Contas e chaves de API existem no modo authenticated (HANKO_MODE=authenticated). Veja o RUNBOOK."), true)
 		} else {
-			<div class="card pad form-card" style="margin-bottom:20px">
+			<div class="card pad form-card mb-6">
 				<h2>{ i18n.T(ctx, "Conta") }</h2>
-				<dl class="dl" style="margin-top:14px">
+				<dl class="dl mt-4">
 					<dt>{ i18n.T(ctx, "Nome") }</dt>
 					<dd>{ vm.Name }</dd>
 					<dt>{ i18n.T(ctx, "E-mail") }</dt>
@@ -154,7 +154,7 @@ templ SettingsPage(sh Shell, vm SettingsVM) {
 				</dl>
 			</div>
 			@membersCard(sh, vm.Members)
-			<div class="card pad form-card" style="margin-bottom:20px">
+			<div class="card pad form-card mb-6">
 				<div class="card-head">
 					<div>
 						<h2>{ i18n.T(ctx, "Chaves de API") }</h2>
@@ -181,7 +181,7 @@ templ SettingsPage(sh Shell, vm SettingsVM) {
 					</button>
 				</form>
 				if len(vm.Keys) > 0 {
-					<div class="table-wrap" style="margin-top:16px">
+					<div class="table-wrap mt-4">
 						<table class="table">
 							<thead>
 								<tr>
@@ -199,7 +199,7 @@ templ SettingsPage(sh Shell, vm SettingsVM) {
 										<td class="id">{ k.Prefix }…</td>
 										<td class="when hide-sm">{ k.Created }</td>
 										<td class="when hide-sm">{ k.LastUsed }</td>
-										<td style="text-align:right">
+										<td class="ta-r">
 											if k.Revoked {
 												<span class="badge outline">{ i18n.T(ctx, "Revogada") }</span>
 											} else {
@@ -222,7 +222,7 @@ templ SettingsPage(sh Shell, vm SettingsVM) {
 
 templ membersCard(sh Shell, m MembersVM) {
 	if m.Show {
-		<div class="card pad form-card" style="margin-bottom:20px" id="membros">
+		<div class="card pad form-card mb-6" id="membros">
 			<div class="card-head">
 				<div>
 					<h2>{ i18n.T(ctx, "Membros") }</h2>
@@ -255,7 +255,7 @@ templ membersCard(sh Shell, m MembersVM) {
 					</button>
 				</form>
 			}
-			<div class="table-wrap" style="margin-top:16px">
+			<div class="table-wrap mt-4">
 				<table class="table">
 					<thead>
 						<tr>
@@ -290,7 +290,7 @@ templ membersCard(sh Shell, m MembersVM) {
 									}
 								</td>
 								<td class="when hide-sm">{ mb.Joined }</td>
-								<td style="text-align:right">
+								<td class="ta-r">
 									if mb.CanEdit || mb.Self {
 										<form method="post" action={ templ.SafeURL(sh.Base() + "/configuracoes/membros/" + mb.ID + "/remover") }>
 											<button class="btn sm danger" type="submit">
@@ -309,7 +309,7 @@ templ membersCard(sh Shell, m MembersVM) {
 				</table>
 			</div>
 			if len(m.Invites) > 0 {
-				<h3 style="margin-top:20px">{ i18n.T(ctx, "Convites abertos") }</h3>
+				<h3 class="mt-6">{ i18n.T(ctx, "Convites abertos") }</h3>
 				<div class="table-wrap">
 					<table class="table">
 						<thead>
@@ -332,7 +332,7 @@ templ membersCard(sh Shell, m MembersVM) {
 											{ in.Expires }
 										}
 									</td>
-									<td style="text-align:right">
+									<td class="ta-r">
 										if in.CanRevoke {
 											<form method="post" action={ templ.SafeURL(sh.Base() + "/configuracoes/membros/convites/" + in.ID + "/revogar") }>
 												<button class="btn sm danger" type="submit">{ i18n.T(ctx, "Revogar") }</button>

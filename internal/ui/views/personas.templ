@@ -51,7 +51,7 @@ templ PersonasPage(sh Shell, vm PersonasVM) {
 									</a>
 								</td>
 								<td>@BadgeEl(r.Badge)</td>
-								<td class="hide-sm mono" style="font-size:12.5px">{ r.Agent }
+								<td class="hide-sm mono text-xs">{ r.Agent }
 									if r.Model != "" {
 										<span class="muted"> · { r.Model }</span>
 									}
@@ -197,16 +197,16 @@ templ PersonaPage(sh Shell, vm PersonaVM) {
 			<span class="mini-avatar">@Icon(iconOrDefault(vm.Icon))</span>
 			<div>
 				<h1>{ vm.Name } @BadgeEl(vm.Badge)</h1>
-				<p class="muted" style="margin-top:4px;font-size:13.5px">{ vm.Title } · <span class="mono" style="font-size:12.5px">{ vm.Agent }</span>
+				<p class="muted mt-1 text-sm">{ vm.Title } · <span class="mono text-xs">{ vm.Agent }</span>
 					if vm.Model != "" {
-						<span class="mono" style="font-size:12.5px"> · { vm.Model }</span>
+						<span class="mono text-xs"> · { vm.Model }</span>
 					}
 					· { i18n.T(ctx, "intervalo de verificação:") } { vm.Heartbeat }
 				</p>
 			</div>
 		</div>
 		if len(vm.Controls) > 0 && sh.CanAdmin() {
-			<div class="persona-controls" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">
+			<div class="persona-controls d-flex wrap gap-2 mb-4">
 				for _, c := range vm.Controls {
 					<form method="post" action={ templ.SafeURL(c.Href) } hx-post={ c.Href } hx-swap="none">
 						<button class="btn outline sm" type="submit" title={ c.Hint }>@Icon(c.Icon) <span>{ c.Label }</span></button>
@@ -214,11 +214,11 @@ templ PersonaPage(sh Shell, vm PersonaVM) {
 				}
 			</div>
 		}
-		<div class="tabs" style="margin-bottom:22px">
+		<div class="tabs mb-6">
 			<a href="#visao" aria-current="page">{ i18n.T(ctx, "Visão geral") }</a>
 			<a href="#execucoes">{ i18n.T(ctx, "Execuções") }</a>
 		</div>
-		<div class="grid-2" id="visao" style="align-items:start">
+		<div class="grid-2 items-start" id="visao">
 			<section class="card pad">
 				<div class="card-head"><h2>{ i18n.T(ctx, "Identidade") }</h2></div>
 				<dl class="dl">
@@ -236,7 +236,7 @@ templ PersonaPage(sh Shell, vm PersonaVM) {
 					<dt>{ i18n.T(ctx, "Intervalo de verificação") }</dt><dd>{ vm.Heartbeat }</dd>
 					<dt>{ i18n.T(ctx, "Reporta a") }</dt><dd>
 						if vm.ReportsHref != "" {
-							<a href={ templ.SafeURL(vm.ReportsHref) } style="text-decoration:underline;text-underline-offset:2px">{ vm.ReportsTo }</a>
+							<a class="link-u" href={ templ.SafeURL(vm.ReportsHref) }>{ vm.ReportsTo }</a>
 						} else {
 							<span>{ i18n.T(ctx, "Você (dono)") }</span>
 						}
@@ -252,7 +252,7 @@ templ PersonaPage(sh Shell, vm PersonaVM) {
 						if vm.Reviewer.Summary == "" {
 							<span class="muted">{ i18n.T(ctx, "Sem revisor") }</span>
 						} else if vm.Reviewer.Href != "" {
-							<a href={ templ.SafeURL(vm.Reviewer.Href) } style="text-decoration:underline;text-underline-offset:2px">{ vm.Reviewer.Summary }</a>
+							<a class="link-u" href={ templ.SafeURL(vm.Reviewer.Href) }>{ vm.Reviewer.Summary }</a>
 						} else {
 							<span class="mono">{ vm.Reviewer.Summary }</span>
 						}
@@ -263,7 +263,7 @@ templ PersonaPage(sh Shell, vm PersonaVM) {
 								if i > 0 {
 									<span>, </span>
 								}
-								<a href={ templ.SafeURL(r.Href) } style="text-decoration:underline;text-underline-offset:2px">{ r.Name }</a>
+								<a class="link-u" href={ templ.SafeURL(r.Href) }>{ r.Name }</a>
 							}
 						</dd>
 					}
@@ -280,15 +280,15 @@ templ PersonaPage(sh Shell, vm PersonaVM) {
 			</section>
 		</div>
 		if canAdmin(ctx) {
-			<section class="card pad" id="identidade" style="margin-top:20px">
+			<section class="card pad mt-6" id="identidade">
 				<div class="card-head"><div><h2>{ i18n.T(ctx, "Ícone") }</h2><p class="sub">{ i18n.T(ctx, "Identifica a persona em listas, chats e execuções.") }</p></div></div>
 				<form method="post" action={ templ.SafeURL(vm.IconAction) } hx-boost="true" class="icon-form">
 					@IconPicker(vm.Icon)
-					<div class="form-actions" style="margin-top:0"><button class="btn primary sm" type="submit">{ i18n.T(ctx, "Salvar ícone") }</button></div>
+					<div class="form-actions mt-0"><button class="btn primary sm" type="submit">{ i18n.T(ctx, "Salvar ícone") }</button></div>
 				</form>
 			</section>
 		}
-		<section class="card pad" id="organizacao" style="margin-top:20px">
+		<section class="card pad mt-6" id="organizacao">
 			<div class="card-head"><div><h2>{ i18n.T(ctx, "Organização") }</h2><p class="sub">{ i18n.T(ctx, "Quem esta persona reporta e se o trabalho dela passa por revisão antes de concluir.") }</p></div></div>
 			if canAdmin(ctx) {
 				<form method="post" action={ templ.SafeURL(vm.OrgAction) } hx-post={ vm.OrgAction } hx-swap="none" class="org-form">
@@ -302,13 +302,13 @@ templ PersonaPage(sh Shell, vm PersonaVM) {
 							<span>{ i18n.T(ctx, "Exige revisão") }</span>
 						</label>
 					</div>
-					<div class="form-actions" style="margin-top:0"><button class="btn primary sm" type="submit">{ i18n.T(ctx, "Salvar organização") }</button></div>
+					<div class="form-actions mt-0"><button class="btn primary sm" type="submit">{ i18n.T(ctx, "Salvar organização") }</button></div>
 				</form>
 			} else {
 				@NeedRole(domain.MemberAdmin)
 			}
 		</section>
-		<section class="card pad" id="revisor" style="margin-top:20px">
+		<section class="card pad mt-6" id="revisor">
 			<div class="card-head"><div><h2>{ i18n.T(ctx, "Revisor") }</h2><p class="sub">{ i18n.T(ctx, "Quem faz a revisão automática antes do gate humano: outra persona, ou este mesmo papel rodando em outro harness ou modelo.") }</p></div></div>
 			if canAdmin(ctx) {
 				<form method="post" action={ templ.SafeURL(vm.Reviewer.Action) } hx-boost="true" class="org-form">
@@ -335,13 +335,13 @@ templ PersonaPage(sh Shell, vm PersonaVM) {
 						@ModelDatalist("rv-models")
 						<span class="hint">{ i18n.T(ctx, "Harness e modelo valem só no modo mesmo papel e precisam diferir dos da persona.") }</span>
 					</div>
-					<div class="form-actions" style="margin-top:0"><button class="btn primary sm" type="submit">{ i18n.T(ctx, "Salvar revisor") }</button></div>
+					<div class="form-actions mt-0"><button class="btn primary sm" type="submit">{ i18n.T(ctx, "Salvar revisor") }</button></div>
 				</form>
 			} else {
 				@NeedRole(domain.MemberAdmin)
 			}
 		</section>
-		<section class="card pad" id="assinatura" style="margin-top:20px">
+		<section class="card pad mt-6" id="assinatura">
 			<div class="card-head"><div><h2>{ i18n.T(ctx, "Assinatura") }</h2><p class="sub">{ i18n.T(ctx, "Plano que cobre as execuções desta persona: a mensalidade é rateada no custo pago e a trava semanal vale para ela.") }</p></div><a class="more" href={ templ.SafeURL(sh.Base() + "/custos#assinaturas") }>{ i18n.T(ctx, "Custos") }</a></div>
 			if canAdmin(ctx) {
 				<form method="post" action={ templ.SafeURL(vm.SubAction) } hx-post={ vm.SubAction } hx-swap="none" class="org-form">
@@ -349,21 +349,21 @@ templ PersonaPage(sh Shell, vm PersonaVM) {
 						<label for="o-sub">{ i18n.T(ctx, "Assinatura") }</label>
 						@Select("subscription", "o-sub", vm.SubOptions, false)
 					</div>
-					<div class="form-actions" style="margin-top:0"><button class="btn primary sm" type="submit">{ i18n.T(ctx, "Salvar assinatura") }</button></div>
+					<div class="form-actions mt-0"><button class="btn primary sm" type="submit">{ i18n.T(ctx, "Salvar assinatura") }</button></div>
 				</form>
 			} else {
 				@NeedRole(domain.MemberAdmin)
 			}
 		</section>
 		if vm.Budget != nil {
-			<section class={ "card pad budget-card", "b-" + vm.Budget.State } style="margin-top:20px">
+			<section class={ "card pad budget-card mt-6", "b-" + vm.Budget.State }>
 				<div class="card-head"><h2>{ i18n.T(ctx, "Orçamento do mês") }</h2><a class="more" href={ templ.SafeURL(vm.Budget.Href) }>{ i18n.T(ctx, "Custos") }</a></div>
 				@BudgetMeter(*vm.Budget)
 				@BudgetForm(*vm.Budget, "persona-budget")
 			</section>
 		}
 		@PersonaExtras(vm.Extras)
-		<h2 class="side-h" style="margin:28px 0 12px">{ i18n.T(ctx, "Tasks atribuídas") }</h2>
+		<h2 class="side-h sec-h">{ i18n.T(ctx, "Tasks atribuídas") }</h2>
 		if len(vm.Tasks) == 0 {
 			@EmptyCard("list", i18n.T(ctx, "Nenhuma task atribuída."), i18n.T(ctx, "Atribua uma task a esta persona para ela começar a trabalhar."), false)
 		} else {
@@ -372,7 +372,7 @@ templ PersonaPage(sh Shell, vm PersonaVM) {
 					<tbody>
 						for _, r := range vm.Tasks {
 							<tr class="row">
-								<td style="width:36px;padding-right:0">@PrioIcon(r.Priority, r.PriorityLabel)</td>
+								<td class="col-prio">@PrioIcon(r.Priority, r.PriorityLabel)</td>
 								<td class="id">{ r.Key }</td>
 								<td class="ttl"><a href={ templ.SafeURL(r.Href) }>{ r.Title }</a></td>
 								<td>@BadgeEl(r.Badge)</td>
@@ -383,7 +383,7 @@ templ PersonaPage(sh Shell, vm PersonaVM) {
 				</table>
 			</div>
 		}
-		<h2 class="side-h" id="conversas" style="margin:28px 0 12px">{ i18n.T(ctx, "Conversas") }</h2>
+		<h2 class="side-h sec-h" id="conversas">{ i18n.T(ctx, "Conversas") }</h2>
 		if len(vm.Chats) == 0 {
 			@EmptyCard("message-square", i18n.T(ctx, "Nenhuma conversa com esta persona."), i18n.T(ctx, "Converse direto com ela, fora de uma task."), false) {
 				if vm.NewChatHref != "" {
@@ -393,10 +393,10 @@ templ PersonaPage(sh Shell, vm PersonaVM) {
 		} else {
 			@ChatRows(vm.Chats)
 			if vm.NewChatHref != "" {
-				<p style="margin-top:12px"><a class="btn outline sm" href={ templ.SafeURL(vm.NewChatHref) }>{ i18n.T(ctx, "Nova conversa") }</a></p>
+				<p class="mt-3"><a class="btn outline sm" href={ templ.SafeURL(vm.NewChatHref) }>{ i18n.T(ctx, "Nova conversa") }</a></p>
 			}
 		}
-		<h2 class="side-h" id="execucoes" style="margin:28px 0 12px">{ i18n.T(ctx, "Execuções recentes") }</h2>
+		<h2 class="side-h sec-h" id="execucoes">{ i18n.T(ctx, "Execuções recentes") }</h2>
 		@RunsTable(vm.Runs, false)
 	}
 }

@@ -166,14 +166,14 @@ templ Icon(name string) {
 
 // Mark is the 5-petal sakura brand mark.
 templ Mark(size int) {
-	<svg width={ fmt.Sprint(size) } height={ fmt.Sprint(size) } viewBox="0 0 100 100" fill="none" aria-hidden="true" style="display:block;flex-shrink:0">
+	<svg class="d-block shrink-0" width={ fmt.Sprint(size) } height={ fmt.Sprint(size) } viewBox="0 0 100 100" fill="none" aria-hidden="true">
 		for _, a := range []int{0, 72, 144, 216, 288} {
-			<path d="M50,50 C38,43 33,27 39,15 C42,8 47,10 50,17 C53,10 58,8 61,15 C67,27 62,43 50,50 Z" transform={ fmt.Sprintf("rotate(%d 50 50)", a) } style="fill:var(--sakura-petal);stroke:var(--sakura-ink)" stroke-width="6" stroke-linejoin="round"></path>
+			<path class="sk-petal" d="M50,50 C38,43 33,27 39,15 C42,8 47,10 50,17 C53,10 58,8 61,15 C67,27 62,43 50,50 Z" transform={ fmt.Sprintf("rotate(%d 50 50)", a) } stroke-width="6" stroke-linejoin="round"></path>
 		}
 		for _, a := range []int{36, 108, 180, 252, 324} {
-			<line x1="50" y1="50" x2="50" y2="34" transform={ fmt.Sprintf("rotate(%d 50 50)", a) } style="stroke:var(--sakura-ink)" stroke-width="3.3" stroke-linecap="round"></line>
-			<circle cx="50" cy="33" r="3" transform={ fmt.Sprintf("rotate(%d 50 50)", a) } style="fill:var(--sakura-ink)"></circle>
+			<line class="sk-stroke" x1="50" y1="50" x2="50" y2="34" transform={ fmt.Sprintf("rotate(%d 50 50)", a) } stroke-width="3.3" stroke-linecap="round"></line>
+			<circle class="sk-ink" cx="50" cy="33" r="3" transform={ fmt.Sprintf("rotate(%d 50 50)", a) }></circle>
 		}
-		<circle cx="50" cy="50" r="5.4" style="fill:var(--sakura-ink)"></circle>
+		<circle class="sk-ink" cx="50" cy="50" r="5.4"></circle>
 	</svg>
 }

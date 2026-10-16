@@ -1064,3 +1064,47 @@ a.hit-main:hover { background: var(--muted); }
 .icon-pick input:focus-visible + .ip { outline: 3px solid color-mix(in oklab, var(--ring) 50%, transparent); outline-offset: 0; }
 .icon-form { display: grid; gap: 16px; }
 
+/* ---------- utilitários (escala de espaço do Kubo DS: 4 · 8 · 12 · 16 · 24) ---------- */
+.m-0 { margin: 0 !important; }
+.mt-0 { margin-top: 0 !important; }
+.mt-1 { margin-top: 4px !important; }
+.mt-2 { margin-top: 8px !important; }
+.mt-3 { margin-top: 12px !important; }
+.mt-4 { margin-top: 16px !important; }
+.mt-6 { margin-top: 24px !important; }
+.mb-1 { margin-bottom: 4px !important; }
+.mb-3 { margin-bottom: 12px !important; }
+.mb-4 { margin-bottom: 16px !important; }
+.mb-6 { margin-bottom: 24px !important; }
+.px-6 { padding-left: 24px !important; padding-right: 24px !important; }
+.pb-4 { padding-bottom: 16px !important; }
+.gap-2 { gap: 8px !important; }
+.d-flex { display: flex !important; }
+.d-grid { display: grid !important; }
+.d-block { display: block !important; }
+.d-inline { display: inline !important; }
+.wrap { flex-wrap: wrap !important; }
+.shrink-0 { flex-shrink: 0 !important; }
+.items-start { align-items: start !important; }
+.row-between { display: flex !important; justify-content: space-between !important; }
+.w-full { width: 100% !important; }
+.maxw-lg { max-width: 520px !important; }
+.auth.wide { max-width: 440px !important; }
+.ta-r { text-align: right !important; }
+.text-xs { font-size: var(--text-xs) !important; }
+.text-sm { font-size: var(--text-sm) !important; }
+.uppercase { text-transform: uppercase !important; }
+.normal-case { text-transform: none !important; letter-spacing: 0 !important; font-weight: 400 !important; }
+.pre-wrap { white-space: pre-wrap !important; }
+.break-any { overflow-wrap: anywhere !important; }
+.link-u { text-decoration: underline !important; text-underline-offset: 2px !important; }
+.link-u.fg { color: var(--foreground) !important; }
+.col-prio { width: 36px !important; padding-right: 0 !important; }
+/* título de seção entre cards e rótulo de card em caixa-alta (mesmo padrão do Sidebar do DS) */
+.sec-h { margin: 24px 0 12px !important; }
+.card-label, .card h2.card-label { font-size: var(--text-label) !important; font-weight: 600 !important; letter-spacing: 0.04em !important; text-transform: uppercase !important; color: var(--muted-foreground) !important; }
+/* marca sakura: pétala e traço seguem o tema */
+.sk-ink { fill: var(--sakura-ink); }
+.sk-stroke { stroke: var(--sakura-ink); }
+.sk-petal { fill: var(--sakura-petal); stroke: var(--sakura-ink); }
+
