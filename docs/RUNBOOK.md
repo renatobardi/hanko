@@ -577,3 +577,16 @@ caracteres de formatação Unicode). Pontos de operação:
   ("a busca demorou demais; use palavras mais específicas"). A última palavra só casa por prefixo com 2+ letras (3+ em comentários).
 - **Memória na busca.** O grupo "Memória" só aparece se o servidor de memória lista a tool `memory_query` (lido de `tools/list`, com
   cache de 5 min). Sem ela o grupo some e o log registra um aviso uma única vez; a consolidação (ADR-0030) não depende dessa tool.
+
+## Plugins de terceiros (ADR-0038)
+
+- Desligados até `HANKO_PLUGINS_DIR` apontar para um diretório local (um subdiretório por plugin, com o nome do
+  `id`). Diretórios de trabalho em `HANKO_PLUGINS_DATA_DIR` (padrão `$HOME/hanko-data`); inclua-o no backup se os
+  plugins guardarem arquivos lá. Protocolo e exemplo: `docs/PLUGINS.md`.
+- Instalar, atualizar, aprovar capacidades e desinstalar: dono da instalação (Configurações › Plugins ou
+  `hanko plugin …`). Cada plugin roda como processo filho, com ambiente mínimo e sem acesso ao banco; o Hanko não
+  impede rede (`http.outbound` é só declarado). Para isolar de verdade, rode o Hanko num container sem o `.env`.
+- Plugin com erro: `hanko plugin logs <id>` mostra estado, PID, reinícios, último erro e o stderr. O gerenciador
+  reinicia sozinho com backoff (até 5 min entre tentativas); `hanko plugin disable <id> --global` para o processo
+  sem perder a configuração das empresas.
+- Segredos de plugin usam `HANKO_SECRET_KEY` e entram na rotação (`hanko integration rekey`).

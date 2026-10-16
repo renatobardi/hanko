@@ -439,10 +439,14 @@ func (s *Service) validatePluginConfig(ctx context.Context, p domain.Plugin, co 
 		if err != nil {
 			return domain.Invalid("plugin", err.Error())
 		}
+		// a trava do ciclo de vida impede que um reconciliar no meio pare o processo de prova
+		rt := s.prt()
+		rt.life.Lock()
 		rtm.Start(ctx, spec)
 		wctx, cancel := context.WithTimeout(ctx, pluginProbeTimeout)
 		err = rtm.Ready(wctx, p.Key)
 		cancel()
+		rt.life.Unlock()
 		if err != nil {
 			go s.ReconcilePlugins(context.WithoutCancel(ctx)) // ninguém ligado: o processo de prova não fica de pé
 			return fmt.Errorf("o plugin não respondeu para validar a configuração (%s): %w", err.Error(), domain.ErrConflict)
