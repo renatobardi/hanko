@@ -1192,3 +1192,11 @@ a.hit-main:hover { background: var(--muted); }
 .team-members .tm-n span { font-size: var(--text-xs); color: var(--muted-foreground); }
 .team-grid { align-items: stretch; }
 
+/* ---------- ao vivo ---------- */
+.live-card .lc-head { display: flex; align-items: center; gap: 10px; }
+.live-card .lc-t { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.live-card .lc-t span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.live-card .lc-subj { margin: 10px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.live-card .lc-log { min-height: 0; max-height: 180px; padding: 10px 12px; font-size: var(--text-xs); }
+.live-card .lc-log .log-line { grid-template-columns: 84px minmax(0, 1fr); }
+

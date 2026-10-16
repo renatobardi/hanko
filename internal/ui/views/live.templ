@@ -1,0 +1,63 @@
+package views
+
+import (
+	"fmt"
+
+	"github.com/renatobardi/hanko/internal/i18n"
+)
+
+templ LivePage(sh Shell, vm LiveVM) {
+	@Layout(sh) {
+		@PageHead(i18n.T(ctx, "Ao vivo"), i18n.T(ctx, "O que as personas estão fazendo agora. Atualiza sozinho a cada 5 segundos.")) {
+			<a class="btn outline" href={ templ.SafeURL(sh.Base() + "/execucoes") }>{ i18n.T(ctx, "Todas as execuções") }</a>
+		}
+		@LiveGrid(vm)
+	}
+}
+
+// LiveGrid é o miolo do painel ao vivo; ele mesmo se pede de novo a cada 5 s.
+templ LiveGrid(vm LiveVM) {
+	<div id="live" hx-get={ vm.Self } hx-trigger="every 5s" hx-swap="outerHTML">
+		<p class="muted text-sm mb-4">
+			{ i18n.Tf(ctx, "%s rodando · %s na fila", fmt.Sprint(len(vm.Cards)), fmt.Sprint(vm.Queued)) }
+		</p>
+		if len(vm.Cards) == 0 {
+			@EmptyCard("activity", i18n.T(ctx, "Nenhuma persona trabalhando agora."), i18n.T(ctx, "Quando uma execução começar, ela aparece aqui com o log ao vivo."), true)
+		} else {
+			<div class="grid-2 live-grid">
+				for _, c := range vm.Cards {
+					<section class="card pad live-card">
+						<div class="lc-head">
+							<span class="mini-avatar">@PersonaGlyph(c.Persona)</span>
+							<div class="lc-t">
+								<b>{ c.Persona }</b>
+								<span class="muted text-xs mono">{ c.Name } · { c.Agent }</span>
+							</div>
+							<span class="badge run"><i class="pulse"></i>{ c.Elapsed }</span>
+						</div>
+						<p class="lc-subj text-sm"><a class="mono" href={ templ.SafeURL(c.SubjectHref) }>{ c.Subject }</a> { c.Title }</p>
+						<div class="log lc-log">
+							if len(c.Lines) == 0 {
+								<span class="log-empty">{ i18n.T(ctx, "Aguardando os primeiros eventos…") }</span>
+							}
+							for _, l := range c.Lines {
+								<div class={ "log-line", "k-" + l.Kind }><span class="k">{ l.Kind }</span><span class="tx">{ l.Text }</span></div>
+							}
+						</div>
+						<div class="row-between mt-3">
+							<span class="muted text-xs">{ c.Cost }</span>
+							<div class="d-flex gap-2">
+								if canWrite(ctx) {
+									<form method="post" action={ templ.SafeURL(c.CancelHref) } hx-post={ c.CancelHref } hx-swap="none">
+										<button class="btn ghost sm" type="submit">{ i18n.T(ctx, "Interromper") }</button>
+									</form>
+								}
+								<a class="btn outline sm" href={ templ.SafeURL(c.Href) }>{ i18n.T(ctx, "Abrir log") }</a>
+							</div>
+						</div>
+					</section>
+				}
+			</div>
+		}
+	</div>
+}

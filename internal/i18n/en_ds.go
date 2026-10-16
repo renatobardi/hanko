@@ -3,7 +3,14 @@ package i18n
 // enDS holds the English texts added with the Kubo DS adherence pass (persona glyph, theme toggle,
 // task board). Same rules as en.go: the key is the pt-BR text, never repeated across files.
 var enDS = map[string]string{
-	"Produto de software": "Software product",
+	"O que as personas estão fazendo agora. Atualiza sozinho a cada 5 segundos.": "What the personas are doing right now. Refreshes every 5 seconds.",
+	"Todas as execuções":                 "All runs",
+	"%s rodando · %s na fila":            "%s running · %s queued",
+	"Nenhuma persona trabalhando agora.": "No persona is working right now.",
+	"Quando uma execução começar, ela aparece aqui com o log ao vivo.": "When a run starts, it shows up here with its live log.",
+	"Aguardando os primeiros eventos…":                                 "Waiting for the first events…",
+	"Abrir log":                                                        "Open log",
+	"Produto de software":                                              "Software product",
 	"Planeja, implementa, revisa e testa mudanças de código com gate humano antes de concluir.": "Plans, implements, reviews and tests code changes with a human gate before closing.",
 	"Conteúdo e marketing": "Content and marketing",
 	"Pauta, escreve, revisa e prepara a distribuição de textos, com aprovação humana antes de publicar.": "Plans, writes, reviews and prepares distribution of content, with human approval before publishing.",
