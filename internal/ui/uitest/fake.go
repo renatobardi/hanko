@@ -537,6 +537,25 @@ func (f *Fake) ListRunEvents(_ context.Context, _, runID domain.ID, after int64,
 	return out, nil
 }
 
+// ListRunEventsBefore devolve os últimos eventos antes de beforeSeq (0 = do fim), em ordem crescente.
+func (f *Fake) ListRunEventsBefore(_ context.Context, _, runID domain.ID, before int64, limit int) ([]domain.RunEvent, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if err := f.fail("ListRunEventsBefore"); err != nil {
+		return nil, err
+	}
+	var out []domain.RunEvent
+	for _, e := range f.Events[runID] {
+		if before <= 0 || e.Seq < before {
+			out = append(out, e)
+		}
+	}
+	if limit > 0 && len(out) > limit {
+		out = out[len(out)-limit:]
+	}
+	return out, nil
+}
+
 func (f *Fake) CancelRun(_ context.Context, _ domain.Actor, _, runID domain.ID) (service.RunView, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()

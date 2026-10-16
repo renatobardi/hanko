@@ -11,7 +11,7 @@ import (
 templ DashboardPage(sh Shell, vm DashboardVM) {
 	@Layout(sh) {
 		@PageHead(i18n.T(ctx, "Painel"), vm.Subtitle) {
-			<a class="btn outline" href={ templ.SafeURL(sh.Base() + "/execucoes") }>
+			<a class="btn outline" href={ templ.SafeURL(sh.Base() + "/ao-vivo") }>
 				@Icon("play")
 				{ i18n.T(ctx, "Ver ao vivo") }
 			</a>

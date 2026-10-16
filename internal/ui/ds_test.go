@@ -233,3 +233,14 @@ func TestTeamCatalogInstall(t *testing.T) {
 	wantStatus(t, e.post(t, "/c/hanko/personas/catalogo", url.Values{"team": {"nao-existe"}}, false), http.StatusNotFound)
 	wantContains(t, e.get(t, "/c/hanko/personas/catalogo?instalado=produto"), "Time Produto de software instalado")
 }
+
+func TestLiveBoard(t *testing.T) {
+	e := newEnv(t, uitest.Sample())
+	rec := e.get(t, "/c/hanko/ao-vivo")
+	wantStatus(t, rec, http.StatusOK)
+	wantContains(t, rec, `id="live"`, `hx-trigger="every 5s"`, "rodando", "Abrir log", "/execucoes/")
+	rec = e.get(t, "/c/hanko/ao-vivo", "HX-Request", "true")
+	wantContains(t, rec, `id="live"`)
+	wantNotContains(t, rec, "<html")
+	wantContains(t, e.get(t, "/c/hanko/"), `href="/c/hanko/ao-vivo"`)
+}

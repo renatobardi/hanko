@@ -64,6 +64,7 @@ templ RunsTable(rows []RunRow, showPersona bool) {
 templ RunsPage(sh Shell, vm RunsVM) {
 	@Layout(sh) {
 		@PageHead(i18n.T(ctx, "Execuções"), vm.Subtitle) {
+			<a class="btn outline" href={ templ.SafeURL(sh.Base() + "/ao-vivo") }>@Icon("play") { i18n.T(ctx, "Ver ao vivo") }</a>
 			if vm.Live > 0 {
 				<span class="badge run"><i class="pulse"></i> { fmt.Sprint(vm.Live) } { i18n.T(ctx, "ao vivo") }</span>
 			}
