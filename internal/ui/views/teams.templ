@@ -1,0 +1,49 @@
+package views
+
+import (
+	"fmt"
+
+	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/i18n"
+)
+
+templ TeamCatalogPage(sh Shell, vm TeamCatalogVM) {
+	@Layout(sh) {
+		@PageHead(i18n.T(ctx, "Catálogo de times"), i18n.T(ctx, "Times prontos de personas, com organograma, glifo, modelo e instruções iniciais. Tudo fica editável depois de instalado.")) {
+			<a class="btn outline" href={ templ.SafeURL(sh.Base() + "/personas/nova") }>@Icon("plus") { i18n.T(ctx, "Contratar uma persona") }</a>
+		}
+		if vm.Notice != "" {
+			@Alert("warn", vm.Notice)
+		}
+		<div class="grid-2 team-grid">
+			for _, t := range vm.Teams {
+				<section class="card pad team-card">
+					<div class="pc-head">
+						<span class="mini-avatar lg">@Icon(t.Icon)</span>
+						<div class="pc-t"><h2>{ t.Name }</h2><p class="sub">{ t.Desc }</p></div>
+					</div>
+					<ul class="team-members">
+						for _, m := range t.Members {
+							<li class={ templ.KV("lead", m.Lead) }>
+								<span class="mini-avatar">@Icon(m.Icon)</span>
+								<span class="tm-n"><b>{ m.Name }</b><span>{ m.Title }</span></span>
+								<span class="badge outline mono">{ m.Model }</span>
+							</li>
+						}
+					</ul>
+					<div class="row-between mt-4">
+						<span class="muted text-xs">{ i18n.Tf(ctx, "%s personas · harness claude", fmt.Sprint(len(t.Members))) }</span>
+						if canAdmin(ctx) {
+							<form method="post" action={ templ.SafeURL(t.Action) } hx-boost="true">
+								<input type="hidden" name="team" value={ t.Key }/>
+								<button class="btn primary sm" type="submit">{ i18n.T(ctx, "Instalar time") }</button>
+							</form>
+						} else {
+							@NeedRole(domain.MemberAdmin)
+						}
+					</div>
+				</section>
+			}
+		</div>
+	}
+}
