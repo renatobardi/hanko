@@ -302,7 +302,6 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("GET /c/{company}/configuracoes", co(s.handleSettings))
 	mux.HandleFunc("GET /c/{company}/configuracoes/ambientes", co(s.handleEnvironments))
 	mux.HandleFunc("GET /c/{company}/configuracoes/adapters", co(s.handleAdapters))
-	mux.HandleFunc("GET /c/{company}/configuracoes/plugins", co(s.handlePlugins))
 	mux.HandleFunc("GET /c/{company}/configuracoes/dados", co(s.handleData))
 	mux.HandleFunc("POST /c/{company}/configuracoes/senha", post(co(s.handleChangePassword)))
 	mux.HandleFunc("POST /c/{company}/configuracoes/chaves", post(co(s.handleCreateKey)))
@@ -338,6 +337,7 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("GET /c/{company}/buscar", co(s.handleSearch))
 	mux.HandleFunc("GET /c/{company}/em-breve/{item}", co(s.handleSoon))
 	s.skillRoutes(mux)
+	s.pluginRoutes(mux)
 }
 
 // ---------- middleware ----------

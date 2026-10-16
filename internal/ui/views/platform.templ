@@ -108,32 +108,6 @@ templ AdaptersPage(sh Shell, vm AdaptersVM) {
 	}
 }
 
-templ PluginsPage(sh Shell, vm PluginsVM) {
-	@Layout(sh) {
-		@PageHead(i18n.T(ctx, "Plugins e extensões"), i18n.T(ctx, "Os pontos de extensão desta instalação e o estado de cada um. Plugins de terceiros ainda não são suportados (roadmap).")) {
-		}
-		<div class="mb-6">@Tabs(vm.Sections)</div>
-		<div class="grid-3 plugin-grid">
-			for _, it := range vm.Items {
-				<section class="card pad plugin-card">
-					<div class="pc-head">
-						<span class="mini-avatar lg">@Icon(it.Icon)</span>
-						<div class="pc-t"><h2>{ it.Name }</h2><p class="sub">{ it.Desc }</p></div>
-					</div>
-					<ul class="env-checks compact mt-3">
-						for _, c := range it.Checks {
-							@envCheckRow(c)
-						}
-					</ul>
-					if it.Href != "" {
-						<div class="mt-3"><a class="btn outline sm" href={ templ.SafeURL(it.Href) }>{ i18n.T(ctx, "Abrir") }</a></div>
-					}
-				</section>
-			}
-		</div>
-	}
-}
-
 templ DataPage(sh Shell, vm DataVM) {
 	@Layout(sh) {
 		@PageHead(i18n.T(ctx, "Exportar e importar"), i18n.T(ctx, "A empresa inteira num arquivo portátil (hanko.company.v1), sem segredos: personas, organograma, projetos, workspaces, tasks, fluxos, skills e, se quiser, execuções e artefatos.")) {

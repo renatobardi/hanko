@@ -180,8 +180,8 @@ func (s *server) handleAdapters(w http.ResponseWriter, r *http.Request, co domai
 	s.render(w, r, http.StatusOK, views.AdaptersPage(s.settingsShell(r, co, i18n.T(ctx, "Adapters")), vm))
 }
 
-func (s *server) handlePlugins(w http.ResponseWriter, r *http.Request, co domain.Company) {
-	ctx := r.Context()
+// builtinPluginItems são os pontos de extensão embutidos (Configurações › Plugins, abaixo dos plugins de terceiros).
+func (s *server) builtinPluginItems(ctx context.Context, co domain.Company) []views.PluginItem {
 	p := s.platform
 	base := "/c/" + co.Slug
 	agent := p.AgentURL
@@ -204,7 +204,7 @@ func (s *server) handlePlugins(w http.ResponseWriter, r *http.Request, co domain
 	if secret.OK {
 		secret.Detail = i18n.T(ctx, "AES-256-GCM em repouso")
 	}
-	vm := views.PluginsVM{Sections: settingsSections(ctx, base, "plugins"), Items: []views.PluginItem{
+	return []views.PluginItem{
 		{Icon: "link", Name: i18n.T(ctx, "Servidor MCP do Hanko"), Desc: i18n.T(ctx, "Tools de tasks, comentários, artefatos, metas e busca para as personas e para clientes MCP."),
 			Checks: []views.EnvCheck{check(true, i18n.T(ctx, "Endpoint"), strings.TrimRight(agent, "/")+"/mcp")}, Href: base + "/integracoes"},
 		{Icon: "database", Name: i18n.T(ctx, "Memória entre sessões"), Desc: i18n.T(ctx, "Provedor de memória por MCP, com curadoria governada por gate."),
@@ -215,8 +215,7 @@ func (s *server) handlePlugins(w http.ResponseWriter, r *http.Request, co domain
 			Checks: []views.EnvCheck{check(true, i18n.T(ctx, "Catálogo"), i18n.T(ctx, "por empresa"))}, Href: base + "/skills"},
 		{Icon: "activity", Name: i18n.T(ctx, "Observabilidade"), Desc: i18n.T(ctx, "Traces, métricas e logs OpenTelemetry de cada request e execução."),
 			Checks: []views.EnvCheck{otel}, Href: ""},
-	}}
-	s.render(w, r, http.StatusOK, views.PluginsPage(s.settingsShell(r, co, i18n.T(ctx, "Plugins")), vm))
+	}
 }
 
 func dashIfEmpty(v string) string {

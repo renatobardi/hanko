@@ -1203,3 +1203,19 @@ details > summary.btn { list-style: none; display: inline-flex; }
 details > summary.btn::-webkit-details-marker { display: none; }
 .pw-form { max-width: 560px; }
 
+
+/* ---- plugins de terceiros (ADR-0038) ---- */
+.plugin-caps { display: flex; flex-wrap: wrap; gap: 4px; list-style: none; margin: 12px 0 0; padding: 0; }
+.plugin-foot { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.plugin-owner { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding-top: 12px; border-top: 1px solid var(--border); }
+.plugin-steps { margin: 0; padding-left: 20px; display: grid; gap: 8px; font-size: var(--text-sm); }
+.plugin-tools { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 8px; }
+.plugin-log { background: var(--term-bg); color: var(--term-ink); border-radius: var(--radius-xl); padding: 12px 16px; font-family: var(--font-mono);
+  font-size: var(--text-xs); max-height: 420px; overflow: auto; }
+.plugin-log .pl-line { display: grid; grid-template-columns: 96px 56px minmax(0, 1fr); gap: 12px; align-items: baseline; overflow-wrap: anywhere; }
+.plugin-log .pl-lvl { text-transform: uppercase; color: var(--ring); }
+.plugin-log .pl-error, .plugin-log .pl-stderr { color: #fca5a5; }
+.plugin-log .pl-warn { color: #fcd34d; }
+.plugin-slot:empty { display: none; }
+.plugin-widget .md { overflow-wrap: anywhere; }
+@media (max-width: 640px) { .plugin-log .pl-line { grid-template-columns: minmax(0, 1fr); gap: 0; } }

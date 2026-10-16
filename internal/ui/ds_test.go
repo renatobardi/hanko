@@ -186,7 +186,7 @@ func TestSettingsPlatformPages(t *testing.T) {
 
 	rec = e.get(t, "/c/hanko/configuracoes/plugins")
 	wantStatus(t, rec, http.StatusOK)
-	wantContains(t, rec, "Servidor MCP do Hanko", "https://hanko.example/mcp", "ai-memory · http://127.0.0.1:49374", "sem HANKO_SECRET_KEY", "Plugins de terceiros ainda não são suportados")
+	wantContains(t, rec, "Servidor MCP do Hanko", "https://hanko.example/mcp", "ai-memory · http://127.0.0.1:49374", "sem HANKO_SECRET_KEY", "Plugins de terceiros desligados")
 }
 
 func TestSettingsDataPage(t *testing.T) {

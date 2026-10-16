@@ -49,6 +49,9 @@ type PluginsConfig struct {
 // Enabled informa se a funcionalidade está ligada.
 func (c PluginsConfig) Enabled() bool { return c.Dir != "" }
 
+// PluginsEnabled informa se o operador ligou os plugins de terceiros (HANKO_PLUGINS_DIR).
+func (s *Service) PluginsEnabled() bool { return s.Plugins.Enabled() }
+
 const (
 	pluginProbeTimeout  = 45 * time.Second
 	pluginToolTimeout   = 30 * time.Second

@@ -118,7 +118,6 @@ var enDS = map[string]string{
 	"Sem preços cadastrados.": "No prices registered.",
 	"Entrada":                 "Input",
 	"Plugins e extensões":     "Plugins and extensions",
-	"Os pontos de extensão desta instalação e o estado de cada um. Plugins de terceiros ainda não são suportados (roadmap).": "This installation extension points and the status of each. Third-party plugins are not supported yet (roadmap).",
 	"7 dias":      "7 days",
 	"Sem persona": "No persona",
 	"Timeline":    "Timeline",
