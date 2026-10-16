@@ -149,6 +149,11 @@ type TasksVM struct {
 	Columns             []TaskGroup
 	ListHref, BoardHref string
 	// Visão salva (agrupar/ordem) e filtros de persona e prioridade, com as opções dos seletores.
+	// Path é a página que desenha a lista (/tasks ou o projeto); Hidden são os parâmetros dela que os
+	// formulários repetem; Embedded = aba de um projeto (o filtro de projeto é a própria página).
+	Path                            string
+	Hidden                          map[string][]string
+	Embedded                        bool
 	GroupBy, SortBy                 string
 	PersonaFilter, PriorityFilter   string
 	GroupOptions, SortOptions       []Option
