@@ -78,6 +78,16 @@ type ACP struct {
 	Commands []string `yaml:"commands" env:"HANKO_ACP_COMMANDS" envSeparator:","`
 }
 
+// Plugins configura os plugins de terceiros (ADR-0038). Desligados até o operador apontar Dir para um diretório
+// local com os plugins; o Hanko nunca baixa plugin.
+type Plugins struct {
+	// Dir é HANKO_PLUGINS_DIR: um subdiretório por plugin, com hanko-plugin.json na raiz.
+	Dir string `yaml:"dir" env:"HANKO_PLUGINS_DIR"`
+	// DataDir é HANKO_PLUGINS_DATA_DIR: onde ficam os diretórios de trabalho (<DataDir>/plugins/<id>); padrão
+	// $HOME/hanko-data.
+	DataDir string `yaml:"data_dir" env:"HANKO_PLUGINS_DATA_DIR"`
+}
+
 // Auth configura a autenticação de humanos (vale no modo authenticated).
 type Auth struct {
 	Provider       string   `yaml:"provider" env:"HANKO_AUTH_PROVIDER"` // local (default) | firebase
@@ -108,6 +118,7 @@ type Config struct {
 	SecretKeyPrevious string        `yaml:"secret_key_previous" env:"HANKO_SECRET_KEY_PREVIOUS"`
 	Integrations      Integrations  `yaml:"integrations"`
 	ACP               ACP           `yaml:"acp"`
+	Plugins           Plugins       `yaml:"plugins"`
 	MigrateOnBoot     bool          `yaml:"migrate_on_boot" env:"HANKO_MIGRATE_ON_BOOT"`
 	Memory            Memory        `yaml:"memory"`
 	Auth              Auth          `yaml:"auth"`
@@ -274,6 +285,14 @@ func (c *Config) finalize() error {
 		}
 	}
 
+	c.Plugins.Dir = strings.TrimSpace(c.Plugins.Dir)
+	c.Plugins.DataDir = strings.TrimSpace(c.Plugins.DataDir)
+	if c.Plugins.Dir != "" && c.Plugins.DataDir == "" {
+		if home, err := os.UserHomeDir(); err == nil && home != "" {
+			c.Plugins.DataDir = filepath.Join(home, "hanko-data")
+		}
+	}
+
 	if err := c.Validate(); err != nil {
 		return err
 	}
@@ -370,6 +389,12 @@ func (c Config) Validate() error {
 	}
 	if c.WorkspacesRoot != "" && !filepath.IsAbs(c.WorkspacesRoot) {
 		add("HANKO_WORKSPACES_ROOT %q deve ser um caminho absoluto", c.WorkspacesRoot)
+	}
+	if c.Plugins.Dir != "" && !filepath.IsAbs(c.Plugins.Dir) {
+		add("HANKO_PLUGINS_DIR %q deve ser um caminho absoluto", c.Plugins.Dir)
+	}
+	if c.Plugins.DataDir != "" && !filepath.IsAbs(c.Plugins.DataDir) {
+		add("HANKO_PLUGINS_DATA_DIR %q deve ser um caminho absoluto", c.Plugins.DataDir)
 	}
 	if c.Workers < 1 || c.Workers > 256 {
 		add("HANKO_WORKERS %d inválido: use um valor entre 1 e 256", c.Workers)

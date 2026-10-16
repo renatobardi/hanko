@@ -903,7 +903,9 @@ func (s *Service) RekeyIntegrationSecrets(ctx context.Context) (int, error) {
 		}
 		n++
 	}
-	return n, nil
+	// os segredos dos plugins (ADR-0038) usam o mesmo cofre
+	m, err := s.rekeyPluginSecrets(ctx)
+	return n + m, err
 }
 
 // redactSecrets mascara em texto livre os segredos da integração e os padrões conhecidos de credencial.
