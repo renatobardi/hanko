@@ -1183,3 +1183,12 @@ a.hit-main:hover { background: var(--muted); }
 .export-form, .import-form { display: grid; gap: 12px; }
 .d-none { display: none !important; }
 
+/* ---------- catálogo de times ---------- */
+.team-members { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 8px; }
+.team-members li { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding-left: 20px; }
+.team-members li.lead { padding-left: 0; }
+.team-members .tm-n { display: flex; flex-direction: column; min-width: 0; line-height: var(--leading-tight); }
+.team-members .tm-n b { font-weight: 500; }
+.team-members .tm-n span { font-size: var(--text-xs); color: var(--muted-foreground); }
+.team-grid { align-items: stretch; }
+

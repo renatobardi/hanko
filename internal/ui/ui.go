@@ -229,6 +229,8 @@ func (s *server) routes(root *http.ServeMux) {
 
 	mux.HandleFunc("GET /c/{company}/personas", co(s.handlePersonas))
 	mux.HandleFunc("GET /c/{company}/personas/nova", co(s.handleNewPersona))
+	mux.HandleFunc("GET /c/{company}/personas/catalogo", co(s.handleTeamCatalog))
+	mux.HandleFunc("POST /c/{company}/personas/catalogo", post(co(s.handleInstallTeam)))
 	mux.HandleFunc("POST /c/{company}/personas/nova", post(co(s.handleHirePersona)))
 	mux.HandleFunc("GET /c/{company}/personas/{persona}", co(s.handlePersona))
 	mux.HandleFunc("POST /c/{company}/personas/{persona}/pausar", post(co(s.handlePersonaControl(domain.PersonaPaused, "pausada"))))

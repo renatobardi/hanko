@@ -195,3 +195,41 @@ func TestSettingsDataPage(t *testing.T) {
 	wantStatus(t, rec, http.StatusOK)
 	wantContains(t, rec, `href="/api/v1/companies/hanko/export"`, `download="hanko-hanko-`, `action="/api/v1/companies/import"`, `data-import`, "with_logs")
 }
+
+func TestTeamCatalogInstall(t *testing.T) {
+	f := uitest.Sample()
+	e := newEnv(t, f)
+	rec := e.get(t, "/c/hanko/personas/catalogo")
+	wantStatus(t, rec, http.StatusOK)
+	wantContains(t, rec, "Produto de software", "Conteúdo e marketing", `name="team" value="produto"`, "Tess")
+	wantContains(t, e.get(t, "/c/hanko/personas"), `href="/c/hanko/personas/catalogo"`)
+
+	before := len(f.Personas)
+	rec = e.post(t, "/c/hanko/personas/catalogo", url.Values{"team": {"produto"}}, false)
+	wantStatus(t, rec, http.StatusSeeOther)
+	if got := len(f.Personas) - before; got != 4 {
+		t.Fatalf("personas criadas = %d, quer 4", got)
+	}
+	bySlug := map[string]int{}
+	for i, p := range f.Personas {
+		bySlug[p.Slug] = i
+	}
+	cto := f.Personas[bySlug["cto"]]
+	eng := f.Personas[bySlug["engenharia"]]
+	if eng.ReportsTo == nil || *eng.ReportsTo != cto.ID || cto.ReportsTo != nil || eng.Icon != "code" || !eng.RequireReview {
+		t.Errorf("organograma/glifo/revisão do time errados: cto=%+v eng=%+v", cto, eng)
+	}
+	// instalar de novo não colide: slugs ganham sufixo
+	wantStatus(t, e.post(t, "/c/hanko/personas/catalogo", url.Values{"team": {"produto"}}, false), http.StatusSeeOther)
+	found := false
+	for _, p := range f.Personas {
+		if p.Slug == "cto-2" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("segunda instalação sem slug cto-2")
+	}
+	wantStatus(t, e.post(t, "/c/hanko/personas/catalogo", url.Values{"team": {"nao-existe"}}, false), http.StatusNotFound)
+	wantContains(t, e.get(t, "/c/hanko/personas/catalogo?instalado=produto"), "Time Produto de software instalado")
+}

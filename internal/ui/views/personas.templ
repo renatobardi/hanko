@@ -11,6 +11,7 @@ import (
 templ PersonasPage(sh Shell, vm PersonasVM) {
 	@Layout(sh) {
 		@PageHead(i18n.T(ctx, "Personas"), vm.Subtitle) {
+			<a class="btn outline" href={ templ.SafeURL(sh.Base() + "/personas/catalogo") }>@Icon("layers") { i18n.T(ctx, "Catálogo de times") }</a>
 		}
 		<div class="kpis">
 			@Kpi("bot", fmt.Sprint(vm.Active), i18n.T(ctx, "Ativas agora"), false)
@@ -24,6 +25,10 @@ templ PersonasPage(sh Shell, vm PersonasVM) {
 					<a class="btn outline" href={ templ.SafeURL(sh.Base() + "/personas/nova") }>
 						@Icon("plus")
 						{ i18n.T(ctx, "Contratar persona") }
+					</a>
+					<a class="btn primary" href={ templ.SafeURL(sh.Base() + "/personas/catalogo") }>
+						@Icon("layers")
+						{ i18n.T(ctx, "Instalar um time pronto") }
 					</a>
 				} else {
 					@NeedRole(domain.MemberAdmin)
