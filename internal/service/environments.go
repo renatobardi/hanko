@@ -204,7 +204,8 @@ func (s *Service) environmentView(e domain.Environment) EnvironmentView {
 		}
 	}
 	if e.Driver.Remote() {
-		if err := s.Environments.RemoteURLStatus(); err != nil && !(e.Driver == domain.EnvSandbox && e.Config.Sandbox != nil && e.Config.Sandbox.Network == domain.SandboxNetworkNone) {
+		offline := e.Driver == domain.EnvSandbox && e.Config.Sandbox != nil && e.Config.Sandbox.Network == domain.SandboxNetworkNone
+		if err := s.Environments.RemoteURLStatus(); err != nil && !offline {
 			v.Warnings = append(v.Warnings, err.Error())
 		}
 	}

@@ -11,6 +11,10 @@ mode: trusted            # trusted | authenticated (login; exige secret >= 32 by
 # integrations:
 #   allow_stdio: false              # libera MCP stdio (executa comando no servidor); HANKO_INTEGRATIONS_ALLOW_STDIO
 #   allow_private_destinations: false # libera webhooks para loopback/redes privadas; HANKO_INTEGRATIONS_ALLOW_PRIVATE
+# environments:            # ambientes de execução remotos (ADR-0037); desligados por padrão
+#   ssh_allow_hosts: []     # hosts/sufixos/CIDR liberados para SSH; HANKO_ENV_SSH_ALLOW_HOSTS
+#   sandbox: ""             # docker liga o sandbox por run; HANKO_ENV_SANDBOX
+#   sandbox_host_root: ""   # caminho, no host do docker, de workspaces_root; HANKO_ENV_SANDBOX_HOST_ROOT
 # acp:
 #   allow: false          # liga o harness acp (executa o comando da persona no servidor); HANKO_ACP_ALLOW
 #   commands: []          # opcional: só estes executáveis (nome ou caminho absoluto); HANKO_ACP_COMMANDS

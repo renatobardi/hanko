@@ -154,7 +154,7 @@ func extractTar(r io.Reader, dir string, manifest map[string]bool) error {
 			if err := root.MkdirAll(name, 0o755); err != nil {
 				return fmt.Errorf("criar %s: %w", name, err)
 			}
-			_ = root.Chmod(name, fs.FileMode(h.Mode)&0o777|0o700)
+			_ = root.Chmod(name, modeOf(h)|0o700)
 		case tar.TypeReg:
 			total += h.Size
 			if total > MaxSyncBytes {
@@ -163,7 +163,7 @@ func extractTar(r io.Reader, dir string, manifest map[string]bool) error {
 			if err := removeIfNotRegular(root, name); err != nil {
 				return err
 			}
-			perm := fs.FileMode(h.Mode)&0o777 | 0o600
+			perm := modeOf(h) | 0o600
 			f, err := root.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
 			if err != nil {
 				return fmt.Errorf("gravar %s: %w", name, err)
@@ -227,4 +227,9 @@ func removeIfNotRegular(root *os.Root, name string) error {
 		return fmt.Errorf("trocar %s: %w", name, err)
 	}
 	return nil
+}
+
+// modeOf são os bits de permissão do cabeçalho (sem setuid, setgid nem sticky).
+func modeOf(h *tar.Header) fs.FileMode {
+	return fs.FileMode(uint32(h.Mode & 0o777)) //nolint:gosec // mascarado em 9 bits antes da conversão
 }

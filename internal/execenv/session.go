@@ -118,28 +118,6 @@ func mergeEnv(base, run map[string]string) map[string]string {
 	return out
 }
 
-// tail guarda as últimas linhas de uma saída, para mensagens de erro.
-type tail struct {
-	lines []string
-	max   int
-}
-
-func (t *tail) add(l []byte) {
-	s := strings.TrimSpace(string(l))
-	if s == "" {
-		return
-	}
-	if len(s) > 400 {
-		s = s[:400] + "…"
-	}
-	t.lines = append(t.lines, s)
-	if len(t.lines) > t.max {
-		t.lines = t.lines[1:]
-	}
-}
-
-func (t *tail) String() string { return strings.Join(t.lines, " | ") }
-
 // localTemp cria um diretório temporário 0700 para os arquivos da sessão.
 func localTemp(base, pattern string) (string, error) {
 	if base != "" {
@@ -151,7 +129,7 @@ func localTemp(base, pattern string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return d, os.Chmod(d, 0o700)
+	return d, os.Chmod(d, 0o700) //nolint:gosec // diretório: 0700 é o mínimo para o dono entrar nele
 }
 
 // under informa se p está estritamente dentro de root (caminhos limpos e absolutos).

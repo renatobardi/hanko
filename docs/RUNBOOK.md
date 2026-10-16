@@ -577,3 +577,49 @@ caracteres de formatação Unicode). Pontos de operação:
   ("a busca demorou demais; use palavras mais específicas"). A última palavra só casa por prefixo com 2+ letras (3+ em comentários).
 - **Memória na busca.** O grupo "Memória" só aparece se o servidor de memória lista a tool `memory_query` (lido de `tools/list`, com
   cache de 5 min). Sem ela o grupo some e o log registra um aviso uma única vez; a consolidação (ADR-0030) não depende dessa tool.
+
+## Ambientes de execução remotos (ADR-0037)
+
+Por padrão toda execução é um processo filho deste servidor (o ambiente **local**). Um admin pode cadastrar, em
+Configurações › Ambientes (ou `hanko env create`), ambientes **SSH** (um host remoto) e **sandbox** (um contêiner por execução),
+escolher o padrão da empresa e o ambiente de cada persona. Cada driver só existe se o operador o ligar:
+
+| Variável | Padrão | Efeito |
+|---|---|---|
+| `HANKO_ENV_SSH_ALLOW_HOSTS` | vazio | Hosts liberados para SSH: exatos (`build.exemplo.com`), sufixos (`.exemplo.com`, `*.exemplo.com`), IPs, CIDR (só para hosts informados como IP) ou `*`. Vazio = SSH desligado. |
+| `HANKO_ENV_SANDBOX` | vazio | `docker` liga o sandbox (precisa do binário `docker` no PATH e acesso ao daemon). |
+| `HANKO_ENV_SANDBOX_HOST_ROOT` | vazio | Hanko dentro de contêiner com o socket do docker do host: o caminho, **no host**, de `HANKO_WORKSPACES_ROOT`. |
+| `HANKO_PUBLIC_URL` | — | Obrigatória e fora de loopback para SSH e sandbox com rede: é por ela que o harness remoto chama o MCP do Hanko. |
+| `HANKO_SECRET_KEY` | vazio | Sem ela não há como guardar a chave privada nem as variáveis de um ambiente. |
+
+**SSH, passo a passo.**
+1. No host remoto: um usuário com shell de login POSIX (sh, bash, dash, zsh), `tar`, `git` e o harness instalado e já logado
+   (`claude`, `codex` ou o agente ACP). As credenciais do harness são **as do host remoto**: o Hanko não leva as deste servidor.
+   Confira que `command -v claude` funciona num `ssh usuario@host 'command -v claude'` (shell não interativo).
+2. Gere uma chave **sem senha** só para o Hanko (`ssh-keygen -t ed25519 -N '' -f hanko_id`) e ponha a pública em
+   `~/.ssh/authorized_keys` do host.
+3. Pegue a chave do host: `ssh-keyscan -H build.exemplo.com` (confira a impressão digital por outro canal). O `known_hosts` é
+   obrigatório; o Hanko roda com `StrictHostKeyChecking=yes` e nunca aceita uma chave desconhecida.
+4. `HANKO_ENV_SSH_ALLOW_HOSTS=build.exemplo.com` no `.env` e reinicie. A imagem precisa do `ssh`: use `Dockerfile.agents` (traz
+   `openssh-client`); a distroless não tem.
+5. `hanko env create build --driver ssh --host build.exemplo.com --user hanko --root /srv/hanko --known-hosts-file kh
+   --key-file hanko_id --probe` (ou pela tela, com "Testar conexão"), depois `hanko env default build` ou
+   `hanko persona update <persona> --environment build`.
+
+Cada execução copia o diretório da run (o workspace, `.git` inclusive) para `/srv/hanko/<empresa>/<workspace>/<execução>/work`,
+roda o harness lá e traz o resultado de volta (arquivos apagados lá são apagados aqui). Execução ok apaga a pasta remota;
+execução com falha mantém `work/` para diagnóstico (a tela do ambiente mostra o diretório e o motivo) e apaga só `.hanko/`. Limpe
+pastas antigas no host quando quiser: `find /srv/hanko -mindepth 3 -maxdepth 3 -mtime +7 -exec rm -rf {} +`.
+
+**Sandbox.** `HANKO_ENV_SANDBOX=docker`, a imagem com o harness (de preferência fixada por `@sha256:`) e, se o harness precisa da API
+do modelo ou do MCP do Hanko, rede `bridge` (o padrão `none` isola por completo). O contêiner roda sem capacidades, com
+`no-new-privileges`, raiz só leitura, `/tmp` em memória, `HOME=/tmp`, o usuário deste servidor e limites de memória, CPU e
+processos; o workspace entra em `/work`. Chaves de API do harness vão nas variáveis do ambiente ou da persona (cifradas).
+Com o Hanko em contêiner falando com o docker do host, monte o socket e defina `HANKO_ENV_SANDBOX_HOST_ROOT` com o caminho do host
+de `HANKO_WORKSPACES_ROOT` (o mesmo volume montado nos dois lados).
+
+**Problemas comuns.** "SSH está desligado neste servidor": falta `HANKO_ENV_SSH_ALLOW_HOSTS`. "não está na lista de hosts
+permitidos": o host do ambiente não casa com a lista. `Host key verification failed`: o `known_hosts` do ambiente não tem a chave
+atual do host (refaça o `ssh-keyscan` e edite o ambiente). `Permission denied (publickey)`: a pública não está no
+`authorized_keys` ou a chave tem senha. "sem URL pública configurada": defina `HANKO_PUBLIC_URL` com um endereço que o host remoto
+alcance. Uso "órfão" na tela: o servidor caiu no meio da execução; a pasta remota pode ter ficado no host.
