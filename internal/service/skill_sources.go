@@ -279,7 +279,7 @@ func (s *Service) CreateSkillSource(ctx context.Context, actor domain.Actor, com
 	if err != nil {
 		return SkillSourceView{}, SkillSyncResult{}, err
 	}
-	var initial map[string]bool
+	initial := map[string]bool{selectAll: true} // sem Select: importa tudo o que for encontrado
 	if in.Select != nil {
 		initial = map[string]bool{}
 		for _, p := range in.Select {
@@ -547,6 +547,9 @@ func (s *Service) SyncDueSkillSource(ctx context.Context, ref SkillSourceRef) (S
 	return s.syncSource(ctx, domain.SystemActor, ref.CompanyID, ref.ID, nil, false)
 }
 
+// selectAll, na seleção inicial, escolhe todas as entradas encontradas (não é um caminho válido).
+const selectAll = "\x00*"
+
 // syncSource é a sincronização: reivindica a fonte, clona fora de transação e aplica o retrato numa transação só.
 func (s *Service) syncSource(ctx context.Context, actor domain.Actor, companyID, id domain.ID, initial map[string]bool, force bool) (SkillSyncResult, error) {
 	now := s.Now().UTC()
@@ -607,7 +610,7 @@ func (t *txc) applySnapshot(actor domain.Actor, src store.SkillSource, snap skil
 	for _, f := range snap.Skills {
 		sel := domain.EntryNew
 		switch {
-		case initial != nil && initial[f.Path]:
+		case initial != nil && (initial[selectAll] || initial[f.Path]):
 			sel = domain.EntrySelected
 		case initial != nil:
 			sel = domain.EntryExcluded

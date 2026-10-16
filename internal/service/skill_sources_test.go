@@ -17,7 +17,9 @@ import (
 
 func resultWithSummary(s string) adapter.Result { return adapter.Result{Summary: s} }
 
-func failedResult(msg string) adapter.Result { return adapter.Result{IsError: true, Error: msg, ExitCode: 1} }
+func failedResult(msg string) adapter.Result {
+	return adapter.Result{IsError: true, Error: msg, ExitCode: 1}
+}
 
 // ---- versões e versão fixada ----
 
@@ -566,9 +568,10 @@ func TestSkillSourceFailureBackoffAndTick(t *testing.T) {
 	e := sourcesEnv(t)
 	ctx := context.Background()
 	url, _ := gitRepo(t, map[string]string{"a/SKILL.md": skillMD("a", "a", "# a")})
-	v, _, err := e.svc.CreateSkillSource(ctx, domain.HumanActor, e.co.ID, service.CreateSkillSourceInput{SkillSourceInput: service.SkillSourceInput{URL: url}})
-	if err != nil {
-		t.Fatal(err)
+	// sem seleção nem import_new: a criação importa tudo o que encontrou
+	v, res0, err := e.svc.CreateSkillSource(ctx, domain.HumanActor, e.co.ID, service.CreateSkillSourceInput{SkillSourceInput: service.SkillSourceInput{URL: url}})
+	if err != nil || res0.Imported != 1 {
+		t.Fatalf("criar: %+v %v", res0, err)
 	}
 	// o repositório some: a sincronização falha, com backoff crescente
 	if err := os.RemoveAll(strings.TrimPrefix(url, "file://")); err != nil {

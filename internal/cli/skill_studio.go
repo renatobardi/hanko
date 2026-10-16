@@ -200,8 +200,8 @@ func (e *env) skillSourceCmd() *cobra.Command {
 	}
 
 	var (
-		ref, prefix          string
-		excluded, selected   []string
+		ref, prefix               string
+		excluded, selected        []string
 		importNew, noAuto, dryRun bool
 	)
 	add := &cobra.Command{
