@@ -1180,4 +1180,6 @@ a.hit-main:hover { background: var(--muted); }
 .plugin-card .pc-head { display: flex; gap: 12px; align-items: flex-start; }
 .plugin-card .pc-t { min-width: 0; }
 .plugin-grid { align-items: stretch; }
+.export-form, .import-form { display: grid; gap: 12px; }
+.d-none { display: none !important; }
 

@@ -182,6 +182,59 @@
       });
   });
 
+  // Exportar: os checkboxes viram parâmetros do link de download (mesma origem, sessão do navegador).
+  document.addEventListener("change", function (e) {
+    var form = e.target.closest && e.target.closest("form[data-export]");
+    if (!form) return;
+    var link = form.querySelector("[data-export-link]");
+    var qs = new URLSearchParams();
+    Array.prototype.forEach.call(form.querySelectorAll("input[type=checkbox]:checked"), function (c) {
+      qs.set(c.name, "true");
+    });
+    var s = qs.toString();
+    link.setAttribute("href", form.dataset.export + (s ? "?" + s : ""));
+  });
+
+  // Importar: envia o arquivo à API (JSON no corpo) e abre a empresa criada; o erro da API aparece no formulário.
+  document.addEventListener("submit", function (e) {
+    var form = e.target;
+    if (!form.matches || !form.matches("form[data-import]")) return;
+    e.preventDefault();
+    var file = form.querySelector("input[type=file]").files[0];
+    if (!file) return;
+    var qs = new URLSearchParams();
+    var slug = form.querySelector("[name=slug]").value.trim();
+    if (slug) qs.set("slug", slug);
+    qs.set("paused", form.querySelector("[name=active]").checked ? "false" : "true");
+    var errEl = form.querySelector("[data-import-error]");
+    var btn = form.querySelector("button[type=submit]");
+    btn.disabled = true;
+    errEl.classList.add("d-none");
+    fetch(form.getAttribute("action") + "?" + qs.toString(), {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: file
+    })
+      .then(function (res) {
+        return res.json().then(function (body) {
+          if (res.ok && body.company && body.company.slug) {
+            window.location.href = "/c/" + body.company.slug + "/";
+            return;
+          }
+          errEl.textContent = (body && (body.detail || body.title)) || String(res.status);
+          errEl.classList.remove("d-none");
+        });
+      })
+      .catch(function (err) {
+        errEl.textContent = String(err);
+        errEl.classList.remove("d-none");
+      })
+      .then(function () {
+        btn.disabled = false;
+      });
+  });
+
   // PWA: register the service worker (scope "/") only in a secure context (https or localhost).
   // It caches versioned static assets and serves an offline page; it never caches data.
   if ("serviceWorker" in navigator && window.isSecureContext) {

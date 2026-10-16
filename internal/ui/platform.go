@@ -44,6 +44,7 @@ func settingsSections(ctx context.Context, base, cur string) []views.TabLink {
 		{"ambientes", i18n.T(ctx, "Ambientes"), "/configuracoes/ambientes"},
 		{"adapters", i18n.T(ctx, "Adapters"), "/configuracoes/adapters"},
 		{"plugins", i18n.T(ctx, "Plugins"), "/configuracoes/plugins"},
+		{"dados", i18n.T(ctx, "Exportar e importar"), "/configuracoes/dados"},
 	}
 	out := make([]views.TabLink, 0, len(secs))
 	for _, sct := range secs {
@@ -240,4 +241,15 @@ func modeLabel(ctx context.Context, p PlatformInfo) string {
 		return i18n.Tf(ctx, "authenticated · login %s", p.AuthProvider)
 	}
 	return "authenticated"
+}
+
+// handleData é Configurações › Exportar e importar: o arquivo portátil hanko.company.v1 (ADR-0022) pela UI.
+// As duas operações vão direto à API (mesmos limites, prazos e vagas da CLI), com a sessão do navegador.
+func (s *server) handleData(w http.ResponseWriter, r *http.Request, co domain.Company) {
+	ctx := r.Context()
+	api := islandAPI(co)
+	vm := views.DataVM{Sections: settingsSections(ctx, "/c/"+co.Slug, "dados"), Company: co.Name, Slug: co.Slug,
+		ExportHref: api + "/export", ImportAction: "/api/v1/companies/import",
+		FileName: "hanko-" + co.Slug + "-" + s.now().In(loadLoc(co.Timezone)).Format("20060102") + ".json"}
+	s.render(w, r, http.StatusOK, views.DataPage(s.settingsShell(r, co, i18n.T(ctx, "Exportar e importar")), vm))
 }
