@@ -22,6 +22,7 @@ type hirePersonaIn struct {
 		Name                 string         `json:"name" minLength:"1" maxLength:"120" example:"Marina"`
 		Slug                 string         `json:"slug,omitempty" pattern:"^[a-z0-9][a-z0-9-]{0,62}$" example:"cto" doc:"Derivado do nome quando omitido."`
 		Title                string         `json:"title,omitempty" example:"CTO"`
+		Icon                 string         `json:"icon,omitempty" enum:"bot,code,search,pen-line,shield-check,trending-up,cpu,database,palette,megaphone,scale,book-open,wrench,headphones,rocket,briefcase,sparkles,globe" example:"code" doc:"Glifo da persona; padrão bot."`
 		Instructions         string         `json:"instructions,omitempty" doc:"Instruções permanentes da persona."`
 		Agent                string         `json:"agent" enum:"claude,codex,acp,fake" example:"claude" doc:"Harness que executa a persona."`
 		Model                string         `json:"model,omitempty" example:"claude-sonnet-4-5"`
@@ -48,6 +49,7 @@ type updatePersonaIn struct {
 	Body struct {
 		Name                 *string `json:"name,omitempty" minLength:"1"`
 		Title                *string `json:"title,omitempty"`
+		Icon                 *string `json:"icon,omitempty" enum:"bot,code,search,pen-line,shield-check,trending-up,cpu,database,palette,megaphone,scale,book-open,wrench,headphones,rocket,briefcase,sparkles,globe" doc:"Glifo da persona."`
 		Instructions         *string `json:"instructions,omitempty"`
 		Model                *string `json:"model,omitempty"`
 		Status               *string `json:"status,omitempty" enum:"active,idle,running,paused,error,awaiting_gate,off"`
@@ -102,7 +104,7 @@ func (s *server) registerPersonas(api huma.API) {
 				}
 			}
 			p, err := s.svc.HirePersona(ctx, sc.Actor, cid, service.HirePersonaInput{
-				Name: in.Body.Name, Slug: in.Body.Slug, Title: in.Body.Title, Instructions: in.Body.Instructions,
+				Name: in.Body.Name, Slug: in.Body.Slug, Title: in.Body.Title, Icon: in.Body.Icon, Instructions: in.Body.Instructions,
 				Agent: in.Body.Agent, Model: in.Body.Model, AdapterConfig: cfg, ReportsTo: reports, WorkspaceID: ws,
 				HeartbeatIntervalSec: in.Body.HeartbeatIntervalSec, BudgetMonthlyCents: in.Body.BudgetMonthlyCents,
 				RequireReview: in.Body.RequireReview, ReviewerPersona: rev, ReviewerAgent: in.Body.ReviewerAgent,
@@ -165,7 +167,7 @@ func (s *server) registerPersonas(api huma.API) {
 				return nil, s.fail(ctx, err)
 			}
 			up := service.UpdatePersonaInput{
-				Name: in.Body.Name, Title: in.Body.Title, Instructions: in.Body.Instructions, Model: in.Body.Model,
+				Name: in.Body.Name, Title: in.Body.Title, Icon: in.Body.Icon, Instructions: in.Body.Instructions, Model: in.Body.Model,
 				HeartbeatIntervalSec: in.Body.HeartbeatIntervalSec, WorkspaceID: ws, ClearWorkspace: in.Body.ClearWorkspace,
 				ReportsTo: reports, ClearReportsTo: in.Body.ClearReportsTo, RequireReview: in.Body.RequireReview,
 				BudgetMonthlyCents: in.Body.BudgetMonthlyCents, ClearBudget: in.Body.ClearBudget,

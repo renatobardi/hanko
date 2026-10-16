@@ -372,7 +372,7 @@ func (s *Service) buildDoc(ctx context.Context, q *store.Queries, companyID doma
 				return doc, fmt.Errorf("export persona %s: adapter_config: %w", p.Slug, err)
 			}
 		}
-		doc.Personas = append(doc.Personas, export.Persona{Slug: p.Slug, Name: p.Name, Title: red(p.Title), Instructions: red(p.Instructions),
+		doc.Personas = append(doc.Personas, export.Persona{Slug: p.Slug, Name: p.Name, Title: red(p.Title), Icon: p.Icon, Instructions: red(p.Instructions),
 			Agent: p.Agent, Model: p.Model, AdapterConfig: export.ScrubConfig(cfg), Status: exportStatus(p.Status),
 			ReportsTo: refSlug(peSlug, p.ReportsTo), Workspace: refSlug(wsSlug, p.WorkspaceID),
 			HeartbeatIntervalSec: int(p.HeartbeatIntervalSec), BudgetMonthlyCents: p.BudgetMonthlyCents,

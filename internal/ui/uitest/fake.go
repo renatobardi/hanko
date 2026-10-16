@@ -191,7 +191,14 @@ func (f *Fake) HirePersona(_ context.Context, _ domain.Actor, companyID domain.I
 			return domain.Persona{}, domain.ErrConflict
 		}
 	}
-	p := domain.Persona{ID: domain.NewID(), CompanyID: companyID, Slug: in.Slug, Name: in.Name, Title: in.Title, Instructions: in.Instructions,
+	icon := in.Icon
+	if icon == "" {
+		icon = domain.DefaultPersonaIcon
+	}
+	if !domain.ValidPersonaIcon(icon) {
+		return domain.Persona{}, domain.Invalid("icon", "unknown icon")
+	}
+	p := domain.Persona{ID: domain.NewID(), CompanyID: companyID, Slug: in.Slug, Name: in.Name, Title: in.Title, Icon: icon, Instructions: in.Instructions,
 		Agent: in.Agent, Model: in.Model, AdapterConfig: in.AdapterConfig, Status: domain.PersonaIdle, HeartbeatIntervalSec: in.HeartbeatIntervalSec, ReportsTo: in.ReportsTo, RequireReview: in.RequireReview,
 		CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
 	f.Personas = append(f.Personas, p)
@@ -259,6 +266,12 @@ func (f *Fake) UpdatePersona(_ context.Context, _ domain.Actor, _, personaID dom
 		}
 		if in.RequireReview != nil {
 			p.RequireReview = *in.RequireReview
+		}
+		if in.Icon != nil {
+			if !domain.ValidPersonaIcon(*in.Icon) {
+				return domain.Persona{}, domain.Invalid("icon", "unknown icon")
+			}
+			p.Icon = *in.Icon
 		}
 		if err := f.applyReviewer(&p, in); err != nil {
 			return domain.Persona{}, err

@@ -98,7 +98,7 @@ func (s *server) handleHirePersona(w http.ResponseWriter, r *http.Request, co do
 	vm := views.HirePersonaVM{
 		Name: trimForm(r, "name"), Title: trimForm(r, "title"), Agent: trimForm(r, "agent"), Model: trimForm(r, "model"),
 		Instructions: r.PostFormValue("instructions"), Heartbeat: trimForm(r, "heartbeat"), FieldErr: map[string]string{},
-		RequireReview: r.PostFormValue("require_review") != "",
+		RequireReview: r.PostFormValue("require_review") != "", Icon: trimForm(r, "icon"),
 		AcpCommand:    trimForm(r, "acp_command"), AcpArgs: r.PostFormValue("acp_args"),
 		AcpPermission: []views.Option{{Value: trimForm(r, "acp_permission"), Selected: true}},
 	}
@@ -124,6 +124,13 @@ func (s *server) handleHirePersona(w http.ResponseWriter, r *http.Request, co do
 	}
 	if vm.Name == "" {
 		bad("name", i18n.T(ctx, "Dê um nome à persona."))
+		return
+	}
+	if vm.Icon == "" {
+		vm.Icon = domain.DefaultPersonaIcon
+	}
+	if !domain.ValidPersonaIcon(vm.Icon) {
+		bad("icon", i18n.T(ctx, "Escolha um dos ícones da lista."))
 		return
 	}
 	if !domain.ValidAgent(vm.Agent) {
@@ -164,7 +171,7 @@ func (s *server) handleHirePersona(w http.ResponseWriter, r *http.Request, co do
 		minutes = n
 	}
 	p, err := s.be.HirePersona(r.Context(), actorFrom(r.Context()), co.ID, service.HirePersonaInput{
-		Name: vm.Name, Slug: domain.Slugify(vm.Name), Title: vm.Title, Instructions: vm.Instructions,
+		Name: vm.Name, Slug: domain.Slugify(vm.Name), Title: vm.Title, Icon: vm.Icon, Instructions: vm.Instructions,
 		Agent: vm.Agent, Model: vm.Model, AdapterConfig: adapterCfg, HeartbeatIntervalSec: minutes * 60, ReportsTo: reportsTo, RequireReview: vm.RequireReview,
 	})
 	if err != nil {
@@ -218,6 +225,7 @@ func (s *server) renderPersona(w http.ResponseWriter, r *http.Request, co domain
 		Agent: p.Agent, Model: p.Model, Heartbeat: heartbeatLabelCtx(ctx, p.HeartbeatIntervalSec), Instructions: p.Instructions,
 		Hired: fmtDateTime(ctx, p.CreatedAt, loc), Slug: p.Slug,
 		RequireReview: p.RequireReview, OrgAction: base + "/personas/" + p.Slug + "/organizacao",
+		Icon: p.Icon, IconAction: base + "/personas/" + p.Slug + "/icone",
 	}
 	all, err := s.be.ListPersonas(ctx, co.ID)
 	if err != nil {
@@ -291,6 +299,7 @@ func (s *server) renderPersona(w http.ResponseWriter, r *http.Request, co domain
 }
 
 var personaNotices = map[string]string{
+	"icone":       i18n.N("Ícone atualizado."),
 	"pausada":     i18n.N("Persona pausada: ela não será mais acordada."),
 	"retomada":    i18n.N("Persona retomada."),
 	"reativada":   i18n.N("Persona reativada: volta a ser acordada normalmente."),
@@ -332,6 +341,26 @@ func (s *server) handlePersonaOrg(w http.ResponseWriter, r *http.Request, co dom
 		}
 	}
 	redirect(w, r, "/c/"+co.Slug+"/personas/"+p.Slug+"?ok=organizacao")
+}
+
+// handlePersonaIcon troca o glifo da persona (catálogo fechado em domain.PersonaIcons).
+func (s *server) handlePersonaIcon(w http.ResponseWriter, r *http.Request, co domain.Company) {
+	ctx := r.Context()
+	p, err := s.be.GetPersona(ctx, co.ID, r.PathValue("persona"))
+	if err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
+	icon := trimForm(r, "icon")
+	if !domain.ValidPersonaIcon(icon) {
+		s.fail(w, r, &co, domain.Invalid("icon", i18n.T(ctx, "Escolha um dos ícones da lista.")))
+		return
+	}
+	if _, err := s.be.UpdatePersona(ctx, actorFrom(ctx), co.ID, p.ID, service.UpdatePersonaInput{Icon: &icon}); err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
+	redirect(w, r, "/c/"+co.Slug+"/personas/"+p.Slug+"?ok=icone")
 }
 
 // handlePersonaSubscription links the persona to a subscription (or unlinks it).

@@ -79,7 +79,7 @@ templ RunsPage(sh Shell, vm RunsVM) {
 templ RunHeader(vm RunVM) {
 	<div class="run-head">
 		<div class="tt">
-			<span class="mini-avatar" style="width:38px;height:38px">@Icon("bot")</span>
+			<span class="mini-avatar lg">@PersonaGlyph(vm.Persona)</span>
 			<div>
 				<h2>
 					{ i18n.T(ctx, "Execução") }

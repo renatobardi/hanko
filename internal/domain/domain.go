@@ -139,6 +139,8 @@ type Persona struct {
 	Slug                 string          `json:"slug"`
 	Name                 string          `json:"name"`
 	Title                string          `json:"title"`
+	// Icon é o glifo Lucide da persona (um de PersonaIcons; padrão "bot").
+	Icon                 string          `json:"icon"`
 	Instructions         string          `json:"instructions"`
 	Agent                string          `json:"agent"`
 	Model                string          `json:"model,omitempty"`
@@ -161,6 +163,26 @@ type Persona struct {
 	PauseReason       string    `json:"pause_reason,omitempty"`
 	CreatedAt         time.Time `json:"created_at"`
 	UpdatedAt         time.Time `json:"updated_at"`
+}
+
+// PersonaIcons é o catálogo fechado de glifos de persona (Kubo DS: Lucide monocromático num círculo
+// neutro, nunca cor nem emoji). A UI desenha só estes; a ordem é a do seletor.
+var PersonaIcons = []string{
+	"bot", "code", "search", "pen-line", "shield-check", "trending-up", "cpu", "database", "palette",
+	"megaphone", "scale", "book-open", "wrench", "headphones", "rocket", "briefcase", "sparkles", "globe",
+}
+
+// DefaultPersonaIcon é o glifo de quem não escolheu nenhum.
+const DefaultPersonaIcon = "bot"
+
+// ValidPersonaIcon diz se name está no catálogo.
+func ValidPersonaIcon(name string) bool {
+	for _, i := range PersonaIcons {
+		if i == name {
+			return true
+		}
+	}
+	return false
 }
 
 // HasReviewer diz se o fechamento de tasks desta persona passa por uma revisão automática.

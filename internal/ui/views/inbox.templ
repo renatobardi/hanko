@@ -260,7 +260,7 @@ templ InboxPage(sh Shell, vm InboxVM) {
 						<span class="cnt">{ fmt.Sprint(len(vm.Personas)) }</span></div>
 						for _, p := range vm.Personas {
 							<div class="inbox-row">
-								<span class="mini-avatar">@Icon("bot")</span>
+								<span class="mini-avatar">@PersonaGlyph(p.Name)</span>
 								<div class="main">
 									<div class="t">
 										<a href={ templ.SafeURL(p.Href) }>{ p.Name }</a>

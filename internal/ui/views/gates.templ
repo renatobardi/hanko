@@ -156,7 +156,7 @@ templ GatePage(sh Shell, vm GateVM) {
 						@BadgeEl(vm.Row.Review.Badge)
 					}
 					if vm.Row.Persona != "" {
-						<a class="chip" href={ templ.SafeURL(vm.Row.PersonaHref) }>@Icon("bot")<span>{ vm.Row.Persona }</span></a>
+						<a class="chip" href={ templ.SafeURL(vm.Row.PersonaHref) }>@PersonaGlyph(vm.Row.Persona)<span>{ vm.Row.Persona }</span></a>
 					}
 					if vm.Row.TaskKey != "" {
 						<a class="chip" href={ templ.SafeURL(vm.Row.TaskHref) }><span class="mono">{ vm.Row.TaskKey }</span></a>

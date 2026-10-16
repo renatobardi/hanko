@@ -128,6 +128,7 @@ type HirePersonaInput struct {
 	Name                 string
 	Slug                 string
 	Title                string
+	Icon                 string // um de domain.PersonaIcons; vazio = domain.DefaultPersonaIcon
 	Instructions         string
 	Agent                string // claude | codex | acp | fake
 	Model                string
@@ -149,6 +150,7 @@ type HirePersonaInput struct {
 
 type UpdatePersonaInput struct {
 	Name, Title, Instructions, Model *string
+	Icon                             *string // um de domain.PersonaIcons
 	Status                           *domain.PersonaStatus
 	HeartbeatIntervalSec             *int
 	WorkspaceID                      *domain.ID

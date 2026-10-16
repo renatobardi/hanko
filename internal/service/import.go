@@ -274,6 +274,9 @@ func (s *Service) planImport(ctx context.Context, doc export.Document, opts Impo
 		if !domain.PersonaStatus(x.Status).Valid() {
 			return p, domain.Invalid(iv("personas", i, "status"), fmt.Sprintf("unknown status %q", x.Status))
 		}
+		if x.Icon != "" && !domain.ValidPersonaIcon(x.Icon) {
+			return p, domain.Invalid(iv("personas", i, "icon"), fmt.Sprintf("unknown icon %q (want one of %v)", x.Icon, domain.PersonaIcons))
+		}
 		if x.HeartbeatIntervalSec < 0 || x.HeartbeatIntervalSec > maxHeartbeatIntervalSec {
 			return p, domain.Invalid(iv("personas", i, "heartbeat_interval_sec"), fmt.Sprintf("must be between 0 and %d", maxHeartbeatIntervalSec))
 		}
@@ -698,7 +701,7 @@ func (t *txc) runImport(cid domain.ID, doc export.Document, p importPlan, opts I
 			HeartbeatIntervalSec: i32(x.HeartbeatIntervalSec), BudgetMonthlyCents: x.BudgetMonthlyCents,
 			SubscriptionID: optID(subID, strings.TrimSpace(x.Subscription)), RequireReview: x.RequireReview,
 			ReviewerAgent: strings.TrimSpace(x.ReviewerAgent), ReviewerModel: strings.TrimSpace(x.ReviewerModel),
-			CreatedAt: x.CreatedAt, UpdatedAt: x.CreatedAt}); err != nil {
+			Icon: importIcon(x.Icon), CreatedAt: x.CreatedAt, UpdatedAt: x.CreatedAt}); err != nil {
 			return mapErr(err, "import persona "+x.Slug)
 		}
 		peID[x.Slug] = id
@@ -820,4 +823,12 @@ func invalidReason(err error) string {
 		return ve.Reason
 	}
 	return err.Error()
+}
+
+// importIcon é o glifo de uma persona importada: arquivos anteriores ao campo não têm ícone e ficam com o padrão.
+func importIcon(icon string) string {
+	if icon == "" {
+		return domain.DefaultPersonaIcon
+	}
+	return icon
 }

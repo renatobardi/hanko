@@ -84,7 +84,7 @@ templ FlowsPage(sh Shell, vm FlowsVM) {
 										<div class="note">{ r.Description }</div>
 									}
 								</td>
-								<td class="hide-sm"><span class="who"><span class="mini-avatar">@Icon("bot")</span>{ r.Persona }</span></td>
+								<td class="hide-sm"><span class="who"><span class="mini-avatar">@PersonaGlyph(r.Persona)</span>{ r.Persona }</span></td>
 								<td class="hide-sm muted">{ dash(r.Project) }</td>
 								<td class="hide-sm"><span class="chip soft" title={ r.Cron }>@Icon("clock") <span>{ r.Schedule }</span></span></td>
 								<td class="hide-sm muted">{ r.Last }</td>
