@@ -139,6 +139,8 @@ templ TaskTable(vm TasksVM) {
 					@NeedRole(domain.MemberMember)
 				}
 			}
+		} else if vm.Board {
+			@TaskBoardEl(vm)
 		} else {
 			<div class="table-wrap">
 				<table class="table">
@@ -184,6 +186,34 @@ func emptyTasksText(ctx context.Context, vm TasksVM) string {
 		return i18n.Tf(ctx, "Nenhuma task corresponde a “%s”. Tente outro termo.", vm.Query)
 	}
 	return i18n.T(ctx, "Crie uma task e atribua a uma persona para ver uma execução acontecer.")
+}
+
+// TaskBoardEl é o quadro de tasks (Kubo DS: colunas muted/50 em 2xl, cards pequenos, status pelo badge).
+templ TaskBoardEl(vm TasksVM) {
+	<div class="board" role="list">
+		for _, c := range vm.Columns {
+			<section class={ "board-col", "st-" + c.Status } role="listitem" aria-label={ c.Label }>
+				<header class="board-h"><span>{ c.Label }</span><span class="cnt">{ fmt.Sprint(c.Count) }</span></header>
+				if len(c.Rows) == 0 {
+					<p class="board-empty">{ i18n.T(ctx, "Nada aqui.") }</p>
+				}
+				for _, r := range c.Rows {
+					<a class="board-card" href={ templ.SafeURL(r.Href) }>
+						<span class="bc-top"><span class="id mono">{ r.Key }</span>@PrioIcon(r.Priority, r.PriorityLabel)</span>
+						<span class="bc-t">{ r.Title }</span>
+						<span class="bc-foot">
+							if r.Persona != "" {
+								<span class="who"><span class="mini-avatar">@PersonaGlyph(r.Persona)</span><span>{ r.Persona }</span></span>
+							} else {
+								<span class="who none">{ i18n.T(ctx, "Sem dono") }</span>
+							}
+							<span class="when">{ r.Updated }</span>
+						</span>
+					</a>
+				}
+			</section>
+		}
+	</div>
 }
 
 templ TaskRowEl(r TaskRow) {

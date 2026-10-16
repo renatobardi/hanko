@@ -30,6 +30,12 @@ var groupOrder = []domain.TaskStatus{
 	domain.TaskBacklog, domain.TaskDone, domain.TaskCancelled,
 }
 
+// boardOrder is the column order of the board view (?visao=quadro): the flow, left to right.
+var boardOrder = []domain.TaskStatus{
+	domain.TaskBacklog, domain.TaskTodo, domain.TaskInProgress, domain.TaskInReview, domain.TaskBlocked,
+	domain.TaskDone, domain.TaskCancelled,
+}
+
 var groupLabel = map[domain.TaskStatus]string{
 	domain.TaskInProgress: i18n.N("Em andamento"), domain.TaskInReview: i18n.N("Em revisão"), domain.TaskBlocked: i18n.N("Bloqueadas"),
 	domain.TaskTodo: i18n.N("A fazer"), domain.TaskBacklog: i18n.N("Backlog"), domain.TaskDone: i18n.N("Concluídas"), domain.TaskCancelled: i18n.N("Canceladas"),
@@ -51,6 +57,7 @@ func (s *server) handleTasks(w http.ResponseWriter, r *http.Request, co domain.C
 	ctx := r.Context()
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
 	tab := r.URL.Query().Get("aba")
+	board := r.URL.Query().Get("visao") == "quadro"
 	cur := taskTabs[0]
 	for _, t := range taskTabs {
 		if t.key == tab {
@@ -87,7 +94,7 @@ func (s *server) handleTasks(w http.ResponseWriter, r *http.Request, co domain.C
 	loc := loadLoc(co.Timezone)
 	now := s.now()
 
-	vm := views.TasksVM{Query: q, Tab: cur.key, NewHref: base + "/tasks/nova"}
+	vm := views.TasksVM{Query: q, Tab: cur.key, NewHref: base + "/tasks/nova", Board: board}
 	projQS := ""
 	if goal != nil {
 		projQS = "&meta=" + url.QueryEscape(goal.Slug)
@@ -114,6 +121,9 @@ func (s *server) handleTasks(w http.ResponseWriter, r *http.Request, co domain.C
 		if q != "" {
 			href += "&q=" + url.QueryEscape(q)
 		}
+		if board {
+			href += "&visao=quadro"
+		}
 		vm.Tabs = append(vm.Tabs, views.TabLink{Key: t.key, Label: i18n.T(ctx, t.label), Href: href, Count: n, On: t.key == cur.key})
 	}
 	byStatus := map[domain.TaskStatus][]service.TaskView{}
@@ -135,6 +145,25 @@ func (s *server) handleTasks(w http.ResponseWriter, r *http.Request, co domain.C
 		}
 		vm.Groups = append(vm.Groups, g)
 	}
+	if board {
+		// Quadro: uma coluna por status da aba, na ordem do fluxo, inclusive as vazias.
+		for _, st := range boardOrder {
+			if !inStatuses(st, cur.statuses) {
+				continue
+			}
+			list := byStatus[st]
+			col := views.TaskGroup{Label: i18n.T(ctx, groupLabel[st]), Count: len(list), Status: string(st)}
+			for _, tv := range list {
+				col.Rows = append(col.Rows, taskRow(ctx, tv, base, now, loc))
+			}
+			vm.Columns = append(vm.Columns, col)
+		}
+	}
+	viewQS := "?aba=" + cur.key + projQS
+	if q != "" {
+		viewQS += "&q=" + url.QueryEscape(q)
+	}
+	vm.ListHref, vm.BoardHref = base+"/tasks"+viewQS, base+"/tasks"+viewQS+"&visao=quadro"
 	open := 0
 	for _, tv := range all {
 		if tv.Status.Open() {

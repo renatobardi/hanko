@@ -206,6 +206,7 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("GET /bem-vindo", s.handleOnboarding)
 	mux.HandleFunc("POST /empresas", post(s.handleCreateCompany))
 	mux.HandleFunc("POST "+langPath, post(s.handleLang))
+	mux.HandleFunc("POST "+themePath, post(s.handleTheme))
 
 	mux.HandleFunc("GET /c/{company}/{$}", co(s.handleDashboard))
 	mux.HandleFunc("GET /c/{company}", func(w http.ResponseWriter, r *http.Request) {
@@ -390,6 +391,7 @@ func (s *server) render(w http.ResponseWriter, r *http.Request, status int, c te
 		ctx = views.WithUser(ctx, views.UserRef{Name: id.User.DisplayName(), Email: id.User.Email})
 	}
 	ctx = s.withSwitcher(ctx, r)
+	ctx = views.WithTheme(ctx, requestTheme(r))
 	if err := c.Render(ctx, &buf); err != nil {
 		s.log.Error("ui render", "path", auth.RedactPath(r.URL.Path), "err", err)
 		http.Error(w, i18n.T(ctx, "erro ao renderizar a página"), http.StatusInternalServerError)

@@ -45,3 +45,15 @@ var SwitchSections = map[string]bool{
 	"tasks": true, "personas": true, "organograma": true, "gates": true, "execucoes": true, "custos": true,
 	"atividade": true, "caixa": true, "decisoes": true, "fluxos": true,
 }
+
+type themeKey struct{}
+
+// WithTheme attaches the explicit theme ("light", "dark"; "" = follow the system) to the render context.
+func WithTheme(ctx context.Context, theme string) context.Context {
+	return context.WithValue(ctx, themeKey{}, theme)
+}
+
+func themeFrom(ctx context.Context) string {
+	t, _ := ctx.Value(themeKey{}).(string)
+	return t
+}
