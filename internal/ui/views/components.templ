@@ -72,7 +72,7 @@ templ PrioIcon(p, label string) {
 	<span class={ "prio " + p } title={ label }>@Icon(prioIcon(p))</span>
 }
 
-// PersonaGlyph é o glifo da persona (Kubo DS: Lucide monocromático num círculo neutro), resolvido pelo nome.
+// PersonaGlyph é o glifo da persona (Kubo DS: glifo de linha monocromático num círculo neutro), resolvido pelo nome.
 templ PersonaGlyph(name string) {
 	@Icon(personaIcon(ctx, name))
 }

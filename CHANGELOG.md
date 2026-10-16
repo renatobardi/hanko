@@ -5,6 +5,16 @@ English summary at the end of each release.
 
 ## [0.2.0] — 2026-10-15
 
+### UI alinhada ao Kubo DS (2026-10-15)
+
+- Fonte Inter Variable servida pelo próprio binário (sem CDN); tokens de cor com os nomes e valores OKLCH do Kubo DS (`--background`, `--foreground`, `--card`, `--muted`, `--border`, `--ring`, `--sidebar-*`), escuro também por `.dark`.
+- Cards planos com anel (sem borda nem sombra), raios na escala `--radius-*`, tipografia só na escala `--text-*`, shell com sidebar de 256px e cabeçalho de 72px.
+- Botões em pílula com tamanhos `xs`/`sm`/`lg`, hover a 80% e afundar 1px ao pressionar; inputs com fundo `input/30` e anel de foco de 3px; badge concluída = secondary.
+- Glifo por persona (migration 00026 `personas.icon`, catálogo fechado de 18, padrão `bot`): API (`icon` no hire/update e na saída), export/import, CLI `--icon`, seletor na contratação e na página da persona, avatares e chips em toda a UI.
+- Quadro de tasks (`/tasks?visao=quadro`) com uma coluna por status; troca de tema claro · escuro · sistema no rodapé da sidebar (`POST /tema`, cookie `hanko_theme`); Configurações saiu do grupo Organização e ficou no rodapé.
+- Estilos inline dos templates viraram classes na escala de espaço do DS.
+- English summary: the UI now follows the Kubo DS (Inter, OKLCH tokens, ring cards, radius/type scales, pill controls, focus ring), with a per-persona glyph, a task board view and a light/dark/system theme toggle.
+
 - Artefatos versionados (ADR-0028, migration 00019 `artifacts` e `artifact_blobs`): arquivos de tasks, execuções e projetos com versões imutáveis (mesmo nome na mesma task = próxima versão; mesmo conteúdo não cria versão), limite por arquivo (`HANKO_ARTIFACT_MAX_BYTES`, 5 MiB) e cota por empresa (`HANKO_ARTIFACT_QUOTA_BYTES`, 512 MiB).
 - Artefatos na API (`…/artifacts`), na CLI (`hanko artifact put|list|get|diff|rm|usage`), no MCP (`hanko_artifact_put`) e na tela `/artefatos` (envio, filtros, prévia, versões e diff de texto); seções nas páginas da task, da execução e do projeto.
 - Entrega segura do conteúdo (`internal/artifactsrv`): `nosniff`, CSP com `sandbox`, `Cross-Origin-Resource-Policy`; só texto puro, Markdown e imagem raster abrem no navegador, o resto baixa.
