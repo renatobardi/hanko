@@ -16,6 +16,8 @@ type RunExtras struct {
 	Skills   []domain.Skill
 	MCP      map[string]json.RawMessage
 	Warnings []string
+	// SkillTest vem só na run de teste do estúdio (ADR-0035): a skill testada (já em Skills, sozinha) e a entrada.
+	SkillTest *SkillTestSpec
 }
 
 // RunExtras monta as skills e os servidores MCP da empresa para uma run da persona. É chamado pelo executor

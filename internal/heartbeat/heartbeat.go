@@ -161,6 +161,7 @@ func New(pool *pgxpool.Pool, opts Options) (*Heartbeat, error) {
 		river.AddWorkerSafely(workers, &deliverWebhookWorker{h: h}),
 		river.AddWorkerSafely(workers, &memoryTickWorker{h: h}),
 		river.AddWorkerSafely(workers, &applyProposalWorker{h: h}),
+		river.AddWorkerSafely(workers, &skillTickWorker{h: h}),
 	); err != nil {
 		return nil, fmt.Errorf("heartbeat workers: %w", err)
 	}
@@ -194,6 +195,9 @@ func New(pool *pgxpool.Pool, opts Options) (*Heartbeat, error) {
 			river.NewPeriodicJob(river.PeriodicInterval(opts.PeriodicInterval),
 				func() (river.JobArgs, *river.InsertOpts) { return MemoryTickArgs{}, nil },
 				&river.PeriodicJobOpts{ID: "memory_consolidation_tick"}),
+			river.NewPeriodicJob(river.PeriodicInterval(SkillTickInterval),
+				func() (river.JobArgs, *river.InsertOpts) { return SkillTickArgs{}, nil },
+				&river.PeriodicJobOpts{ID: "skill_tick"}),
 		},
 	})
 	if err != nil {

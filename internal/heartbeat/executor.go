@@ -165,21 +165,26 @@ func (h *Heartbeat) executeRunJob(ctx context.Context, a ExecuteRunArgs, ji jobI
 
 	scope := scopeFor(rc.Company.Slug, rc.Workspace)
 	curating := rc.Run.Trigger == domain.TriggerMemory
+	// A run de teste do estúdio (ADR-0035) é isolada: sem briefing, sem handoff e sem fechar sessão de memória.
+	skillTest := rc.Run.Trigger == domain.TriggerSkillTest
 
 	// Memory is best effort: failures become warnings in the run log. A curation run only reads the briefing:
 	// it never takes the pending handoff (it belongs to the next working session) nor closes a session.
 	var warnings []string
-	var handoff string
+	var handoff, briefing string
 	var herr error
-	if !curating {
+	if !curating && !skillTest {
 		handoff, herr = h.callMemory(execCtx, func(c context.Context) (string, error) { return h.mem.AcceptHandoff(c, scope) })
 		if herr != nil {
 			warnings = append(warnings, "memória indisponível: "+herr.Error())
 		}
 	}
-	briefing, berr := h.callMemory(execCtx, func(c context.Context) (string, error) { return h.mem.Briefing(c, scope) })
-	if berr != nil && herr == nil {
-		warnings = append(warnings, "memória indisponível: "+berr.Error())
+	if !skillTest {
+		var berr error
+		briefing, berr = h.callMemory(execCtx, func(c context.Context) (string, error) { return h.mem.Briefing(c, scope) })
+		if berr != nil && herr == nil {
+			warnings = append(warnings, "memória indisponível: "+berr.Error())
+		}
 	}
 
 	if _, err := h.svc.MarkRunStarted(execCtx, a.CompanyID, a.RunID, traceID, handoff); err != nil {
@@ -251,7 +256,7 @@ func (h *Heartbeat) executeRunJob(ctx context.Context, a ExecuteRunArgs, ji jobI
 	}
 	log.Info("run finalizada", "status", status, "exit_code", res.ExitCode)
 
-	if !curating {
+	if !curating && !skillTest {
 		h.finalizeMemorySession(fctx, scope, agent, res.SessionRef, log)
 	}
 	return nil
@@ -266,7 +271,7 @@ func (h *Heartbeat) finishPending(ctx context.Context, a ExecuteRunArgs, rc serv
 	log.Info("run finalizada (resultado pendente)", "status", in.Status, "exit_code", in.Result.ExitCode)
 	fctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), finishTimeout)
 	defer cancel()
-	if rc.Run.Trigger != domain.TriggerMemory {
+	if rc.Run.Trigger != domain.TriggerMemory && rc.Run.Trigger != domain.TriggerSkillTest {
 		pagent, _ := effectiveHarness(rc)
 		h.finalizeMemorySession(fctx, scopeFor(rc.Company.Slug, rc.Workspace), pagent, in.Result.SessionRef, log)
 	}
@@ -336,6 +341,15 @@ func (h *Heartbeat) finishFailed(ctx context.Context, a ExecuteRunArgs, ferr err
 func (h *Heartbeat) buildSpec(rc service.RunContext, briefing, handoff string, scope memory.Scope, extras service.RunExtras, emit func(domain.RunEventKind, string)) (adapter.Spec, func(), error) {
 	publicURL := strings.TrimRight(h.opts.PublicURL, "/")
 	review := rc.Review != nil && rc.Run.Trigger == domain.TriggerReview
+	// Teste do estúdio (ADR-0035): só a skill testada, a entrada como prompt, sem MCP da empresa nem memória e num
+	// diretório temporário (o teste não mexe no workspace da persona).
+	skillTest := rc.Run.Trigger == domain.TriggerSkillTest
+	if skillTest {
+		if extras.SkillTest == nil {
+			return adapter.Spec{}, nil, errors.New("teste de skill sem a skill ou a entrada (o teste foi apagado?)")
+		}
+		rc.Workspace = nil
+	}
 	// A review run is headless and read-only: it gets no run token, no Hanko MCP and no
 	// credentialed memory MCP (the artifact to judge is in the prompt).
 	var token string
@@ -350,7 +364,9 @@ func (h *Heartbeat) buildSpec(rc service.RunContext, briefing, handoff string, s
 		if err != nil {
 			return adapter.Spec{}, nil, fmt.Errorf("emitir run token: %w", err)
 		}
-		extraMCP = mergeMCP(extras.MCP, h.mem.AgentMCP(scope, rc.Run.ID.String(), token))
+		if !skillTest {
+			extraMCP = mergeMCP(extras.MCP, h.mem.AgentMCP(scope, rc.Run.ID.String(), token))
+		}
 	}
 	mcpCfg, err := buildMCPConfig(publicURL, token, extraMCP)
 	if err != nil {
@@ -381,6 +397,9 @@ func (h *Heartbeat) buildSpec(rc service.RunContext, briefing, handoff string, s
 	}
 	if rc.Run.Trigger == domain.TriggerMemory {
 		system, prompt = BuildMemoryPrompt(rc, briefing)
+	}
+	if skillTest {
+		system, prompt = BuildSkillTestPrompt(rc, *extras.SkillTest)
 	}
 	// Skills (ADR-0029): o claude as carrega nativamente de um diretório temporário da run; os demais
 	// harnesses recebem o índice no system prompt e buscam o corpo pela tool MCP hanko_skill_get.
@@ -414,6 +433,9 @@ type runExtrasBackend interface {
 func (h *Heartbeat) runExtras(ctx context.Context, rc service.RunContext, emit func(domain.RunEventKind, string)) service.RunExtras {
 	if rc.Review != nil && rc.Run.Trigger == domain.TriggerReview || rc.Run.Trigger == domain.TriggerMemory {
 		return service.RunExtras{}
+	}
+	if rc.Run.Trigger == domain.TriggerSkillTest {
+		return h.skillTestExtras(ctx, rc, emit)
 	}
 	eb, ok := h.svc.(runExtrasBackend)
 	if !ok {

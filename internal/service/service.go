@@ -94,6 +94,9 @@ type Service struct {
 	// MemoryProvider é o provedor de memória em uso ("ai-memory" ou "none"; vazio = none). Sem provedor a
 	// consolidação de memória fica desligada (ADR-0030).
 	MemoryProvider string
+	// SkillSources é o interruptor do operador e os tetos das fontes de skills (HANKO_SKILL_SOURCES, ADR-0035).
+	// O zero value é o seguro: fontes desligadas.
+	SkillSources SkillSourcesConfig
 	// Log recebe o registro de auditoria das operações administrativas da instalação (hanko auth user ...);
 	// nil descarta.
 	Log *slog.Logger

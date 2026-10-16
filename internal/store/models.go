@@ -394,11 +394,12 @@ type Persona struct {
 }
 
 type PersonaSkill struct {
-	CompanyID uuid.UUID
-	PersonaID uuid.UUID
-	SkillID   uuid.UUID
-	Enabled   bool
-	UpdatedAt time.Time
+	CompanyID      uuid.UUID
+	PersonaID      uuid.UUID
+	SkillID        uuid.UUID
+	Enabled        bool
+	UpdatedAt      time.Time
+	PinnedRevision *int32
 }
 
 type Project struct {
@@ -498,19 +499,108 @@ type Session struct {
 }
 
 type Skill struct {
+	ID             uuid.UUID
+	CompanyID      uuid.UUID
+	Slug           string
+	Name           string
+	Description    string
+	Body           string
+	Version        int32
+	CreatedByType  string
+	CreatedByID    *uuid.UUID
+	UpdatedByType  string
+	UpdatedByID    *uuid.UUID
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	SourceID       *uuid.UUID
+	SourcePath     string
+	SourceCommit   *string
+	SourceModified bool
+}
+
+type SkillSource struct {
 	ID            uuid.UUID
 	CompanyID     uuid.UUID
-	Slug          string
-	Name          string
-	Description   string
-	Body          string
-	Version       int32
+	Url           string
+	TrackingRef   string
+	PathPrefix    string
+	ExcludedPaths []string
+	AutoUpdate    bool
+	ImportNew     bool
+	Enabled       bool
+	LastCommit    *string
+	LastTreeHash  *string
+	Status        string
+	LastError     string
+	FailureCount  int32
+	NextSyncAt    *time.Time
+	LastAttemptAt *time.Time
+	LastSuccessAt *time.Time
 	CreatedByType string
 	CreatedByID   *uuid.UUID
-	UpdatedByType string
-	UpdatedByID   *uuid.UUID
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
+}
+
+type SkillSourceEntry struct {
+	ID          uuid.UUID
+	CompanyID   uuid.UUID
+	SourceID    uuid.UUID
+	Path        string
+	Name        string
+	Description string
+	SkillID     *uuid.UUID
+	Selection   string
+	Present     bool
+	HasScripts  bool
+	Error       string
+	UpdatedAt   time.Time
+}
+
+type SkillTestInput struct {
+	ID            uuid.UUID
+	CompanyID     uuid.UUID
+	SkillID       uuid.UUID
+	Name          string
+	Content       string
+	CreatedByType string
+	CreatedByID   *uuid.UUID
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
+type SkillTestRun struct {
+	ID            uuid.UUID
+	CompanyID     uuid.UUID
+	SkillID       uuid.UUID
+	SkillRevision int32
+	InputID       *uuid.UUID
+	Input         string
+	PersonaID     uuid.UUID
+	TaskID        *uuid.UUID
+	RunID         *uuid.UUID
+	Status        string
+	Output        string
+	Error         string
+	CreatedByType string
+	CreatedByID   *uuid.UUID
+	CreatedAt     time.Time
+	FinishedAt    *time.Time
+}
+
+type SkillVersion struct {
+	ID           uuid.UUID
+	CompanyID    uuid.UUID
+	SkillID      uuid.UUID
+	Revision     int32
+	Name         string
+	Description  string
+	Body         string
+	Sha256       string
+	SourceCommit *string
+	AuthorType   string
+	AuthorID     *uuid.UUID
+	CreatedAt    time.Time
 }
 
 type Subscription struct {
