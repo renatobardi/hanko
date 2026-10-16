@@ -107,11 +107,12 @@ func orgNodesJSON(vm views.OrgVM) string {
 		Href     string `json:"href"`
 		Gate     bool   `json:"gate"`
 		Initials string `json:"initials"`
+		Icon     string `json:"icon"`
 	}
 	out := make([]node, 0, len(vm.Nodes))
 	for _, n := range vm.Nodes {
 		out = append(out, node{ID: n.ID, Slug: n.Slug, Name: n.Name, Title: n.Title, Parent: n.ParentID, Status: n.Status,
-			Cls: n.StatusClass, Meta: n.Meta, Href: n.Href, Gate: n.Gate, Initials: n.Initials})
+			Cls: n.StatusClass, Meta: n.Meta, Href: n.Href, Gate: n.Gate, Initials: n.Initials, Icon: n.Icon})
 	}
 	b, err := json.Marshal(out)
 	if err != nil {

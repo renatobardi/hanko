@@ -88,7 +88,7 @@ func layoutOrgCtx(ctx context.Context, chart service.OrgChart, base string) view
 			ID: p.ID.String(), Slug: p.Slug, ParentID: parentID,
 			X: cx - orgCardW/2, Y: orgPad + n.Depth*(orgCardH+orgGapY), W: orgCardW, H: orgCardH,
 			Name: clip(p.Name, 22), Title: clip(p.Title, 28), Meta: meta, Status: status, StatusClass: orgStatusClass(p.Status),
-			Href: base + "/personas/" + p.Slug, Initials: initialsOf(p.Name),
+			Href: base + "/personas/" + p.Slug, Initials: initialsOf(p.Name), Icon: orgIcon(p.Icon),
 			Gate: p.Status == domain.PersonaAwaitingGate || n.PendingGates > 0, Review: p.RequireReview,
 			Label: fmt.Sprintf("%s, %s, %s", p.Name, p.Title, status),
 		}
@@ -159,4 +159,12 @@ func reportsOptions(ctx context.Context, personas []domain.Persona, self *domain
 		out = append(out, views.Option{Value: p.ID.String(), Label: p.Name, Selected: sel != nil && *sel == p.ID})
 	}
 	return out
+}
+
+// orgIcon é o glifo da persona no organograma; fora do catálogo (dado antigo), o padrão.
+func orgIcon(icon string) string {
+	if domain.ValidPersonaIcon(icon) {
+		return icon
+	}
+	return domain.DefaultPersonaIcon
 }

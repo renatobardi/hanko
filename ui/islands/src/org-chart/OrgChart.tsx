@@ -260,9 +260,7 @@ export function OrgChart(props: OrgChartProps) {
                   >
                     <rect width={CARD_W} height={CARD_H} rx={12} />
                     <circle className="org-av" cx={26} cy={28} r={14} />
-                    <text className="org-ini" x={26} y={32} textAnchor="middle">
-                      {n.initials}
-                    </text>
+                    <use className="org-glyph" href={`#pg-${n.icon || "bot"}`} x={18} y={20} width={16} height={16} />
                     <text className="org-name" x={50} y={25}>
                       {n.name}
                     </text>

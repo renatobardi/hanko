@@ -96,6 +96,92 @@
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", loadIslands);
   else loadIslands();
 
+  // Tasks: os seletores de visão (agrupar, ordenar, filtros) se aplicam ao mudar.
+  document.addEventListener("change", function (e) {
+    var sel = e.target;
+    if (!sel.matches || !sel.matches("form[data-autosubmit] select")) return;
+    if (sel.form.requestSubmit) sel.form.requestSubmit();
+    else sel.form.submit();
+  });
+
+  // Quadro de tasks: arrastar um card para outra coluna muda o status (POST no mesmo endpoint do
+  // formulário da task, como htmx). Se o servidor recusar, o card volta e o erro vai para #flash.
+  var dragged = null;
+  function boardCount(col, delta) {
+    var c = col.querySelector("[data-count]");
+    if (c) c.textContent = String(Math.max(0, (parseInt(c.textContent, 10) || 0) + delta));
+    var empty = col.querySelector(".board-empty");
+    if (empty) empty.classList.toggle("hidden", col.querySelectorAll(".board-card").length > 0);
+  }
+  document.addEventListener("dragstart", function (e) {
+    var card = e.target.closest && e.target.closest(".board-card[data-task]");
+    if (!card || card.getAttribute("draggable") !== "true") return;
+    dragged = card;
+    card.classList.add("is-dragging");
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", card.dataset.task);
+  });
+  document.addEventListener("dragend", function () {
+    if (dragged) dragged.classList.remove("is-dragging");
+    dragged = null;
+    Array.prototype.forEach.call(document.querySelectorAll(".board-col.drop-over"), function (c) {
+      c.classList.remove("drop-over");
+    });
+  });
+  document.addEventListener("dragover", function (e) {
+    if (!dragged) return;
+    var col = e.target.closest && e.target.closest(".board-col[data-status]");
+    if (!col) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    col.classList.add("drop-over");
+  });
+  document.addEventListener("dragleave", function (e) {
+    var col = e.target.closest && e.target.closest(".board-col");
+    if (col && !col.contains(e.relatedTarget)) col.classList.remove("drop-over");
+  });
+  document.addEventListener("drop", function (e) {
+    if (!dragged) return;
+    var col = e.target.closest && e.target.closest(".board-col[data-status]");
+    if (!col) return;
+    e.preventDefault();
+    col.classList.remove("drop-over");
+    var card = dragged;
+    var from = card.closest(".board-col");
+    if (from === col) return;
+    var next = card.nextSibling;
+    col.appendChild(card);
+    boardCount(from, -1);
+    boardCount(col, 1);
+    var body = new URLSearchParams();
+    body.set("status", col.dataset.status);
+    card.classList.add("is-saving");
+    fetch(card.getAttribute("href"), {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/x-www-form-urlencoded", "HX-Request": "true" },
+      body: body.toString()
+    })
+      .then(function (res) {
+        if (res.ok) return;
+        return res.text().then(function (html) {
+          from.insertBefore(card, next && next.parentNode === from ? next : null);
+          boardCount(col, -1);
+          boardCount(from, 1);
+          var flash = document.getElementById("flash");
+          if (flash) flash.innerHTML = html;
+        });
+      })
+      .catch(function () {
+        from.insertBefore(card, next && next.parentNode === from ? next : null);
+        boardCount(col, -1);
+        boardCount(from, 1);
+      })
+      .then(function () {
+        card.classList.remove("is-saving");
+      });
+  });
+
   // PWA: register the service worker (scope "/") only in a secure context (https or localhost).
   // It caches versioned static assets and serves an offline page; it never caches data.
   if ("serviceWorker" in navigator && window.isSecureContext) {

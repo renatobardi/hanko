@@ -154,6 +154,7 @@ type OrgNodeVM struct {
 	Gate        bool   // a gate of this persona waits for a human
 	Review      bool   // requires review
 	Initials    string
+	Icon        string // glifo da persona (domain.PersonaIcons), desenhado por <use href="#pg-…">
 }
 
 type OrgEdgeVM struct{ D string }

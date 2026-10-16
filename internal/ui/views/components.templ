@@ -77,6 +77,18 @@ templ PersonaGlyph(name string) {
 	@Icon(personaIcon(ctx, name))
 }
 
+// PersonaSprite define um <symbol id="pg-…"> por glifo de persona, para SVGs que desenham a persona com
+// <use href="#pg-…"> (organograma estático e a ilha React), sem repetir os desenhos.
+templ PersonaSprite() {
+	<svg class="svg-sprite" aria-hidden="true" focusable="false">
+		for _, ic := range domain.PersonaIcons {
+			<symbol id={ "pg-" + ic } viewBox="0 0 24 24">
+				@iconPaths(ic)
+			</symbol>
+		}
+	</svg>
+}
+
 // IconPicker é o seletor de glifo de persona: um radio por ícone do catálogo.
 templ IconPicker(selected string) {
 	<div class="icon-pick" role="radiogroup" aria-label={ i18n.T(ctx, "Ícone") }>
@@ -190,15 +202,13 @@ func emptyTasksText(ctx context.Context, vm TasksVM) string {
 
 // TaskBoardEl é o quadro de tasks (Kubo DS: colunas muted/50 em 2xl, cards pequenos, status pelo badge).
 templ TaskBoardEl(vm TasksVM) {
-	<div class="board" role="list">
+	<div class="board" role="list" data-board>
 		for _, c := range vm.Columns {
-			<section class={ "board-col", "st-" + c.Status } role="listitem" aria-label={ c.Label }>
-				<header class="board-h"><span>{ c.Label }</span><span class="cnt">{ fmt.Sprint(c.Count) }</span></header>
-				if len(c.Rows) == 0 {
-					<p class="board-empty">{ i18n.T(ctx, "Nada aqui.") }</p>
-				}
+			<section class={ "board-col", "st-" + c.Status } role="listitem" aria-label={ c.Label } data-status={ c.Status }>
+				<header class="board-h"><span>{ c.Label }</span><span class="cnt" data-count>{ fmt.Sprint(c.Count) }</span></header>
+				<p class={ "board-empty", templ.KV("hidden", len(c.Rows) > 0) }>{ i18n.T(ctx, "Nada aqui.") }</p>
 				for _, r := range c.Rows {
-					<a class="board-card" href={ templ.SafeURL(r.Href) }>
+					<a class="board-card" href={ templ.SafeURL(r.Href) } draggable={ boolAttr(canWrite(ctx)) } data-task={ r.Key }>
 						<span class="bc-top"><span class="id mono">{ r.Key }</span>@PrioIcon(r.Priority, r.PriorityLabel)</span>
 						<span class="bc-t">{ r.Title }</span>
 						<span class="bc-foot">

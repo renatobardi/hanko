@@ -16,13 +16,15 @@ import (
 type tabDef struct {
 	key, label string
 	statuses   []domain.TaskStatus
+	mine       bool // só as tasks criadas por quem está vendo
 }
 
 var taskTabs = []tabDef{
-	{"ativas", i18n.N("Ativas"), []domain.TaskStatus{domain.TaskTodo, domain.TaskInProgress, domain.TaskInReview, domain.TaskBlocked}},
-	{"backlog", i18n.N("Backlog"), []domain.TaskStatus{domain.TaskBacklog}},
-	{"concluidas", i18n.N("Concluídas"), []domain.TaskStatus{domain.TaskDone, domain.TaskCancelled}},
-	{"todas", i18n.N("Todas"), nil},
+	{"ativas", i18n.N("Ativas"), []domain.TaskStatus{domain.TaskTodo, domain.TaskInProgress, domain.TaskInReview, domain.TaskBlocked}, false},
+	{"minhas", i18n.N("Minhas"), []domain.TaskStatus{domain.TaskBacklog, domain.TaskTodo, domain.TaskInProgress, domain.TaskInReview, domain.TaskBlocked}, true},
+	{"backlog", i18n.N("Backlog"), []domain.TaskStatus{domain.TaskBacklog}, false},
+	{"concluidas", i18n.N("Concluídas"), []domain.TaskStatus{domain.TaskDone, domain.TaskCancelled}, false},
+	{"todas", i18n.N("Todas"), nil, false},
 }
 
 var groupOrder = []domain.TaskStatus{
@@ -55,18 +57,18 @@ func inStatuses(st domain.TaskStatus, list []domain.TaskStatus) bool {
 
 func (s *server) handleTasks(w http.ResponseWriter, r *http.Request, co domain.Company) {
 	ctx := r.Context()
-	q := strings.TrimSpace(r.URL.Query().Get("q"))
-	tab := r.URL.Query().Get("aba")
-	board := r.URL.Query().Get("visao") == "quadro"
+	qs := r.URL.Query()
+	q := strings.TrimSpace(qs.Get("q"))
+	opts := s.taskViewOpts(w, r)
 	cur := taskTabs[0]
 	for _, t := range taskTabs {
-		if t.key == tab {
+		if t.key == qs.Get("aba") {
 			cur = t
 		}
 	}
 	filter := service.TaskFilter{Query: q, Limit: 500}
 	var proj *service.ProjectView
-	if ref := strings.TrimSpace(r.URL.Query().Get("projeto")); ref != "" {
+	if ref := strings.TrimSpace(qs.Get("projeto")); ref != "" {
 		pv, err := s.be.GetProjectView(ctx, co.ID, ref)
 		if err != nil {
 			s.fail(w, r, &co, err)
@@ -76,7 +78,7 @@ func (s *server) handleTasks(w http.ResponseWriter, r *http.Request, co domain.C
 		filter.ProjectID = &pv.ID
 	}
 	var goal *service.GoalView
-	if ref := strings.TrimSpace(r.URL.Query().Get("meta")); ref != "" {
+	if ref := strings.TrimSpace(qs.Get("meta")); ref != "" {
 		gv, err := s.be.GetGoalView(ctx, co.ID, ref)
 		if err != nil {
 			s.fail(w, r, &co, err)
@@ -85,24 +87,52 @@ func (s *server) handleTasks(w http.ResponseWriter, r *http.Request, co domain.C
 		goal = &gv
 		filter.GoalID = &gv.ID
 	}
+	personas, err := s.be.ListPersonas(ctx, co.ID)
+	if err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
+	personaRef := strings.TrimSpace(qs.Get("persona"))
+	for _, p := range personas {
+		if p.Slug == personaRef {
+			id := p.ID
+			filter.PersonaID = &id
+		}
+	}
+	prio := domain.Priority(qs.Get("prioridade"))
+	if !prio.Valid() {
+		prio = ""
+	}
 	all, err := s.be.ListTasks(ctx, co.ID, filter)
 	if err != nil {
 		s.fail(w, r, &co, err)
 		return
 	}
+	if prio != "" {
+		kept := all[:0:0]
+		for _, tv := range all {
+			if tv.Priority == prio {
+				kept = append(kept, tv)
+			}
+		}
+		all = kept
+	}
+	me := actorFrom(ctx)
 	base := "/c/" + co.Slug
 	loc := loadLoc(co.Timezone)
 	now := s.now()
 
-	vm := views.TasksVM{Query: q, Tab: cur.key, NewHref: base + "/tasks/nova", Board: board}
-	projQS := ""
+	vm := views.TasksVM{Query: q, Tab: cur.key, NewHref: base + "/tasks/nova", Board: opts.Board,
+		GroupBy: opts.Group, SortBy: opts.Sort, PersonaFilter: personaRef, PriorityFilter: string(prio)}
+	// filtros que viajam entre abas, visões e a busca (projeto, meta, persona, prioridade)
+	keep := url.Values{}
 	if goal != nil {
-		projQS = "&meta=" + url.QueryEscape(goal.Slug)
+		keep.Set("meta", goal.Slug)
 		vm.Goal, vm.GoalTitle, vm.GoalHref = goal.Slug, goal.Title, base+"/metas/"+goal.Slug
 		vm.GoalClear = base + "/tasks?aba=" + cur.key
 	}
 	if proj != nil {
-		projQS += "&projeto=" + url.QueryEscape(proj.Slug)
+		keep.Set("projeto", proj.Slug)
 		vm.Project, vm.ProjectName, vm.ProjectHref = proj.Slug, proj.Name, base+"/projetos/"+proj.Slug
 		vm.ClearHref = base + "/tasks?aba=" + cur.key
 		vm.NewHref += "?projeto=" + url.QueryEscape(proj.Slug)
@@ -110,60 +140,81 @@ func (s *server) handleTasks(w http.ResponseWriter, r *http.Request, co domain.C
 			vm.ClearHref += "&q=" + url.QueryEscape(q)
 		}
 	}
+	if personaRef != "" {
+		keep.Set("persona", personaRef)
+	}
+	if prio != "" {
+		keep.Set("prioridade", string(prio))
+	}
+	if q != "" {
+		keep.Set("q", q)
+	}
+	link := func(tab string, board bool) string {
+		v := url.Values{}
+		for k, vs := range keep {
+			v[k] = vs
+		}
+		v.Set("aba", tab)
+		if board {
+			v.Set("visao", "quadro")
+		} else {
+			v.Set("visao", "lista")
+		}
+		return base + "/tasks?" + v.Encode()
+	}
+	inTab := func(t tabDef, tv service.TaskView) bool {
+		if t.mine && !sameActor(tv.CreatedBy, me) {
+			return false
+		}
+		return inStatuses(tv.Status, t.statuses)
+	}
 	for _, t := range taskTabs {
 		n := 0
 		for _, tv := range all {
-			if inStatuses(tv.Status, t.statuses) {
+			if inTab(t, tv) {
 				n++
 			}
 		}
-		href := base + "/tasks?aba=" + t.key + projQS
-		if q != "" {
-			href += "&q=" + url.QueryEscape(q)
-		}
-		if board {
-			href += "&visao=quadro"
-		}
-		vm.Tabs = append(vm.Tabs, views.TabLink{Key: t.key, Label: i18n.T(ctx, t.label), Href: href, Count: n, On: t.key == cur.key})
+		vm.Tabs = append(vm.Tabs, views.TabLink{Key: t.key, Label: i18n.T(ctx, t.label), Href: link(t.key, opts.Board), Count: n, On: t.key == cur.key})
 	}
-	byStatus := map[domain.TaskStatus][]service.TaskView{}
+	vm.ListHref, vm.BoardHref = link(cur.key, false), link(cur.key, true)
+	var shown []service.TaskView
 	for _, tv := range all {
-		if inStatuses(tv.Status, cur.statuses) {
-			byStatus[tv.Status] = append(byStatus[tv.Status], tv)
-			vm.Total++
+		if inTab(cur, tv) {
+			shown = append(shown, tv)
 		}
 	}
-	for _, st := range groupOrder {
-		list := byStatus[st]
-		if len(list) == 0 {
-			continue
-		}
-		sort.SliceStable(list, func(i, j int) bool { return list[i].UpdatedAt.After(list[j].UpdatedAt) })
-		g := views.TaskGroup{Label: i18n.T(ctx, groupLabel[st]), Count: len(list)}
-		for _, tv := range list {
-			g.Rows = append(g.Rows, taskRow(ctx, tv, base, now, loc))
-		}
-		vm.Groups = append(vm.Groups, g)
-	}
-	if board {
+	vm.Total = len(shown)
+	sortTasks(shown, opts.Sort)
+	row := func(tv service.TaskView) views.TaskRow { return taskRow(ctx, tv, base, now, loc) }
+	vm.Groups = groupTasks(ctx, shown, opts.Group, row)
+	if opts.Board {
 		// Quadro: uma coluna por status da aba, na ordem do fluxo, inclusive as vazias.
+		byStatus := map[domain.TaskStatus][]service.TaskView{}
+		for _, tv := range shown {
+			byStatus[tv.Status] = append(byStatus[tv.Status], tv)
+		}
 		for _, st := range boardOrder {
 			if !inStatuses(st, cur.statuses) {
 				continue
 			}
-			list := byStatus[st]
-			col := views.TaskGroup{Label: i18n.T(ctx, groupLabel[st]), Count: len(list), Status: string(st)}
-			for _, tv := range list {
-				col.Rows = append(col.Rows, taskRow(ctx, tv, base, now, loc))
+			col := views.TaskGroup{Label: i18n.T(ctx, groupLabel[st]), Count: len(byStatus[st]), Status: string(st)}
+			for _, tv := range byStatus[st] {
+				col.Rows = append(col.Rows, row(tv))
 			}
 			vm.Columns = append(vm.Columns, col)
 		}
 	}
-	viewQS := "?aba=" + cur.key + projQS
-	if q != "" {
-		viewQS += "&q=" + url.QueryEscape(q)
+	vm.GroupOptions = optionList(opts.Group, groupChoices(ctx))
+	vm.SortOptions = optionList(opts.Sort, sortChoices(ctx))
+	vm.PersonaOptions = []views.Option{{Value: "", Label: i18n.T(ctx, "Todas as personas"), Selected: personaRef == ""}}
+	for _, p := range personas {
+		vm.PersonaOptions = append(vm.PersonaOptions, views.Option{Value: p.Slug, Label: p.Name, Selected: p.Slug == personaRef})
 	}
-	vm.ListHref, vm.BoardHref = base+"/tasks"+viewQS, base+"/tasks"+viewQS+"&visao=quadro"
+	vm.PriorityOptions = []views.Option{{Value: "", Label: i18n.T(ctx, "Todas as prioridades"), Selected: prio == ""}}
+	for _, pr := range []domain.Priority{domain.PriorityCritical, domain.PriorityHigh, domain.PriorityMedium, domain.PriorityLow} {
+		vm.PriorityOptions = append(vm.PriorityOptions, views.Option{Value: string(pr), Label: priorityLabel(ctx, pr), Selected: pr == prio})
+	}
 	open := 0
 	for _, tv := range all {
 		if tv.Status.Open() {

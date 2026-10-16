@@ -35,6 +35,12 @@ templ TasksPage(sh Shell, vm TasksVM) {
 				if vm.Board {
 					<input type="hidden" name="visao" value="quadro"/>
 				}
+				if vm.PersonaFilter != "" {
+					<input type="hidden" name="persona" value={ vm.PersonaFilter }/>
+				}
+				if vm.PriorityFilter != "" {
+					<input type="hidden" name="prioridade" value={ vm.PriorityFilter }/>
+				}
 				if vm.Project != "" {
 					<input type="hidden" name="projeto" value={ vm.Project }/>
 				}
@@ -49,7 +55,7 @@ templ TasksPage(sh Shell, vm TasksVM) {
 					placeholder={ i18n.T(ctx, "Buscar tasks...") }
 					aria-label={ i18n.T(ctx, "Buscar tasks") }
 					hx-get={ sh.Base() + "/tasks" }
-					hx-include="[name='aba'], [name='projeto'], [name='meta'], [name='visao']"
+					hx-include="[name='aba'], [name='projeto'], [name='meta'], [name='visao'], [name='persona'], [name='prioridade']"
 					hx-trigger="input changed delay:300ms, search"
 					hx-target="#tasks-list"
 					hx-swap="outerHTML"
@@ -57,6 +63,34 @@ templ TasksPage(sh Shell, vm TasksVM) {
 				/>
 			</form>
 		</div>
+		<form method="get" action={ templ.SafeURL(sh.Base() + "/tasks") } class="view-opts" data-autosubmit aria-label={ i18n.T(ctx, "Visualização") }>
+			<input type="hidden" name="aba" value={ vm.Tab }/>
+			if vm.Board {
+				<input type="hidden" name="visao" value="quadro"/>
+			} else {
+				<input type="hidden" name="visao" value="lista"/>
+			}
+			if vm.Project != "" {
+				<input type="hidden" name="projeto" value={ vm.Project }/>
+			}
+			if vm.Goal != "" {
+				<input type="hidden" name="meta" value={ vm.Goal }/>
+			}
+			if vm.Query != "" {
+				<input type="hidden" name="q" value={ vm.Query }/>
+			}
+			if !vm.Board {
+				<label class="sr-only" for="t-group">{ i18n.T(ctx, "Agrupar") }</label>
+				@Select("agrupar", "t-group", vm.GroupOptions, true)
+			}
+			<label class="sr-only" for="t-sort">{ i18n.T(ctx, "Ordenar") }</label>
+			@Select("ordem", "t-sort", vm.SortOptions, true)
+			<label class="sr-only" for="t-persona">Persona</label>
+			@Select("persona", "t-persona", vm.PersonaOptions, true)
+			<label class="sr-only" for="t-prio">{ i18n.T(ctx, "Prioridade") }</label>
+			@Select("prioridade", "t-prio", vm.PriorityOptions, true)
+			<noscript><button class="btn sm outline" type="submit">{ i18n.T(ctx, "Aplicar") }</button></noscript>
+		</form>
 		@TaskTable(vm)
 	}
 }

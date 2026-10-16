@@ -41,6 +41,7 @@ templ OrgPage(sh Shell, vm OrgVM) {
 				data-can-edit={ flag(vm.CanEdit) }
 				data-msgs={ vm.IslandMsgs }
 			>
+				@PersonaSprite()
 				<div class="org-scroll">
 				<svg
 					class="org-svg"
@@ -57,7 +58,7 @@ templ OrgPage(sh Shell, vm OrgVM) {
 						<a class={ "org-node", "st-" + n.StatusClass, templ.KV("gate", n.Gate) } href={ templ.SafeURL(n.Href) } aria-label={ n.Label }>
 							<rect x={ fmt.Sprint(n.X) } y={ fmt.Sprint(n.Y) } width={ fmt.Sprint(n.W) } height={ fmt.Sprint(n.H) } rx="12"></rect>
 							<circle class="org-av" cx={ fmt.Sprint(n.X + 26) } cy={ fmt.Sprint(n.Y + 28) } r="14"></circle>
-							<text class="org-ini" x={ fmt.Sprint(n.X + 26) } y={ fmt.Sprint(n.Y + 32) } text-anchor="middle">{ n.Initials }</text>
+							<use class="org-glyph" href={ "#pg-" + n.Icon } x={ fmt.Sprint(n.X + 18) } y={ fmt.Sprint(n.Y + 20) } width="16" height="16"></use>
 							<text class="org-name" x={ fmt.Sprint(n.X + 50) } y={ fmt.Sprint(n.Y + 25) }>{ n.Name }</text>
 							<text class="org-title" x={ fmt.Sprint(n.X + 50) } y={ fmt.Sprint(n.Y + 42) }>{ n.Title }</text>
 							<circle class="org-dot" cx={ fmt.Sprint(n.X + 16) } cy={ fmt.Sprint(n.Y + 64) } r="3.5"></circle>
