@@ -53,6 +53,7 @@ func (s *server) skillRoutes(mux langMux) {
 	}
 
 	mux.HandleFunc("GET /c/{company}/skills", co(s.handleSkills))
+	s.skillStudioRoutes(mux) // versões, fontes e estúdio (ADR-0035)
 	mux.HandleFunc("GET /c/{company}/skills/nova", co(s.handleNewSkill))
 	mux.HandleFunc("POST /c/{company}/skills/nova", capped(post(co(s.handleCreateSkill))))
 	mux.HandleFunc("POST /c/{company}/skills/preview", capped(post(co(s.handleSkillPreview))))
@@ -100,9 +101,14 @@ func (s *server) handleSkills(w http.ResponseWriter, r *http.Request, co domain.
 	now := s.now()
 	vm := views.SkillsVM{NewHref: base + "/skills/nova", Notice: i18n.T(ctx, skillNotices[r.URL.Query().Get("ok")]),
 		Subtitle: i18n.T(ctx, "Habilidades reutilizáveis em markdown. Escreva uma vez e ligue para as personas que devem usá-las.")}
+	if _, ok := s.studioBE(); ok { // abas e filtro de origem (ADR-0035)
+		vm.Tabs = skillsTabs(ctx, base, "biblioteca")
+		list, vm.Filters = skillLibraryFilter(ctx, base, r.URL.Query().Get("origem"), list)
+	}
 	for _, k := range list {
 		vm.Rows = append(vm.Rows, views.SkillRow{Name: k.Name, Slug: k.Slug, Href: base + "/skills/" + url.PathEscape(k.Slug),
-			Description: k.Description, Version: k.Version, Personas: k.Personas, Updated: agoCtx(ctx, k.UpdatedAt, now, loc)})
+			Description: k.Description, Version: k.Version, Personas: k.Personas, Updated: agoCtx(ctx, k.UpdatedAt, now, loc),
+			FromSource: k.SourceID != nil, Modified: k.SourceModified})
 	}
 	sh := s.shell(r, co, "skills", i18n.T(ctx, "Skills"), views.Crumb{Label: i18n.T(ctx, "Skills")})
 	s.render(w, r, http.StatusOK, views.SkillsPage(sh, vm))
@@ -187,6 +193,10 @@ func (s *server) skillEditorVM(r *http.Request, co domain.Company, sb skillsBack
 	vm.DeleteHref = vm.Action + "/remover"
 	vm.Version, vm.Updated, vm.UpdatedBy = k.Version, agoCtx(ctx, k.UpdatedAt, s.now(), loc), actorLabel(ctx, k.UpdatedBy)
 	vm.Notice = i18n.T(ctx, skillNotices[r.URL.Query().Get("ok")])
+	if _, ok := s.studioBE(); ok { // abas Visão geral/Versões/Personas e o aviso de skill de fonte (ADR-0035)
+		vm.Tabs = skillPageTabs(ctx, base, k.Slug, "visao")
+		vm.SourceNote = s.sourceNote(ctx, co, k)
+	}
 	for _, p := range ps {
 		vm.Personas = append(vm.Personas, views.ToggleRow{Name: p.Name, Slug: p.Slug, Href: base + "/personas/" + url.PathEscape(p.Slug), Enabled: p.Enabled,
 			ToggleHref: base + "/skills/" + url.PathEscape(k.Slug) + "/personas/" + url.PathEscape(p.Slug)})
@@ -317,7 +327,11 @@ func (s *server) personaExtras(ctx context.Context, co domain.Company, p domain.
 		vm.Show = true
 		if ps, err := sb.ListPersonaSkills(ctx, co.ID, p.ID); err == nil {
 			for _, k := range ps {
-				vm.Skills = append(vm.Skills, views.ToggleRow{Name: k.Name, Slug: k.Slug, Note: k.Description, Enabled: k.Enabled,
+				note := k.Description
+				if k.PinnedRevision != nil { // versão fixada (ADR-0035)
+					note = i18n.Tf(ctx, "versão fixada: v%d", *k.PinnedRevision) + " · " + note
+				}
+				vm.Skills = append(vm.Skills, views.ToggleRow{Name: k.Name, Slug: k.Slug, Note: note, Enabled: k.Enabled,
 					Href:       base + "/skills/" + url.PathEscape(k.Slug),
 					ToggleHref: base + "/personas/" + url.PathEscape(p.Slug) + "/skills/" + url.PathEscape(k.Slug)})
 			}
