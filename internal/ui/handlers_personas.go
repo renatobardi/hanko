@@ -99,7 +99,7 @@ func (s *server) handleHirePersona(w http.ResponseWriter, r *http.Request, co do
 		Name: trimForm(r, "name"), Title: trimForm(r, "title"), Agent: trimForm(r, "agent"), Model: trimForm(r, "model"),
 		Instructions: r.PostFormValue("instructions"), Heartbeat: trimForm(r, "heartbeat"), FieldErr: map[string]string{},
 		RequireReview: r.PostFormValue("require_review") != "", Icon: trimForm(r, "icon"),
-		AcpCommand:    trimForm(r, "acp_command"), AcpArgs: r.PostFormValue("acp_args"),
+		AcpCommand: trimForm(r, "acp_command"), AcpArgs: r.PostFormValue("acp_args"),
 		AcpPermission: []views.Option{{Value: trimForm(r, "acp_permission"), Selected: true}},
 	}
 	ctx := r.Context()

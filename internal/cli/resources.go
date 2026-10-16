@@ -189,12 +189,12 @@ func (e *env) personaCmd() *cobra.Command {
 
 	var (
 		slug, title, icon, instr, instrFile, agent, model, reports, ws, subscription string
-		interval                                                               int
-		budget                                                                 int64
-		cfg                                                                    map[string]string
-		cfgJSON                                                                string
-		review                                                                 bool
-		revPersona, revAgent, revModel                                         string
+		interval                                                                     int
+		budget                                                                       int64
+		cfg                                                                          map[string]string
+		cfgJSON                                                                      string
+		review                                                                       bool
+		revPersona, revAgent, revModel                                               string
 	)
 	hire := &cobra.Command{
 		Use: "hire " + e.t("<nome>"), Short: e.t("Contrata uma persona"), Args: cobra.ExactArgs(1),

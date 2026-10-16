@@ -2216,6 +2216,33 @@
             "minimum": 0,
             "type": "integer"
           },
+          "icon": {
+            "description": "Glifo da persona; padrão bot.",
+            "enum": [
+              "bot",
+              "code",
+              "search",
+              "pen-line",
+              "shield-check",
+              "trending-up",
+              "cpu",
+              "database",
+              "palette",
+              "megaphone",
+              "scale",
+              "book-open",
+              "wrench",
+              "headphones",
+              "rocket",
+              "briefcase",
+              "sparkles",
+              "globe"
+            ],
+            "examples": [
+              "code"
+            ],
+            "type": "string"
+          },
           "instructions": {
             "description": "Instruções permanentes da persona.",
             "type": "string"
@@ -3944,6 +3971,13 @@
             "format": "int64",
             "type": "integer"
           },
+          "icon": {
+            "description": "Glifo da persona (catálogo fechado).",
+            "examples": [
+              "code"
+            ],
+            "type": "string"
+          },
           "id": {
             "format": "uuid",
             "type": "string"
@@ -4039,6 +4073,7 @@
           "slug",
           "name",
           "title",
+          "icon",
           "instructions",
           "agent",
           "status",
@@ -5413,6 +5448,30 @@
             "format": "int64",
             "minimum": 0,
             "type": "integer"
+          },
+          "icon": {
+            "description": "Glifo da persona.",
+            "enum": [
+              "bot",
+              "code",
+              "search",
+              "pen-line",
+              "shield-check",
+              "trending-up",
+              "cpu",
+              "database",
+              "palette",
+              "megaphone",
+              "scale",
+              "book-open",
+              "wrench",
+              "headphones",
+              "rocket",
+              "briefcase",
+              "sparkles",
+              "globe"
+            ],
+            "type": "string"
           },
           "instructions": {
             "type": "string"
