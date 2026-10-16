@@ -1,10 +1,11 @@
-# Estado da última sessão (UI alinhada ao Kubo DS)
-Data: 2026-10-15 · ramo `ui/aderencia-kubo-ds` · prd em `d2b1b51` (só fonte + tokens; migrations até 00025)
+# Estado da última sessão (UI alinhada ao Kubo DS + telas de paridade)
+Data: 2026-10-16 · PR #2 `ui/aderencia-kubo-ds` → `main` · prd em `d4ca77d` (migrations até 00026)
 
 ## Feito
-- Fonte Inter local, tokens OKLCH do DS, cards com anel, escalas de raio/tipografia, botões/inputs/foco do DS, shell 256/72 (CSS).
-- Glifo por persona (migration 00026, API, export/import, CLI `--icon`, seletor e avatares), quadro de tasks (`?visao=quadro`), tema claro/escuro/sistema (`POST /tema`), Configurações só no rodapé, estilos inline viram classes. Testes em `internal/ui/ds_test.go`.
+- Kubo DS na UI (tokens, Inter, cards, escalas, controles), glifo por persona (00026), tema, Configurações no rodapé.
+- Tasks: quadro arrastável, agrupar/ordenar/filtrar, aba Minhas, visão salva; projeto e workspace em abas; timeline; ao vivo.
+- Configurações › Ambientes, Adapters, Plugins, Exportar e importar; catálogo de times; troca da própria senha. ADR-0031.
 ## Travado
-- Código gerado não regenerado na sessão (sem Go 1.27/sqlc/templ no ambiente): rodar `sqlc generate`, `templ generate -path internal/ui/views`, `gofmt -w .`, `go test ./...`, `make openapi` e commitar o gerado.
+- Nada. Itens que pedem modelo de dados novo ficaram listados no ROADMAP (v0.3, "a decidir").
 ## Próximo passo
-- Deploy do ramo no prd (`deploy-prd.sh`) e conferência visual contra o canvas; organograma (ilha React) ainda mostra iniciais em vez do glifo da persona.
+- Deploy do `main` no prd (`deploy/oute-server/deploy-prd.sh`) e conferência visual contra o canvas.

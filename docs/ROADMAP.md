@@ -41,6 +41,10 @@ Entregue em 2026-10-15 (antes do planejado):
 
 Pendente: tag `v0.1.0`/`v0.2.0` e demos.
 
+## v0.3 (em andamento)
+- UI alinhada ao Kubo DS e telas de paridade (ADR-0031): tokens, fonte e cards do DS, glifo por persona, tema claro/escuro, quadro de tasks arrastável e visões salvas, projeto e workspace em abas, timeline, painel ao vivo, ambientes/adapters/plugins, export/import pela UI, times prontos, troca da própria senha.
+- A decidir (modelo de dados novo, ADR antes): cards de status por persona; sala com várias personas; cases, pipelines e fila de revisão com aprendizado; estúdio e fontes de skills; apps, gateways e perfis de ferramentas; ambientes remotos (SSH, sandbox); plugins de terceiros.
+
 ## Depois (ideias, sem data)
 - Modelo local no Mac (oMLX) por persona: harness `claude` com `adapter_config.env` (`ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_MODEL`) apontando ao endpoint Anthropic do oMLX; não suportado oficialmente pela Anthropic para modelos não-Claude. **Testado em 2026-10-15 (Mac 24 GB, oMLX 0.7.0 via Tailscale): inviável por ora.** Rede, chave e `/v1/messages` funcionam a partir do container do Hanko, mas Qwen2.5-Coder-14B e Qwen3-8B-4bit devolvem a chamada de tool como texto (sem `tool_use`), e o Qwen3.8-27B não cabe na RAM com o Mac em uso. Persona operacional simples fica no Haiku; reavaliar com mais RAM ou com um modelo de tool calling comprovado no oMLX. Se testar de novo: guard de memória `aggressive`, `sudo purge` antes e `--tools Bash` para encolher o prompt.
 - Harness Pi (`pi --mode json -p`, sem MCP: tools do Hanko pela CLI `hanko` com o run token) e Devin CLI (provavelmente via o harness ACP existente, `devin acp`); adiados por decisão do dono.
