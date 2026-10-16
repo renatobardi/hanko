@@ -72,15 +72,15 @@ templ TaskPage(sh Shell, vm TaskVM, base string) {
 				<h1>{ vm.Title }</h1>
 				@TaskChips(vm, false)
 				if vm.Notice != "" {
-					<div style="margin-top:16px">@Alert("warn", vm.Notice)</div>
+					<div class="mt-4">@Alert("warn", vm.Notice)</div>
 				}
 				if vm.Error != "" {
-					<div style="margin-top:16px">@Alert("danger", vm.Error)</div>
+					<div class="mt-4">@Alert("danger", vm.Error)</div>
 				}
 				for _, g := range vm.Gates {
 					@GateBanner(g)
 				}
-				<div class="brief" style="margin-top:20px">
+				<div class="brief mt-6">
 					<div class="side-h">{ i18n.T(ctx, "Pedido") }</div>
 					if vm.HasDescription {
 						@AnchorBox(AnchorBoxVM{API: vm.IslandAPI, TaskKey: vm.TaskKey, Target: "task_description", Doc: vm.DescDoc, Anchors: vm.DescAnchors, CanComment: canWrite(ctx), Msgs: vm.AnchorMsgs}) {
@@ -90,13 +90,13 @@ templ TaskPage(sh Shell, vm TaskVM, base string) {
 						<p class="muted">{ i18n.T(ctx, "Sem descrição.") }</p>
 					}
 				</div>
-				<h2 class="side-h" style="margin:28px 0 14px">{ i18n.T(ctx, "Conversa") }</h2>
+				<h2 class="side-h sec-h">{ i18n.T(ctx, "Conversa") }</h2>
 				@Thread(vm, base)
 				if vm.ActiveRun != nil {
-					<div class="run-sep" style="margin-bottom:16px">
+					<div class="run-sep mb-4">
 						<span>
 							{ i18n.T(ctx, "Execução") } <span class="mono">{ vm.ActiveRun.Short }</span> { i18n.T(ctx, "em andamento") } ·
-							<a href={ templ.SafeURL(vm.ActiveRun.Href) } style="text-decoration:underline;text-underline-offset:2px;color:var(--foreground)">{ i18n.T(ctx, "Inspecionar") }</a>
+							<a class="link-u fg" href={ templ.SafeURL(vm.ActiveRun.Href) }>{ i18n.T(ctx, "Inspecionar") }</a>
 						</span>
 					</div>
 				}
@@ -108,7 +108,7 @@ templ TaskPage(sh Shell, vm TaskVM, base string) {
 }
 
 templ TaskChips(vm TaskVM, oob bool) {
-	<div id="task-chips" class="chips" style="margin-top:2px" hx-swap-oob={ oobAttr(oob) }>
+	<div id="task-chips" class="chips mt-1" hx-swap-oob={ oobAttr(oob) }>
 		@BadgeEl(vm.Badge)
 		<span class="chip">@PrioIcon(vm.Priority, vm.PriorityLabel)<span>{ vm.PriorityLabel }</span></span>
 		if vm.PersonaName != "" {
@@ -139,7 +139,7 @@ templ Thread(vm TaskVM, base string) {
 					<div>
 						<div class="meta"><b>{ m.Author }</b><time class="mono">{ m.When }</time>
 							if m.RunHref != "" {
-								<a href={ templ.SafeURL(m.RunHref) } style="text-decoration:underline">{ i18n.T(ctx, "execução") }</a>
+								<a class="link-u" href={ templ.SafeURL(m.RunHref) }>{ i18n.T(ctx, "execução") }</a>
 							}
 						</div>
 						@MsgQuote(m)
@@ -210,30 +210,30 @@ templ TaskSide(vm TaskVM, base string) {
 				if len(vm.GoalOptions) > 1 {
 					<label class="prop"><span>{ i18n.T(ctx, "Meta") }</span>@Select("goal", "f-goal", vm.GoalOptions, true)</label>
 				}
-				<div class="prop"><span>{ i18n.T(ctx, "Criada") }</span><span class="mono" style="font-size:12.5px">{ vm.Created }</span></div>
-				<div class="prop"><span>{ i18n.T(ctx, "Atualizada") }</span><span class="mono" style="font-size:12.5px">{ vm.Updated }</span></div>
+				<div class="prop"><span>{ i18n.T(ctx, "Criada") }</span><span class="mono text-xs">{ vm.Created }</span></div>
+				<div class="prop"><span>{ i18n.T(ctx, "Atualizada") }</span><span class="mono text-xs">{ vm.Updated }</span></div>
 			</div>
 			</fieldset>
 			if !canWrite(ctx) {
 				@NeedRole(domain.MemberMember)
 			}
-			<noscript><button class="btn sm" type="submit" style="margin-top:12px">{ i18n.T(ctx, "Salvar") }</button></noscript>
+			<noscript><button class="btn sm mt-3" type="submit">{ i18n.T(ctx, "Salvar") }</button></noscript>
 		</form>
 		<div class="side-sec">
 			<div class="side-h">{ i18n.T(ctx, "Custo") }</div>
-			<div class="prop"><span>{ i18n.T(ctx, "Esta task") }</span><span class="mono" style="text-align:right">{ vm.Cost }</span></div>
+			<div class="prop"><span>{ i18n.T(ctx, "Esta task") }</span><span class="mono ta-r">{ vm.Cost }</span></div>
 			if vm.Model != "" {
-				<div class="prop"><span>{ i18n.T(ctx, "Modelo (manual)") }</span><span class="mono" style="text-align:right">{ vm.Model }</span></div>
+				<div class="prop"><span>{ i18n.T(ctx, "Modelo (manual)") }</span><span class="mono ta-r">{ vm.Model }</span></div>
 			}
 		</div>
 		<div class="side-sec">
-			<div class="side-h" style="display:flex;justify-content:space-between"><span>{ i18n.T(ctx, "Artefatos") }</span><a href={ templ.SafeURL(vm.ArtifactsHref) } style="text-transform:none;letter-spacing:0;font-weight:400">{ i18n.T(ctx, "Ver todos") }</a></div>
+			<div class="side-h row-between"><span>{ i18n.T(ctx, "Artefatos") }</span><a class="normal-case" href={ templ.SafeURL(vm.ArtifactsHref) }>{ i18n.T(ctx, "Ver todos") }</a></div>
 			@ArtifactMiniList(vm.Artifacts, "")
 		</div>
 		<div class="side-sec">
-			<div class="side-h" style="display:flex;justify-content:space-between"><span>{ i18n.T(ctx, "Execuções") }</span><a href={ templ.SafeURL(base + "/execucoes") } style="text-transform:none;letter-spacing:0;font-weight:400">{ i18n.T(ctx, "Ver todas") }</a></div>
+			<div class="side-h row-between"><span>{ i18n.T(ctx, "Execuções") }</span><a class="normal-case" href={ templ.SafeURL(base + "/execucoes") }>{ i18n.T(ctx, "Ver todas") }</a></div>
 			if len(vm.Runs) == 0 {
-				<p class="muted" style="font-size:13px">{ i18n.T(ctx, "Nenhuma execução ainda.") }</p>
+				<p class="muted text-sm">{ i18n.T(ctx, "Nenhuma execução ainda.") }</p>
 			}
 			for _, r := range vm.Runs {
 				<a class="side-run" href={ templ.SafeURL(r.Href) }>
@@ -248,7 +248,7 @@ templ TaskSide(vm TaskVM, base string) {
 				</a>
 			}
 			if vm.CanWake && canWrite(ctx) {
-				<form method="post" action={ templ.SafeURL(base + "/tasks/" + vm.Key + "/acordar") } hx-post={ base + "/tasks/" + vm.Key + "/acordar" } hx-swap="none" style="margin-top:12px">
+				<form class="mt-3" method="post" action={ templ.SafeURL(base + "/tasks/" + vm.Key + "/acordar") } hx-post={ base + "/tasks/" + vm.Key + "/acordar" } hx-swap="none">
 					<button class="btn outline sm block" type="submit">@Icon("zap")
 { " " + i18n.T(ctx, "Acordar") + " " + vm.PersonaName }</button>
 				</form>

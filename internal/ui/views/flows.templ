@@ -255,7 +255,7 @@ templ FlowPage(sh Shell, vm FlowVM) {
 		<div class="flow-head">
 			<div>
 				<h1>{ vm.Name } @BadgeEl(vm.Badge)</h1>
-				<p class="muted" style="margin-top:6px;font-size:13.5px">{ vm.Meta }</p>
+				<p class="muted mt-2 text-sm">{ vm.Meta }</p>
 			</div>
 			<div class="flow-acts">
 				@FlowSwitch(vm.Enabled, vm.ToggleHref, vm.Name)
@@ -271,19 +271,19 @@ templ FlowPage(sh Shell, vm FlowVM) {
 				}
 			</div>
 		</div>
-		<div class="stats4" style="margin-bottom:20px">
+		<div class="stats4 mb-6">
 			<div class="stat"><div class="l">{ i18n.T(ctx, "Agenda") }</div><div class="v">{ vm.Schedule }</div></div>
 			<div class="stat"><div class="l">{ i18n.T(ctx, "Expressão · fuso") }</div><div class="v">{ vm.Cron } · { vm.Timezone }</div></div>
 			<div class="stat"><div class="l">{ i18n.T(ctx, "Próximo disparo") }</div><div class="v">{ vm.Next }</div></div>
 			<div class="stat"><div class="l">{ i18n.T(ctx, "Último disparo") }</div><div class="v">{ vm.Last }</div></div>
 		</div>
-		<h2 class="side-h" style="margin:8px 0 12px">{ i18n.T(ctx, "Definição") }</h2>
+		<h2 class="side-h mt-2 mb-3">{ i18n.T(ctx, "Definição") }</h2>
 		if canAdmin(ctx) {
 			@FlowForm(vm.Form)
 		} else {
 			@NeedRole(domain.MemberAdmin)
 		}
-		<h2 class="side-h" style="margin:28px 0 12px">{ i18n.Tf(ctx, "Histórico de disparos · %s", fmt.Sprint(vm.Fired)) }</h2>
+		<h2 class="side-h sec-h">{ i18n.Tf(ctx, "Histórico de disparos · %s", fmt.Sprint(vm.Fired)) }</h2>
 		if len(vm.Fires) == 0 {
 			@EmptyCard("clock", i18n.T(ctx, "Nenhum disparo ainda."), i18n.T(ctx, "Os disparos aparecem aqui, cada um com a task que gerou. Use Rodar agora para testar."), false)
 		} else {

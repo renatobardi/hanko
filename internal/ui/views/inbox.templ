@@ -304,7 +304,7 @@ templ InboxPage(sh Shell, vm InboxVM) {
 						<div><dt>{ i18n.T(ctx, "Envelhecendo (> 24 h)") }</dt><dd class="mono">{ fmt.Sprint(vm.Aged) }</dd></div>
 						<div><dt>{ i18n.T(ctx, "Decididas hoje") }</dt><dd class="mono">{ fmt.Sprint(vm.DecidedToday) }</dd></div>
 					</dl>
-					<div style="display:grid;gap:8px;margin-top:14px">
+					<div class="d-grid gap-2 mt-4">
 						<a class="btn outline block" href={ templ.SafeURL(vm.GatesURL) }>{ i18n.T(ctx, "Abrir gates") }</a>
 						<a class="btn ghost block" href={ templ.SafeURL(vm.DecisionsURL) }>{ i18n.T(ctx, "Histórico de decisões") }</a>
 					</div>

@@ -7,7 +7,7 @@ import "github.com/renatobardi/hanko/internal/i18n"
 // are decided in the Inbox; here the human only follows them.
 templ memoryCard(sh Shell, m MemoryVM) {
 	if m.Show {
-		<div class="card pad form-card" style="margin-bottom:20px" id="memoria">
+		<div class="card pad form-card mb-6" id="memoria">
 			<div class="card-head">
 				<div>
 					<h2>{ i18n.T(ctx, "Memória") }</h2>
@@ -23,7 +23,7 @@ templ memoryCard(sh Shell, m MemoryVM) {
 			if !m.Available {
 				@EmptyCard("database", i18n.T(ctx, "Memória desligada"), i18n.T(ctx, "O provedor de memória está desligado (HANKO_MEMORY_PROVIDER=none), então não há o que consolidar. Ligue o ai-memory para usar a consolidação."), false)
 			} else {
-				<dl class="dl" style="margin-top:14px">
+				<dl class="dl mt-4">
 					<dt>{ i18n.T(ctx, "Provedor") }</dt>
 					<dd class="mono">{ m.Provider }</dd>
 					<dt>{ i18n.T(ctx, "Última rodada") }</dt>
@@ -40,7 +40,7 @@ templ memoryCard(sh Shell, m MemoryVM) {
 					</dd>
 				</dl>
 				if m.CanAdmin {
-					<form method="post" action={ templ.SafeURL(sh.Base() + "/configuracoes/memoria") } style="margin-top:16px">
+					<form class="mt-4" method="post" action={ templ.SafeURL(sh.Base() + "/configuracoes/memoria") }>
 						<label class="check-line">
 							<input type="checkbox" name="enabled" value="1" checked?={ m.Enabled }/>
 							<span>{ i18n.T(ctx, "Consolidação periódica ligada") }</span>
@@ -60,13 +60,13 @@ templ memoryCard(sh Shell, m MemoryVM) {
 							<button class="btn primary" type="submit">{ i18n.T(ctx, "Salvar") }</button>
 						</div>
 					</form>
-					<form method="post" action={ templ.SafeURL(sh.Base() + "/configuracoes/memoria/consolidar") } class="inline-form" style="margin-top:12px">
+					<form method="post" action={ templ.SafeURL(sh.Base() + "/configuracoes/memoria/consolidar") } class="inline-form mt-3">
 						@Select("workspace", "mem-ws", m.Workspaces, false)
 						<button class="btn" type="submit">{ i18n.T(ctx, "Consolidar agora") }</button>
 					</form>
 				}
 				if len(m.Consolidations) > 0 {
-					<h3 style="margin-top:20px">{ i18n.T(ctx, "Consolidações") }</h3>
+					<h3 class="mt-6">{ i18n.T(ctx, "Consolidações") }</h3>
 					<div class="table-wrap">
 						<table class="table">
 							<thead>
@@ -103,7 +103,7 @@ templ memoryCard(sh Shell, m MemoryVM) {
 					</div>
 				}
 				if len(m.Proposals) > 0 {
-					<h3 style="margin-top:20px">{ i18n.T(ctx, "Propostas de curadoria") }</h3>
+					<h3 class="mt-6">{ i18n.T(ctx, "Propostas de curadoria") }</h3>
 					<div class="table-wrap">
 						<table class="table">
 							<thead>
@@ -126,7 +126,7 @@ templ memoryCard(sh Shell, m MemoryVM) {
 											if p.Diff != "" {
 												<details>
 													<summary>{ i18n.T(ctx, "Ver diff") }</summary>
-													<pre class="mono" style="white-space:pre-wrap">{ p.Diff }</pre>
+													<pre class="mono pre-wrap">{ p.Diff }</pre>
 												</details>
 											}
 											if p.Error != "" {
@@ -137,12 +137,12 @@ templ memoryCard(sh Shell, m MemoryVM) {
 											}
 										</td>
 										<td>@BadgeEl(p.Status)</td>
-										<td style="text-align:right">
+										<td class="ta-r">
 											if p.GateHref != "" {
 												<a class="btn sm" href={ templ.SafeURL(p.GateHref) }>{ i18n.T(ctx, "Abrir") }</a>
 											}
 											if p.CanRetry {
-												<form method="post" action={ templ.SafeURL(p.RetryHref) } style="display:inline">
+												<form class="d-inline" method="post" action={ templ.SafeURL(p.RetryHref) }>
 													<button class="btn sm" type="submit">{ i18n.T(ctx, "Tentar de novo") }</button>
 												</form>
 											}

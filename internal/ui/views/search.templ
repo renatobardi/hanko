@@ -81,7 +81,7 @@ templ searchGroup(g SearchGroupVM) {
 			</h2>
 		</div>
 		if g.Unavailable {
-			<p class="muted" style="padding:0 20px 16px">{ i18n.T(ctx, "A memória não respondeu agora. Os outros resultados valem; tente de novo em instantes.") }</p>
+			<p class="muted px-6 pb-4">{ i18n.T(ctx, "A memória não respondeu agora. Os outros resultados valem; tente de novo em instantes.") }</p>
 		}
 		<ul class="hits">
 			for _, h := range g.Hits {

@@ -39,7 +39,7 @@ templ DashboardPage(sh Shell, vm DashboardVM) {
 			@Kpi("shield", fmt.Sprint(vm.PendingGates), i18n.T(ctx, "Gates pendentes"), vm.PendingGates > 0)
 		</div>
 		if len(vm.Gates) > 0 {
-			<div style="margin-bottom:20px">@PendingGatesCard(vm.Gates, sh.Base())</div>
+			<div class="mb-6">@PendingGatesCard(vm.Gates, sh.Base())</div>
 		}
 		<div class="grid-dash">
 			if !vm.HasPersonas {
@@ -114,7 +114,7 @@ templ DashboardPage(sh Shell, vm DashboardVM) {
 								<div class="txt">
 									<b>{ a.Actor }</b> { a.Text }
 									if a.Href != "" {
-										<a href={ templ.SafeURL(a.Href) } class="mono" style="text-decoration:underline;text-underline-offset:2px">{ a.Subject }</a>
+										<a href={ templ.SafeURL(a.Href) } class="mono link-u">{ a.Subject }</a>
 									} else {
 										{ a.Subject }
 									}
@@ -141,7 +141,7 @@ templ DashboardPage(sh Shell, vm DashboardVM) {
 					<div class="card-head"><h2>{ i18n.T(ctx, "Tasks recentes") }</h2><a class="more" href={ templ.SafeURL(sh.Base() + "/tasks") }>{ i18n.T(ctx, "Ver todas") }</a></div>
 					for _, t := range vm.Tasks {
 						<div class="trow">
-							<a class="id mono muted" style="font-size:12px" href={ templ.SafeURL(t.Href) }>{ t.Key }</a>
+							<a class="id mono muted text-xs" href={ templ.SafeURL(t.Href) }>{ t.Key }</a>
 							<a class="t" href={ templ.SafeURL(t.Href) }>{ t.Title }</a>
 							@BadgeEl(t.Badge)
 						</div>

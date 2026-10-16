@@ -138,7 +138,7 @@ templ SkillEditorPage(sh Shell, vm SkillEditorVM) {
 			<div class="flow-head">
 				<div>
 					<h1>{ vm.Name }</h1>
-					<p class="muted" style="margin-top:6px;font-size:13.5px"><span class="mono">{ vm.Slug }</span> · v{ fmt.Sprint(vm.Version) } · { i18n.T(ctx, "atualizada") } { vm.Updated } · { vm.UpdatedBy }</p>
+					<p class="muted mt-2 text-sm"><span class="mono">{ vm.Slug }</span> · v{ fmt.Sprint(vm.Version) } · { i18n.T(ctx, "atualizada") } { vm.Updated } · { vm.UpdatedBy }</p>
 				</div>
 			</div>
 		} else {
@@ -207,7 +207,7 @@ templ SkillEditorPage(sh Shell, vm SkillEditorVM) {
 			</section>
 		}
 		if vm.Edit {
-			<section class="card pad" id="personas" style="margin-top:20px">
+			<section class="card pad mt-6" id="personas">
 				<div class="card-head"><div><h2>{ i18n.T(ctx, "Personas") }</h2><p class="sub">{ i18n.T(ctx, "Quem pode usar esta skill. Ligue para as personas que devem carregá-la nas execuções.") }</p></div></div>
 				if len(vm.Personas) == 0 {
 					<p class="muted">{ i18n.T(ctx, "Nenhuma persona na empresa ainda.") }</p>
@@ -216,7 +216,7 @@ templ SkillEditorPage(sh Shell, vm SkillEditorVM) {
 				}
 			</section>
 			if canAdmin(ctx) {
-				<section class="card pad" style="margin-top:20px">
+				<section class="card pad mt-6">
 					<div class="card-head"><div><h2>{ i18n.T(ctx, "Apagar skill") }</h2><p class="sub">{ i18n.T(ctx, "Remove a skill e o vínculo com todas as personas. As execuções futuras deixam de carregá-la.") }</p></div></div>
 					<form method="post" action={ templ.SafeURL(vm.DeleteHref) } hx-post={ vm.DeleteHref } hx-swap="none" hx-confirm={ i18n.T(ctx, "Apagar esta skill?") }>
 						<button class="btn outline sm danger" type="submit">{ i18n.T(ctx, "Apagar") }</button>
@@ -231,7 +231,7 @@ templ SkillEditorPage(sh Shell, vm SkillEditorVM) {
 
 templ PersonaExtras(vm PersonaExtrasVM) {
 	if vm.Show {
-		<section class="card pad" id="skills" style="margin-top:20px">
+		<section class="card pad mt-6" id="skills">
 			<div class="card-head"><div><h2>{ i18n.T(ctx, "Skills") }</h2><p class="sub">{ i18n.T(ctx, "Habilidades que esta persona carrega nas execuções.") }</p></div><a class="more" href={ templ.SafeURL(vm.SkillsHref) }>{ i18n.T(ctx, "Skills") }</a></div>
 			if len(vm.Skills) == 0 {
 				<p class="muted">{ i18n.T(ctx, "Nenhuma skill criada ainda.") }</p>
@@ -239,7 +239,7 @@ templ PersonaExtras(vm PersonaExtrasVM) {
 				@ToggleList(vm.Skills)
 			}
 		</section>
-		<section class="card pad" id="mcp" style="margin-top:20px">
+		<section class="card pad mt-6" id="mcp">
 			<div class="card-head"><div><h2>{ i18n.T(ctx, "Servidores MCP") }</h2><p class="sub">{ i18n.T(ctx, "Servidores MCP da empresa que entram nas execuções desta persona, ao lado do Hanko e da memória.") }</p></div><a class="more" href={ templ.SafeURL(vm.IntegrationsHref) }>{ i18n.T(ctx, "Integrações") }</a></div>
 			if len(vm.MCPs) == 0 {
 				<p class="muted">{ i18n.T(ctx, "Nenhum servidor MCP cadastrado.") }</p>
@@ -321,13 +321,13 @@ templ IntegrationsPage(sh Shell, vm IntegrationsVM) {
 		if vm.Notice != "" {
 			@Alert("warn", vm.Notice)
 		}
-		<h2 class="side-h" style="margin:8px 0 12px">{ i18n.T(ctx, "Servidores MCP") }</h2>
+		<h2 class="side-h mt-2 mb-3">{ i18n.T(ctx, "Servidores MCP") }</h2>
 		if len(vm.MCP) == 0 {
 			@EmptyCard("link", i18n.T(ctx, "Nenhum servidor MCP."), i18n.T(ctx, "Conecte um servidor MCP (http, ou stdio se o operador liberou) e ele entra nas execuções das personas que você escolher."), false)
 		} else {
 			@integrationTable(vm.MCP, false)
 		}
-		<h2 class="side-h" style="margin:28px 0 12px">{ i18n.T(ctx, "Webhooks de saída") }</h2>
+		<h2 class="side-h sec-h">{ i18n.T(ctx, "Webhooks de saída") }</h2>
 		if len(vm.Webhooks) == 0 {
 			@EmptyCard("zap", i18n.T(ctx, "Nenhum webhook."), i18n.T(ctx, "Receba no seu sistema, assinado com HMAC, o que acontece no Hanko: task criada ou concluída, gate aberto ou decidido, execução com falha, alerta aberto."), false)
 		} else {
@@ -547,7 +547,7 @@ templ IntegrationPage(sh Shell, vm IntegrationVM) {
 		<div class="flow-head">
 			<div>
 				<h1>{ vm.Name } @BadgeEl(vm.Badge)</h1>
-				<p class="muted" style="margin-top:6px;font-size:13.5px">{ vm.KindLabel } · <span class="mono">{ vm.Target }</span>
+				<p class="muted mt-2 text-sm">{ vm.KindLabel } · <span class="mono">{ vm.Target }</span>
 					if vm.Scope != "" {
 						· { vm.Scope }
 					}
@@ -572,14 +572,14 @@ templ IntegrationPage(sh Shell, vm IntegrationVM) {
 			</div>
 		</div>
 		<div id="test-result" class="test-result" aria-live="polite"></div>
-		<h2 class="side-h" style="margin:20px 0 12px">{ i18n.T(ctx, "Configuração") }</h2>
+		<h2 class="side-h sec-h">{ i18n.T(ctx, "Configuração") }</h2>
 		if canAdmin(ctx) {
 			@IntegrationForm(vm.Form)
 		} else {
 			@NeedRole(domain.MemberAdmin)
 		}
 		if vm.Kind == "mcp" {
-			<section class="card pad" id="personas" style="margin-top:20px">
+			<section class="card pad mt-6" id="personas">
 				<div class="card-head"><div><h2>{ i18n.T(ctx, "Personas") }</h2><p class="sub">{ i18n.T(ctx, "Quem recebe este servidor MCP nas execuções.") }</p></div></div>
 				if len(vm.Personas) == 0 {
 					<p class="muted">{ i18n.T(ctx, "Nenhuma persona na empresa ainda.") }</p>
@@ -588,7 +588,7 @@ templ IntegrationPage(sh Shell, vm IntegrationVM) {
 				}
 			</section>
 		} else {
-			<h2 class="side-h" style="margin:28px 0 12px">{ i18n.T(ctx, "Últimas entregas") }</h2>
+			<h2 class="side-h sec-h">{ i18n.T(ctx, "Últimas entregas") }</h2>
 			if len(vm.Deliveries) == 0 {
 				@EmptyCard("zap", i18n.T(ctx, "Nenhuma entrega ainda."), i18n.T(ctx, "As entregas aparecem aqui, com o código HTTP e a latência. Use Testar entrega para mandar um evento ping."), false)
 			} else {
@@ -633,7 +633,7 @@ templ IntegrationPage(sh Shell, vm IntegrationVM) {
 			}
 		}
 		if canAdmin(ctx) {
-			<section class="card pad" style="margin-top:20px">
+			<section class="card pad mt-6">
 				<div class="card-head"><div><h2>{ i18n.T(ctx, "Apagar integração") }</h2><p class="sub">{ i18n.T(ctx, "Remove a integração, os segredos guardados e o histórico de entregas.") }</p></div></div>
 				<form method="post" action={ templ.SafeURL(vm.DeleteHref) } hx-post={ vm.DeleteHref } hx-swap="none" hx-confirm={ i18n.T(ctx, "Apagar esta integração?") }>
 					<button class="btn outline sm danger" type="submit">{ i18n.T(ctx, "Apagar") }</button>

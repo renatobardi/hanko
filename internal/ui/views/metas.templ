@@ -77,7 +77,7 @@ templ GoalsPage(sh Shell, vm GoalsVM) {
 									</td>
 									<td class="goal-prog">
 										@ProgressBar(r.Progress, i18n.T(ctx, "Progresso"))
-										<div class="muted" style="font-size:12.5px"><b>{ r.ProgressTxt }</b> · { r.Values }</div>
+										<div class="muted text-xs"><b>{ r.ProgressTxt }</b> · { r.Values }</div>
 									</td>
 									<td class="hide-sm">
 										if r.Due != "" {
@@ -242,7 +242,7 @@ templ GoalPage(sh Shell, vm GoalVM) {
 			<div>
 				<h1>{ vm.Title } @BadgeEl(vm.Badge)</h1>
 				if vm.Metric != "" {
-					<p class="muted" style="margin-top:6px;font-size:13.5px">{ vm.Metric }</p>
+					<p class="muted mt-2 text-sm">{ vm.Metric }</p>
 				}
 			</div>
 			<div class="flow-acts">
@@ -254,7 +254,7 @@ templ GoalPage(sh Shell, vm GoalVM) {
 				}
 			</div>
 		</div>
-		<div class="stats4" style="margin-bottom:20px">
+		<div class="stats4 mb-6">
 			<div class="stat"><div class="l">{ i18n.T(ctx, "Progresso") }</div><div class="v">{ vm.ProgressTxt }</div></div>
 			<div class="stat"><div class="l">{ i18n.T(ctx, "Inicial") } → { i18n.T(ctx, "Alvo") }</div><div class="v">{ vm.Start } → { vm.Target }</div></div>
 			<div class="stat"><div class="l">{ i18n.T(ctx, "Atual") }</div><div class="v">{ vm.Current }</div></div>
@@ -293,16 +293,16 @@ templ GoalPage(sh Shell, vm GoalVM) {
 				}
 			</dl>
 			if vm.Description != "" {
-				<div class="md" style="margin-top:12px">@templ.Raw(string(vm.Description))</div>
+				<div class="md mt-3">@templ.Raw(string(vm.Description))</div>
 			}
 		</section>
-		<div class="grid-2" style="margin-top:20px;align-items:start">
+		<div class="grid-2 mt-6 items-start">
 			<section class="card pad">
 				<div class="card-head"><h2>{ i18n.T(ctx, "Histórico de progresso") }</h2></div>
 				@GoalChart(vm.Chart)
 				if vm.CanProgress && canWrite(ctx) {
 					<form class="goal-progress" method="post" action={ templ.SafeURL(vm.ProgressURL) } hx-post={ vm.ProgressURL } hx-swap="none">
-						<div class="form-grid" style="margin-top:14px">
+						<div class="form-grid mt-4">
 							<div class="field">
 								<label for="gp-value">{ i18n.T(ctx, "Valor atual") }</label>
 								<input class="input mono" id="gp-value" name="value" value={ vm.Value } required inputmode="decimal" autocomplete="off"/>
@@ -318,12 +318,12 @@ templ GoalPage(sh Shell, vm GoalVM) {
 					@NeedRole(domain.MemberMember)
 				}
 				if len(vm.Updates) > 0 {
-					<table class="table mini" style="margin-top:14px">
+					<table class="table mini mt-4">
 						<thead><tr><th>{ i18n.T(ctx, "Quando") }</th><th class="num">{ i18n.T(ctx, "Valor") }</th><th class="num">%</th><th>{ i18n.T(ctx, "Nota") }</th></tr></thead>
 						<tbody>
 							for _, u := range vm.Updates {
 								<tr>
-									<td class="muted" style="font-size:12.5px">{ u.When } · { u.Author }</td>
+									<td class="muted text-xs">{ u.When } · { u.Author }</td>
 									<td class="num mono">{ u.Value }</td>
 									<td class="num mono">{ u.Pct }</td>
 									<td class="muted">{ u.Note }</td>
@@ -335,7 +335,7 @@ templ GoalPage(sh Shell, vm GoalVM) {
 			</section>
 			<section class="card pad">
 				<div class="card-head"><h2>{ i18n.T(ctx, "Tasks ligadas") }</h2><a class="sub" href={ templ.SafeURL(vm.TasksHref) }>{ i18n.T(ctx, "Ver todas") }</a></div>
-				<div class="chips" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+				<div class="chips d-flex wrap gap-2 mb-3">
 					for _, st := range vm.Statuses {
 						<a class="chip soft" href={ templ.SafeURL(st.Href) }>{ st.Label } <b class="mono">{ fmt.Sprint(st.Count) }</b></a>
 					}
@@ -356,14 +356,14 @@ templ GoalPage(sh Shell, vm GoalVM) {
 					</table>
 				}
 				if canWrite(ctx) {
-					<form method="post" action={ templ.SafeURL(vm.LinkURL) } hx-post={ vm.LinkURL } hx-swap="none" style="display:flex;gap:8px;margin-top:12px">
+					<form class="d-flex gap-2 mt-3" method="post" action={ templ.SafeURL(vm.LinkURL) } hx-post={ vm.LinkURL } hx-swap="none">
 						<input class="input mono" name="task" value={ vm.LinkTask } placeholder="HNK-12" aria-label={ i18n.T(ctx, "Task a ligar") } required autocomplete="off"/>
 						<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Ligar task") }</button>
 					</form>
 				}
 			</section>
 		</div>
-		<h2 class="side-h" style="margin:28px 0 12px">{ i18n.T(ctx, "Definição") }</h2>
+		<h2 class="side-h sec-h">{ i18n.T(ctx, "Definição") }</h2>
 		if canAdmin(ctx) {
 			@GoalForm(vm.Form)
 		} else {
@@ -382,7 +382,7 @@ templ GoalMiniList(items []GoalMini, all string) {
 				<div class="goal-mini-row">
 					<div class="t"><a href={ templ.SafeURL(g.Href) }>{ g.Title }</a> @BadgeEl(g.Badge)</div>
 					@ProgressBar(g.Progress, i18n.T(ctx, "Progresso"))
-					<div class="muted" style="font-size:12.5px">
+					<div class="muted text-xs">
 						<b>{ g.ProgressTxt }</b>
 						if g.Due != "" {
 							· <span class={ templ.KV("danger-text", g.Overdue) }>{ g.Due }</span>
@@ -393,6 +393,6 @@ templ GoalMiniList(items []GoalMini, all string) {
 		</div>
 	}
 	if all != "" {
-		<p style="margin-top:8px;font-size:13px"><a href={ templ.SafeURL(all) }>{ i18n.T(ctx, "Ver todas") }</a></p>
+		<p class="mt-2 text-sm"><a href={ templ.SafeURL(all) }>{ i18n.T(ctx, "Ver todas") }</a></p>
 	}
 }

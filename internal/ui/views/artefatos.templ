@@ -74,7 +74,7 @@ templ ArtifactsPage(sh Shell, vm ArtifactsVM) {
 										<a href={ templ.SafeURL(r.Href) }>{ r.Name }</a>
 										<span class="badge soft mono">{ fmt.Sprintf("v%d", r.Version) }</span>
 										if r.Versions > 1 {
-											<span class="faint" style="font-size:12px">{ i18n.Tf(ctx, "%d versões", r.Versions) }</span>
+											<span class="faint text-xs">{ i18n.Tf(ctx, "%d versões", r.Versions) }</span>
 										}
 										if r.Project != "" {
 											<div class="note"><a href={ templ.SafeURL(r.ProjectHref) }>{ r.Project }</a></div>
@@ -103,7 +103,7 @@ templ ArtifactsPage(sh Shell, vm ArtifactsVM) {
 					</table>
 				</div>
 				if vm.More {
-					<p style="margin-top:12px"><a class="btn outline sm" href={ templ.SafeURL(vm.MoreHref) }>{ i18n.T(ctx, "Ver mais") }</a></p>
+					<p class="mt-3"><a class="btn outline sm" href={ templ.SafeURL(vm.MoreHref) }>{ i18n.T(ctx, "Ver mais") }</a></p>
 				}
 			}
 		}
@@ -162,7 +162,7 @@ templ ArtifactFormPage(sh Shell, vm ArtifactFormVM) {
 }
 
 templ ArtifactDiffBox(d DiffVM) {
-	<section class="card pad" id="diff" style="margin-top:20px">
+	<section class="card pad mt-6" id="diff">
 		<div class="card-head">
 			<h2>{ i18n.Tf(ctx, "Diferenças: v%d → v%d", d.FromVersion, d.ToVersion) }</h2>
 			<a class="sub" href={ templ.SafeURL(d.CloseHref) }>{ i18n.T(ctx, "Fechar") }</a>
@@ -172,7 +172,7 @@ templ ArtifactDiffBox(d DiffVM) {
 		} else if d.Same {
 			<p class="muted">{ i18n.T(ctx, "As duas versões têm o mesmo texto.") }</p>
 		} else {
-			<p class="muted" style="font-size:13px">
+			<p class="muted text-sm">
 				<span class="diff-add-n">{ fmt.Sprintf("+%d", d.Added) }</span>
 				<span class="diff-del-n">{ fmt.Sprintf("−%d", d.Removed) }</span>
 				if d.Coarse {
@@ -193,7 +193,7 @@ templ ArtifactDiffBox(d DiffVM) {
 				}
 			</div>
 			if d.Cut > 0 {
-				<p class="muted" style="font-size:12.5px;margin-top:10px">{ i18n.Tf(ctx, "Mostrando as primeiras linhas; %d omitidas. Baixe as versões para comparar tudo.", d.Cut) }</p>
+				<p class="muted text-xs mt-3">{ i18n.Tf(ctx, "Mostrando as primeiras linhas; %d omitidas. Baixe as versões para comparar tudo.", d.Cut) }</p>
 			}
 		}
 	</section>
@@ -220,7 +220,7 @@ templ ArtifactPage(sh Shell, vm ArtifactVM) {
 		<div class="flow-head">
 			<div>
 				<h1>{ vm.Name } <span class="badge soft mono">{ fmt.Sprintf("v%d", vm.Version) }</span></h1>
-				<p class="muted" style="margin-top:6px;font-size:13.5px">
+				<p class="muted mt-2 text-sm">
 					{ vm.Kind } · { vm.Size }
 					if !vm.Latest {
 						· <span class="badge warn">{ i18n.T(ctx, "versão antiga") }</span>
@@ -237,7 +237,7 @@ templ ArtifactPage(sh Shell, vm ArtifactVM) {
 				}
 			</div>
 		</div>
-		<div class="grid-2" style="align-items:start">
+		<div class="grid-2 items-start">
 			<section class="card pad">
 				<div class="card-head"><h2>{ i18n.T(ctx, "Detalhes") }</h2></div>
 				<dl class="kv">
@@ -277,7 +277,7 @@ templ ArtifactPage(sh Shell, vm ArtifactVM) {
 							<span class="faint">—</span>
 						}
 					</dd>
-					<dt>SHA-256</dt><dd class="mono" style="font-size:12px;overflow-wrap:anywhere">{ vm.SHA }</dd>
+					<dt>SHA-256</dt><dd class="mono text-xs break-any">{ vm.SHA }</dd>
 				</dl>
 			</section>
 			<section class="card pad">
@@ -294,7 +294,7 @@ templ ArtifactPage(sh Shell, vm ArtifactVM) {
 										<a class="mono" href={ templ.SafeURL(v.Href) }>{ fmt.Sprintf("v%d", v.Version) }</a>
 									}
 								</td>
-								<td class="muted" style="font-size:12.5px">
+								<td class="muted text-xs">
 									{ v.When }
 									if v.Author != "" {
 										· { v.Author }
@@ -315,7 +315,7 @@ templ ArtifactPage(sh Shell, vm ArtifactVM) {
 				</table>
 			</section>
 		</div>
-		<section class="card pad" style="margin-top:20px">
+		<section class="card pad mt-6">
 			<div class="card-head"><h2>{ i18n.T(ctx, "Prévia") }</h2></div>
 			switch vm.Preview {
 				case "markdown":
@@ -328,7 +328,7 @@ templ ArtifactPage(sh Shell, vm ArtifactVM) {
 					<p class="muted">{ i18n.T(ctx, "Sem prévia para este tipo de arquivo. Use Baixar.") }</p>
 			}
 			if vm.Truncated {
-				<p class="muted" style="font-size:12.5px;margin-top:10px">{ i18n.T(ctx, "Prévia limitada ao começo do arquivo. Baixe para ver tudo.") }</p>
+				<p class="muted text-xs mt-3">{ i18n.T(ctx, "Prévia limitada ao começo do arquivo. Baixe para ver tudo.") }</p>
 			}
 		</section>
 		if vm.Diff != nil {
@@ -340,7 +340,7 @@ templ ArtifactPage(sh Shell, vm ArtifactVM) {
 // ArtifactMiniList é a seção "Artefatos" das páginas de task e de execução.
 templ ArtifactMiniList(items []ArtifactMini, all string) {
 	if len(items) == 0 {
-		<p class="muted" style="font-size:13px">{ i18n.T(ctx, "Nenhum artefato ainda.") }</p>
+		<p class="muted text-sm">{ i18n.T(ctx, "Nenhum artefato ainda.") }</p>
 	}
 	for _, a := range items {
 		<a class="side-run" href={ templ.SafeURL(a.Href) } title={ a.Kind }>
@@ -351,6 +351,6 @@ templ ArtifactMiniList(items []ArtifactMini, all string) {
 		</a>
 	}
 	if all != "" {
-		<p style="margin-top:8px;font-size:13px"><a href={ templ.SafeURL(all) }>{ i18n.T(ctx, "Ver todos") }</a></p>
+		<p class="mt-2 text-sm"><a href={ templ.SafeURL(all) }>{ i18n.T(ctx, "Ver todos") }</a></p>
 	}
 }

@@ -101,7 +101,7 @@ templ GateRows(rows []GateRow, empty string) {
 							</td>
 							<td class="hide-sm">
 								if r.TaskKey != "" {
-									<a class="mono" style="font-size:12.5px;text-decoration:underline;text-underline-offset:2px" href={ templ.SafeURL(r.TaskHref) }>{ r.TaskKey }</a>
+									<a class="mono link-u text-xs" href={ templ.SafeURL(r.TaskHref) }>{ r.TaskKey }</a>
 								} else {
 									<span class="faint">—</span>
 								}
@@ -150,7 +150,7 @@ templ GatePage(sh Shell, vm GateVM) {
 					<span>{ i18n.T(ctx, "pedido") } { vm.Created }</span>
 				</div>
 				<h1>{ vm.Row.Title }</h1>
-				<div class="chips" style="margin-top:2px">
+				<div class="chips mt-1">
 					@BadgeEl(vm.Row.Badge)
 					if vm.Row.Review != nil {
 						@BadgeEl(vm.Row.Review.Badge)
@@ -163,10 +163,10 @@ templ GatePage(sh Shell, vm GateVM) {
 					}
 				</div>
 				if vm.Notice != "" {
-					<div style="margin-top:16px">@Alert("warn", vm.Notice)</div>
+					<div class="mt-4">@Alert("warn", vm.Notice)</div>
 				}
 				if vm.Row.Review != nil {
-					<div style="margin-top:16px">
+					<div class="mt-4">
 						if vm.Row.Review.Rejected {
 							@Alert("warn", i18n.Tf(ctx, "Reprovado pelo revisor %s. A decisão continua sendo sua.", vm.Row.Review.Reviewer))
 						}
@@ -174,11 +174,11 @@ templ GatePage(sh Shell, vm GateVM) {
 							<p class="gate-excerpt">{ vm.Row.Review.Justification }</p>
 						}
 						if vm.Row.Review.SHA != "" {
-							<p class="faint mono" style="font-size:12px">{ i18n.T(ctx, "sha256 revisado:") } { vm.Row.Review.SHA }</p>
+							<p class="faint mono text-xs">{ i18n.T(ctx, "sha256 revisado:") } { vm.Row.Review.SHA }</p>
 						}
 					</div>
 				}
-				<div class="brief" style="margin-top:20px">
+				<div class="brief mt-6">
 					<div class="side-h">{ i18n.T(ctx, "Pedido") }</div>
 					if vm.HasBody {
 						<div class="md">@templ.Raw(string(vm.Body))</div>
@@ -187,12 +187,12 @@ templ GatePage(sh Shell, vm GateVM) {
 					}
 				</div>
 				if vm.Row.Pending {
-					<section class="gate-banner" style="margin-top:24px" aria-label={ i18n.T(ctx, "Decidir") }>
+					<section class="gate-banner mt-6" aria-label={ i18n.T(ctx, "Decidir") }>
 						<div class="gate-head">@Icon("shield") <b>{ i18n.T(ctx, "Sua decisão") }</b> <span class="gate-when">{ i18n.T(ctx, "a persona fica parada até você responder") }</span></div>
 						@GateDecideForm(vm.Row, "gate", false)
 					</section>
 				} else {
-					<section class="card pad" style="margin-top:24px">
+					<section class="card pad mt-6">
 						<div class="card-head"><h2>{ i18n.T(ctx, "Decisão") }</h2></div>
 						<p>
 							@BadgeEl(vm.Row.Badge)
@@ -201,7 +201,7 @@ templ GatePage(sh Shell, vm GateVM) {
 						if vm.Row.Note != "" {
 							<blockquote class="gate-note">{ vm.Row.Note }</blockquote>
 						} else {
-							<p class="muted" style="margin-top:8px">{ i18n.T(ctx, "Sem nota.") }</p>
+							<p class="muted mt-2">{ i18n.T(ctx, "Sem nota.") }</p>
 						}
 					</section>
 				}
@@ -214,27 +214,27 @@ templ GatePage(sh Shell, vm GateVM) {
 						<div class="prop"><span>{ i18n.T(ctx, "Status") }</span><span>@BadgeEl(vm.Row.Badge)</span></div>
 						<div class="prop"><span>Task</span><span>
 							if vm.Row.TaskKey != "" {
-								<a class="mono" style="font-size:12.5px;text-decoration:underline;text-underline-offset:2px" href={ templ.SafeURL(vm.Row.TaskHref) }>{ vm.Row.TaskKey }</a>
+								<a class="mono link-u text-xs" href={ templ.SafeURL(vm.Row.TaskHref) }>{ vm.Row.TaskKey }</a>
 							} else {
 								<span class="faint">—</span>
 							}
 						</span></div>
 						<div class="prop"><span>{ i18n.T(ctx, "Execução") }</span><span>
 							if vm.RunHref != "" {
-								<a class="mono" style="font-size:12.5px;text-decoration:underline;text-underline-offset:2px" href={ templ.SafeURL(vm.RunHref) }>{ vm.RunShort }</a>
+								<a class="mono link-u text-xs" href={ templ.SafeURL(vm.RunHref) }>{ vm.RunShort }</a>
 							} else {
 								<span class="faint">—</span>
 							}
 						</span></div>
-						<div class="prop"><span>{ i18n.T(ctx, "Pedido em") }</span><span class="mono" style="font-size:12.5px">{ vm.Created }</span></div>
+						<div class="prop"><span>{ i18n.T(ctx, "Pedido em") }</span><span class="mono text-xs">{ vm.Created }</span></div>
 						if !vm.Row.Pending {
-							<div class="prop"><span>{ i18n.T(ctx, "Decidido em") }</span><span class="mono" style="font-size:12.5px">{ vm.Decided }</span></div>
+							<div class="prop"><span>{ i18n.T(ctx, "Decidido em") }</span><span class="mono text-xs">{ vm.Decided }</span></div>
 						}
 					</div>
 				</div>
 				<div class="side-sec">
 					<div class="side-h">{ i18n.T(ctx, "O que acontece") }</div>
-					<p class="muted" style="font-size:13px">{ i18n.T(ctx, "Aprovar ou pedir mudanças devolve a task a Em andamento; rejeitar a devolve a A fazer com a sua nota. Em todos os casos a persona é acordada e a decisão vira memória da empresa.") }</p>
+					<p class="muted text-sm">{ i18n.T(ctx, "Aprovar ou pedir mudanças devolve a task a Em andamento; rejeitar a devolve a A fazer com a sua nota. Em todos os casos a persona é acordada e a decisão vira memória da empresa.") }</p>
 				</div>
 			</aside>
 		</div>
