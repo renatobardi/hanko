@@ -876,6 +876,17 @@ button.link:hover { color: var(--foreground); }
 .lang-switch button[aria-current] { color: var(--foreground); background: var(--muted); cursor: default; }
 .auth .lang-switch { justify-content: center; padding: 0; margin-top: 4px; }
 
+/* Rodapé da sidebar: tema (claro · escuro · sistema, Kubo DS) e idioma lado a lado. */
+.foot-prefs { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 16px 0; }
+.foot-prefs .lang-switch { padding: 0; }
+.theme-switch { display: inline-flex; gap: 2px; padding: 2px; margin: 0; border-radius: var(--radius-4xl); background: var(--muted); }
+.theme-switch button { display: inline-grid; place-items: center; width: 24px; height: 24px; border: 0; border-radius: var(--radius-4xl); background: transparent; color: var(--muted-foreground); cursor: pointer; }
+.theme-switch button svg.ic { width: 14px; height: 14px; }
+.theme-switch button:hover { color: var(--foreground); }
+.theme-switch button[aria-current] { background: var(--background); color: var(--foreground); box-shadow: var(--card-ring); }
+a.sidebar-foot { color: inherit; }
+a.sidebar-foot:hover, a.sidebar-foot[aria-current] { background: var(--sidebar-accent); }
+
 /* Seletor de empresa no topo da sidebar */
 .co-switch { position: relative; border-bottom: 1px solid var(--border); }
 .co-switch > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 10px; padding: 10px 16px; font-size: var(--text-sm); font-weight: 500; }
@@ -1107,4 +1118,27 @@ a.hit-main:hover { background: var(--muted); }
 .sk-ink { fill: var(--sakura-ink); }
 .sk-stroke { stroke: var(--sakura-ink); }
 .sk-petal { fill: var(--sakura-petal); stroke: var(--sakura-ink); }
+
+/* ---------- quadro de tasks (Kubo DS: colunas bg-muted/50 rounded-2xl, cards size sm) ---------- */
+.view-switch a { padding: 0 10px; }
+.view-switch a svg.ic { width: 16px; height: 16px; }
+.board { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(260px, 1fr); gap: 16px; overflow-x: auto; padding-bottom: 8px; align-items: start; }
+.board-col { background: color-mix(in oklab, var(--muted) 50%, transparent); border-radius: var(--radius-2xl); padding: 12px; display: grid; gap: 8px; min-width: 0; }
+.board-h { display: flex; align-items: center; justify-content: space-between; padding: 0 4px 4px; font-size: var(--text-label); font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted-foreground); }
+.board-h .cnt { font-family: var(--font-mono); letter-spacing: 0; }
+.board-col.st-blocked .board-h { color: var(--destructive); }
+.board-col.st-in_review .board-h { color: var(--warn-deep); }
+.board-empty { padding: 16px 4px; text-align: center; color: var(--muted-foreground); font-size: var(--text-xs); }
+.board-card { display: grid; gap: 8px; padding: 12px 14px; background: var(--card); border-radius: var(--radius-xl); box-shadow: var(--card-ring); color: var(--foreground); transition: all 0.15s; }
+.board-card:hover { box-shadow: 0 0 0 1px color-mix(in oklab, var(--primary) 30%, transparent); }
+.board-card:active { transform: scale(0.99); }
+.board-card .bc-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.board-card .id { font-size: var(--text-xs); color: var(--muted-foreground); }
+.board-card .bc-t { font-weight: 500; line-height: var(--leading-tight); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.board-card .bc-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: var(--text-xs); color: var(--muted-foreground); min-width: 0; }
+.board-card .who { min-width: 0; overflow: hidden; }
+.board-card .who > span:last-child { overflow: hidden; text-overflow: ellipsis; }
+.board-card .who .mini-avatar { width: 22px; height: 22px; }
+.board-card .who .mini-avatar svg.ic { width: 12px; height: 12px; }
+.board-card .when { white-space: nowrap; flex: none; }
 

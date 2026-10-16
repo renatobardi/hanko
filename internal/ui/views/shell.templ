@@ -7,7 +7,7 @@ import (
 // Layout is the application shell: sidebar, topbar with breadcrumb and the primary action.
 templ Layout(sh Shell) {
 	<!DOCTYPE html>
-	<html lang={ string(i18n.FromContext(ctx)) }>
+	<html lang={ string(i18n.FromContext(ctx)) } if t := themeFrom(ctx); t != "" { data-theme={ t } }>
 		<head>
 			<meta charset="utf-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1"/>
@@ -88,7 +88,7 @@ templ Layout(sh Shell) {
 // Bare is a centered page without shell (onboarding, errors outside a company).
 templ Bare(title, version string) {
 	<!DOCTYPE html>
-	<html lang={ string(i18n.FromContext(ctx)) }>
+	<html lang={ string(i18n.FromContext(ctx)) } if t := themeFrom(ctx); t != "" { data-theme={ t } }>
 		<head>
 			<meta charset="utf-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1"/>
@@ -113,7 +113,10 @@ templ Bare(title, version string) {
 // (authenticated mode) it is a menu with settings and sign-out; in trusted mode it
 // shows the local owner.
 templ sidebarFoot(sh Shell) {
-	@LangSwitch()
+	<div class="foot-prefs">
+		@ThemeSwitch()
+		@LangSwitch()
+	</div>
 	if u, ok := userFrom(ctx); ok {
 		<details class="usermenu">
 			<summary class="sidebar-foot">
@@ -126,7 +129,7 @@ templ sidebarFoot(sh Shell) {
 				<span class="gear">@Icon("chevron-down")</span>
 			</summary>
 			<div class="menu" role="menu">
-				<a href={ templ.SafeURL(sh.Base() + "/configuracoes") } role="menuitem">
+				<a href={ templ.SafeURL(sh.Base() + "/configuracoes") } role="menuitem" aria-current?={ sh.Active == "configuracoes" }>
 					@Icon("settings")
 					<span>{ i18n.T(ctx, "Configurações") }</span>
 				</a>
@@ -139,12 +142,22 @@ templ sidebarFoot(sh Shell) {
 			</div>
 		</details>
 	} else {
-		<div class="sidebar-foot">
+		<a class="sidebar-foot" href={ templ.SafeURL(sh.Base() + "/configuracoes") } aria-current?={ sh.Active == "configuracoes" } title={ i18n.T(ctx, "Configurações") }>
 			<span class="avatar-sq">{ initial(i18n.T(ctx, sh.Owner)) }</span>
 			<div class="me"><b>{ i18n.T(ctx, sh.Owner) }</b><span>{ i18n.T(ctx, "Owner · admin") }</span></div>
 			<span class="gear">@Icon("settings")</span>
-		</div>
+		</a>
 	}
+}
+
+// ThemeSwitch is the light/dark toggle of the Kubo DS sidebar footer: a POST to /tema that stores the
+// cookie ("Sistema" clears it and the page follows prefers-color-scheme again).
+templ ThemeSwitch() {
+	<form class="theme-switch" method="post" action="/tema" aria-label={ i18n.T(ctx, "Tema") }>
+		<button type="submit" name="theme" value="light" title={ i18n.T(ctx, "Claro") } aria-label={ i18n.T(ctx, "Claro") } aria-current?={ themeFrom(ctx) == "light" }>@Icon("sun")</button>
+		<button type="submit" name="theme" value="dark" title={ i18n.T(ctx, "Escuro") } aria-label={ i18n.T(ctx, "Escuro") } aria-current?={ themeFrom(ctx) == "dark" }>@Icon("moon")</button>
+		<button type="submit" name="theme" value="system" title={ i18n.T(ctx, "Sistema") } aria-label={ i18n.T(ctx, "Sistema") } aria-current?={ themeFrom(ctx) == "" }>@Icon("monitor")</button>
+	</form>
 }
 
 // LangSwitch is the discreet language toggle: a POST to /idioma that stores the cookie and

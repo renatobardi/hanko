@@ -130,9 +130,10 @@ type TaskRow struct {
 }
 
 type TaskGroup struct {
-	Label string
-	Count int
-	Rows  []TaskRow
+	Label  string
+	Count  int
+	Rows   []TaskRow
+	Status string // domain.TaskStatus (colunas do quadro)
 }
 
 type TasksVM struct {
@@ -143,6 +144,10 @@ type TasksVM struct {
 	Tab      string
 	Groups   []TaskGroup
 	Total    int
+	// Board é a visão em quadro (?visao=quadro): Columns tem uma coluna por status da aba, vazias inclusive.
+	Board               bool
+	Columns             []TaskGroup
+	ListHref, BoardHref string
 	// Project filters the list (?projeto=): slug, name, link to its page and the link that clears the filter.
 	Project, ProjectName, ProjectHref, ClearHref string
 	// Goal filters the list (?meta=): slug, title, link to its page and the link that clears the filter.
