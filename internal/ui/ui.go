@@ -138,6 +138,18 @@ type Backend interface {
 	RevokeInvite(ctx context.Context, actor domain.Actor, companyID, inviteID domain.ID) error
 	SetMemberRole(ctx context.Context, actor domain.Actor, companyID, userID domain.ID, role domain.MemberRole) (domain.Member, error)
 	RemoveMember(ctx context.Context, actor domain.Actor, companyID, userID domain.ID) error
+
+	// Cards de status (ADR-0032).
+	ListStatusCards(ctx context.Context, companyID domain.ID, archived *bool) ([]service.StatusCardView, error)
+	GetStatusCard(ctx context.Context, companyID, cardID domain.ID) (service.StatusCardView, error)
+	CreateStatusCard(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.CreateStatusCardInput) (service.StatusCardView, error)
+	UpdateStatusCard(ctx context.Context, actor domain.Actor, companyID, cardID domain.ID, in service.UpdateStatusCardInput) (service.StatusCardView, error)
+	DeleteStatusCard(ctx context.Context, actor domain.Actor, companyID, cardID domain.ID) error
+	RecompileStatusCard(ctx context.Context, actor domain.Actor, companyID, cardID domain.ID) (service.StatusCardView, error)
+	RefreshStatusCard(ctx context.Context, actor domain.Actor, companyID, cardID domain.ID, full bool) (service.StatusCardView, error)
+	ListStatusCardUpdates(ctx context.Context, companyID, cardID domain.ID, limit int) ([]service.StatusCardUpdateView, error)
+	ListStatusCardRevisions(ctx context.Context, companyID, cardID domain.ID, limit int) ([]domain.StatusCardRevision, error)
+	PreviewStatusCard(ctx context.Context, companyID, cardID domain.ID) (service.StatusCardPreview, error)
 }
 
 var _ Backend = (*service.Service)(nil)
@@ -338,6 +350,7 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("GET /c/{company}/buscar", co(s.handleSearch))
 	mux.HandleFunc("GET /c/{company}/em-breve/{item}", co(s.handleSoon))
 	s.skillRoutes(mux)
+	s.statusCardRoutes(mux)
 }
 
 // ---------- middleware ----------

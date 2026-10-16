@@ -140,7 +140,8 @@ func (e *env) root() *cobra.Command {
 	root.AddCommand(e.serveCmd(), e.migrateCmd(), e.versionCmd(), e.openapiCmd(),
 		e.companyCmd(), e.workspaceCmd(), e.projectCmd(), e.personaCmd(), e.taskCmd(), e.runCmd(), e.gateCmd(), e.chatCmd(), e.orgCmd(),
 		e.costCmd(), e.budgetCmd(), e.subscriptionCmd(), e.flowCmd(), e.memoryCmd(), e.memberCmd(), e.authCmd(), e.exportCmd(), e.importCmd(), e.searchCmd(), e.skillCmd(), e.integrationCmd(),
-		e.artifactCmd(), e.goalCmd())
+		e.artifactCmd(), e.goalCmd(),
+		e.statusCardCmd())
 	e.localizeHelp(root)
 	return root
 }

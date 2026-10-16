@@ -1283,6 +1283,37 @@
         ],
         "type": "object"
       },
+      "CreateStatusCardInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "interest": {
+            "description": "O que acompanhar, em linguagem natural.",
+            "maxLength": 20000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "refresh_policy": {
+            "$ref": "#/components/schemas/StatusCardPolicy",
+            "description": "Padrão: reactive, 5 min de espera, 6 por hora, 100 mil tokens por dia."
+          },
+          "summarizer": {
+            "description": "Id ou slug da persona resumidora; sem ela o card fica em erro até alguém escolher.",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 200,
+            "type": "string"
+          },
+          "title_pinned": {
+            "description": "Fixa o título (a resumidora não o troca).",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "interest"
+        ],
+        "type": "object"
+      },
       "CreateSubscriptionInBody": {
         "additionalProperties": false,
         "properties": {
@@ -3392,6 +3423,99 @@
         ],
         "type": "object"
       },
+      "ListBodyStatusCard": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "description": "Itens da página.",
+            "items": {
+              "$ref": "#/components/schemas/StatusCard"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "limit": {
+            "description": "Limite aplicado.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "offset": {
+            "description": "Deslocamento aplicado.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "limit",
+          "offset"
+        ],
+        "type": "object"
+      },
+      "ListBodyStatusCardRevision": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "description": "Itens da página.",
+            "items": {
+              "$ref": "#/components/schemas/StatusCardRevision"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "limit": {
+            "description": "Limite aplicado.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "offset": {
+            "description": "Deslocamento aplicado.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "limit",
+          "offset"
+        ],
+        "type": "object"
+      },
+      "ListBodyStatusCardUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "description": "Itens da página.",
+            "items": {
+              "$ref": "#/components/schemas/StatusCardUpdate"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "limit": {
+            "description": "Limite aplicado.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "offset": {
+            "description": "Deslocamento aplicado.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "limit",
+          "offset"
+        ],
+        "type": "object"
+      },
       "ListBodySubscription": {
         "additionalProperties": false,
         "properties": {
@@ -4340,6 +4464,16 @@
         ],
         "type": "object"
       },
+      "RefreshStatusCardInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "full": {
+            "description": "Refaz o resumo do zero em vez de incorporar só as mudanças.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
       "RekeyResult": {
         "additionalProperties": false,
         "properties": {
@@ -4909,6 +5043,674 @@
           "slug",
           "name",
           "enabled"
+        ],
+        "type": "object"
+      },
+      "StatusCard": {
+        "additionalProperties": false,
+        "properties": {
+          "archived_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "company_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "created_by": {
+            "$ref": "#/components/schemas/ActorRef"
+          },
+          "failure_reason": {
+            "description": "Por que a última montagem ou atualização não terminou.",
+            "type": "string"
+          },
+          "generating_task_id": {
+            "description": "Task de sistema da montagem ou atualização em andamento.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "interest": {
+            "description": "O que acompanhar, em linguagem natural.",
+            "type": "string"
+          },
+          "last_change_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "last_generated_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "last_model": {
+            "type": "string"
+          },
+          "last_update_kind": {
+            "enum": [
+              "full",
+              "incremental"
+            ],
+            "type": "string"
+          },
+          "mentioned": {
+            "description": "Tasks citadas no resumo atual (só no detalhe).",
+            "items": {
+              "$ref": "#/components/schemas/StatusCardTask"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "next_eval_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "pending_change_count": {
+            "description": "Mudanças nas tasks observadas desde a última versão do resumo.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "queries": {
+            "description": "Filtros gravados pela resumidora na montagem (vazio antes dela).",
+            "items": {
+              "$ref": "#/components/schemas/StatusCardQuery"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "query_compiled_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "query_version": {
+            "description": "Sobe a cada montagem gravada.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "refresh_policy": {
+            "$ref": "#/components/schemas/StatusCardPolicy"
+          },
+          "state": {
+            "enum": [
+              "compiling",
+              "active",
+              "error",
+              "paused_budget",
+              "paused_hours"
+            ],
+            "type": "string"
+          },
+          "summarizer_name": {
+            "type": "string"
+          },
+          "summarizer_persona_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "summarizer_slug": {
+            "type": "string"
+          },
+          "summary": {
+            "description": "O resumo atual em markdown (até 64 KiB).",
+            "type": "string"
+          },
+          "summary_revision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "title": {
+            "description": "Vazio até a resumidora propor um (ou o humano escrever).",
+            "type": "string"
+          },
+          "title_pinned": {
+            "description": "Título fixado pelo humano: a resumidora não o troca.",
+            "type": "boolean"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "view_state": {
+            "description": "O estado mostrado: arquivado, montando, erro, pausado (orçamento ou horário), atualizando, desatualizado ou em dia.",
+            "enum": [
+              "archived",
+              "compiling",
+              "error",
+              "paused_budget",
+              "paused_hours",
+              "updating",
+              "stale",
+              "fresh"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "company_id",
+          "title",
+          "title_pinned",
+          "interest",
+          "queries",
+          "query_version",
+          "refresh_policy",
+          "state",
+          "view_state",
+          "pending_change_count",
+          "summary",
+          "summary_revision",
+          "created_by",
+          "created_at",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "StatusCardActiveHours": {
+        "additionalProperties": false,
+        "properties": {
+          "end": {
+            "description": "Fim, HH:MM; antes do início atravessa a meia-noite.",
+            "examples": [
+              "18:00"
+            ],
+            "type": "string"
+          },
+          "start": {
+            "description": "Início, HH:MM.",
+            "examples": [
+              "09:00"
+            ],
+            "type": "string"
+          },
+          "tz": {
+            "description": "Fuso IANA; padrão UTC.",
+            "examples": [
+              "America/Sao_Paulo"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "start",
+          "end"
+        ],
+        "type": "object"
+      },
+      "StatusCardChange": {
+        "additionalProperties": false,
+        "properties": {
+          "change_kind": {
+            "enum": [
+              "entered",
+              "left",
+              "status",
+              "assignee",
+              "human_comment",
+              "update"
+            ],
+            "type": "string"
+          },
+          "from": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "task_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "task_id",
+          "key",
+          "change_kind"
+        ],
+        "type": "object"
+      },
+      "StatusCardMatch": {
+        "additionalProperties": false,
+        "properties": {
+          "human_comment_at": {
+            "description": "Último comentário humano.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "key": {
+            "examples": [
+              "HNK-12"
+            ],
+            "type": "string"
+          },
+          "persona_name": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "string"
+          },
+          "queries": {
+            "description": "Índices (base 0) dos filtros que trazem a task.",
+            "items": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "updated_at",
+          "queries",
+          "id",
+          "key",
+          "title",
+          "status"
+        ],
+        "type": "object"
+      },
+      "StatusCardPolicy": {
+        "additionalProperties": false,
+        "properties": {
+          "active_hours": {
+            "$ref": "#/components/schemas/StatusCardActiveHours",
+            "description": "Horário em que o card se atualiza sozinho; fora dele fica pausado."
+          },
+          "daily_token_cap": {
+            "description": "Teto de tokens por dia somando as rodadas do card (0 = padrão 100000); atingido, o card pausa.",
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "debounce_seconds": {
+            "description": "Modo reactive: espera sem mudanças novas antes de atualizar, de 30 a 3600 s (0 = padrão 300).",
+            "format": "int64",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "interval_minutes": {
+            "description": "Modo interval: de 15 a 1440 minutos (0 = padrão 60).",
+            "format": "int64",
+            "maximum": 1440,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "max_updates_per_hour": {
+            "description": "Teto de atualizações automáticas por hora, de 1 a 60 (0 = padrão 6).",
+            "format": "int64",
+            "maximum": 60,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "mode": {
+            "description": "Padrão reactive. manual = só sob pedido; interval = em horário fixo, se algo mudou; reactive = assim que algo mudar, com espera.",
+            "enum": [
+              "manual",
+              "interval",
+              "reactive"
+            ],
+            "type": "string"
+          },
+          "triggers": {
+            "$ref": "#/components/schemas/StatusCardTriggers",
+            "description": "O que conta como mudança; vazio = status, entrada/saída e comentários humanos."
+          }
+        },
+        "type": "object"
+      },
+      "StatusCardPreview": {
+        "additionalProperties": false,
+        "properties": {
+          "queries": {
+            "items": {
+              "$ref": "#/components/schemas/StatusCardQueryMatch"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "query_version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "tasks": {
+            "items": {
+              "$ref": "#/components/schemas/StatusCardMatch"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "truncated": {
+            "description": "Há mais tasks do que o card observa (300).",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "query_version",
+          "queries",
+          "tasks",
+          "truncated"
+        ],
+        "type": "object"
+      },
+      "StatusCardQuery": {
+        "additionalProperties": false,
+        "properties": {
+          "goal_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "open": {
+            "description": "Só tasks abertas.",
+            "type": "boolean"
+          },
+          "persona_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "priority": {
+            "description": "Prioridades aceitas.",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "project_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "description": "Status aceitos.",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "text": {
+            "description": "Texto no título ou na descrição.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "StatusCardQueryMatch": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "matches": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "query": {
+            "$ref": "#/components/schemas/StatusCardQuery"
+          }
+        },
+        "required": [
+          "query",
+          "description",
+          "matches"
+        ],
+        "type": "object"
+      },
+      "StatusCardRevision": {
+        "additionalProperties": false,
+        "properties": {
+          "change_summary": {
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "full",
+              "incremental"
+            ],
+            "type": "string"
+          },
+          "markdown": {
+            "type": "string"
+          },
+          "mentioned_task_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "model": {
+            "type": "string"
+          },
+          "revision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "run_id": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "revision",
+          "markdown",
+          "kind",
+          "mentioned_task_ids",
+          "created_at"
+        ],
+        "type": "object"
+      },
+      "StatusCardTask": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "key": {
+            "examples": [
+              "HNK-12"
+            ],
+            "type": "string"
+          },
+          "persona_name": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "title",
+          "status"
+        ],
+        "type": "object"
+      },
+      "StatusCardTriggers": {
+        "additionalProperties": false,
+        "properties": {
+          "any_update": {
+            "description": "Qualquer alteração (inclui título e prioridade).",
+            "type": "boolean"
+          },
+          "assignee": {
+            "description": "Mudou a persona responsável.",
+            "type": "boolean"
+          },
+          "human_comments": {
+            "description": "Um humano comentou numa task observada.",
+            "type": "boolean"
+          },
+          "membership": {
+            "description": "Uma task entrou ou saiu do conjunto.",
+            "type": "boolean"
+          },
+          "status": {
+            "description": "Mudou o status de uma task observada.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "StatusCardUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "change_summary": {
+            "type": "string"
+          },
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/StatusCardChange"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "cost_usd": {
+            "description": "Custo da run (do ledger), quando já terminou.",
+            "format": "double",
+            "type": "number"
+          },
+          "error": {
+            "type": "string"
+          },
+          "finished_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "input_tokens": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "kind": {
+            "enum": [
+              "compile",
+              "full",
+              "incremental"
+            ],
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "output_tokens": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "query_version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "run_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "run_name": {
+            "type": "string"
+          },
+          "started_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "running",
+              "ok",
+              "failed"
+            ],
+            "type": "string"
+          },
+          "task_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "task_key": {
+            "type": "string"
+          },
+          "trigger": {
+            "enum": [
+              "manual",
+              "interval",
+              "reactive",
+              "restore",
+              "query"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "trigger",
+          "changes",
+          "input_tokens",
+          "output_tokens",
+          "query_version",
+          "status",
+          "started_at"
         ],
         "type": "object"
       },
@@ -5586,6 +6388,36 @@
           "name": {
             "maxLength": 120,
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "UpdateStatusCardInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "archived": {
+            "description": "true arquiva; false restaura (e pede um resumo do zero).",
+            "type": "boolean"
+          },
+          "interest": {
+            "description": "Mudar o interesse dispara a montagem de novo.",
+            "maxLength": 20000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "refresh_policy": {
+            "$ref": "#/components/schemas/StatusCardPolicy"
+          },
+          "summarizer": {
+            "description": "Id ou slug da nova resumidora.",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 200,
+            "type": "string"
+          },
+          "title_pinned": {
+            "type": "boolean"
           }
         },
         "type": "object"
@@ -16498,6 +17330,1168 @@
         "summary": "Liga ou desliga a skill para uma persona",
         "tags": [
           "skills"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/status-cards": {
+      "get": {
+        "operationId": "list-status-cards",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Máximo de itens retornados.",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "description": "Máximo de itens retornados.",
+              "format": "int64",
+              "maximum": 500,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Quantos itens pular.",
+            "explode": false,
+            "in": "query",
+            "name": "offset",
+            "schema": {
+              "default": 0,
+              "description": "Quantos itens pular.",
+              "format": "int64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "false = só os ativos; true = só os arquivados; all = todos.",
+            "explode": false,
+            "in": "query",
+            "name": "archived",
+            "schema": {
+              "default": "false",
+              "description": "false = só os ativos; true = só os arquivados; all = todos.",
+              "enum": [
+                "false",
+                "true",
+                "all"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListBodyStatusCard"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Lista os cards de status",
+        "tags": [
+          "status-cards"
+        ]
+      },
+      "post": {
+        "operationId": "create-status-card",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateStatusCardInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusCard"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Cria um card de status e pede a montagem dos filtros à resumidora (member)",
+        "tags": [
+          "status-cards"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/status-cards/{card}": {
+      "delete": {
+        "operationId": "delete-status-card",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id do card.",
+            "in": "path",
+            "name": "card",
+            "required": true,
+            "schema": {
+              "description": "Id do card.",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Apaga um card de status com o histórico (admin)",
+        "tags": [
+          "status-cards"
+        ]
+      },
+      "get": {
+        "operationId": "get-status-card",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id do card.",
+            "in": "path",
+            "name": "card",
+            "required": true,
+            "schema": {
+              "description": "Id do card.",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusCard"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Obtém um card de status com o resumo e as tasks citadas",
+        "tags": [
+          "status-cards"
+        ]
+      },
+      "patch": {
+        "operationId": "update-status-card",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id do card.",
+            "in": "path",
+            "name": "card",
+            "required": true,
+            "schema": {
+              "description": "Id do card.",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateStatusCardInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusCard"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Altera um card de status; mudar o interesse remonta os filtros; archived arquiva ou restaura",
+        "tags": [
+          "status-cards"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/status-cards/{card}/preview": {
+      "get": {
+        "operationId": "preview-status-card",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id do card.",
+            "in": "path",
+            "name": "card",
+            "required": true,
+            "schema": {
+              "description": "Id do card.",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusCardPreview"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Mostra quais tasks casam hoje com os filtros do card (depuração)",
+        "tags": [
+          "status-cards"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/status-cards/{card}/recompile": {
+      "post": {
+        "operationId": "recompile-status-card",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id do card.",
+            "in": "path",
+            "name": "card",
+            "required": true,
+            "schema": {
+              "description": "Id do card.",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusCard"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Pede a montagem dos filtros de novo (member)",
+        "tags": [
+          "status-cards"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/status-cards/{card}/refresh": {
+      "post": {
+        "operationId": "refresh-status-card",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id do card.",
+            "in": "path",
+            "name": "card",
+            "required": true,
+            "schema": {
+              "description": "Id do card.",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshStatusCardInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusCard"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Atualiza o resumo agora, sem esperar a política (member); respeita o teto diário de tokens",
+        "tags": [
+          "status-cards"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/status-cards/{card}/revisions": {
+      "get": {
+        "operationId": "list-status-card-revisions",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id do card.",
+            "in": "path",
+            "name": "card",
+            "required": true,
+            "schema": {
+              "description": "Id do card.",
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Máximo de itens retornados.",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "description": "Máximo de itens retornados.",
+              "format": "int64",
+              "maximum": 500,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Quantos itens pular.",
+            "explode": false,
+            "in": "query",
+            "name": "offset",
+            "schema": {
+              "default": 0,
+              "description": "Quantos itens pular.",
+              "format": "int64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListBodyStatusCardRevision"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Lista as versões do resumo, da mais nova para a mais antiga (até 50)",
+        "tags": [
+          "status-cards"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/status-cards/{card}/updates": {
+      "get": {
+        "operationId": "list-status-card-updates",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id do card.",
+            "in": "path",
+            "name": "card",
+            "required": true,
+            "schema": {
+              "description": "Id do card.",
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Máximo de itens retornados.",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "description": "Máximo de itens retornados.",
+              "format": "int64",
+              "maximum": 500,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Quantos itens pular.",
+            "explode": false,
+            "in": "query",
+            "name": "offset",
+            "schema": {
+              "default": 0,
+              "description": "Quantos itens pular.",
+              "format": "int64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListBodyStatusCardUpdate"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Lista as rodadas do card (montagens e atualizações, com tokens e custo)",
+        "tags": [
+          "status-cards"
         ]
       }
     },

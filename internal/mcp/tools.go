@@ -322,6 +322,7 @@ func registerTools(s *sdk.Server, t *tools) {
 	}, t.runGet)
 	registerArtifactTools(s, t)
 	registerSkillTools(s, t)
+	registerStatusCardTools(s, t)
 }
 
 // ---- resolução de empresa ----

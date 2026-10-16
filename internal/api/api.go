@@ -252,6 +252,7 @@ func (s *server) register(api huma.API) {
 	s.registerIntegrations(api)
 	s.registerChat(api)
 	s.registerSearch(api)
+	s.registerStatusCards(api)
 }
 
 // op monta uma huma.Operation com o prefixo da API.

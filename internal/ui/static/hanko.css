@@ -1203,3 +1203,25 @@ details > summary.btn { list-style: none; display: inline-flex; }
 details > summary.btn::-webkit-details-marker { display: none; }
 .pw-form { max-width: 560px; }
 
+
+/* ---- cards de status (ADR-0032) ---- */
+.sc-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: stretch; }
+.sc-tile { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.sc-tile.is-archived { opacity: .75; }
+.sc-tile-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.sc-tile-head .sc-title { font-weight: 500; min-width: 0; overflow-wrap: anywhere; }
+.sc-tile-body { flex: 1; min-height: 48px; }
+.sc-preview { max-height: 9.5em; overflow: hidden; font-size: var(--text-sm); }
+.sc-tile-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.sc-tile-foot .row-acts { display: flex; align-items: center; gap: 4px; }
+.sc-menu { position: relative; }
+.sc-menu > summary { list-style: none; cursor: pointer; }
+.sc-menu > summary::-webkit-details-marker { display: none; }
+.sc-menu[open] > form { position: absolute; right: 0; top: calc(100% + 4px); z-index: 5; background: var(--card); box-shadow: var(--card-ring); border-radius: var(--radius-lg); padding: 4px; }
+.sc-archived > summary { list-style: none; cursor: pointer; }
+.sc-archived > summary::-webkit-details-marker { display: none; }
+.sc-interest { white-space: pre-wrap; max-width: 72ch; }
+.sc-live .row-acts { display: flex; gap: 4px; flex-wrap: wrap; }
+.sc-changes, .sc-queries { gap: 8px; font-size: var(--text-sm); }
+.sc-queries li { justify-content: space-between; }
+@media (max-width: 900px) { .sc-grid { grid-template-columns: minmax(0, 1fr); } }

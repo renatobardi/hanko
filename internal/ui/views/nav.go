@@ -48,7 +48,7 @@ var Nav = []NavGroup{
 		{Key: "gates", Label: i18n.N("Gates"), Icon: "shield", Path: "/gates"},
 	}},
 	{Label: i18n.N("Supervisão"), Items: []NavItem{
-		{Key: "cards-status", Label: i18n.N("Status"), Icon: "gauge", Path: "/cards-de-status", Milestone: "v0.3", Blurb: i18n.N("Resumos vivos das tasks que importam, mantidos por uma persona.")},
+		{Key: "cards-status", Label: i18n.N("Status"), Icon: "gauge", Path: "/cards-de-status"},
 		{Key: "execucoes", Label: i18n.N("Execuções"), Icon: "activity", Path: "/execucoes"},
 		{Key: "custos", Label: i18n.N("Custos"), Icon: "database", Path: "/custos"},
 		{Key: "timeline", Label: i18n.N("Timeline"), Icon: "timeline", Path: "/timeline"},

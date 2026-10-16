@@ -60,6 +60,8 @@ type Fake struct {
 	ConvMessages  []domain.ConversationMessage
 	// MyRoleIs é o papel do usuário logado nesta empresa (vazio = owner).
 	MyRoleIs domain.MemberRole
+	// Cards são os cards de status (ADR-0032).
+	Cards *StatusCardsData
 	nextTask int64
 }
 

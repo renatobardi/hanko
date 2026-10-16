@@ -1,0 +1,522 @@
+package views
+
+import (
+	"fmt"
+
+	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/i18n"
+)
+
+// Cards de status (ADR-0032): resumos vivos das tasks que importam, mantidos por uma persona resumidora.
+// Ler é de qualquer membro; criar, configurar e atualizar é de member; arquivar é de quem criou ou de admin;
+// apagar é de admin. A barreira é o service; aqui só escondemos os controles.
+
+templ StatusCardsPage(sh Shell, vm StatusCardsVM) {
+	@Layout(sh) {
+		@PageHead(i18n.T(ctx, "Cards de status"), vm.Subtitle) {
+			if sh.CanWrite() {
+				<a class="btn primary" href={ templ.SafeURL(vm.NewHref) }>
+					@Icon("plus")
+					{ i18n.T(ctx, "Novo card") }
+				</a>
+			} else {
+				@NeedRole(domain.MemberMember)
+			}
+		}
+		if vm.Notice != "" {
+			@Alert("warn", vm.Notice)
+		}
+		@StatusCardsGrid(vm)
+	}
+}
+
+// StatusCardsGrid é a grade com os arquivados recolhidos; enquanto algum card monta ou atualiza, ela se
+// recarrega sozinha.
+templ StatusCardsGrid(vm StatusCardsVM) {
+	<div id="sc-grid" if vm.Busy { hx-get={ vm.GridHref } hx-trigger="every 4s" hx-swap="outerHTML" }>
+		if len(vm.Cards) == 0 {
+			@EmptyCard("gauge", i18n.T(ctx, "Nenhum card de status ainda — crie um para ter um resumo vivo das tasks que importam."), "", true) {
+				if canWrite(ctx) {
+					<a class="btn outline" href={ templ.SafeURL(vm.NewHref) }>
+						@Icon("plus")
+						{ i18n.T(ctx, "Novo card") }
+					</a>
+				}
+			}
+		} else {
+			<div class="sc-grid">
+				for _, c := range vm.Cards {
+					@statusCardTile(c)
+				}
+			</div>
+		}
+		if len(vm.Archived) > 0 {
+			<details class="sc-archived mt-6" open?={ vm.ShowArchived }>
+				<summary class="btn ghost sm">{ i18n.Tf(ctx, "Mostrar arquivados (%d)", len(vm.Archived)) }</summary>
+				<div class="sc-grid mt-3">
+					for _, c := range vm.Archived {
+						@statusCardTile(c)
+					}
+				</div>
+			</details>
+		}
+	</div>
+}
+
+templ statusCardTile(c StatusCardTile) {
+	<article class={ "card pad sc-tile", templ.KV("is-archived", c.Archived) }>
+		<div class="sc-tile-head">
+			<a class={ "sc-title", templ.KV("faint", c.Untitled) } href={ templ.SafeURL(c.Href) }>{ c.Title }</a>
+			@BadgeEl(c.Badge)
+		</div>
+		<div class="sc-tile-body">
+			switch {
+				case c.Compiling:
+					<p class="muted">{ i18n.T(ctx, "Montando o seu card…") }</p>
+				case c.CompileFailed:
+					<p class="danger-text">{ i18n.T(ctx, "A montagem não terminou. Rode de novo para tentar outra vez.") }</p>
+				case c.Summary != "":
+					<div class="md sc-preview">@templ.Raw(string(c.Summary))</div>
+				default:
+					<p class="faint">{ i18n.T(ctx, "Sem resumo ainda") }</p>
+			}
+		</div>
+		<div class="sc-tile-foot">
+			<span class="muted text-xs">
+				if c.Summarizer != "" {
+					{ c.Summarizer } ·
+				}
+				if c.Updated != "" {
+					{ c.Updated }
+				}
+				if c.Pending > 0 {
+					· { i18n.Tf(ctx, "%d mudança(s) pendente(s)", c.Pending) }
+				}
+			</span>
+			<div class="row-acts">
+				if c.Archived {
+					if c.CanArchive {
+						<form method="post" action={ templ.SafeURL(c.RestoreURL) } hx-post={ c.RestoreURL } hx-swap="none">
+<input type="hidden" name="de" value="lista"/>
+							<button class="btn ghost sm" type="submit">{ i18n.T(ctx, "Restaurar") }</button>
+						</form>
+					}
+				} else {
+					if c.CanRefresh && c.CompileFailed {
+						<form method="post" action={ templ.SafeURL(c.RecompileURL) } hx-post={ c.RecompileURL } hx-swap="none">
+<input type="hidden" name="de" value="lista"/>
+							<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Montar de novo") }</button>
+						</form>
+					} else if c.CanRefresh {
+						<form method="post" action={ templ.SafeURL(c.RefreshURL) } hx-post={ c.RefreshURL } hx-swap="none">
+<input type="hidden" name="de" value="lista"/>
+							<button class="btn outline sm" type="submit" disabled?={ c.Compiling }>
+								{ i18n.T(ctx, "Atualizar agora") }
+							</button>
+						</form>
+					}
+					if c.CanArchive {
+						<details class="sc-menu">
+							<summary class="icon-btn" aria-label={ i18n.T(ctx, "Mais ações") }>@Icon("chevron-down")</summary>
+							<form method="post" action={ templ.SafeURL(c.ArchiveURL) } hx-post={ c.ArchiveURL } hx-swap="none">
+<input type="hidden" name="de" value="lista"/>
+								<button class="btn ghost sm" type="submit">{ i18n.T(ctx, "Arquivar") }</button>
+							</form>
+						</details>
+					}
+				}
+			</div>
+		</div>
+	</article>
+}
+
+templ NewStatusCardPage(sh Shell, vm StatusCardFormVM) {
+	@Layout(sh) {
+		@PageHead(i18n.T(ctx, "Novo card de status"), i18n.T(ctx, "Escreva o que você quer acompanhar; a persona resumidora transforma isso em filtros de task e mantém o resumo.")) {
+		}
+		@StatusCardForm(vm)
+	}
+}
+
+templ StatusCardForm(vm StatusCardFormVM) {
+	<form class="card pad form-card" method="post" action={ templ.SafeURL(vm.Action) } hx-boost="true">
+		if vm.Error != "" {
+			@Alert("danger", vm.Error)
+		}
+		<div class="field">
+			<label for="sc-interest">{ i18n.T(ctx, "O que acompanhar") }</label>
+			<textarea class="textarea" id="sc-interest" name="interest" rows="4" required maxlength="20000" placeholder={ i18n.T(ctx, "Ex.: tudo que está bloqueado no projeto Site e os bugs críticos") }>{ vm.Interest }</textarea>
+			if e := vm.FieldErr["interest"]; e != "" {
+				<span class="err">{ e }</span>
+			}
+		</div>
+		<div class="form-grid">
+			<div class="field">
+				<label for="sc-title">{ i18n.T(ctx, "Nome") }</label>
+				<input class="input" id="sc-title" name="title" value={ vm.Title } maxlength="200" placeholder={ i18n.T(ctx, "Vazio: a resumidora propõe") }/>
+				<label class="check mt-1"><input type="checkbox" name="title_pinned" value="1" checked?={ vm.TitlePinned }/><span>{ i18n.T(ctx, "Fixar o nome") }</span></label>
+				if e := vm.FieldErr["title"]; e != "" {
+					<span class="err">{ e }</span>
+				}
+			</div>
+			<div class="field">
+				<label for="sc-sum">{ i18n.T(ctx, "Resumidora") }</label>
+				@Select("summarizer", "sc-sum", vm.SummarizerOptions, false)
+				<span class="hint">{ i18n.T(ctx, "Prefira uma persona com um modelo barato: ela lê muito e escreve pouco.") }</span>
+				if e := vm.FieldErr["summarizer"]; e != "" {
+					<span class="err">{ e }</span>
+				}
+			</div>
+		</div>
+		<fieldset class="field">
+			<legend>{ i18n.T(ctx, "Quando atualizar") }</legend>
+			<div class="radio-cards">
+				<label><input type="radio" name="mode" value="manual" checked?={ vm.Mode == "manual" }/><span>{ i18n.T(ctx, "Só manual") }</span></label>
+				<label><input type="radio" name="mode" value="interval" checked?={ vm.Mode == "interval" }/><span>{ i18n.T(ctx, "Em horário fixo, se algo mudou") }</span></label>
+				<label><input type="radio" name="mode" value="reactive" checked?={ vm.Mode == "reactive" }/><span>{ i18n.T(ctx, "Assim que algo mudar (com espera)") }</span></label>
+			</div>
+			if e := vm.FieldErr["mode"]; e != "" {
+				<span class="err">{ e }</span>
+			}
+		</fieldset>
+		<div class="form-grid">
+			<div class="field">
+				<label for="sc-interval">{ i18n.T(ctx, "Intervalo (minutos)") }</label>
+				<input class="input mono" id="sc-interval" name="interval_minutes" value={ vm.IntervalMinutes } inputmode="numeric" placeholder="60"/>
+				if e := vm.FieldErr["interval_minutes"]; e != "" {
+					<span class="err">{ e }</span>
+				}
+			</div>
+			<div class="field">
+				<label for="sc-debounce">{ i18n.T(ctx, "Espera depois da última mudança (segundos)") }</label>
+				<input class="input mono" id="sc-debounce" name="debounce_seconds" value={ vm.DebounceSeconds } inputmode="numeric" placeholder="300"/>
+				if e := vm.FieldErr["debounce_seconds"]; e != "" {
+					<span class="err">{ e }</span>
+				}
+			</div>
+		</div>
+		<fieldset class="field">
+			<legend>{ i18n.T(ctx, "O que conta como mudança") }</legend>
+			<div class="toggle-list">
+				<label class="check"><input type="checkbox" name="tr_status" value="1" checked?={ vm.TrStatus }/><span>{ i18n.T(ctx, "Mudança de status") }</span></label>
+				<label class="check"><input type="checkbox" name="tr_membership" value="1" checked?={ vm.TrMembership }/><span>{ i18n.T(ctx, "Task que entra ou sai do conjunto") }</span></label>
+				<label class="check"><input type="checkbox" name="tr_human" value="1" checked?={ vm.TrHuman }/><span>{ i18n.T(ctx, "Comentário de um humano") }</span></label>
+				<label class="check"><input type="checkbox" name="tr_assignee" value="1" checked?={ vm.TrAssignee }/><span>{ i18n.T(ctx, "Mudança de responsável") }</span></label>
+				<label class="check"><input type="checkbox" name="tr_any" value="1" checked?={ vm.TrAny }/><span>{ i18n.T(ctx, "Qualquer alteração") }</span></label>
+			</div>
+			if e := vm.FieldErr["triggers"]; e != "" {
+				<span class="err">{ e }</span>
+			}
+		</fieldset>
+		<fieldset class="field">
+			<legend>{ i18n.T(ctx, "Limites") }</legend>
+			<div class="form-grid">
+				<div class="field">
+					<label for="sc-max">{ i18n.T(ctx, "Atualizações por hora") }</label>
+					<input class="input mono" id="sc-max" name="max_updates_per_hour" value={ vm.MaxPerHour } inputmode="numeric" placeholder="6"/>
+					if e := vm.FieldErr["max_updates_per_hour"]; e != "" {
+						<span class="err">{ e }</span>
+					}
+				</div>
+				<div class="field">
+					<label for="sc-cap">{ i18n.T(ctx, "Teto diário de tokens") }</label>
+					<input class="input mono" id="sc-cap" name="daily_token_cap" value={ vm.DailyTokenCap } inputmode="numeric" placeholder="100000"/>
+					if e := vm.FieldErr["daily_token_cap"]; e != "" {
+						<span class="err">{ e }</span>
+					}
+				</div>
+			</div>
+			<div class="form-grid">
+				<div class="field">
+					<label for="sc-hs">{ i18n.T(ctx, "Horário ativo: início") }</label>
+					<input class="input mono" id="sc-hs" name="hours_start" type="time" value={ vm.HoursStart }/>
+				</div>
+				<div class="field">
+					<label for="sc-he">{ i18n.T(ctx, "Horário ativo: fim") }</label>
+					<input class="input mono" id="sc-he" name="hours_end" type="time" value={ vm.HoursEnd }/>
+				</div>
+				<div class="field">
+					<label for="sc-tz">{ i18n.T(ctx, "Fuso") }</label>
+					<input class="input mono" id="sc-tz" name="hours_tz" value={ vm.HoursTZ } placeholder="America/Sao_Paulo"/>
+				</div>
+			</div>
+			if e := vm.FieldErr["active_hours"]; e != "" {
+				<span class="err">{ e }</span>
+			}
+			<span class="hint">{ i18n.T(ctx, "Sem horário, o card se atualiza a qualquer hora. Fora do horário ele fica pausado.") }</span>
+		</fieldset>
+		<div class="form-actions">
+			<button class="btn primary" type="submit">
+				if vm.Edit {
+					{ i18n.T(ctx, "Salvar") }
+				} else {
+					{ i18n.T(ctx, "Criar card") }
+				}
+			</button>
+			if vm.CancelHref != "" {
+				<a class="btn ghost" href={ templ.SafeURL(vm.CancelHref) }>{ i18n.T(ctx, "Cancelar") }</a>
+			}
+		</div>
+	</form>
+}
+
+templ StatusCardPage(sh Shell, vm StatusCardVM) {
+	@Layout(sh) {
+		if vm.Notice != "" {
+			@Alert("warn", vm.Notice)
+		}
+		if vm.Error != "" {
+			@Alert("danger", vm.Error)
+		}
+		<div class="flow-head">
+			<div>
+				<h1><span class={ templ.KV("faint", vm.Untitled) }>{ vm.Title }</span> @BadgeEl(vm.Badge)</h1>
+				<p class="muted mt-2 text-sm sc-interest">{ vm.Interest }</p>
+			</div>
+			<div class="flow-acts">
+				if vm.Archived {
+					if vm.CanArchive {
+						<form method="post" action={ templ.SafeURL(vm.RestoreURL) } hx-post={ vm.RestoreURL } hx-swap="none">
+							<button class="btn outline" type="submit">{ i18n.T(ctx, "Restaurar") }</button>
+						</form>
+					}
+				} else if vm.CanArchive {
+					<form method="post" action={ templ.SafeURL(vm.ArchiveURL) } hx-post={ vm.ArchiveURL } hx-swap="none">
+						<button class="btn ghost" type="submit">{ i18n.T(ctx, "Arquivar") }</button>
+					</form>
+				}
+			</div>
+		</div>
+		<div class="toolbar">
+			@Tabs(vm.Tabs)
+		</div>
+		switch vm.Tab {
+			case "configuracao":
+				if canWrite(ctx) && !vm.Archived {
+					@StatusCardForm(vm.Form)
+				} else if vm.Archived {
+					<p class="muted">{ i18n.T(ctx, "Restaure o card para mudar a configuração.") }</p>
+				} else {
+					@NeedRole(domain.MemberMember)
+				}
+				if canAdmin(ctx) {
+					<section class="card pad mt-6">
+						<div class="card-head"><h2>{ i18n.T(ctx, "Apagar card") }</h2></div>
+						<p class="muted text-sm">{ i18n.T(ctx, "Apaga o card com todo o histórico de resumos e rodadas. Não dá para desfazer.") }</p>
+						<form method="post" action={ templ.SafeURL(vm.DeleteURL) } hx-post={ vm.DeleteURL } hx-swap="none" hx-confirm={ i18n.T(ctx, "Apagar este card de status?") }>
+							<button class="btn outline danger-text sm" type="submit">{ i18n.T(ctx, "Apagar") }</button>
+						</form>
+					</section>
+				}
+			case "tasks":
+				@statusCardTasks(vm)
+			case "historico":
+				@statusCardHistory(vm)
+			case "filtros":
+				@statusCardFilters(vm)
+			default:
+				@StatusCardLive(vm.Live)
+				if len(vm.RevisionOptions) > 1 {
+					<form class="d-flex gap-2 mt-3 items-start" method="get" action={ templ.SafeURL(vm.RevisionAction) }>
+						<input type="hidden" name="aba" value="resumo"/>
+						<label class="sr-only" for="sc-rev">{ i18n.T(ctx, "Versão do resumo") }</label>
+						@Select("rev", "sc-rev", vm.RevisionOptions, true)
+						<button class="btn ghost sm" type="submit">{ i18n.T(ctx, "Ver") }</button>
+					</form>
+				}
+				<div class="grid-2 mt-6 items-start">
+					<section class="card pad">
+						<div class="card-head"><h2>{ i18n.T(ctx, "Entrou nesta atualização") }</h2></div>
+						if len(vm.Entered) == 0 {
+							<p class="muted">{ i18n.T(ctx, "Nenhuma mudança registrada nesta versão.") }</p>
+						} else {
+							<ul class="list sc-changes">
+								for _, ch := range vm.Entered {
+									<li><a class="mono" href={ templ.SafeURL(ch.Href) }>{ ch.Key }</a> { ch.Text }</li>
+								}
+							</ul>
+						}
+					</section>
+					<section class="card pad">
+						<div class="card-head"><h2>{ i18n.T(ctx, "Citadas na última atualização") }</h2></div>
+						@statusCardTaskTable(vm.Mentioned, i18n.T(ctx, "O resumo não cita tasks."))
+					</section>
+				</div>
+		}
+	}
+}
+
+// StatusCardLive é o estado e o resumo; com o card montando ou atualizando, recarrega a cada 3 s.
+templ StatusCardLive(vm StatusCardLiveVM) {
+	<section id="sc-live" class="card pad sc-live" aria-live="polite" if vm.Busy { hx-get={ vm.Href } hx-trigger="every 3s" hx-swap="outerHTML" }>
+		<div class="card-head">
+			<div class="d-flex gap-2 items-start">
+				@BadgeEl(vm.Badge)
+				if vm.RevisionLabel != "" {
+					<span class="muted text-xs">{ vm.RevisionLabel }</span>
+				}
+				if vm.Updated != "" {
+					<span class="muted text-xs">· { vm.Updated }</span>
+				}
+				if vm.Pending > 0 {
+					<span class="muted text-xs">· { i18n.Tf(ctx, "%d mudança(s) pendente(s)", vm.Pending) }</span>
+				}
+			</div>
+			if vm.CanRefresh {
+				<div class="row-acts">
+					if vm.CompileFailed {
+						<form method="post" action={ templ.SafeURL(vm.RecompileURL) } hx-post={ vm.RecompileURL } hx-swap="none">
+							<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Montar de novo") }</button>
+						</form>
+					} else {
+						<form method="post" action={ templ.SafeURL(vm.RefreshURL) } hx-post={ vm.RefreshURL } hx-swap="none">
+							<button class="btn outline sm" type="submit" disabled?={ vm.Busy }>
+								{ i18n.T(ctx, "Atualizar agora") }
+							</button>
+						</form>
+						<form method="post" action={ templ.SafeURL(vm.RefreshURL) } hx-post={ vm.RefreshURL } hx-swap="none">
+							<input type="hidden" name="full" value="1"/>
+							<button class="btn ghost sm" type="submit" disabled?={ vm.Busy }>{ i18n.T(ctx, "Refazer do zero") }</button>
+						</form>
+					}
+				</div>
+			}
+		</div>
+		if vm.Compiling {
+			<p class="muted">{ i18n.T(ctx, "Montando o seu card…") }</p>
+		}
+		if vm.CompileFailed {
+			<p class="danger-text">{ i18n.T(ctx, "A montagem não terminou. Rode de novo para tentar outra vez.") }</p>
+		}
+		if vm.Failure != "" {
+			<p class="danger-text text-sm">{ vm.Failure }</p>
+		}
+		if vm.PausedMsg != "" {
+			<p class="muted text-sm">{ vm.PausedMsg }</p>
+		}
+		if vm.HasSummary {
+			if vm.Fallback {
+				<p class="muted text-sm">{ i18n.T(ctx, "Mostrando o último resumo bom:") }</p>
+			}
+			<div class="md mt-3">@templ.Raw(string(vm.Summary))</div>
+		} else if !vm.Compiling && !vm.CompileFailed {
+			<p class="faint">{ i18n.T(ctx, "Sem resumo ainda") }</p>
+		}
+	</section>
+}
+
+templ statusCardTaskTable(rows []StatusCardTaskRow, empty string) {
+	if len(rows) == 0 {
+		<p class="muted">{ empty }</p>
+	} else {
+		<div class="table-wrap">
+			<table class="table mini">
+				<tbody>
+					for _, r := range rows {
+						<tr>
+							<td class="id">{ r.Key }</td>
+							<td class="ttl">
+								<a href={ templ.SafeURL(r.Href) }>{ r.Title }</a>
+								if r.HumanComment != "" {
+									<div class="note">{ r.CommentWhen }: { r.HumanComment }</div>
+								}
+							</td>
+							<td>@BadgeEl(r.Badge)</td>
+							<td class="hide-sm muted text-xs">{ r.Persona }</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+	}
+}
+
+templ statusCardTasks(vm StatusCardVM) {
+	<section class="card pad">
+		<div class="card-head">
+			<h2>{ i18n.T(ctx, "Tasks observadas") }</h2>
+			<span class="muted text-xs">{ i18n.Tf(ctx, "%d task(s)", len(vm.Tasks)) }</span>
+		</div>
+		if vm.Truncated {
+			@Alert("warn", i18n.T(ctx, "Há mais tasks do que o card observa (300). Peça filtros mais precisos montando o card de novo."))
+		}
+		@statusCardTaskTable(vm.Tasks, i18n.T(ctx, "Nenhuma task casa com os filtros hoje."))
+	</section>
+}
+
+templ statusCardFilters(vm StatusCardVM) {
+	<section class="card pad">
+		<div class="card-head">
+			<h2>{ i18n.T(ctx, "Filtros") }</h2>
+			if vm.QueryVersion > 0 {
+				<span class="muted text-xs">{ i18n.Tf(ctx, "versão %d · %s", vm.QueryVersion, vm.Compiled) }</span>
+			}
+		</div>
+		<p class="muted text-sm">{ i18n.T(ctx, "Depuração: os filtros que a resumidora montou a partir do interesse e quantas tasks casam com cada um hoje.") }</p>
+		if len(vm.Queries) == 0 {
+			<p class="faint">{ i18n.T(ctx, "Sem filtros ainda.") }</p>
+		} else {
+			<ol class="list sc-queries">
+				for _, q := range vm.Queries {
+					<li><span>{ q.Description }</span> <b class="mono">{ fmt.Sprint(q.Matches) }</b></li>
+				}
+			</ol>
+		}
+		if canWrite(ctx) && !vm.Archived {
+			<form class="mt-3" method="post" action={ templ.SafeURL(vm.RecompileURL) } hx-post={ vm.RecompileURL } hx-swap="none">
+				<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Montar de novo") }</button>
+			</form>
+		}
+	</section>
+}
+
+templ statusCardHistory(vm StatusCardVM) {
+	<section class="card pad">
+		<div class="card-head"><h2>{ i18n.T(ctx, "Histórico") }</h2></div>
+		if len(vm.Updates) == 0 {
+			<p class="muted">{ i18n.T(ctx, "Nenhuma rodada ainda.") }</p>
+		} else {
+			<div class="table-wrap">
+				<table class="table">
+					<thead>
+						<tr>
+							<th>{ i18n.T(ctx, "Quando") }</th>
+							<th>{ i18n.T(ctx, "Tipo") }</th>
+							<th>{ i18n.T(ctx, "Status") }</th>
+							<th class="num hide-sm">{ i18n.T(ctx, "Mudanças") }</th>
+							<th class="num">Tokens</th>
+							<th class="num">{ i18n.T(ctx, "Custo estimado") }</th>
+							<th class="hide-sm">{ i18n.T(ctx, "Execução") }</th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, u := range vm.Updates {
+							<tr>
+								<td class="muted text-xs">{ u.When }</td>
+								<td>{ u.Kind } <span class="muted text-xs">· { u.Trigger }</span>
+									if u.Summary != "" {
+										<div class="note">{ u.Summary }</div>
+									}
+									if u.Error != "" {
+										<div class="note danger-text">{ u.Error }</div>
+									}
+								</td>
+								<td>@BadgeEl(u.Badge)</td>
+								<td class="num mono hide-sm">{ fmt.Sprint(u.Changes) }</td>
+								<td class="num mono">{ u.Tokens }</td>
+								<td class="num mono">{ u.Cost }</td>
+								<td class="hide-sm">
+									if u.RunHref != "" {
+										<a class="mono text-xs" href={ templ.SafeURL(u.RunHref) }>{ u.RunName }</a>
+									} else if u.TaskHref != "" {
+										<a class="mono text-xs" href={ templ.SafeURL(u.TaskHref) }>{ u.TaskKey }</a>
+									}
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+	</section>
+}
