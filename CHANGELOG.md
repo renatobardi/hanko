@@ -3,7 +3,7 @@
 Formato: [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) · versões: [SemVer](https://semver.org/lang/pt-BR/).
 English summary at the end of each release.
 
-## [Unreleased]
+## [0.2.0] — 2026-10-15
 
 - Artefatos versionados (ADR-0028, migration 00019 `artifacts` e `artifact_blobs`): arquivos de tasks, execuções e projetos com versões imutáveis (mesmo nome na mesma task = próxima versão; mesmo conteúdo não cria versão), limite por arquivo (`HANKO_ARTIFACT_MAX_BYTES`, 5 MiB) e cota por empresa (`HANKO_ARTIFACT_QUOTA_BYTES`, 512 MiB).
 - Artefatos na API (`…/artifacts`), na CLI (`hanko artifact put|list|get|diff|rm|usage`), no MCP (`hanko_artifact_put`) e na tela `/artefatos` (envio, filtros, prévia, versões e diff de texto); seções nas páginas da task, da execução e do projeto.
@@ -76,7 +76,7 @@ English summary at the end of each release.
 - Ilhas (ADR-0026): `mountReact` restaura o HTML do servidor se a ilha quebrar ao renderizar; destaque da busca do log com offsets corretos (`İ`); `GET /runs/{id}/events` de run de outra empresa ou inexistente dá 404; bundles reconstruídos.
 - English summary: review fixes — search memory group only with the `memory_search` tool, formatting-character folding (migration 00024), strict Go/SQL parity tests, prefix floor and 2 s statement timeout, `hx-replace-url`; islands restore the server HTML on render errors, correct highlight offsets, 404 for foreign-company run events.
 
-## [Não lançado] — v0.1.0
+## [0.1.0] — 2026-10-14 (marco interno, sem tag; incluído na 0.2.0)
 
 Primeira versão pública. Em produção em https://hanko.oute.pro desde 2026-10-14.
 
