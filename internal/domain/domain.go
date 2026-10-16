@@ -139,7 +139,7 @@ type Persona struct {
 	Slug                 string          `json:"slug"`
 	Name                 string          `json:"name"`
 	Title                string          `json:"title"`
-	// Icon é o glifo Lucide da persona (um de PersonaIcons; padrão "bot").
+	// Icon é o glifo de linha da persona (um de PersonaIcons; padrão "bot").
 	Icon                 string          `json:"icon"`
 	Instructions         string          `json:"instructions"`
 	Agent                string          `json:"agent"`
@@ -165,7 +165,7 @@ type Persona struct {
 	UpdatedAt         time.Time `json:"updated_at"`
 }
 
-// PersonaIcons é o catálogo fechado de glifos de persona (Kubo DS: Lucide monocromático num círculo
+// PersonaIcons é o catálogo fechado de glifos de persona (Kubo DS: glifo de linha monocromático num círculo
 // neutro, nunca cor nem emoji). A UI desenha só estes; a ordem é a do seletor.
 var PersonaIcons = []string{
 	"bot", "code", "search", "pen-line", "shield-check", "trending-up", "cpu", "database", "palette",

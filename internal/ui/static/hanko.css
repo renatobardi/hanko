@@ -1065,7 +1065,7 @@ a.hit-main:hover { background: var(--muted); }
 .hit-meta { font-size: var(--text-xs); margin-top: 3px; display: flex; gap: 6px; flex-wrap: wrap; }
 .hit mark { background: var(--warn-tint); color: inherit; border-radius: var(--radius-sm); padding: 0 1px; }
 
-/* ---------- seletor de glifo da persona (Kubo DS: Lucide monocromático num círculo neutro) ---------- */
+/* ---------- seletor de glifo da persona (Kubo DS: glifo de linha monocromático num círculo neutro) ---------- */
 .icon-pick { display: flex; flex-wrap: wrap; gap: 8px; }
 .icon-pick label { cursor: pointer; }
 .icon-pick input { position: absolute; opacity: 0; pointer-events: none; }

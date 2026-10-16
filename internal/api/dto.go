@@ -130,7 +130,7 @@ type Persona struct {
 	Slug                 string         `json:"slug" example:"cto"`
 	Name                 string         `json:"name" example:"Marina"`
 	Title                string         `json:"title" example:"CTO"`
-	Icon                 string         `json:"icon" example:"code" doc:"Glifo Lucide da persona."`
+	Icon                 string         `json:"icon" example:"code" doc:"Glifo da persona (catálogo fechado)."`
 	Instructions         string         `json:"instructions" doc:"Instruções permanentes da persona."`
 	Agent                string         `json:"agent" enum:"claude,codex,acp,fake" doc:"Harness que executa a persona."`
 	Model                string         `json:"model,omitempty" example:"claude-sonnet-4-5"`

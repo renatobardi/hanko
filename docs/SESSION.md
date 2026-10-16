@@ -1,14 +1,10 @@
-# Estado da última sessão (lote v0.2 no prd)
-Data: 2026-10-15 · prd em `b4b04c8` (migrations até 00025)
+# Estado da última sessão (UI alinhada ao Kubo DS)
+Data: 2026-10-15 · ramo `ui/aderencia-kubo-ds` · prd em `d2b1b51` (só fonte + tokens; migrations até 00025)
 
 ## Feito
-- Oito trilhas (ACP, ilhas, busca, projetos/workspaces, chat, memória governada, artefatos/metas, skills/integrações; ADR-0023 a 0030), quatro revisões independentes com todos os achados corrigidos.
-- Deploy no prd feito e validado: `HANKO_SECRET_KEY`, `HANKO_ACP_ALLOW`, `HANKO_INTEGRATIONS_ALLOW_STDIO` no `.env`; UI saudável; snapshots do LXC opt-in.
-- Busca de memória na tool real `memory_query`, formato da resposta confirmado com dados do prd.
-- Diff da curadoria: `HANKO_MEMORY_READ_TOOL` com padrão `memory_read_page` (tool real do ai-memory), sem ajuste manual no prd.
-- Persona `claude` atua no prd: `--allowedTools mcp__hanko`, `HANKO_AGENT_URL` (loopback), comentário reabre `in_review`/`blocked`; diagnóstico de MCP e tools negadas nos eventos.
-- CI em Actions Node 24 e runners `ubuntu-26.04` (validado verde em ramo).
-## Pendente
-- `HANKO_ACP_COMMANDS` quando o binário do agente ACP for escolhido.
-- Guardar `HANKO_SECRET_KEY` no Vaultwarden (dono).
-- Tag `v0.1.0`/`v0.2.0` e demos ficam com o dono.
+- Fonte Inter local, tokens OKLCH do DS, cards com anel, escalas de raio/tipografia, botões/inputs/foco do DS, shell 256/72 (CSS).
+- Glifo por persona (migration 00026, API, export/import, CLI `--icon`, seletor e avatares), quadro de tasks (`?visao=quadro`), tema claro/escuro/sistema (`POST /tema`), Configurações só no rodapé, estilos inline viram classes. Testes em `internal/ui/ds_test.go`.
+## Travado
+- Código gerado não regenerado na sessão (sem Go 1.27/sqlc/templ no ambiente): rodar `sqlc generate`, `templ generate -path internal/ui/views`, `gofmt -w .`, `go test ./...`, `make openapi` e commitar o gerado.
+## Próximo passo
+- Deploy do ramo no prd (`deploy-prd.sh`) e conferência visual contra o canvas; organograma (ilha React) ainda mostra iniciais em vez do glifo da persona.
