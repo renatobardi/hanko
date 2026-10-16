@@ -154,7 +154,44 @@ templ SettingsPage(sh Shell, vm SettingsVM) {
 					<dd>{ vm.Provider }</dd>
 					<dt>{ i18n.T(ctx, "Papel") }</dt>
 					<dd>{ vm.Role }</dd>
+					if len(switcherFrom(ctx).Companies) > 0 {
+						<dt>{ i18n.T(ctx, "Empresas") }</dt>
+						<dd>
+							for i, c := range switcherFrom(ctx).Companies {
+								if i > 0 {
+									{ " · " }
+								}
+								<a class="link-u" href={ templ.SafeURL("/c/" + c.Slug + "/") }>{ c.Name }</a>
+							}
+						</dd>
+					}
 				</dl>
+				if vm.LocalLogin {
+					<details class="mt-4" open?={ vm.PasswordError != "" } id="senha">
+						<summary class="btn outline sm">{ i18n.T(ctx, "Trocar senha") }</summary>
+						<form class="mt-4 pw-form" method="post" action={ templ.SafeURL(sh.Base() + "/configuracoes/senha") }>
+							if vm.PasswordError != "" {
+								@Alert("danger", vm.PasswordError)
+							}
+							<div class="field">
+								<label for="pw-cur">{ i18n.T(ctx, "Senha atual") }</label>
+								<input class="input" id="pw-cur" type="password" name="current_password" autocomplete="current-password" required aria-invalid?={ vm.PasswordField == "current_password" }/>
+							</div>
+							<div class="form-grid">
+								<div class="field">
+									<label for="pw-new">{ i18n.T(ctx, "Nova senha") }</label>
+									<input class="input" id="pw-new" type="password" name="new_password" autocomplete="new-password" minlength="10" required aria-invalid?={ vm.PasswordField == "new_password" }/>
+								</div>
+								<div class="field">
+									<label for="pw-conf">{ i18n.T(ctx, "Confirmar") }</label>
+									<input class="input" id="pw-conf" type="password" name="confirm_password" autocomplete="new-password" minlength="10" required aria-invalid?={ vm.PasswordField == "confirm_password" }/>
+								</div>
+							</div>
+							<p class="hint">{ i18n.T(ctx, "Ao trocar, todas as sessões desta conta são encerradas e você entra de novo.") }</p>
+							<div class="form-actions"><button class="btn primary sm" type="submit">{ i18n.T(ctx, "Salvar nova senha") }</button></div>
+						</form>
+					</details>
+				}
 			</div>
 			@membersCard(sh, vm.Members)
 			<div class="card pad form-card mb-6">

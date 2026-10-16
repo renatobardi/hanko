@@ -76,6 +76,28 @@ func (f *fakeAuth) CreateOwner(_ context.Context, email, name, password string) 
 	return f.addUser(email, name, password), nil
 }
 
+func (f *fakeAuth) ChangeOwnPassword(ctx context.Context, current, next string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	id, ok := auth.IdentityFrom(ctx)
+	if !ok {
+		return domain.ErrUnauthenticated
+	}
+	if f.passes[id.User.ID] != current {
+		return domain.Invalid("current_password", "senha atual incorreta")
+	}
+	if err := auth.ValidatePassword(next); err != nil {
+		return domain.Invalid("new_password", err.Error())
+	}
+	f.passes[id.User.ID] = next
+	for tok, uid := range f.sessions {
+		if uid == id.User.ID {
+			delete(f.sessions, tok)
+		}
+	}
+	return nil
+}
+
 func (f *fakeAuth) AuthenticateLocal(_ context.Context, email, password string) (domain.User, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -789,4 +811,34 @@ func (f *fakeAuth) AcceptInviteLocal(_ context.Context, token, name, password st
 	u.Role = domain.RoleMember
 	m, err := f.AcceptInvite(context.Background(), token, u)
 	return u, m, err
+}
+
+func TestChangeOwnPassword(t *testing.T) {
+	e := newAuthEnv(t, AuthDeps{Provider: "local"})
+	e.fa.addUser("dono@x.com", "Dona", "senha-bem-longa")
+	c := cookieOf(e.login(t, "dono@x.com", "senha-bem-longa", ""))
+	same := map[string]string{"Sec-Fetch-Site": "same-origin"}
+	page := e.withCookie(t, c, req{method: "GET", path: "/c/hanko/configuracoes"})
+	wantContains(t, page, "Trocar senha", `action="/c/hanko/configuracoes/senha"`)
+
+	bad := e.withCookie(t, c, req{method: "POST", path: "/c/hanko/configuracoes/senha", hdr: same,
+		form: url.Values{"current_password": {"errada"}, "new_password": {"outra-senha-longa"}, "confirm_password": {"outra-senha-longa"}}})
+	wantStatus(t, bad, http.StatusUnprocessableEntity)
+	wantContains(t, bad, "Senha atual incorreta.")
+
+	mismatch := e.withCookie(t, c, req{method: "POST", path: "/c/hanko/configuracoes/senha", hdr: same,
+		form: url.Values{"current_password": {"senha-bem-longa"}, "new_password": {"outra-senha-longa"}, "confirm_password": {"diferente-longa"}}})
+	wantStatus(t, mismatch, http.StatusUnprocessableEntity)
+	wantContains(t, mismatch, "A confirmação não bate")
+
+	ok := e.withCookie(t, c, req{method: "POST", path: "/c/hanko/configuracoes/senha", hdr: same,
+		form: url.Values{"current_password": {"senha-bem-longa"}, "new_password": {"outra-senha-longa"}, "confirm_password": {"outra-senha-longa"}}})
+	wantStatus(t, ok, http.StatusSeeOther)
+	if loc := ok.Header().Get("Location"); loc != "/entrar" {
+		t.Errorf("Location = %q", loc)
+	}
+	wantStatus(t, e.login(t, "dono@x.com", "senha-bem-longa", ""), http.StatusUnauthorized)
+	if cookieOf(e.login(t, "dono@x.com", "outra-senha-longa", "")) == nil {
+		t.Error("nova senha não entra")
+	}
 }
