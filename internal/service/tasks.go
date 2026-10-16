@@ -533,6 +533,11 @@ func (s *Service) WakeTask(ctx context.Context, actor domain.Actor, companyID, t
 		} else if system {
 			return domain.Invalid("task", errSystemTaskWake)
 		}
+		if card, err := t.isStatusCardTask(task.ID); err != nil {
+			return err
+		} else if card {
+			return domain.Invalid("task", errStatusCardTaskWake)
+		}
 		p, err := t.q.GetPersonaByID(ctx, store.GetPersonaByIDParams{CompanyID: companyID, ID: *task.PersonaID})
 		if err != nil {
 			return mapErr(err, "get persona")
