@@ -3,12 +3,19 @@ package ui
 import (
 	"embed"
 	"io/fs"
+	"mime"
 	"net/http"
 	"strings"
 )
 
 //go:embed static
 var staticFS embed.FS
+
+// The base images (distroless) ship no /etc/mime.types and Go's built-in table
+// has no .woff2: without this the Inter files would go out as application/octet-stream.
+func init() {
+	_ = mime.AddExtensionType(".woff2", "font/woff2")
+}
 
 // staticHandler serves the embedded assets under /static/. Assets are
 // versioned by query string in the layout, so they may be cached for a day.

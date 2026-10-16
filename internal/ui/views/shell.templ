@@ -15,6 +15,7 @@ templ Layout(sh Shell) {
 			<title>{ sh.Title } · Hanko</title>
 			<link rel="icon" href="/static/favicon.svg" type="image/svg+xml"/>
 			@pwaHead()
+			<link rel="preload" href="/static/fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin/>
 			<link rel="stylesheet" href={ "/static/hanko.css?v=" + sh.Version }/>
 			<script src={ "/static/vendor/htmx.min.js" } defer></script>
 			<script src={ "/static/vendor/sse.min.js" } defer></script>
@@ -95,6 +96,7 @@ templ Bare(title, version string) {
 			<title>{ title } · Hanko</title>
 			<link rel="icon" href="/static/favicon.svg" type="image/svg+xml"/>
 			@pwaHead()
+			<link rel="preload" href="/static/fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin/>
 			<link rel="stylesheet" href={ "/static/hanko.css?v=" + version }/>
 			<script src="/static/vendor/htmx.min.js" defer></script>
 			<script src={ "/static/hanko.js?v=" + version } defer></script>

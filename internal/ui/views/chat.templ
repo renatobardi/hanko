@@ -100,7 +100,7 @@ templ ChatThread(vm ChatVM) {
 							{ m.Body }
 							<time class="mono">{ m.When }</time>
 							if m.RunHref != "" {
-								· <a href={ templ.SafeURL(m.RunHref) } style="text-decoration:underline;text-underline-offset:2px;color:var(--ink)">{ i18n.T(ctx, "execução") }</a>
+								· <a href={ templ.SafeURL(m.RunHref) } style="text-decoration:underline;text-underline-offset:2px;color:var(--foreground)">{ i18n.T(ctx, "execução") }</a>
 							}
 						</span>
 					</div>
