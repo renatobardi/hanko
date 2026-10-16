@@ -55,7 +55,36 @@ func inStatuses(st domain.TaskStatus, list []domain.TaskStatus) bool {
 	return false
 }
 
+// taskScope diz onde a lista de tasks é desenhada: a tela /tasks ou a aba Tasks de um projeto (Path,
+// Fixed com os parâmetros da página, Project travando o filtro de projeto).
+type taskScope struct {
+	Path    string
+	Fixed   url.Values
+	Project *service.ProjectView
+	// Match restringe a lista (ex.: tasks que rodam num workspace); nil = todas.
+	Match func(service.TaskView) bool
+}
+
 func (s *server) handleTasks(w http.ResponseWriter, r *http.Request, co domain.Company) {
+	ctx := r.Context()
+	vm, err := s.buildTasksVM(w, r, co, taskScope{Path: "/c/" + co.Slug + "/tasks"})
+	if err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
+	if isHX(r) {
+		s.render(w, r, http.StatusOK, views.TaskTable(vm))
+		return
+	}
+	sh := s.shell(r, co, "tasks", i18n.T(ctx, "Tasks"), views.Crumb{Label: i18n.T(ctx, "Tasks")})
+	if sh.CanWrite() {
+		sh.Action = &views.Action{Label: i18n.T(ctx, "Nova task"), Href: vm.NewHref, Icon: "plus"}
+	}
+	s.render(w, r, http.StatusOK, views.TasksPage(sh, vm))
+}
+
+// buildTasksVM monta a lista (ou o quadro) de tasks com abas, visão salva, agrupamento e filtros.
+func (s *server) buildTasksVM(w http.ResponseWriter, r *http.Request, co domain.Company, scope taskScope) (views.TasksVM, error) {
 	ctx := r.Context()
 	qs := r.URL.Query()
 	q := strings.TrimSpace(qs.Get("q"))
@@ -67,30 +96,29 @@ func (s *server) handleTasks(w http.ResponseWriter, r *http.Request, co domain.C
 		}
 	}
 	filter := service.TaskFilter{Query: q, Limit: 500}
-	var proj *service.ProjectView
-	if ref := strings.TrimSpace(qs.Get("projeto")); ref != "" {
+	proj := scope.Project
+	if ref := strings.TrimSpace(qs.Get("projeto")); ref != "" && proj == nil {
 		pv, err := s.be.GetProjectView(ctx, co.ID, ref)
 		if err != nil {
-			s.fail(w, r, &co, err)
-			return
+			return views.TasksVM{}, err
 		}
 		proj = &pv
-		filter.ProjectID = &pv.ID
+	}
+	if proj != nil {
+		filter.ProjectID = &proj.ID
 	}
 	var goal *service.GoalView
 	if ref := strings.TrimSpace(qs.Get("meta")); ref != "" {
 		gv, err := s.be.GetGoalView(ctx, co.ID, ref)
 		if err != nil {
-			s.fail(w, r, &co, err)
-			return
+			return views.TasksVM{}, err
 		}
 		goal = &gv
 		filter.GoalID = &gv.ID
 	}
 	personas, err := s.be.ListPersonas(ctx, co.ID)
 	if err != nil {
-		s.fail(w, r, &co, err)
-		return
+		return views.TasksVM{}, err
 	}
 	personaRef := strings.TrimSpace(qs.Get("persona"))
 	for _, p := range personas {
@@ -105,13 +133,12 @@ func (s *server) handleTasks(w http.ResponseWriter, r *http.Request, co domain.C
 	}
 	all, err := s.be.ListTasks(ctx, co.ID, filter)
 	if err != nil {
-		s.fail(w, r, &co, err)
-		return
+		return views.TasksVM{}, err
 	}
-	if prio != "" {
+	if prio != "" || scope.Match != nil {
 		kept := all[:0:0]
 		for _, tv := range all {
-			if tv.Priority == prio {
+			if (prio == "" || tv.Priority == prio) && (scope.Match == nil || scope.Match(tv)) {
 				kept = append(kept, tv)
 			}
 		}
@@ -122,7 +149,7 @@ func (s *server) handleTasks(w http.ResponseWriter, r *http.Request, co domain.C
 	loc := loadLoc(co.Timezone)
 	now := s.now()
 
-	vm := views.TasksVM{Query: q, Tab: cur.key, NewHref: base + "/tasks/nova", Board: opts.Board,
+	vm := views.TasksVM{Query: q, Tab: cur.key, NewHref: base + "/tasks/nova", Board: opts.Board, Path: scope.Path, Embedded: scope.Project != nil,
 		GroupBy: opts.Group, SortBy: opts.Sort, PersonaFilter: personaRef, PriorityFilter: string(prio)}
 	// filtros que viajam entre abas, visões e a busca (projeto, meta, persona, prioridade)
 	keep := url.Values{}
@@ -131,7 +158,12 @@ func (s *server) handleTasks(w http.ResponseWriter, r *http.Request, co domain.C
 		vm.Goal, vm.GoalTitle, vm.GoalHref = goal.Slug, goal.Title, base+"/metas/"+goal.Slug
 		vm.GoalClear = base + "/tasks?aba=" + cur.key
 	}
-	if proj != nil {
+	for k, vs := range scope.Fixed {
+		keep[k] = vs
+	}
+	if scope.Project != nil {
+		vm.NewHref += "?projeto=" + url.QueryEscape(proj.Slug)
+	} else if proj != nil {
 		keep.Set("projeto", proj.Slug)
 		vm.Project, vm.ProjectName, vm.ProjectHref = proj.Slug, proj.Name, base+"/projetos/"+proj.Slug
 		vm.ClearHref = base + "/tasks?aba=" + cur.key
@@ -160,7 +192,7 @@ func (s *server) handleTasks(w http.ResponseWriter, r *http.Request, co domain.C
 		} else {
 			v.Set("visao", "lista")
 		}
-		return base + "/tasks?" + v.Encode()
+		return scope.Path + "?" + v.Encode()
 	}
 	inTab := func(t tabDef, tv service.TaskView) bool {
 		if t.mine && !sameActor(tv.CreatedBy, me) {
@@ -222,16 +254,8 @@ func (s *server) handleTasks(w http.ResponseWriter, r *http.Request, co domain.C
 		}
 	}
 	vm.Subtitle = i18n.Tf(ctx, "%d abertas · agrupadas por status. Uma task guarda dono, prioridade, histórico e execuções.", open)
-
-	if isHX(r) {
-		s.render(w, r, http.StatusOK, views.TaskTable(vm))
-		return
-	}
-	sh := s.shell(r, co, "tasks", i18n.T(ctx, "Tasks"), views.Crumb{Label: i18n.T(ctx, "Tasks")})
-	if sh.CanWrite() {
-		sh.Action = &views.Action{Label: i18n.T(ctx, "Nova task"), Href: vm.NewHref, Icon: "plus"}
-	}
-	s.render(w, r, http.StatusOK, views.TasksPage(sh, vm))
+	vm.Hidden = scope.Fixed
+	return vm, nil
 }
 
 // ---------- detail ----------

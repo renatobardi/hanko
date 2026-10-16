@@ -24,11 +24,19 @@ func TestProjectPagesRender(t *testing.T) {
 		{"/c/hanko/projetos", []string{"Projetos", "Novo projeto", "Kubo", "LinkedIn", "Progresso", "Site institucional"}},
 		{"/c/hanko/projetos?aba=arquivados", []string{"Nenhum projeto aqui."}},
 		{"/c/hanko/projetos/novo", []string{"Novo projeto", `name="name"`, `name="workspace"`, `name="budget"`}},
-		{"/c/hanko/projetos/kubo", []string{"Kubo", "Tasks por status", "Personas envolvidas", "Tasks recentes", "Orçamento do mês", "Arquivar projeto",
-			`href="/c/hanko/tasks?aba=todas&amp;projeto=kubo"`, `href="/c/hanko/custos?projeto=kubo"`, `href="/c/hanko/workspaces/site"`, "Salvar alterações"}},
+		{"/c/hanko/projetos/kubo", []string{"Kubo", "Tasks por status", "Personas envolvidas", "Tasks recentes", "Arquivar projeto",
+			`href="/c/hanko/tasks?aba=todas&amp;projeto=kubo"`, `href="/c/hanko/custos?projeto=kubo"`, `href="/c/hanko/workspaces/site"`,
+			"?secao=tasks", "?secao=workspace", "?secao=orcamento", "?secao=configuracao"}},
+		{"/c/hanko/projetos/kubo?secao=orcamento", []string{"Orçamento do mês", `href="/c/hanko/custos?projeto=kubo"`}},
+		{"/c/hanko/projetos/kubo?secao=configuracao", []string{"Salvar alterações", `name="budget"`}},
+		{"/c/hanko/projetos/kubo?secao=tasks", []string{`id="tasks-list"`, "secao=tasks", "visao=quadro"}},
+		{"/c/hanko/projetos/kubo?secao=workspace", []string{"Site institucional", "Em uso por", "Abrir workspace"}},
 		{"/c/hanko/workspaces", []string{"Workspaces", "Site institucional", "/srv/hanko/workspaces/hanko/site", "https://github.com/hanko/site", "diretório ausente"}},
 		{"/c/hanko/workspaces/novo", []string{"Novo workspace", `name="path"`, `name="repo_url"`, `name="branch"`, "/srv/hanko/workspaces/hanko"}},
-		{"/c/hanko/workspaces/site", []string{"Site institucional", "Em uso por", "Kubo", "Excluir workspace", "Desvincular quem usa e excluir"}},
+		{"/c/hanko/workspaces/site", []string{"Site institucional", "Em uso por", "Kubo", "?secao=tasks", "?secao=execucoes"}},
+		{"/c/hanko/workspaces/site?secao=configuracao", []string{"Excluir workspace", "Desvincular quem usa e excluir"}},
+		{"/c/hanko/workspaces/site?secao=tasks", []string{`id="tasks-list"`}},
+		{"/c/hanko/workspaces/site?secao=execucoes", []string{"Site institucional"}},
 	}
 	for _, p := range pages {
 		t.Run(p.path, func(t *testing.T) {
@@ -80,7 +88,7 @@ func TestCreateAndArchiveProject(t *testing.T) {
 	if got == nil || got.BudgetMonthlyCents == nil || *got.BudgetMonthlyCents != 12050 || got.WorkspaceID == nil {
 		t.Fatalf("projeto = %+v", got)
 	}
-	wantContains(t, e.get(t, "/c/hanko/projetos/lancamento?ok=criado"), "Projeto criado.", "120,50")
+	wantContains(t, e.get(t, "/c/hanko/projetos/lancamento?ok=criado&secao=orcamento"), "Projeto criado.", "120,50")
 
 	t.Run("nome vazio é 422 e mantém o formulário", func(t *testing.T) {
 		rec := e.post(t, "/c/hanko/projetos/novo", url.Values{"name": {""}, "description": {"mantém"}}, false)
@@ -145,7 +153,8 @@ func TestWorkspaceCRUD(t *testing.T) {
 	if loc := rec.Header().Get("Location"); loc != "/c/hanko/workspaces/api?ok=w-criado" {
 		t.Fatalf("Location = %q", loc)
 	}
-	wantContains(t, e.get(t, "/c/hanko/workspaces/api?ok=w-criado"), "Workspace criado.", "Nenhuma persona, projeto ou task aberta usa este workspace.", "O diretório no disco não é apagado")
+	wantContains(t, e.get(t, "/c/hanko/workspaces/api?ok=w-criado"), "Workspace criado.", "Nenhuma persona, projeto ou task aberta usa este workspace.")
+	wantContains(t, e.get(t, "/c/hanko/workspaces/api?secao=configuracao"), "O diretório no disco não é apagado")
 
 	t.Run("caminho fora da raiz é 422", func(t *testing.T) {
 		rec := e.post(t, "/c/hanko/workspaces/novo", url.Values{"name": {"Ruim"}, "path": {"/etc"}}, false)
@@ -155,7 +164,7 @@ func TestWorkspaceCRUD(t *testing.T) {
 	t.Run("editar", func(t *testing.T) {
 		rec := e.post(t, "/c/hanko/workspaces/api", url.Values{"name": {"API v2"}, "path": {"/srv/hanko/workspaces/hanko/api"}, "repo_url": {""}, "branch": {"develop"}}, false)
 		wantStatus(t, rec, http.StatusSeeOther)
-		wantContains(t, e.get(t, "/c/hanko/workspaces/api"), "API v2", `value="develop"`)
+		wantContains(t, e.get(t, "/c/hanko/workspaces/api?secao=configuracao"), "API v2", `value="develop"`)
 	})
 	t.Run("em uso não exclui sem desvincular", func(t *testing.T) {
 		rec := e.post(t, "/c/hanko/workspaces/site/excluir", url.Values{}, false)
@@ -290,13 +299,13 @@ func TestProjectControlsByRole(t *testing.T) {
 	controls := []control{
 		{"/c/hanko/projetos", `href="/c/hanko/projetos/novo"`, A},
 		{"/c/hanko/projetos/novo", `action="/c/hanko/projetos/novo"`, A},
-		{"/c/hanko/projetos/kubo", `action="/c/hanko/projetos/kubo"`, A},
+		{"/c/hanko/projetos/kubo?secao=configuracao", `action="/c/hanko/projetos/kubo"`, A},
 		{"/c/hanko/projetos/kubo", "/projetos/kubo/arquivar", A},
 		{"/c/hanko/projetos/kubo", `href="/c/hanko/tasks/nova?projeto=kubo"`, M},
 		{"/c/hanko/workspaces", `href="/c/hanko/workspaces/novo"`, A},
 		{"/c/hanko/workspaces/novo", `action="/c/hanko/workspaces/novo"`, A},
-		{"/c/hanko/workspaces/site", `action="/c/hanko/workspaces/site"`, A},
-		{"/c/hanko/workspaces/site", "/workspaces/site/excluir", A},
+		{"/c/hanko/workspaces/site?secao=configuracao", `action="/c/hanko/workspaces/site"`, A},
+		{"/c/hanko/workspaces/site?secao=configuracao", "/workspaces/site/excluir", A},
 		{"/c/hanko/custos", `action="/c/hanko/projetos/kubo/orcamento?next=custos"`, A},
 	}
 	for _, role := range allRoles {

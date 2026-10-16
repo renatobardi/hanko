@@ -277,8 +277,39 @@ func (s *server) buildProjectVM(r *http.Request, co domain.Company, p service.Pr
 
 func (s *server) renderProject(w http.ResponseWriter, r *http.Request, co domain.Company, status int, p service.ProjectView, vm views.ProjectVM) {
 	base := "/c/" + co.Slug
+	if vm.Section == "" {
+		vm.Section = "visao"
+	}
+	vm.Sections = projectSectionTabs(r.Context(), base+"/projetos/"+p.Slug, vm.Section, p.TasksTotal)
 	sh := s.shell(r, co, "projetos", p.Name, views.Crumb{Label: i18n.T(r.Context(), "Projetos"), Href: base + "/projetos"}, views.Crumb{Label: p.Name})
 	s.render(w, r, status, views.ProjectPage(sh, vm))
+}
+
+// projectSections são as abas do detalhe de projeto (?secao=).
+var projectSections = []struct{ key, label string }{
+	{"visao", i18n.N("Visão geral")}, {"tasks", i18n.N("Tasks")}, {"workspace", i18n.N("Workspace")},
+	{"orcamento", i18n.N("Orçamento")}, {"configuracao", i18n.N("Configuração")},
+}
+
+func projectSectionTabs(ctx context.Context, href, cur string, tasks int) []views.TabLink {
+	out := make([]views.TabLink, 0, len(projectSections))
+	for _, sec := range projectSections {
+		n := 0
+		if sec.key == "tasks" {
+			n = tasks
+		}
+		out = append(out, views.TabLink{Key: sec.key, Label: i18n.T(ctx, sec.label), Href: href + "?secao=" + sec.key, Count: n, On: sec.key == cur})
+	}
+	return out
+}
+
+func validProjectSection(sec string) string {
+	for _, x := range projectSections {
+		if x.key == sec {
+			return sec
+		}
+	}
+	return "visao"
 }
 
 func (s *server) handleProject(w http.ResponseWriter, r *http.Request, co domain.Company) {
@@ -287,7 +318,28 @@ func (s *server) handleProject(w http.ResponseWriter, r *http.Request, co domain
 		s.fail(w, r, &co, err)
 		return
 	}
-	s.renderProject(w, r, co, http.StatusOK, p, s.buildProjectVM(r, co, p))
+	vm := s.buildProjectVM(r, co, p)
+	vm.Section = validProjectSection(r.URL.Query().Get("secao"))
+	if vm.Section == "tasks" {
+		path := "/c/" + co.Slug + "/projetos/" + p.Slug
+		tv, err := s.buildTasksVM(w, r, co, taskScope{Path: path, Fixed: url.Values{"secao": {"tasks"}}, Project: &p})
+		if err != nil {
+			s.fail(w, r, &co, err)
+			return
+		}
+		if isHX(r) {
+			s.render(w, r, http.StatusOK, views.TaskTable(tv))
+			return
+		}
+		vm.TaskList = tv
+	}
+	if vm.Section == "workspace" && p.WorkspaceSlug != "" {
+		if wv, err := s.be.GetWorkspaceView(r.Context(), co.ID, p.WorkspaceSlug); err == nil {
+			wvm := s.buildWorkspaceVM(r, co, wv)
+			vm.WS = &wvm
+		}
+	}
+	s.renderProject(w, r, co, http.StatusOK, p, vm)
 }
 
 func (s *server) handleUpdateProject(w http.ResponseWriter, r *http.Request, co domain.Company) {
@@ -300,6 +352,7 @@ func (s *server) handleUpdateProject(w http.ResponseWriter, r *http.Request, co 
 	vm := s.buildProjectVM(r, co, p)
 	projectFormValues(r, &vm.Form)
 	vm.Notice = ""
+	vm.Section = "configuracao"
 	bad := func(err error) {
 		projectFormError(ctx, &vm.Form, err)
 		s.renderProject(w, r, co, statusFor(err), p, vm)
@@ -486,17 +539,86 @@ func (s *server) buildWorkspaceVM(r *http.Request, co domain.Company, wv service
 
 func (s *server) renderWorkspace(w http.ResponseWriter, r *http.Request, co domain.Company, status int, wv service.WorkspaceView, vm views.WorkspaceVM) {
 	base := "/c/" + co.Slug
+	if vm.Section == "" {
+		vm.Section = "configuracao" // re-render de formulário (salvar/excluir com erro)
+	}
+	for _, sec := range workspaceSections {
+		vm.Sections = append(vm.Sections, views.TabLink{Key: sec.key, Label: i18n.T(r.Context(), sec.label),
+			Href: base + "/workspaces/" + wv.Slug + "?secao=" + sec.key, On: sec.key == vm.Section})
+	}
 	sh := s.shell(r, co, "workspaces", wv.Name, views.Crumb{Label: i18n.T(r.Context(), "Workspaces"), Href: base + "/workspaces"}, views.Crumb{Label: wv.Name})
 	s.render(w, r, status, views.WorkspacePage(sh, vm))
 }
 
+// workspaceSections são as abas do detalhe do workspace (?secao=).
+var workspaceSections = []struct{ key, label string }{
+	{"visao", i18n.N("Visão geral")}, {"tasks", i18n.N("Tasks")}, {"execucoes", i18n.N("Execuções")}, {"configuracao", i18n.N("Configuração")},
+}
+
+// runsInWorkspace diz se a task resolve para este workspace: o da própria task, senão o do projeto, senão o da persona.
+func runsInWorkspace(wv service.WorkspaceView) func(service.TaskView) bool {
+	projects, personas := map[domain.ID]bool{}, map[domain.ID]bool{}
+	for _, p := range wv.Projects {
+		projects[p.ID] = true
+	}
+	for _, p := range wv.Personas {
+		personas[p.ID] = true
+	}
+	return func(t service.TaskView) bool {
+		switch {
+		case t.WorkspaceID != nil:
+			return *t.WorkspaceID == wv.ID
+		case t.ProjectID != nil && projects[*t.ProjectID]:
+			return true
+		case t.PersonaID != nil && personas[*t.PersonaID]:
+			return t.ProjectID == nil
+		}
+		return false
+	}
+}
+
 func (s *server) handleWorkspace(w http.ResponseWriter, r *http.Request, co domain.Company) {
-	wv, err := s.be.GetWorkspaceView(r.Context(), co.ID, r.PathValue("workspace"))
+	ctx := r.Context()
+	wv, err := s.be.GetWorkspaceView(ctx, co.ID, r.PathValue("workspace"))
 	if err != nil {
 		s.fail(w, r, &co, err)
 		return
 	}
-	s.renderWorkspace(w, r, co, http.StatusOK, wv, s.buildWorkspaceVM(r, co, wv))
+	vm := s.buildWorkspaceVM(r, co, wv)
+	vm.Section = "visao"
+	for _, sec := range workspaceSections {
+		if sec.key == r.URL.Query().Get("secao") {
+			vm.Section = sec.key
+		}
+	}
+	base := "/c/" + co.Slug
+	path := base + "/workspaces/" + wv.Slug
+	switch vm.Section {
+	case "tasks":
+		tv, err := s.buildTasksVM(w, r, co, taskScope{Path: path, Fixed: url.Values{"secao": {"tasks"}}, Match: runsInWorkspace(wv)})
+		if err != nil {
+			s.fail(w, r, &co, err)
+			return
+		}
+		if isHX(r) {
+			s.render(w, r, http.StatusOK, views.TaskTable(tv))
+			return
+		}
+		vm.TaskList = tv
+	case "execucoes":
+		runs, err := s.be.ListRuns(ctx, co.ID, service.RunFilter{Limit: 500})
+		if err != nil {
+			s.fail(w, r, &co, err)
+			return
+		}
+		loc, now := loadLoc(co.Timezone), s.now()
+		for _, rv := range runs {
+			if rv.WorkspaceID != nil && *rv.WorkspaceID == wv.ID {
+				vm.Runs = append(vm.Runs, runRow(ctx, rv, base, now, loc))
+			}
+		}
+	}
+	s.renderWorkspace(w, r, co, http.StatusOK, wv, vm)
 }
 
 func (s *server) handleUpdateWorkspace(w http.ResponseWriter, r *http.Request, co domain.Company) {

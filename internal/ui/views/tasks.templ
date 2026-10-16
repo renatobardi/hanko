@@ -23,76 +23,86 @@ templ TasksPage(sh Shell, vm TasksVM) {
 				<a href={ templ.SafeURL(vm.GoalClear) }>{ i18n.T(ctx, "limpar filtro") }</a>
 			</p>
 		}
-		<div class="toolbar">
-			@Tabs(vm.Tabs)
-			<span class="grow"></span>
-			<div class="seg view-switch" role="group" aria-label={ i18n.T(ctx, "Visualização") }>
-				<a href={ templ.SafeURL(vm.ListHref) } aria-current?={ !vm.Board } title={ i18n.T(ctx, "Lista") }>@Icon("list")<span class="sr-only">{ i18n.T(ctx, "Lista") }</span></a>
-				<a href={ templ.SafeURL(vm.BoardHref) } aria-current?={ vm.Board } title={ i18n.T(ctx, "Quadro") }>@Icon("columns")<span class="sr-only">{ i18n.T(ctx, "Quadro") }</span></a>
-			</div>
-			<form method="get" action={ templ.SafeURL(sh.Base() + "/tasks") } class="search" role="search">
-				<input type="hidden" name="aba" value={ vm.Tab }/>
-				if vm.Board {
-					<input type="hidden" name="visao" value="quadro"/>
-				}
-				if vm.PersonaFilter != "" {
-					<input type="hidden" name="persona" value={ vm.PersonaFilter }/>
-				}
-				if vm.PriorityFilter != "" {
-					<input type="hidden" name="prioridade" value={ vm.PriorityFilter }/>
-				}
-				if vm.Project != "" {
-					<input type="hidden" name="projeto" value={ vm.Project }/>
-				}
-				if vm.Goal != "" {
-					<input type="hidden" name="meta" value={ vm.Goal }/>
-				}
-				<input
-					class="input"
-					type="search"
-					name="q"
-					value={ vm.Query }
-					placeholder={ i18n.T(ctx, "Buscar tasks...") }
-					aria-label={ i18n.T(ctx, "Buscar tasks") }
-					hx-get={ sh.Base() + "/tasks" }
-					hx-include="[name='aba'], [name='projeto'], [name='meta'], [name='visao'], [name='persona'], [name='prioridade']"
-					hx-trigger="input changed delay:300ms, search"
-					hx-target="#tasks-list"
-					hx-swap="outerHTML"
-					hx-push-url="false"
-				/>
-			</form>
+		@TasksBody(vm)
+	}
+}
+
+// taskHidden são os campos ocultos que todo formulário da lista repete (aba, visão, filtros, página).
+templ taskHidden(vm TasksVM, withQuery bool) {
+	<input type="hidden" name="aba" value={ vm.Tab }/>
+	for k, vs := range vm.Hidden {
+		for _, v := range vs {
+			<input type="hidden" name={ k } value={ v }/>
+		}
+	}
+	if vm.Project != "" {
+		<input type="hidden" name="projeto" value={ vm.Project }/>
+	}
+	if vm.Goal != "" {
+		<input type="hidden" name="meta" value={ vm.Goal }/>
+	}
+	if withQuery && vm.Query != "" {
+		<input type="hidden" name="q" value={ vm.Query }/>
+	}
+}
+
+// TasksBody é a barra (abas, lista/quadro, busca, visão e filtros) mais a lista ou o quadro; serve a tela
+// /tasks e a aba Tasks do projeto.
+templ TasksBody(vm TasksVM) {
+	<div class="toolbar">
+		@Tabs(vm.Tabs)
+		<span class="grow"></span>
+		<div class="seg view-switch" role="group" aria-label={ i18n.T(ctx, "Visualização") }>
+			<a href={ templ.SafeURL(vm.ListHref) } aria-current?={ !vm.Board } title={ i18n.T(ctx, "Lista") }>@Icon("list")<span class="sr-only">{ i18n.T(ctx, "Lista") }</span></a>
+			<a href={ templ.SafeURL(vm.BoardHref) } aria-current?={ vm.Board } title={ i18n.T(ctx, "Quadro") }>@Icon("columns")<span class="sr-only">{ i18n.T(ctx, "Quadro") }</span></a>
 		</div>
-		<form method="get" action={ templ.SafeURL(sh.Base() + "/tasks") } class="view-opts" data-autosubmit aria-label={ i18n.T(ctx, "Visualização") }>
-			<input type="hidden" name="aba" value={ vm.Tab }/>
+		<form method="get" action={ templ.SafeURL(vm.Path) } class="search" role="search">
+			@taskHidden(vm, false)
 			if vm.Board {
 				<input type="hidden" name="visao" value="quadro"/>
-			} else {
-				<input type="hidden" name="visao" value="lista"/>
 			}
-			if vm.Project != "" {
-				<input type="hidden" name="projeto" value={ vm.Project }/>
+			if vm.PersonaFilter != "" {
+				<input type="hidden" name="persona" value={ vm.PersonaFilter }/>
 			}
-			if vm.Goal != "" {
-				<input type="hidden" name="meta" value={ vm.Goal }/>
+			if vm.PriorityFilter != "" {
+				<input type="hidden" name="prioridade" value={ vm.PriorityFilter }/>
 			}
-			if vm.Query != "" {
-				<input type="hidden" name="q" value={ vm.Query }/>
-			}
-			if !vm.Board {
-				<label class="sr-only" for="t-group">{ i18n.T(ctx, "Agrupar") }</label>
-				@Select("agrupar", "t-group", vm.GroupOptions, true)
-			}
-			<label class="sr-only" for="t-sort">{ i18n.T(ctx, "Ordenar") }</label>
-			@Select("ordem", "t-sort", vm.SortOptions, true)
-			<label class="sr-only" for="t-persona">Persona</label>
-			@Select("persona", "t-persona", vm.PersonaOptions, true)
-			<label class="sr-only" for="t-prio">{ i18n.T(ctx, "Prioridade") }</label>
-			@Select("prioridade", "t-prio", vm.PriorityOptions, true)
-			<noscript><button class="btn sm outline" type="submit">{ i18n.T(ctx, "Aplicar") }</button></noscript>
+			<input
+				class="input"
+				type="search"
+				name="q"
+				value={ vm.Query }
+				placeholder={ i18n.T(ctx, "Buscar tasks...") }
+				aria-label={ i18n.T(ctx, "Buscar tasks") }
+				hx-get={ vm.Path }
+				hx-include="closest form"
+				hx-trigger="input changed delay:300ms, search"
+				hx-target="#tasks-list"
+				hx-swap="outerHTML"
+				hx-push-url="false"
+			/>
 		</form>
-		@TaskTable(vm)
-	}
+	</div>
+	<form method="get" action={ templ.SafeURL(vm.Path) } class="view-opts" data-autosubmit aria-label={ i18n.T(ctx, "Visualização") }>
+		@taskHidden(vm, true)
+		if vm.Board {
+			<input type="hidden" name="visao" value="quadro"/>
+		} else {
+			<input type="hidden" name="visao" value="lista"/>
+		}
+		if !vm.Board {
+			<label class="sr-only" for="t-group">{ i18n.T(ctx, "Agrupar") }</label>
+			@Select("agrupar", "t-group", vm.GroupOptions, true)
+		}
+		<label class="sr-only" for="t-sort">{ i18n.T(ctx, "Ordenar") }</label>
+		@Select("ordem", "t-sort", vm.SortOptions, true)
+		<label class="sr-only" for="t-persona">Persona</label>
+		@Select("persona", "t-persona", vm.PersonaOptions, true)
+		<label class="sr-only" for="t-prio">{ i18n.T(ctx, "Prioridade") }</label>
+		@Select("prioridade", "t-prio", vm.PriorityOptions, true)
+		<noscript><button class="btn sm outline" type="submit">{ i18n.T(ctx, "Aplicar") }</button></noscript>
+	</form>
+	@TaskTable(vm)
 }
 
 // ---- task detail ----

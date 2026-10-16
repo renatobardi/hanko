@@ -60,6 +60,11 @@ type ProjectFormVM struct {
 }
 
 type ProjectVM struct {
+	// Section é a aba aberta (visao | tasks | workspace | orcamento | configuracao).
+	Section       string
+	Sections      []TabLink
+	TaskList      TasksVM      // aba Tasks: a mesma lista/quadro de /tasks, presa ao projeto
+	WS            *WorkspaceVM // aba Workspace
 	Name          string
 	Description   string
 	Archived      bool
@@ -130,6 +135,10 @@ type UsageLink struct {
 }
 
 type WorkspaceVM struct {
+	Section      string // visao | tasks | execucoes | configuracao
+	Sections     []TabLink
+	TaskList     TasksVM
+	Runs         []RunRow
 	Name         string
 	Path         string
 	Missing      bool
