@@ -46,6 +46,7 @@ var Nav = []NavGroup{
 	{Label: i18n.N("Supervisão"), Items: []NavItem{
 		{Key: "execucoes", Label: i18n.N("Execuções"), Icon: "activity", Path: "/execucoes"},
 		{Key: "custos", Label: i18n.N("Custos"), Icon: "database", Path: "/custos"},
+		{Key: "timeline", Label: i18n.N("Timeline"), Icon: "timeline", Path: "/timeline"},
 		{Key: "atividade", Label: i18n.N("Atividade"), Icon: "clock", Path: "/atividade"},
 	}},
 }

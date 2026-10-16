@@ -1,0 +1,52 @@
+package views
+
+import (
+	"fmt"
+
+	"github.com/renatobardi/hanko/internal/i18n"
+)
+
+func f1(v float64) string { return fmt.Sprintf("%.1f", v) }
+
+templ TimelinePage(sh Shell, vm TimelineVM) {
+	@Layout(sh) {
+		@PageHead(i18n.T(ctx, "Timeline"), i18n.T(ctx, "Quem trabalhou em quê, e quando. Cada barra é uma execução; clique para abrir o log.")) {
+			@Tabs(vm.Ranges)
+		}
+		<div class="stats4 mb-6">
+			<div class="stat"><div class="l">{ i18n.T(ctx, "Execuções") }</div><div class="v">{ fmt.Sprint(vm.Runs) }</div></div>
+			<div class="stat"><div class="l">{ i18n.T(ctx, "Tempo de trabalho") }</div><div class="v">{ vm.Busy }</div></div>
+			<div class="stat"><div class="l">{ i18n.T(ctx, "Personas ativas") }</div><div class="v">{ fmt.Sprint(vm.Personas) }</div></div>
+			<div class="stat"><div class="l">{ i18n.T(ctx, "Falhas") }</div><div class="v">{ fmt.Sprint(vm.Failed) }</div></div>
+		</div>
+		if len(vm.Lanes) == 0 {
+			@EmptyCard("clock", i18n.T(ctx, "Nenhuma execução no período."), i18n.T(ctx, "Quando uma persona trabalhar, a execução aparece aqui como uma barra na faixa dela."), true)
+		} else {
+			@PersonaSprite()
+			<div class="card tl-card">
+				<svg class="tl-svg" viewBox={ fmt.Sprintf("0 0 %d %d", vm.Width, vm.Height) } role="img" aria-label={ i18n.T(ctx, "Timeline das execuções") }>
+					for _, t := range vm.Ticks {
+						<line class="tl-grid" x1={ f1(t.X) } x2={ f1(t.X) } y1="20" y2={ fmt.Sprint(vm.Height) }></line>
+						<text class="tl-tick" x={ f1(t.X + 4) } y="14">{ t.Label }</text>
+					}
+					for _, l := range vm.Lanes {
+						<line class="tl-lane" x1="0" x2={ fmt.Sprint(vm.Width) } y1={ fmt.Sprint(l.Y + l.H) } y2={ fmt.Sprint(l.Y + l.H) }></line>
+						<use class="tl-glyph" href={ "#pg-" + personaIcon(ctx, l.Name) } x="8" y={ fmt.Sprint(l.Y + l.H/2 - 8) } width="16" height="16"></use>
+						<text class="tl-name" x="32" y={ fmt.Sprint(l.Y + l.H/2 + 4) }>{ l.Name }</text>
+						for _, b := range l.Bars {
+							<a href={ templ.SafeURL(b.Href) } class={ "tl-bar", "st-" + b.Class }>
+								<title>{ b.Title }</title>
+								<rect x={ f1(b.X) } y={ fmt.Sprint(b.Y) } width={ f1(b.W) } height={ fmt.Sprint(b.H) } rx="4"></rect>
+								if b.W > 56 {
+									<text x={ f1(b.X + 6) } y={ fmt.Sprint(b.Y + b.H/2 + 4) }>{ b.Label }</text>
+								}
+							</a>
+						}
+					}
+					<line class="tl-now" x1={ f1(vm.NowX) } x2={ f1(vm.NowX) } y1="20" y2={ fmt.Sprint(vm.Height) }></line>
+				</svg>
+			</div>
+			<p class="muted mt-3 text-xs">{ i18n.T(ctx, "Preto: rodando · cinza: concluída · vermelho: falhou · tracejado: interrompida, cancelada ou expirada.") }</p>
+		}
+	}
+}

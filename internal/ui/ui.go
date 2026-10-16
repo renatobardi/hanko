@@ -303,6 +303,7 @@ func (s *server) routes(root *http.ServeMux) {
 	s.authRoutes(mux)
 
 	mux.HandleFunc("GET /c/{company}/atividade", co(s.handleActivity))
+	mux.HandleFunc("GET /c/{company}/timeline", co(s.handleTimeline))
 	mux.HandleFunc("GET /c/{company}/artefatos", co(s.handleArtifacts))
 	mux.HandleFunc("GET /c/{company}/artefatos/novo", co(s.handleNewArtifact))
 	mux.HandleFunc("POST /c/{company}/artefatos/novo", post(co(s.handleUploadArtifact)))

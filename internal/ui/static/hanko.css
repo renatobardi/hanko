@@ -1150,3 +1150,21 @@ a.hit-main:hover { background: var(--muted); }
 .view-opts { display: flex; flex-wrap: wrap; gap: 8px; margin: -4px 0 16px; }
 .view-opts .select { width: auto; min-width: 180px; }
 
+/* ---------- timeline (faixas por persona, barras por execução; monocromática, vermelho só em falha) ---------- */
+.tl-card { padding: 12px; overflow-x: auto; }
+.tl-svg { display: block; width: 100%; min-width: 720px; height: auto; font-family: var(--font-sans); }
+.tl-grid { stroke: var(--border); stroke-width: 1; }
+.tl-lane { stroke: color-mix(in oklab, var(--border) 60%, transparent); }
+.tl-tick { font-size: 11px; fill: var(--muted-foreground); font-family: var(--font-mono); }
+.tl-name { font-size: 13px; font-weight: 500; fill: var(--foreground); }
+.tl-glyph { color: var(--muted-foreground); fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+.tl-bar rect { fill: var(--chart-2); transition: opacity 0.15s; }
+.tl-bar.st-run rect { fill: var(--primary); }
+.tl-bar.st-done rect { fill: var(--chart-1); }
+.tl-bar.st-bad rect { fill: color-mix(in oklab, var(--destructive) 70%, transparent); }
+.tl-bar.st-other rect { fill: transparent; stroke: var(--chart-2); stroke-dasharray: 3 2; }
+.tl-bar:hover rect { opacity: 0.8; }
+.tl-bar text { font-size: 11px; font-family: var(--font-mono); fill: var(--foreground); pointer-events: none; }
+.tl-bar.st-run text { fill: var(--primary-foreground); }
+.tl-now { stroke: var(--warn); stroke-width: 1.5; stroke-dasharray: 4 3; }
+

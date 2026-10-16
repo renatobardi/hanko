@@ -139,3 +139,14 @@ func TestBoardDropUpdatesStatus(t *testing.T) {
 		t.Fatalf("status %d", rec.Code)
 	}
 }
+
+func TestTimeline(t *testing.T) {
+	e := newEnv(t, uitest.Sample())
+	for _, rg := range []string{"", "?intervalo=hoje", "?intervalo=30d"} {
+		rec := e.get(t, "/c/hanko/timeline"+rg)
+		wantStatus(t, rec, http.StatusOK)
+		wantContains(t, rec, "Timeline", `href="/c/hanko/timeline?intervalo=7d"`, `href="/c/hanko/timeline" aria-current`)
+	}
+	rec := e.get(t, "/c/hanko/timeline?intervalo=30d")
+	wantContains(t, rec, `class="tl-svg"`, "tl-bar st-", `href="#pg-search"`, "/c/hanko/execucoes/")
+}
