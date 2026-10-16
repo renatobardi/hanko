@@ -703,6 +703,7 @@ type APIKeyRow struct {
 
 // SettingsVM drives the account/API keys page.
 type SettingsVM struct {
+	Sections      []TabLink // Geral · Ambientes · Adapters · Plugins
 	Authenticated bool
 	Name, Email   string
 	Provider      string

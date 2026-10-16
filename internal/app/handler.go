@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
@@ -45,7 +46,8 @@ func buildHandler(d handlerDeps) (http.Handler, error) {
 	mux := http.NewServeMux()
 	api.Mount(mux, api.Deps{Svc: d.Svc, Broker: d.Broker, Logger: d.Logger, Version: d.Version, Tokens: &d.Tokens, DB: d.Pool,
 		Authenticated: cfg.Authenticated()})
-	ui.Mount(mux, ui.Deps{Svc: d.Svc, Broker: d.Broker, Logger: d.Logger, Version: d.Version, Auth: uiAuth(d), Secure: cfg.SecureCookies()})
+	ui.Mount(mux, ui.Deps{Svc: d.Svc, Broker: d.Broker, Logger: d.Logger, Version: d.Version, Auth: uiAuth(d), Secure: cfg.SecureCookies(),
+		Platform: platformInfo(cfg)})
 	mux.Handle("/mcp", mcp.Handler(mcp.Deps{Svc: d.Svc, Tokens: d.Tokens, Logger: d.Logger, Version: d.Version, Trusted: cfg.TrustedMCP(), ArtifactMaxBytes: cfg.ArtifactMaxBytes}))
 	if cfg.Memory.Provider == config.MemoryAIMemory {
 		mp, err := mcp.MemoryProxy(mcp.MemoryProxyDeps{Backend: d.Svc, Tokens: d.Tokens, URL: cfg.Memory.URL, Token: cfg.Memory.Token,
@@ -124,4 +126,13 @@ func restoreRequest(next http.Handler) http.Handler {
 func pageReader(p memory.Provider) memory.PageReader {
 	pr, _ := p.(memory.PageReader)
 	return pr
+}
+
+// platformInfo é o retrato da instalação para Configurações › Ambientes, Adapters e Plugins (sem segredos).
+func platformInfo(cfg config.Config) ui.PlatformInfo {
+	return ui.PlatformInfo{Mode: cfg.Mode, AuthProvider: cfg.Auth.Provider, PublicURL: cfg.PublicURL, AgentURL: cfg.AgentURL,
+		ClaudeBin: cfg.ClaudeBin, CodexBin: cfg.CodexBin, ACPAllow: cfg.ACP.Allow, ACPCommands: cfg.ACP.Commands,
+		MemoryProvider: cfg.Memory.Provider, MemoryURL: cfg.Memory.URL, OTelEndpoint: os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"),
+		IntegrationsAllowStdio: cfg.Integrations.AllowStdio, IntegrationsAllowPrivate: cfg.Integrations.AllowPrivateDestinations,
+		SecretKeySet: cfg.SecretKey != "", Workers: cfg.Workers, RunTimeout: cfg.RunTimeout, HeartbeatInterval: cfg.HeartbeatInterval}
 }

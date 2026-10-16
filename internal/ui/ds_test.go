@@ -1,11 +1,14 @@
 package ui
 
 import (
+	"errors"
 	"net/http"
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/renatobardi/hanko/internal/events"
 	"github.com/renatobardi/hanko/internal/ui/uitest"
 )
 
@@ -149,4 +152,39 @@ func TestTimeline(t *testing.T) {
 	}
 	rec := e.get(t, "/c/hanko/timeline?intervalo=30d")
 	wantContains(t, rec, `class="tl-svg"`, "tl-bar st-", `href="#pg-search"`, "/c/hanko/execucoes/")
+}
+
+func TestSettingsPlatformPages(t *testing.T) {
+	old := lookPath
+	lookPath = func(bin string) (string, error) {
+		if bin == "claude" || bin == "git" {
+			return "/usr/bin/" + bin, nil
+		}
+		return "", errors.New("não achou")
+	}
+	t.Cleanup(func() { lookPath = old })
+	f := uitest.Sample()
+	b := events.NewBroker()
+	s := &server{be: f, broker: b, version: "test", now: uitest.Now, sseTick: 50 * time.Millisecond,
+		platform: PlatformInfo{Mode: "authenticated", AuthProvider: "firebase", PublicURL: "https://hanko.example", ClaudeBin: "claude", CodexBin: "codex",
+			MemoryProvider: "ai-memory", MemoryURL: "http://127.0.0.1:49374", Workers: 4}}
+	s.log = testLogger(t)
+	mux := http.NewServeMux()
+	s.routes(mux)
+	e := &env{f: f, broker: b, h: mux}
+
+	rec := e.get(t, "/c/hanko/configuracoes")
+	wantContains(t, rec, `href="/c/hanko/configuracoes/ambientes"`, `href="/c/hanko/configuracoes/adapters"`, `href="/c/hanko/configuracoes/plugins"`)
+
+	rec = e.get(t, "/c/hanko/configuracoes/ambientes")
+	wantStatus(t, rec, http.StatusOK)
+	wantContains(t, rec, "Ambientes de execução", "/usr/bin/claude", "codex não encontrado no PATH do servidor", "Com pendências", "https://hanko.example", "authenticated · login firebase")
+
+	rec = e.get(t, "/c/hanko/configuracoes/adapters")
+	wantStatus(t, rec, http.StatusOK)
+	wantContains(t, rec, "Claude Code", "Codex", "ACP", "HANKO_ACP_ALLOW desligado", "Ada", "claude-sonnet", "Tabela de preços")
+
+	rec = e.get(t, "/c/hanko/configuracoes/plugins")
+	wantStatus(t, rec, http.StatusOK)
+	wantContains(t, rec, "Servidor MCP do Hanko", "https://hanko.example/mcp", "ai-memory · http://127.0.0.1:49374", "sem HANKO_SECRET_KEY", "Plugins de terceiros ainda não são suportados")
 }

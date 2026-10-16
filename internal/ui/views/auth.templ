@@ -137,6 +137,9 @@ templ loginMessages(vm LoginVM) {
 templ SettingsPage(sh Shell, vm SettingsVM) {
 	@Layout(sh) {
 		@PageHead(i18n.T(ctx, "Configurações"), i18n.T(ctx, "Sua conta e as chaves de API usadas pela CLI e por integrações."))
+		if len(vm.Sections) > 0 {
+			<div class="mb-6">@Tabs(vm.Sections)</div>
+		}
 		if !vm.Authenticated {
 			@EmptyCard("lock", i18n.T(ctx, "Modo trusted"), i18n.T(ctx, "Contas e chaves de API existem no modo authenticated (HANKO_MODE=authenticated). Veja o RUNBOOK."), true)
 		} else {
