@@ -131,6 +131,12 @@ type Backend interface {
 	SendMessage(ctx context.Context, actor domain.Actor, companyID, conversationID domain.ID, body string) (domain.ConversationMessage, error)
 	SetConversationStatus(ctx context.Context, actor domain.Actor, companyID, id domain.ID, status domain.ConversationStatus) (service.ConversationView, error)
 
+	// sala (ADR-0033)
+	CreateRoom(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.CreateRoomInput) (service.ConversationView, error)
+	AddRoomParticipant(ctx context.Context, actor domain.Actor, companyID, convID, personaID domain.ID) (service.ConversationView, error)
+	RemoveRoomParticipant(ctx context.Context, actor domain.Actor, companyID, convID, personaID domain.ID) (service.ConversationView, error)
+	UpdateRoomSettings(ctx context.Context, actor domain.Actor, companyID, convID domain.ID, in service.RoomSettingsPatch) (service.ConversationView, error)
+
 	MyRole(ctx context.Context, companyID domain.ID) (domain.MemberRole, error)
 	ListMembers(ctx context.Context, companyID domain.ID) ([]domain.Member, error)
 	ListInvites(ctx context.Context, companyID domain.ID) ([]domain.Invite, error)
@@ -338,6 +344,7 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("GET /c/{company}/buscar", co(s.handleSearch))
 	mux.HandleFunc("GET /c/{company}/em-breve/{item}", co(s.handleSoon))
 	s.skillRoutes(mux)
+	s.roomRoutes(mux) // sala (ADR-0033)
 }
 
 // ---------- middleware ----------

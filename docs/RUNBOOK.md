@@ -519,6 +519,27 @@ hanko chat list --persona cto
   então `hanko_gate_request` exige o argumento `task`.
 - Ver o raciocínio de uma resposta: abra o link "execução" da mensagem (log ao vivo da run).
 
+## Sala com várias personas
+
+Uma conversa com várias personas ao mesmo tempo (ADR-0033). Na UI: **Sala** no menu (`/c/{empresa}/sala`). Na CLI:
+
+```
+hanko room create --persona cto,pm,design "Planejar a semana"   # abre a sala (2 a 12 personas)
+hanko room say 01a14700 "@cto qual o risco da migração?"          # envia, espera as respostas e as imprime
+hanko room set 01a14700 --mode all --max-hops 1                   # todas respondem; uma persona chama no máximo uma outra
+hanko room add 01a14700 cfo; hanko room remove 01a14700 design
+```
+
+- Quem responde: as personas citadas com `@slug`; sem citação, a **moderadora** (modo `mentions`, o padrão) ou todas (modo `all`).
+  Cada resposta é uma run com o gatilho `chat`, no orçamento da persona e da empresa e na trava semanal.
+- Uma persona pausada, sem orçamento ou com a trava atingida não derruba as outras: a sala mostra "Fulana não vai responder: motivo".
+  Se ninguém pode responder, a mensagem é recusada com o motivo (409 na API).
+- Uma persona que cita outra na resposta a acorda. O freio: `max_hops` (padrão 2 saltos a partir da sua mensagem) e
+  `max_runs_per_message` (padrão = número de personas). Passou do limite, a sala avisa e ninguém mais roda; cite de novo numa
+  mensagem sua para continuar.
+- Mensagens para uma persona que está respondendo esperam a run dela terminar (até 20) e entram juntas na próxima.
+- O painel **Feed do time** ao lado mostra a atividade recente da empresa (atualiza a cada 10 s).
+
 ## Artefatos e metas
 
 **Artefatos** (ADR-0028) são arquivos com versões imutáveis: o mesmo nome na mesma task cria a versão seguinte; publicar o mesmo

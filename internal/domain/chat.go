@@ -23,7 +23,8 @@ func (s ConversationStatus) Valid() bool { return s == ConversationOpen || s == 
 type Conversation struct {
 	ID            ID                 `json:"id"`
 	CompanyID     ID                 `json:"company_id"`
-	PersonaID     ID                 `json:"persona_id"`
+	PersonaID     ID                 `json:"persona_id"` // zero numa sala (ADR-0033): as personas são os participantes
+	Kind          ConversationKind   `json:"kind"`
 	Title         string             `json:"title"`
 	Status        ConversationStatus `json:"status"`
 	CreatedBy     Actor              `json:"created_by"`
@@ -57,6 +58,13 @@ type ConversationMessage struct {
 	// recolheu (nil enquanto está na fila).
 	RunID     *ID       `json:"run_id,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
+	// Sala (ADR-0033): a persona que falou (ou de quem o aviso trata), a mensagem respondida, as personas
+	// mencionadas e, na mensagem que acorda personas, a entrega a cada uma (com a run que a recolheu).
+	PersonaID   *ID               `json:"persona_id,omitempty"`
+	PersonaName string            `json:"persona_name,omitempty"`
+	ReplyToID   *ID               `json:"reply_to_id,omitempty"`
+	Mentions    []ID              `json:"mentions,omitempty"`
+	Deliveries  []MessageDelivery `json:"deliveries,omitempty"`
 }
 
 // MaxMessageBytes é o maior corpo de uma mensagem humana.

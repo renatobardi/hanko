@@ -1,0 +1,364 @@
+package views
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/i18n"
+)
+
+// ---- sala (ADR-0033) ----
+
+templ RoomRows(rows []RoomRow) {
+	<div class="table-wrap">
+		<table class="table">
+			<thead>
+				<tr>
+					<th>{ i18n.T(ctx, "Sala") }</th>
+					<th class="hide-sm">Personas</th>
+					<th>{ i18n.T(ctx, "Status") }</th>
+					<th class="hide-sm num">{ i18n.T(ctx, "Custo") }</th>
+					<th class="num hide-sm">{ i18n.T(ctx, "Última mensagem") }</th>
+				</tr>
+			</thead>
+			<tbody>
+				for _, r := range rows {
+					<tr class="row">
+						<td class="ttl"><a href={ templ.SafeURL(r.Href) }>{ r.Title }</a></td>
+						<td class="hide-sm">
+							<span class="room-faces">
+								for _, p := range r.Personas {
+									<span class="mini-avatar" title={ p }>@PersonaGlyph(p)</span>
+								}
+								<span class="room-names">{ strings.Join(r.Personas, ", ") }</span>
+							</span>
+						</td>
+						<td>@BadgeEl(r.Badge)</td>
+						<td class="hide-sm num mono">{ r.Cost }</td>
+						<td class="when hide-sm">{ r.Last }</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+	</div>
+}
+
+templ RoomsPage(sh Shell, vm RoomsVM) {
+	@Layout(sh) {
+		@PageHead(i18n.T(ctx, "Sala"), vm.Subtitle) {
+		}
+		if sh.CanWrite() {
+			if vm.Empty {
+				@EmptyCard("users", i18n.T(ctx, "A sala precisa de pelo menos duas personas."), i18n.T(ctx, "Contrate as personas do time para reuni-las numa conversa."), false) {
+					<a class="btn primary sm" href={ templ.SafeURL(sh.Base() + "/personas/nova") }>{ i18n.T(ctx, "Contratar persona") }</a>
+				}
+			} else {
+				<form class="card pad form-card mb-6" method="post" action={ templ.SafeURL(vm.NewAction) } hx-boost="true" id="nova-sala">
+					<h2 class="side-h m-0 mb-1">{ i18n.T(ctx, "Nova sala") }</h2>
+					if vm.Error != "" {
+						@Alert("danger", vm.Error)
+					}
+					<div class="field">
+						<label for="r-title">{ i18n.T(ctx, "Título") }</label>
+						<input class="input" id="r-title" name="title" maxlength="200" value={ vm.RoomTitle } placeholder={ i18n.T(ctx, "Derivado da primeira mensagem quando vazio") }/>
+					</div>
+					<fieldset class="field room-pick-set">
+						<legend class="lbl">Personas</legend>
+						<div class="room-pick">
+							for _, p := range vm.Picks {
+								<label title={ p.Disabled }>
+									<input type="checkbox" name="personas" value={ p.ID } checked?={ p.Checked }/>
+									<span class="rp">
+										<span class="mini-avatar">@PersonaGlyph(p.Name)</span>
+										<span class="rp-txt">
+											<b>{ p.Name }</b>
+											if p.Disabled != "" {
+												<span class="rp-warn">{ p.Disabled }</span>
+											} else if p.Title != "" {
+												<span>{ p.Title }</span>
+											}
+										</span>
+									</span>
+								</label>
+							}
+						</div>
+						<span class="hint">{ fmt.Sprintf(i18n.T(ctx, "Escolha de %d a %d personas."), domain.MinRoomParticipants, domain.MaxRoomParticipants) }</span>
+					</fieldset>
+					<div class="form-grid">
+						<div class="field">
+							<label for="r-mod">{ i18n.T(ctx, "Moderadora") }</label>
+							@Select("moderator", "r-mod", vm.Moderators, false)
+							<span class="hint">{ i18n.T(ctx, "Responde quando ninguém é citado. Padrão: a primeira escolhida.") }</span>
+						</div>
+						<div class="field">
+							<span class="lbl">{ i18n.T(ctx, "Quem responde") }</span>
+							<div class="radio-cards rc2">
+								<label>
+									<input type="radio" name="mode" value="mentions" checked?={ vm.Mode != "all" }/>
+									<span class="rc"><b>@Icon("message-square") { i18n.T(ctx, "Citadas") }</b><span>{ i18n.T(ctx, "Só quem você chama com @; sem citação, a moderadora.") }</span></span>
+								</label>
+								<label>
+									<input type="radio" name="mode" value="all" checked?={ vm.Mode == "all" }/>
+									<span class="rc"><b>@Icon("users") { i18n.T(ctx, "Todas") }</b><span>{ i18n.T(ctx, "Todas as personas respondem a cada mensagem.") }</span></span>
+								</label>
+							</div>
+						</div>
+					</div>
+					<div class="field">
+						<label for="r-msg">{ i18n.T(ctx, "Primeira mensagem") }</label>
+						<textarea class="textarea" id="r-msg" name="message" rows="4" placeholder={ i18n.T(ctx, "Cite uma persona com @slug. Markdown.") }>{ vm.Message }</textarea>
+						<span class="hint">{ i18n.T(ctx, "Cada persona responde por uma execução: o custo entra no orçamento dela.") }</span>
+					</div>
+					<div class="form-actions">
+						<button class="btn primary" type="submit">
+							@Icon("users")
+							{ i18n.T(ctx, "Abrir sala") }
+						</button>
+					</div>
+				</form>
+			}
+		} else {
+			<p class="composer-ro">@NeedRole(domain.MemberMember)</p>
+		}
+		<div class="toolbar">
+			@Tabs(vm.Tabs)
+		</div>
+		if len(vm.Rows) == 0 {
+			@EmptyCard("users", i18n.T(ctx, "Nenhuma sala ainda — junte personas numa conversa só."), i18n.T(ctx, "Comece por um destes assuntos:"), false) {
+				if sh.CanWrite() && !vm.Empty {
+					<div class="chips room-sugs">
+						for _, sg := range vm.Suggestions {
+							<a class="chip" href={ templ.SafeURL(sg.Href) }>{ sg.Label }</a>
+						}
+					</div>
+				}
+			}
+		} else {
+			@RoomRows(vm.Rows)
+		}
+	}
+}
+
+// RoomThread é a lista de mensagens; enquanto uma persona responde, ela se atualiza a cada 2 s e, ociosa,
+// é trocada por uma versão sem o gatilho.
+templ RoomThread(vm RoomVM) {
+	<div id="room-thread" class="thread" aria-live="polite" if vm.Busy { hx-get={ vm.ThreadHref } hx-trigger="every 2s" hx-swap="outerHTML" }>
+		if len(vm.Messages) == 0 {
+			<p class="thread-empty">{ i18n.T(ctx, "Nenhuma mensagem ainda. Cite uma persona com @ para começar.") }</p>
+		}
+		for _, m := range vm.Messages {
+			switch m.Kind {
+				case "human":
+					<div class="msg me">
+						<div class="bubble"><div class="md">@templ.Raw(string(m.Body))</div></div>
+						<div class="meta">
+							<span>{ m.Author } · <time class="mono">{ m.When }</time></span>
+							if len(m.Waiting) > 0 {
+								<span class="badge soft">{ fmt.Sprintf(i18n.T(ctx, "na fila de %s"), strings.Join(m.Waiting, ", ")) }</span>
+							}
+						</div>
+					</div>
+				case "system":
+					<div class="run-sep">
+						<span>
+							{ m.Body }
+							<time class="mono">{ m.When }</time>
+							if m.RunHref != "" {
+								· <a class="link-u fg" href={ templ.SafeURL(m.RunHref) }>{ i18n.T(ctx, "execução") }</a>
+							}
+						</span>
+					</div>
+				default:
+					<div class="msg">
+						<span class="mini-avatar">@PersonaGlyph(m.Author)</span>
+						<div>
+							<div class="meta"><b>{ m.Author }</b><time class="mono">{ m.When }</time>
+								if m.RunHref != "" {
+									<a class="link-u" href={ templ.SafeURL(m.RunHref) }>{ i18n.T(ctx, "execução") }</a>
+								}
+							</div>
+							<div class="body md">@templ.Raw(string(m.Body))</div>
+						</div>
+					</div>
+			}
+		}
+		if vm.Waiting > 0 {
+			<div class="run-sep" role="status">
+				<span>{ fmt.Sprintf(i18n.T(ctx, "Mensagens esperando resposta: %d. Chame a persona de novo para ela recolhê-las."), vm.Waiting) }</span>
+			</div>
+		}
+		for _, p := range vm.Members {
+			if p.Thinking {
+				<div class="msg typing" role="status">
+					<span class="mini-avatar">@PersonaGlyph(p.Name)</span>
+					<div class="meta">
+						<b>{ p.Name }</b>
+						<span class="badge run"><i class="pulse"></i>{ i18n.T(ctx, "está pensando…") }</span>
+						if p.RunHref != "" {
+							<a class="link-u" href={ templ.SafeURL(p.RunHref) }>{ i18n.T(ctx, "Inspecionar") }</a>
+						}
+					</div>
+				</div>
+			}
+		}
+	</div>
+}
+
+templ RoomComposer(vm RoomVM) {
+	if !canWrite(ctx) {
+		<p class="composer-ro">@NeedRole(domain.MemberMember)</p>
+	} else if vm.Archived {
+		<p class="composer-ro">{ i18n.T(ctx, "Sala arquivada: reabra para continuar.") }</p>
+	} else {
+		<form
+			class="composer"
+			method="post"
+			action={ templ.SafeURL(vm.SendHref) }
+			hx-post={ vm.SendHref }
+			hx-target="#room-thread"
+			hx-swap="outerHTML"
+			hx-on::after-request="if(event.detail.successful){this.reset();}"
+			data-draft={ vm.DraftKey }
+		>
+			<textarea name="message" required placeholder={ i18n.T(ctx, "Escreva para a sala (markdown). Cite com @ quem deve responder.") } aria-label={ i18n.T(ctx, "Mensagem") }>{ vm.Draft }</textarea>
+			<div class="row">
+				<span class="hint room-at">
+					{ i18n.T(ctx, "@ para chamar uma persona:") }
+					for _, p := range vm.Members {
+						<button type="button" class="chip soft" data-mention={ "@" + p.Slug }>{ "@" + p.Slug }</button>
+					}
+				</span>
+				<button type="submit" class="btn primary sm">
+					@Icon("send")
+					{ i18n.T(ctx, "Enviar") }
+				</button>
+			</div>
+		</form>
+	}
+}
+
+// RoomFeed é o Feed do time: a atividade recente da empresa, atualizada a cada 10 s.
+templ RoomFeed(vm RoomVM) {
+	<div id="room-feed" hx-get={ vm.FeedHref } hx-trigger="every 10s" hx-swap="outerHTML">
+		if len(vm.Feed) == 0 {
+			<p class="thread-empty">{ i18n.T(ctx, "Nenhuma atividade ainda.") }</p>
+		} else {
+			<ul class="list">
+				for _, a := range vm.Feed {
+					<li>
+						@actorAvatar(a)
+						<div class="txt">
+							<b>{ a.Actor }</b> { a.Text }
+							if a.Href != "" {
+								<a href={ templ.SafeURL(a.Href) } class="mono link-u">{ a.Subject }</a>
+							} else {
+								{ a.Subject }
+							}
+							<div class="when">{ a.When }</div>
+						</div>
+					</li>
+				}
+			</ul>
+		}
+	</div>
+}
+
+templ RoomPage(sh Shell, vm RoomVM) {
+	@Layout(sh) {
+		@PageHead(vm.Title, "") {
+			if canWrite(ctx) {
+				<form method="post" action={ templ.SafeURL(vm.StatusHref) }>
+					<button class="btn outline sm" type="submit">
+						if vm.Archived {
+							{ i18n.T(ctx, "Reabrir") }
+						} else {
+							{ i18n.T(ctx, "Arquivar") }
+						}
+					</button>
+				</form>
+			}
+		}
+		<div class="chips mb-4 room-members">
+			for _, p := range vm.Members {
+				<span class={ "chip", templ.KV("room-thinking", p.Thinking) } title={ p.Blocked }>
+					<a class="room-member" href={ templ.SafeURL(p.Href) }>@PersonaGlyph(p.Name)<span>{ p.Name }</span></a>
+					if p.Moderator {
+						<span class="badge soft">{ i18n.T(ctx, "moderadora") }</span>
+					}
+					if p.Blocked != "" {
+						<span class="badge warn">{ i18n.T(ctx, "indisponível") }</span>
+					}
+					if p.RemoveURL != "" {
+						<form method="post" action={ templ.SafeURL(p.RemoveURL) } class="room-rm">
+							<button class="icon-btn" type="submit" aria-label={ fmt.Sprintf(i18n.T(ctx, "Tirar %s da sala"), p.Name) } title={ fmt.Sprintf(i18n.T(ctx, "Tirar %s da sala"), p.Name) }>@Icon("x")</button>
+						</form>
+					}
+				</span>
+			}
+			@BadgeEl(vm.Badge)
+			<span class="chip soft">{ vm.ModeLabel }</span>
+			<span class="chip soft">{ vm.Cost }</span>
+		</div>
+		<div class="room-grid">
+			<section class="room-main" aria-label={ i18n.T(ctx, "Conversa") }>
+				@RoomThread(vm)
+				@RoomComposer(vm)
+			</section>
+			<aside class="room-side">
+				<details class="card pad room-feed" open>
+					<summary class="side-h">{ i18n.T(ctx, "Feed do time") }</summary>
+					@RoomFeed(vm)
+				</details>
+				if canWrite(ctx) && !vm.Archived {
+					<details class="card pad room-cfg">
+						<summary class="side-h">{ i18n.T(ctx, "Personas e regras") }</summary>
+						if vm.CanAdd {
+							<form method="post" action={ templ.SafeURL(vm.AddHref) } class="field">
+								<label for="r-add">{ i18n.T(ctx, "Pôr na sala") }</label>
+								<div class="room-inline">
+									@Select("persona", "r-add", vm.AddOptions, true)
+									<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Adicionar") }</button>
+								</div>
+							</form>
+						}
+						<form method="post" action={ templ.SafeURL(vm.ConfigHref) }>
+							<div class="field">
+								<label for="r-cmod">{ i18n.T(ctx, "Moderadora") }</label>
+								@Select("moderator", "r-cmod", vm.ModOptions, true)
+							</div>
+							<div class="field">
+								<span class="lbl">{ i18n.T(ctx, "Quem responde") }</span>
+								<label class="check-line"><input type="radio" name="mode" value="mentions" checked?={ vm.Mode != "all" }/>{ i18n.T(ctx, "Citadas (sem citação, a moderadora)") }</label>
+								<label class="check-line"><input type="radio" name="mode" value="all" checked?={ vm.Mode == "all" }/>{ i18n.T(ctx, "Todas") }</label>
+							</div>
+							<div class="field">
+								<label for="r-hops">{ i18n.T(ctx, "Saltos entre personas") }</label>
+								<input class="input sm" id="r-hops" type="number" name="max_hops" min="1" max="5" value={ fmt.Sprint(vm.MaxHops) }/>
+								<span class="hint">{ i18n.T(ctx, "Quantas vezes uma resposta pode chamar outra persona a partir da sua mensagem.") }</span>
+							</div>
+							<div class="field">
+								<label for="r-runs">{ i18n.T(ctx, "Execuções por mensagem") }</label>
+								<input class="input sm" id="r-runs" type="number" name="max_runs" min="0" max="24" value={ fmt.Sprint(vm.MaxRuns) }/>
+								<span class="hint">{ i18n.T(ctx, "Teto de respostas por mensagem sua, contando os saltos. 0 = número de personas.") }</span>
+							</div>
+							<div class="form-actions">
+								<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Salvar") }</button>
+							</div>
+						</form>
+					</details>
+				}
+			</aside>
+		</div>
+	}
+}
+
+// RoomList é a seção "Salas em que participa" da página da persona.
+templ RoomList(rows []RoomRow) {
+	<h2 class="side-h sec-h" id="salas">{ i18n.T(ctx, "Salas em que participa") }</h2>
+	if len(rows) == 0 {
+		@EmptyCard("users", i18n.T(ctx, "Esta persona não está em nenhuma sala."), i18n.T(ctx, "Junte várias personas numa conversa só na página Sala."), false)
+	} else {
+		@RoomRows(rows)
+	}
+}

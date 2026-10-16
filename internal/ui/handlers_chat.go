@@ -81,7 +81,7 @@ func (s *server) renderChats(w http.ResponseWriter, r *http.Request, co domain.C
 			}
 		}
 	}
-	list, err := s.be.ListConversations(ctx, co.ID, service.ConversationFilter{Status: cur.status, Limit: chatListLimit})
+	list, err := s.be.ListConversations(ctx, co.ID, service.ConversationFilter{Status: cur.status, Kind: domain.ConversationDirect, Limit: chatListLimit})
 	if err != nil {
 		s.fail(w, r, &co, err)
 		return
@@ -143,6 +143,15 @@ func (s *server) chatConversation(w http.ResponseWriter, r *http.Request, co dom
 	cv, err := s.be.GetConversation(r.Context(), co.ID, id)
 	if err != nil {
 		s.fail(w, r, &co, err)
+		return service.ConversationView{}, false
+	}
+	if cv.Kind == domain.ConversationRoom {
+		// uma sala (ADR-0033) tem a sua página; links antigos de /chat/{id} (execuções, tasks) levam até ela
+		if r.Method == http.MethodGet && !isHX(r) {
+			http.Redirect(w, r, "/c/"+co.Slug+"/sala/"+cv.ID.String(), http.StatusSeeOther)
+		} else {
+			s.fail(w, r, &co, domain.ErrNotFound)
+		}
 		return service.ConversationView{}, false
 	}
 	return cv, true
