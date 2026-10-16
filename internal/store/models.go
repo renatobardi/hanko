@@ -273,6 +273,35 @@ type IntegrationPersona struct {
 	PersonaID     uuid.UUID
 }
 
+type IntegrationTool struct {
+	ID             uuid.UUID
+	CompanyID      uuid.UUID
+	IntegrationID  uuid.UUID
+	Name           string
+	Title          string
+	Description    string
+	InputSchema    []byte
+	Annotations    []byte
+	SchemaSha256   string
+	Risk           string
+	Status         string
+	FirstSeenAt    time.Time
+	LastSeenAt     time.Time
+	ReviewedByType *string
+	ReviewedByID   *uuid.UUID
+	ReviewedAt     *time.Time
+	UpdatedAt      time.Time
+}
+
+type IntegrationToolCatalog struct {
+	IntegrationID uuid.UUID
+	CompanyID     uuid.UUID
+	SyncedAt      *time.Time
+	LastError     string
+	ToolsCount    int32
+	UpdatedAt     time.Time
+}
+
 type MemoryConsolidation struct {
 	ID            uuid.UUID
 	CompanyID     uuid.UUID
@@ -576,6 +605,107 @@ type TaskComment struct {
 	CreatedAt  time.Time
 	Anchor     []byte
 	SearchTsv  interface{}
+}
+
+type ToolCallApproval struct {
+	ID            uuid.UUID
+	CompanyID     uuid.UUID
+	GateID        uuid.UUID
+	IntegrationID uuid.UUID
+	Tool          string
+	ArgsSha256    string
+	RunID         *uuid.UUID
+	TaskID        *uuid.UUID
+	PersonaID     *uuid.UUID
+	GatewayID     *uuid.UUID
+	ConsumedAt    *time.Time
+	CreatedAt     time.Time
+}
+
+type ToolGateway struct {
+	ID            uuid.UUID
+	CompanyID     uuid.UUID
+	Slug          string
+	Name          string
+	ProfileID     uuid.UUID
+	Enabled       bool
+	CreatedByType string
+	CreatedByID   *uuid.UUID
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
+type ToolGatewayToken struct {
+	ID            uuid.UUID
+	CompanyID     uuid.UUID
+	GatewayID     uuid.UUID
+	Label         string
+	Prefix        string
+	TokenHash     string
+	Actions       []string
+	ExpiresAt     time.Time
+	LastUsedAt    *time.Time
+	RevokedAt     *time.Time
+	CreatedByType string
+	CreatedByID   *uuid.UUID
+	CreatedAt     time.Time
+}
+
+type ToolInvocation struct {
+	ID              uuid.UUID
+	CompanyID       uuid.UUID
+	RunID           *uuid.UUID
+	GatewayID       *uuid.UUID
+	PersonaID       *uuid.UUID
+	IntegrationID   *uuid.UUID
+	IntegrationSlug string
+	Tool            string
+	ArgsSha256      string
+	ArgsBytes       int32
+	Decision        string
+	GateID          *uuid.UUID
+	Status          string
+	LatencyMs       int32
+	Error           string
+	CreatedAt       time.Time
+}
+
+type ToolProfile struct {
+	ID              uuid.UUID
+	CompanyID       uuid.UUID
+	Slug            string
+	Name            string
+	Description     string
+	DefaultAction   string
+	RateLimitPerMin int32
+	CreatedByType   string
+	CreatedByID     *uuid.UUID
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
+type ToolProfileBinding struct {
+	ID        uuid.UUID
+	CompanyID uuid.UUID
+	ProfileID uuid.UUID
+	Scope     string
+	ProjectID *uuid.UUID
+	PersonaID *uuid.UUID
+	Priority  int32
+	CreatedAt time.Time
+}
+
+type ToolProfileRule struct {
+	ID            uuid.UUID
+	CompanyID     uuid.UUID
+	ProfileID     uuid.UUID
+	Target        string
+	IntegrationID *uuid.UUID
+	ToolName      string
+	Risk          string
+	Effect        string
+	Mode          string
+	CreatedAt     time.Time
 }
 
 type User struct {

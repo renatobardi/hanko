@@ -350,7 +350,7 @@ func (h *Heartbeat) buildSpec(rc service.RunContext, briefing, handoff string, s
 		if err != nil {
 			return adapter.Spec{}, nil, fmt.Errorf("emitir run token: %w", err)
 		}
-		extraMCP = mergeMCP(extras.MCP, h.mem.AgentMCP(scope, rc.Run.ID.String(), token))
+		extraMCP = mergeMCP(extras.MCP, toolGatewayMCP(publicURL, token, extras.ToolGateway), h.mem.AgentMCP(scope, rc.Run.ID.String(), token))
 	}
 	mcpCfg, err := buildMCPConfig(publicURL, token, extraMCP)
 	if err != nil {
@@ -419,7 +419,7 @@ func (h *Heartbeat) runExtras(ctx context.Context, rc service.RunContext, emit f
 	if !ok {
 		return service.RunExtras{}
 	}
-	ex, err := eb.RunExtras(ctx, rc.Company.ID, rc.Persona.ID)
+	ex, err := h.runExtrasFor(ctx, eb, rc)
 	if err != nil {
 		emit(domain.EventSystem, "skills e integrações indisponíveis nesta execução: "+err.Error())
 		return service.RunExtras{}

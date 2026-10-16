@@ -157,16 +157,10 @@ func TestMCPIntegrationSecretsAreEncryptedAndNeverReturned(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var entry struct {
-		Type    string            `json:"type"`
-		URL     string            `json:"url"`
-		Headers map[string]string `json:"headers"`
-	}
-	if err := json.Unmarshal(ex.MCP["docs"], &entry); err != nil {
-		t.Fatal(err)
-	}
-	if entry.Type != "http" || entry.URL != "https://mcp.example.com/mcp" || len(entry.Headers) != 1 || entry.Headers["X-Team"] != "beta-team-value" {
-		t.Fatalf("entrada MCP: %+v", entry)
+	// MCP http vai pelo gateway de tools (ADR-0036): o agente não recebe a URL nem os headers guardados
+	exJSON, _ := json.Marshal(ex)
+	if len(ex.ToolGateway) != 1 || ex.ToolGateway[0] != "docs" || len(ex.MCP) != 0 || strings.Contains(string(exJSON), "beta-team") {
+		t.Fatalf("extras: %s", exJSON)
 	}
 }
 
@@ -301,7 +295,7 @@ func TestMCPInjectionPerPersona(t *testing.T) {
 		for k := range ex.MCP {
 			ks = append(ks, k)
 		}
-		return ks
+		return append(ks, ex.ToolGateway...)
 	}
 	if got := keys(ana); len(got) != 2 {
 		t.Fatalf("Ana: %v", got)
@@ -365,8 +359,8 @@ func TestRunExtrasSkipsUnreadableSecrets(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := ex.MCP["com-segredo"]; ok || len(ex.MCP) != 1 || len(ex.Warnings) != 1 || strings.Contains(ex.Warnings[0], "xyz12345") {
-		t.Fatalf("extras: %v %v", ex.MCP, ex.Warnings)
+	if len(ex.ToolGateway) != 1 || ex.ToolGateway[0] != "sem-segredo" || len(ex.Warnings) != 1 || strings.Contains(ex.Warnings[0], "xyz12345") {
+		t.Fatalf("extras: %v %v", ex.ToolGateway, ex.Warnings)
 	}
 }
 
@@ -380,8 +374,8 @@ func TestSecretKeyRotationAndRekey(t *testing.T) {
 	both, _ := secretbox.New(keyTwo, keyOne)
 	e.svc.Integrations.Secrets = both
 	ex, err := e.svc.RunExtras(ctx, e.co.ID, p.ID)
-	if err != nil || len(ex.MCP) != 1 || len(ex.Warnings) != 0 {
-		t.Fatalf("lendo com a anterior: %v %v %v", ex.MCP, ex.Warnings, err)
+	if err != nil || len(ex.ToolGateway) != 1 || len(ex.Warnings) != 0 {
+		t.Fatalf("lendo com a anterior: %v %v %v", ex.ToolGateway, ex.Warnings, err)
 	}
 	n, err := e.svc.RekeyIntegrationSecrets(ctx)
 	if err != nil || n != 1 {
@@ -394,8 +388,8 @@ func TestSecretKeyRotationAndRekey(t *testing.T) {
 	only, _ := secretbox.New(keyTwo, "")
 	e.svc.Integrations.Secrets = only
 	ex, err = e.svc.RunExtras(ctx, e.co.ID, p.ID)
-	if err != nil || len(ex.MCP) != 1 || len(ex.Warnings) != 0 {
-		t.Fatalf("só a nova: %v %v %v", ex.MCP, ex.Warnings, err)
+	if err != nil || len(ex.ToolGateway) != 1 || len(ex.Warnings) != 0 {
+		t.Fatalf("só a nova: %v %v %v", ex.ToolGateway, ex.Warnings, err)
 	}
 	// rekey é do dono da instalação
 	admin := mkUser(t, e.env, "adm@x.com", domain.RoleAdmin)

@@ -236,6 +236,7 @@ func (w *sweepWorker) Work(ctx context.Context, _ *river.Job[MemorySweepArgs]) e
 	if len(ids) > 0 {
 		h.log.Debug("memory_sweep", "pending", len(ids))
 	}
+	h.pruneToolAudit(ctx) // retenção da auditoria do gateway de tools (ADR-0036)
 	return h.sweepProposals(ctx)
 }
 
