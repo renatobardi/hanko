@@ -148,6 +148,11 @@ type TasksVM struct {
 	Board               bool
 	Columns             []TaskGroup
 	ListHref, BoardHref string
+	// Visão salva (agrupar/ordem) e filtros de persona e prioridade, com as opções dos seletores.
+	GroupBy, SortBy                 string
+	PersonaFilter, PriorityFilter   string
+	GroupOptions, SortOptions       []Option
+	PersonaOptions, PriorityOptions []Option
 	// Project filters the list (?projeto=): slug, name, link to its page and the link that clears the filter.
 	Project, ProjectName, ProjectHref, ClearHref string
 	// Goal filters the list (?meta=): slug, title, link to its page and the link that clears the filter.

@@ -30,3 +30,11 @@ func iconOrDefault(i string) string {
 	}
 	return domain.DefaultPersonaIcon
 }
+
+// boolAttr é o valor textual de um atributo enumerado HTML ("true"/"false"), como draggable.
+func boolAttr(b bool) string {
+	if b {
+		return "true"
+	}
+	return "false"
+}

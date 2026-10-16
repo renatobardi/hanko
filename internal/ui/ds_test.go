@@ -94,3 +94,48 @@ func TestSettingsLivesInSidebarFoot(t *testing.T) {
 	}
 	wantContains(t, rec, `class="sidebar-foot" href="/c/hanko/configuracoes"`)
 }
+
+func TestOrgChartPersonaGlyph(t *testing.T) {
+	e := newEnv(t, uitest.Sample())
+	rec := e.get(t, "/c/hanko/organograma")
+	wantStatus(t, rec, http.StatusOK)
+	// sprite com um símbolo por glifo; SVG estático e ilha desenham por <use>
+	wantContains(t, rec, `class="svg-sprite"`, `id="pg-briefcase"`, `id="pg-bot"`, `class="org-glyph" href="#pg-briefcase"`, `href="#pg-cpu"`)
+	wantNotContains(t, rec, `class="org-ini"`)
+	if !strings.Contains(rec.Body.String(), "icon&#34;:&#34;briefcase") && !strings.Contains(rec.Body.String(), `"icon":"briefcase"`) {
+		t.Error("data-nodes da ilha sem o ícone da persona")
+	}
+}
+
+func TestTaskViewsGroupSortFilter(t *testing.T) {
+	e := newEnv(t, uitest.Sample())
+	// agrupar por persona: um grupo por nome, ordem alfabética; prioridade filtra
+	rec := e.get(t, "/c/hanko/tasks?aba=todas&agrupar=persona&ordem=titulo")
+	wantStatus(t, rec, http.StatusOK)
+	body := rec.Body.String()
+	if i, j := strings.Index(body, ">Hana<"), strings.Index(body, ">Kenji<"); i < 0 || j < 0 || i > j {
+		t.Errorf("grupos por persona fora de ordem (Hana=%d, Kenji=%d)", i, j)
+	}
+	if c := rec.Header().Get("Set-Cookie"); !strings.Contains(c, "hanko_tasks=") || !strings.Contains(c, "agrupar=persona") {
+		t.Errorf("visão não salva: %q", c)
+	}
+	// sem parâmetros de visão, o cookie reabre como estava
+	rec = e.get(t, "/c/hanko/tasks", "Cookie", "hanko_tasks=agrupar=prioridade&ordem=criada&visao=quadro")
+	wantContains(t, rec, `class="board"`, `value="criada" selected`)
+	// filtro de prioridade
+	rec = e.get(t, "/c/hanko/tasks?aba=todas&prioridade=high&visao=lista")
+	wantContains(t, rec, `value="high" selected`, "HNK-219")
+	wantNotContains(t, rec, "HNK-217") // média
+	// aba Minhas existe; quadro arrastável para quem escreve
+	rec = e.get(t, "/c/hanko/tasks?visao=quadro")
+	wantContains(t, rec, "aba=minhas", `draggable="true" data-task="HNK-219"`, `data-status="in_progress"`)
+}
+
+func TestBoardDropUpdatesStatus(t *testing.T) {
+	f := uitest.Sample()
+	e := newEnv(t, f)
+	rec := e.post(t, "/c/hanko/tasks/HNK-217", url.Values{"status": {"in_review"}}, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d", rec.Code)
+	}
+}

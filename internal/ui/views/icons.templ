@@ -5,6 +5,12 @@ import "fmt"
 // Icon draws a 24x24 line icon (stroke follows currentColor).
 templ Icon(name string) {
 	<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+		@iconPaths(name)
+	</svg>
+}
+
+// iconPaths is the inside of an icon (no <svg>): Icon wraps it, PersonaSprite puts it in a <symbol>.
+templ iconPaths(name string) {
 		switch name {
 			case "search":
 				<circle cx="11" cy="11" r="8"></circle>
@@ -172,7 +178,6 @@ templ Icon(name string) {
 			default:
 				<circle cx="12" cy="12" r="9"></circle>
 		}
-	</svg>
 }
 
 // Mark is the 5-petal sakura brand mark.

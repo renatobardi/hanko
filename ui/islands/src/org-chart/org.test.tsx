@@ -166,3 +166,13 @@ describe("OrgChart", () => {
     expect([x1 - x0, y1 - y0]).toEqual([40, 20]);
   });
 });
+
+describe("glifo da persona", () => {
+  it("desenha o símbolo do host pelo ícone e cai no robô sem ícone", () => {
+    const { container } = render(<OrgChart nodes={[node("ceo", "", { icon: "briefcase" }), node("cto", "ceo")]} canEdit={false} apiBase="/api/v1/companies/acme" msgs={{}} />);
+    const uses = Array.from(container.querySelectorAll("use.org-glyph")).map((u) => u.getAttribute("href"));
+    expect(uses).toEqual(expect.arrayContaining(["#pg-briefcase", "#pg-bot"]));
+    expect(container.querySelector(".org-ini")).toBeNull();
+  });
+});
+
