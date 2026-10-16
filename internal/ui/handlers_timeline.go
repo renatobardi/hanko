@@ -67,8 +67,8 @@ func (s *server) handleTimeline(w http.ResponseWriter, r *http.Request, co domai
 		return tlLabelW + float64(t.Sub(from))/float64(to.Sub(from))*tlChartW
 	}
 	type lane struct {
-		name, slug string
-		bars       []views.TimelineBar
+		name string
+		bars []views.TimelineBar
 	}
 	lanes := map[string]*lane{}
 	var busy time.Duration

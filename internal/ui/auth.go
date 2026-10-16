@@ -439,9 +439,10 @@ func (s *server) handleChangePassword(w http.ResponseWriter, r *http.Request, co
 		var ve *domain.ValidationError
 		if errors.As(err, &ve) {
 			msg := i18n.T(ctx, "Senha atual incorreta.")
-			if ve.Field == "new_password" {
+			switch ve.Field {
+			case "new_password":
 				msg = i18n.Tf(ctx, "A nova senha precisa ter entre %d e %d caracteres.", auth.MinPasswordLen, auth.MaxPasswordLen)
-			} else if ve.Field == "password" {
+			case "password":
 				msg = i18n.T(ctx, "Esta conta não usa senha local; troque a senha no provedor de login.")
 			}
 			s.passwordError(w, r, co, ve.Field, msg)

@@ -13,7 +13,14 @@ English summary at the end of each release.
 - Glifo por persona (migration 00026 `personas.icon`, catálogo fechado de 18, padrão `bot`): API (`icon` no hire/update e na saída), export/import, CLI `--icon`, seletor na contratação e na página da persona, avatares e chips em toda a UI.
 - Quadro de tasks (`/tasks?visao=quadro`) com uma coluna por status; troca de tema claro · escuro · sistema no rodapé da sidebar (`POST /tema`, cookie `hanko_theme`); Configurações saiu do grupo Organização e ficou no rodapé.
 - Estilos inline dos templates viraram classes na escala de espaço do DS.
-- English summary: the UI now follows the Kubo DS (Inter, OKLCH tokens, ring cards, radius/type scales, pill controls, focus ring), with a per-persona glyph, a task board view and a light/dark/system theme toggle.
+- Organograma com o glifo da persona (sprite de símbolos; SVG estático e ilha).
+- Tasks: quadro com arrastar para mudar o status; lista com agrupar (status, prioridade, persona, projeto), ordenar e filtrar (persona, prioridade); aba Minhas; visão salva em cookie.
+- Projeto em abas (Visão geral, Tasks em lista ou quadro, Workspace, Orçamento, Configuração) e workspace em abas (Visão geral, Tasks, Execuções, Configuração).
+- Timeline do trabalho (`/timeline`): faixas por persona, barras por execução, 1/7/30 dias.
+- Painel ao vivo (`/ao-vivo`): execuções rodando com o fim do log, atualização a cada 5 s.
+- Configurações › Ambientes (verificações reais do servidor), Adapters (harnesses, personas, preços), Plugins (pontos de extensão) e Exportar e importar (pela API).
+- Catálogo de times prontos (`/personas/catalogo`) e troca da própria senha para login local.
+- English summary: the UI now follows the Kubo DS (Inter, OKLCH tokens, ring cards, radius/type scales, pill controls, focus ring), with a per-persona glyph, a light/dark/system theme toggle, a draggable task board with saved views, tabbed project and workspace pages, a run timeline, a live panel, environment/adapter/plugin settings, export/import in the UI, ready-made teams and self-service password change (ADR-0031).
 
 ## [0.2.0] — 2026-10-15
 
