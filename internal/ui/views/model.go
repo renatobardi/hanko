@@ -705,6 +705,10 @@ type APIKeyRow struct {
 type SettingsVM struct {
 	Sections      []TabLink // Geral · Ambientes · Adapters · Plugins
 	Authenticated bool
+	// LocalLogin: a conta usa senha local (mostra "Trocar senha"); PasswordError é o erro do último envio.
+	LocalLogin    bool
+	PasswordError string
+	PasswordField string
 	Name, Email   string
 	Provider      string
 	Role          string

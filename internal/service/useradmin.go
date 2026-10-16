@@ -222,3 +222,53 @@ func TempPassword() (string, error) {
 	}
 	return strings.ToLower(base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(b))[:20], nil
 }
+
+// ChangeOwnPassword troca a senha da própria conta (provider local): confere a senha atual, valida a nova
+// e encerra todas as sessões da conta (o navegador volta para o login). Fica na trilha de admin.
+func (s *Service) ChangeOwnPassword(ctx context.Context, current, next string) error {
+	id, ok := auth.IdentityFrom(ctx)
+	if !ok || id.User.ID == (domain.ID{}) {
+		return domain.ErrUnauthenticated
+	}
+	row, err := s.read().GetUserByID(ctx, id.User.ID)
+	if err != nil {
+		return mapErr(err, "user")
+	}
+	if row.Provider != string(domain.ProviderLocal) || row.PasswordHash == nil {
+		return domain.Invalid("password", "a conta não usa senha local (provider "+row.Provider+")")
+	}
+	if err := auth.ValidatePassword(next); err != nil {
+		return domain.Invalid("new_password", err.Error())
+	}
+	release, err := s.PasswordGate.Acquire(ctx)
+	if err != nil {
+		return err
+	}
+	match, err := auth.VerifyPassword(current, *row.PasswordHash)
+	if err != nil || !match {
+		release()
+		s.auditAdmin(ctx, slog.LevelWarn, "user.change_password", row.Email, &row.ID, "denied")
+		return domain.Invalid("current_password", "senha atual incorreta")
+	}
+	hash, err := auth.HashPassword(next)
+	release()
+	if err != nil {
+		return err
+	}
+	err = s.withTx(ctx, func(t *txc) error {
+		if n, err := t.q.SetUserPassword(ctx, store.SetUserPasswordParams{ID: row.ID, PasswordHash: &hash}); err != nil {
+			return fmt.Errorf("set password: %w", err)
+		} else if n == 0 {
+			return notFound("user")
+		}
+		if err := t.q.DeleteSessionsByUser(ctx, row.ID); err != nil {
+			return fmt.Errorf("end sessions: %w", err)
+		}
+		return s.recordAdmin(ctx, t.q, "user.change_password", row.Email, &row.ID, "ok")
+	})
+	if err != nil {
+		return err
+	}
+	s.logAdmin(ctx, slog.LevelInfo, "user.change_password", row.Email, &row.ID, "ok")
+	return nil
+}

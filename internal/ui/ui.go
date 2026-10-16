@@ -304,6 +304,7 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("GET /c/{company}/configuracoes/adapters", co(s.handleAdapters))
 	mux.HandleFunc("GET /c/{company}/configuracoes/plugins", co(s.handlePlugins))
 	mux.HandleFunc("GET /c/{company}/configuracoes/dados", co(s.handleData))
+	mux.HandleFunc("POST /c/{company}/configuracoes/senha", post(co(s.handleChangePassword)))
 	mux.HandleFunc("POST /c/{company}/configuracoes/chaves", post(co(s.handleCreateKey)))
 	mux.HandleFunc("POST /c/{company}/configuracoes/chaves/{key}/revogar", post(co(s.handleRevokeKey)))
 	mux.HandleFunc("POST /c/{company}/configuracoes/memoria", post(co(s.handleMemorySave)))

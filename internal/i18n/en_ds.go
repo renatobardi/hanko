@@ -3,6 +3,17 @@ package i18n
 // enDS holds the English texts added with the Kubo DS adherence pass (persona glyph, theme toggle,
 // task board). Same rules as en.go: the key is the pt-BR text, never repeated across files.
 var enDS = map[string]string{
+	"A confirmação não bate com a nova senha.":                             "The confirmation does not match the new password.",
+	"Senha atual incorreta.":                                               "Current password is incorrect.",
+	"A nova senha precisa ter entre %d e %d caracteres.":                   "The new password must be %d to %d characters long.",
+	"Esta conta não usa senha local; troque a senha no provedor de login.": "This account does not use a local password; change it with your sign-in provider.",
+	"Empresas":     "Companies",
+	"Trocar senha": "Change password",
+	"Senha atual":  "Current password",
+	"Nova senha":   "New password",
+	"Confirmar":    "Confirm",
+	"Ao trocar, todas as sessões desta conta são encerradas e você entra de novo.": "Changing it ends every session of this account and you sign in again.",
+	"Salvar nova senha": "Save new password",
 	"O que as personas estão fazendo agora. Atualiza sozinho a cada 5 segundos.": "What the personas are doing right now. Refreshes every 5 seconds.",
 	"Todas as execuções":                 "All runs",
 	"%s rodando · %s na fila":            "%s running · %s queued",

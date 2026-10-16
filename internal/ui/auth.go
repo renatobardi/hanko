@@ -32,6 +32,7 @@ type AuthBackend interface {
 	PreviewInvite(ctx context.Context, token string) (service.InvitePreview, error)
 	AcceptInvite(ctx context.Context, token string, u domain.User) (domain.Member, error)
 	AcceptInviteLocal(ctx context.Context, token, name, password string) (domain.User, domain.Member, error)
+	ChangeOwnPassword(ctx context.Context, current, next string) error
 }
 
 var _ AuthBackend = (*service.Service)(nil)
@@ -363,6 +364,7 @@ func (s *server) settingsVM(r *http.Request) (views.SettingsVM, error) {
 	}
 	u := id.User
 	vm.Name, vm.Email, vm.Provider, vm.Role = u.DisplayName(), u.Email, providerLabel(r.Context(), u.Provider), roleLabel(r.Context(), u.Role)
+	vm.LocalLogin = u.Provider == domain.ProviderLocal
 	keys, err := s.auth.be.ListAPIKeys(r.Context(), u.ID)
 	if err != nil {
 		return vm, err
@@ -418,6 +420,48 @@ func (s *server) handleSettings(w http.ResponseWriter, r *http.Request, co domai
 		return
 	}
 	s.renderSettings(w, r, co, http.StatusOK, vm)
+}
+
+// handleChangePassword troca a senha da própria conta local. Certo: todas as sessões acabam e o
+// navegador vai para o login; errado: a página volta com o erro no formulário.
+func (s *server) handleChangePassword(w http.ResponseWriter, r *http.Request, co domain.Company) {
+	ctx := r.Context()
+	if s.auth == nil {
+		s.fail(w, r, &co, domain.ErrNotAllowed)
+		return
+	}
+	current, next := r.PostFormValue("current_password"), r.PostFormValue("new_password")
+	if next != r.PostFormValue("confirm_password") {
+		s.passwordError(w, r, co, "confirm_password", i18n.T(ctx, "A confirmação não bate com a nova senha."))
+		return
+	}
+	if err := s.auth.be.ChangeOwnPassword(ctx, current, next); err != nil {
+		var ve *domain.ValidationError
+		if errors.As(err, &ve) {
+			msg := i18n.T(ctx, "Senha atual incorreta.")
+			if ve.Field == "new_password" {
+				msg = i18n.Tf(ctx, "A nova senha precisa ter entre %d e %d caracteres.", auth.MinPasswordLen, auth.MaxPasswordLen)
+			} else if ve.Field == "password" {
+				msg = i18n.T(ctx, "Esta conta não usa senha local; troque a senha no provedor de login.")
+			}
+			s.passwordError(w, r, co, ve.Field, msg)
+			return
+		}
+		s.fail(w, r, &co, err)
+		return
+	}
+	s.clearSessionCookie(w)
+	redirect(w, r, auth.LoginPath)
+}
+
+func (s *server) passwordError(w http.ResponseWriter, r *http.Request, co domain.Company, field, msg string) {
+	vm, err := s.settingsVM(r)
+	if err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
+	vm.PasswordError, vm.PasswordField = msg, field
+	s.renderSettings(w, r, co, http.StatusUnprocessableEntity, vm)
 }
 
 func (s *server) handleCreateKey(w http.ResponseWriter, r *http.Request, co domain.Company) {

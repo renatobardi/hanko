@@ -1199,4 +1199,7 @@ a.hit-main:hover { background: var(--muted); }
 .live-card .lc-subj { margin: 10px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .live-card .lc-log { min-height: 0; max-height: 180px; padding: 10px 12px; font-size: var(--text-xs); }
 .live-card .lc-log .log-line { grid-template-columns: 84px minmax(0, 1fr); }
+details > summary.btn { list-style: none; display: inline-flex; }
+details > summary.btn::-webkit-details-marker { display: none; }
+.pw-form { max-width: 560px; }
 
