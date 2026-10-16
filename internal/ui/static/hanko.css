@@ -1203,3 +1203,12 @@ details > summary.btn { list-style: none; display: inline-flex; }
 details > summary.btn::-webkit-details-marker { display: none; }
 .pw-form { max-width: 560px; }
 
+
+/* ---- ambientes de execução (ADR-0037) ---- */
+.env-probe:empty { display: none; }
+.env-probe { margin-top: 12px; display: grid; gap: 8px; }
+.env-probe-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: var(--text-sm); }
+.warn-text { color: var(--warn); }
+.ok-text { color: var(--muted-foreground); }
+.env-default .inline-form { align-items: center; }
+.env-default .inline-form select { flex: 1 1 260px; }

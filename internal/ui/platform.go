@@ -94,8 +94,9 @@ func rootWritable(ctx context.Context, root string) views.EnvCheck {
 	return check(true, label, root)
 }
 
-func (s *server) handleEnvironments(w http.ResponseWriter, r *http.Request, co domain.Company) {
-	ctx := r.Context()
+// localEnvironment é o ambiente local (implícito) de Configurações › Ambientes: as verificações reais deste
+// servidor e a configuração da instalação (ADR-0031, ADR-0037).
+func (s *server) localEnvironment(ctx context.Context, co domain.Company) views.EnvLocalCard {
 	p := s.platform
 	root := s.workspacesRoot(co)
 	checks := []views.EnvCheck{
@@ -119,7 +120,7 @@ func (s *server) handleEnvironments(w http.ResponseWriter, r *http.Request, co d
 	if agent == "" {
 		agent = p.PublicURL
 	}
-	vm := views.EnvironmentsVM{Sections: settingsSections(ctx, "/c/"+co.Slug, "ambientes"), Checks: checks, OK: ok, Total: len(checks),
+	return views.EnvLocalCard{Checks: checks, OK: ok, Total: len(checks),
 		Facts: []views.KV{
 			{K: i18n.T(ctx, "Tipo"), V: i18n.T(ctx, "Local · processos filhos neste servidor")},
 			{K: i18n.T(ctx, "Raiz dos workspaces"), V: root},
@@ -130,7 +131,6 @@ func (s *server) handleEnvironments(w http.ResponseWriter, r *http.Request, co d
 			{K: i18n.T(ctx, "Heartbeat do agendador"), V: durOrDash(p.HeartbeatInterval)},
 			{K: i18n.T(ctx, "Modo"), V: modeLabel(ctx, p)},
 		}}
-	s.render(w, r, http.StatusOK, views.EnvironmentsPage(s.settingsShell(r, co, i18n.T(ctx, "Ambientes")), vm))
 }
 
 func (s *server) handleAdapters(w http.ResponseWriter, r *http.Request, co domain.Company) {

@@ -797,6 +797,19 @@ func (s *Service) rekeyEnvironmentSecrets(ctx context.Context) (int, error) {
 	return n, nil
 }
 
+// EnvironmentDrivers diz, para cada driver remoto, por que ele não pode rodar neste servidor ("" = pode).
+// É a decisão do operador (HANKO_ENV_SSH_ALLOW_HOSTS, HANKO_ENV_SANDBOX) e não depende da empresa.
+func (s *Service) EnvironmentDrivers(context.Context) map[domain.EnvironmentDriver]string {
+	out := map[domain.EnvironmentDriver]string{}
+	for _, d := range []domain.EnvironmentDriver{domain.EnvSSH, domain.EnvSandbox} {
+		out[d] = ""
+		if err := s.Environments.DriverStatus(d); err != nil {
+			out[d] = err.Error()
+		}
+	}
+	return out
+}
+
 // EnvironmentSecretValues lista os valores secretos de um ambiente para a redação do log da run.
 func (r RunEnvironment) EnvironmentSecretValues() []string {
 	var out []string

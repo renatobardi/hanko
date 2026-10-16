@@ -1575,6 +1575,275 @@
         ],
         "type": "object"
       },
+      "Environment": {
+        "additionalProperties": false,
+        "properties": {
+          "active_leases": {
+            "description": "Execuções usando o ambiente agora.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "available": {
+            "description": "O driver pode rodar neste servidor (decisão do operador).",
+            "type": "boolean"
+          },
+          "company_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "created_by": {
+            "$ref": "#/components/schemas/ActorRef"
+          },
+          "description": {
+            "type": "string"
+          },
+          "driver": {
+            "enum": [
+              "ssh",
+              "sandbox"
+            ],
+            "type": "string"
+          },
+          "env_names": {
+            "description": "Nomes das variáveis do ambiente (os valores nunca são devolvidos).",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "is_default": {
+            "description": "Padrão da empresa para personas sem ambiente próprio.",
+            "type": "boolean"
+          },
+          "key_set": {
+            "description": "SSH: há chave privada guardada (nunca devolvida).",
+            "type": "boolean"
+          },
+          "last_probe": {
+            "$ref": "#/components/schemas/ProbeReport",
+            "description": "Relatório do último teste de conexão."
+          },
+          "last_probe_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "last_probe_ok": {
+            "type": "boolean"
+          },
+          "name": {
+            "examples": [
+              "Servidor de build"
+            ],
+            "type": "string"
+          },
+          "personas": {
+            "description": "Personas que escolheram este ambiente.",
+            "items": {
+              "$ref": "#/components/schemas/EnvironmentPersona"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "sandbox": {
+            "$ref": "#/components/schemas/SandboxConfig"
+          },
+          "slug": {
+            "examples": [
+              "build"
+            ],
+            "type": "string"
+          },
+          "ssh": {
+            "$ref": "#/components/schemas/SSHConfig"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "archived"
+            ],
+            "type": "string"
+          },
+          "unavailable": {
+            "description": "Por que o driver não pode rodar agora.",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "company_id",
+          "slug",
+          "name",
+          "driver",
+          "status",
+          "env_names",
+          "is_default",
+          "key_set",
+          "available",
+          "personas",
+          "active_leases",
+          "created_by",
+          "created_at",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "EnvironmentBody": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "maxLength": 500,
+            "type": "string"
+          },
+          "driver": {
+            "description": "O local é implícito e não se cadastra.",
+            "enum": [
+              "ssh",
+              "sandbox"
+            ],
+            "type": "string"
+          },
+          "env": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Variáveis do harness no ambiente (segredos; HANKO_*, PATH e HOME são reservados). Guardadas cifradas; nunca devolvidas.",
+            "type": "object"
+          },
+          "name": {
+            "examples": [
+              "Servidor de build"
+            ],
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "private_key": {
+            "description": "SSH: chave privada (PEM/OpenSSH, sem senha). Guardada cifrada; nunca devolvida.",
+            "type": "string"
+          },
+          "sandbox": {
+            "$ref": "#/components/schemas/SandboxConfig"
+          },
+          "slug": {
+            "description": "Derivado do nome quando omitido.",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,62}$",
+            "type": "string"
+          },
+          "ssh": {
+            "$ref": "#/components/schemas/SSHConfig"
+          }
+        },
+        "required": [
+          "name",
+          "driver"
+        ],
+        "type": "object"
+      },
+      "EnvironmentLease": {
+        "additionalProperties": false,
+        "properties": {
+          "acquired_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "failure_reason": {
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "orphan": {
+            "description": "O uso ficou ativo mas a execução já terminou (o servidor caiu no meio).",
+            "type": "boolean"
+          },
+          "persona_name": {
+            "type": "string"
+          },
+          "released_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "remote_dir": {
+            "description": "Diretório da execução no alvo (mantido quando o uso falha).",
+            "type": "string"
+          },
+          "run_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "run_name": {
+            "type": "string"
+          },
+          "run_status": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "released",
+              "failed"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "run_id",
+          "run_status",
+          "status",
+          "acquired_at",
+          "orphan"
+        ],
+        "type": "object"
+      },
+      "EnvironmentPersona": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "name"
+        ],
+        "type": "object"
+      },
       "ErrorDetail": {
         "additionalProperties": false,
         "properties": {
@@ -2803,6 +3072,68 @@
         ],
         "type": "object"
       },
+      "ListBodyEnvironment": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "description": "Itens da página.",
+            "items": {
+              "$ref": "#/components/schemas/Environment"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "limit": {
+            "description": "Limite aplicado.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "offset": {
+            "description": "Deslocamento aplicado.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "limit",
+          "offset"
+        ],
+        "type": "object"
+      },
+      "ListBodyEnvironmentLease": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "description": "Itens da página.",
+            "items": {
+              "$ref": "#/components/schemas/EnvironmentLease"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "limit": {
+            "description": "Limite aplicado.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "offset": {
+            "description": "Deslocamento aplicado.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "limit",
+          "offset"
+        ],
+        "type": "object"
+      },
       "ListBodyFlow": {
         "additionalProperties": false,
         "properties": {
@@ -3966,6 +4297,11 @@
             "format": "date-time",
             "type": "string"
           },
+          "environment_id": {
+            "description": "Ambiente de execução da persona; ausente = o padrão da empresa (ADR-0037).",
+            "format": "uuid",
+            "type": "string"
+          },
           "heartbeat_interval_sec": {
             "description": "Intervalo do heartbeat em segundos; 0 desliga.",
             "format": "int64",
@@ -4146,6 +4482,73 @@
           "name",
           "description",
           "enabled"
+        ],
+        "type": "object"
+      },
+      "ProbeReport": {
+        "additionalProperties": false,
+        "properties": {
+          "binaries": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Caminho de git, claude e codex no alvo (vazio = não encontrado).",
+            "type": "object"
+          },
+          "duration_ms": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/ProbeStep"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "system": {
+            "description": "uname -sm do alvo.",
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "ok",
+          "steps",
+          "duration_ms"
+        ],
+        "type": "object"
+      },
+      "ProbeStep": {
+        "additionalProperties": false,
+        "properties": {
+          "detail": {
+            "type": "string"
+          },
+          "name": {
+            "description": "connect, system, workspace_root, docker, image ou bin:\u003cnome\u003e.",
+            "type": "string"
+          },
+          "ok": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "ok"
         ],
         "type": "object"
       },
@@ -4610,6 +5013,91 @@
         ],
         "type": "object"
       },
+      "SSHConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "host": {
+            "description": "Host ou IP; precisa estar na lista do operador (HANKO_ENV_SSH_ALLOW_HOSTS).",
+            "examples": [
+              "build.exemplo.com"
+            ],
+            "type": "string"
+          },
+          "known_hosts": {
+            "description": "Linhas de known_hosts com a chave do host (obrigatório; chave desconhecida nunca é aceita). Ex.: saída de ssh-keyscan -H host.",
+            "type": "string"
+          },
+          "port": {
+            "description": "Porta (padrão 22).",
+            "format": "int64",
+            "maximum": 65535,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "remote_workspace_root": {
+            "description": "Pasta absoluta do host sob a qual cada execução ganha a sua cópia do workspace.",
+            "examples": [
+              "/srv/hanko"
+            ],
+            "type": "string"
+          },
+          "username": {
+            "examples": [
+              "hanko"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "host",
+          "username",
+          "remote_workspace_root",
+          "known_hosts"
+        ],
+        "type": "object"
+      },
+      "SandboxConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "cpus": {
+            "description": "CPUs (padrão 2).",
+            "format": "double",
+            "minimum": 0,
+            "type": "number"
+          },
+          "image": {
+            "description": "Imagem; prefira fixar por digest (@sha256:), com tag há um aviso.",
+            "examples": [
+              "ghcr.io/acme/agente@sha256:..."
+            ],
+            "type": "string"
+          },
+          "memory_mib": {
+            "description": "Memória em MiB (padrão 2048).",
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "network": {
+            "description": "Rede do contêiner (padrão none: sem rede).",
+            "enum": [
+              "none",
+              "bridge"
+            ],
+            "type": "string"
+          },
+          "pids_limit": {
+            "description": "Máximo de processos (padrão 512).",
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "image"
+        ],
+        "type": "object"
+      },
       "SearchGroup": {
         "additionalProperties": false,
         "properties": {
@@ -4795,6 +5283,22 @@
         },
         "required": [
           "message"
+        ],
+        "type": "object"
+      },
+      "SetDefaultEnvironmentInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "environment": {
+            "description": "Id ou slug do ambiente padrão, ou local.",
+            "examples": [
+              "local"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "environment"
         ],
         "type": "object"
       },
@@ -5204,6 +5708,53 @@
         },
         "type": "object"
       },
+      "UpdateEnvironmentInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "maxLength": 500,
+            "type": "string"
+          },
+          "drop_env": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "private_key": {
+            "description": "Troca a chave privada.",
+            "type": "string"
+          },
+          "reactivate": {
+            "description": "Tira o ambiente do arquivo.",
+            "type": "boolean"
+          },
+          "sandbox": {
+            "$ref": "#/components/schemas/SandboxConfig",
+            "description": "Substitui a configuração do sandbox."
+          },
+          "set_env": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Define ou troca estas variáveis; as demais ficam.",
+            "type": "object"
+          },
+          "ssh": {
+            "$ref": "#/components/schemas/SSHConfig",
+            "description": "Substitui a configuração SSH (a chave fica, salvo private_key)."
+          }
+        },
+        "type": "object"
+      },
       "UpdateFlowInBody": {
         "additionalProperties": false,
         "properties": {
@@ -5443,6 +5994,10 @@
           "clear_workspace": {
             "description": "Remove o workspace da persona.",
             "type": "boolean"
+          },
+          "environment": {
+            "description": "Ambiente de execução (id ou slug); local ou default = o padrão da empresa (ADR-0037).",
+            "type": "string"
           },
           "heartbeat_interval_sec": {
             "format": "int64",
@@ -8591,6 +9146,1013 @@
         "summary": "Números do Painel",
         "tags": [
           "activity"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/environments": {
+      "get": {
+        "operationId": "list-environments",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Máximo de itens retornados.",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "description": "Máximo de itens retornados.",
+              "format": "int64",
+              "maximum": 500,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Quantos itens pular.",
+            "explode": false,
+            "in": "query",
+            "name": "offset",
+            "schema": {
+              "default": 0,
+              "description": "Quantos itens pular.",
+              "format": "int64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListBodyEnvironment"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Lista os ambientes cadastrados (o local é implícito: é o padrão quando nenhum tem is_default)",
+        "tags": [
+          "environments"
+        ]
+      },
+      "post": {
+        "operationId": "create-environment",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnvironmentBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Environment"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Cadastra um ambiente de execução (SSH ou sandbox)",
+        "tags": [
+          "environments"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/environments/default": {
+      "put": {
+        "operationId": "set-default-environment",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetDefaultEnvironmentInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Escolhe o ambiente padrão da empresa (local = processos filhos neste servidor)",
+        "tags": [
+          "environments"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/environments/probe": {
+      "post": {
+        "operationId": "probe-environment-draft",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnvironmentBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProbeReport"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Testa a conexão de um rascunho de ambiente, sem gravar",
+        "tags": [
+          "environments"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/environments/{environment}": {
+      "delete": {
+        "operationId": "archive-environment",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug do ambiente.",
+            "in": "path",
+            "name": "environment",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug do ambiente.",
+              "examples": [
+                "build"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ambiente (id ou slug) para onde vão as personas deste; vazio ou local = o padrão da empresa.",
+            "explode": false,
+            "in": "query",
+            "name": "move_personas_to",
+            "schema": {
+              "description": "Ambiente (id ou slug) para onde vão as personas deste; vazio ou local = o padrão da empresa.",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Environment"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Arquiva um ambiente e move as personas dele (as execuções em andamento seguem até o fim)",
+        "tags": [
+          "environments"
+        ]
+      },
+      "get": {
+        "operationId": "get-environment",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug do ambiente.",
+            "in": "path",
+            "name": "environment",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug do ambiente.",
+              "examples": [
+                "build"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Environment"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Obtém um ambiente",
+        "tags": [
+          "environments"
+        ]
+      },
+      "patch": {
+        "operationId": "update-environment",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug do ambiente.",
+            "in": "path",
+            "name": "environment",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug do ambiente.",
+              "examples": [
+                "build"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateEnvironmentInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Environment"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Atualiza um ambiente",
+        "tags": [
+          "environments"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/environments/{environment}/leases": {
+      "get": {
+        "operationId": "list-environment-leases",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug do ambiente.",
+            "in": "path",
+            "name": "environment",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug do ambiente.",
+              "examples": [
+                "build"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Máximo de usos (mais recentes primeiro).",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 20,
+              "description": "Máximo de usos (mais recentes primeiro).",
+              "format": "int64",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListBodyEnvironmentLease"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Lista os usos recentes do ambiente pelas execuções",
+        "tags": [
+          "environments"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/environments/{environment}/probe": {
+      "post": {
+        "operationId": "probe-environment",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug do ambiente.",
+            "in": "path",
+            "name": "environment",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug do ambiente.",
+              "examples": [
+                "build"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Environment"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Testa a conexão do ambiente (sistema, pasta gravável, git/claude/codex) e grava o relatório",
+        "tags": [
+          "environments"
         ]
       }
     },

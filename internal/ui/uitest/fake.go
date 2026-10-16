@@ -60,6 +60,8 @@ type Fake struct {
 	ConvMessages  []domain.ConversationMessage
 	// MyRoleIs é o papel do usuário logado nesta empresa (vazio = owner).
 	MyRoleIs domain.MemberRole
+	// Env são os ambientes de execução (ADR-0037).
+	Env EnvFake
 	nextTask int64
 }
 
