@@ -133,3 +133,40 @@ templ PluginsPage(sh Shell, vm PluginsVM) {
 		</div>
 	}
 }
+
+templ DataPage(sh Shell, vm DataVM) {
+	@Layout(sh) {
+		@PageHead(i18n.T(ctx, "Exportar e importar"), i18n.T(ctx, "A empresa inteira num arquivo portátil (hanko.company.v1), sem segredos: personas, organograma, projetos, workspaces, tasks, fluxos, skills e, se quiser, execuções e artefatos.")) {
+		}
+		<div class="mb-6">@Tabs(vm.Sections)</div>
+		<div class="grid-2 items-start">
+			<section class="card pad">
+				<div class="card-head"><div><h2>{ i18n.Tf(ctx, "Exportar %s", vm.Company) }</h2><p class="sub">{ i18n.T(ctx, "Só admin ou owner. Chaves, tokens e senhas nunca saem.") }</p></div></div>
+				<form class="export-form" data-export={ vm.ExportHref } data-file={ vm.FileName }>
+					<label class="check"><input type="checkbox" name="with_runs" value="true"/><span>{ i18n.T(ctx, "Incluir execuções encerradas") }</span></label>
+					<label class="check"><input type="checkbox" name="with_logs" value="true"/><span>{ i18n.T(ctx, "Incluir os logs das execuções") }</span></label>
+					<label class="check"><input type="checkbox" name="with_artifacts" value="true"/><span>{ i18n.T(ctx, "Incluir artefatos (até 20 MiB)") }</span></label>
+					<div class="form-actions"><a class="btn primary" href={ templ.SafeURL(vm.ExportHref) } download={ vm.FileName } data-export-link>@Icon("arrow-up") { i18n.T(ctx, "Baixar arquivo") }</a></div>
+				</form>
+			</section>
+			<section class="card pad">
+				<div class="card-head"><div><h2>{ i18n.T(ctx, "Importar como empresa nova") }</h2><p class="sub">{ i18n.T(ctx, "Cria outra empresa a partir do arquivo; nada desta muda. Tudo numa transação: se algo for inválido, nada é gravado.") }</p></div></div>
+				<form class="import-form" method="post" action={ templ.SafeURL(vm.ImportAction) } data-import enctype="application/json">
+					<div class="field">
+						<label for="imp-file">{ i18n.T(ctx, "Arquivo .json") }</label>
+						<input class="input" id="imp-file" type="file" name="file" accept="application/json,.json" required/>
+					</div>
+					<div class="field">
+						<label for="imp-slug">{ i18n.T(ctx, "Slug da empresa nova (opcional)") }</label>
+						<input class="input" id="imp-slug" name="slug" pattern="[a-z0-9][a-z0-9-]{0,62}" placeholder={ vm.Slug + "-copia" }/>
+					</div>
+					<label class="check"><input type="checkbox" name="active" value="1"/><span>{ i18n.T(ctx, "Ligar personas e fluxos (por padrão entram pausados)") }</span></label>
+					<p class="err d-none" data-import-error role="alert"></p>
+					<div class="form-actions"><button class="btn primary" type="submit">{ i18n.T(ctx, "Importar") }</button></div>
+					<noscript><p class="muted text-xs">{ i18n.T(ctx, "Sem JavaScript, use a CLI: hanko import arquivo.json") }</p></noscript>
+				</form>
+			</section>
+		</div>
+	}
+}
+

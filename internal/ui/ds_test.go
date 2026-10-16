@@ -188,3 +188,10 @@ func TestSettingsPlatformPages(t *testing.T) {
 	wantStatus(t, rec, http.StatusOK)
 	wantContains(t, rec, "Servidor MCP do Hanko", "https://hanko.example/mcp", "ai-memory · http://127.0.0.1:49374", "sem HANKO_SECRET_KEY", "Plugins de terceiros ainda não são suportados")
 }
+
+func TestSettingsDataPage(t *testing.T) {
+	e := newEnv(t, uitest.Sample())
+	rec := e.get(t, "/c/hanko/configuracoes/dados")
+	wantStatus(t, rec, http.StatusOK)
+	wantContains(t, rec, `href="/api/v1/companies/hanko/export"`, `download="hanko-hanko-`, `action="/api/v1/companies/import"`, `data-import`, "with_logs")
+}

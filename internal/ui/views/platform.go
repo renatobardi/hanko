@@ -41,3 +41,10 @@ type PluginsVM struct {
 	Sections []TabLink
 	Items    []PluginItem
 }
+
+type DataVM struct {
+	Sections                 []TabLink
+	Company, Slug            string
+	ExportHref, ImportAction string
+	FileName                 string
+}
