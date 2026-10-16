@@ -26,12 +26,16 @@ var Nav = []NavGroup{
 		{Key: "painel", Label: i18n.N("Painel"), Icon: "layout-grid"},
 		{Key: "caixa", Label: i18n.N("Caixa de entrada"), Icon: "mail", Path: "/caixa"},
 		{Key: "chat", Label: i18n.N("Chat"), Icon: "message-square", Path: "/chat"},
+		{Key: "sala", Label: i18n.N("Sala"), Icon: "users", Path: "/sala", Milestone: "v0.3", Blurb: i18n.N("Uma conversa com várias personas ao mesmo tempo.")},
 		{Key: "decisoes", Label: i18n.N("Decisões"), Icon: "circle-check", Path: "/decisoes"},
+		{Key: "revisao", Label: i18n.N("Fila de revisão"), Icon: "clipboard-check", Path: "/revisao", Milestone: "v0.3", Blurb: i18n.N("Os itens de pipeline que esperam a sua decisão.")},
 	}},
 	{Label: i18n.N("Trabalho"), Items: []NavItem{
 		{Key: "tasks", Label: i18n.N("Tasks"), Icon: "list", Path: "/tasks"},
 		{Key: "projetos", Label: i18n.N("Projetos"), Icon: "layers", Path: "/projetos"},
 		{Key: "fluxos", Label: i18n.N("Fluxos"), Icon: "workflow", Path: "/fluxos"},
+		{Key: "pipelines", Label: i18n.N("Pipelines"), Icon: "kanban", Path: "/pipelines", Milestone: "v0.3", Blurb: i18n.N("Etapas com aprovação e automação por persona.")},
+		{Key: "cases", Label: i18n.N("Cases"), Icon: "folder", Path: "/cases", Milestone: "v0.3", Blurb: i18n.N("Registros estruturados que as personas mantêm e o time acompanha.")},
 		{Key: "metas", Label: i18n.N("Metas"), Icon: "trending-up", Path: "/metas"},
 		{Key: "artefatos", Label: i18n.N("Artefatos"), Icon: "file", Path: "/artefatos"},
 		{Key: "workspaces", Label: i18n.N("Workspaces"), Icon: "git-branch", Path: "/workspaces"},
@@ -44,10 +48,12 @@ var Nav = []NavGroup{
 		{Key: "gates", Label: i18n.N("Gates"), Icon: "shield", Path: "/gates"},
 	}},
 	{Label: i18n.N("Supervisão"), Items: []NavItem{
+		{Key: "cards-status", Label: i18n.N("Status"), Icon: "gauge", Path: "/cards-de-status", Milestone: "v0.3", Blurb: i18n.N("Resumos vivos das tasks que importam, mantidos por uma persona.")},
 		{Key: "execucoes", Label: i18n.N("Execuções"), Icon: "activity", Path: "/execucoes"},
 		{Key: "custos", Label: i18n.N("Custos"), Icon: "database", Path: "/custos"},
 		{Key: "timeline", Label: i18n.N("Timeline"), Icon: "timeline", Path: "/timeline"},
 		{Key: "atividade", Label: i18n.N("Atividade"), Icon: "clock", Path: "/atividade"},
+		{Key: "aprendizados", Label: i18n.N("Aprendizados"), Icon: "graduation-cap", Path: "/aprendizados", Milestone: "v0.3", Blurb: i18n.N("O que as decisões de revisão ensinaram ao time.")},
 	}},
 }
 

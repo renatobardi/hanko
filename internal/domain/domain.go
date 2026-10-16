@@ -316,6 +316,10 @@ const (
 	TriggerReview    RunTrigger = "review" // revisão headless que antecede o gate task_review
 	TriggerChat      RunTrigger = "chat"   // mensagem humana numa conversa (sem task; ADR-0027)
 	TriggerMemory    RunTrigger = "memory" // consolidação de memória: run de sistema da persona curadora (ADR-0030)
+	// TriggerStatusCard é a run de sistema que gera o resumo de um card de status (ADR-0032).
+	TriggerStatusCard RunTrigger = "status_card"
+	// TriggerSkillTest é a run de teste de uma skill no estúdio (ADR-0035).
+	TriggerSkillTest RunTrigger = "skill_test"
 )
 
 // CostSource tells where a run's cost came from.
