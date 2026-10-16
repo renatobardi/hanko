@@ -42,7 +42,7 @@ func switcherFrom(ctx context.Context) Switcher {
 // SwitchSections are the company sections that exist in every company and are safe to keep when
 // switching (list pages; detail pages of one company do not exist in another).
 var SwitchSections = map[string]bool{
-	"tasks": true, "personas": true, "organograma": true, "gates": true, "execucoes": true, "custos": true,
+	"tasks": true, "personas": true, "organograma": true, "timeline": true, "gates": true, "execucoes": true, "custos": true,
 	"atividade": true, "caixa": true, "decisoes": true, "fluxos": true,
 }
 

@@ -3,6 +3,15 @@ package i18n
 // enDS holds the English texts added with the Kubo DS adherence pass (persona glyph, theme toggle,
 // task board). Same rules as en.go: the key is the pt-BR text, never repeated across files.
 var enDS = map[string]string{
+	"7 dias":      "7 days",
+	"Sem persona": "No persona",
+	"Timeline":    "Timeline",
+	"Quem trabalhou em quê, e quando. Cada barra é uma execução; clique para abrir o log.": "Who worked on what, and when. Each bar is a run; click to open its log.",
+	"Tempo de trabalho":            "Work time",
+	"Nenhuma execução no período.": "No runs in this period.",
+	"Quando uma persona trabalhar, a execução aparece aqui como uma barra na faixa dela.": "When a persona works, the run shows up here as a bar on its lane.",
+	"Timeline das execuções": "Run timeline",
+	"Preto: rodando · cinza: concluída · vermelho: falhou · tracejado: interrompida, cancelada ou expirada.": "Black: running · gray: done · red: failed · dashed: interrupted, cancelled or expired.",
 	"Sem workspace.": "No workspace.",
 	"Sem workspace, as execuções do projeto usam o workspace da persona ou um diretório temporário.": "Without a workspace, the project runs use the persona workspace or a temporary directory.",
 	"Escolher workspace": "Choose workspace",
