@@ -168,7 +168,7 @@ templ DashboardPage(sh Shell, vm DashboardVM) {
 
 templ actorAvatar(a ActivityItem) {
 	if a.Persona {
-		<span class="mini-avatar">@Icon("bot")</span>
+		<span class="mini-avatar">@PersonaGlyph(a.Actor)</span>
 	} else if a.System {
 		<span class="mini-avatar">@Icon("zap")</span>
 	} else {

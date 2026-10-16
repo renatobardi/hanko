@@ -106,7 +106,7 @@ templ ChatThread(vm ChatVM) {
 					</div>
 				default:
 					<div class="msg">
-						<span class="mini-avatar">@Icon("bot")</span>
+						<span class="mini-avatar">@PersonaGlyph(m.Author)</span>
 						<div>
 							<div class="meta"><b>{ m.Author }</b><time class="mono">{ m.When }</time>
 								if m.RunHref != "" {
@@ -125,7 +125,7 @@ templ ChatThread(vm ChatVM) {
 		}
 		if vm.Busy {
 			<div class="msg typing" role="status">
-				<span class="mini-avatar">@Icon("bot")</span>
+				<span class="mini-avatar">@PersonaGlyph(vm.Persona)</span>
 				<div class="meta">
 					<b>{ vm.Persona }</b>
 					<span class="badge run"><i class="pulse"></i>{ i18n.T(ctx, "pensando…") }</span>
@@ -184,7 +184,7 @@ templ ChatPage(sh Shell, vm ChatVM) {
 			}
 		}
 		<div class="chips" style="margin-bottom:18px">
-			<a class="chip" href={ templ.SafeURL(vm.PersonaHref) }>@Icon("bot")<span>{ vm.Persona }</span></a>
+			<a class="chip" href={ templ.SafeURL(vm.PersonaHref) }>@PersonaGlyph(vm.Persona)<span>{ vm.Persona }</span></a>
 			@BadgeEl(vm.Badge)
 			<span class="chip soft">{ vm.Cost }</span>
 		</div>

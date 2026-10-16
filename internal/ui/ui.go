@@ -270,6 +270,7 @@ func (s *server) routes(root *http.ServeMux) {
 
 	mux.HandleFunc("POST /c/{company}/personas/{persona}/revisor", post(co(s.handlePersonaReviewer)))
 	mux.HandleFunc("POST /c/{company}/personas/{persona}/organizacao", post(co(s.handlePersonaOrg)))
+	mux.HandleFunc("POST /c/{company}/personas/{persona}/icone", post(co(s.handlePersonaIcon)))
 
 	mux.HandleFunc("GET /c/{company}/caixa", co(s.handleInbox))
 	mux.HandleFunc("POST /c/{company}/caixa/tasks/{task}/desbloquear", post(co(s.handleInboxUnblock)))
@@ -363,7 +364,16 @@ func (s *server) withCompany(h companyHandler) http.HandlerFunc {
 			s.fail(w, r, nil, err)
 			return
 		}
-		h(w, r.WithContext(views.WithRole(r.Context(), role)), co)
+		ctx := views.WithRole(r.Context(), role)
+		// Glifo de cada persona para avatares e chips (Kubo DS); sem ele, o padrão. Falha não quebra a página.
+		if ps, err := s.be.ListPersonas(ctx, co.ID); err == nil {
+			icons := make(map[string]string, 2*len(ps))
+			for _, p := range ps {
+				icons[p.Name], icons[p.Slug] = p.Icon, p.Icon
+			}
+			ctx = views.WithPersonaIcons(ctx, icons)
+		}
+		h(w, r.WithContext(ctx), co)
 	}
 }
 

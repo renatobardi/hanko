@@ -188,7 +188,7 @@ func (e *env) personaCmd() *cobra.Command {
 	c := &cobra.Command{Use: "persona", Short: e.t("Gerencia personas (papéis contratados pela empresa)")}
 
 	var (
-		slug, title, instr, instrFile, agent, model, reports, ws, subscription string
+		slug, title, icon, instr, instrFile, agent, model, reports, ws, subscription string
 		interval                                                               int
 		budget                                                                 int64
 		cfg                                                                    map[string]string
@@ -210,7 +210,7 @@ func (e *env) personaCmd() *cobra.Command {
 				}
 				instr = string(b)
 			}
-			req := client.HirePersonaReq{Name: args[0], Slug: slug, Title: title, Instructions: instr, Agent: agent, Model: model,
+			req := client.HirePersonaReq{Name: args[0], Slug: slug, Title: title, Icon: icon, Instructions: instr, Agent: agent, Model: model,
 				ReportsTo: reports, Workspace: ws, HeartbeatIntervalSec: interval, RequireReview: review, Subscription: subscription,
 				Reviewer: revPersona, ReviewerAgent: revAgent, ReviewerModel: revModel}
 			if cmd.Flags().Changed("budget-cents") {
@@ -243,6 +243,7 @@ func (e *env) personaCmd() *cobra.Command {
 	hf := hire.Flags()
 	hf.StringVar(&slug, "slug", "", e.t("slug (derivado do nome se omitido)"))
 	hf.StringVar(&title, "title", "", e.t("cargo (ex.: CTO)"))
+	hf.StringVar(&icon, "icon", "", e.t("ícone da persona (bot, code, search, pen-line, shield-check…; padrão bot)"))
 	hf.StringVarP(&instr, "instructions", "i", "", e.t("instruções da persona"))
 	hf.StringVar(&instrFile, "instructions-file", "", e.t("arquivo com as instruções"))
 	hf.StringVar(&agent, "agent", "", e.t("harness: claude, codex, acp ou fake (obrigatório)"))

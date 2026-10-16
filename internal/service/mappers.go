@@ -34,7 +34,7 @@ func personaFromRow(r store.Persona) domain.Persona {
 	if r.PauseReason != nil {
 		reason = *r.PauseReason
 	}
-	return domain.Persona{PauseReason: reason, ID: r.ID, CompanyID: r.CompanyID, Slug: r.Slug, Name: r.Name, Title: r.Title,
+	return domain.Persona{PauseReason: reason, ID: r.ID, CompanyID: r.CompanyID, Slug: r.Slug, Name: r.Name, Title: r.Title, Icon: r.Icon,
 		Instructions: r.Instructions, Agent: r.Agent, Model: r.Model, AdapterConfig: json.RawMessage(r.AdapterConfig),
 		Status: domain.PersonaStatus(r.Status), ReportsTo: r.ReportsTo, WorkspaceID: r.WorkspaceID,
 		HeartbeatIntervalSec: int(r.HeartbeatIntervalSec), BudgetMonthlyCents: r.BudgetMonthlyCents,

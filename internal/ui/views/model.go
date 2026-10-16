@@ -258,6 +258,7 @@ type HirePersonaVM struct {
 	Heartbeat     string
 	ReportsTo     []Option // "Reporta a": the human owner or a persona
 	RequireReview bool
+	Icon          string // um de domain.PersonaIcons
 	Error         string
 	FieldErr      map[string]string
 	// ACP harness (shown only while the ACP card is selected).
@@ -267,6 +268,8 @@ type HirePersonaVM struct {
 }
 
 type PersonaVM struct {
+	Icon          string // glifo atual (domain.PersonaIcons)
+	IconAction    string // POST que troca o glifo
 	Name          string
 	Initials      string
 	Title         string

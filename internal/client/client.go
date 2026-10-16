@@ -219,6 +219,7 @@ type HirePersonaReq struct {
 	Name                 string         `json:"name"`
 	Slug                 string         `json:"slug,omitempty"`
 	Title                string         `json:"title,omitempty"`
+	Icon                 string         `json:"icon,omitempty"`
 	Instructions         string         `json:"instructions,omitempty"`
 	Agent                string         `json:"agent"`
 	Model                string         `json:"model,omitempty"`

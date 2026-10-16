@@ -58,6 +58,7 @@ func Sample() *Fake {
 	kenji := mk("kenji", "Kenji", "Engenheiro de plataforma", "claude", "claude-opus", domain.PersonaAwaitingGate, 1800, "Você é o Kenji. Plataforma, infraestrutura e migrações.")
 	mika := mk("mika", "Mika", "Operações de conhecimento", "claude", "claude-haiku", domain.PersonaIdle, 3600, "Você é a Mika. Coleta, limpeza e curadoria de fontes.")
 	sato := mk("sato", "Sato", "Conteúdo e distribuição", "fake", "", domain.PersonaPaused, 0, "Você é o Sato. Conteúdo para LinkedIn.")
+	ada.Icon, hana.Icon, kenji.Icon, mika.Icon, sato.Icon = "briefcase", "search", "cpu", "book-open", "megaphone"
 	// organograma: Ada no topo; Hana, Kenji e Sato respondem a ela; Mika a Kenji
 	adaID, kenjiID := ada.ID, kenji.ID
 	hana.ReportsTo, kenji.ReportsTo, sato.ReportsTo, mika.ReportsTo = &adaID, &adaID, &adaID, &kenjiID

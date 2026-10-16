@@ -34,6 +34,13 @@ func (s *Service) HirePersona(ctx context.Context, actor domain.Actor, companyID
 	if in.BudgetMonthlyCents != nil && *in.BudgetMonthlyCents < 0 {
 		return domain.Persona{}, domain.Invalid("budget_monthly_cents", "must be >= 0")
 	}
+	icon := strings.TrimSpace(in.Icon)
+	if icon == "" {
+		icon = domain.DefaultPersonaIcon
+	}
+	if !domain.ValidPersonaIcon(icon) {
+		return domain.Persona{}, domain.Invalid("icon", fmt.Sprintf("unknown icon %q (want one of %v)", icon, domain.PersonaIcons))
+	}
 	cfg := []byte(in.AdapterConfig)
 	if len(cfg) == 0 {
 		cfg = []byte(`{}`)
@@ -66,7 +73,7 @@ func (s *Service) HirePersona(ctx context.Context, actor domain.Actor, companyID
 			}
 		}
 		row, err := t.q.CreatePersona(ctx, store.CreatePersonaParams{
-			ID: domain.NewID(), CompanyID: companyID, Slug: slug, Name: name, Title: strings.TrimSpace(in.Title),
+			ID: domain.NewID(), CompanyID: companyID, Slug: slug, Name: name, Title: strings.TrimSpace(in.Title), Icon: icon,
 			Instructions: in.Instructions, Agent: in.Agent, Model: strings.TrimSpace(in.Model), AdapterConfig: cfg,
 			Status: string(domain.PersonaActive), ReportsTo: in.ReportsTo, WorkspaceID: in.WorkspaceID,
 			HeartbeatIntervalSec: i32(in.HeartbeatIntervalSec), BudgetMonthlyCents: in.BudgetMonthlyCents,
@@ -169,6 +176,9 @@ func (s *Service) UpdatePersona(ctx context.Context, actor domain.Actor, company
 	if in.Status != nil && !in.Status.Valid() {
 		return domain.Persona{}, domain.Invalid("status", fmt.Sprintf("unknown status %q", *in.Status))
 	}
+	if in.Icon != nil && !domain.ValidPersonaIcon(*in.Icon) {
+		return domain.Persona{}, domain.Invalid("icon", fmt.Sprintf("unknown icon %q (want one of %v)", *in.Icon, domain.PersonaIcons))
+	}
 	if in.HeartbeatIntervalSec != nil && (*in.HeartbeatIntervalSec < 0 || *in.HeartbeatIntervalSec > maxHeartbeatIntervalSec) {
 		return domain.Persona{}, domain.Invalid("heartbeat_interval_sec", fmt.Sprintf("must be between 0 and %d", maxHeartbeatIntervalSec))
 	}
@@ -206,7 +216,7 @@ func (s *Service) UpdatePersona(ctx context.Context, actor domain.Actor, company
 		if err != nil {
 			return mapErr(err, "get persona")
 		}
-		p := store.UpdatePersonaParams{CompanyID: companyID, ID: personaID, Name: cur.Name, Title: cur.Title,
+		p := store.UpdatePersonaParams{CompanyID: companyID, ID: personaID, Name: cur.Name, Title: cur.Title, Icon: cur.Icon,
 			Instructions: cur.Instructions, Model: cur.Model, Status: cur.Status,
 			HeartbeatIntervalSec: cur.HeartbeatIntervalSec, WorkspaceID: cur.WorkspaceID,
 			BudgetMonthlyCents: cur.BudgetMonthlyCents, SubscriptionID: cur.SubscriptionID, Now: t.now}
@@ -218,6 +228,10 @@ func (s *Service) UpdatePersona(ctx context.Context, actor domain.Actor, company
 		if in.Title != nil && *in.Title != cur.Title {
 			p.Title = *in.Title
 			changed = append(changed, "title")
+		}
+		if in.Icon != nil && *in.Icon != cur.Icon {
+			p.Icon = *in.Icon
+			changed = append(changed, "icon")
 		}
 		if in.Instructions != nil && *in.Instructions != cur.Instructions {
 			p.Instructions = *in.Instructions

@@ -112,7 +112,7 @@ templ TaskChips(vm TaskVM, oob bool) {
 		@BadgeEl(vm.Badge)
 		<span class="chip">@PrioIcon(vm.Priority, vm.PriorityLabel)<span>{ vm.PriorityLabel }</span></span>
 		if vm.PersonaName != "" {
-			<a class="chip" href={ templ.SafeURL(vm.PersonaHref) }>@Icon("bot")<span>{ vm.PersonaName }</span></a>
+			<a class="chip" href={ templ.SafeURL(vm.PersonaHref) }>@PersonaGlyph(vm.PersonaName)<span>{ vm.PersonaName }</span></a>
 		} else {
 			<span class="chip soft">{ i18n.T(ctx, "Sem dono") }</span>
 		}
@@ -135,7 +135,7 @@ templ Thread(vm TaskVM, base string) {
 				</div>
 			} else {
 				<div class="msg">
-					<span class="mini-avatar">@Icon("bot")</span>
+					<span class="mini-avatar">@PersonaGlyph(m.Author)</span>
 					<div>
 						<div class="meta"><b>{ m.Author }</b><time class="mono">{ m.When }</time>
 							if m.RunHref != "" {

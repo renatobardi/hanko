@@ -85,6 +85,7 @@ type Persona struct {
 	Slug                 string         `json:"slug"`
 	Name                 string         `json:"name"`
 	Title                string         `json:"title,omitempty"`
+	Icon                 string         `json:"icon,omitempty" doc:"Glifo da persona; ausente = bot (arquivos anteriores ao campo)."`
 	Instructions         string         `json:"instructions,omitempty"`
 	Agent                string         `json:"agent" enum:"claude,codex,acp,fake"`
 	Model                string         `json:"model,omitempty"`

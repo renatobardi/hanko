@@ -39,10 +39,10 @@ INSERT INTO subscription_periods (subscription_id, started_at, ended_at) VALUES 
 -- reports_to e reviewer_persona_id entram depois (LinkImportedPersona): apontam para personas do mesmo arquivo.
 INSERT INTO personas (id, company_id, slug, name, title, instructions, agent, model, adapter_config, status,
                       workspace_id, heartbeat_interval_sec, budget_monthly_cents, subscription_id, require_review,
-                      reviewer_agent, reviewer_model, created_at, updated_at)
+                      reviewer_agent, reviewer_model, icon, created_at, updated_at)
 VALUES (@id, @company_id, @slug, @name, @title, @instructions, @agent, @model, @adapter_config, @status,
         @workspace_id, @heartbeat_interval_sec, @budget_monthly_cents, @subscription_id, @require_review,
-        @reviewer_agent, @reviewer_model, @created_at, @updated_at)
+        @reviewer_agent, @reviewer_model, @icon, @created_at, @updated_at)
 RETURNING *;
 
 -- name: LinkImportedPersona :exec

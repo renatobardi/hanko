@@ -130,6 +130,7 @@ type Persona struct {
 	Slug                 string         `json:"slug" example:"cto"`
 	Name                 string         `json:"name" example:"Marina"`
 	Title                string         `json:"title" example:"CTO"`
+	Icon                 string         `json:"icon" example:"code" doc:"Glifo Lucide da persona."`
 	Instructions         string         `json:"instructions" doc:"Instruções permanentes da persona."`
 	Agent                string         `json:"agent" enum:"claude,codex,acp,fake" doc:"Harness que executa a persona."`
 	Model                string         `json:"model,omitempty" example:"claude-sonnet-4-5"`
@@ -446,7 +447,7 @@ func personaOut(p domain.Persona) Persona {
 	if len(p.AdapterConfig) > 0 {
 		_ = json.Unmarshal(p.AdapterConfig, &cfg)
 	}
-	return Persona{ID: idStr(p.ID), CompanyID: idStr(p.CompanyID), Slug: p.Slug, Name: p.Name, Title: p.Title,
+	return Persona{ID: idStr(p.ID), CompanyID: idStr(p.CompanyID), Slug: p.Slug, Name: p.Name, Title: p.Title, Icon: p.Icon,
 		Instructions: p.Instructions, Agent: p.Agent, Model: p.Model, AdapterConfig: export.MaskConfig(cfg), Status: string(p.Status),
 		ReportsTo: idPtr(p.ReportsTo), WorkspaceID: idPtr(p.WorkspaceID), HeartbeatIntervalSec: p.HeartbeatIntervalSec,
 		BudgetMonthlyCents: p.BudgetMonthlyCents, PauseReason: p.PauseReason, SubscriptionID: idPtr(p.SubscriptionID), RequireReview: p.RequireReview, ReviewerPersonaID: idPtr(p.ReviewerPersonaID), ReviewerAgent: p.ReviewerAgent, ReviewerModel: p.ReviewerModel, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt}

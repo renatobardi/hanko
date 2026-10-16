@@ -46,7 +46,7 @@ templ PersonasPage(sh Shell, vm PersonasVM) {
 							<tr class="row">
 								<td>
 									<a class="p-name" href={ templ.SafeURL(r.Href) }>
-										<span class="mini-avatar">@Icon("bot")</span>
+										<span class="mini-avatar">@PersonaGlyph(r.Name)</span>
 										<span class="pn"><b>{ r.Name }</b><span>{ r.Title }</span></span>
 									</a>
 								</td>
@@ -88,6 +88,13 @@ templ HirePersonaPage(sh Shell, vm HirePersonaVM) {
 						<label for="p-title">{ i18n.T(ctx, "Cargo") }</label>
 						<input class="input" id="p-title" name="title" value={ vm.Title } maxlength="120" placeholder={ i18n.T(ctx, "Chief of staff") }/>
 					</div>
+				</div>
+				<div class="field">
+					<span class="lbl">{ i18n.T(ctx, "Ícone") }</span>
+					@IconPicker(vm.Icon)
+					if e := vm.FieldErr["icon"]; e != "" {
+						<span class="err">{ e }</span>
+					}
 				</div>
 				<div class="field">
 					<span class="lbl">Harness</span>
@@ -187,7 +194,7 @@ templ PersonaPage(sh Shell, vm PersonaVM) {
 			@Alert("danger", personaErrorText(ctx, vm))
 		}
 		<div class="persona-head">
-			<span class="mini-avatar">@Icon("bot")</span>
+			<span class="mini-avatar">@Icon(iconOrDefault(vm.Icon))</span>
 			<div>
 				<h1>{ vm.Name } @BadgeEl(vm.Badge)</h1>
 				<p class="muted" style="margin-top:4px;font-size:13.5px">{ vm.Title } · <span class="mono" style="font-size:12.5px">{ vm.Agent }</span>
@@ -272,6 +279,15 @@ templ PersonaPage(sh Shell, vm PersonaVM) {
 				}
 			</section>
 		</div>
+		if canAdmin(ctx) {
+			<section class="card pad" id="identidade" style="margin-top:20px">
+				<div class="card-head"><div><h2>{ i18n.T(ctx, "Ícone") }</h2><p class="sub">{ i18n.T(ctx, "Identifica a persona em listas, chats e execuções.") }</p></div></div>
+				<form method="post" action={ templ.SafeURL(vm.IconAction) } hx-boost="true" class="icon-form">
+					@IconPicker(vm.Icon)
+					<div class="form-actions" style="margin-top:0"><button class="btn primary sm" type="submit">{ i18n.T(ctx, "Salvar ícone") }</button></div>
+				</form>
+			</section>
+		}
 		<section class="card pad" id="organizacao" style="margin-top:20px">
 			<div class="card-head"><div><h2>{ i18n.T(ctx, "Organização") }</h2><p class="sub">{ i18n.T(ctx, "Quem esta persona reporta e se o trabalho dela passa por revisão antes de concluir.") }</p></div></div>
 			if canAdmin(ctx) {

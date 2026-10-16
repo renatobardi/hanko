@@ -1,10 +1,10 @@
 -- name: CreatePersona :one
 INSERT INTO personas (id, company_id, slug, name, title, instructions, agent, model, adapter_config,
                       status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, subscription_id,
-                      created_at, updated_at)
+                      icon, created_at, updated_at)
 VALUES (@id, @company_id, @slug, @name, @title, @instructions, @agent, @model, @adapter_config,
         @status, @reports_to, @workspace_id, @heartbeat_interval_sec, @budget_monthly_cents, @subscription_id,
-        @now, @now)
+        @icon, @now, @now)
 RETURNING *;
 
 -- name: GetPersonaByID :one
@@ -21,7 +21,7 @@ SELECT * FROM personas WHERE company_id = @company_id ORDER BY created_at, id;
 
 -- name: UpdatePersona :one
 UPDATE personas
-SET name = @name, title = @title, instructions = @instructions, model = @model,
+SET name = @name, title = @title, instructions = @instructions, model = @model, icon = @icon,
     status = @status, heartbeat_interval_sec = @heartbeat_interval_sec,
     workspace_id = @workspace_id, budget_monthly_cents = @budget_monthly_cents, subscription_id = @subscription_id, updated_at = @now,
     pause_reason = CASE WHEN @status::text <> 'paused' OR @clear_pause_reason::boolean THEN NULL ELSE pause_reason END,
