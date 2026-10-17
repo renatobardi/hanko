@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"strings"
@@ -57,6 +58,9 @@ func (a *Adapter) Name() string { return "claude" }
 // ResumesSessions: the claude harness resumes a session with --resume.
 func (a *Adapter) ResumesSessions() bool { return true }
 
+// SteerMode: an operator message goes into the live session through stdin (--input-format stream-json), ADR-0039.
+func (a *Adapter) SteerMode() domain.SteerMode { return domain.SteerInject }
+
 // Config is the claude-specific part of persona.adapter_config.
 type Config struct {
 	PermissionMode string   `json:"permission_mode"`
@@ -77,6 +81,9 @@ func BuildArgs(spec adapter.Spec, cfg Config, mcpFile, skillsDir string) []strin
 		mode = "plan"
 	}
 	args := []string{"-p", "--output-format", "stream-json", "--verbose", "--permission-mode", mode}
+	if steering(spec) {
+		args = append(args, "--input-format", "stream-json")
+	}
 	if spec.ReadOnly {
 		args = append(args, "--disallowedTools", "Edit", "Write", "NotebookEdit")
 	}
@@ -200,7 +207,7 @@ func (a *Adapter) run(ctx context.Context, spec adapter.Spec, sink adapter.Sink,
 	}
 
 	grace := a.grace
-	pr, err := procrun.Run(ctx, procrun.Options{
+	opts := procrun.Options{
 		Bin: a.bin, Args: BuildArgs(spec, cfg, mcpFile, skillsDir), Dir: dir, Env: env, Stdin: spec.Prompt, Grace: grace,
 		OnStdout: func(line []byte) {
 			for _, e := range p.Feed(line) {
@@ -218,7 +225,39 @@ func (a *Adapter) run(ctx context.Context, spec adapter.Spec, sink adapter.Sink,
 			}
 			emit(adapter.Event{Kind: domain.EventStderr, Text: s, OccurredAt: time.Now().UTC()})
 		},
-	})
+	}
+	stopSteer := func() {}
+	if steering(spec) {
+		// Interactive stdin (ADR-0039): the prompt and every steer message are stream-json user lines; the pipe is
+		// closed once each message sent got its result, so the process ends by itself.
+		fd := newFeeder(steerGrace)
+		opts.Stdin = ""
+		prevOut := opts.OnStdout
+		opts.OnStdout = func(line []byte) {
+			prevOut(line)
+			fd.observe(p.results)
+		}
+		opts.OnStdin = func(w io.WriteCloser) {
+			if err := fd.attach(w, spec.Prompt); err != nil {
+				a.log.Warn("claude: enviar o prompt", "run_id", spec.RunID, "err", err)
+				fd.close()
+			}
+		}
+		stop := make(chan struct{})
+		stopSteer = func() { close(stop); fd.close() }
+		go func() {
+			for {
+				select {
+				case <-stop:
+					return
+				case m := <-spec.Steer:
+					m.Done(fd.send(m.Text))
+				}
+			}
+		}()
+	}
+	pr, err := procrun.Run(ctx, opts)
+	stopSteer()
 	res := p.result
 	res.ExitCode = pr.ExitCode
 	if res.SessionRef == "" {
