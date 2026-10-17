@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/mail"
 	"strings"
+	"time"
 
 	"github.com/renatobardi/hanko/internal/auth"
 	"github.com/renatobardi/hanko/internal/domain"
@@ -47,7 +48,7 @@ func userFromRow(r store.User) domain.User {
 }
 
 func apiKeyFromRow(r store.ApiKey) domain.APIKey {
-	return domain.APIKey{ID: r.ID, UserID: r.UserID, Name: r.Name, Prefix: r.Prefix,
+	return domain.APIKey{ID: r.ID, UserID: r.UserID, Name: r.Name, Prefix: r.Prefix, Scope: domain.KeyScope(r.Scope), Device: r.Device,
 		CreatedAt: r.CreatedAt, LastUsedAt: r.LastUsedAt, RevokedAt: r.RevokedAt}
 }
 
@@ -397,6 +398,22 @@ func (s *Service) EndSession(ctx context.Context, token string) error {
 
 // CreateAPIKey cria uma API key para o usuário; a chave em claro só é devolvida aqui.
 func (s *Service) CreateAPIKey(ctx context.Context, userID domain.ID, name string) (string, domain.APIKey, error) {
+	return s.CreateAPIKeyScoped(ctx, userID, name, domain.KeyScopeFull, "")
+}
+
+// CreateAPIKeyScoped é CreateAPIKey com escopo (full ou read) e o nome do dispositivo (ADR-0057).
+func (s *Service) CreateAPIKeyScoped(ctx context.Context, userID domain.ID, name string, scope domain.KeyScope, device string) (string, domain.APIKey, error) {
+	return createAPIKey(ctx, s.read(), s.Now().UTC(), userID, name, scope, device)
+}
+
+func createAPIKey(ctx context.Context, q *store.Queries, now time.Time, userID domain.ID, name string, scope domain.KeyScope, device string) (string, domain.APIKey, error) {
+	if !scope.Valid() {
+		return "", domain.APIKey{}, domain.Invalid("scope", "want full or read")
+	}
+	device = strings.TrimSpace(device)
+	if len([]rune(device)) > 120 {
+		return "", domain.APIKey{}, domain.Invalid("device", "máximo de 120 caracteres")
+	}
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return "", domain.APIKey{}, domain.Invalid("name", "required")
@@ -408,8 +425,8 @@ func (s *Service) CreateAPIKey(ctx context.Context, userID domain.ID, name strin
 	if err != nil {
 		return "", domain.APIKey{}, err
 	}
-	row, err := s.read().CreateAPIKey(ctx, store.CreateAPIKeyParams{ID: domain.NewID(), UserID: userID, Name: name,
-		Prefix: prefix, Hash: hash, Now: s.Now().UTC()})
+	row, err := q.CreateAPIKey(ctx, store.CreateAPIKeyParams{ID: domain.NewID(), UserID: userID, Name: name,
+		Prefix: prefix, Hash: hash, Scope: string(scope), Device: device, Now: now})
 	if err != nil {
 		return "", domain.APIKey{}, mapErr(err, "create api key")
 	}
