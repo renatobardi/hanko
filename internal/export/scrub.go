@@ -5,7 +5,15 @@ import (
 	"strings"
 
 	"github.com/renatobardi/hanko/internal/adapter"
+	"github.com/renatobardi/hanko/internal/secretref"
 )
+
+// isSecretRef: um valor que é só uma referência ${secret:NOME} é um nome, não um valor secreto; viaja e aparece em
+// claro (ADR-0050). O valor do segredo nunca está no adapter_config.
+func isSecretRef(v any) bool {
+	s, ok := v.(string)
+	return ok && secretref.IsRef(s)
+}
 
 // sensitiveKey reconhece nomes de chave que guardam credenciais.
 var sensitiveKey = regexp.MustCompile(`(?i)(token|secret|passw(or)?d|passwd|pwd|api[-_]?key|apikey|credential|authorization|bearer|cookie|private[-_]?key|access[-_]?key|session[-_]?id|\bauth\b|^key$|[-_]key$)`)
@@ -30,7 +38,7 @@ func ScrubConfig(in map[string]any) map[string]any {
 func scrubMap(in map[string]any) map[string]any {
 	out := make(map[string]any, len(in))
 	for k, v := range in {
-		if sensitiveKey.MatchString(k) {
+		if sensitiveKey.MatchString(k) && !isSecretRef(v) {
 			continue
 		}
 		if sv, ok := scrubValue(v); ok {
@@ -87,6 +95,8 @@ func maskMap(in map[string]any, allValues bool) map[string]any {
 	out := make(map[string]any, len(in))
 	for k, v := range in {
 		switch {
+		case isSecretRef(v):
+			out[k] = v
 		case allValues || sensitiveKey.MatchString(k):
 			out[k] = MaskedValue
 		case k == "env":

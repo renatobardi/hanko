@@ -20,6 +20,9 @@ import (
 	"github.com/renatobardi/hanko/internal/events"
 	"github.com/renatobardi/hanko/internal/execenv"
 	"github.com/renatobardi/hanko/internal/memory"
+	"github.com/renatobardi/hanko/internal/settings"
+	"github.com/renatobardi/hanko/internal/storage"
+	"github.com/renatobardi/hanko/internal/vault"
 )
 
 // ErrNotImplemented marks contract stubs not yet filled.
@@ -89,6 +92,12 @@ type Service struct {
 	// ACP é a política do operador para o harness acp (HANKO_ACP_ALLOW / HANKO_ACP_COMMANDS, ADR-0023). O zero
 	// value recusa: persona acp não pode ser contratada nem importada.
 	ACP acp.Policy
+	// Vault é o cofre externo de segredos (ADR-0050); nil = nenhum configurado (segredos provider=vault recusados).
+	Vault vault.Provider
+	// Blobs guarda o conteúdo dos artefatos (ADR-0051); nil usa o driver postgres sobre o pool.
+	Blobs *storage.Registry
+	// Settings são os toggles não sensíveis da instalação (ADR-0050); nil usa os campos fixos acima (testes).
+	Settings *settings.Manager
 	// Environments é a política do operador para os ambientes de execução remotos (ADR-0037): SSH e sandbox
 	// vêm desligados no zero value.
 	Environments execenv.Config

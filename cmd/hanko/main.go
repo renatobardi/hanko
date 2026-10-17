@@ -11,6 +11,7 @@ import (
 	"github.com/renatobardi/hanko/internal/app"
 	"github.com/renatobardi/hanko/internal/cli"
 	"github.com/renatobardi/hanko/internal/config"
+	"github.com/renatobardi/hanko/internal/storage"
 )
 
 // version é injetada no build: -ldflags "-X main.version=v0.1.0".
@@ -32,6 +33,13 @@ func main() {
 				return err
 			}
 			return app.Migrate(ctx, cfg, version)
+		},
+		BlobsMigrate: func(ctx context.Context, a cli.BlobsMigrateArgs) (storage.MigrateReport, error) {
+			cfg, err := config.Load()
+			if err != nil {
+				return storage.MigrateReport{}, err
+			}
+			return app.BlobsMigrate(ctx, cfg, version, a.From, a.To, a.Company, a.KeepSource, a.DryRun, a.Batch)
 		},
 		OpenAPI: api.Spec,
 		Auth: func(ctx context.Context) (cli.AuthAdmin, error) {

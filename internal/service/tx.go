@@ -28,6 +28,8 @@ type txc struct {
 	q     *store.Queries
 	now   time.Time
 	after []func()
+	// onRollback desfaz efeitos de fora do banco (objetos já enviados ao S3) se a transação falhar.
+	onRollback []func()
 	// cancelled: runs whose cancellation this transaction already recorded (cancelRun is idempotent).
 	cancelled map[domain.ID]bool
 	// wakeCount: quantos wakes esta transação realmente enfileirou (wake pula task pausada, bloqueada ou persona parada).
@@ -44,6 +46,9 @@ func (s *Service) withTx(ctx context.Context, fn func(t *txc) error) error {
 	t := &txc{s: s, ctx: ctx, tx: tx, q: store.New(tx), now: s.Now().UTC()}
 	if err := fn(t); err != nil {
 		rollbackTx(tx)
+		for _, f := range t.onRollback {
+			f()
+		}
 		return err
 	}
 	if err := tx.Commit(ctx); err != nil {

@@ -76,6 +76,7 @@ type Artifact struct {
 	Sha256     string
 	Version    int32
 	CreatedAt  time.Time
+	Storage    string
 }
 
 type ArtifactBlob struct {
@@ -399,6 +400,23 @@ type HeldWake struct {
 	PersonaID   uuid.UUID
 	Trigger     string
 	RequestedAt time.Time
+}
+
+type InstanceSetting struct {
+	Key       string
+	Value     []byte
+	UpdatedBy *uuid.UUID
+	UpdatedAt time.Time
+}
+
+type InstanceSettingAudit struct {
+	ID         uuid.UUID
+	Key        string
+	OldValue   []byte
+	NewValue   []byte
+	ActorType  string
+	ActorID    *uuid.UUID
+	OccurredAt time.Time
 }
 
 type Integration struct {
@@ -782,6 +800,25 @@ type RunPolicyOrigin struct {
 	ReviewRequiredSource string
 	ReviewerSource       string
 	UpdatedAt            time.Time
+}
+
+type Secret struct {
+	ID            uuid.UUID
+	CompanyID     uuid.UUID
+	Scope         string
+	OwnerUserID   *uuid.UUID
+	Name          string
+	Description   string
+	Provider      string
+	ValueEnc      string
+	ExternalRef   string
+	Version       int32
+	RevealedAt    *time.Time
+	LastUsedAt    *time.Time
+	CreatedByType string
+	CreatedByID   *uuid.UUID
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 type Session struct {

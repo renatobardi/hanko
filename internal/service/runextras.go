@@ -69,10 +69,17 @@ func (s *Service) RunExtrasForProject(ctx context.Context, companyID, personaID 
 			ex.ToolGateway = append(ex.ToolGateway, r.Slug) // http: pelo gateway de tools, sem os segredos (ADR-0036)
 			continue
 		}
-		if !s.Integrations.AllowStdio {
+		if !s.Integrations.stdioAllowed() {
 			ex.Warnings = append(ex.Warnings, fmt.Sprintf("integração %q ignorada: stdio está desligado neste servidor", r.Slug))
 			continue
 		}
+		env, _, eerr := s.expandMap(ctx, companyID, sec.Env)
+		if eerr != nil {
+			// o texto do erro nomeia o segredo que faltou, nunca o valor
+			ex.Warnings = append(ex.Warnings, fmt.Sprintf("integração %q ignorada: %v", r.Slug, eerr))
+			continue
+		}
+		sec.Env = env
 		entry := map[string]any{"type": "stdio", "command": cfg.Command, "args": nonNilStrings(cfg.Args)}
 		if len(sec.Env) > 0 {
 			entry["env"] = sec.Env

@@ -31,6 +31,13 @@ const (
 	MemoryAIMemory = "ai-memory"
 	MemoryNone     = "none"
 
+	BlobPostgres = "postgres"
+	BlobS3       = "s3"
+
+	// MaxArtifactBytesPostgres e MaxArtifactBytesS3 são os tetos do limite por arquivo de artefato por driver.
+	MaxArtifactBytesPostgres int64 = 16 << 20
+	MaxArtifactBytesS3       int64 = 64 << 20
+
 	LogJSON = "json"
 	LogText = "text"
 
@@ -65,6 +72,32 @@ type Integrations struct {
 	// AllowPrivateDestinations libera webhooks e testes de conexão para loopback, link-local e redes privadas
 	// (RFC 1918, ULA). Desligado, são recusados (proteção SSRF).
 	AllowPrivateDestinations bool `yaml:"allow_private_destinations" env:"HANKO_INTEGRATIONS_ALLOW_PRIVATE"`
+}
+
+// Storage configura onde o conteúdo dos artefatos fica (ADR-0051). O driver postgres é o padrão; com s3 as escritas
+// novas vão para o bucket. Credenciais só por ambiente.
+type Storage struct {
+	Driver string `yaml:"driver" env:"HANKO_BLOB_DRIVER"` // postgres (padrão) | s3
+	S3     S3     `yaml:"s3"`
+}
+
+// S3 configura o driver s3 (qualquer endpoint compatível). AccessKey e SecretKey não vão no yaml: só por ambiente.
+type S3 struct {
+	Endpoint  string `yaml:"endpoint" env:"HANKO_S3_ENDPOINT"`
+	Region    string `yaml:"region" env:"HANKO_S3_REGION"`
+	Bucket    string `yaml:"bucket" env:"HANKO_S3_BUCKET"`
+	Prefix    string `yaml:"prefix" env:"HANKO_S3_PREFIX"`
+	PathStyle bool   `yaml:"path_style" env:"HANKO_S3_PATH_STYLE"`
+	AccessKey string `yaml:"-" env:"HANKO_S3_ACCESS_KEY"`
+	SecretKey string `yaml:"-" env:"HANKO_S3_SECRET_KEY"`
+}
+
+// Vault configura o cofre externo de segredos (ADR-0050), API KV v2. O token só por ambiente.
+type Vault struct {
+	Addr      string `yaml:"addr" env:"HANKO_VAULT_ADDR"`
+	Mount     string `yaml:"mount" env:"HANKO_VAULT_MOUNT"`
+	Namespace string `yaml:"namespace" env:"HANKO_VAULT_NAMESPACE"`
+	Token     string `yaml:"-" env:"HANKO_VAULT_TOKEN"`
 }
 
 // Environments configura os ambientes de execução remotos (ADR-0037). Os interruptores são do operador da
@@ -130,6 +163,8 @@ type Config struct {
 	SecretKey         string        `yaml:"secret_key" env:"HANKO_SECRET_KEY"`
 	SecretKeyPrevious string        `yaml:"secret_key_previous" env:"HANKO_SECRET_KEY_PREVIOUS"`
 	Integrations      Integrations  `yaml:"integrations"`
+	Storage           Storage       `yaml:"storage"`
+	Vault             Vault         `yaml:"vault"`
 	ACP               ACP           `yaml:"acp"`
 	Plugins           Plugins       `yaml:"plugins"`
 	Environments      Environments  `yaml:"environments"`
@@ -173,6 +208,10 @@ type Config struct {
 	AlertSilentFactor  int           `yaml:"alert_silent_factor" env:"HANKO_ALERT_SILENT_FACTOR"`
 	AlertRunStuckAfter time.Duration `yaml:"alert_run_stuck_after" env:"HANKO_ALERT_RUN_STUCK_AFTER"`
 
+	// EnvSet marca as variáveis HANKO_* definidas no ambiente (valor não vazio). As que equivalem a uma chave de
+	// instance_settings travam essa chave: env vence o banco (ADR-0050). Preenchido por Load.
+	EnvSet map[string]bool `yaml:"-" env:"-"`
+
 	// SecretGenerated indica que Secret foi gerado neste boot (run tokens não
 	// sobrevivem a restart). Preenchido por Load.
 	SecretGenerated bool `yaml:"-" env:"-"`
@@ -188,6 +227,8 @@ func Defaults() Config {
 		MigrateOnBoot:      true,
 		Memory:             Memory{Provider: MemoryAIMemory, URL: "http://127.0.0.1:49374", ReadTool: "memory_read_page"},
 		Auth:               Auth{Provider: AuthLocal},
+		Storage:            Storage{Driver: BlobPostgres, S3: S3{Region: "us-east-1", PathStyle: true}},
+		Vault:              Vault{Mount: "secret"},
 		TrustedProxies:     []string{"127.0.0.1/32", "::1/128"},
 		ClaudeBin:          "claude",
 		CodexBin:           "codex",
@@ -238,6 +279,10 @@ func LoadFrom(getenv func(string) string, readFile func(string) ([]byte, error))
 		return Config{}, fmt.Errorf("config: variável de ambiente inválida: %w", err)
 	}
 
+	cfg.EnvSet = map[string]bool{}
+	for k, v := range environFor(getenv) {
+		cfg.EnvSet[k] = v != ""
+	}
 	if err := cfg.finalize(); err != nil {
 		return Config{}, err
 	}
@@ -257,6 +302,9 @@ func environFor(getenv func(string) string) map[string]string {
 		"HANKO_AUTH_OWNER_EMAIL", "HANKO_AUTH_WEB_BOOTSTRAP", "HANKO_TRUSTED_PROXIES",
 		"HANKO_SECRET_KEY", "HANKO_SECRET_KEY_PREVIOUS", "HANKO_INTEGRATIONS_ALLOW_STDIO", "HANKO_INTEGRATIONS_ALLOW_PRIVATE",
 		"HANKO_ACP_ALLOW", "HANKO_ACP_COMMANDS", "HANKO_SKILL_SOURCES",
+		"HANKO_BLOB_DRIVER", "HANKO_S3_ENDPOINT", "HANKO_S3_REGION", "HANKO_S3_BUCKET", "HANKO_S3_PREFIX", "HANKO_S3_PATH_STYLE",
+		"HANKO_S3_ACCESS_KEY", "HANKO_S3_SECRET_KEY",
+		"HANKO_VAULT_ADDR", "HANKO_VAULT_MOUNT", "HANKO_VAULT_NAMESPACE", "HANKO_VAULT_TOKEN",
 		"HANKO_ENV_SSH_ALLOW_HOSTS", "HANKO_ENV_SANDBOX", "HANKO_ENV_SANDBOX_HOST_ROOT",
 	}
 	m := make(map[string]string, len(keys))
@@ -285,6 +333,14 @@ func (c *Config) finalize() error {
 	c.LogLevel = strings.ToLower(strings.TrimSpace(c.LogLevel))
 	c.LogFormat = strings.ToLower(strings.TrimSpace(c.LogFormat))
 	c.Addr = strings.TrimSpace(c.Addr)
+	c.Storage.Driver = strings.ToLower(strings.TrimSpace(c.Storage.Driver))
+	if c.Storage.Driver == "" {
+		c.Storage.Driver = BlobPostgres
+	}
+	c.Storage.S3.Endpoint = strings.TrimSpace(c.Storage.S3.Endpoint)
+	c.Storage.S3.Bucket = strings.TrimSpace(c.Storage.S3.Bucket)
+	c.Vault.Addr = strings.TrimSpace(c.Vault.Addr)
+	c.Vault.Token = strings.TrimSpace(c.Vault.Token)
 
 	if c.PublicURL == "" {
 		c.PublicURL = "http://" + c.Addr
@@ -343,6 +399,20 @@ func (c *Config) finalize() error {
 	return nil
 }
 
+// MaxArtifactBytes é o teto do limite por arquivo de artefato para o driver de blobs configurado (ADR-0051).
+func (c Config) MaxArtifactBytes() int64 {
+	if c.Storage.Driver == BlobS3 {
+		return MaxArtifactBytesS3
+	}
+	return MaxArtifactBytesPostgres
+}
+
+// S3Configured informa se o driver s3 tem tudo para abrir (mesmo com o driver ativo sendo postgres, para ler e migrar).
+func (c Config) S3Configured() bool {
+	s := c.Storage.S3
+	return s.Endpoint != "" && s.Bucket != "" && s.AccessKey != "" && s.SecretKey != ""
+}
+
 // Validate checa os campos; mensagens em pt-BR. Agrega todos os erros.
 func (c Config) Validate() error {
 	var errs []error
@@ -371,8 +441,20 @@ func (c Config) Validate() error {
 	if c.RunReserveUSD < 0 {
 		add("HANKO_RUN_RESERVE_USD %v inválido: use um valor >= 0 (0 usa o padrão de US$ 1,00)", c.RunReserveUSD)
 	}
-	if c.ArtifactMaxBytes < 1 || c.ArtifactMaxBytes > 16<<20 {
-		add("HANKO_ARTIFACT_MAX_BYTES %d inválido: use de 1 a 16777216 (16 MiB; padrão 5 MiB)", c.ArtifactMaxBytes)
+	if maxBytes := c.MaxArtifactBytes(); c.ArtifactMaxBytes < 1 || c.ArtifactMaxBytes > maxBytes {
+		add("HANKO_ARTIFACT_MAX_BYTES %d inválido: use de 1 a %d (%d MiB com o driver %s; padrão 5 MiB)", c.ArtifactMaxBytes, maxBytes, maxBytes>>20, c.Storage.Driver)
+	}
+	switch c.Storage.Driver {
+	case BlobPostgres:
+	case BlobS3:
+		if c.Storage.S3.Endpoint == "" || c.Storage.S3.Bucket == "" || c.Storage.S3.AccessKey == "" || c.Storage.S3.SecretKey == "" {
+			add("HANKO_BLOB_DRIVER=s3 exige HANKO_S3_ENDPOINT, HANKO_S3_BUCKET, HANKO_S3_ACCESS_KEY e HANKO_S3_SECRET_KEY")
+		}
+	default:
+		add("HANKO_BLOB_DRIVER %q inválido: use %q ou %q", c.Storage.Driver, BlobPostgres, BlobS3)
+	}
+	if (c.Vault.Addr == "") != (c.Vault.Token == "") {
+		add("HANKO_VAULT_ADDR e HANKO_VAULT_TOKEN precisam ser definidos juntos")
 	}
 	if c.ArtifactQuotaBytes < c.ArtifactMaxBytes {
 		add("HANKO_ARTIFACT_QUOTA_BYTES %d inválido: a cota por empresa precisa caber ao menos um artefato máximo (padrão 512 MiB)", c.ArtifactQuotaBytes)

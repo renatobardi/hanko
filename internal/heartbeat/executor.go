@@ -211,7 +211,19 @@ func (h *Heartbeat) executeRunJob(ctx context.Context, a ExecuteRunArgs, ji jobI
 	defer func() { cleanup() }()
 
 	extras := h.runExtras(execCtx, rc, emit)
-	spec, dirCleanup, specErr := h.buildSpec(rc, briefing, handoff, scope, extras, emit)
+	// ${secret:...} do adapter_config da persona: resolvidos aqui, só em memória (ADR-0050). Falhar cedo, com o nome do
+	// segredo que faltou, é melhor do que rodar o agente sem a credencial.
+	var resolved []string
+	var secErr error
+	rc, resolved, secErr = h.resolveSecrets(execCtx, rc)
+	var spec adapter.Spec
+	var dirCleanup func()
+	var specErr error
+	if secErr != nil {
+		specErr = secErr
+	} else {
+		spec, dirCleanup, specErr = h.buildSpec(rc, briefing, handoff, scope, extras, emit)
+	}
 	if dirCleanup != nil {
 		cleanup = dirCleanup
 	}
@@ -224,14 +236,25 @@ func (h *Heartbeat) executeRunJob(ctx context.Context, a ExecuteRunArgs, ji jobI
 		runErr = specErr
 	} else {
 		spec.Timeout = h.opts.RunTimeout
+		spec.Secrets = resolved
+		redact := append([]string(nil), resolved...)
+		if renv != nil {
+			redact = append(redact, renv.secrets...)
+		}
 		var sink adapter.Sink = adapter.SinkFunc(func(c context.Context, e adapter.Event) error {
 			h.appendEvent(c, a, e)
 			return nil
 		})
-		if renv != nil {
-			sink = adapter.RedactingSink(sink, renv.secrets...)
+		if len(redact) > 0 { // defesa em profundidade: vale para qualquer adapter, não só os que já redigem
+			sink = adapter.RedactingSink(sink, redact...)
 		}
 		res, runErr = safeRun(execCtx, ad, spec, sink)
+		if len(resolved) > 0 {
+			res = adapter.RedactResult(res, resolved...)
+			if runErr != nil {
+				runErr = errors.New(adapter.Redact(runErr.Error(), resolved...))
+			}
+		}
 	}
 	if renv != nil {
 		res = adapter.RedactResult(res, renv.secrets...)
@@ -480,6 +503,26 @@ func (h *Heartbeat) runExtras(ctx context.Context, rc service.RunContext, emit f
 		emit(domain.EventSystem, w)
 	}
 	return ex
+}
+
+// secretsBackend resolve as referências a segredos do adapter_config; opcional como runExtrasBackend.
+type secretsBackend interface {
+	ResolveAdapterConfig(ctx context.Context, companyID domain.ID, cfg json.RawMessage) (json.RawMessage, []string, error)
+}
+
+// resolveSecrets devolve rc com o adapter_config da persona já sem referências e os valores resolvidos (para a
+// redação). Runs de revisão não usam o adapter_config da persona quando o harness é outro; nelas nada a resolver.
+func (h *Heartbeat) resolveSecrets(ctx context.Context, rc service.RunContext) (service.RunContext, []string, error) {
+	sb, ok := h.svc.(secretsBackend)
+	if !ok || len(rc.Persona.AdapterConfig) == 0 {
+		return rc, nil, nil
+	}
+	cfg, values, err := sb.ResolveAdapterConfig(ctx, rc.Company.ID, rc.Persona.AdapterConfig)
+	if err != nil {
+		return rc, nil, fmt.Errorf("configuração da persona: %w", err)
+	}
+	rc.Persona.AdapterConfig = cfg
+	return rc, values, nil
 }
 
 // mergeMCP junta servidores MCP; em colisão de nome vale o último mapa.

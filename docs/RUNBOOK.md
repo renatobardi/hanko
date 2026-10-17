@@ -540,7 +540,7 @@ hanko chat list --persona cto
 
 ## Sala com várias personas
 
-Uma conversa com várias personas ao mesmo tempo (ADR-0033). Na UI: **Sala** no menu (`/c/{empresa}/sala`). Na CLI:
+Uma conversa com várias personas ao mesmo tempo (ADR-0051). Na UI: **Sala** no menu (`/c/{empresa}/sala`). Na CLI:
 
 ```
 hanko room create --persona cto,pm,design "Planejar a semana"   # abre a sala (2 a 12 personas)
@@ -568,7 +568,7 @@ versões e diff de texto), seções nas páginas da task, da execução e do pro
 
 | Variável | Padrão | Efeito |
 |---|---|---|
-| `HANKO_ARTIFACT_MAX_BYTES` | 5 MiB (de 1 a 16 MiB) | Tamanho máximo de um arquivo. |
+| `HANKO_ARTIFACT_MAX_BYTES` | 5 MiB (de 1 a 16 MiB; 64 MiB com S3) | Tamanho máximo de um arquivo. |
 | `HANKO_ARTIFACT_QUOTA_BYTES` | 512 MiB | Cota da empresa, somando todas as versões. |
 
 - **Publicar:** UI (envio na tela), `hanko artifact put <arquivo|-> [--task HNK-1]` (também `list`, `get <id> [-o arquivo] [--info]`,
@@ -594,6 +594,91 @@ histórico, tasks ligadas (uma meta ativa por task) e o quadro "Metas" no projet
 | Exportação com `--with-artifacts` recusada | conteúdo acima de 20 MiB | exporte sem a opção |
 | HTML ou PDF baixa em vez de abrir | proposital: só texto, Markdown e imagem raster abrem | abra o arquivo baixado |
 | Meta atingida não aceita progresso | status `achieved` | reabra (admin) trocando para ativa; recusado enquanto o valor atual já alcança o alvo |
+
+## Segredos, settings da instância e armazenamento de artefatos (ADR-0050, ADR-0051)
+
+### Segredos da empresa
+
+Tela **Configurações › Segredos**, CLI `hanko secret …`, API `/companies/{c}/secrets`. Um segredo é um valor cifrado
+(AES-256-GCM com `HANKO_SECRET_KEY`, a mesma chave das integrações) que você referencia por `${secret:NOME}`:
+
+- nos **valores de header e de variável** de uma integração MCP (`Authorization: Bearer ${secret:docs-token}`);
+- no **`adapter_config` da persona** (`env` e argumentos): `{"env":{"ANTHROPIC_AUTH_TOKEN":"${secret:gateway}"}}`;
+- no **provider de modelo** (o `env` da persona que aponta o harness para um gateway) e, quando existir, na credencial de repositório.
+
+O banco guarda só a referência; o valor é lido **quando a execução é despachada**, vai para o processo do agente e entra na redação
+de segredos do log. Rotacionar (`hanko secret rotate NOME --value-stdin`) vale na próxima execução, sem editar a persona nem a integração.
+
+| Comando | O que faz |
+|---|---|
+| `hanko secret create NOME --value-stdin` | Cria (o valor vem do stdin, fora do histórico do shell). Também `--generate` (o servidor gera e mostra uma vez) e `--vault-ref caminho#campo`. |
+| `hanko secret ls` / `show NOME` | Metadados: provider, versão, se já foi revelado, último uso e **quem usa**. Nunca o valor. |
+| `hanko secret reveal NOME` | Mostra o valor **uma vez por versão** (admin; auditado). A segunda chamada é 409 até rotacionar. |
+| `hanko secret rotate NOME` | Troca o valor; a versão sobe e a marca de "revelado" é zerada. |
+| `hanko secret rm NOME [--force]` | Apaga; recusado enquanto persona ou integração usa, a menos que `--force`. |
+| `hanko secret --user …` | Os mesmos comandos nos **seus** segredos pessoais (`${secret:user/NOME}`): só você lista, revela e usa; nem o dono da instalação os vê. Exige login (não existe no modo trusted). Hoje servem a ações feitas por você; o uso por execuções de persona ainda não existe. |
+| `hanko secret rekey` | Depois de rotacionar `HANKO_SECRET_KEY` (veja a seção de integrações): reescreve integrações **e** segredos. |
+| `hanko secret migrate-env` | Move o `env` em claro das personas existentes para segredos `persona.<slug>.<VARIAVEL>` (dono da instalação; idempotente). |
+
+**O env antigo das personas.** Antes do M7 o `env` do `adapter_config` ficava em claro no banco. Com `HANKO_SECRET_KEY` definida, o
+boot migra tudo sozinho (log `segredos: env das personas movido…`) e personas novas já nascem com referências. Sem a chave nada muda
+(o valor em claro continua funcionando) e o boot avisa quantas personas ainda estão assim. Para conferir:
+`SELECT slug, adapter_config FROM personas;` deve mostrar só `${secret:…}` nos valores de `env`.
+
+**Cofre externo (opcional).** Defina `HANKO_VAULT_ADDR` e `HANKO_VAULT_TOKEN` (e, se preciso, `HANKO_VAULT_MOUNT`, padrão `secret`, e
+`HANKO_VAULT_NAMESPACE`). O provider fala a API **KV v2** (Vault; o OpenBao serve a mesma). Crie o segredo com
+`--vault-ref apps/hanko#token`: o Hanko guarda só a referência e consulta o cofre **a cada despacho** (sem cache; rotação no cofre
+vale na hora). Cofre fora do ar: a execução da persona falha cedo, com o nome do segredo; uma integração MCP é pulada com aviso.
+O token do Hanko precisa só de leitura nos caminhos usados.
+
+**Garantias e limites.** O valor não entra em atividade, webhooks de saída, export, briefing, log do servidor, eventos de execução,
+resumo/comentários nem spans OTel (testes de não-vazamento cobrem cada ponto). O export leva só `${secret:…}`; ao importar, o
+resultado conta `secret_refs_to_create` (os segredos precisam ser recriados na empresa nova). Um admin que define a configuração de
+uma persona consegue, por definição, fazer o agente usar o segredo: "revelar uma vez" é trilha de auditoria, não barreira.
+
+### Settings da instância
+
+Tela **Configurações › Instância**, CLI `hanko settings list|get|set|unset|audit`, API `/instance/settings` (dono da instalação).
+Só toggles **não sensíveis**: `acp.allow`, `acp.commands`, `integrations.allow_stdio`, `integrations.allow_private`,
+`artifacts.max_bytes`, `artifacts.quota_bytes`, `run.reserve_usd`, `alerts.silent_factor`, `alerts.run_stuck_after`.
+Precedência: **variável de ambiente > banco > yaml/padrão**. Com a variável definida (valor não vazio) a chave aparece travada
+("travada por HANKO_X") e a API devolve 409; para mudar, mude o ambiente. Mudar no banco vale sem reiniciar e fica em
+`instance_setting_audit` (antes, depois, autor). Segredos e chaves nunca são settings: só por ambiente.
+
+### Armazenamento de artefatos (BlobStore)
+
+Padrão: Postgres (`artifact_blobs`), como antes. Para S3 compatível (S3, MinIO, R2):
+
+| Variável | Efeito |
+|---|---|
+| `HANKO_BLOB_DRIVER` | `postgres` (padrão) ou `s3`: onde as escritas **novas** vão. |
+| `HANKO_S3_ENDPOINT` · `HANKO_S3_BUCKET` | Endereço (`https://…`; `http` só em loopback) e bucket. |
+| `HANKO_S3_ACCESS_KEY` · `HANKO_S3_SECRET_KEY` | Credenciais (**só por ambiente**). |
+| `HANKO_S3_REGION` (`us-east-1`) · `HANKO_S3_PREFIX` · `HANKO_S3_PATH_STYLE` (`true`) | Região de assinatura, prefixo das chaves e endereçamento por caminho (`false` = por host virtual). |
+
+Com `s3` ativo o limite por arquivo sobe: `HANKO_ARTIFACT_MAX_BYTES` aceita até 64 MiB. Cada artefato registra em que driver está, então os
+dois convivem. **Migrar o que já existe:**
+
+```
+hanko blobs migrate --from postgres --to s3 --dry-run     # só conta
+hanko blobs migrate --from postgres --to s3                # copia, confere (sha256 + tamanho no destino), troca o registro e apaga a origem
+hanko blobs migrate --from s3 --to postgres --keep-source  # volta, mantendo o conteúdo no bucket
+hanko blobs status                                         # driver ativo e o que há em cada um
+```
+
+O comando usa o banco e o ambiente do servidor (rode no host do Hanko, com as mesmas variáveis). É retomável e idempotente; falha em um
+artefato é contada e a migração segue, e o código de saída é 1 se algo falhou. `--company acme` restringe a uma empresa. Com S3, o
+`pg_dump` deixa de cobrir os arquivos: faça backup do bucket. Objetos órfãos (processo morto entre o envio e a transação, ou empresa
+apagada) ocupam espaço sem aparecer na cota; a chave é `<prefixo>/<empresa>/<artefato>`, então dá para conferir contra o banco.
+
+| Sintoma | Causa | Ação |
+|---|---|---|
+| Boot recusado: `HANKO_BLOB_DRIVER=s3 exige…` | falta endpoint, bucket ou chaves | defina `HANKO_S3_*` |
+| Envio falha: `s3: … SignatureDoesNotMatch` | chaves/região erradas ou relógio do servidor fora | confira `HANKO_S3_REGION` e o horário (NTP) |
+| `s3: endpoint inacessível` | rede/DNS/TLS | teste `curl` do host do Hanko ao endpoint |
+| Criar segredo recusado: `HANKO_SECRET_KEY não está configurada` | sem chave de cifragem | defina `HANKO_SECRET_KEY` (`openssl rand -hex 32`) |
+| Run falha: `segredo não resolvido: ${secret:X}` | o segredo foi apagado ou o cofre está fora | recrie o segredo / confira o cofre e o token |
+| Settings: 409 "definida por HANKO_X" | a variável de ambiente trava a chave | mude o ambiente do servidor |
 
 ## Busca (ADR-0024)
 

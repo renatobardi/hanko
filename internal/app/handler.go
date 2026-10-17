@@ -48,7 +48,7 @@ func buildHandler(d handlerDeps) (http.Handler, error) {
 		Authenticated: cfg.Authenticated()})
 	ui.Mount(mux, ui.Deps{Svc: d.Svc, Broker: d.Broker, Logger: d.Logger, Version: d.Version, Auth: uiAuth(d), Secure: cfg.SecureCookies(),
 		Platform: platformInfo(cfg)})
-	mux.Handle("/mcp", mcp.Handler(mcp.Deps{Svc: d.Svc, Tokens: d.Tokens, Logger: d.Logger, Version: d.Version, Trusted: cfg.TrustedMCP(), ArtifactMaxBytes: cfg.ArtifactMaxBytes}))
+	mux.Handle("/mcp", mcp.Handler(mcp.Deps{Svc: d.Svc, Tokens: d.Tokens, Logger: d.Logger, Version: d.Version, Trusted: cfg.TrustedMCP(), ArtifactMaxBytes: cfg.MaxArtifactBytes()}))
 	tg := mcp.ToolGatewayDeps{Backend: d.Svc, Tokens: d.Tokens, Logger: d.Logger, Version: d.Version} // gateway de tools (ADR-0036)
 	mux.Handle(mcp.RunToolGatewayPattern, mcp.RunToolGateway(tg))
 	mux.Handle(mcp.NamedToolGatewayPattern, mcp.NamedToolGateway(tg))
@@ -137,5 +137,5 @@ func platformInfo(cfg config.Config) ui.PlatformInfo {
 		ClaudeBin: cfg.ClaudeBin, CodexBin: cfg.CodexBin, ACPAllow: cfg.ACP.Allow, ACPCommands: cfg.ACP.Commands,
 		MemoryProvider: cfg.Memory.Provider, MemoryURL: cfg.Memory.URL, OTelEndpoint: os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"),
 		IntegrationsAllowStdio: cfg.Integrations.AllowStdio, IntegrationsAllowPrivate: cfg.Integrations.AllowPrivateDestinations,
-		SecretKeySet: cfg.SecretKey != "", Workers: cfg.Workers, RunTimeout: cfg.RunTimeout, HeartbeatInterval: cfg.HeartbeatInterval}
+		SecretKeySet: cfg.SecretKey != "", VaultConfigured: cfg.Vault.Addr != "", Workers: cfg.Workers, RunTimeout: cfg.RunTimeout, HeartbeatInterval: cfg.HeartbeatInterval}
 }
