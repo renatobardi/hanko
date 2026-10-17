@@ -94,6 +94,74 @@ type BudgetAlert struct {
 	CreatedAt time.Time
 }
 
+type Case struct {
+	ID                 uuid.UUID
+	CompanyID          uuid.UUID
+	Number             int64
+	CaseType           string
+	Key                *string
+	Title              string
+	Summary            string
+	Fields             []byte
+	Status             string
+	PipelineID         *uuid.UUID
+	StageID            *uuid.UUID
+	ParentCaseID       *uuid.UUID
+	ProjectID          *uuid.UUID
+	Version            int32
+	PendingSuggestion  []byte
+	ApprovedVersion    *int32
+	ReapprovalRequired bool
+	Attention          *string
+	AttentionAt        *time.Time
+	TerminalKind       *string
+	TerminalAt         *time.Time
+	ChildCount         int32
+	TerminalChildCount int32
+	OriginRunID        *uuid.UUID
+	CreatedByType      string
+	CreatedByID        *uuid.UUID
+	CompletedAt        *time.Time
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+}
+
+type CaseBlocker struct {
+	CaseID        uuid.UUID
+	BlockerCaseID uuid.UUID
+	CompanyID     uuid.UUID
+	CreatedAt     time.Time
+	ResolvedAt    *time.Time
+}
+
+type CaseEvent struct {
+	ID          uuid.UUID
+	CompanyID   uuid.UUID
+	CaseID      uuid.UUID
+	Kind        string
+	FromStageID *uuid.UUID
+	ToStageID   *uuid.UUID
+	ActorType   string
+	ActorID     *uuid.UUID
+	RunID       *uuid.UUID
+	Payload     []byte
+	CreatedAt   time.Time
+}
+
+type CaseSequence struct {
+	CompanyID  uuid.UUID
+	LastNumber int64
+}
+
+type CaseTaskLink struct {
+	CaseID         uuid.UUID
+	TaskID         uuid.UUID
+	CompanyID      uuid.UUID
+	Role           string
+	CreatedByRunID *uuid.UUID
+	CreatedAt      time.Time
+}
+
 type Company struct {
 	ID                 uuid.UUID
 	Slug               string
@@ -184,6 +252,23 @@ type CostNotice struct {
 	Model     string
 	Month     string
 	CreatedAt time.Time
+}
+
+type DecisionExample struct {
+	ID              uuid.UUID
+	CompanyID       uuid.UUID
+	SourceKind      string
+	SourceID        uuid.UUID
+	TaskID          *uuid.UUID
+	CaseID          *uuid.UUID
+	CutoffAt        time.Time
+	DecisionOutcome string
+	Notes           string
+	NotesHistory    []byte
+	Snapshot        []byte
+	CreatedByUserID *uuid.UUID
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
 type Environment struct {
@@ -460,6 +545,43 @@ type PersonaSkill struct {
 	Enabled        bool
 	UpdatedAt      time.Time
 	PinnedRevision *int32
+}
+
+type Pipeline struct {
+	ID                 uuid.UUID
+	CompanyID          uuid.UUID
+	ProjectID          *uuid.UUID
+	Key                string
+	Name               string
+	Description        string
+	EnforceTransitions bool
+	ArchivedAt         *time.Time
+	CreatedByType      string
+	CreatedByID        *uuid.UUID
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+}
+
+type PipelineStage struct {
+	ID         uuid.UUID
+	CompanyID  uuid.UUID
+	PipelineID uuid.UUID
+	Key        string
+	Name       string
+	Position   int32
+	Kind       string
+	Config     []byte
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+}
+
+type PipelineTransition struct {
+	ID          uuid.UUID
+	CompanyID   uuid.UUID
+	PipelineID  uuid.UUID
+	FromStageID uuid.UUID
+	ToStageID   uuid.UUID
+	Label       string
 }
 
 type Plugin struct {

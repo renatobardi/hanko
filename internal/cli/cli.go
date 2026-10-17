@@ -143,6 +143,7 @@ func (e *env) root() *cobra.Command {
 		e.artifactCmd(), e.goalCmd(), e.statusCardCmd())
 	root.AddCommand(e.roomCmd())        // sala (ADR-0033)
 	root.AddCommand(e.environmentCmd()) // ambientes de execução (ADR-0037)
+	root.AddCommand(e.pipelinesCmds()...)
 	e.localizeHelp(root)
 	return root
 }

@@ -372,6 +372,7 @@ func (s *server) routes(root *http.ServeMux) {
 	s.pluginRoutes(mux)
 	s.environmentRoutes(mux)
 	s.statusCardRoutes(mux)
+	s.pipelineRoutes(mux) // pipelines, cases, revisão e aprendizados (ADR-0034)
 }
 
 // ---------- middleware ----------

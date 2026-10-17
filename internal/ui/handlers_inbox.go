@@ -75,6 +75,9 @@ func (s *server) handleInbox(w http.ResponseWriter, r *http.Request, co domain.C
 	for _, t := range inboxTabs {
 		vm.Tabs = append(vm.Tabs, views.TabLink{Key: t.key, Label: i18n.T(ctx, t.label), Href: base + "/caixa?aba=" + t.key, Count: counts[t.key], On: t.key == cur})
 	}
+	if tab, ok := s.reviewInboxTab(ctx, co); ok { // fila de revisão dos pipelines (ADR-0034)
+		vm.Tabs = append(vm.Tabs, tab)
+	}
 	show := func(tab string) bool { return cur == "tudo" || cur == tab }
 
 	if show("gates") {

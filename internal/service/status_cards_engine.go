@@ -435,7 +435,7 @@ func (t *txc) cardGenerationFor(card store.StatusCard, ref CardRunRef, kinds ...
 	return u, nil
 }
 
-func clipRunes(s string, n int) string { return truncateRunes(strings.TrimSpace(s), n) }
+func cardClip(s string, n int) string { return truncateRunes(strings.TrimSpace(s), n) }
 
 // SetStatusCardQuery grava os filtros da montagem (só a resumidora, na task de montagem ativa) e dispara a
 // primeira atualização do resumo, do zero.
@@ -461,7 +461,7 @@ func (s *Service) SetStatusCardQuery(ctx context.Context, actor domain.Actor, co
 			}
 			card.Title = title
 		}
-		summary := clipRunes(in.ChangeSummary, domain.MaxCardChangeSummaryRunes)
+		summary := cardClip(in.ChangeSummary, domain.MaxCardChangeSummaryRunes)
 		if _, err := t.q.FinishStatusCardUpdate(ctx, store.FinishStatusCardUpdateParams{ID: u.ID, Status: string(domain.CardUpdateOK),
 			ChangeSummary: summary, Now: &t.now}); err != nil {
 			return mapErr(err, "finish status card update")
@@ -529,7 +529,7 @@ func (s *Service) SetStatusCardSummary(ctx context.Context, actor domain.Actor, 
 				model = r.Model
 			}
 		}
-		summary := clipRunes(in.ChangeSummary, domain.MaxCardChangeSummaryRunes)
+		summary := cardClip(in.ChangeSummary, domain.MaxCardChangeSummaryRunes)
 		rev := card.SummaryRevision + 1
 		if _, err := t.q.InsertStatusCardRevision(ctx, store.InsertStatusCardRevisionParams{ID: domain.NewID(), CompanyID: companyID, CardID: card.ID,
 			Revision: rev, Markdown: md, ChangeSummary: summary, Kind: u.Kind, RunID: ref.RunID, Model: model, MentionedTaskIds: mentioned, Now: t.now}); err != nil {
@@ -690,7 +690,7 @@ func cardRunFailure(kind domain.CardUpdateKind, status domain.RunStatus, errMsg 
 	}
 	msg := fmt.Sprintf("%s: a execução acabou (%s) sem chamar %s.", what, status, tool)
 	if e := strings.TrimSpace(errMsg); e != "" {
-		msg += " Erro: " + clipRunes(e, 300)
+		msg += " Erro: " + cardClip(e, 300)
 	}
 	return msg + " Rode de novo para tentar outra vez."
 }
