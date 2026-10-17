@@ -283,6 +283,32 @@ func verbPhraseCtx(ctx context.Context, v string) string {
 		return i18n.T(ctx, "mudou a política de revisão de")
 	case "project.review_policy_changed":
 		return i18n.T(ctx, "mudou a política de revisão do projeto")
+	case "task.worktree_provisioning":
+		return i18n.T(ctx, "preparou o worktree de")
+	case "task.worktree_ready":
+		return i18n.T(ctx, "deixou pronto o worktree de")
+	case "task.worktree_failed":
+		return i18n.T(ctx, "não conseguiu criar o worktree de")
+	case "task.worktree_diverged":
+		return i18n.T(ctx, "viu o worktree divergir em")
+	case "task.worktree_removed", "task.worktree_cleaned":
+		return i18n.T(ctx, "limpou o worktree de")
+	case "task.session_reset":
+		return i18n.T(ctx, "pediu uma nova sessão em")
+	case "run.session_reset_applied":
+		return i18n.T(ctx, "aplicou o pedido de nova sessão na")
+	case "workspace.git_enabled":
+		return i18n.T(ctx, "ligou o Git do workspace")
+	case "workspace.git_updated":
+		return i18n.T(ctx, "ajustou o Git do workspace")
+	case "workspace.git_disabled":
+		return i18n.T(ctx, "desligou o Git do workspace")
+	case "workspace.git_synced":
+		return i18n.T(ctx, "sincronizou o espelho do workspace")
+	case "workspace.git_sync_failed":
+		return i18n.T(ctx, "não conseguiu sincronizar o espelho do workspace")
+	case "project.defaults_updated":
+		return i18n.T(ctx, "atualizou os padrões do projeto")
 	case "comment.added":
 		return i18n.T(ctx, "comentou em")
 	case "run.queued":

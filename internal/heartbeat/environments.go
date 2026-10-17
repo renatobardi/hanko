@@ -86,6 +86,9 @@ func (h *Heartbeat) openEnvironment(ctx context.Context, a ExecuteRunArgs, rc se
 	if _, ok := spec.Env["HANKO_URL"]; ok && needURL {
 		spec.Env["HANKO_URL"] = strings.TrimRight(re.Config.RemoteURL, "/")
 	}
+	if rc.Worktree != nil {
+		emit(domain.EventSystem, "aviso: o worktree Git é sincronizado como pasta comum; o .git dele aponta para o espelho deste servidor, então o git não funciona dentro do ambiente remoto (ADR-0054)")
+	}
 	ws := ""
 	if rc.Workspace != nil && !tempDir {
 		ws = rc.Workspace.Slug

@@ -366,6 +366,7 @@ Operator settings (a company cannot turn these on by itself):
 | `HANKO_INTEGRATIONS_ALLOW_STDIO` | `false` | Allows `stdio` MCP servers, which run a command **on the server machine**. |
 | `HANKO_INTEGRATIONS_ALLOW_PRIVATE` | `false` | Allows webhooks and connection tests to loopback, link-local and private networks (otherwise SSRF blocking applies). |
 | `HANKO_SKILL_SOURCES` | `false` | Turns on git skill sources (ADR-0035): the server clones public repositories over https with the `git` on the PATH. Internal hosts only with `HANKO_INTEGRATIONS_ALLOW_PRIVATE`. |
+| `HANKO_GIT_WORKSPACES` | `false` | Turns on execution workspaces with Git (ADR-0054): the server keeps a mirror clone of the workspace repository under `<HANKO_WORKSPACES_ROOT>/<company>/.hanko/mirrors` and creates one worktree per task under `.hanko/worktrees` (git 2.31+ on the PATH). The repository credential is a `${secret:NAME}` secret (ADR-0050). Internal hosts only with `HANKO_INTEGRATIONS_ALLOW_PRIVATE`. An admin turns Git on per workspace (`hanko workspace git enable`). |
 
 **Generate the key:** `openssl rand -hex 32`. Keep it with `HANKO_SECRET` and in the operator's backup; losing it loses the
 stored secrets (integrations remain, without credentials; enter them again).

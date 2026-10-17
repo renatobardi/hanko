@@ -21,7 +21,7 @@ func TestBuildPromptProjectInstructionsWorktreeAndSessionReset(t *testing.T) {
 	iPersona := strings.Index(system, "Escreva código limpo.")
 	iProject := strings.Index(system, "## Instruções do projeto Loja")
 	iProtocol := strings.Index(system, "## Protocolo Hanko")
-	if !(iPersona >= 0 && iPersona < iProject && iProject < iProtocol) {
+	if iPersona < 0 || iPersona >= iProject || iProject >= iProtocol {
 		t.Fatalf("ordem do system prompt (persona %d, projeto %d, protocolo %d):\n%s", iPersona, iProject, iProtocol, system)
 	}
 	if !strings.Contains(system, "Use o guia de estilo.") || !strings.Contains(system, "branch `hnk-7`") || !strings.Contains(system, "não faça push") {
