@@ -1,0 +1,110 @@
+package views
+
+import (
+	"fmt"
+	"github.com/renatobardi/hanko/internal/i18n"
+)
+
+templ InstructionsPage(sh Shell, vm InstructionsVM) {
+	@Layout(sh) {
+		if vm.Notice != "" {
+			@Alert("ok", vm.Notice)
+		}
+		if vm.Error != "" {
+			@Alert("warn", vm.Error)
+		}
+		<div class="flow-head">
+			<div>
+				<h1>{ i18n.T(ctx, "Instruções") } · { vm.Name }</h1>
+				<p class="muted mt-2 text-sm"><span class="mono">{ vm.Slug }</span> · { i18n.Tf(ctx, "revisão %d", vm.Revision) } · <a href={ templ.SafeURL(vm.Back) }>{ i18n.T(ctx, "Voltar à persona") }</a></p>
+			</div>
+		</div>
+		for _, p := range vm.Proposals {
+			<section class="card pad mt-6" id="proposta">
+				<div class="card-head"><div><h2>{ i18n.T(ctx, "Proposta da persona esperando decisão") }</h2><p class="sub">{ p.When }</p></div></div>
+				<p><a href={ templ.SafeURL(p.Href) }>{ p.Title }</a></p>
+			</section>
+		}
+		if vm.EditURL != "" {
+			<section class="card pad mt-6" id="editar">
+				<div class="card-head"><div><h2>{ i18n.T(ctx, "Editar instruções") }</h2><p class="sub">{ i18n.T(ctx, "Cada mudança vira uma revisão imutável, com o motivo; a próxima execução já usa o texto novo.") }</p></div></div>
+				<form method="post" action={ templ.SafeURL(vm.EditURL) } class="form">
+					<div class="field">
+						<label for="i-text">{ i18n.T(ctx, "Instruções") }</label>
+						<textarea class="textarea mono" id="i-text" name="instructions" rows="14">{ vm.Current }</textarea>
+					</div>
+					<div class="field">
+						<label for="i-reason">{ i18n.T(ctx, "Motivo da mudança") }</label>
+						<input class="input" id="i-reason" name="reason" maxlength="500" value={ vm.Reason } placeholder={ i18n.T(ctx, "Por que mudar (opcional)") }/>
+					</div>
+					<div class="form-actions">
+						<button class="btn primary" type="submit">{ i18n.T(ctx, "Salvar nova revisão") }</button>
+					</div>
+				</form>
+			</section>
+		}
+		<div class="table-wrap mt-6">
+			<table class="table">
+				<thead>
+					<tr>
+						<th>{ i18n.T(ctx, "Revisão") }</th>
+						<th class="hide-sm">{ i18n.T(ctx, "Autor") }</th>
+						<th class="hide-sm">{ i18n.T(ctx, "Motivo") }</th>
+						<th class="hide-sm">{ i18n.T(ctx, "Tamanho") }</th>
+						<th class="hide-sm">sha256</th>
+						<th>{ i18n.T(ctx, "Quando") }</th>
+						<th class="act-col"></th>
+					</tr>
+				</thead>
+				<tbody>
+					for _, r := range vm.Rows {
+						<tr class="row">
+							<td class="ttl">
+								<a href={ templ.SafeURL(r.ViewHref) }>r{ fmt.Sprint(r.Revision) }</a>
+								if r.Current {
+									<span class="badge done">{ i18n.T(ctx, "atual") }</span>
+								}
+								<div class="note">{ r.Origin }</div>
+							</td>
+							<td class="hide-sm muted">
+								{ r.Author }
+								if r.Actor != "" && r.Actor != r.Author {
+									<div class="note">{ i18n.Tf(ctx, "aplicada por %s", r.Actor) }</div>
+								}
+							</td>
+							<td class="hide-sm muted">{ r.Reason }</td>
+							<td class="hide-sm muted">{ r.Size }</td>
+							<td class="hide-sm mono muted">{ r.SHA }</td>
+							<td class="muted">{ r.When }</td>
+							<td class="act-col">
+								<div class="row-acts">
+									if r.DiffHref != "" {
+										<a class="btn ghost sm" href={ templ.SafeURL(r.DiffHref) }>{ i18n.T(ctx, "comparar com a anterior") }</a>
+									}
+									if r.RestoreAction != "" && !r.Current {
+										<form method="post" action={ templ.SafeURL(r.RestoreAction) } hx-boost="true" hx-confirm={ i18n.T(ctx, "Restaurar esta revisão? Uma revisão nova é criada com o texto dela.") }>
+											<input type="hidden" name="revision" value={ fmt.Sprint(r.Revision) }/>
+											<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Restaurar esta revisão") }</button>
+										</form>
+									}
+								</div>
+							</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+		if vm.View != nil {
+			<section class="card pad mt-6" id="revisao">
+				<div class="card-head">
+					<h2>r{ fmt.Sprint(vm.View.Revision) }</h2>
+					<a class="sub" href={ templ.SafeURL(vm.View.CloseHref) }>{ i18n.T(ctx, "Fechar") }</a>
+				</div>
+				<div class="instr">{ vm.View.Body }</div>
+			</section>
+		}
+		if vm.Diff != nil {
+			@ArtifactDiffBox(*vm.Diff)
+		}
+	}
+}
