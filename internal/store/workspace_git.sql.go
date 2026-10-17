@@ -492,6 +492,8 @@ JOIN workspaces ws ON ws.id = w.workspace_id
 LEFT JOIN workspace_git g ON g.workspace_id = w.workspace_id
 WHERE w.state <> 'removed'
   AND (w.state <> 'provisioning' OR w.claimed_at < $1)
+  -- nunca apaga a pasta debaixo de uma run em andamento (a task pode ter sido concluída com a persona ainda rodando)
+  AND NOT EXISTS (SELECT 1 FROM runs r WHERE r.task_id = w.task_id AND r.status IN ('queued', 'running'))
 ORDER BY w.updated_at, w.id
 LIMIT $2
 `

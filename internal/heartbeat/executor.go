@@ -590,6 +590,9 @@ func workspaceDir(rc service.RunContext, root string, emit func(domain.RunEventK
 		if ok {
 			return dir, nil, nil
 		}
+		if rc.Worktree != nil { // o trabalho da persona não pode cair num diretório temporário que some no fim
+			return "", nil, fmt.Errorf("worktree Git inutilizável: %s", why)
+		}
 		emit(domain.EventSystem, why)
 	}
 	d, err := os.MkdirTemp("", "hanko-run-*")

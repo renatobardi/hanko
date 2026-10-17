@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/renatobardi/hanko/internal/adapter"
 	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/service"
 )
@@ -231,6 +232,43 @@ func TestWorktreeLifecycleDemo(t *testing.T) {
 	// idempotente
 	if res, err := e.svc.ReapWorktrees(bg, 50); err != nil || res.Removed != 0 {
 		t.Fatalf("segundo reap: %+v %v", res, err)
+	}
+}
+
+// A pasta nunca some debaixo de uma run em andamento, mesmo com a task já concluída.
+func TestWorktreeKeptWhileARunIsActive(t *testing.T) {
+	e := newGitEnv(t)
+	bg := context.Background()
+	e.enableAndSync(t)
+	tk := e.projectTask(t)
+	prep, err := e.svc.PrepareTaskWorktree(bg, e.co.ID, tk.ID, e.ws.ID, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	run, err := e.svc.CheckoutRun(bg, service.Wake{CompanyID: e.co.ID, PersonaID: *tk.PersonaID, TaskID: tk.ID, Trigger: domain.TriggerAssign})
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := domain.TaskDone
+	if _, err := e.svc.UpdateTask(bg, domain.HumanActor, e.co.ID, tk.ID, service.UpdateTaskInput{Status: &done}); err != nil {
+		t.Fatal(err)
+	}
+	// fechar a task pode cancelar a run na fila; o caso real é a run já rodando, então força o estado
+	if _, err := e.svc.Pool.Exec(bg, `UPDATE runs SET status = 'running', finished_at = NULL WHERE id = $1`, run.ID); err != nil {
+		t.Fatal(err)
+	}
+	res, err := e.svc.ReapWorktrees(bg, 50)
+	if err != nil || res.Removed != 0 {
+		t.Fatalf("com run ativa nada sai: %+v %v", res, err)
+	}
+	if _, err := os.Stat(prep.Dir); err != nil {
+		t.Fatalf("a pasta deveria continuar: %v", err)
+	}
+	if _, err := e.svc.FinishRun(bg, e.co.ID, run.ID, service.FinishRunInput{Status: domain.RunDone, Result: adapter.Result{Summary: "ok"}}); err != nil {
+		t.Fatal(err)
+	}
+	if res, err = e.svc.ReapWorktrees(bg, 50); err != nil || res.Removed != 1 {
+		t.Fatalf("depois da run: %+v %v", res, err)
 	}
 }
 
