@@ -55,3 +55,4 @@ Nada. Testes de propriedade dos motores #1 e #20 ficam com os respectivos marcos
 
 ## Pendência de configuração do repositório
 - `dependency-review` (security.yml) falha com "Dependency graph + GitHub Advanced Security" desligados; o job está com `continue-on-error: true`. Ligar em Settings › Code security e remover o `continue-on-error`.
+- `trivy-fs` (security.yml): o instalador do trivy falhou no runner antes de varrer; job com `continue-on-error: true`. Reexecutar, confirmar que varre de fato e remover o `continue-on-error`.
