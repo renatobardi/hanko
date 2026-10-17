@@ -1203,3 +1203,32 @@ details > summary.btn { list-style: none; display: inline-flex; }
 details > summary.btn::-webkit-details-marker { display: none; }
 .pw-form { max-width: 560px; }
 
+
+/* ---- pipelines, cases, fila de revisão e aprendizados (ADR-0034) ---- */
+.pl-board { overflow-x: auto; }
+.pl-col.kind-review .board-h { color: var(--warn); }
+.pl-col.kind-done .board-h, .pl-col.kind-cancelled .board-h { color: var(--muted-foreground); }
+.pl-col.pl-off { opacity: 0.6; }
+.pl-col-meta { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 4px 8px; }
+.pl-col-meta .chip { font-size: var(--text-xs); }
+.pl-filters { flex-wrap: wrap; gap: 8px; }
+.pl-filters .search { min-width: 200px; flex: 1 1 200px; }
+.pl-matrix th, .pl-matrix td { white-space: nowrap; }
+.pl-matrix .ta-c, .ta-c { text-align: center; }
+.pl-stage > summary { cursor: pointer; list-style: none; }
+.pl-stage > summary::-webkit-details-marker { display: none; }
+.pl-feed { list-style: none; margin: 0; padding: 0; }
+.pl-feed > li { display: flex; gap: 12px; align-items: flex-start; padding: 12px 16px; border-top: 1px solid var(--border); font-size: var(--text-sm); }
+.pl-feed > li:first-child { border-top: 0; }
+.pl-day { padding: 9px 16px; background: var(--row-hover); font-size: var(--text-label); letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted-foreground); font-weight: 600; }
+.pl-example > summary { cursor: pointer; color: var(--muted-foreground); }
+.pl-review .pl-sel { width: 32px; }
+.pl-decide > summary { list-style: none; display: inline-flex; }
+.pl-decide > summary::-webkit-details-marker { display: none; }
+.kv-table th { width: 35%; font-weight: 500; color: var(--muted-foreground); }
+.pl-d1 { padding-left: 32px; }
+.pl-d2 { padding-left: 52px; }
+.pl-d3 { padding-left: 72px; }
+.pl-d4 { padding-left: 92px; }
+.pl-d5 { padding-left: 112px; }
+.pl-d6 { padding-left: 132px; }

@@ -243,3 +243,86 @@
     });
   }
 })();
+
+// ---- pipelines (ADR-0034) ----
+// Quadro de um pipeline: arrastar um case para outra etapa faz o mesmo POST do formulário "Mover para" da página
+// do case (etapa de destino e a versão que o quadro mostrou). Se o servidor recusar (aprovação, bloqueio, modo
+// estrito, versão), o card volta e o erro vai para #flash; no sucesso o card guarda a versão nova.
+(function () {
+  "use strict";
+  var dragged = null;
+  function count(col, delta) {
+    var c = col.querySelector("[data-count]");
+    if (c) c.textContent = String(Math.max(0, (parseInt(c.textContent, 10) || 0) + delta));
+    var empty = col.querySelector(".board-empty");
+    if (empty) empty.classList.toggle("hidden", col.querySelectorAll(".board-card").length > 0);
+  }
+  document.addEventListener("dragstart", function (e) {
+    var card = e.target.closest && e.target.closest(".board-card[data-case]");
+    if (!card || card.getAttribute("draggable") !== "true") return;
+    dragged = card;
+    card.classList.add("is-dragging");
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", card.dataset.case);
+  });
+  document.addEventListener("dragend", function () {
+    if (dragged) dragged.classList.remove("is-dragging");
+    dragged = null;
+    Array.prototype.forEach.call(document.querySelectorAll(".board-col.drop-over"), function (c) {
+      c.classList.remove("drop-over");
+    });
+  });
+  document.addEventListener("dragover", function (e) {
+    if (!dragged) return;
+    var col = e.target.closest && e.target.closest(".board-col[data-stage]");
+    if (!col) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    col.classList.add("drop-over");
+  });
+  document.addEventListener("drop", function (e) {
+    if (!dragged) return;
+    var col = e.target.closest && e.target.closest(".board-col[data-stage]");
+    if (!col) return;
+    e.preventDefault();
+    col.classList.remove("drop-over");
+    var card = dragged;
+    var from = card.closest(".board-col");
+    if (from === col) return;
+    var next = card.nextSibling;
+    col.appendChild(card);
+    count(from, -1);
+    count(col, 1);
+    var body = new URLSearchParams();
+    body.set("to_stage", col.dataset.stage);
+    body.set("expected_version", card.dataset.version || "");
+    card.classList.add("is-saving");
+    function undo(html) {
+      from.insertBefore(card, next && next.parentNode === from ? next : null);
+      count(col, -1);
+      count(from, 1);
+      var flash = document.getElementById("flash");
+      if (flash && html) flash.innerHTML = html;
+    }
+    fetch(card.dataset.move, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/x-www-form-urlencoded", "HX-Request": "true" },
+      body: body.toString()
+    })
+      .then(function (res) {
+        if (res.ok) {
+          var v = res.headers.get("X-Case-Version");
+          if (v) card.dataset.version = v;
+          return;
+        }
+        return res.text().then(undo);
+      })
+      .catch(function () {
+        undo("");
+      })
+      .then(function () {
+        card.classList.remove("is-saving");
+      });
+  });
+})();

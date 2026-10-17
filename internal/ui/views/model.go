@@ -205,6 +205,7 @@ type TaskVM struct {
 	GoalHref        string
 	Artifacts       []ArtifactMini
 	ArtifactsHref   string
+	Cases           []TaskCaseRow // cases ligados à task (ADR-0034)
 	Created         string
 	Updated         string
 	StatusOptions   []Option

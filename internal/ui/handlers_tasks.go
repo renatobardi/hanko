@@ -406,6 +406,7 @@ func (s *server) buildTaskVM(r *http.Request, co domain.Company, t service.TaskV
 	}
 	vm.Artifacts = artifactMinis(ctx, arts, base)
 	vm.ArtifactsHref = base + "/artefatos?task=" + url.QueryEscape(t.Key)
+	vm.Cases = s.taskCases(ctx, co, t.ID) // ADR-0034
 	return vm, nil
 }
 

@@ -270,6 +270,7 @@ func (s *server) handleGate(w http.ResponseWriter, r *http.Request, co domain.Co
 	if g.RunID != nil {
 		vm.RunHref, vm.RunShort = base+"/execucoes/"+g.RunID.String(), shortID(*g.RunID)
 	}
+	vm.Example = s.gateExample(ctx, co, g) // ADR-0034
 	sh := s.shell(r, co, "gates", g.Title, views.Crumb{Label: i18n.T(ctx, "Gates"), Href: base + "/gates"}, views.Crumb{Label: shortID(g.ID)})
 	s.render(w, r, http.StatusOK, views.GatePage(sh, vm))
 }
