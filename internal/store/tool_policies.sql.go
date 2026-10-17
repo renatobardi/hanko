@@ -43,7 +43,7 @@ func (q *Queries) DeleteToolPolicy(ctx context.Context, arg DeleteToolPolicyPara
 const expireDueGates = `-- name: ExpireDueGates :many
 UPDATE gates SET status = 'expired', decided_at = $1
 WHERE status = 'pending' AND expires_at IS NOT NULL AND expires_at <= $1 AND kind = 'tool'
-RETURNING id, company_id, kind, status, title, body, task_id, run_id, persona_id, requested_by_type, requested_by_id, decided_by_type, decided_by_id, decision_note, event_id, created_at, decided_at, requested_status, review_reviewer, review_verdict, review_justification, review_artifact_sha256, review_run_id, expires_at
+RETURNING id, company_id, kind, status, title, body, task_id, run_id, persona_id, requested_by_type, requested_by_id, decided_by_type, decided_by_id, decision_note, event_id, created_at, decided_at, requested_status, review_reviewer, review_verdict, review_justification, review_artifact_sha256, review_run_id, expires_at, payload, answer, audience, revision
 `
 
 // Vira expired o gate pendente cujo prazo passou (só os que têm prazo). Devolve o que expirou.
@@ -81,6 +81,10 @@ func (q *Queries) ExpireDueGates(ctx context.Context, now *time.Time) ([]Gate, e
 			&i.ReviewArtifactSha256,
 			&i.ReviewRunID,
 			&i.ExpiresAt,
+			&i.Payload,
+			&i.Answer,
+			&i.Audience,
+			&i.Revision,
 		); err != nil {
 			return nil, err
 		}

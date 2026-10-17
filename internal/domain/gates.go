@@ -1,6 +1,9 @@
 package domain
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // GateKind says what a gate asks the human to decide.
 type GateKind string
@@ -13,15 +16,22 @@ const (
 	GateTool       GateKind = "tool"        // chamada de tool em modo "perguntar antes" no gateway de tools (ADR-0036)
 	// GateInstruction é a proposta da própria persona para mudar as instruções dela (ADR-0052); não bloqueia.
 	GateInstruction GateKind = "instruction"
+	// GateQuestion é a pergunta estruturada da persona ao humano (formulário; ADR-0041): a resposta volta no wake.
+	GateQuestion GateKind = "question"
+	// GatePlan é o plano que a persona submete antes de executar, quando a política de plan-review vale (ADR-0041).
+	GatePlan GateKind = "plan"
 )
 
 func (k GateKind) Valid() bool {
-	return k == GateApproval || k == GateTaskReview || k == GateHire || k == GateMemory || k == GateTool || k == GateInstruction
+	return k == GateApproval || k == GateTaskReview || k == GateHire || k == GateMemory || k == GateTool || k == GateInstruction ||
+		k == GateQuestion || k == GatePlan
 }
 
 // Blocking reports whether a pending gate of this kind holds the requesting persona
 // (awaiting_gate) and blocks its task. A task review only parks the task in in_review.
-func (k GateKind) Blocking() bool { return k == GateApproval || k == GateHire }
+func (k GateKind) Blocking() bool {
+	return k == GateApproval || k == GateHire || k == GateQuestion || k == GatePlan
+}
 
 // GateStatus is the lifecycle of a gate. Only pending gates can be decided.
 type GateStatus string
@@ -32,11 +42,13 @@ const (
 	GateRejected         GateStatus = "rejected"
 	GateChangesRequested GateStatus = "changes_requested"
 	GateExpired          GateStatus = "expired"
+	// GateDismissed é a pergunta que um humano dispensou sem responder; reabrir a devolve a pending (ADR-0041).
+	GateDismissed GateStatus = "dismissed"
 )
 
 func (s GateStatus) Valid() bool {
 	switch s {
-	case GatePending, GateApproved, GateRejected, GateChangesRequested, GateExpired:
+	case GatePending, GateApproved, GateRejected, GateChangesRequested, GateExpired, GateDismissed:
 		return true
 	}
 	return false
@@ -86,10 +98,18 @@ type Gate struct {
 	RequestedStatus TaskStatus `json:"requested_status,omitempty"`
 	// Review está presente quando uma revisão automática antecedeu o gate (Verdict reprovado = o gate nasceu
 	// marcado como reprovado pelo revisor; o humano ainda decide).
-	Review    *GateReview `json:"review,omitempty"`
-	EventID   string      `json:"event_id,omitempty"`
-	CreatedAt time.Time   `json:"created_at"`
-	DecidedAt *time.Time  `json:"decided_at,omitempty"`
+	Review *GateReview `json:"review,omitempty"`
+	// Payload é o conteúdo estruturado do tipo: formulário (question), spec (hire) ou artefato do plano (plan).
+	Payload json.RawMessage `json:"payload,omitempty"`
+	// Answer é a resposta estruturada de uma question respondida (ADR-0041).
+	Answer json.RawMessage `json:"answer,omitempty"`
+	// Audience restringe quem decide (e quem vê o gate na Caixa); vazia = qualquer decisor do papel exigido.
+	Audience GateAudience `json:"audience"`
+	// Revision é a versão vigente do pedido (1 na criação; cada reenvio soma 1).
+	Revision  int        `json:"revision"`
+	EventID   string     `json:"event_id,omitempty"`
+	CreatedAt time.Time  `json:"created_at"`
+	DecidedAt *time.Time `json:"decided_at,omitempty"`
 }
 
 // OrgParents maps a persona to the persona it reports to (nil = top of the chart).

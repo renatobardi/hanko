@@ -99,6 +99,25 @@ type BudgetAlert struct {
 	CreatedAt time.Time
 }
 
+type BudgetIncident struct {
+	ID             uuid.UUID
+	CompanyID      uuid.UUID
+	Scope          string
+	TargetID       uuid.UUID
+	TargetName     string
+	Month          string
+	Status         string
+	BudgetCents    int64
+	SpentUsd       float64
+	ReleaseRuns    int32
+	Resolution     *string
+	Note           string
+	ResolvedByType *string
+	ResolvedByID   *uuid.UUID
+	OpenedAt       time.Time
+	ResolvedAt     *time.Time
+}
+
 type Case struct {
 	ID                 uuid.UUID
 	CompanyID          uuid.UUID
@@ -200,6 +219,12 @@ type CompanyMember struct {
 	InvitedBy *uuid.UUID
 	CreatedAt time.Time
 	UpdatedAt time.Time
+}
+
+type CompanyPolicy struct {
+	CompanyID       uuid.UUID
+	RequireHireGate bool
+	UpdatedAt       time.Time
 }
 
 type Conversation struct {
@@ -376,6 +401,23 @@ type Gate struct {
 	ReviewArtifactSha256 string
 	ReviewRunID          *uuid.UUID
 	ExpiresAt            *time.Time
+	Payload              []byte
+	Answer               []byte
+	Audience             []byte
+	Revision             int32
+}
+
+type GateRevision struct {
+	ID           uuid.UUID
+	CompanyID    uuid.UUID
+	GateID       uuid.UUID
+	Revision     int32
+	Title        string
+	Body         string
+	Payload      []byte
+	DecisionNote string
+	Sha256       string
+	CreatedAt    time.Time
 }
 
 type Goal struct {
@@ -487,6 +529,13 @@ type IntegrationToolCatalog struct {
 	LastError     string
 	ToolsCount    int32
 	UpdatedAt     time.Time
+}
+
+type MemberPrimaryPersona struct {
+	CompanyID uuid.UUID
+	UserID    uuid.UUID
+	PersonaID uuid.UUID
+	UpdatedAt time.Time
 }
 
 type MemoryConsolidation struct {
@@ -609,6 +658,7 @@ type Persona struct {
 	Icon                 string
 	EnvironmentID        *uuid.UUID
 	InstructionRevision  int32
+	System               bool
 }
 
 type PersonaInstructionProposal struct {
@@ -685,6 +735,16 @@ type PipelineTransition struct {
 	FromStageID uuid.UUID
 	ToStageID   uuid.UUID
 	Label       string
+}
+
+type PlanPolicy struct {
+	CompanyID     uuid.UUID
+	Scope         string
+	TargetID      uuid.UUID
+	RequirePlan   bool
+	UpdatedByType string
+	UpdatedByID   *uuid.UUID
+	UpdatedAt     time.Time
 }
 
 type Plugin struct {
