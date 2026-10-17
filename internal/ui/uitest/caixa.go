@@ -58,7 +58,10 @@ func (f *Fake) InboxUnread(ctx context.Context, companyID domain.ID) (int, error
 }
 
 func (f *Fake) SetInboxState(ctx context.Context, _ domain.Actor, companyID domain.ID, action domain.InboxAction, refs []service.InboxRef) (int, error) {
-	if err := f.fail("SetInboxState"); err != nil {
+	f.mu.Lock()
+	err := f.fail("SetInboxState")
+	f.mu.Unlock()
+	if err != nil {
 		return 0, err
 	}
 	all, err := f.InboxView(ctx, companyID, domain.InboxViewAll)
@@ -101,11 +104,11 @@ func (f *Fake) SetInboxState(ctx context.Context, _ domain.Actor, companyID doma
 }
 
 func (f *Fake) NotifyPrefs(_ context.Context, _ domain.ID) ([]domain.NotifyPref, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if err := f.fail("NotifyPrefs"); err != nil {
 		return nil, err
 	}
-	f.mu.Lock()
-	defer f.mu.Unlock()
 	out := make([]domain.NotifyPref, 0, len(domain.NotifyKinds))
 	for _, k := range domain.NotifyKinds {
 		p := domain.DefaultNotifyPref(k)
