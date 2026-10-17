@@ -135,6 +135,8 @@ func (h *Heartbeat) executeRunJob(ctx context.Context, a ExecuteRunArgs, ji jobI
 		span.SetAttributes(attribute.String("hanko.task_id", rc.Task.ID.String()))
 	}
 	defer span.End()
+	resumed := rc.ResumeSession != "" || (rc.Chat != nil && rc.Chat.ResumeSession != "")
+	recordContinuation(ctx, span, rc.Continuation, resumed)
 	traceID := ""
 	if sc := span.SpanContext(); sc.HasTraceID() {
 		traceID = sc.TraceID().String()
@@ -290,6 +292,7 @@ func (h *Heartbeat) forwardSteer(ctx context.Context, a ExecuteRunArgs, ch chan<
 		defer cancel()
 		if err != nil {
 			log.Warn("execute_run: steer não entregue", "followup_id", ev.FollowupID, "err", err)
+			recordSteer(fctx, string(domain.SteerInject), "refused")
 			h.appendEvent(fctx, a, adapter.Event{Kind: domain.EventSystem, Text: "mensagem do operador não entregue ao agente (segue na fila): " + err.Error(), OccurredAt: time.Now().UTC()})
 			return
 		}
@@ -299,7 +302,10 @@ func (h *Heartbeat) forwardSteer(ctx context.Context, a ExecuteRunArgs, ch chan<
 		}
 		if merr := sb.MarkSteerDelivered(fctx, a.CompanyID, a.RunID, ev.FollowupID); merr != nil {
 			log.Warn("execute_run: confirmar entrega do steer", "followup_id", ev.FollowupID, "err", merr)
+			recordSteer(fctx, string(domain.SteerInject), "unconfirmed")
+			return
 		}
+		recordSteer(fctx, string(domain.SteerInject), "delivered")
 	}}
 	select {
 	case ch <- st:

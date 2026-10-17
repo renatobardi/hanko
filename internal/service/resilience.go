@@ -1082,21 +1082,22 @@ func (t *txc) claimTaskFollowups(task store.Task, run store.Run) error {
 }
 
 // wakeForFollowups wakes the assignee when follow-ups are still pending after a run ended (whatever its end), so the
-// next run collects them. The task row is locked first: a follow-up queued at the same time is either seen here or
-// sees the finished run and wakes by itself.
+// next run collects them. The task is read without a lock: the run lock is already held here and everywhere else the
+// task is locked first, so locking it now could deadlock. A follow-up queued at the very same instant that this read
+// misses is picked up by the heartbeat's safety net (a pending follow-up older than a minute).
 func (t *txc) wakeForFollowups(companyID domain.ID, task store.Task) error {
-	locked, err := t.q.GetTaskByIDForUpdate(t.ctx, store.GetTaskByIDForUpdateParams{CompanyID: companyID, ID: task.ID})
+	cur, err := t.q.GetTaskByID(t.ctx, store.GetTaskByIDParams{CompanyID: companyID, ID: task.ID})
 	if err != nil {
 		return mapErr(err, "get task")
 	}
-	pending, err := t.q.ListPendingTaskFollowups(t.ctx, locked.ID)
+	pending, err := t.q.ListPendingTaskFollowups(t.ctx, cur.ID)
 	if err != nil {
 		return fmt.Errorf("list pending followups: %w", err)
 	}
 	if len(pending) == 0 {
 		return nil
 	}
-	return t.wake(companyID, locked.ID, locked.PersonaID, domain.TaskStatus(locked.Status), domain.TriggerComment, false)
+	return t.wake(companyID, cur.ID, cur.PersonaID, domain.TaskStatus(cur.Status), domain.TriggerComment, false)
 }
 
 // wakeForFollowupsOfRun is wakeForFollowups for a run row (a queued run that was cancelled before it started).
