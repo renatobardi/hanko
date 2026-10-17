@@ -400,6 +400,7 @@ type CostSummary struct {
 	PaidUSD       float64            `json:"paid_usd" doc:"Mensalidades rateadas nas execuções, até hoje."`
 	IdleUSD       float64            `json:"idle_usd" doc:"Mensalidades de dias sem uso. paid_usd + idle_usd fecha com a mensalidade num mês completo."`
 	Subscriptions []SubscriptionCost `json:"subscriptions" doc:"Custo pago por assinatura no período."`
+	Decision      DecisionCost       `json:"decision" doc:"Invocações do decision model (ator system); somadas ao gasto mensal da empresa, fora das linhas de execuções."`
 	Runs          int                `json:"runs"`
 	InputTokens   int64              `json:"input_tokens"`
 	OutputTokens  int64              `json:"output_tokens"`
@@ -661,7 +662,7 @@ func costSummaryOut(c service.CostSummary, b service.BudgetStatus) CostSummary {
 	}
 	return CostSummary{From: c.From, To: c.To, Timezone: c.Timezone, GroupBy: c.GroupBy, TotalUSD: c.TotalUSD,
 		ReportedUSD: c.ReportedUSD, EstimatedUSD: c.EstimatedUSD, ListUSD: c.ListUSD, PaidUSD: c.PaidUSD, IdleUSD: c.IdleUSD,
-		Subscriptions: subs, Runs: c.Runs, InputTokens: c.InputTokens,
+		Subscriptions: subs, Decision: decisionCostOut(c.Decision), Runs: c.Runs, InputTokens: c.InputTokens,
 		OutputTokens: c.OutputTokens, CacheTokens: c.CacheTokens, Rows: rows, Budget: budgetOut(b)}
 }
 

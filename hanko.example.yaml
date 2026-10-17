@@ -41,6 +41,9 @@ memory:
   # read_tool: ""        # tool de leitura de página, para o diff das propostas de curadoria (HANKO_MEMORY_READ_TOOL)
 claude_bin: claude
 codex_bin: codex
+devin_bin: devin          # harness devin (ACP: `devin acp`)
+pi_bin: pi                # harness pi (`pi --mode json -p`)
+cursor_bin: cursor-agent  # harness cursor (stream-json)
 workers: 4
 run_timeout: 30m
 heartbeat_interval: 1m

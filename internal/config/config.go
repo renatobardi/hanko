@@ -173,6 +173,9 @@ type Config struct {
 	Auth              Auth          `yaml:"auth"`
 	ClaudeBin         string        `yaml:"claude_bin" env:"HANKO_CLAUDE_BIN"`
 	CodexBin          string        `yaml:"codex_bin" env:"HANKO_CODEX_BIN"`
+	DevinBin          string        `yaml:"devin_bin" env:"HANKO_DEVIN_BIN"`
+	PiBin             string        `yaml:"pi_bin" env:"HANKO_PI_BIN"`
+	CursorBin         string        `yaml:"cursor_bin" env:"HANKO_CURSOR_BIN"`
 	Workers           int           `yaml:"workers" env:"HANKO_WORKERS"`
 	RunTimeout        time.Duration `yaml:"run_timeout" env:"HANKO_RUN_TIMEOUT"`
 	HeartbeatInterval time.Duration `yaml:"heartbeat_interval" env:"HANKO_HEARTBEAT_INTERVAL"`
@@ -232,6 +235,9 @@ func Defaults() Config {
 		TrustedProxies:     []string{"127.0.0.1/32", "::1/128"},
 		ClaudeBin:          "claude",
 		CodexBin:           "codex",
+		DevinBin:           "devin",
+		PiBin:              "pi",
+		CursorBin:          "cursor-agent",
 		Workers:            4,
 		RunTimeout:         30 * time.Minute,
 		HeartbeatInterval:  time.Minute,
@@ -294,7 +300,7 @@ func environFor(getenv func(string) string) map[string]string {
 	keys := []string{
 		"HANKO_DATABASE_URL", "HANKO_ADDR", "HANKO_PUBLIC_URL", "HANKO_AGENT_URL", "HANKO_MODE", "HANKO_SECRET",
 		"HANKO_MIGRATE_ON_BOOT", "HANKO_MEMORY_PROVIDER", "HANKO_MEMORY_URL", "HANKO_MEMORY_TOKEN", "HANKO_MEMORY_READ_TOOL",
-		"HANKO_CLAUDE_BIN", "HANKO_CODEX_BIN", "HANKO_WORKERS", "HANKO_RUN_TIMEOUT",
+		"HANKO_CLAUDE_BIN", "HANKO_CODEX_BIN", "HANKO_DEVIN_BIN", "HANKO_PI_BIN", "HANKO_CURSOR_BIN", "HANKO_WORKERS", "HANKO_RUN_TIMEOUT",
 		"HANKO_HEARTBEAT_INTERVAL", "HANKO_LOG_LEVEL", "HANKO_LOG_FORMAT",
 		"HANKO_AGENT_ENV_ALLOW", "HANKO_ALLOWED_HOSTS", "HANKO_WORKSPACES_ROOT", "HANKO_RUN_RESERVE_USD", "HANKO_ARTIFACT_MAX_BYTES", "HANKO_ARTIFACT_QUOTA_BYTES", "HANKO_ALERT_SILENT_FACTOR", "HANKO_ALERT_RUN_STUCK_AFTER",
 		"HANKO_AUTH_PROVIDER", "HANKO_AUTH_ALLOWED_EMAILS", "HANKO_AUTH_ALLOWED_DOMAINS",
