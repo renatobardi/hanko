@@ -208,6 +208,9 @@ type CreateTaskInput struct {
 	// DependsOn são as tasks de que a nova depende (bloqueada até todas fecharem; ADR-0040).
 	DependsOn []domain.ID
 	EventID   string // idempotency key (agents/MCP)
+	// Unassigned recusa o responsável padrão: uma task criada por uma pessoa sem PersonaID nasce com a persona principal
+	// dela (ADR-0041), a menos que isto esteja ligado.
+	Unassigned bool
 
 	trigger domain.RunTrigger // wake trigger; default assign (flows use flow)
 	// noMemoryFact: a task de sistema da consolidação de memória não vira página na própria memória.
@@ -341,6 +344,8 @@ type RunContext struct {
 	Relations *TaskRelations
 	// ReviewPolicy é a política de revisão que vale para esta task e esta persona (task > projeto > persona).
 	ReviewPolicy *domain.ReviewPolicy
+	// Plan é a fase de plan-review da task (ADR-0041); nil quando a política de plano não vale.
+	Plan *PlanContext
 	// Attachments são os anexos da task (ou da conversa, numa run de chat), do mais antigo ao mais novo, até
 	// MaxBriefingAttachments (ADR-0052).
 	Attachments []AttachmentBrief
