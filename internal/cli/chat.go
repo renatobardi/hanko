@@ -211,6 +211,7 @@ func (e *env) chatCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			q.Kind = "direct" // as salas têm o seu comando (hanko room list)
 			cs, err := e.client().Conversations(cmd.Context(), co, q)
 			if err != nil {
 				return err

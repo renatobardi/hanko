@@ -25,7 +25,7 @@ var inboxNotices = map[string]string{
 
 type inboxTab struct{ key, label string }
 
-var inboxTabs = []inboxTab{{"tudo", i18n.N("Tudo")}, {"gates", i18n.N("Gates")}, {"bloqueadas", i18n.N("Bloqueadas")}, {"falhas", i18n.N("Falhas")}, {"personas", i18n.N("Personas")}, {"alertas", i18n.N("Alertas")}, {"assinaturas", i18n.N("Assinaturas")}}
+var inboxTabs = []inboxTab{{"tudo", i18n.N("Tudo")}, {"gates", i18n.N("Gates")}, {"bloqueadas", i18n.N("Bloqueadas")}, {"falhas", i18n.N("Falhas")}, {"personas", i18n.N("Personas")}, {"alertas", i18n.N("Alertas")}, {"assinaturas", i18n.N("Assinaturas")}, {"tools", i18n.N("Tools")}}
 
 func (s *server) handleInbox(w http.ResponseWriter, r *http.Request, co domain.Company) {
 	ctx := r.Context()
@@ -71,14 +71,17 @@ func (s *server) handleInbox(w http.ResponseWriter, r *http.Request, co domain.C
 			vm.DecidedToday++
 		}
 	}
-	counts := map[string]int{"tudo": in.Count(), "gates": len(in.Gates), "bloqueadas": len(in.BlockedTasks), "falhas": len(in.FailedRuns), "personas": len(in.ErrorPersonas), "alertas": len(in.Alerts), "assinaturas": len(in.GuardedSubscriptions)}
+	counts := map[string]int{"tudo": in.Count(), "gates": len(in.Gates), "bloqueadas": len(in.BlockedTasks), "falhas": len(in.FailedRuns), "personas": len(in.ErrorPersonas), "alertas": len(in.Alerts), "assinaturas": len(in.GuardedSubscriptions), "tools": countToolGates(in.Gates)}
 	for _, t := range inboxTabs {
 		vm.Tabs = append(vm.Tabs, views.TabLink{Key: t.key, Label: i18n.T(ctx, t.label), Href: base + "/caixa?aba=" + t.key, Count: counts[t.key], On: t.key == cur})
 	}
+	if tab, ok := s.reviewInboxTab(ctx, co); ok { // fila de revisão dos pipelines (ADR-0034)
+		vm.Tabs = append(vm.Tabs, tab)
+	}
 	show := func(tab string) bool { return cur == "tudo" || cur == tab }
 
-	if show("gates") {
-		vm.Gates = gateRows(ctx, in.Gates, base, now, loc, names)
+	if show("gates") || cur == "tools" {
+		vm.Gates = gateRows(ctx, inboxGates(cur, in.Gates), base, now, loc, names)
 	}
 	if show("gates") {
 		for _, rv := range in.UnderReview {

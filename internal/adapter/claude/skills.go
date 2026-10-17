@@ -11,8 +11,12 @@ import (
 // WriteSkills grava as skills em <tmp>/.claude/skills/<slug>/SKILL.md num diretório temporário e devolve
 // a raiz <tmp>, que vai ao harness em --add-dir (o Claude Code carrega .claude/skills dos diretórios
 // adicionais). O workspace do usuário não é tocado. Quem chama remove a raiz ao fim da run (ADR-0029).
-func WriteSkills(skills []domain.Skill) (string, error) {
-	root, err := os.MkdirTemp("", "hanko-skills-*")
+func WriteSkills(skills []domain.Skill) (string, error) { return WriteSkillsIn("", skills) }
+
+// WriteSkillsIn é WriteSkills com a raiz temporária criada dentro de base ("" = diretório temporário do
+// sistema); num ambiente remoto base é o diretório auxiliar que chega ao alvo (ADR-0037).
+func WriteSkillsIn(base string, skills []domain.Skill) (string, error) {
+	root, err := os.MkdirTemp(base, "hanko-skills-*")
 	if err != nil {
 		return "", err
 	}

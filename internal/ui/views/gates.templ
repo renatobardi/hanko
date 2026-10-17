@@ -203,6 +203,9 @@ templ GatePage(sh Shell, vm GateVM) {
 						} else {
 							<p class="muted mt-2">{ i18n.T(ctx, "Sem nota.") }</p>
 						}
+						if vm.Example != nil {
+							@SaveExampleForm(*vm.Example)
+						}
 					</section>
 				}
 			</div>

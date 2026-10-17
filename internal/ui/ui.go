@@ -131,6 +131,12 @@ type Backend interface {
 	SendMessage(ctx context.Context, actor domain.Actor, companyID, conversationID domain.ID, body string) (domain.ConversationMessage, error)
 	SetConversationStatus(ctx context.Context, actor domain.Actor, companyID, id domain.ID, status domain.ConversationStatus) (service.ConversationView, error)
 
+	// sala (ADR-0033)
+	CreateRoom(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.CreateRoomInput) (service.ConversationView, error)
+	AddRoomParticipant(ctx context.Context, actor domain.Actor, companyID, convID, personaID domain.ID) (service.ConversationView, error)
+	RemoveRoomParticipant(ctx context.Context, actor domain.Actor, companyID, convID, personaID domain.ID) (service.ConversationView, error)
+	UpdateRoomSettings(ctx context.Context, actor domain.Actor, companyID, convID domain.ID, in service.RoomSettingsPatch) (service.ConversationView, error)
+
 	MyRole(ctx context.Context, companyID domain.ID) (domain.MemberRole, error)
 	ListMembers(ctx context.Context, companyID domain.ID) ([]domain.Member, error)
 	ListInvites(ctx context.Context, companyID domain.ID) ([]domain.Invite, error)
@@ -138,6 +144,56 @@ type Backend interface {
 	RevokeInvite(ctx context.Context, actor domain.Actor, companyID, inviteID domain.ID) error
 	SetMemberRole(ctx context.Context, actor domain.Actor, companyID, userID domain.ID, role domain.MemberRole) (domain.Member, error)
 	RemoveMember(ctx context.Context, actor domain.Actor, companyID, userID domain.ID) error
+
+	// Ambientes de execução (ADR-0037).
+	ListEnvironments(ctx context.Context, companyID domain.ID) ([]service.EnvironmentView, error)
+	GetEnvironment(ctx context.Context, companyID domain.ID, ref string) (service.EnvironmentView, error)
+	CreateEnvironment(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.CreateEnvironmentInput) (service.EnvironmentView, error)
+	UpdateEnvironment(ctx context.Context, actor domain.Actor, companyID, id domain.ID, in service.UpdateEnvironmentInput) (service.EnvironmentView, error)
+	ArchiveEnvironment(ctx context.Context, actor domain.Actor, companyID, id domain.ID, moveTo *domain.ID) (service.EnvironmentView, error)
+	SetDefaultEnvironment(ctx context.Context, actor domain.Actor, companyID domain.ID, id *domain.ID) error
+	SetPersonaEnvironment(ctx context.Context, actor domain.Actor, companyID, personaID domain.ID, envID *domain.ID) (domain.Persona, error)
+	ProbeEnvironment(ctx context.Context, actor domain.Actor, companyID, id domain.ID) (service.EnvironmentView, error)
+	ProbeEnvironmentDraft(ctx context.Context, companyID domain.ID, in service.CreateEnvironmentInput) (domain.ProbeReport, error)
+	ListEnvironmentLeases(ctx context.Context, companyID, envID domain.ID, limit int) ([]service.EnvironmentLeaseView, error)
+	RunEnvironmentOf(ctx context.Context, companyID, runID domain.ID) (service.RunEnvironmentInfo, error)
+	EnvironmentDrivers(ctx context.Context) map[domain.EnvironmentDriver]string
+	// Cards de status (ADR-0032).
+	ListStatusCards(ctx context.Context, companyID domain.ID, archived *bool) ([]service.StatusCardView, error)
+	GetStatusCard(ctx context.Context, companyID, cardID domain.ID) (service.StatusCardView, error)
+	CreateStatusCard(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.CreateStatusCardInput) (service.StatusCardView, error)
+	UpdateStatusCard(ctx context.Context, actor domain.Actor, companyID, cardID domain.ID, in service.UpdateStatusCardInput) (service.StatusCardView, error)
+	DeleteStatusCard(ctx context.Context, actor domain.Actor, companyID, cardID domain.ID) error
+	RecompileStatusCard(ctx context.Context, actor domain.Actor, companyID, cardID domain.ID) (service.StatusCardView, error)
+	RefreshStatusCard(ctx context.Context, actor domain.Actor, companyID, cardID domain.ID, full bool) (service.StatusCardView, error)
+	ListStatusCardUpdates(ctx context.Context, companyID, cardID domain.ID, limit int) ([]service.StatusCardUpdateView, error)
+	ListStatusCardRevisions(ctx context.Context, companyID, cardID domain.ID, limit int) ([]domain.StatusCardRevision, error)
+	PreviewStatusCard(ctx context.Context, companyID, cardID domain.ID) (service.StatusCardPreview, error)
+	// ---- apps, gateway de tools e perfis de ferramentas (ADR-0036; ui/tools.go, uitest/tools.go) ----
+	ToolIntegrations(ctx context.Context, companyID domain.ID) ([]service.ToolIntegration, error)
+	ListIntegrationTools(ctx context.Context, companyID, integrationID domain.ID) (service.IntegrationToolsView, error)
+	RefreshIntegrationTools(ctx context.Context, actor domain.Actor, companyID, integrationID domain.ID) (service.ToolCatalogResult, error)
+	SetToolStatus(ctx context.Context, actor domain.Actor, companyID, integrationID domain.ID, tool string, status domain.ToolStatus) (domain.IntegrationTool, error)
+	ReviewQuarantinedTools(ctx context.Context, actor domain.Actor, companyID, integrationID domain.ID, tools []string) (int, error)
+	CreateToolProfile(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.CreateToolProfileInput) (service.ToolProfileView, error)
+	GetToolProfile(ctx context.Context, companyID domain.ID, ref string) (service.ToolProfileView, error)
+	ListToolProfiles(ctx context.Context, companyID domain.ID) ([]service.ToolProfileView, error)
+	UpdateToolProfile(ctx context.Context, actor domain.Actor, companyID, profileID domain.ID, in service.UpdateToolProfileInput) (service.ToolProfileView, error)
+	DeleteToolProfile(ctx context.Context, actor domain.Actor, companyID, profileID domain.ID) error
+	AddToolProfileRule(ctx context.Context, actor domain.Actor, companyID, profileID domain.ID, in service.ToolRuleInput) (domain.ToolRule, error)
+	DeleteToolProfileRule(ctx context.Context, actor domain.Actor, companyID, profileID, ruleID domain.ID) error
+	SetIntegrationToolChoices(ctx context.Context, actor domain.Actor, companyID, profileID domain.ID, in service.IntegrationToolChoices) (service.ToolProfileView, error)
+	BindToolProfile(ctx context.Context, actor domain.Actor, companyID, profileID domain.ID, in service.ToolBindingInput) (domain.ToolBinding, error)
+	UnbindToolProfile(ctx context.Context, actor domain.Actor, companyID, profileID, bindingID domain.ID) error
+	EffectiveToolsFor(ctx context.Context, companyID, personaID domain.ID, projectID *domain.ID) (service.EffectiveTools, error)
+	CreateToolGateway(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.CreateToolGatewayInput) (service.ToolGatewayView, error)
+	ListToolGateways(ctx context.Context, companyID domain.ID) ([]domain.ToolGateway, error)
+	GetToolGateway(ctx context.Context, companyID domain.ID, ref string) (service.ToolGatewayView, error)
+	UpdateToolGateway(ctx context.Context, actor domain.Actor, companyID, gatewayID domain.ID, in service.UpdateToolGatewayInput) (service.ToolGatewayView, error)
+	DeleteToolGateway(ctx context.Context, actor domain.Actor, companyID, gatewayID domain.ID) error
+	CreateGatewayToken(ctx context.Context, actor domain.Actor, companyID, gatewayID domain.ID, in service.CreateGatewayTokenInput) (domain.ToolGatewayToken, string, error)
+	RevokeGatewayToken(ctx context.Context, actor domain.Actor, companyID, gatewayID, tokenID domain.ID) (domain.ToolGatewayToken, error)
+	ListToolInvocations(ctx context.Context, companyID domain.ID, f service.ToolInvocationFilter) ([]domain.ToolInvocation, error)
 }
 
 var _ Backend = (*service.Service)(nil)
@@ -302,7 +358,6 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("GET /c/{company}/configuracoes", co(s.handleSettings))
 	mux.HandleFunc("GET /c/{company}/configuracoes/ambientes", co(s.handleEnvironments))
 	mux.HandleFunc("GET /c/{company}/configuracoes/adapters", co(s.handleAdapters))
-	mux.HandleFunc("GET /c/{company}/configuracoes/plugins", co(s.handlePlugins))
 	mux.HandleFunc("GET /c/{company}/configuracoes/dados", co(s.handleData))
 	mux.HandleFunc("POST /c/{company}/configuracoes/senha", post(co(s.handleChangePassword)))
 	mux.HandleFunc("POST /c/{company}/configuracoes/chaves", post(co(s.handleCreateKey)))
@@ -338,6 +393,12 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("GET /c/{company}/buscar", co(s.handleSearch))
 	mux.HandleFunc("GET /c/{company}/em-breve/{item}", co(s.handleSoon))
 	s.skillRoutes(mux)
+	s.roomRoutes(mux) // sala (ADR-0033)
+	s.pluginRoutes(mux)
+	s.environmentRoutes(mux)
+	s.statusCardRoutes(mux)
+	s.pipelineRoutes(mux) // pipelines, cases, revisão e aprendizados (ADR-0034)
+	s.toolRoutes(mux)     // apps, gateway de tools e perfis (ADR-0036)
 }
 
 // ---------- middleware ----------

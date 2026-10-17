@@ -38,7 +38,32 @@ type Options struct {
 	// called concurrently with each other, so callers may share state between them.
 	OnStdout func(line []byte)
 	OnStderr func(line []byte)
+	// Target, quando definido, roda o processo em outro lugar (host SSH, contêiner; ADR-0037): Run pede ao
+	// alvo o comando local que o embrulha (Target.Prepare) e, num cancelamento, chama Target.Abort depois de
+	// matar o grupo local. Com Target, Dir e Env não valem para o processo remoto: o diretório é o do alvo e
+	// as variáveis são só as de TargetEnv (o ambiente do servidor nunca vai para o alvo).
+	Target    Target
+	TargetEnv map[string]string
 }
+
+// Target é um lugar de execução que não é este processo (ADR-0037). nil = local.
+type Target interface {
+	// Prepare devolve o processo local que executa bin/args no alvo com as variáveis env. Pode fazer
+	// trabalho antes (subir o workspace); um erro impede a execução.
+	Prepare(ctx context.Context, bin string, args []string, env map[string]string) (Invocation, error)
+	// Abort é a limpeza extra de um cancelamento (o processo remoto pode sobreviver ao fim do canal).
+	Abort(ctx context.Context)
+}
+
+// Invocation é o processo local que um Target manda executar.
+type Invocation struct {
+	Bin  string
+	Args []string
+	Env  []string
+}
+
+// abortTimeout limita a limpeza remota de um cancelamento.
+const abortTimeout = 20 * time.Second
 
 // Result of a finished process.
 type Result struct {
@@ -50,10 +75,21 @@ type Result struct {
 // failure to start is. If ctx ends first the process group is terminated and
 // Result.Cancelled is set (the error is nil; the caller inspects ctx).
 func Run(ctx context.Context, o Options) (Result, error) {
-	cmd := exec.Command(o.Bin, o.Args...) //nolint:gosec // executar o CLI do harness configurado é o propósito do adapter; argv sem shell
-	cmd.Dir = o.Dir
-	if o.Env != nil {
-		cmd.Env = o.Env
+	bin, args, dir, environ := o.Bin, o.Args, o.Dir, o.Env
+	if o.Target != nil {
+		inv, err := o.Target.Prepare(ctx, o.Bin, o.Args, o.TargetEnv)
+		if err != nil {
+			return Result{ExitCode: -1}, fmt.Errorf("preparar %s no ambiente: %w", o.Bin, err)
+		}
+		bin, args, dir, environ = inv.Bin, inv.Args, "", inv.Env
+		if environ == nil {
+			environ = []string{}
+		}
+	}
+	cmd := exec.Command(bin, args...) //nolint:gosec // executar o CLI do harness configurado é o propósito do adapter; argv sem shell
+	cmd.Dir = dir
+	if environ != nil {
+		cmd.Env = environ
 	} else {
 		cmd.Env = HarnessEnv(os.Environ(), nil, nil)
 	}
@@ -62,7 +98,7 @@ func Run(ctx context.Context, o Options) (Result, error) {
 	if o.OnStdin != nil {
 		p, err := cmd.StdinPipe()
 		if err != nil {
-			return Result{ExitCode: -1}, fmt.Errorf("stdin %s: %w", o.Bin, err)
+			return Result{ExitCode: -1}, fmt.Errorf("stdin %s: %w", bin, err)
 		}
 		stdinPipe = p
 	} else {
@@ -75,7 +111,7 @@ func Run(ctx context.Context, o Options) (Result, error) {
 	cmd.WaitDelay = 3 * time.Second
 
 	if err := cmd.Start(); err != nil {
-		return Result{ExitCode: -1}, fmt.Errorf("start %s: %w", o.Bin, err)
+		return Result{ExitCode: -1}, fmt.Errorf("start %s: %w", bin, err)
 	}
 	pgid := cmd.Process.Pid
 	if stdinPipe != nil {
@@ -107,6 +143,11 @@ func Run(ctx context.Context, o Options) (Result, error) {
 		}
 		// Always sweep the group: SIGTERM may have stopped the leader but not its children.
 		_ = syscall.Kill(-pgid, syscall.SIGKILL)
+		if o.Target != nil {
+			actx, cancel := context.WithTimeout(context.WithoutCancel(ctx), abortTimeout)
+			o.Target.Abort(actx)
+			cancel()
+		}
 	}()
 
 	waitErr := cmd.Wait()
@@ -121,7 +162,7 @@ func Run(ctx context.Context, o Options) (Result, error) {
 	res := Result{Cancelled: cancelled, ExitCode: cmd.ProcessState.ExitCode()}
 	var ee *exec.ExitError
 	if waitErr != nil && !errors.As(waitErr, &ee) && !errors.Is(waitErr, exec.ErrWaitDelay) {
-		return res, fmt.Errorf("wait %s: %w", o.Bin, waitErr)
+		return res, fmt.Errorf("wait %s: %w", bin, waitErr)
 	}
 	return res, nil
 }

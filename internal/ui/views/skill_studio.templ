@@ -1,0 +1,722 @@
+package views
+
+import (
+	"fmt"
+
+	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/i18n"
+)
+
+// Versões, fontes e estúdio de skills (ADR-0035).
+
+templ skillTabs(tabs []TabLink) {
+	if len(tabs) > 0 {
+		<div class="skill-tabs">
+			@Tabs(tabs)
+		</div>
+	}
+}
+
+func depthAttr(d int) string {
+	if d > 6 {
+		d = 6
+	}
+	return fmt.Sprint(d)
+}
+
+// ---- fontes ----
+
+templ sourcesOff() {
+	<div class="card pad empty">
+		<span class="ico">@Icon("server")</span>
+		<h3>{ i18n.T(ctx, "Fontes desligadas neste servidor") }</h3>
+		<p>{ i18n.T(ctx, "Importar skills de um repositório faz o servidor clonar o repositório pela rede. O operador da instalação liga isso com HANKO_SKILL_SOURCES=true.") }</p>
+	</div>
+}
+
+templ SkillSourcesPage(sh Shell, vm SkillSourcesVM) {
+	@Layout(sh) {
+		@PageHead(i18n.T(ctx, "Skills"), i18n.T(ctx, "Repositórios git públicos de onde a empresa importa skills e as mantém em dia.")) {
+			if sh.CanAdmin() && vm.Enabled {
+				<a class="btn primary" href={ templ.SafeURL(vm.NewHref) }>
+					@Icon("plus")
+					{ i18n.T(ctx, "Conectar fonte") }
+				</a>
+			} else if !sh.CanAdmin() {
+				@NeedRole(domain.MemberAdmin)
+			}
+		}
+		@skillTabs(vm.Tabs)
+		if vm.Notice != "" {
+			@Alert("warn", vm.Notice)
+		}
+		if vm.Error != "" {
+			@Alert("danger", vm.Error)
+		}
+		if !vm.Enabled {
+			@sourcesOff()
+		}
+		if len(vm.Rows) == 0 {
+			if vm.Enabled {
+				@EmptyCard("folder", i18n.T(ctx, "Nenhuma fonte conectada."), i18n.T(ctx, "Conecte um repositório público (https): o Hanko lista os diretórios com SKILL.md e você escolhe quais importar. Só o markdown entra; scripts nunca são copiados nem executados."), false)
+			}
+		} else {
+			<div class="table-wrap">
+				<table class="table">
+					<thead>
+						<tr>
+							<th>{ i18n.T(ctx, "Fonte") }</th>
+							<th>{ i18n.T(ctx, "Estado") }</th>
+							<th class="hide-sm">{ i18n.T(ctx, "Último commit") }</th>
+							<th class="hide-sm">{ i18n.T(ctx, "Skills") }</th>
+							<th class="act-col"></th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, r := range vm.Rows {
+							<tr class="row">
+								<td class="ttl">
+									<a href={ templ.SafeURL(r.Href) }>{ r.Label }</a>
+									<div class="note mono">{ r.Ref }</div>
+								</td>
+								<td>
+									@BadgeEl(r.Badge)
+									if r.StatusText != "" {
+										<div class="note">{ r.StatusText }</div>
+									}
+								</td>
+								<td class="hide-sm mono muted">{ r.Commit }</td>
+								<td class="hide-sm">{ fmt.Sprintf("%d / %d", r.Imported, r.Found) }</td>
+								<td class="act-col">
+									<div class="row-acts">
+										if sh.CanAdmin() && vm.Enabled {
+											<form method="post" action={ templ.SafeURL(r.SyncHref) } hx-boost="true">
+												<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Sincronizar") }</button>
+											</form>
+										}
+										<a class="btn ghost sm" href={ templ.SafeURL(r.Href) }>{ i18n.T(ctx, "Configurar") }</a>
+									</div>
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+	}
+}
+
+templ discoverTree(rows []DiscoverRow) {
+	<ul class="skill-tree">
+		for _, r := range rows {
+			<li class="tree-row" data-depth={ depthAttr(r.Depth) }>
+				<label class="check-line">
+					<input type="checkbox" name="select" value={ r.Path } checked?={ r.Checked } disabled?={ r.Disabled }/>
+					<span>
+						<span class="mono">{ r.Path }</span>
+						<b>{ r.Name }</b>
+						if r.HasScripts {
+							<span class="badge warn">{ i18n.T(ctx, "tem scripts — só o SKILL.md é importado") }</span>
+						}
+					</span>
+				</label>
+				if r.Description != "" {
+					<div class="note">{ r.Description }</div>
+				}
+				if r.Note != "" {
+					<div class="err">{ r.Note }</div>
+				}
+			</li>
+		}
+	</ul>
+}
+
+templ sourceAddrFields(vm SkillSourceFormVM) {
+	<div class="field">
+		<label for="src-url">{ i18n.T(ctx, "URL do repositório (https)") }</label>
+		<input class="input mono" id="src-url" name="url" value={ vm.URL } required maxlength="2000" placeholder="https://" autocomplete="off" spellcheck="false"/>
+		<span class="hint">{ i18n.T(ctx, "Repositório público, sem usuário e senha na URL.") }</span>
+		if e := vm.FieldErr["url"]; e != "" {
+			<span class="err">{ e }</span>
+		}
+	</div>
+	<div class="form-grid">
+		<div class="field">
+			<label for="src-ref">{ i18n.T(ctx, "Branch") }</label>
+			<input class="input mono" id="src-ref" name="ref" value={ vm.Ref } maxlength="200" placeholder="HEAD" autocomplete="off"/>
+			if e := vm.FieldErr["ref"]; e != "" {
+				<span class="err">{ e }</span>
+			}
+		</div>
+		<div class="field">
+			<label for="src-prefix">{ i18n.T(ctx, "Só dentro do caminho") }</label>
+			<input class="input mono" id="src-prefix" name="path_prefix" value={ vm.PathPrefix } maxlength="500" placeholder="skills/" autocomplete="off"/>
+			if e := vm.FieldErr["path_prefix"]; e != "" {
+				<span class="err">{ e }</span>
+			}
+		</div>
+	</div>
+	<div class="field">
+		<label for="src-excl">{ i18n.T(ctx, "Caminhos ignorados, um por linha") }</label>
+		<textarea class="textarea mono" id="src-excl" name="excluded" rows="2" spellcheck="false">{ vm.Excluded }</textarea>
+	</div>
+}
+
+templ SkillSourceNewPage(sh Shell, vm SkillSourceFormVM) {
+	@Layout(sh) {
+		@PageHead(i18n.T(ctx, "Conectar fonte de skills"), i18n.T(ctx, "Primeiro o Hanko lê o repositório e lista as skills; nada é gravado até você conectar.")) {
+		}
+		@skillTabs(vm.Tabs)
+		if vm.Error != "" {
+			@Alert("danger", vm.Error)
+		}
+		if !vm.Enabled {
+			@sourcesOff()
+		} else if !canAdmin(ctx) {
+			@NeedRole(domain.MemberAdmin)
+		} else {
+			<form class="card pad form-card" method="post" action={ templ.SafeURL(vm.DiscoverAction) } hx-boost="true">
+				@sourceAddrFields(vm)
+				<div class="form-actions">
+					<a class="btn ghost" href={ templ.SafeURL(vm.CancelHref) }>{ i18n.T(ctx, "Cancelar") }</a>
+					<button class="btn outline" type="submit">
+						@Icon("search")
+						{ i18n.T(ctx, "Descobrir skills") }
+					</button>
+				</div>
+			</form>
+			if vm.Discovered {
+				<form class="card pad form-card mt-6" method="post" action={ templ.SafeURL(vm.Action) } hx-boost="true">
+					<input type="hidden" name="url" value={ vm.URL }/>
+					<input type="hidden" name="ref" value={ vm.Ref }/>
+					<input type="hidden" name="path_prefix" value={ vm.PathPrefix }/>
+					<input type="hidden" name="excluded" value={ vm.Excluded }/>
+					<div class="card-head"><div><h2>{ i18n.T(ctx, "Skills encontradas") }</h2><p class="sub">{ i18n.Tf(ctx, "Commit %s. Marque as que devem ser importadas.", vm.Commit) }</p></div></div>
+					if vm.Truncated {
+						@Alert("warn", i18n.Tf(ctx, "O repositório tem mais de %d skills: só as primeiras foram lidas.", domain.MaxSkillsPerSource))
+					}
+					if len(vm.Rows) == 0 {
+						<p class="muted">{ i18n.T(ctx, "Nenhum diretório com SKILL.md neste caminho.") }</p>
+					} else {
+						@discoverTree(vm.Rows)
+					}
+					<label class="check-line">
+						<input type="checkbox" name="auto_update" value="1" checked?={ vm.AutoUpdate }/>
+						<span>{ i18n.T(ctx, "Atualizar sozinha (a cada hora, quando o commit muda)") }</span>
+					</label>
+					<label class="check-line">
+						<input type="checkbox" name="import_new" value="1" checked?={ vm.ImportNew }/>
+						<span>{ i18n.T(ctx, "Importar sozinha as skills novas que aparecerem na fonte") }</span>
+					</label>
+					<div class="form-actions">
+						<button class="btn primary" type="submit">{ i18n.T(ctx, "Conectar e importar") }</button>
+					</div>
+				</form>
+			}
+		}
+	}
+}
+
+templ SkillSourcePage(sh Shell, vm SkillSourceVM) {
+	@Layout(sh) {
+		if vm.Notice != "" {
+			@Alert("warn", vm.Notice)
+		}
+		<div class="flow-head">
+			<div>
+				<h1>{ vm.Label } @BadgeEl(vm.Badge)</h1>
+				<p class="muted mt-2 text-sm"><span class="mono">{ vm.URL }</span> · { vm.Ref }
+					if vm.Commit != "" {
+						· <span class="mono">{ vm.Commit }</span>
+					}
+				</p>
+				if vm.StatusText != "" {
+					<p class="muted text-sm">{ vm.StatusText }</p>
+				}
+			</div>
+			<div class="flow-acts">
+				if canAdmin(ctx) && vm.Enabled {
+					<form method="post" action={ templ.SafeURL(vm.SyncHref) } hx-boost="true">
+						<button class="btn primary" type="submit">{ i18n.T(ctx, "Sincronizar agora") }</button>
+					</form>
+					<form method="post" action={ templ.SafeURL(vm.SyncHref) } hx-boost="true">
+						<input type="hidden" name="force" value="1"/>
+						<button class="btn outline" type="submit" title={ i18n.T(ctx, "Reimporta e sobrescreve as skills modificadas localmente") }>{ i18n.T(ctx, "Forçar") }</button>
+					</form>
+				} else if !canAdmin(ctx) {
+					@NeedRole(domain.MemberAdmin)
+				}
+			</div>
+		</div>
+		@skillTabs(vm.Tabs)
+		if !vm.Enabled {
+			@sourcesOff()
+		}
+		if vm.LastError != "" {
+			@Alert("danger", i18n.T(ctx, "Erro:")+" "+vm.LastError)
+		}
+		<section class="card pad mt-6">
+			<div class="card-head"><div><h2>{ i18n.T(ctx, "Skills na fonte") }</h2><p class="sub">{ i18n.T(ctx, "Selecionadas são importadas e mantidas em dia; excluir uma importada a solta da fonte (a cópia fica).") }</p></div></div>
+			if len(vm.Entries) == 0 {
+				<p class="muted">{ i18n.T(ctx, "A fonte ainda não foi lida ou não tem diretórios com SKILL.md.") }</p>
+			} else {
+				<form method="post" action={ templ.SafeURL(vm.SelectionAction) } hx-boost="true">
+					<ul class="skill-tree">
+						for _, e := range vm.Entries {
+							<li class={ "tree-row", templ.KV("is-off", !e.Present) } data-depth={ depthAttr(e.Depth) }>
+								<div class="tree-main">
+									<div>
+										<span class="mono">{ e.Path }</span>
+										<b>{ e.Name }</b>
+										if e.SkillHref != "" {
+											<a class="note" href={ templ.SafeURL(e.SkillHref) }>{ e.SkillSlug }</a>
+										}
+										if e.Modified {
+											<span class="badge warn">{ i18n.T(ctx, "modificada") }</span>
+										}
+										if e.HasScripts {
+											<span class="badge soft">{ i18n.T(ctx, "tem scripts — só o SKILL.md foi importado") }</span>
+										}
+										if !e.Present {
+											<span class="badge soft">{ i18n.T(ctx, "saiu da fonte") }</span>
+										}
+									</div>
+									if canAdmin(ctx) {
+										<select class="select sm" name={ "sel:" + e.Path } aria-label={ e.Path }>
+											for _, o := range e.Options {
+												<option value={ o.Value } selected?={ o.Selected }>{ o.Label }</option>
+											}
+										</select>
+									} else {
+										<span class="badge outline">{ e.Selection }</span>
+									}
+								</div>
+								if e.Description != "" {
+									<div class="note">{ e.Description }</div>
+								}
+								if e.Error != "" {
+									<div class="err">{ e.Error }</div>
+								}
+							</li>
+						}
+					</ul>
+					if canAdmin(ctx) {
+						<div class="form-actions">
+							<button class="btn primary" type="submit">{ i18n.T(ctx, "Salvar seleção") }</button>
+						</div>
+					}
+				</form>
+			}
+		</section>
+		if canAdmin(ctx) {
+			<section class="card pad mt-6">
+				<div class="card-head"><div><h2>{ i18n.T(ctx, "Configurar") }</h2></div></div>
+				<form method="post" action={ templ.SafeURL(vm.SettingsAction) } hx-boost="true">
+					<div class="form-grid">
+						<div class="field">
+							<label for="src-prefix">{ i18n.T(ctx, "Só dentro do caminho") }</label>
+							<input class="input mono" id="src-prefix" name="path_prefix" value={ vm.PathPrefix } maxlength="500" autocomplete="off"/>
+						</div>
+						<div class="field">
+							<label for="src-excl">{ i18n.T(ctx, "Caminhos ignorados, um por linha") }</label>
+							<textarea class="textarea mono" id="src-excl" name="excluded" rows="2" spellcheck="false">{ vm.Excluded }</textarea>
+						</div>
+					</div>
+					<label class="check-line">
+						<input type="checkbox" name="auto_update" value="1" checked?={ vm.AutoUpdate }/>
+						<span>{ i18n.T(ctx, "Atualizar sozinha (a cada hora, quando o commit muda)") }</span>
+					</label>
+					<label class="check-line">
+						<input type="checkbox" name="import_new" value="1" checked?={ vm.ImportNew }/>
+						<span>{ i18n.T(ctx, "Importar sozinha as skills novas que aparecerem na fonte") }</span>
+					</label>
+					<label class="check-line">
+						<input type="checkbox" name="enabled" value="1" checked?={ vm.SourceEnabled }/>
+						<span>{ i18n.T(ctx, "Fonte ligada") }</span>
+					</label>
+					<div class="form-actions">
+						<button class="btn primary" type="submit">{ i18n.T(ctx, "Salvar alterações") }</button>
+					</div>
+				</form>
+			</section>
+			<section class="card pad mt-6" id="desconectar">
+				<div class="card-head"><div><h2>{ i18n.T(ctx, "Desconectar") }</h2><p class="sub">{ i18n.T(ctx, "Remove a fonte. Escolha o que fazer com as skills que vieram dela.") }</p></div></div>
+				<form method="post" action={ templ.SafeURL(vm.DeleteAction) } hx-boost="true" hx-confirm={ i18n.T(ctx, "Desconectar esta fonte?") }>
+					<label class="check-line">
+						<input type="radio" name="keep" value="1" checked/>
+						<span>{ i18n.T(ctx, "Manter cópias: as skills ficam, como skills locais") }</span>
+					</label>
+					<label class="check-line">
+						<input type="radio" name="keep" value="0"/>
+						<span>{ i18n.T(ctx, "Apagar as skills importadas") }</span>
+					</label>
+					<div class="form-actions">
+						<button class="btn outline sm danger" type="submit">{ i18n.T(ctx, "Desconectar") }</button>
+					</div>
+				</form>
+			</section>
+		}
+	}
+}
+
+// ---- estúdio ----
+
+templ SkillTestRuns(vm SkillStudioVM) {
+	<div id="skill-runs" if vm.AnyActive { hx-get={ vm.RunsHref } hx-trigger="every 3s" hx-swap="outerHTML" }>
+		if len(vm.Runs) == 0 {
+			<p class="muted">{ i18n.T(ctx, "Nenhuma execução de teste ainda.") }</p>
+		} else {
+			<form method="get" action={ templ.SafeURL(vm.CompareAction) }>
+				<div class="table-wrap">
+					<table class="table">
+						<thead>
+							<tr>
+								<th class="act-col" aria-label={ i18n.T(ctx, "Comparar") }></th>
+								<th>{ i18n.T(ctx, "Teste") }</th>
+								<th>{ i18n.T(ctx, "Estado") }</th>
+								<th class="hide-sm">{ i18n.T(ctx, "Persona") }</th>
+								<th class="hide-sm">{ i18n.T(ctx, "Custo") }</th>
+								<th class="act-col"></th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, r := range vm.Runs {
+								<tr class="row">
+									<td class="act-col"><input type="checkbox" name="t" value={ r.ID } aria-label={ i18n.T(ctx, "Comparar") }/></td>
+									<td class="ttl">
+										<a href={ templ.SafeURL(r.Href) }>{ r.Skill } v{ fmt.Sprint(r.Revision) }</a>
+										<div class="note">{ r.When }</div>
+										if r.Excerpt != "" {
+											<div class="note">{ r.Excerpt }</div>
+										}
+									</td>
+									<td>@BadgeEl(r.Badge)</td>
+									<td class="hide-sm">{ r.Persona }</td>
+									<td class="hide-sm mono muted">{ r.Cost }</td>
+									<td class="act-col">
+										if canAdmin(ctx) {
+											<div class="row-acts">
+												if r.Active {
+													<button class="btn ghost sm" type="submit" formmethod="post" formaction={ templ.SafeURL(r.CancelHref) }>{ i18n.T(ctx, "Cancelar") }</button>
+												} else {
+													<button class="btn ghost sm" type="submit" formmethod="post" formaction={ templ.SafeURL(r.RerunHref) }>{ i18n.T(ctx, "Reexecutar") }</button>
+												}
+											</div>
+										}
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+				<div class="form-actions">
+					<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Comparar os dois marcados") }</button>
+				</div>
+			</form>
+		}
+	</div>
+}
+
+templ SkillStudioPage(sh Shell, vm SkillStudioVM) {
+	@Layout(sh) {
+		@PageHead(i18n.T(ctx, "Skills"), i18n.T(ctx, "Teste uma skill numa versão fixa antes de ligá-la: a persona escolhida roda só com ela, sem servidores MCP da empresa nem memória.")) {
+		}
+		@skillTabs(vm.Tabs)
+		if vm.Notice != "" {
+			@Alert("warn", vm.Notice)
+		}
+		if vm.Error != "" {
+			@Alert("danger", vm.Error)
+		}
+		if !vm.HasSkills {
+			@EmptyCard("sparkles", i18n.T(ctx, "Você ainda não tem skills."), i18n.T(ctx, "Crie ou importe uma skill para testá-la aqui."), false)
+		} else {
+			<form class="card pad form-card studio-pick" method="get" action="">
+				<div class="field">
+					<label for="st-skill">{ i18n.T(ctx, "Skill") }</label>
+					@Select("skill", "st-skill", vm.Skills, false)
+				</div>
+				<button class="btn outline" type="submit">{ i18n.T(ctx, "Escolher") }</button>
+			</form>
+			if canAdmin(ctx) {
+				<form class="card pad form-card mt-6" method="post" action={ templ.SafeURL(vm.RunAction) } hx-boost="true">
+					<div class="form-grid">
+						<div class="field">
+							<label for="st-persona">{ i18n.T(ctx, "Persona") }</label>
+							@Select("persona", "st-persona", vm.Personas, false)
+						</div>
+						<div class="field">
+							<label for="st-rev">{ i18n.T(ctx, "Versão") }</label>
+							@Select("revision", "st-rev", vm.Revisions, false)
+						</div>
+					</div>
+					if len(vm.Inputs) > 1 {
+						<div class="field">
+							<label for="st-input-id">{ i18n.T(ctx, "Entrada salva") }</label>
+							@Select("input_id", "st-input-id", vm.Inputs, false)
+						</div>
+					}
+					<div class="field">
+						<label for="st-input">{ i18n.T(ctx, "Ou texto livre (markdown)") }</label>
+						<textarea class="textarea mono" id="st-input" name="input" rows="6" spellcheck="false">{ vm.Input }</textarea>
+						<span class="hint">{ i18n.Tf(ctx, "Máximo de %d KiB. Rodar gasta orçamento da persona, como qualquer execução.", vm.MaxInputKiB) }</span>
+					</div>
+					<div class="form-actions">
+						<button class="btn primary" type="submit">
+							@Icon("play")
+							{ i18n.T(ctx, "Rodar teste") }
+						</button>
+					</div>
+				</form>
+				<details class="card pad mt-6">
+					<summary>{ i18n.T(ctx, "Entradas salvas") }</summary>
+					if len(vm.DeleteInputs) > 0 {
+						<ul class="toggle-list">
+							for _, in := range vm.DeleteInputs {
+								<li class="toggle-row">
+									<div class="toggle-main">{ in.Name }</div>
+									<form method="post" action={ templ.SafeURL(in.DeleteHref) } hx-boost="true" hx-confirm={ i18n.T(ctx, "Apagar esta entrada?") }>
+										<button class="btn ghost sm" type="submit">{ i18n.T(ctx, "Apagar") }</button>
+									</form>
+								</li>
+							}
+						</ul>
+					}
+					<form method="post" action={ templ.SafeURL(vm.SaveInputAction) } hx-boost="true">
+						<div class="field">
+							<label for="si-name">{ i18n.T(ctx, "Nome") }</label>
+							<input class="input" id="si-name" name="name" maxlength="120" required/>
+						</div>
+						<div class="field">
+							<label for="si-content">{ i18n.T(ctx, "Conteúdo (markdown)") }</label>
+							<textarea class="textarea mono" id="si-content" name="content" rows="4" required spellcheck="false"></textarea>
+						</div>
+						<div class="form-actions">
+							<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Salvar entrada") }</button>
+						</div>
+					</form>
+				</details>
+			} else {
+				@NeedRole(domain.MemberAdmin)
+			}
+			<h2 class="side-h sec-h">{ i18n.T(ctx, "Execuções") }</h2>
+			@SkillTestRuns(vm)
+		}
+	}
+}
+
+templ SkillTestBody(vm SkillTestVM) {
+	<div id="skill-test" if vm.Row.Active { hx-get={ vm.Self } hx-trigger="every 3s" hx-swap="outerHTML" }>
+		<div class="flow-head">
+			<div>
+				<h1>{ vm.Row.Skill } v{ fmt.Sprint(vm.Row.Revision) } @BadgeEl(vm.Row.Badge)</h1>
+				<p class="muted mt-2 text-sm">{ vm.Row.Persona } · { vm.Row.When }
+					if vm.Row.Cost != "" {
+						· <span class="mono">{ vm.Row.Cost }</span>
+					}
+					if vm.RunHref != "" {
+						· <a href={ templ.SafeURL(vm.RunHref) }>{ vm.RunName }</a>
+					}
+				</p>
+			</div>
+			<div class="flow-acts">
+				if canAdmin(ctx) {
+					if vm.Row.Active {
+						<form method="post" action={ templ.SafeURL(vm.Row.CancelHref) } hx-boost="true">
+							<button class="btn outline" type="submit">{ i18n.T(ctx, "Cancelar") }</button>
+						</form>
+					} else {
+						<form method="post" action={ templ.SafeURL(vm.Row.RerunHref) } hx-boost="true">
+							<button class="btn primary" type="submit">{ i18n.T(ctx, "Reexecutar") }</button>
+						</form>
+					}
+				}
+			</div>
+		</div>
+		if vm.Error != "" {
+			@Alert("danger", vm.Error)
+		}
+		<div class="md-split">
+			<section class="card pad">
+				<div class="card-head"><div><h2>{ i18n.T(ctx, "Entrada") }</h2></div></div>
+				<pre class="mono test-input">{ vm.Input }</pre>
+			</section>
+			<section class="card pad">
+				<div class="card-head"><div><h2>{ i18n.T(ctx, "Saída") }</h2></div></div>
+				if vm.Output == "" {
+					if vm.Row.Active {
+						<p class="muted">{ i18n.T(ctx, "A persona ainda está trabalhando; a saída aparece aqui.") }</p>
+					} else {
+						<p class="muted">{ i18n.T(ctx, "Sem saída.") }</p>
+					}
+				} else {
+					<div class="md">@templ.Raw(string(vm.Output))</div>
+				}
+			</section>
+		</div>
+	</div>
+}
+
+templ SkillTestPage(sh Shell, vm SkillTestVM) {
+	@Layout(sh) {
+		@SkillTestBody(vm)
+		<p class="mt-6"><a href={ templ.SafeURL(vm.BackHref) }>{ i18n.T(ctx, "Voltar ao estúdio") }</a></p>
+	}
+}
+
+templ compareCol(vm SkillTestVM) {
+	<section class="card pad">
+		<div class="card-head">
+			<div>
+				<h2><a href={ templ.SafeURL(vm.Row.Href) }>{ vm.Row.Skill } v{ fmt.Sprint(vm.Row.Revision) }</a> @BadgeEl(vm.Row.Badge)</h2>
+				<p class="sub">{ vm.Row.Persona } · { vm.Row.When }</p>
+			</div>
+		</div>
+		<details>
+			<summary class="muted text-sm">{ i18n.T(ctx, "Entrada") }</summary>
+			<pre class="mono test-input">{ vm.Input }</pre>
+		</details>
+		if vm.Output == "" {
+			<p class="muted">{ i18n.T(ctx, "Sem saída.") }</p>
+		} else {
+			<div class="md">@templ.Raw(string(vm.Output))</div>
+		}
+	</section>
+}
+
+templ SkillComparePage(sh Shell, vm SkillCompareVM) {
+	@Layout(sh) {
+		@PageHead(i18n.T(ctx, "Comparar testes"), i18n.T(ctx, "As duas saídas lado a lado e as diferenças de texto entre elas.")) {
+			<a class="btn ghost" href={ templ.SafeURL(vm.BackHref) }>{ i18n.T(ctx, "Voltar ao estúdio") }</a>
+		}
+		<div class="md-split">
+			@compareCol(vm.A)
+			@compareCol(vm.B)
+		</div>
+		@ArtifactDiffBox(vm.Diff)
+	}
+}
+
+// ---- página da skill: versões e personas ----
+
+templ SkillVersionsPage(sh Shell, vm SkillVersionsVM) {
+	@Layout(sh) {
+		if vm.Notice != "" {
+			@Alert("warn", vm.Notice)
+		}
+		<div class="flow-head">
+			<div>
+				<h1>{ vm.Name }</h1>
+				<p class="muted mt-2 text-sm"><span class="mono">{ vm.Slug }</span></p>
+			</div>
+		</div>
+		@skillTabs(vm.Tabs)
+		<div class="table-wrap">
+			<table class="table">
+				<thead>
+					<tr>
+						<th>{ i18n.T(ctx, "Versão") }</th>
+						<th class="hide-sm">{ i18n.T(ctx, "Tamanho") }</th>
+						<th class="hide-sm">sha256</th>
+						<th class="hide-sm">{ i18n.T(ctx, "Origem") }</th>
+						<th>{ i18n.T(ctx, "Quando") }</th>
+						<th class="act-col"></th>
+					</tr>
+				</thead>
+				<tbody>
+					for _, r := range vm.Rows {
+						<tr class="row">
+							<td class="ttl">
+								<a href={ templ.SafeURL(r.ViewHref) }>v{ fmt.Sprint(r.Revision) }</a>
+								if r.Current {
+									<span class="badge done">{ i18n.T(ctx, "atual") }</span>
+								}
+								<div class="note">{ r.Name }</div>
+							</td>
+							<td class="hide-sm muted">{ r.Size }</td>
+							<td class="hide-sm mono muted">{ r.SHA }</td>
+							<td class="hide-sm muted">
+								if r.Commit != "" {
+									<span class="mono">{ r.Commit }</span>
+								} else {
+									{ r.Author }
+								}
+							</td>
+							<td class="muted">{ r.When }</td>
+							<td class="act-col">
+								<div class="row-acts">
+									if r.DiffHref != "" {
+										<a class="btn ghost sm" href={ templ.SafeURL(r.DiffHref) }>{ i18n.T(ctx, "comparar com a anterior") }</a>
+									}
+									if canAdmin(ctx) && !r.Current {
+										<form method="post" action={ templ.SafeURL(r.RestoreAction) } hx-boost="true" hx-confirm={ i18n.T(ctx, "Restaurar esta versão? Uma versão nova é criada com o conteúdo dela.") }>
+											<input type="hidden" name="revision" value={ fmt.Sprint(r.Revision) }/>
+											<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Restaurar esta versão") }</button>
+										</form>
+									}
+								</div>
+							</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+		if vm.View != nil {
+			<section class="card pad mt-6" id="versao">
+				<div class="card-head">
+					<div><h2>v{ fmt.Sprint(vm.View.Revision) } · { vm.View.Name }</h2><p class="sub">{ vm.View.Description }</p></div>
+					<a class="sub" href={ templ.SafeURL(vm.View.CloseHref) }>{ i18n.T(ctx, "Fechar") }</a>
+				</div>
+				<div class="md">@templ.Raw(string(vm.View.Body))</div>
+			</section>
+		}
+		if vm.Diff != nil {
+			@ArtifactDiffBox(*vm.Diff)
+		}
+	}
+}
+
+templ SkillPersonasPage(sh Shell, vm SkillPersonasVM) {
+	@Layout(sh) {
+		if vm.Notice != "" {
+			@Alert("warn", vm.Notice)
+		}
+		<div class="flow-head">
+			<div>
+				<h1>{ vm.Name }</h1>
+				<p class="muted mt-2 text-sm"><span class="mono">{ vm.Slug }</span> · v{ fmt.Sprint(vm.Version) }</p>
+			</div>
+		</div>
+		@skillTabs(vm.Tabs)
+		<section class="card pad">
+			<div class="card-head"><div><h2>{ i18n.T(ctx, "Personas") }</h2><p class="sub">{ i18n.T(ctx, "Ligue a skill e, se quiser, fixe a versão que cada persona usa (sem fixar, vale sempre a mais nova).") }</p></div></div>
+			if len(vm.Rows) == 0 {
+				<p class="muted">{ i18n.T(ctx, "Nenhuma persona na empresa ainda.") }</p>
+			} else {
+				<ul class="toggle-list">
+					for _, r := range vm.Rows {
+						<li class="toggle-row">
+							<div class="toggle-main">
+								<a href={ templ.SafeURL(r.Href) }>{ r.Name }</a>
+								if r.Pinned != "" {
+									<div class="note">{ i18n.T(ctx, "fixada em") } { r.Pinned }</div>
+								}
+							</div>
+							if canAdmin(ctx) {
+								<form class="pin-form" method="post" action={ templ.SafeURL(r.PinAction) } hx-boost="true">
+									<select class="select sm" name="revision" aria-label={ i18n.T(ctx, "Versão fixada") }>
+										for _, o := range r.Options {
+											<option value={ o.Value } selected?={ o.Selected }>{ o.Label }</option>
+										}
+									</select>
+									<button class="btn ghost sm" type="submit">{ i18n.T(ctx, "Fixar") }</button>
+								</form>
+							}
+							@ToggleSwitch(r.Enabled, r.ToggleHref, r.Name)
+						</li>
+					}
+				</ul>
+			}
+		</section>
+	}
+}

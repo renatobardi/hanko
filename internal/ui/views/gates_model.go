@@ -53,6 +53,8 @@ type GateVM struct {
 	Created  string // absolute
 	Decided  string // absolute
 	Notice   string
+	// Example é o "Salvar como exemplo" de um gate decidido (ADR-0034).
+	Example *ExampleFormVM
 }
 
 type DecisionsVM struct {

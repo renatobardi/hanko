@@ -88,8 +88,12 @@ func (t *tools) skillList(ctx context.Context, _ *sdk.CallToolRequest, in skillL
 	if err != nil {
 		return nil, skillListOut{}, err
 	}
-	list, err := sb.PersonaSkills(ctx, company, persona)
-	if err != nil {
+	var list []domain.Skill
+	if spec, isTest, terr := testSpec(ctx, t.b); terr != nil {
+		return nil, skillListOut{}, opErr("listar skills", terr)
+	} else if isTest { // run de teste do estúdio: só a skill testada (ADR-0035)
+		list = []domain.Skill{spec.Skill}
+	} else if list, err = sb.PersonaSkills(ctx, company, persona); err != nil {
 		return nil, skillListOut{}, opErr("listar skills", err)
 	}
 	out := skillListOut{Skills: make([]skillOut, 0, len(list))}
@@ -111,7 +115,17 @@ func (t *tools) skillGet(ctx context.Context, _ *sdk.CallToolRequest, in skillGe
 	if err != nil {
 		return nil, skillGetOut{}, err
 	}
-	s, err := sb.PersonaSkill(ctx, company, persona, slug)
+	var s domain.Skill
+	if spec, isTest, terr := testSpec(ctx, t.b); terr != nil {
+		err = terr
+	} else if isTest { // run de teste do estúdio: só a skill testada, na versão do teste (ADR-0035)
+		s, err = spec.Skill, nil
+		if spec.Skill.Slug != slug {
+			err = domain.ErrNotFound
+		}
+	} else {
+		s, err = sb.PersonaSkill(ctx, company, persona, slug)
+	}
 	if errors.Is(err, domain.ErrNotFound) {
 		return nil, skillGetOut{}, fmt.Errorf("skill %q não encontrada ou não habilitada para você; use hanko_skill_list", slug)
 	}

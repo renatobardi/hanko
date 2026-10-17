@@ -33,7 +33,8 @@ ON CONFLICT (persona_id, skill_id) DO UPDATE SET enabled = EXCLUDED.enabled, upd
 
 -- name: ListPersonaSkillLinks :many
 -- Todas as skills da empresa com o estado de uma persona (false quando nunca ligada).
-SELECT s.id AS skill_id, s.slug, s.name, s.description, COALESCE(ps.enabled, false)::boolean AS enabled
+SELECT s.id AS skill_id, s.slug, s.name, s.description, COALESCE(ps.enabled, false)::boolean AS enabled,
+       ps.pinned_revision, s.version, s.source_id, s.source_modified
 FROM skills s
 LEFT JOIN persona_skills ps ON ps.skill_id = s.id AND ps.persona_id = @persona_id
 WHERE s.company_id = @company_id
@@ -41,7 +42,7 @@ ORDER BY s.name, s.id;
 
 -- name: ListSkillPersonaLinks :many
 -- Todas as personas da empresa com o estado de uma skill.
-SELECT p.id AS persona_id, p.slug, p.name, COALESCE(ps.enabled, false)::boolean AS enabled
+SELECT p.id AS persona_id, p.slug, p.name, COALESCE(ps.enabled, false)::boolean AS enabled, ps.pinned_revision
 FROM personas p
 LEFT JOIN persona_skills ps ON ps.persona_id = p.id AND ps.skill_id = @skill_id
 WHERE p.company_id = @company_id
