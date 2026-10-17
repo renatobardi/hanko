@@ -13,7 +13,7 @@ import (
 )
 
 const activeRunForConversation = `-- name: ActiveRunForConversation :one
-SELECT id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv FROM runs WHERE conversation_id = $1 AND status IN ('queued', 'running')
+SELECT id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv, instruction_revision, instruction_sha256 FROM runs WHERE conversation_id = $1 AND status IN ('queued', 'running')
 `
 
 func (q *Queries) ActiveRunForConversation(ctx context.Context, conversationID *uuid.UUID) (Run, error) {
@@ -54,6 +54,8 @@ func (q *Queries) ActiveRunForConversation(ctx context.Context, conversationID *
 		&i.WorkspaceSource,
 		&i.ConversationID,
 		&i.SearchTsv,
+		&i.InstructionRevision,
+		&i.InstructionSha256,
 	)
 	return i, err
 }
@@ -194,6 +196,34 @@ func (q *Queries) GetConversationForUpdate(ctx context.Context, arg GetConversat
 	return i, err
 }
 
+const getConversationMessageByID = `-- name: GetConversationMessageByID :one
+SELECT id, company_id, conversation_id, author_type, author_id, body, run_id, created_at, persona_id, reply_to_id, mentions FROM conversation_messages WHERE company_id = $1 AND id = $2
+`
+
+type GetConversationMessageByIDParams struct {
+	CompanyID uuid.UUID
+	ID        uuid.UUID
+}
+
+func (q *Queries) GetConversationMessageByID(ctx context.Context, arg GetConversationMessageByIDParams) (ConversationMessage, error) {
+	row := q.db.QueryRow(ctx, getConversationMessageByID, arg.CompanyID, arg.ID)
+	var i ConversationMessage
+	err := row.Scan(
+		&i.ID,
+		&i.CompanyID,
+		&i.ConversationID,
+		&i.AuthorType,
+		&i.AuthorID,
+		&i.Body,
+		&i.RunID,
+		&i.CreatedAt,
+		&i.PersonaID,
+		&i.ReplyToID,
+		&i.Mentions,
+	)
+	return i, err
+}
+
 const getConversationView = `-- name: GetConversationView :one
 SELECT c.id, c.company_id, c.persona_id, c.title, c.status, c.created_by_type, c.created_by_id, c.created_at, c.updated_at, c.last_message_at, c.kind, c.room_settings, COALESCE(p.name, '')::text AS persona_name, COALESCE(p.slug, '')::text AS persona_slug, ar.id AS active_run_id,
        ((SELECT count(*) FROM conversation_messages pm
@@ -293,7 +323,7 @@ func (q *Queries) InsertConversationMessage(ctx context.Context, arg InsertConve
 }
 
 const latestRunOfConversation = `-- name: LatestRunOfConversation :one
-SELECT id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv FROM runs WHERE conversation_id = $1 AND id <> $2
+SELECT id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv, instruction_revision, instruction_sha256 FROM runs WHERE conversation_id = $1 AND id <> $2
 ORDER BY created_at DESC, id DESC LIMIT 1
 `
 
@@ -341,6 +371,8 @@ func (q *Queries) LatestRunOfConversation(ctx context.Context, arg LatestRunOfCo
 		&i.WorkspaceSource,
 		&i.ConversationID,
 		&i.SearchTsv,
+		&i.InstructionRevision,
+		&i.InstructionSha256,
 	)
 	return i, err
 }

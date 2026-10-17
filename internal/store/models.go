@@ -62,21 +62,25 @@ type ApiKey struct {
 }
 
 type Artifact struct {
-	ID         uuid.UUID
-	CompanyID  uuid.UUID
-	TaskID     *uuid.UUID
-	RunID      *uuid.UUID
-	ProjectID  *uuid.UUID
-	PersonaID  *uuid.UUID
-	AuthorType string
-	AuthorID   *uuid.UUID
-	Name       string
-	Mime       string
-	SizeBytes  int64
-	Sha256     string
-	Version    int32
-	CreatedAt  time.Time
-	Storage    string
+	ID             uuid.UUID
+	CompanyID      uuid.UUID
+	TaskID         *uuid.UUID
+	RunID          *uuid.UUID
+	ProjectID      *uuid.UUID
+	PersonaID      *uuid.UUID
+	AuthorType     string
+	AuthorID       *uuid.UUID
+	Name           string
+	Mime           string
+	SizeBytes      int64
+	Sha256         string
+	Version        int32
+	CreatedAt      time.Time
+	Storage        string
+	Kind           string
+	CommentID      *uuid.UUID
+	ConversationID *uuid.UUID
+	MessageID      *uuid.UUID
 }
 
 type ArtifactBlob struct {
@@ -591,6 +595,37 @@ type Persona struct {
 	SearchTsv            interface{}
 	Icon                 string
 	EnvironmentID        *uuid.UUID
+	InstructionRevision  int32
+}
+
+type PersonaInstructionProposal struct {
+	ID           uuid.UUID
+	CompanyID    uuid.UUID
+	PersonaID    uuid.UUID
+	GateID       uuid.UUID
+	BaseRevision int32
+	Body         string
+	Reason       string
+	RunID        *uuid.UUID
+	CreatedAt    time.Time
+}
+
+type PersonaInstructionRevision struct {
+	ID           uuid.UUID
+	CompanyID    uuid.UUID
+	PersonaID    uuid.UUID
+	Revision     int32
+	Body         string
+	Sha256       string
+	AuthorType   string
+	AuthorID     *uuid.UUID
+	ActorType    string
+	ActorID      *uuid.UUID
+	Reason       string
+	Origin       string
+	RestoredFrom *int32
+	GateID       *uuid.UUID
+	CreatedAt    time.Time
 }
 
 type PersonaSkill struct {
@@ -779,6 +814,8 @@ type Run struct {
 	WorkspaceSource     string
 	ConversationID      *uuid.UUID
 	SearchTsv           interface{}
+	InstructionRevision *int32
+	InstructionSha256   *string
 }
 
 type RunEvent struct {

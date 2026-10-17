@@ -105,6 +105,15 @@ func (s *server) runVM(ctx context.Context, co domain.Company, rv service.RunVie
 		Lines:        lines,
 		LastSeq:      lastSeq,
 	}
+	if rv.InstructionRevision != nil {
+		vm.Instructions = fmt.Sprintf("r%d", *rv.InstructionRevision)
+		if len(rv.InstructionSHA256) >= 12 {
+			vm.Instructions += " · " + rv.InstructionSHA256[:12]
+		}
+		if personaSlug != "" {
+			vm.InstructionsHref = base + "/personas/" + personaSlug + "/instrucoes?ver=" + strconv.Itoa(*rv.InstructionRevision) + "#revisao"
+		}
+	}
 	if rv.ConversationID != nil {
 		vm.Chat, vm.TaskKey, vm.TaskTitle = true, i18n.T(ctx, "Chat"), rv.ConversationTitle
 		vm.TaskHref = base + "/chat/" + rv.ConversationID.String()

@@ -329,6 +329,9 @@ type UpdateCompanyReq struct {
 
 // UpdatePersonaReq muda o orçamento, o organograma e a revisão obrigatória de uma persona.
 type UpdatePersonaReq struct {
+	// Instructions troca o texto das instruções (vira uma revisão, ADR-0052); InstructionsReason é o motivo.
+	Instructions       *string `json:"instructions,omitempty"`
+	InstructionsReason string  `json:"instructions_reason,omitempty"`
 	ReportsTo          string  `json:"reports_to,omitempty"`
 	ClearReportsTo     bool    `json:"clear_reports_to,omitempty"`
 	RequireReview      *bool   `json:"require_review,omitempty"`

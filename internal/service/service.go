@@ -168,11 +168,13 @@ type HirePersonaInput struct {
 
 type UpdatePersonaInput struct {
 	Name, Title, Instructions, Model *string
-	Icon                             *string // um de domain.PersonaIcons
-	Status                           *domain.PersonaStatus
-	HeartbeatIntervalSec             *int
-	WorkspaceID                      *domain.ID
-	ClearWorkspace                   bool
+	// InstructionsReason é o motivo da mudança de instruções (ADR-0052); vai na revisão gravada.
+	InstructionsReason   string
+	Icon                 *string // um de domain.PersonaIcons
+	Status               *domain.PersonaStatus
+	HeartbeatIntervalSec *int
+	WorkspaceID          *domain.ID
+	ClearWorkspace       bool
 	// ReportsTo moves the persona under another one; ClearReportsTo makes it top-level.
 	// A move that would close a loop in the chart is rejected (ErrInvalid).
 	ReportsTo      *domain.ID
@@ -336,6 +338,26 @@ type RunContext struct {
 	Relations *TaskRelations
 	// ReviewPolicy é a política de revisão que vale para esta task e esta persona (task > projeto > persona).
 	ReviewPolicy *domain.ReviewPolicy
+	// Attachments são os anexos da task (ou da conversa, numa run de chat), do mais antigo ao mais novo, até
+	// MaxBriefingAttachments (ADR-0052).
+	Attachments []AttachmentBrief
+}
+
+// MaxBriefingAttachments é quantos anexos entram no briefing da run.
+const MaxBriefingAttachments = 30
+
+// AttachmentBrief é um anexo em formato curto para o briefing da run.
+type AttachmentBrief struct {
+	ID        domain.ID
+	Name      string
+	Mime      string
+	SizeBytes int64
+	Author    domain.Actor
+	CreatedAt time.Time
+	CommentID *domain.ID
+	MessageID *domain.ID
+	// New: o anexo veio numa mensagem que esta run de chat recolheu.
+	New bool
 }
 
 // WakeCandidate is an (assigned, workable, idle) task found by the periodic heartbeat.

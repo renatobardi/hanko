@@ -250,6 +250,7 @@ func Spec() ([]byte, error) {
 func (s *server) register(api huma.API) {
 	s.registerCompanies(api)
 	s.registerPersonas(api)
+	s.registerInstructions(api)
 	s.registerTasks(api)
 	s.registerCoordination(api)
 	s.registerRuns(api)
@@ -263,6 +264,7 @@ func (s *server) register(api huma.API) {
 	s.registerMembers(api)
 	s.registerExport(api)
 	s.registerArtifacts(api)
+	s.registerAttachments(api)
 	s.registerGoals(api)
 	s.registerSkills(api)
 	s.registerSkillStudio(api)

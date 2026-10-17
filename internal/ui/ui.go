@@ -307,6 +307,7 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("POST /c/{company}/personas/catalogo", post(co(s.handleInstallTeam)))
 	mux.HandleFunc("POST /c/{company}/personas/nova", post(co(s.handleHirePersona)))
 	mux.HandleFunc("GET /c/{company}/personas/{persona}", co(s.handlePersona))
+	s.instructionsRoutes(mux) // revisões das instruções (ADR-0052)
 	mux.HandleFunc("POST /c/{company}/personas/{persona}/pausar", post(co(s.handlePersonaControl(domain.PersonaPaused, "pausada"))))
 	mux.HandleFunc("POST /c/{company}/personas/{persona}/retomar", post(co(s.handlePersonaControl(domain.PersonaActive, "retomada"))))
 	mux.HandleFunc("POST /c/{company}/personas/{persona}/reativar", post(co(s.handlePersonaControl(domain.PersonaActive, "reativada"))))

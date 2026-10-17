@@ -317,14 +317,15 @@ func (e *env) personaCmd() *cobra.Command {
 	}
 
 	var (
-		upReports                     string
-		upTop                         bool
-		upReview                      string
-		upSub                         string
-		upNoSub                       bool
-		upRev, upRevAgent, upRevModel string
-		upNoRev                       bool
-		upEnv                         string
+		upReports                      string
+		upTop                          bool
+		upReview                       string
+		upSub                          string
+		upNoSub                        bool
+		upRev, upRevAgent, upRevModel  string
+		upNoRev                        bool
+		upEnv                          string
+		upInstr, upInstrFile, upReason string
 	)
 	update := &cobra.Command{
 		Use: "update " + e.t("<persona>"), Short: e.t("Muda a quem a persona reporta, a revisão obrigatória e a assinatura"), Args: cobra.ExactArgs(1),
@@ -333,7 +334,11 @@ func (e *env) personaCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			req := client.UpdatePersonaReq{ReportsTo: upReports, ClearReportsTo: upTop, Subscription: upSub, ClearSubscription: upNoSub, Environment: upEnv}
+			instr, err := e.readInstructions(cmd, upInstr, upInstrFile)
+			if err != nil {
+				return err
+			}
+			req := client.UpdatePersonaReq{Instructions: instr, InstructionsReason: upReason, ReportsTo: upReports, ClearReportsTo: upTop, Subscription: upSub, ClearSubscription: upNoSub, Environment: upEnv}
 			switch upReview {
 			case "":
 			case "true", "false":
@@ -353,8 +358,8 @@ func (e *env) personaCmd() *cobra.Command {
 				return usageError{errors.New(e.t("--subscription e --no-subscription não combinam"))}
 			}
 			if upReports == "" && !upTop && req.RequireReview == nil && upSub == "" && !upNoSub && upRev == "" && !upNoRev &&
-				req.ReviewerAgent == nil && req.ReviewerModel == nil && upEnv == "" {
-				return usageError{errors.New(e.t("nada a alterar: use --reports-to, --top, --require-review, --subscription, --no-subscription ou --reviewer/--reviewer-agent/--no-reviewer"))}
+				req.ReviewerAgent == nil && req.ReviewerModel == nil && upEnv == "" && instr == nil {
+				return usageError{errors.New(e.t("nada a alterar: use --reports-to, --top, --require-review, --subscription, --no-subscription, --instructions/--instructions-file ou --reviewer/--reviewer-agent/--no-reviewer"))}
 			}
 			p, err := e.client().UpdatePersona(cmd.Context(), co, args[0], req)
 			if err != nil {
@@ -377,8 +382,12 @@ func (e *env) personaCmd() *cobra.Command {
 	uf.BoolVar(&upNoRev, "no-reviewer", false, e.t("remove o revisor automático"))
 	uf.StringVar(&upSub, "subscription", "", e.t("vincula a persona a uma assinatura (id ou nome)"))
 	uf.BoolVar(&upNoSub, "no-subscription", false, e.t("desvincula a persona da assinatura"))
+	uf.StringVar(&upInstr, "instructions", "", e.t("novas instruções da persona (vira uma revisão)"))
+	uf.StringVar(&upInstrFile, "instructions-file", "", e.t("arquivo com as novas instruções"))
+	uf.StringVar(&upReason, "reason", "", e.t("motivo da mudança de instruções (fica na revisão)"))
 	uf.StringVar(&upEnv, "environment", "", e.t("ambiente de execução (id ou slug; local = o padrão da empresa)"))
 	c.AddCommand(hire, ls, show, update)
+	c.AddCommand(e.instructionCmds()...)
 	return c
 }
 

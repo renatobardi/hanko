@@ -92,3 +92,6 @@ ORDER BY created_at DESC, id DESC LIMIT 1;
 
 -- name: DeleteConversation :exec
 DELETE FROM conversations WHERE company_id = @company_id AND id = @id;
+
+-- name: GetConversationMessageByID :one
+SELECT * FROM conversation_messages WHERE company_id = @company_id AND id = @id;
