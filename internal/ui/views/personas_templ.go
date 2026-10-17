@@ -958,9 +958,9 @@ func HirePersonaPage(sh Shell, vm HirePersonaVM) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var47 string
-				templ_7745c5c3_Var47, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Ou um agente conhecido"))
+				templ_7745c5c3_Var47, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Ou uma ferramenta conhecida"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 155, Col: 72}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 155, Col: 77}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var47))
 				if templ_7745c5c3_Err != nil {
@@ -991,9 +991,9 @@ func HirePersonaPage(sh Shell, vm HirePersonaVM) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var48 string
-				templ_7745c5c3_Var48, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Preenche o comando e os argumentos do agente; deixe o comando em branco."))
+				templ_7745c5c3_Var48, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Preenche o comando e os argumentos da ferramenta; deixe o comando em branco."))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 161, Col: 115}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 161, Col: 119}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var48))
 				if templ_7745c5c3_Err != nil {

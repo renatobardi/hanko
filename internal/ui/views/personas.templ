@@ -152,13 +152,13 @@ templ HirePersonaPage(sh Shell, vm HirePersonaVM) {
 							<span class="hint">{ i18n.T(ctx, "Só o executável, que fala ACP por stdio e precisa estar instalado no servidor. Argumentos vão no campo abaixo; variáveis de ambiente extras, pela API ou pela CLI.") }</span>
 						</div>
 						<div class="field">
-							<label for="p-acp-preset">{ i18n.T(ctx, "Ou um agente conhecido") }</label>
+							<label for="p-acp-preset">{ i18n.T(ctx, "Ou uma ferramenta conhecida") }</label>
 							<select class="select" id="p-acp-preset" name="acp_preset">
 								<option value="">—</option>
 								<option value="gemini" selected?={ vm.AcpPreset == "gemini" }>Gemini CLI</option>
 								<option value="opencode" selected?={ vm.AcpPreset == "opencode" }>opencode</option>
 							</select>
-							<span class="hint">{ i18n.T(ctx, "Preenche o comando e os argumentos do agente; deixe o comando em branco.") }</span>
+							<span class="hint">{ i18n.T(ctx, "Preenche o comando e os argumentos da ferramenta; deixe o comando em branco.") }</span>
 						</div>
 					</div>
 					<div class="field">

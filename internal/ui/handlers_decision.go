@@ -26,6 +26,13 @@ type decisionBackend interface {
 	ListDecisionInvocations(ctx context.Context, companyID domain.ID, limit int) ([]domain.DecisionInvocation, error)
 }
 
+// featureTexts traduz título e descrição das features registradas (o texto pt-BR é o de domain.DecisionFeatures).
+var featureTexts = map[domain.DecisionFeature][2]string{
+	domain.FeatureTriage:          {i18n.N("Triagem"), i18n.N("Sugere a persona e a prioridade para uma task nova, como comentário do sistema.")},
+	domain.FeaturePhaseClassifier: {i18n.N("Classificador de fase"), i18n.N("Sugere em qual etapa de um pipeline um texto se encaixa.")},
+	domain.FeatureNameSummary:     {i18n.N("Nome e resumo"), i18n.N("Gera um nome curto e um resumo para um texto longo.")},
+}
+
 func (s *server) decisionBE() (decisionBackend, bool) {
 	b, ok := s.be.(decisionBackend)
 	return b, ok
@@ -61,7 +68,7 @@ func (s *server) decisionVM(r *http.Request, co domain.Company, be decisionBacke
 		}
 	}
 	for _, f := range v.Features {
-		vm.Features = append(vm.Features, views.DecisionFeatureVM{Key: string(f.Feature), Title: i18n.T(ctx, f.Title), Desc: i18n.T(ctx, f.Description),
+		vm.Features = append(vm.Features, views.DecisionFeatureVM{Key: string(f.Feature), Title: i18n.T(ctx, featureTexts[f.Feature][0]), Desc: i18n.T(ctx, featureTexts[f.Feature][1]),
 			Enabled: f.Enabled, Model: f.Model, Action: base + "/features/" + string(f.Feature)})
 	}
 	if sb, ok := s.secretsBE(); ok {
@@ -98,10 +105,8 @@ func decisionCostVM(ctx context.Context, d service.DecisionCost, href string) *v
 }
 
 func decisionFeatureTitle(ctx context.Context, f domain.DecisionFeature) string {
-	for _, s := range domain.DecisionFeatures {
-		if s.Feature == f {
-			return i18n.T(ctx, s.Title)
-		}
+	if t, ok := featureTexts[f]; ok {
+		return i18n.T(ctx, t[0])
 	}
 	return string(f)
 }
