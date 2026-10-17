@@ -258,7 +258,13 @@ func (t *txc) moveTask(actor domain.Actor, companyID domain.ID, cur store.Task, 
 		return store.Task{}, err
 	}
 	if closing {
-		if err := t.activity(actor, companyID, "task.closed", "task", cur.ID, map[string]any{"status": to}, ""); err != nil {
+		closedData := map[string]any{"status": to}
+		if to == domain.TaskDone { // a decisão humana do gate vale como override; o fato guarda quantas subtasks seguiam abertas
+			if n, err := t.q.CountOpenChildren(t.ctx, &cur.ID); err == nil && n > 0 {
+				closedData["open_children"] = n
+			}
+		}
+		if err := t.activity(actor, companyID, "task.closed", "task", cur.ID, closedData, ""); err != nil {
 			return store.Task{}, err
 		}
 		if err := t.taskClosedFact(companyID, row); err != nil {
@@ -271,6 +277,9 @@ func (t *txc) moveTask(actor domain.Actor, companyID domain.ID, cur store.Task, 
 			if err := t.cancelTaskRun(actor, companyID, cur.ID, "task_closed"); err != nil {
 				return store.Task{}, err
 			}
+		}
+		if err := t.onTaskClosed(companyID, row); err != nil {
+			return store.Task{}, err
 		}
 	}
 	return row, nil
@@ -632,6 +641,8 @@ type Inbox struct {
 	UnderReview []InboxReview
 	// AchievedGoals são as metas atingidas nos últimos dias: informativo (ninguém precisa agir), fora de Count.
 	AchievedGoals []GoalView
+	// HeldTasks são as raízes de pausa (ADR-0040): informativo, o humano que pausou decide quando retomar; fora de Count.
+	HeldTasks []HeldTask
 }
 
 // InboxReview is an automatic review in progress on a task.
@@ -721,6 +732,9 @@ func (s *Service) Inbox(ctx context.Context, companyID domain.ID) (Inbox, error)
 	if in.AchievedGoals, err = s.recentlyAchievedGoals(ctx, q, companyID, s.Now().UTC().Add(-inboxGoalWindow)); err != nil {
 		return in, err
 	}
+	if in.HeldTasks, err = s.ListHeldTasks(ctx, companyID); err != nil {
+		return in, err
+	}
 	return in, nil
 }
 
@@ -740,9 +754,13 @@ func (t *txc) requestTaskReview(actor domain.Actor, companyID domain.ID, task st
 		if err != nil {
 			return mapErr(err, "persona")
 		}
-		if domain.HasReviewer(author.ReviewerPersonaID, author.ReviewerAgent) {
+		pol, err := t.resolveReviewPolicy(task, author)
+		if err != nil {
+			return err
+		}
+		if pol.HasReviewer {
 			// A revisão automática vem antes: o gate nasce quando ela termina (reviews.go).
-			return t.requestReview(companyID, task, author, requested)
+			return t.requestReview(companyID, task, author, pol, requested)
 		}
 	}
 	c, err := t.q.GetCompanyByID(t.ctx, companyID)

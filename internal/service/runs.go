@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/renatobardi/hanko/internal/adapter"
 	"github.com/renatobardi/hanko/internal/domain"
@@ -70,7 +71,18 @@ func (s *Service) GetRun(ctx context.Context, companyID, runID domain.ID) (RunVi
 	if err := s.require(ctx, companyID, domain.MemberViewer); err != nil {
 		return RunView{}, err
 	}
-	return loadRunView(ctx, s.read(), companyID, runID)
+	q := s.read()
+	v, err := loadRunView(ctx, q, companyID, runID)
+	if err != nil {
+		return RunView{}, err
+	}
+	if o, oerr := q.GetRunPolicyOrigin(ctx, runID); oerr == nil {
+		v.PolicyOrigin = &domain.RunPolicyOrigin{ReviewRequired: o.ReviewRequired,
+			ReviewRequiredSource: domain.ReviewLayer(o.ReviewRequiredSource), ReviewerSource: domain.ReviewLayer(o.ReviewerSource)}
+	} else if !isNoRows(oerr) {
+		return RunView{}, fmt.Errorf("run policy origin: %w", oerr)
+	}
+	return v, nil
 }
 
 // ListRunEvents returns events with seq > afterSeq, ascending.
@@ -220,7 +232,14 @@ func (s *Service) CheckoutRun(ctx context.Context, w Wake) (domain.Run, error) {
 	}
 	var out domain.Run
 	var blocked error
+	ctx, endSpan := coordSpan(ctx, "service.checkout_run", attribute.String("task_id", w.TaskID.String()))
+	defer endSpan()
 	err := s.withTx(ctx, func(t *txc) error {
+		// Compartilhado com os checkouts, exclusivo para pausar/retomar: nenhuma run abre no meio de uma pausa.
+		// Sempre o primeiro lock da transação (antes de qualquer task).
+		if err := t.q.LockTaskHoldsShared(ctx, w.CompanyID); err != nil {
+			return fmt.Errorf("lock task holds: %w", err)
+		}
 		task, err := t.q.GetTaskByIDForUpdate(ctx, store.GetTaskByIDForUpdateParams{CompanyID: w.CompanyID, ID: w.TaskID})
 		if err != nil {
 			return mapErr(err, "get task")
@@ -245,6 +264,18 @@ func (s *Service) CheckoutRun(ctx context.Context, w Wake) (domain.Run, error) {
 			return fmt.Errorf("check pending gate: %w", err)
 		} else if pending {
 			return domain.Invalid("gate", "task has a pending gate; a human must decide it first")
+		}
+		// Coordenação (ADR-0040): pausada (própria ou herdada) ou com dependência aberta, nenhuma run abre. A pausa
+		// guarda o wake recusado (o retomar o reenvia), então o registro é commitado e o erro sai depois.
+		if berr := t.dispatchBlocker(w.CompanyID, task.ID); berr != nil {
+			if errors.Is(berr, domain.ErrTaskHeld) {
+				if err := t.recordHeldWake(w.CompanyID, task.ID, w.PersonaID, w.Trigger); err != nil {
+					return err
+				}
+				blocked = berr
+				return nil
+			}
+			return berr
 		}
 		if _, err := t.q.ActiveRunForTask(ctx, task.ID); err == nil {
 			return domain.ErrActiveRun
@@ -305,6 +336,13 @@ func (s *Service) CheckoutRun(ctx context.Context, w Wake) (domain.Run, error) {
 			return err
 		}
 		out = runFromRow(row)
+		pol, err := t.resolveReviewPolicy(task, p)
+		if err != nil {
+			return err
+		}
+		if err := t.recordPolicyOrigin(w.CompanyID, row.ID, pol); err != nil {
+			return err
+		}
 		if from == domain.TaskTodo || reopens {
 			if err := t.q.SetTaskStatus(ctx, store.SetTaskStatusParams{ID: task.ID, Status: string(domain.TaskInProgress), Now: t.now}); err != nil {
 				return fmt.Errorf("set task in_progress: %w", err)
@@ -473,6 +511,19 @@ func (s *Service) LoadRunContext(ctx context.Context, companyID, runID domain.ID
 	}
 	rc := RunContext{Run: runFromRow(run), Company: companyFromRow(company), Persona: personaFromRow(persona),
 		Task: task, Comments: make([]domain.Comment, len(comments))}
+	if run.TaskID != nil && !task.System {
+		rel, err := loadRelations(ctx, q, companyID, *run.TaskID)
+		if err != nil {
+			return RunContext{}, err
+		}
+		rc.Relations = &rel
+		to, po, err := reviewLayers(ctx, q, task.ID, task.ProjectID)
+		if err != nil {
+			return RunContext{}, err
+		}
+		pol := domain.ResolveReviewPolicy(to, po, personaReviewOf(persona))
+		rc.ReviewPolicy = &pol
+	}
 	if task.System {
 		rc.Run.Trigger = domain.TriggerMemory // runs antigas ou acordadas por outro gatilho continuam sendo curadoria
 	}

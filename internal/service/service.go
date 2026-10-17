@@ -185,7 +185,9 @@ type CreateTaskInput struct {
 	GoalID      *domain.ID // meta a que a task serve (ADR-0028); só meta ativa
 	Model       string     // manual model choice (wins over the persona's); empty = none
 	ParentID    *domain.ID
-	EventID     string // idempotency key (agents/MCP)
+	// DependsOn são as tasks de que a nova depende (bloqueada até todas fecharem; ADR-0040).
+	DependsOn []domain.ID
+	EventID   string // idempotency key (agents/MCP)
 
 	trigger domain.RunTrigger // wake trigger; default assign (flows use flow)
 	// noMemoryFact: a task de sistema da consolidação de memória não vira página na própria memória.
@@ -207,6 +209,12 @@ type UpdateTaskInput struct {
 	ClearGoal bool
 	Model     *string // manual model choice; empty string clears it
 	EventID   string
+	// ParentID muda o pai da task (mesma empresa, sem ciclo, até 10 níveis); ClearParent a torna raiz (ADR-0040).
+	ParentID    *domain.ID
+	ClearParent bool
+	// ForceClose + OverrideReason: um humano conclui o pai mesmo com subtask aberta, registrando o motivo.
+	ForceClose     bool
+	OverrideReason string
 }
 
 type TaskFilter struct {
@@ -259,6 +267,8 @@ type TaskView struct {
 	// System marca a task de sistema de uma rodada de curadoria de memória (ADR-0030): o Hanko a cria, a
 	// acorda e a encerra; ninguém a acorda à mão nem por comentário.
 	System bool `json:"system,omitempty"`
+	// TaskCoord traz o que a coordenação deriva: dependências abertas (bloqueada), filhos e pausa (ADR-0040).
+	TaskCoord
 }
 
 // RunView is a run with display-ready joins.
@@ -269,6 +279,9 @@ type RunView struct {
 	PersonaName string `json:"persona_name"`
 	// ConversationTitle is the title of the conversation of a chat run (empty for task runs).
 	ConversationTitle string `json:"conversation_title,omitempty"`
+	// PolicyOrigin diz de que camada (task, projeto ou persona) veio a política de revisão que valeu na execução
+	// (ADR-0040); só o detalhe da execução preenche.
+	PolicyOrigin *domain.RunPolicyOrigin `json:"policy_origin,omitempty"`
 }
 
 // DashboardStats feeds the Painel.
@@ -301,6 +314,10 @@ type RunContext struct {
 	Goals []GoalBrief
 	// Chat is set for runs with trigger chat (no task: Task and Comments are empty).
 	Chat *ChatContext
+	// Relations são a árvore (ancestrais e subtasks) e as dependências da task (ADR-0040); nil sem task.
+	Relations *TaskRelations
+	// ReviewPolicy é a política de revisão que vale para esta task e esta persona (task > projeto > persona).
+	ReviewPolicy *domain.ReviewPolicy
 }
 
 // WakeCandidate is an (assigned, workable, idle) task found by the periodic heartbeat.
