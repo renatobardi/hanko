@@ -85,6 +85,7 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 		AllowStdio: cfg.Integrations.AllowStdio, AllowPrivate: cfg.Integrations.AllowPrivateDestinations, Secrets: box,
 	}
 	svc.ACP = acp.Policy{Allow: cfg.ACP.Allow, Commands: cfg.ACP.Commands}
+	svc.Push = service.PushConfig{Subject: cfg.PushSubjectOrDefault()} // web push (ADR-0042); a chave VAPID nasce na primeira necessidade
 
 	// Settings da instância (ADR-0050): env > banco > yaml/padrão; leitura em tempo de uso, então mudar vale sem restart.
 	sm := settings.NewManager(settingsBase(cfg), cfg.EnvSet)

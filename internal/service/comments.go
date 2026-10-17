@@ -75,6 +75,9 @@ func (s *Service) AddComment(ctx context.Context, actor domain.Actor, companyID,
 					return err
 				}
 			}
+			if err := t.recordMentions(actor, companyID, task, row, body); err != nil {
+				return err
+			}
 			if tv, err := loadTaskView(ctx, t.q, companyID, taskID); err == nil {
 				t.publish(companyTopic(companyID), "task.updated", tv)
 			}

@@ -228,6 +228,9 @@ func (t *txc) cancelTaskRun(actor domain.Actor, companyID, taskID domain.ID, rea
 	return t.cancelRun(actor, companyID, cur, map[string]any{"reason": reason})
 }
 
+// mentionWakeWindow é por quanto tempo uma menção a uma persona autoriza o wake dela numa task que não é dela.
+const mentionWakeWindow = 15 * time.Minute
+
 // CheckoutRun atomically creates a queued run for (task, persona) if the task has no
 // active run, the task is workable and assigned to that persona, and the persona CanWork;
 // enqueues ExecuteRun in the same tx. Returns domain.ErrActiveRun when occupied.
@@ -253,13 +256,25 @@ func (s *Service) CheckoutRun(ctx context.Context, w Wake) (domain.Run, error) {
 		if err != nil {
 			return mapErr(err, "get task")
 		}
+		// Uma persona citada por um humano (@slug no comentário, ADR-0042) responde na task mesmo sem ser a responsável:
+		// a run dela não move o status da task.
+		mentionOnly := false
 		if task.PersonaID == nil || *task.PersonaID != w.PersonaID {
-			return domain.Invalid("persona_id", "task is not assigned to this persona")
+			if w.Trigger == domain.TriggerComment {
+				mentionOnly, err = t.q.HasRecentPersonaMention(ctx, store.HasRecentPersonaMentionParams{TaskID: task.ID, PersonaID: &w.PersonaID,
+					Since: t.now.Add(-mentionWakeWindow)})
+				if err != nil {
+					return fmt.Errorf("check mention: %w", err)
+				}
+			}
+			if !mentionOnly {
+				return domain.Invalid("persona_id", "task is not assigned to this persona")
+			}
 		}
 		from := domain.TaskStatus(task.Status)
 		// Um comentário humano é feedback: acorda a persona também em in_review e blocked (a task volta a in_progress).
-		reopens := w.Trigger == domain.TriggerComment && (from == domain.TaskInReview || from == domain.TaskBlocked)
-		if !from.Workable() && !reopens {
+		reopens := w.Trigger == domain.TriggerComment && (from == domain.TaskInReview || from == domain.TaskBlocked) && !mentionOnly
+		if !from.Workable() && !reopens && (!mentionOnly || !from.Open()) {
 			return domain.Invalid("status", fmt.Sprintf("task status %q is not workable", from))
 		}
 		p, err := t.q.GetPersonaByID(ctx, store.GetPersonaByIDParams{CompanyID: w.CompanyID, ID: w.PersonaID})
@@ -352,7 +367,7 @@ func (s *Service) CheckoutRun(ctx context.Context, w Wake) (domain.Run, error) {
 		if err := t.recordPolicyOrigin(w.CompanyID, row.ID, pol); err != nil {
 			return err
 		}
-		if from == domain.TaskTodo || reopens {
+		if (from == domain.TaskTodo || reopens) && !mentionOnly {
 			if err := t.q.SetTaskStatus(ctx, store.SetTaskStatusParams{ID: task.ID, Status: string(domain.TaskInProgress), Now: t.now}); err != nil {
 				return fmt.Errorf("set task in_progress: %w", err)
 			}
@@ -762,6 +777,19 @@ func (s *Service) FinishRun(ctx context.Context, companyID, runID domain.ID, in 
 			}
 			if err := t.activity(pactor, companyID, "comment.added", "task", idOrZero(row.TaskID),
 				map[string]any{"comment_id": c.ID, "run_id": runID}, ""); err != nil {
+				return err
+			}
+			// o resumo da persona pode citar um humano com @ (pedir atenção): vai para a Caixa dele (ADR-0042)
+			if row.TaskID != nil {
+				if task, err := t.q.GetTaskByID(ctx, store.GetTaskByIDParams{CompanyID: companyID, ID: *row.TaskID}); err == nil {
+					if err := t.recordMentions(pactor, companyID, task, c, res.Summary); err != nil {
+						return err
+					}
+				}
+			}
+		}
+		if (in.Status == domain.RunFailed || in.Status == domain.RunExpired) && !isReview && !isMemory && !isSkillTest && !isStatusCard {
+			if err := t.notifyRunFailed(companyID, view, res.Error); err != nil {
 				return err
 			}
 		}

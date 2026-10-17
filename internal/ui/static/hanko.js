@@ -400,4 +400,92 @@
         card.classList.remove("is-saving");
       });
   });
+  // Avisos ao vivo da pessoa (ADR-0042): toasts por SSE e o selo de não lidos no menu.
+  (function () {
+    var body = document.body;
+    if (!body || !body.hasAttribute("data-notify") || !window.EventSource) return;
+    var box = document.getElementById("toasts");
+    function safePath(u) {
+      return typeof u === "string" && u.charAt(0) === "/" && u.charAt(1) !== "/" ? u : "";
+    }
+    function toast(p) {
+      if (!box) return;
+      var el = document.createElement(safePath(p.url) ? "a" : "div");
+      el.className = "toast";
+      if (safePath(p.url)) el.setAttribute("href", p.url);
+      var t = document.createElement("b");
+      t.textContent = p.title || "";
+      el.appendChild(t);
+      if (p.body) {
+        var b = document.createElement("span");
+        b.textContent = p.body;
+        el.appendChild(b);
+      }
+      box.appendChild(el);
+      while (box.children.length > 4) box.removeChild(box.firstChild);
+      setTimeout(function () {
+        if (el.parentNode) el.parentNode.removeChild(el);
+      }, 9000);
+    }
+    var es = new EventSource(body.getAttribute("data-notify-url"));
+    es.addEventListener("notify", function (e) {
+      var p;
+      try {
+        p = JSON.parse(e.data);
+      } catch (_) {
+        return;
+      }
+      toast(p);
+      if (window.htmx) window.htmx.trigger(document.body, "refresh-inbox");
+    });
+    window.addEventListener("pagehide", function () {
+      es.close();
+    });
+  })();
+
+  // Web push (ADR-0042): ativa as notificações neste aparelho e manda a assinatura ao servidor.
+  document.addEventListener("click", function (e) {
+    var btn = e.target.closest && e.target.closest("[data-push-enable]");
+    if (!btn) return;
+    var box = btn.closest("[data-push-box]");
+    var status = box && box.querySelector("[data-push-status]");
+    function say(msg) {
+      if (status) status.textContent = msg;
+    }
+    if (!("serviceWorker" in navigator) || !("PushManager" in window) || !window.Notification) {
+      say(btn.getAttribute("data-unsupported") || "");
+      return;
+    }
+    function key(b64) {
+      var pad = "=".repeat((4 - (b64.length % 4)) % 4);
+      var raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
+      var out = new Uint8Array(raw.length);
+      for (var i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+      return out;
+    }
+    Notification.requestPermission()
+      .then(function (perm) {
+        if (perm !== "granted") throw new Error("denied");
+        return navigator.serviceWorker.ready;
+      })
+      .then(function (reg) {
+        return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key(box.getAttribute("data-vapid")) });
+      })
+      .then(function (sub) {
+        var j = sub.toJSON();
+        return fetch(box.getAttribute("data-url"), {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ endpoint: j.endpoint, keys: j.keys })
+        });
+      })
+      .then(function (res) {
+        if (!res.ok) throw new Error("http " + res.status);
+        window.location.reload();
+      })
+      .catch(function (err) {
+        say((err && err.message === "denied" ? btn.getAttribute("data-denied") : btn.getAttribute("data-failed")) || "");
+      });
+  });
 })();

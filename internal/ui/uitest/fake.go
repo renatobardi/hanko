@@ -70,6 +70,9 @@ type Fake struct {
 
 	// Env são os ambientes de execução (ADR-0037).
 	Env EnvFake
+
+	// Caixa é o estado por pessoa da Caixa de entrada, os avisos e o web push (ADR-0042; uitest/caixa.go).
+	Caixa CaixaFake
 }
 
 var _ = (*Fake)(nil)
@@ -363,6 +366,13 @@ func (f *Fake) ListTasks(_ context.Context, _ domain.ID, fl service.TaskFilter) 
 		if q := strings.ToLower(fl.Query); q != "" && !strings.Contains(strings.ToLower(t.Title+" "+t.Key), q) {
 			continue
 		}
+		if fl.Mine { // "Minhas" (ADR-0042): só as de Caixa.MineTasks, com o motivo
+			reasons, ok := f.Caixa.MineTasks[t.Key]
+			if !ok {
+				continue
+			}
+			t.Participation = reasons
+		}
 		out = append(out, t)
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].UpdatedAt.After(out[j].UpdatedAt) })
@@ -627,6 +637,15 @@ func (f *Fake) ListActivity(_ context.Context, _ domain.ID, fl service.ActivityF
 		return nil, err
 	}
 	out := append([]domain.ActivityEvent(nil), f.Activity...)
+	if fl.ActorType != "" { // filtro por ator (ADR-0042)
+		kept := out[:0:0]
+		for _, a := range out {
+			if string(a.Actor.Type) == fl.ActorType && (fl.ActorID == nil || (a.Actor.ID != nil && *a.Actor.ID == *fl.ActorID)) {
+				kept = append(kept, a)
+			}
+		}
+		out = kept
+	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].OccurredAt.After(out[j].OccurredAt) })
 	if fl.Limit > 0 && len(out) > fl.Limit {
 		out = out[:fl.Limit]

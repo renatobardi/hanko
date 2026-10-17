@@ -40,8 +40,11 @@ type GateFilter struct {
 	Kinds     []domain.GateKind
 	TaskID    *domain.ID
 	PersonaID *domain.ID
-	Limit     int // default 100, max 500
-	Offset    int
+	// Mine limita aos gates da audiência da pessoa autenticada: que ela pediu ou decidiu, ou de tasks em que
+	// participa (ADR-0042). Sem pessoa autenticada devolve vazio.
+	Mine   bool
+	Limit  int // default 100, max 500
+	Offset int
 }
 
 // GateView is a gate with display-ready joins.
@@ -199,7 +202,30 @@ func (t *txc) createGate(actor domain.Actor, companyID domain.ID, in RequestGate
 		return domain.Gate{}, err
 	}
 	t.publish(companyTopic(companyID), "gate.updated", g)
+	if err := t.notifyGate(actor, companyID, g); err != nil {
+		return domain.Gate{}, err
+	}
 	return g, nil
+}
+
+// notifyGate avisa os membros que decidem gates (toast e push, conforme a preferência de cada um).
+func (t *txc) notifyGate(actor domain.Actor, companyID domain.ID, g domain.Gate) error {
+	c, err := t.q.GetCompanyByID(t.ctx, companyID)
+	if err != nil {
+		return mapErr(err, "company")
+	}
+	n := Notice{Title: "Gate para decidir: " + clipRunes(g.Title, 80), URL: "/c/" + c.Slug + "/gates/" + g.ID.String()}
+	if g.TaskID != nil {
+		if task, err := t.q.GetTaskByID(t.ctx, store.GetTaskByIDParams{CompanyID: companyID, ID: *g.TaskID}); err == nil {
+			n.TaskKey = domain.TaskKey(c.TaskPrefix, task.Number)
+			n.Body = n.TaskKey + " — " + task.Title
+		}
+	}
+	var except *domain.ID
+	if actor.Type == domain.ActorHuman {
+		except = actor.ID
+	}
+	return t.notifyMembers(companyID, domain.NotifyGate, except, n)
 }
 
 // parkForGate holds the work behind a persona-requested gate: task to blocked/in_review and,
@@ -609,6 +635,13 @@ func (s *Service) ListGates(ctx context.Context, companyID domain.ID, f GateFilt
 		}
 		p.Kinds = append(p.Kinds, string(k))
 	}
+	if f.Mine {
+		uid, ok := callerUser(ctx)
+		if !ok {
+			return []GateView{}, nil
+		}
+		p.MineUser = &uid
+	}
 	rows, err := s.read().ListGateViews(ctx, p)
 	if err != nil {
 		return nil, fmt.Errorf("list gates: %w", err)
@@ -651,6 +684,13 @@ type Inbox struct {
 	AchievedGoals []GoalView
 	// HeldTasks são as raízes de pausa (ADR-0040): informativo, o humano que pausou decide quando retomar; fora de Count.
 	HeldTasks []HeldTask
+	// Mentions são as menções à pessoa em comentários (ADR-0042): contam em Count. Vazio sem usuário autenticado.
+	Mentions []InboxMention
+	// State é o lido/arquivado da pessoa por item (ausente = não lido e não arquivado). Personal diz se há pessoa.
+	State    map[InboxRef]domain.InboxItemState
+	Personal bool
+	// Unread e ArchivedCount são totais da pessoa (só itens que pedem ação), qualquer que seja a visão pedida.
+	Unread, ArchivedCount int
 }
 
 // InboxReview is an automatic review in progress on a task.
@@ -664,7 +704,7 @@ type InboxReview struct {
 
 // Count is the number of items waiting.
 func (i Inbox) Count() int {
-	return len(i.Gates) + len(i.BlockedTasks) + len(i.FailedRuns) + len(i.ErrorPersonas) + len(i.Alerts) + len(i.GuardedSubscriptions)
+	return len(i.Gates) + len(i.BlockedTasks) + len(i.FailedRuns) + len(i.ErrorPersonas) + len(i.Alerts) + len(i.GuardedSubscriptions) + len(i.Mentions)
 }
 
 const (
@@ -673,8 +713,8 @@ const (
 	inboxGoalWindow = 7 * 24 * time.Hour
 )
 
-// Inbox assembles the Caixa de entrada.
-func (s *Service) Inbox(ctx context.Context, companyID domain.ID) (Inbox, error) {
+// buildInbox assembles the Caixa de entrada da empresa (os itens, sem o estado da pessoa: ver caixa.go).
+func (s *Service) buildInbox(ctx context.Context, companyID domain.ID) (Inbox, error) {
 	if err := s.require(ctx, companyID, domain.MemberViewer); err != nil {
 		return Inbox{}, err
 	}

@@ -360,6 +360,14 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("POST /c/{company}/caixa/tasks/{task}/acordar", post(co(s.handleInboxWake)))
 	mux.HandleFunc("POST /c/{company}/caixa/tasks/{task}/retomar", post(co(s.handleInboxResume)))
 	mux.HandleFunc("POST /c/{company}/caixa/personas/{persona}/reativar", post(co(s.handleInboxReactivate)))
+	mux.HandleFunc("POST /c/{company}/caixa/estado", post(co(s.handleInboxState)))
+	mux.HandleFunc("GET /c/{company}/caixa/selo", co(s.handleInboxBadge))
+	mux.HandleFunc("GET /c/{company}/caixa/eventos", co(s.handleInboxEvents))
+	mux.HandleFunc("GET /c/{company}/configuracoes/notificacoes", co(s.handleNotifySettings))
+	mux.HandleFunc("POST /c/{company}/configuracoes/notificacoes", post(co(s.handleNotifySave)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/notificacoes/teste", post(co(s.handleNotifyTest)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/notificacoes/aparelhos", post(co(s.handlePushSubscribe)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/notificacoes/aparelhos/remover", post(co(s.handlePushRemove)))
 	mux.HandleFunc("GET /c/{company}/decisoes", co(s.handleDecisions))
 	mux.HandleFunc("GET /c/{company}/gates", co(s.handleGates))
 	mux.HandleFunc("GET /c/{company}/gates/{gate}", co(s.handleGate))
@@ -615,10 +623,18 @@ func (s *server) shell(r *http.Request, co domain.Company, active, title string,
 		Version: s.version,
 		Owner:   ownerName,
 		Role:    views.RoleFrom(r.Context()),
+		// com pessoa autenticada a Caixa tem selo e toasts ao vivo (ADR-0042)
+		Personal: personal(r.Context()),
 	}
 }
 
 func trimForm(r *http.Request, key string) string { return strings.TrimSpace(r.PostFormValue(key)) }
+
+// personal diz se a requisição vem de uma pessoa autenticada (sessão ou API key), e não do modo trusted.
+func personal(ctx context.Context) bool {
+	_, ok := auth.IdentityFrom(ctx)
+	return ok
+}
 
 // actorFrom is the human actor of the request: the signed-in user in authenticated
 // mode, the anonymous local human in trusted mode.

@@ -27,6 +27,7 @@ type DecideGateReq struct {
 // GateQuery são os filtros de ListGates.
 type GateQuery struct {
 	Status, Kind, Task, Persona string
+	Mine                        bool // só os gates da audiência da pessoa autenticada (ADR-0042)
 	Limit, Offset               int
 }
 
@@ -36,6 +37,9 @@ func (g GateQuery) values() url.Values {
 		if v != "" {
 			q.Set(k, v)
 		}
+	}
+	if g.Mine {
+		q.Set("mine", "true")
 	}
 	if g.Limit > 0 {
 		q.Set("limit", strconv.Itoa(g.Limit))

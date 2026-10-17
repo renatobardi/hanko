@@ -181,6 +181,7 @@ type Task struct {
 	Blocked           bool      `json:"blocked" doc:"Derivado: tem ao menos uma dependência aberta. Nenhuma execução abre enquanto durar."`
 	ChildrenTotal     int       `json:"children_total"`
 	ChildrenOpen      int       `json:"children_open"`
+	Participation     []string  `json:"participation,omitempty" doc:"Só com mine=true: por que a task é da pessoa (created, assigned, mentioned, commented, gate)."`
 	Hold              *TaskHold `json:"hold,omitempty" doc:"Pausa efetiva: a da própria task ou herdada do ancestral mais próximo. Nenhuma execução abre enquanto durar."`
 }
 
@@ -536,7 +537,7 @@ func taskOut(t service.TaskView) Task {
 		WorkspaceID: idPtr(t.WorkspaceID), GoalID: idPtr(t.GoalID), ParentID: idPtr(t.ParentID), Model: t.Model, ActiveRunID: idPtr(t.ActiveRunID),
 		CreatedBy: actorRef(t.CreatedBy), CreatedAt: t.CreatedAt, UpdatedAt: t.UpdatedAt, ClosedAt: t.ClosedAt,
 		OpenDependencies: t.OpenDependencies, DependenciesTotal: t.DependenciesTotal, Blocked: t.Blocked,
-		ChildrenTotal: t.ChildrenTotal, ChildrenOpen: t.ChildrenOpen, Hold: holdOut(t.Hold)}
+		ChildrenTotal: t.ChildrenTotal, ChildrenOpen: t.ChildrenOpen, Hold: holdOut(t.Hold), Participation: t.Participation}
 }
 
 func holdOut(h *domain.TaskHold) *TaskHold {

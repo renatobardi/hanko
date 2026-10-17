@@ -232,7 +232,7 @@ templ CommentForm(vm TaskVM, base string) {
 		>
 			<textarea name="body" required placeholder={ i18n.T(ctx, "Escreva um comentário (markdown). Fica na fila se a persona estiver ocupada.") } aria-label={ i18n.T(ctx, "Comentário") }>{ vm.Draft }</textarea>
 			<div class="row">
-				<span class="hint">{ i18n.T(ctx, "Markdown · HTML é escapado") }</span>
+				<span class="hint">{ i18n.T(ctx, "Markdown · HTML é escapado") } · { i18n.T(ctx, "@ cita uma persona (@slug) ou uma pessoa (@parte-do-e-mail) e avisa") }</span>
 				<button type="submit" class="btn primary sm">
 					@Icon("send")
 					{ i18n.T(ctx, "Comentar") }

@@ -407,7 +407,7 @@ func (q *Queries) ImportPersona(ctx context.Context, arg ImportPersonaParams) (P
 const importProject = `-- name: ImportProject :one
 INSERT INTO projects (id, company_id, slug, name, description, workspace_id, status, budget_monthly_cents, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-RETURNING id, company_id, slug, name, description, workspace_id, created_at, updated_at, status, budget_monthly_cents
+RETURNING id, company_id, slug, name, description, workspace_id, created_at, updated_at, status, budget_monthly_cents, search_tsv
 `
 
 type ImportProjectParams struct {
@@ -448,6 +448,7 @@ func (q *Queries) ImportProject(ctx context.Context, arg ImportProjectParams) (P
 		&i.UpdatedAt,
 		&i.Status,
 		&i.BudgetMonthlyCents,
+		&i.SearchTsv,
 	)
 	return i, err
 }

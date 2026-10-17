@@ -65,7 +65,7 @@ INSERT INTO artifacts (id, company_id, task_id, run_id, project_id, persona_id, 
                        size_bytes, sha256, version, created_at, storage)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
         $11, $12, $13, $14, $15)
-RETURNING id, company_id, task_id, run_id, project_id, persona_id, author_type, author_id, name, mime, size_bytes, sha256, version, created_at, storage
+RETURNING id, company_id, task_id, run_id, project_id, persona_id, author_type, author_id, name, mime, size_bytes, sha256, version, created_at, storage, search_tsv
 `
 
 type CreateArtifactParams struct {
@@ -121,6 +121,7 @@ func (q *Queries) CreateArtifact(ctx context.Context, arg CreateArtifactParams) 
 		&i.Version,
 		&i.CreatedAt,
 		&i.Storage,
+		&i.SearchTsv,
 	)
 	return i, err
 }
@@ -198,7 +199,7 @@ func (q *Queries) DeleteArtifactChain(ctx context.Context, arg DeleteArtifactCha
 }
 
 const exportArtifacts = `-- name: ExportArtifacts :many
-SELECT a.id, a.company_id, a.task_id, a.run_id, a.project_id, a.persona_id, a.author_type, a.author_id, a.name, a.mime, a.size_bytes, a.sha256, a.version, a.created_at, a.storage, COALESCE(t.number, 0)::bigint AS task_number,
+SELECT a.id, a.company_id, a.task_id, a.run_id, a.project_id, a.persona_id, a.author_type, a.author_id, a.name, a.mime, a.size_bytes, a.sha256, a.version, a.created_at, a.storage, a.search_tsv, COALESCE(t.number, 0)::bigint AS task_number,
        COALESCE(pr.slug, '')::text AS project_slug, COALESCE(pe.slug, '')::text AS persona_slug
 FROM artifacts a
 LEFT JOIN tasks t ON t.id = a.task_id
@@ -224,6 +225,7 @@ type ExportArtifactsRow struct {
 	Version     int32
 	CreatedAt   time.Time
 	Storage     string
+	SearchTsv   interface{}
 	TaskNumber  int64
 	ProjectSlug string
 	PersonaSlug string
@@ -255,6 +257,7 @@ func (q *Queries) ExportArtifacts(ctx context.Context, companyID uuid.UUID) ([]E
 			&i.Version,
 			&i.CreatedAt,
 			&i.Storage,
+			&i.SearchTsv,
 			&i.TaskNumber,
 			&i.ProjectSlug,
 			&i.PersonaSlug,
@@ -270,7 +273,7 @@ func (q *Queries) ExportArtifacts(ctx context.Context, companyID uuid.UUID) ([]E
 }
 
 const getArtifactByID = `-- name: GetArtifactByID :one
-SELECT id, company_id, task_id, run_id, project_id, persona_id, author_type, author_id, name, mime, size_bytes, sha256, version, created_at, storage FROM artifacts WHERE company_id = $1 AND id = $2
+SELECT id, company_id, task_id, run_id, project_id, persona_id, author_type, author_id, name, mime, size_bytes, sha256, version, created_at, storage, search_tsv FROM artifacts WHERE company_id = $1 AND id = $2
 `
 
 type GetArtifactByIDParams struct {
@@ -297,6 +300,7 @@ func (q *Queries) GetArtifactByID(ctx context.Context, arg GetArtifactByIDParams
 		&i.Version,
 		&i.CreatedAt,
 		&i.Storage,
+		&i.SearchTsv,
 	)
 	return i, err
 }
@@ -318,7 +322,7 @@ func (q *Queries) GetArtifactContent(ctx context.Context, arg GetArtifactContent
 }
 
 const getArtifactView = `-- name: GetArtifactView :one
-SELECT a.id, a.company_id, a.task_id, a.run_id, a.project_id, a.persona_id, a.author_type, a.author_id, a.name, a.mime, a.size_bytes, a.sha256, a.version, a.created_at, a.storage, c.task_prefix,
+SELECT a.id, a.company_id, a.task_id, a.run_id, a.project_id, a.persona_id, a.author_type, a.author_id, a.name, a.mime, a.size_bytes, a.sha256, a.version, a.created_at, a.storage, a.search_tsv, c.task_prefix,
        COALESCE(t.number, 0)::bigint AS task_number, COALESCE(t.title, '')::text AS task_title,
        COALESCE(pr.slug, '')::text AS project_slug, COALESCE(pr.name, '')::text AS project_name,
        COALESCE(pe.slug, '')::text AS persona_slug, COALESCE(pe.name, '')::text AS persona_name,
@@ -372,6 +376,7 @@ func (q *Queries) GetArtifactView(ctx context.Context, arg GetArtifactViewParams
 		&i.Artifact.Version,
 		&i.Artifact.CreatedAt,
 		&i.Artifact.Storage,
+		&i.Artifact.SearchTsv,
 		&i.TaskPrefix,
 		&i.TaskNumber,
 		&i.TaskTitle,
@@ -386,7 +391,7 @@ func (q *Queries) GetArtifactView(ctx context.Context, arg GetArtifactViewParams
 }
 
 const latestArtifactInChain = `-- name: LatestArtifactInChain :one
-SELECT id, company_id, task_id, run_id, project_id, persona_id, author_type, author_id, name, mime, size_bytes, sha256, version, created_at, storage FROM artifacts
+SELECT id, company_id, task_id, run_id, project_id, persona_id, author_type, author_id, name, mime, size_bytes, sha256, version, created_at, storage, search_tsv FROM artifacts
 WHERE company_id = $1
   AND COALESCE(task_id, '00000000-0000-0000-0000-000000000000'::uuid) = COALESCE($2::uuid, '00000000-0000-0000-0000-000000000000'::uuid)
   AND name = $3
@@ -419,12 +424,13 @@ func (q *Queries) LatestArtifactInChain(ctx context.Context, arg LatestArtifactI
 		&i.Version,
 		&i.CreatedAt,
 		&i.Storage,
+		&i.SearchTsv,
 	)
 	return i, err
 }
 
 const listArtifactChain = `-- name: ListArtifactChain :many
-SELECT id, company_id, task_id, run_id, project_id, persona_id, author_type, author_id, name, mime, size_bytes, sha256, version, created_at, storage FROM artifacts
+SELECT id, company_id, task_id, run_id, project_id, persona_id, author_type, author_id, name, mime, size_bytes, sha256, version, created_at, storage, search_tsv FROM artifacts
 WHERE company_id = $1
   AND COALESCE(task_id, '00000000-0000-0000-0000-000000000000'::uuid) = COALESCE($2::uuid, '00000000-0000-0000-0000-000000000000'::uuid)
   AND name = $3
@@ -463,6 +469,7 @@ func (q *Queries) ListArtifactChain(ctx context.Context, arg ListArtifactChainPa
 			&i.Version,
 			&i.CreatedAt,
 			&i.Storage,
+			&i.SearchTsv,
 		); err != nil {
 			return nil, err
 		}
@@ -475,7 +482,7 @@ func (q *Queries) ListArtifactChain(ctx context.Context, arg ListArtifactChainPa
 }
 
 const listArtifactViews = `-- name: ListArtifactViews :many
-SELECT a.id, a.company_id, a.task_id, a.run_id, a.project_id, a.persona_id, a.author_type, a.author_id, a.name, a.mime, a.size_bytes, a.sha256, a.version, a.created_at, a.storage, c.task_prefix,
+SELECT a.id, a.company_id, a.task_id, a.run_id, a.project_id, a.persona_id, a.author_type, a.author_id, a.name, a.mime, a.size_bytes, a.sha256, a.version, a.created_at, a.storage, a.search_tsv, c.task_prefix,
        COALESCE(t.number, 0)::bigint AS task_number, COALESCE(t.title, '')::text AS task_title,
        COALESCE(pr.slug, '')::text AS project_slug, COALESCE(pr.name, '')::text AS project_name,
        COALESCE(pe.slug, '')::text AS persona_slug, COALESCE(pe.name, '')::text AS persona_name,
@@ -572,6 +579,7 @@ func (q *Queries) ListArtifactViews(ctx context.Context, arg ListArtifactViewsPa
 			&i.Artifact.Version,
 			&i.Artifact.CreatedAt,
 			&i.Artifact.Storage,
+			&i.Artifact.SearchTsv,
 			&i.TaskPrefix,
 			&i.TaskNumber,
 			&i.TaskTitle,
