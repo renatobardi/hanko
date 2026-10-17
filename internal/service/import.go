@@ -25,12 +25,23 @@ type ImportOptions struct {
 	// Active liga o que o arquivo traz ligado. O padrão (false) é seguro: personas entram pausadas e fluxos
 	// desligados, e nada trabalha até alguém liberar.
 	Active bool
+	// DryRun valida e devolve a prévia (contagens, itens, avisos) sem gravar nada (ADR-0057).
+	DryRun bool
+	// Into importa só a configuração numa empresa EXISTENTE (merge); nil cria uma empresa nova. OnConflict é a ação
+	// padrão para o que já existe (padrão skip) e Resolve as exceções por item ("tipo/chave" → ação).
+	Into       *domain.ID
+	OnConflict domain.ConflictAction
+	Resolve    map[string]domain.ConflictAction
 }
 
-// ImportResult resume o que foi criado.
+// ImportResult resume o que foi criado (ou, em DryRun, o que seria).
 type ImportResult struct {
-	Company domain.Company
-	Counts  map[string]int
+	Company  domain.Company
+	Counts   map[string]int
+	Items    []ImportItem
+	Warnings []ImportWarning
+	DryRun   bool
+	Merged   bool // destino era uma empresa existente
 }
 
 func iv(path string, i int, field string) string { return fmt.Sprintf("%s[%d].%s", path, i, field) }
@@ -41,6 +52,11 @@ func iv(path string, i int, field string) string { return fmt.Sprintf("%s[%d].%s
 // Só humanos: no modo authenticated, só quem tem users.role owner ou admin (como criar empresa); ele
 // vira owner da empresa nova.
 func (s *Service) ImportCompany(ctx context.Context, actor domain.Actor, doc export.Document, opts ImportOptions) (ImportResult, error) {
+	if opts.Into != nil {
+		return s.importMerge(ctx, actor, doc, opts)
+	}
+	ctx, span := lifecycleSpan(ctx, "company.import")
+	defer span.End()
 	var creator *domain.User
 	if id, ok := auth.IdentityFrom(ctx); ok {
 		if id.User.Role == domain.RoleMember {
@@ -51,6 +67,16 @@ func (s *Service) ImportCompany(ctx context.Context, actor domain.Actor, doc exp
 	p, err := s.planImport(ctx, doc, opts)
 	if err != nil {
 		return ImportResult{}, err
+	}
+	warnings := importWarnings(doc, p, opts.Active, false)
+	if opts.DryRun { // a prévia responde o mesmo que o import real, inclusive o conflito de slug
+		if _, err := s.read().GetCompanyBySlug(ctx, p.slug); err == nil {
+			return ImportResult{}, fmt.Errorf("slug %q já está em uso (use outro com --slug): %w", p.slug, domain.ErrConflict)
+		} else if !isNoRows(err) {
+			return ImportResult{}, fmt.Errorf("check slug: %w", err)
+		}
+		return ImportResult{Company: domain.Company{Slug: p.slug, Name: p.name, TaskPrefix: p.prefix, Timezone: p.tz},
+			Counts: p.counts(doc), Items: createPlan(doc), Warnings: warnings, DryRun: true}, nil
 	}
 	var res ImportResult
 	err = s.withTx(ctx, func(t *txc) error {
@@ -81,7 +107,7 @@ func (s *Service) ImportCompany(ctx context.Context, actor domain.Actor, doc exp
 		if err := t.runImport(cid, doc, p, opts); err != nil {
 			return err
 		}
-		res = ImportResult{Company: companyFromRow(row), Counts: p.counts(doc)}
+		res = ImportResult{Company: companyFromRow(row), Counts: p.counts(doc), Items: createPlan(doc), Warnings: warnings}
 		return t.activity(actor, cid, "company.imported", "company", cid, map[string]any{
 			"slug": p.slug, "source_slug": doc.Company.Slug, "format": export.Format, "paused": !opts.Active, "counts": res.Counts}, "")
 	})
