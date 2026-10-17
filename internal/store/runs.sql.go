@@ -850,6 +850,10 @@ WHERE t.status IN ('todo', 'in_progress')
   AND (p.budget_refused_at IS NULL OR p.budget_refused_at <= $1::timestamptz)
   AND NOT EXISTS (SELECT 1 FROM runs a WHERE a.task_id = t.id AND a.status IN ('queued', 'running'))
   AND NOT EXISTS (SELECT 1 FROM gates g WHERE g.task_id = t.id AND g.status = 'pending')
+  -- coordenação (ADR-0040): task bloqueada por dependência aberta ou pausada (própria ou herdada) não é candidata
+  AND NOT EXISTS (SELECT 1 FROM task_dependencies td JOIN tasks dt ON dt.id = td.depends_on_id
+                  WHERE td.task_id = t.id AND dt.status NOT IN ('done', 'cancelled'))
+  AND NOT task_effectively_held(t.id)
   AND (
     (p.heartbeat_interval_sec > 0
      AND COALESCE((SELECT max(COALESCE(r.finished_at, r.created_at)) FROM runs r WHERE r.task_id = t.id), 'epoch'::timestamptz)
