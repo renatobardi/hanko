@@ -477,7 +477,7 @@ publishes, admin deletes (the whole chain, with no trash).
 
 | Variable | Default | Effect |
 |---|---|---|
-| `HANKO_ARTIFACT_MAX_BYTES` | 5 MiB (1 to 16 MiB) | Maximum size of one file. |
+| `HANKO_ARTIFACT_MAX_BYTES` | 5 MiB (1 to 16 MiB; 64 MiB with S3) | Maximum size of one file. |
 | `HANKO_ARTIFACT_QUOTA_BYTES` | 512 MiB | Company quota, summing every version. |
 
 - **Publishing:** the UI upload, `hanko artifact put <file|-> [--task HNK-1]` (also `list`, `get <id> [-o file] [--info]`,
@@ -505,6 +505,91 @@ and link tasks; admin creates, edits, abandons and reopens.
 | Export with `--with-artifacts` refused | content above 20 MiB | export without the option |
 | HTML or PDF downloads instead of opening | by design: only text, Markdown and raster images open | open the downloaded file |
 | An achieved goal rejects progress | status `achieved` | reopen it (admin) by switching to active; refused while the current value already reaches the target |
+
+## Secrets, instance settings and artifact storage (ADR-0032, ADR-0033)
+
+### Company secrets
+
+**Settings › Secrets** screen, `hanko secret …` CLI, `/companies/{c}/secrets` API. A secret is an encrypted value (AES-256-GCM with
+`HANKO_SECRET_KEY`, the same key as integrations) that you reference as `${secret:NAME}`:
+
+- in **header and variable values** of an MCP integration (`Authorization: Bearer ${secret:docs-token}`);
+- in the **persona `adapter_config`** (`env` and arguments): `{"env":{"ANTHROPIC_AUTH_TOKEN":"${secret:gateway}"}}`;
+- in the **model provider** (the persona `env` that points the harness at a gateway) and, once it exists, the repository credential.
+
+The database stores only the reference; the value is read **when the run is dispatched**, goes to the agent process and joins the log
+redaction list. Rotating (`hanko secret rotate NAME --value-stdin`) takes effect on the next run, without editing the persona or the integration.
+
+| Command | What it does |
+|---|---|
+| `hanko secret create NAME --value-stdin` | Creates (value from stdin, outside the shell history). Also `--generate` (the server generates it and shows it once) and `--vault-ref path#field`. |
+| `hanko secret ls` / `show NAME` | Metadata: provider, version, whether it was revealed, last use and **who uses it**. Never the value. |
+| `hanko secret reveal NAME` | Shows the value **once per version** (admin; audited). The second call is 409 until you rotate. |
+| `hanko secret rotate NAME` | Replaces the value; the version goes up and the "revealed" mark is cleared. |
+| `hanko secret rm NAME [--force]` | Deletes; refused while a persona or integration uses it, unless `--force`. |
+| `hanko secret --user …` | The same commands on **your** personal secrets (`${secret:user/NAME}`): only you list, reveal and use them; not even the installation owner sees them. Requires a login (does not exist in trusted mode). Today they serve actions you perform yourself; use by persona runs does not exist yet. |
+| `hanko secret rekey` | After rotating `HANKO_SECRET_KEY` (see the integrations section): rewrites integrations **and** secrets. |
+| `hanko secret migrate-env` | Moves the plaintext `env` of existing personas into `persona.<slug>.<VARIABLE>` secrets (installation owner; idempotent). |
+
+**The old persona env.** Before M7 the `adapter_config` `env` sat in plaintext in the database. With `HANKO_SECRET_KEY` set, boot migrates
+everything by itself (log `segredos: env das personas movido…`) and new personas are born with references. Without the key nothing changes
+(plaintext keeps working) and boot warns how many personas are still that way. To check:
+`SELECT slug, adapter_config FROM personas;` should show only `${secret:…}` in `env` values.
+
+**External vault (optional).** Set `HANKO_VAULT_ADDR` and `HANKO_VAULT_TOKEN` (and, if needed, `HANKO_VAULT_MOUNT`, default `secret`, and
+`HANKO_VAULT_NAMESPACE`). The provider speaks the **KV v2** API (Vault; OpenBao serves the same one). Create the secret with
+`--vault-ref apps/hanko#token`: Hanko stores only the reference and queries the vault **on every dispatch** (no cache; rotating in the
+vault takes effect immediately). Vault down: the persona run fails early naming the secret; an MCP integration is skipped with a warning.
+Hanko's token only needs read access to the paths in use.
+
+**Guarantees and limits.** The value never enters activity, outbound webhooks, exports, briefings, the server log, run events, the
+summary/comments or OTel spans (non-leak tests cover each point). The export carries only `${secret:…}`; on import the result reports
+`secret_refs_to_create` (the secrets must be recreated in the new company). A company admin who defines a persona's configuration can,
+by definition, make the agent use the secret: "reveal once" is an audit trail, not a barrier.
+
+### Instance settings
+
+**Settings › Instance** screen, `hanko settings list|get|set|unset|audit` CLI, `/instance/settings` API (installation owner).
+**Non-sensitive** toggles only: `acp.allow`, `acp.commands`, `integrations.allow_stdio`, `integrations.allow_private`,
+`artifacts.max_bytes`, `artifacts.quota_bytes`, `run.reserve_usd`, `alerts.silent_factor`, `alerts.run_stuck_after`.
+Precedence: **environment variable > database > yaml/default**. With the variable set (non-empty) the key shows as locked
+("locked by HANKO_X") and the API returns 409; to change it, change the environment. Changes in the database apply without a restart and
+are recorded in `instance_setting_audit` (before, after, author). Secrets and keys are never settings: environment only.
+
+### Artifact storage (BlobStore)
+
+Default: Postgres (`artifact_blobs`), as before. For S3-compatible storage (S3, MinIO, R2):
+
+| Variable | Effect |
+|---|---|
+| `HANKO_BLOB_DRIVER` | `postgres` (default) or `s3`: where **new** writes go. |
+| `HANKO_S3_ENDPOINT` · `HANKO_S3_BUCKET` | Address (`https://…`; `http` only on loopback) and bucket. |
+| `HANKO_S3_ACCESS_KEY` · `HANKO_S3_SECRET_KEY` | Credentials (**environment only**). |
+| `HANKO_S3_REGION` (`us-east-1`) · `HANKO_S3_PREFIX` · `HANKO_S3_PATH_STYLE` (`true`) | Signing region, key prefix and path-style addressing (`false` = virtual host). |
+
+With `s3` active the per-file limit goes up: `HANKO_ARTIFACT_MAX_BYTES` accepts up to 64 MiB. Each artifact records which driver holds it, so
+the two coexist. **Moving what already exists:**
+
+```
+hanko blobs migrate --from postgres --to s3 --dry-run     # only counts
+hanko blobs migrate --from postgres --to s3                # copies, verifies (sha256 + size at the destination), switches the record and deletes the source
+hanko blobs migrate --from s3 --to postgres --keep-source  # back again, keeping the content in the bucket
+hanko blobs status                                         # active driver and what each one holds
+```
+
+The command uses the server's database and environment (run it on the Hanko host with the same variables). It is resumable and idempotent;
+a failure on one artifact is counted and the migration goes on, and the exit code is 1 if anything failed. `--company acme` limits it to one
+company. With S3, `pg_dump` no longer covers the files: back up the bucket. Orphan objects (process killed between upload and transaction,
+or a deleted company) take space without showing in the quota; the key is `<prefix>/<company>/<artifact>`, so it can be checked against the database.
+
+| Symptom | Cause | Action |
+|---|---|---|
+| Boot refused: `HANKO_BLOB_DRIVER=s3 exige…` | endpoint, bucket or keys missing | set `HANKO_S3_*` |
+| Upload fails: `s3: … SignatureDoesNotMatch` | wrong keys/region or server clock off | check `HANKO_S3_REGION` and the time (NTP) |
+| `s3: endpoint inacessível` | network/DNS/TLS | `curl` the endpoint from the Hanko host |
+| Creating a secret is refused: `HANKO_SECRET_KEY não está configurada` | no encryption key | set `HANKO_SECRET_KEY` (`openssl rand -hex 32`) |
+| Run fails: `segredo não resolvido: ${secret:X}` | the secret was deleted or the vault is down | recreate the secret / check the vault and token |
+| Settings: 409 "definida por HANKO_X" | the environment variable locks the key | change the server environment |
 
 ## Search (ADR-0024)
 

@@ -743,11 +743,14 @@ func (s *Service) MigratePersonaEnv(ctx context.Context) (int, error) {
 	if !s.secretBox().Enabled() {
 		return 0, domain.Invalid("secrets", "HANKO_SECRET_KEY não está configurada")
 	}
+	ctx, span := otel.Tracer("hanko/secrets").Start(ctx, "hanko.secrets.migrate_persona_env")
+	defer span.End()
 	rows, err := s.read().ListPersonasWithEnv(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("list personas with env: %w", err)
 	}
 	n := 0
+	defer func() { span.SetAttributes(attribute.Int("hanko.personas_migrated", n)) }()
 	for _, r := range rows {
 		moved := 0
 		err := s.withTx(ctx, func(t *txc) error {

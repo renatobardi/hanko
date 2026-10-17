@@ -17,6 +17,7 @@ import (
 
 	"github.com/renatobardi/hanko/internal/client"
 	"github.com/renatobardi/hanko/internal/i18n"
+	"github.com/renatobardi/hanko/internal/storage"
 )
 
 // Runtime injeta o que depende de infraestrutura (banco, config). O main de produção
@@ -28,6 +29,8 @@ type Runtime struct {
 	OpenAPI func() ([]byte, error)
 	// Auth abre o acesso direto ao banco para `hanko auth …` (usuários e API keys).
 	Auth func(ctx context.Context) (AuthAdmin, error)
+	// BlobsMigrate move o conteúdo dos artefatos entre drivers (`hanko blobs migrate`): usa o banco e o env do processo.
+	BlobsMigrate func(ctx context.Context, a BlobsMigrateArgs) (storage.MigrateReport, error)
 }
 
 // Exit codes.
@@ -140,7 +143,7 @@ func (e *env) root() *cobra.Command {
 	root.AddCommand(e.serveCmd(), e.migrateCmd(), e.versionCmd(), e.openapiCmd(),
 		e.companyCmd(), e.workspaceCmd(), e.projectCmd(), e.personaCmd(), e.taskCmd(), e.runCmd(), e.gateCmd(), e.chatCmd(), e.orgCmd(),
 		e.costCmd(), e.budgetCmd(), e.subscriptionCmd(), e.flowCmd(), e.memoryCmd(), e.memberCmd(), e.authCmd(), e.exportCmd(), e.importCmd(), e.searchCmd(), e.skillCmd(), e.integrationCmd(),
-		e.artifactCmd(), e.goalCmd())
+		e.artifactCmd(), e.goalCmd(), e.secretCmd(), e.settingsCmd(), e.blobsCmd())
 	e.localizeHelp(root)
 	return root
 }

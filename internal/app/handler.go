@@ -134,5 +134,5 @@ func platformInfo(cfg config.Config) ui.PlatformInfo {
 		ClaudeBin: cfg.ClaudeBin, CodexBin: cfg.CodexBin, ACPAllow: cfg.ACP.Allow, ACPCommands: cfg.ACP.Commands,
 		MemoryProvider: cfg.Memory.Provider, MemoryURL: cfg.Memory.URL, OTelEndpoint: os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"),
 		IntegrationsAllowStdio: cfg.Integrations.AllowStdio, IntegrationsAllowPrivate: cfg.Integrations.AllowPrivateDestinations,
-		SecretKeySet: cfg.SecretKey != "", Workers: cfg.Workers, RunTimeout: cfg.RunTimeout, HeartbeatInterval: cfg.HeartbeatInterval}
+		SecretKeySet: cfg.SecretKey != "", VaultConfigured: cfg.Vault.Addr != "", Workers: cfg.Workers, RunTimeout: cfg.RunTimeout, HeartbeatInterval: cfg.HeartbeatInterval}
 }

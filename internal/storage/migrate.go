@@ -60,6 +60,7 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool, reg *Registry, o MigrateOp
 	if o.Batch <= 0 {
 		o.Batch = 100
 	}
+	o.Batch = min(o.Batch, 1000)
 	log := o.Log
 	if log == nil {
 		log = slog.New(slog.DiscardHandler)
@@ -75,7 +76,7 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool, reg *Registry, o MigrateOp
 	}
 	for {
 		rows, err := q.ListArtifactsForBlobMigration(ctx, store.ListArtifactsForBlobMigrationParams{
-			Storage: o.From, CompanyID: o.CompanyID, AfterID: after, Lim: int32(o.Batch)})
+			Storage: o.From, CompanyID: o.CompanyID, AfterID: after, Lim: int32(o.Batch)}) //nolint:gosec // limitado a 1000 logo acima
 		if err != nil {
 			return rep, fmt.Errorf("storage: listar artefatos: %w", err)
 		}

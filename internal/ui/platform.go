@@ -13,6 +13,7 @@ import (
 
 	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/i18n"
+	"github.com/renatobardi/hanko/internal/service"
 	"github.com/renatobardi/hanko/internal/ui/views"
 )
 
@@ -30,6 +31,7 @@ type PlatformInfo struct {
 	IntegrationsAllowStdio   bool
 	IntegrationsAllowPrivate bool
 	SecretKeySet             bool
+	VaultConfigured          bool
 	Workers                  int
 	RunTimeout               time.Duration
 	HeartbeatInterval        time.Duration
@@ -44,6 +46,8 @@ func settingsSections(ctx context.Context, base, cur string) []views.TabLink {
 		{"ambientes", i18n.T(ctx, "Ambientes"), "/configuracoes/ambientes"},
 		{"adapters", i18n.T(ctx, "Adapters"), "/configuracoes/adapters"},
 		{"plugins", i18n.T(ctx, "Plugins"), "/configuracoes/plugins"},
+		{"segredos", i18n.T(ctx, "Segredos"), "/configuracoes/segredos"},
+		{"instancia", i18n.T(ctx, "Instância"), "/configuracoes/instancia"},
 		{"dados", i18n.T(ctx, "Exportar e importar"), "/configuracoes/dados"},
 	}
 	out := make([]views.TabLink, 0, len(secs))
@@ -96,7 +100,7 @@ func rootWritable(ctx context.Context, root string) views.EnvCheck {
 
 func (s *server) handleEnvironments(w http.ResponseWriter, r *http.Request, co domain.Company) {
 	ctx := r.Context()
-	p := s.platform
+	p := s.platformNow()
 	root := s.workspacesRoot(co)
 	checks := []views.EnvCheck{
 		rootWritable(ctx, root),
@@ -135,7 +139,7 @@ func (s *server) handleEnvironments(w http.ResponseWriter, r *http.Request, co d
 
 func (s *server) handleAdapters(w http.ResponseWriter, r *http.Request, co domain.Company) {
 	ctx := r.Context()
-	p := s.platform
+	p := s.platformNow()
 	personas, err := s.be.ListPersonas(ctx, co.ID)
 	if err != nil {
 		s.fail(w, r, &co, err)
@@ -182,7 +186,7 @@ func (s *server) handleAdapters(w http.ResponseWriter, r *http.Request, co domai
 
 func (s *server) handlePlugins(w http.ResponseWriter, r *http.Request, co domain.Company) {
 	ctx := r.Context()
-	p := s.platform
+	p := s.platformNow()
 	base := "/c/" + co.Slug
 	agent := p.AgentURL
 	if agent == "" {
@@ -252,4 +256,19 @@ func (s *server) handleData(w http.ResponseWriter, r *http.Request, co domain.Co
 		ExportHref: api + "/export", ImportAction: "/api/v1/companies/import",
 		FileName: "hanko-" + co.Slug + "-" + s.now().In(loadLoc(co.Timezone)).Format("20060102") + ".json"}
 	s.render(w, r, http.StatusOK, views.DataPage(s.settingsShell(r, co, i18n.T(ctx, "Exportar e importar")), vm))
+}
+
+// platformToggles é o que o service sabe dos interruptores efetivos (env > banco > padrão, ADR-0032).
+type platformToggles interface {
+	PlatformToggles() service.PlatformToggles
+}
+
+// platformNow é PlatformInfo com os interruptores efetivos: o que o dono muda em Configurações › Instância vale sem reiniciar.
+func (s *server) platformNow() PlatformInfo {
+	p := s.platform
+	if t, ok := s.be.(platformToggles); ok {
+		x := t.PlatformToggles()
+		p.ACPAllow, p.ACPCommands, p.IntegrationsAllowStdio, p.IntegrationsAllowPrivate = x.ACPAllow, x.ACPCommands, x.AllowStdio, x.AllowPrivate
+	}
+	return p
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/renatobardi/hanko/internal/config"
@@ -12,6 +13,7 @@ import (
 	"github.com/renatobardi/hanko/internal/service"
 	"github.com/renatobardi/hanko/internal/settings"
 	"github.com/renatobardi/hanko/internal/storage"
+	"github.com/renatobardi/hanko/internal/store"
 )
 
 // settingsBase devolve o valor efetivo de cada chave de instance_settings vindo da configuração (env > yaml > padrão).
@@ -70,7 +72,7 @@ func migratePersonaEnvAtBoot(ctx context.Context, svc *service.Service, hasKey b
 }
 
 // BlobsMigrate move o conteúdo dos artefatos entre drivers (comando `hanko blobs migrate`).
-func BlobsMigrate(ctx context.Context, cfg config.Config, version string, o storage.MigrateOptions) (storage.MigrateReport, error) {
+func BlobsMigrate(ctx context.Context, cfg config.Config, version, from, to, company string, keepSource, dryRun bool, batch int) (storage.MigrateReport, error) {
 	tel, logger, err := setupTelemetry(ctx, cfg, version)
 	if err != nil {
 		return storage.MigrateReport{}, err
@@ -85,29 +87,19 @@ func BlobsMigrate(ctx context.Context, cfg config.Config, version string, o stor
 	if err != nil {
 		return storage.MigrateReport{}, err
 	}
-	o.Log = logger
+	o := storage.MigrateOptions{From: from, To: to, KeepSource: keepSource, DryRun: dryRun, Batch: batch, Log: logger}
+	if company != "" {
+		q := store.New(pool)
+		var c store.Company
+		if id, perr := uuid.Parse(company); perr == nil {
+			c, err = q.GetCompanyByID(ctx, id)
+		} else {
+			c, err = q.GetCompanyBySlug(ctx, company)
+		}
+		if err != nil {
+			return storage.MigrateReport{}, fmt.Errorf("app: empresa %q: %w", company, err)
+		}
+		o.CompanyID = &c.ID
+	}
 	return storage.Migrate(ctx, pool, reg, o)
-}
-
-// BlobsStatus conta as versões de artefato por driver (comando `hanko blobs status`).
-func BlobsStatus(ctx context.Context, cfg config.Config, version string) ([]storage.Usage, string, error) {
-	tel, logger, err := setupTelemetry(ctx, cfg, version)
-	if err != nil {
-		return nil, "", err
-	}
-	defer shutdownTelemetry(tel)
-	pool, err := db.Open(ctx, cfg.DatabaseURL, logger)
-	if err != nil {
-		return nil, "", err
-	}
-	defer pool.Close()
-	reg, err := NewBlobRegistry(cfg, pool)
-	if err != nil {
-		return nil, "", err
-	}
-	rows, err := storage.Count(ctx, pool)
-	if err != nil {
-		return nil, "", err
-	}
-	return rows, reg.Active().Name(), nil
 }

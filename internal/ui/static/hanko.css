@@ -926,6 +926,12 @@ a.sidebar-foot:hover, a.sidebar-foot[aria-current] { background: var(--sidebar-a
 .toggle-row:first-child { border-top: 0; }
 .toggle-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .secret-box { margin: 12px 0; }
+.inline-form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.inline-form .input, .inline-form .select { min-width: 0; flex: 1 1 140px; max-width: 320px; }
+.sec-actions { position: relative; }
+.sec-actions > summary { cursor: pointer; list-style: none; display: inline-flex; }
+.sec-actions[open] > summary { margin-bottom: 4px; }
+.sec-actions form { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; min-width: 200px; }
 .secret-val { display: block; margin-top: 6px; padding: 8px 10px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-xl); user-select: all; overflow-wrap: anywhere; }
 .test-result { margin-top: 12px; }
 /* ---------- ilhas React (ADR-0005/ADR-0026): mesmos tokens, um só CSS ---------- */

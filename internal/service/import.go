@@ -15,6 +15,7 @@ import (
 	"github.com/renatobardi/hanko/internal/auth"
 	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/export"
+	"github.com/renatobardi/hanko/internal/secretref"
 	"github.com/renatobardi/hanko/internal/store"
 )
 
@@ -118,6 +119,17 @@ func (p importPlan) counts(d export.Document) map[string]int {
 	}
 	if n := len(p.clearedPaths); n > 0 {
 		out["workspace_paths_cleared"] = n
+	}
+	// Referências ${secret:...} nas personas importadas: os valores não viajam no arquivo, então a empresa nova
+	// precisa recriar esses segredos antes de as personas rodarem (ADR-0032).
+	refs := map[string]bool{}
+	for _, c := range p.personaCfg {
+		for _, r := range secretref.Find(string(c)) {
+			refs[r.String()] = true
+		}
+	}
+	if len(refs) > 0 {
+		out["secret_refs_to_create"] = len(refs)
 	}
 	return out
 }

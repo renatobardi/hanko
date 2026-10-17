@@ -9,7 +9,7 @@ dependências do ADR-0011 continua: Postgres é a única dependência **obrigat�
 
 ## Decisão
 1. **Interface** `storage.BlobStore` (`internal/storage`): `Name()`, `Transactional()`, `Put(ctx, key, data, contentType)`,
-   `Get(ctx, key)`, `Delete(ctx, key)`. A chave é (empresa, artefato). Dois drivers: `postgres` e `s3`.
+   `Get(ctx, key)`, `Delete(ctx, key)`, `Stat(ctx, key)` (tamanho; a migração confere a cópia com ele). A chave é (empresa, artefato). Dois drivers: `postgres` e `s3`.
 2. **Driver postgres (padrão)** é o comportamento atual: grava em `artifact_blobs` **dentro da transação** do artefato
    (`Transactional() == true`; a transação viaja no contexto, `storage.WithTx`). Nada muda para quem não configura nada.
 3. **Driver s3** (qualquer endpoint S3 compatível): cliente mínimo com **SigV4 próprio sobre a stdlib**

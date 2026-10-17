@@ -37,9 +37,22 @@ codex_bin: codex
 workers: 4
 run_timeout: 30m
 heartbeat_interval: 1m
-artifact_max_bytes: 5242880      # tamanho máximo de um artefato, de 1 a 16777216 (HANKO_ARTIFACT_MAX_BYTES)
+artifact_max_bytes: 5242880      # tamanho máximo de um artefato, de 1 a 16777216 (64 MiB com storage.driver: s3) (HANKO_ARTIFACT_MAX_BYTES)
 artifact_quota_bytes: 536870912  # cota de artefatos por empresa, todas as versões somadas (HANKO_ARTIFACT_QUOTA_BYTES)
 alert_silent_factor: 3      # alerta "persona sem heartbeat" além de N× o intervalo dela (HANKO_ALERT_SILENT_FACTOR)
 alert_run_stuck_after: 15m  # alerta "execução presa": running sem eventos há mais que isto (HANKO_ALERT_RUN_STUCK_AFTER)
+# storage:                # conteúdo dos artefatos (ADR-0033); as chaves de acesso só por ambiente
+#   driver: postgres      # postgres (padrão) | s3 ; HANKO_BLOB_DRIVER
+#   s3:
+#     endpoint: https://s3.exemplo.com   # HANKO_S3_ENDPOINT (http só em loopback)
+#     region: us-east-1                  # HANKO_S3_REGION
+#     bucket: hanko-artefatos            # HANKO_S3_BUCKET
+#     prefix: ""                         # HANKO_S3_PREFIX
+#     path_style: true                   # HANKO_S3_PATH_STYLE
+#     # access_key / secret_key: HANKO_S3_ACCESS_KEY / HANKO_S3_SECRET_KEY (nunca no arquivo)
+# vault:                  # cofre externo de segredos, API KV v2 (ADR-0032); o token só por ambiente (HANKO_VAULT_TOKEN)
+#   addr: https://vault.exemplo.com:8200   # HANKO_VAULT_ADDR
+#   mount: secret                          # HANKO_VAULT_MOUNT
+#   namespace: ""                          # HANKO_VAULT_NAMESPACE
 log_level: info
 log_format: json

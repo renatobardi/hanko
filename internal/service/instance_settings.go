@@ -8,10 +8,14 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/renatobardi/hanko/internal/auth"
 	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/settings"
+	"github.com/renatobardi/hanko/internal/storage"
 	"github.com/renatobardi/hanko/internal/store"
 )
 
@@ -119,6 +123,9 @@ func (s *Service) writeInstanceSetting(ctx context.Context, actor domain.Actor, 
 		}
 		newVal = settings.ToJSON(typed)
 	}
+	ctx, span := otel.Tracer("hanko/settings").Start(ctx, "hanko.settings.write", trace.WithAttributes(
+		attribute.String("hanko.setting.key", key), attribute.Bool("hanko.setting.unset", unset))) // o valor fica fora do span
+	defer span.End()
 	err = s.withTx(ctx, func(t *txc) error {
 		var old json.RawMessage
 		cur, err := t.q.GetInstanceSettingForUpdate(t.ctx, key)
@@ -153,6 +160,7 @@ func (s *Service) writeInstanceSetting(ctx context.Context, actor domain.Actor, 
 		return nil
 	})
 	if err != nil {
+		span.RecordError(err)
 		return settings.Entry{}, err
 	}
 	if _, err := s.LoadInstanceSettings(ctx); err != nil {
@@ -192,7 +200,54 @@ func (s *Service) ListInstanceSettingAudit(ctx context.Context, limit int) ([]In
 	}
 	out := make([]InstanceSettingAudit, len(rows))
 	for i, r := range rows {
-		out[i] = InstanceSettingAudit{ID: r.ID, Key: r.Key, Old: r.OldValue, New: r.NewValue, ActorType: r.ActorType, ActorID: r.ActorID, OccurredAt: r.OccurredAt}
+		out[i] = InstanceSettingAudit{ID: r.ID, Key: r.Key, Old: jsonOrNil(r.OldValue), New: jsonOrNil(r.NewValue), ActorType: r.ActorType, ActorID: r.ActorID, OccurredAt: r.OccurredAt}
 	}
 	return out, nil
+}
+
+// BlobStatus descreve o armazenamento de conteúdo de artefatos (ADR-0033).
+type BlobStatus struct {
+	Active    string
+	Available []string
+	Usage     []storage.Usage
+}
+
+// BlobStorageStatus devolve o driver ativo, os configurados e o que há em cada um (dono da instalação).
+func (s *Service) BlobStorageStatus(ctx context.Context) (BlobStatus, error) {
+	if _, err := requireInstanceOwner(ctx); err != nil {
+		return BlobStatus{}, err
+	}
+	rows, err := s.read().CountArtifactsByStorage(ctx)
+	if err != nil {
+		return BlobStatus{}, fmt.Errorf("count artifacts by storage: %w", err)
+	}
+	reg := s.blobs()
+	out := BlobStatus{Active: reg.Active().Name(), Available: reg.Names(), Usage: make([]storage.Usage, len(rows))}
+	for i, r := range rows {
+		out.Usage[i] = storage.Usage{Driver: r.Storage, Versions: r.Versions, Bytes: r.Bytes}
+	}
+	return out, nil
+}
+
+// PlatformToggles são os interruptores efetivos que as telas de ambiente mostram.
+type PlatformToggles struct {
+	ACPAllow     bool
+	ACPCommands  []string
+	AllowStdio   bool
+	AllowPrivate bool
+}
+
+// PlatformToggles devolve o valor efetivo (env > banco > padrão) dos interruptores do operador; sem autorização
+// por papel: são fatos sobre a instalação, sem segredo.
+func (s *Service) PlatformToggles() PlatformToggles {
+	p := s.acpPolicy()
+	return PlatformToggles{ACPAllow: p.Allow, ACPCommands: p.Commands, AllowStdio: s.Integrations.stdioAllowed(), AllowPrivate: s.Integrations.privateAllowed()}
+}
+
+// jsonOrNil trata o JSON null (como o pgx grava um valor ausente) como ausente.
+func jsonOrNil(b []byte) json.RawMessage {
+	if len(b) == 0 || string(b) == "null" {
+		return nil
+	}
+	return json.RawMessage(b)
 }

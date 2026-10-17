@@ -99,8 +99,8 @@ com trilha de auditoria, sem tocar em nada sensível.
   `HANKO_SECRET_KEY` continua sendo o único jeito de operar sem cofre, e o painel do ambiente avisa.
 - Um segredo apagado quebra quem o referencia no próximo despacho (a run da persona falha cedo com a causa); por isso o
   apagar lista os usos antes.
-- Export/import não carregam valor: quem importa precisa recriar os segredos que as referências citam (o import avisa
-  quais nomes não existem).
+- Export/import não carregam valor: quem importa precisa recriar os segredos que as referências citam (o resultado da
+  importação traz `secret_refs_to_create`, quantas referências distintas precisam de segredo).
 - Rotação no cofre externo vale sem ação do Hanko; indisponibilidade do cofre falha a run (persona) ou pula a
   integração com aviso, nunca cai para um valor antigo.
 - Fica para depois: uso de segredo de usuário por runs (exige registrar o humano solicitante), outros providers de
