@@ -142,6 +142,18 @@ DELETE FROM artifact_blobs WHERE company_id = @company_id AND artifact_id = @art
 -- name: CountArtifactsByStorage :many
 SELECT storage, count(*)::bigint AS versions, COALESCE(sum(size_bytes), 0)::bigint AS bytes FROM artifacts GROUP BY storage ORDER BY storage;
 
+-- name: LinkAttachmentsToComment :execrows
+-- Anexos enviados antes do comentário (sem ligação ainda) passam a pertencer a ele, na transação do comentário.
+UPDATE artifacts SET comment_id = @comment_id
+WHERE company_id = @company_id AND kind = 'attachment' AND task_id = @task_id AND comment_id IS NULL
+  AND id = ANY(@ids::uuid[]);
+
+-- name: LinkAttachmentsToMessage :execrows
+-- Anexos enviados antes da mensagem (sem ligação ainda) passam a pertencer a ela, na transação da mensagem.
+UPDATE artifacts SET message_id = @message_id
+WHERE company_id = @company_id AND kind = 'attachment' AND conversation_id = @conversation_id AND message_id IS NULL
+  AND id = ANY(@ids::uuid[]);
+
 -- name: AttachmentNameTaken :one
 -- Anexos não formam cadeia: um nome repetido na mesma task (ou conversa) ganha sufixo, em vez de virar versão.
 SELECT EXISTS (

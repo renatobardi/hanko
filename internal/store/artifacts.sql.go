@@ -527,6 +527,60 @@ func (q *Queries) LatestArtifactInChain(ctx context.Context, arg LatestArtifactI
 	return i, err
 }
 
+const linkAttachmentsToComment = `-- name: LinkAttachmentsToComment :execrows
+UPDATE artifacts SET comment_id = $1
+WHERE company_id = $2 AND kind = 'attachment' AND task_id = $3 AND comment_id IS NULL
+  AND id = ANY($4::uuid[])
+`
+
+type LinkAttachmentsToCommentParams struct {
+	CommentID *uuid.UUID
+	CompanyID uuid.UUID
+	TaskID    *uuid.UUID
+	Ids       []uuid.UUID
+}
+
+// Anexos enviados antes do comentário (sem ligação ainda) passam a pertencer a ele, na transação do comentário.
+func (q *Queries) LinkAttachmentsToComment(ctx context.Context, arg LinkAttachmentsToCommentParams) (int64, error) {
+	result, err := q.db.Exec(ctx, linkAttachmentsToComment,
+		arg.CommentID,
+		arg.CompanyID,
+		arg.TaskID,
+		arg.Ids,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const linkAttachmentsToMessage = `-- name: LinkAttachmentsToMessage :execrows
+UPDATE artifacts SET message_id = $1
+WHERE company_id = $2 AND kind = 'attachment' AND conversation_id = $3 AND message_id IS NULL
+  AND id = ANY($4::uuid[])
+`
+
+type LinkAttachmentsToMessageParams struct {
+	MessageID      *uuid.UUID
+	CompanyID      uuid.UUID
+	ConversationID *uuid.UUID
+	Ids            []uuid.UUID
+}
+
+// Anexos enviados antes da mensagem (sem ligação ainda) passam a pertencer a ela, na transação da mensagem.
+func (q *Queries) LinkAttachmentsToMessage(ctx context.Context, arg LinkAttachmentsToMessageParams) (int64, error) {
+	result, err := q.db.Exec(ctx, linkAttachmentsToMessage,
+		arg.MessageID,
+		arg.CompanyID,
+		arg.ConversationID,
+		arg.Ids,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const listArtifactChain = `-- name: ListArtifactChain :many
 SELECT id, company_id, task_id, run_id, project_id, persona_id, author_type, author_id, name, mime, size_bytes, sha256, version, created_at, storage, kind, comment_id, conversation_id, message_id FROM artifacts
 WHERE company_id = $1 AND kind = 'artifact'

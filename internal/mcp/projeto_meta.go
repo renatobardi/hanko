@@ -158,9 +158,9 @@ func (t *tools) goalCreate(ctx context.Context, _ *sdk.CallToolRequest, in goalC
 		}
 		ci.ProjectID = &pr.ID
 	}
-	switch o := strings.TrimSpace(in.Owner); {
-	case o == "":
-	case o == "me":
+	switch o := strings.TrimSpace(in.Owner); o {
+	case "":
+	case "me":
 		if id.PersonaID == nil {
 			return nil, goalCreateOut{}, errors.New("owner 'me' só vale com token de run")
 		}

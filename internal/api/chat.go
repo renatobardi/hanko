@@ -94,7 +94,8 @@ type listConversationMessagesIn struct {
 type sendMessageIn struct {
 	ConversationPath
 	Body struct {
-		Message string `json:"message" minLength:"1" maxLength:"20000" doc:"Mensagem em markdown. Enquanto uma execução da conversa roda, a mensagem espera e a execução seguinte responde a todas juntas. \"/new\" sozinha reinicia o contexto da conversa (insere um marcador; nada é apagado); \"/new texto\" reinicia e envia o texto."`
+		Message     string   `json:"message" minLength:"1" maxLength:"20000" doc:"Mensagem em markdown. Enquanto uma execução da conversa roda, a mensagem espera e a execução seguinte responde a todas juntas. \"/new\" sozinha reinicia o contexto da conversa (insere um marcador; nada é apagado); \"/new texto\" reinicia e envia o texto."`
+		Attachments []string `json:"attachments,omitempty" format:"uuid" doc:"Ids de anexos da conversa já enviados (POST /attachments com conversation) que passam a pertencer a esta mensagem."`
 	}
 }
 
@@ -212,7 +213,11 @@ func (s *server) registerChat(api huma.API) {
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}
-			m, err := s.svc.SendMessage(ctx, sc.Actor, sc.Company.ID, id, in.Body.Message)
+			atts, err := parseIDList(in.Body.Attachments)
+			if err != nil {
+				return nil, s.fail(ctx, err)
+			}
+			m, err := s.svc.SendMessageWith(ctx, sc.Actor, sc.Company.ID, id, in.Body.Message, atts)
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}

@@ -48,6 +48,19 @@ func optUUID(ctx context.Context, s *server, field, v string) (*domain.ID, error
 	return &id, nil
 }
 
+// parseIDList converte uma lista de uuids em texto.
+func parseIDList(in []string) ([]domain.ID, error) {
+	out := make([]domain.ID, 0, len(in))
+	for _, v := range in {
+		id, err := domain.ParseID(v)
+		if err != nil {
+			return nil, domain.Invalid("attachments", "não é um uuid: "+v)
+		}
+		out = append(out, id)
+	}
+	return out, nil
+}
+
 func (s *server) registerAttachments(api huma.API) {
 	put := created(op("put-attachment", http.MethodPost, "/companies/{company}/attachments", "artifacts",
 		"Anexa um arquivo a uma task (ou comentário) ou a uma conversa do chat"))

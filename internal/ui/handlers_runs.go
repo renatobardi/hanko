@@ -110,8 +110,8 @@ func (s *server) runVM(ctx context.Context, co domain.Company, rv service.RunVie
 		if len(rv.InstructionSHA256) >= 12 {
 			vm.Instructions += " · " + rv.InstructionSHA256[:12]
 		}
-		if personaSlug != "" {
-			vm.InstructionsHref = base + "/personas/" + personaSlug + "/instrucoes?ver=" + strconv.Itoa(*rv.InstructionRevision) + "#revisao"
+		{
+			vm.InstructionsHref = base + "/personas/" + rv.PersonaID.String() + "/instrucoes?ver=" + strconv.Itoa(*rv.InstructionRevision) + "#revisao"
 		}
 	}
 	if rv.ConversationID != nil {

@@ -165,6 +165,50 @@ func (t *txc) putAttachment(actor domain.Actor, companyID domain.ID, in PutArtif
 		"comment_id": in.CommentID, "message_id": in.MessageID, "run_id": runID}, "")
 }
 
+// linkCommentAttachments liga anexos já enviados à task ao comentário recém-criado (mesma transação). Anexo que não
+// existe, é de outra task ou já pertence a outro comentário recusa o comentário inteiro.
+func (t *txc) linkCommentAttachments(companyID, taskID, commentID domain.ID, ids []domain.ID) error {
+	ids = uniqueIDs(ids)
+	n, err := t.q.LinkAttachmentsToComment(t.ctx, store.LinkAttachmentsToCommentParams{CompanyID: companyID, CommentID: &commentID,
+		TaskID: &taskID, Ids: ids})
+	if err != nil {
+		return fmt.Errorf("link attachments: %w", err)
+	}
+	if int(n) != len(ids) {
+		return domain.Invalid("attachments", "some attachments are not available for this task")
+	}
+	return nil
+}
+
+// linkMessageAttachments liga anexos já enviados à conversa à mensagem recém-criada (mesma transação).
+func (t *txc) linkMessageAttachments(companyID, conversationID, messageID domain.ID, ids []domain.ID) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	ids = uniqueIDs(ids)
+	n, err := t.q.LinkAttachmentsToMessage(t.ctx, store.LinkAttachmentsToMessageParams{CompanyID: companyID, MessageID: &messageID,
+		ConversationID: &conversationID, Ids: ids})
+	if err != nil {
+		return fmt.Errorf("link attachments: %w", err)
+	}
+	if int(n) != len(ids) {
+		return domain.Invalid("attachments", "some attachments are not available for this conversation")
+	}
+	return nil
+}
+
+func uniqueIDs(ids []domain.ID) []domain.ID {
+	seen := make(map[domain.ID]bool, len(ids))
+	out := make([]domain.ID, 0, len(ids))
+	for _, id := range ids {
+		if !seen[id] {
+			seen[id] = true
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
 // attachmentBriefs lista os anexos que a run deve conhecer: os da task (run de task) ou os da conversa (run de chat).
 func attachmentBriefs(ctx context.Context, q *store.Queries, rc RunContext) ([]AttachmentBrief, error) {
 	attachment := string(domain.ClassAttachment)

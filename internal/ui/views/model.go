@@ -174,6 +174,8 @@ type Msg struct {
 	// Quote is the passage an anchored comment is about; QuoteLost = its anchor no longer exists in the document.
 	Quote     string
 	QuoteLost bool
+	// Anexos do comentário (ADR-0052).
+	Attachments []AttachmentRow
 }
 
 type RunMini struct {
@@ -220,7 +222,11 @@ type TaskVM struct {
 	Model           string // manual model of the task (wins over the persona's)
 	Notice          string // flash after an action
 	Error           string
-	Draft           string
+	// DraftF liga o campo de comentário ao rascunho do servidor; Attach é o cartão de anexos da task e UploadHint a
+	// dica de tamanho do campo de arquivos do compositor (ADR-0052).
+	DraftF     DraftFields
+	Attach     AttachBox
+	UploadHint string
 	// Anchored-comment island on the description (ADR-0026).
 	TaskKey     string
 	DescDoc     string // description as anchors see it (\n line endings)

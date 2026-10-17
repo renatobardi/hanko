@@ -57,6 +57,11 @@ func (s *Service) AddComment(ctx context.Context, actor domain.Actor, companyID,
 					return err
 				}
 			}
+			if len(in.AttachmentIDs) > 0 {
+				if err := t.linkCommentAttachments(companyID, taskID, row.ID, in.AttachmentIDs); err != nil {
+					return err
+				}
+			}
 			if anchor != nil {
 				out.AnchorState = &state
 			}

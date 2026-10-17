@@ -359,7 +359,7 @@ func (e *env) personaCmd() *cobra.Command {
 			}
 			if upReports == "" && !upTop && req.RequireReview == nil && upSub == "" && !upNoSub && upRev == "" && !upNoRev &&
 				req.ReviewerAgent == nil && req.ReviewerModel == nil && upEnv == "" && instr == nil {
-				return usageError{errors.New(e.t("nada a alterar: use --reports-to, --top, --require-review, --subscription, --no-subscription, --instructions/--instructions-file ou --reviewer/--reviewer-agent/--no-reviewer"))}
+				return usageError{errors.New(e.t("nada a alterar: use --reports-to, --top, --require-review, --subscription, --no-subscription ou --reviewer/--reviewer-agent/--no-reviewer"))}
 			}
 			p, err := e.client().UpdatePersona(cmd.Context(), co, args[0], req)
 			if err != nil {

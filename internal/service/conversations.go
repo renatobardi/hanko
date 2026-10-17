@@ -318,6 +318,13 @@ func (s *Service) CreateConversation(ctx context.Context, actor domain.Actor, co
 // arrived meanwhile. When the persona cannot work now (paused, in error, over budget, weekly guard) the message
 // is refused and the error carries the reason.
 func (s *Service) SendMessage(ctx context.Context, actor domain.Actor, companyID, conversationID domain.ID, body string) (domain.ConversationMessage, error) {
+	return s.SendMessageWith(ctx, actor, companyID, conversationID, body, nil)
+}
+
+// SendMessageWith é SendMessage com anexos já enviados à conversa (PutArtifact com Class attachment e ConversationID,
+// ainda sem mensagem): eles passam a pertencer à mensagem na mesma transação, então a run que a recolhe já os vê no
+// briefing (ADR-0052). Num "/new" sozinho (só o marcador) os anexos ficam soltos na conversa.
+func (s *Service) SendMessageWith(ctx context.Context, actor domain.Actor, companyID, conversationID domain.ID, body string, attachments []domain.ID) (domain.ConversationMessage, error) {
 	if err := s.require(ctx, companyID, domain.MemberMember); err != nil {
 		return domain.ConversationMessage{}, err
 	}
@@ -358,7 +365,10 @@ func (s *Service) SendMessage(ctx context.Context, actor domain.Actor, companyID
 				return err
 			}
 			blocked, out = berr, m
-			if berr == nil { // ADR-0052: enviar limpa o rascunho, na mesma transação
+			if berr == nil { // ADR-0052: enviar limpa o rascunho e liga os anexos, na mesma transação
+				if err := t.linkMessageAttachments(companyID, conversationID, m.ID, attachments); err != nil {
+					return err
+				}
 				return t.clearDraft(companyID, domain.DraftConversation, conversationID)
 			}
 			return nil
@@ -370,6 +380,9 @@ func (s *Service) SendMessage(ctx context.Context, actor domain.Actor, companyID
 		blocked = berr
 		if berr == nil {
 			out = messageFromRow(m)
+			if err := t.linkMessageAttachments(companyID, conversationID, m.ID, attachments); err != nil {
+				return err
+			}
 			return t.clearDraft(companyID, domain.DraftConversation, conversationID)
 		}
 		return nil

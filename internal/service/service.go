@@ -251,6 +251,9 @@ type AddCommentInput struct {
 	Body    string
 	RunID   *domain.ID
 	EventID string
+	// AttachmentIDs são anexos da task já enviados (sem comentário ainda) que passam a pertencer a este comentário,
+	// na mesma transação: a run acordada pelo comentário já os vê no briefing (ADR-0052).
+	AttachmentIDs []domain.ID
 	// Anchor, when set, ties the comment to a passage of the task description or of a run summary
 	// (ADR-0026). The service checks that the quote exists in the target document and fills offsets and hash.
 	Anchor *domain.Anchor
