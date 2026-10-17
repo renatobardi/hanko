@@ -466,34 +466,44 @@ func (s *Service) CheckAPIKey(ctx context.Context, key string) (domain.User, err
 }
 
 func (s *Service) resolveAPIKey(ctx context.Context, key string, touch bool) (domain.User, error) {
+	u, _, err := s.resolveAPIKeyInfo(ctx, key, touch)
+	return u, err
+}
+
+// ResolveAPIKeyInfo é ResolveAPIKey que também devolve o id e o escopo da chave (auth.KeyResolver).
+func (s *Service) ResolveAPIKeyInfo(ctx context.Context, key string) (domain.User, auth.KeyInfo, error) {
+	return s.resolveAPIKeyInfo(ctx, key, true)
+}
+
+func (s *Service) resolveAPIKeyInfo(ctx context.Context, key string, touch bool) (domain.User, auth.KeyInfo, error) {
 	if !auth.IsAPIKey(key) {
-		return domain.User{}, domain.ErrUnauthenticated
+		return domain.User{}, auth.KeyInfo{}, domain.ErrUnauthenticated
 	}
 	q := s.read()
 	k, err := q.GetAPIKeyByHash(ctx, auth.HashToken(key))
 	if err != nil {
 		if isNoRows(err) {
-			return domain.User{}, domain.ErrUnauthenticated
+			return domain.User{}, auth.KeyInfo{}, domain.ErrUnauthenticated
 		}
-		return domain.User{}, fmt.Errorf("get api key: %w", err)
+		return domain.User{}, auth.KeyInfo{}, fmt.Errorf("get api key: %w", err)
 	}
 	u, err := q.GetUserByID(ctx, k.UserID)
 	if err != nil {
 		if isNoRows(err) {
-			return domain.User{}, domain.ErrUnauthenticated
+			return domain.User{}, auth.KeyInfo{}, domain.ErrUnauthenticated
 		}
-		return domain.User{}, fmt.Errorf("get api key user: %w", err)
+		return domain.User{}, auth.KeyInfo{}, fmt.Errorf("get api key user: %w", err)
 	}
 	if !s.stillAdmitted(u) {
-		return domain.User{}, domain.ErrUnauthenticated
+		return domain.User{}, auth.KeyInfo{}, domain.ErrUnauthenticated
 	}
 	now := s.Now().UTC()
 	if touch && (k.LastUsedAt == nil || now.Sub(*k.LastUsedAt) >= auth.TouchEvery) {
 		if err := q.TouchAPIKey(ctx, store.TouchAPIKeyParams{ID: k.ID, Now: now}); err != nil && !errors.Is(err, context.Canceled) {
-			return domain.User{}, fmt.Errorf("touch api key: %w", err)
+			return domain.User{}, auth.KeyInfo{}, fmt.Errorf("touch api key: %w", err)
 		}
 	}
-	return userFromRow(u), nil
+	return userFromRow(u), auth.KeyInfo{ID: k.ID, Scope: domain.KeyScope(k.Scope)}, nil
 }
 
 func clip(s string, n int) string {
