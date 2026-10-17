@@ -446,6 +446,26 @@ segredos guardados (as integrações ficam, sem credenciais, e é só informá-l
 **Problemas comuns.** "destino não permitido": o endereço resolve para rede interna (ligue `HANKO_INTEGRATIONS_ALLOW_PRIVATE`
 se for proposital). "HANKO_SECRET_KEY não está configurada": defina a chave. MCP stdio ignorado na run: falta
 `HANKO_INTEGRATIONS_ALLOW_STDIO=true`.
+## Política de tools (ADR-0053)
+
+Por cima dos perfis de ferramentas (ADR-0036), uma **política** diz `off` (recusa), `ask` (pergunta antes, abre um gate `tool`) ou `allow` (passa
+direto) para uma persona ou para a empresa toda, sobre qualquer tool de integração, uma integração, uma tool ou uma tool do harness/plugin pelo nome.
+
+- **Gravar:** aba **Política** em Integrações, `hanko tool-policy set <off|ask|allow> [--persona P] [--integration I] [--tool T | --native NOME]`
+  (admin). Sem flag de alvo vale para tudo. Precedência: persona > empresa, tool > integração > tudo, e no empate desligar vence perguntar vence permitir.
+  Política vence o perfil nas runs; quarentena, tool desligada ou removida não se abrem por política; no gateway nomeado a política só aperta.
+- **Sempre permitir:** `hanko gate approve <gate> --always` (ou o botão "Aprovar e sempre permitir"; só admin) grava `allow` para aquela persona e tool.
+- **Prazo dos gates `tool`:** 24 h (integração/plugin) e 10 min (chamada nativa, a execução fica esperando). O `memory_sweep` (5 min) vence os pendentes;
+  a chamada seguinte abre um gate novo.
+- **Tools nativas do harness:** claude recebe o hook `PreToolUse` (`hanko hook pretooluse`, o executável do próprio servidor) **só quando há política nativa
+  para a persona**; ele usa o run token do ambiente e falha fechado (se o Hanko não responde, nega). ACP consulta a política em cada pedido de permissão.
+  Ambiente remoto (SSH/sandbox) não leva o hook. Codex não tem gancho. A auditoria registra a origem (`hook`, `acp`).
+- **Testar:** `hanko integration tools <i> --test <tool> --as <persona> [--args JSON] [--execute]` ou o formulário da aba Política.
+- **Endpoint único:** `HANKO_TOOLS_SINGLE_ENDPOINT=true` (yaml `tools_single_endpoint`) monta um só servidor `hanko-tools` (`/mcp/run`) para as integrações
+  da run, com as tools como `<integração>__<tool>`. Padrão desligado, porque muda o nome das tools que o harness vê.
+- **Auditoria:** `/c/<empresa>/ferramentas/auditoria` ou `GET …/tool-invocations` (admin): origem, ator, duração, trecho do resultado redigido e a política que
+  decidiu. Retenção de 30 dias e 10 mil linhas por empresa.
+
 ## Agentes ACP (harness `acp`)
 
 O harness `acp` (ADR-0023) roda qualquer agente que fale o Agent Client Protocol v1 por stdio. O Hanko não traz agente algum: o
