@@ -220,6 +220,7 @@ type TaskVM struct {
 	Notice          string // flash after an action
 	Error           string
 	Draft           string
+	Followups       *FollowupsVM // fila de follow-ups (ADR-0039); nil quando a task está encerrada
 	// Anchored-comment island on the description (ADR-0026).
 	TaskKey     string
 	DescDoc     string // description as anchors see it (\n line endings)
@@ -429,6 +430,9 @@ type RunVM struct {
 	// Artefatos que a execução publicou (todas as versões).
 	Artifacts     []ArtifactMini
 	ArtifactsHref string
+	// Resiliência (ADR-0039): card de diagnóstico e caixa de steer.
+	Diag  *DiagVM
+	Steer *SteerVM
 }
 
 // ---- activity ----

@@ -54,5 +54,7 @@ type ChatVM struct {
 	Cost        string
 	Draft       string
 	Error       string
-	Blocked     string // why the persona cannot answer now ("" = it can); sending is disabled
+	Blocked     string       // why the persona cannot answer now ("" = it can); sending is disabled
+	Followups   *FollowupsVM // fila de mensagens que esperam a resposta (ADR-0039)
+	QueueHref   string       // fragmento da fila (polling)
 }

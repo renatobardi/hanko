@@ -198,6 +198,23 @@ func (s *server) buildChatVM(r *http.Request, co domain.Company, cv service.Conv
 		}
 		vm.Messages = append(vm.Messages, cm)
 	}
+	if cv.Status == domain.ConversationOpen {
+		fs, err := s.be.ListFollowups(ctx, co.ID, service.FollowupTarget{ConversationID: &cv.ID})
+		if err != nil {
+			return views.ChatVM{}, err
+		}
+		var steer *views.SteerVM
+		if cv.ActiveRunID != nil {
+			if rv, rerr := s.be.GetRun(ctx, co.ID, *cv.ActiveRunID); rerr == nil {
+				steer = steerVM(ctx, base, rv)
+				if steer != nil {
+					steer.Back = base + "/chat/" + cv.ID.String()
+				}
+			}
+		}
+		vm.Followups = followupsVM(ctx, base, fs, base+"/chat/"+cv.ID.String(), steer)
+		vm.QueueHref = base + "/chat/" + cv.ID.String() + "/fila"
+	}
 	if p, err := s.be.GetPersona(ctx, co.ID, cv.PersonaSlug); err == nil && !p.Status.CanWork() && p.Status != domain.PersonaAwaitingGate {
 		vm.Blocked = i18n.Tf(ctx, "A persona %s está %s e não pode responder agora.", p.Name, strings.ToLower(personaBadge(ctx, p.Status).Label))
 	}

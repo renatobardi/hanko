@@ -378,7 +378,8 @@ func (s *server) buildTaskVM(r *http.Request, co domain.Company, t service.TaskV
 	}
 
 	var cost float64
-	for _, rv := range runs {
+	var activeRun *service.RunView
+	for i, rv := range runs {
 		if rv.CostUSD != nil {
 			cost += *rv.CostUSD
 		}
@@ -394,10 +395,26 @@ func (s *server) buildTaskVM(r *http.Request, co domain.Company, t service.TaskV
 		if rv.Status.Active() && vm.ActiveRun == nil {
 			m := mini
 			vm.ActiveRun = &m
+			activeRun = &runs[i]
 		}
 		vm.Runs = append(vm.Runs, mini)
 	}
 	vm.Cost = fmtUSDCtx(ctx, cost)
+	if t.Status.Open() && !t.System {
+		fs, err := s.be.ListFollowups(ctx, co.ID, service.FollowupTarget{TaskID: &t.ID})
+		if err != nil {
+			return views.TaskVM{}, err
+		}
+		var steer *views.SteerVM
+		if activeRun != nil {
+			steer = steerVM(ctx, base, *activeRun)
+			if steer != nil {
+				steer.Back = base + "/tasks/" + t.Key + "#followups"
+			}
+		}
+		vm.Followups = followupsVM(ctx, base, fs, base+"/tasks/"+t.Key+"#followups", steer)
+		vm.Followups.AddHref = base + "/tasks/" + t.Key + "/followups"
+	}
 
 	vm.GoalOptions = s.taskGoalOptions(r, co, t.GoalID)
 	arts, err := s.be.ListArtifacts(ctx, co.ID, service.ArtifactFilter{TaskID: &t.ID, Limit: 8})

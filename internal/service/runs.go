@@ -72,7 +72,16 @@ func (s *Service) GetRun(ctx context.Context, companyID, runID domain.ID) (RunVi
 	if err := s.require(ctx, companyID, domain.MemberViewer); err != nil {
 		return RunView{}, err
 	}
-	return loadRunView(ctx, s.read(), companyID, runID)
+	v, err := loadRunView(ctx, s.read(), companyID, runID)
+	if err != nil {
+		return RunView{}, err
+	}
+	if child, cerr := s.read().ContinuationOfRun(ctx, &runID); cerr == nil {
+		v.ContinuedByRunID = &child.ID
+	} else if !isNoRows(cerr) {
+		return RunView{}, fmt.Errorf("continuation of run: %w", cerr)
+	}
+	return v, nil
 }
 
 // ListRunEvents returns events with seq > afterSeq, ascending.

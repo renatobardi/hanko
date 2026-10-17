@@ -71,7 +71,7 @@ func (s *server) handleInbox(w http.ResponseWriter, r *http.Request, co domain.C
 			vm.DecidedToday++
 		}
 	}
-	counts := map[string]int{"tudo": in.Count(), "gates": len(in.Gates), "bloqueadas": len(in.BlockedTasks), "falhas": len(in.FailedRuns), "personas": len(in.ErrorPersonas), "alertas": len(in.Alerts), "assinaturas": len(in.GuardedSubscriptions)}
+	counts := map[string]int{"tudo": in.Count(), "gates": len(in.Gates), "bloqueadas": len(in.BlockedTasks), "falhas": len(in.FailedRuns) + len(in.StoppedRuns), "personas": len(in.ErrorPersonas), "alertas": len(in.Alerts), "assinaturas": len(in.GuardedSubscriptions)}
 	for _, t := range inboxTabs {
 		vm.Tabs = append(vm.Tabs, views.TabLink{Key: t.key, Label: i18n.T(ctx, t.label), Href: base + "/caixa?aba=" + t.key, Count: counts[t.key], On: t.key == cur})
 	}
@@ -104,6 +104,7 @@ func (s *server) handleInbox(w http.ResponseWriter, r *http.Request, co domain.C
 				Name: rv.Name, Short: shortID(rv.ID), Href: base + "/execucoes/" + rv.ID.String(), TaskKey: rv.TaskKey, TaskHref: base + "/tasks/" + rv.TaskKey,
 				TaskTitle: rv.TaskTitle, Persona: rv.PersonaName, Error: excerpt(rv.Error, 200), When: agoCtx(ctx, rv.CreatedAt, now, loc),
 			}
+			row.Diag = inboxRunDiag(ctx, co, rv)
 			if rv.ConversationID != nil && rv.TaskID == (domain.ID{}) {
 				// run de chat: sem task, o título e o link são da conversa; a retomada é a próxima mensagem humana
 				row.TaskKey, row.TaskHref, row.TaskTitle = i18n.T(ctx, "Chat"), base+"/chat/"+rv.ConversationID.String(), rv.ConversationTitle
@@ -111,6 +112,18 @@ func (s *server) handleInbox(w http.ResponseWriter, r *http.Request, co domain.C
 				row.ActionHref = base + "/caixa/tasks/" + rv.TaskID.String() + "/acordar"
 			}
 			vm.Failed = append(vm.Failed, row)
+		}
+	}
+	if show("falhas") {
+		for _, rv := range in.StoppedRuns {
+			row := views.InboxRun{
+				Name: rv.Name, Short: shortID(rv.ID), Href: base + "/execucoes/" + rv.ID.String(), TaskKey: rv.TaskKey, TaskHref: base + "/tasks/" + rv.TaskKey,
+				TaskTitle: rv.TaskTitle, Persona: rv.PersonaName, When: agoCtx(ctx, rv.CreatedAt, now, loc), Diag: inboxRunDiag(ctx, co, rv),
+			}
+			if rv.ConversationID != nil && rv.TaskID == (domain.ID{}) {
+				row.TaskKey, row.TaskHref, row.TaskTitle = i18n.T(ctx, "Chat"), base+"/chat/"+rv.ConversationID.String(), rv.ConversationTitle
+			}
+			vm.Stopped = append(vm.Stopped, row)
 		}
 	}
 	if show("personas") {
@@ -150,7 +163,7 @@ func (s *server) handleInbox(w http.ResponseWriter, r *http.Request, co domain.C
 				Text: i18n.Tf(ctx, "A meta chegou ao alvo: %s.", goalValues(ctx, g.Goal)), When: agoCtx(ctx, at, now, loc)})
 		}
 	}
-	vm.Total = len(vm.Gates) + len(vm.Blocked) + len(vm.Failed) + len(vm.Personas) + len(vm.Alerts) + len(vm.Subs)
+	vm.Total = len(vm.Gates) + len(vm.Blocked) + len(vm.Failed) + len(vm.Stopped) + len(vm.Personas) + len(vm.Alerts) + len(vm.Subs)
 	switch n := in.Count(); n {
 	case 0:
 		vm.Subtitle = i18n.T(ctx, "Gates, bloqueios, falhas, personas com erro e alertas que esperam por você. Hoje, nada.")

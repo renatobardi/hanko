@@ -193,5 +193,18 @@ templ ChatPage(sh Shell, vm ChatVM) {
 		}
 		@ChatThread(vm)
 		@ChatComposer(vm)
+		if vm.Followups != nil {
+			@ChatQueue(vm)
+		}
 	}
+}
+
+// ChatQueue is the follow-up queue of a conversation; it refreshes itself while the persona answers, unless an edit
+// is open (a swap would throw the text away).
+templ ChatQueue(vm ChatVM) {
+	<div id="chat-queue" if vm.Busy { hx-get={ vm.QueueHref } hx-trigger="every 4s [!document.querySelector('#chat-queue details[open]')]" hx-swap="outerHTML" }>
+		if len(vm.Followups.Items) > 0 || vm.Followups.Steer != nil {
+			@FollowupPanel(*vm.Followups)
+		}
+	</div>
 }

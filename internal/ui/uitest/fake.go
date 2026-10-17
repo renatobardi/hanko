@@ -58,6 +58,10 @@ type Fake struct {
 	// Conversations and ConvMessages are the chat (ADR-0027).
 	Conversations []service.ConversationView
 	ConvMessages  []domain.ConversationMessage
+	// Followups, RunActions and Steers are the resilience queue and what the UI sent (ADR-0039).
+	Followups  []domain.Followup
+	RunActions []RunActionCall
+	Steers     []SteerCall
 	// MyRoleIs é o papel do usuário logado nesta empresa (vazio = owner).
 	MyRoleIs domain.MemberRole
 	nextTask int64
@@ -496,7 +500,7 @@ func (f *Fake) ListRuns(_ context.Context, _ domain.ID, fl service.RunFilter) ([
 				continue
 			}
 		}
-		out = append(out, r)
+		out = append(out, withSteer(r))
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].CreatedAt.After(out[j].CreatedAt) })
 	if fl.Limit > 0 && len(out) > fl.Limit {
@@ -513,10 +517,18 @@ func (f *Fake) GetRun(_ context.Context, _, runID domain.ID) (service.RunView, e
 	}
 	for _, r := range f.Runs {
 		if r.ID == runID {
-			return r, nil
+			return withSteer(r), nil
 		}
 	}
 	return service.RunView{}, domain.ErrNotFound
+}
+
+// withSteer fills what the service adds to a run view: the steer capability of its harness.
+func withSteer(r service.RunView) service.RunView {
+	if r.SteerMode == "" {
+		r.SteerMode = domain.SteerModeFor(r.Agent)
+	}
+	return r
 }
 
 func (f *Fake) ListRunEvents(_ context.Context, _, runID domain.ID, after int64, limit int) ([]domain.RunEvent, error) {
