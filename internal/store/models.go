@@ -561,6 +561,14 @@ type ModelPrice struct {
 	CreatedAt            time.Time
 }
 
+type ModelReport struct {
+	CompanyID  uuid.UUID
+	Agent      string
+	Model      string
+	Source     string
+	LastSeenAt time.Time
+}
+
 type Persona struct {
 	ID                   uuid.UUID
 	CompanyID            uuid.UUID
@@ -591,6 +599,22 @@ type Persona struct {
 	SearchTsv            interface{}
 	Icon                 string
 	EnvironmentID        *uuid.UUID
+}
+
+type PersonaReadiness struct {
+	PersonaID         uuid.UUID
+	CompanyID         uuid.UUID
+	Status            string
+	Agent             string
+	Model             string
+	EnvironmentID     *uuid.UUID
+	EnvironmentSource string
+	Steps             []byte
+	Reason            string
+	Trigger           string
+	DurationMs        int32
+	CheckedAt         time.Time
+	FailingSince      *time.Time
 }
 
 type PersonaSkill struct {
@@ -707,6 +731,7 @@ type Project struct {
 	UpdatedAt          time.Time
 	Status             string
 	BudgetMonthlyCents *int64
+	EnvironmentID      *uuid.UUID
 }
 
 type ProjectReviewPolicy struct {
@@ -779,6 +804,8 @@ type Run struct {
 	WorkspaceSource     string
 	ConversationID      *uuid.UUID
 	SearchTsv           interface{}
+	EnvironmentID       *uuid.UUID
+	EnvironmentSource   string
 }
 
 type RunEvent struct {

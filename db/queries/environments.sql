@@ -103,3 +103,25 @@ WHERE l.company_id = @company_id AND l.run_id = @run_id;
 -- name: LockEnvironmentDefault :exec
 -- Serializa a troca do ambiente padrão de uma empresa.
 SELECT pg_advisory_xact_lock(hashtext('hanko:env-default:' || (@company_id::uuid)::text));
+
+-- M11 (ADR-0055): ambiente do projeto e origem do ambiente gravada na run.
+
+-- name: SetProjectEnvironment :one
+UPDATE projects SET environment_id = sqlc.narg(environment_id), updated_at = @now
+WHERE company_id = @company_id AND id = @id
+RETURNING *;
+
+-- name: MoveProjectsEnvironment :execrows
+-- Arquivar um ambiente leva os projetos dele para outro (ou para o padrão, com nulo).
+UPDATE projects SET environment_id = sqlc.narg(to_id), updated_at = @now
+WHERE company_id = @company_id AND environment_id = @from_id;
+
+-- name: ListEnvironmentProjects :many
+SELECT p.id, p.slug, p.name, p.environment_id FROM projects p
+WHERE p.company_id = @company_id AND p.environment_id IS NOT NULL
+ORDER BY p.name, p.id;
+
+-- name: SetRunEnvironment :one
+UPDATE runs SET environment_id = sqlc.narg(environment_id), environment_source = @source
+WHERE company_id = @company_id AND id = @id
+RETURNING *;

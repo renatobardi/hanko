@@ -90,7 +90,7 @@ func (q *Queries) ExportRunEventsPage(ctx context.Context, arg ExportRunEventsPa
 }
 
 const exportRuns = `-- name: ExportRuns :many
-SELECT id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv FROM runs WHERE company_id = $1 AND status NOT IN ('queued', 'running') AND task_id IS NOT NULL ORDER BY created_at, id
+SELECT id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv, environment_id, environment_source FROM runs WHERE company_id = $1 AND status NOT IN ('queued', 'running') AND task_id IS NOT NULL ORDER BY created_at, id
 `
 
 // Só execuções encerradas: uma execução em voo ainda não é um fato histórico. Runs de chat (sem task) ficam de fora (ADR-0027).
@@ -138,6 +138,8 @@ func (q *Queries) ExportRuns(ctx context.Context, companyID uuid.UUID) ([]Run, e
 			&i.WorkspaceSource,
 			&i.ConversationID,
 			&i.SearchTsv,
+			&i.EnvironmentID,
+			&i.EnvironmentSource,
 		); err != nil {
 			return nil, err
 		}
@@ -407,7 +409,7 @@ func (q *Queries) ImportPersona(ctx context.Context, arg ImportPersonaParams) (P
 const importProject = `-- name: ImportProject :one
 INSERT INTO projects (id, company_id, slug, name, description, workspace_id, status, budget_monthly_cents, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-RETURNING id, company_id, slug, name, description, workspace_id, created_at, updated_at, status, budget_monthly_cents
+RETURNING id, company_id, slug, name, description, workspace_id, created_at, updated_at, status, budget_monthly_cents, environment_id
 `
 
 type ImportProjectParams struct {
@@ -448,6 +450,7 @@ func (q *Queries) ImportProject(ctx context.Context, arg ImportProjectParams) (P
 		&i.UpdatedAt,
 		&i.Status,
 		&i.BudgetMonthlyCents,
+		&i.EnvironmentID,
 	)
 	return i, err
 }
@@ -459,7 +462,7 @@ INSERT INTO runs (id, company_id, task_id, persona_id, status, trigger, agent, m
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
         $12, $13, $14, $15, $16, $17, $18, $19,
         $20, $21, $22, $23, $24, $25)
-RETURNING id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv
+RETURNING id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv, environment_id, environment_source
 `
 
 type ImportRunParams struct {
@@ -554,6 +557,8 @@ func (q *Queries) ImportRun(ctx context.Context, arg ImportRunParams) (Run, erro
 		&i.WorkspaceSource,
 		&i.ConversationID,
 		&i.SearchTsv,
+		&i.EnvironmentID,
+		&i.EnvironmentSource,
 	)
 	return i, err
 }

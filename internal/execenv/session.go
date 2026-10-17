@@ -21,6 +21,9 @@ type Target struct {
 	SSH        domain.SSHConfig
 	PrivateKey string
 	Sandbox    domain.SandboxConfig
+	// Cloud e APIKey: o sandbox em nuvem e a chave de API do provider (já com ${secret:} expandido).
+	Cloud  domain.CloudConfig
+	APIKey string
 	// Env são as variáveis do ambiente (valores em claro); entram no ambiente do harness no alvo.
 	Env map[string]string
 }
@@ -62,6 +65,8 @@ func Open(cfg Config, t Target, run RunInfo) (Session, error) {
 		return openSSH(cfg, t, run)
 	case domain.EnvSandbox:
 		return openSandbox(cfg, t, run)
+	case domain.EnvCloud:
+		return openCloud(cfg, t, run)
 	}
 	return nil, fmt.Errorf("ambiente %q: driver %q não roda remotamente", t.Name, t.Driver)
 }
