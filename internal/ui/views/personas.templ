@@ -276,7 +276,12 @@ templ PersonaPage(sh Shell, vm PersonaVM) {
 				</dl>
 			</section>
 			<section class="card pad">
-				<div class="card-head"><h2>{ i18n.T(ctx, "Instruções") }</h2></div>
+				<div class="card-head">
+					<h2>{ i18n.T(ctx, "Instruções") }</h2>
+					if vm.InstructionsHref != "" {
+						<a class="sub" href={ templ.SafeURL(vm.InstructionsHref) }>{ i18n.Tf(ctx, "revisão %d · histórico e edição", vm.InstructionRevision) }</a>
+					}
+				</div>
 				if vm.Instructions == "" {
 					<p class="muted">{ i18n.T(ctx, "Sem instruções.") }</p>
 				} else {

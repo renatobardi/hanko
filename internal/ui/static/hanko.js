@@ -50,6 +50,66 @@
     }
   });
 
+  // Drag and drop de anexos (ADR-0052): [data-dropzone] (uma caixa ou um formulário inteiro) aceita arquivos soltos e
+  // os põe no <input type="file" multiple> dela; sem este script o seletor de arquivos continua funcionando. Com
+  // data-dropzone-submit, soltar ou escolher envia o formulário na hora.
+  function dropzoneOf(el) {
+    return el && el.closest ? el.closest("[data-dropzone]") : null;
+  }
+  function dzInput(z) {
+    return z.querySelector('input[type="file"]');
+  }
+  function dzRender(z) {
+    var list = z.querySelector("[data-dz-list]");
+    var input = dzInput(z);
+    if (!list || !input) return;
+    list.textContent = "";
+    for (var i = 0; i < input.files.length; i++) {
+      var li = document.createElement("li");
+      li.textContent = input.files[i].name;
+      list.appendChild(li);
+    }
+  }
+  document.addEventListener("dragover", function (e) {
+    var z = dropzoneOf(e.target);
+    if (!z || !e.dataTransfer || Array.prototype.indexOf.call(e.dataTransfer.types || [], "Files") < 0) return;
+    e.preventDefault();
+    z.classList.add("is-over");
+  });
+  document.addEventListener("dragleave", function (e) {
+    var z = dropzoneOf(e.target);
+    if (z && !z.contains(e.relatedTarget)) z.classList.remove("is-over");
+  });
+  document.addEventListener("drop", function (e) {
+    var z = dropzoneOf(e.target);
+    if (!z) return;
+    z.classList.remove("is-over");
+    var input = dzInput(z);
+    if (!input || !e.dataTransfer || !e.dataTransfer.files || !e.dataTransfer.files.length) return;
+    e.preventDefault();
+    try {
+      var dt = new DataTransfer();
+      var i;
+      for (i = 0; i < input.files.length; i++) dt.items.add(input.files[i]);
+      for (i = 0; i < e.dataTransfer.files.length; i++) dt.items.add(e.dataTransfer.files[i]);
+      input.files = dt.files;
+    } catch (err) {
+      input.files = e.dataTransfer.files;
+    }
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  document.addEventListener("change", function (e) {
+    var input = e.target;
+    if (!input.matches || !input.matches('input[type="file"]')) return;
+    var z = dropzoneOf(input);
+    if (!z) return;
+    dzRender(z);
+    if (z.hasAttribute("data-dropzone-submit") && input.files.length) {
+      var form = z.tagName === "FORM" ? z : z.closest("form");
+      if (form && form.requestSubmit) form.requestSubmit();
+    }
+  });
+
   // Live log: stick to the bottom unless the reader scrolled up.
   function watchLog() {
     var log = document.getElementById("run-log");

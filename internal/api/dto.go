@@ -134,6 +134,7 @@ type Persona struct {
 	Title                string         `json:"title" example:"CTO"`
 	Icon                 string         `json:"icon" example:"code" doc:"Glifo da persona (catálogo fechado)."`
 	Instructions         string         `json:"instructions" doc:"Instruções permanentes da persona."`
+	InstructionRevision  int            `json:"instruction_revision" doc:"Revisão vigente das instruções (histórico em /instructions/revisions, ADR-0052)."`
 	Agent                string         `json:"agent" enum:"claude,codex,acp,fake" doc:"Harness que executa a persona."`
 	Model                string         `json:"model,omitempty" example:"claude-sonnet-4-5"`
 	AdapterConfig        map[string]any `json:"adapter_config,omitempty" doc:"Configuração específica do adapter. Valores de env e segredos voltam mascarados (***); os nomes ficam."`
@@ -317,12 +318,15 @@ type Run struct {
 	ModelSource       string   `json:"model_source,omitempty" enum:"task,persona,harness_default" doc:"Quem escolheu o modelo: a task (manual), a persona ou o padrão do harness."`
 	SubscriptionID    string   `json:"subscription_id,omitempty" format:"uuid" doc:"Assinatura que cobre a execução."`
 	// EnvironmentID e EnvironmentSource: onde a execução roda e por quê (persona > projeto > padrão da empresa > local, ADR-0055); ausentes em execuções anteriores.
-	EnvironmentID     string     `json:"environment_id,omitempty" format:"uuid"`
-	EnvironmentSource string     `json:"environment_source,omitempty" enum:"persona,project,default,local"`
-	Usage             Usage      `json:"usage"`
-	CreatedAt         time.Time  `json:"created_at"`
-	StartedAt         *time.Time `json:"started_at,omitempty"`
-	FinishedAt        *time.Time `json:"finished_at,omitempty"`
+	EnvironmentID     string `json:"environment_id,omitempty" format:"uuid"`
+	EnvironmentSource string `json:"environment_source,omitempty" enum:"persona,project,default,local"`
+	Usage             Usage  `json:"usage"`
+	// InstructionRevision/InstructionSHA256: com que revisão das instruções da persona a execução rodou (ADR-0052).
+	InstructionRevision *int       `json:"instruction_revision,omitempty"`
+	InstructionSHA256   string     `json:"instruction_sha256,omitempty" doc:"sha256 (hex) do texto das instruções com que a execução rodou."`
+	CreatedAt           time.Time  `json:"created_at"`
+	StartedAt           *time.Time `json:"started_at,omitempty"`
+	FinishedAt          *time.Time `json:"finished_at,omitempty"`
 	// PolicyOrigin: de que camada veio a política de revisão desta execução (só no detalhe).
 	PolicyOrigin *RunPolicyOrigin `json:"policy_origin,omitempty"`
 }
@@ -528,7 +532,7 @@ func personaOut(p domain.Persona) Persona {
 		_ = json.Unmarshal(p.AdapterConfig, &cfg)
 	}
 	return Persona{ID: idStr(p.ID), CompanyID: idStr(p.CompanyID), Slug: p.Slug, Name: p.Name, Title: p.Title, Icon: p.Icon,
-		Instructions: p.Instructions, Agent: p.Agent, Model: p.Model, AdapterConfig: export.MaskConfig(cfg), Status: string(p.Status),
+		Instructions: p.Instructions, InstructionRevision: p.InstructionRevision, Agent: p.Agent, Model: p.Model, AdapterConfig: export.MaskConfig(cfg), Status: string(p.Status),
 		ReportsTo: idPtr(p.ReportsTo), WorkspaceID: idPtr(p.WorkspaceID), HeartbeatIntervalSec: p.HeartbeatIntervalSec,
 		BudgetMonthlyCents: p.BudgetMonthlyCents, PauseReason: p.PauseReason, SubscriptionID: idPtr(p.SubscriptionID), RequireReview: p.RequireReview, ReviewerPersonaID: idPtr(p.ReviewerPersonaID), ReviewerAgent: p.ReviewerAgent, ReviewerModel: p.ReviewerModel, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt,
 		EnvironmentID: idPtr(p.EnvironmentID)}
@@ -624,7 +628,7 @@ func runOut(r service.RunView) Run {
 		EnvironmentID: idPtr(r.EnvironmentID), EnvironmentSource: string(r.EnvironmentSource),
 		Trigger: string(r.Trigger), Agent: r.Agent, Model: r.Model, SessionRef: r.SessionRef, TraceID: r.TraceID,
 		ExitCode: r.ExitCode, Error: r.Error, Summary: r.Summary, CostUSD: r.CostUSD, Usage: Usage(r.Usage),
-		CreatedAt: r.CreatedAt, StartedAt: r.StartedAt, FinishedAt: r.FinishedAt, PolicyOrigin: policyOriginOut(r.PolicyOrigin)}
+		InstructionRevision: r.InstructionRevision, InstructionSHA256: r.InstructionSHA256, CreatedAt: r.CreatedAt, StartedAt: r.StartedAt, FinishedAt: r.FinishedAt, PolicyOrigin: policyOriginOut(r.PolicyOrigin)}
 }
 
 func policyOriginOut(o *domain.RunPolicyOrigin) *RunPolicyOrigin {

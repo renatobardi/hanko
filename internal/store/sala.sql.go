@@ -13,7 +13,7 @@ import (
 )
 
 const activeRunForConversationPersona = `-- name: ActiveRunForConversationPersona :one
-SELECT id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv, environment_id, environment_source FROM runs
+SELECT id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv, instruction_revision, instruction_sha256, environment_id, environment_source FROM runs
 WHERE conversation_id = $1 AND persona_id = $2 AND status IN ('queued', 'running')
 `
 
@@ -60,6 +60,8 @@ func (q *Queries) ActiveRunForConversationPersona(ctx context.Context, arg Activ
 		&i.WorkspaceSource,
 		&i.ConversationID,
 		&i.SearchTsv,
+		&i.InstructionRevision,
+		&i.InstructionSha256,
 		&i.EnvironmentID,
 		&i.EnvironmentSource,
 	)
@@ -250,7 +252,7 @@ INSERT INTO conversation_messages (id, company_id, conversation_id, author_type,
                                    reply_to_id, mentions, created_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8,
         $9, COALESCE($10::uuid[], '{}'::uuid[]), $11)
-RETURNING id, company_id, conversation_id, author_type, author_id, body, run_id, created_at, persona_id, reply_to_id, mentions
+RETURNING id, company_id, conversation_id, author_type, author_id, body, run_id, created_at, persona_id, reply_to_id, mentions, marker
 `
 
 type InsertRoomMessageParams struct {
@@ -294,12 +296,13 @@ func (q *Queries) InsertRoomMessage(ctx context.Context, arg InsertRoomMessagePa
 		&i.PersonaID,
 		&i.ReplyToID,
 		&i.Mentions,
+		&i.Marker,
 	)
 	return i, err
 }
 
 const latestRunOfConversationPersona = `-- name: LatestRunOfConversationPersona :one
-SELECT id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv, environment_id, environment_source FROM runs
+SELECT id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv, instruction_revision, instruction_sha256, environment_id, environment_source FROM runs
 WHERE conversation_id = $1 AND persona_id = $2 AND id <> $3
 ORDER BY created_at DESC, id DESC LIMIT 1
 `
@@ -349,6 +352,8 @@ func (q *Queries) LatestRunOfConversationPersona(ctx context.Context, arg Latest
 		&i.WorkspaceSource,
 		&i.ConversationID,
 		&i.SearchTsv,
+		&i.InstructionRevision,
+		&i.InstructionSha256,
 		&i.EnvironmentID,
 		&i.EnvironmentSource,
 	)

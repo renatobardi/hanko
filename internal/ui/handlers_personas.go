@@ -228,7 +228,8 @@ func (s *server) renderPersona(w http.ResponseWriter, r *http.Request, co domain
 		Hired: fmtDateTime(ctx, p.CreatedAt, loc), Slug: p.Slug,
 		RequireReview: p.RequireReview, OrgAction: base + "/personas/" + p.Slug + "/organizacao",
 		Icon: p.Icon, IconAction: base + "/personas/" + p.Slug + "/icone",
-		ReadinessHref: base + "/personas/" + p.Slug + "/prontidao",
+		ReadinessHref:    base + "/personas/" + p.Slug + "/prontidao",
+		InstructionsHref: base + "/personas/" + p.Slug + "/instrucoes", InstructionRevision: p.InstructionRevision,
 	}
 	if r.URL.Query().Get("testar") == "1" {
 		vm.ReadinessHref += "?auto=1"

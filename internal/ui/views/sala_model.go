@@ -66,6 +66,9 @@ type RoomMsg struct {
 	RunHref string
 	// Waiting são as personas que ainda vão receber a mensagem (estão terminando outra resposta).
 	Waiting []string
+	// Marker é "context_reset" no aviso que /new insere (ADR-0052); Attachments são os anexos da mensagem.
+	Marker      string
+	Attachments []AttachmentRow
 }
 
 // RoomFeedItem é uma linha do Feed do time.
@@ -94,8 +97,10 @@ type RoomVM struct {
 	MaxHops    int
 	MaxRuns    int
 	Cost       string
-	Draft      string
 	DraftKey   string
+	// DraftF liga o campo ao rascunho do servidor e UploadHint é a dica do campo de arquivos (ADR-0052).
+	DraftF     DraftFields
+	UploadHint string
 	Feed       []RoomFeedItem
 	CanAdd     bool
 }

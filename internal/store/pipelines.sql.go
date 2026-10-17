@@ -2033,7 +2033,7 @@ func (q *Queries) ListReviewQueue(ctx context.Context, companyID uuid.UUID) ([]L
 }
 
 const listRunsUntil = `-- name: ListRunsUntil :many
-SELECT id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv, environment_id, environment_source FROM runs WHERE company_id = $1 AND task_id = $2 AND created_at <= $3
+SELECT id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv, instruction_revision, instruction_sha256, environment_id, environment_source FROM runs WHERE company_id = $1 AND task_id = $2 AND created_at <= $3
 ORDER BY created_at, id LIMIT $4
 `
 
@@ -2093,6 +2093,8 @@ func (q *Queries) ListRunsUntil(ctx context.Context, arg ListRunsUntilParams) ([
 			&i.WorkspaceSource,
 			&i.ConversationID,
 			&i.SearchTsv,
+			&i.InstructionRevision,
+			&i.InstructionSha256,
 			&i.EnvironmentID,
 			&i.EnvironmentSource,
 		); err != nil {

@@ -753,7 +753,7 @@ func (q *Queries) SetEnvironmentSecretEnc(ctx context.Context, arg SetEnvironmen
 const setPersonaEnvironment = `-- name: SetPersonaEnvironment :one
 UPDATE personas SET environment_id = $1, updated_at = $2
 WHERE company_id = $3 AND id = $4
-RETURNING id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason, budget_refused_at, subscription_id, reviewer_persona_id, reviewer_agent, reviewer_model, search_tsv, icon, environment_id
+RETURNING id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason, budget_refused_at, subscription_id, reviewer_persona_id, reviewer_agent, reviewer_model, search_tsv, icon, environment_id, instruction_revision
 `
 
 type SetPersonaEnvironmentParams struct {
@@ -801,6 +801,7 @@ func (q *Queries) SetPersonaEnvironment(ctx context.Context, arg SetPersonaEnvir
 		&i.SearchTsv,
 		&i.Icon,
 		&i.EnvironmentID,
+		&i.InstructionRevision,
 	)
 	return i, err
 }
@@ -847,7 +848,7 @@ func (q *Queries) SetProjectEnvironment(ctx context.Context, arg SetProjectEnvir
 const setRunEnvironment = `-- name: SetRunEnvironment :one
 UPDATE runs SET environment_id = $1, environment_source = $2
 WHERE company_id = $3 AND id = $4
-RETURNING id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv, environment_id, environment_source
+RETURNING id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv, instruction_revision, instruction_sha256, environment_id, environment_source
 `
 
 type SetRunEnvironmentParams struct {
@@ -900,6 +901,8 @@ func (q *Queries) SetRunEnvironment(ctx context.Context, arg SetRunEnvironmentPa
 		&i.WorkspaceSource,
 		&i.ConversationID,
 		&i.SearchTsv,
+		&i.InstructionRevision,
+		&i.InstructionSha256,
 		&i.EnvironmentID,
 		&i.EnvironmentSource,
 	)
