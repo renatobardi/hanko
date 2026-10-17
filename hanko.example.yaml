@@ -14,6 +14,9 @@ mode: trusted            # trusted | authenticated (login; exige secret >= 32 by
 # acp:
 #   allow: false          # liga o harness acp (executa o comando da persona no servidor); HANKO_ACP_ALLOW
 #   commands: []          # opcional: só estes executáveis (nome ou caminho absoluto); HANKO_ACP_COMMANDS
+# plugins:               # plugins de terceiros (ADR-0038, docs/PLUGINS.md); desligados sem dir
+#   dir: ""              # diretório local com um subdiretório por plugin; HANKO_PLUGINS_DIR
+#   data_dir: ""         # diretórios de trabalho dos plugins (padrão $HOME/hanko-data); HANKO_PLUGINS_DATA_DIR
 # agent_env_allow: []    # env extra do servidor repassado aos agentes (HANKO_AGENT_ENV_ALLOW)
 # auth:                  # só vale com mode: authenticated (docs/RUNBOOK.md §5)
 #   provider: firebase   # local | firebase

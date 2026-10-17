@@ -259,6 +259,7 @@ func (s *server) register(api huma.API) {
 	s.registerChat(api)
 	s.registerRoom(api) // sala (ADR-0033)
 	s.registerSearch(api)
+	s.registerPlugins(api)
 }
 
 // op monta uma huma.Operation com o prefixo da API.

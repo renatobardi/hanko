@@ -428,6 +428,63 @@ type PersonaSkill struct {
 	PinnedRevision *int32
 }
 
+type Plugin struct {
+	ID                  uuid.UUID
+	PluginKey           string
+	Version             string
+	ApiVersion          int32
+	Manifest            []byte
+	Dir                 string
+	Status              string
+	GrantedCapabilities []string
+	PendingCapabilities []string
+	PendingManifest     []byte
+	Events              []string
+	LastError           string
+	InstalledBy         *uuid.UUID
+	InstalledAt         time.Time
+	UpdatedAt           time.Time
+}
+
+type PluginCompanySetting struct {
+	PluginID  uuid.UUID
+	CompanyID uuid.UUID
+	Enabled   bool
+	Config    []byte
+	SecretEnc string
+	UpdatedBy *uuid.UUID
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+type PluginJobRun struct {
+	ID         uuid.UUID
+	PluginID   uuid.UUID
+	CompanyID  uuid.UUID
+	JobKey     string
+	Status     string
+	StartedAt  time.Time
+	FinishedAt *time.Time
+	Error      string
+}
+
+type PluginLog struct {
+	ID        uuid.UUID
+	PluginID  uuid.UUID
+	CompanyID *uuid.UUID
+	Level     string
+	Message   string
+	CreatedAt time.Time
+}
+
+type PluginState struct {
+	PluginID  uuid.UUID
+	CompanyID uuid.UUID
+	Key       string
+	Value     []byte
+	UpdatedAt time.Time
+}
+
 type Project struct {
 	ID                 uuid.UUID
 	CompanyID          uuid.UUID

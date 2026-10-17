@@ -95,6 +95,8 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 	case cfg.Integrations.AllowStdio:
 		logger.Warn("integrações: servidores MCP stdio liberados (HANKO_INTEGRATIONS_ALLOW_STDIO); eles executam comandos nesta máquina")
 	}
+	startPlugins, stopPlugins := setupPlugins(cfg, svc, logger, version)
+	defer stopPlugins()
 	if err := registerAlertMetrics(otel.Meter(serviceName), svc); err != nil {
 		return err
 	}
@@ -131,6 +133,7 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 			return fmt.Errorf("app: iniciar heartbeat: %w", err)
 		}
 		hbStarted = true
+		startPlugins(ctx)
 		logger.Info("hanko pronto", "version", version, "public_url", cfg.PublicURL, "mode", cfg.Mode, "memory", mem.Name(), "workers", cfg.Workers)
 		return nil
 	})

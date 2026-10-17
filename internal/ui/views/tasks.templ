@@ -141,6 +141,7 @@ templ TaskPage(sh Shell, vm TaskVM, base string) {
 						<p class="muted">{ i18n.T(ctx, "Sem descrição.") }</p>
 					}
 				</div>
+				@PluginWidgetsSlot(sh.Base(), "task", vm.Key)
 				<h2 class="side-h sec-h">{ i18n.T(ctx, "Conversa") }</h2>
 				@Thread(vm, base)
 				if vm.ActiveRun != nil {

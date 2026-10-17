@@ -100,6 +100,8 @@ type Service struct {
 	// Log recebe o registro de auditoria das operações administrativas da instalação (hanko auth user ...);
 	// nil descarta.
 	Log *slog.Logger
+	// Plugins é a política do operador para plugins de terceiros (HANKO_PLUGINS_DIR, ADR-0038); zero = desligados.
+	Plugins PluginsConfig
 }
 
 func New(pool *pgxpool.Pool, jobs Jobs, broker *events.Broker) *Service {
