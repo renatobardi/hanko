@@ -32,6 +32,9 @@ type RequestGateInput struct {
 type DecideGateInput struct {
 	Decision domain.GateStatus // approved | rejected | changes_requested
 	Note     string            // explains the decision to the persona and to the audit trail
+	// Always, só em gate tool aprovado, grava a política "permitir" da persona para esta tool: as próximas chamadas passam
+	// direto (ADR-0053). Só admin.
+	Always bool
 }
 
 // GateFilter narrows ListGates.
@@ -386,6 +389,15 @@ func (s *Service) DecideGate(ctx context.Context, actor domain.Actor, companyID,
 		return GateView{}, domain.Invalid("note", "too long")
 	}
 
+	if in.Always {
+		if in.Decision != domain.GateApproved {
+			return GateView{}, domain.Invalid("always", "sempre permitir só vale ao aprovar")
+		}
+		if err := s.require(ctx, companyID, domain.MemberAdmin); err != nil { // grava uma política permanente: é de admin
+			return GateView{}, err
+		}
+	}
+
 	var out GateView
 	err := s.withTx(ctx, func(t *txc) error {
 		cur, err := t.q.GetGateByIDForUpdate(ctx, store.GetGateByIDForUpdateParams{CompanyID: companyID, ID: gateID})
@@ -394,6 +406,9 @@ func (s *Service) DecideGate(ctx context.Context, actor domain.Actor, companyID,
 		}
 		if domain.GateStatus(cur.Status) != domain.GatePending {
 			return fmt.Errorf("gate already %s: %w", cur.Status, domain.ErrConflict)
+		}
+		if in.Always && domain.GateKind(cur.Kind) != domain.GateTool {
+			return domain.Invalid("always", "sempre permitir só vale para gates de tool")
 		}
 		if domain.GateKind(cur.Kind) == domain.GateHire { // contratar persona é decisão de admin (ADR-0021)
 			if err := s.require(ctx, companyID, domain.MemberAdmin); err != nil {
@@ -418,7 +433,7 @@ func (s *Service) DecideGate(ctx context.Context, actor domain.Actor, companyID,
 			}
 		}
 		if g.Kind == domain.GateTool { // a chamada de tool aprovada passa uma vez; a persona acorda para repeti-la (ADR-0036)
-			if err := t.toolGateDecided(g, in.Decision); err != nil {
+			if err := t.toolGateDecided(actor, g, in.Decision, in.Always); err != nil {
 				return err
 			}
 		}
@@ -651,6 +666,9 @@ type Inbox struct {
 	AchievedGoals []GoalView
 	// HeldTasks são as raízes de pausa (ADR-0040): informativo, o humano que pausou decide quando retomar; fora de Count.
 	HeldTasks []HeldTask
+	// QuarantinedTools são as tools novas (ou que mudaram) que esperam a revisão de um admin antes de a persona poder
+	// chamá-las (ADR-0036/0053). Só admin vê; entram em Count.
+	QuarantinedTools []QuarantinedToolItem
 }
 
 // InboxReview is an automatic review in progress on a task.
@@ -664,7 +682,7 @@ type InboxReview struct {
 
 // Count is the number of items waiting.
 func (i Inbox) Count() int {
-	return len(i.Gates) + len(i.BlockedTasks) + len(i.FailedRuns) + len(i.ErrorPersonas) + len(i.Alerts) + len(i.GuardedSubscriptions)
+	return len(i.Gates) + len(i.BlockedTasks) + len(i.FailedRuns) + len(i.ErrorPersonas) + len(i.Alerts) + len(i.GuardedSubscriptions) + len(i.QuarantinedTools)
 }
 
 const (
@@ -741,6 +759,9 @@ func (s *Service) Inbox(ctx context.Context, companyID domain.ID) (Inbox, error)
 		return in, err
 	}
 	if in.HeldTasks, err = s.ListHeldTasks(ctx, companyID); err != nil {
+		return in, err
+	}
+	if in.QuarantinedTools, err = s.quarantinedTools(ctx, companyID); err != nil {
 		return in, err
 	}
 	return in, nil
