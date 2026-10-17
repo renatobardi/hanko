@@ -49,12 +49,18 @@ Plano único decidido item a item pelo dono em 2026-10-16 (70 itens; 8 ficaram f
 
 **Já entregue no v0.3 (ADR-0031):** UI alinhada ao Kubo DS, glifo por persona, tema, quadro de tasks arrastável e visões salvas, projeto e workspace em abas, timeline, painel ao vivo, ambientes/adapters/plugins (leitura), export/import pela UI, times prontos e troca da própria senha.
 
-**Capacidade:** 60 h/semana, 1 marco por semana, folga a cada 4 marcos. Total: 13 marcos + 3 folgas ≈ 16 semanas. Regras de parada do v0.1 continuam valendo. Corte de escopo segue a ordem inversa das ondas: Ecossistema cai antes de Governança, que cai antes de Execução.
+**Ordem de execução (por dependência, sem datas).** As «semanas» do v0.1 eram estimativa de capacidade humana; neste plano o único freio são os gates (testes verdes, ADR, contrato, smoke). Grafo:
+
+- Raiz paralela: trilha contínua (todas as ondas), M7, M13, M14.
+- M8, M9, M10, M11, M12 e M16 dependem de M7.
+- M15 depende de M8 e M9. M17 depende de M7 e M9. M18 depende de M11 e M17. M19 depende de M7 e M16. M20 depende de M12 e M15.
+- Releases: `v0.3.0` ao fechar a Onda 1 (M7–M9), `v0.4.0` na 2 (M10–M13), `v0.5.0` na 3 (M14–M16), `v0.6.0` na 4 (M17–M20).
+- Regras de parada: corte de escopo segue a ordem inversa das ondas (Ecossistema antes de Governança antes de Execução); fatia que falha duas correções é revertida e anotada em `docs/VALIDACAO-MANHA.md`. Andamento por item em `docs/PROGRESSO.md`.
 
 ### Trilha contínua — qualidade e operação (paralela a todas as ondas)
-Começa na semana 1 e consome ~20 % da capacidade.
+Começa junto com M7 e roda em paralelo a todas as ondas.
 
-| Quando | Itens |
+| Fase | Itens |
 |---|---|
 | Já | **#60** publicar `v0.1.0` e `v0.2.0`; canais edge (main) e stable (tag), notas geradas de `changelog.d`. **#63** `SECURITY.md` + dependabot (gomod, npm, actions). **#59** CI separado por propósito: `ci` (PR rápido), `e2e`, `evals` (nightly), `release`, `security` (govulncheck + trivy); gates de drift mantidos. **#56** cobertura mínima no CI: domain/heartbeat ≥ 80 %, service ≥ 70 %, api por integração; toda feature entra com teste; testes de propriedade nos motores (#1, #20, orçamento). |
 | Onda 1 | **#53** first-admin claim (link de uso único no boot; substitui `auth create-owner`). **#51** rate limit geral (token bucket em Postgres por API key, usuário e IP; 429 + `Retry-After`; métricas). **#49** erros via OTel: exceptions como span events, painel "Erros" provisionado, erros do browser → Hanko → OTLP. **#57** Playwright com ~15 jornadas críticas contra PG real + harness fake; screenshot diff das telas principais. **#70** `/design-guide` (DS em claro e escuro, base do screenshot diff) + ux-labs com cenários montados (thread longo, run com 10 mil linhas); só admin/dev. |
@@ -67,7 +73,6 @@ Começa na semana 1 e consome ~20 % da capacidade.
 | M7 | **#41** segredos como recurso da empresa (AES-GCM, rekey, reveal-once), referenciados por `${secret:X}` em integrações, env da persona (corrige o env sem cifra), credencial de repo e provider de modelo; segredos de usuário (visíveis só ao dono); provider de cofre externo opcional resolvendo no despacho. **#66** `instance_settings` para toggles não sensíveis, com audit; env vence e trava na UI. **#50** `BlobStore` com drivers postgres (padrão) e s3-compat, mais comando de migração entre drivers. | 0032 segredos · 0033 BlobStore | Persona usa um segredo por referência; o env antigo migra cifrado; artefato vai para S3. |
 | M8 | Revisões append-only padronizadas: **#7** instruções da persona (autor, motivo, sha256; o run grava a revisão usada; diff e restaurar; persona propõe mudança via gate) e base reusada por skills, fluxos e gates. **#5** anexos como artefato `kind=attachment` em task e comentário, com upload por UI, CLI e MCP. **#6** rascunhos no servidor por usuário + alvo. **#11** `/new` no chat, anexos no chat e tools `hanko_project_create` / `hanko_goal_create`. | 0034 revisões append-only | Mudança de instrução aparece com diff; o run mostra a revisão usada; anexo arrastado chega no briefing. |
 | M9 | **#20** motor de política off/ask/allow por persona × tool (padrão por empresa); `ask` vira gate `kind=tool_call` com timeout; "sempre permitir" grava regra; ACP nativo, claude via hook PreToolUse. **#39** quarentena de tool nova e log de chamadas por conexão; testar tool na UI. **#40** `/mcp` vira gateway (Hanko + integrações + plugins), com perfis de tools por persona e token por cliente externo. | 0035 política de tools e gateway | Persona tenta uma tool em `ask`; humano aprova "sempre"; segunda chamada passa direto; tudo no log da conexão. |
-| — | Folga | | |
 
 ### Onda 2 — Execução (v0.4)
 | M | Entregável | ADR | Demo |
@@ -76,7 +81,6 @@ Começa na semana 1 e consome ~20 % da capacidade.
 | M11 | **#35** ambientes: drivers local, docker (container endurecido por run), ssh (Tailscale) e 1 sandbox cloud (provider escolhido no ADR, após medir); probe real; atribuição por persona e projeto com precedência. **#10** readiness da persona (probe por harness com passos nomeados, botão "Testar agora", checagem periódica, alerta e bloqueio de despacho). **#17** catálogo híbrido de modelos. | 0037 ambientes de execução | Mesma persona roda local, em container e via SSH; auth quebrada aparece antes do run. |
 | M12 | **#27** decision model por empresa: classificador externo via OpenRouter (chave como segredo, modelo do catálogo), features registradas (triagem, classificador de fase, nome/resumo), invocações no ledger como `system`. **#43** harnesses: Devin CLI de primeira classe (`devin acp`, preset próprio, probe, teste de contrato), presets ACP testados (gemini, opencode), Pi nativo (`pi --mode json -p`, tools via CLI + run token), Cursor CLI (stream-json) e harness HTTP próprio (loop de tool-use em endpoint OpenAI-compat, reusa o provider do decision model; reabre o teste com oMLX). | 0038 decision model e harness HTTP | Devin, Pi e uma persona HTTP rodam a mesma task; a triagem usa o decision model e aparece em Custos. |
 | M13 | Resiliência de run. **#12** continuação limitada (retoma `session_ref` + briefing, máx. 2 tentativas, `continuation_of_run_id`). **#13** card de diagnóstico; Tentar de novo / Continuar / Encerrar; "desfecho incerto" exige decisão humana. **#14** steer onde o harness suporta (claude stream-json, ACP); codex cai em interromper+continuar. **#15** fila de follow-ups unificada (chat + task), editável, com cancelar disparando o próximo run. | 0039 recuperação e steering | Matar o processo no meio: o run continua sozinho; mensagem injetada muda o rumo do run ativo. |
-| — | Folga | | |
 
 ### Onda 3 — Governança (v0.5)
 | M | Entregável | ADR | Demo |
@@ -84,7 +88,6 @@ Começa na semana 1 e consome ~20 % da capacidade.
 | M14 | Coordenação de tasks. **#1** dependências N:N sem ciclo, `bloqueada` derivado, wake ao fechar as dependências, tool MCP. **#2** árvore pai/filho na UI, pai acorda ao fechar o último filho e não conclui com filho aberto (override com motivo). **#3** hold herdado por subárvore. **#4** override de revisor por task (task > projeto > persona, origem gravada). | 0040 coordenação de tasks | A persona quebra a task em três com dependência; elas destravam em cascata; pausar o pai congela tudo. |
 | M15 | Gates. **#18** `kind=question` com schema (single, multi, texto, N campos), dispensar e reabrir. **#19** `kind=plan` opt-in (1º run só planeja; aprovado → execução recebe o plano). **#21** resubmit no mesmo gate com diff + audiência nomeada. **#8** contratação por persona via gate que cria a persona. **#9** persona principal por usuário + personas de sistema protegidas. **#29** incidentes de orçamento (empresa/projeto/persona) com resolução. | 0041 gates estendidos | Persona pergunta via formulário, depois submete plano; humano pede mudança; reenvio no mesmo gate com diff. |
 | M16 | Caixa e visões. **#30** lido/arquivado por pessoa, Não lidos + badge, @usuário/@persona, toasts SSE, web push no PWA. **#31** "Minhas" por participação, busca cobrindo metas/projetos/gates/artefatos/fluxos, atividade por ator. **#32** árvore de metas com rollup. **#25** editar, arquivar e excluir empresa. **#26** import com dry-run e merge seletivo. **#28** `hanko login` pelo navegador + `whoami`, join requests, tela de usuários da instância. | 0042 caixa por pessoa e notificações | @menção chega como push no celular; arquivar limpa a Caixa sem fechar a task. |
-| — | Folga | | |
 
 ### Onda 4 — Ecossistema (v0.6)
 | M | Entregável | ADR | Demo |
