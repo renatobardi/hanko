@@ -477,6 +477,11 @@ func (s *Service) secretUsage(ctx context.Context, q *store.Queries, companyID d
 	for _, p := range ps {
 		add(secretref.Find(string(p.AdapterConfig)), domain.SecretUse{Kind: "persona", Slug: p.Slug, Name: p.Slug})
 	}
+	if dm, err := q.GetDecisionModel(ctx, companyID); err == nil {
+		add(secretref.Find(dm.ApiKeyRef), domain.SecretUse{Kind: "decision", Slug: "decision-model", Name: "Decision model"})
+	} else if !isNoRows(err) {
+		return nil, fmt.Errorf("get decision model: %w", err)
+	}
 	if !s.secretBox().Enabled() {
 		return uses, nil
 	}

@@ -272,6 +272,45 @@ type DecisionExample struct {
 	UpdatedAt       time.Time
 }
 
+type DecisionFeature struct {
+	CompanyID uuid.UUID
+	Feature   string
+	Enabled   bool
+	Model     string
+	UpdatedAt time.Time
+}
+
+type DecisionInvocation struct {
+	ID           uuid.UUID
+	CompanyID    uuid.UUID
+	Feature      string
+	ActorType    string
+	TaskID       *uuid.UUID
+	Model        string
+	Status       string
+	Error        string
+	InputTokens  int64
+	OutputTokens int64
+	CostUsd      float64
+	CostSource   string
+	LatencyMs    int32
+	CreatedAt    time.Time
+}
+
+type DecisionModel struct {
+	CompanyID          uuid.UUID
+	Provider           string
+	BaseUrl            string
+	ApiKeyRef          string
+	Model              string
+	PromptUsdToken     float64
+	CompletionUsdToken float64
+	TimeoutSec         int32
+	Enabled            bool
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+}
+
 type Environment struct {
 	ID              uuid.UUID
 	CompanyID       uuid.UUID
