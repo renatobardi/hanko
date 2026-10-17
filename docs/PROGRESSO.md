@@ -4,17 +4,17 @@ Status: `pendente` · `em andamento` · `feito` · `parcial` · `bloqueado` (mot
 
 | # | Item | Marco | Status | Commit | Notas |
 |---|---|---|---|---|---|
-| 1 | Tasks › Dependências bloqueantes | M14 | pendente | |  |
-| 2 | Tasks › Árvore pai/filho | M14 | pendente | |  |
-| 3 | Tasks › Pausa de árvore | M14 | pendente | |  |
-| 4 | Tasks › Política por task | M14 | pendente | |  |
-| 5 | Tasks › Anexos | M8 | pendente | |  |
-| 6 | Tasks › Rascunhos | M8 | pendente | |  |
-| 7 | Personas › Instruções | M8 | pendente | |  |
+| 1 | Tasks › Dependências bloqueantes | M14 | feito | d4e13e8 | |
+| 2 | Tasks › Árvore pai/filho | M14 | feito | d4e13e8 | |
+| 3 | Tasks › Pausa de árvore | M14 | feito | d4e13e8 | |
+| 4 | Tasks › Política por task | M14 | feito | d4e13e8 | |
+| 5 | Tasks › Anexos | M8 | feito | c509f5a | drag-and-drop só verificado por teste de integração, sem navegador real |
+| 6 | Tasks › Rascunhos | M8 | feito | c509f5a | |
+| 7 | Personas › Instruções | M8 | feito | c509f5a | revisões append-only + gate `instruction` |
 | 8 | Personas › Contratação | M15 | pendente | |  |
 | 9 | Personas › Principal e built-in | M15 | pendente | |  |
 | 10 | Personas › Readiness | M11 | pendente | |  |
-| 11 | Chat | M8 | pendente | |  |
+| 11 | Chat | M8 | feito | c509f5a | |
 | 12 | Runs › Continuação | M13 | pendente | |  |
 | 13 | Runs › Ações do operador | M13 | pendente | |  |
 | 14 | Runs › Steer | M13 | pendente | |  |
@@ -44,7 +44,7 @@ Status: `pendente` · `em andamento` · `feito` · `parcial` · `bloqueado` (mot
 | 38 | Integrações › Conexões | M17 | pendente | |  |
 | 39 | Integrações › Permissão | M9 | pendente | |  |
 | 40 | Integrações › Gateway | M9 | pendente | |  |
-| 41 | Segredos | M7 | pendente | |  |
+| 41 | Segredos | M7 | feito | e64c5d5 | cofre externo (KV v2) contra fake; validação real com Vault fica para o dono |
 | 42 | Canais externos | M19 | pendente | |  |
 | 43 | Harnesses | M12 | pendente | |  |
 | 44 | Cases | Decisão | fora | | Cases: fora por decisão de 2026-10-16 |
@@ -53,23 +53,23 @@ Status: `pendente` · `em andamento` · `feito` · `parcial` · `bloqueado` (mot
 | 47 | Técnico › PG embutido | Trilha O2 | pendente | |  |
 | 48 | Técnico › Realtime | Decisão | fora | | Fica só SSE (sem WebSocket) |
 | 49 | Técnico › Error tracking | Trilha O1 | pendente | |  |
-| 50 | Técnico › Storage | M7 | pendente | |  |
+| 50 | Técnico › Storage | M7 | feito | e64c5d5 | BlobStore; S3 contra fake |
 | 51 | Técnico › Rate limit | Trilha O1 | pendente | |  |
 | 52 | Técnico › MCP standalone | Trilha O2 | pendente | |  |
 | 53 | Técnico › Auth | Trilha O1 | pendente | |  |
 | 54 | Técnico › Distribuição | Trilha O2 | pendente | |  |
 | 55 | Técnico › i18n | Decisão | fora | | Fica pt-BR + en |
-| 56 | Processos › Testes | Trilha Já | pendente | |  |
+| 56 | Processos › Testes | Trilha Já | feito | 93da09a | pisos de cobertura no CI (domain/heartbeat ≥80, service ≥70) |
 | 57 | Processos › E2E | Trilha O1 | pendente | |  |
 | 58 | Processos › Evals | Trilha O2 | pendente | |  |
-| 59 | Processos › CI | Trilha Já | pendente | |  |
-| 60 | Processos › Release | Trilha Já | pendente | |  |
+| 59 | Processos › CI | Trilha Já | feito | 93da09a | CI por propósito (ADR-0049) |
+| 60 | Processos › Release | Trilha Já | parcial | 93da09a | goreleaser + release.yml + notas prontos; as tags não sobem deste ambiente (403): comandos em VALIDACAO-MANHA |
 | 61 | Processos › Announcements | Trilha O3 | pendente | |  |
 | 62 | Processos › Docs | Trilha O3 | pendente | |  |
-| 63 | Processos › Higiene do repo | Trilha Já | pendente | |  |
+| 63 | Processos › Higiene do repo | Trilha Já | feito | 93da09a | SECURITY.md, dependabot; Dependency graph/GHAS e private vulnerability reporting dependem do dono |
 | 64 | Operação › Instância | Trilha O2 | pendente | |  |
 | 65 | Operação › Backup | Trilha O2 | pendente | |  |
-| 66 | Operação › Settings | M7 | pendente | |  |
+| 66 | Operação › Settings | M7 | feito | e64c5d5 | |
 | 67 | Operação › Onboarding | Trilha O3 | pendente | |  |
 | 68 | Operação › CLI | Trilha O3 | pendente | |  |
 | 69 | Operação › Navegação | Trilha O3 | pendente | |  |
