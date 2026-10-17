@@ -1,0 +1,63 @@
+# edge: canal de desenvolvimento. Todo push no main publica a imagem ghcr.io/renatobardi/hanko:edge
+# (e :edge-<sha curto>) e binários snapshot como artefato do job. O canal stable é a tag vX.Y.Z (release.yml).
+# Ver docs/RELEASING.md.
+name: edge
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: edge
+  cancel-in-progress: true # só o main mais recente importa
+
+jobs:
+  image:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: versão
+        id: v
+        run: echo "short=$(git rev-parse --short=8 HEAD)" >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: VERSION=edge-${{ steps.v.outputs.short }}
+          labels: org.opencontainers.image.source=https://github.com/renatobardi/hanko
+          tags: |
+            ghcr.io/renatobardi/hanko:edge
+            ghcr.io/renatobardi/hanko:edge-${{ steps.v.outputs.short }}
+
+  binaries:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v7
+        with:
+          go-version: "1.27"
+          cache: true
+      - uses: goreleaser/goreleaser-action@v7
+        with:
+          version: "~> v2"
+          args: build --snapshot --clean
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hanko-edge-snapshot
+          path: dist/**/hanko
+          retention-days: 14
