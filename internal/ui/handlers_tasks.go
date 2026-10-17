@@ -406,6 +406,9 @@ func (s *server) buildTaskVM(r *http.Request, co domain.Company, t service.TaskV
 	}
 	vm.Artifacts = artifactMinis(ctx, arts, base)
 	vm.ArtifactsHref = base + "/artefatos?task=" + url.QueryEscape(t.Key)
+	if vm.Coord, err = s.coordVM(ctx, co, t, personas, names, loc); err != nil {
+		return views.TaskVM{}, err
+	}
 	return vm, nil
 }
 
@@ -598,6 +601,8 @@ func (s *server) handleNewTask(w http.ResponseWriter, r *http.Request, co domain
 			vm.ProjectOptions[i].Selected = vm.ProjectOptions[i].Slug == p
 		}
 	}
+	// ?pai=<chave> abre a nova task como subtask (link "Nova subtask" da task pai)
+	vm.Parent = strings.TrimSpace(r.URL.Query().Get("pai"))
 	// ?meta=<slug> pre-selects the goal (links from the goal page)
 	if g := r.URL.Query().Get("meta"); g != "" {
 		for i := range vm.GoalOptions {
@@ -672,6 +677,27 @@ func (s *server) handleCreateTask(w http.ResponseWriter, r *http.Request, co dom
 			return
 		}
 		in.GoalID = &id
+	}
+	vm.Parent, vm.DependsOn = trimForm(r, "parent"), trimForm(r, "depends_on")
+	if vm.Parent != "" {
+		p, err := s.be.GetTask(ctx, co.ID, vm.Parent)
+		if err != nil {
+			vm.FieldErr["parent"] = i18n.T(ctx, "task pai não encontrada")
+			vm.Error = i18n.T(ctx, "Task pai não encontrada.")
+			s.renderNewTask(w, r, co, http.StatusUnprocessableEntity, vm)
+			return
+		}
+		in.ParentID = &p.ID
+	}
+	if vm.DependsOn != "" {
+		ids, err := s.parseTaskKeys(ctx, co, vm.DependsOn)
+		if err != nil {
+			_, title, msg := friendly(ctx, err)
+			vm.Error = title + ". " + msg
+			s.renderNewTask(w, r, co, http.StatusUnprocessableEntity, vm)
+			return
+		}
+		in.DependsOn = ids
 	}
 	t, err := s.be.CreateTask(r.Context(), actorFrom(r.Context()), co.ID, in)
 	if err != nil {

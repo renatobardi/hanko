@@ -214,6 +214,9 @@ templ RunPage(sh Shell, vm RunVM) {
 							}
 						</dd>
 						<dt>{ i18n.T(ctx, "Origem do modelo") }</dt><dd>{ vm.ModelSource }</dd>
+						if vm.PolicyOrigin != "" {
+							<dt>{ i18n.T(ctx, "Política de revisão") }</dt><dd>{ vm.PolicyOrigin }</dd>
+						}
 						<dt>{ i18n.T(ctx, "Custo de lista") }</dt><dd>{ vm.ListCost }</dd>
 						<dt>{ i18n.T(ctx, "Origem do custo") }</dt><dd>{ vm.CostSource }</dd>
 						<dt>{ i18n.T(ctx, "Assinatura") }</dt><dd>{ vm.Subscription }</dd>

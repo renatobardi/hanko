@@ -46,7 +46,9 @@ type taskCreateIn struct {
 	Assignee    string `json:"assignee,omitempty" jsonschema:"slug da persona responsável; vazio = sem responsável"`
 	Project     string `json:"project,omitempty" jsonschema:"slug do projeto onde a task nasce (veja hanko_project_list); vazio = sem projeto"`
 	Parent      string `json:"parent,omitempty" jsonschema:"chave da task pai; com token de run o padrão é a task do run atual"`
-	EventID     string `json:"event_id,omitempty" jsonschema:"chave de idempotência: repetir a chamada com o mesmo event_id não duplica a task"`
+	// DependsOn ordena o trabalho: a task nasce bloqueada e só é despachada quando todas essas tasks fecharem.
+	DependsOn []string `json:"depends_on,omitempty" jsonschema:"chaves das tasks de que esta depende (ex. [\"HNK-7\"]): ela só começa quando todas fecharem; sem ciclos"`
+	EventID   string   `json:"event_id,omitempty" jsonschema:"chave de idempotência: repetir a chamada com o mesmo event_id não duplica a task"`
 }
 
 type taskUpdateIn struct {
@@ -55,6 +57,7 @@ type taskUpdateIn struct {
 	Status   string `json:"status,omitempty" jsonschema:"novo status: backlog,todo,in_progress,in_review,blocked,done,cancelled"`
 	Priority string `json:"priority,omitempty" jsonschema:"nova prioridade: critical,high,medium,low"`
 	Assignee string `json:"assignee,omitempty" jsonschema:"slug da nova persona responsável, ou 'none' para remover o responsável"`
+	Parent   string `json:"parent,omitempty" jsonschema:"chave da nova task pai, ou 'none' para tornar a task raiz"`
 	EventID  string `json:"event_id,omitempty" jsonschema:"chave de idempotência da alteração"`
 }
 
@@ -177,6 +180,11 @@ type taskOut struct {
 	ParentID    string `json:"parent_id,omitempty"`
 	ActiveRunID string `json:"active_run_id,omitempty"`
 	UpdatedAt   string `json:"updated_at"`
+	// Coordenação (ADR-0040): derivados.
+	Blocked          bool   `json:"blocked,omitempty" jsonschema:"tem dependência aberta: nenhuma execução abre até todas fecharem"`
+	OpenDependencies int    `json:"open_dependencies,omitempty"`
+	ChildrenOpen     int    `json:"children_open,omitempty" jsonschema:"subtasks ainda abertas; o pai só conclui quando fecharem"`
+	HoldReason       string `json:"hold_reason,omitempty" jsonschema:"a task (ou um ancestral) está pausada por um humano: nenhuma execução abre"`
 }
 
 type commentOut struct {
@@ -322,6 +330,7 @@ func registerTools(s *sdk.Server, t *tools) {
 	}, t.runGet)
 	registerArtifactTools(s, t)
 	registerSkillTools(s, t)
+	registerCoordinationTools(s, t)
 }
 
 // ---- resolução de empresa ----
@@ -404,6 +413,10 @@ func toTask(v service.TaskView) taskOut {
 		PersonaID: idStr(v.PersonaID), PersonaName: v.PersonaName, ProjectID: idStr(v.ProjectID), ProjectName: v.ProjectName,
 		ParentID: idStr(v.ParentID), ActiveRunID: idStr(v.ActiveRunID),
 		UpdatedAt: v.UpdatedAt.UTC().Format("2006-01-02T15:04:05Z"),
+		Blocked:   v.Blocked, OpenDependencies: v.OpenDependencies, ChildrenOpen: v.ChildrenOpen,
+	}
+	if v.Hold != nil {
+		o.HoldReason = v.Hold.Reason
 	}
 	return o
 }
@@ -643,6 +656,17 @@ func (t *tools) taskCreate(ctx context.Context, _ *sdk.CallToolRequest, in taskC
 	case id.ViaToken && id.TaskID != nil:
 		ci.ParentID = id.TaskID
 	}
+	for _, ref := range in.DependsOn {
+		ref = strings.TrimSpace(ref)
+		if ref == "" {
+			continue
+		}
+		dv, err := t.b.GetTask(ctx, company, ref)
+		if err != nil {
+			return nil, taskWriteOut{}, toolErr("dependência", ref, err)
+		}
+		ci.DependsOn = append(ci.DependsOn, dv.ID)
+	}
 	if id.ViaToken && id.ConversationID != nil {
 		ci.Description = t.conversationOrigin(ctx, company, *id.ConversationID, ci.Description)
 	}
@@ -700,8 +724,19 @@ func (t *tools) taskUpdate(ctx context.Context, _ *sdk.CallToolRequest, in taskU
 		}
 		changed = true
 	}
+	switch pa := strings.TrimSpace(in.Parent); pa {
+	case "":
+	case "none":
+		ui.ClearParent, changed = true, true
+	default:
+		pv, err := t.b.GetTask(ctx, company, pa)
+		if err != nil {
+			return nil, taskWriteOut{}, toolErr("task pai", pa, err)
+		}
+		ui.ParentID, changed = &pv.ID, true
+	}
 	if !changed {
-		return nil, taskWriteOut{}, errors.New("nada a alterar: informe status, priority ou assignee")
+		return nil, taskWriteOut{}, errors.New("nada a alterar: informe status, priority, assignee ou parent")
 	}
 	cur, err := t.b.GetTask(ctx, company, strings.TrimSpace(in.Key))
 	if err != nil {

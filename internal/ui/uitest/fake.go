@@ -61,6 +61,8 @@ type Fake struct {
 	// MyRoleIs é o papel do usuário logado nesta empresa (vazio = owner).
 	MyRoleIs domain.MemberRole
 	nextTask int64
+	// Coord guarda dependências, pausas e política de revisão por task (ADR-0040).
+	Coord CoordState
 }
 
 var _ = (*Fake)(nil)
@@ -379,6 +381,7 @@ func (f *Fake) GetTask(_ context.Context, _ domain.ID, ref string) (service.Task
 		return service.TaskView{}, err
 	}
 	if i, ok := f.findTask(ref); ok {
+		f.refreshCoord()
 		return f.Tasks[i], nil
 	}
 	return service.TaskView{}, domain.ErrNotFound

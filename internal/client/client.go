@@ -245,8 +245,10 @@ type CreateTaskReq struct {
 	Workspace   string `json:"workspace,omitempty"`
 	Goal        string `json:"goal,omitempty"`
 	Parent      string `json:"parent,omitempty"`
-	Model       string `json:"model,omitempty"`
-	EventID     string `json:"event_id,omitempty"`
+	// DependsOn: tasks de que a nova depende (ids ou chaves); ela nasce bloqueada até todas fecharem.
+	DependsOn []string `json:"depends_on,omitempty"`
+	Model     string   `json:"model,omitempty"`
+	EventID   string   `json:"event_id,omitempty"`
 }
 
 type UpdateTaskReq struct {
@@ -261,6 +263,11 @@ type UpdateTaskReq struct {
 	Goal         string  `json:"goal,omitempty"`
 	ClearGoal    bool    `json:"clear_goal,omitempty"`
 	Model        *string `json:"model,omitempty"`
+	// Árvore e fechamento do pai (ADR-0040).
+	Parent         string `json:"parent,omitempty"`
+	ClearParent    bool   `json:"clear_parent,omitempty"`
+	ForceClose     bool   `json:"force_close,omitempty"`
+	OverrideReason string `json:"override_reason,omitempty"`
 }
 
 type AddCommentReq struct {
