@@ -409,6 +409,6 @@ func (e *env) integrationCmd() *cobra.Command {
 	c.AddCommand(create, ls, show, update, del, test, deliveries,
 		attach("attach", e.t("Liga um servidor MCP para uma ou mais personas"), true),
 		attach("detach", e.t("Desliga um servidor MCP para uma ou mais personas"), false),
-		rekey)
+		rekey, e.integrationToolsCmd())
 	return c
 }

@@ -208,7 +208,7 @@ func (a *Adapter) run(ctx context.Context, spec adapter.Spec, sink adapter.Sink,
 		}
 	}
 	dir := spec.Dir
-	if dir == "" {
+	if dir == "" && spec.Exec == nil {
 		d, err := os.MkdirTemp("", "hanko-run-*")
 		if err != nil {
 			return adapter.Result{ExitCode: -1}, fmt.Errorf("codex: tempdir: %w", err)
@@ -247,25 +247,29 @@ func (a *Adapter) run(ctx context.Context, spec adapter.Spec, sink adapter.Sink,
 		}
 	}
 
-	pr, err := procrun.Run(ctx, procrun.Options{
-		Bin: a.bin, Args: BuildArgs(spec, cfg, dir, mcpArgs), Dir: dir, Env: env, Stdin: Prompt(spec), Grace: a.grace,
-		OnStdout: func(l []byte) {
-			for _, e := range p.Feed(l) {
-				emit(e)
-			}
-		},
-		OnStderr: func(l []byte) {
-			s := string(l)
-			if strings.TrimSpace(s) == "" {
-				return
-			}
-			tail = append(tail, s)
-			if len(tail) > 5 {
-				tail = tail[1:]
-			}
-			emit(adapter.Event{Kind: domain.EventStderr, Text: s, OccurredAt: time.Now().UTC()})
-		},
-	})
+	opts := procrun.Options{Bin: a.bin, Args: BuildArgs(spec, cfg, dir, mcpArgs), Dir: dir, Env: env, Stdin: Prompt(spec), Grace: a.grace}
+	if spec.Exec != nil {
+		// ambiente remoto (ADR-0037): o diretório é o do alvo e só as variáveis da run vão junto
+		opts.Args = BuildArgs(spec, cfg, spec.Exec.WorkDir(), mcpArgs)
+		opts.Target, opts.TargetEnv, opts.Dir = spec.Exec, extra, ""
+	}
+	opts.OnStdout = func(l []byte) {
+		for _, e := range p.Feed(l) {
+			emit(e)
+		}
+	}
+	opts.OnStderr = func(l []byte) {
+		s := string(l)
+		if strings.TrimSpace(s) == "" {
+			return
+		}
+		tail = append(tail, s)
+		if len(tail) > 5 {
+			tail = tail[1:]
+		}
+		emit(adapter.Event{Kind: domain.EventStderr, Text: s, OccurredAt: time.Now().UTC()})
+	}
+	pr, err := procrun.Run(ctx, opts)
 
 	res := adapter.Result{ExitCode: pr.ExitCode, SessionRef: p.threadID, Summary: p.lastMessage, Usage: p.usage}
 	if err != nil {

@@ -49,6 +49,9 @@ func buildHandler(d handlerDeps) (http.Handler, error) {
 	ui.Mount(mux, ui.Deps{Svc: d.Svc, Broker: d.Broker, Logger: d.Logger, Version: d.Version, Auth: uiAuth(d), Secure: cfg.SecureCookies(),
 		Platform: platformInfo(cfg)})
 	mux.Handle("/mcp", mcp.Handler(mcp.Deps{Svc: d.Svc, Tokens: d.Tokens, Logger: d.Logger, Version: d.Version, Trusted: cfg.TrustedMCP(), ArtifactMaxBytes: cfg.ArtifactMaxBytes}))
+	tg := mcp.ToolGatewayDeps{Backend: d.Svc, Tokens: d.Tokens, Logger: d.Logger, Version: d.Version} // gateway de tools (ADR-0036)
+	mux.Handle(mcp.RunToolGatewayPattern, mcp.RunToolGateway(tg))
+	mux.Handle(mcp.NamedToolGatewayPattern, mcp.NamedToolGateway(tg))
 	if cfg.Memory.Provider == config.MemoryAIMemory {
 		mp, err := mcp.MemoryProxy(mcp.MemoryProxyDeps{Backend: d.Svc, Tokens: d.Tokens, URL: cfg.Memory.URL, Token: cfg.Memory.Token,
 			Pages: pageReader(d.Memory), Logger: d.Logger})

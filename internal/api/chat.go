@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -11,13 +12,14 @@ import (
 	"github.com/renatobardi/hanko/internal/service"
 )
 
-// Conversation é uma conversa direta de um humano com uma persona, fora de uma task (chat).
+// Conversation é uma conversa fora de uma task: direta com uma persona (chat) ou com várias (sala, ADR-0033).
 type Conversation struct {
 	ID              string    `json:"id" format:"uuid"`
 	CompanyID       string    `json:"company_id" format:"uuid"`
-	PersonaID       string    `json:"persona_id" format:"uuid"`
-	PersonaName     string    `json:"persona_name"`
-	PersonaSlug     string    `json:"persona_slug"`
+	Kind            string    `json:"kind" enum:"direct,room" doc:"direct = chat com uma persona; room = sala com várias."`
+	PersonaID       string    `json:"persona_id,omitempty" format:"uuid" doc:"Persona do chat direto; ausente numa sala (veja room.participants)."`
+	PersonaName     string    `json:"persona_name,omitempty"`
+	PersonaSlug     string    `json:"persona_slug,omitempty"`
 	Title           string    `json:"title"`
 	Status          string    `json:"status" enum:"open,archived"`
 	CreatedBy       ActorRef  `json:"created_by"`
@@ -27,6 +29,7 @@ type Conversation struct {
 	CreatedAt       time.Time `json:"created_at"`
 	UpdatedAt       time.Time `json:"updated_at"`
 	LastMessageAt   time.Time `json:"last_message_at"`
+	Room            *Room     `json:"room,omitempty" doc:"Configuração e participantes de uma sala."`
 }
 
 // ConversationMessage é uma mensagem de uma conversa.
@@ -35,20 +38,27 @@ type ConversationMessage struct {
 	ConversationID string    `json:"conversation_id" format:"uuid"`
 	Author         ActorRef  `json:"author" doc:"Humano, persona (resposta de uma execução) ou sistema (aviso)."`
 	Body           string    `json:"body" doc:"Markdown."`
-	RunID          string    `json:"run_id,omitempty" format:"uuid" doc:"Na resposta da persona (ou no aviso), a execução que a produziu; na mensagem humana, a que a recolheu (ausente enquanto espera)."`
+	RunID          string    `json:"run_id,omitempty" format:"uuid" doc:"Na resposta da persona (ou no aviso), a execução que a produziu; na mensagem humana do chat direto, a que a recolheu (ausente enquanto espera)."`
 	CreatedAt      time.Time `json:"created_at"`
+	// sala (ADR-0033)
+	PersonaID   string            `json:"persona_id,omitempty" format:"uuid" doc:"Sala: a persona que falou (ou de quem o aviso trata)."`
+	PersonaName string            `json:"persona_name,omitempty"`
+	ReplyToID   string            `json:"reply_to_id,omitempty" format:"uuid" doc:"Sala: a mensagem que esta responde."`
+	Mentions    []string          `json:"mentions,omitempty" doc:"Sala: ids das personas citadas com @slug."`
+	Deliveries  []MessageDelivery `json:"deliveries,omitempty" doc:"Sala: a quem a mensagem foi entregue e a execução de cada persona (ausente enquanto espera a persona terminar a anterior)."`
 }
 
 func conversationOut(v service.ConversationView) Conversation {
-	return Conversation{ID: idStr(v.ID), CompanyID: idStr(v.CompanyID), PersonaID: idStr(v.PersonaID), PersonaName: v.PersonaName,
+	return Conversation{ID: idStr(v.ID), CompanyID: idStr(v.CompanyID), Kind: kindOut(v.Kind), PersonaID: zeroIDStr(v.PersonaID), PersonaName: v.PersonaName,
 		PersonaSlug: v.PersonaSlug, Title: v.Title, Status: string(v.Status), CreatedBy: actorRef(v.CreatedBy),
 		ActiveRunID: idPtr(v.ActiveRunID), PendingMessages: v.PendingMessages, CostUSD: v.CostUSD,
-		CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt, LastMessageAt: v.LastMessageAt}
+		CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt, LastMessageAt: v.LastMessageAt, Room: roomOut(v.Room)}
 }
 
 func conversationMessageOut(m domain.ConversationMessage) ConversationMessage {
 	return ConversationMessage{ID: idStr(m.ID), ConversationID: idStr(m.ConversationID), Author: actorRef(m.Author),
-		Body: m.Body, RunID: idPtr(m.RunID), CreatedAt: m.CreatedAt}
+		Body: m.Body, RunID: idPtr(m.RunID), CreatedAt: m.CreatedAt, PersonaID: idPtr(m.PersonaID), PersonaName: m.PersonaName,
+		ReplyToID: idPtr(m.ReplyToID), Mentions: idStrs(m.Mentions), Deliveries: deliveriesOut(m.Deliveries)}
 }
 
 type ConversationPath struct {
@@ -61,14 +71,17 @@ type listConversationsIn struct {
 	Page
 	Persona string `query:"persona" doc:"Id ou slug da persona."`
 	Status  string `query:"status" enum:"open,archived" doc:"Só conversas neste estado; omitido = todas."`
+	Kind    string `query:"kind" enum:"direct,room" doc:"Só chats diretos ou só salas; omitido = os dois. Com persona, numa sala filtra por participante."`
 }
 
 type createConversationIn struct {
 	CompanyPath
 	Body struct {
-		Persona string `json:"persona" minLength:"1" doc:"Id ou slug da persona com quem conversar." example:"cto"`
+		Kind    string `json:"kind,omitempty" enum:"direct,room" default:"direct" doc:"direct (padrão) = chat com uma persona; room = sala com várias (ADR-0033)."`
+		Persona string `json:"persona,omitempty" doc:"Chat direto: id ou slug da persona com quem conversar." example:"cto"`
 		Title   string `json:"title,omitempty" maxLength:"200" doc:"Derivado da primeira mensagem quando omitido."`
 		Message string `json:"message,omitempty" maxLength:"20000" doc:"Primeira mensagem (markdown); a persona responde por uma execução."`
+		RoomCreateFields
 	}
 }
 
@@ -107,7 +120,7 @@ func (s *server) registerChat(api huma.API) {
 				return nil, s.fail(ctx, err)
 			}
 			vs, err := s.svc.ListConversations(ctx, sc.Company.ID, service.ConversationFilter{PersonaID: persona,
-				Status: domain.ConversationStatus(in.Status), Limit: min(in.Limit+in.Offset, 200)})
+				Status: domain.ConversationStatus(in.Status), Kind: domain.ConversationKind(in.Kind), Limit: min(in.Limit+in.Offset, 200)})
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}
@@ -122,6 +135,16 @@ func (s *server) registerChat(api huma.API) {
 			sc, err := s.scope(ctx, in.Company)
 			if err != nil {
 				return nil, err
+			}
+			if in.Body.Kind == string(domain.ConversationRoom) {
+				v, err := s.createRoom(ctx, sc.Actor, sc.Company.ID, in.Body.Title, in.Body.Message, in.Body.RoomCreateFields)
+				if err != nil {
+					return nil, s.fail(ctx, err)
+				}
+				return &ItemOut[Conversation]{Body: conversationOut(v)}, nil
+			}
+			if strings.TrimSpace(in.Body.Persona) == "" {
+				return nil, s.fail(ctx, domain.Invalid("persona", "informe a persona do chat (ou kind=room para uma sala)"))
 			}
 			p, err := s.svc.GetPersona(ctx, sc.Company.ID, in.Body.Persona)
 			if err != nil {

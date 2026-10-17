@@ -21,6 +21,9 @@ const (
 // harness session the history is not repeated: the session already holds it.
 func BuildChatPrompt(rc service.RunContext, briefing, handoff string) (system, prompt string) {
 	p, c, cc := rc.Persona, rc.Company, rc.Chat
+	if cc.Room != nil {
+		return BuildRoomPrompt(rc, briefing, handoff) // sala com várias personas (ADR-0033)
+	}
 
 	var sb strings.Builder
 	if s := strings.TrimSpace(p.Instructions); s != "" {

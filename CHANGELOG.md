@@ -5,6 +5,18 @@ English summary at the end of each release.
 
 ## [Unreleased]
 
+### Paridade v0.3 (ADR-0032 a 0038; migrations 00027–00034)
+
+- Cards de status por persona (`/cards-de-status`): montagem por filtros, resumo gerado pela persona, atualização agendada, revisões; tools MCP `hanko_status_card_*`, API e CLI (ADR-0032).
+- Sala com várias personas (`/sala`): participantes por conversa, turnos ordenados, API e CLI (ADR-0033).
+- Pipelines e cases (`/pipelines`, `/cases`), fila de revisão (`/revisao`) e aprendizados com treino de decisão (`/aprendizados`) (ADR-0034).
+- Skills: versões imutáveis com diff e restauração, versão fixada por persona, fontes git (`HANKO_SKILL_SOURCES=true`, só markdown, https público) e estúdio de teste de skills (ADR-0035).
+- Integrações: catálogo de tools com quarentena, perfis de ferramentas (escopo empresa/projeto/persona, `ask` abre gate `tool`), gateway das runs, gateways nomeados com token `hkgw_`, auditoria sem argumentos em claro (ADR-0036).
+- Ambientes de execução remotos: SSH (`HANKO_ENV_SSH_ALLOW_HOSTS`, known_hosts obrigatório) e sandbox em contêiner (`HANKO_ENV_SANDBOX=docker`); ambiente por persona e padrão da empresa; `openssh-client` na imagem de agentes (ADR-0037).
+- Plugins de terceiros: processo externo JSON-RPC por stdio, desligado sem `HANKO_PLUGINS_DIR`, capacidades checadas pelo host, tools `plugin_<id>_<tool>`, eventos, jobs e widgets só de dados; exemplo em `examples/plugins/hello` e `docs/PLUGINS.md` (ADR-0038).
+- Todos os interruptores do operador vêm desligados; migrations 00027–00034 aplicam no deploy.
+- English summary: v0.3 parity features — status cards, multi-persona room, pipelines/cases/review queue/learnings, skill versions/sources/studio, tool catalog/profiles/gateways, SSH and sandbox environments, and sandboxed third-party plugins; all operator switches default to off.
+
 ### UI alinhada ao Kubo DS
 
 - Fonte Inter Variable servida pelo próprio binário (sem CDN); tokens de cor com os nomes e valores OKLCH do Kubo DS (`--background`, `--foreground`, `--card`, `--muted`, `--border`, `--ring`, `--sidebar-*`), escuro também por `.dark`.
