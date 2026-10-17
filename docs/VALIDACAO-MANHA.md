@@ -12,4 +12,6 @@ Roteiro para o dono validar o que entrou durante a execução autônoma do plano
 - Testes de integração rodam contra Postgres 16 local (o CI usa 17).
 
 ## Pulado / Falhou / Deploy pendente
-- (preencher a cada marco)
+- **GitHub Actions sem runners para runs novos (a partir de ~06:26Z de 2026-10-17).** Os jobs de `ci`, `e2e` e `security` passaram a falhar em 2 s com `runner_id: 0`, sem passos executados e sem log (HTTP 404), em labels diferentes (`ubuntu-26.04` e `ubuntu-24.04`). O padrão aponta para cota de minutos ou limite de gasto da conta, e não para o código: os gates de drift, build, vet, gofmt e os testes dos pacotes tocados passam localmente nos mesmos commits. `rerun_failed_jobs` devolve 403 neste ambiente. Runs que já tinham runner antes disso terminaram normalmente. **Ação do dono:** conferir Settings › Billing › Actions (minutos e limite de gasto) e re-executar o CI dos PRs abertos. Sem CI verde no head não mergeei: a regra do dono é merge só com CI verde, e não a contornei.
+- **PRs com merge pendente por CI:** #11 (M13), #12 (M16b), #14 (M9), #15 (trilha-o1), #16 (M12), #17 (M10), #18 (M16a), #19 (M11). Em cada um o ramo já recebeu a main (M8) e passa nos gates locais; falta só o CI rodar.
+- (demais itens: preencher a cada marco)
