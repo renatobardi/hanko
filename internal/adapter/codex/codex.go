@@ -167,7 +167,7 @@ func BuildArgs(spec adapter.Spec, cfg Config, dir string, mcpArgs []string) []st
 	if sandbox == "" {
 		sandbox = "workspace-write"
 	}
-	if spec.ReadOnly {
+	if spec.ReadOnly || spec.PlanOnly {
 		sandbox = "read-only"
 	}
 	args := []string{"exec", "--json", "--skip-git-repo-check", "--sandbox", sandbox}
@@ -178,7 +178,7 @@ func BuildArgs(spec adapter.Spec, cfg Config, dir string, mcpArgs []string) []st
 		args = append(args, "-C", dir)
 	}
 	args = append(args, mcpArgs...)
-	if !spec.ReadOnly { // persona extra_args could override the sandbox
+	if !spec.ReadOnly && !spec.PlanOnly { // persona extra_args could override the sandbox
 		args = append(args, cfg.ExtraArgs...)
 	}
 	return append(args, "-")

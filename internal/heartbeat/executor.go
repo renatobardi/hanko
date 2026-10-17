@@ -477,6 +477,7 @@ func (h *Heartbeat) buildSpec(rc service.RunContext, briefing, handoff string, s
 		System: system, Prompt: prompt, SessionRef: sessionRef,
 		Env:       buildEnv(os.Getenv("OTEL_RESOURCE_ATTRIBUTES"), publicURL, token, rc),
 		MCPConfig: mcpCfg, Skills: skills, Config: cfg, ReadOnly: review,
+		PlanOnly: rc.Plan != nil && rc.Plan.Phase == domain.PlanPhasePlan && !review, // plan-review: o run só planeja (ADR-0041)
 	}
 	if !review && !skillTest && extras.NativeTools {
 		h.attachToolPolicy(&spec, rc, emit) // política de tools para as tools nativas do harness (ADR-0053)

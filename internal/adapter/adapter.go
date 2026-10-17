@@ -40,6 +40,10 @@ type Spec struct {
 	// ReadOnly forces the harness into its read-only mode (review runs), ignoring any
 	// permissive adapter_config (permission mode, sandbox, extra args).
 	ReadOnly bool
+	// PlanOnly põe o run na fase de planejamento do plan-review (ADR-0041): o harness lê e planeja, mas não escreve
+	// arquivos nem roda comandos que alterem o ambiente. Diferente de ReadOnly, mantém as tools MCP do Hanko liberadas
+	// (o plano é publicado e o gate pedido por elas). Honrado pelo claude (modo plan) e pelo codex (sandbox read-only).
+	PlanOnly bool
 	// Secrets são os valores de segredos resolvidos no despacho (${secret:...}, ADR-0050) que entraram em Config,
 	// Env ou MCPConfig; entram na redação do log e do resultado da run, qualquer que seja o nome da variável.
 	Secrets []string

@@ -78,11 +78,11 @@ func BuildArgsWith(spec adapter.Spec, cfg Config, mcpFile, skillsDir, settingsFi
 	if mode == "" {
 		mode = "acceptEdits"
 	}
-	if spec.ReadOnly {
+	if spec.ReadOnly || spec.PlanOnly {
 		mode = "plan"
 	}
 	args := []string{"-p", "--output-format", "stream-json", "--verbose", "--permission-mode", mode}
-	if spec.ReadOnly {
+	if spec.ReadOnly || spec.PlanOnly {
 		args = append(args, "--disallowedTools", "Edit", "Write", "NotebookEdit")
 	}
 	if m := cliModel(spec.Model); m != "" {
@@ -108,7 +108,7 @@ func BuildArgsWith(spec adapter.Spec, cfg Config, mcpFile, skillsDir, settingsFi
 	if spec.SessionRef != "" {
 		args = append(args, "--resume", spec.SessionRef)
 	}
-	if spec.ReadOnly {
+	if spec.ReadOnly || spec.PlanOnly {
 		return args // persona extra_args could re-enable writes
 	}
 	return append(args, cfg.ExtraArgs...)
