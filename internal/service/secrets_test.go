@@ -300,11 +300,19 @@ func TestUserSecretsArePrivateToTheOwner(t *testing.T) {
 func TestIntegrationRefsResolveAtDispatch(t *testing.T) {
 	e := newSecEnv(t)
 	bg := context.Background()
+	e.svc.Integrations.AllowPrivate = true // o upstream de teste é um httptest em loopback
 	p := e.persona(t, "Ana", nil)
 	e.create(t, "docs-token", sentinel)
+	up := newUpstreamMCP(t)
+	up.add("ler", nil)
+	lastAuth := func() string {
+		up.mu.Lock()
+		defer up.mu.Unlock()
+		return up.auths[len(up.auths)-1]
+	}
 
 	// referência a segredo inexistente é recusada
-	in := service.CreateIntegrationInput{Kind: domain.IntegrationMCP, Name: "Docs", URL: "https://mcp.example.com/mcp", AllPersonas: true,
+	in := service.CreateIntegrationInput{Kind: domain.IntegrationMCP, Name: "Docs", URL: up.hs.URL, AllPersonas: true,
 		Headers: map[string]string{"Authorization": "Bearer ${secret:nao-existe}"}}
 	_, err := e.svc.CreateIntegration(bg, domain.HumanActor, e.co.ID, in)
 	wantErr(t, err, domain.ErrInvalid)
@@ -317,28 +325,31 @@ func TestIntegrationRefsResolveAtDispatch(t *testing.T) {
 	if b, _ := json.Marshal(view); strings.Contains(string(b), sentinel) {
 		t.Fatal("a integração vazou o valor")
 	}
+	// MCP http vai pelo gateway de tools (ADR-0036): nunca entra no mcpServers da run, nem com segredo
 	ex, err := e.svc.RunExtras(bg, e.co.ID, p.ID)
-	if err != nil || len(ex.Warnings) != 0 {
-		t.Fatalf("RunExtras: %v %v", ex.Warnings, err)
+	if err != nil || len(ex.Warnings) != 0 || len(ex.MCP) != 0 || len(ex.ToolGateway) != 1 || ex.ToolGateway[0] != "docs" {
+		t.Fatalf("RunExtras: %+v %v", ex, err)
 	}
-	if got := string(ex.MCP["docs"]); !strings.Contains(got, "Bearer "+sentinel) {
-		t.Fatalf("o header deveria sair resolvido no despacho: %s", got)
+	// o gateway abre o upstream com o header resolvido no uso
+	if res, err := e.svc.RefreshIntegrationTools(bg, domain.HumanActor, e.co.ID, view.ID); err != nil || !res.OK {
+		t.Fatalf("refresh: %+v %v", res, err)
+	}
+	if got := lastAuth(); got != "Bearer "+sentinel {
+		t.Fatalf("o header deveria chegar resolvido ao upstream: %q", got)
 	}
 
-	// rotacionar vale na próxima run, sem tocar a integração
+	// rotacionar vale na próxima chamada, sem tocar a integração
 	if _, err := e.svc.RotateSecret(bg, domain.HumanActor, e.co.ID, domain.SecretScopeCompany, "docs-token", service.RotateSecretInput{Value: sentinelB}); err != nil {
 		t.Fatal(err)
 	}
-	ex, _ = e.svc.RunExtras(bg, e.co.ID, p.ID)
-	if got := string(ex.MCP["docs"]); !strings.Contains(got, "Bearer "+sentinelB) {
-		t.Fatalf("depois da rotação: %s", got)
-	}
-
-	// em uso: apagar é recusado, listando quem usa; force apaga e a integração é pulada com aviso (sem valor)
-	_, err = e.svc.GetSecret(bg, e.co.ID, domain.SecretScopeCompany, "docs-token")
-	if err != nil {
+	if _, err := e.svc.RefreshIntegrationTools(bg, domain.HumanActor, e.co.ID, view.ID); err != nil {
 		t.Fatal(err)
 	}
+	if got := lastAuth(); got != "Bearer "+sentinelB {
+		t.Fatalf("depois da rotação: %q", got)
+	}
+
+	// em uso: apagar é recusado, listando quem usa
 	err = e.svc.DeleteSecret(bg, domain.HumanActor, e.co.ID, domain.SecretScopeCompany, "docs-token", false)
 	wantErr(t, err, domain.ErrConflict)
 	if err == nil || !strings.Contains(err.Error(), "integration:docs") {
@@ -348,12 +359,30 @@ func TestIntegrationRefsResolveAtDispatch(t *testing.T) {
 	if len(sv.UsedBy) != 1 || sv.UsedBy[0].Kind != "integration" {
 		t.Fatalf("UsedBy = %+v", sv.UsedBy)
 	}
+	// force apaga; sem o segredo o gateway não chama o upstream e o erro nunca traz o valor
 	if err := e.svc.DeleteSecret(bg, domain.HumanActor, e.co.ID, domain.SecretScopeCompany, "docs-token", true); err != nil {
 		t.Fatal(err)
 	}
+	before := up.requests()
+	res, err := e.svc.RefreshIntegrationTools(bg, domain.HumanActor, e.co.ID, view.ID)
+	msg := res.Error
+	if err != nil {
+		msg += err.Error()
+	}
+	if res.OK || up.requests() != before || !strings.Contains(msg, "segredo não resolvido") || strings.Contains(msg, sentinel) || strings.Contains(msg, sentinelB) {
+		t.Fatalf("sem o segredo: res=%+v err=%v hits %d→%d", res, err, before, up.requests())
+	}
+
+	// MCP stdio continua indo no mcpServers, com o env resolvido
+	e.svc.Integrations.AllowStdio = true
+	e.create(t, "stdio-token", sentinel)
+	if _, err := e.svc.CreateIntegration(bg, domain.HumanActor, e.co.ID, service.CreateIntegrationInput{Kind: domain.IntegrationMCP, Name: "Local",
+		Transport: "stdio", Command: "npx", AllPersonas: true, Env: map[string]string{"TOKEN": "${secret:stdio-token}"}}); err != nil {
+		t.Fatal(err)
+	}
 	ex, _ = e.svc.RunExtras(bg, e.co.ID, p.ID)
-	if len(ex.MCP) != 0 || len(ex.Warnings) != 1 || strings.Contains(ex.Warnings[0], sentinel) || !strings.Contains(ex.Warnings[0], "docs-token") {
-		t.Fatalf("integração com segredo ausente deve ser pulada com aviso: %+v", ex)
+	if got := string(ex.MCP["local"]); !strings.Contains(got, sentinel) {
+		t.Fatalf("env do stdio deveria sair resolvido: %s", got)
 	}
 }
 
