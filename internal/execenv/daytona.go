@@ -180,14 +180,14 @@ type daytonaSandbox struct {
 
 func (c *daytonaClient) Create(ctx context.Context, spec CloudSpec) (CloudSandbox, error) {
 	body := map[string]any{
-		"name":              spec.Name,
-		"labels":            spec.Labels,
-		"cpu":               spec.CPUs,
-		"memory":            spec.MemoryGiB,
-		"disk":              spec.DiskGiB,
-		"networkBlockAll":   spec.BlockNetwork,
-		"public":            false,
-		"autoStopInterval":  int(spec.IdleStop / time.Minute),
+		"name":               spec.Name,
+		"labels":             spec.Labels,
+		"cpu":                spec.CPUs,
+		"memory":             spec.MemoryGiB,
+		"disk":               spec.DiskGiB,
+		"networkBlockAll":    spec.BlockNetwork,
+		"public":             false,
+		"autoStopInterval":   int(spec.IdleStop / time.Minute),
 		"autoDeleteInterval": int(spec.Reap / time.Minute),
 	}
 	if spec.Snapshot != "" {

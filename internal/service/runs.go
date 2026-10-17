@@ -286,6 +286,14 @@ func (s *Service) CheckoutRun(ctx context.Context, w Wake) (domain.Run, error) {
 			}
 			return berr
 		}
+		// Readiness (ADR-0055): o último teste do harness da persona falhou; nenhuma run abre até um teste passar.
+		if rerr := t.readinessGate(p, p.Agent, p.Model); rerr != nil {
+			if !errors.Is(rerr, domain.ErrPersonaNotReady) {
+				return rerr
+			}
+			blocked = rerr
+			return nil
+		}
 		if _, err := t.q.ActiveRunForTask(ctx, task.ID); err == nil {
 			return domain.ErrActiveRun
 		} else if !isNoRows(err) {
@@ -430,7 +438,8 @@ func (t *txc) insertRun(companyID domain.ID, taskID, convID *domain.ID, personaI
 		}
 		return store.Run{}, fmt.Errorf("create run: %w", err)
 	}
-	return row, nil
+	// Onde a run roda (persona > projeto > padrão > local) é decidido aqui e gravado nela (ADR-0055).
+	return t.recordRunEnvironment(row)
 }
 
 // freeRunName picks the first name for id not yet used in the company.

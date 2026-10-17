@@ -92,6 +92,13 @@ func (MemorySweepArgs) Kind() string { return "memory_sweep" }
 
 func (MemorySweepArgs) InsertOpts() river.InsertOpts { return river.InsertOpts{MaxAttempts: 1} }
 
+// ReadinessTickArgs is the periodic readiness check of personas (job "readiness_tick", ADR-0055).
+type ReadinessTickArgs struct{}
+
+func (ReadinessTickArgs) Kind() string { return "readiness_tick" }
+
+func (ReadinessTickArgs) InsertOpts() river.InsertOpts { return river.InsertOpts{MaxAttempts: 1} }
+
 // AlertTickArgs is the periodic evaluation of operational alerts (job "alert_tick").
 type AlertTickArgs struct{}
 

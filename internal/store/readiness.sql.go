@@ -26,6 +26,31 @@ func (q *Queries) DeletePersonaReadiness(ctx context.Context, arg DeletePersonaR
 	return err
 }
 
+const deletePersonaReadinessByDefault = `-- name: DeletePersonaReadinessByDefault :exec
+DELETE FROM persona_readiness WHERE company_id = $1 AND environment_source IN ('default','local')
+`
+
+// Mudou o ambiente padrão da empresa: valem de novo os testes das personas que dependiam dele (padrão ou local).
+func (q *Queries) DeletePersonaReadinessByDefault(ctx context.Context, companyID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deletePersonaReadinessByDefault, companyID)
+	return err
+}
+
+const deletePersonaReadinessByEnvironment = `-- name: DeletePersonaReadinessByEnvironment :exec
+DELETE FROM persona_readiness WHERE company_id = $1 AND environment_id = $2
+`
+
+type DeletePersonaReadinessByEnvironmentParams struct {
+	CompanyID     uuid.UUID
+	EnvironmentID *uuid.UUID
+}
+
+// Mudou a configuração (ou o arquivamento) do ambiente: os testes feitos nele não valem mais.
+func (q *Queries) DeletePersonaReadinessByEnvironment(ctx context.Context, arg DeletePersonaReadinessByEnvironmentParams) error {
+	_, err := q.db.Exec(ctx, deletePersonaReadinessByEnvironment, arg.CompanyID, arg.EnvironmentID)
+	return err
+}
+
 const getPersonaReadiness = `-- name: GetPersonaReadiness :one
 SELECT persona_id, company_id, status, agent, model, environment_id, environment_source, steps, reason, trigger, duration_ms, checked_at, failing_since FROM persona_readiness WHERE company_id = $1 AND persona_id = $2
 `
@@ -185,7 +210,7 @@ const listPersonasDueReadiness = `-- name: ListPersonasDueReadiness :many
 SELECT p.id, p.company_id FROM personas p
 LEFT JOIN persona_readiness r ON r.persona_id = p.id
 WHERE p.status IN ('active','idle','running','awaiting_gate','error')
-  AND (r.persona_id IS NULL OR r.checked_at <= $1::timestamptz)
+  AND (r.persona_id IS NULL OR r.checked_at <= $1::timestamptz OR r.agent <> p.agent OR r.model <> p.model)
 ORDER BY (r.persona_id IS NULL) DESC, r.checked_at NULLS FIRST, p.id
 LIMIT $2
 `

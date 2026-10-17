@@ -94,7 +94,9 @@ type Project struct {
 	Name        string `json:"name" example:"Lançamento"`
 	Description string `json:"description,omitempty"`
 	WorkspaceID string `json:"workspace_id,omitempty" format:"uuid"`
-	Status      string `json:"status" enum:"active,archived" doc:"Projeto arquivado não recebe tasks novas."`
+	// EnvironmentID é o ambiente de execução do projeto (ADR-0055); ausente = o padrão da empresa ou o local.
+	EnvironmentID string `json:"environment_id,omitempty" format:"uuid"`
+	Status        string `json:"status" enum:"active,archived" doc:"Projeto arquivado não recebe tasks novas."`
 	// BudgetMonthlyCents é o teto mensal do projeto em centavos de dólar; ausente = sem teto. Estourado, nenhuma
 	// execução de task do projeto abre até o teto subir ou o mês virar.
 	BudgetMonthlyCents *int64        `json:"budget_monthly_cents,omitempty"`
@@ -290,30 +292,33 @@ type Usage struct {
 
 // Run é uma execução de uma persona sobre uma task.
 type Run struct {
-	ID                string     `json:"id" format:"uuid"`
-	Name              string     `json:"name,omitempty" example:"Veloz_Raposa" doc:"Nome amigável Adjetivo_Substantivo, único na empresa; vazio em execuções anteriores a ele."`
-	CompanyID         string     `json:"company_id" format:"uuid"`
-	TaskID            string     `json:"task_id,omitempty" format:"uuid" doc:"Task da execução; ausente numa execução de chat."`
-	TaskKey           string     `json:"task_key,omitempty" example:"HNK-12"`
-	TaskTitle         string     `json:"task_title,omitempty"`
-	ConversationID    string     `json:"conversation_id,omitempty" format:"uuid" doc:"Conversa de uma execução de chat (gatilho chat); ausente nas execuções de task."`
-	ConversationTitle string     `json:"conversation_title,omitempty"`
-	PersonaID         string     `json:"persona_id" format:"uuid"`
-	PersonaName       string     `json:"persona_name,omitempty"`
-	Status            string     `json:"status" enum:"queued,running,done,interrupted,failed,cancelled,expired"`
-	Trigger           string     `json:"trigger" enum:"assign,comment,manual,heartbeat,gate,flow,review,memory,chat"`
-	Agent             string     `json:"agent" enum:"claude,codex,acp,fake"`
-	Model             string     `json:"model,omitempty"`
-	SessionRef        string     `json:"session_ref,omitempty"`
-	TraceID           string     `json:"trace_id,omitempty"`
-	ExitCode          *int       `json:"exit_code,omitempty"`
-	Error             string     `json:"error,omitempty"`
-	Summary           string     `json:"summary,omitempty"`
-	CostUSD           *float64   `json:"cost_usd,omitempty"`
-	CostSource        string     `json:"cost_source,omitempty" enum:"reported,estimated,none" doc:"Origem do custo: informado pelo harness, estimado pela tabela de preços ou desconhecido."`
-	ListCostUSD       *float64   `json:"list_cost_usd,omitempty" doc:"Custo de lista: tokens × preço de tabela vigente quando a execução terminou."`
-	ModelSource       string     `json:"model_source,omitempty" enum:"task,persona,harness_default" doc:"Quem escolheu o modelo: a task (manual), a persona ou o padrão do harness."`
-	SubscriptionID    string     `json:"subscription_id,omitempty" format:"uuid" doc:"Assinatura que cobre a execução."`
+	ID                string   `json:"id" format:"uuid"`
+	Name              string   `json:"name,omitempty" example:"Veloz_Raposa" doc:"Nome amigável Adjetivo_Substantivo, único na empresa; vazio em execuções anteriores a ele."`
+	CompanyID         string   `json:"company_id" format:"uuid"`
+	TaskID            string   `json:"task_id,omitempty" format:"uuid" doc:"Task da execução; ausente numa execução de chat."`
+	TaskKey           string   `json:"task_key,omitempty" example:"HNK-12"`
+	TaskTitle         string   `json:"task_title,omitempty"`
+	ConversationID    string   `json:"conversation_id,omitempty" format:"uuid" doc:"Conversa de uma execução de chat (gatilho chat); ausente nas execuções de task."`
+	ConversationTitle string   `json:"conversation_title,omitempty"`
+	PersonaID         string   `json:"persona_id" format:"uuid"`
+	PersonaName       string   `json:"persona_name,omitempty"`
+	Status            string   `json:"status" enum:"queued,running,done,interrupted,failed,cancelled,expired"`
+	Trigger           string   `json:"trigger" enum:"assign,comment,manual,heartbeat,gate,flow,review,memory,chat"`
+	Agent             string   `json:"agent" enum:"claude,codex,acp,fake"`
+	Model             string   `json:"model,omitempty"`
+	SessionRef        string   `json:"session_ref,omitempty"`
+	TraceID           string   `json:"trace_id,omitempty"`
+	ExitCode          *int     `json:"exit_code,omitempty"`
+	Error             string   `json:"error,omitempty"`
+	Summary           string   `json:"summary,omitempty"`
+	CostUSD           *float64 `json:"cost_usd,omitempty"`
+	CostSource        string   `json:"cost_source,omitempty" enum:"reported,estimated,none" doc:"Origem do custo: informado pelo harness, estimado pela tabela de preços ou desconhecido."`
+	ListCostUSD       *float64 `json:"list_cost_usd,omitempty" doc:"Custo de lista: tokens × preço de tabela vigente quando a execução terminou."`
+	ModelSource       string   `json:"model_source,omitempty" enum:"task,persona,harness_default" doc:"Quem escolheu o modelo: a task (manual), a persona ou o padrão do harness."`
+	SubscriptionID    string   `json:"subscription_id,omitempty" format:"uuid" doc:"Assinatura que cobre a execução."`
+	// EnvironmentID e EnvironmentSource: onde a execução roda e por quê (persona > projeto > padrão da empresa > local, ADR-0055); ausentes em execuções anteriores.
+	EnvironmentID     string     `json:"environment_id,omitempty" format:"uuid"`
+	EnvironmentSource string     `json:"environment_source,omitempty" enum:"persona,project,default,local"`
 	Usage             Usage      `json:"usage"`
 	CreatedAt         time.Time  `json:"created_at"`
 	StartedAt         *time.Time `json:"started_at,omitempty"`
@@ -498,7 +503,7 @@ func workspaceViewOut(v service.WorkspaceView) Workspace {
 
 func projectOut(p domain.Project) Project {
 	return Project{ID: idStr(p.ID), CompanyID: idStr(p.CompanyID), Slug: p.Slug, Name: p.Name,
-		Description: p.Description, WorkspaceID: idPtr(p.WorkspaceID), Status: string(p.Status),
+		Description: p.Description, WorkspaceID: idPtr(p.WorkspaceID), EnvironmentID: idPtr(p.EnvironmentID), Status: string(p.Status),
 		BudgetMonthlyCents: p.BudgetMonthlyCents, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt}
 }
 
@@ -616,6 +621,7 @@ func runOut(r service.RunView) Run {
 	return Run{ID: idStr(r.ID), Name: r.Name, CompanyID: idStr(r.CompanyID), TaskID: taskID, TaskKey: r.TaskKey,
 		ConversationID: idPtr(r.ConversationID), ConversationTitle: r.ConversationTitle, TaskTitle: r.TaskTitle, PersonaID: idStr(r.PersonaID), PersonaName: r.PersonaName, Status: string(r.Status),
 		CostSource: string(r.CostSource), ListCostUSD: r.ListCostUSD, ModelSource: string(r.ModelSource), SubscriptionID: idPtr(r.SubscriptionID),
+		EnvironmentID: idPtr(r.EnvironmentID), EnvironmentSource: string(r.EnvironmentSource),
 		Trigger: string(r.Trigger), Agent: r.Agent, Model: r.Model, SessionRef: r.SessionRef, TraceID: r.TraceID,
 		ExitCode: r.ExitCode, Error: r.Error, Summary: r.Summary, CostUSD: r.CostUSD, Usage: Usage(r.Usage),
 		CreatedAt: r.CreatedAt, StartedAt: r.StartedAt, FinishedAt: r.FinishedAt, PolicyOrigin: policyOriginOut(r.PolicyOrigin)}

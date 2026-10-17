@@ -463,6 +463,12 @@ func (t *txc) openPersonaRun(conv store.Conversation, personaID domain.ID) (run 
 	if reason := chatBlockReason(p); reason != "" {
 		return run, &personaBlockedError{reason: reason}, nil
 	}
+	if rerr := t.readinessGate(p, p.Agent, p.Model); rerr != nil {
+		if !errors.Is(rerr, domain.ErrPersonaNotReady) {
+			return run, nil, rerr
+		}
+		return run, rerr, nil
+	}
 	co, err := t.q.GetCompanyByID(t.ctx, conv.CompanyID)
 	if err != nil {
 		return run, nil, mapErr(err, "get company")

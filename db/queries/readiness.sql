@@ -24,12 +24,20 @@ SELECT * FROM persona_readiness WHERE company_id = @company_id ORDER BY persona_
 -- name: DeletePersonaReadiness :exec
 DELETE FROM persona_readiness WHERE company_id = @company_id AND persona_id = @persona_id;
 
+-- name: DeletePersonaReadinessByEnvironment :exec
+-- Mudou a configuração (ou o arquivamento) do ambiente: os testes feitos nele não valem mais.
+DELETE FROM persona_readiness WHERE company_id = @company_id AND environment_id = @environment_id;
+
+-- name: DeletePersonaReadinessByDefault :exec
+-- Mudou o ambiente padrão da empresa: valem de novo os testes das personas que dependiam dele (padrão ou local).
+DELETE FROM persona_readiness WHERE company_id = @company_id AND environment_source IN ('default','local');
+
 -- name: ListPersonasDueReadiness :many
 -- Personas em condição de trabalhar sem teste ou com teste mais velho que @older_than (as nunca testadas primeiro).
 SELECT p.id, p.company_id FROM personas p
 LEFT JOIN persona_readiness r ON r.persona_id = p.id
 WHERE p.status IN ('active','idle','running','awaiting_gate','error')
-  AND (r.persona_id IS NULL OR r.checked_at <= @older_than::timestamptz)
+  AND (r.persona_id IS NULL OR r.checked_at <= @older_than::timestamptz OR r.agent <> p.agent OR r.model <> p.model)
 ORDER BY (r.persona_id IS NULL) DESC, r.checked_at NULLS FIRST, p.id
 LIMIT @lim;
 

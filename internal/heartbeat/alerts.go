@@ -77,3 +77,43 @@ func (h *Heartbeat) failReview(ctx context.Context, a StartReviewArgs, reason st
 	}
 	return nil
 }
+
+// ---- readiness_tick ----
+
+type readinessTickWorker struct {
+	river.WorkerDefaults[ReadinessTickArgs]
+	h *Heartbeat
+}
+
+func (w *readinessTickWorker) Timeout(*river.Job[ReadinessTickArgs]) time.Duration {
+	return 30 * time.Minute
+}
+
+func (w *readinessTickWorker) Work(ctx context.Context, _ *river.Job[ReadinessTickArgs]) error {
+	return w.h.readinessTick(ctx)
+}
+
+// readinessBackend é opcional, como environmentBackend: sem ele a checagem periódica não existe.
+type readinessBackend interface {
+	ReadinessTick(ctx context.Context) (int, error)
+}
+
+// readinessTick testa as personas sem teste ou com teste velho (ADR-0055). Um erro numa persona é registrado e não
+// derruba o job: o alerta e o bloqueio dependem do resultado gravado, não do job.
+func (h *Heartbeat) readinessTick(ctx context.Context) error {
+	if h.svc == nil {
+		return errNotAttached
+	}
+	rb, ok := h.svc.(readinessBackend)
+	if !ok {
+		return nil
+	}
+	n, err := rb.ReadinessTick(ctx)
+	if n > 0 {
+		h.log.Info("readiness_tick", "tested", n)
+	}
+	if err != nil {
+		h.log.Warn("readiness_tick", "err", err)
+	}
+	return nil
+}

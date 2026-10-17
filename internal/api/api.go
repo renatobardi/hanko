@@ -270,6 +270,7 @@ func (s *server) register(api huma.API) {
 	s.registerSecrets(api)
 	s.registerInstance(api)
 	s.registerEnvironments(api)
+	s.registerReadiness(api)
 	s.registerTools(api)
 	s.registerChat(api)
 	s.registerRoom(api) // sala (ADR-0033)

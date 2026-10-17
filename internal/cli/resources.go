@@ -180,7 +180,7 @@ func (e *env) projectCmd() *cobra.Command {
 			return nil
 		},
 	}
-	c.AddCommand(create, ls, e.projectShowCmd(), e.projectUpdateCmd(), e.projectReviewPolicyCmd())
+	c.AddCommand(create, ls, e.projectShowCmd(), e.projectUpdateCmd(), e.projectReviewPolicyCmd(), e.projectEnvCmd())
 	return c
 }
 
@@ -378,7 +378,7 @@ func (e *env) personaCmd() *cobra.Command {
 	uf.StringVar(&upSub, "subscription", "", e.t("vincula a persona a uma assinatura (id ou nome)"))
 	uf.BoolVar(&upNoSub, "no-subscription", false, e.t("desvincula a persona da assinatura"))
 	uf.StringVar(&upEnv, "environment", "", e.t("ambiente de execução (id ou slug; local = o padrão da empresa)"))
-	c.AddCommand(hire, ls, show, update)
+	c.AddCommand(hire, ls, show, update, e.personaTestCmd(), e.personaReadinessCmd())
 	return c
 }
 

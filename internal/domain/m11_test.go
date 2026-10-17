@@ -205,7 +205,7 @@ func TestBuildModelCatalog(t *testing.T) {
 		{Agent: "claude", Model: "claude-sonnet-4-5", Origin: ModelUsed}, // duplicado: junta as origens
 		{Agent: "codex", Model: "gpt-5-codex", Origin: ModelUsed},
 		{Agent: "claude", Model: "modelo-novo", Origin: ModelProbed}, // sem preço próprio
-		{Model: "claude-haiku-4", Origin: ModelUsed},                  // agent inferido pelo prefixo
+		{Model: "claude-haiku-4", Origin: ModelUsed},                 // agent inferido pelo prefixo
 	}
 	all := BuildModelCatalog("", prices, reports)
 	by := map[string]CatalogModel{}
