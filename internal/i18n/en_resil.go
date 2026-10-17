@@ -106,7 +106,6 @@ var enResil = map[string]string{
 	"Lista a fila (--task ou --conversation): ordem e motivo da espera":  "Lists the queue (--task or --conversation): order and reason for the wait",
 	"informe --task ou --conversation":                                   "pass --task or --conversation",
 	"Nenhum follow-up na fila.":                                          "No follow-up in the queue.",
-	"TEXTO":                                                              "TEXT",
 	"ESPERA":                                                             "WAIT",
 	"conversa (id ou prefixo)":                                           "conversation (id or prefix)",
 	"<mensagem>":                                                         "<message>",

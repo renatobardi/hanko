@@ -109,7 +109,7 @@ func (q *Queries) DiscardTaskFollowup(ctx context.Context, arg DiscardTaskFollow
 }
 
 const getConversationMessage = `-- name: GetConversationMessage :one
-SELECT id, company_id, conversation_id, author_type, author_id, body, run_id, created_at, persona_id, reply_to_id, mentions, edited_at, delivery FROM conversation_messages WHERE company_id = $1 AND id = $2
+SELECT id, company_id, conversation_id, author_type, author_id, body, run_id, created_at, persona_id, reply_to_id, mentions, marker, edited_at, delivery FROM conversation_messages WHERE company_id = $1 AND id = $2
 `
 
 type GetConversationMessageParams struct {
@@ -132,6 +132,7 @@ func (q *Queries) GetConversationMessage(ctx context.Context, arg GetConversatio
 		&i.PersonaID,
 		&i.ReplyToID,
 		&i.Mentions,
+		&i.Marker,
 		&i.EditedAt,
 		&i.Delivery,
 	)
@@ -281,7 +282,7 @@ func (q *Queries) SetConversationMessageDelivery(ctx context.Context, arg SetCon
 const steerConversationMessage = `-- name: SteerConversationMessage :one
 UPDATE conversation_messages SET run_id = $1
 WHERE company_id = $2 AND id = $3 AND author_type = 'human' AND run_id IS NULL
-RETURNING id, company_id, conversation_id, author_type, author_id, body, run_id, created_at, persona_id, reply_to_id, mentions, edited_at, delivery
+RETURNING id, company_id, conversation_id, author_type, author_id, body, run_id, created_at, persona_id, reply_to_id, mentions, marker, edited_at, delivery
 `
 
 type SteerConversationMessageParams struct {
@@ -306,6 +307,7 @@ func (q *Queries) SteerConversationMessage(ctx context.Context, arg SteerConvers
 		&i.PersonaID,
 		&i.ReplyToID,
 		&i.Mentions,
+		&i.Marker,
 		&i.EditedAt,
 		&i.Delivery,
 	)
@@ -315,7 +317,7 @@ func (q *Queries) SteerConversationMessage(ctx context.Context, arg SteerConvers
 const updatePendingConversationMessage = `-- name: UpdatePendingConversationMessage :one
 UPDATE conversation_messages SET body = $1, edited_at = $2
 WHERE company_id = $3 AND id = $4 AND author_type = 'human' AND run_id IS NULL
-RETURNING id, company_id, conversation_id, author_type, author_id, body, run_id, created_at, persona_id, reply_to_id, mentions, edited_at, delivery
+RETURNING id, company_id, conversation_id, author_type, author_id, body, run_id, created_at, persona_id, reply_to_id, mentions, marker, edited_at, delivery
 `
 
 type UpdatePendingConversationMessageParams struct {
@@ -345,6 +347,7 @@ func (q *Queries) UpdatePendingConversationMessage(ctx context.Context, arg Upda
 		&i.PersonaID,
 		&i.ReplyToID,
 		&i.Mentions,
+		&i.Marker,
 		&i.EditedAt,
 		&i.Delivery,
 	)

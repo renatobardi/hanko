@@ -991,6 +991,7 @@ func loadRoomContext(ctx context.Context, q *store.Queries, conv store.Conversat
 	if err != nil {
 		return nil, fmt.Errorf("list conversation messages: %w", err)
 	}
+	rows, resetAt := afterContextReset(rows)
 	msgs := make([]domain.ConversationMessage, len(rows))
 	for i, r := range rows {
 		msgs[i] = messageFromRow(r)
@@ -1014,7 +1015,8 @@ func loadRoomContext(ctx context.Context, q *store.Queries, conv store.Conversat
 		PersonaID: run.PersonaID, ExceptID: run.ID})
 	switch {
 	case err == nil:
-		if prev.Status == string(domain.RunDone) && prev.SessionRef != "" && prev.Agent == persona.Agent && prev.CreatedAt.Before(run.CreatedAt) {
+		if prev.Status == string(domain.RunDone) && prev.SessionRef != "" && prev.Agent == persona.Agent && prev.CreatedAt.Before(run.CreatedAt) &&
+			!beforeReset(prev.CreatedAt, resetAt) {
 			cc.ResumeSession = prev.SessionRef
 		}
 	case !isNoRows(err):

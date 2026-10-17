@@ -1,0 +1,87 @@
+package views
+
+import "github.com/renatobardi/hanko/internal/i18n"
+
+// DropField é o campo de anexar arquivos: seletor de arquivos que também recebe arquivos arrastados e soltos (o
+// script de hanko.js liga a zona; sem ele o seletor continua funcionando). Vai dentro de um <form
+// enctype="multipart/form-data"> marcado com data-dropzone, ou numa caixa própria.
+templ DropField(hint string, box bool) {
+	<div class={ templ.KV("dropzone", box) } if box { data-dropzone="" data-dropzone-submit="" }>
+		<label>
+			@Icon("file")
+			<span>{ i18n.T(ctx, "Anexar arquivos") }</span>
+			<input type="file" name="files" multiple aria-label={ i18n.T(ctx, "Arquivos a anexar") }/>
+		</label>
+		<ul class="dz-list" data-dz-list></ul>
+		if hint != "" {
+			<span class="hint">{ hint }</span>
+		}
+	</div>
+}
+
+// AttachmentItems lista anexos com o link de download (e o botão de apagar, para admin).
+templ AttachmentItems(rows []AttachmentRow) {
+	<ul class="att-list">
+		for _, a := range rows {
+			<li>
+				@Icon("file")
+				<a href={ templ.SafeURL(a.Href) } title={ a.Kind + " · " + a.Author + " · " + a.When }>{ a.Name }</a>
+				<span class="d mono">{ a.Size }</span>
+				if a.DeleteAction != "" {
+					<form method="post" action={ templ.SafeURL(a.DeleteAction) } hx-boost="true" hx-confirm={ i18n.T(ctx, "Apagar este anexo?") }>
+						<button class="btn ghost sm" type="submit" aria-label={ i18n.T(ctx, "Apagar anexo") }>{ i18n.T(ctx, "apagar") }</button>
+					</form>
+				}
+			</li>
+		}
+	</ul>
+}
+
+// TaskAttachments é o cartão "Anexos" da task: a lista e a zona de soltar (envio na hora).
+templ TaskAttachments(box AttachBox, oob bool) {
+	<div class="side-sec" id="task-attachments" hx-swap-oob={ oobAttr(oob) }>
+		<div class="side-h row-between"><span>{ i18n.T(ctx, "Anexos") }</span>
+			if box.AllHref != "" {
+				<a class="normal-case" href={ templ.SafeURL(box.AllHref) }>{ i18n.T(ctx, "Ver todos") }</a>
+			}
+		</div>
+		if len(box.Rows) == 0 {
+			<p class="muted text-sm">{ i18n.T(ctx, "Nenhum anexo ainda.") }</p>
+		} else {
+			@AttachmentItems(box.Rows)
+		}
+		if box.UploadAction != "" {
+			<form method="post" action={ templ.SafeURL(box.UploadAction) } enctype="multipart/form-data" class="mt-2"
+				hx-post={ box.UploadAction } hx-encoding="multipart/form-data" hx-target="#task-attachments" hx-swap="outerHTML">
+				@DropField(box.Hint, true)
+			</form>
+		}
+	</div>
+}
+
+// DraftText é a resposta do autosave: um aviso curto no lugar do indicador.
+templ DraftText(text string) {
+	<span class="draft-state" role="status">{ text }</span>
+}
+
+// DraftTextarea é a caixa de texto de um compositor com o rascunho do servidor: salva sozinha um segundo depois da
+// última tecla e ao sair do campo, sem recarregar a página.
+templ DraftTextarea(name, placeholder, label string, d DraftFields) {
+	<textarea
+		name={ name }
+		placeholder={ placeholder }
+		aria-label={ label }
+		if d.Action != "" {
+			hx-put={ d.Action }
+			hx-trigger="keyup changed delay:1s, blur changed"
+			hx-target="next .draft-state"
+			hx-swap="outerHTML"
+			hx-params={ name }
+			hx-encoding="application/x-www-form-urlencoded"
+			hx-sync="this:replace"
+		}
+	>{ d.Text }</textarea>
+	if d.Action != "" {
+		<span class="draft-state" role="status"></span>
+	}
+}

@@ -2,8 +2,6 @@ package service
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 
 	"github.com/renatobardi/hanko/internal/domain"
@@ -40,11 +38,9 @@ func intPtr(v *int32) *int {
 	return &n
 }
 
-// skillBodySHA é o sha256 (hex) do corpo, o mesmo que a migration usa no backfill.
-func skillBodySHA(body string) string {
-	h := sha256.Sum256([]byte(body))
-	return hex.EncodeToString(h[:])
-}
+// skillBodySHA é o sha256 (hex) do corpo, o mesmo que a migration usa no backfill; o cálculo é o padrão das revisões
+// append-only (domain.RevisionSHA, ADR-0052).
+func skillBodySHA(body string) string { return domain.RevisionSHA(body) }
 
 // recordSkillVersion grava a versão corrente da linha (revision = version). Idempotente por (skill, revision).
 func (t *txc) recordSkillVersion(row store.Skill) error {

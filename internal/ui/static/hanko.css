@@ -1349,6 +1349,20 @@ details > summary.btn::-webkit-details-marker { display: none; }
 .tool-review > summary { cursor: pointer; font-size: var(--text-xs); color: var(--muted-foreground); }
 .tool-review > summary:hover { color: var(--foreground); }
 .tool-review pre { max-height: 280px; overflow: auto; margin: 8px 0 0; font-size: var(--text-xs); }
+/* ---- anexos, rascunhos e /new (ADR-0052) ---- */
+.dropzone { border: 1px dashed var(--border); border-radius: var(--radius-lg); padding: 10px 12px; display: grid; gap: 6px; color: var(--muted-foreground); font-size: var(--text-sm); transition: border-color .12s, background .12s; }
+.dropzone.is-over, form[data-dropzone].is-over { border-color: var(--foreground); background: var(--row-hover); }
+.dropzone label { cursor: pointer; display: flex; align-items: center; gap: 8px; }
+.dropzone input[type="file"] { font-size: var(--text-xs); max-width: 100%; }
+.dz-list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.dz-list li { border: 1px solid var(--border); border-radius: var(--radius-full); padding: 1px 8px; font-size: var(--text-xs); color: var(--foreground); }
+.att-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.att-list li { display: flex; align-items: center; gap: 8px; font-size: var(--text-sm); padding: 3px 0; min-width: 0; }
+.att-list li a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.att-list .d { margin-left: auto; color: var(--muted-foreground); font-size: var(--text-xs); white-space: nowrap; }
+.att-inline { margin-top: 6px; }
+.draft-state { font-size: var(--text-xs); color: var(--subtle-foreground); }
+.run-sep.context-reset { color: var(--foreground); }
 /* ---------- resiliência de run: diagnóstico, steer e fila de follow-ups (ADR-0039) ---------- */
 .diag { margin-top: 10px; display: grid; gap: 8px; }
 .diag-kv { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 4px 14px; margin: 0; font-size: var(--text-sm); }

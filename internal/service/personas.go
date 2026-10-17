@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 
@@ -104,6 +105,12 @@ func (s *Service) HirePersona(ctx context.Context, actor domain.Actor, companyID
 				return mapErr(err, "hire persona")
 			}
 		}
+		rev, err := t.recordInstructionRevision(instructionRecord{companyID: companyID, personaID: row.ID, current: 0,
+			body: in.Instructions, author: actor, actor: actor, origin: domain.RevisionHire})
+		if err != nil {
+			return err
+		}
+		row.InstructionRevision = i32(rev)
 		out = personaFromRow(row)
 		return t.activity(actor, companyID, "persona.hired", "persona", out.ID,
 			map[string]any{"slug": out.Slug, "name": out.Name, "agent": out.Agent, "reports_to": out.ReportsTo,
@@ -217,9 +224,16 @@ func (s *Service) UpdatePersona(ctx context.Context, actor domain.Actor, company
 	if in.ClearSubscription && in.SubscriptionID != nil {
 		return domain.Persona{}, domain.Invalid("subscription_id", "cannot set and clear at once")
 	}
+	reason, err := cleanReason(in.InstructionsReason)
+	if err != nil {
+		return domain.Persona{}, err
+	}
+	if in.Instructions != nil && (!utf8.ValidString(*in.Instructions) || utf8.RuneCountInString(*in.Instructions) > maxInstructionRunes) {
+		return domain.Persona{}, domain.Invalid("instructions", fmt.Sprintf("must be valid UTF-8 with at most %d characters", maxInstructionRunes))
+	}
 
 	var out domain.Persona
-	err := s.withTx(ctx, func(t *txc) error {
+	err = s.withTx(ctx, func(t *txc) error {
 		if in.ReportsTo != nil {
 			if err := t.q.LockOrg(ctx, companyID.String()); err != nil { // serializes concurrent chart edits
 				return fmt.Errorf("lock org: %w", err)
@@ -352,6 +366,14 @@ func (s *Service) UpdatePersona(ctx context.Context, actor domain.Actor, company
 		row, err := t.q.UpdatePersona(ctx, p)
 		if err != nil {
 			return mapErr(err, "update persona")
+		}
+		if p.Instructions != cur.Instructions { // ADR-0052: toda mudança de instruções vira uma revisão, na mesma transação
+			rev, err := t.recordInstructionRevision(instructionRecord{companyID: companyID, personaID: personaID, current: int(cur.InstructionRevision),
+				body: p.Instructions, author: actor, actor: actor, reason: reason, origin: domain.RevisionEdit})
+			if err != nil {
+				return err
+			}
+			row.InstructionRevision = i32(rev)
 		}
 		if reviewerChanged {
 			row, err = t.q.SetPersonaReviewer(ctx, store.SetPersonaReviewerParams{CompanyID: companyID, ID: personaID,

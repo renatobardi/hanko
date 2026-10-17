@@ -91,6 +91,9 @@ func (s *Service) RequestGate(ctx context.Context, actor domain.Actor, companyID
 		return GateView{}, domain.Invalid("kind", fmt.Sprintf("unknown kind %q", in.Kind))
 	}
 	in.Title = title
+	if in.Kind == domain.GateInstruction { // precisa da proposta (texto e revisão-base): só ProposePersonaInstructions abre
+		return GateView{}, domain.Invalid("kind", "instruction gates are opened by proposing instructions")
+	}
 
 	var out GateView
 	run := func() error {
@@ -395,7 +398,7 @@ func (s *Service) DecideGate(ctx context.Context, actor domain.Actor, companyID,
 		if domain.GateStatus(cur.Status) != domain.GatePending {
 			return fmt.Errorf("gate already %s: %w", cur.Status, domain.ErrConflict)
 		}
-		if domain.GateKind(cur.Kind) == domain.GateHire { // contratar persona é decisão de admin (ADR-0021)
+		if k := domain.GateKind(cur.Kind); k == domain.GateHire || k == domain.GateInstruction { // contratar e mudar instruções são decisões de admin (ADR-0021)
 			if err := s.require(ctx, companyID, domain.MemberAdmin); err != nil {
 				return err
 			}
@@ -414,6 +417,11 @@ func (s *Service) DecideGate(ctx context.Context, actor domain.Actor, companyID,
 		var memWS *domain.ID // gate memory: a decisão vale para a proposta de curadoria e vira memória do workspace dela
 		if g.Kind == domain.GateMemory {
 			if memWS, err = t.memoryProposalDecided(actor, g, in.Decision, note); err != nil {
+				return err
+			}
+		}
+		if g.Kind == domain.GateInstruction { // a proposta aprovada vira uma revisão das instruções (ADR-0052)
+			if err := t.instructionGateDecided(actor, g, in.Decision); err != nil {
 				return err
 			}
 		}

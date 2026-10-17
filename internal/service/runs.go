@@ -611,6 +611,9 @@ func (s *Service) LoadRunContext(ctx context.Context, companyID, runID domain.ID
 		}
 		rc.Chat = cc
 	}
+	if rc.Attachments, err = attachmentBriefs(ctx, q, rc); err != nil {
+		return RunContext{}, err
+	}
 	// The workspace was chosen when the run opened (and recorded on it); runs older than that, or whose workspace
 	// was deleted since, resolve it again from the task, the project and the persona.
 	wsID := run.WorkspaceID

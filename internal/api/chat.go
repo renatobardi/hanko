@@ -40,6 +40,7 @@ type ConversationMessage struct {
 	Body           string    `json:"body" doc:"Markdown."`
 	RunID          string    `json:"run_id,omitempty" format:"uuid" doc:"Na resposta da persona (ou no aviso), a execução que a produziu; na mensagem humana do chat direto, a que a recolheu (ausente enquanto espera)."`
 	CreatedAt      time.Time `json:"created_at"`
+	Marker         string    `json:"marker,omitempty" enum:"context_reset" doc:"context_reset: aviso de sistema que /new insere; o contexto da conversa recomeça depois dele (ADR-0052)."`
 	// sala (ADR-0033)
 	PersonaID   string            `json:"persona_id,omitempty" format:"uuid" doc:"Sala: a persona que falou (ou de quem o aviso trata)."`
 	PersonaName string            `json:"persona_name,omitempty"`
@@ -57,7 +58,7 @@ func conversationOut(v service.ConversationView) Conversation {
 
 func conversationMessageOut(m domain.ConversationMessage) ConversationMessage {
 	return ConversationMessage{ID: idStr(m.ID), ConversationID: idStr(m.ConversationID), Author: actorRef(m.Author),
-		Body: m.Body, RunID: idPtr(m.RunID), CreatedAt: m.CreatedAt, PersonaID: idPtr(m.PersonaID), PersonaName: m.PersonaName,
+		Body: m.Body, RunID: idPtr(m.RunID), CreatedAt: m.CreatedAt, Marker: m.Marker, PersonaID: idPtr(m.PersonaID), PersonaName: m.PersonaName,
 		ReplyToID: idPtr(m.ReplyToID), Mentions: idStrs(m.Mentions), Deliveries: deliveriesOut(m.Deliveries)}
 }
 
@@ -93,7 +94,8 @@ type listConversationMessagesIn struct {
 type sendMessageIn struct {
 	ConversationPath
 	Body struct {
-		Message string `json:"message" minLength:"1" maxLength:"20000" doc:"Mensagem em markdown. Enquanto uma execução da conversa roda, a mensagem espera e a execução seguinte responde a todas juntas."`
+		Message     string   `json:"message" minLength:"1" maxLength:"20000" doc:"Mensagem em markdown. Enquanto uma execução da conversa roda, a mensagem espera e a execução seguinte responde a todas juntas. \"/new\" sozinha reinicia o contexto da conversa (insere um marcador; nada é apagado); \"/new texto\" reinicia e envia o texto."`
+		Attachments []string `json:"attachments,omitempty" format:"uuid" doc:"Ids de anexos da conversa já enviados (POST /attachments com conversation) que passam a pertencer a esta mensagem."`
 	}
 }
 
@@ -211,7 +213,11 @@ func (s *server) registerChat(api huma.API) {
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}
-			m, err := s.svc.SendMessage(ctx, sc.Actor, sc.Company.ID, id, in.Body.Message)
+			atts, err := parseIDList(in.Body.Attachments)
+			if err != nil {
+				return nil, s.fail(ctx, err)
+			}
+			m, err := s.svc.SendMessageWith(ctx, sc.Actor, sc.Company.ID, id, in.Body.Message, atts)
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}

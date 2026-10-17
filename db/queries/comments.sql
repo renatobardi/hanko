@@ -16,3 +16,6 @@ SELECT EXISTS (
       -- o follow-up injetado na run viva já foi visto por ela (ADR-0039)
       AND (event_id IS NULL OR event_id NOT LIKE 'followup:%')
 ) AS found;
+
+-- name: GetCommentByID :one
+SELECT * FROM task_comments WHERE company_id = @company_id AND id = @id;

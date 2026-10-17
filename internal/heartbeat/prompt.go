@@ -38,6 +38,7 @@ func BuildPrompt(rc service.RunContext, briefing, handoff string) (system, promp
 	sb.WriteString("- Para dividir o trabalho, crie subtasks com `hanko_task_create` (o pai padrão é esta task) e ordene-as com `depends_on`; uma task com dependência aberta só é despachada quando todas fecharem. Deixe esta task em `in_progress` e encerre: você será acordada quando a última subtask fechar. `hanko_task_dependency` ajusta dependências depois.\n")
 	sb.WriteString("- Entregue arquivos (relatório, plano, dados, imagem) como artefato com `hanko_artifact_put` em vez de colar texto longo em comentário; o mesmo nome na mesma task cria a versão seguinte.\n")
 	sb.WriteString("- Se o seu trabalho mede uma das metas listadas, registre o valor atual (medido de fato) com `hanko_goal_update`; `hanko_goal_list` mostra todas as metas.\n")
+	sb.WriteString("- Se perceber que as suas instruções permanentes deveriam mudar, proponha com `hanko_persona_instruction_propose` (texto novo completo e motivo): um humano decide e você não fica bloqueada.\n")
 	sb.WriteString("- Antes de uma ação irreversível (merge, deploy, gasto, contratação, apagar dados), peça a decisão de um humano com `hanko_gate_request` e encerre a execução; você será acordada com a decisão e a nota. Consulte `hanko_gate_status` se precisar.\n")
 	sb.WriteString("- Termine com um resumo objetivo do que fez e do próximo passo. Esse resumo é publicado automaticamente como comentário na task; não o repita via tool.\n")
 	system = strings.TrimSpace(sb.String())
@@ -71,6 +72,7 @@ func BuildPrompt(rc service.RunContext, briefing, handoff string) (system, promp
 		}
 	}
 
+	pb.WriteString(attachmentsSection(rc))
 	pb.WriteString(coordinationSection(rc))
 
 	if len(rc.Goals) > 0 {
@@ -94,6 +96,48 @@ func BuildPrompt(rc service.RunContext, briefing, handoff string) (system, promp
 	pb.WriteString(continuationSection(rc.Continuation, rc.ResumeSession != ""))
 	pb.WriteString("---\nExecute o trabalho desta task agora.\n")
 	return system, pb.String()
+}
+
+// attachmentsSection lista os anexos da task (ou da conversa) no briefing (ADR-0052). O conteúdo não vai no prompt: a
+// persona lê o que precisar com `hanko_attachment_get`. Vazio quando não há anexo.
+func attachmentsSection(rc service.RunContext) string {
+	if len(rc.Attachments) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("## Anexos\n\n")
+	b.WriteString("Arquivos anexados pela equipe. O conteúdo não está neste prompt: leia o que precisar com `hanko_attachment_get` (pelo id ou pelo nome).\n\n")
+	for _, a := range rc.Attachments {
+		fmt.Fprintf(&b, "- `%s` (%s, %s) · %s · %s · id %s", clip(a.Name, 120), a.Mime, fmtBytes(a.SizeBytes), authorName(rc, a.Author),
+			a.CreatedAt.UTC().Format("2006-01-02 15:04 UTC"), a.ID)
+		if a.CommentID != nil {
+			for _, c := range rc.Comments {
+				if c.ID == *a.CommentID {
+					fmt.Fprintf(&b, " · no comentário de %s das %s", authorName(rc, c.Author), c.CreatedAt.UTC().Format("2006-01-02 15:04 UTC"))
+					break
+				}
+			}
+		}
+		if a.New {
+			b.WriteString(" · NOVO nesta mensagem")
+		}
+		b.WriteString("\n")
+	}
+	if len(rc.Attachments) >= service.MaxBriefingAttachments {
+		fmt.Fprintf(&b, "\n(mostrando os %d anexos mais recentes)\n", service.MaxBriefingAttachments)
+	}
+	b.WriteString("\n")
+	return b.String()
+}
+
+func fmtBytes(n int64) string {
+	switch {
+	case n >= 1<<20:
+		return fmt.Sprintf("%.1f MiB", float64(n)/(1<<20))
+	case n >= 1<<10:
+		return fmt.Sprintf("%.1f KiB", float64(n)/(1<<10))
+	}
+	return fmt.Sprintf("%d B", n)
 }
 
 // goalLine é uma meta em uma linha: progresso, valores e prazo; "(esta task serve a ela)" marca a meta da task.
