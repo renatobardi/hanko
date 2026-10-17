@@ -150,7 +150,7 @@ func (h *Heartbeat) executeRunJob(ctx context.Context, a ExecuteRunArgs, ji jobI
 	// Steering (ADR-0039): an adapter that injects takes the operator's messages through this channel; the executor
 	// forwards what the service publishes on the run's topic and confirms each delivery the adapter acknowledges.
 	var steerCh chan adapter.Steer
-	if h.broker != nil && adapter.SteerModeOf(ad) == domain.SteerInject && !(rc.Review != nil && rc.Run.Trigger == domain.TriggerReview) {
+	if h.broker != nil && adapter.SteerModeOf(ad) == domain.SteerInject && (rc.Review == nil || rc.Run.Trigger != domain.TriggerReview) {
 		steerCh = make(chan adapter.Steer, 16)
 	}
 	if h.broker != nil {

@@ -419,7 +419,7 @@ func (t *txc) insertRun(companyID domain.ID, taskID, convID *domain.ID, personaI
 		PersonaID: personaID, Trigger: string(trigger), Agent: agent, Model: model, ModelSource: string(modelSource), SubscriptionID: subID, Name: name,
 		WorkspaceID: ws, WorkspaceSource: string(wsSource), Now: t.now}
 	if cont != nil {
-		params.ContinuationOfRunID, params.ContinuationAttempt, params.ContinuationReason = &cont.of.ID, int32(cont.attempt), string(cont.reason)
+		params.ContinuationOfRunID, params.ContinuationAttempt, params.ContinuationReason = &cont.of.ID, int32(cont.attempt), string(cont.reason) //nolint:gosec // tentativa ≤ domain.MaxContinuations (2)
 	}
 	row, err := t.q.CreateRun(t.ctx, params)
 	if err != nil {
