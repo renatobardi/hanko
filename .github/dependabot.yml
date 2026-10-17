@@ -1,0 +1,29 @@
+# Atualizações automáticas de dependências (#63). Um PR agrupado por ecossistema, toda semana.
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      go-minor-patch:
+        update-types: [minor, patch]
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: npm
+    directory: /ui/islands # só ferramenta de build das ilhas (ADR-0005/0026); o bundle versionado tem que bater
+    schedule:
+      interval: weekly
+    groups:
+      islands-minor-patch:
+        update-types: [minor, patch]
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+    open-pull-requests-limit: 5
