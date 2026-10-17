@@ -3,10 +3,42 @@
 (function () {
   "use strict";
 
+  // Browser errors → Hanko → OTLP (ADR-0058 §C). No third-party service: the report goes to the same origin, where
+  // the server turns it into a span with an "exception" event. At most 5 per page, never twice the same one.
+  (function () {
+    var sent = 0;
+    var seen = {};
+    function report(kind, name, message, stack, source, line, col) {
+      try {
+        var key = kind + "|" + message + "|" + line + "|" + col;
+        if (sent >= 5 || seen[key]) return;
+        seen[key] = true;
+        sent++;
+        var body = JSON.stringify({
+          kind: kind, name: name || "Error", message: String(message || "").slice(0, 500),
+          stack: String(stack || "").slice(0, 4000), source: source || "", line: line || 0, col: col || 0,
+          url: location.href
+        });
+        var blob = new Blob([body], { type: "application/json" });
+        if (!(navigator.sendBeacon && navigator.sendBeacon("/telemetry/errors", blob))) {
+          fetch("/telemetry/errors", { method: "POST", body: blob, keepalive: true, credentials: "same-origin" }).catch(function () {});
+        }
+      } catch (_) { /* reporting must never throw */ }
+    }
+    window.addEventListener("error", function (e) {
+      if (!e.message && !e.error) return; // resource load errors carry neither
+      report("error", e.error && e.error.name, (e.error && e.error.message) || e.message, e.error && e.error.stack, e.filename, e.lineno, e.colno);
+    });
+    window.addEventListener("unhandledrejection", function (e) {
+      var r = e.reason;
+      report("unhandledrejection", r && r.name, (r && r.message) || String(r), r && r.stack, "", 0, 0);
+    });
+  })();
+
   // htmx ignores 4xx by default; our handlers answer errors with a fragment.
   document.addEventListener("htmx:beforeSwap", function (e) {
     var s = e.detail.xhr && e.detail.xhr.status;
-    if (s === 403 || s === 404 || s === 409 || s === 422 || s === 501) {
+    if (s === 403 || s === 404 || s === 409 || s === 422 || s === 429 || s === 501) {
       e.detail.shouldSwap = true;
       e.detail.isError = false;
     }
@@ -319,6 +351,8 @@
   } else {
     restore(document);
   }
+})();
+
 // ---- pipelines (ADR-0034) ----
 // Quadro de um pipeline: arrastar um case para outra etapa faz o mesmo POST do formulário "Mover para" da página
 // do case (etapa de destino e a versão que o quadro mostrou). Se o servidor recusar (aprovação, bloqueio, modo

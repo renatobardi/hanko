@@ -1,0 +1,270 @@
+package views
+
+import (
+	"fmt"
+
+	"github.com/renatobardi/hanko/internal/i18n"
+)
+
+// devHead is the <head> shared by the development screens (no PWA, no company chrome).
+templ DevPage(title, version string, nav []DevNavItem) {
+	<!DOCTYPE html>
+	<html lang={ string(i18n.FromContext(ctx)) } if t := themeFrom(ctx); t != "" { data-theme={ t } }>
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<meta name="color-scheme" content="light dark"/>
+			<meta name="robots" content="noindex"/>
+			<title>{ title } · Hanko</title>
+			<link rel="icon" href="/static/favicon.svg" type="image/svg+xml"/>
+			<link rel="preload" href="/static/fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin/>
+			<link rel="stylesheet" href={ "/static/hanko.css?v=" + version }/>
+			<script src="/static/vendor/htmx.min.js" defer></script>
+			<script src={ "/static/hanko.js?v=" + version } defer></script>
+		</head>
+		<body class="dg-body">
+			<header class="dg-top">
+				<a class="brand" href="/">
+					@Mark(22)
+					<span>Hanko</span>
+				</a>
+				<span class="badge soft">{ i18n.T(ctx, "Desenvolvimento") }</span>
+				<nav class="dg-nav" aria-label={ i18n.T(ctx, "Telas de desenvolvimento") }>
+					for _, n := range nav {
+						<a href={ templ.SafeURL(n.Href) } aria-current?={ n.On }>{ n.Label }</a>
+					}
+				</nav>
+			</header>
+			<main class="dg-main" id="content">
+				{ children... }
+			</main>
+		</body>
+	</html>
+}
+
+// DesignGuidePage is the living catalog of the Kubo DS, in light and dark, side by side by default.
+templ DesignGuidePage(vm DesignGuideVM) {
+	@DevPage(i18n.T(ctx, "Guia do design system"), vm.Version, vm.Nav) {
+		<div class="page-head">
+			<div>
+				<h1>{ i18n.T(ctx, "Kubo DS · catálogo vivo") }</h1>
+				<p>{ i18n.T(ctx, "Tokens e componentes reais do Hanko, em claro e escuro. Base do screenshot diff do e2e.") }</p>
+			</div>
+			<div class="tools">
+				<div class="seg" role="group" aria-label={ i18n.T(ctx, "Tema do catálogo") }>
+					<a href="/design-guide?tema=ambos" aria-current?={ vm.Mode == DGBoth } data-testid="dg-mode-ambos">{ i18n.T(ctx, "Lado a lado") }</a>
+					<a href="/design-guide?tema=claro" aria-current?={ vm.Mode == DGLight } data-testid="dg-mode-claro">{ i18n.T(ctx, "Claro") }</a>
+					<a href="/design-guide?tema=escuro" aria-current?={ vm.Mode == DGDark } data-testid="dg-mode-escuro">{ i18n.T(ctx, "Escuro") }</a>
+				</div>
+			</div>
+		</div>
+		<div class={ "dg-panes", templ.KV("dg-both", vm.Mode == DGBoth) }>
+			if vm.Mode != DGDark {
+				<section class="dg-pane" data-pane="light" aria-label={ i18n.T(ctx, "Tema claro") }>
+					@dgSpecimen("light")
+				</section>
+			}
+			if vm.Mode != DGLight {
+				<section class={ "dg-pane", templ.KV("dark", vm.Mode == DGBoth) } data-pane="dark" aria-label={ i18n.T(ctx, "Tema escuro") }>
+					@dgSpecimen("dark")
+				</section>
+			}
+		</div>
+	}
+}
+
+// dgSpecimen is one full set of specimens; it is rendered once per theme.
+templ dgSpecimen(theme string) {
+	<div class="dg-theme-tag"><span class="badge outline">{ theme }</span></div>
+	<section class="dg-sec" data-section="cores">
+		<h2 class="card-label">{ i18n.T(ctx, "Cores") }</h2>
+		<div class="dg-swatches">
+			for _, s := range DGSwatches {
+				<div class="dg-swatch">
+					<i class={ "dg-sw", "sw-" + s.Key }></i>
+					<code>{ s.Token }</code>
+				</div>
+			}
+		</div>
+	</section>
+	<section class="dg-sec" data-section="tipografia">
+		<h2 class="card-label">{ i18n.T(ctx, "Tipografia e raios") }</h2>
+		<div class="dg-type">
+			for _, s := range DGTextSizes {
+				<div class={ "dg-t", "dg-t-" + s.Key }><code>{ s.Key }</code> { i18n.T(ctx, s.Sample) }</div>
+			}
+			<div class="dg-t dg-t-sm mono"><code>mono</code> hanko task create --title "…"</div>
+		</div>
+		<div class="dg-radii">
+			for _, r := range DGRadii {
+				<div class={ "dg-radius", "dg-r-" + r.Key }><code>{ r.Key }</code></div>
+			}
+		</div>
+	</section>
+	<section class="dg-sec" data-section="botoes">
+		<h2 class="card-label">{ i18n.T(ctx, "Botões e badges") }</h2>
+		<div class="dg-row">
+			<button type="button" class="btn primary">{ i18n.T(ctx, "Primário") }</button>
+			<button type="button" class="btn">{ i18n.T(ctx, "Secundário") }</button>
+			<button type="button" class="btn outline">{ i18n.T(ctx, "Contorno") }</button>
+			<button type="button" class="btn ghost">{ i18n.T(ctx, "Fantasma") }</button>
+			<button type="button" class="btn danger">{ i18n.T(ctx, "Perigo") }</button>
+			<button type="button" class="btn primary" disabled>{ i18n.T(ctx, "Desabilitado") }</button>
+		</div>
+		<div class="dg-row">
+			<button type="button" class="btn primary lg">@Icon("plus") { i18n.T(ctx, "Grande") }</button>
+			<button type="button" class="btn outline sm">{ i18n.T(ctx, "Pequeno") }</button>
+			<button type="button" class="btn outline xs">{ i18n.T(ctx, "Mínimo") }</button>
+			<button type="button" class="icon-btn" aria-label="settings">@Icon("settings")</button>
+		</div>
+		<div class="dg-row">
+			@BadgeEl(Badge{Label: i18n.T(ctx, "Rodando"), Class: "run", Live: false})
+			@BadgeEl(Badge{Label: i18n.T(ctx, "Concluída"), Class: "done"})
+			@BadgeEl(Badge{Label: i18n.T(ctx, "Contorno"), Class: "outline"})
+			@BadgeEl(Badge{Label: i18n.T(ctx, "Falhou"), Class: "danger"})
+			@BadgeEl(Badge{Label: i18n.T(ctx, "Aguarda gate"), Class: "warn"})
+			@BadgeEl(Badge{Label: i18n.T(ctx, "Suave"), Class: "soft"})
+			<span class="chip">{ i18n.T(ctx, "chip") }</span>
+			<span class="chip soft">{ i18n.T(ctx, "chip suave") }</span>
+		</div>
+	</section>
+	<section class="dg-sec" data-section="formularios">
+		<h2 class="card-label">{ i18n.T(ctx, "Formulários") }</h2>
+		<div class="card pad">
+			<div class="field">
+				<label for={ "dg-in-" + theme }>{ i18n.T(ctx, "Título") }</label>
+				<input class="input" id={ "dg-in-" + theme } value={ i18n.T(ctx, "Revisar o plano da semana") }/>
+				<span class="hint">{ i18n.T(ctx, "Texto de apoio do campo.") }</span>
+			</div>
+			<div class="field">
+				<label for={ "dg-bad-" + theme }>{ i18n.T(ctx, "Campo com erro") }</label>
+				<input class="input" id={ "dg-bad-" + theme } aria-invalid="true" value="x"/>
+				<span class="err">{ i18n.T(ctx, "Mínimo de 3 caracteres.") }</span>
+			</div>
+			<div class="field">
+				<label for={ "dg-sel-" + theme }>{ i18n.T(ctx, "Prioridade") }</label>
+				<select class="select" id={ "dg-sel-" + theme }>
+					<option>{ i18n.T(ctx, "Alta") }</option>
+					<option>{ i18n.T(ctx, "Média") }</option>
+				</select>
+			</div>
+			<div class="field">
+				<label for={ "dg-ta-" + theme }>{ i18n.T(ctx, "Descrição") }</label>
+				<textarea class="textarea" id={ "dg-ta-" + theme } rows="3">{ i18n.T(ctx, "Escreva em Markdown.") }</textarea>
+			</div>
+			<label class="check"><input type="checkbox" checked/> { i18n.T(ctx, "Exigir revisão") }</label>
+			<div class="dg-row mt-3">
+				<span class="switch on" role="switch" aria-checked="true"><i></i></span>
+				<span class="switch" role="switch" aria-checked="false"><i></i></span>
+			</div>
+		</div>
+	</section>
+	<section class="dg-sec" data-section="avisos">
+		<h2 class="card-label">{ i18n.T(ctx, "Avisos, KPIs e estados vazios") }</h2>
+		@Alert("", i18n.T(ctx, "Aviso informativo: o orçamento da semana está em 60%."))
+		@Alert("warn", i18n.T(ctx, "Aguardando a sua decisão em um gate."))
+		@Alert("danger", i18n.T(ctx, "A execução falhou: autenticação do harness expirada."))
+		<div class="kpis">
+			@Kpi("activity", "12", i18n.T(ctx, "Execuções hoje"), false)
+			@Kpi("clock", "3", i18n.T(ctx, "Aguardando você"), true)
+		</div>
+		@EmptyCard("file", i18n.T(ctx, "Nada por aqui"), i18n.T(ctx, "Quando houver itens, eles aparecem nesta lista."), false) {
+			<button type="button" class="btn outline sm">{ i18n.T(ctx, "Criar o primeiro") }</button>
+		}
+	</section>
+	<section class="dg-sec" data-section="tabela">
+		<h2 class="card-label">{ i18n.T(ctx, "Abas, tabela e progresso") }</h2>
+		<nav class="tabs" aria-label={ i18n.T(ctx, "Exemplo de abas") }>
+			<a href="#" aria-current="page">{ i18n.T(ctx, "Ativas") }</a>
+			<a href="#">{ i18n.T(ctx, "Backlog") }</a>
+			<a href="#">{ i18n.T(ctx, "Concluídas") }</a>
+		</nav>
+		<div class="table-wrap">
+			<table class="table">
+				<thead>
+					<tr><th>{ i18n.T(ctx, "Task") }</th><th>{ i18n.T(ctx, "Estado") }</th><th>{ i18n.T(ctx, "Dono") }</th></tr>
+				</thead>
+				<tbody>
+					<tr><td>HNK-101 · { i18n.T(ctx, "Plano da semana") }</td><td>@BadgeEl(Badge{Label: i18n.T(ctx, "Rodando"), Class: "run"})</td><td>Ada</td></tr>
+					<tr><td>HNK-102 · { i18n.T(ctx, "Revisão de custos") }</td><td>@BadgeEl(Badge{Label: i18n.T(ctx, "Concluída"), Class: "done"})</td><td>Bento</td></tr>
+					<tr><td>HNK-103 · { i18n.T(ctx, "Onboarding") }</td><td>@BadgeEl(Badge{Label: i18n.T(ctx, "Aguarda gate"), Class: "warn"})</td><td>Cora</td></tr>
+				</tbody>
+			</table>
+		</div>
+		<div class="progress"><i class="dg-w-60"></i></div>
+	</section>
+	<section class="dg-sec" data-section="thread">
+		<h2 class="card-label">{ i18n.T(ctx, "Thread e log de run") }</h2>
+		@Thread(TaskVM{Thread: DGMessages}, "/c/exemplo")
+		<div class="log" role="log" tabindex="0">
+			for _, l := range DGLogKinds {
+				@RunLine(l)
+			}
+		</div>
+	</section>
+}
+
+// UXIndexPage lists the ux-labs scenarios.
+templ UXIndexPage(vm UXIndexVM) {
+	@DevPage(i18n.T(ctx, "Laboratórios de UX"), vm.Version, vm.Nav) {
+		<div class="page-head">
+			<div>
+				<h1>{ i18n.T(ctx, "Laboratórios de UX") }</h1>
+				<p>{ i18n.T(ctx, "Cenários montados com dados sintéticos para exercitar a interface sob carga. Nada é gravado no banco.") }</p>
+			</div>
+		</div>
+		<div class="grid-2">
+			for _, l := range vm.Labs {
+				<a class="card pad dg-lab" href={ templ.SafeURL(l.Href) }>
+					<h2 class="card-title">{ l.Title }</h2>
+					<p class="sub">{ l.Blurb }</p>
+				</a>
+			}
+		</div>
+	}
+}
+
+// UXThreadPage renders a task thread with hundreds of comments, with the real thread markup.
+templ UXThreadPage(vm UXThreadVM) {
+	@DevPage(i18n.T(ctx, "Thread longo"), vm.Version, vm.Nav) {
+		<div class="page-head">
+			<div>
+				<h1>{ i18n.T(ctx, "Thread longo") }</h1>
+				<p data-testid="ux-thread-count">{ fmt.Sprint(vm.Count) } { i18n.T(ctx, "comentários sintéticos") }</p>
+			</div>
+		</div>
+		<div class="card pad dg-thread-lab">
+			@Thread(TaskVM{Thread: vm.Thread}, "/c/exemplo")
+		</div>
+	}
+}
+
+// UXRunPage mounts the real run-log island over a synthetic API (see ui.devlabs).
+templ UXRunPage(vm UXRunVM) {
+	@DevPage(i18n.T(ctx, "Run com 10 mil linhas"), vm.Version, vm.Nav) {
+		<div class="page-head">
+			<div>
+				<h1>{ i18n.T(ctx, "Run com 10 mil linhas") }</h1>
+				<p data-testid="ux-run-total">{ fmt.Sprint(vm.Total) } { i18n.T(ctx, "eventos sintéticos, servidos em páginas pela API do laboratório") }</p>
+			</div>
+		</div>
+		<section class="card run-box">
+			<div
+				class="log-host"
+				data-island="run-log"
+				data-api={ vm.API }
+				data-run={ vm.RunID }
+				data-live="0"
+				data-tz="UTC"
+				data-lang={ vm.Lang }
+				data-msgs={ vm.LogMsgs }
+			>
+				<div id="run-log" class="log" role="log" tabindex="0">
+					for _, l := range vm.Lines {
+						@RunLine(l)
+					}
+				</div>
+			</div>
+		</section>
+	}
+}

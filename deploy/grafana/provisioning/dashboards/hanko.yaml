@@ -1,0 +1,15 @@
+# Provisionamento do painel "Erros" do Hanko no Grafana do container otel-lgtm (ADR-0058 §C).
+# O compose monta este arquivo em /otel-lgtm/grafana/conf/provisioning/dashboards/ e a pasta dashboards/ em /hanko-dashboards.
+apiVersion: 1
+
+providers:
+  - name: hanko
+    orgId: 1
+    folder: Hanko
+    type: file
+    disableDeletion: false
+    allowUiUpdates: false
+    updateIntervalSeconds: 30
+    options:
+      path: /hanko-dashboards
+      foldersFromFilesStructure: false

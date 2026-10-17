@@ -1,12 +1,24 @@
-# e2e: jornadas críticas no navegador (Playwright) contra Postgres real e harness fake.
-# ESQUELETO: o conteúdo entra na onda 1 com o item #57 (docs/ROADMAP.md). Fica fora do ci para o PR continuar rápido;
-# quando preenchido, roda no PR que toca UI/handlers e no main. Hoje só valida que o workflow carrega.
+# e2e: jornadas críticas no navegador (Playwright) contra Postgres real e o adapter fake (ADR-0058 §D, item #57).
+# Fica fora do `ci` para o PR continuar rápido. Roda no PR que toca UI, handlers, migrations ou o próprio e2e, e no main.
+# O harness (e2e/harness/global-setup.ts) zera o schema do banco, sobe `bin/hanko serve` e lê o link de claim do stderr.
 name: e2e
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
   pull_request:
     paths:
+      - "internal/ui/**"
+      - "internal/api/**"
+      - "internal/app/**"
+      - "internal/auth/**"
+      - "internal/ratelimit/**"
+      - "internal/telemetry/**"
+      - "internal/service/**"
+      - "db/**"
+      - "e2e/**"
+      - "ui/islands/**"
       - ".github/workflows/e2e.yml"
 
 permissions:
@@ -19,13 +31,54 @@ concurrency:
 jobs:
   e2e:
     runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: hanko_e2e
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      HANKO_E2E_DATABASE_URL: postgres://postgres:postgres@localhost:5432/hanko_e2e?sslmode=disable
     steps:
       - uses: actions/checkout@v7
-      - name: pendente (#57)
-        run: |
-          echo "e2e ainda sem jornadas; preenchido na onda 1 (item #57)."
-      # Roteiro do #57, para quando entrar:
-      #   - services: postgres:17 (como no ci.yml) e HANKO_TEST_DATABASE_URL
-      #   - make build; hanko serve com harness fake em background
-      #   - npx playwright install --with-deps chromium; npx playwright test (~15 jornadas)
-      #   - screenshot diff das telas principais; upload do relatório em caso de falha
+      - uses: actions/setup-go@v7
+        with:
+          go-version: "1.27"
+          cache: true
+      - name: instalar templ
+        run: go install github.com/a-h/templ/cmd/templ@v0.3.1070
+      - name: build
+        run: make build VERSION=e2e
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22" # só ferramenta de teste; o binário não depende de Node
+          cache: npm
+          cache-dependency-path: e2e/package-lock.json
+      - name: dependências do e2e
+        working-directory: e2e
+        run: npm ci
+      - name: Chromium do Playwright
+        working-directory: e2e
+        run: npx playwright install --with-deps chromium
+      - name: jornadas
+        working-directory: e2e
+        run: npx playwright test
+      - name: log do servidor (em falha)
+        if: failure()
+        run: tail -n 200 e2e/.run/hanko.log || true
+      - name: relatório do Playwright (em falha)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-relatorio
+          path: |
+            e2e/playwright-report/
+            e2e/test-results/
+            e2e/.run/hanko.log
+          if-no-files-found: ignore
+          retention-days: 14

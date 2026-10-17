@@ -561,6 +561,15 @@ type ModelPrice struct {
 	CreatedAt            time.Time
 }
 
+type OwnerClaim struct {
+	ID        uuid.UUID
+	TokenHash string
+	CreatedAt time.Time
+	ExpiresAt time.Time
+	UsedAt    *time.Time
+	UsedBy    *uuid.UUID
+}
+
 type Persona struct {
 	ID                   uuid.UUID
 	CompanyID            uuid.UUID
@@ -720,6 +729,13 @@ type ProjectReviewPolicy struct {
 	UpdatedByType     string
 	UpdatedByID       *uuid.UUID
 	UpdatedAt         time.Time
+}
+
+type RateLimitBucket struct {
+	Key         string
+	Tokens      float64
+	UpdatedAt   time.Time
+	LastAllowed bool
 }
 
 type Review struct {
