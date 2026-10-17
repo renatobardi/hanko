@@ -90,6 +90,9 @@ type ProjectVM struct {
 	GoalsHref     string
 	Artifacts     []ArtifactMini
 	ArtifactsHref string
+	// Git e Defaults são as abas Git e Padrões (ADR-0054).
+	Git      ProjectGitVM
+	Defaults ProjectDefaultsVM
 }
 
 // WorkspaceRow é uma linha da lista de workspaces.
@@ -153,4 +156,6 @@ type WorkspaceVM struct {
 	InUse        bool
 	DeleteAction string
 	TasksNote    bool
+	// Git é a aba Git (ADR-0054).
+	Git WorkspaceGitVM
 }

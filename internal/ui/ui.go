@@ -300,6 +300,9 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("POST /c/{company}/tasks/{task}/forcar-conclusao", post(co(s.handleForceClose)))
 	mux.HandleFunc("POST /c/{company}/tasks/{task}/pai", post(co(s.handleSetParent)))
 	mux.HandleFunc("POST /c/{company}/tasks/{task}/politica-revisao", post(co(s.handleReviewPolicy)))
+	mux.HandleFunc("GET /c/{company}/tasks/{task}/git", co(s.handleTaskGit))
+	mux.HandleFunc("POST /c/{company}/tasks/{task}/git/limpar", post(co(s.handleTaskGitClean)))
+	mux.HandleFunc("POST /c/{company}/tasks/{task}/nova-sessao", post(co(s.handleNewSession)))
 
 	mux.HandleFunc("GET /c/{company}/personas", co(s.handlePersonas))
 	mux.HandleFunc("GET /c/{company}/personas/nova", co(s.handleNewPersona))
@@ -321,6 +324,8 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("POST /c/{company}/projetos/{project}/arquivar", post(co(s.handleProjectArchive(true))))
 	mux.HandleFunc("POST /c/{company}/projetos/{project}/reativar", post(co(s.handleProjectArchive(false))))
 	mux.HandleFunc("POST /c/{company}/projetos/{project}/orcamento", post(co(s.handleSetProjectBudget)))
+	mux.HandleFunc("POST /c/{company}/projetos/{project}/padroes", post(co(s.handleProjectDefaults)))
+	mux.HandleFunc("POST /c/{company}/projetos/{project}/politica-revisao", post(co(s.handleProjectReviewPolicy)))
 
 	mux.HandleFunc("GET /c/{company}/workspaces", co(s.handleWorkspaces))
 	mux.HandleFunc("GET /c/{company}/workspaces/novo", co(s.handleNewWorkspace))
@@ -328,6 +333,9 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("GET /c/{company}/workspaces/{workspace}", co(s.handleWorkspace))
 	mux.HandleFunc("POST /c/{company}/workspaces/{workspace}", post(co(s.handleUpdateWorkspace)))
 	mux.HandleFunc("POST /c/{company}/workspaces/{workspace}/excluir", post(co(s.handleDeleteWorkspace)))
+	mux.HandleFunc("POST /c/{company}/workspaces/{workspace}/git", post(co(s.handleEnableGit)))
+	mux.HandleFunc("POST /c/{company}/workspaces/{workspace}/git/sincronizar", post(co(s.handleSyncGit)))
+	mux.HandleFunc("POST /c/{company}/workspaces/{workspace}/git/desligar", post(co(s.handleDisableGit)))
 
 	mux.HandleFunc("GET /c/{company}/custos", co(s.handleCosts))
 	mux.HandleFunc("POST /c/{company}/custos/orcamento", post(co(s.handleSetCompanyBudget)))

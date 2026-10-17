@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -52,6 +53,9 @@ type Config struct {
 	// Touch grava um arquivo com este nome (só o nome, sem diretório) no diretório de trabalho da run; no
 	// ambiente remoto (ADR-0037) ele é gravado lá e volta pela sincronização.
 	Touch string `json:"touch"`
+	// Commit, com Touch, faz um commit com esta mensagem no diretório de trabalho (um worktree Git, ADR-0054). Só
+	// local; o autor vem de GIT_AUTHOR_* do ambiente da run.
+	Commit string `json:"commit"`
 	// RemoteSleepSec segura o comando no ambiente remoto por estes segundos (0 a 60), para exercitar o
 	// cancelamento; não vale localmente.
 	RemoteSleepSec int `json:"remote_sleep_sec"`
@@ -119,6 +123,11 @@ func (a *Adapter) Run(ctx context.Context, spec adapter.Spec, sink adapter.Sink)
 		if err := os.WriteFile(filepath.Join(spec.Dir, cfg.Touch), []byte("fake\n"), 0o600); err != nil {
 			return adapter.Result{ExitCode: -1, IsError: true, Error: err.Error()}, fmt.Errorf("fake: touch: %w", err)
 		}
+		if cfg.Commit != "" {
+			if err := gitCommit(ctx, spec, cfg.Commit); err != nil {
+				return adapter.Result{ExitCode: -1, IsError: true, Error: err.Error()}, err
+			}
+		}
 	}
 	if cfg.Fail {
 		steps[len(steps)-1] = adapter.Event{Kind: domain.EventAssistant, Text: "Falha simulada."}
@@ -182,4 +191,22 @@ func (a *Adapter) remote(ctx context.Context, spec adapter.Spec, cfg Config) (st
 		return "", nil
 	}
 	return strings.TrimSpace(out[0]), nil
+}
+
+// gitCommit registra tudo o que está solto em spec.Dir num commit (o que uma persona faz no worktree da task).
+func gitCommit(ctx context.Context, spec adapter.Spec, message string) error {
+	env := append(os.Environ(), "GIT_CONFIG_GLOBAL="+os.DevNull, "GIT_CONFIG_NOSYSTEM=1", "GIT_TERMINAL_PROMPT=0")
+	for k, v := range spec.Env {
+		if strings.HasPrefix(k, "GIT_") {
+			env = append(env, k+"="+v)
+		}
+	}
+	for _, args := range [][]string{{"add", "-A"}, {"commit", "-q", "--no-verify", "-m", message}} {
+		cmd := exec.CommandContext(ctx, "git", append([]string{"-c", "core.hooksPath=" + os.DevNull}, args...)...) //nolint:gosec // argv fixo; só testes e demos
+		cmd.Dir, cmd.Env = spec.Dir, env
+		if out, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("fake: git %s: %w: %s", args[0], err, strings.TrimSpace(string(out)))
+		}
+	}
+	return nil
 }

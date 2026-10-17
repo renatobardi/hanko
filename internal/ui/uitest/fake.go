@@ -67,6 +67,8 @@ type Fake struct {
 	nextTask int64
 	// Coord guarda dependências, pausas e política de revisão por task (ADR-0040).
 	Coord CoordState
+	// Git é o estado do workspace com Git (ADR-0054).
+	Git GitFakeState
 
 	// Env são os ambientes de execução (ADR-0037).
 	Env EnvFake
