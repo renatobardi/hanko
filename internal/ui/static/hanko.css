@@ -1203,3 +1203,9 @@ details > summary.btn { list-style: none; display: inline-flex; }
 details > summary.btn::-webkit-details-marker { display: none; }
 .pw-form { max-width: 560px; }
 
+
+/* ---- tools: catálogo, perfis e gateways (ADR-0036) ---- */
+.tool-review { margin-top: 6px; }
+.tool-review > summary { cursor: pointer; font-size: var(--text-xs); color: var(--muted-foreground); }
+.tool-review > summary:hover { color: var(--foreground); }
+.tool-review pre { max-height: 280px; overflow: auto; margin: 8px 0 0; font-size: var(--text-xs); }

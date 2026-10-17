@@ -60,6 +60,8 @@ type Fake struct {
 	ConvMessages  []domain.ConversationMessage
 	// MyRoleIs é o papel do usuário logado nesta empresa (vazio = owner).
 	MyRoleIs domain.MemberRole
+	// Tools é o estado de apps, gateway de tools e perfis (ADR-0036; uitest/tools.go).
+	Tools    ToolsData
 	nextTask int64
 }
 

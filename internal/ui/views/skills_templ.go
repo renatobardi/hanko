@@ -2030,6 +2030,10 @@ func IntegrationsPage(sh Shell, vm IntegrationsVM) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
+			templ_7745c5c3_Err = IntegrationTabs(sh.Base(), "integracoes").Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
 			if vm.Notice != "" {
 				templ_7745c5c3_Err = Alert("warn", vm.Notice).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
@@ -2043,7 +2047,7 @@ func IntegrationsPage(sh Shell, vm IntegrationsVM) templ.Component {
 			var templ_7745c5c3_Var116 string
 			templ_7745c5c3_Var116, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Servidores MCP"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 324, Col: 62}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 325, Col: 62}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var116))
 			if templ_7745c5c3_Err != nil {
@@ -2071,7 +2075,7 @@ func IntegrationsPage(sh Shell, vm IntegrationsVM) templ.Component {
 			var templ_7745c5c3_Var117 string
 			templ_7745c5c3_Var117, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Webhooks de saída"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 330, Col: 62}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 331, Col: 62}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var117))
 			if templ_7745c5c3_Err != nil {
@@ -2130,7 +2134,7 @@ func IntegrationForm(vm IntegrationFormVM) templ.Component {
 		var templ_7745c5c3_Var119 templ.SafeURL
 		templ_7745c5c3_Var119, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(vm.Action))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 340, Col: 81}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 341, Col: 81}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var119))
 		if templ_7745c5c3_Err != nil {
@@ -2153,7 +2157,7 @@ func IntegrationForm(vm IntegrationFormVM) templ.Component {
 		var templ_7745c5c3_Var120 string
 		templ_7745c5c3_Var120, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Nome"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 346, Col: 45}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 347, Col: 45}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var120))
 		if templ_7745c5c3_Err != nil {
@@ -2166,7 +2170,7 @@ func IntegrationForm(vm IntegrationFormVM) templ.Component {
 		var templ_7745c5c3_Var121 string
 		templ_7745c5c3_Var121, templ_7745c5c3_Err = templ.ResolveAttributeValue(vm.Name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 347, Col: 64}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 348, Col: 64}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var121)
 		if templ_7745c5c3_Err != nil {
@@ -2184,7 +2188,7 @@ func IntegrationForm(vm IntegrationFormVM) templ.Component {
 			var templ_7745c5c3_Var122 string
 			templ_7745c5c3_Var122, templ_7745c5c3_Err = templ.JoinStringErrs(e)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 349, Col: 26}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 350, Col: 26}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var122))
 			if templ_7745c5c3_Err != nil {
@@ -2203,7 +2207,7 @@ func IntegrationForm(vm IntegrationFormVM) templ.Component {
 			var templ_7745c5c3_Var123 string
 			templ_7745c5c3_Var123, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "URL de destino (https)"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 355, Col: 45}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 356, Col: 45}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var123))
 			if templ_7745c5c3_Err != nil {
@@ -2213,7 +2217,7 @@ func IntegrationForm(vm IntegrationFormVM) templ.Component {
 			var templ_7745c5c3_Var124 string
 			templ_7745c5c3_Var124, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "URL do servidor MCP"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 357, Col: 42}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 358, Col: 42}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var124))
 			if templ_7745c5c3_Err != nil {
@@ -2227,7 +2231,7 @@ func IntegrationForm(vm IntegrationFormVM) templ.Component {
 		var templ_7745c5c3_Var125 string
 		templ_7745c5c3_Var125, templ_7745c5c3_Err = templ.ResolveAttributeValue(vm.URL)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 360, Col: 66}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 361, Col: 66}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var125)
 		if templ_7745c5c3_Err != nil {
@@ -2245,7 +2249,7 @@ func IntegrationForm(vm IntegrationFormVM) templ.Component {
 			var templ_7745c5c3_Var126 string
 			templ_7745c5c3_Var126, templ_7745c5c3_Err = templ.JoinStringErrs(e)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 362, Col: 26}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 363, Col: 26}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var126))
 			if templ_7745c5c3_Err != nil {
@@ -2269,7 +2273,7 @@ func IntegrationForm(vm IntegrationFormVM) templ.Component {
 				var templ_7745c5c3_Var127 string
 				templ_7745c5c3_Var127, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Transporte"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 369, Col: 57}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 370, Col: 57}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var127))
 				if templ_7745c5c3_Err != nil {
@@ -2290,7 +2294,7 @@ func IntegrationForm(vm IntegrationFormVM) templ.Component {
 				var templ_7745c5c3_Var128 string
 				templ_7745c5c3_Var128, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "stdio executa um comando na máquina do servidor e só funciona se o operador o liberou na configuração."))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 371, Col: 147}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 372, Col: 147}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var128))
 				if templ_7745c5c3_Err != nil {
@@ -2308,7 +2312,7 @@ func IntegrationForm(vm IntegrationFormVM) templ.Component {
 			var templ_7745c5c3_Var129 string
 			templ_7745c5c3_Var129, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Comando (stdio)"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 375, Col: 59}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 376, Col: 59}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var129))
 			if templ_7745c5c3_Err != nil {
@@ -2321,7 +2325,7 @@ func IntegrationForm(vm IntegrationFormVM) templ.Component {
 			var templ_7745c5c3_Var130 string
 			templ_7745c5c3_Var130, templ_7745c5c3_Err = templ.ResolveAttributeValue(vm.Command)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 376, Col: 78}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 377, Col: 78}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var130)
 			if templ_7745c5c3_Err != nil {
@@ -2339,7 +2343,7 @@ func IntegrationForm(vm IntegrationFormVM) templ.Component {
 				var templ_7745c5c3_Var131 string
 				templ_7745c5c3_Var131, templ_7745c5c3_Err = templ.JoinStringErrs(e)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 378, Col: 26}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 379, Col: 26}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var131))
 				if templ_7745c5c3_Err != nil {
@@ -2357,7 +2361,7 @@ func IntegrationForm(vm IntegrationFormVM) templ.Component {
 			var templ_7745c5c3_Var132 string
 			templ_7745c5c3_Var132, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Argumentos (stdio), um por linha"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 382, Col: 73}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 383, Col: 73}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var132))
 			if templ_7745c5c3_Err != nil {
@@ -2370,7 +2374,7 @@ func IntegrationForm(vm IntegrationFormVM) templ.Component {
 			var templ_7745c5c3_Var133 string
 			templ_7745c5c3_Var133, templ_7745c5c3_Err = templ.JoinStringErrs(vm.ArgsText)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 383, Col: 101}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 384, Col: 101}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var133))
 			if templ_7745c5c3_Err != nil {
@@ -2383,7 +2387,7 @@ func IntegrationForm(vm IntegrationFormVM) templ.Component {
 			var templ_7745c5c3_Var134 string
 			templ_7745c5c3_Var134, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Headers (http), um por linha: Nome: valor"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 386, Col: 85}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 387, Col: 85}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var134))
 			if templ_7745c5c3_Err != nil {
@@ -2396,7 +2400,7 @@ func IntegrationForm(vm IntegrationFormVM) templ.Component {
 			var templ_7745c5c3_Var135 string
 			templ_7745c5c3_Var135, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Os valores são segredos: ficam cifrados e nunca voltam para a tela. Aqui só aparecem os nomes."))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 388, Col: 136}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 389, Col: 136}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var135))
 			if templ_7745c5c3_Err != nil {
@@ -2414,7 +2418,7 @@ func IntegrationForm(vm IntegrationFormVM) templ.Component {
 				var templ_7745c5c3_Var136 string
 				templ_7745c5c3_Var136, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Guardados:"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 390, Col: 51}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 391, Col: 51}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var136))
 				if templ_7745c5c3_Err != nil {
@@ -2427,7 +2431,7 @@ func IntegrationForm(vm IntegrationFormVM) templ.Component {
 				var templ_7745c5c3_Var137 string
 				templ_7745c5c3_Var137, templ_7745c5c3_Err = templ.JoinStringErrs(joinNames(vm.HeaderNames))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 390, Col: 87}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 391, Col: 87}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var137))
 				if templ_7745c5c3_Err != nil {
@@ -2446,7 +2450,7 @@ func IntegrationForm(vm IntegrationFormVM) templ.Component {
 				var templ_7745c5c3_Var138 string
 				templ_7745c5c3_Var138, templ_7745c5c3_Err = templ.JoinStringErrs(e)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 393, Col: 26}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 394, Col: 26}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var138))
 				if templ_7745c5c3_Err != nil {
@@ -2469,7 +2473,7 @@ func IntegrationForm(vm IntegrationFormVM) templ.Component {
 				var templ_7745c5c3_Var139 string
 				templ_7745c5c3_Var139, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Remover headers (nomes separados por vírgula)"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 398, Col: 95}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 399, Col: 95}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var139))
 				if templ_7745c5c3_Err != nil {
@@ -2482,7 +2486,7 @@ func IntegrationForm(vm IntegrationFormVM) templ.Component {
 				var templ_7745c5c3_Var140 string
 				templ_7745c5c3_Var140, templ_7745c5c3_Err = templ.ResolveAttributeValue(vm.DropHeaders)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 399, Col: 92}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 400, Col: 92}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var140)
 				if templ_7745c5c3_Err != nil {
@@ -2500,7 +2504,7 @@ func IntegrationForm(vm IntegrationFormVM) templ.Component {
 			var templ_7745c5c3_Var141 string
 			templ_7745c5c3_Var141, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Variáveis de ambiente (stdio), uma por linha: NOME=valor"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 403, Col: 97}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 404, Col: 97}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var141))
 			if templ_7745c5c3_Err != nil {
@@ -2518,7 +2522,7 @@ func IntegrationForm(vm IntegrationFormVM) templ.Component {
 				var templ_7745c5c3_Var142 string
 				templ_7745c5c3_Var142, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Guardadas:"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 406, Col: 51}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 407, Col: 51}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var142))
 				if templ_7745c5c3_Err != nil {
@@ -2531,7 +2535,7 @@ func IntegrationForm(vm IntegrationFormVM) templ.Component {
 				var templ_7745c5c3_Var143 string
 				templ_7745c5c3_Var143, templ_7745c5c3_Err = templ.JoinStringErrs(joinNames(vm.EnvNames))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 406, Col: 84}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 407, Col: 84}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var143))
 				if templ_7745c5c3_Err != nil {
@@ -2550,7 +2554,7 @@ func IntegrationForm(vm IntegrationFormVM) templ.Component {
 				var templ_7745c5c3_Var144 string
 				templ_7745c5c3_Var144, templ_7745c5c3_Err = templ.JoinStringErrs(e)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 409, Col: 26}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 410, Col: 26}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var144))
 				if templ_7745c5c3_Err != nil {
@@ -2573,7 +2577,7 @@ func IntegrationForm(vm IntegrationFormVM) templ.Component {
 				var templ_7745c5c3_Var145 string
 				templ_7745c5c3_Var145, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Remover variáveis (nomes separados por vírgula)"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 414, Col: 94}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 415, Col: 94}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var145))
 				if templ_7745c5c3_Err != nil {
@@ -2586,7 +2590,7 @@ func IntegrationForm(vm IntegrationFormVM) templ.Component {
 				var templ_7745c5c3_Var146 string
 				templ_7745c5c3_Var146, templ_7745c5c3_Err = templ.ResolveAttributeValue(vm.DropEnv)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 415, Col: 80}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 416, Col: 80}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var146)
 				if templ_7745c5c3_Err != nil {
@@ -2614,7 +2618,7 @@ func IntegrationForm(vm IntegrationFormVM) templ.Component {
 			var templ_7745c5c3_Var147 string
 			templ_7745c5c3_Var147, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Vale para todas as personas"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 420, Col: 54}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 421, Col: 54}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var147))
 			if templ_7745c5c3_Err != nil {
@@ -2632,7 +2636,7 @@ func IntegrationForm(vm IntegrationFormVM) templ.Component {
 			var templ_7745c5c3_Var148 string
 			templ_7745c5c3_Var148, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Eventos"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 424, Col: 46}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 425, Col: 46}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var148))
 			if templ_7745c5c3_Err != nil {
@@ -2650,7 +2654,7 @@ func IntegrationForm(vm IntegrationFormVM) templ.Component {
 				var templ_7745c5c3_Var149 string
 				templ_7745c5c3_Var149, templ_7745c5c3_Err = templ.ResolveAttributeValue(o.Value)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 427, Col: 58}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 428, Col: 58}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var149)
 				if templ_7745c5c3_Err != nil {
@@ -2673,7 +2677,7 @@ func IntegrationForm(vm IntegrationFormVM) templ.Component {
 				var templ_7745c5c3_Var150 string
 				templ_7745c5c3_Var150, templ_7745c5c3_Err = templ.JoinStringErrs(o.Label)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 428, Col: 21}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 429, Col: 21}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var150))
 				if templ_7745c5c3_Err != nil {
@@ -2686,7 +2690,7 @@ func IntegrationForm(vm IntegrationFormVM) templ.Component {
 				var templ_7745c5c3_Var151 string
 				templ_7745c5c3_Var151, templ_7745c5c3_Err = templ.JoinStringErrs(o.Value)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 428, Col: 53}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 429, Col: 53}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var151))
 				if templ_7745c5c3_Err != nil {
@@ -2705,7 +2709,7 @@ func IntegrationForm(vm IntegrationFormVM) templ.Component {
 				var templ_7745c5c3_Var152 string
 				templ_7745c5c3_Var152, templ_7745c5c3_Err = templ.JoinStringErrs(e)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 432, Col: 26}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 433, Col: 26}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var152))
 				if templ_7745c5c3_Err != nil {
@@ -2724,7 +2728,7 @@ func IntegrationForm(vm IntegrationFormVM) templ.Component {
 				var templ_7745c5c3_Var153 string
 				templ_7745c5c3_Var153, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Novo segredo HMAC (opcional)"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 438, Col: 51}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 439, Col: 51}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var153))
 				if templ_7745c5c3_Err != nil {
@@ -2734,7 +2738,7 @@ func IntegrationForm(vm IntegrationFormVM) templ.Component {
 				var templ_7745c5c3_Var154 string
 				templ_7745c5c3_Var154, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Segredo HMAC (opcional)"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 440, Col: 46}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 441, Col: 46}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var154))
 				if templ_7745c5c3_Err != nil {
@@ -2749,7 +2753,7 @@ func IntegrationForm(vm IntegrationFormVM) templ.Component {
 				var templ_7745c5c3_Var155 string
 				templ_7745c5c3_Var155, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Em branco mantém o segredo atual."))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 446, Col: 57}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 447, Col: 57}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var155))
 				if templ_7745c5c3_Err != nil {
@@ -2763,7 +2767,7 @@ func IntegrationForm(vm IntegrationFormVM) templ.Component {
 				var templ_7745c5c3_Var156 string
 				templ_7745c5c3_Var156, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Em branco, o Hanko gera um segredo e o mostra uma única vez."))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 448, Col: 84}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 449, Col: 84}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var156))
 				if templ_7745c5c3_Err != nil {
@@ -2777,7 +2781,7 @@ func IntegrationForm(vm IntegrationFormVM) templ.Component {
 			var templ_7745c5c3_Var157 string
 			templ_7745c5c3_Var157, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Cada entrega leva o cabeçalho X-Hanko-Signature (HMAC-SHA256)."))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 450, Col: 85}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 451, Col: 85}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var157))
 			if templ_7745c5c3_Err != nil {
@@ -2795,7 +2799,7 @@ func IntegrationForm(vm IntegrationFormVM) templ.Component {
 				var templ_7745c5c3_Var158 string
 				templ_7745c5c3_Var158, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Segredo atual começa com"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 453, Col: 66}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 454, Col: 66}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var158))
 				if templ_7745c5c3_Err != nil {
@@ -2808,7 +2812,7 @@ func IntegrationForm(vm IntegrationFormVM) templ.Component {
 				var templ_7745c5c3_Var159 string
 				templ_7745c5c3_Var159, templ_7745c5c3_Err = templ.JoinStringErrs(vm.SecretHint)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 453, Col: 90}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 454, Col: 90}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var159))
 				if templ_7745c5c3_Err != nil {
@@ -2827,7 +2831,7 @@ func IntegrationForm(vm IntegrationFormVM) templ.Component {
 				var templ_7745c5c3_Var160 string
 				templ_7745c5c3_Var160, templ_7745c5c3_Err = templ.JoinStringErrs(e)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 456, Col: 26}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 457, Col: 26}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var160))
 				if templ_7745c5c3_Err != nil {
@@ -2860,7 +2864,7 @@ func IntegrationForm(vm IntegrationFormVM) templ.Component {
 				var templ_7745c5c3_Var161 string
 				templ_7745c5c3_Var161, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Gerar um novo segredo e mostrá-lo uma vez"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 462, Col: 70}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 463, Col: 70}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var161))
 				if templ_7745c5c3_Err != nil {
@@ -2889,7 +2893,7 @@ func IntegrationForm(vm IntegrationFormVM) templ.Component {
 		var templ_7745c5c3_Var162 string
 		templ_7745c5c3_Var162, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Integração ligada"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 468, Col: 45}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 469, Col: 45}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var162))
 		if templ_7745c5c3_Err != nil {
@@ -2902,7 +2906,7 @@ func IntegrationForm(vm IntegrationFormVM) templ.Component {
 		var templ_7745c5c3_Var163 templ.SafeURL
 		templ_7745c5c3_Var163, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(vm.CancelHref))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 471, Col: 59}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 472, Col: 59}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var163))
 		if templ_7745c5c3_Err != nil {
@@ -2915,7 +2919,7 @@ func IntegrationForm(vm IntegrationFormVM) templ.Component {
 		var templ_7745c5c3_Var164 string
 		templ_7745c5c3_Var164, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Cancelar"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 471, Col: 87}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 472, Col: 87}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var164))
 		if templ_7745c5c3_Err != nil {
@@ -2929,7 +2933,7 @@ func IntegrationForm(vm IntegrationFormVM) templ.Component {
 			var templ_7745c5c3_Var165 string
 			templ_7745c5c3_Var165, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Salvar alterações"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 474, Col: 41}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 475, Col: 41}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var165))
 			if templ_7745c5c3_Err != nil {
@@ -2939,7 +2943,7 @@ func IntegrationForm(vm IntegrationFormVM) templ.Component {
 			var templ_7745c5c3_Var166 string
 			templ_7745c5c3_Var166, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Criar integração"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 476, Col: 40}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 477, Col: 40}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var166))
 			if templ_7745c5c3_Err != nil {
@@ -3095,7 +3099,7 @@ func IntegrationTestResult(vm IntegrationTestVM) templ.Component {
 			var templ_7745c5c3_Var172 string
 			templ_7745c5c3_Var172, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Funcionou"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 514, Col: 54}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 515, Col: 54}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var172))
 			if templ_7745c5c3_Err != nil {
@@ -3113,7 +3117,7 @@ func IntegrationTestResult(vm IntegrationTestVM) templ.Component {
 			var templ_7745c5c3_Var173 string
 			templ_7745c5c3_Var173, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Falhou"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 516, Col: 53}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 517, Col: 53}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var173))
 			if templ_7745c5c3_Err != nil {
@@ -3132,7 +3136,7 @@ func IntegrationTestResult(vm IntegrationTestVM) templ.Component {
 			var templ_7745c5c3_Var174 string
 			templ_7745c5c3_Var174, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Status)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 519, Col: 39}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 520, Col: 39}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var174))
 			if templ_7745c5c3_Err != nil {
@@ -3151,7 +3155,7 @@ func IntegrationTestResult(vm IntegrationTestVM) templ.Component {
 			var templ_7745c5c3_Var175 string
 			templ_7745c5c3_Var175, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Latency)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 522, Col: 35}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 523, Col: 35}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var175))
 			if templ_7745c5c3_Err != nil {
@@ -3170,7 +3174,7 @@ func IntegrationTestResult(vm IntegrationTestVM) templ.Component {
 			var templ_7745c5c3_Var176 string
 			templ_7745c5c3_Var176, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Error)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 525, Col: 30}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 526, Col: 30}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var176))
 			if templ_7745c5c3_Err != nil {
@@ -3189,7 +3193,7 @@ func IntegrationTestResult(vm IntegrationTestVM) templ.Component {
 			var templ_7745c5c3_Var177 string
 			templ_7745c5c3_Var177, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Note)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 528, Col: 31}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 529, Col: 31}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var177))
 			if templ_7745c5c3_Err != nil {
@@ -3267,7 +3271,7 @@ func IntegrationPage(sh Shell, vm IntegrationVM) templ.Component {
 				var templ_7745c5c3_Var180 string
 				templ_7745c5c3_Var180, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Segredo do webhook: copie agora, ele não será mostrado de novo."))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 542, Col: 90}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 543, Col: 90}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var180))
 				if templ_7745c5c3_Err != nil {
@@ -3280,7 +3284,7 @@ func IntegrationPage(sh Shell, vm IntegrationVM) templ.Component {
 				var templ_7745c5c3_Var181 string
 				templ_7745c5c3_Var181, templ_7745c5c3_Err = templ.JoinStringErrs(vm.RevealedSecret)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 543, Col: 59}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 544, Col: 59}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var181))
 				if templ_7745c5c3_Err != nil {
@@ -3298,7 +3302,7 @@ func IntegrationPage(sh Shell, vm IntegrationVM) templ.Component {
 			var templ_7745c5c3_Var182 string
 			templ_7745c5c3_Var182, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 549, Col: 17}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 550, Col: 17}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var182))
 			if templ_7745c5c3_Err != nil {
@@ -3319,7 +3323,7 @@ func IntegrationPage(sh Shell, vm IntegrationVM) templ.Component {
 			var templ_7745c5c3_Var183 string
 			templ_7745c5c3_Var183, templ_7745c5c3_Err = templ.JoinStringErrs(vm.KindLabel)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 550, Col: 48}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 551, Col: 48}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var183))
 			if templ_7745c5c3_Err != nil {
@@ -3332,7 +3336,7 @@ func IntegrationPage(sh Shell, vm IntegrationVM) templ.Component {
 			var templ_7745c5c3_Var184 string
 			templ_7745c5c3_Var184, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Target)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 550, Col: 84}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 551, Col: 84}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var184))
 			if templ_7745c5c3_Err != nil {
@@ -3350,7 +3354,7 @@ func IntegrationPage(sh Shell, vm IntegrationVM) templ.Component {
 				var templ_7745c5c3_Var185 string
 				templ_7745c5c3_Var185, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Scope)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 552, Col: 19}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 553, Col: 19}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var185))
 				if templ_7745c5c3_Err != nil {
@@ -3373,7 +3377,7 @@ func IntegrationPage(sh Shell, vm IntegrationVM) templ.Component {
 				var templ_7745c5c3_Var186 templ.SafeURL
 				templ_7745c5c3_Var186, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(vm.TestHref))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 559, Col: 60}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 560, Col: 60}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var186))
 				if templ_7745c5c3_Err != nil {
@@ -3386,7 +3390,7 @@ func IntegrationPage(sh Shell, vm IntegrationVM) templ.Component {
 				var templ_7745c5c3_Var187 string
 				templ_7745c5c3_Var187, templ_7745c5c3_Err = templ.ResolveAttributeValue(vm.TestHref)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 559, Col: 84}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 560, Col: 84}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var187)
 				if templ_7745c5c3_Err != nil {
@@ -3404,7 +3408,7 @@ func IntegrationPage(sh Shell, vm IntegrationVM) templ.Component {
 					var templ_7745c5c3_Var188 string
 					templ_7745c5c3_Var188, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Testar entrega"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 563, Col: 39}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 564, Col: 39}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var188))
 					if templ_7745c5c3_Err != nil {
@@ -3414,7 +3418,7 @@ func IntegrationPage(sh Shell, vm IntegrationVM) templ.Component {
 					var templ_7745c5c3_Var189 string
 					templ_7745c5c3_Var189, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Testar conexão"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 565, Col: 40}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 566, Col: 40}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var189))
 					if templ_7745c5c3_Err != nil {
@@ -3438,7 +3442,7 @@ func IntegrationPage(sh Shell, vm IntegrationVM) templ.Component {
 			var templ_7745c5c3_Var190 string
 			templ_7745c5c3_Var190, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Configuração"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 575, Col: 58}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 576, Col: 58}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var190))
 			if templ_7745c5c3_Err != nil {
@@ -3471,7 +3475,7 @@ func IntegrationPage(sh Shell, vm IntegrationVM) templ.Component {
 				var templ_7745c5c3_Var191 string
 				templ_7745c5c3_Var191, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Personas"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 583, Col: 61}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 584, Col: 61}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var191))
 				if templ_7745c5c3_Err != nil {
@@ -3484,7 +3488,7 @@ func IntegrationPage(sh Shell, vm IntegrationVM) templ.Component {
 				var templ_7745c5c3_Var192 string
 				templ_7745c5c3_Var192, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Quem recebe este servidor MCP nas execuções."))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 583, Col: 146}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 584, Col: 146}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var192))
 				if templ_7745c5c3_Err != nil {
@@ -3502,7 +3506,7 @@ func IntegrationPage(sh Shell, vm IntegrationVM) templ.Component {
 					var templ_7745c5c3_Var193 string
 					templ_7745c5c3_Var193, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Nenhuma persona na empresa ainda."))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 585, Col: 72}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 586, Col: 72}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var193))
 					if templ_7745c5c3_Err != nil {
@@ -3530,7 +3534,7 @@ func IntegrationPage(sh Shell, vm IntegrationVM) templ.Component {
 				var templ_7745c5c3_Var194 string
 				templ_7745c5c3_Var194, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Últimas entregas"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 591, Col: 62}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 592, Col: 62}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var194))
 				if templ_7745c5c3_Err != nil {
@@ -3553,7 +3557,7 @@ func IntegrationPage(sh Shell, vm IntegrationVM) templ.Component {
 					var templ_7745c5c3_Var195 string
 					templ_7745c5c3_Var195, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Quando"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 599, Col: 35}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 600, Col: 35}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var195))
 					if templ_7745c5c3_Err != nil {
@@ -3566,7 +3570,7 @@ func IntegrationPage(sh Shell, vm IntegrationVM) templ.Component {
 					var templ_7745c5c3_Var196 string
 					templ_7745c5c3_Var196, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Evento"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 600, Col: 35}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 601, Col: 35}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var196))
 					if templ_7745c5c3_Err != nil {
@@ -3579,7 +3583,7 @@ func IntegrationPage(sh Shell, vm IntegrationVM) templ.Component {
 					var templ_7745c5c3_Var197 string
 					templ_7745c5c3_Var197, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Estado"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 601, Col: 35}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 602, Col: 35}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var197))
 					if templ_7745c5c3_Err != nil {
@@ -3592,7 +3596,7 @@ func IntegrationPage(sh Shell, vm IntegrationVM) templ.Component {
 					var templ_7745c5c3_Var198 string
 					templ_7745c5c3_Var198, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Tentativas"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 602, Col: 55}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 603, Col: 55}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var198))
 					if templ_7745c5c3_Err != nil {
@@ -3605,7 +3609,7 @@ func IntegrationPage(sh Shell, vm IntegrationVM) templ.Component {
 					var templ_7745c5c3_Var199 string
 					templ_7745c5c3_Var199, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Latência"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 604, Col: 54}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 605, Col: 54}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var199))
 					if templ_7745c5c3_Err != nil {
@@ -3618,7 +3622,7 @@ func IntegrationPage(sh Shell, vm IntegrationVM) templ.Component {
 					var templ_7745c5c3_Var200 string
 					templ_7745c5c3_Var200, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Erro"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 605, Col: 33}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 606, Col: 33}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var200))
 					if templ_7745c5c3_Err != nil {
@@ -3636,7 +3640,7 @@ func IntegrationPage(sh Shell, vm IntegrationVM) templ.Component {
 						var templ_7745c5c3_Var201 string
 						templ_7745c5c3_Var201, templ_7745c5c3_Err = templ.JoinStringErrs(d.When)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 611, Col: 35}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 612, Col: 35}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var201))
 						if templ_7745c5c3_Err != nil {
@@ -3649,7 +3653,7 @@ func IntegrationPage(sh Shell, vm IntegrationVM) templ.Component {
 						var templ_7745c5c3_Var202 string
 						templ_7745c5c3_Var202, templ_7745c5c3_Err = templ.JoinStringErrs(d.Event)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 613, Col: 19}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 614, Col: 19}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var202))
 						if templ_7745c5c3_Err != nil {
@@ -3667,7 +3671,7 @@ func IntegrationPage(sh Shell, vm IntegrationVM) templ.Component {
 							var templ_7745c5c3_Var203 string
 							templ_7745c5c3_Var203, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "teste"))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 615, Col: 58}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 616, Col: 58}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var203))
 							if templ_7745c5c3_Err != nil {
@@ -3694,7 +3698,7 @@ func IntegrationPage(sh Shell, vm IntegrationVM) templ.Component {
 							var templ_7745c5c3_Var204 string
 							templ_7745c5c3_Var204, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "próxima tentativa"))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 621, Col: 64}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 622, Col: 64}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var204))
 							if templ_7745c5c3_Err != nil {
@@ -3707,7 +3711,7 @@ func IntegrationPage(sh Shell, vm IntegrationVM) templ.Component {
 							var templ_7745c5c3_Var205 string
 							templ_7745c5c3_Var205, templ_7745c5c3_Err = templ.JoinStringErrs(d.Next)
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 621, Col: 75}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 622, Col: 75}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var205))
 							if templ_7745c5c3_Err != nil {
@@ -3725,7 +3729,7 @@ func IntegrationPage(sh Shell, vm IntegrationVM) templ.Component {
 						var templ_7745c5c3_Var206 string
 						templ_7745c5c3_Var206, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprint(d.Attempts))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 624, Col: 53}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 625, Col: 53}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var206))
 						if templ_7745c5c3_Err != nil {
@@ -3738,7 +3742,7 @@ func IntegrationPage(sh Shell, vm IntegrationVM) templ.Component {
 						var templ_7745c5c3_Var207 string
 						templ_7745c5c3_Var207, templ_7745c5c3_Err = templ.JoinStringErrs(d.HTTP)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 625, Col: 42}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 626, Col: 42}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var207))
 						if templ_7745c5c3_Err != nil {
@@ -3751,7 +3755,7 @@ func IntegrationPage(sh Shell, vm IntegrationVM) templ.Component {
 						var templ_7745c5c3_Var208 string
 						templ_7745c5c3_Var208, templ_7745c5c3_Err = templ.JoinStringErrs(d.Latency)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 626, Col: 46}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 627, Col: 46}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var208))
 						if templ_7745c5c3_Err != nil {
@@ -3764,7 +3768,7 @@ func IntegrationPage(sh Shell, vm IntegrationVM) templ.Component {
 						var templ_7745c5c3_Var209 string
 						templ_7745c5c3_Var209, templ_7745c5c3_Err = templ.JoinStringErrs(d.Error)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 627, Col: 36}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 628, Col: 36}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var209))
 						if templ_7745c5c3_Err != nil {
@@ -3793,7 +3797,7 @@ func IntegrationPage(sh Shell, vm IntegrationVM) templ.Component {
 				var templ_7745c5c3_Var210 string
 				templ_7745c5c3_Var210, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Apagar integração"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 637, Col: 72}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 638, Col: 72}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var210))
 				if templ_7745c5c3_Err != nil {
@@ -3806,7 +3810,7 @@ func IntegrationPage(sh Shell, vm IntegrationVM) templ.Component {
 				var templ_7745c5c3_Var211 string
 				templ_7745c5c3_Var211, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Remove a integração, os segredos guardados e o histórico de entregas."))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 637, Col: 183}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 638, Col: 183}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var211))
 				if templ_7745c5c3_Err != nil {
@@ -3819,7 +3823,7 @@ func IntegrationPage(sh Shell, vm IntegrationVM) templ.Component {
 				var templ_7745c5c3_Var212 templ.SafeURL
 				templ_7745c5c3_Var212, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(vm.DeleteHref))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 638, Col: 61}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 639, Col: 61}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var212))
 				if templ_7745c5c3_Err != nil {
@@ -3832,7 +3836,7 @@ func IntegrationPage(sh Shell, vm IntegrationVM) templ.Component {
 				var templ_7745c5c3_Var213 string
 				templ_7745c5c3_Var213, templ_7745c5c3_Err = templ.ResolveAttributeValue(vm.DeleteHref)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 638, Col: 87}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 639, Col: 87}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var213)
 				if templ_7745c5c3_Err != nil {
@@ -3845,7 +3849,7 @@ func IntegrationPage(sh Shell, vm IntegrationVM) templ.Component {
 				var templ_7745c5c3_Var214 string
 				templ_7745c5c3_Var214, templ_7745c5c3_Err = templ.ResolveAttributeValue(i18n.T(ctx, "Apagar esta integração?"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 638, Col: 158}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 639, Col: 158}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var214)
 				if templ_7745c5c3_Err != nil {
@@ -3858,7 +3862,7 @@ func IntegrationPage(sh Shell, vm IntegrationVM) templ.Component {
 				var templ_7745c5c3_Var215 string
 				templ_7745c5c3_Var215, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Apagar"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 639, Col: 80}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `skills.templ`, Line: 640, Col: 80}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var215))
 				if templ_7745c5c3_Err != nil {

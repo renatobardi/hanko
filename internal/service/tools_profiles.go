@@ -120,7 +120,7 @@ func (s *Service) CreateToolProfile(ctx context.Context, actor domain.Actor, com
 	if err != nil {
 		return ToolProfileView{}, err
 	}
-	if slices.Contains(reservedUISlugs, slug) || slug == "efetivas" {
+	if slices.Contains(reservedUISlugs, slug) || slug == "novo" || slug == "efetivas" {
 		return ToolProfileView{}, domain.Invalid("slug", fmt.Sprintf("%q is reserved", slug))
 	}
 	var out ToolProfileView

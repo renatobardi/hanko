@@ -84,7 +84,7 @@ func (s *Service) CreateToolGateway(ctx context.Context, actor domain.Actor, com
 	if err != nil {
 		return ToolGatewayView{}, err
 	}
-	if slices.Contains(reservedUISlugs, slug) {
+	if slices.Contains(reservedUISlugs, slug) || slug == "novo" {
 		return ToolGatewayView{}, domain.Invalid("slug", fmt.Sprintf("%q is reserved", slug))
 	}
 	enabled := in.Enabled == nil || *in.Enabled

@@ -385,6 +385,63 @@ func (s *Service) ListIntegrationTools(ctx context.Context, companyID, integrati
 	return out, nil
 }
 
+// ToolIntegration é um servidor MCP da empresa com o resumo do catálogo (para as telas de tools e perfis).
+type ToolIntegration struct {
+	ID          domain.ID
+	Slug, Name  string
+	Transport   string
+	Enabled     bool
+	Catalog     domain.ToolCatalogState
+	Tools       int // ativas, em quarentena e desligadas (as removidas não contam)
+	Quarantined int
+}
+
+// ToolIntegrations lista os servidores MCP da empresa com o resumo do catálogo (qualquer membro lê).
+func (s *Service) ToolIntegrations(ctx context.Context, companyID domain.ID) ([]ToolIntegration, error) {
+	if err := s.require(ctx, companyID, domain.MemberViewer); err != nil {
+		return nil, err
+	}
+	q := s.read()
+	rows, err := q.ListIntegrations(ctx, companyID)
+	if err != nil {
+		return nil, fmt.Errorf("list integrations: %w", err)
+	}
+	cats, err := q.ListToolCatalogs(ctx, companyID)
+	if err != nil {
+		return nil, fmt.Errorf("list catalogs: %w", err)
+	}
+	byID := map[domain.ID]domain.ToolCatalogState{}
+	for _, c := range cats {
+		byID[c.IntegrationID] = catalogFromRow(c)
+	}
+	tools, err := q.ListCompanyTools(ctx, companyID)
+	if err != nil {
+		return nil, fmt.Errorf("list company tools: %w", err)
+	}
+	out := []ToolIntegration{}
+	for _, r := range rows {
+		if domain.IntegrationKind(r.Kind) != domain.IntegrationMCP {
+			continue
+		}
+		ti := ToolIntegration{ID: r.ID, Slug: r.Slug, Name: r.Name, Transport: parseIntegrationConfig(r.Config).Transport, Enabled: r.Enabled,
+			Catalog: domain.ToolCatalogState{IntegrationID: r.ID}}
+		if c, ok := byID[r.ID]; ok {
+			ti.Catalog = c
+		}
+		for _, t := range tools {
+			if t.IntegrationID != r.ID || domain.ToolStatus(t.Status) == domain.ToolRemoved {
+				continue
+			}
+			ti.Tools++
+			if domain.ToolStatus(t.Status) == domain.ToolQuarantined {
+				ti.Quarantined++
+			}
+		}
+		out = append(out, ti)
+	}
+	return out, nil
+}
+
 // ListCompanyTools devolve todas as tools catalogadas da empresa (para os perfis e a revisão).
 func (s *Service) ListCompanyTools(ctx context.Context, companyID domain.ID) ([]domain.IntegrationTool, error) {
 	if err := s.require(ctx, companyID, domain.MemberViewer); err != nil {

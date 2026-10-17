@@ -26,6 +26,8 @@ func gateKindLabel(ctx context.Context, k domain.GateKind) string {
 		return i18n.T(ctx, "Contratação")
 	case domain.GateMemory:
 		return i18n.T(ctx, "Memória")
+	case domain.GateTool:
+		return i18n.T(ctx, "Tool")
 	}
 	return string(k)
 }
@@ -145,6 +147,7 @@ var gateKindTabs = []gateKindTab{
 	{"revisao", i18n.N("Revisão"), domain.GateTaskReview},
 	{"contratacao", i18n.N("Contratação"), domain.GateHire},
 	{"memoria", i18n.N("Memória"), domain.GateMemory},
+	{"tools", i18n.N("Tools"), domain.GateTool},
 }
 
 func gateStatusIn(st domain.GateStatus, list []domain.GateStatus) bool {
