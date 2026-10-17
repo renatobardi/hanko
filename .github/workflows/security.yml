@@ -48,6 +48,9 @@ jobs:
     # só no PR: compara as dependências do PR com a base
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-26.04
+    # Exige Dependency graph + GitHub Advanced Security no repositório (Settings > Code security).
+    # Enquanto isso não estiver ligado o job não bloqueia o PR; depois de ligar, remova continue-on-error.
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v7
       - uses: actions/dependency-review-action@v4

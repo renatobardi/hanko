@@ -52,3 +52,6 @@ No GitHub (só dá para ver depois do merge/push):
 
 ## Pulado/Falhou
 Nada. Testes de propriedade dos motores #1 e #20 ficam com os respectivos marcos (os motores ainda não existem).
+
+## Pendência de configuração do repositório
+- `dependency-review` (security.yml) falha com "Dependency graph + GitHub Advanced Security" desligados; o job está com `continue-on-error: true`. Ligar em Settings › Code security e remover o `continue-on-error`.
