@@ -524,6 +524,11 @@ func (s *Service) ResubmitGate(ctx context.Context, actor domain.Actor, companyI
 		if err := s.requireAudience(t.ctx, companyID, cur.Audience); err != nil {
 			return err
 		}
+		if domain.GateKind(cur.Kind) == domain.GateHire && actor.Type == domain.ActorHuman { // contratar é decisão de admin (ADR-0021)
+			if err := s.require(t.ctx, companyID, domain.MemberAdmin); err != nil {
+				return err
+			}
+		}
 		newTitle := cur.Title
 		if title != "" {
 			newTitle = title

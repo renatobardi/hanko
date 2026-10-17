@@ -32,8 +32,10 @@ opcional) fecha sem resposta e acorda a persona; **reabrir** devolve a `pending`
 ### 2. Gate `plan` e o plan-review (#19)
 Opt-in por **task, projeto ou persona** (tabela `plan_policies`; precedência task > projeto > persona, domínio puro em
 `domain.ResolvePlanPolicy`). Sob a política e **sem plano aprovado** na task, o run está na fase `plan`: só planeja.
-- O prompt diz isso; o `claude` roda em `--permission-mode plan` sem `Edit/Write/NotebookEdit` (o adapter ganha
-  `Spec.PlanOnly`), o ACP e o codex entram em modo somente leitura para as tools nativas, e o `/mcp` recusa, por
+- O prompt diz isso; o `claude` roda em `--permission-mode plan` sem `Edit/Write/NotebookEdit` e o `codex` em
+  `--sandbox read-only` (o adapter ganha `Spec.PlanOnly`, que, ao contrário de `ReadOnly`, mantém as tools MCP do Hanko
+  liberadas e ignora as `extra_args` da persona). O ACP **não** muda a política de permissão (o modo somente leitura
+  dele também barraria as tools MCP que publicam o plano); nele a fase de plano vale pelo prompt e pelo `/mcp`. O `/mcp` recusa, por
   middleware, toda tool `hanko_*` fora de uma lista de leitura + `hanko_gate_request`/`hanko_artifact_put`/
   `hanko_task_comment` (mesmo padrão do teste de skill, ADR-0035). Não há como plan-review "valer" sem isso: a regra mora
   no servidor, não no prompt.
