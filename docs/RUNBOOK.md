@@ -760,3 +760,10 @@ permitidos": o host do ambiente não casa com a lista. `Host key verification fa
 atual do host (refaça o `ssh-keyscan` e edite o ambiente). `Permission denied (publickey)`: a pública não está no
 `authorized_keys` ou a chave tem senha. "sem URL pública configurada": defina `HANKO_PUBLIC_URL` com um endereço que o host remoto
 alcance. Uso "órfão" na tela: o servidor caiu no meio da execução; a pasta remota pode ter ficado no host.
+
+## Acesso e ciclo de vida da empresa (ADR-0057)
+
+- **Login da CLI:** `hanko --url https://hanko.exemplo.com login [--scope full|read] [--device nome]` abre `/cli-auth/<código>`; quem está logado autoriza e a CLI guarda a API key em `~/.config/hanko/contexts.json` (0600; `HANKO_CONFIG_DIR` muda o lugar). `hanko whoami` mostra a conta, o dispositivo e o escopo; revogue em Configurações › Chaves de API. Chave `read` só lê (a API recusa escrita e o MCP).
+- **Arquivar:** `hanko -c <empresa> company archive` pausa as personas, cancela as execuções, desliga os fluxos e deixa a empresa somente leitura (faixa na UI, 409 nas escritas). `company restore [--resume]` desfaz. `company delete --confirm "<Nome>" -o backup.json` (só owner, só arquivada) guarda o export em `company_deletions`; `hanko company deletions` lista e `company download-deletion <id>` baixa.
+- **Import:** `hanko import arq.json --dry-run` mostra a prévia; `--into <empresa> --on-conflict skip|rename|replace --resolve personas/dev=replace` mescla só a configuração numa empresa existente. Na UI: `/importar`.
+- **Entrada de pessoas:** Configurações › Membros › "Gerar link de entrada" (`/pedir-acesso/<token>`); o admin aprova com o papel em `hanko member requests|approve|deny`. Contas da instalação: `/admin/usuarios` ou `hanko users`.
