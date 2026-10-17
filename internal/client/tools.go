@@ -146,3 +146,52 @@ func (c *Client) CreateGatewayToken(ctx context.Context, company, gateway string
 func (c *Client) RevokeGatewayToken(ctx context.Context, company, gateway, token string) (api.GatewayToken, error) {
 	return get[api.GatewayToken](ctx, c, http.MethodDelete, gp(company, gateway)+"/tokens/"+url.PathEscape(token), nil)
 }
+
+// ---------- política de tools (ADR-0053) ----------
+
+// ToolPolicyReq grava uma política off/ask/allow.
+type ToolPolicyReq struct {
+	Scope       string `json:"scope,omitempty"`
+	Persona     string `json:"persona,omitempty"`
+	Target      string `json:"target"`
+	Integration string `json:"integration,omitempty"`
+	Tool        string `json:"tool,omitempty"`
+	Mode        string `json:"mode"`
+}
+
+func (c *Client) ToolPolicies(ctx context.Context, company, persona string) ([]api.ToolPolicy, error) {
+	q := url.Values{"limit": {"500"}}
+	if persona != "" {
+		q.Set("persona", persona)
+	}
+	return list[api.ToolPolicy](ctx, c, cp(company)+"/tool-policies", q)
+}
+
+func (c *Client) SetToolPolicy(ctx context.Context, company string, in ToolPolicyReq) (api.ToolPolicy, error) {
+	return get[api.ToolPolicy](ctx, c, http.MethodPut, cp(company)+"/tool-policies", in)
+}
+
+func (c *Client) DeleteToolPolicy(ctx context.Context, company, id string) error {
+	return c.do(ctx, http.MethodDelete, cp(company)+"/tool-policies/"+url.PathEscape(id), nil, nil, nil)
+}
+
+// TestToolReq testa uma tool como uma persona.
+type TestToolReq struct {
+	Persona   string         `json:"persona"`
+	Arguments map[string]any `json:"arguments,omitempty"`
+	Execute   bool           `json:"execute,omitempty"`
+}
+
+func (c *Client) TestIntegrationTool(ctx context.Context, company, integration, tool string, in TestToolReq) (api.ToolTestResult, error) {
+	return get[api.ToolTestResult](ctx, c, http.MethodPost, ip(company, integration)+"/tools/"+url.PathEscape(tool)+"/test", in)
+}
+
+// ToolPermission consulta a política para uma tool nativa do harness (run token).
+func (c *Client) ToolPermission(ctx context.Context, company, tool string, input map[string]any) (api.ToolPermissionDecision, error) {
+	return get[api.ToolPermissionDecision](ctx, c, http.MethodPost, cp(company)+"/tool-permission", map[string]any{"tool": tool, "input": input})
+}
+
+// ToolPermissionState consulta o gate aberto por uma chamada nativa (run token).
+func (c *Client) ToolPermissionState(ctx context.Context, company, gate string) (api.ToolPermissionState, error) {
+	return get[api.ToolPermissionState](ctx, c, http.MethodGet, cp(company)+"/tool-permission/"+url.PathEscape(gate), nil)
+}
