@@ -56,13 +56,13 @@ type StatusCardActiveHours struct {
 
 // StatusCardPolicy é a política de atualização do resumo.
 type StatusCardPolicy struct {
-	Mode              string           `json:"mode,omitempty" enum:"manual,interval,reactive" doc:"Padrão reactive. manual = só sob pedido; interval = em horário fixo, se algo mudou; reactive = assim que algo mudar, com espera."`
-	IntervalMinutes   int              `json:"interval_minutes,omitempty" minimum:"0" maximum:"1440" doc:"Modo interval: de 15 a 1440 minutos (0 = padrão 60)."`
-	DebounceSeconds   int              `json:"debounce_seconds,omitempty" minimum:"0" maximum:"3600" doc:"Modo reactive: espera sem mudanças novas antes de atualizar, de 30 a 3600 s (0 = padrão 300)."`
-	MaxUpdatesPerHour int              `json:"max_updates_per_hour,omitempty" minimum:"0" maximum:"60" doc:"Teto de atualizações automáticas por hora, de 1 a 60 (0 = padrão 6)."`
+	Mode              string                 `json:"mode,omitempty" enum:"manual,interval,reactive" doc:"Padrão reactive. manual = só sob pedido; interval = em horário fixo, se algo mudou; reactive = assim que algo mudar, com espera."`
+	IntervalMinutes   int                    `json:"interval_minutes,omitempty" minimum:"0" maximum:"1440" doc:"Modo interval: de 15 a 1440 minutos (0 = padrão 60)."`
+	DebounceSeconds   int                    `json:"debounce_seconds,omitempty" minimum:"0" maximum:"3600" doc:"Modo reactive: espera sem mudanças novas antes de atualizar, de 30 a 3600 s (0 = padrão 300)."`
+	MaxUpdatesPerHour int                    `json:"max_updates_per_hour,omitempty" minimum:"0" maximum:"60" doc:"Teto de atualizações automáticas por hora, de 1 a 60 (0 = padrão 6)."`
 	Triggers          StatusCardTriggers     `json:"triggers,omitempty" doc:"O que conta como mudança; vazio = status, entrada/saída e comentários humanos."`
 	ActiveHours       *StatusCardActiveHours `json:"active_hours,omitempty" doc:"Horário em que o card se atualiza sozinho; fora dele fica pausado."`
-	DailyTokenCap     int64            `json:"daily_token_cap,omitempty" minimum:"0" doc:"Teto de tokens por dia somando as rodadas do card (0 = padrão 100000); atingido, o card pausa."`
+	DailyTokenCap     int64                  `json:"daily_token_cap,omitempty" minimum:"0" doc:"Teto de tokens por dia somando as rodadas do card (0 = padrão 100000); atingido, o card pausa."`
 }
 
 // StatusCardQuery é um filtro de task do card.
@@ -89,35 +89,35 @@ type StatusCardTask struct {
 
 // StatusCard é um resumo vivo de um conjunto de tasks, mantido por uma persona resumidora.
 type StatusCard struct {
-	ID                  string      `json:"id" format:"uuid"`
-	CompanyID           string      `json:"company_id" format:"uuid"`
-	Title               string      `json:"title" doc:"Vazio até a resumidora propor um (ou o humano escrever)."`
-	TitlePinned         bool        `json:"title_pinned" doc:"Título fixado pelo humano: a resumidora não o troca."`
-	Interest            string      `json:"interest" doc:"O que acompanhar, em linguagem natural."`
-	SummarizerPersonaID string      `json:"summarizer_persona_id,omitempty" format:"uuid"`
-	SummarizerSlug      string      `json:"summarizer_slug,omitempty"`
-	SummarizerName      string      `json:"summarizer_name,omitempty"`
+	ID                  string            `json:"id" format:"uuid"`
+	CompanyID           string            `json:"company_id" format:"uuid"`
+	Title               string            `json:"title" doc:"Vazio até a resumidora propor um (ou o humano escrever)."`
+	TitlePinned         bool              `json:"title_pinned" doc:"Título fixado pelo humano: a resumidora não o troca."`
+	Interest            string            `json:"interest" doc:"O que acompanhar, em linguagem natural."`
+	SummarizerPersonaID string            `json:"summarizer_persona_id,omitempty" format:"uuid"`
+	SummarizerSlug      string            `json:"summarizer_slug,omitempty"`
+	SummarizerName      string            `json:"summarizer_name,omitempty"`
 	Queries             []StatusCardQuery `json:"queries" doc:"Filtros gravados pela resumidora na montagem (vazio antes dela)."`
-	QueryVersion        int         `json:"query_version" doc:"Sobe a cada montagem gravada."`
-	QueryCompiledAt     *time.Time  `json:"query_compiled_at,omitempty"`
+	QueryVersion        int               `json:"query_version" doc:"Sobe a cada montagem gravada."`
+	QueryCompiledAt     *time.Time        `json:"query_compiled_at,omitempty"`
 	Policy              StatusCardPolicy  `json:"refresh_policy"`
-	State               string      `json:"state" enum:"compiling,active,error,paused_budget,paused_hours"`
-	ViewState           string      `json:"view_state" enum:"archived,compiling,error,paused_budget,paused_hours,updating,stale,fresh" doc:"O estado mostrado: arquivado, montando, erro, pausado (orçamento ou horário), atualizando, desatualizado ou em dia."`
-	PendingChangeCount  int         `json:"pending_change_count" doc:"Mudanças nas tasks observadas desde a última versão do resumo."`
-	LastChangeAt        *time.Time  `json:"last_change_at,omitempty"`
-	Summary             string      `json:"summary" doc:"O resumo atual em markdown (até 64 KiB)."`
-	SummaryRevision     int         `json:"summary_revision"`
-	LastUpdateKind      string      `json:"last_update_kind,omitempty" enum:"full,incremental"`
-	LastGeneratedAt     *time.Time  `json:"last_generated_at,omitempty"`
-	LastModel           string      `json:"last_model,omitempty"`
-	GeneratingTaskID    string      `json:"generating_task_id,omitempty" format:"uuid" doc:"Task de sistema da montagem ou atualização em andamento."`
-	FailureReason       string      `json:"failure_reason,omitempty" doc:"Por que a última montagem ou atualização não terminou."`
-	NextEvalAt          *time.Time  `json:"next_eval_at,omitempty"`
-	ArchivedAt          *time.Time  `json:"archived_at,omitempty"`
+	State               string            `json:"state" enum:"compiling,active,error,paused_budget,paused_hours"`
+	ViewState           string            `json:"view_state" enum:"archived,compiling,error,paused_budget,paused_hours,updating,stale,fresh" doc:"O estado mostrado: arquivado, montando, erro, pausado (orçamento ou horário), atualizando, desatualizado ou em dia."`
+	PendingChangeCount  int               `json:"pending_change_count" doc:"Mudanças nas tasks observadas desde a última versão do resumo."`
+	LastChangeAt        *time.Time        `json:"last_change_at,omitempty"`
+	Summary             string            `json:"summary" doc:"O resumo atual em markdown (até 64 KiB)."`
+	SummaryRevision     int               `json:"summary_revision"`
+	LastUpdateKind      string            `json:"last_update_kind,omitempty" enum:"full,incremental"`
+	LastGeneratedAt     *time.Time        `json:"last_generated_at,omitempty"`
+	LastModel           string            `json:"last_model,omitempty"`
+	GeneratingTaskID    string            `json:"generating_task_id,omitempty" format:"uuid" doc:"Task de sistema da montagem ou atualização em andamento."`
+	FailureReason       string            `json:"failure_reason,omitempty" doc:"Por que a última montagem ou atualização não terminou."`
+	NextEvalAt          *time.Time        `json:"next_eval_at,omitempty"`
+	ArchivedAt          *time.Time        `json:"archived_at,omitempty"`
 	Mentioned           []StatusCardTask  `json:"mentioned,omitempty" doc:"Tasks citadas no resumo atual (só no detalhe)."`
-	CreatedBy           ActorRef    `json:"created_by"`
-	CreatedAt           time.Time   `json:"created_at"`
-	UpdatedAt           time.Time   `json:"updated_at"`
+	CreatedBy           ActorRef          `json:"created_by"`
+	CreatedAt           time.Time         `json:"created_at"`
+	UpdatedAt           time.Time         `json:"updated_at"`
 }
 
 // StatusCardChange é uma mudança numa task observada.
@@ -131,24 +131,24 @@ type StatusCardChange struct {
 
 // StatusCardUpdate é uma rodada do card: montagem ou geração do resumo, com o custo da run.
 type StatusCardUpdate struct {
-	ID            string       `json:"id" format:"uuid"`
-	Kind          string       `json:"kind" enum:"compile,full,incremental"`
-	Trigger       string       `json:"trigger" enum:"manual,interval,reactive,restore,query"`
-	TaskID        string       `json:"task_id,omitempty" format:"uuid"`
-	TaskKey       string       `json:"task_key,omitempty"`
-	RunID         string       `json:"run_id,omitempty" format:"uuid"`
-	RunName       string       `json:"run_name,omitempty"`
+	ID            string             `json:"id" format:"uuid"`
+	Kind          string             `json:"kind" enum:"compile,full,incremental"`
+	Trigger       string             `json:"trigger" enum:"manual,interval,reactive,restore,query"`
+	TaskID        string             `json:"task_id,omitempty" format:"uuid"`
+	TaskKey       string             `json:"task_key,omitempty"`
+	RunID         string             `json:"run_id,omitempty" format:"uuid"`
+	RunName       string             `json:"run_name,omitempty"`
 	Changes       []StatusCardChange `json:"changes"`
-	InputTokens   int64        `json:"input_tokens"`
-	OutputTokens  int64        `json:"output_tokens"`
-	CostUSD       *float64     `json:"cost_usd,omitempty" doc:"Custo da run (do ledger), quando já terminou."`
-	Model         string       `json:"model,omitempty"`
-	QueryVersion  int          `json:"query_version"`
-	ChangeSummary string       `json:"change_summary,omitempty"`
-	Status        string       `json:"status" enum:"running,ok,failed"`
-	Error         string       `json:"error,omitempty"`
-	StartedAt     time.Time    `json:"started_at"`
-	FinishedAt    *time.Time   `json:"finished_at,omitempty"`
+	InputTokens   int64              `json:"input_tokens"`
+	OutputTokens  int64              `json:"output_tokens"`
+	CostUSD       *float64           `json:"cost_usd,omitempty" doc:"Custo da run (do ledger), quando já terminou."`
+	Model         string             `json:"model,omitempty"`
+	QueryVersion  int                `json:"query_version"`
+	ChangeSummary string             `json:"change_summary,omitempty"`
+	Status        string             `json:"status" enum:"running,ok,failed"`
+	Error         string             `json:"error,omitempty"`
+	StartedAt     time.Time          `json:"started_at"`
+	FinishedAt    *time.Time         `json:"finished_at,omitempty"`
 }
 
 // StatusCardRevision é uma versão imutável do resumo.
@@ -175,16 +175,16 @@ type StatusCardMatch struct {
 // StatusCardQueryMatch é um filtro com a descrição e quantas tasks casam.
 type StatusCardQueryMatch struct {
 	Query       StatusCardQuery `json:"query"`
-	Description string    `json:"description"`
-	Matches     int       `json:"matches"`
+	Description string          `json:"description"`
+	Matches     int             `json:"matches"`
 }
 
 // StatusCardPreview é a depuração dos filtros: o que casa hoje.
 type StatusCardPreview struct {
-	QueryVersion int              `json:"query_version"`
+	QueryVersion int                    `json:"query_version"`
 	Queries      []StatusCardQueryMatch `json:"queries"`
 	Tasks        []StatusCardMatch      `json:"tasks"`
-	Truncated    bool             `json:"truncated" doc:"Há mais tasks do que o card observa (300)."`
+	Truncated    bool                   `json:"truncated" doc:"Há mais tasks do que o card observa (300)."`
 }
 
 type StatusCardPath struct {
@@ -201,10 +201,10 @@ type listStatusCardsIn struct {
 type createStatusCardIn struct {
 	CompanyPath
 	Body struct {
-		Interest    string      `json:"interest" minLength:"1" maxLength:"20000" doc:"O que acompanhar, em linguagem natural."`
-		Title       string      `json:"title,omitempty" maxLength:"200"`
-		TitlePinned bool        `json:"title_pinned,omitempty" doc:"Fixa o título (a resumidora não o troca)."`
-		Summarizer  string      `json:"summarizer,omitempty" doc:"Id ou slug da persona resumidora; sem ela o card fica em erro até alguém escolher."`
+		Interest    string            `json:"interest" minLength:"1" maxLength:"20000" doc:"O que acompanhar, em linguagem natural."`
+		Title       string            `json:"title,omitempty" maxLength:"200"`
+		TitlePinned bool              `json:"title_pinned,omitempty" doc:"Fixa o título (a resumidora não o troca)."`
+		Summarizer  string            `json:"summarizer,omitempty" doc:"Id ou slug da persona resumidora; sem ela o card fica em erro até alguém escolher."`
 		Policy      *StatusCardPolicy `json:"refresh_policy,omitempty" doc:"Padrão: reactive, 5 min de espera, 6 por hora, 100 mil tokens por dia."`
 	}
 }
@@ -212,12 +212,12 @@ type createStatusCardIn struct {
 type updateStatusCardIn struct {
 	StatusCardPath
 	Body struct {
-		Interest    *string     `json:"interest,omitempty" minLength:"1" maxLength:"20000" doc:"Mudar o interesse dispara a montagem de novo."`
-		Title       *string     `json:"title,omitempty" maxLength:"200"`
-		TitlePinned *bool       `json:"title_pinned,omitempty"`
-		Summarizer  string      `json:"summarizer,omitempty" doc:"Id ou slug da nova resumidora."`
+		Interest    *string           `json:"interest,omitempty" minLength:"1" maxLength:"20000" doc:"Mudar o interesse dispara a montagem de novo."`
+		Title       *string           `json:"title,omitempty" maxLength:"200"`
+		TitlePinned *bool             `json:"title_pinned,omitempty"`
+		Summarizer  string            `json:"summarizer,omitempty" doc:"Id ou slug da nova resumidora."`
 		Policy      *StatusCardPolicy `json:"refresh_policy,omitempty"`
-		Archived    *bool       `json:"archived,omitempty" doc:"true arquiva; false restaura (e pede um resumo do zero)."`
+		Archived    *bool             `json:"archived,omitempty" doc:"true arquiva; false restaura (e pede um resumo do zero)."`
 	}
 }
 

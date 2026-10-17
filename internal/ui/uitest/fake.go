@@ -61,7 +61,7 @@ type Fake struct {
 	// MyRoleIs é o papel do usuário logado nesta empresa (vazio = owner).
 	MyRoleIs domain.MemberRole
 	// Cards são os cards de status (ADR-0032).
-	Cards *StatusCardsData
+	Cards    *StatusCardsData
 	nextTask int64
 }
 

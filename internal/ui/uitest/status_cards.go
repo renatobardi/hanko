@@ -63,9 +63,9 @@ func (f *Fake) ListStatusCards(_ context.Context, _ domain.ID, archived *bool) (
 		return nil, err
 	}
 	var out []service.StatusCardView
-	for i, c := range f.cards().Cards {
+	for i := range f.cards().Cards {
 		f.refreshCardView(i)
-		c = f.Cards.Cards[i]
+		c := f.Cards.Cards[i]
 		if archived != nil && (c.ArchivedAt != nil) != *archived {
 			continue
 		}
@@ -278,7 +278,7 @@ func SampleStatusCards(f *Fake) domain.ID {
 		State: domain.CardActive, QueryVersion: 2, QueryCompiledAt: &gen, SummaryRevision: 2, LastUpdateKind: domain.CardUpdateIncremental,
 		LastGeneratedAt: &gen, Summary: "## Bloqueios\n\n- **" + t1.Key + "** espera o deploy.\n- Nenhum bug crítico aberto.",
 		MentionedTaskIDs: []domain.ID{t1.ID}, PendingChangeCount: 1,
-		Queries: []domain.StatusCardQuery{{Label: "bloqueadas", Statuses: []domain.TaskStatus{domain.TaskBlocked}}, {Priorities: []domain.Priority{domain.PriorityCritical}, OpenOnly: true}},
+		Queries:   []domain.StatusCardQuery{{Label: "bloqueadas", Statuses: []domain.TaskStatus{domain.TaskBlocked}}, {Priorities: []domain.Priority{domain.PriorityCritical}, OpenOnly: true}},
 		CreatedBy: domain.HumanActor, CreatedAt: now.Add(-48 * time.Hour), UpdatedAt: gen},
 		Mentioned: []service.CardTaskRef{{ID: t1.ID, Key: t1.Key, Title: t1.Title, Status: t1.Status, Priority: t1.Priority, PersonaName: t1.PersonaName}}}
 	since := now.Add(-time.Minute)
