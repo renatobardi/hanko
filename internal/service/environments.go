@@ -291,6 +291,9 @@ func (s *Service) CreateEnvironment(ctx context.Context, actor domain.Actor, com
 	if err != nil {
 		return EnvironmentView{}, err
 	}
+	if err := s.checkEnvRefs(ctx, companyID, sec.Env); err != nil {
+		return EnvironmentView{}, err
+	}
 	id := domain.NewID()
 	enc, err := s.sealEnvironment(id, sec)
 	if err != nil {
@@ -368,6 +371,9 @@ func (s *Service) UpdateEnvironment(ctx context.Context, actor domain.Actor, com
 		}
 		cfg, nsec, err := buildEnvironmentConfig(e.Driver, ssh, key, sb, env)
 		if err != nil {
+			return err
+		}
+		if err := s.checkEnvRefs(ctx, companyID, nsec.Env); err != nil {
 			return err
 		}
 		enc, err := s.sealEnvironment(cur.ID, nsec)
@@ -624,13 +630,18 @@ func (s *Service) RunEnvironmentOf(ctx context.Context, companyID, runID domain.
 }
 
 // target monta o alvo de execução de um ambiente com os segredos abertos.
-func (s *Service) target(r store.Environment) (execenv.Target, error) {
+func (s *Service) target(ctx context.Context, r store.Environment) (execenv.Target, error) {
 	e := environmentFromRow(r)
 	sec, err := s.openEnvironment(r.ID, r.SecretEnc)
 	if err != nil {
 		return execenv.Target{}, fmt.Errorf("os segredos do ambiente %q não abrem: %w", r.Name, err)
 	}
-	t := execenv.Target{Driver: e.Driver, Name: e.Name, PrivateKey: sec.PrivateKey, Env: sec.Env}
+	// ${secret:X} nos valores de env (ADR-0050): resolvido só aqui, no uso; a falha nomeia o segredo.
+	env, _, err := s.expandMap(ctx, r.CompanyID, sec.Env)
+	if err != nil {
+		return execenv.Target{}, fmt.Errorf("o ambiente %q referencia um segredo indisponível: %w", r.Name, err)
+	}
+	t := execenv.Target{Driver: e.Driver, Name: e.Name, PrivateKey: sec.PrivateKey, Env: env}
 	if e.Config.SSH != nil {
 		t.SSH = *e.Config.SSH
 	}
@@ -652,7 +663,7 @@ func (s *Service) ProbeEnvironment(ctx context.Context, actor domain.Actor, comp
 	if err != nil {
 		return EnvironmentView{}, mapErr(err, "get environment")
 	}
-	tg, err := s.target(r)
+	tg, err := s.target(ctx, r)
 	if err != nil {
 		return EnvironmentView{}, domain.Invalid("secrets", err.Error())
 	}
@@ -734,7 +745,7 @@ func (s *Service) RunEnvironment(ctx context.Context, companyID, personaID domai
 	}
 	e := environmentFromRow(*row)
 	out.Environment = &e
-	if out.Target, err = s.target(*row); err != nil {
+	if out.Target, err = s.target(ctx, *row); err != nil {
 		return out, err
 	}
 	return out, nil

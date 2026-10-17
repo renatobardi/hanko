@@ -1,3 +1,7 @@
+# ci: o que roda em todo PR, rápido e determinístico. O que tem outro propósito mora em workflows próprios:
+# e2e.yml (jornadas no navegador), evals.yml (comportamento das personas, nightly), security.yml (vulnerabilidades),
+# edge.yml (canal edge), release.yml (tag v*). Os jobs `check` e `release-dry-run` são os status exigidos pelo repo:
+# não renomear.
 name: ci
 
 on:
@@ -41,8 +45,8 @@ jobs:
         run: make fmt-check
       - name: vet
         run: go vet ./...
-      - name: govulncheck
-        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+      - name: scripts (notas de release)
+        run: scripts/test-release-notes.sh
       - uses: golangci/golangci-lint-action@v9
         with:
           version: latest
@@ -51,8 +55,18 @@ jobs:
         run: go test -race ./...
       - name: cliente Postgres 17 (pg_dump/pg_restore do teste de restore)
         run: sudo apt-get install -y postgresql-client-17 || echo "sem postgresql-client-17; o teste de restore vai pular"
-      - name: test (integration)
-        run: go test -race -p 1 -timeout 30m -tags integration ./... # pacotes em série: todos resetam o schema do mesmo banco
+      - name: test (integration + cobertura)
+        # pacotes em série: todos resetam o schema do mesmo banco. O perfil alimenta o piso de cobertura (#56).
+        run: go test -race -p 1 -timeout 30m -tags integration -covermode=atomic -coverprofile=cover.out ./...
+      - name: piso de cobertura
+        run: scripts/coverage-gate.sh cover.out
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cobertura
+          path: cover.out
+          if-no-files-found: ignore
+          retention-days: 14
       - name: build
         run: make build VERSION=ci
 

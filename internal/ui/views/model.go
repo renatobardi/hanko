@@ -228,6 +228,8 @@ type TaskVM struct {
 	DescAnchors string // JSON
 	IslandAPI   string
 	AnchorMsgs  string // JSON
+	// Coord: árvore, dependências, pausa e política de revisão (ADR-0040).
+	Coord TaskCoordVM
 }
 
 type NewTaskVM struct {
@@ -241,6 +243,9 @@ type NewTaskVM struct {
 	GoalOptions     []Option
 	Error           string
 	FieldErr        map[string]string
+	// Parent/DependsOn (ADR-0040): chave da task pai e chaves (separadas por vírgula) das dependências.
+	Parent    string
+	DependsOn string
 }
 
 // ---- personas ----
@@ -410,6 +415,7 @@ type RunVM struct {
 	Agent        string
 	Model        string
 	ModelSource  string // who chose the model: task, persona or harness default
+	PolicyOrigin string // política de revisão que valeu e de que camada veio (ADR-0040); vazio em runs sem registro
 	Subscription string
 	Session      string
 	ExitCode     string

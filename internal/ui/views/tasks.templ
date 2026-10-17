@@ -112,6 +112,7 @@ templ TaskPage(sh Shell, vm TaskVM, base string) {
 		<div class="detail">
 			<div class="detail-main">
 				<div class="eyebrow">
+					@CoordCrumbs(vm.Coord)
 					<span class="mono">{ vm.Key }</span>
 					if vm.ProjectName != "" {
 						<span>·</span>
@@ -176,6 +177,7 @@ templ TaskChips(vm TaskVM, oob bool) {
 
 templ Thread(vm TaskVM, base string) {
 	<div id="thread" class="thread" aria-live="polite">
+		@HoldBanner(vm.Coord.Hold)
 		if len(vm.Thread) == 0 {
 			<p class="thread-empty">{ i18n.T(ctx, "Nenhum comentário ainda. Escreva abaixo para orientar a persona.") }</p>
 		}
@@ -274,6 +276,7 @@ templ TaskSide(vm TaskVM, base string) {
 			}
 			<noscript><button class="btn sm mt-3" type="submit">{ i18n.T(ctx, "Salvar") }</button></noscript>
 		</form>
+		@TaskCoordSide(vm.Coord, vm.Key)
 		<div class="side-sec">
 			<div class="side-h">{ i18n.T(ctx, "Custo") }</div>
 			<div class="prop"><span>{ i18n.T(ctx, "Esta task") }</span><span class="mono ta-r">{ vm.Cost }</span></div>
@@ -361,6 +364,17 @@ templ NewTaskPage(sh Shell, vm NewTaskVM) {
 							@Select("goal", "t-goal", vm.GoalOptions, false)
 						</div>
 					}
+				</div>
+				<div class="form-grid">
+					<div class="field">
+						<label for="t-parent">{ i18n.T(ctx, "Task pai (opcional)") }</label>
+						<input class="input" id="t-parent" name="parent" value={ vm.Parent } placeholder="HNK-12" maxlength="40" autocomplete="off"/>
+					</div>
+					<div class="field">
+						<label for="t-deps">{ i18n.T(ctx, "Depende de (opcional)") }</label>
+						<input class="input" id="t-deps" name="depends_on" value={ vm.DependsOn } placeholder="HNK-7, HNK-9" maxlength="200" autocomplete="off"/>
+						<span class="hint">{ i18n.T(ctx, "Separe por vírgula. A task só é despachada quando todas fecharem.") }</span>
+					</div>
 				</div>
 				<div class="field">
 					<label for="t-model">{ i18n.T(ctx, "Modelo (opcional)") }</label>

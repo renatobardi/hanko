@@ -20,6 +20,9 @@ import (
 	"github.com/renatobardi/hanko/internal/events"
 	"github.com/renatobardi/hanko/internal/execenv"
 	"github.com/renatobardi/hanko/internal/memory"
+	"github.com/renatobardi/hanko/internal/settings"
+	"github.com/renatobardi/hanko/internal/storage"
+	"github.com/renatobardi/hanko/internal/vault"
 )
 
 // ErrNotImplemented marks contract stubs not yet filled.
@@ -89,6 +92,12 @@ type Service struct {
 	// ACP é a política do operador para o harness acp (HANKO_ACP_ALLOW / HANKO_ACP_COMMANDS, ADR-0023). O zero
 	// value recusa: persona acp não pode ser contratada nem importada.
 	ACP acp.Policy
+	// Vault é o cofre externo de segredos (ADR-0050); nil = nenhum configurado (segredos provider=vault recusados).
+	Vault vault.Provider
+	// Blobs guarda o conteúdo dos artefatos (ADR-0051); nil usa o driver postgres sobre o pool.
+	Blobs *storage.Registry
+	// Settings são os toggles não sensíveis da instalação (ADR-0050); nil usa os campos fixos acima (testes).
+	Settings *settings.Manager
 	// Environments é a política do operador para os ambientes de execução remotos (ADR-0037): SSH e sandbox
 	// vêm desligados no zero value.
 	Environments execenv.Config
@@ -194,7 +203,9 @@ type CreateTaskInput struct {
 	GoalID      *domain.ID // meta a que a task serve (ADR-0028); só meta ativa
 	Model       string     // manual model choice (wins over the persona's); empty = none
 	ParentID    *domain.ID
-	EventID     string // idempotency key (agents/MCP)
+	// DependsOn são as tasks de que a nova depende (bloqueada até todas fecharem; ADR-0040).
+	DependsOn []domain.ID
+	EventID   string // idempotency key (agents/MCP)
 
 	trigger domain.RunTrigger // wake trigger; default assign (flows use flow)
 	// noMemoryFact: a task de sistema da consolidação de memória não vira página na própria memória.
@@ -216,6 +227,12 @@ type UpdateTaskInput struct {
 	ClearGoal bool
 	Model     *string // manual model choice; empty string clears it
 	EventID   string
+	// ParentID muda o pai da task (mesma empresa, sem ciclo, até 10 níveis); ClearParent a torna raiz (ADR-0040).
+	ParentID    *domain.ID
+	ClearParent bool
+	// ForceClose + OverrideReason: um humano conclui o pai mesmo com subtask aberta, registrando o motivo.
+	ForceClose     bool
+	OverrideReason string
 }
 
 type TaskFilter struct {
@@ -268,6 +285,8 @@ type TaskView struct {
 	// System marca a task de sistema de uma rodada de curadoria de memória (ADR-0030): o Hanko a cria, a
 	// acorda e a encerra; ninguém a acorda à mão nem por comentário.
 	System bool `json:"system,omitempty"`
+	// TaskCoord traz o que a coordenação deriva: dependências abertas (bloqueada), filhos e pausa (ADR-0040).
+	TaskCoord
 }
 
 // RunView is a run with display-ready joins.
@@ -282,6 +301,9 @@ type RunView struct {
 	SteerMode domain.SteerMode `json:"steer_mode,omitempty"`
 	// ContinuedByRunID is the run that continued this one, when there is one (filled by GetRun).
 	ContinuedByRunID *domain.ID `json:"continued_by_run_id,omitempty"`
+	// PolicyOrigin diz de que camada (task, projeto ou persona) veio a política de revisão que valeu na execução
+	// (ADR-0040); só o detalhe da execução preenche.
+	PolicyOrigin *domain.RunPolicyOrigin `json:"policy_origin,omitempty"`
 }
 
 // DashboardStats feeds the Painel.
@@ -318,6 +340,10 @@ type RunContext struct {
 	// run resumes (chat runs use Chat.ResumeSession).
 	Continuation  *ContinuationContext
 	ResumeSession string
+	// Relations são a árvore (ancestrais e subtasks) e as dependências da task (ADR-0040); nil sem task.
+	Relations *TaskRelations
+	// ReviewPolicy é a política de revisão que vale para esta task e esta persona (task > projeto > persona).
+	ReviewPolicy *domain.ReviewPolicy
 }
 
 // WakeCandidate is an (assigned, workable, idle) task found by the periodic heartbeat.

@@ -28,8 +28,12 @@ type txc struct {
 	q     *store.Queries
 	now   time.Time
 	after []func()
+	// onRollback desfaz efeitos de fora do banco (objetos já enviados ao S3) se a transação falhar.
+	onRollback []func()
 	// cancelled: runs whose cancellation this transaction already recorded (cancelRun is idempotent).
 	cancelled map[domain.ID]bool
+	// wakeCount: quantos wakes esta transação realmente enfileirou (wake pula task pausada, bloqueada ou persona parada).
+	wakeCount int
 }
 
 // withTx runs fn in a single transaction. Broker notifications queued by fn are
@@ -42,6 +46,9 @@ func (s *Service) withTx(ctx context.Context, fn func(t *txc) error) error {
 	t := &txc{s: s, ctx: ctx, tx: tx, q: store.New(tx), now: s.Now().UTC()}
 	if err := fn(t); err != nil {
 		rollbackTx(tx)
+		for _, f := range t.onRollback {
+			f()
+		}
 		return err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -167,9 +174,20 @@ func (t *txc) wake(companyID, taskID domain.ID, personaID *domain.ID, status dom
 	if !domain.PersonaStatus(p.Status).CanWork() {
 		return nil
 	}
+	// Coordenação (ADR-0040): task pausada guarda o wake para o "retomar"; task bloqueada por dependência espera o
+	// fechamento da última dependência, que a acorda (nada a guardar).
+	switch berr := t.dispatchBlocker(companyID, taskID); {
+	case errors.Is(berr, domain.ErrTaskHeld):
+		return t.recordHeldWake(companyID, taskID, *personaID, trigger)
+	case errors.Is(berr, domain.ErrTaskBlocked):
+		return nil
+	case berr != nil:
+		return berr
+	}
 	if err := t.s.Jobs.WakeTx(t.ctx, t.tx, Wake{CompanyID: companyID, PersonaID: *personaID, TaskID: taskID, Trigger: trigger}); err != nil {
 		return fmt.Errorf("enqueue wake: %w", err)
 	}
+	t.wakeCount++
 	return nil
 }
 

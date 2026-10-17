@@ -19,7 +19,7 @@ import (
 // artifactBodyLimit é o teto do corpo de um envio: o limite de arquivo configurado (HANKO_ARTIFACT_MAX_BYTES) em
 // base64 (x4/3) mais o envelope JSON. Sem o limite configurado à mão, vale o máximo absoluto (16 MiB).
 func (s *server) artifactBodyLimit() int64 {
-	maxFile := service.MaxArtifactMaxBytes
+	maxFile := service.MaxArtifactMaxBytesBlob
 	if l, ok := s.svc.(interface{ ArtifactLimits() (int64, int64) }); ok {
 		if m, _ := l.ArtifactLimits(); m > 0 && m < maxFile {
 			maxFile = m

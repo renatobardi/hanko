@@ -180,7 +180,7 @@ func (e *env) projectCmd() *cobra.Command {
 			return nil
 		},
 	}
-	c.AddCommand(create, ls, e.projectShowCmd(), e.projectUpdateCmd())
+	c.AddCommand(create, ls, e.projectShowCmd(), e.projectUpdateCmd(), e.projectReviewPolicyCmd())
 	return c
 }
 

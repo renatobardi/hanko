@@ -69,6 +69,8 @@ type Fake struct {
 	// Tools é o estado de apps, gateway de tools e perfis (ADR-0036; uitest/tools.go).
 	Tools    ToolsData
 	nextTask int64
+	// Coord guarda dependências, pausas e política de revisão por task (ADR-0040).
+	Coord CoordState
 
 	// Env são os ambientes de execução (ADR-0037).
 	Env EnvFake
@@ -390,6 +392,7 @@ func (f *Fake) GetTask(_ context.Context, _ domain.ID, ref string) (service.Task
 		return service.TaskView{}, err
 	}
 	if i, ok := f.findTask(ref); ok {
+		f.refreshCoord()
 		return f.Tasks[i], nil
 	}
 	return service.TaskView{}, domain.ErrNotFound
@@ -407,6 +410,26 @@ func (f *Fake) UpdateTask(_ context.Context, _ domain.Actor, _, taskID domain.ID
 		return service.TaskView{}, domain.ErrNotFound
 	}
 	t := &f.Tasks[i]
+	if in.ClearParent {
+		t.ParentID = nil
+	}
+	if in.ParentID != nil {
+		if _, ok := f.taskByID(*in.ParentID); !ok {
+			return service.TaskView{}, domain.Invalid("parent_id", "task not found in company")
+		}
+		t.ParentID = in.ParentID
+	}
+	if in.Status != nil && *in.Status == domain.TaskDone {
+		f.refreshCoord()
+		if t.ChildrenOpen > 0 {
+			if !in.ForceClose {
+				return service.TaskView{}, domain.ErrChildrenOpen
+			}
+			if strings.TrimSpace(in.OverrideReason) == "" {
+				return service.TaskView{}, domain.Invalid("override_reason", "obrigatório")
+			}
+		}
+	}
 	if in.Status != nil {
 		t.Status = *in.Status
 	}

@@ -138,6 +138,44 @@ templ InboxPage(sh Shell, vm InboxVM) {
 						}
 					</section>
 				}
+				if len(vm.Held) > 0 {
+					<section class="card inbox-sec">
+						<div class="inbox-h">
+							@Icon("alert")
+							{ i18n.T(ctx, "Tasks pausadas") }
+						<span class="cnt">{ fmt.Sprint(len(vm.Held)) }</span></div>
+						for _, t := range vm.Held {
+							<div class="inbox-row">
+								<span class="mini-avatar">@Icon("list")</span>
+								<div class="main">
+									<div class="t">
+										<a class="mono id" href={ templ.SafeURL(t.Href) }>{ t.Key }</a>
+										<a href={ templ.SafeURL(t.Href) }>{ t.Title }</a>
+										<span class="badge warn">{ i18n.T(ctx, "Pausada") }</span>
+									</div>
+									<p class="x">{ t.Reason }</p>
+									<div class="s">
+										if t.Persona != "" {
+											{ t.Persona } ·
+										}
+										{ t.By } · { t.When } · { i18n.T(ctx, "vale também para as subtasks") }
+									</div>
+								</div>
+								if canWrite(ctx) {
+									<form class="inbox-act" method="post" action={ templ.SafeURL(t.ResumeHref) } hx-post={ t.ResumeHref } hx-swap="none">
+										<a class="btn ghost sm" href={ templ.SafeURL(t.Href) }>{ i18n.T(ctx, "Abrir") }</a>
+										<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Retomar") }</button>
+									</form>
+								} else {
+									<div class="inbox-act">
+										<a class="btn ghost sm" href={ templ.SafeURL(t.Href) }>{ i18n.T(ctx, "Abrir") }</a>
+										@NeedRole(domain.MemberMember)
+									</div>
+								}
+							</div>
+						}
+					</section>
+				}
 				if len(vm.Blocked) > 0 {
 					<section class="card inbox-sec">
 						<div class="inbox-h">

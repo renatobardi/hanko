@@ -175,6 +175,77 @@ type Task struct {
 	CreatedAt   time.Time  `json:"created_at"`
 	UpdatedAt   time.Time  `json:"updated_at"`
 	ClosedAt    *time.Time `json:"closed_at,omitempty"`
+	// Coordenação (ADR-0040): derivados, nunca gravados.
+	OpenDependencies  int       `json:"open_dependencies" doc:"Dependências ainda abertas; a task está bloqueada enquanto for maior que zero."`
+	DependenciesTotal int       `json:"dependencies_total"`
+	Blocked           bool      `json:"blocked" doc:"Derivado: tem ao menos uma dependência aberta. Nenhuma execução abre enquanto durar."`
+	ChildrenTotal     int       `json:"children_total"`
+	ChildrenOpen      int       `json:"children_open"`
+	Hold              *TaskHold `json:"hold,omitempty" doc:"Pausa efetiva: a da própria task ou herdada do ancestral mais próximo. Nenhuma execução abre enquanto durar."`
+}
+
+// TaskHold é a pausa de uma task (gravada nela ou herdada de um ancestral).
+type TaskHold struct {
+	Reason    string    `json:"reason"`
+	By        ActorRef  `json:"by"`
+	At        time.Time `json:"at"`
+	OriginID  string    `json:"origin_id" format:"uuid" doc:"Task onde a pausa foi gravada."`
+	OriginKey string    `json:"origin_key" example:"HNK-3"`
+	Inherited bool      `json:"inherited" doc:"Verdadeiro quando a pausa vem de um ancestral."`
+}
+
+// TaskRef é uma task numa lista curta (ancestral, filha, dependência).
+type TaskRef struct {
+	ID          string `json:"id" format:"uuid"`
+	Key         string `json:"key" example:"HNK-12"`
+	Title       string `json:"title"`
+	Status      string `json:"status" enum:"backlog,todo,in_progress,in_review,blocked,done,cancelled"`
+	PersonaID   string `json:"persona_id,omitempty" format:"uuid"`
+	PersonaName string `json:"persona_name,omitempty"`
+	Closed      bool   `json:"closed" doc:"done ou cancelled: já não bloqueia nem conta como aberta."`
+}
+
+// TaskRelations é a árvore e as dependências de uma task.
+type TaskRelations struct {
+	Ancestors  []TaskRef `json:"ancestors" doc:"Da raiz ao pai imediato."`
+	Children   []TaskRef `json:"children"`
+	DependsOn  []TaskRef `json:"depends_on" doc:"Tasks de que esta depende."`
+	Dependents []TaskRef `json:"dependents" doc:"Tasks que dependem desta."`
+}
+
+// ReviewOverride é a sobreposição da política de revisão de uma camada (task ou projeto).
+type ReviewOverride struct {
+	RequireReview     *bool  `json:"require_review,omitempty" doc:"Ausente = herda da camada de baixo; true/false força."`
+	ReviewerMode      string `json:"reviewer_mode" enum:"inherit,none,custom" doc:"inherit herda; none = sem revisor automático (vai direto ao gate humano); custom = persona revisora ou harness+modelo."`
+	ReviewerPersonaID string `json:"reviewer_persona_id,omitempty" format:"uuid"`
+	ReviewerAgent     string `json:"reviewer_agent,omitempty" enum:"claude,codex,fake"`
+	ReviewerModel     string `json:"reviewer_model,omitempty"`
+}
+
+// ReviewPolicy é o resultado da precedência task > projeto > persona e a origem de cada decisão.
+type ReviewPolicy struct {
+	Required          bool   `json:"required"`
+	RequiredSource    string `json:"required_source" enum:"task,project,persona"`
+	HasReviewer       bool   `json:"has_reviewer"`
+	ReviewerSource    string `json:"reviewer_source" enum:"task,project,persona"`
+	ReviewerPersonaID string `json:"reviewer_persona_id,omitempty" format:"uuid"`
+	ReviewerAgent     string `json:"reviewer_agent,omitempty"`
+	ReviewerModel     string `json:"reviewer_model,omitempty"`
+}
+
+// TaskReviewPolicy mostra as camadas da política de revisão de uma task e o efeito.
+type TaskReviewPolicy struct {
+	Task      ReviewOverride `json:"task"`
+	Project   ReviewOverride `json:"project"`
+	Persona   ReviewOverride `json:"persona" doc:"A política da persona responsável, na mesma forma."`
+	Effective ReviewPolicy   `json:"effective"`
+}
+
+// RunPolicyOrigin é a origem da política de revisão que valeu numa execução.
+type RunPolicyOrigin struct {
+	ReviewRequired       bool   `json:"review_required"`
+	ReviewRequiredSource string `json:"review_required_source" enum:"task,project,persona"`
+	ReviewerSource       string `json:"reviewer_source" enum:"task,project,persona"`
 }
 
 // Comment é uma mensagem na thread de uma task.
@@ -258,6 +329,8 @@ type Run struct {
 	Decision            string        `json:"decision,omitempty" enum:"retry,continue,close" doc:"O que o operador decidiu."`
 	DecisionNote        string        `json:"decision_note,omitempty"`
 	DecidedAt           *time.Time    `json:"decided_at,omitempty"`
+	// PolicyOrigin: de que camada veio a política de revisão desta execução (só no detalhe).
+	PolicyOrigin *RunPolicyOrigin `json:"policy_origin,omitempty"`
 }
 
 // RunDiagnosis é o card de diagnóstico de uma execução que parou.
@@ -491,7 +564,66 @@ func taskOut(t service.TaskView) Task {
 		Description: t.Description, Status: string(t.Status), Priority: string(t.Priority),
 		PersonaID: idPtr(t.PersonaID), PersonaName: t.PersonaName, ProjectID: idPtr(t.ProjectID), ProjectName: t.ProjectName,
 		WorkspaceID: idPtr(t.WorkspaceID), GoalID: idPtr(t.GoalID), ParentID: idPtr(t.ParentID), Model: t.Model, ActiveRunID: idPtr(t.ActiveRunID),
-		CreatedBy: actorRef(t.CreatedBy), CreatedAt: t.CreatedAt, UpdatedAt: t.UpdatedAt, ClosedAt: t.ClosedAt}
+		CreatedBy: actorRef(t.CreatedBy), CreatedAt: t.CreatedAt, UpdatedAt: t.UpdatedAt, ClosedAt: t.ClosedAt,
+		OpenDependencies: t.OpenDependencies, DependenciesTotal: t.DependenciesTotal, Blocked: t.Blocked,
+		ChildrenTotal: t.ChildrenTotal, ChildrenOpen: t.ChildrenOpen, Hold: holdOut(t.Hold)}
+}
+
+func holdOut(h *domain.TaskHold) *TaskHold {
+	if h == nil {
+		return nil
+	}
+	return &TaskHold{Reason: h.Reason, By: actorRef(h.By), At: h.At, OriginID: idStr(h.OriginID), OriginKey: h.OriginKey, Inherited: h.Inherited}
+}
+
+func taskRefOut(d service.DependencyView) TaskRef {
+	return TaskRef{ID: idStr(d.ID), Key: d.Key, Title: d.Title, Status: string(d.Status), PersonaID: idPtr(d.PersonaID),
+		PersonaName: d.PersonaName, Closed: d.Closed}
+}
+
+func taskRelationsOut(r service.TaskRelations) TaskRelations {
+	out := TaskRelations{Ancestors: []TaskRef{}, Children: []TaskRef{}, DependsOn: []TaskRef{}, Dependents: []TaskRef{}}
+	for _, a := range r.Ancestors {
+		out.Ancestors = append(out.Ancestors, taskRefOut(service.DependencyView{TaskRef: a, Closed: !a.Status.Open()}))
+	}
+	for _, d := range r.Children {
+		out.Children = append(out.Children, taskRefOut(d))
+	}
+	for _, d := range r.DependsOn {
+		out.DependsOn = append(out.DependsOn, taskRefOut(d))
+	}
+	for _, d := range r.Dependents {
+		out.Dependents = append(out.Dependents, taskRefOut(d))
+	}
+	return out
+}
+
+func reviewOverrideOut(o domain.ReviewOverride) ReviewOverride {
+	mode := string(o.ReviewerMode)
+	if mode == "" {
+		mode = string(domain.ReviewerInherit)
+	}
+	return ReviewOverride{RequireReview: o.RequireReview, ReviewerMode: mode, ReviewerPersonaID: idPtr(o.ReviewerPersonaID),
+		ReviewerAgent: o.ReviewerAgent, ReviewerModel: o.ReviewerModel}
+}
+
+func reviewPolicyOut(p domain.ReviewPolicy) ReviewPolicy {
+	return ReviewPolicy{Required: p.Required, RequiredSource: string(p.RequiredSource), HasReviewer: p.HasReviewer,
+		ReviewerSource: string(p.ReviewerSource), ReviewerPersonaID: idPtr(p.ReviewerPersonaID), ReviewerAgent: p.ReviewerAgent,
+		ReviewerModel: p.ReviewerModel}
+}
+
+func taskReviewPolicyOut(v service.ReviewPolicyView) TaskReviewPolicy {
+	pr := v.Persona
+	persona := ReviewOverride{ReviewerMode: string(domain.ReviewerInherit), ReviewerPersonaID: idPtr(pr.ReviewerPersonaID),
+		ReviewerAgent: pr.ReviewerAgent, ReviewerModel: pr.ReviewerModel}
+	req := pr.RequireReview
+	persona.RequireReview = &req
+	if domain.HasReviewer(pr.ReviewerPersonaID, pr.ReviewerAgent) {
+		persona.ReviewerMode = string(domain.ReviewerCustom)
+	}
+	return TaskReviewPolicy{Task: reviewOverrideOut(v.Task), Project: reviewOverrideOut(v.Project), Persona: persona,
+		Effective: reviewPolicyOut(v.Effective)}
 }
 
 func commentOut(c domain.Comment) Comment {
@@ -519,7 +651,7 @@ func runOut(r service.RunView) Run {
 		CreatedAt: r.CreatedAt, StartedAt: r.StartedAt, FinishedAt: r.FinishedAt,
 		SteerMode: string(r.SteerMode), ContinuationOfRunID: idPtr(r.ContinuationOfRunID), ContinuationAttempt: r.ContinuationAttempt,
 		ContinuationReason: string(r.ContinuationReason), ContinuedByRunID: idPtr(r.ContinuedByRunID), Diagnosis: diagnosisOut(r.Diagnosis),
-		DecisionPending: r.DecisionPending, Decision: string(r.Decision), DecisionNote: r.DecisionNote, DecidedAt: r.DecidedAt}
+		DecisionPending: r.DecisionPending, Decision: string(r.Decision), DecisionNote: r.DecisionNote, DecidedAt: r.DecidedAt, PolicyOrigin: policyOriginOut(r.PolicyOrigin)}
 }
 
 func diagnosisOut(d *domain.RunDiagnosis) *RunDiagnosis {
@@ -532,6 +664,13 @@ func diagnosisOut(d *domain.RunDiagnosis) *RunDiagnosis {
 		out.Uncertain = &UncertainTool{Name: d.Uncertain.Name, Input: d.Uncertain.Input, Seq: d.Uncertain.Seq}
 	}
 	return out
+}
+
+func policyOriginOut(o *domain.RunPolicyOrigin) *RunPolicyOrigin {
+	if o == nil {
+		return nil
+	}
+	return &RunPolicyOrigin{ReviewRequired: o.ReviewRequired, ReviewRequiredSource: string(o.ReviewRequiredSource), ReviewerSource: string(o.ReviewerSource)}
 }
 
 func runEventOut(e domain.RunEvent) RunEvent {

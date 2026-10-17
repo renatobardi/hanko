@@ -30,6 +30,15 @@ func taskStatusLabel(ctx context.Context, s domain.TaskStatus) string {
 }
 
 func taskBadge(ctx context.Context, t service.TaskView) views.Badge {
+	// Coordenação (ADR-0040): a pausa e a espera por dependência vencem o status das tasks abertas.
+	if t.Status.Open() {
+		if t.Hold != nil {
+			return views.Badge{Label: i18n.T(ctx, "Pausada"), Class: "warn"}
+		}
+		if t.Blocked && t.Status != domain.TaskBlocked {
+			return views.Badge{Label: i18n.T(ctx, "Aguarda dependências"), Class: "warn"}
+		}
+	}
 	switch t.Status {
 	case domain.TaskInProgress:
 		if t.ActiveRunID != nil {

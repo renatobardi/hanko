@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"mime"
 	"net/http"
@@ -14,6 +15,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/settings"
+	"github.com/renatobardi/hanko/internal/storage"
 	"github.com/renatobardi/hanko/internal/store"
 	"github.com/renatobardi/hanko/internal/textdiff"
 )
@@ -28,6 +31,8 @@ const (
 	DefaultArtifactQuotaBytes int64 = 512 << 20
 	// MaxArtifactMaxBytes é o teto do limite por arquivo que a configuração pode escolher.
 	MaxArtifactMaxBytes int64 = 16 << 20
+	// MaxArtifactMaxBytesBlob é o teto com um driver de blobs externo (s3, ADR-0051).
+	MaxArtifactMaxBytesBlob int64 = 64 << 20
 
 	maxArtifactNameRunes = 200
 	// maxDiffBytes é o maior texto comparado no diff entre versões.
@@ -37,13 +42,52 @@ const (
 // artifactLimits são o limite efetivo de um arquivo e a cota da empresa.
 func (s *Service) artifactLimits() (maxFile, quota int64) {
 	maxFile, quota = s.ArtifactMaxBytes, s.ArtifactQuotaBytes
+	if s.Settings != nil { // settings da instância: env > banco > configuração (ADR-0050)
+		maxFile, quota = s.Settings.Int(settings.ArtifactsMaxBytes), s.Settings.Int(settings.ArtifactsQuotaBytes)
+	}
 	if maxFile <= 0 {
 		maxFile = DefaultArtifactMaxBytes
 	}
 	if quota <= 0 {
 		quota = DefaultArtifactQuotaBytes
 	}
+	if quota < maxFile {
+		quota = maxFile
+	}
 	return maxFile, quota
+}
+
+// blobs devolve o registro de drivers de conteúdo; sem configuração vale só o postgres (o comportamento do ADR-0028).
+func (s *Service) blobs() *storage.Registry {
+	if s.Blobs != nil {
+		return s.Blobs
+	}
+	return storage.NewRegistry(storage.NewPostgres(s.Pool))
+}
+
+// deleteBlobsAfterCommit apaga, depois do commit, o conteúdo guardado fora do Postgres (ADR-0051). Falha vira log.
+func (t *txc) deleteBlobsAfterCommit(companyID domain.ID, ids []domain.ID, drivers []string) {
+	s := t.s
+	t.after = append(t.after, func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+		for i, id := range ids {
+			if drivers[i] == storage.DriverPostgres {
+				continue // saiu junto com a linha (cascata)
+			}
+			if err := s.deleteBlob(ctx, drivers[i], storage.Key{CompanyID: companyID, ArtifactID: id}); err != nil && s.Log != nil {
+				s.Log.Warn("blobstore: objeto órfão (não foi possível apagar)", "driver", drivers[i], "artifact_id", id, "err", err.Error())
+			}
+		}
+	})
+}
+
+func (s *Service) deleteBlob(ctx context.Context, driver string, k storage.Key) error {
+	d, err := s.blobs().Driver(driver)
+	if err != nil {
+		return err
+	}
+	return d.Delete(ctx, k)
 }
 
 // ArtifactLimits devolve o tamanho máximo de um arquivo e a cota por empresa em vigor.
@@ -238,6 +282,18 @@ func (s *Service) PutArtifact(ctx context.Context, actor domain.Actor, companyID
 	sum := sha256.Sum256(in.Content)
 	digest := hex.EncodeToString(sum[:])
 
+	// O conteúdo vai para o driver ativo. Postgres: dentro da transação do artefato. Externo (s3): ANTES da transação,
+	// para não segurar a trava de cota durante um upload; se a transação não criar a versão, o objeto é apagado.
+	drv := s.blobs().Active()
+	newID := domain.NewID()
+	blobKey := storage.Key{CompanyID: companyID, ArtifactID: newID}
+	uploaded := false
+	if !drv.Transactional() {
+		if err := drv.Put(ctx, blobKey, in.Content, mt); err != nil {
+			return ArtifactView{}, fmt.Errorf("guardar conteúdo do artefato: %w", err)
+		}
+		uploaded = true
+	}
 	var id domain.ID
 	err = s.withTx(ctx, func(t *txc) error {
 		ctx := t.ctx
@@ -311,19 +367,29 @@ func (s *Service) PutArtifact(ctx context.Context, actor domain.Actor, companyID
 		if !in.createdAt.IsZero() {
 			at = in.createdAt.UTC()
 		}
-		row, err := t.q.CreateArtifact(ctx, store.CreateArtifactParams{ID: domain.NewID(), CompanyID: companyID, TaskID: taskID,
+		row, err := t.q.CreateArtifact(ctx, store.CreateArtifactParams{ID: newID, CompanyID: companyID, TaskID: taskID,
 			RunID: runID, ProjectID: projectID, PersonaID: personaID, AuthorType: string(actor.Type), AuthorID: actor.ID,
-			Name: name, Mime: mt, SizeBytes: int64(len(in.Content)), Sha256: digest, Version: version, CreatedAt: at})
+			Name: name, Mime: mt, SizeBytes: int64(len(in.Content)), Sha256: digest, Version: version, CreatedAt: at, Storage: drv.Name()})
 		if err != nil {
 			return mapErr(err, "create artifact")
 		}
-		if err := t.q.CreateArtifactBlob(ctx, store.CreateArtifactBlobParams{ArtifactID: row.ID, CompanyID: companyID, Content: in.Content}); err != nil {
-			return fmt.Errorf("create artifact blob: %w", err)
+		if drv.Transactional() {
+			if err := drv.Put(storage.WithTx(ctx, t.q), blobKey, in.Content, mt); err != nil {
+				return fmt.Errorf("create artifact blob: %w", err)
+			}
 		}
 		id = row.ID
 		return t.activity(actor, companyID, "artifact.created", "artifact", row.ID, map[string]any{
 			"name": name, "version": version, "mime": mt, "size_bytes": len(in.Content), "task_id": taskID, "run_id": runID}, "")
 	})
+	if uploaded && (err != nil || id != newID) {
+		// nenhuma versão nova apontou para este objeto (falha, mesmo conteúdo ou cota): apaga o que subiu
+		dctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Minute)
+		if derr := drv.Delete(dctx, blobKey); derr != nil && s.Log != nil {
+			s.Log.Warn("blobstore: objeto órfão (não foi possível apagar)", "driver", drv.Name(), "artifact_id", newID, "err", derr.Error())
+		}
+		cancel()
+	}
 	if err != nil {
 		return ArtifactView{}, err
 	}
@@ -403,9 +469,16 @@ func (s *Service) ArtifactContent(ctx context.Context, companyID, id domain.ID) 
 	if err != nil {
 		return domain.Artifact{}, nil, mapErr(err, "get artifact")
 	}
-	b, err := q.GetArtifactContent(ctx, store.GetArtifactContentParams{CompanyID: companyID, ArtifactID: id})
+	d, err := s.blobs().Driver(a.Storage)
 	if err != nil {
-		return domain.Artifact{}, nil, mapErr(err, "get artifact content")
+		return domain.Artifact{}, nil, fmt.Errorf("get artifact content: %w", err)
+	}
+	b, err := d.Get(ctx, storage.Key{CompanyID: companyID, ArtifactID: id})
+	if errors.Is(err, storage.ErrNotFound) {
+		return domain.Artifact{}, nil, notFound("artifact content")
+	}
+	if err != nil {
+		return domain.Artifact{}, nil, fmt.Errorf("get artifact content: %w", err)
 	}
 	return artifactFromRow(a), b, nil
 }
@@ -423,12 +496,17 @@ func (s *Service) DeleteArtifact(ctx context.Context, actor domain.Actor, compan
 		if err := t.q.LockArtifactChain(t.ctx, chainKey(companyID, cur.TaskID, cur.Name)); err != nil {
 			return fmt.Errorf("lock artifact chain: %w", err)
 		}
-		n, err := t.q.DeleteArtifactChain(t.ctx, store.DeleteArtifactChainParams{CompanyID: companyID, TaskID: cur.TaskID, Name: cur.Name})
+		gone, err := t.q.DeleteArtifactChain(t.ctx, store.DeleteArtifactChainParams{CompanyID: companyID, TaskID: cur.TaskID, Name: cur.Name})
 		if err != nil {
 			return fmt.Errorf("delete artifact: %w", err)
 		}
+		ids, drivers := make([]domain.ID, len(gone)), make([]string, len(gone))
+		for i, g := range gone {
+			ids[i], drivers[i] = g.ID, g.Storage
+		}
+		t.deleteBlobsAfterCommit(companyID, ids, drivers)
 		return t.activity(actor, companyID, "artifact.deleted", "artifact", id,
-			map[string]any{"name": cur.Name, "versions": n, "task_id": cur.TaskID}, "")
+			map[string]any{"name": cur.Name, "versions": len(gone), "task_id": cur.TaskID}, "")
 	})
 }
 

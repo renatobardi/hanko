@@ -76,6 +76,7 @@ type Artifact struct {
 	Sha256     string
 	Version    int32
 	CreatedAt  time.Time
+	Storage    string
 }
 
 type ArtifactBlob struct {
@@ -395,6 +396,31 @@ type GoalUpdate struct {
 	CreatedAt  time.Time
 }
 
+type HeldWake struct {
+	TaskID      uuid.UUID
+	CompanyID   uuid.UUID
+	PersonaID   uuid.UUID
+	Trigger     string
+	RequestedAt time.Time
+}
+
+type InstanceSetting struct {
+	Key       string
+	Value     []byte
+	UpdatedBy *uuid.UUID
+	UpdatedAt time.Time
+}
+
+type InstanceSettingAudit struct {
+	ID         uuid.UUID
+	Key        string
+	OldValue   []byte
+	NewValue   []byte
+	ActorType  string
+	ActorID    *uuid.UUID
+	OccurredAt time.Time
+}
+
 type Integration struct {
 	ID            uuid.UUID
 	CompanyID     uuid.UUID
@@ -685,6 +711,19 @@ type Project struct {
 	BudgetMonthlyCents *int64
 }
 
+type ProjectReviewPolicy struct {
+	ProjectID         uuid.UUID
+	CompanyID         uuid.UUID
+	RequireReview     pgtype.Bool
+	ReviewerMode      string
+	ReviewerPersonaID *uuid.UUID
+	ReviewerAgent     string
+	ReviewerModel     string
+	UpdatedByType     string
+	UpdatedByID       *uuid.UUID
+	UpdatedAt         time.Time
+}
+
 type Review struct {
 	ID                uuid.UUID
 	CompanyID         uuid.UUID
@@ -766,6 +805,34 @@ type RunEvent struct {
 	Payload    []byte
 	OccurredAt time.Time
 	ReceivedAt time.Time
+}
+
+type RunPolicyOrigin struct {
+	RunID                uuid.UUID
+	CompanyID            uuid.UUID
+	ReviewRequired       bool
+	ReviewRequiredSource string
+	ReviewerSource       string
+	UpdatedAt            time.Time
+}
+
+type Secret struct {
+	ID            uuid.UUID
+	CompanyID     uuid.UUID
+	Scope         string
+	OwnerUserID   *uuid.UUID
+	Name          string
+	Description   string
+	Provider      string
+	ValueEnc      string
+	ExternalRef   string
+	Version       int32
+	RevealedAt    *time.Time
+	LastUsedAt    *time.Time
+	CreatedByType string
+	CreatedByID   *uuid.UUID
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 type Session struct {
@@ -1023,6 +1090,15 @@ type TaskComment struct {
 	SearchTsv  interface{}
 }
 
+type TaskDependency struct {
+	CompanyID     uuid.UUID
+	TaskID        uuid.UUID
+	DependsOnID   uuid.UUID
+	CreatedByType string
+	CreatedByID   *uuid.UUID
+	CreatedAt     time.Time
+}
+
 type TaskFollowup struct {
 	ID            uuid.UUID
 	CompanyID     uuid.UUID
@@ -1039,6 +1115,28 @@ type TaskFollowup struct {
 	EditedAt      *time.Time
 	DiscardedAt   *time.Time
 	CreatedAt     time.Time
+}
+
+type TaskHold struct {
+	TaskID     uuid.UUID
+	CompanyID  uuid.UUID
+	Reason     string
+	HeldByType string
+	HeldByID   *uuid.UUID
+	HeldAt     time.Time
+}
+
+type TaskReviewOverride struct {
+	TaskID            uuid.UUID
+	CompanyID         uuid.UUID
+	RequireReview     pgtype.Bool
+	ReviewerMode      string
+	ReviewerPersonaID *uuid.UUID
+	ReviewerAgent     string
+	ReviewerModel     string
+	UpdatedByType     string
+	UpdatedByID       *uuid.UUID
+	UpdatedAt         time.Time
 }
 
 type ToolCallApproval struct {

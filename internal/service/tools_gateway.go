@@ -352,7 +352,7 @@ func (s *Service) GatewayCallTool(ctx context.Context, c ToolCaller, integration
 
 	// repasse
 	v.decision = domain.ToolDecisionAllow
-	ep, err := s.toolEndpoint(gi.row)
+	ep, err := s.toolEndpoint(ctx, gi.row)
 	if err != nil {
 		v.decision, v.status = domain.ToolDecisionError, domain.ToolCallFailed
 		return deny("a integração não pode ser alcançada: "+err.Error(), false)
@@ -365,7 +365,7 @@ func (s *Service) GatewayCallTool(ctx context.Context, c ToolCaller, integration
 	}
 	if cerr != nil {
 		msg := cerr.Error()
-		if sec, err := s.open(gi.row.ID, gi.row.SecretEnc); err == nil {
+		if sec, ok := s.secretsForRedaction(ctx, gi.row.CompanyID, gi.row.ID, gi.row.SecretEnc); ok {
 			msg = redactSecrets(msg, sec)
 		}
 		v.status, v.errText = domain.ToolCallFailed, msg
@@ -483,7 +483,7 @@ func (t *txc) openToolGate(c ToolCaller, gi gatewayIntegration, tl domain.Integr
 	fmt.Fprintf(&b, "- Risco declarado: %s\n- sha256 da chamada: `%s` (%d bytes de argumentos)\n\n", tl.Risk, sha, size)
 	b.WriteString("Aprovar libera **uma** repetição desta chamada com exatamente os mesmos argumentos. Argumentos diferentes pedem uma nova aprovação.\n\n")
 	preview := string(canon)
-	if sec, err := t.s.open(gi.row.ID, gi.row.SecretEnc); err == nil {
+	if sec, ok := t.s.secretsForRedaction(t.ctx, gi.row.CompanyID, gi.row.ID, gi.row.SecretEnc); ok {
 		preview = redactSecrets(preview, sec)
 	} else {
 		preview = adapter.Redact(preview)

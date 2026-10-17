@@ -8,6 +8,7 @@ import (
 	"github.com/renatobardi/hanko/internal/adapter"
 	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/events"
+	"github.com/renatobardi/hanko/internal/settings"
 	"github.com/renatobardi/hanko/internal/store"
 )
 
@@ -443,6 +444,12 @@ const reserveEpsilon = 1e-9
 
 // runReserve is the floor of the per-run reservation (USD), HANKO_RUN_RESERVE_USD.
 func (s *Service) runReserve() float64 {
+	if s.Settings != nil {
+		if v := s.Settings.Float(settings.RunReserveUSD); v > 0 {
+			return v
+		}
+		return DefaultRunReserveUSD
+	}
 	if s.RunReserveUSD > 0 {
 		return s.RunReserveUSD
 	}

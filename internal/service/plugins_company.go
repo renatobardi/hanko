@@ -252,6 +252,9 @@ func (s *Service) UpdateCompanyPlugin(ctx context.Context, actor domain.Actor, c
 	if err != nil {
 		return CompanyPlugin{}, err
 	}
+	if err := s.checkEnvRefs(ctx, companyID, secrets); err != nil {
+		return CompanyPlugin{}, err
+	}
 	if in.Enabled != nil {
 		enabled = *in.Enabled
 	}
@@ -492,6 +495,10 @@ func (s *Service) pluginConfigFor(ctx context.Context, p domain.Plugin, companyI
 	sec, err := s.openPluginSecrets(p.ID, companyID, st.SecretEnc)
 	if err != nil {
 		sec = map[string]string{} // segredo ilegível (chave trocada): o plugin recebe sem ele
+	}
+	// ${secret:X} num campo secreto do plugin (ADR-0050): resolvido só aqui, quando o plugin recebe a configuração
+	if sec, _, err = s.expandStringMap(ctx, companyID, sec); err != nil {
+		return nil, fmt.Errorf("o plugin %q referencia um segredo indisponível: %w", p.Key, err)
 	}
 	return fullPluginConfig(p.Manifest.ConfigSchema, cfg, sec), nil
 }

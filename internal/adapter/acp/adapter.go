@@ -52,6 +52,8 @@ type Options struct {
 	EnvAllow []string
 	// Policy is the operator's gate (HANKO_ACP_ALLOW / HANKO_ACP_COMMANDS); the zero value refuses to run.
 	Policy Policy
+	// PolicyFunc, when set, is consulted at every run instead of Policy (instance settings can change without a restart).
+	PolicyFunc func() Policy
 }
 
 // Adapter implements adapter.Adapter for generic ACP agents.
@@ -63,6 +65,14 @@ type Adapter struct {
 	exitWait   time.Duration
 	envAllow   []string
 	policy     Policy
+	policyFunc func() Policy
+}
+
+func (a *Adapter) currentPolicy() Policy {
+	if a.policyFunc != nil {
+		return a.policyFunc()
+	}
+	return a.policy
 }
 
 // New returns the acp adapter.
@@ -71,7 +81,7 @@ func New(o Options) *Adapter {
 	if log == nil {
 		log = slog.New(slog.NewTextHandler(io.Discard, nil))
 	}
-	a := &Adapter{log: log, version: o.Version, grace: o.Grace, cancelWait: o.CancelWait, exitWait: o.ExitWait, envAllow: o.EnvAllow, policy: o.Policy}
+	a := &Adapter{log: log, version: o.Version, grace: o.Grace, cancelWait: o.CancelWait, exitWait: o.ExitWait, envAllow: o.EnvAllow, policy: o.Policy, policyFunc: o.PolicyFunc}
 	if a.version == "" {
 		a.version = "dev"
 	}
@@ -100,7 +110,7 @@ func (a *Adapter) Run(ctx context.Context, spec adapter.Spec, sink adapter.Sink)
 	if err != nil {
 		return adapter.Result{ExitCode: -1, IsError: true, Error: err.Error()}, fmt.Errorf("acp: adapter_config: %w", err)
 	}
-	if err := a.policy.Check(cfg.Command); err != nil {
+	if err := a.currentPolicy().Check(cfg.Command); err != nil {
 		return adapter.Result{ExitCode: -1, IsError: true, Error: err.Error()}, fmt.Errorf("acp: %w", err)
 	}
 	// The persona's env goes first; the run's own variables (run token, OTel) always win.

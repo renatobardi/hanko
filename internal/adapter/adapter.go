@@ -43,6 +43,9 @@ type Spec struct {
 	// Steer entrega ao adapter, durante a run, as mensagens que o operador injeta (ADR-0039). Só é preenchido para
 	// adapter com SteerInject; o adapter confirma cada mensagem (Steer.Ack) depois de entregá-la ao harness.
 	Steer <-chan Steer
+	// Secrets são os valores de segredos resolvidos no despacho (${secret:...}, ADR-0050) que entraram em Config,
+	// Env ou MCPConfig; entram na redação do log e do resultado da run, qualquer que seja o nome da variável.
+	Secrets []string
 	// Exec é o ambiente remoto da run (host SSH ou contêiner, ADR-0037); nil = local, como sempre foi.
 	Exec ExecTarget
 }

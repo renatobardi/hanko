@@ -265,6 +265,26 @@ func verbPhraseCtx(ctx context.Context, v string) string {
 		return i18n.T(ctx, "mudou o status de")
 	case "task.closed":
 		return i18n.T(ctx, "encerrou")
+	case "task.dependency_added":
+		return i18n.T(ctx, "adicionou uma dependência a")
+	case "task.dependency_removed":
+		return i18n.T(ctx, "removeu uma dependência de")
+	case "task.unblocked":
+		return i18n.T(ctx, "liberou")
+	case "task.children_done":
+		return i18n.T(ctx, "viu a última subtask fechar em")
+	case "task.parent_changed":
+		return i18n.T(ctx, "mudou o pai de")
+	case "task.held":
+		return i18n.T(ctx, "pausou")
+	case "task.resumed":
+		return i18n.T(ctx, "retomou")
+	case "task.close_override":
+		return i18n.T(ctx, "concluiu com override")
+	case "task.review_policy_changed":
+		return i18n.T(ctx, "mudou a política de revisão de")
+	case "project.review_policy_changed":
+		return i18n.T(ctx, "mudou a política de revisão do projeto")
 	case "comment.added":
 		return i18n.T(ctx, "comentou em")
 	case "run.queued":

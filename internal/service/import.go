@@ -15,6 +15,7 @@ import (
 	"github.com/renatobardi/hanko/internal/auth"
 	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/export"
+	"github.com/renatobardi/hanko/internal/secretref"
 	"github.com/renatobardi/hanko/internal/store"
 )
 
@@ -118,6 +119,17 @@ func (p importPlan) counts(d export.Document) map[string]int {
 	}
 	if n := len(p.clearedPaths); n > 0 {
 		out["workspace_paths_cleared"] = n
+	}
+	// Referências ${secret:...} nas personas importadas: os valores não viajam no arquivo, então a empresa nova
+	// precisa recriar esses segredos antes de as personas rodarem (ADR-0050).
+	refs := map[string]bool{}
+	for _, c := range p.personaCfg {
+		for _, r := range secretref.Find(string(c)) {
+			refs[r.String()] = true
+		}
+	}
+	if len(refs) > 0 {
+		out["secret_refs_to_create"] = len(refs)
 	}
 	return out
 }
@@ -397,6 +409,18 @@ func (s *Service) planImport(ctx context.Context, doc export.Document, opts Impo
 	}
 	if p.taskOrder, err = orderTasks(doc.Tasks, tk); err != nil {
 		return p, err
+	}
+	// a árvore de tasks tem teto de profundidade (ADR-0040): o trigger do banco recusaria, então valida antes
+	depth := make(map[int]int, len(p.taskOrder))
+	for _, i := range p.taskOrder {
+		d := 1
+		if par := doc.Tasks[i].Parent; par != 0 {
+			d = depth[tk[par]] + 1
+		}
+		if d > domain.MaxTaskDepth {
+			return p, domain.Invalid(iv("tasks", i, "parent"), fmt.Sprintf("task tree deeper than %d levels", domain.MaxTaskDepth))
+		}
+		depth[i] = d
 	}
 	p.nextTask = max(c.NextTaskNumber, maxNum+1)
 

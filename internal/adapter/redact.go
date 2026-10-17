@@ -109,7 +109,7 @@ var sensitiveEnv = regexp.MustCompile(`(?i)(TOKEN|SECRET|PASSWORD|PASSWD|API_?KE
 // com nome de credencial, HANKO_RUN_TOKEN e todos os headers das configurações MCP
 // (inclusive o valor sem o prefixo "Bearer ").
 func SpecSecrets(spec Spec) []string {
-	var out []string
+	out := append([]string(nil), spec.Secrets...)
 	for k, v := range spec.Env {
 		if k == "HANKO_RUN_TOKEN" || sensitiveEnv.MatchString(k) {
 			out = append(out, v)

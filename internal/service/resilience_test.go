@@ -667,3 +667,25 @@ func TestPendingFollowupIsAWakeCandidateWhenStale(t *testing.T) {
 		t.Fatalf("stale follow-up must wake the task: %+v", c)
 	}
 }
+
+// A continuation never dispatches a held task (ADR-0040): the wake is recorded and, once the task resumes, the
+// continuation still resumes the session of the interrupted run.
+func TestContinuationRespectsAHeldTask(t *testing.T) {
+	ctx := context.Background()
+	e, p, tv := runFixture(t)
+	run := startedRun(t, e, p, tv, domain.TriggerAssign)
+	e.event(t, run.ID, domain.EventSystem, "sess", "", "sess-h")
+	e.crash(t)
+	if _, err := e.svc.HoldTask(ctx, domain.HumanActor, e.co.ID, tv.ID, "congelada"); err != nil {
+		t.Fatal(err)
+	}
+	_, err := e.svc.CheckoutRun(ctx, wakeOf(p, tv, domain.TriggerHeartbeat))
+	wantErr(t, err, domain.ErrTaskHeld)
+	if _, err := e.svc.ResumeTask(ctx, domain.HumanActor, e.co.ID, tv.ID); err != nil {
+		t.Fatal(err)
+	}
+	cont, err := e.svc.CheckoutRun(ctx, wakeOf(p, tv, domain.TriggerHeartbeat))
+	if err != nil || cont.ContinuationOfRunID == nil || *cont.ContinuationOfRunID != run.ID {
+		t.Fatalf("cont = %+v %v", cont, err)
+	}
+}

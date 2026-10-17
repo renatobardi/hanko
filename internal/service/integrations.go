@@ -20,6 +20,7 @@ import (
 	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/netguard"
 	"github.com/renatobardi/hanko/internal/secretbox"
+	"github.com/renatobardi/hanko/internal/settings"
 	"github.com/renatobardi/hanko/internal/store"
 )
 
@@ -37,10 +38,28 @@ type IntegrationsConfig struct {
 	Secrets *secretbox.Box
 	// HTTP substitui o cliente de saída (testes). Nil usa o cliente com a proteção SSRF de netguard.
 	HTTP *http.Client
+	// Settings, quando definido, decide AllowStdio e AllowPrivate em tempo de uso (env > banco > configuração).
+	Settings *settings.Manager
+}
+
+// stdioAllowed é a decisão efetiva sobre MCP stdio.
+func (c IntegrationsConfig) stdioAllowed() bool {
+	if c.Settings != nil {
+		return c.Settings.Bool(settings.IntegrationsAllowStdio)
+	}
+	return c.AllowStdio
+}
+
+// privateAllowed é a decisão efetiva sobre destinos internos.
+func (c IntegrationsConfig) privateAllowed() bool {
+	if c.Settings != nil {
+		return c.Settings.Bool(settings.IntegrationsAllowPriv)
+	}
+	return c.AllowPrivate
 }
 
 func (c IntegrationsConfig) policy() netguard.Policy {
-	return netguard.Policy{AllowPrivate: c.AllowPrivate}
+	return netguard.Policy{AllowPrivate: c.privateAllowed()}
 }
 
 // client é o cliente HTTP de saída.
@@ -133,6 +152,23 @@ func (s *Service) open(id uuid.UUID, enc string) (integrationSecrets, error) {
 		return v, fmt.Errorf("integration secrets: %w", err)
 	}
 	return v, nil
+}
+
+// checkIntegrationRefs confere as referências ${secret:...} dos headers e variáveis de um MCP (ADR-0050): o segredo
+// precisa existir na empresa e referência de usuário não vale em configuração compartilhada. O segredo HMAC do
+// webhook é sempre literal.
+func (s *Service) checkIntegrationRefs(ctx context.Context, companyID domain.ID, kind domain.IntegrationKind, sec integrationSecrets) error {
+	if kind != domain.IntegrationMCP {
+		return nil
+	}
+	var texts []string
+	for _, v := range sec.Headers {
+		texts = append(texts, v)
+	}
+	for _, v := range sec.Env {
+		texts = append(texts, v)
+	}
+	return s.checkSecretRefs(ctx, s.read(), companyID, "secrets", texts...)
 }
 
 func parseIntegrationConfig(raw []byte) domain.IntegrationConfig {
@@ -362,7 +398,7 @@ func checkIntegrationSlug(kind domain.IntegrationKind, slug string) error {
 
 // checkStdioAllowed é o interruptor do operador (HANKO_INTEGRATIONS_ALLOW_STDIO) para MCP stdio.
 func (s *Service) checkStdioAllowed() error {
-	if !s.Integrations.AllowStdio {
+	if !s.Integrations.stdioAllowed() {
 		return domain.Invalid("transport", "stdio está desligado neste servidor (HANKO_INTEGRATIONS_ALLOW_STDIO)")
 	}
 	return nil
@@ -457,6 +493,9 @@ func (s *Service) CreateIntegration(ctx context.Context, actor domain.Actor, com
 		if in.AllPersonas || len(in.PersonaIDs) > 0 || len(in.Headers) > 0 || len(in.Env) > 0 || in.Command != "" {
 			return IntegrationView{}, domain.Invalid("kind", "personas, headers and command only apply to MCP servers")
 		}
+	}
+	if err := s.checkIntegrationRefs(ctx, companyID, in.Kind, sec); err != nil {
+		return IntegrationView{}, err
 	}
 	enc, err := s.seal(id, sec)
 	if err != nil {
@@ -697,6 +736,9 @@ func (s *Service) UpdateIntegration(ctx context.Context, actor domain.Actor, com
 			return nil
 		}
 		if secChanged {
+			if err := s.checkIntegrationRefs(ctx, companyID, kind, sec); err != nil {
+				return err
+			}
 			if p.SecretEnc, err = s.seal(id, sec); err != nil {
 				return err
 			}
@@ -904,7 +946,12 @@ func (s *Service) RekeyIntegrationSecrets(ctx context.Context) (int, error) {
 		n++
 	}
 	// os segredos dos plugins (ADR-0038) e dos ambientes de execução (ADR-0037) usam o mesmo cofre
+	m0, err := s.rekeySecrets(ctx)
+	if err != nil {
+		return n + m0, err
+	}
 	m, err := s.rekeyPluginSecrets(ctx)
+	m += m0
 	if err != nil {
 		return n + m, err
 	}
