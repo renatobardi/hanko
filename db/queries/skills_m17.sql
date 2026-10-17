@@ -29,3 +29,6 @@ RETURNING *;
 
 -- name: ListTeamInstalls :many
 SELECT * FROM team_installs WHERE company_id = @company_id ORDER BY created_at DESC LIMIT @lim;
+
+-- name: DisablePersonaSkillLinks :exec
+UPDATE persona_skills SET enabled = false, updated_at = @now WHERE company_id = @company_id AND skill_id = @skill_id AND enabled;

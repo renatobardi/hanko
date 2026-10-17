@@ -37,6 +37,9 @@ type Skill struct {
 	SourcePath     string `json:"source_path,omitempty"`
 	SourceCommit   string `json:"source_commit,omitempty"`
 	SourceModified bool   `json:"source_modified,omitempty"`
+	// ForkedFromID e ForkedFromRevision: a skill é uma cópia local (fork) daquela skill, nessa revisão (ADR-0044).
+	ForkedFromID       *ID `json:"forked_from_id,omitempty"`
+	ForkedFromRevision int `json:"forked_from_revision,omitempty"`
 	// Pinned: o conteúdo é o de uma versão fixada para a persona, não o atual (só nas leituras da run).
 	Pinned bool `json:"pinned,omitempty"`
 }

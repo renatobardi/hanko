@@ -231,6 +231,16 @@ templ RunPage(sh Shell, vm RunVM) {
 						if vm.Instructions != "" {
 							<dt>{ i18n.T(ctx, "Instruções") }</dt><dd><a href={ templ.SafeURL(vm.InstructionsHref) }>{ vm.Instructions }</a></dd>
 						}
+						if len(vm.Skills) > 0 {
+							<dt>Skills</dt><dd>
+								for i, k := range vm.Skills {
+									if i > 0 {
+										,
+									}
+									<span class="mono">{ k }</span>
+								}
+							</dd>
+						}
 						<dt>{ i18n.T(ctx, "Saída") }</dt><dd>{ vm.ExitCode }</dd>
 						@RunEnvironmentRunSlot(vm)
 						<dt>ID</dt><dd>{ vm.ID }</dd>

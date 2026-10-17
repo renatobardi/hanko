@@ -12,6 +12,21 @@ import (
 	"github.com/google/uuid"
 )
 
+const disablePersonaSkillLinks = `-- name: DisablePersonaSkillLinks :exec
+UPDATE persona_skills SET enabled = false, updated_at = $1 WHERE company_id = $2 AND skill_id = $3 AND enabled
+`
+
+type DisablePersonaSkillLinksParams struct {
+	Now       time.Time
+	CompanyID uuid.UUID
+	SkillID   uuid.UUID
+}
+
+func (q *Queries) DisablePersonaSkillLinks(ctx context.Context, arg DisablePersonaSkillLinksParams) error {
+	_, err := q.db.Exec(ctx, disablePersonaSkillLinks, arg.Now, arg.CompanyID, arg.SkillID)
+	return err
+}
+
 const insertRunSkill = `-- name: InsertRunSkill :exec
 INSERT INTO run_skills (run_id, company_id, skill_id, slug, revision, sha256, pinned)
 VALUES ($1, $2, $3, $4, $5, $6, $7)

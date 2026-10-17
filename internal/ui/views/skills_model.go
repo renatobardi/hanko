@@ -60,6 +60,17 @@ type SkillEditorVM struct {
 	// Tabs são as abas Visão geral/Versões/Personas; SourceNote avisa que a skill veio de uma fonte (ADR-0035).
 	Tabs       []TabLink
 	SourceNote string
+	// Fork (ADR-0044): ForkHref é o POST de bifurcar (vazio = sem a seção); ForkedFrom/ForkedFromHref dizem de onde a cópia veio;
+	// Forks são as cópias locais desta skill.
+	ForkHref       string
+	ForkedFrom     string
+	ForkedFromHref string
+	Forks          []ForkLink
+}
+
+// ForkLink aponta para uma cópia local de uma skill.
+type ForkLink struct {
+	Name, Slug, Href string
 }
 
 // ---- persona ----

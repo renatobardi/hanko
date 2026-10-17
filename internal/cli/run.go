@@ -184,7 +184,7 @@ func (e *env) runCmd() *cobra.Command {
 			return nil
 		},
 	}
-	c.AddCommand(ls, show, logs, cancel)
+	c.AddCommand(ls, show, logs, cancel, e.runSkillsCmd())
 	return c
 }
 
