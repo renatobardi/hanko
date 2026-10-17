@@ -132,6 +132,7 @@ type Persona struct {
 	Title                string         `json:"title" example:"CTO"`
 	Icon                 string         `json:"icon" example:"code" doc:"Glifo da persona (catálogo fechado)."`
 	Instructions         string         `json:"instructions" doc:"Instruções permanentes da persona."`
+	InstructionRevision  int            `json:"instruction_revision" doc:"Revisão vigente das instruções (histórico em /instructions/revisions, ADR-0052)."`
 	Agent                string         `json:"agent" enum:"claude,codex,acp,devin,pi,cursor,http,fake" doc:"Harness que executa a persona."`
 	Model                string         `json:"model,omitempty" example:"claude-sonnet-4-5"`
 	AdapterConfig        map[string]any `json:"adapter_config,omitempty" doc:"Configuração específica do adapter. Valores de env e segredos voltam mascarados (***); os nomes ficam."`
@@ -290,34 +291,37 @@ type Usage struct {
 
 // Run é uma execução de uma persona sobre uma task.
 type Run struct {
-	ID                string     `json:"id" format:"uuid"`
-	Name              string     `json:"name,omitempty" example:"Veloz_Raposa" doc:"Nome amigável Adjetivo_Substantivo, único na empresa; vazio em execuções anteriores a ele."`
-	CompanyID         string     `json:"company_id" format:"uuid"`
-	TaskID            string     `json:"task_id,omitempty" format:"uuid" doc:"Task da execução; ausente numa execução de chat."`
-	TaskKey           string     `json:"task_key,omitempty" example:"HNK-12"`
-	TaskTitle         string     `json:"task_title,omitempty"`
-	ConversationID    string     `json:"conversation_id,omitempty" format:"uuid" doc:"Conversa de uma execução de chat (gatilho chat); ausente nas execuções de task."`
-	ConversationTitle string     `json:"conversation_title,omitempty"`
-	PersonaID         string     `json:"persona_id" format:"uuid"`
-	PersonaName       string     `json:"persona_name,omitempty"`
-	Status            string     `json:"status" enum:"queued,running,done,interrupted,failed,cancelled,expired"`
-	Trigger           string     `json:"trigger" enum:"assign,comment,manual,heartbeat,gate,flow,review,memory,chat"`
-	Agent             string     `json:"agent" enum:"claude,codex,acp,devin,pi,cursor,http,fake"`
-	Model             string     `json:"model,omitempty"`
-	SessionRef        string     `json:"session_ref,omitempty"`
-	TraceID           string     `json:"trace_id,omitempty"`
-	ExitCode          *int       `json:"exit_code,omitempty"`
-	Error             string     `json:"error,omitempty"`
-	Summary           string     `json:"summary,omitempty"`
-	CostUSD           *float64   `json:"cost_usd,omitempty"`
-	CostSource        string     `json:"cost_source,omitempty" enum:"reported,estimated,none" doc:"Origem do custo: informado pelo harness, estimado pela tabela de preços ou desconhecido."`
-	ListCostUSD       *float64   `json:"list_cost_usd,omitempty" doc:"Custo de lista: tokens × preço de tabela vigente quando a execução terminou."`
-	ModelSource       string     `json:"model_source,omitempty" enum:"task,persona,harness_default" doc:"Quem escolheu o modelo: a task (manual), a persona ou o padrão do harness."`
-	SubscriptionID    string     `json:"subscription_id,omitempty" format:"uuid" doc:"Assinatura que cobre a execução."`
-	Usage             Usage      `json:"usage"`
-	CreatedAt         time.Time  `json:"created_at"`
-	StartedAt         *time.Time `json:"started_at,omitempty"`
-	FinishedAt        *time.Time `json:"finished_at,omitempty"`
+	ID                string   `json:"id" format:"uuid"`
+	Name              string   `json:"name,omitempty" example:"Veloz_Raposa" doc:"Nome amigável Adjetivo_Substantivo, único na empresa; vazio em execuções anteriores a ele."`
+	CompanyID         string   `json:"company_id" format:"uuid"`
+	TaskID            string   `json:"task_id,omitempty" format:"uuid" doc:"Task da execução; ausente numa execução de chat."`
+	TaskKey           string   `json:"task_key,omitempty" example:"HNK-12"`
+	TaskTitle         string   `json:"task_title,omitempty"`
+	ConversationID    string   `json:"conversation_id,omitempty" format:"uuid" doc:"Conversa de uma execução de chat (gatilho chat); ausente nas execuções de task."`
+	ConversationTitle string   `json:"conversation_title,omitempty"`
+	PersonaID         string   `json:"persona_id" format:"uuid"`
+	PersonaName       string   `json:"persona_name,omitempty"`
+	Status            string   `json:"status" enum:"queued,running,done,interrupted,failed,cancelled,expired"`
+	Trigger           string   `json:"trigger" enum:"assign,comment,manual,heartbeat,gate,flow,review,memory,chat"`
+	Agent             string   `json:"agent" enum:"claude,codex,acp,devin,pi,cursor,http,fake"`
+	Model             string   `json:"model,omitempty"`
+	SessionRef        string   `json:"session_ref,omitempty"`
+	TraceID           string   `json:"trace_id,omitempty"`
+	ExitCode          *int     `json:"exit_code,omitempty"`
+	Error             string   `json:"error,omitempty"`
+	Summary           string   `json:"summary,omitempty"`
+	CostUSD           *float64 `json:"cost_usd,omitempty"`
+	CostSource        string   `json:"cost_source,omitempty" enum:"reported,estimated,none" doc:"Origem do custo: informado pelo harness, estimado pela tabela de preços ou desconhecido."`
+	ListCostUSD       *float64 `json:"list_cost_usd,omitempty" doc:"Custo de lista: tokens × preço de tabela vigente quando a execução terminou."`
+	ModelSource       string   `json:"model_source,omitempty" enum:"task,persona,harness_default" doc:"Quem escolheu o modelo: a task (manual), a persona ou o padrão do harness."`
+	SubscriptionID    string   `json:"subscription_id,omitempty" format:"uuid" doc:"Assinatura que cobre a execução."`
+	Usage             Usage    `json:"usage"`
+	// InstructionRevision/InstructionSHA256: com que revisão das instruções da persona a execução rodou (ADR-0052).
+	InstructionRevision *int       `json:"instruction_revision,omitempty"`
+	InstructionSHA256   string     `json:"instruction_sha256,omitempty" doc:"sha256 (hex) do texto das instruções com que a execução rodou."`
+	CreatedAt           time.Time  `json:"created_at"`
+	StartedAt           *time.Time `json:"started_at,omitempty"`
+	FinishedAt          *time.Time `json:"finished_at,omitempty"`
 	// PolicyOrigin: de que camada veio a política de revisão desta execução (só no detalhe).
 	PolicyOrigin *RunPolicyOrigin `json:"policy_origin,omitempty"`
 }
@@ -524,7 +528,7 @@ func personaOut(p domain.Persona) Persona {
 		_ = json.Unmarshal(p.AdapterConfig, &cfg)
 	}
 	return Persona{ID: idStr(p.ID), CompanyID: idStr(p.CompanyID), Slug: p.Slug, Name: p.Name, Title: p.Title, Icon: p.Icon,
-		Instructions: p.Instructions, Agent: p.Agent, Model: p.Model, AdapterConfig: export.MaskConfig(cfg), Status: string(p.Status),
+		Instructions: p.Instructions, InstructionRevision: p.InstructionRevision, Agent: p.Agent, Model: p.Model, AdapterConfig: export.MaskConfig(cfg), Status: string(p.Status),
 		ReportsTo: idPtr(p.ReportsTo), WorkspaceID: idPtr(p.WorkspaceID), HeartbeatIntervalSec: p.HeartbeatIntervalSec,
 		BudgetMonthlyCents: p.BudgetMonthlyCents, PauseReason: p.PauseReason, SubscriptionID: idPtr(p.SubscriptionID), RequireReview: p.RequireReview, ReviewerPersonaID: idPtr(p.ReviewerPersonaID), ReviewerAgent: p.ReviewerAgent, ReviewerModel: p.ReviewerModel, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt,
 		EnvironmentID: idPtr(p.EnvironmentID)}
@@ -619,7 +623,7 @@ func runOut(r service.RunView) Run {
 		CostSource: string(r.CostSource), ListCostUSD: r.ListCostUSD, ModelSource: string(r.ModelSource), SubscriptionID: idPtr(r.SubscriptionID),
 		Trigger: string(r.Trigger), Agent: r.Agent, Model: r.Model, SessionRef: r.SessionRef, TraceID: r.TraceID,
 		ExitCode: r.ExitCode, Error: r.Error, Summary: r.Summary, CostUSD: r.CostUSD, Usage: Usage(r.Usage),
-		CreatedAt: r.CreatedAt, StartedAt: r.StartedAt, FinishedAt: r.FinishedAt, PolicyOrigin: policyOriginOut(r.PolicyOrigin)}
+		InstructionRevision: r.InstructionRevision, InstructionSHA256: r.InstructionSHA256, CreatedAt: r.CreatedAt, StartedAt: r.StartedAt, FinishedAt: r.FinishedAt, PolicyOrigin: policyOriginOut(r.PolicyOrigin)}
 }
 
 func policyOriginOut(o *domain.RunPolicyOrigin) *RunPolicyOrigin {

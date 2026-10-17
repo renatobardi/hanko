@@ -24,7 +24,24 @@ type Artifact struct {
 	// Version é o número da versão dentro da cadeia (empresa, task, nome), a partir de 1.
 	Version   int       `json:"version"`
 	CreatedAt time.Time `json:"created_at"`
+	// Class diz se é um artefato (versionado, produzido pelo trabalho) ou um anexo (ADR-0052). Um anexo é sempre a
+	// versão 1 e pode estar ligado a um comentário, a uma conversa do chat ou a uma mensagem dela.
+	Class          ArtifactClass `json:"class"`
+	CommentID      *ID           `json:"comment_id,omitempty"`
+	ConversationID *ID           `json:"conversation_id,omitempty"`
+	MessageID      *ID           `json:"message_id,omitempty"`
 }
+
+// ArtifactClass separa o artefato do anexo (coluna artifacts.kind).
+type ArtifactClass string
+
+const (
+	ClassArtifact   ArtifactClass = "artifact"
+	ClassAttachment ArtifactClass = "attachment"
+)
+
+// Valid diz se c é uma classe conhecida.
+func (c ArtifactClass) Valid() bool { return c == ClassArtifact || c == ClassAttachment }
 
 // ArtifactKind agrupa tipos MIME para o filtro "tipo" das listagens.
 type ArtifactKind string

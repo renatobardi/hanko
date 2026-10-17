@@ -140,8 +140,10 @@ type Persona struct {
 	Name      string `json:"name"`
 	Title     string `json:"title"`
 	// Icon é o glifo de linha da persona (um de PersonaIcons; padrão "bot").
-	Icon                 string          `json:"icon"`
-	Instructions         string          `json:"instructions"`
+	Icon         string `json:"icon"`
+	Instructions string `json:"instructions"`
+	// InstructionRevision é a revisão vigente das instruções (ADR-0052); 0 = ainda não gravada.
+	InstructionRevision  int             `json:"instruction_revision"`
 	Agent                string          `json:"agent"`
 	Model                string          `json:"model,omitempty"`
 	AdapterConfig        json.RawMessage `json:"adapter_config,omitempty"`
@@ -428,9 +430,13 @@ type Run struct {
 	Usage           Usage           `json:"usage"`
 	HandoffIn       string          `json:"handoff_in,omitempty"`
 	HandoffOut      string          `json:"handoff_out,omitempty"`
-	CreatedAt       time.Time       `json:"created_at"`
-	StartedAt       *time.Time      `json:"started_at,omitempty"`
-	FinishedAt      *time.Time      `json:"finished_at,omitempty"`
+	// InstructionRevision e InstructionSHA256 dizem com que revisão das instruções da persona a run rodou (ADR-0052);
+	// vazios em runs que começaram antes das revisões.
+	InstructionRevision *int       `json:"instruction_revision,omitempty"`
+	InstructionSHA256   string     `json:"instruction_sha256,omitempty"`
+	CreatedAt           time.Time  `json:"created_at"`
+	StartedAt           *time.Time `json:"started_at,omitempty"`
+	FinishedAt          *time.Time `json:"finished_at,omitempty"`
 }
 
 // RunEventKind classifies a line of the run log.

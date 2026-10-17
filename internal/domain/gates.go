@@ -11,10 +11,12 @@ const (
 	GateHire       GateKind = "hire"        // hiring a persona
 	GateMemory     GateKind = "memory"      // proposta da consolidação de memória que remove, funde ou reescreve conteúdo (ADR-0030)
 	GateTool       GateKind = "tool"        // chamada de tool em modo "perguntar antes" no gateway de tools (ADR-0036)
+	// GateInstruction é a proposta da própria persona para mudar as instruções dela (ADR-0052); não bloqueia.
+	GateInstruction GateKind = "instruction"
 )
 
 func (k GateKind) Valid() bool {
-	return k == GateApproval || k == GateTaskReview || k == GateHire || k == GateMemory || k == GateTool
+	return k == GateApproval || k == GateTaskReview || k == GateHire || k == GateMemory || k == GateTool || k == GateInstruction
 }
 
 // Blocking reports whether a pending gate of this kind holds the requesting persona
