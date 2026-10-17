@@ -80,26 +80,26 @@ type LearningFilter struct {
 
 // Learning é uma decisão (revisão ou transição forçada) e o que ela ensinou.
 type Learning struct {
-	EventID        domain.ID        `json:"event_id"`
-	Kind           string           `json:"kind"`
-	Decision       string           `json:"decision"`
-	Reason         string           `json:"reason,omitempty"`
-	Actor          domain.Actor     `json:"actor"`
-	ActorName      string           `json:"actor_name,omitempty"`
-	CaseID         domain.ID        `json:"case_id"`
-	CaseIdentifier string           `json:"case_identifier"`
-	CaseTitle      string           `json:"case_title"`
-	PipelineKey    string           `json:"pipeline_key,omitempty"`
-	PipelineName   string           `json:"pipeline_name,omitempty"`
-	FromStage      string           `json:"from_stage,omitempty"`
-	FromName       string           `json:"from_name,omitempty"`
-	ToStage        string           `json:"to_stage,omitempty"`
-	ToName         string           `json:"to_name,omitempty"`
-	At             time.Time        `json:"at"`
-	Snapshot       map[string]any   `json:"snapshot,omitempty"`
-	ApprovedVer    int              `json:"approved_version,omitempty"`
-	FromStageID    *domain.ID       `json:"from_stage_id,omitempty"`
-	ToStageID      *domain.ID       `json:"to_stage_id,omitempty"`
+	EventID        domain.ID      `json:"event_id"`
+	Kind           string         `json:"kind"`
+	Decision       string         `json:"decision"`
+	Reason         string         `json:"reason,omitempty"`
+	Actor          domain.Actor   `json:"actor"`
+	ActorName      string         `json:"actor_name,omitempty"`
+	CaseID         domain.ID      `json:"case_id"`
+	CaseIdentifier string         `json:"case_identifier"`
+	CaseTitle      string         `json:"case_title"`
+	PipelineKey    string         `json:"pipeline_key,omitempty"`
+	PipelineName   string         `json:"pipeline_name,omitempty"`
+	FromStage      string         `json:"from_stage,omitempty"`
+	FromName       string         `json:"from_name,omitempty"`
+	ToStage        string         `json:"to_stage,omitempty"`
+	ToName         string         `json:"to_name,omitempty"`
+	At             time.Time      `json:"at"`
+	Snapshot       map[string]any `json:"snapshot,omitempty"`
+	ApprovedVer    int            `json:"approved_version,omitempty"`
+	FromStageID    *domain.ID     `json:"from_stage_id,omitempty"`
+	ToStageID      *domain.ID     `json:"to_stage_id,omitempty"`
 }
 
 func reviewTarget(r *domain.ReviewRouting, d domain.ReviewDecision) string {

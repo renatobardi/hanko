@@ -165,7 +165,9 @@ func caseBadge(ctx context.Context, st domain.CaseStatus) views.Badge {
 	return views.Badge{Label: i18n.T(ctx, "Cancelado"), Class: "soft"}
 }
 
-func caseStatusLabel(ctx context.Context, st domain.CaseStatus) string { return caseBadge(ctx, st).Label }
+func caseStatusLabel(ctx context.Context, st domain.CaseStatus) string {
+	return caseBadge(ctx, st).Label
+}
 
 func linkRoleLabel(ctx context.Context, r domain.CaseLinkRole) string {
 	switch r {

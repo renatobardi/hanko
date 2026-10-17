@@ -45,10 +45,10 @@ func parseFields(pairs []string) (map[string]any, error) {
 		if !ok || k == "" {
 			return nil, fmt.Errorf("campo %q: use chave=valor", p)
 		}
-		switch {
-		case v == "true" || v == "false":
+		switch v {
+		case "true", "false":
 			out[k] = v == "true"
-		case v == "":
+		case "":
 			out[k] = nil
 		default:
 			if f, err := strconv.ParseFloat(v, 64); err == nil {

@@ -163,7 +163,7 @@ func caseFromRow(r store.Case, prefix string) domain.Case {
 
 type caseJoin struct {
 	prefix, pipelineKey, pipelineName, stageKey, stageName, stageKind, projectSlug, projectName, parentTitle string
-	parentNumber                                                                                           int64
+	parentNumber                                                                                             int64
 }
 
 func caseViewOf(r store.Case, j caseJoin) CaseView {

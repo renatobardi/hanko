@@ -76,26 +76,26 @@ type CaseAddFormVM struct {
 }
 
 type StageEditVM struct {
-	Key, Name, Kind         string
-	KindOptions             []Option
-	First, Last             bool
-	WhatHappensHere         string
-	Disabled                bool
-	DisabledReason          string
-	ApprovalRequired        bool
-	ApproverOptions         []Option
-	AutomationOptions       []Option
-	Instructions            string
-	PriorityOptions         []Option
-	ApproveToOptions        []Option
-	RejectToOptions         []Option
-	ChangesToOptions        []Option
-	RequireRejectReason     bool
-	RequireChangesReason    bool
-	ChildrenTerminal        bool
-	FieldsText              string
-	Action, DeleteAction    string
-	UpAction, DownAction    string
+	Key, Name, Kind          string
+	KindOptions              []Option
+	First, Last              bool
+	WhatHappensHere          string
+	Disabled                 bool
+	DisabledReason           string
+	ApprovalRequired         bool
+	ApproverOptions          []Option
+	AutomationOptions        []Option
+	Instructions             string
+	PriorityOptions          []Option
+	ApproveToOptions         []Option
+	RejectToOptions          []Option
+	ChangesToOptions         []Option
+	RequireRejectReason      bool
+	RequireChangesReason     bool
+	ChildrenTerminal         bool
+	FieldsText               string
+	Action, DeleteAction     string
+	UpAction, DownAction     string
 	ApprovalSummary, Summary string
 }
 
@@ -230,12 +230,12 @@ type CaseRefRow struct {
 }
 
 type CaseReviewVM struct {
-	Action                               string
-	Version                              int
-	ApproveTo, RejectTo, ChangesTo       string
-	RequireRejectReason, RequireChanges  bool
-	CanDecide                            bool
-	WhatHappensHere                      string
+	Action                              string
+	Version                             int
+	ApproveTo, RejectTo, ChangesTo      string
+	RequireRejectReason, RequireChanges bool
+	CanDecide                           bool
+	WhatHappensHere                     string
 }
 
 type CaseSuggestionVM struct {
@@ -291,7 +291,7 @@ type LearningDay struct {
 
 type LearningItem struct {
 	Text, Reason, CaseHref, CaseIdentifier, PipelineHref, PipelineName, When, Icon string
-	Example                                                                         *ExampleFormVM
+	Example                                                                        *ExampleFormVM
 }
 
 type ExampleRow struct {
