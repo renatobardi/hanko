@@ -1,0 +1,695 @@
+package views
+
+import (
+	"fmt"
+
+	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/i18n"
+)
+
+// IntegrationTabs são as abas de Integrações: a lista atual, o catálogo de tools, os perfis, os gateways nomeados
+// e a auditoria (ADR-0036).
+templ IntegrationTabs(base, active string) {
+	<nav class="tabs" aria-label={ i18n.T(ctx, "Integrações") }>
+		for _, t := range integrationTabs(ctx, base, active) {
+			<a href={ templ.SafeURL(t.Href) } aria-current?={ t.On }>{ t.Label }</a>
+		}
+	</nav>
+}
+
+templ toolChoiceSelect(name, id, value string, opts []Option) {
+	<select name={ name } id={ id } class="select sm" aria-label={ i18n.T(ctx, "Escolha") }>
+		for _, o := range opts {
+			<option value={ o.Value } selected?={ o.Value == value }>{ o.Label }</option>
+		}
+	</select>
+}
+
+// ---- Tools ----
+
+templ ToolsCatalogPage(sh Shell, vm ToolsCatalogVM) {
+	@Layout(sh) {
+		@PageHead(i18n.T(ctx, "Integrações"), i18n.T(ctx, "As tools que cada servidor MCP expõe, com o risco que ele declara. Tool nova que pode escrever fica em quarentena até um admin revisar.")) {
+		}
+		@IntegrationTabs(sh.Base(), "tools")
+		if vm.Notice != "" {
+			@Alert("warn", vm.Notice)
+		}
+		if vm.Error != "" {
+			@Alert("danger", vm.Error)
+		}
+		if !vm.HasMCP {
+			@EmptyCard("plug", i18n.T(ctx, "Nenhum servidor MCP."), i18n.T(ctx, "Conecte um servidor MCP em Integrações para ver e governar as tools dele."), false)
+		} else {
+			<div class="toolbar">
+				@Tabs(vm.Integrations)
+				<span class="grow"></span>
+				if sh.CanAdmin() && !vm.Stdio {
+					<form method="post" action={ templ.SafeURL(vm.RefreshHref) } hx-post={ vm.RefreshHref } hx-swap="none">
+						<button class="btn outline sm" type="submit">@Icon("activity") <span>{ i18n.T(ctx, "Atualizar catálogo") }</span></button>
+					</form>
+					if vm.Quarantined > 0 {
+						<form method="post" action={ templ.SafeURL(vm.ReviewHref) } hx-post={ vm.ReviewHref } hx-swap="none" hx-confirm={ i18n.T(ctx, "Liberar todas as tools em quarentena desta integração?") }>
+							<button class="btn primary sm" type="submit">@Icon("check") <span>{ i18n.Tf(ctx, "Liberar %d em quarentena", vm.Quarantined) }</span></button>
+						</form>
+					}
+				}
+			</div>
+			<p class="muted text-sm mb-3">
+				<a class="link-u" href={ templ.SafeURL(vm.IntegrationHref) }>{ vm.Name }</a>
+				if vm.Stdio {
+					· { i18n.T(ctx, "stdio não passa pelo gateway de tools: não há catálogo, e o perfil só inclui ou exclui a integração inteira.") }
+				} else if vm.Synced != "" {
+					· { i18n.T(ctx, "catálogo descoberto") } { vm.Synced }
+				} else {
+					· { i18n.T(ctx, "catálogo ainda não descoberto") }
+				}
+			</p>
+			if vm.LastError != "" {
+				@Alert("danger", i18n.T(ctx, "A última descoberta falhou: ")+vm.LastError)
+			}
+			if !vm.Stdio {
+				if len(vm.Rows) == 0 {
+					@EmptyCard("plug", i18n.T(ctx, "Nenhuma tool no catálogo."), i18n.T(ctx, "O Hanko descobre as tools pelo próprio servidor (com a proteção SSRF) quando um admin atualiza o catálogo ou quando uma execução usa a integração."), false)
+				} else {
+					<div class="table-wrap">
+						<table class="table">
+							<thead>
+								<tr>
+									<th>{ i18n.T(ctx, "Tool") }</th>
+									<th>{ i18n.T(ctx, "Risco") }</th>
+									<th>{ i18n.T(ctx, "Estado") }</th>
+									<th class="hide-sm">{ i18n.T(ctx, "Vista em") }</th>
+									<th class="act-col"></th>
+								</tr>
+							</thead>
+							<tbody>
+								for _, r := range vm.Rows {
+									<tr class={ "row", templ.KV("is-off", r.Disabled || r.Removed) }>
+										<td class="ttl">
+											<span class="mono">{ r.Name }</span>
+											if r.Description != "" {
+												<div class="note">{ r.Description }</div>
+											}
+											<details class="tool-review">
+												<summary>{ i18n.T(ctx, "Revisar definição") }</summary>
+												<pre class="art-pre mono">{ r.Schema }</pre>
+											</details>
+										</td>
+										<td>@BadgeEl(r.Risk)</td>
+										<td>@BadgeEl(r.Status)</td>
+										<td class="hide-sm muted">{ r.Seen }</td>
+										<td class="act-col">
+											if sh.CanAdmin() && !r.Removed {
+												<div class="row-acts">
+													if r.Quarantined || r.Disabled {
+														<form method="post" action={ templ.SafeURL(r.ReleaseHref) } hx-post={ r.ReleaseHref } hx-swap="none">
+															<button class="btn outline sm" type="submit">
+																if r.Quarantined {
+																	{ i18n.T(ctx, "Liberar") }
+																} else {
+																	{ i18n.T(ctx, "Ligar ferramenta") }
+																}
+															</button>
+														</form>
+													}
+													if !r.Disabled {
+														<form method="post" action={ templ.SafeURL(r.DisableHref) } hx-post={ r.DisableHref } hx-swap="none">
+															<button class="btn ghost sm" type="submit">{ i18n.T(ctx, "Desligar ferramenta") }</button>
+														</form>
+													}
+												</div>
+											}
+										</td>
+									</tr>
+								}
+							</tbody>
+						</table>
+					</div>
+				}
+			}
+		}
+	}
+}
+
+// ---- Perfis ----
+
+templ ToolProfilesPage(sh Shell, vm ToolProfilesVM) {
+	@Layout(sh) {
+		@PageHead(i18n.T(ctx, "Integrações"), i18n.T(ctx, "Perfis decidem o que cada persona pode chamar nos servidores MCP: desligado, perguntar antes ou permitido. Sem perfil, vale tudo o que a integração expõe.")) {
+			if sh.CanAdmin() {
+				<a class="btn primary" href={ templ.SafeURL(vm.NewHref) }>@Icon("plus")
+<span>{ i18n.T(ctx, "Novo perfil") }</span></a>
+			} else {
+				@NeedRole(domain.MemberAdmin)
+			}
+		}
+		@IntegrationTabs(sh.Base(), "perfis")
+		if vm.Notice != "" {
+			@Alert("warn", vm.Notice)
+		}
+		if len(vm.Rows) == 0 {
+			@EmptyCard("shield", i18n.T(ctx, "Nenhum perfil de ferramentas."), i18n.T(ctx, "Crie um perfil e ligue-o à empresa, a um projeto ou a uma persona. O mais estreito vence: persona, depois projeto, depois empresa."), false)
+		} else {
+			<div class="table-wrap">
+				<table class="table">
+					<thead>
+						<tr>
+							<th>{ i18n.T(ctx, "Perfil") }</th>
+							<th>{ i18n.T(ctx, "Padrão") }</th>
+							<th class="hide-sm">{ i18n.T(ctx, "Regras") }</th>
+							<th class="hide-sm">{ i18n.T(ctx, "Vínculos") }</th>
+							<th class="hide-sm">{ i18n.T(ctx, "Gateways") }</th>
+							<th class="hide-sm">{ i18n.T(ctx, "Teto") }</th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, r := range vm.Rows {
+							<tr class="row">
+								<td class="ttl"><a href={ templ.SafeURL(r.Href) }>{ r.Name }</a><div class="note mono">{ r.Slug }</div></td>
+								<td>{ r.Default }</td>
+								<td class="hide-sm">{ fmt.Sprint(r.Rules) }</td>
+								<td class="hide-sm">{ fmt.Sprint(r.Bindings) }</td>
+								<td class="hide-sm">{ fmt.Sprint(r.Gateways) }</td>
+								<td class="hide-sm muted">{ r.Rate }</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+	}
+}
+
+templ toolProfileForm(vm ToolProfileFormVM) {
+	<form class="card pad form-card" method="post" action={ templ.SafeURL(vm.Action) } hx-boost="true">
+		if vm.Error != "" {
+			@Alert("danger", vm.Error)
+		}
+		<div class="form-grid">
+			<div class="field">
+				<label for="tp-name">{ i18n.T(ctx, "Nome") }</label>
+				<input class="input" id="tp-name" name="name" value={ vm.Name } required maxlength="120"/>
+				if e := vm.FieldErr["name"]; e != "" {
+					<span class="err">{ e }</span>
+				}
+			</div>
+			<div class="field">
+				<label for="tp-rate">{ i18n.T(ctx, "Chamadas por minuto") }</label>
+				<input class="input" id="tp-rate" name="rate" type="number" min="1" max="10000" value={ vm.Rate }/>
+				<span class="hint">{ i18n.T(ctx, "Teto por persona (ou gateway) e integração; acima dele a chamada é recusada.") }</span>
+				if e := vm.FieldErr["rate_limit_per_min"]; e != "" {
+					<span class="err">{ e }</span>
+				}
+			</div>
+		</div>
+		<div class="field">
+			<label for="tp-desc">{ i18n.T(ctx, "Descrição") }</label>
+			<input class="input" id="tp-desc" name="description" value={ vm.Description } maxlength="500"/>
+		</div>
+		<div class="field">
+			<span class="lbl">{ i18n.T(ctx, "O que nenhuma regra alcança") }</span>
+			<div class="radio-cards rc2">
+				<label>
+					<input type="radio" name="default_action" value="deny" checked?={ vm.Default != "allow" }/>
+					<span class="rc"><b>@Icon("lock")
+<span>{ i18n.T(ctx, "Negar") }</span></b><span>{ i18n.T(ctx, "Só o que você incluir fica disponível. Recomendado.") }</span></span>
+				</label>
+				<label>
+					<input type="radio" name="default_action" value="allow" checked?={ vm.Default == "allow" }/>
+					<span class="rc"><b>@Icon("check")
+<span>{ i18n.T(ctx, "Permitir") }</span></b><span>{ i18n.T(ctx, "Tudo fica disponível, menos o que você excluir.") }</span></span>
+				</label>
+			</div>
+		</div>
+		<div class="form-actions">
+			<a class="btn ghost" href={ templ.SafeURL(vm.CancelHref) }>{ i18n.T(ctx, "Cancelar") }</a>
+			<button class="btn primary" type="submit">
+				if vm.Edit {
+					{ i18n.T(ctx, "Salvar alterações") }
+				} else {
+					{ i18n.T(ctx, "Criar e escolher as tools") }
+				}
+			</button>
+		</div>
+	</form>
+}
+
+templ NewToolProfilePage(sh Shell, vm ToolProfileFormVM) {
+	@Layout(sh) {
+		@PageHead(i18n.T(ctx, "Novo perfil de ferramentas"), i18n.T(ctx, "Passo 1 de 3: nome e padrão. Depois você escolhe as tools e liga o perfil a quem deve usá-lo.")) {
+		}
+		if sh.CanAdmin() {
+			@toolProfileForm(vm)
+		} else {
+			@NeedRole(domain.MemberAdmin)
+		}
+	}
+}
+
+templ ToolProfilePage(sh Shell, vm ToolProfileVM) {
+	@Layout(sh) {
+		@PageHead(vm.Name, i18n.T(ctx, "Perfil de ferramentas")) {
+			<a class="btn ghost" href={ templ.SafeURL(vm.BackHref) }>{ i18n.T(ctx, "Perfis") }</a>
+		}
+		if vm.Notice != "" {
+			@Alert("warn", vm.Notice)
+		}
+		<div class="mb-4">@Tabs(vm.Steps)</div>
+		switch vm.Step {
+			case 1:
+				if sh.CanAdmin() {
+					@toolProfileForm(vm.Form)
+				} else {
+					@NeedRole(domain.MemberAdmin)
+				}
+				if sh.CanAdmin() {
+					<section class="card pad mt-6">
+						<div class="card-head"><div><h2>{ i18n.T(ctx, "Apagar perfil") }</h2><p class="sub">{ i18n.T(ctx, "Apaga as regras e os vínculos. Um perfil usado por gateway não pode ser apagado.") }</p></div></div>
+						<form method="post" action={ templ.SafeURL(vm.DeleteHref) } hx-post={ vm.DeleteHref } hx-swap="none" hx-confirm={ i18n.T(ctx, "Apagar este perfil?") }>
+							<button class="btn outline sm danger" type="submit">{ i18n.T(ctx, "Apagar") }</button>
+						</form>
+					</section>
+				}
+			case 2:
+				<p class="muted text-sm mb-3">{ i18n.T(ctx, "Por integração: escolha o grupo e, se quiser, ajuste tool a tool. Desligado no grupo exclui a integração inteira (excluir vence). Perguntar antes abre um gate a cada chamada nova; a repetição com os mesmos argumentos passa depois da aprovação.") }</p>
+				if len(vm.Integrations) == 0 {
+					@EmptyCard("plug", i18n.T(ctx, "Nenhum servidor MCP."), i18n.T(ctx, "Conecte um servidor MCP em Integrações para ver e governar as tools dele."), false)
+				}
+				for _, in := range vm.Integrations {
+					<form class="card pad mb-4" method="post" action={ templ.SafeURL(in.Action) } hx-boost="true">
+						<div class="card-head">
+							<div>
+								<h2>{ in.Name }</h2>
+								<p class="sub mono">{ in.Slug }</p>
+							</div>
+							<div class="d-flex gap-2 items-start">
+								@toolChoiceSelect("group", "grp-"+in.Slug, in.Group, vm.ChoiceOpts)
+							</div>
+						</div>
+						if in.Stdio {
+							<p class="muted text-sm">{ i18n.T(ctx, "stdio não passa pelo gateway de tools: só a integração inteira entra ou sai (e perguntar antes não vale para ela).") }</p>
+						} else if in.NoCatalog {
+							<p class="muted text-sm">{ i18n.T(ctx, "O catálogo ainda não foi descoberto. Atualize-o na aba Tools para escolher tool a tool.") } <a class="link-u" href={ templ.SafeURL(vm.ToolsHref + "?integracao=" + in.Slug) }>{ i18n.T(ctx, "Tools") }</a></p>
+						} else {
+							<div class="table-wrap">
+								<table class="table">
+									<thead><tr><th>{ i18n.T(ctx, "Tool") }</th><th>{ i18n.T(ctx, "Risco") }</th><th class="hide-sm">{ i18n.T(ctx, "Estado") }</th><th>{ i18n.T(ctx, "Escolha") }</th></tr></thead>
+									<tbody>
+										for _, t := range in.Tools {
+											<tr class="row">
+												<td class="mono">{ t.Name }</td>
+												<td>@BadgeEl(t.Risk)</td>
+												<td class="hide-sm">@BadgeEl(t.Status)</td>
+												<td>@toolChoiceSelect("tool:"+t.Name, "t-"+in.Slug+"-"+t.Name, t.Choice, vm.ChoiceOpts)</td>
+											</tr>
+										}
+									</tbody>
+								</table>
+							</div>
+						}
+						if sh.CanAdmin() {
+							<div class="form-actions">
+								<button class="btn primary sm" type="submit">{ i18n.T(ctx, "Salvar escolhas") }</button>
+							</div>
+						}
+					</form>
+				}
+				<section class="card pad mt-6">
+					<div class="card-head"><div><h2>{ i18n.T(ctx, "Regras por risco") }</h2><p class="sub">{ i18n.T(ctx, "Valem para as tools que nenhuma escolha por tool ou por integração alcança. Ex.: excluir tudo que é destrutivo.") }</p></div></div>
+					if len(vm.RiskRules) == 0 {
+						<p class="muted">{ i18n.T(ctx, "Nenhuma regra por risco.") }</p>
+					} else {
+						<ul class="toggle-list">
+							for _, r := range vm.RiskRules {
+								<li class="toggle-row">
+									<div class="toggle-main"><span>{ r.Label }</span><div class="note">{ r.Effect }</div></div>
+									if sh.CanAdmin() {
+										<form method="post" action={ templ.SafeURL(r.DeleteHref) } hx-post={ r.DeleteHref } hx-swap="none">
+											<button class="btn ghost sm" type="submit">{ i18n.T(ctx, "Remover") }</button>
+										</form>
+									}
+								</li>
+							}
+						</ul>
+					}
+					if sh.CanAdmin() {
+						<form class="inline-form mt-3 d-flex gap-2 wrap" method="post" action={ templ.SafeURL(vm.RiskAction) } hx-boost="true">
+							@Select("risk", "rk-risk", vm.RiskOpts, true)
+							@Select("integration", "rk-integ", vm.RiskIntegOpts, true)
+							<select name="choice" class="select sm" aria-label={ i18n.T(ctx, "Escolha") }>
+								<option value="off">{ i18n.T(ctx, "Desligado") }</option>
+								<option value="ask">{ i18n.T(ctx, "Perguntar antes") }</option>
+								<option value="allow">{ i18n.T(ctx, "Permitido") }</option>
+							</select>
+							<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Acrescentar regra") }</button>
+						</form>
+					}
+				</section>
+				<div class="form-actions mt-4">
+					<a class="btn primary" href={ templ.SafeURL(vm.NextHref) }>{ i18n.T(ctx, "Próximo: vínculos") }</a>
+				</div>
+			default:
+				<p class="muted text-sm mb-3">{ i18n.T(ctx, "Quem usa este perfil. O escopo mais estreito vence (persona, depois projeto, depois empresa); no mesmo escopo, a maior prioridade e depois o vínculo mais novo.") }</p>
+				if len(vm.Bindings) == 0 {
+					@EmptyCard("link", i18n.T(ctx, "Perfil sem vínculo."), i18n.T(ctx, "Sem vínculo o perfil não vale para ninguém (um gateway nomeado ainda pode usá-lo)."), false)
+				} else {
+					<div class="table-wrap">
+						<table class="table">
+							<thead><tr><th>{ i18n.T(ctx, "Escopo") }</th><th>{ i18n.T(ctx, "Alvo") }</th><th>{ i18n.T(ctx, "Prioridade") }</th><th class="act-col"></th></tr></thead>
+							<tbody>
+								for _, b := range vm.Bindings {
+									<tr class="row">
+										<td>{ b.Scope }</td>
+										<td>{ b.Target }</td>
+										<td class="mono">{ fmt.Sprint(b.Priority) }</td>
+										<td class="act-col">
+											if sh.CanAdmin() {
+												<form method="post" action={ templ.SafeURL(b.RemoveHref) } hx-post={ b.RemoveHref } hx-swap="none">
+													<button class="btn ghost sm" type="submit">{ i18n.T(ctx, "Remover") }</button>
+												</form>
+											}
+										</td>
+									</tr>
+								}
+							</tbody>
+						</table>
+					</div>
+				}
+				if sh.CanAdmin() {
+					<form class="card pad form-card mt-4" method="post" action={ templ.SafeURL(vm.BindAction) } hx-boost="true">
+						<div class="form-grid">
+							<div class="field">
+								<label for="b-scope">{ i18n.T(ctx, "Escopo") }</label>
+								<select name="scope" id="b-scope" class="select">
+									<option value="company">{ i18n.T(ctx, "Empresa toda") }</option>
+									<option value="project">{ i18n.T(ctx, "Projeto") }</option>
+									<option value="persona">{ i18n.T(ctx, "Persona") }</option>
+								</select>
+							</div>
+							<div class="field">
+								<label for="b-prio">{ i18n.T(ctx, "Prioridade") }</label>
+								<input class="input" id="b-prio" name="priority" type="number" min="-1000" max="1000" value="0"/>
+							</div>
+							<div class="field">
+								<label for="b-project">{ i18n.T(ctx, "Projeto") }</label>
+								@Select("project", "b-project", vm.ProjectOpts, false)
+							</div>
+							<div class="field">
+								<label for="b-persona">{ i18n.T(ctx, "Persona") }</label>
+								@Select("persona", "b-persona", vm.PersonaOpts, false)
+							</div>
+						</div>
+						<div class="form-actions">
+							<button class="btn primary" type="submit">{ i18n.T(ctx, "Vincular") }</button>
+						</div>
+					</form>
+				}
+		}
+	}
+}
+
+// ---- Gateways ----
+
+templ ToolGatewaysPage(sh Shell, vm ToolGatewaysVM) {
+	@Layout(sh) {
+		@PageHead(i18n.T(ctx, "Integrações"), i18n.T(ctx, "Um gateway é um endpoint MCP do Hanko para clientes de fora (uma IDE, um script), com um perfil e tokens próprios.")) {
+		}
+		@IntegrationTabs(sh.Base(), "gateways")
+		if vm.Notice != "" {
+			@Alert("warn", vm.Notice)
+		}
+		if vm.Error != "" {
+			@Alert("danger", vm.Error)
+		}
+		if len(vm.Rows) == 0 {
+			@EmptyCard("server", i18n.T(ctx, "Nenhum gateway."), i18n.T(ctx, "Crie um gateway com um perfil, gere um token e conecte o cliente MCP ao endereço dele."), false)
+		} else {
+			<div class="table-wrap">
+				<table class="table">
+					<thead>
+						<tr>
+							<th>{ i18n.T(ctx, "Gateway") }</th>
+							<th>{ i18n.T(ctx, "Perfil") }</th>
+							<th class="hide-sm">{ i18n.T(ctx, "Tokens") }</th>
+							<th class="hide-sm">{ i18n.T(ctx, "Último uso") }</th>
+							<th class="act-col">{ i18n.T(ctx, "Ligado") }</th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, r := range vm.Rows {
+							<tr class={ "row", templ.KV("is-off", !r.Enabled) }>
+								<td class="ttl"><a href={ templ.SafeURL(r.Href) }>{ r.Name }</a><div class="note mono">{ r.Slug }</div></td>
+								<td>{ r.Profile }</td>
+								<td class="hide-sm">{ fmt.Sprint(r.Tokens) }</td>
+								<td class="hide-sm muted">{ r.LastUsed }</td>
+								<td class="act-col"><div class="row-acts">@ToggleSwitch(r.Enabled, r.ToggleHref, r.Name)</div></td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+		if sh.CanAdmin() {
+			if len(vm.ProfileOpts) == 0 {
+				<p class="muted mt-4">{ i18n.T(ctx, "Crie um perfil de ferramentas antes: todo gateway tem um.") }</p>
+			} else {
+				<form class="card pad form-card mt-6" method="post" action={ templ.SafeURL(vm.CreateHref) } hx-boost="true">
+					<div class="card-head"><div><h2>{ i18n.T(ctx, "Novo gateway") }</h2></div></div>
+					<div class="form-grid">
+						<div class="field">
+							<label for="gw-name">{ i18n.T(ctx, "Nome") }</label>
+							<input class="input" id="gw-name" name="name" value={ vm.NewName } required maxlength="120"/>
+						</div>
+						<div class="field">
+							<label for="gw-profile">{ i18n.T(ctx, "Perfil") }</label>
+							@Select("profile", "gw-profile", vm.ProfileOpts, false)
+						</div>
+					</div>
+					<div class="form-actions"><button class="btn primary" type="submit">{ i18n.T(ctx, "Criar gateway") }</button></div>
+				</form>
+			}
+		} else {
+			@NeedRole(domain.MemberAdmin)
+		}
+	}
+}
+
+templ ToolGatewayPage(sh Shell, vm ToolGatewayVM) {
+	@Layout(sh) {
+		if vm.Notice != "" {
+			@Alert("warn", vm.Notice)
+		}
+		if vm.Error != "" {
+			@Alert("danger", vm.Error)
+		}
+		if vm.Revealed != "" {
+			<div class="alert warn secret-box" role="status">
+				@Icon("alert")
+				<div>
+					<b>{ i18n.T(ctx, "Token do gateway: copie agora, ele não será mostrado de novo.") }</b>
+					<div><code class="mono secret-val">{ vm.Revealed }</code></div>
+				</div>
+			</div>
+		}
+		<div class="flow-head">
+			<div>
+				<h1>{ vm.Name }</h1>
+				<p class="muted mt-2 text-sm"><span class="mono">{ vm.Slug }</span> · { i18n.T(ctx, "perfil") } { vm.Profile }</p>
+			</div>
+			<div class="flow-acts">@ToggleSwitch(vm.Enabled, vm.ToggleHref, vm.Name)</div>
+		</div>
+		<section class="card pad mt-4">
+			<div class="card-head"><div><h2>{ i18n.T(ctx, "Conexão") }</h2><p class="sub">{ i18n.T(ctx, "Configure o cliente MCP (streamable http) com o endereço e o header abaixo.") }</p></div></div>
+			<dl class="kv">
+				<dt>URL</dt><dd>{ vm.EndpointURL }</dd>
+				<dt>{ i18n.T(ctx, "Header") }</dt><dd>Authorization: Bearer hkgw_…</dd>
+			</dl>
+			<p class="muted text-sm mt-3">{ i18n.T(ctx, "As tools aparecem como integração__tool. Uma tool em perguntar antes abre um gate na Caixa de entrada; a mesma chamada passa depois da aprovação.") }</p>
+		</section>
+		if sh.CanAdmin() {
+			<form class="card pad mt-4 inline-form d-flex gap-2 wrap" method="post" action={ templ.SafeURL(vm.ProfileAction) } hx-boost="true">
+				<label for="gwp-profile" class="muted text-sm">{ i18n.T(ctx, "Perfil") }</label>
+				@Select("profile", "gwp-profile", vm.ProfileOpts, true)
+				<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Trocar perfil") }</button>
+			</form>
+		}
+		<h2 class="side-h sec-h">{ i18n.T(ctx, "Tokens") }</h2>
+		if len(vm.Tokens) == 0 {
+			<p class="muted">{ i18n.T(ctx, "Nenhum token ainda.") }</p>
+		} else {
+			<div class="table-wrap">
+				<table class="table">
+					<thead>
+						<tr>
+							<th>{ i18n.T(ctx, "Token") }</th>
+							<th class="hide-sm">{ i18n.T(ctx, "Ações") }</th>
+							<th class="hide-sm">{ i18n.T(ctx, "Expira") }</th>
+							<th class="hide-sm">{ i18n.T(ctx, "Último uso") }</th>
+							<th>{ i18n.T(ctx, "Estado") }</th>
+							<th class="act-col"></th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, t := range vm.Tokens {
+							<tr class={ "row", templ.KV("is-off", !t.Active) }>
+								<td class="ttl"><span class="mono">{ t.Prefix }…</span>
+									if t.Label != "" {
+										<div class="note">{ t.Label }</div>
+									}
+								</td>
+								<td class="hide-sm mono">{ t.Actions }</td>
+								<td class="hide-sm muted">{ t.Expires }</td>
+								<td class="hide-sm muted">{ t.LastUsed }</td>
+								<td>@BadgeEl(t.State)</td>
+								<td class="act-col">
+									if sh.CanAdmin() && t.Active {
+										<form method="post" action={ templ.SafeURL(t.RevokeHref) } hx-post={ t.RevokeHref } hx-swap="none" hx-confirm={ i18n.T(ctx, "Revogar este token? Clientes que o usam deixam de funcionar.") }>
+											<button class="btn ghost sm" type="submit">{ i18n.T(ctx, "Revogar") }</button>
+										</form>
+									}
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+		if sh.CanAdmin() {
+			<form class="card pad form-card mt-4" method="post" action={ templ.SafeURL(vm.TokenAction) } hx-boost="true">
+				<div class="card-head"><div><h2>{ i18n.T(ctx, "Gerar token") }</h2><p class="sub">{ i18n.T(ctx, "O token aparece uma única vez. Guarde-o num cofre.") }</p></div></div>
+				<div class="form-grid">
+					<div class="field">
+						<label for="tk-label">{ i18n.T(ctx, "Rótulo") }</label>
+						<input class="input" id="tk-label" name="label" maxlength="120"/>
+					</div>
+					<div class="field">
+						<label for="tk-days">{ i18n.T(ctx, "Validade (dias)") }</label>
+						<input class="input" id="tk-days" name="days" type="number" min="1" max="366" value="90"/>
+					</div>
+				</div>
+				<label class="check-line"><input type="checkbox" name="actions" value="tools/list" checked/><span class="mono">tools/list</span></label>
+				<label class="check-line"><input type="checkbox" name="actions" value="tools/call" checked/><span class="mono">tools/call</span></label>
+				<div class="form-actions"><button class="btn primary" type="submit">{ i18n.T(ctx, "Gerar token") }</button></div>
+			</form>
+			<section class="card pad mt-6">
+				<div class="card-head"><div><h2>{ i18n.T(ctx, "Apagar gateway") }</h2><p class="sub">{ i18n.T(ctx, "Apaga o gateway e todos os tokens dele.") }</p></div></div>
+				<form method="post" action={ templ.SafeURL(vm.DeleteHref) } hx-post={ vm.DeleteHref } hx-swap="none" hx-confirm={ i18n.T(ctx, "Apagar este gateway?") }>
+					<button class="btn outline sm danger" type="submit">{ i18n.T(ctx, "Apagar") }</button>
+				</form>
+			</section>
+		}
+	}
+}
+
+// ---- Auditoria ----
+
+templ ToolAuditPage(sh Shell, vm ToolAuditVM) {
+	@Layout(sh) {
+		@PageHead(i18n.T(ctx, "Integrações"), i18n.T(ctx, "Cada chamada de tool que passou pelo gateway: quem, o quê, a decisão e o resultado. Os argumentos nunca são guardados, só o sha256.")) {
+		}
+		@IntegrationTabs(sh.Base(), "auditoria")
+		if !sh.CanAdmin() {
+			@EmptyCard("lock", i18n.T(ctx, "Só admin lê a auditoria."), i18n.T(ctx, "Peça a um admin da empresa."), false)
+		} else {
+			<form class="toolbar" method="get" action={ templ.SafeURL(vm.Action) }>
+				@Select("integracao", "au-integ", vm.IntegrationOpts, true)
+				@Select("persona", "au-persona", vm.PersonaOpts, true)
+				@Select("decisao", "au-dec", vm.DecisionOpts, true)
+				<input class="input sm" name="tool" value={ vm.Tool } placeholder={ i18n.T(ctx, "tool") } aria-label={ i18n.T(ctx, "tool") }/>
+				<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Filtrar") }</button>
+			</form>
+			if len(vm.Rows) == 0 {
+				@EmptyCard("activity", i18n.T(ctx, "Nenhuma chamada registrada."), i18n.T(ctx, "As chamadas aparecem aqui quando uma execução ou um gateway usa uma tool. Ficam 30 dias (no máximo 10 mil por empresa)."), false)
+			} else {
+				<div class="table-wrap">
+					<table class="table">
+						<thead>
+							<tr>
+								<th>{ i18n.T(ctx, "Quando") }</th>
+								<th>{ i18n.T(ctx, "Quem") }</th>
+								<th>{ i18n.T(ctx, "Tool") }</th>
+								<th>{ i18n.T(ctx, "Decisão") }</th>
+								<th class="hide-sm">{ i18n.T(ctx, "Resultado") }</th>
+								<th class="hide-sm">{ i18n.T(ctx, "Latência") }</th>
+								<th class="hide-sm">sha256</th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, r := range vm.Rows {
+								<tr class="row">
+									<td class="muted">{ r.When }</td>
+									<td>
+										if r.WhoHref != "" {
+											<a href={ templ.SafeURL(r.WhoHref) }>{ r.Who }</a>
+										} else {
+											{ r.Who }
+										}
+									</td>
+									<td class="mono">{ r.Integration }/{ r.Tool }
+										if r.Error != "" {
+											<div class="note">{ r.Error }</div>
+										}
+									</td>
+									<td>
+										@BadgeEl(r.Decision)
+										if r.GateHref != "" {
+											<a class="link-u text-xs" href={ templ.SafeURL(r.GateHref) }>{ i18n.T(ctx, "gate") }</a>
+										}
+									</td>
+									<td class="hide-sm">{ r.Status }</td>
+									<td class="hide-sm muted">{ r.Latency }</td>
+									<td class="hide-sm mono muted">{ r.SHA }</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+		}
+	}
+}
+
+// ---- persona ----
+
+// EffectiveToolsSlot carrega o painel "Tools efetivas" da persona sob demanda (htmx).
+templ EffectiveToolsSlot(base, persona string) {
+	<div id="tools-efetivas" hx-get={ base + "/ferramentas/efetivas?persona=" + persona } hx-trigger="load" hx-swap="outerHTML"></div>
+}
+
+templ EffectiveToolsCard(vm EffectiveToolsVM) {
+	<section class="card pad mt-6" id="tools-efetivas">
+		<div class="card-head">
+			<div>
+				<h2>{ i18n.T(ctx, "Tools efetivas") }</h2>
+				<p class="sub">
+					if vm.Profile != "" {
+						{ i18n.T(ctx, "Perfil") } <a class="link-u" href={ templ.SafeURL(vm.ProfileHref) }>{ vm.Profile }</a> · { vm.Origin }
+					} else {
+						{ i18n.T(ctx, "Sem perfil: todas as tools das integrações desta persona.") }
+					}
+				</p>
+			</div>
+			<a class="more" href={ templ.SafeURL(vm.ToolsHref) }>{ i18n.T(ctx, "Tools") }</a>
+		</div>
+		if len(vm.Rows) == 0 {
+			<p class="muted">{ i18n.T(ctx, "Nenhuma tool: a persona não tem servidores MCP ou os catálogos ainda não foram descobertos.") }</p>
+		} else {
+			<div class="table-wrap">
+				<table class="table">
+					<thead><tr><th>{ i18n.T(ctx, "Tool") }</th><th>{ i18n.T(ctx, "Risco") }</th><th>{ i18n.T(ctx, "Decisão") }</th><th class="hide-sm">{ i18n.T(ctx, "De onde vem") }</th></tr></thead>
+					<tbody>
+						for _, r := range vm.Rows {
+							<tr class={ "row", templ.KV("is-off", !r.Visible) }>
+								<td class="mono">{ r.Integration }/{ r.Tool }</td>
+								<td>@BadgeEl(r.Risk)</td>
+								<td>{ r.Decision }</td>
+								<td class="hide-sm muted">{ r.Origin }</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+	</section>
+}

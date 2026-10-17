@@ -169,6 +169,31 @@ type Backend interface {
 	ListStatusCardUpdates(ctx context.Context, companyID, cardID domain.ID, limit int) ([]service.StatusCardUpdateView, error)
 	ListStatusCardRevisions(ctx context.Context, companyID, cardID domain.ID, limit int) ([]domain.StatusCardRevision, error)
 	PreviewStatusCard(ctx context.Context, companyID, cardID domain.ID) (service.StatusCardPreview, error)
+	// ---- apps, gateway de tools e perfis de ferramentas (ADR-0036; ui/tools.go, uitest/tools.go) ----
+	ToolIntegrations(ctx context.Context, companyID domain.ID) ([]service.ToolIntegration, error)
+	ListIntegrationTools(ctx context.Context, companyID, integrationID domain.ID) (service.IntegrationToolsView, error)
+	RefreshIntegrationTools(ctx context.Context, actor domain.Actor, companyID, integrationID domain.ID) (service.ToolCatalogResult, error)
+	SetToolStatus(ctx context.Context, actor domain.Actor, companyID, integrationID domain.ID, tool string, status domain.ToolStatus) (domain.IntegrationTool, error)
+	ReviewQuarantinedTools(ctx context.Context, actor domain.Actor, companyID, integrationID domain.ID, tools []string) (int, error)
+	CreateToolProfile(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.CreateToolProfileInput) (service.ToolProfileView, error)
+	GetToolProfile(ctx context.Context, companyID domain.ID, ref string) (service.ToolProfileView, error)
+	ListToolProfiles(ctx context.Context, companyID domain.ID) ([]service.ToolProfileView, error)
+	UpdateToolProfile(ctx context.Context, actor domain.Actor, companyID, profileID domain.ID, in service.UpdateToolProfileInput) (service.ToolProfileView, error)
+	DeleteToolProfile(ctx context.Context, actor domain.Actor, companyID, profileID domain.ID) error
+	AddToolProfileRule(ctx context.Context, actor domain.Actor, companyID, profileID domain.ID, in service.ToolRuleInput) (domain.ToolRule, error)
+	DeleteToolProfileRule(ctx context.Context, actor domain.Actor, companyID, profileID, ruleID domain.ID) error
+	SetIntegrationToolChoices(ctx context.Context, actor domain.Actor, companyID, profileID domain.ID, in service.IntegrationToolChoices) (service.ToolProfileView, error)
+	BindToolProfile(ctx context.Context, actor domain.Actor, companyID, profileID domain.ID, in service.ToolBindingInput) (domain.ToolBinding, error)
+	UnbindToolProfile(ctx context.Context, actor domain.Actor, companyID, profileID, bindingID domain.ID) error
+	EffectiveToolsFor(ctx context.Context, companyID, personaID domain.ID, projectID *domain.ID) (service.EffectiveTools, error)
+	CreateToolGateway(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.CreateToolGatewayInput) (service.ToolGatewayView, error)
+	ListToolGateways(ctx context.Context, companyID domain.ID) ([]domain.ToolGateway, error)
+	GetToolGateway(ctx context.Context, companyID domain.ID, ref string) (service.ToolGatewayView, error)
+	UpdateToolGateway(ctx context.Context, actor domain.Actor, companyID, gatewayID domain.ID, in service.UpdateToolGatewayInput) (service.ToolGatewayView, error)
+	DeleteToolGateway(ctx context.Context, actor domain.Actor, companyID, gatewayID domain.ID) error
+	CreateGatewayToken(ctx context.Context, actor domain.Actor, companyID, gatewayID domain.ID, in service.CreateGatewayTokenInput) (domain.ToolGatewayToken, string, error)
+	RevokeGatewayToken(ctx context.Context, actor domain.Actor, companyID, gatewayID, tokenID domain.ID) (domain.ToolGatewayToken, error)
+	ListToolInvocations(ctx context.Context, companyID domain.ID, f service.ToolInvocationFilter) ([]domain.ToolInvocation, error)
 }
 
 var _ Backend = (*service.Service)(nil)
@@ -373,6 +398,7 @@ func (s *server) routes(root *http.ServeMux) {
 	s.environmentRoutes(mux)
 	s.statusCardRoutes(mux)
 	s.pipelineRoutes(mux) // pipelines, cases, revisão e aprendizados (ADR-0034)
+	s.toolRoutes(mux)     // apps, gateway de tools e perfis (ADR-0036)
 }
 
 // ---------- middleware ----------

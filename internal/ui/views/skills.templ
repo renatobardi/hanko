@@ -334,6 +334,7 @@ templ IntegrationsPage(sh Shell, vm IntegrationsVM) {
 				@NeedRole(domain.MemberAdmin)
 			}
 		}
+		@IntegrationTabs(sh.Base(), "integracoes")
 		if vm.Notice != "" {
 			@Alert("warn", vm.Notice)
 		}

@@ -370,6 +370,7 @@ templ PersonaPage(sh Shell, vm PersonaVM) {
 		}
 		@PersonaEnvironmentSlot(vm)
 		@PersonaExtras(vm.Extras)
+		@EffectiveToolsSlot(sh.Base(), vm.Slug)
 		<h2 class="side-h sec-h">{ i18n.T(ctx, "Tasks atribuídas") }</h2>
 		if len(vm.Tasks) == 0 {
 			@EmptyCard("list", i18n.T(ctx, "Nenhuma task atribuída."), i18n.T(ctx, "Atribua uma task a esta persona para ela começar a trabalhar."), false)

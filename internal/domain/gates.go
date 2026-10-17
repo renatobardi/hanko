@@ -10,10 +10,11 @@ const (
 	GateTaskReview GateKind = "task_review" // a persona with require_review wants to close a task
 	GateHire       GateKind = "hire"        // hiring a persona
 	GateMemory     GateKind = "memory"      // proposta da consolidação de memória que remove, funde ou reescreve conteúdo (ADR-0030)
+	GateTool       GateKind = "tool"        // chamada de tool em modo "perguntar antes" no gateway de tools (ADR-0036)
 )
 
 func (k GateKind) Valid() bool {
-	return k == GateApproval || k == GateTaskReview || k == GateHire || k == GateMemory
+	return k == GateApproval || k == GateTaskReview || k == GateHire || k == GateMemory || k == GateTool
 }
 
 // Blocking reports whether a pending gate of this kind holds the requesting persona
