@@ -68,13 +68,13 @@ var cmdRe = regexp.MustCompile(`^[A-Za-z0-9._/+-]{1,200}$`)
 func Script(cfg Config, agent string, acpCommand string) (string, error) {
 	switch agent {
 	case "claude":
-		return script(cfg.claude(), "claude", `
+		return script(cfg.claude(), "claude", true, `
 if [ -n "$ANTHROPIC_API_KEY" ] || [ -n "$ANTHROPIC_AUTH_TOKEN" ] || [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ]; then echo "auth=env"
 elif [ -n "$b" ] && "$b" auth status >/dev/null 2>&1; then echo "auth=login"
 elif [ -s "$HOME/.claude/.credentials.json" ]; then echo "auth=login"
 else echo "auth=none"; fi`), nil
 	case "codex":
-		return script(cfg.codex(), "codex", `
+		return script(cfg.codex(), "codex", true, `
 if [ -n "$OPENAI_API_KEY" ] || [ -n "$CODEX_API_KEY" ]; then echo "auth=env"
 elif [ -n "$b" ] && "$b" login status >/dev/null 2>&1; then echo "auth=login"
 elif [ -s "$HOME/.codex/auth.json" ]; then echo "auth=login"
@@ -83,18 +83,23 @@ else echo "auth=none"; fi`), nil
 		if !cmdRe.MatchString(acpCommand) {
 			return "", fmt.Errorf("adapter_config.command ausente ou inválido para o harness acp")
 		}
-		return script(acpCommand, "acp", "\necho \"auth=unknown\""), nil
+		// o comando do ACP é só procurado no PATH: executá-lo (mesmo com --version) contornaria a política do operador (HANKO_ACP_*)
+		return script(acpCommand, "acp", false, "\necho \"auth=unknown\""), nil
 	case "fake":
 		return `echo "bin=fake"; echo "version=fake"; echo "auth=skip"`, nil
 	}
 	return "", fmt.Errorf("harness desconhecido: %q", agent)
 }
 
-func script(bin, label, authPart string) string {
+func script(bin, label string, runVersion bool, authPart string) string {
 	q := quote(bin)
+	version := ""
+	if runVersion {
+		version = `
+if [ -n "$b" ]; then v=$("$b" --version 2>/dev/null | head -n 1); echo "version=$v"; fi`
+	}
 	return `b=$(command -v ` + q + ` 2>/dev/null) || b=
-echo "bin=$b"
-if [ -n "$b" ]; then v=$("$b" --version 2>/dev/null | head -n 1); echo "version=$v"; fi` + authPart + `
+echo "bin=$b"` + version + authPart + `
 echo "label=` + label + `"`
 }
 

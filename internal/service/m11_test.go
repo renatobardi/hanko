@@ -370,6 +370,10 @@ func TestReadinessBlocksDispatchAndAlerts(t *testing.T) {
 	if !errors.Is(err, domain.ErrPersonaNotReady) || !errors.Is(err, domain.ErrConflict) || !strings.Contains(err.Error(), "auth:") {
 		t.Fatalf("despacho deveria ser bloqueado com o motivo: %v", err)
 	}
+	// o wake manual também diz o motivo na hora
+	if err := e.svc.WakeTask(ctx, domain.HumanActor, e.co.ID, tv.ID); !errors.Is(err, domain.ErrPersonaNotReady) || !strings.Contains(err.Error(), "auth:") {
+		t.Fatalf("wake manual deveria ser recusado com o motivo: %v", err)
+	}
 	// o alerta abre no próximo alert_tick
 	if _, err := e.svc.EvaluateAlerts(ctx); err != nil {
 		t.Fatal(err)

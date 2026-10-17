@@ -75,7 +75,8 @@ persona e padrão da empresa, `execenv`). O M11 do plano (#35, #10, #17) pede a 
 13. **Probe por harness com passos nomeados**, em ordem: `environment` (o ambiente da persona responde — o próprio
     script já é o teste de conexão), `binary` (o binário do harness existe no alvo; `claude`, `codex`, o comando do `acp`
     ou nada para `fake`), `auth` (chave de API no env da persona/ambiente ou login do harness: `claude auth status`,
-    `codex login status` ou arquivo de credenciais; `acp` e `fake` ⇒ `skip`), `model` (formato válido; `warn`
+    `codex login status` ou arquivo de credenciais; `acp` e `fake` ⇒ `skip`; o comando do ACP é só procurado no PATH,
+    nunca executado, para não contornar a política do operador `HANKO_ACP_*`), `model` (formato válido; `warn`
     quando não há preço próprio — o custo cai no preço de reserva). Status por passo `ok|warn|fail|skip`; `fail` bloqueia.
     Executa pelo `execenv.RunScript` no ambiente resolvido (persona > padrão), com o env da persona (segredos resolvidos
     só em memória).
@@ -92,7 +93,8 @@ persona e padrão da empresa, `execenv`). O M11 do plano (#35, #10, #17) pede a 
     pega pela passada seguinte (as nunca testadas vão primeiro).
 16. **Alerta e bloqueio.** `not_ready` abre o alerta `persona_not_ready` (critical) pelo `alert_tick` já existente, com o motivo, e
     `CheckoutRun`/revisão/chat recusam abrir run com `ErrPersonaNotReady` (HTTP 409, motivo na mensagem; o wake a trata como
-    `ErrBudgetExceeded`: não abre run e tenta de novo quando algo mudar). Um teste que passa fecha o alerta e libera o
+    `ErrBudgetExceeded`: não abre run e tenta de novo quando algo mudar). O wake manual de uma task (`WakeTask`) também recusa
+    na hora, com o motivo. Um teste que passa fecha o alerta e libera o
     despacho. O teste só bloqueia se o harness e o modelo gravados são os de hoje.
 17. **Limites.** O probe não gasta tokens: não faz chamada ao modelo (validar o modelo de verdade custaria dinheiro e
     exigiria rede). O ambiente testado é o da persona (persona > padrão); uma persona que roda em ambientes diferentes por
@@ -103,9 +105,10 @@ persona e padrão da empresa, `execenv`). O M11 do plano (#35, #10, #17) pede a 
     linhas de `model_prices` que sejam modelos (prefixos de família terminados em `-` ficam de fora) ∪ `model_reports` (o que
     um teste de readiness viu: o modelo da persona que passou) ∪ modelos que as runs da empresa usaram (90 dias). Cada
     entrada carrega as origens e `priced`/`price_model` (casamento por prefixo mais longo, como o `GetModelPrice`).
-19. **Superfícies.** `GET /companies/{c}/models?agent=` e `hanko model list`; nos formulários de contratação e edição da persona
-    o campo de modelo vira um select do harness escolhido com a opção **"Outro…"** (campo livre) e aviso inline, sem
-    JavaScript além do htmx, quando o modelo não tem preço ("custo estimado com o preço de reserva").
+19. **Superfícies.** `GET /companies/{c}/models?agent=` e `hanko model list`; no formulário de contratação o
+    campo de modelo vira um select (modelos agrupados por harness) com "Padrão do harness" e a opção **"Outro…"** (campo livre), e
+    um aviso inline, sem JavaScript (seletor CSS `:has`), quando o modelo escolhido não tem preço ("custo estimado com o preço de
+    reserva"). O passo `model` do readiness repete o aviso na página da persona.
 20. **Fora do M11:** buscar a lista de modelos de uma API de provider (sem rede e sem credencial aqui) e o teste de adapter
     com chamada real (o #17 diz que o teste de adapter é o #10).
 

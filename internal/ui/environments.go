@@ -235,13 +235,7 @@ func atoiField(v, field string) (int, error) {
 	return n, nil
 }
 
-// environmentFromForm lê a parte do driver e as variáveis do formulário (SSH e sandbox).
-func environmentFromForm(r *http.Request, driver string) (ssh *domain.SSHConfig, sb *domain.SandboxConfig, env map[string]string, err error) {
-	ssh, sb, _, env, err = environmentFromFormCloud(r, driver)
-	return ssh, sb, env, err
-}
-
-// environmentFromFormCloud é environmentFromForm com a configuração do sandbox em nuvem (ADR-0055).
+// environmentFromFormCloud lê a parte do driver (SSH, sandbox ou nuvem, ADR-0055) e as variáveis do formulário.
 func environmentFromFormCloud(r *http.Request, driver string) (ssh *domain.SSHConfig, sb *domain.SandboxConfig, cl *domain.CloudConfig, env map[string]string, err error) {
 	env, perr := pairs(r.PostFormValue("env"), "=")
 	if perr != nil {

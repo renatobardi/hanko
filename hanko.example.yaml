@@ -15,6 +15,10 @@ mode: trusted            # trusted | authenticated (login; exige secret >= 32 by
 #   ssh_allow_hosts: []     # hosts/sufixos/CIDR liberados para SSH; HANKO_ENV_SSH_ALLOW_HOSTS
 #   sandbox: ""             # docker liga o sandbox por run; HANKO_ENV_SANDBOX
 #   sandbox_host_root: ""   # caminho, no host do docker, de workspaces_root; HANKO_ENV_SANDBOX_HOST_ROOT
+#   cloud: ""               # daytona liga o sandbox em nuvem por run (ADR-0055); HANKO_ENV_CLOUD
+#   cloud_api_url: ""       # base da API do provider (padrão https://app.daytona.io/api); HANKO_ENV_CLOUD_API_URL
+#   cloud_ssh_host: ""      # gateway SSH do provider (padrão ssh.app.daytona.io); HANKO_ENV_CLOUD_SSH_HOST
+#   cloud_ssh_known_hosts: "" # known_hosts do gateway (ssh-keyscan); obrigatório com cloud; HANKO_ENV_CLOUD_SSH_KNOWN_HOSTS
 # acp:
 #   allow: false          # liga o harness acp (executa o comando da persona no servidor); HANKO_ACP_ALLOW
 #   commands: []          # opcional: só estes executáveis (nome ou caminho absoluto); HANKO_ACP_COMMANDS
@@ -48,6 +52,7 @@ artifact_max_bytes: 5242880      # tamanho máximo de um artefato, de 1 a 167772
 artifact_quota_bytes: 536870912  # cota de artefatos por empresa, todas as versões somadas (HANKO_ARTIFACT_QUOTA_BYTES)
 alert_silent_factor: 3      # alerta "persona sem heartbeat" além de N× o intervalo dela (HANKO_ALERT_SILENT_FACTOR)
 alert_run_stuck_after: 15m  # alerta "execução presa": running sem eventos há mais que isto (HANKO_ALERT_RUN_STUCK_AFTER)
+readiness_interval: 15m     # refaz o teste de prontidão do harness de cada persona após este tempo; 0 desliga (HANKO_READINESS_INTERVAL)
 # storage:                # conteúdo dos artefatos (ADR-0051); as chaves de acesso só por ambiente
 #   driver: postgres      # postgres (padrão) | s3 ; HANKO_BLOB_DRIVER
 #   s3:

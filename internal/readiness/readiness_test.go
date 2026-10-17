@@ -151,6 +151,10 @@ func TestCheckFakeAndACP(t *testing.T) {
 	if s := step(r, domain.StepBinary); s.Status != domain.StepFail {
 		t.Fatalf("comando inválido: %+v", r.Steps)
 	}
+	// o comando do ACP é só procurado, nunca executado (a política do operador decide o que roda)
+	if sc, err := Script(Config{}, "acp", "meu-agente"); err != nil || strings.Contains(sc, "--version") || !strings.Contains(sc, "command -v 'meu-agente'") {
+		t.Fatalf("script do acp: %v %q", err, sc)
+	}
 	if _, err := Script(Config{}, "outro", ""); err == nil {
 		t.Fatal("harness desconhecido")
 	}
