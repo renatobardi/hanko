@@ -377,7 +377,7 @@ SET status = $1, exit_code = $2, error = $3, summary = $4, cost_usd = $5,
     input_tokens = $6, output_tokens = $7,
     cache_read_tokens = $8, cache_creation_tokens = $9,
     cost_source = $10, list_cost_usd = $11,
-    session_ref = $12, model = $13, finished_at = $14, pending_result = NULL
+    session_ref = COALESCE(NULLIF($12::text, ''), session_ref), model = $13, finished_at = $14, pending_result = NULL
 WHERE company_id = $15 AND id = $16
 RETURNING id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv, continuation_of_run_id, continuation_attempt, continuation_reason, resume_pending, resume_reason, diagnosis, decision_pending, decision, decision_note, decided_by_type, decided_by_id, decided_at
 `
@@ -1178,16 +1178,17 @@ WHERE t.status IN ('todo', 'in_progress')
   -- esgotou as continuações ou o desfecho é incerto: a task espera a decisão humana (ADR-0039)
   AND NOT EXISTS (SELECT 1 FROM runs d WHERE d.task_id = t.id AND d.decision_pending AND d.decision = '')
   AND (
-    -- (c) uma run interrompida deixou a continuação marcada: o checkout ainda não a consumiu
-    EXISTS (SELECT 1 FROM runs rp WHERE rp.task_id = t.id AND rp.resume_pending)
+    -- (c) rede de segurança: uma run interrompida deixou a continuação marcada há mais de um minuto e o checkout ainda
+    --     não a consumiu (o wake que a deveria abrir se perdeu)
+    EXISTS (SELECT 1 FROM runs rp WHERE rp.task_id = t.id AND rp.resume_pending AND rp.finished_at <= $2::timestamptz)
     OR
     (p.heartbeat_interval_sec > 0
      AND COALESCE((SELECT max(COALESCE(r.finished_at, r.created_at)) FROM runs r WHERE r.task_id = t.id), 'epoch'::timestamptz)
-         + make_interval(secs => p.heartbeat_interval_sec) <= $2::timestamptz)
+         + make_interval(secs => p.heartbeat_interval_sec) <= $3::timestamptz)
     OR
-    (GREATEST(t.last_human_change_at, hc.last_comment) < $3::timestamptz
+    (GREATEST(t.last_human_change_at, hc.last_comment) < $2::timestamptz
      AND NOT EXISTS (SELECT 1 FROM runs r WHERE r.task_id = t.id
-                     AND COALESCE(r.finished_at, $2::timestamptz) >= GREATEST(t.last_human_change_at, hc.last_comment)))
+                     AND COALESCE(r.finished_at, $3::timestamptz) >= GREATEST(t.last_human_change_at, hc.last_comment)))
   )
 ORDER BY t.updated_at
 LIMIT $4
@@ -1195,8 +1196,8 @@ LIMIT $4
 
 type ListWakeCandidatesParams struct {
 	BudgetCutoff time.Time
-	Now          time.Time
 	StaleBefore  time.Time
+	Now          time.Time
 	Lim          int32
 }
 
@@ -1217,8 +1218,8 @@ type ListWakeCandidatesRow struct {
 func (q *Queries) ListWakeCandidates(ctx context.Context, arg ListWakeCandidatesParams) ([]ListWakeCandidatesRow, error) {
 	rows, err := q.db.Query(ctx, listWakeCandidates,
 		arg.BudgetCutoff,
-		arg.Now,
 		arg.StaleBefore,
+		arg.Now,
 		arg.Lim,
 	)
 	if err != nil {
@@ -1635,4 +1636,121 @@ func (q *Queries) TakenRunNames(ctx context.Context, arg TakenRunNamesParams) ([
 		return nil, err
 	}
 	return items, nil
+}
+
+const undecidedRunForConversation = `-- name: UndecidedRunForConversation :one
+SELECT id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv, continuation_of_run_id, continuation_attempt, continuation_reason, resume_pending, resume_reason, diagnosis, decision_pending, decision, decision_note, decided_by_type, decided_by_id, decided_at FROM runs WHERE conversation_id = $1 AND decision_pending AND decision = '' ORDER BY created_at DESC LIMIT 1
+`
+
+func (q *Queries) UndecidedRunForConversation(ctx context.Context, conversationID *uuid.UUID) (Run, error) {
+	row := q.db.QueryRow(ctx, undecidedRunForConversation, conversationID)
+	var i Run
+	err := row.Scan(
+		&i.ID,
+		&i.CompanyID,
+		&i.TaskID,
+		&i.PersonaID,
+		&i.Status,
+		&i.Trigger,
+		&i.Agent,
+		&i.Model,
+		&i.SessionRef,
+		&i.TraceID,
+		&i.ExitCode,
+		&i.Error,
+		&i.Summary,
+		&i.CostUsd,
+		&i.InputTokens,
+		&i.OutputTokens,
+		&i.CacheReadTokens,
+		&i.CacheCreationTokens,
+		&i.HandoffIn,
+		&i.HandoffOut,
+		&i.CreatedAt,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.PendingResult,
+		&i.CostSource,
+		&i.NextEventSeq,
+		&i.ModelSource,
+		&i.SubscriptionID,
+		&i.ListCostUsd,
+		&i.Name,
+		&i.WorkspaceID,
+		&i.WorkspaceSource,
+		&i.ConversationID,
+		&i.SearchTsv,
+		&i.ContinuationOfRunID,
+		&i.ContinuationAttempt,
+		&i.ContinuationReason,
+		&i.ResumePending,
+		&i.ResumeReason,
+		&i.Diagnosis,
+		&i.DecisionPending,
+		&i.Decision,
+		&i.DecisionNote,
+		&i.DecidedByType,
+		&i.DecidedByID,
+		&i.DecidedAt,
+	)
+	return i, err
+}
+
+const undecidedRunForTask = `-- name: UndecidedRunForTask :one
+SELECT id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv, continuation_of_run_id, continuation_attempt, continuation_reason, resume_pending, resume_reason, diagnosis, decision_pending, decision, decision_note, decided_by_type, decided_by_id, decided_at FROM runs WHERE task_id = $1 AND decision_pending AND decision = '' ORDER BY created_at DESC LIMIT 1
+`
+
+// Uma run parada da task espera decisão humana: nenhuma run nova abre antes dela.
+func (q *Queries) UndecidedRunForTask(ctx context.Context, taskID *uuid.UUID) (Run, error) {
+	row := q.db.QueryRow(ctx, undecidedRunForTask, taskID)
+	var i Run
+	err := row.Scan(
+		&i.ID,
+		&i.CompanyID,
+		&i.TaskID,
+		&i.PersonaID,
+		&i.Status,
+		&i.Trigger,
+		&i.Agent,
+		&i.Model,
+		&i.SessionRef,
+		&i.TraceID,
+		&i.ExitCode,
+		&i.Error,
+		&i.Summary,
+		&i.CostUsd,
+		&i.InputTokens,
+		&i.OutputTokens,
+		&i.CacheReadTokens,
+		&i.CacheCreationTokens,
+		&i.HandoffIn,
+		&i.HandoffOut,
+		&i.CreatedAt,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.PendingResult,
+		&i.CostSource,
+		&i.NextEventSeq,
+		&i.ModelSource,
+		&i.SubscriptionID,
+		&i.ListCostUsd,
+		&i.Name,
+		&i.WorkspaceID,
+		&i.WorkspaceSource,
+		&i.ConversationID,
+		&i.SearchTsv,
+		&i.ContinuationOfRunID,
+		&i.ContinuationAttempt,
+		&i.ContinuationReason,
+		&i.ResumePending,
+		&i.ResumeReason,
+		&i.Diagnosis,
+		&i.DecisionPending,
+		&i.Decision,
+		&i.DecisionNote,
+		&i.DecidedByType,
+		&i.DecidedByID,
+		&i.DecidedAt,
+	)
+	return i, err
 }

@@ -214,7 +214,7 @@ func (s *Service) CreateConversation(ctx context.Context, actor domain.Actor, co
 		// side effects of the refusal itself (pause, alerts) stay.
 		var run *store.Run
 		if msg != "" {
-			r, berr, err := t.openChatRun(conv)
+			r, berr, err := t.openChatRun(conv, nil)
 			if err != nil {
 				return err
 			}
@@ -342,7 +342,7 @@ func (t *txc) sendChatMessage(conv store.Conversation, actor domain.Actor, body 
 			return msg, nil, domain.Invalid("message", fmt.Sprintf("já há %d mensagens esperando a resposta; aguarde a persona", len(pending)))
 		}
 	case isNoRows(aerr):
-		r, berr, err := t.openChatRun(conv)
+		r, berr, err := t.openChatRun(conv, nil)
 		if err != nil || berr != nil {
 			return msg, berr, err
 		}
@@ -411,7 +411,7 @@ func chatBlockReason(p store.Persona) string {
 // openChatRun checks that the persona can take a run (status, monthly budgets, weekly guard) and creates the
 // queued run of the conversation. It claims no messages and enqueues nothing (launchChatRun). A refusal comes
 // back as blocked (the transaction still commits its side effects); err is an unexpected failure.
-func (t *txc) openChatRun(conv store.Conversation) (run store.Run, blocked, err error) {
+func (t *txc) openChatRun(conv store.Conversation, cont *continuation) (run store.Run, blocked, err error) {
 	p, err := t.q.GetPersonaByID(t.ctx, store.GetPersonaByIDParams{CompanyID: conv.CompanyID, ID: conv.PersonaID})
 	if err != nil {
 		return run, nil, mapErr(err, "get persona")
@@ -443,7 +443,7 @@ func (t *txc) openChatRun(conv store.Conversation) (run store.Run, blocked, err 
 	}
 	// A chat has no task or project: it works in the persona's workspace (or a temporary directory).
 	ws, wsSource := pickWorkspace(nil, nil, p)
-	run, err = t.insertRun(conv.CompanyID, nil, &conv.ID, p.ID, p.Agent, model, modelSource, subID, ws, wsSource, domain.TriggerChat)
+	run, err = t.insertRun(conv.CompanyID, nil, &conv.ID, p.ID, p.Agent, model, modelSource, subID, ws, wsSource, domain.TriggerChat, cont)
 	if err != nil {
 		return run, nil, err
 	}
@@ -516,8 +516,9 @@ func (t *txc) chatRunEnded(run store.Run, status domain.RunStatus, summary, errM
 			return err
 		}
 	}
-	if status == domain.RunCancelled || status == domain.RunInterrupted ||
-		domain.ConversationStatus(conv.Status) != domain.ConversationOpen {
+	// Interrupted runs are handled by the continuation (chatInterrupted); cancelling one starts the next run with
+	// whatever is pending (ADR-0039, reverts ADR-0027 §4 for cancellation).
+	if status == domain.RunInterrupted || domain.ConversationStatus(conv.Status) != domain.ConversationOpen {
 		return nil
 	}
 	pending, err := t.q.ListPendingConversationMessages(t.ctx, conv.ID)
@@ -527,13 +528,22 @@ func (t *txc) chatRunEnded(run store.Run, status domain.RunStatus, summary, errM
 	if len(pending) == 0 {
 		return nil
 	}
-	next, berr, err := t.openChatRun(conv)
+	var cont *continuation
+	if status == domain.RunCancelled && run.ResumePending && run.ResumeReason == string(domain.ContinueSteer) {
+		cont = &continuation{of: run, reason: domain.ContinueSteer, attempt: int(run.ContinuationAttempt)} // steer by restart: keeps the session
+	}
+	next, berr, err := t.openChatRun(conv, cont)
 	if err != nil {
 		return err
 	}
 	if berr != nil {
 		return t.addChatMessage(conv, domain.MessageSystem, nil,
 			fmt.Sprintf("Não consegui responder às %d mensagem(ns) em espera: %s. Elas seguem na fila e serão respondidas quando você enviar a próxima mensagem.", len(pending), berr.Error()), &run.ID)
+	}
+	if cont != nil {
+		if err := t.runOpenedAsContinuation(next, cont); err != nil {
+			return err
+		}
 	}
 	return t.launchChatRun(conv, next)
 }
@@ -585,6 +595,16 @@ func loadChatContext(ctx context.Context, q *store.Queries, run domain.Run, pers
 		}
 	case !isNoRows(err):
 		return nil, fmt.Errorf("latest run of conversation: %w", err)
+	}
+	// A continuation resumes the session of the run it continues, whatever way that run ended (a retry starts clean).
+	if run.ContinuationOfRunID != nil {
+		cc.ResumeSession = ""
+		if run.ContinuationReason.ResumesSession() {
+			if of, oerr := q.GetRunByID(ctx, store.GetRunByIDParams{CompanyID: run.CompanyID, ID: *run.ContinuationOfRunID}); oerr == nil &&
+				of.SessionRef != "" && of.Agent == persona.Agent {
+				cc.ResumeSession = of.SessionRef
+			}
+		}
 	}
 	return cc, nil
 }

@@ -269,6 +269,10 @@ type RunView struct {
 	PersonaName string `json:"persona_name"`
 	// ConversationTitle is the title of the conversation of a chat run (empty for task runs).
 	ConversationTitle string `json:"conversation_title,omitempty"`
+	// SteerMode is how the run's harness takes an operator message mid-run (ADR-0039).
+	SteerMode domain.SteerMode `json:"steer_mode,omitempty"`
+	// ContinuedByRunID is the run that continued this one, when there is one (filled by GetRun).
+	ContinuedByRunID *domain.ID `json:"continued_by_run_id,omitempty"`
 }
 
 // DashboardStats feeds the Painel.
@@ -301,6 +305,10 @@ type RunContext struct {
 	Goals []GoalBrief
 	// Chat is set for runs with trigger chat (no task: Task and Comments are empty).
 	Chat *ChatContext
+	// Continuation is set when the run continues another one (ADR-0039); ResumeSession is the harness session a task
+	// run resumes (chat runs use Chat.ResumeSession).
+	Continuation  *ContinuationContext
+	ResumeSession string
 }
 
 // WakeCandidate is an (assigned, workable, idle) task found by the periodic heartbeat.

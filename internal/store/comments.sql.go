@@ -93,6 +93,8 @@ const hasHumanCommentSince = `-- name: HasHumanCommentSince :one
 SELECT EXISTS (
     SELECT 1 FROM task_comments
     WHERE company_id = $1 AND task_id = $2 AND author_type = 'human' AND created_at > $3
+      -- o follow-up injetado na run viva já foi visto por ela (ADR-0039)
+      AND (event_id IS NULL OR event_id NOT LIKE 'followup:%')
 ) AS found
 `
 

@@ -88,6 +88,7 @@ func BuildPrompt(rc service.RunContext, briefing, handoff string) (system, promp
 			pb.WriteString("### Briefing\n\n" + briefing + "\n\n")
 		}
 	}
+	pb.WriteString(continuationSection(rc.Continuation, rc.ResumeSession != ""))
 	pb.WriteString("---\nExecute o trabalho desta task agora.\n")
 	return system, pb.String()
 }

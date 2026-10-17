@@ -6,8 +6,8 @@ INSERT INTO task_followups (id, company_id, task_id, author_type, author_id, bod
 VALUES (@id, @company_id, @task_id, @author_type, @author_id, @body, @delivery, @waiting_run_id, @now)
 RETURNING *;
 
--- name: GetTaskFollowupForUpdate :one
-SELECT * FROM task_followups WHERE company_id = @company_id AND id = @id FOR UPDATE;
+-- name: GetTaskFollowup :one
+SELECT * FROM task_followups WHERE company_id = @company_id AND id = @id;
 
 -- name: ListPendingTaskFollowups :many
 SELECT * FROM task_followups WHERE task_id = @task_id AND status = 'pending' ORDER BY created_at, id;
@@ -27,8 +27,11 @@ UPDATE task_followups SET status = 'consumed', consumed_run_id = @run_id, consum
 WHERE company_id = @company_id AND id = @id AND status = 'pending'
 RETURNING *;
 
--- name: GetConversationMessageForUpdate :one
-SELECT * FROM conversation_messages WHERE company_id = @company_id AND id = @id FOR UPDATE;
+-- name: GetConversationMessage :one
+SELECT * FROM conversation_messages WHERE company_id = @company_id AND id = @id;
+
+-- name: SetConversationMessageDelivery :exec
+UPDATE conversation_messages SET delivery = @delivery WHERE id = @id AND author_type = 'human' AND run_id IS NULL;
 
 -- name: UpdatePendingConversationMessage :one
 UPDATE conversation_messages SET body = @body, edited_at = @now

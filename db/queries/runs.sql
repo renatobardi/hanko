@@ -53,7 +53,7 @@ SET status = @status, exit_code = @exit_code, error = @error, summary = @summary
     input_tokens = @input_tokens, output_tokens = @output_tokens,
     cache_read_tokens = @cache_read_tokens, cache_creation_tokens = @cache_creation_tokens,
     cost_source = @cost_source, list_cost_usd = @list_cost_usd,
-    session_ref = @session_ref, model = @model, finished_at = @now, pending_result = NULL
+    session_ref = COALESCE(NULLIF(@session_ref::text, ''), session_ref), model = @model, finished_at = @now, pending_result = NULL
 WHERE company_id = @company_id AND id = @id
 RETURNING *;
 
@@ -96,8 +96,9 @@ WHERE t.status IN ('todo', 'in_progress')
   -- esgotou as continuações ou o desfecho é incerto: a task espera a decisão humana (ADR-0039)
   AND NOT EXISTS (SELECT 1 FROM runs d WHERE d.task_id = t.id AND d.decision_pending AND d.decision = '')
   AND (
-    -- (c) uma run interrompida deixou a continuação marcada: o checkout ainda não a consumiu
-    EXISTS (SELECT 1 FROM runs rp WHERE rp.task_id = t.id AND rp.resume_pending)
+    -- (c) rede de segurança: uma run interrompida deixou a continuação marcada há mais de um minuto e o checkout ainda
+    --     não a consumiu (o wake que a deveria abrir se perdeu)
+    EXISTS (SELECT 1 FROM runs rp WHERE rp.task_id = t.id AND rp.resume_pending AND rp.finished_at <= @stale_before::timestamptz)
     OR
     (p.heartbeat_interval_sec > 0
      AND COALESCE((SELECT max(COALESCE(r.finished_at, r.created_at)) FROM runs r WHERE r.task_id = t.id), 'epoch'::timestamptz)
@@ -212,3 +213,10 @@ LIMIT @lim;
 -- A continuação de uma run de chat responde as mesmas mensagens da run que morreu.
 UPDATE conversation_messages SET run_id = @new_run_id
 WHERE conversation_id = @conversation_id AND author_type = 'human' AND run_id = @old_run_id;
+
+-- name: UndecidedRunForTask :one
+-- Uma run parada da task espera decisão humana: nenhuma run nova abre antes dela.
+SELECT * FROM runs WHERE task_id = @task_id AND decision_pending AND decision = '' ORDER BY created_at DESC LIMIT 1;
+
+-- name: UndecidedRunForConversation :one
+SELECT * FROM runs WHERE conversation_id = @conversation_id AND decision_pending AND decision = '' ORDER BY created_at DESC LIMIT 1;

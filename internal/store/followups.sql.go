@@ -108,17 +108,17 @@ func (q *Queries) DiscardTaskFollowup(ctx context.Context, arg DiscardTaskFollow
 	return i, err
 }
 
-const getConversationMessageForUpdate = `-- name: GetConversationMessageForUpdate :one
-SELECT id, company_id, conversation_id, author_type, author_id, body, run_id, created_at, edited_at, delivery FROM conversation_messages WHERE company_id = $1 AND id = $2 FOR UPDATE
+const getConversationMessage = `-- name: GetConversationMessage :one
+SELECT id, company_id, conversation_id, author_type, author_id, body, run_id, created_at, edited_at, delivery FROM conversation_messages WHERE company_id = $1 AND id = $2
 `
 
-type GetConversationMessageForUpdateParams struct {
+type GetConversationMessageParams struct {
 	CompanyID uuid.UUID
 	ID        uuid.UUID
 }
 
-func (q *Queries) GetConversationMessageForUpdate(ctx context.Context, arg GetConversationMessageForUpdateParams) (ConversationMessage, error) {
-	row := q.db.QueryRow(ctx, getConversationMessageForUpdate, arg.CompanyID, arg.ID)
+func (q *Queries) GetConversationMessage(ctx context.Context, arg GetConversationMessageParams) (ConversationMessage, error) {
+	row := q.db.QueryRow(ctx, getConversationMessage, arg.CompanyID, arg.ID)
 	var i ConversationMessage
 	err := row.Scan(
 		&i.ID,
@@ -135,17 +135,17 @@ func (q *Queries) GetConversationMessageForUpdate(ctx context.Context, arg GetCo
 	return i, err
 }
 
-const getTaskFollowupForUpdate = `-- name: GetTaskFollowupForUpdate :one
-SELECT id, company_id, task_id, author_type, author_id, body, status, delivery, waiting_run_id, consumed_run_id, consumed_at, comment_id, edited_at, discarded_at, created_at FROM task_followups WHERE company_id = $1 AND id = $2 FOR UPDATE
+const getTaskFollowup = `-- name: GetTaskFollowup :one
+SELECT id, company_id, task_id, author_type, author_id, body, status, delivery, waiting_run_id, consumed_run_id, consumed_at, comment_id, edited_at, discarded_at, created_at FROM task_followups WHERE company_id = $1 AND id = $2
 `
 
-type GetTaskFollowupForUpdateParams struct {
+type GetTaskFollowupParams struct {
 	CompanyID uuid.UUID
 	ID        uuid.UUID
 }
 
-func (q *Queries) GetTaskFollowupForUpdate(ctx context.Context, arg GetTaskFollowupForUpdateParams) (TaskFollowup, error) {
-	row := q.db.QueryRow(ctx, getTaskFollowupForUpdate, arg.CompanyID, arg.ID)
+func (q *Queries) GetTaskFollowup(ctx context.Context, arg GetTaskFollowupParams) (TaskFollowup, error) {
+	row := q.db.QueryRow(ctx, getTaskFollowup, arg.CompanyID, arg.ID)
 	var i TaskFollowup
 	err := row.Scan(
 		&i.ID,
@@ -259,6 +259,20 @@ func (q *Queries) ListPendingTaskFollowups(ctx context.Context, taskID uuid.UUID
 		return nil, err
 	}
 	return items, nil
+}
+
+const setConversationMessageDelivery = `-- name: SetConversationMessageDelivery :exec
+UPDATE conversation_messages SET delivery = $1 WHERE id = $2 AND author_type = 'human' AND run_id IS NULL
+`
+
+type SetConversationMessageDeliveryParams struct {
+	Delivery string
+	ID       uuid.UUID
+}
+
+func (q *Queries) SetConversationMessageDelivery(ctx context.Context, arg SetConversationMessageDeliveryParams) error {
+	_, err := q.db.Exec(ctx, setConversationMessageDelivery, arg.Delivery, arg.ID)
+	return err
 }
 
 const steerConversationMessage = `-- name: SteerConversationMessage :one
