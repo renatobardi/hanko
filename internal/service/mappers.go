@@ -102,6 +102,15 @@ func runFromRow(r store.Run) domain.Run {
 		c := int(*r.ExitCode)
 		run.ExitCode = &c
 	}
+	run.ContinuationOfRunID, run.ContinuationAttempt = r.ContinuationOfRunID, int(r.ContinuationAttempt)
+	run.ContinuationReason = domain.ContinuationReason(r.ContinuationReason)
+	run.DecisionPending, run.Decision, run.DecisionNote, run.DecidedAt = r.DecisionPending, domain.RunDecision(r.Decision), r.DecisionNote, r.DecidedAt
+	if len(r.Diagnosis) > 0 {
+		var d domain.RunDiagnosis
+		if json.Unmarshal(r.Diagnosis, &d) == nil {
+			run.Diagnosis = &d
+		}
+	}
 	return run
 }
 

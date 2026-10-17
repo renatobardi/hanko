@@ -13,7 +13,7 @@ import (
 )
 
 const activeRunForConversation = `-- name: ActiveRunForConversation :one
-SELECT id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv FROM runs WHERE conversation_id = $1 AND status IN ('queued', 'running')
+SELECT id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv, continuation_of_run_id, continuation_attempt, continuation_reason, resume_pending, resume_reason, diagnosis, decision_pending, decision, decision_note, decided_by_type, decided_by_id, decided_at FROM runs WHERE conversation_id = $1 AND status IN ('queued', 'running')
 `
 
 func (q *Queries) ActiveRunForConversation(ctx context.Context, conversationID *uuid.UUID) (Run, error) {
@@ -54,6 +54,18 @@ func (q *Queries) ActiveRunForConversation(ctx context.Context, conversationID *
 		&i.WorkspaceSource,
 		&i.ConversationID,
 		&i.SearchTsv,
+		&i.ContinuationOfRunID,
+		&i.ContinuationAttempt,
+		&i.ContinuationReason,
+		&i.ResumePending,
+		&i.ResumeReason,
+		&i.Diagnosis,
+		&i.DecisionPending,
+		&i.Decision,
+		&i.DecisionNote,
+		&i.DecidedByType,
+		&i.DecidedByID,
+		&i.DecidedAt,
 	)
 	return i, err
 }
@@ -239,7 +251,7 @@ func (q *Queries) GetConversationView(ctx context.Context, arg GetConversationVi
 const insertConversationMessage = `-- name: InsertConversationMessage :one
 INSERT INTO conversation_messages (id, company_id, conversation_id, author_type, author_id, body, run_id, created_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-RETURNING id, company_id, conversation_id, author_type, author_id, body, run_id, created_at
+RETURNING id, company_id, conversation_id, author_type, author_id, body, run_id, created_at, edited_at, delivery
 `
 
 type InsertConversationMessageParams struct {
@@ -274,12 +286,14 @@ func (q *Queries) InsertConversationMessage(ctx context.Context, arg InsertConve
 		&i.Body,
 		&i.RunID,
 		&i.CreatedAt,
+		&i.EditedAt,
+		&i.Delivery,
 	)
 	return i, err
 }
 
 const latestRunOfConversation = `-- name: LatestRunOfConversation :one
-SELECT id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv FROM runs WHERE conversation_id = $1 AND id <> $2
+SELECT id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv, continuation_of_run_id, continuation_attempt, continuation_reason, resume_pending, resume_reason, diagnosis, decision_pending, decision, decision_note, decided_by_type, decided_by_id, decided_at FROM runs WHERE conversation_id = $1 AND id <> $2
 ORDER BY created_at DESC, id DESC LIMIT 1
 `
 
@@ -327,13 +341,25 @@ func (q *Queries) LatestRunOfConversation(ctx context.Context, arg LatestRunOfCo
 		&i.WorkspaceSource,
 		&i.ConversationID,
 		&i.SearchTsv,
+		&i.ContinuationOfRunID,
+		&i.ContinuationAttempt,
+		&i.ContinuationReason,
+		&i.ResumePending,
+		&i.ResumeReason,
+		&i.Diagnosis,
+		&i.DecisionPending,
+		&i.Decision,
+		&i.DecisionNote,
+		&i.DecidedByType,
+		&i.DecidedByID,
+		&i.DecidedAt,
 	)
 	return i, err
 }
 
 const listConversationMessages = `-- name: ListConversationMessages :many
-SELECT id, company_id, conversation_id, author_type, author_id, body, run_id, created_at FROM (
-    SELECT m.id, m.company_id, m.conversation_id, m.author_type, m.author_id, m.body, m.run_id, m.created_at FROM conversation_messages m
+SELECT id, company_id, conversation_id, author_type, author_id, body, run_id, created_at, edited_at, delivery FROM (
+    SELECT m.id, m.company_id, m.conversation_id, m.author_type, m.author_id, m.body, m.run_id, m.created_at, m.edited_at, m.delivery FROM conversation_messages m
     WHERE m.company_id = $1 AND m.conversation_id = $2
     ORDER BY m.created_at DESC, m.id DESC
     LIMIT $3
@@ -366,6 +392,8 @@ func (q *Queries) ListConversationMessages(ctx context.Context, arg ListConversa
 			&i.Body,
 			&i.RunID,
 			&i.CreatedAt,
+			&i.EditedAt,
+			&i.Delivery,
 		); err != nil {
 			return nil, err
 		}
@@ -450,7 +478,7 @@ func (q *Queries) ListConversationViews(ctx context.Context, arg ListConversatio
 }
 
 const listPendingConversationMessages = `-- name: ListPendingConversationMessages :many
-SELECT id, company_id, conversation_id, author_type, author_id, body, run_id, created_at FROM conversation_messages
+SELECT id, company_id, conversation_id, author_type, author_id, body, run_id, created_at, edited_at, delivery FROM conversation_messages
 WHERE conversation_id = $1 AND author_type = 'human' AND run_id IS NULL
 ORDER BY created_at, id
 `
@@ -474,6 +502,8 @@ func (q *Queries) ListPendingConversationMessages(ctx context.Context, conversat
 			&i.Body,
 			&i.RunID,
 			&i.CreatedAt,
+			&i.EditedAt,
+			&i.Delivery,
 		); err != nil {
 			return nil, err
 		}

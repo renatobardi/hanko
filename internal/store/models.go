@@ -150,6 +150,8 @@ type ConversationMessage struct {
 	Body           string
 	RunID          *uuid.UUID
 	CreatedAt      time.Time
+	EditedAt       *time.Time
+	Delivery       string
 }
 
 type CostNotice struct {
@@ -471,6 +473,18 @@ type Run struct {
 	WorkspaceSource     string
 	ConversationID      *uuid.UUID
 	SearchTsv           interface{}
+	ContinuationOfRunID *uuid.UUID
+	ContinuationAttempt int32
+	ContinuationReason  string
+	ResumePending       bool
+	ResumeReason        string
+	Diagnosis           []byte
+	DecisionPending     bool
+	Decision            string
+	DecisionNote        string
+	DecidedByType       *string
+	DecidedByID         *uuid.UUID
+	DecidedAt           *time.Time
 }
 
 type RunEvent struct {
@@ -576,6 +590,24 @@ type TaskComment struct {
 	CreatedAt  time.Time
 	Anchor     []byte
 	SearchTsv  interface{}
+}
+
+type TaskFollowup struct {
+	ID            uuid.UUID
+	CompanyID     uuid.UUID
+	TaskID        uuid.UUID
+	AuthorType    string
+	AuthorID      *uuid.UUID
+	Body          string
+	Status        string
+	Delivery      string
+	WaitingRunID  *uuid.UUID
+	ConsumedRunID *uuid.UUID
+	ConsumedAt    *time.Time
+	CommentID     *uuid.UUID
+	EditedAt      *time.Time
+	DiscardedAt   *time.Time
+	CreatedAt     time.Time
 }
 
 type User struct {
