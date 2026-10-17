@@ -16,15 +16,15 @@ type PluginCardVM struct {
 	// Enabled: ligado nesta empresa; Active: ligado e atendendo.
 	Enabled, Active bool
 	// ToggleHref liga/desliga nesta empresa; Href é o detalhe.
-	ToggleHref, Href string
+	ToggleHref, Href             string
 	Tools, Widgets, Jobs, Events int
 	LastError                    string
 	// Atualização pendente: a versão e as capacidades a mais.
 	PendingVersion string
 	PendingCaps    []PluginCap
 	// Ações do dono da instalação (POST <OwnerBase>/<ação>); vazio = quem vê não é o dono.
-	OwnerBase                     string
-	CanSuspend, CanResume, CanFix bool
+	OwnerBase             string
+	CanSuspend, CanResume bool
 }
 
 // AvailablePluginVM é um diretório de HANKO_PLUGINS_DIR.

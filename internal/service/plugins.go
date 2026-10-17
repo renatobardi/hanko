@@ -447,7 +447,7 @@ func (s *Service) probePlugin(ctx context.Context, p domain.Plugin) domain.Plugi
 
 // setPluginStatus grava a transição, se permitida a partir do estado atual no banco. Devolve o plugin como ficou.
 func (s *Service) setPluginStatus(ctx context.Context, p domain.Plugin, to domain.PluginStatus, lastErr string) domain.Plugin {
-	var out domain.Plugin = p
+	out := p
 	err := s.withTx(ctx, func(t *txc) error {
 		cur, err := t.q.GetPluginForUpdate(t.ctx, p.ID)
 		if err != nil {

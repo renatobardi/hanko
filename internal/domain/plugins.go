@@ -70,7 +70,9 @@ var pluginTransitions = map[PluginStatus][]PluginStatus{
 func (s PluginStatus) Valid() bool { _, ok := pluginTransitions[s]; return ok }
 
 // CanBecome informa se a transição s → to é permitida.
-func (s PluginStatus) CanBecome(to PluginStatus) bool { return slices.Contains(pluginTransitions[s], to) }
+func (s PluginStatus) CanBecome(to PluginStatus) bool {
+	return slices.Contains(pluginTransitions[s], to)
+}
 
 // Active: o plugin atende as empresas ligadas (tools, eventos, widgets e jobs). Num upgrade pendente o plugin
 // continua atendendo com o manifesto e as capacidades já aprovados.
@@ -83,16 +85,16 @@ func (s PluginStatus) WantsProcess() bool { return s.Active() || s == PluginErro
 // Capacidades que um plugin pode pedir. O host recusa qualquer chamada fora das concedidas. Decidir gate,
 // mexer em orçamento, autenticação, ler segredos do Hanko e acessar o banco não existem como capacidade.
 const (
-	CapTasksRead      = "tasks.read"
-	CapTasksWrite     = "tasks.write"
-	CapPersonasRead   = "personas.read"
-	CapProjectsRead   = "projects.read"
-	CapActivityRead   = "activity.read"
+	CapTasksRead       = "tasks.read"
+	CapTasksWrite      = "tasks.write"
+	CapPersonasRead    = "personas.read"
+	CapProjectsRead    = "projects.read"
+	CapActivityRead    = "activity.read"
 	CapEventsSubscribe = "events.subscribe"
-	CapAgentTools     = "agent.tools"
-	CapWidgets        = "widgets"
-	CapJobs           = "jobs"
-	CapState          = "state"
+	CapAgentTools      = "agent.tools"
+	CapWidgets         = "widgets"
+	CapJobs            = "jobs"
+	CapState           = "state"
 	// CapHTTPOutbound é declarativa: avisa o operador que o plugin fala com a rede. O Hanko não tem como
 	// impedir rede de um processo; quem quiser isola o processo (container, firewall).
 	CapHTTPOutbound = "http.outbound"

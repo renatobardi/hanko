@@ -297,4 +297,3 @@ func (e *env) pluginCmd() *cobra.Command {
 	c.AddCommand(list, install, enable, disable, upgrade, uninstall, logs, config)
 	return c
 }
-

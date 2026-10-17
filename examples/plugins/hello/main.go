@@ -211,9 +211,9 @@ func onEvent(p *peer, m message) {
 
 func executeTool(p *peer, m message) {
 	var in struct {
-		Company   company `json:"company"`
+		Company   company               `json:"company"`
 		Persona   struct{ Slug string } `json:"persona"`
-		Tool      string `json:"tool"`
+		Tool      string                `json:"tool"`
 		Arguments struct {
 			Text string `json:"text"`
 		} `json:"arguments"`

@@ -62,7 +62,7 @@ func NewPluginsFake() *PluginsFake {
 	f.Installed = []service.PluginView{{Plugin: domain.Plugin{ID: ID("plugin:hello"), Key: "hello", Version: m.Version, APIVersion: 1, Manifest: m,
 		Dir: "/srv/plugins/hello", Status: domain.PluginReady, GrantedCapabilities: m.Capabilities, PendingCapabilities: []string{},
 		InstalledAt: now, UpdatedAt: now}, Companies: 1, Process: plugin.Status{Running: true, Ready: true, PID: 4242, StartedAt: &started, Restarts: 1}}}
-	f.Settings["hello"] = &PluginSetting{Enabled: true, Config: map[string]any{"greeting": "Oi"}, Secrets: map[string]string{"api_token": "SEGREDO-UI"}}
+	f.Settings["hello"] = &PluginSetting{Enabled: true, Config: map[string]any{"greeting": "Oi"}, Secrets: map[string]string{"api_token": "SEGREDO-UI"}} //nolint:gosec // valor fictício de teste
 	other := domain.PluginManifest{ID: "relatorios", APIVersion: 1, Version: "0.2.0", Name: "Relatórios", Description: "Resumo semanal.",
 		Command: "bin/rel", Capabilities: []string{domain.CapTasksRead, domain.CapHTTPOutbound}}
 	f.Available = []service.AvailablePlugin{{Key: "hello", Dir: "/srv/plugins/hello", Manifest: &m, Installed: "1.0.0"},

@@ -441,4 +441,3 @@ func TestEnvAllowlist(t *testing.T) {
 		t.Fatal("proxy não passou com http.outbound")
 	}
 }
-

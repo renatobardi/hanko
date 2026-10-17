@@ -214,7 +214,7 @@ func pluginClip(v string, n int) string {
 
 // pluginFail volta para a lista com o erro do service (formulários sem htmx) ou o devolve no #flash (htmx).
 func (s *server) pluginFail(w http.ResponseWriter, r *http.Request, co domain.Company, back string, err error) {
-	if isHX(r) || !(errors.Is(err, domain.ErrInvalid) || errors.Is(err, domain.ErrConflict)) {
+	if isHX(r) || !errors.Is(err, domain.ErrInvalid) && !errors.Is(err, domain.ErrConflict) {
 		s.fail(w, r, &co, err)
 		return
 	}

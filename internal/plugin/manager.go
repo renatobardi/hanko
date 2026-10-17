@@ -515,7 +515,7 @@ func (p *proc) runOnce() error {
 	if waitErr != nil {
 		var ee *exec.ExitError
 		if errors.As(waitErr, &ee) {
-			return fmt.Errorf("o processo saiu: %s", ee.ProcessState.String())
+			return fmt.Errorf("o processo saiu: %s", ee.String())
 		}
 		return fmt.Errorf("o processo saiu: %w", waitErr)
 	}
