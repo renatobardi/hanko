@@ -133,7 +133,7 @@ func (t *txc) recordHeldWake(companyID, taskID, personaID domain.ID, trigger dom
 
 // ---------- relações da task ----------
 
-func refOf(id domain.ID, number int64, prefix, title, status string, persona *domain.ID) domain.TaskRef {
+func taskRefOf(id domain.ID, number int64, prefix, title, status string, persona *domain.ID) domain.TaskRef {
 	return domain.TaskRef{ID: id, Key: domain.TaskKey(prefix, number), Title: title, Status: domain.TaskStatus(status), PersonaID: persona}
 }
 
@@ -149,28 +149,28 @@ func loadRelations(ctx context.Context, q *store.Queries, companyID, taskID doma
 		return rel, fmt.Errorf("task ancestors: %w", err)
 	}
 	for _, a := range anc {
-		rel.Ancestors = append(rel.Ancestors, refOf(a.ID, a.Number, a.TaskPrefix, a.Title, a.Status, a.PersonaID))
+		rel.Ancestors = append(rel.Ancestors, taskRefOf(a.ID, a.Number, a.TaskPrefix, a.Title, a.Status, a.PersonaID))
 	}
 	kids, err := q.ListTaskChildren(ctx, store.ListTaskChildrenParams{CompanyID: companyID, ParentID: &taskID})
 	if err != nil {
 		return rel, fmt.Errorf("task children: %w", err)
 	}
 	for _, k := range kids {
-		rel.Children = append(rel.Children, depView(refOf(k.ID, k.Number, k.TaskPrefix, k.Title, k.Status, k.PersonaID), k.PersonaName))
+		rel.Children = append(rel.Children, depView(taskRefOf(k.ID, k.Number, k.TaskPrefix, k.Title, k.Status, k.PersonaID), k.PersonaName))
 	}
 	deps, err := q.ListTaskDependencies(ctx, taskID)
 	if err != nil {
 		return rel, fmt.Errorf("task dependencies: %w", err)
 	}
 	for _, d := range deps {
-		rel.DependsOn = append(rel.DependsOn, depView(refOf(d.ID, d.Number, d.TaskPrefix, d.Title, d.Status, d.PersonaID), d.PersonaName))
+		rel.DependsOn = append(rel.DependsOn, depView(taskRefOf(d.ID, d.Number, d.TaskPrefix, d.Title, d.Status, d.PersonaID), d.PersonaName))
 	}
 	dts, err := q.ListTaskDependents(ctx, taskID)
 	if err != nil {
 		return rel, fmt.Errorf("task dependents: %w", err)
 	}
 	for _, d := range dts {
-		rel.Dependents = append(rel.Dependents, depView(refOf(d.ID, d.Number, d.TaskPrefix, d.Title, d.Status, d.PersonaID), d.PersonaName))
+		rel.Dependents = append(rel.Dependents, depView(taskRefOf(d.ID, d.Number, d.TaskPrefix, d.Title, d.Status, d.PersonaID), d.PersonaName))
 	}
 	return rel, nil
 }

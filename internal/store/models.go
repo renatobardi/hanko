@@ -94,6 +94,74 @@ type BudgetAlert struct {
 	CreatedAt time.Time
 }
 
+type Case struct {
+	ID                 uuid.UUID
+	CompanyID          uuid.UUID
+	Number             int64
+	CaseType           string
+	Key                *string
+	Title              string
+	Summary            string
+	Fields             []byte
+	Status             string
+	PipelineID         *uuid.UUID
+	StageID            *uuid.UUID
+	ParentCaseID       *uuid.UUID
+	ProjectID          *uuid.UUID
+	Version            int32
+	PendingSuggestion  []byte
+	ApprovedVersion    *int32
+	ReapprovalRequired bool
+	Attention          *string
+	AttentionAt        *time.Time
+	TerminalKind       *string
+	TerminalAt         *time.Time
+	ChildCount         int32
+	TerminalChildCount int32
+	OriginRunID        *uuid.UUID
+	CreatedByType      string
+	CreatedByID        *uuid.UUID
+	CompletedAt        *time.Time
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+}
+
+type CaseBlocker struct {
+	CaseID        uuid.UUID
+	BlockerCaseID uuid.UUID
+	CompanyID     uuid.UUID
+	CreatedAt     time.Time
+	ResolvedAt    *time.Time
+}
+
+type CaseEvent struct {
+	ID          uuid.UUID
+	CompanyID   uuid.UUID
+	CaseID      uuid.UUID
+	Kind        string
+	FromStageID *uuid.UUID
+	ToStageID   *uuid.UUID
+	ActorType   string
+	ActorID     *uuid.UUID
+	RunID       *uuid.UUID
+	Payload     []byte
+	CreatedAt   time.Time
+}
+
+type CaseSequence struct {
+	CompanyID  uuid.UUID
+	LastNumber int64
+}
+
+type CaseTaskLink struct {
+	CaseID         uuid.UUID
+	TaskID         uuid.UUID
+	CompanyID      uuid.UUID
+	Role           string
+	CreatedByRunID *uuid.UUID
+	CreatedAt      time.Time
+}
+
 type Company struct {
 	ID                 uuid.UUID
 	Slug               string
@@ -132,7 +200,7 @@ type CompanyMember struct {
 type Conversation struct {
 	ID            uuid.UUID
 	CompanyID     uuid.UUID
-	PersonaID     uuid.UUID
+	PersonaID     *uuid.UUID
 	Title         string
 	Status        string
 	CreatedByType string
@@ -140,6 +208,8 @@ type Conversation struct {
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 	LastMessageAt time.Time
+	Kind          string
+	RoomSettings  []byte
 }
 
 type ConversationMessage struct {
@@ -151,6 +221,30 @@ type ConversationMessage struct {
 	Body           string
 	RunID          *uuid.UUID
 	CreatedAt      time.Time
+	PersonaID      *uuid.UUID
+	ReplyToID      *uuid.UUID
+	Mentions       []uuid.UUID
+}
+
+type ConversationMessageRun struct {
+	CompanyID       uuid.UUID
+	ConversationID  uuid.UUID
+	MessageID       uuid.UUID
+	PersonaID       uuid.UUID
+	RunID           *uuid.UUID
+	OriginMessageID uuid.UUID
+	Hop             int32
+	CreatedAt       time.Time
+}
+
+type ConversationParticipant struct {
+	CompanyID      uuid.UUID
+	ConversationID uuid.UUID
+	PersonaID      uuid.UUID
+	AddedAt        time.Time
+	AddedByType    string
+	AddedByID      *uuid.UUID
+	RemovedAt      *time.Time
 }
 
 type CostNotice struct {
@@ -158,6 +252,55 @@ type CostNotice struct {
 	Model     string
 	Month     string
 	CreatedAt time.Time
+}
+
+type DecisionExample struct {
+	ID              uuid.UUID
+	CompanyID       uuid.UUID
+	SourceKind      string
+	SourceID        uuid.UUID
+	TaskID          *uuid.UUID
+	CaseID          *uuid.UUID
+	CutoffAt        time.Time
+	DecisionOutcome string
+	Notes           string
+	NotesHistory    []byte
+	Snapshot        []byte
+	CreatedByUserID *uuid.UUID
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
+type Environment struct {
+	ID              uuid.UUID
+	CompanyID       uuid.UUID
+	Slug            string
+	Name            string
+	Description     string
+	Driver          string
+	Status          string
+	Config          []byte
+	SecretEnc       string
+	IsDefault       bool
+	LastProbeAt     *time.Time
+	LastProbeOk     pgtype.Bool
+	LastProbeReport []byte
+	CreatedByType   string
+	CreatedByID     *uuid.UUID
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
+type EnvironmentLease struct {
+	ID            uuid.UUID
+	CompanyID     uuid.UUID
+	EnvironmentID uuid.UUID
+	RunID         uuid.UUID
+	Status        string
+	RemoteDir     string
+	AcquiredAt    time.Time
+	ReleasedAt    *time.Time
+	FailureReason string
 }
 
 type Flow struct {
@@ -282,6 +425,35 @@ type IntegrationPersona struct {
 	PersonaID     uuid.UUID
 }
 
+type IntegrationTool struct {
+	ID             uuid.UUID
+	CompanyID      uuid.UUID
+	IntegrationID  uuid.UUID
+	Name           string
+	Title          string
+	Description    string
+	InputSchema    []byte
+	Annotations    []byte
+	SchemaSha256   string
+	Risk           string
+	Status         string
+	FirstSeenAt    time.Time
+	LastSeenAt     time.Time
+	ReviewedByType *string
+	ReviewedByID   *uuid.UUID
+	ReviewedAt     *time.Time
+	UpdatedAt      time.Time
+}
+
+type IntegrationToolCatalog struct {
+	IntegrationID uuid.UUID
+	CompanyID     uuid.UUID
+	SyncedAt      *time.Time
+	LastError     string
+	ToolsCount    int32
+	UpdatedAt     time.Time
+}
+
 type MemoryConsolidation struct {
 	ID            uuid.UUID
 	CompanyID     uuid.UUID
@@ -400,13 +572,109 @@ type Persona struct {
 	ReviewerModel        string
 	SearchTsv            interface{}
 	Icon                 string
+	EnvironmentID        *uuid.UUID
 }
 
 type PersonaSkill struct {
+	CompanyID      uuid.UUID
+	PersonaID      uuid.UUID
+	SkillID        uuid.UUID
+	Enabled        bool
+	UpdatedAt      time.Time
+	PinnedRevision *int32
+}
+
+type Pipeline struct {
+	ID                 uuid.UUID
+	CompanyID          uuid.UUID
+	ProjectID          *uuid.UUID
+	Key                string
+	Name               string
+	Description        string
+	EnforceTransitions bool
+	ArchivedAt         *time.Time
+	CreatedByType      string
+	CreatedByID        *uuid.UUID
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+}
+
+type PipelineStage struct {
+	ID         uuid.UUID
+	CompanyID  uuid.UUID
+	PipelineID uuid.UUID
+	Key        string
+	Name       string
+	Position   int32
+	Kind       string
+	Config     []byte
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+}
+
+type PipelineTransition struct {
+	ID          uuid.UUID
+	CompanyID   uuid.UUID
+	PipelineID  uuid.UUID
+	FromStageID uuid.UUID
+	ToStageID   uuid.UUID
+	Label       string
+}
+
+type Plugin struct {
+	ID                  uuid.UUID
+	PluginKey           string
+	Version             string
+	ApiVersion          int32
+	Manifest            []byte
+	Dir                 string
+	Status              string
+	GrantedCapabilities []string
+	PendingCapabilities []string
+	PendingManifest     []byte
+	Events              []string
+	LastError           string
+	InstalledBy         *uuid.UUID
+	InstalledAt         time.Time
+	UpdatedAt           time.Time
+}
+
+type PluginCompanySetting struct {
+	PluginID  uuid.UUID
 	CompanyID uuid.UUID
-	PersonaID uuid.UUID
-	SkillID   uuid.UUID
 	Enabled   bool
+	Config    []byte
+	SecretEnc string
+	UpdatedBy *uuid.UUID
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+type PluginJobRun struct {
+	ID         uuid.UUID
+	PluginID   uuid.UUID
+	CompanyID  uuid.UUID
+	JobKey     string
+	Status     string
+	StartedAt  time.Time
+	FinishedAt *time.Time
+	Error      string
+}
+
+type PluginLog struct {
+	ID        uuid.UUID
+	PluginID  uuid.UUID
+	CompanyID *uuid.UUID
+	Level     string
+	Message   string
+	CreatedAt time.Time
+}
+
+type PluginState struct {
+	PluginID  uuid.UUID
+	CompanyID uuid.UUID
+	Key       string
+	Value     []byte
 	UpdatedAt time.Time
 }
 
@@ -529,19 +797,181 @@ type Session struct {
 }
 
 type Skill struct {
+	ID             uuid.UUID
+	CompanyID      uuid.UUID
+	Slug           string
+	Name           string
+	Description    string
+	Body           string
+	Version        int32
+	CreatedByType  string
+	CreatedByID    *uuid.UUID
+	UpdatedByType  string
+	UpdatedByID    *uuid.UUID
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	SourceID       *uuid.UUID
+	SourcePath     string
+	SourceCommit   *string
+	SourceModified bool
+}
+
+type SkillSource struct {
 	ID            uuid.UUID
 	CompanyID     uuid.UUID
-	Slug          string
-	Name          string
-	Description   string
-	Body          string
-	Version       int32
+	Url           string
+	TrackingRef   string
+	PathPrefix    string
+	ExcludedPaths []string
+	AutoUpdate    bool
+	ImportNew     bool
+	Enabled       bool
+	LastCommit    *string
+	LastTreeHash  *string
+	Status        string
+	LastError     string
+	FailureCount  int32
+	NextSyncAt    *time.Time
+	LastAttemptAt *time.Time
+	LastSuccessAt *time.Time
 	CreatedByType string
 	CreatedByID   *uuid.UUID
-	UpdatedByType string
-	UpdatedByID   *uuid.UUID
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
+}
+
+type SkillSourceEntry struct {
+	ID          uuid.UUID
+	CompanyID   uuid.UUID
+	SourceID    uuid.UUID
+	Path        string
+	Name        string
+	Description string
+	SkillID     *uuid.UUID
+	Selection   string
+	Present     bool
+	HasScripts  bool
+	Error       string
+	UpdatedAt   time.Time
+}
+
+type SkillTestInput struct {
+	ID            uuid.UUID
+	CompanyID     uuid.UUID
+	SkillID       uuid.UUID
+	Name          string
+	Content       string
+	CreatedByType string
+	CreatedByID   *uuid.UUID
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
+type SkillTestRun struct {
+	ID            uuid.UUID
+	CompanyID     uuid.UUID
+	SkillID       uuid.UUID
+	SkillRevision int32
+	InputID       *uuid.UUID
+	Input         string
+	PersonaID     uuid.UUID
+	TaskID        *uuid.UUID
+	RunID         *uuid.UUID
+	Status        string
+	Output        string
+	Error         string
+	CreatedByType string
+	CreatedByID   *uuid.UUID
+	CreatedAt     time.Time
+	FinishedAt    *time.Time
+}
+
+type SkillVersion struct {
+	ID           uuid.UUID
+	CompanyID    uuid.UUID
+	SkillID      uuid.UUID
+	Revision     int32
+	Name         string
+	Description  string
+	Body         string
+	Sha256       string
+	SourceCommit *string
+	AuthorType   string
+	AuthorID     *uuid.UUID
+	CreatedAt    time.Time
+}
+
+type StatusCard struct {
+	ID                    uuid.UUID
+	CompanyID             uuid.UUID
+	Title                 string
+	TitlePinned           bool
+	Interest              string
+	InterestHash          string
+	SummarizerPersonaID   *uuid.UUID
+	Queries               []byte
+	QueryVersion          int32
+	QueryCompiledAt       *time.Time
+	RefreshPolicy         []byte
+	State                 string
+	PendingChangeCount    int32
+	PendingChangeHash     string
+	LastChangeAt          *time.Time
+	Fingerprint           []byte
+	FingerprintAt         *time.Time
+	MentionedTaskIds      []uuid.UUID
+	Summary               string
+	SummaryRevision       int32
+	SummaryQueryVersion   int32
+	IncrementalsSinceFull int32
+	LastUpdateKind        *string
+	LastGeneratedAt       *time.Time
+	LastModel             string
+	GeneratingTaskID      *uuid.UUID
+	GeneratingSince       *time.Time
+	FailureReason         string
+	NextEvalAt            *time.Time
+	ArchivedAt            *time.Time
+	CreatedByType         string
+	CreatedByID           *uuid.UUID
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
+}
+
+type StatusCardRevision struct {
+	ID               uuid.UUID
+	CompanyID        uuid.UUID
+	CardID           uuid.UUID
+	Revision         int32
+	Markdown         string
+	ChangeSummary    string
+	Kind             string
+	RunID            *uuid.UUID
+	Model            string
+	MentionedTaskIds []uuid.UUID
+	CreatedAt        time.Time
+}
+
+type StatusCardUpdate struct {
+	ID            uuid.UUID
+	CompanyID     uuid.UUID
+	CardID        uuid.UUID
+	Kind          string
+	Trigger       string
+	TaskID        *uuid.UUID
+	RunID         *uuid.UUID
+	Changes       []byte
+	Fingerprint   []byte
+	InputTokens   int64
+	OutputTokens  int64
+	CostUsd       *float64
+	Model         string
+	QueryVersion  int32
+	ChangeSummary string
+	StartedAt     time.Time
+	FinishedAt    *time.Time
+	Status        string
+	Error         string
 }
 
 type Subscription struct {
@@ -638,6 +1068,107 @@ type TaskReviewOverride struct {
 	UpdatedByType     string
 	UpdatedByID       *uuid.UUID
 	UpdatedAt         time.Time
+}
+
+type ToolCallApproval struct {
+	ID            uuid.UUID
+	CompanyID     uuid.UUID
+	GateID        uuid.UUID
+	IntegrationID uuid.UUID
+	Tool          string
+	ArgsSha256    string
+	RunID         *uuid.UUID
+	TaskID        *uuid.UUID
+	PersonaID     *uuid.UUID
+	GatewayID     *uuid.UUID
+	ConsumedAt    *time.Time
+	CreatedAt     time.Time
+}
+
+type ToolGateway struct {
+	ID            uuid.UUID
+	CompanyID     uuid.UUID
+	Slug          string
+	Name          string
+	ProfileID     uuid.UUID
+	Enabled       bool
+	CreatedByType string
+	CreatedByID   *uuid.UUID
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
+type ToolGatewayToken struct {
+	ID            uuid.UUID
+	CompanyID     uuid.UUID
+	GatewayID     uuid.UUID
+	Label         string
+	Prefix        string
+	TokenHash     string
+	Actions       []string
+	ExpiresAt     time.Time
+	LastUsedAt    *time.Time
+	RevokedAt     *time.Time
+	CreatedByType string
+	CreatedByID   *uuid.UUID
+	CreatedAt     time.Time
+}
+
+type ToolInvocation struct {
+	ID              uuid.UUID
+	CompanyID       uuid.UUID
+	RunID           *uuid.UUID
+	GatewayID       *uuid.UUID
+	PersonaID       *uuid.UUID
+	IntegrationID   *uuid.UUID
+	IntegrationSlug string
+	Tool            string
+	ArgsSha256      string
+	ArgsBytes       int32
+	Decision        string
+	GateID          *uuid.UUID
+	Status          string
+	LatencyMs       int32
+	Error           string
+	CreatedAt       time.Time
+}
+
+type ToolProfile struct {
+	ID              uuid.UUID
+	CompanyID       uuid.UUID
+	Slug            string
+	Name            string
+	Description     string
+	DefaultAction   string
+	RateLimitPerMin int32
+	CreatedByType   string
+	CreatedByID     *uuid.UUID
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
+type ToolProfileBinding struct {
+	ID        uuid.UUID
+	CompanyID uuid.UUID
+	ProfileID uuid.UUID
+	Scope     string
+	ProjectID *uuid.UUID
+	PersonaID *uuid.UUID
+	Priority  int32
+	CreatedAt time.Time
+}
+
+type ToolProfileRule struct {
+	ID            uuid.UUID
+	CompanyID     uuid.UUID
+	ProfileID     uuid.UUID
+	Target        string
+	IntegrationID *uuid.UUID
+	ToolName      string
+	Risk          string
+	Effect        string
+	Mode          string
+	CreatedAt     time.Time
 }
 
 type User struct {

@@ -1,0 +1,35 @@
+{
+  "id": "hello",
+  "api_version": 1,
+  "version": "1.0.0",
+  "name": "Hello",
+  "description": "Plugin de exemplo: uma tool que ecoa texto, um comentário em cada task nova, um widget no Painel e um job periódico.",
+  "author": "Hanko",
+  "homepage": "https://hanko.oute.pro",
+  "command": "hello",
+  "capabilities": ["tasks.read", "tasks.write", "events.subscribe", "agent.tools", "widgets", "jobs", "state"],
+  "config_schema": {
+    "type": "object",
+    "required": ["greeting"],
+    "properties": {
+      "greeting": {"type": "string", "title": "Saudação", "description": "Usada na tool e nos comentários.", "default": "Olá"},
+      "comment_new_tasks": {"type": "boolean", "title": "Comentar tasks novas", "default": true},
+      "api_token": {"type": "string", "title": "Token de exemplo", "description": "Só para mostrar um campo secreto; o plugin nunca o imprime.", "secret": true}
+    }
+  },
+  "tools": [
+    {
+      "name": "hello_echo",
+      "description": "Devolve o texto recebido com a saudação configurada. Útil para testar a ligação entre a persona e o plugin.",
+      "input_schema": {"type": "object", "properties": {"text": {"type": "string", "description": "texto a ecoar"}}, "required": ["text"]}
+    }
+  ],
+  "events": ["task.created"],
+  "widgets": [
+    {"key": "resumo", "title": "Hello: resumo", "placement": "dashboard"},
+    {"key": "task", "title": "Hello", "placement": "task"}
+  ],
+  "jobs": [
+    {"key": "tick", "every_minutes": 5}
+  ]
+}

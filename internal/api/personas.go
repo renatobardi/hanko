@@ -67,6 +67,7 @@ type updatePersonaIn struct {
 		ClearReviewer        bool    `json:"clear_reviewer,omitempty" doc:"Remove o revisor automático."`
 		Subscription         string  `json:"subscription,omitempty" doc:"Id ou nome da assinatura que cobre as execuções da persona."`
 		ClearSubscription    bool    `json:"clear_subscription,omitempty" doc:"Desvincula a persona da assinatura."`
+		Environment          string  `json:"environment,omitempty" doc:"Ambiente de execução (id ou slug); local ou default = o padrão da empresa (ADR-0037)."`
 	}
 }
 
@@ -180,6 +181,9 @@ func (s *server) registerPersonas(api huma.API) {
 			if in.Body.Status != nil {
 				st := domain.PersonaStatus(*in.Body.Status)
 				up.Status = &st
+			}
+			if err := s.setPersonaEnvironment(ctx, sc, cur.ID, in.Body.Environment); err != nil {
+				return nil, err
 			}
 			p, err := s.svc.UpdatePersona(ctx, sc.Actor, sc.Company.ID, cur.ID, up)
 			if err != nil {

@@ -229,6 +229,7 @@ templ RunPage(sh Shell, vm RunVM) {
 							}
 						</dd>
 						<dt>{ i18n.T(ctx, "Saída") }</dt><dd>{ vm.ExitCode }</dd>
+						@RunEnvironmentRunSlot(vm)
 						<dt>ID</dt><dd>{ vm.ID }</dd>
 					</dl>
 				</section>

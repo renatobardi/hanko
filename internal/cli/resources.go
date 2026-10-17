@@ -324,6 +324,7 @@ func (e *env) personaCmd() *cobra.Command {
 		upNoSub                       bool
 		upRev, upRevAgent, upRevModel string
 		upNoRev                       bool
+		upEnv                         string
 	)
 	update := &cobra.Command{
 		Use: "update " + e.t("<persona>"), Short: e.t("Muda a quem a persona reporta, a revisão obrigatória e a assinatura"), Args: cobra.ExactArgs(1),
@@ -332,7 +333,7 @@ func (e *env) personaCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			req := client.UpdatePersonaReq{ReportsTo: upReports, ClearReportsTo: upTop, Subscription: upSub, ClearSubscription: upNoSub}
+			req := client.UpdatePersonaReq{ReportsTo: upReports, ClearReportsTo: upTop, Subscription: upSub, ClearSubscription: upNoSub, Environment: upEnv}
 			switch upReview {
 			case "":
 			case "true", "false":
@@ -352,7 +353,7 @@ func (e *env) personaCmd() *cobra.Command {
 				return usageError{errors.New(e.t("--subscription e --no-subscription não combinam"))}
 			}
 			if upReports == "" && !upTop && req.RequireReview == nil && upSub == "" && !upNoSub && upRev == "" && !upNoRev &&
-				req.ReviewerAgent == nil && req.ReviewerModel == nil {
+				req.ReviewerAgent == nil && req.ReviewerModel == nil && upEnv == "" {
 				return usageError{errors.New(e.t("nada a alterar: use --reports-to, --top, --require-review, --subscription, --no-subscription ou --reviewer/--reviewer-agent/--no-reviewer"))}
 			}
 			p, err := e.client().UpdatePersona(cmd.Context(), co, args[0], req)
@@ -376,6 +377,7 @@ func (e *env) personaCmd() *cobra.Command {
 	uf.BoolVar(&upNoRev, "no-reviewer", false, e.t("remove o revisor automático"))
 	uf.StringVar(&upSub, "subscription", "", e.t("vincula a persona a uma assinatura (id ou nome)"))
 	uf.BoolVar(&upNoSub, "no-subscription", false, e.t("desvincula a persona da assinatura"))
+	uf.StringVar(&upEnv, "environment", "", e.t("ambiente de execução (id ou slug; local = o padrão da empresa)"))
 	c.AddCommand(hire, ls, show, update)
 	return c
 }

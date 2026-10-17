@@ -316,7 +316,7 @@ func TestListTools(t *testing.T) {
 		}
 	}
 	sort.Strings(got)
-	want := []string{"hanko_artifact_put", "hanko_gate_request", "hanko_gate_status", "hanko_goal_list", "hanko_goal_update", "hanko_persona_list", "hanko_project_list", "hanko_run_get", "hanko_search", "hanko_skill_get", "hanko_skill_list", "hanko_task_comment", "hanko_task_create", "hanko_task_dependency", "hanko_task_get", "hanko_task_list", "hanko_task_update", "hanko_whoami"}
+	want := []string{"hanko_artifact_put", "hanko_gate_request", "hanko_gate_status", "hanko_goal_list", "hanko_goal_update", "hanko_persona_list", "hanko_project_list", "hanko_run_get", "hanko_search", "hanko_skill_get", "hanko_skill_list", "hanko_status_card_create", "hanko_status_card_list", "hanko_status_card_set_query", "hanko_status_card_set_summary", "hanko_task_comment", "hanko_task_create", "hanko_task_dependency", "hanko_task_get", "hanko_task_list", "hanko_task_update", "hanko_whoami"}
 	if d := cmp.Diff(want, got); d != "" {
 		t.Errorf("tools (-want +got):\n%s", d)
 	}

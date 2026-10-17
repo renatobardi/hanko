@@ -247,5 +247,6 @@ func (e *env) skillCmd() *cobra.Command {
 		toggle("enable", e.t("Habilita a skill para uma ou mais personas"), true),
 		toggle("disable", e.t("Desabilita a skill para uma ou mais personas"), false),
 		personas)
+	c.AddCommand(e.skillStudioCmds()...) // versões, fontes e estúdio (ADR-0035)
 	return c
 }

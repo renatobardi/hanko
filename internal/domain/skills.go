@@ -31,6 +31,14 @@ type Skill struct {
 	UpdatedBy   Actor     `json:"updated_by"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
+	// Origem (ADR-0035): a fonte de onde a skill veio, o diretório e o commit importados. SourceModified diz
+	// que a skill foi editada aqui depois de importada (a sincronização não a sobrescreve sem force).
+	SourceID       *ID    `json:"source_id,omitempty"`
+	SourcePath     string `json:"source_path,omitempty"`
+	SourceCommit   string `json:"source_commit,omitempty"`
+	SourceModified bool   `json:"source_modified,omitempty"`
+	// Pinned: o conteúdo é o de uma versão fixada para a persona, não o atual (só nas leituras da run).
+	Pinned bool `json:"pinned,omitempty"`
 }
 
 // MD devolve o arquivo SKILL.md: frontmatter com name (o slug, que é o nome que o harness aceita) e description,
@@ -58,6 +66,10 @@ type PersonaSkill struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
 	Enabled     bool   `json:"enabled"`
+	// Version é a versão atual da skill; PinnedRevision, quando há, é a versão fixada para a persona (ADR-0035).
+	Version        int  `json:"version"`
+	PinnedRevision *int `json:"pinned_revision,omitempty"`
+	FromSource     bool `json:"from_source,omitempty"`
 }
 
 // SkillPersona é o estado de uma persona para uma skill.
@@ -66,4 +78,6 @@ type SkillPersona struct {
 	Slug      string `json:"slug"`
 	Name      string `json:"name"`
 	Enabled   bool   `json:"enabled"`
+	// PinnedRevision é a versão fixada para a persona (nil = sempre a mais nova).
+	PinnedRevision *int `json:"pinned_revision,omitempty"`
 }

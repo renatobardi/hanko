@@ -196,9 +196,13 @@ func (t *txc) importSkillsIntegrations(cid domain.ID, doc export.Document, p ski
 	skID := map[string]domain.ID{}
 	for i, k := range doc.Skills {
 		id := domain.NewID()
-		if _, err := t.q.CreateSkill(ctx, store.CreateSkillParams{ID: id, CompanyID: cid, Slug: k.Slug, Name: p.skills[i].name,
-			Description: p.skills[i].desc, Body: p.skills[i].body, ActorType: string(domain.ActorSystem), Now: t.now}); err != nil {
+		row, err := t.q.CreateSkill(ctx, store.CreateSkillParams{ID: id, CompanyID: cid, Slug: k.Slug, Name: p.skills[i].name,
+			Description: p.skills[i].desc, Body: p.skills[i].body, ActorType: string(domain.ActorSystem), Now: t.now})
+		if err != nil {
 			return mapErr(err, "import skill "+k.Slug)
+		}
+		if err := t.recordSkillVersion(row); err != nil { // a primeira versão (ADR-0035)
+			return err
 		}
 		skID[k.Slug] = id
 	}

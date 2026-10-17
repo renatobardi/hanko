@@ -70,7 +70,7 @@ var (
 	// reservedIntegrationSlugs são as chaves do mcpServers que o Hanko usa para si.
 	reservedIntegrationSlugs = []string{"hanko", "ai-memory", "memory"}
 	// reservedUISlugs são segmentos fixos das rotas da UI que um slug de skill ou integração não pode ocupar.
-	reservedUISlugs = []string{"nova", "preview"}
+	reservedUISlugs = []string{"nova", "preview", "fontes", "estudio"} // fontes/estudio: abas de Skills (ADR-0035)
 )
 
 // integrationSecrets é o conteúdo cifrado: o que nunca sai do servidor.
@@ -903,7 +903,14 @@ func (s *Service) RekeyIntegrationSecrets(ctx context.Context) (int, error) {
 		}
 		n++
 	}
-	return n, nil
+	// os segredos dos plugins (ADR-0038) e dos ambientes de execução (ADR-0037) usam o mesmo cofre
+	m, err := s.rekeyPluginSecrets(ctx)
+	if err != nil {
+		return n + m, err
+	}
+	e, err := s.rekeyEnvironmentSecrets(ctx)
+	m += e
+	return n + m, err
 }
 
 // redactSecrets mascara em texto livre os segredos da integração e os padrões conhecidos de credencial.

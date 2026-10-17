@@ -427,6 +427,7 @@ Configuração do operador (a empresa não consegue ligar sozinha):
 | `HANKO_SECRET_KEY_PREVIOUS` | vazio | Chave anterior, só durante a rotação. |
 | `HANKO_INTEGRATIONS_ALLOW_STDIO` | `false` | Libera servidores MCP `stdio`, que executam um comando **na máquina do servidor**. |
 | `HANKO_INTEGRATIONS_ALLOW_PRIVATE` | `false` | Libera webhooks e testes de conexão para loopback, link-local e redes privadas (sem isso, bloqueio SSRF). |
+| `HANKO_SKILL_SOURCES` | `false` | Liga as fontes git de skills (ADR-0035): o servidor clona repositórios públicos por https com o `git` do PATH. Hosts internos só com `HANKO_INTEGRATIONS_ALLOW_PRIVATE`. |
 
 **Gerar a chave:** `openssl rand -hex 32`. Guarde-a junto com o `HANKO_SECRET` e no backup do operador; perder a chave perde os
 segredos guardados (as integrações ficam, sem credenciais, e é só informá-los de novo).
@@ -537,6 +538,27 @@ hanko chat list --persona cto
   então `hanko_gate_request` exige o argumento `task`.
 - Ver o raciocínio de uma resposta: abra o link "execução" da mensagem (log ao vivo da run).
 
+## Sala com várias personas
+
+Uma conversa com várias personas ao mesmo tempo (ADR-0033). Na UI: **Sala** no menu (`/c/{empresa}/sala`). Na CLI:
+
+```
+hanko room create --persona cto,pm,design "Planejar a semana"   # abre a sala (2 a 12 personas)
+hanko room say 01a14700 "@cto qual o risco da migração?"          # envia, espera as respostas e as imprime
+hanko room set 01a14700 --mode all --max-hops 1                   # todas respondem; uma persona chama no máximo uma outra
+hanko room add 01a14700 cfo; hanko room remove 01a14700 design
+```
+
+- Quem responde: as personas citadas com `@slug`; sem citação, a **moderadora** (modo `mentions`, o padrão) ou todas (modo `all`).
+  Cada resposta é uma run com o gatilho `chat`, no orçamento da persona e da empresa e na trava semanal.
+- Uma persona pausada, sem orçamento ou com a trava atingida não derruba as outras: a sala mostra "Fulana não vai responder: motivo".
+  Se ninguém pode responder, a mensagem é recusada com o motivo (409 na API).
+- Uma persona que cita outra na resposta a acorda. O freio: `max_hops` (padrão 2 saltos a partir da sua mensagem) e
+  `max_runs_per_message` (padrão = número de personas). Passou do limite, a sala avisa e ninguém mais roda; cite de novo numa
+  mensagem sua para continuar.
+- Mensagens para uma persona que está respondendo esperam a run dela terminar (até 20) e entram juntas na próxima.
+- O painel **Feed do time** ao lado mostra a atividade recente da empresa (atualiza a cada 10 s).
+
 ## Artefatos e metas
 
 **Artefatos** (ADR-0028) são arquivos com versões imutáveis: o mesmo nome na mesma task cria a versão seguinte; publicar o mesmo
@@ -595,3 +617,61 @@ caracteres de formatação Unicode). Pontos de operação:
   ("a busca demorou demais; use palavras mais específicas"). A última palavra só casa por prefixo com 2+ letras (3+ em comentários).
 - **Memória na busca.** O grupo "Memória" só aparece se o servidor de memória lista a tool `memory_query` (lido de `tools/list`, com
   cache de 5 min). Sem ela o grupo some e o log registra um aviso uma única vez; a consolidação (ADR-0030) não depende dessa tool.
+
+## Plugins de terceiros (ADR-0038)
+
+- Desligados até `HANKO_PLUGINS_DIR` apontar para um diretório local (um subdiretório por plugin, com o nome do
+  `id`). Diretórios de trabalho em `HANKO_PLUGINS_DATA_DIR` (padrão `$HOME/hanko-data`); inclua-o no backup se os
+  plugins guardarem arquivos lá. Protocolo e exemplo: `docs/PLUGINS.md`.
+- Instalar, atualizar, aprovar capacidades e desinstalar: dono da instalação (Configurações › Plugins ou
+  `hanko plugin …`). Cada plugin roda como processo filho, com ambiente mínimo e sem acesso ao banco; o Hanko não
+  impede rede (`http.outbound` é só declarado). Para isolar de verdade, rode o Hanko num container sem o `.env`.
+- Plugin com erro: `hanko plugin logs <id>` mostra estado, PID, reinícios, último erro e o stderr. O gerenciador
+  reinicia sozinho com backoff (até 5 min entre tentativas); `hanko plugin disable <id> --global` para o processo
+  sem perder a configuração das empresas.
+- Segredos de plugin usam `HANKO_SECRET_KEY` e entram na rotação (`hanko integration rekey`).
+## Ambientes de execução remotos (ADR-0037)
+
+Por padrão toda execução é um processo filho deste servidor (o ambiente **local**). Um admin pode cadastrar, em
+Configurações › Ambientes (ou `hanko env create`), ambientes **SSH** (um host remoto) e **sandbox** (um contêiner por execução),
+escolher o padrão da empresa e o ambiente de cada persona. Cada driver só existe se o operador o ligar:
+
+| Variável | Padrão | Efeito |
+|---|---|---|
+| `HANKO_ENV_SSH_ALLOW_HOSTS` | vazio | Hosts liberados para SSH: exatos (`build.exemplo.com`), sufixos (`.exemplo.com`, `*.exemplo.com`), IPs, CIDR (só para hosts informados como IP) ou `*`. Vazio = SSH desligado. |
+| `HANKO_ENV_SANDBOX` | vazio | `docker` liga o sandbox (precisa do binário `docker` no PATH e acesso ao daemon). |
+| `HANKO_ENV_SANDBOX_HOST_ROOT` | vazio | Hanko dentro de contêiner com o socket do docker do host: o caminho, **no host**, de `HANKO_WORKSPACES_ROOT`. |
+| `HANKO_PUBLIC_URL` | — | Obrigatória e fora de loopback para SSH e sandbox com rede: é por ela que o harness remoto chama o MCP do Hanko. |
+| `HANKO_SECRET_KEY` | vazio | Sem ela não há como guardar a chave privada nem as variáveis de um ambiente. |
+
+**SSH, passo a passo.**
+1. No host remoto: um usuário com shell de login POSIX (sh, bash, dash, zsh), `tar`, `git` e o harness instalado e já logado
+   (`claude`, `codex` ou o agente ACP). As credenciais do harness são **as do host remoto**: o Hanko não leva as deste servidor.
+   Confira que `command -v claude` funciona num `ssh usuario@host 'command -v claude'` (shell não interativo).
+2. Gere uma chave **sem senha** só para o Hanko (`ssh-keygen -t ed25519 -N '' -f hanko_id`) e ponha a pública em
+   `~/.ssh/authorized_keys` do host.
+3. Pegue a chave do host: `ssh-keyscan -H build.exemplo.com` (confira a impressão digital por outro canal). O `known_hosts` é
+   obrigatório; o Hanko roda com `StrictHostKeyChecking=yes` e nunca aceita uma chave desconhecida.
+4. `HANKO_ENV_SSH_ALLOW_HOSTS=build.exemplo.com` no `.env` e reinicie. A imagem precisa do `ssh`: use `Dockerfile.agents` (traz
+   `openssh-client`); a distroless não tem.
+5. `hanko env create build --driver ssh --host build.exemplo.com --user hanko --root /srv/hanko --known-hosts-file kh
+   --key-file hanko_id --probe` (ou pela tela, com "Testar conexão"), depois `hanko env default build` ou
+   `hanko persona update <persona> --environment build`.
+
+Cada execução copia o diretório da run (o workspace, `.git` inclusive) para `/srv/hanko/<empresa>/<workspace>/<execução>/work`,
+roda o harness lá e traz o resultado de volta (arquivos apagados lá são apagados aqui). Execução ok apaga a pasta remota;
+execução com falha mantém `work/` para diagnóstico (a tela do ambiente mostra o diretório e o motivo) e apaga só `.hanko/`. Limpe
+pastas antigas no host quando quiser: `find /srv/hanko -mindepth 3 -maxdepth 3 -mtime +7 -exec rm -rf {} +`.
+
+**Sandbox.** `HANKO_ENV_SANDBOX=docker`, a imagem com o harness (de preferência fixada por `@sha256:`) e, se o harness precisa da API
+do modelo ou do MCP do Hanko, rede `bridge` (o padrão `none` isola por completo). O contêiner roda sem capacidades, com
+`no-new-privileges`, raiz só leitura, `/tmp` em memória, `HOME=/tmp`, o usuário deste servidor e limites de memória, CPU e
+processos; o workspace entra em `/work`. Chaves de API do harness vão nas variáveis do ambiente ou da persona (cifradas).
+Com o Hanko em contêiner falando com o docker do host, monte o socket e defina `HANKO_ENV_SANDBOX_HOST_ROOT` com o caminho do host
+de `HANKO_WORKSPACES_ROOT` (o mesmo volume montado nos dois lados).
+
+**Problemas comuns.** "SSH está desligado neste servidor": falta `HANKO_ENV_SSH_ALLOW_HOSTS`. "não está na lista de hosts
+permitidos": o host do ambiente não casa com a lista. `Host key verification failed`: o `known_hosts` do ambiente não tem a chave
+atual do host (refaça o `ssh-keyscan` e edite o ambiente). `Permission denied (publickey)`: a pública não está no
+`authorized_keys` ou a chave tem senha. "sem URL pública configurada": defina `HANKO_PUBLIC_URL` com um endereço que o host remoto
+alcance. Uso "órfão" na tela: o servidor caiu no meio da execução; a pasta remota pode ter ficado no host.

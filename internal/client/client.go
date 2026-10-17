@@ -340,6 +340,8 @@ type UpdatePersonaReq struct {
 	ClearReviewer      bool    `json:"clear_reviewer,omitempty"`
 	Subscription       string  `json:"subscription,omitempty"`
 	ClearSubscription  bool    `json:"clear_subscription,omitempty"`
+	// Environment é o ambiente de execução (ADR-0037); local = o padrão da empresa.
+	Environment string `json:"environment,omitempty"`
 }
 
 // CostQuery são os parâmetros de Costs.

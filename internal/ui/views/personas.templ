@@ -219,6 +219,7 @@ templ PersonaPage(sh Shell, vm PersonaVM) {
 				}
 			</div>
 		}
+		@PluginWidgetsSlot(sh.Base(), "persona", vm.Slug)
 		<div class="tabs mb-6">
 			<a href="#visao" aria-current="page">{ i18n.T(ctx, "Visão geral") }</a>
 			<a href="#execucoes">{ i18n.T(ctx, "Execuções") }</a>
@@ -367,7 +368,9 @@ templ PersonaPage(sh Shell, vm PersonaVM) {
 				@BudgetForm(*vm.Budget, "persona-budget")
 			</section>
 		}
+		@PersonaEnvironmentSlot(vm)
 		@PersonaExtras(vm.Extras)
+		@EffectiveToolsSlot(sh.Base(), vm.Slug)
 		<h2 class="side-h sec-h">{ i18n.T(ctx, "Tasks atribuídas") }</h2>
 		if len(vm.Tasks) == 0 {
 			@EmptyCard("list", i18n.T(ctx, "Nenhuma task atribuída."), i18n.T(ctx, "Atribua uma task a esta persona para ela começar a trabalhar."), false)
@@ -401,6 +404,7 @@ templ PersonaPage(sh Shell, vm PersonaVM) {
 				<p class="mt-3"><a class="btn outline sm" href={ templ.SafeURL(vm.NewChatHref) }>{ i18n.T(ctx, "Nova conversa") }</a></p>
 			}
 		}
+		@RoomList(vm.Rooms)
 		<h2 class="side-h sec-h" id="execucoes">{ i18n.T(ctx, "Execuções recentes") }</h2>
 		@RunsTable(vm.Runs, false)
 	}

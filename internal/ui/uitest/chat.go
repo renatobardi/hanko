@@ -23,7 +23,10 @@ func (f *Fake) ListConversations(_ context.Context, _ domain.ID, fl service.Conv
 	}
 	var out []service.ConversationView
 	for _, c := range f.Conversations {
-		if fl.PersonaID != nil && c.PersonaID != *fl.PersonaID {
+		if fl.PersonaID != nil && c.PersonaID != *fl.PersonaID && !inRoom(c, *fl.PersonaID) {
+			continue
+		}
+		if fl.Kind != "" && kindOf(c) != fl.Kind {
 			continue
 		}
 		if fl.Status != "" && c.Status != fl.Status {

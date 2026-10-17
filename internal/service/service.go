@@ -18,6 +18,7 @@ import (
 	"github.com/renatobardi/hanko/internal/auth"
 	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/events"
+	"github.com/renatobardi/hanko/internal/execenv"
 	"github.com/renatobardi/hanko/internal/memory"
 )
 
@@ -88,15 +89,23 @@ type Service struct {
 	// ACP é a política do operador para o harness acp (HANKO_ACP_ALLOW / HANKO_ACP_COMMANDS, ADR-0023). O zero
 	// value recusa: persona acp não pode ser contratada nem importada.
 	ACP acp.Policy
+	// Environments é a política do operador para os ambientes de execução remotos (ADR-0037): SSH e sandbox
+	// vêm desligados no zero value.
+	Environments execenv.Config
 	// Memory é o provider de memória (ADR-0015), usado só pela busca (ADR-0024); nil ou Noop = sem memória na busca.
 	Memory memory.Provider
 
 	// MemoryProvider é o provedor de memória em uso ("ai-memory" ou "none"; vazio = none). Sem provedor a
 	// consolidação de memória fica desligada (ADR-0030).
 	MemoryProvider string
+	// SkillSources é o interruptor do operador e os tetos das fontes de skills (HANKO_SKILL_SOURCES, ADR-0035).
+	// O zero value é o seguro: fontes desligadas.
+	SkillSources SkillSourcesConfig
 	// Log recebe o registro de auditoria das operações administrativas da instalação (hanko auth user ...);
 	// nil descarta.
 	Log *slog.Logger
+	// Plugins é a política do operador para plugins de terceiros (HANKO_PLUGINS_DIR, ADR-0038); zero = desligados.
+	Plugins PluginsConfig
 }
 
 func New(pool *pgxpool.Pool, jobs Jobs, broker *events.Broker) *Service {

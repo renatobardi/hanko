@@ -409,6 +409,7 @@ func (s *server) buildTaskVM(r *http.Request, co domain.Company, t service.TaskV
 	if vm.Coord, err = s.coordVM(ctx, co, t, personas, names, loc); err != nil {
 		return views.TaskVM{}, err
 	}
+	vm.Cases = s.taskCases(ctx, co, t.ID) // ADR-0034
 	return vm, nil
 }
 

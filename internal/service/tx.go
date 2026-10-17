@@ -102,6 +102,9 @@ func (t *txc) activity(actor domain.Actor, companyID domain.ID, verb, subjectTyp
 	if err := t.enqueueWebhooks(companyID, verb, row.ID, subjectType, subjectID, raw); err != nil {
 		return err
 	}
+	if err := t.enqueuePluginEvents(companyID, verb, actor, row.ID); err != nil {
+		return err
+	}
 	t.publish(events.CompanyTopic(companyID.String()), "activity", activityFromRow(row))
 	return nil
 }
@@ -145,6 +148,17 @@ func (t *txc) wake(companyID, taskID domain.ID, personaID *domain.ID, status dom
 		if system, err := t.isSystemTask(taskID); err != nil {
 			return err
 		} else if system {
+			return nil
+		}
+		if test, err := t.isSkillTestTask(taskID); err != nil { // idem para o teste do estúdio (ADR-0035)
+			return err
+		} else if test {
+			return nil
+		}
+		// Idem para as tasks de sistema dos cards de status (ADR-0032).
+		if card, err := t.isStatusCardTask(taskID); err != nil {
+			return err
+		} else if card {
 			return nil
 		}
 	}
