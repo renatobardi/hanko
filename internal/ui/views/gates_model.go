@@ -24,6 +24,10 @@ type GateRow struct {
 	DecideHref  string
 	// Revisão automática (outro modelo) feita antes do gate; a decisão segue humana.
 	Review *ReviewInfo
+	// ADR-0041: pergunta (formulário e resposta), audiência e versão do pedido.
+	Question *QuestionVM
+	Audience string
+	Revision int
 }
 
 // ReviewInfo é o parecer do revisor automático exibido junto do gate.
@@ -55,6 +59,9 @@ type GateVM struct {
 	Notice   string
 	// Example é o "Salvar como exemplo" de um gate decidido (ADR-0034).
 	Example *ExampleFormVM
+	// ADR-0041: ficha da contratação e histórico de reenvios.
+	Hire    *HireVM
+	History *GateHistoryVM
 }
 
 type DecisionsVM struct {
@@ -141,6 +148,7 @@ type InboxVM struct {
 	Alerts       []InboxAlert
 	Reviewing    []InboxReview     // revisões automáticas em andamento (informativo; não contam como pendência)
 	Goals        []AchievedGoalRow // metas atingidas há pouco (informativo; não contam como pendência)
+	Incidents    []InboxIncident   // tetos de orçamento estourados esperando decisão (ADR-0041)
 	Held         []InboxHeld       // raízes de pausa (ADR-0040): informativo, quem pausou decide quando retomar
 	Total        int               // items shown in the current tab
 	Notice       string

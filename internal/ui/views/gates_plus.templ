@@ -1,0 +1,293 @@
+package views
+
+import (
+	"fmt"
+
+	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/i18n"
+)
+
+// GateQuestionForm é o formulário de uma pergunta pendente: um campo por pergunta e os botões Responder e Dispensar.
+templ GateQuestionForm(g GateRow, next string) {
+	if g.Question != nil {
+		if !canWrite(ctx) {
+			<div class="gate-ro">@NeedRole(domain.MemberMember)</div>
+		} else {
+			<form class="gate-decide question-form" method="post" action={ templ.SafeURL(g.Question.AnswerHref) } hx-post={ g.Question.AnswerHref } hx-swap="none">
+				<input type="hidden" name="next" value={ next }/>
+				for _, f := range g.Question.Fields {
+					<fieldset class="question-field">
+						<legend>
+							{ f.Label }
+							if f.Required {
+								<span class="faint" title={ i18n.T(ctx, "obrigatório") }> *</span>
+							}
+						</legend>
+						if f.Help != "" {
+							<p class="muted text-sm">{ f.Help }</p>
+						}
+						switch f.Type {
+							case "single":
+								for _, o := range f.Options {
+									<label class="check-row">
+										<input type="radio" name={ "a_" + f.Key } value={ o.Value } required?={ f.Required }/>
+										<span>{ o.Label }</span>
+									</label>
+								}
+							case "multi":
+								for _, o := range f.Options {
+									<label class="check-row">
+										<input type="checkbox" name={ "a_" + f.Key } value={ o.Value }/>
+										<span>{ o.Label }</span>
+									</label>
+								}
+							default:
+								<textarea class="textarea" name={ "a_" + f.Key } rows="3" required?={ f.Required } aria-label={ f.Label }></textarea>
+						}
+					</fieldset>
+				}
+				<textarea class="textarea" name="note" rows="2" aria-label={ i18n.T(ctx, "Nota (opcional)") } placeholder={ i18n.T(ctx, "Nota para a persona (opcional).") }></textarea>
+				<div class="gate-actions">
+					<button class="btn outline sm" type="submit" formaction={ g.Question.DismissHref } formnovalidate hx-post={ g.Question.DismissHref } name="dismiss" value="1">
+						{ i18n.T(ctx, "Dispensar") }
+					</button>
+					<button class="btn primary sm" type="submit">
+						@Icon("check")
+						{ i18n.T(ctx, "Responder") }
+					</button>
+				</div>
+			</form>
+		}
+	}
+}
+
+// GateAnswerCard mostra a resposta de uma pergunta decidida; uma dispensada oferece reabrir.
+templ GateAnswerCard(g GateRow) {
+	if g.Question != nil && (len(g.Question.Answers) > 0 || g.Question.Dismissed) {
+		<section class="card pad mt-6">
+			<div class="card-head"><h2>
+				if g.Question.Dismissed {
+					{ i18n.T(ctx, "Pergunta dispensada") }
+				} else {
+					{ i18n.T(ctx, "Respostas") }
+				}
+			</h2></div>
+			if len(g.Question.Answers) > 0 {
+				<dl class="dl">
+					for _, a := range g.Question.Answers {
+						<dt>{ a.Label }</dt><dd>{ a.Value }</dd>
+					}
+				</dl>
+			}
+			if g.Question.Dismissed && canWrite(ctx) {
+				<form method="post" action={ templ.SafeURL(g.Question.ReopenHref) } hx-post={ g.Question.ReopenHref } hx-swap="none">
+					<button class="btn outline sm mt-2" type="submit">{ i18n.T(ctx, "Reabrir") }</button>
+				</form>
+			}
+		</section>
+	}
+}
+
+// GateHireCard mostra a ficha de uma contratação proposta: aprovar o gate cria a persona.
+templ GateHireCard(h HireVM) {
+	<section class="card pad mt-6">
+		<div class="card-head"><h2>{ i18n.T(ctx, "Ficha da contratação") }</h2></div>
+		<dl class="dl">
+			<dt>{ i18n.T(ctx, "Nome") }</dt><dd>{ h.Name } <span class="mono text-xs">{ h.Slug }</span></dd>
+			if h.Title != "" {
+				<dt>{ i18n.T(ctx, "Cargo") }</dt><dd>{ h.Title }</dd>
+			}
+			<dt>Harness</dt><dd class="mono">{ h.Agent }
+				if h.Model != "" {
+					<span> · { h.Model }</span>
+				}
+			</dd>
+			<dt>{ i18n.T(ctx, "Reporta a") }</dt><dd>{ h.Reports }</dd>
+			if h.Budget != "" {
+				<dt>{ i18n.T(ctx, "Orçamento mensal") }</dt><dd>{ h.Budget }</dd>
+			}
+			if h.RequireReview {
+				<dt>{ i18n.T(ctx, "Exige revisão") }</dt><dd>{ i18n.T(ctx, "Sim") }</dd>
+			}
+			if h.Instructions != "" {
+				<dt>{ i18n.T(ctx, "Instruções") }</dt><dd><div class="instr">{ h.Instructions }</div></dd>
+			}
+		</dl>
+		<p class="muted text-sm mt-2">{ i18n.T(ctx, "Aprovar cria a persona com esta ficha, na mesma hora.") }</p>
+	</section>
+}
+
+// GateHistoryCard lista as versões anteriores de um gate reenviado e o diff até a vigente.
+templ GateHistoryCard(h GateHistoryVM) {
+	<section class="card pad mt-6" id="historico">
+		<div class="card-head"><h2>{ i18n.Tf(ctx, "Reenvios (revisão %d)", h.Revision) }</h2></div>
+		if h.Diff != "" {
+			<p class="muted text-sm">{ i18n.Tf(ctx, "O que mudou desde a revisão anterior: +%d −%d linhas.", h.Added, h.Removed) }</p>
+			<pre class="diff"><code>{ h.Diff }</code></pre>
+		}
+		for _, r := range h.Revisions {
+			<details class="mt-2">
+				<summary>{ i18n.Tf(ctx, "Revisão %d", r.Revision) } · { r.When }
+					if r.Note != "" {
+						· <span class="muted">{ r.Note }</span>
+					}
+				</summary>
+				<div class="md">@templ.Raw(string(r.Body))</div>
+			</details>
+		}
+	</section>
+}
+
+// IncidentRows são os incidentes de orçamento da Caixa, cada um com a decisão.
+templ IncidentRows(rows []InboxIncident) {
+	if len(rows) > 0 {
+		<section class="card inbox-sec">
+			<div class="inbox-h">
+				@Icon("alert")
+				{ i18n.T(ctx, "Orçamento estourado") }
+				<span class="cnt">{ fmt.Sprint(len(rows)) }</span>
+			</div>
+			for _, r := range rows {
+				<div class="inbox-row">
+					<span class="mini-avatar gate">@Icon("alert")</span>
+					<div class="main">
+						<div class="t">
+							<span class="badge danger">{ r.Scope }</span>
+							if r.TargetHref != "" {
+								<a class="link-u" href={ templ.SafeURL(r.TargetHref) }>{ r.Target }</a>
+							} else {
+								<b>{ r.Target }</b>
+							}
+							<span class="mono text-xs">{ r.Month }</span>
+						</div>
+						<p class="x">{ i18n.Tf(ctx, "Gasto %s de um teto de %s. As execuções deste alvo estão paradas até alguém decidir.", r.Spent, r.Budget) }
+							if r.Released > 0 {
+								{ i18n.Tf(ctx, " %d run avulso liberado e ainda não usado.", r.Released) }
+							}
+						</p>
+						<div class="s">{ r.When }</div>
+					</div>
+					if canAdmin(ctx) {
+						<form class="inbox-act incident-form" method="post" action={ templ.SafeURL(r.ResolveHref) } hx-post={ r.ResolveHref } hx-swap="none">
+							<select class="select sm" name="resolution" aria-label={ i18n.T(ctx, "Decisão") }>
+								<option value="ceiling_raised">{ i18n.T(ctx, "Subir o teto") }</option>
+								<option value="released_once">{ i18n.T(ctx, "Liberar só mais um run") }</option>
+								<option value="kept_paused">{ i18n.T(ctx, "Manter pausado") }</option>
+							</select>
+							<input class="input sm" name="budget" inputmode="decimal" placeholder={ i18n.T(ctx, "Novo teto em US$") } aria-label={ i18n.T(ctx, "Novo teto em US$") }/>
+							<input class="input sm" name="note" maxlength="500" placeholder={ i18n.T(ctx, "Motivo (opcional)") } aria-label={ i18n.T(ctx, "Motivo (opcional)") }/>
+							<button class="btn primary sm" type="submit">{ i18n.T(ctx, "Resolver") }</button>
+						</form>
+					} else {
+						<div class="inbox-act">
+							@NeedRole(domain.MemberAdmin)
+						</div>
+					}
+				</div>
+			}
+		</section>
+	}
+}
+
+// PersonaPlusCard reúne persona principal, persona de sistema e política de plano na página da persona.
+templ PersonaPlusCard(p PersonaPlusVM) {
+	if p.Enabled {
+		<section class="card pad mt-6" id="padroes">
+			<div class="card-head"><div><h2>{ i18n.T(ctx, "Padrões e proteção") }</h2></div></div>
+			<dl class="dl">
+				<dt>{ i18n.T(ctx, "Persona principal") }</dt>
+				<dd>
+					if p.IsPrimary {
+						<span class="badge done">{ i18n.T(ctx, "É a sua principal") }</span>
+					} else {
+						<span class="muted">{ i18n.T(ctx, "Não") }</span>
+					}
+					if p.PrimaryHref != "" && canWrite(ctx) {
+						<form class="inline" method="post" action={ templ.SafeURL(p.PrimaryHref) } hx-post={ p.PrimaryHref } hx-swap="none">
+							if p.IsPrimary {
+								<input type="hidden" name="clear" value="1"/>
+								<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Deixar de ser a principal") }</button>
+							} else {
+								<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Tornar a minha principal") }</button>
+							}
+						</form>
+					}
+				</dd>
+				<dt>{ i18n.T(ctx, "Persona de sistema") }</dt>
+				<dd>
+					if p.System {
+						<span class="badge warn">{ i18n.T(ctx, "Sistema") }</span>
+						<span class="muted text-sm">{ i18n.T(ctx, "não se desliga; só um dono a edita") }</span>
+					} else {
+						<span class="muted">{ i18n.T(ctx, "Não") }</span>
+					}
+					if p.CanEditSystem {
+						<form class="inline" method="post" action={ templ.SafeURL(p.SystemHref) } hx-post={ p.SystemHref } hx-swap="none">
+							if p.System {
+								<input type="hidden" name="system" value="off"/>
+								<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Desmarcar") }</button>
+							} else {
+								<input type="hidden" name="system" value="on"/>
+								<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Marcar como de sistema") }</button>
+							}
+						</form>
+					}
+				</dd>
+				<dt>{ i18n.T(ctx, "Plano antes de executar") }</dt>
+				<dd>
+					<span class="text-sm">{ p.PlanSummary }</span>
+					if canAdmin(ctx) {
+						<form class="inline" method="post" action={ templ.SafeURL(p.PlanHref) } hx-post={ p.PlanHref } hx-swap="none">
+							@Select("mode", "plan-mode", p.PlanOptions, true)
+							<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Salvar") }</button>
+						</form>
+					}
+				</dd>
+			</dl>
+		</section>
+	}
+}
+
+// TaskPlanSide é o bloco "Plano" do painel da task: a política efetiva e a sobreposição da própria task.
+templ TaskPlanSide(c CoordPlan) {
+	if c.Enabled {
+		<div class="side-sec" id="task-plan">
+			<div class="side-h">{ i18n.T(ctx, "Plano antes de executar") }</div>
+			<p class="text-sm">{ c.Summary }</p>
+			if canWrite(ctx) {
+				<form method="post" action={ templ.SafeURL(c.Action) } hx-post={ c.Action } hx-target="#task-side" hx-swap="outerHTML">
+					<label class="prop"><span>{ i18n.T(ctx, "Exigir plano") }</span>@Select("mode", "plan-mode", c.Options, true)</label>
+					<button class="btn outline sm mt-2" type="submit">{ i18n.T(ctx, "Salvar política") }</button>
+				</form>
+			}
+		</div>
+	}
+}
+
+// CompanyPolicyCard liga a contratação por gate para humanos (só owner).
+templ CompanyPolicyCard(p CompanyPolicyVM) {
+	if p.Enabled {
+		<section class="card pad mt-6" id="politicas">
+			<div class="card-head"><div><h2>{ i18n.T(ctx, "Contratação por gate") }</h2>
+				<p class="sub">{ i18n.T(ctx, "Quando ligada, contratar uma persona (também por humanos) abre um pedido de contratação que alguém aprova; sem isso, admins contratam direto.") }</p></div></div>
+			if RoleFrom(ctx).AtLeast(domain.MemberOwner) {
+				<form method="post" action={ templ.SafeURL(p.Action) } hx-boost="true">
+					<label class="check-row">
+						<input type="checkbox" name="require_hire_gate" value="1" checked?={ p.On }/>
+						<span>{ i18n.T(ctx, "Exigir gate para contratar") }</span>
+					</label>
+					<div class="form-actions"><button class="btn primary sm" type="submit">{ i18n.T(ctx, "Salvar") }</button></div>
+				</form>
+			} else {
+				<p>
+					if p.On {
+						<span class="badge warn">{ i18n.T(ctx, "Ligada") }</span>
+					} else {
+						<span class="muted">{ i18n.T(ctx, "Desligada") }</span>
+					}
+				</p>
+				@NeedRole(domain.MemberOwner)
+			}
+		</section>
+	}
+}

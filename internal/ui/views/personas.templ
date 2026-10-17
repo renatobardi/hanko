@@ -290,6 +290,7 @@ templ PersonaPage(sh Shell, vm PersonaVM) {
 				}
 			</section>
 		</div>
+		@PersonaPlusCard(vm.Plus)
 		if canAdmin(ctx) {
 			<section class="card pad mt-6" id="identidade">
 				<div class="card-head"><div><h2>{ i18n.T(ctx, "Ícone") }</h2><p class="sub">{ i18n.T(ctx, "Identifica a persona em listas, chats e execuções.") }</p></div></div>

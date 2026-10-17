@@ -409,6 +409,7 @@ func (s *server) renderSettings(w http.ResponseWriter, r *http.Request, co domai
 	mv.NewLink, mv.NewLinkEmail, mv.Email, mv.Error = pre.NewLink, pre.NewLinkEmail, pre.Email, pre.Error
 	vm.Members = mv
 	vm.Memory = s.memoryVM(r, co, vm.Memory)
+	vm.Policy = s.companyPolicyVM(r.Context(), co)
 	vm.Sections = settingsSections(ctx, "/c/"+co.Slug, "geral")
 	s.render(w, r, status, views.SettingsPage(s.shell(r, co, "configuracoes", i18n.T(ctx, "Configurações"), views.Crumb{Label: i18n.T(ctx, "Configurações")}), vm))
 }

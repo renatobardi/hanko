@@ -2003,6 +2003,10 @@ func PersonaPage(sh Shell, vm PersonaVM) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
+			templ_7745c5c3_Err = PersonaPlusCard(vm.Plus).Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
 			if canAdmin(ctx) {
 				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 177, "<section class=\"card pad mt-6\" id=\"identidade\"><div class=\"card-head\"><div><h2>")
 				if templ_7745c5c3_Err != nil {
@@ -2011,7 +2015,7 @@ func PersonaPage(sh Shell, vm PersonaVM) templ.Component {
 				var templ_7745c5c3_Var114 string
 				templ_7745c5c3_Var114, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Ícone"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 295, Col: 59}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 296, Col: 59}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var114))
 				if templ_7745c5c3_Err != nil {
@@ -2024,7 +2028,7 @@ func PersonaPage(sh Shell, vm PersonaVM) templ.Component {
 				var templ_7745c5c3_Var115 string
 				templ_7745c5c3_Var115, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Identifica a persona em listas, chats e execuções."))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 295, Col: 150}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 296, Col: 150}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var115))
 				if templ_7745c5c3_Err != nil {
@@ -2037,7 +2041,7 @@ func PersonaPage(sh Shell, vm PersonaVM) templ.Component {
 				var templ_7745c5c3_Var116 templ.SafeURL
 				templ_7745c5c3_Var116, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(vm.IconAction))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 296, Col: 61}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 297, Col: 61}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var116))
 				if templ_7745c5c3_Err != nil {
@@ -2058,7 +2062,7 @@ func PersonaPage(sh Shell, vm PersonaVM) templ.Component {
 				var templ_7745c5c3_Var117 string
 				templ_7745c5c3_Var117, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Salvar ícone"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 298, Col: 111}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 299, Col: 111}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var117))
 				if templ_7745c5c3_Err != nil {
@@ -2076,7 +2080,7 @@ func PersonaPage(sh Shell, vm PersonaVM) templ.Component {
 			var templ_7745c5c3_Var118 string
 			templ_7745c5c3_Var118, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Organização"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 303, Col: 65}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 304, Col: 65}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var118))
 			if templ_7745c5c3_Err != nil {
@@ -2089,7 +2093,7 @@ func PersonaPage(sh Shell, vm PersonaVM) templ.Component {
 			var templ_7745c5c3_Var119 string
 			templ_7745c5c3_Var119, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Quem esta persona reporta e se o trabalho dela passa por revisão antes de concluir."))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 303, Col: 188}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 304, Col: 188}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var119))
 			if templ_7745c5c3_Err != nil {
@@ -2107,7 +2111,7 @@ func PersonaPage(sh Shell, vm PersonaVM) templ.Component {
 				var templ_7745c5c3_Var120 templ.SafeURL
 				templ_7745c5c3_Var120, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(vm.OrgAction))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 305, Col: 60}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 306, Col: 60}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var120))
 				if templ_7745c5c3_Err != nil {
@@ -2120,7 +2124,7 @@ func PersonaPage(sh Shell, vm PersonaVM) templ.Component {
 				var templ_7745c5c3_Var121 string
 				templ_7745c5c3_Var121, templ_7745c5c3_Err = templ.ResolveAttributeValue(vm.OrgAction)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 305, Col: 85}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 306, Col: 85}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var121)
 				if templ_7745c5c3_Err != nil {
@@ -2133,7 +2137,7 @@ func PersonaPage(sh Shell, vm PersonaVM) templ.Component {
 				var templ_7745c5c3_Var122 string
 				templ_7745c5c3_Var122, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Reporta a"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 307, Col: 55}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 308, Col: 55}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var122))
 				if templ_7745c5c3_Err != nil {
@@ -2164,7 +2168,7 @@ func PersonaPage(sh Shell, vm PersonaVM) templ.Component {
 				var templ_7745c5c3_Var123 string
 				templ_7745c5c3_Var123, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Exige revisão"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 313, Col: 44}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 314, Col: 44}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var123))
 				if templ_7745c5c3_Err != nil {
@@ -2177,7 +2181,7 @@ func PersonaPage(sh Shell, vm PersonaVM) templ.Component {
 				var templ_7745c5c3_Var124 string
 				templ_7745c5c3_Var124, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Salvar organização"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 316, Col: 118}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 317, Col: 118}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var124))
 				if templ_7745c5c3_Err != nil {
@@ -2200,7 +2204,7 @@ func PersonaPage(sh Shell, vm PersonaVM) templ.Component {
 			var templ_7745c5c3_Var125 string
 			templ_7745c5c3_Var125, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Revisor"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 323, Col: 59}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 324, Col: 59}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var125))
 			if templ_7745c5c3_Err != nil {
@@ -2213,7 +2217,7 @@ func PersonaPage(sh Shell, vm PersonaVM) templ.Component {
 			var templ_7745c5c3_Var126 string
 			templ_7745c5c3_Var126, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Quem faz a revisão automática antes do gate humano: outra persona, ou este mesmo papel rodando em outro harness ou modelo."))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 323, Col: 222}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 324, Col: 222}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var126))
 			if templ_7745c5c3_Err != nil {
@@ -2231,7 +2235,7 @@ func PersonaPage(sh Shell, vm PersonaVM) templ.Component {
 				var templ_7745c5c3_Var127 templ.SafeURL
 				templ_7745c5c3_Var127, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(vm.Reviewer.Action))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 325, Col: 66}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 326, Col: 66}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var127))
 				if templ_7745c5c3_Err != nil {
@@ -2254,7 +2258,7 @@ func PersonaPage(sh Shell, vm PersonaVM) templ.Component {
 				var templ_7745c5c3_Var128 string
 				templ_7745c5c3_Var128, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Modo"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 330, Col: 45}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 331, Col: 45}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var128))
 				if templ_7745c5c3_Err != nil {
@@ -2277,7 +2281,7 @@ func PersonaPage(sh Shell, vm PersonaVM) templ.Component {
 				var templ_7745c5c3_Var129 string
 				templ_7745c5c3_Var129, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Sem revisor"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 331, Col: 147}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 332, Col: 147}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var129))
 				if templ_7745c5c3_Err != nil {
@@ -2300,7 +2304,7 @@ func PersonaPage(sh Shell, vm PersonaVM) templ.Component {
 				var templ_7745c5c3_Var130 string
 				templ_7745c5c3_Var130, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Outra persona"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 332, Col: 155}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 333, Col: 155}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var130))
 				if templ_7745c5c3_Err != nil {
@@ -2323,7 +2327,7 @@ func PersonaPage(sh Shell, vm PersonaVM) templ.Component {
 				var templ_7745c5c3_Var131 string
 				templ_7745c5c3_Var131, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Mesmo papel com outro harness ou modelo"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 333, Col: 181}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 334, Col: 181}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var131))
 				if templ_7745c5c3_Err != nil {
@@ -2336,7 +2340,7 @@ func PersonaPage(sh Shell, vm PersonaVM) templ.Component {
 				var templ_7745c5c3_Var132 string
 				templ_7745c5c3_Var132, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Persona revisora"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 336, Col: 63}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 337, Col: 63}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var132))
 				if templ_7745c5c3_Err != nil {
@@ -2365,7 +2369,7 @@ func PersonaPage(sh Shell, vm PersonaVM) templ.Component {
 				var templ_7745c5c3_Var133 string
 				templ_7745c5c3_Var133, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Modelo do revisor"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 344, Col: 62}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 345, Col: 62}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var133))
 				if templ_7745c5c3_Err != nil {
@@ -2378,7 +2382,7 @@ func PersonaPage(sh Shell, vm PersonaVM) templ.Component {
 				var templ_7745c5c3_Var134 string
 				templ_7745c5c3_Var134, templ_7745c5c3_Err = templ.ResolveAttributeValue(vm.Reviewer.Model)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 345, Col: 88}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 346, Col: 88}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var134)
 				if templ_7745c5c3_Err != nil {
@@ -2391,7 +2395,7 @@ func PersonaPage(sh Shell, vm PersonaVM) templ.Component {
 				var templ_7745c5c3_Var135 string
 				templ_7745c5c3_Var135, templ_7745c5c3_Err = templ.ResolveAttributeValue(i18n.T(ctx, "vazio = padrão do harness"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 345, Col: 146}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 346, Col: 146}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var135)
 				if templ_7745c5c3_Err != nil {
@@ -2412,7 +2416,7 @@ func PersonaPage(sh Shell, vm PersonaVM) templ.Component {
 				var templ_7745c5c3_Var136 string
 				templ_7745c5c3_Var136, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Harness e modelo valem só no modo mesmo papel e precisam diferir dos da persona."))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 347, Col: 123}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 348, Col: 123}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var136))
 				if templ_7745c5c3_Err != nil {
@@ -2425,7 +2429,7 @@ func PersonaPage(sh Shell, vm PersonaVM) templ.Component {
 				var templ_7745c5c3_Var137 string
 				templ_7745c5c3_Var137, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Salvar revisor"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 349, Col: 112}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 350, Col: 112}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var137))
 				if templ_7745c5c3_Err != nil {
@@ -2448,7 +2452,7 @@ func PersonaPage(sh Shell, vm PersonaVM) templ.Component {
 			var templ_7745c5c3_Var138 string
 			templ_7745c5c3_Var138, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Assinatura"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 356, Col: 62}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 357, Col: 62}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var138))
 			if templ_7745c5c3_Err != nil {
@@ -2461,7 +2465,7 @@ func PersonaPage(sh Shell, vm PersonaVM) templ.Component {
 			var templ_7745c5c3_Var139 string
 			templ_7745c5c3_Var139, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Plano que cobre as execuções desta persona: a mensalidade é rateada no custo pago e a trava semanal vale para ela."))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 356, Col: 218}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 357, Col: 218}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var139))
 			if templ_7745c5c3_Err != nil {
@@ -2474,7 +2478,7 @@ func PersonaPage(sh Shell, vm PersonaVM) templ.Component {
 			var templ_7745c5c3_Var140 templ.SafeURL
 			templ_7745c5c3_Var140, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(sh.Base() + "/custos#assinaturas"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 356, Col: 301}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 357, Col: 301}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var140))
 			if templ_7745c5c3_Err != nil {
@@ -2487,7 +2491,7 @@ func PersonaPage(sh Shell, vm PersonaVM) templ.Component {
 			var templ_7745c5c3_Var141 string
 			templ_7745c5c3_Var141, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Custos"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 356, Col: 327}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 357, Col: 327}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var141))
 			if templ_7745c5c3_Err != nil {
@@ -2505,7 +2509,7 @@ func PersonaPage(sh Shell, vm PersonaVM) templ.Component {
 				var templ_7745c5c3_Var142 templ.SafeURL
 				templ_7745c5c3_Var142, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(vm.SubAction))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 358, Col: 60}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 359, Col: 60}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var142))
 				if templ_7745c5c3_Err != nil {
@@ -2518,7 +2522,7 @@ func PersonaPage(sh Shell, vm PersonaVM) templ.Component {
 				var templ_7745c5c3_Var143 string
 				templ_7745c5c3_Var143, templ_7745c5c3_Err = templ.ResolveAttributeValue(vm.SubAction)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 358, Col: 85}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 359, Col: 85}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var143)
 				if templ_7745c5c3_Err != nil {
@@ -2531,7 +2535,7 @@ func PersonaPage(sh Shell, vm PersonaVM) templ.Component {
 				var templ_7745c5c3_Var144 string
 				templ_7745c5c3_Var144, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Assinatura"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 360, Col: 52}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 361, Col: 52}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var144))
 				if templ_7745c5c3_Err != nil {
@@ -2552,7 +2556,7 @@ func PersonaPage(sh Shell, vm PersonaVM) templ.Component {
 				var templ_7745c5c3_Var145 string
 				templ_7745c5c3_Var145, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Salvar assinatura"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 363, Col: 115}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 364, Col: 115}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var145))
 				if templ_7745c5c3_Err != nil {
@@ -2598,7 +2602,7 @@ func PersonaPage(sh Shell, vm PersonaVM) templ.Component {
 				var templ_7745c5c3_Var148 string
 				templ_7745c5c3_Var148, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Orçamento do mês"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 371, Col: 66}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 372, Col: 66}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var148))
 				if templ_7745c5c3_Err != nil {
@@ -2611,7 +2615,7 @@ func PersonaPage(sh Shell, vm PersonaVM) templ.Component {
 				var templ_7745c5c3_Var149 templ.SafeURL
 				templ_7745c5c3_Var149, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(vm.Budget.Href))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 371, Col: 125}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 372, Col: 125}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var149))
 				if templ_7745c5c3_Err != nil {
@@ -2624,7 +2628,7 @@ func PersonaPage(sh Shell, vm PersonaVM) templ.Component {
 				var templ_7745c5c3_Var150 string
 				templ_7745c5c3_Var150, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Custos"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 371, Col: 151}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 372, Col: 151}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var150))
 				if templ_7745c5c3_Err != nil {
@@ -2670,7 +2674,7 @@ func PersonaPage(sh Shell, vm PersonaVM) templ.Component {
 			var templ_7745c5c3_Var151 string
 			templ_7745c5c3_Var151, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Tasks atribuídas"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 379, Col: 61}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 380, Col: 61}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var151))
 			if templ_7745c5c3_Err != nil {
@@ -2706,7 +2710,7 @@ func PersonaPage(sh Shell, vm PersonaVM) templ.Component {
 					var templ_7745c5c3_Var152 string
 					templ_7745c5c3_Var152, templ_7745c5c3_Err = templ.JoinStringErrs(r.Key)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 389, Col: 30}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 390, Col: 30}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var152))
 					if templ_7745c5c3_Err != nil {
@@ -2719,7 +2723,7 @@ func PersonaPage(sh Shell, vm PersonaVM) templ.Component {
 					var templ_7745c5c3_Var153 templ.SafeURL
 					templ_7745c5c3_Var153, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(r.Href))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 390, Col: 55}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 391, Col: 55}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var153))
 					if templ_7745c5c3_Err != nil {
@@ -2732,7 +2736,7 @@ func PersonaPage(sh Shell, vm PersonaVM) templ.Component {
 					var templ_7745c5c3_Var154 string
 					templ_7745c5c3_Var154, templ_7745c5c3_Err = templ.JoinStringErrs(r.Title)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 390, Col: 67}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 391, Col: 67}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var154))
 					if templ_7745c5c3_Err != nil {
@@ -2753,7 +2757,7 @@ func PersonaPage(sh Shell, vm PersonaVM) templ.Component {
 					var templ_7745c5c3_Var155 string
 					templ_7745c5c3_Var155, templ_7745c5c3_Err = templ.JoinStringErrs(r.Updated)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 392, Col: 36}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 393, Col: 36}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var155))
 					if templ_7745c5c3_Err != nil {
@@ -2776,7 +2780,7 @@ func PersonaPage(sh Shell, vm PersonaVM) templ.Component {
 			var templ_7745c5c3_Var156 string
 			templ_7745c5c3_Var156, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Conversas"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 399, Col: 68}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 400, Col: 68}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var156))
 			if templ_7745c5c3_Err != nil {
@@ -2807,7 +2811,7 @@ func PersonaPage(sh Shell, vm PersonaVM) templ.Component {
 						var templ_7745c5c3_Var158 templ.SafeURL
 						templ_7745c5c3_Var158, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(vm.NewChatHref))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 403, Col: 67}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 404, Col: 67}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var158))
 						if templ_7745c5c3_Err != nil {
@@ -2820,7 +2824,7 @@ func PersonaPage(sh Shell, vm PersonaVM) templ.Component {
 						var templ_7745c5c3_Var159 string
 						templ_7745c5c3_Var159, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Nova conversa"))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 403, Col: 100}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 404, Col: 100}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var159))
 						if templ_7745c5c3_Err != nil {
@@ -2850,7 +2854,7 @@ func PersonaPage(sh Shell, vm PersonaVM) templ.Component {
 					var templ_7745c5c3_Var160 templ.SafeURL
 					templ_7745c5c3_Var160, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(vm.NewChatHref))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 409, Col: 82}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 410, Col: 82}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var160))
 					if templ_7745c5c3_Err != nil {
@@ -2863,7 +2867,7 @@ func PersonaPage(sh Shell, vm PersonaVM) templ.Component {
 					var templ_7745c5c3_Var161 string
 					templ_7745c5c3_Var161, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Nova conversa"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 409, Col: 115}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 410, Col: 115}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var161))
 					if templ_7745c5c3_Err != nil {
@@ -2890,7 +2894,7 @@ func PersonaPage(sh Shell, vm PersonaVM) templ.Component {
 			var templ_7745c5c3_Var162 string
 			templ_7745c5c3_Var162, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Execuções recentes"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 413, Col: 79}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `personas.templ`, Line: 414, Col: 79}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var162))
 			if templ_7745c5c3_Err != nil {

@@ -26,7 +26,7 @@ var inboxNotices = map[string]string{
 
 type inboxTab struct{ key, label string }
 
-var inboxTabs = []inboxTab{{"tudo", i18n.N("Tudo")}, {"gates", i18n.N("Gates")}, {"bloqueadas", i18n.N("Bloqueadas")}, {"falhas", i18n.N("Falhas")}, {"pausadas", i18n.N("Pausadas")}, {"personas", i18n.N("Personas")}, {"alertas", i18n.N("Alertas")}, {"assinaturas", i18n.N("Assinaturas")}, {"tools", i18n.N("Tools")}}
+var inboxTabs = []inboxTab{{"tudo", i18n.N("Tudo")}, {"gates", i18n.N("Gates")}, {"bloqueadas", i18n.N("Bloqueadas")}, {"falhas", i18n.N("Falhas")}, {"pausadas", i18n.N("Pausadas")}, {"personas", i18n.N("Personas")}, {"alertas", i18n.N("Alertas")}, {"assinaturas", i18n.N("Assinaturas")}, {"tools", i18n.N("Tools")}, {"orcamento", i18n.N("Orçamento")}}
 
 func (s *server) handleInbox(w http.ResponseWriter, r *http.Request, co domain.Company) {
 	ctx := r.Context()
@@ -72,7 +72,7 @@ func (s *server) handleInbox(w http.ResponseWriter, r *http.Request, co domain.C
 			vm.DecidedToday++
 		}
 	}
-	counts := map[string]int{"tudo": in.Count(), "gates": len(in.Gates), "bloqueadas": len(in.BlockedTasks), "pausadas": len(in.HeldTasks), "falhas": len(in.FailedRuns), "personas": len(in.ErrorPersonas), "alertas": len(in.Alerts), "assinaturas": len(in.GuardedSubscriptions), "tools": countToolGates(in.Gates) + len(in.QuarantinedTools)}
+	counts := map[string]int{"tudo": in.Count(), "gates": len(in.Gates), "bloqueadas": len(in.BlockedTasks), "pausadas": len(in.HeldTasks), "falhas": len(in.FailedRuns), "personas": len(in.ErrorPersonas), "alertas": len(in.Alerts), "assinaturas": len(in.GuardedSubscriptions), "tools": countToolGates(in.Gates) + len(in.QuarantinedTools), "orcamento": len(in.BudgetIncidents)}
 	for _, t := range inboxTabs {
 		vm.Tabs = append(vm.Tabs, views.TabLink{Key: t.key, Label: i18n.T(ctx, t.label), Href: base + "/caixa?aba=" + t.key, Count: counts[t.key], On: t.key == cur})
 	}
@@ -93,6 +93,9 @@ func (s *server) handleInbox(w http.ResponseWriter, r *http.Request, co domain.C
 			vm.Reviewing = append(vm.Reviewing, views.InboxReview{Key: rv.Task.Key, Href: base + "/tasks/" + rv.Task.Key, Title: rv.Task.Title,
 				Persona: rv.Task.PersonaName, Reviewer: h, Waiting: rv.Status == "pending", When: agoCtx(ctx, rv.CreatedAt, now, loc)})
 		}
+	}
+	if show("orcamento") {
+		vm.Incidents = incidentRows(ctx, in.BudgetIncidents, base, names, func(i domain.BudgetIncident) string { return agoCtx(ctx, i.OpenedAt, now, loc) })
 	}
 	if show("bloqueadas") {
 		for _, t := range in.BlockedTasks {

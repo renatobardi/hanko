@@ -332,6 +332,7 @@ type PersonaVM struct {
 	OrgOptions          []Option // "Reporta a" choices
 	Reviewer            ReviewerVM
 	Extras              PersonaExtrasVM // skills e servidores MCP (ADR-0029)
+	Plus                PersonaPlusVM   // persona principal, de sistema e política de plano (ADR-0041)
 }
 
 // ReviewerVM is the reviewer block of the persona page: the configured reviewer (summary) and the
@@ -742,6 +743,8 @@ type SettingsVM struct {
 	Members MembersVM
 	// Memory is the company's "Memória" section (memory consolidation, ADR-0030).
 	Memory MemoryVM
+	// Policy é a política de contratação por gate da empresa (ADR-0041).
+	Policy CompanyPolicyVM
 }
 
 // MemberRow is one member in the "Membros" table.

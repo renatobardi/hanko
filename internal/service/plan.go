@@ -167,3 +167,14 @@ func (s *Service) SetPlanPolicy(ctx context.Context, actor domain.Actor, company
 		return t.activity(actor, companyID, "plan_policy.updated", string(scope), targetID, map[string]any{"scope": scope, "require_plan": require}, "")
 	})
 }
+
+// PlanPolicyLayer devolve a sobreposição gravada numa camada (nil = herda). Leitura de qualquer membro.
+func (s *Service) PlanPolicyLayer(ctx context.Context, companyID domain.ID, scope domain.PlanScope, targetID domain.ID) (*bool, error) {
+	if err := scope.Check(); err != nil {
+		return nil, err
+	}
+	if err := s.require(ctx, companyID, domain.MemberViewer); err != nil {
+		return nil, err
+	}
+	return planOverride(ctx, s.read(), scope, targetID)
+}
