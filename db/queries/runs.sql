@@ -100,6 +100,9 @@ WHERE t.status IN ('todo', 'in_progress')
     --     não a consumiu (o wake que a deveria abrir se perdeu)
     EXISTS (SELECT 1 FROM runs rp WHERE rp.task_id = t.id AND rp.resume_pending AND rp.finished_at <= @stale_before::timestamptz)
     OR
+    -- (d) rede de segurança: um follow-up segue pendente há mais de um minuto sem run ativa (o wake dele se perdeu)
+    EXISTS (SELECT 1 FROM task_followups tf WHERE tf.task_id = t.id AND tf.status = 'pending' AND tf.created_at <= @stale_before::timestamptz)
+    OR
     (p.heartbeat_interval_sec > 0
      AND COALESCE((SELECT max(COALESCE(r.finished_at, r.created_at)) FROM runs r WHERE r.task_id = t.id), 'epoch'::timestamptz)
          + make_interval(secs => p.heartbeat_interval_sec) <= @now::timestamptz)

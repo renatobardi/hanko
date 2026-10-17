@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/renatobardi/hanko/internal/adapter"
 	"github.com/renatobardi/hanko/internal/domain"
@@ -640,5 +641,29 @@ func TestChatSteerInjectedMessageBelongsToTheRun(t *testing.T) {
 	last := msgs[len(msgs)-1]
 	if last.Body != "responda só em uma linha" || last.RunID == nil || *last.RunID != run.ID {
 		t.Fatalf("last = %+v", last)
+	}
+}
+
+// Rede de segurança: se o wake que deveria recolher um follow-up se perdeu, o heartbeat enxerga o follow-up parado há
+// mais de um minuto e a task volta a ser candidata.
+func TestPendingFollowupIsAWakeCandidateWhenStale(t *testing.T) {
+	ctx := context.Background()
+	e, p, tv := runFixture(t)
+	now := time.Date(2026, 10, 17, 12, 0, 0, 0, time.UTC)
+	e.svc.Now = func() time.Time { return now }
+
+	run := startedRun(t, e, p, tv, domain.TriggerAssign)
+	if _, err := e.svc.QueueTaskFollowup(ctx, domain.HumanActor, e.co.ID, tv.ID, "mais uma coisa"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.svc.FinishRun(ctx, e.co.ID, run.ID, service.FinishRunInput{Status: domain.RunFailed, Result: adapter.Result{IsError: true, Error: "x"}}); err != nil {
+		t.Fatal(err)
+	}
+	if c, _ := e.svc.WakeCandidates(ctx, 10); len(c) != 0 {
+		t.Fatalf("too early: %+v", c)
+	}
+	now = now.Add(2 * time.Minute)
+	if c, _ := e.svc.WakeCandidates(ctx, 10); len(c) != 1 || c[0].TaskID != tv.ID {
+		t.Fatalf("stale follow-up must wake the task: %+v", c)
 	}
 }
