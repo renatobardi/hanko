@@ -166,6 +166,13 @@ func (s *Service) StartReview(ctx context.Context, companyID, reviewID domain.ID
 		} else if !isNoRows(err) {
 			return fmt.Errorf("check active run: %w", err)
 		}
+		// Task pausada (própria ou herdada, ADR-0040): nenhuma run abre, nem a de revisão. Tenta de novo depois;
+		// se a pausa passar do prazo da revisão, ela segue o caminho de sempre (gate sem veredito).
+		if berr := t.dispatchBlocker(companyID, task.ID); errors.Is(berr, domain.ErrTaskHeld) {
+			return domain.ErrActiveRun
+		} else if berr != nil && !errors.Is(berr, domain.ErrTaskBlocked) {
+			return berr
+		}
 		author, err := t.q.GetPersonaByID(ctx, store.GetPersonaByIDParams{CompanyID: companyID, ID: rv.AuthorPersonaID})
 		if err != nil {
 			return mapErr(err, "author persona")

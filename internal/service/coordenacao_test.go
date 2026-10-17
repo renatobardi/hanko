@@ -1082,3 +1082,36 @@ func TestReviewPolicyAuthorizationAndValidation(t *testing.T) {
 		t.Fatalf("persona sem exigência fecha direto: %s", got.Status)
 	}
 }
+
+// A revisão automática também espera a pausa: com a task (ou o pai) pausada, nenhuma run de revisão abre.
+func TestReviewRunWaitsForTheHold(t *testing.T) {
+	ctx := context.Background()
+	pe := newPolicyEnv(t, true, func(in *service.HirePersonaInput, rev domain.Persona) { in.ReviewerPersona = &rev.ID })
+	pe.personaCloses(t)
+	pe.jobs.mu.Lock()
+	if len(pe.jobs.reviews) != 1 {
+		pe.jobs.mu.Unlock()
+		t.Fatalf("revisão não pedida: %v", pe.jobs.reviews)
+	}
+	reviewID := pe.jobs.reviews[0]
+	pe.jobs.mu.Unlock()
+	if _, err := pe.svc.FinishRun(ctx, pe.co.ID, pe.run.ID, service.FinishRunInput{Status: domain.RunDone}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pe.svc.HoldTask(ctx, domain.HumanActor, pe.co.ID, pe.task.ID, "freeze"); err != nil {
+		t.Fatal(err)
+	}
+	wantErr(t, pe.svc.StartReview(ctx, pe.co.ID, reviewID), domain.ErrActiveRun)
+	if pe.count(t, "SELECT count(*) FROM runs WHERE trigger = 'review'") != 0 {
+		t.Fatal("nenhuma run de revisão abre com a task pausada")
+	}
+	if _, err := pe.svc.ResumeTask(ctx, domain.HumanActor, pe.co.ID, pe.task.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := pe.svc.StartReview(ctx, pe.co.ID, reviewID); err != nil {
+		t.Fatal(err)
+	}
+	if pe.count(t, "SELECT count(*) FROM runs WHERE trigger = 'review'") != 1 {
+		t.Fatal("retomada, a revisão abre")
+	}
+}
