@@ -81,11 +81,15 @@ persona e padrão da empresa, `execenv`). O M11 do plano (#35, #10, #17) pede a 
     só em memória).
 14. **`persona_readiness`** (uma linha por persona, sobrescrita; migration 00070): veredito, harness, modelo, ambiente e
     origem testados, passos, motivo (primeiro passo que falhou), gatilho (`manual|periodic|hire|update`), duração e
-    `failing_since`. Mudar harness, modelo, `adapter_config` ou ambiente da persona **apaga** a linha (o resultado antigo não vale);
-    sem linha a persona não é bloqueada ("nunca testada" não é falha).
-15. **Gatilhos.** (a) "Testar agora" (`POST /personas/{p}/readiness`, UI na persona e depois da contratação, `hanko persona
-    test`); (b) job periódico river `readiness_tick` testa, por tick, até 20 personas sem teste ou com teste mais velho que
-    `HANKO_READINESS_INTERVAL` (padrão 15 min); (c) após a contratação o tick pega a persona na rodada seguinte.
+    `failing_since`. Um teste vale só para o harness e o modelo que ele testou: mudar o modelo da persona torna o resultado
+    antigo inválido (não bloqueia e a persona volta a ser testada na passada seguinte). Mudar o ambiente da persona, o padrão da
+    empresa ou a configuração do ambiente testado **apaga** a linha (a persona volta a "nunca testada"). Sem linha a persona não
+    é bloqueada: "nunca testada" não é falha.
+15. **Gatilhos.** (a) "Testar agora" (`POST /personas/{p}/readiness`, cartão na página da persona, `hanko persona test`); a
+    contratação pela UI leva à página da persona com `?testar=1`, que testa sozinha ao abrir; (b) job periódico river
+    `readiness_tick` testa, por passada, até 20 personas sem teste ou com teste mais velho que `HANKO_READINESS_INTERVAL`
+    (padrão 15 min; `0` desliga só a checagem periódica, o "Testar agora" segue valendo); (c) persona contratada pela API é
+    pega pela passada seguinte (as nunca testadas vão primeiro).
 16. **Alerta e bloqueio.** `not_ready` abre o alerta `persona_not_ready` (critical) pelo `alert_tick` já existente, com o motivo, e
     `CheckoutRun`/revisão/chat recusam abrir run com `ErrPersonaNotReady` (HTTP 409, motivo na mensagem; o wake a trata como
     `ErrBudgetExceeded`: não abre run e tenta de novo quando algo mudar). Um teste que passa fecha o alerta e libera o

@@ -10,6 +10,11 @@ import (
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/renatobardi/hanko/internal/adapter/procrun"
 	"github.com/renatobardi/hanko/internal/domain"
 )
@@ -163,15 +168,21 @@ func (s *cloudSession) provision(ctx context.Context) error {
 // provisionCloud cria o sandbox, abre o SSH e configura inner. boxID recebe o id assim que o sandbox existe (para que
 // uma falha depois disso ainda consiga apagá-lo).
 func provisionCloud(ctx context.Context, prov CloudProvider, c domain.CloudConfig, name string, labels map[string]string, inner *sshSession, boxID *string) error {
+	ctx, span := otel.Tracer("hanko/execenv").Start(ctx, "hanko.environment.cloud.provision", trace.WithAttributes(attribute.String("hanko.cloud.provider", c.Provider)))
+	defer span.End()
 	cctx, cancel := context.WithTimeout(ctx, cloudOpTimeout)
 	defer cancel()
 	box, err := prov.Create(cctx, cloudSpecOf(c, name, labels))
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "create")
 		return fmt.Errorf("criar o sandbox em nuvem: %w", err)
 	}
 	*boxID = box.ID
 	acc, err := prov.SSH(cctx, box.ID, cloudSSHTTL)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "ssh access")
 		return fmt.Errorf("abrir o acesso SSH ao sandbox %s: %w", box.ID, err)
 	}
 	if !ValidHostOrIP(acc.Host) || !cloudTokenRe.MatchString(acc.User) {

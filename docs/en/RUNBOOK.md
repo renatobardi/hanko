@@ -633,3 +633,48 @@ formatting characters). Operating notes:
   ("search took too long; use more specific words"). The last word matches by prefix only from 2 letters (3 in comments).
 - **Memory in search.** The "Memory" group appears only when the memory server lists the `memory_query` tool (read from `tools/list`,
   cached for 5 min). Without it the group disappears and the log carries one warning; consolidation (ADR-0030) does not depend on it.
+
+## Execution environments, readiness and model catalog (ADR-0037, ADR-0055)
+
+By default every run is a child process of this server (the implicit **local** environment). An admin can add environments in
+Settings › Environments or with `hanko env create`: an explicit **local** (a named local with its own variables, useful to force
+local on a persona or project when the company default is remote), **ssh** (a remote host), **sandbox** (a hardened docker
+container per run) and **cloud** (a disposable cloud sandbox per run, provider Daytona). Each driver exists only if the operator
+turns it on:
+
+| Variable | Default | Effect |
+|---|---|---|
+| `HANKO_ENV_SSH_ALLOW_HOSTS` | empty | Hosts allowed for SSH (exact, suffix, IP, CIDR or `*`). Empty = SSH off. |
+| `HANKO_ENV_SANDBOX` | empty | `docker` turns the docker sandbox on (needs the `docker` binary and daemon access). |
+| `HANKO_ENV_SANDBOX_HOST_ROOT` | empty | Hanko inside a container talking to the host's docker: the host path of `HANKO_WORKSPACES_ROOT`. |
+| `HANKO_ENV_CLOUD` | empty | `daytona` turns the cloud sandbox on. Requires `HANKO_ENV_CLOUD_SSH_KNOWN_HOSTS`. |
+| `HANKO_ENV_CLOUD_API_URL` | `https://app.daytona.io/api` | Provider API base (operator-owned; no company picks a network destination). |
+| `HANKO_ENV_CLOUD_SSH_HOST` | `ssh.app.daytona.io` | Provider SSH gateway. |
+| `HANKO_ENV_CLOUD_SSH_KNOWN_HOSTS` | empty | known_hosts lines of the gateway (`ssh-keyscan`). Required: ssh never accepts an unknown host key. |
+| `HANKO_READINESS_INTERVAL` | `15m` | Age after which a persona's readiness test is redone by the periodic check; `0` turns it off ("Test now" still works). |
+| `HANKO_PUBLIC_URL` | — | Required and non-loopback for SSH, networked sandboxes and cloud: the remote harness reaches Hanko's MCP through it. |
+
+**Precedence.** A run's environment is the persona's; else the project's (`hanko project env`); else the company default; else the
+implicit local. A level pointing at an archived environment is skipped (a warning in the run log). The decision is made when the run
+is created and stored on it (`environment_id`, `environment_source`); the run page shows where and why. Archiving an environment
+moves its personas and projects.
+
+**Cloud (Daytona).** Each run creates a sandbox at the provider, uploads the workspace through the SSH gateway with a short-lived
+token, runs the harness, brings the result back and deletes the sandbox. A failed run or sync **keeps** the sandbox so the work can
+be recovered; the provider stops it after 15 idle minutes and deletes it 60 minutes after it stopped. The API key is stored
+encrypted (accepts `${secret:NAME}`). The client is tested only against a stub server: try `hanko env probe` against a real account
+before relying on it.
+
+**Probe and capabilities.** `hanko env probe` runs a script on the target and records the system, writable folder, binaries
+(`tar`, `git`, `claude`, `codex`), whether the target reaches Hanko through the public URL, and `capabilities` (`sync`, `git`,
+`claude`, `codex`, `hanko-reachable`, plus `network`, `isolated`, `persistent` from the driver).
+
+**Readiness (persona).** Before a run fails for lack of login, Hanko tests the persona's harness in its environment: binary,
+login or API key, and model (format and price). It never calls the model, so it costs no tokens. Steps are named (`environment`,
+`binary`, `auth`, `model`) and stored in `persona_readiness`. It runs on "Test now" (the persona page, and right after hiring),
+`hanko persona test <persona>`, and the periodic `readiness_tick` job. A failure opens the `persona_not_ready` alert and **blocks
+dispatch** (tasks, chat and reviews) with the reason until a test passes; a never-tested persona is not blocked.
+
+**Model catalog.** `hanko model list [--agent claude]` and the hire form's model picker (with an "Other…" option) merge harness
+aliases, `model_prices` rows, models seen by readiness tests and models used by the company's runs in the last 90 days. A model
+without its own price is flagged: its cost falls back to the fallback price (ADR-0019).
