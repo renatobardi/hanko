@@ -173,11 +173,13 @@ type HirePersonaInput struct {
 
 type UpdatePersonaInput struct {
 	Name, Title, Instructions, Model *string
-	Icon                             *string // um de domain.PersonaIcons
-	Status                           *domain.PersonaStatus
-	HeartbeatIntervalSec             *int
-	WorkspaceID                      *domain.ID
-	ClearWorkspace                   bool
+	// InstructionsReason é o motivo da mudança de instruções (ADR-0052); vai na revisão gravada.
+	InstructionsReason   string
+	Icon                 *string // um de domain.PersonaIcons
+	Status               *domain.PersonaStatus
+	HeartbeatIntervalSec *int
+	WorkspaceID          *domain.ID
+	ClearWorkspace       bool
 	// ReportsTo moves the persona under another one; ClearReportsTo makes it top-level.
 	// A move that would close a loop in the chart is rejected (ErrInvalid).
 	ReportsTo      *domain.ID
@@ -254,6 +256,9 @@ type AddCommentInput struct {
 	Body    string
 	RunID   *domain.ID
 	EventID string
+	// AttachmentIDs são anexos da task já enviados (sem comentário ainda) que passam a pertencer a este comentário,
+	// na mesma transação: a run acordada pelo comentário já os vê no briefing (ADR-0052).
+	AttachmentIDs []domain.ID
 	// Anchor, when set, ties the comment to a passage of the task description or of a run summary
 	// (ADR-0026). The service checks that the quote exists in the target document and fills offsets and hash.
 	Anchor *domain.Anchor
@@ -348,6 +353,26 @@ type RunContext struct {
 	SessionReset *domain.TaskSessionReset
 	// Worktree é o worktree Git da task quando o executor o preparou (ADR-0054); o prompt diz a branch.
 	Worktree *WorktreePrep
+	// Attachments são os anexos da task (ou da conversa, numa run de chat), do mais antigo ao mais novo, até
+	// MaxBriefingAttachments (ADR-0052).
+	Attachments []AttachmentBrief
+}
+
+// MaxBriefingAttachments é quantos anexos entram no briefing da run.
+const MaxBriefingAttachments = 30
+
+// AttachmentBrief é um anexo em formato curto para o briefing da run.
+type AttachmentBrief struct {
+	ID        domain.ID
+	Name      string
+	Mime      string
+	SizeBytes int64
+	Author    domain.Actor
+	CreatedAt time.Time
+	CommentID *domain.ID
+	MessageID *domain.ID
+	// New: o anexo veio numa mensagem que esta run de chat recolheu.
+	New bool
 }
 
 // WakeCandidate is an (assigned, workable, idle) task found by the periodic heartbeat.

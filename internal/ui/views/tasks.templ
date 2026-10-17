@@ -184,6 +184,9 @@ templ Thread(vm TaskVM, base string) {
 					<div class="bubble">
 						@MsgQuote(m)
 						<div class="md">@templ.Raw(string(m.Body))</div>
+						if len(m.Attachments) > 0 {
+							<div class="att-inline">@AttachmentItems(m.Attachments)</div>
+						}
 					</div>
 					<div class="meta"><span>{ i18n.T(ctx, "Você ·") } <time class="mono">{ m.When }</time></span></div>
 				</div>
@@ -198,11 +201,20 @@ templ Thread(vm TaskVM, base string) {
 						</div>
 						@MsgQuote(m)
 						<div class="body md">@templ.Raw(string(m.Body))</div>
+						if len(m.Attachments) > 0 {
+							<div class="att-inline">@AttachmentItems(m.Attachments)</div>
+						}
 					</div>
 				</div>
 			}
 		}
 	</div>
+}
+
+// ThreadAndAttachments é a resposta do envio de um comentário: a conversa nova e o cartão de anexos atualizado.
+templ ThreadAndAttachments(vm TaskVM, base string) {
+	@Thread(vm, base)
+	@TaskAttachments(vm.Attach, true)
 }
 
 // MsgQuote shows the passage an anchored comment is about, and flags a lost anchor.
@@ -225,12 +237,16 @@ templ CommentForm(vm TaskVM, base string) {
 			class="composer"
 			method="post"
 			action={ templ.SafeURL(base + "/tasks/" + vm.Key + "/comentarios") }
+			enctype="multipart/form-data"
 			hx-post={ base + "/tasks/" + vm.Key + "/comentarios" }
+			hx-encoding="multipart/form-data"
 			hx-target="#thread"
 			hx-swap="outerHTML"
-			hx-on::after-request="if(event.detail.successful){this.reset();}"
+			hx-on::after-request="if(event.detail.successful){this.querySelector('textarea').value='';var f=this.querySelector('input[type=file]');if(f){f.value='';f.dispatchEvent(new Event('change',{bubbles:true}));}}"
+			data-dropzone=""
 		>
-			<textarea name="body" required placeholder={ i18n.T(ctx, "Escreva um comentário (markdown). Fica na fila se a persona estiver ocupada.") } aria-label={ i18n.T(ctx, "Comentário") }>{ vm.Draft }</textarea>
+			@DraftTextarea("body", i18n.T(ctx, "Escreva um comentário (markdown). Fica na fila se a persona estiver ocupada."), i18n.T(ctx, "Comentário"), vm.DraftF)
+			@DropField(vm.UploadHint, false)
 			<div class="row">
 				<span class="hint">{ i18n.T(ctx, "Markdown · HTML é escapado") }</span>
 				<button type="submit" class="btn primary sm">
@@ -282,6 +298,7 @@ templ TaskSide(vm TaskVM, base string) {
 			}
 		</div>
 		@TaskCasesPanel(vm.Cases)
+		@TaskAttachments(vm.Attach, false)
 		<div class="side-sec">
 			<div class="side-h row-between"><span>{ i18n.T(ctx, "Artefatos") }</span><a class="normal-case" href={ templ.SafeURL(vm.ArtifactsHref) }>{ i18n.T(ctx, "Ver todos") }</a></div>
 			@ArtifactMiniList(vm.Artifacts, "")

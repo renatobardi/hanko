@@ -488,7 +488,7 @@ const setPersonaReviewer = `-- name: SetPersonaReviewer :one
 UPDATE personas SET reviewer_persona_id = $1, reviewer_agent = $2,
                     reviewer_model = $3, updated_at = $4
 WHERE company_id = $5 AND id = $6
-RETURNING id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason, budget_refused_at, subscription_id, reviewer_persona_id, reviewer_agent, reviewer_model, search_tsv, icon, environment_id
+RETURNING id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason, budget_refused_at, subscription_id, reviewer_persona_id, reviewer_agent, reviewer_model, search_tsv, icon, environment_id, instruction_revision
 `
 
 type SetPersonaReviewerParams struct {
@@ -540,6 +540,7 @@ func (q *Queries) SetPersonaReviewer(ctx context.Context, arg SetPersonaReviewer
 		&i.SearchTsv,
 		&i.Icon,
 		&i.EnvironmentID,
+		&i.InstructionRevision,
 	)
 	return i, err
 }
