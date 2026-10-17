@@ -44,7 +44,7 @@ func TestMigration00050IsAdditiveAndReversible(t *testing.T) {
 	for _, q := range []string{
 		`INSERT INTO companies (id, slug, name, task_prefix) VALUES ('` + co + `','a','A','AAA')`,
 		`INSERT INTO personas (id, company_id, slug, name, agent) VALUES ('` + pe + `','` + co + `','p','P','fake')`,
-		`INSERT INTO integrations (id, company_id, kind, slug, name, config) VALUES ('` + in + `','` + co + `','mcp','docs','Docs','{"url":"http://x"}')`,
+		`INSERT INTO integrations (id, company_id, kind, slug, name, config, created_by_type) VALUES ('` + in + `','` + co + `','mcp','docs','Docs','{"url":"http://x"}','human')`,
 		`INSERT INTO tool_profiles (id, company_id, slug, name, created_by_type) VALUES ('` + pr + `','` + co + `','base','Base','human')`,
 		`INSERT INTO tool_gateways (id, company_id, slug, name, profile_id, created_by_type) VALUES ('` + gw + `','` + co + `','ide','IDE','` + pr + `','human')`,
 		`INSERT INTO gates (id, company_id, kind, status, title, persona_id, requested_by_type) VALUES ('` + gt + `','` + co + `','tool','pending','t','` + pe + `','persona')`,
