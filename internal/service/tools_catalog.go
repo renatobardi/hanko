@@ -14,8 +14,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/google/uuid"
-
 	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/mcpupstream"
 	"github.com/renatobardi/hanko/internal/netguard"
@@ -337,21 +335,6 @@ func (t *txc) upsertCatalogTool(integ store.Integration, st sanitizedTool, basel
 			map[string]any{"slug": integ.Slug, "tool": row.Name, "risk": row.Risk, "reason": reason}, "")
 	}
 	return nil
-}
-
-// resolveIntegrationRef resolve uma integração por id ou slug.
-func resolveIntegrationRef(ctx context.Context, q *store.Queries, companyID domain.ID, ref string) (store.Integration, error) {
-	var r store.Integration
-	var err error
-	if id, perr := uuid.Parse(ref); perr == nil {
-		r, err = q.GetIntegrationByID(ctx, store.GetIntegrationByIDParams{CompanyID: companyID, ID: id})
-	} else {
-		r, err = q.GetIntegrationBySlug(ctx, store.GetIntegrationBySlugParams{CompanyID: companyID, Slug: ref})
-	}
-	if err != nil {
-		return store.Integration{}, mapErr(err, "get integration")
-	}
-	return r, nil
 }
 
 // ListIntegrationTools devolve o catálogo de uma integração MCP (qualquer membro lê).

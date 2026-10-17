@@ -215,23 +215,23 @@ type ToolGateway struct {
 
 // ToolInvocation é uma chamada auditada (os argumentos nunca são guardados).
 type ToolInvocation struct {
-	ID              string    `json:"id" format:"uuid"`
-	RunID           string    `json:"run_id,omitempty" format:"uuid"`
-	GatewayID       string    `json:"gateway_id,omitempty" format:"uuid"`
-	Gateway         string    `json:"gateway,omitempty"`
-	PersonaID       string    `json:"persona_id,omitempty" format:"uuid"`
-	Persona         string    `json:"persona,omitempty"`
-	IntegrationID   string    `json:"integration_id,omitempty" format:"uuid"`
-	Integration     string    `json:"integration"`
-	Tool            string    `json:"tool"`
-	ArgsSHA256      string    `json:"args_sha256" doc:"sha256 de integração + tool + argumentos canônicos."`
-	ArgsBytes       int       `json:"args_bytes"`
-	Decision        string    `json:"decision" enum:"allow,deny,ask,quarantined,error"`
-	GateID          string    `json:"gate_id,omitempty" format:"uuid"`
-	Status          string    `json:"status" enum:"ok,failed,blocked,pending"`
-	LatencyMs       int       `json:"latency_ms"`
-	Error           string    `json:"error,omitempty"`
-	CreatedAt       time.Time `json:"created_at"`
+	ID            string    `json:"id" format:"uuid"`
+	RunID         string    `json:"run_id,omitempty" format:"uuid"`
+	GatewayID     string    `json:"gateway_id,omitempty" format:"uuid"`
+	Gateway       string    `json:"gateway,omitempty"`
+	PersonaID     string    `json:"persona_id,omitempty" format:"uuid"`
+	Persona       string    `json:"persona,omitempty"`
+	IntegrationID string    `json:"integration_id,omitempty" format:"uuid"`
+	Integration   string    `json:"integration"`
+	Tool          string    `json:"tool"`
+	ArgsSHA256    string    `json:"args_sha256" doc:"sha256 de integração + tool + argumentos canônicos."`
+	ArgsBytes     int       `json:"args_bytes"`
+	Decision      string    `json:"decision" enum:"allow,deny,ask,quarantined,error"`
+	GateID        string    `json:"gate_id,omitempty" format:"uuid"`
+	Status        string    `json:"status" enum:"ok,failed,blocked,pending"`
+	LatencyMs     int       `json:"latency_ms"`
+	Error         string    `json:"error,omitempty"`
+	CreatedAt     time.Time `json:"created_at"`
 }
 
 // ReviewResult é o resultado da revisão em lote da quarentena.

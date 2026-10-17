@@ -511,7 +511,7 @@ func (f *Fake) DeleteToolGateway(ctx context.Context, _ domain.Actor, _, gateway
 }
 
 // FakeGatewayToken é o valor que o Fake devolve ao gerar um token (para os testes conferirem o "mostrado uma vez").
-const FakeGatewayToken = "hkgw_FAKEtokenValue0123456789abcdefghijk"
+const FakeGatewayToken = "hkgw_FAKEtokenValue0123456789abcdefghijk" //nolint:gosec // valor fictício de teste
 
 func (f *Fake) CreateGatewayToken(ctx context.Context, _ domain.Actor, _, gatewayID domain.ID, in service.CreateGatewayTokenInput) (domain.ToolGatewayToken, string, error) {
 	if err := f.toolsAdmin(ctx); err != nil {

@@ -27,7 +27,9 @@ func TestCLIToolsProfilesAndGateways(t *testing.T) {
 	svc.Integrations = service.IntegrationsConfig{AllowPrivate: true, Secrets: box}
 	up := sdk.NewServer(&sdk.Implementation{Name: "up", Version: "1"}, nil)
 	up.AddTool(&sdk.Tool{Name: "ler", InputSchema: json.RawMessage(`{"type":"object"}`), Annotations: &sdk.ToolAnnotations{ReadOnlyHint: true}},
-		func(context.Context, *sdk.CallToolRequest) (*sdk.CallToolResult, error) { return &sdk.CallToolResult{}, nil })
+		func(context.Context, *sdk.CallToolRequest) (*sdk.CallToolResult, error) {
+			return &sdk.CallToolResult{}, nil
+		})
 	hs := httptest.NewServer(sdk.NewStreamableHTTPHandler(func(*http.Request) *sdk.Server { return up },
 		&sdk.StreamableHTTPOptions{Stateless: true, JSONResponse: true, DisableLocalhostProtection: true}))
 	t.Cleanup(hs.Close)

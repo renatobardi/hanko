@@ -540,7 +540,7 @@ func TestNamedGatewayTokens(t *testing.T) {
 	listOnly, tokList, err := e.svc.CreateGatewayToken(ctx, domain.HumanActor, e.co.ID, gw.ID, service.CreateGatewayTokenInput{Label: "só ler",
 		Actions: []string{domain.GatewayActionList}})
 	if err != nil || !strings.HasPrefix(tokList, "hkgw_") || !strings.HasPrefix(tokList, listOnly.Prefix) ||
-		listOnly.ExpiresAt.Sub(time.Now()) < 89*24*time.Hour {
+		time.Until(listOnly.ExpiresAt) < 89*24*time.Hour {
 		t.Fatalf("token: %+v %q %v", listOnly, tokList, err)
 	}
 	full, tokFull, err := e.svc.CreateGatewayToken(ctx, domain.HumanActor, e.co.ID, gw.ID, service.CreateGatewayTokenInput{ExpiresIn: 2 * time.Hour})
