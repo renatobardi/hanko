@@ -176,6 +176,8 @@ type Msg struct {
 	// Quote is the passage an anchored comment is about; QuoteLost = its anchor no longer exists in the document.
 	Quote     string
 	QuoteLost bool
+	// Anexos do comentário (ADR-0052).
+	Attachments []AttachmentRow
 }
 
 type RunMini struct {
@@ -222,7 +224,11 @@ type TaskVM struct {
 	Model           string // manual model of the task (wins over the persona's)
 	Notice          string // flash after an action
 	Error           string
-	Draft           string
+	// DraftF liga o campo de comentário ao rascunho do servidor; Attach é o cartão de anexos da task e UploadHint a
+	// dica de tamanho do campo de arquivos do compositor (ADR-0052).
+	DraftF     DraftFields
+	Attach     AttachBox
+	UploadHint string
 	// Anchored-comment island on the description (ADR-0026).
 	TaskKey     string
 	DescDoc     string // description as anchors see it (\n line endings)
@@ -291,40 +297,43 @@ type HirePersonaVM struct {
 }
 
 type PersonaVM struct {
-	Icon          string // glifo atual (domain.PersonaIcons)
-	IconAction    string // POST que troca o glifo
-	Name          string
-	Initials      string
-	Title         string
-	Badge         Badge
-	Agent         string
-	Model         string
-	Heartbeat     string
-	Instructions  string
-	Hired         string
-	Slug          string
-	Tasks         []TaskRow
-	Chats         []ChatRow // conversations with this persona
-	NewChatHref   string    // opens a conversation with it ("" = the viewer cannot write)
-	Rooms         []RoomRow // salas em que participa (ADR-0033)
-	Runs          []RunRow
-	Budget        *BudgetBox       // monthly spend vs ceiling
-	Notice        string           // flash after an action
-	LastError     string           // last failed run, shown while the persona is failing
-	LastErrorAt   string           // when it happened
-	Failures      int              // failed runs in a row
-	Controls      []PersonaControl // pause / resume / reactivate buttons
-	ReportsTo     string           // name of the superior ("" = reports to the owner)
-	ReportsHref   string
-	Reports       []PersonaRef // personas that report to this one
-	RequireReview bool
-	Subscription  string   // name of the subscription that covers the persona ("" = none)
-	SubOptions    []Option // subscriptions to link
-	SubAction     string
-	OrgAction     string   // POST target of the organisation form
-	OrgOptions    []Option // "Reporta a" choices
-	Reviewer      ReviewerVM
-	Extras        PersonaExtrasVM // skills e servidores MCP (ADR-0029)
+	Icon         string // glifo atual (domain.PersonaIcons)
+	IconAction   string // POST que troca o glifo
+	Name         string
+	Initials     string
+	Title        string
+	Badge        Badge
+	Agent        string
+	Model        string
+	Heartbeat    string
+	Instructions string
+	// InstructionsHref leva ao histórico e à edição das instruções (revisão vigente em InstructionRevision, ADR-0052).
+	InstructionsHref    string
+	InstructionRevision int
+	Hired               string
+	Slug                string
+	Tasks               []TaskRow
+	Chats               []ChatRow // conversations with this persona
+	NewChatHref         string    // opens a conversation with it ("" = the viewer cannot write)
+	Rooms               []RoomRow // salas em que participa (ADR-0033)
+	Runs                []RunRow
+	Budget              *BudgetBox       // monthly spend vs ceiling
+	Notice              string           // flash after an action
+	LastError           string           // last failed run, shown while the persona is failing
+	LastErrorAt         string           // when it happened
+	Failures            int              // failed runs in a row
+	Controls            []PersonaControl // pause / resume / reactivate buttons
+	ReportsTo           string           // name of the superior ("" = reports to the owner)
+	ReportsHref         string
+	Reports             []PersonaRef // personas that report to this one
+	RequireReview       bool
+	Subscription        string   // name of the subscription that covers the persona ("" = none)
+	SubOptions          []Option // subscriptions to link
+	SubAction           string
+	OrgAction           string   // POST target of the organisation form
+	OrgOptions          []Option // "Reporta a" choices
+	Reviewer            ReviewerVM
+	Extras              PersonaExtrasVM // skills e servidores MCP (ADR-0029)
 }
 
 // ReviewerVM is the reviewer block of the persona page: the configured reviewer (summary) and the
@@ -419,15 +428,19 @@ type RunVM struct {
 	PolicyOrigin string // política de revisão que valeu e de que camada veio (ADR-0040); vazio em runs sem registro
 	Subscription string
 	Session      string
-	ExitCode     string
-	Error        string
-	Summary      HTML
-	Active       bool
-	Terminal     bool
-	CancelHref   string
-	SSEHref      string
-	Lines        []LogLine
-	LastSeq      int64
+	// Instructions diz com que revisão das instruções da persona a run rodou ("r7 · a1b2c3d4e5f6"); InstructionsHref
+	// leva ao texto daquela revisão (ADR-0052). Vazios em runs anteriores às revisões.
+	Instructions     string
+	InstructionsHref string
+	ExitCode         string
+	Error            string
+	Summary          HTML
+	Active           bool
+	Terminal         bool
+	CancelHref       string
+	SSEHref          string
+	Lines            []LogLine
+	LastSeq          int64
 	// Islands (ADR-0026): virtualized log and anchored comments on the summary.
 	IslandAPI      string
 	LogMsgs        string // JSON

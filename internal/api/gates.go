@@ -16,7 +16,7 @@ import (
 type Gate struct {
 	ID              string         `json:"id" format:"uuid"`
 	CompanyID       string         `json:"company_id" format:"uuid"`
-	Kind            string         `json:"kind" enum:"approval,task_review,hire,memory,tool" doc:"approval: ação irreversível, merge, deploy, gasto; task_review: revisão para concluir uma task; hire: contratação; memory: proposta de curadoria de memória que remove, funde ou reescreve conteúdo; tool: chamada de tool que pede aprovação antes (gateway de tools)."`
+	Kind            string         `json:"kind" enum:"approval,task_review,hire,memory,tool,instruction" doc:"approval: ação irreversível, merge, deploy, gasto; task_review: revisão para concluir uma task; hire: contratação; memory: proposta de curadoria de memória que remove, funde ou reescreve conteúdo; tool: chamada de tool que pede aprovação antes (gateway de tools); instruction: a persona propõe mudar as próprias instruções (ADR-0052)."`
 	Status          string         `json:"status" enum:"pending,approved,rejected,changes_requested,expired"`
 	Title           string         `json:"title" example:"Fazer deploy em produção"`
 	Body            string         `json:"body" doc:"Pedido em Markdown: o que está sendo decidido, evidência e impacto."`
@@ -103,7 +103,7 @@ type listGatesIn struct {
 	CompanyPath
 	Page
 	Status  string `query:"status" doc:"Status separados por vírgula: pending,approved,rejected,changes_requested,expired." example:"pending"`
-	Kind    string `query:"kind" doc:"Tipos separados por vírgula: approval,task_review,hire,memory,tool."`
+	Kind    string `query:"kind" doc:"Tipos separados por vírgula: approval,task_review,hire,memory,tool,instruction."`
 	Task    string `query:"task" doc:"Id ou chave da task."`
 	Persona string `query:"persona" doc:"Id ou slug da persona que pediu."`
 	Mine    bool   `query:"mine" doc:"Só os gates da audiência da pessoa autenticada: que pediu ou decidiu, ou de tasks em que participa. Vazio sem pessoa autenticada."`

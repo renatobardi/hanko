@@ -102,6 +102,11 @@ type PutArtifactInput struct {
 
 	TaskID, RunID, ProjectID *domain.ID
 
+	// Class vazio = artefato. Anexo (ADR-0052): sempre versão 1, ligado a uma task (e a um comentário dela) ou a uma
+	// conversa do chat (e a uma mensagem dela); o nome repetido ganha sufixo em vez de virar versão.
+	Class                                domain.ArtifactClass
+	CommentID, ConversationID, MessageID *domain.ID
+
 	// createdAt (importação) preserva o instante do arquivo de origem; zero = agora.
 	createdAt time.Time
 }
@@ -124,10 +129,15 @@ type ArtifactView struct {
 // (a lista de uma run: o que aquela run publicou).
 type ArtifactFilter struct {
 	ProjectID, TaskID, PersonaID, RunID *domain.ID
-	Kind                                domain.ArtifactKind
-	Query                               string
-	AllVersions                         bool
-	Limit, Offset                       int // padrão 100, máx. 500
+	// Class filtra artefato (padrão) ou anexo; AllClasses lista os dois. CommentID, ConversationID e MessageID
+	// filtram os anexos de um comentário, de uma conversa ou de uma mensagem.
+	Class                                domain.ArtifactClass
+	AllClasses                           bool
+	CommentID, ConversationID, MessageID *domain.ID
+	Kind                                 domain.ArtifactKind
+	Query                                string
+	AllVersions                          bool
+	Limit, Offset                        int // padrão 100, máx. 500
 }
 
 // ArtifactLimitError é a recusa de um artefato por tamanho (acima do limite por arquivo) ou por cota (a empresa já
@@ -163,7 +173,8 @@ type ArtifactUsage struct {
 func artifactFromRow(r store.Artifact) domain.Artifact {
 	return domain.Artifact{ID: r.ID, CompanyID: r.CompanyID, TaskID: r.TaskID, RunID: r.RunID, ProjectID: r.ProjectID,
 		PersonaID: r.PersonaID, Author: actorOf(r.AuthorType, r.AuthorID), Name: r.Name, Mime: r.Mime, SizeBytes: r.SizeBytes,
-		SHA256: r.Sha256, Version: int(r.Version), CreatedAt: r.CreatedAt}
+		SHA256: r.Sha256, Version: int(r.Version), CreatedAt: r.CreatedAt, Class: domain.ArtifactClass(r.Kind),
+		CommentID: r.CommentID, ConversationID: r.ConversationID, MessageID: r.MessageID}
 }
 
 func artifactView(a store.Artifact, prefix string, taskNum int64, taskTitle, prSlug, prName, peSlug, peName, runName string, versions int64) ArtifactView {
@@ -279,6 +290,16 @@ func (s *Service) PutArtifact(ctx context.Context, actor domain.Actor, companyID
 	if err != nil {
 		return ArtifactView{}, err
 	}
+	if in.Class == "" {
+		in.Class = domain.ClassArtifact
+	}
+	if !in.Class.Valid() {
+		return ArtifactView{}, domain.Invalid("class", fmt.Sprintf("unknown class %q", in.Class))
+	}
+	attach := in.Class == domain.ClassAttachment
+	if !attach && (in.CommentID != nil || in.ConversationID != nil || in.MessageID != nil) {
+		return ArtifactView{}, domain.Invalid("class", "comment, conversation and message links are for attachments")
+	}
 	sum := sha256.Sum256(in.Content)
 	digest := hex.EncodeToString(sum[:])
 
@@ -299,6 +320,11 @@ func (s *Service) PutArtifact(ctx context.Context, actor domain.Actor, companyID
 		ctx := t.ctx
 		if _, err := t.q.GetCompanyByID(ctx, companyID); err != nil {
 			return mapErr(err, "company")
+		}
+		if attach {
+			aid, err := t.putAttachment(actor, companyID, in, name, mt, digest, quota, newID, drv, blobKey)
+			id = aid
+			return err
 		}
 		taskID, runID, projectID := in.TaskID, in.RunID, in.ProjectID
 		if runID != nil {
@@ -369,7 +395,8 @@ func (s *Service) PutArtifact(ctx context.Context, actor domain.Actor, companyID
 		}
 		row, err := t.q.CreateArtifact(ctx, store.CreateArtifactParams{ID: newID, CompanyID: companyID, TaskID: taskID,
 			RunID: runID, ProjectID: projectID, PersonaID: personaID, AuthorType: string(actor.Type), AuthorID: actor.ID,
-			Name: name, Mime: mt, SizeBytes: int64(len(in.Content)), Sha256: digest, Version: version, CreatedAt: at, Storage: drv.Name()})
+			Name: name, Mime: mt, SizeBytes: int64(len(in.Content)), Sha256: digest, Version: version, CreatedAt: at, Storage: drv.Name(),
+			Kind: string(domain.ClassArtifact)})
 		if err != nil {
 			return mapErr(err, "create artifact")
 		}
@@ -403,7 +430,19 @@ func (s *Service) ListArtifacts(ctx context.Context, companyID domain.ID, f Arti
 		return nil, err
 	}
 	p := store.ListArtifactViewsParams{CompanyID: companyID, ProjectID: f.ProjectID, TaskID: f.TaskID, PersonaID: f.PersonaID,
-		RunID: f.RunID, LatestOnly: !f.AllVersions, Lim: i32(clamp(f.Limit, 100, 500)), Off: i32(max(f.Offset, 0))}
+		RunID: f.RunID, CommentID: f.CommentID, ConversationID: f.ConversationID, MessageID: f.MessageID,
+		LatestOnly: !f.AllVersions, Lim: i32(clamp(f.Limit, 100, 500)), Off: i32(max(f.Offset, 0))}
+	switch {
+	case f.AllClasses:
+		all := "all"
+		p.Class = &all
+	case f.Class != "":
+		if !f.Class.Valid() {
+			return nil, domain.Invalid("class", fmt.Sprintf("unknown class %q", f.Class))
+		}
+		c := string(f.Class)
+		p.Class = &c
+	}
 	if f.Kind != "" {
 		if !f.Kind.Valid() {
 			return nil, domain.Invalid("kind", fmt.Sprintf("unknown kind %q", f.Kind))
@@ -447,6 +486,9 @@ func (s *Service) ArtifactVersions(ctx context.Context, companyID, id domain.ID)
 	cur, err := q.GetArtifactByID(ctx, store.GetArtifactByIDParams{CompanyID: companyID, ID: id})
 	if err != nil {
 		return nil, mapErr(err, "get artifact")
+	}
+	if cur.Kind == string(domain.ClassAttachment) { // anexo não tem cadeia de versões
+		return []domain.Artifact{artifactFromRow(cur)}, nil
 	}
 	rows, err := q.ListArtifactChain(ctx, store.ListArtifactChainParams{CompanyID: companyID, TaskID: cur.TaskID, Name: cur.Name})
 	if err != nil {
@@ -492,6 +534,15 @@ func (s *Service) DeleteArtifact(ctx context.Context, actor domain.Actor, compan
 		cur, err := t.q.GetArtifactByID(t.ctx, store.GetArtifactByIDParams{CompanyID: companyID, ID: id})
 		if err != nil {
 			return mapErr(err, "get artifact")
+		}
+		if cur.Kind == string(domain.ClassAttachment) { // um anexo é uma linha só
+			gone, err := t.q.DeleteAttachment(t.ctx, store.DeleteAttachmentParams{CompanyID: companyID, ID: id})
+			if err != nil {
+				return mapErr(err, "delete attachment")
+			}
+			t.deleteBlobsAfterCommit(companyID, []domain.ID{gone.ID}, []string{gone.Storage})
+			return t.activity(actor, companyID, "attachment.deleted", "artifact", id,
+				map[string]any{"name": cur.Name, "task_id": cur.TaskID, "conversation_id": cur.ConversationID}, "")
 		}
 		if err := t.q.LockArtifactChain(t.ctx, chainKey(companyID, cur.TaskID, cur.Name)); err != nil {
 			return fmt.Errorf("lock artifact chain: %w", err)

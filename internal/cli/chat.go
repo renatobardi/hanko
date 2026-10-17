@@ -149,6 +149,13 @@ func (e *env) chatCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
+				if m.Marker == "context_reset" && m.Author.Type == "system" { // /new sozinho: só o marcador, sem resposta (ADR-0052)
+					if e.asJSON {
+						return e.printJSON(map[string]string{"conversation_id": convID, "message_id": m.ID, "marker": m.Marker})
+					}
+					fmt.Fprintln(e.out, e.tf("Contexto reiniciado. A conversa %s recomeça na próxima mensagem.", convID))
+					return nil
+				}
 				since = m.ID
 			} else {
 				cv, err := cl.CreateConversation(ctx, co, client.CreateConversationReq{Persona: args[0], Title: title, Message: message})

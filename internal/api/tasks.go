@@ -74,6 +74,8 @@ type addCommentIn struct {
 		RunID   string  `json:"run_id,omitempty" format:"uuid" doc:"Execução de origem; para run tokens, padrão é a execução do token."`
 		EventID string  `json:"event_id,omitempty" maxLength:"200" doc:"Chave de idempotência."`
 		Anchor  *Anchor `json:"anchor,omitempty" doc:"Ancora o comentário a um trecho da descrição da task ou do resumo de uma execução; o trecho precisa existir no documento (422 se não)."`
+		// Attachments: anexos da task já enviados (POST /attachments, sem comentário ainda) que passam a pertencer a este comentário.
+		Attachments []string `json:"attachments,omitempty" format:"uuid" doc:"Ids de anexos da task já enviados (POST /attachments) que passam a pertencer a este comentário; a execução acordada por ele já os vê no briefing."`
 	}
 }
 
@@ -290,8 +292,12 @@ func (s *server) registerTasks(api huma.API) {
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}
+			atts, err := parseIDList(in.Body.Attachments)
+			if err != nil {
+				return nil, s.fail(ctx, err)
+			}
 			c, err := s.svc.AddComment(ctx, sc.Actor, sc.Company.ID, cur.ID, service.AddCommentInput{
-				Body: in.Body.Body, RunID: runID, EventID: in.Body.EventID, Anchor: anchor})
+				Body: in.Body.Body, RunID: runID, EventID: in.Body.EventID, Anchor: anchor, AttachmentIDs: atts})
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}

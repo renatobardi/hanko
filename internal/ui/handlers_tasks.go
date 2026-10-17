@@ -401,14 +401,25 @@ func (s *server) buildTaskVM(r *http.Request, co domain.Company, t service.TaskV
 	}
 	vm.CanWake = t.PersonaID != nil && t.Status.Open() && t.ActiveRunID == nil && !t.System
 
+	atts, err := s.taskAttachments(ctx, co, t.ID) // anexos da task e de cada comentário (ADR-0052)
+	if err != nil {
+		return views.TaskVM{}, err
+	}
+	byComment := map[domain.ID][]service.ArtifactView{}
+	for _, a := range atts {
+		if a.CommentID != nil {
+			byComment[*a.CommentID] = append(byComment[*a.CommentID], a)
+		}
+	}
 	sort.SliceStable(comments, func(i, j int) bool { return comments[i].CreatedAt.Before(comments[j].CreatedAt) })
 	for _, c := range comments {
 		m := views.Msg{
-			Author:   names.actorName(c.Author),
-			Human:    c.Author.Type == domain.ActorHuman,
-			Body:     renderMD(c.Body),
-			When:     fmtDateTime(ctx, c.CreatedAt, loc),
-			Initials: initialsOf(names.actorName(c.Author)),
+			Attachments: attachmentRows(ctx, byComment[c.ID], base, "", s.now(), loc),
+			Author:      names.actorName(c.Author),
+			Human:       c.Author.Type == domain.ActorHuman,
+			Body:        renderMD(c.Body),
+			When:        fmtDateTime(ctx, c.CreatedAt, loc),
+			Initials:    initialsOf(names.actorName(c.Author)),
 		}
 		if c.RunID != nil {
 			m.RunHref = base + "/execucoes/" + c.RunID.String()
@@ -445,6 +456,13 @@ func (s *server) buildTaskVM(r *http.Request, co domain.Company, t service.TaskV
 		return views.TaskVM{}, err
 	}
 	vm.Artifacts = artifactMinis(ctx, arts, base)
+	usage, err := s.be.GetArtifactUsage(ctx, co.ID)
+	if err != nil {
+		return views.TaskVM{}, err
+	}
+	vm.Attach = s.taskAttachBox(ctx, co, t, atts, usage.MaxFileBytes)
+	vm.UploadHint = uploadHint(ctx, usage.MaxFileBytes)
+	vm.DraftF = s.draftFields(ctx, co, base+"/tasks/"+t.Key+"/rascunho", domain.DraftTask, t.ID)
 	vm.ArtifactsHref = base + "/artefatos?task=" + url.QueryEscape(t.Key)
 	if vm.Coord, err = s.coordVM(ctx, co, t, personas, names, loc); err != nil {
 		return views.TaskVM{}, err
@@ -570,14 +588,29 @@ func (s *server) handleComment(w http.ResponseWriter, r *http.Request, co domain
 		s.fail(w, r, &co, err)
 		return
 	}
+	files, _, cleanup, err := s.readForm(w, r, co) // multipart com anexos (ADR-0052) ou urlencoded
+	defer cleanup()
+	if err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
 	body := strings.TrimSpace(r.PostFormValue("body"))
-	if body == "" {
+	if body == "" && len(files) == 0 {
 		s.fail(w, r, &co, domain.Invalid(i18n.T(ctx, "comentário"), i18n.T(ctx, "escreva algo antes de enviar")))
 		return
 	}
-	if _, err := s.be.AddComment(ctx, actorFrom(ctx), co.ID, t.ID, service.AddCommentInput{Body: body}); err != nil {
+	// os arquivos sobem antes do comentário e passam a pertencer a ele na mesma transação: a persona acordada pelo
+	// comentário já os vê no briefing. Só arquivos, sem texto, ficam como anexos da task.
+	ids, err := s.attachAll(ctx, co, files, service.PutArtifactInput{TaskID: &t.ID})
+	if err != nil {
 		s.fail(w, r, &co, err)
 		return
+	}
+	if body != "" {
+		if _, err := s.be.AddComment(ctx, actorFrom(ctx), co.ID, t.ID, service.AddCommentInput{Body: body, AttachmentIDs: ids}); err != nil {
+			s.fail(w, r, &co, err)
+			return
+		}
 	}
 	base := "/c/" + co.Slug
 	if !isHX(r) {
@@ -589,7 +622,7 @@ func (s *server) handleComment(w http.ResponseWriter, r *http.Request, co domain
 		s.fail(w, r, &co, err)
 		return
 	}
-	s.render(w, r, http.StatusOK, views.Thread(vm, base))
+	s.render(w, r, http.StatusOK, views.ThreadAndAttachments(vm, base))
 }
 
 func (s *server) handleWake(w http.ResponseWriter, r *http.Request, co domain.Company) {

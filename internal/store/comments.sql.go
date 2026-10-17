@@ -89,6 +89,34 @@ func (q *Queries) GetCommentByEventID(ctx context.Context, arg GetCommentByEvent
 	return i, err
 }
 
+const getCommentByID = `-- name: GetCommentByID :one
+SELECT id, company_id, task_id, author_type, author_id, run_id, body, event_id, created_at, anchor, search_tsv FROM task_comments WHERE company_id = $1 AND id = $2
+`
+
+type GetCommentByIDParams struct {
+	CompanyID uuid.UUID
+	ID        uuid.UUID
+}
+
+func (q *Queries) GetCommentByID(ctx context.Context, arg GetCommentByIDParams) (TaskComment, error) {
+	row := q.db.QueryRow(ctx, getCommentByID, arg.CompanyID, arg.ID)
+	var i TaskComment
+	err := row.Scan(
+		&i.ID,
+		&i.CompanyID,
+		&i.TaskID,
+		&i.AuthorType,
+		&i.AuthorID,
+		&i.RunID,
+		&i.Body,
+		&i.EventID,
+		&i.CreatedAt,
+		&i.Anchor,
+		&i.SearchTsv,
+	)
+	return i, err
+}
+
 const hasHumanCommentSince = `-- name: HasHumanCommentSince :one
 SELECT EXISTS (
     SELECT 1 FROM task_comments

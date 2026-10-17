@@ -86,6 +86,17 @@
             "$ref": "#/components/schemas/Anchor",
             "description": "Ancora o comentário a um trecho da descrição da task ou do resumo de uma execução; o trecho precisa existir no documento (422 se não)."
           },
+          "attachments": {
+            "description": "Ids de anexos da task já enviados (POST /attachments) que passam a pertencer a este comentário; a execução acordada por ele já os vê no briefing.",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "body": {
             "description": "Texto do comentário (Markdown).",
             "minLength": 1,
@@ -290,7 +301,24 @@
           "author": {
             "$ref": "#/components/schemas/ActorRef"
           },
+          "class": {
+            "enum": [
+              "artifact",
+              "attachment"
+            ],
+            "type": "string"
+          },
+          "comment_id": {
+            "description": "Anexo: o comentário da task a que pertence.",
+            "format": "uuid",
+            "type": "string"
+          },
           "company_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "conversation_id": {
+            "description": "Anexo: a conversa do chat a que pertence.",
             "format": "uuid",
             "type": "string"
           },
@@ -318,6 +346,11 @@
               "image",
               "other"
             ],
+            "type": "string"
+          },
+          "message_id": {
+            "description": "Anexo: a mensagem da conversa a que pertence.",
+            "format": "uuid",
             "type": "string"
           },
           "mime": {
@@ -398,7 +431,8 @@
           "version",
           "versions",
           "author",
-          "created_at"
+          "created_at",
+          "class"
         ],
         "type": "object"
       },
@@ -1612,6 +1646,13 @@
           },
           "id": {
             "format": "uuid",
+            "type": "string"
+          },
+          "marker": {
+            "description": "context_reset: aviso de sistema que /new insere; o contexto da conversa recomeça depois dele (ADR-0052).",
+            "enum": [
+              "context_reset"
+            ],
             "type": "string"
           },
           "mentions": {
@@ -3078,6 +3119,40 @@
         ],
         "type": "object"
       },
+      "Draft": {
+        "additionalProperties": false,
+        "properties": {
+          "body": {
+            "description": "Vazio quando não há rascunho.",
+            "type": "string"
+          },
+          "exists": {
+            "type": "boolean"
+          },
+          "target_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "target_type": {
+            "enum": [
+              "task",
+              "conversation"
+            ],
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "target_type",
+          "target_id",
+          "body",
+          "exists"
+        ],
+        "type": "object"
+      },
       "EffectiveIntegration": {
         "additionalProperties": false,
         "properties": {
@@ -3767,13 +3842,14 @@
             "type": "string"
           },
           "kind": {
-            "description": "approval: ação irreversível, merge, deploy, gasto; task_review: revisão para concluir uma task; hire: contratação; memory: proposta de curadoria de memória que remove, funde ou reescreve conteúdo; tool: chamada de tool que pede aprovação antes (gateway de tools).",
+            "description": "approval: ação irreversível, merge, deploy, gasto; task_review: revisão para concluir uma task; hire: contratação; memory: proposta de curadoria de memória que remove, funde ou reescreve conteúdo; tool: chamada de tool que pede aprovação antes (gateway de tools); instruction: a persona propõe mudar as próprias instruções (ADR-0052).",
             "enum": [
               "approval",
               "task_review",
               "hire",
               "memory",
-              "tool"
+              "tool",
+              "instruction"
             ],
             "type": "string"
           },
@@ -4662,6 +4738,81 @@
           "key",
           "actor_type",
           "occurred_at"
+        ],
+        "type": "object"
+      },
+      "InstructionRevision": {
+        "additionalProperties": false,
+        "properties": {
+          "actor": {
+            "$ref": "#/components/schemas/ActorRef",
+            "description": "Quem aplicou a revisão (o humano que editou, restaurou ou aprovou)."
+          },
+          "author": {
+            "$ref": "#/components/schemas/ActorRef",
+            "description": "Quem escreveu o texto (um humano, ou a persona que propôs)."
+          },
+          "body": {
+            "description": "O texto; ausente nas listagens.",
+            "type": "string"
+          },
+          "body_bytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "current": {
+            "description": "Verdadeiro na revisão vigente.",
+            "type": "boolean"
+          },
+          "diff": {
+            "$ref": "#/components/schemas/ArtifactDiff"
+          },
+          "gate_id": {
+            "description": "Em origin=proposal: o gate aprovado.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "origin": {
+            "enum": [
+              "backfill",
+              "hire",
+              "edit",
+              "restore",
+              "proposal",
+              "import"
+            ],
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "restored_from": {
+            "description": "Em origin=restore: a revisão cujo texto voltou.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "revision": {
+            "description": "Número da revisão, a partir de 1.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "sha256": {
+            "description": "sha256 (hex) do texto.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "revision",
+          "sha256",
+          "author",
+          "actor",
+          "origin",
+          "body_bytes",
+          "created_at"
         ],
         "type": "object"
       },
@@ -5720,6 +5871,37 @@
             "description": "Itens da página.",
             "items": {
               "$ref": "#/components/schemas/InstanceSettingAudit"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "limit": {
+            "description": "Limite aplicado.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "offset": {
+            "description": "Deslocamento aplicado.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "limit",
+          "offset"
+        ],
+        "type": "object"
+      },
+      "ListBodyInstructionRevision": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "description": "Itens da página.",
+            "items": {
+              "$ref": "#/components/schemas/InstructionRevision"
             },
             "type": [
               "array",
@@ -7486,6 +7668,11 @@
             "format": "uuid",
             "type": "string"
           },
+          "instruction_revision": {
+            "description": "Revisão vigente das instruções (histórico em /instructions/revisions, ADR-0052).",
+            "format": "int64",
+            "type": "integer"
+          },
           "instructions": {
             "description": "Instruções permanentes da persona.",
             "type": "string"
@@ -7579,6 +7766,7 @@
           "title",
           "icon",
           "instructions",
+          "instruction_revision",
           "agent",
           "status",
           "heartbeat_interval_sec",
@@ -8524,6 +8712,29 @@
         ],
         "type": "object"
       },
+      "ProposeInstructionsInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "event_id": {
+            "description": "Chave de idempotência: repetir devolve o gate existente.",
+            "type": "string"
+          },
+          "instructions": {
+            "description": "O texto novo e completo das instruções.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "reason": {
+            "description": "Por que mudar.",
+            "maxLength": 500,
+            "type": "string"
+          }
+        },
+        "required": [
+          "instructions"
+        ],
+        "type": "object"
+      },
       "PushSubscribeInBody": {
         "additionalProperties": false,
         "properties": {
@@ -8618,6 +8829,76 @@
         "required": [
           "name",
           "content"
+        ],
+        "type": "object"
+      },
+      "PutAttachmentInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "comment_id": {
+            "description": "Comentário da task a que o anexo pertence.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "content": {
+            "contentEncoding": "base64",
+            "description": "Conteúdo do arquivo em base64.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "conversation": {
+            "description": "Conversa do chat (use task OU conversation). Run token de chat: sempre a da execução.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "message_id": {
+            "description": "Mensagem da conversa a que o anexo pertence.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "mime": {
+            "description": "Tipo do conteúdo; vazio = deduzido do nome e do conteúdo.",
+            "examples": [
+              "image/png"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "description": "Nome do arquivo (sem barras). Nome repetido na mesma task/conversa recebe sufixo: \"captura (2).png\".",
+            "examples": [
+              "captura.png"
+            ],
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "run_id": {
+            "description": "Execução de origem. Run token: sempre a do token.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "task": {
+            "description": "Id ou chave da task. Run token: sempre a da execução.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "content"
+        ],
+        "type": "object"
+      },
+      "PutDraftInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "body": {
+            "description": "O texto. Em branco apaga o rascunho.",
+            "maxLength": 100000,
+            "type": "string"
+          }
+        },
+        "required": [
+          "body"
         ],
         "type": "object"
       },
@@ -8725,6 +9006,25 @@
         "required": [
           "expected_version",
           "accept"
+        ],
+        "type": "object"
+      },
+      "RestoreInstructionsInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "maxLength": 500,
+            "type": "string"
+          },
+          "revision": {
+            "description": "Revisão cujo texto volta; vira uma revisão nova.",
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "revision"
         ],
         "type": "object"
       },
@@ -9199,6 +9499,14 @@
           },
           "id": {
             "format": "uuid",
+            "type": "string"
+          },
+          "instruction_revision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "instruction_sha256": {
+            "description": "sha256 (hex) do texto das instruções com que a execução rodou.",
             "type": "string"
           },
           "list_cost_usd": {
@@ -9792,8 +10100,19 @@
       "SendMessageInBody": {
         "additionalProperties": false,
         "properties": {
+          "attachments": {
+            "description": "Ids de anexos da conversa já enviados (POST /attachments com conversation) que passam a pertencer a esta mensagem.",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "message": {
-            "description": "Mensagem em markdown. Enquanto uma execução da conversa roda, a mensagem espera e a execução seguinte responde a todas juntas.",
+            "description": "Mensagem em markdown. Enquanto uma execução da conversa roda, a mensagem espera e a execução seguinte responde a todas juntas. \"/new\" sozinha reinicia o contexto da conversa (insere um marcador; nada é apagado); \"/new texto\" reinicia e envia o texto.",
             "maxLength": 20000,
             "minLength": 1,
             "type": "string"
@@ -12957,6 +13276,11 @@
           "instructions": {
             "type": "string"
           },
+          "instructions_reason": {
+            "description": "Motivo da mudança de instruções; vai na revisão gravada.",
+            "maxLength": 500,
+            "type": "string"
+          },
           "model": {
             "type": "string"
           },
@@ -14659,6 +14983,21 @@
               "description": "Todas as versões, não só a mais nova de cada artefato.",
               "type": "boolean"
             }
+          },
+          {
+            "description": "Padrão artifact; attachment lista os anexos; all, os dois.",
+            "explode": false,
+            "in": "query",
+            "name": "class",
+            "schema": {
+              "description": "Padrão artifact; attachment lista os anexos; all, os dois.",
+              "enum": [
+                "artifact",
+                "attachment",
+                "all"
+              ],
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -14937,7 +15276,7 @@
             "description": "Internal Server Error"
           }
         },
-        "summary": "Apaga o artefato com todas as versões (admin)",
+        "summary": "Apaga o artefato com todas as versões, ou o anexo (admin)",
         "tags": [
           "artifacts"
         ]
@@ -15270,6 +15609,276 @@
           }
         },
         "summary": "Compara o texto de uma versão com a anterior (ou com `against`)",
+        "tags": [
+          "artifacts"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/attachments": {
+      "get": {
+        "operationId": "list-attachments",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Máximo de itens retornados.",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "description": "Máximo de itens retornados.",
+              "format": "int64",
+              "maximum": 500,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Quantos itens pular.",
+            "explode": false,
+            "in": "query",
+            "name": "offset",
+            "schema": {
+              "default": 0,
+              "description": "Quantos itens pular.",
+              "format": "int64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Id ou chave da task.",
+            "explode": false,
+            "in": "query",
+            "name": "task",
+            "schema": {
+              "description": "Id ou chave da task.",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id da conversa.",
+            "explode": false,
+            "in": "query",
+            "name": "conversation",
+            "schema": {
+              "description": "Id da conversa.",
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Só os anexos deste comentário.",
+            "explode": false,
+            "in": "query",
+            "name": "comment_id",
+            "schema": {
+              "description": "Só os anexos deste comentário.",
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Só os anexos desta mensagem.",
+            "explode": false,
+            "in": "query",
+            "name": "message_id",
+            "schema": {
+              "description": "Só os anexos desta mensagem.",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListBodyArtifact"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Lista anexos de uma task, comentário, conversa ou mensagem",
+        "tags": [
+          "artifacts"
+        ]
+      },
+      "post": {
+        "operationId": "put-attachment",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PutAttachmentInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Artifact"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Anexa um arquivo a uma task (ou comentário) ou a uma conversa do chat",
         "tags": [
           "artifacts"
         ]
@@ -19184,6 +19793,368 @@
         ]
       }
     },
+    "/api/v1/companies/{company}/drafts/{target_type}/{target_id}": {
+      "delete": {
+        "operationId": "delete-draft",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "task (comentário) ou conversation (mensagem de chat ou sala).",
+            "in": "path",
+            "name": "target_type",
+            "required": true,
+            "schema": {
+              "description": "task (comentário) ou conversation (mensagem de chat ou sala).",
+              "enum": [
+                "task",
+                "conversation"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id da task ou da conversa.",
+            "in": "path",
+            "name": "target_id",
+            "required": true,
+            "schema": {
+              "description": "Id da task ou da conversa.",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Apaga o seu rascunho",
+        "tags": [
+          "drafts"
+        ]
+      },
+      "get": {
+        "operationId": "get-draft",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "task (comentário) ou conversation (mensagem de chat ou sala).",
+            "in": "path",
+            "name": "target_type",
+            "required": true,
+            "schema": {
+              "description": "task (comentário) ou conversation (mensagem de chat ou sala).",
+              "enum": [
+                "task",
+                "conversation"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id da task ou da conversa.",
+            "in": "path",
+            "name": "target_id",
+            "required": true,
+            "schema": {
+              "description": "Id da task ou da conversa.",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Draft"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Lê o seu rascunho para uma task ou conversa",
+        "tags": [
+          "drafts"
+        ]
+      },
+      "put": {
+        "operationId": "put-draft",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "task (comentário) ou conversation (mensagem de chat ou sala).",
+            "in": "path",
+            "name": "target_type",
+            "required": true,
+            "schema": {
+              "description": "task (comentário) ou conversation (mensagem de chat ou sala).",
+              "enum": [
+                "task",
+                "conversation"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id da task ou da conversa.",
+            "in": "path",
+            "name": "target_id",
+            "required": true,
+            "schema": {
+              "description": "Id da task ou da conversa.",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PutDraftInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Draft"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Grava o seu rascunho (texto em branco apaga)",
+        "tags": [
+          "drafts"
+        ]
+      }
+    },
     "/api/v1/companies/{company}/environments": {
       "get": {
         "operationId": "list-environments",
@@ -21093,12 +22064,12 @@
             }
           },
           {
-            "description": "Tipos separados por vírgula: approval,task_review,hire,memory,tool.",
+            "description": "Tipos separados por vírgula: approval,task_review,hire,memory,tool,instruction.",
             "explode": false,
             "in": "query",
             "name": "kind",
             "schema": {
-              "description": "Tipos separados por vírgula: approval,task_review,hire,memory,tool.",
+              "description": "Tipos separados por vírgula: approval,task_review,hire,memory,tool,instruction.",
               "type": "string"
             }
           },
@@ -26902,6 +27873,486 @@
           }
         },
         "summary": "Atualiza uma persona",
+        "tags": [
+          "personas"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/personas/{persona}/instructions/proposals": {
+      "post": {
+        "operationId": "propose-persona-instructions",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug da persona.",
+            "in": "path",
+            "name": "persona",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da persona.",
+              "examples": [
+                "cto"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProposeInstructionsInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Gate"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "A própria persona propõe mudar as instruções dela (abre um gate kind=instruction; run token)",
+        "tags": [
+          "personas"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/personas/{persona}/instructions/restore": {
+      "post": {
+        "operationId": "restore-instruction-revision",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug da persona.",
+            "in": "path",
+            "name": "persona",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da persona.",
+              "examples": [
+                "cto"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestoreInstructionsInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Persona"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Restaura o texto de uma revisão (cria uma revisão nova; admin)",
+        "tags": [
+          "personas"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/personas/{persona}/instructions/revisions": {
+      "get": {
+        "operationId": "list-instruction-revisions",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug da persona.",
+            "in": "path",
+            "name": "persona",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da persona.",
+              "examples": [
+                "cto"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListBodyInstructionRevision"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Lista as revisões das instruções da persona (mais nova primeiro)",
+        "tags": [
+          "personas"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/personas/{persona}/instructions/revisions/{revision}": {
+      "get": {
+        "operationId": "get-instruction-revision",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug da persona.",
+            "in": "path",
+            "name": "persona",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da persona.",
+              "examples": [
+                "cto"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Número da revisão.",
+            "in": "path",
+            "name": "revision",
+            "required": true,
+            "schema": {
+              "description": "Número da revisão.",
+              "format": "int64",
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Inclui o diff desta revisão para a pedida.",
+            "explode": false,
+            "in": "query",
+            "name": "against",
+            "schema": {
+              "description": "Inclui o diff desta revisão para a pedida.",
+              "format": "int64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstructionRevision"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Obtém uma revisão das instruções, com o texto (e o diff com ?against)",
         "tags": [
           "personas"
         ]
