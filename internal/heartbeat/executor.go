@@ -194,6 +194,12 @@ func (h *Heartbeat) executeRunJob(ctx context.Context, a ExecuteRunArgs, ji jobI
 		h.failEarly(ctx, a, fmt.Errorf("marcar início: %w", err))
 		return fmt.Errorf("execute_run: mark started: %w", err)
 	}
+	// ADR-0052: a run guarda a revisão das instruções de onde saiu o texto do prompt (o mesmo RunContext).
+	if ib, ok := h.svc.(instructionBackend); ok {
+		if err := ib.RecordRunInstructions(execCtx, a.CompanyID, a.RunID, rc.Persona.InstructionRevision); err != nil {
+			log.Warn("execute_run: não gravou a revisão das instruções", "err", err)
+		}
+	}
 
 	emit := func(kind domain.RunEventKind, text string) {
 		h.appendEvent(execCtx, a, adapter.Event{Kind: kind, Text: text, OccurredAt: time.Now().UTC()})
@@ -476,6 +482,11 @@ func (h *Heartbeat) buildSpec(rc service.RunContext, briefing, handoff string, s
 		h.attachToolPolicy(&spec, rc, emit) // política de tools para as tools nativas do harness (ADR-0053)
 	}
 	return spec, cleanup, nil
+}
+
+// instructionBackend grava na run a revisão das instruções com que ela rodou (ADR-0052); opcional como os demais.
+type instructionBackend interface {
+	RecordRunInstructions(ctx context.Context, companyID, runID domain.ID, revision int) error
 }
 
 // runExtrasBackend é o que o service oferece para skills e MCPs da empresa; opcional para que os fakes

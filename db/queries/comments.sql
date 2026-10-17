@@ -14,3 +14,6 @@ SELECT EXISTS (
     SELECT 1 FROM task_comments
     WHERE company_id = @company_id AND task_id = @task_id AND author_type = 'human' AND created_at > @since
 ) AS found;
+
+-- name: GetCommentByID :one
+SELECT * FROM task_comments WHERE company_id = @company_id AND id = @id;

@@ -728,6 +728,10 @@ func (t *txc) runImport(cid domain.ID, doc export.Document, p importPlan, opts I
 			Icon: importIcon(x.Icon), CreatedAt: x.CreatedAt, UpdatedAt: x.CreatedAt}); err != nil {
 			return mapErr(err, "import persona "+x.Slug)
 		}
+		if _, err := t.recordInstructionRevision(instructionRecord{companyID: cid, personaID: id, current: 0, body: x.Instructions,
+			author: domain.SystemActor, actor: domain.SystemActor, origin: domain.RevisionImport}); err != nil {
+			return err
+		}
 		peID[x.Slug] = id
 	}
 	for _, x := range doc.Personas {
