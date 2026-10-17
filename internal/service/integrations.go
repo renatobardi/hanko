@@ -903,8 +903,13 @@ func (s *Service) RekeyIntegrationSecrets(ctx context.Context) (int, error) {
 		}
 		n++
 	}
-	// os segredos dos plugins (ADR-0038) usam o mesmo cofre
+	// os segredos dos plugins (ADR-0038) e dos ambientes de execução (ADR-0037) usam o mesmo cofre
 	m, err := s.rekeyPluginSecrets(ctx)
+	if err != nil {
+		return n + m, err
+	}
+	e, err := s.rekeyEnvironmentSecrets(ctx)
+	m += e
 	return n + m, err
 }
 

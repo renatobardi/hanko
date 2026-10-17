@@ -61,6 +61,9 @@ type Fake struct {
 	// MyRoleIs é o papel do usuário logado nesta empresa (vazio = owner).
 	MyRoleIs domain.MemberRole
 	nextTask int64
+
+	// Env são os ambientes de execução (ADR-0037).
+	Env EnvFake
 }
 
 var _ = (*Fake)(nil)

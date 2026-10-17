@@ -163,6 +163,9 @@ type Persona struct {
 	PauseReason       string    `json:"pause_reason,omitempty"`
 	CreatedAt         time.Time `json:"created_at"`
 	UpdatedAt         time.Time `json:"updated_at"`
+
+	// EnvironmentID é o ambiente de execução da persona (ADR-0037); nil = o padrão da empresa ou o local.
+	EnvironmentID *ID `json:"environment_id,omitempty"`
 }
 
 // PersonaIcons é o catálogo fechado de glifos de persona (Kubo DS: glifo de linha monocromático num círculo

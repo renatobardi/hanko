@@ -1281,3 +1281,11 @@ details > summary.btn::-webkit-details-marker { display: none; }
 .plugin-slot:empty { display: none; }
 .plugin-widget .md { overflow-wrap: anywhere; }
 @media (max-width: 640px) { .plugin-log .pl-line { grid-template-columns: minmax(0, 1fr); gap: 0; } }
+/* ---- ambientes de execução (ADR-0037) ---- */
+.env-probe:empty { display: none; }
+.env-probe { margin-top: 12px; display: grid; gap: 8px; }
+.env-probe-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: var(--text-sm); }
+.warn-text { color: var(--warn); }
+.ok-text { color: var(--muted-foreground); }
+.env-default .inline-form { align-items: center; }
+.env-default .inline-form select { flex: 1 1 260px; }

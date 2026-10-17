@@ -67,6 +67,19 @@ type Integrations struct {
 	AllowPrivateDestinations bool `yaml:"allow_private_destinations" env:"HANKO_INTEGRATIONS_ALLOW_PRIVATE"`
 }
 
+// Environments configura os ambientes de execução remotos (ADR-0037). Os interruptores são do operador da
+// instalação e vêm desligados.
+type Environments struct {
+	// SSHAllowHosts liga o driver SSH só para estes hosts (exatos, sufixos ".exemplo.com" ou "*.exemplo.com",
+	// IPs, redes CIDR, ou "*"). Vazio = SSH desligado.
+	SSHAllowHosts []string `yaml:"ssh_allow_hosts" env:"HANKO_ENV_SSH_ALLOW_HOSTS" envSeparator:","`
+	// Sandbox liga o driver sandbox com o motor dado (só "docker"). Vazio = desligado.
+	Sandbox string `yaml:"sandbox" env:"HANKO_ENV_SANDBOX"`
+	// SandboxHostRoot é, quando o Hanko roda dentro de um contêiner, o caminho no host do docker do
+	// diretório que aqui é HANKO_WORKSPACES_ROOT (os volumes do sandbox usam caminhos do host).
+	SandboxHostRoot string `yaml:"sandbox_host_root" env:"HANKO_ENV_SANDBOX_HOST_ROOT"`
+}
+
 // ACP configura o harness acp (ADR-0023). Quem escreve o adapter_config é o admin de uma empresa, e o comando
 // roda na máquina do servidor; por isso é decisão do operador, e vem desligado.
 type ACP struct {
@@ -119,6 +132,7 @@ type Config struct {
 	Integrations      Integrations  `yaml:"integrations"`
 	ACP               ACP           `yaml:"acp"`
 	Plugins           Plugins       `yaml:"plugins"`
+	Environments      Environments  `yaml:"environments"`
 	MigrateOnBoot     bool          `yaml:"migrate_on_boot" env:"HANKO_MIGRATE_ON_BOOT"`
 	Memory            Memory        `yaml:"memory"`
 	Auth              Auth          `yaml:"auth"`
@@ -243,6 +257,7 @@ func environFor(getenv func(string) string) map[string]string {
 		"HANKO_AUTH_OWNER_EMAIL", "HANKO_AUTH_WEB_BOOTSTRAP", "HANKO_TRUSTED_PROXIES",
 		"HANKO_SECRET_KEY", "HANKO_SECRET_KEY_PREVIOUS", "HANKO_INTEGRATIONS_ALLOW_STDIO", "HANKO_INTEGRATIONS_ALLOW_PRIVATE",
 		"HANKO_ACP_ALLOW", "HANKO_ACP_COMMANDS", "HANKO_SKILL_SOURCES",
+		"HANKO_ENV_SSH_ALLOW_HOSTS", "HANKO_ENV_SANDBOX", "HANKO_ENV_SANDBOX_HOST_ROOT",
 	}
 	m := make(map[string]string, len(keys))
 	for _, k := range keys {
@@ -281,6 +296,9 @@ func (c *Config) finalize() error {
 	}
 	c.AgentEnvAllow = cleanList(c.AgentEnvAllow)
 	c.AllowedHosts = cleanList(c.AllowedHosts)
+	c.Environments.SSHAllowHosts = cleanList(c.Environments.SSHAllowHosts)
+	c.Environments.Sandbox = strings.ToLower(strings.TrimSpace(c.Environments.Sandbox))
+	c.Environments.SandboxHostRoot = strings.TrimSpace(c.Environments.SandboxHostRoot)
 	c.WorkspacesRoot = strings.TrimSpace(c.WorkspacesRoot)
 	if c.WorkspacesRoot == "" {
 		if home, err := os.UserHomeDir(); err == nil && home != "" {
@@ -343,6 +361,12 @@ func (c Config) Validate() error {
 	}
 	if u, err := url.Parse(c.AgentURL); err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
 		add("HANKO_AGENT_URL %q inválido: use http(s)://host[:porta]", c.AgentURL)
+	}
+	if sb := c.Environments.Sandbox; sb != "" && sb != "docker" {
+		add("HANKO_ENV_SANDBOX %q inválido: use docker (ou deixe vazio para desligar o sandbox)", sb)
+	}
+	if hr := c.Environments.SandboxHostRoot; hr != "" && !filepath.IsAbs(hr) {
+		add("HANKO_ENV_SANDBOX_HOST_ROOT %q inválido: use um caminho absoluto do host do docker", hr)
 	}
 	if c.RunReserveUSD < 0 {
 		add("HANKO_RUN_RESERVE_USD %v inválido: use um valor >= 0 (0 usa o padrão de US$ 1,00)", c.RunReserveUSD)

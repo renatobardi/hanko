@@ -256,6 +256,7 @@ func (s *server) register(api huma.API) {
 	s.registerSkills(api)
 	s.registerSkillStudio(api)
 	s.registerIntegrations(api)
+	s.registerEnvironments(api)
 	s.registerChat(api)
 	s.registerRoom(api) // sala (ADR-0033)
 	s.registerSearch(api)

@@ -144,6 +144,20 @@ type Backend interface {
 	RevokeInvite(ctx context.Context, actor domain.Actor, companyID, inviteID domain.ID) error
 	SetMemberRole(ctx context.Context, actor domain.Actor, companyID, userID domain.ID, role domain.MemberRole) (domain.Member, error)
 	RemoveMember(ctx context.Context, actor domain.Actor, companyID, userID domain.ID) error
+
+	// Ambientes de execução (ADR-0037).
+	ListEnvironments(ctx context.Context, companyID domain.ID) ([]service.EnvironmentView, error)
+	GetEnvironment(ctx context.Context, companyID domain.ID, ref string) (service.EnvironmentView, error)
+	CreateEnvironment(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.CreateEnvironmentInput) (service.EnvironmentView, error)
+	UpdateEnvironment(ctx context.Context, actor domain.Actor, companyID, id domain.ID, in service.UpdateEnvironmentInput) (service.EnvironmentView, error)
+	ArchiveEnvironment(ctx context.Context, actor domain.Actor, companyID, id domain.ID, moveTo *domain.ID) (service.EnvironmentView, error)
+	SetDefaultEnvironment(ctx context.Context, actor domain.Actor, companyID domain.ID, id *domain.ID) error
+	SetPersonaEnvironment(ctx context.Context, actor domain.Actor, companyID, personaID domain.ID, envID *domain.ID) (domain.Persona, error)
+	ProbeEnvironment(ctx context.Context, actor domain.Actor, companyID, id domain.ID) (service.EnvironmentView, error)
+	ProbeEnvironmentDraft(ctx context.Context, companyID domain.ID, in service.CreateEnvironmentInput) (domain.ProbeReport, error)
+	ListEnvironmentLeases(ctx context.Context, companyID, envID domain.ID, limit int) ([]service.EnvironmentLeaseView, error)
+	RunEnvironmentOf(ctx context.Context, companyID, runID domain.ID) (service.RunEnvironmentInfo, error)
+	EnvironmentDrivers(ctx context.Context) map[domain.EnvironmentDriver]string
 }
 
 var _ Backend = (*service.Service)(nil)
@@ -345,6 +359,7 @@ func (s *server) routes(root *http.ServeMux) {
 	s.skillRoutes(mux)
 	s.roomRoutes(mux) // sala (ADR-0033)
 	s.pluginRoutes(mux)
+	s.environmentRoutes(mux)
 }
 
 // ---------- middleware ----------

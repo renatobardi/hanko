@@ -214,15 +214,41 @@ func (h *Heartbeat) executeRunJob(ctx context.Context, a ExecuteRunArgs, ji jobI
 	if dirCleanup != nil {
 		cleanup = dirCleanup
 	}
+	// Ambiente de execução (ADR-0037): nil = local, como sempre.
+	var renv *runEnv
+	if specErr == nil {
+		renv, specErr = h.openEnvironment(execCtx, a, rc, &spec, dirCleanup != nil, emit, log)
+	}
 	if specErr != nil {
 		runErr = specErr
 	} else {
 		spec.Timeout = h.opts.RunTimeout
-		sink := adapter.SinkFunc(func(c context.Context, e adapter.Event) error {
+		var sink adapter.Sink = adapter.SinkFunc(func(c context.Context, e adapter.Event) error {
 			h.appendEvent(c, a, e)
 			return nil
 		})
+		if renv != nil {
+			sink = adapter.RedactingSink(sink, renv.secrets...)
+		}
 		res, runErr = safeRun(execCtx, ad, spec, sink)
+	}
+	if renv != nil {
+		res = adapter.RedactResult(res, renv.secrets...)
+		failure := ""
+		switch {
+		case execCtx.Err() != nil:
+			failure = context.Cause(execCtx).Error()
+		case runErr != nil:
+			failure = runErr.Error()
+		case res.IsError:
+			failure = res.Error
+		}
+		if serr := renv.finish(ctx, failure); serr != nil {
+			emit(domain.EventSystem, "sincronização com o ambiente falhou: "+serr.Error())
+			if runErr == nil {
+				runErr = fmt.Errorf("sincronização com o ambiente falhou: %w", serr)
+			}
+		}
 	}
 
 	cause := context.Cause(execCtx)
