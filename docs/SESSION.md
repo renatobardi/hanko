@@ -1,11 +1,11 @@
-# Estado da última sessão (UI alinhada ao Kubo DS + telas de paridade)
-Data: 2026-10-16 · PR #2 `ui/aderencia-kubo-ds` → `main` · prd em `d4ca77d` (migrations até 00026)
+# Estado da última sessão (plano de evolução v0.3 → v0.6)
+Data: 2026-10-16 · branch `docs/plano-evolucao-v03-v06` · só documentação
 
 ## Feito
-- Kubo DS na UI (tokens, Inter, cards, escalas, controles), glifo por persona (00026), tema, Configurações no rodapé.
-- Tasks: quadro arrastável, agrupar/ordenar/filtrar, aba Minhas, visão salva; projeto e workspace em abas; timeline; ao vivo.
-- Configurações › Ambientes, Adapters, Plugins, Exportar e importar; catálogo de times; troca da própria senha. ADR-0031.
+- Assessment de lacunas por domínio (funcional, técnico, processos, operação) e decisão item a item pelo dono: 70 itens, 8 fora.
+- `docs/ROADMAP.md` reescrito: trilha contínua de qualidade/operação + 4 ondas (Fundações, Execução, Governança, Ecossistema), M7–M20, ADRs 0032–0048 previstos, lista do que ficou fora.
 ## Travado
-- Nada. Itens que pedem modelo de dados novo ficaram listados no ROADMAP (v0.3, "a decidir").
+- Nada. Provider de sandbox cloud (M11) e de cofre externo (M7) se escolhem no ADR de cada marco.
 ## Próximo passo
-- Deploy do `main` no prd (`deploy/oute-server/deploy-prd.sh`) e conferência visual contra o canvas.
+- Trilha contínua "Já": publicar `v0.1.0`/`v0.2.0`, `SECURITY.md` + dependabot, separar CI, metas de cobertura.
+- M7: ADR-0032 (segredos) e ADR-0033 (BlobStore), depois o contrato (migrations + OpenAPI).
