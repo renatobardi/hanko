@@ -224,6 +224,10 @@ type server struct {
 	// sseTick is how often the SSE handler re-reads the database as a safety
 	// net for dropped broker messages.
 	sseTick time.Duration
+	// life é o backend das telas do ADR-0057 (nil quando o backend não o implementa); imports guarda os
+	// arquivos enviados à tela /importar entre a prévia e a confirmação.
+	life    lifeBackend
+	imports importCache
 }
 
 // Mount registers the UI routes on mux using the real service.
@@ -249,6 +253,9 @@ func MountBackend(mux *http.ServeMux, be Backend, d Deps) {
 		now = func() time.Time { return time.Now().UTC() }
 	}
 	s := &server{be: be, broker: broker, log: log, version: d.Version, now: now, sseTick: 2 * time.Second, secure: d.Secure, platform: d.Platform}
+	if l, ok := be.(lifeBackend); ok {
+		s.life = l
+	}
 	if d.Auth != nil {
 		ab := d.Auth.Backend
 		if ab == nil {
@@ -395,7 +402,18 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("POST /c/{company}/configuracoes/membros/convites/{invite}/revogar", post(co(s.handleRevokeInvite)))
 	mux.HandleFunc("POST /c/{company}/configuracoes/membros/{user}/papel", post(co(s.handleMemberRole)))
 	mux.HandleFunc("POST /c/{company}/configuracoes/membros/{user}/remover", post(co(s.handleMemberRemove)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/empresa", post(co(s.handleCompanyUpdate)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/empresa/arquivar", post(co(s.handleCompanyArchive)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/empresa/restaurar", post(co(s.handleCompanyRestore)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/empresa/excluir", post(co(s.handleCompanyDelete)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/membros/entrada/link", post(co(s.handleJoinLinkCreate)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/membros/entrada/link/desligar", post(co(s.handleJoinLinkOff)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/membros/entrada/{request}/decidir", post(co(s.handleJoinDecide)))
+	mux.HandleFunc("GET /importar", s.handleImportPage)
+	mux.HandleFunc("POST /importar", post(s.handleImportUpload))
+	mux.HandleFunc("POST /importar/aplicar", post(s.handleImportApply))
 	s.authRoutes(mux)
+	s.accessRoutes(mux)
 
 	mux.HandleFunc("GET /c/{company}/atividade", co(s.handleActivity))
 	mux.HandleFunc("GET /c/{company}/timeline", co(s.handleTimeline))
@@ -557,6 +575,9 @@ func friendly(ctx context.Context, err error) (int, string, string) {
 		if errors.As(err, &blocked) && blocked.Scope == "project" {
 			return st, i18n.T(ctx, "Orçamento do projeto estourado"), i18n.T(ctx, "O limite mensal do projeto foi atingido; nenhuma execução das tasks dele abre até o limite subir ou o mês virar.")
 		}
+		if errors.Is(err, domain.ErrCompanyArchived) {
+			return st, i18n.T(ctx, "Empresa arquivada"), i18n.T(ctx, "A empresa está somente leitura. Restaure-a em Configurações para voltar a editar.")
+		}
 		if errors.Is(err, domain.ErrBudgetExceeded) {
 			return st, i18n.T(ctx, "Orçamento estourado"), i18n.T(ctx, "O limite mensal foi atingido; nenhuma execução nova abre até o limite subir ou o mês virar.")
 		}
@@ -608,13 +629,14 @@ func (s *server) shell(r *http.Request, co domain.Company, active, title string,
 	cs := []views.Crumb{{Label: co.Name, Href: base + "/"}}
 	cs = append(cs, crumbs...)
 	return views.Shell{
-		Title:   title,
-		Company: views.CompanyRef{Slug: co.Slug, Name: co.Name},
-		Active:  active,
-		Crumbs:  cs,
-		Version: s.version,
-		Owner:   ownerName,
-		Role:    views.RoleFrom(r.Context()),
+		Title:    title,
+		Company:  views.CompanyRef{Slug: co.Slug, Name: co.Name},
+		Active:   active,
+		Crumbs:   cs,
+		Version:  s.version,
+		Owner:    ownerName,
+		Role:     views.RoleFrom(r.Context()),
+		Archived: co.Archived(),
 	}
 }
 

@@ -24,6 +24,11 @@ type updateCompanyIn struct {
 	Body struct {
 		BudgetMonthlyCents *int64 `json:"budget_monthly_cents,omitempty" minimum:"0" doc:"Orçamento mensal da empresa em centavos de dólar."`
 		ClearBudget        bool   `json:"clear_budget,omitempty" doc:"Remove o teto de orçamento da empresa."`
+		// Perfil (ADR-0057): admin; o prefixo só muda enquanto a empresa não tem nenhuma task.
+		Name        *string `json:"name,omitempty" minLength:"1" maxLength:"120" doc:"Novo nome de exibição."`
+		Timezone    *string `json:"timezone,omitempty" example:"America/Sao_Paulo" doc:"Novo fuso IANA."`
+		Description *string `json:"description,omitempty" maxLength:"2000" doc:"Texto livre; vazio limpa."`
+		TaskPrefix  *string `json:"task_prefix,omitempty" pattern:"^[A-Z][A-Z0-9]{0,9}$" doc:"Só muda enquanto a empresa não tem nenhuma task."`
 	}
 }
 
@@ -93,7 +98,7 @@ func (s *server) registerCosts(api huma.API) {
 			return &ItemOut[CostSummary]{Body: costSummaryOut(sum, b)}, nil
 		})
 
-	huma.Register(api, op("update-company", http.MethodPatch, "/companies/{company}", "companies", "Atualiza o orçamento da empresa"),
+	huma.Register(api, op("update-company", http.MethodPatch, "/companies/{company}", "companies", "Atualiza a empresa: nome, fuso, descrição, prefixo (com zero tasks) e/ou orçamento"),
 		func(ctx context.Context, in *updateCompanyIn) (*ItemOut[Company], error) {
 			if err := forbidPersona(ctx); err != nil {
 				return nil, err
@@ -106,6 +111,13 @@ func (s *server) registerCosts(api huma.API) {
 				return nil, s.fail(ctx, domain.Invalid("budget_monthly_cents", "não combine com clear_budget"))
 			}
 			c := sc.Company
+			if in.Body.Name != nil || in.Body.Timezone != nil || in.Body.Description != nil || in.Body.TaskPrefix != nil {
+				c, err = s.svc.UpdateCompany(ctx, sc.Actor, sc.Company.ID, service.UpdateCompanyInput{
+					Name: in.Body.Name, Timezone: in.Body.Timezone, Description: in.Body.Description, TaskPrefix: in.Body.TaskPrefix})
+				if err != nil {
+					return nil, s.fail(ctx, err)
+				}
+			}
 			if in.Body.ClearBudget || in.Body.BudgetMonthlyCents != nil {
 				c, err = s.svc.SetCompanyBudget(ctx, sc.Actor, sc.Company.ID, in.Body.BudgetMonthlyCents)
 				if err != nil {

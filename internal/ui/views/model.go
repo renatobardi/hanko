@@ -39,6 +39,8 @@ type Shell struct {
 	Owner   string            // display name of the human owner
 	Role    domain.MemberRole // papel da pessoa nesta empresa (só UX; o service é a barreira)
 	Flush   bool              // content area without padding (two-pane pages)
+	// Archived: a empresa está arquivada (somente leitura); a faixa avisa em toda página (ADR-0057).
+	Archived bool
 }
 
 // Base returns the company-scoped URL prefix, e.g. "/c/hanko".
@@ -707,6 +709,8 @@ type APIKeyRow struct {
 	Created  string
 	LastUsed string
 	Revoked  bool
+	Scope    string // rótulo: completo | só leitura
+	Device   string // dispositivo que fez hanko login ("" nas chaves criadas à mão)
 }
 
 // SettingsVM drives the account/API keys page.
@@ -729,6 +733,10 @@ type SettingsVM struct {
 	Members MembersVM
 	// Memory is the company's "Memória" section (memory consolidation, ADR-0030).
 	Memory MemoryVM
+	// Company é o cartão "Empresa": editar, arquivar, restaurar e excluir (ADR-0057).
+	Company CompanyAdminVM
+	// UsersLink: dono ou admin da instalação vê o atalho para /admin/usuarios.
+	UsersLink bool
 }
 
 // MemberRow is one member in the "Membros" table.
@@ -769,6 +777,8 @@ type MembersVM struct {
 	NewLinkEmail string
 	Email        string // form value kept after an error
 	Error        string
+	// Join é o link público de pedido de entrada e a fila de pedidos (ADR-0057).
+	Join JoinVM
 }
 
 // InviteVM drives the public /convite/{token} page.
