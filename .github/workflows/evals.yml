@@ -28,7 +28,8 @@ jobs:
       - name: pendente (#58)
         env:
           SUITE: ${{ inputs.suite || 'all' }}
-        run: echo "evals ainda sem suítes; preenchido na onda 2 (item #58). suite=$SUITE"
+        run: |
+          echo "evals ainda sem suítes; preenchido na onda 2 (item #58). suite=$SUITE"
       # Roteiro do #58, para quando entrar:
       #   - secrets: chave do provedor do modelo pequeno, só neste workflow
       #   - make build; cenários em evals/ rodando contra Postgres de serviço

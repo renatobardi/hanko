@@ -22,7 +22,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: pendente (#57)
-        run: echo "e2e ainda sem jornadas; preenchido na onda 1 (item #57)."
+        run: |
+          echo "e2e ainda sem jornadas; preenchido na onda 1 (item #57)."
       # Roteiro do #57, para quando entrar:
       #   - services: postgres:17 (como no ci.yml) e HANKO_TEST_DATABASE_URL
       #   - make build; hanko serve com harness fake em background
