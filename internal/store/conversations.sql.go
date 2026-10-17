@@ -197,7 +197,7 @@ func (q *Queries) GetConversationForUpdate(ctx context.Context, arg GetConversat
 }
 
 const getConversationMessageByID = `-- name: GetConversationMessageByID :one
-SELECT id, company_id, conversation_id, author_type, author_id, body, run_id, created_at, persona_id, reply_to_id, mentions FROM conversation_messages WHERE company_id = $1 AND id = $2
+SELECT id, company_id, conversation_id, author_type, author_id, body, run_id, created_at, persona_id, reply_to_id, mentions, marker FROM conversation_messages WHERE company_id = $1 AND id = $2
 `
 
 type GetConversationMessageByIDParams struct {
@@ -220,6 +220,7 @@ func (q *Queries) GetConversationMessageByID(ctx context.Context, arg GetConvers
 		&i.PersonaID,
 		&i.ReplyToID,
 		&i.Mentions,
+		&i.Marker,
 	)
 	return i, err
 }
@@ -277,10 +278,51 @@ func (q *Queries) GetConversationView(ctx context.Context, arg GetConversationVi
 	return i, err
 }
 
+const insertContextMarker = `-- name: InsertContextMarker :one
+INSERT INTO conversation_messages (id, company_id, conversation_id, author_type, body, marker, created_at)
+VALUES ($1, $2, $3, 'system', $4, 'context_reset', $5)
+RETURNING id, company_id, conversation_id, author_type, author_id, body, run_id, created_at, persona_id, reply_to_id, mentions, marker
+`
+
+type InsertContextMarkerParams struct {
+	ID             uuid.UUID
+	CompanyID      uuid.UUID
+	ConversationID uuid.UUID
+	Body           string
+	Now            time.Time
+}
+
+// /new (ADR-0052): mensagem de sistema que marca o reinício do contexto da conversa.
+func (q *Queries) InsertContextMarker(ctx context.Context, arg InsertContextMarkerParams) (ConversationMessage, error) {
+	row := q.db.QueryRow(ctx, insertContextMarker,
+		arg.ID,
+		arg.CompanyID,
+		arg.ConversationID,
+		arg.Body,
+		arg.Now,
+	)
+	var i ConversationMessage
+	err := row.Scan(
+		&i.ID,
+		&i.CompanyID,
+		&i.ConversationID,
+		&i.AuthorType,
+		&i.AuthorID,
+		&i.Body,
+		&i.RunID,
+		&i.CreatedAt,
+		&i.PersonaID,
+		&i.ReplyToID,
+		&i.Mentions,
+		&i.Marker,
+	)
+	return i, err
+}
+
 const insertConversationMessage = `-- name: InsertConversationMessage :one
 INSERT INTO conversation_messages (id, company_id, conversation_id, author_type, author_id, body, run_id, created_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-RETURNING id, company_id, conversation_id, author_type, author_id, body, run_id, created_at, persona_id, reply_to_id, mentions
+RETURNING id, company_id, conversation_id, author_type, author_id, body, run_id, created_at, persona_id, reply_to_id, mentions, marker
 `
 
 type InsertConversationMessageParams struct {
@@ -318,6 +360,7 @@ func (q *Queries) InsertConversationMessage(ctx context.Context, arg InsertConve
 		&i.PersonaID,
 		&i.ReplyToID,
 		&i.Mentions,
+		&i.Marker,
 	)
 	return i, err
 }
@@ -378,8 +421,8 @@ func (q *Queries) LatestRunOfConversation(ctx context.Context, arg LatestRunOfCo
 }
 
 const listConversationMessages = `-- name: ListConversationMessages :many
-SELECT id, company_id, conversation_id, author_type, author_id, body, run_id, created_at, persona_id, reply_to_id, mentions FROM (
-    SELECT m.id, m.company_id, m.conversation_id, m.author_type, m.author_id, m.body, m.run_id, m.created_at, m.persona_id, m.reply_to_id, m.mentions FROM conversation_messages m
+SELECT id, company_id, conversation_id, author_type, author_id, body, run_id, created_at, persona_id, reply_to_id, mentions, marker FROM (
+    SELECT m.id, m.company_id, m.conversation_id, m.author_type, m.author_id, m.body, m.run_id, m.created_at, m.persona_id, m.reply_to_id, m.mentions, m.marker FROM conversation_messages m
     WHERE m.company_id = $1 AND m.conversation_id = $2
     ORDER BY m.created_at DESC, m.id DESC
     LIMIT $3
@@ -415,6 +458,7 @@ func (q *Queries) ListConversationMessages(ctx context.Context, arg ListConversa
 			&i.PersonaID,
 			&i.ReplyToID,
 			&i.Mentions,
+			&i.Marker,
 		); err != nil {
 			return nil, err
 		}
@@ -509,7 +553,7 @@ func (q *Queries) ListConversationViews(ctx context.Context, arg ListConversatio
 }
 
 const listPendingConversationMessages = `-- name: ListPendingConversationMessages :many
-SELECT id, company_id, conversation_id, author_type, author_id, body, run_id, created_at, persona_id, reply_to_id, mentions FROM conversation_messages
+SELECT id, company_id, conversation_id, author_type, author_id, body, run_id, created_at, persona_id, reply_to_id, mentions, marker FROM conversation_messages
 WHERE conversation_id = $1 AND author_type = 'human' AND run_id IS NULL
 ORDER BY created_at, id
 `
@@ -536,6 +580,7 @@ func (q *Queries) ListPendingConversationMessages(ctx context.Context, conversat
 			&i.PersonaID,
 			&i.ReplyToID,
 			&i.Mentions,
+			&i.Marker,
 		); err != nil {
 			return nil, err
 		}

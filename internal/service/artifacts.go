@@ -104,7 +104,7 @@ type PutArtifactInput struct {
 
 	// Class vazio = artefato. Anexo (ADR-0052): sempre versão 1, ligado a uma task (e a um comentário dela) ou a uma
 	// conversa do chat (e a uma mensagem dela); o nome repetido ganha sufixo em vez de virar versão.
-	Class                                     domain.ArtifactClass
+	Class                                domain.ArtifactClass
 	CommentID, ConversationID, MessageID *domain.ID
 
 	// createdAt (importação) preserva o instante do arquivo de origem; zero = agora.
@@ -135,9 +135,9 @@ type ArtifactFilter struct {
 	AllClasses                           bool
 	CommentID, ConversationID, MessageID *domain.ID
 	Kind                                 domain.ArtifactKind
-	Query                               string
-	AllVersions                         bool
-	Limit, Offset                       int // padrão 100, máx. 500
+	Query                                string
+	AllVersions                          bool
+	Limit, Offset                        int // padrão 100, máx. 500
 }
 
 // ArtifactLimitError é a recusa de um artefato por tamanho (acima do limite por arquivo) ou por cota (a empresa já

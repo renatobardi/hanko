@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/renatobardi/hanko/internal/adapter"
 	"github.com/renatobardi/hanko/internal/domain"
@@ -87,7 +88,45 @@ func conversationView(c store.Conversation, personaName, personaSlug string, act
 func messageFromRow(r store.ConversationMessage) domain.ConversationMessage {
 	return domain.ConversationMessage{ID: r.ID, CompanyID: r.CompanyID, ConversationID: r.ConversationID,
 		Author: actorOf(r.AuthorType, r.AuthorID), Kind: domain.MessageAuthor(r.AuthorType), Body: r.Body,
-		RunID: r.RunID, CreatedAt: r.CreatedAt, PersonaID: r.PersonaID, ReplyToID: r.ReplyToID, Mentions: r.Mentions}
+		RunID: r.RunID, CreatedAt: r.CreatedAt, PersonaID: r.PersonaID, ReplyToID: r.ReplyToID, Mentions: r.Mentions,
+		Marker: derefStr(r.Marker)}
+}
+
+func derefStr(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
+}
+
+// ContextResetCommand é o comando que reinicia o contexto da conversa (ADR-0052).
+const ContextResetCommand = "/new"
+
+// parseContextReset diz se a mensagem começa com /new e devolve o texto que vem depois (que pode ser vazio). O
+// comando é a mensagem inteira ("/new") ou a primeira palavra seguida de espaço ("/new e agora, qual o plano?").
+func parseContextReset(body string) (reset bool, rest string) {
+	b := strings.TrimSpace(body)
+	if b == ContextResetCommand {
+		return true, ""
+	}
+	if after, ok := strings.CutPrefix(b, ContextResetCommand); ok && after != "" && unicode.IsSpace([]rune(after)[0]) {
+		return true, strings.TrimSpace(after)
+	}
+	return false, body
+}
+
+// insertContextMarker grava o marcador de reinício de contexto (mensagem de sistema) e o fato na atividade.
+func (t *txc) insertContextMarker(conv store.Conversation, actor domain.Actor) (store.ConversationMessage, error) {
+	m, err := t.q.InsertContextMarker(t.ctx, store.InsertContextMarkerParams{ID: domain.NewID(), CompanyID: conv.CompanyID,
+		ConversationID: conv.ID, Body: "Contexto reiniciado (/new): a conversa recomeça daqui.", Now: t.now})
+	if err != nil {
+		return m, fmt.Errorf("insert context marker: %w", err)
+	}
+	if err := t.q.TouchConversation(t.ctx, store.TouchConversationParams{ID: conv.ID, Now: t.now}); err != nil {
+		return m, fmt.Errorf("touch conversation: %w", err)
+	}
+	return m, t.activity(actor, conv.CompanyID, "conversation.context_reset", "conversation", conv.ID,
+		map[string]any{"message_id": m.ID, "kind": conv.Kind}, "")
 }
 
 func loadConversationView(ctx context.Context, q *store.Queries, companyID, id domain.ID) (ConversationView, error) {
@@ -289,6 +328,7 @@ func (s *Service) SendMessage(ctx context.Context, actor domain.Actor, companyID
 	if err != nil {
 		return domain.ConversationMessage{}, err
 	}
+	reset, body := parseContextReset(body)
 	var (
 		out     domain.ConversationMessage
 		blocked error
@@ -301,6 +341,16 @@ func (s *Service) SendMessage(ctx context.Context, actor domain.Actor, companyID
 		if domain.ConversationStatus(conv.Status) != domain.ConversationOpen {
 			return domain.Invalid("conversation", "a conversa está arquivada; reabra para continuar")
 		}
+		if reset { // /new (ADR-0052): o marcador vale para a conversa direta e para a sala
+			mk, err := t.insertContextMarker(conv, actor)
+			if err != nil {
+				return err
+			}
+			if body == "" {
+				out = messageFromRow(mk)
+				return t.clearDraft(companyID, domain.DraftConversation, conversationID)
+			}
+		}
 		if domain.ConversationKind(conv.Kind) == domain.ConversationRoom {
 			// sala (ADR-0033): várias personas, cada uma com a sua run e a sua fila
 			m, berr, err := t.sendRoomMessage(conv, actor, body)
@@ -308,6 +358,9 @@ func (s *Service) SendMessage(ctx context.Context, actor domain.Actor, companyID
 				return err
 			}
 			blocked, out = berr, m
+			if berr == nil { // ADR-0052: enviar limpa o rascunho, na mesma transação
+				return t.clearDraft(companyID, domain.DraftConversation, conversationID)
+			}
 			return nil
 		}
 		m, berr, err := t.sendChatMessage(conv, actor, body)
@@ -317,6 +370,7 @@ func (s *Service) SendMessage(ctx context.Context, actor domain.Actor, companyID
 		blocked = berr
 		if berr == nil {
 			out = messageFromRow(m)
+			return t.clearDraft(companyID, domain.DraftConversation, conversationID)
 		}
 		return nil
 	})
@@ -616,6 +670,7 @@ func loadChatContext(ctx context.Context, q *store.Queries, run domain.Run, pers
 		return nil, fmt.Errorf("list conversation messages: %w", err)
 	}
 	cc := &ChatContext{Conversation: conversationFromRow(conv)}
+	rows, resetAt := afterContextReset(rows)
 	for _, r := range rows {
 		m := messageFromRow(r)
 		switch {
@@ -630,13 +685,30 @@ func loadChatContext(ctx context.Context, q *store.Queries, run domain.Run, pers
 	prev, err := q.LatestRunOfConversation(ctx, store.LatestRunOfConversationParams{ConversationID: run.ConversationID, ExceptID: run.ID})
 	switch {
 	case err == nil:
-		if prev.Status == string(domain.RunDone) && prev.SessionRef != "" && prev.Agent == persona.Agent && prev.CreatedAt.Before(run.CreatedAt) {
+		if prev.Status == string(domain.RunDone) && prev.SessionRef != "" && prev.Agent == persona.Agent && prev.CreatedAt.Before(run.CreatedAt) &&
+			!beforeReset(prev.CreatedAt, resetAt) {
 			cc.ResumeSession = prev.SessionRef
 		}
 	case !isNoRows(err):
 		return nil, fmt.Errorf("latest run of conversation: %w", err)
 	}
 	return cc, nil
+}
+
+// afterContextReset corta a lista (cronológica) no último marcador de /new: devolve só o que veio depois dele e o
+// instante do marcador (zero se não há). O que veio antes continua na conversa, mas fora do contexto da run.
+func afterContextReset(rows []store.ConversationMessage) ([]store.ConversationMessage, time.Time) {
+	for i := len(rows) - 1; i >= 0; i-- {
+		if rows[i].Marker != nil {
+			return rows[i+1:], rows[i].CreatedAt
+		}
+	}
+	return rows, time.Time{}
+}
+
+// beforeReset diz se uma run foi criada antes do último /new: a sessão dela não é retomada.
+func beforeReset(runCreated, resetAt time.Time) bool {
+	return !resetAt.IsZero() && runCreated.Before(resetAt)
 }
 
 // personaWorkspaceID is the workspace that scopes the memory of a persona's chat facts.

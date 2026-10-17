@@ -250,7 +250,7 @@ INSERT INTO conversation_messages (id, company_id, conversation_id, author_type,
                                    reply_to_id, mentions, created_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8,
         $9, COALESCE($10::uuid[], '{}'::uuid[]), $11)
-RETURNING id, company_id, conversation_id, author_type, author_id, body, run_id, created_at, persona_id, reply_to_id, mentions
+RETURNING id, company_id, conversation_id, author_type, author_id, body, run_id, created_at, persona_id, reply_to_id, mentions, marker
 `
 
 type InsertRoomMessageParams struct {
@@ -294,6 +294,7 @@ func (q *Queries) InsertRoomMessage(ctx context.Context, arg InsertRoomMessagePa
 		&i.PersonaID,
 		&i.ReplyToID,
 		&i.Mentions,
+		&i.Marker,
 	)
 	return i, err
 }

@@ -334,6 +334,8 @@ func registerTools(s *sdk.Server, t *tools) {
 	registerCaseTools(s, t)
 	registerCoordinationTools(s, t)
 	registerInstructionTools(s, t)
+	registerAttachmentTools(s, t)
+	registerProjectGoalTools(s, t)
 }
 
 // ---- resolução de empresa ----

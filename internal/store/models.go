@@ -229,6 +229,7 @@ type ConversationMessage struct {
 	PersonaID      *uuid.UUID
 	ReplyToID      *uuid.UUID
 	Mentions       []uuid.UUID
+	Marker         *string
 }
 
 type ConversationMessageRun struct {
@@ -274,6 +275,17 @@ type DecisionExample struct {
 	CreatedByUserID *uuid.UUID
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
+}
+
+type Draft struct {
+	ID             uuid.UUID
+	CompanyID      uuid.UUID
+	UserKey        string
+	TargetType     string
+	TaskID         *uuid.UUID
+	ConversationID *uuid.UUID
+	Body           string
+	UpdatedAt      time.Time
 }
 
 type Environment struct {

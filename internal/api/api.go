@@ -265,6 +265,7 @@ func (s *server) register(api huma.API) {
 	s.registerExport(api)
 	s.registerArtifacts(api)
 	s.registerAttachments(api)
+	s.registerDrafts(api)
 	s.registerGoals(api)
 	s.registerSkills(api)
 	s.registerSkillStudio(api)
