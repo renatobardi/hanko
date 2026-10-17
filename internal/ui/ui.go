@@ -158,6 +158,17 @@ type Backend interface {
 	ListEnvironmentLeases(ctx context.Context, companyID, envID domain.ID, limit int) ([]service.EnvironmentLeaseView, error)
 	RunEnvironmentOf(ctx context.Context, companyID, runID domain.ID) (service.RunEnvironmentInfo, error)
 	EnvironmentDrivers(ctx context.Context) map[domain.EnvironmentDriver]string
+	// Cards de status (ADR-0032).
+	ListStatusCards(ctx context.Context, companyID domain.ID, archived *bool) ([]service.StatusCardView, error)
+	GetStatusCard(ctx context.Context, companyID, cardID domain.ID) (service.StatusCardView, error)
+	CreateStatusCard(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.CreateStatusCardInput) (service.StatusCardView, error)
+	UpdateStatusCard(ctx context.Context, actor domain.Actor, companyID, cardID domain.ID, in service.UpdateStatusCardInput) (service.StatusCardView, error)
+	DeleteStatusCard(ctx context.Context, actor domain.Actor, companyID, cardID domain.ID) error
+	RecompileStatusCard(ctx context.Context, actor domain.Actor, companyID, cardID domain.ID) (service.StatusCardView, error)
+	RefreshStatusCard(ctx context.Context, actor domain.Actor, companyID, cardID domain.ID, full bool) (service.StatusCardView, error)
+	ListStatusCardUpdates(ctx context.Context, companyID, cardID domain.ID, limit int) ([]service.StatusCardUpdateView, error)
+	ListStatusCardRevisions(ctx context.Context, companyID, cardID domain.ID, limit int) ([]domain.StatusCardRevision, error)
+	PreviewStatusCard(ctx context.Context, companyID, cardID domain.ID) (service.StatusCardPreview, error)
 }
 
 var _ Backend = (*service.Service)(nil)
@@ -360,6 +371,7 @@ func (s *server) routes(root *http.ServeMux) {
 	s.roomRoutes(mux) // sala (ADR-0033)
 	s.pluginRoutes(mux)
 	s.environmentRoutes(mux)
+	s.statusCardRoutes(mux)
 }
 
 // ---------- middleware ----------

@@ -164,7 +164,8 @@ func (h *Heartbeat) executeRunJob(ctx context.Context, a ExecuteRunArgs, ji jobI
 	}
 
 	scope := scopeFor(rc.Company.Slug, rc.Workspace)
-	curating := rc.Run.Trigger == domain.TriggerMemory
+	// A curadoria e os cards de status (ADR-0032) são runs de sistema: não consomem o handoff nem fecham sessão.
+	curating := rc.Run.Trigger == domain.TriggerMemory || rc.Run.Trigger == domain.TriggerStatusCard
 	// A run de teste do estúdio (ADR-0035) é isolada: sem briefing, sem handoff e sem fechar sessão de memória.
 	skillTest := rc.Run.Trigger == domain.TriggerSkillTest
 
@@ -297,7 +298,7 @@ func (h *Heartbeat) finishPending(ctx context.Context, a ExecuteRunArgs, rc serv
 	log.Info("run finalizada (resultado pendente)", "status", in.Status, "exit_code", in.Result.ExitCode)
 	fctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), finishTimeout)
 	defer cancel()
-	if rc.Run.Trigger != domain.TriggerMemory && rc.Run.Trigger != domain.TriggerSkillTest {
+	if rc.Run.Trigger != domain.TriggerMemory && rc.Run.Trigger != domain.TriggerSkillTest && rc.Run.Trigger != domain.TriggerStatusCard {
 		pagent, _ := effectiveHarness(rc)
 		h.finalizeMemorySession(fctx, scopeFor(rc.Company.Slug, rc.Workspace), pagent, in.Result.SessionRef, log)
 	}
@@ -427,6 +428,9 @@ func (h *Heartbeat) buildSpec(rc service.RunContext, briefing, handoff string, s
 	if skillTest {
 		system, prompt = BuildSkillTestPrompt(rc, *extras.SkillTest)
 	}
+	if rc.Run.Trigger == domain.TriggerStatusCard {
+		system, prompt = BuildStatusCardPrompt(rc, briefing)
+	}
 	// Skills (ADR-0029): o claude as carrega nativamente de um diretório temporário da run; os demais
 	// harnesses recebem o índice no system prompt e buscam o corpo pela tool MCP hanko_skill_get.
 	// Uma run de revisão não usa skills.
@@ -457,7 +461,7 @@ type runExtrasBackend interface {
 // uma falha vira aviso no log da run e a execução segue sem os extras. Revisões e a curadoria de memória
 // (gatilho memory) não os recebem: são runs de sistema, restritas ao que o protocolo delas define (ADR-0029).
 func (h *Heartbeat) runExtras(ctx context.Context, rc service.RunContext, emit func(domain.RunEventKind, string)) service.RunExtras {
-	if rc.Review != nil && rc.Run.Trigger == domain.TriggerReview || rc.Run.Trigger == domain.TriggerMemory {
+	if rc.Review != nil && rc.Run.Trigger == domain.TriggerReview || rc.Run.Trigger == domain.TriggerMemory || rc.Run.Trigger == domain.TriggerStatusCard {
 		return service.RunExtras{}
 	}
 	if rc.Run.Trigger == domain.TriggerSkillTest {

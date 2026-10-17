@@ -720,6 +720,79 @@ type SkillVersion struct {
 	CreatedAt    time.Time
 }
 
+type StatusCard struct {
+	ID                    uuid.UUID
+	CompanyID             uuid.UUID
+	Title                 string
+	TitlePinned           bool
+	Interest              string
+	InterestHash          string
+	SummarizerPersonaID   *uuid.UUID
+	Queries               []byte
+	QueryVersion          int32
+	QueryCompiledAt       *time.Time
+	RefreshPolicy         []byte
+	State                 string
+	PendingChangeCount    int32
+	PendingChangeHash     string
+	LastChangeAt          *time.Time
+	Fingerprint           []byte
+	FingerprintAt         *time.Time
+	MentionedTaskIds      []uuid.UUID
+	Summary               string
+	SummaryRevision       int32
+	SummaryQueryVersion   int32
+	IncrementalsSinceFull int32
+	LastUpdateKind        *string
+	LastGeneratedAt       *time.Time
+	LastModel             string
+	GeneratingTaskID      *uuid.UUID
+	GeneratingSince       *time.Time
+	FailureReason         string
+	NextEvalAt            *time.Time
+	ArchivedAt            *time.Time
+	CreatedByType         string
+	CreatedByID           *uuid.UUID
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
+}
+
+type StatusCardRevision struct {
+	ID               uuid.UUID
+	CompanyID        uuid.UUID
+	CardID           uuid.UUID
+	Revision         int32
+	Markdown         string
+	ChangeSummary    string
+	Kind             string
+	RunID            *uuid.UUID
+	Model            string
+	MentionedTaskIds []uuid.UUID
+	CreatedAt        time.Time
+}
+
+type StatusCardUpdate struct {
+	ID            uuid.UUID
+	CompanyID     uuid.UUID
+	CardID        uuid.UUID
+	Kind          string
+	Trigger       string
+	TaskID        *uuid.UUID
+	RunID         *uuid.UUID
+	Changes       []byte
+	Fingerprint   []byte
+	InputTokens   int64
+	OutputTokens  int64
+	CostUsd       *float64
+	Model         string
+	QueryVersion  int32
+	ChangeSummary string
+	StartedAt     time.Time
+	FinishedAt    *time.Time
+	Status        string
+	Error         string
+}
+
 type Subscription struct {
 	ID             uuid.UUID
 	CompanyID      uuid.UUID

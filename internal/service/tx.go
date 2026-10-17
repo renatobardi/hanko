@@ -153,6 +153,12 @@ func (t *txc) wake(companyID, taskID domain.ID, personaID *domain.ID, status dom
 		} else if test {
 			return nil
 		}
+		// Idem para as tasks de sistema dos cards de status (ADR-0032).
+		if card, err := t.isStatusCardTask(taskID); err != nil {
+			return err
+		} else if card {
+			return nil
+		}
 	}
 	p, err := t.q.GetPersonaByID(t.ctx, store.GetPersonaByIDParams{CompanyID: companyID, ID: *personaID})
 	if err != nil {
