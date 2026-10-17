@@ -364,13 +364,13 @@ type listIncidentsIn struct {
 	Page
 }
 
-type incidentPath struct {
+type IncidentPath struct {
 	CompanyPath
 	Incident string `path:"incident" format:"uuid" doc:"Id do incidente."`
 }
 
 type resolveIncidentIn struct {
-	incidentPath
+	IncidentPath
 	Body struct {
 		Resolution    string `json:"resolution" enum:"ceiling_raised,kept_paused,released_once" doc:"ceiling_raised: sobe (ou remove) o teto e retoma o que estava pausado por orçamento; kept_paused: mantém e registra; released_once: libera só mais um run, sem mexer no teto."`
 		BudgetCents   *int64 `json:"budget_cents,omitempty" doc:"Teto novo em centavos de dólar (ceiling_raised); precisa passar do gasto do mês."`

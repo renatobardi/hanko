@@ -203,7 +203,7 @@ templ PersonaPlusCard(p PersonaPlusVM) {
 						<span class="muted">{ i18n.T(ctx, "Não") }</span>
 					}
 					if p.PrimaryHref != "" && canWrite(ctx) {
-						<form class="inline" method="post" action={ templ.SafeURL(p.PrimaryHref) } hx-post={ p.PrimaryHref } hx-swap="none">
+						<form class="inline-form" method="post" action={ templ.SafeURL(p.PrimaryHref) } hx-post={ p.PrimaryHref } hx-swap="none">
 							if p.IsPrimary {
 								<input type="hidden" name="clear" value="1"/>
 								<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Deixar de ser a principal") }</button>
@@ -222,7 +222,7 @@ templ PersonaPlusCard(p PersonaPlusVM) {
 						<span class="muted">{ i18n.T(ctx, "Não") }</span>
 					}
 					if p.CanEditSystem {
-						<form class="inline" method="post" action={ templ.SafeURL(p.SystemHref) } hx-post={ p.SystemHref } hx-swap="none">
+						<form class="inline-form" method="post" action={ templ.SafeURL(p.SystemHref) } hx-post={ p.SystemHref } hx-swap="none">
 							if p.System {
 								<input type="hidden" name="system" value="off"/>
 								<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Desmarcar") }</button>
@@ -237,7 +237,7 @@ templ PersonaPlusCard(p PersonaPlusVM) {
 				<dd>
 					<span class="text-sm">{ p.PlanSummary }</span>
 					if canAdmin(ctx) {
-						<form class="inline" method="post" action={ templ.SafeURL(p.PlanHref) } hx-post={ p.PlanHref } hx-swap="none">
+						<form class="inline-form" method="post" action={ templ.SafeURL(p.PlanHref) } hx-post={ p.PlanHref } hx-swap="none">
 							@Select("mode", "plan-mode", p.PlanOptions, true)
 							<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Salvar") }</button>
 						</form>

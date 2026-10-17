@@ -16581,6 +16581,32 @@
     "/api/v1/companies/{company}/budget-incidents/{incident}/resolve": {
       "post": {
         "operationId": "resolve-budget-incident",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id do incidente.",
+            "in": "path",
+            "name": "incident",
+            "required": true,
+            "schema": {
+              "description": "Id do incidente.",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
