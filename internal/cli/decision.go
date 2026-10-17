@@ -66,7 +66,7 @@ func (e *env) decisionCmd() *cobra.Command {
 			return nil
 		},
 	}
-	catalog.Flags().StringVar(&baseURL, "base-url", "", e.t("outro endpoint OpenAI-compatível (padrão: o configurado, ou o do OpenRouter)"))
+	catalog.Flags().StringVar(&baseURL, "base-url", "", e.t("outro endpoint compatível com chat completions (padrão: o configurado, ou o do OpenRouter)"))
 	catalog.Flags().StringVar(&keyRef, "api-key-ref", "", e.t("referência ${secret:NOME} da chave desse endpoint"))
 
 	var sBase, sKey string
@@ -99,7 +99,7 @@ func (e *env) decisionCmd() *cobra.Command {
 		},
 	}
 	sf := set.Flags()
-	sf.StringVar(&sBase, "base-url", "", e.t("endpoint OpenAI-compatível (padrão: OpenRouter)"))
+	sf.StringVar(&sBase, "base-url", "", e.t("endpoint compatível com chat completions (padrão: OpenRouter)"))
 	sf.StringVar(&sKey, "api-key-ref", "", e.t("referência ${secret:NOME} ao segredo com a chave (nunca a chave em claro)"))
 	sf.IntVar(&sTimeout, "timeout", 0, e.t("prazo de cada chamada em segundos (padrão 30)"))
 	sf.BoolVar(&sOff, "off", false, e.t("salva desligado"))

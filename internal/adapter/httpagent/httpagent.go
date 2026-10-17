@@ -36,14 +36,14 @@ type Options struct {
 	// cliente comum (testes com httptest).
 	Client func(timeout time.Duration) *http.Client
 	// Connect substitui a conexão ao MCP do Hanko (testes). Nil usa o transporte HTTP do SDK.
-	Connect func(ctx context.Context, ep mcpEndpoint, hc *http.Client) (toolHost, error)
+	Connect func(ctx context.Context, ep mcpEndpoint) (toolHost, error)
 }
 
 // Adapter implementa adapter.Adapter para o harness http.
 type Adapter struct {
 	log     *slog.Logger
 	client  func(time.Duration) *http.Client
-	connect func(context.Context, mcpEndpoint, *http.Client) (toolHost, error)
+	connect func(context.Context, mcpEndpoint) (toolHost, error)
 }
 
 // New devolve o adapter http.
@@ -133,14 +133,13 @@ func (a *Adapter) loop(ctx context.Context, spec adapter.Spec, cfg Config, model
 	}
 
 	timeout := cfg.timeout()
-	hc := a.client(timeout)
 	pc := a.provider(cfg, timeout)
 
 	// tools: as do servidor MCP do Hanko da run; revisão (ReadOnly) e run sem credencial não têm nenhuma
 	var host toolHost
 	var tools []provider.Tool
 	if ep, ok := hankoEndpoint(spec.MCPConfig); ok && !spec.ReadOnly {
-		h, err := a.connect(ctx, ep, hc)
+		h, err := a.connect(ctx, ep)
 		if err != nil {
 			emit(domain.EventSystem, "aviso: tools do Hanko indisponíveis nesta execução: "+err.Error(), nil)
 		} else {

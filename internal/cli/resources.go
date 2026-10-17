@@ -246,7 +246,7 @@ func (e *env) personaCmd() *cobra.Command {
 	hf.StringVar(&icon, "icon", "", e.t("ícone da persona (bot, code, search, pen-line, shield-check…; padrão bot)"))
 	hf.StringVarP(&instr, "instructions", "i", "", e.t("instruções da persona"))
 	hf.StringVar(&instrFile, "instructions-file", "", e.t("arquivo com as instruções"))
-	hf.StringVar(&agent, "agent", "", e.t("harness: claude, codex, acp ou fake (obrigatório)"))
+	hf.StringVar(&agent, "agent", "", e.t("harness: claude, codex, acp, devin, pi, cursor, http ou fake (obrigatório); gemini/opencode: acp com --config-json '{\"preset\":\"gemini\"}'"))
 	hf.StringVar(&model, "model", "", e.t("modelo"))
 	hf.StringVar(&subscription, "subscription", "", e.t("assinatura que cobre a persona (id ou nome)"))
 	hf.StringVar(&reports, "reports-to", "", e.t("persona superior (id ou slug)"))
@@ -260,6 +260,33 @@ func (e *env) personaCmd() *cobra.Command {
 	hf.StringVar(&revAgent, "reviewer-agent", "", e.t("harness alternativo revisor: claude, codex ou fake"))
 	hf.StringVar(&revModel, "reviewer-model", "", e.t("modelo do harness revisor"))
 	_ = hire.MarkFlagRequired("agent")
+
+	probe := &cobra.Command{
+		Use: "probe " + e.t("<persona>"), Short: e.t("Confere se o harness da persona está pronto (binário, autenticação, endpoint), sem executar trabalho"), Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			co, err := e.needCompany()
+			if err != nil {
+				return err
+			}
+			r, err := e.client().ProbePersona(cmd.Context(), co, args[0])
+			if err != nil {
+				return err
+			}
+			if e.asJSON {
+				return e.printJSON(r)
+			}
+			rows := make([][]string, len(r.Steps))
+			for i, st := range r.Steps {
+				rows[i] = []string{st.Name, e.yesNo(st.OK), oneLine(st.Detail, 100)}
+			}
+			e.table([]string{e.t("PASSO"), e.t("OK"), e.t("DETALHE")}, rows)
+			if !r.OK {
+				return errors.New(e.t("a persona não está pronta: corrija o passo que falhou"))
+			}
+			fmt.Fprintln(e.out, e.t("Persona pronta."))
+			return nil
+		},
+	}
 
 	ls := &cobra.Command{
 		Use: "list", Aliases: []string{"ls"}, Short: e.t("Lista personas"), Args: cobra.NoArgs,
@@ -378,7 +405,7 @@ func (e *env) personaCmd() *cobra.Command {
 	uf.StringVar(&upSub, "subscription", "", e.t("vincula a persona a uma assinatura (id ou nome)"))
 	uf.BoolVar(&upNoSub, "no-subscription", false, e.t("desvincula a persona da assinatura"))
 	uf.StringVar(&upEnv, "environment", "", e.t("ambiente de execução (id ou slug; local = o padrão da empresa)"))
-	c.AddCommand(hire, ls, show, update)
+	c.AddCommand(hire, ls, show, update, probe)
 	return c
 }
 

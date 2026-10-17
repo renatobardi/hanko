@@ -134,7 +134,7 @@ func pageReader(p memory.Provider) memory.PageReader {
 // platformInfo é o retrato da instalação para Configurações › Ambientes, Adapters e Plugins (sem segredos).
 func platformInfo(cfg config.Config) ui.PlatformInfo {
 	return ui.PlatformInfo{Mode: cfg.Mode, AuthProvider: cfg.Auth.Provider, PublicURL: cfg.PublicURL, AgentURL: cfg.AgentURL,
-		ClaudeBin: cfg.ClaudeBin, CodexBin: cfg.CodexBin, ACPAllow: cfg.ACP.Allow, ACPCommands: cfg.ACP.Commands,
+		ClaudeBin: cfg.ClaudeBin, CodexBin: cfg.CodexBin, DevinBin: cfg.DevinBin, PiBin: cfg.PiBin, CursorBin: cfg.CursorBin, ACPAllow: cfg.ACP.Allow, ACPCommands: cfg.ACP.Commands,
 		MemoryProvider: cfg.Memory.Provider, MemoryURL: cfg.Memory.URL, OTelEndpoint: os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"),
 		IntegrationsAllowStdio: cfg.Integrations.AllowStdio, IntegrationsAllowPrivate: cfg.Integrations.AllowPrivateDestinations,
 		SecretKeySet: cfg.SecretKey != "", VaultConfigured: cfg.Vault.Addr != "", Workers: cfg.Workers, RunTimeout: cfg.RunTimeout, HeartbeatInterval: cfg.HeartbeatInterval}

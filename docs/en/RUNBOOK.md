@@ -377,6 +377,43 @@ stored secrets (integrations remain, without credentials; enter them again).
 **Webhooks.** Each delivery carries `X-Hanko-Signature: t=<unix>,v1=<hex>`, `X-Hanko-Event` and `X-Hanko-Delivery`. The receiver
 computes `HMAC-SHA256(secret, "<t>.<body>")`, compares in constant time and rejects an old `t`. Failures retry up to 7
 attempts (30 s, 2 min, 8 min, 32 min, ~2 h, 6 h). Delivery is at-least-once; deduplicate on `X-Hanko-Delivery`.
+## Decision model and the devin, pi, cursor and http harnesses (ADR-0056)
+
+**Decision model.** A per-company external classifier that Hanko itself calls (triage, phase classifier, name and summary); every call
+lands in Costs with the `system` actor. Configure it under Settings › Decision model, or from the CLI:
+
+```sh
+hanko secret create openrouter --value-stdin            # the provider key, as a company secret
+hanko decision catalog --api-key-ref '${secret:openrouter}'   # catalog models and prices
+hanko decision set anthropic/claude-haiku-4.5 --api-key-ref '${secret:openrouter}'
+hanko decision feature triage on
+hanko decision triage HNK-12                            # comments the suggestion on the task (does not assign)
+hanko decision invocations                              # ledger: model, tokens, cost, source
+```
+
+The default endpoint is OpenRouter's; `--base-url` points to any chat-completions-compatible API (an internal destination needs
+`integrations.allow_private`). The key is never stored in the configuration: only the `${secret:NAME}` reference, resolved on every
+call. Features start turned off. The cost is the response's `usage.cost` when present, otherwise tokens × catalog price, and it adds to
+the company's monthly spend (budget).
+
+**New harnesses.** All are hired with `hanko persona hire --agent <name>` (or the card in the hire screen); the executable is fixed by the
+operator and authentication happens outside Hanko:
+
+| Harness | Executable (env / yaml) | Notes |
+| --- | --- | --- |
+| `devin` | `HANKO_DEVIN_BIN` (`devin`) | runs `devin acp` over the ACP engine; not subject to `HANKO_ACP_ALLOW`; `adapter_config` accepts `permission`, `model`, `env`, `init_timeout_sec` |
+| `pi` | `HANKO_PI_BIN` (`pi`) | `pi --mode json -p`; Hanko tools go through the `hanko` CLI with the run token (the CLI must be on the server's PATH) |
+| `cursor` | `HANKO_CURSOR_BIN` (`cursor-agent`) | `cursor-agent -p --output-format stream-json`; same tools rule; `force: true` lets it apply changes |
+| `http` | — | no CLI: Hanko runs the tool-use loop over `base_url` (chat completions) with Hanko's MCP tools; `adapter_config`: `base_url`, `api_key_ref` (`${secret:X}`), `model`, `max_steps`, `temperature`, `timeout_sec`, `tools` |
+| `acp` + `preset` | `HANKO_ACP_ALLOW` | `{"preset":"gemini"}` or `"opencode"` fills in command and arguments; the operator gate applies |
+
+**Check before running.** `hanko persona probe <persona>` (admin) runs a probe with no prompt and no cost, with named steps (binary,
+protocol, authentication, endpoint, model). For `devin`/`acp` the probe does initialize and session/new: an agent that requires login
+fails the "authentication" step, quoting the methods it advertises. For `pi`/`cursor` it only checks the binary (`--version`).
+
+**Local model (e.g. oMLX).** An `http` persona with the local server's `base_url` (`integrations.allow_private` on) and a model with
+proven tool calling; review runs (read-only) offer no tools. The harness neither executes commands nor writes to disk.
+
 ## ACP agents (`acp` harness)
 
 The `acp` harness (ADR-0023) runs any agent that speaks the Agent Client Protocol v1 over stdio. Hanko ships no agent: the operator

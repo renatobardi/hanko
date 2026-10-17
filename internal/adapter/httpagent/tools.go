@@ -71,8 +71,10 @@ type mcpHost struct {
 }
 
 // connectMCP conecta ao servidor MCP do Hanko por HTTP (o transporte já usado pelas personas).
-func connectMCP(ctx context.Context, ep mcpEndpoint, hc *http.Client) (toolHost, error) {
-	client := &http.Client{Timeout: hc.Timeout, Transport: headerRT{base: hc.Transport, h: ep.Headers}}
+// O MCP é do próprio Hanko (URL pública do servidor, que pode ser loopback ou rede privada): vai por um cliente
+// comum, não pelo cliente com bloqueio de destinos internos que o modelo externo usa.
+func connectMCP(ctx context.Context, ep mcpEndpoint) (toolHost, error) {
+	client := &http.Client{Transport: headerRT{h: ep.Headers}}
 	c := sdk.NewClient(&sdk.Implementation{Name: "hanko-http-harness", Version: "1"}, nil)
 	cctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()

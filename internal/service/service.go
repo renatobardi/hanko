@@ -92,6 +92,8 @@ type Service struct {
 	// ACP é a política do operador para o harness acp (HANKO_ACP_ALLOW / HANKO_ACP_COMMANDS, ADR-0023). O zero
 	// value recusa: persona acp não pode ser contratada nem importada.
 	ACP acp.Policy
+	// Probers são os probes de readiness por harness (ADR-0056); o app os registra junto dos adapters.
+	Probers map[string]adapter.Prober
 	// Vault é o cofre externo de segredos (ADR-0050); nil = nenhum configurado (segredos provider=vault recusados).
 	Vault vault.Provider
 	// Blobs guarda o conteúdo dos artefatos (ADR-0051); nil usa o driver postgres sobre o pool.

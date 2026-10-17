@@ -132,7 +132,7 @@ type Persona struct {
 	Title                string         `json:"title" example:"CTO"`
 	Icon                 string         `json:"icon" example:"code" doc:"Glifo da persona (catálogo fechado)."`
 	Instructions         string         `json:"instructions" doc:"Instruções permanentes da persona."`
-	Agent                string         `json:"agent" enum:"claude,codex,acp,fake" doc:"Harness que executa a persona."`
+	Agent                string         `json:"agent" enum:"claude,codex,acp,devin,pi,cursor,http,fake" doc:"Harness que executa a persona."`
 	Model                string         `json:"model,omitempty" example:"claude-sonnet-4-5"`
 	AdapterConfig        map[string]any `json:"adapter_config,omitempty" doc:"Configuração específica do adapter. Valores de env e segredos voltam mascarados (***); os nomes ficam."`
 	Status               string         `json:"status" enum:"active,idle,running,paused,error,awaiting_gate,off"`
@@ -302,7 +302,7 @@ type Run struct {
 	PersonaName       string     `json:"persona_name,omitempty"`
 	Status            string     `json:"status" enum:"queued,running,done,interrupted,failed,cancelled,expired"`
 	Trigger           string     `json:"trigger" enum:"assign,comment,manual,heartbeat,gate,flow,review,memory,chat"`
-	Agent             string     `json:"agent" enum:"claude,codex,acp,fake"`
+	Agent             string     `json:"agent" enum:"claude,codex,acp,devin,pi,cursor,http,fake"`
 	Model             string     `json:"model,omitempty"`
 	SessionRef        string     `json:"session_ref,omitempty"`
 	TraceID           string     `json:"trace_id,omitempty"`
@@ -716,7 +716,7 @@ type Subscription struct {
 	ID             string    `json:"id" format:"uuid"`
 	CompanyID      string    `json:"company_id" format:"uuid"`
 	Name           string    `json:"name" example:"Claude Max"`
-	Agent          string    `json:"agent" enum:"claude,codex,acp,fake"`
+	Agent          string    `json:"agent" enum:"claude,codex,acp,devin,pi,cursor,http,fake"`
 	MonthlyUSD     float64   `json:"monthly_usd"`
 	ModelPrefixes  []string  `json:"model_prefixes" doc:"Prefixos de modelo cobertos; vazio = todos os do harness."`
 	WeeklyLimitUSD *float64  `json:"weekly_limit_usd,omitempty" doc:"Teto semanal de uso estimado em dólares."`

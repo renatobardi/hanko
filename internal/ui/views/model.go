@@ -286,6 +286,10 @@ type HirePersonaVM struct {
 	AcpCommand    string
 	AcpArgs       string   // one argument per line
 	AcpPermission []Option // allow | reject | read_only
+	AcpPreset     string   // gemini | opencode (ADR-0056)
+	// Harness http (ADR-0056): endpoint e referência da chave.
+	HttpBaseURL string
+	HttpKeyRef  string
 }
 
 type PersonaVM struct {
@@ -590,6 +594,8 @@ type CostsVM struct {
 	HasSpend                             bool
 	BudgetKpi                            string
 	BudgetNote                           string
+	// Decision é o custo do decision model no período (ADR-0056); nil sem invocações.
+	Decision *DecisionCostVM
 }
 
 // ---- fluxos ----

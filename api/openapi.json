@@ -1235,6 +1235,26 @@
         ],
         "type": "object"
       },
+      "ClassifyPhaseInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "pipeline": {
+            "description": "Id ou chave do pipeline.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "text": {
+            "maxLength": 100000,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "pipeline",
+          "text"
+        ],
+        "type": "object"
+      },
       "Comment": {
         "additionalProperties": false,
         "properties": {
@@ -1740,6 +1760,10 @@
             "format": "int64",
             "type": "integer"
           },
+          "decision": {
+            "$ref": "#/components/schemas/DecisionCost",
+            "description": "Invocações do decision model (ator system); somadas ao gasto mensal da empresa, fora das linhas de execuções."
+          },
           "estimated_usd": {
             "format": "double",
             "type": "number"
@@ -1832,6 +1856,7 @@
           "paid_usd",
           "idle_usd",
           "subscriptions",
+          "decision",
           "runs",
           "input_tokens",
           "output_tokens",
@@ -2564,6 +2589,10 @@
               "claude",
               "codex",
               "acp",
+              "devin",
+              "pi",
+              "cursor",
+              "http",
               "fake"
             ],
             "examples": [
@@ -2963,6 +2992,148 @@
         },
         "type": "object"
       },
+      "Decision": {
+        "additionalProperties": false,
+        "properties": {
+          "config": {
+            "$ref": "#/components/schemas/DecisionModelConfig"
+          },
+          "configured": {
+            "type": "boolean"
+          },
+          "features": {
+            "items": {
+              "$ref": "#/components/schemas/DecisionFeature"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "warning": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "configured",
+          "features"
+        ],
+        "type": "object"
+      },
+      "DecisionCatalogModel": {
+        "additionalProperties": false,
+        "properties": {
+          "completion_usd_token": {
+            "format": "double",
+            "type": "number"
+          },
+          "context_length": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "id": {
+            "examples": [
+              "anthropic/claude-haiku-4.5"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "prompt_usd_token": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "prompt_usd_token",
+          "completion_usd_token"
+        ],
+        "type": "object"
+      },
+      "DecisionCost": {
+        "additionalProperties": false,
+        "properties": {
+          "actor": {
+            "enum": [
+              "system"
+            ],
+            "type": "string"
+          },
+          "calls": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "cost_usd": {
+            "format": "double",
+            "type": "number"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/DecisionCostRow"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "actor",
+          "calls",
+          "cost_usd",
+          "rows"
+        ],
+        "type": "object"
+      },
+      "DecisionCostRow": {
+        "additionalProperties": false,
+        "properties": {
+          "calls": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "cost_usd": {
+            "format": "double",
+            "type": "number"
+          },
+          "errors": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "estimated_usd": {
+            "format": "double",
+            "type": "number"
+          },
+          "feature": {
+            "type": "string"
+          },
+          "input_tokens": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "model": {
+            "type": "string"
+          },
+          "output_tokens": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "feature",
+          "model",
+          "calls",
+          "errors",
+          "cost_usd",
+          "estimated_usd",
+          "input_tokens",
+          "output_tokens"
+        ],
+        "type": "object"
+      },
       "DecisionExample": {
         "additionalProperties": false,
         "properties": {
@@ -3036,6 +3207,198 @@
           "decision_outcome",
           "notes",
           "created_at",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "DecisionFeature": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "feature": {
+            "enum": [
+              "triage",
+              "phase_classifier",
+              "name_summary"
+            ],
+            "type": "string"
+          },
+          "model": {
+            "description": "Substitui o modelo da empresa nesta feature.",
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "feature",
+          "title",
+          "description",
+          "enabled"
+        ],
+        "type": "object"
+      },
+      "DecisionFeatureInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "model": {
+            "description": "Modelo próprio da feature; vazio usa o da empresa.",
+            "maxLength": 200,
+            "type": "string"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "type": "object"
+      },
+      "DecisionInvocation": {
+        "additionalProperties": false,
+        "properties": {
+          "actor": {
+            "enum": [
+              "system"
+            ],
+            "type": "string"
+          },
+          "cost_source": {
+            "enum": [
+              "reported",
+              "estimated"
+            ],
+            "type": "string"
+          },
+          "cost_usd": {
+            "format": "double",
+            "type": "number"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "feature": {
+            "enum": [
+              "triage",
+              "phase_classifier",
+              "name_summary"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "input_tokens": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "latency_ms": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "model": {
+            "type": "string"
+          },
+          "output_tokens": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "error"
+            ],
+            "type": "string"
+          },
+          "task_id": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "feature",
+          "actor",
+          "model",
+          "status",
+          "input_tokens",
+          "output_tokens",
+          "cost_usd",
+          "cost_source",
+          "latency_ms",
+          "created_at"
+        ],
+        "type": "object"
+      },
+      "DecisionModelConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "api_key_ref": {
+            "description": "Referência ao segredo da empresa com a chave; o valor nunca é devolvido.",
+            "examples": [
+              "${secret:openrouter}"
+            ],
+            "type": "string"
+          },
+          "base_url": {
+            "examples": [
+              "https://openrouter.ai/api/v1"
+            ],
+            "type": "string"
+          },
+          "completion_usd_token": {
+            "format": "double",
+            "type": "number"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "model": {
+            "examples": [
+              "anthropic/claude-haiku-4.5"
+            ],
+            "type": "string"
+          },
+          "prompt_usd_token": {
+            "description": "Preço do catálogo (USD por token de entrada) quando o modelo foi escolhido.",
+            "format": "double",
+            "type": "number"
+          },
+          "provider": {
+            "enum": [
+              "openrouter"
+            ],
+            "type": "string"
+          },
+          "timeout_sec": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "base_url",
+          "model",
+          "prompt_usd_token",
+          "completion_usd_token",
+          "timeout_sec",
+          "enabled",
           "updated_at"
         ],
         "type": "object"
@@ -4169,6 +4532,10 @@
               "claude",
               "codex",
               "acp",
+              "devin",
+              "pi",
+              "cursor",
+              "http",
               "fake"
             ],
             "examples": [
@@ -5215,6 +5582,37 @@
         ],
         "type": "object"
       },
+      "ListBodyDecisionCatalogModel": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "description": "Itens da página.",
+            "items": {
+              "$ref": "#/components/schemas/DecisionCatalogModel"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "limit": {
+            "description": "Limite aplicado.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "offset": {
+            "description": "Deslocamento aplicado.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "limit",
+          "offset"
+        ],
+        "type": "object"
+      },
       "ListBodyDecisionExample": {
         "additionalProperties": false,
         "properties": {
@@ -5222,6 +5620,37 @@
             "description": "Itens da página.",
             "items": {
               "$ref": "#/components/schemas/DecisionExample"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "limit": {
+            "description": "Limite aplicado.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "offset": {
+            "description": "Deslocamento aplicado.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "limit",
+          "offset"
+        ],
+        "type": "object"
+      },
+      "ListBodyDecisionInvocation": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "description": "Itens da página.",
+            "items": {
+              "$ref": "#/components/schemas/DecisionInvocation"
             },
             "type": [
               "array",
@@ -6992,6 +7421,40 @@
         ],
         "type": "object"
       },
+      "NameSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "invocation": {
+            "$ref": "#/components/schemas/DecisionInvocation"
+          },
+          "name": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "summary",
+          "invocation"
+        ],
+        "type": "object"
+      },
+      "NameSummaryInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "text": {
+            "maxLength": 100000,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "type": "object"
+      },
       "NoteVersion": {
         "additionalProperties": false,
         "properties": {
@@ -7092,6 +7555,10 @@
               "claude",
               "codex",
               "acp",
+              "devin",
+              "pi",
+              "cursor",
+              "http",
               "fake"
             ],
             "type": "string"
@@ -7268,6 +7735,52 @@
         ],
         "type": "object"
       },
+      "PersonaProbe": {
+        "additionalProperties": false,
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/PersonaProbeStep"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "ok",
+          "steps"
+        ],
+        "type": "object"
+      },
+      "PersonaProbeStep": {
+        "additionalProperties": false,
+        "properties": {
+          "detail": {
+            "description": "Motivo da falha ou informação do passo; nunca segredo.",
+            "type": "string"
+          },
+          "name": {
+            "description": "binário, protocolo, autenticação, endpoint, modelo...",
+            "examples": [
+              "autenticação"
+            ],
+            "type": "string"
+          },
+          "ok": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "ok"
+        ],
+        "type": "object"
+      },
       "PersonaSkill": {
         "additionalProperties": false,
         "properties": {
@@ -7307,6 +7820,33 @@
           "description",
           "enabled",
           "version"
+        ],
+        "type": "object"
+      },
+      "PhaseSuggestion": {
+        "additionalProperties": false,
+        "properties": {
+          "invocation": {
+            "$ref": "#/components/schemas/DecisionInvocation"
+          },
+          "pipeline": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "stage": {
+            "type": "string"
+          },
+          "stage_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "pipeline",
+          "stage",
+          "stage_name",
+          "invocation"
         ],
         "type": "object"
       },
@@ -8745,6 +9285,10 @@
               "claude",
               "codex",
               "acp",
+              "devin",
+              "pi",
+              "cursor",
+              "http",
               "fake"
             ],
             "type": "string"
@@ -9355,7 +9899,8 @@
           "kind": {
             "enum": [
               "persona",
-              "integration"
+              "integration",
+              "decision"
             ],
             "type": "string"
           },
@@ -9411,6 +9956,46 @@
         "required": [
           "expected_version",
           "blockers"
+        ],
+        "type": "object"
+      },
+      "SetDecisionInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "api_key_ref": {
+            "description": "Referência ${secret:NOME} ao segredo da empresa; vazio = endpoint sem chave.",
+            "examples": [
+              "${secret:openrouter}"
+            ],
+            "type": "string"
+          },
+          "base_url": {
+            "description": "Raiz da API OpenAI-compatível. Padrão: OpenRouter.",
+            "examples": [
+              "https://openrouter.ai/api/v1"
+            ],
+            "type": "string"
+          },
+          "enabled": {
+            "description": "Padrão true.",
+            "type": "boolean"
+          },
+          "model": {
+            "description": "Id do modelo no catálogo do provedor.",
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "timeout_sec": {
+            "description": "Padrão 30.",
+            "format": "int64",
+            "maximum": 300,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "model"
         ],
         "type": "object"
       },
@@ -11025,6 +11610,10 @@
               "claude",
               "codex",
               "acp",
+              "devin",
+              "pi",
+              "cursor",
+              "http",
               "fake"
             ],
             "type": "string"
@@ -12086,6 +12675,51 @@
         ],
         "type": "object"
       },
+      "Triage": {
+        "additionalProperties": false,
+        "properties": {
+          "comment_id": {
+            "description": "Comentário do sistema com a sugestão.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "invocation": {
+            "$ref": "#/components/schemas/DecisionInvocation"
+          },
+          "persona": {
+            "description": "Slug da persona sugerida.",
+            "type": "string"
+          },
+          "persona_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "priority": {
+            "enum": [
+              "critical",
+              "high",
+              "medium",
+              "low"
+            ],
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "task_key": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "task_key",
+          "persona",
+          "persona_id",
+          "priority",
+          "comment_id",
+          "invocation"
+        ],
+        "type": "object"
+      },
       "UpdateCaseInBody": {
         "additionalProperties": false,
         "properties": {
@@ -12802,6 +13436,10 @@
               "claude",
               "codex",
               "acp",
+              "devin",
+              "pi",
+              "cursor",
+              "http",
               "fake"
             ],
             "type": "string"
@@ -18059,6 +18697,293 @@
         ]
       }
     },
+    "/api/v1/companies/{company}/decision": {
+      "delete": {
+        "operationId": "delete-decision-model",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Remove o decision model e desliga as features (admin)",
+        "tags": [
+          "decision"
+        ]
+      },
+      "get": {
+        "operationId": "get-decision-model",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Decision"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Decision model da empresa e estado das features",
+        "tags": [
+          "decision"
+        ]
+      },
+      "put": {
+        "operationId": "set-decision-model",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetDecisionInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Decision"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Configura o decision model (admin): endpoint, chave por segredo e modelo do catálogo",
+        "tags": [
+          "decision"
+        ]
+      }
+    },
     "/api/v1/companies/{company}/decision-examples": {
       "get": {
         "operationId": "list-decision-examples",
@@ -18721,6 +19646,561 @@
         "summary": "Edita as notas (só o autor)",
         "tags": [
           "review"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/decision/catalog": {
+      "get": {
+        "operationId": "list-decision-catalog",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opcional: consulta outro endpoint antes de salvar.",
+            "explode": false,
+            "in": "query",
+            "name": "base_url",
+            "schema": {
+              "description": "Opcional: consulta outro endpoint antes de salvar.",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opcional: referência ${secret:NOME} para esse endpoint.",
+            "explode": false,
+            "in": "query",
+            "name": "api_key_ref",
+            "schema": {
+              "description": "Opcional: referência ${secret:NOME} para esse endpoint.",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListBodyDecisionCatalogModel"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Catálogo de modelos do provedor do decision model",
+        "tags": [
+          "decision"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/decision/classify-phase": {
+      "post": {
+        "operationId": "classify-phase",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClassifyPhaseInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PhaseSuggestion"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Sugere a etapa de um pipeline para um texto",
+        "tags": [
+          "decision"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/decision/features/{feature}": {
+      "put": {
+        "operationId": "set-decision-feature",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "feature",
+            "required": true,
+            "schema": {
+              "enum": [
+                "triage",
+                "phase_classifier",
+                "name_summary"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionFeatureInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Decision"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Liga ou desliga uma feature do decision model (admin)",
+        "tags": [
+          "decision"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/decision/invocations": {
+      "get": {
+        "operationId": "list-decision-invocations",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "format": "int64",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListBodyDecisionInvocation"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Últimas invocações do decision model (ator system)",
+        "tags": [
+          "decision"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/decision/name-summary": {
+      "post": {
+        "operationId": "name-summary",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NameSummaryInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NameSummary"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Gera nome curto e resumo para um texto",
+        "tags": [
+          "decision"
         ]
       }
     },
@@ -26145,6 +27625,115 @@
         "summary": "Liga ou desliga um servidor MCP para a persona",
         "tags": [
           "integrations"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/personas/{persona}/probe": {
+      "post": {
+        "operationId": "probe-persona",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug da persona.",
+            "in": "path",
+            "name": "persona",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da persona.",
+              "examples": [
+                "cto"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonaProbe"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Confere se o harness da persona está pronto (binário, autenticação, endpoint), sem executar trabalho (admin)",
+        "tags": [
+          "personas"
         ]
       }
     },
@@ -37061,6 +38650,115 @@
         "summary": "Define a sobreposição de revisão da task (admin); corpo vazio ou inherit remove",
         "tags": [
           "tasks"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/tasks/{task}/triage": {
+      "post": {
+        "operationId": "triage-task",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou chave da task.",
+            "in": "path",
+            "name": "task",
+            "required": true,
+            "schema": {
+              "description": "Id ou chave da task.",
+              "examples": [
+                "HNK-12"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Triage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Triagem pelo decision model: sugere persona e prioridade como comentário do sistema (não atribui)",
+        "tags": [
+          "decision"
         ]
       }
     },

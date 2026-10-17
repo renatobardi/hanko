@@ -433,6 +433,11 @@ svg.ic { width: 16px; height: 16px; flex: none; stroke: currentColor; fill: none
 /* Campos do harness ACP: só aparecem com o cartão ACP escolhido (sem JS). */
 .acp-only { display: none; }
 form:has(input[name="agent"][value="acp"]:checked) .acp-only { display: block; }
+/* Permissões valem para os harnesses ACP (acp e devin); endpoint e chave, para o harness http (ADR-0056). */
+.perm-only, .http-only { display: none; }
+form:has(input[name="agent"][value="acp"]:checked) .perm-only,
+form:has(input[name="agent"][value="devin"]:checked) .perm-only { display: block; }
+form:has(input[name="agent"][value="http"]:checked) .http-only { display: block; }
 
 /* ---------- tables ---------- */
 .table-wrap { background: var(--card); box-shadow: var(--card-ring); border-radius: var(--radius-2xl); overflow-x: auto; }

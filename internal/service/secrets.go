@@ -666,6 +666,12 @@ func (s *Service) sealPersonaEnv(t *txc, actor domain.Actor, companyID domain.ID
 	if json.Unmarshal(cfg, &doc) != nil {
 		return cfg, 0, nil
 	}
+	// harness http (ADR-0056): a chave do endpoint é uma referência; ela precisa existir
+	if ref, _ := doc["api_key_ref"].(string); ref != "" {
+		if err := s.checkSecretRefs(t.ctx, t.q, companyID, "adapter_config.api_key_ref", ref); err != nil {
+			return nil, 0, err
+		}
+	}
 	env, ok := doc["env"].(map[string]any)
 	if !ok || len(env) == 0 {
 		return cfg, 0, nil

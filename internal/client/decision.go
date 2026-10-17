@@ -73,6 +73,11 @@ func (c *Client) ClassifyPhase(ctx context.Context, company, pipeline, text stri
 	return get[api.PhaseSuggestion](ctx, c, http.MethodPost, dp(company)+"/classify-phase", map[string]string{"pipeline": pipeline, "text": text})
 }
 
+// ProbePersona confere se o harness da persona está pronto (admin).
+func (c *Client) ProbePersona(ctx context.Context, company, persona string) (api.PersonaProbe, error) {
+	return get[api.PersonaProbe](ctx, c, http.MethodPost, cp(company)+"/personas/"+url.PathEscape(persona)+"/probe", nil)
+}
+
 // NameSummary pede nome e resumo de um texto.
 func (c *Client) NameSummary(ctx context.Context, company, text string) (api.NameSummary, error) {
 	return get[api.NameSummary](ctx, c, http.MethodPost, dp(company)+"/name-summary", map[string]string{"text": text})
