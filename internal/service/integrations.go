@@ -70,7 +70,7 @@ var (
 	// reservedIntegrationSlugs são as chaves do mcpServers que o Hanko usa para si.
 	reservedIntegrationSlugs = []string{"hanko", "ai-memory", "memory"}
 	// reservedUISlugs são segmentos fixos das rotas da UI que um slug de skill ou integração não pode ocupar.
-	reservedUISlugs = []string{"nova", "preview"}
+	reservedUISlugs = []string{"nova", "preview", "fontes", "estudio"} // fontes/estudio: abas de Skills (ADR-0035)
 )
 
 // integrationSecrets é o conteúdo cifrado: o que nunca sai do servidor.

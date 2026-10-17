@@ -1244,4 +1244,25 @@ details > summary.btn::-webkit-details-marker { display: none; }
 @media (max-width: 1100px) {
   .room-grid { grid-template-columns: minmax(0, 1fr); }
   .room-side { position: static; }
+/* ---- skills: versões, fontes e estúdio (ADR-0035) ---- */
+.skill-tabs { margin: 0 0 16px; }
+.skill-filters { margin: 0 0 12px; }
+.skill-tree { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.skill-tree .tree-row { padding: 8px 12px; border-radius: var(--radius-lg); }
+.skill-tree .tree-row:hover { background: var(--muted); }
+.skill-tree .tree-row[data-depth="1"] { padding-left: 28px; }
+.skill-tree .tree-row[data-depth="2"] { padding-left: 44px; }
+.skill-tree .tree-row[data-depth="3"] { padding-left: 60px; }
+.skill-tree .tree-row[data-depth="4"], .skill-tree .tree-row[data-depth="5"], .skill-tree .tree-row[data-depth="6"] { padding-left: 76px; }
+.skill-tree .tree-row.is-off { opacity: .6; }
+.skill-tree .tree-row .mono { margin-right: 8px; color: var(--muted-foreground); font-size: var(--text-xs); }
+.skill-tree .tree-row .badge { margin-left: 8px; }
+.skill-tree .tree-main { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.test-input { white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--text-xs); margin: 0; max-height: 420px; overflow: auto; }
+.pin-form { display: flex; align-items: center; gap: 8px; }
+.studio-pick { display: flex; align-items: flex-end; gap: 12px; }
+.studio-pick .field { flex: 1; margin-bottom: 0; }
+@media (max-width: 640px) {
+  .skill-tree .tree-row[data-depth] { padding-left: 12px; }
+  .skill-tree .tree-main, .studio-pick, .pin-form { flex-direction: column; align-items: stretch; }
 }

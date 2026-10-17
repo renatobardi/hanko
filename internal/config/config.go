@@ -119,6 +119,9 @@ type Config struct {
 	LogLevel          string        `yaml:"log_level" env:"HANKO_LOG_LEVEL"`
 	LogFormat         string        `yaml:"log_format" env:"HANKO_LOG_FORMAT"`
 
+	// SkillSources liga as fontes de skills (o servidor clona repositórios públicos por https, ADR-0035).
+	SkillSources bool `yaml:"skill_sources" env:"HANKO_SKILL_SOURCES"`
+
 	// AgentEnvAllow lista variáveis extras do ambiente do servidor repassadas aos
 	// harnesses (nomes exatos ou prefixos terminados em "*"); HANKO_* nunca passa.
 	AgentEnvAllow []string `yaml:"agent_env_allow" env:"HANKO_AGENT_ENV_ALLOW" envSeparator:","`
@@ -228,7 +231,7 @@ func environFor(getenv func(string) string) map[string]string {
 		"HANKO_FIREBASE_PROJECT_ID", "HANKO_FIREBASE_API_KEY", "HANKO_FIREBASE_AUTH_DOMAIN",
 		"HANKO_AUTH_OWNER_EMAIL", "HANKO_AUTH_WEB_BOOTSTRAP", "HANKO_TRUSTED_PROXIES",
 		"HANKO_SECRET_KEY", "HANKO_SECRET_KEY_PREVIOUS", "HANKO_INTEGRATIONS_ALLOW_STDIO", "HANKO_INTEGRATIONS_ALLOW_PRIVATE",
-		"HANKO_ACP_ALLOW", "HANKO_ACP_COMMANDS",
+		"HANKO_ACP_ALLOW", "HANKO_ACP_COMMANDS", "HANKO_SKILL_SOURCES",
 	}
 	m := make(map[string]string, len(keys))
 	for _, k := range keys {

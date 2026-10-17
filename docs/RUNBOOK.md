@@ -409,6 +409,7 @@ Configuração do operador (a empresa não consegue ligar sozinha):
 | `HANKO_SECRET_KEY_PREVIOUS` | vazio | Chave anterior, só durante a rotação. |
 | `HANKO_INTEGRATIONS_ALLOW_STDIO` | `false` | Libera servidores MCP `stdio`, que executam um comando **na máquina do servidor**. |
 | `HANKO_INTEGRATIONS_ALLOW_PRIVATE` | `false` | Libera webhooks e testes de conexão para loopback, link-local e redes privadas (sem isso, bloqueio SSRF). |
+| `HANKO_SKILL_SOURCES` | `false` | Liga as fontes git de skills (ADR-0035): o servidor clona repositórios públicos por https com o `git` do PATH. Hosts internos só com `HANKO_INTEGRATIONS_ALLOW_PRIVATE`. |
 
 **Gerar a chave:** `openssl rand -hex 32`. Guarde-a junto com o `HANKO_SECRET` e no backup do operador; perder a chave perde os
 segredos guardados (as integrações ficam, sem credenciais, e é só informá-los de novo).

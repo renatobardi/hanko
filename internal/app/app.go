@@ -82,6 +82,10 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 		AllowStdio: cfg.Integrations.AllowStdio, AllowPrivate: cfg.Integrations.AllowPrivateDestinations, Secrets: box,
 	}
 	svc.ACP = acp.Policy{Allow: cfg.ACP.Allow, Commands: cfg.ACP.Commands}
+	svc.SkillSources = service.SkillSourcesConfig{Enabled: cfg.SkillSources, AllowPrivate: cfg.Integrations.AllowPrivateDestinations}
+	if cfg.SkillSources {
+		logger.Info("skills: fontes ligadas (HANKO_SKILL_SOURCES); o servidor clona repositórios públicos por https")
+	}
 	if cfg.ACP.Allow {
 		logger.Warn("acp: harness liberado (HANKO_ACP_ALLOW); personas acp executam comandos nesta máquina", "commands", cfg.ACP.Commands)
 	}

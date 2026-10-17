@@ -1375,6 +1375,63 @@
         ],
         "type": "object"
       },
+      "CreateSourceInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "auto_update": {
+            "description": "Sincroniza sozinha a cada hora; padrão true.",
+            "type": "boolean"
+          },
+          "excluded_paths": {
+            "description": "Caminhos ignorados (e tudo abaixo deles).",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 200,
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "import_new": {
+            "description": "Skills novas na fonte entram sozinhas.",
+            "type": "boolean"
+          },
+          "path_prefix": {
+            "description": "Só diretórios dentro deste caminho.",
+            "maxLength": 500,
+            "type": "string"
+          },
+          "ref": {
+            "description": "Branch acompanhado; padrão HEAD.",
+            "maxLength": 200,
+            "type": "string"
+          },
+          "select": {
+            "description": "Caminhos a importar (os outros ficam excluídos). Ausente = todos.",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 200,
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "url": {
+            "description": "https de host público, sem usuário e senha.",
+            "examples": [
+              "https://example.com/org/skills.git"
+            ],
+            "maxLength": 2000,
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "type": "object"
+      },
       "CreateSubscriptionInBody": {
         "additionalProperties": false,
         "properties": {
@@ -1518,6 +1575,53 @@
         ],
         "type": "object"
       },
+      "CreateTestInputInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "description": "Markdown, até 32 KiB.",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "content"
+        ],
+        "type": "object"
+      },
+      "CreateTestRunInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "input": {
+            "description": "Texto livre (markdown); ou use input_id.",
+            "type": "string"
+          },
+          "input_id": {
+            "description": "Entrada salva.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "persona": {
+            "description": "Id ou slug da persona que roda o teste.",
+            "type": "string"
+          },
+          "revision": {
+            "description": "Versão da skill; padrão a atual.",
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "persona"
+        ],
+        "type": "object"
+      },
       "CreateWorkspaceInBody": {
         "additionalProperties": false,
         "properties": {
@@ -1654,12 +1758,52 @@
         },
         "type": "object"
       },
+      "DiscoveredSkill": {
+        "additionalProperties": false,
+        "properties": {
+          "conflict": {
+            "type": "boolean"
+          },
+          "description": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "has_scripts": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "name",
+          "slug",
+          "description",
+          "has_scripts"
+        ],
+        "type": "object"
+      },
       "EnabledBody": {
         "additionalProperties": false,
         "properties": {
           "enabled": {
             "description": "Liga ou desliga.",
             "type": "boolean"
+          },
+          "pinned_revision": {
+            "description": "Versão fixada para a persona: N fixa, 0 solta; ausente não muda.",
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
           }
         },
         "required": [
@@ -3484,6 +3628,130 @@
         ],
         "type": "object"
       },
+      "ListBodySkillSource": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "description": "Itens da página.",
+            "items": {
+              "$ref": "#/components/schemas/SkillSource"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "limit": {
+            "description": "Limite aplicado.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "offset": {
+            "description": "Deslocamento aplicado.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "limit",
+          "offset"
+        ],
+        "type": "object"
+      },
+      "ListBodySkillTestInput": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "description": "Itens da página.",
+            "items": {
+              "$ref": "#/components/schemas/SkillTestInput"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "limit": {
+            "description": "Limite aplicado.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "offset": {
+            "description": "Deslocamento aplicado.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "limit",
+          "offset"
+        ],
+        "type": "object"
+      },
+      "ListBodySkillTestRun": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "description": "Itens da página.",
+            "items": {
+              "$ref": "#/components/schemas/SkillTestRun"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "limit": {
+            "description": "Limite aplicado.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "offset": {
+            "description": "Deslocamento aplicado.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "limit",
+          "offset"
+        ],
+        "type": "object"
+      },
+      "ListBodySkillVersion": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "description": "Itens da página.",
+            "items": {
+              "$ref": "#/components/schemas/SkillVersion"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "limit": {
+            "description": "Limite aplicado.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "offset": {
+            "description": "Deslocamento aplicado.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "limit",
+          "offset"
+        ],
+        "type": "object"
+      },
       "ListBodySubscription": {
         "additionalProperties": false,
         "properties": {
@@ -4239,8 +4507,16 @@
           "enabled": {
             "type": "boolean"
           },
+          "from_source": {
+            "description": "A skill veio de uma fonte git.",
+            "type": "boolean"
+          },
           "name": {
             "type": "string"
+          },
+          "pinned_revision": {
+            "format": "int64",
+            "type": "integer"
           },
           "skill_id": {
             "format": "uuid",
@@ -4248,6 +4524,10 @@
           },
           "slug": {
             "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
           }
         },
         "required": [
@@ -4255,7 +4535,8 @@
           "slug",
           "name",
           "description",
-          "enabled"
+          "enabled",
+          "version"
         ],
         "type": "object"
       },
@@ -4500,6 +4781,21 @@
         },
         "required": [
           "title"
+        ],
+        "type": "object"
+      },
+      "RestoreSkillInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "revision": {
+            "description": "Versão cujo conteúdo volta; vira uma versão nova.",
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "revision"
         ],
         "type": "object"
       },
@@ -5134,6 +5430,10 @@
             "format": "uuid",
             "type": "string"
           },
+          "pinned_revision": {
+            "format": "int64",
+            "type": "integer"
+          },
           "slug": {
             "type": "string"
           }
@@ -5143,6 +5443,470 @@
           "slug",
           "name",
           "enabled"
+        ],
+        "type": "object"
+      },
+      "SkillSource": {
+        "additionalProperties": false,
+        "properties": {
+          "auto_update": {
+            "type": "boolean"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "created_by": {
+            "$ref": "#/components/schemas/ActorRef"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "entries": {
+            "description": "Só no detalhe.",
+            "items": {
+              "$ref": "#/components/schemas/SkillSourceEntry"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "excluded_paths": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "failure_count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "found": {
+            "description": "Diretórios com SKILL.md presentes na fonte.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "import_new": {
+            "description": "Skills novas na fonte entram sozinhas (senão ficam como new para revisão).",
+            "type": "boolean"
+          },
+          "imported": {
+            "description": "Skills importadas desta fonte.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "label": {
+            "description": "Host e caminho, para exibir.",
+            "type": "string"
+          },
+          "last_commit": {
+            "type": "string"
+          },
+          "last_error": {
+            "type": "string"
+          },
+          "last_success_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "next_sync_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "path_prefix": {
+            "type": "string"
+          },
+          "ref": {
+            "description": "Branch acompanhado (ou HEAD).",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "idle",
+              "syncing",
+              "ok",
+              "error",
+              "paused"
+            ],
+            "type": "string"
+          },
+          "sync": {
+            "$ref": "#/components/schemas/SkillSyncResult"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "url",
+          "ref",
+          "excluded_paths",
+          "auto_update",
+          "import_new",
+          "enabled",
+          "status",
+          "failure_count",
+          "found",
+          "imported",
+          "created_by",
+          "created_at",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "SkillSourceDiscovery": {
+        "additionalProperties": false,
+        "properties": {
+          "commit": {
+            "type": "string"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "skills": {
+            "items": {
+              "$ref": "#/components/schemas/DiscoveredSkill"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "ref",
+          "commit",
+          "skills",
+          "truncated"
+        ],
+        "type": "object"
+      },
+      "SkillSourceEntry": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "error": {
+            "description": "Por que a entrada não foi importada ou atualizada.",
+            "type": "string"
+          },
+          "has_scripts": {
+            "description": "O diretório tem scripts ou executáveis; só o SKILL.md é importado.",
+            "type": "boolean"
+          },
+          "modified": {
+            "description": "A skill importada foi editada aqui (a sincronização não a sobrescreve sem force).",
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "path": {
+            "description": "Diretório da skill no repositório (\".\" = a raiz).",
+            "type": "string"
+          },
+          "present": {
+            "description": "Falso quando o diretório saiu da fonte.",
+            "type": "boolean"
+          },
+          "selection": {
+            "description": "selected: importada e mantida em dia; excluded: ignorada; new: apareceu na fonte e espera revisão.",
+            "enum": [
+              "selected",
+              "excluded",
+              "new"
+            ],
+            "type": "string"
+          },
+          "skill_slug": {
+            "description": "Skill importada desta entrada.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "name",
+          "description",
+          "selection",
+          "present",
+          "has_scripts"
+        ],
+        "type": "object"
+      },
+      "SkillSyncResult": {
+        "additionalProperties": false,
+        "properties": {
+          "commit": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "imported": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "skipped": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "unchanged": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "updated": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "imported",
+          "updated",
+          "unchanged",
+          "skipped"
+        ],
+        "type": "object"
+      },
+      "SkillTestInput": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "description": "Markdown, até 32 KiB.",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "content",
+          "created_at",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "SkillTestRun": {
+        "additionalProperties": false,
+        "properties": {
+          "cost_usd": {
+            "format": "double",
+            "type": "number"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "created_by": {
+            "$ref": "#/components/schemas/ActorRef"
+          },
+          "error": {
+            "type": "string"
+          },
+          "finished_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "input": {
+            "description": "Cópia da entrada usada.",
+            "type": "string"
+          },
+          "input_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "output": {
+            "description": "A resposta final da persona (markdown).",
+            "type": "string"
+          },
+          "persona": {
+            "description": "Slug da persona.",
+            "type": "string"
+          },
+          "persona_name": {
+            "type": "string"
+          },
+          "revision": {
+            "description": "Versão testada (reexecutar usa a mesma).",
+            "format": "int64",
+            "type": "integer"
+          },
+          "run_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "run_name": {
+            "type": "string"
+          },
+          "skill": {
+            "description": "Slug da skill.",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "running",
+              "done",
+              "failed",
+              "cancelled"
+            ],
+            "type": "string"
+          },
+          "task_id": {
+            "description": "Task de sistema do teste.",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "skill",
+          "revision",
+          "input",
+          "persona",
+          "persona_name",
+          "status",
+          "output",
+          "created_by",
+          "created_at"
+        ],
+        "type": "object"
+      },
+      "SkillVersion": {
+        "additionalProperties": false,
+        "properties": {
+          "author": {
+            "$ref": "#/components/schemas/ActorRef"
+          },
+          "body": {
+            "description": "Corpo em markdown; ausente nas listagens.",
+            "type": "string"
+          },
+          "body_bytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "diff": {
+            "$ref": "#/components/schemas/ArtifactDiff"
+          },
+          "name": {
+            "type": "string"
+          },
+          "revision": {
+            "description": "Número da versão (o version da skill quando foi gravada).",
+            "format": "int64",
+            "type": "integer"
+          },
+          "sha256": {
+            "description": "sha256 (hex) do corpo.",
+            "type": "string"
+          },
+          "source_commit": {
+            "description": "Commit da fonte de onde a versão veio, quando veio de fonte.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "revision",
+          "name",
+          "description",
+          "body_bytes",
+          "sha256",
+          "author",
+          "created_at"
+        ],
+        "type": "object"
+      },
+      "SourceAddr": {
+        "additionalProperties": false,
+        "properties": {
+          "excluded_paths": {
+            "description": "Caminhos ignorados (e tudo abaixo deles).",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 200,
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "path_prefix": {
+            "description": "Só diretórios dentro deste caminho.",
+            "maxLength": 500,
+            "type": "string"
+          },
+          "ref": {
+            "description": "Branch acompanhado; padrão HEAD.",
+            "maxLength": 200,
+            "type": "string"
+          },
+          "url": {
+            "description": "https de host público, sem usuário e senha.",
+            "examples": [
+              "https://example.com/org/skills.git"
+            ],
+            "maxLength": 2000,
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
         ],
         "type": "object"
       },
@@ -5298,6 +6062,16 @@
           "list_usd",
           "runs"
         ],
+        "type": "object"
+      },
+      "SyncSourceInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "force": {
+            "description": "Reimporta mesmo sem mudança e sobrescreve skills modificadas localmente.",
+            "type": "boolean"
+          }
+        },
         "type": "object"
       },
       "Task": {
@@ -5856,6 +6630,39 @@
         },
         "type": "object"
       },
+      "UpdateSourceInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "auto_update": {
+            "type": "boolean"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "excluded_paths": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 200,
+            "type": "array"
+          },
+          "import_new": {
+            "type": "boolean"
+          },
+          "path_prefix": {
+            "maxLength": 500,
+            "type": "string"
+          },
+          "selection": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Caminho → selected ou excluded. Excluir uma entrada importada solta a skill (a cópia fica).",
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
       "UpdateSubscriptionInBody": {
         "additionalProperties": false,
         "properties": {
@@ -5970,6 +6777,19 @@
           "unassign": {
             "description": "Remove a atribuição.",
             "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "UpdateTestInputInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 120,
+            "type": "string"
           }
         },
         "type": "object"
@@ -16345,6 +17165,1079 @@
         ]
       }
     },
+    "/api/v1/companies/{company}/skill-sources": {
+      "get": {
+        "operationId": "list-skill-sources",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListBodySkillSource"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Lista as fontes git de skills",
+        "tags": [
+          "skills"
+        ]
+      },
+      "post": {
+        "operationId": "create-skill-source",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSourceInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillSource"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Conecta uma fonte e importa as skills escolhidas (admin)",
+        "tags": [
+          "skills"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/skill-sources/discover": {
+      "post": {
+        "operationId": "discover-skill-source",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SourceAddr"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillSourceDiscovery"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Clona e lista as skills de um repositório, sem gravar (admin)",
+        "tags": [
+          "skills"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/skill-sources/{source}": {
+      "delete": {
+        "operationId": "delete-skill-source",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id da fonte.",
+            "in": "path",
+            "name": "source",
+            "required": true,
+            "schema": {
+              "description": "Id da fonte.",
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Mantém as skills importadas como skills locais; sem ele elas são apagadas.",
+            "explode": false,
+            "in": "query",
+            "name": "keep_skills",
+            "schema": {
+              "description": "Mantém as skills importadas como skills locais; sem ele elas são apagadas.",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Desconecta uma fonte, mantendo ou apagando as skills importadas (admin)",
+        "tags": [
+          "skills"
+        ]
+      },
+      "get": {
+        "operationId": "get-skill-source",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id da fonte.",
+            "in": "path",
+            "name": "source",
+            "required": true,
+            "schema": {
+              "description": "Id da fonte.",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillSource"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Obtém uma fonte com as entradas encontradas",
+        "tags": [
+          "skills"
+        ]
+      },
+      "patch": {
+        "operationId": "update-skill-source",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id da fonte.",
+            "in": "path",
+            "name": "source",
+            "required": true,
+            "schema": {
+              "description": "Id da fonte.",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSourceInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillSource"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Muda as configurações e a seleção de uma fonte (admin)",
+        "tags": [
+          "skills"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/skill-sources/{source}/sync": {
+      "post": {
+        "operationId": "sync-skill-source",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id da fonte.",
+            "in": "path",
+            "name": "source",
+            "required": true,
+            "schema": {
+              "description": "Id da fonte.",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SyncSourceInBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillSyncResult"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Sincroniza agora (admin); uma falha de clone vem em error",
+        "tags": [
+          "skills"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/skill-test-runs/{test}": {
+      "get": {
+        "operationId": "get-skill-test-run",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id da execução de teste.",
+            "in": "path",
+            "name": "test",
+            "required": true,
+            "schema": {
+              "description": "Id da execução de teste.",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillTestRun"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Obtém uma execução de teste (estado ao vivo)",
+        "tags": [
+          "skills"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/skill-test-runs/{test}/cancel": {
+      "post": {
+        "operationId": "cancel-skill-test-run",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id da execução de teste.",
+            "in": "path",
+            "name": "test",
+            "required": true,
+            "schema": {
+              "description": "Id da execução de teste.",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillTestRun"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Cancela uma execução de teste (admin)",
+        "tags": [
+          "skills"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/skill-test-runs/{test}/rerun": {
+      "post": {
+        "operationId": "rerun-skill-test-run",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id da execução de teste.",
+            "in": "path",
+            "name": "test",
+            "required": true,
+            "schema": {
+              "description": "Id da execução de teste.",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillTestRun"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Repete o teste com a mesma versão, entrada e persona (admin)",
+        "tags": [
+          "skills"
+        ]
+      }
+    },
     "/api/v1/companies/{company}/skills": {
       "get": {
         "operationId": "list-skills",
@@ -17127,6 +19020,1184 @@
           }
         },
         "summary": "Liga ou desliga a skill para uma persona",
+        "tags": [
+          "skills"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/skills/{skill}/restore": {
+      "post": {
+        "operationId": "restore-skill-version",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug da skill.",
+            "in": "path",
+            "name": "skill",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da skill.",
+              "examples": [
+                "revisar-pr"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestoreSkillInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Skill"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Restaura o conteúdo de uma versão (cria uma versão nova)",
+        "tags": [
+          "skills"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/skills/{skill}/test-inputs": {
+      "get": {
+        "operationId": "list-skill-test-inputs",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug da skill.",
+            "in": "path",
+            "name": "skill",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da skill.",
+              "examples": [
+                "revisar-pr"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListBodySkillTestInput"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Lista as entradas salvas do estúdio",
+        "tags": [
+          "skills"
+        ]
+      },
+      "post": {
+        "operationId": "create-skill-test-input",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug da skill.",
+            "in": "path",
+            "name": "skill",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da skill.",
+              "examples": [
+                "revisar-pr"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTestInputInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillTestInput"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Salva uma entrada do estúdio (admin)",
+        "tags": [
+          "skills"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/skills/{skill}/test-inputs/{input}": {
+      "delete": {
+        "operationId": "delete-skill-test-input",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug da skill.",
+            "in": "path",
+            "name": "skill",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da skill.",
+              "examples": [
+                "revisar-pr"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "input",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Apaga uma entrada salva (admin)",
+        "tags": [
+          "skills"
+        ]
+      },
+      "get": {
+        "operationId": "get-skill-test-input",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug da skill.",
+            "in": "path",
+            "name": "skill",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da skill.",
+              "examples": [
+                "revisar-pr"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "input",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillTestInput"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Obtém uma entrada salva",
+        "tags": [
+          "skills"
+        ]
+      },
+      "patch": {
+        "operationId": "update-skill-test-input",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug da skill.",
+            "in": "path",
+            "name": "skill",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da skill.",
+              "examples": [
+                "revisar-pr"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "input",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTestInputInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillTestInput"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Altera uma entrada salva (admin)",
+        "tags": [
+          "skills"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/skills/{skill}/test-runs": {
+      "get": {
+        "operationId": "list-skill-test-runs",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug da skill.",
+            "in": "path",
+            "name": "skill",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da skill.",
+              "examples": [
+                "revisar-pr"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "format": "int64",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListBodySkillTestRun"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Lista as execuções de teste da skill (mais recentes primeiro)",
+        "tags": [
+          "skills"
+        ]
+      },
+      "post": {
+        "operationId": "create-skill-test-run",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug da skill.",
+            "in": "path",
+            "name": "skill",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da skill.",
+              "examples": [
+                "revisar-pr"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTestRunInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillTestRun"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Roda um teste da skill com uma persona (admin; gasta orçamento)",
+        "tags": [
+          "skills"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/skills/{skill}/versions": {
+      "get": {
+        "operationId": "list-skill-versions",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug da skill.",
+            "in": "path",
+            "name": "skill",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da skill.",
+              "examples": [
+                "revisar-pr"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListBodySkillVersion"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Lista as versões de uma skill (mais nova primeiro)",
+        "tags": [
+          "skills"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/skills/{skill}/versions/{revision}": {
+      "get": {
+        "operationId": "get-skill-version",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug da skill.",
+            "in": "path",
+            "name": "skill",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da skill.",
+              "examples": [
+                "revisar-pr"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Número da versão.",
+            "in": "path",
+            "name": "revision",
+            "required": true,
+            "schema": {
+              "description": "Número da versão.",
+              "format": "int64",
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Inclui o diff desta versão para a pedida.",
+            "explode": false,
+            "in": "query",
+            "name": "against",
+            "schema": {
+              "description": "Inclui o diff desta versão para a pedida.",
+              "format": "int64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillVersion"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Obtém uma versão de uma skill, com o corpo (e o diff com ?against)",
         "tags": [
           "skills"
         ]

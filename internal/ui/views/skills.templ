@@ -69,8 +69,14 @@ templ SkillsPage(sh Shell, vm SkillsVM) {
 				@NeedRole(domain.MemberAdmin)
 			}
 		}
+		@skillTabs(vm.Tabs)
 		if vm.Notice != "" {
 			@Alert("warn", vm.Notice)
+		}
+		if len(vm.Filters) > 0 {
+			<div class="skill-filters">
+				@Tabs(vm.Filters)
+			</div>
 		}
 		if len(vm.Rows) == 0 {
 			@EmptyCard("sparkles", i18n.T(ctx, "Você ainda não tem skills."), i18n.T(ctx, "Uma skill é uma habilidade reutilizável em markdown (um SKILL.md): a persona a carrega sob demanda quando a descrição bate com o trabalho."), true) {
@@ -100,6 +106,12 @@ templ SkillsPage(sh Shell, vm SkillsVM) {
 							<tr class="row">
 								<td class="ttl">
 									<a href={ templ.SafeURL(r.Href) }>{ r.Name }</a>
+									if r.FromSource {
+										<span class="badge soft">{ i18n.T(ctx, "de fonte") }</span>
+									}
+									if r.Modified {
+										<span class="badge warn">{ i18n.T(ctx, "modificada") }</span>
+									}
 									<div class="note mono">{ r.Slug }</div>
 								</td>
 								<td class="hide-sm muted">{ r.Description }</td>
@@ -141,6 +153,10 @@ templ SkillEditorPage(sh Shell, vm SkillEditorVM) {
 					<p class="muted mt-2 text-sm"><span class="mono">{ vm.Slug }</span> · v{ fmt.Sprint(vm.Version) } · { i18n.T(ctx, "atualizada") } { vm.Updated } · { vm.UpdatedBy }</p>
 				</div>
 			</div>
+			@skillTabs(vm.Tabs)
+			if vm.SourceNote != "" {
+				@Alert("warn", vm.SourceNote)
+			}
 		} else {
 			@PageHead(i18n.T(ctx, "Nova skill"), i18n.T(ctx, "Escreva o SKILL.md: nome, quando usar e as instruções. O frontmatter é opcional.")) {
 			}

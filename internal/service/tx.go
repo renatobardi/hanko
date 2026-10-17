@@ -145,6 +145,11 @@ func (t *txc) wake(companyID, taskID domain.ID, personaID *domain.ID, status dom
 		} else if system {
 			return nil
 		}
+		if test, err := t.isSkillTestTask(taskID); err != nil { // idem para o teste do estúdio (ADR-0035)
+			return err
+		} else if test {
+			return nil
+		}
 	}
 	p, err := t.q.GetPersonaByID(t.ctx, store.GetPersonaByIDParams{CompanyID: companyID, ID: *personaID})
 	if err != nil {

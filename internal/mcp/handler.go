@@ -107,6 +107,7 @@ func newHandler(b Backend, d Deps) http.Handler {
 		Logger:       logger,
 	})
 	registerTools(srv, &tools{b: b, log: logger})
+	srv.AddReceivingMiddleware(skillTestGuard(b)) // run de teste do estúdio só usa as tools de skill (ADR-0035)
 
 	inner := sdk.NewStreamableHTTPHandler(func(*http.Request) *sdk.Server { return srv },
 		// A proteção contra DNS rebinding é do app (host check 421 com HANKO_PUBLIC_URL/HANKO_ALLOWED_HOSTS);

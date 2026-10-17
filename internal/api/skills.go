@@ -56,6 +56,8 @@ type SkillPersona struct {
 	Slug      string `json:"slug"`
 	Name      string `json:"name"`
 	Enabled   bool   `json:"enabled"`
+	// PinnedRevision é a versão fixada para a persona (ADR-0035); ausente = sempre a mais nova.
+	PinnedRevision *int `json:"pinned_revision,omitempty"`
 }
 
 // PersonaSkill é o estado de uma skill para uma persona.
@@ -65,6 +67,10 @@ type PersonaSkill struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
 	Enabled     bool   `json:"enabled"`
+	// Version é a versão atual; PinnedRevision, a fixada para a persona (ADR-0035).
+	Version        int  `json:"version"`
+	PinnedRevision *int `json:"pinned_revision,omitempty"`
+	FromSource     bool `json:"from_source,omitempty" doc:"A skill veio de uma fonte git."`
 }
 
 func skillOut(k domain.Skill, withBody bool) Skill {
@@ -101,6 +107,9 @@ type PersonaSkillPath struct {
 
 type EnabledBody struct {
 	Enabled bool `json:"enabled" doc:"Liga ou desliga."`
+	// PinnedRevision fixa a versão que a persona usa (ADR-0035): N ≥ 1 fixa, 0 solta (volta à mais nova); ausente
+	// não muda.
+	PinnedRevision *int `json:"pinned_revision,omitempty" minimum:"0" doc:"Versão fixada para a persona: N fixa, 0 solta; ausente não muda."`
 }
 
 type createSkillIn struct {
@@ -274,13 +283,13 @@ func (s *server) registerSkills(api huma.API) {
 				return nil, s.fail(ctx, err)
 			}
 			return listAll(list, Page{Limit: len(list)}, func(p domain.SkillPersona) SkillPersona {
-				return SkillPersona{PersonaID: idStr(p.PersonaID), Slug: p.Slug, Name: p.Name, Enabled: p.Enabled}
+				return SkillPersona{PersonaID: idStr(p.PersonaID), Slug: p.Slug, Name: p.Name, Enabled: p.Enabled, PinnedRevision: p.PinnedRevision}
 			}), nil
 		})
 
 	huma.Register(api, noContent(op("set-skill-persona", http.MethodPut, "/companies/{company}/skills/{skill}/personas/{persona}", "skills", "Liga ou desliga a skill para uma persona")),
 		func(ctx context.Context, in *setSkillPersonaIn) (*struct{}, error) {
-			return s.setPersonaSkill(ctx, in.CompanyPath, in.Persona, in.Skill, in.Body.Enabled)
+			return s.setPersonaSkill(ctx, in.CompanyPath, in.Persona, in.Skill, in.Body)
 		})
 
 	huma.Register(api, op("list-persona-skills", http.MethodGet, "/companies/{company}/personas/{persona}/skills", "skills", "Lista as skills com o estado para a persona"),
@@ -302,17 +311,18 @@ func (s *server) registerSkills(api huma.API) {
 				return nil, s.fail(ctx, err)
 			}
 			return listAll(list, Page{Limit: len(list)}, func(k domain.PersonaSkill) PersonaSkill {
-				return PersonaSkill{SkillID: idStr(k.SkillID), Slug: k.Slug, Name: k.Name, Description: k.Description, Enabled: k.Enabled}
+				return PersonaSkill{SkillID: idStr(k.SkillID), Slug: k.Slug, Name: k.Name, Description: k.Description, Enabled: k.Enabled,
+					Version: k.Version, PinnedRevision: k.PinnedRevision, FromSource: k.FromSource}
 			}), nil
 		})
 
 	huma.Register(api, noContent(op("set-persona-skill", http.MethodPut, "/companies/{company}/personas/{persona}/skills/{skill}", "skills", "Liga ou desliga uma skill para a persona")),
 		func(ctx context.Context, in *setEnabledSkillIn) (*struct{}, error) {
-			return s.setPersonaSkill(ctx, in.CompanyPath, in.Persona, in.Skill, in.Body.Enabled)
+			return s.setPersonaSkill(ctx, in.CompanyPath, in.Persona, in.Skill, in.Body)
 		})
 }
 
-func (s *server) setPersonaSkill(ctx context.Context, cp CompanyPath, personaRef, skillRef string, enabled bool) (*struct{}, error) {
+func (s *server) setPersonaSkill(ctx context.Context, cp CompanyPath, personaRef, skillRef string, body EnabledBody) (*struct{}, error) {
 	if err := forbidPersona(ctx); err != nil {
 		return nil, err
 	}
@@ -332,8 +342,21 @@ func (s *server) setPersonaSkill(ctx context.Context, cp CompanyPath, personaRef
 	if err != nil {
 		return nil, s.fail(ctx, err)
 	}
-	if err := sb.SetPersonaSkill(ctx, sc.Actor, sc.Company.ID, p.ID, k.ID, enabled); err != nil {
+	if err := sb.SetPersonaSkill(ctx, sc.Actor, sc.Company.ID, p.ID, k.ID, body.Enabled); err != nil {
 		return nil, s.fail(ctx, err)
+	}
+	if body.PinnedRevision != nil { // versão fixada (ADR-0035)
+		st, err := s.studio()
+		if err != nil {
+			return nil, err
+		}
+		var rev *int
+		if *body.PinnedRevision > 0 {
+			rev = body.PinnedRevision
+		}
+		if err := st.SetPersonaSkillPin(ctx, sc.Actor, sc.Company.ID, p.ID, k.ID, rev); err != nil {
+			return nil, s.fail(ctx, err)
+		}
 	}
 	return &struct{}{}, nil
 }
