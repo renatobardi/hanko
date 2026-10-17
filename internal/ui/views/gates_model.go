@@ -130,6 +130,7 @@ type InboxVM struct {
 	Alerts       []InboxAlert
 	Reviewing    []InboxReview     // revisões automáticas em andamento (informativo; não contam como pendência)
 	Goals        []AchievedGoalRow // metas atingidas há pouco (informativo; não contam como pendência)
+	Held         []InboxHeld       // raízes de pausa (ADR-0040): informativo, quem pausou decide quando retomar
 	Total        int               // items shown in the current tab
 	Notice       string
 	Pending      int

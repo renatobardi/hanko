@@ -107,6 +107,20 @@
         ],
         "type": "object"
       },
+      "AddDependencyInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "depends_on": {
+            "description": "Id ou chave da task de que esta passa a depender.",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "depends_on"
+        ],
+        "type": "object"
+      },
       "AddStageInBody": {
         "additionalProperties": false,
         "properties": {
@@ -2612,6 +2626,17 @@
       "CreateTaskInBody": {
         "additionalProperties": false,
         "properties": {
+          "depends_on": {
+            "description": "Ids ou chaves das tasks de que a nova depende.",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "description": {
             "type": "string"
           },
@@ -4259,6 +4284,21 @@
         "required": [
           "name",
           "agent"
+        ],
+        "type": "object"
+      },
+      "HoldTaskInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "description": "Por que a task e a subárvore dela param. Aparece no thread e na Caixa.",
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
         ],
         "type": "object"
       },
@@ -8336,6 +8376,123 @@
         ],
         "type": "object"
       },
+      "ReviewOverride": {
+        "additionalProperties": false,
+        "properties": {
+          "require_review": {
+            "description": "Ausente = herda da camada de baixo; true/false força.",
+            "type": "boolean"
+          },
+          "reviewer_agent": {
+            "enum": [
+              "claude",
+              "codex",
+              "fake"
+            ],
+            "type": "string"
+          },
+          "reviewer_mode": {
+            "description": "inherit herda; none = sem revisor automático (vai direto ao gate humano); custom = persona revisora ou harness+modelo.",
+            "enum": [
+              "inherit",
+              "none",
+              "custom"
+            ],
+            "type": "string"
+          },
+          "reviewer_model": {
+            "type": "string"
+          },
+          "reviewer_persona_id": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reviewer_mode"
+        ],
+        "type": "object"
+      },
+      "ReviewOverrideBody": {
+        "additionalProperties": false,
+        "properties": {
+          "require_review": {
+            "description": "Ausente = herda; true/false força a revisão do fechamento.",
+            "type": "boolean"
+          },
+          "reviewer_agent": {
+            "description": "Harness revisor (modo custom); exclusivo com reviewer_persona.",
+            "enum": [
+              "claude",
+              "codex",
+              "fake"
+            ],
+            "type": "string"
+          },
+          "reviewer_mode": {
+            "description": "Padrão inherit.",
+            "enum": [
+              "inherit",
+              "none",
+              "custom"
+            ],
+            "type": "string"
+          },
+          "reviewer_model": {
+            "description": "Modelo do revisor.",
+            "type": "string"
+          },
+          "reviewer_persona": {
+            "description": "Slug ou id da persona revisora (modo custom).",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ReviewPolicy": {
+        "additionalProperties": false,
+        "properties": {
+          "has_reviewer": {
+            "type": "boolean"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "required_source": {
+            "enum": [
+              "task",
+              "project",
+              "persona"
+            ],
+            "type": "string"
+          },
+          "reviewer_agent": {
+            "type": "string"
+          },
+          "reviewer_model": {
+            "type": "string"
+          },
+          "reviewer_persona_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reviewer_source": {
+            "enum": [
+              "task",
+              "project",
+              "persona"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "required",
+          "required_source",
+          "has_reviewer",
+          "reviewer_source"
+        ],
+        "type": "object"
+      },
       "ReviewQueueItem": {
         "additionalProperties": false,
         "properties": {
@@ -8667,6 +8824,9 @@
           "persona_name": {
             "type": "string"
           },
+          "policy_origin": {
+            "$ref": "#/components/schemas/RunPolicyOrigin"
+          },
           "session_ref": {
             "type": "string"
           },
@@ -8794,6 +8954,36 @@
           "text",
           "occurred_at",
           "received_at"
+        ],
+        "type": "object"
+      },
+      "RunPolicyOrigin": {
+        "additionalProperties": false,
+        "properties": {
+          "review_required": {
+            "type": "boolean"
+          },
+          "review_required_source": {
+            "enum": [
+              "task",
+              "project",
+              "persona"
+            ],
+            "type": "string"
+          },
+          "reviewer_source": {
+            "enum": [
+              "task",
+              "project",
+              "persona"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "review_required",
+          "review_required_source",
+          "reviewer_source"
         ],
         "type": "object"
       },
@@ -11028,6 +11218,18 @@
             "format": "uuid",
             "type": "string"
           },
+          "blocked": {
+            "description": "Derivado: tem ao menos uma dependência aberta. Nenhuma execução abre enquanto durar.",
+            "type": "boolean"
+          },
+          "children_open": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "children_total": {
+            "format": "int64",
+            "type": "integer"
+          },
           "closed_at": {
             "format": "date-time",
             "type": "string"
@@ -11043,6 +11245,10 @@
           "created_by": {
             "$ref": "#/components/schemas/ActorRef"
           },
+          "dependencies_total": {
+            "format": "int64",
+            "type": "integer"
+          },
           "description": {
             "type": "string"
           },
@@ -11050,6 +11256,10 @@
             "description": "Meta a que a task serve.",
             "format": "uuid",
             "type": "string"
+          },
+          "hold": {
+            "$ref": "#/components/schemas/TaskHold",
+            "description": "Pausa efetiva: a da própria task ou herdada do ancestral mais próximo. Nenhuma execução abre enquanto durar."
           },
           "id": {
             "format": "uuid",
@@ -11070,6 +11280,11 @@
             "examples": [
               12
             ],
+            "format": "int64",
+            "type": "integer"
+          },
+          "open_dependencies": {
+            "description": "Dependências ainda abertas; a task está bloqueada enquanto for maior que zero.",
             "format": "int64",
             "type": "integer"
           },
@@ -11138,7 +11353,176 @@
           "priority",
           "created_by",
           "created_at",
-          "updated_at"
+          "updated_at",
+          "open_dependencies",
+          "dependencies_total",
+          "blocked",
+          "children_total",
+          "children_open"
+        ],
+        "type": "object"
+      },
+      "TaskHold": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "by": {
+            "$ref": "#/components/schemas/ActorRef"
+          },
+          "inherited": {
+            "description": "Verdadeiro quando a pausa vem de um ancestral.",
+            "type": "boolean"
+          },
+          "origin_id": {
+            "description": "Task onde a pausa foi gravada.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "origin_key": {
+            "examples": [
+              "HNK-3"
+            ],
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason",
+          "by",
+          "at",
+          "origin_id",
+          "origin_key",
+          "inherited"
+        ],
+        "type": "object"
+      },
+      "TaskRef": {
+        "additionalProperties": false,
+        "properties": {
+          "closed": {
+            "description": "done ou cancelled: já não bloqueia nem conta como aberta.",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "key": {
+            "examples": [
+              "HNK-12"
+            ],
+            "type": "string"
+          },
+          "persona_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "persona_name": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "backlog",
+              "todo",
+              "in_progress",
+              "in_review",
+              "blocked",
+              "done",
+              "cancelled"
+            ],
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "title",
+          "status",
+          "closed"
+        ],
+        "type": "object"
+      },
+      "TaskRelations": {
+        "additionalProperties": false,
+        "properties": {
+          "ancestors": {
+            "description": "Da raiz ao pai imediato.",
+            "items": {
+              "$ref": "#/components/schemas/TaskRef"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "children": {
+            "items": {
+              "$ref": "#/components/schemas/TaskRef"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "dependents": {
+            "description": "Tasks que dependem desta.",
+            "items": {
+              "$ref": "#/components/schemas/TaskRef"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "depends_on": {
+            "description": "Tasks de que esta depende.",
+            "items": {
+              "$ref": "#/components/schemas/TaskRef"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "ancestors",
+          "children",
+          "depends_on",
+          "dependents"
+        ],
+        "type": "object"
+      },
+      "TaskReviewPolicy": {
+        "additionalProperties": false,
+        "properties": {
+          "effective": {
+            "$ref": "#/components/schemas/ReviewPolicy"
+          },
+          "persona": {
+            "$ref": "#/components/schemas/ReviewOverride",
+            "description": "A política da persona responsável, na mesma forma."
+          },
+          "project": {
+            "$ref": "#/components/schemas/ReviewOverride"
+          },
+          "task": {
+            "$ref": "#/components/schemas/ReviewOverride"
+          }
+        },
+        "required": [
+          "task",
+          "project",
+          "persona",
+          "effective"
         ],
         "type": "object"
       },
@@ -12463,6 +12847,10 @@
             "description": "Desliga a task da meta.",
             "type": "boolean"
           },
+          "clear_parent": {
+            "description": "Torna a task raiz.",
+            "type": "boolean"
+          },
           "clear_project": {
             "description": "Tira a task do projeto.",
             "type": "boolean"
@@ -12475,12 +12863,25 @@
             "maxLength": 200,
             "type": "string"
           },
+          "force_close": {
+            "description": "Só humano: conclui a task mesmo com subtask aberta; exige override_reason.",
+            "type": "boolean"
+          },
           "goal": {
             "description": "Id ou slug de uma meta ativa a que a task passa a servir.",
             "type": "string"
           },
           "model": {
             "description": "Modelo escolhido à mão; vazio remove a escolha (volta ao da persona).",
+            "type": "string"
+          },
+          "override_reason": {
+            "description": "Motivo do override de force_close; vai para o registro de atividade.",
+            "maxLength": 500,
+            "type": "string"
+          },
+          "parent": {
+            "description": "Id ou chave da nova task pai (mesma empresa, sem ciclo, até 10 níveis).",
             "type": "string"
           },
           "persona": {
@@ -21265,6 +21666,102 @@
         ]
       }
     },
+    "/api/v1/companies/{company}/held-tasks": {
+      "get": {
+        "operationId": "list-held-tasks",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListBodyTask"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Lista as raízes de pausa da empresa",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
     "/api/v1/companies/{company}/integrations": {
       "get": {
         "operationId": "list-integrations",
@@ -28382,6 +28879,232 @@
           }
         },
         "summary": "Atualiza um projeto (nome, workspace, status, orçamento)",
+        "tags": [
+          "projects"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/projects/{project}/review-policy": {
+      "get": {
+        "operationId": "get-project-review-policy",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug do projeto.",
+            "in": "path",
+            "name": "project",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug do projeto.",
+              "examples": [
+                "lancamento"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewOverride"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Política de revisão do projeto",
+        "tags": [
+          "projects"
+        ]
+      },
+      "put": {
+        "operationId": "set-project-review-policy",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug do projeto.",
+            "in": "path",
+            "name": "project",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug do projeto.",
+              "examples": [
+                "lancamento"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewOverrideBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewOverride"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Define a política de revisão do projeto (admin); vale para as tasks sem sobreposição própria",
         "tags": [
           "projects"
         ]
@@ -35535,6 +36258,807 @@
           }
         },
         "summary": "Comenta numa task",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/tasks/{task}/dependencies": {
+      "post": {
+        "operationId": "add-task-dependency",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou chave da task.",
+            "in": "path",
+            "name": "task",
+            "required": true,
+            "schema": {
+              "description": "Id ou chave da task.",
+              "examples": [
+                "HNK-12"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddDependencyInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Faz a task depender de outra (bloqueante, sem ciclo)",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/tasks/{task}/dependencies/{dependency}": {
+      "delete": {
+        "operationId": "remove-task-dependency",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou chave da task.",
+            "in": "path",
+            "name": "task",
+            "required": true,
+            "schema": {
+              "description": "Id ou chave da task.",
+              "examples": [
+                "HNK-12"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou chave da task de que a dependência é removida.",
+            "in": "path",
+            "name": "dependency",
+            "required": true,
+            "schema": {
+              "description": "Id ou chave da task de que a dependência é removida.",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Remove uma dependência; a última dependência aberta removida libera a task e acorda o responsável",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/tasks/{task}/hold": {
+      "post": {
+        "operationId": "hold-task",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou chave da task.",
+            "in": "path",
+            "name": "task",
+            "required": true,
+            "schema": {
+              "description": "Id ou chave da task.",
+              "examples": [
+                "HNK-12"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HoldTaskInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Pausa a task e, por herança, toda a subárvore",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/tasks/{task}/relations": {
+      "get": {
+        "operationId": "get-task-relations",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou chave da task.",
+            "in": "path",
+            "name": "task",
+            "required": true,
+            "schema": {
+              "description": "Id ou chave da task.",
+              "examples": [
+                "HNK-12"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskRelations"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Árvore e dependências de uma task",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/tasks/{task}/resume": {
+      "post": {
+        "operationId": "resume-task",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou chave da task.",
+            "in": "path",
+            "name": "task",
+            "required": true,
+            "schema": {
+              "description": "Id ou chave da task.",
+              "examples": [
+                "HNK-12"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Retoma a task pausada e acorda os wakes que foram recusados durante a pausa",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/tasks/{task}/review-policy": {
+      "get": {
+        "operationId": "get-task-review-policy",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou chave da task.",
+            "in": "path",
+            "name": "task",
+            "required": true,
+            "schema": {
+              "description": "Id ou chave da task.",
+              "examples": [
+                "HNK-12"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskReviewPolicy"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Política de revisão da task por camada (task, projeto, persona) e o efeito da precedência",
+        "tags": [
+          "tasks"
+        ]
+      },
+      "put": {
+        "operationId": "set-task-review-policy",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou chave da task.",
+            "in": "path",
+            "name": "task",
+            "required": true,
+            "schema": {
+              "description": "Id ou chave da task.",
+              "examples": [
+                "HNK-12"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewOverrideBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskReviewPolicy"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Define a sobreposição de revisão da task (admin); corpo vazio ou inherit remove",
         "tags": [
           "tasks"
         ]

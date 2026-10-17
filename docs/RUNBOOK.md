@@ -399,6 +399,24 @@ API, mas **a decisão continua humana**. Revisão que falha, expira, é interrom
 com o motivo; revisão pendente há mais de 2 h é resolvida da mesma forma. Se a task sai de `in_review` no meio, a revisão é cancelada.
 O sha256 cobre o pacote task + histórico + entrega mostrado ao revisor, não o estado git do workspace.
 
+## Coordenação de tasks (ADR-0040)
+
+- **Dependências.** `hanko task dep add HNK-12 HNK-7` faz a 12 depender da 7: ela só é despachada quando todas as dependências fecham (done **ou**
+  cancelled) e o responsável é acordado na mesma transação em que a última fecha. Sem ciclo (409 com a cadeia) e sem cruzar empresas; no
+  máximo 50 por task. "Bloqueada" é calculado; o status `blocked` segue sendo o parado-esperando-alguém. A persona usa `hanko_task_dependency`
+  e `depends_on` em `hanko_task_create`.
+- **Árvore.** Subtask = `--parent`. O pai acorda quando o último filho fecha e não conclui com filho aberto (422); um humano conclui mesmo assim com
+  `hanko task status HNK-1 done --force --reason "…"` (o motivo fica no fato `task.close_override`). Teto de 10 níveis.
+- **Pausa.** `hanko task hold HNK-1 --reason "…"` congela a task e toda a subárvore: o despacho recusa, a rede de segurança do heartbeat ignora,
+  as runs ainda na fila são canceladas e a que já roda termina sozinha. `hanko task resume HNK-1` acorda os wakes que foram recusados. A Caixa tem a
+  aba **Pausadas**. Quem retoma é a raiz da pausa (uma filha que só herda aponta a origem).
+- **Política de revisão por task/projeto.** `hanko task review-policy HNK-1 --require --reviewer-agent codex` (admin); `--no-reviewer` manda direto
+  ao gate humano; `--clear` volta a herdar. `hanko project review-policy <projeto>` vale para as tasks sem sobreposição. A tela da execução mostra
+  a origem (task, projeto ou persona) da política que valeu.
+- **Operação.** Migration 00100 aditiva (tabelas novas, 2 triggers de integridade, 1 função); o `Down` desfaz. Contador OTel `hanko.task.coordination`
+  (`kind`, `op`) e spans `service.hold_task`, `service.resume_task`, `service.add_task_dependency`, `service.remove_task_dependency`, `service.checkout_run`.
+  Limitações: o export/import (`hanko.company.v1`) leva a árvore (e recusa mais de 10 níveis), mas não as dependências, pausas nem políticas por task.
+
 ## Skills e integrações (ADR-0029)
 
 Configuração do operador (a empresa não consegue ligar sozinha):

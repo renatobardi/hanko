@@ -35,6 +35,9 @@ One term per concept. Code, API, MCP and database use English; the UI is in Braz
 | memory consolidation | Consolidação de memória | System run (`memory` trigger) where the curator persona deduplicates and summarises a workspace's memory; cost goes to the ledger. | — |
 | memory proposal | Proposta de curadoria | A destructive curator write held by the proxy, with diff and sha256; reaches ai-memory only after the `memory` gate. | pending write (ambiguous) |
 | memory grant | Concessão de memória | Persona × workspace permission (`read`/`write`) to reach another workspace's memory in the same company. | — |
+| task dependency | Dependência | `task_dependencies`: a task is dispatched only when all its dependencies close (done or cancelled). No cycles, same company, at most 50. **Blocked** is derived (an open dependency), never a stored status; the `blocked` status stays the "parked waiting for someone" one (ADR-0040). | blocker (ambiguous with the `blocked` status) |
+| subtask / hold | Subtask / Pausa | A subtask is a task with `parent_id` (up to 10 levels); the parent wakes when the last one closes and cannot complete with an open child (human override with a reason). A hold (`task_holds`) freezes the task and, by computed inheritance, its whole subtree: no run opens; resuming wakes the requests that were refused (ADR-0040). | freeze, suspension |
+| review policy | Política de revisão | `require_review` and the automatic reviewer resolved by layer, task > project > persona, field by field; the run records where each decision came from (ADR-0040). | — |
 
 ## How the core terms fit together
 

@@ -21,6 +21,9 @@ func loadTaskView(ctx context.Context, q *store.Queries, companyID, id domain.ID
 	}
 	tv := taskView(r.Task, r.TaskPrefix, r.PersonaName, r.ProjectName, r.ActiveRunID)
 	tv.System = r.SystemTask
+	if err := enrichTasks(ctx, q, companyID, []*TaskView{&tv}); err != nil {
+		return TaskView{}, err
+	}
 	return tv, nil
 }
 
@@ -165,7 +168,15 @@ func (t *txc) createTask(actor domain.Actor, companyID domain.ID, in CreateTaskI
 		WorkspaceID: wsID, ParentID: in.ParentID, CreatedByType: string(actor.Type), CreatedByID: actor.ID,
 		Model: strings.TrimSpace(in.Model), GoalID: in.GoalID, Now: t.now})
 	if err != nil {
+		if me := mapCoordErr(err); me != err {
+			return TaskView{}, me
+		}
 		return TaskView{}, mapErr(err, "create task")
+	}
+	for _, dep := range in.DependsOn { // a nova task nasce já bloqueada: nenhum wake enquanto houver dependência aberta
+		if _, err := t.addDependency(actor, companyID, row.ID, dep); err != nil {
+			return TaskView{}, err
+		}
 	}
 	if in.PersonaID != nil { // a fresh assignment is an unseen change whoever made it (no run can exist yet)
 		if err := t.q.TouchTaskHumanChange(ctx, store.TouchTaskHumanChangeParams{ID: row.ID, Now: &t.now}); err != nil {
@@ -236,8 +247,13 @@ func (s *Service) ListTasks(ctx context.Context, companyID domain.ID, f TaskFilt
 		return nil, fmt.Errorf("list tasks: %w", err)
 	}
 	out := make([]TaskView, len(rows))
+	ptrs := make([]*TaskView, len(rows))
 	for i, r := range rows {
 		out[i] = taskView(r.Task, r.TaskPrefix, r.PersonaName, r.ProjectName, r.ActiveRunID)
+		ptrs[i] = &out[i]
+	}
+	if err := enrichTasks(ctx, s.read(), companyID, ptrs); err != nil {
+		return nil, err
 	}
 	return out, nil
 }
@@ -264,6 +280,9 @@ func (s *Service) GetTask(ctx context.Context, companyID domain.ID, ref string) 
 	}
 	tv := taskView(r.Task, r.TaskPrefix, r.PersonaName, r.ProjectName, r.ActiveRunID)
 	tv.System = r.SystemTask
+	if err := enrichTasks(ctx, q, companyID, []*TaskView{&tv}); err != nil {
+		return TaskView{}, err
+	}
 	return tv, nil
 }
 
@@ -377,8 +396,24 @@ func (s *Service) UpdateTask(ctx context.Context, actor domain.Actor, companyID,
 			if goalChanged {
 				fields = append(fields, "goal_id")
 			}
+			if in.ClearParent && in.ParentID != nil {
+				return domain.Invalid("parent_id", "cannot set and clear the parent at once")
+			}
+			newParent, parentChanged := cur.ParentID, false
+			switch {
+			case in.ClearParent && cur.ParentID != nil:
+				newParent, parentChanged = nil, true
+			case in.ParentID != nil && !sameID(cur.ParentID, in.ParentID):
+				if _, err := t.q.GetTaskByID(ctx, store.GetTaskByIDParams{CompanyID: companyID, ID: *in.ParentID}); err != nil {
+					return domain.Invalid("parent_id", "task not found in company")
+				}
+				newParent, parentChanged = in.ParentID, true
+			}
 			if len(fields) > 0 {
 				acts = append(acts, act{"task.updated", map[string]any{"fields": fields}})
+			}
+			if parentChanged {
+				acts = append(acts, act{"task.parent_changed", map[string]any{"from": cur.ParentID, "to": newParent}})
 			}
 
 			personaChanged := false
@@ -404,8 +439,14 @@ func (s *Service) UpdateTask(ctx context.Context, actor domain.Actor, companyID,
 			want := in.Status
 			reviewGate := false // a persona with require_review closing the task: in_review + task_review gate
 			requested := domain.TaskDone
+			overridden := false // um humano concluiu o pai com subtask aberta (motivo registrado)
+			if want != nil && *want == domain.TaskDone && from.Open() {
+				if overridden, err = t.checkCloseWithChildren(actor, companyID, taskID, in.ForceClose, in.OverrideReason); err != nil {
+					return err
+				}
+			}
 			if want != nil && !want.Open() && from.Open() { // done or cancelled
-				if reviewGate, err = t.reviewRequired(actor, companyID); err != nil {
+				if reviewGate, err = t.reviewRequiredFor(actor, companyID, cur); err != nil {
 					return err
 				}
 				if reviewGate {
@@ -446,6 +487,11 @@ func (s *Service) UpdateTask(ctx context.Context, actor domain.Actor, companyID,
 				return err
 			}
 
+			if closedNow { // pai antes da própria linha ser reescrita: ver lockParent
+				if err := t.lockParent(companyID, cur); err != nil {
+					return err
+				}
+			}
 			row, err := t.q.UpdateTask(ctx, p)
 			if err != nil {
 				return mapErr(err, "update task")
@@ -455,6 +501,16 @@ func (s *Service) UpdateTask(ctx context.Context, actor domain.Actor, companyID,
 					return fmt.Errorf("set task goal: %w", err)
 				}
 				row.GoalID = newGoal
+			}
+			if parentChanged {
+				if err := t.q.SetTaskParent(ctx, store.SetTaskParentParams{CompanyID: companyID, ID: taskID, ParentID: newParent, Now: t.now}); err != nil {
+					if me := mapCoordErr(err); me != err {
+						return me
+					}
+					return fmt.Errorf("set task parent: %w", err)
+				}
+				row.ParentID = newParent
+				countCoord(ctx, "tree", "reparented")
 			}
 			if actor.Type != domain.ActorPersona && (statusChanged || personaChanged) {
 				// status/assignment by a human or the system: the one kind of edit the safety net may wake for
@@ -470,6 +526,12 @@ func (s *Service) UpdateTask(ctx context.Context, actor domain.Actor, companyID,
 				eid = ""
 			}
 			newStatus := domain.TaskStatus(row.Status)
+			if overridden {
+				if err := t.activity(actor, companyID, "task.close_override", "task", taskID, map[string]any{
+					"reason": strings.TrimSpace(in.OverrideReason)}, ""); err != nil {
+					return err
+				}
+			}
 			if closedNow {
 				if err := t.taskClosedFact(companyID, row); err != nil {
 					return err
@@ -494,6 +556,11 @@ func (s *Service) UpdateTask(ctx context.Context, actor domain.Actor, companyID,
 			}
 			if personaChanged || statusChanged {
 				if err := t.wake(companyID, taskID, row.PersonaID, newStatus, domain.TriggerAssign, true); err != nil {
+					return err
+				}
+			}
+			if closedNow { // libera quem dependia desta task e acorda o pai quando o último filho fecha (ADR-0040)
+				if err := t.onTaskClosed(companyID, row); err != nil {
 					return err
 				}
 			}
@@ -552,6 +619,9 @@ func (s *Service) WakeTask(ctx context.Context, actor domain.Actor, companyID, t
 		}
 		if !domain.TaskStatus(task.Status).Workable() {
 			return domain.Invalid("status", fmt.Sprintf("task status %q is not workable", task.Status))
+		}
+		if err := t.dispatchBlocker(companyID, task.ID); err != nil {
+			return err
 		}
 		if s.Jobs == nil {
 			return nil

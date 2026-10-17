@@ -1,0 +1,36 @@
+# evals: comportamento de persona real (modelo pequeno) usando as tools do Hanko (gate, delegação, dependência,
+# não vazar segredo) e caos (matar run, derrubar o banco). Custa token, então NÃO roda no PR: nightly e manual.
+# ESQUELETO: o conteúdo entra na onda 2 com o item #58. O custo das runs é marcado como teste.
+name: evals
+
+on:
+  schedule:
+    - cron: "43 5 * * *" # todo dia, 05:43 UTC
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: "suíte a rodar (behavior, chaos ou all)"
+        default: all
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: evals
+  cancel-in-progress: false
+
+jobs:
+  evals:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: pendente (#58)
+        env:
+          SUITE: ${{ inputs.suite || 'all' }}
+        run: |
+          echo "evals ainda sem suítes; preenchido na onda 2 (item #58). suite=$SUITE"
+      # Roteiro do #58, para quando entrar:
+      #   - secrets: chave do provedor do modelo pequeno, só neste workflow
+      #   - make build; cenários em evals/ rodando contra Postgres de serviço
+      #   - relatório (JSON + resumo no $GITHUB_STEP_SUMMARY) e falha só abaixo do limiar por cenário

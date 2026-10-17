@@ -66,3 +66,21 @@ func TestPlanImportRespeitaContexto(t *testing.T) {
 		t.Fatalf("arquivo válido: %v", err)
 	}
 }
+
+// A árvore de tasks tem no máximo domain.MaxTaskDepth níveis (ADR-0040): o arquivo que passa disso é recusado na
+// validação, antes de qualquer escrita.
+func TestPlanImportRecusaArvoreFunda(t *testing.T) {
+	build := func(levels int) export.Document {
+		doc := export.Document{Format: export.Format, Company: export.Company{Name: "X"}}
+		for i := 1; i <= levels; i++ {
+			doc.Tasks = append(doc.Tasks, export.Task{Number: int64(i), Parent: int64(i - 1), Title: "t", Status: "todo", Priority: "low", CreatedBy: export.Actor{Type: "human"}})
+		}
+		return doc
+	}
+	if _, err := (&Service{}).planImport(context.Background(), build(10), ImportOptions{Slug: "x"}); err != nil {
+		t.Fatalf("10 níveis cabem: %v", err)
+	}
+	if _, err := (&Service{}).planImport(context.Background(), build(11), ImportOptions{Slug: "x"}); err == nil {
+		t.Fatal("11 níveis deveriam ser recusados")
+	}
+}

@@ -1,0 +1,8 @@
+### Qualidade e operação (trilha contínua, fase "Já")
+
+- `SECURITY.md` (+ `SECURITY.pt-BR.md`): como reportar vulnerabilidade em privado, versões suportadas, escopo. `.github/dependabot.yml` com atualização semanal de gomod, npm (`ui/islands`) e github-actions.
+- CI separado por propósito: `ci` (PR rápido; os jobs `check` e `release-dry-run` seguem exigidos), `security` (govulncheck, `trivy fs`, revisão de dependências; também semanal), `e2e` e `evals` (esqueletos para #57 e #58), `edge` (imagem `ghcr.io/renatobardi/hanko:edge` e binários snapshot a cada push no `main`) e `release` (tag `v*`, agora com as notas da versão).
+- Piso de cobertura no CI (`scripts/coverage-gate.sh`): `internal/domain` e `internal/heartbeat` ≥ 80 %, `internal/service` ≥ 70 %, `internal/api` relatado (integração). Domínio subiu de 60 % para 100 % com testes de tabela dos validadores e classificadores.
+- Testes de propriedade (`testing/quick`, semente fixa) para o motor de orçamento: limiares exatos, monotonicidade, janela do mês em vários fusos, preenchimento de dias e ordenação.
+- Canais de release: `edge` (main) e `stable` (tag `vX.Y.Z`); notas geradas de `changelog.d/*.md` por `scripts/release-notes.sh` (`notes` e `cut`, que funde no `CHANGELOG.md`); fluxo em `docs/RELEASING.md` (+ en). "Toda feature entra com teste" no CONTRIBUTING.
+- English summary: SECURITY policy and Dependabot; CI split by purpose (ci, security, e2e/evals skeletons, edge, release); per-package coverage floors enforced in CI with property tests for the budget engine; edge/stable release channels with release notes built from `changelog.d/` (ADR-0049).
