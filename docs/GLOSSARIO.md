@@ -39,3 +39,8 @@ Um termo por conceito. Código, API, MCP e banco em inglês; UI em pt-BR. Em dú
 | memory consolidation | Consolidação de memória | Run de sistema (gatilho `memory`) em que a persona curadora deduplica e resume a memória de um workspace; custo no ledger. | — |
 | memory proposal | Proposta de curadoria | Escrita destrutiva da curadoria retida pelo proxy, com diff e sha256; só vai ao ai-memory após o gate `memory`. | pending write (ambíguo) |
 | memory grant | Concessão de memória | Permissão persona × workspace (`read`/`write`) para alcançar a memória de outro workspace da empresa. | — |
+| continuation | Continuação | Run aberta a partir de uma run interrompida (`continuation_of_run_id`): retoma a sessão do harness e recebe o briefing do que já foi feito. Máximo de 2 automáticas por cadeia (ADR-0039). | retry (é outra ação) |
+| diagnosis | Diagnóstico | Card de uma run que parou: causa, tentativa, próxima ação e dono; carrega o desfecho incerto quando há. | — |
+| uncertain outcome | Desfecho incerto | Uma tool de efeito externo estava em andamento quando a run morreu; só um humano decide se continua. | — |
+| steer | Mudar o rumo | Mensagem do operador para uma run ativa: injetada ao vivo (claude, acp) ou por interromper e continuar (codex). | — |
+| follow-up | Follow-up | Instrução ou mensagem que espera a run ativa na fila unificada (task e chat); editável e descartável até a entrega. | — |

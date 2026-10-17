@@ -35,6 +35,11 @@ One term per concept. Code, API, MCP and database use English; the UI is in Braz
 | memory consolidation | Consolidação de memória | System run (`memory` trigger) where the curator persona deduplicates and summarises a workspace's memory; cost goes to the ledger. | — |
 | memory proposal | Proposta de curadoria | A destructive curator write held by the proxy, with diff and sha256; reaches ai-memory only after the `memory` gate. | pending write (ambiguous) |
 | memory grant | Concessão de memória | Persona × workspace permission (`read`/`write`) to reach another workspace's memory in the same company. | — |
+| continuation | Continuação | A run opened from an interrupted run (`continuation_of_run_id`): it resumes the harness session and receives a briefing of what was already done. At most 2 automatic ones per chain (ADR-0039). | retry (that is another action) |
+| diagnosis | Diagnóstico | The card of a run that stopped: cause, attempt, next action and owner; carries the uncertain outcome when there is one. | — |
+| uncertain outcome | Desfecho incerto | A tool with an external effect was in progress when the run died; only a human decides whether it continues. | — |
+| steer | Mudar o rumo | An operator message to an active run: injected live (claude, acp) or by interrupt-and-continue (codex). | — |
+| follow-up | Follow-up | An instruction or message that waits for the active run in the unified queue (task and chat); editable and discardable until delivered. | — |
 
 ## How the core terms fit together
 

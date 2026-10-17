@@ -68,6 +68,21 @@ var enResil = map[string]string{
 	"a task não tem persona":                         "the task has no persona",
 	"a próxima execução está abrindo":                "the next run is opening",
 
+	// activity feed
+	"continuada":                 "continued",
+	"diagnosticada":              "diagnosed",
+	"redirecionada":              "redirected",
+	"descartado":                 "discarded",
+	"entregue":                   "delivered",
+	"abriu a continuação da":     "opened the continuation of",
+	"diagnosticou a":             "diagnosed",
+	"decidiu sobre a":            "decided on",
+	"mudou o rumo da":            "changed the course of",
+	"enfileirou um follow-up em": "queued a follow-up on",
+	"editou um follow-up em":     "edited a follow-up on",
+	"descartou um follow-up em":  "discarded a follow-up on",
+	"entregou um follow-up em":   "delivered a follow-up on",
+
 	// CLI
 	"espera a sua decisão: Tentar de novo, Continuar ou Encerrar": "waiting for your decision: Retry, Continue or Close",
 	"\nContinuação de: %s (%s, tentativa %d)\n":                   "\nContinuation of: %s (%s, attempt %d)\n",
