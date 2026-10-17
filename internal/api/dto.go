@@ -49,9 +49,12 @@ type Company struct {
 	TaskPrefix string `json:"task_prefix" example:"HNK" doc:"Prefixo das chaves de task (HNK-12)."`
 	Timezone   string `json:"timezone" example:"America/Sao_Paulo" doc:"Fuso IANA."`
 	// BudgetMonthlyCents é o teto mensal de gasto em centavos de dólar; ausente = sem teto.
-	BudgetMonthlyCents *int64    `json:"budget_monthly_cents,omitempty" doc:"Orçamento mensal da empresa em centavos de dólar."`
-	CreatedAt          time.Time `json:"created_at"`
-	UpdatedAt          time.Time `json:"updated_at"`
+	BudgetMonthlyCents *int64 `json:"budget_monthly_cents,omitempty" doc:"Orçamento mensal da empresa em centavos de dólar."`
+	Description        string `json:"description,omitempty" doc:"Texto livre sobre a empresa."`
+	// ArchivedAt marca a empresa arquivada: somente leitura até ser restaurada (ADR-0057).
+	ArchivedAt *time.Time `json:"archived_at,omitempty" doc:"Presente quando a empresa está arquivada (somente leitura)."`
+	CreatedAt  time.Time  `json:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at"`
 }
 
 // Workspace é um diretório/repositório onde personas trabalham.
@@ -477,7 +480,8 @@ func actorRef(a domain.Actor) ActorRef {
 
 func companyOut(c domain.Company) Company {
 	return Company{ID: idStr(c.ID), Slug: c.Slug, Name: c.Name, TaskPrefix: c.TaskPrefix,
-		Timezone: c.Timezone, BudgetMonthlyCents: c.BudgetMonthlyCents, CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt}
+		Timezone: c.Timezone, BudgetMonthlyCents: c.BudgetMonthlyCents, Description: c.Description, ArchivedAt: c.ArchivedAt,
+		CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt}
 }
 
 func workspaceOut(w domain.Workspace) Workspace {

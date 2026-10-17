@@ -48,10 +48,18 @@ type Company struct {
 	TaskPrefix string `json:"task_prefix"` // e.g. "HNK" → task keys HNK-12
 	Timezone   string `json:"timezone"`
 	// BudgetMonthlyCents is the monthly spend ceiling in USD cents; nil = no ceiling.
-	BudgetMonthlyCents *int64    `json:"budget_monthly_cents,omitempty"`
-	CreatedAt          time.Time `json:"created_at"`
-	UpdatedAt          time.Time `json:"updated_at"`
+	BudgetMonthlyCents *int64 `json:"budget_monthly_cents,omitempty"`
+	// Description é o texto livre da empresa (ADR-0057).
+	Description string `json:"description,omitempty"`
+	// ArchivedAt marca a empresa arquivada: somente leitura até ser restaurada (ADR-0057).
+	ArchivedAt *time.Time `json:"archived_at,omitempty"`
+	ArchivedBy *ID        `json:"archived_by,omitempty"`
+	CreatedAt  time.Time  `json:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at"`
 }
+
+// Archived informa se a empresa está arquivada.
+func (c Company) Archived() bool { return c.ArchivedAt != nil }
 
 // Workspace is a directory/repository where personas work; it scopes memory.
 type Workspace struct {

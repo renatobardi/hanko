@@ -59,6 +59,8 @@ type ApiKey struct {
 	CreatedAt  time.Time
 	LastUsedAt *time.Time
 	RevokedAt  *time.Time
+	Scope      string
+	Device     string
 }
 
 type Artifact struct {
@@ -167,6 +169,19 @@ type CaseTaskLink struct {
 	CreatedAt      time.Time
 }
 
+type CliAuthRequest struct {
+	ID        uuid.UUID
+	CodeHash  string
+	PollHash  string
+	Device    string
+	Scope     string
+	Status    string
+	UserID    *uuid.UUID
+	CreatedAt time.Time
+	ExpiresAt time.Time
+	DecidedAt *time.Time
+}
+
 type Company struct {
 	ID                 uuid.UUID
 	Slug               string
@@ -177,6 +192,22 @@ type Company struct {
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
 	BudgetMonthlyCents *int64
+	Description        string
+	ArchivedAt         *time.Time
+	ArchivedBy         *uuid.UUID
+	ArchiveSnapshot    []byte
+}
+
+type CompanyDeletion struct {
+	ID          uuid.UUID
+	CompanyID   uuid.UUID
+	Slug        string
+	Name        string
+	DeletedBy   *uuid.UUID
+	DeletedAt   time.Time
+	ExportGz    []byte
+	ExportBytes int64
+	Sha256      string
 }
 
 type CompanyInvite struct {
@@ -191,6 +222,26 @@ type CompanyInvite struct {
 	AcceptedAt *time.Time
 	AcceptedBy *uuid.UUID
 	RevokedAt  *time.Time
+}
+
+type CompanyJoinLink struct {
+	CompanyID uuid.UUID
+	TokenHash string
+	Enabled   bool
+	CreatedBy *uuid.UUID
+	CreatedAt time.Time
+}
+
+type CompanyJoinRequest struct {
+	ID        uuid.UUID
+	CompanyID uuid.UUID
+	UserID    uuid.UUID
+	Message   string
+	Status    string
+	Role      *string
+	DecidedBy *uuid.UUID
+	CreatedAt time.Time
+	DecidedAt *time.Time
 }
 
 type CompanyMember struct {

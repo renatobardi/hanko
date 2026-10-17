@@ -321,10 +321,14 @@ func (r RunQuery) values() url.Values {
 	return q
 }
 
-// UpdateCompanyReq muda o orçamento da empresa.
+// UpdateCompanyReq muda o orçamento e o perfil da empresa (nome, fuso, descrição e, com zero tasks, o prefixo).
 type UpdateCompanyReq struct {
-	BudgetMonthlyCents *int64 `json:"budget_monthly_cents,omitempty"`
-	ClearBudget        bool   `json:"clear_budget,omitempty"`
+	BudgetMonthlyCents *int64  `json:"budget_monthly_cents,omitempty"`
+	ClearBudget        bool    `json:"clear_budget,omitempty"`
+	Name               *string `json:"name,omitempty"`
+	Timezone           *string `json:"timezone,omitempty"`
+	Description        *string `json:"description,omitempty"`
+	TaskPrefix         *string `json:"task_prefix,omitempty"`
 }
 
 // UpdatePersonaReq muda o orçamento, o organograma e a revisão obrigatória de uma persona.

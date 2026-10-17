@@ -56,6 +56,8 @@ type server struct {
 	// xfer são os tetos de export/import já com os padrões; exportGate/importGate limitam quantos rodam ao mesmo tempo.
 	xfer                   TransferLimits
 	exportGate, importGate gate
+	// cliStartRate limita a criação de pedidos de login da CLI por IP (endpoint público, ADR-0057).
+	cliStartRate *ipRate
 }
 
 // backend é o subconjunto de *service.Service usado pelos handlers; existe para
@@ -131,6 +133,22 @@ type backend interface {
 	CheckAPIKey(ctx context.Context, key string) (domain.User, error)
 	OpenExport(ctx context.Context, companyID domain.ID, opts service.ExportOptions) (*service.ExportStream, error)
 	ImportCompany(ctx context.Context, actor domain.Actor, doc export.Document, opts service.ImportOptions) (service.ImportResult, error)
+	// ciclo de vida da empresa e acesso (ADR-0057)
+	UpdateCompany(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.UpdateCompanyInput) (domain.Company, error)
+	ArchiveCompany(ctx context.Context, actor domain.Actor, companyID domain.ID) (domain.Company, error)
+	RestoreCompany(ctx context.Context, actor domain.Actor, companyID domain.ID, resume bool) (domain.Company, error)
+	DeleteCompany(ctx context.Context, actor domain.Actor, companyID domain.ID, confirm string) (service.CompanyDeletion, error)
+	ListCompanyDeletions(ctx context.Context) ([]service.CompanyDeletion, error)
+	CompanyDeletionExport(ctx context.Context, id domain.ID) (service.CompanyDeletion, []byte, error)
+	StartCLIAuth(ctx context.Context, device string, scope domain.KeyScope) (service.CLIAuthStart, error)
+	PollCLIAuth(ctx context.Context, pollToken string) (service.CLIAuthPoll, error)
+	WhoamiOf(ctx context.Context) (service.Whoami, error)
+	JoinLinkState(ctx context.Context, companyID domain.ID) (domain.JoinLink, error)
+	CreateJoinLink(ctx context.Context, actor domain.Actor, companyID domain.ID) (string, domain.JoinLink, error)
+	RevokeJoinLink(ctx context.Context, actor domain.Actor, companyID domain.ID) error
+	ListJoinRequests(ctx context.Context, companyID domain.ID, onlyPending bool) ([]domain.JoinRequest, error)
+	DecideJoinRequest(ctx context.Context, actor domain.Actor, companyID, requestID domain.ID, approve bool, role domain.MemberRole) (domain.JoinRequest, error)
+	ListInstanceUsers(ctx context.Context) ([]domain.InstanceUser, error)
 	ListMembers(ctx context.Context, companyID domain.ID) ([]domain.Member, error)
 	ListInvites(ctx context.Context, companyID domain.ID) ([]domain.Invite, error)
 	InviteMember(ctx context.Context, actor domain.Actor, companyID domain.ID, email string, role domain.MemberRole) (domain.Invite, string, error)
@@ -282,6 +300,8 @@ func (s *server) register(api huma.API) {
 	s.registerPlugins(api)
 	s.registerStatusCards(api)
 	s.registerPipelines(api)
+	s.registerLifecycle(api)
+	s.registerAccess(api)
 }
 
 // op monta uma huma.Operation com o prefixo da API.
