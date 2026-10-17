@@ -274,7 +274,7 @@ func TestStepLimitAndModelErrors(t *testing.T) {
 		t.Fatalf("res = %+v err = %v reqs = %d", res, err, len(llm.reqs))
 	}
 
-	bad := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { http.Error(w, "overloaded", 503) }))
+	bad := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { http.Error(w, "overloaded", http.StatusServiceUnavailable) }))
 	defer bad.Close()
 	raw, _ := json.Marshal(map[string]any{"base_url": bad.URL, "model": "m"})
 	res, err = New(Options{}).Run(context.Background(), adapter.Spec{Prompt: "x", Config: raw}, &collector{})
