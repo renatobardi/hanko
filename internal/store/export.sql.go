@@ -90,7 +90,7 @@ func (q *Queries) ExportRunEventsPage(ctx context.Context, arg ExportRunEventsPa
 }
 
 const exportRuns = `-- name: ExportRuns :many
-SELECT id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv FROM runs WHERE company_id = $1 AND status NOT IN ('queued', 'running') AND task_id IS NOT NULL ORDER BY created_at, id
+SELECT id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv, instruction_revision, instruction_sha256 FROM runs WHERE company_id = $1 AND status NOT IN ('queued', 'running') AND task_id IS NOT NULL ORDER BY created_at, id
 `
 
 // Só execuções encerradas: uma execução em voo ainda não é um fato histórico. Runs de chat (sem task) ficam de fora (ADR-0027).
@@ -138,6 +138,8 @@ func (q *Queries) ExportRuns(ctx context.Context, companyID uuid.UUID) ([]Run, e
 			&i.WorkspaceSource,
 			&i.ConversationID,
 			&i.SearchTsv,
+			&i.InstructionRevision,
+			&i.InstructionSha256,
 		); err != nil {
 			return nil, err
 		}
@@ -319,7 +321,7 @@ INSERT INTO personas (id, company_id, slug, name, title, instructions, agent, mo
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
         $11, $12, $13, $14, $15,
         $16, $17, $18, $19, $20)
-RETURNING id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason, budget_refused_at, subscription_id, reviewer_persona_id, reviewer_agent, reviewer_model, search_tsv, icon, environment_id
+RETURNING id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason, budget_refused_at, subscription_id, reviewer_persona_id, reviewer_agent, reviewer_model, search_tsv, icon, environment_id, instruction_revision
 `
 
 type ImportPersonaParams struct {
@@ -400,6 +402,7 @@ func (q *Queries) ImportPersona(ctx context.Context, arg ImportPersonaParams) (P
 		&i.SearchTsv,
 		&i.Icon,
 		&i.EnvironmentID,
+		&i.InstructionRevision,
 	)
 	return i, err
 }
@@ -459,7 +462,7 @@ INSERT INTO runs (id, company_id, task_id, persona_id, status, trigger, agent, m
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
         $12, $13, $14, $15, $16, $17, $18, $19,
         $20, $21, $22, $23, $24, $25)
-RETURNING id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv
+RETURNING id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv, instruction_revision, instruction_sha256
 `
 
 type ImportRunParams struct {
@@ -554,6 +557,8 @@ func (q *Queries) ImportRun(ctx context.Context, arg ImportRunParams) (Run, erro
 		&i.WorkspaceSource,
 		&i.ConversationID,
 		&i.SearchTsv,
+		&i.InstructionRevision,
+		&i.InstructionSha256,
 	)
 	return i, err
 }
@@ -799,7 +804,7 @@ UPDATE personas SET name = $1, title = $2, instructions = $3, agent = $4, model 
     budget_monthly_cents = $9, subscription_id = $10, require_review = $11,
     reviewer_agent = $12, reviewer_model = $13, icon = $14, updated_at = $15
 WHERE company_id = $16 AND id = $17
-RETURNING id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason, budget_refused_at, subscription_id, reviewer_persona_id, reviewer_agent, reviewer_model, search_tsv, icon, environment_id
+RETURNING id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason, budget_refused_at, subscription_id, reviewer_persona_id, reviewer_agent, reviewer_model, search_tsv, icon, environment_id, instruction_revision
 `
 
 type ReplaceImportedPersonaParams struct {
@@ -875,6 +880,7 @@ func (q *Queries) ReplaceImportedPersona(ctx context.Context, arg ReplaceImporte
 		&i.SearchTsv,
 		&i.Icon,
 		&i.EnvironmentID,
+		&i.InstructionRevision,
 	)
 	return i, err
 }

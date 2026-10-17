@@ -36,7 +36,7 @@ func personaFromRow(r store.Persona) domain.Persona {
 		reason = *r.PauseReason
 	}
 	return domain.Persona{PauseReason: reason, ID: r.ID, CompanyID: r.CompanyID, Slug: r.Slug, Name: r.Name, Title: r.Title, Icon: r.Icon,
-		Instructions: r.Instructions, Agent: r.Agent, Model: r.Model, AdapterConfig: json.RawMessage(r.AdapterConfig),
+		Instructions: r.Instructions, InstructionRevision: int(r.InstructionRevision), Agent: r.Agent, Model: r.Model, AdapterConfig: json.RawMessage(r.AdapterConfig),
 		Status: domain.PersonaStatus(r.Status), ReportsTo: r.ReportsTo, WorkspaceID: r.WorkspaceID,
 		HeartbeatIntervalSec: int(r.HeartbeatIntervalSec), BudgetMonthlyCents: r.BudgetMonthlyCents,
 		RequireReview: r.RequireReview, ReviewerPersonaID: r.ReviewerPersonaID, ReviewerAgent: r.ReviewerAgent,
@@ -98,7 +98,10 @@ func runFromRow(r store.Run) domain.Run {
 		Usage: domain.Usage{InputTokens: r.InputTokens, OutputTokens: r.OutputTokens,
 			CacheReadTokens: r.CacheReadTokens, CacheCreationTokens: r.CacheCreationTokens},
 		HandoffIn: r.HandoffIn, HandoffOut: r.HandoffOut, CreatedAt: r.CreatedAt,
-		StartedAt: r.StartedAt, FinishedAt: r.FinishedAt}
+		StartedAt: r.StartedAt, FinishedAt: r.FinishedAt, InstructionRevision: intPtr(r.InstructionRevision)}
+	if r.InstructionSha256 != nil {
+		run.InstructionSHA256 = *r.InstructionSha256
+	}
 	if r.ExitCode != nil {
 		c := int(*r.ExitCode)
 		run.ExitCode = &c
