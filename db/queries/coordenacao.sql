@@ -49,6 +49,12 @@ WITH RECURSIVE reach(id) AS (
 )
 SELECT d.task_id, d.depends_on_id FROM task_dependencies d WHERE d.task_id IN (SELECT id FROM reach);
 
+-- name: ListOpenDependentIDs :many
+-- Tasks abertas que dependem de @depends_on_id, em ordem de id (a ordem de lock que evita deadlock entre fechamentos).
+SELECT t.id FROM task_dependencies d JOIN tasks t ON t.id = d.task_id
+WHERE d.depends_on_id = @depends_on_id AND t.company_id = @company_id AND t.status NOT IN ('done', 'cancelled')
+ORDER BY t.id;
+
 -- name: ListDependentsToRelease :many
 -- Tasks abertas que dependem de @depends_on_id e já não têm nenhuma dependência aberta (liberadas pelo fechamento
 -- dela ou pela remoção da última dependência aberta). cancelled_deps diz quantas dependências foram canceladas.

@@ -299,6 +299,66 @@ func TestDependencyConcurrentOppositeEdges(t *testing.T) {
 	}
 }
 
+// Dois fechamentos simultâneos das duas únicas dependências de C acordam C exatamente uma vez: sem a trava por
+// dependente, cada transação via a outra ainda aberta e ninguém acordava C (wake perdido).
+func TestConcurrentClosesWakeTheDependentExactlyOnce(t *testing.T) {
+	e := newEnv(t)
+	p := e.persona(t, "Ana", nil)
+	for round := 0; round < 15; round++ {
+		a1 := e.task(t, service.CreateTaskInput{Title: "A1"})
+		a2 := e.task(t, service.CreateTaskInput{Title: "A2"})
+		c := e.task(t, service.CreateTaskInput{Title: "C", PersonaID: &p.ID, DependsOn: []domain.ID{a1.ID, a2.ID}})
+		e.jobs.reset()
+		var wg sync.WaitGroup
+		for _, tv := range []service.TaskView{a1, a2} {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				done := domain.TaskDone
+				if _, err := e.svc.UpdateTask(context.Background(), domain.HumanActor, e.co.ID, tv.ID, service.UpdateTaskInput{Status: &done}); err != nil {
+					t.Errorf("round %d: %v", round, err)
+				}
+			}()
+		}
+		wg.Wait()
+		if got := e.wokeTasks()[c.ID]; got != 1 {
+			t.Fatalf("round %d: C acordada %d vezes, esperado exatamente 1", round, got)
+		}
+	}
+}
+
+// O mesmo para o pai: os dois últimos filhos fechando juntos acordam o pai uma vez.
+func TestConcurrentChildrenCloseWakeTheParentExactlyOnce(t *testing.T) {
+	e := newEnv(t)
+	p := e.persona(t, "Ana", nil)
+	for round := 0; round < 15; round++ {
+		parent := e.task(t, service.CreateTaskInput{Title: "pai", PersonaID: &p.ID, Status: domain.TaskInProgress})
+		c1 := e.task(t, service.CreateTaskInput{Title: "f1", ParentID: &parent.ID})
+		c2 := e.task(t, service.CreateTaskInput{Title: "f2", ParentID: &parent.ID})
+		e.jobs.reset()
+		var wg sync.WaitGroup
+		for _, tv := range []service.TaskView{c1, c2} {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				done := domain.TaskDone
+				if _, err := e.svc.UpdateTask(context.Background(), domain.HumanActor, e.co.ID, tv.ID, service.UpdateTaskInput{Status: &done}); err != nil {
+					var pe *pgconn.PgError
+					if errors.As(err, &pe) {
+						t.Errorf("round %d: %v\nDETAIL: %s\nWHERE: %s", round, err, pe.Detail, pe.Where)
+					} else {
+						t.Errorf("round %d: %v", round, err)
+					}
+				}
+			}()
+		}
+		wg.Wait()
+		if got := e.wokeTasks()[parent.ID]; got != 1 {
+			t.Fatalf("round %d: pai acordado %d vezes, esperado exatamente 1", round, got)
+		}
+	}
+}
+
 func TestRemoveDependencyFreesTheTask(t *testing.T) {
 	e := newEnv(t)
 	ctx := context.Background()

@@ -240,6 +240,9 @@ func (t *txc) moveTask(actor domain.Actor, companyID domain.ID, cur store.Task, 
 	if closing {
 		c := t.now
 		p.ClosedAt = &c
+		if err := t.lockParent(companyID, cur); err != nil {
+			return store.Task{}, err
+		}
 	}
 	row, err := t.q.UpdateTask(t.ctx, p)
 	if err != nil {

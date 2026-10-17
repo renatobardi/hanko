@@ -336,6 +336,25 @@ Record the date and result in `docs/SESSION.md` or in the operations issue.
 
 Logs are JSON on stderr with `trace_id`/`span_id`: copy the `trace_id` and look it up in Tempo (Grafana) to see the full trace of the request/run.
 
+## Task coordination (ADR-0040)
+
+- **Dependencies.** `hanko task dep add HNK-12 HNK-7` makes 12 depend on 7: it is dispatched only when every dependency closes (done **or**
+  cancelled), and its assignee is woken in the same transaction in which the last one closes. No cycles (409 with the chain), no crossing
+  companies, at most 50 per task. "Blocked" is computed; the `blocked` status stays the parked-waiting-for-someone one. A persona uses
+  `hanko_task_dependency` and `depends_on` on `hanko_task_create`.
+- **Tree.** A subtask is `--parent`. The parent wakes when its last child closes and cannot complete with an open child (422); a human completes
+  it anyway with `hanko task status HNK-1 done --force --reason "..."` (the reason stays in the `task.close_override` fact). 10 levels at most.
+- **Hold.** `hanko task hold HNK-1 --reason "..."` freezes the task and its whole subtree: dispatch refuses, the heartbeat safety net skips it,
+  queued runs are cancelled and a run already going finishes on its own. `hanko task resume HNK-1` wakes the requests that were refused. The inbox
+  has a **Paused** tab. The hold root resumes it (a child that only inherits points at the origin).
+- **Per-task/project review policy.** `hanko task review-policy HNK-1 --require --reviewer-agent codex` (admin); `--no-reviewer` goes straight to the
+  human gate; `--clear` inherits again. `hanko project review-policy <project>` applies to tasks without an override. The run screen shows which
+  layer (task, project or persona) the policy in force came from.
+- **Operations.** Additive migration 00100 (new tables, 2 integrity triggers, 1 function); `Down` undoes it. OTel counter `hanko.task.coordination`
+  (`kind`, `op`) and spans `service.hold_task`, `service.resume_task`, `service.add_task_dependency`, `service.remove_task_dependency`,
+  `service.checkout_run`. Limits: export/import (`hanko.company.v1`) carries the tree (and rejects more than 10 levels) but not dependencies, holds or
+  per-task policies.
+
 ## Skills and integrations (ADR-0029)
 
 Operator settings (a company cannot turn these on by itself):

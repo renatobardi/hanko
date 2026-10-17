@@ -399,6 +399,26 @@ func (f *Fake) UpdateTask(_ context.Context, _ domain.Actor, _, taskID domain.ID
 		return service.TaskView{}, domain.ErrNotFound
 	}
 	t := &f.Tasks[i]
+	if in.ClearParent {
+		t.ParentID = nil
+	}
+	if in.ParentID != nil {
+		if _, ok := f.taskByID(*in.ParentID); !ok {
+			return service.TaskView{}, domain.Invalid("parent_id", "task not found in company")
+		}
+		t.ParentID = in.ParentID
+	}
+	if in.Status != nil && *in.Status == domain.TaskDone {
+		f.refreshCoord()
+		if t.ChildrenOpen > 0 {
+			if !in.ForceClose {
+				return service.TaskView{}, domain.ErrChildrenOpen
+			}
+			if strings.TrimSpace(in.OverrideReason) == "" {
+				return service.TaskView{}, domain.Invalid("override_reason", "obrigatório")
+			}
+		}
+	}
 	if in.Status != nil {
 		t.Status = *in.Status
 	}

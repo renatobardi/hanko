@@ -487,6 +487,11 @@ func (s *Service) UpdateTask(ctx context.Context, actor domain.Actor, companyID,
 				return err
 			}
 
+			if closedNow { // pai antes da própria linha ser reescrita: ver lockParent
+				if err := t.lockParent(companyID, cur); err != nil {
+					return err
+				}
+			}
 			row, err := t.q.UpdateTask(ctx, p)
 			if err != nil {
 				return mapErr(err, "update task")

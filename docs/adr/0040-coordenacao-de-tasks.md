@@ -24,7 +24,8 @@ Uma persona que recebe uma task grande já consegue criar subtasks (`hanko_task_
 ### C. Pausa herdada por subárvore (#3)
 1. **Modelo.** Tabela `task_holds` (uma linha por task pausada: motivo de 1 a 500 caracteres, quem e quando). Só a raiz da pausa tem linha; **os descendentes herdam por cálculo** (nunca copiamos a pausa para os filhos): o hold efetivo de uma task é o da própria task ou, se não houver, o do ancestral mais próximo. Reparentar muda o efeito na hora, sem migração de dados.
 2. **Efeito.** Task com hold efetivo: o despacho recusa (`ErrInvalid` "held", que o worker trata como "nada a fazer"), o heartbeat não a considera, o wake manual é recusado e as runs **ainda na fila** da subárvore são canceladas na hora da pausa. Uma run que já está rodando termina sozinha (não matamos trabalho em andamento; o próximo despacho é que fica recusado). Comentários e edições humanas continuam possíveis.
-3. **Retomar acorda.** `ResumeTask` apaga a linha e, na mesma transação, enfileira um wake para cada task da subárvore que seja trabalhável, tenha responsável, não esteja bloqueada por dependência, não tenha run ativa nem gate pendente e **não continue pausada** por outra raiz. Assim os wakes que foram recusados durante a pausa não se perdem.
+3. **Retomar acorda os wakes pendentes.** Todo wake recusado por pausa (o despacho de uma task pausada, ou um wake que a coordenação não enfileirou porque a task estava pausada, inclusive a liberação por dependência que fechou durante a pausa) é guardado em `held_wakes` (uma linha por task: persona e gatilho). `ResumeTask` apaga a pausa e, na mesma transação, reenvia o wake guardado de cada task da subárvore que **não continue pausada** por outra raiz (as que continuam ficam guardadas). Uma persona ociosa que nunca foi recusada não é acordada à toa.
+   Concorrência: pausar, retomar e abrir run se serializam por um lock consultivo por empresa (compartilhado no checkout, exclusivo em pausar/retomar), sempre o primeiro lock da transação, então nenhuma run abre no meio de uma pausa em andamento. A rede de segurança do heartbeat usa a função SQL `task_effectively_held` (e a checagem de dependência aberta) no mesmo critério.
 4. **Visibilidade.** A view da task traz `hold` (motivo, quem, quando, task de origem e `inherited`); a task mostra o banner "Pausada" (e "herdada de HNK-n") no cabeçalho e na thread, e a Caixa ganha a aba **Pausadas** (raízes de pausa, com "Retomar"). Fatos: `task.held`, `task.resumed`. Quem pausa e retoma: membro humano; a persona não se pausa.
 
 ### D. Política de revisão por task (#4)
@@ -40,7 +41,10 @@ Uma persona que recebe uma task grande já consegue criar subtasks (`hanko_task_
 - Colunas novas em `tasks`/`runs`/`projects`: tabelas laterais mantêm o modelo gerado dessas tabelas intacto para os marcos paralelos.
 
 ## Consequências
-- Migration 00100 (faixa 00100–00109): `task_dependencies` (+ trigger anti-ciclo), trigger de pai em `tasks`, `task_holds`, `task_review_overrides`, `project_review_policies`, `run_policy_origins`, índice `tasks_parent_idx`. Aditiva; o Down desfaz.
+- Migration 00100 (faixa 00100–00109): `task_dependencies` (+ trigger anti-ciclo), trigger de pai em `tasks`, `task_holds`, `held_wakes`, `task_review_overrides`, `project_review_policies`, `run_policy_origins`, função `task_effectively_held`, índices `tasks_parent_idx` e `tasks_company_id_id_uq`. Aditiva; o Down desfaz.
+- `db/queries/runs.sql` (`ListWakeCandidates`) ganha duas condições (dependência aberta, `task_effectively_held`); é a única mudança em consulta existente.
+- Os textos em inglês entram em `internal/i18n/en_zz_coordenacao.go`, nome que ordena por último: o `init` dele roda depois de todos os outros catálogos e **não** dá panic por chave repetida (marcos paralelos podem traduzir o mesmo texto).
+- Export/import (`hanko.company.v1`): leva a árvore pai/filho (a validação recusa mais de 10 níveis), não leva dependências, pausas nem políticas por task. Um formato `v2` com elas fica para quando o time pedir.
 - Dependências Go novas: nenhuma.
 - O briefing da run ganha as seções "Dependências", "Subtasks" e "Revisão desta task" (só quando há o que dizer).
 - Limites conhecidos: dependência não cruza empresas; hold não mata run em andamento; o status `blocked` e o `bloqueada` derivado convivem (o primeiro é manual/gate, o segundo é calculado).

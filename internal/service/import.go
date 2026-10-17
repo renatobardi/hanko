@@ -398,6 +398,18 @@ func (s *Service) planImport(ctx context.Context, doc export.Document, opts Impo
 	if p.taskOrder, err = orderTasks(doc.Tasks, tk); err != nil {
 		return p, err
 	}
+	// a árvore de tasks tem teto de profundidade (ADR-0040): o trigger do banco recusaria, então valida antes
+	depth := make(map[int]int, len(p.taskOrder))
+	for _, i := range p.taskOrder {
+		d := 1
+		if par := doc.Tasks[i].Parent; par != 0 {
+			d = depth[tk[par]] + 1
+		}
+		if d > domain.MaxTaskDepth {
+			return p, domain.Invalid(iv("tasks", i, "parent"), fmt.Sprintf("task tree deeper than %d levels", domain.MaxTaskDepth))
+		}
+		depth[i] = d
+	}
 	p.nextTask = max(c.NextTaskNumber, maxNum+1)
 
 	// fluxos

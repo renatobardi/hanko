@@ -430,11 +430,37 @@ func (s *Service) ListTaskDependencies(ctx context.Context, companyID, taskID do
 
 // ---------- fechamento: o que a coordenação dispara ----------
 
+// lockParent trava a linha do pai de uma task que vai fechar, ANTES de reescrever a linha dela. Dois filhos fechando
+// juntos travam o pai na mesma ordem (filho, depois pai); se cada um reescrevesse a própria linha primeiro, o
+// Postgres já teria dado a cada um um lock compartilhado no pai (a chave estrangeira) e o FOR UPDATE de onTaskClosed
+// de um esperaria o do outro: deadlock.
+func (t *txc) lockParent(companyID domain.ID, task store.Task) error {
+	if task.ParentID == nil {
+		return nil
+	}
+	if _, err := t.q.GetTaskByIDForUpdate(t.ctx, store.GetTaskByIDForUpdateParams{CompanyID: companyID, ID: *task.ParentID}); err != nil {
+		return mapErr(err, "lock parent")
+	}
+	return nil
+}
+
 // onTaskClosed roda quando uma task acaba de fechar (done ou cancelled), na transação do fechamento: libera quem
 // dependia só dela e acorda o pai quando o último filho fecha. A cascata (A → B → C) vem do fato de cada
 // fechamento repetir esta regra.
 func (t *txc) onTaskClosed(companyID domain.ID, closed store.Task) error {
 	key := t.keyOf(companyID, closed.ID)
+	// Dois fechamentos simultâneos (A e B, dos quais C depende) não se enxergam antes do commit: se cada um avaliasse
+	// "C ficou livre?" sem trava, nenhum acordaria C. Travar a linha de cada dependente (em ordem de id) serializa as
+	// avaliações: a segunda roda depois do commit da primeira, num comando novo, e vê o fechamento da outra.
+	deps, err := t.q.ListOpenDependentIDs(t.ctx, store.ListOpenDependentIDsParams{CompanyID: companyID, DependsOnID: closed.ID})
+	if err != nil {
+		return fmt.Errorf("open dependents: %w", err)
+	}
+	for _, id := range deps {
+		if _, err := t.q.GetTaskByIDForUpdate(t.ctx, store.GetTaskByIDForUpdateParams{CompanyID: companyID, ID: id}); err != nil {
+			return mapErr(err, "lock dependent")
+		}
+	}
 	rel, err := t.q.ListDependentsToRelease(t.ctx, store.ListDependentsToReleaseParams{CompanyID: companyID, DependsOnID: closed.ID})
 	if err != nil {
 		return fmt.Errorf("dependents to release: %w", err)
@@ -447,16 +473,17 @@ func (t *txc) onTaskClosed(companyID domain.ID, closed store.Task) error {
 	if closed.ParentID == nil {
 		return nil
 	}
+	// mesma razão: dois filhos fechando juntos precisam ser avaliados um depois do outro
+	parent, err := t.q.GetTaskByIDForUpdate(t.ctx, store.GetTaskByIDForUpdateParams{CompanyID: companyID, ID: *closed.ParentID})
+	if err != nil {
+		return mapErr(err, "get parent")
+	}
 	open, err := t.q.CountOpenChildren(t.ctx, closed.ParentID)
 	if err != nil {
 		return fmt.Errorf("count open children: %w", err)
 	}
 	if open > 0 {
 		return nil
-	}
-	parent, err := t.q.GetTaskByID(t.ctx, store.GetTaskByIDParams{CompanyID: companyID, ID: *closed.ParentID})
-	if err != nil {
-		return mapErr(err, "get parent")
 	}
 	if !domain.TaskStatus(parent.Status).Open() {
 		return nil

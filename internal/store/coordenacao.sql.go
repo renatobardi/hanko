@@ -502,6 +502,38 @@ func (q *Queries) ListOpenChildren(ctx context.Context, arg ListOpenChildrenPara
 	return items, nil
 }
 
+const listOpenDependentIDs = `-- name: ListOpenDependentIDs :many
+SELECT t.id FROM task_dependencies d JOIN tasks t ON t.id = d.task_id
+WHERE d.depends_on_id = $1 AND t.company_id = $2 AND t.status NOT IN ('done', 'cancelled')
+ORDER BY t.id
+`
+
+type ListOpenDependentIDsParams struct {
+	DependsOnID uuid.UUID
+	CompanyID   uuid.UUID
+}
+
+// Tasks abertas que dependem de @depends_on_id, em ordem de id (a ordem de lock que evita deadlock entre fechamentos).
+func (q *Queries) ListOpenDependentIDs(ctx context.Context, arg ListOpenDependentIDsParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listOpenDependentIDs, arg.DependsOnID, arg.CompanyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listQueuedRunsInSubtree = `-- name: ListQueuedRunsInSubtree :many
 WITH RECURSIVE down(id, depth) AS (
     SELECT t.id, 0 FROM tasks t WHERE t.id = $1 AND t.company_id = $2

@@ -195,12 +195,7 @@ func (f *Fake) ResumeTask(_ context.Context, _ domain.Actor, _, taskID domain.ID
 	return f.viewOf(taskID), nil
 }
 
-func (f *Fake) ListHeldTasks(_ context.Context, _ domain.ID) ([]service.HeldTask, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if err := f.fail("ListHeldTasks"); err != nil {
-		return nil, err
-	}
+func (f *Fake) heldTasksLocked() []service.HeldTask {
 	f.refreshCoord()
 	var out []service.HeldTask
 	for id, h := range f.Coord.Holds {
@@ -208,7 +203,16 @@ func (f *Fake) ListHeldTasks(_ context.Context, _ domain.ID) ([]service.HeldTask
 			out = append(out, service.HeldTask{Task: f.Tasks[i], Hold: h})
 		}
 	}
-	return out, nil
+	return out
+}
+
+func (f *Fake) ListHeldTasks(_ context.Context, _ domain.ID) ([]service.HeldTask, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if err := f.fail("ListHeldTasks"); err != nil {
+		return nil, err
+	}
+	return f.heldTasksLocked(), nil
 }
 
 func (f *Fake) TaskReviewPolicy(_ context.Context, _, taskID domain.ID) (service.ReviewPolicyView, error) {
