@@ -410,7 +410,15 @@ func (t *txc) createRun(companyID, taskID, personaID domain.ID, agent, model str
 	} else if card {
 		trigger = domain.TriggerStatusCard
 	}
-	return t.insertRun(companyID, &taskID, nil, personaID, agent, model, modelSource, subID, ws, wsSource, trigger)
+	row, err := t.insertRun(companyID, &taskID, nil, personaID, agent, model, modelSource, subID, ws, wsSource, trigger)
+	if err != nil {
+		return store.Run{}, err
+	}
+	// "Nova sessão" (#16): o pedido pendente da task vale para este run.
+	if err := t.consumeSessionReset(companyID, taskID, row.ID); err != nil {
+		return store.Run{}, err
+	}
+	return row, nil
 }
 
 // insertRun creates the queued run of a task (taskID) or of a conversation (convID), exactly one of them.
@@ -606,6 +614,17 @@ func (s *Service) LoadRunContext(ctx context.Context, companyID, runID domain.ID
 	}
 	if rc.Goals, err = goalBriefs(ctx, q, companyID, task); err != nil {
 		return RunContext{}, err
+	}
+	if run.TaskID != nil && !task.System {
+		if rc.ProjectInstructions, err = projectInstructions(ctx, q, companyID, task.ProjectID); err != nil {
+			return RunContext{}, err
+		}
+		if rr, rerr := q.ResetOfRun(ctx, store.ResetOfRunParams{CompanyID: companyID, RunID: &runID}); rerr == nil {
+			r := sessionResetFromRow(rr)
+			rc.SessionReset = &r
+		} else if !isNoRows(rerr) {
+			return RunContext{}, fmt.Errorf("session reset of run: %w", rerr)
+		}
 	}
 	return rc, nil
 }
