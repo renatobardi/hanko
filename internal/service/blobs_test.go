@@ -15,7 +15,7 @@ import (
 	"github.com/renatobardi/hanko/internal/storage/storagetest"
 )
 
-// BlobStore (ADR-0033): artefatos no S3 (falso), convivência com o postgres e migração entre drivers.
+// BlobStore (ADR-0051): artefatos no S3 (falso), convivência com o postgres e migração entre drivers.
 
 type blobEnv struct {
 	*env

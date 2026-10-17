@@ -98,8 +98,9 @@ func rootWritable(ctx context.Context, root string) views.EnvCheck {
 	return check(true, label, root)
 }
 
-func (s *server) handleEnvironments(w http.ResponseWriter, r *http.Request, co domain.Company) {
-	ctx := r.Context()
+// localEnvironment é o ambiente local (implícito) de Configurações › Ambientes: as verificações reais deste
+// servidor e a configuração da instalação (ADR-0031, ADR-0037).
+func (s *server) localEnvironment(ctx context.Context, co domain.Company) views.EnvLocalCard {
 	p := s.platformNow()
 	root := s.workspacesRoot(co)
 	checks := []views.EnvCheck{
@@ -123,7 +124,7 @@ func (s *server) handleEnvironments(w http.ResponseWriter, r *http.Request, co d
 	if agent == "" {
 		agent = p.PublicURL
 	}
-	vm := views.EnvironmentsVM{Sections: settingsSections(ctx, "/c/"+co.Slug, "ambientes"), Checks: checks, OK: ok, Total: len(checks),
+	return views.EnvLocalCard{Checks: checks, OK: ok, Total: len(checks),
 		Facts: []views.KV{
 			{K: i18n.T(ctx, "Tipo"), V: i18n.T(ctx, "Local · processos filhos neste servidor")},
 			{K: i18n.T(ctx, "Raiz dos workspaces"), V: root},
@@ -134,7 +135,6 @@ func (s *server) handleEnvironments(w http.ResponseWriter, r *http.Request, co d
 			{K: i18n.T(ctx, "Heartbeat do agendador"), V: durOrDash(p.HeartbeatInterval)},
 			{K: i18n.T(ctx, "Modo"), V: modeLabel(ctx, p)},
 		}}
-	s.render(w, r, http.StatusOK, views.EnvironmentsPage(s.settingsShell(r, co, i18n.T(ctx, "Ambientes")), vm))
 }
 
 func (s *server) handleAdapters(w http.ResponseWriter, r *http.Request, co domain.Company) {
@@ -184,8 +184,8 @@ func (s *server) handleAdapters(w http.ResponseWriter, r *http.Request, co domai
 	s.render(w, r, http.StatusOK, views.AdaptersPage(s.settingsShell(r, co, i18n.T(ctx, "Adapters")), vm))
 }
 
-func (s *server) handlePlugins(w http.ResponseWriter, r *http.Request, co domain.Company) {
-	ctx := r.Context()
+// builtinPluginItems são os pontos de extensão embutidos (Configurações › Plugins, abaixo dos plugins de terceiros).
+func (s *server) builtinPluginItems(ctx context.Context, co domain.Company) []views.PluginItem {
 	p := s.platformNow()
 	base := "/c/" + co.Slug
 	agent := p.AgentURL
@@ -208,7 +208,7 @@ func (s *server) handlePlugins(w http.ResponseWriter, r *http.Request, co domain
 	if secret.OK {
 		secret.Detail = i18n.T(ctx, "AES-256-GCM em repouso")
 	}
-	vm := views.PluginsVM{Sections: settingsSections(ctx, base, "plugins"), Items: []views.PluginItem{
+	return []views.PluginItem{
 		{Icon: "link", Name: i18n.T(ctx, "Servidor MCP do Hanko"), Desc: i18n.T(ctx, "Tools de tasks, comentários, artefatos, metas e busca para as personas e para clientes MCP."),
 			Checks: []views.EnvCheck{check(true, i18n.T(ctx, "Endpoint"), strings.TrimRight(agent, "/")+"/mcp")}, Href: base + "/integracoes"},
 		{Icon: "database", Name: i18n.T(ctx, "Memória entre sessões"), Desc: i18n.T(ctx, "Provedor de memória por MCP, com curadoria governada por gate."),
@@ -219,8 +219,7 @@ func (s *server) handlePlugins(w http.ResponseWriter, r *http.Request, co domain
 			Checks: []views.EnvCheck{check(true, i18n.T(ctx, "Catálogo"), i18n.T(ctx, "por empresa"))}, Href: base + "/skills"},
 		{Icon: "activity", Name: i18n.T(ctx, "Observabilidade"), Desc: i18n.T(ctx, "Traces, métricas e logs OpenTelemetry de cada request e execução."),
 			Checks: []views.EnvCheck{otel}, Href: ""},
-	}}
-	s.render(w, r, http.StatusOK, views.PluginsPage(s.settingsShell(r, co, i18n.T(ctx, "Plugins")), vm))
+	}
 }
 
 func dashIfEmpty(v string) string {
@@ -258,7 +257,7 @@ func (s *server) handleData(w http.ResponseWriter, r *http.Request, co domain.Co
 	s.render(w, r, http.StatusOK, views.DataPage(s.settingsShell(r, co, i18n.T(ctx, "Exportar e importar")), vm))
 }
 
-// platformToggles é o que o service sabe dos interruptores efetivos (env > banco > padrão, ADR-0032).
+// platformToggles é o que o service sabe dos interruptores efetivos (env > banco > padrão, ADR-0050).
 type platformToggles interface {
 	PlatformToggles() service.PlatformToggles
 }

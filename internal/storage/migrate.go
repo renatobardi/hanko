@@ -15,7 +15,7 @@ import (
 	"github.com/renatobardi/hanko/internal/store"
 )
 
-// MigrateOptions define uma migração de conteúdo entre drivers (ADR-0033).
+// MigrateOptions define uma migração de conteúdo entre drivers (ADR-0051).
 type MigrateOptions struct {
 	From, To string
 	// CompanyID restringe a uma empresa; nil = todas.

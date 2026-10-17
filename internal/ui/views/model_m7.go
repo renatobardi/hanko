@@ -1,6 +1,6 @@
 package views
 
-// ---- Configurações › Segredos (ADR-0032) ----
+// ---- Configurações › Segredos (ADR-0050) ----
 
 // SecretRowVM é uma linha da lista de segredos. Nenhum campo carrega o valor.
 type SecretRowVM struct {
@@ -53,7 +53,7 @@ type SecretsVM struct {
 	Reveal  *SecretRevealVM
 }
 
-// ---- Configurações › Instância (ADR-0032 §C, ADR-0033) ----
+// ---- Configurações › Instância (ADR-0050 §C, ADR-0051) ----
 
 // SettingRowVM é uma chave de instance_settings.
 type SettingRowVM struct {
@@ -87,8 +87,8 @@ type BlobUsageVM struct {
 	Active   bool
 }
 
-// AuditRowVM é uma mudança de configuração.
-type AuditRowVM struct {
+// SettingAuditRowVM é uma mudança de configuração.
+type SettingAuditRowVM struct {
 	When, Key, Old, New, Actor string
 }
 
@@ -101,5 +101,5 @@ type InstanceVM struct {
 	Groups    []SettingGroupVM
 	Blobs     []BlobUsageVM
 	BlobNote  string
-	Audit     []AuditRowVM
+	Audit     []SettingAuditRowVM
 }

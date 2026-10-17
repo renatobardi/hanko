@@ -121,7 +121,7 @@ func (p importPlan) counts(d export.Document) map[string]int {
 		out["workspace_paths_cleared"] = n
 	}
 	// Referências ${secret:...} nas personas importadas: os valores não viajam no arquivo, então a empresa nova
-	// precisa recriar esses segredos antes de as personas rodarem (ADR-0032).
+	// precisa recriar esses segredos antes de as personas rodarem (ADR-0050).
 	refs := map[string]bool{}
 	for _, c := range p.personaCfg {
 		for _, r := range secretref.Find(string(c)) {

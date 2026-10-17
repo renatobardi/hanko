@@ -2,7 +2,7 @@ package domain
 
 import "time"
 
-// Segredos como recurso (ADR-0032). O valor nunca faz parte destes tipos: ele só existe cifrado no banco e, durante
+// Segredos como recurso (ADR-0050). O valor nunca faz parte destes tipos: ele só existe cifrado no banco e, durante
 // uma run, em memória.
 
 // SecretScope é o dono do segredo: a empresa (admins gerenciam) ou um usuário (só ele vê e usa).

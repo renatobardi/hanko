@@ -1,4 +1,4 @@
-// Package storage guarda o conteúdo dos artefatos atrás da interface BlobStore (ADR-0033). Dois drivers: postgres
+// Package storage guarda o conteúdo dos artefatos atrás da interface BlobStore (ADR-0051). Dois drivers: postgres
 // (o padrão, a tabela artifact_blobs, dentro da transação do artefato) e s3 (qualquer endpoint S3 compatível, com
 // SigV4 próprio sobre a stdlib). O artefato registra em que driver está (artifacts.storage), então os dois convivem.
 package storage

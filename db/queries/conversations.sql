@@ -12,25 +12,34 @@ SELECT * FROM conversations WHERE company_id = @company_id AND id = @id;
 SELECT * FROM conversations WHERE company_id = @company_id AND id = @id FOR UPDATE;
 
 -- name: GetConversationView :one
-SELECT sqlc.embed(c), p.name AS persona_name, p.slug AS persona_slug, ar.id AS active_run_id,
-       (SELECT count(*) FROM conversation_messages pm
-         WHERE pm.conversation_id = c.id AND pm.author_type = 'human' AND pm.run_id IS NULL)::bigint AS pending_messages,
+-- Sala (ADR-0033): a sala não tem persona própria (nome vazio) nem uma run ativa única (as runs abertas vêm por
+-- participante); as mensagens em espera dela são as entregas sem run.
+SELECT sqlc.embed(c), COALESCE(p.name, '')::text AS persona_name, COALESCE(p.slug, '')::text AS persona_slug, ar.id AS active_run_id,
+       ((SELECT count(*) FROM conversation_messages pm
+         WHERE pm.conversation_id = c.id AND c.kind = 'direct' AND pm.author_type = 'human' AND pm.run_id IS NULL)
+        + (SELECT count(*) FROM conversation_message_runs mr WHERE mr.conversation_id = c.id AND mr.run_id IS NULL))::bigint AS pending_messages,
        (SELECT COALESCE(SUM(cr.cost_usd), 0) FROM runs cr WHERE cr.conversation_id = c.id)::float8 AS cost_usd
 FROM conversations c
-JOIN personas p ON p.id = c.persona_id
-LEFT JOIN runs ar ON ar.conversation_id = c.id AND ar.status IN ('queued', 'running')
+LEFT JOIN personas p ON p.id = c.persona_id
+LEFT JOIN runs ar ON ar.conversation_id = c.id AND c.kind = 'direct' AND ar.status IN ('queued', 'running')
 WHERE c.company_id = @company_id AND c.id = @id;
 
 -- name: ListConversationViews :many
-SELECT sqlc.embed(c), p.name AS persona_name, p.slug AS persona_slug, ar.id AS active_run_id,
-       (SELECT count(*) FROM conversation_messages pm
-         WHERE pm.conversation_id = c.id AND pm.author_type = 'human' AND pm.run_id IS NULL)::bigint AS pending_messages,
+-- Sala (ADR-0033): a sala não tem persona própria (nome vazio) nem uma run ativa única (as runs abertas vêm por
+-- participante); as mensagens em espera dela são as entregas sem run.
+SELECT sqlc.embed(c), COALESCE(p.name, '')::text AS persona_name, COALESCE(p.slug, '')::text AS persona_slug, ar.id AS active_run_id,
+       ((SELECT count(*) FROM conversation_messages pm
+         WHERE pm.conversation_id = c.id AND c.kind = 'direct' AND pm.author_type = 'human' AND pm.run_id IS NULL)
+        + (SELECT count(*) FROM conversation_message_runs mr WHERE mr.conversation_id = c.id AND mr.run_id IS NULL))::bigint AS pending_messages,
        (SELECT COALESCE(SUM(cr.cost_usd), 0) FROM runs cr WHERE cr.conversation_id = c.id)::float8 AS cost_usd
 FROM conversations c
-JOIN personas p ON p.id = c.persona_id
-LEFT JOIN runs ar ON ar.conversation_id = c.id AND ar.status IN ('queued', 'running')
+LEFT JOIN personas p ON p.id = c.persona_id
+LEFT JOIN runs ar ON ar.conversation_id = c.id AND c.kind = 'direct' AND ar.status IN ('queued', 'running')
 WHERE c.company_id = @company_id
-  AND (sqlc.narg(persona_id)::uuid IS NULL OR c.persona_id = sqlc.narg(persona_id)::uuid)
+  AND (sqlc.narg(persona_id)::uuid IS NULL OR c.persona_id = sqlc.narg(persona_id)::uuid
+       OR EXISTS (SELECT 1 FROM conversation_participants cp
+                  WHERE cp.conversation_id = c.id AND cp.persona_id = sqlc.narg(persona_id)::uuid AND cp.removed_at IS NULL))
+  AND (sqlc.narg(kind)::text IS NULL OR c.kind = sqlc.narg(kind)::text)
   AND (sqlc.narg(status)::text IS NULL OR c.status = sqlc.narg(status)::text)
 ORDER BY c.last_message_at DESC, c.id DESC
 LIMIT @lim;

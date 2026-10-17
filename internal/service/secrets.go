@@ -28,7 +28,7 @@ import (
 	"github.com/renatobardi/hanko/internal/vault"
 )
 
-// Segredos como recurso (ADR-0032). O valor só existe em claro (a) na resposta de uma criação/rotação com valor
+// Segredos como recurso (ADR-0050). O valor só existe em claro (a) na resposta de uma criação/rotação com valor
 // gerado pelo servidor, (b) na resposta única de "revelar", e (c) em memória, durante o despacho de uma run. Nada
 // disso passa por atividade, log, export, briefing ou OTel.
 
@@ -828,4 +828,58 @@ func (s *Service) rekeySecrets(ctx context.Context) (int, error) {
 		n++
 	}
 	return n, nil
+}
+
+// checkEnvRefs confere as referências ${secret:...} nos valores de env de um ambiente de execução (ADR-0050).
+func (s *Service) checkEnvRefs(ctx context.Context, companyID domain.ID, env map[string]string) error {
+	texts := make([]string, 0, len(env))
+	for _, v := range env {
+		texts = append(texts, v)
+	}
+	return s.checkSecretRefs(ctx, s.read(), companyID, "env", texts...)
+}
+
+// openResolved abre os segredos de uma integração com as referências ${secret:...} já expandidas (headers e env).
+func (s *Service) openResolved(ctx context.Context, companyID domain.ID, id domain.ID, enc string) (integrationSecrets, error) {
+	sec, err := s.open(id, enc)
+	if err != nil {
+		return sec, err
+	}
+	if sec.Headers, _, err = s.expandMap(ctx, companyID, sec.Headers); err != nil {
+		return sec, err
+	}
+	if sec.Env, _, err = s.expandMap(ctx, companyID, sec.Env); err != nil {
+		return sec, err
+	}
+	return sec, nil
+}
+
+// secretsForRedaction devolve os segredos da integração para mascarar texto livre: os valores guardados e, se as
+// referências resolvem, os valores resolvidos.
+func (s *Service) secretsForRedaction(ctx context.Context, companyID, id domain.ID, enc string) (integrationSecrets, bool) {
+	sec, err := s.open(id, enc)
+	if err != nil {
+		return sec, false
+	}
+	if r, err := s.openResolved(ctx, companyID, id, enc); err == nil {
+		h, e := map[string]string{}, map[string]string{}
+		for k, v := range sec.Headers {
+			h[k] = v
+		}
+		for k, v := range sec.Env {
+			e[k] = v
+		}
+		for k, v := range r.Headers {
+			h["resolved:"+k] = v
+		}
+		for k, v := range r.Env {
+			e["resolved:"+k] = v
+		}
+		sec.Headers, sec.Env = h, e
+	}
+	return sec, true
+}
+
+func (s *Service) expandStringMap(ctx context.Context, companyID domain.ID, m map[string]string) (map[string]string, []string, error) {
+	return s.expandMap(ctx, companyID, m)
 }

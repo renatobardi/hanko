@@ -23,7 +23,7 @@ type BlobsMigrateArgs struct {
 	Batch      int
 }
 
-// Segredos (ADR-0032): hanko secret ...
+// Segredos (ADR-0050): hanko secret ...
 
 func (e *env) secretLine(s api.Secret) []string {
 	used := "-"
@@ -271,7 +271,7 @@ func (e *env) secretCmd() *cobra.Command {
 	return c
 }
 
-// ---------- settings da instância (ADR-0032) ----------
+// ---------- settings da instância (ADR-0050) ----------
 
 func (e *env) settingsCmd() *cobra.Command {
 	c := &cobra.Command{Use: "settings", Short: e.t("Configurações da instalação (dono da instalação); env vence e trava a chave")}
@@ -421,7 +421,7 @@ func dashRaw(b []byte) string {
 	return string(b)
 }
 
-// ---------- blobs (ADR-0033) ----------
+// ---------- blobs (ADR-0051) ----------
 
 func (e *env) blobsCmd() *cobra.Command {
 	c := &cobra.Command{Use: "blobs", Short: e.t("Onde o conteúdo dos artefatos fica guardado (postgres ou s3)")}

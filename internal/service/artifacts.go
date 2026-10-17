@@ -31,7 +31,7 @@ const (
 	DefaultArtifactQuotaBytes int64 = 512 << 20
 	// MaxArtifactMaxBytes é o teto do limite por arquivo que a configuração pode escolher.
 	MaxArtifactMaxBytes int64 = 16 << 20
-	// MaxArtifactMaxBytesBlob é o teto com um driver de blobs externo (s3, ADR-0033).
+	// MaxArtifactMaxBytesBlob é o teto com um driver de blobs externo (s3, ADR-0051).
 	MaxArtifactMaxBytesBlob int64 = 64 << 20
 
 	maxArtifactNameRunes = 200
@@ -42,7 +42,7 @@ const (
 // artifactLimits são o limite efetivo de um arquivo e a cota da empresa.
 func (s *Service) artifactLimits() (maxFile, quota int64) {
 	maxFile, quota = s.ArtifactMaxBytes, s.ArtifactQuotaBytes
-	if s.Settings != nil { // settings da instância: env > banco > configuração (ADR-0032)
+	if s.Settings != nil { // settings da instância: env > banco > configuração (ADR-0050)
 		maxFile, quota = s.Settings.Int(settings.ArtifactsMaxBytes), s.Settings.Int(settings.ArtifactsQuotaBytes)
 	}
 	if maxFile <= 0 {
@@ -65,7 +65,7 @@ func (s *Service) blobs() *storage.Registry {
 	return storage.NewRegistry(storage.NewPostgres(s.Pool))
 }
 
-// deleteBlobsAfterCommit apaga, depois do commit, o conteúdo guardado fora do Postgres (ADR-0033). Falha vira log.
+// deleteBlobsAfterCommit apaga, depois do commit, o conteúdo guardado fora do Postgres (ADR-0051). Falha vira log.
 func (t *txc) deleteBlobsAfterCommit(companyID domain.ID, ids []domain.ID, drivers []string) {
 	s := t.s
 	t.after = append(t.after, func() {

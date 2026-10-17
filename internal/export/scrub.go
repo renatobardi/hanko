@@ -9,7 +9,7 @@ import (
 )
 
 // isSecretRef: um valor que é só uma referência ${secret:NOME} é um nome, não um valor secreto; viaja e aparece em
-// claro (ADR-0032). O valor do segredo nunca está no adapter_config.
+// claro (ADR-0050). O valor do segredo nunca está no adapter_config.
 func isSecretRef(v any) bool {
 	s, ok := v.(string)
 	return ok && secretref.IsRef(s)

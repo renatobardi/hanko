@@ -74,7 +74,7 @@ type Integrations struct {
 	AllowPrivateDestinations bool `yaml:"allow_private_destinations" env:"HANKO_INTEGRATIONS_ALLOW_PRIVATE"`
 }
 
-// Storage configura onde o conteúdo dos artefatos fica (ADR-0033). O driver postgres é o padrão; com s3 as escritas
+// Storage configura onde o conteúdo dos artefatos fica (ADR-0051). O driver postgres é o padrão; com s3 as escritas
 // novas vão para o bucket. Credenciais só por ambiente.
 type Storage struct {
 	Driver string `yaml:"driver" env:"HANKO_BLOB_DRIVER"` // postgres (padrão) | s3
@@ -92,12 +92,25 @@ type S3 struct {
 	SecretKey string `yaml:"-" env:"HANKO_S3_SECRET_KEY"`
 }
 
-// Vault configura o cofre externo de segredos (ADR-0032), API KV v2. O token só por ambiente.
+// Vault configura o cofre externo de segredos (ADR-0050), API KV v2. O token só por ambiente.
 type Vault struct {
 	Addr      string `yaml:"addr" env:"HANKO_VAULT_ADDR"`
 	Mount     string `yaml:"mount" env:"HANKO_VAULT_MOUNT"`
 	Namespace string `yaml:"namespace" env:"HANKO_VAULT_NAMESPACE"`
 	Token     string `yaml:"-" env:"HANKO_VAULT_TOKEN"`
+}
+
+// Environments configura os ambientes de execução remotos (ADR-0037). Os interruptores são do operador da
+// instalação e vêm desligados.
+type Environments struct {
+	// SSHAllowHosts liga o driver SSH só para estes hosts (exatos, sufixos ".exemplo.com" ou "*.exemplo.com",
+	// IPs, redes CIDR, ou "*"). Vazio = SSH desligado.
+	SSHAllowHosts []string `yaml:"ssh_allow_hosts" env:"HANKO_ENV_SSH_ALLOW_HOSTS" envSeparator:","`
+	// Sandbox liga o driver sandbox com o motor dado (só "docker"). Vazio = desligado.
+	Sandbox string `yaml:"sandbox" env:"HANKO_ENV_SANDBOX"`
+	// SandboxHostRoot é, quando o Hanko roda dentro de um contêiner, o caminho no host do docker do
+	// diretório que aqui é HANKO_WORKSPACES_ROOT (os volumes do sandbox usam caminhos do host).
+	SandboxHostRoot string `yaml:"sandbox_host_root" env:"HANKO_ENV_SANDBOX_HOST_ROOT"`
 }
 
 // ACP configura o harness acp (ADR-0023). Quem escreve o adapter_config é o admin de uma empresa, e o comando
@@ -109,6 +122,16 @@ type ACP struct {
 	// Commands restringe Allow a estes executáveis (nome simples, resolvido pelo PATH, ou caminho absoluto).
 	// Vazio = qualquer comando.
 	Commands []string `yaml:"commands" env:"HANKO_ACP_COMMANDS" envSeparator:","`
+}
+
+// Plugins configura os plugins de terceiros (ADR-0038). Desligados até o operador apontar Dir para um diretório
+// local com os plugins; o Hanko nunca baixa plugin.
+type Plugins struct {
+	// Dir é HANKO_PLUGINS_DIR: um subdiretório por plugin, com hanko-plugin.json na raiz.
+	Dir string `yaml:"dir" env:"HANKO_PLUGINS_DIR"`
+	// DataDir é HANKO_PLUGINS_DATA_DIR: onde ficam os diretórios de trabalho (<DataDir>/plugins/<id>); padrão
+	// $HOME/hanko-data.
+	DataDir string `yaml:"data_dir" env:"HANKO_PLUGINS_DATA_DIR"`
 }
 
 // Auth configura a autenticação de humanos (vale no modo authenticated).
@@ -143,6 +166,8 @@ type Config struct {
 	Storage           Storage       `yaml:"storage"`
 	Vault             Vault         `yaml:"vault"`
 	ACP               ACP           `yaml:"acp"`
+	Plugins           Plugins       `yaml:"plugins"`
+	Environments      Environments  `yaml:"environments"`
 	MigrateOnBoot     bool          `yaml:"migrate_on_boot" env:"HANKO_MIGRATE_ON_BOOT"`
 	Memory            Memory        `yaml:"memory"`
 	Auth              Auth          `yaml:"auth"`
@@ -153,6 +178,9 @@ type Config struct {
 	HeartbeatInterval time.Duration `yaml:"heartbeat_interval" env:"HANKO_HEARTBEAT_INTERVAL"`
 	LogLevel          string        `yaml:"log_level" env:"HANKO_LOG_LEVEL"`
 	LogFormat         string        `yaml:"log_format" env:"HANKO_LOG_FORMAT"`
+
+	// SkillSources liga as fontes de skills (o servidor clona repositórios públicos por https, ADR-0035).
+	SkillSources bool `yaml:"skill_sources" env:"HANKO_SKILL_SOURCES"`
 
 	// AgentEnvAllow lista variáveis extras do ambiente do servidor repassadas aos
 	// harnesses (nomes exatos ou prefixos terminados em "*"); HANKO_* nunca passa.
@@ -181,7 +209,7 @@ type Config struct {
 	AlertRunStuckAfter time.Duration `yaml:"alert_run_stuck_after" env:"HANKO_ALERT_RUN_STUCK_AFTER"`
 
 	// EnvSet marca as variáveis HANKO_* definidas no ambiente (valor não vazio). As que equivalem a uma chave de
-	// instance_settings travam essa chave: env vence o banco (ADR-0032). Preenchido por Load.
+	// instance_settings travam essa chave: env vence o banco (ADR-0050). Preenchido por Load.
 	EnvSet map[string]bool `yaml:"-" env:"-"`
 
 	// SecretGenerated indica que Secret foi gerado neste boot (run tokens não
@@ -273,10 +301,11 @@ func environFor(getenv func(string) string) map[string]string {
 		"HANKO_FIREBASE_PROJECT_ID", "HANKO_FIREBASE_API_KEY", "HANKO_FIREBASE_AUTH_DOMAIN",
 		"HANKO_AUTH_OWNER_EMAIL", "HANKO_AUTH_WEB_BOOTSTRAP", "HANKO_TRUSTED_PROXIES",
 		"HANKO_SECRET_KEY", "HANKO_SECRET_KEY_PREVIOUS", "HANKO_INTEGRATIONS_ALLOW_STDIO", "HANKO_INTEGRATIONS_ALLOW_PRIVATE",
-		"HANKO_ACP_ALLOW", "HANKO_ACP_COMMANDS",
+		"HANKO_ACP_ALLOW", "HANKO_ACP_COMMANDS", "HANKO_SKILL_SOURCES",
 		"HANKO_BLOB_DRIVER", "HANKO_S3_ENDPOINT", "HANKO_S3_REGION", "HANKO_S3_BUCKET", "HANKO_S3_PREFIX", "HANKO_S3_PATH_STYLE",
 		"HANKO_S3_ACCESS_KEY", "HANKO_S3_SECRET_KEY",
 		"HANKO_VAULT_ADDR", "HANKO_VAULT_MOUNT", "HANKO_VAULT_NAMESPACE", "HANKO_VAULT_TOKEN",
+		"HANKO_ENV_SSH_ALLOW_HOSTS", "HANKO_ENV_SANDBOX", "HANKO_ENV_SANDBOX_HOST_ROOT",
 	}
 	m := make(map[string]string, len(keys))
 	for _, k := range keys {
@@ -323,10 +352,21 @@ func (c *Config) finalize() error {
 	}
 	c.AgentEnvAllow = cleanList(c.AgentEnvAllow)
 	c.AllowedHosts = cleanList(c.AllowedHosts)
+	c.Environments.SSHAllowHosts = cleanList(c.Environments.SSHAllowHosts)
+	c.Environments.Sandbox = strings.ToLower(strings.TrimSpace(c.Environments.Sandbox))
+	c.Environments.SandboxHostRoot = strings.TrimSpace(c.Environments.SandboxHostRoot)
 	c.WorkspacesRoot = strings.TrimSpace(c.WorkspacesRoot)
 	if c.WorkspacesRoot == "" {
 		if home, err := os.UserHomeDir(); err == nil && home != "" {
 			c.WorkspacesRoot = filepath.Join(home, "hanko-workspaces")
+		}
+	}
+
+	c.Plugins.Dir = strings.TrimSpace(c.Plugins.Dir)
+	c.Plugins.DataDir = strings.TrimSpace(c.Plugins.DataDir)
+	if c.Plugins.Dir != "" && c.Plugins.DataDir == "" {
+		if home, err := os.UserHomeDir(); err == nil && home != "" {
+			c.Plugins.DataDir = filepath.Join(home, "hanko-data")
 		}
 	}
 
@@ -359,7 +399,7 @@ func (c *Config) finalize() error {
 	return nil
 }
 
-// MaxArtifactBytes é o teto do limite por arquivo de artefato para o driver de blobs configurado (ADR-0033).
+// MaxArtifactBytes é o teto do limite por arquivo de artefato para o driver de blobs configurado (ADR-0051).
 func (c Config) MaxArtifactBytes() int64 {
 	if c.Storage.Driver == BlobS3 {
 		return MaxArtifactBytesS3
@@ -391,6 +431,12 @@ func (c Config) Validate() error {
 	}
 	if u, err := url.Parse(c.AgentURL); err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
 		add("HANKO_AGENT_URL %q inválido: use http(s)://host[:porta]", c.AgentURL)
+	}
+	if sb := c.Environments.Sandbox; sb != "" && sb != "docker" {
+		add("HANKO_ENV_SANDBOX %q inválido: use docker (ou deixe vazio para desligar o sandbox)", sb)
+	}
+	if hr := c.Environments.SandboxHostRoot; hr != "" && !filepath.IsAbs(hr) {
+		add("HANKO_ENV_SANDBOX_HOST_ROOT %q inválido: use um caminho absoluto do host do docker", hr)
 	}
 	if c.RunReserveUSD < 0 {
 		add("HANKO_RUN_RESERVE_USD %v inválido: use um valor >= 0 (0 usa o padrão de US$ 1,00)", c.RunReserveUSD)
@@ -452,6 +498,12 @@ func (c Config) Validate() error {
 	}
 	if c.WorkspacesRoot != "" && !filepath.IsAbs(c.WorkspacesRoot) {
 		add("HANKO_WORKSPACES_ROOT %q deve ser um caminho absoluto", c.WorkspacesRoot)
+	}
+	if c.Plugins.Dir != "" && !filepath.IsAbs(c.Plugins.Dir) {
+		add("HANKO_PLUGINS_DIR %q deve ser um caminho absoluto", c.Plugins.Dir)
+	}
+	if c.Plugins.DataDir != "" && !filepath.IsAbs(c.Plugins.DataDir) {
+		add("HANKO_PLUGINS_DATA_DIR %q deve ser um caminho absoluto", c.Plugins.DataDir)
 	}
 	if c.Workers < 1 || c.Workers > 256 {
 		add("HANKO_WORKERS %d inválido: use um valor entre 1 e 256", c.Workers)

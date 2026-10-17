@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 
 	"github.com/renatobardi/hanko/internal/domain"
@@ -17,12 +16,22 @@ type RunExtras struct {
 	Skills   []domain.Skill
 	MCP      map[string]json.RawMessage
 	Warnings []string
+	// SkillTest vem só na run de teste do estúdio (ADR-0035): a skill testada (já em Skills, sozinha) e a entrada.
+	SkillTest *SkillTestSpec
+	// ToolGateway são os slugs das integrações MCP http da run: o executor as aponta para o gateway de tools do
+	// Hanko (/mcp/run/{slug}, com o run token), nunca direto para o servidor (ADR-0036).
+	ToolGateway []string
 }
 
 // RunExtras monta as skills e os servidores MCP da empresa para uma run da persona. É chamado pelo executor
 // (sem identidade de usuário): não aplica papéis. Uma integração ilegível ou desligada pelo operador (stdio)
 // é pulada com aviso, e a run segue.
 func (s *Service) RunExtras(ctx context.Context, companyID, personaID domain.ID) (RunExtras, error) {
+	return s.RunExtrasForProject(ctx, companyID, personaID, nil)
+}
+
+// RunExtrasForProject é RunExtras com o projeto da run, para o perfil de ferramentas do projeto valer (ADR-0036).
+func (s *Service) RunExtrasForProject(ctx context.Context, companyID, personaID domain.ID, projectID *domain.ID) (RunExtras, error) {
 	var ex RunExtras
 	q := s.read()
 
@@ -41,37 +50,39 @@ func (s *Service) RunExtras(ctx context.Context, companyID, personaID domain.ID)
 	if err != nil {
 		return ex, fmt.Errorf("list persona mcp integrations: %w", err)
 	}
+	prof, err := s.runToolProfile(ctx, q, companyID, personaID, projectID)
+	if err != nil {
+		return ex, err
+	}
 	for _, r := range rows {
 		cfg := parseIntegrationConfig(r.Config)
+		if w, skip := toolProfileSkips(prof, r, cfg); skip {
+			ex.Warnings = append(ex.Warnings, w)
+			continue
+		}
 		sec, err := s.open(r.ID, r.SecretEnc)
 		if err != nil {
 			ex.Warnings = append(ex.Warnings, fmt.Sprintf("integração %q ignorada: segredos ilegíveis (%v)", r.Slug, err))
 			continue
 		}
-		hdrs, _, herr := s.expandMap(ctx, companyID, sec.Headers)
-		env, _, eerr := s.expandMap(ctx, companyID, sec.Env)
-		if herr != nil || eerr != nil {
-			// o texto do erro nomeia o segredo que faltou, nunca o valor
-			ex.Warnings = append(ex.Warnings, fmt.Sprintf("integração %q ignorada: %v", r.Slug, errors.Join(herr, eerr)))
+		if cfg.Transport != domain.TransportStdio {
+			ex.ToolGateway = append(ex.ToolGateway, r.Slug) // http: pelo gateway de tools, sem os segredos (ADR-0036)
 			continue
 		}
-		sec.Headers, sec.Env = hdrs, env
-		var entry map[string]any
-		switch cfg.Transport {
-		case domain.TransportStdio:
-			if !s.Integrations.stdioAllowed() {
-				ex.Warnings = append(ex.Warnings, fmt.Sprintf("integração %q ignorada: stdio está desligado neste servidor", r.Slug))
-				continue
-			}
-			entry = map[string]any{"type": "stdio", "command": cfg.Command, "args": nonNilStrings(cfg.Args)}
-			if len(sec.Env) > 0 {
-				entry["env"] = sec.Env
-			}
-		default:
-			entry = map[string]any{"type": "http", "url": cfg.URL}
-			if len(sec.Headers) > 0 {
-				entry["headers"] = sec.Headers
-			}
+		if !s.Integrations.stdioAllowed() {
+			ex.Warnings = append(ex.Warnings, fmt.Sprintf("integração %q ignorada: stdio está desligado neste servidor", r.Slug))
+			continue
+		}
+		env, _, eerr := s.expandMap(ctx, companyID, sec.Env)
+		if eerr != nil {
+			// o texto do erro nomeia o segredo que faltou, nunca o valor
+			ex.Warnings = append(ex.Warnings, fmt.Sprintf("integração %q ignorada: %v", r.Slug, eerr))
+			continue
+		}
+		sec.Env = env
+		entry := map[string]any{"type": "stdio", "command": cfg.Command, "args": nonNilStrings(cfg.Args)}
+		if len(sec.Env) > 0 {
+			entry["env"] = sec.Env
 		}
 		raw, err := json.Marshal(entry)
 		if err != nil {

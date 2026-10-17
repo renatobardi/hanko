@@ -32,7 +32,7 @@ services:
       HANKO_MEMORY_READ_TOOL: ${HANKO_MEMORY_READ_TOOL:-}
       HANKO_ARTIFACT_MAX_BYTES: ${HANKO_ARTIFACT_MAX_BYTES:-}
       HANKO_ARTIFACT_QUOTA_BYTES: ${HANKO_ARTIFACT_QUOTA_BYTES:-}
-      # M7: conteúdo de artefatos (ADR-0033) e cofre externo de segredos (ADR-0032). Tudo opcional; vazio = postgres e sem cofre.
+      # M7: conteúdo de artefatos (ADR-0051) e cofre externo de segredos (ADR-0050). Tudo opcional; vazio = postgres e sem cofre.
       HANKO_BLOB_DRIVER: ${HANKO_BLOB_DRIVER:-}
       HANKO_S3_ENDPOINT: ${HANKO_S3_ENDPOINT:-}
       HANKO_S3_REGION: ${HANKO_S3_REGION:-}

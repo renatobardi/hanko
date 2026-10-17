@@ -19,7 +19,7 @@ import (
 	"github.com/renatobardi/hanko/internal/store"
 )
 
-// Settings da instalação (ADR-0032 §C). São da instância, não de uma empresa: só o dono da instalação lê e muda, e a
+// Settings da instalação (ADR-0050 §C). São da instância, não de uma empresa: só o dono da instalação lê e muda, e a
 // trilha é instance_setting_audit (sem company_id), na mesma transação da mudança. Só chaves do registro
 // (internal/settings); a variável de ambiente da chave, se definida, vence e trava.
 
@@ -205,7 +205,7 @@ func (s *Service) ListInstanceSettingAudit(ctx context.Context, limit int) ([]In
 	return out, nil
 }
 
-// BlobStatus descreve o armazenamento de conteúdo de artefatos (ADR-0033).
+// BlobStatus descreve o armazenamento de conteúdo de artefatos (ADR-0051).
 type BlobStatus struct {
 	Active    string
 	Available []string

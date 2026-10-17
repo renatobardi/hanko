@@ -12,6 +12,9 @@ type SkillRow struct {
 	Version     int
 	Personas    int
 	Updated     string
+	// FromSource/Modified: selos "de fonte" e "modificada" (ADR-0035).
+	FromSource bool
+	Modified   bool
 }
 
 type SkillsVM struct {
@@ -19,6 +22,9 @@ type SkillsVM struct {
 	NewHref  string
 	Notice   string
 	Rows     []SkillRow
+	// Tabs são as abas Biblioteca/Fontes/Estúdio; Filters, Todas/Locais/De fonte (ADR-0035).
+	Tabs    []TabLink
+	Filters []TabLink
 }
 
 // ToggleRow é uma linha com interruptor que liga ou desliga uma coisa para uma persona (ou o inverso).
@@ -51,6 +57,9 @@ type SkillEditorVM struct {
 	FieldErr    map[string]string
 	Preview     HTML
 	Personas    []ToggleRow
+	// Tabs são as abas Visão geral/Versões/Personas; SourceNote avisa que a skill veio de uma fonte (ADR-0035).
+	Tabs       []TabLink
+	SourceNote string
 }
 
 // ---- persona ----

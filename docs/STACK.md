@@ -7,7 +7,7 @@
 > - Adapters em `internal/adapter`: `claude`, `codex`, `acp` (qualquer agente que fale ACP v1 por stdio, ADR-0023) e `fake`. O adapter `http` (webhook) não foi feito.
 > - MCP: servidor `/mcp` (tools `hanko_*`) e proxy `/memory-mcp` para o ai-memory; não há gateway allow/ask/off.
 > - CSS próprio com tokens Kubo (adendo da ADR-0005), sem Tailwind; o JS do Firebase está versionado em `internal/ui/static/`, sem `tools/bundle`.
-> - Segredos (ADR-0032) e BlobStore (ADR-0033) existem: `internal/secretbox`, `secretref`, `vault`, `settings` e `storage` (ver §11). Não existem ainda: `tools/bundle`, embedded-postgres, testcontainers (os testes usam `HANKO_TEST_DATABASE_URL`), `go-i18n`.
+> - Segredos (ADR-0050) e BlobStore (ADR-0051) existem: `internal/secretbox`, `secretref`, `vault`, `settings` e `storage` (ver §11). Não existem ainda: `tools/bundle`, embedded-postgres, testcontainers (os testes usam `HANKO_TEST_DATABASE_URL`), `go-i18n`.
 > - Imagem: `ghcr.io/renatobardi/hanko`.
 
 
@@ -42,8 +42,8 @@ Decisões em `docs/adr/`. Este arquivo é o resumo vigente; ADR vence em conflit
 | Memória | ai-memory **ligado por padrão** (ADR-0015). Personas: MCP+hooks por run, projeto = workspace, sessão = run_id, `finalize-session`. Hanko: MCP client (`go-sdk`) — escreve fatos (task, gate, run, delegação) via `memory_outbox` + river; lê `memory_briefing` + handoff no despacho; busca na UI. Indisponível = degrada, nunca bloqueia | Governança fica no Postgres |
 | LLM SDKs | `anthropic-sdk-go`, `openai-go` | só evals e metadata de custo; core não chama LLM |
 | Auth v0.1 | providers: `local` (default self-host: email/senha argon2id + cookie) e `firebase` (Google + email/senha gerenciados pelo Firebase; servidor valida ID token via JWKS do Google, sem Admin SDK). API keys de agente (SHA-256); run JWT curto (`golang-jwt/v5`) | `HANKO_AUTH_PROVIDER=local|firebase`. hanko.oute.pro usa firebase. Multi-humano v0.2; OIDC v1 (ADR-0007, ADR-0014) |
-| Secrets | AES-256-GCM (`secretbox`) com `HANKO_SECRET_KEY`; segredos da empresa/usuário referenciados por `${secret:NOME}`; cofre externo opcional (KV v2) | resolvidos no despacho, nunca em config (ADR-0032, §11) |
-| Storage | `BlobStore`: Postgres (padrão) ou S3-compatível com SigV4 próprio sobre a stdlib (sem `aws-sdk-go-v2`) | conteúdo dos artefatos (ADR-0033, §11) |
+| Secrets | AES-256-GCM (`secretbox`) com `HANKO_SECRET_KEY`; segredos da empresa/usuário referenciados por `${secret:NOME}`; cofre externo opcional (KV v2) | resolvidos no despacho, nunca em config (ADR-0050, §11) |
+| Storage | `BlobStore`: Postgres (padrão) ou S3-compatível com SigV4 próprio sobre a stdlib (sem `aws-sdk-go-v2`) | conteúdo dos artefatos (ADR-0051, §11) |
 | Config | env `HANKO_*` + `hanko.yaml`; `caarlos0/env/v11` + `yaml.v3` | env sobrescreve yaml |
 | Logs | `log/slog` JSON via `otelslog` (trace_id/span_id automáticos) | request-id, company_id, run_id em todo log |
 | Observabilidade | OpenTelemetry **mandatório**: `otelhttp` (server), `otelpgx` (DB), middleware OTel no river (span por job), span por run nos adapters (`company_id`, `agent_id`, `run_id`), `otelslog` bridge p/ logs, métricas OTel + `/metrics` Prometheus. Exporter OTLP gRPC, default `localhost:4317` | Instrumentação não desliga. Collector ausente = SDK descarta em silêncio, app nunca falha por OTel. Sem Sentry/PostHog (ADR-0013) |
@@ -164,7 +164,7 @@ calcula o diff de texto entre versões, sem dependência nova. Metas (`goals`, `
 no serviço e a UI desenha o histórico em SVG no servidor, sem script. Export/import: `artifacts` opcional (`--with-artifacts`, até
 20 MiB); metas não viajam.
 
-## 11. Segredos, settings da instância e BlobStore (ADR-0032, ADR-0033)
+## 11. Segredos, settings da instância e BlobStore (ADR-0050, ADR-0051)
 **Segredos.** `secrets` (por empresa, escopo `company` ou `user`) guarda o valor cifrado (AES-256-GCM, AAD `secret/<id>`) ou, no provider
 `vault`, só a referência `caminho#campo` de um cofre externo (API KV v2, `HANKO_VAULT_*`). Referência: `${secret:NOME}` (empresa) e
 `${secret:user/NOME}` (só do dono; recusada em configuração compartilhada). Vale em headers/env de integrações MCP e no

@@ -1,0 +1,488 @@
+package views
+
+import (
+	"fmt"
+
+	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/i18n"
+)
+
+// Pipelines (ADR-0034): lista, quadro por etapa, configuração e atividade. Ler é de qualquer membro; mover e criar
+// cases é de member; configurar é de admin.
+
+templ PipelinesPage(sh Shell, vm PipelinesVM) {
+	@Layout(sh) {
+		@PageHead(i18n.T(ctx, "Pipelines"), i18n.T(ctx, "Etapas com aprovação e automação por persona.")) {
+			<a class="btn ghost" href={ templ.SafeURL(sh.Base() + "/revisao") }>
+				@Icon("clipboard-check")
+				{ i18n.T(ctx, "Fila de revisão") }
+			</a>
+		}
+		if vm.Notice != "" {
+			@Alert("warn", vm.Notice)
+		}
+		if len(vm.Rows) == 0 {
+			@EmptyCard("kanban", i18n.T(ctx, "Nenhum pipeline ainda."), i18n.T(ctx, "Um pipeline organiza cases em etapas: trabalho, revisão humana, concluído. Uma persona pode trabalhar cada etapa."), true) {
+			}
+		} else {
+			<div class="table-wrap">
+				<table class="table">
+					<thead>
+						<tr>
+							<th>{ i18n.T(ctx, "Pipeline") }</th>
+							<th class="hide-sm">{ i18n.T(ctx, "Etapas") }</th>
+							<th class="num">{ i18n.T(ctx, "Abertos") }</th>
+							<th class="num">{ i18n.T(ctx, "Na revisão") }</th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, r := range vm.Rows {
+							<tr class="row">
+								<td class="ttl">
+									<a href={ templ.SafeURL(r.Href) }>{ r.Name }</a>
+									<span class="mono faint text-xs">{ r.Key }</span>
+									if r.Archived {
+										<span class="badge soft">{ i18n.T(ctx, "Arquivado") }</span>
+									}
+									if r.Description != "" {
+										<div class="note">{ r.Description }</div>
+									}
+								</td>
+								<td class="hide-sm muted">{ fmt.Sprint(r.Stages) } · { r.StageNames }</td>
+								<td class="num mono">{ fmt.Sprint(r.Open) }</td>
+								<td class="num mono">
+									if r.InReview > 0 {
+										<span class="badge warn">{ fmt.Sprint(r.InReview) }</span>
+									} else {
+										0
+									}
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+		<p class="mt-3 text-sm"><a href={ templ.SafeURL(vm.ArchivedHref) }>
+			if vm.ShowArchived {
+				{ i18n.T(ctx, "Esconder os arquivados") }
+			} else {
+				{ i18n.T(ctx, "Mostrar os arquivados") }
+			}
+		</a></p>
+		<h2 class="sec-h">{ i18n.T(ctx, "Novo pipeline") }</h2>
+		if sh.CanAdmin() {
+			@PipelineForm(vm.Form)
+		} else {
+			@NeedRole(domain.MemberAdmin)
+		}
+	}
+}
+
+templ PipelineForm(f PipelineFormVM) {
+	<form class="card pad form-card" method="post" action={ templ.SafeURL(f.Action) }>
+		if f.Error != "" {
+			@Alert("danger", f.Error)
+		}
+		<div class="form-grid">
+			<div class="field">
+				<label for="pl-name">{ i18n.T(ctx, "Nome") }</label>
+				<input class="input" id="pl-name" name="name" value={ f.Name } required maxlength="120" placeholder={ i18n.T(ctx, "Ex.: Vendas") }/>
+			</div>
+			<div class="field">
+				<label for="pl-key">{ i18n.T(ctx, "Key (opcional)") }</label>
+				<input class="input mono" id="pl-key" name="key" value={ f.Key } maxlength="63" placeholder="vendas"/>
+			</div>
+		</div>
+		<div class="field">
+			<label for="pl-desc">{ i18n.T(ctx, "Descrição") }</label>
+			<textarea class="textarea" id="pl-desc" name="description" rows="2">{ f.Description }</textarea>
+		</div>
+		<div class="field">
+			<label for="pl-stages">{ i18n.T(ctx, "Etapas, uma por linha: Nome | tipo") }</label>
+			<textarea class="textarea mono" id="pl-stages" name="stages" rows="5">{ f.Stages }</textarea>
+			<span class="hint">{ i18n.T(ctx, "Tipos: working (trabalho), review (revisão humana), done (concluído), cancelled (cancelado). Uma etapa review volta, aprova ou recusa: configure os destinos depois.") }</span>
+		</div>
+		<div class="form-actions">
+			<button class="btn primary" type="submit">{ i18n.T(ctx, "Criar pipeline") }</button>
+		</div>
+	</form>
+}
+
+templ PipelinePage(sh Shell, vm PipelineVM) {
+	@Layout(sh) {
+		@PageHead(vm.Name, vm.Description) {
+			if vm.Archived {
+				<span class="badge soft">{ i18n.T(ctx, "Arquivado") }</span>
+			}
+			if vm.Strict {
+				<span class="badge">{ i18n.T(ctx, "Modo estrito") }</span>
+			}
+			<a class="btn ghost" href={ templ.SafeURL(vm.ReviewHref) }>
+				@Icon("clipboard-check")
+				{ i18n.T(ctx, "Fila de revisão") }
+			</a>
+		}
+		if vm.Notice != "" {
+			@Alert("warn", vm.Notice)
+		}
+		if vm.Error != "" {
+			@Alert("danger", vm.Error)
+		}
+		<div class="toolbar">
+			@Tabs(vm.Tabs)
+		</div>
+		switch vm.Tab {
+			case "config":
+				@pipelineConfig(sh, vm)
+			case "atividade":
+				@pipelineActivity(vm)
+			default:
+				@pipelineBoard(vm)
+		}
+	}
+}
+
+templ pipelineBoard(vm PipelineVM) {
+	<div class="board pl-board" role="list" data-case-board>
+		for _, c := range vm.Columns {
+			<section class={ "board-col", "pl-col", "kind-" + c.Kind, templ.KV("pl-off", c.Disabled) } role="listitem" aria-label={ c.Name } data-stage={ c.Key }>
+				<header class="board-h">
+					<span>{ c.Name }</span>
+					<span class="cnt" data-count>{ fmt.Sprint(c.Count) }</span>
+				</header>
+				<div class="pl-col-meta">
+					<span class="badge soft">{ c.KindLabel }</span>
+					if c.Approval {
+						<span class="badge warn" title={ i18n.T(ctx, "sair exige o aprovador") }>{ i18n.T(ctx, "aprovação") }</span>
+					}
+					if c.Automation != "" {
+						<span class="chip" title={ i18n.T(ctx, "automação") }>@PersonaGlyph(c.Automation)<span>{ c.Automation }</span></span>
+					}
+					if c.Disabled {
+						<span class="badge danger" title={ c.DisabledReason }>{ i18n.T(ctx, "desligada") }</span>
+					}
+				</div>
+				<p class={ "board-empty", templ.KV("hidden", len(c.Cards) > 0) }>{ i18n.T(ctx, "Nada aqui.") }</p>
+				for _, k := range c.Cards {
+					<a class="board-card" href={ templ.SafeURL(k.Href) } draggable={ boolAttr(canWrite(ctx)) } data-case={ k.Identifier } data-move={ k.MoveAction } data-version={ fmt.Sprint(k.Version) }>
+						<span class="bc-top"><span class="id mono">{ k.Identifier }</span>
+							for _, b := range k.Badges {
+								@BadgeEl(b)
+							}
+						</span>
+						<span class="bc-t">{ k.Title }</span>
+						<span class="bc-foot">
+							<span class="who none">{ k.Type }</span>
+							<span class="when">{ k.Updated }</span>
+						</span>
+					</a>
+				}
+			</section>
+		}
+	</div>
+	<p class="muted text-xs mt-2">{ i18n.T(ctx, "Arraste um case para outra etapa; as regras de aprovação, bloqueios e modo estrito valem igual. Sem arrastar, mova pela página do case.") }</p>
+	<h2 class="sec-h">{ i18n.T(ctx, "Novo item") }</h2>
+	if vm.Archived {
+		<p class="muted">{ i18n.T(ctx, "Pipeline arquivado: não recebe cases novos.") }</p>
+	} else if canWrite(ctx) {
+		@CaseAddForm(vm.Add)
+	} else {
+		@NeedRole(domain.MemberMember)
+	}
+}
+
+templ CaseAddForm(f CaseAddFormVM) {
+	<form class="card pad form-card" method="post" action={ templ.SafeURL(f.Action) }>
+		if f.Error != "" {
+			@Alert("danger", f.Error)
+		}
+		<p class="muted text-sm m-0">{ i18n.Tf(ctx, "Entra na etapa %s.", f.StageName) }</p>
+		<div class="field">
+			<label for="ca-title">{ i18n.T(ctx, "Título") }</label>
+			<input class="input" id="ca-title" name="title" value={ f.Title } required maxlength="300"/>
+		</div>
+		<div class="form-grid">
+			for _, fi := range f.Fields {
+				@fieldInput(fi)
+			}
+		</div>
+		<div class="form-actions">
+			<button class="btn primary" type="submit">{ i18n.T(ctx, "Criar case") }</button>
+		</div>
+	</form>
+}
+
+templ fieldInput(fi FieldInput) {
+	<div class="field">
+		<label for={ "fld-" + fi.Key }>
+			{ fi.Label }
+			if fi.Required {
+				<span class="danger-text">*</span>
+			}
+		</label>
+		switch fi.Type {
+			case "multiline":
+				<textarea class="textarea" id={ "fld-" + fi.Key } name={ "f." + fi.Key } rows="3">{ fi.Value }</textarea>
+			case "select":
+				@Select("f."+fi.Key, "fld-"+fi.Key, fi.Options, false)
+			case "number":
+				<input class="input mono" id={ "fld-" + fi.Key } name={ "f." + fi.Key } value={ fi.Value } inputmode="decimal"/>
+			case "date":
+				<input class="input" type="date" id={ "fld-" + fi.Key } name={ "f." + fi.Key } value={ fi.Value }/>
+			case "url":
+				<input class="input" type="url" id={ "fld-" + fi.Key } name={ "f." + fi.Key } value={ fi.Value } placeholder="https://"/>
+			default:
+				<input class="input" id={ "fld-" + fi.Key } name={ "f." + fi.Key } value={ fi.Value }/>
+		}
+	</div>
+}
+
+templ pipelineConfig(sh Shell, vm PipelineVM) {
+	if !sh.CanAdmin() {
+		<p class="mb-3">@NeedRole(domain.MemberAdmin)</p>
+	}
+	<fieldset class="props-fs" disabled?={ !sh.CanAdmin() }>
+		<section class="card pad">
+			<div class="card-head"><h2>{ i18n.T(ctx, "Pipeline") }</h2></div>
+			<form method="post" action={ templ.SafeURL(vm.MetaAction) }>
+				<div class="form-grid">
+					<div class="field">
+						<label for="pm-name">{ i18n.T(ctx, "Nome") }</label>
+						<input class="input" id="pm-name" name="name" value={ vm.Name } required maxlength="120"/>
+					</div>
+					<div class="field">
+						<label for="pm-key">Key</label>
+						<input class="input mono" id="pm-key" name="key" value={ vm.Key } required maxlength="63"/>
+					</div>
+				</div>
+				<div class="field">
+					<label for="pm-desc">{ i18n.T(ctx, "Descrição") }</label>
+					<textarea class="textarea" id="pm-desc" name="description" rows="2">{ vm.Description }</textarea>
+				</div>
+				<div class="form-actions">
+					<button class="btn outline" type="submit">{ i18n.T(ctx, "Salvar") }</button>
+				</div>
+			</form>
+		</section>
+		<h2 class="sec-h">{ i18n.T(ctx, "Etapas") }</h2>
+		for _, st := range vm.Stages {
+			@stageEditor(st)
+		}
+		<details class="card pad mt-3">
+			<summary><b>{ i18n.T(ctx, "Acrescentar etapa") }</b></summary>
+			@stageForm(vm.NewStage, true)
+		</details>
+		<h2 class="sec-h">{ i18n.T(ctx, "Transições") }</h2>
+		<form class="card pad" method="post" action={ templ.SafeURL(vm.Transitions.Action) }>
+			<p class="muted text-sm m-0">{ i18n.T(ctx, "Marque de qual etapa (linha) para qual (coluna) um case pode ir. No modo estrito, fora das marcadas só com motivo, por um membro humano; fora do modo estrito, as marcas são só referência.") }</p>
+			<div class="table-wrap mt-3">
+				<table class="table pl-matrix">
+					<thead>
+						<tr>
+							<th>{ i18n.T(ctx, "de \\ para") }</th>
+							for _, n := range vm.Transitions.Names {
+								<th>{ n }</th>
+							}
+						</tr>
+					</thead>
+					<tbody>
+						for _, row := range vm.Transitions.Rows {
+							<tr>
+								<th>{ row.Name }</th>
+								for _, c := range row.Cells {
+									<td class="ta-c">
+										if c.Self {
+											<span class="faint">—</span>
+										} else {
+											<input type="checkbox" name="edge" value={ c.Value } checked?={ c.On } aria-label={ c.Value }/>
+										}
+									</td>
+								}
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+			<label class="check-line mt-3"><input type="checkbox" name="strict" value="1" checked?={ vm.Transitions.Strict }/> { i18n.T(ctx, "Modo estrito") }</label>
+			<div class="form-actions">
+				<button class="btn outline" type="submit">{ i18n.T(ctx, "Salvar transições") }</button>
+			</div>
+		</form>
+		<h2 class="sec-h">{ i18n.T(ctx, "Arquivar e excluir") }</h2>
+		<div class="card pad row-between">
+			<form method="post" action={ templ.SafeURL(vm.ArchiveAction) }>
+				if vm.Archived {
+					<button class="btn outline" type="submit">{ i18n.T(ctx, "Reativar pipeline") }</button>
+				} else {
+					<button class="btn outline" type="submit">{ i18n.T(ctx, "Arquivar pipeline") }</button>
+				}
+			</form>
+			if vm.TotalCases == 0 {
+				<form method="post" action={ templ.SafeURL(vm.DeleteAction) }>
+					<button class="btn ghost danger-text" type="submit">{ i18n.T(ctx, "Excluir pipeline") }</button>
+				</form>
+			} else {
+				<span class="muted text-sm">{ i18n.T(ctx, "Com cases, o pipeline só pode ser arquivado.") }</span>
+			}
+		</div>
+	</fieldset>
+}
+
+templ stageEditor(st StageEditVM) {
+	<details class="card pad mt-3 pl-stage">
+		<summary class="row-between">
+			<span><b>{ st.Name }</b> <span class="mono faint text-xs">{ st.Key }</span> <span class="badge soft">{ st.Kind }</span> <span class="muted text-sm">{ st.Summary }</span></span>
+			<span class="row-acts">
+				if !st.First {
+					<button class="icon-btn" type="submit" form={ "up-" + st.Key } title={ i18n.T(ctx, "Subir") } aria-label={ i18n.T(ctx, "Subir") }>↑</button>
+				}
+				if !st.Last {
+					<button class="icon-btn" type="submit" form={ "down-" + st.Key } title={ i18n.T(ctx, "Descer") } aria-label={ i18n.T(ctx, "Descer") }>↓</button>
+				}
+			</span>
+		</summary>
+		@stageForm(st, false)
+		<form method="post" action={ templ.SafeURL(st.DeleteAction) } class="mt-3">
+			<button class="btn ghost sm danger-text" type="submit">{ i18n.T(ctx, "Remover etapa") }</button>
+		</form>
+	</details>
+	if !st.First {
+		<form id={ "up-" + st.Key } method="post" action={ templ.SafeURL(st.UpAction) } class="hidden"></form>
+	}
+	if !st.Last {
+		<form id={ "down-" + st.Key } method="post" action={ templ.SafeURL(st.DownAction) } class="hidden"></form>
+	}
+}
+
+templ stageForm(st StageEditVM, isNew bool) {
+	<form method="post" action={ templ.SafeURL(st.Action) } class="mt-3">
+		<div class="form-grid">
+			<div class="field">
+				<label>{ i18n.T(ctx, "Nome") }</label>
+				<input class="input" name="name" value={ st.Name } required maxlength="120"/>
+			</div>
+			<div class="field">
+				<label>Key</label>
+				<input class="input mono" name="key" value={ st.Key } maxlength="63"/>
+			</div>
+			<div class="field">
+				<label>{ i18n.T(ctx, "Tipo") }</label>
+				@Select("kind", "", st.KindOptions, false)
+			</div>
+		</div>
+		<div class="field">
+			<label>{ i18n.T(ctx, "O que acontece aqui") }</label>
+			<textarea class="textarea" name="what_happens_here" rows="2" maxlength="4096">{ st.WhatHappensHere }</textarea>
+		</div>
+		if !isNew {
+			<div class="field">
+				<label>{ i18n.T(ctx, "Campos, um por linha: key | Rótulo | tipo | opções | obrigatorio, formulario") }</label>
+				<textarea class="textarea mono" name="fields" rows="3">{ st.FieldsText }</textarea>
+				<span class="hint">{ i18n.T(ctx, "Tipos: text, multiline, select, number, date, url. Opções separadas por vírgula (só select). \"formulario\" põe o campo no Novo item da primeira etapa.") }</span>
+			</div>
+			<div class="form-grid">
+				<div class="field">
+					<label class="check-line"><input type="checkbox" name="approval" value="1" checked?={ st.ApprovalRequired }/> { i18n.T(ctx, "Sair exige aprovação") }</label>
+					@Select("approver", "", st.ApproverOptions, false)
+				</div>
+				<div class="field">
+					<label>{ i18n.T(ctx, "Automação (persona)") }</label>
+					@Select("automation_persona", "", st.AutomationOptions, false)
+				</div>
+				<div class="field">
+					<label>{ i18n.T(ctx, "Prioridade da task") }</label>
+					@Select("automation_priority", "", st.PriorityOptions, false)
+				</div>
+			</div>
+			<div class="field">
+				<label>{ i18n.T(ctx, "Instruções para a persona (markdown, até 8 KiB)") }</label>
+				<textarea class="textarea" name="automation_instructions" rows="3" maxlength="8192">{ st.Instructions }</textarea>
+			</div>
+			if st.Kind == "review" {
+				<div class="form-grid">
+					<div class="field">
+						<label>{ i18n.T(ctx, "Aprovar move para") }</label>
+						@Select("approve_to", "", st.ApproveToOptions, false)
+					</div>
+					<div class="field">
+						<label>{ i18n.T(ctx, "Recusar move para") }</label>
+						@Select("reject_to", "", st.RejectToOptions, false)
+					</div>
+					<div class="field">
+						<label>{ i18n.T(ctx, "Pedir mudanças volta para") }</label>
+						@Select("request_changes_to", "", st.ChangesToOptions, false)
+					</div>
+				</div>
+				<label class="check-line"><input type="checkbox" name="require_reject_reason" value="1" checked?={ st.RequireRejectReason }/> { i18n.T(ctx, "Recusar exige motivo") }</label>
+				<label class="check-line"><input type="checkbox" name="require_changes_reason" value="1" checked?={ st.RequireChangesReason }/> { i18n.T(ctx, "Pedir mudanças exige motivo") }</label>
+			}
+			<label class="check-line"><input type="checkbox" name="children_terminal" value="1" checked?={ st.ChildrenTerminal }/> { i18n.T(ctx, "Só sai quando os cases filhos terminaram") }</label>
+			<div class="form-grid">
+				<label class="check-line"><input type="checkbox" name="disabled" value="1" checked?={ st.Disabled }/> { i18n.T(ctx, "Etapa desligada") }</label>
+				<input class="input" name="disabled_reason" value={ st.DisabledReason } maxlength="200" placeholder={ i18n.T(ctx, "motivo (aparece para quem tentar mover)") }/>
+			</div>
+		}
+		<div class="form-actions">
+			if isNew {
+				<button class="btn outline" type="submit">{ i18n.T(ctx, "Acrescentar etapa") }</button>
+			} else {
+				<button class="btn outline" type="submit">{ i18n.T(ctx, "Salvar etapa") }</button>
+			}
+		</div>
+	</form>
+}
+
+templ pipelineActivity(vm PipelineVM) {
+	if len(vm.Events) == 0 {
+		@EmptyCard("clock", i18n.T(ctx, "Nada aconteceu neste pipeline ainda."), "", false) {
+		}
+	} else {
+		<div class="card">
+			@CaseEventList(vm.Events)
+		</div>
+	}
+}
+
+templ CaseEventList(evs []CaseEventRow) {
+	<ul class="pl-feed">
+		for _, e := range evs {
+			<li>
+				<span class="mini-avatar">@Icon(e.Icon)</span>
+				<div class="grow">
+					<div>
+						if e.CaseIdentifier != "" {
+							<a class="mono" href={ templ.SafeURL(e.CaseHref) }>{ e.CaseIdentifier }</a>
+						}
+						{ e.Text }
+						<span class="faint text-xs"> · { e.Actor } · { e.When }</span>
+					</div>
+					if e.Reason != "" {
+						<blockquote class="gate-note">{ e.Reason }</blockquote>
+					}
+					if e.Example != nil {
+						@SaveExampleForm(*e.Example)
+					}
+				</div>
+			</li>
+		}
+	</ul>
+}
+
+// SaveExampleForm é o "Salvar como exemplo" de uma decisão (na página do gate e no histórico do case).
+templ SaveExampleForm(f ExampleFormVM) {
+	if f.Saved {
+		<p class="text-xs muted mt-1">@Icon("graduation-cap")<span>{ i18n.T(ctx, "Salvo como exemplo de decisão.") }</span> <a href={ templ.SafeURL(f.SavedHref) }>{ i18n.T(ctx, "Ver exemplos") }</a></p>
+	} else if canWrite(ctx) {
+		<details class="mt-1 pl-example">
+			<summary class="text-xs">@Icon("graduation-cap")<span>{ i18n.T(ctx, "Salvar como exemplo") }</span></summary>
+			<form method="post" action={ templ.SafeURL(f.Action) } class="mt-2">
+				<input type="hidden" name="source_kind" value={ f.SourceKind }/>
+				<input type="hidden" name="source_id" value={ f.SourceID }/>
+				<input type="hidden" name="next" value={ f.Next }/>
+				<textarea class="textarea" name="notes" rows="2" maxlength="16384" placeholder={ i18n.T(ctx, "O que esta decisão ensina (por que foi assim)") }></textarea>
+				<button class="btn outline sm mt-2" type="submit">{ i18n.T(ctx, "Salvar exemplo") }</button>
+			</form>
+		</details>
+	}
+}

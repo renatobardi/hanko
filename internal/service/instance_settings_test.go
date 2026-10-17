@@ -15,7 +15,7 @@ import (
 	"github.com/renatobardi/hanko/internal/settings"
 )
 
-// Settings da instância (ADR-0032 §C): env > banco > padrão, com trilha de auditoria.
+// Settings da instância (ADR-0050 §C): env > banco > padrão, com trilha de auditoria.
 
 func newSettingsEnv(t *testing.T, envSet ...string) *env {
 	t.Helper()

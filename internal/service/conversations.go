@@ -38,6 +38,8 @@ type ConversationView struct {
 	PendingMessages int `json:"pending_messages"`
 	// CostUSD soma o custo das runs da conversa.
 	CostUSD float64 `json:"cost_usd"`
+	// Room é a configuração e os participantes de uma sala (ADR-0033); nil no chat direto.
+	Room *RoomView `json:"room,omitempty"`
 }
 
 // ConversationFilter filtra a listagem de conversas.
@@ -45,7 +47,9 @@ type ConversationFilter struct {
 	PersonaID *domain.ID
 	// Status vazio = todas.
 	Status domain.ConversationStatus
-	Limit  int // default 50, máx 200
+	// Kind vazio = chat direto e salas; numa sala, PersonaID filtra por participante ativo (ADR-0033).
+	Kind  domain.ConversationKind
+	Limit int // default 50, máx 200
 }
 
 // CreateConversationInput abre uma conversa. Title vazio deriva da primeira mensagem.
@@ -65,23 +69,25 @@ type ChatContext struct {
 	// ResumeSession é a sessão do harness da run anterior da conversa, quando há uma terminada com
 	// sucesso no mesmo harness; o executor a usa só se o adapter souber retomar.
 	ResumeSession string
+	// Room é o contexto de uma run de sala (participantes, modo, salto); nil no chat direto (ADR-0033).
+	Room *RoomContext
 }
 
 func conversationFromRow(r store.Conversation) domain.Conversation {
-	return domain.Conversation{ID: r.ID, CompanyID: r.CompanyID, PersonaID: r.PersonaID, Title: r.Title,
+	return domain.Conversation{ID: r.ID, CompanyID: r.CompanyID, PersonaID: idOrZero(r.PersonaID), Kind: domain.ConversationKind(r.Kind), Title: r.Title,
 		Status: domain.ConversationStatus(r.Status), CreatedBy: actorOf(r.CreatedByType, r.CreatedByID),
 		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, LastMessageAt: r.LastMessageAt}
 }
 
 func conversationView(c store.Conversation, personaName, personaSlug string, active *domain.ID, pending int64, cost float64) ConversationView {
 	return ConversationView{Conversation: conversationFromRow(c), PersonaName: personaName, PersonaSlug: personaSlug,
-		ActiveRunID: active, PendingMessages: int(pending), CostUSD: cost}
+		ActiveRunID: active, PendingMessages: int(pending), CostUSD: cost, Room: roomViewOf(c)}
 }
 
 func messageFromRow(r store.ConversationMessage) domain.ConversationMessage {
 	return domain.ConversationMessage{ID: r.ID, CompanyID: r.CompanyID, ConversationID: r.ConversationID,
 		Author: actorOf(r.AuthorType, r.AuthorID), Kind: domain.MessageAuthor(r.AuthorType), Body: r.Body,
-		RunID: r.RunID, CreatedAt: r.CreatedAt}
+		RunID: r.RunID, CreatedAt: r.CreatedAt, PersonaID: r.PersonaID, ReplyToID: r.ReplyToID, Mentions: r.Mentions}
 }
 
 func loadConversationView(ctx context.Context, q *store.Queries, companyID, id domain.ID) (ConversationView, error) {
@@ -89,7 +95,11 @@ func loadConversationView(ctx context.Context, q *store.Queries, companyID, id d
 	if err != nil {
 		return ConversationView{}, mapErr(err, "get conversation")
 	}
-	return conversationView(r.Conversation, r.PersonaName, r.PersonaSlug, r.ActiveRunID, r.PendingMessages, r.CostUsd), nil
+	v := conversationView(r.Conversation, r.PersonaName, r.PersonaSlug, r.ActiveRunID, r.PendingMessages, r.CostUsd)
+	if err := attachRooms(ctx, q, companyID, []*ConversationView{&v}); err != nil {
+		return ConversationView{}, err
+	}
+	return v, nil
 }
 
 // ---------- leitura ----------
@@ -108,13 +118,26 @@ func (s *Service) ListConversations(ctx context.Context, companyID domain.ID, f 
 		st := string(f.Status)
 		p.Status = &st
 	}
-	rows, err := s.read().ListConversationViews(ctx, p)
+	if f.Kind != "" {
+		if !f.Kind.Valid() {
+			return nil, domain.Invalid("kind", fmt.Sprintf("unknown conversation kind %q", f.Kind))
+		}
+		k := string(f.Kind)
+		p.Kind = &k
+	}
+	q := s.read()
+	rows, err := q.ListConversationViews(ctx, p)
 	if err != nil {
 		return nil, fmt.Errorf("list conversations: %w", err)
 	}
 	out := make([]ConversationView, len(rows))
+	ptrs := make([]*ConversationView, len(rows))
 	for i, r := range rows {
 		out[i] = conversationView(r.Conversation, r.PersonaName, r.PersonaSlug, r.ActiveRunID, r.PendingMessages, r.CostUsd)
+		ptrs[i] = &out[i]
+	}
+	if err := attachRooms(ctx, q, companyID, ptrs); err != nil {
+		return nil, err
 	}
 	return out, nil
 }
@@ -133,7 +156,8 @@ func (s *Service) ListConversationMessages(ctx context.Context, companyID, id do
 		return nil, err
 	}
 	q := s.read()
-	if _, err := q.GetConversation(ctx, store.GetConversationParams{CompanyID: companyID, ID: id}); err != nil {
+	conv, err := q.GetConversation(ctx, store.GetConversationParams{CompanyID: companyID, ID: id})
+	if err != nil {
 		return nil, mapErr(err, "get conversation")
 	}
 	rows, err := q.ListConversationMessages(ctx, store.ListConversationMessagesParams{CompanyID: companyID, ConversationID: id,
@@ -144,6 +168,11 @@ func (s *Service) ListConversationMessages(ctx context.Context, companyID, id do
 	out := make([]domain.ConversationMessage, len(rows))
 	for i, r := range rows {
 		out[i] = messageFromRow(r)
+	}
+	if domain.ConversationKind(conv.Kind) == domain.ConversationRoom {
+		if err := attachRoomMessageInfo(ctx, q, companyID, conv.ID, out); err != nil {
+			return nil, err
+		}
 	}
 	return out, nil
 }
@@ -205,7 +234,7 @@ func (s *Service) CreateConversation(ctx context.Context, actor domain.Actor, co
 			return mapErr(err, "get persona")
 		}
 		conv, err := t.q.CreateConversation(ctx, store.CreateConversationParams{ID: domain.NewID(), CompanyID: companyID,
-			PersonaID: p.ID, Title: title, CreatedByType: string(actor.Type), CreatedByID: actor.ID, Now: t.now})
+			PersonaID: &p.ID, Title: title, CreatedByType: string(actor.Type), CreatedByID: actor.ID, Now: t.now})
 		if err != nil {
 			return mapErr(err, "create conversation")
 		}
@@ -225,7 +254,7 @@ func (s *Service) CreateConversation(ctx context.Context, actor domain.Actor, co
 			run = &r
 		}
 		if err := t.activity(actor, companyID, "conversation.created", "conversation", conv.ID,
-			map[string]any{"persona_id": p.ID, "title": title}, ""); err != nil {
+			map[string]any{"persona_id": p.ID, "title": title, "kind": domain.ConversationDirect}, ""); err != nil {
 			return err
 		}
 		if run != nil {
@@ -272,6 +301,15 @@ func (s *Service) SendMessage(ctx context.Context, actor domain.Actor, companyID
 		if domain.ConversationStatus(conv.Status) != domain.ConversationOpen {
 			return domain.Invalid("conversation", "a conversa está arquivada; reabra para continuar")
 		}
+		if domain.ConversationKind(conv.Kind) == domain.ConversationRoom {
+			// sala (ADR-0033): várias personas, cada uma com a sua run e a sua fila
+			m, berr, err := t.sendRoomMessage(conv, actor, body)
+			if err != nil {
+				return err
+			}
+			blocked, out = berr, m
+			return nil
+		}
 		m, berr, err := t.sendChatMessage(conv, actor, body)
 		if err != nil {
 			return err
@@ -314,7 +352,7 @@ func (s *Service) SetConversationStatus(ctx context.Context, actor domain.Actor,
 			if status == domain.ConversationOpen {
 				verb = "conversation.reopened"
 			}
-			if err := t.activity(actor, companyID, verb, "conversation", id, map[string]any{"persona_id": cur.PersonaID}, ""); err != nil {
+			if err := t.activity(actor, companyID, verb, "conversation", id, map[string]any{"persona_id": cur.PersonaID, "kind": cur.Kind}, ""); err != nil {
 				return err
 			}
 		}
@@ -365,7 +403,7 @@ func (t *txc) storeChatMessage(conv store.Conversation, actor domain.Actor, body
 		return msg, fmt.Errorf("touch conversation: %w", err)
 	}
 	if err := t.activity(actor, conv.CompanyID, "conversation.message", "conversation", conv.ID,
-		map[string]any{"message_id": msg.ID, "persona_id": conv.PersonaID, "queued": run == nil}, ""); err != nil {
+		map[string]any{"message_id": msg.ID, "persona_id": conv.PersonaID, "queued": run == nil, "kind": domain.ConversationDirect}, ""); err != nil {
 		return msg, err
 	}
 	if run != nil {
@@ -412,7 +450,13 @@ func chatBlockReason(p store.Persona) string {
 // queued run of the conversation. It claims no messages and enqueues nothing (launchChatRun). A refusal comes
 // back as blocked (the transaction still commits its side effects); err is an unexpected failure.
 func (t *txc) openChatRun(conv store.Conversation) (run store.Run, blocked, err error) {
-	p, err := t.q.GetPersonaByID(t.ctx, store.GetPersonaByIDParams{CompanyID: conv.CompanyID, ID: conv.PersonaID})
+	return t.openPersonaRun(conv, idOrZero(conv.PersonaID))
+}
+
+// openPersonaRun is openChatRun for a given persona of the conversation (the one of a direct chat, or a
+// participant of a room, ADR-0033).
+func (t *txc) openPersonaRun(conv store.Conversation, personaID domain.ID) (run store.Run, blocked, err error) {
+	p, err := t.q.GetPersonaByID(t.ctx, store.GetPersonaByIDParams{CompanyID: conv.CompanyID, ID: personaID})
 	if err != nil {
 		return run, nil, mapErr(err, "get persona")
 	}
@@ -500,6 +544,9 @@ func (t *txc) chatRunEnded(run store.Run, status domain.RunStatus, summary, errM
 	if err != nil {
 		return mapErr(err, "get conversation")
 	}
+	if domain.ConversationKind(conv.Kind) == domain.ConversationRoom {
+		return t.roomRunEnded(conv, run, status, summary, errMsg)
+	}
 	reply := status == domain.RunDone && strings.TrimSpace(summary) != ""
 	body, kind, author := strings.TrimSpace(summary), domain.MessagePersona, &run.PersonaID
 	if reply {
@@ -512,7 +559,7 @@ func (t *txc) chatRunEnded(run store.Run, status domain.RunStatus, summary, errM
 	}
 	if reply {
 		if err := t.activity(domain.PersonaActor(run.PersonaID), run.CompanyID, "conversation.replied", "conversation", conv.ID,
-			map[string]any{"run_id": run.ID}, ""); err != nil {
+			map[string]any{"run_id": run.ID, "kind": domain.ConversationDirect}, ""); err != nil {
 			return err
 		}
 	}
@@ -559,6 +606,9 @@ func loadChatContext(ctx context.Context, q *store.Queries, run domain.Run, pers
 	conv, err := q.GetConversation(ctx, store.GetConversationParams{CompanyID: run.CompanyID, ID: *run.ConversationID})
 	if err != nil {
 		return nil, mapErr(err, "get conversation")
+	}
+	if domain.ConversationKind(conv.Kind) == domain.ConversationRoom {
+		return loadRoomContext(ctx, q, conv, run, persona)
 	}
 	rows, err := q.ListConversationMessages(ctx, store.ListConversationMessagesParams{CompanyID: run.CompanyID,
 		ConversationID: conv.ID, Lim: chatContextMessages})

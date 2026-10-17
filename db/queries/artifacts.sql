@@ -47,7 +47,7 @@ WHERE company_id = @company_id
 ORDER BY version DESC;
 
 -- name: DeleteArtifactChain :many
--- Devolve id e driver de cada versão apagada: o conteúdo fora do Postgres é apagado depois do commit (ADR-0033).
+-- Devolve id e driver de cada versão apagada: o conteúdo fora do Postgres é apagado depois do commit (ADR-0051).
 DELETE FROM artifacts
 WHERE company_id = @company_id
   AND COALESCE(task_id, '00000000-0000-0000-0000-000000000000'::uuid) = COALESCE(sqlc.narg(task_id)::uuid, '00000000-0000-0000-0000-000000000000'::uuid)
@@ -118,7 +118,7 @@ WHERE a.company_id = @company_id
 ORDER BY a.created_at, a.version, a.id;
 
 -- name: ListArtifactsForBlobMigration :many
--- Versões guardadas em um driver, em ordem estável, para o comando de migração entre drivers (ADR-0033).
+-- Versões guardadas em um driver, em ordem estável, para o comando de migração entre drivers (ADR-0051).
 SELECT id, company_id, size_bytes, sha256, mime, storage FROM artifacts
 WHERE storage = @storage
   AND (sqlc.narg(company_id)::uuid IS NULL OR company_id = sqlc.narg(company_id)::uuid)

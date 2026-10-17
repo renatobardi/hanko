@@ -89,7 +89,7 @@ var (
 	// reservedIntegrationSlugs são as chaves do mcpServers que o Hanko usa para si.
 	reservedIntegrationSlugs = []string{"hanko", "ai-memory", "memory"}
 	// reservedUISlugs são segmentos fixos das rotas da UI que um slug de skill ou integração não pode ocupar.
-	reservedUISlugs = []string{"nova", "preview"}
+	reservedUISlugs = []string{"nova", "preview", "fontes", "estudio"} // fontes/estudio: abas de Skills (ADR-0035)
 )
 
 // integrationSecrets é o conteúdo cifrado: o que nunca sai do servidor.
@@ -154,7 +154,7 @@ func (s *Service) open(id uuid.UUID, enc string) (integrationSecrets, error) {
 	return v, nil
 }
 
-// checkIntegrationRefs confere as referências ${secret:...} dos headers e variáveis de um MCP (ADR-0032): o segredo
+// checkIntegrationRefs confere as referências ${secret:...} dos headers e variáveis de um MCP (ADR-0050): o segredo
 // precisa existir na empresa e referência de usuário não vale em configuração compartilhada. O segredo HMAC do
 // webhook é sempre literal.
 func (s *Service) checkIntegrationRefs(ctx context.Context, companyID domain.ID, kind domain.IntegrationKind, sec integrationSecrets) error {
@@ -945,7 +945,18 @@ func (s *Service) RekeyIntegrationSecrets(ctx context.Context) (int, error) {
 		}
 		n++
 	}
-	m, err := s.rekeySecrets(ctx)
+	// os segredos dos plugins (ADR-0038) e dos ambientes de execução (ADR-0037) usam o mesmo cofre
+	m0, err := s.rekeySecrets(ctx)
+	if err != nil {
+		return n + m0, err
+	}
+	m, err := s.rekeyPluginSecrets(ctx)
+	m += m0
+	if err != nil {
+		return n + m, err
+	}
+	e, err := s.rekeyEnvironmentSecrets(ctx)
+	m += e
 	return n + m, err
 }
 

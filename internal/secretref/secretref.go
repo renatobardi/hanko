@@ -1,4 +1,4 @@
-// Package secretref reconhece e expande referências a segredos (`${secret:NOME}` e `${secret:user/NOME}`, ADR-0032).
+// Package secretref reconhece e expande referências a segredos (`${secret:NOME}` e `${secret:user/NOME}`, ADR-0050).
 // É puro: não lê banco nem rede. Quem resolve o valor é o service, que passa uma função de busca.
 package secretref
 

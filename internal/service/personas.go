@@ -73,7 +73,7 @@ func (s *Service) HirePersona(ctx context.Context, actor domain.Actor, companyID
 				return domain.Invalid("subscription_id", "subscription not found in company")
 			}
 		}
-		// o env em claro vira segredos da empresa; a persona guarda só ${secret:...} (ADR-0032)
+		// o env em claro vira segredos da empresa; a persona guarda só ${secret:...} (ADR-0050)
 		if cfg, _, err = s.sealPersonaEnv(t, actor, companyID, slug, cfg); err != nil {
 			return err
 		}

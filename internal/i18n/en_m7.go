@@ -1,6 +1,6 @@
 package i18n
 
-// enM7 holds the English texts of the M7 foundations (ADR-0032, ADR-0033): the Secrets and Instance screens under
+// enM7 holds the English texts of the M7 foundations (ADR-0050, ADR-0051): the Secrets and Instance screens under
 // Settings, and the `hanko secret`, `hanko settings` and `hanko blobs` commands. init merges them into the same
 // catalog as the rest (en.go). Same rules: the key is the pt-BR text, and a key that another file already
 // translates is not repeated here.
@@ -17,7 +17,6 @@ var enM7 = map[string]string{
 	"apagar mesmo em uso":                  "delete even if in use",
 	"gerar":                                "generate",
 	"novo valor":                           "new value",
-	"Ações":                                "Actions",
 	"Usado por":                            "Used by",
 	"Onde mora":                            "Stored in",
 	"Onde mora o valor":                    "Where the value lives",
@@ -57,16 +56,13 @@ var enM7 = map[string]string{
 	"Nenhuma mudança registrada.":      "No changes recorded.",
 	"Voltar ao padrão":                 "Back to default",
 	"travada por %s":                   "locked by %s",
-	"ligado":                           "on",
 	"Chave":                            "Key",
 	"Antes":                            "Before",
 	"Depois":                           "After",
 	"ambiente":                         "environment",
 	"banco":                            "database",
-	"padrão":                           "default",
 	"Harness ACP":                      "ACP harness",
 	"Experimentais":                    "Experimental",
-	"Configuração salva.":              "Setting saved.",
 	"Configuração de volta ao padrão.": "Setting back to default.",
 	"Driver ativo para novos arquivos: %s. A escolha é do operador (HANKO_BLOB_DRIVER); para mover o que já existe use `hanko blobs migrate --from … --to …`.": "Active driver for new files: %s. The choice is the operator's (HANKO_BLOB_DRIVER); to move what already exists use `hanko blobs migrate --from … --to …`.",
 	"Liberar o harness ACP":                                 "Allow the ACP harness",
@@ -129,7 +125,6 @@ var enM7 = map[string]string{
 	"ANTES":                                                                        "BEFORE",
 	"DEPOIS":                                                                       "AFTER",
 	"TRAVA":                                                                        "LOCK",
-	"VALOR":                                                                        "VALUE",
 
 	// CLI: hanko blobs
 	"Onde o conteúdo dos artefatos fica guardado (postgres ou s3)":                                       "Where artifact content is stored (postgres or s3)",
@@ -146,7 +141,6 @@ var enM7 = map[string]string{
 	"seriam movidos":                                                                                     "would be moved",
 	"%s → %s: %d encontrado(s), %d %s (%d bytes), %d com falha, %d com sobra na origem.\n": "%s → %s: %d found, %d %s (%d bytes), %d failed, %d left over at the source.\n",
 	"%d artefato(s) não puderam ser movidos":                                               "%d artifact(s) could not be moved",
-	"DRIVER":  "DRIVER",
 	"VERSÕES": "VERSIONS",
 	"BYTES":   "BYTES",
 }

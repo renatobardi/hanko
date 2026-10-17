@@ -5,8 +5,12 @@ package adapter
 import (
 	"context"
 	"encoding/json"
+	"path"
+	"path/filepath"
+	"strings"
 	"time"
 
+	"github.com/renatobardi/hanko/internal/adapter/procrun"
 	"github.com/renatobardi/hanko/internal/domain"
 )
 
@@ -36,9 +40,35 @@ type Spec struct {
 	// ReadOnly forces the harness into its read-only mode (review runs), ignoring any
 	// permissive adapter_config (permission mode, sandbox, extra args).
 	ReadOnly bool
-	// Secrets são os valores de segredos resolvidos no despacho (${secret:...}, ADR-0032) que entraram em Config,
+	// Secrets são os valores de segredos resolvidos no despacho (${secret:...}, ADR-0050) que entraram em Config,
 	// Env ou MCPConfig; entram na redação do log e do resultado da run, qualquer que seja o nome da variável.
 	Secrets []string
+	// Exec é o ambiente remoto da run (host SSH ou contêiner, ADR-0037); nil = local, como sempre foi.
+	Exec ExecTarget
+}
+
+// ExecTarget é o alvo de execução remoto de uma run (ADR-0037). O adapter passa o processo do harness por ele
+// (procrun.Options.Target), usa WorkDir como diretório de trabalho e grava os arquivos auxiliares (config MCP,
+// skills) em AuxDir, referindo-os pelo caminho remoto.
+type ExecTarget interface {
+	procrun.Target
+	// WorkDir é o diretório de trabalho da run no alvo (a cópia do workspace).
+	WorkDir() string
+	// AuxDir devolve um diretório local para arquivos auxiliares da run e o caminho dele no alvo. O que for
+	// gravado ali antes de o processo começar chega ao alvo.
+	AuxDir() (local, remote string)
+	// Describe é uma descrição curta do alvo para o log da run (sem segredos).
+	Describe() string
+}
+
+// RemotePath traduz um caminho local dentro de AuxDir para o caminho correspondente no alvo.
+func RemotePath(t ExecTarget, local string) string {
+	l, r := t.AuxDir()
+	rel, err := filepath.Rel(l, local)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, "../") {
+		return local
+	}
+	return path.Join(r, filepath.ToSlash(rel))
 }
 
 // Event is one normalized log entry emitted while the agent runs.

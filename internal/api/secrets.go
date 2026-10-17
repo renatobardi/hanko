@@ -13,7 +13,7 @@ import (
 	"github.com/renatobardi/hanko/internal/settings"
 )
 
-// Segredos (ADR-0032). Não existe leitura de valor: o valor sai UMA vez, na resposta de uma criação/rotação com
+// Segredos (ADR-0050). Não existe leitura de valor: o valor sai UMA vez, na resposta de uma criação/rotação com
 // valor gerado pelo servidor ou na de "revelar". Run tokens (personas) nunca chegam aqui.
 
 // secretsBackend é o subconjunto do service para segredos; opcional como integrationsBackend.

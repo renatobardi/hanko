@@ -17,7 +17,7 @@ import (
 )
 
 // settingsBase devolve o valor efetivo de cada chave de instance_settings vindo da configuração (env > yaml > padrão).
-// O gerenciador soma o banco por cima, a menos que a variável de ambiente da chave esteja definida (ADR-0032).
+// O gerenciador soma o banco por cima, a menos que a variável de ambiente da chave esteja definida (ADR-0050).
 func settingsBase(cfg config.Config) map[string]any {
 	return map[string]any{
 		settings.ACPAllow:               cfg.ACP.Allow,
@@ -32,7 +32,7 @@ func settingsBase(cfg config.Config) map[string]any {
 	}
 }
 
-// NewBlobRegistry monta os drivers de conteúdo de artefatos (ADR-0033): postgres sempre; s3 quando configurado.
+// NewBlobRegistry monta os drivers de conteúdo de artefatos (ADR-0051): postgres sempre; s3 quando configurado.
 // O driver ativo (HANKO_BLOB_DRIVER) recebe as escritas novas.
 func NewBlobRegistry(cfg config.Config, pool *pgxpool.Pool) (*storage.Registry, error) {
 	pg := storage.NewPostgres(pool)

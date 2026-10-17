@@ -83,7 +83,7 @@ type ExportStream struct {
 	doc       export.Document
 	runIDs    []domain.ID // paralelo a doc.Runs
 	artIDs    []domain.ID // paralelo a doc.Artifacts (o conteúdo é lido na hora de escrever)
-	artStore  []string    // paralelo a artIDs: em que driver de blobs cada versão está (ADR-0033)
+	artStore  []string    // paralelo a artIDs: em que driver de blobs cada versão está (ADR-0051)
 	blobs     *storage.Registry
 	withLogs  bool
 	pageSize  int

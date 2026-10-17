@@ -176,7 +176,7 @@ type DeleteArtifactChainRow struct {
 	Storage string
 }
 
-// Devolve id e driver de cada versão apagada: o conteúdo fora do Postgres é apagado depois do commit (ADR-0033).
+// Devolve id e driver de cada versão apagada: o conteúdo fora do Postgres é apagado depois do commit (ADR-0051).
 func (q *Queries) DeleteArtifactChain(ctx context.Context, arg DeleteArtifactChainParams) ([]DeleteArtifactChainRow, error) {
 	rows, err := q.db.Query(ctx, deleteArtifactChain, arg.CompanyID, arg.TaskID, arg.Name)
 	if err != nil {
@@ -617,7 +617,7 @@ type ListArtifactsForBlobMigrationRow struct {
 	Storage   string
 }
 
-// Versões guardadas em um driver, em ordem estável, para o comando de migração entre drivers (ADR-0033).
+// Versões guardadas em um driver, em ordem estável, para o comando de migração entre drivers (ADR-0051).
 func (q *Queries) ListArtifactsForBlobMigration(ctx context.Context, arg ListArtifactsForBlobMigrationParams) ([]ListArtifactsForBlobMigrationRow, error) {
 	rows, err := q.db.Query(ctx, listArtifactsForBlobMigration,
 		arg.Storage,

@@ -19,7 +19,7 @@ import (
 	"time"
 )
 
-// Cliente S3 mínimo (ADR-0033): PutObject, GetObject, DeleteObject e HeadObject com assinatura SigV4 própria, só
+// Cliente S3 mínimo (ADR-0051): PutObject, GetObject, DeleteObject e HeadObject com assinatura SigV4 própria, só
 // stdlib. Serve qualquer endpoint compatível (S3, MinIO, R2).
 
 const (

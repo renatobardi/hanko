@@ -346,6 +346,7 @@ Operator settings (a company cannot turn these on by itself):
 | `HANKO_SECRET_KEY_PREVIOUS` | empty | The previous key, only during rotation. |
 | `HANKO_INTEGRATIONS_ALLOW_STDIO` | `false` | Allows `stdio` MCP servers, which run a command **on the server machine**. |
 | `HANKO_INTEGRATIONS_ALLOW_PRIVATE` | `false` | Allows webhooks and connection tests to loopback, link-local and private networks (otherwise SSRF blocking applies). |
+| `HANKO_SKILL_SOURCES` | `false` | Turns on git skill sources (ADR-0035): the server clones public repositories over https with the `git` on the PATH. Internal hosts only with `HANKO_INTEGRATIONS_ALLOW_PRIVATE`. |
 
 **Generate the key:** `openssl rand -hex 32`. Keep it with `HANKO_SECRET` and in the operator's backup; losing it loses the
 stored secrets (integrations remain, without credentials; enter them again).
@@ -506,7 +507,7 @@ and link tasks; admin creates, edits, abandons and reopens.
 | HTML or PDF downloads instead of opening | by design: only text, Markdown and raster images open | open the downloaded file |
 | An achieved goal rejects progress | status `achieved` | reopen it (admin) by switching to active; refused while the current value already reaches the target |
 
-## Secrets, instance settings and artifact storage (ADR-0032, ADR-0033)
+## Secrets, instance settings and artifact storage (ADR-0050, ADR-0051)
 
 ### Company secrets
 

@@ -1,4 +1,4 @@
-// Package vault resolve segredos guardados em um cofre externo no momento do despacho (ADR-0032). A interface é
+// Package vault resolve segredos guardados em um cofre externo no momento do despacho (ADR-0050). A interface é
 // pequena de propósito: o Hanko só lê. O 1º provider fala a API KV v2 do Vault (também servida pelo OpenBao),
 // com token estático vindo do ambiente do servidor.
 package vault

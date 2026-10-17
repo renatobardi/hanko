@@ -1,0 +1,227 @@
+package views
+
+import (
+	"fmt"
+
+	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/i18n"
+)
+
+// Fila de revisão e aprendizados (ADR-0034).
+
+templ ReviewQueuePage(sh Shell, vm ReviewQueueVM) {
+	@Layout(sh) {
+		@PageHead(i18n.T(ctx, "Fila de revisão"), i18n.T(ctx, "Os itens de pipeline que esperam a sua decisão.")) {
+		}
+		if vm.Notice != "" {
+			@Alert("warn", vm.Notice)
+		}
+		if vm.Error != "" {
+			@Alert("danger", vm.Error)
+		}
+		if len(vm.Failures) > 0 {
+			<div class="alert danger" role="alert">
+				@Icon("alert")
+				<div>
+					<b>{ i18n.T(ctx, "Alguns itens não puderam ser aprovados.") }</b>
+					<ul class="m-0">
+						for _, f := range vm.Failures {
+							<li>{ f }</li>
+						}
+					</ul>
+				</div>
+			</div>
+		}
+		if len(vm.Rows) == 0 {
+			@EmptyCard("clipboard-check", i18n.T(ctx, "Nada precisa de você agora."), i18n.T(ctx, "Cases que entram numa etapa de revisão, sugestões das personas e bloqueios resolvidos aparecem aqui."), true) {
+			}
+		} else {
+			if !canWrite(ctx) {
+				<p class="mb-3">@NeedRole(domain.MemberMember)</p>
+			}
+			<form id="bulk" method="post" action={ templ.SafeURL(vm.BulkAction) }></form>
+			<div class="table-wrap">
+				<table class="table pl-review">
+					<thead>
+						<tr>
+							<th class="pl-sel"><span class="sr-only">{ i18n.T(ctx, "Selecionar") }</span></th>
+							<th>Case</th>
+							<th class="hide-sm">{ i18n.T(ctx, "Pipeline") }</th>
+							<th class="hide-sm">{ i18n.T(ctx, "Há quanto tempo") }</th>
+							<th>{ i18n.T(ctx, "Ações") }</th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, r := range vm.Rows {
+							<tr class="row">
+								<td class="pl-sel">
+									if r.Selectable && canWrite(ctx) {
+										<input type="checkbox" form="bulk" name="item" value={ r.CaseID + ":" + fmt.Sprint(r.Version) } aria-label={ r.Identifier }/>
+									}
+								</td>
+								<td class="ttl">
+									@BadgeEl(r.KindBadge)
+									<span class="mono faint text-xs">{ r.Identifier }</span>
+									<a href={ templ.SafeURL(r.Href) }>{ r.Title }</a>
+									if r.Reason != "" {
+										<div class="note">{ r.Reason }</div>
+									}
+								</td>
+								<td class="hide-sm muted">{ r.Pipeline }</td>
+								<td class="hide-sm when">{ r.Since }</td>
+								<td>
+									if canWrite(ctx) {
+										@reviewRowActions(r)
+									}
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+			if canWrite(ctx) {
+				<div class="form-actions">
+					<input class="input" form="bulk" name="reason" maxlength="4000" placeholder={ i18n.T(ctx, "motivo da aprovação (opcional)") }/>
+					<button class="btn primary" type="submit" form="bulk">{ i18n.T(ctx, "Aprovar selecionados") }</button>
+				</div>
+			}
+		}
+	}
+}
+
+templ reviewRowActions(r ReviewRow) {
+	switch r.Kind {
+		case "review":
+			<details class="pl-decide">
+				<summary class="btn outline sm">{ i18n.T(ctx, "Decidir") }</summary>
+				<form method="post" action={ templ.SafeURL(r.Action) } class="mt-2">
+					<input type="hidden" name="expected_version" value={ fmt.Sprint(r.Version) }/>
+					<input type="hidden" name="next" value="revisao"/>
+					<textarea class="textarea" name="reason" rows="2" maxlength="4000" placeholder={ i18n.T(ctx, "motivo (vira aprendizado para as personas)") }></textarea>
+					<div class="gate-actions">
+						<button class="btn primary sm" type="submit" name="decision" value="approve">{ i18n.Tf(ctx, "Aprovar e mover para %s", r.ApproveTo) }</button>
+						if r.ChangesTo != "" {
+							<button class="btn outline sm" type="submit" name="decision" value="request_changes">{ i18n.T(ctx, "Pedir mudanças") }</button>
+						}
+						<button class="btn ghost sm danger-text" type="submit" name="decision" value="reject">{ i18n.T(ctx, "Recusar") }</button>
+					</div>
+				</form>
+			</details>
+		case "suggestion":
+			<form method="post" action={ templ.SafeURL(r.SuggestionAction) } class="gate-actions">
+				<input type="hidden" name="expected_version" value={ fmt.Sprint(r.Version) }/>
+				<input type="hidden" name="next" value="revisao"/>
+				<button class="btn primary sm" type="submit" name="accept" value="1">{ i18n.Tf(ctx, "Mover para %s", r.SuggestedStage) }</button>
+				<button class="btn ghost sm" type="submit" name="accept" value="0">{ i18n.T(ctx, "Dispensar") }</button>
+			</form>
+		default:
+			<form method="post" action={ templ.SafeURL(r.AttentionAction) } class="gate-actions">
+				<input type="hidden" name="expected_version" value={ fmt.Sprint(r.Version) }/>
+				<input type="hidden" name="next" value="revisao"/>
+				<a class="btn outline sm" href={ templ.SafeURL(r.Href) }>{ i18n.T(ctx, "Abrir") }</a>
+				<button class="btn ghost sm" type="submit">{ i18n.T(ctx, "Dispensar") }</button>
+			</form>
+	}
+}
+
+templ LearningsPage(sh Shell, vm LearningsVM) {
+	@Layout(sh) {
+		@PageHead(i18n.T(ctx, "Aprendizados"), i18n.T(ctx, "O que as decisões de revisão ensinaram ao time.")) {
+			if sh.CanAdmin() && vm.ExportHref != "" {
+				<a class="btn outline" href={ templ.SafeURL(vm.ExportHref) }>{ i18n.T(ctx, "Exportar JSONL") }</a>
+			}
+		}
+		if vm.Notice != "" {
+			@Alert("warn", vm.Notice)
+		}
+		<div class="toolbar">
+			@Tabs(vm.Tabs)
+		</div>
+		if vm.Tab == "exemplos" {
+			@examplesList(vm)
+		} else {
+			<form class="toolbar pl-filters" method="get">
+				@Select("pipeline", "lr-pipe", vm.PipelineOptions, true)
+				if len(vm.StageOptions) > 1 {
+					@Select("etapa", "lr-stage", vm.StageOptions, true)
+				}
+				@Select("decisao", "lr-dec", vm.DecisionOptions, true)
+				<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Filtrar") }</button>
+			</form>
+			if vm.Empty {
+				@EmptyCard("graduation-cap", i18n.T(ctx, "Nenhum aprendizado ainda."), i18n.T(ctx, "Cada decisão de revisão com motivo vira um aprendizado aqui e volta para as personas no contexto da etapa."), true) {
+				}
+			}
+			for _, d := range vm.Days {
+				<section class="card mt-3">
+					<div class="pl-day">{ d.Label }</div>
+					<ul class="pl-feed">
+						for _, it := range d.Items {
+							<li>
+								<span class="mini-avatar">@Icon(it.Icon)</span>
+								<div class="grow">
+									<div>
+										{ it.Text }
+										<a class="mono text-xs" href={ templ.SafeURL(it.CaseHref) }>{ it.CaseIdentifier }</a>
+										if it.PipelineHref != "" {
+											<span class="faint text-xs"> · <a href={ templ.SafeURL(it.PipelineHref) }>{ it.PipelineName }</a></span>
+										}
+										<span class="faint text-xs"> · { it.When }</span>
+									</div>
+									if it.Reason != "" {
+										<blockquote class="gate-note">{ it.Reason }</blockquote>
+									}
+									if it.Example != nil {
+										@SaveExampleForm(*it.Example)
+									}
+								</div>
+							</li>
+						}
+					</ul>
+				</section>
+			}
+		}
+	}
+}
+
+templ examplesList(vm LearningsVM) {
+	if len(vm.Examples) == 0 {
+		@EmptyCard("graduation-cap", i18n.T(ctx, "Nenhum exemplo de decisão ainda."), i18n.T(ctx, "Salve uma decisão como exemplo na página de um gate decidido ou no histórico de um case revisado."), true) {
+		}
+	} else {
+		<div class="table-wrap">
+			<table class="table">
+				<thead>
+					<tr>
+						<th>{ i18n.T(ctx, "Origem") }</th>
+						<th>{ i18n.T(ctx, "Decisão") }</th>
+						<th class="hide-sm">{ i18n.T(ctx, "Corte") }</th>
+						<th>{ i18n.T(ctx, "Notas") }</th>
+					</tr>
+				</thead>
+				<tbody>
+					for _, x := range vm.Examples {
+						<tr class="row">
+							<td><a href={ templ.SafeURL(x.SourceHref) }>{ x.SourceLabel }</a></td>
+							<td><span class="badge soft">{ x.Outcome }</span></td>
+							<td class="hide-sm when">{ x.Cutoff }</td>
+							<td>
+								if x.Mine {
+									<form method="post" action={ templ.SafeURL(x.EditAction) }>
+										<textarea class="textarea" name="notes" rows="2" maxlength="16384">{ x.Notes }</textarea>
+										<div class="gate-actions">
+											<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Salvar notas") }</button>
+											<button class="btn ghost sm danger-text" type="submit" formaction={ templ.SafeURL(x.DeleteAction) }>{ i18n.T(ctx, "Apagar") }</button>
+										</div>
+									</form>
+								} else {
+									<span class="pre-wrap">{ x.Notes }</span>
+								}
+							</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+	}
+}

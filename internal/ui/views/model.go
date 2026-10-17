@@ -205,6 +205,7 @@ type TaskVM struct {
 	GoalHref        string
 	Artifacts       []ArtifactMini
 	ArtifactsHref   string
+	Cases           []TaskCaseRow // cases ligados à task (ADR-0034)
 	Created         string
 	Updated         string
 	StatusOptions   []Option
@@ -298,6 +299,7 @@ type PersonaVM struct {
 	Tasks         []TaskRow
 	Chats         []ChatRow // conversations with this persona
 	NewChatHref   string    // opens a conversation with it ("" = the viewer cannot write)
+	Rooms         []RoomRow // salas em que participa (ADR-0033)
 	Runs          []RunRow
 	Budget        *BudgetBox       // monthly spend vs ceiling
 	Notice        string           // flash after an action

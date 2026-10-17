@@ -1,4 +1,4 @@
-// Package settings mantém os toggles NÃO sensíveis da instalação (ADR-0032 §C). Um registro em código declara cada
+// Package settings mantém os toggles NÃO sensíveis da instalação (ADR-0050 §C). Um registro em código declara cada
 // chave (tipo, padrão, variável de ambiente equivalente). O valor efetivo segue a precedência
 // env > banco > yaml/padrão; a variável de ambiente definida trava a chave. Segredos nunca são chaves registradas.
 package settings

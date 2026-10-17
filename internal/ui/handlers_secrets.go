@@ -16,7 +16,7 @@ import (
 	"github.com/renatobardi/hanko/internal/ui/views"
 )
 
-// Configurações › Segredos e Instância (ADR-0032, ADR-0033). A tela nunca recebe o valor de um segredo do service,
+// Configurações › Segredos e Instância (ADR-0050, ADR-0051). A tela nunca recebe o valor de um segredo do service,
 // exceto na resposta única de criar/rotacionar gerado e de revelar, que é renderizada direto (sem redirecionar,
 // para o valor não ir parar em URL, histórico nem cache).
 
@@ -380,7 +380,7 @@ func (s *server) instanceVM(r *http.Request, co domain.Company, be instanceBacke
 	if audit, err := be.ListInstanceSettingAudit(ctx, 30); err == nil {
 		for _, a := range audit {
 			who := a.ActorType
-			vm.Audit = append(vm.Audit, views.AuditRowVM{When: a.OccurredAt.Local().Format("02/01/2006 15:04"), Key: a.Key, Old: rawOrDash(a.Old), New: rawOrDash(a.New), Actor: who})
+			vm.Audit = append(vm.Audit, views.SettingAuditRowVM{When: a.OccurredAt.Local().Format("02/01/2006 15:04"), Key: a.Key, Old: rawOrDash(a.Old), New: rawOrDash(a.New), Actor: who})
 		}
 	}
 	return vm

@@ -37,8 +37,8 @@ Note on vocabulary: the generic names above were later replaced by the domain te
 | Memory | ai-memory **on by default** (ADR-0015). Personas: MCP + hooks per run, project = workspace, session = run_id, `finalize-session`. Hanko: MCP client (`go-sdk`), writes facts (task, gate, run, delegation) through `memory_outbox` + river; reads `memory_briefing` + handoff at dispatch; search in the UI. Unavailable = degrade, never block | Governance stays in Postgres |
 | LLM SDKs | `anthropic-sdk-go`, `openai-go` | evals and cost metadata only; the core never calls an LLM |
 | Auth v0.1 | providers: `local` (self-host default: email/password argon2id + cookie) and `firebase` (Google + email/password managed by Firebase; the server validates the ID token through Google's JWKS, no Admin SDK). User API keys (SHA-256); short run JWT (`golang-jwt/v5`) | `HANKO_AUTH_PROVIDER=local\|firebase`. hanko.oute.pro uses firebase. Multi-human v0.2; OIDC v1 (ADR-0007, ADR-0014) |
-| Secrets | AES-256-GCM (`secretbox`) with `HANKO_SECRET_KEY`; company/user secrets referenced as `${secret:NAME}`; optional external vault (KV v2) | resolved at dispatch, never in config (ADR-0032, §11) |
-| Storage | `BlobStore`: Postgres (default) or S3-compatible with an in-house SigV4 over the stdlib (no `aws-sdk-go-v2`) | artifact content (ADR-0033, §11) |
+| Secrets | AES-256-GCM (`secretbox`) with `HANKO_SECRET_KEY`; company/user secrets referenced as `${secret:NAME}`; optional external vault (KV v2) | resolved at dispatch, never in config (ADR-0050, §11) |
+| Storage | `BlobStore`: Postgres (default) or S3-compatible with an in-house SigV4 over the stdlib (no `aws-sdk-go-v2`) | artifact content (ADR-0051, §11) |
 | Config | env `HANKO_*` + `hanko.yaml`; `caarlos0/env/v11` + `yaml.v3` | env overrides yaml |
 | Logs | `log/slog` JSON via `otelslog` (automatic trace_id/span_id) | request-id, company_id, run_id on every log line |
 | Observability | OpenTelemetry **mandatory**: `otelhttp` (server), `otelpgx` (DB), OTel middleware in river (a span per job), a span per run in the adapters (`company_id`, `agent_id`, `run_id`), `otelslog` bridge for logs, OTel metrics + Prometheus `/metrics`. OTLP gRPC exporter, default `localhost:4317` | Instrumentation cannot be turned off. Collector absent = the SDK silently drops data, the app never fails because of OTel. No error-tracking or product-analytics SaaS (ADR-0013) |
@@ -158,7 +158,7 @@ only place that serves the bytes (nosniff, a sandboxing CSP, inline only for pla
 `tasks.goal_id`) compute progress in the service and the UI draws the history as server-side SVG, with no script. Export/import:
 `artifacts` is optional (`--with-artifacts`, up to 20 MiB); goals do not travel.
 
-## 11. Secrets, instance settings and BlobStore (ADR-0032, ADR-0033)
+## 11. Secrets, instance settings and BlobStore (ADR-0050, ADR-0051)
 **Secrets.** `secrets` (per company, `company` or `user` scope) stores the encrypted value (AES-256-GCM, AAD `secret/<id>`) or, for the
 `vault` provider, only the `path#field` reference into an external vault (KV v2 API, `HANKO_VAULT_*`). Reference: `${secret:NAME}`
 (company) and `${secret:user/NAME}` (owner only; refused in shared configuration). It works in MCP integration headers/env and in the
