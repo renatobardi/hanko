@@ -1053,6 +1053,16 @@ func BumpWakeRequestTx(ctx context.Context, tx pgx.Tx, w Wake) error {
 	return nil
 }
 
+// HasRunSince informa se a persona já abriu uma run na task a partir de since (um wake coalescido num job que
+// ainda constava como running foi atendido?).
+func (s *Service) HasRunSince(ctx context.Context, personaID, taskID domain.ID, since time.Time) (bool, error) {
+	ok, err := s.read().HasRunSince(ctx, store.HasRunSinceParams{PersonaID: personaID, TaskID: &taskID, Since: since})
+	if err != nil {
+		return false, fmt.Errorf("has run since: %w", err)
+	}
+	return ok, nil
+}
+
 // WakeSeq is how many wakes were requested for (persona, task) so far. A worker reads it before
 // checking the task out and, if it changed by the time the checkout opened no run, retries:
 // the request that moved it was coalesced into the running job and would otherwise be lost.

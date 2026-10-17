@@ -219,6 +219,24 @@ func (q *Queries) HasNativeToolPolicies(ctx context.Context, arg HasNativeToolPo
 	return column_1, err
 }
 
+const hasRunSince = `-- name: HasRunSince :one
+SELECT EXISTS (SELECT 1 FROM runs WHERE persona_id = $1 AND task_id = $2 AND created_at >= $3)::boolean
+`
+
+type HasRunSinceParams struct {
+	PersonaID uuid.UUID
+	TaskID    *uuid.UUID
+	Since     time.Time
+}
+
+// Já abriu run desta persona nesta task depois do instante dado? (confere se um wake coalescido foi atendido)
+func (q *Queries) HasRunSince(ctx context.Context, arg HasRunSinceParams) (bool, error) {
+	row := q.db.QueryRow(ctx, hasRunSince, arg.PersonaID, arg.TaskID, arg.Since)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const listQuarantinedTools = `-- name: ListQuarantinedTools :many
 SELECT t.id, t.company_id, t.integration_id, t.name, t.title, t.description, t.input_schema, t.annotations, t.schema_sha256, t.risk, t.status, t.first_seen_at, t.last_seen_at, t.reviewed_by_type, t.reviewed_by_id, t.reviewed_at, t.updated_at, i.slug AS integration_slug, i.name AS integration_name
 FROM integration_tools t JOIN integrations i ON i.id = t.integration_id

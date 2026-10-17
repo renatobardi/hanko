@@ -27,6 +27,31 @@ func (w *wakeWorker) Work(ctx context.Context, job *river.Job[WakeArgs]) error {
 	return w.h.wake(ctx, job.Args, time.Since(job.CreatedAt))
 }
 
+// wakeRetryDelay é a espera antes de reconferir um wake coalescido num job ainda marcado como running.
+const wakeRetryDelay = 2 * time.Second
+
+type wakeRetryWorker struct {
+	river.WorkerDefaults[WakeRetryArgs]
+	h *Heartbeat
+}
+
+// runSinceBackend é opcional: sem ele a reconferência sempre refaz o wake.
+type runSinceBackend interface {
+	HasRunSince(ctx context.Context, personaID, taskID domain.ID, since time.Time) (bool, error)
+}
+
+func (w *wakeRetryWorker) Work(ctx context.Context, job *river.Job[WakeRetryArgs]) error {
+	a := job.Args
+	if rs, ok := w.h.svc.(runSinceBackend); ok {
+		if opened, err := rs.HasRunSince(ctx, a.PersonaID, a.TaskID, a.RequestedAt); err != nil {
+			return fmt.Errorf("wake retry: %w", err)
+		} else if opened {
+			return nil // o wake foi atendido: uma run abriu depois do pedido
+		}
+	}
+	return w.h.wake(ctx, WakeArgs{CompanyID: a.CompanyID, PersonaID: a.PersonaID, TaskID: a.TaskID, Trigger: a.Trigger}, time.Since(job.CreatedAt))
+}
+
 const (
 	wakeSnooze    = 30 * time.Second // re-check interval while the task has an active run
 	wakeGiveUp    = 2 * time.Hour    // a wake older than this stops waiting for the active run

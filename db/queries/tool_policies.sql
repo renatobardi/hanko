@@ -63,6 +63,10 @@ UPDATE gates SET status = 'expired', decided_at = @now
 WHERE status = 'pending' AND expires_at IS NOT NULL AND expires_at <= @now AND kind = 'tool'
 RETURNING *;
 
+-- name: HasRunSince :one
+-- Já abriu run desta persona nesta task depois do instante dado? (confere se um wake coalescido foi atendido)
+SELECT EXISTS (SELECT 1 FROM runs WHERE persona_id = @persona_id AND task_id = @task_id AND created_at >= @since)::boolean;
+
 -- name: ListQuarantinedTools :many
 -- Tools em quarentena da empresa, para o aviso na Caixa de entrada.
 SELECT t.*, i.slug AS integration_slug, i.name AS integration_name
