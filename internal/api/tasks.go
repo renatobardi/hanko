@@ -38,25 +38,31 @@ type createTaskIn struct {
 		Goal        string `json:"goal,omitempty" doc:"Id ou slug de uma meta ativa a que a task serve."`
 		Model       string `json:"model,omitempty" example:"claude-opus-4-5" doc:"Modelo escolhido à mão; vence o da persona."`
 		Parent      string `json:"parent,omitempty" doc:"Id ou chave da task pai."`
-		EventID     string `json:"event_id,omitempty" maxLength:"200" doc:"Chave de idempotência: repetir devolve a task existente."`
+		// DependsOn: ids ou chaves das tasks de que a nova depende; ela nasce bloqueada até todas fecharem (ADR-0040).
+		DependsOn []string `json:"depends_on,omitempty" maxItems:"50" doc:"Ids ou chaves das tasks de que a nova depende."`
+		EventID   string   `json:"event_id,omitempty" maxLength:"200" doc:"Chave de idempotência: repetir devolve a task existente."`
 	}
 }
 
 type updateTaskIn struct {
 	TaskPath
 	Body struct {
-		Title        *string `json:"title,omitempty" minLength:"1" maxLength:"300"`
-		Description  *string `json:"description,omitempty"`
-		Status       *string `json:"status,omitempty" enum:"backlog,todo,in_progress,in_review,blocked,done,cancelled"`
-		Priority     *string `json:"priority,omitempty" enum:"critical,high,medium,low"`
-		Persona      string  `json:"persona,omitempty" doc:"Id ou slug da persona (re)atribuída."`
-		Unassign     bool    `json:"unassign,omitempty" doc:"Remove a atribuição."`
-		Project      string  `json:"project,omitempty" doc:"Id ou slug do projeto."`
-		ClearProject bool    `json:"clear_project,omitempty" doc:"Tira a task do projeto."`
-		Goal         string  `json:"goal,omitempty" doc:"Id ou slug de uma meta ativa a que a task passa a servir."`
-		ClearGoal    bool    `json:"clear_goal,omitempty" doc:"Desliga a task da meta."`
-		Model        *string `json:"model,omitempty" doc:"Modelo escolhido à mão; vazio remove a escolha (volta ao da persona)."`
-		EventID      string  `json:"event_id,omitempty" maxLength:"200" doc:"Chave de idempotência."`
+		Title          *string `json:"title,omitempty" minLength:"1" maxLength:"300"`
+		Description    *string `json:"description,omitempty"`
+		Status         *string `json:"status,omitempty" enum:"backlog,todo,in_progress,in_review,blocked,done,cancelled"`
+		Priority       *string `json:"priority,omitempty" enum:"critical,high,medium,low"`
+		Persona        string  `json:"persona,omitempty" doc:"Id ou slug da persona (re)atribuída."`
+		Unassign       bool    `json:"unassign,omitempty" doc:"Remove a atribuição."`
+		Project        string  `json:"project,omitempty" doc:"Id ou slug do projeto."`
+		ClearProject   bool    `json:"clear_project,omitempty" doc:"Tira a task do projeto."`
+		Goal           string  `json:"goal,omitempty" doc:"Id ou slug de uma meta ativa a que a task passa a servir."`
+		ClearGoal      bool    `json:"clear_goal,omitempty" doc:"Desliga a task da meta."`
+		Model          *string `json:"model,omitempty" doc:"Modelo escolhido à mão; vazio remove a escolha (volta ao da persona)."`
+		Parent         string  `json:"parent,omitempty" doc:"Id ou chave da nova task pai (mesma empresa, sem ciclo, até 10 níveis)."`
+		ClearParent    bool    `json:"clear_parent,omitempty" doc:"Torna a task raiz."`
+		ForceClose     bool    `json:"force_close,omitempty" doc:"Só humano: conclui a task mesmo com subtask aberta; exige override_reason."`
+		OverrideReason string  `json:"override_reason,omitempty" maxLength:"500" doc:"Motivo do override de force_close; vai para o registro de atividade."`
+		EventID        string  `json:"event_id,omitempty" maxLength:"200" doc:"Chave de idempotência."`
 	}
 }
 
@@ -134,10 +140,20 @@ func (s *server) registerTasks(api huma.API) {
 					return nil, err
 				}
 			}
+			var deps []domain.ID
+			for _, ref := range b.DependsOn {
+				id, err := s.taskRef(ctx, cid, ref)
+				if err != nil {
+					return nil, s.fail(ctx, err)
+				}
+				if id != nil {
+					deps = append(deps, *id)
+				}
+			}
 			t, err := s.svc.CreateTask(ctx, sc.Actor, cid, service.CreateTaskInput{
 				Title: b.Title, Description: b.Description, Status: domain.TaskStatus(b.Status),
 				Priority: domain.Priority(b.Priority), PersonaID: persona, ProjectID: project, WorkspaceID: ws, GoalID: goal,
-				ParentID: parent, Model: b.Model, EventID: b.EventID})
+				ParentID: parent, DependsOn: deps, Model: b.Model, EventID: b.EventID})
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}
@@ -232,6 +248,13 @@ func (s *server) registerTasks(api huma.API) {
 				return nil, s.fail(ctx, err)
 			}
 			up.ClearGoal = b.ClearGoal
+			if b.ClearParent && b.Parent != "" {
+				return nil, s.fail(ctx, domain.Invalid("clear_parent", "não combina com parent"))
+			}
+			if up.ParentID, err = s.taskRef(ctx, sc.Company.ID, b.Parent); err != nil {
+				return nil, s.fail(ctx, err)
+			}
+			up.ClearParent, up.ForceClose, up.OverrideReason = b.ClearParent, b.ForceClose, b.OverrideReason
 			t, err := s.svc.UpdateTask(ctx, sc.Actor, sc.Company.ID, cur.ID, up)
 			if err != nil {
 				return nil, s.fail(ctx, err)

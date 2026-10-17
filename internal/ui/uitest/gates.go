@@ -158,6 +158,7 @@ func (f *Fake) Inbox(ctx context.Context, companyID domain.ID) (service.Inbox, e
 			withGate[*g.TaskID] = true
 		}
 	}
+	in.HeldTasks = f.heldTasksLocked()
 	for _, t := range f.Tasks {
 		if t.Status == domain.TaskBlocked && !withGate[t.ID] {
 			in.BlockedTasks = append(in.BlockedTasks, t)

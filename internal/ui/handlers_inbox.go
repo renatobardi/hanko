@@ -25,7 +25,7 @@ var inboxNotices = map[string]string{
 
 type inboxTab struct{ key, label string }
 
-var inboxTabs = []inboxTab{{"tudo", i18n.N("Tudo")}, {"gates", i18n.N("Gates")}, {"bloqueadas", i18n.N("Bloqueadas")}, {"falhas", i18n.N("Falhas")}, {"personas", i18n.N("Personas")}, {"alertas", i18n.N("Alertas")}, {"assinaturas", i18n.N("Assinaturas")}, {"tools", i18n.N("Tools")}}
+var inboxTabs = []inboxTab{{"tudo", i18n.N("Tudo")}, {"gates", i18n.N("Gates")}, {"bloqueadas", i18n.N("Bloqueadas")}, {"falhas", i18n.N("Falhas")}, {"pausadas", i18n.N("Pausadas")}, {"personas", i18n.N("Personas")}, {"alertas", i18n.N("Alertas")}, {"assinaturas", i18n.N("Assinaturas")}, {"tools", i18n.N("Tools")}}
 
 func (s *server) handleInbox(w http.ResponseWriter, r *http.Request, co domain.Company) {
 	ctx := r.Context()
@@ -71,7 +71,7 @@ func (s *server) handleInbox(w http.ResponseWriter, r *http.Request, co domain.C
 			vm.DecidedToday++
 		}
 	}
-	counts := map[string]int{"tudo": in.Count(), "gates": len(in.Gates), "bloqueadas": len(in.BlockedTasks), "falhas": len(in.FailedRuns), "personas": len(in.ErrorPersonas), "alertas": len(in.Alerts), "assinaturas": len(in.GuardedSubscriptions), "tools": countToolGates(in.Gates)}
+	counts := map[string]int{"tudo": in.Count(), "gates": len(in.Gates), "bloqueadas": len(in.BlockedTasks), "pausadas": len(in.HeldTasks), "falhas": len(in.FailedRuns), "personas": len(in.ErrorPersonas), "alertas": len(in.Alerts), "assinaturas": len(in.GuardedSubscriptions), "tools": countToolGates(in.Gates)}
 	for _, t := range inboxTabs {
 		vm.Tabs = append(vm.Tabs, views.TabLink{Key: t.key, Label: i18n.T(ctx, t.label), Href: base + "/caixa?aba=" + t.key, Count: counts[t.key], On: t.key == cur})
 	}
@@ -99,6 +99,13 @@ func (s *server) handleInbox(w http.ResponseWriter, r *http.Request, co domain.C
 				Key: t.Key, Href: base + "/tasks/" + t.Key, Title: t.Title, Persona: t.PersonaName, When: agoCtx(ctx, t.UpdatedAt, now, loc),
 				ActionHref: base + "/caixa/tasks/" + t.ID.String() + "/desbloquear", ActionLabel: i18n.T(ctx, "Voltar para A fazer"),
 			})
+		}
+	}
+	if show("pausadas") {
+		for _, h := range in.HeldTasks {
+			vm.Held = append(vm.Held, views.InboxHeld{Key: h.Task.Key, Href: base + "/tasks/" + h.Task.Key, Title: h.Task.Title, Persona: h.Task.PersonaName,
+				Reason: h.Hold.Reason, By: names.actorName(h.Hold.By), When: agoCtx(ctx, h.Hold.At, now, loc),
+				ResumeHref: base + "/caixa/tasks/" + h.Task.ID.String() + "/retomar"})
 		}
 	}
 	if show("falhas") {
@@ -153,7 +160,7 @@ func (s *server) handleInbox(w http.ResponseWriter, r *http.Request, co domain.C
 				Text: i18n.Tf(ctx, "A meta chegou ao alvo: %s.", goalValues(ctx, g.Goal)), When: agoCtx(ctx, at, now, loc)})
 		}
 	}
-	vm.Total = len(vm.Gates) + len(vm.Blocked) + len(vm.Failed) + len(vm.Personas) + len(vm.Alerts) + len(vm.Subs)
+	vm.Total = len(vm.Gates) + len(vm.Held) + len(vm.Blocked) + len(vm.Failed) + len(vm.Personas) + len(vm.Alerts) + len(vm.Subs)
 	switch n := in.Count(); n {
 	case 0:
 		vm.Subtitle = i18n.T(ctx, "Gates, bloqueios, falhas, personas com erro e alertas que esperam por você. Hoje, nada.")

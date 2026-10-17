@@ -393,6 +393,14 @@ type GoalUpdate struct {
 	CreatedAt  time.Time
 }
 
+type HeldWake struct {
+	TaskID      uuid.UUID
+	CompanyID   uuid.UUID
+	PersonaID   uuid.UUID
+	Trigger     string
+	RequestedAt time.Time
+}
+
 type Integration struct {
 	ID            uuid.UUID
 	CompanyID     uuid.UUID
@@ -683,6 +691,19 @@ type Project struct {
 	BudgetMonthlyCents *int64
 }
 
+type ProjectReviewPolicy struct {
+	ProjectID         uuid.UUID
+	CompanyID         uuid.UUID
+	RequireReview     pgtype.Bool
+	ReviewerMode      string
+	ReviewerPersonaID *uuid.UUID
+	ReviewerAgent     string
+	ReviewerModel     string
+	UpdatedByType     string
+	UpdatedByID       *uuid.UUID
+	UpdatedAt         time.Time
+}
+
 type Review struct {
 	ID                uuid.UUID
 	CompanyID         uuid.UUID
@@ -752,6 +773,15 @@ type RunEvent struct {
 	Payload    []byte
 	OccurredAt time.Time
 	ReceivedAt time.Time
+}
+
+type RunPolicyOrigin struct {
+	RunID                uuid.UUID
+	CompanyID            uuid.UUID
+	ReviewRequired       bool
+	ReviewRequiredSource string
+	ReviewerSource       string
+	UpdatedAt            time.Time
 }
 
 type Session struct {
@@ -1007,6 +1037,37 @@ type TaskComment struct {
 	CreatedAt  time.Time
 	Anchor     []byte
 	SearchTsv  interface{}
+}
+
+type TaskDependency struct {
+	CompanyID     uuid.UUID
+	TaskID        uuid.UUID
+	DependsOnID   uuid.UUID
+	CreatedByType string
+	CreatedByID   *uuid.UUID
+	CreatedAt     time.Time
+}
+
+type TaskHold struct {
+	TaskID     uuid.UUID
+	CompanyID  uuid.UUID
+	Reason     string
+	HeldByType string
+	HeldByID   *uuid.UUID
+	HeldAt     time.Time
+}
+
+type TaskReviewOverride struct {
+	TaskID            uuid.UUID
+	CompanyID         uuid.UUID
+	RequireReview     pgtype.Bool
+	ReviewerMode      string
+	ReviewerPersonaID *uuid.UUID
+	ReviewerAgent     string
+	ReviewerModel     string
+	UpdatedByType     string
+	UpdatedByID       *uuid.UUID
+	UpdatedAt         time.Time
 }
 
 type ToolCallApproval struct {

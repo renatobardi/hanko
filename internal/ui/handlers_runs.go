@@ -92,6 +92,7 @@ func (s *server) runVM(ctx context.Context, co domain.Company, rv service.RunVie
 		Agent:        rv.Agent,
 		Model:        rv.Model,
 		ModelSource:  modelSourceLabel(ctx, rv.ModelSource),
+		PolicyOrigin: policyOriginLabel(ctx, rv.PolicyOrigin),
 		ListCost:     fmtCostPtrCtx(ctx, rv.ListCostUSD),
 		CostSource:   costSourceLabel(ctx, rv.CostSource),
 		Subscription: subscriptionLabel(ctx, rv.SubscriptionID),

@@ -1,0 +1,146 @@
+package views
+
+import (
+	"fmt"
+	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/i18n"
+)
+
+// Coordenação de tasks (ADR-0040): breadcrumb da árvore, banner de pausa, dependências, subtasks e revisão.
+
+templ CoordCrumbs(c TaskCoordVM) {
+	for _, a := range c.Crumbs {
+		<a class="mono" href={ templ.SafeURL(a.Href) } title={ a.Title }>{ a.Key }</a>
+		<span aria-hidden="true">›</span>
+	}
+}
+
+// HoldBanner avisa, no alto do thread, que a task está pausada (própria ou herdada) e por quê.
+templ HoldBanner(h *CoordHold) {
+	if h != nil {
+		<section class="alert warn hold-banner" role="status" aria-label={ i18n.T(ctx, "Task pausada") }>
+			@Icon("alert")
+			<div>
+				<b>{ i18n.T(ctx, "Pausada") }</b>
+				if h.Inherited {
+					· { i18n.T(ctx, "herdada de") } <a class="mono" href={ templ.SafeURL(h.OriginHref) }>{ h.OriginKey }</a>
+				}
+				· { h.By } · <time class="mono">{ h.When }</time>
+				<p class="x">{ h.Reason }</p>
+				<p class="muted text-sm">{ i18n.T(ctx, "Nenhuma execução abre enquanto durar. Quem já está rodando termina sozinha.") }</p>
+				if h.ResumeHref != "" && canWrite(ctx) {
+					<form method="post" action={ templ.SafeURL(h.ResumeHref) } hx-post={ h.ResumeHref } hx-target="#task-side" hx-swap="outerHTML">
+						<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Retomar") }</button>
+					</form>
+				}
+			</div>
+		</section>
+	}
+}
+
+templ coordRows(rows []CoordRow, canEdit bool) {
+	for _, r := range rows {
+		<div class="coord-row prop">
+			<span>
+				<a class="mono" href={ templ.SafeURL(r.Href) }>{ r.Key }</a>
+				<a href={ templ.SafeURL(r.Href) }>{ r.Title }</a>
+			</span>
+			<span class="ta-r">
+				@BadgeEl(r.Badge)
+				if r.RemoveHref != "" && canEdit {
+					<form class="inline" method="post" action={ templ.SafeURL(r.RemoveHref) } hx-post={ r.RemoveHref } hx-target="#task-side" hx-swap="outerHTML">
+						<button class="btn ghost sm" type="submit" aria-label={ i18n.T(ctx, "Remover dependência") }>×</button>
+					</form>
+				}
+			</span>
+		</div>
+	}
+}
+
+// TaskCoordSide são as seções da coluna lateral: dependências, subtasks, pausa e revisão.
+templ TaskCoordSide(c TaskCoordVM, key string) {
+	<div class="side-sec" id="task-deps">
+		<div class="side-h">{ i18n.T(ctx, "Dependências") }</div>
+		if c.Blocked {
+			<p class="text-sm"><span class="badge warn">{ i18n.T(ctx, "Aguarda dependências") }</span> { i18n.Tf(ctx, "%d aberta(s): nenhuma execução abre até todas fecharem.", c.OpenDeps) }</p>
+		}
+		if len(c.DependsOn) == 0 {
+			<p class="muted text-sm">{ i18n.T(ctx, "Esta task não depende de nenhuma outra.") }</p>
+		}
+		@coordRows(c.DependsOn, true)
+		if len(c.Dependents) > 0 {
+			<div class="side-h mt-3">{ i18n.T(ctx, "Esperam por esta") }</div>
+			@coordRows(c.Dependents, false)
+		}
+		if canWrite(ctx) {
+			<form class="mt-3" method="post" action={ templ.SafeURL(c.AddDepHref) } hx-post={ c.AddDepHref } hx-target="#task-side" hx-swap="outerHTML">
+				<label class="sr-only" for="dep-key">{ i18n.T(ctx, "Chave da task") }</label>
+				<input class="input sm" id="dep-key" name="dep" placeholder={ i18n.T(ctx, "Depende de… (ex.: HNK-12)") } maxlength="40" autocomplete="off" required/>
+				<button class="btn outline sm mt-2" type="submit">{ i18n.T(ctx, "Adicionar dependência") }</button>
+			</form>
+		}
+	</div>
+	<div class="side-sec" id="task-tree">
+		<div class="side-h row-between">
+			<span>{ i18n.T(ctx, "Subtasks") }</span>
+			if len(c.Children) > 0 {
+				<span class="mono text-xs">{ fmt.Sprint(len(c.Children) - c.ChildrenOpn) }/{ fmt.Sprint(len(c.Children)) }</span>
+			}
+		</div>
+		if len(c.Children) == 0 {
+			<p class="muted text-sm">{ i18n.T(ctx, "Sem subtasks.") }</p>
+		}
+		@coordRows(c.Children, false)
+		if canWrite(ctx) {
+			<a class="btn outline sm block mt-2" href={ templ.SafeURL(c.NewSubtaskHref) }>{ i18n.T(ctx, "Nova subtask") }</a>
+			<form class="mt-3" method="post" action={ templ.SafeURL(c.ParentHref) } hx-post={ c.ParentHref } hx-target="#task-side" hx-swap="outerHTML">
+				<label class="sr-only" for="parent-key">{ i18n.T(ctx, "Task pai") }</label>
+				<input class="input sm" id="parent-key" name="parent" value={ c.ParentKey } placeholder={ i18n.T(ctx, "Task pai (vazio = raiz)") } maxlength="40" autocomplete="off"/>
+				<button class="btn ghost sm mt-2" type="submit">{ i18n.T(ctx, "Mudar pai") }</button>
+			</form>
+		}
+		if c.CanForceClose && canWrite(ctx) {
+			<details class="mt-3">
+				<summary class="text-sm">{ i18n.T(ctx, "Concluir mesmo com subtask aberta") }</summary>
+				<form method="post" action={ templ.SafeURL(c.ForceCloseHref) } hx-post={ c.ForceCloseHref } hx-target="#task-side" hx-swap="outerHTML">
+					<p class="muted text-sm">{ i18n.T(ctx, "Override humano: o motivo fica no registro de atividade.") }</p>
+					<input class="input sm" name="reason" required maxlength="500" placeholder={ i18n.T(ctx, "Motivo") } aria-label={ i18n.T(ctx, "Motivo") }/>
+					<button class="btn outline sm mt-2" type="submit">{ i18n.T(ctx, "Concluir assim mesmo") }</button>
+				</form>
+			</details>
+		}
+	</div>
+	<div class="side-sec" id="task-hold">
+		<div class="side-h">{ i18n.T(ctx, "Pausa") }</div>
+		if c.Hold != nil {
+			<p class="text-sm"><span class="badge warn">{ i18n.T(ctx, "Pausada") }</span> { c.Hold.Reason }</p>
+		} else {
+			<p class="muted text-sm">{ i18n.T(ctx, "Pausar congela esta task e todas as subtasks: nenhuma execução abre até retomar.") }</p>
+		}
+		if canWrite(ctx) {
+			if c.Hold == nil {
+				<form method="post" action={ templ.SafeURL(c.HoldHref) } hx-post={ c.HoldHref } hx-target="#task-side" hx-swap="outerHTML">
+					<input class="input sm" name="reason" required maxlength="500" placeholder={ i18n.T(ctx, "Motivo da pausa") } aria-label={ i18n.T(ctx, "Motivo da pausa") }/>
+					<button class="btn outline sm mt-2" type="submit">{ i18n.T(ctx, "Pausar") }</button>
+				</form>
+			} else if c.Hold.ResumeHref != "" {
+				<form method="post" action={ templ.SafeURL(c.Hold.ResumeHref) } hx-post={ c.Hold.ResumeHref } hx-target="#task-side" hx-swap="outerHTML">
+					<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Retomar") }</button>
+				</form>
+			}
+		}
+	</div>
+	<div class="side-sec" id="task-review">
+		<div class="side-h">{ i18n.T(ctx, "Revisão do fechamento") }</div>
+		<p class="text-sm">{ c.Review.Summary }</p>
+		if c.Review.CanEdit && canAdmin(ctx) {
+			<form method="post" action={ templ.SafeURL(c.Review.Action) } hx-post={ c.Review.Action } hx-target="#task-side" hx-swap="outerHTML">
+				<label class="prop"><span>{ i18n.T(ctx, "Exigir revisão") }</span>@Select("require", "rv-require", c.Review.RequireOptions, true)</label>
+				<label class="prop"><span>{ i18n.T(ctx, "Revisor") }</span>@Select("reviewer", "rv-reviewer", c.Review.ReviewerOptions, true)</label>
+				<button class="btn outline sm mt-2" type="submit">{ i18n.T(ctx, "Salvar política") }</button>
+			</form>
+		}
+	</div>
+}
+
+var _ = domain.MemberAdmin

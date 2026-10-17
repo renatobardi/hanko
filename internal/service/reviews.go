@@ -62,15 +62,16 @@ func reviewerLabel(name, agent, model string, independent bool) string {
 }
 
 // requestReview registers the review of a closing request and enqueues its start.
-func (t *txc) requestReview(companyID domain.ID, task store.Task, author store.Persona, requested domain.TaskStatus) error {
+func (t *txc) requestReview(companyID domain.ID, task store.Task, author store.Persona, pol domain.ReviewPolicy, requested domain.TaskStatus) error {
 	if _, err := t.q.OpenReviewForTask(t.ctx, task.ID); err == nil {
 		return nil // already under review
 	} else if !isNoRows(err) {
 		return fmt.Errorf("open review: %w", err)
 	}
-	agent, model := author.ReviewerAgent, author.ReviewerModel
-	if author.ReviewerPersonaID != nil {
-		rp, err := t.q.GetPersonaByID(t.ctx, store.GetPersonaByIDParams{CompanyID: companyID, ID: *author.ReviewerPersonaID})
+	// O revisor vem da política resolvida (task > projeto > persona, ADR-0040), não só da autora.
+	agent, model := pol.ReviewerAgent, pol.ReviewerModel
+	if pol.ReviewerPersonaID != nil {
+		rp, err := t.q.GetPersonaByID(t.ctx, store.GetPersonaByIDParams{CompanyID: companyID, ID: *pol.ReviewerPersonaID})
 		if err != nil {
 			return mapErr(err, "reviewer persona")
 		}
@@ -81,7 +82,7 @@ func (t *txc) requestReview(companyID domain.ID, task store.Task, author store.P
 		authorRun = &run.ID
 	}
 	rv, err := t.q.CreateReview(t.ctx, store.CreateReviewParams{ID: domain.NewID(), CompanyID: companyID, TaskID: task.ID,
-		AuthorPersonaID: author.ID, AuthorRunID: authorRun, ReviewerPersonaID: author.ReviewerPersonaID,
+		AuthorPersonaID: author.ID, AuthorRunID: authorRun, ReviewerPersonaID: pol.ReviewerPersonaID,
 		Agent: agent, Model: model, RequestedStatus: string(requested), Now: t.now})
 	if err != nil {
 		return mapErr(err, "create review")
@@ -165,6 +166,13 @@ func (s *Service) StartReview(ctx context.Context, companyID, reviewID domain.ID
 		} else if !isNoRows(err) {
 			return fmt.Errorf("check active run: %w", err)
 		}
+		// Task pausada (própria ou herdada, ADR-0040): nenhuma run abre, nem a de revisão. Tenta de novo depois;
+		// se a pausa passar do prazo da revisão, ela segue o caminho de sempre (gate sem veredito).
+		if berr := t.dispatchBlocker(companyID, task.ID); errors.Is(berr, domain.ErrTaskHeld) {
+			return domain.ErrActiveRun
+		} else if berr != nil && !errors.Is(berr, domain.ErrTaskBlocked) {
+			return berr
+		}
 		author, err := t.q.GetPersonaByID(ctx, store.GetPersonaByIDParams{CompanyID: companyID, ID: rv.AuthorPersonaID})
 		if err != nil {
 			return mapErr(err, "author persona")
@@ -219,6 +227,19 @@ func (s *Service) StartReview(ctx context.Context, companyID, reviewID domain.ID
 		ws, wsSource := pickWorkspace(task.WorkspaceID, project, runPersona)
 		run, err := t.createRun(companyID, task.ID, runPersona.ID, rv.Agent, model, modelSource, subID, ws, wsSource, domain.TriggerReview)
 		if err != nil {
+			return err
+		}
+		// a run de revisão herda a origem da política da run da autora (de onde veio o revisor)
+		origin := domain.RunPolicyOrigin{ReviewRequired: true, ReviewRequiredSource: domain.ReviewLayerPersona, ReviewerSource: domain.ReviewLayerPersona}
+		if rv.AuthorRunID != nil {
+			if o, oerr := t.q.GetRunPolicyOrigin(ctx, *rv.AuthorRunID); oerr == nil {
+				origin.ReviewRequiredSource, origin.ReviewerSource = domain.ReviewLayer(o.ReviewRequiredSource), domain.ReviewLayer(o.ReviewerSource)
+			} else if !isNoRows(oerr) {
+				return fmt.Errorf("author run policy origin: %w", oerr)
+			}
+		}
+		if err := t.recordPolicyOrigin(companyID, run.ID, domain.ReviewPolicy{Required: origin.ReviewRequired,
+			RequiredSource: origin.ReviewRequiredSource, ReviewerSource: origin.ReviewerSource}); err != nil {
 			return err
 		}
 		if _, err := t.q.MarkReviewRunning(ctx, store.MarkReviewRunningParams{ID: rv.ID, RunID: &run.ID, Artifact: artifact,
