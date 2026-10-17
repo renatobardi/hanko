@@ -110,9 +110,9 @@ var enM7 = map[string]string{
 	"USADO POR": "USED BY",
 
 	// CLI: hanko settings
-	"Configurações da instalação (dono da instalação); env vence e trava a chave": "Installation settings (installation owner); env wins and locks the key",
-	"Lista as configurações com o valor efetivo e a origem":                       "Lists the settings with the effective value and its source",
-	"Mostra uma configuração": "Shows a setting",
+	"Configurações da instalação (dono da instalação); env vence e trava a chave":  "Installation settings (installation owner); env wins and locks the key",
+	"Lista as configurações com o valor efetivo e a origem":                        "Lists the settings with the effective value and its source",
+	"Mostra uma configuração":                                                      "Shows a setting",
 	"Define uma configuração (true/false, número, duração como 15m, ou lista a,b)": "Sets a setting (true/false, number, duration like 15m, or list a,b)",
 	"Remove o valor do banco (volta ao padrão)":                                    "Removes the value from the database (back to default)",
 	"Histórico das mudanças":                                                       "Change history",
