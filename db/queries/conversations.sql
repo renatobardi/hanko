@@ -62,6 +62,12 @@ INSERT INTO conversation_messages (id, company_id, conversation_id, author_type,
 VALUES (@id, @company_id, @conversation_id, @author_type, @author_id, @body, @run_id, @now)
 RETURNING *;
 
+-- name: InsertContextMarker :one
+-- /new (ADR-0052): mensagem de sistema que marca o reinício do contexto da conversa.
+INSERT INTO conversation_messages (id, company_id, conversation_id, author_type, body, marker, created_at)
+VALUES (@id, @company_id, @conversation_id, 'system', @body, 'context_reset', @now)
+RETURNING *;
+
 -- name: ListConversationMessages :many
 -- As @lim mensagens mais recentes, em ordem cronológica.
 SELECT * FROM (
@@ -92,3 +98,6 @@ ORDER BY created_at DESC, id DESC LIMIT 1;
 
 -- name: DeleteConversation :exec
 DELETE FROM conversations WHERE company_id = @company_id AND id = @id;
+
+-- name: GetConversationMessageByID :one
+SELECT * FROM conversation_messages WHERE company_id = @company_id AND id = @id;

@@ -34,6 +34,9 @@ type ChatMsg struct {
 	Body    HTML
 	When    string
 	RunHref string
+	// Marker é "context_reset" no aviso que /new insere (ADR-0052); Attachments são os anexos da mensagem.
+	Marker      string
+	Attachments []AttachmentRow
 }
 
 // ChatVM is a conversation page; its Thread part is also the htmx fragment that polls while the persona answers.
@@ -52,7 +55,9 @@ type ChatVM struct {
 	ListHref    string
 	RunHref     string // run in progress, when there is one
 	Cost        string
-	Draft       string
 	Error       string
-	Blocked     string // why the persona cannot answer now ("" = it can); sending is disabled
+	// DraftF liga o campo ao rascunho do servidor e UploadHint é a dica do campo de arquivos (ADR-0052).
+	DraftF     DraftFields
+	UploadHint string
+	Blocked    string // why the persona cannot answer now ("" = it can); sending is disabled
 }

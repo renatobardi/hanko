@@ -151,7 +151,12 @@ templ RoomThread(vm RoomVM) {
 			switch m.Kind {
 				case "human":
 					<div class="msg me">
-						<div class="bubble"><div class="md">@templ.Raw(string(m.Body))</div></div>
+						<div class="bubble">
+							<div class="md">@templ.Raw(string(m.Body))</div>
+							if len(m.Attachments) > 0 {
+								<div class="att-inline">@AttachmentItems(m.Attachments)</div>
+							}
+						</div>
 						<div class="meta">
 							<span>{ m.Author } · <time class="mono">{ m.When }</time></span>
 							if len(m.Waiting) > 0 {
@@ -160,9 +165,13 @@ templ RoomThread(vm RoomVM) {
 						</div>
 					</div>
 				case "system":
-					<div class="run-sep">
+					<div class={ "run-sep", templ.KV("context-reset", m.Marker != "") }>
 						<span>
-							{ m.Body }
+							if m.Marker != "" {
+								{ i18n.T(ctx, "Contexto reiniciado") }
+							} else {
+								{ m.Body }
+							}
 							<time class="mono">{ m.When }</time>
 							if m.RunHref != "" {
 								· <a class="link-u fg" href={ templ.SafeURL(m.RunHref) }>{ i18n.T(ctx, "execução") }</a>
@@ -215,19 +224,24 @@ templ RoomComposer(vm RoomVM) {
 			class="composer"
 			method="post"
 			action={ templ.SafeURL(vm.SendHref) }
+			enctype="multipart/form-data"
 			hx-post={ vm.SendHref }
+			hx-encoding="multipart/form-data"
 			hx-target="#room-thread"
 			hx-swap="outerHTML"
-			hx-on::after-request="if(event.detail.successful){this.reset();}"
+			hx-on::after-request="if(event.detail.successful){this.querySelector('textarea').value='';var f=this.querySelector('input[type=file]');if(f){f.value='';f.dispatchEvent(new Event('change',{bubbles:true}));}}"
 			data-draft={ vm.DraftKey }
+			data-dropzone=""
 		>
-			<textarea name="message" required placeholder={ i18n.T(ctx, "Escreva para a sala (markdown). Cite com @ quem deve responder.") } aria-label={ i18n.T(ctx, "Mensagem") }>{ vm.Draft }</textarea>
+			@DraftTextarea("message", i18n.T(ctx, "Escreva para a sala (markdown). Cite com @ quem deve responder."), i18n.T(ctx, "Mensagem"), vm.DraftF)
+			@DropField(vm.UploadHint, false)
 			<div class="row">
 				<span class="hint room-at">
 					{ i18n.T(ctx, "@ para chamar uma persona:") }
 					for _, p := range vm.Members {
 						<button type="button" class="chip soft" data-mention={ "@" + p.Slug }>{ "@" + p.Slug }</button>
 					}
+					<span>{ i18n.T(ctx, "/new reinicia o contexto") }</span>
 				</span>
 				<button type="submit" class="btn primary sm">
 					@Icon("send")
