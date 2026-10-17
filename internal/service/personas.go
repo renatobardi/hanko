@@ -10,6 +10,7 @@ import (
 
 	"github.com/renatobardi/hanko/internal/adapter/acp"
 	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/settings"
 	"github.com/renatobardi/hanko/internal/store"
 )
 
@@ -72,6 +73,10 @@ func (s *Service) HirePersona(ctx context.Context, actor domain.Actor, companyID
 				return domain.Invalid("subscription_id", "subscription not found in company")
 			}
 		}
+		// o env em claro vira segredos da empresa; a persona guarda só ${secret:...} (ADR-0032)
+		if cfg, _, err = s.sealPersonaEnv(t, actor, companyID, slug, cfg); err != nil {
+			return err
+		}
 		row, err := t.q.CreatePersona(ctx, store.CreatePersonaParams{
 			ID: domain.NewID(), CompanyID: companyID, Slug: slug, Name: name, Title: strings.TrimSpace(in.Title), Icon: icon,
 			Instructions: in.Instructions, Agent: in.Agent, Model: strings.TrimSpace(in.Model), AdapterConfig: cfg,
@@ -118,6 +123,14 @@ func (s *Service) validateAdapterConfig(agent string, cfg []byte) error {
 	return nil
 }
 
+// acpPolicy é a política efetiva do harness acp: settings da instância (env > banco) ou a configuração fixa.
+func (s *Service) acpPolicy() acp.Policy {
+	if s.Settings != nil {
+		return acp.Policy{Allow: s.Settings.Bool(settings.ACPAllow), Commands: s.Settings.Strings(settings.ACPCommands)}
+	}
+	return s.ACP
+}
+
 // adapterConfigProblem is the reason an adapter_config cannot run on agent (nil = fine). For acp that
 // includes the operator's gate (HANKO_ACP_ALLOW / HANKO_ACP_COMMANDS, ADR-0023): the command is chosen
 // by a company admin, so it is checked here and again by the adapter when the run starts.
@@ -129,7 +142,7 @@ func (s *Service) adapterConfigProblem(agent string, cfg []byte) error {
 	if err != nil {
 		return err
 	}
-	return s.ACP.Check(c.Command)
+	return s.acpPolicy().Check(c.Command)
 }
 
 func (s *Service) ListPersonas(ctx context.Context, companyID domain.ID) ([]domain.Persona, error) {

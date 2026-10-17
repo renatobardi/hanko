@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/renatobardi/hanko/internal/domain"
@@ -47,10 +48,18 @@ func (s *Service) RunExtras(ctx context.Context, companyID, personaID domain.ID)
 			ex.Warnings = append(ex.Warnings, fmt.Sprintf("integração %q ignorada: segredos ilegíveis (%v)", r.Slug, err))
 			continue
 		}
+		hdrs, _, herr := s.expandMap(ctx, companyID, sec.Headers)
+		env, _, eerr := s.expandMap(ctx, companyID, sec.Env)
+		if herr != nil || eerr != nil {
+			// o texto do erro nomeia o segredo que faltou, nunca o valor
+			ex.Warnings = append(ex.Warnings, fmt.Sprintf("integração %q ignorada: %v", r.Slug, errors.Join(herr, eerr)))
+			continue
+		}
+		sec.Headers, sec.Env = hdrs, env
 		var entry map[string]any
 		switch cfg.Transport {
 		case domain.TransportStdio:
-			if !s.Integrations.AllowStdio {
+			if !s.Integrations.stdioAllowed() {
 				ex.Warnings = append(ex.Warnings, fmt.Sprintf("integração %q ignorada: stdio está desligado neste servidor", r.Slug))
 				continue
 			}

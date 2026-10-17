@@ -19,9 +19,9 @@ LIMIT 1;
 
 -- name: CreateArtifact :one
 INSERT INTO artifacts (id, company_id, task_id, run_id, project_id, persona_id, author_type, author_id, name, mime,
-                       size_bytes, sha256, version, created_at)
+                       size_bytes, sha256, version, created_at, storage)
 VALUES (@id, @company_id, @task_id, @run_id, @project_id, @persona_id, @author_type, @author_id, @name, @mime,
-        @size_bytes, @sha256, @version, @created_at)
+        @size_bytes, @sha256, @version, @created_at, @storage)
 RETURNING *;
 
 -- name: CreateArtifactBlob :exec
@@ -46,11 +46,13 @@ WHERE company_id = @company_id
   AND name = @name
 ORDER BY version DESC;
 
--- name: DeleteArtifactChain :execrows
+-- name: DeleteArtifactChain :many
+-- Devolve id e driver de cada versão apagada: o conteúdo fora do Postgres é apagado depois do commit (ADR-0033).
 DELETE FROM artifacts
 WHERE company_id = @company_id
   AND COALESCE(task_id, '00000000-0000-0000-0000-000000000000'::uuid) = COALESCE(sqlc.narg(task_id)::uuid, '00000000-0000-0000-0000-000000000000'::uuid)
-  AND name = @name;
+  AND name = @name
+RETURNING id, storage;
 
 -- name: ListArtifactViews :many
 -- Cada linha é uma versão. latest_only deixa só a mais nova de cada cadeia (a listagem geral); a lista de uma run
@@ -114,3 +116,21 @@ LEFT JOIN projects pr ON pr.id = a.project_id
 LEFT JOIN personas pe ON pe.id = a.persona_id
 WHERE a.company_id = @company_id
 ORDER BY a.created_at, a.version, a.id;
+
+-- name: ListArtifactsForBlobMigration :many
+-- Versões guardadas em um driver, em ordem estável, para o comando de migração entre drivers (ADR-0033).
+SELECT id, company_id, size_bytes, sha256, mime, storage FROM artifacts
+WHERE storage = @storage
+  AND (sqlc.narg(company_id)::uuid IS NULL OR company_id = sqlc.narg(company_id)::uuid)
+  AND id > @after_id
+ORDER BY id
+LIMIT @lim;
+
+-- name: SetArtifactStorage :execrows
+UPDATE artifacts SET storage = @to_storage WHERE company_id = @company_id AND id = @id AND storage = @from_storage;
+
+-- name: DeleteArtifactBlob :execrows
+DELETE FROM artifact_blobs WHERE company_id = @company_id AND artifact_id = @artifact_id;
+
+-- name: CountArtifactsByStorage :many
+SELECT storage, count(*)::bigint AS versions, COALESCE(sum(size_bytes), 0)::bigint AS bytes FROM artifacts GROUP BY storage ORDER BY storage;

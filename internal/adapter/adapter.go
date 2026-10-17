@@ -36,6 +36,9 @@ type Spec struct {
 	// ReadOnly forces the harness into its read-only mode (review runs), ignoring any
 	// permissive adapter_config (permission mode, sandbox, extra args).
 	ReadOnly bool
+	// Secrets são os valores de segredos resolvidos no despacho (${secret:...}, ADR-0032) que entraram em Config,
+	// Env ou MCPConfig; entram na redação do log e do resultado da run, qualquer que seja o nome da variável.
+	Secrets []string
 }
 
 // Event is one normalized log entry emitted while the agent runs.

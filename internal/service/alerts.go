@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/settings"
 	"github.com/renatobardi/hanko/internal/store"
 )
 
@@ -67,7 +68,7 @@ func (c alertCond) key() alertKey { return alertKey{c.companyID, c.subjectID, c.
 // atualiza o que continua e fecha o que sumiu. É idempotente (um alerta aberto por condição) e
 // roda numa transação só, serializada por lock, com activity alert.opened / alert.closed.
 func (s *Service) EvaluateAlerts(ctx context.Context) (AlertEval, error) {
-	cfg := s.Alerts.withDefaults()
+	cfg := s.alertConfig().withDefaults()
 	var ev AlertEval
 	err := s.withTx(ctx, func(t *txc) error {
 		ev = AlertEval{}
@@ -338,4 +339,12 @@ func (s *Service) AlertCounts(ctx context.Context) (map[domain.AlertKind]int, er
 		out[domain.AlertKind(r.Kind)] = int(r.N)
 	}
 	return out, nil
+}
+
+// alertConfig são os limiares efetivos dos alertas: settings da instância (env > banco) ou a configuração fixa.
+func (s *Service) alertConfig() AlertConfig {
+	if s.Settings != nil {
+		return AlertConfig{SilentFactor: int(s.Settings.Int(settings.AlertsSilentFactor)), RunStuckAfter: s.Settings.Duration(settings.AlertsRunStuckAfter)}
+	}
+	return s.Alerts
 }

@@ -15,6 +15,7 @@ import (
 	"github.com/renatobardi/hanko/internal/adapter"
 	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/export"
+	"github.com/renatobardi/hanko/internal/storage"
 	"github.com/renatobardi/hanko/internal/store"
 )
 
@@ -82,10 +83,32 @@ type ExportStream struct {
 	doc       export.Document
 	runIDs    []domain.ID // paralelo a doc.Runs
 	artIDs    []domain.ID // paralelo a doc.Artifacts (o conteúdo é lido na hora de escrever)
+	artStore  []string    // paralelo a artIDs: em que driver de blobs cada versão está (ADR-0033)
+	blobs     *storage.Registry
 	withLogs  bool
 	pageSize  int
 	pages     int
 	hook      func(page int) error
+}
+
+// artifactContent lê o conteúdo da i-ésima versão: no snapshot do Postgres quando está lá, senão no driver dela.
+func (e *ExportStream) artifactContent(ctx context.Context, i int, id domain.ID) ([]byte, error) {
+	if i >= len(e.artStore) || e.artStore[i] == storage.DriverPostgres || e.blobs == nil {
+		b, err := e.q.GetArtifactContent(ctx, store.GetArtifactContentParams{CompanyID: e.companyID, ArtifactID: id})
+		if err != nil {
+			return nil, fmt.Errorf("get artifact content: %w", err)
+		}
+		return b, nil
+	}
+	d, err := e.blobs.Driver(e.artStore[i])
+	if err != nil {
+		return nil, err
+	}
+	b, err := d.Get(ctx, storage.Key{CompanyID: e.companyID, ArtifactID: id})
+	if err != nil {
+		return nil, fmt.Errorf("get artifact content: %w", err)
+	}
+	return b, nil
 }
 
 // Pages devolve quantas páginas de eventos foram lidas (para testes e métricas).
@@ -113,7 +136,7 @@ func (s *Service) OpenExport(ctx context.Context, companyID domain.ID, opts Expo
 	if err != nil {
 		return nil, fmt.Errorf("begin export tx: %w", err)
 	}
-	st := &ExportStream{tx: tx, q: store.New(tx), companyID: companyID, withLogs: opts.WithLogs, pageSize: s.ExportPageSize, hook: s.ExportPageHook}
+	st := &ExportStream{tx: tx, q: store.New(tx), companyID: companyID, withLogs: opts.WithLogs, pageSize: s.ExportPageSize, hook: s.ExportPageHook, blobs: s.blobs()}
 	if err := s.limitExportTx(ctx, tx); err != nil {
 		st.Close()
 		return nil, err
@@ -155,7 +178,7 @@ func (s *Service) ExportCompany(ctx context.Context, companyID domain.ID, opts E
 	}
 	defer st.Close()
 	for i, id := range st.artIDs {
-		b, err := st.q.GetArtifactContent(ctx, store.GetArtifactContentParams{CompanyID: companyID, ArtifactID: id})
+		b, err := st.artifactContent(ctx, i, id)
 		if err != nil {
 			return export.Document{}, fmt.Errorf("export artifact content: %w", err)
 		}
@@ -232,7 +255,7 @@ func (e *ExportStream) WriteTo(ctx context.Context, w io.Writer) error {
 				_ = bw.WriteByte(',')
 			}
 			if a.Content == nil {
-				if a.Content, err = e.q.GetArtifactContent(ctx, store.GetArtifactContentParams{CompanyID: e.companyID, ArtifactID: e.artIDs[i]}); err != nil {
+				if a.Content, err = e.artifactContent(ctx, i, e.artIDs[i]); err != nil {
 					return fmt.Errorf("export artifact content: %w", err)
 				}
 			}

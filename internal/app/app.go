@@ -26,7 +26,9 @@ import (
 	"github.com/renatobardi/hanko/internal/memory/aimemory"
 	"github.com/renatobardi/hanko/internal/secretbox"
 	"github.com/renatobardi/hanko/internal/service"
+	"github.com/renatobardi/hanko/internal/settings"
 	"github.com/renatobardi/hanko/internal/telemetry"
+	"github.com/renatobardi/hanko/internal/vault"
 )
 
 const serviceName = "hanko"
@@ -82,6 +84,33 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 		AllowStdio: cfg.Integrations.AllowStdio, AllowPrivate: cfg.Integrations.AllowPrivateDestinations, Secrets: box,
 	}
 	svc.ACP = acp.Policy{Allow: cfg.ACP.Allow, Commands: cfg.ACP.Commands}
+
+	// Settings da instância (ADR-0032): env > banco > yaml/padrão; leitura em tempo de uso, então mudar vale sem restart.
+	sm := settings.NewManager(settingsBase(cfg), cfg.EnvSet)
+	sm.SetMaxArtifactBytes(cfg.MaxArtifactBytes())
+	svc.Settings = sm
+	svc.Integrations.Settings = sm
+	if skipped, err := svc.LoadInstanceSettings(ctx); err != nil {
+		logger.Warn("instance_settings: não foi possível ler o banco; valem env e padrões", "err", err)
+	} else if len(skipped) > 0 {
+		logger.Warn("instance_settings: chaves ignoradas (desconhecidas ou inválidas)", "keys", skipped)
+	}
+
+	// Conteúdo de artefatos (ADR-0033) e cofre externo de segredos (ADR-0032).
+	blobs, err := NewBlobRegistry(cfg, pool)
+	if err != nil {
+		return err
+	}
+	svc.Blobs = blobs
+	logger.Info("artefatos: driver de conteúdo", "active", blobs.Active().Name(), "available", blobs.Names())
+	if cfg.Vault.Addr != "" {
+		v, err := vault.NewKV2(vault.KV2Options{Addr: cfg.Vault.Addr, Token: cfg.Vault.Token, Mount: cfg.Vault.Mount, Namespace: cfg.Vault.Namespace})
+		if err != nil {
+			return fmt.Errorf("app: cofre externo: %w", err)
+		}
+		svc.Vault = v
+		logger.Info("segredos: cofre externo configurado", "provider", v.Name(), "addr", cfg.Vault.Addr)
+	}
 	if cfg.ACP.Allow {
 		logger.Warn("acp: harness liberado (HANKO_ACP_ALLOW); personas acp executam comandos nesta máquina", "commands", cfg.ACP.Commands)
 	}
@@ -94,6 +123,7 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 	if err := registerAlertMetrics(otel.Meter(serviceName), svc); err != nil {
 		return err
 	}
+	migratePersonaEnvAtBoot(ctx, svc, box.Enabled(), logger)
 
 	// Runs de antes dos nomes amigáveis ganham o delas; falha aqui só deixa o nome vazio (a UI cai no id curto).
 	if n, err := svc.BackfillRunNames(ctx); err != nil {
@@ -107,7 +137,10 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 		"claude": claude.New(claude.Options{Bin: cfg.ClaudeBin, Logger: logger, EnvAllow: cfg.AgentEnvAllow}),
 		"codex":  codex.New(codex.Options{Bin: cfg.CodexBin, Logger: logger, EnvAllow: cfg.AgentEnvAllow}),
 		"acp": acp.New(acp.Options{Logger: logger, Version: version, EnvAllow: cfg.AgentEnvAllow,
-			Policy: acp.Policy{Allow: cfg.ACP.Allow, Commands: cfg.ACP.Commands}}),
+			Policy: acp.Policy{Allow: cfg.ACP.Allow, Commands: cfg.ACP.Commands},
+			PolicyFunc: func() acp.Policy {
+				return acp.Policy{Allow: sm.Bool(settings.ACPAllow), Commands: sm.Strings(settings.ACPCommands)}
+			}}),
 		"fake": fake.New(fake.Options{}),
 	}
 	tokens := auth.RunTokens{Secret: []byte(cfg.Secret), TTL: cfg.RunTimeout + 5*time.Minute}
