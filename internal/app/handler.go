@@ -51,6 +51,7 @@ func buildHandler(d handlerDeps) (http.Handler, error) {
 	mux.Handle("/mcp", mcp.Handler(mcp.Deps{Svc: d.Svc, Tokens: d.Tokens, Logger: d.Logger, Version: d.Version, Trusted: cfg.TrustedMCP(), ArtifactMaxBytes: cfg.MaxArtifactBytes()}))
 	tg := mcp.ToolGatewayDeps{Backend: d.Svc, Tokens: d.Tokens, Logger: d.Logger, Version: d.Version} // gateway de tools (ADR-0036)
 	mux.Handle(mcp.RunToolGatewayPattern, mcp.RunToolGateway(tg))
+	mux.Handle(mcp.RunAggregateGatewayPattern, mcp.RunAggregateGateway(tg)) // endpoint único da run (ADR-0053)
 	mux.Handle(mcp.NamedToolGatewayPattern, mcp.NamedToolGateway(tg))
 	if cfg.Memory.Provider == config.MemoryAIMemory {
 		mp, err := mcp.MemoryProxy(mcp.MemoryProxyDeps{Backend: d.Svc, Tokens: d.Tokens, URL: cfg.Memory.URL, Token: cfg.Memory.Token,
