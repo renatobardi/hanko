@@ -118,6 +118,7 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 	if cfg.SkillSources {
 		logger.Info("skills: fontes ligadas (HANKO_SKILL_SOURCES); o servidor clona repositórios públicos por https")
 	}
+	svc.PublicURL = cfg.PublicURL
 	svc.Environments = execenv.Config{SSHAllowHosts: cfg.Environments.SSHAllowHosts, Sandbox: cfg.Environments.Sandbox,
 		SandboxHostRoot: cfg.Environments.SandboxHostRoot, WorkspacesRoot: cfg.WorkspacesRoot, RemoteURL: cfg.PublicURL}
 	if len(cfg.Environments.SSHAllowHosts) > 0 || cfg.Environments.Sandbox != "" {

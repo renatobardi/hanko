@@ -41,10 +41,17 @@ templ GateDecideForm(g GateRow, next string, compact bool) {
 						{ i18n.T(ctx, "Aprovar e sempre permitir") }
 					</button>
 				}
-				<button class="btn primary sm" type="submit" name="decision" value="approved">
-					@Icon("check")
-					{ i18n.T(ctx, "Aprovar") }
-				</button>
+				if g.Kind == "connection" && g.ConnectHref != "" {
+					<a class="btn primary sm" href={ templ.SafeURL(g.ConnectHref) }>
+						@Icon("plug")
+						{ i18n.T(ctx, "Autorizar conexão") }
+					</a>
+				} else {
+					<button class="btn primary sm" type="submit" name="decision" value="approved">
+						@Icon("check")
+						{ i18n.T(ctx, "Aprovar") }
+					</button>
+				}
 			</div>
 		</form>
 	}

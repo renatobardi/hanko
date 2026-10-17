@@ -13,10 +13,12 @@ const (
 	GateTool       GateKind = "tool"        // chamada de tool em modo "perguntar antes" no gateway de tools (ADR-0036)
 	// GateInstruction é a proposta da própria persona para mudar as instruções dela (ADR-0052); não bloqueia.
 	GateInstruction GateKind = "instruction"
+	// GateConnection pede a um humano autorizar uma conexão OAuth (ADR-0043); aprovar só vale com a conexão conectada.
+	GateConnection GateKind = "connection"
 )
 
 func (k GateKind) Valid() bool {
-	return k == GateApproval || k == GateTaskReview || k == GateHire || k == GateMemory || k == GateTool || k == GateInstruction
+	return k == GateApproval || k == GateTaskReview || k == GateHire || k == GateMemory || k == GateTool || k == GateInstruction || k == GateConnection
 }
 
 // Blocking reports whether a pending gate of this kind holds the requesting persona

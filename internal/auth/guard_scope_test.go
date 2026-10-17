@@ -95,6 +95,7 @@ func TestRedactPathSegredos(t *testing.T) {
 		"/convite/abc":     "/convite/…",
 		"/cli-auth/abc":    "/cli-auth/…",
 		"/pedir-acesso/xy": "/pedir-acesso/…",
+		"/oauth/callback":  "/oauth/callback…",
 		"/api/v1/x":        "/api/v1/x",
 	} {
 		if got := RedactPath(in); got != want {
