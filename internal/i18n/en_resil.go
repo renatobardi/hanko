@@ -51,7 +51,6 @@ var enResil = map[string]string{
 	"Fila de follow-ups": "Follow-up queue",
 	"Nada na fila. O que você enviar enquanto a execução trabalha espera aqui, na ordem.": "Nothing queued. What you send while the run works waits here, in order.",
 	"editado":            "edited",
-	"Editar":             "Edit",
 	"Texto do follow-up": "Follow-up text",
 	"Descartar":          "Discard",
 	"Follow-up":          "Follow-up",

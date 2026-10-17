@@ -21,6 +21,7 @@ import (
 	"github.com/renatobardi/hanko/internal/config"
 	"github.com/renatobardi/hanko/internal/db"
 	"github.com/renatobardi/hanko/internal/events"
+	"github.com/renatobardi/hanko/internal/execenv"
 	"github.com/renatobardi/hanko/internal/heartbeat"
 	"github.com/renatobardi/hanko/internal/memory"
 	"github.com/renatobardi/hanko/internal/memory/aimemory"
@@ -82,6 +83,15 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 		AllowStdio: cfg.Integrations.AllowStdio, AllowPrivate: cfg.Integrations.AllowPrivateDestinations, Secrets: box,
 	}
 	svc.ACP = acp.Policy{Allow: cfg.ACP.Allow, Commands: cfg.ACP.Commands}
+	svc.SkillSources = service.SkillSourcesConfig{Enabled: cfg.SkillSources, AllowPrivate: cfg.Integrations.AllowPrivateDestinations}
+	if cfg.SkillSources {
+		logger.Info("skills: fontes ligadas (HANKO_SKILL_SOURCES); o servidor clona repositórios públicos por https")
+	}
+	svc.Environments = execenv.Config{SSHAllowHosts: cfg.Environments.SSHAllowHosts, Sandbox: cfg.Environments.Sandbox,
+		SandboxHostRoot: cfg.Environments.SandboxHostRoot, WorkspacesRoot: cfg.WorkspacesRoot, RemoteURL: cfg.PublicURL}
+	if len(cfg.Environments.SSHAllowHosts) > 0 || cfg.Environments.Sandbox != "" {
+		logger.Warn("ambientes remotos liberados pelo operador (ADR-0037)", "ssh_allow_hosts", cfg.Environments.SSHAllowHosts, "sandbox", cfg.Environments.Sandbox)
+	}
 	if cfg.ACP.Allow {
 		logger.Warn("acp: harness liberado (HANKO_ACP_ALLOW); personas acp executam comandos nesta máquina", "commands", cfg.ACP.Commands)
 	}
@@ -91,6 +101,8 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 	case cfg.Integrations.AllowStdio:
 		logger.Warn("integrações: servidores MCP stdio liberados (HANKO_INTEGRATIONS_ALLOW_STDIO); eles executam comandos nesta máquina")
 	}
+	startPlugins, stopPlugins := setupPlugins(cfg, svc, logger, version)
+	defer stopPlugins()
 	if err := registerAlertMetrics(otel.Meter(serviceName), svc); err != nil {
 		return err
 	}
@@ -127,6 +139,7 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 			return fmt.Errorf("app: iniciar heartbeat: %w", err)
 		}
 		hbStarted = true
+		startPlugins(ctx)
 		logger.Info("hanko pronto", "version", version, "public_url", cfg.PublicURL, "mode", cfg.Mode, "memory", mem.Name(), "workers", cfg.Workers)
 		return nil
 	})

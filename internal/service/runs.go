@@ -184,6 +184,14 @@ func (t *txc) cancelRun(actor domain.Actor, companyID domain.ID, cur store.Run, 
 			if err := t.memoryRunEnded(row, domain.RunCancelled, ""); err != nil {
 				return err
 			}
+		case domain.TriggerSkillTest:
+			if err := t.skillTestRunEnded(row, domain.RunCancelled, "", ""); err != nil {
+				return err
+			}
+		case domain.TriggerStatusCard:
+			if err := t.statusCardRunEnded(row, domain.RunCancelled, ""); err != nil {
+				return err
+			}
 		default:
 			// follow-ups that waited for this run start the next one (ADR-0039)
 			if err := t.wakeForFollowupsOfRun(row); err != nil {
@@ -230,7 +238,8 @@ func (t *txc) cancelTaskRun(actor domain.Actor, companyID, taskID domain.ID, rea
 // Moves task todo → in_progress.
 func (s *Service) CheckoutRun(ctx context.Context, w Wake) (domain.Run, error) {
 	switch w.Trigger {
-	case domain.TriggerAssign, domain.TriggerComment, domain.TriggerManual, domain.TriggerHeartbeat, domain.TriggerGate, domain.TriggerFlow, domain.TriggerMemory:
+	case domain.TriggerAssign, domain.TriggerComment, domain.TriggerManual, domain.TriggerHeartbeat, domain.TriggerGate, domain.TriggerFlow, domain.TriggerMemory,
+		domain.TriggerSkillTest, domain.TriggerStatusCard:
 	default:
 		return domain.Run{}, domain.Invalid("trigger", fmt.Sprintf("unknown trigger %q", w.Trigger))
 	}
@@ -382,6 +391,18 @@ func (t *txc) createRun(companyID, taskID, personaID domain.ID, agent, model str
 		return store.Run{}, err
 	} else if system {
 		trigger = domain.TriggerMemory
+	}
+	// Idem para a task de sistema de um teste do estúdio: a run recebe só a skill testada (ADR-0035).
+	if test, err := t.isSkillTestTask(taskID); err != nil {
+		return store.Run{}, err
+	} else if test {
+		trigger = domain.TriggerSkillTest
+	}
+	// Idem para as tasks de sistema dos cards de status (ADR-0032): a run é sempre de geração do card.
+	if card, err := t.isStatusCardTask(taskID); err != nil {
+		return store.Run{}, err
+	} else if card {
+		trigger = domain.TriggerStatusCard
 	}
 	return t.insertRun(companyID, &taskID, nil, personaID, agent, model, modelSource, subID, ws, wsSource, trigger, cont)
 }
@@ -724,6 +745,8 @@ func (s *Service) FinishRun(ctx context.Context, companyID, runID domain.ID, in 
 		isReview := domain.RunTrigger(row.Trigger) == domain.TriggerReview
 		isChat := row.ConversationID != nil
 		isMemory := domain.RunTrigger(row.Trigger) == domain.TriggerMemory
+		isSkillTest := domain.RunTrigger(row.Trigger) == domain.TriggerSkillTest // teste do estúdio (ADR-0035)
+		isStatusCard := domain.RunTrigger(row.Trigger) == domain.TriggerStatusCard
 		// A review run's report already lives on the gate: it is not posted as a persona comment.
 		// A chat run's summary is the persona's reply in the conversation (chatRunEnded below).
 		if in.Status == domain.RunDone && !isReview && !isChat && strings.TrimSpace(res.Summary) != "" {
@@ -749,6 +772,16 @@ func (s *Service) FinishRun(ctx context.Context, companyID, runID domain.ID, in 
 		}
 		if isMemory {
 			if err := t.memoryRunEnded(row, in.Status, res.Summary); err != nil {
+				return err
+			}
+		}
+		if isSkillTest {
+			if err := t.skillTestRunEnded(row, in.Status, res.Summary, res.Error); err != nil {
+				return err
+			}
+		}
+		if isStatusCard {
+			if err := t.statusCardRunEnded(row, in.Status, res.Error); err != nil {
 				return err
 			}
 		}
@@ -827,8 +860,8 @@ func (s *Service) FinishRun(ctx context.Context, companyID, runID domain.ID, in 
 		if err != nil {
 			return mapErr(err, "get task")
 		}
-		// A curadoria de memória não se documenta na própria memória (nem a task, nem a run).
-		if !isMemory {
+		// A curadoria de memória não se documenta na própria memória (nem a task, nem a run); o teste do estúdio e o card de status também não.
+		if !isMemory && !isSkillTest && !isStatusCard {
 			memWS := row.WorkspaceID
 			if memWS == nil {
 				memWS = task.WorkspaceID
@@ -838,7 +871,7 @@ func (s *Service) FinishRun(ctx context.Context, companyID, runID domain.ID, in 
 				return err
 			}
 		}
-		if !isReview && !isMemory {
+		if !isReview && !isMemory && !isSkillTest && !isStatusCard {
 			if err := t.wakeForMissedComment(companyID, task, row); err != nil {
 				return err
 			}
@@ -954,6 +987,14 @@ func (s *Service) InterruptOrphanRuns(ctx context.Context) (int, error) {
 				}
 			case domain.TriggerMemory:
 				if err := t.memoryRunEnded(r, domain.RunInterrupted, ""); err != nil {
+					return err
+				}
+			case domain.TriggerSkillTest:
+				if err := t.skillTestRunEnded(r, domain.RunInterrupted, "", r.Error); err != nil {
+					return err
+				}
+			case domain.TriggerStatusCard:
+				if err := t.statusCardRunEnded(r, domain.RunInterrupted, r.Error); err != nil {
 					return err
 				}
 			}

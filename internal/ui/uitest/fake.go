@@ -64,7 +64,14 @@ type Fake struct {
 	Steers     []SteerCall
 	// MyRoleIs é o papel do usuário logado nesta empresa (vazio = owner).
 	MyRoleIs domain.MemberRole
+	// Cards são os cards de status (ADR-0032).
+	Cards *StatusCardsData
+	// Tools é o estado de apps, gateway de tools e perfis (ADR-0036; uitest/tools.go).
+	Tools    ToolsData
 	nextTask int64
+
+	// Env são os ambientes de execução (ADR-0037).
+	Env EnvFake
 }
 
 var _ = (*Fake)(nil)

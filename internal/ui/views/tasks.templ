@@ -141,6 +141,7 @@ templ TaskPage(sh Shell, vm TaskVM, base string) {
 						<p class="muted">{ i18n.T(ctx, "Sem descrição.") }</p>
 					}
 				</div>
+				@PluginWidgetsSlot(sh.Base(), "task", vm.Key)
 				<h2 class="side-h sec-h">{ i18n.T(ctx, "Conversa") }</h2>
 				@Thread(vm, base)
 				if vm.ActiveRun != nil {
@@ -280,6 +281,7 @@ templ TaskSide(vm TaskVM, base string) {
 				<div class="prop"><span>{ i18n.T(ctx, "Modelo (manual)") }</span><span class="mono ta-r">{ vm.Model }</span></div>
 			}
 		</div>
+		@TaskCasesPanel(vm.Cases)
 		<div class="side-sec">
 			<div class="side-h row-between"><span>{ i18n.T(ctx, "Artefatos") }</span><a class="normal-case" href={ templ.SafeURL(vm.ArtifactsHref) }>{ i18n.T(ctx, "Ver todos") }</a></div>
 			@ArtifactMiniList(vm.Artifacts, "")

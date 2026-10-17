@@ -38,9 +38,14 @@ type SkillView struct {
 }
 
 func skillFromRow(r store.Skill) domain.Skill {
-	return domain.Skill{ID: r.ID, CompanyID: r.CompanyID, Slug: r.Slug, Name: r.Name, Description: r.Description,
+	k := domain.Skill{ID: r.ID, CompanyID: r.CompanyID, Slug: r.Slug, Name: r.Name, Description: r.Description,
 		Body: r.Body, Version: int(r.Version), CreatedBy: actorOf(r.CreatedByType, r.CreatedByID),
-		UpdatedBy: actorOf(r.UpdatedByType, r.UpdatedByID), CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt}
+		UpdatedBy: actorOf(r.UpdatedByType, r.UpdatedByID), CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
+		SourceID: r.SourceID, SourcePath: r.SourcePath, SourceModified: r.SourceModified}
+	if r.SourceCommit != nil {
+		k.SourceCommit = *r.SourceCommit
+	}
+	return k
 }
 
 // normalizeSkill valida e normaliza os campos de uma skill. Absorve o frontmatter do corpo, se houver.
@@ -100,6 +105,9 @@ func (s *Service) CreateSkill(ctx context.Context, actor domain.Actor, companyID
 			return mapErr(err, "create skill")
 		}
 		out = skillFromRow(row)
+		if err := t.recordSkillVersion(row); err != nil {
+			return err
+		}
 		return t.activity(actor, companyID, "skill.created", "skill", row.ID,
 			map[string]any{"slug": row.Slug, "name": row.Name, "version": row.Version}, "")
 	})
@@ -113,48 +121,70 @@ func (s *Service) UpdateSkill(ctx context.Context, actor domain.Actor, companyID
 	}
 	var out domain.Skill
 	err := s.withTx(ctx, func(t *txc) error {
-		cur, err := t.q.GetSkillByIDForUpdate(ctx, store.GetSkillByIDForUpdateParams{CompanyID: companyID, ID: skillID})
-		if err != nil {
-			return mapErr(err, "get skill")
-		}
-		name, desc, body := cur.Name, cur.Description, cur.Body
-		if in.Name != nil {
-			name = *in.Name
-		}
-		if in.Description != nil {
-			desc = *in.Description
-		}
-		if in.Body != nil {
-			body = *in.Body
-		}
-		n, d, b, err := normalizeSkill(name, desc, body)
+		row, _, err := t.updateSkill(actor, companyID, skillID, in)
 		if err != nil {
 			return err
 		}
-		var changed []string
-		if n != cur.Name {
-			changed = append(changed, "name")
-		}
-		if d != cur.Description {
-			changed = append(changed, "description")
-		}
-		if b != cur.Body {
-			changed = append(changed, "body")
-		}
-		if len(changed) == 0 {
-			out = skillFromRow(cur)
-			return nil
-		}
-		row, err := t.q.UpdateSkill(ctx, store.UpdateSkillParams{CompanyID: companyID, ID: skillID, Name: n, Description: d,
-			Body: b, Version: cur.Version + 1, ActorType: string(actor.Type), ActorID: actor.ID, Now: t.now})
-		if err != nil {
-			return mapErr(err, "update skill")
-		}
 		out = skillFromRow(row)
-		return t.activity(actor, companyID, "skill.updated", "skill", row.ID,
-			map[string]any{"slug": row.Slug, "fields": changed, "version": row.Version}, "")
+		return nil
 	})
 	return out, err
+}
+
+// updateSkill aplica a mudança na transação, grava a versão nova e o activity_event. changed vazio = nada mudou
+// (a versão não sobe). Uma skill que veio de fonte passa a "modificada localmente" (ADR-0035).
+func (t *txc) updateSkill(actor domain.Actor, companyID, skillID domain.ID, in UpdateSkillInput) (store.Skill, []string, error) {
+	ctx := t.ctx
+	cur, err := t.q.GetSkillByIDForUpdate(ctx, store.GetSkillByIDForUpdateParams{CompanyID: companyID, ID: skillID})
+	if err != nil {
+		return store.Skill{}, nil, mapErr(err, "get skill")
+	}
+	name, desc, body := cur.Name, cur.Description, cur.Body
+	if in.Name != nil {
+		name = *in.Name
+	}
+	if in.Description != nil {
+		desc = *in.Description
+	}
+	if in.Body != nil {
+		body = *in.Body
+	}
+	n, d, b, err := normalizeSkill(name, desc, body)
+	if err != nil {
+		return store.Skill{}, nil, err
+	}
+	var changed []string
+	if n != cur.Name {
+		changed = append(changed, "name")
+	}
+	if d != cur.Description {
+		changed = append(changed, "description")
+	}
+	if b != cur.Body {
+		changed = append(changed, "body")
+	}
+	if len(changed) == 0 {
+		return cur, nil, nil
+	}
+	row, err := t.q.UpdateSkill(ctx, store.UpdateSkillParams{CompanyID: companyID, ID: skillID, Name: n, Description: d,
+		Body: b, Version: cur.Version + 1, ActorType: string(actor.Type), ActorID: actor.ID, Now: t.now})
+	if err != nil {
+		return store.Skill{}, nil, mapErr(err, "update skill")
+	}
+	if row.SourceID != nil && !row.SourceModified {
+		if err := t.q.SetSkillSourceModified(ctx, store.SetSkillSourceModifiedParams{CompanyID: companyID, ID: row.ID, Modified: true}); err != nil {
+			return store.Skill{}, nil, fmt.Errorf("mark skill modified: %w", err)
+		}
+		row.SourceModified = true
+	}
+	if err := t.recordSkillVersion(row); err != nil {
+		return store.Skill{}, nil, err
+	}
+	if err := t.activity(actor, companyID, "skill.updated", "skill", row.ID,
+		map[string]any{"slug": row.Slug, "fields": changed, "version": row.Version}, ""); err != nil {
+		return store.Skill{}, nil, err
+	}
+	return row, changed, nil
 }
 
 // DeleteSkill apaga a skill e, em cascata, as ligações com personas.
@@ -166,6 +196,12 @@ func (s *Service) DeleteSkill(ctx context.Context, actor domain.Actor, companyID
 		cur, err := t.q.GetSkillByID(ctx, store.GetSkillByIDParams{CompanyID: companyID, ID: skillID})
 		if err != nil {
 			return mapErr(err, "get skill")
+		}
+		if cur.SourceID != nil { // a próxima sincronização não recria a skill apagada (ADR-0035)
+			if err := t.q.ExcludeSkillSourceEntriesOfSkill(ctx, store.ExcludeSkillSourceEntriesOfSkillParams{CompanyID: companyID,
+				SkillID: &cur.ID, Now: t.now}); err != nil {
+				return fmt.Errorf("exclude source entry: %w", err)
+			}
 		}
 		if _, err := t.q.DeleteSkill(ctx, store.DeleteSkillParams{CompanyID: companyID, ID: skillID}); err != nil {
 			return fmt.Errorf("delete skill: %w", err)
@@ -260,7 +296,8 @@ func (s *Service) ListPersonaSkills(ctx context.Context, companyID, personaID do
 	}
 	out := make([]domain.PersonaSkill, len(rows))
 	for i, r := range rows {
-		out[i] = domain.PersonaSkill{SkillID: r.SkillID, Slug: r.Slug, Name: r.Name, Description: r.Description, Enabled: r.Enabled}
+		out[i] = domain.PersonaSkill{SkillID: r.SkillID, Slug: r.Slug, Name: r.Name, Description: r.Description, Enabled: r.Enabled,
+			Version: int(r.Version), PinnedRevision: intPtr(r.PinnedRevision), FromSource: r.SourceID != nil}
 	}
 	return out, nil
 }
@@ -280,30 +317,39 @@ func (s *Service) ListSkillPersonas(ctx context.Context, companyID, skillID doma
 	}
 	out := make([]domain.SkillPersona, len(rows))
 	for i, r := range rows {
-		out[i] = domain.SkillPersona{PersonaID: r.PersonaID, Slug: r.Slug, Name: r.Name, Enabled: r.Enabled}
+		out[i] = domain.SkillPersona{PersonaID: r.PersonaID, Slug: r.Slug, Name: r.Name, Enabled: r.Enabled, PinnedRevision: intPtr(r.PinnedRevision)}
 	}
 	return out, nil
 }
 
-// PersonaSkill devolve uma skill HABILITADA para a persona (a tool hanko_skill_get do agente). Skill que
-// existe mas não está ligada para ela é ErrNotFound: a persona só enxerga o que lhe foi dado.
+// PersonaSkill devolve uma skill HABILITADA para a persona (a tool hanko_skill_get do agente), com o conteúdo da
+// versão fixada quando há uma (ADR-0035). Skill que existe mas não está ligada para ela é ErrNotFound: a persona
+// só enxerga o que lhe foi dado.
 func (s *Service) PersonaSkill(ctx context.Context, companyID, personaID domain.ID, slug string) (domain.Skill, error) {
-	r, err := s.read().GetEnabledSkillForPersona(ctx, store.GetEnabledSkillForPersonaParams{CompanyID: companyID, PersonaID: personaID, Slug: slug})
+	list, err := s.PersonaSkills(ctx, companyID, personaID)
 	if err != nil {
-		return domain.Skill{}, mapErr(err, "get skill")
+		return domain.Skill{}, err
 	}
-	return skillFromRow(r), nil
+	for _, k := range list {
+		if k.Slug == slug {
+			return k, nil
+		}
+	}
+	return domain.Skill{}, notFound("get skill")
 }
 
-// PersonaSkills lista as skills habilitadas para a persona (índice da tool hanko_skill_list).
+// PersonaSkills lista as skills habilitadas para a persona (índice da tool hanko_skill_list e o que a run
+// recebe), com o conteúdo efetivo: o da versão fixada, senão o atual.
 func (s *Service) PersonaSkills(ctx context.Context, companyID, personaID domain.ID) ([]domain.Skill, error) {
-	rows, err := s.read().ListEnabledSkillsForPersona(ctx, store.ListEnabledSkillsForPersonaParams{CompanyID: companyID, PersonaID: personaID})
+	rows, err := s.read().ListEnabledPinnedSkillsForPersona(ctx, store.ListEnabledPinnedSkillsForPersonaParams{CompanyID: companyID, PersonaID: personaID})
 	if err != nil {
 		return nil, fmt.Errorf("list persona skills: %w", err)
 	}
 	out := make([]domain.Skill, len(rows))
 	for i, r := range rows {
-		out[i] = skillFromRow(r)
+		out[i] = domain.Skill{ID: r.ID, CompanyID: r.CompanyID, Slug: r.Slug, Name: r.Name, Description: r.Description,
+			Body: r.Body, Version: int(r.Version), CreatedBy: actorOf(r.CreatedByType, r.CreatedByID),
+			UpdatedBy: actorOf(r.UpdatedByType, r.UpdatedByID), CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, Pinned: r.Pinned}
 	}
 	return out, nil
 }

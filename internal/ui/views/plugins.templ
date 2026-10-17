@@ -1,0 +1,425 @@
+package views
+
+import (
+	"context"
+	"fmt"
+	"net/url"
+
+	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/i18n"
+)
+
+// ---- plugins de terceiros (ADR-0038) ----
+
+templ pluginCaps(caps []PluginCap) {
+	<ul class="plugin-caps">
+		for _, c := range caps {
+			<li class={ "badge", templ.KV("warn", c.Warn), templ.KV("outline", !c.Warn) } title={ c.Name }>{ c.Label }</li>
+		}
+	</ul>
+}
+
+templ pluginOwnerButton(action, label, confirm string, primary bool) {
+	if confirm != "" {
+		<form method="post" action={ templ.SafeURL(action) } hx-post={ action } hx-swap="none" hx-confirm={ confirm } class="inline-form">
+			<button class={ "btn sm", templ.KV("primary", primary), templ.KV("outline", !primary) } type="submit">{ label }</button>
+		</form>
+	} else {
+		<form method="post" action={ templ.SafeURL(action) } hx-post={ action } hx-swap="none" class="inline-form">
+			<button class={ "btn sm", templ.KV("primary", primary), templ.KV("outline", !primary) } type="submit">{ label }</button>
+		</form>
+	}
+}
+
+templ pluginOwnerActions(p PluginCardVM) {
+	if p.OwnerBase != "" {
+		<div class="plugin-owner mt-3">
+			<span class="card-label">{ i18n.T(ctx, "Instalação") }</span>
+			if p.CanSuspend {
+				@pluginOwnerButton(p.OwnerBase+"/desligar", i18n.T(ctx, "Desligar em todas as empresas"), "", false)
+			}
+			if p.CanResume {
+				@pluginOwnerButton(p.OwnerBase+"/ligar", i18n.T(ctx, "Religar"), "", true)
+			}
+			@pluginOwnerButton(p.OwnerBase+"/desinstalar", i18n.T(ctx, "Desinstalar"), i18n.T(ctx, "Desinstalar o plugin? A configuração e o estado de todas as empresas serão apagados."), false)
+		</div>
+	}
+}
+
+templ PluginCard(p PluginCardVM) {
+	<section class="card pad plugin-card">
+		<div class="pc-head">
+			<span class="mini-avatar lg">@Icon("plug")</span>
+			<div class="pc-t">
+				<h2><a href={ templ.SafeURL(p.Href) }>{ p.Name }</a> <span class="mono faint text-xs">v{ p.Version }</span></h2>
+				<p class="sub">{ p.Desc }</p>
+			</div>
+			@BadgeEl(p.Badge)
+		</div>
+		@pluginCaps(p.Caps)
+		<p class="muted text-xs mt-2">{ i18n.Tf(ctx, "%d tool(s) · %d widget(s) · %d job(s) · %d evento(s)", p.Tools, p.Widgets, p.Jobs, p.Events) }</p>
+		if p.LastError != "" {
+			<p class="err text-xs mt-2">{ p.LastError }</p>
+		}
+		if p.PendingVersion != "" {
+			<div class="alert warn mt-3" role="status">
+				@Icon("alert")
+				<div>
+					<b>{ i18n.Tf(ctx, "A versão %s pede capacidades novas", p.PendingVersion) }</b>
+					@pluginCaps(p.PendingCaps)
+					if p.OwnerBase != "" {
+						<div class="mt-2">@pluginOwnerButton(p.OwnerBase+"/aprovar", i18n.T(ctx, "Aprovar capacidades"), i18n.T(ctx, "Conceder as capacidades novas e aplicar a versão?"), true)</div>
+					} else {
+						<p class="text-xs">{ i18n.T(ctx, "Aguardando o dono da instalação aprovar. Até lá o plugin segue com as capacidades já concedidas.") }</p>
+					}
+				</div>
+			</div>
+		}
+		<div class="plugin-foot mt-3">
+			<span class="text-sm">{ i18n.T(ctx, "Nesta empresa") }</span>
+			@ToggleSwitch(p.Enabled, p.ToggleHref, p.Name)
+			<a class="btn ghost sm" href={ templ.SafeURL(p.Href) }>{ i18n.T(ctx, "Configurar") }</a>
+		</div>
+		@pluginOwnerActions(p)
+	</section>
+}
+
+templ PluginsPage(sh Shell, vm PluginsPageVM) {
+	@Layout(sh) {
+		@PageHead(i18n.T(ctx, "Plugins e extensões"), i18n.T(ctx, "Plugins de terceiros rodam como processos separados e só fazem no Hanko o que as capacidades concedidas permitem.")) {
+		}
+		<div class="mb-6">@Tabs(vm.Sections)</div>
+		if vm.Notice != "" {
+			@Alert("warn", vm.Notice)
+		}
+		if vm.Error != "" {
+			@Alert("danger", vm.Error)
+		}
+		if !vm.On {
+			<section class="card pad mb-6">
+				<div class="card-head"><div><h2>{ i18n.T(ctx, "Plugins de terceiros desligados") }</h2><p class="sub">{ i18n.T(ctx, "Esta instalação não tem diretório de plugins.") }</p></div></div>
+				<ol class="plugin-steps">
+					<li>{ i18n.T(ctx, "Crie um diretório local, por exemplo /srv/hanko/plugins, e coloque cada plugin num subdiretório com o nome do id, com o hanko-plugin.json na raiz.") }</li>
+					<li>{ i18n.T(ctx, "Defina HANKO_PLUGINS_DIR com esse caminho (e, se quiser, HANKO_PLUGINS_DATA_DIR para os diretórios de trabalho) e reinicie o servidor.") }</li>
+					<li>{ i18n.T(ctx, "O dono da instalação instala o plugin aqui, vendo as capacidades que ele pede; depois cada empresa liga e configura.") }</li>
+				</ol>
+				<p class="muted text-xs mt-3">{ i18n.T(ctx, "O Hanko nunca baixa plugin da internet. O protocolo e um exemplo estão em docs/PLUGINS.md.") }</p>
+			</section>
+		} else {
+			<h2 class="side-h sec-h">{ i18n.T(ctx, "Instalados") }</h2>
+			if len(vm.Installed) == 0 {
+				@EmptyCard("plug", i18n.T(ctx, "Nenhum plugin instalado."), i18n.T(ctx, "Os plugins disponíveis no diretório do servidor aparecem abaixo para o dono da instalação."), false)
+			} else {
+				<div class="grid-3 plugin-grid">
+					for _, p := range vm.Installed {
+						@PluginCard(p)
+					}
+				</div>
+			}
+			if vm.Owner {
+				<h2 class="side-h sec-h">{ i18n.T(ctx, "Disponíveis") } <span class="mono faint text-xs">{ vm.Dir }</span></h2>
+				if len(vm.Available) == 0 {
+					<p class="muted">{ i18n.T(ctx, "Nada novo no diretório de plugins.") }</p>
+				} else {
+					<div class="table-wrap mb-6">
+						<table class="table">
+							<thead><tr><th>Plugin</th><th class="hide-sm">{ i18n.T(ctx, "Capacidades pedidas") }</th><th></th></tr></thead>
+							<tbody>
+								for _, a := range vm.Available {
+									<tr class="row">
+										<td>
+											<b>{ a.Name }</b> <span class="mono faint text-xs">{ a.Key } { a.Version }</span>
+											if a.Desc != "" {
+												<div class="note">{ a.Desc }</div>
+											}
+											if a.Error != "" {
+												<div class="err text-xs">{ a.Error }</div>
+											}
+										</td>
+										<td class="hide-sm">@pluginCaps(a.Caps)</td>
+										<td class="num">
+											if a.Error == "" && a.Upgrade {
+												@pluginOwnerButton(a.UpgradeAction, i18n.Tf(ctx, "Atualizar de %s", a.Installed), "", true)
+											} else if a.Error == "" {
+												@pluginOwnerButton(a.InstallAction, i18n.T(ctx, "Instalar"), i18n.T(ctx, "Instalar e conceder as capacidades listadas? O plugin roda como processo nesta máquina."), true)
+											}
+										</td>
+									</tr>
+								}
+							</tbody>
+						</table>
+					</div>
+					<p class="muted text-xs mb-6">{ i18n.T(ctx, "Instalar concede as capacidades listadas. Acesso à rede é declarado pelo plugin: o Hanko não consegue impedir rede de um processo; isole o processo se precisar.") }</p>
+				}
+			}
+		}
+		<h2 class="side-h sec-h">{ i18n.T(ctx, "Pontos de extensão embutidos") }</h2>
+		<div class="grid-3 plugin-grid">
+			for _, it := range vm.Builtin {
+				<section class="card pad plugin-card">
+					<div class="pc-head">
+						<span class="mini-avatar lg">@Icon(it.Icon)</span>
+						<div class="pc-t"><h2>{ it.Name }</h2><p class="sub">{ it.Desc }</p></div>
+					</div>
+					<ul class="env-checks compact mt-3">
+						for _, c := range it.Checks {
+							@envCheckRow(c)
+						}
+					</ul>
+					if it.Href != "" {
+						<div class="mt-3"><a class="btn outline sm" href={ templ.SafeURL(it.Href) }>{ i18n.T(ctx, "Abrir") }</a></div>
+					}
+				</section>
+			}
+		</div>
+	}
+}
+
+templ pluginField(f PluginFieldVM) {
+	<div class="field">
+		if f.Type == "boolean" {
+			<input type="hidden" name={ "has_" + f.Key } value="1"/>
+			<label class="check-line">
+				<input type="checkbox" name={ "cfg_" + f.Key } value="true" checked?={ f.Checked }/>
+				<span>{ f.Label }</span>
+			</label>
+		} else {
+			<label for={ "pf-" + f.Key }>
+				{ f.Label }
+				if f.Required {
+					<span class="faint">*</span>
+				}
+				if f.Secret && f.SecretSet {
+					<span class="badge done">{ i18n.T(ctx, "definido") }</span>
+				}
+			</label>
+			if len(f.Options) > 0 {
+				@Select("cfg_"+f.Key, "pf-"+f.Key, f.Options, false)
+			} else if f.Secret {
+				<input class="input mono" id={ "pf-" + f.Key } name={ "cfg_" + f.Key } type="password" value="" autocomplete="new-password" spellcheck="false" placeholder={ f.Placeholder }/>
+			} else if f.Type == "number" {
+				<input class="input mono" id={ "pf-" + f.Key } name={ "cfg_" + f.Key } type="number" step="any" value={ f.Value } placeholder={ f.Placeholder }/>
+			} else {
+				<input class="input" id={ "pf-" + f.Key } name={ "cfg_" + f.Key } value={ f.Value } maxlength="4096" placeholder={ f.Placeholder }/>
+			}
+		}
+		if f.Desc != "" {
+			<span class="hint">{ f.Desc }</span>
+		}
+		if f.Secret {
+			<span class="hint">{ i18n.T(ctx, "Segredo: fica cifrado e nunca volta para a tela. Em branco mantém o valor atual.") }</span>
+			if f.SecretSet {
+				<label class="check-line">
+					<input type="checkbox" name={ "clear_" + f.Key } value="1"/>
+					<span>{ i18n.T(ctx, "Apagar o valor guardado") }</span>
+				</label>
+			}
+		}
+		if f.Err != "" {
+			<span class="err">{ f.Err }</span>
+		}
+	</div>
+}
+
+templ PluginDetailPage(sh Shell, vm PluginDetailVM) {
+	@Layout(sh) {
+		<div class="mb-6">@Tabs(vm.Sections)</div>
+		if vm.Notice != "" {
+			@Alert("warn", vm.Notice)
+		}
+		<div class="flow-head">
+			<div>
+				<h1>{ vm.Card.Name } @BadgeEl(vm.Card.Badge)</h1>
+				<p class="muted mt-2 text-sm">
+					<span class="mono">{ vm.Card.Key } v{ vm.Card.Version }</span>
+					if vm.Card.Author != "" {
+						· { vm.Card.Author }
+					}
+					if vm.Card.Homepage != "" {
+						· <a class="link-u" href={ templ.SafeURL(vm.Card.Homepage) } rel="noopener noreferrer" target="_blank">{ i18n.T(ctx, "site") }</a>
+					}
+				</p>
+				<p class="mt-2">{ vm.Card.Desc }</p>
+			</div>
+			<div class="flow-acts">
+				<span class="text-sm">{ i18n.T(ctx, "Nesta empresa") }</span>
+				@ToggleSwitch(vm.Card.Enabled, vm.Card.ToggleHref, vm.Card.Name)
+			</div>
+		</div>
+		@pluginCaps(vm.Card.Caps)
+		if vm.Card.LastError != "" {
+			<div class="mt-4">@Alert("danger", vm.Card.LastError)</div>
+		}
+		<div class="grid-2 items-start mt-6">
+			<section class="card pad">
+				<div class="card-head"><div><h2>{ i18n.T(ctx, "Configuração") }</h2><p class="sub">{ i18n.T(ctx, "Gerada do config_schema do plugin; o plugin também valida antes de gravar.") }</p></div></div>
+				if len(vm.Fields) == 0 {
+					<p class="muted">{ i18n.T(ctx, "O plugin não tem campos de configuração.") }</p>
+				} else if !canAdmin(ctx) {
+					<dl class="kv">
+						for _, f := range vm.Fields {
+							<dt>{ f.Label }</dt>
+							<dd>
+								if f.Secret && f.SecretSet {
+									<span class="badge done">{ i18n.T(ctx, "definido") }</span>
+								} else if f.Secret {
+									<span class="faint">—</span>
+								} else if f.Type == "boolean" {
+									{ onOffText(ctx, f.Checked) }
+								} else {
+									{ dashText(f.Value) }
+								}
+							</dd>
+						}
+					</dl>
+					@NeedRole(domain.MemberAdmin)
+				} else {
+					<form method="post" action={ templ.SafeURL(vm.FormAction) } class="form-card">
+						if vm.Error != "" {
+							@Alert("danger", vm.Error)
+						}
+						for _, f := range vm.Fields {
+							@pluginField(f)
+						}
+						<div class="form-actions">
+							<a class="btn ghost" href={ templ.SafeURL(vm.BackHref) }>{ i18n.T(ctx, "Voltar") }</a>
+							<button class="btn primary" type="submit">{ i18n.T(ctx, "Salvar configuração") }</button>
+						</div>
+					</form>
+				}
+			</section>
+			<div>
+				<section class="card pad">
+					<div class="card-head"><div><h2>{ i18n.T(ctx, "O que o plugin oferece") }</h2></div></div>
+					if len(vm.Tools) > 0 {
+						<span class="card-label">{ i18n.T(ctx, "Tools para as personas") }</span>
+						<ul class="plugin-tools mb-4">
+							for _, t := range vm.Tools {
+								<li><code>{ t.MCPName }</code> <span class="muted text-sm">{ t.Desc }</span></li>
+							}
+						</ul>
+					}
+					if len(vm.Events) > 0 {
+						<span class="card-label">{ i18n.T(ctx, "Eventos recebidos") }</span>
+						<p class="mono text-sm mb-4">{ joinNames(vm.Events) }</p>
+					}
+					<dl class="kv">
+						<dt>{ i18n.T(ctx, "Widgets") }</dt><dd>{ fmt.Sprint(vm.Card.Widgets) }</dd>
+						<dt>{ i18n.T(ctx, "Jobs") }</dt><dd>{ fmt.Sprint(vm.Card.Jobs) }</dd>
+						if vm.StateKeys >= 0 {
+							<dt>{ i18n.T(ctx, "Chaves de estado") }</dt><dd>{ fmt.Sprint(vm.StateKeys) }</dd>
+						}
+					</dl>
+				</section>
+				if vm.Health != nil {
+					<section class="card pad mt-6">
+						<div class="card-head"><div><h2>{ i18n.T(ctx, "Saúde do processo") }</h2><p class="sub">{ i18n.T(ctx, "Visível para o dono da instalação.") }</p></div>@BadgeEl(vm.Health.Badge)</div>
+						<dl class="kv">
+							<dt>PID</dt><dd class="mono">{ vm.Health.PID }</dd>
+							<dt>{ i18n.T(ctx, "No ar há") }</dt><dd>{ vm.Health.Uptime }</dd>
+							<dt>{ i18n.T(ctx, "Reinícios") }</dt><dd>{ vm.Health.Restarts }</dd>
+							if vm.Health.Next != "" {
+								<dt>{ i18n.T(ctx, "Próxima tentativa") }</dt><dd>{ vm.Health.Next }</dd>
+							}
+							<dt>{ i18n.T(ctx, "Último erro") }</dt><dd class="text-sm">{ dashText(vm.Health.LastError) }</dd>
+						</dl>
+					</section>
+				}
+			</div>
+		</div>
+		if len(vm.Jobs) > 0 {
+			<h2 class="side-h sec-h">{ i18n.T(ctx, "Últimas rodadas de job") }</h2>
+			<div class="table-wrap">
+				<table class="table">
+					<thead><tr><th>Job</th><th>{ i18n.T(ctx, "Estado") }</th><th class="hide-sm">{ i18n.T(ctx, "Início") }</th><th class="hide-sm">{ i18n.T(ctx, "Fim") }</th><th>{ i18n.T(ctx, "Erro") }</th></tr></thead>
+					<tbody>
+						for _, j := range vm.Jobs {
+							<tr class="row"><td class="mono">{ j.Key }</td><td>@BadgeEl(j.Badge)</td><td class="hide-sm muted">{ j.Started }</td><td class="hide-sm muted">{ j.Finished }</td><td class="muted">{ j.Error }</td></tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+		if vm.Health != nil {
+			<h2 class="side-h sec-h">{ i18n.T(ctx, "Log do plugin") }</h2>
+			if len(vm.Logs) == 0 {
+				<p class="muted">{ i18n.T(ctx, "Nada no log ainda.") }</p>
+			} else {
+				<div class="plugin-log">
+					for _, l := range vm.Logs {
+						<div class="pl-line"><span class="faint">{ l.When }</span> <span class={ "pl-lvl", "pl-" + l.Level }>{ l.Level }</span> <span>{ l.Message }</span></div>
+					}
+				</div>
+			}
+		}
+		@pluginOwnerActions(vm.Card)
+	}
+}
+
+func onOffText(ctx context.Context, on bool) string {
+	if on {
+		return i18n.T(ctx, "ligado")
+	}
+	return i18n.T(ctx, "desligado")
+}
+
+func dashText(v string) string {
+	if v == "" {
+		return "—"
+	}
+	return v
+}
+
+// PluginWidgetsSlot carrega os widgets dos plugins depois da página (htmx); sem widget, some.
+templ PluginWidgetsSlot(base, placement, ref string) {
+	<div class="plugin-slot" hx-get={ pluginWidgetsURL(base, placement, ref) } hx-trigger="load" hx-swap="outerHTML"></div>
+}
+
+// PluginWidgets é o bloco "De plugins": dados que o Hanko renderiza (markdown sanitizado, tabela); nenhum
+// script ou HTML do plugin chega à página.
+templ PluginWidgets(ws []PluginWidgetVM) {
+	if len(ws) > 0 {
+		<section class="plugin-widgets mt-6" aria-label={ i18n.T(ctx, "De plugins") }>
+			<h2 class="side-h sec-h">{ i18n.T(ctx, "De plugins") }</h2>
+			<div class="grid-2 items-start">
+				for _, w := range ws {
+					<section class="card pad plugin-widget">
+						<div class="card-head"><div><h2>{ w.Title }</h2><p class="sub">{ w.Plugin }</p></div></div>
+						if w.Error != "" {
+							<p class="muted text-sm">{ w.Error }</p>
+						}
+						if w.Body != "" {
+							<div class="md">@templ.Raw(string(w.Body))</div>
+						}
+						if len(w.Columns) > 0 {
+							<table class="table mini mt-3">
+								<thead><tr>
+									for _, c := range w.Columns {
+										<th>{ c }</th>
+									}
+								</tr></thead>
+								<tbody>
+									for _, r := range w.Rows {
+										<tr>
+											for _, c := range r {
+												<td>{ c }</td>
+											}
+										</tr>
+									}
+								</tbody>
+							</table>
+						}
+					</section>
+				}
+			</div>
+		</section>
+	}
+}
+
+func pluginWidgetsURL(base, placement, ref string) string {
+	q := url.Values{"lugar": {placement}}
+	if ref != "" {
+		q.Set("ref", ref)
+	}
+	return base + "/plugins/widgets?" + q.Encode()
+}

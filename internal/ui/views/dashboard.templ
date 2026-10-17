@@ -41,6 +41,7 @@ templ DashboardPage(sh Shell, vm DashboardVM) {
 		if len(vm.Gates) > 0 {
 			<div class="mb-6">@PendingGatesCard(vm.Gates, sh.Base())</div>
 		}
+		@PluginWidgetsSlot(sh.Base(), "dashboard", "")
 		<div class="grid-dash">
 			if !vm.HasPersonas {
 				@EmptyCard("bot", i18n.T(ctx, "Você ainda não tem personas."), i18n.T(ctx, "Contrate a primeira e defina o intervalo de verificação. A partir daí, toda task atribuída começa a rodar sozinha."), true) {

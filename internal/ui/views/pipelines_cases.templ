@@ -1,0 +1,435 @@
+package views
+
+import (
+	"fmt"
+
+	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/i18n"
+)
+
+// Cases (ADR-0034): lista (plana ou em árvore) e a página do case com revisão, sugestão, tasks, bloqueios e histórico.
+
+templ CasesPage(sh Shell, vm CasesVM) {
+	@Layout(sh) {
+		@PageHead(i18n.T(ctx, "Cases"), i18n.T(ctx, "Registros estruturados que as personas mantêm e o time acompanha.")) {
+		}
+		if vm.Notice != "" {
+			@Alert("warn", vm.Notice)
+		}
+		if vm.Empty {
+			@EmptyCard("folder", i18n.T(ctx, "Nenhum case ainda — as personas criam cases com hanko_case_create, ou crie um aqui."), "", true) {
+			}
+		} else {
+			<form class="toolbar pl-filters" method="get">
+				<input class="input search" type="search" name="q" value={ vm.Q } placeholder={ i18n.T(ctx, "Buscar cases") } aria-label={ i18n.T(ctx, "Buscar cases") }/>
+				@Select("status", "cs-status", vm.StatusOptions, true)
+				@Select("tipo", "cs-type", vm.TypeOptions, true)
+				@Select("pipeline", "cs-pipe", vm.PipelineOptions, true)
+				if len(vm.ProjectOptions) > 1 {
+					@Select("projeto", "cs-proj", vm.ProjectOptions, true)
+				}
+				@Select("agrupar", "cs-group", vm.GroupOptions, true)
+				@Select("ordenar", "cs-sort", vm.SortOptions, true)
+				if vm.Tree {
+					<input type="hidden" name="visao" value="arvore"/>
+				}
+				<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Filtrar") }</button>
+				<span class="seg" role="tablist">
+					<a href={ templ.SafeURL(vm.ListHref) } aria-current?={ !vm.Tree } role="tab">{ i18n.T(ctx, "Lista") }</a>
+					<a href={ templ.SafeURL(vm.TreeHref) } aria-current?={ vm.Tree } role="tab">{ i18n.T(ctx, "Árvore") }</a>
+				</span>
+			</form>
+			if vm.Total == 0 {
+				@EmptyCard("folder", i18n.T(ctx, "Nenhum case com esses filtros."), "", false) {
+				}
+			}
+			for _, g := range vm.Groups {
+				if g.Label != "" {
+					<h2 class="sec-h">{ g.Label } <span class="cnt">{ fmt.Sprint(len(g.Rows)) }</span></h2>
+				}
+				<div class="table-wrap">
+					<table class="table">
+						<thead>
+							<tr>
+								<th>Case</th>
+								<th>{ i18n.T(ctx, "Status") }</th>
+								<th class="hide-sm">{ i18n.T(ctx, "Onde") }</th>
+								<th class="hide-sm">{ i18n.T(ctx, "Tipo") }</th>
+								<th class="hide-sm">{ i18n.T(ctx, "Atualizado") }</th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, r := range g.Rows {
+								<tr class="row">
+									<td class={ "ttl", depthClass(r.Depth) }>
+										<span class="mono faint text-xs">{ r.Identifier }</span>
+										<a href={ templ.SafeURL(r.Href) }>{ r.Title }</a>
+										for _, b := range r.Flags {
+											@BadgeEl(b)
+										}
+										if r.Children != "" {
+											<span class="note"> · { r.Children }</span>
+										}
+									</td>
+									<td>@BadgeEl(r.Badge)</td>
+									<td class="hide-sm">
+										if r.WhereHref != "" {
+											<a href={ templ.SafeURL(r.WhereHref) }>{ r.Where }</a>
+										} else {
+											<span class="faint">{ r.Where }</span>
+										}
+									</td>
+									<td class="hide-sm muted">{ r.Type }</td>
+									<td class="hide-sm when">{ r.Updated }</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+		}
+		<h2 class="sec-h">{ i18n.T(ctx, "Novo case") }</h2>
+		if canWrite(ctx) {
+			@caseNewForm(vm.Form)
+		} else {
+			@NeedRole(domain.MemberMember)
+		}
+	}
+}
+
+templ caseNewForm(f CaseNewFormVM) {
+	<form class="card pad form-card" method="post" action={ templ.SafeURL(f.Action) }>
+		if f.Error != "" {
+			@Alert("danger", f.Error)
+		}
+		<div class="field">
+			<label for="cn-title">{ i18n.T(ctx, "Título") }</label>
+			<input class="input" id="cn-title" name="title" value={ f.Title } required maxlength="300"/>
+		</div>
+		<div class="form-grid">
+			<div class="field">
+				<label for="cn-type">{ i18n.T(ctx, "Tipo") }</label>
+				<input class="input" id="cn-type" name="case_type" value={ f.Type } maxlength="60" placeholder={ i18n.T(ctx, "lead, incidente, pedido…") }/>
+			</div>
+			<div class="field">
+				<label for="cn-key">{ i18n.T(ctx, "Key (opcional)") }</label>
+				<input class="input mono" id="cn-key" name="key" value={ f.Key } maxlength="200"/>
+			</div>
+			<div class="field">
+				<label for="cn-pipe">Pipeline</label>
+				@Select("pipeline", "cn-pipe", f.PipelineOptions, false)
+			</div>
+			<div class="field">
+				<label for="cn-status">{ i18n.T(ctx, "Status (case solto)") }</label>
+				@Select("status", "cn-status", f.StatusOptions, false)
+			</div>
+		</div>
+		<div class="field">
+			<label for="cn-summary">{ i18n.T(ctx, "Resumo") }</label>
+			<textarea class="textarea" id="cn-summary" name="summary" rows="3">{ f.Summary }</textarea>
+		</div>
+		<div class="field">
+			<label for="cn-fields">{ i18n.T(ctx, "Campos, um por linha: chave = valor") }</label>
+			<textarea class="textarea mono" id="cn-fields" name="fields" rows="3">{ f.Fields }</textarea>
+		</div>
+		<div class="form-actions">
+			<button class="btn primary" type="submit">{ i18n.T(ctx, "Criar case") }</button>
+		</div>
+	</form>
+}
+
+// depthClass recua as linhas da visão árvore (até 6 níveis).
+func depthClass(depth int) string {
+	if depth <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("pl-d%d", min(depth, 6))
+}
+
+templ CasePage(sh Shell, vm CaseVM) {
+	@Layout(sh) {
+		<div class="detail">
+			<div class="detail-main">
+				<div class="eyebrow">
+					<span class="mono">{ vm.Identifier }</span>
+					if vm.PipelineName != "" {
+						<span>·</span>
+						<a href={ templ.SafeURL(vm.PipelineHref) }>{ vm.PipelineName }</a>
+						<span>›</span>
+						<span>{ vm.StageName }</span>
+					}
+					<span>·</span>
+					<span>{ i18n.T(ctx, "versão") } <span class="mono">{ fmt.Sprint(vm.Version) }</span></span>
+				</div>
+				<h1>{ vm.Title }</h1>
+				<div class="chips mt-1">
+					@BadgeEl(vm.Badge)
+					if vm.Type != "" {
+						<span class="chip">{ vm.Type }</span>
+					}
+					if vm.ReapprovalRequired {
+						<span class="badge warn">{ i18n.T(ctx, "mudou depois de aprovado") }</span>
+					}
+				</div>
+				if vm.Notice != "" {
+					<div class="mt-4">@Alert("warn", vm.Notice)</div>
+				}
+				if vm.Error != "" {
+					<div class="mt-4">@Alert("danger", vm.Error)</div>
+				}
+				if vm.Review != nil {
+					@caseReviewPanel(*vm.Review)
+				}
+				if vm.Suggestion != nil {
+					@caseSuggestionPanel(*vm.Suggestion)
+				}
+				if vm.Attention != "" {
+					<section class="gate-banner mt-4">
+						<div class="gate-head">@Icon("alert") <b>{ vm.Attention }</b></div>
+						if canWrite(ctx) {
+							<form method="post" action={ templ.SafeURL(vm.AttentionAction) }>
+								<input type="hidden" name="expected_version" value={ fmt.Sprint(vm.Version) }/>
+								<button class="btn ghost sm" type="submit">{ i18n.T(ctx, "Dispensar") }</button>
+							</form>
+						}
+					</section>
+				}
+				<div class="brief mt-6">
+					<div class="side-h">{ i18n.T(ctx, "Visão geral") }</div>
+					if vm.HasSummary {
+						<div class="md">@templ.Raw(string(vm.Summary))</div>
+					} else {
+						<p class="muted">{ i18n.T(ctx, "Sem resumo.") }</p>
+					}
+				</div>
+				<h2 class="side-h sec-h">{ i18n.T(ctx, "Campos") }</h2>
+				if len(vm.Fields) == 0 {
+					<p class="muted">{ i18n.T(ctx, "Nenhum campo.") }</p>
+				} else {
+					<div class="table-wrap">
+						<table class="table kv-table">
+							<tbody>
+								for _, f := range vm.Fields {
+									<tr>
+										<th>
+											{ f.Label }
+											if f.Required {
+												<span class="danger-text">*</span>
+											}
+										</th>
+										<td class="pre-wrap">
+											if f.Value == "" {
+												<span class="faint">—</span>
+											} else {
+												{ f.Value }
+											}
+										</td>
+									</tr>
+								}
+							</tbody>
+						</table>
+					</div>
+				}
+				if canWrite(ctx) {
+					<details class="card pad mt-3">
+						<summary><b>{ i18n.T(ctx, "Editar") }</b></summary>
+						<form method="post" action={ templ.SafeURL(vm.EditAction) } class="mt-3">
+							<input type="hidden" name="expected_version" value={ fmt.Sprint(vm.Version) }/>
+							<div class="field">
+								<label>{ i18n.T(ctx, "Título") }</label>
+								<input class="input" name="title" value={ vm.Title } required maxlength="300"/>
+							</div>
+							<div class="field">
+								<label>{ i18n.T(ctx, "Resumo") }</label>
+								<textarea class="textarea" name="summary" rows="6">{ vm.SummaryRaw }</textarea>
+							</div>
+							<div class="field">
+								<label>{ i18n.T(ctx, "Campos, um por linha: chave = valor") }</label>
+								<textarea class="textarea mono" name="fields" rows="5">{ vm.FieldsText }</textarea>
+								<span class="hint">{ i18n.T(ctx, "Apague a linha para remover o campo.") }</span>
+							</div>
+							if vm.Loose {
+								<div class="field">
+									<label>{ i18n.T(ctx, "Status") }</label>
+									@Select("status", "", vm.StatusOptions, false)
+								</div>
+							}
+							<div class="form-actions">
+								<button class="btn primary" type="submit">{ i18n.T(ctx, "Salvar") }</button>
+							</div>
+						</form>
+					</details>
+				}
+				<h2 class="side-h sec-h">{ i18n.T(ctx, "Histórico") }</h2>
+				<div class="card">
+					@CaseEventList(vm.Events)
+				</div>
+			</div>
+			<aside class="detail-side">
+				<div class="side-sec">
+					<div class="side-h">{ i18n.T(ctx, "Propriedades") }</div>
+					<div class="props">
+						<div class="prop"><span>{ i18n.T(ctx, "Status") }</span><span>@BadgeEl(vm.Badge)</span></div>
+						if vm.PipelineName != "" {
+							<div class="prop"><span>{ i18n.T(ctx, "Etapa") }</span><span>{ vm.StageName }</span></div>
+						}
+						<div class="prop"><span>{ i18n.T(ctx, "Tipo") }</span><span>{ dash(vm.Type) }</span></div>
+						<div class="prop"><span>Key</span><span class="mono text-xs break-any">{ dash(vm.Key) }</span></div>
+						<div class="prop"><span>{ i18n.T(ctx, "Projeto") }</span>
+							if vm.ProjectHref != "" {
+								<a href={ templ.SafeURL(vm.ProjectHref) }>{ vm.ProjectName }</a>
+							} else {
+								<span>—</span>
+							}
+						</div>
+						<div class="prop"><span>{ i18n.T(ctx, "Pai") }</span>
+							if vm.ParentHref != "" {
+								<a href={ templ.SafeURL(vm.ParentHref) }>{ vm.ParentID }</a>
+							} else {
+								<span>—</span>
+							}
+						</div>
+						<div class="prop"><span>{ i18n.T(ctx, "Criado") }</span><span class="mono text-xs">{ vm.Created }</span></div>
+						<div class="prop"><span>{ i18n.T(ctx, "Atualizado") }</span><span class="mono text-xs">{ vm.Updated }</span></div>
+					</div>
+				</div>
+				if vm.PipelineName != "" && !vm.Closed && canWrite(ctx) && vm.Review == nil {
+					<form class="side-sec" method="post" action={ templ.SafeURL(vm.MoveAction) }>
+						<div class="side-h">{ i18n.T(ctx, "Mover para") }</div>
+						<input type="hidden" name="expected_version" value={ fmt.Sprint(vm.Version) }/>
+						@Select("to_stage", "", vm.MoveOptions, false)
+						if vm.Strict {
+							<label class="check-line mt-2"><input type="checkbox" name="force" value="1"/> { i18n.T(ctx, "Forçar (fora das transições)") }</label>
+						}
+						<input class="input mt-2" name="reason" maxlength="4000" placeholder={ i18n.T(ctx, "motivo (obrigatório para forçar)") }/>
+						<button class="btn outline sm mt-2" type="submit">{ i18n.T(ctx, "Mover") }</button>
+					</form>
+				}
+				<div class="side-sec">
+					<div class="side-h">{ i18n.T(ctx, "Tasks ligadas") }</div>
+					if len(vm.Links) == 0 {
+						<p class="muted text-sm">{ i18n.T(ctx, "Nenhuma task ligada.") }</p>
+					}
+					for _, l := range vm.Links {
+						<div class="side-run">
+							<a class="mono" href={ templ.SafeURL(l.Href) }>{ l.Key }</a>
+							<span class="grow">{ l.Title }</span>
+							<span class="badge soft">{ l.Role }</span>
+							if l.UnlinkAction != "" && canWrite(ctx) {
+								<form method="post" action={ templ.SafeURL(l.UnlinkAction) } class="d-inline">
+									<button class="icon-btn" type="submit" title={ i18n.T(ctx, "Desligar") } aria-label={ i18n.T(ctx, "Desligar") }>×</button>
+								</form>
+							}
+						</div>
+					}
+					if canWrite(ctx) {
+						<form method="post" action={ templ.SafeURL(vm.LinkAction) } class="inline-form mt-2">
+							<input class="input" name="task" placeholder={ i18n.T(ctx, "chave da task (HNK-12)") } required/>
+							<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Ligar") }</button>
+						</form>
+						<form method="post" action={ templ.SafeURL(vm.ConversationAction) } class="mt-2">
+							<button class="btn ghost sm" type="submit">@Icon("message-square")<span>{ i18n.T(ctx, "Abrir conversa") }</span></button>
+						</form>
+					}
+				</div>
+				<div class="side-sec">
+					<div class="side-h">{ i18n.T(ctx, "Filhos") }</div>
+					if len(vm.Children) == 0 {
+						<p class="muted text-sm">{ i18n.T(ctx, "Nenhum filho.") }</p>
+					} else {
+						<p class="muted text-xs">{ vm.ChildrenText }</p>
+					}
+					for _, c := range vm.Children {
+						<div class="side-run"><a class="mono" href={ templ.SafeURL(c.Href) }>{ c.Identifier }</a><span class="grow">{ c.Title }</span>@BadgeEl(c.Badge)</div>
+					}
+				</div>
+				<div class="side-sec">
+					<div class="side-h">{ i18n.T(ctx, "Bloqueios") }</div>
+					if len(vm.Blockers) == 0 {
+						<p class="muted text-sm">{ i18n.T(ctx, "Nada bloqueia este case.") }</p>
+					}
+					for _, b := range vm.Blockers {
+						<div class="side-run">
+							<a class="mono" href={ templ.SafeURL(b.Href) }>{ b.Identifier }</a>
+							<span class="grow">{ b.Title }</span>
+							if b.Resolved {
+								<span class="badge done">{ i18n.T(ctx, "resolvido") }</span>
+							} else {
+								<span class="badge danger">{ i18n.T(ctx, "aberto") }</span>
+							}
+						</div>
+					}
+					for _, b := range vm.Blocking {
+						<div class="side-run"><span class="faint text-xs">{ i18n.T(ctx, "bloqueia") }</span><a class="mono" href={ templ.SafeURL(b.Href) }>{ b.Identifier }</a><span class="grow">{ b.Title }</span></div>
+					}
+					if canWrite(ctx) {
+						<form method="post" action={ templ.SafeURL(vm.BlockersAction) } class="mt-2">
+							<input type="hidden" name="expected_version" value={ fmt.Sprint(vm.Version) }/>
+							<input class="input" name="blockers" value={ vm.BlockersText } placeholder={ i18n.T(ctx, "cases que bloqueiam, separados por vírgula") }/>
+							<button class="btn outline sm mt-2" type="submit">{ i18n.T(ctx, "Salvar bloqueios") }</button>
+						</form>
+					}
+				</div>
+			</aside>
+		</div>
+	}
+}
+
+templ caseReviewPanel(r CaseReviewVM) {
+	<section class="gate-banner mt-4" aria-label={ i18n.T(ctx, "Revisão") }>
+		<div class="gate-head">@Icon("clipboard-check") <b>{ i18n.T(ctx, "Revisão") }</b> <span class="gate-when">{ r.WhatHappensHere }</span></div>
+		if r.CanDecide {
+			<form method="post" action={ templ.SafeURL(r.Action) } class="gate-decide">
+				<input type="hidden" name="expected_version" value={ fmt.Sprint(r.Version) }/>
+				<textarea class="textarea" name="reason" rows="2" maxlength="4000" placeholder={ i18n.T(ctx, "motivo (vira aprendizado para as personas)") }></textarea>
+				<div class="gate-actions">
+					<button class="btn primary" type="submit" name="decision" value="approve">{ i18n.Tf(ctx, "Aprovar e mover para %s", r.ApproveTo) }</button>
+					if r.ChangesTo != "" {
+						<button class="btn outline" type="submit" name="decision" value="request_changes">{ i18n.T(ctx, "Pedir mudanças") }</button>
+					}
+					<button class="btn ghost danger-text" type="submit" name="decision" value="reject">{ i18n.T(ctx, "Recusar") }</button>
+				</div>
+				if r.RequireRejectReason || r.RequireChanges {
+					<p class="faint text-xs">{ i18n.T(ctx, "Recusar e pedir mudanças pedem o motivo.") }</p>
+				}
+			</form>
+		} else {
+			<p class="muted text-sm">{ i18n.T(ctx, "Só o aprovador desta etapa decide a revisão.") }</p>
+		}
+	</section>
+}
+
+templ caseSuggestionPanel(s CaseSuggestionVM) {
+	<section class="gate-banner mt-4" aria-label={ i18n.T(ctx, "Sugestão pendente") }>
+		<div class="gate-head">@Icon("sparkles") <b>{ i18n.Tf(ctx, "Sugestão: mover para %s", s.ToStage) }</b> <span class="gate-when">{ s.Who } · { s.When } · { i18n.Tf(ctx, "confiança %s", s.Confidence) }</span></div>
+		<p class="gate-excerpt">{ s.Rationale }</p>
+		if canWrite(ctx) {
+			<form method="post" action={ templ.SafeURL(s.Action) } class="gate-actions">
+				<input type="hidden" name="expected_version" value={ fmt.Sprint(s.Version) }/>
+				if !s.InReview {
+					<button class="btn primary sm" type="submit" name="accept" value="1">{ i18n.T(ctx, "Aceitar") }</button>
+				}
+				<button class="btn ghost sm" type="submit" name="accept" value="0">{ i18n.T(ctx, "Dispensar") }</button>
+			</form>
+		}
+	</section>
+}
+
+// TaskCasesPanel é o painel "Cases" na página da task.
+templ TaskCasesPanel(rows []TaskCaseRow) {
+	if len(rows) > 0 {
+		<div class="side-sec">
+			<div class="side-h">{ i18n.T(ctx, "Cases") }</div>
+			for _, c := range rows {
+				<div class="side-run">
+					<a class="mono" href={ templ.SafeURL(c.Href) }>{ c.Identifier }</a>
+					<span class="grow">{ c.Title }</span>
+					<span class="badge soft">{ c.Role }</span>
+				</div>
+				if c.Where != "" {
+					<p class="faint text-xs m-0">{ c.Where }</p>
+				}
+			}
+		</div>
+	}
+}

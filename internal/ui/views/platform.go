@@ -37,11 +37,6 @@ type PluginItem struct {
 	Href             string
 }
 
-type PluginsVM struct {
-	Sections []TabLink
-	Items    []PluginItem
-}
-
 type DataVM struct {
 	Sections                 []TabLink
 	Company, Slug            string

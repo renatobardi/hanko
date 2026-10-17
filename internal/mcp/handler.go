@@ -102,13 +102,19 @@ func newHandler(b Backend, d Deps) http.Handler {
 	if version == "" {
 		version = "dev"
 	}
-	srv := sdk.NewServer(&sdk.Implementation{Name: "hanko", Title: "Hanko", Version: version}, &sdk.ServerOptions{
-		Instructions: "Hanko: control plane de agentes. Use as tools hanko_* para ler e atualizar tasks, comentar, publicar artefatos, registrar o progresso de metas e consultar execuções.",
-		Logger:       logger,
-	})
-	registerTools(srv, &tools{b: b, log: logger})
+	build := func() *sdk.Server {
+		srv := sdk.NewServer(&sdk.Implementation{Name: "hanko", Title: "Hanko", Version: version}, &sdk.ServerOptions{
+			Instructions: "Hanko: control plane de agentes. Use as tools hanko_* para ler e atualizar tasks, comentar, publicar artefatos, registrar o progresso de metas e consultar execuções.",
+			Logger:       logger,
+		})
+		registerTools(srv, &tools{b: b, log: logger})
+		srv.AddReceivingMiddleware(skillTestGuard(b)) // run de teste do estúdio só usa as tools de skill (ADR-0035)
+		return srv
+	}
+	// tools de plugin por empresa (ADR-0038); sem plugin ligado, o servidor comum
+	servers := newPluginServers(build(), build, b, logger)
 
-	inner := sdk.NewStreamableHTTPHandler(func(*http.Request) *sdk.Server { return srv },
+	inner := sdk.NewStreamableHTTPHandler(servers.server,
 		// A proteção contra DNS rebinding é do app (host check 421 com HANKO_PUBLIC_URL/HANKO_ALLOWED_HOSTS);
 		// a do SDK recusaria o Host público quando um proxy reverso fala com o Hanko em loopback.
 		&sdk.StreamableHTTPOptions{Stateless: true, JSONResponse: true, Logger: logger, DisableLocalhostProtection: true,

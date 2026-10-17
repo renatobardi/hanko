@@ -331,7 +331,7 @@ INSERT INTO personas (id, company_id, slug, name, title, instructions, agent, mo
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
         $11, $12, $13, $14, $15,
         $16, $17, $18, $19, $20)
-RETURNING id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason, budget_refused_at, subscription_id, reviewer_persona_id, reviewer_agent, reviewer_model, search_tsv, icon
+RETURNING id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason, budget_refused_at, subscription_id, reviewer_persona_id, reviewer_agent, reviewer_model, search_tsv, icon, environment_id
 `
 
 type ImportPersonaParams struct {
@@ -411,6 +411,7 @@ func (q *Queries) ImportPersona(ctx context.Context, arg ImportPersonaParams) (P
 		&i.ReviewerModel,
 		&i.SearchTsv,
 		&i.Icon,
+		&i.EnvironmentID,
 	)
 	return i, err
 }

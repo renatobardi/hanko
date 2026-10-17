@@ -138,7 +138,7 @@ func (e *exitCause) Error() string {
 
 func (a *Adapter) run(ctx context.Context, spec adapter.Spec, cfg Config, env map[string]string, sink adapter.Sink, secrets []string) (adapter.Result, error) {
 	dir := spec.Dir
-	if dir == "" {
+	if dir == "" || spec.Exec != nil && !isDir(dir) {
 		d, err := os.MkdirTemp("", "hanko-run-*")
 		if err != nil {
 			return adapter.Result{ExitCode: -1}, fmt.Errorf("acp: tempdir: %w", err)
@@ -155,6 +155,7 @@ func (a *Adapter) run(ctx context.Context, spec adapter.Spec, cfg Config, env ma
 	sink = adapter.RedactingSink(sink, secrets...)
 	policy := cfg.Policy(spec.ReadOnly)
 	s := newSession(ctx, a.log, sink, policy, spec.ReadOnly, files)
+	s.remote = spec.Exec != nil
 	lw := newLateWriter()
 	c := newConn(lw, s)
 
@@ -165,14 +166,19 @@ func (a *Adapter) run(ctx context.Context, spec adapter.Spec, cfg Config, env ma
 	exited := make(chan procExit, 1)
 	s.emit(domain.EventSystem, "iniciando agente ACP: "+cfg.Command, map[string]any{"command": cfg.Command, "args": len(cfg.Args), "permission": string(policy)})
 	go func() {
-		pr, perr := procrun.Run(procCtx, procrun.Options{
+		opts := procrun.Options{
 			Bin: cfg.Command, Args: cfg.Args, Dir: files.abs,
 			Env:      procrun.HarnessEnv(os.Environ(), a.envAllow, env),
 			Grace:    a.grace,
 			OnStdin:  lw.set,
 			OnStdout: c.Feed,
 			OnStderr: func(line []byte) { s.stderr(string(line)) },
-		})
+		}
+		if spec.Exec != nil {
+			// ambiente remoto (ADR-0037): só as variáveis da persona e da run vão para o alvo
+			opts.Target, opts.TargetEnv, opts.Dir = spec.Exec, env, ""
+		}
+		pr, perr := procrun.Run(procCtx, opts)
 		if perr != nil {
 			lw.abort(perr)
 		}
@@ -329,7 +335,7 @@ func (d *driver) protocol(ctx context.Context) (out outcome) {
 	raw, err := c.Call(ictx, "initialize", map[string]any{
 		"protocolVersion": ProtocolVersion,
 		"clientCapabilities": map[string]any{
-			"fs":       map[string]bool{"readTextFile": true, "writeTextFile": true},
+			"fs":       map[string]bool{"readTextFile": !d.s.remote, "writeTextFile": !d.s.remote},
 			"terminal": false,
 		},
 		"clientInfo": map[string]string{"name": "hanko", "title": "Hanko", "version": d.a.version},
@@ -357,6 +363,9 @@ func (d *driver) protocol(ctx context.Context) (out outcome) {
 		s.emit(domain.EventSystem, "aviso: "+w, nil)
 	}
 	cwd := d.files.abs
+	if d.spec.Exec != nil {
+		cwd = d.spec.Exec.WorkDir()
+	}
 	var setupRaw json.RawMessage
 	if ref := d.spec.SessionRef; ref != "" {
 		if ir.AgentCapabilities.LoadSession {
@@ -728,4 +737,10 @@ func (l *lateWriter) Close() error {
 		return w.Close()
 	}
 	return nil
+}
+
+// isDir diz se p é um diretório existente.
+func isDir(p string) bool {
+	st, err := os.Stat(p)
+	return err == nil && st.IsDir()
 }

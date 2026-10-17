@@ -139,8 +139,11 @@ func (e *env) root() *cobra.Command {
 
 	root.AddCommand(e.serveCmd(), e.migrateCmd(), e.versionCmd(), e.openapiCmd(),
 		e.companyCmd(), e.workspaceCmd(), e.projectCmd(), e.personaCmd(), e.taskCmd(), e.runCmd(), e.followupCmd(), e.gateCmd(), e.chatCmd(), e.orgCmd(),
-		e.costCmd(), e.budgetCmd(), e.subscriptionCmd(), e.flowCmd(), e.memoryCmd(), e.memberCmd(), e.authCmd(), e.exportCmd(), e.importCmd(), e.searchCmd(), e.skillCmd(), e.integrationCmd(),
-		e.artifactCmd(), e.goalCmd())
+		e.costCmd(), e.budgetCmd(), e.subscriptionCmd(), e.flowCmd(), e.memoryCmd(), e.memberCmd(), e.authCmd(), e.exportCmd(), e.importCmd(), e.searchCmd(), e.skillCmd(), e.integrationCmd(), e.pluginCmd(),
+		e.artifactCmd(), e.goalCmd(), e.statusCardCmd(), e.toolProfileCmd(), e.toolGatewayCmd())
+	root.AddCommand(e.roomCmd())        // sala (ADR-0033)
+	root.AddCommand(e.environmentCmd()) // ambientes de execução (ADR-0037)
+	root.AddCommand(e.pipelinesCmds()...)
 	e.localizeHelp(root)
 	return root
 }

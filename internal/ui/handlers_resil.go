@@ -163,7 +163,7 @@ func steerVM(ctx context.Context, base string, rv service.RunView) *views.SteerV
 		return nil
 	}
 	switch rv.Trigger {
-	case domain.TriggerReview, domain.TriggerMemory:
+	case domain.TriggerReview, domain.TriggerMemory, domain.TriggerSkillTest, domain.TriggerStatusCard:
 		return nil
 	}
 	return &views.SteerVM{Href: base + "/execucoes/" + rv.ID.String() + "/steer", Mode: string(rv.SteerMode),

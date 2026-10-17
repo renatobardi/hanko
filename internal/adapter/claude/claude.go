@@ -146,7 +146,14 @@ func (a *Adapter) run(ctx context.Context, spec adapter.Spec, sink adapter.Sink,
 	}
 
 	dir := spec.Dir
-	if dir == "" {
+	// Num ambiente remoto (ADR-0037) os arquivos auxiliares vão para o diretório que chega ao alvo e os
+	// argumentos levam o caminho de lá.
+	tmpBase, remote := "", func(p string) string { return p }
+	if spec.Exec != nil {
+		tmpBase, _ = spec.Exec.AuxDir()
+		remote = func(p string) string { return adapter.RemotePath(spec.Exec, p) }
+	}
+	if dir == "" && spec.Exec == nil {
 		d, err := os.MkdirTemp("", "hanko-run-*")
 		if err != nil {
 			return adapter.Result{ExitCode: -1}, fmt.Errorf("claude: tempdir: %w", err)
@@ -157,7 +164,7 @@ func (a *Adapter) run(ctx context.Context, spec adapter.Spec, sink adapter.Sink,
 
 	var mcpFile string
 	if len(spec.MCPConfig) > 0 && strings.TrimSpace(string(spec.MCPConfig)) != "" {
-		f, err := os.CreateTemp("", "hanko-mcp-*.json")
+		f, err := os.CreateTemp(tmpBase, "hanko-mcp-*.json")
 		if err != nil {
 			return adapter.Result{ExitCode: -1}, fmt.Errorf("claude: mcp config: %w", err)
 		}
@@ -175,7 +182,7 @@ func (a *Adapter) run(ctx context.Context, spec adapter.Spec, sink adapter.Sink,
 
 	var skillsDir string
 	if len(spec.Skills) > 0 && !spec.ReadOnly {
-		d, err := WriteSkills(spec.Skills)
+		d, err := WriteSkillsIn(tmpBase, spec.Skills)
 		if err != nil {
 			return adapter.Result{ExitCode: -1}, fmt.Errorf("claude: skills: %w", err)
 		}
@@ -185,6 +192,19 @@ func (a *Adapter) run(ctx context.Context, spec adapter.Spec, sink adapter.Sink,
 
 	env := procrun.HarnessEnv(os.Environ(), a.envAllow, spec.Env)
 	sink = adapter.RedactingSink(sink, secrets...)
+	opts := procrun.Options{Bin: a.bin, Dir: dir, Env: env, Stdin: spec.Prompt, Grace: a.grace}
+	if spec.Exec != nil {
+		// no alvo valem só as variáveis da run e da persona; o ambiente deste servidor não vai junto
+		opts.Target, opts.TargetEnv, opts.Dir = spec.Exec, spec.Env, ""
+	}
+	argMCP, argSkills := mcpFile, skillsDir
+	if mcpFile != "" {
+		argMCP = remote(mcpFile)
+	}
+	if skillsDir != "" {
+		argSkills = remote(skillsDir)
+	}
+	opts.Args = BuildArgs(spec, cfg, argMCP, argSkills)
 
 	p := newParser(nil)
 	var stderrTail []string
@@ -206,25 +226,21 @@ func (a *Adapter) run(ctx context.Context, spec adapter.Spec, sink adapter.Sink,
 		}
 	}
 
-	grace := a.grace
-	opts := procrun.Options{
-		Bin: a.bin, Args: BuildArgs(spec, cfg, mcpFile, skillsDir), Dir: dir, Env: env, Stdin: spec.Prompt, Grace: grace,
-		OnStdout: func(line []byte) {
-			for _, e := range p.Feed(line) {
-				emit(e)
-			}
-		},
-		OnStderr: func(line []byte) {
-			s := string(line)
-			if strings.TrimSpace(s) == "" {
-				return
-			}
-			stderrTail = append(stderrTail, s)
-			if len(stderrTail) > 5 {
-				stderrTail = stderrTail[1:]
-			}
-			emit(adapter.Event{Kind: domain.EventStderr, Text: s, OccurredAt: time.Now().UTC()})
-		},
+	opts.OnStdout = func(line []byte) {
+		for _, e := range p.Feed(line) {
+			emit(e)
+		}
+	}
+	opts.OnStderr = func(line []byte) {
+		s := string(line)
+		if strings.TrimSpace(s) == "" {
+			return
+		}
+		stderrTail = append(stderrTail, s)
+		if len(stderrTail) > 5 {
+			stderrTail = stderrTail[1:]
+		}
+		emit(adapter.Event{Kind: domain.EventStderr, Text: s, OccurredAt: time.Now().UTC()})
 	}
 	stopSteer := func() {}
 	if steering(spec) {

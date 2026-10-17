@@ -26,6 +26,8 @@ func gateKindLabel(ctx context.Context, k domain.GateKind) string {
 		return i18n.T(ctx, "Contratação")
 	case domain.GateMemory:
 		return i18n.T(ctx, "Memória")
+	case domain.GateTool:
+		return i18n.T(ctx, "Tool")
 	}
 	return string(k)
 }
@@ -145,6 +147,7 @@ var gateKindTabs = []gateKindTab{
 	{"revisao", i18n.N("Revisão"), domain.GateTaskReview},
 	{"contratacao", i18n.N("Contratação"), domain.GateHire},
 	{"memoria", i18n.N("Memória"), domain.GateMemory},
+	{"tools", i18n.N("Tools"), domain.GateTool},
 }
 
 func gateStatusIn(st domain.GateStatus, list []domain.GateStatus) bool {
@@ -270,6 +273,7 @@ func (s *server) handleGate(w http.ResponseWriter, r *http.Request, co domain.Co
 	if g.RunID != nil {
 		vm.RunHref, vm.RunShort = base+"/execucoes/"+g.RunID.String(), shortID(*g.RunID)
 	}
+	vm.Example = s.gateExample(ctx, co, g) // ADR-0034
 	sh := s.shell(r, co, "gates", g.Title, views.Crumb{Label: i18n.T(ctx, "Gates"), Href: base + "/gates"}, views.Crumb{Label: shortID(g.ID)})
 	s.render(w, r, http.StatusOK, views.GatePage(sh, vm))
 }

@@ -39,7 +39,7 @@ func personaFromRow(r store.Persona) domain.Persona {
 		Status: domain.PersonaStatus(r.Status), ReportsTo: r.ReportsTo, WorkspaceID: r.WorkspaceID,
 		HeartbeatIntervalSec: int(r.HeartbeatIntervalSec), BudgetMonthlyCents: r.BudgetMonthlyCents,
 		RequireReview: r.RequireReview, ReviewerPersonaID: r.ReviewerPersonaID, ReviewerAgent: r.ReviewerAgent,
-		ReviewerModel: r.ReviewerModel, SubscriptionID: r.SubscriptionID, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt}
+		ReviewerModel: r.ReviewerModel, SubscriptionID: r.SubscriptionID, EnvironmentID: r.EnvironmentID, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt}
 }
 
 func subscriptionFromRow(r store.Subscription) domain.Subscription {

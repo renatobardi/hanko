@@ -1,11 +1,11 @@
-# Estado da última sessão (plano de evolução v0.3 → v0.6)
-Data: 2026-10-16 · branch `docs/plano-evolucao-v03-v06` · só documentação
+# Estado da última sessão (paridade v0.3)
+Data: 2026-10-17 · PR único `feat/paridade-v03` → `main` · prd em `e22999b` (migrations até 00026)
 
 ## Feito
-- Assessment de lacunas por domínio (funcional, técnico, processos, operação) e decisão item a item pelo dono: 70 itens, 8 fora.
-- `docs/ROADMAP.md` reescrito: trilha contínua de qualidade/operação + 4 ondas (Fundações, Execução, Governança, Ecossistema), M7–M20, ADRs 0032–0048 previstos, lista do que ficou fora.
+- 7 itens do v0.3: cards de status, sala, pipelines/cases/revisão/aprendizados, skills (versões, fontes, estúdio), tools (catálogo, perfis, gateways), ambientes SSH/sandbox, plugins. ADR-0032 a 0038; migrations 00027–00034.
+- CI local completo verde (testes de integração e lint) na branch combinada.
 ## Travado
-- Nada. Provider de sandbox cloud (M11) e de cofre externo (M7) se escolhem no ADR de cada marco.
+- Nada. Interruptores do operador desligados por padrão (`HANKO_SKILL_SOURCES`, `HANKO_ENV_SSH_ALLOW_HOSTS`, `HANKO_ENV_SANDBOX`, `HANKO_PLUGINS_DIR`).
 ## Próximo passo
-- Trilha contínua "Já": publicar `v0.1.0`/`v0.2.0`, `SECURITY.md` + dependabot, separar CI, metas de cobertura.
-- M7: ADR-0032 (segredos) e ADR-0033 (BlobStore), depois o contrato (migrations + OpenAPI).
+- Deploy do `main` (`deploy/oute-server/deploy-prd.sh`; aplica 00027–00034) e conferência das telas novas.
+- Teste `internal/deploy` usa bancos fixos (`hanko_rt*`): não rodar em paralelo.

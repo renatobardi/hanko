@@ -103,7 +103,7 @@ func (t *txc) runOpenedAsContinuation(run store.Run, c *continuation) error {
 // curadoria de memória). A task é acordada aqui quando a continuação é automática; no chat a continuação abre na hora.
 func (t *txc) afterInterruption(row store.Run, cause domain.DiagnosisCause) (d domain.RunDiagnosis, ok bool, err error) {
 	switch domain.RunTrigger(row.Trigger) {
-	case domain.TriggerReview, domain.TriggerMemory:
+	case domain.TriggerReview, domain.TriggerMemory, domain.TriggerSkillTest, domain.TriggerStatusCard:
 		return d, false, nil
 	}
 	if row.TaskID != nil {
@@ -203,7 +203,7 @@ func (t *txc) continueChatRun(old store.Run, c *continuation) (run store.Run, bl
 	if domain.ConversationStatus(conv.Status) != domain.ConversationOpen {
 		return run, domain.Invalid("conversation", "a conversa está arquivada"), nil
 	}
-	run, blocked, err = t.openChatRun(conv, c)
+	run, blocked, err = t.openPersonaRun(conv, old.PersonaID, c)
 	if err != nil || blocked != nil {
 		return run, blocked, err
 	}
@@ -396,7 +396,7 @@ func (s *Service) RunAction(ctx context.Context, actor domain.Actor, companyID, 
 			return domain.Invalid("run", fmt.Sprintf("a execução está %s: só uma execução interrompida, falha ou expirada aceita Tentar de novo, Continuar ou Encerrar", cur.Status))
 		}
 		switch domain.RunTrigger(cur.Trigger) {
-		case domain.TriggerReview, domain.TriggerMemory:
+		case domain.TriggerReview, domain.TriggerMemory, domain.TriggerSkillTest, domain.TriggerStatusCard:
 			return domain.Invalid("run", "execuções de revisão e de curadoria de memória não têm ação do operador")
 		}
 		if cur.Decision != "" {
@@ -548,7 +548,7 @@ func (s *Service) SteerRun(ctx context.Context, actor domain.Actor, companyID, r
 			return domain.Invalid("run", fmt.Sprintf("a execução já está %s: não há o que redirecionar", cur.Status))
 		}
 		switch domain.RunTrigger(cur.Trigger) {
-		case domain.TriggerReview, domain.TriggerMemory:
+		case domain.TriggerReview, domain.TriggerMemory, domain.TriggerSkillTest, domain.TriggerStatusCard:
 			return domain.Invalid("run", "execuções de revisão e de curadoria de memória não aceitam steer")
 		}
 		mode := domain.SteerModeFor(cur.Agent)
@@ -799,7 +799,10 @@ func conversationWait(ctx context.Context, q *store.Queries, conv store.Conversa
 	} else if !isNoRows(err) {
 		return w, fmt.Errorf("undecided run for conversation: %w", err)
 	}
-	p, err := q.GetPersonaByID(ctx, store.GetPersonaByIDParams{CompanyID: conv.CompanyID, ID: conv.PersonaID})
+	if conv.PersonaID == nil { // a room (ADR-0033) has no single persona: only the runs explain the wait
+		return w, nil
+	}
+	p, err := q.GetPersonaByID(ctx, store.GetPersonaByIDParams{CompanyID: conv.CompanyID, ID: *conv.PersonaID})
 	if err != nil {
 		return w, mapErr(err, "get persona")
 	}

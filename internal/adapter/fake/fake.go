@@ -6,10 +6,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/renatobardi/hanko/internal/adapter"
+	"github.com/renatobardi/hanko/internal/adapter/procrun"
 	"github.com/renatobardi/hanko/internal/domain"
 )
 
@@ -51,7 +54,16 @@ type Config struct {
 	Summary string `json:"summary"`  // overrides the final answer (e.g. a reviewer verdict)
 	// HoldForSteerMS: before the last step, wait up to this long for an operator message (steer) when none arrived yet.
 	HoldForSteerMS int `json:"hold_for_steer_ms"`
+	// Touch grava um arquivo com este nome (só o nome, sem diretório) no diretório de trabalho da run; no
+	// ambiente remoto (ADR-0037) ele é gravado lá e volta pela sincronização.
+	Touch string `json:"touch"`
+	// RemoteSleepSec segura o comando no ambiente remoto por estes segundos (0 a 60), para exercitar o
+	// cancelamento; não vale localmente.
+	RemoteSleepSec int `json:"remote_sleep_sec"`
 }
+
+// maxRemoteSleep é o teto de Config.RemoteSleepSec.
+const maxRemoteSleep = 60
 
 // Run emits a fixed script of events and returns a deterministic Result.
 func (a *Adapter) Run(ctx context.Context, spec adapter.Spec, sink adapter.Sink) (adapter.Result, error) {
@@ -96,6 +108,25 @@ func (a *Adapter) Run(ctx context.Context, spec adapter.Spec, sink adapter.Sink)
 	res := adapter.Result{SessionRef: session, Model: "fake", Summary: summary}
 	cost := 0.0
 	res.CostUSD = &cost
+	if cfg.Touch != "" && (cfg.Touch != filepath.Base(cfg.Touch) || cfg.Touch == "." || cfg.Touch == "..") {
+		return adapter.Result{ExitCode: -1, IsError: true, Error: "fake: touch aceita só um nome de arquivo"}, fmt.Errorf("fake: touch inválido: %q", cfg.Touch)
+	}
+	if spec.Exec != nil {
+		// No ambiente remoto o fake roda de verdade um comando no alvo (sem rede nem modelo): mostra onde
+		// rodou e, com touch, grava o arquivo lá.
+		where, err := a.remote(ctx, spec, cfg)
+		if ctx.Err() != nil {
+			return a.cancelled(res), nil
+		}
+		if err != nil {
+			return adapter.Result{ExitCode: -1, IsError: true, Error: err.Error()}, err
+		}
+		steps[0].Text += " no ambiente " + spec.Exec.Describe() + ": " + where
+	} else if cfg.Touch != "" && spec.Dir != "" {
+		if err := os.WriteFile(filepath.Join(spec.Dir, cfg.Touch), []byte("fake\n"), 0o600); err != nil {
+			return adapter.Result{ExitCode: -1, IsError: true, Error: err.Error()}, fmt.Errorf("fake: touch: %w", err)
+		}
+	}
 	if cfg.Fail {
 		steps[len(steps)-1] = adapter.Event{Kind: domain.EventAssistant, Text: "Falha simulada."}
 		res.Summary, res.IsError, res.Error, res.ExitCode = "", true, "falha simulada pelo adapter fake", 1
@@ -174,4 +205,31 @@ func (*Adapter) cancelled(r adapter.Result) adapter.Result {
 	r.Summary, r.IsError, r.ExitCode = "", true, -1
 	r.Error = "execução interrompida"
 	return r
+}
+
+// remote roda o comando do fake no alvo e devolve o diretório onde ele rodou.
+func (a *Adapter) remote(ctx context.Context, spec adapter.Spec, cfg Config) (string, error) {
+	script := "pwd"
+	if cfg.Touch != "" {
+		script += ` && printf 'fake\n' > "$1"`
+	}
+	if n := min(max(cfg.RemoteSleepSec, 0), maxRemoteSleep); n > 0 {
+		script += fmt.Sprintf(" && sleep %d", n)
+	}
+	var out, errOut []string
+	pr, err := procrun.Run(ctx, procrun.Options{
+		Bin: "sh", Args: []string{"-c", script, "sh", cfg.Touch}, Target: spec.Exec, TargetEnv: spec.Env,
+		OnStdout: func(l []byte) { out = append(out, string(l)) },
+		OnStderr: func(l []byte) { errOut = append(errOut, string(l)) },
+	})
+	if err != nil {
+		return "", fmt.Errorf("fake: %w", err)
+	}
+	if pr.ExitCode != 0 && !pr.Cancelled {
+		return "", fmt.Errorf("fake: o comando no ambiente terminou com código %d: %s", pr.ExitCode, strings.Join(errOut, " | "))
+	}
+	if len(out) == 0 {
+		return "", nil
+	}
+	return strings.TrimSpace(out[0]), nil
 }

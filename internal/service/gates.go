@@ -405,6 +405,11 @@ func (s *Service) DecideGate(ctx context.Context, actor domain.Actor, companyID,
 				return err
 			}
 		}
+		if g.Kind == domain.GateTool { // a chamada de tool aprovada passa uma vez; a persona acorda para repeti-la (ADR-0036)
+			if err := t.toolGateDecided(g, in.Decision); err != nil {
+				return err
+			}
+		}
 
 		var task *store.Task
 		taskKey := "GATE"
