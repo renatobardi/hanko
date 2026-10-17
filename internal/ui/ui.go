@@ -168,6 +168,12 @@ type Backend interface {
 	ListEnvironmentLeases(ctx context.Context, companyID, envID domain.ID, limit int) ([]service.EnvironmentLeaseView, error)
 	RunEnvironmentOf(ctx context.Context, companyID, runID domain.ID) (service.RunEnvironmentInfo, error)
 	EnvironmentDrivers(ctx context.Context) map[domain.EnvironmentDriver]string
+	// Ambiente do projeto, readiness da persona e catálogo de modelos (ADR-0055).
+	SetProjectEnvironment(ctx context.Context, actor domain.Actor, companyID, projectID domain.ID, envID *domain.ID) (domain.Project, error)
+	GetPersonaReadiness(ctx context.Context, companyID, personaID domain.ID) (*domain.Readiness, error)
+	ListPersonaReadiness(ctx context.Context, companyID domain.ID) (map[domain.ID]domain.Readiness, error)
+	TestPersonaReadiness(ctx context.Context, actor domain.Actor, companyID, personaID domain.ID) (domain.Readiness, error)
+	ModelCatalog(ctx context.Context, companyID domain.ID, agent string) ([]domain.CatalogModel, error)
 	// Cards de status (ADR-0032).
 	ListStatusCards(ctx context.Context, companyID domain.ID, archived *bool) ([]service.StatusCardView, error)
 	GetStatusCard(ctx context.Context, companyID, cardID domain.ID) (service.StatusCardView, error)

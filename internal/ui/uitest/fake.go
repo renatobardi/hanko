@@ -70,6 +70,8 @@ type Fake struct {
 
 	// Env são os ambientes de execução (ADR-0037).
 	Env EnvFake
+	// Ready é a prontidão das personas e o catálogo de modelos (ADR-0055).
+	Ready ReadinessFake
 }
 
 var _ = (*Fake)(nil)

@@ -704,6 +704,8 @@ type RunEnvironmentInfo struct {
 	Slug, Name    string
 	Driver        domain.EnvironmentDriver
 	Lease         domain.EnvironmentLease
+	// Source diz por que a run rodou neste ambiente: persona, projeto, padrão da empresa (ADR-0055).
+	Source domain.EnvSource
 }
 
 // RunEnvironmentOf devolve o ambiente remoto de uma run; ErrNotFound = a run rodou no local.
@@ -715,9 +717,13 @@ func (s *Service) RunEnvironmentOf(ctx context.Context, companyID, runID domain.
 	if err != nil {
 		return RunEnvironmentInfo{}, mapErr(err, "run environment")
 	}
-	return RunEnvironmentInfo{EnvironmentID: r.EnvironmentID, Slug: r.EnvironmentSlug, Name: r.EnvironmentName, Driver: domain.EnvironmentDriver(r.EnvironmentDriver),
+	info := RunEnvironmentInfo{EnvironmentID: r.EnvironmentID, Slug: r.EnvironmentSlug, Name: r.EnvironmentName, Driver: domain.EnvironmentDriver(r.EnvironmentDriver),
 		Lease: domain.EnvironmentLease{ID: r.ID, CompanyID: r.CompanyID, EnvironmentID: r.EnvironmentID, RunID: r.RunID, Status: r.Status,
-			RemoteDir: r.RemoteDir, AcquiredAt: r.AcquiredAt, ReleasedAt: r.ReleasedAt, FailureReason: r.FailureReason}}, nil
+			RemoteDir: r.RemoteDir, AcquiredAt: r.AcquiredAt, ReleasedAt: r.ReleasedAt, FailureReason: r.FailureReason}}
+	if run, err := s.read().GetRunByID(ctx, store.GetRunByIDParams{CompanyID: companyID, ID: runID}); err == nil {
+		info.Source = domain.EnvSource(run.EnvironmentSource)
+	}
+	return info, nil
 }
 
 // target monta o alvo de execução de um ambiente com os segredos abertos.

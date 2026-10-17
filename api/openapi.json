@@ -1235,6 +1235,89 @@
         ],
         "type": "object"
       },
+      "CatalogModel": {
+        "additionalProperties": false,
+        "properties": {
+          "agent": {
+            "description": "Harness do modelo; vazio = serve a qualquer harness.",
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "origins": {
+            "description": "builtin (alias do harness), price (model_prices), probe (visto num teste de readiness), run (usado numa execução).",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "price_model": {
+            "description": "Prefixo de model_prices que casou.",
+            "type": "string"
+          },
+          "priced": {
+            "description": "Há preço próprio; sem ele o custo é estimado com o preço de reserva.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "model",
+          "origins",
+          "priced"
+        ],
+        "type": "object"
+      },
+      "CloudConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "cpus": {
+            "description": "CPUs do sandbox (padrão 2).",
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "disk_gib": {
+            "description": "Disco em GiB (padrão 10).",
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "memory_gib": {
+            "description": "Memória em GiB (padrão 4).",
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "network": {
+            "description": "Rede do sandbox (padrão full: o harness precisa alcançar o modelo e o MCP).",
+            "enum": [
+              "none",
+              "full"
+            ],
+            "type": "string"
+          },
+          "provider": {
+            "description": "Provider (padrão daytona); o operador liga o driver com HANKO_ENV_CLOUD.",
+            "enum": [
+              "daytona"
+            ],
+            "type": "string"
+          },
+          "remote_workspace_root": {
+            "description": "Pasta absoluta do sandbox sob a qual cada execução ganha a sua cópia (padrão /home/daytona/hanko).",
+            "type": "string"
+          },
+          "snapshot": {
+            "description": "Snapshot/imagem do provider; vazio = o padrão dele.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "Comment": {
         "additionalProperties": false,
         "properties": {
@@ -3228,6 +3311,9 @@
             "description": "O driver pode rodar neste servidor (decisão do operador).",
             "type": "boolean"
           },
+          "cloud": {
+            "$ref": "#/components/schemas/CloudConfig"
+          },
           "company_id": {
             "format": "uuid",
             "type": "string"
@@ -3243,9 +3329,12 @@
             "type": "string"
           },
           "driver": {
+            "description": "local = ambiente local explícito; sandbox = contêiner docker; cloud = sandbox em nuvem.",
             "enum": [
+              "local",
               "ssh",
-              "sandbox"
+              "sandbox",
+              "cloud"
             ],
             "type": "string"
           },
@@ -3268,7 +3357,7 @@
             "type": "boolean"
           },
           "key_set": {
-            "description": "SSH: há chave privada guardada (nunca devolvida).",
+            "description": "SSH: há chave privada guardada; cloud: há chave de API do provider (nunca devolvidas).",
             "type": "boolean"
           },
           "last_probe": {
@@ -3290,6 +3379,16 @@
           },
           "personas": {
             "description": "Personas que escolheram este ambiente.",
+            "items": {
+              "$ref": "#/components/schemas/EnvironmentPersona"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "projects": {
+            "description": "Projetos que escolheram este ambiente.",
             "items": {
               "$ref": "#/components/schemas/EnvironmentPersona"
             },
@@ -3347,6 +3446,7 @@
           "key_set",
           "available",
           "personas",
+          "projects",
           "active_leases",
           "created_by",
           "created_at",
@@ -3357,15 +3457,24 @@
       "EnvironmentBody": {
         "additionalProperties": false,
         "properties": {
+          "api_key": {
+            "description": "Cloud: chave de API do provider (ou ${secret:NOME}). Guardada cifrada; nunca devolvida.",
+            "type": "string"
+          },
+          "cloud": {
+            "$ref": "#/components/schemas/CloudConfig"
+          },
           "description": {
             "maxLength": 500,
             "type": "string"
           },
           "driver": {
-            "description": "O local é implícito e não se cadastra.",
+            "description": "local = ambiente local explícito (só variáveis); o local implícito não precisa de cadastro.",
             "enum": [
+              "local",
               "ssh",
-              "sandbox"
+              "sandbox",
+              "cloud"
             ],
             "type": "string"
           },
@@ -5060,6 +5169,37 @@
         ],
         "type": "object"
       },
+      "ListBodyCatalogModel": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "description": "Itens da página.",
+            "items": {
+              "$ref": "#/components/schemas/CatalogModel"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "limit": {
+            "description": "Limite aplicado.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "offset": {
+            "description": "Deslocamento aplicado.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "limit",
+          "offset"
+        ],
+        "type": "object"
+      },
       "ListBodyComment": {
         "additionalProperties": false,
         "properties": {
@@ -5780,6 +5920,37 @@
             "description": "Itens da página.",
             "items": {
               "$ref": "#/components/schemas/PersonaIntegration"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "limit": {
+            "description": "Limite aplicado.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "offset": {
+            "description": "Deslocamento aplicado.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "limit",
+          "offset"
+        ],
+        "type": "object"
+      },
+      "ListBodyPersonaReadiness": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "description": "Itens da página.",
+            "items": {
+              "$ref": "#/components/schemas/PersonaReadiness"
             },
             "type": [
               "array",
@@ -7268,6 +7439,88 @@
         ],
         "type": "object"
       },
+      "PersonaReadiness": {
+        "additionalProperties": false,
+        "properties": {
+          "agent": {
+            "type": "string"
+          },
+          "blocking": {
+            "description": "O despacho da persona está bloqueado por este resultado.",
+            "type": "boolean"
+          },
+          "checked_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "duration_ms": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "environment_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "environment_source": {
+            "enum": [
+              "persona",
+              "project",
+              "default",
+              "local"
+            ],
+            "type": "string"
+          },
+          "failing_since": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "persona_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reason": {
+            "description": "Motivo do bloqueio: o primeiro passo que falhou.",
+            "type": "string"
+          },
+          "status": {
+            "description": "untested: a persona nunca foi testada (não bloqueia o despacho).",
+            "enum": [
+              "ready",
+              "not_ready",
+              "untested"
+            ],
+            "type": "string"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/ReadinessStep"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "trigger": {
+            "enum": [
+              "manual",
+              "periodic",
+              "hire",
+              "update"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "persona_id",
+          "status",
+          "steps",
+          "blocking"
+        ],
+        "type": "object"
+      },
       "PersonaSkill": {
         "additionalProperties": false,
         "properties": {
@@ -7965,6 +8218,15 @@
             "description": "Caminho de git, claude e codex no alvo (vazio = não encontrado).",
             "type": "object"
           },
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "duration_ms": {
             "format": "int64",
             "type": "integer"
@@ -8038,6 +8300,10 @@
             "type": "string"
           },
           "description": {
+            "type": "string"
+          },
+          "environment_id": {
+            "format": "uuid",
             "type": "string"
           },
           "id": {
@@ -8210,6 +8476,39 @@
         "required": [
           "name",
           "content"
+        ],
+        "type": "object"
+      },
+      "ReadinessStep": {
+        "additionalProperties": false,
+        "properties": {
+          "detail": {
+            "type": "string"
+          },
+          "name": {
+            "description": "environment: o ambiente responde; binary: o binário do harness existe; auth: há login ou chave de API; model: o modelo é válido e tem preço.",
+            "enum": [
+              "environment",
+              "binary",
+              "auth",
+              "model"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "description": "fail bloqueia o despacho; warn e skip não.",
+            "enum": [
+              "ok",
+              "warn",
+              "fail",
+              "skip"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "status"
         ],
         "type": "object"
       },
@@ -8776,6 +9075,19 @@
           },
           "created_at": {
             "format": "date-time",
+            "type": "string"
+          },
+          "environment_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "environment_source": {
+            "enum": [
+              "persona",
+              "project",
+              "default",
+              "local"
+            ],
             "type": "string"
           },
           "error": {
@@ -9421,6 +9733,22 @@
             "description": "Id ou slug do ambiente padrão, ou local.",
             "examples": [
               "local"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "environment"
+        ],
+        "type": "object"
+      },
+      "SetProjectEnvironmentInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "environment": {
+            "description": "Id ou slug do ambiente; vazio, local ou default = o padrão da empresa.",
+            "examples": [
+              "build"
             ],
             "type": "string"
           }
@@ -12190,6 +12518,14 @@
       "UpdateEnvironmentInBody": {
         "additionalProperties": false,
         "properties": {
+          "api_key": {
+            "description": "Troca a chave de API do provider cloud.",
+            "type": "string"
+          },
+          "cloud": {
+            "$ref": "#/components/schemas/CloudConfig",
+            "description": "Substitui a configuração do sandbox em nuvem."
+          },
           "description": {
             "maxLength": 500,
             "type": "string"
@@ -19187,12 +19523,12 @@
             }
           },
           {
-            "description": "Ambiente (id ou slug) para onde vão as personas deste; vazio ou local = o padrão da empresa.",
+            "description": "Ambiente (id ou slug) para onde vão as personas e os projetos deste; vazio ou local = o padrão da empresa.",
             "explode": false,
             "in": "query",
             "name": "move_personas_to",
             "schema": {
-              "description": "Ambiente (id ou slug) para onde vão as personas deste; vazio ou local = o padrão da empresa.",
+              "description": "Ambiente (id ou slug) para onde vão as personas e os projetos deste; vazio ou local = o padrão da empresa.",
               "type": "string"
             }
           }
@@ -25365,6 +25701,119 @@
         ]
       }
     },
+    "/api/v1/companies/{company}/models": {
+      "get": {
+        "operationId": "list-models",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Só os modelos deste harness (e os que servem a qualquer um).",
+            "explode": false,
+            "in": "query",
+            "name": "agent",
+            "schema": {
+              "description": "Só os modelos deste harness (e os que servem a qualquer um).",
+              "enum": [
+                "claude",
+                "codex",
+                "acp",
+                "fake",
+                ""
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListBodyCatalogModel"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Catálogo de modelos: aliases do harness, model_prices, o que testes e execuções relataram, com aviso de modelo sem preço",
+        "tags": [
+          "personas"
+        ]
+      }
+    },
     "/api/v1/companies/{company}/org-chart": {
       "get": {
         "operationId": "get-org-chart",
@@ -26145,6 +26594,222 @@
         "summary": "Liga ou desliga um servidor MCP para a persona",
         "tags": [
           "integrations"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/personas/{persona}/readiness": {
+      "get": {
+        "operationId": "get-persona-readiness",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug da persona.",
+            "in": "path",
+            "name": "persona",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da persona.",
+              "examples": [
+                "cto"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonaReadiness"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Último teste de readiness da persona (binário, login e modelo do harness)",
+        "tags": [
+          "personas"
+        ]
+      },
+      "post": {
+        "operationId": "test-persona-readiness",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug da persona.",
+            "in": "path",
+            "name": "persona",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da persona.",
+              "examples": [
+                "cto"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonaReadiness"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Testa agora o harness da persona no ambiente dela (admin); falha bloqueia o despacho e abre o alerta persona_not_ready",
+        "tags": [
+          "personas"
         ]
       }
     },
@@ -28884,6 +29549,125 @@
         ]
       }
     },
+    "/api/v1/companies/{company}/projects/{project}/environment": {
+      "put": {
+        "operationId": "set-project-environment",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug do projeto.",
+            "in": "path",
+            "name": "project",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug do projeto.",
+              "examples": [
+                "lancamento"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetProjectEnvironmentInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Project"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Escolhe o ambiente de execução do projeto (admin); a persona tem precedência sobre o projeto, e o projeto sobre o padrão da empresa",
+        "tags": [
+          "environments"
+        ]
+      }
+    },
     "/api/v1/companies/{company}/projects/{project}/review-policy": {
       "get": {
         "operationId": "get-project-review-policy",
@@ -29107,6 +29891,102 @@
         "summary": "Define a política de revisão do projeto (admin); vale para as tasks sem sobreposição própria",
         "tags": [
           "projects"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/readiness": {
+      "get": {
+        "operationId": "list-readiness",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListBodyPersonaReadiness"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Último teste de readiness de cada persona testada da empresa",
+        "tags": [
+          "personas"
         ]
       }
     },

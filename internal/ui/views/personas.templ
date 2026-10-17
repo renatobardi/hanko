@@ -149,9 +149,8 @@ templ HirePersonaPage(sh Shell, vm HirePersonaVM) {
 				<div class="form-grid">
 					<div class="field">
 						<label for="p-model">{ i18n.T(ctx, "Modelo") }</label>
-						<input class="input" id="p-model" name="model" value={ vm.Model } placeholder={ i18n.T(ctx, "sonnet (vazio = padrão do harness)") } list="models"/>
-						@ModelDatalist("models")
-						<span class="hint">{ i18n.T(ctx, "Lista sugerida · ou informe um ID manual.") }</span>
+						@ModelPicker(vm.ModelPicker)
+						<span class="hint">{ i18n.T(ctx, "Catálogo do harness, da tabela de preços e do que os testes e as execuções já viram · ou escolha Outro e informe o ID.") }</span>
 					</div>
 					<div class="field">
 						<label for="p-hb">{ i18n.T(ctx, "Acordar a cada (min)") }</label>
@@ -369,6 +368,7 @@ templ PersonaPage(sh Shell, vm PersonaVM) {
 			</section>
 		}
 		@PersonaEnvironmentSlot(vm)
+		@PersonaReadinessSlot(vm.ReadinessHref)
 		@PersonaExtras(vm.Extras)
 		@EffectiveToolsSlot(sh.Base(), vm.Slug)
 		<h2 class="side-h sec-h">{ i18n.T(ctx, "Tasks atribuídas") }</h2>

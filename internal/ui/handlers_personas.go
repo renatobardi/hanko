@@ -80,6 +80,7 @@ func (s *server) handleNewPersona(w http.ResponseWriter, r *http.Request, co dom
 }
 
 func (s *server) renderHire(w http.ResponseWriter, r *http.Request, co domain.Company, status int, vm views.HirePersonaVM) {
+	vm.ModelPicker = s.modelPicker(r.Context(), co, "p-model", "model", vm.Model)
 	vm.AcpPermission = acpPermissionOptions(r.Context(), vm.AcpPermission)
 	if personas, err := s.be.ListPersonas(r.Context(), co.ID); err == nil {
 		var sel *domain.ID
@@ -96,7 +97,7 @@ func (s *server) renderHire(w http.ResponseWriter, r *http.Request, co domain.Co
 
 func (s *server) handleHirePersona(w http.ResponseWriter, r *http.Request, co domain.Company) {
 	vm := views.HirePersonaVM{
-		Name: trimForm(r, "name"), Title: trimForm(r, "title"), Agent: trimForm(r, "agent"), Model: trimForm(r, "model"),
+		Name: trimForm(r, "name"), Title: trimForm(r, "title"), Agent: trimForm(r, "agent"), Model: modelFromForm(r, "model"),
 		Instructions: r.PostFormValue("instructions"), Heartbeat: trimForm(r, "heartbeat"), FieldErr: map[string]string{},
 		RequireReview: r.PostFormValue("require_review") != "", Icon: trimForm(r, "icon"),
 		AcpCommand: trimForm(r, "acp_command"), AcpArgs: r.PostFormValue("acp_args"),
@@ -185,7 +186,8 @@ func (s *server) handleHirePersona(w http.ResponseWriter, r *http.Request, co do
 		s.renderHire(w, r, co, statusFor(err), vm)
 		return
 	}
-	redirect(w, r, "/c/"+co.Slug+"/personas/"+p.Slug)
+	// a persona nova é testada ao abrir a página: binário, login e modelo aparecem antes da primeira execução (ADR-0055)
+	redirect(w, r, "/c/"+co.Slug+"/personas/"+p.Slug+"?testar=1")
 }
 
 func (s *server) handlePersona(w http.ResponseWriter, r *http.Request, co domain.Company) {
@@ -226,6 +228,10 @@ func (s *server) renderPersona(w http.ResponseWriter, r *http.Request, co domain
 		Hired: fmtDateTime(ctx, p.CreatedAt, loc), Slug: p.Slug,
 		RequireReview: p.RequireReview, OrgAction: base + "/personas/" + p.Slug + "/organizacao",
 		Icon: p.Icon, IconAction: base + "/personas/" + p.Slug + "/icone",
+		ReadinessHref: base + "/personas/" + p.Slug + "/prontidao",
+	}
+	if r.URL.Query().Get("testar") == "1" {
+		vm.ReadinessHref += "?auto=1"
 	}
 	all, err := s.be.ListPersonas(ctx, co.ID)
 	if err != nil {
