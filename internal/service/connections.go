@@ -304,6 +304,10 @@ func (s *Service) createConnectionTx(t *txc, actor domain.Actor, companyID domai
 			return store.Connection{}, mapErr(err, "create integration")
 		}
 		integrationID = &irow.ID
+		if err := t.activity(actor, companyID, "integration.created", "integration", irow.ID,
+			map[string]any{"slug": irow.Slug, "name": irow.Name, "kind": irow.Kind, "connection": true}, ""); err != nil {
+			return store.Connection{}, err
+		}
 	}
 	row, err := t.q.CreateConnection(t.ctx, store.CreateConnectionParams{ID: domain.NewID(), CompanyID: companyID, Slug: slug, Name: name,
 		Url: u, Identity: string(in.Identity), OwnerUserID: owner, IntegrationID: integrationID, Scopes: scopes, ClientID: in.ClientID,
@@ -480,7 +484,7 @@ func (s *Service) AuthorizeConnection(ctx context.Context, actor domain.Actor, c
 	oc := s.oauthClient()
 	d, err := oc.Discover(dctx, r.Url)
 	if err != nil {
-		return out, s.connFail(r, "descoberta do servidor de autorização", err)
+		return out, s.connFail(ctx, r, "descoberta do servidor de autorização", err)
 	}
 	clientID := r.ClientID
 	if clientID == "" || (r.Issuer != "" && r.Issuer != d.Metadata.Issuer && r.ClientSecretRef == "") {
@@ -491,7 +495,7 @@ func (s *Service) AuthorizeConnection(ctx context.Context, actor domain.Actor, c
 				return out, domain.Invalid("client_id", "o servidor não oferece registro dinâmico: informe o client_id da conexão")
 			}
 		case rerr != nil:
-			return out, s.connFail(r, "registro do cliente", rerr)
+			return out, s.connFail(ctx, r, "registro do cliente", rerr)
 		default:
 			clientID = reg.ClientID
 		}
@@ -510,7 +514,7 @@ func (s *Service) AuthorizeConnection(ctx context.Context, actor domain.Actor, c
 	}
 	authURL, err := oauth.AuthURL(d.Metadata, clientID, redirect, scopes, state, challenge, d.Resource)
 	if err != nil {
-		return out, s.connFail(r, "URL de autorização", err)
+		return out, s.connFail(ctx, r, "URL de autorização", err)
 	}
 	encVerifier, err := s.secretBox().Seal([]byte(verifier), connVerifierAAD(r.ID))
 	if err != nil {
@@ -543,9 +547,9 @@ func (s *Service) AuthorizeConnection(ctx context.Context, actor domain.Actor, c
 
 // connFail transforma uma falha de OAuth em erro de domínio (422) sem vazar corpo de resposta nem token, e a registra
 // como último erro da conexão.
-func (s *Service) connFail(r store.Connection, what string, err error) error {
+func (s *Service) connFail(ctx context.Context, r store.Connection, what string, err error) error {
 	msg := what + ": " + oauthMessage(err)
-	_ = s.recordConnError(r.CompanyID, r.ID, msg)
+	_ = s.recordConnError(ctx, r.CompanyID, r.ID, "connection.error", msg)
 	return domain.Invalid("connection", msg)
 }
 
@@ -567,9 +571,13 @@ func oauthMessage(err error) string {
 	return m
 }
 
-func (s *Service) recordConnError(companyID, id domain.ID, msg string) error {
-	return s.read().SetConnectionError(context.Background(), store.SetConnectionErrorParams{CompanyID: companyID, ID: id,
-		LastError: truncateRunes(msg, 480), Now: s.Now().UTC()})
+func (s *Service) recordConnError(ctx context.Context, companyID, id domain.ID, verb, msg string) error {
+	return s.withTx(context.WithoutCancel(ctx), func(t *txc) error {
+		if err := t.q.SetConnectionError(t.ctx, store.SetConnectionErrorParams{CompanyID: companyID, ID: id, LastError: truncateRunes(msg, 480), Now: t.now}); err != nil {
+			return err
+		}
+		return t.activity(domain.SystemActor, companyID, verb, "connection", id, map[string]any{"error": truncateRunes(msg, 200)}, "")
+	})
 }
 
 // CompleteConnectionInput é o retorno do navegador (GET /oauth/callback).
@@ -610,7 +618,7 @@ func (s *Service) CompleteConnectionAuth(ctx context.Context, actor domain.Actor
 				return mapErr(e, "clear auth")
 			}
 			expired = true // confirma a limpeza; o erro sai depois do commit
-			return nil
+			return t.activity(actor, r.CompanyID, "connection.authorize_expired", "connection", r.ID, map[string]any{"slug": r.Slug}, "")
 		}
 		plain, e := s.secretBox().Open(r.AuthVerifierEnc, connVerifierAAD(r.ID))
 		if e != nil {
@@ -630,8 +638,9 @@ func (s *Service) CompleteConnectionAuth(ctx context.Context, actor domain.Actor
 				return e
 			}
 			in.ErrorCode = msg
+			return nil
 		}
-		return nil
+		return t.activity(actor, r.CompanyID, "connection.authorize_returned", "connection", r.ID, map[string]any{"slug": r.Slug}, "")
 	})
 	if err != nil {
 		return ConnectionView{}, err
@@ -658,7 +667,7 @@ func (s *Service) CompleteConnectionAuth(ctx context.Context, actor domain.Actor
 	defer cancel()
 	tok, err := s.oauthClient().Exchange(xctx, connMetadata(row), reg, in.Code, verifier, redirect, row.Resource)
 	if err != nil {
-		return known, s.connFail(row, "troca do código pelo token", err)
+		return known, s.connFail(ctx, row, "troca do código pelo token", err)
 	}
 	var fresh store.Connection
 	err = s.withTx(ctx, func(t *txc) error {
@@ -787,7 +796,7 @@ func (s *Service) afterConnected(ctx context.Context, actor domain.Actor, r stor
 		return
 	}
 	if _, err := s.DecideGate(ctx, actor, r.CompanyID, g.ID, DecideGateInput{Decision: domain.GateApproved, Note: "Conexão " + r.Name + " autorizada."}); err != nil {
-		_ = s.recordConnError(r.CompanyID, r.ID, "conectou, mas não consegui aprovar o gate: "+oauthMessage(err))
+		_ = s.recordConnError(ctx, r.CompanyID, r.ID, "connection.error", "conectou, mas não consegui aprovar o gate: "+oauthMessage(err))
 	}
 }
 
