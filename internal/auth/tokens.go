@@ -73,6 +73,21 @@ func BearerToken(header string) (string, bool) {
 // InviteTTL é a validade de um convite de empresa.
 const InviteTTL = 7 * 24 * time.Hour
 
+// ClaimTTL é a validade do link de claim do primeiro dono (ADR-0058 §A).
+const ClaimTTL = time.Hour
+
+// ClaimPath é o prefixo público do link de claim (/claim/{token}); o token é o segredo do caminho.
+const ClaimPath = "/claim/"
+
+// NewClaimToken gera o token do claim do primeiro dono (32 bytes de entropia) e seu hash. Só o hash vai ao banco.
+func NewClaimToken() (token, hash string, err error) {
+	token, err = randomToken(32)
+	if err != nil {
+		return "", "", err
+	}
+	return token, HashToken(token), nil
+}
+
 // NewInviteToken gera o token de um convite (32 bytes de entropia) e seu hash. Só o hash vai ao banco.
 func NewInviteToken() (token, hash string, err error) {
 	token, err = randomToken(32)

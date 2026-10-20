@@ -200,6 +200,9 @@ type AuditRowVM struct {
 	SHA         string
 	GateHref    string
 	Error       string
+	Source      string // por onde entrou: execução, gateway, teste, hook, ACP, plugin
+	Policy      string // de onde veio a decisão
+	Result      string // trecho do resultado, já redigido
 }
 
 // EffectiveToolsVM é o painel "Tools efetivas" da persona.
@@ -221,12 +224,56 @@ type EffectiveRowVM struct {
 	Origin      string
 }
 
+// ToolPolicyVM é a aba Política (ADR-0053): as políticas off/ask/allow, o formulário para gravar uma e o teste "como a
+// persona X".
+type ToolPolicyVM struct {
+	Notice          string
+	Error           string
+	Rows            []PolicyRowVM
+	CreateHref      string
+	TestHref        string
+	PersonaOpts     []Option // "Padrão da empresa" + personas
+	TestPersonaOpts []Option
+	IntegrationOpts []Option
+	TestIntegration []Option
+	TargetOpts      []Option
+	ModeOpts        []Option
+	Test            *ToolTestVM
+	TestTool        string
+	TestArgs        string
+}
+
+// PolicyRowVM é uma política.
+type PolicyRowVM struct {
+	Scope      string
+	ScopeHref  string
+	Target     string
+	Mode       Badge
+	Origin     string
+	RemoveHref string
+}
+
+// ToolTestVM é o resultado de um teste de tool como uma persona.
+type ToolTestVM struct {
+	Persona  string
+	Tool     string
+	Status   Badge
+	Risk     Badge
+	Verdict  string
+	Origin   string
+	Decision Badge
+	Message  string
+	GateHref string
+	Output   string
+}
+
 // integrationTabs monta as abas de Integrações; active é a chave da aba atual.
 func integrationTabs(ctx context.Context, base, active string) []TabLink {
 	tabs := []TabLink{
 		{Key: "integracoes", Label: i18n.T(ctx, "Integrações"), Href: base + "/integracoes"},
 		{Key: "tools", Label: i18n.T(ctx, "Tools"), Href: base + "/ferramentas"},
 		{Key: "perfis", Label: i18n.T(ctx, "Perfis"), Href: base + "/ferramentas/perfis"},
+		{Key: "politica", Label: i18n.T(ctx, "Política"), Href: base + "/ferramentas/politica"},
 		{Key: "gateways", Label: i18n.T(ctx, "Gateways"), Href: base + "/ferramentas/gateways"},
 		{Key: "auditoria", Label: i18n.T(ctx, "Auditoria"), Href: base + "/ferramentas/auditoria"},
 	}

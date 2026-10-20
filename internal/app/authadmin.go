@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/renatobardi/hanko/internal/auth"
 	"github.com/renatobardi/hanko/internal/cli"
@@ -21,6 +22,7 @@ import (
 type authAdmin struct {
 	*service.Service
 	provider  string
+	publicURL string
 	closePool func()
 }
 
@@ -34,7 +36,7 @@ func OpenAuthAdmin(ctx context.Context, cfg config.Config) (cli.AuthAdmin, error
 	svc := service.New(pool, nil, nil)
 	// o registro de auditoria das operações de conta vai para o stderr (o stdout é do resultado do comando)
 	svc.Log = slog.New(slog.NewTextHandler(os.Stderr, nil))
-	return &authAdmin{Service: svc, provider: cfg.Auth.Provider, closePool: pool.Close}, nil
+	return &authAdmin{Service: svc, provider: cfg.Auth.Provider, publicURL: cfg.PublicURL, closePool: pool.Close}, nil
 }
 
 // CreateOwner só vale com o provider local: no firebase, o primeiro login vira dono.
@@ -47,6 +49,18 @@ func (a *authAdmin) CreateOwner(ctx context.Context, email, name, password strin
 		return domain.User{}, fmt.Errorf("criar dono: %w", err)
 	}
 	return u, nil
+}
+
+// ClaimLink emite um novo link de claim do primeiro dono; só vale com o provider local.
+func (a *authAdmin) ClaimLink(ctx context.Context) (string, time.Time, error) {
+	if a.provider == config.AuthFirebase {
+		return "", time.Time{}, errors.New("HANKO_AUTH_PROVIDER=firebase: o primeiro login pelo Firebase vira dono; claim-link é do provider local")
+	}
+	c, err := a.IssueOwnerClaim(ctx)
+	if err != nil {
+		return "", time.Time{}, fmt.Errorf("emitir claim: %w", err)
+	}
+	return claimURL(a.publicURL, c.Token), c.ExpiresAt, nil
 }
 
 // ownerCtx resolve o dono da instalação que opera (por e-mail, ou o único) e põe a identidade dele no

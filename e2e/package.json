@@ -1,0 +1,20 @@
+{
+  "name": "hanko-e2e",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Jornadas críticas do Hanko no navegador (Playwright) contra Postgres real e o adapter fake (ADR-0058 §D). Dependência de desenvolvimento e CI: fica fora do binário.",
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "test:update": "playwright test --update-snapshots",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1",
+    "@types/node": "22.18.8",
+    "typescript": "5.9.3"
+  }
+}

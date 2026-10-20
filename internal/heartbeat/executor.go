@@ -424,7 +424,7 @@ func (h *Heartbeat) buildSpec(rc service.RunContext, briefing, handoff string, s
 			return adapter.Spec{}, nil, fmt.Errorf("emitir run token: %w", err)
 		}
 		if !skillTest {
-			extraMCP = mergeMCP(extras.MCP, toolGatewayMCP(publicURL, token, extras.ToolGateway), h.mem.AgentMCP(scope, rc.Run.ID.String(), token))
+			extraMCP = mergeMCP(extras.MCP, toolGatewayMCP(publicURL, token, extras.ToolGateway, h.opts.ToolsSingleEndpoint), h.mem.AgentMCP(scope, rc.Run.ID.String(), token))
 		}
 	}
 	mcpCfg, err := buildMCPConfig(publicURL, token, extraMCP)
@@ -474,13 +474,17 @@ func (h *Heartbeat) buildSpec(rc service.RunContext, briefing, handoff string, s
 			system = strings.TrimSpace(system + "\n\n" + SkillIndex(extras.Skills))
 		}
 	}
-	return adapter.Spec{
+	spec := adapter.Spec{
 		RunID: rc.Run.ID, CompanyID: rc.Company.ID, PersonaID: rc.Persona.ID, TaskID: rc.Task.ID, TaskKey: rc.Task.Key,
 		ConversationID: conversationID(rc), Agent: agent, Model: model, Dir: dir,
 		System: system, Prompt: prompt, SessionRef: sessionRef,
 		Env:       buildEnv(os.Getenv("OTEL_RESOURCE_ATTRIBUTES"), publicURL, token, rc),
 		MCPConfig: mcpCfg, Skills: skills, Config: cfg, ReadOnly: review,
-	}, cleanup, nil
+	}
+	if !review && !skillTest && extras.NativeTools {
+		h.attachToolPolicy(&spec, rc, emit) // política de tools para as tools nativas do harness (ADR-0053)
+	}
+	return spec, cleanup, nil
 }
 
 // instructionBackend grava na run a revisão das instruções com que ela rodou (ADR-0052); opcional como os demais.
