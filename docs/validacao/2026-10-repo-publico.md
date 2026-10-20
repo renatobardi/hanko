@@ -30,7 +30,7 @@ Data: 2026-10-19/20. Premissa da issue: o que aparecer é tratado como vazado. E
 
 ## Pendente (Settings do GitHub, só o dono)
 - Ativar **Secret scanning** + **Push protection**, **Dependency graph** + **Dependabot alerts** e **Private vulnerability reporting** (Settings › Code security). A ferramenta de varredura do GitHub recusou rodar por falta disso.
-- ~~`trivy-fs`~~ **resolvido:** a action v0.33.1 baixava o trivy v0.65.0, cujos binários não existem mais (404). Atualizada para v0.36.0 (trivy v0.70.0, fixada por SHA); varredura local limpa; `continue-on-error` removido. `dependency-review` mantém o seu até rodar verde com o Dependency graph ligado.
+- ~~`trivy-fs`~~ **resolvido:** a action v0.33.1 baixava o trivy v0.65.0, cujos binários não existem mais (404). Atualizada para v0.36.0 (trivy v0.70.0, fixada por SHA); varredura local limpa; `continue-on-error` removido. `dependency-review` rodou verde com o Dependency graph ligado e também ficou bloqueante.
 - Branch protection da `main`: exigir `check`, `release-dry-run` e `gitleaks`.
 - Item 2 acima resolvido pelo dono (key já restrita); 3 e 4 decididos: manter.
 
