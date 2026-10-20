@@ -45,8 +45,8 @@ jobs:
     env:
       HANKO_E2E_DATABASE_URL: postgres://postgres:postgres@localhost:5432/hanko_e2e?sslmode=disable
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: "1.27"
           cache: true
@@ -54,7 +54,7 @@ jobs:
         run: go install github.com/a-h/templ/cmd/templ@v0.3.1070
       - name: build
         run: make build VERSION=e2e
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "22" # só ferramenta de teste; o binário não depende de Node
           cache: npm
@@ -73,7 +73,7 @@ jobs:
         run: tail -n 200 e2e/.run/hanko.log || true
       - name: relatório do Playwright (em falha)
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: e2e-relatorio
           path: |

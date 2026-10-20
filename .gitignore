@@ -1,5 +1,7 @@
 *.test
 .env
+.env.*
+!.env.example
 .fuse_hidden*
 /bin/
 /dist/
