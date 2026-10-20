@@ -159,8 +159,18 @@ func TestDraftConversationClearedOnSend(t *testing.T) {
 		t.Fatalf("enviar a mensagem deveria limpar o rascunho: %+v", d)
 	}
 	// uma mensagem recusada (persona pausada, sem run ativa) não limpa o rascunho
-	if _, err := e.svc.CancelRun(ctx, domain.HumanActor, e.co.ID, e.jobs.execs[0]); err != nil {
-		t.Fatal(err)
+	// cancelar a run ativa abre a seguinte com as mensagens em espera (ADR-0039); cancela-se também essa
+	for i := 0; i < 3; i++ {
+		v, err := e.svc.GetConversation(ctx, e.co.ID, cv.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if v.ActiveRunID == nil {
+			break
+		}
+		if _, err := e.svc.CancelRun(ctx, domain.HumanActor, e.co.ID, *v.ActiveRunID); err != nil {
+			t.Fatal(err)
+		}
 	}
 	paused := domain.PersonaPaused
 	if _, err := e.svc.UpdatePersona(ctx, domain.HumanActor, e.co.ID, p.ID, service.UpdatePersonaInput{Status: &paused}); err != nil {

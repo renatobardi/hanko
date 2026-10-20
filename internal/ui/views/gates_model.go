@@ -85,7 +85,8 @@ type InboxRun struct {
 	Persona    string
 	Error      string
 	When       string
-	ActionHref string // POST: wake the persona again
+	ActionHref string  // POST: wake the persona again
+	Diag       *DiagVM // card de diagnóstico e ações (ADR-0039)
 }
 
 type InboxPersona struct {
@@ -137,6 +138,7 @@ type InboxVM struct {
 	Gates        []GateRow
 	Blocked      []InboxTask
 	Failed       []InboxRun
+	Stopped      []InboxRun // execuções interrompidas que esperam decisão (ADR-0039)
 	Personas     []InboxPersona
 	Alerts       []InboxAlert
 	Reviewing    []InboxReview     // revisões automáticas em andamento (informativo; não contam como pendência)

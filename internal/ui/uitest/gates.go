@@ -175,7 +175,10 @@ func (f *Fake) Inbox(ctx context.Context, companyID domain.ID) (service.Inbox, e
 	}
 	for _, r := range f.Runs {
 		if r.Status == domain.RunFailed || r.Status == domain.RunExpired {
-			in.FailedRuns = append(in.FailedRuns, r)
+			in.FailedRuns = append(in.FailedRuns, withSteer(r))
+		}
+		if r.DecisionPending && r.Decision == domain.DecisionNone {
+			in.StoppedRuns = append(in.StoppedRuns, withSteer(r))
 		}
 	}
 	for _, p := range f.Personas {

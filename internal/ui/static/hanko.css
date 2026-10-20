@@ -1424,3 +1424,26 @@ details > summary.btn::-webkit-details-marker { display: none; }
 .att-inline { margin-top: 6px; }
 .draft-state { font-size: var(--text-xs); color: var(--subtle-foreground); }
 .run-sep.context-reset { color: var(--foreground); }
+/* ---------- resiliência de run: diagnóstico, steer e fila de follow-ups (ADR-0039) ---------- */
+.diag { margin-top: 10px; display: grid; gap: 8px; }
+.diag-kv { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 4px 14px; margin: 0; font-size: var(--text-sm); }
+.diag-kv dt { color: var(--muted-foreground); }
+.diag-kv dd { margin: 0; overflow-wrap: anywhere; }
+.diag-act { display: grid; gap: 8px; margin-top: 4px; }
+.diag-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.steer-box { display: grid; gap: 10px; }
+.steer-box .card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.steer-box .row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.steer-box [data-steer-mode="inject"] { background: var(--primary); color: var(--primary-foreground); border-color: transparent; }
+.followups { margin-top: 24px; display: grid; gap: 10px; }
+.followups .cnt { color: var(--muted-foreground); font-weight: 400; }
+.followup { border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--card); padding: 10px 12px; display: grid; gap: 8px; }
+.followup .fu-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: var(--text-xs); }
+.followup .fu-wait { color: var(--muted-foreground); }
+.followup .fu-body { white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--text-sm); }
+.followup .fu-edit form { display: grid; gap: 8px; margin-top: 8px; }
+.followup .fu-discard { justify-self: start; }
+@media (max-width: 640px) {
+  .diag-kv { grid-template-columns: 1fr; }
+  .diag-kv dt { margin-top: 6px; }
+}
