@@ -325,6 +325,7 @@ func environFor(getenv func(string) string) map[string]string {
 		"HANKO_S3_ACCESS_KEY", "HANKO_S3_SECRET_KEY",
 		"HANKO_VAULT_ADDR", "HANKO_VAULT_MOUNT", "HANKO_VAULT_NAMESPACE", "HANKO_VAULT_TOKEN",
 		"HANKO_ENV_SSH_ALLOW_HOSTS", "HANKO_ENV_SANDBOX", "HANKO_ENV_SANDBOX_HOST_ROOT",
+		"HANKO_PLUGINS_DIR", "HANKO_PLUGINS_DATA_DIR",
 	}
 	m := make(map[string]string, len(keys))
 	for _, k := range keys {
