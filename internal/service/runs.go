@@ -20,7 +20,9 @@ import (
 )
 
 func runViewFromParts(r store.Run, taskKey, taskTitle, personaName, conversationTitle string) RunView {
-	return RunView{Run: runFromRow(r), TaskKey: taskKey, TaskTitle: taskTitle, PersonaName: personaName, ConversationTitle: conversationTitle}
+	v := RunView{Run: runFromRow(r), TaskKey: taskKey, TaskTitle: taskTitle, PersonaName: personaName, ConversationTitle: conversationTitle}
+	v.fillResilience()
+	return v
 }
 
 func loadRunView(ctx context.Context, q *store.Queries, companyID, runID domain.ID) (RunView, error) {
@@ -81,6 +83,11 @@ func (s *Service) GetRun(ctx context.Context, companyID, runID domain.ID) (RunVi
 			ReviewRequiredSource: domain.ReviewLayer(o.ReviewRequiredSource), ReviewerSource: domain.ReviewLayer(o.ReviewerSource)}
 	} else if !isNoRows(oerr) {
 		return RunView{}, fmt.Errorf("run policy origin: %w", oerr)
+	}
+	if child, cerr := q.ContinuationOfRun(ctx, &runID); cerr == nil {
+		v.ContinuedByRunID = &child.ID
+	} else if !isNoRows(cerr) {
+		return RunView{}, fmt.Errorf("continuation of run: %w", cerr)
 	}
 	return v, nil
 }
@@ -193,6 +200,11 @@ func (t *txc) cancelRun(actor domain.Actor, companyID domain.ID, cur store.Run, 
 			if err := t.statusCardRunEnded(row, domain.RunCancelled, ""); err != nil {
 				return err
 			}
+		default:
+			// follow-ups that waited for this run start the next one (ADR-0039)
+			if err := t.wakeForFollowupsOfRun(row); err != nil {
+				return err
+			}
 		}
 		if row.ConversationID != nil {
 			if err := t.chatRunEnded(row, domain.RunCancelled, "", ""); err != nil {
@@ -299,6 +311,12 @@ func (s *Service) CheckoutRun(ctx context.Context, w Wake) (domain.Run, error) {
 		} else if !isNoRows(err) {
 			return fmt.Errorf("check active run: %w", err)
 		}
+		// A run that stopped and waits for the operator (attempts exhausted, uncertain outcome) holds the task.
+		if stopped, err := t.q.UndecidedRunForTask(ctx, &task.ID); err == nil {
+			return domain.Invalid("run", fmt.Sprintf("a execução %s parou e espera uma decisão humana (Tentar de novo, Continuar ou Encerrar)", stopped.Name))
+		} else if !isNoRows(err) {
+			return fmt.Errorf("check undecided run: %w", err)
+		}
 		// Hard stop: the budget check (spent plus the reservation of every open run plus this
 		// one) runs, and its pause/alerts commit, before any run is opened.
 		co, err := t.q.GetCompanyByID(ctx, w.CompanyID)
@@ -348,8 +366,18 @@ func (s *Service) CheckoutRun(ctx context.Context, w Wake) (domain.Run, error) {
 			}
 		}
 		ws, wsSource := pickWorkspace(task.WorkspaceID, project, p)
-		row, err := t.createRun(w.CompanyID, task.ID, p.ID, p.Agent, model, modelSource, subID, ws, wsSource, w.Trigger)
+		cont, err := t.pendingContinuation(task.ID)
 		if err != nil {
+			return err
+		}
+		row, err := t.createRun(w.CompanyID, task.ID, p.ID, p.Agent, model, modelSource, subID, ws, wsSource, w.Trigger, cont)
+		if err != nil {
+			return err
+		}
+		if err := t.runOpenedAsContinuation(row, cont); err != nil {
+			return err
+		}
+		if err := t.claimTaskFollowups(task, row); err != nil {
 			return err
 		}
 		out = runFromRow(row)
@@ -397,7 +425,7 @@ func (s *Service) CheckoutRun(ctx context.Context, w Wake) (domain.Run, error) {
 // pair is already taken in the company the next variation of the hash is used (see domain.RunName).
 // A race on the same name or on the one-active-run-per-task index is ErrActiveRun, so the wake is retried.
 func (t *txc) createRun(companyID, taskID, personaID domain.ID, agent, model string, modelSource domain.ModelSource, subID *domain.ID,
-	ws *domain.ID, wsSource domain.WorkspaceSource, trigger domain.RunTrigger) (store.Run, error) {
+	ws *domain.ID, wsSource domain.WorkspaceSource, trigger domain.RunTrigger, cont *continuation) (store.Run, error) {
 	// A run da task de sistema da curadoria é sempre uma run de curadoria, seja qual for o caminho que a acordou
 	// (rede de segurança do heartbeat, retomada): senão o proxy e o executor a tratariam como run comum e a
 	// política de propostas (ADR-0030) seria contornável.
@@ -418,20 +446,24 @@ func (t *txc) createRun(companyID, taskID, personaID domain.ID, agent, model str
 	} else if card {
 		trigger = domain.TriggerStatusCard
 	}
-	return t.insertRun(companyID, &taskID, nil, personaID, agent, model, modelSource, subID, ws, wsSource, trigger)
+	return t.insertRun(companyID, &taskID, nil, personaID, agent, model, modelSource, subID, ws, wsSource, trigger, cont)
 }
 
 // insertRun creates the queued run of a task (taskID) or of a conversation (convID), exactly one of them.
 func (t *txc) insertRun(companyID domain.ID, taskID, convID *domain.ID, personaID domain.ID, agent, model string, modelSource domain.ModelSource, subID *domain.ID,
-	ws *domain.ID, wsSource domain.WorkspaceSource, trigger domain.RunTrigger) (store.Run, error) {
+	ws *domain.ID, wsSource domain.WorkspaceSource, trigger domain.RunTrigger, cont *continuation) (store.Run, error) {
 	id := domain.NewID()
 	name, err := t.freeRunName(companyID, id)
 	if err != nil {
 		return store.Run{}, err
 	}
-	row, err := t.q.CreateRun(t.ctx, store.CreateRunParams{ID: id, CompanyID: companyID, TaskID: taskID, ConversationID: convID,
+	params := store.CreateRunParams{ID: id, CompanyID: companyID, TaskID: taskID, ConversationID: convID,
 		PersonaID: personaID, Trigger: string(trigger), Agent: agent, Model: model, ModelSource: string(modelSource), SubscriptionID: subID, Name: name,
-		WorkspaceID: ws, WorkspaceSource: string(wsSource), Now: t.now})
+		WorkspaceID: ws, WorkspaceSource: string(wsSource), Now: t.now}
+	if cont != nil {
+		params.ContinuationOfRunID, params.ContinuationAttempt, params.ContinuationReason = &cont.of.ID, int32(cont.attempt), string(cont.reason) //nolint:gosec // tentativa ≤ domain.MaxContinuations (2)
+	}
+	row, err := t.q.CreateRun(t.ctx, params)
 	if err != nil {
 		if isUnique(err) {
 			return store.Run{}, domain.ErrActiveRun
@@ -619,6 +651,12 @@ func (s *Service) LoadRunContext(ctx context.Context, companyID, runID domain.ID
 	if rc.Goals, err = goalBriefs(ctx, q, companyID, task); err != nil {
 		return RunContext{}, err
 	}
+	if rc.Continuation, err = loadContinuation(ctx, q, run, persona); err != nil {
+		return RunContext{}, err
+	}
+	if rc.Continuation != nil && rc.Chat == nil && rc.Continuation.ResumeSession != "" {
+		rc.ResumeSession = rc.Continuation.ResumeSession
+	}
 	return rc, nil
 }
 
@@ -693,6 +731,11 @@ func (s *Service) AppendRunEvent(ctx context.Context, companyID, runID domain.ID
 	ev := runEventFromRow(row)
 	if s.Broker != nil {
 		s.Broker.Publish(events.Message{Topic: events.RunTopic(runID.String()), Type: "run.event", Data: ev})
+	}
+	if e.SessionRef != "" {
+		// The session is kept the moment the harness announces it: a run killed before returning its Result can
+		// still be resumed (ADR-0039). Losing this write only costs the resume, never the run.
+		_ = q.SetRunSessionRef(ctx, store.SetRunSessionRefParams{CompanyID: companyID, ID: runID, SessionRef: e.SessionRef})
 	}
 	return ev, nil
 }
@@ -840,6 +883,18 @@ func (s *Service) FinishRun(ctx context.Context, companyID, runID domain.ID, in 
 			return err
 		}
 
+		var diag *domain.RunDiagnosis
+		if in.Status == domain.RunInterrupted && !isReview && !isMemory {
+			d, ok, err := t.afterInterruption(row, domain.CauseServerShutdown)
+			if err != nil {
+				return err
+			}
+			if ok {
+				diag = &d
+				out.Diagnosis, out.DecisionPending = diag, diag.NeedsDecision()
+			}
+		}
+
 		if isChat {
 			ws, err := t.personaWorkspaceID(companyID, row.PersonaID)
 			if err != nil {
@@ -848,7 +903,12 @@ func (s *Service) FinishRun(ctx context.Context, companyID, runID domain.ID, in 
 			if err := t.memoryFact(companyID, ws, chatRunFact(view, in.Status, res, t.now), "run.finished:"+runID.String()); err != nil {
 				return err
 			}
-			if err := t.chatRunEnded(row, in.Status, res.Summary, res.Error); err != nil {
+			if diag != nil {
+				err = t.chatInterrupted(row, *diag)
+			} else {
+				err = t.chatRunEnded(row, in.Status, res.Summary, res.Error)
+			}
+			if err != nil {
 				return err
 			}
 			t.publishRunStatus(out)
@@ -872,6 +932,10 @@ func (s *Service) FinishRun(ctx context.Context, companyID, runID domain.ID, in 
 		}
 		if !isReview && !isMemory && !isSkillTest && !isStatusCard {
 			if err := t.wakeForMissedComment(companyID, task, row); err != nil {
+				return err
+			}
+			// follow-ups that waited for this run (whatever its end) start the next one (ADR-0039)
+			if err := t.wakeForFollowups(companyID, task); err != nil {
 				return err
 			}
 		}
@@ -997,13 +1061,31 @@ func (s *Service) InterruptOrphanRuns(ctx context.Context) (int, error) {
 				map[string]any{"status": domain.RunInterrupted, "task_id": r.TaskID, "conversation_id": r.ConversationID, "reason": "orphan"}, ""); err != nil {
 				return err
 			}
-			t.publishRunStatus(runFromRow(r))
+			// Diagnose the stop and, when it is safe, open the continuation (ADR-0039): resumes the session and carries
+			// a briefing; an unfinished external effect or exhausted attempts hold the run for a human instead.
+			diag, diagnosed, err := t.afterInterruption(r, domain.CauseProcessRestart)
+			if err != nil {
+				return err
+			}
+			cur := runFromRow(r)
+			if diagnosed {
+				cur.Diagnosis, cur.DecisionPending = &diag, diag.NeedsDecision()
+			}
+			t.publishRunStatus(cur)
 			if r.ConversationID != nil {
-				// A chat has no task to wake: the conversation gets a notice and waits for the next message.
-				if err := t.chatRunEnded(r, domain.RunInterrupted, "", r.Error); err != nil {
+				// A chat has no task to wake: a notice tells what happened (and the continuation, if any, is already open).
+				if diagnosed {
+					err = t.chatInterrupted(r, diag)
+				} else {
+					err = t.chatRunEnded(r, domain.RunInterrupted, "", r.Error)
+				}
+				if err != nil {
 					return err
 				}
 				continue
+			}
+			if diagnosed {
+				continue // afterInterruption already woke the assignee when the continuation is automatic
 			}
 			// The work was cut short: wake the assignee so the task is not left waiting for the next scan.
 			task, err := t.q.GetTaskByID(ctx, store.GetTaskByIDParams{CompanyID: r.CompanyID, ID: idOrZero(r.TaskID)})

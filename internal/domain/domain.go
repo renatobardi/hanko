@@ -443,6 +443,17 @@ type Run struct {
 	CreatedAt           time.Time  `json:"created_at"`
 	StartedAt           *time.Time `json:"started_at,omitempty"`
 	FinishedAt          *time.Time `json:"finished_at,omitempty"`
+	// Resiliência (ADR-0039). ContinuationOfRunID liga esta run à que ela continua; ContinuationAttempt conta as
+	// continuações da cadeia (0 = original). Diagnosis é o card de uma run que parou; DecisionPending/Decision
+	// dizem se ela espera o operador e o que ele decidiu.
+	ContinuationOfRunID *ID                `json:"continuation_of_run_id,omitempty"`
+	ContinuationAttempt int                `json:"continuation_attempt,omitempty"`
+	ContinuationReason  ContinuationReason `json:"continuation_reason,omitempty"`
+	Diagnosis           *RunDiagnosis      `json:"diagnosis,omitempty"`
+	DecisionPending     bool               `json:"decision_pending,omitempty"`
+	Decision            RunDecision        `json:"decision,omitempty"`
+	DecisionNote        string             `json:"decision_note,omitempty"`
+	DecidedAt           *time.Time         `json:"decided_at,omitempty"`
 }
 
 // RunEventKind classifies a line of the run log.

@@ -83,7 +83,9 @@ func (p *parser) Feed(raw []byte) []adapter.Event {
 	switch l.Type {
 	case "thread.started":
 		p.threadID = l.ThreadID
-		return []adapter.Event{p.ev(domain.EventSystem, "sessão iniciada "+l.ThreadID, payload)}
+		ev := p.ev(domain.EventSystem, "sessão iniciada "+l.ThreadID, payload)
+		ev.SessionRef = l.ThreadID
+		return []adapter.Event{ev}
 	case "item.started", "item.updated":
 		if l.Item == nil || l.Type == "item.updated" {
 			return nil

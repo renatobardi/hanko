@@ -3236,6 +3236,20 @@
         ],
         "type": "object"
       },
+      "EditFollowupInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "message": {
+            "maxLength": 20000,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "type": "object"
+      },
       "EffectiveIntegration": {
         "additionalProperties": false,
         "properties": {
@@ -3926,6 +3940,91 @@
         },
         "required": [
           "fire"
+        ],
+        "type": "object"
+      },
+      "Followup": {
+        "additionalProperties": false,
+        "properties": {
+          "author": {
+            "$ref": "#/components/schemas/ActorRef"
+          },
+          "body": {
+            "type": "string"
+          },
+          "conversation_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "delivery": {
+            "description": "queue: espera a execução terminar; steer: injetado na execução viva; restart: a execução é interrompida e continua com ele.",
+            "enum": [
+              "queue",
+              "steer",
+              "restart"
+            ],
+            "type": "string"
+          },
+          "edited_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "kind": {
+            "description": "De onde vem: uma mensagem de conversa ou uma instrução de task.",
+            "enum": [
+              "chat",
+              "task"
+            ],
+            "type": "string"
+          },
+          "position": {
+            "description": "Ordem de entrega (1 = o primeiro a ser entregue).",
+            "format": "int64",
+            "type": "integer"
+          },
+          "task_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "wait_detail": {
+            "description": "Complemento do motivo: o nome da execução, o estado da persona.",
+            "type": "string"
+          },
+          "wait_reason": {
+            "description": "Por que ainda não foi entregue.",
+            "enum": [
+              "run_active",
+              "steer_pending",
+              "restart_pending",
+              "decision_pending",
+              "persona_unavailable",
+              "unassigned",
+              "starting"
+            ],
+            "type": "string"
+          },
+          "wait_run_id": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "body",
+          "author",
+          "delivery",
+          "position",
+          "wait_reason",
+          "created_at"
         ],
         "type": "object"
       },
@@ -5652,6 +5751,37 @@
             "description": "Itens da página.",
             "items": {
               "$ref": "#/components/schemas/FlowFire"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "limit": {
+            "description": "Limite aplicado.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "offset": {
+            "description": "Deslocamento aplicado.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "limit",
+          "offset"
+        ],
+        "type": "object"
+      },
+      "ListBodyFollowup": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "description": "Itens da página.",
+            "items": {
+              "$ref": "#/components/schemas/Followup"
             },
             "type": [
               "array",
@@ -8806,6 +8936,21 @@
         ],
         "type": "object"
       },
+      "QueueFollowupInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "message": {
+            "description": "Instrução que espera a execução da task e é entregue na próxima.",
+            "maxLength": 20000,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "type": "object"
+      },
       "ReadinessStep": {
         "additionalProperties": false,
         "properties": {
@@ -9398,6 +9543,30 @@
             "format": "uuid",
             "type": "string"
           },
+          "continuation_attempt": {
+            "description": "Quantas continuações automáticas a cadeia já usou (0 = a original; o máximo é 2).",
+            "format": "int64",
+            "type": "integer"
+          },
+          "continuation_of_run_id": {
+            "description": "Execução que esta continua (queda do processo, steer, Tentar de novo ou Continuar).",
+            "format": "uuid",
+            "type": "string"
+          },
+          "continuation_reason": {
+            "enum": [
+              "recovery",
+              "steer",
+              "retry",
+              "continue"
+            ],
+            "type": "string"
+          },
+          "continued_by_run_id": {
+            "description": "Execução que continuou esta (só no GET de uma execução).",
+            "format": "uuid",
+            "type": "string"
+          },
           "conversation_id": {
             "description": "Conversa de uma execução de chat (gatilho chat); ausente nas execuções de task.",
             "format": "uuid",
@@ -9422,6 +9591,30 @@
           "created_at": {
             "format": "date-time",
             "type": "string"
+          },
+          "decided_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "decision": {
+            "description": "O que o operador decidiu.",
+            "enum": [
+              "retry",
+              "continue",
+              "close"
+            ],
+            "type": "string"
+          },
+          "decision_note": {
+            "type": "string"
+          },
+          "decision_pending": {
+            "description": "A execução parou e espera Tentar de novo, Continuar ou Encerrar.",
+            "type": "boolean"
+          },
+          "diagnosis": {
+            "$ref": "#/components/schemas/RunDiagnosis",
+            "description": "Card de diagnóstico de uma execução que parou: causa, tentativa, próxima ação e dono."
           },
           "environment_id": {
             "format": "uuid",
@@ -9512,6 +9705,15 @@
             ],
             "type": "string"
           },
+          "steer_mode": {
+            "description": "Como o harness da execução aceita uma mensagem durante a execução: inject (entra na execução viva) ou restart (interrompe e continua).",
+            "enum": [
+              "none",
+              "inject",
+              "restart"
+            ],
+            "type": "string"
+          },
           "subscription_id": {
             "description": "Assinatura que cobre a execução.",
             "format": "uuid",
@@ -9564,6 +9766,90 @@
           "agent",
           "usage",
           "created_at"
+        ],
+        "type": "object"
+      },
+      "RunActionInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "description": "retry = Tentar de novo (execução nova do zero); continue = Continuar (retoma a sessão com o briefing); close = Encerrar (fecha o card, sem execução nova).",
+            "enum": [
+              "retry",
+              "continue",
+              "close"
+            ],
+            "type": "string"
+          },
+          "note": {
+            "description": "Nota do operador; entra no briefing da execução seguinte.",
+            "maxLength": 2000,
+            "type": "string"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "type": "object"
+      },
+      "RunDiagnosis": {
+        "additionalProperties": false,
+        "properties": {
+          "attempt": {
+            "description": "Continuação em que a execução parou (0 = original).",
+            "format": "int64",
+            "type": "integer"
+          },
+          "cause": {
+            "enum": [
+              "process_restart",
+              "server_shutdown",
+              "agent_error",
+              "timeout",
+              "cancelled"
+            ],
+            "type": "string"
+          },
+          "cause_detail": {
+            "type": "string"
+          },
+          "exhausted": {
+            "description": "As continuações automáticas acabaram.",
+            "type": "boolean"
+          },
+          "max_attempts": {
+            "description": "Máximo de continuações automáticas.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "next_action": {
+            "enum": [
+              "auto_continue",
+              "human_decision",
+              "none",
+              "continued"
+            ],
+            "type": "string"
+          },
+          "owner": {
+            "description": "Quem tem a próxima ação.",
+            "enum": [
+              "system",
+              "human"
+            ],
+            "type": "string"
+          },
+          "uncertain": {
+            "$ref": "#/components/schemas/UncertainTool",
+            "description": "Desfecho incerto: tool de efeito externo em andamento quando a execução parou."
+          }
+        },
+        "required": [
+          "cause",
+          "attempt",
+          "max_attempts",
+          "next_action",
+          "owner"
         ],
         "type": "object"
       },
@@ -11755,6 +12041,42 @@
         ],
         "type": "object"
       },
+      "SteerResult": {
+        "additionalProperties": false,
+        "properties": {
+          "followup": {
+            "$ref": "#/components/schemas/Followup"
+          },
+          "mode": {
+            "description": "inject: a mensagem entra na execução viva; restart: a execução é interrompida e continua com ela.",
+            "enum": [
+              "inject",
+              "restart"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode",
+          "followup"
+        ],
+        "type": "object"
+      },
+      "SteerRunInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "message": {
+            "description": "Instrução para a execução em andamento.",
+            "maxLength": 20000,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "type": "object"
+      },
       "Subscription": {
         "additionalProperties": false,
         "properties": {
@@ -13100,6 +13422,27 @@
         "required": [
           "expected_version",
           "to_stage"
+        ],
+        "type": "object"
+      },
+      "UncertainTool": {
+        "additionalProperties": false,
+        "properties": {
+          "input": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "seq": {
+            "description": "Seq do evento tool_use no log.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "seq"
         ],
         "type": "object"
       },
@@ -18434,6 +18777,113 @@
         ]
       }
     },
+    "/api/v1/companies/{company}/conversations/{conversation}/followups": {
+      "get": {
+        "operationId": "list-conversation-followups",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id da conversa.",
+            "in": "path",
+            "name": "conversation",
+            "required": true,
+            "schema": {
+              "description": "Id da conversa.",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListBodyFollowup"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Lista a fila de mensagens que esperam a resposta da persona",
+        "tags": [
+          "chat"
+        ]
+      }
+    },
     "/api/v1/companies/{company}/conversations/{conversation}/messages": {
       "get": {
         "operationId": "list-conversation-messages",
@@ -22249,6 +22699,221 @@
         "summary": "Roda o fluxo agora",
         "tags": [
           "flows"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/followups/{followup}": {
+      "delete": {
+        "operationId": "discard-followup",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id do follow-up.",
+            "in": "path",
+            "name": "followup",
+            "required": true,
+            "schema": {
+              "description": "Id do follow-up.",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Descarta um follow-up que ainda não foi entregue",
+        "tags": [
+          "runs"
+        ]
+      },
+      "patch": {
+        "operationId": "edit-followup",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id do follow-up.",
+            "in": "path",
+            "name": "followup",
+            "required": true,
+            "schema": {
+              "description": "Id do follow-up.",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditFollowupInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Followup"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Edita um follow-up que ainda não foi entregue",
+        "tags": [
+          "runs"
         ]
       }
     },
@@ -32442,6 +33107,123 @@
         ]
       }
     },
+    "/api/v1/companies/{company}/runs/{run}/actions": {
+      "post": {
+        "operationId": "run-action",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id da execução.",
+            "in": "path",
+            "name": "run",
+            "required": true,
+            "schema": {
+              "description": "Id da execução.",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunActionInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Run"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Decide uma execução que parou (Tentar de novo, Continuar ou Encerrar)",
+        "tags": [
+          "runs"
+        ]
+      }
+    },
     "/api/v1/companies/{company}/runs/{run}/cancel": {
       "post": {
         "operationId": "cancel-run",
@@ -32702,6 +33484,123 @@
           }
         },
         "summary": "Lista o log de uma execução (por cursor de seq)",
+        "tags": [
+          "runs"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/runs/{run}/steer": {
+      "post": {
+        "operationId": "steer-run",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id da execução.",
+            "in": "path",
+            "name": "run",
+            "required": true,
+            "schema": {
+              "description": "Id da execução.",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SteerRunInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SteerResult"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Muda o rumo de uma execução ativa",
         "tags": [
           "runs"
         ]
@@ -39329,6 +40228,232 @@
           }
         },
         "summary": "Remove uma dependência; a última dependência aberta removida libera a task e acorda o responsável",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/tasks/{task}/followups": {
+      "get": {
+        "operationId": "list-task-followups",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou chave da task.",
+            "in": "path",
+            "name": "task",
+            "required": true,
+            "schema": {
+              "description": "Id ou chave da task.",
+              "examples": [
+                "HNK-12"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListBodyFollowup"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Lista a fila de follow-ups de uma task",
+        "tags": [
+          "tasks"
+        ]
+      },
+      "post": {
+        "operationId": "queue-task-followup",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou chave da task.",
+            "in": "path",
+            "name": "task",
+            "required": true,
+            "schema": {
+              "description": "Id ou chave da task.",
+              "examples": [
+                "HNK-12"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueueFollowupInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Followup"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Enfileira uma instrução para a task",
         "tags": [
           "tasks"
         ]

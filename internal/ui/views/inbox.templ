@@ -213,6 +213,34 @@ templ InboxPage(sh Shell, vm InboxVM) {
 						}
 					</section>
 				}
+				if len(vm.Stopped) > 0 {
+					<section class="card inbox-sec">
+						<div class="inbox-h">
+							@Icon("alert")
+							{ i18n.T(ctx, "Execuções paradas esperando decisão") }
+						<span class="cnt">{ fmt.Sprint(len(vm.Stopped)) }</span></div>
+						for _, r := range vm.Stopped {
+							<div class="inbox-row">
+								<span class="mini-avatar">@Icon("alert")</span>
+								<div class="main">
+									<div class="t">
+										<a class="mono id" href={ templ.SafeURL(r.TaskHref) }>{ r.TaskKey }</a>
+										<a href={ templ.SafeURL(r.Href) }>{ r.TaskTitle }</a>
+										<span class="badge warn">{ i18n.T(ctx, "Interrompida") }</span>
+									</div>
+									<div class="s">{ r.Persona } · { i18n.T(ctx, "execução") }
+										if r.Name != "" {
+											{ r.Name }
+										}
+										<span class="mono">{ r.Short }</span> · { r.When } · <a class="link-u" href={ templ.SafeURL(r.Href) }>{ i18n.T(ctx, "Ver log") }</a></div>
+									if r.Diag != nil {
+										@DiagCard(r.Diag)
+									}
+								</div>
+							</div>
+						}
+					</section>
+				}
 				if len(vm.Failed) > 0 {
 					<section class="card inbox-sec">
 						<div class="inbox-h">
@@ -236,6 +264,9 @@ templ InboxPage(sh Shell, vm InboxVM) {
 											{ r.Name }
 										}
 										<span class="mono">{ r.Short }</span> · { r.When }</div>
+									if r.Diag != nil {
+										@DiagCard(r.Diag)
+									}
 								</div>
 								if r.ActionHref == "" {
 									<div class="inbox-act">

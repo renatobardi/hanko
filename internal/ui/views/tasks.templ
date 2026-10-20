@@ -154,6 +154,9 @@ templ TaskPage(sh Shell, vm TaskVM, base string) {
 					</div>
 				}
 				@CommentForm(vm, base)
+				if vm.Followups != nil {
+					@FollowupPanel(*vm.Followups)
+				}
 			</div>
 			@TaskSide(vm, base)
 		</div>

@@ -660,9 +660,12 @@ type PersonaAlert struct {
 // Inbox is what waits for the human: gates to decide, blocked tasks, runs that failed,
 // personas in error and open operational alerts.
 type Inbox struct {
-	Gates         []GateView
-	BlockedTasks  []TaskView // blocked tasks that have no pending gate (the gate already covers those)
-	FailedRuns    []RunView  // failed/expired runs of open tasks not superseded by a newer run
+	Gates        []GateView
+	BlockedTasks []TaskView // blocked tasks that have no pending gate (the gate already covers those)
+	FailedRuns   []RunView  // failed/expired runs of open tasks not superseded by a newer run
+	// StoppedRuns are interrupted runs that wait for the operator (continuations exhausted or uncertain outcome):
+	// the card carries the diagnosis and the Tentar de novo / Continuar / Encerrar actions (ADR-0039).
+	StoppedRuns   []RunView
 	ErrorPersonas []PersonaAlert
 	Alerts        []domain.Alert // operational alerts still open (alert_tick closes them when the condition is gone)
 	// GuardedSubscriptions are the subscriptions whose weekly guard is tripped: new runs they cover are refused.
@@ -690,7 +693,7 @@ type InboxReview struct {
 
 // Count is the number of items waiting.
 func (i Inbox) Count() int {
-	return len(i.Gates) + len(i.BlockedTasks) + len(i.FailedRuns) + len(i.ErrorPersonas) + len(i.Alerts) + len(i.GuardedSubscriptions) + len(i.QuarantinedTools)
+	return len(i.Gates) + len(i.BlockedTasks) + len(i.FailedRuns) + len(i.StoppedRuns) + len(i.ErrorPersonas) + len(i.Alerts) + len(i.GuardedSubscriptions) + len(i.QuarantinedTools)
 }
 
 const (
@@ -732,6 +735,13 @@ func (s *Service) Inbox(ctx context.Context, companyID domain.ID) (Inbox, error)
 	}
 	for _, r := range failed {
 		in.FailedRuns = append(in.FailedRuns, runViewFromParts(r.Run, r.TaskKey, r.TaskTitle, r.PersonaName, r.ConversationTitle))
+	}
+	stopped, err := q.ListRunsAwaitingDecision(ctx, store.ListRunsAwaitingDecisionParams{CompanyID: companyID, Lim: 50})
+	if err != nil {
+		return in, fmt.Errorf("list runs awaiting decision: %w", err)
+	}
+	for _, r := range stopped {
+		in.StoppedRuns = append(in.StoppedRuns, runViewFromParts(r.Run, r.TaskKey, r.TaskTitle, r.PersonaName, r.ConversationTitle))
 	}
 	errs, err := q.ListErrorPersonas(ctx, companyID)
 	if err != nil {

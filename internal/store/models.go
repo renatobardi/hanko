@@ -230,6 +230,8 @@ type ConversationMessage struct {
 	ReplyToID      *uuid.UUID
 	Mentions       []uuid.UUID
 	Marker         *string
+	EditedAt       *time.Time
+	Delivery       string
 }
 
 type ConversationMessageRun struct {
@@ -872,6 +874,18 @@ type Run struct {
 	InstructionSha256   *string
 	EnvironmentID       *uuid.UUID
 	EnvironmentSource   string
+	ContinuationOfRunID *uuid.UUID
+	ContinuationAttempt int32
+	ContinuationReason  string
+	ResumePending       bool
+	ResumeReason        string
+	Diagnosis           []byte
+	DecisionPending     bool
+	Decision            string
+	DecisionNote        string
+	DecidedByType       *string
+	DecidedByID         *uuid.UUID
+	DecidedAt           *time.Time
 }
 
 type RunEvent struct {
@@ -1175,6 +1189,24 @@ type TaskDependency struct {
 	DependsOnID   uuid.UUID
 	CreatedByType string
 	CreatedByID   *uuid.UUID
+	CreatedAt     time.Time
+}
+
+type TaskFollowup struct {
+	ID            uuid.UUID
+	CompanyID     uuid.UUID
+	TaskID        uuid.UUID
+	AuthorType    string
+	AuthorID      *uuid.UUID
+	Body          string
+	Status        string
+	Delivery      string
+	WaitingRunID  *uuid.UUID
+	ConsumedRunID *uuid.UUID
+	ConsumedAt    *time.Time
+	CommentID     *uuid.UUID
+	EditedAt      *time.Time
+	DiscardedAt   *time.Time
 	CreatedAt     time.Time
 }
 

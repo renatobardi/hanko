@@ -222,6 +222,8 @@ type TaskVM struct {
 	Model           string // manual model of the task (wins over the persona's)
 	Notice          string // flash after an action
 	Error           string
+	Draft           string
+	Followups       *FollowupsVM // fila de follow-ups (ADR-0039); nil quando a task está encerrada
 	// DraftF liga o campo de comentário ao rascunho do servidor; Attach é o cartão de anexos da task e UploadHint a
 	// dica de tamanho do campo de arquivos do compositor (ADR-0052).
 	DraftF     DraftFields
@@ -454,6 +456,9 @@ type RunVM struct {
 	// Artefatos que a execução publicou (todas as versões).
 	Artifacts     []ArtifactMini
 	ArtifactsHref string
+	// Resiliência (ADR-0039): card de diagnóstico e caixa de steer.
+	Diag  *DiagVM
+	Steer *SteerVM
 }
 
 // ---- activity ----
