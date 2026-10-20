@@ -165,7 +165,8 @@ func has[T comparable](list []T, v T) bool {
 
 func (s *server) handleGates(w http.ResponseWriter, r *http.Request, co domain.Company) {
 	ctx := r.Context()
-	all, err := s.be.ListGates(ctx, co.ID, service.GateFilter{Limit: 500})
+	mine := personal(ctx) && r.URL.Query().Get("minhas") == "1"
+	all, err := s.be.ListGates(ctx, co.ID, service.GateFilter{Limit: 500, Mine: mine})
 	if err != nil {
 		s.fail(w, r, &co, err)
 		return
@@ -195,9 +196,20 @@ func (s *server) handleGates(w http.ResponseWriter, r *http.Request, co domain.C
 		if kind != "todos" {
 			h += "&tipo=" + kind
 		}
+		if mine {
+			h += "&minhas=1"
+		}
 		return h
 	}
-	vm := views.GatesVM{}
+	vm := views.GatesVM{Mine: mine}
+	if personal(ctx) {
+		vm.MineHref = href(curS.key, curK.key)
+		if mine {
+			vm.MineHref = strings.Replace(vm.MineHref, "&minhas=1", "", 1)
+		} else {
+			vm.MineHref += "&minhas=1"
+		}
+	}
 	for _, t := range gateStatusTabs {
 		n := 0
 		for _, g := range all {

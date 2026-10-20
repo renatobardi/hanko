@@ -44,6 +44,8 @@ WITH page AS (
       AND (sqlc.narg(persona_id)::uuid IS NULL OR t0.persona_id = sqlc.narg(persona_id)::uuid)
       AND (sqlc.narg(project_id)::uuid IS NULL OR t0.project_id = sqlc.narg(project_id)::uuid)
       AND (sqlc.narg(goal_id)::uuid IS NULL OR t0.goal_id = sqlc.narg(goal_id)::uuid)
+      -- "Minhas" (ADR-0042): tasks em que a pessoa participa (task_participation, migration 00123)
+      AND (sqlc.narg(mine_user)::uuid IS NULL OR t0.id IN (SELECT tp.task_id FROM task_participation(@company_id, sqlc.narg(mine_user)::uuid) tp))
       AND (sqlc.narg(q)::text IS NULL OR t0.title ILIKE '%' || sqlc.narg(q)::text || '%'
            OR t0.description ILIKE '%' || sqlc.narg(q)::text || '%')
     ORDER BY t0.updated_at DESC, t0.number DESC

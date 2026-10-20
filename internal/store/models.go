@@ -81,6 +81,7 @@ type Artifact struct {
 	CommentID      *uuid.UUID
 	ConversationID *uuid.UUID
 	MessageID      *uuid.UUID
+	SearchTsv      interface{}
 }
 
 type ArtifactBlob struct {
@@ -165,6 +166,19 @@ type CaseTaskLink struct {
 	Role           string
 	CreatedByRunID *uuid.UUID
 	CreatedAt      time.Time
+}
+
+type CommentMention struct {
+	ID         uuid.UUID
+	CompanyID  uuid.UUID
+	CommentID  uuid.UUID
+	TaskID     uuid.UUID
+	TargetType string
+	UserID     *uuid.UUID
+	PersonaID  *uuid.UUID
+	AuthorType string
+	AuthorID   *uuid.UUID
+	CreatedAt  time.Time
 }
 
 type Company struct {
@@ -378,6 +392,7 @@ type Gate struct {
 	ReviewArtifactSha256 string
 	ReviewRunID          *uuid.UUID
 	ExpiresAt            *time.Time
+	SearchTsv            interface{}
 }
 
 type Goal struct {
@@ -400,6 +415,8 @@ type Goal struct {
 	AchievedAt     *time.Time
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
+	ParentID       *uuid.UUID
+	SearchTsv      interface{}
 }
 
 type GoalUpdate struct {
@@ -419,6 +436,24 @@ type HeldWake struct {
 	PersonaID   uuid.UUID
 	Trigger     string
 	RequestedAt time.Time
+}
+
+type InboxState struct {
+	CompanyID   uuid.UUID
+	UserID      uuid.UUID
+	ItemKind    string
+	ItemID      uuid.UUID
+	Fingerprint string
+	ReadAt      *time.Time
+	ArchivedAt  *time.Time
+	UpdatedAt   time.Time
+}
+
+type InstanceSecret struct {
+	Name      string
+	ValueEnc  string
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 type InstanceSetting struct {
@@ -578,6 +613,15 @@ type ModelPrice struct {
 	Fixed                float64
 	EffectiveAt          time.Time
 	CreatedAt            time.Time
+}
+
+type NotificationPref struct {
+	CompanyID uuid.UUID
+	UserID    uuid.UUID
+	Kind      string
+	Toast     bool
+	Push      bool
+	UpdatedAt time.Time
 }
 
 type OwnerClaim struct {
@@ -766,6 +810,7 @@ type Project struct {
 	UpdatedAt          time.Time
 	Status             string
 	BudgetMonthlyCents *int64
+	SearchTsv          interface{}
 }
 
 type ProjectReviewPolicy struct {
@@ -779,6 +824,18 @@ type ProjectReviewPolicy struct {
 	UpdatedByType     string
 	UpdatedByID       *uuid.UUID
 	UpdatedAt         time.Time
+}
+
+type PushSubscription struct {
+	ID            uuid.UUID
+	UserID        uuid.UUID
+	Endpoint      string
+	P256dh        string
+	Auth          string
+	UserAgent     string
+	CreatedAt     time.Time
+	LastSuccessAt *time.Time
+	Failures      int32
 }
 
 type RateLimitBucket struct {

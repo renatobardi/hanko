@@ -1,0 +1,86 @@
+package views
+
+import "github.com/renatobardi/hanko/internal/i18n"
+
+// Configurações › Notificações (ADR-0042): toast e web push por tipo de aviso, e os aparelhos com push.
+
+// InboxBadge é o selo do menu: o número de itens não lidos (nada quando zero).
+templ InboxBadge(n int) {
+	if n > 0 {
+		<span class="nav-badge" aria-label={ i18n.Tf(ctx, "%d não lidos", n) }>{ badgeNum(n) }</span>
+	}
+}
+
+templ NotifyPage(sh Shell, vm NotifyVM) {
+	@Layout(sh) {
+		@PageHead(i18n.T(ctx, "Notificações"), i18n.T(ctx, "Como você quer ser avisado: um aviso ao vivo no canto da tela (enquanto o Hanko está aberto) e a notificação do navegador ou do app instalado, mesmo com a aba fechada. As menções e itens da Caixa chegam sempre; aqui você escolhe só os avisos.")) {
+		}
+		<div class="mb-6">@Tabs(vm.Sections)</div>
+		if vm.Notice != "" {
+			@Alert("warn", vm.Notice)
+		}
+		if !vm.Personal {
+			@Alert("warn", i18n.T(ctx, "Os avisos são de cada pessoa: entre com a sua conta para configurá-los."))
+		} else {
+			<form class="card pad" method="post" action={ templ.SafeURL(vm.Action) } hx-boost="true">
+				<table class="table">
+					<thead><tr><th>{ i18n.T(ctx, "Aviso") }</th><th>{ i18n.T(ctx, "Ao vivo na tela") }</th><th>{ i18n.T(ctx, "Notificação do navegador") }</th></tr></thead>
+					<tbody>
+						for _, p := range vm.Prefs {
+							<tr class="row">
+								<td><b>{ p.Label }</b><div class="sub-line">{ p.Help }</div></td>
+								<td><input type="checkbox" name={ "toast_" + p.Kind } checked?={ p.Toast } aria-label={ p.Label + ": " + i18n.T(ctx, "ao vivo na tela") }/></td>
+								<td><input type="checkbox" name={ "push_" + p.Kind } checked?={ p.Push } aria-label={ p.Label + ": " + i18n.T(ctx, "notificação do navegador") }/></td>
+							</tr>
+						}
+					</tbody>
+				</table>
+				<div class="form-actions"><button class="btn primary" type="submit">{ i18n.T(ctx, "Salvar preferências") }</button></div>
+			</form>
+			<h2 class="side-h sec-h">{ i18n.T(ctx, "Este aparelho") }</h2>
+			if !vm.Available {
+				@Alert("warn", i18n.T(ctx, "O servidor não tem HANKO_SECRET_KEY: sem ela não há onde guardar a chave do web push, então só o aviso ao vivo funciona."))
+			} else {
+				<div class="card pad" data-push-box data-vapid={ vm.VapidKey } data-url={ vm.SubscribeURL }>
+					<p class="muted text-sm mb-3">{ i18n.T(ctx, "Ative para receber a notificação neste navegador ou no app instalado (PWA). O navegador vai pedir a sua permissão.") }</p>
+					<div class="d-flex gap-2">
+						<button class="btn primary" type="button" data-push-enable data-unsupported={ i18n.T(ctx, "Este navegador não oferece notificações push.") } data-denied={ i18n.T(ctx, "Permissão negada no navegador.") } data-failed={ i18n.T(ctx, "Não foi possível ativar as notificações neste aparelho.") }>{ i18n.T(ctx, "Ativar neste aparelho") }</button>
+						<form method="post" action={ templ.SafeURL(vm.TestURL) } hx-boost="true">
+							<button class="btn outline" type="submit">{ i18n.T(ctx, "Enviar aviso de teste") }</button>
+						</form>
+					</div>
+					<p class="muted text-sm mt-3" data-push-status role="status"></p>
+				</div>
+				if len(vm.Devices) > 0 {
+					<h2 class="side-h sec-h">{ i18n.T(ctx, "Aparelhos com notificação") }</h2>
+					<div class="table-wrap">
+						<table class="table">
+							<thead><tr><th>{ i18n.T(ctx, "Aparelho") }</th><th>{ i18n.T(ctx, "Desde") }</th><th>{ i18n.T(ctx, "Último envio") }</th><th></th></tr></thead>
+							<tbody>
+								for _, d := range vm.Devices {
+									<tr class="row">
+										<td>{ d.Name }</td>
+										<td>{ d.Since }</td>
+										<td>
+											if d.Last != "" {
+												{ d.Last }
+											} else {
+												<span class="faint">—</span>
+											}
+										</td>
+										<td>
+											<form method="post" action={ templ.SafeURL(vm.RemoveURL) } hx-boost="true">
+												<input type="hidden" name="id" value={ d.ID }/>
+												<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Remover") }</button>
+											</form>
+										</td>
+									</tr>
+								}
+							</tbody>
+						</table>
+					</div>
+				}
+			}
+		}
+	}
+}

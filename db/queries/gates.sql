@@ -35,6 +35,11 @@ WITH page AS (
       AND (sqlc.narg(kinds)::text[] IS NULL OR g0.kind = ANY(sqlc.narg(kinds)::text[]))
       AND (sqlc.narg(task_id)::uuid IS NULL OR g0.task_id = sqlc.narg(task_id)::uuid)
       AND (sqlc.narg(persona_id)::uuid IS NULL OR g0.persona_id = sqlc.narg(persona_id)::uuid)
+      -- "Minhas" (ADR-0042): gate que eu pedi ou decidi, ou numa task em que participo (task_participation)
+      AND (sqlc.narg(mine_user)::uuid IS NULL
+           OR (g0.requested_by_type = 'human' AND g0.requested_by_id = sqlc.narg(mine_user)::uuid)
+           OR (g0.decided_by_type = 'human' AND g0.decided_by_id = sqlc.narg(mine_user)::uuid)
+           OR g0.task_id IN (SELECT tp.task_id FROM task_participation(@company_id, sqlc.narg(mine_user)::uuid) tp))
     ORDER BY CASE WHEN g0.status = 'pending' THEN g0.created_at END ASC NULLS LAST,
              g0.decided_at DESC NULLS LAST, g0.created_at DESC, g0.id DESC
     LIMIT @lim OFFSET @off

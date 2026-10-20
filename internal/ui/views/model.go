@@ -39,6 +39,8 @@ type Shell struct {
 	Owner   string            // display name of the human owner
 	Role    domain.MemberRole // papel da pessoa nesta empresa (só UX; o service é a barreira)
 	Flush   bool              // content area without padding (two-pane pages)
+	// Personal: há uma pessoa autenticada, então a Caixa tem selo de não lidos e toasts ao vivo (ADR-0042).
+	Personal bool
 }
 
 // Base returns the company-scoped URL prefix, e.g. "/c/hanko".
@@ -467,6 +469,10 @@ type ActivityDay struct {
 type ActivityVM struct {
 	Subtitle string
 	Days     []ActivityDay
+	// Filtro por ator (ADR-0042): opções do seletor, ação do formulário e se há filtro ligado.
+	ActorOptions []Option
+	Action       string
+	Filtered     bool
 }
 
 // ---- misc ----

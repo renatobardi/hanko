@@ -123,15 +123,19 @@ SELECT id, company_id, actor_type, actor_id, verb, subject_type, subject_id, dat
 WHERE company_id = $1
   AND ($2::text IS NULL OR subject_type = $2::text)
   AND ($3::uuid IS NULL OR subject_id = $3::uuid)
-  AND ($4::timestamptz IS NULL OR occurred_at < $4::timestamptz)
+  AND ($4::text IS NULL OR actor_type = $4::text)
+  AND ($5::uuid IS NULL OR actor_id = $5::uuid)
+  AND ($6::timestamptz IS NULL OR occurred_at < $6::timestamptz)
 ORDER BY occurred_at DESC, id DESC
-LIMIT $5
+LIMIT $7
 `
 
 type ListActivityParams struct {
 	CompanyID   uuid.UUID
 	SubjectType *string
 	SubjectID   *uuid.UUID
+	ActorType   *string
+	ActorID     *uuid.UUID
 	Before      *time.Time
 	Lim         int32
 }
@@ -141,6 +145,8 @@ func (q *Queries) ListActivity(ctx context.Context, arg ListActivityParams) ([]A
 		arg.CompanyID,
 		arg.SubjectType,
 		arg.SubjectID,
+		arg.ActorType,
+		arg.ActorID,
 		arg.Before,
 		arg.Lim,
 	)

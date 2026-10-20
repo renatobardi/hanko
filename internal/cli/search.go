@@ -13,19 +13,23 @@ import (
 
 // searchTypeLabels dá o título de cada grupo no texto da CLI.
 var searchTypeLabels = map[string]string{
-	"task":    i18n.N("Tasks"),
-	"comment": i18n.N("Comentários"),
-	"persona": i18n.N("Personas"),
-	"run":     i18n.N("Execuções"),
-	"flow":    i18n.N("Fluxos"),
-	"memory":  i18n.N("Memória"),
+	"task":     i18n.N("Tasks"),
+	"comment":  i18n.N("Comentários"),
+	"persona":  i18n.N("Personas"),
+	"run":      i18n.N("Execuções"),
+	"flow":     i18n.N("Fluxos"),
+	"goal":     i18n.N("Metas"),
+	"project":  i18n.N("Projetos"),
+	"gate":     i18n.N("Gates"),
+	"artifact": i18n.N("Artefatos"),
+	"memory":   i18n.N("Memória"),
 }
 
 func (e *env) searchCmd() *cobra.Command {
 	var types []string
 	var limit int
 	c := &cobra.Command{
-		Use: "search " + e.t("<termo...>"), Short: e.t("Busca na empresa: tasks, comentários, personas, execuções, fluxos e memória"),
+		Use: "search " + e.t("<termo...>"), Short: e.t("Busca na empresa: tasks, comentários, personas, execuções, fluxos, metas, projetos, gates, artefatos e memória"),
 		Long: e.t("Busca em tudo da empresa de uma vez. Várias palavras = todas; \"frase exata\"; -excluir; OR entre alternativas; a última palavra casa por prefixo. A chave exata de uma task (HNK-12) vai direto a ela."),
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -62,7 +66,7 @@ func (e *env) searchCmd() *cobra.Command {
 		},
 	}
 	f := c.Flags()
-	f.StringSliceVar(&types, "type", nil, e.t("só estes tipos: task, comment, persona, run, flow, memory (repita ou separe por vírgula)"))
+	f.StringSliceVar(&types, "type", nil, e.t("só estes tipos: task, comment, persona, run, flow, goal, project, gate, artifact, memory (repita ou separe por vírgula)"))
 	f.IntVar(&limit, "limit", 10, e.t("máximo de resultados por tipo"))
 	return c
 }

@@ -54,6 +54,9 @@ func (f *Fake) ListGates(_ context.Context, _ domain.ID, fl service.GateFilter) 
 		if fl.PersonaID != nil && (g.PersonaID == nil || *g.PersonaID != *fl.PersonaID) {
 			continue
 		}
+		if fl.Mine && !f.Caixa.MineGates[g.ID] { // audiência da pessoa (ADR-0042)
+			continue
+		}
 		out = append(out, g)
 	}
 	// pending first (oldest first), then the decided, newest first
