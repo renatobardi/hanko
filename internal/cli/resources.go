@@ -185,7 +185,7 @@ func (e *env) projectCmd() *cobra.Command {
 			return nil
 		},
 	}
-	c.AddCommand(create, ls, e.projectShowCmd(), e.projectUpdateCmd(), e.projectReviewPolicyCmd())
+	c.AddCommand(create, ls, e.projectShowCmd(), e.projectUpdateCmd(), e.projectReviewPolicyCmd(), e.projectEnvCmd())
 	return c
 }
 
@@ -418,7 +418,7 @@ func (e *env) personaCmd() *cobra.Command {
 	uf.StringVar(&upInstrFile, "instructions-file", "", e.t("arquivo com as novas instruções"))
 	uf.StringVar(&upReason, "reason", "", e.t("motivo da mudança de instruções (fica na revisão)"))
 	uf.StringVar(&upEnv, "environment", "", e.t("ambiente de execução (id ou slug; local = o padrão da empresa)"))
-	c.AddCommand(hire, ls, show, update, probe)
+	c.AddCommand(hire, ls, show, update, probe, e.personaTestCmd(), e.personaReadinessCmd())
 	c.AddCommand(e.instructionCmds()...)
 	return c
 }

@@ -43,33 +43,49 @@ type sshSession struct {
 	closed   bool
 }
 
+// sshOpts afina a sessão SSH para o gateway de um provider cloud (ADR-0055): o host e o token só existem depois de
+// criar o sandbox, o acesso é por token (sem chave privada) e quem libera o destino é o operador (HANKO_ENV_CLOUD),
+// não a lista de hosts SSH.
+type sshOpts struct{ gateway bool }
+
 func openSSH(cfg Config, t Target, run RunInfo) (*sshSession, error) {
-	if err := cfg.SSHStatus(); err != nil {
-		return nil, err
-	}
+	return openSSHOpts(cfg, t, run, sshOpts{})
+}
+
+func openSSHOpts(cfg Config, t Target, run RunInfo, o sshOpts) (*sshSession, error) {
 	c := t.SSH
-	if err := c.Normalize(); err != nil {
-		return nil, fmt.Errorf("configuração SSH do ambiente %q: %w", t.Name, err)
-	}
-	if err := cfg.CheckSSHHost(c.Host); err != nil {
-		return nil, err
-	}
-	if err := domain.ValidPrivateKey(t.PrivateKey); err != nil {
-		return nil, fmt.Errorf("ambiente %q sem chave privada utilizável: %w", t.Name, err)
+	if !o.gateway {
+		if err := cfg.SSHStatus(); err != nil {
+			return nil, err
+		}
+		if err := c.Normalize(); err != nil {
+			return nil, fmt.Errorf("configuração SSH do ambiente %q: %w", t.Name, err)
+		}
+		if err := cfg.CheckSSHHost(c.Host); err != nil {
+			return nil, err
+		}
+		if err := domain.ValidPrivateKey(t.PrivateKey); err != nil {
+			return nil, fmt.Errorf("ambiente %q sem chave privada utilizável: %w", t.Name, err)
+		}
+	} else if err := domain.ValidKnownHosts(c.KnownHosts); err != nil {
+		return nil, fmt.Errorf("ambiente %q: known_hosts do gateway: %w", t.Name, err)
 	}
 	t.SSH = c
 	tmp, err := localTemp("", "hanko-ssh-*")
 	if err != nil {
 		return nil, fmt.Errorf("ssh: diretório temporário: %w", err)
 	}
-	s := &sshSession{cfg: cfg, t: t, run: run, tmp: tmp, key: filepath.Join(tmp, "id"), kh: filepath.Join(tmp, "known_hosts"), aux: filepath.Join(tmp, "aux")}
-	key := t.PrivateKey
-	if len(key) > 0 && key[len(key)-1] != '\n' {
-		key += "\n" // o ssh recusa chave sem a quebra final
-	}
-	if err := os.WriteFile(s.key, []byte(key), 0o600); err != nil {
-		s.Close()
-		return nil, fmt.Errorf("ssh: gravar chave: %w", err)
+	s := &sshSession{cfg: cfg, t: t, run: run, tmp: tmp, kh: filepath.Join(tmp, "known_hosts"), aux: filepath.Join(tmp, "aux")}
+	if !o.gateway {
+		s.key = filepath.Join(tmp, "id")
+		key := t.PrivateKey
+		if len(key) > 0 && key[len(key)-1] != '\n' {
+			key += "\n" // o ssh recusa chave sem a quebra final
+		}
+		if err := os.WriteFile(s.key, []byte(key), 0o600); err != nil {
+			s.Close()
+			return nil, fmt.Errorf("ssh: gravar chave: %w", err)
+		}
 	}
 	if err := os.WriteFile(s.kh, []byte(c.KnownHosts+"\n"), 0o600); err != nil {
 		s.Close()
@@ -92,16 +108,20 @@ func openSSH(cfg Config, t Target, run RunInfo) (*sshSession, error) {
 // sessão e verificação estrita da chave do host.
 func (s *sshSession) Args(remoteCmd string) []string {
 	c := s.t.SSH
-	return []string{
+	id := []string{"-o", "IdentitiesOnly=yes", "-o", "IdentityAgent=none"}
+	if s.key != "" {
+		id = []string{"-o", "IdentitiesOnly=yes", "-o", "IdentityFile=" + s.key, "-o", "IdentityAgent=none"}
+	}
+	args := []string{
 		"-F", "none",
 		"-o", "BatchMode=yes",
 		"-o", "StrictHostKeyChecking=yes",
 		"-o", "UserKnownHostsFile=" + s.kh,
 		"-o", "GlobalKnownHostsFile=/dev/null",
 		"-o", "UpdateHostKeys=no",
-		"-o", "IdentitiesOnly=yes",
-		"-o", "IdentityFile=" + s.key,
-		"-o", "IdentityAgent=none",
+	}
+	args = append(args, id...)
+	return append(args,
 		"-o", "ConnectTimeout=10",
 		"-o", "ServerAliveInterval=15",
 		"-o", "ServerAliveCountMax=4",
@@ -114,7 +134,7 @@ func (s *sshSession) Args(remoteCmd string) []string {
 		"-p", strconv.Itoa(c.Port),
 		"-l", c.User,
 		"--", c.Host, remoteCmd,
-	}
+	)
 }
 
 // localEnv é o ambiente do processo ssh local: só o PATH e um HOME descartável (nada do servidor vai junto).

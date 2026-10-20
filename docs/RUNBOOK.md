@@ -388,6 +388,7 @@ aberto por (empresa, tipo, sujeito), então avaliar de novo nunca duplica. Cada 
 | `persona_silent` | persona `active`/`idle` com `heartbeat_interval_sec > 0` e ao menos uma task trabalhável (`todo`/`in_progress`) sem run ativa nem gate pendente, cuja última atividade (criação, fim da última run ou última mudança humana numa task dela) passou de N× o intervalo dela. Persona barrada por reserva de orçamento fica de fora (o alerta de orçamento a cobre) | `HANKO_ALERT_SILENT_FACTOR` (3) | warning |
 | `run_stuck` | run em `running` sem nenhum evento no log (ou, sem eventos, desde o início) há mais que o limite | `HANKO_ALERT_RUN_STUCK_AFTER` (15m) | critical |
 | `budget_near_limit` | gasto do mês em 80% ou mais do teto da empresa ou da persona (mesma conta do painel de custos, no fuso da empresa); subir o teto ou virar o mês fecha | fixo em 80% | warning; critical a partir de 100% |
+| `persona_not_ready` | o último teste de readiness da persona falhou (binário, login ou modelo do harness, ADR-0055) com o mesmo harness e modelo de hoje; o despacho está bloqueado até um teste passar (o "Testar agora" ou a checagem periódica fecham) | `HANKO_READINESS_INTERVAL` (15m) | critical |
 
 O critério é sempre estado do banco (runs, eventos, tasks, gastos), nunca texto de log. O livro `budget_alerts` segue como o
 registro de "já avisei neste mês" que gera `budget.warning`/`budget.exceeded`; o alerta aberto é o estado atual, que o livro não guarda.
@@ -838,8 +839,13 @@ escolher o padrão da empresa e o ambiente de cada persona. Cada driver só exis
 | `HANKO_ENV_SSH_ALLOW_HOSTS` | vazio | Hosts liberados para SSH: exatos (`build.exemplo.com`), sufixos (`.exemplo.com`, `*.exemplo.com`), IPs, CIDR (só para hosts informados como IP) ou `*`. Vazio = SSH desligado. |
 | `HANKO_ENV_SANDBOX` | vazio | `docker` liga o sandbox (precisa do binário `docker` no PATH e acesso ao daemon). |
 | `HANKO_ENV_SANDBOX_HOST_ROOT` | vazio | Hanko dentro de contêiner com o socket do docker do host: o caminho, **no host**, de `HANKO_WORKSPACES_ROOT`. |
-| `HANKO_PUBLIC_URL` | — | Obrigatória e fora de loopback para SSH e sandbox com rede: é por ela que o harness remoto chama o MCP do Hanko. |
-| `HANKO_SECRET_KEY` | vazio | Sem ela não há como guardar a chave privada nem as variáveis de um ambiente. |
+| `HANKO_ENV_CLOUD` | vazio | `daytona` liga o sandbox em nuvem (ADR-0055). Exige `HANKO_ENV_CLOUD_SSH_KNOWN_HOSTS`. |
+| `HANKO_ENV_CLOUD_API_URL` | `https://app.daytona.io/api` | Base da API do provider (autohospedado: a do operador). Empresa nenhuma escolhe destino de rede. |
+| `HANKO_ENV_CLOUD_SSH_HOST` | `ssh.app.daytona.io` | Gateway SSH do provider. |
+| `HANKO_ENV_CLOUD_SSH_KNOWN_HOSTS` | vazio | Linhas de known_hosts do gateway (`ssh-keyscan ssh.app.daytona.io`). Obrigatória com o cloud ligado: o ssh nunca aceita chave desconhecida. |
+| `HANKO_READINESS_INTERVAL` | `15m` | Idade a partir da qual o teste de readiness de cada persona é refeito pela checagem periódica; `0` desliga (o "Testar agora" segue valendo). |
+| `HANKO_PUBLIC_URL` | — | Obrigatória e fora de loopback para SSH, sandbox com rede e cloud com rede: é por ela que o harness remoto chama o MCP do Hanko. |
+| `HANKO_SECRET_KEY` | vazio | Sem ela não há como guardar a chave privada, a chave de API do provider nem as variáveis de um ambiente. |
 
 **SSH, passo a passo.**
 1. No host remoto: um usuário com shell de login POSIX (sh, bash, dash, zsh), `tar`, `git` e o harness instalado e já logado
@@ -866,6 +872,48 @@ do modelo ou do MCP do Hanko, rede `bridge` (o padrão `none` isola por completo
 processos; o workspace entra em `/work`. Chaves de API do harness vão nas variáveis do ambiente ou da persona (cifradas).
 Com o Hanko em contêiner falando com o docker do host, monte o socket e defina `HANKO_ENV_SANDBOX_HOST_ROOT` com o caminho do host
 de `HANKO_WORKSPACES_ROOT` (o mesmo volume montado nos dois lados).
+
+**Local explícito, projeto e precedência (ADR-0055).** Além do local implícito, um admin pode cadastrar um ambiente `local` com nome
+próprio (`hanko env create servidor --driver local --env VAR=valor`): serve para forçar o local numa persona ou projeto quando o
+padrão da empresa é remoto e para dar variáveis ao harness local. O ambiente de uma execução é o da **persona**; senão o do
+**projeto** (`hanko project env <projeto> <ambiente>` ou Projeto › Configuração); senão o **padrão da empresa**; senão o local
+implícito. Um nível que aponta para um ambiente arquivado é ignorado (aviso no log da execução). A decisão é tomada na criação da
+execução e gravada nela (`environment_id`/`environment_source`; a tela da execução mostra "origem: da persona|do projeto|padrão da
+empresa|local"). Arquivar um ambiente leva as personas **e os projetos** dele para o destino escolhido.
+
+**Sandbox em nuvem (Daytona, ADR-0055).** `HANKO_ENV_CLOUD=daytona`, `HANKO_ENV_CLOUD_SSH_KNOWN_HOSTS` e a chave de API do provider
+(`hanko env create nuvem --driver cloud --api-key-file chave.txt --cloud-cpus 4`; a chave é guardada cifrada e aceita `${secret:NOME}`
+do cofre da empresa). Cada execução cria um sandbox no provider (rede, CPU, memória e disco do ambiente), sobe o workspace pelo
+gateway SSH com um token de curta duração, roda o harness, traz o resultado de volta e apaga o sandbox. Execução ou sincronização com
+falha **mantém** o sandbox para recuperar o trabalho: o provider o para após 15 min ocioso e o apaga 60 min depois de parado
+(`autoStopInterval`/`autoDeleteInterval`), e o id aparece no motivo do uso. Se o servidor cair no meio, esse mesmo prazo evita custo
+indefinido. **Validação pendente com conta real:** o cliente foi testado só contra um servidor de teste (httptest); confira
+`hanko env probe nuvem` com uma conta Daytona antes de depender dele.
+
+**Probe e capacidades.** `hanko env probe <ambiente>` (também no local explícito) executa um script no alvo e grava: sistema, pasta
+gravável, binários (`tar`, `git`, `claude`, `codex`) e, em alvos remotos com rede, se o alvo **alcança o Hanko pela URL pública**
+(`curl`/`wget` em `HANKO_PUBLIC_URL/healthz`). O relatório lista as `capabilities` (`sync`, `git`, `claude`, `codex`,
+`hanko-reachable`, mais `network`, `isolated` e `persistent` que vêm do driver).
+
+## Prontidão da persona e catálogo de modelos (ADR-0055)
+
+Antes de uma execução falhar por falta de login, o Hanko testa o harness da persona **no ambiente dela**: binário (`claude`, `codex`,
+o comando do ACP), login ou chave de API (`claude auth status`, `codex login status`, credenciais em arquivo ou chave no env) e
+modelo (formato e preço). O teste não chama o modelo: não gasta tokens. Os passos têm nome (`environment`, `binary`, `auth`,
+`model`; `ok`, `warn`, `fail`, `skip`) e ficam em `persona_readiness`.
+
+- **Quando roda:** "Testar agora" na página da persona (logo depois da contratação a tela já testa), `hanko persona test <persona>` e
+  o job periódico `readiness_tick` (até 20 personas por passada: as nunca testadas primeiro, depois as de teste mais velho que
+  `HANKO_READINESS_INTERVAL`). Mudar o modelo da persona, o ambiente dela, o padrão da empresa ou o ambiente em uso refaz o teste.
+- **O que acontece quando falha:** o resultado `not_ready` abre o alerta `persona_not_ready` (critical, na Caixa de entrada) e **nenhuma
+  execução abre** para a persona (task, chat ou revisão) até um teste passar; o motivo é o primeiro passo que falhou
+  (`auth: sem login do claude nem chave de API…`). Persona nunca testada não é bloqueada.
+- **Catálogo de modelos** (`hanko model list [--agent claude]`, seletor de modelo da contratação com "Outro…"): aliases do harness
+  (`opus`, `sonnet`, `haiku`), as linhas de `model_prices`, os modelos que um teste de readiness viu funcionando e os que as
+  execuções da empresa usaram nos últimos 90 dias. Um modelo sem preço próprio é marcado "sem preço": o custo cai no preço de
+  reserva (ADR-0019) até alguém cadastrar o preço.
+- **Limite:** o ambiente testado é o da persona (persona > padrão); uma persona que roda em ambientes diferentes por projeto só é
+  testada no dela.
 
 **Problemas comuns.** "SSH está desligado neste servidor": falta `HANKO_ENV_SSH_ALLOW_HOSTS`. "não está na lista de hosts
 permitidos": o host do ambiente não casa com a lista. `Host key verification failed`: o `known_hosts` do ambiente não tem a chave

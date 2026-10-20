@@ -97,7 +97,9 @@ type Project struct {
 	Name        string `json:"name" example:"Lançamento"`
 	Description string `json:"description,omitempty"`
 	WorkspaceID string `json:"workspace_id,omitempty" format:"uuid"`
-	Status      string `json:"status" enum:"active,archived" doc:"Projeto arquivado não recebe tasks novas."`
+	// EnvironmentID é o ambiente de execução do projeto (ADR-0055); ausente = o padrão da empresa ou o local.
+	EnvironmentID string `json:"environment_id,omitempty" format:"uuid"`
+	Status        string `json:"status" enum:"active,archived" doc:"Projeto arquivado não recebe tasks novas."`
 	// BudgetMonthlyCents é o teto mensal do projeto em centavos de dólar; ausente = sem teto. Estourado, nenhuma
 	// execução de task do projeto abre até o teto subir ou o mês virar.
 	BudgetMonthlyCents *int64        `json:"budget_monthly_cents,omitempty"`
@@ -319,7 +321,10 @@ type Run struct {
 	ListCostUSD       *float64 `json:"list_cost_usd,omitempty" doc:"Custo de lista: tokens × preço de tabela vigente quando a execução terminou."`
 	ModelSource       string   `json:"model_source,omitempty" enum:"task,persona,harness_default" doc:"Quem escolheu o modelo: a task (manual), a persona ou o padrão do harness."`
 	SubscriptionID    string   `json:"subscription_id,omitempty" format:"uuid" doc:"Assinatura que cobre a execução."`
-	Usage             Usage    `json:"usage"`
+	// EnvironmentID e EnvironmentSource: onde a execução roda e por quê (persona > projeto > padrão da empresa > local, ADR-0055); ausentes em execuções anteriores.
+	EnvironmentID     string `json:"environment_id,omitempty" format:"uuid"`
+	EnvironmentSource string `json:"environment_source,omitempty" enum:"persona,project,default,local"`
+	Usage             Usage  `json:"usage"`
 	// InstructionRevision/InstructionSHA256: com que revisão das instruções da persona a execução rodou (ADR-0052).
 	InstructionRevision *int       `json:"instruction_revision,omitempty"`
 	InstructionSHA256   string     `json:"instruction_sha256,omitempty" doc:"sha256 (hex) do texto das instruções com que a execução rodou."`
@@ -538,7 +543,7 @@ func workspaceViewOut(v service.WorkspaceView) Workspace {
 
 func projectOut(p domain.Project) Project {
 	return Project{ID: idStr(p.ID), CompanyID: idStr(p.CompanyID), Slug: p.Slug, Name: p.Name,
-		Description: p.Description, WorkspaceID: idPtr(p.WorkspaceID), Status: string(p.Status),
+		Description: p.Description, WorkspaceID: idPtr(p.WorkspaceID), EnvironmentID: idPtr(p.EnvironmentID), Status: string(p.Status),
 		BudgetMonthlyCents: p.BudgetMonthlyCents, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt}
 }
 
@@ -656,6 +661,7 @@ func runOut(r service.RunView) Run {
 	return Run{ID: idStr(r.ID), Name: r.Name, CompanyID: idStr(r.CompanyID), TaskID: taskID, TaskKey: r.TaskKey,
 		ConversationID: idPtr(r.ConversationID), ConversationTitle: r.ConversationTitle, TaskTitle: r.TaskTitle, PersonaID: idStr(r.PersonaID), PersonaName: r.PersonaName, Status: string(r.Status),
 		CostSource: string(r.CostSource), ListCostUSD: r.ListCostUSD, ModelSource: string(r.ModelSource), SubscriptionID: idPtr(r.SubscriptionID),
+		EnvironmentID: idPtr(r.EnvironmentID), EnvironmentSource: string(r.EnvironmentSource),
 		Trigger: string(r.Trigger), Agent: r.Agent, Model: r.Model, SessionRef: r.SessionRef, TraceID: r.TraceID,
 		ExitCode: r.ExitCode, Error: r.Error, Summary: r.Summary, CostUSD: r.CostUSD, Usage: Usage(r.Usage),
 		InstructionRevision: r.InstructionRevision, InstructionSHA256: r.InstructionSHA256, CreatedAt: r.CreatedAt, StartedAt: r.StartedAt, FinishedAt: r.FinishedAt,

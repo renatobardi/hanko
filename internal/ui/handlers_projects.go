@@ -220,7 +220,7 @@ func (s *server) buildProjectVM(r *http.Request, co domain.Company, p service.Pr
 	loc := loadLoc(co.Timezone)
 	now := s.now()
 	archived := p.Status == domain.ProjectArchived
-	vm := views.ProjectVM{Name: p.Name, Description: p.Description, Archived: archived, Workspace: p.WorkspaceName,
+	vm := views.ProjectVM{EnvironmentHref: base + "/projetos/" + p.Slug + "/ambiente", Name: p.Name, Description: p.Description, Archived: archived, Workspace: p.WorkspaceName,
 		Notice: i18n.T(ctx, projectNotices[r.URL.Query().Get("ok")]),
 		Total:  p.TasksTotal, Progress: percentInt(p.Progress),
 		ProgressTxt: fmt.Sprintf("%d%% · %d/%d", int(math.Round(p.Progress)), p.Tasks[domain.TaskDone], p.TasksTotal),

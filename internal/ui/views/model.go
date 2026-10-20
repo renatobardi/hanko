@@ -283,10 +283,12 @@ type PersonasVM struct {
 }
 
 type HirePersonaVM struct {
-	Name          string
-	Title         string
-	Agent         string
-	Model         string
+	Name  string
+	Title string
+	Agent string
+	Model string
+	// ModelPicker é o seletor de modelo com "Outro…" (catálogo híbrido, ADR-0055).
+	ModelPicker   ModelPickerVM
 	Instructions  string
 	Heartbeat     string
 	ReportsTo     []Option // "Reporta a": the human owner or a persona
@@ -305,16 +307,18 @@ type HirePersonaVM struct {
 }
 
 type PersonaVM struct {
-	Icon         string // glifo atual (domain.PersonaIcons)
-	IconAction   string // POST que troca o glifo
-	Name         string
-	Initials     string
-	Title        string
-	Badge        Badge
-	Agent        string
-	Model        string
-	Heartbeat    string
-	Instructions string
+	// ReadinessHref é o fragmento do cartão de prontidão do harness (ADR-0055); com ?auto=1 ele testa ao carregar.
+	ReadinessHref string
+	Icon          string // glifo atual (domain.PersonaIcons)
+	IconAction    string // POST que troca o glifo
+	Name          string
+	Initials      string
+	Title         string
+	Badge         Badge
+	Agent         string
+	Model         string
+	Heartbeat     string
+	Instructions  string
 	// InstructionsHref leva ao histórico e à edição das instruções (revisão vigente em InstructionRevision, ADR-0052).
 	InstructionsHref    string
 	InstructionRevision int

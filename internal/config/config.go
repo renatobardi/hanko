@@ -111,6 +111,13 @@ type Environments struct {
 	// SandboxHostRoot é, quando o Hanko roda dentro de um contêiner, o caminho no host do docker do
 	// diretório que aqui é HANKO_WORKSPACES_ROOT (os volumes do sandbox usam caminhos do host).
 	SandboxHostRoot string `yaml:"sandbox_host_root" env:"HANKO_ENV_SANDBOX_HOST_ROOT"`
+	// Cloud liga o driver de sandbox em nuvem com o provider dado (só "daytona", ADR-0055). Vazio = desligado.
+	Cloud string `yaml:"cloud" env:"HANKO_ENV_CLOUD"`
+	// CloudAPIURL e CloudSSHHost apontam o provider (padrões do Daytona hospedado); CloudSSHKnownHosts são as linhas de
+	// known_hosts do gateway SSH, obrigatórias quando Cloud está ligado.
+	CloudAPIURL        string `yaml:"cloud_api_url" env:"HANKO_ENV_CLOUD_API_URL"`
+	CloudSSHHost       string `yaml:"cloud_ssh_host" env:"HANKO_ENV_CLOUD_SSH_HOST"`
+	CloudSSHKnownHosts string `yaml:"cloud_ssh_known_hosts" env:"HANKO_ENV_CLOUD_SSH_KNOWN_HOSTS"`
 }
 
 // ACP configura o harness acp (ADR-0023). Quem escreve o adapter_config é o admin de uma empresa, e o comando
@@ -229,6 +236,9 @@ type Config struct {
 	// sem nenhum evento a partir do qual uma run em running vira alerta "execução presa".
 	AlertSilentFactor  int           `yaml:"alert_silent_factor" env:"HANKO_ALERT_SILENT_FACTOR"`
 	AlertRunStuckAfter time.Duration `yaml:"alert_run_stuck_after" env:"HANKO_ALERT_RUN_STUCK_AFTER"`
+	// ReadinessInterval é a idade a partir da qual o teste de readiness de uma persona é refeito pela checagem
+	// periódica (ADR-0055). 0 desliga a checagem periódica ("Testar agora" segue valendo).
+	ReadinessInterval time.Duration `yaml:"readiness_interval" env:"HANKO_READINESS_INTERVAL"`
 
 	// EnvSet marca as variáveis HANKO_* definidas no ambiente (valor não vazio). As que equivalem a uma chave de
 	// instance_settings travam essa chave: env vence o banco (ADR-0050). Preenchido por Load.
@@ -265,6 +275,7 @@ func Defaults() Config {
 		ArtifactQuotaBytes: 512 << 20,
 		AlertSilentFactor:  3,
 		AlertRunStuckAfter: 15 * time.Minute,
+		ReadinessInterval:  15 * time.Minute,
 		RateLimit:          RateLimit{Enabled: true, WritesPerMin: 600, IPPerMin: 1200, MCPPerMin: 1500, WebhooksPerMin: 120, BrowserErrPerMin: 20},
 		LogLevel:           "info",
 		LogFormat:          LogJSON,
@@ -334,6 +345,7 @@ func environFor(getenv func(string) string) map[string]string {
 		"HANKO_S3_ACCESS_KEY", "HANKO_S3_SECRET_KEY",
 		"HANKO_VAULT_ADDR", "HANKO_VAULT_MOUNT", "HANKO_VAULT_NAMESPACE", "HANKO_VAULT_TOKEN",
 		"HANKO_ENV_SSH_ALLOW_HOSTS", "HANKO_ENV_SANDBOX", "HANKO_ENV_SANDBOX_HOST_ROOT",
+		"HANKO_ENV_CLOUD", "HANKO_ENV_CLOUD_API_URL", "HANKO_ENV_CLOUD_SSH_HOST", "HANKO_ENV_CLOUD_SSH_KNOWN_HOSTS", "HANKO_READINESS_INTERVAL",
 		"HANKO_PLUGINS_DIR", "HANKO_PLUGINS_DATA_DIR",
 	}
 	m := make(map[string]string, len(keys))
@@ -384,6 +396,10 @@ func (c *Config) finalize() error {
 	c.Environments.SSHAllowHosts = cleanList(c.Environments.SSHAllowHosts)
 	c.Environments.Sandbox = strings.ToLower(strings.TrimSpace(c.Environments.Sandbox))
 	c.Environments.SandboxHostRoot = strings.TrimSpace(c.Environments.SandboxHostRoot)
+	c.Environments.Cloud = strings.ToLower(strings.TrimSpace(c.Environments.Cloud))
+	c.Environments.CloudAPIURL = strings.TrimSpace(c.Environments.CloudAPIURL)
+	c.Environments.CloudSSHHost = strings.TrimSpace(c.Environments.CloudSSHHost)
+	c.Environments.CloudSSHKnownHosts = strings.TrimSpace(c.Environments.CloudSSHKnownHosts)
 	c.WorkspacesRoot = strings.TrimSpace(c.WorkspacesRoot)
 	if c.WorkspacesRoot == "" {
 		if home, err := os.UserHomeDir(); err == nil && home != "" {
@@ -466,6 +482,16 @@ func (c Config) Validate() error {
 	}
 	if sb := c.Environments.Sandbox; sb != "" && sb != "docker" {
 		add("HANKO_ENV_SANDBOX %q inválido: use docker (ou deixe vazio para desligar o sandbox)", sb)
+	}
+	if cl := c.Environments.Cloud; cl != "" {
+		if cl != "daytona" {
+			add("HANKO_ENV_CLOUD %q inválido: use daytona (ou deixe vazio para desligar o sandbox em nuvem)", cl)
+		} else if c.Environments.CloudSSHKnownHosts == "" {
+			add("HANKO_ENV_CLOUD_SSH_KNOWN_HOSTS é obrigatório com HANKO_ENV_CLOUD=daytona: cole a saída de ssh-keyscan do gateway SSH")
+		}
+	}
+	if c.ReadinessInterval < 0 {
+		add("HANKO_READINESS_INTERVAL %v inválido: use uma duração >= 0 (0 desliga a checagem periódica)", c.ReadinessInterval)
 	}
 	if hr := c.Environments.SandboxHostRoot; hr != "" && !filepath.IsAbs(hr) {
 		add("HANKO_ENV_SANDBOX_HOST_ROOT %q inválido: use um caminho absoluto do host do docker", hr)

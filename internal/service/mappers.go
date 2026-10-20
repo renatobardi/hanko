@@ -27,7 +27,7 @@ func workspaceFromRow(r store.Workspace) domain.Workspace {
 func projectFromRow(r store.Project) domain.Project {
 	return domain.Project{ID: r.ID, CompanyID: r.CompanyID, Slug: r.Slug, Name: r.Name,
 		Description: r.Description, WorkspaceID: r.WorkspaceID, Status: domain.ProjectStatus(r.Status),
-		BudgetMonthlyCents: r.BudgetMonthlyCents, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt}
+		BudgetMonthlyCents: r.BudgetMonthlyCents, EnvironmentID: r.EnvironmentID, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt}
 }
 
 func personaFromRow(r store.Persona) domain.Persona {
@@ -95,6 +95,7 @@ func runFromRow(r store.Run) domain.Run {
 		CostSource: domain.CostSource(r.CostSource), ListCostUSD: r.ListCostUsd,
 		ModelSource: domain.ModelSource(r.ModelSource), SubscriptionID: r.SubscriptionID,
 		WorkspaceID: r.WorkspaceID, WorkspaceSource: domain.WorkspaceSource(r.WorkspaceSource),
+		EnvironmentID: r.EnvironmentID, EnvironmentSource: domain.EnvSource(r.EnvironmentSource),
 		Usage: domain.Usage{InputTokens: r.InputTokens, OutputTokens: r.OutputTokens,
 			CacheReadTokens: r.CacheReadTokens, CacheCreationTokens: r.CacheCreationTokens},
 		HandoffIn: r.HandoffIn, HandoffOut: r.HandoffOut, CreatedAt: r.CreatedAt,

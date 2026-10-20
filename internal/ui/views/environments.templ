@@ -1,6 +1,8 @@
 package views
 
 import (
+	"context"
+
 	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/i18n"
 )
@@ -40,6 +42,15 @@ templ EnvProbeReport(p *ProbeVM) {
 					@envCheckRow(EnvCheck{OK: st.OK, Label: st.Label, Detail: st.Detail})
 				}
 			</ul>
+			if len(p.Capabilities) > 0 {
+				<p class="note">
+					<span class="muted">{ i18n.T(ctx, "Capacidades:") }</span>
+					for _, c := range p.Capabilities {
+						<span class="badge outline">{ c }</span>
+						{ " " }
+					}
+				</p>
+			}
 			for _, w := range p.Warnings {
 				<p class="note warn-text">{ w }</p>
 			}
@@ -125,7 +136,52 @@ templ EnvironmentForm(vm EnvFormVM) {
 				<span class="hint">{ i18n.T(ctx, "Obrigatório: as linhas com a chave do host (ssh-keyscan -H host). Uma chave desconhecida nunca é aceita.") }</span>
 				@envFieldErr(vm, "known_hosts")
 			</div>
-		} else {
+		} else if vm.Driver == "cloud" {
+			<div class="form-grid">
+				<div class="field">
+					<label for="e-snap">{ i18n.T(ctx, "Snapshot") }</label>
+					<input class="input mono" id="e-snap" name="snapshot" value={ vm.Snapshot } maxlength="255" autocomplete="off" spellcheck="false" placeholder={ i18n.T(ctx, "vazio = o padrão do provider") }/>
+					@envFieldErr(vm, "snapshot")
+				</div>
+				<div class="field">
+					<label for="e-cnet">{ i18n.T(ctx, "Rede") }</label>
+					@Select("cloud_network", "e-cnet", vm.CloudNetworkOptions, false)
+					<span class="hint">{ i18n.T(ctx, "full dá rede ao sandbox (o harness precisa dela para o modelo e o MCP); none bloqueia tudo.") }</span>
+					@envFieldErr(vm, "network")
+				</div>
+				<div class="field">
+					<label for="e-ccpu">{ i18n.T(ctx, "CPUs") }</label>
+					<input class="input mono" id="e-ccpu" name="cloud_cpus" value={ vm.CloudCPUs } inputmode="numeric" placeholder="2"/>
+					@envFieldErr(vm, "cpus")
+				</div>
+				<div class="field">
+					<label for="e-cmem">{ i18n.T(ctx, "Memória (GiB)") }</label>
+					<input class="input mono" id="e-cmem" name="cloud_memory" value={ vm.CloudMemory } inputmode="numeric" placeholder="4"/>
+					@envFieldErr(vm, "memory_gib")
+				</div>
+				<div class="field">
+					<label for="e-cdisk">{ i18n.T(ctx, "Disco (GiB)") }</label>
+					<input class="input mono" id="e-cdisk" name="cloud_disk" value={ vm.CloudDisk } inputmode="numeric" placeholder="10"/>
+					@envFieldErr(vm, "disk_gib")
+				</div>
+				<div class="field">
+					<label for="e-croot">{ i18n.T(ctx, "Pasta no sandbox") }</label>
+					<input class="input mono" id="e-croot" name="cloud_root" value={ vm.CloudRoot } maxlength="512" autocomplete="off" spellcheck="false" placeholder="/home/daytona/hanko"/>
+					@envFieldErr(vm, "remote_workspace_root")
+				</div>
+			</div>
+			<div class="field">
+				<label for="e-apikey">{ i18n.T(ctx, "Chave de API do provider") }</label>
+				<input class="input mono" id="e-apikey" name="api_key" type="password" autocomplete="new-password" spellcheck="false" maxlength="512" placeholder="${secret:daytona}"/>
+				<span class="hint">
+					{ i18n.T(ctx, "Fica cifrada e nunca volta para a tela. Pode ser uma referência ${secret:NOME} a um segredo da empresa.") }
+					if vm.KeySet {
+						{ i18n.T(ctx, "Há uma chave guardada; em branco ela fica.") }
+					}
+				</span>
+				@envFieldErr(vm, "api_key")
+			</div>
+		} else if vm.Driver == "sandbox" {
 			<div class="form-grid">
 				<div class="field">
 					<label for="e-image">{ i18n.T(ctx, "Imagem") }</label>
@@ -196,7 +252,7 @@ templ envRow(r EnvRow) {
 				<div class="note warn-text">{ r.Unavailable }</div>
 			}
 		</td>
-		<td class="hide-sm"><span class="badge outline">{ r.Driver }</span></td>
+		<td class="hide-sm"><span class="badge outline">{ driverShort(ctx, r.Driver) }</span></td>
 		<td>
 			@BadgeEl(r.Badge)
 			if r.Default {
@@ -228,12 +284,22 @@ templ envRow(r EnvRow) {
 
 templ EnvironmentsHubPage(sh Shell, vm EnvHubVM) {
 	@Layout(sh) {
-		@PageHead(i18n.T(ctx, "Ambientes de execução"), i18n.T(ctx, "Onde as personas rodam: neste servidor, num host SSH ou num contêiner descartável por execução.")) {
+		@PageHead(i18n.T(ctx, "Ambientes de execução"), i18n.T(ctx, "Onde as personas rodam: neste servidor, num host SSH, num contêiner docker ou num sandbox em nuvem descartável por execução. A persona vence o projeto, que vence o padrão da empresa.")) {
 			if sh.CanAdmin() {
+				<a class="btn outline" href={ templ.SafeURL(vm.NewLocalHref) }>
+					@Icon("plus")
+					{ i18n.T(ctx, "Local explícito") }
+				</a>
 				if vm.SSHOff == "" {
 					<a class="btn outline" href={ templ.SafeURL(vm.NewSSHHref) }>
 						@Icon("plus")
 						{ i18n.T(ctx, "Ambiente SSH") }
+					</a>
+				}
+				if vm.CloudOff == "" {
+					<a class="btn outline" href={ templ.SafeURL(vm.NewCloudHref) }>
+						@Icon("plus")
+						{ i18n.T(ctx, "Nuvem") }
 					</a>
 				}
 				if vm.SandboxOff == "" {
@@ -292,14 +358,15 @@ templ EnvironmentsHubPage(sh Shell, vm EnvHubVM) {
 			</section>
 		</div>
 		<h2 class="side-h sec-h">{ i18n.T(ctx, "Ambientes remotos") }</h2>
-		if vm.SSHOff != "" || vm.SandboxOff != "" {
+		if vm.SSHOff != "" || vm.SandboxOff != "" || vm.CloudOff != "" {
 			<ul class="env-checks compact mb-4">
 				@envCheckRow(EnvCheck{OK: vm.SSHOff == "", Label: "SSH", Detail: dashOr(vm.SSHOff, i18n.T(ctx, "liberado pelo operador"))})
 				@envCheckRow(EnvCheck{OK: vm.SandboxOff == "", Label: "Sandbox", Detail: dashOr(vm.SandboxOff, i18n.T(ctx, "liberado pelo operador"))})
+				@envCheckRow(EnvCheck{OK: vm.CloudOff == "", Label: i18n.T(ctx, "Nuvem"), Detail: dashOr(vm.CloudOff, i18n.T(ctx, "liberado pelo operador"))})
 			</ul>
 		}
 		if len(vm.Rows) == 0 {
-			@EmptyCard("server", i18n.T(ctx, "Nenhum ambiente remoto."), i18n.T(ctx, "Cadastre um host SSH ou um sandbox para tirar as execuções deste servidor. O operador liga cada driver na configuração da instalação."), false)
+			@EmptyCard("server", i18n.T(ctx, "Nenhum ambiente cadastrado."), i18n.T(ctx, "Cadastre um host SSH, um contêiner docker ou um sandbox em nuvem para tirar as execuções deste servidor. O operador liga cada driver na configuração da instalação."), false)
 		} else {
 			<div class="table-wrap">
 				<table class="table">
@@ -340,6 +407,12 @@ templ NewEnvironmentPage(sh Shell, vm EnvFormVM) {
 	@Layout(sh) {
 		if vm.Driver == "ssh" {
 			@PageHead(i18n.T(ctx, "Novo ambiente SSH"), i18n.T(ctx, "O Hanko copia o workspace para o host, roda o harness lá pelo ssh do sistema e traz o trabalho de volta.")) {
+			}
+		} else if vm.Driver == "cloud" {
+			@PageHead(i18n.T(ctx, "Novo sandbox em nuvem"), i18n.T(ctx, "Cada execução ganha um sandbox criado no provider, acessado por SSH com token de curta duração e apagado no fim.")) {
+			}
+		} else if vm.Driver == "local" {
+			@PageHead(i18n.T(ctx, "Novo ambiente local"), i18n.T(ctx, "Roda neste servidor, como o local implícito, mas com nome próprio: serve para forçar o local numa persona ou projeto e para dar variáveis ao harness local.")) {
 			}
 		} else {
 			@PageHead(i18n.T(ctx, "Novo sandbox"), i18n.T(ctx, "Cada execução roda num contêiner descartável, sem privilégios, com o workspace montado e limites de memória, CPU e processos.")) {
@@ -466,6 +539,16 @@ templ EnvironmentPage(sh Shell, vm EnvPageVM) {
 	}
 }
 
+func driverShort(ctx context.Context, d string) string {
+	switch d {
+	case "sandbox":
+		return "sandbox"
+	case "cloud":
+		return i18n.T(ctx, "nuvem")
+	}
+	return d
+}
+
 templ PersonaEnvironmentSlot(vm PersonaVM) {
 	<div hx-get={ personaEnvHref(vm) } hx-trigger="load" hx-swap="outerHTML"></div>
 }
@@ -505,9 +588,119 @@ templ RunEnvironmentValue(vm RunEnvVM) {
 		{ " " }
 		@BadgeEl(*vm.Badge)
 	}
+	if vm.Source != "" {
+		<div class="note muted">{ i18n.T(ctx, "origem:") } { vm.Source }</div>
+	}
 	if vm.RemoteDir != "" {
 		<div class="note mono">{ vm.RemoteDir }</div>
 	}
+}
+
+// ---- projeto: ambiente de execução (ADR-0055) ----
+
+templ ProjectEnvironmentSlot(href string) {
+	<div hx-get={ href } hx-trigger="load" hx-swap="outerHTML"></div>
+}
+
+templ ProjectEnvironmentCard(vm ProjectEnvVM) {
+	<section class="card pad mt-6" id="ambiente">
+		<div class="card-head"><div><h2>{ i18n.T(ctx, "Ambiente de execução") }</h2><p class="sub">{ i18n.T(ctx, "Onde rodam as tasks deste projeto. A persona, se tiver um ambiente próprio, vence o projeto.") }</p></div><a class="more" href={ templ.SafeURL(vm.SettingsHref) }>{ i18n.T(ctx, "Ambientes") }</a></div>
+		if vm.Notice != "" {
+			<p class="note ok-text">{ vm.Notice }</p>
+		}
+		if vm.Error != "" {
+			<div class="err">{ vm.Error }</div>
+		}
+		<p><b>{ vm.Current }</b> <span class="muted">{ vm.Source }</span></p>
+		if canAdmin(ctx) {
+			<form method="post" action={ templ.SafeURL(vm.Action) } hx-post={ vm.Action } hx-target="#ambiente" hx-swap="outerHTML" class="inline-form">
+				@Select("environment", "pj-env", vm.Options, true)
+				<button class="btn primary sm" type="submit">{ i18n.T(ctx, "Salvar ambiente") }</button>
+			</form>
+		} else {
+			@NeedRole(domain.MemberAdmin)
+		}
+	</section>
+}
+
+// ---- persona: prontidão do harness (ADR-0055, #10) ----
+
+templ PersonaReadinessSlot(href string) {
+	<div hx-get={ href } hx-trigger="load" hx-swap="outerHTML"></div>
+}
+
+templ PersonaReadinessCard(vm PersonaReadinessVM) {
+	<section class="card pad mt-6" id="prontidao">
+		<div class="card-head">
+			<div><h2>{ i18n.T(ctx, "Prontidão do harness") }</h2><p class="sub">{ i18n.T(ctx, "Binário, login e modelo, testados no ambiente da persona antes de qualquer execução. Uma falha bloqueia o despacho e abre um alerta.") }</p></div>
+			@BadgeEl(vm.Badge)
+		</div>
+		if vm.Notice != "" {
+			<p class="note ok-text">{ vm.Notice }</p>
+		}
+		if vm.Error != "" {
+			<div class="err">{ vm.Error }</div>
+		}
+		if vm.Blocking {
+			@Alert("danger", i18n.Tf(ctx, "Despacho bloqueado: %s", vm.Reason))
+		}
+		if len(vm.Steps) == 0 {
+			<p class="muted">{ i18n.T(ctx, "Esta persona ainda não foi testada.") }</p>
+		} else {
+			<ul class="env-checks compact">
+				for _, st := range vm.Steps {
+					@envCheckRow(st)
+				}
+			</ul>
+			<p class="note muted">
+				{ vm.When }
+				if vm.Env != "" {
+					{ " · " + vm.Env }
+				}
+				if vm.Duration != "" {
+					{ " · " + vm.Duration }
+				}
+			</p>
+		}
+		if canAdmin(ctx) {
+			<form method="post" action={ templ.SafeURL(vm.Action) } hx-post={ vm.Action } hx-target="#prontidao" hx-swap="outerHTML" hx-indicator="#prontidao" class="inline-form">
+				<button class="btn primary sm" type="submit">
+					@Icon("play")
+					{ i18n.T(ctx, "Testar agora") }
+				</button>
+			</form>
+		}
+		if vm.AutoTest && canAdmin(ctx) {
+			<div hx-post={ vm.Action } hx-trigger="load" hx-target="#prontidao" hx-swap="outerHTML"></div>
+		}
+	</section>
+}
+
+// ---- seletor de modelo com "Outro…" (ADR-0055, #17) ----
+
+// ModelPicker é o select de modelos do harness (agrupado) com a opção "Outro…", que mostra um campo livre. O aviso de
+// modelo sem preço aparece sem JavaScript (seletor :has). O valor final vai no campo Name; a escolha, em Name_choice.
+templ ModelPicker(vm ModelPickerVM) {
+	<div class="model-picker">
+		<select class="select" id={ vm.ID } name={ vm.Name + "_choice" } autocomplete="off">
+			<option value="" selected?={ vm.Value == "" && !vm.Other }>{ i18n.T(ctx, "Padrão do harness") }</option>
+			for _, g := range vm.Groups {
+				<optgroup label={ g.Label }>
+					for _, o := range g.Options {
+						<option value={ o.Value } selected?={ o.Selected } data-unpriced?={ o.Unpriced }>
+							{ o.Label }
+							if o.Unpriced {
+								{ " · " + i18n.T(ctx, "sem preço") }
+							}
+						</option>
+					}
+				</optgroup>
+			}
+			<option value="__other" selected?={ vm.Other }>{ i18n.T(ctx, "Outro…") }</option>
+		</select>
+		<input class="input model-other" id={ vm.ID + "-other" } name={ vm.Name } value={ vm.Value } placeholder={ i18n.T(ctx, "ID do modelo") } autocomplete="off" spellcheck="false"/>
+		<span class="hint model-unpriced">{ i18n.T(ctx, "Sem preço próprio: o custo é estimado com o preço de reserva até alguém cadastrar o preço deste modelo.") }</span>
+	</div>
 }
 
 func dashOr(v, fallback string) string {

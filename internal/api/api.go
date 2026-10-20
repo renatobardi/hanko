@@ -314,6 +314,7 @@ func (s *server) register(api huma.API) {
 	s.registerProbe(api)
 	s.registerInstance(api)
 	s.registerEnvironments(api)
+	s.registerReadiness(api)
 	s.registerTools(api)
 	s.registerToolPolicies(api)
 	s.registerChat(api)

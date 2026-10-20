@@ -199,6 +199,22 @@ func (t *txc) alertConditions(cfg AlertConfig) ([]alertCond, error) {
 				"last_event_at": r.LastEventAt, "limit_sec": int(cfg.RunStuckAfter.Seconds())}})
 	}
 
+	notReady, err := t.q.ListNotReadyPersonas(t.ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list not ready personas: %w", err)
+	}
+	for _, p := range notReady {
+		since := p.CheckedAt
+		if p.FailingSince != nil {
+			since = *p.FailingSince
+		}
+		out = append(out, alertCond{companyID: p.CompanyID, kind: domain.AlertPersonaNotReady, subjectType: "persona", subjectID: p.ID,
+			severity: domain.AlertCritical,
+			message: fmt.Sprintf("Persona %s não está pronta (há %s): %s. O despacho está bloqueado até um teste passar.", p.Name,
+				humanDuration(t.now.Sub(since)), p.Reason),
+			data: map[string]any{"persona_slug": p.Slug, "persona_name": p.Name, "agent": p.Agent, "reason": p.Reason, "failing_since": since}})
+	}
+
 	budget, err := t.budgetConditions()
 	if err != nil {
 		return nil, err

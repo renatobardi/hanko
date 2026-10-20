@@ -625,8 +625,6 @@ var en = map[string]string{
 	"Local · sessão preservada · skills nativas": "Local · preserved session · native skills",
 	"Local · OpenAI · exec em JSONL":             "Local · JSONL exec",
 	"Sem processo e sem custo · demo e testes":   "No process and no cost · demos and tests",
-	"sonnet (vazio = padrão do harness)":         "sonnet (empty = harness default)",
-	"Lista sugerida · ou informe um ID manual.":  "Suggested list · or enter an ID manually.",
 	"Acordar a cada (min)":                       "Wake every (min)",
 	"Intervalo de verificação: de quanto em quanto tempo a persona é acordada por task. 0 = só manual.": "Check interval: how often the persona is woken for tasks. 0 = manual only.",
 	"Reporta a": "Reports to",

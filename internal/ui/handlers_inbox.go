@@ -308,6 +308,7 @@ var alertKindText = map[domain.AlertKind]string{
 	domain.AlertPersonaSilent:   i18n.N("Persona sem heartbeat"),
 	domain.AlertRunStuck:        i18n.N("Execução presa"),
 	domain.AlertBudgetNearLimit: i18n.N("Orçamento"),
+	domain.AlertPersonaNotReady: i18n.N("Persona não pronta"),
 }
 
 // weekLabel is the first day of a subscription week: "02/01" / "Jan 2".
