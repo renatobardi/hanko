@@ -15,7 +15,7 @@ Data: 2026-10-19/20. Premissa da issue: o que aparecer é tratado como vazado. E
 | 1 | Nenhum segredo verificado no histórico. gitleaks: 44 alertas; trufflehog: 0 verificados, 12 não verificados. Todos são fixtures sintéticas de teste (PEM de mentira, DSNs locais `postgres:postgres`/`hanko:hanko`, tokens de exemplo do redactor) | nenhuma | `.gitleaks.toml` com allowlist desses casos |
 | 2 | API key Web do Firebase em `deploy/oute-server/deploy-prd.sh`, `.env.example`, `hanko.example.yaml` | baixa | É pública por desenho (vai ao navegador). **Pendente (dono):** conferir no console que a chave tem restrição de referrer HTTP (`hanko.oute.pro`, localhost) e de APIs (só Identity Toolkit/Token Service) |
 | 3 | Topologia da infra: domínio do prd, sub-rede e IP do LXC, gateway, IP Tailscale do host, nome do item do Keychain com a senha sudo, em `deploy-prd.sh` e `docs/RUNBOOK.md` (pt e en) | baixa | IPs privados/CGNAT, não roteáveis da internet; nenhum segredo. **Decisão do dono:** manter (o deploy depende deles) ou mover para variáveis sem default |
-| 4 | E-mail pessoal do dono como `HANKO_AUTH_OWNER_EMAIL` em `deploy-prd.sh`, `.env.example`, `hanko.example.yaml`; e-mail do autor em 194 commits (`Signed-off-by`) e no log/artefato do build da imagem | baixa (PII) | **Decisão do dono.** Os exemplos poderiam usar `voce@exemplo.com`; o histórico só muda com reescrita (não recomendado: o dado já é público) |
+| 4 | E-mail pessoal do dono como `HANKO_AUTH_OWNER_EMAIL` em `deploy-prd.sh`, `.env.example`, `hanko.example.yaml`; e-mail do autor em 194 commits (`Signed-off-by`) e no log/artefato do build da imagem | baixa (PII) | **Decidido (2026-10-20): manter como está**, junto com a topologia do item 3. O dado já é público no histórico e os IPs não são roteáveis |
 | 5 | Segredos do prd (`POSTGRES_PASSWORD`, `HANKO_SECRET`, token do serviço de memória) são gerados dentro do LXC e nunca entram no git | nenhuma | Confirmado. `HANKO_SECRET_KEY` **não** precisa rotacionar |
 | 6 | Workflows: sem `pull_request_target`, sem `secrets: inherit`; único segredo usado é o `GITHUB_TOKEN` com permissões mínimas; logs mascaram credenciais (`***`); nenhum passo imprime o ambiente | nenhuma | — |
 | 7 | Actions fixadas por tag (`@v7`, `@v0.33.1`), não por SHA | baixa (cadeia de suprimentos) | **Pendente:** fixar por SHA (o dependabot de `github-actions` atualiza) |
@@ -32,7 +32,12 @@ Data: 2026-10-19/20. Premissa da issue: o que aparecer é tratado como vazado. E
 - Ativar **Secret scanning** + **Push protection**, **Dependency graph** + **Dependabot alerts** e **Private vulnerability reporting** (Settings › Code security). A ferramenta de varredura do GitHub recusou rodar por falta disso.
 - `trivy-fs`: falha em todo run **na instalação do binário** (o script de instalação sai 1), nunca chega a varrer. Fixar uma versão do binário instalável ou trocar a instalação; depois remover `continue-on-error` dele e do `dependency-review`.
 - Branch protection da `main`: exigir `check`, `release-dry-run` e `gitleaks`.
-- Itens 2, 3, 4 e 7 acima.
+- Itens 2 e 7 acima (3 e 4 decididos: manter).
+
+## Feito pelo dono em Settings (2026-10-20)
+- Push protection ligado (secret scanning é sempre ativo em repo público). Alerta #1: a API key Web do Firebase, esperado.
+- Dependency graph, Dependabot alerts, malware alerts, security updates (agrupados) e CodeQL default setup ligados.
+- Ruleset `main`: PR obrigatório, sem force push nem deleção, checks `check`, `release-dry-run` e `gitleaks`, resultado do CodeQL; admin no bypass.
 
 ## Conclusão
 Nada a rotacionar e nenhuma reescrita de histórico necessária. Do ponto de vista de segredos, o repo pode seguir público; a exposição restante é de topologia e PII, a decidir pelo dono.
