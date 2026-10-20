@@ -87,11 +87,20 @@ func (e *env) taskCmd() *cobra.Command {
 				fmt.Fprintln(e.out, e.t("Nenhuma task encontrada."))
 				return nil
 			}
+			if q.Mine { // com o motivo da participação (ADR-0042)
+				rows := e.taskRows(ts)
+				for i, t := range ts {
+					rows[i] = append(rows[i], dash(strings.Join(t.Participation, ",")))
+				}
+				e.table(append(e.taskHeader(), e.t("PARTICIPAÇÃO")), rows)
+				return nil
+			}
 			e.table(e.taskHeader(), e.taskRows(ts))
 			return nil
 		},
 	}
 	lf := ls.Flags()
+	lf.BoolVar(&q.Mine, "mine", false, e.t("só as tasks em que você participa: criou, atribuiu, foi mencionado, comentou ou é da audiência de um gate"))
 	lf.StringVar(&q.Status, "status", "", e.t("status separados por vírgula (ex.: todo,in_progress)"))
 	lf.StringVarP(&q.Persona, "persona", "p", "", e.t("filtra por persona (id ou slug)"))
 	lf.StringVar(&q.Project, "project", "", e.t("filtra por projeto (id ou slug)"))

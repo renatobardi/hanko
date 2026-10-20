@@ -22,11 +22,13 @@ func (s GoalStatus) Valid() bool { return s == GoalActive || s == GoalAchieved |
 // Goal é uma meta: sai de StartValue, deve chegar a TargetValue (que pode ser menor, numa meta de redução) e está
 // em CurrentValue.
 type Goal struct {
-	ID        ID     `json:"id"`
-	CompanyID ID     `json:"company_id"`
-	ProjectID *ID    `json:"project_id,omitempty"`
-	Slug      string `json:"slug"`
-	Title     string `json:"title"`
+	ID        ID  `json:"id"`
+	CompanyID ID  `json:"company_id"`
+	ProjectID *ID `json:"project_id,omitempty"`
+	// ParentID é a meta-pai (árvore de metas, ADR-0042); nil = raiz.
+	ParentID *ID    `json:"parent_id,omitempty"`
+	Slug     string `json:"slug"`
+	Title    string `json:"title"`
 	// Description em Markdown.
 	Description  string     `json:"description,omitempty"`
 	Metric       string     `json:"metric,omitempty"`

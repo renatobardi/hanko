@@ -8,8 +8,22 @@ templ ActivityPage(sh Shell, vm ActivityVM) {
 	@Layout(sh) {
 		@PageHead(i18n.T(ctx, "Atividade"), vm.Subtitle) {
 		}
+		if len(vm.ActorOptions) > 1 {
+			<form class="toolbar" method="get" action={ templ.SafeURL(vm.Action) }>
+				<label class="muted text-sm" for="act-ator">{ i18n.T(ctx, "Quem") }</label>
+				@Select("ator", "act-ator", vm.ActorOptions, false)
+				<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Filtrar") }</button>
+				if vm.Filtered {
+					<a class="btn ghost sm" href={ templ.SafeURL(vm.Action) }>{ i18n.T(ctx, "limpar filtro") }</a>
+				}
+			</form>
+		}
 		if len(vm.Days) == 0 {
-			@EmptyCard("clock", i18n.T(ctx, "Nenhuma atividade ainda."), i18n.T(ctx, "Execuções, comentários e mudanças de status aparecem aqui."), true)
+			if vm.Filtered {
+				@EmptyCard("clock", i18n.T(ctx, "Nenhuma atividade deste ator."), "", false)
+			} else {
+				@EmptyCard("clock", i18n.T(ctx, "Nenhuma atividade ainda."), i18n.T(ctx, "Execuções, comentários e mudanças de status aparecem aqui."), true)
+			}
 		} else {
 			<div class="feed">
 				for _, d := range vm.Days {

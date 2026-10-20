@@ -20,9 +20,9 @@ type SearchSegment struct {
 
 // SearchHit é um resultado da busca.
 type SearchHit struct {
-	Type      string          `json:"type" enum:"task,comment,persona,run,flow,memory" doc:"Tipo do resultado."`
-	ID        string          `json:"id,omitempty" format:"uuid" doc:"Id da task, comentário, persona, execução ou fluxo (ausente na memória)."`
-	Ref       string          `json:"ref" example:"HNK-12" doc:"Referência para navegar: chave da task (também nos comentários), slug da persona ou do fluxo, id da execução, path da página na memória."`
+	Type      string          `json:"type" enum:"task,comment,persona,run,flow,goal,project,gate,artifact,memory" doc:"Tipo do resultado."`
+	ID        string          `json:"id,omitempty" format:"uuid" doc:"Id da task, comentário, persona, execução, fluxo, meta, projeto, gate ou artefato (ausente na memória)."`
+	Ref       string          `json:"ref" example:"HNK-12" doc:"Referência para navegar: chave da task (também nos comentários), slug da persona, do fluxo, da meta ou do projeto, id da execução, do gate ou do artefato, path da página na memória."`
 	Title     []SearchSegment `json:"title" doc:"Título/nome, com as palavras que casaram marcadas."`
 	Snippet   []SearchSegment `json:"snippet,omitempty" doc:"Trecho que casou (ou o início do texto, sem marcas)."`
 	TaskKey   string          `json:"task_key,omitempty" doc:"Task do comentário ou da execução."`
@@ -37,7 +37,7 @@ type SearchHit struct {
 
 // SearchGroup agrupa os resultados de um tipo.
 type SearchGroup struct {
-	Type        string      `json:"type" enum:"task,comment,persona,run,flow,memory"`
+	Type        string      `json:"type" enum:"task,comment,persona,run,flow,goal,project,gate,artifact,memory"`
 	Hits        []SearchHit `json:"hits"`
 	More        bool        `json:"more,omitempty" doc:"Há mais resultados além do limite."`
 	Unavailable bool        `json:"unavailable,omitempty" doc:"O tipo não pôde ser consultado agora (memória fora do ar); os demais valem."`
@@ -47,13 +47,13 @@ type SearchGroup struct {
 type SearchResult struct {
 	Query  string        `json:"query"`
 	Total  int           `json:"total" doc:"Resultados nos grupos devolvidos."`
-	Groups []SearchGroup `json:"groups" doc:"Grupos na ordem task, comment, persona, run, flow, memory."`
+	Groups []SearchGroup `json:"groups" doc:"Grupos na ordem task, comment, persona, run, flow, goal, project, gate, artifact, memory."`
 }
 
 type searchIn struct {
 	CompanyPath
 	Q     string `query:"q" required:"true" minLength:"1" maxLength:"512" doc:"O que buscar. Palavras separadas por espaço (todas), \"frase exata\", -excluir, OR; a última palavra casa por prefixo. A chave exata de uma task (HNK-12) vai direto a ela." example:"deploy produção"`
-	Types string `query:"types" doc:"Tipos separados por vírgula: task,comment,persona,run,flow,memory. Vazio = todos." example:"task,comment"`
+	Types string `query:"types" doc:"Tipos separados por vírgula: task,comment,persona,run,flow,goal,project,gate,artifact,memory. Vazio = todos." example:"task,comment"`
 	Limit int    `query:"limit" minimum:"1" maximum:"50" default:"10" doc:"Máximo de resultados por tipo."`
 }
 

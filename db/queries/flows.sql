@@ -33,6 +33,7 @@ WHERE id = @id;
 -- name: DueFlows :many
 SELECT * FROM flows
 WHERE enabled AND next_fire_at IS NOT NULL AND next_fire_at <= @now
+  AND NOT EXISTS (SELECT 1 FROM companies c WHERE c.id = flows.company_id AND c.archived_at IS NOT NULL)
 ORDER BY next_fire_at, id
 LIMIT @lim;
 

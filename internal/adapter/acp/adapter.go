@@ -119,6 +119,11 @@ func (a *Adapter) Name() string {
 	return "acp"
 }
 
+// SteerMode: ACP has no standard way to push text into a running turn, so an operator message cancels the turn in
+// course (session/cancel) and goes as the next session/prompt of the same session: the agent process, its context
+// and its session survive (ADR-0039).
+func (a *Adapter) SteerMode() domain.SteerMode { return domain.SteerInject }
+
 // Run executes the agent. Cancelling ctx asks the agent to stop (session/cancel), answers pending
 // permission requests with "cancelled", waits briefly and then kills the process group; the
 // partial Result is returned with a nil error (the caller inspects ctx).
@@ -445,6 +450,8 @@ func (d *driver) protocol(ctx context.Context) (out outcome) {
 		return out
 	}
 
+	d.s.announceSession(out.sessionID)
+
 	// 3. model (best effort)
 	if model := firstNonEmpty(d.spec.Model, d.cfg.Model); model != "" {
 		out.model = d.applyModel(ctx, out.sessionID, model, setupRaw)
@@ -462,7 +469,7 @@ func (d *driver) protocol(ctx context.Context) (out outcome) {
 		out.err = errors.New("a run não tem prompt para enviar ao agente")
 		return out
 	}
-	praw, perr := d.prompt(ctx, out.sessionID, blocks)
+	praw, perr := d.promptSteered(ctx, out.sessionID, blocks)
 	if perr != nil {
 		out.err = d.phaseError(ctx, "session/prompt", perr)
 		return out
@@ -478,6 +485,94 @@ func (d *driver) protocol(ctx context.Context) (out outcome) {
 			CacheReadTokens: pr.Usage.CachedReadTokens, CacheCreationTokens: pr.Usage.CachedWrite}
 	}
 	return out
+}
+
+// steerBlocks is the prompt that carries operator messages into the session.
+func steerBlocks(msgs []adapter.Steer) []map[string]string {
+	parts := make([]string, len(msgs))
+	for i, m := range msgs {
+		parts[i] = m.Text
+	}
+	return []map[string]string{{"type": "text", "text": "Mensagem do operador durante a execução (mude o rumo conforme ela e siga o trabalho):\n\n" + strings.Join(parts, "\n\n")}}
+}
+
+// promptSteered sends the prompt and keeps the turn open to operator messages: each one cancels the turn in
+// course (the agent answers stopReason "cancelled") and is sent as the next session/prompt of the same session. The
+// result is the last prompt's. Without Spec.Steer it is just prompt.
+func (d *driver) promptSteered(ctx context.Context, sessionID string, blocks []map[string]string) (json.RawMessage, error) {
+	if d.spec.Steer == nil || d.spec.ReadOnly {
+		return d.prompt(ctx, sessionID, blocks)
+	}
+	var carried []adapter.Steer // messages to confirm once their prompt is on the wire
+	for {
+		raw, next, err := d.promptOrSteer(ctx, sessionID, blocks, carried)
+		if next == nil {
+			return raw, err
+		}
+		blocks, carried = steerBlocks(next), next
+	}
+}
+
+// promptOrSteer is prompt with one more way out: a steer message. When one arrives it cancels the turn, waits for
+// the agent's answer and returns the messages (all that were queued) for the next prompt.
+func (d *driver) promptOrSteer(ctx context.Context, sessionID string, blocks []map[string]string, confirm []adapter.Steer) (json.RawMessage, []adapter.Steer, error) {
+	type reply struct {
+		raw json.RawMessage
+		err error
+	}
+	wait, err := d.c.CallAsync("session/prompt", map[string]any{"sessionId": sessionID, "prompt": blocks})
+	for _, m := range confirm {
+		m.Done(err) // the operator's message is on the wire (or could not be sent)
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+	ch := make(chan reply, 1)
+	go func() {
+		raw, err := wait(context.WithoutCancel(ctx))
+		ch <- reply{raw, err}
+	}()
+	select {
+	case r := <-ch:
+		return r.raw, nil, r.err
+	case <-ctx.Done():
+		d.s.setCancelling(true)
+		_ = d.c.Notify("session/cancel", map[string]any{"sessionId": sessionID})
+		t := time.NewTimer(d.a.cancelWait)
+		defer t.Stop()
+		select {
+		case r := <-ch:
+			return r.raw, nil, r.err
+		case <-t.C:
+			return nil, nil, ctx.Err()
+		}
+	case first := <-d.spec.Steer:
+		msgs := []adapter.Steer{first}
+		for more := true; more; { // everything already queued goes in the same prompt
+			select {
+			case m := <-d.spec.Steer:
+				msgs = append(msgs, m)
+			default:
+				more = false
+			}
+		}
+		d.s.emit(domain.EventSystem, fmt.Sprintf("mensagem do operador recebida: cancelando o turno em curso para seguir o novo rumo (%d)", len(msgs)), nil)
+		d.s.setCancelling(true)
+		_ = d.c.Notify("session/cancel", map[string]any{"sessionId": sessionID})
+		t := time.NewTimer(d.a.cancelWait)
+		defer t.Stop()
+		select {
+		case <-ch: // stopReason "cancelled" (or the turn had just ended): either way the next prompt follows
+			d.s.setCancelling(false)
+			return nil, msgs, nil
+		case <-t.C:
+			err := errors.New("o agente não respondeu ao cancelamento do turno para entregar a mensagem do operador")
+			for _, m := range msgs {
+				m.Done(err)
+			}
+			return nil, nil, err
+		}
+	}
 }
 
 // prompt sends session/prompt and waits for its answer. If ctx ends first, the agent is asked to
@@ -502,7 +597,7 @@ func (d *driver) prompt(ctx context.Context, sessionID string, blocks []map[stri
 		return r.raw, r.err
 	case <-ctx.Done():
 	}
-	d.s.setCancelling()
+	d.s.setCancelling(true)
 	_ = d.c.Notify("session/cancel", map[string]any{"sessionId": sessionID})
 	t := time.NewTimer(d.a.cancelWait)
 	defer t.Stop()

@@ -48,6 +48,7 @@ func settingsSections(ctx context.Context, base, cur string) []views.TabLink {
 		{"ambientes", i18n.T(ctx, "Ambientes"), "/configuracoes/ambientes"},
 		{"adapters", i18n.T(ctx, "Adapters"), "/configuracoes/adapters"},
 		{"plugins", i18n.T(ctx, "Plugins"), "/configuracoes/plugins"},
+		{"notificacoes", i18n.T(ctx, "Notificações"), "/configuracoes/notificacoes"},
 		{"segredos", i18n.T(ctx, "Segredos"), "/configuracoes/segredos"},
 		{"decisao", i18n.T(ctx, "Decision model"), "/configuracoes/decisao"},
 		{"instancia", i18n.T(ctx, "Instância"), "/configuracoes/instancia"},

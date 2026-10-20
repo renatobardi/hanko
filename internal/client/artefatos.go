@@ -121,6 +121,7 @@ type CreateGoalReq struct {
 	DueDate     string   `json:"due_date,omitempty"`
 	Project     string   `json:"project,omitempty"`
 	Owner       string   `json:"owner,omitempty"`
+	Parent      string   `json:"parent,omitempty"`
 }
 
 type UpdateGoalReq struct {
@@ -136,6 +137,8 @@ type UpdateGoalReq struct {
 	ClearProject bool     `json:"clear_project,omitempty"`
 	Owner        string   `json:"owner,omitempty"`
 	ClearOwner   bool     `json:"clear_owner,omitempty"`
+	Parent       string   `json:"parent,omitempty"`
+	ClearParent  bool     `json:"clear_parent,omitempty"`
 	Status       *string  `json:"status,omitempty"`
 }
 

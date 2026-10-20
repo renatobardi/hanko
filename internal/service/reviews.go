@@ -225,7 +225,7 @@ func (s *Service) StartReview(ctx context.Context, companyID, reviewID domain.ID
 			}
 		}
 		ws, wsSource := pickWorkspace(task.WorkspaceID, project, runPersona)
-		run, err := t.createRun(companyID, task.ID, runPersona.ID, rv.Agent, model, modelSource, subID, ws, wsSource, domain.TriggerReview)
+		run, err := t.createRun(companyID, task.ID, runPersona.ID, rv.Agent, model, modelSource, subID, ws, wsSource, domain.TriggerReview, nil)
 		if err != nil {
 			return err
 		}

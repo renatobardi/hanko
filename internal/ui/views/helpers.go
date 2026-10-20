@@ -1,6 +1,7 @@
 package views
 
 import (
+	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -79,3 +80,6 @@ func flag(b bool) string {
 	}
 	return "0"
 }
+
+// itoa64 formata um contador int64.
+func itoa64(n int64) string { return strconv.FormatInt(n, 10) }

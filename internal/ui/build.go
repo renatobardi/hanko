@@ -196,6 +196,8 @@ var verbTails = map[string]string{
 	"closed": i18n.N("encerrada"), "added": i18n.N("adicionado"), "hired": i18n.N("contratada"), "queued": i18n.N("na fila"),
 	"started": i18n.N("iniciada"), "finished": i18n.N("concluída"), "cancelled": i18n.N("cancelada"), "requested": i18n.N("pedido"), "decided": i18n.N("decidido"),
 	"guard_blocked": i18n.N("travada"), "deleted": i18n.N("removida"),
+	"continued": i18n.N("continuada"), "diagnosed": i18n.N("diagnosticada"), "decision": i18n.N("decisão"), "steered": i18n.N("redirecionada"),
+	"edited": i18n.N("editado"), "discarded": i18n.N("descartado"), "consumed": i18n.N("entregue"),
 }
 
 func verbTail(v string) string { return verbTailCtx(context.Background(), v) }
@@ -293,6 +295,22 @@ func verbPhraseCtx(ctx context.Context, v string) string {
 		return i18n.T(ctx, "concluiu a")
 	case "run.cancelled":
 		return i18n.T(ctx, "cancelou a")
+	case "run.continued":
+		return i18n.T(ctx, "abriu a continuação da")
+	case "run.diagnosed":
+		return i18n.T(ctx, "diagnosticou a")
+	case "run.decision":
+		return i18n.T(ctx, "decidiu sobre a")
+	case "run.steered":
+		return i18n.T(ctx, "mudou o rumo da")
+	case "followup.queued":
+		return i18n.T(ctx, "enfileirou um follow-up em")
+	case "followup.edited":
+		return i18n.T(ctx, "editou um follow-up em")
+	case "followup.discarded":
+		return i18n.T(ctx, "descartou um follow-up em")
+	case "followup.consumed", "followup.steered":
+		return i18n.T(ctx, "entregou um follow-up em")
 	case "gate.requested":
 		return i18n.T(ctx, "pediu a decisão")
 	case "gate.decided":

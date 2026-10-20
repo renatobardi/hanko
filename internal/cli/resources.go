@@ -49,13 +49,18 @@ func (e *env) companyCmd() *cobra.Command {
 			}
 			rows := make([][]string, 0, len(cs))
 			for _, co := range cs {
-				rows = append(rows, []string{co.Slug, co.Name, co.TaskPrefix, co.Timezone, co.ID})
+				state := e.t("ativa")
+				if co.ArchivedAt != nil {
+					state = e.t("arquivada")
+				}
+				rows = append(rows, []string{co.Slug, co.Name, co.TaskPrefix, co.Timezone, state, co.ID})
 			}
-			e.table([]string{e.t("SLUG"), e.t("NOME"), e.t("PREFIXO"), e.t("FUSO"), e.t("ID")}, rows)
+			e.table([]string{e.t("SLUG"), e.t("NOME"), e.t("PREFIXO"), e.t("FUSO"), e.t("ESTADO"), e.t("ID")}, rows)
 			return nil
 		},
 	}
 	c.AddCommand(create, ls)
+	c.AddCommand(e.companyLifecycleCmds()...)
 	return c
 }
 
