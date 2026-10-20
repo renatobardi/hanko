@@ -31,11 +31,16 @@ const (
 	SearchPersona SearchType = "persona"
 	SearchRun     SearchType = "run"
 	SearchFlow    SearchType = "flow"
-	SearchMemory  SearchType = "memory"
+	// Tipos acrescentados pelo ADR-0042: metas, projetos, gates e artefatos (só a versão mais recente da cadeia).
+	SearchGoal     SearchType = "goal"
+	SearchProject  SearchType = "project"
+	SearchGate     SearchType = "gate"
+	SearchArtifact SearchType = "artifact"
+	SearchMemory   SearchType = "memory"
 )
 
 // SearchTypes lista os tipos na ordem em que os grupos aparecem.
-var SearchTypes = []SearchType{SearchTask, SearchComment, SearchPersona, SearchRun, SearchFlow, SearchMemory}
+var SearchTypes = []SearchType{SearchTask, SearchComment, SearchPersona, SearchRun, SearchFlow, SearchGoal, SearchProject, SearchGate, SearchArtifact, SearchMemory}
 
 // Valid diz se t é um tipo conhecido.
 func (t SearchType) Valid() bool {
@@ -224,6 +229,14 @@ func (s *Service) Search(ctx context.Context, companyID domain.ID, q string, f S
 					g, e = s.searchRuns(ctx, base, co, pq, lim, now)
 				case SearchFlow:
 					g, e = s.searchFlows(ctx, base, co, pq, lim, now)
+				case SearchGoal:
+					g, e = s.searchGoals(ctx, base, co, pq, lim, now)
+				case SearchProject:
+					g, e = s.searchProjects(ctx, base, co, pq, lim, now)
+				case SearchGate:
+					g, e = s.searchGates(ctx, base, co, pq, lim, now)
+				case SearchArtifact:
+					g, e = s.searchArtifacts(ctx, base, co, pq, lim, now)
 				}
 				return e
 			})
@@ -393,6 +406,73 @@ func (s *Service) searchFlows(ctx context.Context, q *store.Queries, co store.Co
 		at := r.UpdatedAt
 		g.Hits = append(g.Hits, SearchHit{Type: SearchFlow, ID: r.ID, Ref: r.Slug, Title: search.Mark(r.Name, pq),
 			Snippet: search.Snippet(r.Description, pq, snippetWidth), Status: st, At: &at, Score: r.Score})
+	}
+	return g, nil
+}
+
+func (s *Service) searchGoals(ctx context.Context, q *store.Queries, co store.Company, pq search.Query, lim int, now time.Time) (SearchGroup, error) {
+	g := SearchGroup{Type: SearchGoal, Hits: []SearchHit{}}
+	rows, err := q.SearchGoals(ctx, store.SearchGoalsParams{CompanyID: co.ID, Query: pq.TSQuery, Now: now, Lim: i32(lim + 1)})
+	if err != nil {
+		return g, err
+	}
+	rows, g.More = more(rows, lim)
+	for _, r := range rows {
+		at := r.UpdatedAt
+		g.Hits = append(g.Hits, SearchHit{Type: SearchGoal, ID: r.ID, Ref: r.Slug, Title: search.Mark(r.Title, pq),
+			Snippet: search.Snippet(r.Description, pq, snippetWidth), Status: r.Status, At: &at, Score: r.Score})
+	}
+	return g, nil
+}
+
+func (s *Service) searchProjects(ctx context.Context, q *store.Queries, co store.Company, pq search.Query, lim int, now time.Time) (SearchGroup, error) {
+	g := SearchGroup{Type: SearchProject, Hits: []SearchHit{}}
+	rows, err := q.SearchProjects(ctx, store.SearchProjectsParams{CompanyID: co.ID, Query: pq.TSQuery, Now: now, Lim: i32(lim + 1)})
+	if err != nil {
+		return g, err
+	}
+	rows, g.More = more(rows, lim)
+	for _, r := range rows {
+		at := r.UpdatedAt
+		g.Hits = append(g.Hits, SearchHit{Type: SearchProject, ID: r.ID, Ref: r.Slug, Title: search.Mark(r.Name, pq),
+			Snippet: search.Snippet(r.Description, pq, snippetWidth), Status: r.Status, At: &at, Score: r.Score})
+	}
+	return g, nil
+}
+
+func (s *Service) searchGates(ctx context.Context, q *store.Queries, co store.Company, pq search.Query, lim int, now time.Time) (SearchGroup, error) {
+	g := SearchGroup{Type: SearchGate, Hits: []SearchHit{}}
+	rows, err := q.SearchGates(ctx, store.SearchGatesParams{CompanyID: co.ID, Query: pq.TSQuery, Now: now, Lim: i32(lim + 1)})
+	if err != nil {
+		return g, err
+	}
+	rows, g.More = more(rows, lim)
+	for _, r := range rows {
+		// o trecho vem do corpo se algo casou lá; senão da nota da decisão
+		sn := search.Snippet(r.Body, pq, snippetWidth)
+		if !anyMatch(sn) {
+			if n := search.Snippet(r.DecisionNote, pq, snippetWidth); anyMatch(n) {
+				sn = n
+			}
+		}
+		at := r.CreatedAt
+		g.Hits = append(g.Hits, SearchHit{Type: SearchGate, ID: r.ID, Ref: r.ID.String(), Title: search.Mark(r.Title, pq), Snippet: sn,
+			TaskKey: r.TaskKey, TaskTitle: r.TaskTitle, Status: r.Status, At: &at, Score: r.Score})
+	}
+	return g, nil
+}
+
+func (s *Service) searchArtifacts(ctx context.Context, q *store.Queries, co store.Company, pq search.Query, lim int, now time.Time) (SearchGroup, error) {
+	g := SearchGroup{Type: SearchArtifact, Hits: []SearchHit{}}
+	rows, err := q.SearchArtifacts(ctx, store.SearchArtifactsParams{CompanyID: co.ID, Query: pq.TSQuery, Now: now, Lim: i32(lim + 1)})
+	if err != nil {
+		return g, err
+	}
+	rows, g.More = more(rows, lim)
+	for _, r := range rows {
+		at := r.CreatedAt
+		g.Hits = append(g.Hits, SearchHit{Type: SearchArtifact, ID: r.ID, Ref: r.ID.String(), Title: search.Mark(r.Name, pq),
+			Snippet: []search.Segment{{Text: fmt.Sprintf("v%d · %s", r.Version, r.Mime)}}, TaskKey: r.TaskKey, TaskTitle: r.TaskTitle, At: &at, Score: r.Score})
 	}
 	return g, nil
 }

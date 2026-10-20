@@ -1341,6 +1341,16 @@ func ProjectPage(sh Shell, vm ProjectVM) templ.Component {
 						return templ_7745c5c3_Err
 					}
 				}
+			case "git":
+				templ_7745c5c3_Err = ProjectGitSection(vm.Git).Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			case "padroes":
+				templ_7745c5c3_Err = ProjectDefaultsSection(vm.Defaults).Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
 			case "orcamento":
 				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 98, "<div class=\"stats4 mb-6\"><div class=\"stat\"><div class=\"l\">")
 				if templ_7745c5c3_Err != nil {
@@ -1349,7 +1359,7 @@ func ProjectPage(sh Shell, vm ProjectVM) templ.Component {
 				var templ_7745c5c3_Var74 string
 				templ_7745c5c3_Var74, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Gasto no mês"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 219, Col: 68}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 223, Col: 68}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var74))
 				if templ_7745c5c3_Err != nil {
@@ -1362,7 +1372,7 @@ func ProjectPage(sh Shell, vm ProjectVM) templ.Component {
 				var templ_7745c5c3_Var75 templ.SafeURL
 				templ_7745c5c3_Var75, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(vm.CostHref))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 219, Col: 127}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 223, Col: 127}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var75))
 				if templ_7745c5c3_Err != nil {
@@ -1375,7 +1385,7 @@ func ProjectPage(sh Shell, vm ProjectVM) templ.Component {
 				var templ_7745c5c3_Var76 string
 				templ_7745c5c3_Var76, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Spent)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 219, Col: 140}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 223, Col: 140}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var76))
 				if templ_7745c5c3_Err != nil {
@@ -1388,7 +1398,7 @@ func ProjectPage(sh Shell, vm ProjectVM) templ.Component {
 				var templ_7745c5c3_Var77 string
 				templ_7745c5c3_Var77, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Orçamento do mês"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 222, Col: 67}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 226, Col: 67}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var77))
 				if templ_7745c5c3_Err != nil {
@@ -1401,7 +1411,7 @@ func ProjectPage(sh Shell, vm ProjectVM) templ.Component {
 				var templ_7745c5c3_Var78 templ.SafeURL
 				templ_7745c5c3_Var78, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(vm.CostHref))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 222, Col: 123}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 226, Col: 123}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var78))
 				if templ_7745c5c3_Err != nil {
@@ -1414,7 +1424,7 @@ func ProjectPage(sh Shell, vm ProjectVM) templ.Component {
 				var templ_7745c5c3_Var79 string
 				templ_7745c5c3_Var79, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Custos"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 222, Col: 149}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 226, Col: 149}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var79))
 				if templ_7745c5c3_Err != nil {
@@ -1440,7 +1450,7 @@ func ProjectPage(sh Shell, vm ProjectVM) templ.Component {
 					var templ_7745c5c3_Var80 string
 					templ_7745c5c3_Var80, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "O teto mensal do projeto é definido na aba Configuração."))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 226, Col: 111}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 230, Col: 111}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var80))
 					if templ_7745c5c3_Err != nil {
@@ -1454,6 +1464,10 @@ func ProjectPage(sh Shell, vm ProjectVM) templ.Component {
 			case "configuracao":
 				if canAdmin(ctx) {
 					templ_7745c5c3_Err = ProjectForm(vm.Form).Render(ctx, templ_7745c5c3_Buffer)
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = ProjectEnvironmentSlot(vm.EnvironmentHref).Render(ctx, templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -1471,7 +1485,7 @@ func ProjectPage(sh Shell, vm ProjectVM) templ.Component {
 				var templ_7745c5c3_Var81 string
 				templ_7745c5c3_Var81, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Progresso"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 236, Col: 64}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 241, Col: 64}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var81))
 				if templ_7745c5c3_Err != nil {
@@ -1484,7 +1498,7 @@ func ProjectPage(sh Shell, vm ProjectVM) templ.Component {
 				var templ_7745c5c3_Var82 string
 				templ_7745c5c3_Var82, templ_7745c5c3_Err = templ.JoinStringErrs(vm.ProgressTxt)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 236, Col: 103}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 241, Col: 103}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var82))
 				if templ_7745c5c3_Err != nil {
@@ -1497,7 +1511,7 @@ func ProjectPage(sh Shell, vm ProjectVM) templ.Component {
 				var templ_7745c5c3_Var83 templ.SafeURL
 				templ_7745c5c3_Var83, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(vm.TasksHref))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 237, Col: 101}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 242, Col: 101}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var83))
 				if templ_7745c5c3_Err != nil {
@@ -1510,7 +1524,7 @@ func ProjectPage(sh Shell, vm ProjectVM) templ.Component {
 				var templ_7745c5c3_Var84 string
 				templ_7745c5c3_Var84, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprint(vm.Total))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 237, Col: 126}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 242, Col: 126}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var84))
 				if templ_7745c5c3_Err != nil {
@@ -1523,7 +1537,7 @@ func ProjectPage(sh Shell, vm ProjectVM) templ.Component {
 				var templ_7745c5c3_Var85 string
 				templ_7745c5c3_Var85, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Gasto no mês"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 238, Col: 68}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 243, Col: 68}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var85))
 				if templ_7745c5c3_Err != nil {
@@ -1536,7 +1550,7 @@ func ProjectPage(sh Shell, vm ProjectVM) templ.Component {
 				var templ_7745c5c3_Var86 templ.SafeURL
 				templ_7745c5c3_Var86, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(vm.CostHref))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 238, Col: 127}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 243, Col: 127}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var86))
 				if templ_7745c5c3_Err != nil {
@@ -1549,7 +1563,7 @@ func ProjectPage(sh Shell, vm ProjectVM) templ.Component {
 				var templ_7745c5c3_Var87 string
 				templ_7745c5c3_Var87, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Spent)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 238, Col: 140}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 243, Col: 140}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var87))
 				if templ_7745c5c3_Err != nil {
@@ -1567,7 +1581,7 @@ func ProjectPage(sh Shell, vm ProjectVM) templ.Component {
 					var templ_7745c5c3_Var88 templ.SafeURL
 					templ_7745c5c3_Var88, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(vm.WorkspaceURL))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 243, Col: 48}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 248, Col: 48}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var88))
 					if templ_7745c5c3_Err != nil {
@@ -1580,7 +1594,7 @@ func ProjectPage(sh Shell, vm ProjectVM) templ.Component {
 					var templ_7745c5c3_Var89 string
 					templ_7745c5c3_Var89, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Workspace)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 243, Col: 65}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 248, Col: 65}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var89))
 					if templ_7745c5c3_Err != nil {
@@ -1603,7 +1617,7 @@ func ProjectPage(sh Shell, vm ProjectVM) templ.Component {
 				var templ_7745c5c3_Var90 string
 				templ_7745c5c3_Var90, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Tasks por status"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 251, Col: 65}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 256, Col: 65}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var90))
 				if templ_7745c5c3_Err != nil {
@@ -1616,7 +1630,7 @@ func ProjectPage(sh Shell, vm ProjectVM) templ.Component {
 				var templ_7745c5c3_Var91 templ.SafeURL
 				templ_7745c5c3_Var91, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(vm.TasksHref))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 251, Col: 121}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 256, Col: 121}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var91))
 				if templ_7745c5c3_Err != nil {
@@ -1629,7 +1643,7 @@ func ProjectPage(sh Shell, vm ProjectVM) templ.Component {
 				var templ_7745c5c3_Var92 string
 				templ_7745c5c3_Var92, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Ver todas"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 251, Col: 150}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 256, Col: 150}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var92))
 				if templ_7745c5c3_Err != nil {
@@ -1655,7 +1669,7 @@ func ProjectPage(sh Shell, vm ProjectVM) templ.Component {
 					var templ_7745c5c3_Var93 templ.SafeURL
 					templ_7745c5c3_Var93, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(st.Href))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 255, Col: 57}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 260, Col: 57}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var93))
 					if templ_7745c5c3_Err != nil {
@@ -1668,7 +1682,7 @@ func ProjectPage(sh Shell, vm ProjectVM) templ.Component {
 					var templ_7745c5c3_Var94 string
 					templ_7745c5c3_Var94, templ_7745c5c3_Err = templ.JoinStringErrs(st.Label)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 255, Col: 70}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 260, Col: 70}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var94))
 					if templ_7745c5c3_Err != nil {
@@ -1681,7 +1695,7 @@ func ProjectPage(sh Shell, vm ProjectVM) templ.Component {
 					var templ_7745c5c3_Var95 string
 					templ_7745c5c3_Var95, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprint(st.Count))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 255, Col: 111}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 260, Col: 111}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var95))
 					if templ_7745c5c3_Err != nil {
@@ -1699,7 +1713,7 @@ func ProjectPage(sh Shell, vm ProjectVM) templ.Component {
 				var templ_7745c5c3_Var96 string
 				templ_7745c5c3_Var96, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Metas"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 261, Col: 55}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 266, Col: 55}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var96))
 				if templ_7745c5c3_Err != nil {
@@ -1720,7 +1734,7 @@ func ProjectPage(sh Shell, vm ProjectVM) templ.Component {
 				var templ_7745c5c3_Var97 string
 				templ_7745c5c3_Var97, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Artefatos"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 265, Col: 59}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 270, Col: 59}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var97))
 				if templ_7745c5c3_Err != nil {
@@ -1741,7 +1755,7 @@ func ProjectPage(sh Shell, vm ProjectVM) templ.Component {
 				var templ_7745c5c3_Var98 string
 				templ_7745c5c3_Var98, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Personas envolvidas"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 271, Col: 69}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 276, Col: 69}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var98))
 				if templ_7745c5c3_Err != nil {
@@ -1759,7 +1773,7 @@ func ProjectPage(sh Shell, vm ProjectVM) templ.Component {
 					var templ_7745c5c3_Var99 string
 					templ_7745c5c3_Var99, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Nenhuma persona tem tasks neste projeto ainda."))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 273, Col: 87}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 278, Col: 87}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var99))
 					if templ_7745c5c3_Err != nil {
@@ -1777,7 +1791,7 @@ func ProjectPage(sh Shell, vm ProjectVM) templ.Component {
 					var templ_7745c5c3_Var100 string
 					templ_7745c5c3_Var100, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Abertas"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 276, Col: 75}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 281, Col: 75}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var100))
 					if templ_7745c5c3_Err != nil {
@@ -1795,7 +1809,7 @@ func ProjectPage(sh Shell, vm ProjectVM) templ.Component {
 						var templ_7745c5c3_Var101 templ.SafeURL
 						templ_7745c5c3_Var101, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(p.Href))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 280, Col: 46}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 285, Col: 46}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var101))
 						if templ_7745c5c3_Err != nil {
@@ -1808,7 +1822,7 @@ func ProjectPage(sh Shell, vm ProjectVM) templ.Component {
 						var templ_7745c5c3_Var102 string
 						templ_7745c5c3_Var102, templ_7745c5c3_Err = templ.JoinStringErrs(p.Name)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 280, Col: 57}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 285, Col: 57}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var102))
 						if templ_7745c5c3_Err != nil {
@@ -1821,7 +1835,7 @@ func ProjectPage(sh Shell, vm ProjectVM) templ.Component {
 						var templ_7745c5c3_Var103 string
 						templ_7745c5c3_Var103, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprint(p.Open))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 281, Col: 52}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 286, Col: 52}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var103))
 						if templ_7745c5c3_Err != nil {
@@ -1834,7 +1848,7 @@ func ProjectPage(sh Shell, vm ProjectVM) templ.Component {
 						var templ_7745c5c3_Var104 string
 						templ_7745c5c3_Var104, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprint(p.Total))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 282, Col: 53}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 287, Col: 53}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var104))
 						if templ_7745c5c3_Err != nil {
@@ -1857,7 +1871,7 @@ func ProjectPage(sh Shell, vm ProjectVM) templ.Component {
 				var templ_7745c5c3_Var105 string
 				templ_7745c5c3_Var105, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Tasks recentes"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 290, Col: 64}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 295, Col: 64}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var105))
 				if templ_7745c5c3_Err != nil {
@@ -1875,7 +1889,7 @@ func ProjectPage(sh Shell, vm ProjectVM) templ.Component {
 					var templ_7745c5c3_Var106 string
 					templ_7745c5c3_Var106, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Nenhuma task neste projeto ainda."))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 292, Col: 74}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 297, Col: 74}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var106))
 					if templ_7745c5c3_Err != nil {
@@ -1898,7 +1912,7 @@ func ProjectPage(sh Shell, vm ProjectVM) templ.Component {
 						var templ_7745c5c3_Var107 string
 						templ_7745c5c3_Var107, templ_7745c5c3_Err = templ.JoinStringErrs(r.Key)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 298, Col: 33}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 303, Col: 33}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var107))
 						if templ_7745c5c3_Err != nil {
@@ -1911,7 +1925,7 @@ func ProjectPage(sh Shell, vm ProjectVM) templ.Component {
 						var templ_7745c5c3_Var108 templ.SafeURL
 						templ_7745c5c3_Var108, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(r.Href))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 299, Col: 58}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 304, Col: 58}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var108))
 						if templ_7745c5c3_Err != nil {
@@ -1924,7 +1938,7 @@ func ProjectPage(sh Shell, vm ProjectVM) templ.Component {
 						var templ_7745c5c3_Var109 string
 						templ_7745c5c3_Var109, templ_7745c5c3_Err = templ.JoinStringErrs(r.Title)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 299, Col: 70}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 304, Col: 70}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var109))
 						if templ_7745c5c3_Err != nil {
@@ -2016,7 +2030,7 @@ func WorkspacesPage(sh Shell, vm WorkspacesVM) templ.Component {
 					var templ_7745c5c3_Var113 templ.SafeURL
 					templ_7745c5c3_Var113, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(vm.NewHref))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 316, Col: 59}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 321, Col: 59}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var113))
 					if templ_7745c5c3_Err != nil {
@@ -2037,7 +2051,7 @@ func WorkspacesPage(sh Shell, vm WorkspacesVM) templ.Component {
 					var templ_7745c5c3_Var114 string
 					templ_7745c5c3_Var114, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Novo workspace"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 318, Col: 36}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 323, Col: 36}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var114))
 					if templ_7745c5c3_Err != nil {
@@ -2102,7 +2116,7 @@ func WorkspacesPage(sh Shell, vm WorkspacesVM) templ.Component {
 						var templ_7745c5c3_Var116 templ.SafeURL
 						templ_7745c5c3_Var116, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(vm.NewHref))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 334, Col: 60}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 339, Col: 60}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var116))
 						if templ_7745c5c3_Err != nil {
@@ -2123,7 +2137,7 @@ func WorkspacesPage(sh Shell, vm WorkspacesVM) templ.Component {
 						var templ_7745c5c3_Var117 string
 						templ_7745c5c3_Var117, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Criar workspace"))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 336, Col: 38}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 341, Col: 38}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var117))
 						if templ_7745c5c3_Err != nil {
@@ -2153,7 +2167,7 @@ func WorkspacesPage(sh Shell, vm WorkspacesVM) templ.Component {
 				var templ_7745c5c3_Var118 string
 				templ_7745c5c3_Var118, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Caminho"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 348, Col: 51}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 353, Col: 51}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var118))
 				if templ_7745c5c3_Err != nil {
@@ -2166,7 +2180,7 @@ func WorkspacesPage(sh Shell, vm WorkspacesVM) templ.Component {
 				var templ_7745c5c3_Var119 string
 				templ_7745c5c3_Var119, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Repositório"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 349, Col: 56}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 354, Col: 56}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var119))
 				if templ_7745c5c3_Err != nil {
@@ -2179,7 +2193,7 @@ func WorkspacesPage(sh Shell, vm WorkspacesVM) templ.Component {
 				var templ_7745c5c3_Var120 string
 				templ_7745c5c3_Var120, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Em uso por"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 350, Col: 38}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 355, Col: 38}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var120))
 				if templ_7745c5c3_Err != nil {
@@ -2197,7 +2211,7 @@ func WorkspacesPage(sh Shell, vm WorkspacesVM) templ.Component {
 					var templ_7745c5c3_Var121 templ.SafeURL
 					templ_7745c5c3_Var121, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(r.Href))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 357, Col: 40}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 362, Col: 40}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var121))
 					if templ_7745c5c3_Err != nil {
@@ -2210,7 +2224,7 @@ func WorkspacesPage(sh Shell, vm WorkspacesVM) templ.Component {
 					var templ_7745c5c3_Var122 string
 					templ_7745c5c3_Var122, templ_7745c5c3_Err = templ.JoinStringErrs(r.Name)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 357, Col: 51}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 362, Col: 51}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var122))
 					if templ_7745c5c3_Err != nil {
@@ -2228,7 +2242,7 @@ func WorkspacesPage(sh Shell, vm WorkspacesVM) templ.Component {
 						var templ_7745c5c3_Var123 string
 						templ_7745c5c3_Var123, templ_7745c5c3_Err = templ.ResolveAttributeValue(i18n.T(ctx, "O diretório não existe neste servidor; as execuções usam um diretório temporário."))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 359, Col: 145}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 364, Col: 145}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var123)
 						if templ_7745c5c3_Err != nil {
@@ -2241,7 +2255,7 @@ func WorkspacesPage(sh Shell, vm WorkspacesVM) templ.Component {
 						var templ_7745c5c3_Var124 string
 						templ_7745c5c3_Var124, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "diretório ausente"))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 359, Col: 183}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 364, Col: 183}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var124))
 						if templ_7745c5c3_Err != nil {
@@ -2260,7 +2274,7 @@ func WorkspacesPage(sh Shell, vm WorkspacesVM) templ.Component {
 						var templ_7745c5c3_Var125 string
 						templ_7745c5c3_Var125, templ_7745c5c3_Err = templ.ResolveAttributeValue(i18n.T(ctx, "O caminho está fora da pasta da empresa na raiz dos workspaces; ele segue funcionando, mas novos caminhos precisam ficar dentro dela."))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 362, Col: 192}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 367, Col: 192}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var125)
 						if templ_7745c5c3_Err != nil {
@@ -2273,7 +2287,7 @@ func WorkspacesPage(sh Shell, vm WorkspacesVM) templ.Component {
 						var templ_7745c5c3_Var126 string
 						templ_7745c5c3_Var126, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "fora da pasta da empresa"))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 362, Col: 236}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 367, Col: 236}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var126))
 						if templ_7745c5c3_Err != nil {
@@ -2291,7 +2305,7 @@ func WorkspacesPage(sh Shell, vm WorkspacesVM) templ.Component {
 					var templ_7745c5c3_Var127 string
 					templ_7745c5c3_Var127, templ_7745c5c3_Err = templ.JoinStringErrs(r.Path)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 365, Col: 55}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 370, Col: 55}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var127))
 					if templ_7745c5c3_Err != nil {
@@ -2304,7 +2318,7 @@ func WorkspacesPage(sh Shell, vm WorkspacesVM) templ.Component {
 					var templ_7745c5c3_Var128 string
 					templ_7745c5c3_Var128, templ_7745c5c3_Err = templ.JoinStringErrs(dash(r.RepoURL))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 367, Col: 26}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 372, Col: 26}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var128))
 					if templ_7745c5c3_Err != nil {
@@ -2322,7 +2336,7 @@ func WorkspacesPage(sh Shell, vm WorkspacesVM) templ.Component {
 						var templ_7745c5c3_Var129 string
 						templ_7745c5c3_Var129, templ_7745c5c3_Err = templ.JoinStringErrs(r.Branch)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 369, Col: 44}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 374, Col: 44}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var129))
 						if templ_7745c5c3_Err != nil {
@@ -2341,7 +2355,7 @@ func WorkspacesPage(sh Shell, vm WorkspacesVM) templ.Component {
 						var templ_7745c5c3_Var130 string
 						templ_7745c5c3_Var130, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.Tf(ctx, "%s persona(s), %s projeto(s), %s task(s) aberta(s)", fmt.Sprint(r.Personas), fmt.Sprint(r.Projects), fmt.Sprint(r.OpenTasks)))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 374, Col: 151}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 379, Col: 151}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var130))
 						if templ_7745c5c3_Err != nil {
@@ -2351,7 +2365,7 @@ func WorkspacesPage(sh Shell, vm WorkspacesVM) templ.Component {
 						var templ_7745c5c3_Var131 string
 						templ_7745c5c3_Var131, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "ninguém"))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 376, Col: 35}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 381, Col: 35}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var131))
 						if templ_7745c5c3_Err != nil {
@@ -2406,7 +2420,7 @@ func WorkspaceForm(vm WorkspaceFormVM) templ.Component {
 		var templ_7745c5c3_Var133 templ.SafeURL
 		templ_7745c5c3_Var133, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(vm.Action))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 389, Col: 81}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 394, Col: 81}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var133))
 		if templ_7745c5c3_Err != nil {
@@ -2429,7 +2443,7 @@ func WorkspaceForm(vm WorkspaceFormVM) templ.Component {
 		var templ_7745c5c3_Var134 string
 		templ_7745c5c3_Var134, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Nome"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 395, Col: 45}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 400, Col: 45}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var134))
 		if templ_7745c5c3_Err != nil {
@@ -2442,7 +2456,7 @@ func WorkspaceForm(vm WorkspaceFormVM) templ.Component {
 		var templ_7745c5c3_Var135 string
 		templ_7745c5c3_Var135, templ_7745c5c3_Err = templ.ResolveAttributeValue(vm.Name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 396, Col: 64}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 401, Col: 64}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var135)
 		if templ_7745c5c3_Err != nil {
@@ -2455,7 +2469,7 @@ func WorkspaceForm(vm WorkspaceFormVM) templ.Component {
 		var templ_7745c5c3_Var136 string
 		templ_7745c5c3_Var136, templ_7745c5c3_Err = templ.ResolveAttributeValue(i18n.T(ctx, "Site institucional"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 396, Col: 139}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 401, Col: 139}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var136)
 		if templ_7745c5c3_Err != nil {
@@ -2473,7 +2487,7 @@ func WorkspaceForm(vm WorkspaceFormVM) templ.Component {
 			var templ_7745c5c3_Var137 string
 			templ_7745c5c3_Var137, templ_7745c5c3_Err = templ.JoinStringErrs(e)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 398, Col: 26}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 403, Col: 26}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var137))
 			if templ_7745c5c3_Err != nil {
@@ -2491,7 +2505,7 @@ func WorkspaceForm(vm WorkspaceFormVM) templ.Component {
 		var templ_7745c5c3_Var138 string
 		templ_7745c5c3_Var138, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Branch padrão"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 402, Col: 57}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 407, Col: 57}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var138))
 		if templ_7745c5c3_Err != nil {
@@ -2504,7 +2518,7 @@ func WorkspaceForm(vm WorkspaceFormVM) templ.Component {
 		var templ_7745c5c3_Var139 string
 		templ_7745c5c3_Var139, templ_7745c5c3_Err = templ.ResolveAttributeValue(vm.Branch)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 403, Col: 75}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 408, Col: 75}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var139)
 		if templ_7745c5c3_Err != nil {
@@ -2522,7 +2536,7 @@ func WorkspaceForm(vm WorkspaceFormVM) templ.Component {
 			var templ_7745c5c3_Var140 string
 			templ_7745c5c3_Var140, templ_7745c5c3_Err = templ.JoinStringErrs(e)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 405, Col: 26}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 410, Col: 26}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var140))
 			if templ_7745c5c3_Err != nil {
@@ -2540,7 +2554,7 @@ func WorkspaceForm(vm WorkspaceFormVM) templ.Component {
 		var templ_7745c5c3_Var141 string
 		templ_7745c5c3_Var141, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Caminho no servidor"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 410, Col: 59}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 415, Col: 59}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var141))
 		if templ_7745c5c3_Err != nil {
@@ -2553,7 +2567,7 @@ func WorkspaceForm(vm WorkspaceFormVM) templ.Component {
 		var templ_7745c5c3_Var142 string
 		templ_7745c5c3_Var142, templ_7745c5c3_Err = templ.ResolveAttributeValue(vm.Path)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 411, Col: 68}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 416, Col: 68}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var142)
 		if templ_7745c5c3_Err != nil {
@@ -2566,7 +2580,7 @@ func WorkspaceForm(vm WorkspaceFormVM) templ.Component {
 		var templ_7745c5c3_Var143 string
 		templ_7745c5c3_Var143, templ_7745c5c3_Err = templ.ResolveAttributeValue(vm.Root + "/meu-projeto")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 411, Col: 135}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 416, Col: 135}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var143)
 		if templ_7745c5c3_Err != nil {
@@ -2580,7 +2594,7 @@ func WorkspaceForm(vm WorkspaceFormVM) templ.Component {
 			var templ_7745c5c3_Var144 string
 			templ_7745c5c3_Var144, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.Tf(ctx, "Caminho absoluto dentro de %s. O Hanko não cria nem clona o diretório.", vm.Root))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 414, Col: 104}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 419, Col: 104}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var144))
 			if templ_7745c5c3_Err != nil {
@@ -2590,7 +2604,7 @@ func WorkspaceForm(vm WorkspaceFormVM) templ.Component {
 			var templ_7745c5c3_Var145 string
 			templ_7745c5c3_Var145, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Caminho absoluto e limpo (sem .. nem //). O Hanko não cria nem clona o diretório."))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 416, Col: 105}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 421, Col: 105}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var145))
 			if templ_7745c5c3_Err != nil {
@@ -2609,7 +2623,7 @@ func WorkspaceForm(vm WorkspaceFormVM) templ.Component {
 			var templ_7745c5c3_Var146 string
 			templ_7745c5c3_Var146, templ_7745c5c3_Err = templ.JoinStringErrs(e)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 420, Col: 25}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 425, Col: 25}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var146))
 			if templ_7745c5c3_Err != nil {
@@ -2627,7 +2641,7 @@ func WorkspaceForm(vm WorkspaceFormVM) templ.Component {
 		var templ_7745c5c3_Var147 string
 		templ_7745c5c3_Var147, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "URL do repositório (opcional)"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 424, Col: 70}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 429, Col: 70}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var147))
 		if templ_7745c5c3_Err != nil {
@@ -2640,7 +2654,7 @@ func WorkspaceForm(vm WorkspaceFormVM) templ.Component {
 		var templ_7745c5c3_Var148 string
 		templ_7745c5c3_Var148, templ_7745c5c3_Err = templ.ResolveAttributeValue(vm.RepoURL)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 425, Col: 75}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 430, Col: 75}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var148)
 		if templ_7745c5c3_Err != nil {
@@ -2653,7 +2667,7 @@ func WorkspaceForm(vm WorkspaceFormVM) templ.Component {
 		var templ_7745c5c3_Var149 string
 		templ_7745c5c3_Var149, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "https://, ssh:// ou formato scp. É só um metadado: o Hanko não clona nem troca de branch, e a URL não leva usuário e senha."))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 426, Col: 167}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 431, Col: 167}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var149))
 		if templ_7745c5c3_Err != nil {
@@ -2671,7 +2685,7 @@ func WorkspaceForm(vm WorkspaceFormVM) templ.Component {
 			var templ_7745c5c3_Var150 string
 			templ_7745c5c3_Var150, templ_7745c5c3_Err = templ.JoinStringErrs(e)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 428, Col: 25}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 433, Col: 25}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var150))
 			if templ_7745c5c3_Err != nil {
@@ -2689,7 +2703,7 @@ func WorkspaceForm(vm WorkspaceFormVM) templ.Component {
 		var templ_7745c5c3_Var151 templ.SafeURL
 		templ_7745c5c3_Var151, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(vm.CancelHref))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 432, Col: 59}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 437, Col: 59}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var151))
 		if templ_7745c5c3_Err != nil {
@@ -2702,7 +2716,7 @@ func WorkspaceForm(vm WorkspaceFormVM) templ.Component {
 		var templ_7745c5c3_Var152 string
 		templ_7745c5c3_Var152, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Cancelar"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 432, Col: 87}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 437, Col: 87}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var152))
 		if templ_7745c5c3_Err != nil {
@@ -2716,7 +2730,7 @@ func WorkspaceForm(vm WorkspaceFormVM) templ.Component {
 			var templ_7745c5c3_Var153 string
 			templ_7745c5c3_Var153, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Salvar alterações"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 435, Col: 41}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 440, Col: 41}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var153))
 			if templ_7745c5c3_Err != nil {
@@ -2726,7 +2740,7 @@ func WorkspaceForm(vm WorkspaceFormVM) templ.Component {
 			var templ_7745c5c3_Var154 string
 			templ_7745c5c3_Var154, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Criar workspace"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 437, Col: 37}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 442, Col: 37}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var154))
 			if templ_7745c5c3_Err != nil {
@@ -2842,7 +2856,7 @@ func WorkspaceUsage(vm WorkspaceVM) templ.Component {
 		var templ_7745c5c3_Var159 string
 		templ_7745c5c3_Var159, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Em uso por"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 459, Col: 56}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 464, Col: 56}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var159))
 		if templ_7745c5c3_Err != nil {
@@ -2860,7 +2874,7 @@ func WorkspaceUsage(vm WorkspaceVM) templ.Component {
 			var templ_7745c5c3_Var160 string
 			templ_7745c5c3_Var160, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Nenhuma persona, projeto ou task aberta usa este workspace."))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 461, Col: 96}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 466, Col: 96}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var160))
 			if templ_7745c5c3_Err != nil {
@@ -2895,7 +2909,7 @@ func WorkspaceUsage(vm WorkspaceVM) templ.Component {
 				var templ_7745c5c3_Var161 templ.SafeURL
 				templ_7745c5c3_Var161, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(p.Href))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 473, Col: 37}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 478, Col: 37}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var161))
 				if templ_7745c5c3_Err != nil {
@@ -2908,7 +2922,7 @@ func WorkspaceUsage(vm WorkspaceVM) templ.Component {
 				var templ_7745c5c3_Var162 string
 				templ_7745c5c3_Var162, templ_7745c5c3_Err = templ.JoinStringErrs(p.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 473, Col: 48}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 478, Col: 48}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var162))
 				if templ_7745c5c3_Err != nil {
@@ -2926,7 +2940,7 @@ func WorkspaceUsage(vm WorkspaceVM) templ.Component {
 			var templ_7745c5c3_Var163 string
 			templ_7745c5c3_Var163, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Projetos"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 476, Col: 33}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 481, Col: 33}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var163))
 			if templ_7745c5c3_Err != nil {
@@ -2956,7 +2970,7 @@ func WorkspaceUsage(vm WorkspaceVM) templ.Component {
 				var templ_7745c5c3_Var164 templ.SafeURL
 				templ_7745c5c3_Var164, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(p.Href))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 485, Col: 37}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 490, Col: 37}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var164))
 				if templ_7745c5c3_Err != nil {
@@ -2969,7 +2983,7 @@ func WorkspaceUsage(vm WorkspaceVM) templ.Component {
 				var templ_7745c5c3_Var165 string
 				templ_7745c5c3_Var165, templ_7745c5c3_Err = templ.JoinStringErrs(p.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 485, Col: 48}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 490, Col: 48}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var165))
 				if templ_7745c5c3_Err != nil {
@@ -2987,7 +3001,7 @@ func WorkspaceUsage(vm WorkspaceVM) templ.Component {
 			var templ_7745c5c3_Var166 string
 			templ_7745c5c3_Var166, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Tasks abertas"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 488, Col: 38}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 493, Col: 38}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var166))
 			if templ_7745c5c3_Err != nil {
@@ -3000,7 +3014,7 @@ func WorkspaceUsage(vm WorkspaceVM) templ.Component {
 			var templ_7745c5c3_Var167 string
 			templ_7745c5c3_Var167, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprint(vm.OpenTasks))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 489, Col: 34}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 494, Col: 34}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var167))
 			if templ_7745c5c3_Err != nil {
@@ -3075,7 +3089,7 @@ func WorkspacePage(sh Shell, vm WorkspaceVM) templ.Component {
 			var templ_7745c5c3_Var170 string
 			templ_7745c5c3_Var170, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 505, Col: 17}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 510, Col: 17}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var170))
 			if templ_7745c5c3_Err != nil {
@@ -3088,7 +3102,7 @@ func WorkspacePage(sh Shell, vm WorkspaceVM) templ.Component {
 			var templ_7745c5c3_Var171 string
 			templ_7745c5c3_Var171, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Path)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 506, Col: 48}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 511, Col: 48}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var171))
 			if templ_7745c5c3_Err != nil {
@@ -3157,7 +3171,7 @@ func WorkspacePage(sh Shell, vm WorkspaceVM) templ.Component {
 					var templ_7745c5c3_Var172 string
 					templ_7745c5c3_Var172, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Excluir workspace"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 529, Col: 49}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 534, Col: 49}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var172))
 					if templ_7745c5c3_Err != nil {
@@ -3170,7 +3184,7 @@ func WorkspacePage(sh Shell, vm WorkspaceVM) templ.Component {
 					var templ_7745c5c3_Var173 templ.SafeURL
 					templ_7745c5c3_Var173, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(vm.DeleteAction))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 530, Col: 78}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 535, Col: 78}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var173))
 					if templ_7745c5c3_Err != nil {
@@ -3188,7 +3202,7 @@ func WorkspacePage(sh Shell, vm WorkspaceVM) templ.Component {
 						var templ_7745c5c3_Var174 string
 						templ_7745c5c3_Var174, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "O workspace está em uso. Para excluir, marque a opção abaixo: personas, projetos e tasks que o usam ficam sem workspace."))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 532, Col: 165}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 537, Col: 165}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var174))
 						if templ_7745c5c3_Err != nil {
@@ -3201,7 +3215,7 @@ func WorkspacePage(sh Shell, vm WorkspaceVM) templ.Component {
 						var templ_7745c5c3_Var175 string
 						templ_7745c5c3_Var175, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Desvincular quem usa e excluir"))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 535, Col: 62}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 540, Col: 62}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var175))
 						if templ_7745c5c3_Err != nil {
@@ -3219,7 +3233,7 @@ func WorkspacePage(sh Shell, vm WorkspaceVM) templ.Component {
 						var templ_7745c5c3_Var176 string
 						templ_7745c5c3_Var176, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "O diretório no disco não é apagado; só o cadastro some."))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 538, Col: 101}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 543, Col: 101}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var176))
 						if templ_7745c5c3_Err != nil {
@@ -3237,7 +3251,7 @@ func WorkspacePage(sh Shell, vm WorkspaceVM) templ.Component {
 					var templ_7745c5c3_Var177 string
 					templ_7745c5c3_Var177, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Excluir workspace"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 541, Col: 84}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `projects.templ`, Line: 546, Col: 84}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var177))
 					if templ_7745c5c3_Err != nil {
@@ -3252,6 +3266,11 @@ func WorkspacePage(sh Shell, vm WorkspaceVM) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
+				}
+			case "git":
+				templ_7745c5c3_Err = WorkspaceGitSection(vm.Git).Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
 				}
 			default:
 				templ_7745c5c3_Err = WorkspaceUsage(vm).Render(ctx, templ_7745c5c3_Buffer)

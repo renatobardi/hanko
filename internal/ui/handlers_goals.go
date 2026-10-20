@@ -157,7 +157,7 @@ func (s *server) handleGoals(w http.ResponseWriter, r *http.Request, co domain.C
 	vm := views.GoalsVM{Subtitle: i18n.T(ctx, "Metas mensuráveis ligadas a projetos."), Notice: i18n.T(ctx, goalNotices[q.Get("ok")]),
 		NewHref: base + "/metas/nova", Empty: len(list) == 0 && projRef == "", Project: projName, ClearHref: base + "/metas?aba=" + cur}
 	counts := map[string]int{"todas": len(list)}
-	for _, g := range list {
+	for _, g := range goalTreeOrder(list) {
 		switch g.Status {
 		case domain.GoalActive:
 			counts["ativas"]++
@@ -177,7 +177,10 @@ func (s *server) handleGoals(w http.ResponseWriter, r *http.Request, co domain.C
 			continue
 		}
 		row := views.GoalRow{Title: g.Title, Href: base + "/metas/" + g.Slug, Badge: goalBadge(ctx, g.Status), Progress: percentInt(g.ProgressPercent),
-			ProgressTxt: goalProgressTxt(g), Values: goalValues(ctx, g.Goal), Metric: g.Metric, Overdue: goalOverdue(g.Goal, now, loc)}
+			ProgressTxt: goalProgressTxt(g), Values: goalValues(ctx, g.Goal), Metric: g.Metric, Overdue: goalOverdue(g.Goal, now, loc), Depth: g.Depth}
+		if n := len(g.Children); n > 0 {
+			row.Subs = i18n.Tf(ctx, "%d submetas", n)
+		}
 		if g.DueDate != nil {
 			row.Due = dueText(ctx, *g.DueDate)
 		}
@@ -205,6 +208,73 @@ func (s *server) handleGoals(w http.ResponseWriter, r *http.Request, co domain.C
 	s.render(w, r, http.StatusOK, views.GoalsPage(sh, vm))
 }
 
+// goalTreeOrder põe as metas em ordem de árvore (a raiz e, logo abaixo, as submetas, em profundidade), mantendo a
+// ordem de entrada entre irmãs. Meta cujo pai não está na lista (filtro por projeto) conta como raiz.
+func goalTreeOrder(list []service.GoalView) []service.GoalView {
+	byID := make(map[domain.ID]bool, len(list))
+	for _, g := range list {
+		byID[g.ID] = true
+	}
+	kids := map[domain.ID][]service.GoalView{}
+	var roots []service.GoalView
+	for _, g := range list {
+		if g.ParentID != nil && byID[*g.ParentID] {
+			kids[*g.ParentID] = append(kids[*g.ParentID], g)
+			continue
+		}
+		roots = append(roots, g)
+	}
+	out := make([]service.GoalView, 0, len(list))
+	var walk func(g service.GoalView, depth int)
+	walk = func(g service.GoalView, depth int) {
+		out = append(out, g)
+		if depth >= 2*domain.MaxGoalDepth {
+			return
+		}
+		for _, k := range kids[g.ID] {
+			walk(k, depth+1)
+		}
+	}
+	for _, r := range roots {
+		walk(r, 0)
+	}
+	return out
+}
+
+// goalParentOptions são as metas que podem ser pai: não abandonadas, que ainda deixam espaço na árvore e, na edição,
+// que não são a própria meta nem descendem dela. O service valida de novo.
+func (s *server) goalParentOptions(r *http.Request, co domain.Company, self *domain.ID, sel *domain.ID) []views.Option {
+	ctx := r.Context()
+	out := []views.Option{{Value: "", Label: i18n.T(ctx, "Nenhuma (meta raiz)"), Selected: sel == nil}}
+	list, err := s.be.ListGoalViews(ctx, co.ID, service.GoalFilter{})
+	if err != nil {
+		return out // opcional: a meta funciona sem pai
+	}
+	under := map[domain.ID]bool{}
+	if self != nil {
+		under[*self] = true
+		for changed := true; changed; { // fecha a subárvore da própria meta
+			changed = false
+			for _, g := range list {
+				if g.ParentID != nil && under[*g.ParentID] && !under[g.ID] {
+					under[g.ID], changed = true, true
+				}
+			}
+		}
+	}
+	for _, g := range goalTreeOrder(list) {
+		if g.Status == domain.GoalAbandoned || under[g.ID] || g.Depth >= domain.MaxGoalDepth {
+			continue
+		}
+		label := g.Title
+		if g.Depth > 1 {
+			label = strings.Repeat("— ", g.Depth-1) + label
+		}
+		out = append(out, views.Option{Value: g.ID.String(), Label: label, Slug: g.Slug, Selected: sel != nil && *sel == g.ID})
+	}
+	return out
+}
+
 // ---------- formulário ----------
 
 func (s *server) goalOwnerOptions(r *http.Request, co domain.Company, sel *domain.ID) []views.Option {
@@ -215,7 +285,8 @@ func (s *server) goalOwnerOptions(r *http.Request, co domain.Company, sel *domai
 func (s *server) blankGoalForm(r *http.Request, co domain.Company) views.GoalFormVM {
 	base := "/c/" + co.Slug
 	return views.GoalFormVM{Action: base + "/metas/nova", CancelHref: base + "/metas", FieldErr: map[string]string{},
-		ProjectOptions: s.taskProjectOptions(r, co, nil), OwnerOptions: s.goalOwnerOptions(r, co, nil)}
+		ProjectOptions: s.taskProjectOptions(r, co, nil), OwnerOptions: s.goalOwnerOptions(r, co, nil),
+		ParentOptions: s.goalParentOptions(r, co, nil, nil)}
 }
 
 func goalFormValues(r *http.Request, vm *views.GoalFormVM) {
@@ -224,6 +295,7 @@ func goalFormValues(r *http.Request, vm *views.GoalFormVM) {
 	vm.Start, vm.Target, vm.Current, vm.Due = trimForm(r, "start"), trimForm(r, "target"), trimForm(r, "current"), trimForm(r, "due")
 	selectOption(vm.ProjectOptions, trimForm(r, "project"))
 	selectOption(vm.OwnerOptions, trimForm(r, "owner"))
+	selectOption(vm.ParentOptions, trimForm(r, "parent"))
 }
 
 func goalFormError(ctx context.Context, vm *views.GoalFormVM, err error) {
@@ -249,6 +321,8 @@ func goalFormError(ctx context.Context, vm *views.GoalFormVM, err error) {
 			msg = i18n.T(ctx, "Projeto não encontrado nesta empresa.")
 		case "owner":
 			msg = i18n.T(ctx, "Persona não encontrada nesta empresa.")
+		case "parent_id":
+			msg = i18n.T(ctx, "Meta-pai inválida: ela precisa existir, não estar abandonada, não descender desta meta e deixar no máximo 4 níveis.")
 		default:
 			msg = ve.Field + ": " + ve.Reason + "."
 		}
@@ -267,9 +341,10 @@ type goalFormInput struct {
 	due           *time.Time
 	project       *domain.ID
 	owner         *domain.ID
+	parent        *domain.ID
 }
 
-func parseGoalForm(vm views.GoalFormVM, projectVal, ownerVal string) (goalFormInput, error) {
+func parseGoalForm(vm views.GoalFormVM, projectVal, ownerVal, parentVal string) (goalFormInput, error) {
 	var in goalFormInput
 	var ok bool
 	if in.start, ok = parseNum(vm.Start); !ok {
@@ -299,6 +374,9 @@ func parseGoalForm(vm views.GoalFormVM, projectVal, ownerVal string) (goalFormIn
 	if in.owner, good = parseID(ownerVal); !good {
 		return in, domain.Invalid("owner", "invalid")
 	}
+	if in.parent, good = parseID(parentVal); !good {
+		return in, domain.Invalid("parent_id", "invalid")
+	}
 	return in, nil
 }
 
@@ -327,13 +405,13 @@ func (s *server) handleCreateGoal(w http.ResponseWriter, r *http.Request, co dom
 		goalFormError(ctx, &vm, err)
 		s.renderNewGoal(w, r, co, statusFor(err), vm)
 	}
-	in, err := parseGoalForm(vm, trimForm(r, "project"), trimForm(r, "owner"))
+	in, err := parseGoalForm(vm, trimForm(r, "project"), trimForm(r, "owner"), trimForm(r, "parent"))
 	if err != nil {
 		bad(err)
 		return
 	}
 	g, err := s.be.CreateGoal(ctx, actorFrom(ctx), co.ID, service.CreateGoalInput{Title: vm.Title, Description: vm.Description, Metric: vm.Metric, Unit: vm.Unit,
-		ProjectID: in.project, Start: in.start, Target: in.target, Current: in.current, DueDate: in.due, OwnerPersonaID: in.owner})
+		ProjectID: in.project, ParentID: in.parent, Start: in.start, Target: in.target, Current: in.current, DueDate: in.due, OwnerPersonaID: in.owner})
 	if err != nil {
 		bad(err)
 		return
@@ -412,10 +490,22 @@ func (s *server) buildGoalVM(r *http.Request, co domain.Company, g service.GoalV
 		Progress: percentInt(g.ProgressPercent), ProgressTxt: goalProgressTxt(g), Metric: g.Metric,
 		Start: withUnit(ctx, g.StartValue, g.Unit), Current: withUnit(ctx, g.CurrentValue, g.Unit), Target: withUnit(ctx, g.TargetValue, g.Unit),
 		Overdue: goalOverdue(g.Goal, now, loc), TasksTotal: g.TasksTotal, TasksHref: base + "/tasks?aba=todas&meta=" + url.QueryEscape(g.Slug),
-		Chart: goalChart(ctx, g, loc), CanProgress: g.Status == domain.GoalActive, ProgressURL: self + "/progresso", StatusURL: self + "/status",
+		Chart: goalChart(ctx, g, loc), CanProgress: g.Status == domain.GoalActive && !g.Rollup, Rollup: g.Rollup, ProgressURL: self + "/progresso", StatusURL: self + "/status",
 		LinkURL: self + "/tasks", ListHref: base + "/metas", Notice: i18n.T(ctx, goalNotices[r.URL.Query().Get("ok")])}
 	if g.Description == "" {
 		vm.Description = ""
+	}
+	for _, p := range g.Path {
+		vm.Path = append(vm.Path, views.Crumb{Label: p.Title, Href: base + "/metas/" + p.Slug})
+	}
+	if len(g.Children) > 0 {
+		if all, err := s.be.ListGoalViews(ctx, co.ID, service.GoalFilter{}); err == nil {
+			for _, c := range all {
+				if c.ParentID != nil && *c.ParentID == g.ID {
+					vm.Subgoals = append(vm.Subgoals, goalMini(ctx, c, base, now, loc))
+				}
+			}
+		}
 	}
 	if g.DueDate != nil {
 		vm.Due = dueText(ctx, *g.DueDate)
@@ -456,7 +546,8 @@ func (s *server) buildGoalVM(r *http.Request, co domain.Company, g service.GoalV
 	}
 	form := views.GoalFormVM{Action: self, CancelHref: base + "/metas", Edit: true, FieldErr: map[string]string{}, Title: g.Title, Description: g.Description,
 		Metric: g.Metric, Unit: g.Unit, Start: fmtNum(ctx, g.StartValue), Target: fmtNum(ctx, g.TargetValue),
-		ProjectOptions: s.taskProjectOptions(r, co, g.ProjectID), OwnerOptions: s.goalOwnerOptions(r, co, g.OwnerPersonaID)}
+		ProjectOptions: s.taskProjectOptions(r, co, g.ProjectID), OwnerOptions: s.goalOwnerOptions(r, co, g.OwnerPersonaID),
+		ParentOptions: s.goalParentOptions(r, co, &g.ID, g.ParentID)}
 	if g.DueDate != nil {
 		form.Due = g.DueDate.Format("2006-01-02")
 	}
@@ -504,12 +595,13 @@ func (s *server) handleUpdateGoal(w http.ResponseWriter, r *http.Request, co dom
 		s.renderGoal(w, r, co, statusFor(err), g, vm)
 	}
 	f := vm.Form
-	in, err := parseGoalForm(f, trimForm(r, "project"), trimForm(r, "owner"))
+	in, err := parseGoalForm(f, trimForm(r, "project"), trimForm(r, "owner"), trimForm(r, "parent"))
 	if err != nil {
 		bad(err)
 		return
 	}
-	up := service.UpdateGoalInput{Title: &f.Title, Description: &f.Description, Metric: &f.Metric, Unit: &f.Unit, Start: &in.start, Target: &in.target,
+	up := service.UpdateGoalInput{ParentID: in.parent, ClearParent: in.parent == nil && g.ParentID != nil,
+		Title: &f.Title, Description: &f.Description, Metric: &f.Metric, Unit: &f.Unit, Start: &in.start, Target: &in.target,
 		ProjectID: in.project, ClearProject: in.project == nil, DueDate: in.due, ClearDue: in.due == nil, OwnerPersonaID: in.owner, ClearOwner: in.owner == nil}
 	if _, err := s.be.UpdateGoal(ctx, actorFrom(ctx), co.ID, g.ID, up); err != nil {
 		bad(err)

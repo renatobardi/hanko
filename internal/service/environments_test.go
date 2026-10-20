@@ -111,8 +111,12 @@ func TestEnvironmentCRUDAndSecrets(t *testing.T) {
 		Sandbox: &domain.SandboxConfig{Image: "Imagem Inválida"}}); !errors.Is(err, domain.ErrInvalid) {
 		t.Fatalf("imagem inválida: %v", err)
 	}
-	if _, err := e.svc.CreateEnvironment(ctx, domain.HumanActor, e.co.ID, service.CreateEnvironmentInput{Name: "Local de novo", Driver: domain.EnvLocal}); !errors.Is(err, domain.ErrInvalid) {
-		t.Fatalf("local explícito: %v", err)
+	// o local passa a poder ser cadastrado explicitamente (ADR-0055); um driver desconhecido continua recusado
+	if v, err := e.svc.CreateEnvironment(ctx, domain.HumanActor, e.co.ID, service.CreateEnvironmentInput{Name: "Local de novo", Driver: domain.EnvLocal}); err != nil || v.Driver != domain.EnvLocal {
+		t.Fatalf("local explícito: %+v %v", v, err)
+	}
+	if _, err := e.svc.CreateEnvironment(ctx, domain.HumanActor, e.co.ID, service.CreateEnvironmentInput{Name: "Estranho", Driver: "docker"}); !errors.Is(err, domain.ErrInvalid) {
+		t.Fatalf("driver desconhecido: %v", err)
 	}
 }
 

@@ -202,6 +202,12 @@ func (s *Service) StartReview(ctx context.Context, companyID, reviewID domain.ID
 		if berr := t.checkBudgets(co, runPersona, project, true); berr != nil {
 			return t.completeReview(rv, task, nil, "failed", nil, "A revisão não rodou: "+berr.Error(), label, nil)
 		}
+		if rerr := t.readinessGate(runPersona, rv.Agent, rv.Model); rerr != nil {
+			if !errors.Is(rerr, domain.ErrPersonaNotReady) {
+				return rerr
+			}
+			return t.completeReview(rv, task, nil, "failed", nil, "A revisão não rodou: "+rerr.Error(), label, nil)
+		}
 		artifact, err := t.reviewArtifact(co, task, author, domain.TaskStatus(rv.RequestedStatus))
 		if err != nil {
 			return err
@@ -225,7 +231,7 @@ func (s *Service) StartReview(ctx context.Context, companyID, reviewID domain.ID
 			}
 		}
 		ws, wsSource := pickWorkspace(task.WorkspaceID, project, runPersona)
-		run, err := t.createRun(companyID, task.ID, runPersona.ID, rv.Agent, model, modelSource, subID, ws, wsSource, domain.TriggerReview)
+		run, err := t.createRun(companyID, task.ID, runPersona.ID, rv.Agent, model, modelSource, subID, ws, wsSource, domain.TriggerReview, nil)
 		if err != nil {
 			return err
 		}

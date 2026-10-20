@@ -114,6 +114,7 @@ type listGatesIn struct {
 	Kind    string `query:"kind" doc:"Tipos separados por vírgula: approval,task_review,hire,memory,tool,instruction,question,plan."`
 	Task    string `query:"task" doc:"Id ou chave da task."`
 	Persona string `query:"persona" doc:"Id ou slug da persona que pediu."`
+	Mine    bool   `query:"mine" doc:"Só os gates da audiência da pessoa autenticada: que pediu ou decidiu, ou de tasks em que participa. Vazio sem pessoa autenticada."`
 }
 
 type requestGateIn struct {
@@ -189,7 +190,7 @@ func (s *server) registerGates(api huma.API) {
 				return nil, s.fail(ctx, err)
 			}
 			gs, err := s.svc.ListGates(ctx, sc.Company.ID, service.GateFilter{Statuses: statuses, Kinds: kinds, TaskID: task,
-				PersonaID: persona, Limit: in.Limit, Offset: in.Offset})
+				PersonaID: persona, Mine: in.Mine, Limit: in.Limit, Offset: in.Offset})
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}

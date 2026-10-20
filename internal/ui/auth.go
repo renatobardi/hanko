@@ -457,6 +457,7 @@ func (s *server) settingsVM(r *http.Request) (views.SettingsVM, error) {
 	u := id.User
 	vm.Name, vm.Email, vm.Provider, vm.Role = u.DisplayName(), u.Email, providerLabel(r.Context(), u.Provider), roleLabel(r.Context(), u.Role)
 	vm.LocalLogin = u.Provider == domain.ProviderLocal
+	vm.UsersLink = u.Role == domain.RoleOwner || u.Role == domain.RoleAdmin
 	keys, err := s.auth.be.ListAPIKeys(r.Context(), u.ID)
 	if err != nil {
 		return vm, err
@@ -464,13 +465,20 @@ func (s *server) settingsVM(r *http.Request) (views.SettingsVM, error) {
 	now := s.now()
 	for _, k := range keys {
 		row := views.APIKeyRow{ID: k.ID.String(), Name: k.Name, Prefix: k.Prefix, Created: relTimeCtx(r.Context(), k.CreatedAt, now, time.UTC),
-			LastUsed: i18n.T(r.Context(), "nunca"), Revoked: !k.Active()}
+			LastUsed: i18n.T(r.Context(), "nunca"), Revoked: !k.Active(), Scope: scopeShort(r.Context(), k.Scope), Device: k.Device}
 		if k.LastUsedAt != nil {
 			row.LastUsed = relTimeCtx(r.Context(), *k.LastUsedAt, now, time.UTC)
 		}
 		vm.Keys = append(vm.Keys, row)
 	}
 	return vm, nil
+}
+
+func scopeShort(ctx context.Context, sc domain.KeyScope) string {
+	if sc == domain.KeyScopeRead {
+		return i18n.T(ctx, "só leitura")
+	}
+	return i18n.T(ctx, "completo")
 }
 
 func providerLabel(ctx context.Context, p domain.AuthProvider) string {
@@ -499,7 +507,9 @@ func (s *server) renderSettings(w http.ResponseWriter, r *http.Request, co domai
 		return
 	}
 	mv.NewLink, mv.NewLinkEmail, mv.Email, mv.Error = pre.NewLink, pre.NewLinkEmail, pre.Email, pre.Error
+	mv.Join.NewLink, mv.Join.Error = pre.Join.NewLink, pre.Join.Error
 	vm.Members = mv
+	vm.Company = s.companyAdminVM(r, co, vm.Company)
 	vm.Memory = s.memoryVM(r, co, vm.Memory)
 	vm.Policy = s.companyPolicyVM(r.Context(), co)
 	vm.Sections = settingsSections(ctx, "/c/"+co.Slug, "geral")

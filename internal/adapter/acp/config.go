@@ -41,8 +41,10 @@ const (
 //	{"command": "my-acp-agent", "args": ["--stdio"], "env": {"MY_AGENT_HOME": "/data/agent"},
 //	 "permission": "read_only", "model": "best-effort-model-id", "init_timeout_sec": 30}
 type Config struct {
-	// Command is the executable (resolved through PATH), without arguments. Required.
-	Command string `json:"command"`
+	// Preset names a known ACP agent (presets.go) and fills Command/Args; exclusive with Command.
+	Preset string `json:"preset,omitempty"`
+	// Command is the executable (resolved through PATH), without arguments. Required (or Preset).
+	Command string `json:"command,omitempty"`
 	// Args are the arguments, one per element (no shell).
 	Args []string `json:"args,omitempty"`
 	// Env is extra environment for the agent, on top of the server allowlist (procrun.HarnessEnv).
@@ -64,15 +66,18 @@ var envName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 func ParseConfig(raw json.RawMessage) (Config, error) {
 	var c Config
 	if len(bytes.TrimSpace(raw)) == 0 {
-		return c, errors.New(`acp needs adapter_config with "command" (the executable of an agent that speaks ACP over stdio)`)
+		return c, errors.New(`acp needs adapter_config with "command" (the executable of an agent that speaks ACP over stdio) or a "preset"`)
 	}
 	dec := json.NewDecoder(bytes.NewReader(raw))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&c); err != nil {
 		if strings.HasPrefix(err.Error(), "json: unknown field") {
-			return c, fmt.Errorf("%s; acp accepts command, args, env, permission, model, init_timeout_sec", strings.TrimPrefix(err.Error(), "json: "))
+			return c, fmt.Errorf("%s; acp accepts command, args, env, permission, model, init_timeout_sec (or preset instead of command)", strings.TrimPrefix(err.Error(), "json: "))
 		}
 		return c, fmt.Errorf("invalid acp adapter_config: %w", err)
+	}
+	if err := c.applyPreset(); err != nil {
+		return c, err
 	}
 	if err := c.Validate(); err != nil {
 		return c, err

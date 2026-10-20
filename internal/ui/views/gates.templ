@@ -145,6 +145,17 @@ templ GatesPage(sh Shell, vm GatesVM) {
 			<span class="grow"></span>
 			@Tabs(vm.Kinds)
 		</div>
+		if vm.MineHref != "" {
+			<p class="filter-chip">
+				<a class={ "chip", templ.KV("soft", !vm.Mine) } href={ templ.SafeURL(vm.MineHref) } aria-pressed?={ vm.Mine }>
+					@Icon("user")
+					{ i18n.T(ctx, "Minha audiência") }
+				</a>
+				if vm.Mine {
+					<span class="muted text-sm">{ i18n.T(ctx, "Gates que você pediu ou decidiu, ou de tasks em que você participa.") }</span>
+				}
+			</p>
+		}
 		@GateRows(vm.Rows, vm.Empty)
 	}
 }

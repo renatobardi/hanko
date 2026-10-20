@@ -67,6 +67,11 @@ type env struct {
 	followWait  time.Duration
 	// chatPoll is how often `hanko chat` asks whether the persona has answered.
 	chatPoll time.Duration
+	// loginPoll sobrepõe o intervalo de consulta do `hanko login` (testes); openBrowser, o abridor de navegador.
+	loginPoll   time.Duration
+	openBrowser func(string) error
+	// urlSet: --url ou HANKO_URL foi dado, então o contexto salvo não troca o servidor.
+	urlSet bool
 	// ctx carrega o idioma da CLI, resolvido uma vez (HANKO_LANG > LC_ALL > LC_MESSAGES > LANG > pt-BR).
 	ctx context.Context
 }
@@ -133,6 +138,9 @@ func (e *env) root() *cobra.Command {
 		SilenceErrors: true,
 	}
 	root.SetFlagErrorFunc(func(_ *cobra.Command, err error) error { return usageError{err} })
+	root.PersistentPreRun = func(cmd *cobra.Command, _ []string) {
+		e.urlSet = cmd.Flags().Changed("url") || e.getenv("HANKO_URL") != ""
+	}
 	root.CompletionOptions.DisableDefaultCmd = true
 	f := root.PersistentFlags()
 	f.StringVar(&e.url, "url", def("HANKO_URL", client.DefaultURL), e.t("URL do servidor Hanko (HANKO_URL)"))
@@ -141,19 +149,44 @@ func (e *env) root() *cobra.Command {
 	f.BoolVar(&e.asJSON, "json", false, e.t("saída em JSON"))
 
 	root.AddCommand(e.serveCmd(), e.migrateCmd(), e.versionCmd(), e.openapiCmd(),
-		e.companyCmd(), e.workspaceCmd(), e.projectCmd(), e.personaCmd(), e.taskCmd(), e.runCmd(), e.gateCmd(), e.chatCmd(), e.orgCmd(),
+		e.companyCmd(), e.workspaceCmd(), e.projectCmd(), e.personaCmd(), e.taskCmd(), e.runCmd(), e.followupCmd(), e.gateCmd(), e.chatCmd(), e.orgCmd(),
 		e.costCmd(), e.budgetCmd(), e.subscriptionCmd(), e.flowCmd(), e.memoryCmd(), e.memberCmd(), e.authCmd(), e.exportCmd(), e.importCmd(), e.searchCmd(), e.skillCmd(), e.integrationCmd(), e.pluginCmd(),
 		e.artifactCmd(), e.attachCmd(), e.attachmentCmd(), e.goalCmd(), e.statusCardCmd(), e.toolProfileCmd(), e.toolGatewayCmd(),
-		e.secretCmd(), e.settingsCmd(), e.blobsCmd(), e.toolPolicyCmd(), e.hookCmd())
-	root.AddCommand(e.roomCmd())        // sala (ADR-0033)
-	root.AddCommand(e.environmentCmd()) // ambientes de execução (ADR-0037)
+		e.secretCmd(), e.settingsCmd(), e.blobsCmd(), e.decisionCmd(), e.toolPolicyCmd(), e.hookCmd(), e.loginCmd(), e.logoutCmd(), e.whoamiCmd(), e.usersCmd())
+	root.AddCommand(e.inboxCmd(), e.notifyCmd(), e.activityCmd()) // Caixa por pessoa, avisos e atividade por ator (ADR-0042)
+	root.AddCommand(e.roomCmd())                                  // sala (ADR-0033)
+	root.AddCommand(e.environmentCmd())                           // ambientes de execução (ADR-0037)
+	root.AddCommand(e.modelCmd())                                 // catálogo de modelos (ADR-0055)
 	root.AddCommand(e.pipelinesCmds()...)
 	root.AddCommand(e.planPolicyCmd()) // plan-review (ADR-0041)
 	e.localizeHelp(root)
 	return root
 }
 
-func (e *env) client() *client.Client { return client.New(e.url, e.token) }
+// client abre o cliente da API. Sem --token/HANKO_TOKEN usa a API key do contexto salvo por `hanko login` (e o
+// servidor dele, a menos que --url/HANKO_URL tenha sido dado).
+func (e *env) client() *client.Client {
+	url, tok := e.url, e.token
+	if tok == "" {
+		if c, ok := e.currentContext(); ok {
+			tok = c.Token
+			if !e.urlSet && c.URL != "" {
+				url = c.URL
+			}
+		}
+	}
+	return client.New(url, tok)
+}
+
+// serverURL é o servidor com que a CLI fala agora (o do contexto salvo, quando é ele que vale).
+func (e *env) serverURL() string {
+	if e.token == "" && !e.urlSet {
+		if c, ok := e.currentContext(); ok && c.URL != "" {
+			return c.URL
+		}
+	}
+	return e.url
+}
 
 func (e *env) needCompany() (string, error) {
 	if e.company == "" {

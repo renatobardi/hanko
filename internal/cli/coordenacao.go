@@ -14,7 +14,7 @@ import (
 // Coordenação de tasks (ADR-0040): dependências, árvore, pausa herdada e política de revisão por task/projeto.
 
 func (e *env) coordinationCmds() []*cobra.Command {
-	return []*cobra.Command{e.taskDepCmd(), e.taskParentCmd(), e.taskHoldCmd(), e.taskResumeCmd(), e.taskHeldCmd(), e.taskReviewPolicyCmd()}
+	return []*cobra.Command{e.taskDepCmd(), e.taskParentCmd(), e.taskHoldCmd(), e.taskResumeCmd(), e.taskHeldCmd(), e.taskReviewPolicyCmd(), e.taskGitCmd(), e.taskNewSessionCmd()}
 }
 
 func (e *env) refRows(rs []api.TaskRef) [][]string {

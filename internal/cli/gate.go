@@ -110,6 +110,7 @@ func (e *env) gateCmd() *cobra.Command {
 		},
 	}
 	lf := ls.Flags()
+	lf.BoolVar(&q.Mine, "mine", false, e.t("só os gates da sua audiência: que você pediu ou decidiu, ou de tasks em que participa"))
 	lf.StringVar(&q.Status, "status", "", e.t("pending, approved, rejected, changes_requested, expired ou dismissed"))
 	lf.StringVar(&q.Kind, "kind", "", e.t("approval, task_review, hire, question ou plan"))
 	lf.StringVar(&q.Task, "task", "", e.t("task (id ou chave)"))

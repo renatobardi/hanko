@@ -287,6 +287,7 @@ func (s *server) handleCosts(w http.ResponseWriter, r *http.Request, co domain.C
 	vm.Estimated = fmtUSDCtx(ctx, day.EstimatedUSD)
 	vm.EstNote = i18n.T(ctx, "Estimado, não informado pelo harness")
 	vm.HasSpend = day.TotalUSD > 0
+	vm.Decision = decisionCostVM(ctx, day.Decision, base+"/configuracoes/decisao")
 	if cb.BudgetCents != nil {
 		vm.BudgetKpi = vm.Company.PercentTxt
 		vm.BudgetNote = i18n.Tf(ctx, "Do orçamento de %s", vm.Company.Limit)

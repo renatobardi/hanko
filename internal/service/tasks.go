@@ -163,6 +163,8 @@ func (t *txc) createTask(actor domain.Actor, companyID domain.ID, in CreateTaskI
 		if err := t.checkLinkableGoal(companyID, *in.GoalID); err != nil {
 			return TaskView{}, err
 		}
+	} else if g := t.defaultGoalFor(companyID, in.ProjectID); g != nil {
+		in.GoalID = g // meta padrão do projeto (ADR-0054, #34)
 	}
 
 	num, err := t.q.AllocateTaskNumber(ctx, companyID)
@@ -249,6 +251,13 @@ func (s *Service) ListTasks(ctx context.Context, companyID domain.ID, f TaskFilt
 		q = escapeLike(q)
 		p.Q = &q
 	}
+	if f.Mine {
+		uid, ok := callerUser(ctx)
+		if !ok {
+			return []TaskView{}, nil // "Minhas" é de uma pessoa; sem ela não há o que mostrar
+		}
+		p.MineUser = &uid
+	}
 	rows, err := s.read().ListTaskViews(ctx, p)
 	if err != nil {
 		return nil, fmt.Errorf("list tasks: %w", err)
@@ -261,6 +270,11 @@ func (s *Service) ListTasks(ctx context.Context, companyID domain.ID, f TaskFilt
 	}
 	if err := enrichTasks(ctx, s.read(), companyID, ptrs); err != nil {
 		return nil, err
+	}
+	if p.MineUser != nil && len(out) > 0 {
+		if err := s.fillParticipation(ctx, companyID, *p.MineUser, out); err != nil {
+			return nil, err
+		}
 	}
 	return out, nil
 }
@@ -623,6 +637,10 @@ func (s *Service) WakeTask(ctx context.Context, actor domain.Actor, companyID, t
 		}
 		if !domain.PersonaStatus(p.Status).CanWork() {
 			return domain.Invalid("persona", fmt.Sprintf("persona status %q cannot work", p.Status))
+		}
+		// quem pede o wake à mão precisa saber já que o harness da persona não está pronto (ADR-0055)
+		if rerr := t.readinessGate(p, p.Agent, p.Model); rerr != nil {
+			return rerr
 		}
 		if !domain.TaskStatus(task.Status).Workable() {
 			return domain.Invalid("status", fmt.Sprintf("task status %q is not workable", task.Status))

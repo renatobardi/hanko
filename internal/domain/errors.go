@@ -24,6 +24,10 @@ var ErrSubscriptionGuard = fmt.Errorf("weekly subscription guard: %w", ErrConfli
 // travels in the message.
 var ErrPersonaUnavailable = fmt.Errorf("persona unavailable: %w", ErrConflict)
 
+// ErrPersonaNotReady: the last readiness test of the persona failed (binary, auth or model); no run is opened until a
+// test passes (ADR-0055). The reason travels in the message.
+var ErrPersonaNotReady = fmt.Errorf("persona not ready: %w", ErrConflict)
+
 // ValidationError carries a field-level reason and unwraps to ErrInvalid.
 type ValidationError struct {
 	Field  string

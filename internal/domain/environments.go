@@ -20,15 +20,36 @@ const (
 	EnvLocal EnvironmentDriver = "local"
 	// EnvSSH roda o harness num host remoto pelo binário ssh do sistema, com o workspace sincronizado.
 	EnvSSH EnvironmentDriver = "ssh"
-	// EnvSandbox roda o harness num contêiner descartável por run, com o workspace montado.
+	// EnvSandbox roda o harness num contêiner docker descartável por run, endurecido, com o workspace montado. É o
+	// driver "docker" do plano (#35); o nome estável vem do ADR-0037.
 	EnvSandbox EnvironmentDriver = "sandbox"
+	// EnvCloud roda o harness num sandbox em nuvem criado por run atrás de um provider (ADR-0055).
+	EnvCloud EnvironmentDriver = "cloud"
 )
 
 // Valid informa se d é um driver conhecido.
-func (d EnvironmentDriver) Valid() bool { return d == EnvLocal || d == EnvSSH || d == EnvSandbox }
+func (d EnvironmentDriver) Valid() bool {
+	return d == EnvLocal || d == EnvSSH || d == EnvSandbox || d == EnvCloud
+}
 
 // Remote informa se o driver tira a run deste servidor.
-func (d EnvironmentDriver) Remote() bool { return d == EnvSSH || d == EnvSandbox }
+func (d EnvironmentDriver) Remote() bool { return d == EnvSSH || d == EnvSandbox || d == EnvCloud }
+
+// Providers de sandbox em nuvem.
+const (
+	CloudDaytona = "daytona"
+)
+
+// Tetos e padrões do sandbox em nuvem.
+const (
+	DefaultCloudCPUs      = 2
+	DefaultCloudMemoryGiB = 4
+	DefaultCloudDiskGiB   = 10
+	MaxCloudCPUs          = 32
+	MaxCloudMemoryGiB     = 128
+	MaxCloudDiskGiB       = 500
+	DefaultCloudRoot      = "/home/daytona/hanko"
+)
 
 // EnvironmentStatus é o estado de um ambiente cadastrado.
 type EnvironmentStatus string
@@ -94,10 +115,26 @@ type SandboxConfig struct {
 	PIDsLimit int     `json:"pids_limit"`
 }
 
+// CloudConfig é a configuração de um ambiente cloud: o provider, o snapshot (imagem) e os recursos do sandbox
+// criado por run. A chave de API do provider fica cifrada (pode ser ${secret:NOME}).
+type CloudConfig struct {
+	Provider string `json:"provider"`
+	// Snapshot é o snapshot/imagem do provider; vazio = o padrão dele.
+	Snapshot  string `json:"snapshot,omitempty"`
+	CPUs      int    `json:"cpus"`
+	MemoryGiB int    `json:"memory_gib"`
+	DiskGiB   int    `json:"disk_gib"`
+	// Network: "none" bloqueia a rede do sandbox; "full" libera (o harness precisa dela para alcançar o modelo e o MCP).
+	Network string `json:"network"`
+	// Root é o diretório absoluto no sandbox sob o qual cada run ganha a sua pasta.
+	Root string `json:"remote_workspace_root"`
+}
+
 // EnvironmentConfig é o que um ambiente guarda em config (jsonb), sem segredos.
 type EnvironmentConfig struct {
 	SSH     *SSHConfig     `json:"ssh,omitempty"`
 	Sandbox *SandboxConfig `json:"sandbox,omitempty"`
+	Cloud   *CloudConfig   `json:"cloud,omitempty"`
 	// EnvNames são os nomes das variáveis do ambiente (os valores ficam cifrados).
 	EnvNames []string `json:"env_names,omitempty"`
 }
@@ -111,12 +148,16 @@ type ProbeStep struct {
 
 // ProbeReport é o resultado de um teste de conexão de ambiente.
 type ProbeReport struct {
-	OK         bool              `json:"ok"`
-	Steps      []ProbeStep       `json:"steps"`
-	System     string            `json:"system,omitempty"`
-	Binaries   map[string]string `json:"binaries,omitempty"`
-	Warnings   []string          `json:"warnings,omitempty"`
-	DurationMs int64             `json:"duration_ms"`
+	OK       bool              `json:"ok"`
+	Steps    []ProbeStep       `json:"steps"`
+	System   string            `json:"system,omitempty"`
+	Binaries map[string]string `json:"binaries,omitempty"`
+	// Capabilities são o que o alvo oferece de verdade, medido pelo teste: "sync" (tar), "git", "claude", "codex",
+	// "network" (a rede do alvo está liberada), "isolated" (alvo descartável por run) e "persistent" (o disco
+	// sobrevive entre runs).
+	Capabilities []string `json:"capabilities,omitempty"`
+	Warnings     []string `json:"warnings,omitempty"`
+	DurationMs   int64    `json:"duration_ms"`
 }
 
 // Environment é um ambiente de execução cadastrado. Nunca carrega a chave privada nem valores de variáveis.
@@ -157,6 +198,7 @@ var (
 	sshUserRe  = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_.-]{0,31}$`)
 	sshHostRe  = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9.-]{0,252}$`)
 	imageRe    = regexp.MustCompile(`^[a-z0-9][a-z0-9._/:-]{0,254}(@sha256:[a-f0-9]{64})?$`)
+	snapshotRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._/:@-]{0,254}$`)
 	digestRe   = regexp.MustCompile(`@sha256:[a-f0-9]{64}$`)
 	EnvNameRe  = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]{0,63}$`)
 	unsafeRoot = regexp.MustCompile("[\x00-\x1f\x7f'\"`$\\\\]")
@@ -238,6 +280,49 @@ func ValidPrivateKey(k string) error {
 	return nil
 }
 
+// Normalize aplica os padrões e valida a configuração do sandbox em nuvem.
+func (c *CloudConfig) Normalize() error {
+	c.Provider = strings.ToLower(strings.TrimSpace(c.Provider))
+	c.Snapshot = strings.TrimSpace(c.Snapshot)
+	c.Network = strings.ToLower(strings.TrimSpace(c.Network))
+	c.Root = strings.TrimSpace(c.Root)
+	if c.Provider == "" {
+		c.Provider = CloudDaytona
+	}
+	if c.Network == "" {
+		c.Network = "full"
+	}
+	if c.CPUs == 0 {
+		c.CPUs = DefaultCloudCPUs
+	}
+	if c.MemoryGiB == 0 {
+		c.MemoryGiB = DefaultCloudMemoryGiB
+	}
+	if c.DiskGiB == 0 {
+		c.DiskGiB = DefaultCloudDiskGiB
+	}
+	if c.Root == "" {
+		c.Root = DefaultCloudRoot
+	}
+	switch {
+	case c.Provider != CloudDaytona:
+		return Invalid("provider", "unknown provider (supported: "+CloudDaytona+")")
+	case c.Snapshot != "" && (!snapshotRe.MatchString(c.Snapshot) || strings.Contains(c.Snapshot, "..")):
+		return Invalid("snapshot", "use a snapshot name like my-snapshot or registry/name:tag")
+	case c.Network != "none" && c.Network != "full":
+		return Invalid("network", "must be none or full")
+	case c.CPUs < 1 || c.CPUs > MaxCloudCPUs:
+		return Invalid("cpus", fmt.Sprintf("must be between 1 and %d", MaxCloudCPUs))
+	case c.MemoryGiB < 1 || c.MemoryGiB > MaxCloudMemoryGiB:
+		return Invalid("memory_gib", fmt.Sprintf("must be between 1 and %d", MaxCloudMemoryGiB))
+	case c.DiskGiB < 1 || c.DiskGiB > MaxCloudDiskGiB:
+		return Invalid("disk_gib", fmt.Sprintf("must be between 1 and %d", MaxCloudDiskGiB))
+	case !path.IsAbs(c.Root) || path.Clean(c.Root) != c.Root || c.Root == "/" || len(c.Root) > MaxRemoteRootBytes || unsafeRoot.MatchString(c.Root):
+		return Invalid("remote_workspace_root", "must be a clean absolute path other than / without special characters")
+	}
+	return nil
+}
+
 // Normalize aplica os padrões e valida a configuração do sandbox.
 func (c *SandboxConfig) Normalize() error {
 	c.Image = strings.TrimSpace(c.Image)
@@ -296,4 +381,56 @@ func clipText(s string, n int) string {
 		return s
 	}
 	return s[:n] + "…"
+}
+
+// EnvSource diz de onde veio o ambiente de uma run (ADR-0055): precedência persona > projeto > padrão da empresa >
+// local implícito.
+type EnvSource string
+
+const (
+	EnvFromPersona EnvSource = "persona"
+	EnvFromProject EnvSource = "project"
+	EnvFromDefault EnvSource = "default"
+	EnvFromLocal   EnvSource = "local"
+)
+
+// Valid informa se s é uma origem conhecida.
+func (s EnvSource) Valid() bool {
+	return s == EnvFromPersona || s == EnvFromProject || s == EnvFromDefault || s == EnvFromLocal
+}
+
+// EnvCandidate é um nível da precedência: o ambiente escolhido nele (ID nil = nada escolhido) e se ainda está ativo.
+type EnvCandidate struct {
+	Source EnvSource
+	ID     *ID
+	Active bool
+}
+
+// EnvChoice é o resultado da precedência.
+type EnvChoice struct {
+	// ID é o ambiente cadastrado escolhido; nil = o local implícito.
+	ID     *ID
+	Source EnvSource
+	// Skipped são os níveis que escolheram um ambiente arquivado e foram ignorados (viram aviso no log da run).
+	Skipped []EnvSource
+}
+
+// ChooseEnvironment aplica a precedência persona > projeto > padrão da empresa > local: vale o primeiro nível que
+// escolheu um ambiente ativo; um nível que aponta para um ambiente arquivado é ignorado (com registro) e a decisão
+// cai no nível seguinte. Sem nenhum, o local implícito. Função pura: o service só carrega os candidatos.
+func ChooseEnvironment(persona, project, company EnvCandidate) EnvChoice {
+	var out EnvChoice
+	for _, c := range []EnvCandidate{persona, project, company} {
+		if c.ID == nil {
+			continue
+		}
+		if !c.Active {
+			out.Skipped = append(out.Skipped, c.Source)
+			continue
+		}
+		out.ID, out.Source = c.ID, c.Source
+		return out
+	}
+	out.Source = EnvFromLocal
+	return out
 }

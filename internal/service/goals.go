@@ -31,10 +31,12 @@ const (
 type CreateGoalInput struct {
 	Title, Slug, Description, Metric, Unit string
 	ProjectID                              *domain.ID
-	Start, Target                          float64
-	Current                                *float64
-	DueDate                                *time.Time
-	OwnerPersonaID                         *domain.ID
+	// ParentID põe a meta sob outra (árvore de metas, ADR-0042); nil = raiz.
+	ParentID       *domain.ID
+	Start, Target  float64
+	Current        *float64
+	DueDate        *time.Time
+	OwnerPersonaID *domain.ID
 }
 
 // UpdateGoalInput altera uma meta; campo nil fica como está. Mudar o inicial ou o alvo reavalia o progresso.
@@ -42,11 +44,14 @@ type UpdateGoalInput struct {
 	Title, Description, Metric, Unit *string
 	ProjectID                        *domain.ID
 	ClearProject                     bool
-	Start, Target                    *float64
-	DueDate                          *time.Time
-	ClearDue                         bool
-	OwnerPersonaID                   *domain.ID
-	ClearOwner                       bool
+	// ParentID muda a meta-pai; ClearParent a torna raiz.
+	ParentID       *domain.ID
+	ClearParent    bool
+	Start, Target  *float64
+	DueDate        *time.Time
+	ClearDue       bool
+	OwnerPersonaID *domain.ID
+	ClearOwner     bool
 	// Status aceita active (reabrir) e abandoned; achieved só acontece ao cruzar o alvo.
 	Status *domain.GoalStatus
 }
@@ -64,10 +69,17 @@ type GoalView struct {
 	ProjectName string `json:"project_name,omitempty"`
 	OwnerSlug   string `json:"owner_slug,omitempty"`
 	OwnerName   string `json:"owner_name,omitempty"`
-	// ProgressPercent é o progresso de 0 a 100.
-	ProgressPercent float64                   `json:"progress_percent"`
-	Tasks           map[domain.TaskStatus]int `json:"tasks"`
-	TasksTotal      int                       `json:"tasks_total"`
+	// ProgressPercent é o progresso de 0 a 100 (o agregado das submetas quando Rollup).
+	ProgressPercent float64 `json:"progress_percent"`
+	// Árvore (ADR-0042): ParentSlug e Path (ancestrais, da raiz até o pai), Children, Depth (1 = raiz) e Rollup (o
+	// progresso vem das submetas, então não recebe progresso direto).
+	ParentSlug string                    `json:"parent_slug,omitempty"`
+	Path       []GoalRef                 `json:"path,omitempty"`
+	Children   []GoalRef                 `json:"children,omitempty"`
+	Depth      int                       `json:"depth,omitempty"`
+	Rollup     bool                      `json:"rollup,omitempty"`
+	Tasks      map[domain.TaskStatus]int `json:"tasks"`
+	TasksTotal int                       `json:"tasks_total"`
 	// Updates só vem no detalhe: do mais antigo para o mais novo (o gráfico), os últimos 200.
 	Updates []domain.GoalUpdate `json:"updates,omitempty"`
 }
@@ -80,10 +92,12 @@ type GoalBrief struct {
 	DueDate                   *time.Time
 	// Linked diz que a task da run está ligada a esta meta.
 	Linked bool
+	// Chain são os títulos da cadeia até a raiz, da raiz até esta meta (inclusive); vazio numa meta raiz.
+	Chain []string
 }
 
 func goalFromRow(r store.Goal) domain.Goal {
-	return domain.Goal{ID: r.ID, CompanyID: r.CompanyID, ProjectID: r.ProjectID, Slug: r.Slug, Title: r.Title,
+	return domain.Goal{ID: r.ID, CompanyID: r.CompanyID, ProjectID: r.ProjectID, ParentID: r.ParentID, Slug: r.Slug, Title: r.Title,
 		Description: r.Description, Metric: r.Metric, Unit: r.Unit, StartValue: r.StartValue, TargetValue: r.TargetValue,
 		CurrentValue: r.CurrentValue, DueDate: r.DueDate, Status: domain.GoalStatus(r.Status), OwnerPersonaID: r.OwnerPersonaID,
 		CreatedBy: actorOf(r.CreatedByType, r.CreatedByID), AchievedAt: r.AchievedAt, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt}
@@ -188,16 +202,38 @@ func (s *Service) CreateGoal(ctx context.Context, actor domain.Actor, companyID 
 		if err := t.checkGoalRefs(companyID, in.ProjectID, in.OwnerPersonaID); err != nil {
 			return err
 		}
-		row, err := t.q.CreateGoal(ctx, store.CreateGoalParams{ID: domain.NewID(), CompanyID: companyID, ProjectID: in.ProjectID,
+		id := domain.NewID()
+		if in.ParentID != nil {
+			forest, err := loadGoalForest(ctx, t.q, companyID)
+			if err != nil {
+				return err
+			}
+			if err := forest.checkParent(id, in.ParentID, func(p domain.ID) domain.GoalStatus {
+				if g, err := t.q.GetGoalByID(ctx, store.GetGoalByIDParams{CompanyID: companyID, ID: p}); err == nil {
+					return domain.GoalStatus(g.Status)
+				}
+				return ""
+			}); err != nil {
+				return err
+			}
+		}
+		row, err := t.q.CreateGoal(ctx, store.CreateGoalParams{ID: id, CompanyID: companyID, ProjectID: in.ProjectID, ParentID: in.ParentID,
 			Slug: slug, Title: title, Description: strings.TrimSpace(in.Description), Metric: metric, Unit: unit,
 			StartValue: in.Start, TargetValue: in.Target, CurrentValue: cur, DueDate: due, Status: string(domain.GoalActive),
 			OwnerPersonaID: in.OwnerPersonaID, CreatedByType: string(actor.Type), CreatedByID: actor.ID, Now: t.now})
 		if err != nil {
-			return mapErr(err, "create goal")
+			return mapErr(mapGoalErr(err), "create goal")
 		}
 		out = goalFromRow(row)
-		return t.activity(actor, companyID, "goal.created", "goal", out.ID, map[string]any{
-			"slug": out.Slug, "title": out.Title, "start_value": out.StartValue, "target_value": out.TargetValue, "project_id": out.ProjectID}, "")
+		if err := t.activity(actor, companyID, "goal.created", "goal", out.ID, map[string]any{
+			"slug": out.Slug, "title": out.Title, "start_value": out.StartValue, "target_value": out.TargetValue, "project_id": out.ProjectID,
+			"parent_id": out.ParentID}, ""); err != nil {
+			return err
+		}
+		if out.ParentID != nil { // uma submeta nova reabre o pai que já estava atingido
+			return t.syncGoalChain(actor, companyID, out.ID)
+		}
+		return nil
 	})
 	return out, err
 }
@@ -215,6 +251,9 @@ func (s *Service) UpdateGoal(ctx context.Context, actor domain.Actor, companyID,
 	}
 	if in.OwnerPersonaID != nil && in.ClearOwner {
 		return domain.Goal{}, domain.Invalid("owner", "cannot set and clear the owner at once")
+	}
+	if in.ParentID != nil && in.ClearParent {
+		return domain.Goal{}, domain.Invalid("parent_id", "cannot set and clear the parent at once")
 	}
 	if in.DueDate != nil && in.ClearDue {
 		return domain.Goal{}, domain.Invalid("due_date", "cannot set and clear the due date at once")
@@ -275,6 +314,27 @@ func (s *Service) UpdateGoal(ctx context.Context, actor domain.Actor, companyID,
 		if err := t.checkGoalRefs(companyID, in.ProjectID, in.OwnerPersonaID); err != nil {
 			return err
 		}
+		newParent, parentChanged := cur.ParentID, false
+		switch {
+		case in.ClearParent && cur.ParentID != nil:
+			newParent, parentChanged = nil, true
+			changed["parent_id"] = nil
+		case in.ParentID != nil && !sameID(cur.ParentID, in.ParentID):
+			forest, err := loadGoalForest(ctx, t.q, companyID)
+			if err != nil {
+				return err
+			}
+			if err := forest.checkParent(goalID, in.ParentID, func(p domain.ID) domain.GoalStatus {
+				if g, err := t.q.GetGoalByID(ctx, store.GetGoalByIDParams{CompanyID: companyID, ID: p}); err == nil {
+					return domain.GoalStatus(g.Status)
+				}
+				return ""
+			}); err != nil {
+				return err
+			}
+			newParent, parentChanged = in.ParentID, true
+			changed["parent_id"] = in.ParentID
+		}
 		switch {
 		case in.ClearDue && cur.DueDate != nil:
 			p.DueDate, changed["due_date"] = nil, nil
@@ -316,14 +376,28 @@ func (s *Service) UpdateGoal(ctx context.Context, actor domain.Actor, companyID,
 		if err != nil {
 			return mapErr(err, "update goal")
 		}
+		if parentChanged {
+			if err := t.q.SetGoalParent(ctx, store.SetGoalParentParams{CompanyID: companyID, ID: goalID, ParentID: newParent, Now: t.now}); err != nil {
+				return mapErr(mapGoalErr(err), "set goal parent")
+			}
+			row.ParentID = newParent
+		}
 		out = goalFromRow(row)
 		if err := t.activity(actor, companyID, "goal.updated", "goal", out.ID, changed, ""); err != nil {
 			return err
 		}
 		if achievedNow {
-			return t.activity(actor, companyID, "goal.achieved", "goal", out.ID, map[string]any{"slug": out.Slug, "title": out.Title, "value": out.CurrentValue}, "")
+			if err := t.activity(actor, companyID, "goal.achieved", "goal", out.ID, map[string]any{"slug": out.Slug, "title": out.Title, "value": out.CurrentValue}, ""); err != nil {
+				return err
+			}
 		}
-		return nil
+		// o agregado dos ancestrais depende do status, do alvo e da posição desta meta (e o pai antigo perdeu uma submeta)
+		if cur.ParentID != nil && parentChanged {
+			if err := t.syncGoalChain(actor, companyID, *cur.ParentID); err != nil {
+				return err
+			}
+		}
+		return t.syncGoalChain(actor, companyID, goalID)
 	})
 	return out, err
 }
@@ -349,6 +423,13 @@ func (s *Service) RecordGoalProgress(ctx context.Context, actor domain.Actor, co
 		if domain.GoalStatus(cur.Status) != domain.GoalActive {
 			return domain.Invalid("goal", fmt.Sprintf("goal is %s and takes no progress", cur.Status))
 		}
+		forest, err := loadGoalForest(ctx, t.q, companyID)
+		if err != nil {
+			return err
+		}
+		if forest.tree.HasRollup(goalID) {
+			return domain.Invalid("goal", "a meta tem submetas: o progresso dela é o agregado das submetas; registre nelas")
+		}
 		g := goalFromRow(cur)
 		if _, err := t.q.CreateGoalUpdate(ctx, store.CreateGoalUpdateParams{ID: domain.NewID(), CompanyID: companyID, GoalID: goalID,
 			Value: value, Note: note, AuthorType: string(actor.Type), AuthorID: actor.ID, Now: t.now}); err != nil {
@@ -373,10 +454,12 @@ func (s *Service) RecordGoalProgress(ctx context.Context, actor domain.Actor, co
 			return err
 		}
 		if reached {
-			return t.activity(actor, companyID, "goal.achieved", "goal", goalID,
-				map[string]any{"slug": cur.Slug, "title": cur.Title, "value": value, "target_value": cur.TargetValue}, "")
+			if err := t.activity(actor, companyID, "goal.achieved", "goal", goalID,
+				map[string]any{"slug": cur.Slug, "title": cur.Title, "value": value, "target_value": cur.TargetValue}, ""); err != nil {
+				return err
+			}
 		}
-		return nil
+		return t.syncGoalChain(actor, companyID, goalID)
 	})
 	if err != nil {
 		return GoalView{}, err
@@ -435,6 +518,10 @@ func (s *Service) ListGoalViews(ctx context.Context, companyID domain.ID, f Goal
 	if err != nil {
 		return nil, err
 	}
+	forest, err := loadGoalForest(ctx, q, companyID)
+	if err != nil {
+		return nil, err
+	}
 	counts, err := q.GoalTaskCountsAll(ctx, companyID)
 	if err != nil {
 		return nil, fmt.Errorf("goal task counts: %w", err)
@@ -453,7 +540,7 @@ func (s *Service) ListGoalViews(ctx context.Context, companyID domain.ID, f Goal
 	}
 	out := make([]GoalView, len(rows))
 	for i, r := range rows {
-		out[i] = names.apply(newGoalView(goalFromRow(r), byGoal[r.ID]))
+		out[i] = forest.apply(names.apply(newGoalView(goalFromRow(r), byGoal[r.ID])))
 	}
 	return out, nil
 }
@@ -516,7 +603,11 @@ func (s *Service) GetGoalView(ctx context.Context, companyID domain.ID, ref stri
 	if err != nil {
 		return GoalView{}, err
 	}
-	v := names.apply(newGoalView(g, m))
+	forest, err := loadGoalForest(ctx, q, companyID)
+	if err != nil {
+		return GoalView{}, err
+	}
+	v := forest.apply(names.apply(newGoalView(g, m)))
 	ups, err := q.ListGoalUpdates(ctx, store.ListGoalUpdatesParams{CompanyID: companyID, GoalID: g.ID, Lim: maxGoalHistory})
 	if err != nil {
 		return GoalView{}, fmt.Errorf("list goal updates: %w", err)
@@ -556,14 +647,28 @@ func goalBriefs(ctx context.Context, q *store.Queries, companyID domain.ID, task
 	if err != nil {
 		return nil, fmt.Errorf("list goals for briefing: %w", err)
 	}
+	forest, err := loadGoalForest(ctx, q, companyID)
+	if err != nil {
+		return nil, err
+	}
 	var out []GoalBrief
 	for _, r := range rows {
 		if len(out) == maxGoalBriefing {
 			break
 		}
 		g := goalFromRow(r)
-		out = append(out, GoalBrief{Slug: g.Slug, Title: g.Title, Metric: g.Metric, Unit: g.Unit, Start: g.StartValue, Target: g.TargetValue,
-			Current: g.CurrentValue, Progress: g.Progress() * 100, DueDate: g.DueDate, Linked: task.GoalID != nil && *task.GoalID == g.ID})
+		b := GoalBrief{Slug: g.Slug, Title: g.Title, Metric: g.Metric, Unit: g.Unit, Start: g.StartValue, Target: g.TargetValue,
+			Current: g.CurrentValue, Progress: g.Progress() * 100, DueDate: g.DueDate, Linked: task.GoalID != nil && *task.GoalID == g.ID}
+		if forest.tree.HasRollup(g.ID) {
+			b.Progress = forest.tree.Progress(g.ID) * 100
+		}
+		if anc := forest.ancestors(g.ID); len(anc) > 0 { // cadeia da raiz até a meta (ADR-0042)
+			for _, a := range anc {
+				b.Chain = append(b.Chain, a.Title)
+			}
+			b.Chain = append(b.Chain, g.Title)
+		}
+		out = append(out, b)
 	}
 	return out, nil
 }

@@ -112,6 +112,20 @@ func (s *session) emit(kind domain.RunEventKind, text string, payload any) {
 	}
 }
 
+// announceSession logs the session id and hands it to the service right away (adapter.Event.SessionRef), so a run
+// killed mid-way can still be resumed with session/load.
+func (s *session) announceSession(id string) {
+	s.emitMu.Lock()
+	defer s.emitMu.Unlock()
+	if s.sinkErr != nil {
+		return
+	}
+	if err := s.sink.Emit(s.runCtx, adapter.Event{Kind: domain.EventSystem, Text: "sessão ACP " + id, SessionRef: id, OccurredAt: time.Now().UTC()}); err != nil {
+		s.sinkErr = err
+		s.log.Warn("acp: sink falhou", "err", err)
+	}
+}
+
 func (s *session) sinkError() error {
 	s.emitMu.Lock()
 	defer s.emitMu.Unlock()
@@ -130,9 +144,9 @@ func (s *session) setReplaying(v bool) {
 	s.mu.Unlock()
 }
 
-func (s *session) setCancelling() {
+func (s *session) setCancelling(v bool) {
 	s.mu.Lock()
-	s.cancelling = true
+	s.cancelling = v
 	s.mu.Unlock()
 }
 

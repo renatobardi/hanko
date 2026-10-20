@@ -49,9 +49,12 @@ type Company struct {
 	TaskPrefix string `json:"task_prefix" example:"HNK" doc:"Prefixo das chaves de task (HNK-12)."`
 	Timezone   string `json:"timezone" example:"America/Sao_Paulo" doc:"Fuso IANA."`
 	// BudgetMonthlyCents é o teto mensal de gasto em centavos de dólar; ausente = sem teto.
-	BudgetMonthlyCents *int64    `json:"budget_monthly_cents,omitempty" doc:"Orçamento mensal da empresa em centavos de dólar."`
-	CreatedAt          time.Time `json:"created_at"`
-	UpdatedAt          time.Time `json:"updated_at"`
+	BudgetMonthlyCents *int64 `json:"budget_monthly_cents,omitempty" doc:"Orçamento mensal da empresa em centavos de dólar."`
+	Description        string `json:"description,omitempty" doc:"Texto livre sobre a empresa."`
+	// ArchivedAt marca a empresa arquivada: somente leitura até ser restaurada (ADR-0057).
+	ArchivedAt *time.Time `json:"archived_at,omitempty" doc:"Presente quando a empresa está arquivada (somente leitura)."`
+	CreatedAt  time.Time  `json:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at"`
 }
 
 // Workspace é um diretório/repositório onde personas trabalham.
@@ -61,7 +64,7 @@ type Workspace struct {
 	Slug      string `json:"slug" example:"api"`
 	Name      string `json:"name" example:"API"`
 	Path      string `json:"path" example:"/srv/work/api" doc:"Diretório de trabalho."`
-	RepoURL   string `json:"repo_url,omitempty" example:"https://example.com/acme/api.git" doc:"Metadado: https://, ssh:// ou formato scp (usuario@host:dono/repo). O Hanko não clona."`
+	RepoURL   string `json:"repo_url,omitempty" example:"https://example.com/acme/api.git" doc:"https://, ssh:// ou formato scp (usuario@host:dono/repo). Metadado, a menos que o Git do workspace esteja ligado (ADR-0054): então o servidor clona este endereço."`
 	// DefaultBranch é metadado (o Hanko não troca de branch).
 	DefaultBranch string `json:"default_branch,omitempty" example:"main"`
 	// Uso do workspace: vem na lista e no detalhe. Tasks abertas contam as que escolheram o workspace de propósito.
@@ -94,7 +97,9 @@ type Project struct {
 	Name        string `json:"name" example:"Lançamento"`
 	Description string `json:"description,omitempty"`
 	WorkspaceID string `json:"workspace_id,omitempty" format:"uuid"`
-	Status      string `json:"status" enum:"active,archived" doc:"Projeto arquivado não recebe tasks novas."`
+	// EnvironmentID é o ambiente de execução do projeto (ADR-0055); ausente = o padrão da empresa ou o local.
+	EnvironmentID string `json:"environment_id,omitempty" format:"uuid"`
+	Status        string `json:"status" enum:"active,archived" doc:"Projeto arquivado não recebe tasks novas."`
 	// BudgetMonthlyCents é o teto mensal do projeto em centavos de dólar; ausente = sem teto. Estourado, nenhuma
 	// execução de task do projeto abre até o teto subir ou o mês virar.
 	BudgetMonthlyCents *int64        `json:"budget_monthly_cents,omitempty"`
@@ -133,7 +138,7 @@ type Persona struct {
 	Icon                 string         `json:"icon" example:"code" doc:"Glifo da persona (catálogo fechado)."`
 	Instructions         string         `json:"instructions" doc:"Instruções permanentes da persona."`
 	InstructionRevision  int            `json:"instruction_revision" doc:"Revisão vigente das instruções (histórico em /instructions/revisions, ADR-0052)."`
-	Agent                string         `json:"agent" enum:"claude,codex,acp,fake" doc:"Harness que executa a persona."`
+	Agent                string         `json:"agent" enum:"claude,codex,acp,devin,pi,cursor,http,fake" doc:"Harness que executa a persona."`
 	Model                string         `json:"model,omitempty" example:"claude-sonnet-4-5"`
 	AdapterConfig        map[string]any `json:"adapter_config,omitempty" doc:"Configuração específica do adapter. Valores de env e segredos voltam mascarados (***); os nomes ficam."`
 	Status               string         `json:"status" enum:"active,idle,running,paused,error,awaiting_gate,off"`
@@ -183,6 +188,7 @@ type Task struct {
 	Blocked           bool      `json:"blocked" doc:"Derivado: tem ao menos uma dependência aberta. Nenhuma execução abre enquanto durar."`
 	ChildrenTotal     int       `json:"children_total"`
 	ChildrenOpen      int       `json:"children_open"`
+	Participation     []string  `json:"participation,omitempty" doc:"Só com mine=true: por que a task é da pessoa (created, assigned, mentioned, commented, gate)."`
 	Hold              *TaskHold `json:"hold,omitempty" doc:"Pausa efetiva: a da própria task ou herdada do ancestral mais próximo. Nenhuma execução abre enquanto durar."`
 }
 
@@ -304,7 +310,7 @@ type Run struct {
 	PersonaName       string   `json:"persona_name,omitempty"`
 	Status            string   `json:"status" enum:"queued,running,done,interrupted,failed,cancelled,expired"`
 	Trigger           string   `json:"trigger" enum:"assign,comment,manual,heartbeat,gate,flow,review,memory,chat"`
-	Agent             string   `json:"agent" enum:"claude,codex,acp,fake"`
+	Agent             string   `json:"agent" enum:"claude,codex,acp,devin,pi,cursor,http,fake"`
 	Model             string   `json:"model,omitempty"`
 	SessionRef        string   `json:"session_ref,omitempty"`
 	TraceID           string   `json:"trace_id,omitempty"`
@@ -316,15 +322,48 @@ type Run struct {
 	ListCostUSD       *float64 `json:"list_cost_usd,omitempty" doc:"Custo de lista: tokens × preço de tabela vigente quando a execução terminou."`
 	ModelSource       string   `json:"model_source,omitempty" enum:"task,persona,harness_default" doc:"Quem escolheu o modelo: a task (manual), a persona ou o padrão do harness."`
 	SubscriptionID    string   `json:"subscription_id,omitempty" format:"uuid" doc:"Assinatura que cobre a execução."`
-	Usage             Usage    `json:"usage"`
+	// EnvironmentID e EnvironmentSource: onde a execução roda e por quê (persona > projeto > padrão da empresa > local, ADR-0055); ausentes em execuções anteriores.
+	EnvironmentID     string `json:"environment_id,omitempty" format:"uuid"`
+	EnvironmentSource string `json:"environment_source,omitempty" enum:"persona,project,default,local"`
+	Usage             Usage  `json:"usage"`
 	// InstructionRevision/InstructionSHA256: com que revisão das instruções da persona a execução rodou (ADR-0052).
 	InstructionRevision *int       `json:"instruction_revision,omitempty"`
 	InstructionSHA256   string     `json:"instruction_sha256,omitempty" doc:"sha256 (hex) do texto das instruções com que a execução rodou."`
 	CreatedAt           time.Time  `json:"created_at"`
 	StartedAt           *time.Time `json:"started_at,omitempty"`
 	FinishedAt          *time.Time `json:"finished_at,omitempty"`
+	// Resiliência (ADR-0039)
+	SteerMode           string        `json:"steer_mode,omitempty" enum:"none,inject,restart" doc:"Como o harness da execução aceita uma mensagem durante a execução: inject (entra na execução viva) ou restart (interrompe e continua)."`
+	ContinuationOfRunID string        `json:"continuation_of_run_id,omitempty" format:"uuid" doc:"Execução que esta continua (queda do processo, steer, Tentar de novo ou Continuar)."`
+	ContinuationAttempt int           `json:"continuation_attempt,omitempty" doc:"Quantas continuações automáticas a cadeia já usou (0 = a original; o máximo é 2)."`
+	ContinuationReason  string        `json:"continuation_reason,omitempty" enum:"recovery,steer,retry,continue"`
+	ContinuedByRunID    string        `json:"continued_by_run_id,omitempty" format:"uuid" doc:"Execução que continuou esta (só no GET de uma execução)."`
+	Diagnosis           *RunDiagnosis `json:"diagnosis,omitempty" doc:"Card de diagnóstico de uma execução que parou: causa, tentativa, próxima ação e dono."`
+	DecisionPending     bool          `json:"decision_pending,omitempty" doc:"A execução parou e espera Tentar de novo, Continuar ou Encerrar."`
+	Decision            string        `json:"decision,omitempty" enum:"retry,continue,close" doc:"O que o operador decidiu."`
+	DecisionNote        string        `json:"decision_note,omitempty"`
+	DecidedAt           *time.Time    `json:"decided_at,omitempty"`
 	// PolicyOrigin: de que camada veio a política de revisão desta execução (só no detalhe).
 	PolicyOrigin *RunPolicyOrigin `json:"policy_origin,omitempty"`
+}
+
+// RunDiagnosis é o card de diagnóstico de uma execução que parou.
+type RunDiagnosis struct {
+	Cause       string         `json:"cause" enum:"process_restart,server_shutdown,agent_error,timeout,cancelled"`
+	CauseDetail string         `json:"cause_detail,omitempty"`
+	Attempt     int            `json:"attempt" doc:"Continuação em que a execução parou (0 = original)."`
+	MaxAttempts int            `json:"max_attempts" doc:"Máximo de continuações automáticas."`
+	NextAction  string         `json:"next_action" enum:"auto_continue,human_decision,none,continued"`
+	Owner       string         `json:"owner" enum:"system,human" doc:"Quem tem a próxima ação."`
+	Exhausted   bool           `json:"exhausted,omitempty" doc:"As continuações automáticas acabaram."`
+	Uncertain   *UncertainTool `json:"uncertain,omitempty" doc:"Desfecho incerto: tool de efeito externo em andamento quando a execução parou."`
+}
+
+// UncertainTool é a tool de efeito externo que estava em andamento quando a execução parou.
+type UncertainTool struct {
+	Name  string `json:"name"`
+	Input string `json:"input,omitempty"`
+	Seq   int64  `json:"seq" doc:"Seq do evento tool_use no log."`
 }
 
 // RunEvent é uma linha do log de uma execução.
@@ -405,6 +444,7 @@ type CostSummary struct {
 	PaidUSD       float64            `json:"paid_usd" doc:"Mensalidades rateadas nas execuções, até hoje."`
 	IdleUSD       float64            `json:"idle_usd" doc:"Mensalidades de dias sem uso. paid_usd + idle_usd fecha com a mensalidade num mês completo."`
 	Subscriptions []SubscriptionCost `json:"subscriptions" doc:"Custo pago por assinatura no período."`
+	Decision      DecisionCost       `json:"decision" doc:"Invocações do decision model (ator system); somadas ao gasto mensal da empresa, fora das linhas de execuções."`
 	Runs          int                `json:"runs"`
 	InputTokens   int64              `json:"input_tokens"`
 	OutputTokens  int64              `json:"output_tokens"`
@@ -478,7 +518,8 @@ func actorRef(a domain.Actor) ActorRef {
 
 func companyOut(c domain.Company) Company {
 	return Company{ID: idStr(c.ID), Slug: c.Slug, Name: c.Name, TaskPrefix: c.TaskPrefix,
-		Timezone: c.Timezone, BudgetMonthlyCents: c.BudgetMonthlyCents, CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt}
+		Timezone: c.Timezone, BudgetMonthlyCents: c.BudgetMonthlyCents, Description: c.Description, ArchivedAt: c.ArchivedAt,
+		CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt}
 }
 
 func workspaceOut(w domain.Workspace) Workspace {
@@ -503,7 +544,7 @@ func workspaceViewOut(v service.WorkspaceView) Workspace {
 
 func projectOut(p domain.Project) Project {
 	return Project{ID: idStr(p.ID), CompanyID: idStr(p.CompanyID), Slug: p.Slug, Name: p.Name,
-		Description: p.Description, WorkspaceID: idPtr(p.WorkspaceID), Status: string(p.Status),
+		Description: p.Description, WorkspaceID: idPtr(p.WorkspaceID), EnvironmentID: idPtr(p.EnvironmentID), Status: string(p.Status),
 		BudgetMonthlyCents: p.BudgetMonthlyCents, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt}
 }
 
@@ -541,7 +582,7 @@ func taskOut(t service.TaskView) Task {
 		WorkspaceID: idPtr(t.WorkspaceID), GoalID: idPtr(t.GoalID), ParentID: idPtr(t.ParentID), Model: t.Model, ActiveRunID: idPtr(t.ActiveRunID),
 		CreatedBy: actorRef(t.CreatedBy), CreatedAt: t.CreatedAt, UpdatedAt: t.UpdatedAt, ClosedAt: t.ClosedAt,
 		OpenDependencies: t.OpenDependencies, DependenciesTotal: t.DependenciesTotal, Blocked: t.Blocked,
-		ChildrenTotal: t.ChildrenTotal, ChildrenOpen: t.ChildrenOpen, Hold: holdOut(t.Hold)}
+		ChildrenTotal: t.ChildrenTotal, ChildrenOpen: t.ChildrenOpen, Hold: holdOut(t.Hold), Participation: t.Participation}
 }
 
 func holdOut(h *domain.TaskHold) *TaskHold {
@@ -621,9 +662,25 @@ func runOut(r service.RunView) Run {
 	return Run{ID: idStr(r.ID), Name: r.Name, CompanyID: idStr(r.CompanyID), TaskID: taskID, TaskKey: r.TaskKey,
 		ConversationID: idPtr(r.ConversationID), ConversationTitle: r.ConversationTitle, TaskTitle: r.TaskTitle, PersonaID: idStr(r.PersonaID), PersonaName: r.PersonaName, Status: string(r.Status),
 		CostSource: string(r.CostSource), ListCostUSD: r.ListCostUSD, ModelSource: string(r.ModelSource), SubscriptionID: idPtr(r.SubscriptionID),
+		EnvironmentID: idPtr(r.EnvironmentID), EnvironmentSource: string(r.EnvironmentSource),
 		Trigger: string(r.Trigger), Agent: r.Agent, Model: r.Model, SessionRef: r.SessionRef, TraceID: r.TraceID,
 		ExitCode: r.ExitCode, Error: r.Error, Summary: r.Summary, CostUSD: r.CostUSD, Usage: Usage(r.Usage),
-		InstructionRevision: r.InstructionRevision, InstructionSHA256: r.InstructionSHA256, CreatedAt: r.CreatedAt, StartedAt: r.StartedAt, FinishedAt: r.FinishedAt, PolicyOrigin: policyOriginOut(r.PolicyOrigin)}
+		InstructionRevision: r.InstructionRevision, InstructionSHA256: r.InstructionSHA256, CreatedAt: r.CreatedAt, StartedAt: r.StartedAt, FinishedAt: r.FinishedAt,
+		SteerMode: string(r.SteerMode), ContinuationOfRunID: idPtr(r.ContinuationOfRunID), ContinuationAttempt: r.ContinuationAttempt,
+		ContinuationReason: string(r.ContinuationReason), ContinuedByRunID: idPtr(r.ContinuedByRunID), Diagnosis: diagnosisOut(r.Diagnosis),
+		DecisionPending: r.DecisionPending, Decision: string(r.Decision), DecisionNote: r.DecisionNote, DecidedAt: r.DecidedAt, PolicyOrigin: policyOriginOut(r.PolicyOrigin)}
+}
+
+func diagnosisOut(d *domain.RunDiagnosis) *RunDiagnosis {
+	if d == nil {
+		return nil
+	}
+	out := &RunDiagnosis{Cause: string(d.Cause), CauseDetail: d.CauseDetail, Attempt: d.Attempt, MaxAttempts: d.MaxAttempts,
+		NextAction: string(d.NextAction), Owner: string(d.Owner), Exhausted: d.Exhausted}
+	if d.Uncertain != nil {
+		out.Uncertain = &UncertainTool{Name: d.Uncertain.Name, Input: d.Uncertain.Input, Seq: d.Uncertain.Seq}
+	}
+	return out
 }
 
 func policyOriginOut(o *domain.RunPolicyOrigin) *RunPolicyOrigin {
@@ -666,7 +723,7 @@ func costSummaryOut(c service.CostSummary, b service.BudgetStatus) CostSummary {
 	}
 	return CostSummary{From: c.From, To: c.To, Timezone: c.Timezone, GroupBy: c.GroupBy, TotalUSD: c.TotalUSD,
 		ReportedUSD: c.ReportedUSD, EstimatedUSD: c.EstimatedUSD, ListUSD: c.ListUSD, PaidUSD: c.PaidUSD, IdleUSD: c.IdleUSD,
-		Subscriptions: subs, Runs: c.Runs, InputTokens: c.InputTokens,
+		Subscriptions: subs, Decision: decisionCostOut(c.Decision), Runs: c.Runs, InputTokens: c.InputTokens,
 		OutputTokens: c.OutputTokens, CacheTokens: c.CacheTokens, Rows: rows, Budget: budgetOut(b)}
 }
 
@@ -720,7 +777,7 @@ type Subscription struct {
 	ID             string    `json:"id" format:"uuid"`
 	CompanyID      string    `json:"company_id" format:"uuid"`
 	Name           string    `json:"name" example:"Claude Max"`
-	Agent          string    `json:"agent" enum:"claude,codex,acp,fake"`
+	Agent          string    `json:"agent" enum:"claude,codex,acp,devin,pi,cursor,http,fake"`
 	MonthlyUSD     float64   `json:"monthly_usd"`
 	ModelPrefixes  []string  `json:"model_prefixes" doc:"Prefixos de modelo cobertos; vazio = todos os do harness."`
 	WeeklyLimitUSD *float64  `json:"weekly_limit_usd,omitempty" doc:"Teto semanal de uso estimado em dólares."`

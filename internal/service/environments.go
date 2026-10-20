@@ -27,11 +27,15 @@ var reservedEnvironmentSlugs = []string{"local", "probe", "default", "padrao", "
 
 // environmentSecrets é o conteúdo cifrado de um ambiente.
 type environmentSecrets struct {
-	PrivateKey string            `json:"private_key,omitempty"`
-	Env        map[string]string `json:"env,omitempty"`
+	PrivateKey string `json:"private_key,omitempty"`
+	// APIKey é a chave de API do provider de um ambiente cloud (pode ser ${secret:NOME}).
+	APIKey string            `json:"api_key,omitempty"`
+	Env    map[string]string `json:"env,omitempty"`
 }
 
-func (v environmentSecrets) empty() bool { return v.PrivateKey == "" && len(v.Env) == 0 }
+func (v environmentSecrets) empty() bool {
+	return v.PrivateKey == "" && v.APIKey == "" && len(v.Env) == 0
+}
 
 // EnvironmentView é um ambiente com o que as telas mostram.
 type EnvironmentView struct {
@@ -43,6 +47,8 @@ type EnvironmentView struct {
 	Warnings []string
 	// Personas são as personas que escolheram este ambiente.
 	Personas []PersonaRef
+	// Projects são os projetos que escolheram este ambiente (ADR-0055).
+	Projects []PersonaRef
 	// ActiveLeases é quantas runs estão usando o ambiente agora.
 	ActiveLeases int
 }
@@ -72,7 +78,10 @@ type CreateEnvironmentInput struct {
 	SSH                     *domain.SSHConfig
 	PrivateKey              string
 	Sandbox                 *domain.SandboxConfig
-	Env                     map[string]string
+	// Cloud e APIKey: o sandbox em nuvem e a chave de API do provider (ADR-0055).
+	Cloud  *domain.CloudConfig
+	APIKey string
+	Env    map[string]string
 }
 
 // UpdateEnvironmentInput muda um ambiente; nil fica como está. O driver é fixo.
@@ -81,18 +90,20 @@ type UpdateEnvironmentInput struct {
 	SSH               *domain.SSHConfig // substitui a configuração SSH inteira (a chave fica, salvo PrivateKey)
 	PrivateKey        *string
 	Sandbox           *domain.SandboxConfig
+	Cloud             *domain.CloudConfig
+	APIKey            *string
 	SetEnv            map[string]string
 	DropEnv           []string
 	// Reactivate tira o ambiente do arquivo.
 	Reactivate bool
 }
 
-// RunEnvironment é onde uma run vai rodar, já resolvido (persona → padrão da empresa → local) e com os
+// RunEnvironment é onde uma run vai rodar, já resolvido (persona → projeto → padrão da empresa → local) e com os
 // segredos abertos. Só o executor o usa.
 type RunEnvironment struct {
-	// Environment é nil para o local.
+	// Environment é nil para o local implícito.
 	Environment *domain.Environment
-	// Source: "persona", "default" ou "local".
+	// Source: "persona", "project", "default" ou "local".
 	Source string
 	Target execenv.Target
 	Config execenv.Config
@@ -130,8 +141,14 @@ func (s *Service) checkDriverAllowed(d domain.EnvironmentDriver, ssh *domain.SSH
 		if !strings.EqualFold(strings.TrimSpace(s.Environments.Sandbox), execenv.SandboxDocker) {
 			return domain.Invalid("driver", execenv.ErrSandboxOff.Error())
 		}
+	case domain.EnvCloud:
+		if err := s.Environments.CloudStatus(); err != nil {
+			return domain.Invalid("driver", err.Error())
+		}
+	case domain.EnvLocal:
+		// o local sempre pode ser cadastrado: é só um nome e variáveis para o harness local
 	default:
-		return domain.Invalid("driver", "must be ssh or sandbox (local is implicit)")
+		return domain.Invalid("driver", "must be local, ssh, sandbox or cloud")
 	}
 	return nil
 }
@@ -176,7 +193,7 @@ func environmentFromRow(r store.Environment) domain.Environment {
 		Driver: domain.EnvironmentDriver(r.Driver), Status: domain.EnvironmentStatus(r.Status), Config: cfg, IsDefault: r.IsDefault,
 		LastProbeAt: r.LastProbeAt, CreatedBy: actorOf(r.CreatedByType, r.CreatedByID), CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt}
 	// o segredo de um ambiente SSH é a chave (as variáveis são opcionais): key_set diz se há chave
-	e.KeySet = r.SecretEnc != "" && e.Driver == domain.EnvSSH
+	e.KeySet = r.SecretEnc != "" && (e.Driver == domain.EnvSSH || e.Driver == domain.EnvCloud)
 	if r.LastProbeOk.Valid {
 		ok := r.LastProbeOk.Bool
 		e.LastProbeOK = &ok
@@ -204,10 +221,14 @@ func (s *Service) environmentView(e domain.Environment) EnvironmentView {
 		}
 	}
 	if e.Driver.Remote() {
-		offline := e.Driver == domain.EnvSandbox && e.Config.Sandbox != nil && e.Config.Sandbox.Network == domain.SandboxNetworkNone
+		offline := e.Driver == domain.EnvSandbox && e.Config.Sandbox != nil && e.Config.Sandbox.Network == domain.SandboxNetworkNone ||
+			e.Driver == domain.EnvCloud && e.Config.Cloud != nil && e.Config.Cloud.Network == "none"
 		if err := s.Environments.RemoteURLStatus(); err != nil && !offline {
 			v.Warnings = append(v.Warnings, err.Error())
 		}
+	}
+	if e.Driver == domain.EnvCloud && e.Config.Cloud != nil && e.Config.Cloud.Network == "none" {
+		v.Warnings = append(v.Warnings, "rede none: o harness não alcança o MCP do Hanko nem a API do modelo; use full para harnesses que precisam de rede")
 	}
 	if e.Driver == domain.EnvSandbox && e.Config.Sandbox != nil {
 		if !e.Config.Sandbox.Pinned() {
@@ -221,13 +242,36 @@ func (s *Service) environmentView(e domain.Environment) EnvironmentView {
 }
 
 // buildEnvironmentConfig valida a parte do driver e devolve a configuração e o segredo.
-func buildEnvironmentConfig(d domain.EnvironmentDriver, ssh *domain.SSHConfig, key string, sb *domain.SandboxConfig, env map[string]string) (domain.EnvironmentConfig, environmentSecrets, error) {
+func buildEnvironmentConfig(d domain.EnvironmentDriver, ssh *domain.SSHConfig, key string, sb *domain.SandboxConfig, cl *domain.CloudConfig, apiKey string, env map[string]string) (domain.EnvironmentConfig, environmentSecrets, error) {
 	var cfg domain.EnvironmentConfig
 	var sec environmentSecrets
 	if err := domain.ValidateEnvironmentEnv(env); err != nil {
 		return cfg, sec, err
 	}
+	if d != domain.EnvCloud && (cl != nil || apiKey != "") {
+		return cfg, sec, domain.Invalid("cloud", "only applies to the cloud driver")
+	}
 	switch d {
+	case domain.EnvLocal:
+		if ssh != nil || sb != nil || key != "" {
+			return cfg, sec, domain.Invalid("driver", "the local driver takes no ssh or sandbox configuration")
+		}
+	case domain.EnvCloud:
+		if cl == nil {
+			return cfg, sec, domain.Invalid("cloud", "required for the cloud driver")
+		}
+		if ssh != nil || sb != nil || key != "" {
+			return cfg, sec, domain.Invalid("driver", "the cloud driver takes no ssh or sandbox configuration")
+		}
+		c := *cl
+		if err := c.Normalize(); err != nil {
+			return cfg, sec, err
+		}
+		apiKey = strings.TrimSpace(apiKey)
+		if apiKey == "" || len(apiKey) > 512 || strings.ContainsAny(apiKey, " \t\r\n\x00") {
+			return cfg, sec, domain.Invalid("api_key", "required (a provider API key or ${secret:NAME}), without spaces")
+		}
+		cfg.Cloud, sec.APIKey = &c, apiKey
 	case domain.EnvSSH:
 		if ssh == nil {
 			return cfg, sec, domain.Invalid("ssh", "required for the ssh driver")
@@ -287,11 +331,11 @@ func (s *Service) CreateEnvironment(ctx context.Context, actor domain.Actor, com
 	if err := s.checkDriverAllowed(in.Driver, in.SSH); err != nil {
 		return EnvironmentView{}, err
 	}
-	cfg, sec, err := buildEnvironmentConfig(in.Driver, in.SSH, in.PrivateKey, in.Sandbox, in.Env)
+	cfg, sec, err := buildEnvironmentConfig(in.Driver, in.SSH, in.PrivateKey, in.Sandbox, in.Cloud, in.APIKey, in.Env)
 	if err != nil {
 		return EnvironmentView{}, err
 	}
-	if err := s.checkEnvRefs(ctx, companyID, sec.Env); err != nil {
+	if err := s.checkEnvRefs(ctx, companyID, sec.refTexts()); err != nil {
 		return EnvironmentView{}, err
 	}
 	id := domain.NewID()
@@ -350,6 +394,14 @@ func (s *Service) UpdateEnvironment(ctx context.Context, actor domain.Actor, com
 		if in.Sandbox != nil {
 			sb = in.Sandbox
 		}
+		cl := e.Config.Cloud
+		if in.Cloud != nil {
+			cl = in.Cloud
+		}
+		apiKey := sec.APIKey
+		if in.APIKey != nil && strings.TrimSpace(*in.APIKey) != "" {
+			apiKey = *in.APIKey
+		}
 		key := sec.PrivateKey
 		if in.PrivateKey != nil && strings.TrimSpace(*in.PrivateKey) != "" {
 			key = *in.PrivateKey
@@ -364,16 +416,16 @@ func (s *Service) UpdateEnvironment(ctx context.Context, actor domain.Actor, com
 		for _, k := range in.DropEnv {
 			delete(env, k)
 		}
-		if in.SSH != nil || in.Sandbox != nil || in.Reactivate {
+		if in.SSH != nil || in.Sandbox != nil || in.Cloud != nil || in.Reactivate {
 			if err := s.checkDriverAllowed(e.Driver, ssh); err != nil {
 				return err
 			}
 		}
-		cfg, nsec, err := buildEnvironmentConfig(e.Driver, ssh, key, sb, env)
+		cfg, nsec, err := buildEnvironmentConfig(e.Driver, ssh, key, sb, cl, apiKey, env)
 		if err != nil {
 			return err
 		}
-		if err := s.checkEnvRefs(ctx, companyID, nsec.Env); err != nil {
+		if err := s.checkEnvRefs(ctx, companyID, nsec.refTexts()); err != nil {
 			return err
 		}
 		enc, err := s.sealEnvironment(cur.ID, nsec)
@@ -393,6 +445,9 @@ func (s *Service) UpdateEnvironment(ctx context.Context, actor domain.Actor, com
 		if err != nil {
 			return mapErr(err, "update environment")
 		}
+		if err := t.q.DeletePersonaReadinessByEnvironment(ctx, store.DeletePersonaReadinessByEnvironmentParams{CompanyID: companyID, EnvironmentID: &id}); err != nil {
+			return fmt.Errorf("invalidate readiness: %w", err)
+		}
 		out = s.environmentView(environmentFromRow(row))
 		changed := []string{}
 		if in.Name != nil {
@@ -401,11 +456,14 @@ func (s *Service) UpdateEnvironment(ctx context.Context, actor domain.Actor, com
 		if in.Description != nil {
 			changed = append(changed, "description")
 		}
-		if in.SSH != nil || in.Sandbox != nil {
+		if in.SSH != nil || in.Sandbox != nil || in.Cloud != nil {
 			changed = append(changed, "config")
 		}
 		if in.PrivateKey != nil {
 			changed = append(changed, "private_key")
+		}
+		if in.APIKey != nil {
+			changed = append(changed, "api_key")
 		}
 		if len(in.SetEnv) > 0 || len(in.DropEnv) > 0 {
 			changed = append(changed, "env")
@@ -448,13 +506,20 @@ func (s *Service) ArchiveEnvironment(ctx context.Context, actor domain.Actor, co
 		if err != nil {
 			return fmt.Errorf("move personas: %w", err)
 		}
+		if err := t.q.DeletePersonaReadinessByEnvironment(ctx, store.DeletePersonaReadinessByEnvironmentParams{CompanyID: companyID, EnvironmentID: &from}); err != nil {
+			return fmt.Errorf("invalidate readiness: %w", err)
+		}
+		movedProjects, err := t.q.MoveProjectsEnvironment(ctx, store.MoveProjectsEnvironmentParams{ToID: moveTo, Now: t.now, CompanyID: companyID, FromID: &from})
+		if err != nil {
+			return fmt.Errorf("move projects: %w", err)
+		}
 		row, err := t.q.UpdateEnvironment(ctx, store.UpdateEnvironmentParams{CompanyID: companyID, ID: id, Name: cur.Name, Description: cur.Description,
 			Config: cur.Config, SecretEnc: cur.SecretEnc, Status: string(domain.EnvArchived), Now: t.now})
 		if err != nil {
 			return mapErr(err, "archive environment")
 		}
 		out = s.environmentView(environmentFromRow(row))
-		data := map[string]any{"slug": cur.Slug, "personas_moved": moved, "was_default": cur.IsDefault}
+		data := map[string]any{"slug": cur.Slug, "personas_moved": moved, "projects_moved": movedProjects, "was_default": cur.IsDefault}
 		if moveTo != nil {
 			data["moved_to"] = moveTo.String()
 		}
@@ -474,6 +539,9 @@ func (s *Service) SetDefaultEnvironment(ctx context.Context, actor domain.Actor,
 		}
 		if err := t.q.ClearDefaultEnvironment(ctx, store.ClearDefaultEnvironmentParams{CompanyID: companyID, Now: t.now}); err != nil {
 			return fmt.Errorf("clear default environment: %w", err)
+		}
+		if err := t.q.DeletePersonaReadinessByDefault(ctx, companyID); err != nil {
+			return fmt.Errorf("invalidate readiness: %w", err)
 		}
 		data := map[string]any{"environment": "local"}
 		subject := companyID
@@ -515,6 +583,9 @@ func (s *Service) SetPersonaEnvironment(ctx context.Context, actor domain.Actor,
 		if err != nil {
 			return mapErr(err, "set persona environment")
 		}
+		if err := t.invalidateReadiness(companyID, personaID); err != nil {
+			return err
+		}
 		out = personaFromRow(row)
 		data["persona"] = row.Slug
 		return t.activity(actor, companyID, "persona.environment_changed", "persona", personaID, data, "")
@@ -540,6 +611,16 @@ func (s *Service) ListEnvironments(ctx context.Context, companyID domain.ID) ([]
 	if err != nil {
 		return nil, fmt.Errorf("count leases: %w", err)
 	}
+	projects, err := q.ListEnvironmentProjects(ctx, companyID)
+	if err != nil {
+		return nil, fmt.Errorf("list environment projects: %w", err)
+	}
+	byProj := map[uuid.UUID][]PersonaRef{}
+	for _, p := range projects {
+		if p.EnvironmentID != nil {
+			byProj[*p.EnvironmentID] = append(byProj[*p.EnvironmentID], PersonaRef{ID: p.ID, Slug: p.Slug, Name: p.Name})
+		}
+	}
 	byEnv := map[uuid.UUID][]PersonaRef{}
 	for _, p := range personas {
 		if p.EnvironmentID != nil {
@@ -554,6 +635,7 @@ func (s *Service) ListEnvironments(ctx context.Context, companyID domain.ID) ([]
 	for i, r := range rows {
 		out[i] = s.environmentView(environmentFromRow(r))
 		out[i].Personas = byEnv[r.ID]
+		out[i].Projects = byProj[r.ID]
 		out[i].ActiveLeases = act[r.ID]
 	}
 	return out, nil
@@ -585,6 +667,15 @@ func (s *Service) GetEnvironment(ctx context.Context, companyID domain.ID, ref s
 			v.Personas = append(v.Personas, PersonaRef{ID: p.ID, Slug: p.Slug, Name: p.Name})
 		}
 	}
+	projects, err := q.ListEnvironmentProjects(ctx, companyID)
+	if err != nil {
+		return EnvironmentView{}, fmt.Errorf("list environment projects: %w", err)
+	}
+	for _, p := range projects {
+		if p.EnvironmentID != nil && *p.EnvironmentID == r.ID {
+			v.Projects = append(v.Projects, PersonaRef{ID: p.ID, Slug: p.Slug, Name: p.Name})
+		}
+	}
 	return v, nil
 }
 
@@ -613,6 +704,8 @@ type RunEnvironmentInfo struct {
 	Slug, Name    string
 	Driver        domain.EnvironmentDriver
 	Lease         domain.EnvironmentLease
+	// Source diz por que a run rodou neste ambiente: persona, projeto, padrão da empresa (ADR-0055).
+	Source domain.EnvSource
 }
 
 // RunEnvironmentOf devolve o ambiente remoto de uma run; ErrNotFound = a run rodou no local.
@@ -624,9 +717,13 @@ func (s *Service) RunEnvironmentOf(ctx context.Context, companyID, runID domain.
 	if err != nil {
 		return RunEnvironmentInfo{}, mapErr(err, "run environment")
 	}
-	return RunEnvironmentInfo{EnvironmentID: r.EnvironmentID, Slug: r.EnvironmentSlug, Name: r.EnvironmentName, Driver: domain.EnvironmentDriver(r.EnvironmentDriver),
+	info := RunEnvironmentInfo{EnvironmentID: r.EnvironmentID, Slug: r.EnvironmentSlug, Name: r.EnvironmentName, Driver: domain.EnvironmentDriver(r.EnvironmentDriver),
 		Lease: domain.EnvironmentLease{ID: r.ID, CompanyID: r.CompanyID, EnvironmentID: r.EnvironmentID, RunID: r.RunID, Status: r.Status,
-			RemoteDir: r.RemoteDir, AcquiredAt: r.AcquiredAt, ReleasedAt: r.ReleasedAt, FailureReason: r.FailureReason}}, nil
+			RemoteDir: r.RemoteDir, AcquiredAt: r.AcquiredAt, ReleasedAt: r.ReleasedAt, FailureReason: r.FailureReason}}
+	if run, err := s.read().GetRunByID(ctx, store.GetRunByIDParams{CompanyID: companyID, ID: runID}); err == nil {
+		info.Source = domain.EnvSource(run.EnvironmentSource)
+	}
+	return info, nil
 }
 
 // target monta o alvo de execução de um ambiente com os segredos abertos.
@@ -642,6 +739,16 @@ func (s *Service) target(ctx context.Context, r store.Environment) (execenv.Targ
 		return execenv.Target{}, fmt.Errorf("o ambiente %q referencia um segredo indisponível: %w", r.Name, err)
 	}
 	t := execenv.Target{Driver: e.Driver, Name: e.Name, PrivateKey: sec.PrivateKey, Env: env}
+	if sec.APIKey != "" {
+		key, _, err := s.ResolveSecretText(ctx, r.CompanyID, sec.APIKey)
+		if err != nil {
+			return execenv.Target{}, fmt.Errorf("o ambiente %q referencia um segredo indisponível: %w", r.Name, err)
+		}
+		t.APIKey = strings.TrimSpace(key)
+	}
+	if e.Config.Cloud != nil {
+		t.Cloud = *e.Config.Cloud
+	}
 	if e.Config.SSH != nil {
 		t.SSH = *e.Config.SSH
 	}
@@ -694,11 +801,18 @@ func (s *Service) ProbeEnvironmentDraft(ctx context.Context, companyID domain.ID
 	if err := s.checkDriverAllowed(in.Driver, in.SSH); err != nil {
 		return domain.ProbeReport{}, err
 	}
-	cfg, sec, err := buildEnvironmentConfig(in.Driver, in.SSH, in.PrivateKey, in.Sandbox, in.Env)
+	cfg, sec, err := buildEnvironmentConfig(in.Driver, in.SSH, in.PrivateKey, in.Sandbox, in.Cloud, in.APIKey, in.Env)
 	if err != nil {
 		return domain.ProbeReport{}, err
 	}
 	tg := execenv.Target{Driver: in.Driver, Name: strings.TrimSpace(in.Name), PrivateKey: sec.PrivateKey, Env: sec.Env}
+	if cfg.Cloud != nil {
+		key, _, err := s.ResolveSecretText(ctx, companyID, sec.APIKey)
+		if err != nil {
+			return domain.ProbeReport{}, domain.Invalid("api_key", err.Error())
+		}
+		tg.Cloud, tg.APIKey = *cfg.Cloud, strings.TrimSpace(key)
+	}
 	if cfg.SSH != nil {
 		tg.SSH = *cfg.SSH
 	}
@@ -708,47 +822,6 @@ func (s *Service) ProbeEnvironmentDraft(ctx context.Context, companyID domain.ID
 	pctx, cancel := context.WithTimeout(ctx, probeTimeout)
 	defer cancel()
 	return execenv.Probe(pctx, s.Environments, tg), nil
-}
-
-// RunEnvironment resolve o ambiente de uma run da persona: o dela, senão o padrão da empresa, senão o local.
-// É chamado pelo executor (sem identidade de usuário): não aplica papéis.
-func (s *Service) RunEnvironment(ctx context.Context, companyID, personaID domain.ID) (RunEnvironment, error) {
-	q := s.read()
-	out := RunEnvironment{Source: "local", Config: s.Environments}
-	p, err := q.GetPersonaByID(ctx, store.GetPersonaByIDParams{CompanyID: companyID, ID: personaID})
-	if err != nil {
-		return out, mapErr(err, "get persona")
-	}
-	var row *store.Environment
-	if p.EnvironmentID != nil {
-		r, err := q.GetEnvironmentByID(ctx, store.GetEnvironmentByIDParams{CompanyID: companyID, ID: *p.EnvironmentID})
-		switch {
-		case err == nil && r.Status == string(domain.EnvActive):
-			row, out.Source = &r, "persona"
-		case err == nil:
-			out.Warnings = append(out.Warnings, fmt.Sprintf("o ambiente %q da persona está arquivado; usando o padrão da empresa", r.Name))
-		case !isNoRows(err):
-			return out, fmt.Errorf("get environment: %w", err)
-		}
-	}
-	if row == nil {
-		r, err := q.GetDefaultEnvironment(ctx, companyID)
-		switch {
-		case err == nil:
-			row, out.Source = &r, "default"
-		case !isNoRows(err):
-			return out, fmt.Errorf("get default environment: %w", err)
-		}
-	}
-	if row == nil {
-		return out, nil
-	}
-	e := environmentFromRow(*row)
-	out.Environment = &e
-	if out.Target, err = s.target(ctx, *row); err != nil {
-		return out, err
-	}
-	return out, nil
 }
 
 // AcquireEnvironmentLease registra que a run começou a usar o ambiente (executor).
@@ -813,7 +886,7 @@ func (s *Service) rekeyEnvironmentSecrets(ctx context.Context) (int, error) {
 // É a decisão do operador (HANKO_ENV_SSH_ALLOW_HOSTS, HANKO_ENV_SANDBOX) e não depende da empresa.
 func (s *Service) EnvironmentDrivers(context.Context) map[domain.EnvironmentDriver]string {
 	out := map[domain.EnvironmentDriver]string{}
-	for _, d := range []domain.EnvironmentDriver{domain.EnvSSH, domain.EnvSandbox} {
+	for _, d := range []domain.EnvironmentDriver{domain.EnvSSH, domain.EnvSandbox, domain.EnvCloud} {
 		out[d] = ""
 		if err := s.Environments.DriverStatus(d); err != nil {
 			out[d] = err.Error()
@@ -828,8 +901,23 @@ func (r RunEnvironment) EnvironmentSecretValues() []string {
 	if r.Target.PrivateKey != "" {
 		out = append(out, r.Target.PrivateKey)
 	}
+	if r.Target.APIKey != "" {
+		out = append(out, r.Target.APIKey)
+	}
 	for _, v := range r.Target.Env {
 		out = append(out, v)
+	}
+	return out
+}
+
+// refTexts são os textos do ambiente que podem levar ${secret:NOME}: os valores de env e a chave de API do provider.
+func (v environmentSecrets) refTexts() map[string]string {
+	out := make(map[string]string, len(v.Env)+1)
+	for k, x := range v.Env {
+		out[k] = x
+	}
+	if v.APIKey != "" {
+		out["api_key"] = v.APIKey
 	}
 	return out
 }

@@ -82,11 +82,14 @@ type CostSummary struct {
 	PaidUSD       float64            `json:"paid_usd"`
 	IdleUSD       float64            `json:"idle_usd"`
 	Subscriptions []SubscriptionCost `json:"subscriptions"`
-	Runs          int                `json:"runs"`
-	InputTokens   int64              `json:"input_tokens"`
-	OutputTokens  int64              `json:"output_tokens"`
-	CacheTokens   int64              `json:"cache_tokens"`
-	Rows          []CostRow          `json:"rows"`
+	// Decision são as invocações do decision model (ator system, ADR-0056): fora das runs e dos grupos acima, mas
+	// somadas ao gasto mensal da empresa (orçamento). Vazio com filtro de projeto.
+	Decision     DecisionCost `json:"decision"`
+	Runs         int          `json:"runs"`
+	InputTokens  int64        `json:"input_tokens"`
+	OutputTokens int64        `json:"output_tokens"`
+	CacheTokens  int64        `json:"cache_tokens"`
+	Rows         []CostRow    `json:"rows"`
 }
 
 // BudgetStatus is spend versus ceiling for the current month.
@@ -194,6 +197,12 @@ func (s *Service) CostSummary(ctx context.Context, companyID domain.ID, f CostFi
 	alloc := &paidAllocation{}
 	if f.ProjectID == nil {
 		if alloc, err = s.allocatePaid(ctx, q, co, from.UTC(), to.UTC()); err != nil {
+			return CostSummary{}, err
+		}
+	}
+	out.Decision = DecisionCost{Actor: string(domain.ActorSystem), Rows: []DecisionCostRow{}}
+	if f.ProjectID == nil {
+		if out.Decision, err = s.decisionCost(ctx, q, companyID, from.UTC(), to.UTC()); err != nil {
 			return CostSummary{}, err
 		}
 	}

@@ -90,7 +90,7 @@ func (q *Queries) ExportRunEventsPage(ctx context.Context, arg ExportRunEventsPa
 }
 
 const exportRuns = `-- name: ExportRuns :many
-SELECT id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv, instruction_revision, instruction_sha256 FROM runs WHERE company_id = $1 AND status NOT IN ('queued', 'running') AND task_id IS NOT NULL ORDER BY created_at, id
+SELECT id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv, instruction_revision, instruction_sha256, environment_id, environment_source, continuation_of_run_id, continuation_attempt, continuation_reason, resume_pending, resume_reason, diagnosis, decision_pending, decision, decision_note, decided_by_type, decided_by_id, decided_at FROM runs WHERE company_id = $1 AND status NOT IN ('queued', 'running') AND task_id IS NOT NULL ORDER BY created_at, id
 `
 
 // Só execuções encerradas: uma execução em voo ainda não é um fato histórico. Runs de chat (sem task) ficam de fora (ADR-0027).
@@ -140,6 +140,20 @@ func (q *Queries) ExportRuns(ctx context.Context, companyID uuid.UUID) ([]Run, e
 			&i.SearchTsv,
 			&i.InstructionRevision,
 			&i.InstructionSha256,
+			&i.EnvironmentID,
+			&i.EnvironmentSource,
+			&i.ContinuationOfRunID,
+			&i.ContinuationAttempt,
+			&i.ContinuationReason,
+			&i.ResumePending,
+			&i.ResumeReason,
+			&i.Diagnosis,
+			&i.DecisionPending,
+			&i.Decision,
+			&i.DecisionNote,
+			&i.DecidedByType,
+			&i.DecidedByID,
+			&i.DecidedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -411,7 +425,7 @@ func (q *Queries) ImportPersona(ctx context.Context, arg ImportPersonaParams) (P
 const importProject = `-- name: ImportProject :one
 INSERT INTO projects (id, company_id, slug, name, description, workspace_id, status, budget_monthly_cents, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-RETURNING id, company_id, slug, name, description, workspace_id, created_at, updated_at, status, budget_monthly_cents
+RETURNING id, company_id, slug, name, description, workspace_id, created_at, updated_at, status, budget_monthly_cents, environment_id, search_tsv
 `
 
 type ImportProjectParams struct {
@@ -452,6 +466,8 @@ func (q *Queries) ImportProject(ctx context.Context, arg ImportProjectParams) (P
 		&i.UpdatedAt,
 		&i.Status,
 		&i.BudgetMonthlyCents,
+		&i.EnvironmentID,
+		&i.SearchTsv,
 	)
 	return i, err
 }
@@ -463,7 +479,7 @@ INSERT INTO runs (id, company_id, task_id, persona_id, status, trigger, agent, m
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
         $12, $13, $14, $15, $16, $17, $18, $19,
         $20, $21, $22, $23, $24, $25)
-RETURNING id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv, instruction_revision, instruction_sha256
+RETURNING id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv, instruction_revision, instruction_sha256, environment_id, environment_source, continuation_of_run_id, continuation_attempt, continuation_reason, resume_pending, resume_reason, diagnosis, decision_pending, decision, decision_note, decided_by_type, decided_by_id, decided_at
 `
 
 type ImportRunParams struct {
@@ -560,6 +576,20 @@ func (q *Queries) ImportRun(ctx context.Context, arg ImportRunParams) (Run, erro
 		&i.SearchTsv,
 		&i.InstructionRevision,
 		&i.InstructionSha256,
+		&i.EnvironmentID,
+		&i.EnvironmentSource,
+		&i.ContinuationOfRunID,
+		&i.ContinuationAttempt,
+		&i.ContinuationReason,
+		&i.ResumePending,
+		&i.ResumeReason,
+		&i.Diagnosis,
+		&i.DecisionPending,
+		&i.Decision,
+		&i.DecisionNote,
+		&i.DecidedByType,
+		&i.DecidedByID,
+		&i.DecidedAt,
 	)
 	return i, err
 }
@@ -797,6 +827,94 @@ type LinkImportedPersonaParams struct {
 func (q *Queries) LinkImportedPersona(ctx context.Context, arg LinkImportedPersonaParams) error {
 	_, err := q.db.Exec(ctx, linkImportedPersona, arg.ReportsTo, arg.ReviewerPersonaID, arg.ID)
 	return err
+}
+
+const replaceImportedPersona = `-- name: ReplaceImportedPersona :one
+UPDATE personas SET name = $1, title = $2, instructions = $3, agent = $4, model = $5,
+    adapter_config = $6, workspace_id = $7, heartbeat_interval_sec = $8,
+    budget_monthly_cents = $9, subscription_id = $10, require_review = $11,
+    reviewer_agent = $12, reviewer_model = $13, icon = $14, updated_at = $15
+WHERE company_id = $16 AND id = $17
+RETURNING id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason, budget_refused_at, subscription_id, reviewer_persona_id, reviewer_agent, reviewer_model, search_tsv, icon, environment_id, instruction_revision, system
+`
+
+type ReplaceImportedPersonaParams struct {
+	Name                 string
+	Title                string
+	Instructions         string
+	Agent                string
+	Model                string
+	AdapterConfig        []byte
+	WorkspaceID          *uuid.UUID
+	HeartbeatIntervalSec int32
+	BudgetMonthlyCents   *int64
+	SubscriptionID       *uuid.UUID
+	RequireReview        bool
+	ReviewerAgent        string
+	ReviewerModel        string
+	Icon                 string
+	Now                  time.Time
+	CompanyID            uuid.UUID
+	ID                   uuid.UUID
+}
+
+// Merge com substituição (ADR-0057): o conteúdo do arquivo entra por cima da persona do destino, sem mexer em id,
+// status de execução, reports_to/revisor (religados em seguida) nem contadores.
+func (q *Queries) ReplaceImportedPersona(ctx context.Context, arg ReplaceImportedPersonaParams) (Persona, error) {
+	row := q.db.QueryRow(ctx, replaceImportedPersona,
+		arg.Name,
+		arg.Title,
+		arg.Instructions,
+		arg.Agent,
+		arg.Model,
+		arg.AdapterConfig,
+		arg.WorkspaceID,
+		arg.HeartbeatIntervalSec,
+		arg.BudgetMonthlyCents,
+		arg.SubscriptionID,
+		arg.RequireReview,
+		arg.ReviewerAgent,
+		arg.ReviewerModel,
+		arg.Icon,
+		arg.Now,
+		arg.CompanyID,
+		arg.ID,
+	)
+	var i Persona
+	err := row.Scan(
+		&i.ID,
+		&i.CompanyID,
+		&i.Slug,
+		&i.Name,
+		&i.Title,
+		&i.Instructions,
+		&i.Agent,
+		&i.Model,
+		&i.AdapterConfig,
+		&i.Status,
+		&i.ReportsTo,
+		&i.WorkspaceID,
+		&i.HeartbeatIntervalSec,
+		&i.BudgetMonthlyCents,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.LastError,
+		&i.LastErrorAt,
+		&i.ConsecutiveFailures,
+		&i.RequireReview,
+		&i.PauseReason,
+		&i.BudgetRefusedAt,
+		&i.SubscriptionID,
+		&i.ReviewerPersonaID,
+		&i.ReviewerAgent,
+		&i.ReviewerModel,
+		&i.SearchTsv,
+		&i.Icon,
+		&i.EnvironmentID,
+		&i.InstructionRevision,
+		&i.System,
+	)
+	return i, err
 }
 
 const setCompanyImportState = `-- name: SetCompanyImportState :exec

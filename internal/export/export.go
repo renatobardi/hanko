@@ -70,7 +70,7 @@ type Period struct {
 
 type Subscription struct {
 	Name           string     `json:"name"`
-	Agent          string     `json:"agent" enum:"claude,codex,acp,fake"`
+	Agent          string     `json:"agent" enum:"claude,codex,acp,devin,pi,cursor,http,fake"`
 	MonthlyUSD     float64    `json:"monthly_usd"`
 	ModelPrefixes  []string   `json:"model_prefixes,omitempty"`
 	WeeklyLimitUSD *float64   `json:"weekly_limit_usd,omitempty"`
@@ -87,7 +87,7 @@ type Persona struct {
 	Title                string         `json:"title,omitempty"`
 	Icon                 string         `json:"icon,omitempty" doc:"Glifo da persona; ausente = bot (arquivos anteriores ao campo)."`
 	Instructions         string         `json:"instructions,omitempty"`
-	Agent                string         `json:"agent" enum:"claude,codex,acp,fake"`
+	Agent                string         `json:"agent" enum:"claude,codex,acp,devin,pi,cursor,http,fake"`
 	Model                string         `json:"model,omitempty"`
 	AdapterConfig        map[string]any `json:"adapter_config,omitempty" doc:"Sem chaves sensíveis (token, senha, credencial...)."`
 	Status               string         `json:"status" enum:"active,idle,paused,off" doc:"Estados transitórios (running, error, awaiting_gate) viram idle."`

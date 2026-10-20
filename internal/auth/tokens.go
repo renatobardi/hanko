@@ -96,3 +96,15 @@ func NewInviteToken() (token, hash string, err error) {
 	}
 	return token, HashToken(token), nil
 }
+
+// CLIAuthCodeBytes é a entropia do código de um pedido de login da CLI (72 bits; 12 caracteres na URL).
+const CLIAuthCodeBytes = 9
+
+// NewCLIAuthCode gera o código de /cli-auth/<código> e seu hash. Só o hash vai ao banco.
+func NewCLIAuthCode() (code, hash string, err error) {
+	code, err = randomToken(CLIAuthCodeBytes)
+	if err != nil {
+		return "", "", err
+	}
+	return code, HashToken(code), nil
+}

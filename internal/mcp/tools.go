@@ -83,7 +83,7 @@ type projectListIn struct {
 type searchIn struct {
 	Company string `json:"company,omitempty" jsonschema:"slug ou id da empresa (obrigatório só sem token de run)"`
 	Query   string `json:"query" jsonschema:"o que buscar (palavras, \"frase exata\", -excluir, OR) ou a chave de uma task (HNK-12)"`
-	Types   string `json:"types,omitempty" jsonschema:"tipos separados por vírgula: task,comment,persona,run,flow,memory (padrão: todos)"`
+	Types   string `json:"types,omitempty" jsonschema:"tipos separados por vírgula: task,comment,persona,run,flow,goal,project,gate,artifact,memory (padrão: todos)"`
 	Limit   int    `json:"limit,omitempty" jsonschema:"máximo de resultados por tipo (padrão 10, máx 50)"`
 }
 
@@ -300,7 +300,9 @@ func registerTools(s *sdk.Server, t *tools) {
 	sdk.AddTool(s, &sdk.Tool{
 		Name: "hanko_task_comment",
 		Description: "Comenta na thread de uma task (progresso, perguntas, resultado). Use event_id para não duplicar o comentário em retentativas. " +
-			"Com quote (texto exato) o comentário fica ancorado a esse trecho da descrição da task — ou do resumo de uma execução, com quote_run.",
+			"Com quote (texto exato) o comentário fica ancorado a esse trecho da descrição da task — ou do resumo de uma execução, com quote_run. " +
+			"Para chamar a atenção de um humano, cite-o com @ (a parte local do e-mail, em minúsculas: @renato-bardi): o comentário chega na Caixa dele. " +
+			"Citar outra persona (@slug) só a acorda quando o comentário é de um humano.",
 	}, t.taskComment)
 	sdk.AddTool(s, &sdk.Tool{
 		Name: "hanko_gate_request",

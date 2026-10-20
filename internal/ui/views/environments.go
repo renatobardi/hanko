@@ -38,8 +38,10 @@ type EnvHubVM struct {
 	DefaultAction              string
 	DefaultOptions             []Option
 	NewSSHHref, NewSandboxHref string
-	// SSHOff e SandboxOff explicam por que o driver está desligado neste servidor ("" = disponível).
-	SSHOff, SandboxOff string
+	// NewLocalHref e NewCloudHref abrem o formulário do local explícito e do sandbox em nuvem (ADR-0055).
+	NewLocalHref, NewCloudHref string
+	// SSHOff, SandboxOff e CloudOff explicam por que o driver está desligado neste servidor ("" = disponível).
+	SSHOff, SandboxOff, CloudOff string
 }
 
 // EnvFormVM é o formulário de um ambiente (novo ou edição).
@@ -57,6 +59,9 @@ type EnvFormVM struct {
 	// Sandbox
 	Image, Memory, CPUs, PIDs string
 	NetworkOptions            []Option
+	// Cloud (ADR-0055)
+	Snapshot, CloudCPUs, CloudMemory, CloudDisk, CloudRoot string
+	CloudNetworkOptions                                    []Option
 	// Variáveis
 	EnvNames []string
 	DropEnv  string
@@ -79,6 +84,8 @@ type ProbeVM struct {
 	Steps    []ProbeStepVM
 	Warnings []string
 	Error    string
+	// Capabilities são o que o alvo oferece, medido pelo teste (ADR-0055).
+	Capabilities []string
 }
 
 // LeaseRow é um uso do ambiente por uma execução.
@@ -105,6 +112,8 @@ type EnvPageVM struct {
 	ArchiveAction, ReactivateAction string
 	MoveOptions                     []Option
 	PersonaNames                    []string
+	// ProjectNames são os projetos que escolheram este ambiente (ADR-0055).
+	ProjectNames []string
 }
 
 // PersonaEnvVM é o cartão de ambiente na página da persona.
@@ -121,6 +130,56 @@ type RunEnvVM struct {
 	Label, Href string
 	Badge       *Badge
 	RemoteDir   string
+	// Source diz por que: "persona", "projeto", "padrão da empresa" ou "local" (ADR-0055); vazio em execuções antigas.
+	Source string
+}
+
+// ProjectEnvVM é o cartão de ambiente na página do projeto (ADR-0055).
+type ProjectEnvVM struct {
+	Current, Source string
+	Options         []Option
+	Action          string
+	SettingsHref    string
+	Notice, Error   string
+}
+
+// PersonaReadinessVM é o cartão de prontidão da persona (ADR-0055, #10).
+type PersonaReadinessVM struct {
+	// Status: ready, not_ready ou untested.
+	Status        string
+	Badge         Badge
+	Reason        string
+	When, Env     string
+	Duration      string
+	Steps         []EnvCheck
+	Action        string
+	Blocking      bool
+	AutoTest      bool
+	Notice, Error string
+}
+
+// ModelOptionVM é uma entrada do seletor de modelo (ADR-0055, #17).
+type ModelOptionVM struct {
+	Value, Label string
+	Selected     bool
+	// Unpriced: o modelo não tem preço próprio; o custo cai no preço de reserva.
+	Unpriced bool
+}
+
+// ModelGroupVM agrupa os modelos de um harness no seletor.
+type ModelGroupVM struct {
+	Label   string
+	Options []ModelOptionVM
+}
+
+// ModelPickerVM é o seletor de modelo com a opção "Outro…".
+type ModelPickerVM struct {
+	// ID e Name: o id do select e o nome do campo (o texto livre vai em Name; a escolha em Name+"_choice").
+	ID, Name string
+	// Value é o modelo atual (vazio = padrão do harness); Other: o valor não está no catálogo e vai no campo livre.
+	Value  string
+	Other  bool
+	Groups []ModelGroupVM
 }
 
 // runEnvHref é o fragmento com o ambiente da execução, relativo à página dela (/c/{empresa}/execucoes/{id}).

@@ -39,6 +39,10 @@ type Shell struct {
 	Owner   string            // display name of the human owner
 	Role    domain.MemberRole // papel da pessoa nesta empresa (só UX; o service é a barreira)
 	Flush   bool              // content area without padding (two-pane pages)
+	// Archived: a empresa está arquivada (somente leitura); a faixa avisa em toda página (ADR-0057).
+	Archived bool
+	// Personal: há uma pessoa autenticada, então a Caixa tem selo de não lidos e toasts ao vivo (ADR-0042).
+	Personal bool
 }
 
 // Base returns the company-scoped URL prefix, e.g. "/c/hanko".
@@ -222,6 +226,8 @@ type TaskVM struct {
 	Model           string // manual model of the task (wins over the persona's)
 	Notice          string // flash after an action
 	Error           string
+	Draft           string
+	Followups       *FollowupsVM // fila de follow-ups (ADR-0039); nil quando a task está encerrada
 	// DraftF liga o campo de comentário ao rascunho do servidor; Attach é o cartão de anexos da task e UploadHint a
 	// dica de tamanho do campo de arquivos do compositor (ADR-0052).
 	DraftF     DraftFields
@@ -277,10 +283,12 @@ type PersonasVM struct {
 }
 
 type HirePersonaVM struct {
-	Name          string
-	Title         string
-	Agent         string
-	Model         string
+	Name  string
+	Title string
+	Agent string
+	Model string
+	// ModelPicker é o seletor de modelo com "Outro…" (catálogo híbrido, ADR-0055).
+	ModelPicker   ModelPickerVM
 	Instructions  string
 	Heartbeat     string
 	ReportsTo     []Option // "Reporta a": the human owner or a persona
@@ -292,19 +300,25 @@ type HirePersonaVM struct {
 	AcpCommand    string
 	AcpArgs       string   // one argument per line
 	AcpPermission []Option // allow | reject | read_only
+	AcpPreset     string   // gemini | opencode (ADR-0056)
+	// Harness http (ADR-0056): endpoint e referência da chave.
+	HttpBaseURL string
+	HttpKeyRef  string
 }
 
 type PersonaVM struct {
-	Icon         string // glifo atual (domain.PersonaIcons)
-	IconAction   string // POST que troca o glifo
-	Name         string
-	Initials     string
-	Title        string
-	Badge        Badge
-	Agent        string
-	Model        string
-	Heartbeat    string
-	Instructions string
+	// ReadinessHref é o fragmento do cartão de prontidão do harness (ADR-0055); com ?auto=1 ele testa ao carregar.
+	ReadinessHref string
+	Icon          string // glifo atual (domain.PersonaIcons)
+	IconAction    string // POST que troca o glifo
+	Name          string
+	Initials      string
+	Title         string
+	Badge         Badge
+	Agent         string
+	Model         string
+	Heartbeat     string
+	Instructions  string
 	// InstructionsHref leva ao histórico e à edição das instruções (revisão vigente em InstructionRevision, ADR-0052).
 	InstructionsHref    string
 	InstructionRevision int
@@ -451,6 +465,9 @@ type RunVM struct {
 	// Artefatos que a execução publicou (todas as versões).
 	Artifacts     []ArtifactMini
 	ArtifactsHref string
+	// Resiliência (ADR-0039): card de diagnóstico e caixa de steer.
+	Diag  *DiagVM
+	Steer *SteerVM
 }
 
 // ---- activity ----
@@ -463,6 +480,10 @@ type ActivityDay struct {
 type ActivityVM struct {
 	Subtitle string
 	Days     []ActivityDay
+	// Filtro por ator (ADR-0042): opções do seletor, ação do formulário e se há filtro ligado.
+	ActorOptions []Option
+	Action       string
+	Filtered     bool
 }
 
 // ---- misc ----
@@ -604,6 +625,8 @@ type CostsVM struct {
 	HasSpend                             bool
 	BudgetKpi                            string
 	BudgetNote                           string
+	// Decision é o custo do decision model no período (ADR-0056); nil sem invocações.
+	Decision *DecisionCostVM
 }
 
 // ---- fluxos ----
@@ -721,6 +744,8 @@ type APIKeyRow struct {
 	Created  string
 	LastUsed string
 	Revoked  bool
+	Scope    string // rótulo: completo | só leitura
+	Device   string // dispositivo que fez hanko login ("" nas chaves criadas à mão)
 }
 
 // SettingsVM drives the account/API keys page.
@@ -745,6 +770,10 @@ type SettingsVM struct {
 	Memory MemoryVM
 	// Policy é a política de contratação por gate da empresa (ADR-0041).
 	Policy CompanyPolicyVM
+	// Company é o cartão "Empresa": editar, arquivar, restaurar e excluir (ADR-0057).
+	Company CompanyAdminVM
+	// UsersLink: dono ou admin da instalação vê o atalho para /admin/usuarios.
+	UsersLink bool
 }
 
 // MemberRow is one member in the "Membros" table.
@@ -785,6 +814,8 @@ type MembersVM struct {
 	NewLinkEmail string
 	Email        string // form value kept after an error
 	Error        string
+	// Join é o link público de pedido de entrada e a fila de pedidos (ADR-0057).
+	Join JoinVM
 }
 
 // InviteVM drives the public /convite/{token} page.
