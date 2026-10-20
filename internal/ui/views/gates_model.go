@@ -120,7 +120,18 @@ type InboxSub struct {
 	Week    string
 }
 
+// InboxQuarantine é uma tool em quarentena que espera a revisão de um admin (ADR-0036/0053).
+type InboxQuarantine struct {
+	Integration string
+	Tool        string
+	Risk        Badge
+	Excerpt     string
+	When        string
+	Href        string // o catálogo da integração
+}
+
 type InboxVM struct {
+	Quarantined  []InboxQuarantine
 	Subs         []InboxSub
 	Subtitle     string
 	Tabs         []TabLink

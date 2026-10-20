@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -60,6 +61,8 @@ type Config struct {
 	// RemoteSleepSec segura o comando no ambiente remoto por estes segundos (0 a 60), para exercitar o
 	// cancelamento; não vale localmente.
 	RemoteSleepSec int `json:"remote_sleep_sec"`
+	// Gate pede uma decisão humana pela tool MCP hanko_gate_request antes de terminar (jornadas e2e, ADR-0058).
+	Gate *GateConfig `json:"gate"`
 }
 
 // maxRemoteSleep é o teto de Config.RemoteSleepSec.
@@ -188,6 +191,16 @@ func (a *Adapter) Run(ctx context.Context, spec adapter.Spec, sink adapter.Sink)
 			e.SessionRef = session
 		}
 		if err := sink.Emit(ctx, e); err != nil {
+			return res, fmt.Errorf("fake: sink: %w", err)
+		}
+	}
+	if cfg.Gate != nil && !cfg.Fail {
+		out, err := requestGate(ctx, spec, *cfg.Gate, http.DefaultClient)
+		if err != nil {
+			_ = sink.Emit(ctx, adapter.Event{Kind: domain.EventStderr, Text: err.Error(), OccurredAt: time.Now().UTC()})
+			return adapter.Result{ExitCode: 1, IsError: true, Error: err.Error(), SessionRef: session, Model: "fake"}, nil
+		}
+		if err := sink.Emit(ctx, adapter.Event{Kind: domain.EventToolResult, Text: out, OccurredAt: time.Now().UTC()}); err != nil {
 			return res, fmt.Errorf("fake: sink: %w", err)
 		}
 	}

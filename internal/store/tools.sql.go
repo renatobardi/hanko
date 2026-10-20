@@ -172,16 +172,17 @@ func (q *Queries) CreateGatewayToken(ctx context.Context, arg CreateGatewayToken
 
 const createToolCallApproval = `-- name: CreateToolCallApproval :one
 
-INSERT INTO tool_call_approvals (id, company_id, gate_id, integration_id, tool, args_sha256, run_id, task_id, persona_id, gateway_id, created_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-RETURNING id, company_id, gate_id, integration_id, tool, args_sha256, run_id, task_id, persona_id, gateway_id, consumed_at, created_at
+INSERT INTO tool_call_approvals (id, company_id, gate_id, integration_id, native_tool, tool, args_sha256, run_id, task_id, persona_id, gateway_id, created_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+RETURNING id, company_id, gate_id, integration_id, tool, args_sha256, run_id, task_id, persona_id, gateway_id, consumed_at, created_at, native_tool
 `
 
 type CreateToolCallApprovalParams struct {
 	ID            uuid.UUID
 	CompanyID     uuid.UUID
 	GateID        uuid.UUID
-	IntegrationID uuid.UUID
+	IntegrationID *uuid.UUID
+	NativeTool    string
 	Tool          string
 	ArgsSha256    string
 	RunID         *uuid.UUID
@@ -198,6 +199,7 @@ func (q *Queries) CreateToolCallApproval(ctx context.Context, arg CreateToolCall
 		arg.CompanyID,
 		arg.GateID,
 		arg.IntegrationID,
+		arg.NativeTool,
 		arg.Tool,
 		arg.ArgsSha256,
 		arg.RunID,
@@ -220,6 +222,7 @@ func (q *Queries) CreateToolCallApproval(ctx context.Context, arg CreateToolCall
 		&i.GatewayID,
 		&i.ConsumedAt,
 		&i.CreatedAt,
+		&i.NativeTool,
 	)
 	return i, err
 }
@@ -416,7 +419,7 @@ func (q *Queries) DeleteToolProfileRulesForIntegration(ctx context.Context, arg 
 }
 
 const findToolCallApprovals = `-- name: FindToolCallApprovals :many
-SELECT a.id, a.company_id, a.gate_id, a.integration_id, a.tool, a.args_sha256, a.run_id, a.task_id, a.persona_id, a.gateway_id, a.consumed_at, a.created_at, g.status AS gate_status, g.decided_at AS gate_decided_at
+SELECT a.id, a.company_id, a.gate_id, a.integration_id, a.tool, a.args_sha256, a.run_id, a.task_id, a.persona_id, a.gateway_id, a.consumed_at, a.created_at, a.native_tool, g.status AS gate_status, g.decided_at AS gate_decided_at
 FROM tool_call_approvals a JOIN gates g ON g.id = a.gate_id
 WHERE a.company_id = $1 AND a.integration_id = $2 AND a.tool = $3 AND a.args_sha256 = $4
   AND ($5::uuid IS NULL OR a.persona_id = $5::uuid)
@@ -428,7 +431,7 @@ LIMIT 10
 
 type FindToolCallApprovalsParams struct {
 	CompanyID     uuid.UUID
-	IntegrationID uuid.UUID
+	IntegrationID *uuid.UUID
 	Tool          string
 	ArgsSha256    string
 	PersonaID     *uuid.UUID
@@ -440,7 +443,7 @@ type FindToolCallApprovalsRow struct {
 	ID            uuid.UUID
 	CompanyID     uuid.UUID
 	GateID        uuid.UUID
-	IntegrationID uuid.UUID
+	IntegrationID *uuid.UUID
 	Tool          string
 	ArgsSha256    string
 	RunID         *uuid.UUID
@@ -449,6 +452,7 @@ type FindToolCallApprovalsRow struct {
 	GatewayID     *uuid.UUID
 	ConsumedAt    *time.Time
 	CreatedAt     time.Time
+	NativeTool    string
 	GateStatus    string
 	GateDecidedAt *time.Time
 }
@@ -485,6 +489,7 @@ func (q *Queries) FindToolCallApprovals(ctx context.Context, arg FindToolCallApp
 			&i.GatewayID,
 			&i.ConsumedAt,
 			&i.CreatedAt,
+			&i.NativeTool,
 			&i.GateStatus,
 			&i.GateDecidedAt,
 		); err != nil {
@@ -636,7 +641,7 @@ func (q *Queries) GetToolBinding(ctx context.Context, arg GetToolBindingParams) 
 }
 
 const getToolCallApprovalByGate = `-- name: GetToolCallApprovalByGate :one
-SELECT id, company_id, gate_id, integration_id, tool, args_sha256, run_id, task_id, persona_id, gateway_id, consumed_at, created_at FROM tool_call_approvals WHERE company_id = $1 AND gate_id = $2
+SELECT id, company_id, gate_id, integration_id, tool, args_sha256, run_id, task_id, persona_id, gateway_id, consumed_at, created_at, native_tool FROM tool_call_approvals WHERE company_id = $1 AND gate_id = $2
 `
 
 type GetToolCallApprovalByGateParams struct {
@@ -660,6 +665,7 @@ func (q *Queries) GetToolCallApprovalByGate(ctx context.Context, arg GetToolCall
 		&i.GatewayID,
 		&i.ConsumedAt,
 		&i.CreatedAt,
+		&i.NativeTool,
 	)
 	return i, err
 }
@@ -893,10 +899,12 @@ func (q *Queries) InsertIntegrationTool(ctx context.Context, arg InsertIntegrati
 const insertToolInvocation = `-- name: InsertToolInvocation :one
 
 INSERT INTO tool_invocations (id, company_id, run_id, gateway_id, persona_id, integration_id, integration_slug, tool,
-                              args_sha256, args_bytes, decision, gate_id, status, latency_ms, error, created_at)
+                              args_sha256, args_bytes, decision, gate_id, status, latency_ms, error, source, actor_type, actor_id,
+                              result_preview, policy_source, created_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8,
-        $9, $10, $11, $12, $13, $14, $15, $16)
-RETURNING id, company_id, run_id, gateway_id, persona_id, integration_id, integration_slug, tool, args_sha256, args_bytes, decision, gate_id, status, latency_ms, error, created_at
+        $9, $10, $11, $12, $13, $14, $15, $16, $17, $18,
+        $19, $20, $21)
+RETURNING id, company_id, run_id, gateway_id, persona_id, integration_id, integration_slug, tool, args_sha256, args_bytes, decision, gate_id, status, latency_ms, error, created_at, source, actor_type, actor_id, result_preview, policy_source
 `
 
 type InsertToolInvocationParams struct {
@@ -915,6 +923,11 @@ type InsertToolInvocationParams struct {
 	Status          string
 	LatencyMs       int32
 	Error           string
+	Source          string
+	ActorType       *string
+	ActorID         *uuid.UUID
+	ResultPreview   string
+	PolicySource    string
 	Now             time.Time
 }
 
@@ -936,6 +949,11 @@ func (q *Queries) InsertToolInvocation(ctx context.Context, arg InsertToolInvoca
 		arg.Status,
 		arg.LatencyMs,
 		arg.Error,
+		arg.Source,
+		arg.ActorType,
+		arg.ActorID,
+		arg.ResultPreview,
+		arg.PolicySource,
 		arg.Now,
 	)
 	var i ToolInvocation
@@ -956,6 +974,11 @@ func (q *Queries) InsertToolInvocation(ctx context.Context, arg InsertToolInvoca
 		&i.LatencyMs,
 		&i.Error,
 		&i.CreatedAt,
+		&i.Source,
+		&i.ActorType,
+		&i.ActorID,
+		&i.ResultPreview,
+		&i.PolicySource,
 	)
 	return i, err
 }
@@ -1390,7 +1413,7 @@ func (q *Queries) ListToolGateways(ctx context.Context, arg ListToolGatewaysPara
 }
 
 const listToolInvocations = `-- name: ListToolInvocations :many
-SELECT v.id, v.company_id, v.run_id, v.gateway_id, v.persona_id, v.integration_id, v.integration_slug, v.tool, v.args_sha256, v.args_bytes, v.decision, v.gate_id, v.status, v.latency_ms, v.error, v.created_at, COALESCE(p.name, '')::text AS persona_name, COALESCE(g.slug, '')::text AS gateway_slug
+SELECT v.id, v.company_id, v.run_id, v.gateway_id, v.persona_id, v.integration_id, v.integration_slug, v.tool, v.args_sha256, v.args_bytes, v.decision, v.gate_id, v.status, v.latency_ms, v.error, v.created_at, v.source, v.actor_type, v.actor_id, v.result_preview, v.policy_source, COALESCE(p.name, '')::text AS persona_name, COALESCE(g.slug, '')::text AS gateway_slug
 FROM tool_invocations v
 LEFT JOIN personas p ON p.id = v.persona_id
 LEFT JOIN tool_gateways g ON g.id = v.gateway_id
@@ -1401,9 +1424,10 @@ WHERE v.company_id = $1
   AND ($5::uuid IS NULL OR v.run_id = $5::uuid)
   AND ($6::text IS NULL OR v.decision = $6::text)
   AND ($7::text IS NULL OR v.tool = $7::text)
-  AND ($8::timestamptz IS NULL OR v.created_at >= $8::timestamptz)
+  AND ($8::text IS NULL OR v.source = $8::text)
+  AND ($9::timestamptz IS NULL OR v.created_at >= $9::timestamptz)
 ORDER BY v.created_at DESC, v.id DESC
-LIMIT $10 OFFSET $9
+LIMIT $11 OFFSET $10
 `
 
 type ListToolInvocationsParams struct {
@@ -1414,6 +1438,7 @@ type ListToolInvocationsParams struct {
 	RunID         *uuid.UUID
 	Decision      *string
 	Tool          *string
+	Source        *string
 	Since         *time.Time
 	Off           int32
 	Lim           int32
@@ -1436,6 +1461,11 @@ type ListToolInvocationsRow struct {
 	LatencyMs       int32
 	Error           string
 	CreatedAt       time.Time
+	Source          string
+	ActorType       *string
+	ActorID         *uuid.UUID
+	ResultPreview   string
+	PolicySource    string
 	PersonaName     string
 	GatewaySlug     string
 }
@@ -1449,6 +1479,7 @@ func (q *Queries) ListToolInvocations(ctx context.Context, arg ListToolInvocatio
 		arg.RunID,
 		arg.Decision,
 		arg.Tool,
+		arg.Source,
 		arg.Since,
 		arg.Off,
 		arg.Lim,
@@ -1477,6 +1508,11 @@ func (q *Queries) ListToolInvocations(ctx context.Context, arg ListToolInvocatio
 			&i.LatencyMs,
 			&i.Error,
 			&i.CreatedAt,
+			&i.Source,
+			&i.ActorType,
+			&i.ActorID,
+			&i.ResultPreview,
+			&i.PolicySource,
 			&i.PersonaName,
 			&i.GatewaySlug,
 		); err != nil {

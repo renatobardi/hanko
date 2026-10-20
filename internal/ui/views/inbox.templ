@@ -291,6 +291,41 @@ templ InboxPage(sh Shell, vm InboxVM) {
 						}
 					</section>
 				}
+				if len(vm.Quarantined) > 0 {
+					<section class="card inbox-sec">
+						<div class="inbox-h">
+							@Icon("shield")
+							{ i18n.T(ctx, "Tools em quarentena") }
+						<span class="cnt">{ fmt.Sprint(len(vm.Quarantined)) }</span></div>
+						for _, q := range vm.Quarantined {
+							<div class="inbox-row">
+								<span class="mini-avatar gate">@Icon("shield")</span>
+								<div class="main">
+									<div class="t">
+										<span class="mono">{ q.Integration }/{ q.Tool }</span>
+										@BadgeEl(q.Risk)
+										<span class="badge warn">{ i18n.T(ctx, "Quarentena") }</span>
+									</div>
+									<p class="x">{ i18n.T(ctx, "Tool nova (ou que mudou) e que pode escrever: nenhuma persona a chama até um admin revisar.") }
+										if q.Excerpt != "" {
+											{ q.Excerpt }
+										}
+									</p>
+									<div class="s">{ q.When }</div>
+								</div>
+								if canAdmin(ctx) {
+									<form class="inbox-act" method="get" action={ templ.SafeURL(q.Href) }>
+										<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Revisar") }</button>
+									</form>
+								} else {
+									<div class="inbox-act">
+										@NeedRole(domain.MemberAdmin)
+									</div>
+								}
+							</div>
+						}
+					</section>
+				}
 				if len(vm.Subs) > 0 {
 					<section class="card inbox-sec">
 						<div class="inbox-h">

@@ -48,6 +48,40 @@ type Spec struct {
 	Secrets []string
 	// Exec é o ambiente remoto da run (host SSH ou contêiner, ADR-0037); nil = local, como sempre foi.
 	Exec ExecTarget
+	// ToolGuard, quando definido, decide as tools nativas do harness pela política de tools (ADR-0053): o ACP o consulta
+	// a cada permission request. Nil = só a política de permissão do adapter_config.
+	ToolGuard ToolGuard
+	// ToolHookBin, quando definido, é o executável `hanko` que o claude chama como hook PreToolUse para a mesma política
+	// (ADR-0053). Vazio = sem hook. Não vale em ambiente remoto (o executável não está lá).
+	ToolHookBin string
+}
+
+// ToolGuard decide as tools nativas do harness (Bash, Edit...) pela política de tools do Hanko (ADR-0053). Check pode
+// bloquear até a decisão de um humano (gate) e volta cedo quando ctx é cancelado.
+type ToolGuard interface {
+	Check(ctx context.Context, req ToolRequest) ToolVerdict
+}
+
+// ToolRequest é a chamada de tool que o harness pede para fazer.
+type ToolRequest struct {
+	Name  string // nome da tool (no ACP, o tipo da chamada: execute, edit...)
+	Title string
+	Input json.RawMessage
+}
+
+// ToolDecision é a resposta do guarda.
+type ToolDecision string
+
+const (
+	ToolNoOpinion ToolDecision = ""      // nenhuma política alcança a chamada: vale o que o adapter já fazia
+	ToolAllow     ToolDecision = "allow" // liberada
+	ToolDeny      ToolDecision = "deny"  // recusada
+)
+
+// ToolVerdict é a decisão e o motivo (mostrado ao agente e gravado no log).
+type ToolVerdict struct {
+	Decision ToolDecision
+	Reason   string
 }
 
 // Steer é uma mensagem do operador para a run em andamento.
