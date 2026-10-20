@@ -695,10 +695,12 @@ type EffectiveIntegration struct {
 
 // EffectiveTools é o que uma persona enxerga e por quê.
 type EffectiveTools struct {
-	PersonaID    domain.ID              `json:"persona_id"`
-	ProjectID    *domain.ID             `json:"project_id,omitempty"`
-	Profile      *domain.ToolProfile    `json:"profile,omitempty"`
-	Binding      *domain.ToolBinding    `json:"binding,omitempty"`
+	PersonaID domain.ID           `json:"persona_id"`
+	ProjectID *domain.ID          `json:"project_id,omitempty"`
+	Profile   *domain.ToolProfile `json:"profile,omitempty"`
+	Binding   *domain.ToolBinding `json:"binding,omitempty"`
+	// Policies são as políticas (ADR-0053) que valem para a persona: as dela e as padrão da empresa.
+	Policies     []domain.ToolPolicy    `json:"policies"`
 	Integrations []EffectiveIntegration `json:"integrations"`
 }
 
@@ -721,7 +723,11 @@ func (s *Service) EffectiveToolsFor(ctx context.Context, companyID, personaID do
 	if err != nil {
 		return EffectiveTools{}, err
 	}
-	out := EffectiveTools{PersonaID: personaID, ProjectID: projectID, Profile: prof, Binding: bind, Integrations: []EffectiveIntegration{}}
+	pols, err := loadToolPolicies(ctx, q, companyID, &personaID)
+	if err != nil {
+		return EffectiveTools{}, err
+	}
+	out := EffectiveTools{PersonaID: personaID, ProjectID: projectID, Profile: prof, Binding: bind, Policies: pols, Integrations: []EffectiveIntegration{}}
 	integs, err := q.ListMCPIntegrationsForPersona(ctx, store.ListMCPIntegrationsForPersonaParams{CompanyID: companyID, PersonaID: personaID})
 	if err != nil {
 		return EffectiveTools{}, fmt.Errorf("list persona integrations: %w", err)
@@ -745,7 +751,7 @@ func (s *Service) EffectiveToolsFor(ctx context.Context, companyID, personaID do
 		}
 		for _, r := range rows {
 			tl := toolFromRow(r, integ.Slug)
-			v := domain.EvaluateTool(prof, integ.ID, tl.Name, tl.Risk)
+			v := toolVerdict(gatewayIntegration{row: integ, profile: prof}, pols, ToolCaller{PersonaID: &personaID}, tl.Name, tl.Risk)
 			et := EffectiveTool{Tool: tl, Verdict: v, Visible: v.Allowed && tl.Status == domain.ToolActive}
 			if et.Visible {
 				ei.Verdict = domain.ToolVerdict{Allowed: true, Mode: domain.ToolModeAllow, Source: "tools"}

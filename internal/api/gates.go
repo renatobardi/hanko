@@ -125,6 +125,7 @@ type decideGateIn struct {
 	Body struct {
 		Decision string `json:"decision" enum:"approved,rejected,changes_requested" doc:"Decisão do humano."`
 		Note     string `json:"note,omitempty" doc:"Comentário da decisão; vai para a thread da task e para a trilha de auditoria. Obrigatório em changes_requested."`
+		Always   bool   `json:"always,omitempty" doc:"Só em gate tool aprovado e só admin: grava a política \"permitir\" da persona para esta tool, e as próximas chamadas passam direto."`
 	}
 }
 
@@ -247,7 +248,7 @@ func (s *server) registerGates(api huma.API) {
 				return nil, s.fail(ctx, domain.Invalid("gate", "não é um uuid"))
 			}
 			g, err := s.svc.DecideGate(ctx, sc.Actor, sc.Company.ID, id, service.DecideGateInput{
-				Decision: domain.GateStatus(in.Body.Decision), Note: in.Body.Note})
+				Decision: domain.GateStatus(in.Body.Decision), Note: in.Body.Note, Always: in.Body.Always})
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}

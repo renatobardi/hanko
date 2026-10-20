@@ -389,6 +389,7 @@ type Gate struct {
 	ReviewJustification  string
 	ReviewArtifactSha256 string
 	ReviewRunID          *uuid.UUID
+	ExpiresAt            *time.Time
 	SearchTsv            interface{}
 }
 
@@ -621,6 +622,15 @@ type NotificationPref struct {
 	UpdatedAt time.Time
 }
 
+type OwnerClaim struct {
+	ID        uuid.UUID
+	TokenHash string
+	CreatedAt time.Time
+	ExpiresAt time.Time
+	UsedAt    *time.Time
+	UsedBy    *uuid.UUID
+}
+
 type Persona struct {
 	ID                   uuid.UUID
 	CompanyID            uuid.UUID
@@ -824,6 +834,13 @@ type PushSubscription struct {
 	CreatedAt     time.Time
 	LastSuccessAt *time.Time
 	Failures      int32
+}
+
+type RateLimitBucket struct {
+	Key         string
+	Tokens      float64
+	UpdatedAt   time.Time
+	LastAllowed bool
 }
 
 type Review struct {
@@ -1217,7 +1234,7 @@ type ToolCallApproval struct {
 	ID            uuid.UUID
 	CompanyID     uuid.UUID
 	GateID        uuid.UUID
-	IntegrationID uuid.UUID
+	IntegrationID *uuid.UUID
 	Tool          string
 	ArgsSha256    string
 	RunID         *uuid.UUID
@@ -1226,6 +1243,7 @@ type ToolCallApproval struct {
 	GatewayID     *uuid.UUID
 	ConsumedAt    *time.Time
 	CreatedAt     time.Time
+	NativeTool    string
 }
 
 type ToolGateway struct {
@@ -1274,6 +1292,27 @@ type ToolInvocation struct {
 	LatencyMs       int32
 	Error           string
 	CreatedAt       time.Time
+	Source          string
+	ActorType       *string
+	ActorID         *uuid.UUID
+	ResultPreview   string
+	PolicySource    string
+}
+
+type ToolPolicy struct {
+	ID            uuid.UUID
+	CompanyID     uuid.UUID
+	Scope         string
+	PersonaID     *uuid.UUID
+	Target        string
+	IntegrationID *uuid.UUID
+	ToolName      string
+	Mode          string
+	Origin        string
+	CreatedByType string
+	CreatedByID   *uuid.UUID
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 type ToolProfile struct {

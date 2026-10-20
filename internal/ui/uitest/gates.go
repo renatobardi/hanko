@@ -112,6 +112,7 @@ func (f *Fake) DecideGate(_ context.Context, actor domain.Actor, _, id domain.ID
 			return service.GateView{}, domain.ErrConflict
 		}
 		now := time.Now().UTC()
+		f.Tools.LastDecision = in
 		g.Status, g.DecisionNote, g.DecidedAt = in.Decision, in.Note, &now
 		a := actor
 		g.DecidedBy = &a
@@ -162,6 +163,14 @@ func (f *Fake) Inbox(ctx context.Context, companyID domain.ID) (service.Inbox, e
 		}
 	}
 	in.HeldTasks = f.heldTasksLocked()
+	if f.Tools.InboxQuarantine {
+		f.toolsSeed()
+		for _, t := range f.Tools.Catalog[ID("int:github")] {
+			if t.Status == domain.ToolQuarantined {
+				in.QuarantinedTools = append(in.QuarantinedTools, service.QuarantinedToolItem{Tool: t, IntegrationName: "GitHub"})
+			}
+		}
+	}
 	for _, t := range f.Tasks {
 		if t.Status == domain.TaskBlocked && !withGate[t.ID] {
 			in.BlockedTasks = append(in.BlockedTasks, t)

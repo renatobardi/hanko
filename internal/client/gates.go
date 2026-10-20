@@ -22,6 +22,7 @@ type RequestGateReq struct {
 type DecideGateReq struct {
 	Decision string `json:"decision"`
 	Note     string `json:"note,omitempty"`
+	Always   bool   `json:"always,omitempty"`
 }
 
 // GateQuery são os filtros de ListGates.
