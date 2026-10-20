@@ -61,7 +61,7 @@ jobs:
         run: go test -race -p 1 -timeout 30m -tags integration -covermode=atomic -coverprofile=cover.out ./...
       - name: piso de cobertura
         run: scripts/coverage-gate.sh cover.out
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: cobertura
@@ -100,7 +100,7 @@ jobs:
           git diff --exit-code -- internal/ui/static/islands
           test -z "$(git status --porcelain -- internal/ui/static/islands)"
 
-      - uses: sqlc-dev/setup-sqlc@v4
+      - uses: sqlc-dev/setup-sqlc@v5
         with:
           sqlc-version: "1.31.1"
       - name: sqlc diff
