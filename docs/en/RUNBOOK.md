@@ -707,6 +707,12 @@ formatting characters). Operating notes:
 - **Memory in search.** The "Memory" group appears only when the memory server lists the `memory_query` tool (read from `tools/list`,
   cached for 5 min). Without it the group disappears and the log carries one warning; consolidation (ADR-0030) does not depend on it.
 
+## Access and company lifecycle (ADR-0057)
+
+- **CLI login:** `hanko --url https://hanko.example.com login [--scope full|read] [--device name]` opens `/cli-auth/<code>`; a signed-in person authorizes it and the CLI keeps the API key in `~/.config/hanko/contexts.json` (0600; `HANKO_CONFIG_DIR` changes the location). `hanko whoami` shows the account, device and scope; revoke under Settings › API keys. A `read` key only reads (the API refuses writes and MCP).
+- **Archive:** `hanko -c <company> company archive` pauses personas, cancels runs, switches flows off and makes the company read-only (UI banner, 409 on writes). `company restore [--resume]` undoes it. `company delete --confirm "<Name>" -o backup.json` (owner only, archived only) keeps the export in `company_deletions`; `hanko company deletions` lists and `company download-deletion <id>` downloads.
+- **Import:** `hanko import file.json --dry-run` shows the preview; `--into <company> --on-conflict skip|rename|replace --resolve personas/dev=replace` merges only the configuration into an existing company. In the UI: `/importar`.
+- **Letting people in:** Settings › Members › "Generate join link" (`/pedir-acesso/<token>`); an admin approves with a role via `hanko member requests|approve|deny`. Installation accounts: `/admin/usuarios` or `hanko users`.
 ## Run resilience: continuation, diagnosis, steer and queue
 
 ADR-0039 (migration 00090). When the Hanko process dies in the middle of a run, the run **goes on by itself**; when the outcome is

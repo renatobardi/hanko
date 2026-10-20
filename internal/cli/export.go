@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"sort"
 
 	"github.com/spf13/cobra"
 
@@ -54,10 +53,11 @@ func (e *env) exportCmd() *cobra.Command {
 }
 
 func (e *env) importCmd() *cobra.Command {
-	var slug string
-	var active, paused bool
+	var slug, into, onConflict string
+	var resolve []string
+	var active, paused, dryRun bool
 	c := &cobra.Command{
-		Use: "import " + e.t("<arquivo|->"), Short: e.t("Cria uma empresa NOVA, pausada, a partir de um arquivo exportado (tudo ou nada)"), Args: cobra.ExactArgs(1),
+		Use: "import " + e.t("<arquivo|->"), Short: e.t("Importa um arquivo exportado: cria uma empresa NOVA, pausada, ou (--into) mescla a configuração numa existente; --dry-run mostra a prévia"), Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var b []byte
 			var err error
@@ -75,27 +75,25 @@ func (e *env) importCmd() *cobra.Command {
 			if !json.Valid(b) {
 				return usageError{errors.New(e.t("o arquivo não é um JSON válido"))}
 			}
-			res, err := e.client().ImportCompany(cmd.Context(), b, slug, active)
+			if into == "" && (onConflict != "" || len(resolve) > 0) {
+				return usageError{errors.New(e.t("--on-conflict e --resolve só valem com --into"))}
+			}
+			res, err := e.client().ImportCompanyWith(cmd.Context(), b, client.ImportOpts{Slug: slug, Active: active, DryRun: dryRun,
+				Into: into, OnConflict: onConflict, Resolve: resolve})
 			if err != nil {
 				return err
 			}
 			if e.asJSON {
 				return e.printJSON(res)
 			}
-			fmt.Fprintf(e.out, e.t("empresa %s (%s) criada\n"), res.Company.Name, res.Company.Slug)
-			keys := make([]string, 0, len(res.Counts))
-			for k := range res.Counts {
-				keys = append(keys, k)
-			}
-			sort.Strings(keys)
-			rows := make([][]string, 0, len(keys))
-			for _, k := range keys {
-				rows = append(rows, []string{k, fmt.Sprint(res.Counts[k])})
-			}
-			e.table([]string{e.t("ITEM"), e.t("QTD")}, rows)
+			e.printImportPreview(res)
 			return nil
 		},
 	}
+	c.Flags().BoolVar(&dryRun, "dry-run", false, e.t("só mostra a prévia (contagens, o que seria feito de cada item, avisos); não grava nada"))
+	c.Flags().StringVar(&into, "into", "", e.t("empresa EXISTENTE (id ou slug) que recebe só a configuração; sem isso cria uma empresa nova"))
+	c.Flags().StringVar(&onConflict, "on-conflict", "", e.t("com --into: o que fazer com o que já existe: skip (padrão), rename ou replace"))
+	c.Flags().StringArrayVar(&resolve, "resolve", nil, e.t("com --into: exceção por item, tipo/chave=ação (ex.: personas/dev=replace); repetível"))
 	c.Flags().StringVar(&slug, "slug", "", e.t("slug da empresa nova (padrão: o do arquivo)"))
 	c.Flags().BoolVar(&active, "active", false, e.t("liga o que o arquivo traz ligado (padrão: personas pausadas e fluxos desligados)"))
 	c.Flags().BoolVar(&paused, "paused", false, e.t("(padrão) personas entram pausadas e fluxos desligados"))

@@ -45,6 +45,21 @@ type createProjectIn struct {
 	}
 }
 
+type listCompaniesIn struct {
+	Page
+	Archived string `query:"archived" enum:"true,false" doc:"true: só as arquivadas; false: oculta as arquivadas; omitido: todas."`
+}
+
+func filterCompanies(cs []domain.Company, archived bool) []domain.Company {
+	out := make([]domain.Company, 0, len(cs))
+	for _, c := range cs {
+		if c.Archived() == archived {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
 type listCompanyIn struct {
 	CompanyPath
 	Page
@@ -65,7 +80,7 @@ func (s *server) registerCompanies(api huma.API) {
 		})
 
 	huma.Register(api, op("list-companies", http.MethodGet, "/companies", "companies", "Lista empresas"),
-		func(ctx context.Context, in *struct{ Page }) (*ListOut[Company], error) {
+		func(ctx context.Context, in *listCompaniesIn) (*ListOut[Company], error) {
 			if cl := principalFrom(ctx).Claims; cl != nil { // run token enxerga só a própria empresa
 				c, err := s.svc.GetCompany(ctx, cl.CompanyID)
 				if err != nil {
@@ -76,6 +91,12 @@ func (s *server) registerCompanies(api huma.API) {
 			cs, err := s.svc.ListCompanies(ctx)
 			if err != nil {
 				return nil, s.fail(ctx, err)
+			}
+			switch in.Archived { // "" = todas
+			case "true":
+				cs = filterCompanies(cs, true)
+			case "false":
+				cs = filterCompanies(cs, false)
 			}
 			return listOf(cs, in.Page, companyOut), nil
 		})

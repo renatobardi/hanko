@@ -79,6 +79,7 @@ templ Layout(sh Shell) {
 						}
 					</header>
 					<main class={ "content", templ.KV("flush", sh.Flush) } id="content">
+						@archivedBanner(sh)
 						<div id="flash" aria-live="polite"></div>
 						{ children... }
 					</main>
