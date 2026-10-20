@@ -118,6 +118,9 @@ func (h *Heartbeat) executeRunJob(ctx context.Context, a ExecuteRunArgs, ji jobI
 	if rc.Chat != nil && !adapter.ResumesSessions(ad) {
 		rc.Chat.ResumeSession = "" // the harness cannot resume: the prompt carries the history
 	}
+	if !adapter.ResumesSessions(ad) {
+		rc.ResumeSession = "" // a continuation of a task run: the briefing in the prompt replaces the session
+	}
 
 	ctx, span := otel.Tracer("hanko/heartbeat").Start(ctx, "hanko.run", trace.WithAttributes(
 		attribute.String("hanko.company_id", rc.Company.ID.String()),
@@ -132,6 +135,8 @@ func (h *Heartbeat) executeRunJob(ctx context.Context, a ExecuteRunArgs, ji jobI
 		span.SetAttributes(attribute.String("hanko.task_id", rc.Task.ID.String()))
 	}
 	defer span.End()
+	resumed := rc.ResumeSession != "" || (rc.Chat != nil && rc.Chat.ResumeSession != "")
+	recordContinuation(ctx, span, rc.Continuation, resumed)
 	traceID := ""
 	if sc := span.SpanContext(); sc.HasTraceID() {
 		traceID = sc.TraceID().String()
@@ -142,6 +147,12 @@ func (h *Heartbeat) executeRunJob(ctx context.Context, a ExecuteRunArgs, ji jobI
 	defer cancelCause(nil)
 	execCtx, cancelTimeout := context.WithTimeoutCause(cctx, h.opts.RunTimeout, errRunTimeout)
 	defer cancelTimeout()
+	// Steering (ADR-0039): an adapter that injects takes the operator's messages through this channel; the executor
+	// forwards what the service publishes on the run's topic and confirms each delivery the adapter acknowledges.
+	var steerCh chan adapter.Steer
+	if h.broker != nil && adapter.SteerModeOf(ad) == domain.SteerInject && (rc.Review == nil || rc.Run.Trigger != domain.TriggerReview) {
+		steerCh = make(chan adapter.Steer, 16)
+	}
 	if h.broker != nil {
 		sub, unsub := h.broker.Subscribe(events.RunTopic(a.RunID.String()), 16)
 		defer unsub()
@@ -154,9 +165,14 @@ func (h *Heartbeat) executeRunJob(ctx context.Context, a ExecuteRunArgs, ji jobI
 					if !ok {
 						return
 					}
-					if m.Type == cancelMsgType {
+					switch m.Type {
+					case cancelMsgType:
 						cancelCause(errRunCancelled)
 						return
+					case service.RunSteerMsg:
+						if ev, ok := m.Data.(service.SteerEvent); ok && steerCh != nil {
+							h.forwardSteer(ctx, a, steerCh, ev, log)
+						}
 					}
 				}
 			}
@@ -245,6 +261,9 @@ func (h *Heartbeat) executeRunJob(ctx context.Context, a ExecuteRunArgs, ji jobI
 		runErr = specErr
 	} else {
 		spec.Timeout = h.opts.RunTimeout
+		if steerCh != nil && !spec.ReadOnly {
+			spec.Steer = steerCh
+		}
 		spec.Secrets = resolved
 		redact := append([]string(nil), resolved...)
 		if renv != nil {
@@ -319,6 +338,44 @@ func (h *Heartbeat) executeRunJob(ctx context.Context, a ExecuteRunArgs, ji jobI
 		h.finalizeMemorySession(fctx, scope, agent, res.SessionRef, log)
 	}
 	return nil
+}
+
+// steerBackend is the part of the service that confirms a steer delivery; optional so test doubles that do not steer
+// keep working.
+type steerBackend interface {
+	MarkSteerDelivered(ctx context.Context, companyID, runID, followupID domain.ID) error
+}
+
+var _ steerBackend = (*service.Service)(nil)
+
+// forwardSteer hands one operator message to the adapter. The adapter acknowledges after delivering it to the harness;
+// only then does the service mark the follow-up consumed (otherwise it stays queued for the next run).
+func (h *Heartbeat) forwardSteer(ctx context.Context, a ExecuteRunArgs, ch chan<- adapter.Steer, ev service.SteerEvent, log *slog.Logger) {
+	st := adapter.Steer{ID: ev.FollowupID.String(), Text: ev.Text, Ack: func(err error) {
+		fctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), eventTimeout)
+		defer cancel()
+		if err != nil {
+			log.Warn("execute_run: steer não entregue", "followup_id", ev.FollowupID, "err", err)
+			recordSteer(fctx, string(domain.SteerInject), "refused")
+			h.appendEvent(fctx, a, adapter.Event{Kind: domain.EventSystem, Text: "mensagem do operador não entregue ao agente (segue na fila): " + err.Error(), OccurredAt: time.Now().UTC()})
+			return
+		}
+		sb, ok := h.svc.(steerBackend)
+		if !ok {
+			return
+		}
+		if merr := sb.MarkSteerDelivered(fctx, a.CompanyID, a.RunID, ev.FollowupID); merr != nil {
+			log.Warn("execute_run: confirmar entrega do steer", "followup_id", ev.FollowupID, "err", merr)
+			recordSteer(fctx, string(domain.SteerInject), "unconfirmed")
+			return
+		}
+		recordSteer(fctx, string(domain.SteerInject), "delivered")
+	}}
+	select {
+	case ch <- st:
+	default:
+		log.Warn("execute_run: fila de steer cheia, a mensagem segue na fila de follow-ups", "followup_id", ev.FollowupID)
+	}
 }
 
 // finishPending finalizes a run whose result was saved by an earlier attempt.
@@ -442,7 +499,7 @@ func (h *Heartbeat) buildSpec(rc service.RunContext, briefing, handoff string, s
 	} else {
 		system, prompt = BuildPrompt(rc, briefing, handoff)
 	}
-	sessionRef := ""
+	sessionRef := rc.ResumeSession
 	if rc.Chat != nil {
 		sessionRef = rc.Chat.ResumeSession
 	}

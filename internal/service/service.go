@@ -20,6 +20,7 @@ import (
 	"github.com/renatobardi/hanko/internal/events"
 	"github.com/renatobardi/hanko/internal/execenv"
 	"github.com/renatobardi/hanko/internal/memory"
+	"github.com/renatobardi/hanko/internal/readiness"
 	"github.com/renatobardi/hanko/internal/settings"
 	"github.com/renatobardi/hanko/internal/storage"
 	"github.com/renatobardi/hanko/internal/vault"
@@ -92,6 +93,8 @@ type Service struct {
 	// ACP é a política do operador para o harness acp (HANKO_ACP_ALLOW / HANKO_ACP_COMMANDS, ADR-0023). O zero
 	// value recusa: persona acp não pode ser contratada nem importada.
 	ACP acp.Policy
+	// Probers são os probes de readiness por harness (ADR-0056); o app os registra junto dos adapters.
+	Probers map[string]adapter.Prober
 	// Vault é o cofre externo de segredos (ADR-0050); nil = nenhum configurado (segredos provider=vault recusados).
 	Vault vault.Provider
 	// Blobs guarda o conteúdo dos artefatos (ADR-0051); nil usa o driver postgres sobre o pool.
@@ -120,11 +123,25 @@ type Service struct {
 	GitWorkspaces GitWorkspacesConfig
 
 	gitSt *gitState // executor do git e locks de espelho; ver gitState
+
+	// Readiness são os binários dos harnesses locais e ReadinessEvery o intervalo da checagem periódica da persona
+	// (HANKO_READINESS_INTERVAL, ADR-0055); zero desliga a checagem periódica (o app define DefaultReadinessInterval).
+	Readiness      readiness.Config
+	ReadinessEvery time.Duration
+	// ReadinessRunner (só testes) troca a execução do script do probe; nil usa execenv.RunScript no ambiente da persona.
+	ReadinessRunner func(ctx context.Context, target execenv.Target, script string, env map[string]string) ([]byte, error)
+
+	// Push é a configuração do web push (ADR-0042); o zero value serve (precisa de HANKO_SECRET_KEY para a chave VAPID).
+	Push PushConfig
+
+	// notifier guarda o estado dos avisos (entregas em andamento, cache da chave VAPID). É ponteiro para o Service
+	// poder ser copiado; New o cria, e sem ele vale o estado global do processo (ver ns).
+	notifier *notifyState
 }
 
 func New(pool *pgxpool.Pool, jobs Jobs, broker *events.Broker) *Service {
 	return &Service{Pool: pool, Jobs: jobs, Broker: broker, Now: func() time.Time { return time.Now().UTC() },
-		PasswordGate: auth.NewPasswordGate(0, 0), gitSt: &gitState{}}
+		PasswordGate: auth.NewPasswordGate(0, 0), gitSt: &gitState{}, notifier: &notifyState{}}
 }
 
 // ---------- inputs ----------
@@ -248,8 +265,11 @@ type TaskFilter struct {
 	ProjectID *domain.ID
 	GoalID    *domain.ID
 	Query     string
-	Limit     int // default 100, max 500
-	Offset    int
+	// Mine limita às tasks em que a pessoa autenticada participa (criou, atribuiu, foi mencionada, comentou ou é da
+	// audiência de um gate, ADR-0042); sem pessoa autenticada devolve vazio. Cada task traz Participation.
+	Mine   bool
+	Limit  int // default 100, max 500
+	Offset int
 }
 
 type AddCommentInput struct {
@@ -277,8 +297,12 @@ type RunFilter struct {
 type ActivityFilter struct {
 	SubjectType string
 	SubjectID   *domain.ID
-	Before      *time.Time
-	Limit       int // default 50
+	// ActorType (human|persona|system) e ActorID filtram por quem causou o fato (ADR-0042); ActorID vazio com
+	// ActorType human/persona pega todos do tipo. ResolveActor converte "human:ana@x.com" / "persona:ana" / "system".
+	ActorType string
+	ActorID   *domain.ID
+	Before    *time.Time
+	Limit     int // default 50
 }
 
 type FinishRunInput struct {
@@ -295,6 +319,8 @@ type TaskView struct {
 	// System marca a task de sistema de uma rodada de curadoria de memória (ADR-0030): o Hanko a cria, a
 	// acorda e a encerra; ninguém a acorda à mão nem por comentário.
 	System bool `json:"system,omitempty"`
+	// Participation são os motivos pelos quais a task é "minha" (só nas listagens com Mine, ADR-0042).
+	Participation []string `json:"participation,omitempty"`
 	// TaskCoord traz o que a coordenação deriva: dependências abertas (bloqueada), filhos e pausa (ADR-0040).
 	TaskCoord
 }
@@ -307,6 +333,10 @@ type RunView struct {
 	PersonaName string `json:"persona_name"`
 	// ConversationTitle is the title of the conversation of a chat run (empty for task runs).
 	ConversationTitle string `json:"conversation_title,omitempty"`
+	// SteerMode is how the run's harness takes an operator message mid-run (ADR-0039).
+	SteerMode domain.SteerMode `json:"steer_mode,omitempty"`
+	// ContinuedByRunID is the run that continued this one, when there is one (filled by GetRun).
+	ContinuedByRunID *domain.ID `json:"continued_by_run_id,omitempty"`
 	// PolicyOrigin diz de que camada (task, projeto ou persona) veio a política de revisão que valeu na execução
 	// (ADR-0040); só o detalhe da execução preenche.
 	PolicyOrigin *domain.RunPolicyOrigin `json:"policy_origin,omitempty"`
@@ -342,6 +372,10 @@ type RunContext struct {
 	Goals []GoalBrief
 	// Chat is set for runs with trigger chat (no task: Task and Comments are empty).
 	Chat *ChatContext
+	// Continuation is set when the run continues another one (ADR-0039); ResumeSession is the harness session a task
+	// run resumes (chat runs use Chat.ResumeSession).
+	Continuation  *ContinuationContext
+	ResumeSession string
 	// Relations são a árvore (ancestrais e subtasks) e as dependências da task (ADR-0040); nil sem task.
 	Relations *TaskRelations
 	// ReviewPolicy é a política de revisão que vale para esta task e esta persona (task > projeto > persona).

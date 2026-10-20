@@ -37,7 +37,7 @@ func (s *server) secrets() (secretsBackend, error) {
 
 // SecretUse é um lugar que referencia o segredo.
 type SecretUse struct {
-	Kind string `json:"kind" enum:"persona,integration"`
+	Kind string `json:"kind" enum:"persona,integration,decision"`
 	Slug string `json:"slug"`
 	Name string `json:"name"`
 }

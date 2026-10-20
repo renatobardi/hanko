@@ -94,6 +94,7 @@ func (q *Queries) CreateFlow(ctx context.Context, arg CreateFlowParams) (Flow, e
 const dueFlows = `-- name: DueFlows :many
 SELECT id, company_id, slug, name, description, cron, timezone, enabled, persona_id, project_id, priority, task_title, task_description, last_fired_at, next_fire_at, created_at, updated_at, search_tsv FROM flows
 WHERE enabled AND next_fire_at IS NOT NULL AND next_fire_at <= $1
+  AND NOT EXISTS (SELECT 1 FROM companies c WHERE c.id = flows.company_id AND c.archived_at IS NOT NULL)
 ORDER BY next_fire_at, id
 LIMIT $2
 `

@@ -27,7 +27,9 @@ type parser struct {
 	model     string
 
 	gotResult bool
-	result    adapter.Result
+	// results counts the result lines seen (a steered session ends one turn per message).
+	results int
+	result  adapter.Result
 }
 
 func newParser(now func() time.Time) *parser {
@@ -73,6 +75,7 @@ type message struct {
 }
 
 type block struct {
+	ID        string          `json:"id,omitempty"` // id da chamada de tool: casa tool_use com tool_result (desfecho incerto)
 	Type      string          `json:"type"`
 	Text      string          `json:"text"`
 	Thinking  string          `json:"thinking"`
@@ -120,7 +123,9 @@ func (p *parser) Feed(line []byte) []adapter.Event {
 			}
 			txt += " · mcp: " + strings.Join(ms, ", ")
 		}
-		return []adapter.Event{p.ev(domain.EventSystem, txt, raw)}
+		ev := p.ev(domain.EventSystem, txt, raw)
+		ev.SessionRef = l.SessionID
+		return []adapter.Event{ev}
 	case "assistant":
 		return p.assistant(l, raw)
 	case "user":
@@ -173,6 +178,7 @@ func (p *parser) user(l streamLine) []adapter.Event {
 
 func (p *parser) resultLine(l streamLine, raw json.RawMessage) []adapter.Event {
 	p.gotResult = true
+	p.results++
 	r := adapter.Result{Summary: l.Result, IsError: l.IsError, CostUSD: l.TotalCostUSD, Model: p.model}
 	if l.Usage != nil {
 		r.Usage = domain.Usage{

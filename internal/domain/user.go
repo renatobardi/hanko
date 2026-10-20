@@ -70,6 +70,8 @@ type APIKey struct {
 	UserID     ID         `json:"user_id"`
 	Name       string     `json:"name"`
 	Prefix     string     `json:"prefix"`
+	Scope      KeyScope   `json:"scope"`
+	Device     string     `json:"device,omitempty"`
 	CreatedAt  time.Time  `json:"created_at"`
 	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
 	RevokedAt  *time.Time `json:"revoked_at,omitempty"`

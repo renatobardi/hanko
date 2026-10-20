@@ -15,10 +15,13 @@ const (
 	AlertRunStuck AlertKind = "run_stuck"
 	// AlertBudgetNearLimit: orçamento mensal (empresa ou persona) em 80% ou mais.
 	AlertBudgetNearLimit AlertKind = "budget_near_limit"
+	// AlertPersonaNotReady: o último teste de readiness da persona falhou (binário, login ou modelo); o despacho está
+	// bloqueado até um teste passar (ADR-0055).
+	AlertPersonaNotReady AlertKind = "persona_not_ready"
 )
 
 // AlertKinds lista todos os tipos, na ordem em que aparecem em /metrics.
-var AlertKinds = []AlertKind{AlertPersonaSilent, AlertRunStuck, AlertBudgetNearLimit}
+var AlertKinds = []AlertKind{AlertPersonaSilent, AlertRunStuck, AlertBudgetNearLimit, AlertPersonaNotReady}
 
 func (k AlertKind) Valid() bool {
 	for _, v := range AlertKinds {

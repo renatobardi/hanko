@@ -598,7 +598,7 @@ func (t *txc) dispatchRoom(conv store.Conversation, p RoomParticipantView) (room
 		}
 		tg.queued = true
 	case isNoRows(aerr):
-		run, berr, err := t.openPersonaRun(conv, p.PersonaID)
+		run, berr, err := t.openPersonaRun(conv, p.PersonaID, nil)
 		if err != nil {
 			return tg, err
 		}
@@ -914,7 +914,7 @@ func (t *txc) roomRunEnded(conv store.Conversation, run store.Run, status domain
 	if n == 0 {
 		return nil
 	}
-	next, berr, err := t.openPersonaRun(conv, run.PersonaID)
+	next, berr, err := t.openPersonaRun(conv, run.PersonaID, nil)
 	if err != nil {
 		return err
 	}

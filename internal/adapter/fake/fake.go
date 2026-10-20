@@ -46,11 +46,16 @@ func (*Adapter) Name() string { return "fake" }
 // ResumesSessions: the fake pretends to resume sessions so chat flows can be exercised end to end.
 func (*Adapter) ResumesSessions() bool { return true }
 
+// SteerMode: the fake takes an operator message while it runs, so the injection path can be proved end to end.
+func (*Adapter) SteerMode() domain.SteerMode { return domain.SteerInject }
+
 // Config is read from persona.adapter_config.
 type Config struct {
 	DelayMS *int   `json:"delay_ms"` // overrides Options.Delay
 	Fail    bool   `json:"fail"`     // makes the run report an error
 	Summary string `json:"summary"`  // overrides the final answer (e.g. a reviewer verdict)
+	// HoldForSteerMS: before the last step, wait up to this long for an operator message (steer) when none arrived yet.
+	HoldForSteerMS int `json:"hold_for_steer_ms"`
 	// Touch grava um arquivo com este nome (só o nome, sem diretório) no diretório de trabalho da run; no
 	// ambiente remoto (ADR-0037) ele é gravado lá e volta pela sincronização.
 	Touch string `json:"touch"`
@@ -92,6 +97,8 @@ func (a *Adapter) Run(ctx context.Context, spec adapter.Spec, sink adapter.Sink)
 		if spec.SessionRef != "" {
 			summary = "Fake respondeu na conversa (sessão retomada): resposta registrada."
 		}
+	} else if spec.SessionRef != "" {
+		summary = fmt.Sprintf("Fake concluiu %s (sessão retomada): análise registrada. Próximo passo: revisar o resultado.", key)
 	}
 	if cfg.Summary != "" {
 		summary = cfg.Summary
@@ -137,18 +144,61 @@ func (a *Adapter) Run(ctx context.Context, spec adapter.Spec, sink adapter.Sink)
 		res.Summary, res.IsError, res.Error, res.ExitCode = "", true, "falha simulada pelo adapter fake", 1
 	}
 
-	for i, e := range steps {
-		if i > 0 && delay > 0 {
+	var steered []string
+	// take applies one operator message: the log shows it and the final answer carries the new direction.
+	take := func(m adapter.Steer) error {
+		steered = append(steered, m.Text)
+		err := sink.Emit(ctx, adapter.Event{Kind: domain.EventAssistant, Text: "Rumo alterado pelo operador: " + m.Text, OccurredAt: time.Now().UTC()})
+		m.Done(err)
+		return err
+	}
+	// pause waits d (or until ctx ends), taking steer messages that arrive meanwhile; it returns false when ctx ended.
+	pause := func(d time.Duration) (bool, error) {
+		t := time.NewTimer(d)
+		defer t.Stop()
+		for {
 			select {
 			case <-ctx.Done():
+				return false, nil
+			case m := <-spec.Steer:
+				if err := take(m); err != nil {
+					return true, err
+				}
+			case <-t.C:
+				return true, nil
+			}
+		}
+	}
+	for i, e := range steps {
+		if i > 0 && delay > 0 {
+			ok, err := pause(delay)
+			if err != nil {
+				return res, fmt.Errorf("fake: sink: %w", err)
+			}
+			if !ok {
 				return a.cancelled(res), nil
-			case <-time.After(delay):
+			}
+		}
+		if i == len(steps)-1 && cfg.HoldForSteerMS > 0 && len(steered) == 0 && spec.Steer != nil {
+			ok, err := pause(time.Duration(cfg.HoldForSteerMS) * time.Millisecond)
+			if err != nil {
+				return res, fmt.Errorf("fake: sink: %w", err)
+			}
+			if !ok {
+				return a.cancelled(res), nil
 			}
 		}
 		if ctx.Err() != nil {
 			return a.cancelled(res), nil
 		}
+		if i == len(steps)-1 && len(steered) > 0 && !res.IsError {
+			res.Summary += " Rumo alterado pelo operador: " + strings.Join(steered, " | ")
+			e.Text = res.Summary
+		}
 		e.OccurredAt = time.Now().UTC()
+		if i == 0 {
+			e.SessionRef = session
+		}
 		if err := sink.Emit(ctx, e); err != nil {
 			return res, fmt.Errorf("fake: sink: %w", err)
 		}

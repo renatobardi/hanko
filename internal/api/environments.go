@@ -28,6 +28,7 @@ type environmentsBackend interface {
 	ListEnvironmentLeases(ctx context.Context, companyID, envID domain.ID, limit int) ([]service.EnvironmentLeaseView, error)
 	ProbeEnvironment(ctx context.Context, actor domain.Actor, companyID, id domain.ID) (service.EnvironmentView, error)
 	ProbeEnvironmentDraft(ctx context.Context, companyID domain.ID, in service.CreateEnvironmentInput) (domain.ProbeReport, error)
+	SetProjectEnvironment(ctx context.Context, actor domain.Actor, companyID, projectID domain.ID, envID *domain.ID) (domain.Project, error)
 }
 
 func (s *server) environments() (environmentsBackend, error) {
@@ -56,6 +57,17 @@ type SandboxConfig struct {
 	PIDsLimit int     `json:"pids_limit,omitempty" minimum:"0" doc:"Máximo de processos (padrão 512)."`
 }
 
+// CloudConfig é a configuração de um ambiente cloud (sandbox em nuvem por execução, ADR-0055).
+type CloudConfig struct {
+	Provider            string `json:"provider,omitempty" enum:"daytona" doc:"Provider (padrão daytona); o operador liga o driver com HANKO_ENV_CLOUD."`
+	Snapshot            string `json:"snapshot,omitempty" doc:"Snapshot/imagem do provider; vazio = o padrão dele."`
+	CPUs                int    `json:"cpus,omitempty" minimum:"0" doc:"CPUs do sandbox (padrão 2)."`
+	MemoryGiB           int    `json:"memory_gib,omitempty" minimum:"0" doc:"Memória em GiB (padrão 4)."`
+	DiskGiB             int    `json:"disk_gib,omitempty" minimum:"0" doc:"Disco em GiB (padrão 10)."`
+	Network             string `json:"network,omitempty" enum:"none,full" doc:"Rede do sandbox (padrão full: o harness precisa alcançar o modelo e o MCP)."`
+	RemoteWorkspaceRoot string `json:"remote_workspace_root,omitempty" doc:"Pasta absoluta do sandbox sob a qual cada execução ganha a sua cópia (padrão /home/daytona/hanko)."`
+}
+
 // ProbeStep é uma verificação do teste de conexão.
 type ProbeStep struct {
 	Name   string `json:"name" doc:"connect, system, workspace_root, docker, image ou bin:<nome>."`
@@ -65,12 +77,14 @@ type ProbeStep struct {
 
 // ProbeReport é o relatório de um teste de conexão.
 type ProbeReport struct {
-	OK         bool              `json:"ok"`
-	Steps      []ProbeStep       `json:"steps"`
-	System     string            `json:"system,omitempty" doc:"uname -sm do alvo."`
-	Binaries   map[string]string `json:"binaries,omitempty" doc:"Caminho de git, claude e codex no alvo (vazio = não encontrado)."`
-	Warnings   []string          `json:"warnings,omitempty"`
-	DurationMs int64             `json:"duration_ms"`
+	OK       bool              `json:"ok"`
+	Steps    []ProbeStep       `json:"steps"`
+	System   string            `json:"system,omitempty" doc:"uname -sm do alvo."`
+	Binaries map[string]string `json:"binaries,omitempty" doc:"Caminho de git, claude e codex no alvo (vazio = não encontrado)."`
+	// Capabilities: o que o alvo oferece, medido pelo teste (sync, git, claude, codex, hanko-reachable) ou garantido pelo driver (network, isolated, persistent).
+	Capabilities []string `json:"capabilities,omitempty"`
+	Warnings     []string `json:"warnings,omitempty"`
+	DurationMs   int64    `json:"duration_ms"`
 }
 
 // EnvironmentPersona é uma persona que escolheu o ambiente.
@@ -87,17 +101,19 @@ type Environment struct {
 	Slug         string               `json:"slug" example:"build"`
 	Name         string               `json:"name" example:"Servidor de build"`
 	Description  string               `json:"description,omitempty"`
-	Driver       string               `json:"driver" enum:"ssh,sandbox"`
+	Driver       string               `json:"driver" enum:"local,ssh,sandbox,cloud" doc:"local = ambiente local explícito; sandbox = contêiner docker; cloud = sandbox em nuvem."`
 	Status       string               `json:"status" enum:"active,archived"`
 	SSH          *SSHConfig           `json:"ssh,omitempty"`
 	Sandbox      *SandboxConfig       `json:"sandbox,omitempty"`
+	Cloud        *CloudConfig         `json:"cloud,omitempty"`
 	EnvNames     []string             `json:"env_names" doc:"Nomes das variáveis do ambiente (os valores nunca são devolvidos)."`
 	IsDefault    bool                 `json:"is_default" doc:"Padrão da empresa para personas sem ambiente próprio."`
-	KeySet       bool                 `json:"key_set" doc:"SSH: há chave privada guardada (nunca devolvida)."`
+	KeySet       bool                 `json:"key_set" doc:"SSH: há chave privada guardada; cloud: há chave de API do provider (nunca devolvidas)."`
 	Available    bool                 `json:"available" doc:"O driver pode rodar neste servidor (decisão do operador)."`
 	Unavailable  string               `json:"unavailable,omitempty" doc:"Por que o driver não pode rodar agora."`
 	Warnings     []string             `json:"warnings,omitempty"`
 	Personas     []EnvironmentPersona `json:"personas" doc:"Personas que escolheram este ambiente."`
+	Projects     []EnvironmentPersona `json:"projects" doc:"Projetos que escolheram este ambiente."`
 	ActiveLeases int                  `json:"active_leases" doc:"Execuções usando o ambiente agora."`
 	LastProbeAt  *time.Time           `json:"last_probe_at,omitempty"`
 	LastProbeOK  *bool                `json:"last_probe_ok,omitempty"`
@@ -127,13 +143,13 @@ func probeOut(r domain.ProbeReport) ProbeReport {
 	for i, st := range r.Steps {
 		steps[i] = ProbeStep{Name: st.Name, OK: st.OK, Detail: st.Detail}
 	}
-	return ProbeReport{OK: r.OK, Steps: steps, System: r.System, Binaries: r.Binaries, Warnings: r.Warnings, DurationMs: r.DurationMs}
+	return ProbeReport{OK: r.OK, Steps: steps, System: r.System, Binaries: r.Binaries, Capabilities: r.Capabilities, Warnings: r.Warnings, DurationMs: r.DurationMs}
 }
 
 func environmentOut(v service.EnvironmentView) Environment {
 	o := Environment{ID: idStr(v.ID), CompanyID: idStr(v.CompanyID), Slug: v.Slug, Name: v.Name, Description: v.Description,
 		Driver: string(v.Driver), Status: string(v.Status), EnvNames: v.Config.EnvNames, IsDefault: v.IsDefault, KeySet: v.KeySet,
-		Available: v.Unavailable == "", Unavailable: v.Unavailable, Warnings: v.Warnings, Personas: []EnvironmentPersona{},
+		Available: v.Unavailable == "", Unavailable: v.Unavailable, Warnings: v.Warnings, Personas: []EnvironmentPersona{}, Projects: []EnvironmentPersona{},
 		ActiveLeases: v.ActiveLeases, LastProbeAt: v.LastProbeAt, LastProbeOK: v.LastProbeOK,
 		CreatedBy: actorRef(v.CreatedBy), CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt}
 	if o.EnvNames == nil {
@@ -144,6 +160,12 @@ func environmentOut(v service.EnvironmentView) Environment {
 	}
 	if c := v.Config.Sandbox; c != nil {
 		o.Sandbox = &SandboxConfig{Image: c.Image, Network: c.Network, MemoryMiB: c.MemoryMiB, CPUs: c.CPUs, PIDsLimit: c.PIDsLimit}
+	}
+	if c := v.Config.Cloud; c != nil {
+		o.Cloud = &CloudConfig{Provider: c.Provider, Snapshot: c.Snapshot, CPUs: c.CPUs, MemoryGiB: c.MemoryGiB, DiskGiB: c.DiskGiB, Network: c.Network, RemoteWorkspaceRoot: c.Root}
+	}
+	for _, p := range v.Projects {
+		o.Projects = append(o.Projects, EnvironmentPersona{ID: idStr(p.ID), Slug: p.Slug, Name: p.Name})
 	}
 	if v.LastProbeReport != nil {
 		r := probeOut(*v.LastProbeReport)
@@ -174,6 +196,13 @@ func sandboxIn(c *SandboxConfig) *domain.SandboxConfig {
 	return &domain.SandboxConfig{Image: c.Image, Network: c.Network, MemoryMiB: c.MemoryMiB, CPUs: c.CPUs, PIDsLimit: c.PIDsLimit}
 }
 
+func cloudIn(c *CloudConfig) *domain.CloudConfig {
+	if c == nil {
+		return nil
+	}
+	return &domain.CloudConfig{Provider: c.Provider, Snapshot: c.Snapshot, CPUs: c.CPUs, MemoryGiB: c.MemoryGiB, DiskGiB: c.DiskGiB, Network: c.Network, Root: c.RemoteWorkspaceRoot}
+}
+
 type EnvironmentPath struct {
 	CompanyPath
 	Environment string `path:"environment" doc:"Id ou slug do ambiente." example:"build"`
@@ -184,16 +213,18 @@ type environmentBody struct {
 	Name        string            `json:"name" minLength:"1" maxLength:"120" example:"Servidor de build"`
 	Slug        string            `json:"slug,omitempty" pattern:"^[a-z0-9][a-z0-9-]{0,62}$" doc:"Derivado do nome quando omitido."`
 	Description string            `json:"description,omitempty" maxLength:"500"`
-	Driver      string            `json:"driver" enum:"ssh,sandbox" doc:"O local é implícito e não se cadastra."`
+	Driver      string            `json:"driver" enum:"local,ssh,sandbox,cloud" doc:"local = ambiente local explícito (só variáveis); o local implícito não precisa de cadastro."`
 	SSH         *SSHConfig        `json:"ssh,omitempty"`
 	PrivateKey  string            `json:"private_key,omitempty" doc:"SSH: chave privada (PEM/OpenSSH, sem senha). Guardada cifrada; nunca devolvida."`
 	Sandbox     *SandboxConfig    `json:"sandbox,omitempty"`
+	Cloud       *CloudConfig      `json:"cloud,omitempty"`
+	APIKey      string            `json:"api_key,omitempty" doc:"Cloud: chave de API do provider (ou ${secret:NOME}). Guardada cifrada; nunca devolvida."`
 	Env         map[string]string `json:"env,omitempty" doc:"Variáveis do harness no ambiente (segredos; HANKO_*, PATH e HOME são reservados). Guardadas cifradas; nunca devolvidas."`
 }
 
 func (b environmentBody) input() service.CreateEnvironmentInput {
 	return service.CreateEnvironmentInput{Name: b.Name, Slug: b.Slug, Description: b.Description, Driver: domain.EnvironmentDriver(b.Driver),
-		SSH: sshIn(b.SSH), PrivateKey: b.PrivateKey, Sandbox: sandboxIn(b.Sandbox), Env: b.Env}
+		SSH: sshIn(b.SSH), PrivateKey: b.PrivateKey, Sandbox: sandboxIn(b.Sandbox), Cloud: cloudIn(b.Cloud), APIKey: b.APIKey, Env: b.Env}
 }
 
 type createEnvironmentIn struct {
@@ -214,6 +245,8 @@ type updateEnvironmentIn struct {
 		SSH         *SSHConfig        `json:"ssh,omitempty" doc:"Substitui a configuração SSH (a chave fica, salvo private_key)."`
 		PrivateKey  *string           `json:"private_key,omitempty" doc:"Troca a chave privada."`
 		Sandbox     *SandboxConfig    `json:"sandbox,omitempty" doc:"Substitui a configuração do sandbox."`
+		Cloud       *CloudConfig      `json:"cloud,omitempty" doc:"Substitui a configuração do sandbox em nuvem."`
+		APIKey      *string           `json:"api_key,omitempty" doc:"Troca a chave de API do provider cloud."`
 		SetEnv      map[string]string `json:"set_env,omitempty" doc:"Define ou troca estas variáveis; as demais ficam."`
 		DropEnv     []string          `json:"drop_env,omitempty"`
 		Reactivate  bool              `json:"reactivate,omitempty" doc:"Tira o ambiente do arquivo."`
@@ -222,7 +255,7 @@ type updateEnvironmentIn struct {
 
 type archiveEnvironmentIn struct {
 	EnvironmentPath
-	MovePersonasTo string `query:"move_personas_to" doc:"Ambiente (id ou slug) para onde vão as personas deste; vazio ou local = o padrão da empresa."`
+	MovePersonasTo string `query:"move_personas_to" doc:"Ambiente (id ou slug) para onde vão as personas e os projetos deste; vazio ou local = o padrão da empresa."`
 }
 
 type listEnvironmentsIn struct {
@@ -373,7 +406,8 @@ func (s *server) registerEnvironments(api huma.API) {
 			}
 			b := in.Body
 			v, err := eb.UpdateEnvironment(ctx, sc.Actor, sc.Company.ID, cur.ID, service.UpdateEnvironmentInput{Name: b.Name, Description: b.Description,
-				SSH: sshIn(b.SSH), PrivateKey: b.PrivateKey, Sandbox: sandboxIn(b.Sandbox), SetEnv: b.SetEnv, DropEnv: b.DropEnv, Reactivate: b.Reactivate})
+				SSH: sshIn(b.SSH), PrivateKey: b.PrivateKey, Sandbox: sandboxIn(b.Sandbox), Cloud: cloudIn(b.Cloud), APIKey: b.APIKey,
+				SetEnv: b.SetEnv, DropEnv: b.DropEnv, Reactivate: b.Reactivate})
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}
@@ -437,4 +471,33 @@ func (s *server) registerEnvironments(api huma.API) {
 			}
 			return listAll(list, Page{Limit: in.Limit}, leaseOut), nil
 		})
+
+	huma.Register(api, op("set-project-environment", http.MethodPut, "/companies/{company}/projects/{project}/environment", "environments",
+		"Escolhe o ambiente de execução do projeto (admin); a persona tem precedência sobre o projeto, e o projeto sobre o padrão da empresa"),
+		func(ctx context.Context, in *setProjectEnvironmentIn) (*ItemOut[Project], error) {
+			eb, sc, err := pre(ctx, in.Company, true)
+			if err != nil {
+				return nil, err
+			}
+			pid, err := s.projectRef(ctx, sc.Company.ID, in.Project)
+			if err != nil || pid == nil {
+				return nil, s.fail(ctx, orNotFound(err))
+			}
+			id, err := s.environmentRef(ctx, eb, sc.Company.ID, in.Body.Environment)
+			if err != nil {
+				return nil, err
+			}
+			p, err := eb.SetProjectEnvironment(ctx, sc.Actor, sc.Company.ID, *pid, id)
+			if err != nil {
+				return nil, s.fail(ctx, err)
+			}
+			return &ItemOut[Project]{Body: projectOut(p)}, nil
+		})
+}
+
+type setProjectEnvironmentIn struct {
+	ProjectPath
+	Body struct {
+		Environment string `json:"environment" doc:"Id ou slug do ambiente; vazio, local ou default = o padrão da empresa." example:"build"`
+	}
 }

@@ -40,6 +40,9 @@ func BuildPrompt(rc service.RunContext, briefing, handoff string) (system, promp
 	sb.WriteString("## Protocolo Hanko\n\n")
 	fmt.Fprintf(&sb, "Você é a persona %s da empresa %s.\n", title, c.Name)
 	fmt.Fprintf(&sb, "- Trabalhe na task %s e somente nela.\n", t.Key)
+	if t.PersonaID != nil && *t.PersonaID != p.ID && rc.Run.Trigger == domain.TriggerComment {
+		sb.WriteString("- Você foi citada com @ num comentário desta task, que é de outra persona: responda só ao que foi pedido a você, no resumo final, e não mude o status, a prioridade nem a atribuição da task.\n")
+	}
 	sb.WriteString("- Use as tools MCP `hanko_*` (por exemplo `hanko_task_get`, `hanko_task_comment`, `hanko_task_update`) para ler a task, comentar e atualizar status e prioridade.\n")
 	sb.WriteString("- Registre decisões e bloqueios como comentário na task; mude o status quando o trabalho avançar (`in_review` quando pronto para revisão, `blocked` quando depender de alguém).\n")
 	sb.WriteString("- Para dividir o trabalho, crie subtasks com `hanko_task_create` (o pai padrão é esta task) e ordene-as com `depends_on`; uma task com dependência aberta só é despachada quando todas fecharem. Deixe esta task em `in_progress` e encerre: você será acordada quando a última subtask fechar. `hanko_task_dependency` ajusta dependências depois.\n")
@@ -110,6 +113,7 @@ func BuildPrompt(rc service.RunContext, briefing, handoff string) (system, promp
 			pb.WriteString("### Briefing\n\n" + briefing + "\n\n")
 		}
 	}
+	pb.WriteString(continuationSection(rc.Continuation, rc.ResumeSession != ""))
 	pb.WriteString("---\nExecute o trabalho desta task agora.\n")
 	return system, pb.String()
 }
@@ -168,6 +172,13 @@ func goalLine(g service.GoalBrief) string {
 	}
 	if g.DueDate != nil {
 		line += ", prazo " + g.DueDate.Format("2006-01-02")
+	}
+	if len(g.Chain) > 1 {
+		parts := make([]string, len(g.Chain))
+		for i, c := range g.Chain {
+			parts[i] = clip(c, 80)
+		}
+		line += ", cadeia: " + strings.Join(parts, " › ")
 	}
 	if g.Linked {
 		line += " (esta task serve a ela)"

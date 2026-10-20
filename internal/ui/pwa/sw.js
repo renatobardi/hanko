@@ -97,3 +97,37 @@ self.addEventListener("fetch", function (e) {
     e.respondWith(fetch(req).catch(offlinePage));
   }
 });
+
+// Web push (ADR-0042): o servidor manda {title, body, url, tag}; mostramos a notificação e, ao tocar, abrimos a
+// tela. Só caminhos relativos da própria origem; nada do payload vira HTML.
+self.addEventListener("push", function (e) {
+  var data = {};
+  try {
+    data = e.data ? e.data.json() : {};
+  } catch (_) {
+    data = { title: "Hanko", body: e.data ? e.data.text() : "" };
+  }
+  var title = data.title || "Hanko";
+  var url = typeof data.url === "string" && data.url.charAt(0) === "/" && data.url.charAt(1) !== "/" ? data.url : "/";
+  e.waitUntil(self.registration.showNotification(title, {
+    body: data.body || "",
+    tag: data.tag || undefined,
+    icon: "/static/icons/apple-touch-icon.png",
+    data: { url: url }
+  }));
+});
+
+self.addEventListener("notificationclick", function (e) {
+  e.notification.close();
+  var url = (e.notification.data && e.notification.data.url) || "/";
+  e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(function (list) {
+    for (var i = 0; i < list.length; i++) {
+      var c = list[i];
+      if (c.url.indexOf(self.location.origin) === 0 && "focus" in c) {
+        if ("navigate" in c) c.navigate(url);
+        return c.focus();
+      }
+    }
+    return self.clients.openWindow(url);
+  }));
+});

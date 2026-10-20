@@ -71,7 +71,7 @@ func TestCLIEnvironments(t *testing.T) {
 	if !strings.Contains(out, "Nenhuma execução") {
 		t.Fatalf("leases: %s", out)
 	}
-	if code, _, errOut := exec(t, Runtime{}, env, "", "env", "create", "X", "--driver", "local"); code == 0 || !strings.Contains(errOut, "--driver") {
+	if code, _, errOut := exec(t, Runtime{}, env, "", "env", "create", "X", "--driver", "docker"); code == 0 || !strings.Contains(errOut, "--driver") {
 		t.Fatalf("driver local: %d %s", code, errOut)
 	}
 	mustOK(t, env, "env", "default", "local")

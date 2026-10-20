@@ -79,4 +79,5 @@ type InboxHeld struct {
 	By         string
 	When       string
 	ResumeHref string
+	Ctl        InboxCtl
 }

@@ -117,6 +117,22 @@ templ HirePersonaPage(sh Shell, vm HirePersonaVM) {
 							<span class="rc"><b>@Icon("bot") ACP</b><span>{ i18n.T(ctx, "Local · qualquer harness que fale ACP · você informa o comando") }</span></span>
 						</label>
 						<label>
+							<input type="radio" name="agent" value="devin" checked?={ vm.Agent == "devin" }/>
+							<span class="rc"><b>@Icon("bot") Devin CLI</b><span>{ i18n.T(ctx, "Local · Devin via ACP · o executável é do operador") }</span></span>
+						</label>
+						<label>
+							<input type="radio" name="agent" value="pi" checked?={ vm.Agent == "pi" }/>
+							<span class="rc"><b>@Icon("bot") Pi</b><span>{ i18n.T(ctx, "Local · saída JSON · tools do Hanko pela CLI") }</span></span>
+						</label>
+						<label>
+							<input type="radio" name="agent" value="cursor" checked?={ vm.Agent == "cursor" }/>
+							<span class="rc"><b>@Icon("bot") Cursor CLI</b><span>{ i18n.T(ctx, "Local · stream-json · tools do Hanko pela CLI") }</span></span>
+						</label>
+						<label>
+							<input type="radio" name="agent" value="http" checked?={ vm.Agent == "http" }/>
+							<span class="rc"><b>@Icon("bot") HTTP</b><span>{ i18n.T(ctx, "Sem CLI · endpoint compatível com chat completions · tools do Hanko") }</span></span>
+						</label>
+						<label>
 							<input type="radio" name="agent" value="fake" checked?={ vm.Agent == "fake" }/>
 							<span class="rc"><b>
 								@Icon("bot")
@@ -136,9 +152,13 @@ templ HirePersonaPage(sh Shell, vm HirePersonaVM) {
 							<span class="hint">{ i18n.T(ctx, "Só o executável, que fala ACP por stdio e precisa estar instalado no servidor. Argumentos vão no campo abaixo; variáveis de ambiente extras, pela API ou pela CLI.") }</span>
 						</div>
 						<div class="field">
-							<label for="p-acp-perm">{ i18n.T(ctx, "Permissões do harness") }</label>
-							@Select("acp_permission", "p-acp-perm", vm.AcpPermission, false)
-							<span class="hint">{ i18n.T(ctx, "Somente leitura aprova leitura e busca e recusa edição e execução. Permitir tudo aprova qualquer pedido do harness.") }</span>
+							<label for="p-acp-preset">{ i18n.T(ctx, "Ou uma ferramenta conhecida") }</label>
+							<select class="select" id="p-acp-preset" name="acp_preset">
+								<option value="">—</option>
+								<option value="gemini" selected?={ vm.AcpPreset == "gemini" }>Gemini CLI</option>
+								<option value="opencode" selected?={ vm.AcpPreset == "opencode" }>opencode</option>
+							</select>
+							<span class="hint">{ i18n.T(ctx, "Preenche o comando e os argumentos da ferramenta; deixe o comando em branco.") }</span>
 						</div>
 					</div>
 					<div class="field">
@@ -146,12 +166,38 @@ templ HirePersonaPage(sh Shell, vm HirePersonaVM) {
 						<textarea class="textarea mono" id="p-acp-args" name="acp_args" rows="3" spellcheck="false">{ vm.AcpArgs }</textarea>
 					</div>
 				</div>
+				<div class="perm-only">
+					<div class="field">
+						<label for="p-acp-perm">{ i18n.T(ctx, "Permissões do harness") }</label>
+						@Select("acp_permission", "p-acp-perm", vm.AcpPermission, false)
+						<span class="hint">{ i18n.T(ctx, "Somente leitura aprova leitura e busca e recusa edição e execução. Permitir tudo aprova qualquer pedido do harness.") }</span>
+					</div>
+				</div>
+				<div class="http-only">
+					<div class="form-grid">
+						<div class="field">
+							<label for="p-http-base">{ i18n.T(ctx, "Endpoint compatível com chat completions") }</label>
+							<input class="input mono" id="p-http-base" name="http_base_url" value={ vm.HttpBaseURL } maxlength="500" autocomplete="off" spellcheck="false" placeholder="https://openrouter.ai/api/v1"/>
+							if e := vm.FieldErr["http_base_url"]; e != "" {
+								<span class="err">{ e }</span>
+							}
+							<span class="hint">{ i18n.T(ctx, "O Hanko roda o loop de tool-use: o modelo pede as tools do Hanko e o Hanko as executa. Informe o modelo no campo abaixo.") }</span>
+						</div>
+						<div class="field">
+							<label for="p-http-key">{ i18n.T(ctx, "Chave (segredo da empresa)") }</label>
+							<input class="input mono" id="p-http-key" name="http_key_ref" value={ vm.HttpKeyRef } maxlength="200" autocomplete="off" spellcheck="false" placeholder="${secret:openrouter}"/>
+							if e := vm.FieldErr["http_key_ref"]; e != "" {
+								<span class="err">{ e }</span>
+							}
+							<span class="hint">{ i18n.T(ctx, "Referência a um segredo criado em Configurações › Segredos. Vazio para um endpoint local sem chave.") }</span>
+						</div>
+					</div>
+				</div>
 				<div class="form-grid">
 					<div class="field">
 						<label for="p-model">{ i18n.T(ctx, "Modelo") }</label>
-						<input class="input" id="p-model" name="model" value={ vm.Model } placeholder={ i18n.T(ctx, "sonnet (vazio = padrão do harness)") } list="models"/>
-						@ModelDatalist("models")
-						<span class="hint">{ i18n.T(ctx, "Lista sugerida · ou informe um ID manual.") }</span>
+						@ModelPicker(vm.ModelPicker)
+						<span class="hint">{ i18n.T(ctx, "Catálogo do harness, da tabela de preços e do que os testes e as execuções já viram · ou escolha Outro e informe o ID.") }</span>
 					</div>
 					<div class="field">
 						<label for="p-hb">{ i18n.T(ctx, "Acordar a cada (min)") }</label>
@@ -374,6 +420,7 @@ templ PersonaPage(sh Shell, vm PersonaVM) {
 			</section>
 		}
 		@PersonaEnvironmentSlot(vm)
+		@PersonaReadinessSlot(vm.ReadinessHref)
 		@PersonaExtras(vm.Extras)
 		@EffectiveToolsSlot(sh.Base(), vm.Slug)
 		<h2 class="side-h sec-h">{ i18n.T(ctx, "Tasks atribuídas") }</h2>

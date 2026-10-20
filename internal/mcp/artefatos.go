@@ -58,6 +58,9 @@ type goalOut struct {
 	DueDate     string  `json:"due_date,omitempty"`
 	ProjectSlug string  `json:"project_slug,omitempty"`
 	Tasks       int     `json:"tasks" jsonschema:"quantas tasks servem a esta meta"`
+	Parent      string  `json:"parent,omitempty" jsonschema:"slug da meta-pai (árvore de metas)"`
+	Chain       string  `json:"chain,omitempty" jsonschema:"cadeia da raiz até esta meta, separada por ›"`
+	Rollup      bool    `json:"rollup,omitempty" jsonschema:"o progresso é o agregado das submetas: registre nas submetas, não nesta"`
 }
 
 type goalListOut struct {
@@ -103,6 +106,14 @@ func toGoalOut(v service.GoalView) goalOut {
 		Progress: v.ProgressPercent, Status: string(v.Status), ProjectSlug: v.ProjectSlug, Tasks: v.TasksTotal}
 	if v.DueDate != nil {
 		o.DueDate = v.DueDate.Format("2006-01-02")
+	}
+	o.Parent, o.Rollup = v.ParentSlug, v.Rollup
+	if len(v.Path) > 0 {
+		parts := make([]string, 0, len(v.Path)+1)
+		for _, p := range v.Path {
+			parts = append(parts, p.Title)
+		}
+		o.Chain = strings.Join(append(parts, v.Title), " › ")
 	}
 	return o
 }

@@ -16,6 +16,12 @@ templ InboxPage(sh Shell, vm InboxVM) {
 		}
 		<div class="toolbar">
 			@Tabs(vm.Tabs)
+			if vm.CanMarkAll {
+				<form method="post" action={ templ.SafeURL(vm.StateURL) } hx-post={ vm.StateURL } hx-swap="none">
+					<input type="hidden" name="action" value="read_all"/>
+					<button class="btn ghost sm" type="submit">{ i18n.T(ctx, "Marcar tudo como lido") }</button>
+				</form>
+			}
 		</div>
 		<div class="inbox-grid">
 			<div class="stack">
@@ -27,6 +33,7 @@ templ InboxPage(sh Shell, vm InboxVM) {
 						<span class="cnt">{ fmt.Sprint(len(vm.Goals)) }</span></div>
 						for _, g := range vm.Goals {
 							<div class="inbox-row">
+								@InboxItemCtl(g.Ctl)
 								<span class="mini-avatar">@Icon("circle-check")</span>
 								<div class="main">
 									<div class="t">
@@ -43,6 +50,32 @@ templ InboxPage(sh Shell, vm InboxVM) {
 						}
 					</section>
 				}
+				if len(vm.Mentions) > 0 {
+					<section class="card inbox-sec">
+						<div class="inbox-h">
+							@Icon("message-square")
+							{ i18n.T(ctx, "Menções") }
+						<span class="cnt">{ fmt.Sprint(len(vm.Mentions)) }</span></div>
+						for _, m := range vm.Mentions {
+							<div class="inbox-row">
+								@InboxItemCtl(m.Ctl)
+								<span class="mini-avatar">@Icon("message-square")</span>
+								<div class="main">
+									<div class="t">
+										<a class="mono id" href={ templ.SafeURL(m.Href) }>{ m.Key }</a>
+										<a href={ templ.SafeURL(m.Href) }>{ m.Title }</a>
+										<span class="badge soft">{ i18n.T(ctx, "Menção") }</span>
+									</div>
+									<p class="x">{ m.Excerpt }</p>
+									<div class="s">{ m.Author } · { m.When }</div>
+								</div>
+								<div class="inbox-act">
+									<a class="btn outline sm" href={ templ.SafeURL(m.Href) }>{ i18n.T(ctx, "Responder") }</a>
+								</div>
+							</div>
+						}
+					</section>
+				}
 				if vm.Total == 0 {
 					@EmptyCard("circle-check", i18n.T(ctx, "Você está em dia."), i18n.T(ctx, "Nada espera por você: sem gates, bloqueios, execuções que falharam, personas com erro ou alertas."), true)
 				}
@@ -54,6 +87,7 @@ templ InboxPage(sh Shell, vm InboxVM) {
 						<span class="cnt">{ fmt.Sprint(len(vm.Alerts)) }</span></div>
 						for _, a := range vm.Alerts {
 							<div class="inbox-row">
+								@InboxItemCtl(a.Ctl)
 								<span class="mini-avatar">@Icon("alert")</span>
 								<div class="main">
 									<div class="t">
@@ -83,6 +117,7 @@ templ InboxPage(sh Shell, vm InboxVM) {
 						<span class="cnt">{ fmt.Sprint(len(vm.Gates)) }</span></div>
 						for _, g := range vm.Gates {
 							<div class="inbox-row gate">
+								@InboxItemCtl(g.Ctl)
 								<span class="mini-avatar gate">@Icon("shield")</span>
 								<div class="main">
 									<div class="t">
@@ -146,6 +181,7 @@ templ InboxPage(sh Shell, vm InboxVM) {
 						<span class="cnt">{ fmt.Sprint(len(vm.Held)) }</span></div>
 						for _, t := range vm.Held {
 							<div class="inbox-row">
+								@InboxItemCtl(t.Ctl)
 								<span class="mini-avatar">@Icon("list")</span>
 								<div class="main">
 									<div class="t">
@@ -184,6 +220,7 @@ templ InboxPage(sh Shell, vm InboxVM) {
 						<span class="cnt">{ fmt.Sprint(len(vm.Blocked)) }</span></div>
 						for _, t := range vm.Blocked {
 							<div class="inbox-row">
+								@InboxItemCtl(t.Ctl)
 								<span class="mini-avatar">@Icon("list")</span>
 								<div class="main">
 									<div class="t">
@@ -213,6 +250,34 @@ templ InboxPage(sh Shell, vm InboxVM) {
 						}
 					</section>
 				}
+				if len(vm.Stopped) > 0 {
+					<section class="card inbox-sec">
+						<div class="inbox-h">
+							@Icon("alert")
+							{ i18n.T(ctx, "Execuções paradas esperando decisão") }
+						<span class="cnt">{ fmt.Sprint(len(vm.Stopped)) }</span></div>
+						for _, r := range vm.Stopped {
+							<div class="inbox-row">
+								<span class="mini-avatar">@Icon("alert")</span>
+								<div class="main">
+									<div class="t">
+										<a class="mono id" href={ templ.SafeURL(r.TaskHref) }>{ r.TaskKey }</a>
+										<a href={ templ.SafeURL(r.Href) }>{ r.TaskTitle }</a>
+										<span class="badge warn">{ i18n.T(ctx, "Interrompida") }</span>
+									</div>
+									<div class="s">{ r.Persona } · { i18n.T(ctx, "execução") }
+										if r.Name != "" {
+											{ r.Name }
+										}
+										<span class="mono">{ r.Short }</span> · { r.When } · <a class="link-u" href={ templ.SafeURL(r.Href) }>{ i18n.T(ctx, "Ver log") }</a></div>
+									if r.Diag != nil {
+										@DiagCard(r.Diag)
+									}
+								</div>
+							</div>
+						}
+					</section>
+				}
 				if len(vm.Failed) > 0 {
 					<section class="card inbox-sec">
 						<div class="inbox-h">
@@ -221,6 +286,7 @@ templ InboxPage(sh Shell, vm InboxVM) {
 						<span class="cnt">{ fmt.Sprint(len(vm.Failed)) }</span></div>
 						for _, r := range vm.Failed {
 							<div class="inbox-row">
+								@InboxItemCtl(r.Ctl)
 								<span class="mini-avatar">@Icon("activity")</span>
 								<div class="main">
 									<div class="t">
@@ -236,6 +302,9 @@ templ InboxPage(sh Shell, vm InboxVM) {
 											{ r.Name }
 										}
 										<span class="mono">{ r.Short }</span> · { r.When }</div>
+									if r.Diag != nil {
+										@DiagCard(r.Diag)
+									}
 								</div>
 								if r.ActionHref == "" {
 									<div class="inbox-act">
@@ -303,6 +372,7 @@ templ InboxPage(sh Shell, vm InboxVM) {
 						<span class="cnt">{ fmt.Sprint(len(vm.Subs)) }</span></div>
 						for _, s := range vm.Subs {
 							<div class="inbox-row">
+								@InboxItemCtl(s.Ctl)
 								<span class="mini-avatar gate">@Icon("shield")</span>
 								<div class="main">
 									<div class="t">
@@ -333,6 +403,7 @@ templ InboxPage(sh Shell, vm InboxVM) {
 						<span class="cnt">{ fmt.Sprint(len(vm.Personas)) }</span></div>
 						for _, p := range vm.Personas {
 							<div class="inbox-row">
+								@InboxItemCtl(p.Ctl)
 								<span class="mini-avatar">@PersonaGlyph(p.Name)</span>
 								<div class="main">
 									<div class="t">
@@ -383,6 +454,41 @@ templ InboxPage(sh Shell, vm InboxVM) {
 					</div>
 				</section>
 			</aside>
+		</div>
+	}
+}
+
+// InboxItemCtl são os controles de um item da Caixa (ADR-0042): marcar lido/não lido e arquivar/desarquivar. Só a
+// pessoa autenticada tem estado; sem ela (modo trusted) nada aparece.
+templ InboxItemCtl(c InboxCtl) {
+	if c.Show {
+		<div class="inbox-ctl">
+			if c.Unread {
+				<span class="unread-dot" title={ i18n.T(ctx, "Não lido") } aria-label={ i18n.T(ctx, "Não lido") }></span>
+			}
+			if c.Archived {
+				<form method="post" action={ templ.SafeURL(c.Action) } hx-post={ c.Action } hx-swap="none">
+					<input type="hidden" name="item" value={ c.Ref }/>
+					<input type="hidden" name="action" value="unarchive"/>
+					<button class="icon-btn" type="submit" title={ i18n.T(ctx, "Devolver à Caixa") } aria-label={ i18n.T(ctx, "Devolver à Caixa") }>@Icon("inbox")</button>
+				</form>
+			} else {
+				<form method="post" action={ templ.SafeURL(c.Action) } hx-post={ c.Action } hx-swap="none">
+					<input type="hidden" name="item" value={ c.Ref }/>
+					if c.Unread {
+						<input type="hidden" name="action" value="read"/>
+						<button class="icon-btn" type="submit" title={ i18n.T(ctx, "Marcar como lida") } aria-label={ i18n.T(ctx, "Marcar como lida") }>@Icon("circle-check")</button>
+					} else {
+						<input type="hidden" name="action" value="unread"/>
+						<button class="icon-btn" type="submit" title={ i18n.T(ctx, "Marcar como não lida") } aria-label={ i18n.T(ctx, "Marcar como não lida") }>@Icon("mail")</button>
+					}
+				</form>
+				<form method="post" action={ templ.SafeURL(c.Action) } hx-post={ c.Action } hx-swap="none">
+					<input type="hidden" name="item" value={ c.Ref }/>
+					<input type="hidden" name="action" value="archive"/>
+					<button class="icon-btn" type="submit" title={ i18n.T(ctx, "Arquivar: sai da sua Caixa, a task e o gate seguem como estão") } aria-label={ i18n.T(ctx, "Arquivar") }>@Icon("archive")</button>
+				</form>
+			}
 		</div>
 	}
 }
