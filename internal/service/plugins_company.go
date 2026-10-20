@@ -792,6 +792,9 @@ func (s *Service) CallPluginTool(ctx context.Context, actor domain.Actor, compan
 	if err != nil || !st.Enabled {
 		return PluginToolResult{}, notFound("tool")
 	}
+	if blocked := s.pluginToolPolicy(ctx, companyID, in); blocked != nil {
+		return *blocked, nil
+	}
 	co, err := q.GetCompanyByID(ctx, companyID)
 	if err != nil {
 		return PluginToolResult{}, mapErr(err, "company")
@@ -860,4 +863,28 @@ func (s *Service) CallPluginTool(ctx context.Context, actor domain.Actor, compan
 		return PluginToolResult{}, fmt.Errorf("a tool %s falhou: %s", in.Name, pluginClip(callErr.Error(), 500))
 	}
 	return res, nil
+}
+
+// pluginToolPolicy aplica o motor de política (ADR-0053) à chamada de uma tool de plugin feita por uma run: política off
+// recusa; ask abre o gate e a persona repete a chamada depois da decisão (como nas tools de integração). nil = segue.
+func (s *Service) pluginToolPolicy(ctx context.Context, companyID domain.ID, in PluginToolCall) *PluginToolResult {
+	if in.RunID == nil || in.PersonaID == nil {
+		return nil
+	}
+	c, err := s.RunToolCaller(ctx, companyID, *in.RunID)
+	if err != nil {
+		return nil // run de sistema ou encerrada: o servidor MCP já exigiu o run token
+	}
+	c.Source = domain.SourcePlugin
+	d, err := s.NativeToolCheck(ctx, c, NativeToolRequest{Name: in.Name, Input: in.Arguments, Plugin: true})
+	if err != nil {
+		return &PluginToolResult{IsError: true, Text: "não foi possível aplicar a política de tools: " + err.Error()}
+	}
+	switch d.Decision {
+	case NativeDeny:
+		return &PluginToolResult{IsError: true, Text: d.Reason}
+	case NativeAsk:
+		return &PluginToolResult{IsError: true, Text: d.Reason + "; repita a chamada com exatamente os mesmos argumentos depois da decisão"}
+	}
+	return nil
 }

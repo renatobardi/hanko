@@ -148,8 +148,21 @@ type Auth struct {
 	WebBootstrap bool `yaml:"web_bootstrap" env:"HANKO_AUTH_WEB_BOOTSTRAP"`
 }
 
+// RateLimit são os padrões do rate limit geral (ADR-0058 §B); viram chaves de instance_settings (grupo ratelimit).
+type RateLimit struct {
+	Enabled          bool  `yaml:"enabled" env:"HANKO_RATELIMIT_ENABLED"`
+	WritesPerMin     int64 `yaml:"writes_per_min" env:"HANKO_RATELIMIT_WRITES_PER_MIN"`
+	IPPerMin         int64 `yaml:"ip_per_min" env:"HANKO_RATELIMIT_IP_PER_MIN"`
+	MCPPerMin        int64 `yaml:"mcp_per_min" env:"HANKO_RATELIMIT_MCP_PER_MIN"`
+	WebhooksPerMin   int64 `yaml:"webhooks_per_min" env:"HANKO_RATELIMIT_WEBHOOKS_PER_MIN"`
+	BrowserErrPerMin int64 `yaml:"browser_errors_per_min" env:"HANKO_RATELIMIT_BROWSER_ERRORS_PER_MIN"`
+}
+
 // Config é a configuração completa do processo.
 type Config struct {
+	// RateLimit: limites por minuto do rate limit geral (padrões seguros; env vence o banco).
+	RateLimit RateLimit `yaml:"rate_limit"`
+
 	DatabaseURL string `yaml:"database_url" env:"HANKO_DATABASE_URL"`
 	Addr        string `yaml:"addr" env:"HANKO_ADDR"`
 	PublicURL   string `yaml:"public_url" env:"HANKO_PUBLIC_URL"`
@@ -197,6 +210,9 @@ type Config struct {
 	TrustedProxies []string `yaml:"trusted_proxies" env:"HANKO_TRUSTED_PROXIES" envSeparator:","`
 	// WorkspacesRoot é a raiz sob a qual todo workspace precisa estar (default $HOME/hanko-workspaces).
 	WorkspacesRoot string `yaml:"workspaces_root" env:"HANKO_WORKSPACES_ROOT"`
+	// ToolsSingleEndpoint faz o harness receber um único endpoint do gateway de tools (/mcp/run) em vez de um servidor MCP
+	// por integração; as tools saem como <integração>__<tool> (ADR-0053).
+	ToolsSingleEndpoint bool `yaml:"tools_single_endpoint" env:"HANKO_TOOLS_SINGLE_ENDPOINT"`
 	// RunReserveUSD é o piso (USD) da reserva de orçamento por run aberta: antes de abrir uma
 	// run, gasto + reservas das runs abertas + a reserva da nova não podem passar do teto. A reserva
 	// de cada run é o maior entre a média das últimas 10 runs da persona e este piso.
@@ -246,6 +262,7 @@ func Defaults() Config {
 		ArtifactQuotaBytes: 512 << 20,
 		AlertSilentFactor:  3,
 		AlertRunStuckAfter: 15 * time.Minute,
+		RateLimit:          RateLimit{Enabled: true, WritesPerMin: 600, IPPerMin: 1200, MCPPerMin: 1500, WebhooksPerMin: 120, BrowserErrPerMin: 20},
 		LogLevel:           "info",
 		LogFormat:          LogJSON,
 	}
@@ -303,11 +320,13 @@ func environFor(getenv func(string) string) map[string]string {
 		"HANKO_CLAUDE_BIN", "HANKO_CODEX_BIN", "HANKO_DEVIN_BIN", "HANKO_PI_BIN", "HANKO_CURSOR_BIN", "HANKO_WORKERS", "HANKO_RUN_TIMEOUT",
 		"HANKO_HEARTBEAT_INTERVAL", "HANKO_LOG_LEVEL", "HANKO_LOG_FORMAT",
 		"HANKO_AGENT_ENV_ALLOW", "HANKO_ALLOWED_HOSTS", "HANKO_WORKSPACES_ROOT", "HANKO_RUN_RESERVE_USD", "HANKO_ARTIFACT_MAX_BYTES", "HANKO_ARTIFACT_QUOTA_BYTES", "HANKO_ALERT_SILENT_FACTOR", "HANKO_ALERT_RUN_STUCK_AFTER",
+		"HANKO_RATELIMIT_ENABLED", "HANKO_RATELIMIT_WRITES_PER_MIN", "HANKO_RATELIMIT_IP_PER_MIN", "HANKO_RATELIMIT_MCP_PER_MIN",
+		"HANKO_RATELIMIT_WEBHOOKS_PER_MIN", "HANKO_RATELIMIT_BROWSER_ERRORS_PER_MIN",
 		"HANKO_AUTH_PROVIDER", "HANKO_AUTH_ALLOWED_EMAILS", "HANKO_AUTH_ALLOWED_DOMAINS",
 		"HANKO_FIREBASE_PROJECT_ID", "HANKO_FIREBASE_API_KEY", "HANKO_FIREBASE_AUTH_DOMAIN",
 		"HANKO_AUTH_OWNER_EMAIL", "HANKO_AUTH_WEB_BOOTSTRAP", "HANKO_TRUSTED_PROXIES",
 		"HANKO_SECRET_KEY", "HANKO_SECRET_KEY_PREVIOUS", "HANKO_INTEGRATIONS_ALLOW_STDIO", "HANKO_INTEGRATIONS_ALLOW_PRIVATE",
-		"HANKO_ACP_ALLOW", "HANKO_ACP_COMMANDS", "HANKO_SKILL_SOURCES",
+		"HANKO_ACP_ALLOW", "HANKO_ACP_COMMANDS", "HANKO_SKILL_SOURCES", "HANKO_TOOLS_SINGLE_ENDPOINT",
 		"HANKO_BLOB_DRIVER", "HANKO_S3_ENDPOINT", "HANKO_S3_REGION", "HANKO_S3_BUCKET", "HANKO_S3_PREFIX", "HANKO_S3_PATH_STYLE",
 		"HANKO_S3_ACCESS_KEY", "HANKO_S3_SECRET_KEY",
 		"HANKO_VAULT_ADDR", "HANKO_VAULT_MOUNT", "HANKO_VAULT_NAMESPACE", "HANKO_VAULT_TOKEN",
@@ -470,6 +489,13 @@ func (c Config) Validate() error {
 	}
 	if c.AlertRunStuckAfter <= 0 {
 		add("HANKO_ALERT_RUN_STUCK_AFTER deve ser positivo (ex.: 15m)")
+	}
+	for name, v := range map[string]int64{"HANKO_RATELIMIT_WRITES_PER_MIN": c.RateLimit.WritesPerMin, "HANKO_RATELIMIT_IP_PER_MIN": c.RateLimit.IPPerMin,
+		"HANKO_RATELIMIT_MCP_PER_MIN": c.RateLimit.MCPPerMin, "HANKO_RATELIMIT_WEBHOOKS_PER_MIN": c.RateLimit.WebhooksPerMin,
+		"HANKO_RATELIMIT_BROWSER_ERRORS_PER_MIN": c.RateLimit.BrowserErrPerMin} {
+		if v < 1 {
+			add("%s %d inválido: use um valor >= 1", name, v)
+		}
 	}
 	if c.Mode != ModeTrusted && c.Mode != ModeAuthenticated {
 		add("HANKO_MODE %q inválido: use %q ou %q", c.Mode, ModeTrusted, ModeAuthenticated)

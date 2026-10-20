@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -10,6 +11,7 @@ import (
 	"github.com/renatobardi/hanko/internal/auth"
 	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/service"
+	"github.com/renatobardi/hanko/internal/telemetry"
 )
 
 // statusFor é o único mapeador de erro de domínio para status HTTP.
@@ -90,8 +92,8 @@ func toProblem(err error) (*huma.ErrorModel, bool) {
 // fail converte e registra (apenas erros inesperados) o erro de um handler.
 func (s *server) fail(ctx context.Context, err error) error {
 	p, known := toProblem(err)
-	if !known {
-		s.log.ErrorContext(ctx, "erro inesperado", "err", err, "request_id", requestIDFrom(ctx))
+	if !known && !errors.Is(err, context.Canceled) { // cliente que saiu no meio não é exceção do servidor
+		telemetry.Record(ctx, s.log, telemetry.FromError(telemetry.SourceServer, err), slog.String("request_id", requestIDFrom(ctx)))
 	}
 	return p
 }

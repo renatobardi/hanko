@@ -37,10 +37,37 @@ type fakeAuth struct {
 	lastIP   string                           // IP da última sessão aberta
 	invites  map[string]service.InvitePreview // token -> convite aberto
 	accepted []string                         // tokens aceitos
+	claims   map[string]bool                  // token do claim do primeiro dono -> aberto
+}
+
+func (f *fakeAuth) CheckOwnerClaim(_ context.Context, token string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.users) > 0 || !f.claims[token] {
+		return domain.ErrNotFound
+	}
+	return nil
+}
+
+func (f *fakeAuth) ClaimOwner(_ context.Context, token, email, name, password string) (domain.User, error) {
+	if f.busy {
+		return domain.User{}, auth.ErrBusy
+	}
+	if err := auth.ValidatePassword(password); err != nil {
+		return domain.User{}, domain.Invalid("password", err.Error())
+	}
+	f.mu.Lock()
+	if len(f.users) > 0 || !f.claims[token] {
+		f.mu.Unlock()
+		return domain.User{}, domain.ErrNotFound
+	}
+	f.claims[token] = false
+	f.mu.Unlock()
+	return f.addUser(email, name, password), nil
 }
 
 func newFakeAuth() *fakeAuth {
-	return &fakeAuth{passes: map[domain.ID]string{}, sessions: map[string]domain.ID{}, keys: map[domain.ID]*domain.APIKey{}, keyOwner: map[domain.ID]domain.ID{}}
+	return &fakeAuth{claims: map[string]bool{}, passes: map[domain.ID]string{}, sessions: map[string]domain.ID{}, keys: map[domain.ID]*domain.APIKey{}, keyOwner: map[domain.ID]domain.ID{}}
 }
 
 func (f *fakeAuth) addUser(email, name, pass string) domain.User {
