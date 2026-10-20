@@ -1,0 +1,142 @@
+package views
+
+import "github.com/renatobardi/hanko/internal/i18n"
+
+templ DecisionPage(sh Shell, vm DecisionVM) {
+	@Layout(sh) {
+		@PageHead(i18n.T(ctx, "Decision model"), i18n.T(ctx, "Um classificador externo, barato, que o próprio Hanko chama para decisões pequenas (triagem, fase, nome e resumo). A chave é um segredo da empresa e cada chamada aparece em Custos com o ator sistema.")) {
+		}
+		<div class="mb-6">@Tabs(vm.Sections)</div>
+		if vm.Notice != "" {
+			@Alert("warn", vm.Notice)
+		}
+		if vm.Warning != "" {
+			@Alert("warn", vm.Warning)
+		}
+		if vm.Error != "" {
+			@Alert("danger", vm.Error)
+		}
+		<form class="card pad form-card mb-6" method="post" action={ templ.SafeURL(vm.Form.Action) } hx-boost="true">
+			<div class="form-grid">
+				<div class="field">
+					<label for="dm-base">{ i18n.T(ctx, "Endpoint compatível com chat completions") }</label>
+					<input class="input mono" id="dm-base" name="base_url" value={ vm.Form.BaseURL } maxlength="500" autocomplete="off" spellcheck="false" placeholder="https://openrouter.ai/api/v1"/>
+					if e := vm.Form.FieldErr["base_url"]; e != "" {
+						<span class="err">{ e }</span>
+					}
+					<span class="hint">{ i18n.T(ctx, "Em branco usa o OpenRouter. O catálogo de modelos vem deste endpoint.") }</span>
+				</div>
+				<div class="field">
+					<label for="dm-key">{ i18n.T(ctx, "Chave (segredo da empresa)") }</label>
+					<input class="input mono" id="dm-key" name="api_key_ref" value={ vm.Form.KeyRef } maxlength="200" autocomplete="off" spellcheck="false" placeholder="${secret:openrouter}" list="dm-secrets"/>
+					<datalist id="dm-secrets">
+						for _, s := range vm.Secrets {
+							<option value={ s }></option>
+						}
+					</datalist>
+					if e := vm.Form.FieldErr["api_key_ref"]; e != "" {
+						<span class="err">{ e }</span>
+					}
+					<span class="hint">{ i18n.T(ctx, "Crie a chave em Segredos e informe a referência. A chave não é guardada aqui nem volta para a tela.") }</span>
+				</div>
+			</div>
+			<div class="form-grid">
+				<div class="field">
+					<label for="dm-model">{ i18n.T(ctx, "Modelo do catálogo") }</label>
+					<input class="input mono" id="dm-model" name="model" value={ vm.Form.Model } required maxlength="200" autocomplete="off" spellcheck="false" placeholder="anthropic/claude-haiku-4.5" list="dm-models"/>
+					<datalist id="dm-models">
+						for _, m := range vm.Models {
+							<option value={ m }></option>
+						}
+					</datalist>
+					if e := vm.Form.FieldErr["model"]; e != "" {
+						<span class="err">{ e }</span>
+					}
+					if vm.CatalogNote != "" {
+						<span class="hint">{ vm.CatalogNote }</span>
+					}
+				</div>
+				<div class="field">
+					<label for="dm-timeout">{ i18n.T(ctx, "Prazo de cada chamada (s)") }</label>
+					<input class="input" id="dm-timeout" name="timeout_sec" type="number" min="1" max="300" value={ vm.Form.Timeout } inputmode="numeric" placeholder="30"/>
+					if e := vm.Form.FieldErr["timeout_sec"]; e != "" {
+						<span class="err">{ e }</span>
+					}
+				</div>
+			</div>
+			<label class="check-line">
+				<input type="checkbox" name="off" value="1" checked?={ vm.Form.Off }/>
+				<span>{ i18n.T(ctx, "Salvar desligado") }</span>
+			</label>
+			<div class="form-actions">
+				<button class="btn primary" type="submit">{ i18n.T(ctx, "Salvar decision model") }</button>
+				if vm.Configured {
+					<button class="btn outline" type="submit" formaction={ templ.SafeURL(vm.RemoveHref) }>{ i18n.T(ctx, "Remover") }</button>
+				}
+			</div>
+		</form>
+		<h2 class="side-h sec-h">{ i18n.T(ctx, "Features") }</h2>
+		<p class="muted text-sm mb-3">{ i18n.T(ctx, "Cada feature nasce desligada: nada chama o modelo sem você ligar. Cada uma pode ter um modelo próprio.") }</p>
+		<div class="table-wrap mb-6">
+			<table class="table">
+				<thead><tr><th>{ i18n.T(ctx, "Feature") }</th><th>{ i18n.T(ctx, "Modelo próprio") }</th><th></th></tr></thead>
+				<tbody>
+					for _, f := range vm.Features {
+						<tr class="row">
+							<td>
+								<b>{ f.Title }</b>
+								if f.Enabled {
+									<span class="badge done">{ i18n.T(ctx, "ligada") }</span>
+								}
+								<div class="sub-line">{ f.Desc }</div>
+							</td>
+							<td>
+								<form method="post" action={ templ.SafeURL(f.Action) } hx-boost="true" class="inline-form">
+									<input class="input mono" name="model" value={ f.Model } aria-label={ i18n.T(ctx, "Modelo próprio") } maxlength="200" autocomplete="off" spellcheck="false" placeholder={ i18n.T(ctx, "o da empresa") } list="dm-models"/>
+									<select class="select" name="enabled" aria-label={ f.Title }>
+										<option value="1" selected?={ f.Enabled }>{ i18n.T(ctx, "ligada") }</option>
+										<option value="0" selected?={ !f.Enabled }>{ i18n.T(ctx, "desligada") }</option>
+									</select>
+									<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Salvar") }</button>
+								</form>
+							</td>
+							<td></td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+		<h2 class="side-h sec-h">{ i18n.T(ctx, "Últimas invocações") }</h2>
+		<p class="muted text-sm mb-3">
+			{ i18n.T(ctx, "Ator: sistema. O custo soma ao gasto do mês da empresa e aparece em") }
+			<a href={ templ.SafeURL(vm.CostsHref) }>{ i18n.T(ctx, "Custos") }</a>.
+		</p>
+		if len(vm.Invocations) == 0 {
+			<p class="muted">{ i18n.T(ctx, "Nenhuma invocação ainda.") }</p>
+		} else {
+			<div class="table-wrap">
+				<table class="table mini">
+					<thead><tr><th>{ i18n.T(ctx, "Quando") }</th><th>{ i18n.T(ctx, "Feature") }</th><th class="hide-sm">{ i18n.T(ctx, "Modelo") }</th><th>{ i18n.T(ctx, "Resultado") }</th><th class="num">{ i18n.T(ctx, "Custo") }</th><th class="num hide-sm">{ i18n.T(ctx, "Tokens") }</th></tr></thead>
+					<tbody>
+						for _, i := range vm.Invocations {
+							<tr>
+								<td class="muted">{ i.When }</td>
+								<td>{ i.Feature }</td>
+								<td class="mono hide-sm">{ i.Model }</td>
+								<td>
+									if i.OK {
+										<span class="badge done">ok</span>
+									} else {
+										<span class="badge warn" title={ i.ErrorMsg }>{ i18n.T(ctx, "erro") }</span>
+									}
+								</td>
+								<td class="num mono">{ i.Cost }<div class="sub-line">{ i.Source }</div></td>
+								<td class="num hide-sm">{ i.Tokens }</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+	}
+}

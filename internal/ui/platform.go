@@ -23,6 +23,8 @@ type PlatformInfo struct {
 	Mode, AuthProvider       string
 	PublicURL, AgentURL      string
 	ClaudeBin, CodexBin      string
+	DevinBin, PiBin          string
+	CursorBin                string
 	ACPAllow                 bool
 	ACPCommands              []string
 	MemoryProvider           string
@@ -48,6 +50,7 @@ func settingsSections(ctx context.Context, base, cur string) []views.TabLink {
 		{"plugins", i18n.T(ctx, "Plugins"), "/configuracoes/plugins"},
 		{"notificacoes", i18n.T(ctx, "Notificações"), "/configuracoes/notificacoes"},
 		{"segredos", i18n.T(ctx, "Segredos"), "/configuracoes/segredos"},
+		{"decisao", i18n.T(ctx, "Decision model"), "/configuracoes/decisao"},
 		{"instancia", i18n.T(ctx, "Instância"), "/configuracoes/instancia"},
 		{"dados", i18n.T(ctx, "Exportar e importar"), "/configuracoes/dados"},
 	}
@@ -168,6 +171,10 @@ func (s *server) handleAdapters(w http.ResponseWriter, r *http.Request, co domai
 		row("claude", "Claude Code", "CLI", i18n.T(ctx, "stream-json, sessão preservada entre execuções, skills nativas e MCP do Hanko."), binCheck(ctx, i18n.T(ctx, "Binário"), p.ClaudeBin), ""),
 		row("codex", "Codex", "CLI", i18n.T(ctx, "exec em JSONL; o MCP do Hanko entra por configuração da execução."), binCheck(ctx, i18n.T(ctx, "Binário"), p.CodexBin), ""),
 		row("acp", "ACP", i18n.T(ctx, "Protocolo"), i18n.T(ctx, "Qualquer harness que fale ACP por stdio; você informa o comando na persona."), acp, acpExtra),
+		row("devin", "Devin CLI", i18n.T(ctx, "Protocolo"), i18n.T(ctx, "Devin pelo motor ACP (devin acp); o executável é definido por HANKO_DEVIN_BIN e a autenticação é feita fora do Hanko."), binCheck(ctx, i18n.T(ctx, "Binário"), p.DevinBin), ""),
+		row("pi", "Pi", "CLI", i18n.T(ctx, "pi --mode json -p; as tools do Hanko vão pela CLI hanko autenticada com o token da execução."), binCheck(ctx, i18n.T(ctx, "Binário"), p.PiBin), ""),
+		row("cursor", "Cursor CLI", "CLI", i18n.T(ctx, "cursor-agent em stream-json; as tools do Hanko vão pela CLI hanko autenticada com o token da execução."), binCheck(ctx, i18n.T(ctx, "Binário"), p.CursorBin), ""),
+		row("http", "HTTP", i18n.T(ctx, "Embutido"), i18n.T(ctx, "Loop de tool-use do próprio Hanko sobre um endpoint compatível com chat completions; o endpoint e a chave ficam na persona."), check(true, i18n.T(ctx, "Embutido"), i18n.T(ctx, "sempre disponível")), ""),
 		row("fake", "Fake", i18n.T(ctx, "Teste"), i18n.T(ctx, "Harness simulado para demonstrações e testes; não chama modelo nenhum."), check(true, i18n.T(ctx, "Embutido"), i18n.T(ctx, "sempre disponível")), ""),
 	}}
 	prices, err := s.be.ListModelPrices(ctx)

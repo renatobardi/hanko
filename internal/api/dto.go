@@ -136,7 +136,7 @@ type Persona struct {
 	Icon                 string         `json:"icon" example:"code" doc:"Glifo da persona (catálogo fechado)."`
 	Instructions         string         `json:"instructions" doc:"Instruções permanentes da persona."`
 	InstructionRevision  int            `json:"instruction_revision" doc:"Revisão vigente das instruções (histórico em /instructions/revisions, ADR-0052)."`
-	Agent                string         `json:"agent" enum:"claude,codex,acp,fake" doc:"Harness que executa a persona."`
+	Agent                string         `json:"agent" enum:"claude,codex,acp,devin,pi,cursor,http,fake" doc:"Harness que executa a persona."`
 	Model                string         `json:"model,omitempty" example:"claude-sonnet-4-5"`
 	AdapterConfig        map[string]any `json:"adapter_config,omitempty" doc:"Configuração específica do adapter. Valores de env e segredos voltam mascarados (***); os nomes ficam."`
 	Status               string         `json:"status" enum:"active,idle,running,paused,error,awaiting_gate,off"`
@@ -307,7 +307,7 @@ type Run struct {
 	PersonaName       string   `json:"persona_name,omitempty"`
 	Status            string   `json:"status" enum:"queued,running,done,interrupted,failed,cancelled,expired"`
 	Trigger           string   `json:"trigger" enum:"assign,comment,manual,heartbeat,gate,flow,review,memory,chat"`
-	Agent             string   `json:"agent" enum:"claude,codex,acp,fake"`
+	Agent             string   `json:"agent" enum:"claude,codex,acp,devin,pi,cursor,http,fake"`
 	Model             string   `json:"model,omitempty"`
 	SessionRef        string   `json:"session_ref,omitempty"`
 	TraceID           string   `json:"trace_id,omitempty"`
@@ -438,6 +438,7 @@ type CostSummary struct {
 	PaidUSD       float64            `json:"paid_usd" doc:"Mensalidades rateadas nas execuções, até hoje."`
 	IdleUSD       float64            `json:"idle_usd" doc:"Mensalidades de dias sem uso. paid_usd + idle_usd fecha com a mensalidade num mês completo."`
 	Subscriptions []SubscriptionCost `json:"subscriptions" doc:"Custo pago por assinatura no período."`
+	Decision      DecisionCost       `json:"decision" doc:"Invocações do decision model (ator system); somadas ao gasto mensal da empresa, fora das linhas de execuções."`
 	Runs          int                `json:"runs"`
 	InputTokens   int64              `json:"input_tokens"`
 	OutputTokens  int64              `json:"output_tokens"`
@@ -715,7 +716,7 @@ func costSummaryOut(c service.CostSummary, b service.BudgetStatus) CostSummary {
 	}
 	return CostSummary{From: c.From, To: c.To, Timezone: c.Timezone, GroupBy: c.GroupBy, TotalUSD: c.TotalUSD,
 		ReportedUSD: c.ReportedUSD, EstimatedUSD: c.EstimatedUSD, ListUSD: c.ListUSD, PaidUSD: c.PaidUSD, IdleUSD: c.IdleUSD,
-		Subscriptions: subs, Runs: c.Runs, InputTokens: c.InputTokens,
+		Subscriptions: subs, Decision: decisionCostOut(c.Decision), Runs: c.Runs, InputTokens: c.InputTokens,
 		OutputTokens: c.OutputTokens, CacheTokens: c.CacheTokens, Rows: rows, Budget: budgetOut(b)}
 }
 
@@ -769,7 +770,7 @@ type Subscription struct {
 	ID             string    `json:"id" format:"uuid"`
 	CompanyID      string    `json:"company_id" format:"uuid"`
 	Name           string    `json:"name" example:"Claude Max"`
-	Agent          string    `json:"agent" enum:"claude,codex,acp,fake"`
+	Agent          string    `json:"agent" enum:"claude,codex,acp,devin,pi,cursor,http,fake"`
 	MonthlyUSD     float64   `json:"monthly_usd"`
 	ModelPrefixes  []string  `json:"model_prefixes" doc:"Prefixos de modelo cobertos; vazio = todos os do harness."`
 	WeeklyLimitUSD *float64  `json:"weekly_limit_usd,omitempty" doc:"Teto semanal de uso estimado em dólares."`

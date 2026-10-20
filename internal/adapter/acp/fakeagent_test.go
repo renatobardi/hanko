@@ -25,6 +25,8 @@ type fakeAgent struct {
 	pending []map[string]any // messages read while waiting for a response
 	cwd     string
 	sid     string
+	// o que o cliente enviou no handshake (cenário "contract")
+	initParams, newParams map[string]any
 }
 
 func fakeMain(scenario string) {
@@ -147,6 +149,7 @@ func (f *fakeAgent) run(sc string) {
 	if m == nil || m["method"] != "initialize" {
 		os.Exit(1)
 	}
+	f.initParams, _ = m["params"].(map[string]any)
 	if sc == "badline" {
 		f.raw("this is not json")
 		f.raw(`{"foo":1}`)
@@ -187,6 +190,7 @@ func (f *fakeAgent) run(sc string) {
 			}
 			f.cwd, _ = p["cwd"].(string)
 			servers = p["mcpServers"]
+			f.newParams = p
 			f.sid = "sess-1"
 			res := map[string]any{"sessionId": f.sid}
 			if sc == "model" {
@@ -336,6 +340,8 @@ func (f *fakeAgent) prompt(sc string, m map[string]any, p map[string]any, server
 		time.Sleep(time.Minute)
 	case "model":
 		final = append(final, "prompted")
+	case "contract":
+		final = append(final, "violations=["+strings.Join(f.contractViolations(blocks), ";")+"]")
 	case "steer":
 		// working on the first turn until the operator's message cancels it; the next prompt carries the new direction
 		f.chunk("agent_message_chunk", "m1", "trabalhando")
@@ -368,4 +374,30 @@ func (f *fakeAgent) prompt(sc string, m map[string]any, p map[string]any, server
 		res["usage"] = map[string]any{"inputTokens": 11, "outputTokens": 22, "cachedReadTokens": 3, "cachedWriteTokens": 4}
 	}
 	f.reply(id, res)
+}
+
+// contractViolations confere o que um cliente ACP v1 deve enviar no handshake e no prompt (teste de contrato).
+func (f *fakeAgent) contractViolations(blocks []any) []string {
+	var v []string
+	check := func(ok bool, msg string) {
+		if !ok {
+			v = append(v, msg)
+		}
+	}
+	check(f.initParams["protocolVersion"] == float64(1), "initialize.protocolVersion != 1")
+	ci, _ := f.initParams["clientInfo"].(map[string]any)
+	check(ci["name"] == "hanko" && ci["version"] != nil, "initialize.clientInfo sem name=hanko/version")
+	caps, _ := f.initParams["clientCapabilities"].(map[string]any)
+	fsCaps, _ := caps["fs"].(map[string]any)
+	check(fsCaps["readTextFile"] == true && fsCaps["writeTextFile"] == true, "clientCapabilities.fs incompleto")
+	check(caps["terminal"] == false, "clientCapabilities.terminal deveria ser false")
+	check(filepath.IsAbs(f.cwd), "session/new.cwd não é absoluto")
+	_, isList := f.newParams["mcpServers"].([]any)
+	check(isList, "session/new.mcpServers não é lista")
+	check(len(blocks) == 2, fmt.Sprintf("session/prompt com %d blocos (esperado 2)", len(blocks)))
+	for _, b := range blocks {
+		bm, _ := b.(map[string]any)
+		check(bm["type"] == "text" && bm["text"] != "", "bloco de prompt que não é texto")
+	}
+	return v
 }

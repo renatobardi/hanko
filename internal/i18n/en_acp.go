@@ -14,13 +14,11 @@ var enACP = map[string]string{
 	"Recusar tudo":                         "Refuse all",
 	"Informe o comando do harness ACP.":    "Enter the ACP harness command.",
 	"O comando deve ser só o executável; ponha os argumentos no campo de argumentos.":                "The command must be just the executable; put the arguments in the arguments field.",
-	"Harness desconhecido: use claude, codex, acp ou fake.":                                          "Unknown harness: use claude, codex, acp, or fake.",
 	"O ACP não pode ser o harness alternativo do revisor; use uma persona revisora que rode em ACP.": "ACP cannot be the reviewer's alternate harness; use a reviewer persona that runs on ACP.",
 
 	// CLI
-	"harness: claude, codex, acp ou fake (obrigatório)":                   "harness: claude, codex, acp or fake (required)",
-	"harness/provedor do plano: claude, codex, acp ou fake (obrigatório)": "plan harness/provider: claude, codex, acp or fake (required)",
-	"--config-json não é um objeto JSON válido: %w":                       "--config-json is not a valid JSON object: %w",
+	"harness/provedor do plano: claude, codex, acp ou fake (obrigatório)":                                                                          "plan harness/provider: claude, codex, acp or fake (required)",
+	"--config-json não é um objeto JSON válido: %w":                                                                                                "--config-json is not a valid JSON object: %w",
 	"adapter_config em JSON, para listas e objetos (ex.: acp: '{\"command\":\"meu-agente\",\"args\":[\"--stdio\"]}'); --config sobrepõe as chaves": "adapter_config as JSON, for lists and objects (e.g. acp: '{\"command\":\"my-agent\",\"args\":[\"--stdio\"]}'); --config overrides keys",
 }
 

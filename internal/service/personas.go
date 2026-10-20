@@ -10,7 +10,12 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/renatobardi/hanko/internal/adapter/acp"
+	"github.com/renatobardi/hanko/internal/adapter/cursor"
+	"github.com/renatobardi/hanko/internal/adapter/httpagent"
+	"github.com/renatobardi/hanko/internal/adapter/pi"
 	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/netguard"
+	"github.com/renatobardi/hanko/internal/secretref"
 	"github.com/renatobardi/hanko/internal/settings"
 	"github.com/renatobardi/hanko/internal/store"
 )
@@ -140,16 +145,41 @@ func (s *Service) acpPolicy() acp.Policy {
 
 // adapterConfigProblem is the reason an adapter_config cannot run on agent (nil = fine). For acp that
 // includes the operator's gate (HANKO_ACP_ALLOW / HANKO_ACP_COMMANDS, ADR-0023): the command is chosen
-// by a company admin, so it is checked here and again by the adapter when the run starts.
+// by a company admin, so it is checked here and again by the adapter when the run starts. devin, pi, cursor and
+// http (ADR-0056) have their own shapes; devin's command is fixed by the operator, so it needs no gate.
 func (s *Service) adapterConfigProblem(agent string, cfg []byte) error {
-	if agent != "acp" {
-		return nil
-	}
-	c, err := acp.ParseConfig(cfg)
-	if err != nil {
+	switch agent {
+	case "acp":
+		c, err := acp.ParseConfig(cfg)
+		if err != nil {
+			return err
+		}
+		return s.acpPolicy().Check(c.Command)
+	case "devin":
+		_, err := acp.ParseAgentConfig("devin", cfg)
 		return err
+	case "pi":
+		_, err := pi.ParseConfig(cfg)
+		return err
+	case "cursor":
+		_, err := cursor.ParseConfig(cfg)
+		return err
+	case "http":
+		c, err := httpagent.ParseConfig(cfg)
+		if err != nil {
+			return err
+		}
+		if err := c.ValidateHire(func(v string) bool {
+			r := secretref.Find(v)
+			return len(r) == 1 && !r[0].User && r[0].String() == v
+		}); err != nil {
+			return err
+		}
+		if _, err := netguard.ValidateURL(c.BaseURL, true, s.Integrations.policy()); err != nil && s.Integrations.HTTP == nil {
+			return fmt.Errorf(`"base_url": %w`, err)
+		}
 	}
-	return s.acpPolicy().Check(c.Command)
+	return nil
 }
 
 func (s *Service) ListPersonas(ctx context.Context, companyID domain.ID) ([]domain.Persona, error) {
@@ -458,8 +488,8 @@ func (t *txc) checkReviewer(companyID, personaID domain.ID, authorAgent, authorM
 		return reviewer, "", "", nil
 	case agent == "" && model != "":
 		return nil, "", "", domain.Invalid("reviewer_agent", "required when reviewer_model is set")
-	case agent == "acp":
-		return nil, "", "", domain.Invalid("reviewer_agent", "acp cannot be an alternate reviewer harness (it needs its own adapter_config); use a reviewer persona that runs on acp instead")
+	case agent == "acp" || agent == "devin" || agent == "pi" || agent == "cursor" || agent == "http":
+		return nil, "", "", domain.Invalid("reviewer_agent", agent+" cannot be an alternate reviewer harness (it needs its own adapter_config); use a reviewer persona that runs on "+agent+" instead")
 	case agent != "" && !domain.ValidReviewerAgent(agent):
 		return nil, "", "", domain.Invalid("reviewer_agent", fmt.Sprintf("unknown agent %q (want one of %v)", agent, domain.ReviewerAgents))
 	}
