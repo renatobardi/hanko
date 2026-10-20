@@ -20,7 +20,7 @@ jobs:
   e2e:
     runs-on: ubuntu-26.04
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: pendente (#57)
         run: |
           echo "e2e ainda sem jornadas; preenchido na onda 1 (item #57)."

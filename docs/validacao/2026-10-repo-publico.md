@@ -18,7 +18,7 @@ Data: 2026-10-19/20. Premissa da issue: o que aparecer é tratado como vazado. E
 | 4 | E-mail pessoal do dono como `HANKO_AUTH_OWNER_EMAIL` em `deploy-prd.sh`, `.env.example`, `hanko.example.yaml`; e-mail do autor em 194 commits (`Signed-off-by`) e no log/artefato do build da imagem | baixa (PII) | **Decidido (2026-10-20): manter como está**, junto com a topologia do item 3. O dado já é público no histórico e os IPs não são roteáveis |
 | 5 | Segredos do prd (`POSTGRES_PASSWORD`, `HANKO_SECRET`, token do serviço de memória) são gerados dentro do LXC e nunca entram no git | nenhuma | Confirmado. `HANKO_SECRET_KEY` **não** precisa rotacionar |
 | 6 | Workflows: sem `pull_request_target`, sem `secrets: inherit`; único segredo usado é o `GITHUB_TOKEN` com permissões mínimas; logs mascaram credenciais (`***`); nenhum passo imprime o ambiente | nenhuma | — |
-| 7 | Actions fixadas por tag (`@v7`, `@v0.33.1`), não por SHA | baixa (cadeia de suprimentos) | **Pendente:** fixar por SHA (o dependabot de `github-actions` atualiza) |
+| 7 | Actions fixadas por tag (`@v7`, `@v0.33.1`), não por SHA | baixa (cadeia de suprimentos) | **Feito:** todas as actions fixadas por SHA com a versão em comentário; o dependabot de `github-actions` (agrupado, semanal) atualiza |
 | 8 | Artefato `cobertura` contém só `cover.out` (caminhos do módulo e contagens); snapshot e build sem nada além da versão | nenhuma | — |
 | 9 | PRs/issues: nenhum token, URL privada ou dado de cliente. Há links de sessão de agente e IDs de escopo/cobrança postados por bot de revisão (não são credenciais) | informativa | — |
 | 10 | `.gitignore` só cobria `.env`; o deploy cria `.env.secrets`/`.env.tmp` transitórios | baixa | `.env.*` (exceto `.env.example`) passou a ser ignorado |
@@ -32,7 +32,7 @@ Data: 2026-10-19/20. Premissa da issue: o que aparecer é tratado como vazado. E
 - Ativar **Secret scanning** + **Push protection**, **Dependency graph** + **Dependabot alerts** e **Private vulnerability reporting** (Settings › Code security). A ferramenta de varredura do GitHub recusou rodar por falta disso.
 - `trivy-fs`: falha em todo run **na instalação do binário** (o script de instalação sai 1), nunca chega a varrer. Fixar uma versão do binário instalável ou trocar a instalação; depois remover `continue-on-error` dele e do `dependency-review`.
 - Branch protection da `main`: exigir `check`, `release-dry-run` e `gitleaks`.
-- Itens 2 e 7 acima (3 e 4 decididos: manter).
+- Item 2 acima resolvido pelo dono (key já restrita); 3 e 4 decididos: manter.
 
 ## Feito pelo dono em Settings (2026-10-20)
 - Push protection ligado (secret scanning é sempre ativo em repo público). Alerta #1: a API key Web do Firebase, esperado.
