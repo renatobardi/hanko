@@ -38,6 +38,14 @@ type Goal struct {
 	OwnerPersonaID  string  `json:"owner_persona_id,omitempty" format:"uuid"`
 	OwnerSlug       string  `json:"owner_slug,omitempty"`
 	OwnerName       string  `json:"owner_name,omitempty"`
+	// Árvore de metas (ADR-0042). Rollup: o progresso é o agregado das submetas (média simples das não abandonadas) e a
+	// meta não recebe progresso direto. Depth: 1 = raiz, no máximo 4.
+	ParentID   string    `json:"parent_id,omitempty" format:"uuid"`
+	ParentSlug string    `json:"parent_slug,omitempty"`
+	Path       []GoalRef `json:"path,omitempty" doc:"Ancestrais, da raiz até o pai."`
+	Children   []GoalRef `json:"children,omitempty"`
+	Depth      int       `json:"depth,omitempty"`
+	Rollup     bool      `json:"rollup,omitempty"`
 	// Tasks conta as tasks ligadas à meta por status.
 	Tasks      map[string]int `json:"tasks"`
 	TasksTotal int            `json:"tasks_total"`
@@ -47,6 +55,12 @@ type Goal struct {
 	UpdatedAt  time.Time      `json:"updated_at"`
 	// Updates só vem no detalhe: o histórico de progresso, do mais antigo para o mais novo (até 200).
 	Updates []GoalUpdate `json:"updates,omitempty"`
+}
+
+// GoalRef identifica uma meta numa cadeia ou lista de filhos.
+type GoalRef struct {
+	Slug  string `json:"slug"`
+	Title string `json:"title"`
 }
 
 // GoalUpdate é um registro de progresso.
@@ -84,6 +98,7 @@ type createGoalIn struct {
 		DueDate     string   `json:"due_date,omitempty" format:"date" doc:"AAAA-MM-DD."`
 		Project     string   `json:"project,omitempty" doc:"Id ou slug do projeto."`
 		Owner       string   `json:"owner,omitempty" doc:"Id ou slug da persona dona da meta."`
+		Parent      string   `json:"parent,omitempty" doc:"Id ou slug da meta-pai (árvore de metas, até 4 níveis)."`
 	}
 }
 
@@ -102,6 +117,8 @@ type updateGoalIn struct {
 		ClearProject bool     `json:"clear_project,omitempty"`
 		Owner        string   `json:"owner,omitempty"`
 		ClearOwner   bool     `json:"clear_owner,omitempty"`
+		Parent       string   `json:"parent,omitempty" doc:"Id ou slug da nova meta-pai."`
+		ClearParent  bool     `json:"clear_parent,omitempty" doc:"Torna a meta uma raiz."`
 		Status       *string  `json:"status,omitempty" enum:"active,abandoned" doc:"active reabre; abandoned arquiva. achieved só acontece ao cruzar o alvo."`
 	}
 }
@@ -120,7 +137,14 @@ func goalOut(v service.GoalView) Goal {
 		ProgressPercent: v.ProgressPercent, Status: string(v.Status), ProjectID: idPtr(v.ProjectID), ProjectSlug: v.ProjectSlug,
 		ProjectName: v.ProjectName, OwnerPersonaID: idPtr(v.OwnerPersonaID), OwnerSlug: v.OwnerSlug, OwnerName: v.OwnerName,
 		Tasks: map[string]int{}, TasksTotal: v.TasksTotal, CreatedBy: actorRef(v.CreatedBy), AchievedAt: v.AchievedAt,
-		CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt}
+		CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt, ParentID: idPtr(v.ParentID), ParentSlug: v.ParentSlug,
+		Depth: v.Depth, Rollup: v.Rollup}
+	for _, p := range v.Path {
+		g.Path = append(g.Path, GoalRef{Slug: p.Slug, Title: p.Title})
+	}
+	for _, c := range v.Children {
+		g.Children = append(g.Children, GoalRef{Slug: c.Slug, Title: c.Title})
+	}
 	if v.DueDate != nil {
 		g.DueDate = v.DueDate.Format(dateLayout)
 	}
@@ -175,8 +199,12 @@ func (s *server) registerGoals(api huma.API) {
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}
+			parent, err := s.goalRef(ctx, cid, b.Parent)
+			if err != nil {
+				return nil, s.fail(ctx, err)
+			}
 			g, err := s.svc.CreateGoal(ctx, sc.Actor, cid, service.CreateGoalInput{Title: b.Title, Slug: b.Slug, Description: b.Description,
-				Metric: b.Metric, Unit: b.Unit, ProjectID: project, Start: b.Start, Target: b.Target, Current: b.Current,
+				Metric: b.Metric, Unit: b.Unit, ProjectID: project, ParentID: parent, Start: b.Start, Target: b.Target, Current: b.Current,
 				DueDate: due, OwnerPersonaID: owner})
 			if err != nil {
 				return nil, s.fail(ctx, err)
@@ -237,7 +265,11 @@ func (s *server) registerGoals(api huma.API) {
 			}
 			b := in.Body
 			up := service.UpdateGoalInput{Title: b.Title, Description: b.Description, Metric: b.Metric, Unit: b.Unit,
-				Start: b.Start, Target: b.Target, ClearDue: b.ClearDue, ClearProject: b.ClearProject, ClearOwner: b.ClearOwner}
+				Start: b.Start, Target: b.Target, ClearDue: b.ClearDue, ClearProject: b.ClearProject, ClearOwner: b.ClearOwner,
+				ClearParent: b.ClearParent}
+			if up.ParentID, err = s.goalRef(ctx, cid, b.Parent); err != nil {
+				return nil, s.fail(ctx, err)
+			}
 			if up.DueDate, err = parseDue("due_date", b.DueDate); err != nil {
 				return nil, s.fail(ctx, err)
 			}

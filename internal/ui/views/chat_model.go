@@ -56,8 +56,10 @@ type ChatVM struct {
 	RunHref     string // run in progress, when there is one
 	Cost        string
 	Error       string
+	Blocked     string       // why the persona cannot answer now ("" = it can); sending is disabled
+	Followups   *FollowupsVM // fila de mensagens que esperam a resposta (ADR-0039)
+	QueueHref   string       // fragmento da fila (polling)
 	// DraftF liga o campo ao rascunho do servidor e UploadHint é a dica do campo de arquivos (ADR-0052).
 	DraftF     DraftFields
 	UploadHint string
-	Blocked    string // why the persona cannot answer now ("" = it can); sending is disabled
 }

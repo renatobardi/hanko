@@ -41,6 +41,8 @@ type Shell struct {
 	Flush   bool              // content area without padding (two-pane pages)
 	// Archived: a empresa está arquivada (somente leitura); a faixa avisa em toda página (ADR-0057).
 	Archived bool
+	// Personal: há uma pessoa autenticada, então a Caixa tem selo de não lidos e toasts ao vivo (ADR-0042).
+	Personal bool
 }
 
 // Base returns the company-scoped URL prefix, e.g. "/c/hanko".
@@ -224,6 +226,8 @@ type TaskVM struct {
 	Model           string // manual model of the task (wins over the persona's)
 	Notice          string // flash after an action
 	Error           string
+	Draft           string
+	Followups       *FollowupsVM // fila de follow-ups (ADR-0039); nil quando a task está encerrada
 	// DraftF liga o campo de comentário ao rascunho do servidor; Attach é o cartão de anexos da task e UploadHint a
 	// dica de tamanho do campo de arquivos do compositor (ADR-0052).
 	DraftF     DraftFields
@@ -452,6 +456,9 @@ type RunVM struct {
 	// Artefatos que a execução publicou (todas as versões).
 	Artifacts     []ArtifactMini
 	ArtifactsHref string
+	// Resiliência (ADR-0039): card de diagnóstico e caixa de steer.
+	Diag  *DiagVM
+	Steer *SteerVM
 }
 
 // ---- activity ----
@@ -464,6 +471,10 @@ type ActivityDay struct {
 type ActivityVM struct {
 	Subtitle string
 	Days     []ActivityDay
+	// Filtro por ator (ADR-0042): opções do seletor, ação do formulário e se há filtro ligado.
+	ActorOptions []Option
+	Action       string
+	Filtered     bool
 }
 
 // ---- misc ----

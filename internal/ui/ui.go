@@ -92,6 +92,12 @@ type Backend interface {
 	ListRunEvents(ctx context.Context, companyID, runID domain.ID, afterSeq int64, limit int) ([]domain.RunEvent, error)
 	ListRunEventsBefore(ctx context.Context, companyID, runID domain.ID, beforeSeq int64, limit int) ([]domain.RunEvent, error)
 	CancelRun(ctx context.Context, actor domain.Actor, companyID, runID domain.ID) (service.RunView, error)
+	RunAction(ctx context.Context, actor domain.Actor, companyID, runID domain.ID, in service.RunActionInput) (service.RunView, error)
+	SteerRun(ctx context.Context, actor domain.Actor, companyID, runID domain.ID, body string) (service.SteerResult, error)
+	ListFollowups(ctx context.Context, companyID domain.ID, target service.FollowupTarget) ([]domain.Followup, error)
+	QueueTaskFollowup(ctx context.Context, actor domain.Actor, companyID, taskID domain.ID, body string) (domain.Followup, error)
+	EditFollowup(ctx context.Context, actor domain.Actor, companyID, id domain.ID, body string) (domain.Followup, error)
+	DiscardFollowup(ctx context.Context, actor domain.Actor, companyID, id domain.ID) error
 
 	ListActivity(ctx context.Context, companyID domain.ID, f service.ActivityFilter) ([]domain.ActivityEvent, error)
 	Search(ctx context.Context, companyID domain.ID, q string, f service.SearchFilter) (service.SearchResult, error)
@@ -365,6 +371,12 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("GET /c/{company}/execucoes/{run}", co(s.handleRun))
 	mux.HandleFunc("GET /c/{company}/execucoes/{run}/sse", co(s.handleRunSSE))
 	mux.HandleFunc("POST /c/{company}/execucoes/{run}/cancelar", post(co(s.handleCancelRun)))
+	mux.HandleFunc("POST /c/{company}/execucoes/{run}/acao", post(co(s.handleRunAction)))
+	mux.HandleFunc("POST /c/{company}/execucoes/{run}/steer", post(co(s.handleRunSteer)))
+	mux.HandleFunc("POST /c/{company}/tasks/{task}/followups", post(co(s.handleQueueFollowup)))
+	mux.HandleFunc("POST /c/{company}/followups/{followup}/editar", post(co(s.handleEditFollowup)))
+	mux.HandleFunc("POST /c/{company}/followups/{followup}/descartar", post(co(s.handleDiscardFollowup)))
+	mux.HandleFunc("GET /c/{company}/chat/{conversation}/fila", co(s.handleChatQueue))
 
 	mux.HandleFunc("POST /c/{company}/personas/{persona}/revisor", post(co(s.handlePersonaReviewer)))
 	mux.HandleFunc("POST /c/{company}/personas/{persona}/organizacao", post(co(s.handlePersonaOrg)))
@@ -375,6 +387,14 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("POST /c/{company}/caixa/tasks/{task}/acordar", post(co(s.handleInboxWake)))
 	mux.HandleFunc("POST /c/{company}/caixa/tasks/{task}/retomar", post(co(s.handleInboxResume)))
 	mux.HandleFunc("POST /c/{company}/caixa/personas/{persona}/reativar", post(co(s.handleInboxReactivate)))
+	mux.HandleFunc("POST /c/{company}/caixa/estado", post(co(s.handleInboxState)))
+	mux.HandleFunc("GET /c/{company}/caixa/selo", co(s.handleInboxBadge))
+	mux.HandleFunc("GET /c/{company}/caixa/eventos", co(s.handleInboxEvents))
+	mux.HandleFunc("GET /c/{company}/configuracoes/notificacoes", co(s.handleNotifySettings))
+	mux.HandleFunc("POST /c/{company}/configuracoes/notificacoes", post(co(s.handleNotifySave)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/notificacoes/teste", post(co(s.handleNotifyTest)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/notificacoes/aparelhos", post(co(s.handlePushSubscribe)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/notificacoes/aparelhos/remover", post(co(s.handlePushRemove)))
 	mux.HandleFunc("GET /c/{company}/decisoes", co(s.handleDecisions))
 	mux.HandleFunc("GET /c/{company}/gates", co(s.handleGates))
 	mux.HandleFunc("GET /c/{company}/gates/{gate}", co(s.handleGate))
@@ -647,10 +667,18 @@ func (s *server) shell(r *http.Request, co domain.Company, active, title string,
 		Owner:    ownerName,
 		Role:     views.RoleFrom(r.Context()),
 		Archived: co.Archived(),
+		// com pessoa autenticada a Caixa tem selo e toasts ao vivo (ADR-0042)
+		Personal: personal(r.Context()),
 	}
 }
 
 func trimForm(r *http.Request, key string) string { return strings.TrimSpace(r.PostFormValue(key)) }
+
+// personal diz se a requisição vem de uma pessoa autenticada (sessão ou API key), e não do modo trusted.
+func personal(ctx context.Context) bool {
+	_, ok := auth.IdentityFrom(ctx)
+	return ok
+}
 
 // actorFrom is the human actor of the request: the signed-in user in authenticated
 // mode, the anonymous local human in trusted mode.

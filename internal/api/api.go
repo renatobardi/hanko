@@ -19,6 +19,7 @@ import (
 	"github.com/renatobardi/hanko/internal/export"
 	"github.com/renatobardi/hanko/internal/service"
 	"github.com/renatobardi/hanko/internal/textdiff"
+	"github.com/renatobardi/hanko/internal/webpush"
 )
 
 // Prefix é o prefixo de todas as rotas REST.
@@ -105,7 +106,14 @@ type backend interface {
 	ListRunEvents(ctx context.Context, companyID, runID domain.ID, afterSeq int64, limit int) ([]domain.RunEvent, error)
 	ListRunEventsBefore(ctx context.Context, companyID, runID domain.ID, beforeSeq int64, limit int) ([]domain.RunEvent, error)
 	CancelRun(ctx context.Context, actor domain.Actor, companyID, runID domain.ID) (service.RunView, error)
+	RunAction(ctx context.Context, actor domain.Actor, companyID, runID domain.ID, in service.RunActionInput) (service.RunView, error)
+	SteerRun(ctx context.Context, actor domain.Actor, companyID, runID domain.ID, body string) (service.SteerResult, error)
+	ListFollowups(ctx context.Context, companyID domain.ID, target service.FollowupTarget) ([]domain.Followup, error)
+	QueueTaskFollowup(ctx context.Context, actor domain.Actor, companyID, taskID domain.ID, body string) (domain.Followup, error)
+	EditFollowup(ctx context.Context, actor domain.Actor, companyID, id domain.ID, body string) (domain.Followup, error)
+	DiscardFollowup(ctx context.Context, actor domain.Actor, companyID, id domain.ID) error
 	ListActivity(ctx context.Context, companyID domain.ID, f service.ActivityFilter) ([]domain.ActivityEvent, error)
+	ResolveActor(ctx context.Context, companyID domain.ID, ref string) (service.ActorFilter, error)
 	Dashboard(ctx context.Context, companyID domain.ID) (service.DashboardStats, error)
 	Search(ctx context.Context, companyID domain.ID, q string, f service.SearchFilter) (service.SearchResult, error)
 	RequestGate(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.RequestGateInput) (service.GateView, error)
@@ -169,6 +177,16 @@ type backend interface {
 	GetGoal(ctx context.Context, companyID domain.ID, ref string) (domain.Goal, error)
 	ListGoalViews(ctx context.Context, companyID domain.ID, f service.GoalFilter) ([]service.GoalView, error)
 	GetGoalView(ctx context.Context, companyID domain.ID, ref string) (service.GoalView, error)
+	// caixa por pessoa e avisos (ADR-0042)
+	InboxView(ctx context.Context, companyID domain.ID, view domain.InboxView) (service.Inbox, error)
+	SetInboxState(ctx context.Context, actor domain.Actor, companyID domain.ID, action domain.InboxAction, refs []service.InboxRef) (int, error)
+	NotifyPrefs(ctx context.Context, companyID domain.ID) ([]domain.NotifyPref, error)
+	SetNotifyPref(ctx context.Context, companyID domain.ID, p domain.NotifyPref) error
+	SendTestNotice(ctx context.Context, companyID domain.ID) error
+	PushVapidKey(ctx context.Context) (string, error)
+	AddPushSubscription(ctx context.Context, in webpush.Subscription, userAgent string) (service.PushSubscriptionView, error)
+	ListPushSubscriptions(ctx context.Context) ([]service.PushSubscriptionView, error)
+	RemovePushSubscription(ctx context.Context, ref string) error
 	ListConversations(ctx context.Context, companyID domain.ID, f service.ConversationFilter) ([]service.ConversationView, error)
 	GetConversation(ctx context.Context, companyID, id domain.ID) (service.ConversationView, error)
 	ListConversationMessages(ctx context.Context, companyID, id domain.ID, limit int) ([]domain.ConversationMessage, error)
@@ -273,6 +291,7 @@ func (s *server) register(api huma.API) {
 	s.registerTasks(api)
 	s.registerCoordination(api)
 	s.registerRuns(api)
+	s.registerResilience(api)
 	s.registerGates(api)
 	s.registerMisc(api)
 	s.registerCosts(api)
@@ -286,6 +305,7 @@ func (s *server) register(api huma.API) {
 	s.registerAttachments(api)
 	s.registerDrafts(api)
 	s.registerGoals(api)
+	s.registerInbox(api) // Caixa por pessoa e avisos (ADR-0042)
 	s.registerSkills(api)
 	s.registerSkillStudio(api)
 	s.registerIntegrations(api)

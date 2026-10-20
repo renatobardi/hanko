@@ -1,0 +1,168 @@
+package views
+
+import (
+	"fmt"
+
+	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/i18n"
+)
+
+// DiagCard is the diagnosis card of a run that stopped: cause, attempt, next action and owner; with the operator's
+// actions when it waits for a decision (ADR-0039).
+templ DiagCard(d *DiagVM) {
+	<div class="diag" role="group" aria-label={ i18n.T(ctx, "Diagnóstico da execução") }>
+		<dl class="diag-kv">
+			if d.Cause != "" {
+				<dt>{ i18n.T(ctx, "Causa") }</dt>
+				<dd>
+					{ d.Cause }
+					if d.Detail != "" {
+						<span class="muted">— { d.Detail }</span>
+					}
+				</dd>
+				<dt>{ i18n.T(ctx, "Tentativa") }</dt>
+				<dd>{ d.Attempt }</dd>
+				<dt>{ i18n.T(ctx, "Próxima ação") }</dt>
+				<dd>{ d.NextAction }</dd>
+				<dt>{ i18n.T(ctx, "Dono") }</dt>
+				<dd>{ d.Owner }</dd>
+			}
+			if d.OfHref != "" {
+				<dt>{ i18n.T(ctx, "Continuação de") }</dt>
+				<dd><a class="link-u" href={ templ.SafeURL(d.OfHref) }>{ d.OfName }</a> <span class="chip soft">{ d.Reason }</span></dd>
+			}
+			if d.ByHref != "" {
+				<dt>{ i18n.T(ctx, "Continuada por") }</dt>
+				<dd><a class="link-u" href={ templ.SafeURL(d.ByHref) }>{ d.ByName }</a></dd>
+			}
+		</dl>
+		if d.Uncertain != "" {
+			<div class="mt-2">
+				@Alert("warn", i18n.Tf(ctx, "Desfecho incerto: a tool %s estava em andamento quando a execução parou e pode ter produzido efeito externo. Confira o estado real antes de continuar.", d.Uncertain))
+			</div>
+		}
+		if d.Decided != "" {
+			<p class="muted mt-2">
+				{ i18n.Tf(ctx, "Decisão do operador: %s.", d.Decided) }
+				if d.Note != "" {
+					{ d.Note }
+				}
+			</p>
+		}
+		if d.NeedsDecision {
+			if canWrite(ctx) {
+				<form class="diag-act" method="post" action={ templ.SafeURL(d.ActionHref) }>
+					<input type="hidden" name="voltar" value={ d.Back }/>
+					<input class="input" type="text" name="note" maxlength="2000" placeholder={ i18n.T(ctx, "Nota para a próxima execução (opcional)") } aria-label={ i18n.T(ctx, "Nota") }/>
+					<div class="diag-btns">
+						<button class="btn outline sm" type="submit" name="action" value="retry" title={ i18n.T(ctx, "Recomeça do zero, sem a sessão anterior") }>
+							@Icon("zap")
+							{ i18n.T(ctx, "Tentar de novo") }
+						</button>
+						<button class="btn primary sm" type="submit" name="action" value="continue" title={ i18n.T(ctx, "Retoma a sessão com o briefing do que já foi feito") }>
+							@Icon("play")
+							{ i18n.T(ctx, "Continuar") }
+						</button>
+						<button class="btn ghost sm" type="submit" name="action" value="close" title={ i18n.T(ctx, "Fecha o card sem abrir outra execução") }>
+							{ i18n.T(ctx, "Encerrar") }
+						</button>
+					</div>
+				</form>
+			} else {
+				<div class="mt-2">@NeedRole(domain.MemberMember)</div>
+			}
+		}
+	</div>
+}
+
+// RunActions is the part of the run page that changes only when the run changes state (diagnosis card and steer
+// box); it is swapped by the run-actions SSE event, never per log line, so the text being typed survives.
+templ RunActions(vm RunVM) {
+	<div id="run-actions" sse-swap="run-actions" hx-swap="innerHTML">
+		@RunActionsBody(vm)
+	</div>
+}
+
+templ RunActionsBody(vm RunVM) {
+	if vm.Diag != nil {
+		<section class="card pad mb-4">
+			<div class="card-head"><h2 class="card-label">{ i18n.T(ctx, "Diagnóstico") }</h2></div>
+			@DiagCard(vm.Diag)
+		</section>
+	}
+	if vm.Steer != nil && canWrite(ctx) {
+		@SteerBox(vm.Steer)
+	}
+}
+
+templ SteerBox(s *SteerVM) {
+	<form class="card pad steer-box mb-4" method="post" action={ templ.SafeURL(s.Href) }>
+		<input type="hidden" name="voltar" value={ s.Back }/>
+		<div class="card-head">
+			<h2 class="card-label">{ i18n.T(ctx, "Mudar o rumo") }</h2>
+			<span class={ "chip", templ.KV("soft", s.Mode == "restart") } data-steer-mode={ s.Mode }>{ s.ModeLabel }</span>
+		</div>
+		<textarea class="textarea" name="message" rows="3" required placeholder={ i18n.T(ctx, "Diga à persona o que mudar agora.") } aria-label={ i18n.T(ctx, "Mensagem para a execução") }></textarea>
+		<div class="row">
+			<span class="hint">{ s.Hint }</span>
+			<button class="btn primary sm" type="submit">
+				@Icon("send")
+				{ i18n.T(ctx, "Enviar") }
+			</button>
+		</div>
+	</form>
+}
+
+// FollowupPanel lists the pending follow-ups in the order they will be delivered, with the reason each one waits, and
+// lets the operator edit or discard one before it is consumed.
+templ FollowupPanel(vm FollowupsVM) {
+	<section class="followups" id="followups" aria-label={ i18n.T(ctx, "Fila de follow-ups") }>
+		<div class="side-h">{ i18n.T(ctx, "Fila de follow-ups") } <span class="cnt">{ fmt.Sprint(len(vm.Items)) }</span></div>
+		if len(vm.Items) == 0 {
+			<p class="muted">{ i18n.T(ctx, "Nada na fila. O que você enviar enquanto a execução trabalha espera aqui, na ordem.") }</p>
+		}
+		for _, f := range vm.Items {
+			<div class="followup" data-wait={ f.WaitKey }>
+				<div class="fu-head">
+					<span class="chip">{ fmt.Sprint(f.Pos) }</span>
+					<span class="chip soft">{ f.Delivery }</span>
+					<span class="fu-wait">{ f.Wait }</span>
+					if f.Edited {
+						<span class="muted">{ i18n.T(ctx, "editado") }</span>
+					}
+				</div>
+				<div class="fu-body">{ f.Body }</div>
+				if canWrite(ctx) {
+					<details class="fu-edit">
+						<summary class="btn ghost sm">{ i18n.T(ctx, "Editar") }</summary>
+						<form method="post" action={ templ.SafeURL(f.EditHref) }>
+							<input type="hidden" name="voltar" value={ vm.Back }/>
+							<textarea class="textarea" name="message" rows="3" required aria-label={ i18n.T(ctx, "Texto do follow-up") }>{ f.Body }</textarea>
+							<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Salvar") }</button>
+						</form>
+					</details>
+					<form class="fu-discard" method="post" action={ templ.SafeURL(f.DiscardHref) }>
+						<input type="hidden" name="voltar" value={ vm.Back }/>
+						<button class="btn ghost sm" type="submit">{ i18n.T(ctx, "Descartar") }</button>
+					</form>
+				}
+			</div>
+		}
+		if vm.AddHref != "" && canWrite(ctx) {
+			<form class="composer" method="post" action={ templ.SafeURL(vm.AddHref) }>
+				<input type="hidden" name="voltar" value={ vm.Back }/>
+				<textarea name="message" required placeholder={ i18n.T(ctx, "Enfileire uma instrução: a próxima execução da task a recebe, na ordem.") } aria-label={ i18n.T(ctx, "Follow-up") }></textarea>
+				<div class="row">
+					<span class="hint">{ i18n.T(ctx, "Pode editar ou descartar enquanto não for entregue.") }</span>
+					<button type="submit" class="btn outline sm">
+						@Icon("send")
+						{ i18n.T(ctx, "Enfileirar") }
+					</button>
+				</div>
+			</form>
+		}
+		if vm.Steer != nil && canWrite(ctx) {
+			@SteerBox(vm.Steer)
+		}
+	</section>
+}

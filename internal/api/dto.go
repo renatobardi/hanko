@@ -185,6 +185,7 @@ type Task struct {
 	Blocked           bool      `json:"blocked" doc:"Derivado: tem ao menos uma dependência aberta. Nenhuma execução abre enquanto durar."`
 	ChildrenTotal     int       `json:"children_total"`
 	ChildrenOpen      int       `json:"children_open"`
+	Participation     []string  `json:"participation,omitempty" doc:"Só com mine=true: por que a task é da pessoa (created, assigned, mentioned, commented, gate)."`
 	Hold              *TaskHold `json:"hold,omitempty" doc:"Pausa efetiva: a da própria task ou herdada do ancestral mais próximo. Nenhuma execução abre enquanto durar."`
 }
 
@@ -325,8 +326,38 @@ type Run struct {
 	CreatedAt           time.Time  `json:"created_at"`
 	StartedAt           *time.Time `json:"started_at,omitempty"`
 	FinishedAt          *time.Time `json:"finished_at,omitempty"`
+	// Resiliência (ADR-0039)
+	SteerMode           string        `json:"steer_mode,omitempty" enum:"none,inject,restart" doc:"Como o harness da execução aceita uma mensagem durante a execução: inject (entra na execução viva) ou restart (interrompe e continua)."`
+	ContinuationOfRunID string        `json:"continuation_of_run_id,omitempty" format:"uuid" doc:"Execução que esta continua (queda do processo, steer, Tentar de novo ou Continuar)."`
+	ContinuationAttempt int           `json:"continuation_attempt,omitempty" doc:"Quantas continuações automáticas a cadeia já usou (0 = a original; o máximo é 2)."`
+	ContinuationReason  string        `json:"continuation_reason,omitempty" enum:"recovery,steer,retry,continue"`
+	ContinuedByRunID    string        `json:"continued_by_run_id,omitempty" format:"uuid" doc:"Execução que continuou esta (só no GET de uma execução)."`
+	Diagnosis           *RunDiagnosis `json:"diagnosis,omitempty" doc:"Card de diagnóstico de uma execução que parou: causa, tentativa, próxima ação e dono."`
+	DecisionPending     bool          `json:"decision_pending,omitempty" doc:"A execução parou e espera Tentar de novo, Continuar ou Encerrar."`
+	Decision            string        `json:"decision,omitempty" enum:"retry,continue,close" doc:"O que o operador decidiu."`
+	DecisionNote        string        `json:"decision_note,omitempty"`
+	DecidedAt           *time.Time    `json:"decided_at,omitempty"`
 	// PolicyOrigin: de que camada veio a política de revisão desta execução (só no detalhe).
 	PolicyOrigin *RunPolicyOrigin `json:"policy_origin,omitempty"`
+}
+
+// RunDiagnosis é o card de diagnóstico de uma execução que parou.
+type RunDiagnosis struct {
+	Cause       string         `json:"cause" enum:"process_restart,server_shutdown,agent_error,timeout,cancelled"`
+	CauseDetail string         `json:"cause_detail,omitempty"`
+	Attempt     int            `json:"attempt" doc:"Continuação em que a execução parou (0 = original)."`
+	MaxAttempts int            `json:"max_attempts" doc:"Máximo de continuações automáticas."`
+	NextAction  string         `json:"next_action" enum:"auto_continue,human_decision,none,continued"`
+	Owner       string         `json:"owner" enum:"system,human" doc:"Quem tem a próxima ação."`
+	Exhausted   bool           `json:"exhausted,omitempty" doc:"As continuações automáticas acabaram."`
+	Uncertain   *UncertainTool `json:"uncertain,omitempty" doc:"Desfecho incerto: tool de efeito externo em andamento quando a execução parou."`
+}
+
+// UncertainTool é a tool de efeito externo que estava em andamento quando a execução parou.
+type UncertainTool struct {
+	Name  string `json:"name"`
+	Input string `json:"input,omitempty"`
+	Seq   int64  `json:"seq" doc:"Seq do evento tool_use no log."`
 }
 
 // RunEvent é uma linha do log de uma execução.
@@ -544,7 +575,7 @@ func taskOut(t service.TaskView) Task {
 		WorkspaceID: idPtr(t.WorkspaceID), GoalID: idPtr(t.GoalID), ParentID: idPtr(t.ParentID), Model: t.Model, ActiveRunID: idPtr(t.ActiveRunID),
 		CreatedBy: actorRef(t.CreatedBy), CreatedAt: t.CreatedAt, UpdatedAt: t.UpdatedAt, ClosedAt: t.ClosedAt,
 		OpenDependencies: t.OpenDependencies, DependenciesTotal: t.DependenciesTotal, Blocked: t.Blocked,
-		ChildrenTotal: t.ChildrenTotal, ChildrenOpen: t.ChildrenOpen, Hold: holdOut(t.Hold)}
+		ChildrenTotal: t.ChildrenTotal, ChildrenOpen: t.ChildrenOpen, Hold: holdOut(t.Hold), Participation: t.Participation}
 }
 
 func holdOut(h *domain.TaskHold) *TaskHold {
@@ -626,7 +657,22 @@ func runOut(r service.RunView) Run {
 		CostSource: string(r.CostSource), ListCostUSD: r.ListCostUSD, ModelSource: string(r.ModelSource), SubscriptionID: idPtr(r.SubscriptionID),
 		Trigger: string(r.Trigger), Agent: r.Agent, Model: r.Model, SessionRef: r.SessionRef, TraceID: r.TraceID,
 		ExitCode: r.ExitCode, Error: r.Error, Summary: r.Summary, CostUSD: r.CostUSD, Usage: Usage(r.Usage),
-		InstructionRevision: r.InstructionRevision, InstructionSHA256: r.InstructionSHA256, CreatedAt: r.CreatedAt, StartedAt: r.StartedAt, FinishedAt: r.FinishedAt, PolicyOrigin: policyOriginOut(r.PolicyOrigin)}
+		InstructionRevision: r.InstructionRevision, InstructionSHA256: r.InstructionSHA256, CreatedAt: r.CreatedAt, StartedAt: r.StartedAt, FinishedAt: r.FinishedAt,
+		SteerMode: string(r.SteerMode), ContinuationOfRunID: idPtr(r.ContinuationOfRunID), ContinuationAttempt: r.ContinuationAttempt,
+		ContinuationReason: string(r.ContinuationReason), ContinuedByRunID: idPtr(r.ContinuedByRunID), Diagnosis: diagnosisOut(r.Diagnosis),
+		DecisionPending: r.DecisionPending, Decision: string(r.Decision), DecisionNote: r.DecisionNote, DecidedAt: r.DecidedAt, PolicyOrigin: policyOriginOut(r.PolicyOrigin)}
+}
+
+func diagnosisOut(d *domain.RunDiagnosis) *RunDiagnosis {
+	if d == nil {
+		return nil
+	}
+	out := &RunDiagnosis{Cause: string(d.Cause), CauseDetail: d.CauseDetail, Attempt: d.Attempt, MaxAttempts: d.MaxAttempts,
+		NextAction: string(d.NextAction), Owner: string(d.Owner), Exhausted: d.Exhausted}
+	if d.Uncertain != nil {
+		out.Uncertain = &UncertainTool{Name: d.Uncertain.Name, Input: d.Uncertain.Input, Seq: d.Uncertain.Seq}
+	}
+	return out
 }
 
 func policyOriginOut(o *domain.RunPolicyOrigin) *RunPolicyOrigin {

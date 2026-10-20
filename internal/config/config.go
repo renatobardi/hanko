@@ -173,6 +173,9 @@ type Config struct {
 	Secret   string `yaml:"secret" env:"HANKO_SECRET"`
 	// SecretKey cifra em repouso os segredos das integrações (AES-256-GCM, ADR-0029); SecretKeyPrevious é a
 	// chave anterior durante uma rotação (só decifra). Sem SecretKey, integrações com segredo não podem ser salvas.
+	// PushSubject identifica o operador perante o serviço de web push (VAPID sub, ADR-0042): "mailto:..." ou uma URL
+	// https. Vazio = mailto do dono (HANKO_AUTH_OWNER_EMAIL) ou, sem ele, a HANKO_PUBLIC_URL quando é https.
+	PushSubject       string        `yaml:"push_subject" env:"HANKO_PUSH_SUBJECT"`
 	SecretKey         string        `yaml:"secret_key" env:"HANKO_SECRET_KEY"`
 	SecretKeyPrevious string        `yaml:"secret_key_previous" env:"HANKO_SECRET_KEY_PREVIOUS"`
 	Integrations      Integrations  `yaml:"integrations"`
@@ -319,7 +322,7 @@ func environFor(getenv func(string) string) map[string]string {
 		"HANKO_AUTH_PROVIDER", "HANKO_AUTH_ALLOWED_EMAILS", "HANKO_AUTH_ALLOWED_DOMAINS",
 		"HANKO_FIREBASE_PROJECT_ID", "HANKO_FIREBASE_API_KEY", "HANKO_FIREBASE_AUTH_DOMAIN",
 		"HANKO_AUTH_OWNER_EMAIL", "HANKO_AUTH_WEB_BOOTSTRAP", "HANKO_TRUSTED_PROXIES",
-		"HANKO_SECRET_KEY", "HANKO_SECRET_KEY_PREVIOUS", "HANKO_INTEGRATIONS_ALLOW_STDIO", "HANKO_INTEGRATIONS_ALLOW_PRIVATE",
+		"HANKO_SECRET_KEY", "HANKO_SECRET_KEY_PREVIOUS", "HANKO_PUSH_SUBJECT", "HANKO_INTEGRATIONS_ALLOW_STDIO", "HANKO_INTEGRATIONS_ALLOW_PRIVATE",
 		"HANKO_ACP_ALLOW", "HANKO_ACP_COMMANDS", "HANKO_SKILL_SOURCES", "HANKO_TOOLS_SINGLE_ENDPOINT",
 		"HANKO_BLOB_DRIVER", "HANKO_S3_ENDPOINT", "HANKO_S3_REGION", "HANKO_S3_BUCKET", "HANKO_S3_PREFIX", "HANKO_S3_PATH_STYLE",
 		"HANKO_S3_ACCESS_KEY", "HANKO_S3_SECRET_KEY",
@@ -444,6 +447,9 @@ func (c Config) Validate() error {
 	}
 	if _, _, err := net.SplitHostPort(c.Addr); err != nil {
 		add("HANKO_ADDR %q inválido: use host:porta (ex.: 127.0.0.1:7420)", c.Addr)
+	}
+	if sub := strings.TrimSpace(c.PushSubject); sub != "" && !strings.HasPrefix(sub, "mailto:") && !strings.HasPrefix(sub, "https://") {
+		add("HANKO_PUSH_SUBJECT %q inválido: use mailto:alguem@exemplo.org ou uma URL https", c.PushSubject)
 	}
 	if u, err := url.Parse(c.PublicURL); err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
 		add("HANKO_PUBLIC_URL %q inválido: use http(s)://host[:porta]", c.PublicURL)
@@ -669,4 +675,18 @@ func (c Config) PublicHost() string {
 		return ""
 	}
 	return u.Host
+}
+
+// PushSubjectOrDefault é o contato do VAPID (ADR-0042): HANKO_PUSH_SUBJECT, senão o e-mail do dono, senão a URL
+// pública quando é https; vazio se nada disso existe (o service usa um valor neutro).
+func (c Config) PushSubjectOrDefault() string {
+	switch {
+	case strings.TrimSpace(c.PushSubject) != "":
+		return strings.TrimSpace(c.PushSubject)
+	case c.Auth.OwnerEmail != "":
+		return "mailto:" + c.Auth.OwnerEmail
+	case strings.HasPrefix(c.PublicURL, "https://"):
+		return c.PublicURL
+	}
+	return ""
 }

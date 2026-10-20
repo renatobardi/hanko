@@ -557,8 +557,9 @@ hanko chat list --persona cto
   e em Custos (linha "Chat"), e conta no orçamento da persona e da empresa e na trava semanal da assinatura.
 - Persona pausada, em erro, sem orçamento ou com a trava semanal atingida **não recebe a mensagem**: a UI, a API (409) e a CLI mostram o motivo.
   Reative a persona ou suba o limite e envie de novo.
-- Mensagens enviadas enquanto a persona responde esperam (até 20) e a run seguinte as responde juntas. Uma run de chat que falha,
-  é cancelada ou interrompida deixa um aviso de sistema na conversa; as mensagens em espera seguem na fila até a próxima mensagem.
+- Mensagens enviadas enquanto a persona responde esperam (até 20) e a run seguinte as responde juntas. Uma run de chat que falha
+  deixa um aviso de sistema na conversa; **cancelar** a run dispara a seguinte com as mensagens em espera, e uma run **interrompida**
+  (queda do servidor) é continuada sozinha (ver "Resiliência de run"). A fila é visível, editável e descartável (`hanko followup`).
 - Com `claude` (e `fake`) a sessão do harness é retomada entre as mensagens; harness sem essa capacidade recebe o histórico recente
   (até 24 KiB) no prompt a cada mensagem.
 - A persona pode abrir uma task a partir da conversa (`hanko_task_create`); a descrição cita a conversa. Não há task na run de chat,
@@ -842,3 +843,43 @@ alcance. Uso "órfão" na tela: o servidor caiu no meio da execução; a pasta r
 - **Arquivar:** `hanko -c <empresa> company archive` pausa as personas, cancela as execuções, desliga os fluxos e deixa a empresa somente leitura (faixa na UI, 409 nas escritas). `company restore [--resume]` desfaz. `company delete --confirm "<Nome>" -o backup.json` (só owner, só arquivada) guarda o export em `company_deletions`; `hanko company deletions` lista e `company download-deletion <id>` baixa.
 - **Import:** `hanko import arq.json --dry-run` mostra a prévia; `--into <empresa> --on-conflict skip|rename|replace --resolve personas/dev=replace` mescla só a configuração numa empresa existente. Na UI: `/importar`.
 - **Entrada de pessoas:** Configurações › Membros › "Gerar link de entrada" (`/pedir-acesso/<token>`); o admin aprova com o papel em `hanko member requests|approve|deny`. Contas da instalação: `/admin/usuarios` ou `hanko users`.
+## Resiliência de run: continuação, diagnóstico, steer e fila
+
+ADR-0039 (migration 00090). Quando o processo do Hanko cai no meio de uma run, ela **continua sozinha**; quando o desfecho é
+incerto, ela **espera uma decisão sua**; e dá para **mudar o rumo** de uma run ativa sem esperar o fim.
+
+- **Continuação automática.** Uma run interrompida (queda do processo ou encerramento do servidor) ganha uma continuação ligada a ela
+  (`continuation_of_run_id`): retoma a sessão do harness (`session_ref`, gravado assim que o harness a anuncia) e recebe no prompt o
+  briefing do que já foi feito. **Máximo de 2 continuações automáticas** por cadeia; na terceira interrupção a run vai para a Caixa.
+  Fica registrado na atividade (`run.diagnosed`, `run.continued`) e visível na página da run ("Continuação de / Continuada por").
+- **Desfecho incerto.** Se uma tool de efeito externo (Bash, escrita de arquivo, escrita no Hanko, tool MCP de terceiros…) estava em
+  andamento quando a run morreu, **nada reinicia sozinho**: a run aparece na Caixa (aba Falhas, "Execuções paradas esperando
+  decisão") com o card de diagnóstico (causa, tentativa, próxima ação, dono) e o nome da tool. Leitura (Read, Grep, `hanko_*_get`…)
+  não conta como efeito. A task não é acordada pelo heartbeat enquanto a decisão não vem.
+- **Ações do operador** (UI na run e na Caixa; API `POST /runs/{id}/actions`; CLI):
+
+```
+hanko run show <run>                         # mostra o card de diagnóstico e a cadeia de continuações
+hanko run continue <run> --note "conferi o remoto"   # retoma a sessão com o briefing (e a sua nota)
+hanko run retry <run>                        # recomeça do zero, sem a sessão anterior
+hanko run close <run>                        # fecha o card; a task em andamento vai para blocked
+```
+
+  Funcionam em run interrompida, falha ou expirada que ainda não foi decidida. Cada decisão devolve o orçamento de tentativas.
+- **Steer** (mudar o rumo de uma run ativa): caixa "Mudar o rumo" na run (e na task/conversa), `POST /runs/{id}/steer`, `hanko run
+  steer <run> "mensagem"`. A UI mostra o modo do harness: `claude` (stdin em stream-json), `acp` (cancela o turno e reenvia na mesma
+  sessão) e `fake` **injetam ao vivo**; `codex` **interrompe e continua** (a run é cancelada e a seguinte parte da sessão, quando o
+  harness retoma). A mensagem vira comentário da task (ou mensagem da conversa) quando o agente a recebe; se a run acabar antes, ela
+  segue na fila e vai para a run seguinte.
+- **Fila de follow-ups** (task e chat): o que você manda enquanto a run trabalha espera na ordem, com o motivo da espera (run ativa,
+  steer pendente, decisão pendente, persona indisponível…). Editar e descartar valem até a entrega.
+
+```
+hanko followup list --task HNK-12            # ordem e motivo da espera (ou --conversation <id>)
+hanko followup add --task HNK-12 "depois, atualize o changelog"
+hanko followup edit <id> "novo texto"
+hanko followup discard <id>
+```
+
+  Quando a run termina (por qualquer motivo, inclusive cancelada), os follow-ups pendentes acordam a persona e a run seguinte os recolhe
+  em ordem. Se o wake se perder, o heartbeat enxerga o follow-up parado há mais de 1 minuto.

@@ -713,3 +713,43 @@ formatting characters). Operating notes:
 - **Archive:** `hanko -c <company> company archive` pauses personas, cancels runs, switches flows off and makes the company read-only (UI banner, 409 on writes). `company restore [--resume]` undoes it. `company delete --confirm "<Name>" -o backup.json` (owner only, archived only) keeps the export in `company_deletions`; `hanko company deletions` lists and `company download-deletion <id>` downloads.
 - **Import:** `hanko import file.json --dry-run` shows the preview; `--into <company> --on-conflict skip|rename|replace --resolve personas/dev=replace` merges only the configuration into an existing company. In the UI: `/importar`.
 - **Letting people in:** Settings › Members › "Generate join link" (`/pedir-acesso/<token>`); an admin approves with a role via `hanko member requests|approve|deny`. Installation accounts: `/admin/usuarios` or `hanko users`.
+## Run resilience: continuation, diagnosis, steer and queue
+
+ADR-0039 (migration 00090). When the Hanko process dies in the middle of a run, the run **goes on by itself**; when the outcome is
+uncertain it **waits for your decision**; and you can **change the course** of an active run without waiting for it to end.
+
+- **Automatic continuation.** An interrupted run (process crash or server shutdown) gets a continuation linked to it
+  (`continuation_of_run_id`): it resumes the harness session (`session_ref`, stored as soon as the harness announces it) and receives
+  a briefing of what was already done. **At most 2 automatic continuations** per chain; the third interruption sends the run to the
+  inbox. Recorded in the activity feed (`run.diagnosed`, `run.continued`) and visible on the run page.
+- **Uncertain outcome.** If a tool with an external effect (Bash, file write, a write to Hanko, a third-party MCP tool…) was in
+  progress when the run died, **nothing restarts by itself**: the run shows up in the inbox (Failures tab, "Stopped runs waiting for a
+  decision") with the diagnosis card (cause, attempt, next action, owner) and the tool name. Reads (Read, Grep, `hanko_*_get`…) do not
+  count as effects. The heartbeat does not wake the task until the decision comes.
+- **Operator actions** (UI on the run and in the inbox; API `POST /runs/{id}/actions`; CLI):
+
+```
+hanko run show <run>                         # shows the diagnosis card and the continuation chain
+hanko run continue <run> --note "checked the remote"   # resumes the session with the briefing (and your note)
+hanko run retry <run>                        # starts over, without the previous session
+hanko run close <run>                        # closes the card; an in-progress task goes to blocked
+```
+
+  They work on an interrupted, failed or expired run that was not decided yet. Every decision restores the attempt budget.
+- **Steer** (change the course of an active run): "Change course" box on the run (and on the task/conversation), `POST
+  /runs/{id}/steer`, `hanko run steer <run> "message"`. The UI shows the harness mode: `claude` (stream-json stdin), `acp` (cancels the
+  turn and resends in the same session) and `fake` **inject live**; `codex` **interrupts and continues** (the run is cancelled and the
+  next one starts from the session when the harness can resume). The message becomes a task comment (or a conversation message) when
+  the agent receives it; if the run ends first it stays queued for the next run.
+- **Follow-up queue** (task and chat): what you send while the run works waits in order, with the reason for the wait (active run,
+  pending steer, pending decision, persona unavailable…). Edit and discard work until delivery.
+
+```
+hanko followup list --task HNK-12            # order and reason for the wait (or --conversation <id>)
+hanko followup add --task HNK-12 "then update the changelog"
+hanko followup edit <id> "new text"
+hanko followup discard <id>
+```
+
+  When the run ends (for any reason, cancelled included), pending follow-ups wake the persona and the next run collects them in order.
+  If the wake is lost, the heartbeat notices a follow-up stuck for over 1 minute.

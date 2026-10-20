@@ -18,6 +18,13 @@ func (s *Service) ListActivity(ctx context.Context, companyID domain.ID, f Activ
 	if f.SubjectType != "" {
 		p.SubjectType = &f.SubjectType
 	}
+	if f.ActorType != "" {
+		if !domain.ActorType(f.ActorType).Valid() {
+			return nil, domain.Invalid("actor_type", "use human, persona ou system")
+		}
+		p.ActorType = &f.ActorType
+		p.ActorID = f.ActorID
+	}
 	rows, err := s.read().ListActivity(ctx, p)
 	if err != nil {
 		return nil, fmt.Errorf("list activity: %w", err)

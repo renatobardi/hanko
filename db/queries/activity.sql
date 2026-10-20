@@ -13,6 +13,8 @@ SELECT * FROM activity_events
 WHERE company_id = @company_id
   AND (sqlc.narg(subject_type)::text IS NULL OR subject_type = sqlc.narg(subject_type)::text)
   AND (sqlc.narg(subject_id)::uuid IS NULL OR subject_id = sqlc.narg(subject_id)::uuid)
+  AND (sqlc.narg(actor_type)::text IS NULL OR actor_type = sqlc.narg(actor_type)::text)
+  AND (sqlc.narg(actor_id)::uuid IS NULL OR actor_id = sqlc.narg(actor_id)::uuid)
   AND (sqlc.narg(before)::timestamptz IS NULL OR occurred_at < sqlc.narg(before)::timestamptz)
 ORDER BY occurred_at DESC, id DESC
 LIMIT @lim;

@@ -123,6 +123,7 @@ func (e *env) runCmd() *cobra.Command {
 			if r.Summary != "" {
 				fmt.Fprintf(e.out, e.t("\nResumo:\n%s\n"), strings.TrimSpace(r.Summary))
 			}
+			e.printRunResilience(r)
 			return nil
 		},
 	}
@@ -185,6 +186,7 @@ func (e *env) runCmd() *cobra.Command {
 		},
 	}
 	c.AddCommand(ls, show, logs, cancel)
+	c.AddCommand(e.runResilienceCmds()...)
 	return c
 }
 

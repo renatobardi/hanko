@@ -99,3 +99,77 @@ FROM flows f
 WHERE f.company_id = @company_id AND f.search_tsv @@ to_tsquery('simple', sqlc.arg(query)::text)
 ORDER BY score DESC, f.updated_at DESC, f.id
 LIMIT @lim;
+
+-- Tipos acrescentados pelo ADR-0042 (metas, projetos, gates, artefatos), mesma receita das consultas acima.
+
+-- name: SearchGoals :many
+SELECT g.id, g.slug, g.title, g.description, g.status, g.updated_at,
+       (ts_rank(g.search_tsv, to_tsquery('simple', sqlc.arg(query)::text), 1)
+        * (0.5 + 0.5 / (1 + GREATEST(extract(epoch FROM (sqlc.arg(now)::timestamptz - g.updated_at)), 0) / 2592000.0)))::float8 AS score
+FROM goals g
+WHERE g.company_id = @company_id AND g.search_tsv @@ to_tsquery('simple', sqlc.arg(query)::text)
+ORDER BY score DESC, g.updated_at DESC, g.id
+LIMIT @lim;
+
+-- name: SearchProjects :many
+SELECT p.id, p.slug, p.name, p.description, p.status, p.updated_at,
+       (ts_rank(p.search_tsv, to_tsquery('simple', sqlc.arg(query)::text), 1)
+        * (0.5 + 0.5 / (1 + GREATEST(extract(epoch FROM (sqlc.arg(now)::timestamptz - p.updated_at)), 0) / 2592000.0)))::float8 AS score
+FROM projects p
+WHERE p.company_id = @company_id AND p.search_tsv @@ to_tsquery('simple', sqlc.arg(query)::text)
+ORDER BY score DESC, p.updated_at DESC, p.id
+LIMIT @lim;
+
+-- name: SearchGates :many
+-- Candidatos pelo índice GIN (os mais recentes primeiro, teto de 2000 como as tasks), ranqueados depois.
+WITH cand AS MATERIALIZED (
+    SELECT g.id, g.search_tsv, g.created_at
+    FROM gates g
+    WHERE g.company_id = @company_id AND g.search_tsv @@ to_tsquery('simple', sqlc.arg(query)::text)
+    ORDER BY g.created_at DESC, g.id DESC
+    LIMIT 2000
+),
+top AS MATERIALIZED (
+    SELECT c.id, c.created_at,
+           (ts_rank(c.search_tsv, to_tsquery('simple', sqlc.arg(query)::text), 1)
+            * (0.5 + 0.5 / (1 + GREATEST(extract(epoch FROM (sqlc.arg(now)::timestamptz - c.created_at)), 0) / 2592000.0)))::float8 AS score
+    FROM cand c
+    ORDER BY score DESC, c.created_at DESC, c.id
+    LIMIT @lim
+)
+SELECT g.id, g.kind, g.status, g.title, left(g.body, 20000)::text AS body, g.decision_note, g.created_at,
+       COALESCE(co.task_prefix || '-' || t.number, '')::text AS task_key, COALESCE(t.title, '')::text AS task_title, top.score
+FROM top
+JOIN gates g ON g.id = top.id
+JOIN companies co ON co.id = g.company_id
+LEFT JOIN tasks t ON t.id = g.task_id
+ORDER BY top.score DESC, g.created_at DESC, g.id;
+
+-- name: SearchArtifacts :many
+-- Só a versão mais recente de cada cadeia (empresa, task ou "sem task", nome) aparece.
+WITH cand AS MATERIALIZED (
+    SELECT a.id, a.search_tsv, a.created_at
+    FROM artifacts a
+    WHERE a.company_id = @company_id AND a.search_tsv @@ to_tsquery('simple', sqlc.arg(query)::text)
+      AND NOT EXISTS (
+          SELECT 1 FROM artifacts n
+          WHERE n.company_id = a.company_id AND n.name = a.name AND n.version > a.version
+            AND COALESCE(n.task_id, '00000000-0000-0000-0000-000000000000'::uuid) = COALESCE(a.task_id, '00000000-0000-0000-0000-000000000000'::uuid))
+    ORDER BY a.created_at DESC, a.id DESC
+    LIMIT 2000
+),
+top AS MATERIALIZED (
+    SELECT c.id, c.created_at,
+           (ts_rank(c.search_tsv, to_tsquery('simple', sqlc.arg(query)::text), 1)
+            * (0.5 + 0.5 / (1 + GREATEST(extract(epoch FROM (sqlc.arg(now)::timestamptz - c.created_at)), 0) / 2592000.0)))::float8 AS score
+    FROM cand c
+    ORDER BY score DESC, c.created_at DESC, c.id
+    LIMIT @lim
+)
+SELECT a.id, a.name, a.mime, a.version, a.size_bytes, a.created_at,
+       COALESCE(co.task_prefix || '-' || t.number, '')::text AS task_key, COALESCE(t.title, '')::text AS task_title, top.score
+FROM top
+JOIN artifacts a ON a.id = top.id
+JOIN companies co ON co.id = a.company_id
+LEFT JOIN tasks t ON t.id = a.task_id
+ORDER BY top.score DESC, a.created_at DESC, a.id;

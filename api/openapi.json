@@ -2413,6 +2413,10 @@
             "description": "Id ou slug da persona dona da meta.",
             "type": "string"
           },
+          "parent": {
+            "description": "Id ou slug da meta-pai (árvore de metas, até 4 níveis).",
+            "type": "string"
+          },
           "project": {
             "description": "Id ou slug do projeto.",
             "type": "string"
@@ -3360,6 +3364,20 @@
         ],
         "type": "object"
       },
+      "EditFollowupInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "message": {
+            "maxLength": 20000,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "type": "object"
+      },
       "EffectiveIntegration": {
         "additionalProperties": false,
         "properties": {
@@ -4027,6 +4045,91 @@
         ],
         "type": "object"
       },
+      "Followup": {
+        "additionalProperties": false,
+        "properties": {
+          "author": {
+            "$ref": "#/components/schemas/ActorRef"
+          },
+          "body": {
+            "type": "string"
+          },
+          "conversation_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "delivery": {
+            "description": "queue: espera a execução terminar; steer: injetado na execução viva; restart: a execução é interrompida e continua com ele.",
+            "enum": [
+              "queue",
+              "steer",
+              "restart"
+            ],
+            "type": "string"
+          },
+          "edited_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "kind": {
+            "description": "De onde vem: uma mensagem de conversa ou uma instrução de task.",
+            "enum": [
+              "chat",
+              "task"
+            ],
+            "type": "string"
+          },
+          "position": {
+            "description": "Ordem de entrega (1 = o primeiro a ser entregue).",
+            "format": "int64",
+            "type": "integer"
+          },
+          "task_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "wait_detail": {
+            "description": "Complemento do motivo: o nome da execução, o estado da persona.",
+            "type": "string"
+          },
+          "wait_reason": {
+            "description": "Por que ainda não foi entregue.",
+            "enum": [
+              "run_active",
+              "steer_pending",
+              "restart_pending",
+              "decision_pending",
+              "persona_unavailable",
+              "unassigned",
+              "starting"
+            ],
+            "type": "string"
+          },
+          "wait_run_id": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "body",
+          "author",
+          "delivery",
+          "position",
+          "wait_reason",
+          "created_at"
+        ],
+        "type": "object"
+      },
       "Gate": {
         "additionalProperties": false,
         "properties": {
@@ -4241,6 +4344,15 @@
             "format": "date-time",
             "type": "string"
           },
+          "children": {
+            "items": {
+              "$ref": "#/components/schemas/GoalRef"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "company_id": {
             "format": "uuid",
             "type": "string"
@@ -4255,6 +4367,10 @@
           "current_value": {
             "format": "double",
             "type": "number"
+          },
+          "depth": {
+            "format": "int64",
+            "type": "integer"
           },
           "description": {
             "description": "Markdown.",
@@ -4285,6 +4401,23 @@
           "owner_slug": {
             "type": "string"
           },
+          "parent_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "parent_slug": {
+            "type": "string"
+          },
+          "path": {
+            "description": "Ancestrais, da raiz até o pai.",
+            "items": {
+              "$ref": "#/components/schemas/GoalRef"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "progress_percent": {
             "format": "double",
             "type": "number"
@@ -4298,6 +4431,9 @@
           },
           "project_slug": {
             "type": "string"
+          },
+          "rollup": {
+            "type": "boolean"
           },
           "slug": {
             "examples": [
@@ -4392,6 +4528,22 @@
         },
         "required": [
           "value"
+        ],
+        "type": "object"
+      },
+      "GoalRef": {
+        "additionalProperties": false,
+        "properties": {
+          "slug": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "slug",
+          "title"
         ],
         "type": "object"
       },
@@ -4717,6 +4869,183 @@
           "merged",
           "items",
           "warnings"
+        ],
+        "type": "object"
+      },
+      "InboxItem": {
+        "additionalProperties": false,
+        "properties": {
+          "archived": {
+            "type": "boolean"
+          },
+          "at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "detail": {
+            "description": "Erro, motivo da pausa ou trecho do comentário.",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "informational": {
+            "description": "Ninguém precisa agir: fora do contador e do selo.",
+            "type": "boolean"
+          },
+          "kind": {
+            "description": "Tipo do item; o id é o da origem (gate, task, execução, persona, alerta, assinatura, menção, meta).",
+            "enum": [
+              "gate",
+              "task_blocked",
+              "task_held",
+              "run_failed",
+              "persona_error",
+              "alert",
+              "subscription",
+              "mention",
+              "goal_achieved"
+            ],
+            "type": "string"
+          },
+          "read": {
+            "type": "boolean"
+          },
+          "ref": {
+            "description": "Chave da task, slug da persona/meta ou id do gate/execução, para navegar.",
+            "type": "string"
+          },
+          "task_key": {
+            "examples": [
+              "HNK-12"
+            ],
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "title",
+          "at",
+          "read",
+          "archived"
+        ],
+        "type": "object"
+      },
+      "InboxList": {
+        "additionalProperties": false,
+        "properties": {
+          "archived": {
+            "description": "Itens que pedem ação e estão arquivados.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "count": {
+            "description": "Itens que pedem ação e não estão arquivados.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "items": {
+            "description": "Do mais novo para o mais antigo.",
+            "items": {
+              "$ref": "#/components/schemas/InboxItem"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "personal": {
+            "description": "Falso sem pessoa autenticada (modo trusted): sem lido/arquivado.",
+            "type": "boolean"
+          },
+          "unread": {
+            "description": "Itens que pedem ação, não lidos e não arquivados (o selo do menu).",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "count",
+          "unread",
+          "archived",
+          "personal"
+        ],
+        "type": "object"
+      },
+      "InboxRef": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "gate",
+              "task_blocked",
+              "task_held",
+              "run_failed",
+              "persona_error",
+              "alert",
+              "subscription",
+              "mention",
+              "goal_achieved"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "id"
+        ],
+        "type": "object"
+      },
+      "InboxStateInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "description": "read_all marca como lidos todos os itens visíveis (items é ignorado).",
+            "enum": [
+              "read",
+              "unread",
+              "archive",
+              "unarchive",
+              "read_all"
+            ],
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/InboxRef"
+            },
+            "maxItems": 500,
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "type": "object"
+      },
+      "InboxStateResult": {
+        "additionalProperties": false,
+        "properties": {
+          "updated": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "updated"
         ],
         "type": "object"
       },
@@ -5468,6 +5797,26 @@
         ],
         "type": "object"
       },
+      "KeysStruct": {
+        "additionalProperties": false,
+        "properties": {
+          "auth": {
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          },
+          "p256dh": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "p256dh",
+          "auth"
+        ],
+        "type": "object"
+      },
       "Learning": {
         "additionalProperties": false,
         "properties": {
@@ -6039,6 +6388,37 @@
         ],
         "type": "object"
       },
+      "ListBodyFollowup": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "description": "Itens da página.",
+            "items": {
+              "$ref": "#/components/schemas/Followup"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "limit": {
+            "description": "Limite aplicado.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "offset": {
+            "description": "Deslocamento aplicado.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "limit",
+          "offset"
+        ],
+        "type": "object"
+      },
       "ListBodyGate": {
         "additionalProperties": false,
         "properties": {
@@ -6504,6 +6884,37 @@
         ],
         "type": "object"
       },
+      "ListBodyNotifyPref": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "description": "Itens da página.",
+            "items": {
+              "$ref": "#/components/schemas/NotifyPref"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "limit": {
+            "description": "Limite aplicado.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "offset": {
+            "description": "Deslocamento aplicado.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "limit",
+          "offset"
+        ],
+        "type": "object"
+      },
       "ListBodyPersona": {
         "additionalProperties": false,
         "properties": {
@@ -6728,6 +7139,37 @@
             "description": "Itens da página.",
             "items": {
               "$ref": "#/components/schemas/Project"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "limit": {
+            "description": "Limite aplicado.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "offset": {
+            "description": "Deslocamento aplicado.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "limit",
+          "offset"
+        ],
+        "type": "object"
+      },
+      "ListBodyPushSubscription": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "description": "Itens da página.",
+            "items": {
+              "$ref": "#/components/schemas/PushSubscription"
             },
             "type": [
               "array",
@@ -7799,6 +8241,50 @@
         "required": [
           "notes",
           "at"
+        ],
+        "type": "object"
+      },
+      "NotifyPref": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "enum": [
+              "mention",
+              "gate",
+              "run_failed",
+              "alert"
+            ],
+            "type": "string"
+          },
+          "push": {
+            "description": "Notificação do navegador/PWA (web push).",
+            "type": "boolean"
+          },
+          "toast": {
+            "description": "Aviso ao vivo no canto da tela.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "kind",
+          "toast",
+          "push"
+        ],
+        "type": "object"
+      },
+      "NotifyPrefInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "push": {
+            "type": "boolean"
+          },
+          "toast": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "toast",
+          "push"
         ],
         "type": "object"
       },
@@ -8990,6 +9476,58 @@
         ],
         "type": "object"
       },
+      "PushSubscribeInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "endpoint": {
+            "description": "PushSubscription.endpoint (https).",
+            "maxLength": 2048,
+            "minLength": 10,
+            "type": "string"
+          },
+          "keys": {
+            "$ref": "#/components/schemas/KeysStruct"
+          },
+          "user_agent": {
+            "maxLength": 300,
+            "type": "string"
+          }
+        },
+        "required": [
+          "endpoint",
+          "keys"
+        ],
+        "type": "object"
+      },
+      "PushSubscription": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "endpoint": {
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "last_success_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "user_agent": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "endpoint",
+          "created_at"
+        ],
+        "type": "object"
+      },
       "PutArtifactInBody": {
         "additionalProperties": false,
         "properties": {
@@ -9102,6 +9640,21 @@
         },
         "required": [
           "body"
+        ],
+        "type": "object"
+      },
+      "QueueFollowupInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "message": {
+            "description": "Instrução que espera a execução da task e é entregue na próxima.",
+            "maxLength": 20000,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
         ],
         "type": "object"
       },
@@ -9674,6 +10227,30 @@
             "format": "uuid",
             "type": "string"
           },
+          "continuation_attempt": {
+            "description": "Quantas continuações automáticas a cadeia já usou (0 = a original; o máximo é 2).",
+            "format": "int64",
+            "type": "integer"
+          },
+          "continuation_of_run_id": {
+            "description": "Execução que esta continua (queda do processo, steer, Tentar de novo ou Continuar).",
+            "format": "uuid",
+            "type": "string"
+          },
+          "continuation_reason": {
+            "enum": [
+              "recovery",
+              "steer",
+              "retry",
+              "continue"
+            ],
+            "type": "string"
+          },
+          "continued_by_run_id": {
+            "description": "Execução que continuou esta (só no GET de uma execução).",
+            "format": "uuid",
+            "type": "string"
+          },
           "conversation_id": {
             "description": "Conversa de uma execução de chat (gatilho chat); ausente nas execuções de task.",
             "format": "uuid",
@@ -9698,6 +10275,30 @@
           "created_at": {
             "format": "date-time",
             "type": "string"
+          },
+          "decided_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "decision": {
+            "description": "O que o operador decidiu.",
+            "enum": [
+              "retry",
+              "continue",
+              "close"
+            ],
+            "type": "string"
+          },
+          "decision_note": {
+            "type": "string"
+          },
+          "decision_pending": {
+            "description": "A execução parou e espera Tentar de novo, Continuar ou Encerrar.",
+            "type": "boolean"
+          },
+          "diagnosis": {
+            "$ref": "#/components/schemas/RunDiagnosis",
+            "description": "Card de diagnóstico de uma execução que parou: causa, tentativa, próxima ação e dono."
           },
           "error": {
             "type": "string"
@@ -9775,6 +10376,15 @@
             ],
             "type": "string"
           },
+          "steer_mode": {
+            "description": "Como o harness da execução aceita uma mensagem durante a execução: inject (entra na execução viva) ou restart (interrompe e continua).",
+            "enum": [
+              "none",
+              "inject",
+              "restart"
+            ],
+            "type": "string"
+          },
           "subscription_id": {
             "description": "Assinatura que cobre a execução.",
             "format": "uuid",
@@ -9827,6 +10437,90 @@
           "agent",
           "usage",
           "created_at"
+        ],
+        "type": "object"
+      },
+      "RunActionInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "description": "retry = Tentar de novo (execução nova do zero); continue = Continuar (retoma a sessão com o briefing); close = Encerrar (fecha o card, sem execução nova).",
+            "enum": [
+              "retry",
+              "continue",
+              "close"
+            ],
+            "type": "string"
+          },
+          "note": {
+            "description": "Nota do operador; entra no briefing da execução seguinte.",
+            "maxLength": 2000,
+            "type": "string"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "type": "object"
+      },
+      "RunDiagnosis": {
+        "additionalProperties": false,
+        "properties": {
+          "attempt": {
+            "description": "Continuação em que a execução parou (0 = original).",
+            "format": "int64",
+            "type": "integer"
+          },
+          "cause": {
+            "enum": [
+              "process_restart",
+              "server_shutdown",
+              "agent_error",
+              "timeout",
+              "cancelled"
+            ],
+            "type": "string"
+          },
+          "cause_detail": {
+            "type": "string"
+          },
+          "exhausted": {
+            "description": "As continuações automáticas acabaram.",
+            "type": "boolean"
+          },
+          "max_attempts": {
+            "description": "Máximo de continuações automáticas.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "next_action": {
+            "enum": [
+              "auto_continue",
+              "human_decision",
+              "none",
+              "continued"
+            ],
+            "type": "string"
+          },
+          "owner": {
+            "description": "Quem tem a próxima ação.",
+            "enum": [
+              "system",
+              "human"
+            ],
+            "type": "string"
+          },
+          "uncertain": {
+            "$ref": "#/components/schemas/UncertainTool",
+            "description": "Desfecho incerto: tool de efeito externo em andamento quando a execução parou."
+          }
+        },
+        "required": [
+          "cause",
+          "attempt",
+          "max_attempts",
+          "next_action",
+          "owner"
         ],
         "type": "object"
       },
@@ -10024,6 +10718,10 @@
               "persona",
               "run",
               "flow",
+              "goal",
+              "project",
+              "gate",
+              "artifact",
               "memory"
             ],
             "type": "string"
@@ -10056,7 +10754,7 @@
             "type": "boolean"
           },
           "id": {
-            "description": "Id da task, comentário, persona, execução ou fluxo (ausente na memória).",
+            "description": "Id da task, comentário, persona, execução, fluxo, meta, projeto, gate ou artefato (ausente na memória).",
             "format": "uuid",
             "type": "string"
           },
@@ -10065,7 +10763,7 @@
             "type": "string"
           },
           "ref": {
-            "description": "Referência para navegar: chave da task (também nos comentários), slug da persona ou do fluxo, id da execução, path da página na memória.",
+            "description": "Referência para navegar: chave da task (também nos comentários), slug da persona, do fluxo, da meta ou do projeto, id da execução, do gate ou do artefato, path da página na memória.",
             "examples": [
               "HNK-12"
             ],
@@ -10115,6 +10813,10 @@
               "persona",
               "run",
               "flow",
+              "goal",
+              "project",
+              "gate",
+              "artifact",
               "memory"
             ],
             "type": "string"
@@ -10132,7 +10834,7 @@
         "additionalProperties": false,
         "properties": {
           "groups": {
-            "description": "Grupos na ordem task, comment, persona, run, flow, memory.",
+            "description": "Grupos na ordem task, comment, persona, run, flow, goal, project, gate, artifact, memory.",
             "items": {
               "$ref": "#/components/schemas/SearchGroup"
             },
@@ -12002,6 +12704,42 @@
         ],
         "type": "object"
       },
+      "SteerResult": {
+        "additionalProperties": false,
+        "properties": {
+          "followup": {
+            "$ref": "#/components/schemas/Followup"
+          },
+          "mode": {
+            "description": "inject: a mensagem entra na execução viva; restart: a execução é interrompida e continua com ela.",
+            "enum": [
+              "inject",
+              "restart"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode",
+          "followup"
+        ],
+        "type": "object"
+      },
+      "SteerRunInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "message": {
+            "description": "Instrução para a execução em andamento.",
+            "maxLength": 20000,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "type": "object"
+      },
       "Subscription": {
         "additionalProperties": false,
         "properties": {
@@ -12279,6 +13017,16 @@
           "parent_id": {
             "format": "uuid",
             "type": "string"
+          },
+          "participation": {
+            "description": "Só com mine=true: por que a task é da pessoa (created, assigned, mentioned, commented, gate).",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
           },
           "persona_id": {
             "format": "uuid",
@@ -13350,6 +14098,27 @@
         ],
         "type": "object"
       },
+      "UncertainTool": {
+        "additionalProperties": false,
+        "properties": {
+          "input": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "seq": {
+            "description": "Seq do evento tool_use no log.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "seq"
+        ],
+        "type": "object"
+      },
       "UpdateCaseInBody": {
         "additionalProperties": false,
         "properties": {
@@ -13591,6 +14360,10 @@
           "clear_owner": {
             "type": "boolean"
           },
+          "clear_parent": {
+            "description": "Torna a meta uma raiz.",
+            "type": "boolean"
+          },
           "clear_project": {
             "type": "boolean"
           },
@@ -13606,6 +14379,10 @@
             "type": "string"
           },
           "owner": {
+            "type": "string"
+          },
+          "parent": {
+            "description": "Id ou slug da nova meta-pai.",
             "type": "string"
           },
           "project": {
@@ -14344,6 +15121,19 @@
           "id",
           "slug",
           "name"
+        ],
+        "type": "object"
+      },
+      "VapidKey": {
+        "additionalProperties": false,
+        "properties": {
+          "public_key": {
+            "description": "applicationServerKey (P-256 não comprimida, base64url).",
+            "type": "string"
+          }
+        },
+        "required": [
+          "public_key"
         ],
         "type": "object"
       },
@@ -15592,6 +16382,19 @@
             "schema": {
               "description": "Filtra pelo id do sujeito.",
               "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filtra por quem causou o fato: system, persona:\u003cslug\u003e, human:\u003ce-mail\u003e (ou persona/human sem nada, para todos do tipo).",
+            "explode": false,
+            "in": "query",
+            "name": "actor",
+            "schema": {
+              "description": "Filtra por quem causou o fato: system, persona:\u003cslug\u003e, human:\u003ce-mail\u003e (ou persona/human sem nada, para todos do tipo).",
+              "examples": [
+                "persona:ana"
+              ],
               "type": "string"
             }
           }
@@ -19186,6 +19989,113 @@
           }
         },
         "summary": "Arquiva uma conversa",
+        "tags": [
+          "chat"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/conversations/{conversation}/followups": {
+      "get": {
+        "operationId": "list-conversation-followups",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id da conversa.",
+            "in": "path",
+            "name": "conversation",
+            "required": true,
+            "schema": {
+              "description": "Id da conversa.",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListBodyFollowup"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Lista a fila de mensagens que esperam a resposta da persona",
         "tags": [
           "chat"
         ]
@@ -23009,6 +23919,221 @@
         ]
       }
     },
+    "/api/v1/companies/{company}/followups/{followup}": {
+      "delete": {
+        "operationId": "discard-followup",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id do follow-up.",
+            "in": "path",
+            "name": "followup",
+            "required": true,
+            "schema": {
+              "description": "Id do follow-up.",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Descarta um follow-up que ainda não foi entregue",
+        "tags": [
+          "runs"
+        ]
+      },
+      "patch": {
+        "operationId": "edit-followup",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id do follow-up.",
+            "in": "path",
+            "name": "followup",
+            "required": true,
+            "schema": {
+              "description": "Id do follow-up.",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditFollowupInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Followup"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Edita um follow-up que ainda não foi entregue",
+        "tags": [
+          "runs"
+        ]
+      }
+    },
     "/api/v1/companies/{company}/gates": {
       "get": {
         "operationId": "list-gates",
@@ -23094,6 +24219,16 @@
             "schema": {
               "description": "Id ou slug da persona que pediu.",
               "type": "string"
+            }
+          },
+          {
+            "description": "Só os gates da audiência da pessoa autenticada: que pediu ou decidiu, ou de tasks em que participa. Vazio sem pessoa autenticada.",
+            "explode": false,
+            "in": "query",
+            "name": "mine",
+            "schema": {
+              "description": "Só os gates da audiência da pessoa autenticada: que pediu ou decidiu, ou de tasks em que participa. Vazio sem pessoa autenticada.",
+              "type": "boolean"
             }
           }
         ],
@@ -24193,6 +25328,224 @@
         "summary": "Lista as raízes de pausa da empresa",
         "tags": [
           "tasks"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/inbox": {
+      "get": {
+        "operationId": "list-inbox",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "all = não arquivados; unread = não arquivados e não lidos; archived.",
+            "explode": false,
+            "in": "query",
+            "name": "view",
+            "schema": {
+              "default": "all",
+              "description": "all = não arquivados; unread = não arquivados e não lidos; archived.",
+              "enum": [
+                "all",
+                "unread",
+                "archived"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboxList"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Caixa de entrada da pessoa (lido/arquivado)",
+        "tags": [
+          "inbox"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/inbox/state": {
+      "post": {
+        "operationId": "set-inbox-state",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InboxStateInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboxStateResult"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Marca itens da Caixa como lidos, não lidos, arquivados ou desarquivados (só para a pessoa)",
+        "tags": [
+          "inbox"
         ]
       }
     },
@@ -28455,6 +29808,311 @@
         "summary": "Recoloca na fila a aplicação de uma proposta aprovada que falhou",
         "tags": [
           "memory"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/notifications": {
+      "get": {
+        "operationId": "list-notification-prefs",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListBodyNotifyPref"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Preferências de aviso da pessoa nesta empresa",
+        "tags": [
+          "inbox"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/notifications/test": {
+      "post": {
+        "operationId": "test-notification",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Envia um aviso de teste à própria pessoa",
+        "tags": [
+          "inbox"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/notifications/{kind}": {
+      "put": {
+        "operationId": "set-notification-pref",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "enum": [
+                "mention",
+                "gate",
+                "run_failed",
+                "alert"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotifyPrefInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotifyPref"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Define por quais canais a pessoa recebe um tipo de aviso",
+        "tags": [
+          "inbox"
         ]
       }
     },
@@ -33288,6 +34946,123 @@
         ]
       }
     },
+    "/api/v1/companies/{company}/runs/{run}/actions": {
+      "post": {
+        "operationId": "run-action",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id da execução.",
+            "in": "path",
+            "name": "run",
+            "required": true,
+            "schema": {
+              "description": "Id da execução.",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunActionInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Run"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Decide uma execução que parou (Tentar de novo, Continuar ou Encerrar)",
+        "tags": [
+          "runs"
+        ]
+      }
+    },
     "/api/v1/companies/{company}/runs/{run}/cancel": {
       "post": {
         "operationId": "cancel-run",
@@ -33553,6 +35328,123 @@
         ]
       }
     },
+    "/api/v1/companies/{company}/runs/{run}/steer": {
+      "post": {
+        "operationId": "steer-run",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id da execução.",
+            "in": "path",
+            "name": "run",
+            "required": true,
+            "schema": {
+              "description": "Id da execução.",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SteerRunInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SteerResult"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Muda o rumo de uma execução ativa",
+        "tags": [
+          "runs"
+        ]
+      }
+    },
     "/api/v1/companies/{company}/runs/{run}/stream": {
       "get": {
         "description": "Replay do log a partir de `after` (ou do header `Last-Event-ID`) e depois eventos ao vivo. Eventos: `run.event` (`id` = seq; `data` = RunEvent) e `run.status` (`data` = Run), este último ao ficar terminal, quando a conexão é encerrada. Comentários `: ping` a cada 15 s; a cada ping a sessão (ou API key) e o papel na empresa são reverificados, e o stream é encerrado se a credencial caiu (logout, senha redefinida, key revogada, conta removida).",
@@ -33651,12 +35543,12 @@
             }
           },
           {
-            "description": "Tipos separados por vírgula: task,comment,persona,run,flow,memory. Vazio = todos.",
+            "description": "Tipos separados por vírgula: task,comment,persona,run,flow,goal,project,gate,artifact,memory. Vazio = todos.",
             "explode": false,
             "in": "query",
             "name": "types",
             "schema": {
-              "description": "Tipos separados por vírgula: task,comment,persona,run,flow,memory. Vazio = todos.",
+              "description": "Tipos separados por vírgula: task,comment,persona,run,flow,goal,project,gate,artifact,memory. Vazio = todos.",
               "examples": [
                 "task,comment"
               ],
@@ -39279,6 +41171,16 @@
               "description": "Id ou slug da meta a que as tasks servem.",
               "type": "string"
             }
+          },
+          {
+            "description": "Só as tasks em que a pessoa autenticada participa: criou, atribuiu, foi mencionada, comentou ou é da audiência de um gate (campo participation). Vazio sem pessoa autenticada.",
+            "explode": false,
+            "in": "query",
+            "name": "mine",
+            "schema": {
+              "description": "Só as tasks em que a pessoa autenticada participa: criou, atribuiu, foi mencionada, comentou ou é da audiência de um gate (campo participation). Vazio sem pessoa autenticada.",
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -40175,6 +42077,232 @@
           }
         },
         "summary": "Remove uma dependência; a última dependência aberta removida libera a task e acorda o responsável",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/tasks/{task}/followups": {
+      "get": {
+        "operationId": "list-task-followups",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou chave da task.",
+            "in": "path",
+            "name": "task",
+            "required": true,
+            "schema": {
+              "description": "Id ou chave da task.",
+              "examples": [
+                "HNK-12"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListBodyFollowup"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Lista a fila de follow-ups de uma task",
+        "tags": [
+          "tasks"
+        ]
+      },
+      "post": {
+        "operationId": "queue-task-followup",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou chave da task.",
+            "in": "path",
+            "name": "task",
+            "required": true,
+            "schema": {
+              "description": "Id ou chave da task.",
+              "examples": [
+                "HNK-12"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueueFollowupInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Followup"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Enfileira uma instrução para a task",
         "tags": [
           "tasks"
         ]
@@ -45670,6 +47798,262 @@
         ]
       }
     },
+    "/api/v1/me/push-subscriptions": {
+      "get": {
+        "operationId": "list-push-subscriptions",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListBodyPushSubscription"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Aparelhos com web push da pessoa",
+        "tags": [
+          "inbox"
+        ]
+      },
+      "post": {
+        "operationId": "add-push-subscription",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushSubscribeInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushSubscription"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Registra o web push deste aparelho (a assinatura que o navegador entregou)",
+        "tags": [
+          "inbox"
+        ]
+      }
+    },
+    "/api/v1/me/push-subscriptions/{id}": {
+      "delete": {
+        "operationId": "delete-push-subscription",
+        "parameters": [
+          {
+            "description": "Id da assinatura ou o endpoint codificado.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Id da assinatura ou o endpoint codificado.",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Remove um aparelho do web push",
+        "tags": [
+          "inbox"
+        ]
+      }
+    },
     "/api/v1/plugins": {
       "get": {
         "operationId": "list-plugins",
@@ -46518,6 +48902,87 @@
         "summary": "Aplica a versão nova do diretório; pedindo capacidade a mais, fica upgrade_pending (dono)",
         "tags": [
           "plugins"
+        ]
+      }
+    },
+    "/api/v1/push/vapid-key": {
+      "get": {
+        "operationId": "get-vapid-key",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VapidKey"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Chave pública VAPID do servidor (gerada na primeira vez; exige HANKO_SECRET_KEY)",
+        "tags": [
+          "inbox"
         ]
       }
     },

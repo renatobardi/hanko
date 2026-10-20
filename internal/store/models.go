@@ -83,6 +83,7 @@ type Artifact struct {
 	CommentID      *uuid.UUID
 	ConversationID *uuid.UUID
 	MessageID      *uuid.UUID
+	SearchTsv      interface{}
 }
 
 type ArtifactBlob struct {
@@ -180,6 +181,19 @@ type CliAuthRequest struct {
 	CreatedAt time.Time
 	ExpiresAt time.Time
 	DecidedAt *time.Time
+}
+
+type CommentMention struct {
+	ID         uuid.UUID
+	CompanyID  uuid.UUID
+	CommentID  uuid.UUID
+	TaskID     uuid.UUID
+	TargetType string
+	UserID     *uuid.UUID
+	PersonaID  *uuid.UUID
+	AuthorType string
+	AuthorID   *uuid.UUID
+	CreatedAt  time.Time
 }
 
 type Company struct {
@@ -281,6 +295,8 @@ type ConversationMessage struct {
 	ReplyToID      *uuid.UUID
 	Mentions       []uuid.UUID
 	Marker         *string
+	EditedAt       *time.Time
+	Delivery       string
 }
 
 type ConversationMessageRun struct {
@@ -427,6 +443,7 @@ type Gate struct {
 	ReviewArtifactSha256 string
 	ReviewRunID          *uuid.UUID
 	ExpiresAt            *time.Time
+	SearchTsv            interface{}
 }
 
 type Goal struct {
@@ -449,6 +466,8 @@ type Goal struct {
 	AchievedAt     *time.Time
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
+	ParentID       *uuid.UUID
+	SearchTsv      interface{}
 }
 
 type GoalUpdate struct {
@@ -468,6 +487,24 @@ type HeldWake struct {
 	PersonaID   uuid.UUID
 	Trigger     string
 	RequestedAt time.Time
+}
+
+type InboxState struct {
+	CompanyID   uuid.UUID
+	UserID      uuid.UUID
+	ItemKind    string
+	ItemID      uuid.UUID
+	Fingerprint string
+	ReadAt      *time.Time
+	ArchivedAt  *time.Time
+	UpdatedAt   time.Time
+}
+
+type InstanceSecret struct {
+	Name      string
+	ValueEnc  string
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 type InstanceSetting struct {
@@ -627,6 +664,15 @@ type ModelPrice struct {
 	Fixed                float64
 	EffectiveAt          time.Time
 	CreatedAt            time.Time
+}
+
+type NotificationPref struct {
+	CompanyID uuid.UUID
+	UserID    uuid.UUID
+	Kind      string
+	Toast     bool
+	Push      bool
+	UpdatedAt time.Time
 }
 
 type OwnerClaim struct {
@@ -815,6 +861,7 @@ type Project struct {
 	UpdatedAt          time.Time
 	Status             string
 	BudgetMonthlyCents *int64
+	SearchTsv          interface{}
 }
 
 type ProjectReviewPolicy struct {
@@ -828,6 +875,18 @@ type ProjectReviewPolicy struct {
 	UpdatedByType     string
 	UpdatedByID       *uuid.UUID
 	UpdatedAt         time.Time
+}
+
+type PushSubscription struct {
+	ID            uuid.UUID
+	UserID        uuid.UUID
+	Endpoint      string
+	P256dh        string
+	Auth          string
+	UserAgent     string
+	CreatedAt     time.Time
+	LastSuccessAt *time.Time
+	Failures      int32
 }
 
 type RateLimitBucket struct {
@@ -896,6 +955,18 @@ type Run struct {
 	SearchTsv           interface{}
 	InstructionRevision *int32
 	InstructionSha256   *string
+	ContinuationOfRunID *uuid.UUID
+	ContinuationAttempt int32
+	ContinuationReason  string
+	ResumePending       bool
+	ResumeReason        string
+	Diagnosis           []byte
+	DecisionPending     bool
+	Decision            string
+	DecisionNote        string
+	DecidedByType       *string
+	DecidedByID         *uuid.UUID
+	DecidedAt           *time.Time
 }
 
 type RunEvent struct {
@@ -1199,6 +1270,24 @@ type TaskDependency struct {
 	DependsOnID   uuid.UUID
 	CreatedByType string
 	CreatedByID   *uuid.UUID
+	CreatedAt     time.Time
+}
+
+type TaskFollowup struct {
+	ID            uuid.UUID
+	CompanyID     uuid.UUID
+	TaskID        uuid.UUID
+	AuthorType    string
+	AuthorID      *uuid.UUID
+	Body          string
+	Status        string
+	Delivery      string
+	WaitingRunID  *uuid.UUID
+	ConsumedRunID *uuid.UUID
+	ConsumedAt    *time.Time
+	CommentID     *uuid.UUID
+	EditedAt      *time.Time
+	DiscardedAt   *time.Time
 	CreatedAt     time.Time
 }
 
