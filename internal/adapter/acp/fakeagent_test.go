@@ -336,6 +336,29 @@ func (f *fakeAgent) prompt(sc string, m map[string]any, p map[string]any, server
 		time.Sleep(time.Minute)
 	case "model":
 		final = append(final, "prompted")
+	case "steer":
+		// working on the first turn until the operator's message cancels it; the next prompt carries the new direction
+		f.chunk("agent_message_chunk", "m1", "trabalhando")
+		f.send(map[string]any{"jsonrpc": "2.0", "method": "hanko/test-ready"})
+		if !f.waitFor("session/cancel") {
+			return
+		}
+		f.reply(id, map[string]any{"stopReason": "cancelled"})
+		for {
+			next := f.read()
+			if next == nil {
+				return
+			}
+			if next["method"] != "session/prompt" {
+				continue
+			}
+			np, _ := next["params"].(map[string]any)
+			nb, _ := np["prompt"].([]any)
+			first, _ := nb[0].(map[string]any)
+			f.chunk("agent_message_chunk", "m2", fmt.Sprintf("rumo novo: %v | sessão=%v", first["text"], np["sessionId"]))
+			f.reply(next["id"], map[string]any{"stopReason": "end_turn"})
+			return
+		}
 	}
 	if len(final) > 0 {
 		f.chunk("agent_message_chunk", "m3", strings.Join(final, " "))

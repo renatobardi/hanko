@@ -105,7 +105,7 @@ LEFT JOIN tasks t ON t.id = r.task_id
 LEFT JOIN conversations cv ON cv.id = r.conversation_id
 JOIN personas p ON p.id = r.persona_id
 JOIN companies c ON c.id = r.company_id
-WHERE r.company_id = @company_id AND r.status IN ('failed', 'expired') AND r.created_at > @since
+WHERE r.company_id = @company_id AND r.status IN ('failed', 'expired') AND r.created_at > @since AND r.decision = ''
   AND (t.id IS NULL OR t.status NOT IN ('done', 'cancelled'))
   AND (r.task_id IS NOT NULL OR r.conversation_id IS NOT NULL)
   AND NOT EXISTS (SELECT 1 FROM runs n WHERE n.created_at > r.created_at

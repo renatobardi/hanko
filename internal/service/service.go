@@ -317,6 +317,10 @@ type RunView struct {
 	PersonaName string `json:"persona_name"`
 	// ConversationTitle is the title of the conversation of a chat run (empty for task runs).
 	ConversationTitle string `json:"conversation_title,omitempty"`
+	// SteerMode is how the run's harness takes an operator message mid-run (ADR-0039).
+	SteerMode domain.SteerMode `json:"steer_mode,omitempty"`
+	// ContinuedByRunID is the run that continued this one, when there is one (filled by GetRun).
+	ContinuedByRunID *domain.ID `json:"continued_by_run_id,omitempty"`
 	// PolicyOrigin diz de que camada (task, projeto ou persona) veio a política de revisão que valeu na execução
 	// (ADR-0040); só o detalhe da execução preenche.
 	PolicyOrigin *domain.RunPolicyOrigin `json:"policy_origin,omitempty"`
@@ -352,6 +356,10 @@ type RunContext struct {
 	Goals []GoalBrief
 	// Chat is set for runs with trigger chat (no task: Task and Comments are empty).
 	Chat *ChatContext
+	// Continuation is set when the run continues another one (ADR-0039); ResumeSession is the harness session a task
+	// run resumes (chat runs use Chat.ResumeSession).
+	Continuation  *ContinuationContext
+	ResumeSession string
 	// Relations são a árvore (ancestrais e subtasks) e as dependências da task (ADR-0040); nil sem task.
 	Relations *TaskRelations
 	// ReviewPolicy é a política de revisão que vale para esta task e esta persona (task > projeto > persona).
