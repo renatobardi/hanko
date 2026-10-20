@@ -1,0 +1,20 @@
+# gitleaks: varredura de segredos (job `gitleaks` em .github/workflows/security.yml; issue #23).
+# Herda as regras padrão. A allowlist cobre só falsos positivos conhecidos: valores sintéticos dos testes
+# (chaves PEM de mentira, DSNs locais, tokens de exemplo do redactor) e a API key Web do Firebase, que é
+# pública por desenho (vai para o navegador; a proteção é a restrição da chave no console do provedor).
+title = "hanko"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "fixtures sintéticas e valores públicos"
+paths = [
+  '''_test\.go$''',
+  '''(^|/)testdata/''',
+  '''^e2e/''',
+  '''_templ\.go$''',
+]
+regexes = [
+  '''AIzaSyCh2NEff6X4ylSY1jtiFvuNe3fESMKZ5VE''',
+]
