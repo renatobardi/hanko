@@ -52,7 +52,8 @@ jobs:
           version: latest
           install-mode: goinstall # compila com o Go 1.27 do setup-go (binário pré-compilado pode ser mais antigo que o go.mod)
       - name: test
-        run: go test -race -p 1 -timeout 30m ./... # -p 1: os pacotes compartilham o mesmo banco (testdb recria o schema); o pacote service passa de 10 min com -race
+        # pacotes em série (-p 1): app e db resetam o schema do mesmo banco; em paralelo (runners de 4 vCPU) eles se atropelam.
+        run: go test -race -p 1 -timeout 30m ./... # o pacote service passa de 10 min com -race (timeout padrão do go test)
       - name: cliente Postgres 17 (pg_dump/pg_restore do teste de restore)
         run: sudo apt-get install -y postgresql-client-17 || echo "sem postgresql-client-17; o teste de restore vai pular"
       - name: test (integration + cobertura)

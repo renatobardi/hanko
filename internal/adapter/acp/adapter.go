@@ -160,6 +160,7 @@ func (a *Adapter) run(ctx context.Context, spec adapter.Spec, cfg Config, env ma
 	sink = adapter.RedactingSink(sink, secrets...)
 	policy := cfg.Policy(spec.ReadOnly)
 	s := newSession(ctx, a.log, sink, policy, spec.ReadOnly, files)
+	s.guard = spec.ToolGuard
 	s.remote = spec.Exec != nil
 	lw := newLateWriter()
 	c := newConn(lw, s)

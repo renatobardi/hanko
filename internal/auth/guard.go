@@ -31,6 +31,9 @@ func RedactPath(path string) string {
 	if strings.HasPrefix(path, InvitePath) {
 		return InvitePath + "…"
 	}
+	if strings.HasPrefix(path, ClaimPath) {
+		return ClaimPath + "…"
+	}
 	return path
 }
 
@@ -43,7 +46,7 @@ func isPWAPath(p string) bool {
 // Guard é o middleware do modo authenticated. Resolve a identidade (cookie de sessão ou
 // API key) e aplica a regra por rota:
 //
-//	livres:      /healthz, /readyz, /static/, /manifest.webmanifest, /sw.js, /offline (PWA), /entrar (e /entrar/…), /sair, /idioma, /auth/, /convite/
+//	livres:      /healthz, /readyz, /static/, /manifest.webmanifest, /sw.js, /offline (PWA), /entrar (e /entrar/…), /sair, /idioma, /auth/, /convite/, /claim/
 //	/metrics:    loopback direto ou API key
 //	/api/…:      sessão (CSRF same-origin em métodos que mudam estado), API key ou run token
 //	/mcp, /memory-mcp: API key ou run token (run token é validado pelo handler)
@@ -115,7 +118,7 @@ func (g *guard) wrap(next http.Handler) http.Handler {
 				return
 			}
 			g.deny(w, r, "autenticação necessária")
-		case path == LoginPath || strings.HasPrefix(path, LoginPath+"/") || path == "/sair" || path == "/idioma" || strings.HasPrefix(path, "/auth/") || strings.HasPrefix(path, InvitePath):
+		case path == LoginPath || strings.HasPrefix(path, LoginPath+"/") || path == "/sair" || path == "/idioma" || strings.HasPrefix(path, "/auth/") || strings.HasPrefix(path, InvitePath) || strings.HasPrefix(path, ClaimPath):
 			next.ServeHTTP(w, r)
 		case strings.HasPrefix(path, "/api/"):
 			switch {

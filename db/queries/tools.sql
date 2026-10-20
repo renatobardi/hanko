@@ -241,8 +241,8 @@ SELECT id, slug FROM companies WHERE slug = @slug;
 -- ---------- aprovações (gate tool) ----------
 
 -- name: CreateToolCallApproval :one
-INSERT INTO tool_call_approvals (id, company_id, gate_id, integration_id, tool, args_sha256, run_id, task_id, persona_id, gateway_id, created_at)
-VALUES (@id, @company_id, @gate_id, @integration_id, @tool, @args_sha256, @run_id, @task_id, @persona_id, @gateway_id, @now)
+INSERT INTO tool_call_approvals (id, company_id, gate_id, integration_id, native_tool, tool, args_sha256, run_id, task_id, persona_id, gateway_id, created_at)
+VALUES (@id, @company_id, @gate_id, @integration_id, @native_tool, @tool, @args_sha256, @run_id, @task_id, @persona_id, @gateway_id, @now)
 RETURNING *;
 
 -- name: FindToolCallApprovals :many
@@ -267,9 +267,11 @@ SELECT * FROM tool_call_approvals WHERE company_id = @company_id AND gate_id = @
 
 -- name: InsertToolInvocation :one
 INSERT INTO tool_invocations (id, company_id, run_id, gateway_id, persona_id, integration_id, integration_slug, tool,
-                              args_sha256, args_bytes, decision, gate_id, status, latency_ms, error, created_at)
+                              args_sha256, args_bytes, decision, gate_id, status, latency_ms, error, source, actor_type, actor_id,
+                              result_preview, policy_source, created_at)
 VALUES (@id, @company_id, @run_id, @gateway_id, @persona_id, @integration_id, @integration_slug, @tool,
-        @args_sha256, @args_bytes, @decision, @gate_id, @status, @latency_ms, @error, @now)
+        @args_sha256, @args_bytes, @decision, @gate_id, @status, @latency_ms, @error, @source, @actor_type, @actor_id,
+        @result_preview, @policy_source, @now)
 RETURNING *;
 
 -- name: ListToolInvocations :many
@@ -284,6 +286,7 @@ WHERE v.company_id = @company_id
   AND (sqlc.narg(run_id)::uuid IS NULL OR v.run_id = sqlc.narg(run_id)::uuid)
   AND (sqlc.narg(decision)::text IS NULL OR v.decision = sqlc.narg(decision)::text)
   AND (sqlc.narg(tool)::text IS NULL OR v.tool = sqlc.narg(tool)::text)
+  AND (sqlc.narg(source)::text IS NULL OR v.source = sqlc.narg(source)::text)
   AND (sqlc.narg(since)::timestamptz IS NULL OR v.created_at >= sqlc.narg(since)::timestamptz)
 ORDER BY v.created_at DESC, v.id DESC
 LIMIT @lim OFFSET @off;

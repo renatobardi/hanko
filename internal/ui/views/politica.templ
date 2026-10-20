@@ -1,0 +1,151 @@
+package views
+
+import "github.com/renatobardi/hanko/internal/i18n"
+
+// ---- Política de tools (ADR-0053) ----
+
+templ ToolPolicyPage(sh Shell, vm ToolPolicyVM) {
+	@Layout(sh) {
+		@PageHead(i18n.T(ctx, "Integrações"), i18n.T(ctx, "Desligar, perguntar antes ou permitir cada tool por persona, com um padrão da empresa. A política mais específica decide e vale por cima do perfil de ferramentas.")) {
+		}
+		@IntegrationTabs(sh.Base(), "politica")
+		if vm.Notice != "" {
+			@Alert("warn", vm.Notice)
+		}
+		if vm.Error != "" {
+			@Alert("danger", vm.Error)
+		}
+		if len(vm.Rows) == 0 {
+			@EmptyCard("shield", i18n.T(ctx, "Nenhuma política."), i18n.T(ctx, "Sem política valem os perfis de ferramentas e, nas tools do harness (Bash, Edit...), o modo de permissão da persona."), false)
+		} else {
+			<div class="table-wrap">
+				<table class="table">
+					<thead>
+						<tr>
+							<th>{ i18n.T(ctx, "Escopo") }</th>
+							<th>{ i18n.T(ctx, "Alvo") }</th>
+							<th>{ i18n.T(ctx, "Modo") }</th>
+							<th class="hide-sm">{ i18n.T(ctx, "Origem") }</th>
+							<th class="act-col"></th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, r := range vm.Rows {
+							<tr class="row">
+								<td>
+									if r.ScopeHref != "" {
+										<a href={ templ.SafeURL(r.ScopeHref) }>{ r.Scope }</a>
+									} else {
+										{ r.Scope }
+									}
+								</td>
+								<td class="mono">{ r.Target }</td>
+								<td>@BadgeEl(r.Mode)</td>
+								<td class="hide-sm muted">{ r.Origin }</td>
+								<td class="act-col">
+									if sh.CanAdmin() {
+										<form method="post" action={ templ.SafeURL(r.RemoveHref) } hx-post={ r.RemoveHref } hx-swap="none" hx-confirm={ i18n.T(ctx, "Apagar esta política?") }>
+											<button class="btn ghost sm" type="submit">{ i18n.T(ctx, "Apagar") }</button>
+										</form>
+									}
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+		if sh.CanAdmin() {
+			<form class="card pad form-card mt-6" method="post" action={ templ.SafeURL(vm.CreateHref) } hx-boost="true">
+				<div class="card-head">
+					<div>
+						<h2>{ i18n.T(ctx, "Nova política") }</h2>
+						<p class="sub">{ i18n.T(ctx, "Uma política com o mesmo alvo e escopo é trocada. Persona vence empresa; tool vence integração vence tudo; no empate, desligar vence perguntar vence permitir.") }</p>
+					</div>
+				</div>
+				<div class="form-grid">
+					<div class="field">
+						<label for="po-persona">{ i18n.T(ctx, "Vale para") }</label>
+						@Select("persona", "po-persona", vm.PersonaOpts, false)
+					</div>
+					<div class="field">
+						<label for="po-target">{ i18n.T(ctx, "Alvo") }</label>
+						@Select("target", "po-target", vm.TargetOpts, false)
+					</div>
+					<div class="field">
+						<label for="po-integ">{ i18n.T(ctx, "Integração") }</label>
+						@Select("integration", "po-integ", vm.IntegrationOpts, false)
+					</div>
+					<div class="field">
+						<label for="po-tool">{ i18n.T(ctx, "Tool") }</label>
+						<input class="input" id="po-tool" name="tool" maxlength="128" placeholder={ i18n.T(ctx, "create_issue, ou Bash para tool do harness") }/>
+					</div>
+					<div class="field">
+						<label for="po-mode">{ i18n.T(ctx, "Modo") }</label>
+						@Select("mode", "po-mode", vm.ModeOpts, false)
+					</div>
+				</div>
+				<div class="form-actions"><button class="btn primary" type="submit">{ i18n.T(ctx, "Gravar política") }</button></div>
+			</form>
+			<form class="card pad form-card mt-6" method="post" action={ templ.SafeURL(vm.TestHref) }>
+				<div class="card-head">
+					<div>
+						<h2>{ i18n.T(ctx, "Testar uma tool como uma persona") }</h2>
+						<p class="sub">{ i18n.T(ctx, "Mostra o que a persona veria: o estado no catálogo, o veredito do perfil e das políticas e de onde ele veio. Marcar chamar de verdade repassa ao servidor, passa pelo gate e entra na auditoria como teste.") }</p>
+					</div>
+				</div>
+				<div class="form-grid">
+					<div class="field">
+						<label for="te-persona">{ i18n.T(ctx, "Persona") }</label>
+						@Select("persona", "te-persona", vm.TestPersonaOpts, false)
+					</div>
+					<div class="field">
+						<label for="te-integ">{ i18n.T(ctx, "Integração") }</label>
+						@Select("integration", "te-integ", vm.TestIntegration, false)
+					</div>
+					<div class="field">
+						<label for="te-tool">{ i18n.T(ctx, "Tool") }</label>
+						<input class="input" id="te-tool" name="tool" value={ vm.TestTool } maxlength="128" required/>
+					</div>
+					<div class="field">
+						<label for="te-args">{ i18n.T(ctx, "Argumentos (JSON)") }</label>
+						<textarea class="textarea" id="te-args" name="args" rows="3" placeholder="{}">{ vm.TestArgs }</textarea>
+					</div>
+					<div class="field">
+						<label><input type="checkbox" name="execute" value="1"/> { i18n.T(ctx, "Chamar de verdade") }</label>
+					</div>
+				</div>
+				<div class="form-actions"><button class="btn primary" type="submit">{ i18n.T(ctx, "Testar") }</button></div>
+			</form>
+			if vm.Test != nil {
+				<section class="card pad mt-6" id="resultado-teste">
+					<div class="card-head">
+						<div>
+							<h2>{ i18n.T(ctx, "Resultado do teste") }</h2>
+							<p class="sub">{ vm.Test.Persona } · <span class="mono">{ vm.Test.Tool }</span></p>
+						</div>
+					</div>
+					<dl class="kv">
+						if vm.Test.Status.Label != "" {
+							<dt>{ i18n.T(ctx, "Estado no catálogo") }</dt>
+							<dd>@BadgeEl(vm.Test.Status) @BadgeEl(vm.Test.Risk)</dd>
+							<dt>{ i18n.T(ctx, "Veredito") }</dt>
+							<dd>{ vm.Test.Verdict } <span class="muted">· { vm.Test.Origin }</span></dd>
+						}
+						<dt>{ i18n.T(ctx, "Decisão") }</dt>
+						<dd>@BadgeEl(vm.Test.Decision)</dd>
+					</dl>
+					if vm.Test.Message != "" {
+						<p>{ vm.Test.Message }</p>
+					}
+					if vm.Test.GateHref != "" {
+						<p><a class="link-u" href={ templ.SafeURL(vm.Test.GateHref) }>{ i18n.T(ctx, "Abrir o gate") }</a></p>
+					}
+					if vm.Test.Output != "" {
+						<pre class="code">{ vm.Test.Output }</pre>
+					}
+				</section>
+			}
+		}
+	}
+}
