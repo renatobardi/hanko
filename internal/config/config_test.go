@@ -391,6 +391,24 @@ secret: 0123456789abcdef0123456789abcdef
 			},
 		},
 		{
+			name: "endpoint único do gateway de tools (ADR-0053)",
+			env:  map[string]string{"HANKO_DATABASE_URL": db, "HANKO_TOOLS_SINGLE_ENDPOINT": "true"},
+			check: func(t *testing.T, c Config) {
+				if !c.ToolsSingleEndpoint {
+					t.Fatal("HANKO_TOOLS_SINGLE_ENDPOINT=true deveria ligar o endpoint único")
+				}
+			},
+		},
+		{
+			name: "endpoint único desligado por padrão",
+			env:  map[string]string{"HANKO_DATABASE_URL": db},
+			check: func(t *testing.T, c Config) {
+				if c.ToolsSingleEndpoint {
+					t.Fatal("o padrão é desligado")
+				}
+			},
+		},
+		{
 			name:    "fator de alerta inválido",
 			env:     map[string]string{"HANKO_DATABASE_URL": db, "HANKO_ALERT_SILENT_FACTOR": "0"},
 			wantErr: "HANKO_ALERT_SILENT_FACTOR",

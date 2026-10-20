@@ -136,7 +136,13 @@ hanko auth create-owner --email you@example.com --name "Your Name"
 hanko serve
 ```
 
-**Create the owner through the CLI before exposing the server.** The web form "Create owner account" (first come, first owner) only exists when
+**First owner by a single-use link (ADR-0058).** With no users at all, boot prints a block with the link `<HANKO_PUBLIC_URL>/claim/<token>` to the
+process **stderr** (`docker compose logs hanko`): open it, enter name, email and password, and the first owner is created and signed in. The link is
+valid for 1 h and works once (used, expired or tampered links answer the same 404); the token only ever exists on stderr: the database keeps the hash,
+and it goes neither to the structured log nor to OTLP. Lost the link or it expired? `hanko auth claim-link` issues another one (invalidating the
+previous ones) without a restart. The `hanko auth create-owner` above still works as an alternative.
+
+**Create the owner (by link or CLI) before exposing the server.** The web form "Create owner account" (first come, first owner) only exists when
 `HANKO_PUBLIC_URL` is loopback (`localhost`/`127.0.0.1`) or `HANKO_AUTH_WEB_BOOTSTRAP=true`. On a public URL with no users, `/entrar` only tells you
 to run `hanko auth create-owner` and `POST /entrar/dono` answers 404. There is only one owner in v0.1 (multi-human is v0.2); all users can do everything.
 
@@ -322,7 +328,8 @@ Record the date and result in `docs/SESSION.md` or in the operations issue.
 | `path: must be inside the workspaces root` when creating a workspace | path outside `HANKO_WORKSPACES_ROOT/<company-slug>` | use a path inside the root company folder or change the root |
 | The agent cannot see an environment variable | filtered env (allowlist) | `HANKO_AGENT_ENV_ALLOW=NAME` |
 | `HANKO_SECRET exige…` / `HANKO_PUBLIC_URL exige https` at boot | authenticated mode without a 32-byte secret, or with an http URL outside loopback | `openssl rand -hex 32`; use `https://…` (or loopback for a local test) |
-| `/entrar` shows "Criar conta de dono" (Create owner account) | database has no users | `hanko auth create-owner` (§5.1) before exposing it; on a public URL the form only exists with `HANKO_AUTH_WEB_BOOTSTRAP=true` |
+| `/entrar` shows "Criar conta de dono" (Create owner account) | database has no users | open the `/claim/…` link printed to stderr at boot, or `hanko auth claim-link` / `hanko auth create-owner` (§5.1) before exposing it; on a public URL the form only exists with `HANKO_AUTH_WEB_BOOTSTRAP=true` |
+| `429 Too Many Requests` with `Retry-After` | general rate limit (writes, MCP, incoming webhooks, error reports) | expected under bursts: wait for `Retry-After`; for big batches per API key raise `ratelimit.writes_per_min` (Settings › Instance) or turn it off with `ratelimit.enabled=false`. Metric `hanko.ratelimit.decisions` and the "Hanko · Errors" dashboard |
 | Boot refused: `HANKO_AUTH_PROVIDER=firebase com HANKO_PUBLIC_URL público exige…` (with a public URL requires…) | firebase with neither lists nor a named owner | set `HANKO_AUTH_ALLOWED_EMAILS/DOMAINS` or `HANKO_AUTH_OWNER_EMAIL` (§5.2) |
 | Login 503 "Muitos logins ao mesmo tempo" (too many logins at once) | all argon2id slots busy for 2 s | try again; if it persists there is a login burst (check the rate limit at the edge) |
 | Login rate limit blocks everyone together behind Caddy | `HANKO_TRUSTED_PROXIES` missing the compose subnet | include the docker subnet (§5) |
@@ -377,6 +384,26 @@ stored secrets (integrations remain, without credentials; enter them again).
 **Webhooks.** Each delivery carries `X-Hanko-Signature: t=<unix>,v1=<hex>`, `X-Hanko-Event` and `X-Hanko-Delivery`. The receiver
 computes `HMAC-SHA256(secret, "<t>.<body>")`, compares in constant time and rejects an old `t`. Failures retry up to 7
 attempts (30 s, 2 min, 8 min, 32 min, ~2 h, 6 h). Delivery is at-least-once; deduplicate on `X-Hanko-Delivery`.
+## Tool policy (ADR-0053)
+
+On top of tool profiles (ADR-0036), a **policy** says `off` (refuse), `ask` (ask first, opens a `tool` gate) or `allow` (go straight through) for one persona
+or the whole company, over any integration tool, one integration, one tool, or a harness/plugin tool by name.
+
+- **Write:** the **Policy** tab under Integrations, `hanko tool-policy set <off|ask|allow> [--persona P] [--integration I] [--tool T | --native NAME]`
+  (admin). With no target flag it covers everything. Precedence: persona > company, tool > integration > everything, and on a tie off beats ask beats allow.
+  A policy beats the profile in runs; quarantined, disabled or removed tools are never opened by a policy; on a named gateway a policy only tightens.
+- **Always allow:** `hanko gate approve <gate> --always` (or the "Approve and always allow" button; admin only) saves `allow` for that persona and tool.
+- **`tool` gate timeout:** 24 h (integration/plugin) and 10 min (native call: the run waits). The `memory_sweep` (5 min) expires pending gates; the next
+  call opens a new gate.
+- **Harness-native tools:** claude gets the `PreToolUse` hook (`hanko hook pretooluse`, the server's own executable) **only when a native policy applies to the
+  persona**; it uses the run token from the environment and fails closed (if Hanko does not answer, it denies). ACP asks the policy on every permission
+  request. Remote environments (SSH/sandbox) do not get the hook. Codex has no hook. The audit log records the origin (`hook`, `acp`).
+- **Test:** `hanko integration tools <i> --test <tool> --as <persona> [--args JSON] [--execute]` or the form on the Policy tab.
+- **Single endpoint:** `HANKO_TOOLS_SINGLE_ENDPOINT=true` (yaml `tools_single_endpoint`) mounts one `hanko-tools` server (`/mcp/run`) for the run's
+  integrations, with tools named `<integration>__<tool>`. Off by default because it changes the tool names the harness sees.
+- **Audit:** `/c/<company>/ferramentas/auditoria` or `GET …/tool-invocations` (admin): origin, actor, duration, redacted result excerpt and the deciding
+  policy. 30 days and 10k rows per company are kept.
+
 ## ACP agents (`acp` harness)
 
 The `acp` harness (ADR-0023) runs any agent that speaks the Agent Client Protocol v1 over stdio. Hanko ships no agent: the operator
@@ -571,7 +598,8 @@ by definition, make the agent use the secret: "reveal once" is an audit trail, n
 
 **Settings › Instance** screen, `hanko settings list|get|set|unset|audit` CLI, `/instance/settings` API (installation owner).
 **Non-sensitive** toggles only: `acp.allow`, `acp.commands`, `integrations.allow_stdio`, `integrations.allow_private`,
-`artifacts.max_bytes`, `artifacts.quota_bytes`, `run.reserve_usd`, `alerts.silent_factor`, `alerts.run_stuck_after`.
+`artifacts.max_bytes`, `artifacts.quota_bytes`, `run.reserve_usd`, `alerts.silent_factor`, `alerts.run_stuck_after` and the
+`ratelimit.*` keys (general rate limit, below).
 Precedence: **environment variable > database > yaml/default**. With the variable set (non-empty) the key shows as locked
 ("locked by HANKO_X") and the API returns 409; to change it, change the environment. Changes in the database apply without a restart and
 are recorded in `instance_setting_audit` (before, after, author). Secrets and keys are never settings: environment only.
@@ -610,6 +638,51 @@ or a deleted company) take space without showing in the quota; the key is `<pref
 | Creating a secret is refused: `HANKO_SECRET_KEY não está configurada` | no encryption key | set `HANKO_SECRET_KEY` (`openssl rand -hex 32`) |
 | Run fails: `segredo não resolvido: ${secret:X}` | the secret was deleted or the vault is down | recreate the secret / check the vault and token |
 | Settings: 409 "definida por HANKO_X" | the environment variable locks the key | change the server environment |
+
+## Rate limit, errors via OTel, e2e and dev labs (ADR-0058)
+
+### General rate limit
+A Postgres token bucket (`rate_limit_buckets`, one atomic statement per decision, correct with several instances) per **API key** (hash),
+session **user**, **run** (valid run token) or **IP** (the same `HANKO_TRUSTED_PROXIES` as login). Classes: `write` (POST/PUT/PATCH/DELETE on the API
+and UI; login, claim and invite have their own limiter), `mcp` (`/mcp`, the tool gateway, `/memory-mcp`), `webhook` (`/hooks/…`, reserved for the M19
+triggers) and `browser_error` (`/telemetry/errors`). Writes also add a per-IP ceiling. Reads, SSE, `/healthz`, `/readyz`, `/metrics` and `/static/`
+never consume. Over the limit: `429` with `Retry-After` (s), `RateLimit-Limit` and `RateLimit-Remaining`; a `problem+json` body on the API/MCP,
+plain text on the UI. If the limiter's database is down the request **passes** (fail-open) and the metric counts `outcome=error`.
+
+Defaults (per minute, 1-minute burst): writes 600 per identity and 1200 per IP; MCP 1500; webhooks 120 per IP; browser errors 20 per IP. Change them
+under **Settings › Instance** (`ratelimit.enabled`, `ratelimit.writes_per_min`, `ratelimit.ip_per_min`, `ratelimit.mcp_per_min`,
+`ratelimit.webhooks_per_min`, `ratelimit.browser_errors_per_min`), with `hanko settings set`, or with `HANKO_RATELIMIT_*` (which wins and locks).
+No restart needed. Metric: `hanko.ratelimit.decisions{class,outcome}`.
+
+### Errors in OpenTelemetry (no SaaS)
+- **Server:** every unexpected 5xx and every handler panic becomes an `exception` span event (type, message, stack) with `Status=Error`, an `ERROR`
+  log with `exception.stacktrace` (shipped to Loki over OTLP) and the `hanko.errors{source,exception_type}` counter.
+- **Browser:** `hanko.js` sends `window.onerror` and `unhandledrejection` (up to 5 per page) to `POST /telemetry/errors` (needs a session and same
+  origin; body ≤ 8 KiB; URL without query/fragment; 20/min per IP). It becomes a `browser.error` span with the `exception` event and an `ERROR` log
+  with `exception.source=browser`. Nothing is stored in the database.
+- **Dashboard:** `deploy/grafana/dashboards/hanko-erros.json` ("Hanko · Erros": exceptions by source and type, traces with `status=error`, error
+  logs with stack, rate-limit decisions), provisioned by `deploy/compose.yaml` into `otel-lgtm` (Grafana folder *Hanko*). Outside the compose file,
+  copy the provider `deploy/grafana/provisioning/dashboards/hanko.yaml` and the JSON into your Grafana (datasources `prometheus`, `tempo`, `loki`).
+
+### e2e tests (Playwright)
+`e2e/` (Playwright 1.56.1, development/CI only; the binary does not depend on Node). It needs `bin/hanko` (`make build`), a **disposable** Postgres
+(the `public` schema is dropped) in `HANKO_E2E_DATABASE_URL`, and `psql`:
+
+```bash
+make build
+cd e2e && npm ci
+export HANKO_E2E_DATABASE_URL='postgres://postgres:postgres@localhost:5432/hanko_e2e?sslmode=disable'
+PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers npx playwright test          # or: npm test
+npx playwright test --update-snapshots                                # regenerate the screenshot-diff baselines
+npx playwright show-report                                            # HTML report
+```
+The harness starts `hanko serve` with the `fake` adapter, reads the claim link from stderr and runs the journeys. Baselines live in
+`e2e/tests/__screenshots__/` (Linux/Chromium). In CI: `.github/workflows/e2e.yml` (PRs touching UI, handlers, migrations or `e2e/`, and `main`).
+
+### Dev labs (`/design-guide`, `/dev/ux`)
+Only in trusted mode or for the installation owner/admin (everyone else gets 404). `/design-guide` shows the Kubo DS in light and dark
+(`?tema=ambos|claro|escuro`); `/dev/ux` lists synthetic scenarios: **long thread** (500 comments, `?n=` changes the count) and **run with 10,000
+lines** (the real virtualized log over a synthetic API). Nothing is written.
 
 ## Search (ADR-0024)
 

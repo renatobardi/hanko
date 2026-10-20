@@ -87,6 +87,7 @@ func gwSetup(t *testing.T, f *gwFake) (*httptest.Server, auth.RunTokens) {
 	mux := http.NewServeMux()
 	d := ToolGatewayDeps{Backend: f, Tokens: toks, Version: "test"}
 	mux.Handle(RunToolGatewayPattern, RunToolGateway(d))
+	mux.Handle(RunAggregateGatewayPattern, RunAggregateGateway(d))
 	mux.Handle(NamedToolGatewayPattern, NamedToolGateway(d))
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
@@ -260,3 +261,40 @@ func TestNamedToolGatewayTokenAndActions(t *testing.T) {
 type errBoom struct{}
 
 func (errBoom) Error() string { return "boom" }
+
+// O endpoint único da run (ADR-0053) autentica pelo run token como o de uma integração, mas pede ao service o chamador
+// agregado: sem integração na rota e com os nomes prefixados.
+func TestAggregateRunGateway(t *testing.T) {
+	f := &gwFake{runStatus: domain.RunRunning}
+	srv, toks := gwSetup(t, f)
+	tok, err := toks.Issue(domain.NewID(), domain.NewID(), domain.NewID(), domain.NewID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	cs := sdkSession(t, srv.URL+"/mcp/run", tok)
+	if _, err := cs.ListTools(context.Background(), nil); err != nil {
+		t.Fatal(err)
+	}
+	if f.gotSlug != "" || !f.gotCaller.Aggregate || f.gotCaller.RunID == nil || f.gotCaller.Named() {
+		t.Fatalf("chamador agregado: slug=%q %+v", f.gotSlug, f.gotCaller)
+	}
+	res, err := cs.CallTool(context.Background(), &sdk.CallToolParams{Name: "ler", Arguments: map[string]any{}})
+	if err != nil || res.IsError || f.gotSlug != "" || !f.gotCaller.Aggregate {
+		t.Fatalf("call: %+v %v (slug %q)", res, err, f.gotSlug)
+	}
+	// o endpoint por integração segue sem o modo agregado
+	cs2 := sdkSession(t, srv.URL+"/mcp/run/docs", tok)
+	if _, err := cs2.ListTools(context.Background(), nil); err != nil || f.gotCaller.Aggregate || f.gotSlug != "docs" {
+		t.Fatalf("por integração: %v %+v", err, f.gotCaller)
+	}
+	// sem token e com token de gateway nomeado: 401, como no endpoint por integração
+	if code, _ := post(t, srv.URL+"/mcp/run", "", `{"jsonrpc":"2.0","id":1,"method":"ping"}`); code != 401 {
+		t.Fatalf("sem token: %d", code)
+	}
+	if code, _ := post(t, srv.URL+"/mcp/run", "hkgw_abcdef123456", `{"jsonrpc":"2.0","id":1,"method":"ping"}`); code != 401 {
+		t.Fatalf("token de gateway: %d", code)
+	}
+	if c, a := f.gotCaller.Prefixed(), f.gotCaller.Aggregate; c || a {
+		t.Fatal("o chamador por integração não é prefixado")
+	}
+}

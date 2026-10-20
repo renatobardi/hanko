@@ -287,6 +287,10 @@ func (s *server) handleDecideGate(w http.ResponseWriter, r *http.Request, co dom
 		return
 	}
 	decision := domain.GateStatus(trimForm(r, "decision"))
+	always := decision == "approved_always" // "aprovar e sempre permitir" (ADR-0053)
+	if always {
+		decision = domain.GateApproved
+	}
 	if !decision.Decision() {
 		s.fail(w, r, &co, domain.Invalid(i18n.T(r.Context(), "decisão"), i18n.T(r.Context(), "escolha aprovar, rejeitar ou pedir mudanças")))
 		return
@@ -296,7 +300,7 @@ func (s *server) handleDecideGate(w http.ResponseWriter, r *http.Request, co dom
 		s.fail(w, r, &co, domain.Invalid(i18n.T(r.Context(), "nota"), i18n.T(r.Context(), "explique o que precisa mudar")))
 		return
 	}
-	g, err := s.be.DecideGate(r.Context(), actorFrom(r.Context()), co.ID, id, service.DecideGateInput{Decision: decision, Note: note})
+	g, err := s.be.DecideGate(r.Context(), actorFrom(r.Context()), co.ID, id, service.DecideGateInput{Decision: decision, Note: note, Always: always})
 	if err != nil {
 		s.fail(w, r, &co, err)
 		return
