@@ -69,6 +69,13 @@ var settingTexts = map[string][2]string{
 	settings.RunReserveUSD:          {i18n.N("Piso da reserva de orçamento por run (US$)"), ""},
 	settings.AlertsSilentFactor:     {i18n.N("Fator do alerta de persona silenciosa"), ""},
 	settings.AlertsRunStuckAfter:    {i18n.N("Tempo para uma run presa virar alerta"), ""},
+	settings.RateLimitEnabled: {i18n.N("Ligar o rate limit geral"),
+		i18n.N("Token bucket por API key, usuário e IP para escritas, MCP e webhooks de entrada (429 + Retry-After).")},
+	settings.RateLimitWrites:        {i18n.N("Escritas por minuto (por API key ou usuário)"), ""},
+	settings.RateLimitIP:            {i18n.N("Escritas por minuto (por IP, somando identidades)"), ""},
+	settings.RateLimitMCP:           {i18n.N("Chamadas MCP por minuto (por identidade ou run)"), ""},
+	settings.RateLimitWebhooks:      {i18n.N("Webhooks de entrada por minuto (por IP)"), ""},
+	settings.RateLimitBrowserErrors: {i18n.N("Erros de navegador por minuto (por IP)"), ""},
 }
 
 func scopeOf(user bool) domain.SecretScope {
@@ -312,6 +319,8 @@ func groupTitle(ctx context.Context, g string) string {
 		return i18n.T(ctx, "Execuções")
 	case "alerts":
 		return i18n.T(ctx, "Alertas")
+	case "ratelimit":
+		return i18n.T(ctx, "Limite de taxa")
 	}
 	return i18n.T(ctx, "Experimentais")
 }

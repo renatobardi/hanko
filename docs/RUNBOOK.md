@@ -137,7 +137,13 @@ hanko auth create-owner --email voce@exemplo.com --name "Seu Nome"
 hanko serve
 ```
 
-**Crie o dono pela CLI antes de expor o servidor.** O formulário web "Criar conta de dono" (quem chegar primeiro vira dono) só existe quando
+**Primeiro dono por link de uso único (ADR-0058).** Sem nenhum usuário, o boot imprime no **stderr** do processo (`docker compose logs hanko`)
+um bloco com o link `<HANKO_PUBLIC_URL>/claim/<token>`: abra-o, informe nome, e-mail e senha e o primeiro dono está criado e logado. O link vale
+1 h, só funciona uma vez (usado, expirado ou adulterado respondem o mesmo 404) e o token só existe no stderr: no banco fica o hash, e ele não vai
+para o log estruturado nem para o OTLP. Perdeu o link ou expirou? `hanko auth claim-link` emite outro (invalida os anteriores), sem reiniciar.
+O `hanko auth create-owner` acima continua valendo como alternativa.
+
+**Crie o dono (pelo link ou pela CLI) antes de expor o servidor.** O formulário web "Criar conta de dono" (quem chegar primeiro vira dono) só existe quando
 `HANKO_PUBLIC_URL` é loopback (`localhost`/`127.0.0.1`) ou `HANKO_AUTH_WEB_BOOTSTRAP=true`. Em URL pública, sem usuários, `/entrar` só orienta
 a rodar `hanko auth create-owner` e `POST /entrar/dono` responde 404. Só existe um dono no v0.1 (multi-humano é v0.2); todos os usuários podem tudo.
 
@@ -338,7 +344,8 @@ Registre data e resultado em `docs/SESSION.md` ou no issue de operação.
 | Run `acp` falha com "não respondeu ao initialize" | o comando não fala ACP v1 por stdio (ou demora mais que `init_timeout_sec`) | rode o comando à mão; o erro traz as últimas linhas de stdout/stderr (§ Agentes ACP) |
 | Run `acp` termina em segundos sem editar nada | política `read_only` (padrão) recusou a edição | veja os eventos "permissão negada" no log; contrate com `permission: allow` se for o caso |
 | `HANKO_SECRET exige…` / `HANKO_PUBLIC_URL exige https` no boot | modo authenticated sem secret de 32 bytes ou com URL http fora de loopback | `openssl rand -hex 32`; use `https://…` (ou loopback para teste local) |
-| `/entrar` mostra "Criar conta de dono" | banco sem usuários | `hanko auth create-owner` (§5.1) antes de expor; em URL pública o formulário só existe com `HANKO_AUTH_WEB_BOOTSTRAP=true` |
+| `/entrar` mostra "Criar conta de dono" | banco sem usuários | abra o link `/claim/…` impresso no stderr do boot, ou `hanko auth claim-link` / `hanko auth create-owner` (§5.1) antes de expor; em URL pública o formulário só existe com `HANKO_AUTH_WEB_BOOTSTRAP=true` |
+| `429 Too Many Requests` com `Retry-After` | rate limit geral (escritas, MCP, webhooks de entrada, relatos de erro) | normal sob rajada: espere o `Retry-After`; para lote grande por API key suba `ratelimit.writes_per_min` (Configurações › Instância) ou desligue com `ratelimit.enabled=false`. Métrica `hanko.ratelimit.decisions` e painel "Hanko · Erros" |
 | Boot recusado: `HANKO_AUTH_PROVIDER=firebase com HANKO_PUBLIC_URL público exige…` | firebase sem listas nem dono nomeado | defina `HANKO_AUTH_ALLOWED_EMAILS/DOMAINS` ou `HANKO_AUTH_OWNER_EMAIL` (§5.2) |
 | Login 503 "Muitos logins ao mesmo tempo" | todas as vagas de argon2id ocupadas por 2 s | tente de novo; se persistir, há rajada de logins (confira o rate limit na borda) |
 | Rate limit de login bloqueia todo mundo junto atrás do Caddy | `HANKO_TRUSTED_PROXIES` sem a sub-rede do compose | inclua a sub-rede docker (§5) |
@@ -660,7 +667,8 @@ uma persona consegue, por definição, fazer o agente usar o segredo: "revelar u
 
 Tela **Configurações › Instância**, CLI `hanko settings list|get|set|unset|audit`, API `/instance/settings` (dono da instalação).
 Só toggles **não sensíveis**: `acp.allow`, `acp.commands`, `integrations.allow_stdio`, `integrations.allow_private`,
-`artifacts.max_bytes`, `artifacts.quota_bytes`, `run.reserve_usd`, `alerts.silent_factor`, `alerts.run_stuck_after`.
+`artifacts.max_bytes`, `artifacts.quota_bytes`, `run.reserve_usd`, `alerts.silent_factor`, `alerts.run_stuck_after` e os
+`ratelimit.*` (rate limit geral, abaixo).
 Precedência: **variável de ambiente > banco > yaml/padrão**. Com a variável definida (valor não vazio) a chave aparece travada
 ("travada por HANKO_X") e a API devolve 409; para mudar, mude o ambiente. Mudar no banco vale sem reiniciar e fica em
 `instance_setting_audit` (antes, depois, autor). Segredos e chaves nunca são settings: só por ambiente.
@@ -699,6 +707,53 @@ apagada) ocupam espaço sem aparecer na cota; a chave é `<prefixo>/<empresa>/<a
 | Criar segredo recusado: `HANKO_SECRET_KEY não está configurada` | sem chave de cifragem | defina `HANKO_SECRET_KEY` (`openssl rand -hex 32`) |
 | Run falha: `segredo não resolvido: ${secret:X}` | o segredo foi apagado ou o cofre está fora | recrie o segredo / confira o cofre e o token |
 | Settings: 409 "definida por HANKO_X" | a variável de ambiente trava a chave | mude o ambiente do servidor |
+
+## Rate limit, erros via OTel, e2e e dev labs (ADR-0058)
+
+### Rate limit geral
+Token bucket no Postgres (`rate_limit_buckets`, uma instrução atômica por decisão, vale com várias instâncias) por **API key**
+(hash), **usuário** de sessão, **run** (run token válido) ou **IP** (o mesmo `HANKO_TRUSTED_PROXIES` do login). Classes: `write`
+(POST/PUT/PATCH/DELETE na API e na UI; login, claim e convite têm limitador próprio), `mcp` (`/mcp`, gateway de tools,
+`/memory-mcp`), `webhook` (`/hooks/…`, reservado aos gatilhos do M19) e `browser_error` (`/telemetry/errors`). Escritas também
+somam um teto por IP. Leituras, SSE, `/healthz`, `/readyz`, `/metrics` e `/static/` nunca consomem. Estourou: `429` com
+`Retry-After` (s), `RateLimit-Limit` e `RateLimit-Remaining`; corpo `problem+json` na API/MCP, texto simples na UI. Banco do limitador
+fora: a requisição **passa** (fail-open) e conta `outcome=error` na métrica.
+
+Padrões (por minuto, rajada de 1 min): escritas 600 por identidade e 1200 por IP; MCP 1500; webhooks 120 por IP; erros do navegador
+20 por IP. Mude em **Configurações › Instância** (`ratelimit.enabled`, `ratelimit.writes_per_min`, `ratelimit.ip_per_min`,
+`ratelimit.mcp_per_min`, `ratelimit.webhooks_per_min`, `ratelimit.browser_errors_per_min`), por `hanko settings set` ou por
+`HANKO_RATELIMIT_*` (que vence e trava). Vale sem reiniciar. Métrica: `hanko.ratelimit.decisions{class,outcome}`.
+
+### Erros no OpenTelemetry (sem SaaS)
+- **Servidor:** todo 5xx inesperado e todo panic de handler vira span event `exception` (tipo, mensagem, pilha) com `Status=Error`, log
+  `ERROR` com `exception.stacktrace` (vai ao Loki pelo OTLP) e o contador `hanko.errors{source,exception_type}`.
+- **Navegador:** `hanko.js` envia `window.onerror` e `unhandledrejection` (até 5 por página) para `POST /telemetry/errors` (exige sessão e
+  mesma origem; corpo ≤ 8 KiB; URL sem query/fragmento; 20/min por IP). Vira o span `browser.error` com o evento `exception` e um log
+  `ERROR` com `exception.source=browser`. Nada é gravado no banco.
+- **Painel:** `deploy/grafana/dashboards/hanko-erros.json` ("Hanko · Erros": exceções por origem e tipo, traces com `status=error`, logs de
+  erro com pilha, decisões do rate limit), provisionado pelo `deploy/compose.yaml` no `otel-lgtm` (pasta *Hanko* do Grafana). Fora do
+  compose, copie o provider `deploy/grafana/provisioning/dashboards/hanko.yaml` e o JSON para o seu Grafana (datasources `prometheus`,
+  `tempo`, `loki`).
+
+### Testes e2e (Playwright)
+`e2e/` (Playwright 1.56.1, só desenvolvimento/CI; o binário não depende de Node). Precisa de `bin/hanko` (`make build`), de um Postgres
+**descartável** (o schema `public` é apagado) em `HANKO_E2E_DATABASE_URL` e de `psql`:
+
+```bash
+make build
+cd e2e && npm ci
+export HANKO_E2E_DATABASE_URL='postgres://postgres:postgres@localhost:5432/hanko_e2e?sslmode=disable'
+PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers npx playwright test          # ou: npm test
+npx playwright test --update-snapshots                                # regera as baselines do screenshot diff
+npx playwright show-report                                            # relatório HTML
+```
+O harness sobe o `hanko serve` com o adapter `fake`, lê o link de claim do stderr e roda as jornadas. As baselines ficam em
+`e2e/tests/__screenshots__/` (Linux/Chromium). No CI: `.github/workflows/e2e.yml` (PR que toca UI, handlers, migrations ou `e2e/`, e `main`).
+
+### Dev labs (`/design-guide`, `/dev/ux`)
+Só no modo trusted ou para o dono/admin da instalação (os demais recebem 404). `/design-guide` mostra o Kubo DS em claro e escuro
+(`?tema=ambos|claro|escuro`); `/dev/ux` lista cenários sintéticos: **thread longo** (500 comentários, `?n=` muda a quantidade) e **run com 10 mil
+linhas** (o log virtualizado real sobre uma API sintética). Nada é gravado.
 
 ## Busca (ADR-0024)
 

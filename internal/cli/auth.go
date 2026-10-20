@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -29,6 +30,8 @@ type AuthAdmin interface {
 	AdminRemoveUser(ctx context.Context, ownerEmail, email string) error
 	// AdminListAudit lista a auditoria das operações acima (admin_audit), da mais recente para a mais antiga.
 	AdminListAudit(ctx context.Context, ownerEmail string, limit int) ([]domain.AdminAuditEntry, error)
+	// ClaimLink emite um novo link de claim do primeiro dono (invalida os anteriores); ErrConflict se já há usuário.
+	ClaimLink(ctx context.Context) (url string, expires time.Time, err error)
 	Close()
 }
 
@@ -56,7 +59,7 @@ func (e *env) authCmd() *cobra.Command {
 		Short: e.t("Usuários e API keys (acesso direto ao banco; use no host do servidor)"),
 		Long:  e.t("Comandos administrativos de autenticação. Falam direto com o banco configurado (HANKO_DATABASE_URL), sem o servidor no ar; rode `hanko migrate` antes."),
 	}
-	c.AddCommand(e.authCreateOwnerCmd(), e.authTokenCmd(), e.authUserCmd())
+	c.AddCommand(e.authCreateOwnerCmd(), e.authClaimLinkCmd(), e.authTokenCmd(), e.authUserCmd())
 	return c
 }
 
@@ -98,6 +101,31 @@ func (e *env) authCreateOwnerCmd() *cobra.Command {
 	cmd.Flags().StringVar(&email, "email", "", e.t("e-mail do dono"))
 	cmd.Flags().StringVar(&name, "name", "", e.t("nome do dono"))
 	return cmd
+}
+
+func (e *env) authClaimLinkCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "claim-link",
+		Short: e.t("Emite um novo link de uso único para criar o primeiro dono (invalida os anteriores)"),
+		Long:  e.t("Enquanto não há usuário, o servidor imprime no boot um link /claim/<token> que cria o primeiro dono. Este comando emite outro sem reiniciar o servidor; `create-owner` continua valendo como alternativa."),
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			a, err := e.openAuth(cmd.Context())
+			if err != nil {
+				return err
+			}
+			defer a.Close()
+			link, exp, err := a.ClaimLink(cmd.Context())
+			if err != nil {
+				return e.friendlyAuthErr(err)
+			}
+			if e.asJSON {
+				return e.printJSON(map[string]any{"url": link, "expires_at": exp})
+			}
+			_, err = fmt.Fprintf(e.out, e.t("Abra o link para criar o primeiro dono (uso único, vale até %s):\n%s\n"), exp.Local().Format("15:04"), link)
+			return err
+		},
+	}
 }
 
 func (e *env) friendlyAuthErr(err error) error {

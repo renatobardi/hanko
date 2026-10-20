@@ -22,6 +22,8 @@ type AuthBackend interface {
 	CountUsers(ctx context.Context) (int, error)
 	ListUsers(ctx context.Context) ([]domain.User, error)
 	CreateOwner(ctx context.Context, email, name, password string) (domain.User, error)
+	CheckOwnerClaim(ctx context.Context, token string) error
+	ClaimOwner(ctx context.Context, token, email, name, password string) (domain.User, error)
 	AuthenticateLocal(ctx context.Context, email, password string) (domain.User, error)
 	LoginFirebase(ctx context.Context, in service.FirebaseLogin) (domain.User, error)
 	CreateSession(ctx context.Context, userID domain.ID, meta service.SessionMeta, replaceToken string) (string, domain.Session, error)
@@ -91,6 +93,8 @@ func (s *server) authRoutes(mux handlerRegistry) {
 	mux.HandleFunc("GET "+auth.LoginPath, s.handleLogin)
 	mux.HandleFunc("POST "+auth.LoginPath, s.sameOrigin(s.handleLoginLocal))
 	mux.HandleFunc("POST /entrar/dono", s.sameOrigin(s.handleCreateOwner))
+	mux.HandleFunc("GET "+auth.ClaimPath+"{token}", s.handleClaimPage)
+	mux.HandleFunc("POST "+auth.ClaimPath+"{token}", s.sameOrigin(s.handleClaimOwner))
 	mux.HandleFunc("POST /auth/firebase", s.handleFirebase)
 	mux.HandleFunc("GET "+auth.InvitePath+"{token}", s.handleInvitePage)
 	mux.HandleFunc("POST "+auth.InvitePath+"{token}", s.sameOrigin(s.handleInviteAccept))
@@ -227,6 +231,94 @@ func (s *server) handleCreateOwner(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, nil, err)
 		return
 	}
+	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
+// claimHeaders: a página do claim leva um segredo no caminho; nada dela pode ser guardado nem vazar por Referer.
+func claimHeaders(w http.ResponseWriter) {
+	w.Header().Set("Referrer-Policy", "no-referrer")
+	w.Header().Set("Cache-Control", "no-store")
+}
+
+func (s *server) renderClaimInvalid(w http.ResponseWriter, r *http.Request) {
+	claimHeaders(w)
+	s.render(w, r, http.StatusNotFound, views.ClaimInvalidPage(s.version))
+}
+
+// handleClaimPage mostra o formulário do primeiro dono se o link vale (aberto, não expirado, sem usuário); senão o
+// mesmo 404 genérico para qualquer motivo. Só o provider local tem claim.
+func (s *server) handleClaimPage(w http.ResponseWriter, r *http.Request) {
+	if s.auth.Provider != "local" {
+		http.NotFound(w, r)
+		return
+	}
+	token := r.PathValue("token")
+	ip := s.auth.Proxies.ClientIP(r)
+	if ok, wait := s.auth.Limiter.Allow(ip, ""); !ok {
+		w.Header().Set("Retry-After", fmt.Sprint(int(wait.Seconds())+1))
+		http.Error(w, i18n.T(r.Context(), "Muitas tentativas. Tente de novo em alguns minutos."), http.StatusTooManyRequests)
+		return
+	}
+	if err := s.auth.be.CheckOwnerClaim(r.Context(), token); err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			s.auth.Limiter.Fail(ip, "")
+			s.renderClaimInvalid(w, r)
+			return
+		}
+		s.fail(w, r, nil, err)
+		return
+	}
+	claimHeaders(w)
+	s.render(w, r, http.StatusOK, views.ClaimPage(views.ClaimVM{Action: auth.ClaimPath + token, Version: s.version}))
+}
+
+// handleClaimOwner cria o primeiro dono com o link, abre a sessão e o invalida (uso único).
+func (s *server) handleClaimOwner(w http.ResponseWriter, r *http.Request) {
+	if s.auth.Provider != "local" {
+		http.NotFound(w, r)
+		return
+	}
+	token := r.PathValue("token")
+	ip := s.auth.Proxies.ClientIP(r)
+	if ok, wait := s.auth.Limiter.Allow(ip, ""); !ok {
+		w.Header().Set("Retry-After", fmt.Sprint(int(wait.Seconds())+1))
+		http.Error(w, i18n.T(r.Context(), "Muitas tentativas. Tente de novo em alguns minutos."), http.StatusTooManyRequests)
+		return
+	}
+	vm := views.ClaimVM{Action: auth.ClaimPath + token, Email: trimForm(r, "email"), Name: trimForm(r, "name"), Version: s.version}
+	again := func(status int, msg string) {
+		vm.Error = msg
+		claimHeaders(w)
+		s.render(w, r, status, views.ClaimPage(vm))
+	}
+	u, err := s.auth.be.ClaimOwner(r.Context(), token, vm.Email, vm.Name, r.PostFormValue("password"))
+	switch {
+	case err == nil:
+	case errors.Is(err, auth.ErrBusy):
+		w.Header().Set("Retry-After", "2")
+		again(http.StatusServiceUnavailable, i18n.T(r.Context(), "Muitos logins ao mesmo tempo. Tente de novo em instantes."))
+		return
+	case errors.Is(err, domain.ErrNotFound):
+		s.auth.Limiter.Fail(ip, "")
+		s.renderClaimInvalid(w, r)
+		return
+	case errors.Is(err, domain.ErrInvalid):
+		msg := i18n.T(r.Context(), "Confira os dados.")
+		var ve *domain.ValidationError
+		if errors.As(err, &ve) {
+			msg = ve.Field + ": " + ve.Reason + "."
+		}
+		again(http.StatusUnprocessableEntity, msg)
+		return
+	default:
+		s.fail(w, r, nil, err)
+		return
+	}
+	if err := s.startSession(w, r, u); err != nil {
+		s.fail(w, r, nil, err)
+		return
+	}
+	claimHeaders(w)
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
