@@ -154,6 +154,7 @@ func (e *env) gateCmd() *cobra.Command {
 
 	decide := func(use, decision, short, done string) *cobra.Command {
 		var note string
+		var always bool
 		cmd := &cobra.Command{
 			Use: use + " " + e.t("<gate>"), Short: short, Args: cobra.ExactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
@@ -168,7 +169,7 @@ func (e *env) gateCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				g, err := e.client().DecideGate(cmd.Context(), co, id, client.DecideGateReq{Decision: decision, Note: note})
+				g, err := e.client().DecideGate(cmd.Context(), co, id, client.DecideGateReq{Decision: decision, Note: note, Always: always})
 				if err != nil {
 					return err
 				}
@@ -180,6 +181,9 @@ func (e *env) gateCmd() *cobra.Command {
 			},
 		}
 		cmd.Flags().StringVarP(&note, "note", "n", "", e.t("nota da decisão (vira comentário na task)"))
+		if decision == "approved" {
+			cmd.Flags().BoolVar(&always, "always", false, e.t("em gate de tool: sempre permitir (grava a política da persona; admin)"))
+		}
 		return cmd
 	}
 	c.AddCommand(ls, show,

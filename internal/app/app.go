@@ -66,6 +66,8 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 		PeriodicInterval: cfg.HeartbeatInterval,
 		WorkspacesRoot:   cfg.WorkspacesRoot,
 		Logger:           logger,
+
+		ToolsSingleEndpoint: cfg.ToolsSingleEndpoint,
 	})
 	if err != nil {
 		return fmt.Errorf("app: heartbeat: %w", err)

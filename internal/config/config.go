@@ -194,6 +194,9 @@ type Config struct {
 	TrustedProxies []string `yaml:"trusted_proxies" env:"HANKO_TRUSTED_PROXIES" envSeparator:","`
 	// WorkspacesRoot é a raiz sob a qual todo workspace precisa estar (default $HOME/hanko-workspaces).
 	WorkspacesRoot string `yaml:"workspaces_root" env:"HANKO_WORKSPACES_ROOT"`
+	// ToolsSingleEndpoint faz o harness receber um único endpoint do gateway de tools (/mcp/run) em vez de um servidor MCP
+	// por integração; as tools saem como <integração>__<tool> (ADR-0053).
+	ToolsSingleEndpoint bool `yaml:"tools_single_endpoint" env:"HANKO_TOOLS_SINGLE_ENDPOINT"`
 	// RunReserveUSD é o piso (USD) da reserva de orçamento por run aberta: antes de abrir uma
 	// run, gasto + reservas das runs abertas + a reserva da nova não podem passar do teto. A reserva
 	// de cada run é o maior entre a média das últimas 10 runs da persona e este piso.
@@ -301,7 +304,7 @@ func environFor(getenv func(string) string) map[string]string {
 		"HANKO_FIREBASE_PROJECT_ID", "HANKO_FIREBASE_API_KEY", "HANKO_FIREBASE_AUTH_DOMAIN",
 		"HANKO_AUTH_OWNER_EMAIL", "HANKO_AUTH_WEB_BOOTSTRAP", "HANKO_TRUSTED_PROXIES",
 		"HANKO_SECRET_KEY", "HANKO_SECRET_KEY_PREVIOUS", "HANKO_INTEGRATIONS_ALLOW_STDIO", "HANKO_INTEGRATIONS_ALLOW_PRIVATE",
-		"HANKO_ACP_ALLOW", "HANKO_ACP_COMMANDS", "HANKO_SKILL_SOURCES",
+		"HANKO_ACP_ALLOW", "HANKO_ACP_COMMANDS", "HANKO_SKILL_SOURCES", "HANKO_TOOLS_SINGLE_ENDPOINT",
 		"HANKO_BLOB_DRIVER", "HANKO_S3_ENDPOINT", "HANKO_S3_REGION", "HANKO_S3_BUCKET", "HANKO_S3_PREFIX", "HANKO_S3_PATH_STYLE",
 		"HANKO_S3_ACCESS_KEY", "HANKO_S3_SECRET_KEY",
 		"HANKO_VAULT_ADDR", "HANKO_VAULT_MOUNT", "HANKO_VAULT_NAMESPACE", "HANKO_VAULT_TOKEN",

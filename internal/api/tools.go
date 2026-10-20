@@ -148,10 +148,11 @@ type ToolProfile struct {
 
 // ToolVerdict é a decisão de um perfil e de onde ela veio.
 type ToolVerdict struct {
-	Allowed bool   `json:"allowed"`
-	Mode    string `json:"mode,omitempty" enum:"allow,ask"`
-	Source  string `json:"source" enum:"no_profile,default,include,exclude,tools" doc:"no_profile: sem perfil (tudo permitido); default: ação padrão; include/exclude: uma regra (rule_id); tools: alguma tool da integração está visível."`
-	RuleID  string `json:"rule_id,omitempty" format:"uuid"`
+	Allowed  bool   `json:"allowed"`
+	Mode     string `json:"mode,omitempty" enum:"allow,ask"`
+	Source   string `json:"source" enum:"no_profile,default,include,exclude,tools,policy:persona,policy:company" doc:"no_profile: sem perfil (tudo permitido); default: ação padrão; include/exclude: uma regra (rule_id); tools: alguma tool da integração está visível; policy:*: uma política de tools (policy_id) venceu o perfil."`
+	RuleID   string `json:"rule_id,omitempty" format:"uuid"`
+	PolicyID string `json:"policy_id,omitempty" format:"uuid"`
 }
 
 // EffectiveTool é uma tool com a decisão para a persona.
@@ -180,6 +181,7 @@ type EffectiveTools struct {
 	ProjectID    string                 `json:"project_id,omitempty" format:"uuid"`
 	Profile      string                 `json:"profile,omitempty" doc:"Slug do perfil que vale (ausente = sem perfil)."`
 	Binding      *ToolBinding           `json:"binding,omitempty" doc:"O vínculo que escolheu o perfil."`
+	Policies     []ToolPolicy           `json:"policies" doc:"Políticas de tools que valem para a persona (as dela e o padrão da empresa)."`
 	Integrations []EffectiveIntegration `json:"integrations"`
 }
 
@@ -229,9 +231,13 @@ type ToolInvocation struct {
 	Decision      string    `json:"decision" enum:"allow,deny,ask,quarantined,error"`
 	GateID        string    `json:"gate_id,omitempty" format:"uuid"`
 	Status        string    `json:"status" enum:"ok,failed,blocked,pending"`
-	LatencyMs     int       `json:"latency_ms"`
+	LatencyMs     int       `json:"latency_ms" doc:"Duração da chamada ao servidor."`
 	Error         string    `json:"error,omitempty"`
 	CreatedAt     time.Time `json:"created_at"`
+	Source        string    `json:"source" enum:"run,gateway,test,hook,acp,plugin" doc:"Por onde a chamada entrou."`
+	Actor         *ActorRef `json:"actor,omitempty" doc:"Quem fez: a persona, o humano que testou ou o sistema (gateway nomeado)."`
+	ResultPreview string    `json:"result_preview,omitempty" doc:"Início do resultado, sem segredos."`
+	PolicySource  string    `json:"policy_source,omitempty" doc:"De onde veio a decisão: include, exclude, default, policy:persona ou policy:company."`
 }
 
 // ReviewResult é o resultado da revisão em lote da quarentena.
@@ -294,11 +300,17 @@ func verdictOut(v domain.ToolVerdict) ToolVerdict {
 	if v.Rule != nil {
 		o.RuleID = idStr(v.Rule.ID)
 	}
+	if v.Policy != nil {
+		o.PolicyID = idStr(v.Policy.ID)
+	}
 	return o
 }
 
 func effectiveOut(v service.EffectiveTools) EffectiveTools {
-	o := EffectiveTools{PersonaID: idStr(v.PersonaID), ProjectID: optIDStr(v.ProjectID), Integrations: []EffectiveIntegration{}}
+	o := EffectiveTools{PersonaID: idStr(v.PersonaID), ProjectID: optIDStr(v.ProjectID), Policies: []ToolPolicy{}, Integrations: []EffectiveIntegration{}}
+	for _, p := range v.Policies {
+		o.Policies = append(o.Policies, policyOut(p))
+	}
 	if v.Profile != nil {
 		o.Profile = v.Profile.Slug
 	}
@@ -337,7 +349,16 @@ func invocationOut(v domain.ToolInvocation) ToolInvocation {
 	return ToolInvocation{ID: idStr(v.ID), RunID: optIDStr(v.RunID), GatewayID: optIDStr(v.GatewayID), Gateway: v.GatewaySlug,
 		PersonaID: optIDStr(v.PersonaID), Persona: v.PersonaName, IntegrationID: optIDStr(v.IntegrationID), Integration: v.IntegrationSlug,
 		Tool: v.Tool, ArgsSHA256: v.ArgsSHA256, ArgsBytes: v.ArgsBytes, Decision: string(v.Decision), GateID: optIDStr(v.GateID),
-		Status: v.Status, LatencyMs: v.LatencyMs, Error: v.Error, CreatedAt: v.CreatedAt}
+		Status: v.Status, LatencyMs: v.LatencyMs, Error: v.Error, CreatedAt: v.CreatedAt, Source: string(v.Source), ResultPreview: v.ResultPreview,
+		PolicySource: v.PolicySource, Actor: actorRefPtr(v.Actor)}
+}
+
+func actorRefPtr(a *domain.Actor) *ActorRef {
+	if a == nil {
+		return nil
+	}
+	r := actorRef(*a)
+	return &r
 }
 
 // ---------- entradas ----------
@@ -483,6 +504,7 @@ type listToolInvocationsIn struct {
 	Gateway     string `query:"gateway" doc:"Id ou slug do gateway nomeado."`
 	Run         string `query:"run" doc:"Id da execução."`
 	Decision    string `query:"decision" enum:"allow,deny,ask,quarantined,error"`
+	Source      string `query:"source" enum:"run,gateway,test,hook,acp,plugin" doc:"Por onde a chamada entrou."`
 	Tool        string `query:"tool"`
 	Since       string `query:"since" doc:"RFC 3339; só chamadas a partir daí."`
 	Page
@@ -983,7 +1005,7 @@ func (s *server) registerTools(api huma.API) {
 			if err != nil {
 				return nil, err
 			}
-			f := service.ToolInvocationFilter{Decision: domain.ToolDecision(in.Decision), Tool: in.Tool, Limit: in.Limit, Offset: in.Offset}
+			f := service.ToolInvocationFilter{Decision: domain.ToolDecision(in.Decision), Source: domain.ToolInvocationSource(in.Source), Tool: in.Tool, Limit: in.Limit, Offset: in.Offset}
 			if in.Integration != "" {
 				iid, err := s.integrationID(ctx, sc.Company.ID, in.Integration)
 				if err != nil {

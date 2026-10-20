@@ -69,6 +69,11 @@ type Config struct {
 // BuildArgs returns the CLI arguments for spec; mcpFile is the temp MCP config path ("" = none) and
 // skillsDir the temp directory whose .claude/skills the harness loads through --add-dir ("" = none).
 func BuildArgs(spec adapter.Spec, cfg Config, mcpFile, skillsDir string) []string {
+	return BuildArgsWith(spec, cfg, mcpFile, skillsDir, "")
+}
+
+// BuildArgsWith é BuildArgs com o arquivo de settings do hook PreToolUse da política de tools (ADR-0053; "" = sem hook).
+func BuildArgsWith(spec adapter.Spec, cfg Config, mcpFile, skillsDir, settingsFile string) []string {
 	mode := cfg.PermissionMode
 	if mode == "" {
 		mode = "acceptEdits"
@@ -96,6 +101,9 @@ func BuildArgs(spec adapter.Spec, cfg Config, mcpFile, skillsDir string) []strin
 	}
 	if skillsDir != "" {
 		args = append(args, "--add-dir", skillsDir)
+	}
+	if settingsFile != "" {
+		args = append(args, "--settings", settingsFile)
 	}
 	if spec.SessionRef != "" {
 		args = append(args, "--resume", spec.SessionRef)
@@ -183,6 +191,22 @@ func (a *Adapter) run(ctx context.Context, spec adapter.Spec, sink adapter.Sink,
 		defer os.RemoveAll(d)
 	}
 
+	// Hook PreToolUse da política de tools (ADR-0053): o claude chama `hanko hook pretooluse` antes de cada tool nativa e
+	// o Hanko decide (liberar, recusar ou esperar um gate). Só local: num ambiente remoto o executável não está no alvo.
+	var settingsFile string
+	if spec.ToolHookBin != "" && !spec.ReadOnly {
+		if spec.Exec != nil {
+			emitSystem(ctx, sink, "política de tools: o hook do claude não vale em ambiente remoto; as tools nativas seguem o modo de permissão da persona")
+		} else {
+			f, err := writeHookSettings(tmpBase, spec.ToolHookBin)
+			if err != nil {
+				return adapter.Result{ExitCode: -1}, fmt.Errorf("claude: hook settings: %w", err)
+			}
+			settingsFile = f
+			defer os.Remove(settingsFile)
+		}
+	}
+
 	env := procrun.HarnessEnv(os.Environ(), a.envAllow, spec.Env)
 	sink = adapter.RedactingSink(sink, secrets...)
 	opts := procrun.Options{Bin: a.bin, Dir: dir, Env: env, Stdin: spec.Prompt, Grace: a.grace}
@@ -197,7 +221,7 @@ func (a *Adapter) run(ctx context.Context, spec adapter.Spec, sink adapter.Sink,
 	if skillsDir != "" {
 		argSkills = remote(skillsDir)
 	}
-	opts.Args = BuildArgs(spec, cfg, argMCP, argSkills)
+	opts.Args = BuildArgsWith(spec, cfg, argMCP, argSkills, settingsFile)
 
 	p := newParser(nil)
 	var stderrTail []string
@@ -285,4 +309,46 @@ func cliModel(m string) string {
 		return "opus"
 	}
 	return strings.TrimSpace(m)
+}
+
+// hookTimeoutSec é o prazo do hook: cobre a espera de um gate de chamada nativa (10 min) com folga.
+const hookTimeoutSec = 660
+
+// hookSettings monta o settings do claude com o hook PreToolUse da política de tools.
+func hookSettings(bin string) ([]byte, error) {
+	cmd := shellQuote(bin) + " hook pretooluse"
+	return json.Marshal(map[string]any{"hooks": map[string]any{"PreToolUse": []any{map[string]any{
+		"matcher": "*",
+		"hooks":   []any{map[string]any{"type": "command", "command": cmd, "timeout": hookTimeoutSec}},
+	}}}})
+}
+
+func writeHookSettings(dir, bin string) (string, error) {
+	raw, err := hookSettings(bin)
+	if err != nil {
+		return "", err
+	}
+	f, err := os.CreateTemp(dir, "hanko-hooks-*.json")
+	if err != nil {
+		return "", err
+	}
+	_ = f.Chmod(0o600)
+	_, werr := f.Write(raw)
+	if cerr := f.Close(); werr == nil {
+		werr = cerr
+	}
+	if werr != nil {
+		_ = os.Remove(f.Name())
+		return "", werr
+	}
+	return f.Name(), nil
+}
+
+// shellQuote protege o caminho do executável para o shell que roda o hook.
+func shellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
+func emitSystem(ctx context.Context, sink adapter.Sink, text string) {
+	_ = sink.Emit(ctx, adapter.Event{Kind: domain.EventSystem, Text: text, OccurredAt: time.Now().UTC()})
 }

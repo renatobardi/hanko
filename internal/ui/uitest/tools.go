@@ -23,6 +23,12 @@ type ToolsData struct {
 	Invocations  []domain.ToolInvocation
 	// LastChoices é a última chamada de SetIntegrationToolChoices (para os testes).
 	LastChoices service.IntegrationToolChoices
+	// Política de tools (ADR-0053): as políticas, a última entrada gravada/testada e se a Caixa mostra a quarentena.
+	Policies        []domain.ToolPolicy
+	LastPolicy      service.ToolPolicyInput
+	LastTest        service.ToolTestInput
+	LastDecision    service.DecideGateInput
+	InboxQuarantine bool
 }
 
 func (f *Fake) toolsSeed() {
@@ -573,4 +579,94 @@ func (f *Fake) ListToolInvocations(ctx context.Context, _ domain.ID, flt service
 		out = append(out, v)
 	}
 	return out, nil
+}
+
+// ---------- política de tools (ADR-0053) ----------
+
+func (f *Fake) ListToolPolicies(_ context.Context, _ domain.ID, personaID *domain.ID) ([]domain.ToolPolicy, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.toolsSeed()
+	if err := f.fail("ListToolPolicies"); err != nil {
+		return nil, err
+	}
+	var out []domain.ToolPolicy
+	for _, p := range f.Tools.Policies {
+		if personaID != nil && (p.PersonaID == nil || *p.PersonaID != *personaID) {
+			continue
+		}
+		out = append(out, p)
+	}
+	return out, nil
+}
+
+func (f *Fake) SetToolPolicy(ctx context.Context, _ domain.Actor, companyID domain.ID, in service.ToolPolicyInput) (domain.ToolPolicy, error) {
+	if err := f.toolsAdmin(ctx); err != nil {
+		return domain.ToolPolicy{}, err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.toolsSeed()
+	f.note("SetToolPolicy")
+	if err := f.fail("SetToolPolicy"); err != nil {
+		return domain.ToolPolicy{}, err
+	}
+	if !in.Mode.Valid() || !in.Target.Valid() {
+		return domain.ToolPolicy{}, domain.Invalid("policy", "invalid")
+	}
+	f.Tools.LastPolicy = in
+	p := domain.ToolPolicy{ID: ID("policy:" + string(in.Target) + ":" + in.ToolName), CompanyID: companyID, Scope: in.Scope, PersonaID: in.PersonaID,
+		Target: in.Target, IntegrationID: in.IntegrationID, ToolName: in.ToolName, Mode: in.Mode, Origin: domain.PolicyOriginManual,
+		CreatedAt: Now(), UpdatedAt: Now()}
+	for _, it := range f.Tools.Integrations {
+		if in.IntegrationID != nil && it.ID == *in.IntegrationID {
+			p.IntegrationSlug = it.Slug
+		}
+	}
+	if in.PersonaID != nil {
+		for _, pe := range f.Personas {
+			if pe.ID == *in.PersonaID {
+				p.PersonaName = pe.Name
+			}
+		}
+	}
+	f.Tools.Policies = append(f.Tools.Policies, p)
+	return p, nil
+}
+
+func (f *Fake) DeleteToolPolicy(ctx context.Context, _ domain.Actor, _, id domain.ID) error {
+	if err := f.toolsAdmin(ctx); err != nil {
+		return err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.note("DeleteToolPolicy")
+	for i, p := range f.Tools.Policies {
+		if p.ID == id {
+			f.Tools.Policies = append(f.Tools.Policies[:i], f.Tools.Policies[i+1:]...)
+			return nil
+		}
+	}
+	return domain.ErrNotFound
+}
+
+func (f *Fake) TestToolCall(ctx context.Context, _ domain.Actor, _ domain.ID, in service.ToolTestInput) (service.ToolTestResult, error) {
+	if err := f.toolsAdmin(ctx); err != nil {
+		return service.ToolTestResult{}, err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.toolsSeed()
+	f.note("TestToolCall")
+	if err := f.fail("TestToolCall"); err != nil {
+		return service.ToolTestResult{}, err
+	}
+	f.Tools.LastTest = in
+	res := service.ToolTestResult{Persona: "Marina", Integration: "github", Tool: in.Tool, Status: domain.ToolActive, Risk: domain.ToolRiskWrite,
+		Verdict: domain.ToolVerdict{Allowed: true, Mode: domain.ToolModeAsk, Source: "policy:persona"}, Decision: domain.ToolDecisionAsk,
+		Message: "simulação: a chamada pediria aprovação (abriria um gate tool)", Executed: in.Execute}
+	if in.Execute {
+		res.Decision, res.Message, res.Output = domain.ToolDecisionAllow, "", "issue #42 aberta"
+	}
+	return res, nil
 }
