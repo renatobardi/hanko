@@ -180,6 +180,9 @@ type Config struct {
 	Secret   string `yaml:"secret" env:"HANKO_SECRET"`
 	// SecretKey cifra em repouso os segredos das integrações (AES-256-GCM, ADR-0029); SecretKeyPrevious é a
 	// chave anterior durante uma rotação (só decifra). Sem SecretKey, integrações com segredo não podem ser salvas.
+	// PushSubject identifica o operador perante o serviço de web push (VAPID sub, ADR-0042): "mailto:..." ou uma URL
+	// https. Vazio = mailto do dono (HANKO_AUTH_OWNER_EMAIL) ou, sem ele, a HANKO_PUBLIC_URL quando é https.
+	PushSubject       string        `yaml:"push_subject" env:"HANKO_PUSH_SUBJECT"`
 	SecretKey         string        `yaml:"secret_key" env:"HANKO_SECRET_KEY"`
 	SecretKeyPrevious string        `yaml:"secret_key_previous" env:"HANKO_SECRET_KEY_PREVIOUS"`
 	Integrations      Integrations  `yaml:"integrations"`
@@ -193,6 +196,9 @@ type Config struct {
 	Auth              Auth          `yaml:"auth"`
 	ClaudeBin         string        `yaml:"claude_bin" env:"HANKO_CLAUDE_BIN"`
 	CodexBin          string        `yaml:"codex_bin" env:"HANKO_CODEX_BIN"`
+	DevinBin          string        `yaml:"devin_bin" env:"HANKO_DEVIN_BIN"`
+	PiBin             string        `yaml:"pi_bin" env:"HANKO_PI_BIN"`
+	CursorBin         string        `yaml:"cursor_bin" env:"HANKO_CURSOR_BIN"`
 	Workers           int           `yaml:"workers" env:"HANKO_WORKERS"`
 	RunTimeout        time.Duration `yaml:"run_timeout" env:"HANKO_RUN_TIMEOUT"`
 	HeartbeatInterval time.Duration `yaml:"heartbeat_interval" env:"HANKO_HEARTBEAT_INTERVAL"`
@@ -258,6 +264,9 @@ func Defaults() Config {
 		TrustedProxies:     []string{"127.0.0.1/32", "::1/128"},
 		ClaudeBin:          "claude",
 		CodexBin:           "codex",
+		DevinBin:           "devin",
+		PiBin:              "pi",
+		CursorBin:          "cursor-agent",
 		Workers:            4,
 		RunTimeout:         30 * time.Minute,
 		HeartbeatInterval:  time.Minute,
@@ -322,7 +331,7 @@ func environFor(getenv func(string) string) map[string]string {
 	keys := []string{
 		"HANKO_DATABASE_URL", "HANKO_ADDR", "HANKO_PUBLIC_URL", "HANKO_AGENT_URL", "HANKO_MODE", "HANKO_SECRET",
 		"HANKO_MIGRATE_ON_BOOT", "HANKO_MEMORY_PROVIDER", "HANKO_MEMORY_URL", "HANKO_MEMORY_TOKEN", "HANKO_MEMORY_READ_TOOL",
-		"HANKO_CLAUDE_BIN", "HANKO_CODEX_BIN", "HANKO_WORKERS", "HANKO_RUN_TIMEOUT",
+		"HANKO_CLAUDE_BIN", "HANKO_CODEX_BIN", "HANKO_DEVIN_BIN", "HANKO_PI_BIN", "HANKO_CURSOR_BIN", "HANKO_WORKERS", "HANKO_RUN_TIMEOUT",
 		"HANKO_HEARTBEAT_INTERVAL", "HANKO_LOG_LEVEL", "HANKO_LOG_FORMAT",
 		"HANKO_AGENT_ENV_ALLOW", "HANKO_ALLOWED_HOSTS", "HANKO_WORKSPACES_ROOT", "HANKO_RUN_RESERVE_USD", "HANKO_ARTIFACT_MAX_BYTES", "HANKO_ARTIFACT_QUOTA_BYTES", "HANKO_ALERT_SILENT_FACTOR", "HANKO_ALERT_RUN_STUCK_AFTER",
 		"HANKO_RATELIMIT_ENABLED", "HANKO_RATELIMIT_WRITES_PER_MIN", "HANKO_RATELIMIT_IP_PER_MIN", "HANKO_RATELIMIT_MCP_PER_MIN",
@@ -330,7 +339,7 @@ func environFor(getenv func(string) string) map[string]string {
 		"HANKO_AUTH_PROVIDER", "HANKO_AUTH_ALLOWED_EMAILS", "HANKO_AUTH_ALLOWED_DOMAINS",
 		"HANKO_FIREBASE_PROJECT_ID", "HANKO_FIREBASE_API_KEY", "HANKO_FIREBASE_AUTH_DOMAIN",
 		"HANKO_AUTH_OWNER_EMAIL", "HANKO_AUTH_WEB_BOOTSTRAP", "HANKO_TRUSTED_PROXIES",
-		"HANKO_SECRET_KEY", "HANKO_SECRET_KEY_PREVIOUS", "HANKO_INTEGRATIONS_ALLOW_STDIO", "HANKO_INTEGRATIONS_ALLOW_PRIVATE",
+		"HANKO_SECRET_KEY", "HANKO_SECRET_KEY_PREVIOUS", "HANKO_PUSH_SUBJECT", "HANKO_INTEGRATIONS_ALLOW_STDIO", "HANKO_INTEGRATIONS_ALLOW_PRIVATE",
 		"HANKO_ACP_ALLOW", "HANKO_ACP_COMMANDS", "HANKO_SKILL_SOURCES", "HANKO_TOOLS_SINGLE_ENDPOINT",
 		"HANKO_BLOB_DRIVER", "HANKO_S3_ENDPOINT", "HANKO_S3_REGION", "HANKO_S3_BUCKET", "HANKO_S3_PREFIX", "HANKO_S3_PATH_STYLE",
 		"HANKO_S3_ACCESS_KEY", "HANKO_S3_SECRET_KEY",
@@ -460,6 +469,9 @@ func (c Config) Validate() error {
 	}
 	if _, _, err := net.SplitHostPort(c.Addr); err != nil {
 		add("HANKO_ADDR %q inválido: use host:porta (ex.: 127.0.0.1:7420)", c.Addr)
+	}
+	if sub := strings.TrimSpace(c.PushSubject); sub != "" && !strings.HasPrefix(sub, "mailto:") && !strings.HasPrefix(sub, "https://") {
+		add("HANKO_PUSH_SUBJECT %q inválido: use mailto:alguem@exemplo.org ou uma URL https", c.PushSubject)
 	}
 	if u, err := url.Parse(c.PublicURL); err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
 		add("HANKO_PUBLIC_URL %q inválido: use http(s)://host[:porta]", c.PublicURL)
@@ -695,4 +707,18 @@ func (c Config) PublicHost() string {
 		return ""
 	}
 	return u.Host
+}
+
+// PushSubjectOrDefault é o contato do VAPID (ADR-0042): HANKO_PUSH_SUBJECT, senão o e-mail do dono, senão a URL
+// pública quando é https; vazio se nada disso existe (o service usa um valor neutro).
+func (c Config) PushSubjectOrDefault() string {
+	switch {
+	case strings.TrimSpace(c.PushSubject) != "":
+		return strings.TrimSpace(c.PushSubject)
+	case c.Auth.OwnerEmail != "":
+		return "mailto:" + c.Auth.OwnerEmail
+	case strings.HasPrefix(c.PublicURL, "https://"):
+		return c.PublicURL
+	}
+	return ""
 }

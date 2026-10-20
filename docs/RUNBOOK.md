@@ -454,6 +454,42 @@ segredos guardados (as integrações ficam, sem credenciais, e é só informá-l
 **Problemas comuns.** "destino não permitido": o endereço resolve para rede interna (ligue `HANKO_INTEGRATIONS_ALLOW_PRIVATE`
 se for proposital). "HANKO_SECRET_KEY não está configurada": defina a chave. MCP stdio ignorado na run: falta
 `HANKO_INTEGRATIONS_ALLOW_STDIO=true`.
+## Decision model e harnesses devin, pi, cursor e http (ADR-0056)
+
+**Decision model.** Um classificador externo por empresa que o próprio Hanko chama (triagem, classificador de fase, nome e resumo); cada
+chamada entra em Custos com o ator `system`. Configure em Configurações › Decision model, ou pela CLI:
+
+```sh
+hanko secret create openrouter --value-stdin            # a chave do provedor, como segredo da empresa
+hanko decision catalog --api-key-ref '${secret:openrouter}'   # modelos e preços do catálogo
+hanko decision set anthropic/claude-haiku-4.5 --api-key-ref '${secret:openrouter}'
+hanko decision feature triage on
+hanko decision triage HNK-12                            # comenta a sugestão na task (não atribui)
+hanko decision invocations                              # ledger: modelo, tokens, custo, origem
+```
+
+O endpoint padrão é o do OpenRouter; `--base-url` aponta qualquer API compatível com chat completions (destino interno só com
+`integrations.allow_private`). A chave nunca é guardada na configuração: só a referência `${secret:NOME}`, resolvida a cada chamada.
+Features nascem desligadas. O custo é `usage.cost` da resposta quando existe, senão tokens × preço do catálogo, e soma ao gasto mensal
+da empresa (orçamento).
+
+**Harnesses novos.** Todos entram por `hanko persona hire --agent <nome>` (ou o cartão na tela de contratação) e têm o executável fixado
+pelo operador, com autenticação feita fora do Hanko:
+
+| Harness | Executável (env / yaml) | Observação |
+| --- | --- | --- |
+| `devin` | `HANKO_DEVIN_BIN` (`devin`) | roda `devin acp` sobre o motor ACP; não passa por `HANKO_ACP_ALLOW`; `adapter_config` aceita `permission`, `model`, `env`, `init_timeout_sec` |
+| `pi` | `HANKO_PI_BIN` (`pi`) | `pi --mode json -p`; as tools do Hanko vão pela CLI `hanko` com o run token (a CLI precisa estar no PATH do servidor) |
+| `cursor` | `HANKO_CURSOR_BIN` (`cursor-agent`) | `cursor-agent -p --output-format stream-json`; mesma regra de tools; `force: true` deixa aplicar mudanças |
+| `http` | — | sem CLI: o Hanko roda o loop de tool-use sobre `base_url` (chat completions) com as tools MCP do Hanko; `adapter_config`: `base_url`, `api_key_ref` (`${secret:X}`), `model`, `max_steps`, `temperature`, `timeout_sec`, `tools` |
+| `acp` + `preset` | `HANKO_ACP_ALLOW` | `{"preset":"gemini"}` ou `"opencode"` preenche comando e argumentos; o gate do operador vale |
+
+**Conferir antes de rodar.** `hanko persona probe <persona>` (admin) roda um probe sem prompt e sem custo, com passos nomeados (binário,
+protocolo, autenticação, endpoint, modelo). Para `devin`/`acp` o probe faz initialize e session/new: um agente que exige login falha no
+passo "autenticação" citando os métodos anunciados. Para `pi`/`cursor` só confere o binário (`--version`).
+
+**Modelo local (ex.: oMLX).** Persona `http` com `base_url` do servidor local (`integrations.allow_private` ligado) e o modelo com tool
+calling comprovado; revisão (somente leitura) não oferece tools. O harness não executa comandos nem escreve em disco.
 ## Política de tools (ADR-0053)
 
 Por cima dos perfis de ferramentas (ADR-0036), uma **política** diz `off` (recusa), `ask` (pergunta antes, abre um gate `tool`) ou `allow` (passa
@@ -884,6 +920,13 @@ permitidos": o host do ambiente não casa com a lista. `Host key verification fa
 atual do host (refaça o `ssh-keyscan` e edite o ambiente). `Permission denied (publickey)`: a pública não está no
 `authorized_keys` ou a chave tem senha. "sem URL pública configurada": defina `HANKO_PUBLIC_URL` com um endereço que o host remoto
 alcance. Uso "órfão" na tela: o servidor caiu no meio da execução; a pasta remota pode ter ficado no host.
+
+## Acesso e ciclo de vida da empresa (ADR-0057)
+
+- **Login da CLI:** `hanko --url https://hanko.exemplo.com login [--scope full|read] [--device nome]` abre `/cli-auth/<código>`; quem está logado autoriza e a CLI guarda a API key em `~/.config/hanko/contexts.json` (0600; `HANKO_CONFIG_DIR` muda o lugar). `hanko whoami` mostra a conta, o dispositivo e o escopo; revogue em Configurações › Chaves de API. Chave `read` só lê (a API recusa escrita e o MCP).
+- **Arquivar:** `hanko -c <empresa> company archive` pausa as personas, cancela as execuções, desliga os fluxos e deixa a empresa somente leitura (faixa na UI, 409 nas escritas). `company restore [--resume]` desfaz. `company delete --confirm "<Nome>" -o backup.json` (só owner, só arquivada) guarda o export em `company_deletions`; `hanko company deletions` lista e `company download-deletion <id>` baixa.
+- **Import:** `hanko import arq.json --dry-run` mostra a prévia; `--into <empresa> --on-conflict skip|rename|replace --resolve personas/dev=replace` mescla só a configuração numa empresa existente. Na UI: `/importar`.
+- **Entrada de pessoas:** Configurações › Membros › "Gerar link de entrada" (`/pedir-acesso/<token>`); o admin aprova com o papel em `hanko member requests|approve|deny`. Contas da instalação: `/admin/usuarios` ou `hanko users`.
 ## Resiliência de run: continuação, diagnóstico, steer e fila
 
 ADR-0039 (migration 00090). Quando o processo do Hanko cai no meio de uma run, ela **continua sozinha**; quando o desfecho é

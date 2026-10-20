@@ -15,7 +15,8 @@ func actorOf(typ string, id *uuid.UUID) domain.Actor {
 
 func companyFromRow(r store.Company) domain.Company {
 	return domain.Company{ID: r.ID, Slug: r.Slug, Name: r.Name, TaskPrefix: r.TaskPrefix,
-		Timezone: r.Timezone, BudgetMonthlyCents: r.BudgetMonthlyCents, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt}
+		Timezone: r.Timezone, BudgetMonthlyCents: r.BudgetMonthlyCents, Description: r.Description,
+		ArchivedAt: r.ArchivedAt, ArchivedBy: r.ArchivedBy, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt}
 }
 
 func workspaceFromRow(r store.Workspace) domain.Workspace {

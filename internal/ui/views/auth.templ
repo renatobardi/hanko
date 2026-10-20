@@ -202,6 +202,7 @@ templ SettingsPage(sh Shell, vm SettingsVM) {
 		if len(vm.Sections) > 0 {
 			<div class="mb-6">@Tabs(vm.Sections)</div>
 		}
+		@companyAdminCard(sh, vm.Company)
 		if !vm.Authenticated {
 			@EmptyCard("lock", i18n.T(ctx, "Modo trusted"), i18n.T(ctx, "Contas e chaves de API existem no modo authenticated (HANKO_MODE=authenticated). Veja o RUNBOOK."), true)
 		} else {
@@ -228,6 +229,13 @@ templ SettingsPage(sh Shell, vm SettingsVM) {
 						</dd>
 					}
 				</dl>
+				<p class="mt-4">
+					if vm.UsersLink {
+						<a class="link-u" href="/admin/usuarios">{ i18n.T(ctx, "Usuários da instalação") }</a>
+						{ " · " }
+					}
+					<a class="link-u" href="/importar">{ i18n.T(ctx, "Importar empresa") }</a>
+				</p>
 				if vm.LocalLogin {
 					<details class="mt-4" open?={ vm.PasswordError != "" } id="senha">
 						<summary class="btn outline sm">{ i18n.T(ctx, "Trocar senha") }</summary>
@@ -289,6 +297,8 @@ templ SettingsPage(sh Shell, vm SettingsVM) {
 								<tr>
 									<th>{ i18n.T(ctx, "Nome") }</th>
 									<th>{ i18n.T(ctx, "Prefixo") }</th>
+									<th class="hide-sm">{ i18n.T(ctx, "Dispositivo") }</th>
+									<th class="hide-sm">{ i18n.T(ctx, "Acesso") }</th>
 									<th class="hide-sm">{ i18n.T(ctx, "Criada") }</th>
 									<th class="hide-sm">{ i18n.T(ctx, "Último uso") }</th>
 									<th></th>
@@ -299,6 +309,8 @@ templ SettingsPage(sh Shell, vm SettingsVM) {
 									<tr class="row">
 										<td>{ k.Name }</td>
 										<td class="id">{ k.Prefix }…</td>
+										<td class="hide-sm">{ k.Device }</td>
+										<td class="hide-sm"><span class="badge outline">{ k.Scope }</span></td>
 										<td class="when hide-sm">{ k.Created }</td>
 										<td class="when hide-sm">{ k.LastUsed }</td>
 										<td class="ta-r">
@@ -410,6 +422,7 @@ templ membersCard(sh Shell, m MembersVM) {
 					</tbody>
 				</table>
 			</div>
+			@joinCard(sh, m)
 			if len(m.Invites) > 0 {
 				<h3 class="mt-6">{ i18n.T(ctx, "Convites abertos") }</h3>
 				<div class="table-wrap">

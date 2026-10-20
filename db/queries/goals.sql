@@ -1,7 +1,7 @@
 -- name: CreateGoal :one
-INSERT INTO goals (id, company_id, project_id, slug, title, description, metric, unit, start_value, target_value,
+INSERT INTO goals (id, company_id, project_id, parent_id, slug, title, description, metric, unit, start_value, target_value,
                    current_value, due_date, status, owner_persona_id, created_by_type, created_by_id, created_at, updated_at)
-VALUES (@id, @company_id, @project_id, @slug, @title, @description, @metric, @unit, @start_value, @target_value,
+VALUES (@id, @company_id, @project_id, @parent_id, @slug, @title, @description, @metric, @unit, @start_value, @target_value,
         @current_value, @due_date, @status, @owner_persona_id, @created_by_type, @created_by_id, @now, @now)
 RETURNING *;
 
@@ -68,3 +68,22 @@ SELECT * FROM goals
 WHERE company_id = @company_id AND status = 'achieved' AND achieved_at >= @since
 ORDER BY achieved_at DESC, id DESC
 LIMIT 20;
+
+-- name: ListGoalNodes :many
+-- A floresta de metas da empresa (árvore, progresso agregado, cadeia do briefing). Poucas linhas por empresa.
+SELECT id, parent_id, slug, title, status, start_value, target_value, current_value
+FROM goals WHERE company_id = @company_id
+ORDER BY created_at, id;
+
+-- name: SetGoalParent :exec
+UPDATE goals SET parent_id = @parent_id, updated_at = @now WHERE company_id = @company_id AND id = @id;
+
+-- name: SetGoalStatus :exec
+-- Propagação do agregado: a meta-pai atinge o alvo quando as submetas atingem (ou volta a ativa).
+UPDATE goals SET status = @status, achieved_at = @achieved_at, updated_at = @now WHERE company_id = @company_id AND id = @id;
+
+-- name: CountGoalChildren :one
+SELECT count(*)::bigint FROM goals WHERE company_id = @company_id AND parent_id = @id AND status <> 'abandoned';
+
+-- name: ListGoalsByIDs :many
+SELECT * FROM goals WHERE company_id = @company_id AND id = ANY(@ids::uuid[]);

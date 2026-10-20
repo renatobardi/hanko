@@ -77,7 +77,7 @@ func (q *Queries) CountWorkspaceOpenTasks(ctx context.Context, arg CountWorkspac
 const createProject = `-- name: CreateProject :one
 INSERT INTO projects (id, company_id, slug, name, description, workspace_id, status, budget_monthly_cents, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)
-RETURNING id, company_id, slug, name, description, workspace_id, created_at, updated_at, status, budget_monthly_cents, environment_id
+RETURNING id, company_id, slug, name, description, workspace_id, created_at, updated_at, status, budget_monthly_cents, environment_id, search_tsv
 `
 
 type CreateProjectParams struct {
@@ -117,6 +117,7 @@ func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (P
 		&i.Status,
 		&i.BudgetMonthlyCents,
 		&i.EnvironmentID,
+		&i.SearchTsv,
 	)
 	return i, err
 }
@@ -182,7 +183,7 @@ func (q *Queries) DeleteWorkspace(ctx context.Context, arg DeleteWorkspaceParams
 }
 
 const getProjectByID = `-- name: GetProjectByID :one
-SELECT id, company_id, slug, name, description, workspace_id, created_at, updated_at, status, budget_monthly_cents, environment_id FROM projects WHERE company_id = $1 AND id = $2
+SELECT id, company_id, slug, name, description, workspace_id, created_at, updated_at, status, budget_monthly_cents, environment_id, search_tsv FROM projects WHERE company_id = $1 AND id = $2
 `
 
 type GetProjectByIDParams struct {
@@ -205,12 +206,13 @@ func (q *Queries) GetProjectByID(ctx context.Context, arg GetProjectByIDParams) 
 		&i.Status,
 		&i.BudgetMonthlyCents,
 		&i.EnvironmentID,
+		&i.SearchTsv,
 	)
 	return i, err
 }
 
 const getProjectBySlug = `-- name: GetProjectBySlug :one
-SELECT id, company_id, slug, name, description, workspace_id, created_at, updated_at, status, budget_monthly_cents, environment_id FROM projects WHERE company_id = $1 AND slug = $2
+SELECT id, company_id, slug, name, description, workspace_id, created_at, updated_at, status, budget_monthly_cents, environment_id, search_tsv FROM projects WHERE company_id = $1 AND slug = $2
 `
 
 type GetProjectBySlugParams struct {
@@ -233,6 +235,7 @@ func (q *Queries) GetProjectBySlug(ctx context.Context, arg GetProjectBySlugPara
 		&i.Status,
 		&i.BudgetMonthlyCents,
 		&i.EnvironmentID,
+		&i.SearchTsv,
 	)
 	return i, err
 }
@@ -290,7 +293,7 @@ func (q *Queries) GetWorkspaceBySlug(ctx context.Context, arg GetWorkspaceBySlug
 }
 
 const listProjects = `-- name: ListProjects :many
-SELECT id, company_id, slug, name, description, workspace_id, created_at, updated_at, status, budget_monthly_cents, environment_id FROM projects WHERE company_id = $1 ORDER BY created_at, id
+SELECT id, company_id, slug, name, description, workspace_id, created_at, updated_at, status, budget_monthly_cents, environment_id, search_tsv FROM projects WHERE company_id = $1 ORDER BY created_at, id
 `
 
 func (q *Queries) ListProjects(ctx context.Context, companyID uuid.UUID) ([]Project, error) {
@@ -314,6 +317,7 @@ func (q *Queries) ListProjects(ctx context.Context, companyID uuid.UUID) ([]Proj
 			&i.Status,
 			&i.BudgetMonthlyCents,
 			&i.EnvironmentID,
+			&i.SearchTsv,
 		); err != nil {
 			return nil, err
 		}
@@ -738,7 +742,7 @@ UPDATE projects
 SET name = $1, description = $2, workspace_id = $3, status = $4,
     budget_monthly_cents = $5, updated_at = $6
 WHERE company_id = $7 AND id = $8
-RETURNING id, company_id, slug, name, description, workspace_id, created_at, updated_at, status, budget_monthly_cents, environment_id
+RETURNING id, company_id, slug, name, description, workspace_id, created_at, updated_at, status, budget_monthly_cents, environment_id, search_tsv
 `
 
 type UpdateProjectParams struct {
@@ -776,6 +780,7 @@ func (q *Queries) UpdateProject(ctx context.Context, arg UpdateProjectParams) (P
 		&i.Status,
 		&i.BudgetMonthlyCents,
 		&i.EnvironmentID,
+		&i.SearchTsv,
 	)
 	return i, err
 }

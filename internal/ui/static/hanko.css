@@ -438,6 +438,11 @@ form:has(input[name="agent"][value="acp"]:checked) .acp-only { display: block; }
 .model-picker .model-other, .model-picker .model-unpriced { display: none; }
 .model-picker:has(option[value="__other"]:checked) .model-other { display: block; }
 .model-picker:has(option[data-unpriced]:checked) .model-unpriced { display: block; color: var(--warn); }
+/* Permissões valem para os harnesses ACP (acp e devin); endpoint e chave, para o harness http (ADR-0056). */
+.perm-only, .http-only { display: none; }
+form:has(input[name="agent"][value="acp"]:checked) .perm-only,
+form:has(input[name="agent"][value="devin"]:checked) .perm-only { display: block; }
+form:has(input[name="agent"][value="http"]:checked) .http-only { display: block; }
 
 /* ---------- tables ---------- */
 .table-wrap { background: var(--card); box-shadow: var(--card-ring); border-radius: var(--radius-2xl); overflow-x: auto; }
@@ -653,6 +658,18 @@ table.table { width: 100%; border-collapse: collapse; font-size: var(--text-sm);
 .inbox-row { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; border-top: 1px solid var(--border); }
 .inbox-row.gate { box-shadow: inset 3px 0 0 var(--warn); }
 .inbox-row .main { flex: 1; min-width: 0; }
+/* Caixa por pessoa (ADR-0042): lido/arquivado, selo no menu e toasts ao vivo. */
+.inbox-ctl { order: 99; display: flex; gap: 2px; align-items: center; align-self: flex-start; }
+.inbox-ctl form { display: inline-flex; }
+.inbox-ctl .icon-btn { width: 28px; height: 28px; color: var(--muted-foreground); }
+.inbox-ctl .icon-btn svg.ic { width: 16px; height: 16px; }
+.unread-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); margin-right: 6px; flex: none; }
+.nav a .nav-badge-slot { margin-left: auto; display: inline-flex; }
+.nav-badge { background: var(--primary); color: var(--primary-foreground); font-size: var(--text-2xs); font-family: var(--font-mono); line-height: 1; padding: 3px 6px; border-radius: 999px; min-width: 18px; text-align: center; }
+.toasts { position: fixed; right: 16px; bottom: 16px; z-index: 60; display: flex; flex-direction: column; gap: 8px; width: min(360px, calc(100vw - 32px)); pointer-events: none; }
+.toast { pointer-events: auto; display: block; background: var(--card); color: var(--card-foreground); border: 1px solid var(--border); border-left: 3px solid var(--warn); border-radius: var(--radius); box-shadow: var(--shadow-pop); padding: 10px 12px; font-size: var(--text-sm); text-decoration: none; }
+.toast b { display: block; font-weight: 600; }
+.toast span { display: block; color: var(--muted-foreground); margin-top: 2px; overflow-wrap: anywhere; }
 .inbox-row .t { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-weight: 500; font-size: var(--text-sm); }
 .inbox-row .t a:not(.id):hover { text-decoration: underline; text-underline-offset: 3px; }
 .inbox-row .id { font-size: var(--text-xs); color: var(--muted-foreground); font-weight: 400; }
@@ -1044,6 +1061,11 @@ a.sidebar-foot:hover, a.sidebar-foot[aria-current] { background: var(--sidebar-a
 .danger-text { color: var(--destructive); font-weight: 500; }
 .goal-prog { min-width: 180px; }
 .goal-prog .progress { margin: 0 0 6px; }
+/* Árvore de metas (ADR-0042): recuo por nível na lista e cadeia no detalhe. */
+.goals-table td.goal-depth-2 { padding-left: 28px; }
+.goals-table td.goal-depth-3 { padding-left: 52px; }
+.goals-table td.goal-depth-4 { padding-left: 76px; }
+.goal-path { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
 .goal-mini-row { padding: 8px 0; border-bottom: 1px solid var(--border); }
 .goal-mini-row:last-child { border-bottom: 0; }
 .goal-mini-row .progress { margin: 6px 0; }

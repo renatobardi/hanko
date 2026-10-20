@@ -66,6 +66,23 @@ type Adapter struct {
 	envAllow   []string
 	policy     Policy
 	policyFunc func() Policy
+	// fixed, quando definido, é um agente de 1ª classe (Devin): o operador fixa comando e argumentos, o gate
+	// HANKO_ACP_* não se aplica e o nome do harness é o do agente.
+	fixed *Fixed
+}
+
+// NewFixed devolve o adapter de um agente ACP de comando fixo pelo operador (ADR-0056).
+func NewFixed(o Options, f Fixed) *Adapter {
+	a := New(o)
+	a.fixed = &f
+	return a
+}
+
+func (a *Adapter) parseConfig(raw json.RawMessage) (Config, error) {
+	if a.fixed != nil {
+		return ParseFixedConfig(raw, *a.fixed)
+	}
+	return ParseConfig(raw)
 }
 
 func (a *Adapter) currentPolicy() Policy {
@@ -95,7 +112,12 @@ func New(o Options) *Adapter {
 }
 
 // Name implements adapter.Adapter.
-func (a *Adapter) Name() string { return "acp" }
+func (a *Adapter) Name() string {
+	if a.fixed != nil {
+		return a.fixed.Name
+	}
+	return "acp"
+}
 
 // SteerMode: ACP has no standard way to push text into a running turn, so an operator message cancels the turn in
 // course (session/cancel) and goes as the next session/prompt of the same session: the agent process, its context
@@ -106,12 +128,14 @@ func (a *Adapter) SteerMode() domain.SteerMode { return domain.SteerInject }
 // permission requests with "cancelled", waits briefly and then kills the process group; the
 // partial Result is returned with a nil error (the caller inspects ctx).
 func (a *Adapter) Run(ctx context.Context, spec adapter.Spec, sink adapter.Sink) (adapter.Result, error) {
-	cfg, err := ParseConfig(spec.Config)
+	cfg, err := a.parseConfig(spec.Config)
 	if err != nil {
-		return adapter.Result{ExitCode: -1, IsError: true, Error: err.Error()}, fmt.Errorf("acp: adapter_config: %w", err)
+		return adapter.Result{ExitCode: -1, IsError: true, Error: err.Error()}, fmt.Errorf("%s: adapter_config: %w", a.Name(), err)
 	}
-	if err := a.currentPolicy().Check(cfg.Command); err != nil {
-		return adapter.Result{ExitCode: -1, IsError: true, Error: err.Error()}, fmt.Errorf("acp: %w", err)
+	if a.fixed == nil {
+		if err := a.currentPolicy().Check(cfg.Command); err != nil {
+			return adapter.Result{ExitCode: -1, IsError: true, Error: err.Error()}, fmt.Errorf("acp: %w", err)
+		}
 	}
 	// The persona's env goes first; the run's own variables (run token, OTel) always win.
 	env := map[string]string{}
@@ -124,7 +148,7 @@ func (a *Adapter) Run(ctx context.Context, spec adapter.Spec, sink adapter.Sink)
 	sspec := spec
 	sspec.Env = env
 	secrets := adapter.SpecSecrets(sspec)
-	res, err := a.run(ctx, spec, cfg, env, sink, secrets)
+	res, err := a.run(ctx, spec, cfg, env, sink, secrets, nil)
 	return adapter.RedactResult(res, secrets...), err
 }
 
@@ -146,7 +170,7 @@ func (e *exitCause) Error() string {
 	return fmt.Sprintf("acp agent exited with code %d", e.code)
 }
 
-func (a *Adapter) run(ctx context.Context, spec adapter.Spec, cfg Config, env map[string]string, sink adapter.Sink, secrets []string) (adapter.Result, error) {
+func (a *Adapter) run(ctx context.Context, spec adapter.Spec, cfg Config, env map[string]string, sink adapter.Sink, secrets []string, probe *probeState) (adapter.Result, error) {
 	dir := spec.Dir
 	if dir == "" || spec.Exec != nil && !isDir(dir) {
 		d, err := os.MkdirTemp("", "hanko-run-*")
@@ -197,7 +221,7 @@ func (a *Adapter) run(ctx context.Context, spec adapter.Spec, cfg Config, env ma
 		exited <- procExit{pr, perr}
 	}()
 
-	d := &driver{a: a, cfg: cfg, spec: spec, s: s, c: c, files: files}
+	d := &driver{a: a, cfg: cfg, spec: spec, s: s, c: c, files: files, probe: probe}
 	out := d.protocol(ctx)
 
 	// Close stdin (EOF is how an ACP agent learns the client is done) and wait for the exit.
@@ -231,6 +255,8 @@ func (a *Adapter) run(ctx context.Context, spec adapter.Spec, cfg Config, env ma
 		res.Error = "execução interrompida: " + ctx.Err().Error()
 	case out.err != nil:
 		res.IsError, res.Error = true, out.err.Error()
+	case probe != nil:
+		// o probe não envia prompt: não há stopReason a avaliar
 	default:
 		if msg := stopMessage(out.stop); msg != "" {
 			res.IsError, res.Error = true, msg
@@ -277,6 +303,8 @@ type driver struct {
 	s     *session
 	c     *conn
 	files *fileRoot
+	// probe, quando definido, para o protocolo depois de session/new (sem prompt, sem custo) e registra até onde foi.
+	probe *probeState
 }
 
 type outcome struct {
@@ -367,6 +395,9 @@ func (d *driver) protocol(ctx context.Context) (out outcome) {
 	}
 	name := firstNonEmpty(ir.AgentInfo.Title, ir.AgentInfo.Name, d.cfg.Command)
 	s.emit(domain.EventSystem, strings.TrimSpace(fmt.Sprintf("agente ACP conectado: %s %s (protocolo %d)", name, ir.AgentInfo.Version, ProtocolVersion)), json.RawMessage(raw))
+	if d.probe != nil {
+		d.probe.initialized, d.probe.agentName, d.probe.authMethods = true, name, authMethodIDs(ir)
+	}
 
 	// 2. session/load or session/new
 	servers, warns := convertMCP(d.spec.MCPConfig, ir.AgentCapabilities.McpCapabilities)
@@ -413,6 +444,10 @@ func (d *driver) protocol(ctx context.Context) (out outcome) {
 		}
 		out.sessionID, setupRaw = ss.SessionID, nraw
 		s.setSessionID(ss.SessionID)
+	}
+	if d.probe != nil {
+		d.probe.sessionOK = true
+		return out
 	}
 
 	d.s.announceSession(out.sessionID)
@@ -604,10 +639,10 @@ func (e *exitCause) exitText() string {
 func (d *driver) sessionError(ctx context.Context, err error, ir initResult) error {
 	var rerr *rpcError
 	if errors.As(err, &rerr) && (rerr.Code == -32000 || strings.Contains(strings.ToLower(rerr.Message), "auth")) {
-		ids := make([]string, 0, len(ir.AuthMethods))
-		for _, m := range ir.AuthMethods {
-			ids = append(ids, firstNonEmpty(m.ID, m.Name))
+		if d.probe != nil {
+			d.probe.authRequired = true
 		}
+		ids := authMethodIDs(ir)
 		hint := ""
 		if len(ids) > 0 {
 			hint = " (métodos anunciados: " + strings.Join(ids, ", ") + ")"
@@ -615,6 +650,14 @@ func (d *driver) sessionError(ctx context.Context, err error, ir initResult) err
 		return fmt.Errorf("o agente exige autenticação%s: %s. O Hanko não faz autenticação interativa; autentique o agente fora do Hanko (por exemplo, a chave de API em adapter_config.env) e tente de novo", hint, rerr.Message)
 	}
 	return d.phaseError(ctx, "session/new", err)
+}
+
+func authMethodIDs(ir initResult) []string {
+	ids := make([]string, 0, len(ir.AuthMethods))
+	for _, m := range ir.AuthMethods {
+		ids = append(ids, firstNonEmpty(m.ID, m.Name))
+	}
+	return ids
 }
 
 func (d *driver) hint() string {

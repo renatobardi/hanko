@@ -119,6 +119,11 @@ func (s *Service) EvaluateAlerts(ctx context.Context) (AlertEval, error) {
 				return err
 			}
 			t.publish(companyTopic(a.CompanyID), "alert.updated", a)
+			if co, err := t.q.GetCompanyByID(ctx, a.CompanyID); err == nil {
+				if err := t.notifyMembers(a.CompanyID, domain.NotifyAlert, nil, Notice{Title: "Alerta: " + clipRunes(a.Message, 90), URL: "/c/" + co.Slug + "/caixa?aba=alertas"}); err != nil {
+					return err
+				}
+			}
 			ev.Opened++
 		}
 		for k, cur := range byKey {

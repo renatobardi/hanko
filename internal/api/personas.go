@@ -24,7 +24,7 @@ type hirePersonaIn struct {
 		Title                string         `json:"title,omitempty" example:"CTO"`
 		Icon                 string         `json:"icon,omitempty" enum:"bot,code,search,pen-line,shield-check,trending-up,cpu,database,palette,megaphone,scale,book-open,wrench,headphones,rocket,briefcase,sparkles,globe" example:"code" doc:"Glifo da persona; padrão bot."`
 		Instructions         string         `json:"instructions,omitempty" doc:"Instruções permanentes da persona."`
-		Agent                string         `json:"agent" enum:"claude,codex,acp,fake" example:"claude" doc:"Harness que executa a persona."`
+		Agent                string         `json:"agent" enum:"claude,codex,acp,devin,pi,cursor,http,fake" example:"claude" doc:"Harness que executa a persona."`
 		Model                string         `json:"model,omitempty" example:"claude-sonnet-4-5"`
 		AdapterConfig        map[string]any `json:"adapter_config,omitempty" doc:"Configuração específica do adapter (ex.: permission_mode, extra_args). Para agent acp é obrigatória: command (executável do agente ACP), args, env, permission (allow, reject ou read_only; padrão read_only), model e init_timeout_sec."`
 		ReportsTo            string         `json:"reports_to,omitempty" doc:"Id ou slug da persona superior."`

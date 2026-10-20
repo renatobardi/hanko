@@ -276,7 +276,7 @@ func (q *Queries) GetMemberRole(ctx context.Context, arg GetMemberRoleParams) (s
 }
 
 const listCompaniesForUser = `-- name: ListCompaniesForUser :many
-SELECT c.id, c.slug, c.name, c.task_prefix, c.timezone, c.next_task_number, c.created_at, c.updated_at, c.budget_monthly_cents FROM companies c JOIN company_members m ON m.company_id = c.id
+SELECT c.id, c.slug, c.name, c.task_prefix, c.timezone, c.next_task_number, c.created_at, c.updated_at, c.budget_monthly_cents, c.description, c.archived_at, c.archived_by, c.archive_snapshot FROM companies c JOIN company_members m ON m.company_id = c.id
 WHERE m.user_id = $1 ORDER BY c.created_at, c.id
 `
 
@@ -299,6 +299,10 @@ func (q *Queries) ListCompaniesForUser(ctx context.Context, userID uuid.UUID) ([
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.BudgetMonthlyCents,
+			&i.Description,
+			&i.ArchivedAt,
+			&i.ArchivedBy,
+			&i.ArchiveSnapshot,
 		); err != nil {
 			return nil, err
 		}

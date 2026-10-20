@@ -12,18 +12,35 @@ import (
 	"github.com/google/uuid"
 )
 
+const countGoalChildren = `-- name: CountGoalChildren :one
+SELECT count(*)::bigint FROM goals WHERE company_id = $1 AND parent_id = $2 AND status <> 'abandoned'
+`
+
+type CountGoalChildrenParams struct {
+	CompanyID uuid.UUID
+	ID        *uuid.UUID
+}
+
+func (q *Queries) CountGoalChildren(ctx context.Context, arg CountGoalChildrenParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countGoalChildren, arg.CompanyID, arg.ID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const createGoal = `-- name: CreateGoal :one
-INSERT INTO goals (id, company_id, project_id, slug, title, description, metric, unit, start_value, target_value,
+INSERT INTO goals (id, company_id, project_id, parent_id, slug, title, description, metric, unit, start_value, target_value,
                    current_value, due_date, status, owner_persona_id, created_by_type, created_by_id, created_at, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-        $11, $12, $13, $14, $15, $16, $17, $17)
-RETURNING id, company_id, project_id, slug, title, description, metric, unit, start_value, target_value, current_value, due_date, status, owner_persona_id, created_by_type, created_by_id, achieved_at, created_at, updated_at
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
+        $12, $13, $14, $15, $16, $17, $18, $18)
+RETURNING id, company_id, project_id, slug, title, description, metric, unit, start_value, target_value, current_value, due_date, status, owner_persona_id, created_by_type, created_by_id, achieved_at, created_at, updated_at, parent_id, search_tsv
 `
 
 type CreateGoalParams struct {
 	ID             uuid.UUID
 	CompanyID      uuid.UUID
 	ProjectID      *uuid.UUID
+	ParentID       *uuid.UUID
 	Slug           string
 	Title          string
 	Description    string
@@ -45,6 +62,7 @@ func (q *Queries) CreateGoal(ctx context.Context, arg CreateGoalParams) (Goal, e
 		arg.ID,
 		arg.CompanyID,
 		arg.ProjectID,
+		arg.ParentID,
 		arg.Slug,
 		arg.Title,
 		arg.Description,
@@ -81,6 +99,8 @@ func (q *Queries) CreateGoal(ctx context.Context, arg CreateGoalParams) (Goal, e
 		&i.AchievedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ParentID,
+		&i.SearchTsv,
 	)
 	return i, err
 }
@@ -128,7 +148,7 @@ func (q *Queries) CreateGoalUpdate(ctx context.Context, arg CreateGoalUpdatePara
 }
 
 const getGoalByID = `-- name: GetGoalByID :one
-SELECT id, company_id, project_id, slug, title, description, metric, unit, start_value, target_value, current_value, due_date, status, owner_persona_id, created_by_type, created_by_id, achieved_at, created_at, updated_at FROM goals WHERE company_id = $1 AND id = $2
+SELECT id, company_id, project_id, slug, title, description, metric, unit, start_value, target_value, current_value, due_date, status, owner_persona_id, created_by_type, created_by_id, achieved_at, created_at, updated_at, parent_id, search_tsv FROM goals WHERE company_id = $1 AND id = $2
 `
 
 type GetGoalByIDParams struct {
@@ -159,12 +179,14 @@ func (q *Queries) GetGoalByID(ctx context.Context, arg GetGoalByIDParams) (Goal,
 		&i.AchievedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ParentID,
+		&i.SearchTsv,
 	)
 	return i, err
 }
 
 const getGoalByIDForUpdate = `-- name: GetGoalByIDForUpdate :one
-SELECT id, company_id, project_id, slug, title, description, metric, unit, start_value, target_value, current_value, due_date, status, owner_persona_id, created_by_type, created_by_id, achieved_at, created_at, updated_at FROM goals WHERE company_id = $1 AND id = $2 FOR UPDATE
+SELECT id, company_id, project_id, slug, title, description, metric, unit, start_value, target_value, current_value, due_date, status, owner_persona_id, created_by_type, created_by_id, achieved_at, created_at, updated_at, parent_id, search_tsv FROM goals WHERE company_id = $1 AND id = $2 FOR UPDATE
 `
 
 type GetGoalByIDForUpdateParams struct {
@@ -195,12 +217,14 @@ func (q *Queries) GetGoalByIDForUpdate(ctx context.Context, arg GetGoalByIDForUp
 		&i.AchievedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ParentID,
+		&i.SearchTsv,
 	)
 	return i, err
 }
 
 const getGoalBySlug = `-- name: GetGoalBySlug :one
-SELECT id, company_id, project_id, slug, title, description, metric, unit, start_value, target_value, current_value, due_date, status, owner_persona_id, created_by_type, created_by_id, achieved_at, created_at, updated_at FROM goals WHERE company_id = $1 AND slug = $2
+SELECT id, company_id, project_id, slug, title, description, metric, unit, start_value, target_value, current_value, due_date, status, owner_persona_id, created_by_type, created_by_id, achieved_at, created_at, updated_at, parent_id, search_tsv FROM goals WHERE company_id = $1 AND slug = $2
 `
 
 type GetGoalBySlugParams struct {
@@ -231,6 +255,8 @@ func (q *Queries) GetGoalBySlug(ctx context.Context, arg GetGoalBySlugParams) (G
 		&i.AchievedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ParentID,
+		&i.SearchTsv,
 	)
 	return i, err
 }
@@ -303,6 +329,53 @@ func (q *Queries) GoalTaskCountsAll(ctx context.Context, companyID uuid.UUID) ([
 	return items, nil
 }
 
+const listGoalNodes = `-- name: ListGoalNodes :many
+SELECT id, parent_id, slug, title, status, start_value, target_value, current_value
+FROM goals WHERE company_id = $1
+ORDER BY created_at, id
+`
+
+type ListGoalNodesRow struct {
+	ID           uuid.UUID
+	ParentID     *uuid.UUID
+	Slug         string
+	Title        string
+	Status       string
+	StartValue   float64
+	TargetValue  float64
+	CurrentValue float64
+}
+
+// A floresta de metas da empresa (árvore, progresso agregado, cadeia do briefing). Poucas linhas por empresa.
+func (q *Queries) ListGoalNodes(ctx context.Context, companyID uuid.UUID) ([]ListGoalNodesRow, error) {
+	rows, err := q.db.Query(ctx, listGoalNodes, companyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListGoalNodesRow{}
+	for rows.Next() {
+		var i ListGoalNodesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ParentID,
+			&i.Slug,
+			&i.Title,
+			&i.Status,
+			&i.StartValue,
+			&i.TargetValue,
+			&i.CurrentValue,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listGoalUpdates = `-- name: ListGoalUpdates :many
 SELECT id, company_id, goal_id, value, note, author_type, author_id, created_at FROM goal_updates WHERE company_id = $1 AND goal_id = $2
 ORDER BY created_at DESC, id DESC LIMIT $3
@@ -345,7 +418,7 @@ func (q *Queries) ListGoalUpdates(ctx context.Context, arg ListGoalUpdatesParams
 }
 
 const listGoals = `-- name: ListGoals :many
-SELECT id, company_id, project_id, slug, title, description, metric, unit, start_value, target_value, current_value, due_date, status, owner_persona_id, created_by_type, created_by_id, achieved_at, created_at, updated_at FROM goals
+SELECT id, company_id, project_id, slug, title, description, metric, unit, start_value, target_value, current_value, due_date, status, owner_persona_id, created_by_type, created_by_id, achieved_at, created_at, updated_at, parent_id, search_tsv FROM goals
 WHERE company_id = $1
   AND ($2::text IS NULL OR status = $2::text)
   AND ($3::uuid IS NULL OR project_id = $3::uuid)
@@ -388,6 +461,59 @@ func (q *Queries) ListGoals(ctx context.Context, arg ListGoalsParams) ([]Goal, e
 			&i.AchievedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ParentID,
+			&i.SearchTsv,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listGoalsByIDs = `-- name: ListGoalsByIDs :many
+SELECT id, company_id, project_id, slug, title, description, metric, unit, start_value, target_value, current_value, due_date, status, owner_persona_id, created_by_type, created_by_id, achieved_at, created_at, updated_at, parent_id, search_tsv FROM goals WHERE company_id = $1 AND id = ANY($2::uuid[])
+`
+
+type ListGoalsByIDsParams struct {
+	CompanyID uuid.UUID
+	Ids       []uuid.UUID
+}
+
+func (q *Queries) ListGoalsByIDs(ctx context.Context, arg ListGoalsByIDsParams) ([]Goal, error) {
+	rows, err := q.db.Query(ctx, listGoalsByIDs, arg.CompanyID, arg.Ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Goal{}
+	for rows.Next() {
+		var i Goal
+		if err := rows.Scan(
+			&i.ID,
+			&i.CompanyID,
+			&i.ProjectID,
+			&i.Slug,
+			&i.Title,
+			&i.Description,
+			&i.Metric,
+			&i.Unit,
+			&i.StartValue,
+			&i.TargetValue,
+			&i.CurrentValue,
+			&i.DueDate,
+			&i.Status,
+			&i.OwnerPersonaID,
+			&i.CreatedByType,
+			&i.CreatedByID,
+			&i.AchievedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ParentID,
+			&i.SearchTsv,
 		); err != nil {
 			return nil, err
 		}
@@ -400,7 +526,7 @@ func (q *Queries) ListGoals(ctx context.Context, arg ListGoalsParams) ([]Goal, e
 }
 
 const listGoalsForBriefing = `-- name: ListGoalsForBriefing :many
-SELECT id, company_id, project_id, slug, title, description, metric, unit, start_value, target_value, current_value, due_date, status, owner_persona_id, created_by_type, created_by_id, achieved_at, created_at, updated_at FROM goals
+SELECT id, company_id, project_id, slug, title, description, metric, unit, start_value, target_value, current_value, due_date, status, owner_persona_id, created_by_type, created_by_id, achieved_at, created_at, updated_at, parent_id, search_tsv FROM goals
 WHERE company_id = $1 AND status = 'active'
   AND (($2::uuid IS NOT NULL AND project_id = $2::uuid)
        OR ($3::uuid IS NOT NULL AND id = $3::uuid))
@@ -445,6 +571,8 @@ func (q *Queries) ListGoalsForBriefing(ctx context.Context, arg ListGoalsForBrie
 			&i.AchievedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ParentID,
+			&i.SearchTsv,
 		); err != nil {
 			return nil, err
 		}
@@ -457,7 +585,7 @@ func (q *Queries) ListGoalsForBriefing(ctx context.Context, arg ListGoalsForBrie
 }
 
 const listRecentlyAchievedGoals = `-- name: ListRecentlyAchievedGoals :many
-SELECT id, company_id, project_id, slug, title, description, metric, unit, start_value, target_value, current_value, due_date, status, owner_persona_id, created_by_type, created_by_id, achieved_at, created_at, updated_at FROM goals
+SELECT id, company_id, project_id, slug, title, description, metric, unit, start_value, target_value, current_value, due_date, status, owner_persona_id, created_by_type, created_by_id, achieved_at, created_at, updated_at, parent_id, search_tsv FROM goals
 WHERE company_id = $1 AND status = 'achieved' AND achieved_at >= $2
 ORDER BY achieved_at DESC, id DESC
 LIMIT 20
@@ -497,6 +625,8 @@ func (q *Queries) ListRecentlyAchievedGoals(ctx context.Context, arg ListRecentl
 			&i.AchievedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ParentID,
+			&i.SearchTsv,
 		); err != nil {
 			return nil, err
 		}
@@ -506,6 +636,51 @@ func (q *Queries) ListRecentlyAchievedGoals(ctx context.Context, arg ListRecentl
 		return nil, err
 	}
 	return items, nil
+}
+
+const setGoalParent = `-- name: SetGoalParent :exec
+UPDATE goals SET parent_id = $1, updated_at = $2 WHERE company_id = $3 AND id = $4
+`
+
+type SetGoalParentParams struct {
+	ParentID  *uuid.UUID
+	Now       time.Time
+	CompanyID uuid.UUID
+	ID        uuid.UUID
+}
+
+func (q *Queries) SetGoalParent(ctx context.Context, arg SetGoalParentParams) error {
+	_, err := q.db.Exec(ctx, setGoalParent,
+		arg.ParentID,
+		arg.Now,
+		arg.CompanyID,
+		arg.ID,
+	)
+	return err
+}
+
+const setGoalStatus = `-- name: SetGoalStatus :exec
+UPDATE goals SET status = $1, achieved_at = $2, updated_at = $3 WHERE company_id = $4 AND id = $5
+`
+
+type SetGoalStatusParams struct {
+	Status     string
+	AchievedAt *time.Time
+	Now        time.Time
+	CompanyID  uuid.UUID
+	ID         uuid.UUID
+}
+
+// Propagação do agregado: a meta-pai atinge o alvo quando as submetas atingem (ou volta a ativa).
+func (q *Queries) SetGoalStatus(ctx context.Context, arg SetGoalStatusParams) error {
+	_, err := q.db.Exec(ctx, setGoalStatus,
+		arg.Status,
+		arg.AchievedAt,
+		arg.Now,
+		arg.CompanyID,
+		arg.ID,
+	)
+	return err
 }
 
 const setTaskGoal = `-- name: SetTaskGoal :exec
@@ -535,7 +710,7 @@ SET project_id = $1, title = $2, description = $3, metric = $4, unit = $5,
     start_value = $6, target_value = $7, current_value = $8, due_date = $9,
     status = $10, owner_persona_id = $11, achieved_at = $12, updated_at = $13
 WHERE company_id = $14 AND id = $15
-RETURNING id, company_id, project_id, slug, title, description, metric, unit, start_value, target_value, current_value, due_date, status, owner_persona_id, created_by_type, created_by_id, achieved_at, created_at, updated_at
+RETURNING id, company_id, project_id, slug, title, description, metric, unit, start_value, target_value, current_value, due_date, status, owner_persona_id, created_by_type, created_by_id, achieved_at, created_at, updated_at, parent_id, search_tsv
 `
 
 type UpdateGoalParams struct {
@@ -595,6 +770,8 @@ func (q *Queries) UpdateGoal(ctx context.Context, arg UpdateGoalParams) (Goal, e
 		&i.AchievedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ParentID,
+		&i.SearchTsv,
 	)
 	return i, err
 }

@@ -242,6 +242,13 @@ func (s *Service) ListTasks(ctx context.Context, companyID domain.ID, f TaskFilt
 		q = escapeLike(q)
 		p.Q = &q
 	}
+	if f.Mine {
+		uid, ok := callerUser(ctx)
+		if !ok {
+			return []TaskView{}, nil // "Minhas" é de uma pessoa; sem ela não há o que mostrar
+		}
+		p.MineUser = &uid
+	}
 	rows, err := s.read().ListTaskViews(ctx, p)
 	if err != nil {
 		return nil, fmt.Errorf("list tasks: %w", err)
@@ -254,6 +261,11 @@ func (s *Service) ListTasks(ctx context.Context, companyID domain.ID, f TaskFilt
 	}
 	if err := enrichTasks(ctx, s.read(), companyID, ptrs); err != nil {
 		return nil, err
+	}
+	if p.MineUser != nil && len(out) > 0 {
+		if err := s.fillParticipation(ctx, companyID, *p.MineUser, out); err != nil {
+			return nil, err
+		}
 	}
 	return out, nil
 }

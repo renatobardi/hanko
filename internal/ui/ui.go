@@ -238,6 +238,10 @@ type server struct {
 	// sseTick is how often the SSE handler re-reads the database as a safety
 	// net for dropped broker messages.
 	sseTick time.Duration
+	// life é o backend das telas do ADR-0057 (nil quando o backend não o implementa); imports guarda os
+	// arquivos enviados à tela /importar entre a prévia e a confirmação.
+	life    lifeBackend
+	imports importCache
 }
 
 // Mount registers the UI routes on mux using the real service.
@@ -263,6 +267,9 @@ func MountBackend(mux *http.ServeMux, be Backend, d Deps) {
 		now = func() time.Time { return time.Now().UTC() }
 	}
 	s := &server{be: be, broker: broker, log: log, version: d.Version, now: now, sseTick: 2 * time.Second, secure: d.Secure, platform: d.Platform}
+	if l, ok := be.(lifeBackend); ok {
+		s.life = l
+	}
 	if d.Auth != nil {
 		ab := d.Auth.Backend
 		if ab == nil {
@@ -386,6 +393,14 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("POST /c/{company}/caixa/tasks/{task}/acordar", post(co(s.handleInboxWake)))
 	mux.HandleFunc("POST /c/{company}/caixa/tasks/{task}/retomar", post(co(s.handleInboxResume)))
 	mux.HandleFunc("POST /c/{company}/caixa/personas/{persona}/reativar", post(co(s.handleInboxReactivate)))
+	mux.HandleFunc("POST /c/{company}/caixa/estado", post(co(s.handleInboxState)))
+	mux.HandleFunc("GET /c/{company}/caixa/selo", co(s.handleInboxBadge))
+	mux.HandleFunc("GET /c/{company}/caixa/eventos", co(s.handleInboxEvents))
+	mux.HandleFunc("GET /c/{company}/configuracoes/notificacoes", co(s.handleNotifySettings))
+	mux.HandleFunc("POST /c/{company}/configuracoes/notificacoes", post(co(s.handleNotifySave)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/notificacoes/teste", post(co(s.handleNotifyTest)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/notificacoes/aparelhos", post(co(s.handlePushSubscribe)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/notificacoes/aparelhos/remover", post(co(s.handlePushRemove)))
 	mux.HandleFunc("GET /c/{company}/decisoes", co(s.handleDecisions))
 	mux.HandleFunc("GET /c/{company}/gates", co(s.handleGates))
 	mux.HandleFunc("GET /c/{company}/gates/{gate}", co(s.handleGate))
@@ -408,6 +423,10 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("POST /c/{company}/configuracoes/segredos/{name}/rotacionar", post(co(s.handleRotateSecret)))
 	mux.HandleFunc("POST /c/{company}/configuracoes/segredos/{name}/revelar", post(co(s.handleRevealSecret)))
 	mux.HandleFunc("POST /c/{company}/configuracoes/segredos/{name}/apagar", post(co(s.handleDeleteSecret)))
+	mux.HandleFunc("GET /c/{company}/configuracoes/decisao", co(s.handleDecision))
+	mux.HandleFunc("POST /c/{company}/configuracoes/decisao", post(co(s.handleSaveDecision)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/decisao/remover", post(co(s.handleDeleteDecision)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/decisao/features/{feature}", post(co(s.handleDecisionFeature)))
 	mux.HandleFunc("GET /c/{company}/configuracoes/instancia", co(s.handleInstance))
 	mux.HandleFunc("POST /c/{company}/configuracoes/instancia/{key}", post(co(s.handleSetInstanceSetting)))
 	mux.HandleFunc("POST /c/{company}/configuracoes/instancia/{key}/padrao", post(co(s.handleUnsetInstanceSetting)))
@@ -421,7 +440,18 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("POST /c/{company}/configuracoes/membros/convites/{invite}/revogar", post(co(s.handleRevokeInvite)))
 	mux.HandleFunc("POST /c/{company}/configuracoes/membros/{user}/papel", post(co(s.handleMemberRole)))
 	mux.HandleFunc("POST /c/{company}/configuracoes/membros/{user}/remover", post(co(s.handleMemberRemove)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/empresa", post(co(s.handleCompanyUpdate)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/empresa/arquivar", post(co(s.handleCompanyArchive)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/empresa/restaurar", post(co(s.handleCompanyRestore)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/empresa/excluir", post(co(s.handleCompanyDelete)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/membros/entrada/link", post(co(s.handleJoinLinkCreate)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/membros/entrada/link/desligar", post(co(s.handleJoinLinkOff)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/membros/entrada/{request}/decidir", post(co(s.handleJoinDecide)))
+	mux.HandleFunc("GET /importar", s.handleImportPage)
+	mux.HandleFunc("POST /importar", post(s.handleImportUpload))
+	mux.HandleFunc("POST /importar/aplicar", post(s.handleImportApply))
 	s.authRoutes(mux)
+	s.accessRoutes(mux)
 	s.devRoutes(mux)
 
 	mux.HandleFunc("GET /c/{company}/atividade", co(s.handleActivity))
@@ -584,6 +614,9 @@ func friendly(ctx context.Context, err error) (int, string, string) {
 		if errors.As(err, &blocked) && blocked.Scope == "project" {
 			return st, i18n.T(ctx, "Orçamento do projeto estourado"), i18n.T(ctx, "O limite mensal do projeto foi atingido; nenhuma execução das tasks dele abre até o limite subir ou o mês virar.")
 		}
+		if errors.Is(err, domain.ErrCompanyArchived) {
+			return st, i18n.T(ctx, "Empresa arquivada"), i18n.T(ctx, "A empresa está somente leitura. Restaure-a em Configurações para voltar a editar.")
+		}
 		if errors.Is(err, domain.ErrBudgetExceeded) {
 			return st, i18n.T(ctx, "Orçamento estourado"), i18n.T(ctx, "O limite mensal foi atingido; nenhuma execução nova abre até o limite subir ou o mês virar.")
 		}
@@ -636,17 +669,26 @@ func (s *server) shell(r *http.Request, co domain.Company, active, title string,
 	cs := []views.Crumb{{Label: co.Name, Href: base + "/"}}
 	cs = append(cs, crumbs...)
 	return views.Shell{
-		Title:   title,
-		Company: views.CompanyRef{Slug: co.Slug, Name: co.Name},
-		Active:  active,
-		Crumbs:  cs,
-		Version: s.version,
-		Owner:   ownerName,
-		Role:    views.RoleFrom(r.Context()),
+		Title:    title,
+		Company:  views.CompanyRef{Slug: co.Slug, Name: co.Name},
+		Active:   active,
+		Crumbs:   cs,
+		Version:  s.version,
+		Owner:    ownerName,
+		Role:     views.RoleFrom(r.Context()),
+		Archived: co.Archived(),
+		// com pessoa autenticada a Caixa tem selo e toasts ao vivo (ADR-0042)
+		Personal: personal(r.Context()),
 	}
 }
 
 func trimForm(r *http.Request, key string) string { return strings.TrimSpace(r.PostFormValue(key)) }
+
+// personal diz se a requisição vem de uma pessoa autenticada (sessão ou API key), e não do modo trusted.
+func personal(ctx context.Context) bool {
+	_, ok := auth.IdentityFrom(ctx)
+	return ok
+}
 
 // actorFrom is the human actor of the request: the signed-in user in authenticated
 // mode, the anonymous local human in trusted mode.

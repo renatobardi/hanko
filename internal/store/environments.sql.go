@@ -810,7 +810,7 @@ const setProjectEnvironment = `-- name: SetProjectEnvironment :one
 
 UPDATE projects SET environment_id = $1, updated_at = $2
 WHERE company_id = $3 AND id = $4
-RETURNING id, company_id, slug, name, description, workspace_id, created_at, updated_at, status, budget_monthly_cents, environment_id
+RETURNING id, company_id, slug, name, description, workspace_id, created_at, updated_at, status, budget_monthly_cents, environment_id, search_tsv
 `
 
 type SetProjectEnvironmentParams struct {
@@ -841,6 +841,7 @@ func (q *Queries) SetProjectEnvironment(ctx context.Context, arg SetProjectEnvir
 		&i.Status,
 		&i.BudgetMonthlyCents,
 		&i.EnvironmentID,
+		&i.SearchTsv,
 	)
 	return i, err
 }

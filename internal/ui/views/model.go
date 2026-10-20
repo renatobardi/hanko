@@ -39,6 +39,10 @@ type Shell struct {
 	Owner   string            // display name of the human owner
 	Role    domain.MemberRole // papel da pessoa nesta empresa (só UX; o service é a barreira)
 	Flush   bool              // content area without padding (two-pane pages)
+	// Archived: a empresa está arquivada (somente leitura); a faixa avisa em toda página (ADR-0057).
+	Archived bool
+	// Personal: há uma pessoa autenticada, então a Caixa tem selo de não lidos e toasts ao vivo (ADR-0042).
+	Personal bool
 }
 
 // Base returns the company-scoped URL prefix, e.g. "/c/hanko".
@@ -296,6 +300,10 @@ type HirePersonaVM struct {
 	AcpCommand    string
 	AcpArgs       string   // one argument per line
 	AcpPermission []Option // allow | reject | read_only
+	AcpPreset     string   // gemini | opencode (ADR-0056)
+	// Harness http (ADR-0056): endpoint e referência da chave.
+	HttpBaseURL string
+	HttpKeyRef  string
 }
 
 type PersonaVM struct {
@@ -471,6 +479,10 @@ type ActivityDay struct {
 type ActivityVM struct {
 	Subtitle string
 	Days     []ActivityDay
+	// Filtro por ator (ADR-0042): opções do seletor, ação do formulário e se há filtro ligado.
+	ActorOptions []Option
+	Action       string
+	Filtered     bool
 }
 
 // ---- misc ----
@@ -612,6 +624,8 @@ type CostsVM struct {
 	HasSpend                             bool
 	BudgetKpi                            string
 	BudgetNote                           string
+	// Decision é o custo do decision model no período (ADR-0056); nil sem invocações.
+	Decision *DecisionCostVM
 }
 
 // ---- fluxos ----
@@ -729,6 +743,8 @@ type APIKeyRow struct {
 	Created  string
 	LastUsed string
 	Revoked  bool
+	Scope    string // rótulo: completo | só leitura
+	Device   string // dispositivo que fez hanko login ("" nas chaves criadas à mão)
 }
 
 // SettingsVM drives the account/API keys page.
@@ -751,6 +767,10 @@ type SettingsVM struct {
 	Members MembersVM
 	// Memory is the company's "Memória" section (memory consolidation, ADR-0030).
 	Memory MemoryVM
+	// Company é o cartão "Empresa": editar, arquivar, restaurar e excluir (ADR-0057).
+	Company CompanyAdminVM
+	// UsersLink: dono ou admin da instalação vê o atalho para /admin/usuarios.
+	UsersLink bool
 }
 
 // MemberRow is one member in the "Membros" table.
@@ -791,6 +811,8 @@ type MembersVM struct {
 	NewLinkEmail string
 	Email        string // form value kept after an error
 	Error        string
+	// Join é o link público de pedido de entrada e a fila de pedidos (ADR-0057).
+	Join JoinVM
 }
 
 // InviteVM drives the public /convite/{token} page.

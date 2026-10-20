@@ -384,6 +384,42 @@ stored secrets (integrations remain, without credentials; enter them again).
 **Webhooks.** Each delivery carries `X-Hanko-Signature: t=<unix>,v1=<hex>`, `X-Hanko-Event` and `X-Hanko-Delivery`. The receiver
 computes `HMAC-SHA256(secret, "<t>.<body>")`, compares in constant time and rejects an old `t`. Failures retry up to 7
 attempts (30 s, 2 min, 8 min, 32 min, ~2 h, 6 h). Delivery is at-least-once; deduplicate on `X-Hanko-Delivery`.
+## Decision model and the devin, pi, cursor and http harnesses (ADR-0056)
+
+**Decision model.** A per-company external classifier that Hanko itself calls (triage, phase classifier, name and summary); every call
+lands in Costs with the `system` actor. Configure it under Settings › Decision model, or from the CLI:
+
+```sh
+hanko secret create openrouter --value-stdin            # the provider key, as a company secret
+hanko decision catalog --api-key-ref '${secret:openrouter}'   # catalog models and prices
+hanko decision set anthropic/claude-haiku-4.5 --api-key-ref '${secret:openrouter}'
+hanko decision feature triage on
+hanko decision triage HNK-12                            # comments the suggestion on the task (does not assign)
+hanko decision invocations                              # ledger: model, tokens, cost, source
+```
+
+The default endpoint is OpenRouter's; `--base-url` points to any chat-completions-compatible API (an internal destination needs
+`integrations.allow_private`). The key is never stored in the configuration: only the `${secret:NAME}` reference, resolved on every
+call. Features start turned off. The cost is the response's `usage.cost` when present, otherwise tokens × catalog price, and it adds to
+the company's monthly spend (budget).
+
+**New harnesses.** All are hired with `hanko persona hire --agent <name>` (or the card in the hire screen); the executable is fixed by the
+operator and authentication happens outside Hanko:
+
+| Harness | Executable (env / yaml) | Notes |
+| --- | --- | --- |
+| `devin` | `HANKO_DEVIN_BIN` (`devin`) | runs `devin acp` over the ACP engine; not subject to `HANKO_ACP_ALLOW`; `adapter_config` accepts `permission`, `model`, `env`, `init_timeout_sec` |
+| `pi` | `HANKO_PI_BIN` (`pi`) | `pi --mode json -p`; Hanko tools go through the `hanko` CLI with the run token (the CLI must be on the server's PATH) |
+| `cursor` | `HANKO_CURSOR_BIN` (`cursor-agent`) | `cursor-agent -p --output-format stream-json`; same tools rule; `force: true` lets it apply changes |
+| `http` | — | no CLI: Hanko runs the tool-use loop over `base_url` (chat completions) with Hanko's MCP tools; `adapter_config`: `base_url`, `api_key_ref` (`${secret:X}`), `model`, `max_steps`, `temperature`, `timeout_sec`, `tools` |
+| `acp` + `preset` | `HANKO_ACP_ALLOW` | `{"preset":"gemini"}` or `"opencode"` fills in command and arguments; the operator gate applies |
+
+**Check before running.** `hanko persona probe <persona>` (admin) runs a probe with no prompt and no cost, with named steps (binary,
+protocol, authentication, endpoint, model). For `devin`/`acp` the probe does initialize and session/new: an agent that requires login
+fails the "authentication" step, quoting the methods it advertises. For `pi`/`cursor` it only checks the binary (`--version`).
+
+**Local model (e.g. oMLX).** An `http` persona with the local server's `base_url` (`integrations.allow_private` on) and a model with
+proven tool calling; review runs (read-only) offer no tools. The harness neither executes commands nor writes to disk.
 ## Tool policy (ADR-0053)
 
 On top of tool profiles (ADR-0036), a **policy** says `off` (refuse), `ask` (ask first, opens a `tool` gate) or `allow` (go straight through) for one persona
@@ -751,6 +787,12 @@ dispatch** (tasks, chat and reviews) with the reason until a test passes; a neve
 **Model catalog.** `hanko model list [--agent claude]` and the hire form's model picker (with an "Other…" option) merge harness
 aliases, `model_prices` rows, models seen by readiness tests and models used by the company's runs in the last 90 days. A model
 without its own price is flagged: its cost falls back to the fallback price (ADR-0019).
+## Access and company lifecycle (ADR-0057)
+
+- **CLI login:** `hanko --url https://hanko.example.com login [--scope full|read] [--device name]` opens `/cli-auth/<code>`; a signed-in person authorizes it and the CLI keeps the API key in `~/.config/hanko/contexts.json` (0600; `HANKO_CONFIG_DIR` changes the location). `hanko whoami` shows the account, device and scope; revoke under Settings › API keys. A `read` key only reads (the API refuses writes and MCP).
+- **Archive:** `hanko -c <company> company archive` pauses personas, cancels runs, switches flows off and makes the company read-only (UI banner, 409 on writes). `company restore [--resume]` undoes it. `company delete --confirm "<Name>" -o backup.json` (owner only, archived only) keeps the export in `company_deletions`; `hanko company deletions` lists and `company download-deletion <id>` downloads.
+- **Import:** `hanko import file.json --dry-run` shows the preview; `--into <company> --on-conflict skip|rename|replace --resolve personas/dev=replace` merges only the configuration into an existing company. In the UI: `/importar`.
+- **Letting people in:** Settings › Members › "Generate join link" (`/pedir-acesso/<token>`); an admin approves with a role via `hanko member requests|approve|deny`. Installation accounts: `/admin/usuarios` or `hanko users`.
 ## Run resilience: continuation, diagnosis, steer and queue
 
 ADR-0039 (migration 00090). When the Hanko process dies in the middle of a run, the run **goes on by itself**; when the outcome is
