@@ -153,7 +153,9 @@ func (a *Adapter) Run(ctx context.Context, spec adapter.Spec, sink adapter.Sink)
 		return err
 	}
 	// pause waits d (or until ctx ends), taking steer messages that arrive meanwhile; it returns false when ctx ended.
-	pause := func(d time.Duration) (bool, error) {
+	// Com untilSteer a primeira mensagem tomada encerra a espera: é o hold antes do último passo, que existe só para
+	// esperar o operador.
+	pause := func(d time.Duration, untilSteer bool) (bool, error) {
 		t := time.NewTimer(d)
 		defer t.Stop()
 		for {
@@ -164,6 +166,9 @@ func (a *Adapter) Run(ctx context.Context, spec adapter.Spec, sink adapter.Sink)
 				if err := take(m); err != nil {
 					return true, err
 				}
+				if untilSteer {
+					return true, nil
+				}
 			case <-t.C:
 				return true, nil
 			}
@@ -171,7 +176,7 @@ func (a *Adapter) Run(ctx context.Context, spec adapter.Spec, sink adapter.Sink)
 	}
 	for i, e := range steps {
 		if i > 0 && delay > 0 {
-			ok, err := pause(delay)
+			ok, err := pause(delay, false)
 			if err != nil {
 				return res, fmt.Errorf("fake: sink: %w", err)
 			}
@@ -180,7 +185,7 @@ func (a *Adapter) Run(ctx context.Context, spec adapter.Spec, sink adapter.Sink)
 			}
 		}
 		if i == len(steps)-1 && cfg.HoldForSteerMS > 0 && len(steered) == 0 && spec.Steer != nil {
-			ok, err := pause(time.Duration(cfg.HoldForSteerMS) * time.Millisecond)
+			ok, err := pause(time.Duration(cfg.HoldForSteerMS)*time.Millisecond, true)
 			if err != nil {
 				return res, fmt.Errorf("fake: sink: %w", err)
 			}
