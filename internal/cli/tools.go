@@ -61,9 +61,9 @@ func (e *env) verdictLabel(v api.ToolVerdict) string {
 
 // integrationToolsCmd é "hanko integration tools <integração>".
 func (e *env) integrationToolsCmd() *cobra.Command {
-	var refresh, review bool
+	var refresh, review, execute bool
 	var release []string
-	var disable, enable string
+	var disable, enable, test, asPersona, argsJSON string
 	c := &cobra.Command{
 		Use: "tools " + e.t("<integração>"), Short: e.t("Catálogo de tools de um servidor MCP (risco, estado, quarentena)"), Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, a []string) error {
@@ -72,6 +72,9 @@ func (e *env) integrationToolsCmd() *cobra.Command {
 				return err
 			}
 			cl, ctx := e.client(), cmd.Context()
+			if test != "" {
+				return e.testTool(ctx, cl, co, a[0], test, asPersona, argsJSON, execute)
+			}
 			if refresh {
 				r, err := cl.RefreshIntegrationTools(ctx, co, a[0])
 				if err != nil {
@@ -134,6 +137,10 @@ func (e *env) integrationToolsCmd() *cobra.Command {
 	f.StringArrayVar(&release, "release", nil, e.t("libera uma tool da quarentena (repita a flag)"))
 	f.StringVar(&disable, "disable", "", e.t("desliga uma tool"))
 	f.StringVar(&enable, "enable", "", e.t("liga uma tool desligada"))
+	f.StringVar(&test, "test", "", e.t("testa uma tool como uma persona (simula a decisão; com --execute chama de verdade)"))
+	f.StringVar(&asPersona, "as", "", e.t("persona cuja visão o teste usa (com --test)"))
+	f.StringVar(&argsJSON, "args", "", e.t("argumentos do teste em JSON (com --test)"))
+	f.BoolVar(&execute, "execute", false, e.t("com --test, chama a tool de verdade (passa pelo gate e entra na auditoria)"))
 	return c
 }
 

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"os"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -25,6 +26,7 @@ import (
 	"github.com/renatobardi/hanko/internal/heartbeat"
 	"github.com/renatobardi/hanko/internal/memory"
 	"github.com/renatobardi/hanko/internal/memory/aimemory"
+	"github.com/renatobardi/hanko/internal/ratelimit"
 	"github.com/renatobardi/hanko/internal/secretbox"
 	"github.com/renatobardi/hanko/internal/service"
 	"github.com/renatobardi/hanko/internal/settings"
@@ -66,6 +68,8 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 		PeriodicInterval: cfg.HeartbeatInterval,
 		WorkspacesRoot:   cfg.WorkspacesRoot,
 		Logger:           logger,
+
+		ToolsSingleEndpoint: cfg.ToolsSingleEndpoint,
 	})
 	if err != nil {
 		return fmt.Errorf("app: heartbeat: %w", err)
@@ -159,8 +163,13 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 	hb.Attach(svc, reg, mem, broker, tokens)
 	svc.Memory = mem
 
+	limiter, err := ratelimit.New(svc, logger)
+	if err != nil {
+		return fmt.Errorf("app: rate limit: %w", err)
+	}
+	go limiter.PurgeLoop(ctx, time.Hour)
 	handler, err := buildHandler(handlerDeps{Cfg: cfg, Version: version, Logger: logger, Svc: svc, Broker: broker,
-		Pool: pool, Tokens: tokens, Metrics: tel.MetricsHandler(), Memory: mem})
+		Pool: pool, Tokens: tokens, Metrics: tel.MetricsHandler(), Memory: mem, Limiter: limiter})
 	if err != nil {
 		return err
 	}
@@ -174,6 +183,7 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 		hbStarted = true
 		startPlugins(ctx)
 		logger.Info("hanko pronto", "version", version, "public_url", cfg.PublicURL, "mode", cfg.Mode, "memory", mem.Name(), "workers", cfg.Workers)
+		announceOwnerClaim(ctx, svc, cfg, logger, os.Stderr)
 		return nil
 	})
 
