@@ -48,13 +48,11 @@ jobs:
 
   trivy-fs:
     runs-on: ubuntu-26.04
-    # O instalador do binário do trivy falhou no runner (install.sh sai com 1 antes de varrer). Até estabilizar,
-    # o job não bloqueia o PR; depois de uma execução que realmente varra, remova continue-on-error.
-    continue-on-error: true
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: trivy fs (dependências e segredos)
-        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # v0.33.1
+        # v0.33.1 instalava o trivy v0.65.0, cujos binários saíram do ar (download 404): o job falhava antes de varrer.
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0 (trivy v0.70.0)
         with:
           scan-type: fs
           scan-ref: .
