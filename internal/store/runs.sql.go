@@ -13,7 +13,7 @@ import (
 )
 
 const activeRunForTask = `-- name: ActiveRunForTask :one
-SELECT id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv, instruction_revision, instruction_sha256, continuation_of_run_id, continuation_attempt, continuation_reason, resume_pending, resume_reason, diagnosis, decision_pending, decision, decision_note, decided_by_type, decided_by_id, decided_at FROM runs WHERE task_id = $1::uuid AND status IN ('queued', 'running')
+SELECT id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv, instruction_revision, instruction_sha256, environment_id, environment_source, continuation_of_run_id, continuation_attempt, continuation_reason, resume_pending, resume_reason, diagnosis, decision_pending, decision, decision_note, decided_by_type, decided_by_id, decided_at FROM runs WHERE task_id = $1::uuid AND status IN ('queued', 'running')
 `
 
 func (q *Queries) ActiveRunForTask(ctx context.Context, taskID uuid.UUID) (Run, error) {
@@ -56,6 +56,8 @@ func (q *Queries) ActiveRunForTask(ctx context.Context, taskID uuid.UUID) (Run, 
 		&i.SearchTsv,
 		&i.InstructionRevision,
 		&i.InstructionSha256,
+		&i.EnvironmentID,
+		&i.EnvironmentSource,
 		&i.ContinuationOfRunID,
 		&i.ContinuationAttempt,
 		&i.ContinuationReason,
@@ -143,7 +145,7 @@ func (q *Queries) BumpWakeRequest(ctx context.Context, arg BumpWakeRequestParams
 const cancelQueuedRun = `-- name: CancelQueuedRun :one
 UPDATE runs SET status = 'cancelled', finished_at = $1
 WHERE company_id = $2 AND id = $3 AND status = 'queued'
-RETURNING id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv, instruction_revision, instruction_sha256, continuation_of_run_id, continuation_attempt, continuation_reason, resume_pending, resume_reason, diagnosis, decision_pending, decision, decision_note, decided_by_type, decided_by_id, decided_at
+RETURNING id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv, instruction_revision, instruction_sha256, environment_id, environment_source, continuation_of_run_id, continuation_attempt, continuation_reason, resume_pending, resume_reason, diagnosis, decision_pending, decision, decision_note, decided_by_type, decided_by_id, decided_at
 `
 
 type CancelQueuedRunParams struct {
@@ -192,6 +194,8 @@ func (q *Queries) CancelQueuedRun(ctx context.Context, arg CancelQueuedRunParams
 		&i.SearchTsv,
 		&i.InstructionRevision,
 		&i.InstructionSha256,
+		&i.EnvironmentID,
+		&i.EnvironmentSource,
 		&i.ContinuationOfRunID,
 		&i.ContinuationAttempt,
 		&i.ContinuationReason,
@@ -218,7 +222,7 @@ func (q *Queries) ClearResumePending(ctx context.Context, id uuid.UUID) error {
 }
 
 const continuationOfRun = `-- name: ContinuationOfRun :one
-SELECT id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv, instruction_revision, instruction_sha256, continuation_of_run_id, continuation_attempt, continuation_reason, resume_pending, resume_reason, diagnosis, decision_pending, decision, decision_note, decided_by_type, decided_by_id, decided_at FROM runs WHERE continuation_of_run_id = $1
+SELECT id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv, instruction_revision, instruction_sha256, environment_id, environment_source, continuation_of_run_id, continuation_attempt, continuation_reason, resume_pending, resume_reason, diagnosis, decision_pending, decision, decision_note, decided_by_type, decided_by_id, decided_at FROM runs WHERE continuation_of_run_id = $1
 `
 
 func (q *Queries) ContinuationOfRun(ctx context.Context, runID *uuid.UUID) (Run, error) {
@@ -261,6 +265,8 @@ func (q *Queries) ContinuationOfRun(ctx context.Context, runID *uuid.UUID) (Run,
 		&i.SearchTsv,
 		&i.InstructionRevision,
 		&i.InstructionSha256,
+		&i.EnvironmentID,
+		&i.EnvironmentSource,
 		&i.ContinuationOfRunID,
 		&i.ContinuationAttempt,
 		&i.ContinuationReason,
@@ -282,7 +288,7 @@ INSERT INTO runs (id, company_id, task_id, conversation_id, persona_id, status, 
                   workspace_id, workspace_source, continuation_of_run_id, continuation_attempt, continuation_reason, created_at)
 VALUES ($1, $2, $3, $4, $5, 'queued', $6, $7, $8, $9, $10, $11,
         $12, $13, $14, $15, $16, $17)
-RETURNING id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv, instruction_revision, instruction_sha256, continuation_of_run_id, continuation_attempt, continuation_reason, resume_pending, resume_reason, diagnosis, decision_pending, decision, decision_note, decided_by_type, decided_by_id, decided_at
+RETURNING id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv, instruction_revision, instruction_sha256, environment_id, environment_source, continuation_of_run_id, continuation_attempt, continuation_reason, resume_pending, resume_reason, diagnosis, decision_pending, decision, decision_note, decided_by_type, decided_by_id, decided_at
 `
 
 type CreateRunParams struct {
@@ -363,6 +369,8 @@ func (q *Queries) CreateRun(ctx context.Context, arg CreateRunParams) (Run, erro
 		&i.SearchTsv,
 		&i.InstructionRevision,
 		&i.InstructionSha256,
+		&i.EnvironmentID,
+		&i.EnvironmentSource,
 		&i.ContinuationOfRunID,
 		&i.ContinuationAttempt,
 		&i.ContinuationReason,
@@ -387,7 +395,7 @@ SET status = $1, exit_code = $2, error = $3, summary = $4, cost_usd = $5,
     cost_source = $10, list_cost_usd = $11,
     session_ref = COALESCE(NULLIF($12::text, ''), session_ref), model = $13, finished_at = $14, pending_result = NULL
 WHERE company_id = $15 AND id = $16
-RETURNING id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv, instruction_revision, instruction_sha256, continuation_of_run_id, continuation_attempt, continuation_reason, resume_pending, resume_reason, diagnosis, decision_pending, decision, decision_note, decided_by_type, decided_by_id, decided_at
+RETURNING id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv, instruction_revision, instruction_sha256, environment_id, environment_source, continuation_of_run_id, continuation_attempt, continuation_reason, resume_pending, resume_reason, diagnosis, decision_pending, decision, decision_note, decided_by_type, decided_by_id, decided_at
 `
 
 type FinishRunParams struct {
@@ -466,6 +474,8 @@ func (q *Queries) FinishRun(ctx context.Context, arg FinishRunParams) (Run, erro
 		&i.SearchTsv,
 		&i.InstructionRevision,
 		&i.InstructionSha256,
+		&i.EnvironmentID,
+		&i.EnvironmentSource,
 		&i.ContinuationOfRunID,
 		&i.ContinuationAttempt,
 		&i.ContinuationReason,
@@ -483,7 +493,7 @@ func (q *Queries) FinishRun(ctx context.Context, arg FinishRunParams) (Run, erro
 }
 
 const getRunByID = `-- name: GetRunByID :one
-SELECT id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv, instruction_revision, instruction_sha256, continuation_of_run_id, continuation_attempt, continuation_reason, resume_pending, resume_reason, diagnosis, decision_pending, decision, decision_note, decided_by_type, decided_by_id, decided_at FROM runs WHERE company_id = $1 AND id = $2
+SELECT id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv, instruction_revision, instruction_sha256, environment_id, environment_source, continuation_of_run_id, continuation_attempt, continuation_reason, resume_pending, resume_reason, diagnosis, decision_pending, decision, decision_note, decided_by_type, decided_by_id, decided_at FROM runs WHERE company_id = $1 AND id = $2
 `
 
 type GetRunByIDParams struct {
@@ -531,6 +541,8 @@ func (q *Queries) GetRunByID(ctx context.Context, arg GetRunByIDParams) (Run, er
 		&i.SearchTsv,
 		&i.InstructionRevision,
 		&i.InstructionSha256,
+		&i.EnvironmentID,
+		&i.EnvironmentSource,
 		&i.ContinuationOfRunID,
 		&i.ContinuationAttempt,
 		&i.ContinuationReason,
@@ -548,7 +560,7 @@ func (q *Queries) GetRunByID(ctx context.Context, arg GetRunByIDParams) (Run, er
 }
 
 const getRunByIDForUpdate = `-- name: GetRunByIDForUpdate :one
-SELECT id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv, instruction_revision, instruction_sha256, continuation_of_run_id, continuation_attempt, continuation_reason, resume_pending, resume_reason, diagnosis, decision_pending, decision, decision_note, decided_by_type, decided_by_id, decided_at FROM runs WHERE company_id = $1 AND id = $2 FOR UPDATE
+SELECT id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv, instruction_revision, instruction_sha256, environment_id, environment_source, continuation_of_run_id, continuation_attempt, continuation_reason, resume_pending, resume_reason, diagnosis, decision_pending, decision, decision_note, decided_by_type, decided_by_id, decided_at FROM runs WHERE company_id = $1 AND id = $2 FOR UPDATE
 `
 
 type GetRunByIDForUpdateParams struct {
@@ -596,6 +608,8 @@ func (q *Queries) GetRunByIDForUpdate(ctx context.Context, arg GetRunByIDForUpda
 		&i.SearchTsv,
 		&i.InstructionRevision,
 		&i.InstructionSha256,
+		&i.EnvironmentID,
+		&i.EnvironmentSource,
 		&i.ContinuationOfRunID,
 		&i.ContinuationAttempt,
 		&i.ContinuationReason,
@@ -613,7 +627,7 @@ func (q *Queries) GetRunByIDForUpdate(ctx context.Context, arg GetRunByIDForUpda
 }
 
 const getRunView = `-- name: GetRunView :one
-SELECT r.id, r.company_id, r.task_id, r.persona_id, r.status, r.trigger, r.agent, r.model, r.session_ref, r.trace_id, r.exit_code, r.error, r.summary, r.cost_usd, r.input_tokens, r.output_tokens, r.cache_read_tokens, r.cache_creation_tokens, r.handoff_in, r.handoff_out, r.created_at, r.started_at, r.finished_at, r.pending_result, r.cost_source, r.next_event_seq, r.model_source, r.subscription_id, r.list_cost_usd, r.name, r.workspace_id, r.workspace_source, r.conversation_id, r.search_tsv, r.instruction_revision, r.instruction_sha256, r.continuation_of_run_id, r.continuation_attempt, r.continuation_reason, r.resume_pending, r.resume_reason, r.diagnosis, r.decision_pending, r.decision, r.decision_note, r.decided_by_type, r.decided_by_id, r.decided_at, COALESCE(c.task_prefix || '-' || t.number, '')::text AS task_key, COALESCE(t.title, '')::text AS task_title,
+SELECT r.id, r.company_id, r.task_id, r.persona_id, r.status, r.trigger, r.agent, r.model, r.session_ref, r.trace_id, r.exit_code, r.error, r.summary, r.cost_usd, r.input_tokens, r.output_tokens, r.cache_read_tokens, r.cache_creation_tokens, r.handoff_in, r.handoff_out, r.created_at, r.started_at, r.finished_at, r.pending_result, r.cost_source, r.next_event_seq, r.model_source, r.subscription_id, r.list_cost_usd, r.name, r.workspace_id, r.workspace_source, r.conversation_id, r.search_tsv, r.instruction_revision, r.instruction_sha256, r.environment_id, r.environment_source, r.continuation_of_run_id, r.continuation_attempt, r.continuation_reason, r.resume_pending, r.resume_reason, r.diagnosis, r.decision_pending, r.decision, r.decision_note, r.decided_by_type, r.decided_by_id, r.decided_at, COALESCE(c.task_prefix || '-' || t.number, '')::text AS task_key, COALESCE(t.title, '')::text AS task_title,
        p.name AS persona_name, COALESCE(cv.title, '')::text AS conversation_title,
        EXISTS (SELECT 1 FROM memory_consolidations mc WHERE mc.task_id = r.task_id)::boolean AS curation_task
 FROM runs r
@@ -678,6 +692,8 @@ func (q *Queries) GetRunView(ctx context.Context, arg GetRunViewParams) (GetRunV
 		&i.Run.SearchTsv,
 		&i.Run.InstructionRevision,
 		&i.Run.InstructionSha256,
+		&i.Run.EnvironmentID,
+		&i.Run.EnvironmentSource,
 		&i.Run.ContinuationOfRunID,
 		&i.Run.ContinuationAttempt,
 		&i.Run.ContinuationReason,
@@ -719,7 +735,7 @@ const interruptActiveRuns = `-- name: InterruptActiveRuns :many
 UPDATE runs SET status = 'interrupted', finished_at = $1,
     error = CASE WHEN error = '' THEN 'interrupted: process restarted' ELSE error END
 WHERE status IN ('queued', 'running')
-RETURNING id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv, instruction_revision, instruction_sha256, continuation_of_run_id, continuation_attempt, continuation_reason, resume_pending, resume_reason, diagnosis, decision_pending, decision, decision_note, decided_by_type, decided_by_id, decided_at
+RETURNING id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv, instruction_revision, instruction_sha256, environment_id, environment_source, continuation_of_run_id, continuation_attempt, continuation_reason, resume_pending, resume_reason, diagnosis, decision_pending, decision, decision_note, decided_by_type, decided_by_id, decided_at
 `
 
 func (q *Queries) InterruptActiveRuns(ctx context.Context, now *time.Time) ([]Run, error) {
@@ -768,6 +784,8 @@ func (q *Queries) InterruptActiveRuns(ctx context.Context, now *time.Time) ([]Ru
 			&i.SearchTsv,
 			&i.InstructionRevision,
 			&i.InstructionSha256,
+			&i.EnvironmentID,
+			&i.EnvironmentSource,
 			&i.ContinuationOfRunID,
 			&i.ContinuationAttempt,
 			&i.ContinuationReason,
@@ -892,7 +910,7 @@ func (q *Queries) ListRunEventsBefore(ctx context.Context, arg ListRunEventsBefo
 }
 
 const listRunViews = `-- name: ListRunViews :many
-SELECT r.id, r.company_id, r.task_id, r.persona_id, r.status, r.trigger, r.agent, r.model, r.session_ref, r.trace_id, r.exit_code, r.error, r.summary, r.cost_usd, r.input_tokens, r.output_tokens, r.cache_read_tokens, r.cache_creation_tokens, r.handoff_in, r.handoff_out, r.created_at, r.started_at, r.finished_at, r.pending_result, r.cost_source, r.next_event_seq, r.model_source, r.subscription_id, r.list_cost_usd, r.name, r.workspace_id, r.workspace_source, r.conversation_id, r.search_tsv, r.instruction_revision, r.instruction_sha256, r.continuation_of_run_id, r.continuation_attempt, r.continuation_reason, r.resume_pending, r.resume_reason, r.diagnosis, r.decision_pending, r.decision, r.decision_note, r.decided_by_type, r.decided_by_id, r.decided_at, COALESCE(c.task_prefix || '-' || t.number, '')::text AS task_key, COALESCE(t.title, '')::text AS task_title,
+SELECT r.id, r.company_id, r.task_id, r.persona_id, r.status, r.trigger, r.agent, r.model, r.session_ref, r.trace_id, r.exit_code, r.error, r.summary, r.cost_usd, r.input_tokens, r.output_tokens, r.cache_read_tokens, r.cache_creation_tokens, r.handoff_in, r.handoff_out, r.created_at, r.started_at, r.finished_at, r.pending_result, r.cost_source, r.next_event_seq, r.model_source, r.subscription_id, r.list_cost_usd, r.name, r.workspace_id, r.workspace_source, r.conversation_id, r.search_tsv, r.instruction_revision, r.instruction_sha256, r.environment_id, r.environment_source, r.continuation_of_run_id, r.continuation_attempt, r.continuation_reason, r.resume_pending, r.resume_reason, r.diagnosis, r.decision_pending, r.decision, r.decision_note, r.decided_by_type, r.decided_by_id, r.decided_at, COALESCE(c.task_prefix || '-' || t.number, '')::text AS task_key, COALESCE(t.title, '')::text AS task_title,
        p.name AS persona_name, COALESCE(cv.title, '')::text AS conversation_title
 FROM runs r
 LEFT JOIN tasks t ON t.id = r.task_id
@@ -981,6 +999,8 @@ func (q *Queries) ListRunViews(ctx context.Context, arg ListRunViewsParams) ([]L
 			&i.Run.SearchTsv,
 			&i.Run.InstructionRevision,
 			&i.Run.InstructionSha256,
+			&i.Run.EnvironmentID,
+			&i.Run.EnvironmentSource,
 			&i.Run.ContinuationOfRunID,
 			&i.Run.ContinuationAttempt,
 			&i.Run.ContinuationReason,
@@ -1009,7 +1029,7 @@ func (q *Queries) ListRunViews(ctx context.Context, arg ListRunViewsParams) ([]L
 }
 
 const listRunsAwaitingDecision = `-- name: ListRunsAwaitingDecision :many
-SELECT r.id, r.company_id, r.task_id, r.persona_id, r.status, r.trigger, r.agent, r.model, r.session_ref, r.trace_id, r.exit_code, r.error, r.summary, r.cost_usd, r.input_tokens, r.output_tokens, r.cache_read_tokens, r.cache_creation_tokens, r.handoff_in, r.handoff_out, r.created_at, r.started_at, r.finished_at, r.pending_result, r.cost_source, r.next_event_seq, r.model_source, r.subscription_id, r.list_cost_usd, r.name, r.workspace_id, r.workspace_source, r.conversation_id, r.search_tsv, r.instruction_revision, r.instruction_sha256, r.continuation_of_run_id, r.continuation_attempt, r.continuation_reason, r.resume_pending, r.resume_reason, r.diagnosis, r.decision_pending, r.decision, r.decision_note, r.decided_by_type, r.decided_by_id, r.decided_at, COALESCE(c.task_prefix || '-' || t.number, '')::text AS task_key, COALESCE(t.title, '')::text AS task_title,
+SELECT r.id, r.company_id, r.task_id, r.persona_id, r.status, r.trigger, r.agent, r.model, r.session_ref, r.trace_id, r.exit_code, r.error, r.summary, r.cost_usd, r.input_tokens, r.output_tokens, r.cache_read_tokens, r.cache_creation_tokens, r.handoff_in, r.handoff_out, r.created_at, r.started_at, r.finished_at, r.pending_result, r.cost_source, r.next_event_seq, r.model_source, r.subscription_id, r.list_cost_usd, r.name, r.workspace_id, r.workspace_source, r.conversation_id, r.search_tsv, r.instruction_revision, r.instruction_sha256, r.environment_id, r.environment_source, r.continuation_of_run_id, r.continuation_attempt, r.continuation_reason, r.resume_pending, r.resume_reason, r.diagnosis, r.decision_pending, r.decision, r.decision_note, r.decided_by_type, r.decided_by_id, r.decided_at, COALESCE(c.task_prefix || '-' || t.number, '')::text AS task_key, COALESCE(t.title, '')::text AS task_title,
        p.name AS persona_name, COALESCE(cv.title, '')::text AS conversation_title
 FROM runs r
 LEFT JOIN tasks t ON t.id = r.task_id
@@ -1081,6 +1101,8 @@ func (q *Queries) ListRunsAwaitingDecision(ctx context.Context, arg ListRunsAwai
 			&i.Run.SearchTsv,
 			&i.Run.InstructionRevision,
 			&i.Run.InstructionSha256,
+			&i.Run.EnvironmentID,
+			&i.Run.EnvironmentSource,
 			&i.Run.ContinuationOfRunID,
 			&i.Run.ContinuationAttempt,
 			&i.Run.ContinuationReason,
@@ -1332,7 +1354,7 @@ func (q *Queries) MarkResumePending(ctx context.Context, arg MarkResumePendingPa
 const markRunStarted = `-- name: MarkRunStarted :one
 UPDATE runs SET status = 'running', started_at = $1, trace_id = $2, handoff_in = $3
 WHERE company_id = $4 AND id = $5 AND status = 'queued'
-RETURNING id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv, instruction_revision, instruction_sha256, continuation_of_run_id, continuation_attempt, continuation_reason, resume_pending, resume_reason, diagnosis, decision_pending, decision, decision_note, decided_by_type, decided_by_id, decided_at
+RETURNING id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv, instruction_revision, instruction_sha256, environment_id, environment_source, continuation_of_run_id, continuation_attempt, continuation_reason, resume_pending, resume_reason, diagnosis, decision_pending, decision, decision_note, decided_by_type, decided_by_id, decided_at
 `
 
 type MarkRunStartedParams struct {
@@ -1389,6 +1411,8 @@ func (q *Queries) MarkRunStarted(ctx context.Context, arg MarkRunStartedParams) 
 		&i.SearchTsv,
 		&i.InstructionRevision,
 		&i.InstructionSha256,
+		&i.EnvironmentID,
+		&i.EnvironmentSource,
 		&i.ContinuationOfRunID,
 		&i.ContinuationAttempt,
 		&i.ContinuationReason,
@@ -1406,7 +1430,7 @@ func (q *Queries) MarkRunStarted(ctx context.Context, arg MarkRunStartedParams) 
 }
 
 const pendingResumeRunForTask = `-- name: PendingResumeRunForTask :one
-SELECT id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv, instruction_revision, instruction_sha256, continuation_of_run_id, continuation_attempt, continuation_reason, resume_pending, resume_reason, diagnosis, decision_pending, decision, decision_note, decided_by_type, decided_by_id, decided_at FROM runs WHERE task_id = $1 AND resume_pending ORDER BY created_at DESC, id DESC LIMIT 1 FOR UPDATE
+SELECT id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv, instruction_revision, instruction_sha256, environment_id, environment_source, continuation_of_run_id, continuation_attempt, continuation_reason, resume_pending, resume_reason, diagnosis, decision_pending, decision, decision_note, decided_by_type, decided_by_id, decided_at FROM runs WHERE task_id = $1 AND resume_pending ORDER BY created_at DESC, id DESC LIMIT 1 FOR UPDATE
 `
 
 // A run interrompida (ou cancelada por steer) cuja continuação a próxima run da task deve ser.
@@ -1450,6 +1474,8 @@ func (q *Queries) PendingResumeRunForTask(ctx context.Context, taskID *uuid.UUID
 		&i.SearchTsv,
 		&i.InstructionRevision,
 		&i.InstructionSha256,
+		&i.EnvironmentID,
+		&i.EnvironmentSource,
 		&i.ContinuationOfRunID,
 		&i.ContinuationAttempt,
 		&i.ContinuationReason,
@@ -1490,7 +1516,7 @@ const setRunDecision = `-- name: SetRunDecision :one
 UPDATE runs SET decision = $1, decision_pending = false, decision_note = $2,
     decided_by_type = $3, decided_by_id = $4, decided_at = $5
 WHERE company_id = $6 AND id = $7 AND decision = ''
-RETURNING id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv, instruction_revision, instruction_sha256, continuation_of_run_id, continuation_attempt, continuation_reason, resume_pending, resume_reason, diagnosis, decision_pending, decision, decision_note, decided_by_type, decided_by_id, decided_at
+RETURNING id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv, instruction_revision, instruction_sha256, environment_id, environment_source, continuation_of_run_id, continuation_attempt, continuation_reason, resume_pending, resume_reason, diagnosis, decision_pending, decision, decision_note, decided_by_type, decided_by_id, decided_at
 `
 
 type SetRunDecisionParams struct {
@@ -1551,6 +1577,8 @@ func (q *Queries) SetRunDecision(ctx context.Context, arg SetRunDecisionParams) 
 		&i.SearchTsv,
 		&i.InstructionRevision,
 		&i.InstructionSha256,
+		&i.EnvironmentID,
+		&i.EnvironmentSource,
 		&i.ContinuationOfRunID,
 		&i.ContinuationAttempt,
 		&i.ContinuationReason,
@@ -1674,7 +1702,7 @@ func (q *Queries) TakenRunNames(ctx context.Context, arg TakenRunNamesParams) ([
 }
 
 const undecidedRunForConversation = `-- name: UndecidedRunForConversation :one
-SELECT id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv, instruction_revision, instruction_sha256, continuation_of_run_id, continuation_attempt, continuation_reason, resume_pending, resume_reason, diagnosis, decision_pending, decision, decision_note, decided_by_type, decided_by_id, decided_at FROM runs WHERE conversation_id = $1 AND decision_pending AND decision = '' ORDER BY created_at DESC LIMIT 1
+SELECT id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv, instruction_revision, instruction_sha256, environment_id, environment_source, continuation_of_run_id, continuation_attempt, continuation_reason, resume_pending, resume_reason, diagnosis, decision_pending, decision, decision_note, decided_by_type, decided_by_id, decided_at FROM runs WHERE conversation_id = $1 AND decision_pending AND decision = '' ORDER BY created_at DESC LIMIT 1
 `
 
 func (q *Queries) UndecidedRunForConversation(ctx context.Context, conversationID *uuid.UUID) (Run, error) {
@@ -1717,6 +1745,8 @@ func (q *Queries) UndecidedRunForConversation(ctx context.Context, conversationI
 		&i.SearchTsv,
 		&i.InstructionRevision,
 		&i.InstructionSha256,
+		&i.EnvironmentID,
+		&i.EnvironmentSource,
 		&i.ContinuationOfRunID,
 		&i.ContinuationAttempt,
 		&i.ContinuationReason,
@@ -1734,7 +1764,7 @@ func (q *Queries) UndecidedRunForConversation(ctx context.Context, conversationI
 }
 
 const undecidedRunForTask = `-- name: UndecidedRunForTask :one
-SELECT id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv, instruction_revision, instruction_sha256, continuation_of_run_id, continuation_attempt, continuation_reason, resume_pending, resume_reason, diagnosis, decision_pending, decision, decision_note, decided_by_type, decided_by_id, decided_at FROM runs WHERE task_id = $1 AND decision_pending AND decision = '' ORDER BY created_at DESC LIMIT 1
+SELECT id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv, instruction_revision, instruction_sha256, environment_id, environment_source, continuation_of_run_id, continuation_attempt, continuation_reason, resume_pending, resume_reason, diagnosis, decision_pending, decision, decision_note, decided_by_type, decided_by_id, decided_at FROM runs WHERE task_id = $1 AND decision_pending AND decision = '' ORDER BY created_at DESC LIMIT 1
 `
 
 // Uma run parada da task espera decisão humana: nenhuma run nova abre antes dela.
@@ -1778,6 +1808,8 @@ func (q *Queries) UndecidedRunForTask(ctx context.Context, taskID *uuid.UUID) (R
 		&i.SearchTsv,
 		&i.InstructionRevision,
 		&i.InstructionSha256,
+		&i.EnvironmentID,
+		&i.EnvironmentSource,
 		&i.ContinuationOfRunID,
 		&i.ContinuationAttempt,
 		&i.ContinuationReason,

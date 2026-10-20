@@ -228,6 +228,7 @@ templ ProjectPage(sh Shell, vm ProjectVM) {
 			case "configuracao":
 				if canAdmin(ctx) {
 					@ProjectForm(vm.Form)
+					@ProjectEnvironmentSlot(vm.EnvironmentHref)
 				} else {
 					@NeedRole(domain.MemberAdmin)
 				}

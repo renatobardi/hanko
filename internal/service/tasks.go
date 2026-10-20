@@ -629,6 +629,10 @@ func (s *Service) WakeTask(ctx context.Context, actor domain.Actor, companyID, t
 		if !domain.PersonaStatus(p.Status).CanWork() {
 			return domain.Invalid("persona", fmt.Sprintf("persona status %q cannot work", p.Status))
 		}
+		// quem pede o wake à mão precisa saber já que o harness da persona não está pronto (ADR-0055)
+		if rerr := t.readinessGate(p, p.Agent, p.Model); rerr != nil {
+			return rerr
+		}
 		if !domain.TaskStatus(task.Status).Workable() {
 			return domain.Invalid("status", fmt.Sprintf("task status %q is not workable", task.Status))
 		}

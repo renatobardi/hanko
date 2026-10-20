@@ -60,6 +60,8 @@ type ProjectFormVM struct {
 }
 
 type ProjectVM struct {
+	// EnvironmentHref é o fragmento do cartão de ambiente de execução do projeto (aba Configuração, ADR-0055).
+	EnvironmentHref string
 	// Section é a aba aberta (visao | tasks | workspace | orcamento | configuracao).
 	Section       string
 	Sections      []TabLink

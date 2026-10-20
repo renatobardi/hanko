@@ -1,19 +1,16 @@
 package execenv
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/renatobardi/hanko/internal/adapter/procrun"
@@ -158,19 +155,6 @@ func containerEnv(env map[string]string) (names []string, values []string) {
 	return names, values
 }
 
-// dockerEnv é o ambiente do processo docker local: o necessário para falar com o daemon.
-func dockerEnv() []string {
-	var out []string
-	for _, kv := range os.Environ() {
-		k, _, _ := strings.Cut(kv, "=")
-		if k == "PATH" || k == "HOME" || k == "XDG_RUNTIME_DIR" || strings.HasPrefix(k, "DOCKER_") ||
-			k == "HTTPS_PROXY" || k == "HTTP_PROXY" || k == "NO_PROXY" {
-			out = append(out, kv)
-		}
-	}
-	return out
-}
-
 func (s *sandboxSession) Prepare(_ context.Context, bin string, args []string, env map[string]string) (procrun.Invocation, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -182,7 +166,7 @@ func (s *sandboxSession) Prepare(_ context.Context, bin string, args []string, e
 	}
 	names, values := containerEnv(mergeEnv(s.t.Env, env))
 	s.started = true
-	return procrun.Invocation{Bin: s.cfg.dockerBin(), Args: s.RunArgs(bin, args, names), Env: append(dockerEnv(), values...)}, nil
+	return s.cfg.dockerClient().Command(s.RunArgs(bin, args, names), values), nil
 }
 
 // Abort mata o contêiner da run (matar o processo docker local não para o contêiner).
@@ -191,24 +175,7 @@ func (s *sandboxSession) Abort(ctx context.Context) {
 }
 
 func (s *sandboxSession) docker(ctx context.Context, timeout time.Duration, out io.Writer, args ...string) error {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, s.cfg.dockerBin(), args...) //nolint:gosec // argv montado aqui, sem shell
-	cmd.Env = dockerEnv()
-	if out == nil {
-		out = io.Discard
-	}
-	cmd.Stdout = out
-	var errb bytes.Buffer
-	cmd.Stderr = &limitedBuffer{b: &errb, max: 4 << 10}
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	if err := cmd.Run(); err != nil {
-		if m := bytes.TrimSpace(errb.Bytes()); len(m) > 0 {
-			return fmt.Errorf("%w: %s", err, m)
-		}
-		return err
-	}
-	return nil
+	return s.cfg.dockerClient().Do(ctx, timeout, out, args...)
 }
 
 // Finish garante que o contêiner não ficou para trás (--rm já o remove quando o processo termina).

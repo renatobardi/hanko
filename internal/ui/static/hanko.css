@@ -433,6 +433,11 @@ svg.ic { width: 16px; height: 16px; flex: none; stroke: currentColor; fill: none
 /* Campos do harness ACP: só aparecem com o cartão ACP escolhido (sem JS). */
 .acp-only { display: none; }
 form:has(input[name="agent"][value="acp"]:checked) .acp-only { display: block; }
+/* Seletor de modelo (ADR-0055): "Outro…" mostra o campo livre e um modelo sem preço mostra o aviso, sem JS. */
+.model-picker { display: grid; gap: 8px; }
+.model-picker .model-other, .model-picker .model-unpriced { display: none; }
+.model-picker:has(option[value="__other"]:checked) .model-other { display: block; }
+.model-picker:has(option[data-unpriced]:checked) .model-unpriced { display: block; color: var(--warn); }
 /* Permissões valem para os harnesses ACP (acp e devin); endpoint e chave, para o harness http (ADR-0056). */
 .perm-only, .http-only { display: none; }
 form:has(input[name="agent"][value="acp"]:checked) .perm-only,

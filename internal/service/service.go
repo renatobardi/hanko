@@ -20,6 +20,7 @@ import (
 	"github.com/renatobardi/hanko/internal/events"
 	"github.com/renatobardi/hanko/internal/execenv"
 	"github.com/renatobardi/hanko/internal/memory"
+	"github.com/renatobardi/hanko/internal/readiness"
 	"github.com/renatobardi/hanko/internal/settings"
 	"github.com/renatobardi/hanko/internal/storage"
 	"github.com/renatobardi/hanko/internal/vault"
@@ -117,6 +118,13 @@ type Service struct {
 	Log *slog.Logger
 	// Plugins é a política do operador para plugins de terceiros (HANKO_PLUGINS_DIR, ADR-0038); zero = desligados.
 	Plugins PluginsConfig
+	// Readiness são os binários dos harnesses locais e ReadinessEvery o intervalo da checagem periódica da persona
+	// (HANKO_READINESS_INTERVAL, ADR-0055); zero desliga a checagem periódica (o app define DefaultReadinessInterval).
+	Readiness      readiness.Config
+	ReadinessEvery time.Duration
+	// ReadinessRunner (só testes) troca a execução do script do probe; nil usa execenv.RunScript no ambiente da persona.
+	ReadinessRunner func(ctx context.Context, target execenv.Target, script string, env map[string]string) ([]byte, error)
+
 	// Push é a configuração do web push (ADR-0042); o zero value serve (precisa de HANKO_SECRET_KEY para a chave VAPID).
 	Push PushConfig
 

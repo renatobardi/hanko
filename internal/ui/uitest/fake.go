@@ -74,6 +74,8 @@ type Fake struct {
 
 	// Env são os ambientes de execução (ADR-0037).
 	Env EnvFake
+	// Ready é a prontidão das personas e o catálogo de modelos (ADR-0055).
+	Ready ReadinessFake
 
 	// Caixa é o estado por pessoa da Caixa de entrada, os avisos e o web push (ADR-0042; uitest/caixa.go).
 	Caixa CaixaFake

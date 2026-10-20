@@ -419,6 +419,41 @@ secret: 0123456789abcdef0123456789abcdef
 			wantErr: "HANKO_ALERT_RUN_STUCK_AFTER",
 		},
 		{
+			name: "sandbox em nuvem e readiness (ADR-0055)",
+			env: map[string]string{"HANKO_DATABASE_URL": db, "HANKO_ENV_CLOUD": " Daytona ", "HANKO_ENV_CLOUD_SSH_KNOWN_HOSTS": "gw.example.com ssh-ed25519 AAAA",
+				"HANKO_ENV_CLOUD_API_URL": "https://daytona.interno/api", "HANKO_READINESS_INTERVAL": "5m"},
+			check: func(t *testing.T, c Config) {
+				e := c.Environments
+				if e.Cloud != "daytona" || e.CloudAPIURL != "https://daytona.interno/api" || e.CloudSSHKnownHosts == "" || c.ReadinessInterval != 5*time.Minute {
+					t.Fatalf("%+v %v", e, c.ReadinessInterval)
+				}
+			},
+		},
+		{
+			name: "readiness periódico tem padrão e pode ser desligado",
+			env:  map[string]string{"HANKO_DATABASE_URL": db, "HANKO_READINESS_INTERVAL": "0"},
+			check: func(t *testing.T, c Config) {
+				if c.ReadinessInterval != 0 || c.Environments.Cloud != "" {
+					t.Fatalf("%+v", c)
+				}
+			},
+		},
+		{
+			name:    "cloud sem known_hosts do gateway",
+			env:     map[string]string{"HANKO_DATABASE_URL": db, "HANKO_ENV_CLOUD": "daytona"},
+			wantErr: "HANKO_ENV_CLOUD_SSH_KNOWN_HOSTS",
+		},
+		{
+			name:    "provider cloud desconhecido",
+			env:     map[string]string{"HANKO_DATABASE_URL": db, "HANKO_ENV_CLOUD": "e2b"},
+			wantErr: "HANKO_ENV_CLOUD",
+		},
+		{
+			name:    "intervalo de readiness negativo",
+			env:     map[string]string{"HANKO_DATABASE_URL": db, "HANKO_READINESS_INTERVAL": "-1m"},
+			wantErr: "HANKO_READINESS_INTERVAL",
+		},
+		{
 			name: "public url explícita",
 			env:  map[string]string{"HANKO_DATABASE_URL": db, "HANKO_PUBLIC_URL": "https://hanko.oute.pro/"},
 			check: func(t *testing.T, c Config) {

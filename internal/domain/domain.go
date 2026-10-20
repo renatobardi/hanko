@@ -97,9 +97,11 @@ type Project struct {
 	WorkspaceID *ID           `json:"workspace_id,omitempty"`
 	Status      ProjectStatus `json:"status"`
 	// BudgetMonthlyCents is the project's monthly ceiling in USD cents; nil = no ceiling.
-	BudgetMonthlyCents *int64    `json:"budget_monthly_cents,omitempty"`
-	CreatedAt          time.Time `json:"created_at"`
-	UpdatedAt          time.Time `json:"updated_at"`
+	BudgetMonthlyCents *int64 `json:"budget_monthly_cents,omitempty"`
+	// EnvironmentID é o ambiente de execução do projeto (ADR-0055); nil = o padrão da empresa ou o local.
+	EnvironmentID *ID       `json:"environment_id,omitempty"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
 }
 
 // WorkspaceSource tells where the working directory of a run came from. Precedence: the workspace chosen on the
@@ -435,9 +437,13 @@ type Run struct {
 	// WorkspaceID and WorkspaceSource record which workspace the run used and why (empty source = older run).
 	WorkspaceID     *ID             `json:"workspace_id,omitempty"`
 	WorkspaceSource WorkspaceSource `json:"workspace_source,omitempty"`
-	Usage           Usage           `json:"usage"`
-	HandoffIn       string          `json:"handoff_in,omitempty"`
-	HandoffOut      string          `json:"handoff_out,omitempty"`
+	// EnvironmentID e EnvironmentSource registram onde a run roda e por quê (ADR-0055); nil + "local" = o local
+	// implícito, vazio = run anterior ao M11.
+	EnvironmentID     *ID       `json:"environment_id,omitempty"`
+	EnvironmentSource EnvSource `json:"environment_source,omitempty"`
+	Usage             Usage     `json:"usage"`
+	HandoffIn         string    `json:"handoff_in,omitempty"`
+	HandoffOut        string    `json:"handoff_out,omitempty"`
 	// InstructionRevision e InstructionSHA256 dizem com que revisão das instruções da persona a run rodou (ADR-0052);
 	// vazios em runs que começaram antes das revisões.
 	InstructionRevision *int       `json:"instruction_revision,omitempty"`

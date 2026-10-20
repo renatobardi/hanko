@@ -525,7 +525,7 @@ func (q *Queries) ListErrorPersonas(ctx context.Context, companyID uuid.UUID) ([
 }
 
 const listFailedRuns = `-- name: ListFailedRuns :many
-SELECT r.id, r.company_id, r.task_id, r.persona_id, r.status, r.trigger, r.agent, r.model, r.session_ref, r.trace_id, r.exit_code, r.error, r.summary, r.cost_usd, r.input_tokens, r.output_tokens, r.cache_read_tokens, r.cache_creation_tokens, r.handoff_in, r.handoff_out, r.created_at, r.started_at, r.finished_at, r.pending_result, r.cost_source, r.next_event_seq, r.model_source, r.subscription_id, r.list_cost_usd, r.name, r.workspace_id, r.workspace_source, r.conversation_id, r.search_tsv, r.instruction_revision, r.instruction_sha256, r.continuation_of_run_id, r.continuation_attempt, r.continuation_reason, r.resume_pending, r.resume_reason, r.diagnosis, r.decision_pending, r.decision, r.decision_note, r.decided_by_type, r.decided_by_id, r.decided_at, COALESCE(c.task_prefix || '-' || t.number, '')::text AS task_key, COALESCE(t.title, '')::text AS task_title,
+SELECT r.id, r.company_id, r.task_id, r.persona_id, r.status, r.trigger, r.agent, r.model, r.session_ref, r.trace_id, r.exit_code, r.error, r.summary, r.cost_usd, r.input_tokens, r.output_tokens, r.cache_read_tokens, r.cache_creation_tokens, r.handoff_in, r.handoff_out, r.created_at, r.started_at, r.finished_at, r.pending_result, r.cost_source, r.next_event_seq, r.model_source, r.subscription_id, r.list_cost_usd, r.name, r.workspace_id, r.workspace_source, r.conversation_id, r.search_tsv, r.instruction_revision, r.instruction_sha256, r.environment_id, r.environment_source, r.continuation_of_run_id, r.continuation_attempt, r.continuation_reason, r.resume_pending, r.resume_reason, r.diagnosis, r.decision_pending, r.decision, r.decision_note, r.decided_by_type, r.decided_by_id, r.decided_at, COALESCE(c.task_prefix || '-' || t.number, '')::text AS task_key, COALESCE(t.title, '')::text AS task_title,
        p.name AS persona_name, COALESCE(cv.title, '')::text AS conversation_title
 FROM runs r
 LEFT JOIN tasks t ON t.id = r.task_id
@@ -603,6 +603,8 @@ func (q *Queries) ListFailedRuns(ctx context.Context, arg ListFailedRunsParams) 
 			&i.Run.SearchTsv,
 			&i.Run.InstructionRevision,
 			&i.Run.InstructionSha256,
+			&i.Run.EnvironmentID,
+			&i.Run.EnvironmentSource,
 			&i.Run.ContinuationOfRunID,
 			&i.Run.ContinuationAttempt,
 			&i.Run.ContinuationReason,

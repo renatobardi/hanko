@@ -33,6 +33,7 @@ import (
 	"github.com/renatobardi/hanko/internal/memory/aimemory"
 	"github.com/renatobardi/hanko/internal/netguard"
 	"github.com/renatobardi/hanko/internal/ratelimit"
+	"github.com/renatobardi/hanko/internal/readiness"
 	"github.com/renatobardi/hanko/internal/secretbox"
 	"github.com/renatobardi/hanko/internal/service"
 	"github.com/renatobardi/hanko/internal/settings"
@@ -128,10 +129,22 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 		logger.Info("skills: fontes ligadas (HANKO_SKILL_SOURCES); o servidor clona repositórios públicos por https")
 	}
 	svc.Environments = execenv.Config{SSHAllowHosts: cfg.Environments.SSHAllowHosts, Sandbox: cfg.Environments.Sandbox,
-		SandboxHostRoot: cfg.Environments.SandboxHostRoot, WorkspacesRoot: cfg.WorkspacesRoot, RemoteURL: cfg.PublicURL}
-	if len(cfg.Environments.SSHAllowHosts) > 0 || cfg.Environments.Sandbox != "" {
-		logger.Warn("ambientes remotos liberados pelo operador (ADR-0037)", "ssh_allow_hosts", cfg.Environments.SSHAllowHosts, "sandbox", cfg.Environments.Sandbox)
+		SandboxHostRoot: cfg.Environments.SandboxHostRoot, WorkspacesRoot: cfg.WorkspacesRoot, RemoteURL: cfg.PublicURL,
+		AgentEnvAllow: cfg.AgentEnvAllow}
+	if cfg.Environments.Cloud != "" {
+		d, err := execenv.NewDaytona(execenv.DaytonaOptions{APIURL: cfg.Environments.CloudAPIURL, SSHHost: cfg.Environments.CloudSSHHost,
+			KnownHosts: cfg.Environments.CloudSSHKnownHosts})
+		if err != nil {
+			return fmt.Errorf("app: sandbox em nuvem: %w", err)
+		}
+		svc.Environments.Cloud = d
 	}
+	if len(cfg.Environments.SSHAllowHosts) > 0 || cfg.Environments.Sandbox != "" || cfg.Environments.Cloud != "" {
+		logger.Warn("ambientes remotos liberados pelo operador (ADR-0037, ADR-0055)", "ssh_allow_hosts", cfg.Environments.SSHAllowHosts,
+			"sandbox", cfg.Environments.Sandbox, "cloud", cfg.Environments.Cloud)
+	}
+	svc.Readiness = readiness.Config{ClaudeBin: cfg.ClaudeBin, CodexBin: cfg.CodexBin}
+	svc.ReadinessEvery = cfg.ReadinessInterval
 	if cfg.ACP.Allow {
 		logger.Warn("acp: harness liberado (HANKO_ACP_ALLOW); personas acp executam comandos nesta máquina", "commands", cfg.ACP.Commands)
 	}
