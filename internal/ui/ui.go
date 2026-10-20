@@ -22,6 +22,7 @@ import (
 	"github.com/renatobardi/hanko/internal/events"
 	"github.com/renatobardi/hanko/internal/i18n"
 	"github.com/renatobardi/hanko/internal/service"
+	"github.com/renatobardi/hanko/internal/telemetry"
 	"github.com/renatobardi/hanko/internal/textdiff"
 	"github.com/renatobardi/hanko/internal/ui/views"
 )
@@ -421,6 +422,7 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("POST /importar/aplicar", post(s.handleImportApply))
 	s.authRoutes(mux)
 	s.accessRoutes(mux)
+	s.devRoutes(mux)
 
 	mux.HandleFunc("GET /c/{company}/atividade", co(s.handleActivity))
 	mux.HandleFunc("GET /c/{company}/timeline", co(s.handleTimeline))
@@ -612,8 +614,9 @@ func friendly(ctx context.Context, err error) (int, string, string) {
 // fail renders an error as a page (full navigation) or fragment (htmx).
 func (s *server) fail(w http.ResponseWriter, r *http.Request, co *domain.Company, err error) {
 	st, title, msg := friendly(r.Context(), err)
-	if st >= 500 {
-		s.log.Error("ui handler", "method", r.Method, "path", auth.RedactPath(r.URL.Path), "err", err)
+	if st >= 500 && !errors.Is(err, context.Canceled) { // cliente que saiu no meio não é exceção do servidor
+		telemetry.Record(r.Context(), s.log, telemetry.FromError(telemetry.SourceServer, err),
+			slog.String("method", r.Method), slog.String("path", auth.RedactPath(r.URL.Path)))
 	}
 	vm := views.ErrorVM{Status: st, Title: title, Message: msg}
 	if isHX(r) {

@@ -2,6 +2,7 @@ package settings
 
 import (
 	"encoding/json"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -86,7 +87,7 @@ func TestFromTextRoundTrip(t *testing.T) {
 		case Bool:
 			in = "true"
 		case Int:
-			in = "7"
+			in = strconv.Itoa(int(max(d.Min, 7))) // dentro do intervalo da chave (algumas têm mínimo maior que 7)
 		case Float:
 			in = "2.5"
 		case Duration:

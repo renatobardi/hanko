@@ -242,10 +242,12 @@ type ToolProfile struct {
 type ToolVerdict struct {
 	Allowed bool     `json:"allowed"`
 	Mode    ToolMode `json:"mode,omitempty"`
-	// Source diz de onde veio a decisão: "no_profile", "default", "include" ou "exclude".
+	// Source diz de onde veio a decisão: "no_profile", "default", "include", "exclude", "policy:persona" ou "policy:company".
 	Source string `json:"source"`
-	// Rule é a regra que decidiu (nil para no_profile e default).
+	// Rule é a regra que decidiu (nil para no_profile, default e policy).
 	Rule *ToolRule `json:"rule,omitempty"`
+	// Policy é a política (ADR-0053) que decidiu, quando Source começa com "policy:".
+	Policy *ToolPolicy `json:"policy,omitempty"`
 }
 
 // specificity: tool > risco de uma integração > integração inteira > risco global.
@@ -434,4 +436,11 @@ type ToolInvocation struct {
 	LatencyMs       int          `json:"latency_ms"`
 	Error           string       `json:"error,omitempty"`
 	CreatedAt       time.Time    `json:"created_at"`
+	// Source é por onde a chamada entrou (run, gateway, test, hook, acp, plugin) e Actor, quem a fez (a persona, o
+	// humano que testou ou o sistema, no gateway nomeado). ResultPreview é um trecho do resultado, já sem segredos.
+	// PolicySource diz de onde veio a decisão: o perfil (include, exclude, default) ou uma política.
+	Source        ToolInvocationSource `json:"source"`
+	Actor         *Actor               `json:"actor,omitempty"`
+	ResultPreview string               `json:"result_preview,omitempty"`
+	PolicySource  string               `json:"policy_source,omitempty"`
 }

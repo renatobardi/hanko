@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/renatobardi/hanko/internal/domain"
@@ -71,7 +72,7 @@ func (s *server) handleInbox(w http.ResponseWriter, r *http.Request, co domain.C
 			vm.DecidedToday++
 		}
 	}
-	counts := map[string]int{"tudo": in.Count(), "gates": len(in.Gates), "bloqueadas": len(in.BlockedTasks), "pausadas": len(in.HeldTasks), "falhas": len(in.FailedRuns), "personas": len(in.ErrorPersonas), "alertas": len(in.Alerts), "assinaturas": len(in.GuardedSubscriptions), "tools": countToolGates(in.Gates)}
+	counts := map[string]int{"tudo": in.Count(), "gates": len(in.Gates), "bloqueadas": len(in.BlockedTasks), "pausadas": len(in.HeldTasks), "falhas": len(in.FailedRuns), "personas": len(in.ErrorPersonas), "alertas": len(in.Alerts), "assinaturas": len(in.GuardedSubscriptions), "tools": countToolGates(in.Gates) + len(in.QuarantinedTools)}
 	for _, t := range inboxTabs {
 		vm.Tabs = append(vm.Tabs, views.TabLink{Key: t.key, Label: i18n.T(ctx, t.label), Href: base + "/caixa?aba=" + t.key, Count: counts[t.key], On: t.key == cur})
 	}
@@ -140,6 +141,13 @@ func (s *server) handleInbox(w http.ResponseWriter, r *http.Request, co domain.C
 			vm.Alerts = append(vm.Alerts, alertRow(ctx, a, base, now, loc))
 		}
 	}
+	if show("tools") {
+		for _, q := range in.QuarantinedTools { // tools novas que esperam a revisão de um admin (ADR-0053)
+			vm.Quarantined = append(vm.Quarantined, views.InboxQuarantine{Integration: q.Tool.IntegrationSlug, Tool: q.Tool.Name,
+				Risk: riskBadge(ctx, q.Tool.Risk), Excerpt: excerpt(q.Tool.Description, 160), When: agoCtx(ctx, q.Tool.FirstSeenAt, now, loc),
+				Href: base + "/ferramentas?integracao=" + url.QueryEscape(q.Tool.IntegrationSlug)})
+		}
+	}
 	if show("assinaturas") {
 		for _, g := range in.GuardedSubscriptions {
 			limit, pct := "—", ""
@@ -160,7 +168,7 @@ func (s *server) handleInbox(w http.ResponseWriter, r *http.Request, co domain.C
 				Text: i18n.Tf(ctx, "A meta chegou ao alvo: %s.", goalValues(ctx, g.Goal)), When: agoCtx(ctx, at, now, loc)})
 		}
 	}
-	vm.Total = len(vm.Gates) + len(vm.Held) + len(vm.Blocked) + len(vm.Failed) + len(vm.Personas) + len(vm.Alerts) + len(vm.Subs)
+	vm.Total = len(vm.Gates) + len(vm.Held) + len(vm.Blocked) + len(vm.Failed) + len(vm.Personas) + len(vm.Alerts) + len(vm.Subs) + len(vm.Quarantined)
 	switch n := in.Count(); n {
 	case 0:
 		vm.Subtitle = i18n.T(ctx, "Gates, bloqueios, falhas, personas com erro e alertas que esperam por você. Hoje, nada.")

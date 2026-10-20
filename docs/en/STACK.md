@@ -63,7 +63,7 @@ Note on vocabulary: the generic names above were later replaced by the domain te
 | Islands | React + TS in `ui/islands/` (exact versions + lockfile), bundled by **esbuild (npm, dev/CI only)** into `internal/ui/static/islands/` (committed, `make islands`; CI checks the diff). Delivered in v0.2: virtualized run log, interactive org chart, anchored comments (ADR-0026). Cap of 3; a 4th requires an ADR |
 | Markdown | `goldmark`, server-side |
 | i18n | `go-i18n`: pt-BR (M1), en (M6) |
-| E2E | `chromedp` or `rod` against the binary |
+| E2E | Playwright in `e2e/` (ADR-0058): `bin/hanko` + real Postgres + the `fake` adapter; dev/CI only, outside the binary |
 | Mobile | responsive; no PWA in v0.1 |
 | Embed | `internal/ui/static` via `go:embed`; there is no SPA fallback (the host is server-rendered) |
 
@@ -172,3 +172,19 @@ per version. Packages: `internal/secretref` (parse/expand), `internal/vault` (in
 **BlobStore.** `internal/storage`: `BlobStore` (`Put/Get/Delete/Stat`), drivers `postgres` (inside the artifact transaction) and `s3`
 (`HANKO_S3_*`, upload happens before the transaction, with compensation). `artifacts.storage` says where each version lives;
 `hanko blobs migrate` moves between drivers. Per-file limit: 16 MiB (postgres) or 64 MiB (s3).
+
+
+## 12. First-owner claim, rate limit, errors via OTel and dev labs (ADR-0058)
+**Claim.** With no users (authenticated + local provider) boot issues a claim (`owner_claims`, only the token's SHA-256, 1 h) and prints
+`<HANKO_PUBLIC_URL>/claim/<token>` to stderr (not to the logger, which exports over OTLP). `GET/POST /claim/{token}` creates the owner and
+invalidates the link in the same transaction, with an `admin_audit` row; `hanko auth claim-link` reissues; `create-owner` stays as a fallback.
+
+**Rate limit.** `internal/ratelimit`: the pure bucket model (`Step`, the oracle of the property tests), the `Limiter` (metric
+`hanko.ratelimit.decisions`) and the middleware, inside `auth.Guard`. State in `rate_limit_buckets` (UNLOGGED), one
+`INSERT … ON CONFLICT` per decision (`store.TakeRateToken`). Keys: API key hash, user, valid run token, IP. Ceilings in
+`instance_settings` (`ratelimit.*`, env `HANKO_RATELIMIT_*`). 429 + `Retry-After`; fail-open.
+
+**Errors.** `telemetry.Record` (`exception` span event + `ERROR` log with stack + `hanko.errors` counter) is the single point for `api.fail`, the
+API/app recovers and `ui.fail`; `POST /telemetry/errors` (`telemetry.BrowserErrors`) receives `hanko.js` errors. Dashboard in `deploy/grafana/`.
+
+**Dev labs.** `/design-guide` and `/dev/ux/*` (`internal/ui/devlabs.go`), trusted mode or owner/admin only; synthetic data, nothing written.

@@ -36,6 +36,11 @@ templ GateDecideForm(g GateRow, next string, compact bool) {
 					<button class="btn outline sm" type="submit" name="decision" value="changes_requested">{ i18n.T(ctx, "Pedir mudanças") }</button>
 				}
 				<button class="btn outline sm" type="submit" name="decision" value="rejected">{ i18n.T(ctx, "Rejeitar") }</button>
+				if g.Kind == "tool" && g.Persona != "" && canAdmin(ctx) {
+					<button class="btn outline sm" type="submit" name="decision" value="approved_always" title={ i18n.T(ctx, "Aprova e grava uma política de permitir para esta persona e esta tool: as próximas chamadas passam direto.") }>
+						{ i18n.T(ctx, "Aprovar e sempre permitir") }
+					</button>
+				}
 				<button class="btn primary sm" type="submit" name="decision" value="approved">
 					@Icon("check")
 					{ i18n.T(ctx, "Aprovar") }

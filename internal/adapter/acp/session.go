@@ -33,6 +33,7 @@ type session struct {
 	runCtx context.Context //nolint:containedctx // the run's context, used only to emit events
 
 	policy   Permission
+	guard    adapter.ToolGuard // política de tools do Hanko (ADR-0053); nil = só policy
 	readOnly bool
 	files    *fileRoot
 	// remote: a run está num ambiente remoto (ADR-0037); os arquivos estão no alvo, não aqui, então o
@@ -248,19 +249,43 @@ func (s *session) requestPermission(raw json.RawMessage) (any, *rpcError) {
 		return cancelledOutcome(), nil
 	}
 	allow := decide(s.policy, p.ToolCall.Kind)
+	policy := string(s.policy)
+	reason := ""
+	if s.guard != nil && !s.readOnly {
+		// A política de tools do Hanko (ADR-0053) vem antes: uma política que alcança a chamada decide; sem política,
+		// vale o adapter_config.
+		name := p.ToolCall.Kind
+		if name == "" {
+			name = "other"
+		}
+		v := s.guard.Check(s.runCtx, adapter.ToolRequest{Name: name, Title: title, Input: p.ToolCall.RawInput})
+		switch v.Decision {
+		case adapter.ToolAllow:
+			allow, policy, reason = true, "tools", v.Reason
+		case adapter.ToolDeny:
+			allow, policy, reason = false, "tools", v.Reason
+		}
+		if s.isCancelling() {
+			s.emit(domain.EventSystem, "permissão cancelada (execução interrompida): "+title, map[string]any{"tool_call_id": p.ToolCall.ToolCallID, "outcome": "cancelled"})
+			return cancelledOutcome(), nil
+		}
+	}
 	opt, ok := pickOption(p.Options, allow)
 	verdict := "negada"
 	if allow {
 		verdict = "concedida"
 	}
-	pl := map[string]any{"tool_call_id": p.ToolCall.ToolCallID, "kind": p.ToolCall.Kind, "policy": string(s.policy), "allow": allow}
+	pl := map[string]any{"tool_call_id": p.ToolCall.ToolCallID, "kind": p.ToolCall.Kind, "policy": policy, "allow": allow}
+	if reason != "" {
+		pl["reason"] = reason
+	}
 	if !ok {
 		pl["outcome"] = "cancelled"
 		s.emit(domain.EventSystem, fmt.Sprintf("permissão %s sem opção compatível, respondida como cancelada: %s [%s]", verdict, title, kindLabel(p.ToolCall.Kind)), pl)
 		return cancelledOutcome(), nil
 	}
 	pl["option_id"] = opt.OptionID
-	s.emit(domain.EventSystem, fmt.Sprintf("permissão %s (política %s): %s [%s]", verdict, s.policy, title, kindLabel(p.ToolCall.Kind)), pl)
+	s.emit(domain.EventSystem, fmt.Sprintf("permissão %s (política %s): %s [%s]", verdict, policy, title, kindLabel(p.ToolCall.Kind)), pl)
 	return map[string]any{"outcome": map[string]any{"outcome": "selected", "optionId": opt.OptionID}}, nil
 }
 
