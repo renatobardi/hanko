@@ -94,7 +94,10 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool, logger *slog.Logger, opts 
 	if err != nil {
 		return fmt.Errorf("db: locker de migrations: %w", err)
 	}
-	p, err := goose.NewProvider(goose.DialectPostgres, sqlDB, migrations.FS, goose.WithSessionLocker(locker))
+	p, err := goose.NewProvider(goose.DialectPostgres, sqlDB, migrations.FS, goose.WithSessionLocker(locker),
+		// Os marcos reservam faixas de numeração (00050, 00080, 00090, 00100, 00120…) e chegam ao main fora da ordem
+		// numérica: um banco que já está na 00100 ainda precisa receber a 00050. Sem isto o goose recusa subir.
+		goose.WithAllowOutofOrder(true))
 	if err != nil {
 		return fmt.Errorf("db: provider goose: %w", err)
 	}
