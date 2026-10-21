@@ -14,6 +14,7 @@ import (
 
 	"github.com/renatobardi/hanko/internal/auth"
 	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/telemetry"
 )
 
 type ctxKey int
@@ -110,7 +111,7 @@ func (s *server) middleware(next http.Handler) http.Handler {
 					// requisição e re-panica para o net/http fechar o transporte sem terminar a resposta
 					aborted = true
 				} else {
-					s.log.ErrorContext(ctx, "panic no handler", "panic", rec, "stack", string(debug.Stack()), "request_id", id)
+					telemetry.Record(ctx, s.log, telemetry.FromPanic(telemetry.SourceServer, rec, debug.Stack()), slog.String("request_id", id))
 					if !sw.wrote {
 						writeProblem(sw, problem(http.StatusInternalServerError, "erro interno do servidor"))
 					} else {

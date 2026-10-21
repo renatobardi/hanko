@@ -107,6 +107,10 @@ func (h *Heartbeat) wake(ctx context.Context, a WakeArgs, age time.Duration) err
 		// Hard stop: the service already paused the persona and recorded the alert.
 		h.log.Info("wake: orçamento estourado, run não aberta", "task_id", a.TaskID, "persona_id", a.PersonaID, "reason", err)
 		return retryIfRequested()
+	case errors.Is(err, domain.ErrPersonaNotReady):
+		// Readiness (ADR-0055): o harness da persona não passa no teste; o service já grava o motivo e o alerta cobre.
+		h.log.Info("wake: persona não pronta, run não aberta", "task_id", a.TaskID, "persona_id", a.PersonaID, "reason", err)
+		return retryIfRequested()
 	case errors.Is(err, domain.ErrInvalid), errors.Is(err, domain.ErrNotFound):
 		h.log.Debug("wake: nada a fazer", "task_id", a.TaskID, "persona_id", a.PersonaID, "reason", err)
 		return retryIfRequested()

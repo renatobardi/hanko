@@ -22,6 +22,7 @@ import (
 	"github.com/renatobardi/hanko/internal/events"
 	"github.com/renatobardi/hanko/internal/i18n"
 	"github.com/renatobardi/hanko/internal/service"
+	"github.com/renatobardi/hanko/internal/telemetry"
 	"github.com/renatobardi/hanko/internal/textdiff"
 	"github.com/renatobardi/hanko/internal/ui/views"
 )
@@ -91,6 +92,12 @@ type Backend interface {
 	ListRunEvents(ctx context.Context, companyID, runID domain.ID, afterSeq int64, limit int) ([]domain.RunEvent, error)
 	ListRunEventsBefore(ctx context.Context, companyID, runID domain.ID, beforeSeq int64, limit int) ([]domain.RunEvent, error)
 	CancelRun(ctx context.Context, actor domain.Actor, companyID, runID domain.ID) (service.RunView, error)
+	RunAction(ctx context.Context, actor domain.Actor, companyID, runID domain.ID, in service.RunActionInput) (service.RunView, error)
+	SteerRun(ctx context.Context, actor domain.Actor, companyID, runID domain.ID, body string) (service.SteerResult, error)
+	ListFollowups(ctx context.Context, companyID domain.ID, target service.FollowupTarget) ([]domain.Followup, error)
+	QueueTaskFollowup(ctx context.Context, actor domain.Actor, companyID, taskID domain.ID, body string) (domain.Followup, error)
+	EditFollowup(ctx context.Context, actor domain.Actor, companyID, id domain.ID, body string) (domain.Followup, error)
+	DiscardFollowup(ctx context.Context, actor domain.Actor, companyID, id domain.ID) error
 
 	ListActivity(ctx context.Context, companyID domain.ID, f service.ActivityFilter) ([]domain.ActivityEvent, error)
 	Search(ctx context.Context, companyID domain.ID, q string, f service.SearchFilter) (service.SearchResult, error)
@@ -169,6 +176,12 @@ type Backend interface {
 	ListEnvironmentLeases(ctx context.Context, companyID, envID domain.ID, limit int) ([]service.EnvironmentLeaseView, error)
 	RunEnvironmentOf(ctx context.Context, companyID, runID domain.ID) (service.RunEnvironmentInfo, error)
 	EnvironmentDrivers(ctx context.Context) map[domain.EnvironmentDriver]string
+	// Ambiente do projeto, readiness da persona e catálogo de modelos (ADR-0055).
+	SetProjectEnvironment(ctx context.Context, actor domain.Actor, companyID, projectID domain.ID, envID *domain.ID) (domain.Project, error)
+	GetPersonaReadiness(ctx context.Context, companyID, personaID domain.ID) (*domain.Readiness, error)
+	ListPersonaReadiness(ctx context.Context, companyID domain.ID) (map[domain.ID]domain.Readiness, error)
+	TestPersonaReadiness(ctx context.Context, actor domain.Actor, companyID, personaID domain.ID) (domain.Readiness, error)
+	ModelCatalog(ctx context.Context, companyID domain.ID, agent string) ([]domain.CatalogModel, error)
 	// Cards de status (ADR-0032).
 	ListStatusCards(ctx context.Context, companyID domain.ID, archived *bool) ([]service.StatusCardView, error)
 	GetStatusCard(ctx context.Context, companyID, cardID domain.ID) (service.StatusCardView, error)
@@ -315,6 +328,9 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("POST /c/{company}/tasks/{task}/forcar-conclusao", post(co(s.handleForceClose)))
 	mux.HandleFunc("POST /c/{company}/tasks/{task}/pai", post(co(s.handleSetParent)))
 	mux.HandleFunc("POST /c/{company}/tasks/{task}/politica-revisao", post(co(s.handleReviewPolicy)))
+	mux.HandleFunc("GET /c/{company}/tasks/{task}/git", co(s.handleTaskGit))
+	mux.HandleFunc("POST /c/{company}/tasks/{task}/git/limpar", post(co(s.handleTaskGitClean)))
+	mux.HandleFunc("POST /c/{company}/tasks/{task}/nova-sessao", post(co(s.handleNewSession)))
 
 	mux.HandleFunc("GET /c/{company}/personas", co(s.handlePersonas))
 	mux.HandleFunc("GET /c/{company}/personas/nova", co(s.handleNewPersona))
@@ -338,6 +354,8 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("POST /c/{company}/projetos/{project}/arquivar", post(co(s.handleProjectArchive(true))))
 	mux.HandleFunc("POST /c/{company}/projetos/{project}/reativar", post(co(s.handleProjectArchive(false))))
 	mux.HandleFunc("POST /c/{company}/projetos/{project}/orcamento", post(co(s.handleSetProjectBudget)))
+	mux.HandleFunc("POST /c/{company}/projetos/{project}/padroes", post(co(s.handleProjectDefaults)))
+	mux.HandleFunc("POST /c/{company}/projetos/{project}/politica-revisao", post(co(s.handleProjectReviewPolicy)))
 
 	mux.HandleFunc("GET /c/{company}/workspaces", co(s.handleWorkspaces))
 	mux.HandleFunc("GET /c/{company}/workspaces/novo", co(s.handleNewWorkspace))
@@ -345,6 +363,9 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("GET /c/{company}/workspaces/{workspace}", co(s.handleWorkspace))
 	mux.HandleFunc("POST /c/{company}/workspaces/{workspace}", post(co(s.handleUpdateWorkspace)))
 	mux.HandleFunc("POST /c/{company}/workspaces/{workspace}/excluir", post(co(s.handleDeleteWorkspace)))
+	mux.HandleFunc("POST /c/{company}/workspaces/{workspace}/git", post(co(s.handleEnableGit)))
+	mux.HandleFunc("POST /c/{company}/workspaces/{workspace}/git/sincronizar", post(co(s.handleSyncGit)))
+	mux.HandleFunc("POST /c/{company}/workspaces/{workspace}/git/desligar", post(co(s.handleDisableGit)))
 
 	mux.HandleFunc("GET /c/{company}/custos", co(s.handleCosts))
 	mux.HandleFunc("POST /c/{company}/custos/orcamento", post(co(s.handleSetCompanyBudget)))
@@ -367,6 +388,12 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("GET /c/{company}/execucoes/{run}", co(s.handleRun))
 	mux.HandleFunc("GET /c/{company}/execucoes/{run}/sse", co(s.handleRunSSE))
 	mux.HandleFunc("POST /c/{company}/execucoes/{run}/cancelar", post(co(s.handleCancelRun)))
+	mux.HandleFunc("POST /c/{company}/execucoes/{run}/acao", post(co(s.handleRunAction)))
+	mux.HandleFunc("POST /c/{company}/execucoes/{run}/steer", post(co(s.handleRunSteer)))
+	mux.HandleFunc("POST /c/{company}/tasks/{task}/followups", post(co(s.handleQueueFollowup)))
+	mux.HandleFunc("POST /c/{company}/followups/{followup}/editar", post(co(s.handleEditFollowup)))
+	mux.HandleFunc("POST /c/{company}/followups/{followup}/descartar", post(co(s.handleDiscardFollowup)))
+	mux.HandleFunc("GET /c/{company}/chat/{conversation}/fila", co(s.handleChatQueue))
 
 	mux.HandleFunc("POST /c/{company}/personas/{persona}/revisor", post(co(s.handlePersonaReviewer)))
 	mux.HandleFunc("POST /c/{company}/personas/{persona}/organizacao", post(co(s.handlePersonaOrg)))
@@ -377,6 +404,14 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("POST /c/{company}/caixa/tasks/{task}/acordar", post(co(s.handleInboxWake)))
 	mux.HandleFunc("POST /c/{company}/caixa/tasks/{task}/retomar", post(co(s.handleInboxResume)))
 	mux.HandleFunc("POST /c/{company}/caixa/personas/{persona}/reativar", post(co(s.handleInboxReactivate)))
+	mux.HandleFunc("POST /c/{company}/caixa/estado", post(co(s.handleInboxState)))
+	mux.HandleFunc("GET /c/{company}/caixa/selo", co(s.handleInboxBadge))
+	mux.HandleFunc("GET /c/{company}/caixa/eventos", co(s.handleInboxEvents))
+	mux.HandleFunc("GET /c/{company}/configuracoes/notificacoes", co(s.handleNotifySettings))
+	mux.HandleFunc("POST /c/{company}/configuracoes/notificacoes", post(co(s.handleNotifySave)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/notificacoes/teste", post(co(s.handleNotifyTest)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/notificacoes/aparelhos", post(co(s.handlePushSubscribe)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/notificacoes/aparelhos/remover", post(co(s.handlePushRemove)))
 	mux.HandleFunc("GET /c/{company}/decisoes", co(s.handleDecisions))
 	mux.HandleFunc("GET /c/{company}/gates", co(s.handleGates))
 	mux.HandleFunc("GET /c/{company}/gates/{gate}", co(s.handleGate))
@@ -399,6 +434,10 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("POST /c/{company}/configuracoes/segredos/{name}/rotacionar", post(co(s.handleRotateSecret)))
 	mux.HandleFunc("POST /c/{company}/configuracoes/segredos/{name}/revelar", post(co(s.handleRevealSecret)))
 	mux.HandleFunc("POST /c/{company}/configuracoes/segredos/{name}/apagar", post(co(s.handleDeleteSecret)))
+	mux.HandleFunc("GET /c/{company}/configuracoes/decisao", co(s.handleDecision))
+	mux.HandleFunc("POST /c/{company}/configuracoes/decisao", post(co(s.handleSaveDecision)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/decisao/remover", post(co(s.handleDeleteDecision)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/decisao/features/{feature}", post(co(s.handleDecisionFeature)))
 	mux.HandleFunc("GET /c/{company}/configuracoes/instancia", co(s.handleInstance))
 	mux.HandleFunc("POST /c/{company}/configuracoes/instancia/{key}", post(co(s.handleSetInstanceSetting)))
 	mux.HandleFunc("POST /c/{company}/configuracoes/instancia/{key}/padrao", post(co(s.handleUnsetInstanceSetting)))
@@ -424,6 +463,7 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("POST /importar/aplicar", post(s.handleImportApply))
 	s.authRoutes(mux)
 	s.accessRoutes(mux)
+	s.devRoutes(mux)
 
 	mux.HandleFunc("GET /c/{company}/atividade", co(s.handleActivity))
 	mux.HandleFunc("GET /c/{company}/timeline", co(s.handleTimeline))
@@ -615,8 +655,9 @@ func friendly(ctx context.Context, err error) (int, string, string) {
 // fail renders an error as a page (full navigation) or fragment (htmx).
 func (s *server) fail(w http.ResponseWriter, r *http.Request, co *domain.Company, err error) {
 	st, title, msg := friendly(r.Context(), err)
-	if st >= 500 {
-		s.log.Error("ui handler", "method", r.Method, "path", auth.RedactPath(r.URL.Path), "err", err)
+	if st >= 500 && !errors.Is(err, context.Canceled) { // cliente que saiu no meio não é exceção do servidor
+		telemetry.Record(r.Context(), s.log, telemetry.FromError(telemetry.SourceServer, err),
+			slog.String("method", r.Method), slog.String("path", auth.RedactPath(r.URL.Path)))
 	}
 	vm := views.ErrorVM{Status: st, Title: title, Message: msg}
 	if isHX(r) {
@@ -647,10 +688,18 @@ func (s *server) shell(r *http.Request, co domain.Company, active, title string,
 		Owner:    ownerName,
 		Role:     views.RoleFrom(r.Context()),
 		Archived: co.Archived(),
+		// com pessoa autenticada a Caixa tem selo e toasts ao vivo (ADR-0042)
+		Personal: personal(r.Context()),
 	}
 }
 
 func trimForm(r *http.Request, key string) string { return strings.TrimSpace(r.PostFormValue(key)) }
+
+// personal diz se a requisição vem de uma pessoa autenticada (sessão ou API key), e não do modo trusted.
+func personal(ctx context.Context) bool {
+	_, ok := auth.IdentityFrom(ctx)
+	return ok
+}
 
 // actorFrom is the human actor of the request: the signed-in user in authenticated
 // mode, the anonymous local human in trusted mode.

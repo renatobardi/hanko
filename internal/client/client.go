@@ -280,7 +280,9 @@ type AddCommentReq struct {
 // TaskQuery são os filtros de ListTasks.
 type TaskQuery struct {
 	Status, Persona, Project, Q, Goal string
-	Limit, Offset                     int
+	// Mine: só as tasks em que a pessoa autenticada participa (ADR-0042).
+	Mine          bool
+	Limit, Offset int
 }
 
 func (t TaskQuery) values() url.Values {
@@ -289,6 +291,9 @@ func (t TaskQuery) values() url.Values {
 		if v != "" {
 			q.Set(k, v)
 		}
+	}
+	if t.Mine {
+		q.Set("mine", "true")
 	}
 	if t.Limit > 0 {
 		q.Set("limit", strconv.Itoa(t.Limit))

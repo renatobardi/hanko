@@ -12,6 +12,90 @@ import (
 	"github.com/google/uuid"
 )
 
+const searchArtifacts = `-- name: SearchArtifacts :many
+WITH cand AS MATERIALIZED (
+    SELECT a.id, a.search_tsv, a.created_at
+    FROM artifacts a
+    WHERE a.company_id = $1 AND a.search_tsv @@ to_tsquery('simple', $2::text)
+      AND NOT EXISTS (
+          SELECT 1 FROM artifacts n
+          WHERE n.company_id = a.company_id AND n.name = a.name AND n.version > a.version
+            AND COALESCE(n.task_id, '00000000-0000-0000-0000-000000000000'::uuid) = COALESCE(a.task_id, '00000000-0000-0000-0000-000000000000'::uuid))
+    ORDER BY a.created_at DESC, a.id DESC
+    LIMIT 2000
+),
+top AS MATERIALIZED (
+    SELECT c.id, c.created_at,
+           (ts_rank(c.search_tsv, to_tsquery('simple', $2::text), 1)
+            * (0.5 + 0.5 / (1 + GREATEST(extract(epoch FROM ($3::timestamptz - c.created_at)), 0) / 2592000.0)))::float8 AS score
+    FROM cand c
+    ORDER BY score DESC, c.created_at DESC, c.id
+    LIMIT $4
+)
+SELECT a.id, a.name, a.mime, a.version, a.size_bytes, a.created_at,
+       COALESCE(co.task_prefix || '-' || t.number, '')::text AS task_key, COALESCE(t.title, '')::text AS task_title, top.score
+FROM top
+JOIN artifacts a ON a.id = top.id
+JOIN companies co ON co.id = a.company_id
+LEFT JOIN tasks t ON t.id = a.task_id
+ORDER BY top.score DESC, a.created_at DESC, a.id
+`
+
+type SearchArtifactsParams struct {
+	CompanyID uuid.UUID
+	Query     string
+	Now       time.Time
+	Lim       int32
+}
+
+type SearchArtifactsRow struct {
+	ID        uuid.UUID
+	Name      string
+	Mime      string
+	Version   int32
+	SizeBytes int64
+	CreatedAt time.Time
+	TaskKey   string
+	TaskTitle string
+	Score     float64
+}
+
+// Só a versão mais recente de cada cadeia (empresa, task ou "sem task", nome) aparece.
+func (q *Queries) SearchArtifacts(ctx context.Context, arg SearchArtifactsParams) ([]SearchArtifactsRow, error) {
+	rows, err := q.db.Query(ctx, searchArtifacts,
+		arg.CompanyID,
+		arg.Query,
+		arg.Now,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SearchArtifactsRow{}
+	for rows.Next() {
+		var i SearchArtifactsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Mime,
+			&i.Version,
+			&i.SizeBytes,
+			&i.CreatedAt,
+			&i.TaskKey,
+			&i.TaskTitle,
+			&i.Score,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const searchComments = `-- name: SearchComments :many
 WITH cand AS MATERIALIZED (
     SELECT k.id, k.search_tsv, k.created_at
@@ -154,6 +238,150 @@ func (q *Queries) SearchFlows(ctx context.Context, arg SearchFlowsParams) ([]Sea
 	return items, nil
 }
 
+const searchGates = `-- name: SearchGates :many
+WITH cand AS MATERIALIZED (
+    SELECT g.id, g.search_tsv, g.created_at
+    FROM gates g
+    WHERE g.company_id = $1 AND g.search_tsv @@ to_tsquery('simple', $2::text)
+    ORDER BY g.created_at DESC, g.id DESC
+    LIMIT 2000
+),
+top AS MATERIALIZED (
+    SELECT c.id, c.created_at,
+           (ts_rank(c.search_tsv, to_tsquery('simple', $2::text), 1)
+            * (0.5 + 0.5 / (1 + GREATEST(extract(epoch FROM ($3::timestamptz - c.created_at)), 0) / 2592000.0)))::float8 AS score
+    FROM cand c
+    ORDER BY score DESC, c.created_at DESC, c.id
+    LIMIT $4
+)
+SELECT g.id, g.kind, g.status, g.title, left(g.body, 20000)::text AS body, g.decision_note, g.created_at,
+       COALESCE(co.task_prefix || '-' || t.number, '')::text AS task_key, COALESCE(t.title, '')::text AS task_title, top.score
+FROM top
+JOIN gates g ON g.id = top.id
+JOIN companies co ON co.id = g.company_id
+LEFT JOIN tasks t ON t.id = g.task_id
+ORDER BY top.score DESC, g.created_at DESC, g.id
+`
+
+type SearchGatesParams struct {
+	CompanyID uuid.UUID
+	Query     string
+	Now       time.Time
+	Lim       int32
+}
+
+type SearchGatesRow struct {
+	ID           uuid.UUID
+	Kind         string
+	Status       string
+	Title        string
+	Body         string
+	DecisionNote string
+	CreatedAt    time.Time
+	TaskKey      string
+	TaskTitle    string
+	Score        float64
+}
+
+// Candidatos pelo índice GIN (os mais recentes primeiro, teto de 2000 como as tasks), ranqueados depois.
+func (q *Queries) SearchGates(ctx context.Context, arg SearchGatesParams) ([]SearchGatesRow, error) {
+	rows, err := q.db.Query(ctx, searchGates,
+		arg.CompanyID,
+		arg.Query,
+		arg.Now,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SearchGatesRow{}
+	for rows.Next() {
+		var i SearchGatesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Kind,
+			&i.Status,
+			&i.Title,
+			&i.Body,
+			&i.DecisionNote,
+			&i.CreatedAt,
+			&i.TaskKey,
+			&i.TaskTitle,
+			&i.Score,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const searchGoals = `-- name: SearchGoals :many
+
+SELECT g.id, g.slug, g.title, g.description, g.status, g.updated_at,
+       (ts_rank(g.search_tsv, to_tsquery('simple', $1::text), 1)
+        * (0.5 + 0.5 / (1 + GREATEST(extract(epoch FROM ($2::timestamptz - g.updated_at)), 0) / 2592000.0)))::float8 AS score
+FROM goals g
+WHERE g.company_id = $3 AND g.search_tsv @@ to_tsquery('simple', $1::text)
+ORDER BY score DESC, g.updated_at DESC, g.id
+LIMIT $4
+`
+
+type SearchGoalsParams struct {
+	Query     string
+	Now       time.Time
+	CompanyID uuid.UUID
+	Lim       int32
+}
+
+type SearchGoalsRow struct {
+	ID          uuid.UUID
+	Slug        string
+	Title       string
+	Description string
+	Status      string
+	UpdatedAt   time.Time
+	Score       float64
+}
+
+// Tipos acrescentados pelo ADR-0042 (metas, projetos, gates, artefatos), mesma receita das consultas acima.
+func (q *Queries) SearchGoals(ctx context.Context, arg SearchGoalsParams) ([]SearchGoalsRow, error) {
+	rows, err := q.db.Query(ctx, searchGoals,
+		arg.Query,
+		arg.Now,
+		arg.CompanyID,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SearchGoalsRow{}
+	for rows.Next() {
+		var i SearchGoalsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Slug,
+			&i.Title,
+			&i.Description,
+			&i.Status,
+			&i.UpdatedAt,
+			&i.Score,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const searchPersonas = `-- name: SearchPersonas :many
 SELECT p.id, p.slug, p.name, p.title, left(p.instructions, 20000)::text AS instructions, p.status, p.updated_at,
        (ts_rank(p.search_tsv, to_tsquery('simple', $1::text), 1)
@@ -202,6 +430,66 @@ func (q *Queries) SearchPersonas(ctx context.Context, arg SearchPersonasParams) 
 			&i.Name,
 			&i.Title,
 			&i.Instructions,
+			&i.Status,
+			&i.UpdatedAt,
+			&i.Score,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const searchProjects = `-- name: SearchProjects :many
+SELECT p.id, p.slug, p.name, p.description, p.status, p.updated_at,
+       (ts_rank(p.search_tsv, to_tsquery('simple', $1::text), 1)
+        * (0.5 + 0.5 / (1 + GREATEST(extract(epoch FROM ($2::timestamptz - p.updated_at)), 0) / 2592000.0)))::float8 AS score
+FROM projects p
+WHERE p.company_id = $3 AND p.search_tsv @@ to_tsquery('simple', $1::text)
+ORDER BY score DESC, p.updated_at DESC, p.id
+LIMIT $4
+`
+
+type SearchProjectsParams struct {
+	Query     string
+	Now       time.Time
+	CompanyID uuid.UUID
+	Lim       int32
+}
+
+type SearchProjectsRow struct {
+	ID          uuid.UUID
+	Slug        string
+	Name        string
+	Description string
+	Status      string
+	UpdatedAt   time.Time
+	Score       float64
+}
+
+func (q *Queries) SearchProjects(ctx context.Context, arg SearchProjectsParams) ([]SearchProjectsRow, error) {
+	rows, err := q.db.Query(ctx, searchProjects,
+		arg.Query,
+		arg.Now,
+		arg.CompanyID,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SearchProjectsRow{}
+	for rows.Next() {
+		var i SearchProjectsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Slug,
+			&i.Name,
+			&i.Description,
 			&i.Status,
 			&i.UpdatedAt,
 			&i.Score,

@@ -23,6 +23,7 @@ type listTasksIn struct {
 	Project string `query:"project" doc:"Id ou slug do projeto."`
 	Q       string `query:"q" doc:"Busca textual em título e descrição."`
 	Goal    string `query:"goal" doc:"Id ou slug da meta a que as tasks servem."`
+	Mine    bool   `query:"mine" doc:"Só as tasks em que a pessoa autenticada participa: criou, atribuiu, foi mencionada, comentou ou é da audiência de um gate (campo participation). Vazio sem pessoa autenticada."`
 }
 
 type createTaskIn struct {
@@ -185,7 +186,7 @@ func (s *server) registerTasks(api huma.API) {
 				return nil, s.fail(ctx, err)
 			}
 			ts, err := s.svc.ListTasks(ctx, sc.Company.ID, service.TaskFilter{
-				Statuses: statuses, PersonaID: persona, ProjectID: project, GoalID: goal, Query: in.Q, Limit: in.Limit, Offset: in.Offset})
+				Statuses: statuses, PersonaID: persona, ProjectID: project, GoalID: goal, Query: in.Q, Mine: in.Mine, Limit: in.Limit, Offset: in.Offset})
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}

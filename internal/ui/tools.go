@@ -71,6 +71,7 @@ func (s *server) toolRoutes(mux langMux) {
 	mux.HandleFunc("GET "+b+"/efetivas", co(s.handleEffectiveTools))
 	s.toolPolicyRoutes(mux) // política de tools (ADR-0053)
 	s.connectionRoutes(mux) // conexões OAuth (ADR-0043)
+	s.gatesPlusRoutes(mux)  // gates estendidos: pergunta, plano, incidentes, persona principal (ADR-0041)
 }
 
 func toolsBase(co domain.Company) string { return "/c/" + co.Slug + "/ferramentas" }

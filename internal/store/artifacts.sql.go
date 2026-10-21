@@ -114,7 +114,7 @@ INSERT INTO artifacts (id, company_id, task_id, run_id, project_id, persona_id, 
                        size_bytes, sha256, version, created_at, storage, kind, comment_id, conversation_id, message_id)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
         $11, $12, $13, $14, $15, $16, $17, $18, $19)
-RETURNING id, company_id, task_id, run_id, project_id, persona_id, author_type, author_id, name, mime, size_bytes, sha256, version, created_at, storage, kind, comment_id, conversation_id, message_id
+RETURNING id, company_id, task_id, run_id, project_id, persona_id, author_type, author_id, name, mime, size_bytes, sha256, version, created_at, storage, kind, comment_id, conversation_id, message_id, search_tsv
 `
 
 type CreateArtifactParams struct {
@@ -182,6 +182,7 @@ func (q *Queries) CreateArtifact(ctx context.Context, arg CreateArtifactParams) 
 		&i.CommentID,
 		&i.ConversationID,
 		&i.MessageID,
+		&i.SearchTsv,
 	)
 	return i, err
 }
@@ -281,7 +282,7 @@ func (q *Queries) DeleteAttachment(ctx context.Context, arg DeleteAttachmentPara
 }
 
 const exportArtifacts = `-- name: ExportArtifacts :many
-SELECT a.id, a.company_id, a.task_id, a.run_id, a.project_id, a.persona_id, a.author_type, a.author_id, a.name, a.mime, a.size_bytes, a.sha256, a.version, a.created_at, a.storage, a.kind, a.comment_id, a.conversation_id, a.message_id, COALESCE(t.number, 0)::bigint AS task_number,
+SELECT a.id, a.company_id, a.task_id, a.run_id, a.project_id, a.persona_id, a.author_type, a.author_id, a.name, a.mime, a.size_bytes, a.sha256, a.version, a.created_at, a.storage, a.kind, a.comment_id, a.conversation_id, a.message_id, a.search_tsv, COALESCE(t.number, 0)::bigint AS task_number,
        COALESCE(pr.slug, '')::text AS project_slug, COALESCE(pe.slug, '')::text AS persona_slug
 FROM artifacts a
 LEFT JOIN tasks t ON t.id = a.task_id
@@ -311,6 +312,7 @@ type ExportArtifactsRow struct {
 	CommentID      *uuid.UUID
 	ConversationID *uuid.UUID
 	MessageID      *uuid.UUID
+	SearchTsv      interface{}
 	TaskNumber     int64
 	ProjectSlug    string
 	PersonaSlug    string
@@ -346,6 +348,7 @@ func (q *Queries) ExportArtifacts(ctx context.Context, companyID uuid.UUID) ([]E
 			&i.CommentID,
 			&i.ConversationID,
 			&i.MessageID,
+			&i.SearchTsv,
 			&i.TaskNumber,
 			&i.ProjectSlug,
 			&i.PersonaSlug,
@@ -361,7 +364,7 @@ func (q *Queries) ExportArtifacts(ctx context.Context, companyID uuid.UUID) ([]E
 }
 
 const getArtifactByID = `-- name: GetArtifactByID :one
-SELECT id, company_id, task_id, run_id, project_id, persona_id, author_type, author_id, name, mime, size_bytes, sha256, version, created_at, storage, kind, comment_id, conversation_id, message_id FROM artifacts WHERE company_id = $1 AND id = $2
+SELECT id, company_id, task_id, run_id, project_id, persona_id, author_type, author_id, name, mime, size_bytes, sha256, version, created_at, storage, kind, comment_id, conversation_id, message_id, search_tsv FROM artifacts WHERE company_id = $1 AND id = $2
 `
 
 type GetArtifactByIDParams struct {
@@ -392,6 +395,7 @@ func (q *Queries) GetArtifactByID(ctx context.Context, arg GetArtifactByIDParams
 		&i.CommentID,
 		&i.ConversationID,
 		&i.MessageID,
+		&i.SearchTsv,
 	)
 	return i, err
 }
@@ -413,7 +417,7 @@ func (q *Queries) GetArtifactContent(ctx context.Context, arg GetArtifactContent
 }
 
 const getArtifactView = `-- name: GetArtifactView :one
-SELECT a.id, a.company_id, a.task_id, a.run_id, a.project_id, a.persona_id, a.author_type, a.author_id, a.name, a.mime, a.size_bytes, a.sha256, a.version, a.created_at, a.storage, a.kind, a.comment_id, a.conversation_id, a.message_id, c.task_prefix,
+SELECT a.id, a.company_id, a.task_id, a.run_id, a.project_id, a.persona_id, a.author_type, a.author_id, a.name, a.mime, a.size_bytes, a.sha256, a.version, a.created_at, a.storage, a.kind, a.comment_id, a.conversation_id, a.message_id, a.search_tsv, c.task_prefix,
        COALESCE(t.number, 0)::bigint AS task_number, COALESCE(t.title, '')::text AS task_title,
        COALESCE(pr.slug, '')::text AS project_slug, COALESCE(pr.name, '')::text AS project_name,
        COALESCE(pe.slug, '')::text AS persona_slug, COALESCE(pe.name, '')::text AS persona_name,
@@ -472,6 +476,7 @@ func (q *Queries) GetArtifactView(ctx context.Context, arg GetArtifactViewParams
 		&i.Artifact.CommentID,
 		&i.Artifact.ConversationID,
 		&i.Artifact.MessageID,
+		&i.Artifact.SearchTsv,
 		&i.TaskPrefix,
 		&i.TaskNumber,
 		&i.TaskTitle,
@@ -486,7 +491,7 @@ func (q *Queries) GetArtifactView(ctx context.Context, arg GetArtifactViewParams
 }
 
 const latestArtifactInChain = `-- name: LatestArtifactInChain :one
-SELECT id, company_id, task_id, run_id, project_id, persona_id, author_type, author_id, name, mime, size_bytes, sha256, version, created_at, storage, kind, comment_id, conversation_id, message_id FROM artifacts
+SELECT id, company_id, task_id, run_id, project_id, persona_id, author_type, author_id, name, mime, size_bytes, sha256, version, created_at, storage, kind, comment_id, conversation_id, message_id, search_tsv FROM artifacts
 WHERE company_id = $1 AND kind = 'artifact'
   AND COALESCE(task_id, '00000000-0000-0000-0000-000000000000'::uuid) = COALESCE($2::uuid, '00000000-0000-0000-0000-000000000000'::uuid)
   AND name = $3
@@ -523,6 +528,7 @@ func (q *Queries) LatestArtifactInChain(ctx context.Context, arg LatestArtifactI
 		&i.CommentID,
 		&i.ConversationID,
 		&i.MessageID,
+		&i.SearchTsv,
 	)
 	return i, err
 }
@@ -582,7 +588,7 @@ func (q *Queries) LinkAttachmentsToMessage(ctx context.Context, arg LinkAttachme
 }
 
 const listArtifactChain = `-- name: ListArtifactChain :many
-SELECT id, company_id, task_id, run_id, project_id, persona_id, author_type, author_id, name, mime, size_bytes, sha256, version, created_at, storage, kind, comment_id, conversation_id, message_id FROM artifacts
+SELECT id, company_id, task_id, run_id, project_id, persona_id, author_type, author_id, name, mime, size_bytes, sha256, version, created_at, storage, kind, comment_id, conversation_id, message_id, search_tsv FROM artifacts
 WHERE company_id = $1 AND kind = 'artifact'
   AND COALESCE(task_id, '00000000-0000-0000-0000-000000000000'::uuid) = COALESCE($2::uuid, '00000000-0000-0000-0000-000000000000'::uuid)
   AND name = $3
@@ -625,6 +631,7 @@ func (q *Queries) ListArtifactChain(ctx context.Context, arg ListArtifactChainPa
 			&i.CommentID,
 			&i.ConversationID,
 			&i.MessageID,
+			&i.SearchTsv,
 		); err != nil {
 			return nil, err
 		}
@@ -637,7 +644,7 @@ func (q *Queries) ListArtifactChain(ctx context.Context, arg ListArtifactChainPa
 }
 
 const listArtifactViews = `-- name: ListArtifactViews :many
-SELECT a.id, a.company_id, a.task_id, a.run_id, a.project_id, a.persona_id, a.author_type, a.author_id, a.name, a.mime, a.size_bytes, a.sha256, a.version, a.created_at, a.storage, a.kind, a.comment_id, a.conversation_id, a.message_id, c.task_prefix,
+SELECT a.id, a.company_id, a.task_id, a.run_id, a.project_id, a.persona_id, a.author_type, a.author_id, a.name, a.mime, a.size_bytes, a.sha256, a.version, a.created_at, a.storage, a.kind, a.comment_id, a.conversation_id, a.message_id, a.search_tsv, c.task_prefix,
        COALESCE(t.number, 0)::bigint AS task_number, COALESCE(t.title, '')::text AS task_title,
        COALESCE(pr.slug, '')::text AS project_slug, COALESCE(pr.name, '')::text AS project_name,
        COALESCE(pe.slug, '')::text AS persona_slug, COALESCE(pe.name, '')::text AS persona_name,
@@ -752,6 +759,7 @@ func (q *Queries) ListArtifactViews(ctx context.Context, arg ListArtifactViewsPa
 			&i.Artifact.CommentID,
 			&i.Artifact.ConversationID,
 			&i.Artifact.MessageID,
+			&i.Artifact.SearchTsv,
 			&i.TaskPrefix,
 			&i.TaskNumber,
 			&i.TaskTitle,

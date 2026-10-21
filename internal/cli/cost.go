@@ -217,6 +217,7 @@ func (e *env) budgetCmd() *cobra.Command {
 		},
 	}
 	c.AddCommand(set, show)
+	c.AddCommand(e.budgetIncidentCmds()...)
 	return c
 }
 

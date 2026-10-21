@@ -29,6 +29,12 @@ func settingsBase(cfg config.Config) map[string]any {
 		settings.RunReserveUSD:          cfg.RunReserveUSD,
 		settings.AlertsSilentFactor:     int64(cfg.AlertSilentFactor),
 		settings.AlertsRunStuckAfter:    cfg.AlertRunStuckAfter,
+		settings.RateLimitEnabled:       cfg.RateLimit.Enabled,
+		settings.RateLimitWrites:        cfg.RateLimit.WritesPerMin,
+		settings.RateLimitIP:            cfg.RateLimit.IPPerMin,
+		settings.RateLimitMCP:           cfg.RateLimit.MCPPerMin,
+		settings.RateLimitWebhooks:      cfg.RateLimit.WebhooksPerMin,
+		settings.RateLimitBrowserErrors: cfg.RateLimit.BrowserErrPerMin,
 	}
 }
 

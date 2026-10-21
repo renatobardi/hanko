@@ -109,6 +109,9 @@ services:
     restart: unless-stopped
     volumes:
       - lgtm:/data
+      # painel "Erros" provisionado (ADR-0058 §C): provider + JSON do dashboard
+      - ./grafana/provisioning/dashboards/hanko.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/hanko.yaml:ro
+      - ./grafana/dashboards:/hanko-dashboards:ro
     ports:
       - "127.0.0.1:3000:3000"
       - "127.0.0.1:4317:4317"

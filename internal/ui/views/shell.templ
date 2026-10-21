@@ -21,7 +21,7 @@ templ Layout(sh Shell) {
 			<script src={ "/static/vendor/sse.min.js" } defer></script>
 			<script src={ "/static/hanko.js?v=" + sh.Version } defer></script>
 		</head>
-		<body>
+		<body { notifyAttrs(sh)... }>
 			<input type="checkbox" id="nav-toggle" class="nav-toggle" aria-label="Menu"/>
 			<div class="app">
 				<aside class="sidebar" id="sidebar">
@@ -40,6 +40,9 @@ templ Layout(sh Shell) {
 									<a href={ templ.SafeURL(it.Href(sh.Base())) } aria-current?={ it.Key == sh.Active }>
 										@Icon(it.Icon)
 										<span>{ i18n.T(ctx, it.Label) }</span>
+										if it.Key == "caixa" && sh.Personal {
+											<span class="nav-badge-slot" hx-get={ sh.Base() + "/caixa/selo" } hx-trigger="load, refresh-inbox from:body, every 120s" hx-swap="innerHTML"></span>
+										}
 									</a>
 								}
 							</div>
@@ -82,6 +85,9 @@ templ Layout(sh Shell) {
 					</main>
 				</div>
 			</div>
+			if sh.Personal {
+				<div id="toasts" class="toasts" aria-live="polite"></div>
+			}
 		</body>
 	</html>
 }

@@ -60,6 +60,12 @@ type TaskCoordVM struct {
 	ForceCloseHref string
 	NewSubtaskHref string
 	Review         CoordReview
+	Plan           CoordPlan
+	// Git (ADR-0054): o worktree da task, quando existe, e a ação "Nova sessão".
+	GitHref        string
+	GitBadge       Badge
+	GitBranch      string
+	NewSessionHref string
 	// CanForceClose: há subtask aberta e a task ainda está aberta (mostra o override humano com motivo).
 	CanForceClose bool
 }
@@ -74,4 +80,5 @@ type InboxHeld struct {
 	By         string
 	When       string
 	ResumeHref string
+	Ctl        InboxCtl
 }

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"runtime/debug"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
@@ -16,7 +17,9 @@ import (
 	"github.com/renatobardi/hanko/internal/events"
 	"github.com/renatobardi/hanko/internal/mcp"
 	"github.com/renatobardi/hanko/internal/memory"
+	"github.com/renatobardi/hanko/internal/ratelimit"
 	"github.com/renatobardi/hanko/internal/service"
+	"github.com/renatobardi/hanko/internal/telemetry"
 	"github.com/renatobardi/hanko/internal/ui"
 	"github.com/renatobardi/hanko/internal/ui/views"
 )
@@ -32,6 +35,8 @@ type handlerDeps struct {
 	Tokens  auth.RunTokens
 	Memory  memory.Provider // opcional; lê páginas para o diff das propostas de curadoria
 	Metrics http.Handler    // opcional
+	// Limiter é o rate limit geral (ADR-0058 §B); nil = monta um sobre o service quando há settings.
+	Limiter *ratelimit.Limiter
 	// JWKSURL substitui a origem das chaves públicas do Firebase (testes).
 	JWKSURL string
 }
@@ -61,11 +66,23 @@ func buildHandler(d handlerDeps) (http.Handler, error) {
 		}
 		mux.Handle(mcp.MemoryPath, mp)
 	}
+	mux.Handle("POST "+telemetry.BrowserErrorPath, telemetry.BrowserErrors(d.Logger)) // erros do navegador → OTel (ADR-0058 §C)
 	if d.Metrics != nil {
 		mux.Handle("GET /metrics", d.Metrics)
 	}
 
-	var inner http.Handler = mux
+	inner := recoverPanics(mux, d.Logger)
+	if d.Svc.Settings != nil {
+		lim := d.Limiter
+		if lim == nil {
+			var err error
+			if lim, err = ratelimit.New(d.Svc, d.Logger); err != nil {
+				return nil, fmt.Errorf("app: rate limit: %w", err)
+			}
+		}
+		proxies, _ := auth.ParseTrustedProxies(cfg.TrustedProxies) // validado em config.Validate
+		inner = ratelimit.Middleware(ratelimit.Options{Limiter: lim, Limits: settingsLimits{d.Svc.Settings}, Proxies: proxies, Tokens: &d.Tokens})(inner)
+	}
 	if cfg.Authenticated() {
 		inner = auth.Guard(d.Svc, d.Logger)(inner)
 	}
@@ -74,6 +91,26 @@ func buildHandler(d handlerDeps) (http.Handler, error) {
 		otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string { return r.Method + " " + r.URL.Path }),
 	))
 	return hostHandler(cfg.PublicURL, cfg.AllowedHosts, h), nil
+}
+
+// recoverPanics registra como exceção (span event + log com pilha) o panic que escapou dos handlers e responde 500.
+// A API tem recover próprio por dentro; este cobre a UI, o MCP e o resto do mux. http.ErrAbortHandler passa adiante.
+func recoverPanics(next http.Handler, log *slog.Logger) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			rec := recover()
+			if rec == nil {
+				return
+			}
+			if rec == http.ErrAbortHandler {
+				panic(rec)
+			}
+			telemetry.Record(r.Context(), log, telemetry.FromPanic(telemetry.SourceServer, rec, debug.Stack()),
+				slog.String("method", r.Method), slog.String("path", auth.RedactPath(r.URL.Path)))
+			http.Error(w, "erro interno do servidor", http.StatusInternalServerError)
+		}()
+		next.ServeHTTP(w, r)
+	})
 }
 
 // uiAuth monta a configuração de login da UI; nil no modo trusted.
@@ -135,7 +172,7 @@ func pageReader(p memory.Provider) memory.PageReader {
 // platformInfo é o retrato da instalação para Configurações › Ambientes, Adapters e Plugins (sem segredos).
 func platformInfo(cfg config.Config) ui.PlatformInfo {
 	return ui.PlatformInfo{Mode: cfg.Mode, AuthProvider: cfg.Auth.Provider, PublicURL: cfg.PublicURL, AgentURL: cfg.AgentURL,
-		ClaudeBin: cfg.ClaudeBin, CodexBin: cfg.CodexBin, ACPAllow: cfg.ACP.Allow, ACPCommands: cfg.ACP.Commands,
+		ClaudeBin: cfg.ClaudeBin, CodexBin: cfg.CodexBin, DevinBin: cfg.DevinBin, PiBin: cfg.PiBin, CursorBin: cfg.CursorBin, ACPAllow: cfg.ACP.Allow, ACPCommands: cfg.ACP.Commands,
 		MemoryProvider: cfg.Memory.Provider, MemoryURL: cfg.Memory.URL, OTelEndpoint: os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"),
 		IntegrationsAllowStdio: cfg.Integrations.AllowStdio, IntegrationsAllowPrivate: cfg.Integrations.AllowPrivateDestinations,
 		SecretKeySet: cfg.SecretKey != "", VaultConfigured: cfg.Vault.Addr != "", Workers: cfg.Workers, RunTimeout: cfg.RunTimeout, HeartbeatInterval: cfg.HeartbeatInterval}

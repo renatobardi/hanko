@@ -68,9 +68,12 @@ templ GoalsPage(sh Shell, vm GoalsVM) {
 						<tbody>
 							for _, r := range vm.Rows {
 								<tr class="row">
-									<td class="ttl">
+									<td class={ "ttl", fmt.Sprintf("goal-depth-%d", min(max(r.Depth, 1), 4)) }>
 										<a href={ templ.SafeURL(r.Href) }>{ r.Title }</a>
 										@BadgeEl(r.Badge)
+										if r.Subs != "" {
+											<span class="chip soft">{ r.Subs }</span>
+										}
 										if r.Metric != "" {
 											<div class="note">{ r.Metric }</div>
 										}
@@ -179,6 +182,16 @@ templ GoalForm(vm GoalFormVM) {
 				<label for="g-owner">{ i18n.T(ctx, "Dona") }</label>
 				@Select("owner", "g-owner", vm.OwnerOptions, false)
 			</div>
+			if len(vm.ParentOptions) > 1 {
+				<div class="field">
+					<label for="g-parent">{ i18n.T(ctx, "Meta-pai") }</label>
+					@Select("parent", "g-parent", vm.ParentOptions, false)
+					<span class="hint">{ i18n.T(ctx, "Opcional. Até 4 níveis; o progresso da meta-pai é a média das submetas.") }</span>
+					if e := vm.FieldErr["parent_id"]; e != "" {
+						<span class="err">{ e }</span>
+					}
+				</div>
+			}
 		</div>
 		<div class="form-actions">
 			<a class="btn ghost" href={ templ.SafeURL(vm.CancelHref) }>{ i18n.T(ctx, "Cancelar") }</a>
@@ -238,6 +251,16 @@ templ GoalPage(sh Shell, vm GoalVM) {
 		if vm.Error != "" {
 			@Alert("danger", vm.Error)
 		}
+		if len(vm.Path) > 0 {
+			<p class="muted text-sm goal-path">
+				for i, c := range vm.Path {
+					if i > 0 {
+						<span aria-hidden="true">›</span>
+					}
+					<a href={ templ.SafeURL(c.Href) }>{ c.Label }</a>
+				}
+			</p>
+		}
 		<div class="flow-head">
 			<div>
 				<h1>{ vm.Title } @BadgeEl(vm.Badge)</h1>
@@ -296,6 +319,15 @@ templ GoalPage(sh Shell, vm GoalVM) {
 				<div class="md mt-3">@templ.Raw(string(vm.Description))</div>
 			}
 		</section>
+		if len(vm.Subgoals) > 0 {
+			<section class="card pad mt-6">
+				<div class="card-head"><h2>{ i18n.T(ctx, "Submetas") }</h2></div>
+				@GoalMiniList(vm.Subgoals, "")
+				if vm.Rollup {
+					<p class="muted text-sm mt-2">{ i18n.T(ctx, "O progresso desta meta é a média das submetas; registre o valor medido nelas.") }</p>
+				}
+			</section>
+		}
 		<div class="grid-2 mt-6 items-start">
 			<section class="card pad">
 				<div class="card-head"><h2>{ i18n.T(ctx, "Histórico de progresso") }</h2></div>

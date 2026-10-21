@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -20,6 +21,18 @@ type RequestGateInput struct {
 	TaskID  *domain.ID
 	RunID   *domain.ID
 	EventID string // idempotency key (agents/MCP): repeating returns the existing gate
+
+	// Form é o formulário de um gate question (ADR-0041); obrigatório nele e proibido nos demais.
+	Form *domain.QuestionForm
+	// Hire é a ficha de um gate hire; aprovar o gate cria a persona. Sem ficha, o gate hire é só uma decisão.
+	Hire *domain.HireSpec
+	// Artifact (id ou nome de um artefato da task) é o plano de um gate plan; vazio = o plano está em Body.
+	Artifact string
+	// Audience restringe quem decide e quem vê o gate na Caixa (vazia = qualquer decisor do papel exigido).
+	Audience domain.GateAudience
+
+	// payload é o JSON estruturado do tipo, montado por prepareGateExtras.
+	payload json.RawMessage
 
 	// requestedStatus is the status a persona with require_review asked for (done or cancelled);
 	// set only by requestTaskReview.
@@ -45,8 +58,11 @@ type GateFilter struct {
 	Kinds     []domain.GateKind
 	TaskID    *domain.ID
 	PersonaID *domain.ID
-	Limit     int // default 100, max 500
-	Offset    int
+	// Mine limita aos gates da audiência da pessoa autenticada: que ela pediu ou decidiu, ou de tasks em que
+	// participa (ADR-0042). Sem pessoa autenticada devolve vazio.
+	Mine   bool
+	Limit  int // default 100, max 500
+	Offset int
 }
 
 // GateView is a gate with display-ready joins.
@@ -98,6 +114,9 @@ func (s *Service) RequestGate(ctx context.Context, actor domain.Actor, companyID
 	in.Title = title
 	if in.Kind == domain.GateConnection && in.connectionID == nil { // o gate nasce de um pedido de conexão, que sabe qual é
 		return GateView{}, domain.Invalid("kind", "connection gates are opened by requesting a connection")
+	}
+	if err := s.prepareGateExtras(ctx, actor, companyID, &in); err != nil {
+		return GateView{}, err
 	}
 	if in.Kind == domain.GateInstruction { // precisa da proposta (texto e revisão-base): só ProposePersonaInstructions abre
 		return GateView{}, domain.Invalid("kind", "instruction gates are opened by proposing instructions")
@@ -151,6 +170,11 @@ func (s *Service) RequestGate(ctx context.Context, actor domain.Actor, companyID
 				}
 				personaID = actor.ID
 			}
+			if in.Kind == domain.GateHire && in.Hire != nil { // slug livre e referências existentes (ADR-0041)
+				if err := t.checkHireRequest(companyID, personaID, *in.Hire); err != nil {
+					return err
+				}
+			}
 			g, err := t.createGate(actor, companyID, in, personaID)
 			if err != nil {
 				return err
@@ -200,7 +224,17 @@ func (t *txc) createGate(actor domain.Actor, companyID domain.ID, in RequestGate
 	p := store.CreateGateParams{ID: domain.NewID(), CompanyID: companyID, Kind: string(in.Kind),
 		Title: in.Title, Body: in.Body, TaskID: in.TaskID, RunID: in.RunID, PersonaID: personaID,
 		RequestedByType: string(actor.Type), RequestedByID: actor.ID, EventID: eid,
-		RequestedStatus: requested, Now: t.now}
+		RequestedStatus: requested, Payload: []byte(`{}`), Audience: []byte(`{}`), Now: t.now}
+	if len(in.payload) > 0 {
+		p.Payload = in.payload
+	}
+	if !in.Audience.Empty() {
+		raw, err := json.Marshal(in.Audience)
+		if err != nil {
+			return domain.Gate{}, fmt.Errorf("marshal audience: %w", err)
+		}
+		p.Audience = raw
+	}
 	if r := in.review; r != nil {
 		p.ReviewReviewer, p.ReviewVerdict, p.ReviewJustification = r.reviewer, r.verdict, r.justification
 		p.ReviewArtifactSha256, p.ReviewRunID = r.sha, r.runID
@@ -215,7 +249,30 @@ func (t *txc) createGate(actor domain.Actor, companyID domain.ID, in RequestGate
 		return domain.Gate{}, err
 	}
 	t.publish(companyTopic(companyID), "gate.updated", g)
+	if err := t.notifyGate(actor, companyID, g); err != nil {
+		return domain.Gate{}, err
+	}
 	return g, nil
+}
+
+// notifyGate avisa os membros que decidem gates (toast e push, conforme a preferência de cada um).
+func (t *txc) notifyGate(actor domain.Actor, companyID domain.ID, g domain.Gate) error {
+	c, err := t.q.GetCompanyByID(t.ctx, companyID)
+	if err != nil {
+		return mapErr(err, "company")
+	}
+	n := Notice{Title: "Gate para decidir: " + clipRunes(g.Title, 80), URL: "/c/" + c.Slug + "/gates/" + g.ID.String()}
+	if g.TaskID != nil {
+		if task, err := t.q.GetTaskByID(t.ctx, store.GetTaskByIDParams{CompanyID: companyID, ID: *g.TaskID}); err == nil {
+			n.TaskKey = domain.TaskKey(c.TaskPrefix, task.Number)
+			n.Body = n.TaskKey + " — " + task.Title
+		}
+	}
+	var except *domain.ID
+	if actor.Type == domain.ActorHuman {
+		except = actor.ID
+	}
+	return t.notifyMembers(companyID, domain.NotifyGate, except, n)
 }
 
 // parkForGate holds the work behind a persona-requested gate: task to blocked/in_review and,
@@ -373,6 +430,7 @@ func (t *txc) taskClosedFact(companyID domain.ID, row store.Task) error {
 
 var gateDecisionLabel = map[domain.GateStatus]string{
 	domain.GateApproved: "Aprovado", domain.GateRejected: "Rejeitado", domain.GateChangesRequested: "Mudanças pedidas",
+	domain.GateDismissed: "Dispensado",
 }
 
 // DecideGate records a human decision on a pending gate. Only a human may decide (a persona
@@ -420,6 +478,12 @@ func (s *Service) DecideGate(ctx context.Context, actor domain.Actor, companyID,
 		if domain.GateStatus(cur.Status) != domain.GatePending {
 			return fmt.Errorf("gate already %s: %w", cur.Status, domain.ErrConflict)
 		}
+		if domain.GateKind(cur.Kind) == domain.GateQuestion {
+			return domain.Invalid("kind", "uma pergunta se responde (answer) ou se dispensa (dismiss), não se aprova")
+		}
+		if err := s.requireAudience(ctx, companyID, cur.Audience); err != nil {
+			return err
+		}
 		if in.Always && domain.GateKind(cur.Kind) != domain.GateTool {
 			return domain.Invalid("always", "sempre permitir só vale para gates de tool")
 		}
@@ -455,85 +519,99 @@ func (s *Service) DecideGate(ctx context.Context, actor domain.Actor, companyID,
 				return err
 			}
 		}
+		if g.Kind == domain.GateHire { // a contratação aprovada cria a persona da ficha, na mesma transação (ADR-0041)
+			if err := t.hireGateDecided(actor, g, in.Decision); err != nil {
+				return err
+			}
+		}
 		if g.Kind == domain.GateTool { // a chamada de tool aprovada passa uma vez; a persona acorda para repeti-la (ADR-0036)
 			if err := t.toolGateDecided(actor, g, in.Decision, in.Always); err != nil {
 				return err
 			}
 		}
 
-		var task *store.Task
-		taskKey := "GATE"
-		newStatus := domain.TaskStatus("")
-		if g.TaskID != nil {
-			tk, err := t.q.GetTaskByIDForUpdate(ctx, store.GetTaskByIDForUpdateParams{CompanyID: companyID, ID: *g.TaskID})
-			if err != nil && !isNoRows(err) {
-				return fmt.Errorf("get gate task: %w", err)
-			}
-			if err == nil {
-				task = &tk
-			}
-		}
-		if task != nil {
-			c, err := t.q.GetCompanyByID(ctx, companyID)
-			if err != nil {
-				return mapErr(err, "company")
-			}
-			taskKey = domain.TaskKey(c.TaskPrefix, task.Number)
-			newStatus = domain.TaskStatus(task.Status)
-			if err := t.decisionComment(companyID, *task, g); err != nil {
-				return err
-			}
-			if g.PersonaID != nil {
-				if to, ok := statusAfterDecision(g.Kind, in.Decision, g.RequestedStatus, domain.TaskStatus(task.Status)); ok {
-					moved, err := t.moveTask(actor, companyID, *task, to, map[string]any{"gate_id": g.ID, "decision": in.Decision})
-					if err != nil {
-						return err
-					}
-					task, newStatus = &moved, to
-				}
-			}
-		}
-		if g.PersonaID != nil {
-			n, err := t.q.CountBlockingGatesForPersona(ctx, g.PersonaID)
-			if err != nil {
-				return fmt.Errorf("count blocking gates: %w", err)
-			}
-			if n == 0 {
-				if err := t.q.ReleasePersonaFromGate(ctx, store.ReleasePersonaFromGateParams{ID: *g.PersonaID, Now: t.now}); err != nil {
-					return fmt.Errorf("release persona: %w", err)
-				}
-			}
-			if task != nil {
-				// whoever owns the task now is woken, which is not necessarily who asked
-				if err := t.wake(companyID, task.ID, task.PersonaID, newStatus, domain.TriggerGate, false); err != nil {
-					return err
-				}
-			}
-		}
-		var wsID *domain.ID
-		if task != nil {
-			wsID = task.WorkspaceID
-		}
-		if wsID == nil {
-			wsID = memWS
-		}
-		if err := t.memoryFact(companyID, wsID, gateFact(g, taskKey, t.now), "gate.decided:"+g.ID.String()); err != nil {
-			return err
-		}
-		out, err = loadGateView(ctx, t.q, companyID, g.ID)
-		if err != nil {
-			return err
-		}
-		t.publish(companyTopic(companyID), "gate.updated", g)
-		if task != nil {
-			if tv, err := loadTaskView(ctx, t.q, companyID, task.ID); err == nil {
-				t.publish(companyTopic(companyID), "task.updated", tv)
-			}
-		}
-		return nil
+		out, err = t.afterGateDecided(actor, companyID, g, in.Decision, memWS)
+		return err
 	})
 	if err != nil {
 		return GateView{}, err
+	}
+	return out, nil
+}
+
+// afterGateDecided é o que vale depois de qualquer decisão sobre um gate (aprovar, rejeitar, pedir mudanças, responder
+// uma pergunta ou dispensá-la): o comentário de sistema na thread, o destino da task, a persona sai de awaiting_gate e é
+// acordada, o fato de memória e os eventos de tela. moveAs diz como tratar a decisão para mover a task (approved para
+// pergunta respondida e dispensada).
+func (t *txc) afterGateDecided(actor domain.Actor, companyID domain.ID, g domain.Gate, moveAs domain.GateStatus, memWS *domain.ID) (GateView, error) {
+	var task *store.Task
+	taskKey := "GATE"
+	newStatus := domain.TaskStatus("")
+	if g.TaskID != nil {
+		tk, err := t.q.GetTaskByIDForUpdate(t.ctx, store.GetTaskByIDForUpdateParams{CompanyID: companyID, ID: *g.TaskID})
+		if err != nil && !isNoRows(err) {
+			return GateView{}, fmt.Errorf("get gate task: %w", err)
+		}
+		if err == nil {
+			task = &tk
+		}
+	}
+	if task != nil {
+		c, err := t.q.GetCompanyByID(t.ctx, companyID)
+		if err != nil {
+			return GateView{}, mapErr(err, "company")
+		}
+		taskKey = domain.TaskKey(c.TaskPrefix, task.Number)
+		newStatus = domain.TaskStatus(task.Status)
+		if err := t.decisionComment(companyID, *task, g); err != nil {
+			return GateView{}, err
+		}
+		if g.PersonaID != nil {
+			if to, ok := statusAfterDecision(g.Kind, moveAs, g.RequestedStatus, domain.TaskStatus(task.Status)); ok {
+				moved, err := t.moveTask(actor, companyID, *task, to, map[string]any{"gate_id": g.ID, "decision": moveAs})
+				if err != nil {
+					return GateView{}, err
+				}
+				task, newStatus = &moved, to
+			}
+		}
+	}
+	if g.PersonaID != nil {
+		n, err := t.q.CountBlockingGatesForPersona(t.ctx, g.PersonaID)
+		if err != nil {
+			return GateView{}, fmt.Errorf("count blocking gates: %w", err)
+		}
+		if n == 0 {
+			if err := t.q.ReleasePersonaFromGate(t.ctx, store.ReleasePersonaFromGateParams{ID: *g.PersonaID, Now: t.now}); err != nil {
+				return GateView{}, fmt.Errorf("release persona: %w", err)
+			}
+		}
+		if task != nil {
+			// whoever owns the task now is woken, which is not necessarily who asked
+			if err := t.wake(companyID, task.ID, task.PersonaID, newStatus, domain.TriggerGate, false); err != nil {
+				return GateView{}, err
+			}
+		}
+	}
+	var wsID *domain.ID
+	if task != nil {
+		wsID = task.WorkspaceID
+	}
+	if wsID == nil {
+		wsID = memWS
+	}
+	if err := t.memoryFact(companyID, wsID, gateFact(g, taskKey, t.now), gateDecisionKey(g, t.now)); err != nil {
+		return GateView{}, err
+	}
+	out, err := loadGateView(t.ctx, t.q, companyID, g.ID)
+	if err != nil {
+		return GateView{}, err
+	}
+	t.publish(companyTopic(companyID), "gate.updated", g)
+	if task != nil {
+		if tv, err := loadTaskView(t.ctx, t.q, companyID, task.ID); err == nil {
+			t.publish(companyTopic(companyID), "task.updated", tv)
+		}
 	}
 	return out, nil
 }
@@ -564,6 +642,16 @@ func statusAfterDecision(kind domain.GateKind, d domain.GateStatus, requested, c
 	return to, cur.CanTransition(to)
 }
 
+// gateDecisionKey é a chave de idempotência da decisão. A primeira decisão de um gate mantém "gate.decided:<id>"; um
+// gate que volta a ser decidido (reenvio depois de mudanças pedidas, pergunta reaberta) ganha a revisão e o instante,
+// senão a segunda decisão colidiria com a primeira (ADR-0041).
+func gateDecisionKey(g domain.Gate, now time.Time) string {
+	if g.Revision <= 1 && g.Kind != domain.GateQuestion {
+		return "gate.decided:" + g.ID.String()
+	}
+	return fmt.Sprintf("gate.decided:%s:%d:%d", g.ID, g.Revision, now.UnixNano())
+}
+
 // decisionComment posts the decision on the task thread as a system comment.
 func (t *txc) decisionComment(companyID domain.ID, task store.Task, g domain.Gate) error {
 	var b strings.Builder
@@ -571,8 +659,11 @@ func (t *txc) decisionComment(companyID domain.ID, task store.Task, g domain.Gat
 	if g.DecisionNote != "" {
 		fmt.Fprintf(&b, "\n\n%s", g.DecisionNote)
 	}
+	if ans := gateAnswerMarkdown(g); ans != "" {
+		fmt.Fprintf(&b, "\n\n%s", ans)
+	}
 	c, err := t.q.CreateComment(t.ctx, store.CreateCommentParams{ID: domain.NewID(), CompanyID: companyID, TaskID: task.ID,
-		AuthorType: string(domain.ActorSystem), Body: b.String(), EventID: ptr("gate.decided:" + g.ID.String()), Now: t.now})
+		AuthorType: string(domain.ActorSystem), Body: b.String(), EventID: ptr(gateDecisionKey(g, t.now)), Now: t.now})
 	if err != nil {
 		return mapErr(err, "post gate decision")
 	}
@@ -598,6 +689,9 @@ func gateFact(g domain.Gate, taskKey string, now time.Time) memory.Fact {
 	}
 	if g.DecisionNote != "" {
 		fmt.Fprintf(&b, "\n## Nota\n\n%s\n", g.DecisionNote)
+	}
+	if ans := gateAnswerMarkdown(g); ans != "" {
+		fmt.Fprintf(&b, "\n## Resposta\n\n%s\n", ans)
 	}
 	if strings.TrimSpace(g.Body) != "" {
 		fmt.Fprintf(&b, "\n## Pedido\n\n%s\n", g.Body)
@@ -647,6 +741,13 @@ func (s *Service) ListGates(ctx context.Context, companyID domain.ID, f GateFilt
 		}
 		p.Kinds = append(p.Kinds, string(k))
 	}
+	if f.Mine {
+		uid, ok := callerUser(ctx)
+		if !ok {
+			return []GateView{}, nil
+		}
+		p.MineUser = &uid
+	}
 	rows, err := s.read().ListGateViews(ctx, p)
 	if err != nil {
 		return nil, fmt.Errorf("list gates: %w", err)
@@ -675,9 +776,12 @@ type PersonaAlert struct {
 // Inbox is what waits for the human: gates to decide, blocked tasks, runs that failed,
 // personas in error and open operational alerts.
 type Inbox struct {
-	Gates         []GateView
-	BlockedTasks  []TaskView // blocked tasks that have no pending gate (the gate already covers those)
-	FailedRuns    []RunView  // failed/expired runs of open tasks not superseded by a newer run
+	Gates        []GateView
+	BlockedTasks []TaskView // blocked tasks that have no pending gate (the gate already covers those)
+	FailedRuns   []RunView  // failed/expired runs of open tasks not superseded by a newer run
+	// StoppedRuns are interrupted runs that wait for the operator (continuations exhausted or uncertain outcome):
+	// the card carries the diagnosis and the Tentar de novo / Continuar / Encerrar actions (ADR-0039).
+	StoppedRuns   []RunView
 	ErrorPersonas []PersonaAlert
 	Alerts        []domain.Alert // operational alerts still open (alert_tick closes them when the condition is gone)
 	// GuardedSubscriptions are the subscriptions whose weekly guard is tripped: new runs they cover are refused.
@@ -689,9 +793,18 @@ type Inbox struct {
 	AchievedGoals []GoalView
 	// HeldTasks são as raízes de pausa (ADR-0040): informativo, o humano que pausou decide quando retomar; fora de Count.
 	HeldTasks []HeldTask
+	// Mentions são as menções à pessoa em comentários (ADR-0042): contam em Count. Vazio sem usuário autenticado.
+	Mentions []InboxMention
+	// State é o lido/arquivado da pessoa por item (ausente = não lido e não arquivado). Personal diz se há pessoa.
+	State    map[InboxRef]domain.InboxItemState
+	Personal bool
+	// Unread e ArchivedCount são totais da pessoa (só itens que pedem ação), qualquer que seja a visão pedida.
+	Unread, ArchivedCount int
 	// QuarantinedTools são as tools novas (ou que mudaram) que esperam a revisão de um admin antes de a persona poder
 	// chamá-las (ADR-0036/0053). Só admin vê; entram em Count.
 	QuarantinedTools []QuarantinedToolItem
+	// BudgetIncidents são os tetos de orçamento estourados esperando uma decisão (ADR-0041). Só admin vê; entram em Count.
+	BudgetIncidents []domain.BudgetIncident
 }
 
 // InboxReview is an automatic review in progress on a task.
@@ -705,7 +818,7 @@ type InboxReview struct {
 
 // Count is the number of items waiting.
 func (i Inbox) Count() int {
-	return len(i.Gates) + len(i.BlockedTasks) + len(i.FailedRuns) + len(i.ErrorPersonas) + len(i.Alerts) + len(i.GuardedSubscriptions) + len(i.QuarantinedTools)
+	return len(i.Gates) + len(i.BlockedTasks) + len(i.FailedRuns) + len(i.StoppedRuns) + len(i.ErrorPersonas) + len(i.Alerts) + len(i.GuardedSubscriptions) + len(i.Mentions) + len(i.QuarantinedTools) + len(i.BudgetIncidents)
 }
 
 const (
@@ -714,8 +827,8 @@ const (
 	inboxGoalWindow = 7 * 24 * time.Hour
 )
 
-// Inbox assembles the Caixa de entrada.
-func (s *Service) Inbox(ctx context.Context, companyID domain.ID) (Inbox, error) {
+// buildInbox assembles the Caixa de entrada da empresa (os itens, sem o estado da pessoa: ver caixa.go).
+func (s *Service) buildInbox(ctx context.Context, companyID domain.ID) (Inbox, error) {
 	if err := s.require(ctx, companyID, domain.MemberViewer); err != nil {
 		return Inbox{}, err
 	}
@@ -725,7 +838,16 @@ func (s *Service) Inbox(ctx context.Context, companyID domain.ID) (Inbox, error)
 	if err != nil {
 		return in, err
 	}
-	in.Gates = gates
+	u, role, restricted, err := s.callerUser(ctx, companyID)
+	if err != nil {
+		return in, err
+	}
+	for _, g := range gates { // gate com audiência só aparece na Caixa de quem está nela (ADR-0041)
+		if !restricted || g.Audience.Allows(u.ID, role) {
+			in.Gates = append(in.Gates, g)
+		}
+	}
+	gates = in.Gates
 	withGate := map[domain.ID]bool{}
 	for _, g := range gates {
 		if g.TaskID != nil {
@@ -747,6 +869,13 @@ func (s *Service) Inbox(ctx context.Context, companyID domain.ID) (Inbox, error)
 	}
 	for _, r := range failed {
 		in.FailedRuns = append(in.FailedRuns, runViewFromParts(r.Run, r.TaskKey, r.TaskTitle, r.PersonaName, r.ConversationTitle))
+	}
+	stopped, err := q.ListRunsAwaitingDecision(ctx, store.ListRunsAwaitingDecisionParams{CompanyID: companyID, Lim: 50})
+	if err != nil {
+		return in, fmt.Errorf("list runs awaiting decision: %w", err)
+	}
+	for _, r := range stopped {
+		in.StoppedRuns = append(in.StoppedRuns, runViewFromParts(r.Run, r.TaskKey, r.TaskTitle, r.PersonaName, r.ConversationTitle))
 	}
 	errs, err := q.ListErrorPersonas(ctx, companyID)
 	if err != nil {
@@ -786,6 +915,11 @@ func (s *Service) Inbox(ctx context.Context, companyID domain.ID) (Inbox, error)
 	}
 	if in.QuarantinedTools, err = s.quarantinedTools(ctx, companyID); err != nil {
 		return in, err
+	}
+	if !restricted || role.AtLeast(domain.MemberAdmin) {
+		if in.BudgetIncidents, err = s.ListBudgetIncidents(ctx, companyID, true, 50); err != nil {
+			return in, err
+		}
 	}
 	return in, nil
 }

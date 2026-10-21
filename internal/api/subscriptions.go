@@ -19,7 +19,7 @@ type createSubscriptionIn struct {
 	CompanyPath
 	Body struct {
 		Name           string   `json:"name" minLength:"1" maxLength:"120" example:"Claude Max"`
-		Agent          string   `json:"agent" enum:"claude,codex,acp,fake" example:"claude" doc:"Harness/provedor do plano."`
+		Agent          string   `json:"agent" enum:"claude,codex,acp,devin,pi,cursor,http,fake" example:"claude" doc:"Harness/provedor do plano."`
 		MonthlyUSD     float64  `json:"monthly_usd" minimum:"0" example:"200" doc:"Mensalidade em dólares."`
 		ModelPrefixes  []string `json:"model_prefixes,omitempty" doc:"Prefixos de modelo que o plano cobre; vazio = todos os modelos do harness."`
 		WeeklyLimitUSD *float64 `json:"weekly_limit_usd,omitempty" exclusiveMinimum:"0" doc:"Teto semanal de uso estimado (custo de lista), em dólares; ausente = sem trava."`
@@ -32,7 +32,7 @@ type updateSubscriptionIn struct {
 	SubscriptionPath
 	Body struct {
 		Name             *string   `json:"name,omitempty" minLength:"1"`
-		Agent            *string   `json:"agent,omitempty" enum:"claude,codex,acp,fake"`
+		Agent            *string   `json:"agent,omitempty" enum:"claude,codex,acp,devin,pi,cursor,http,fake"`
 		MonthlyUSD       *float64  `json:"monthly_usd,omitempty" minimum:"0"`
 		ModelPrefixes    *[]string `json:"model_prefixes,omitempty" doc:"Substitui a lista de prefixos."`
 		WeeklyLimitUSD   *float64  `json:"weekly_limit_usd,omitempty" exclusiveMinimum:"0"`

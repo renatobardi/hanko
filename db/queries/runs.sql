@@ -1,8 +1,8 @@
 -- name: CreateRun :one
 INSERT INTO runs (id, company_id, task_id, conversation_id, persona_id, status, trigger, agent, model, model_source, subscription_id, name,
-                  workspace_id, workspace_source, created_at)
+                  workspace_id, workspace_source, continuation_of_run_id, continuation_attempt, continuation_reason, created_at)
 VALUES (@id, @company_id, @task_id, @conversation_id, @persona_id, 'queued', @trigger, @agent, @model, @model_source, @subscription_id, @name,
-        @workspace_id, @workspace_source, @now)
+        @workspace_id, @workspace_source, @continuation_of_run_id, @continuation_attempt, @continuation_reason, @now)
 RETURNING *;
 
 -- name: GetRunByID :one
@@ -53,7 +53,7 @@ SET status = @status, exit_code = @exit_code, error = @error, summary = @summary
     input_tokens = @input_tokens, output_tokens = @output_tokens,
     cache_read_tokens = @cache_read_tokens, cache_creation_tokens = @cache_creation_tokens,
     cost_source = @cost_source, list_cost_usd = @list_cost_usd,
-    session_ref = @session_ref, model = @model, finished_at = @now, pending_result = NULL
+    session_ref = COALESCE(NULLIF(@session_ref::text, ''), session_ref), model = @model, finished_at = @now, pending_result = NULL
 WHERE company_id = @company_id AND id = @id
 RETURNING *;
 
@@ -97,7 +97,16 @@ WHERE t.status IN ('todo', 'in_progress')
   AND NOT EXISTS (SELECT 1 FROM task_dependencies td JOIN tasks dt ON dt.id = td.depends_on_id
                   WHERE td.task_id = t.id AND dt.status NOT IN ('done', 'cancelled'))
   AND NOT task_effectively_held(t.id)
+  -- esgotou as continuações ou o desfecho é incerto: a task espera a decisão humana (ADR-0039)
+  AND NOT EXISTS (SELECT 1 FROM runs d WHERE d.task_id = t.id AND d.decision_pending AND d.decision = '')
   AND (
+    -- (c) rede de segurança: uma run interrompida deixou a continuação marcada há mais de um minuto e o checkout ainda
+    --     não a consumiu (o wake que a deveria abrir se perdeu)
+    EXISTS (SELECT 1 FROM runs rp WHERE rp.task_id = t.id AND rp.resume_pending AND rp.finished_at <= @stale_before::timestamptz)
+    OR
+    -- (d) rede de segurança: um follow-up segue pendente há mais de um minuto sem run ativa (o wake dele se perdeu)
+    EXISTS (SELECT 1 FROM task_followups tf WHERE tf.task_id = t.id AND tf.status = 'pending' AND tf.created_at <= @stale_before::timestamptz)
+    OR
     (p.heartbeat_interval_sec > 0
      AND COALESCE((SELECT max(COALESCE(r.finished_at, r.created_at)) FROM runs r WHERE r.task_id = t.id), 'epoch'::timestamptz)
          + make_interval(secs => p.heartbeat_interval_sec) <= @now::timestamptz)
@@ -157,3 +166,64 @@ SELECT id, company_id FROM runs WHERE name = '' ORDER BY created_at, id LIMIT @l
 
 -- name: SetRunName :execrows
 UPDATE runs SET name = @name WHERE id = @id AND name = '';
+
+-- name: SetRunSessionRef :exec
+-- O harness anuncia a sessão logo no início; guardá-la na hora permite retomar uma run que morreu sem devolver o Result.
+UPDATE runs SET session_ref = @session_ref
+WHERE company_id = @company_id AND id = @id AND status = 'running' AND session_ref <> @session_ref;
+
+-- name: ListToolEventsOfRun :many
+-- Eventos de tool da run, do mais novo para o mais antigo (o service reconstrói as chamadas abertas).
+SELECT seq, kind, text, payload FROM run_events
+WHERE company_id = @company_id AND run_id = @run_id AND kind IN ('tool_use', 'tool_result')
+ORDER BY seq DESC
+LIMIT @lim;
+
+-- name: SetRunInterruption :exec
+-- Resultado do diagnóstico de uma run interrompida: continuação marcada e/ou espera por decisão humana.
+UPDATE runs SET diagnosis = @diagnosis, resume_pending = @resume_pending, resume_reason = @resume_reason, decision_pending = @decision_pending
+WHERE id = @id;
+
+-- name: PendingResumeRunForTask :one
+-- A run interrompida (ou cancelada por steer) cuja continuação a próxima run da task deve ser.
+SELECT * FROM runs WHERE task_id = @task_id AND resume_pending ORDER BY created_at DESC, id DESC LIMIT 1 FOR UPDATE;
+
+-- name: ClearResumePending :exec
+UPDATE runs SET resume_pending = false WHERE id = @id;
+
+-- name: MarkResumePending :exec
+UPDATE runs SET resume_pending = true, resume_reason = @resume_reason WHERE company_id = @company_id AND id = @id;
+
+-- name: SetRunDecision :one
+UPDATE runs SET decision = @decision, decision_pending = false, decision_note = @decision_note,
+    decided_by_type = @decided_by_type, decided_by_id = @decided_by_id, decided_at = @now
+WHERE company_id = @company_id AND id = @id AND decision = ''
+RETURNING *;
+
+-- name: ContinuationOfRun :one
+SELECT * FROM runs WHERE continuation_of_run_id = @run_id;
+
+-- name: ListRunsAwaitingDecision :many
+-- Runs interrompidas que esperam o operador (tentativas esgotadas ou desfecho incerto) e ainda não foram decididas.
+SELECT sqlc.embed(r), COALESCE(c.task_prefix || '-' || t.number, '')::text AS task_key, COALESCE(t.title, '')::text AS task_title,
+       p.name AS persona_name, COALESCE(cv.title, '')::text AS conversation_title
+FROM runs r
+LEFT JOIN tasks t ON t.id = r.task_id
+LEFT JOIN conversations cv ON cv.id = r.conversation_id
+JOIN personas p ON p.id = r.persona_id
+JOIN companies c ON c.id = r.company_id
+WHERE r.company_id = @company_id AND r.decision_pending AND r.decision = ''
+ORDER BY r.created_at DESC, r.id DESC
+LIMIT @lim;
+
+-- name: ReassignHumanConversationMessages :execrows
+-- A continuação de uma run de chat responde as mesmas mensagens da run que morreu.
+UPDATE conversation_messages SET run_id = @new_run_id
+WHERE conversation_id = @conversation_id AND author_type = 'human' AND run_id = @old_run_id;
+
+-- name: UndecidedRunForTask :one
+-- Uma run parada da task espera decisão humana: nenhuma run nova abre antes dela.
+SELECT * FROM runs WHERE task_id = @task_id AND decision_pending AND decision = '' ORDER BY created_at DESC LIMIT 1;
+
+-- name: UndecidedRunForConversation :one
+SELECT * FROM runs WHERE conversation_id = @conversation_id AND decision_pending AND decision = '' ORDER BY created_at DESC LIMIT 1;

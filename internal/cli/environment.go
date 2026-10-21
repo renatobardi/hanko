@@ -48,6 +48,10 @@ func (e *env) envTarget(v api.Environment) string {
 		return fmt.Sprintf("%s@%s:%d %s", v.SSH.Username, v.SSH.Host, v.SSH.Port, v.SSH.RemoteWorkspaceRoot)
 	case v.Sandbox != nil:
 		return fmt.Sprintf("%s (%s)", v.Sandbox.Image, v.Sandbox.Network)
+	case v.Cloud != nil:
+		return fmt.Sprintf("%s (%s, %dcpu/%dGiB, %s)", v.Cloud.Provider, e.t("nuvem"), v.Cloud.CPUs, v.Cloud.MemoryGiB, v.Cloud.Network)
+	case v.Driver == "local":
+		return e.t("este servidor")
 	}
 	return "-"
 }
@@ -75,6 +79,9 @@ func (e *env) printProbe(r api.ProbeReport) {
 		}
 		pairs = append(pairs, [2]string{st.Name, mark + " — " + st.Detail})
 	}
+	if len(r.Capabilities) > 0 {
+		pairs = append(pairs, [2]string{e.t("Capacidades"), strings.Join(r.Capabilities, ", ")})
+	}
 	for _, w := range r.Warnings {
 		pairs = append(pairs, [2]string{e.t("Aviso"), w})
 	}
@@ -83,10 +90,12 @@ func (e *env) printProbe(r api.ProbeReport) {
 
 func (e *env) environmentCmd() *cobra.Command {
 	c := &cobra.Command{Use: "env", Aliases: []string{"environment"},
-		Short: e.t("Ambientes de execução: onde as personas rodam (local, SSH, sandbox)")}
+		Short: e.t("Ambientes de execução: onde as personas rodam (local, SSH, sandbox docker, nuvem)")}
 
 	var (
 		driver, slug, desc, host, user, root, khFile, khText, keyFile, image, network string
+		provider, snapshot, cloudNet, apiKeyFile, cloudRoot                           string
+		cloudCPUs, cloudMem, cloudDisk                                                int
 		port, memory, pids                                                            int
 		cpus                                                                          float64
 		envs                                                                          []string
@@ -112,13 +121,22 @@ func (e *env) environmentCmd() *cobra.Command {
 			req.SSH = &api.SSHConfig{Host: host, Port: port, Username: user, RemoteWorkspaceRoot: root, KnownHosts: kh}
 		case "sandbox":
 			req.Sandbox = &api.SandboxConfig{Image: image, Network: network, MemoryMiB: memory, CPUs: cpus, PIDsLimit: pids}
+		case "cloud":
+			if req.APIKey, err = e.readSecretFile(apiKeyFile); err != nil {
+				return req, err
+			}
+			req.APIKey = strings.TrimSpace(req.APIKey)
+			req.Cloud = &api.CloudConfig{Provider: provider, Snapshot: snapshot, CPUs: cloudCPUs, MemoryGiB: cloudMem, DiskGiB: cloudDisk,
+				Network: cloudNet, RemoteWorkspaceRoot: cloudRoot}
+		case "local":
+			// só nome e variáveis
 		default:
-			return req, usageError{errors.New(e.t("--driver aceita ssh ou sandbox (o local é implícito)"))}
+			return req, usageError{errors.New(e.t("--driver aceita local, ssh, sandbox ou cloud"))}
 		}
 		return req, nil
 	}
 	create := &cobra.Command{
-		Use: "create " + e.t("<nome>"), Short: e.t("Cadastra um ambiente SSH ou sandbox"), Args: cobra.ExactArgs(1),
+		Use: "create " + e.t("<nome>"), Short: e.t("Cadastra um ambiente (local explícito, SSH, sandbox docker ou nuvem)"), Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, a []string) error {
 			co, err := e.needCompany()
 			if err != nil {
@@ -153,7 +171,7 @@ func (e *env) environmentCmd() *cobra.Command {
 		},
 	}
 	cf := create.Flags()
-	cf.StringVar(&driver, "driver", "", e.t("ssh ou sandbox (obrigatório)"))
+	cf.StringVar(&driver, "driver", "", e.t("local, ssh, sandbox (docker) ou cloud (obrigatório)"))
 	cf.StringVar(&slug, "slug", "", e.t("identificador (padrão: derivado do nome)"))
 	cf.StringVar(&desc, "description", "", e.t("descrição"))
 	cf.StringVar(&host, "host", "", e.t("SSH: host ou IP (precisa estar em HANKO_ENV_SSH_ALLOW_HOSTS)"))
@@ -168,6 +186,14 @@ func (e *env) environmentCmd() *cobra.Command {
 	cf.IntVar(&memory, "memory", 0, e.t("sandbox: memória em MiB (padrão 2048)"))
 	cf.Float64Var(&cpus, "cpus", 0, e.t("sandbox: CPUs (padrão 2)"))
 	cf.IntVar(&pids, "pids", 0, e.t("sandbox: máximo de processos (padrão 512)"))
+	cf.StringVar(&provider, "provider", "daytona", e.t("cloud: provider do sandbox em nuvem"))
+	cf.StringVar(&snapshot, "snapshot", "", e.t("cloud: snapshot/imagem do provider (vazio = o padrão)"))
+	cf.IntVar(&cloudCPUs, "cloud-cpus", 0, e.t("cloud: CPUs (padrão 2)"))
+	cf.IntVar(&cloudMem, "cloud-memory", 0, e.t("cloud: memória em GiB (padrão 4)"))
+	cf.IntVar(&cloudDisk, "cloud-disk", 0, e.t("cloud: disco em GiB (padrão 10)"))
+	cf.StringVar(&cloudNet, "cloud-network", "full", e.t("cloud: rede none ou full"))
+	cf.StringVar(&cloudRoot, "cloud-root", "", e.t("cloud: pasta absoluta no sandbox para as cópias do workspace"))
+	cf.StringVar(&apiKeyFile, "api-key-file", "", e.t("cloud: arquivo com a chave de API do provider ou ${secret:NOME} (- lê da entrada padrão)"))
 	cf.StringArrayVar(&envs, "env", nil, e.t("variável NOME=VALOR do harness no ambiente (segredo; repita a flag)"))
 	cf.BoolVar(&probeFirst, "probe", false, e.t("testa a conexão antes de cadastrar"))
 	_ = create.MarkFlagRequired("driver")
@@ -226,6 +252,16 @@ func (e *env) environmentCmd() *cobra.Command {
 			if v.SSH != nil {
 				pairs = append(pairs, [2]string{e.t("Chave privada"), e.yesNo(v.KeySet)})
 			}
+			if v.Cloud != nil {
+				pairs = append(pairs, [2]string{e.t("Chave de API"), e.yesNo(v.KeySet)})
+			}
+			if len(v.Projects) > 0 {
+				ps := make([]string, len(v.Projects))
+				for i, p := range v.Projects {
+					ps[i] = p.Slug
+				}
+				pairs = append(pairs, [2]string{e.t("Projetos"), strings.Join(ps, ", ")})
+			}
 			if len(v.EnvNames) > 0 {
 				pairs = append(pairs, [2]string{e.t("Variáveis"), strings.Join(v.EnvNames, ", ") + " " + e.t("(valores guardados cifrados)")})
 			}
@@ -238,12 +274,15 @@ func (e *env) environmentCmd() *cobra.Command {
 			if v.LastProbeAt != nil {
 				pairs = append(pairs, [2]string{e.t("Último teste"), e.fmtTimePtr(v.LastProbeAt)})
 			}
+			if v.LastProbe != nil && len(v.LastProbe.Capabilities) > 0 {
+				pairs = append(pairs, [2]string{e.t("Capacidades"), strings.Join(v.LastProbe.Capabilities, ", ")})
+			}
 			e.kv(pairs...)
 			return nil
 		},
 	}
 
-	var upName, upDesc, upKey, upImage, upNet string
+	var upName, upDesc, upKey, upImage, upNet, upAPIKeyFile, upCloudNet, upSnapshot string
 	var upSetEnv, upDropEnv []string
 	var upReactivate bool
 	update := &cobra.Command{
@@ -272,6 +311,31 @@ func (e *env) environmentCmd() *cobra.Command {
 					return err
 				}
 				req.PrivateKey, changed = &k, true
+			}
+			if f.Changed("api-key-file") {
+				k, err := e.readSecretFile(upAPIKeyFile)
+				if err != nil {
+					return err
+				}
+				k = strings.TrimSpace(k)
+				req.APIKey, changed = &k, true
+			}
+			if f.Changed("cloud-network") || f.Changed("snapshot") {
+				cur, err := e.client().Environment(cmd.Context(), co, a[0])
+				if err != nil {
+					return err
+				}
+				if cur.Cloud == nil {
+					return usageError{errors.New(e.t("--cloud-network e --snapshot valem só para cloud"))}
+				}
+				cl := *cur.Cloud
+				if f.Changed("cloud-network") {
+					cl.Network = upCloudNet
+				}
+				if f.Changed("snapshot") {
+					cl.Snapshot = upSnapshot
+				}
+				req.Cloud, changed = &cl, true
 			}
 			if f.Changed("image") || f.Changed("network") {
 				cur, err := e.client().Environment(cmd.Context(), co, a[0])
@@ -310,12 +374,15 @@ func (e *env) environmentCmd() *cobra.Command {
 	uf.StringVar(&upKey, "key-file", "", e.t("SSH: troca a chave privada (- lê da entrada padrão)"))
 	uf.StringVar(&upImage, "image", "", e.t("sandbox: nova imagem"))
 	uf.StringVar(&upNet, "network", "", e.t("sandbox: rede none ou bridge"))
+	uf.StringVar(&upAPIKeyFile, "api-key-file", "", e.t("cloud: troca a chave de API (- lê da entrada padrão)"))
+	uf.StringVar(&upCloudNet, "cloud-network", "", e.t("cloud: rede none ou full"))
+	uf.StringVar(&upSnapshot, "snapshot", "", e.t("cloud: snapshot/imagem do provider"))
 	uf.StringArrayVar(&upSetEnv, "env", nil, e.t("define ou troca uma variável NOME=VALOR (repita a flag)"))
 	uf.StringArrayVar(&upDropEnv, "drop-env", nil, e.t("remove uma variável pelo nome (repita a flag)"))
 	uf.BoolVar(&upReactivate, "reactivate", false, e.t("tira o ambiente do arquivo"))
 
 	probe := &cobra.Command{
-		Use: "probe " + e.t("<ambiente>"), Short: e.t("Testa a conexão: sistema, pasta gravável e binários git, claude e codex"), Args: cobra.ExactArgs(1),
+		Use: "probe " + e.t("<ambiente>"), Short: e.t("Testa a conexão: sistema, pasta gravável, binários, acesso ao Hanko e capacidades"), Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, a []string) error {
 			co, err := e.needCompany()
 			if err != nil {

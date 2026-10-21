@@ -47,12 +47,12 @@ CREATE UNIQUE INDEX connections_state_uq ON connections (auth_state_hash) WHERE 
 CREATE INDEX connections_due_idx ON connections (expires_at) WHERE status = 'connected' AND expires_at IS NOT NULL;
 CREATE INDEX connections_integration_idx ON connections (integration_id) WHERE integration_id IS NOT NULL;
 
--- gates.kind: a lista COMPLETA vigente (00040) mais 'connection'.
+-- gates.kind: a lista COMPLETA vigente (00110) mais 'connection'.
 ALTER TABLE gates DROP CONSTRAINT gates_kind_check;
-ALTER TABLE gates ADD CONSTRAINT gates_kind_check CHECK (kind IN ('approval','task_review','hire','memory','tool','instruction','connection'));
+ALTER TABLE gates ADD CONSTRAINT gates_kind_check CHECK (kind IN ('approval','task_review','hire','memory','tool','instruction','question','plan','connection'));
 
 -- +goose Down
 ALTER TABLE gates DROP CONSTRAINT gates_kind_check;
 DELETE FROM gates WHERE kind = 'connection';
-ALTER TABLE gates ADD CONSTRAINT gates_kind_check CHECK (kind IN ('approval','task_review','hire','memory','tool','instruction'));
+ALTER TABLE gates ADD CONSTRAINT gates_kind_check CHECK (kind IN ('approval','task_review','hire','memory','tool','instruction','question','plan'));
 DROP TABLE connections;

@@ -477,6 +477,11 @@ func (s *Service) secretUsage(ctx context.Context, q *store.Queries, companyID d
 	for _, p := range ps {
 		add(secretref.Find(string(p.AdapterConfig)), domain.SecretUse{Kind: "persona", Slug: p.Slug, Name: p.Slug})
 	}
+	if dm, err := q.GetDecisionModel(ctx, companyID); err == nil {
+		add(secretref.Find(dm.ApiKeyRef), domain.SecretUse{Kind: "decision", Slug: "decision-model", Name: "Decision model"})
+	} else if !isNoRows(err) {
+		return nil, fmt.Errorf("get decision model: %w", err)
+	}
 	if !s.secretBox().Enabled() {
 		return uses, nil
 	}
@@ -660,6 +665,12 @@ func (s *Service) sealPersonaEnv(t *txc, actor domain.Actor, companyID domain.ID
 	var doc map[string]any
 	if json.Unmarshal(cfg, &doc) != nil {
 		return cfg, 0, nil
+	}
+	// harness http (ADR-0056): a chave do endpoint é uma referência; ela precisa existir
+	if ref, _ := doc["api_key_ref"].(string); ref != "" {
+		if err := s.checkSecretRefs(t.ctx, t.q, companyID, "adapter_config.api_key_ref", ref); err != nil {
+			return nil, 0, err
+		}
 	}
 	env, ok := doc["env"].(map[string]any)
 	if !ok || len(env) == 0 {

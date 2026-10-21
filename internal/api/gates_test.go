@@ -213,8 +213,8 @@ func TestGateRequestByPersonaTakesTaskAndRunFromToken(t *testing.T) {
 	}
 }
 
-// A persona (run token) only asks for approvals, as in MCP: it cannot open task_review or hire
-// gates, which would park its own or someone else's work under another kind.
+// A persona (run token) asks for approvals, questions, plans and hires (with the sheet), as in MCP: it cannot open
+// task_review gates, which would park its own or someone else's work under another kind.
 func TestGateRequestByPersonaIsAlwaysApproval(t *testing.T) {
 	f, c, _ := gateFixtureAPI(t)
 	tokens := &auth.RunTokens{Secret: []byte("0123456789abcdef0123456789abcdef"), TTL: time.Hour}
@@ -224,7 +224,7 @@ func TestGateRequestByPersonaIsAlwaysApproval(t *testing.T) {
 	tok, _ := tokens.Issue(c.ID, pid, rid, f.tasks[0].ID)
 	bearer := map[string]string{"Authorization": "Bearer " + tok}
 
-	for _, kind := range []string{"task_review", "hire", "approval", ""} {
+	for _, kind := range []string{"task_review", "approval", ""} {
 		body := `{"title":"x","kind":"` + kind + `"}`
 		if kind == "" {
 			body = `{"title":"x"}`
@@ -235,6 +235,26 @@ func TestGateRequestByPersonaIsAlwaysApproval(t *testing.T) {
 		}
 		if f.lastGateIn.Kind != domain.GateApproval {
 			t.Fatalf("kind %q reached the service as %q, want approval", kind, f.lastGateIn.Kind)
+		}
+	}
+	// hire without the sheet is refused for a persona; with it, it goes through as hire (ADR-0041)
+	if resp, _ := do(t, "POST", ts.URL+"/api/v1/companies/acme/gates", `{"title":"x","kind":"hire"}`, bearer); resp.StatusCode != 422 {
+		t.Fatalf("persona hire without sheet: %d", resp.StatusCode)
+	}
+	if resp, b := do(t, "POST", ts.URL+"/api/v1/companies/acme/gates", `{"title":"x","kind":"hire","hire":{"name":"Yuki","agent":"fake"}}`, bearer); resp.StatusCode != 201 ||
+		f.lastGateIn.Kind != domain.GateHire || f.lastGateIn.Hire == nil || f.lastGateIn.Hire.Name != "Yuki" {
+		t.Fatalf("persona hire with sheet: %d %s in=%+v", resp.StatusCode, b, f.lastGateIn)
+	}
+	for _, kind := range []domain.GateKind{domain.GateQuestion, domain.GatePlan} {
+		body := `{"title":"x","kind":"` + string(kind) + `","body":"plano"}`
+		if kind == domain.GateQuestion {
+			body = `{"title":"x","kind":"question","form":{"fields":[{"key":"a","label":"A?","type":"text"}]}}`
+		}
+		if resp, b := do(t, "POST", ts.URL+"/api/v1/companies/acme/gates", body, bearer); resp.StatusCode != 201 || f.lastGateIn.Kind != kind {
+			t.Fatalf("persona %s: %d %s kind=%q", kind, resp.StatusCode, b, f.lastGateIn.Kind)
+		}
+		if kind == domain.GateQuestion && (f.lastGateIn.Form == nil || len(f.lastGateIn.Form.Fields) != 1) {
+			t.Fatalf("form not forwarded: %+v", f.lastGateIn.Form)
 		}
 	}
 	// a human keeps choosing the kind

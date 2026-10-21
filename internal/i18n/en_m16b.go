@@ -72,7 +72,6 @@ var enM16b = map[string]string{
 	"Ir para o início":            "Go to the start",
 	"Item":                        "Item",
 	"Itens":                       "Items",
-	"Link inválido":               "Invalid link",
 	"Link público de pedido de entrada na empresa (admin)":                                      "Public join-request link for the company (admin)",
 	"Lista as contas da instalação (dono ou admin da instalação)":                               "Lists the installation's accounts (installation owner or admin)",
 	"Lista as empresas excluídas e os exports guardados (dono da instalação)":                   "Lists deleted companies and the kept exports (installation owner)",

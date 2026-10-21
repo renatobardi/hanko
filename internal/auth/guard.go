@@ -59,6 +59,9 @@ func RedactPath(path string) string {
 			return p + "…"
 		}
 	}
+	if strings.HasPrefix(path, ClaimPath) {
+		return ClaimPath + "…"
+	}
 	return path
 }
 
@@ -71,7 +74,7 @@ func isPWAPath(p string) bool {
 // Guard é o middleware do modo authenticated. Resolve a identidade (cookie de sessão ou
 // API key) e aplica a regra por rota:
 //
-//	livres:      /healthz, /readyz, /static/, /manifest.webmanifest, /sw.js, /offline (PWA), /entrar (e /entrar/…), /sair, /idioma, /auth/, /convite/,
+//	livres:      /healthz, /readyz, /static/, /manifest.webmanifest, /sw.js, /offline (PWA), /entrar (e /entrar/…), /sair, /idioma, /auth/, /convite/, /claim/,
 //	             /pedir-acesso/ (a página exige login) e os endpoints públicos do login da CLI (/api/v1/cli-auth[/poll])
 //	/metrics:    loopback direto ou API key
 //	/api/…:      sessão (CSRF same-origin em métodos que mudam estado), API key ou run token
@@ -148,7 +151,7 @@ func (g *guard) wrap(next http.Handler) http.Handler {
 				return
 			}
 			g.deny(w, r, "autenticação necessária")
-		case path == LoginPath || strings.HasPrefix(path, LoginPath+"/") || path == "/sair" || path == "/idioma" || strings.HasPrefix(path, "/auth/") || strings.HasPrefix(path, InvitePath) || strings.HasPrefix(path, JoinPath):
+		case path == LoginPath || strings.HasPrefix(path, LoginPath+"/") || path == "/sair" || path == "/idioma" || strings.HasPrefix(path, "/auth/") || strings.HasPrefix(path, InvitePath) || strings.HasPrefix(path, JoinPath) || strings.HasPrefix(path, ClaimPath):
 			next.ServeHTTP(w, r)
 		case path == CLIAuthAPIPrefix || path == CLIAuthAPIPrefix+"/poll":
 			// criação e consulta do login da CLI: públicas (o segredo é o código/poll token); ficam atrás do limitador

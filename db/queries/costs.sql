@@ -9,8 +9,12 @@ LIMIT 1;
 SELECT * FROM model_prices ORDER BY model, effective_at DESC;
 
 -- name: SpendBetween :one
--- Gasto em USD da empresa (ou de uma persona) no intervalo [from, to).
-SELECT COALESCE(SUM(cost_usd), 0)::float8 AS spend
+-- Gasto em USD da empresa (ou de uma persona) no intervalo [from, to). O da empresa inclui o decision model
+-- (ADR-0056), que não é de nenhuma persona.
+SELECT (COALESCE(SUM(cost_usd), 0) + CASE WHEN sqlc.narg(persona_id)::uuid IS NULL THEN
+          (SELECT COALESCE(SUM(d.cost_usd), 0) FROM decision_invocations d
+           WHERE d.company_id = @company_id AND d.created_at >= @from_ts AND d.created_at < @to_ts)
+        ELSE 0 END)::float8 AS spend
 FROM runs
 WHERE company_id = @company_id
   AND (sqlc.narg(persona_id)::uuid IS NULL OR persona_id = sqlc.narg(persona_id)::uuid)

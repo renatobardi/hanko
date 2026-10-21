@@ -40,6 +40,13 @@ type Spec struct {
 	// ReadOnly forces the harness into its read-only mode (review runs), ignoring any
 	// permissive adapter_config (permission mode, sandbox, extra args).
 	ReadOnly bool
+	// PlanOnly põe o run na fase de planejamento do plan-review (ADR-0041): o harness lê e planeja, mas não escreve
+	// arquivos nem roda comandos que alterem o ambiente. Diferente de ReadOnly, mantém as tools MCP do Hanko liberadas
+	// (o plano é publicado e o gate pedido por elas). Honrado pelo claude (modo plan) e pelo codex (sandbox read-only).
+	PlanOnly bool
+	// Steer entrega ao adapter, durante a run, as mensagens que o operador injeta (ADR-0039). Só é preenchido para
+	// adapter com SteerInject; o adapter confirma cada mensagem (Steer.Ack) depois de entregá-la ao harness.
+	Steer <-chan Steer
 	// Secrets são os valores de segredos resolvidos no despacho (${secret:...}, ADR-0050) que entraram em Config,
 	// Env ou MCPConfig; entram na redação do log e do resultado da run, qualquer que seja o nome da variável.
 	Secrets []string
@@ -81,6 +88,21 @@ type ToolVerdict struct {
 	Reason   string
 }
 
+// Steer é uma mensagem do operador para a run em andamento.
+type Steer struct {
+	ID   string // identifica o follow-up (devolvido ao service no ack)
+	Text string
+	// Ack informa o resultado da entrega ao harness (nil = entregue). O adapter chama uma vez; pode ser nil.
+	Ack func(error)
+}
+
+// Done confirma a entrega (ou a falha dela) se houver quem espere.
+func (s Steer) Done(err error) {
+	if s.Ack != nil {
+		s.Ack(err)
+	}
+}
+
 // ExecTarget é o alvo de execução remoto de uma run (ADR-0037). O adapter passa o processo do harness por ele
 // (procrun.Options.Target), usa WorkDir como diretório de trabalho e grava os arquivos auxiliares (config MCP,
 // skills) em AuxDir, referindo-os pelo caminho remoto.
@@ -111,6 +133,9 @@ type Event struct {
 	Text       string
 	Payload    json.RawMessage
 	OccurredAt time.Time
+	// SessionRef, quando preenchido, é a sessão do harness recém-anunciada: o service a grava na run na hora, para
+	// que uma run que morra sem devolver o Result ainda possa ser retomada (ADR-0039). Não vai para o log.
+	SessionRef string
 }
 
 // Sink receives events in order. Implementations must be safe to call from one goroutine.
@@ -149,6 +174,18 @@ type SessionResumer interface{ ResumesSessions() bool }
 func ResumesSessions(a Adapter) bool {
 	r, ok := a.(SessionResumer)
 	return ok && r.ResumesSessions()
+}
+
+// Steerer é implementado por adapters que declaram como aceitam uma mensagem no meio da run. Quem não implementa
+// cai em domain.SteerRestart (interromper e continuar), que funciona com qualquer harness.
+type Steerer interface{ SteerMode() domain.SteerMode }
+
+// SteerModeOf é a capability de steering de a.
+func SteerModeOf(a Adapter) domain.SteerMode {
+	if s, ok := a.(Steerer); ok {
+		return s.SteerMode()
+	}
+	return domain.SteerRestart
 }
 
 // Registry resolves adapters by agent name.

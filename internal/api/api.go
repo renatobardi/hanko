@@ -17,8 +17,10 @@ import (
 	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/events"
 	"github.com/renatobardi/hanko/internal/export"
+	"github.com/renatobardi/hanko/internal/gitrepo"
 	"github.com/renatobardi/hanko/internal/service"
 	"github.com/renatobardi/hanko/internal/textdiff"
+	"github.com/renatobardi/hanko/internal/webpush"
 )
 
 // Prefix é o prefixo de todas as rotas REST.
@@ -79,6 +81,20 @@ type backend interface {
 	ListProjectViews(ctx context.Context, companyID domain.ID) ([]service.ProjectView, error)
 	GetProjectView(ctx context.Context, companyID domain.ID, ref string) (service.ProjectView, error)
 	UpdateProject(ctx context.Context, actor domain.Actor, companyID, projectID domain.ID, in service.UpdateProjectInput) (domain.Project, error)
+	GetWorkspaceGit(ctx context.Context, companyID domain.ID, ref string) (service.WorkspaceGitView, error)
+	EnableWorkspaceGit(ctx context.Context, actor domain.Actor, companyID, workspaceID domain.ID, in service.EnableWorkspaceGitInput) (domain.WorkspaceGit, error)
+	DisableWorkspaceGit(ctx context.Context, actor domain.Actor, companyID, workspaceID domain.ID) error
+	SyncWorkspaceMirror(ctx context.Context, actor domain.Actor, companyID, workspaceID domain.ID) (domain.WorkspaceGit, error)
+	ListProjectWorktrees(ctx context.Context, companyID, projectID domain.ID) ([]service.WorktreeView, error)
+	TaskGit(ctx context.Context, companyID, taskID domain.ID) (service.TaskGitView, error)
+	TaskGitDiff(ctx context.Context, companyID, taskID domain.ID) (gitrepo.Patch, error)
+	TaskGitLog(ctx context.Context, companyID, taskID domain.ID, limit int) ([]gitrepo.Commit, error)
+	TaskGitTree(ctx context.Context, companyID, taskID domain.ID, path string) (service.TaskGitTree, error)
+	TaskGitFile(ctx context.Context, companyID, taskID domain.ID, path string) (gitrepo.File, error)
+	RemoveTaskWorktree(ctx context.Context, actor domain.Actor, companyID, taskID domain.ID) error
+	RequestTaskNewSession(ctx context.Context, actor domain.Actor, companyID, taskID domain.ID, reason string) (domain.TaskSessionReset, error)
+	GetProjectDefaults(ctx context.Context, companyID, projectID domain.ID) (domain.ProjectDefaults, error)
+	SetProjectDefaults(ctx context.Context, actor domain.Actor, companyID, projectID domain.ID, in service.SetProjectDefaultsInput) (domain.ProjectDefaults, error)
 	HirePersona(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.HirePersonaInput) (domain.Persona, error)
 	ListPersonas(ctx context.Context, companyID domain.ID) ([]domain.Persona, error)
 	GetPersona(ctx context.Context, companyID domain.ID, ref string) (domain.Persona, error)
@@ -105,7 +121,14 @@ type backend interface {
 	ListRunEvents(ctx context.Context, companyID, runID domain.ID, afterSeq int64, limit int) ([]domain.RunEvent, error)
 	ListRunEventsBefore(ctx context.Context, companyID, runID domain.ID, beforeSeq int64, limit int) ([]domain.RunEvent, error)
 	CancelRun(ctx context.Context, actor domain.Actor, companyID, runID domain.ID) (service.RunView, error)
+	RunAction(ctx context.Context, actor domain.Actor, companyID, runID domain.ID, in service.RunActionInput) (service.RunView, error)
+	SteerRun(ctx context.Context, actor domain.Actor, companyID, runID domain.ID, body string) (service.SteerResult, error)
+	ListFollowups(ctx context.Context, companyID domain.ID, target service.FollowupTarget) ([]domain.Followup, error)
+	QueueTaskFollowup(ctx context.Context, actor domain.Actor, companyID, taskID domain.ID, body string) (domain.Followup, error)
+	EditFollowup(ctx context.Context, actor domain.Actor, companyID, id domain.ID, body string) (domain.Followup, error)
+	DiscardFollowup(ctx context.Context, actor domain.Actor, companyID, id domain.ID) error
 	ListActivity(ctx context.Context, companyID domain.ID, f service.ActivityFilter) ([]domain.ActivityEvent, error)
+	ResolveActor(ctx context.Context, companyID domain.ID, ref string) (service.ActorFilter, error)
 	Dashboard(ctx context.Context, companyID domain.ID) (service.DashboardStats, error)
 	Search(ctx context.Context, companyID domain.ID, q string, f service.SearchFilter) (service.SearchResult, error)
 	RequestGate(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.RequestGateInput) (service.GateView, error)
@@ -169,6 +192,16 @@ type backend interface {
 	GetGoal(ctx context.Context, companyID domain.ID, ref string) (domain.Goal, error)
 	ListGoalViews(ctx context.Context, companyID domain.ID, f service.GoalFilter) ([]service.GoalView, error)
 	GetGoalView(ctx context.Context, companyID domain.ID, ref string) (service.GoalView, error)
+	// caixa por pessoa e avisos (ADR-0042)
+	InboxView(ctx context.Context, companyID domain.ID, view domain.InboxView) (service.Inbox, error)
+	SetInboxState(ctx context.Context, actor domain.Actor, companyID domain.ID, action domain.InboxAction, refs []service.InboxRef) (int, error)
+	NotifyPrefs(ctx context.Context, companyID domain.ID) ([]domain.NotifyPref, error)
+	SetNotifyPref(ctx context.Context, companyID domain.ID, p domain.NotifyPref) error
+	SendTestNotice(ctx context.Context, companyID domain.ID) error
+	PushVapidKey(ctx context.Context) (string, error)
+	AddPushSubscription(ctx context.Context, in webpush.Subscription, userAgent string) (service.PushSubscriptionView, error)
+	ListPushSubscriptions(ctx context.Context) ([]service.PushSubscriptionView, error)
+	RemovePushSubscription(ctx context.Context, ref string) error
 	ListConversations(ctx context.Context, companyID domain.ID, f service.ConversationFilter) ([]service.ConversationView, error)
 	GetConversation(ctx context.Context, companyID, id domain.ID) (service.ConversationView, error)
 	ListConversationMessages(ctx context.Context, companyID, id domain.ID, limit int) ([]domain.ConversationMessage, error)
@@ -273,10 +306,13 @@ func (s *server) register(api huma.API) {
 	s.registerTasks(api)
 	s.registerCoordination(api)
 	s.registerRuns(api)
+	s.registerResilience(api)
 	s.registerGates(api)
+	s.registerGatesPlus(api)
 	s.registerMisc(api)
 	s.registerCosts(api)
 	s.registerProjects(api)
+	s.registerGitWorkspaces(api) // workspace com Git, padrões de projeto e nova sessão (ADR-0054)
 	s.registerSubscriptions(api)
 	s.registerFlows(api)
 	s.registerMemory(api)
@@ -286,13 +322,17 @@ func (s *server) register(api huma.API) {
 	s.registerAttachments(api)
 	s.registerDrafts(api)
 	s.registerGoals(api)
+	s.registerInbox(api) // Caixa por pessoa e avisos (ADR-0042)
 	s.registerSkills(api)
 	s.registerSkillStudio(api)
 	s.registerSkillForks(api)
 	s.registerIntegrations(api)
 	s.registerSecrets(api)
+	s.registerDecision(api)
+	s.registerProbe(api)
 	s.registerInstance(api)
 	s.registerEnvironments(api)
+	s.registerReadiness(api)
 	s.registerTools(api)
 	s.registerToolPolicies(api)
 	s.registerConnections(api)

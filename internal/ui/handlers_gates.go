@@ -30,6 +30,12 @@ func gateKindLabel(ctx context.Context, k domain.GateKind) string {
 		return i18n.T(ctx, "Tool")
 	case domain.GateConnection:
 		return i18n.T(ctx, "Conexão")
+	case domain.GateInstruction:
+		return i18n.T(ctx, "Instruções")
+	case domain.GateQuestion:
+		return i18n.T(ctx, "Pergunta")
+	case domain.GatePlan:
+		return i18n.T(ctx, "Plano")
 	}
 	return string(k)
 }
@@ -47,6 +53,8 @@ func gateBadge(ctx context.Context, s domain.GateStatus) views.Badge {
 		return views.Badge{Label: i18n.T(ctx, "Mudanças pedidas"), Class: "outline"}
 	case domain.GateExpired:
 		return views.Badge{Label: i18n.T(ctx, "Expirado"), Class: "soft"}
+	case domain.GateDismissed:
+		return views.Badge{Label: i18n.T(ctx, "Dispensada"), Class: "soft"}
 	}
 	return views.Badge{Label: string(s), Class: "outline"}
 }
@@ -80,6 +88,11 @@ func gateRow(ctx context.Context, g service.GateView, base string, now time.Time
 		Note:       g.DecisionNote,
 		Pending:    g.Status == domain.GatePending,
 		DecideHref: base + "/gates/" + g.ID.String() + "/decidir",
+		Audience:   audienceLabel(ctx, g.Audience),
+		Revision:   g.Revision,
+	}
+	if g.Kind == domain.GateQuestion {
+		row.Question = questionVM(ctx, g, base)
 	}
 	if rv := g.Review; rv != nil {
 		info := &views.ReviewInfo{Reviewer: rv.Reviewer, Justification: rv.Justification, SHA: rv.ArtifactSHA256,
@@ -137,7 +150,7 @@ var gateStatusTabs = []gateTab{
 	{"pendentes", i18n.N("Pendentes"), []domain.GateStatus{domain.GatePending}},
 	{"aprovados", i18n.N("Aprovados"), []domain.GateStatus{domain.GateApproved}},
 	{"mudancas", i18n.N("Mudanças pedidas"), []domain.GateStatus{domain.GateChangesRequested}},
-	{"rejeitados", i18n.N("Rejeitados"), []domain.GateStatus{domain.GateRejected, domain.GateExpired}},
+	{"rejeitados", i18n.N("Rejeitados"), []domain.GateStatus{domain.GateRejected, domain.GateExpired, domain.GateDismissed}},
 	{"todos", i18n.N("Todos"), nil},
 }
 
@@ -154,6 +167,8 @@ var gateKindTabs = []gateKindTab{
 	{"memoria", i18n.N("Memória"), domain.GateMemory},
 	{"tools", i18n.N("Tools"), domain.GateTool},
 	{"conexoes", i18n.N("Conexões"), domain.GateConnection},
+	{"perguntas", i18n.N("Perguntas"), domain.GateQuestion},
+	{"planos", i18n.N("Planos"), domain.GatePlan},
 }
 
 func gateStatusIn(st domain.GateStatus, list []domain.GateStatus) bool {
@@ -171,7 +186,8 @@ func has[T comparable](list []T, v T) bool {
 
 func (s *server) handleGates(w http.ResponseWriter, r *http.Request, co domain.Company) {
 	ctx := r.Context()
-	all, err := s.be.ListGates(ctx, co.ID, service.GateFilter{Limit: 500})
+	mine := personal(ctx) && r.URL.Query().Get("minhas") == "1"
+	all, err := s.be.ListGates(ctx, co.ID, service.GateFilter{Limit: 500, Mine: mine})
 	if err != nil {
 		s.fail(w, r, &co, err)
 		return
@@ -201,9 +217,20 @@ func (s *server) handleGates(w http.ResponseWriter, r *http.Request, co domain.C
 		if kind != "todos" {
 			h += "&tipo=" + kind
 		}
+		if mine {
+			h += "&minhas=1"
+		}
 		return h
 	}
-	vm := views.GatesVM{}
+	vm := views.GatesVM{Mine: mine}
+	if personal(ctx) {
+		vm.MineHref = href(curS.key, curK.key)
+		if mine {
+			vm.MineHref = strings.Replace(vm.MineHref, "&minhas=1", "", 1)
+		} else {
+			vm.MineHref += "&minhas=1"
+		}
+	}
 	for _, t := range gateStatusTabs {
 		n := 0
 		for _, g := range all {
@@ -280,6 +307,10 @@ func (s *server) handleGate(w http.ResponseWriter, r *http.Request, co domain.Co
 		vm.RunHref, vm.RunShort = base+"/execucoes/"+g.RunID.String(), shortID(*g.RunID)
 	}
 	vm.Example = s.gateExample(ctx, co, g) // ADR-0034
+	if g.Kind == domain.GateHire {
+		vm.Hire = hireVM(ctx, g, s.lookup(ctx, personas, nil))
+	}
+	vm.History = s.historyVM(ctx, co, g) // reenvios com revisões (ADR-0041)
 	sh := s.shell(r, co, "gates", g.Title, views.Crumb{Label: i18n.T(ctx, "Gates"), Href: base + "/gates"}, views.Crumb{Label: shortID(g.ID)})
 	s.render(w, r, http.StatusOK, views.GatePage(sh, vm))
 }

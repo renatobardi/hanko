@@ -136,7 +136,13 @@ hanko auth create-owner --email you@example.com --name "Your Name"
 hanko serve
 ```
 
-**Create the owner through the CLI before exposing the server.** The web form "Create owner account" (first come, first owner) only exists when
+**First owner by a single-use link (ADR-0058).** With no users at all, boot prints a block with the link `<HANKO_PUBLIC_URL>/claim/<token>` to the
+process **stderr** (`docker compose logs hanko`): open it, enter name, email and password, and the first owner is created and signed in. The link is
+valid for 1 h and works once (used, expired or tampered links answer the same 404); the token only ever exists on stderr: the database keeps the hash,
+and it goes neither to the structured log nor to OTLP. Lost the link or it expired? `hanko auth claim-link` issues another one (invalidating the
+previous ones) without a restart. The `hanko auth create-owner` above still works as an alternative.
+
+**Create the owner (by link or CLI) before exposing the server.** The web form "Create owner account" (first come, first owner) only exists when
 `HANKO_PUBLIC_URL` is loopback (`localhost`/`127.0.0.1`) or `HANKO_AUTH_WEB_BOOTSTRAP=true`. On a public URL with no users, `/entrar` only tells you
 to run `hanko auth create-owner` and `POST /entrar/dono` answers 404. There is only one owner in v0.1 (multi-human is v0.2); all users can do everything.
 
@@ -322,7 +328,8 @@ Record the date and result in `docs/SESSION.md` or in the operations issue.
 | `path: must be inside the workspaces root` when creating a workspace | path outside `HANKO_WORKSPACES_ROOT/<company-slug>` | use a path inside the root company folder or change the root |
 | The agent cannot see an environment variable | filtered env (allowlist) | `HANKO_AGENT_ENV_ALLOW=NAME` |
 | `HANKO_SECRET exige…` / `HANKO_PUBLIC_URL exige https` at boot | authenticated mode without a 32-byte secret, or with an http URL outside loopback | `openssl rand -hex 32`; use `https://…` (or loopback for a local test) |
-| `/entrar` shows "Criar conta de dono" (Create owner account) | database has no users | `hanko auth create-owner` (§5.1) before exposing it; on a public URL the form only exists with `HANKO_AUTH_WEB_BOOTSTRAP=true` |
+| `/entrar` shows "Criar conta de dono" (Create owner account) | database has no users | open the `/claim/…` link printed to stderr at boot, or `hanko auth claim-link` / `hanko auth create-owner` (§5.1) before exposing it; on a public URL the form only exists with `HANKO_AUTH_WEB_BOOTSTRAP=true` |
+| `429 Too Many Requests` with `Retry-After` | general rate limit (writes, MCP, incoming webhooks, error reports) | expected under bursts: wait for `Retry-After`; for big batches per API key raise `ratelimit.writes_per_min` (Settings › Instance) or turn it off with `ratelimit.enabled=false`. Metric `hanko.ratelimit.decisions` and the "Hanko · Errors" dashboard |
 | Boot refused: `HANKO_AUTH_PROVIDER=firebase com HANKO_PUBLIC_URL público exige…` (with a public URL requires…) | firebase with neither lists nor a named owner | set `HANKO_AUTH_ALLOWED_EMAILS/DOMAINS` or `HANKO_AUTH_OWNER_EMAIL` (§5.2) |
 | Login 503 "Muitos logins ao mesmo tempo" (too many logins at once) | all argon2id slots busy for 2 s | try again; if it persists there is a login burst (check the rate limit at the edge) |
 | Login rate limit blocks everyone together behind Caddy | `HANKO_TRUSTED_PROXIES` missing the compose subnet | include the docker subnet (§5) |
@@ -366,6 +373,7 @@ Operator settings (a company cannot turn these on by itself):
 | `HANKO_INTEGRATIONS_ALLOW_STDIO` | `false` | Allows `stdio` MCP servers, which run a command **on the server machine**. |
 | `HANKO_INTEGRATIONS_ALLOW_PRIVATE` | `false` | Allows webhooks and connection tests to loopback, link-local and private networks (otherwise SSRF blocking applies). |
 | `HANKO_SKILL_SOURCES` | `false` | Turns on git skill sources (ADR-0035): the server clones public repositories over https with the `git` on the PATH. Internal hosts only with `HANKO_INTEGRATIONS_ALLOW_PRIVATE`. |
+| `HANKO_GIT_WORKSPACES` | `false` | Turns on execution workspaces with Git (ADR-0054): the server keeps a mirror clone of the workspace repository under `<HANKO_WORKSPACES_ROOT>/<company>/.hanko/mirrors` and creates one worktree per task under `.hanko/worktrees` (git 2.31+ on the PATH). The repository credential is a `${secret:NAME}` secret (ADR-0050). Internal hosts only with `HANKO_INTEGRATIONS_ALLOW_PRIVATE`. An admin turns Git on per workspace (`hanko workspace git enable`). |
 
 **Generate the key:** `openssl rand -hex 32`. Keep it with `HANKO_SECRET` and in the operator's backup; losing it loses the
 stored secrets (integrations remain, without credentials; enter them again).
@@ -377,6 +385,42 @@ stored secrets (integrations remain, without credentials; enter them again).
 **Webhooks.** Each delivery carries `X-Hanko-Signature: t=<unix>,v1=<hex>`, `X-Hanko-Event` and `X-Hanko-Delivery`. The receiver
 computes `HMAC-SHA256(secret, "<t>.<body>")`, compares in constant time and rejects an old `t`. Failures retry up to 7
 attempts (30 s, 2 min, 8 min, 32 min, ~2 h, 6 h). Delivery is at-least-once; deduplicate on `X-Hanko-Delivery`.
+## Decision model and the devin, pi, cursor and http harnesses (ADR-0056)
+
+**Decision model.** A per-company external classifier that Hanko itself calls (triage, phase classifier, name and summary); every call
+lands in Costs with the `system` actor. Configure it under Settings › Decision model, or from the CLI:
+
+```sh
+hanko secret create openrouter --value-stdin            # the provider key, as a company secret
+hanko decision catalog --api-key-ref '${secret:openrouter}'   # catalog models and prices
+hanko decision set anthropic/claude-haiku-4.5 --api-key-ref '${secret:openrouter}'
+hanko decision feature triage on
+hanko decision triage HNK-12                            # comments the suggestion on the task (does not assign)
+hanko decision invocations                              # ledger: model, tokens, cost, source
+```
+
+The default endpoint is OpenRouter's; `--base-url` points to any chat-completions-compatible API (an internal destination needs
+`integrations.allow_private`). The key is never stored in the configuration: only the `${secret:NAME}` reference, resolved on every
+call. Features start turned off. The cost is the response's `usage.cost` when present, otherwise tokens × catalog price, and it adds to
+the company's monthly spend (budget).
+
+**New harnesses.** All are hired with `hanko persona hire --agent <name>` (or the card in the hire screen); the executable is fixed by the
+operator and authentication happens outside Hanko:
+
+| Harness | Executable (env / yaml) | Notes |
+| --- | --- | --- |
+| `devin` | `HANKO_DEVIN_BIN` (`devin`) | runs `devin acp` over the ACP engine; not subject to `HANKO_ACP_ALLOW`; `adapter_config` accepts `permission`, `model`, `env`, `init_timeout_sec` |
+| `pi` | `HANKO_PI_BIN` (`pi`) | `pi --mode json -p`; Hanko tools go through the `hanko` CLI with the run token (the CLI must be on the server's PATH) |
+| `cursor` | `HANKO_CURSOR_BIN` (`cursor-agent`) | `cursor-agent -p --output-format stream-json`; same tools rule; `force: true` lets it apply changes |
+| `http` | — | no CLI: Hanko runs the tool-use loop over `base_url` (chat completions) with Hanko's MCP tools; `adapter_config`: `base_url`, `api_key_ref` (`${secret:X}`), `model`, `max_steps`, `temperature`, `timeout_sec`, `tools` |
+| `acp` + `preset` | `HANKO_ACP_ALLOW` | `{"preset":"gemini"}` or `"opencode"` fills in command and arguments; the operator gate applies |
+
+**Check before running.** `hanko persona probe <persona>` (admin) runs a probe with no prompt and no cost, with named steps (binary,
+protocol, authentication, endpoint, model). For `devin`/`acp` the probe does initialize and session/new: an agent that requires login
+fails the "authentication" step, quoting the methods it advertises. For `pi`/`cursor` it only checks the binary (`--version`).
+
+**Local model (e.g. oMLX).** An `http` persona with the local server's `base_url` (`integrations.allow_private` on) and a model with
+proven tool calling; review runs (read-only) offer no tools. The harness neither executes commands nor writes to disk.
 ## Tool policy (ADR-0053)
 
 On top of tool profiles (ADR-0036), a **policy** says `off` (refuse), `ask` (ask first, opens a `tool` gate) or `allow` (go straight through) for one persona
@@ -591,7 +635,8 @@ by definition, make the agent use the secret: "reveal once" is an audit trail, n
 
 **Settings › Instance** screen, `hanko settings list|get|set|unset|audit` CLI, `/instance/settings` API (installation owner).
 **Non-sensitive** toggles only: `acp.allow`, `acp.commands`, `integrations.allow_stdio`, `integrations.allow_private`,
-`artifacts.max_bytes`, `artifacts.quota_bytes`, `run.reserve_usd`, `alerts.silent_factor`, `alerts.run_stuck_after`.
+`artifacts.max_bytes`, `artifacts.quota_bytes`, `run.reserve_usd`, `alerts.silent_factor`, `alerts.run_stuck_after` and the
+`ratelimit.*` keys (general rate limit, below).
 Precedence: **environment variable > database > yaml/default**. With the variable set (non-empty) the key shows as locked
 ("locked by HANKO_X") and the API returns 409; to change it, change the environment. Changes in the database apply without a restart and
 are recorded in `instance_setting_audit` (before, after, author). Secrets and keys are never settings: environment only.
@@ -631,6 +676,51 @@ or a deleted company) take space without showing in the quota; the key is `<pref
 | Run fails: `segredo não resolvido: ${secret:X}` | the secret was deleted or the vault is down | recreate the secret / check the vault and token |
 | Settings: 409 "definida por HANKO_X" | the environment variable locks the key | change the server environment |
 
+## Rate limit, errors via OTel, e2e and dev labs (ADR-0058)
+
+### General rate limit
+A Postgres token bucket (`rate_limit_buckets`, one atomic statement per decision, correct with several instances) per **API key** (hash),
+session **user**, **run** (valid run token) or **IP** (the same `HANKO_TRUSTED_PROXIES` as login). Classes: `write` (POST/PUT/PATCH/DELETE on the API
+and UI; login, claim and invite have their own limiter), `mcp` (`/mcp`, the tool gateway, `/memory-mcp`), `webhook` (`/hooks/…`, reserved for the M19
+triggers) and `browser_error` (`/telemetry/errors`). Writes also add a per-IP ceiling. Reads, SSE, `/healthz`, `/readyz`, `/metrics` and `/static/`
+never consume. Over the limit: `429` with `Retry-After` (s), `RateLimit-Limit` and `RateLimit-Remaining`; a `problem+json` body on the API/MCP,
+plain text on the UI. If the limiter's database is down the request **passes** (fail-open) and the metric counts `outcome=error`.
+
+Defaults (per minute, 1-minute burst): writes 600 per identity and 1200 per IP; MCP 1500; webhooks 120 per IP; browser errors 20 per IP. Change them
+under **Settings › Instance** (`ratelimit.enabled`, `ratelimit.writes_per_min`, `ratelimit.ip_per_min`, `ratelimit.mcp_per_min`,
+`ratelimit.webhooks_per_min`, `ratelimit.browser_errors_per_min`), with `hanko settings set`, or with `HANKO_RATELIMIT_*` (which wins and locks).
+No restart needed. Metric: `hanko.ratelimit.decisions{class,outcome}`.
+
+### Errors in OpenTelemetry (no SaaS)
+- **Server:** every unexpected 5xx and every handler panic becomes an `exception` span event (type, message, stack) with `Status=Error`, an `ERROR`
+  log with `exception.stacktrace` (shipped to Loki over OTLP) and the `hanko.errors{source,exception_type}` counter.
+- **Browser:** `hanko.js` sends `window.onerror` and `unhandledrejection` (up to 5 per page) to `POST /telemetry/errors` (needs a session and same
+  origin; body ≤ 8 KiB; URL without query/fragment; 20/min per IP). It becomes a `browser.error` span with the `exception` event and an `ERROR` log
+  with `exception.source=browser`. Nothing is stored in the database.
+- **Dashboard:** `deploy/grafana/dashboards/hanko-erros.json` ("Hanko · Erros": exceptions by source and type, traces with `status=error`, error
+  logs with stack, rate-limit decisions), provisioned by `deploy/compose.yaml` into `otel-lgtm` (Grafana folder *Hanko*). Outside the compose file,
+  copy the provider `deploy/grafana/provisioning/dashboards/hanko.yaml` and the JSON into your Grafana (datasources `prometheus`, `tempo`, `loki`).
+
+### e2e tests (Playwright)
+`e2e/` (Playwright 1.56.1, development/CI only; the binary does not depend on Node). It needs `bin/hanko` (`make build`), a **disposable** Postgres
+(the `public` schema is dropped) in `HANKO_E2E_DATABASE_URL`, and `psql`:
+
+```bash
+make build
+cd e2e && npm ci
+export HANKO_E2E_DATABASE_URL='postgres://postgres:postgres@localhost:5432/hanko_e2e?sslmode=disable'
+PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers npx playwright test          # or: npm test
+npx playwright test --update-snapshots                                # regenerate the screenshot-diff baselines
+npx playwright show-report                                            # HTML report
+```
+The harness starts `hanko serve` with the `fake` adapter, reads the claim link from stderr and runs the journeys. Baselines live in
+`e2e/tests/__screenshots__/` (Linux/Chromium). In CI: `.github/workflows/e2e.yml` (PRs touching UI, handlers, migrations or `e2e/`, and `main`).
+
+### Dev labs (`/design-guide`, `/dev/ux`)
+Only in trusted mode or for the installation owner/admin (everyone else gets 404). `/design-guide` shows the Kubo DS in light and dark
+(`?tema=ambos|claro|escuro`); `/dev/ux` lists synthetic scenarios: **long thread** (500 comments, `?n=` changes the count) and **run with 10,000
+lines** (the real virtualized log over a synthetic API). Nothing is written.
+
 ## Search (ADR-0024)
 
 Search uses Postgres full-text over `search_tsv` columns generated from `hanko_fold(text)` (case, accents, ASCII punctuation and Unicode
@@ -654,9 +744,93 @@ formatting characters). Operating notes:
 - **Memory in search.** The "Memory" group appears only when the memory server lists the `memory_query` tool (read from `tools/list`,
   cached for 5 min). Without it the group disappears and the log carries one warning; consolidation (ADR-0030) does not depend on it.
 
+## Execution environments, readiness and model catalog (ADR-0037, ADR-0055)
+
+By default every run is a child process of this server (the implicit **local** environment). An admin can add environments in
+Settings › Environments or with `hanko env create`: an explicit **local** (a named local with its own variables, useful to force
+local on a persona or project when the company default is remote), **ssh** (a remote host), **sandbox** (a hardened docker
+container per run) and **cloud** (a disposable cloud sandbox per run, provider Daytona). Each driver exists only if the operator
+turns it on:
+
+| Variable | Default | Effect |
+|---|---|---|
+| `HANKO_ENV_SSH_ALLOW_HOSTS` | empty | Hosts allowed for SSH (exact, suffix, IP, CIDR or `*`). Empty = SSH off. |
+| `HANKO_ENV_SANDBOX` | empty | `docker` turns the docker sandbox on (needs the `docker` binary and daemon access). |
+| `HANKO_ENV_SANDBOX_HOST_ROOT` | empty | Hanko inside a container talking to the host's docker: the host path of `HANKO_WORKSPACES_ROOT`. |
+| `HANKO_ENV_CLOUD` | empty | `daytona` turns the cloud sandbox on. Requires `HANKO_ENV_CLOUD_SSH_KNOWN_HOSTS`. |
+| `HANKO_ENV_CLOUD_API_URL` | `https://app.daytona.io/api` | Provider API base (operator-owned; no company picks a network destination). |
+| `HANKO_ENV_CLOUD_SSH_HOST` | `ssh.app.daytona.io` | Provider SSH gateway. |
+| `HANKO_ENV_CLOUD_SSH_KNOWN_HOSTS` | empty | known_hosts lines of the gateway (`ssh-keyscan`). Required: ssh never accepts an unknown host key. |
+| `HANKO_READINESS_INTERVAL` | `15m` | Age after which a persona's readiness test is redone by the periodic check; `0` turns it off ("Test now" still works). |
+| `HANKO_PUBLIC_URL` | — | Required and non-loopback for SSH, networked sandboxes and cloud: the remote harness reaches Hanko's MCP through it. |
+
+**Precedence.** A run's environment is the persona's; else the project's (`hanko project env`); else the company default; else the
+implicit local. A level pointing at an archived environment is skipped (a warning in the run log). The decision is made when the run
+is created and stored on it (`environment_id`, `environment_source`); the run page shows where and why. Archiving an environment
+moves its personas and projects.
+
+**Cloud (Daytona).** Each run creates a sandbox at the provider, uploads the workspace through the SSH gateway with a short-lived
+token, runs the harness, brings the result back and deletes the sandbox. A failed run or sync **keeps** the sandbox so the work can
+be recovered; the provider stops it after 15 idle minutes and deletes it 60 minutes after it stopped. The API key is stored
+encrypted (accepts `${secret:NAME}`). The client is tested only against a stub server: try `hanko env probe` against a real account
+before relying on it.
+
+**Probe and capabilities.** `hanko env probe` runs a script on the target and records the system, writable folder, binaries
+(`tar`, `git`, `claude`, `codex`), whether the target reaches Hanko through the public URL, and `capabilities` (`sync`, `git`,
+`claude`, `codex`, `hanko-reachable`, plus `network`, `isolated`, `persistent` from the driver).
+
+**Readiness (persona).** Before a run fails for lack of login, Hanko tests the persona's harness in its environment: binary,
+login or API key, and model (format and price). It never calls the model, so it costs no tokens. Steps are named (`environment`,
+`binary`, `auth`, `model`) and stored in `persona_readiness`. It runs on "Test now" (the persona page, and right after hiring),
+`hanko persona test <persona>`, and the periodic `readiness_tick` job. A failure opens the `persona_not_ready` alert and **blocks
+dispatch** (tasks, chat and reviews) with the reason until a test passes; a never-tested persona is not blocked.
+
+**Model catalog.** `hanko model list [--agent claude]` and the hire form's model picker (with an "Other…" option) merge harness
+aliases, `model_prices` rows, models seen by readiness tests and models used by the company's runs in the last 90 days. A model
+without its own price is flagged: its cost falls back to the fallback price (ADR-0019).
 ## Access and company lifecycle (ADR-0057)
 
 - **CLI login:** `hanko --url https://hanko.example.com login [--scope full|read] [--device name]` opens `/cli-auth/<code>`; a signed-in person authorizes it and the CLI keeps the API key in `~/.config/hanko/contexts.json` (0600; `HANKO_CONFIG_DIR` changes the location). `hanko whoami` shows the account, device and scope; revoke under Settings › API keys. A `read` key only reads (the API refuses writes and MCP).
 - **Archive:** `hanko -c <company> company archive` pauses personas, cancels runs, switches flows off and makes the company read-only (UI banner, 409 on writes). `company restore [--resume]` undoes it. `company delete --confirm "<Name>" -o backup.json` (owner only, archived only) keeps the export in `company_deletions`; `hanko company deletions` lists and `company download-deletion <id>` downloads.
 - **Import:** `hanko import file.json --dry-run` shows the preview; `--into <company> --on-conflict skip|rename|replace --resolve personas/dev=replace` merges only the configuration into an existing company. In the UI: `/importar`.
 - **Letting people in:** Settings › Members › "Generate join link" (`/pedir-acesso/<token>`); an admin approves with a role via `hanko member requests|approve|deny`. Installation accounts: `/admin/usuarios` or `hanko users`.
+## Run resilience: continuation, diagnosis, steer and queue
+
+ADR-0039 (migration 00090). When the Hanko process dies in the middle of a run, the run **goes on by itself**; when the outcome is
+uncertain it **waits for your decision**; and you can **change the course** of an active run without waiting for it to end.
+
+- **Automatic continuation.** An interrupted run (process crash or server shutdown) gets a continuation linked to it
+  (`continuation_of_run_id`): it resumes the harness session (`session_ref`, stored as soon as the harness announces it) and receives
+  a briefing of what was already done. **At most 2 automatic continuations** per chain; the third interruption sends the run to the
+  inbox. Recorded in the activity feed (`run.diagnosed`, `run.continued`) and visible on the run page.
+- **Uncertain outcome.** If a tool with an external effect (Bash, file write, a write to Hanko, a third-party MCP tool…) was in
+  progress when the run died, **nothing restarts by itself**: the run shows up in the inbox (Failures tab, "Stopped runs waiting for a
+  decision") with the diagnosis card (cause, attempt, next action, owner) and the tool name. Reads (Read, Grep, `hanko_*_get`…) do not
+  count as effects. The heartbeat does not wake the task until the decision comes.
+- **Operator actions** (UI on the run and in the inbox; API `POST /runs/{id}/actions`; CLI):
+
+```
+hanko run show <run>                         # shows the diagnosis card and the continuation chain
+hanko run continue <run> --note "checked the remote"   # resumes the session with the briefing (and your note)
+hanko run retry <run>                        # starts over, without the previous session
+hanko run close <run>                        # closes the card; an in-progress task goes to blocked
+```
+
+  They work on an interrupted, failed or expired run that was not decided yet. Every decision restores the attempt budget.
+- **Steer** (change the course of an active run): "Change course" box on the run (and on the task/conversation), `POST
+  /runs/{id}/steer`, `hanko run steer <run> "message"`. The UI shows the harness mode: `claude` (stream-json stdin), `acp` (cancels the
+  turn and resends in the same session) and `fake` **inject live**; `codex` **interrupts and continues** (the run is cancelled and the
+  next one starts from the session when the harness can resume). The message becomes a task comment (or a conversation message) when
+  the agent receives it; if the run ends first it stays queued for the next run.
+- **Follow-up queue** (task and chat): what you send while the run works waits in order, with the reason for the wait (active run,
+  pending steer, pending decision, persona unavailable…). Edit and discard work until delivery.
+
+```
+hanko followup list --task HNK-12            # order and reason for the wait (or --conversation <id>)
+hanko followup add --task HNK-12 "then update the changelog"
+hanko followup edit <id> "new text"
+hanko followup discard <id>
+```
+
+  When the run ends (for any reason, cancelled included), pending follow-ups wake the persona and the next run collects them in order.
+  If the wake is lost, the heartbeat notices a follow-up stuck for over 1 minute.

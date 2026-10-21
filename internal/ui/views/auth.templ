@@ -80,6 +80,7 @@ templ cliOwnerCard(vm LoginVM) {
 		<p class="sub muted">{ i18n.T(ctx, "Ainda não há usuários. Por segurança, a primeira conta não é criada por esta página quando o endereço é público. No servidor, rode:") }</p>
 		@loginMessages(vm)
 		<pre class="mono"><code>hanko auth create-owner --email voce@exemplo.com --name "Seu Nome"</code></pre>
+		<p class="sub muted">{ i18n.T(ctx, "Ou abra o link de uso único que o servidor imprimiu no boot (`hanko auth claim-link` emite outro).") }</p>
 		<p class="sub muted">{ i18n.T(ctx, "Depois recarregue esta página e entre. Detalhes em docs/RUNBOOK.md, seção 5.1.") }</p>
 	</div>
 }
@@ -130,6 +131,67 @@ templ loginMessages(vm LoginVM) {
 	}
 	if vm.Notice != "" {
 		<div class="alert" role="status"><div>{ vm.Notice }</div></div>
+	}
+}
+
+// ClaimVM drives the first-owner claim page (/claim/{token}, ADR-0058).
+type ClaimVM struct {
+	Action  string // POST target, /claim/<token>
+	Email   string
+	Name    string
+	Error   string
+	Version string
+}
+
+// ClaimPage is the one-time link that creates the first owner of a fresh instance.
+templ ClaimPage(vm ClaimVM) {
+	@Bare(i18n.T(ctx, "Primeiro acesso"), vm.Version) {
+		<div class="auth">
+			<div class="mark">
+				@Mark(40)
+				<b>Hanko</b>
+			</div>
+			<form class="card" method="post" action={ templ.SafeURL(vm.Action) } data-testid="claim-form">
+				<h1>{ i18n.T(ctx, "Criar o primeiro dono") }</h1>
+				<p class="sub muted">{ i18n.T(ctx, "Este link é de uso único: a conta criada aqui vira dona desta instalação e o link deixa de valer.") }</p>
+				if vm.Error != "" {
+					@Alert("danger", vm.Error)
+				}
+				<div class="field">
+					<label for="c-name">{ i18n.T(ctx, "Nome") }</label>
+					<input class="input" id="c-name" name="name" value={ vm.Name } required maxlength="80" autocomplete="name" autofocus/>
+				</div>
+				<div class="field">
+					<label for="c-email">{ i18n.T(ctx, "E-mail") }</label>
+					<input class="input" id="c-email" name="email" type="email" value={ vm.Email } required autocomplete="username"/>
+				</div>
+				<div class="field">
+					<label for="c-pass">{ i18n.T(ctx, "Senha") }</label>
+					<input class="input" id="c-pass" name="password" type="password" required minlength="10" maxlength="256" autocomplete="new-password"/>
+					<span class="hint">{ i18n.T(ctx, "Mínimo de 10 caracteres.") }</span>
+				</div>
+				<button class="btn primary block" type="submit">{ i18n.T(ctx, "Criar conta e entrar") }</button>
+			</form>
+			@LangSwitch()
+		</div>
+	}
+}
+
+// ClaimInvalidPage answers any link that is unknown, used or expired, without saying which.
+templ ClaimInvalidPage(version string) {
+	@Bare(i18n.T(ctx, "Link inválido"), version) {
+		<div class="auth">
+			<div class="mark">
+				@Mark(40)
+				<b>Hanko</b>
+			</div>
+			<div class="card" data-testid="claim-invalid">
+				<h1>{ i18n.T(ctx, "Link inválido ou expirado") }</h1>
+				<p class="sub muted">{ i18n.T(ctx, "Este link de primeiro acesso não vale mais. No servidor, rode `hanko auth claim-link` para emitir outro, ou entre com a sua conta.") }</p>
+				<a class="btn outline block" href="/entrar">{ i18n.T(ctx, "Ir para a entrada") }</a>
+			</div>
+			@LangSwitch()
+		</div>
 	}
 }
 
@@ -269,6 +331,7 @@ templ SettingsPage(sh Shell, vm SettingsVM) {
 			</div>
 		}
 		@memoryCard(sh, vm.Memory)
+		@CompanyPolicyCard(vm.Policy)
 	}
 }
 

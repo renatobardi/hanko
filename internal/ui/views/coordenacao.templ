@@ -130,6 +130,25 @@ templ TaskCoordSide(c TaskCoordVM, key string) {
 			}
 		}
 	</div>
+	<div class="side-sec" id="task-git">
+		<div class="side-h">{ i18n.T(ctx, "Git e sessão") }</div>
+		if c.GitHref != "" {
+			<p class="text-sm"><a href={ templ.SafeURL(c.GitHref) }><span class="mono">{ c.GitBranch }</span></a> @BadgeEl(c.GitBadge)</p>
+			<a class="btn outline sm block" href={ templ.SafeURL(c.GitHref) }>{ i18n.T(ctx, "Ver diff, log e arquivos") }</a>
+		} else {
+			<p class="muted text-sm">{ i18n.T(ctx, "Sem worktree: a branch da task nasce quando o workspace tem Git e uma persona começa a trabalhar.") }</p>
+		}
+		if canWrite(ctx) && c.NewSessionHref != "" {
+			<details class="mt-3">
+				<summary class="text-sm">{ i18n.T(ctx, "Nova sessão") }</summary>
+				<form method="post" action={ templ.SafeURL(c.NewSessionHref) } hx-post={ c.NewSessionHref } hx-target="#task-side" hx-swap="outerHTML">
+					<p class="muted text-sm">{ i18n.T(ctx, "O próximo run ignora a sessão anterior e trabalha só com o briefing e a memória. O pedido fica na atividade.") }</p>
+					<input class="input sm" name="reason" maxlength="500" placeholder={ i18n.T(ctx, "Motivo (opcional)") } aria-label={ i18n.T(ctx, "Motivo") }/>
+					<button class="btn outline sm mt-2" type="submit">{ i18n.T(ctx, "Recomeçar a sessão") }</button>
+				</form>
+			</details>
+		}
+	</div>
 	<div class="side-sec" id="task-review">
 		<div class="side-h">{ i18n.T(ctx, "Revisão do fechamento") }</div>
 		<p class="text-sm">{ c.Review.Summary }</p>
@@ -141,6 +160,7 @@ templ TaskCoordSide(c TaskCoordVM, key string) {
 			</form>
 		}
 	</div>
+	@TaskPlanSide(c.Plan)
 }
 
 var _ = domain.MemberAdmin

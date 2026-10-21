@@ -37,12 +37,18 @@ const (
 	RunReserveUSD          = "run.reserve_usd"
 	AlertsSilentFactor     = "alerts.silent_factor"
 	AlertsRunStuckAfter    = "alerts.run_stuck_after"
+	RateLimitEnabled       = "ratelimit.enabled"
+	RateLimitWrites        = "ratelimit.writes_per_min"
+	RateLimitIP            = "ratelimit.ip_per_min"
+	RateLimitMCP           = "ratelimit.mcp_per_min"
+	RateLimitWebhooks      = "ratelimit.webhooks_per_min"
+	RateLimitBrowserErrors = "ratelimit.browser_errors_per_min"
 )
 
 // Def declara uma chave.
 type Def struct {
 	Key   string
-	Group string // acp | integrations | artifacts | run | alerts | experimental
+	Group string // acp | integrations | artifacts | run | alerts | ratelimit | experimental
 	Kind  Kind
 	Env   string // variável de ambiente equivalente; definida, ela vence e trava a chave
 	Label string // texto pt-BR (a UI traduz pelo i18n)
@@ -62,6 +68,12 @@ var Defs = []Def{
 	{Key: RunReserveUSD, Group: "run", Kind: Float, Env: "HANKO_RUN_RESERVE_USD", Label: "Piso da reserva de orçamento por run (US$)", Min: 0, Max: 1000},
 	{Key: AlertsSilentFactor, Group: "alerts", Kind: Int, Env: "HANKO_ALERT_SILENT_FACTOR", Label: "Fator do alerta de persona silenciosa", Min: 1, Max: 1000},
 	{Key: AlertsRunStuckAfter, Group: "alerts", Kind: Duration, Env: "HANKO_ALERT_RUN_STUCK_AFTER", Label: "Tempo para uma run presa virar alerta", Min: 1},
+	{Key: RateLimitEnabled, Group: "ratelimit", Kind: Bool, Env: "HANKO_RATELIMIT_ENABLED", Label: "Ligar o rate limit geral", Help: "Token bucket por API key, usuário e IP para escritas, MCP e webhooks de entrada (429 + Retry-After)."},
+	{Key: RateLimitWrites, Group: "ratelimit", Kind: Int, Env: "HANKO_RATELIMIT_WRITES_PER_MIN", Label: "Escritas por minuto (por API key ou usuário)", Min: 10, Max: 1000000},
+	{Key: RateLimitIP, Group: "ratelimit", Kind: Int, Env: "HANKO_RATELIMIT_IP_PER_MIN", Label: "Escritas por minuto (por IP, somando identidades)", Min: 10, Max: 1000000},
+	{Key: RateLimitMCP, Group: "ratelimit", Kind: Int, Env: "HANKO_RATELIMIT_MCP_PER_MIN", Label: "Chamadas MCP por minuto (por identidade ou run)", Min: 10, Max: 1000000},
+	{Key: RateLimitWebhooks, Group: "ratelimit", Kind: Int, Env: "HANKO_RATELIMIT_WEBHOOKS_PER_MIN", Label: "Webhooks de entrada por minuto (por IP)", Min: 1, Max: 1000000},
+	{Key: RateLimitBrowserErrors, Group: "ratelimit", Kind: Int, Env: "HANKO_RATELIMIT_BROWSER_ERRORS_PER_MIN", Label: "Erros de navegador por minuto (por IP)", Min: 1, Max: 100000},
 }
 
 var (

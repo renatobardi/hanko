@@ -107,47 +107,62 @@ func (s *Service) GetUserByEmail(ctx context.Context, email string) (domain.User
 // CreateOwner cria o primeiro usuário (provider local, papel owner). Só vale enquanto
 // não há usuários; depois disso devolve ErrConflict.
 func (s *Service) CreateOwner(ctx context.Context, email, name, password string) (domain.User, error) {
-	email, err := NormalizeEmail(email)
-	if err != nil {
-		return domain.User{}, err
-	}
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return domain.User{}, domain.Invalid("name", "required")
-	}
-	if err := auth.ValidatePassword(password); err != nil {
-		return domain.User{}, domain.Invalid("password", err.Error())
-	}
-	release, err := s.PasswordGate.Acquire(ctx)
-	if err != nil {
-		return domain.User{}, err
-	}
-	hash, err := auth.HashPassword(password)
-	release()
+	email, name, hash, err := s.prepareOwner(ctx, email, name, password)
 	if err != nil {
 		return domain.User{}, err
 	}
 	var out domain.User
 	err = s.withTx(ctx, func(t *txc) error {
-		if err := t.q.LockUsers(ctx); err != nil {
-			return fmt.Errorf("lock users: %w", err)
-		}
-		n, err := t.q.CountUsers(ctx)
-		if err != nil {
-			return fmt.Errorf("count users: %w", err)
-		}
-		if n > 0 {
-			return fmt.Errorf("já existe um usuário: %w", domain.ErrConflict)
-		}
-		row, err := t.q.CreateUser(ctx, store.CreateUserParams{ID: domain.NewID(), Email: email, Name: name,
-			Provider: string(domain.ProviderLocal), PasswordHash: &hash, Role: string(domain.RoleOwner), Now: t.now})
-		if err != nil {
-			return mapErr(err, "create owner")
-		}
-		out = userFromRow(row)
-		return nil
+		u, err := createFirstOwner(t, email, name, hash)
+		out = u
+		return err
 	})
 	return out, err
+}
+
+// prepareOwner valida e-mail, nome e senha e calcula o hash (fora da transação: argon2 é caro).
+func (s *Service) prepareOwner(ctx context.Context, email, name, password string) (outEmail, outName, hash string, err error) {
+	outEmail, err = NormalizeEmail(email)
+	if err != nil {
+		return "", "", "", err
+	}
+	outName = strings.TrimSpace(name)
+	if outName == "" {
+		return "", "", "", domain.Invalid("name", "required")
+	}
+	if err := auth.ValidatePassword(password); err != nil {
+		return "", "", "", domain.Invalid("password", err.Error())
+	}
+	release, err := s.PasswordGate.Acquire(ctx)
+	if err != nil {
+		return "", "", "", err
+	}
+	hash, err = auth.HashPassword(password)
+	release()
+	if err != nil {
+		return "", "", "", err
+	}
+	return outEmail, outName, hash, nil
+}
+
+// createFirstOwner cria o dono dentro da transação, serializada pelo lock de usuários; ErrConflict se já há usuário.
+func createFirstOwner(t *txc, email, name, hash string) (domain.User, error) {
+	if err := t.q.LockUsers(t.ctx); err != nil {
+		return domain.User{}, fmt.Errorf("lock users: %w", err)
+	}
+	n, err := t.q.CountUsers(t.ctx)
+	if err != nil {
+		return domain.User{}, fmt.Errorf("count users: %w", err)
+	}
+	if n > 0 {
+		return domain.User{}, fmt.Errorf("já existe um usuário: %w", domain.ErrConflict)
+	}
+	row, err := t.q.CreateUser(t.ctx, store.CreateUserParams{ID: domain.NewID(), Email: email, Name: name,
+		Provider: string(domain.ProviderLocal), PasswordHash: &hash, Role: string(domain.RoleOwner), Now: t.now})
+	if err != nil {
+		return domain.User{}, mapErr(err, "create owner")
+	}
+	return userFromRow(row), nil
 }
 
 // AuthenticateLocal confere e-mail e senha. Falha (usuário inexistente, provider errado ou
