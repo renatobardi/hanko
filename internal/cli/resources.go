@@ -120,7 +120,7 @@ func (e *env) workspaceCmd() *cobra.Command {
 			return nil
 		},
 	}
-	c.AddCommand(create, ls, e.workspaceShowCmd(), e.workspaceUpdateCmd(), e.workspaceDeleteCmd())
+	c.AddCommand(create, ls, e.workspaceShowCmd(), e.workspaceUpdateCmd(), e.workspaceDeleteCmd(), e.workspaceGitCmd())
 	return c
 }
 
@@ -185,7 +185,7 @@ func (e *env) projectCmd() *cobra.Command {
 			return nil
 		},
 	}
-	c.AddCommand(create, ls, e.projectShowCmd(), e.projectUpdateCmd(), e.projectReviewPolicyCmd(), e.projectEnvCmd())
+	c.AddCommand(create, ls, e.projectShowCmd(), e.projectUpdateCmd(), e.projectReviewPolicyCmd(), e.projectDefaultsCmd(), e.projectGitCmd(), e.projectEnvCmd())
 	return c
 }
 

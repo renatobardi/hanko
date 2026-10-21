@@ -238,6 +238,9 @@ func (h *Heartbeat) executeRunJob(ctx context.Context, a ExecuteRunArgs, ji jobI
 	var resolved []string
 	var secErr error
 	rc, resolved, secErr = h.resolveSecrets(execCtx, rc)
+	if secErr == nil { // worktree Git da task (ADR-0054): falha cedo, com o motivo, em vez de rodar no diretório errado
+		rc, secErr = h.useWorktree(execCtx, rc, emit)
+	}
 	var spec adapter.Spec
 	var dirCleanup func()
 	var specErr error
@@ -597,6 +600,44 @@ func (h *Heartbeat) resolveSecrets(ctx context.Context, rc service.RunContext) (
 	return rc, values, nil
 }
 
+// worktreeBackend prepara o worktree Git da task; opcional como os demais backends.
+type worktreeBackend interface {
+	PrepareTaskWorktree(ctx context.Context, companyID, taskID, workspaceID domain.ID, create bool) (*service.WorktreePrep, error)
+}
+
+// useWorktree troca o diretório do workspace pelo worktree da task quando o workspace tem Git ligado (ADR-0054).
+// Revisões só leem o worktree que já existe; runs de sistema e de chat não usam. Devolve rc com o caminho trocado
+// (uma cópia do workspace: o registro do banco não muda).
+func (h *Heartbeat) useWorktree(ctx context.Context, rc service.RunContext, emit func(domain.RunEventKind, string)) (service.RunContext, error) {
+	if rc.Chat != nil || rc.Workspace == nil || rc.Task.ID == (domain.ID{}) {
+		return rc, nil
+	}
+	switch rc.Run.Trigger {
+	case domain.TriggerMemory, domain.TriggerStatusCard, domain.TriggerSkillTest:
+		return rc, nil
+	}
+	wb, ok := h.svc.(worktreeBackend)
+	if !ok {
+		return rc, nil
+	}
+	prep, err := wb.PrepareTaskWorktree(ctx, rc.Company.ID, rc.Task.ID, rc.Workspace.ID, rc.Run.Trigger != domain.TriggerReview)
+	if err != nil {
+		return rc, fmt.Errorf("workspace Git: %w", err)
+	}
+	if prep == nil {
+		return rc, nil
+	}
+	if prep.Warning != "" {
+		emit(domain.EventSystem, prep.Warning)
+	}
+	emit(domain.EventSystem, fmt.Sprintf("worktree Git: branch %s em %s", prep.Branch, prep.Dir))
+	ws := *rc.Workspace
+	ws.Path = prep.Dir
+	rc.Workspace = &ws
+	rc.Worktree = prep
+	return rc, nil
+}
+
 // mergeMCP junta servidores MCP; em colisão de nome vale o último mapa.
 func mergeMCP(maps ...map[string]json.RawMessage) map[string]json.RawMessage {
 	var out map[string]json.RawMessage
@@ -620,6 +661,9 @@ func workspaceDir(rc service.RunContext, root string, emit func(domain.RunEventK
 		dir, ok, why := usableWorkspaceDir(rc.Workspace.Path, root)
 		if ok {
 			return dir, nil, nil
+		}
+		if rc.Worktree != nil { // o trabalho da persona não pode cair num diretório temporário que some no fim
+			return "", nil, fmt.Errorf("worktree Git inutilizável: %s", why)
 		}
 		emit(domain.EventSystem, why)
 	}

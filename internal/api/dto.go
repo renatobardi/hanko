@@ -64,7 +64,7 @@ type Workspace struct {
 	Slug      string `json:"slug" example:"api"`
 	Name      string `json:"name" example:"API"`
 	Path      string `json:"path" example:"/srv/work/api" doc:"Diretório de trabalho."`
-	RepoURL   string `json:"repo_url,omitempty" example:"https://example.com/acme/api.git" doc:"Metadado: https://, ssh:// ou formato scp (usuario@host:dono/repo). O Hanko não clona."`
+	RepoURL   string `json:"repo_url,omitempty" example:"https://example.com/acme/api.git" doc:"https://, ssh:// ou formato scp (usuario@host:dono/repo). Metadado, a menos que o Git do workspace esteja ligado (ADR-0054): então o servidor clona este endereço."`
 	// DefaultBranch é metadado (o Hanko não troca de branch).
 	DefaultBranch string `json:"default_branch,omitempty" example:"main"`
 	// Uso do workspace: vem na lista e no detalhe. Tasks abertas contam as que escolheram o workspace de propósito.

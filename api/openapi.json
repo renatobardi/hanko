@@ -3958,6 +3958,21 @@
         ],
         "type": "object"
       },
+      "EnableWorkspaceGitInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "credential_ref": {
+            "description": "Referência ${secret:NOME} da credencial (token https ou chave ssh); vazio = repositório público.",
+            "maxLength": 200,
+            "type": "string"
+          },
+          "sync": {
+            "description": "Já clona/atualiza o espelho depois de gravar.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
       "EnabledBody": {
         "additionalProperties": false,
         "properties": {
@@ -4806,6 +4821,169 @@
           "actions",
           "expires_at",
           "created_at"
+        ],
+        "type": "object"
+      },
+      "GitCommit": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "author": {
+            "type": "string"
+          },
+          "sha": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "sha",
+          "author",
+          "at",
+          "subject"
+        ],
+        "type": "object"
+      },
+      "GitEntry": {
+        "additionalProperties": false,
+        "properties": {
+          "dir": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "size": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "dir",
+          "size"
+        ],
+        "type": "object"
+      },
+      "GitFile": {
+        "additionalProperties": false,
+        "properties": {
+          "binary": {
+            "type": "boolean"
+          },
+          "content": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "size": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "path",
+          "size",
+          "binary",
+          "truncated"
+        ],
+        "type": "object"
+      },
+      "GitPatch": {
+        "additionalProperties": false,
+        "properties": {
+          "stat": {
+            "type": "string"
+          },
+          "text": {
+            "description": "Diff unificado contra a base.",
+            "type": "string"
+          },
+          "truncated": {
+            "description": "O diff passou do teto (512 KiB) e foi cortado.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "text",
+          "truncated"
+        ],
+        "type": "object"
+      },
+      "GitStatus": {
+        "additionalProperties": false,
+        "properties": {
+          "branch": {
+            "type": "string"
+          },
+          "dirty": {
+            "type": "boolean"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/GitStatusEntry"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "head": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "head",
+          "dirty",
+          "entries"
+        ],
+        "type": "object"
+      },
+      "GitStatusEntry": {
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "xy": {
+            "description": "Duas letras do porcelain (índice e árvore); ?? = não rastreado.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "xy",
+          "path"
+        ],
+        "type": "object"
+      },
+      "GitTree": {
+        "additionalProperties": false,
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/GitEntry"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "entries"
         ],
         "type": "object"
       },
@@ -7019,6 +7197,37 @@
         ],
         "type": "object"
       },
+      "ListBodyGitCommit": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "description": "Itens da página.",
+            "items": {
+              "$ref": "#/components/schemas/GitCommit"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "limit": {
+            "description": "Limite aplicado.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "offset": {
+            "description": "Deslocamento aplicado.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "limit",
+          "offset"
+        ],
+        "type": "object"
+      },
       "ListBodyGoal": {
         "additionalProperties": false,
         "properties": {
@@ -8445,6 +8654,37 @@
         ],
         "type": "object"
       },
+      "ListBodyWorktree": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "description": "Itens da página.",
+            "items": {
+              "$ref": "#/components/schemas/Worktree"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "limit": {
+            "description": "Limite aplicado.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "offset": {
+            "description": "Deslocamento aplicado.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "limit",
+          "offset"
+        ],
+        "type": "object"
+      },
       "Member": {
         "additionalProperties": false,
         "properties": {
@@ -8859,6 +9099,17 @@
         "required": [
           "text"
         ],
+        "type": "object"
+      },
+      "NewSessionInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "description": "Por que recomeçar a sessão. Fica na atividade e no briefing do próximo run.",
+            "maxLength": 500,
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "NoteVersion": {
@@ -10176,6 +10427,42 @@
           "status",
           "created_at",
           "updated_at"
+        ],
+        "type": "object"
+      },
+      "ProjectDefaults": {
+        "additionalProperties": false,
+        "properties": {
+          "goal_id": {
+            "description": "Meta padrão das tasks novas do projeto.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "import_repo_skills": {
+            "description": "Importa as skills do repositório clonado do workspace do projeto.",
+            "type": "boolean"
+          },
+          "instructions": {
+            "description": "Briefing do projeto: entra no system prompt depois das instruções da persona.",
+            "type": "string"
+          },
+          "project_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "skills_path": {
+            "description": "Caminho do repositório onde procurar skills; vazio = o repositório todo.",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "instructions",
+          "import_repo_skills"
         ],
         "type": "object"
       },
@@ -11967,6 +12254,29 @@
         "required": [
           "environment"
         ],
+        "type": "object"
+      },
+      "SetProjectDefaultsInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "clear_goal": {
+            "type": "boolean"
+          },
+          "goal": {
+            "description": "Slug ou id da meta padrão.",
+            "type": "string"
+          },
+          "import_repo_skills": {
+            "type": "boolean"
+          },
+          "instructions": {
+            "description": "Briefing do projeto (até 16 KiB); vazio limpa.",
+            "type": "string"
+          },
+          "skills_path": {
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "SetProjectEnvironmentInBody": {
@@ -14015,6 +14325,52 @@
         ],
         "type": "object"
       },
+      "TaskGit": {
+        "additionalProperties": false,
+        "properties": {
+          "ahead": {
+            "description": "Commits da branch desde a base.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "behind": {
+            "description": "Commits que a base ganhou desde então.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "head_sha": {
+            "type": "string"
+          },
+          "live": {
+            "description": "A pasta do worktree existe; senão o status e os arquivos vêm da branch guardada no espelho.",
+            "type": "boolean"
+          },
+          "merged": {
+            "description": "A branch já está contida na base do remoto.",
+            "type": "boolean"
+          },
+          "mirror_error": {
+            "type": "string"
+          },
+          "mirror_state": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/GitStatus"
+          },
+          "worktree": {
+            "$ref": "#/components/schemas/Worktree"
+          }
+        },
+        "required": [
+          "live",
+          "ahead",
+          "behind",
+          "merged",
+          "mirror_state"
+        ],
+        "type": "object"
+      },
       "TaskHold": {
         "additionalProperties": false,
         "properties": {
@@ -14176,6 +14532,45 @@
           "project",
           "persona",
           "effective"
+        ],
+        "type": "object"
+      },
+      "TaskSessionReset": {
+        "additionalProperties": false,
+        "properties": {
+          "by": {
+            "$ref": "#/components/schemas/ActorRef"
+          },
+          "consumed_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "consumed_run_id": {
+            "description": "Run que aplicou o pedido; ausente = ainda pendente.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "task_id": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "task_id",
+          "by",
+          "created_at"
         ],
         "type": "object"
       },
@@ -16263,7 +16658,7 @@
             "type": "string"
           },
           "repo_url": {
-            "description": "Metadado: https://, ssh:// ou formato scp (usuario@host:dono/repo). O Hanko não clona.",
+            "description": "https://, ssh:// ou formato scp (usuario@host:dono/repo). Metadado, a menos que o Git do workspace esteja ligado (ADR-0054): então o servidor clona este endereço.",
             "examples": [
               "https://example.com/acme/api.git"
             ],
@@ -16291,6 +16686,64 @@
           "path",
           "created_at",
           "updated_at"
+        ],
+        "type": "object"
+      },
+      "WorkspaceGit": {
+        "additionalProperties": false,
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "base_branch": {
+            "description": "Branch de que os worktrees das tasks partem.",
+            "type": "string"
+          },
+          "credential_ref": {
+            "examples": [
+              "${secret:repo-token}"
+            ],
+            "type": "string"
+          },
+          "head_sha": {
+            "type": "string"
+          },
+          "last_error": {
+            "type": "string"
+          },
+          "last_fetch_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "mirror_state": {
+            "description": "Estado do clone espelho.",
+            "enum": [
+              "idle",
+              "syncing",
+              "ready",
+              "failed"
+            ],
+            "type": "string"
+          },
+          "workspace_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "worktrees": {
+            "description": "Worktrees recentes das tasks deste workspace.",
+            "items": {
+              "$ref": "#/components/schemas/Worktree"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "workspace_id",
+          "available",
+          "mirror_state"
         ],
         "type": "object"
       },
@@ -16336,6 +16789,89 @@
           "personas",
           "projects",
           "open_tasks"
+        ],
+        "type": "object"
+      },
+      "Worktree": {
+        "additionalProperties": false,
+        "properties": {
+          "base_branch": {
+            "type": "string"
+          },
+          "base_sha": {
+            "type": "string"
+          },
+          "branch": {
+            "examples": [
+              "hnk-123"
+            ],
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "head_sha": {
+            "type": "string"
+          },
+          "project_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "removed_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "removed_reason": {
+            "enum": [
+              "done",
+              "cancelled",
+              "merged",
+              "manual",
+              "workspace_deleted"
+            ],
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "provisioning",
+              "ready",
+              "failed",
+              "diverged",
+              "removed"
+            ],
+            "type": "string"
+          },
+          "task_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "task_key": {
+            "examples": [
+              "HNK-123"
+            ],
+            "type": "string"
+          },
+          "task_status": {
+            "type": "string"
+          },
+          "task_title": {
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "task_id",
+          "branch",
+          "state",
+          "created_at",
+          "updated_at"
         ],
         "type": "object"
       }
@@ -36369,6 +36905,232 @@
         ]
       }
     },
+    "/api/v1/companies/{company}/projects/{project}/defaults": {
+      "get": {
+        "operationId": "get-project-defaults",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug do projeto.",
+            "in": "path",
+            "name": "project",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug do projeto.",
+              "examples": [
+                "lancamento"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectDefaults"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Padrões do projeto: instruções, meta padrão e import das skills do repositório (a política de revisão fica em /review-policy)",
+        "tags": [
+          "projects"
+        ]
+      },
+      "patch": {
+        "operationId": "set-project-defaults",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug do projeto.",
+            "in": "path",
+            "name": "project",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug do projeto.",
+              "examples": [
+                "lancamento"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetProjectDefaultsInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectDefaults"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Altera os padrões do projeto (admin); campo ausente fica como está",
+        "tags": [
+          "projects"
+        ]
+      }
+    },
     "/api/v1/companies/{company}/projects/{project}/environment": {
       "put": {
         "operationId": "set-project-environment",
@@ -36485,6 +37247,115 @@
         "summary": "Escolhe o ambiente de execução do projeto (admin); a persona tem precedência sobre o projeto, e o projeto sobre o padrão da empresa",
         "tags": [
           "environments"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/projects/{project}/git": {
+      "get": {
+        "operationId": "list-project-worktrees",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug do projeto.",
+            "in": "path",
+            "name": "project",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug do projeto.",
+              "examples": [
+                "lancamento"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListBodyWorktree"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Worktrees das tasks do projeto (a aba Git do projeto)",
+        "tags": [
+          "projects"
         ]
       }
     },
@@ -44777,6 +45648,685 @@
         ]
       }
     },
+    "/api/v1/companies/{company}/tasks/{task}/git": {
+      "get": {
+        "operationId": "get-task-git",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou chave da task.",
+            "in": "path",
+            "name": "task",
+            "required": true,
+            "schema": {
+              "description": "Id ou chave da task.",
+              "examples": [
+                "HNK-12"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskGit"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Aba Git da task: worktree, branch, status e quanto a branch está à frente/atrás da base",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/tasks/{task}/git/diff": {
+      "get": {
+        "operationId": "get-task-git-diff",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou chave da task.",
+            "in": "path",
+            "name": "task",
+            "required": true,
+            "schema": {
+              "description": "Id ou chave da task.",
+              "examples": [
+                "HNK-12"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitPatch"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Diff da branch da task contra a base (inclui alterações ainda não commitadas)",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/tasks/{task}/git/file": {
+      "get": {
+        "operationId": "get-task-git-file",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou chave da task.",
+            "in": "path",
+            "name": "task",
+            "required": true,
+            "schema": {
+              "description": "Id ou chave da task.",
+              "examples": [
+                "HNK-12"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Caminho relativo à raiz do repositório.",
+            "explode": false,
+            "in": "query",
+            "name": "path",
+            "schema": {
+              "description": "Caminho relativo à raiz do repositório.",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitFile"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Browser de arquivos somente leitura: conteúdo de um arquivo do worktree da task (até 256 KiB; binário não devolve conteúdo)",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/tasks/{task}/git/log": {
+      "get": {
+        "operationId": "get-task-git-log",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou chave da task.",
+            "in": "path",
+            "name": "task",
+            "required": true,
+            "schema": {
+              "description": "Id ou chave da task.",
+              "examples": [
+                "HNK-12"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 100,
+              "format": "int64",
+              "maximum": 500,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListBodyGitCommit"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Commits da branch da task desde a base",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/tasks/{task}/git/tree": {
+      "get": {
+        "operationId": "get-task-git-tree",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou chave da task.",
+            "in": "path",
+            "name": "task",
+            "required": true,
+            "schema": {
+              "description": "Id ou chave da task.",
+              "examples": [
+                "HNK-12"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Caminho relativo à raiz do repositório.",
+            "explode": false,
+            "in": "query",
+            "name": "path",
+            "schema": {
+              "description": "Caminho relativo à raiz do repositório.",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitTree"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Browser de arquivos somente leitura: lista uma pasta do worktree da task",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/tasks/{task}/git/worktree": {
+      "delete": {
+        "operationId": "remove-task-worktree",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou chave da task.",
+            "in": "path",
+            "name": "task",
+            "required": true,
+            "schema": {
+              "description": "Id ou chave da task.",
+              "examples": [
+                "HNK-12"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Limpa o worktree da task (admin); a branch e o trabalho solto ficam no espelho",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
     "/api/v1/companies/{company}/tasks/{task}/hold": {
       "post": {
         "operationId": "hold-task",
@@ -44891,6 +46441,125 @@
           }
         },
         "summary": "Pausa a task e, por herança, toda a subárvore",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/tasks/{task}/new-session": {
+      "post": {
+        "operationId": "task-new-session",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou chave da task.",
+            "in": "path",
+            "name": "task",
+            "required": true,
+            "schema": {
+              "description": "Id ou chave da task.",
+              "examples": [
+                "HNK-12"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewSessionInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskSessionReset"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Nova sessão: o próximo run da task ignora a sessão anterior e usa só o briefing e a memória (membro)",
         "tags": [
           "tasks"
         ]
@@ -49612,6 +51281,441 @@
           }
         },
         "summary": "Atualiza um workspace",
+        "tags": [
+          "workspaces"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/workspaces/{workspace}/git": {
+      "delete": {
+        "operationId": "disable-workspace-git",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug do workspace.",
+            "in": "path",
+            "name": "workspace",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug do workspace.",
+              "examples": [
+                "api"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Desliga o Git do workspace (admin); 409 enquanto houver worktree em uso",
+        "tags": [
+          "workspaces"
+        ]
+      },
+      "get": {
+        "operationId": "get-workspace-git",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug do workspace.",
+            "in": "path",
+            "name": "workspace",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug do workspace.",
+              "examples": [
+                "api"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceGit"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Configuração Git do workspace: espelho, credencial (só a referência) e worktrees recentes",
+        "tags": [
+          "workspaces"
+        ]
+      },
+      "put": {
+        "operationId": "enable-workspace-git",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug do workspace.",
+            "in": "path",
+            "name": "workspace",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug do workspace.",
+              "examples": [
+                "api"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnableWorkspaceGitInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceGit"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Liga (ou ajusta) o Git do workspace: clone espelho e worktree por task (admin; precisa de HANKO_GIT_WORKSPACES)",
+        "tags": [
+          "workspaces"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/workspaces/{workspace}/git/sync": {
+      "post": {
+        "operationId": "sync-workspace-git",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug do workspace.",
+            "in": "path",
+            "name": "workspace",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug do workspace.",
+              "examples": [
+                "api"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceGit"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Clona ou atualiza o espelho do repositório (membro). Falha de rede não é erro da chamada: o estado vem em mirror_state",
         "tags": [
           "workspaces"
         ]

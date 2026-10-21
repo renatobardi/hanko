@@ -26,6 +26,13 @@ func BuildPrompt(rc service.RunContext, briefing, handoff string) (system, promp
 		sb.WriteString(s)
 		sb.WriteString("\n\n")
 	}
+	if pi := strings.TrimSpace(rc.ProjectInstructions); pi != "" {
+		name := t.ProjectName
+		if name == "" {
+			name = "do projeto"
+		}
+		fmt.Fprintf(&sb, "## Instruções do projeto %s\n\n%s\n\n", name, pi)
+	}
 	title := p.Name
 	if p.Title != "" {
 		title += " (" + p.Title + ")"
@@ -43,6 +50,9 @@ func BuildPrompt(rc service.RunContext, briefing, handoff string) (system, promp
 	sb.WriteString("- Se o seu trabalho mede uma das metas listadas, registre o valor atual (medido de fato) com `hanko_goal_update`; `hanko_goal_list` mostra todas as metas.\n")
 	sb.WriteString("- Se perceber que as suas instruções permanentes deveriam mudar, proponha com `hanko_persona_instruction_propose` (texto novo completo e motivo): um humano decide e você não fica bloqueada.\n")
 	sb.WriteString("- Antes de uma ação irreversível (merge, deploy, gasto, contratação, apagar dados), peça a decisão de um humano com `hanko_gate_request` e encerre a execução; você será acordada com a decisão e a nota. Consulte `hanko_gate_status` se precisar.\n")
+	if rc.Worktree != nil {
+		fmt.Fprintf(&sb, "- Seu diretório de trabalho é um worktree Git exclusivo desta task, na branch `%s`. Faça commits nessa branch (mensagens claras, uma mudança lógica por commit); não troque de branch, não faça push e não mexa fora do diretório. O diff da branch contra a base aparece para os humanos na aba Git da task.\n", rc.Worktree.Branch)
+	}
 	sb.WriteString("- Termine com um resumo objetivo do que fez e do próximo passo. Esse resumo é publicado automaticamente como comentário na task; não o repita via tool.\n")
 	system = strings.TrimSpace(sb.String())
 
@@ -52,8 +62,15 @@ func BuildPrompt(rc service.RunContext, briefing, handoff string) (system, promp
 	if t.ProjectName != "" {
 		fmt.Fprintf(&pb, "- Projeto: %s\n", t.ProjectName)
 	}
-	fmt.Fprintf(&pb, "- Execução: %s (gatilho: %s)\n\n", rc.Run.ID, rc.Run.Trigger)
-	pb.WriteString("## Descrição\n\n")
+	fmt.Fprintf(&pb, "- Execução: %s (gatilho: %s)\n", rc.Run.ID, rc.Run.Trigger)
+	if rc.SessionReset != nil {
+		fmt.Fprintf(&pb, "- Sessão nova: %s pediu para recomeçar; não há conversa anterior com o harness, só este briefing e a memória do projeto.", resetAuthor(rc))
+		if r := strings.TrimSpace(rc.SessionReset.Reason); r != "" {
+			fmt.Fprintf(&pb, " Motivo: %s.", clip(r, 300))
+		}
+		pb.WriteString("\n")
+	}
+	pb.WriteString("\n## Descrição\n\n")
 	if d := strings.TrimSpace(t.Description); d != "" {
 		pb.WriteString(d)
 	} else {
@@ -171,6 +188,14 @@ func goalLine(g service.GoalBrief) string {
 
 func fmtNum(v float64) string { return strconv.FormatFloat(v, 'f', -1, 64) }
 
+// resetAuthor diz quem pediu a nova sessão.
+func resetAuthor(rc service.RunContext) string {
+	if rc.SessionReset == nil || rc.SessionReset.By.Type == domain.ActorSystem {
+		return "o sistema"
+	}
+	return authorName(rc, rc.SessionReset.By)
+}
+
 func authorName(rc service.RunContext, a domain.Actor) string {
 	switch a.Type {
 	case domain.ActorHuman:
@@ -215,6 +240,12 @@ func buildEnv(base, publicURL, token string, rc service.RunContext) map[string]s
 	}
 	if rc.Chat != nil {
 		env["HANKO_CONVERSATION_ID"] = rc.Chat.Conversation.ID.String()
+	}
+	if rc.Worktree != nil { // os commits da persona saem com o nome dela (ADR-0054)
+		email := rc.Persona.Slug + "@hanko.local"
+		env["GIT_AUTHOR_NAME"], env["GIT_COMMITTER_NAME"] = rc.Persona.Name, rc.Persona.Name
+		env["GIT_AUTHOR_EMAIL"], env["GIT_COMMITTER_EMAIL"] = email, email
+		env["HANKO_WORKTREE_BRANCH"] = rc.Worktree.Branch
 	}
 	// No token means a credential-less (review) run: it does not even learn where Hanko is.
 	if token != "" {

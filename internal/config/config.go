@@ -208,6 +208,10 @@ type Config struct {
 	// SkillSources liga as fontes de skills (o servidor clona repositórios públicos por https, ADR-0035).
 	SkillSources bool `yaml:"skill_sources" env:"HANKO_SKILL_SOURCES"`
 
+	// GitWorkspaces liga os workspaces de execução com Git (o servidor clona o repositório do workspace e cria um
+	// worktree por task sob HANKO_WORKSPACES_ROOT, ADR-0054).
+	GitWorkspaces bool `yaml:"git_workspaces" env:"HANKO_GIT_WORKSPACES"`
+
 	// AgentEnvAllow lista variáveis extras do ambiente do servidor repassadas aos
 	// harnesses (nomes exatos ou prefixos terminados em "*"); HANKO_* nunca passa.
 	AgentEnvAllow []string `yaml:"agent_env_allow" env:"HANKO_AGENT_ENV_ALLOW" envSeparator:","`
@@ -340,7 +344,7 @@ func environFor(getenv func(string) string) map[string]string {
 		"HANKO_FIREBASE_PROJECT_ID", "HANKO_FIREBASE_API_KEY", "HANKO_FIREBASE_AUTH_DOMAIN",
 		"HANKO_AUTH_OWNER_EMAIL", "HANKO_AUTH_WEB_BOOTSTRAP", "HANKO_TRUSTED_PROXIES",
 		"HANKO_SECRET_KEY", "HANKO_SECRET_KEY_PREVIOUS", "HANKO_PUSH_SUBJECT", "HANKO_INTEGRATIONS_ALLOW_STDIO", "HANKO_INTEGRATIONS_ALLOW_PRIVATE",
-		"HANKO_ACP_ALLOW", "HANKO_ACP_COMMANDS", "HANKO_SKILL_SOURCES", "HANKO_TOOLS_SINGLE_ENDPOINT",
+		"HANKO_ACP_ALLOW", "HANKO_ACP_COMMANDS", "HANKO_SKILL_SOURCES", "HANKO_GIT_WORKSPACES", "HANKO_TOOLS_SINGLE_ENDPOINT",
 		"HANKO_BLOB_DRIVER", "HANKO_S3_ENDPOINT", "HANKO_S3_REGION", "HANKO_S3_BUCKET", "HANKO_S3_PREFIX", "HANKO_S3_PATH_STYLE",
 		"HANKO_S3_ACCESS_KEY", "HANKO_S3_SECRET_KEY",
 		"HANKO_VAULT_ADDR", "HANKO_VAULT_MOUNT", "HANKO_VAULT_NAMESPACE", "HANKO_VAULT_TOKEN",

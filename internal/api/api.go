@@ -17,6 +17,7 @@ import (
 	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/events"
 	"github.com/renatobardi/hanko/internal/export"
+	"github.com/renatobardi/hanko/internal/gitrepo"
 	"github.com/renatobardi/hanko/internal/service"
 	"github.com/renatobardi/hanko/internal/textdiff"
 	"github.com/renatobardi/hanko/internal/webpush"
@@ -80,6 +81,20 @@ type backend interface {
 	ListProjectViews(ctx context.Context, companyID domain.ID) ([]service.ProjectView, error)
 	GetProjectView(ctx context.Context, companyID domain.ID, ref string) (service.ProjectView, error)
 	UpdateProject(ctx context.Context, actor domain.Actor, companyID, projectID domain.ID, in service.UpdateProjectInput) (domain.Project, error)
+	GetWorkspaceGit(ctx context.Context, companyID domain.ID, ref string) (service.WorkspaceGitView, error)
+	EnableWorkspaceGit(ctx context.Context, actor domain.Actor, companyID, workspaceID domain.ID, in service.EnableWorkspaceGitInput) (domain.WorkspaceGit, error)
+	DisableWorkspaceGit(ctx context.Context, actor domain.Actor, companyID, workspaceID domain.ID) error
+	SyncWorkspaceMirror(ctx context.Context, actor domain.Actor, companyID, workspaceID domain.ID) (domain.WorkspaceGit, error)
+	ListProjectWorktrees(ctx context.Context, companyID, projectID domain.ID) ([]service.WorktreeView, error)
+	TaskGit(ctx context.Context, companyID, taskID domain.ID) (service.TaskGitView, error)
+	TaskGitDiff(ctx context.Context, companyID, taskID domain.ID) (gitrepo.Patch, error)
+	TaskGitLog(ctx context.Context, companyID, taskID domain.ID, limit int) ([]gitrepo.Commit, error)
+	TaskGitTree(ctx context.Context, companyID, taskID domain.ID, path string) (service.TaskGitTree, error)
+	TaskGitFile(ctx context.Context, companyID, taskID domain.ID, path string) (gitrepo.File, error)
+	RemoveTaskWorktree(ctx context.Context, actor domain.Actor, companyID, taskID domain.ID) error
+	RequestTaskNewSession(ctx context.Context, actor domain.Actor, companyID, taskID domain.ID, reason string) (domain.TaskSessionReset, error)
+	GetProjectDefaults(ctx context.Context, companyID, projectID domain.ID) (domain.ProjectDefaults, error)
+	SetProjectDefaults(ctx context.Context, actor domain.Actor, companyID, projectID domain.ID, in service.SetProjectDefaultsInput) (domain.ProjectDefaults, error)
 	HirePersona(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.HirePersonaInput) (domain.Persona, error)
 	ListPersonas(ctx context.Context, companyID domain.ID) ([]domain.Persona, error)
 	GetPersona(ctx context.Context, companyID domain.ID, ref string) (domain.Persona, error)
@@ -296,6 +311,7 @@ func (s *server) register(api huma.API) {
 	s.registerMisc(api)
 	s.registerCosts(api)
 	s.registerProjects(api)
+	s.registerGitWorkspaces(api) // workspace com Git, padrões de projeto e nova sessão (ADR-0054)
 	s.registerSubscriptions(api)
 	s.registerFlows(api)
 	s.registerMemory(api)

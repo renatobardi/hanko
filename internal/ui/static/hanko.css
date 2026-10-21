@@ -1378,6 +1378,16 @@ details > summary.btn::-webkit-details-marker { display: none; }
 .tool-review > summary:hover { color: var(--foreground); }
 .tool-review pre { max-height: 280px; overflow: auto; margin: 8px 0 0; font-size: var(--text-xs); }
 
+/* ---- workspace com Git: diff, arquivos e log da branch da task (ADR-0054) ---- */
+.git-diff { background: var(--card); box-shadow: var(--card-ring); border-radius: var(--radius-xl); overflow-x: auto; font-size: var(--text-xs); line-height: 1.55; padding: 6px 0; }
+.git-diff .dl { white-space: pre; padding: 0 14px; min-width: max-content; }
+.git-diff .dl.add { background: color-mix(in oklab, var(--foreground) 9%, transparent); }
+.git-diff .dl.del { background: var(--destructive-tint); color: var(--destructive); }
+.git-diff .dl.hunk { color: var(--muted-foreground); background: var(--muted); }
+.git-diff .dl.meta { color: var(--muted-foreground); font-weight: 600; }
+.git-stat, .git-file { background: var(--muted); border-radius: var(--radius-xl); padding: 12px 14px; font-size: var(--text-xs); overflow-x: auto; margin: 0 0 14px; white-space: pre; }
+.git-file { max-height: 560px; overflow: auto; margin: 0; }
+.git-crumbs { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 /* ---- /design-guide e /dev/ux (ADR-0058 §E): telas de desenvolvimento, só admin/dev ---- */
 .dg-body { min-height: 100vh; }
 .dg-top { display: flex; align-items: center; gap: 12px; height: 56px; padding: 0 24px; border-bottom: 1px solid var(--border); background: var(--background); }

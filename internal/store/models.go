@@ -928,6 +928,16 @@ type Project struct {
 	SearchTsv          interface{}
 }
 
+type ProjectDefault struct {
+	ProjectID        uuid.UUID
+	CompanyID        uuid.UUID
+	Instructions     string
+	GoalID           *uuid.UUID
+	ImportRepoSkills bool
+	SkillsPath       string
+	UpdatedAt        time.Time
+}
+
 type ProjectReviewPolicy struct {
 	ProjectID         uuid.UUID
 	CompanyID         uuid.UUID
@@ -1379,6 +1389,37 @@ type TaskReviewOverride struct {
 	UpdatedAt         time.Time
 }
 
+type TaskSessionReset struct {
+	ID              uuid.UUID
+	CompanyID       uuid.UUID
+	TaskID          uuid.UUID
+	Reason          string
+	RequestedByType string
+	RequestedByID   *uuid.UUID
+	ConsumedRunID   *uuid.UUID
+	ConsumedAt      *time.Time
+	CreatedAt       time.Time
+}
+
+type TaskWorktree struct {
+	ID            uuid.UUID
+	CompanyID     uuid.UUID
+	TaskID        uuid.UUID
+	WorkspaceID   uuid.UUID
+	Branch        string
+	BaseBranch    string
+	BaseSha       *string
+	HeadSha       *string
+	Path          string
+	State         string
+	Error         string
+	RemovedReason string
+	ClaimedAt     *time.Time
+	RemovedAt     *time.Time
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
 type ToolCallApproval struct {
 	ID            uuid.UUID
 	CompanyID     uuid.UUID
@@ -1551,4 +1592,18 @@ type Workspace struct {
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 	DefaultBranch string
+}
+
+type WorkspaceGit struct {
+	WorkspaceID   uuid.UUID
+	CompanyID     uuid.UUID
+	CredentialRef string
+	MirrorState   string
+	BaseBranch    string
+	HeadSha       *string
+	LastError     string
+	LastFetchAt   *time.Time
+	SyncingSince  *time.Time
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }

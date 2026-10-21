@@ -148,6 +148,9 @@ func (s *Service) checkWorkspacePath(companySlug, raw string) (string, error) {
 	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		return "", domain.Invalid("path", "must be inside the company folder of the workspaces root (<root>/<company-slug>/...)")
 	}
+	if rel == gitReservedDir || strings.HasPrefix(rel, gitReservedDir+string(filepath.Separator)) {
+		return "", domain.Invalid("path", "the "+gitReservedDir+" folder of the company is reserved for Git mirrors and worktrees")
+	}
 	return p, nil
 }
 
@@ -317,7 +320,8 @@ func (s *Service) DeleteWorkspace(ctx context.Context, actor domain.Actor, compa
 	if err := s.require(ctx, companyID, domain.MemberAdmin); err != nil {
 		return err
 	}
-	return s.withTx(ctx, func(t *txc) error {
+	var cleanup func()
+	err := s.withTx(ctx, func(t *txc) error {
 		ws, err := t.q.GetWorkspaceByID(ctx, store.GetWorkspaceByIDParams{CompanyID: companyID, ID: workspaceID})
 		if err != nil {
 			return mapErr(err, "get workspace")
@@ -329,6 +333,7 @@ func (s *Service) DeleteWorkspace(ctx context.Context, actor domain.Actor, compa
 		if use.InUse() && !unlink {
 			return &WorkspaceInUseError{Slug: ws.Slug, Personas: use.PersonaCount, Projects: use.ProjectCount, OpenTasks: use.OpenTasks}
 		}
+		cleanup = s.gitFilesCleanup(ctx, t.q, companyID, ws.ID, ws.Slug)
 		if unlink {
 			ps, err := t.q.UnlinkWorkspacePersonas(ctx, store.UnlinkWorkspacePersonasParams{CompanyID: companyID, WorkspaceID: &ws.ID, Now: t.now})
 			if err != nil {
@@ -364,6 +369,10 @@ func (s *Service) DeleteWorkspace(ctx context.Context, actor domain.Actor, compa
 		return t.activity(actor, companyID, "workspace.deleted", "workspace", ws.ID,
 			map[string]any{"slug": ws.Slug, "name": ws.Name, "unlinked": unlink && use.InUse()}, "")
 	})
+	if err == nil && cleanup != nil {
+		cleanup() // espelho e worktrees saem do disco depois do commit (ADR-0054)
+	}
+	return err
 }
 
 func workspaceUsage(ctx context.Context, q *store.Queries, companyID, wsID domain.ID) (WorkspaceView, error) {

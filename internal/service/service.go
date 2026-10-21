@@ -118,6 +118,12 @@ type Service struct {
 	Log *slog.Logger
 	// Plugins é a política do operador para plugins de terceiros (HANKO_PLUGINS_DIR, ADR-0038); zero = desligados.
 	Plugins PluginsConfig
+	// GitWorkspaces é o interruptor do operador dos workspaces de execução com Git (HANKO_GIT_WORKSPACES, ADR-0054).
+	// O zero value é o seguro: desligados, o servidor não clona nada.
+	GitWorkspaces GitWorkspacesConfig
+
+	gitSt *gitState // executor do git e locks de espelho; ver gitState
+
 	// Readiness são os binários dos harnesses locais e ReadinessEvery o intervalo da checagem periódica da persona
 	// (HANKO_READINESS_INTERVAL, ADR-0055); zero desliga a checagem periódica (o app define DefaultReadinessInterval).
 	Readiness      readiness.Config
@@ -135,7 +141,7 @@ type Service struct {
 
 func New(pool *pgxpool.Pool, jobs Jobs, broker *events.Broker) *Service {
 	return &Service{Pool: pool, Jobs: jobs, Broker: broker, Now: func() time.Time { return time.Now().UTC() },
-		PasswordGate: auth.NewPasswordGate(0, 0), notifier: &notifyState{}}
+		PasswordGate: auth.NewPasswordGate(0, 0), gitSt: &gitState{}, notifier: &notifyState{}}
 }
 
 // ---------- inputs ----------
@@ -374,6 +380,13 @@ type RunContext struct {
 	Relations *TaskRelations
 	// ReviewPolicy é a política de revisão que vale para esta task e esta persona (task > projeto > persona).
 	ReviewPolicy *domain.ReviewPolicy
+	// ProjectInstructions é o briefing do projeto da task (ADR-0054, #34); entra no system prompt depois das
+	// instruções da persona. Vazio sem projeto ou sem briefing.
+	ProjectInstructions string
+	// SessionReset é o pedido de "Nova sessão" que este run aplicou (ADR-0054, #16); nil na maioria dos runs.
+	SessionReset *domain.TaskSessionReset
+	// Worktree é o worktree Git da task quando o executor o preparou (ADR-0054); o prompt diz a branch.
+	Worktree *WorktreePrep
 	// Attachments são os anexos da task (ou da conversa, numa run de chat), do mais antigo ao mais novo, até
 	// MaxBriefingAttachments (ADR-0052).
 	Attachments []AttachmentBrief

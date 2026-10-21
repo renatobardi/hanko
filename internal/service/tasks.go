@@ -156,6 +156,8 @@ func (t *txc) createTask(actor domain.Actor, companyID domain.ID, in CreateTaskI
 		if err := t.checkLinkableGoal(companyID, *in.GoalID); err != nil {
 			return TaskView{}, err
 		}
+	} else if g := t.defaultGoalFor(companyID, in.ProjectID); g != nil {
+		in.GoalID = g // meta padrão do projeto (ADR-0054, #34)
 	}
 
 	num, err := t.q.AllocateTaskNumber(ctx, companyID)
