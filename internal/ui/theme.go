@@ -16,6 +16,9 @@ const themeCookie = "hanko_theme"
 
 // requestTheme is the explicit theme of the request ("light" or "dark"), or "" to follow the system.
 func requestTheme(r *http.Request) string {
+	if t, ok := r.Context().Value(themeOverrideKey{}).(string); ok {
+		return t // rota que força o tema (catálogo do DS)
+	}
 	if c, err := r.Cookie(themeCookie); err == nil && (c.Value == "light" || c.Value == "dark") {
 		return c.Value
 	}

@@ -16,8 +16,8 @@ import (
 type Gate struct {
 	ID              string         `json:"id" format:"uuid"`
 	CompanyID       string         `json:"company_id" format:"uuid"`
-	Kind            string         `json:"kind" enum:"approval,task_review,hire,memory,tool" doc:"approval: ação irreversível, merge, deploy, gasto; task_review: revisão para concluir uma task; hire: contratação; memory: proposta de curadoria de memória que remove, funde ou reescreve conteúdo; tool: chamada de tool que pede aprovação antes (gateway de tools)."`
-	Status          string         `json:"status" enum:"pending,approved,rejected,changes_requested,expired"`
+	Kind            string         `json:"kind" enum:"approval,task_review,hire,memory,tool,instruction,question,plan" doc:"approval: ação irreversível, merge, deploy, gasto; task_review: revisão para concluir uma task; hire: contratação (com ficha, aprovar cria a persona); memory: proposta de curadoria de memória que remove, funde ou reescreve conteúdo; tool: chamada de tool que pede aprovação antes (gateway de tools); instruction: a persona propõe mudar as próprias instruções (ADR-0052); question: formulário que o humano responde (ADR-0041); plan: plano a aprovar antes de executar (ADR-0041)."`
+	Status          string         `json:"status" enum:"pending,approved,rejected,changes_requested,expired,dismissed"`
 	Title           string         `json:"title" example:"Fazer deploy em produção"`
 	Body            string         `json:"body" doc:"Pedido em Markdown: o que está sendo decidido, evidência e impacto."`
 	TaskID          string         `json:"task_id,omitempty" format:"uuid"`
@@ -34,6 +34,13 @@ type Gate struct {
 	CreatedAt       time.Time      `json:"created_at"`
 	DecidedAt       *time.Time     `json:"decided_at,omitempty"`
 	Review          *GateReviewOut `json:"review,omitempty" doc:"Revisão automática feita por outro modelo antes do gate; a decisão continua humana."`
+	// ADR-0041
+	Revision   int                 `json:"revision" doc:"Versão do pedido: 1 na criação, +1 a cada reenvio (histórico em /revisions)."`
+	Audience   *GateAudience       `json:"audience,omitempty" doc:"Quem pode decidir e ver o gate na Caixa; ausente = qualquer decisor do papel exigido."`
+	Form       *GateForm           `json:"form,omitempty" doc:"Gate question: o formulário."`
+	Answers    map[string][]string `json:"answers,omitempty" doc:"Gate question respondido: chave do campo → valores."`
+	Hire       *GateHireSpec       `json:"hire,omitempty" doc:"Gate hire: a ficha; aprovar cria a persona."`
+	ArtifactID string              `json:"artifact_id,omitempty" format:"uuid" doc:"Gate plan: o artefato (versão) de onde veio o plano."`
 }
 
 // GateReviewOut é o parecer do revisor automático registrado no gate.
@@ -58,6 +65,7 @@ func gateOut(g service.GateView) Gate {
 		o.Review = &GateReviewOut{Reviewer: r.Reviewer, Verdict: string(r.Verdict), Justification: r.Justification,
 			ArtifactSHA256: r.ArtifactSHA256, RunID: idPtr(r.RunID)}
 	}
+	gateExtras(&o, g)
 	return o
 }
 
@@ -102,20 +110,26 @@ type GatePath struct {
 type listGatesIn struct {
 	CompanyPath
 	Page
-	Status  string `query:"status" doc:"Status separados por vírgula: pending,approved,rejected,changes_requested,expired." example:"pending"`
-	Kind    string `query:"kind" doc:"Tipos separados por vírgula: approval,task_review,hire,memory,tool."`
+	Status  string `query:"status" doc:"Status separados por vírgula: pending,approved,rejected,changes_requested,expired,dismissed." example:"pending"`
+	Kind    string `query:"kind" doc:"Tipos separados por vírgula: approval,task_review,hire,memory,tool,instruction,question,plan."`
 	Task    string `query:"task" doc:"Id ou chave da task."`
 	Persona string `query:"persona" doc:"Id ou slug da persona que pediu."`
+	Mine    bool   `query:"mine" doc:"Só os gates da audiência da pessoa autenticada: que pediu ou decidiu, ou de tasks em que participa. Vazio sem pessoa autenticada."`
 }
 
 type requestGateIn struct {
 	CompanyPath
 	Body struct {
-		Kind    string `json:"kind,omitempty" enum:"approval,task_review,hire" doc:"Padrão approval. Com run token (persona) é sempre approval."`
+		Kind    string `json:"kind,omitempty" enum:"approval,task_review,hire,question,plan" doc:"Padrão approval. Com run token (persona) valem approval, question, plan e hire; qualquer outro vira approval."`
 		Title   string `json:"title" minLength:"1" maxLength:"300" example:"Fazer deploy em produção"`
 		Body    string `json:"body,omitempty" doc:"Pedido em Markdown: o que está sendo decidido, evidência e impacto."`
 		Task    string `json:"task,omitempty" doc:"Id ou chave da task; com run token, padrão é a task da execução."`
 		EventID string `json:"event_id,omitempty" maxLength:"200" doc:"Chave de idempotência: repetir devolve o gate existente."`
+		// ADR-0041
+		Form     *GateForm     `json:"form,omitempty" doc:"Obrigatório em kind=question."`
+		Hire     *GateHireSpec `json:"hire,omitempty" doc:"kind=hire: a ficha; aprovar o gate cria a persona. Sem ela o gate é só uma decisão."`
+		Artifact string        `json:"artifact,omitempty" doc:"kind=plan: nome ou id de um artefato da task com o plano (ou envie o texto em body)."`
+		Audience *GateAudience `json:"audience,omitempty" doc:"Restringe quem decide e quem vê o gate na Caixa."`
 	}
 }
 
@@ -124,6 +138,7 @@ type decideGateIn struct {
 	Body struct {
 		Decision string `json:"decision" enum:"approved,rejected,changes_requested" doc:"Decisão do humano."`
 		Note     string `json:"note,omitempty" doc:"Comentário da decisão; vai para a thread da task e para a trilha de auditoria. Obrigatório em changes_requested."`
+		Always   bool   `json:"always,omitempty" doc:"Só em gate tool aprovado e só admin: grava a política \"permitir\" da persona para esta tool, e as próximas chamadas passam direto."`
 	}
 }
 
@@ -175,7 +190,7 @@ func (s *server) registerGates(api huma.API) {
 				return nil, s.fail(ctx, err)
 			}
 			gs, err := s.svc.ListGates(ctx, sc.Company.ID, service.GateFilter{Statuses: statuses, Kinds: kinds, TaskID: task,
-				PersonaID: persona, Limit: in.Limit, Offset: in.Offset})
+				PersonaID: persona, Mine: in.Mine, Limit: in.Limit, Offset: in.Offset})
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}
@@ -196,7 +211,15 @@ func (s *server) registerGates(api huma.API) {
 			kind := domain.GateKind(b.Kind)
 			var runID *domain.ID
 			if sc.Claims != nil { // persona: a execução e (por padrão) a task vêm do token
-				kind = domain.GateApproval // como no MCP: persona só pede aprovação; revisão e contratação são abertas pelo Hanko
+				switch kind { // persona pede aprovação, pergunta, plano ou contratação; a revisão de task é aberta pelo Hanko
+				case domain.GateQuestion, domain.GatePlan:
+				case domain.GateHire:
+					if b.Hire == nil { // um pedido de contratação de persona sempre traz a ficha
+						return nil, s.fail(ctx, domain.Invalid("hire", "uma contratação pedida por persona precisa da ficha (hire)"))
+					}
+				default:
+					kind = domain.GateApproval
+				}
 				if id, err := domain.ParseID(sc.Claims.RunID); err == nil {
 					runID = &id
 				}
@@ -206,8 +229,17 @@ func (s *server) registerGates(api huma.API) {
 					}
 				}
 			}
+			aud, err := audienceIn(b.Audience)
+			if err != nil {
+				return nil, s.fail(ctx, err)
+			}
+			hire, err := s.hireIn(ctx, sc.Company.ID, b.Hire)
+			if err != nil {
+				return nil, err
+			}
 			g, err := s.svc.RequestGate(ctx, sc.Actor, sc.Company.ID, service.RequestGateInput{Kind: kind,
-				Title: b.Title, Body: b.Body, TaskID: task, RunID: runID, EventID: b.EventID})
+				Title: b.Title, Body: b.Body, TaskID: task, RunID: runID, EventID: b.EventID,
+				Form: formIn(b.Form), Hire: hire, Artifact: b.Artifact, Audience: aud})
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}
@@ -246,7 +278,7 @@ func (s *server) registerGates(api huma.API) {
 				return nil, s.fail(ctx, domain.Invalid("gate", "não é um uuid"))
 			}
 			g, err := s.svc.DecideGate(ctx, sc.Actor, sc.Company.ID, id, service.DecideGateInput{
-				Decision: domain.GateStatus(in.Body.Decision), Note: in.Body.Note})
+				Decision: domain.GateStatus(in.Body.Decision), Note: in.Body.Note, Always: in.Body.Always})
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}

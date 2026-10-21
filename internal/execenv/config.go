@@ -34,6 +34,12 @@ type Config struct {
 	SSHBin, DockerBin string
 	// LookPath é exec.LookPath trocável nos testes.
 	LookPath func(string) (string, error)
+	// Docker é o cliente do motor docker; nil = o binário `docker` (DockerBin). Os testes injetam um fake sem daemon.
+	Docker DockerClient
+	// Cloud é o provider de sandbox em nuvem (ADR-0055); nil = o driver cloud está desligado neste servidor.
+	Cloud CloudDriver
+	// AgentEnvAllow é HANKO_AGENT_ENV_ALLOW: variáveis do servidor que o harness local recebe (também nos testes de readiness).
+	AgentEnvAllow []string
 }
 
 // SandboxDocker é o único motor de sandbox suportado.
@@ -64,6 +70,7 @@ func (c Config) lookPath(bin string) (string, error) {
 var (
 	ErrSSHOff     = errors.New("SSH está desligado neste servidor (HANKO_ENV_SSH_ALLOW_HOSTS vazio)")
 	ErrSandboxOff = errors.New("sandbox está desligado neste servidor (HANKO_ENV_SANDBOX=docker não definido)")
+	ErrCloudOff   = errors.New("o sandbox em nuvem está desligado neste servidor (HANKO_ENV_CLOUD não definido)")
 )
 
 // SSHEnabled informa se o operador ligou o driver SSH.
@@ -80,13 +87,26 @@ func (c Config) SSHStatus() error {
 	return nil
 }
 
+// dockerClient é o cliente docker em uso: o injetado ou o binário do servidor.
+func (c Config) dockerClient() DockerClient {
+	if c.Docker != nil {
+		return c.Docker
+	}
+	return cliDocker{bin: c.dockerBin(), lookPath: c.lookPath}
+}
+
 // SandboxStatus diz se o driver sandbox pode rodar agora e, se não, por quê.
 func (c Config) SandboxStatus() error {
 	if strings.ToLower(strings.TrimSpace(c.Sandbox)) != SandboxDocker {
 		return ErrSandboxOff
 	}
-	if _, err := c.lookPath(c.dockerBin()); err != nil {
-		return fmt.Errorf("o binário %q não está no PATH do servidor", c.dockerBin())
+	return c.dockerClient().Available()
+}
+
+// CloudStatus diz se o driver cloud pode rodar agora e, se não, por quê.
+func (c Config) CloudStatus() error {
+	if c.Cloud == nil {
+		return ErrCloudOff
 	}
 	return nil
 }
@@ -100,6 +120,8 @@ func (c Config) DriverStatus(d domain.EnvironmentDriver) error {
 		return c.SSHStatus()
 	case domain.EnvSandbox:
 		return c.SandboxStatus()
+	case domain.EnvCloud:
+		return c.CloudStatus()
 	}
 	return fmt.Errorf("driver desconhecido %q", d)
 }

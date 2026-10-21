@@ -278,6 +278,9 @@ templ CostsPage(sh Shell, vm CostsVM) {
 			@DayCostTable(vm.Days)
 		}
 		@SubscriptionsSection(vm)
+		if vm.Decision != nil {
+			@DecisionCostSection(*vm.Decision)
+		}
 		<section class="card pad mt-6">
 			<div class="card-head"><h2>{ i18n.T(ctx, "Orçamento por persona") }</h2><span class="sub">{ vm.Month }</span></div>
 			if len(vm.Personas) == 0 {
@@ -340,4 +343,31 @@ templ CostsPage(sh Shell, vm CostsVM) {
 			}
 		</div>
 	}
+}
+
+templ DecisionCostSection(d DecisionCostVM) {
+	<section class="card pad mt-6" id="decision-costs">
+		<div class="card-head">
+			<div>
+				<h2>{ i18n.T(ctx, "Decision model") } · { d.Total }</h2>
+				<p class="sub">{ i18n.Tf(ctx, "%s chamadas feitas pelo sistema (não por personas). O custo soma ao gasto do mês da empresa.", d.Calls) }</p>
+			</div>
+			<a class="btn outline sm" href={ templ.SafeURL(d.Href) }>{ i18n.T(ctx, "Configurar") }</a>
+		</div>
+		<table class="table mini">
+			<thead><tr><th>{ i18n.T(ctx, "Feature") }</th><th class="hide-sm">{ i18n.T(ctx, "Modelo") }</th><th class="num">{ i18n.T(ctx, "Chamadas") }</th><th class="num hide-sm">{ i18n.T(ctx, "Erros") }</th><th class="num hide-sm">{ i18n.T(ctx, "Tokens") }</th><th class="num">{ i18n.T(ctx, "Custo") }</th></tr></thead>
+			<tbody>
+				for _, r := range d.Rows {
+					<tr>
+						<td>{ r.Feature }</td>
+						<td class="mono hide-sm">{ r.Model }</td>
+						<td class="num">{ r.Calls }</td>
+						<td class="num hide-sm">{ r.Errors }</td>
+						<td class="num hide-sm">{ r.Tokens }</td>
+						<td class="num mono">{ r.Cost }</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+	</section>
 }

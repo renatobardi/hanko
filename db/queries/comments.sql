@@ -13,4 +13,9 @@ SELECT * FROM task_comments WHERE company_id = @company_id AND task_id = @task_i
 SELECT EXISTS (
     SELECT 1 FROM task_comments
     WHERE company_id = @company_id AND task_id = @task_id AND author_type = 'human' AND created_at > @since
+      -- o follow-up injetado na run viva já foi visto por ela (ADR-0039)
+      AND (event_id IS NULL OR event_id NOT LIKE 'followup:%')
 ) AS found;
+
+-- name: GetCommentByID :one
+SELECT * FROM task_comments WHERE company_id = @company_id AND id = @id;

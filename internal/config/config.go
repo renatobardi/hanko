@@ -31,6 +31,13 @@ const (
 	MemoryAIMemory = "ai-memory"
 	MemoryNone     = "none"
 
+	BlobPostgres = "postgres"
+	BlobS3       = "s3"
+
+	// MaxArtifactBytesPostgres e MaxArtifactBytesS3 são os tetos do limite por arquivo de artefato por driver.
+	MaxArtifactBytesPostgres int64 = 16 << 20
+	MaxArtifactBytesS3       int64 = 64 << 20
+
 	LogJSON = "json"
 	LogText = "text"
 
@@ -67,6 +74,32 @@ type Integrations struct {
 	AllowPrivateDestinations bool `yaml:"allow_private_destinations" env:"HANKO_INTEGRATIONS_ALLOW_PRIVATE"`
 }
 
+// Storage configura onde o conteúdo dos artefatos fica (ADR-0051). O driver postgres é o padrão; com s3 as escritas
+// novas vão para o bucket. Credenciais só por ambiente.
+type Storage struct {
+	Driver string `yaml:"driver" env:"HANKO_BLOB_DRIVER"` // postgres (padrão) | s3
+	S3     S3     `yaml:"s3"`
+}
+
+// S3 configura o driver s3 (qualquer endpoint compatível). AccessKey e SecretKey não vão no yaml: só por ambiente.
+type S3 struct {
+	Endpoint  string `yaml:"endpoint" env:"HANKO_S3_ENDPOINT"`
+	Region    string `yaml:"region" env:"HANKO_S3_REGION"`
+	Bucket    string `yaml:"bucket" env:"HANKO_S3_BUCKET"`
+	Prefix    string `yaml:"prefix" env:"HANKO_S3_PREFIX"`
+	PathStyle bool   `yaml:"path_style" env:"HANKO_S3_PATH_STYLE"`
+	AccessKey string `yaml:"-" env:"HANKO_S3_ACCESS_KEY"`
+	SecretKey string `yaml:"-" env:"HANKO_S3_SECRET_KEY"`
+}
+
+// Vault configura o cofre externo de segredos (ADR-0050), API KV v2. O token só por ambiente.
+type Vault struct {
+	Addr      string `yaml:"addr" env:"HANKO_VAULT_ADDR"`
+	Mount     string `yaml:"mount" env:"HANKO_VAULT_MOUNT"`
+	Namespace string `yaml:"namespace" env:"HANKO_VAULT_NAMESPACE"`
+	Token     string `yaml:"-" env:"HANKO_VAULT_TOKEN"`
+}
+
 // Environments configura os ambientes de execução remotos (ADR-0037). Os interruptores são do operador da
 // instalação e vêm desligados.
 type Environments struct {
@@ -78,6 +111,13 @@ type Environments struct {
 	// SandboxHostRoot é, quando o Hanko roda dentro de um contêiner, o caminho no host do docker do
 	// diretório que aqui é HANKO_WORKSPACES_ROOT (os volumes do sandbox usam caminhos do host).
 	SandboxHostRoot string `yaml:"sandbox_host_root" env:"HANKO_ENV_SANDBOX_HOST_ROOT"`
+	// Cloud liga o driver de sandbox em nuvem com o provider dado (só "daytona", ADR-0055). Vazio = desligado.
+	Cloud string `yaml:"cloud" env:"HANKO_ENV_CLOUD"`
+	// CloudAPIURL e CloudSSHHost apontam o provider (padrões do Daytona hospedado); CloudSSHKnownHosts são as linhas de
+	// known_hosts do gateway SSH, obrigatórias quando Cloud está ligado.
+	CloudAPIURL        string `yaml:"cloud_api_url" env:"HANKO_ENV_CLOUD_API_URL"`
+	CloudSSHHost       string `yaml:"cloud_ssh_host" env:"HANKO_ENV_CLOUD_SSH_HOST"`
+	CloudSSHKnownHosts string `yaml:"cloud_ssh_known_hosts" env:"HANKO_ENV_CLOUD_SSH_KNOWN_HOSTS"`
 }
 
 // ACP configura o harness acp (ADR-0023). Quem escreve o adapter_config é o admin de uma empresa, e o comando
@@ -115,8 +155,21 @@ type Auth struct {
 	WebBootstrap bool `yaml:"web_bootstrap" env:"HANKO_AUTH_WEB_BOOTSTRAP"`
 }
 
+// RateLimit são os padrões do rate limit geral (ADR-0058 §B); viram chaves de instance_settings (grupo ratelimit).
+type RateLimit struct {
+	Enabled          bool  `yaml:"enabled" env:"HANKO_RATELIMIT_ENABLED"`
+	WritesPerMin     int64 `yaml:"writes_per_min" env:"HANKO_RATELIMIT_WRITES_PER_MIN"`
+	IPPerMin         int64 `yaml:"ip_per_min" env:"HANKO_RATELIMIT_IP_PER_MIN"`
+	MCPPerMin        int64 `yaml:"mcp_per_min" env:"HANKO_RATELIMIT_MCP_PER_MIN"`
+	WebhooksPerMin   int64 `yaml:"webhooks_per_min" env:"HANKO_RATELIMIT_WEBHOOKS_PER_MIN"`
+	BrowserErrPerMin int64 `yaml:"browser_errors_per_min" env:"HANKO_RATELIMIT_BROWSER_ERRORS_PER_MIN"`
+}
+
 // Config é a configuração completa do processo.
 type Config struct {
+	// RateLimit: limites por minuto do rate limit geral (padrões seguros; env vence o banco).
+	RateLimit RateLimit `yaml:"rate_limit"`
+
 	DatabaseURL string `yaml:"database_url" env:"HANKO_DATABASE_URL"`
 	Addr        string `yaml:"addr" env:"HANKO_ADDR"`
 	PublicURL   string `yaml:"public_url" env:"HANKO_PUBLIC_URL"`
@@ -127,9 +180,14 @@ type Config struct {
 	Secret   string `yaml:"secret" env:"HANKO_SECRET"`
 	// SecretKey cifra em repouso os segredos das integrações (AES-256-GCM, ADR-0029); SecretKeyPrevious é a
 	// chave anterior durante uma rotação (só decifra). Sem SecretKey, integrações com segredo não podem ser salvas.
+	// PushSubject identifica o operador perante o serviço de web push (VAPID sub, ADR-0042): "mailto:..." ou uma URL
+	// https. Vazio = mailto do dono (HANKO_AUTH_OWNER_EMAIL) ou, sem ele, a HANKO_PUBLIC_URL quando é https.
+	PushSubject       string        `yaml:"push_subject" env:"HANKO_PUSH_SUBJECT"`
 	SecretKey         string        `yaml:"secret_key" env:"HANKO_SECRET_KEY"`
 	SecretKeyPrevious string        `yaml:"secret_key_previous" env:"HANKO_SECRET_KEY_PREVIOUS"`
 	Integrations      Integrations  `yaml:"integrations"`
+	Storage           Storage       `yaml:"storage"`
+	Vault             Vault         `yaml:"vault"`
 	ACP               ACP           `yaml:"acp"`
 	Plugins           Plugins       `yaml:"plugins"`
 	Environments      Environments  `yaml:"environments"`
@@ -138,6 +196,9 @@ type Config struct {
 	Auth              Auth          `yaml:"auth"`
 	ClaudeBin         string        `yaml:"claude_bin" env:"HANKO_CLAUDE_BIN"`
 	CodexBin          string        `yaml:"codex_bin" env:"HANKO_CODEX_BIN"`
+	DevinBin          string        `yaml:"devin_bin" env:"HANKO_DEVIN_BIN"`
+	PiBin             string        `yaml:"pi_bin" env:"HANKO_PI_BIN"`
+	CursorBin         string        `yaml:"cursor_bin" env:"HANKO_CURSOR_BIN"`
 	Workers           int           `yaml:"workers" env:"HANKO_WORKERS"`
 	RunTimeout        time.Duration `yaml:"run_timeout" env:"HANKO_RUN_TIMEOUT"`
 	HeartbeatInterval time.Duration `yaml:"heartbeat_interval" env:"HANKO_HEARTBEAT_INTERVAL"`
@@ -146,6 +207,10 @@ type Config struct {
 
 	// SkillSources liga as fontes de skills (o servidor clona repositórios públicos por https, ADR-0035).
 	SkillSources bool `yaml:"skill_sources" env:"HANKO_SKILL_SOURCES"`
+
+	// GitWorkspaces liga os workspaces de execução com Git (o servidor clona o repositório do workspace e cria um
+	// worktree por task sob HANKO_WORKSPACES_ROOT, ADR-0054).
+	GitWorkspaces bool `yaml:"git_workspaces" env:"HANKO_GIT_WORKSPACES"`
 
 	// AgentEnvAllow lista variáveis extras do ambiente do servidor repassadas aos
 	// harnesses (nomes exatos ou prefixos terminados em "*"); HANKO_* nunca passa.
@@ -159,6 +224,9 @@ type Config struct {
 	TrustedProxies []string `yaml:"trusted_proxies" env:"HANKO_TRUSTED_PROXIES" envSeparator:","`
 	// WorkspacesRoot é a raiz sob a qual todo workspace precisa estar (default $HOME/hanko-workspaces).
 	WorkspacesRoot string `yaml:"workspaces_root" env:"HANKO_WORKSPACES_ROOT"`
+	// ToolsSingleEndpoint faz o harness receber um único endpoint do gateway de tools (/mcp/run) em vez de um servidor MCP
+	// por integração; as tools saem como <integração>__<tool> (ADR-0053).
+	ToolsSingleEndpoint bool `yaml:"tools_single_endpoint" env:"HANKO_TOOLS_SINGLE_ENDPOINT"`
 	// RunReserveUSD é o piso (USD) da reserva de orçamento por run aberta: antes de abrir uma
 	// run, gasto + reservas das runs abertas + a reserva da nova não podem passar do teto. A reserva
 	// de cada run é o maior entre a média das últimas 10 runs da persona e este piso.
@@ -172,6 +240,13 @@ type Config struct {
 	// sem nenhum evento a partir do qual uma run em running vira alerta "execução presa".
 	AlertSilentFactor  int           `yaml:"alert_silent_factor" env:"HANKO_ALERT_SILENT_FACTOR"`
 	AlertRunStuckAfter time.Duration `yaml:"alert_run_stuck_after" env:"HANKO_ALERT_RUN_STUCK_AFTER"`
+	// ReadinessInterval é a idade a partir da qual o teste de readiness de uma persona é refeito pela checagem
+	// periódica (ADR-0055). 0 desliga a checagem periódica ("Testar agora" segue valendo).
+	ReadinessInterval time.Duration `yaml:"readiness_interval" env:"HANKO_READINESS_INTERVAL"`
+
+	// EnvSet marca as variáveis HANKO_* definidas no ambiente (valor não vazio). As que equivalem a uma chave de
+	// instance_settings travam essa chave: env vence o banco (ADR-0050). Preenchido por Load.
+	EnvSet map[string]bool `yaml:"-" env:"-"`
 
 	// SecretGenerated indica que Secret foi gerado neste boot (run tokens não
 	// sobrevivem a restart). Preenchido por Load.
@@ -188,9 +263,14 @@ func Defaults() Config {
 		MigrateOnBoot:      true,
 		Memory:             Memory{Provider: MemoryAIMemory, URL: "http://127.0.0.1:49374", ReadTool: "memory_read_page"},
 		Auth:               Auth{Provider: AuthLocal},
+		Storage:            Storage{Driver: BlobPostgres, S3: S3{Region: "us-east-1", PathStyle: true}},
+		Vault:              Vault{Mount: "secret"},
 		TrustedProxies:     []string{"127.0.0.1/32", "::1/128"},
 		ClaudeBin:          "claude",
 		CodexBin:           "codex",
+		DevinBin:           "devin",
+		PiBin:              "pi",
+		CursorBin:          "cursor-agent",
 		Workers:            4,
 		RunTimeout:         30 * time.Minute,
 		HeartbeatInterval:  time.Minute,
@@ -199,6 +279,8 @@ func Defaults() Config {
 		ArtifactQuotaBytes: 512 << 20,
 		AlertSilentFactor:  3,
 		AlertRunStuckAfter: 15 * time.Minute,
+		ReadinessInterval:  15 * time.Minute,
+		RateLimit:          RateLimit{Enabled: true, WritesPerMin: 600, IPPerMin: 1200, MCPPerMin: 1500, WebhooksPerMin: 120, BrowserErrPerMin: 20},
 		LogLevel:           "info",
 		LogFormat:          LogJSON,
 	}
@@ -238,6 +320,10 @@ func LoadFrom(getenv func(string) string, readFile func(string) ([]byte, error))
 		return Config{}, fmt.Errorf("config: variável de ambiente inválida: %w", err)
 	}
 
+	cfg.EnvSet = map[string]bool{}
+	for k, v := range environFor(getenv) {
+		cfg.EnvSet[k] = v != ""
+	}
 	if err := cfg.finalize(); err != nil {
 		return Config{}, err
 	}
@@ -249,15 +335,22 @@ func environFor(getenv func(string) string) map[string]string {
 	keys := []string{
 		"HANKO_DATABASE_URL", "HANKO_ADDR", "HANKO_PUBLIC_URL", "HANKO_AGENT_URL", "HANKO_MODE", "HANKO_SECRET",
 		"HANKO_MIGRATE_ON_BOOT", "HANKO_MEMORY_PROVIDER", "HANKO_MEMORY_URL", "HANKO_MEMORY_TOKEN", "HANKO_MEMORY_READ_TOOL",
-		"HANKO_CLAUDE_BIN", "HANKO_CODEX_BIN", "HANKO_WORKERS", "HANKO_RUN_TIMEOUT",
+		"HANKO_CLAUDE_BIN", "HANKO_CODEX_BIN", "HANKO_DEVIN_BIN", "HANKO_PI_BIN", "HANKO_CURSOR_BIN", "HANKO_WORKERS", "HANKO_RUN_TIMEOUT",
 		"HANKO_HEARTBEAT_INTERVAL", "HANKO_LOG_LEVEL", "HANKO_LOG_FORMAT",
 		"HANKO_AGENT_ENV_ALLOW", "HANKO_ALLOWED_HOSTS", "HANKO_WORKSPACES_ROOT", "HANKO_RUN_RESERVE_USD", "HANKO_ARTIFACT_MAX_BYTES", "HANKO_ARTIFACT_QUOTA_BYTES", "HANKO_ALERT_SILENT_FACTOR", "HANKO_ALERT_RUN_STUCK_AFTER",
+		"HANKO_RATELIMIT_ENABLED", "HANKO_RATELIMIT_WRITES_PER_MIN", "HANKO_RATELIMIT_IP_PER_MIN", "HANKO_RATELIMIT_MCP_PER_MIN",
+		"HANKO_RATELIMIT_WEBHOOKS_PER_MIN", "HANKO_RATELIMIT_BROWSER_ERRORS_PER_MIN",
 		"HANKO_AUTH_PROVIDER", "HANKO_AUTH_ALLOWED_EMAILS", "HANKO_AUTH_ALLOWED_DOMAINS",
 		"HANKO_FIREBASE_PROJECT_ID", "HANKO_FIREBASE_API_KEY", "HANKO_FIREBASE_AUTH_DOMAIN",
 		"HANKO_AUTH_OWNER_EMAIL", "HANKO_AUTH_WEB_BOOTSTRAP", "HANKO_TRUSTED_PROXIES",
-		"HANKO_SECRET_KEY", "HANKO_SECRET_KEY_PREVIOUS", "HANKO_INTEGRATIONS_ALLOW_STDIO", "HANKO_INTEGRATIONS_ALLOW_PRIVATE",
-		"HANKO_ACP_ALLOW", "HANKO_ACP_COMMANDS", "HANKO_SKILL_SOURCES",
+		"HANKO_SECRET_KEY", "HANKO_SECRET_KEY_PREVIOUS", "HANKO_PUSH_SUBJECT", "HANKO_INTEGRATIONS_ALLOW_STDIO", "HANKO_INTEGRATIONS_ALLOW_PRIVATE",
+		"HANKO_ACP_ALLOW", "HANKO_ACP_COMMANDS", "HANKO_SKILL_SOURCES", "HANKO_GIT_WORKSPACES", "HANKO_TOOLS_SINGLE_ENDPOINT",
+		"HANKO_BLOB_DRIVER", "HANKO_S3_ENDPOINT", "HANKO_S3_REGION", "HANKO_S3_BUCKET", "HANKO_S3_PREFIX", "HANKO_S3_PATH_STYLE",
+		"HANKO_S3_ACCESS_KEY", "HANKO_S3_SECRET_KEY",
+		"HANKO_VAULT_ADDR", "HANKO_VAULT_MOUNT", "HANKO_VAULT_NAMESPACE", "HANKO_VAULT_TOKEN",
 		"HANKO_ENV_SSH_ALLOW_HOSTS", "HANKO_ENV_SANDBOX", "HANKO_ENV_SANDBOX_HOST_ROOT",
+		"HANKO_ENV_CLOUD", "HANKO_ENV_CLOUD_API_URL", "HANKO_ENV_CLOUD_SSH_HOST", "HANKO_ENV_CLOUD_SSH_KNOWN_HOSTS", "HANKO_READINESS_INTERVAL",
+		"HANKO_PLUGINS_DIR", "HANKO_PLUGINS_DATA_DIR",
 	}
 	m := make(map[string]string, len(keys))
 	for _, k := range keys {
@@ -285,6 +378,14 @@ func (c *Config) finalize() error {
 	c.LogLevel = strings.ToLower(strings.TrimSpace(c.LogLevel))
 	c.LogFormat = strings.ToLower(strings.TrimSpace(c.LogFormat))
 	c.Addr = strings.TrimSpace(c.Addr)
+	c.Storage.Driver = strings.ToLower(strings.TrimSpace(c.Storage.Driver))
+	if c.Storage.Driver == "" {
+		c.Storage.Driver = BlobPostgres
+	}
+	c.Storage.S3.Endpoint = strings.TrimSpace(c.Storage.S3.Endpoint)
+	c.Storage.S3.Bucket = strings.TrimSpace(c.Storage.S3.Bucket)
+	c.Vault.Addr = strings.TrimSpace(c.Vault.Addr)
+	c.Vault.Token = strings.TrimSpace(c.Vault.Token)
 
 	if c.PublicURL == "" {
 		c.PublicURL = "http://" + c.Addr
@@ -299,6 +400,10 @@ func (c *Config) finalize() error {
 	c.Environments.SSHAllowHosts = cleanList(c.Environments.SSHAllowHosts)
 	c.Environments.Sandbox = strings.ToLower(strings.TrimSpace(c.Environments.Sandbox))
 	c.Environments.SandboxHostRoot = strings.TrimSpace(c.Environments.SandboxHostRoot)
+	c.Environments.Cloud = strings.ToLower(strings.TrimSpace(c.Environments.Cloud))
+	c.Environments.CloudAPIURL = strings.TrimSpace(c.Environments.CloudAPIURL)
+	c.Environments.CloudSSHHost = strings.TrimSpace(c.Environments.CloudSSHHost)
+	c.Environments.CloudSSHKnownHosts = strings.TrimSpace(c.Environments.CloudSSHKnownHosts)
 	c.WorkspacesRoot = strings.TrimSpace(c.WorkspacesRoot)
 	if c.WorkspacesRoot == "" {
 		if home, err := os.UserHomeDir(); err == nil && home != "" {
@@ -343,6 +448,20 @@ func (c *Config) finalize() error {
 	return nil
 }
 
+// MaxArtifactBytes é o teto do limite por arquivo de artefato para o driver de blobs configurado (ADR-0051).
+func (c Config) MaxArtifactBytes() int64 {
+	if c.Storage.Driver == BlobS3 {
+		return MaxArtifactBytesS3
+	}
+	return MaxArtifactBytesPostgres
+}
+
+// S3Configured informa se o driver s3 tem tudo para abrir (mesmo com o driver ativo sendo postgres, para ler e migrar).
+func (c Config) S3Configured() bool {
+	s := c.Storage.S3
+	return s.Endpoint != "" && s.Bucket != "" && s.AccessKey != "" && s.SecretKey != ""
+}
+
 // Validate checa os campos; mensagens em pt-BR. Agrega todos os erros.
 func (c Config) Validate() error {
 	var errs []error
@@ -356,6 +475,9 @@ func (c Config) Validate() error {
 	if _, _, err := net.SplitHostPort(c.Addr); err != nil {
 		add("HANKO_ADDR %q inválido: use host:porta (ex.: 127.0.0.1:7420)", c.Addr)
 	}
+	if sub := strings.TrimSpace(c.PushSubject); sub != "" && !strings.HasPrefix(sub, "mailto:") && !strings.HasPrefix(sub, "https://") {
+		add("HANKO_PUSH_SUBJECT %q inválido: use mailto:alguem@exemplo.org ou uma URL https", c.PushSubject)
+	}
 	if u, err := url.Parse(c.PublicURL); err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
 		add("HANKO_PUBLIC_URL %q inválido: use http(s)://host[:porta]", c.PublicURL)
 	}
@@ -365,14 +487,36 @@ func (c Config) Validate() error {
 	if sb := c.Environments.Sandbox; sb != "" && sb != "docker" {
 		add("HANKO_ENV_SANDBOX %q inválido: use docker (ou deixe vazio para desligar o sandbox)", sb)
 	}
+	if cl := c.Environments.Cloud; cl != "" {
+		if cl != "daytona" {
+			add("HANKO_ENV_CLOUD %q inválido: use daytona (ou deixe vazio para desligar o sandbox em nuvem)", cl)
+		} else if c.Environments.CloudSSHKnownHosts == "" {
+			add("HANKO_ENV_CLOUD_SSH_KNOWN_HOSTS é obrigatório com HANKO_ENV_CLOUD=daytona: cole a saída de ssh-keyscan do gateway SSH")
+		}
+	}
+	if c.ReadinessInterval < 0 {
+		add("HANKO_READINESS_INTERVAL %v inválido: use uma duração >= 0 (0 desliga a checagem periódica)", c.ReadinessInterval)
+	}
 	if hr := c.Environments.SandboxHostRoot; hr != "" && !filepath.IsAbs(hr) {
 		add("HANKO_ENV_SANDBOX_HOST_ROOT %q inválido: use um caminho absoluto do host do docker", hr)
 	}
 	if c.RunReserveUSD < 0 {
 		add("HANKO_RUN_RESERVE_USD %v inválido: use um valor >= 0 (0 usa o padrão de US$ 1,00)", c.RunReserveUSD)
 	}
-	if c.ArtifactMaxBytes < 1 || c.ArtifactMaxBytes > 16<<20 {
-		add("HANKO_ARTIFACT_MAX_BYTES %d inválido: use de 1 a 16777216 (16 MiB; padrão 5 MiB)", c.ArtifactMaxBytes)
+	if maxBytes := c.MaxArtifactBytes(); c.ArtifactMaxBytes < 1 || c.ArtifactMaxBytes > maxBytes {
+		add("HANKO_ARTIFACT_MAX_BYTES %d inválido: use de 1 a %d (%d MiB com o driver %s; padrão 5 MiB)", c.ArtifactMaxBytes, maxBytes, maxBytes>>20, c.Storage.Driver)
+	}
+	switch c.Storage.Driver {
+	case BlobPostgres:
+	case BlobS3:
+		if c.Storage.S3.Endpoint == "" || c.Storage.S3.Bucket == "" || c.Storage.S3.AccessKey == "" || c.Storage.S3.SecretKey == "" {
+			add("HANKO_BLOB_DRIVER=s3 exige HANKO_S3_ENDPOINT, HANKO_S3_BUCKET, HANKO_S3_ACCESS_KEY e HANKO_S3_SECRET_KEY")
+		}
+	default:
+		add("HANKO_BLOB_DRIVER %q inválido: use %q ou %q", c.Storage.Driver, BlobPostgres, BlobS3)
+	}
+	if (c.Vault.Addr == "") != (c.Vault.Token == "") {
+		add("HANKO_VAULT_ADDR e HANKO_VAULT_TOKEN precisam ser definidos juntos")
 	}
 	if c.ArtifactQuotaBytes < c.ArtifactMaxBytes {
 		add("HANKO_ARTIFACT_QUOTA_BYTES %d inválido: a cota por empresa precisa caber ao menos um artefato máximo (padrão 512 MiB)", c.ArtifactQuotaBytes)
@@ -382,6 +526,13 @@ func (c Config) Validate() error {
 	}
 	if c.AlertRunStuckAfter <= 0 {
 		add("HANKO_ALERT_RUN_STUCK_AFTER deve ser positivo (ex.: 15m)")
+	}
+	for name, v := range map[string]int64{"HANKO_RATELIMIT_WRITES_PER_MIN": c.RateLimit.WritesPerMin, "HANKO_RATELIMIT_IP_PER_MIN": c.RateLimit.IPPerMin,
+		"HANKO_RATELIMIT_MCP_PER_MIN": c.RateLimit.MCPPerMin, "HANKO_RATELIMIT_WEBHOOKS_PER_MIN": c.RateLimit.WebhooksPerMin,
+		"HANKO_RATELIMIT_BROWSER_ERRORS_PER_MIN": c.RateLimit.BrowserErrPerMin} {
+		if v < 1 {
+			add("%s %d inválido: use um valor >= 1", name, v)
+		}
 	}
 	if c.Mode != ModeTrusted && c.Mode != ModeAuthenticated {
 		add("HANKO_MODE %q inválido: use %q ou %q", c.Mode, ModeTrusted, ModeAuthenticated)
@@ -561,4 +712,18 @@ func (c Config) PublicHost() string {
 		return ""
 	}
 	return u.Host
+}
+
+// PushSubjectOrDefault é o contato do VAPID (ADR-0042): HANKO_PUSH_SUBJECT, senão o e-mail do dono, senão a URL
+// pública quando é https; vazio se nada disso existe (o service usa um valor neutro).
+func (c Config) PushSubjectOrDefault() string {
+	switch {
+	case strings.TrimSpace(c.PushSubject) != "":
+		return strings.TrimSpace(c.PushSubject)
+	case c.Auth.OwnerEmail != "":
+		return "mailto:" + c.Auth.OwnerEmail
+	case strings.HasPrefix(c.PublicURL, "https://"):
+		return c.PublicURL
+	}
+	return ""
 }

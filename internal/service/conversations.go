@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/renatobardi/hanko/internal/adapter"
 	"github.com/renatobardi/hanko/internal/domain"
@@ -87,7 +88,45 @@ func conversationView(c store.Conversation, personaName, personaSlug string, act
 func messageFromRow(r store.ConversationMessage) domain.ConversationMessage {
 	return domain.ConversationMessage{ID: r.ID, CompanyID: r.CompanyID, ConversationID: r.ConversationID,
 		Author: actorOf(r.AuthorType, r.AuthorID), Kind: domain.MessageAuthor(r.AuthorType), Body: r.Body,
-		RunID: r.RunID, CreatedAt: r.CreatedAt, PersonaID: r.PersonaID, ReplyToID: r.ReplyToID, Mentions: r.Mentions}
+		RunID: r.RunID, CreatedAt: r.CreatedAt, PersonaID: r.PersonaID, ReplyToID: r.ReplyToID, Mentions: r.Mentions,
+		Marker: derefStr(r.Marker)}
+}
+
+func derefStr(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
+}
+
+// ContextResetCommand é o comando que reinicia o contexto da conversa (ADR-0052).
+const ContextResetCommand = "/new"
+
+// parseContextReset diz se a mensagem começa com /new e devolve o texto que vem depois (que pode ser vazio). O
+// comando é a mensagem inteira ("/new") ou a primeira palavra seguida de espaço ("/new e agora, qual o plano?").
+func parseContextReset(body string) (reset bool, rest string) {
+	b := strings.TrimSpace(body)
+	if b == ContextResetCommand {
+		return true, ""
+	}
+	if after, ok := strings.CutPrefix(b, ContextResetCommand); ok && after != "" && unicode.IsSpace([]rune(after)[0]) {
+		return true, strings.TrimSpace(after)
+	}
+	return false, body
+}
+
+// insertContextMarker grava o marcador de reinício de contexto (mensagem de sistema) e o fato na atividade.
+func (t *txc) insertContextMarker(conv store.Conversation, actor domain.Actor) (store.ConversationMessage, error) {
+	m, err := t.q.InsertContextMarker(t.ctx, store.InsertContextMarkerParams{ID: domain.NewID(), CompanyID: conv.CompanyID,
+		ConversationID: conv.ID, Body: "Contexto reiniciado (/new): a conversa recomeça daqui.", Now: t.now})
+	if err != nil {
+		return m, fmt.Errorf("insert context marker: %w", err)
+	}
+	if err := t.q.TouchConversation(t.ctx, store.TouchConversationParams{ID: conv.ID, Now: t.now}); err != nil {
+		return m, fmt.Errorf("touch conversation: %w", err)
+	}
+	return m, t.activity(actor, conv.CompanyID, "conversation.context_reset", "conversation", conv.ID,
+		map[string]any{"message_id": m.ID, "kind": conv.Kind}, "")
 }
 
 func loadConversationView(ctx context.Context, q *store.Queries, companyID, id domain.ID) (ConversationView, error) {
@@ -243,7 +282,7 @@ func (s *Service) CreateConversation(ctx context.Context, actor domain.Actor, co
 		// side effects of the refusal itself (pause, alerts) stay.
 		var run *store.Run
 		if msg != "" {
-			r, berr, err := t.openChatRun(conv)
+			r, berr, err := t.openChatRun(conv, nil)
 			if err != nil {
 				return err
 			}
@@ -279,6 +318,13 @@ func (s *Service) CreateConversation(ctx context.Context, actor domain.Actor, co
 // arrived meanwhile. When the persona cannot work now (paused, in error, over budget, weekly guard) the message
 // is refused and the error carries the reason.
 func (s *Service) SendMessage(ctx context.Context, actor domain.Actor, companyID, conversationID domain.ID, body string) (domain.ConversationMessage, error) {
+	return s.SendMessageWith(ctx, actor, companyID, conversationID, body, nil)
+}
+
+// SendMessageWith é SendMessage com anexos já enviados à conversa (PutArtifact com Class attachment e ConversationID,
+// ainda sem mensagem): eles passam a pertencer à mensagem na mesma transação, então a run que a recolhe já os vê no
+// briefing (ADR-0052). Num "/new" sozinho (só o marcador) os anexos ficam soltos na conversa.
+func (s *Service) SendMessageWith(ctx context.Context, actor domain.Actor, companyID, conversationID domain.ID, body string, attachments []domain.ID) (domain.ConversationMessage, error) {
 	if err := s.require(ctx, companyID, domain.MemberMember); err != nil {
 		return domain.ConversationMessage{}, err
 	}
@@ -289,6 +335,7 @@ func (s *Service) SendMessage(ctx context.Context, actor domain.Actor, companyID
 	if err != nil {
 		return domain.ConversationMessage{}, err
 	}
+	reset, body := parseContextReset(body)
 	var (
 		out     domain.ConversationMessage
 		blocked error
@@ -301,6 +348,16 @@ func (s *Service) SendMessage(ctx context.Context, actor domain.Actor, companyID
 		if domain.ConversationStatus(conv.Status) != domain.ConversationOpen {
 			return domain.Invalid("conversation", "a conversa está arquivada; reabra para continuar")
 		}
+		if reset { // /new (ADR-0052): o marcador vale para a conversa direta e para a sala
+			mk, err := t.insertContextMarker(conv, actor)
+			if err != nil {
+				return err
+			}
+			if body == "" {
+				out = messageFromRow(mk)
+				return t.clearDraft(companyID, domain.DraftConversation, conversationID)
+			}
+		}
 		if domain.ConversationKind(conv.Kind) == domain.ConversationRoom {
 			// sala (ADR-0033): várias personas, cada uma com a sua run e a sua fila
 			m, berr, err := t.sendRoomMessage(conv, actor, body)
@@ -308,6 +365,12 @@ func (s *Service) SendMessage(ctx context.Context, actor domain.Actor, companyID
 				return err
 			}
 			blocked, out = berr, m
+			if berr == nil { // ADR-0052: enviar limpa o rascunho e liga os anexos, na mesma transação
+				if err := t.linkMessageAttachments(companyID, conversationID, m.ID, attachments); err != nil {
+					return err
+				}
+				return t.clearDraft(companyID, domain.DraftConversation, conversationID)
+			}
 			return nil
 		}
 		m, berr, err := t.sendChatMessage(conv, actor, body)
@@ -317,6 +380,10 @@ func (s *Service) SendMessage(ctx context.Context, actor domain.Actor, companyID
 		blocked = berr
 		if berr == nil {
 			out = messageFromRow(m)
+			if err := t.linkMessageAttachments(companyID, conversationID, m.ID, attachments); err != nil {
+				return err
+			}
+			return t.clearDraft(companyID, domain.DraftConversation, conversationID)
 		}
 		return nil
 	})
@@ -380,7 +447,7 @@ func (t *txc) sendChatMessage(conv store.Conversation, actor domain.Actor, body 
 			return msg, nil, domain.Invalid("message", fmt.Sprintf("já há %d mensagens esperando a resposta; aguarde a persona", len(pending)))
 		}
 	case isNoRows(aerr):
-		r, berr, err := t.openChatRun(conv)
+		r, berr, err := t.openChatRun(conv, nil)
 		if err != nil || berr != nil {
 			return msg, berr, err
 		}
@@ -449,19 +516,25 @@ func chatBlockReason(p store.Persona) string {
 // openChatRun checks that the persona can take a run (status, monthly budgets, weekly guard) and creates the
 // queued run of the conversation. It claims no messages and enqueues nothing (launchChatRun). A refusal comes
 // back as blocked (the transaction still commits its side effects); err is an unexpected failure.
-func (t *txc) openChatRun(conv store.Conversation) (run store.Run, blocked, err error) {
-	return t.openPersonaRun(conv, idOrZero(conv.PersonaID))
+func (t *txc) openChatRun(conv store.Conversation, cont *continuation) (run store.Run, blocked, err error) {
+	return t.openPersonaRun(conv, idOrZero(conv.PersonaID), cont)
 }
 
 // openPersonaRun is openChatRun for a given persona of the conversation (the one of a direct chat, or a
 // participant of a room, ADR-0033).
-func (t *txc) openPersonaRun(conv store.Conversation, personaID domain.ID) (run store.Run, blocked, err error) {
+func (t *txc) openPersonaRun(conv store.Conversation, personaID domain.ID, cont *continuation) (run store.Run, blocked, err error) {
 	p, err := t.q.GetPersonaByID(t.ctx, store.GetPersonaByIDParams{CompanyID: conv.CompanyID, ID: personaID})
 	if err != nil {
 		return run, nil, mapErr(err, "get persona")
 	}
 	if reason := chatBlockReason(p); reason != "" {
 		return run, &personaBlockedError{reason: reason}, nil
+	}
+	if rerr := t.readinessGate(p, p.Agent, p.Model); rerr != nil {
+		if !errors.Is(rerr, domain.ErrPersonaNotReady) {
+			return run, nil, rerr
+		}
+		return run, rerr, nil
 	}
 	co, err := t.q.GetCompanyByID(t.ctx, conv.CompanyID)
 	if err != nil {
@@ -487,7 +560,7 @@ func (t *txc) openPersonaRun(conv store.Conversation, personaID domain.ID) (run 
 	}
 	// A chat has no task or project: it works in the persona's workspace (or a temporary directory).
 	ws, wsSource := pickWorkspace(nil, nil, p)
-	run, err = t.insertRun(conv.CompanyID, nil, &conv.ID, p.ID, p.Agent, model, modelSource, subID, ws, wsSource, domain.TriggerChat)
+	run, err = t.insertRun(conv.CompanyID, nil, &conv.ID, p.ID, p.Agent, model, modelSource, subID, ws, wsSource, domain.TriggerChat, cont)
 	if err != nil {
 		return run, nil, err
 	}
@@ -563,8 +636,9 @@ func (t *txc) chatRunEnded(run store.Run, status domain.RunStatus, summary, errM
 			return err
 		}
 	}
-	if status == domain.RunCancelled || status == domain.RunInterrupted ||
-		domain.ConversationStatus(conv.Status) != domain.ConversationOpen {
+	// Interrupted runs are handled by the continuation (chatInterrupted); cancelling one starts the next run with
+	// whatever is pending (ADR-0039, reverts ADR-0027 §4 for cancellation).
+	if status == domain.RunInterrupted || domain.ConversationStatus(conv.Status) != domain.ConversationOpen {
 		return nil
 	}
 	pending, err := t.q.ListPendingConversationMessages(t.ctx, conv.ID)
@@ -574,13 +648,22 @@ func (t *txc) chatRunEnded(run store.Run, status domain.RunStatus, summary, errM
 	if len(pending) == 0 {
 		return nil
 	}
-	next, berr, err := t.openChatRun(conv)
+	var cont *continuation
+	if status == domain.RunCancelled && run.ResumePending && run.ResumeReason == string(domain.ContinueSteer) {
+		cont = &continuation{of: run, reason: domain.ContinueSteer, attempt: int(run.ContinuationAttempt)} // steer by restart: keeps the session
+	}
+	next, berr, err := t.openChatRun(conv, cont)
 	if err != nil {
 		return err
 	}
 	if berr != nil {
 		return t.addChatMessage(conv, domain.MessageSystem, nil,
 			fmt.Sprintf("Não consegui responder às %d mensagem(ns) em espera: %s. Elas seguem na fila e serão respondidas quando você enviar a próxima mensagem.", len(pending), berr.Error()), &run.ID)
+	}
+	if cont != nil {
+		if err := t.runOpenedAsContinuation(next, cont); err != nil {
+			return err
+		}
 	}
 	return t.launchChatRun(conv, next)
 }
@@ -616,6 +699,7 @@ func loadChatContext(ctx context.Context, q *store.Queries, run domain.Run, pers
 		return nil, fmt.Errorf("list conversation messages: %w", err)
 	}
 	cc := &ChatContext{Conversation: conversationFromRow(conv)}
+	rows, resetAt := afterContextReset(rows)
 	for _, r := range rows {
 		m := messageFromRow(r)
 		switch {
@@ -630,13 +714,40 @@ func loadChatContext(ctx context.Context, q *store.Queries, run domain.Run, pers
 	prev, err := q.LatestRunOfConversation(ctx, store.LatestRunOfConversationParams{ConversationID: run.ConversationID, ExceptID: run.ID})
 	switch {
 	case err == nil:
-		if prev.Status == string(domain.RunDone) && prev.SessionRef != "" && prev.Agent == persona.Agent && prev.CreatedAt.Before(run.CreatedAt) {
+		if prev.Status == string(domain.RunDone) && prev.SessionRef != "" && prev.Agent == persona.Agent && prev.CreatedAt.Before(run.CreatedAt) &&
+			!beforeReset(prev.CreatedAt, resetAt) {
 			cc.ResumeSession = prev.SessionRef
 		}
 	case !isNoRows(err):
 		return nil, fmt.Errorf("latest run of conversation: %w", err)
 	}
+	// A continuation resumes the session of the run it continues, whatever way that run ended (a retry starts clean).
+	if run.ContinuationOfRunID != nil {
+		cc.ResumeSession = ""
+		if run.ContinuationReason.ResumesSession() {
+			if of, oerr := q.GetRunByID(ctx, store.GetRunByIDParams{CompanyID: run.CompanyID, ID: *run.ContinuationOfRunID}); oerr == nil &&
+				of.SessionRef != "" && of.Agent == persona.Agent && !beforeReset(of.CreatedAt, resetAt) {
+				cc.ResumeSession = of.SessionRef
+			}
+		}
+	}
 	return cc, nil
+}
+
+// afterContextReset corta a lista (cronológica) no último marcador de /new: devolve só o que veio depois dele e o
+// instante do marcador (zero se não há). O que veio antes continua na conversa, mas fora do contexto da run.
+func afterContextReset(rows []store.ConversationMessage) ([]store.ConversationMessage, time.Time) {
+	for i := len(rows) - 1; i >= 0; i-- {
+		if rows[i].Marker != nil {
+			return rows[i+1:], rows[i].CreatedAt
+		}
+	}
+	return rows, time.Time{}
+}
+
+// beforeReset diz se uma run foi criada antes do último /new: a sessão dela não é retomada.
+func beforeReset(runCreated, resetAt time.Time) bool {
+	return !resetAt.IsZero() && runCreated.Before(resetAt)
 }
 
 // personaWorkspaceID is the workspace that scopes the memory of a persona's chat facts.

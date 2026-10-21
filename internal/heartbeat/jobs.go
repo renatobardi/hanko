@@ -1,6 +1,8 @@
 package heartbeat
 
 import (
+	"time"
+
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"
 
@@ -25,6 +27,20 @@ type WakeArgs struct {
 }
 
 func (WakeArgs) Kind() string { return "wake" }
+
+// WakeRetryArgs reconfere um wake que foi coalescido num job "wake" ainda marcado como running (o River só marca a
+// conclusão depois de Work voltar). Se nenhuma run da persona na task abriu desde RequestedAt, o wake se perdeu e é refeito.
+type WakeRetryArgs struct {
+	CompanyID   domain.ID         `json:"company_id"`
+	PersonaID   domain.ID         `json:"persona_id"`
+	TaskID      domain.ID         `json:"task_id"`
+	Trigger     domain.RunTrigger `json:"trigger"`
+	RequestedAt time.Time         `json:"requested_at"`
+}
+
+func (WakeRetryArgs) Kind() string { return "wake_retry" }
+
+func (WakeRetryArgs) InsertOpts() river.InsertOpts { return river.InsertOpts{MaxAttempts: 3} }
 
 // InsertOpts coalesces wakes: while one is waiting (or running), another is a no-op.
 // River requires "running" in the unique states.
@@ -91,6 +107,13 @@ type MemorySweepArgs struct{}
 func (MemorySweepArgs) Kind() string { return "memory_sweep" }
 
 func (MemorySweepArgs) InsertOpts() river.InsertOpts { return river.InsertOpts{MaxAttempts: 1} }
+
+// ReadinessTickArgs is the periodic readiness check of personas (job "readiness_tick", ADR-0055).
+type ReadinessTickArgs struct{}
+
+func (ReadinessTickArgs) Kind() string { return "readiness_tick" }
+
+func (ReadinessTickArgs) InsertOpts() river.InsertOpts { return river.InsertOpts{MaxAttempts: 1} }
 
 // AlertTickArgs is the periodic evaluation of operational alerts (job "alert_tick").
 type AlertTickArgs struct{}

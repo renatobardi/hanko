@@ -130,6 +130,12 @@ type SkillSyncResult struct {
 
 // SkillSourceLabel é o nome curto da fonte para a UI: host e caminho, sem .git.
 func SkillSourceLabel(raw string) string {
+	if _, path, ok := parseWorkspaceSkillURL(raw); ok {
+		if path == "" {
+			return "repositório do workspace"
+		}
+		return "repositório do workspace/" + path
+	}
 	u, err := url.Parse(raw)
 	if err != nil || u.Host == "" {
 		return strings.TrimPrefix(raw, "file://")
@@ -564,7 +570,7 @@ func (s *Service) syncSource(ctx context.Context, actor domain.Actor, companyID,
 	if err != nil {
 		return SkillSyncResult{}, mapErr(err, "claim skill source")
 	}
-	snap, ferr := skillgit.Fetch(ctx, src.Url, src.TrackingRef, skillgit.Scan{Prefix: src.PathPrefix, Excluded: src.ExcludedPaths}, s.gitOptions())
+	snap, ferr := s.fetchSkillSnapshot(ctx, src)
 	if ferr != nil {
 		return s.failSync(ctx, actor, src, ferr)
 	}

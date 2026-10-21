@@ -21,6 +21,9 @@ type RunExtras struct {
 	// ToolGateway são os slugs das integrações MCP http da run: o executor as aponta para o gateway de tools do
 	// Hanko (/mcp/run/{slug}, com o run token), nunca direto para o servidor (ADR-0036).
 	ToolGateway []string
+	// NativeTools: há política que alcança as tools nativas do harness para a persona (ADR-0053). O executor liga então
+	// o hook PreToolUse do claude e o guarda do permission request do ACP.
+	NativeTools bool
 }
 
 // RunExtras monta as skills e os servidores MCP da empresa para uma run da persona. É chamado pelo executor
@@ -54,6 +57,9 @@ func (s *Service) RunExtrasForProject(ctx context.Context, companyID, personaID 
 	if err != nil {
 		return ex, err
 	}
+	if ex.NativeTools, err = s.NativeToolPolicies(ctx, companyID, personaID); err != nil {
+		return ex, err
+	}
 	for _, r := range rows {
 		cfg := parseIntegrationConfig(r.Config)
 		if w, skip := toolProfileSkips(prof, r, cfg); skip {
@@ -69,10 +75,17 @@ func (s *Service) RunExtrasForProject(ctx context.Context, companyID, personaID 
 			ex.ToolGateway = append(ex.ToolGateway, r.Slug) // http: pelo gateway de tools, sem os segredos (ADR-0036)
 			continue
 		}
-		if !s.Integrations.AllowStdio {
+		if !s.Integrations.stdioAllowed() {
 			ex.Warnings = append(ex.Warnings, fmt.Sprintf("integração %q ignorada: stdio está desligado neste servidor", r.Slug))
 			continue
 		}
+		env, _, eerr := s.expandMap(ctx, companyID, sec.Env)
+		if eerr != nil {
+			// o texto do erro nomeia o segredo que faltou, nunca o valor
+			ex.Warnings = append(ex.Warnings, fmt.Sprintf("integração %q ignorada: %v", r.Slug, eerr))
+			continue
+		}
+		sec.Env = env
 		entry := map[string]any{"type": "stdio", "command": cfg.Command, "args": nonNilStrings(cfg.Args)}
 		if len(sec.Env) > 0 {
 			entry["env"] = sec.Env

@@ -45,6 +45,12 @@ type Options struct {
 	// WakeSnooze is how long a wake waits before re-checking a task that still has an
 	// active run; default 30 s.
 	WakeSnooze time.Duration
+
+	// ToolsSingleEndpoint (HANKO_TOOLS_SINGLE_ENDPOINT) faz o harness receber um único endpoint do gateway de tools
+	// (/mcp/run, com as tools de todas as integrações prefixadas) em vez de um servidor por integração (ADR-0053).
+	ToolsSingleEndpoint bool
+	// ToolHookBin é o executável `hanko` que o claude chama como hook PreToolUse; vazio usa o do próprio processo.
+	ToolHookBin string
 }
 
 func (o *Options) defaults() {
@@ -151,12 +157,14 @@ func New(pool *pgxpool.Pool, opts Options) (*Heartbeat, error) {
 	workers := river.NewWorkers()
 	if err := errors.Join(
 		river.AddWorkerSafely(workers, &wakeWorker{h: h}),
+		river.AddWorkerSafely(workers, &wakeRetryWorker{h: h}),
 		river.AddWorkerSafely(workers, &executeRunWorker{h: h}),
 		river.AddWorkerSafely(workers, &deliverMemoryWorker{h: h}),
 		river.AddWorkerSafely(workers, &tickWorker{h: h}),
 		river.AddWorkerSafely(workers, &sweepWorker{h: h}),
 		river.AddWorkerSafely(workers, &flowTickWorker{h: h}),
 		river.AddWorkerSafely(workers, &alertTickWorker{h: h}),
+		river.AddWorkerSafely(workers, &readinessTickWorker{h: h}),
 		river.AddWorkerSafely(workers, &startReviewWorker{h: h}),
 		river.AddWorkerSafely(workers, &deliverWebhookWorker{h: h}),
 		river.AddWorkerSafely(workers, &memoryTickWorker{h: h}),
@@ -164,6 +172,7 @@ func New(pool *pgxpool.Pool, opts Options) (*Heartbeat, error) {
 		river.AddWorkerSafely(workers, &skillTickWorker{h: h}),
 		addPluginWorkers(workers, h),
 		river.AddWorkerSafely(workers, &statusCardTickWorker{h: h}),
+		river.AddWorkerSafely(workers, &worktreeTickWorker{h: h}),
 	); err != nil {
 		return nil, fmt.Errorf("heartbeat workers: %w", err)
 	}
@@ -195,6 +204,9 @@ func New(pool *pgxpool.Pool, opts Options) (*Heartbeat, error) {
 				func() (river.JobArgs, *river.InsertOpts) { return AlertTickArgs{}, nil },
 				&river.PeriodicJobOpts{ID: "alert_tick"}),
 			river.NewPeriodicJob(river.PeriodicInterval(opts.PeriodicInterval),
+				func() (river.JobArgs, *river.InsertOpts) { return ReadinessTickArgs{}, nil },
+				&river.PeriodicJobOpts{ID: "readiness_tick"}),
+			river.NewPeriodicJob(river.PeriodicInterval(opts.PeriodicInterval),
 				func() (river.JobArgs, *river.InsertOpts) { return MemoryTickArgs{}, nil },
 				&river.PeriodicJobOpts{ID: "memory_consolidation_tick"}),
 			river.NewPeriodicJob(river.PeriodicInterval(SkillTickInterval),
@@ -204,6 +216,9 @@ func New(pool *pgxpool.Pool, opts Options) (*Heartbeat, error) {
 			river.NewPeriodicJob(river.PeriodicInterval(opts.PeriodicInterval),
 				func() (river.JobArgs, *river.InsertOpts) { return StatusCardTickArgs{}, nil },
 				&river.PeriodicJobOpts{ID: "status_card_tick"}),
+			river.NewPeriodicJob(river.PeriodicInterval(service.WorktreeReapInterval),
+				func() (river.JobArgs, *river.InsertOpts) { return WorktreeTickArgs{}, nil },
+				&river.PeriodicJobOpts{ID: "worktree_tick"}),
 		},
 	})
 	if err != nil {
@@ -271,9 +286,18 @@ func (h *Heartbeat) WakeTx(ctx context.Context, tx pgx.Tx, w service.Wake) error
 	if err := service.BumpWakeRequestTx(ctx, tx, w); err != nil {
 		return err
 	}
-	_, err := h.client.InsertTx(ctx, tx, WakeArgs{CompanyID: w.CompanyID, PersonaID: w.PersonaID, TaskID: w.TaskID, Trigger: w.Trigger}, nil)
+	res, err := h.client.InsertTx(ctx, tx, WakeArgs{CompanyID: w.CompanyID, PersonaID: w.PersonaID, TaskID: w.TaskID, Trigger: w.Trigger}, nil)
 	if err != nil {
 		return fmt.Errorf("enqueue wake: %w", err)
+	}
+	// Coalescido num job que consta como running: ele pode já ter feito o checkout e só faltar o River marcá-lo
+	// concluído, e o pedido se perderia. Uma reconferência curta refaz o wake se nenhuma run abrir.
+	if res.UniqueSkippedAsDuplicate && res.Job != nil && res.Job.State == rivertype.JobStateRunning {
+		now := time.Now().UTC()
+		if _, err := h.client.InsertTx(ctx, tx, WakeRetryArgs{CompanyID: w.CompanyID, PersonaID: w.PersonaID, TaskID: w.TaskID,
+			Trigger: w.Trigger, RequestedAt: now}, &river.InsertOpts{ScheduledAt: now.Add(wakeRetryDelay)}); err != nil {
+			return fmt.Errorf("enqueue wake retry: %w", err)
+		}
 	}
 	return nil
 }

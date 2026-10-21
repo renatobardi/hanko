@@ -20,6 +20,10 @@ import (
 	"github.com/renatobardi/hanko/internal/events"
 	"github.com/renatobardi/hanko/internal/execenv"
 	"github.com/renatobardi/hanko/internal/memory"
+	"github.com/renatobardi/hanko/internal/readiness"
+	"github.com/renatobardi/hanko/internal/settings"
+	"github.com/renatobardi/hanko/internal/storage"
+	"github.com/renatobardi/hanko/internal/vault"
 )
 
 // ErrNotImplemented marks contract stubs not yet filled.
@@ -89,6 +93,14 @@ type Service struct {
 	// ACP é a política do operador para o harness acp (HANKO_ACP_ALLOW / HANKO_ACP_COMMANDS, ADR-0023). O zero
 	// value recusa: persona acp não pode ser contratada nem importada.
 	ACP acp.Policy
+	// Probers são os probes de readiness por harness (ADR-0056); o app os registra junto dos adapters.
+	Probers map[string]adapter.Prober
+	// Vault é o cofre externo de segredos (ADR-0050); nil = nenhum configurado (segredos provider=vault recusados).
+	Vault vault.Provider
+	// Blobs guarda o conteúdo dos artefatos (ADR-0051); nil usa o driver postgres sobre o pool.
+	Blobs *storage.Registry
+	// Settings são os toggles não sensíveis da instalação (ADR-0050); nil usa os campos fixos acima (testes).
+	Settings *settings.Manager
 	// Environments é a política do operador para os ambientes de execução remotos (ADR-0037): SSH e sandbox
 	// vêm desligados no zero value.
 	Environments execenv.Config
@@ -106,11 +118,30 @@ type Service struct {
 	Log *slog.Logger
 	// Plugins é a política do operador para plugins de terceiros (HANKO_PLUGINS_DIR, ADR-0038); zero = desligados.
 	Plugins PluginsConfig
+	// GitWorkspaces é o interruptor do operador dos workspaces de execução com Git (HANKO_GIT_WORKSPACES, ADR-0054).
+	// O zero value é o seguro: desligados, o servidor não clona nada.
+	GitWorkspaces GitWorkspacesConfig
+
+	gitSt *gitState // executor do git e locks de espelho; ver gitState
+
+	// Readiness são os binários dos harnesses locais e ReadinessEvery o intervalo da checagem periódica da persona
+	// (HANKO_READINESS_INTERVAL, ADR-0055); zero desliga a checagem periódica (o app define DefaultReadinessInterval).
+	Readiness      readiness.Config
+	ReadinessEvery time.Duration
+	// ReadinessRunner (só testes) troca a execução do script do probe; nil usa execenv.RunScript no ambiente da persona.
+	ReadinessRunner func(ctx context.Context, target execenv.Target, script string, env map[string]string) ([]byte, error)
+
+	// Push é a configuração do web push (ADR-0042); o zero value serve (precisa de HANKO_SECRET_KEY para a chave VAPID).
+	Push PushConfig
+
+	// notifier guarda o estado dos avisos (entregas em andamento, cache da chave VAPID). É ponteiro para o Service
+	// poder ser copiado; New o cria, e sem ele vale o estado global do processo (ver ns).
+	notifier *notifyState
 }
 
 func New(pool *pgxpool.Pool, jobs Jobs, broker *events.Broker) *Service {
 	return &Service{Pool: pool, Jobs: jobs, Broker: broker, Now: func() time.Time { return time.Now().UTC() },
-		PasswordGate: auth.NewPasswordGate(0, 0)}
+		PasswordGate: auth.NewPasswordGate(0, 0), gitSt: &gitState{}, notifier: &notifyState{}}
 }
 
 // ---------- inputs ----------
@@ -159,11 +190,13 @@ type HirePersonaInput struct {
 
 type UpdatePersonaInput struct {
 	Name, Title, Instructions, Model *string
-	Icon                             *string // um de domain.PersonaIcons
-	Status                           *domain.PersonaStatus
-	HeartbeatIntervalSec             *int
-	WorkspaceID                      *domain.ID
-	ClearWorkspace                   bool
+	// InstructionsReason é o motivo da mudança de instruções (ADR-0052); vai na revisão gravada.
+	InstructionsReason   string
+	Icon                 *string // um de domain.PersonaIcons
+	Status               *domain.PersonaStatus
+	HeartbeatIntervalSec *int
+	WorkspaceID          *domain.ID
+	ClearWorkspace       bool
 	// ReportsTo moves the persona under another one; ClearReportsTo makes it top-level.
 	// A move that would close a loop in the chart is rejected (ErrInvalid).
 	ReportsTo      *domain.ID
@@ -194,7 +227,12 @@ type CreateTaskInput struct {
 	GoalID      *domain.ID // meta a que a task serve (ADR-0028); só meta ativa
 	Model       string     // manual model choice (wins over the persona's); empty = none
 	ParentID    *domain.ID
-	EventID     string // idempotency key (agents/MCP)
+	// DependsOn são as tasks de que a nova depende (bloqueada até todas fecharem; ADR-0040).
+	DependsOn []domain.ID
+	EventID   string // idempotency key (agents/MCP)
+	// Unassigned recusa o responsável padrão: uma task criada por uma pessoa sem PersonaID nasce com a persona principal
+	// dela (ADR-0041), a menos que isto esteja ligado.
+	Unassigned bool
 
 	trigger domain.RunTrigger // wake trigger; default assign (flows use flow)
 	// noMemoryFact: a task de sistema da consolidação de memória não vira página na própria memória.
@@ -216,6 +254,12 @@ type UpdateTaskInput struct {
 	ClearGoal bool
 	Model     *string // manual model choice; empty string clears it
 	EventID   string
+	// ParentID muda o pai da task (mesma empresa, sem ciclo, até 10 níveis); ClearParent a torna raiz (ADR-0040).
+	ParentID    *domain.ID
+	ClearParent bool
+	// ForceClose + OverrideReason: um humano conclui o pai mesmo com subtask aberta, registrando o motivo.
+	ForceClose     bool
+	OverrideReason string
 }
 
 type TaskFilter struct {
@@ -224,14 +268,20 @@ type TaskFilter struct {
 	ProjectID *domain.ID
 	GoalID    *domain.ID
 	Query     string
-	Limit     int // default 100, max 500
-	Offset    int
+	// Mine limita às tasks em que a pessoa autenticada participa (criou, atribuiu, foi mencionada, comentou ou é da
+	// audiência de um gate, ADR-0042); sem pessoa autenticada devolve vazio. Cada task traz Participation.
+	Mine   bool
+	Limit  int // default 100, max 500
+	Offset int
 }
 
 type AddCommentInput struct {
 	Body    string
 	RunID   *domain.ID
 	EventID string
+	// AttachmentIDs são anexos da task já enviados (sem comentário ainda) que passam a pertencer a este comentário,
+	// na mesma transação: a run acordada pelo comentário já os vê no briefing (ADR-0052).
+	AttachmentIDs []domain.ID
 	// Anchor, when set, ties the comment to a passage of the task description or of a run summary
 	// (ADR-0026). The service checks that the quote exists in the target document and fills offsets and hash.
 	Anchor *domain.Anchor
@@ -250,8 +300,12 @@ type RunFilter struct {
 type ActivityFilter struct {
 	SubjectType string
 	SubjectID   *domain.ID
-	Before      *time.Time
-	Limit       int // default 50
+	// ActorType (human|persona|system) e ActorID filtram por quem causou o fato (ADR-0042); ActorID vazio com
+	// ActorType human/persona pega todos do tipo. ResolveActor converte "human:ana@x.com" / "persona:ana" / "system".
+	ActorType string
+	ActorID   *domain.ID
+	Before    *time.Time
+	Limit     int // default 50
 }
 
 type FinishRunInput struct {
@@ -268,6 +322,10 @@ type TaskView struct {
 	// System marca a task de sistema de uma rodada de curadoria de memória (ADR-0030): o Hanko a cria, a
 	// acorda e a encerra; ninguém a acorda à mão nem por comentário.
 	System bool `json:"system,omitempty"`
+	// Participation são os motivos pelos quais a task é "minha" (só nas listagens com Mine, ADR-0042).
+	Participation []string `json:"participation,omitempty"`
+	// TaskCoord traz o que a coordenação deriva: dependências abertas (bloqueada), filhos e pausa (ADR-0040).
+	TaskCoord
 }
 
 // RunView is a run with display-ready joins.
@@ -278,6 +336,13 @@ type RunView struct {
 	PersonaName string `json:"persona_name"`
 	// ConversationTitle is the title of the conversation of a chat run (empty for task runs).
 	ConversationTitle string `json:"conversation_title,omitempty"`
+	// SteerMode is how the run's harness takes an operator message mid-run (ADR-0039).
+	SteerMode domain.SteerMode `json:"steer_mode,omitempty"`
+	// ContinuedByRunID is the run that continued this one, when there is one (filled by GetRun).
+	ContinuedByRunID *domain.ID `json:"continued_by_run_id,omitempty"`
+	// PolicyOrigin diz de que camada (task, projeto ou persona) veio a política de revisão que valeu na execução
+	// (ADR-0040); só o detalhe da execução preenche.
+	PolicyOrigin *domain.RunPolicyOrigin `json:"policy_origin,omitempty"`
 }
 
 // DashboardStats feeds the Painel.
@@ -310,6 +375,43 @@ type RunContext struct {
 	Goals []GoalBrief
 	// Chat is set for runs with trigger chat (no task: Task and Comments are empty).
 	Chat *ChatContext
+	// Continuation is set when the run continues another one (ADR-0039); ResumeSession is the harness session a task
+	// run resumes (chat runs use Chat.ResumeSession).
+	Continuation  *ContinuationContext
+	ResumeSession string
+	// Relations são a árvore (ancestrais e subtasks) e as dependências da task (ADR-0040); nil sem task.
+	Relations *TaskRelations
+	// ReviewPolicy é a política de revisão que vale para esta task e esta persona (task > projeto > persona).
+	ReviewPolicy *domain.ReviewPolicy
+	// Plan é a fase de plan-review da task (ADR-0041); nil quando a política de plano não vale.
+	Plan *PlanContext
+	// ProjectInstructions é o briefing do projeto da task (ADR-0054, #34); entra no system prompt depois das
+	// instruções da persona. Vazio sem projeto ou sem briefing.
+	ProjectInstructions string
+	// SessionReset é o pedido de "Nova sessão" que este run aplicou (ADR-0054, #16); nil na maioria dos runs.
+	SessionReset *domain.TaskSessionReset
+	// Worktree é o worktree Git da task quando o executor o preparou (ADR-0054); o prompt diz a branch.
+	Worktree *WorktreePrep
+	// Attachments são os anexos da task (ou da conversa, numa run de chat), do mais antigo ao mais novo, até
+	// MaxBriefingAttachments (ADR-0052).
+	Attachments []AttachmentBrief
+}
+
+// MaxBriefingAttachments é quantos anexos entram no briefing da run.
+const MaxBriefingAttachments = 30
+
+// AttachmentBrief é um anexo em formato curto para o briefing da run.
+type AttachmentBrief struct {
+	ID        domain.ID
+	Name      string
+	Mime      string
+	SizeBytes int64
+	Author    domain.Actor
+	CreatedAt time.Time
+	CommentID *domain.ID
+	MessageID *domain.ID
+	// New: o anexo veio numa mensagem que esta run de chat recolheu.
+	New bool
 }
 
 // WakeCandidate is an (assigned, workable, idle) task found by the periodic heartbeat.

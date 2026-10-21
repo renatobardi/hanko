@@ -21,6 +21,9 @@ const (
 type Identity struct {
 	User domain.User
 	Via  Via
+	// KeyID e KeyScope só valem com ViaAPIKey (ADR-0057); escopo vazio = full.
+	KeyID    *domain.ID
+	KeyScope domain.KeyScope
 }
 
 type identityKey struct{}

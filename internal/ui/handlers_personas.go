@@ -80,6 +80,7 @@ func (s *server) handleNewPersona(w http.ResponseWriter, r *http.Request, co dom
 }
 
 func (s *server) renderHire(w http.ResponseWriter, r *http.Request, co domain.Company, status int, vm views.HirePersonaVM) {
+	vm.ModelPicker = s.modelPicker(r.Context(), co, "p-model", "model", vm.Model)
 	vm.AcpPermission = acpPermissionOptions(r.Context(), vm.AcpPermission)
 	if personas, err := s.be.ListPersonas(r.Context(), co.ID); err == nil {
 		var sel *domain.ID
@@ -96,11 +97,12 @@ func (s *server) renderHire(w http.ResponseWriter, r *http.Request, co domain.Co
 
 func (s *server) handleHirePersona(w http.ResponseWriter, r *http.Request, co domain.Company) {
 	vm := views.HirePersonaVM{
-		Name: trimForm(r, "name"), Title: trimForm(r, "title"), Agent: trimForm(r, "agent"), Model: trimForm(r, "model"),
+		Name: trimForm(r, "name"), Title: trimForm(r, "title"), Agent: trimForm(r, "agent"), Model: modelFromForm(r, "model"),
 		Instructions: r.PostFormValue("instructions"), Heartbeat: trimForm(r, "heartbeat"), FieldErr: map[string]string{},
 		RequireReview: r.PostFormValue("require_review") != "", Icon: trimForm(r, "icon"),
 		AcpCommand: trimForm(r, "acp_command"), AcpArgs: r.PostFormValue("acp_args"),
 		AcpPermission: []views.Option{{Value: trimForm(r, "acp_permission"), Selected: true}},
+		AcpPreset:     trimForm(r, "acp_preset"), HttpBaseURL: trimForm(r, "http_base_url"), HttpKeyRef: trimForm(r, "http_key_ref"),
 	}
 	ctx := r.Context()
 	var reportsTo *domain.ID
@@ -134,12 +136,42 @@ func (s *server) handleHirePersona(w http.ResponseWriter, r *http.Request, co do
 		return
 	}
 	if !domain.ValidAgent(vm.Agent) {
-		bad("agent", i18n.T(ctx, "Harness desconhecido: use claude, codex, acp ou fake."))
+		bad("agent", i18n.T(ctx, "Harness desconhecido: use claude, codex, acp, devin, pi, cursor, http ou fake."))
 		return
 	}
 	var adapterCfg json.RawMessage
+	switch vm.Agent {
+	case "devin":
+		// comando fixo pelo operador (HANKO_DEVIN_BIN): a persona só escolhe a permissão
+		if p := selectedValue(vm.AcpPermission); p != "" {
+			adapterCfg, _ = json.Marshal(map[string]any{"permission": p})
+		}
+	case "http":
+		if vm.HttpBaseURL == "" {
+			bad("http_base_url", i18n.T(ctx, "Informe o endpoint compatível com chat completions."))
+			return
+		}
+		if vm.Model == "" {
+			bad("model", i18n.T(ctx, "Informe o modelo do endpoint."))
+			return
+		}
+		cfg := map[string]any{"base_url": vm.HttpBaseURL}
+		if vm.HttpKeyRef != "" {
+			cfg["api_key_ref"] = vm.HttpKeyRef
+		}
+		adapterCfg, _ = json.Marshal(cfg)
+	}
 	if vm.Agent == "acp" {
 		switch {
+		case vm.AcpPreset != "":
+			cfg := map[string]any{"preset": vm.AcpPreset}
+			if p := selectedValue(vm.AcpPermission); p != "" {
+				cfg["permission"] = p
+			}
+			if args := splitLines(vm.AcpArgs); len(args) > 0 {
+				cfg["args"] = args
+			}
+			adapterCfg, _ = json.Marshal(cfg)
 		case vm.AcpCommand == "":
 			bad("acp_command", i18n.T(ctx, "Informe o comando do harness ACP."))
 			return
@@ -147,19 +179,21 @@ func (s *server) handleHirePersona(w http.ResponseWriter, r *http.Request, co do
 			bad("acp_command", i18n.T(ctx, "O comando deve ser só o executável; ponha os argumentos no campo de argumentos."))
 			return
 		}
-		cfg := map[string]any{"command": vm.AcpCommand}
-		if p := selectedValue(vm.AcpPermission); p != "" {
-			cfg["permission"] = p
+		if vm.AcpPreset == "" {
+			cfg := map[string]any{"command": vm.AcpCommand}
+			if p := selectedValue(vm.AcpPermission); p != "" {
+				cfg["permission"] = p
+			}
+			if args := splitLines(vm.AcpArgs); len(args) > 0 {
+				cfg["args"] = args
+			}
+			b, err := json.Marshal(cfg)
+			if err != nil {
+				bad("acp_command", i18n.T(ctx, "Informe o comando do harness ACP."))
+				return
+			}
+			adapterCfg = b
 		}
-		if args := splitLines(vm.AcpArgs); len(args) > 0 {
-			cfg["args"] = args
-		}
-		b, err := json.Marshal(cfg)
-		if err != nil {
-			bad("acp_command", i18n.T(ctx, "Informe o comando do harness ACP."))
-			return
-		}
-		adapterCfg = b
 	}
 	minutes := 15
 	if vm.Heartbeat != "" {
@@ -185,7 +219,8 @@ func (s *server) handleHirePersona(w http.ResponseWriter, r *http.Request, co do
 		s.renderHire(w, r, co, statusFor(err), vm)
 		return
 	}
-	redirect(w, r, "/c/"+co.Slug+"/personas/"+p.Slug)
+	// a persona nova é testada ao abrir a página: binário, login e modelo aparecem antes da primeira execução (ADR-0055)
+	redirect(w, r, "/c/"+co.Slug+"/personas/"+p.Slug+"?testar=1")
 }
 
 func (s *server) handlePersona(w http.ResponseWriter, r *http.Request, co domain.Company) {
@@ -226,6 +261,11 @@ func (s *server) renderPersona(w http.ResponseWriter, r *http.Request, co domain
 		Hired: fmtDateTime(ctx, p.CreatedAt, loc), Slug: p.Slug,
 		RequireReview: p.RequireReview, OrgAction: base + "/personas/" + p.Slug + "/organizacao",
 		Icon: p.Icon, IconAction: base + "/personas/" + p.Slug + "/icone",
+		ReadinessHref:    base + "/personas/" + p.Slug + "/prontidao",
+		InstructionsHref: base + "/personas/" + p.Slug + "/instrucoes", InstructionRevision: p.InstructionRevision,
+	}
+	if r.URL.Query().Get("testar") == "1" {
+		vm.ReadinessHref += "?auto=1"
 	}
 	all, err := s.be.ListPersonas(ctx, co.ID)
 	if err != nil {
@@ -241,6 +281,7 @@ func (s *server) renderPersona(w http.ResponseWriter, r *http.Request, co domain
 		vm.Reviewer.Agent = reviewerAgentOptions(ctx, rv.Agent)
 	}
 	vm.Extras = s.personaExtras(ctx, co, p)
+	vm.Plus = s.personaPlusVM(ctx, co, p) // persona principal, de sistema e política de plano (ADR-0041)
 	vm.SubAction = base + "/personas/" + p.Slug + "/assinatura"
 	vm.SubOptions = []views.Option{{Value: "", Label: i18n.T(ctx, "Sem assinatura"), Selected: p.SubscriptionID == nil}}
 	if subs, err := s.be.ListSubscriptions(ctx, co.ID); err == nil {

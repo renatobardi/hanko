@@ -518,6 +518,11 @@ func (s *Service) pluginSecretValues(ctx context.Context, pluginID domain.ID) []
 			for _, x := range sec {
 				out = append(out, x)
 			}
+			if rs, _, err := s.expandStringMap(ctx, r.CompanyID, sec); err == nil { // valores das referências, para mascarar o log
+				for _, x := range rs {
+					out = append(out, x)
+				}
+			}
 		}
 	}
 	rt.mu.Lock()

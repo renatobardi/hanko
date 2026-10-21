@@ -171,8 +171,18 @@ func (s *server) buildChatVM(r *http.Request, co domain.Company, cv service.Conv
 		return views.ChatVM{}, err
 	}
 	names := s.lookup(ctx, personas, nil)
+	atts, err := s.messageAttachments(ctx, co, cv.ID, base, loc)
+	if err != nil {
+		return views.ChatVM{}, err
+	}
+	usage, err := s.be.GetArtifactUsage(ctx, co.ID)
+	if err != nil {
+		return views.ChatVM{}, err
+	}
 	vm := views.ChatVM{
-		Title: cv.Title, Persona: cv.PersonaName, PersonaHref: base + "/personas/" + cv.PersonaSlug,
+		DraftF:     s.draftFields(ctx, co, base+"/chat/"+cv.ID.String()+"/rascunho", domain.DraftConversation, cv.ID),
+		UploadHint: uploadHint(ctx, usage.MaxFileBytes),
+		Title:      cv.Title, Persona: cv.PersonaName, PersonaHref: base + "/personas/" + cv.PersonaSlug,
 		Badge: chatBadge(ctx, cv), Archived: cv.Status == domain.ConversationArchived,
 		// Busy (a polling thread) only while a run is answering. Messages waiting with no run (it was cancelled or
 		// interrupted) are shown as a notice: polling would never end.
@@ -191,7 +201,8 @@ func (s *server) buildChatVM(r *http.Request, co domain.Company, cv service.Conv
 		vm.Waiting = cv.PendingMessages
 	}
 	for _, m := range msgs {
-		cm := views.ChatMsg{Kind: string(m.Kind), Author: names.actorName(m.Author), When: fmtDateTime(ctx, m.CreatedAt, loc)}
+		cm := views.ChatMsg{Kind: string(m.Kind), Author: names.actorName(m.Author), When: fmtDateTime(ctx, m.CreatedAt, loc),
+			Marker: m.Marker, Attachments: atts[m.ID]}
 		switch m.Kind {
 		case domain.MessageSystem:
 			cm.Body = views.HTML(m.Body) // shown as escaped plain text
@@ -206,6 +217,23 @@ func (s *server) buildChatVM(r *http.Request, co domain.Company, cv service.Conv
 			cm.RunHref = base + "/execucoes/" + m.RunID.String()
 		}
 		vm.Messages = append(vm.Messages, cm)
+	}
+	if cv.Status == domain.ConversationOpen {
+		fs, err := s.be.ListFollowups(ctx, co.ID, service.FollowupTarget{ConversationID: &cv.ID})
+		if err != nil {
+			return views.ChatVM{}, err
+		}
+		var steer *views.SteerVM
+		if cv.ActiveRunID != nil {
+			if rv, rerr := s.be.GetRun(ctx, co.ID, *cv.ActiveRunID); rerr == nil {
+				steer = steerVM(ctx, base, rv)
+				if steer != nil {
+					steer.Back = base + "/chat/" + cv.ID.String()
+				}
+			}
+		}
+		vm.Followups = followupsVM(ctx, base, fs, base+"/chat/"+cv.ID.String(), steer)
+		vm.QueueHref = base + "/chat/" + cv.ID.String() + "/fila"
 	}
 	if p, err := s.be.GetPersona(ctx, co.ID, cv.PersonaSlug); err == nil && !p.Status.CanWork() && p.Status != domain.PersonaAwaitingGate {
 		vm.Blocked = i18n.Tf(ctx, "A persona %s está %s e não pode responder agora.", p.Name, strings.ToLower(personaBadge(ctx, p.Status).Label))
@@ -247,13 +275,7 @@ func (s *server) handleChatSend(w http.ResponseWriter, r *http.Request, co domai
 	if !ok {
 		return
 	}
-	body := strings.TrimSpace(r.PostFormValue("message"))
-	if body == "" {
-		s.fail(w, r, &co, domain.Invalid(i18n.T(ctx, "mensagem"), i18n.T(ctx, "escreva algo antes de enviar")))
-		return
-	}
-	if _, err := s.be.SendMessage(ctx, actorFrom(ctx), co.ID, cv.ID, body); err != nil {
-		s.fail(w, r, &co, err)
+	if !s.sendFromForm(w, r, co, cv) {
 		return
 	}
 	base := "/c/" + co.Slug

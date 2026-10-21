@@ -39,6 +39,10 @@ type Shell struct {
 	Owner   string            // display name of the human owner
 	Role    domain.MemberRole // papel da pessoa nesta empresa (só UX; o service é a barreira)
 	Flush   bool              // content area without padding (two-pane pages)
+	// Archived: a empresa está arquivada (somente leitura); a faixa avisa em toda página (ADR-0057).
+	Archived bool
+	// Personal: há uma pessoa autenticada, então a Caixa tem selo de não lidos e toasts ao vivo (ADR-0042).
+	Personal bool
 }
 
 // Base returns the company-scoped URL prefix, e.g. "/c/hanko".
@@ -174,6 +178,8 @@ type Msg struct {
 	// Quote is the passage an anchored comment is about; QuoteLost = its anchor no longer exists in the document.
 	Quote     string
 	QuoteLost bool
+	// Anexos do comentário (ADR-0052).
+	Attachments []AttachmentRow
 }
 
 type RunMini struct {
@@ -221,12 +227,20 @@ type TaskVM struct {
 	Notice          string // flash after an action
 	Error           string
 	Draft           string
+	Followups       *FollowupsVM // fila de follow-ups (ADR-0039); nil quando a task está encerrada
+	// DraftF liga o campo de comentário ao rascunho do servidor; Attach é o cartão de anexos da task e UploadHint a
+	// dica de tamanho do campo de arquivos do compositor (ADR-0052).
+	DraftF     DraftFields
+	Attach     AttachBox
+	UploadHint string
 	// Anchored-comment island on the description (ADR-0026).
 	TaskKey     string
 	DescDoc     string // description as anchors see it (\n line endings)
 	DescAnchors string // JSON
 	IslandAPI   string
 	AnchorMsgs  string // JSON
+	// Coord: árvore, dependências, pausa e política de revisão (ADR-0040).
+	Coord TaskCoordVM
 }
 
 type NewTaskVM struct {
@@ -240,6 +254,9 @@ type NewTaskVM struct {
 	GoalOptions     []Option
 	Error           string
 	FieldErr        map[string]string
+	// Parent/DependsOn (ADR-0040): chave da task pai e chaves (separadas por vírgula) das dependências.
+	Parent    string
+	DependsOn string
 }
 
 // ---- personas ----
@@ -266,10 +283,12 @@ type PersonasVM struct {
 }
 
 type HirePersonaVM struct {
-	Name          string
-	Title         string
-	Agent         string
-	Model         string
+	Name  string
+	Title string
+	Agent string
+	Model string
+	// ModelPicker é o seletor de modelo com "Outro…" (catálogo híbrido, ADR-0055).
+	ModelPicker   ModelPickerVM
 	Instructions  string
 	Heartbeat     string
 	ReportsTo     []Option // "Reporta a": the human owner or a persona
@@ -281,9 +300,15 @@ type HirePersonaVM struct {
 	AcpCommand    string
 	AcpArgs       string   // one argument per line
 	AcpPermission []Option // allow | reject | read_only
+	AcpPreset     string   // gemini | opencode (ADR-0056)
+	// Harness http (ADR-0056): endpoint e referência da chave.
+	HttpBaseURL string
+	HttpKeyRef  string
 }
 
 type PersonaVM struct {
+	// ReadinessHref é o fragmento do cartão de prontidão do harness (ADR-0055); com ?auto=1 ele testa ao carregar.
+	ReadinessHref string
 	Icon          string // glifo atual (domain.PersonaIcons)
 	IconAction    string // POST que troca o glifo
 	Name          string
@@ -294,30 +319,34 @@ type PersonaVM struct {
 	Model         string
 	Heartbeat     string
 	Instructions  string
-	Hired         string
-	Slug          string
-	Tasks         []TaskRow
-	Chats         []ChatRow // conversations with this persona
-	NewChatHref   string    // opens a conversation with it ("" = the viewer cannot write)
-	Rooms         []RoomRow // salas em que participa (ADR-0033)
-	Runs          []RunRow
-	Budget        *BudgetBox       // monthly spend vs ceiling
-	Notice        string           // flash after an action
-	LastError     string           // last failed run, shown while the persona is failing
-	LastErrorAt   string           // when it happened
-	Failures      int              // failed runs in a row
-	Controls      []PersonaControl // pause / resume / reactivate buttons
-	ReportsTo     string           // name of the superior ("" = reports to the owner)
-	ReportsHref   string
-	Reports       []PersonaRef // personas that report to this one
-	RequireReview bool
-	Subscription  string   // name of the subscription that covers the persona ("" = none)
-	SubOptions    []Option // subscriptions to link
-	SubAction     string
-	OrgAction     string   // POST target of the organisation form
-	OrgOptions    []Option // "Reporta a" choices
-	Reviewer      ReviewerVM
-	Extras        PersonaExtrasVM // skills e servidores MCP (ADR-0029)
+	// InstructionsHref leva ao histórico e à edição das instruções (revisão vigente em InstructionRevision, ADR-0052).
+	InstructionsHref    string
+	InstructionRevision int
+	Hired               string
+	Slug                string
+	Tasks               []TaskRow
+	Chats               []ChatRow // conversations with this persona
+	NewChatHref         string    // opens a conversation with it ("" = the viewer cannot write)
+	Rooms               []RoomRow // salas em que participa (ADR-0033)
+	Runs                []RunRow
+	Budget              *BudgetBox       // monthly spend vs ceiling
+	Notice              string           // flash after an action
+	LastError           string           // last failed run, shown while the persona is failing
+	LastErrorAt         string           // when it happened
+	Failures            int              // failed runs in a row
+	Controls            []PersonaControl // pause / resume / reactivate buttons
+	ReportsTo           string           // name of the superior ("" = reports to the owner)
+	ReportsHref         string
+	Reports             []PersonaRef // personas that report to this one
+	RequireReview       bool
+	Subscription        string   // name of the subscription that covers the persona ("" = none)
+	SubOptions          []Option // subscriptions to link
+	SubAction           string
+	OrgAction           string   // POST target of the organisation form
+	OrgOptions          []Option // "Reporta a" choices
+	Reviewer            ReviewerVM
+	Extras              PersonaExtrasVM // skills e servidores MCP (ADR-0029)
+	Plus                PersonaPlusVM   // persona principal, de sistema e política de plano (ADR-0041)
 }
 
 // ReviewerVM is the reviewer block of the persona page: the configured reviewer (summary) and the
@@ -409,17 +438,22 @@ type RunVM struct {
 	Agent        string
 	Model        string
 	ModelSource  string // who chose the model: task, persona or harness default
+	PolicyOrigin string // política de revisão que valeu e de que camada veio (ADR-0040); vazio em runs sem registro
 	Subscription string
 	Session      string
-	ExitCode     string
-	Error        string
-	Summary      HTML
-	Active       bool
-	Terminal     bool
-	CancelHref   string
-	SSEHref      string
-	Lines        []LogLine
-	LastSeq      int64
+	// Instructions diz com que revisão das instruções da persona a run rodou ("r7 · a1b2c3d4e5f6"); InstructionsHref
+	// leva ao texto daquela revisão (ADR-0052). Vazios em runs anteriores às revisões.
+	Instructions     string
+	InstructionsHref string
+	ExitCode         string
+	Error            string
+	Summary          HTML
+	Active           bool
+	Terminal         bool
+	CancelHref       string
+	SSEHref          string
+	Lines            []LogLine
+	LastSeq          int64
 	// Islands (ADR-0026): virtualized log and anchored comments on the summary.
 	IslandAPI      string
 	LogMsgs        string // JSON
@@ -431,6 +465,9 @@ type RunVM struct {
 	// Artefatos que a execução publicou (todas as versões).
 	Artifacts     []ArtifactMini
 	ArtifactsHref string
+	// Resiliência (ADR-0039): card de diagnóstico e caixa de steer.
+	Diag  *DiagVM
+	Steer *SteerVM
 }
 
 // ---- activity ----
@@ -443,6 +480,10 @@ type ActivityDay struct {
 type ActivityVM struct {
 	Subtitle string
 	Days     []ActivityDay
+	// Filtro por ator (ADR-0042): opções do seletor, ação do formulário e se há filtro ligado.
+	ActorOptions []Option
+	Action       string
+	Filtered     bool
 }
 
 // ---- misc ----
@@ -584,6 +625,8 @@ type CostsVM struct {
 	HasSpend                             bool
 	BudgetKpi                            string
 	BudgetNote                           string
+	// Decision é o custo do decision model no período (ADR-0056); nil sem invocações.
+	Decision *DecisionCostVM
 }
 
 // ---- fluxos ----
@@ -701,6 +744,8 @@ type APIKeyRow struct {
 	Created  string
 	LastUsed string
 	Revoked  bool
+	Scope    string // rótulo: completo | só leitura
+	Device   string // dispositivo que fez hanko login ("" nas chaves criadas à mão)
 }
 
 // SettingsVM drives the account/API keys page.
@@ -723,6 +768,12 @@ type SettingsVM struct {
 	Members MembersVM
 	// Memory is the company's "Memória" section (memory consolidation, ADR-0030).
 	Memory MemoryVM
+	// Policy é a política de contratação por gate da empresa (ADR-0041).
+	Policy CompanyPolicyVM
+	// Company é o cartão "Empresa": editar, arquivar, restaurar e excluir (ADR-0057).
+	Company CompanyAdminVM
+	// UsersLink: dono ou admin da instalação vê o atalho para /admin/usuarios.
+	UsersLink bool
 }
 
 // MemberRow is one member in the "Membros" table.
@@ -763,6 +814,8 @@ type MembersVM struct {
 	NewLinkEmail string
 	Email        string // form value kept after an error
 	Error        string
+	// Join é o link público de pedido de entrada e a fila de pedidos (ADR-0057).
+	Join JoinVM
 }
 
 // InviteVM drives the public /convite/{token} page.

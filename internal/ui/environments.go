@@ -53,6 +53,7 @@ func (s *server) environmentRoutes(mux langMux) {
 	mux.HandleFunc("GET /c/{company}/personas/{persona}/ambiente", co(s.handlePersonaEnvironment))
 	mux.HandleFunc("POST /c/{company}/personas/{persona}/ambiente", post(co(s.handleSetPersonaEnvironment)))
 	mux.HandleFunc("GET /c/{company}/execucoes/{run}/ambiente", co(s.handleRunEnvironment))
+	s.readinessRoutes(mux, post) // prontidão da persona e ambiente do projeto (ADR-0055)
 }
 
 func envBase(co domain.Company) string { return "/c/" + co.Slug + "/configuracoes/ambientes" }
@@ -63,6 +64,8 @@ func driverLabel(ctx context.Context, d domain.EnvironmentDriver) string {
 		return i18n.T(ctx, "SSH · host remoto")
 	case domain.EnvSandbox:
 		return i18n.T(ctx, "Sandbox · contêiner por execução")
+	case domain.EnvCloud:
+		return i18n.T(ctx, "Nuvem · sandbox por execução")
 	}
 	return i18n.T(ctx, "Local · este servidor")
 }
@@ -74,6 +77,11 @@ func envTarget(v service.EnvironmentView) string {
 		return fmt.Sprintf("%s@%s:%d %s", c.User, c.Host, c.Port, c.Root)
 	case v.Config.Sandbox != nil:
 		return v.Config.Sandbox.Image
+	case v.Config.Cloud != nil:
+		c := v.Config.Cloud
+		return fmt.Sprintf("%s · %dcpu/%dGiB · %s", c.Provider, c.CPUs, c.MemoryGiB, c.Network)
+	case v.Driver == domain.EnvLocal:
+		return i18n.T(context.Background(), "este servidor")
 	}
 	return ""
 }
@@ -98,8 +106,11 @@ func (s *server) envRow(ctx context.Context, co domain.Company, v service.Enviro
 	row := views.EnvRow{Name: v.Name, Slug: v.Slug, Href: href, Description: v.Description, Driver: string(v.Driver), Target: envTarget(v),
 		Badge: envBadge(ctx, v), Default: v.IsDefault, Personas: len(v.Personas), InUse: v.ActiveLeases, Unavailable: v.Unavailable,
 		Status: string(v.Status), DriverIcon: "server"}
-	if v.Driver == domain.EnvSandbox {
+	switch v.Driver {
+	case domain.EnvSandbox:
 		row.DriverIcon = "terminal"
+	case domain.EnvCloud:
+		row.DriverIcon = "globe"
 	}
 	if v.LastProbeAt != nil {
 		row.HasProbe, row.LastProbe = true, relTimeCtx(ctx, *v.LastProbeAt, s.now(), loc)
@@ -138,7 +149,8 @@ func (s *server) handleEnvironments(w http.ResponseWriter, r *http.Request, co d
 	vm := views.EnvHubVM{Sections: settingsSections(ctx, "/c/"+co.Slug, "ambientes"), Local: s.localEnvironment(ctx, co),
 		DefaultAction: base + "/padrao", DefaultOptions: defaultOptions(ctx, list),
 		NewSSHHref: base + "/novo?driver=ssh", NewSandboxHref: base + "/novo?driver=sandbox",
-		SSHOff: drivers[domain.EnvSSH], SandboxOff: drivers[domain.EnvSandbox]}
+		NewLocalHref: base + "/novo?driver=local", NewCloudHref: base + "/novo?driver=cloud",
+		SSHOff: drivers[domain.EnvSSH], SandboxOff: drivers[domain.EnvSandbox], CloudOff: drivers[domain.EnvCloud]}
 	if n := environmentNotices[r.URL.Query().Get("ok")]; n != "" {
 		vm.Notice = i18n.T(ctx, n)
 	}
@@ -155,10 +167,18 @@ func (s *server) handleEnvironments(w http.ResponseWriter, r *http.Request, co d
 }
 
 func driverFrom(v string) string {
-	if v == string(domain.EnvSandbox) {
+	switch v {
+	case string(domain.EnvSandbox), string(domain.EnvCloud), string(domain.EnvLocal):
 		return v
 	}
 	return string(domain.EnvSSH)
+}
+
+func cloudNetworkOptions(cur string) []views.Option {
+	if cur == "" {
+		cur = "full"
+	}
+	return []views.Option{{Value: "full", Label: "full", Selected: cur == "full"}, {Value: "none", Label: "none", Selected: cur == "none"}}
 }
 
 func networkOptions(cur string) []views.Option {
@@ -172,9 +192,11 @@ func networkOptions(cur string) []views.Option {
 func (s *server) blankEnvironmentForm(ctx context.Context, co domain.Company, driver string) views.EnvFormVM {
 	base := envBase(co)
 	vm := views.EnvFormVM{Driver: driver, Action: base + "/novo", ProbeAction: base + "/testar", CancelHref: base, FieldErr: map[string]string{},
-		Port: "22", NetworkOptions: networkOptions("")}
-	vm.DriverTabs = []views.TabLink{{Key: "ssh", Label: "SSH", Href: base + "/novo?driver=ssh", On: driver == "ssh"},
-		{Key: "sandbox", Label: "Sandbox", Href: base + "/novo?driver=sandbox", On: driver == "sandbox"}}
+		Port: "22", NetworkOptions: networkOptions(""), CloudNetworkOptions: cloudNetworkOptions("")}
+	vm.DriverTabs = []views.TabLink{{Key: "local", Label: i18n.T(ctx, "Local"), Href: base + "/novo?driver=local", On: driver == "local"},
+		{Key: "ssh", Label: "SSH", Href: base + "/novo?driver=ssh", On: driver == "ssh"},
+		{Key: "sandbox", Label: "Sandbox", Href: base + "/novo?driver=sandbox", On: driver == "sandbox"},
+		{Key: "cloud", Label: i18n.T(ctx, "Nuvem"), Href: base + "/novo?driver=cloud", On: driver == "cloud"}}
 	return vm
 }
 
@@ -196,6 +218,9 @@ func fillEnvironmentForm(r *http.Request, vm *views.EnvFormVM) {
 	vm.KnownHosts = r.PostFormValue("known_hosts")
 	vm.Image, vm.Memory, vm.CPUs, vm.PIDs = trimForm(r, "image"), trimForm(r, "memory"), trimForm(r, "cpus"), trimForm(r, "pids")
 	vm.NetworkOptions = networkOptions(trimForm(r, "network"))
+	vm.Snapshot, vm.CloudCPUs, vm.CloudMemory, vm.CloudDisk, vm.CloudRoot = trimForm(r, "snapshot"), trimForm(r, "cloud_cpus"), trimForm(r, "cloud_memory"),
+		trimForm(r, "cloud_disk"), trimForm(r, "cloud_root")
+	vm.CloudNetworkOptions = cloudNetworkOptions(trimForm(r, "cloud_network"))
 	vm.DropEnv = trimForm(r, "drop_env")
 }
 
@@ -210,38 +235,52 @@ func atoiField(v, field string) (int, error) {
 	return n, nil
 }
 
-// environmentFromForm lê a parte do driver e as variáveis do formulário.
-func environmentFromForm(r *http.Request, driver string) (ssh *domain.SSHConfig, sb *domain.SandboxConfig, env map[string]string, err error) {
+// environmentFromFormCloud lê a parte do driver (SSH, sandbox ou nuvem, ADR-0055) e as variáveis do formulário.
+func environmentFromFormCloud(r *http.Request, driver string) (ssh *domain.SSHConfig, sb *domain.SandboxConfig, cl *domain.CloudConfig, env map[string]string, err error) {
 	env, perr := pairs(r.PostFormValue("env"), "=")
 	if perr != nil {
-		return nil, nil, nil, domain.Invalid("env", perr.Error())
+		return nil, nil, nil, nil, domain.Invalid("env", perr.Error())
 	}
 	switch driver {
 	case string(domain.EnvSSH):
 		port, err := atoiField(trimForm(r, "port"), "port")
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, nil, nil, nil, err
 		}
 		ssh = &domain.SSHConfig{Host: trimForm(r, "host"), Port: port, User: trimForm(r, "username"), Root: trimForm(r, "root"),
 			KnownHosts: r.PostFormValue("known_hosts")}
 	case string(domain.EnvSandbox):
 		mem, err := atoiField(trimForm(r, "memory"), "memory_mib")
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, nil, nil, nil, err
 		}
 		pids, err := atoiField(trimForm(r, "pids"), "pids_limit")
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, nil, nil, nil, err
 		}
 		cpus := 0.0
 		if v := strings.ReplaceAll(trimForm(r, "cpus"), ",", "."); v != "" {
 			if cpus, err = strconv.ParseFloat(v, 64); err != nil {
-				return nil, nil, nil, domain.Invalid("cpus", "must be a number")
+				return nil, nil, nil, nil, domain.Invalid("cpus", "must be a number")
 			}
 		}
 		sb = &domain.SandboxConfig{Image: trimForm(r, "image"), Network: trimForm(r, "network"), MemoryMiB: mem, CPUs: cpus, PIDsLimit: pids}
+	case string(domain.EnvCloud):
+		cpus, err := atoiField(trimForm(r, "cloud_cpus"), "cpus")
+		if err != nil {
+			return nil, nil, nil, nil, err
+		}
+		mem, err := atoiField(trimForm(r, "cloud_memory"), "memory_gib")
+		if err != nil {
+			return nil, nil, nil, nil, err
+		}
+		disk, err := atoiField(trimForm(r, "cloud_disk"), "disk_gib")
+		if err != nil {
+			return nil, nil, nil, nil, err
+		}
+		cl = &domain.CloudConfig{Snapshot: trimForm(r, "snapshot"), CPUs: cpus, MemoryGiB: mem, DiskGiB: disk, Network: trimForm(r, "cloud_network"), Root: trimForm(r, "cloud_root")}
 	}
-	return ssh, sb, env, nil
+	return ssh, sb, cl, env, nil
 }
 
 // environmentFormError põe o erro do service no campo do formulário.
@@ -259,6 +298,9 @@ func environmentFormError(ctx context.Context, vm *views.EnvFormVM, err error) {
 			"known_hosts":           i18n.T(ctx, "Cole as linhas de known_hosts do host (ssh-keyscan -H host); sem elas a conexão não é aceita."),
 			"private_key":           i18n.T(ctx, "Cole uma chave privada sem senha, no formato PEM ou OpenSSH."),
 			"image":                 i18n.T(ctx, "Imagem inválida: use registro/nome:tag ou nome@sha256:<digest>."),
+			"api_key":               i18n.T(ctx, "Informe a chave de API do provider (ou ${secret:NOME}), sem espaços."),
+			"provider":              i18n.T(ctx, "Provider desconhecido: use daytona."),
+			"snapshot":              i18n.T(ctx, "Snapshot inválido: use um nome como meu-snapshot ou registro/nome:tag."),
 			"env":                   i18n.T(ctx, "Variável inválida: use NOME=valor; HANKO_*, PATH e HOME são reservados."),
 			"secrets":               i18n.T(ctx, "Este servidor não tem HANKO_SECRET_KEY: sem ela não há como guardar a chave nem as variáveis."),
 		}[field]
@@ -281,11 +323,12 @@ func (s *server) handleCreateEnvironment(w http.ResponseWriter, r *http.Request,
 	driver := driverFrom(trimForm(r, "driver"))
 	vm := s.blankEnvironmentForm(ctx, co, driver)
 	fillEnvironmentForm(r, &vm)
-	ssh, sb, env, err := environmentFromForm(r, driver)
+	ssh, sb, cl, env, err := environmentFromFormCloud(r, driver)
 	if err == nil {
 		var v service.EnvironmentView
 		v, err = s.be.CreateEnvironment(ctx, actorFrom(ctx), co.ID, service.CreateEnvironmentInput{Name: vm.Name, Description: vm.Description,
-			Driver: domain.EnvironmentDriver(driver), SSH: ssh, PrivateKey: r.PostFormValue("private_key"), Sandbox: sb, Env: env})
+			Driver: domain.EnvironmentDriver(driver), SSH: ssh, PrivateKey: r.PostFormValue("private_key"), Sandbox: sb, Cloud: cl,
+			APIKey: strings.TrimSpace(r.PostFormValue("api_key")), Env: env})
 		if err == nil {
 			redirect(w, r, envBase(co)+"/"+url.PathEscape(v.Slug)+"?ok=criado")
 			return
@@ -296,7 +339,7 @@ func (s *server) handleCreateEnvironment(w http.ResponseWriter, r *http.Request,
 }
 
 func probeVM(ctx context.Context, rep domain.ProbeReport, when string) *views.ProbeVM {
-	p := &views.ProbeVM{OK: rep.OK, System: rep.System, When: when, Warnings: rep.Warnings}
+	p := &views.ProbeVM{OK: rep.OK, System: rep.System, When: when, Warnings: rep.Warnings, Capabilities: rep.Capabilities}
 	if rep.DurationMs > 0 {
 		p.Duration = fmt.Sprintf("%d ms", rep.DurationMs)
 	}
@@ -320,6 +363,16 @@ func probeStepLabel(ctx context.Context, name string) string {
 		return "Docker"
 	case "image":
 		return i18n.T(ctx, "Imagem")
+	case "api":
+		return i18n.T(ctx, "API do provider")
+	case "create":
+		return i18n.T(ctx, "Criação do sandbox")
+	case "cleanup":
+		return i18n.T(ctx, "Limpeza")
+	case "shell":
+		return i18n.T(ctx, "Shell")
+	case "hanko_url":
+		return i18n.T(ctx, "Alcança o Hanko pela URL pública")
 	}
 	if b, ok := strings.CutPrefix(name, "bin:"); ok {
 		return b
@@ -331,11 +384,11 @@ func probeStepLabel(ctx context.Context, name string) string {
 func (s *server) handleProbeDraft(w http.ResponseWriter, r *http.Request, co domain.Company) {
 	ctx := r.Context()
 	driver := driverFrom(trimForm(r, "driver"))
-	ssh, sb, env, err := environmentFromForm(r, driver)
+	ssh, sb, cl, env, err := environmentFromFormCloud(r, driver)
 	var rep domain.ProbeReport
 	if err == nil {
 		rep, err = s.be.ProbeEnvironmentDraft(ctx, co.ID, service.CreateEnvironmentInput{Name: trimForm(r, "name"), Driver: domain.EnvironmentDriver(driver),
-			SSH: ssh, PrivateKey: r.PostFormValue("private_key"), Sandbox: sb, Env: env})
+			SSH: ssh, PrivateKey: r.PostFormValue("private_key"), Sandbox: sb, Cloud: cl, APIKey: strings.TrimSpace(r.PostFormValue("api_key")), Env: env})
 	}
 	if err != nil {
 		if errors.Is(err, domain.ErrNotAllowed) {
@@ -388,12 +441,22 @@ func (s *server) environmentPageVM(r *http.Request, co domain.Company, v service
 	vm.Facts = []views.KV{{K: i18n.T(ctx, "Tipo"), V: driverLabel(ctx, v.Driver)}, {K: i18n.T(ctx, "Alvo"), V: dashIfEmpty(envTarget(v))},
 		{K: i18n.T(ctx, "Padrão da empresa"), V: def}, {K: "Personas", V: dashIfEmpty(strings.Join(vm.PersonaNames, ", "))},
 		{K: i18n.T(ctx, "Em uso agora"), V: strconv.Itoa(v.ActiveLeases)}}
-	if v.Driver == domain.EnvSSH {
+	if v.Driver == domain.EnvSSH || v.Driver == domain.EnvCloud {
 		key := i18n.T(ctx, "guardada (cifrada)")
 		if !v.KeySet {
 			key = i18n.T(ctx, "ausente")
 		}
-		vm.Facts = append(vm.Facts, views.KV{K: i18n.T(ctx, "Chave privada"), V: key})
+		label := i18n.T(ctx, "Chave privada")
+		if v.Driver == domain.EnvCloud {
+			label = i18n.T(ctx, "Chave de API")
+		}
+		vm.Facts = append(vm.Facts, views.KV{K: label, V: key})
+	}
+	for _, p := range v.Projects {
+		vm.ProjectNames = append(vm.ProjectNames, p.Name)
+	}
+	if len(vm.ProjectNames) > 0 {
+		vm.Facts = append(vm.Facts, views.KV{K: i18n.T(ctx, "Projetos"), V: strings.Join(vm.ProjectNames, ", ")})
 	}
 	if len(v.Config.EnvNames) > 0 {
 		vm.Facts = append(vm.Facts, views.KV{K: i18n.T(ctx, "Variáveis"), V: strings.Join(v.Config.EnvNames, ", ")})
@@ -406,7 +469,12 @@ func (s *server) environmentPageVM(r *http.Request, co domain.Company, v service
 		vm.Probe = probeVM(ctx, *v.LastProbeReport, when)
 	}
 	f := views.EnvFormVM{Driver: string(v.Driver), Edit: true, Action: href, CancelHref: envBase(co), FieldErr: map[string]string{},
-		Name: v.Name, Description: v.Description, KeySet: v.KeySet, EnvNames: v.Config.EnvNames, NetworkOptions: networkOptions("")}
+		Name: v.Name, Description: v.Description, KeySet: v.KeySet, EnvNames: v.Config.EnvNames, NetworkOptions: networkOptions(""),
+		CloudNetworkOptions: cloudNetworkOptions("")}
+	if c := v.Config.Cloud; c != nil {
+		f.Snapshot, f.CloudCPUs, f.CloudMemory, f.CloudDisk, f.CloudRoot = c.Snapshot, strconv.Itoa(c.CPUs), strconv.Itoa(c.MemoryGiB), strconv.Itoa(c.DiskGiB), c.Root
+		f.CloudNetworkOptions = cloudNetworkOptions(c.Network)
+	}
 	if c := v.Config.SSH; c != nil {
 		f.Host, f.Port, f.User, f.Root, f.KnownHosts = c.Host, strconv.Itoa(c.Port), c.User, c.Root, c.KnownHosts
 	}
@@ -478,12 +546,15 @@ func (s *server) handleUpdateEnvironment(w http.ResponseWriter, r *http.Request,
 		s.fail(w, r, &co, err)
 		return
 	}
-	ssh, sb, env, err := environmentFromForm(r, string(cur.Driver))
+	ssh, sb, cl, env, err := environmentFromFormCloud(r, string(cur.Driver))
 	if err == nil {
 		name, desc := trimForm(r, "name"), trimForm(r, "description")
-		in := service.UpdateEnvironmentInput{Name: &name, Description: &desc, SSH: ssh, Sandbox: sb, SetEnv: env, DropEnv: csv(r.PostFormValue("drop_env"))}
+		in := service.UpdateEnvironmentInput{Name: &name, Description: &desc, SSH: ssh, Sandbox: sb, Cloud: cl, SetEnv: env, DropEnv: csv(r.PostFormValue("drop_env"))}
 		if k := r.PostFormValue("private_key"); strings.TrimSpace(k) != "" {
 			in.PrivateKey = &k
+		}
+		if k := strings.TrimSpace(r.PostFormValue("api_key")); k != "" {
+			in.APIKey = &k
 		}
 		_, err = s.be.UpdateEnvironment(ctx, actorFrom(ctx), co.ID, cur.ID, in)
 		if err == nil {
@@ -669,11 +740,17 @@ func (s *server) handleRunEnvironment(w http.ResponseWriter, r *http.Request, co
 	info, err := s.be.RunEnvironmentOf(ctx, co.ID, runID)
 	switch {
 	case errors.Is(err, domain.ErrNotFound):
+		if run, rerr := s.be.GetRun(ctx, co.ID, runID); rerr == nil && run.EnvironmentSource != "" {
+			vm.Source = envSourceText(ctx, run.EnvironmentSource)
+		}
 	case err != nil:
 		s.fail(w, r, &co, err)
 		return
 	default:
 		vm.Label = info.Name + " (" + string(info.Driver) + ")"
+		if info.Source != "" {
+			vm.Source = envSourceText(ctx, info.Source)
+		}
 		vm.Href = envBase(co) + "/" + url.PathEscape(info.Slug)
 		vm.RemoteDir = info.Lease.RemoteDir
 		if info.Lease.Status == domain.LeaseFailed {

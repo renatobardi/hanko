@@ -3,10 +3,42 @@
 (function () {
   "use strict";
 
+  // Browser errors → Hanko → OTLP (ADR-0058 §C). No third-party service: the report goes to the same origin, where
+  // the server turns it into a span with an "exception" event. At most 5 per page, never twice the same one.
+  (function () {
+    var sent = 0;
+    var seen = {};
+    function report(kind, name, message, stack, source, line, col) {
+      try {
+        var key = kind + "|" + message + "|" + line + "|" + col;
+        if (sent >= 5 || seen[key]) return;
+        seen[key] = true;
+        sent++;
+        var body = JSON.stringify({
+          kind: kind, name: name || "Error", message: String(message || "").slice(0, 500),
+          stack: String(stack || "").slice(0, 4000), source: source || "", line: line || 0, col: col || 0,
+          url: location.href
+        });
+        var blob = new Blob([body], { type: "application/json" });
+        if (!(navigator.sendBeacon && navigator.sendBeacon("/telemetry/errors", blob))) {
+          fetch("/telemetry/errors", { method: "POST", body: blob, keepalive: true, credentials: "same-origin" }).catch(function () {});
+        }
+      } catch (_) { /* reporting must never throw */ }
+    }
+    window.addEventListener("error", function (e) {
+      if (!e.message && !e.error) return; // resource load errors carry neither
+      report("error", e.error && e.error.name, (e.error && e.error.message) || e.message, e.error && e.error.stack, e.filename, e.lineno, e.colno);
+    });
+    window.addEventListener("unhandledrejection", function (e) {
+      var r = e.reason;
+      report("unhandledrejection", r && r.name, (r && r.message) || String(r), r && r.stack, "", 0, 0);
+    });
+  })();
+
   // htmx ignores 4xx by default; our handlers answer errors with a fragment.
   document.addEventListener("htmx:beforeSwap", function (e) {
     var s = e.detail.xhr && e.detail.xhr.status;
-    if (s === 403 || s === 404 || s === 409 || s === 422 || s === 501) {
+    if (s === 403 || s === 404 || s === 409 || s === 422 || s === 429 || s === 501) {
       e.detail.shouldSwap = true;
       e.detail.isError = false;
     }
@@ -47,6 +79,66 @@
     if (link) {
       e.preventDefault();
       link.click();
+    }
+  });
+
+  // Drag and drop de anexos (ADR-0052): [data-dropzone] (uma caixa ou um formulário inteiro) aceita arquivos soltos e
+  // os põe no <input type="file" multiple> dela; sem este script o seletor de arquivos continua funcionando. Com
+  // data-dropzone-submit, soltar ou escolher envia o formulário na hora.
+  function dropzoneOf(el) {
+    return el && el.closest ? el.closest("[data-dropzone]") : null;
+  }
+  function dzInput(z) {
+    return z.querySelector('input[type="file"]');
+  }
+  function dzRender(z) {
+    var list = z.querySelector("[data-dz-list]");
+    var input = dzInput(z);
+    if (!list || !input) return;
+    list.textContent = "";
+    for (var i = 0; i < input.files.length; i++) {
+      var li = document.createElement("li");
+      li.textContent = input.files[i].name;
+      list.appendChild(li);
+    }
+  }
+  document.addEventListener("dragover", function (e) {
+    var z = dropzoneOf(e.target);
+    if (!z || !e.dataTransfer || Array.prototype.indexOf.call(e.dataTransfer.types || [], "Files") < 0) return;
+    e.preventDefault();
+    z.classList.add("is-over");
+  });
+  document.addEventListener("dragleave", function (e) {
+    var z = dropzoneOf(e.target);
+    if (z && !z.contains(e.relatedTarget)) z.classList.remove("is-over");
+  });
+  document.addEventListener("drop", function (e) {
+    var z = dropzoneOf(e.target);
+    if (!z) return;
+    z.classList.remove("is-over");
+    var input = dzInput(z);
+    if (!input || !e.dataTransfer || !e.dataTransfer.files || !e.dataTransfer.files.length) return;
+    e.preventDefault();
+    try {
+      var dt = new DataTransfer();
+      var i;
+      for (i = 0; i < input.files.length; i++) dt.items.add(input.files[i]);
+      for (i = 0; i < e.dataTransfer.files.length; i++) dt.items.add(e.dataTransfer.files[i]);
+      input.files = dt.files;
+    } catch (err) {
+      input.files = e.dataTransfer.files;
+    }
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  document.addEventListener("change", function (e) {
+    var input = e.target;
+    if (!input.matches || !input.matches('input[type="file"]')) return;
+    var z = dropzoneOf(input);
+    if (!z) return;
+    dzRender(z);
+    if (z.hasAttribute("data-dropzone-submit") && input.files.length) {
+      var form = z.tagName === "FORM" ? z : z.closest("form");
+      if (form && form.requestSubmit) form.requestSubmit();
     }
   });
 
@@ -319,6 +411,8 @@
   } else {
     restore(document);
   }
+})();
+
 // ---- pipelines (ADR-0034) ----
 // Quadro de um pipeline: arrastar um case para outra etapa faz o mesmo POST do formulário "Mover para" da página
 // do case (etapa de destino e a versão que o quadro mostrou). Se o servidor recusar (aprovação, bloqueio, modo
@@ -398,6 +492,94 @@
       })
       .then(function () {
         card.classList.remove("is-saving");
+      });
+  });
+  // Avisos ao vivo da pessoa (ADR-0042): toasts por SSE e o selo de não lidos no menu.
+  (function () {
+    var body = document.body;
+    if (!body || !body.hasAttribute("data-notify") || !window.EventSource) return;
+    var box = document.getElementById("toasts");
+    function safePath(u) {
+      return typeof u === "string" && u.charAt(0) === "/" && u.charAt(1) !== "/" ? u : "";
+    }
+    function toast(p) {
+      if (!box) return;
+      var el = document.createElement(safePath(p.url) ? "a" : "div");
+      el.className = "toast";
+      if (safePath(p.url)) el.setAttribute("href", p.url);
+      var t = document.createElement("b");
+      t.textContent = p.title || "";
+      el.appendChild(t);
+      if (p.body) {
+        var b = document.createElement("span");
+        b.textContent = p.body;
+        el.appendChild(b);
+      }
+      box.appendChild(el);
+      while (box.children.length > 4) box.removeChild(box.firstChild);
+      setTimeout(function () {
+        if (el.parentNode) el.parentNode.removeChild(el);
+      }, 9000);
+    }
+    var es = new EventSource(body.getAttribute("data-notify-url"));
+    es.addEventListener("notify", function (e) {
+      var p;
+      try {
+        p = JSON.parse(e.data);
+      } catch (_) {
+        return;
+      }
+      toast(p);
+      if (window.htmx) window.htmx.trigger(document.body, "refresh-inbox");
+    });
+    window.addEventListener("pagehide", function () {
+      es.close();
+    });
+  })();
+
+  // Web push (ADR-0042): ativa as notificações neste aparelho e manda a assinatura ao servidor.
+  document.addEventListener("click", function (e) {
+    var btn = e.target.closest && e.target.closest("[data-push-enable]");
+    if (!btn) return;
+    var box = btn.closest("[data-push-box]");
+    var status = box && box.querySelector("[data-push-status]");
+    function say(msg) {
+      if (status) status.textContent = msg;
+    }
+    if (!("serviceWorker" in navigator) || !("PushManager" in window) || !window.Notification) {
+      say(btn.getAttribute("data-unsupported") || "");
+      return;
+    }
+    function key(b64) {
+      var pad = "=".repeat((4 - (b64.length % 4)) % 4);
+      var raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
+      var out = new Uint8Array(raw.length);
+      for (var i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+      return out;
+    }
+    Notification.requestPermission()
+      .then(function (perm) {
+        if (perm !== "granted") throw new Error("denied");
+        return navigator.serviceWorker.ready;
+      })
+      .then(function (reg) {
+        return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key(box.getAttribute("data-vapid")) });
+      })
+      .then(function (sub) {
+        var j = sub.toJSON();
+        return fetch(box.getAttribute("data-url"), {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ endpoint: j.endpoint, keys: j.keys })
+        });
+      })
+      .then(function (res) {
+        if (!res.ok) throw new Error("http " + res.status);
+        window.location.reload();
+      })
+      .catch(function (err) {
+        say((err && err.message === "denied" ? btn.getAttribute("data-denied") : btn.getAttribute("data-failed")) || "");
       });
   });
 })();

@@ -19,7 +19,7 @@ import (
 // artifactBodyLimit é o teto do corpo de um envio: o limite de arquivo configurado (HANKO_ARTIFACT_MAX_BYTES) em
 // base64 (x4/3) mais o envelope JSON. Sem o limite configurado à mão, vale o máximo absoluto (16 MiB).
 func (s *server) artifactBodyLimit() int64 {
-	maxFile := service.MaxArtifactMaxBytes
+	maxFile := service.MaxArtifactMaxBytesBlob
 	if l, ok := s.svc.(interface{ ArtifactLimits() (int64, int64) }); ok {
 		if m, _ := l.ArtifactLimits(); m > 0 && m < maxFile {
 			maxFile = m
@@ -52,6 +52,11 @@ type Artifact struct {
 	PersonaName string    `json:"persona_name,omitempty"`
 	Author      ActorRef  `json:"author"`
 	CreatedAt   time.Time `json:"created_at"`
+	// Class: artifact (versionado, produzido pelo trabalho) ou attachment (anexo, ADR-0052).
+	Class          string `json:"class" enum:"artifact,attachment"`
+	CommentID      string `json:"comment_id,omitempty" format:"uuid" doc:"Anexo: o comentário da task a que pertence."`
+	ConversationID string `json:"conversation_id,omitempty" format:"uuid" doc:"Anexo: a conversa do chat a que pertence."`
+	MessageID      string `json:"message_id,omitempty" format:"uuid" doc:"Anexo: a mensagem da conversa a que pertence."`
 	// History só vem no detalhe: todas as versões da cadeia, da mais nova para a mais antiga.
 	History []ArtifactVersion `json:"history,omitempty"`
 }
@@ -120,6 +125,7 @@ type listArtifactsIn struct {
 	Kind        string `query:"kind" enum:"markdown,text,image,other" doc:"Tipo de conteúdo."`
 	Q           string `query:"q" doc:"Busca pelo nome."`
 	AllVersions bool   `query:"all_versions" doc:"Todas as versões, não só a mais nova de cada artefato."`
+	Class       string `query:"class" enum:"artifact,attachment,all" doc:"Padrão artifact; attachment lista os anexos; all, os dois."`
 }
 
 type diffArtifactIn struct {
@@ -133,7 +139,8 @@ func artifactOut(v service.ArtifactView) Artifact {
 		TaskID: idPtr(v.TaskID), TaskKey: v.TaskKey, TaskTitle: v.TaskTitle, RunID: idPtr(v.RunID), RunName: v.RunName,
 		ProjectID: idPtr(v.ProjectID), ProjectSlug: v.ProjectSlug, ProjectName: v.ProjectName,
 		PersonaID: idPtr(v.PersonaID), PersonaSlug: v.PersonaSlug, PersonaName: v.PersonaName,
-		Author: actorRef(v.Author), CreatedAt: v.CreatedAt}
+		Author: actorRef(v.Author), CreatedAt: v.CreatedAt, Class: string(v.Class),
+		CommentID: idPtr(v.CommentID), ConversationID: idPtr(v.ConversationID), MessageID: idPtr(v.MessageID)}
 }
 
 func artifactVersionOut(a domain.Artifact) ArtifactVersion {
@@ -224,6 +231,12 @@ func (s *server) registerArtifacts(api huma.API) {
 			}
 			cid := sc.Company.ID
 			f := service.ArtifactFilter{Kind: domain.ArtifactKind(in.Kind), Query: in.Q, AllVersions: in.AllVersions, Limit: in.Limit, Offset: in.Offset}
+			switch in.Class {
+			case "all":
+				f.AllClasses = true
+			default:
+				f.Class = domain.ArtifactClass(in.Class)
+			}
 			if f.ProjectID, err = s.projectRef(ctx, cid, in.Project); err != nil {
 				return nil, s.fail(ctx, err)
 			}
@@ -360,7 +373,7 @@ func (s *server) registerArtifacts(api huma.API) {
 			return &ItemOut[ArtifactDiff]{Body: out}, nil
 		})
 
-	del := op("delete-artifact", http.MethodDelete, "/companies/{company}/artifacts/{artifact}", "artifacts", "Apaga o artefato com todas as versões (admin)")
+	del := op("delete-artifact", http.MethodDelete, "/companies/{company}/artifacts/{artifact}", "artifacts", "Apaga o artefato com todas as versões, ou o anexo (admin)")
 	del.DefaultStatus = http.StatusNoContent
 	huma.Register(api, del, func(ctx context.Context, in *ArtifactPath) (*struct{}, error) {
 		if err := forbidPersona(ctx); err != nil {

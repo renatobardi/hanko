@@ -16,7 +16,7 @@ import (
 type tabDef struct {
 	key, label string
 	statuses   []domain.TaskStatus
-	mine       bool // só as tasks criadas por quem está vendo
+	mine       bool // só as tasks em que quem está vendo participa (ADR-0042); sem pessoa autenticada, as que ele criou
 }
 
 var taskTabs = []tabDef{
@@ -194,9 +194,30 @@ func (s *server) buildTasksVM(w http.ResponseWriter, r *http.Request, co domain.
 		}
 		return scope.Path + "?" + v.Encode()
 	}
+	// "Minhas" = participação (ADR-0042): criei, atribuí, fui mencionado, comentei, audiência de gate. Sem pessoa
+	// autenticada (modo trusted) vale o de antes: as que o humano local criou.
+	var mineSet map[domain.ID][]string
+	if personal(ctx) {
+		mf := filter
+		mf.Mine = true
+		mine, err := s.be.ListTasks(ctx, co.ID, mf)
+		if err != nil {
+			return views.TasksVM{}, err
+		}
+		mineSet = make(map[domain.ID][]string, len(mine))
+		for _, tv := range mine {
+			mineSet[tv.ID] = tv.Participation
+		}
+	}
 	inTab := func(t tabDef, tv service.TaskView) bool {
-		if t.mine && !sameActor(tv.CreatedBy, me) {
-			return false
+		if t.mine {
+			if mineSet != nil {
+				if _, ok := mineSet[tv.ID]; !ok {
+					return false
+				}
+			} else if !sameActor(tv.CreatedBy, me) {
+				return false
+			}
 		}
 		return inStatuses(tv.Status, t.statuses)
 	}
@@ -218,7 +239,13 @@ func (s *server) buildTasksVM(w http.ResponseWriter, r *http.Request, co domain.
 	}
 	vm.Total = len(shown)
 	sortTasks(shown, opts.Sort)
-	row := func(tv service.TaskView) views.TaskRow { return taskRow(ctx, tv, base, now, loc) }
+	row := func(tv service.TaskView) views.TaskRow {
+		r := taskRow(ctx, tv, base, now, loc)
+		if cur.mine && mineSet != nil {
+			r.Note = participationText(ctx, mineSet[tv.ID])
+		}
+		return r
+	}
 	vm.Groups = groupTasks(ctx, shown, opts.Group, row)
 	if opts.Board {
 		// Quadro: uma coluna por status da aba, na ordem do fluxo, inclusive as vazias.
@@ -256,6 +283,19 @@ func (s *server) buildTasksVM(w http.ResponseWriter, r *http.Request, co domain.
 	vm.Subtitle = i18n.Tf(ctx, "%d abertas · agrupadas por status. Uma task guarda dono, prioridade, histórico e execuções.", open)
 	vm.Hidden = scope.Fixed
 	return vm, nil
+}
+
+// participationText diz por que uma task é da pessoa: "criei, comentei".
+func participationText(ctx context.Context, reasons []string) string {
+	labels := map[string]string{"created": i18n.N("criei"), "assigned": i18n.N("atribuí"), "mentioned": i18n.N("fui mencionado"),
+		"commented": i18n.N("comentei"), "gate": i18n.N("audiência de gate")}
+	out := make([]string, 0, len(reasons))
+	for _, r := range reasons {
+		if l, ok := labels[r]; ok {
+			out = append(out, i18n.T(ctx, l))
+		}
+	}
+	return strings.Join(out, ", ")
 }
 
 // ---------- detail ----------
@@ -361,14 +401,25 @@ func (s *server) buildTaskVM(r *http.Request, co domain.Company, t service.TaskV
 	}
 	vm.CanWake = t.PersonaID != nil && t.Status.Open() && t.ActiveRunID == nil && !t.System
 
+	atts, err := s.taskAttachments(ctx, co, t.ID) // anexos da task e de cada comentário (ADR-0052)
+	if err != nil {
+		return views.TaskVM{}, err
+	}
+	byComment := map[domain.ID][]service.ArtifactView{}
+	for _, a := range atts {
+		if a.CommentID != nil {
+			byComment[*a.CommentID] = append(byComment[*a.CommentID], a)
+		}
+	}
 	sort.SliceStable(comments, func(i, j int) bool { return comments[i].CreatedAt.Before(comments[j].CreatedAt) })
 	for _, c := range comments {
 		m := views.Msg{
-			Author:   names.actorName(c.Author),
-			Human:    c.Author.Type == domain.ActorHuman,
-			Body:     renderMD(c.Body),
-			When:     fmtDateTime(ctx, c.CreatedAt, loc),
-			Initials: initialsOf(names.actorName(c.Author)),
+			Attachments: attachmentRows(ctx, byComment[c.ID], base, "", s.now(), loc),
+			Author:      names.actorName(c.Author),
+			Human:       c.Author.Type == domain.ActorHuman,
+			Body:        renderMD(c.Body),
+			When:        fmtDateTime(ctx, c.CreatedAt, loc),
+			Initials:    initialsOf(names.actorName(c.Author)),
 		}
 		if c.RunID != nil {
 			m.RunHref = base + "/execucoes/" + c.RunID.String()
@@ -378,7 +429,8 @@ func (s *server) buildTaskVM(r *http.Request, co domain.Company, t service.TaskV
 	}
 
 	var cost float64
-	for _, rv := range runs {
+	var activeRun *service.RunView
+	for i, rv := range runs {
 		if rv.CostUSD != nil {
 			cost += *rv.CostUSD
 		}
@@ -394,10 +446,26 @@ func (s *server) buildTaskVM(r *http.Request, co domain.Company, t service.TaskV
 		if rv.Status.Active() && vm.ActiveRun == nil {
 			m := mini
 			vm.ActiveRun = &m
+			activeRun = &runs[i]
 		}
 		vm.Runs = append(vm.Runs, mini)
 	}
 	vm.Cost = fmtUSDCtx(ctx, cost)
+	if t.Status.Open() && !t.System {
+		fs, err := s.be.ListFollowups(ctx, co.ID, service.FollowupTarget{TaskID: &t.ID})
+		if err != nil {
+			return views.TaskVM{}, err
+		}
+		var steer *views.SteerVM
+		if activeRun != nil {
+			steer = steerVM(ctx, base, *activeRun)
+			if steer != nil {
+				steer.Back = base + "/tasks/" + t.Key + "#followups"
+			}
+		}
+		vm.Followups = followupsVM(ctx, base, fs, base+"/tasks/"+t.Key+"#followups", steer)
+		vm.Followups.AddHref = base + "/tasks/" + t.Key + "/followups"
+	}
 
 	vm.GoalOptions = s.taskGoalOptions(r, co, t.GoalID)
 	arts, err := s.be.ListArtifacts(ctx, co.ID, service.ArtifactFilter{TaskID: &t.ID, Limit: 8})
@@ -405,7 +473,17 @@ func (s *server) buildTaskVM(r *http.Request, co domain.Company, t service.TaskV
 		return views.TaskVM{}, err
 	}
 	vm.Artifacts = artifactMinis(ctx, arts, base)
+	usage, err := s.be.GetArtifactUsage(ctx, co.ID)
+	if err != nil {
+		return views.TaskVM{}, err
+	}
+	vm.Attach = s.taskAttachBox(ctx, co, t, atts, usage.MaxFileBytes)
+	vm.UploadHint = uploadHint(ctx, usage.MaxFileBytes)
+	vm.DraftF = s.draftFields(ctx, co, base+"/tasks/"+t.Key+"/rascunho", domain.DraftTask, t.ID)
 	vm.ArtifactsHref = base + "/artefatos?task=" + url.QueryEscape(t.Key)
+	if vm.Coord, err = s.coordVM(ctx, co, t, personas, names, loc); err != nil {
+		return views.TaskVM{}, err
+	}
 	vm.Cases = s.taskCases(ctx, co, t.ID) // ADR-0034
 	return vm, nil
 }
@@ -527,14 +605,29 @@ func (s *server) handleComment(w http.ResponseWriter, r *http.Request, co domain
 		s.fail(w, r, &co, err)
 		return
 	}
+	files, _, cleanup, err := s.readForm(w, r, co) // multipart com anexos (ADR-0052) ou urlencoded
+	defer cleanup()
+	if err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
 	body := strings.TrimSpace(r.PostFormValue("body"))
-	if body == "" {
+	if body == "" && len(files) == 0 {
 		s.fail(w, r, &co, domain.Invalid(i18n.T(ctx, "comentário"), i18n.T(ctx, "escreva algo antes de enviar")))
 		return
 	}
-	if _, err := s.be.AddComment(ctx, actorFrom(ctx), co.ID, t.ID, service.AddCommentInput{Body: body}); err != nil {
+	// os arquivos sobem antes do comentário e passam a pertencer a ele na mesma transação: a persona acordada pelo
+	// comentário já os vê no briefing. Só arquivos, sem texto, ficam como anexos da task.
+	ids, err := s.attachAll(ctx, co, files, service.PutArtifactInput{TaskID: &t.ID})
+	if err != nil {
 		s.fail(w, r, &co, err)
 		return
+	}
+	if body != "" {
+		if _, err := s.be.AddComment(ctx, actorFrom(ctx), co.ID, t.ID, service.AddCommentInput{Body: body, AttachmentIDs: ids}); err != nil {
+			s.fail(w, r, &co, err)
+			return
+		}
 	}
 	base := "/c/" + co.Slug
 	if !isHX(r) {
@@ -546,7 +639,7 @@ func (s *server) handleComment(w http.ResponseWriter, r *http.Request, co domain
 		s.fail(w, r, &co, err)
 		return
 	}
-	s.render(w, r, http.StatusOK, views.Thread(vm, base))
+	s.render(w, r, http.StatusOK, views.ThreadAndAttachments(vm, base))
 }
 
 func (s *server) handleWake(w http.ResponseWriter, r *http.Request, co domain.Company) {
@@ -599,6 +692,8 @@ func (s *server) handleNewTask(w http.ResponseWriter, r *http.Request, co domain
 			vm.ProjectOptions[i].Selected = vm.ProjectOptions[i].Slug == p
 		}
 	}
+	// ?pai=<chave> abre a nova task como subtask (link "Nova subtask" da task pai)
+	vm.Parent = strings.TrimSpace(r.URL.Query().Get("pai"))
 	// ?meta=<slug> pre-selects the goal (links from the goal page)
 	if g := r.URL.Query().Get("meta"); g != "" {
 		for i := range vm.GoalOptions {
@@ -673,6 +768,27 @@ func (s *server) handleCreateTask(w http.ResponseWriter, r *http.Request, co dom
 			return
 		}
 		in.GoalID = &id
+	}
+	vm.Parent, vm.DependsOn = trimForm(r, "parent"), trimForm(r, "depends_on")
+	if vm.Parent != "" {
+		p, err := s.be.GetTask(ctx, co.ID, vm.Parent)
+		if err != nil {
+			vm.FieldErr["parent"] = i18n.T(ctx, "task pai não encontrada")
+			vm.Error = i18n.T(ctx, "Task pai não encontrada.")
+			s.renderNewTask(w, r, co, http.StatusUnprocessableEntity, vm)
+			return
+		}
+		in.ParentID = &p.ID
+	}
+	if vm.DependsOn != "" {
+		ids, err := s.parseTaskKeys(ctx, co, vm.DependsOn)
+		if err != nil {
+			_, title, msg := friendly(ctx, err)
+			vm.Error = title + ". " + msg
+			s.renderNewTask(w, r, co, http.StatusUnprocessableEntity, vm)
+			return
+		}
+		in.DependsOn = ids
 	}
 	t, err := s.be.CreateTask(r.Context(), actorFrom(r.Context()), co.ID, in)
 	if err != nil {

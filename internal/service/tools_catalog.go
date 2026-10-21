@@ -47,7 +47,7 @@ func (s *Service) toolHTTPClient() *http.Client {
 
 // toolEndpoint monta o destino de uma integração MCP http, com os headers guardados. Destino que a política
 // do operador recusa (interno sem HANKO_INTEGRATIONS_ALLOW_PRIVATE) é erro antes de qualquer conexão.
-func (s *Service) toolEndpoint(integ store.Integration) (mcpupstream.Endpoint, error) {
+func (s *Service) toolEndpoint(ctx context.Context, integ store.Integration) (mcpupstream.Endpoint, error) {
 	cfg := parseIntegrationConfig(integ.Config)
 	if domain.IntegrationKind(integ.Kind) != domain.IntegrationMCP || cfg.Transport != domain.TransportHTTP {
 		return mcpupstream.Endpoint{}, domain.Invalid("integration", "só servidores MCP http têm catálogo de tools")
@@ -56,9 +56,9 @@ func (s *Service) toolEndpoint(integ store.Integration) (mcpupstream.Endpoint, e
 	if err != nil {
 		return mcpupstream.Endpoint{}, fmt.Errorf("destino não permitido: %w", err)
 	}
-	sec, err := s.open(integ.ID, integ.SecretEnc)
+	sec, err := s.openResolved(ctx, integ.CompanyID, integ.ID, integ.SecretEnc)
 	if err != nil {
-		return mcpupstream.Endpoint{}, fmt.Errorf("segredos ilegíveis: %w", err)
+		return mcpupstream.Endpoint{}, fmt.Errorf("segredos ilegíveis ou referência indisponível: %w", err)
 	}
 	return mcpupstream.Endpoint{URL: u.String(), Headers: sec.Headers, Client: s.toolHTTPClient(), Timeout: toolUpstreamTimeout}, nil
 }
@@ -193,7 +193,7 @@ func (s *Service) RefreshIntegrationTools(ctx context.Context, actor domain.Acto
 }
 
 func (s *Service) refreshCatalog(ctx context.Context, actor domain.Actor, integ store.Integration) (ToolCatalogResult, error) {
-	ep, err := s.toolEndpoint(integ)
+	ep, err := s.toolEndpoint(ctx, integ)
 	if err != nil {
 		if errors.Is(err, domain.ErrInvalid) {
 			return ToolCatalogResult{}, err
@@ -257,7 +257,7 @@ func (s *Service) refreshCatalog(ctx context.Context, actor domain.Actor, integ 
 
 // catalogFailed registra o erro da descoberta (sem segredos) e o devolve no resultado.
 func (s *Service) catalogFailed(ctx context.Context, integ store.Integration, msg string) (ToolCatalogResult, error) {
-	if sec, err := s.open(integ.ID, integ.SecretEnc); err == nil {
+	if sec, ok := s.secretsForRedaction(ctx, integ.CompanyID, integ.ID, integ.SecretEnc); ok {
 		msg = redactSecrets(msg, sec)
 	}
 	msg = truncateRunes(msg, 500)

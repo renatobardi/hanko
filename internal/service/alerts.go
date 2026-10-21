@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/settings"
 	"github.com/renatobardi/hanko/internal/store"
 )
 
@@ -67,7 +68,7 @@ func (c alertCond) key() alertKey { return alertKey{c.companyID, c.subjectID, c.
 // atualiza o que continua e fecha o que sumiu. É idempotente (um alerta aberto por condição) e
 // roda numa transação só, serializada por lock, com activity alert.opened / alert.closed.
 func (s *Service) EvaluateAlerts(ctx context.Context) (AlertEval, error) {
-	cfg := s.Alerts.withDefaults()
+	cfg := s.alertConfig().withDefaults()
 	var ev AlertEval
 	err := s.withTx(ctx, func(t *txc) error {
 		ev = AlertEval{}
@@ -118,6 +119,11 @@ func (s *Service) EvaluateAlerts(ctx context.Context) (AlertEval, error) {
 				return err
 			}
 			t.publish(companyTopic(a.CompanyID), "alert.updated", a)
+			if co, err := t.q.GetCompanyByID(ctx, a.CompanyID); err == nil {
+				if err := t.notifyMembers(a.CompanyID, domain.NotifyAlert, nil, Notice{Title: "Alerta: " + clipRunes(a.Message, 90), URL: "/c/" + co.Slug + "/caixa?aba=alertas"}); err != nil {
+					return err
+				}
+			}
 			ev.Opened++
 		}
 		for k, cur := range byKey {
@@ -191,6 +197,22 @@ func (t *txc) alertConditions(cfg AlertConfig) ([]alertCond, error) {
 				humanDuration(t.now.Sub(r.LastEventAt)), humanDuration(cfg.RunStuckAfter)),
 			data: map[string]any{"run_id": r.ID, "run_name": r.RunName, "task_key": r.TaskKey, "persona_name": r.PersonaName,
 				"last_event_at": r.LastEventAt, "limit_sec": int(cfg.RunStuckAfter.Seconds())}})
+	}
+
+	notReady, err := t.q.ListNotReadyPersonas(t.ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list not ready personas: %w", err)
+	}
+	for _, p := range notReady {
+		since := p.CheckedAt
+		if p.FailingSince != nil {
+			since = *p.FailingSince
+		}
+		out = append(out, alertCond{companyID: p.CompanyID, kind: domain.AlertPersonaNotReady, subjectType: "persona", subjectID: p.ID,
+			severity: domain.AlertCritical,
+			message: fmt.Sprintf("Persona %s não está pronta (há %s): %s. O despacho está bloqueado até um teste passar.", p.Name,
+				humanDuration(t.now.Sub(since)), p.Reason),
+			data: map[string]any{"persona_slug": p.Slug, "persona_name": p.Name, "agent": p.Agent, "reason": p.Reason, "failing_since": since}})
 	}
 
 	budget, err := t.budgetConditions()
@@ -338,4 +360,12 @@ func (s *Service) AlertCounts(ctx context.Context) (map[domain.AlertKind]int, er
 		out[domain.AlertKind(r.Kind)] = int(r.N)
 	}
 	return out, nil
+}
+
+// alertConfig são os limiares efetivos dos alertas: settings da instância (env > banco) ou a configuração fixa.
+func (s *Service) alertConfig() AlertConfig {
+	if s.Settings != nil {
+		return AlertConfig{SilentFactor: int(s.Settings.Int(settings.AlertsSilentFactor)), RunStuckAfter: s.Settings.Duration(settings.AlertsRunStuckAfter)}
+	}
+	return s.Alerts
 }

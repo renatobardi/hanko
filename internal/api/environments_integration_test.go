@@ -39,7 +39,7 @@ func TestAPIEnvironments(t *testing.T) {
 	for name, body := range map[string]string{
 		"sem known_hosts": `{"name":"A","driver":"ssh","private_key":"` + apiEnvKey + `","ssh":{"host":"a.example.com","username":"u","remote_workspace_root":"/r","known_hosts":""}}`,
 		"host fora":       `{"name":"B","driver":"ssh","private_key":"` + apiEnvKey + `","ssh":{"host":"evil.com","username":"u","remote_workspace_root":"/r","known_hosts":"evil.com ssh-ed25519 A"}}`,
-		"driver local":    `{"name":"C","driver":"local"}`,
+		"driver docker":   `{"name":"C","driver":"docker"}`,
 		"slug reservado":  `{"name":"Probe","driver":"sandbox","sandbox":{"image":"alpine:3"}}`,
 	} {
 		if status, b := e.call("POST", base, body, nil); status != 422 && status != 400 {

@@ -28,8 +28,11 @@ import (
 
 const (
 	// RunToolGatewayPattern e NamedToolGatewayPattern são os padrões do mux.
-	RunToolGatewayPattern   = "/mcp/run/{integration}"
-	NamedToolGatewayPattern = "/mcp/gw/{company}/{gateway}"
+	RunToolGatewayPattern = "/mcp/run/{integration}"
+	// RunAggregateGatewayPattern é o endpoint único da run (ADR-0053): as tools de todas as integrações MCP http da persona,
+	// com o nome "<integração>__<tool>", sob o mesmo perfil e as mesmas políticas.
+	RunAggregateGatewayPattern = "/mcp/run"
+	NamedToolGatewayPattern    = "/mcp/gw/{company}/{gateway}"
 
 	maxGatewayBody = 2 << 20
 
@@ -64,13 +67,21 @@ type ToolGatewayDeps struct {
 }
 
 type toolGateway struct {
-	d     ToolGatewayDeps
-	log   *slog.Logger
-	named bool
+	d         ToolGatewayDeps
+	log       *slog.Logger
+	named     bool
+	aggregate bool
 }
 
 // RunToolGateway devolve o handler de /mcp/run/{integração}.
 func RunToolGateway(d ToolGatewayDeps) http.Handler { return newToolGateway(d, false) }
+
+// RunAggregateGateway devolve o handler de /mcp/run (endpoint único da run).
+func RunAggregateGateway(d ToolGatewayDeps) http.Handler {
+	g := newToolGateway(d, false)
+	g.aggregate = true
+	return g
+}
 
 // NamedToolGateway devolve o handler de /mcp/gw/{empresa}/{gateway}.
 func NamedToolGateway(d ToolGatewayDeps) http.Handler { return newToolGateway(d, true) }
@@ -181,6 +192,10 @@ func (g *toolGateway) authenticate(r *http.Request) (service.ToolCaller, string,
 	case err != nil:
 		g.log.Error("tool-gateway: resolver run", "err", err, "run_id", rid)
 		return c, "", http.StatusServiceUnavailable, "autenticação indisponível"
+	}
+	if g.aggregate {
+		c.Aggregate = true
+		return c, "", 0, ""
 	}
 	return c, r.PathValue("integration"), 0, ""
 }

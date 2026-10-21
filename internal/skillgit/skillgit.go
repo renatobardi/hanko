@@ -259,7 +259,41 @@ func (f *fetcher) fetch(ctx context.Context, u, ref string, sc Scan) (Snapshot, 
 	if _, err := f.git(ctx, f.tmp, args...); err != nil {
 		return Snapshot{}, err
 	}
-	cb, err := f.git(ctx, f.repo, "rev-parse", "HEAD")
+	return f.snapshot(ctx, "HEAD", sc)
+}
+
+// ScanLocal lê as skills de um repositório que já está no disco (o espelho de um workspace, ADR-0054): resolve rev
+// (um branch remoto do espelho, como refs/remotes/origin/main) sem clonar e sem tocar na rede. Nada é extraído para
+// o disco; scripts são só sinalizados, como em Fetch.
+func ScanLocal(ctx context.Context, repoDir, rev string, sc Scan, o Options) (Snapshot, error) {
+	o.defaults()
+	if rev == "" || strings.HasPrefix(rev, "-") || strings.Contains(rev, "..") || strings.ContainsAny(rev, " \t\n:^~?*[\\") {
+		return Snapshot{}, errors.New("revisão inválida")
+	}
+	if _, err := CleanPath(sc.Prefix); err != nil {
+		return Snapshot{}, err
+	}
+	tmp, err := os.MkdirTemp("", "hanko-skillsrc-*")
+	if err != nil {
+		return Snapshot{}, fmt.Errorf("diretório temporário: %w", err)
+	}
+	defer func() { _ = os.RemoveAll(tmp) }()
+	f := &fetcher{o: o, tmp: tmp, home: filepath.Join(tmp, "home"), repo: repoDir}
+	if err := os.Mkdir(f.home, 0o700); err != nil {
+		return Snapshot{}, fmt.Errorf("diretório temporário: %w", err)
+	}
+	f.base = []string{
+		"-c", "protocol.allow=never", "-c", "core.symlinks=false", "-c", "core.hooksPath=" + os.DevNull,
+		"-c", "credential.helper=", "-c", "core.fsmonitor=false", "-c", "submodule.recurse=false",
+	}
+	cctx, cancel := context.WithTimeoutCause(ctx, o.Timeout, errors.New("tempo limite da leitura excedido"))
+	defer cancel()
+	return f.snapshot(cctx, rev, sc)
+}
+
+// snapshot lê o commit, a árvore e as skills de rev no repositório f.repo.
+func (f *fetcher) snapshot(ctx context.Context, rev string, sc Scan) (Snapshot, error) {
+	cb, err := f.git(ctx, f.repo, "rev-parse", "--verify", "--end-of-options", rev+"^{commit}")
 	if err != nil {
 		return Snapshot{}, err
 	}
@@ -267,11 +301,11 @@ func (f *fetcher) fetch(ctx context.Context, u, ref string, sc Scan) (Snapshot, 
 	if !hexRe.MatchString(commit) {
 		return Snapshot{}, fmt.Errorf("commit inesperado: %q", commit)
 	}
-	tree, err := f.git(ctx, f.repo, "rev-parse", "HEAD^{tree}")
+	tree, err := f.git(ctx, f.repo, "rev-parse", "--verify", "--end-of-options", commit+"^{tree}")
 	if err != nil {
 		return Snapshot{}, err
 	}
-	lsOut, err := f.git(ctx, f.repo, "ls-tree", "-r", "-z", "--full-tree", "HEAD")
+	lsOut, err := f.git(ctx, f.repo, "ls-tree", "-r", "-z", "--full-tree", commit)
 	if err != nil {
 		return Snapshot{}, err
 	}

@@ -245,8 +245,10 @@ type CreateTaskReq struct {
 	Workspace   string `json:"workspace,omitempty"`
 	Goal        string `json:"goal,omitempty"`
 	Parent      string `json:"parent,omitempty"`
-	Model       string `json:"model,omitempty"`
-	EventID     string `json:"event_id,omitempty"`
+	// DependsOn: tasks de que a nova depende (ids ou chaves); ela nasce bloqueada até todas fecharem.
+	DependsOn []string `json:"depends_on,omitempty"`
+	Model     string   `json:"model,omitempty"`
+	EventID   string   `json:"event_id,omitempty"`
 }
 
 type UpdateTaskReq struct {
@@ -261,6 +263,11 @@ type UpdateTaskReq struct {
 	Goal         string  `json:"goal,omitempty"`
 	ClearGoal    bool    `json:"clear_goal,omitempty"`
 	Model        *string `json:"model,omitempty"`
+	// Árvore e fechamento do pai (ADR-0040).
+	Parent         string `json:"parent,omitempty"`
+	ClearParent    bool   `json:"clear_parent,omitempty"`
+	ForceClose     bool   `json:"force_close,omitempty"`
+	OverrideReason string `json:"override_reason,omitempty"`
 }
 
 type AddCommentReq struct {
@@ -273,7 +280,9 @@ type AddCommentReq struct {
 // TaskQuery são os filtros de ListTasks.
 type TaskQuery struct {
 	Status, Persona, Project, Q, Goal string
-	Limit, Offset                     int
+	// Mine: só as tasks em que a pessoa autenticada participa (ADR-0042).
+	Mine          bool
+	Limit, Offset int
 }
 
 func (t TaskQuery) values() url.Values {
@@ -282,6 +291,9 @@ func (t TaskQuery) values() url.Values {
 		if v != "" {
 			q.Set(k, v)
 		}
+	}
+	if t.Mine {
+		q.Set("mine", "true")
 	}
 	if t.Limit > 0 {
 		q.Set("limit", strconv.Itoa(t.Limit))
@@ -314,14 +326,21 @@ func (r RunQuery) values() url.Values {
 	return q
 }
 
-// UpdateCompanyReq muda o orçamento da empresa.
+// UpdateCompanyReq muda o orçamento e o perfil da empresa (nome, fuso, descrição e, com zero tasks, o prefixo).
 type UpdateCompanyReq struct {
-	BudgetMonthlyCents *int64 `json:"budget_monthly_cents,omitempty"`
-	ClearBudget        bool   `json:"clear_budget,omitempty"`
+	BudgetMonthlyCents *int64  `json:"budget_monthly_cents,omitempty"`
+	ClearBudget        bool    `json:"clear_budget,omitempty"`
+	Name               *string `json:"name,omitempty"`
+	Timezone           *string `json:"timezone,omitempty"`
+	Description        *string `json:"description,omitempty"`
+	TaskPrefix         *string `json:"task_prefix,omitempty"`
 }
 
 // UpdatePersonaReq muda o orçamento, o organograma e a revisão obrigatória de uma persona.
 type UpdatePersonaReq struct {
+	// Instructions troca o texto das instruções (vira uma revisão, ADR-0052); InstructionsReason é o motivo.
+	Instructions       *string `json:"instructions,omitempty"`
+	InstructionsReason string  `json:"instructions_reason,omitempty"`
 	ReportsTo          string  `json:"reports_to,omitempty"`
 	ClearReportsTo     bool    `json:"clear_reports_to,omitempty"`
 	RequireReview      *bool   `json:"require_review,omitempty"`

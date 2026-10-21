@@ -81,8 +81,10 @@ func (s TaskStatus) CanTransition(t TaskStatus) bool {
 }
 
 // Agents supported by the adapter layer. "acp" runs any agent that speaks the Agent Client
-// Protocol; its command comes from the persona's adapter_config (ADR-0023).
-var KnownAgents = []string{"claude", "codex", "acp", "fake"}
+// Protocol; its command comes from the persona's adapter_config (ADR-0023). "devin" is the Devin CLI over ACP with a
+// command fixed by the operator; "pi" and "cursor" are native CLIs; "http" is the built-in tool-use loop over an
+// OpenAI-compatible endpoint (ADR-0056).
+var KnownAgents = []string{"claude", "codex", "acp", "devin", "pi", "cursor", "http", "fake"}
 
 // ReviewerAgents are the harnesses that can be an alternate reviewer of a persona. "acp" is not
 // one of them: an alternate harness carries no adapter_config, and an ACP agent is unusable without

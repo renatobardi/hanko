@@ -70,6 +70,7 @@ func BuildRoomPrompt(rc service.RunContext, briefing, handoff string) (system, p
 		}
 	}
 
+	pb.WriteString(attachmentsSection(rc))
 	pb.WriteString("## Mensagens novas para você\n\n")
 	if len(cc.New) == 0 {
 		pb.WriteString("(nenhuma mensagem nova)\n\n")

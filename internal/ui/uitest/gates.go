@@ -54,6 +54,9 @@ func (f *Fake) ListGates(_ context.Context, _ domain.ID, fl service.GateFilter) 
 		if fl.PersonaID != nil && (g.PersonaID == nil || *g.PersonaID != *fl.PersonaID) {
 			continue
 		}
+		if fl.Mine && !f.Caixa.MineGates[g.ID] { // audiência da pessoa (ADR-0042)
+			continue
+		}
 		out = append(out, g)
 	}
 	// pending first (oldest first), then the decided, newest first
@@ -109,6 +112,7 @@ func (f *Fake) DecideGate(_ context.Context, actor domain.Actor, _, id domain.ID
 			return service.GateView{}, domain.ErrConflict
 		}
 		now := time.Now().UTC()
+		f.Tools.LastDecision = in
 		g.Status, g.DecisionNote, g.DecidedAt = in.Decision, in.Note, &now
 		a := actor
 		g.DecidedBy = &a
@@ -158,6 +162,15 @@ func (f *Fake) Inbox(ctx context.Context, companyID domain.ID) (service.Inbox, e
 			withGate[*g.TaskID] = true
 		}
 	}
+	in.HeldTasks = f.heldTasksLocked()
+	if f.Tools.InboxQuarantine {
+		f.toolsSeed()
+		for _, t := range f.Tools.Catalog[ID("int:github")] {
+			if t.Status == domain.ToolQuarantined {
+				in.QuarantinedTools = append(in.QuarantinedTools, service.QuarantinedToolItem{Tool: t, IntegrationName: "GitHub"})
+			}
+		}
+	}
 	for _, t := range f.Tasks {
 		if t.Status == domain.TaskBlocked && !withGate[t.ID] {
 			in.BlockedTasks = append(in.BlockedTasks, t)
@@ -165,7 +178,10 @@ func (f *Fake) Inbox(ctx context.Context, companyID domain.ID) (service.Inbox, e
 	}
 	for _, r := range f.Runs {
 		if r.Status == domain.RunFailed || r.Status == domain.RunExpired {
-			in.FailedRuns = append(in.FailedRuns, r)
+			in.FailedRuns = append(in.FailedRuns, withSteer(r))
+		}
+		if r.DecisionPending && r.Decision == domain.DecisionNone {
+			in.StoppedRuns = append(in.StoppedRuns, withSteer(r))
 		}
 	}
 	for _, p := range f.Personas {

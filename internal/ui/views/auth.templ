@@ -80,6 +80,7 @@ templ cliOwnerCard(vm LoginVM) {
 		<p class="sub muted">{ i18n.T(ctx, "Ainda não há usuários. Por segurança, a primeira conta não é criada por esta página quando o endereço é público. No servidor, rode:") }</p>
 		@loginMessages(vm)
 		<pre class="mono"><code>hanko auth create-owner --email voce@exemplo.com --name "Seu Nome"</code></pre>
+		<p class="sub muted">{ i18n.T(ctx, "Ou abra o link de uso único que o servidor imprimiu no boot (`hanko auth claim-link` emite outro).") }</p>
 		<p class="sub muted">{ i18n.T(ctx, "Depois recarregue esta página e entre. Detalhes em docs/RUNBOOK.md, seção 5.1.") }</p>
 	</div>
 }
@@ -133,6 +134,67 @@ templ loginMessages(vm LoginVM) {
 	}
 }
 
+// ClaimVM drives the first-owner claim page (/claim/{token}, ADR-0058).
+type ClaimVM struct {
+	Action  string // POST target, /claim/<token>
+	Email   string
+	Name    string
+	Error   string
+	Version string
+}
+
+// ClaimPage is the one-time link that creates the first owner of a fresh instance.
+templ ClaimPage(vm ClaimVM) {
+	@Bare(i18n.T(ctx, "Primeiro acesso"), vm.Version) {
+		<div class="auth">
+			<div class="mark">
+				@Mark(40)
+				<b>Hanko</b>
+			</div>
+			<form class="card" method="post" action={ templ.SafeURL(vm.Action) } data-testid="claim-form">
+				<h1>{ i18n.T(ctx, "Criar o primeiro dono") }</h1>
+				<p class="sub muted">{ i18n.T(ctx, "Este link é de uso único: a conta criada aqui vira dona desta instalação e o link deixa de valer.") }</p>
+				if vm.Error != "" {
+					@Alert("danger", vm.Error)
+				}
+				<div class="field">
+					<label for="c-name">{ i18n.T(ctx, "Nome") }</label>
+					<input class="input" id="c-name" name="name" value={ vm.Name } required maxlength="80" autocomplete="name" autofocus/>
+				</div>
+				<div class="field">
+					<label for="c-email">{ i18n.T(ctx, "E-mail") }</label>
+					<input class="input" id="c-email" name="email" type="email" value={ vm.Email } required autocomplete="username"/>
+				</div>
+				<div class="field">
+					<label for="c-pass">{ i18n.T(ctx, "Senha") }</label>
+					<input class="input" id="c-pass" name="password" type="password" required minlength="10" maxlength="256" autocomplete="new-password"/>
+					<span class="hint">{ i18n.T(ctx, "Mínimo de 10 caracteres.") }</span>
+				</div>
+				<button class="btn primary block" type="submit">{ i18n.T(ctx, "Criar conta e entrar") }</button>
+			</form>
+			@LangSwitch()
+		</div>
+	}
+}
+
+// ClaimInvalidPage answers any link that is unknown, used or expired, without saying which.
+templ ClaimInvalidPage(version string) {
+	@Bare(i18n.T(ctx, "Link inválido"), version) {
+		<div class="auth">
+			<div class="mark">
+				@Mark(40)
+				<b>Hanko</b>
+			</div>
+			<div class="card" data-testid="claim-invalid">
+				<h1>{ i18n.T(ctx, "Link inválido ou expirado") }</h1>
+				<p class="sub muted">{ i18n.T(ctx, "Este link de primeiro acesso não vale mais. No servidor, rode `hanko auth claim-link` para emitir outro, ou entre com a sua conta.") }</p>
+				<a class="btn outline block" href="/entrar">{ i18n.T(ctx, "Ir para a entrada") }</a>
+			</div>
+			@LangSwitch()
+		</div>
+	}
+}
+
 // SettingsPage shows the account and its API keys.
 templ SettingsPage(sh Shell, vm SettingsVM) {
 	@Layout(sh) {
@@ -140,6 +202,7 @@ templ SettingsPage(sh Shell, vm SettingsVM) {
 		if len(vm.Sections) > 0 {
 			<div class="mb-6">@Tabs(vm.Sections)</div>
 		}
+		@companyAdminCard(sh, vm.Company)
 		if !vm.Authenticated {
 			@EmptyCard("lock", i18n.T(ctx, "Modo trusted"), i18n.T(ctx, "Contas e chaves de API existem no modo authenticated (HANKO_MODE=authenticated). Veja o RUNBOOK."), true)
 		} else {
@@ -166,6 +229,13 @@ templ SettingsPage(sh Shell, vm SettingsVM) {
 						</dd>
 					}
 				</dl>
+				<p class="mt-4">
+					if vm.UsersLink {
+						<a class="link-u" href="/admin/usuarios">{ i18n.T(ctx, "Usuários da instalação") }</a>
+						{ " · " }
+					}
+					<a class="link-u" href="/importar">{ i18n.T(ctx, "Importar empresa") }</a>
+				</p>
 				if vm.LocalLogin {
 					<details class="mt-4" open?={ vm.PasswordError != "" } id="senha">
 						<summary class="btn outline sm">{ i18n.T(ctx, "Trocar senha") }</summary>
@@ -227,6 +297,8 @@ templ SettingsPage(sh Shell, vm SettingsVM) {
 								<tr>
 									<th>{ i18n.T(ctx, "Nome") }</th>
 									<th>{ i18n.T(ctx, "Prefixo") }</th>
+									<th class="hide-sm">{ i18n.T(ctx, "Dispositivo") }</th>
+									<th class="hide-sm">{ i18n.T(ctx, "Acesso") }</th>
 									<th class="hide-sm">{ i18n.T(ctx, "Criada") }</th>
 									<th class="hide-sm">{ i18n.T(ctx, "Último uso") }</th>
 									<th></th>
@@ -237,6 +309,8 @@ templ SettingsPage(sh Shell, vm SettingsVM) {
 									<tr class="row">
 										<td>{ k.Name }</td>
 										<td class="id">{ k.Prefix }…</td>
+										<td class="hide-sm">{ k.Device }</td>
+										<td class="hide-sm"><span class="badge outline">{ k.Scope }</span></td>
 										<td class="when hide-sm">{ k.Created }</td>
 										<td class="when hide-sm">{ k.LastUsed }</td>
 										<td class="ta-r">
@@ -257,6 +331,7 @@ templ SettingsPage(sh Shell, vm SettingsVM) {
 			</div>
 		}
 		@memoryCard(sh, vm.Memory)
+		@CompanyPolicyCard(vm.Policy)
 	}
 }
 
@@ -348,6 +423,7 @@ templ membersCard(sh Shell, m MembersVM) {
 					</tbody>
 				</table>
 			</div>
+			@joinCard(sh, m)
 			if len(m.Invites) > 0 {
 				<h3 class="mt-6">{ i18n.T(ctx, "Convites abertos") }</h3>
 				<div class="table-wrap">

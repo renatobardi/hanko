@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -46,7 +47,9 @@ type taskCreateIn struct {
 	Assignee    string `json:"assignee,omitempty" jsonschema:"slug da persona responsável; vazio = sem responsável"`
 	Project     string `json:"project,omitempty" jsonschema:"slug do projeto onde a task nasce (veja hanko_project_list); vazio = sem projeto"`
 	Parent      string `json:"parent,omitempty" jsonschema:"chave da task pai; com token de run o padrão é a task do run atual"`
-	EventID     string `json:"event_id,omitempty" jsonschema:"chave de idempotência: repetir a chamada com o mesmo event_id não duplica a task"`
+	// DependsOn ordena o trabalho: a task nasce bloqueada e só é despachada quando todas essas tasks fecharem.
+	DependsOn []string `json:"depends_on,omitempty" jsonschema:"chaves das tasks de que esta depende (ex. [\"HNK-7\"]): ela só começa quando todas fecharem; sem ciclos"`
+	EventID   string   `json:"event_id,omitempty" jsonschema:"chave de idempotência: repetir a chamada com o mesmo event_id não duplica a task"`
 }
 
 type taskUpdateIn struct {
@@ -55,6 +58,7 @@ type taskUpdateIn struct {
 	Status   string `json:"status,omitempty" jsonschema:"novo status: backlog,todo,in_progress,in_review,blocked,done,cancelled"`
 	Priority string `json:"priority,omitempty" jsonschema:"nova prioridade: critical,high,medium,low"`
 	Assignee string `json:"assignee,omitempty" jsonschema:"slug da nova persona responsável, ou 'none' para remover o responsável"`
+	Parent   string `json:"parent,omitempty" jsonschema:"chave da nova task pai, ou 'none' para tornar a task raiz"`
 	EventID  string `json:"event_id,omitempty" jsonschema:"chave de idempotência da alteração"`
 }
 
@@ -79,7 +83,7 @@ type projectListIn struct {
 type searchIn struct {
 	Company string `json:"company,omitempty" jsonschema:"slug ou id da empresa (obrigatório só sem token de run)"`
 	Query   string `json:"query" jsonschema:"o que buscar (palavras, \"frase exata\", -excluir, OR) ou a chave de uma task (HNK-12)"`
-	Types   string `json:"types,omitempty" jsonschema:"tipos separados por vírgula: task,comment,persona,run,flow,memory (padrão: todos)"`
+	Types   string `json:"types,omitempty" jsonschema:"tipos separados por vírgula: task,comment,persona,run,flow,goal,project,gate,artifact,memory (padrão: todos)"`
 	Limit   int    `json:"limit,omitempty" jsonschema:"máximo de resultados por tipo (padrão 10, máx 50)"`
 }
 
@@ -117,9 +121,15 @@ type gateRequestIn struct {
 	Company string `json:"company,omitempty" jsonschema:"slug ou id da empresa (obrigatório só sem token de run)"`
 	Title   string `json:"title" jsonschema:"o que você precisa que o humano decida, em uma frase"`
 	Body    string `json:"body,omitempty" jsonschema:"markdown: o que será feito, evidências, impacto e alternativas"`
-	Kind    string `json:"kind,omitempty" jsonschema:"approval (padrão)"`
+	Kind    string `json:"kind,omitempty" jsonschema:"approval (padrão), question (formulário que o humano responde; envie questions) ou plan (o plano a aprovar antes de executar; envie o plano em body ou artifact)"`
 	Task    string `json:"task,omitempty" jsonschema:"chave da task; com token de run o padrão é a task da execução atual"`
 	EventID string `json:"event_id,omitempty" jsonschema:"chave de idempotência: repetir a chamada com o mesmo event_id devolve o mesmo gate"`
+	// kind=question
+	Questions []questionFieldIn `json:"questions,omitempty" jsonschema:"para question: os campos do formulário (até 12), cada um single, multi ou text"`
+	// kind=plan
+	Artifact string `json:"artifact,omitempty" jsonschema:"para plan: nome do artefato (publicado com hanko_artifact_put nesta task) que contém o plano; alternativa a body"`
+	// Quem pode decidir
+	AudienceRoles []string `json:"audience_roles,omitempty" jsonschema:"restringe quem decide a estes papéis (admin, member...); o owner sempre pode"`
 }
 
 type gateStatusIn struct {
@@ -133,12 +143,15 @@ type gateStatusIn struct {
 type gateOut struct {
 	ID           string `json:"id"`
 	Kind         string `json:"kind"`
-	Status       string `json:"status" jsonschema:"pending, approved, rejected, changes_requested ou expired"`
+	Status       string `json:"status" jsonschema:"pending, approved, rejected, changes_requested, expired ou dismissed"`
 	Title        string `json:"title"`
 	TaskKey      string `json:"task_key,omitempty"`
 	DecisionNote string `json:"decision_note,omitempty"`
 	CreatedAt    string `json:"created_at"`
 	DecidedAt    string `json:"decided_at,omitempty"`
+	// Answers é a resposta de uma pergunta (kind=question) já respondida: chave do campo → valores.
+	Answers  map[string][]string `json:"answers,omitempty"`
+	Revision int                 `json:"revision,omitempty" jsonschema:"versão do pedido; sobe a cada reenvio"`
 }
 
 type gateWriteOut struct {
@@ -177,6 +190,11 @@ type taskOut struct {
 	ParentID    string `json:"parent_id,omitempty"`
 	ActiveRunID string `json:"active_run_id,omitempty"`
 	UpdatedAt   string `json:"updated_at"`
+	// Coordenação (ADR-0040): derivados.
+	Blocked          bool   `json:"blocked,omitempty" jsonschema:"tem dependência aberta: nenhuma execução abre até todas fecharem"`
+	OpenDependencies int    `json:"open_dependencies,omitempty"`
+	ChildrenOpen     int    `json:"children_open,omitempty" jsonschema:"subtasks ainda abertas; o pai só conclui quando fecharem"`
+	HoldReason       string `json:"hold_reason,omitempty" jsonschema:"a task (ou um ancestral) está pausada por um humano: nenhuma execução abre"`
 }
 
 type commentOut struct {
@@ -282,7 +300,9 @@ func registerTools(s *sdk.Server, t *tools) {
 	sdk.AddTool(s, &sdk.Tool{
 		Name: "hanko_task_comment",
 		Description: "Comenta na thread de uma task (progresso, perguntas, resultado). Use event_id para não duplicar o comentário em retentativas. " +
-			"Com quote (texto exato) o comentário fica ancorado a esse trecho da descrição da task — ou do resumo de uma execução, com quote_run.",
+			"Com quote (texto exato) o comentário fica ancorado a esse trecho da descrição da task — ou do resumo de uma execução, com quote_run. " +
+			"Para chamar a atenção de um humano, cite-o com @ (a parte local do e-mail, em minúsculas: @renato-bardi): o comentário chega na Caixa dele. " +
+			"Citar outra persona (@slug) só a acorda quando o comentário é de um humano.",
 	}, t.taskComment)
 	sdk.AddTool(s, &sdk.Tool{
 		Name: "hanko_gate_request",
@@ -324,6 +344,11 @@ func registerTools(s *sdk.Server, t *tools) {
 	registerSkillTools(s, t)
 	registerStatusCardTools(s, t)
 	registerCaseTools(s, t)
+	registerCoordinationTools(s, t)
+	registerInstructionTools(s, t)
+	registerAttachmentTools(s, t)
+	registerProjectGoalTools(s, t)
+	registerGatePlusTools(s, t)
 }
 
 // ---- resolução de empresa ----
@@ -406,6 +431,10 @@ func toTask(v service.TaskView) taskOut {
 		PersonaID: idStr(v.PersonaID), PersonaName: v.PersonaName, ProjectID: idStr(v.ProjectID), ProjectName: v.ProjectName,
 		ParentID: idStr(v.ParentID), ActiveRunID: idStr(v.ActiveRunID),
 		UpdatedAt: v.UpdatedAt.UTC().Format("2006-01-02T15:04:05Z"),
+		Blocked:   v.Blocked, OpenDependencies: v.OpenDependencies, ChildrenOpen: v.ChildrenOpen,
+	}
+	if v.Hold != nil {
+		o.HoldReason = v.Hold.Reason
 	}
 	return o
 }
@@ -645,6 +674,17 @@ func (t *tools) taskCreate(ctx context.Context, _ *sdk.CallToolRequest, in taskC
 	case id.ViaToken && id.TaskID != nil:
 		ci.ParentID = id.TaskID
 	}
+	for _, ref := range in.DependsOn {
+		ref = strings.TrimSpace(ref)
+		if ref == "" {
+			continue
+		}
+		dv, err := t.b.GetTask(ctx, company, ref)
+		if err != nil {
+			return nil, taskWriteOut{}, toolErr("dependência", ref, err)
+		}
+		ci.DependsOn = append(ci.DependsOn, dv.ID)
+	}
 	if id.ViaToken && id.ConversationID != nil {
 		ci.Description = t.conversationOrigin(ctx, company, *id.ConversationID, ci.Description)
 	}
@@ -702,8 +742,19 @@ func (t *tools) taskUpdate(ctx context.Context, _ *sdk.CallToolRequest, in taskU
 		}
 		changed = true
 	}
+	switch pa := strings.TrimSpace(in.Parent); pa {
+	case "":
+	case "none":
+		ui.ClearParent, changed = true, true
+	default:
+		pv, err := t.b.GetTask(ctx, company, pa)
+		if err != nil {
+			return nil, taskWriteOut{}, toolErr("task pai", pa, err)
+		}
+		ui.ParentID, changed = &pv.ID, true
+	}
 	if !changed {
-		return nil, taskWriteOut{}, errors.New("nada a alterar: informe status, priority ou assignee")
+		return nil, taskWriteOut{}, errors.New("nada a alterar: informe status, priority, assignee ou parent")
 	}
 	cur, err := t.b.GetTask(ctx, company, strings.TrimSpace(in.Key))
 	if err != nil {
@@ -842,7 +893,13 @@ func (t *tools) runGet(ctx context.Context, _ *sdk.CallToolRequest, in runGetIn)
 
 func toGate(g service.GateView) gateOut {
 	o := gateOut{ID: g.ID.String(), Kind: string(g.Kind), Status: string(g.Status), Title: g.Title, TaskKey: g.TaskKey,
-		DecisionNote: g.DecisionNote, CreatedAt: g.CreatedAt.UTC().Format(time.RFC3339)}
+		DecisionNote: g.DecisionNote, CreatedAt: g.CreatedAt.UTC().Format(time.RFC3339), Revision: g.Revision}
+	if len(g.Answer) > 0 {
+		var a domain.QuestionAnswer
+		if json.Unmarshal(g.Answer, &a) == nil {
+			o.Answers = a.Values
+		}
+	}
 	if g.DecidedAt != nil {
 		o.DecidedAt = g.DecidedAt.UTC().Format(time.RFC3339)
 	}
@@ -856,6 +913,14 @@ func gateLine(g service.GateView) string {
 	}
 	if g.DecisionNote != "" {
 		s += "\nNota: " + g.DecisionNote
+	}
+	if len(g.Answer) > 0 {
+		var a domain.QuestionAnswer
+		if json.Unmarshal(g.Answer, &a) == nil {
+			for k, v := range a.Values {
+				s += fmt.Sprintf("\nResposta %s: %s", k, strings.Join(v, ", "))
+			}
+		}
 	}
 	return s
 }
@@ -884,8 +949,13 @@ func (t *tools) gateRequest(ctx context.Context, _ *sdk.CallToolRequest, in gate
 		return nil, gateWriteOut{}, errors.New("title é obrigatório")
 	}
 	kind := domain.GateKind(strings.TrimSpace(in.Kind))
-	if kind != "" && kind != domain.GateApproval {
-		return nil, gateWriteOut{}, errors.New("kind: use approval (os demais tipos são abertos pelo Hanko)")
+	switch kind {
+	case "", domain.GateApproval, domain.GateQuestion, domain.GatePlan:
+	default:
+		return nil, gateWriteOut{}, errors.New("kind: use approval, question ou plan (a contratação tem a tool hanko_hire_request; os demais tipos são abertos pelo Hanko)")
+	}
+	if kind == "" {
+		kind = domain.GateApproval
 	}
 	task, err := t.gateTask(ctx, id, company, in.Task)
 	if err != nil {
@@ -894,7 +964,11 @@ func (t *tools) gateRequest(ctx context.Context, _ *sdk.CallToolRequest, in gate
 	if task == nil && id.ConversationID != nil {
 		return nil, gateWriteOut{}, errors.New("esta execução é uma conversa (chat) e não tem task: informe o argumento task com a chave de uma task existente ou abra uma com hanko_task_create e peça o gate nela")
 	}
-	req := service.RequestGateInput{Kind: domain.GateApproval, Title: in.Title, Body: in.Body, TaskID: task, EventID: in.EventID}
+	req := service.RequestGateInput{Kind: kind, Title: in.Title, Body: in.Body, TaskID: task, EventID: in.EventID,
+		Artifact: in.Artifact, Audience: audienceRoles(in.AudienceRoles)}
+	if kind == domain.GateQuestion {
+		req.Form = questionForm(in.Questions)
+	}
 	if id.ViaToken {
 		req.RunID = id.RunID
 	}

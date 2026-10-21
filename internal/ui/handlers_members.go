@@ -69,6 +69,9 @@ func (s *server) membersVM(r *http.Request, co domain.Company) (views.MembersVM,
 				Expires: relTimeCtx(ctx, in.ExpiresAt, now, time.UTC), Expired: in.Expired(now), CanRevoke: role.Manages(in.Role)})
 		}
 	}
+	if vm.CanInvite {
+		vm.Join = s.joinVM(ctx, co, vm.Roles)
+	}
 	return vm, nil
 }
 

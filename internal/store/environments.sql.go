@@ -475,6 +475,44 @@ func (q *Queries) ListEnvironmentPersonas(ctx context.Context, companyID uuid.UU
 	return items, nil
 }
 
+const listEnvironmentProjects = `-- name: ListEnvironmentProjects :many
+SELECT p.id, p.slug, p.name, p.environment_id FROM projects p
+WHERE p.company_id = $1 AND p.environment_id IS NOT NULL
+ORDER BY p.name, p.id
+`
+
+type ListEnvironmentProjectsRow struct {
+	ID            uuid.UUID
+	Slug          string
+	Name          string
+	EnvironmentID *uuid.UUID
+}
+
+func (q *Queries) ListEnvironmentProjects(ctx context.Context, companyID uuid.UUID) ([]ListEnvironmentProjectsRow, error) {
+	rows, err := q.db.Query(ctx, listEnvironmentProjects, companyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListEnvironmentProjectsRow{}
+	for rows.Next() {
+		var i ListEnvironmentProjectsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Slug,
+			&i.Name,
+			&i.EnvironmentID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listEnvironments = `-- name: ListEnvironments :many
 SELECT id, company_id, slug, name, description, driver, status, config, secret_enc, is_default, last_probe_at, last_probe_ok, last_probe_report, created_by_type, created_by_id, created_at, updated_at FROM environments WHERE company_id = $1 ORDER BY status, name, id
 `
@@ -542,6 +580,32 @@ type MovePersonasEnvironmentParams struct {
 // Arquivar um ambiente leva as personas dele para outro (ou para o padrão, com nulo).
 func (q *Queries) MovePersonasEnvironment(ctx context.Context, arg MovePersonasEnvironmentParams) (int64, error) {
 	result, err := q.db.Exec(ctx, movePersonasEnvironment,
+		arg.ToID,
+		arg.Now,
+		arg.CompanyID,
+		arg.FromID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const moveProjectsEnvironment = `-- name: MoveProjectsEnvironment :execrows
+UPDATE projects SET environment_id = $1, updated_at = $2
+WHERE company_id = $3 AND environment_id = $4
+`
+
+type MoveProjectsEnvironmentParams struct {
+	ToID      *uuid.UUID
+	Now       time.Time
+	CompanyID uuid.UUID
+	FromID    *uuid.UUID
+}
+
+// Arquivar um ambiente leva os projetos dele para outro (ou para o padrão, com nulo).
+func (q *Queries) MoveProjectsEnvironment(ctx context.Context, arg MoveProjectsEnvironmentParams) (int64, error) {
+	result, err := q.db.Exec(ctx, moveProjectsEnvironment,
 		arg.ToID,
 		arg.Now,
 		arg.CompanyID,
@@ -689,7 +753,7 @@ func (q *Queries) SetEnvironmentSecretEnc(ctx context.Context, arg SetEnvironmen
 const setPersonaEnvironment = `-- name: SetPersonaEnvironment :one
 UPDATE personas SET environment_id = $1, updated_at = $2
 WHERE company_id = $3 AND id = $4
-RETURNING id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason, budget_refused_at, subscription_id, reviewer_persona_id, reviewer_agent, reviewer_model, search_tsv, icon, environment_id
+RETURNING id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason, budget_refused_at, subscription_id, reviewer_persona_id, reviewer_agent, reviewer_model, search_tsv, icon, environment_id, instruction_revision, system
 `
 
 type SetPersonaEnvironmentParams struct {
@@ -737,6 +801,124 @@ func (q *Queries) SetPersonaEnvironment(ctx context.Context, arg SetPersonaEnvir
 		&i.SearchTsv,
 		&i.Icon,
 		&i.EnvironmentID,
+		&i.InstructionRevision,
+		&i.System,
+	)
+	return i, err
+}
+
+const setProjectEnvironment = `-- name: SetProjectEnvironment :one
+
+UPDATE projects SET environment_id = $1, updated_at = $2
+WHERE company_id = $3 AND id = $4
+RETURNING id, company_id, slug, name, description, workspace_id, created_at, updated_at, status, budget_monthly_cents, environment_id, search_tsv
+`
+
+type SetProjectEnvironmentParams struct {
+	EnvironmentID *uuid.UUID
+	Now           time.Time
+	CompanyID     uuid.UUID
+	ID            uuid.UUID
+}
+
+// M11 (ADR-0055): ambiente do projeto e origem do ambiente gravada na run.
+func (q *Queries) SetProjectEnvironment(ctx context.Context, arg SetProjectEnvironmentParams) (Project, error) {
+	row := q.db.QueryRow(ctx, setProjectEnvironment,
+		arg.EnvironmentID,
+		arg.Now,
+		arg.CompanyID,
+		arg.ID,
+	)
+	var i Project
+	err := row.Scan(
+		&i.ID,
+		&i.CompanyID,
+		&i.Slug,
+		&i.Name,
+		&i.Description,
+		&i.WorkspaceID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Status,
+		&i.BudgetMonthlyCents,
+		&i.EnvironmentID,
+		&i.SearchTsv,
+	)
+	return i, err
+}
+
+const setRunEnvironment = `-- name: SetRunEnvironment :one
+UPDATE runs SET environment_id = $1, environment_source = $2
+WHERE company_id = $3 AND id = $4
+RETURNING id, company_id, task_id, persona_id, status, trigger, agent, model, session_ref, trace_id, exit_code, error, summary, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, handoff_in, handoff_out, created_at, started_at, finished_at, pending_result, cost_source, next_event_seq, model_source, subscription_id, list_cost_usd, name, workspace_id, workspace_source, conversation_id, search_tsv, instruction_revision, instruction_sha256, environment_id, environment_source, continuation_of_run_id, continuation_attempt, continuation_reason, resume_pending, resume_reason, diagnosis, decision_pending, decision, decision_note, decided_by_type, decided_by_id, decided_at
+`
+
+type SetRunEnvironmentParams struct {
+	EnvironmentID *uuid.UUID
+	Source        string
+	CompanyID     uuid.UUID
+	ID            uuid.UUID
+}
+
+func (q *Queries) SetRunEnvironment(ctx context.Context, arg SetRunEnvironmentParams) (Run, error) {
+	row := q.db.QueryRow(ctx, setRunEnvironment,
+		arg.EnvironmentID,
+		arg.Source,
+		arg.CompanyID,
+		arg.ID,
+	)
+	var i Run
+	err := row.Scan(
+		&i.ID,
+		&i.CompanyID,
+		&i.TaskID,
+		&i.PersonaID,
+		&i.Status,
+		&i.Trigger,
+		&i.Agent,
+		&i.Model,
+		&i.SessionRef,
+		&i.TraceID,
+		&i.ExitCode,
+		&i.Error,
+		&i.Summary,
+		&i.CostUsd,
+		&i.InputTokens,
+		&i.OutputTokens,
+		&i.CacheReadTokens,
+		&i.CacheCreationTokens,
+		&i.HandoffIn,
+		&i.HandoffOut,
+		&i.CreatedAt,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.PendingResult,
+		&i.CostSource,
+		&i.NextEventSeq,
+		&i.ModelSource,
+		&i.SubscriptionID,
+		&i.ListCostUsd,
+		&i.Name,
+		&i.WorkspaceID,
+		&i.WorkspaceSource,
+		&i.ConversationID,
+		&i.SearchTsv,
+		&i.InstructionRevision,
+		&i.InstructionSha256,
+		&i.EnvironmentID,
+		&i.EnvironmentSource,
+		&i.ContinuationOfRunID,
+		&i.ContinuationAttempt,
+		&i.ContinuationReason,
+		&i.ResumePending,
+		&i.ResumeReason,
+		&i.Diagnosis,
+		&i.DecisionPending,
+		&i.Decision,
+		&i.DecisionNote,
+		&i.DecidedByType,
+		&i.DecidedByID,
+		&i.DecidedAt,
 	)
 	return i, err
 }

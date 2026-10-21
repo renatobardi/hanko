@@ -7,7 +7,7 @@
 > - Adapters em `internal/adapter`: `claude`, `codex`, `acp` (qualquer agente que fale ACP v1 por stdio, ADR-0023) e `fake`. O adapter `http` (webhook) não foi feito.
 > - MCP: servidor `/mcp` (tools `hanko_*`) e proxy `/memory-mcp` para o ai-memory; não há gateway allow/ask/off.
 > - CSS próprio com tokens Kubo (adendo da ADR-0005), sem Tailwind; o JS do Firebase está versionado em `internal/ui/static/`, sem `tools/bundle`.
-> - Não existem ainda: `internal/secrets`, `internal/storage`, `tools/bundle`, embedded-postgres, testcontainers (os testes usam `HANKO_TEST_DATABASE_URL`), `go-i18n`.
+> - Segredos (ADR-0050) e BlobStore (ADR-0051) existem: `internal/secretbox`, `secretref`, `vault`, `settings` e `storage` (ver §11). Não existem ainda: `tools/bundle`, embedded-postgres, testcontainers (os testes usam `HANKO_TEST_DATABASE_URL`), `go-i18n`.
 > - Imagem: `ghcr.io/renatobardi/hanko`.
 
 
@@ -42,8 +42,8 @@ Decisões em `docs/adr/`. Este arquivo é o resumo vigente; ADR vence em conflit
 | Memória | ai-memory **ligado por padrão** (ADR-0015). Personas: MCP+hooks por run, projeto = workspace, sessão = run_id, `finalize-session`. Hanko: MCP client (`go-sdk`) — escreve fatos (task, gate, run, delegação) via `memory_outbox` + river; lê `memory_briefing` + handoff no despacho; busca na UI. Indisponível = degrada, nunca bloqueia | Governança fica no Postgres |
 | LLM SDKs | `anthropic-sdk-go`, `openai-go` | só evals e metadata de custo; core não chama LLM |
 | Auth v0.1 | providers: `local` (default self-host: email/senha argon2id + cookie) e `firebase` (Google + email/senha gerenciados pelo Firebase; servidor valida ID token via JWKS do Google, sem Admin SDK). API keys de agente (SHA-256); run JWT curto (`golang-jwt/v5`) | `HANKO_AUTH_PROVIDER=local|firebase`. hanko.oute.pro usa firebase. Multi-humano v0.2; OIDC v1 (ADR-0007, ADR-0014) |
-| Secrets | AES-256-GCM envelope, master key em `HANKO_MASTER_KEY` ou arquivo | refs injetadas no run, nunca em config |
-| Storage | FS local (default) ou S3-compatível via `aws-sdk-go-v2` | attachments, work products |
+| Secrets | AES-256-GCM (`secretbox`) com `HANKO_SECRET_KEY`; segredos da empresa/usuário referenciados por `${secret:NOME}`; cofre externo opcional (KV v2) | resolvidos no despacho, nunca em config (ADR-0050, §11) |
+| Storage | `BlobStore`: Postgres (padrão) ou S3-compatível com SigV4 próprio sobre a stdlib (sem `aws-sdk-go-v2`) | conteúdo dos artefatos (ADR-0051, §11) |
 | Config | env `HANKO_*` + `hanko.yaml`; `caarlos0/env/v11` + `yaml.v3` | env sobrescreve yaml |
 | Logs | `log/slog` JSON via `otelslog` (trace_id/span_id automáticos) | request-id, company_id, run_id em todo log |
 | Observabilidade | OpenTelemetry **mandatório**: `otelhttp` (server), `otelpgx` (DB), middleware OTel no river (span por job), span por run nos adapters (`company_id`, `agent_id`, `run_id`), `otelslog` bridge p/ logs, métricas OTel + `/metrics` Prometheus. Exporter OTLP gRPC, default `localhost:4317` | Instrumentação não desliga. Collector ausente = SDK descarta em silêncio, app nunca falha por OTel. Sem Sentry/PostHog (ADR-0013) |
@@ -68,7 +68,7 @@ Decisões em `docs/adr/`. Este arquivo é o resumo vigente; ADR vence em conflit
 | Ilhas | React + TS em `ui/islands/` (versões exatas + lockfile), bundladas por **esbuild (npm, só dev/CI)** para `internal/ui/static/islands/` (commitado, `make islands`; CI confere o diff). Entregues no v0.2: log de run virtualizado, organograma interativo, comentários ancorados (ADR-0026). Teto 3; a 4ª exige ADR |
 | Markdown | `goldmark` server-side |
 | i18n | `go-i18n`: pt-BR (M1), en (M6) |
-| E2E | `chromedp` ou `rod` contra o binário |
+| E2E | Playwright em `e2e/` (ADR-0058): `bin/hanko` + Postgres real + adapter `fake`; só dev/CI, fora do binário |
 | Mobile | responsivo; sem PWA no v0.1 |
 | Embed | `internal/ui/static` via `go:embed`; SPA fallback não existe (host é server-rendered) |
 
@@ -163,3 +163,34 @@ lugar que entrega os bytes (nosniff, CSP com sandbox, inline só para texto puro
 calcula o diff de texto entre versões, sem dependência nova. Metas (`goals`, `goal_updates`, `tasks.goal_id`) calculam o progresso
 no serviço e a UI desenha o histórico em SVG no servidor, sem script. Export/import: `artifacts` opcional (`--with-artifacts`, até
 20 MiB); metas não viajam.
+
+## 11. Segredos, settings da instância e BlobStore (ADR-0050, ADR-0051)
+**Segredos.** `secrets` (por empresa, escopo `company` ou `user`) guarda o valor cifrado (AES-256-GCM, AAD `secret/<id>`) ou, no provider
+`vault`, só a referência `caminho#campo` de um cofre externo (API KV v2, `HANKO_VAULT_*`). Referência: `${secret:NOME}` (empresa) e
+`${secret:user/NOME}` (só do dono; recusada em configuração compartilhada). Vale em headers/env de integrações MCP e no
+`adapter_config` da persona; `HirePersona` troca o `env` em claro por `persona.<slug>.<VAR>` e o boot migra o legado. A expansão é no
+despacho (`RunExtras`, `ResolveAdapterConfig`), os valores entram em `adapter.Spec.Secrets` e na redação do log. Revelar: uma vez por
+versão. Pacotes: `internal/secretref` (análise/expansão), `internal/vault` (interface + KV v2).
+
+**Settings.** `instance_settings` (sem `company_id`, com `instance_setting_audit`): só as chaves do registro `internal/settings`
+(`acp.*`, `integrations.*`, `artifacts.*`, `run.reserve_usd`, `alerts.*`), env > banco > yaml/padrão, lidas em tempo de uso.
+
+**BlobStore.** `internal/storage`: `BlobStore` (`Put/Get/Delete/Stat`), drivers `postgres` (na transação do artefato) e `s3`
+(`HANKO_S3_*`, o upload vem antes da transação, com compensação). `artifacts.storage` diz onde cada versão está; `hanko blobs migrate`
+move entre drivers. Limite por arquivo: 16 MiB (postgres) ou 64 MiB (s3).
+
+
+## 12. Claim do primeiro dono, rate limit, erros via OTel e dev labs (ADR-0058)
+**Claim.** Sem usuário (authenticated + provider local) o boot emite um claim (`owner_claims`, só o SHA-256 do token, 1 h) e imprime
+`<HANKO_PUBLIC_URL>/claim/<token>` no stderr (não no logger, que exporta por OTLP). `GET/POST /claim/{token}` cria o dono e invalida o link na
+mesma transação, com `admin_audit`; `hanko auth claim-link` reemite; `create-owner` segue como fallback.
+
+**Rate limit.** `internal/ratelimit`: modelo puro do bucket (`Step`, oráculo dos testes de propriedade), `Limiter` (métrica
+`hanko.ratelimit.decisions`) e o middleware, por dentro do `auth.Guard`. Estado em `rate_limit_buckets` (UNLOGGED), uma instrução
+`INSERT … ON CONFLICT` por decisão (`store.TakeRateToken`). Chaves: hash da API key, usuário, run token válido, IP. Tetos em
+`instance_settings` (`ratelimit.*`, env `HANKO_RATELIMIT_*`). 429 + `Retry-After`; fail-open.
+
+**Erros.** `telemetry.Record` (span event `exception` + log `ERROR` com pilha + contador `hanko.errors`) é o ponto único de `api.fail`, dos recovers
+da API/app e de `ui.fail`; `POST /telemetry/errors` (`telemetry.BrowserErrors`) recebe os erros de `hanko.js`. Painel em `deploy/grafana/`.
+
+**Dev labs.** `/design-guide` e `/dev/ux/*` (`internal/ui/devlabs.go`), só trusted ou dono/admin; dados sintéticos, nada gravado.

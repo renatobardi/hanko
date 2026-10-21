@@ -64,6 +64,8 @@ func BuildChatPrompt(rc service.RunContext, briefing, handoff string) (system, p
 		}
 	}
 
+	pb.WriteString(continuationSection(rc.Continuation, cc.ResumeSession != ""))
+	pb.WriteString(attachmentsSection(rc))
 	pb.WriteString("## Mensagens novas\n\n")
 	if len(cc.New) == 0 {
 		pb.WriteString("(nenhuma mensagem nova)\n\n")

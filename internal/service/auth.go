@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/mail"
 	"strings"
+	"time"
 
 	"github.com/renatobardi/hanko/internal/auth"
 	"github.com/renatobardi/hanko/internal/domain"
@@ -47,7 +48,7 @@ func userFromRow(r store.User) domain.User {
 }
 
 func apiKeyFromRow(r store.ApiKey) domain.APIKey {
-	return domain.APIKey{ID: r.ID, UserID: r.UserID, Name: r.Name, Prefix: r.Prefix,
+	return domain.APIKey{ID: r.ID, UserID: r.UserID, Name: r.Name, Prefix: r.Prefix, Scope: domain.KeyScope(r.Scope), Device: r.Device,
 		CreatedAt: r.CreatedAt, LastUsedAt: r.LastUsedAt, RevokedAt: r.RevokedAt}
 }
 
@@ -106,47 +107,62 @@ func (s *Service) GetUserByEmail(ctx context.Context, email string) (domain.User
 // CreateOwner cria o primeiro usuário (provider local, papel owner). Só vale enquanto
 // não há usuários; depois disso devolve ErrConflict.
 func (s *Service) CreateOwner(ctx context.Context, email, name, password string) (domain.User, error) {
-	email, err := NormalizeEmail(email)
-	if err != nil {
-		return domain.User{}, err
-	}
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return domain.User{}, domain.Invalid("name", "required")
-	}
-	if err := auth.ValidatePassword(password); err != nil {
-		return domain.User{}, domain.Invalid("password", err.Error())
-	}
-	release, err := s.PasswordGate.Acquire(ctx)
-	if err != nil {
-		return domain.User{}, err
-	}
-	hash, err := auth.HashPassword(password)
-	release()
+	email, name, hash, err := s.prepareOwner(ctx, email, name, password)
 	if err != nil {
 		return domain.User{}, err
 	}
 	var out domain.User
 	err = s.withTx(ctx, func(t *txc) error {
-		if err := t.q.LockUsers(ctx); err != nil {
-			return fmt.Errorf("lock users: %w", err)
-		}
-		n, err := t.q.CountUsers(ctx)
-		if err != nil {
-			return fmt.Errorf("count users: %w", err)
-		}
-		if n > 0 {
-			return fmt.Errorf("já existe um usuário: %w", domain.ErrConflict)
-		}
-		row, err := t.q.CreateUser(ctx, store.CreateUserParams{ID: domain.NewID(), Email: email, Name: name,
-			Provider: string(domain.ProviderLocal), PasswordHash: &hash, Role: string(domain.RoleOwner), Now: t.now})
-		if err != nil {
-			return mapErr(err, "create owner")
-		}
-		out = userFromRow(row)
-		return nil
+		u, err := createFirstOwner(t, email, name, hash)
+		out = u
+		return err
 	})
 	return out, err
+}
+
+// prepareOwner valida e-mail, nome e senha e calcula o hash (fora da transação: argon2 é caro).
+func (s *Service) prepareOwner(ctx context.Context, email, name, password string) (outEmail, outName, hash string, err error) {
+	outEmail, err = NormalizeEmail(email)
+	if err != nil {
+		return "", "", "", err
+	}
+	outName = strings.TrimSpace(name)
+	if outName == "" {
+		return "", "", "", domain.Invalid("name", "required")
+	}
+	if err := auth.ValidatePassword(password); err != nil {
+		return "", "", "", domain.Invalid("password", err.Error())
+	}
+	release, err := s.PasswordGate.Acquire(ctx)
+	if err != nil {
+		return "", "", "", err
+	}
+	hash, err = auth.HashPassword(password)
+	release()
+	if err != nil {
+		return "", "", "", err
+	}
+	return outEmail, outName, hash, nil
+}
+
+// createFirstOwner cria o dono dentro da transação, serializada pelo lock de usuários; ErrConflict se já há usuário.
+func createFirstOwner(t *txc, email, name, hash string) (domain.User, error) {
+	if err := t.q.LockUsers(t.ctx); err != nil {
+		return domain.User{}, fmt.Errorf("lock users: %w", err)
+	}
+	n, err := t.q.CountUsers(t.ctx)
+	if err != nil {
+		return domain.User{}, fmt.Errorf("count users: %w", err)
+	}
+	if n > 0 {
+		return domain.User{}, fmt.Errorf("já existe um usuário: %w", domain.ErrConflict)
+	}
+	row, err := t.q.CreateUser(t.ctx, store.CreateUserParams{ID: domain.NewID(), Email: email, Name: name,
+		Provider: string(domain.ProviderLocal), PasswordHash: &hash, Role: string(domain.RoleOwner), Now: t.now})
+	if err != nil {
+		return domain.User{}, mapErr(err, "create owner")
+	}
+	return userFromRow(row), nil
 }
 
 // AuthenticateLocal confere e-mail e senha. Falha (usuário inexistente, provider errado ou
@@ -397,6 +413,22 @@ func (s *Service) EndSession(ctx context.Context, token string) error {
 
 // CreateAPIKey cria uma API key para o usuário; a chave em claro só é devolvida aqui.
 func (s *Service) CreateAPIKey(ctx context.Context, userID domain.ID, name string) (string, domain.APIKey, error) {
+	return s.CreateAPIKeyScoped(ctx, userID, name, domain.KeyScopeFull, "")
+}
+
+// CreateAPIKeyScoped é CreateAPIKey com escopo (full ou read) e o nome do dispositivo (ADR-0057).
+func (s *Service) CreateAPIKeyScoped(ctx context.Context, userID domain.ID, name string, scope domain.KeyScope, device string) (string, domain.APIKey, error) {
+	return createAPIKey(ctx, s.read(), s.Now().UTC(), userID, name, scope, device)
+}
+
+func createAPIKey(ctx context.Context, q *store.Queries, now time.Time, userID domain.ID, name string, scope domain.KeyScope, device string) (string, domain.APIKey, error) {
+	if !scope.Valid() {
+		return "", domain.APIKey{}, domain.Invalid("scope", "want full or read")
+	}
+	device = strings.TrimSpace(device)
+	if len([]rune(device)) > 120 {
+		return "", domain.APIKey{}, domain.Invalid("device", "máximo de 120 caracteres")
+	}
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return "", domain.APIKey{}, domain.Invalid("name", "required")
@@ -408,8 +440,8 @@ func (s *Service) CreateAPIKey(ctx context.Context, userID domain.ID, name strin
 	if err != nil {
 		return "", domain.APIKey{}, err
 	}
-	row, err := s.read().CreateAPIKey(ctx, store.CreateAPIKeyParams{ID: domain.NewID(), UserID: userID, Name: name,
-		Prefix: prefix, Hash: hash, Now: s.Now().UTC()})
+	row, err := q.CreateAPIKey(ctx, store.CreateAPIKeyParams{ID: domain.NewID(), UserID: userID, Name: name,
+		Prefix: prefix, Hash: hash, Scope: string(scope), Device: device, Now: now})
 	if err != nil {
 		return "", domain.APIKey{}, mapErr(err, "create api key")
 	}
@@ -449,34 +481,44 @@ func (s *Service) CheckAPIKey(ctx context.Context, key string) (domain.User, err
 }
 
 func (s *Service) resolveAPIKey(ctx context.Context, key string, touch bool) (domain.User, error) {
+	u, _, err := s.resolveAPIKeyInfo(ctx, key, touch)
+	return u, err
+}
+
+// ResolveAPIKeyInfo é ResolveAPIKey que também devolve o id e o escopo da chave (auth.KeyResolver).
+func (s *Service) ResolveAPIKeyInfo(ctx context.Context, key string) (domain.User, auth.KeyInfo, error) {
+	return s.resolveAPIKeyInfo(ctx, key, true)
+}
+
+func (s *Service) resolveAPIKeyInfo(ctx context.Context, key string, touch bool) (domain.User, auth.KeyInfo, error) {
 	if !auth.IsAPIKey(key) {
-		return domain.User{}, domain.ErrUnauthenticated
+		return domain.User{}, auth.KeyInfo{}, domain.ErrUnauthenticated
 	}
 	q := s.read()
 	k, err := q.GetAPIKeyByHash(ctx, auth.HashToken(key))
 	if err != nil {
 		if isNoRows(err) {
-			return domain.User{}, domain.ErrUnauthenticated
+			return domain.User{}, auth.KeyInfo{}, domain.ErrUnauthenticated
 		}
-		return domain.User{}, fmt.Errorf("get api key: %w", err)
+		return domain.User{}, auth.KeyInfo{}, fmt.Errorf("get api key: %w", err)
 	}
 	u, err := q.GetUserByID(ctx, k.UserID)
 	if err != nil {
 		if isNoRows(err) {
-			return domain.User{}, domain.ErrUnauthenticated
+			return domain.User{}, auth.KeyInfo{}, domain.ErrUnauthenticated
 		}
-		return domain.User{}, fmt.Errorf("get api key user: %w", err)
+		return domain.User{}, auth.KeyInfo{}, fmt.Errorf("get api key user: %w", err)
 	}
 	if !s.stillAdmitted(u) {
-		return domain.User{}, domain.ErrUnauthenticated
+		return domain.User{}, auth.KeyInfo{}, domain.ErrUnauthenticated
 	}
 	now := s.Now().UTC()
 	if touch && (k.LastUsedAt == nil || now.Sub(*k.LastUsedAt) >= auth.TouchEvery) {
 		if err := q.TouchAPIKey(ctx, store.TouchAPIKeyParams{ID: k.ID, Now: now}); err != nil && !errors.Is(err, context.Canceled) {
-			return domain.User{}, fmt.Errorf("touch api key: %w", err)
+			return domain.User{}, auth.KeyInfo{}, fmt.Errorf("touch api key: %w", err)
 		}
 	}
-	return userFromRow(u), nil
+	return userFromRow(u), auth.KeyInfo{ID: k.ID, Scope: domain.KeyScope(k.Scope)}, nil
 }
 
 func clip(s string, n int) string {

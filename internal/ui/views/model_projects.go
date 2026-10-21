@@ -60,6 +60,8 @@ type ProjectFormVM struct {
 }
 
 type ProjectVM struct {
+	// EnvironmentHref é o fragmento do cartão de ambiente de execução do projeto (aba Configuração, ADR-0055).
+	EnvironmentHref string
 	// Section é a aba aberta (visao | tasks | workspace | orcamento | configuracao).
 	Section       string
 	Sections      []TabLink
@@ -90,6 +92,9 @@ type ProjectVM struct {
 	GoalsHref     string
 	Artifacts     []ArtifactMini
 	ArtifactsHref string
+	// Git e Defaults são as abas Git e Padrões (ADR-0054).
+	Git      ProjectGitVM
+	Defaults ProjectDefaultsVM
 }
 
 // WorkspaceRow é uma linha da lista de workspaces.
@@ -153,4 +158,6 @@ type WorkspaceVM struct {
 	InUse        bool
 	DeleteAction string
 	TasksNote    bool
+	// Git é a aba Git (ADR-0054).
+	Git WorkspaceGitVM
 }
