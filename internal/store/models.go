@@ -1011,6 +1011,21 @@ type ProjectReviewPolicy struct {
 	UpdatedAt         time.Time
 }
 
+type ProjectStage struct {
+	ID           uuid.UUID
+	CompanyID    uuid.UUID
+	ProjectID    uuid.UUID
+	Key          string
+	Name         string
+	Position     int32
+	Status       string
+	PersonaID    *uuid.UUID
+	ExitGate     string
+	Instructions string
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
 type PushSubscription struct {
 	ID            uuid.UUID
 	UserID        uuid.UUID
@@ -1297,6 +1312,10 @@ type StatusCard struct {
 	CreatedByID           *uuid.UUID
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
+	Engine                string
+	ArtifactName          string
+	ArtifactID            *uuid.UUID
+	OnDashboard           bool
 }
 
 type StatusCardRevision struct {
@@ -1459,6 +1478,32 @@ type TaskSessionReset struct {
 	ConsumedRunID   *uuid.UUID
 	ConsumedAt      *time.Time
 	CreatedAt       time.Time
+}
+
+type TaskStage struct {
+	TaskID    uuid.UUID
+	CompanyID uuid.UUID
+	ProjectID uuid.UUID
+	StageID   uuid.UUID
+	State     string
+	EnteredAt time.Time
+	UpdatedAt time.Time
+}
+
+type TaskStageEvent struct {
+	ID         uuid.UUID
+	CompanyID  uuid.UUID
+	ProjectID  uuid.UUID
+	TaskID     uuid.UUID
+	Kind       string
+	StageKey   string
+	ToStageKey string
+	ActorType  string
+	ActorID    *uuid.UUID
+	GateID     *uuid.UUID
+	Decision   string
+	Note       string
+	CreatedAt  time.Time
 }
 
 type TaskWorktree struct {

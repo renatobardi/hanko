@@ -93,7 +93,7 @@ func enrichTasks(ctx context.Context, q *store.Queries, companyID domain.ID, vie
 			v.Hold = holdFromRow(h, v.ID)
 		}
 	}
-	return nil
+	return enrichTaskStages(ctx, q, companyID, views)
 }
 
 func holdFromRow(h store.ListEffectiveHoldsRow, taskID domain.ID) *domain.TaskHold {

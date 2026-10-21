@@ -96,6 +96,7 @@ func BuildPrompt(rc service.RunContext, briefing, handoff string) (system, promp
 	pb.WriteString(attachmentsSection(rc))
 	pb.WriteString(coordinationSection(rc))
 	pb.WriteString(planSection(rc))
+	pb.WriteString(stageSection(rc))
 
 	if len(rc.Goals) > 0 {
 		pb.WriteString("## Metas ativas\n\n")
@@ -383,6 +384,41 @@ func planSection(rc service.RunContext) string {
 		b.WriteString("Um humano aprovou o plano abaixo. Execute-o; se perceber que ele não se sustenta, comente na task e peça um gate em vez de mudar o rumo sozinha.\n\n")
 		b.WriteString(clip(strings.TrimSpace(pc.ApprovedPlan), 20<<10))
 		b.WriteString("\n\n")
+	}
+	return b.String()
+}
+
+// stageSection é o bloco do pipeline do projeto (ADR-0048): a etapa em que a task está, o que se espera dela, como
+// concluí-la e os aprendizados (decisões de gate anteriores nesta etapa). Vazio fora de pipeline.
+func stageSection(rc service.RunContext) string {
+	sc := rc.Stage
+	if sc == nil {
+		return ""
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "## Etapa do pipeline: %s (%d de %d)\n\n", sc.Name, sc.Position, sc.Total)
+	fmt.Fprintf(&b, "Esta task atravessa o pipeline do projeto %s e está na etapa **%s**.", sc.ProjectName, sc.Name)
+	if sc.NextName != "" {
+		fmt.Fprintf(&b, " Depois dela vem **%s**.", sc.NextName)
+	} else {
+		b.WriteString(" É a última etapa: concluí-la encerra a task.")
+	}
+	b.WriteString("\n\n")
+	if in := strings.TrimSpace(sc.Instructions); in != "" {
+		b.WriteString("### O que se espera desta etapa\n\n" + clip(in, 8<<10) + "\n\n")
+	}
+	b.WriteString("Quando o trabalho **desta etapa** terminar, chame `hanko_stage_complete` (com uma nota curta do que entregou) e encerre a execução: ")
+	switch sc.ExitGate {
+	case domain.StageGateApproval:
+		b.WriteString("um humano aprova antes de a task avançar. ")
+	case domain.StageGateReview:
+		b.WriteString("a entrega passa por revisão (e por um gate humano) antes de a task avançar. ")
+	default:
+		b.WriteString("a task avança sozinha para a próxima etapa e a persona dela é acordada. ")
+	}
+	b.WriteString("Não dê a task como concluída (`done`) por conta própria: isso é a conclusão da etapa, não da task.\n\n")
+	if l := strings.TrimSpace(sc.Learnings); l != "" {
+		b.WriteString("### Aprendizados desta etapa\n\nDecisões anteriores de humanos nesta etapa; use-as para acertar de primeira.\n\n" + l + "\n")
 	}
 	return b.String()
 }
