@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -120,9 +121,15 @@ type gateRequestIn struct {
 	Company string `json:"company,omitempty" jsonschema:"slug ou id da empresa (obrigatório só sem token de run)"`
 	Title   string `json:"title" jsonschema:"o que você precisa que o humano decida, em uma frase"`
 	Body    string `json:"body,omitempty" jsonschema:"markdown: o que será feito, evidências, impacto e alternativas"`
-	Kind    string `json:"kind,omitempty" jsonschema:"approval (padrão)"`
+	Kind    string `json:"kind,omitempty" jsonschema:"approval (padrão), question (formulário que o humano responde; envie questions) ou plan (o plano a aprovar antes de executar; envie o plano em body ou artifact)"`
 	Task    string `json:"task,omitempty" jsonschema:"chave da task; com token de run o padrão é a task da execução atual"`
 	EventID string `json:"event_id,omitempty" jsonschema:"chave de idempotência: repetir a chamada com o mesmo event_id devolve o mesmo gate"`
+	// kind=question
+	Questions []questionFieldIn `json:"questions,omitempty" jsonschema:"para question: os campos do formulário (até 12), cada um single, multi ou text"`
+	// kind=plan
+	Artifact string `json:"artifact,omitempty" jsonschema:"para plan: nome do artefato (publicado com hanko_artifact_put nesta task) que contém o plano; alternativa a body"`
+	// Quem pode decidir
+	AudienceRoles []string `json:"audience_roles,omitempty" jsonschema:"restringe quem decide a estes papéis (admin, member...); o owner sempre pode"`
 }
 
 type gateStatusIn struct {
@@ -136,12 +143,15 @@ type gateStatusIn struct {
 type gateOut struct {
 	ID           string `json:"id"`
 	Kind         string `json:"kind"`
-	Status       string `json:"status" jsonschema:"pending, approved, rejected, changes_requested ou expired"`
+	Status       string `json:"status" jsonschema:"pending, approved, rejected, changes_requested, expired ou dismissed"`
 	Title        string `json:"title"`
 	TaskKey      string `json:"task_key,omitempty"`
 	DecisionNote string `json:"decision_note,omitempty"`
 	CreatedAt    string `json:"created_at"`
 	DecidedAt    string `json:"decided_at,omitempty"`
+	// Answers é a resposta de uma pergunta (kind=question) já respondida: chave do campo → valores.
+	Answers  map[string][]string `json:"answers,omitempty"`
+	Revision int                 `json:"revision,omitempty" jsonschema:"versão do pedido; sobe a cada reenvio"`
 }
 
 type gateWriteOut struct {
@@ -338,6 +348,7 @@ func registerTools(s *sdk.Server, t *tools) {
 	registerInstructionTools(s, t)
 	registerAttachmentTools(s, t)
 	registerProjectGoalTools(s, t)
+	registerGatePlusTools(s, t)
 }
 
 // ---- resolução de empresa ----
@@ -882,7 +893,13 @@ func (t *tools) runGet(ctx context.Context, _ *sdk.CallToolRequest, in runGetIn)
 
 func toGate(g service.GateView) gateOut {
 	o := gateOut{ID: g.ID.String(), Kind: string(g.Kind), Status: string(g.Status), Title: g.Title, TaskKey: g.TaskKey,
-		DecisionNote: g.DecisionNote, CreatedAt: g.CreatedAt.UTC().Format(time.RFC3339)}
+		DecisionNote: g.DecisionNote, CreatedAt: g.CreatedAt.UTC().Format(time.RFC3339), Revision: g.Revision}
+	if len(g.Answer) > 0 {
+		var a domain.QuestionAnswer
+		if json.Unmarshal(g.Answer, &a) == nil {
+			o.Answers = a.Values
+		}
+	}
 	if g.DecidedAt != nil {
 		o.DecidedAt = g.DecidedAt.UTC().Format(time.RFC3339)
 	}
@@ -896,6 +913,14 @@ func gateLine(g service.GateView) string {
 	}
 	if g.DecisionNote != "" {
 		s += "\nNota: " + g.DecisionNote
+	}
+	if len(g.Answer) > 0 {
+		var a domain.QuestionAnswer
+		if json.Unmarshal(g.Answer, &a) == nil {
+			for k, v := range a.Values {
+				s += fmt.Sprintf("\nResposta %s: %s", k, strings.Join(v, ", "))
+			}
+		}
 	}
 	return s
 }
@@ -924,8 +949,13 @@ func (t *tools) gateRequest(ctx context.Context, _ *sdk.CallToolRequest, in gate
 		return nil, gateWriteOut{}, errors.New("title é obrigatório")
 	}
 	kind := domain.GateKind(strings.TrimSpace(in.Kind))
-	if kind != "" && kind != domain.GateApproval {
-		return nil, gateWriteOut{}, errors.New("kind: use approval (os demais tipos são abertos pelo Hanko)")
+	switch kind {
+	case "", domain.GateApproval, domain.GateQuestion, domain.GatePlan:
+	default:
+		return nil, gateWriteOut{}, errors.New("kind: use approval, question ou plan (a contratação tem a tool hanko_hire_request; os demais tipos são abertos pelo Hanko)")
+	}
+	if kind == "" {
+		kind = domain.GateApproval
 	}
 	task, err := t.gateTask(ctx, id, company, in.Task)
 	if err != nil {
@@ -934,7 +964,11 @@ func (t *tools) gateRequest(ctx context.Context, _ *sdk.CallToolRequest, in gate
 	if task == nil && id.ConversationID != nil {
 		return nil, gateWriteOut{}, errors.New("esta execução é uma conversa (chat) e não tem task: informe o argumento task com a chave de uma task existente ou abra uma com hanko_task_create e peça o gate nela")
 	}
-	req := service.RequestGateInput{Kind: domain.GateApproval, Title: in.Title, Body: in.Body, TaskID: task, EventID: in.EventID}
+	req := service.RequestGateInput{Kind: kind, Title: in.Title, Body: in.Body, TaskID: task, EventID: in.EventID,
+		Artifact: in.Artifact, Audience: audienceRoles(in.AudienceRoles)}
+	if kind == domain.GateQuestion {
+		req.Form = questionForm(in.Questions)
+	}
 	if id.ViaToken {
 		req.RunID = id.RunID
 	}

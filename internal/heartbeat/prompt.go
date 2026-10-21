@@ -50,6 +50,7 @@ func BuildPrompt(rc service.RunContext, briefing, handoff string) (system, promp
 	sb.WriteString("- Se o seu trabalho mede uma das metas listadas, registre o valor atual (medido de fato) com `hanko_goal_update`; `hanko_goal_list` mostra todas as metas.\n")
 	sb.WriteString("- Se perceber que as suas instruções permanentes deveriam mudar, proponha com `hanko_persona_instruction_propose` (texto novo completo e motivo): um humano decide e você não fica bloqueada.\n")
 	sb.WriteString("- Antes de uma ação irreversível (merge, deploy, gasto, contratação, apagar dados), peça a decisão de um humano com `hanko_gate_request` e encerre a execução; você será acordada com a decisão e a nota. Consulte `hanko_gate_status` se precisar.\n")
+	sb.WriteString("- Para uma dúvida objetiva que só um humano resolve, use `hanko_gate_request` com `kind=question` e `questions` (campos single, multi ou text): você recebe as respostas estruturadas ao ser acordada. Se um gate voltar com mudanças pedidas, ajuste e reenvie no mesmo gate com `hanko_gate_resubmit`. Para propor contratar uma persona use `hanko_hire_request`.\n")
 	if rc.Worktree != nil {
 		fmt.Fprintf(&sb, "- Seu diretório de trabalho é um worktree Git exclusivo desta task, na branch `%s`. Faça commits nessa branch (mensagens claras, uma mudança lógica por commit); não troque de branch, não faça push e não mexa fora do diretório. O diff da branch contra a base aparece para os humanos na aba Git da task.\n", rc.Worktree.Branch)
 	}
@@ -94,6 +95,7 @@ func BuildPrompt(rc service.RunContext, briefing, handoff string) (system, promp
 
 	pb.WriteString(attachmentsSection(rc))
 	pb.WriteString(coordinationSection(rc))
+	pb.WriteString(planSection(rc))
 
 	if len(rc.Goals) > 0 {
 		pb.WriteString("## Metas ativas\n\n")
@@ -358,4 +360,29 @@ func BuildMemoryPrompt(rc service.RunContext, briefing string) (system, prompt s
 	}
 	pb.WriteString("---\nExecute a curadoria agora.\n")
 	return system, pb.String()
+}
+
+// planSection é o bloco de plan-review do briefing (ADR-0041): na fase de planejamento diz que este run só planeja; na de
+// execução traz o plano aprovado. Vazio quando a política de plano não vale para a task.
+func planSection(rc service.RunContext) string {
+	pc := rc.Plan
+	if pc == nil {
+		return ""
+	}
+	var b strings.Builder
+	switch pc.Phase {
+	case domain.PlanPhasePlan:
+		b.WriteString("## Fase de planejamento (plan-review)\n\n")
+		b.WriteString("Esta task só executa depois que um humano aprovar o seu plano. **Neste run você apenas planeja**: investigue (leia, busque), " +
+			"mas não edite arquivos, não rode comandos que alterem o ambiente e não use tools de escrita do Hanko (elas são recusadas).\n\n")
+		b.WriteString("1. Escreva o plano (passos, riscos, como validar, o que fica de fora) e publique-o com `hanko_artifact_put` (por exemplo `plano.md`).\n")
+		b.WriteString("2. Peça a aprovação com `hanko_gate_request` `kind=plan` e `artifact=plano.md` (ou o texto em `body`), e encerre.\n")
+		b.WriteString("3. Se voltar com mudanças pedidas, leia a nota na thread, publique a nova versão do artefato e reenvie com `hanko_gate_resubmit`.\n\n")
+	case domain.PlanPhaseExecute:
+		fmt.Fprintf(&b, "## Plano aprovado (revisão %d)\n\n", pc.Revision)
+		b.WriteString("Um humano aprovou o plano abaixo. Execute-o; se perceber que ele não se sustenta, comente na task e peça um gate em vez de mudar o rumo sozinha.\n\n")
+		b.WriteString(clip(strings.TrimSpace(pc.ApprovedPlan), 20<<10))
+		b.WriteString("\n\n")
+	}
+	return b.String()
 }

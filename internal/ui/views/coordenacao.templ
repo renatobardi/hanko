@@ -160,6 +160,7 @@ templ TaskCoordSide(c TaskCoordVM, key string) {
 			</form>
 		}
 	</div>
+	@TaskPlanSide(c.Plan)
 }
 
 var _ = domain.MemberAdmin

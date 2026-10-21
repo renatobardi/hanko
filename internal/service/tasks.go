@@ -45,6 +45,13 @@ func (s *Service) CreateTask(ctx context.Context, actor domain.Actor, companyID 
 	if _, err := normalizeNewTask(in); err != nil {
 		return TaskView{}, err
 	}
+	if in.PersonaID == nil && !in.Unassigned && actor.Type == domain.ActorHuman {
+		pid, err := s.primaryPersonaID(ctx, companyID)
+		if err != nil {
+			return TaskView{}, err
+		}
+		in.PersonaID = pid // a persona principal da pessoa é o responsável padrão (ADR-0041)
+	}
 	var out TaskView
 	run := func() error {
 		return s.withTx(ctx, func(t *txc) error {

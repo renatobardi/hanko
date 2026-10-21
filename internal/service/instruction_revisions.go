@@ -158,6 +158,9 @@ func (s *Service) RestoreInstructionRevision(ctx context.Context, actor domain.A
 		if err != nil {
 			return mapErr(err, "get persona")
 		}
+		if err := s.requireSystemEdit(ctx, companyID, cur, nil); err != nil {
+			return err
+		}
 		old, err := t.q.GetPersonaInstructionRevision(t.ctx, store.GetPersonaInstructionRevisionParams{CompanyID: companyID,
 			PersonaID: personaID, Revision: i32(revision)})
 		if err != nil {

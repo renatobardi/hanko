@@ -12,9 +12,73 @@ import (
 	"github.com/google/uuid"
 )
 
+const answerGate = `-- name: AnswerGate :one
+UPDATE gates
+SET status = 'approved', answer = $1, decided_by_type = $2, decided_by_id = $3,
+    decision_note = $4, decided_at = $5
+WHERE company_id = $6 AND id = $7 AND status = 'pending' AND kind = 'question'
+RETURNING id, company_id, kind, status, title, body, task_id, run_id, persona_id, requested_by_type, requested_by_id, decided_by_type, decided_by_id, decision_note, event_id, created_at, decided_at, requested_status, review_reviewer, review_verdict, review_justification, review_artifact_sha256, review_run_id, expires_at, payload, answer, audience, revision, search_tsv
+`
+
+type AnswerGateParams struct {
+	Answer        []byte
+	DecidedByType *string
+	DecidedByID   *uuid.UUID
+	DecisionNote  string
+	Now           *time.Time
+	CompanyID     uuid.UUID
+	ID            uuid.UUID
+}
+
+// Pergunta respondida: vira approved com a resposta estruturada (já validada contra o formulário no service).
+func (q *Queries) AnswerGate(ctx context.Context, arg AnswerGateParams) (Gate, error) {
+	row := q.db.QueryRow(ctx, answerGate,
+		arg.Answer,
+		arg.DecidedByType,
+		arg.DecidedByID,
+		arg.DecisionNote,
+		arg.Now,
+		arg.CompanyID,
+		arg.ID,
+	)
+	var i Gate
+	err := row.Scan(
+		&i.ID,
+		&i.CompanyID,
+		&i.Kind,
+		&i.Status,
+		&i.Title,
+		&i.Body,
+		&i.TaskID,
+		&i.RunID,
+		&i.PersonaID,
+		&i.RequestedByType,
+		&i.RequestedByID,
+		&i.DecidedByType,
+		&i.DecidedByID,
+		&i.DecisionNote,
+		&i.EventID,
+		&i.CreatedAt,
+		&i.DecidedAt,
+		&i.RequestedStatus,
+		&i.ReviewReviewer,
+		&i.ReviewVerdict,
+		&i.ReviewJustification,
+		&i.ReviewArtifactSha256,
+		&i.ReviewRunID,
+		&i.ExpiresAt,
+		&i.Payload,
+		&i.Answer,
+		&i.Audience,
+		&i.Revision,
+		&i.SearchTsv,
+	)
+	return i, err
+}
+
 const countBlockingGatesForPersona = `-- name: CountBlockingGatesForPersona :one
 SELECT count(*)::bigint AS n FROM gates
-WHERE persona_id = $1 AND status = 'pending' AND kind IN ('approval', 'hire')
+WHERE persona_id = $1 AND status = 'pending' AND kind IN ('approval', 'hire', 'question', 'plan')
 `
 
 // Gates que seguram a persona em awaiting_gate (a revisão de task não segura).
@@ -36,14 +100,27 @@ func (q *Queries) CountPendingGates(ctx context.Context, companyID uuid.UUID) (i
 	return n, err
 }
 
+const countPendingHireGatesForPersona = `-- name: CountPendingHireGatesForPersona :one
+SELECT count(*)::bigint AS n FROM gates WHERE persona_id = $1 AND kind = 'hire' AND status = 'pending'
+`
+
+func (q *Queries) CountPendingHireGatesForPersona(ctx context.Context, personaID *uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countPendingHireGatesForPersona, personaID)
+	var n int64
+	err := row.Scan(&n)
+	return n, err
+}
+
 const createGate = `-- name: CreateGate :one
 INSERT INTO gates (id, company_id, kind, status, title, body, task_id, run_id, persona_id,
                    requested_by_type, requested_by_id, event_id, requested_status,
-                   review_reviewer, review_verdict, review_justification, review_artifact_sha256, review_run_id, created_at)
+                   review_reviewer, review_verdict, review_justification, review_artifact_sha256, review_run_id,
+                   payload, audience, created_at)
 VALUES ($1, $2, $3, 'pending', $4, $5, $6, $7, $8,
         $9, $10, $11, $12,
-        $13, $14, $15, $16, $17, $18)
-RETURNING id, company_id, kind, status, title, body, task_id, run_id, persona_id, requested_by_type, requested_by_id, decided_by_type, decided_by_id, decision_note, event_id, created_at, decided_at, requested_status, review_reviewer, review_verdict, review_justification, review_artifact_sha256, review_run_id, expires_at, search_tsv
+        $13, $14, $15, $16, $17,
+        $18, $19, $20)
+RETURNING id, company_id, kind, status, title, body, task_id, run_id, persona_id, requested_by_type, requested_by_id, decided_by_type, decided_by_id, decision_note, event_id, created_at, decided_at, requested_status, review_reviewer, review_verdict, review_justification, review_artifact_sha256, review_run_id, expires_at, payload, answer, audience, revision, search_tsv
 `
 
 type CreateGateParams struct {
@@ -64,6 +141,8 @@ type CreateGateParams struct {
 	ReviewJustification  string
 	ReviewArtifactSha256 string
 	ReviewRunID          *uuid.UUID
+	Payload              []byte
+	Audience             []byte
 	Now                  time.Time
 }
 
@@ -86,6 +165,8 @@ func (q *Queries) CreateGate(ctx context.Context, arg CreateGateParams) (Gate, e
 		arg.ReviewJustification,
 		arg.ReviewArtifactSha256,
 		arg.ReviewRunID,
+		arg.Payload,
+		arg.Audience,
 		arg.Now,
 	)
 	var i Gate
@@ -114,6 +195,10 @@ func (q *Queries) CreateGate(ctx context.Context, arg CreateGateParams) (Gate, e
 		&i.ReviewArtifactSha256,
 		&i.ReviewRunID,
 		&i.ExpiresAt,
+		&i.Payload,
+		&i.Answer,
+		&i.Audience,
+		&i.Revision,
 		&i.SearchTsv,
 	)
 	return i, err
@@ -124,7 +209,7 @@ UPDATE gates
 SET status = $1, decided_by_type = $2, decided_by_id = $3,
     decision_note = $4, decided_at = $5
 WHERE company_id = $6 AND id = $7 AND status = 'pending'
-RETURNING id, company_id, kind, status, title, body, task_id, run_id, persona_id, requested_by_type, requested_by_id, decided_by_type, decided_by_id, decision_note, event_id, created_at, decided_at, requested_status, review_reviewer, review_verdict, review_justification, review_artifact_sha256, review_run_id, expires_at, search_tsv
+RETURNING id, company_id, kind, status, title, body, task_id, run_id, persona_id, requested_by_type, requested_by_id, decided_by_type, decided_by_id, decision_note, event_id, created_at, decided_at, requested_status, review_reviewer, review_verdict, review_justification, review_artifact_sha256, review_run_id, expires_at, payload, answer, audience, revision, search_tsv
 `
 
 type DecideGateParams struct {
@@ -173,6 +258,100 @@ func (q *Queries) DecideGate(ctx context.Context, arg DecideGateParams) (Gate, e
 		&i.ReviewArtifactSha256,
 		&i.ReviewRunID,
 		&i.ExpiresAt,
+		&i.Payload,
+		&i.Answer,
+		&i.Audience,
+		&i.Revision,
+		&i.SearchTsv,
+	)
+	return i, err
+}
+
+const deletePlanPolicy = `-- name: DeletePlanPolicy :exec
+DELETE FROM plan_policies WHERE company_id = $1 AND scope = $2 AND target_id = $3
+`
+
+type DeletePlanPolicyParams struct {
+	CompanyID uuid.UUID
+	Scope     string
+	TargetID  uuid.UUID
+}
+
+func (q *Queries) DeletePlanPolicy(ctx context.Context, arg DeletePlanPolicyParams) error {
+	_, err := q.db.Exec(ctx, deletePlanPolicy, arg.CompanyID, arg.Scope, arg.TargetID)
+	return err
+}
+
+const deletePrimaryPersona = `-- name: DeletePrimaryPersona :exec
+DELETE FROM member_primary_persona WHERE company_id = $1 AND user_id = $2
+`
+
+type DeletePrimaryPersonaParams struct {
+	CompanyID uuid.UUID
+	UserID    uuid.UUID
+}
+
+func (q *Queries) DeletePrimaryPersona(ctx context.Context, arg DeletePrimaryPersonaParams) error {
+	_, err := q.db.Exec(ctx, deletePrimaryPersona, arg.CompanyID, arg.UserID)
+	return err
+}
+
+const dismissGate = `-- name: DismissGate :one
+UPDATE gates
+SET status = 'dismissed', decided_by_type = $1, decided_by_id = $2,
+    decision_note = $3, decided_at = $4
+WHERE company_id = $5 AND id = $6 AND status = 'pending' AND kind = 'question'
+RETURNING id, company_id, kind, status, title, body, task_id, run_id, persona_id, requested_by_type, requested_by_id, decided_by_type, decided_by_id, decision_note, event_id, created_at, decided_at, requested_status, review_reviewer, review_verdict, review_justification, review_artifact_sha256, review_run_id, expires_at, payload, answer, audience, revision, search_tsv
+`
+
+type DismissGateParams struct {
+	DecidedByType *string
+	DecidedByID   *uuid.UUID
+	DecisionNote  string
+	Now           *time.Time
+	CompanyID     uuid.UUID
+	ID            uuid.UUID
+}
+
+func (q *Queries) DismissGate(ctx context.Context, arg DismissGateParams) (Gate, error) {
+	row := q.db.QueryRow(ctx, dismissGate,
+		arg.DecidedByType,
+		arg.DecidedByID,
+		arg.DecisionNote,
+		arg.Now,
+		arg.CompanyID,
+		arg.ID,
+	)
+	var i Gate
+	err := row.Scan(
+		&i.ID,
+		&i.CompanyID,
+		&i.Kind,
+		&i.Status,
+		&i.Title,
+		&i.Body,
+		&i.TaskID,
+		&i.RunID,
+		&i.PersonaID,
+		&i.RequestedByType,
+		&i.RequestedByID,
+		&i.DecidedByType,
+		&i.DecidedByID,
+		&i.DecisionNote,
+		&i.EventID,
+		&i.CreatedAt,
+		&i.DecidedAt,
+		&i.RequestedStatus,
+		&i.ReviewReviewer,
+		&i.ReviewVerdict,
+		&i.ReviewJustification,
+		&i.ReviewArtifactSha256,
+		&i.ReviewRunID,
+		&i.ExpiresAt,
+		&i.Payload,
+		&i.Answer,
+		&i.Audience,
+		&i.Revision,
 		&i.SearchTsv,
 	)
 	return i, err
@@ -182,7 +361,7 @@ const expirePendingGatesForTask = `-- name: ExpirePendingGatesForTask :many
 UPDATE gates SET status = 'expired', decided_by_type = 'system', decided_at = $1,
                  decision_note = 'Task encerrada antes da decisão.'
 WHERE company_id = $2 AND task_id = $3 AND status = 'pending'
-RETURNING id, company_id, kind, status, title, body, task_id, run_id, persona_id, requested_by_type, requested_by_id, decided_by_type, decided_by_id, decision_note, event_id, created_at, decided_at, requested_status, review_reviewer, review_verdict, review_justification, review_artifact_sha256, review_run_id, expires_at, search_tsv
+RETURNING id, company_id, kind, status, title, body, task_id, run_id, persona_id, requested_by_type, requested_by_id, decided_by_type, decided_by_id, decision_note, event_id, created_at, decided_at, requested_status, review_reviewer, review_verdict, review_justification, review_artifact_sha256, review_run_id, expires_at, payload, answer, audience, revision, search_tsv
 `
 
 type ExpirePendingGatesForTaskParams struct {
@@ -226,6 +405,10 @@ func (q *Queries) ExpirePendingGatesForTask(ctx context.Context, arg ExpirePendi
 			&i.ReviewArtifactSha256,
 			&i.ReviewRunID,
 			&i.ExpiresAt,
+			&i.Payload,
+			&i.Answer,
+			&i.Audience,
+			&i.Revision,
 			&i.SearchTsv,
 		); err != nil {
 			return nil, err
@@ -238,8 +421,19 @@ func (q *Queries) ExpirePendingGatesForTask(ctx context.Context, arg ExpirePendi
 	return items, nil
 }
 
+const getCompanyPolicies = `-- name: GetCompanyPolicies :one
+SELECT company_id, require_hire_gate, updated_at FROM company_policies WHERE company_id = $1
+`
+
+func (q *Queries) GetCompanyPolicies(ctx context.Context, companyID uuid.UUID) (CompanyPolicy, error) {
+	row := q.db.QueryRow(ctx, getCompanyPolicies, companyID)
+	var i CompanyPolicy
+	err := row.Scan(&i.CompanyID, &i.RequireHireGate, &i.UpdatedAt)
+	return i, err
+}
+
 const getGateByEventID = `-- name: GetGateByEventID :one
-SELECT id, company_id, kind, status, title, body, task_id, run_id, persona_id, requested_by_type, requested_by_id, decided_by_type, decided_by_id, decision_note, event_id, created_at, decided_at, requested_status, review_reviewer, review_verdict, review_justification, review_artifact_sha256, review_run_id, expires_at, search_tsv FROM gates WHERE company_id = $1 AND event_id = $2
+SELECT id, company_id, kind, status, title, body, task_id, run_id, persona_id, requested_by_type, requested_by_id, decided_by_type, decided_by_id, decision_note, event_id, created_at, decided_at, requested_status, review_reviewer, review_verdict, review_justification, review_artifact_sha256, review_run_id, expires_at, payload, answer, audience, revision, search_tsv FROM gates WHERE company_id = $1 AND event_id = $2
 `
 
 type GetGateByEventIDParams struct {
@@ -275,13 +469,17 @@ func (q *Queries) GetGateByEventID(ctx context.Context, arg GetGateByEventIDPara
 		&i.ReviewArtifactSha256,
 		&i.ReviewRunID,
 		&i.ExpiresAt,
+		&i.Payload,
+		&i.Answer,
+		&i.Audience,
+		&i.Revision,
 		&i.SearchTsv,
 	)
 	return i, err
 }
 
 const getGateByID = `-- name: GetGateByID :one
-SELECT id, company_id, kind, status, title, body, task_id, run_id, persona_id, requested_by_type, requested_by_id, decided_by_type, decided_by_id, decision_note, event_id, created_at, decided_at, requested_status, review_reviewer, review_verdict, review_justification, review_artifact_sha256, review_run_id, expires_at, search_tsv FROM gates WHERE company_id = $1 AND id = $2
+SELECT id, company_id, kind, status, title, body, task_id, run_id, persona_id, requested_by_type, requested_by_id, decided_by_type, decided_by_id, decision_note, event_id, created_at, decided_at, requested_status, review_reviewer, review_verdict, review_justification, review_artifact_sha256, review_run_id, expires_at, payload, answer, audience, revision, search_tsv FROM gates WHERE company_id = $1 AND id = $2
 `
 
 type GetGateByIDParams struct {
@@ -317,13 +515,17 @@ func (q *Queries) GetGateByID(ctx context.Context, arg GetGateByIDParams) (Gate,
 		&i.ReviewArtifactSha256,
 		&i.ReviewRunID,
 		&i.ExpiresAt,
+		&i.Payload,
+		&i.Answer,
+		&i.Audience,
+		&i.Revision,
 		&i.SearchTsv,
 	)
 	return i, err
 }
 
 const getGateByIDForUpdate = `-- name: GetGateByIDForUpdate :one
-SELECT id, company_id, kind, status, title, body, task_id, run_id, persona_id, requested_by_type, requested_by_id, decided_by_type, decided_by_id, decision_note, event_id, created_at, decided_at, requested_status, review_reviewer, review_verdict, review_justification, review_artifact_sha256, review_run_id, expires_at, search_tsv FROM gates WHERE company_id = $1 AND id = $2 FOR UPDATE
+SELECT id, company_id, kind, status, title, body, task_id, run_id, persona_id, requested_by_type, requested_by_id, decided_by_type, decided_by_id, decision_note, event_id, created_at, decided_at, requested_status, review_reviewer, review_verdict, review_justification, review_artifact_sha256, review_run_id, expires_at, payload, answer, audience, revision, search_tsv FROM gates WHERE company_id = $1 AND id = $2 FOR UPDATE
 `
 
 type GetGateByIDForUpdateParams struct {
@@ -359,13 +561,17 @@ func (q *Queries) GetGateByIDForUpdate(ctx context.Context, arg GetGateByIDForUp
 		&i.ReviewArtifactSha256,
 		&i.ReviewRunID,
 		&i.ExpiresAt,
+		&i.Payload,
+		&i.Answer,
+		&i.Audience,
+		&i.Revision,
 		&i.SearchTsv,
 	)
 	return i, err
 }
 
 const getGateView = `-- name: GetGateView :one
-SELECT g.id, g.company_id, g.kind, g.status, g.title, g.body, g.task_id, g.run_id, g.persona_id, g.requested_by_type, g.requested_by_id, g.decided_by_type, g.decided_by_id, g.decision_note, g.event_id, g.created_at, g.decided_at, g.requested_status, g.review_reviewer, g.review_verdict, g.review_justification, g.review_artifact_sha256, g.review_run_id, g.expires_at, g.search_tsv, COALESCE(c.task_prefix || '-' || t.number, '')::text AS task_key, COALESCE(t.title, '')::text AS task_title,
+SELECT g.id, g.company_id, g.kind, g.status, g.title, g.body, g.task_id, g.run_id, g.persona_id, g.requested_by_type, g.requested_by_id, g.decided_by_type, g.decided_by_id, g.decision_note, g.event_id, g.created_at, g.decided_at, g.requested_status, g.review_reviewer, g.review_verdict, g.review_justification, g.review_artifact_sha256, g.review_run_id, g.expires_at, g.payload, g.answer, g.audience, g.revision, g.search_tsv, COALESCE(c.task_prefix || '-' || t.number, '')::text AS task_key, COALESCE(t.title, '')::text AS task_title,
        COALESCE(p.name, '')::text AS persona_name
 FROM gates g
 JOIN companies c ON c.id = g.company_id
@@ -414,12 +620,48 @@ func (q *Queries) GetGateView(ctx context.Context, arg GetGateViewParams) (GetGa
 		&i.Gate.ReviewArtifactSha256,
 		&i.Gate.ReviewRunID,
 		&i.Gate.ExpiresAt,
+		&i.Gate.Payload,
+		&i.Gate.Answer,
+		&i.Gate.Audience,
+		&i.Gate.Revision,
 		&i.Gate.SearchTsv,
 		&i.TaskKey,
 		&i.TaskTitle,
 		&i.PersonaName,
 	)
 	return i, err
+}
+
+const getPlanPolicy = `-- name: GetPlanPolicy :one
+SELECT require_plan FROM plan_policies WHERE scope = $1 AND target_id = $2
+`
+
+type GetPlanPolicyParams struct {
+	Scope    string
+	TargetID uuid.UUID
+}
+
+func (q *Queries) GetPlanPolicy(ctx context.Context, arg GetPlanPolicyParams) (bool, error) {
+	row := q.db.QueryRow(ctx, getPlanPolicy, arg.Scope, arg.TargetID)
+	var require_plan bool
+	err := row.Scan(&require_plan)
+	return require_plan, err
+}
+
+const getPrimaryPersona = `-- name: GetPrimaryPersona :one
+SELECT persona_id FROM member_primary_persona WHERE company_id = $1 AND user_id = $2
+`
+
+type GetPrimaryPersonaParams struct {
+	CompanyID uuid.UUID
+	UserID    uuid.UUID
+}
+
+func (q *Queries) GetPrimaryPersona(ctx context.Context, arg GetPrimaryPersonaParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, getPrimaryPersona, arg.CompanyID, arg.UserID)
+	var persona_id uuid.UUID
+	err := row.Scan(&persona_id)
+	return persona_id, err
 }
 
 const hasGateDecidedSince = `-- name: HasGateDecidedSince :one
@@ -469,8 +711,110 @@ func (q *Queries) HasPendingGateOfKind(ctx context.Context, arg HasPendingGateOf
 	return found, err
 }
 
+const hasPendingPlanGate = `-- name: HasPendingPlanGate :one
+SELECT EXISTS (SELECT 1 FROM gates WHERE task_id = $1 AND kind = 'plan' AND status = 'pending') AS found
+`
+
+func (q *Queries) HasPendingPlanGate(ctx context.Context, taskID *uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, hasPendingPlanGate, taskID)
+	var found bool
+	err := row.Scan(&found)
+	return found, err
+}
+
+const insertGateRevision = `-- name: InsertGateRevision :one
+INSERT INTO gate_revisions (id, company_id, gate_id, revision, title, body, payload, decision_note, sha256, created_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+RETURNING id, company_id, gate_id, revision, title, body, payload, decision_note, sha256, created_at
+`
+
+type InsertGateRevisionParams struct {
+	ID           uuid.UUID
+	CompanyID    uuid.UUID
+	GateID       uuid.UUID
+	Revision     int32
+	Title        string
+	Body         string
+	Payload      []byte
+	DecisionNote string
+	Sha256       string
+	Now          time.Time
+}
+
+func (q *Queries) InsertGateRevision(ctx context.Context, arg InsertGateRevisionParams) (GateRevision, error) {
+	row := q.db.QueryRow(ctx, insertGateRevision,
+		arg.ID,
+		arg.CompanyID,
+		arg.GateID,
+		arg.Revision,
+		arg.Title,
+		arg.Body,
+		arg.Payload,
+		arg.DecisionNote,
+		arg.Sha256,
+		arg.Now,
+	)
+	var i GateRevision
+	err := row.Scan(
+		&i.ID,
+		&i.CompanyID,
+		&i.GateID,
+		&i.Revision,
+		&i.Title,
+		&i.Body,
+		&i.Payload,
+		&i.DecisionNote,
+		&i.Sha256,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const latestApprovedPlanGate = `-- name: LatestApprovedPlanGate :one
+SELECT id, company_id, kind, status, title, body, task_id, run_id, persona_id, requested_by_type, requested_by_id, decided_by_type, decided_by_id, decision_note, event_id, created_at, decided_at, requested_status, review_reviewer, review_verdict, review_justification, review_artifact_sha256, review_run_id, expires_at, payload, answer, audience, revision, search_tsv FROM gates WHERE task_id = $1 AND kind = 'plan' AND status = 'approved'
+ORDER BY decided_at DESC, id DESC LIMIT 1
+`
+
+// O plano aprovado vigente da task: o gate plan aprovado mais recente.
+func (q *Queries) LatestApprovedPlanGate(ctx context.Context, taskID *uuid.UUID) (Gate, error) {
+	row := q.db.QueryRow(ctx, latestApprovedPlanGate, taskID)
+	var i Gate
+	err := row.Scan(
+		&i.ID,
+		&i.CompanyID,
+		&i.Kind,
+		&i.Status,
+		&i.Title,
+		&i.Body,
+		&i.TaskID,
+		&i.RunID,
+		&i.PersonaID,
+		&i.RequestedByType,
+		&i.RequestedByID,
+		&i.DecidedByType,
+		&i.DecidedByID,
+		&i.DecisionNote,
+		&i.EventID,
+		&i.CreatedAt,
+		&i.DecidedAt,
+		&i.RequestedStatus,
+		&i.ReviewReviewer,
+		&i.ReviewVerdict,
+		&i.ReviewJustification,
+		&i.ReviewArtifactSha256,
+		&i.ReviewRunID,
+		&i.ExpiresAt,
+		&i.Payload,
+		&i.Answer,
+		&i.Audience,
+		&i.Revision,
+		&i.SearchTsv,
+	)
+	return i, err
+}
+
 const listErrorPersonas = `-- name: ListErrorPersonas :many
-SELECT id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason, budget_refused_at, subscription_id, reviewer_persona_id, reviewer_agent, reviewer_model, search_tsv, icon, environment_id, instruction_revision FROM personas WHERE company_id = $1 AND status = 'error' ORDER BY updated_at DESC, id
+SELECT id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason, budget_refused_at, subscription_id, reviewer_persona_id, reviewer_agent, reviewer_model, search_tsv, icon, environment_id, instruction_revision, system FROM personas WHERE company_id = $1 AND status = 'error' ORDER BY updated_at DESC, id
 `
 
 func (q *Queries) ListErrorPersonas(ctx context.Context, companyID uuid.UUID) ([]Persona, error) {
@@ -513,6 +857,7 @@ func (q *Queries) ListErrorPersonas(ctx context.Context, companyID uuid.UUID) ([
 			&i.Icon,
 			&i.EnvironmentID,
 			&i.InstructionRevision,
+			&i.System,
 		); err != nil {
 			return nil, err
 		}
@@ -632,6 +977,46 @@ func (q *Queries) ListFailedRuns(ctx context.Context, arg ListFailedRunsParams) 
 	return items, nil
 }
 
+const listGateRevisions = `-- name: ListGateRevisions :many
+SELECT id, company_id, gate_id, revision, title, body, payload, decision_note, sha256, created_at FROM gate_revisions WHERE company_id = $1 AND gate_id = $2 ORDER BY revision DESC
+`
+
+type ListGateRevisionsParams struct {
+	CompanyID uuid.UUID
+	GateID    uuid.UUID
+}
+
+func (q *Queries) ListGateRevisions(ctx context.Context, arg ListGateRevisionsParams) ([]GateRevision, error) {
+	rows, err := q.db.Query(ctx, listGateRevisions, arg.CompanyID, arg.GateID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GateRevision{}
+	for rows.Next() {
+		var i GateRevision
+		if err := rows.Scan(
+			&i.ID,
+			&i.CompanyID,
+			&i.GateID,
+			&i.Revision,
+			&i.Title,
+			&i.Body,
+			&i.Payload,
+			&i.DecisionNote,
+			&i.Sha256,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listGateViews = `-- name: ListGateViews :many
 WITH page AS (
     SELECT g0.id FROM gates g0
@@ -649,7 +1034,7 @@ WITH page AS (
              g0.decided_at DESC NULLS LAST, g0.created_at DESC, g0.id DESC
     LIMIT $8 OFFSET $7
 )
-SELECT g.id, g.company_id, g.kind, g.status, g.title, g.body, g.task_id, g.run_id, g.persona_id, g.requested_by_type, g.requested_by_id, g.decided_by_type, g.decided_by_id, g.decision_note, g.event_id, g.created_at, g.decided_at, g.requested_status, g.review_reviewer, g.review_verdict, g.review_justification, g.review_artifact_sha256, g.review_run_id, g.expires_at, g.search_tsv, COALESCE(c.task_prefix || '-' || t.number, '')::text AS task_key, COALESCE(t.title, '')::text AS task_title,
+SELECT g.id, g.company_id, g.kind, g.status, g.title, g.body, g.task_id, g.run_id, g.persona_id, g.requested_by_type, g.requested_by_id, g.decided_by_type, g.decided_by_id, g.decision_note, g.event_id, g.created_at, g.decided_at, g.requested_status, g.review_reviewer, g.review_verdict, g.review_justification, g.review_artifact_sha256, g.review_run_id, g.expires_at, g.payload, g.answer, g.audience, g.revision, g.search_tsv, COALESCE(c.task_prefix || '-' || t.number, '')::text AS task_key, COALESCE(t.title, '')::text AS task_title,
        COALESCE(p.name, '')::text AS persona_name
 FROM page
 JOIN gates g ON g.id = page.id
@@ -723,6 +1108,10 @@ func (q *Queries) ListGateViews(ctx context.Context, arg ListGateViewsParams) ([
 			&i.Gate.ReviewArtifactSha256,
 			&i.Gate.ReviewRunID,
 			&i.Gate.ExpiresAt,
+			&i.Gate.Payload,
+			&i.Gate.Answer,
+			&i.Gate.Audience,
+			&i.Gate.Revision,
 			&i.Gate.SearchTsv,
 			&i.TaskKey,
 			&i.TaskTitle,
@@ -757,6 +1146,116 @@ func (q *Queries) ReleasePersonaFromGate(ctx context.Context, arg ReleasePersona
 	return err
 }
 
+const reopenGate = `-- name: ReopenGate :one
+UPDATE gates
+SET status = 'pending', decided_by_type = NULL, decided_by_id = NULL, decision_note = '', decided_at = NULL, answer = NULL
+WHERE company_id = $1 AND id = $2 AND status = 'dismissed'
+RETURNING id, company_id, kind, status, title, body, task_id, run_id, persona_id, requested_by_type, requested_by_id, decided_by_type, decided_by_id, decision_note, event_id, created_at, decided_at, requested_status, review_reviewer, review_verdict, review_justification, review_artifact_sha256, review_run_id, expires_at, payload, answer, audience, revision, search_tsv
+`
+
+type ReopenGateParams struct {
+	CompanyID uuid.UUID
+	ID        uuid.UUID
+}
+
+// Reabre uma pergunta dispensada: volta a pending e esquece a decisão.
+func (q *Queries) ReopenGate(ctx context.Context, arg ReopenGateParams) (Gate, error) {
+	row := q.db.QueryRow(ctx, reopenGate, arg.CompanyID, arg.ID)
+	var i Gate
+	err := row.Scan(
+		&i.ID,
+		&i.CompanyID,
+		&i.Kind,
+		&i.Status,
+		&i.Title,
+		&i.Body,
+		&i.TaskID,
+		&i.RunID,
+		&i.PersonaID,
+		&i.RequestedByType,
+		&i.RequestedByID,
+		&i.DecidedByType,
+		&i.DecidedByID,
+		&i.DecisionNote,
+		&i.EventID,
+		&i.CreatedAt,
+		&i.DecidedAt,
+		&i.RequestedStatus,
+		&i.ReviewReviewer,
+		&i.ReviewVerdict,
+		&i.ReviewJustification,
+		&i.ReviewArtifactSha256,
+		&i.ReviewRunID,
+		&i.ExpiresAt,
+		&i.Payload,
+		&i.Answer,
+		&i.Audience,
+		&i.Revision,
+		&i.SearchTsv,
+	)
+	return i, err
+}
+
+const resubmitGate = `-- name: ResubmitGate :one
+UPDATE gates
+SET title = $1, body = $2, payload = $3, revision = revision + 1, status = 'pending',
+    decided_by_type = NULL, decided_by_id = NULL, decision_note = '', decided_at = NULL
+WHERE company_id = $4 AND id = $5 AND status = 'changes_requested'
+RETURNING id, company_id, kind, status, title, body, task_id, run_id, persona_id, requested_by_type, requested_by_id, decided_by_type, decided_by_id, decision_note, event_id, created_at, decided_at, requested_status, review_reviewer, review_verdict, review_justification, review_artifact_sha256, review_run_id, expires_at, payload, answer, audience, revision, search_tsv
+`
+
+type ResubmitGateParams struct {
+	Title     string
+	Body      string
+	Payload   []byte
+	CompanyID uuid.UUID
+	ID        uuid.UUID
+}
+
+// Reenvio no mesmo gate (só a partir de changes_requested): texto novo, revisão +1, volta a pending.
+func (q *Queries) ResubmitGate(ctx context.Context, arg ResubmitGateParams) (Gate, error) {
+	row := q.db.QueryRow(ctx, resubmitGate,
+		arg.Title,
+		arg.Body,
+		arg.Payload,
+		arg.CompanyID,
+		arg.ID,
+	)
+	var i Gate
+	err := row.Scan(
+		&i.ID,
+		&i.CompanyID,
+		&i.Kind,
+		&i.Status,
+		&i.Title,
+		&i.Body,
+		&i.TaskID,
+		&i.RunID,
+		&i.PersonaID,
+		&i.RequestedByType,
+		&i.RequestedByID,
+		&i.DecidedByType,
+		&i.DecidedByID,
+		&i.DecisionNote,
+		&i.EventID,
+		&i.CreatedAt,
+		&i.DecidedAt,
+		&i.RequestedStatus,
+		&i.ReviewReviewer,
+		&i.ReviewVerdict,
+		&i.ReviewJustification,
+		&i.ReviewArtifactSha256,
+		&i.ReviewRunID,
+		&i.ExpiresAt,
+		&i.Payload,
+		&i.Answer,
+		&i.Audience,
+		&i.Revision,
+		&i.SearchTsv,
+	)
+	return i, err
+}
+
 const setPersonaAwaitingGate = `-- name: SetPersonaAwaitingGate :exec
 UPDATE personas p SET status = 'awaiting_gate', updated_at = $1
 WHERE p.id = $2 AND p.status IN ('active', 'idle', 'running')
@@ -772,5 +1271,129 @@ type SetPersonaAwaitingGateParams struct {
 // A persona espera o gate, a menos que tenha run ativa em outra task.
 func (q *Queries) SetPersonaAwaitingGate(ctx context.Context, arg SetPersonaAwaitingGateParams) error {
 	_, err := q.db.Exec(ctx, setPersonaAwaitingGate, arg.Now, arg.ID, arg.TaskID)
+	return err
+}
+
+const setPersonaSystem = `-- name: SetPersonaSystem :one
+UPDATE personas SET system = $1, updated_at = $2 WHERE company_id = $3 AND id = $4 RETURNING id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason, budget_refused_at, subscription_id, reviewer_persona_id, reviewer_agent, reviewer_model, search_tsv, icon, environment_id, instruction_revision, system
+`
+
+type SetPersonaSystemParams struct {
+	System    bool
+	Now       time.Time
+	CompanyID uuid.UUID
+	ID        uuid.UUID
+}
+
+func (q *Queries) SetPersonaSystem(ctx context.Context, arg SetPersonaSystemParams) (Persona, error) {
+	row := q.db.QueryRow(ctx, setPersonaSystem,
+		arg.System,
+		arg.Now,
+		arg.CompanyID,
+		arg.ID,
+	)
+	var i Persona
+	err := row.Scan(
+		&i.ID,
+		&i.CompanyID,
+		&i.Slug,
+		&i.Name,
+		&i.Title,
+		&i.Instructions,
+		&i.Agent,
+		&i.Model,
+		&i.AdapterConfig,
+		&i.Status,
+		&i.ReportsTo,
+		&i.WorkspaceID,
+		&i.HeartbeatIntervalSec,
+		&i.BudgetMonthlyCents,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.LastError,
+		&i.LastErrorAt,
+		&i.ConsecutiveFailures,
+		&i.RequireReview,
+		&i.PauseReason,
+		&i.BudgetRefusedAt,
+		&i.SubscriptionID,
+		&i.ReviewerPersonaID,
+		&i.ReviewerAgent,
+		&i.ReviewerModel,
+		&i.SearchTsv,
+		&i.Icon,
+		&i.EnvironmentID,
+		&i.InstructionRevision,
+		&i.System,
+	)
+	return i, err
+}
+
+const upsertCompanyPolicies = `-- name: UpsertCompanyPolicies :exec
+INSERT INTO company_policies (company_id, require_hire_gate, updated_at) VALUES ($1, $2, $3)
+ON CONFLICT (company_id) DO UPDATE SET require_hire_gate = EXCLUDED.require_hire_gate, updated_at = EXCLUDED.updated_at
+`
+
+type UpsertCompanyPoliciesParams struct {
+	CompanyID       uuid.UUID
+	RequireHireGate bool
+	Now             time.Time
+}
+
+func (q *Queries) UpsertCompanyPolicies(ctx context.Context, arg UpsertCompanyPoliciesParams) error {
+	_, err := q.db.Exec(ctx, upsertCompanyPolicies, arg.CompanyID, arg.RequireHireGate, arg.Now)
+	return err
+}
+
+const upsertPlanPolicy = `-- name: UpsertPlanPolicy :exec
+INSERT INTO plan_policies (company_id, scope, target_id, require_plan, updated_by_type, updated_by_id, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+ON CONFLICT (scope, target_id) DO UPDATE
+SET require_plan = EXCLUDED.require_plan, updated_by_type = EXCLUDED.updated_by_type,
+    updated_by_id = EXCLUDED.updated_by_id, updated_at = EXCLUDED.updated_at
+`
+
+type UpsertPlanPolicyParams struct {
+	CompanyID     uuid.UUID
+	Scope         string
+	TargetID      uuid.UUID
+	RequirePlan   bool
+	UpdatedByType string
+	UpdatedByID   *uuid.UUID
+	Now           time.Time
+}
+
+func (q *Queries) UpsertPlanPolicy(ctx context.Context, arg UpsertPlanPolicyParams) error {
+	_, err := q.db.Exec(ctx, upsertPlanPolicy,
+		arg.CompanyID,
+		arg.Scope,
+		arg.TargetID,
+		arg.RequirePlan,
+		arg.UpdatedByType,
+		arg.UpdatedByID,
+		arg.Now,
+	)
+	return err
+}
+
+const upsertPrimaryPersona = `-- name: UpsertPrimaryPersona :exec
+INSERT INTO member_primary_persona (company_id, user_id, persona_id, updated_at) VALUES ($1, $2, $3, $4)
+ON CONFLICT (company_id, user_id) DO UPDATE SET persona_id = EXCLUDED.persona_id, updated_at = EXCLUDED.updated_at
+`
+
+type UpsertPrimaryPersonaParams struct {
+	CompanyID uuid.UUID
+	UserID    uuid.UUID
+	PersonaID uuid.UUID
+	Now       time.Time
+}
+
+func (q *Queries) UpsertPrimaryPersona(ctx context.Context, arg UpsertPrimaryPersonaParams) error {
+	_, err := q.db.Exec(ctx, upsertPrimaryPersona,
+		arg.CompanyID,
+		arg.UserID,
+		arg.PersonaID,
+		arg.Now,
+	)
 	return err
 }

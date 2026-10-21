@@ -40,7 +40,7 @@ func personaFromRow(r store.Persona) domain.Persona {
 		Status: domain.PersonaStatus(r.Status), ReportsTo: r.ReportsTo, WorkspaceID: r.WorkspaceID,
 		HeartbeatIntervalSec: int(r.HeartbeatIntervalSec), BudgetMonthlyCents: r.BudgetMonthlyCents,
 		RequireReview: r.RequireReview, ReviewerPersonaID: r.ReviewerPersonaID, ReviewerAgent: r.ReviewerAgent,
-		ReviewerModel: r.ReviewerModel, SubscriptionID: r.SubscriptionID, EnvironmentID: r.EnvironmentID, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt}
+		ReviewerModel: r.ReviewerModel, SubscriptionID: r.SubscriptionID, EnvironmentID: r.EnvironmentID, System: r.System, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt}
 }
 
 func subscriptionFromRow(r store.Subscription) domain.Subscription {
@@ -139,7 +139,16 @@ func gateFromRow(r store.Gate) domain.Gate {
 	g := domain.Gate{ID: r.ID, CompanyID: r.CompanyID, Kind: domain.GateKind(r.Kind), Status: domain.GateStatus(r.Status),
 		Title: r.Title, Body: r.Body, TaskID: r.TaskID, RunID: r.RunID, PersonaID: r.PersonaID,
 		RequestedBy: actorOf(r.RequestedByType, r.RequestedByID), DecisionNote: r.DecisionNote,
-		CreatedAt: r.CreatedAt, DecidedAt: r.DecidedAt}
+		CreatedAt: r.CreatedAt, DecidedAt: r.DecidedAt, Revision: int(r.Revision)}
+	if len(r.Payload) > 0 && string(r.Payload) != "{}" {
+		g.Payload = json.RawMessage(r.Payload)
+	}
+	if len(r.Answer) > 0 {
+		g.Answer = json.RawMessage(r.Answer)
+	}
+	if len(r.Audience) > 0 {
+		_ = json.Unmarshal(r.Audience, &g.Audience) // gravada pelo service; uma linha corrompida vira audiência vazia
+	}
 	if r.DecidedByType != nil {
 		a := actorOf(*r.DecidedByType, r.DecidedByID)
 		g.DecidedBy = &a

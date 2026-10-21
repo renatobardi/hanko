@@ -64,7 +64,7 @@ func TestMigration00050IsAdditiveAndReversible(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := p.Up(ctx); err != nil {
+	if _, err := p.UpTo(ctx, 50); err != nil {
 		t.Fatal(err)
 	}
 	// a auditoria anterior ganhou origem e ator

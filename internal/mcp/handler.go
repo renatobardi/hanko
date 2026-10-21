@@ -112,6 +112,7 @@ func newHandler(b Backend, d Deps) http.Handler {
 		})
 		registerTools(srv, &tools{b: b, log: logger})
 		srv.AddReceivingMiddleware(skillTestGuard(b)) // run de teste do estúdio só usa as tools de skill (ADR-0035)
+		srv.AddReceivingMiddleware(planGuard(b))      // run na fase de plano só lê, comenta e pede o gate (ADR-0041)
 		return srv
 	}
 	// tools de plugin por empresa (ADR-0038); sem plugin ligado, o servidor comum

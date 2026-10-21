@@ -1461,6 +1461,18 @@ details > summary.btn::-webkit-details-marker { display: none; }
 .att-inline { margin-top: 6px; }
 .draft-state { font-size: var(--text-xs); color: var(--subtle-foreground); }
 .run-sep.context-reset { color: var(--foreground); }
+
+/* Gates estendidos (ADR-0041): formulário de pergunta, histórico com diff, incidentes de orçamento, controles da persona */
+.question-form { gap: 14px; }
+.question-field { border: 1px solid var(--border); border-radius: var(--radius-xl); padding: 10px 14px 12px; margin: 0; min-width: 0; }
+.question-field legend { font-weight: 600; font-size: var(--text-sm); padding: 0 6px; }
+.check-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: var(--text-sm); cursor: pointer; }
+.check-row input { flex: none; }
+pre.diff { margin: 8px 0; padding: 8px 12px; white-space: pre; overflow-x: auto; }
+.incident-form { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.incident-form .input { flex: 1 1 140px; max-width: 220px; }
+.dl dd form.inline-form { display: inline-flex; margin-left: 10px; }
+
 /* ---------- resiliência de run: diagnóstico, steer e fila de follow-ups (ADR-0039) ---------- */
 .diag { margin-top: 10px; display: grid; gap: 8px; }
 .diag-kv { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 4px 14px; margin: 0; font-size: var(--text-sm); }

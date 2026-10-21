@@ -753,7 +753,7 @@ func (q *Queries) SetEnvironmentSecretEnc(ctx context.Context, arg SetEnvironmen
 const setPersonaEnvironment = `-- name: SetPersonaEnvironment :one
 UPDATE personas SET environment_id = $1, updated_at = $2
 WHERE company_id = $3 AND id = $4
-RETURNING id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason, budget_refused_at, subscription_id, reviewer_persona_id, reviewer_agent, reviewer_model, search_tsv, icon, environment_id, instruction_revision
+RETURNING id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason, budget_refused_at, subscription_id, reviewer_persona_id, reviewer_agent, reviewer_model, search_tsv, icon, environment_id, instruction_revision, system
 `
 
 type SetPersonaEnvironmentParams struct {
@@ -802,6 +802,7 @@ func (q *Queries) SetPersonaEnvironment(ctx context.Context, arg SetPersonaEnvir
 		&i.Icon,
 		&i.EnvironmentID,
 		&i.InstructionRevision,
+		&i.System,
 	)
 	return i, err
 }

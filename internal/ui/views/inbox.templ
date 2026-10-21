@@ -329,6 +329,7 @@ templ InboxPage(sh Shell, vm InboxVM) {
 						}
 					</section>
 				}
+				@IncidentRows(vm.Incidents)
 				if len(vm.Quarantined) > 0 {
 					<section class="card inbox-sec">
 						<div class="inbox-h">

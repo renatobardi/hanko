@@ -564,6 +564,11 @@ func (t *txc) checkBudgets(company store.Company, persona store.Persona, project
 			continue
 		}
 		if st.State == BudgetExceeded {
+			if ok, err := t.consumeRelease(tg, month); err != nil {
+				return err
+			} else if ok { // "liberar só este run" (ADR-0041): um crédito avulso deixa este run passar
+				continue
+			}
 			if tg.scope == "project" {
 				reason := fmt.Sprintf("Orçamento mensal do projeto %q estourado (gasto US$ %.2f de US$ %.2f)", tg.name, spent, float64(*tg.budget)/100)
 				blocked = &BudgetBlockedError{Scope: "project", Name: tg.name, msg: reason + ": " + domain.ErrBudgetExceeded.Error()}
@@ -674,6 +679,9 @@ func (t *txc) budgetAlert(company store.Company, tg budgetTarget, month string, 
 	if st.State != BudgetExceeded {
 		return nil
 	}
+	if err := t.openBudgetIncident(company, tg, month, spent); err != nil { // a decisão humana sobre o teto estourado (ADR-0041)
+		return err
+	}
 	return t.stopRunning(company.ID, tg.personaID, tg.projectID, "budget_exceeded")
 }
 
@@ -719,6 +727,16 @@ func (t *txc) resetBudgetAlerts(company store.Company, id domain.ID, budget *int
 	if st.State != BudgetExceeded {
 		if err := t.q.DeleteBudgetAlert(t.ctx, store.DeleteBudgetAlertParams{TargetID: id, Month: month, Level: "exceeded"}); err != nil {
 			return fmt.Errorf("reset budget alert: %w", err)
+		}
+		scope := "company"
+		switch {
+		case pid != nil:
+			scope = "persona"
+		case projectID != nil:
+			scope = "project"
+		}
+		if err := t.autoResolveIncidents(company.ID, scope, id, "ceiling_changed"); err != nil {
+			return err
 		}
 	}
 	if st.State != BudgetExceeded && st.State != BudgetWarning {
@@ -767,33 +785,45 @@ func (t *txc) resumeBudgetPaused(companyID, personaID *domain.ID) (int, error) {
 				continue
 			}
 		}
-		rows, err := t.q.ResumePersonaFromBudget(t.ctx, store.ResumePersonaFromBudgetParams{ID: p.ID, Now: t.now})
+		resumed, err := t.resumeBudgetPausedPersona(co, p)
 		if err != nil {
-			return n, fmt.Errorf("resume persona: %w", err)
-		}
-		if rows == 0 {
-			continue
-		}
-		n++
-		reason := ""
-		if p.PauseReason != nil {
-			reason = *p.PauseReason
-		}
-		if err := t.activity(domain.SystemActor, co.ID, "persona.resumed", "persona", p.ID,
-			map[string]any{"reason": "budget_ok", "was": reason}, ""); err != nil {
 			return n, err
 		}
-		tasks, err := t.q.ListWorkableTasksForPersona(t.ctx, &p.ID)
-		if err != nil {
-			return n, fmt.Errorf("list persona tasks: %w", err)
-		}
-		for _, tk := range tasks {
-			if err := t.wake(co.ID, tk.ID, &p.ID, domain.TaskStatus(tk.Status), domain.TriggerHeartbeat, true); err != nil {
-				return n, err
-			}
+		if resumed {
+			n++
 		}
 	}
 	return n, nil
+}
+
+// resumeBudgetPausedPersona devolve ao trabalho uma persona pausada por orçamento e acorda as tasks abertas dela.
+// Devolve false se ela já não estava pausada.
+func (t *txc) resumeBudgetPausedPersona(co store.Company, p store.Persona) (bool, error) {
+	rows, err := t.q.ResumePersonaFromBudget(t.ctx, store.ResumePersonaFromBudgetParams{ID: p.ID, Now: t.now})
+	if err != nil {
+		return false, fmt.Errorf("resume persona: %w", err)
+	}
+	if rows == 0 {
+		return false, nil
+	}
+	reason := ""
+	if p.PauseReason != nil {
+		reason = *p.PauseReason
+	}
+	if err := t.activity(domain.SystemActor, co.ID, "persona.resumed", "persona", p.ID,
+		map[string]any{"reason": "budget_ok", "was": reason}, ""); err != nil {
+		return true, err
+	}
+	tasks, err := t.q.ListWorkableTasksForPersona(t.ctx, &p.ID)
+	if err != nil {
+		return true, fmt.Errorf("list persona tasks: %w", err)
+	}
+	for _, tk := range tasks {
+		if err := t.wake(co.ID, tk.ID, &p.ID, domain.TaskStatus(tk.Status), domain.TriggerHeartbeat, true); err != nil {
+			return true, err
+		}
+	}
+	return true, nil
 }
 
 // ResumeBudgetPaused resumes every persona paused by a budget whose ceilings are no longer
@@ -803,6 +833,9 @@ func (s *Service) ResumeBudgetPaused(ctx context.Context) (int, error) {
 	n := 0
 	err := s.withTx(ctx, func(t *txc) error {
 		var err error
+		if _, err = t.sweepBudgetIncidents(); err != nil {
+			return err
+		}
 		n, err = t.resumeBudgetPaused(nil, nil)
 		return err
 	})

@@ -59,7 +59,7 @@ func (e *env) companyCmd() *cobra.Command {
 			return nil
 		},
 	}
-	c.AddCommand(create, ls)
+	c.AddCommand(create, ls, e.companyPolicyCmd())
 	c.AddCommand(e.companyLifecycleCmds()...)
 	return c
 }
@@ -200,6 +200,7 @@ func (e *env) personaCmd() *cobra.Command {
 		cfgJSON                                                                      string
 		review                                                                       bool
 		revPersona, revAgent, revModel                                               string
+		viaGate                                                                      bool
 	)
 	hire := &cobra.Command{
 		Use: "hire " + e.t("<nome>"), Short: e.t("Contrata uma persona"), Args: cobra.ExactArgs(1),
@@ -234,6 +235,21 @@ func (e *env) personaCmd() *cobra.Command {
 					req.AdapterConfig[k] = v
 				}
 			}
+			if viaGate { // a empresa exige gate para contratar (ADR-0041): abre o pedido em vez de contratar direto
+				spec := &api.GateHireSpec{Name: req.Name, Slug: req.Slug, Title: req.Title, Icon: req.Icon, Instructions: req.Instructions,
+					Agent: req.Agent, Model: req.Model, AdapterConfig: req.AdapterConfig, ReportsTo: req.ReportsTo, WorkspaceID: req.Workspace,
+					HeartbeatIntervalSec: req.HeartbeatIntervalSec, BudgetMonthlyCents: req.BudgetMonthlyCents, SubscriptionID: req.Subscription,
+					RequireReview: req.RequireReview, ReviewerPersona: req.Reviewer, ReviewerAgent: req.ReviewerAgent, ReviewerModel: req.ReviewerModel}
+				g, err := e.client().RequestGate(cmd.Context(), co, client.RequestGateReq{Kind: "hire", Title: e.t("Contratar ") + req.Name, Hire: spec})
+				if err != nil {
+					return err
+				}
+				if e.asJSON {
+					return e.printJSON(g)
+				}
+				fmt.Fprintf(e.out, e.t("Pedido de contratação aberto (gate %s). Aprove com: hanko gate approve %s\n"), shortID(g.ID), shortID(g.ID))
+				return nil
+			}
 			p, err := e.client().HirePersona(cmd.Context(), co, req)
 			if err != nil {
 				return err
@@ -264,6 +280,7 @@ func (e *env) personaCmd() *cobra.Command {
 	hf.StringVar(&revPersona, "reviewer", "", e.t("persona que revisa as entregas antes do gate (id ou slug)"))
 	hf.StringVar(&revAgent, "reviewer-agent", "", e.t("harness alternativo revisor: claude, codex ou fake"))
 	hf.StringVar(&revModel, "reviewer-model", "", e.t("modelo do harness revisor"))
+	hf.BoolVar(&viaGate, "gate", false, e.t("abre um pedido de contratação (gate) em vez de contratar direto; obrigatório quando a empresa exige gate (workspace e assinatura por id)"))
 	_ = hire.MarkFlagRequired("agent")
 
 	probe := &cobra.Command{
@@ -419,6 +436,7 @@ func (e *env) personaCmd() *cobra.Command {
 	uf.StringVar(&upReason, "reason", "", e.t("motivo da mudança de instruções (fica na revisão)"))
 	uf.StringVar(&upEnv, "environment", "", e.t("ambiente de execução (id ou slug; local = o padrão da empresa)"))
 	c.AddCommand(hire, ls, show, update, probe, e.personaTestCmd(), e.personaReadinessCmd())
+	c.AddCommand(e.personaExtraCmds()...)
 	c.AddCommand(e.instructionCmds()...)
 	return c
 }

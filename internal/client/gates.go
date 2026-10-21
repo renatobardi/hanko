@@ -16,6 +16,11 @@ type RequestGateReq struct {
 	Body    string `json:"body,omitempty"`
 	Task    string `json:"task,omitempty"`
 	EventID string `json:"event_id,omitempty"`
+	// ADR-0041
+	Form     *api.GateForm     `json:"form,omitempty"`
+	Hire     *api.GateHireSpec `json:"hire,omitempty"`
+	Artifact string            `json:"artifact,omitempty"`
+	Audience *api.GateAudience `json:"audience,omitempty"`
 }
 
 // DecideGateReq é a decisão humana sobre um gate pendente.

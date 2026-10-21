@@ -178,6 +178,9 @@ type Persona struct {
 
 	// EnvironmentID é o ambiente de execução da persona (ADR-0037); nil = o padrão da empresa ou o local.
 	EnvironmentID *ID `json:"environment_id,omitempty"`
+
+	// System marca a persona de sistema (curadoria, revisor; ADR-0041): não pode ser desligada e só um owner a edita.
+	System bool `json:"system,omitempty"`
 }
 
 // PersonaIcons é o catálogo fechado de glifos de persona (Kubo DS: glifo de linha monocromático num círculo

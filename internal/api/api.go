@@ -308,6 +308,7 @@ func (s *server) register(api huma.API) {
 	s.registerRuns(api)
 	s.registerResilience(api)
 	s.registerGates(api)
+	s.registerGatesPlus(api)
 	s.registerMisc(api)
 	s.registerCosts(api)
 	s.registerProjects(api)

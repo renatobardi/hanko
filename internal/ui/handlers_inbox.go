@@ -26,7 +26,7 @@ var inboxNotices = map[string]string{
 
 type inboxTab struct{ key, label string }
 
-var inboxTabs = []inboxTab{{"tudo", i18n.N("Tudo")}, {"gates", i18n.N("Gates")}, {"bloqueadas", i18n.N("Bloqueadas")}, {"falhas", i18n.N("Falhas")}, {"pausadas", i18n.N("Pausadas")}, {"personas", i18n.N("Personas")}, {"alertas", i18n.N("Alertas")}, {"assinaturas", i18n.N("Assinaturas")}, {"tools", i18n.N("Tools")}}
+var inboxTabs = []inboxTab{{"tudo", i18n.N("Tudo")}, {"gates", i18n.N("Gates")}, {"bloqueadas", i18n.N("Bloqueadas")}, {"falhas", i18n.N("Falhas")}, {"pausadas", i18n.N("Pausadas")}, {"personas", i18n.N("Personas")}, {"alertas", i18n.N("Alertas")}, {"assinaturas", i18n.N("Assinaturas")}, {"tools", i18n.N("Tools")}, {"orcamento", i18n.N("Orçamento")}}
 
 // Abas por pessoa (ADR-0042): as visões Não lidos e Arquivados da Caixa.
 const (
@@ -108,7 +108,7 @@ func (s *server) handleInbox(w http.ResponseWriter, r *http.Request, co domain.C
 			vm.DecidedToday++
 		}
 	}
-	counts := map[string]int{"tudo": in.Count(), "gates": len(in.Gates), "bloqueadas": len(in.BlockedTasks), "pausadas": len(in.HeldTasks), "falhas": len(in.FailedRuns) + len(in.StoppedRuns), "personas": len(in.ErrorPersonas), "alertas": len(in.Alerts), "assinaturas": len(in.GuardedSubscriptions), "tools": countToolGates(in.Gates) + len(in.QuarantinedTools)}
+	counts := map[string]int{"tudo": in.Count(), "gates": len(in.Gates), "bloqueadas": len(in.BlockedTasks), "pausadas": len(in.HeldTasks), "falhas": len(in.FailedRuns) + len(in.StoppedRuns), "personas": len(in.ErrorPersonas), "alertas": len(in.Alerts), "assinaturas": len(in.GuardedSubscriptions), "tools": countToolGates(in.Gates) + len(in.QuarantinedTools), "orcamento": len(in.BudgetIncidents)}
 	if view != domain.InboxViewAll { // fora da visão padrão os números por seção não valem como contagem das abas
 		counts = map[string]int{}
 	}
@@ -142,6 +142,9 @@ func (s *server) handleInbox(w http.ResponseWriter, r *http.Request, co domain.C
 			vm.Reviewing = append(vm.Reviewing, views.InboxReview{Key: rv.Task.Key, Href: base + "/tasks/" + rv.Task.Key, Title: rv.Task.Title,
 				Persona: rv.Task.PersonaName, Reviewer: h, Waiting: rv.Status == "pending", When: agoCtx(ctx, rv.CreatedAt, now, loc)})
 		}
+	}
+	if show("orcamento") {
+		vm.Incidents = incidentRows(ctx, in.BudgetIncidents, base, names, func(i domain.BudgetIncident) string { return agoCtx(ctx, i.OpenedAt, now, loc) })
 	}
 	if show("bloqueadas") {
 		for _, t := range in.BlockedTasks {

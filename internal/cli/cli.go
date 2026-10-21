@@ -158,6 +158,7 @@ func (e *env) root() *cobra.Command {
 	root.AddCommand(e.environmentCmd())                           // ambientes de execução (ADR-0037)
 	root.AddCommand(e.modelCmd())                                 // catálogo de modelos (ADR-0055)
 	root.AddCommand(e.pipelinesCmds()...)
+	root.AddCommand(e.planPolicyCmd()) // plan-review (ADR-0041)
 	e.localizeHelp(root)
 	return root
 }

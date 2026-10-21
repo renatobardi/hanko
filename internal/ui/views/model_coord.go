@@ -60,6 +60,7 @@ type TaskCoordVM struct {
 	ForceCloseHref string
 	NewSubtaskHref string
 	Review         CoordReview
+	Plan           CoordPlan
 	// Git (ADR-0054): o worktree da task, quando existe, e a ação "Nova sessão".
 	GitHref        string
 	GitBadge       Badge

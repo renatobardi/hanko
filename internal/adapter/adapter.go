@@ -40,6 +40,10 @@ type Spec struct {
 	// ReadOnly forces the harness into its read-only mode (review runs), ignoring any
 	// permissive adapter_config (permission mode, sandbox, extra args).
 	ReadOnly bool
+	// PlanOnly põe o run na fase de planejamento do plan-review (ADR-0041): o harness lê e planeja, mas não escreve
+	// arquivos nem roda comandos que alterem o ambiente. Diferente de ReadOnly, mantém as tools MCP do Hanko liberadas
+	// (o plano é publicado e o gate pedido por elas). Honrado pelo claude (modo plan) e pelo codex (sandbox read-only).
+	PlanOnly bool
 	// Steer entrega ao adapter, durante a run, as mensagens que o operador injeta (ADR-0039). Só é preenchido para
 	// adapter com SteerInject; o adapter confirma cada mensagem (Steer.Ack) depois de entregá-la ao harness.
 	Steer <-chan Steer

@@ -608,6 +608,11 @@ func (s *Service) LoadRunContext(ctx context.Context, companyID, runID domain.ID
 		}
 		pol := domain.ResolveReviewPolicy(to, po, personaReviewOf(persona))
 		rc.ReviewPolicy = &pol
+		if rc.Run.Trigger != domain.TriggerReview {
+			if rc.Plan, err = planContext(ctx, q, task.ID, task.ProjectID, &persona.ID); err != nil {
+				return RunContext{}, err
+			}
+		}
 	}
 	if task.System {
 		rc.Run.Trigger = domain.TriggerMemory // runs antigas ou acordadas por outro gatilho continuam sendo curadoria
