@@ -69,6 +69,8 @@ func (s *server) toolRoutes(mux langMux) {
 	mux.HandleFunc("POST "+b+"/gateways/{gateway}/remover", post(co(s.handleDeleteToolGateway)))
 	mux.HandleFunc("GET "+b+"/auditoria", co(s.handleToolAudit))
 	mux.HandleFunc("GET "+b+"/efetivas", co(s.handleEffectiveTools))
+	s.toolPolicyRoutes(mux) // política de tools (ADR-0053)
+	s.gatesPlusRoutes(mux)  // gates estendidos: pergunta, plano, incidentes, persona principal (ADR-0041)
 }
 
 func toolsBase(co domain.Company) string { return "/c/" + co.Slug + "/ferramentas" }
@@ -980,11 +982,14 @@ func (s *server) handleToolAudit(w http.ResponseWriter, r *http.Request, co doma
 	base := "/c/" + co.Slug
 	for _, v := range list {
 		row := views.AuditRowVM{When: fmtDateTime(ctx, v.CreatedAt, loc), Integration: v.IntegrationSlug, Tool: v.Tool,
-			Decision: decisionBadge(ctx, v.Decision), Status: v.Status, Latency: fmt.Sprintf("%d ms", v.LatencyMs), Error: v.Error}
+			Decision: decisionBadge(ctx, v.Decision), Status: v.Status, Latency: fmt.Sprintf("%d ms", v.LatencyMs), Error: v.Error,
+			Source: invocationSourceLabel(ctx, v.Source), Policy: v.PolicySource, Result: v.ResultPreview}
 		if len(v.ArgsSHA256) >= 12 {
 			row.SHA = v.ArgsSHA256[:12]
 		}
 		switch {
+		case v.Source == domain.SourceTest && v.Actor != nil && v.Actor.Type == domain.ActorHuman:
+			row.Who = i18n.Tf(ctx, "teste como %s", v.PersonaName)
 		case v.GatewayID != nil:
 			row.Who, row.Gateway, row.WhoHref = i18n.Tf(ctx, "gateway %s", v.GatewaySlug), true, tb+"/gateways/"+url.PathEscape(v.GatewaySlug)
 		case v.PersonaID != nil:
@@ -1004,6 +1009,22 @@ func (s *server) handleToolAudit(w http.ResponseWriter, r *http.Request, co doma
 		vm.Rows = append(vm.Rows, row)
 	}
 	s.render(w, r, http.StatusOK, views.ToolAuditPage(sh, vm))
+}
+
+func invocationSourceLabel(ctx context.Context, s domain.ToolInvocationSource) string {
+	switch s {
+	case domain.SourceGateway:
+		return i18n.T(ctx, "gateway")
+	case domain.SourceTest:
+		return i18n.T(ctx, "teste")
+	case domain.SourceHook:
+		return i18n.T(ctx, "hook do harness")
+	case domain.SourceACP:
+		return i18n.T(ctx, "ACP")
+	case domain.SourcePlugin:
+		return i18n.T(ctx, "plugin")
+	}
+	return i18n.T(ctx, "execução")
 }
 
 // ---------- Caixa de entrada: aba Tools ----------
@@ -1045,6 +1066,11 @@ func verdictText(ctx context.Context, v domain.ToolVerdict) (decision, origin st
 		decision = i18n.T(ctx, "Permitido")
 	}
 	switch v.Source {
+	case "policy:persona", "policy:company":
+		origin = i18n.T(ctx, "política da empresa")
+		if v.Source == "policy:persona" {
+			origin = i18n.T(ctx, "política da persona")
+		}
 	case "no_profile":
 		origin = i18n.T(ctx, "sem perfil")
 	case "default":

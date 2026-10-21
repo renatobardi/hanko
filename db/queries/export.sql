@@ -82,3 +82,13 @@ VALUES (@id, @company_id, @run_id, @seq, @kind, @text, @payload, @occurred_at, @
 
 -- name: SetCompanyImportState :exec
 UPDATE companies SET next_task_number = @next_task_number, budget_monthly_cents = @budget_monthly_cents WHERE id = @id;
+
+-- name: ReplaceImportedPersona :one
+-- Merge com substituição (ADR-0057): o conteúdo do arquivo entra por cima da persona do destino, sem mexer em id,
+-- status de execução, reports_to/revisor (religados em seguida) nem contadores.
+UPDATE personas SET name = @name, title = @title, instructions = @instructions, agent = @agent, model = @model,
+    adapter_config = @adapter_config, workspace_id = @workspace_id, heartbeat_interval_sec = @heartbeat_interval_sec,
+    budget_monthly_cents = @budget_monthly_cents, subscription_id = @subscription_id, require_review = @require_review,
+    reviewer_agent = @reviewer_agent, reviewer_model = @reviewer_model, icon = @icon, updated_at = @now
+WHERE company_id = @company_id AND id = @id
+RETURNING *;

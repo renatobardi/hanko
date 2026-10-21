@@ -22,6 +22,7 @@ import (
 	"github.com/renatobardi/hanko/internal/events"
 	"github.com/renatobardi/hanko/internal/i18n"
 	"github.com/renatobardi/hanko/internal/service"
+	"github.com/renatobardi/hanko/internal/telemetry"
 	"github.com/renatobardi/hanko/internal/textdiff"
 	"github.com/renatobardi/hanko/internal/ui/views"
 )
@@ -72,6 +73,16 @@ type Backend interface {
 	ListTasks(ctx context.Context, companyID domain.ID, f service.TaskFilter) ([]service.TaskView, error)
 	GetTask(ctx context.Context, companyID domain.ID, ref string) (service.TaskView, error)
 	UpdateTask(ctx context.Context, actor domain.Actor, companyID, taskID domain.ID, in service.UpdateTaskInput) (service.TaskView, error)
+	TaskRelations(ctx context.Context, companyID, taskID domain.ID) (service.TaskRelations, error)
+	AddTaskDependency(ctx context.Context, actor domain.Actor, companyID, taskID, dependsOnID domain.ID) (service.TaskView, error)
+	RemoveTaskDependency(ctx context.Context, actor domain.Actor, companyID, taskID, dependsOnID domain.ID) (service.TaskView, error)
+	HoldTask(ctx context.Context, actor domain.Actor, companyID, taskID domain.ID, reason string) (service.TaskView, error)
+	ResumeTask(ctx context.Context, actor domain.Actor, companyID, taskID domain.ID) (service.TaskView, error)
+	ListHeldTasks(ctx context.Context, companyID domain.ID) ([]service.HeldTask, error)
+	TaskReviewPolicy(ctx context.Context, companyID, taskID domain.ID) (service.ReviewPolicyView, error)
+	SetTaskReviewPolicy(ctx context.Context, actor domain.Actor, companyID, taskID domain.ID, in domain.ReviewOverride) (service.ReviewPolicyView, error)
+	ProjectReviewPolicy(ctx context.Context, companyID, projectID domain.ID) (domain.ReviewOverride, error)
+	SetProjectReviewPolicy(ctx context.Context, actor domain.Actor, companyID, projectID domain.ID, in domain.ReviewOverride) (domain.ReviewOverride, error)
 	AddComment(ctx context.Context, actor domain.Actor, companyID, taskID domain.ID, in service.AddCommentInput) (domain.Comment, error)
 	ListComments(ctx context.Context, companyID, taskID domain.ID) ([]domain.Comment, error)
 	WakeTask(ctx context.Context, actor domain.Actor, companyID, taskID domain.ID) error
@@ -81,6 +92,12 @@ type Backend interface {
 	ListRunEvents(ctx context.Context, companyID, runID domain.ID, afterSeq int64, limit int) ([]domain.RunEvent, error)
 	ListRunEventsBefore(ctx context.Context, companyID, runID domain.ID, beforeSeq int64, limit int) ([]domain.RunEvent, error)
 	CancelRun(ctx context.Context, actor domain.Actor, companyID, runID domain.ID) (service.RunView, error)
+	RunAction(ctx context.Context, actor domain.Actor, companyID, runID domain.ID, in service.RunActionInput) (service.RunView, error)
+	SteerRun(ctx context.Context, actor domain.Actor, companyID, runID domain.ID, body string) (service.SteerResult, error)
+	ListFollowups(ctx context.Context, companyID domain.ID, target service.FollowupTarget) ([]domain.Followup, error)
+	QueueTaskFollowup(ctx context.Context, actor domain.Actor, companyID, taskID domain.ID, body string) (domain.Followup, error)
+	EditFollowup(ctx context.Context, actor domain.Actor, companyID, id domain.ID, body string) (domain.Followup, error)
+	DiscardFollowup(ctx context.Context, actor domain.Actor, companyID, id domain.ID) error
 
 	ListActivity(ctx context.Context, companyID domain.ID, f service.ActivityFilter) ([]domain.ActivityEvent, error)
 	Search(ctx context.Context, companyID domain.ID, q string, f service.SearchFilter) (service.SearchResult, error)
@@ -129,6 +146,7 @@ type Backend interface {
 	ListConversationMessages(ctx context.Context, companyID, id domain.ID, limit int) ([]domain.ConversationMessage, error)
 	CreateConversation(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.CreateConversationInput) (service.ConversationView, error)
 	SendMessage(ctx context.Context, actor domain.Actor, companyID, conversationID domain.ID, body string) (domain.ConversationMessage, error)
+	SendMessageWith(ctx context.Context, actor domain.Actor, companyID, conversationID domain.ID, body string, attachments []domain.ID) (domain.ConversationMessage, error)
 	SetConversationStatus(ctx context.Context, actor domain.Actor, companyID, id domain.ID, status domain.ConversationStatus) (service.ConversationView, error)
 
 	// sala (ADR-0033)
@@ -158,6 +176,12 @@ type Backend interface {
 	ListEnvironmentLeases(ctx context.Context, companyID, envID domain.ID, limit int) ([]service.EnvironmentLeaseView, error)
 	RunEnvironmentOf(ctx context.Context, companyID, runID domain.ID) (service.RunEnvironmentInfo, error)
 	EnvironmentDrivers(ctx context.Context) map[domain.EnvironmentDriver]string
+	// Ambiente do projeto, readiness da persona e catálogo de modelos (ADR-0055).
+	SetProjectEnvironment(ctx context.Context, actor domain.Actor, companyID, projectID domain.ID, envID *domain.ID) (domain.Project, error)
+	GetPersonaReadiness(ctx context.Context, companyID, personaID domain.ID) (*domain.Readiness, error)
+	ListPersonaReadiness(ctx context.Context, companyID domain.ID) (map[domain.ID]domain.Readiness, error)
+	TestPersonaReadiness(ctx context.Context, actor domain.Actor, companyID, personaID domain.ID) (domain.Readiness, error)
+	ModelCatalog(ctx context.Context, companyID domain.ID, agent string) ([]domain.CatalogModel, error)
 	// Cards de status (ADR-0032).
 	ListStatusCards(ctx context.Context, companyID domain.ID, archived *bool) ([]service.StatusCardView, error)
 	GetStatusCard(ctx context.Context, companyID, cardID domain.ID) (service.StatusCardView, error)
@@ -214,6 +238,10 @@ type server struct {
 	// sseTick is how often the SSE handler re-reads the database as a safety
 	// net for dropped broker messages.
 	sseTick time.Duration
+	// life é o backend das telas do ADR-0057 (nil quando o backend não o implementa); imports guarda os
+	// arquivos enviados à tela /importar entre a prévia e a confirmação.
+	life    lifeBackend
+	imports importCache
 }
 
 // Mount registers the UI routes on mux using the real service.
@@ -239,6 +267,9 @@ func MountBackend(mux *http.ServeMux, be Backend, d Deps) {
 		now = func() time.Time { return time.Now().UTC() }
 	}
 	s := &server{be: be, broker: broker, log: log, version: d.Version, now: now, sseTick: 2 * time.Second, secure: d.Secure, platform: d.Platform}
+	if l, ok := be.(lifeBackend); ok {
+		s.life = l
+	}
 	if d.Auth != nil {
 		ab := d.Auth.Backend
 		if ab == nil {
@@ -282,7 +313,22 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("GET /c/{company}/tasks/{task}", co(s.handleTask))
 	mux.HandleFunc("POST /c/{company}/tasks/{task}", post(co(s.handleUpdateTask)))
 	mux.HandleFunc("POST /c/{company}/tasks/{task}/comentarios", post(co(s.handleComment)))
+	mux.HandleFunc("PUT /c/{company}/tasks/{task}/rascunho", post(co(s.handleTaskDraft)))
+	mux.HandleFunc("POST /c/{company}/tasks/{task}/anexos", post(co(s.handleTaskAttach)))
+	mux.HandleFunc("PUT /c/{company}/chat/{conversation}/rascunho", post(co(s.handleChatDraft)))
+	mux.HandleFunc("PUT /c/{company}/sala/{conversation}/rascunho", post(co(s.handleRoomDraft)))
+	mux.HandleFunc("POST /c/{company}/tasks/{task}/anexos/{attachment}/excluir", post(co(s.handleTaskAttachmentDelete)))
 	mux.HandleFunc("POST /c/{company}/tasks/{task}/acordar", post(co(s.handleWake)))
+	mux.HandleFunc("POST /c/{company}/tasks/{task}/dependencias", post(co(s.handleAddDependency)))
+	mux.HandleFunc("POST /c/{company}/tasks/{task}/dependencias/{dep}/remover", post(co(s.handleRemoveDependency)))
+	mux.HandleFunc("POST /c/{company}/tasks/{task}/pausar", post(co(s.handleHold)))
+	mux.HandleFunc("POST /c/{company}/tasks/{task}/retomar", post(co(s.handleResume)))
+	mux.HandleFunc("POST /c/{company}/tasks/{task}/forcar-conclusao", post(co(s.handleForceClose)))
+	mux.HandleFunc("POST /c/{company}/tasks/{task}/pai", post(co(s.handleSetParent)))
+	mux.HandleFunc("POST /c/{company}/tasks/{task}/politica-revisao", post(co(s.handleReviewPolicy)))
+	mux.HandleFunc("GET /c/{company}/tasks/{task}/git", co(s.handleTaskGit))
+	mux.HandleFunc("POST /c/{company}/tasks/{task}/git/limpar", post(co(s.handleTaskGitClean)))
+	mux.HandleFunc("POST /c/{company}/tasks/{task}/nova-sessao", post(co(s.handleNewSession)))
 
 	mux.HandleFunc("GET /c/{company}/personas", co(s.handlePersonas))
 	mux.HandleFunc("GET /c/{company}/personas/nova", co(s.handleNewPersona))
@@ -290,6 +336,7 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("POST /c/{company}/personas/catalogo", post(co(s.handleInstallTeam)))
 	mux.HandleFunc("POST /c/{company}/personas/nova", post(co(s.handleHirePersona)))
 	mux.HandleFunc("GET /c/{company}/personas/{persona}", co(s.handlePersona))
+	s.instructionsRoutes(mux) // revisões das instruções (ADR-0052)
 	mux.HandleFunc("POST /c/{company}/personas/{persona}/pausar", post(co(s.handlePersonaControl(domain.PersonaPaused, "pausada"))))
 	mux.HandleFunc("POST /c/{company}/personas/{persona}/retomar", post(co(s.handlePersonaControl(domain.PersonaActive, "retomada"))))
 	mux.HandleFunc("POST /c/{company}/personas/{persona}/reativar", post(co(s.handlePersonaControl(domain.PersonaActive, "reativada"))))
@@ -304,6 +351,8 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("POST /c/{company}/projetos/{project}/arquivar", post(co(s.handleProjectArchive(true))))
 	mux.HandleFunc("POST /c/{company}/projetos/{project}/reativar", post(co(s.handleProjectArchive(false))))
 	mux.HandleFunc("POST /c/{company}/projetos/{project}/orcamento", post(co(s.handleSetProjectBudget)))
+	mux.HandleFunc("POST /c/{company}/projetos/{project}/padroes", post(co(s.handleProjectDefaults)))
+	mux.HandleFunc("POST /c/{company}/projetos/{project}/politica-revisao", post(co(s.handleProjectReviewPolicy)))
 
 	mux.HandleFunc("GET /c/{company}/workspaces", co(s.handleWorkspaces))
 	mux.HandleFunc("GET /c/{company}/workspaces/novo", co(s.handleNewWorkspace))
@@ -311,6 +360,9 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("GET /c/{company}/workspaces/{workspace}", co(s.handleWorkspace))
 	mux.HandleFunc("POST /c/{company}/workspaces/{workspace}", post(co(s.handleUpdateWorkspace)))
 	mux.HandleFunc("POST /c/{company}/workspaces/{workspace}/excluir", post(co(s.handleDeleteWorkspace)))
+	mux.HandleFunc("POST /c/{company}/workspaces/{workspace}/git", post(co(s.handleEnableGit)))
+	mux.HandleFunc("POST /c/{company}/workspaces/{workspace}/git/sincronizar", post(co(s.handleSyncGit)))
+	mux.HandleFunc("POST /c/{company}/workspaces/{workspace}/git/desligar", post(co(s.handleDisableGit)))
 
 	mux.HandleFunc("GET /c/{company}/custos", co(s.handleCosts))
 	mux.HandleFunc("POST /c/{company}/custos/orcamento", post(co(s.handleSetCompanyBudget)))
@@ -333,6 +385,12 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("GET /c/{company}/execucoes/{run}", co(s.handleRun))
 	mux.HandleFunc("GET /c/{company}/execucoes/{run}/sse", co(s.handleRunSSE))
 	mux.HandleFunc("POST /c/{company}/execucoes/{run}/cancelar", post(co(s.handleCancelRun)))
+	mux.HandleFunc("POST /c/{company}/execucoes/{run}/acao", post(co(s.handleRunAction)))
+	mux.HandleFunc("POST /c/{company}/execucoes/{run}/steer", post(co(s.handleRunSteer)))
+	mux.HandleFunc("POST /c/{company}/tasks/{task}/followups", post(co(s.handleQueueFollowup)))
+	mux.HandleFunc("POST /c/{company}/followups/{followup}/editar", post(co(s.handleEditFollowup)))
+	mux.HandleFunc("POST /c/{company}/followups/{followup}/descartar", post(co(s.handleDiscardFollowup)))
+	mux.HandleFunc("GET /c/{company}/chat/{conversation}/fila", co(s.handleChatQueue))
 
 	mux.HandleFunc("POST /c/{company}/personas/{persona}/revisor", post(co(s.handlePersonaReviewer)))
 	mux.HandleFunc("POST /c/{company}/personas/{persona}/organizacao", post(co(s.handlePersonaOrg)))
@@ -341,7 +399,16 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("GET /c/{company}/caixa", co(s.handleInbox))
 	mux.HandleFunc("POST /c/{company}/caixa/tasks/{task}/desbloquear", post(co(s.handleInboxUnblock)))
 	mux.HandleFunc("POST /c/{company}/caixa/tasks/{task}/acordar", post(co(s.handleInboxWake)))
+	mux.HandleFunc("POST /c/{company}/caixa/tasks/{task}/retomar", post(co(s.handleInboxResume)))
 	mux.HandleFunc("POST /c/{company}/caixa/personas/{persona}/reativar", post(co(s.handleInboxReactivate)))
+	mux.HandleFunc("POST /c/{company}/caixa/estado", post(co(s.handleInboxState)))
+	mux.HandleFunc("GET /c/{company}/caixa/selo", co(s.handleInboxBadge))
+	mux.HandleFunc("GET /c/{company}/caixa/eventos", co(s.handleInboxEvents))
+	mux.HandleFunc("GET /c/{company}/configuracoes/notificacoes", co(s.handleNotifySettings))
+	mux.HandleFunc("POST /c/{company}/configuracoes/notificacoes", post(co(s.handleNotifySave)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/notificacoes/teste", post(co(s.handleNotifyTest)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/notificacoes/aparelhos", post(co(s.handlePushSubscribe)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/notificacoes/aparelhos/remover", post(co(s.handlePushRemove)))
 	mux.HandleFunc("GET /c/{company}/decisoes", co(s.handleDecisions))
 	mux.HandleFunc("GET /c/{company}/gates", co(s.handleGates))
 	mux.HandleFunc("GET /c/{company}/gates/{gate}", co(s.handleGate))
@@ -359,6 +426,18 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("GET /c/{company}/configuracoes/ambientes", co(s.handleEnvironments))
 	mux.HandleFunc("GET /c/{company}/configuracoes/adapters", co(s.handleAdapters))
 	mux.HandleFunc("GET /c/{company}/configuracoes/dados", co(s.handleData))
+	mux.HandleFunc("GET /c/{company}/configuracoes/segredos", co(s.handleSecrets))
+	mux.HandleFunc("POST /c/{company}/configuracoes/segredos", post(co(s.handleCreateSecret)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/segredos/{name}/rotacionar", post(co(s.handleRotateSecret)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/segredos/{name}/revelar", post(co(s.handleRevealSecret)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/segredos/{name}/apagar", post(co(s.handleDeleteSecret)))
+	mux.HandleFunc("GET /c/{company}/configuracoes/decisao", co(s.handleDecision))
+	mux.HandleFunc("POST /c/{company}/configuracoes/decisao", post(co(s.handleSaveDecision)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/decisao/remover", post(co(s.handleDeleteDecision)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/decisao/features/{feature}", post(co(s.handleDecisionFeature)))
+	mux.HandleFunc("GET /c/{company}/configuracoes/instancia", co(s.handleInstance))
+	mux.HandleFunc("POST /c/{company}/configuracoes/instancia/{key}", post(co(s.handleSetInstanceSetting)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/instancia/{key}/padrao", post(co(s.handleUnsetInstanceSetting)))
 	mux.HandleFunc("POST /c/{company}/configuracoes/senha", post(co(s.handleChangePassword)))
 	mux.HandleFunc("POST /c/{company}/configuracoes/chaves", post(co(s.handleCreateKey)))
 	mux.HandleFunc("POST /c/{company}/configuracoes/chaves/{key}/revogar", post(co(s.handleRevokeKey)))
@@ -369,7 +448,19 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("POST /c/{company}/configuracoes/membros/convites/{invite}/revogar", post(co(s.handleRevokeInvite)))
 	mux.HandleFunc("POST /c/{company}/configuracoes/membros/{user}/papel", post(co(s.handleMemberRole)))
 	mux.HandleFunc("POST /c/{company}/configuracoes/membros/{user}/remover", post(co(s.handleMemberRemove)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/empresa", post(co(s.handleCompanyUpdate)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/empresa/arquivar", post(co(s.handleCompanyArchive)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/empresa/restaurar", post(co(s.handleCompanyRestore)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/empresa/excluir", post(co(s.handleCompanyDelete)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/membros/entrada/link", post(co(s.handleJoinLinkCreate)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/membros/entrada/link/desligar", post(co(s.handleJoinLinkOff)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/membros/entrada/{request}/decidir", post(co(s.handleJoinDecide)))
+	mux.HandleFunc("GET /importar", s.handleImportPage)
+	mux.HandleFunc("POST /importar", post(s.handleImportUpload))
+	mux.HandleFunc("POST /importar/aplicar", post(s.handleImportApply))
 	s.authRoutes(mux)
+	s.accessRoutes(mux)
+	s.devRoutes(mux)
 
 	mux.HandleFunc("GET /c/{company}/atividade", co(s.handleActivity))
 	mux.HandleFunc("GET /c/{company}/timeline", co(s.handleTimeline))
@@ -531,6 +622,9 @@ func friendly(ctx context.Context, err error) (int, string, string) {
 		if errors.As(err, &blocked) && blocked.Scope == "project" {
 			return st, i18n.T(ctx, "Orçamento do projeto estourado"), i18n.T(ctx, "O limite mensal do projeto foi atingido; nenhuma execução das tasks dele abre até o limite subir ou o mês virar.")
 		}
+		if errors.Is(err, domain.ErrCompanyArchived) {
+			return st, i18n.T(ctx, "Empresa arquivada"), i18n.T(ctx, "A empresa está somente leitura. Restaure-a em Configurações para voltar a editar.")
+		}
 		if errors.Is(err, domain.ErrBudgetExceeded) {
 			return st, i18n.T(ctx, "Orçamento estourado"), i18n.T(ctx, "O limite mensal foi atingido; nenhuma execução nova abre até o limite subir ou o mês virar.")
 		}
@@ -558,8 +652,9 @@ func friendly(ctx context.Context, err error) (int, string, string) {
 // fail renders an error as a page (full navigation) or fragment (htmx).
 func (s *server) fail(w http.ResponseWriter, r *http.Request, co *domain.Company, err error) {
 	st, title, msg := friendly(r.Context(), err)
-	if st >= 500 {
-		s.log.Error("ui handler", "method", r.Method, "path", auth.RedactPath(r.URL.Path), "err", err)
+	if st >= 500 && !errors.Is(err, context.Canceled) { // cliente que saiu no meio não é exceção do servidor
+		telemetry.Record(r.Context(), s.log, telemetry.FromError(telemetry.SourceServer, err),
+			slog.String("method", r.Method), slog.String("path", auth.RedactPath(r.URL.Path)))
 	}
 	vm := views.ErrorVM{Status: st, Title: title, Message: msg}
 	if isHX(r) {
@@ -582,17 +677,26 @@ func (s *server) shell(r *http.Request, co domain.Company, active, title string,
 	cs := []views.Crumb{{Label: co.Name, Href: base + "/"}}
 	cs = append(cs, crumbs...)
 	return views.Shell{
-		Title:   title,
-		Company: views.CompanyRef{Slug: co.Slug, Name: co.Name},
-		Active:  active,
-		Crumbs:  cs,
-		Version: s.version,
-		Owner:   ownerName,
-		Role:    views.RoleFrom(r.Context()),
+		Title:    title,
+		Company:  views.CompanyRef{Slug: co.Slug, Name: co.Name},
+		Active:   active,
+		Crumbs:   cs,
+		Version:  s.version,
+		Owner:    ownerName,
+		Role:     views.RoleFrom(r.Context()),
+		Archived: co.Archived(),
+		// com pessoa autenticada a Caixa tem selo e toasts ao vivo (ADR-0042)
+		Personal: personal(r.Context()),
 	}
 }
 
 func trimForm(r *http.Request, key string) string { return strings.TrimSpace(r.PostFormValue(key)) }
+
+// personal diz se a requisição vem de uma pessoa autenticada (sessão ou API key), e não do modo trusted.
+func personal(ctx context.Context) bool {
+	_, ok := auth.IdentityFrom(ctx)
+	return ok
+}
 
 // actorFrom is the human actor of the request: the signed-in user in authenticated
 // mode, the anonymous local human in trusted mode.

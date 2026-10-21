@@ -5,107 +5,162 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 
 	"github.com/renatobardi/hanko/internal/adapter/acp"
+	"github.com/renatobardi/hanko/internal/adapter/cursor"
+	"github.com/renatobardi/hanko/internal/adapter/httpagent"
+	"github.com/renatobardi/hanko/internal/adapter/pi"
 	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/netguard"
+	"github.com/renatobardi/hanko/internal/secretref"
+	"github.com/renatobardi/hanko/internal/settings"
 	"github.com/renatobardi/hanko/internal/store"
 )
 
-func (s *Service) HirePersona(ctx context.Context, actor domain.Actor, companyID domain.ID, in HirePersonaInput) (domain.Persona, error) {
-	if err := s.require(ctx, companyID, domain.MemberAdmin); err != nil {
-		return domain.Persona{}, err
-	}
+// hirePrep é a contratação já validada sem banco (nome, slug, harness, ícone, adapter_config).
+type hirePrep struct {
+	in   HirePersonaInput
+	name string
+	slug string
+	icon string
+	cfg  []byte
+}
+
+// prepareHire valida a ficha sem tocar no banco.
+func (s *Service) prepareHire(in HirePersonaInput) (hirePrep, error) {
 	name := strings.TrimSpace(in.Name)
 	if name == "" {
-		return domain.Persona{}, domain.Invalid("name", "required")
+		return hirePrep{}, domain.Invalid("name", "required")
 	}
 	slug, err := resolveSlug(in.Slug, name)
 	if err != nil {
-		return domain.Persona{}, err
+		return hirePrep{}, err
 	}
 	if !domain.ValidAgent(in.Agent) {
-		return domain.Persona{}, domain.Invalid("agent", fmt.Sprintf("unknown agent %q (want one of %v)", in.Agent, domain.KnownAgents))
+		return hirePrep{}, domain.Invalid("agent", fmt.Sprintf("unknown agent %q (want one of %v)", in.Agent, domain.KnownAgents))
 	}
 	if in.HeartbeatIntervalSec < 0 || in.HeartbeatIntervalSec > maxHeartbeatIntervalSec {
-		return domain.Persona{}, domain.Invalid("heartbeat_interval_sec", fmt.Sprintf("must be between 0 and %d", maxHeartbeatIntervalSec))
+		return hirePrep{}, domain.Invalid("heartbeat_interval_sec", fmt.Sprintf("must be between 0 and %d", maxHeartbeatIntervalSec))
 	}
 	if in.BudgetMonthlyCents != nil && *in.BudgetMonthlyCents < 0 {
-		return domain.Persona{}, domain.Invalid("budget_monthly_cents", "must be >= 0")
+		return hirePrep{}, domain.Invalid("budget_monthly_cents", "must be >= 0")
 	}
 	icon := strings.TrimSpace(in.Icon)
 	if icon == "" {
 		icon = domain.DefaultPersonaIcon
 	}
 	if !domain.ValidPersonaIcon(icon) {
-		return domain.Persona{}, domain.Invalid("icon", fmt.Sprintf("unknown icon %q (want one of %v)", icon, domain.PersonaIcons))
+		return hirePrep{}, domain.Invalid("icon", fmt.Sprintf("unknown icon %q (want one of %v)", icon, domain.PersonaIcons))
 	}
 	cfg := []byte(in.AdapterConfig)
 	if len(cfg) == 0 {
 		cfg = []byte(`{}`)
 	}
 	if !json.Valid(cfg) {
-		return domain.Persona{}, domain.Invalid("adapter_config", "not valid JSON")
+		return hirePrep{}, domain.Invalid("adapter_config", "not valid JSON")
 	}
 	if err := s.validateAdapterConfig(in.Agent, cfg); err != nil {
+		return hirePrep{}, err
+	}
+	return hirePrep{in: in, name: name, slug: slug, icon: icon, cfg: cfg}, nil
+}
+
+// HirePersona contrata uma persona direto (admin ou mais). Com company_policies.require_hire_gate ligada, o humano abre
+// um gate hire em vez disso (ADR-0041): ErrConflict diz o caminho.
+func (s *Service) HirePersona(ctx context.Context, actor domain.Actor, companyID domain.ID, in HirePersonaInput) (domain.Persona, error) {
+	if err := s.require(ctx, companyID, domain.MemberAdmin); err != nil {
 		return domain.Persona{}, err
 	}
-
+	prep, err := s.prepareHire(in)
+	if err != nil {
+		return domain.Persona{}, err
+	}
 	var out domain.Persona
 	err = s.withTx(ctx, func(t *txc) error {
 		if _, err := t.q.GetCompanyByID(ctx, companyID); err != nil {
 			return mapErr(err, "company")
 		}
-		if in.ReportsTo != nil {
-			if _, err := t.q.GetPersonaByID(ctx, store.GetPersonaByIDParams{CompanyID: companyID, ID: *in.ReportsTo}); err != nil {
-				return domain.Invalid("reports_to", "persona not found in company")
+		if actor.Type == domain.ActorHuman {
+			if pol, err := t.q.GetCompanyPolicies(ctx, companyID); err == nil && pol.RequireHireGate {
+				return fmt.Errorf("esta empresa exige um gate para contratar (política da empresa): abra um pedido de contratação em vez de contratar direto: %w", domain.ErrConflict)
+			} else if err != nil && !isNoRows(err) {
+				return fmt.Errorf("company policies: %w", err)
 			}
 		}
-		if in.WorkspaceID != nil {
-			if _, err := t.q.GetWorkspaceByID(ctx, store.GetWorkspaceByIDParams{CompanyID: companyID, ID: *in.WorkspaceID}); err != nil {
-				return domain.Invalid("workspace_id", "workspace not found in company")
-			}
-		}
-		if in.SubscriptionID != nil {
-			if _, err := t.q.GetSubscriptionByID(ctx, store.GetSubscriptionByIDParams{CompanyID: companyID, ID: *in.SubscriptionID}); err != nil {
-				return domain.Invalid("subscription_id", "subscription not found in company")
-			}
-		}
-		row, err := t.q.CreatePersona(ctx, store.CreatePersonaParams{
-			ID: domain.NewID(), CompanyID: companyID, Slug: slug, Name: name, Title: strings.TrimSpace(in.Title), Icon: icon,
-			Instructions: in.Instructions, Agent: in.Agent, Model: strings.TrimSpace(in.Model), AdapterConfig: cfg,
-			Status: string(domain.PersonaActive), ReportsTo: in.ReportsTo, WorkspaceID: in.WorkspaceID,
-			HeartbeatIntervalSec: i32(in.HeartbeatIntervalSec), BudgetMonthlyCents: in.BudgetMonthlyCents,
-			SubscriptionID: in.SubscriptionID, Now: t.now})
-		if err != nil {
-			return mapErr(err, "hire persona")
-		}
-		if in.RequireReview {
-			row, err = t.q.SetPersonaOrg(ctx, store.SetPersonaOrgParams{CompanyID: companyID, ID: row.ID,
-				ReportsTo: row.ReportsTo, RequireReview: true, Now: t.now})
-			if err != nil {
-				return mapErr(err, "hire persona")
-			}
-		}
-		if in.ReviewerPersona != nil || in.ReviewerAgent != "" || in.ReviewerModel != "" {
-			rp, ra, rm, err := t.checkReviewer(companyID, row.ID, row.Agent, row.Model, in.ReviewerPersona, in.ReviewerAgent, in.ReviewerModel)
-			if err != nil {
-				return err
-			}
-			row, err = t.q.SetPersonaReviewer(ctx, store.SetPersonaReviewerParams{CompanyID: companyID, ID: row.ID,
-				ReviewerPersonaID: rp, ReviewerAgent: ra, ReviewerModel: rm, Now: t.now})
-			if err != nil {
-				return mapErr(err, "hire persona")
-			}
-		}
-		out = personaFromRow(row)
-		return t.activity(actor, companyID, "persona.hired", "persona", out.ID,
-			map[string]any{"slug": out.Slug, "name": out.Name, "agent": out.Agent, "reports_to": out.ReportsTo,
-				"require_review": out.RequireReview, "reviewer_persona_id": out.ReviewerPersonaID,
-				"reviewer_agent": out.ReviewerAgent, "subscription_id": out.SubscriptionID}, "")
+		out, err = t.createPersona(actor, companyID, prep, nil)
+		return err
 	})
 	return out, err
+}
+
+// createPersona insere a persona contratada e registra persona.hired. viaGate é o gate cuja aprovação contratou (nil =
+// contratação direta). Roda na transação de quem chama.
+func (t *txc) createPersona(actor domain.Actor, companyID domain.ID, prep hirePrep, viaGate *domain.ID) (domain.Persona, error) {
+	ctx, in, cfg := t.ctx, prep.in, prep.cfg
+	if in.ReportsTo != nil {
+		if _, err := t.q.GetPersonaByID(ctx, store.GetPersonaByIDParams{CompanyID: companyID, ID: *in.ReportsTo}); err != nil {
+			return domain.Persona{}, domain.Invalid("reports_to", "persona not found in company")
+		}
+	}
+	if in.WorkspaceID != nil {
+		if _, err := t.q.GetWorkspaceByID(ctx, store.GetWorkspaceByIDParams{CompanyID: companyID, ID: *in.WorkspaceID}); err != nil {
+			return domain.Persona{}, domain.Invalid("workspace_id", "workspace not found in company")
+		}
+	}
+	if in.SubscriptionID != nil {
+		if _, err := t.q.GetSubscriptionByID(ctx, store.GetSubscriptionByIDParams{CompanyID: companyID, ID: *in.SubscriptionID}); err != nil {
+			return domain.Persona{}, domain.Invalid("subscription_id", "subscription not found in company")
+		}
+	}
+	// o env em claro vira segredos da empresa; a persona guarda só ${secret:...} (ADR-0050)
+	cfg, _, err := t.s.sealPersonaEnv(t, actor, companyID, prep.slug, cfg)
+	if err != nil {
+		return domain.Persona{}, err
+	}
+	row, err := t.q.CreatePersona(ctx, store.CreatePersonaParams{
+		ID: domain.NewID(), CompanyID: companyID, Slug: prep.slug, Name: prep.name, Title: strings.TrimSpace(in.Title), Icon: prep.icon,
+		Instructions: in.Instructions, Agent: in.Agent, Model: strings.TrimSpace(in.Model), AdapterConfig: cfg,
+		Status: string(domain.PersonaActive), ReportsTo: in.ReportsTo, WorkspaceID: in.WorkspaceID,
+		HeartbeatIntervalSec: i32(in.HeartbeatIntervalSec), BudgetMonthlyCents: in.BudgetMonthlyCents,
+		SubscriptionID: in.SubscriptionID, Now: t.now})
+	if err != nil {
+		return domain.Persona{}, mapErr(err, "hire persona")
+	}
+	if in.RequireReview {
+		row, err = t.q.SetPersonaOrg(ctx, store.SetPersonaOrgParams{CompanyID: companyID, ID: row.ID,
+			ReportsTo: row.ReportsTo, RequireReview: true, Now: t.now})
+		if err != nil {
+			return domain.Persona{}, mapErr(err, "hire persona")
+		}
+	}
+	if in.ReviewerPersona != nil || in.ReviewerAgent != "" || in.ReviewerModel != "" {
+		rp, ra, rm, err := t.checkReviewer(companyID, row.ID, row.Agent, row.Model, in.ReviewerPersona, in.ReviewerAgent, in.ReviewerModel)
+		if err != nil {
+			return domain.Persona{}, err
+		}
+		row, err = t.q.SetPersonaReviewer(ctx, store.SetPersonaReviewerParams{CompanyID: companyID, ID: row.ID,
+			ReviewerPersonaID: rp, ReviewerAgent: ra, ReviewerModel: rm, Now: t.now})
+		if err != nil {
+			return domain.Persona{}, mapErr(err, "hire persona")
+		}
+	}
+	rev, err := t.recordInstructionRevision(instructionRecord{companyID: companyID, personaID: row.ID, current: 0,
+		body: in.Instructions, author: actor, actor: actor, origin: domain.RevisionHire})
+	if err != nil {
+		return domain.Persona{}, err
+	}
+	row.InstructionRevision = i32(rev)
+	out := personaFromRow(row)
+	data := map[string]any{"slug": out.Slug, "name": out.Name, "agent": out.Agent, "reports_to": out.ReportsTo,
+		"require_review": out.RequireReview, "reviewer_persona_id": out.ReviewerPersonaID,
+		"reviewer_agent": out.ReviewerAgent, "subscription_id": out.SubscriptionID}
+	if viaGate != nil {
+		data["via_gate"] = *viaGate
+	}
+	return out, t.activity(actor, companyID, "persona.hired", "persona", out.ID, data, "")
 }
 
 // validateAdapterConfig checks the adapter_config of harnesses that need one to run. Only acp does:
@@ -118,18 +173,51 @@ func (s *Service) validateAdapterConfig(agent string, cfg []byte) error {
 	return nil
 }
 
+// acpPolicy é a política efetiva do harness acp: settings da instância (env > banco) ou a configuração fixa.
+func (s *Service) acpPolicy() acp.Policy {
+	if s.Settings != nil {
+		return acp.Policy{Allow: s.Settings.Bool(settings.ACPAllow), Commands: s.Settings.Strings(settings.ACPCommands)}
+	}
+	return s.ACP
+}
+
 // adapterConfigProblem is the reason an adapter_config cannot run on agent (nil = fine). For acp that
 // includes the operator's gate (HANKO_ACP_ALLOW / HANKO_ACP_COMMANDS, ADR-0023): the command is chosen
-// by a company admin, so it is checked here and again by the adapter when the run starts.
+// by a company admin, so it is checked here and again by the adapter when the run starts. devin, pi, cursor and
+// http (ADR-0056) have their own shapes; devin's command is fixed by the operator, so it needs no gate.
 func (s *Service) adapterConfigProblem(agent string, cfg []byte) error {
-	if agent != "acp" {
-		return nil
-	}
-	c, err := acp.ParseConfig(cfg)
-	if err != nil {
+	switch agent {
+	case "acp":
+		c, err := acp.ParseConfig(cfg)
+		if err != nil {
+			return err
+		}
+		return s.acpPolicy().Check(c.Command)
+	case "devin":
+		_, err := acp.ParseAgentConfig("devin", cfg)
 		return err
+	case "pi":
+		_, err := pi.ParseConfig(cfg)
+		return err
+	case "cursor":
+		_, err := cursor.ParseConfig(cfg)
+		return err
+	case "http":
+		c, err := httpagent.ParseConfig(cfg)
+		if err != nil {
+			return err
+		}
+		if err := c.ValidateHire(func(v string) bool {
+			r := secretref.Find(v)
+			return len(r) == 1 && !r[0].User && r[0].String() == v
+		}); err != nil {
+			return err
+		}
+		if _, err := netguard.ValidateURL(c.BaseURL, true, s.Integrations.policy()); err != nil && s.Integrations.HTTP == nil {
+			return fmt.Errorf(`"base_url": %w`, err)
+		}
 	}
-	return s.ACP.Check(c.Command)
+	return nil
 }
 
 func (s *Service) ListPersonas(ctx context.Context, companyID domain.ID) ([]domain.Persona, error) {
@@ -204,9 +292,16 @@ func (s *Service) UpdatePersona(ctx context.Context, actor domain.Actor, company
 	if in.ClearSubscription && in.SubscriptionID != nil {
 		return domain.Persona{}, domain.Invalid("subscription_id", "cannot set and clear at once")
 	}
+	reason, err := cleanReason(in.InstructionsReason)
+	if err != nil {
+		return domain.Persona{}, err
+	}
+	if in.Instructions != nil && (!utf8.ValidString(*in.Instructions) || utf8.RuneCountInString(*in.Instructions) > maxInstructionRunes) {
+		return domain.Persona{}, domain.Invalid("instructions", fmt.Sprintf("must be valid UTF-8 with at most %d characters", maxInstructionRunes))
+	}
 
 	var out domain.Persona
-	err := s.withTx(ctx, func(t *txc) error {
+	err = s.withTx(ctx, func(t *txc) error {
 		if in.ReportsTo != nil {
 			if err := t.q.LockOrg(ctx, companyID.String()); err != nil { // serializes concurrent chart edits
 				return fmt.Errorf("lock org: %w", err)
@@ -215,6 +310,9 @@ func (s *Service) UpdatePersona(ctx context.Context, actor domain.Actor, company
 		cur, err := t.q.GetPersonaByIDForUpdate(ctx, store.GetPersonaByIDForUpdateParams{CompanyID: companyID, ID: personaID})
 		if err != nil {
 			return mapErr(err, "get persona")
+		}
+		if err := s.requireSystemEdit(ctx, companyID, cur, in.Status); err != nil {
+			return err
 		}
 		p := store.UpdatePersonaParams{CompanyID: companyID, ID: personaID, Name: cur.Name, Title: cur.Title, Icon: cur.Icon,
 			Instructions: cur.Instructions, Model: cur.Model, Status: cur.Status,
@@ -340,6 +438,14 @@ func (s *Service) UpdatePersona(ctx context.Context, actor domain.Actor, company
 		if err != nil {
 			return mapErr(err, "update persona")
 		}
+		if p.Instructions != cur.Instructions { // ADR-0052: toda mudança de instruções vira uma revisão, na mesma transação
+			rev, err := t.recordInstructionRevision(instructionRecord{companyID: companyID, personaID: personaID, current: int(cur.InstructionRevision),
+				body: p.Instructions, author: actor, actor: actor, reason: reason, origin: domain.RevisionEdit})
+			if err != nil {
+				return err
+			}
+			row.InstructionRevision = i32(rev)
+		}
 		if reviewerChanged {
 			row, err = t.q.SetPersonaReviewer(ctx, store.SetPersonaReviewerParams{CompanyID: companyID, ID: personaID,
 				ReviewerPersonaID: rvPersona, ReviewerAgent: rvAgent, ReviewerModel: rvModel, Now: t.now})
@@ -423,8 +529,8 @@ func (t *txc) checkReviewer(companyID, personaID domain.ID, authorAgent, authorM
 		return reviewer, "", "", nil
 	case agent == "" && model != "":
 		return nil, "", "", domain.Invalid("reviewer_agent", "required when reviewer_model is set")
-	case agent == "acp":
-		return nil, "", "", domain.Invalid("reviewer_agent", "acp cannot be an alternate reviewer harness (it needs its own adapter_config); use a reviewer persona that runs on acp instead")
+	case agent == "acp" || agent == "devin" || agent == "pi" || agent == "cursor" || agent == "http":
+		return nil, "", "", domain.Invalid("reviewer_agent", agent+" cannot be an alternate reviewer harness (it needs its own adapter_config); use a reviewer persona that runs on "+agent+" instead")
 	case agent != "" && !domain.ValidReviewerAgent(agent):
 		return nil, "", "", domain.Invalid("reviewer_agent", fmt.Sprintf("unknown agent %q (want one of %v)", agent, domain.ReviewerAgents))
 	}

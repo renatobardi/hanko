@@ -535,7 +535,7 @@ func TestHirePersona(t *testing.T) {
 		e := newEnv(t, uitest.Sample())
 		rec := e.post(t, "/c/hanko/personas/nova", url.Values{"name": {"Yuki Tanaka"}, "title": {"Dados"}, "agent": {"codex"}, "model": {"gpt-5"}, "instructions": {"faça"}, "heartbeat": {"30"}}, false)
 		wantStatus(t, rec, http.StatusSeeOther)
-		if loc := rec.Header().Get("Location"); loc != "/c/hanko/personas/yuki-tanaka" {
+		if loc := rec.Header().Get("Location"); loc != "/c/hanko/personas/yuki-tanaka?testar=1" { // a persona nova é testada ao abrir a página (ADR-0055)
 			t.Errorf("Location = %q", loc)
 		}
 		p := e.f.Personas[len(e.f.Personas)-1]

@@ -98,6 +98,32 @@ func (f *fakeAdmin) AdminListAudit(_ context.Context, as string, limit int) ([]d
 	return f.audit, f.err
 }
 func (f *fakeAdmin) Close() { f.closed++ }
+func (f *fakeAdmin) ClaimLink(context.Context) (string, time.Time, error) {
+	if f.err != nil {
+		return "", time.Time{}, f.err
+	}
+	if len(f.users) > 0 {
+		return "", time.Time{}, fmt.Errorf("emitir claim: %w", domain.ErrConflict)
+	}
+	return "http://hanko.test/claim/TOKEN123", time.Date(2026, 10, 17, 12, 30, 0, 0, time.UTC), nil
+}
+
+func TestAuthClaimLink(t *testing.T) {
+	f := &fakeAdmin{}
+	code, out, errOut := exec(t, authRT(f), nil, "", "auth", "claim-link")
+	if code != 0 || !strings.Contains(out, "http://hanko.test/claim/TOKEN123") || f.closed != 1 {
+		t.Fatalf("code=%d out=%q err=%q closed=%d", code, out, errOut, f.closed)
+	}
+	code, out, _ = exec(t, authRT(f), nil, "", "--json", "auth", "claim-link")
+	if code != 0 || !strings.Contains(out, `"url"`) || !strings.Contains(out, "TOKEN123") {
+		t.Fatalf("json: code=%d out=%q", code, out)
+	}
+	f.users = []domain.User{{ID: domain.NewID(), Email: "a@x.com", Role: domain.RoleOwner}}
+	code, _, errOut = exec(t, authRT(f), nil, "", "auth", "claim-link")
+	if code == 0 || !strings.Contains(errOut, "já existe um usuário") {
+		t.Fatalf("com usuário deveria recusar: code=%d err=%q", code, errOut)
+	}
+}
 
 func authRT(f *fakeAdmin) Runtime {
 	return Runtime{Auth: func(context.Context) (AuthAdmin, error) { return f, nil }}

@@ -253,6 +253,18 @@ func (e *env) goalProgress(g api.Goal) string {
 	return fmt.Sprintf(e.t("%.0f%% (%s de %s%s)"), g.ProgressPercent, fmtNum(g.CurrentValue), fmtNum(g.TargetValue), unit)
 }
 
+// goalChain é a cadeia até a meta: "Visão › Meta-mãe › Esta"; "-" numa raiz sem filhos no caminho.
+func (e *env) goalChain(g api.Goal) string {
+	if len(g.Path) == 0 {
+		return "-"
+	}
+	parts := make([]string, 0, len(g.Path)+1)
+	for _, p := range g.Path {
+		parts = append(parts, p.Title)
+	}
+	return strings.Join(append(parts, g.Title), " › ")
+}
+
 func (e *env) goalStatus(s string) string {
 	switch s {
 	case "active":
@@ -268,7 +280,7 @@ func (e *env) goalStatus(s string) string {
 func (e *env) goalCmd() *cobra.Command {
 	c := &cobra.Command{Use: "goal", Aliases: []string{"goals"}, Short: e.t("Gerencia metas (objetivos mensuráveis)")}
 
-	var slug, desc, metric, unit, due, project, owner string
+	var slug, desc, metric, unit, due, project, owner, parent string
 	var start, target, current float64
 	create := &cobra.Command{
 		Use: "create " + e.t("<título>"), Short: e.t("Cria uma meta: sai do valor inicial e deve chegar ao alvo (admin)"), Args: cobra.ExactArgs(1),
@@ -281,7 +293,7 @@ func (e *env) goalCmd() *cobra.Command {
 				return usageError{errors.New(e.t("informe o alvo com --target"))}
 			}
 			req := client.CreateGoalReq{Title: args[0], Slug: slug, Description: desc, Metric: metric, Unit: unit, Start: start, Target: target,
-				DueDate: due, Project: project, Owner: owner}
+				DueDate: due, Project: project, Owner: owner, Parent: parent}
 			if cmd.Flags().Changed("current") {
 				req.Current = &current
 			}
@@ -307,6 +319,7 @@ func (e *env) goalCmd() *cobra.Command {
 	cf.StringVar(&due, "due", "", e.t("prazo, AAAA-MM-DD"))
 	cf.StringVar(&project, "project", "", e.t("projeto (id ou slug)"))
 	cf.StringVar(&owner, "owner", "", e.t("persona dona da meta (id ou slug)"))
+	cf.StringVar(&parent, "parent", "", e.t("meta-pai (id ou slug): põe a meta na árvore, até 4 níveis"))
 
 	var status, lproject string
 	ls := &cobra.Command{
@@ -329,7 +342,11 @@ func (e *env) goalCmd() *cobra.Command {
 				if g.DueDate != "" {
 					due = g.DueDate
 				}
-				rows = append(rows, []string{g.Slug, oneLine(g.Title, 40), e.goalStatus(g.Status), e.goalProgress(g), due, dash(g.ProjectSlug),
+				title := oneLine(g.Title, 40)
+				if g.Depth > 1 { // submeta: recuo por nível (ADR-0042)
+					title = strings.Repeat("  ", g.Depth-1) + "└ " + title
+				}
+				rows = append(rows, []string{g.Slug, title, e.goalStatus(g.Status), e.goalProgress(g), due, dash(g.ProjectSlug),
 					strconv.Itoa(g.TasksTotal)})
 			}
 			e.table([]string{"SLUG", e.t("TÍTULO"), "STATUS", e.t("PROGRESSO"), e.t("PRAZO"), e.t("PROJETO"), "TASKS"}, rows)
@@ -357,7 +374,13 @@ func (e *env) goalCmd() *cobra.Command {
 			e.kv([2]string{"Status", e.goalStatus(g.Status)}, [2]string{e.t("Progresso"), e.goalProgress(g)},
 				[2]string{e.t("Métrica"), dash(g.Metric)}, [2]string{e.t("Inicial"), fmtNum(g.StartValue)}, [2]string{e.t("Prazo"), dash(g.DueDate)},
 				[2]string{e.t("Projeto"), dash(g.ProjectName)}, [2]string{e.t("Dona"), dash(g.OwnerName)},
-				[2]string{"Tasks", fmt.Sprintf("%d", g.TasksTotal)})
+				[2]string{"Tasks", fmt.Sprintf("%d", g.TasksTotal)}, [2]string{e.t("Cadeia"), e.goalChain(g)})
+			if len(g.Children) > 0 {
+				fmt.Fprintf(e.out, e.t("\nSubmetas (%d):\n"), len(g.Children))
+				for _, c := range g.Children {
+					fmt.Fprintf(e.out, "  %s — %s\n", c.Slug, oneLine(c.Title, 60))
+				}
+			}
 			if strings.TrimSpace(g.Description) != "" {
 				fmt.Fprintf(e.out, e.t("\nDescrição:\n%s\n"), strings.TrimSpace(g.Description))
 			}
@@ -375,9 +398,9 @@ func (e *env) goalCmd() *cobra.Command {
 		},
 	}
 
-	var utitle, udesc, umetric, uunit, udue, uproject, uowner, ustatus string
+	var utitle, udesc, umetric, uunit, udue, uproject, uowner, ustatus, uparent string
 	var ustart, utarget float64
-	var clearDue, clearProject, clearOwner bool
+	var clearDue, clearProject, clearOwner, clearParent bool
 	update := &cobra.Command{
 		Use: "update " + e.t("<meta>"), Short: e.t("Altera uma meta, reabre ou abandona (admin)"), Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -386,7 +409,8 @@ func (e *env) goalCmd() *cobra.Command {
 				return err
 			}
 			f := cmd.Flags()
-			req := client.UpdateGoalReq{DueDate: udue, ClearDue: clearDue, Project: uproject, ClearProject: clearProject, Owner: uowner, ClearOwner: clearOwner}
+			req := client.UpdateGoalReq{DueDate: udue, ClearDue: clearDue, Project: uproject, ClearProject: clearProject, Owner: uowner, ClearOwner: clearOwner,
+				Parent: uparent, ClearParent: clearParent}
 			if f.Changed("title") {
 				req.Title = &utitle
 			}
@@ -433,6 +457,8 @@ func (e *env) goalCmd() *cobra.Command {
 	uf.StringVar(&uowner, "owner", "", e.t("persona dona (id ou slug)"))
 	uf.BoolVar(&clearOwner, "clear-owner", false, e.t("remove a dona"))
 	uf.StringVar(&ustatus, "status", "", e.t("active (reabre) ou abandoned"))
+	uf.StringVar(&uparent, "parent", "", e.t("nova meta-pai (id ou slug)"))
+	uf.BoolVar(&clearParent, "clear-parent", false, e.t("torna a meta uma raiz"))
 
 	var note string
 	progress := &cobra.Command{

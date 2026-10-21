@@ -63,3 +63,6 @@ func (b *Broker) Publish(m Message) {
 
 func RunTopic(runID string) string         { return "run:" + runID }
 func CompanyTopic(companyID string) string { return "company:" + companyID }
+
+// UserTopic é o tópico dos avisos de uma pessoa numa empresa (toasts por usuário, ADR-0042): só ela assina.
+func UserTopic(companyID, userID string) string { return "user:" + companyID + ":" + userID }

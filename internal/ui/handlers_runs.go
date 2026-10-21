@@ -92,6 +92,7 @@ func (s *server) runVM(ctx context.Context, co domain.Company, rv service.RunVie
 		Agent:        rv.Agent,
 		Model:        rv.Model,
 		ModelSource:  modelSourceLabel(ctx, rv.ModelSource),
+		PolicyOrigin: policyOriginLabel(ctx, rv.PolicyOrigin),
 		ListCost:     fmtCostPtrCtx(ctx, rv.ListCostUSD),
 		CostSource:   costSourceLabel(ctx, rv.CostSource),
 		Subscription: subscriptionLabel(ctx, rv.SubscriptionID),
@@ -103,6 +104,15 @@ func (s *server) runVM(ctx context.Context, co domain.Company, rv service.RunVie
 		Terminal:     rv.Status.Terminal(),
 		Lines:        lines,
 		LastSeq:      lastSeq,
+	}
+	if rv.InstructionRevision != nil {
+		vm.Instructions = fmt.Sprintf("r%d", *rv.InstructionRevision)
+		if len(rv.InstructionSHA256) >= 12 {
+			vm.Instructions += " · " + rv.InstructionSHA256[:12]
+		}
+		{
+			vm.InstructionsHref = base + "/personas/" + rv.PersonaID.String() + "/instrucoes?ver=" + strconv.Itoa(*rv.InstructionRevision) + "#revisao"
+		}
 	}
 	if rv.ConversationID != nil {
 		vm.Chat, vm.TaskKey, vm.TaskTitle = true, i18n.T(ctx, "Chat"), rv.ConversationTitle
@@ -117,6 +127,8 @@ func (s *server) runVM(ctx context.Context, co domain.Company, rv service.RunVie
 	if rv.Status.Active() {
 		vm.CancelHref = base + "/execucoes/" + rv.ID.String() + "/cancelar"
 	}
+	vm.Diag = diagVM(ctx, base, rv, base+"/execucoes/"+rv.ID.String())
+	vm.Steer = steerVM(ctx, base, rv)
 	return vm
 }
 
@@ -261,7 +273,7 @@ func (s *server) handleRunSSE(w http.ResponseWriter, r *http.Request, co domain.
 
 	loc := loadLoc(co.Timezone)
 	after := lastEventID(r)
-	lastKey := ""
+	lastKey, lastActions := "", ""
 
 	write := func(id int64, event, html string) bool {
 		var b strings.Builder
@@ -322,6 +334,18 @@ func (s *server) handleRunSSE(w http.ResponseWriter, r *http.Request, co domain.
 			lastKey = key
 			html, err := renderString(ctx, views.RunHeader(s.runVM(ctx, co, cur, "", nil, after)))
 			if err == nil && !write(0, "run-status", html) {
+				return false, false
+			}
+		}
+		// The diagnosis card and the steer box change only with the run's state, never per log line (the text being
+		// typed in the steer box must survive the stream).
+		akey := fmt.Sprintf("%s|%s|%v|%v|%v", cur.Status, cur.Decision, cur.DecisionPending, cur.ContinuedByRunID, cur.Diagnosis != nil)
+		if lastActions == "" {
+			lastActions = akey // the page was rendered with this state already
+		} else if akey != lastActions {
+			lastActions = akey
+			html, err := renderString(ctx, views.RunActionsBody(s.runVM(ctx, co, cur, "", nil, after)))
+			if err == nil && !write(0, "run-actions", html) {
 				return false, false
 			}
 		}

@@ -6,9 +6,11 @@ import (
 	"encoding/hex"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/export"
+	"github.com/renatobardi/hanko/internal/storage"
 	"github.com/renatobardi/hanko/internal/store"
 )
 
@@ -39,6 +41,7 @@ func (s *Service) exportArtifacts(ctx context.Context, q *store.Queries, company
 			SHA256: r.Sha256, SizeBytes: r.SizeBytes, CreatedAt: r.CreatedAt}
 		doc.Artifacts = append(doc.Artifacts, a)
 		st.artIDs = append(st.artIDs, r.ID)
+		st.artStore = append(st.artStore, r.Storage)
 	}
 	return nil
 }
@@ -141,12 +144,21 @@ func (t *txc) importArtifacts(cid domain.ID, doc export.Document, taskID map[int
 		id := domain.NewID()
 		row, err := t.q.CreateArtifact(ctx, store.CreateArtifactParams{ID: id, CompanyID: cid, TaskID: task, RunID: run,
 			ProjectID: optID(prID, a.Project), PersonaID: persona, AuthorType: a.Author.Type, AuthorID: authorID, Name: name, Mime: mt,
-			SizeBytes: int64(len(a.Content)), Sha256: hex.EncodeToString(sum[:]), Version: i32(a.Version), CreatedAt: a.CreatedAt})
+			SizeBytes: int64(len(a.Content)), Sha256: hex.EncodeToString(sum[:]), Version: i32(a.Version), CreatedAt: a.CreatedAt, Storage: t.s.blobs().Active().Name(), Kind: string(domain.ClassArtifact)})
 		if err != nil {
 			return mapErr(err, fmt.Sprintf("import artifact %d", i))
 		}
-		if err := t.q.CreateArtifactBlob(ctx, store.CreateArtifactBlobParams{ArtifactID: row.ID, CompanyID: cid, Content: a.Content}); err != nil {
+		drv := t.s.blobs().Active()
+		key := storage.Key{CompanyID: cid, ArtifactID: row.ID}
+		if err := drv.Put(storage.WithTx(ctx, t.q), key, a.Content, mt); err != nil {
 			return fmt.Errorf("import artifact blob: %w", err)
+		}
+		if !drv.Transactional() {
+			t.onRollback = append(t.onRollback, func() {
+				dctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+				defer cancel()
+				_ = drv.Delete(dctx, key)
+			})
 		}
 	}
 	return nil

@@ -48,10 +48,18 @@ type Company struct {
 	TaskPrefix string `json:"task_prefix"` // e.g. "HNK" → task keys HNK-12
 	Timezone   string `json:"timezone"`
 	// BudgetMonthlyCents is the monthly spend ceiling in USD cents; nil = no ceiling.
-	BudgetMonthlyCents *int64    `json:"budget_monthly_cents,omitempty"`
-	CreatedAt          time.Time `json:"created_at"`
-	UpdatedAt          time.Time `json:"updated_at"`
+	BudgetMonthlyCents *int64 `json:"budget_monthly_cents,omitempty"`
+	// Description é o texto livre da empresa (ADR-0057).
+	Description string `json:"description,omitempty"`
+	// ArchivedAt marca a empresa arquivada: somente leitura até ser restaurada (ADR-0057).
+	ArchivedAt *time.Time `json:"archived_at,omitempty"`
+	ArchivedBy *ID        `json:"archived_by,omitempty"`
+	CreatedAt  time.Time  `json:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at"`
 }
+
+// Archived informa se a empresa está arquivada.
+func (c Company) Archived() bool { return c.ArchivedAt != nil }
 
 // Workspace is a directory/repository where personas work; it scopes memory.
 type Workspace struct {
@@ -89,9 +97,11 @@ type Project struct {
 	WorkspaceID *ID           `json:"workspace_id,omitempty"`
 	Status      ProjectStatus `json:"status"`
 	// BudgetMonthlyCents is the project's monthly ceiling in USD cents; nil = no ceiling.
-	BudgetMonthlyCents *int64    `json:"budget_monthly_cents,omitempty"`
-	CreatedAt          time.Time `json:"created_at"`
-	UpdatedAt          time.Time `json:"updated_at"`
+	BudgetMonthlyCents *int64 `json:"budget_monthly_cents,omitempty"`
+	// EnvironmentID é o ambiente de execução do projeto (ADR-0055); nil = o padrão da empresa ou o local.
+	EnvironmentID *ID       `json:"environment_id,omitempty"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
 }
 
 // WorkspaceSource tells where the working directory of a run came from. Precedence: the workspace chosen on the
@@ -140,8 +150,10 @@ type Persona struct {
 	Name      string `json:"name"`
 	Title     string `json:"title"`
 	// Icon é o glifo de linha da persona (um de PersonaIcons; padrão "bot").
-	Icon                 string          `json:"icon"`
-	Instructions         string          `json:"instructions"`
+	Icon         string `json:"icon"`
+	Instructions string `json:"instructions"`
+	// InstructionRevision é a revisão vigente das instruções (ADR-0052); 0 = ainda não gravada.
+	InstructionRevision  int             `json:"instruction_revision"`
 	Agent                string          `json:"agent"`
 	Model                string          `json:"model,omitempty"`
 	AdapterConfig        json.RawMessage `json:"adapter_config,omitempty"`
@@ -166,6 +178,9 @@ type Persona struct {
 
 	// EnvironmentID é o ambiente de execução da persona (ADR-0037); nil = o padrão da empresa ou o local.
 	EnvironmentID *ID `json:"environment_id,omitempty"`
+
+	// System marca a persona de sistema (curadoria, revisor; ADR-0041): não pode ser desligada e só um owner a edita.
+	System bool `json:"system,omitempty"`
 }
 
 // PersonaIcons é o catálogo fechado de glifos de persona (Kubo DS: glifo de linha monocromático num círculo
@@ -425,12 +440,31 @@ type Run struct {
 	// WorkspaceID and WorkspaceSource record which workspace the run used and why (empty source = older run).
 	WorkspaceID     *ID             `json:"workspace_id,omitempty"`
 	WorkspaceSource WorkspaceSource `json:"workspace_source,omitempty"`
-	Usage           Usage           `json:"usage"`
-	HandoffIn       string          `json:"handoff_in,omitempty"`
-	HandoffOut      string          `json:"handoff_out,omitempty"`
-	CreatedAt       time.Time       `json:"created_at"`
-	StartedAt       *time.Time      `json:"started_at,omitempty"`
-	FinishedAt      *time.Time      `json:"finished_at,omitempty"`
+	// EnvironmentID e EnvironmentSource registram onde a run roda e por quê (ADR-0055); nil + "local" = o local
+	// implícito, vazio = run anterior ao M11.
+	EnvironmentID     *ID       `json:"environment_id,omitempty"`
+	EnvironmentSource EnvSource `json:"environment_source,omitempty"`
+	Usage             Usage     `json:"usage"`
+	HandoffIn         string    `json:"handoff_in,omitempty"`
+	HandoffOut        string    `json:"handoff_out,omitempty"`
+	// InstructionRevision e InstructionSHA256 dizem com que revisão das instruções da persona a run rodou (ADR-0052);
+	// vazios em runs que começaram antes das revisões.
+	InstructionRevision *int       `json:"instruction_revision,omitempty"`
+	InstructionSHA256   string     `json:"instruction_sha256,omitempty"`
+	CreatedAt           time.Time  `json:"created_at"`
+	StartedAt           *time.Time `json:"started_at,omitempty"`
+	FinishedAt          *time.Time `json:"finished_at,omitempty"`
+	// Resiliência (ADR-0039). ContinuationOfRunID liga esta run à que ela continua; ContinuationAttempt conta as
+	// continuações da cadeia (0 = original). Diagnosis é o card de uma run que parou; DecisionPending/Decision
+	// dizem se ela espera o operador e o que ele decidiu.
+	ContinuationOfRunID *ID                `json:"continuation_of_run_id,omitempty"`
+	ContinuationAttempt int                `json:"continuation_attempt,omitempty"`
+	ContinuationReason  ContinuationReason `json:"continuation_reason,omitempty"`
+	Diagnosis           *RunDiagnosis      `json:"diagnosis,omitempty"`
+	DecisionPending     bool               `json:"decision_pending,omitempty"`
+	Decision            RunDecision        `json:"decision,omitempty"`
+	DecisionNote        string             `json:"decision_note,omitempty"`
+	DecidedAt           *time.Time         `json:"decided_at,omitempty"`
 }
 
 // RunEventKind classifies a line of the run log.

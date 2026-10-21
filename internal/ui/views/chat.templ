@@ -91,13 +91,22 @@ templ ChatThread(vm ChatVM) {
 			switch m.Kind {
 				case "human":
 					<div class="msg me">
-						<div class="bubble"><div class="md">@templ.Raw(string(m.Body))</div></div>
+						<div class="bubble">
+							<div class="md">@templ.Raw(string(m.Body))</div>
+							if len(m.Attachments) > 0 {
+								<div class="att-inline">@AttachmentItems(m.Attachments)</div>
+							}
+						</div>
 						<div class="meta"><span>{ m.Author } · <time class="mono">{ m.When }</time></span></div>
 					</div>
 				case "system":
-					<div class="run-sep">
+					<div class={ "run-sep", templ.KV("context-reset", m.Marker != "") }>
 						<span>
-							{ m.Body }
+							if m.Marker != "" {
+								{ i18n.T(ctx, "Contexto reiniciado") }
+							} else {
+								{ m.Body }
+							}
 							<time class="mono">{ m.When }</time>
 							if m.RunHref != "" {
 								· <a class="link-u fg" href={ templ.SafeURL(m.RunHref) }>{ i18n.T(ctx, "execução") }</a>
@@ -114,6 +123,9 @@ templ ChatThread(vm ChatVM) {
 								}
 							</div>
 							<div class="body md">@templ.Raw(string(m.Body))</div>
+							if len(m.Attachments) > 0 {
+								<div class="att-inline">@AttachmentItems(m.Attachments)</div>
+							}
 						</div>
 					</div>
 			}
@@ -148,17 +160,21 @@ templ ChatComposer(vm ChatVM) {
 			class="composer"
 			method="post"
 			action={ templ.SafeURL(vm.SendHref) }
+			enctype="multipart/form-data"
 			hx-post={ vm.SendHref }
+			hx-encoding="multipart/form-data"
 			hx-target="#chat-thread"
 			hx-swap="outerHTML"
-			hx-on::after-request="if(event.detail.successful){this.reset();}"
+			hx-on::after-request="if(event.detail.successful){this.querySelector('textarea').value='';var f=this.querySelector('input[type=file]');if(f){f.value='';f.dispatchEvent(new Event('change',{bubbles:true}));}}"
+			data-dropzone=""
 		>
 			if vm.Blocked != "" {
 				@Alert("warn", vm.Blocked)
 			}
-			<textarea name="message" required placeholder={ i18n.T(ctx, "Escreva uma mensagem (markdown). Se a persona estiver respondendo, ela lê esta junto com a próxima.") } aria-label={ i18n.T(ctx, "Mensagem") }>{ vm.Draft }</textarea>
+			@DraftTextarea("message", i18n.T(ctx, "Escreva uma mensagem (markdown). Se a persona estiver respondendo, ela lê esta junto com a próxima."), i18n.T(ctx, "Mensagem"), vm.DraftF)
+			@DropField(vm.UploadHint, false)
 			<div class="row">
-				<span class="hint">{ i18n.T(ctx, "Markdown · HTML é escapado") }</span>
+				<span class="hint">{ i18n.T(ctx, "Markdown · HTML é escapado · /new reinicia o contexto") }</span>
 				<button type="submit" class="btn primary sm" disabled?={ vm.Blocked != "" }>
 					@Icon("send")
 					{ i18n.T(ctx, "Enviar") }
@@ -193,5 +209,18 @@ templ ChatPage(sh Shell, vm ChatVM) {
 		}
 		@ChatThread(vm)
 		@ChatComposer(vm)
+		if vm.Followups != nil {
+			@ChatQueue(vm)
+		}
 	}
+}
+
+// ChatQueue is the follow-up queue of a conversation; it refreshes itself while the persona answers, unless an edit
+// is open (a swap would throw the text away).
+templ ChatQueue(vm ChatVM) {
+	<div id="chat-queue" if vm.Busy { hx-get={ vm.QueueHref } hx-trigger="every 4s [!document.querySelector('#chat-queue details[open]')]" hx-swap="outerHTML" }>
+		if len(vm.Followups.Items) > 0 || vm.Followups.Steer != nil {
+			@FollowupPanel(*vm.Followups)
+		}
+	</div>
 }

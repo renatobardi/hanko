@@ -1,7 +1,8 @@
 // Fumaça do artefato que vai no binário: carrega cada bundle minificado de internal/ui/static/islands num DOM
 // (jsdom), monta com props data-* e confere o resultado. Roda depois do build (`npm test` encadeia os dois).
 import { JSDOM } from "jsdom";
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import vm from "node:vm";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL, fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
@@ -10,6 +11,10 @@ const dir = resolve(dirname(fileURLToPath(import.meta.url)), "../../internal/ui/
 assert.ok(existsSync(dir), "rode `npm run build` antes");
 const files = readdirSync(dir).filter((f) => !f.startsWith("vendor-")).sort();
 assert.deepEqual(files, ["anchor-editor.js", "org-chart.js", "run-log.js"], "teto de 3 ilhas (ADR-0005)");
+
+// O script do host (hanko.js) tem de ser JavaScript válido: um erro de sintaxe desliga TODO o JS da página (carregador
+// das ilhas, quadro arrastável, atalhos, relato de erros do navegador). O Go não enxerga isso, então a fumaça confere.
+new vm.Script(readFileSync(resolve(dir, "..", "hanko.js"), "utf8"), { filename: "hanko.js" });
 
 const dom = new JSDOM("<!doctype html><body></body>", { url: "http://hanko.test/" });
 const g = globalThis;

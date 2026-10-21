@@ -196,6 +196,8 @@ var verbTails = map[string]string{
 	"closed": i18n.N("encerrada"), "added": i18n.N("adicionado"), "hired": i18n.N("contratada"), "queued": i18n.N("na fila"),
 	"started": i18n.N("iniciada"), "finished": i18n.N("concluída"), "cancelled": i18n.N("cancelada"), "requested": i18n.N("pedido"), "decided": i18n.N("decidido"),
 	"guard_blocked": i18n.N("travada"), "deleted": i18n.N("removida"),
+	"continued": i18n.N("continuada"), "diagnosed": i18n.N("diagnosticada"), "decision": i18n.N("decisão"), "steered": i18n.N("redirecionada"),
+	"edited": i18n.N("editado"), "discarded": i18n.N("descartado"), "consumed": i18n.N("entregue"),
 }
 
 func verbTail(v string) string { return verbTailCtx(context.Background(), v) }
@@ -263,6 +265,52 @@ func verbPhraseCtx(ctx context.Context, v string) string {
 		return i18n.T(ctx, "mudou o status de")
 	case "task.closed":
 		return i18n.T(ctx, "encerrou")
+	case "task.dependency_added":
+		return i18n.T(ctx, "adicionou uma dependência a")
+	case "task.dependency_removed":
+		return i18n.T(ctx, "removeu uma dependência de")
+	case "task.unblocked":
+		return i18n.T(ctx, "liberou")
+	case "task.children_done":
+		return i18n.T(ctx, "viu a última subtask fechar em")
+	case "task.parent_changed":
+		return i18n.T(ctx, "mudou o pai de")
+	case "task.held":
+		return i18n.T(ctx, "pausou")
+	case "task.resumed":
+		return i18n.T(ctx, "retomou")
+	case "task.close_override":
+		return i18n.T(ctx, "concluiu com override")
+	case "task.review_policy_changed":
+		return i18n.T(ctx, "mudou a política de revisão de")
+	case "project.review_policy_changed":
+		return i18n.T(ctx, "mudou a política de revisão do projeto")
+	case "task.worktree_provisioning":
+		return i18n.T(ctx, "preparou o worktree de")
+	case "task.worktree_ready":
+		return i18n.T(ctx, "deixou pronto o worktree de")
+	case "task.worktree_failed":
+		return i18n.T(ctx, "não conseguiu criar o worktree de")
+	case "task.worktree_diverged":
+		return i18n.T(ctx, "viu o worktree divergir em")
+	case "task.worktree_removed", "task.worktree_cleaned":
+		return i18n.T(ctx, "limpou o worktree de")
+	case "task.session_reset":
+		return i18n.T(ctx, "pediu uma nova sessão em")
+	case "run.session_reset_applied":
+		return i18n.T(ctx, "aplicou o pedido de nova sessão na")
+	case "workspace.git_enabled":
+		return i18n.T(ctx, "ligou o Git do workspace")
+	case "workspace.git_updated":
+		return i18n.T(ctx, "ajustou o Git do workspace")
+	case "workspace.git_disabled":
+		return i18n.T(ctx, "desligou o Git do workspace")
+	case "workspace.git_synced":
+		return i18n.T(ctx, "sincronizou o espelho do workspace")
+	case "workspace.git_sync_failed":
+		return i18n.T(ctx, "não conseguiu sincronizar o espelho do workspace")
+	case "project.defaults_updated":
+		return i18n.T(ctx, "atualizou os padrões do projeto")
 	case "comment.added":
 		return i18n.T(ctx, "comentou em")
 	case "run.queued":
@@ -273,6 +321,22 @@ func verbPhraseCtx(ctx context.Context, v string) string {
 		return i18n.T(ctx, "concluiu a")
 	case "run.cancelled":
 		return i18n.T(ctx, "cancelou a")
+	case "run.continued":
+		return i18n.T(ctx, "abriu a continuação da")
+	case "run.diagnosed":
+		return i18n.T(ctx, "diagnosticou a")
+	case "run.decision":
+		return i18n.T(ctx, "decidiu sobre a")
+	case "run.steered":
+		return i18n.T(ctx, "mudou o rumo da")
+	case "followup.queued":
+		return i18n.T(ctx, "enfileirou um follow-up em")
+	case "followup.edited":
+		return i18n.T(ctx, "editou um follow-up em")
+	case "followup.discarded":
+		return i18n.T(ctx, "descartou um follow-up em")
+	case "followup.consumed", "followup.steered":
+		return i18n.T(ctx, "entregou um follow-up em")
 	case "gate.requested":
 		return i18n.T(ctx, "pediu a decisão")
 	case "gate.decided":

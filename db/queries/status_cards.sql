@@ -67,6 +67,7 @@ DELETE FROM status_cards WHERE company_id = @company_id AND id = @id;
 -- name: ListDueStatusCards :many
 SELECT id, company_id FROM status_cards
 WHERE archived_at IS NULL AND next_eval_at IS NOT NULL AND next_eval_at <= @now
+  AND NOT EXISTS (SELECT 1 FROM companies c WHERE c.id = status_cards.company_id AND c.archived_at IS NOT NULL)
 ORDER BY next_eval_at
 LIMIT @lim;
 

@@ -28,6 +28,9 @@ type Backend interface {
 	ListTasks(ctx context.Context, companyID domain.ID, f service.TaskFilter) ([]service.TaskView, error)
 	GetTask(ctx context.Context, companyID domain.ID, ref string) (service.TaskView, error)
 	UpdateTask(ctx context.Context, actor domain.Actor, companyID, taskID domain.ID, in service.UpdateTaskInput) (service.TaskView, error)
+	TaskRelations(ctx context.Context, companyID, taskID domain.ID) (service.TaskRelations, error)
+	AddTaskDependency(ctx context.Context, actor domain.Actor, companyID, taskID, dependsOnID domain.ID) (service.TaskView, error)
+	RemoveTaskDependency(ctx context.Context, actor domain.Actor, companyID, taskID, dependsOnID domain.ID) (service.TaskView, error)
 	AddComment(ctx context.Context, actor domain.Actor, companyID, taskID domain.ID, in service.AddCommentInput) (domain.Comment, error)
 	ListComments(ctx context.Context, companyID, taskID domain.ID) ([]domain.Comment, error)
 	GetRun(ctx context.Context, companyID, runID domain.ID) (service.RunView, error)
@@ -109,6 +112,7 @@ func newHandler(b Backend, d Deps) http.Handler {
 		})
 		registerTools(srv, &tools{b: b, log: logger})
 		srv.AddReceivingMiddleware(skillTestGuard(b)) // run de teste do estúdio só usa as tools de skill (ADR-0035)
+		srv.AddReceivingMiddleware(planGuard(b))      // run na fase de plano só lê, comenta e pede o gate (ADR-0041)
 		return srv
 	}
 	// tools de plugin por empresa (ADR-0038); sem plugin ligado, o servidor comum

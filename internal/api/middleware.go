@@ -14,6 +14,7 @@ import (
 
 	"github.com/renatobardi/hanko/internal/auth"
 	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/telemetry"
 )
 
 type ctxKey int
@@ -21,6 +22,7 @@ type ctxKey int
 const (
 	keyRequestID ctxKey = iota
 	keyPrincipal
+	keyRemoteAddr
 )
 
 // principal é quem faz a requisição: humano (modo trusted) ou persona de um run token.
@@ -93,7 +95,7 @@ func (s *server) middleware(next http.Handler) http.Handler {
 		if !validRequestID(id) {
 			id = domain.NewID().String()
 		}
-		ctx := context.WithValue(r.Context(), keyRequestID, id)
+		ctx := context.WithValue(context.WithValue(r.Context(), keyRequestID, id), keyRemoteAddr, r.RemoteAddr)
 		r = r.WithContext(ctx)
 		w.Header().Set("X-Request-ID", id)
 		if s.d.Version != "" {
@@ -109,7 +111,7 @@ func (s *server) middleware(next http.Handler) http.Handler {
 					// requisição e re-panica para o net/http fechar o transporte sem terminar a resposta
 					aborted = true
 				} else {
-					s.log.ErrorContext(ctx, "panic no handler", "panic", rec, "stack", string(debug.Stack()), "request_id", id)
+					telemetry.Record(ctx, s.log, telemetry.FromPanic(telemetry.SourceServer, rec, debug.Stack()), slog.String("request_id", id))
 					if !sw.wrote {
 						writeProblem(sw, problem(http.StatusInternalServerError, "erro interno do servidor"))
 					} else {
@@ -139,7 +141,10 @@ func (s *server) middleware(next http.Handler) http.Handler {
 		if s.cors(sw, r) {
 			return
 		}
-		if strings.HasPrefix(r.URL.Path, "/api/") {
+		if isPublicAPI(r.URL.Path) {
+			// login da CLI: quem chama ainda não tem credencial (o segredo é o poll token / o código)
+			r = r.WithContext(context.WithValue(r.Context(), keyPrincipal, principal{Actor: domain.HumanActor}))
+		} else if strings.HasPrefix(r.URL.Path, "/api/") {
 			p, err := s.authenticate(r)
 			if err != nil {
 				if errors.Is(err, auth.ErrBadToken) {
@@ -154,6 +159,11 @@ func (s *server) middleware(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(sw, r)
 	})
+}
+
+// isPublicAPI: endpoints sem credencial (criação e consulta do login da CLI, ADR-0057).
+func isPublicAPI(path string) bool {
+	return path == auth.CLIAuthAPIPrefix || path == auth.CLIAuthAPIPrefix+"/poll"
 }
 
 // authenticate resolve o ator. Com identidade do Guard (modo authenticated) o ator é o

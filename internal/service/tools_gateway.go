@@ -37,6 +37,11 @@ const (
 	toolRateWindow       = time.Minute
 	toolInvocationMaxAge = 30 * 24 * time.Hour
 	toolInvocationCap    = 10000
+	toolResultPreview    = 500
+	// toolGateTTL é o prazo de um gate de chamada de integração (a persona repete a chamada depois da decisão);
+	// nativeGateTTL, o de uma chamada nativa do harness, que espera bloqueado pela resposta (ADR-0053).
+	toolGateTTL   = 24 * time.Hour
+	nativeGateTTL = 10 * time.Minute
 )
 
 // ToolCaller é quem chama pelo gateway: uma run (persona) ou um gateway nomeado (token hkgw_).
@@ -57,10 +62,46 @@ type ToolCaller struct {
 	ProfileID   *domain.ID
 	TokenID     *domain.ID
 	Actions     []string
+	// Aggregate: a run usa o endpoint único /mcp/run (ADR-0053): as tools de todas as integrações dela saem com o
+	// nome "<integração>__<tool>", como no gateway nomeado, mas com o perfil e as políticas da persona.
+	Aggregate bool
+	// Source diz por onde a chamada entrou (auditoria); vazio vale run ou gateway, conforme o chamador.
+	Source domain.ToolInvocationSource
+	// Actor é quem pediu, quando não é a persona nem o gateway (um humano testando como a persona; ADR-0053).
+	Actor *domain.Actor
+	// DryRun avalia a política e devolve o que aconteceria, sem abrir gate, sem chamar o servidor e sem auditar.
+	DryRun bool
 }
 
 // Named informa se o chamador é um gateway nomeado.
 func (c ToolCaller) Named() bool { return c.GatewayID != nil }
+
+// Prefixed informa se os nomes das tools levam o prefixo da integração (gateway nomeado ou endpoint único).
+func (c ToolCaller) Prefixed() bool { return c.Named() || c.Aggregate }
+
+func (c ToolCaller) source() domain.ToolInvocationSource {
+	switch {
+	case c.Source != "":
+		return c.Source
+	case c.Named():
+		return domain.SourceGateway
+	}
+	return domain.SourceRun
+}
+
+// auditActor é o ator gravado na auditoria: o humano que testou, a persona da run ou o sistema (gateway nomeado).
+func (c ToolCaller) auditActor() (*string, *domain.ID) {
+	switch {
+	case c.Actor != nil:
+		t := string(c.Actor.Type)
+		return &t, c.Actor.ID
+	case c.PersonaID != nil:
+		t := string(domain.ActorPersona)
+		return &t, c.PersonaID
+	}
+	t := string(domain.ActorSystem)
+	return &t, nil
+}
 
 // Can informa se o chamador pode fazer a ação (tools/list, tools/call). Run pode tudo; token, o que ele lista.
 func (c ToolCaller) Can(action string) bool { return !c.Named() || slices.Contains(c.Actions, action) }
@@ -83,7 +124,7 @@ func (s *Service) RunToolCaller(ctx context.Context, companyID, runID domain.ID)
 		return ToolCaller{}, fmt.Errorf("a run não está ativa: %w", domain.ErrNotAllowed)
 	}
 	pid, rid := rv.PersonaID, rv.ID
-	c := ToolCaller{CompanyID: companyID, RunID: &rid, RunName: rv.Name, PersonaID: &pid, Persona: rv.PersonaName}
+	c := ToolCaller{CompanyID: companyID, RunID: &rid, RunName: rv.Name, PersonaID: &pid, Persona: rv.PersonaName, Source: domain.SourceRun}
 	if rv.TaskID != (domain.ID{}) {
 		tid := rv.TaskID
 		c.TaskID, c.TaskKey = &tid, rv.TaskKey
@@ -167,7 +208,7 @@ func (s *Service) callerIntegrations(ctx context.Context, q *store.Queries, c To
 }
 
 func (c ToolCaller) exposed(integSlug, tool string) string {
-	if c.Named() {
+	if c.Prefixed() {
 		return integSlug + ToolNameSeparator + tool
 	}
 	return tool
@@ -184,13 +225,17 @@ func (s *Service) GatewayListTools(ctx context.Context, c ToolCaller, integratio
 	if err != nil {
 		return nil, err
 	}
-	if !c.Named() && len(integs) == 0 {
+	if !c.Prefixed() && len(integs) == 0 {
 		return nil, notFound("integration")
+	}
+	pols, err := loadToolPolicies(ctx, q, c.CompanyID, c.PersonaID)
+	if err != nil {
+		return nil, err
 	}
 	out := []GatewayTool{}
 	for _, gi := range integs {
-		if v := domain.EvaluateIntegration(gi.profile, gi.row.ID); !v.Allowed && v.Source == "exclude" {
-			continue // a integração inteira está excluída
+		if v := domain.EvaluateIntegration(gi.profile, gi.row.ID); !v.Allowed && v.Source == "exclude" && !hasIntegrationPolicy(pols, gi.row.ID) {
+			continue // a integração inteira está excluída (uma política da persona ou da empresa para ela decide tool a tool)
 		}
 		s.ensureCatalog(ctx, gi.row)
 		rows, err := q.ListIntegrationTools(ctx, store.ListIntegrationToolsParams{CompanyID: c.CompanyID, IntegrationID: gi.row.ID})
@@ -201,7 +246,7 @@ func (s *Service) GatewayListTools(ctx context.Context, c ToolCaller, integratio
 			if domain.ToolStatus(r.Status) != domain.ToolActive {
 				continue
 			}
-			if !domain.EvaluateTool(gi.profile, gi.row.ID, r.Name, domain.ToolRisk(r.Risk)).Allowed {
+			if !toolVerdict(gi, pols, c, r.Name, domain.ToolRisk(r.Risk)).Allowed {
 				continue
 			}
 			name := c.exposed(gi.row.Slug, r.Name)
@@ -246,13 +291,21 @@ type invocation struct {
 	status   string
 	latency  time.Duration
 	errText  string
+	result   string // trecho redigido do resultado (ADR-0053)
+	policy   string // de onde veio a decisão: perfil ou política
+	native   bool   // tool do harness/plugin: sem integração
 }
 
 func (c ToolCaller) invocationParams(v invocation, now time.Time) store.InsertToolInvocationParams {
 	p := store.InsertToolInvocationParams{ID: domain.NewID(), CompanyID: c.CompanyID, RunID: c.RunID, GatewayID: c.GatewayID,
 		PersonaID: c.PersonaID, IntegrationSlug: v.slug, Tool: truncateRunes(v.tool, maxToolNameLen), ArgsSha256: v.sha,
 		ArgsBytes: i32(v.size), Decision: string(v.decision), GateID: v.gateID, Status: v.status,
-		LatencyMs: i32(int(v.latency / time.Millisecond)), Error: truncateRunes(v.errText, 300), Now: now}
+		LatencyMs: i32(int(v.latency / time.Millisecond)), Error: truncateRunes(v.errText, 300), Now: now,
+		Source: string(c.source()), ResultPreview: truncateRunes(v.result, toolResultPreview), PolicySource: truncateRunes(v.policy, 80)}
+	p.ActorType, p.ActorID = c.auditActor()
+	if !c.DryRun {
+		countToolDecision(p.Source, p.Decision, p.PolicySource)
+	}
 	if v.integ != nil {
 		id := v.integ.ID
 		p.IntegrationID = &id
@@ -262,6 +315,9 @@ func (c ToolCaller) invocationParams(v invocation, now time.Time) store.InsertTo
 
 // audit grava a chamada fora de transação (a auditoria não pode derrubar a resposta: o erro só é devolvido).
 func (s *Service) audit(ctx context.Context, c ToolCaller, v invocation) error {
+	if c.DryRun {
+		return nil // simulação: nada é gravado
+	}
 	if _, err := store.New(s.Pool).InsertToolInvocation(ctx, c.invocationParams(v, s.Now().UTC())); err != nil {
 		return fmt.Errorf("record tool invocation: %w", err)
 	}
@@ -278,7 +334,7 @@ func (s *Service) GatewayCallTool(ctx context.Context, c ToolCaller, integration
 		return GatewayCallResult{Decision: domain.ToolDecisionDeny, Message: fmt.Sprintf("argumentos grandes demais (máximo de %d KiB)", maxToolArgsBytes>>10)}, nil
 	}
 	tool := name
-	if c.Named() {
+	if c.Prefixed() {
 		var ok bool
 		if integrationSlug, tool, ok = strings.Cut(name, ToolNameSeparator); !ok {
 			integrationSlug, tool = "", name
@@ -323,12 +379,25 @@ func (s *Service) GatewayCallTool(ctx context.Context, c ToolCaller, integration
 	case domain.ToolDisabled, domain.ToolRemoved:
 		return deny(fmt.Sprintf("tool %q não está disponível", name), true)
 	}
-	verdict := domain.EvaluateTool(gi.profile, gi.row.ID, tool, domain.ToolRisk(tr.Risk))
+	pols, err := loadToolPolicies(ctx, q, c.CompanyID, c.PersonaID)
+	if err != nil {
+		return GatewayCallResult{}, err
+	}
+	verdict := toolVerdict(gi, pols, c, tool, domain.ToolRisk(tr.Risk))
+	v.policy = verdict.Source
 	if !verdict.Allowed {
 		return deny(fmt.Sprintf("tool %q não está disponível", name), true)
 	}
+	if c.DryRun {
+		msg := "a chamada passaria direto"
+		dec := domain.ToolDecisionAllow
+		if verdict.Mode == domain.ToolModeAsk {
+			msg, dec = "a chamada pediria aprovação (abriria um gate tool)", domain.ToolDecisionAsk
+		}
+		return GatewayCallResult{Decision: dec, Message: "simulação: " + msg}, nil
+	}
 	if verdict.Mode == domain.ToolModeAsk {
-		res, pass, err := s.askApproval(ctx, c, gi, toolFromRow(tr, gi.row.Slug), sha, size, canon, gi.profile)
+		res, pass, err := s.askApproval(ctx, c, gi, toolFromRow(tr, gi.row.Slug), sha, size, canon, gi.profile, verdict)
 		if err != nil || !pass {
 			return res, err
 		}
@@ -352,7 +421,7 @@ func (s *Service) GatewayCallTool(ctx context.Context, c ToolCaller, integration
 
 	// repasse
 	v.decision = domain.ToolDecisionAllow
-	ep, err := s.toolEndpoint(gi.row)
+	ep, err := s.toolEndpoint(ctx, gi.row)
 	if err != nil {
 		v.decision, v.status = domain.ToolDecisionError, domain.ToolCallFailed
 		return deny("a integração não pode ser alcançada: "+err.Error(), false)
@@ -365,7 +434,7 @@ func (s *Service) GatewayCallTool(ctx context.Context, c ToolCaller, integration
 	}
 	if cerr != nil {
 		msg := cerr.Error()
-		if sec, err := s.open(gi.row.ID, gi.row.SecretEnc); err == nil {
+		if sec, ok := s.secretsForRedaction(ctx, gi.row.CompanyID, gi.row.ID, gi.row.SecretEnc); ok {
 			msg = redactSecrets(msg, sec)
 		}
 		v.status, v.errText = domain.ToolCallFailed, msg
@@ -385,6 +454,7 @@ func (s *Service) GatewayCallTool(ctx context.Context, c ToolCaller, integration
 	if json.Unmarshal(raw, &probe) == nil && probe.IsError {
 		v.status = domain.ToolCallFailed
 	}
+	v.result = s.redactedResultPreview(ctx, gi.row, raw)
 	if err := s.audit(ctx, c, v); err != nil {
 		return GatewayCallResult{}, err
 	}
@@ -394,7 +464,7 @@ func (s *Service) GatewayCallTool(ctx context.Context, c ToolCaller, integration
 // askApproval aplica o modo "perguntar antes". pass=true: há uma aprovação válida para esta chamada exata
 // (consumida agora); senão o resultado explica (gate aberto agora, gate pendente, ou recusado).
 func (s *Service) askApproval(ctx context.Context, c ToolCaller, gi gatewayIntegration, tl domain.IntegrationTool, sha string, size int,
-	canon []byte, prof *domain.ToolProfile) (GatewayCallResult, bool, error) {
+	canon []byte, prof *domain.ToolProfile, verdict domain.ToolVerdict) (GatewayCallResult, bool, error) {
 	var res GatewayCallResult
 	pass := false
 	who := ""
@@ -408,12 +478,12 @@ func (s *Service) askApproval(ctx context.Context, c ToolCaller, gi gatewayInteg
 		if err := t.q.LockToolCallKey(ctx, "tool_call:"+who+":"+gi.row.ID.String()+":"+tl.Name+":"+sha); err != nil {
 			return fmt.Errorf("lock tool call: %w", err)
 		}
-		rows, err := t.q.FindToolCallApprovals(ctx, store.FindToolCallApprovalsParams{CompanyID: c.CompanyID, IntegrationID: gi.row.ID,
+		rows, err := t.q.FindToolCallApprovals(ctx, store.FindToolCallApprovalsParams{CompanyID: c.CompanyID, IntegrationID: &gi.row.ID,
 			Tool: tl.Name, ArgsSha256: sha, PersonaID: c.PersonaID, GatewayID: c.GatewayID, Since: t.now.Add(-toolApprovalWindow)})
 		if err != nil {
 			return fmt.Errorf("find approvals: %w", err)
 		}
-		v := invocation{integ: &gi.row, slug: gi.row.Slug, tool: tl.Name, sha: sha, size: size}
+		v := invocation{integ: &gi.row, slug: gi.row.Slug, tool: tl.Name, sha: sha, size: size, policy: verdict.Source}
 		if len(rows) > 0 {
 			last := rows[0]
 			gid := last.GateID
@@ -443,7 +513,7 @@ func (s *Service) askApproval(ctx context.Context, c ToolCaller, gi gatewayInteg
 				return err
 			}
 		}
-		gid, err := t.openToolGate(c, gi, tl, sha, size, canon, prof)
+		gid, err := t.openToolGate(c, gi, tl, sha, size, canon, prof, verdict)
 		if err != nil {
 			return err
 		}
@@ -461,7 +531,7 @@ func (s *Service) askApproval(ctx context.Context, c ToolCaller, gi gatewayInteg
 
 // openToolGate abre o gate tool e o pedido de aprovação da chamada.
 func (t *txc) openToolGate(c ToolCaller, gi gatewayIntegration, tl domain.IntegrationTool, sha string, size int, canon []byte,
-	prof *domain.ToolProfile) (domain.ID, error) {
+	prof *domain.ToolProfile, verdict domain.ToolVerdict) (domain.ID, error) {
 	actor := domain.SystemActor
 	who := "O gateway **" + c.GatewayName + "**"
 	if !c.Named() {
@@ -470,7 +540,10 @@ func (t *txc) openToolGate(c ToolCaller, gi gatewayIntegration, tl domain.Integr
 	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s quer chamar a tool `%s` da integração **%s** (`%s`)", who, tl.Name, gi.row.Name, gi.row.Slug)
-	if prof != nil {
+	switch {
+	case verdict.Policy != nil:
+		fmt.Fprintf(&b, " e a política (%s) pede aprovação antes", policyLabel(*verdict.Policy))
+	case prof != nil:
 		fmt.Fprintf(&b, " e o perfil **%s** pede aprovação antes", prof.Name)
 	}
 	b.WriteString(".\n\n")
@@ -481,9 +554,13 @@ func (t *txc) openToolGate(c ToolCaller, gi gatewayIntegration, tl domain.Integr
 		fmt.Fprintf(&b, "- Task: %s\n", c.TaskKey)
 	}
 	fmt.Fprintf(&b, "- Risco declarado: %s\n- sha256 da chamada: `%s` (%d bytes de argumentos)\n\n", tl.Risk, sha, size)
-	b.WriteString("Aprovar libera **uma** repetição desta chamada com exatamente os mesmos argumentos. Argumentos diferentes pedem uma nova aprovação.\n\n")
+	b.WriteString("Aprovar libera **uma** repetição desta chamada com exatamente os mesmos argumentos. Argumentos diferentes pedem uma nova aprovação.\n")
+	if !c.Named() {
+		b.WriteString("Um administrador pode escolher **sempre permitir**: grava uma política desta persona para esta tool e as próximas chamadas passam direto.\n")
+	}
+	b.WriteString("\n")
 	preview := string(canon)
-	if sec, err := t.s.open(gi.row.ID, gi.row.SecretEnc); err == nil {
+	if sec, ok := t.s.secretsForRedaction(t.ctx, gi.row.CompanyID, gi.row.ID, gi.row.SecretEnc); ok {
 		preview = redactSecrets(preview, sec)
 	} else {
 		preview = adapter.Redact(preview)
@@ -502,8 +579,12 @@ func (t *txc) openToolGate(c ToolCaller, gi gatewayIntegration, tl domain.Integr
 	if err != nil {
 		return domain.ID{}, err
 	}
+	if err := t.q.SetGateExpiry(t.ctx, store.SetGateExpiryParams{CompanyID: c.CompanyID, ID: g.ID, ExpiresAt: ptr(t.now.Add(toolGateTTL))}); err != nil {
+		return domain.ID{}, fmt.Errorf("set gate expiry: %w", err)
+	}
+	integID := gi.row.ID
 	if _, err := t.q.CreateToolCallApproval(t.ctx, store.CreateToolCallApprovalParams{ID: domain.NewID(), CompanyID: c.CompanyID, GateID: g.ID,
-		IntegrationID: gi.row.ID, Tool: tl.Name, ArgsSha256: sha, RunID: c.RunID, TaskID: c.TaskID, PersonaID: personaID,
+		IntegrationID: &integID, Tool: tl.Name, ArgsSha256: sha, RunID: c.RunID, TaskID: c.TaskID, PersonaID: personaID,
 		GatewayID: c.GatewayID, Now: t.now}); err != nil {
 		return domain.ID{}, mapErr(err, "create tool approval")
 	}
@@ -512,7 +593,7 @@ func (t *txc) openToolGate(c ToolCaller, gi gatewayIntegration, tl domain.Integr
 
 // toolGateDecided roda dentro do DecideGate de um gate tool: aprovado, acorda a persona na task da run que pediu
 // (gatilho gate) para ela repetir a chamada. Rejeitar só registra (a próxima chamada igual é recusada).
-func (t *txc) toolGateDecided(g domain.Gate, decision domain.GateStatus) error {
+func (t *txc) toolGateDecided(actor domain.Actor, g domain.Gate, decision domain.GateStatus, always bool) error {
 	a, err := t.q.GetToolCallApprovalByGate(t.ctx, store.GetToolCallApprovalByGateParams{CompanyID: g.CompanyID, GateID: g.ID})
 	if err != nil {
 		if isNoRows(err) {
@@ -521,11 +602,26 @@ func (t *txc) toolGateDecided(g domain.Gate, decision domain.GateStatus) error {
 		return fmt.Errorf("get tool approval: %w", err)
 	}
 	if err := t.activity(domain.SystemActor, g.CompanyID, "tool.call_decided", "gate", g.ID, map[string]any{"decision": decision,
-		"integration_id": a.IntegrationID, "tool": a.Tool, "args_sha256": a.ArgsSha256, "persona_id": a.PersonaID, "gateway_id": a.GatewayID}, ""); err != nil {
+		"integration_id": a.IntegrationID, "tool": a.Tool, "args_sha256": a.ArgsSha256, "persona_id": a.PersonaID, "gateway_id": a.GatewayID,
+		"native": a.NativeTool != "", "always": always}, ""); err != nil {
 		return err
 	}
-	if decision != domain.GateApproved || a.TaskID == nil || a.PersonaID == nil {
-		return nil
+	if always {
+		if a.PersonaID == nil {
+			return domain.Invalid("always", "sempre permitir vale só para chamadas de persona (um gateway nomeado usa o perfil)")
+		}
+		in := ToolPolicyInput{Scope: domain.PolicyScopePersona, PersonaID: a.PersonaID, Mode: domain.PolicyAllow}
+		if a.NativeTool != "" {
+			in.Target, in.ToolName = domain.PolicyTargetNative, a.NativeTool
+		} else {
+			in.Target, in.IntegrationID, in.ToolName = domain.PolicyTargetTool, a.IntegrationID, a.Tool
+		}
+		if _, err := t.setPolicy(actor, g.CompanyID, in, domain.PolicyOriginAlways); err != nil {
+			return err
+		}
+	}
+	if decision != domain.GateApproved || a.TaskID == nil || a.PersonaID == nil || a.NativeTool != "" {
+		return nil // a chamada nativa espera dentro da run: não há o que acordar
 	}
 	task, err := t.q.GetTaskByID(t.ctx, store.GetTaskByIDParams{CompanyID: g.CompanyID, ID: *a.TaskID})
 	if err != nil {
@@ -548,6 +644,7 @@ type ToolInvocationFilter struct {
 	RunID         *domain.ID
 	Decision      domain.ToolDecision
 	Tool          string
+	Source        domain.ToolInvocationSource
 	Since         *time.Time
 	Limit         int // padrão 100, máximo 500
 	Offset        int
@@ -569,6 +666,12 @@ func (s *Service) ListToolInvocations(ctx context.Context, companyID domain.ID, 
 	if t := strings.TrimSpace(f.Tool); t != "" {
 		p.Tool = &t
 	}
+	if f.Source != "" {
+		if !f.Source.Valid() {
+			return nil, domain.Invalid("source", "use run, gateway, test, hook, acp ou plugin")
+		}
+		p.Source = ptr(string(f.Source))
+	}
 	rows, err := s.read().ListToolInvocations(ctx, p)
 	if err != nil {
 		return nil, fmt.Errorf("list tool invocations: %w", err)
@@ -576,6 +679,7 @@ func (s *Service) ListToolInvocations(ctx context.Context, companyID domain.ID, 
 	out := make([]domain.ToolInvocation, len(rows))
 	for i, r := range rows {
 		out[i] = domain.ToolInvocation{ID: r.ID, RunID: r.RunID, GatewayID: r.GatewayID, GatewaySlug: r.GatewaySlug, PersonaID: r.PersonaID,
+			Source: domain.ToolInvocationSource(r.Source), Actor: toolActor(r.ActorType, r.ActorID), ResultPreview: r.ResultPreview, PolicySource: r.PolicySource,
 			PersonaName: r.PersonaName, IntegrationID: r.IntegrationID, IntegrationSlug: r.IntegrationSlug, Tool: r.Tool, ArgsSHA256: r.ArgsSha256,
 			ArgsBytes: int(r.ArgsBytes), Decision: domain.ToolDecision(r.Decision), GateID: r.GateID, Status: r.Status,
 			LatencyMs: int(r.LatencyMs), Error: r.Error, CreatedAt: r.CreatedAt}

@@ -15,6 +15,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humago"
 
+	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/export"
 	"github.com/renatobardi/hanko/internal/service"
 )
@@ -70,6 +71,8 @@ func (l TransferLimits) withDefaults() TransferLimits {
 
 const importPath = Prefix + "/companies/import"
 
+func boolPtr(b bool) *bool { return &b }
+
 var slugParamRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,62}$`)
 
 type exportIn struct {
@@ -92,8 +95,41 @@ func (exportDoc) Schema(huma.Registry) *huma.Schema {
 
 // ImportedCompany é a resposta de POST /companies/import.
 type ImportedCompany struct {
-	Company Company        `json:"company"`
-	Counts  map[string]int `json:"counts" doc:"Quantos itens de cada tipo foram criados."`
+	Company Company        `json:"company" doc:"A empresa criada, ou a de destino no merge. Em dry-run para empresa nova, sem id (não existe ainda)."`
+	Counts  map[string]int `json:"counts" doc:"Quantos itens de cada tipo foram criados (em dry-run, seriam criados). No merge, os que foram gravados (tudo menos pular)."`
+	DryRun  bool           `json:"dry_run" doc:"true: nada foi gravado; é a prévia."`
+	Merged  bool           `json:"merged" doc:"true: o destino era uma empresa existente (só a configuração entra)."`
+	// Items e Warnings são a prévia/resultado detalhado (ADR-0057).
+	Items    []ImportItem    `json:"items" doc:"Workspaces, projetos, assinaturas, skills, personas, fluxos e integrações do arquivo e o que acontece com cada um."`
+	Warnings []ImportWarning `json:"warnings" doc:"Avisos: caminhos limpos, segredos a recriar, itens que entram desligados, histórico que não entra."`
+}
+
+// ImportItem é um item do arquivo e a ação aplicada.
+type ImportItem struct {
+	Kind   string `json:"kind" enum:"workspaces,projects,subscriptions,skills,personas,flows,integrations"`
+	Key    string `json:"key" doc:"Slug no arquivo (nome, em assinaturas)."`
+	Name   string `json:"name"`
+	Action string `json:"action" enum:"create,skip,rename,replace"`
+	Target string `json:"target" doc:"Chave final no destino (o novo slug quando renomeado)."`
+}
+
+// ImportWarning é um aviso da prévia; message é um formato pt-BR com %d para count.
+type ImportWarning struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+	Count   int    `json:"count"`
+}
+
+func importedOut(res service.ImportResult) ImportedCompany {
+	out := ImportedCompany{Company: companyOut(res.Company), Counts: res.Counts, DryRun: res.DryRun, Merged: res.Merged,
+		Items: make([]ImportItem, len(res.Items)), Warnings: make([]ImportWarning, len(res.Warnings))}
+	for i, it := range res.Items {
+		out.Items[i] = ImportItem{Kind: it.Kind, Key: it.Key, Name: it.Name, Action: string(it.Action), Target: it.Target}
+	}
+	for i, w := range res.Warnings {
+		out.Warnings[i] = ImportWarning{Code: w.Code, Message: w.Message, Count: w.Count}
+	}
+	return out
 }
 
 func (s *server) registerExport(api huma.API) {
@@ -205,7 +241,7 @@ func (s *server) registerImportDoc(api huma.API) {
 		Method:      http.MethodPost,
 		Path:        importPath,
 		Tags:        []string{"companies"},
-		Summary:     "Cria uma empresa NOVA a partir de um arquivo exportado; tudo ou nada (só humanos)",
+		Summary:     "Importa um arquivo exportado: cria uma empresa nova ou, com `into`, mescla a configuração numa existente; `dry_run` mostra a prévia; tudo ou nada (só humanos)",
 		Description: fmt.Sprintf("Por padrão a empresa entra PAUSADA (personas pausadas, fluxos desligados); `paused=false` liga. "+
 			"Corpo de até %d MiB (Content-Length maior é recusado com 413 sem ler o corpo), lido com prazo renovado por inatividade "+
 			"e teto absoluto; um corpo inválido nunca é devolvido na resposta. No máximo %d importações simultâneas por servidor.",
@@ -215,9 +251,19 @@ func (s *server) registerImportDoc(api huma.API) {
 				Schema: &huma.Schema{Type: "string", Pattern: slugParamRe.String()}},
 			{Name: "paused", In: "query", Description: "Importa personas pausadas e fluxos desligados (padrão). `false` as deixa como no arquivo.",
 				Schema: &huma.Schema{Type: "boolean", Default: true}},
+			{Name: "dry_run", In: "query", Description: "Só valida e devolve a prévia (contagens, itens, avisos); não grava nada.",
+				Schema: &huma.Schema{Type: "boolean", Default: false}},
+			{Name: "into", In: "query", Description: "Id ou slug de uma empresa EXISTENTE: importa só a configuração (merge; admin da empresa, não arquivada). Vazio cria uma empresa nova.",
+				Schema: &huma.Schema{Type: "string"}},
+			{Name: "on_conflict", In: "query", Description: "Com `into`: ação padrão para o que já existe no destino.",
+				Schema: &huma.Schema{Type: "string", Enum: []any{"skip", "rename", "replace"}, Default: "skip"}},
+			{Name: "resolve", In: "query", Style: "form", Explode: boolPtr(true), Description: "Com `into`: exceção por item, `tipo/chave=ação` (ex.: `personas/dev=replace`); repetível.",
+				Schema: &huma.Schema{Type: "array", Items: &huma.Schema{Type: "string"}}},
 		},
 		RequestBody: &huma.RequestBody{Required: true, Content: map[string]*huma.MediaType{"application/json": {Schema: exportDoc{}.Schema(nil)}}},
 		Responses: map[string]*huma.Response{
+			"200": {Description: "Prévia (dry_run) ou merge em empresa existente (into).", Content: map[string]*huma.MediaType{
+				"application/json": {Schema: reg.Schema(reflect.TypeOf(ImportedCompany{}), true, "")}}},
 			"201": {Description: "Empresa criada.", Content: map[string]*huma.MediaType{
 				"application/json": {Schema: reg.Schema(reflect.TypeOf(ImportedCompany{}), true, "")}}},
 			"400": errBody("JSON inválido."),
@@ -258,6 +304,49 @@ func (s *server) handleImport(w http.ResponseWriter, r *http.Request) {
 		paused = b
 	}
 
+	dryRun := false
+	if v := q.Get("dry_run"); v != "" {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			writeProblem(w, problem(http.StatusUnprocessableEntity, "entrada inválida: dry_run",
+				&huma.ErrorDetail{Location: "query.dry_run", Message: "expected boolean"}))
+			return
+		}
+		dryRun = b
+	}
+	opts := service.ImportOptions{Slug: slug, Active: !paused, DryRun: dryRun, OnConflict: domain.ConflictAction(q.Get("on_conflict"))}
+	if opts.OnConflict != "" && !opts.OnConflict.Valid() {
+		writeProblem(w, problem(http.StatusUnprocessableEntity, "entrada inválida: on_conflict",
+			&huma.ErrorDetail{Location: "query.on_conflict", Message: "expected skip, rename or replace"}))
+		return
+	}
+	for _, rv := range q["resolve"] {
+		kind, key, act, err := domain.ParseResolution(rv)
+		if err != nil {
+			p, _ := toProblem(err)
+			writeProblem(w, p)
+			return
+		}
+		if opts.Resolve == nil {
+			opts.Resolve = map[string]domain.ConflictAction{}
+		}
+		opts.Resolve[kind+"/"+key] = act
+	}
+	if into := q.Get("into"); into != "" {
+		co, err := s.svc.GetCompany(ctx, into)
+		if err != nil {
+			p, _ := toProblem(err)
+			writeProblem(w, p)
+			return
+		}
+		if cl := principalFrom(ctx).Claims; cl != nil && cl.CompanyID != co.ID.String() {
+			writeProblem(w, problem(http.StatusForbidden, "o token não pertence a esta empresa"))
+			return
+		}
+		id := co.ID
+		opts.Into = &id
+	}
+
 	// Content-Length acima do limite: 413 sem ler nada do corpo.
 	if r.ContentLength > maxImportBytes {
 		writeProblem(w, importBodyProblem(&http.MaxBytesError{Limit: maxImportBytes}))
@@ -291,7 +380,7 @@ func (s *server) handleImport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res, err := s.svc.ImportCompany(ctx, principalFrom(ctx).Actor, doc, service.ImportOptions{Slug: slug, Active: !paused})
+	res, err := s.svc.ImportCompany(ctx, principalFrom(ctx).Actor, doc, opts)
 	if err != nil {
 		p, known := toProblem(err)
 		if !known {
@@ -301,8 +390,12 @@ func (s *server) handleImport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	_ = json.NewEncoder(w).Encode(ImportedCompany{Company: companyOut(res.Company), Counts: res.Counts})
+	if res.DryRun || res.Merged {
+		w.WriteHeader(http.StatusOK)
+	} else {
+		w.WriteHeader(http.StatusCreated)
+	}
+	_ = json.NewEncoder(w).Encode(importedOut(res))
 }
 
 // importBodyProblem traduz a falha de leitura do corpo. A mensagem nunca inclui o conteúdo do arquivo

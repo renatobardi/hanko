@@ -626,13 +626,26 @@ templ ToolAuditPage(sh Shell, vm ToolAuditVM) {
 											{ r.Who }
 										}
 									</td>
-									<td class="mono">{ r.Integration }/{ r.Tool }
+									<td class="mono">
+										if r.Integration != "" {
+											{ r.Integration }/{ r.Tool }
+										} else {
+											{ r.Tool }
+										}
 										if r.Error != "" {
 											<div class="note">{ r.Error }</div>
+										}
+										if r.Result != "" {
+											<div class="note muted">{ r.Result }</div>
 										}
 									</td>
 									<td>
 										@BadgeEl(r.Decision)
+										<span class="muted text-xs">{ r.Source }
+											if r.Policy != "" {
+												· { r.Policy }
+											}
+										</span>
 										if r.GateHref != "" {
 											<a class="link-u text-xs" href={ templ.SafeURL(r.GateHref) }>{ i18n.T(ctx, "gate") }</a>
 										}

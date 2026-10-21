@@ -651,7 +651,7 @@ func TestWake(t *testing.T) {
 	for _, tc := range []struct {
 		err     error
 		wantErr bool
-	}{{nil, false}, {domain.ErrInvalid, false}, {domain.ErrNotFound, false}, {domain.ErrBudgetExceeded, false}, {errors.New("db"), true}} {
+	}{{nil, false}, {domain.ErrInvalid, false}, {domain.ErrNotFound, false}, {domain.ErrBudgetExceeded, false}, {domain.BlockedError("Ana", "auth: sem login"), false}, {errors.New("db"), true}} {
 		be := &fakeBackend{checkout: func(service.Wake) (domain.Run, error) { return domain.Run{}, tc.err }}
 		h, _ := newTestHB(t, be, okAdapter(), nil, Options{})
 		if err := h.wake(context.Background(), WakeArgs{}, 0); (err != nil) != tc.wantErr {
@@ -848,7 +848,7 @@ func TestWakeSnoozesWhileRunActive(t *testing.T) {
 // A wake requested while the worker was deciding (seq moved) must not be lost: when the checkout
 // opened no run the job snoozes briefly and tries again; with seq unchanged it just ends.
 func TestWakeRetriesWhenRequestedMeanwhile(t *testing.T) {
-	for _, err := range []error{domain.ErrInvalid, domain.ErrNotFound, domain.ErrBudgetExceeded} {
+	for _, err := range []error{domain.ErrInvalid, domain.ErrNotFound, domain.ErrBudgetExceeded, domain.BlockedError("Ana", "auth: sem login")} {
 		be := &fakeBackend{seqs: []int64{3, 4}, checkout: func(service.Wake) (domain.Run, error) { return domain.Run{}, err }}
 		h, _ := newTestHB(t, be, okAdapter(), nil, Options{})
 		var sn *rivertype.JobSnoozeError

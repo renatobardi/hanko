@@ -307,7 +307,7 @@ func (s *Service) TestIntegration(ctx context.Context, _ domain.Actor, companyID
 		return s.testWebhook(ctx, companyID, integ)
 	default:
 		if cfg.Transport == domain.TransportStdio {
-			if !s.Integrations.AllowStdio {
+			if !s.Integrations.stdioAllowed() {
 				return IntegrationTest{Error: "stdio está desligado neste servidor (HANKO_INTEGRATIONS_ALLOW_STDIO)"}, nil
 			}
 			if _, err := exec.LookPath(cfg.Command); err != nil {
@@ -375,7 +375,11 @@ func (s *Service) testMCPHTTP(ctx context.Context, integ store.Integration, cfg 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json, text/event-stream")
 	req.Header.Set("User-Agent", webhook.UserAgent)
-	for k, v := range sec.Headers {
+	headers, _, err := s.expandMap(ctx, integ.CompanyID, sec.Headers)
+	if err != nil {
+		return IntegrationTest{Error: "segredo referenciado indisponível: " + err.Error()}
+	}
+	for k, v := range headers {
 		req.Header.Set(k, v)
 	}
 	start := time.Now()

@@ -28,6 +28,14 @@ func searchTypeLabel(ctx context.Context, t service.SearchType) string {
 		return i18n.T(ctx, "Execuções")
 	case service.SearchFlow:
 		return i18n.T(ctx, "Fluxos")
+	case service.SearchGoal:
+		return i18n.T(ctx, "Metas")
+	case service.SearchProject:
+		return i18n.T(ctx, "Projetos")
+	case service.SearchGate:
+		return i18n.T(ctx, "Gates")
+	case service.SearchArtifact:
+		return i18n.T(ctx, "Artefatos")
 	case service.SearchMemory:
 		return i18n.T(ctx, "Memória")
 	}
@@ -46,6 +54,14 @@ func searchTypeIcon(t service.SearchType) string {
 		return "activity"
 	case service.SearchFlow:
 		return "workflow"
+	case service.SearchGoal:
+		return "trending-up"
+	case service.SearchProject:
+		return "layers"
+	case service.SearchGate:
+		return "shield"
+	case service.SearchArtifact:
+		return "file"
 	case service.SearchMemory:
 		return "database"
 	}
@@ -79,7 +95,7 @@ func (s *server) handleSearch(w http.ResponseWriter, r *http.Request, co domain.
 	base := "/c/" + co.Slug
 	hasMem := s.be.MemorySearchAvailable(ctx)
 	vm := views.SearchVM{Query: q, Type: typ, HasMemo: hasMem,
-		Subtitle: i18n.T(ctx, "Uma busca só em tasks, comentários, personas, execuções, fluxos e na memória da empresa.")}
+		Subtitle: i18n.T(ctx, "Uma busca só em tasks, comentários, personas, execuções, fluxos, metas, projetos, gates, artefatos e na memória da empresa.")}
 
 	tab := func(key, label string) views.TabLink {
 		href := base + "/buscar"
@@ -163,6 +179,23 @@ func (s *server) searchGroupVM(ctx context.Context, base string, g service.Searc
 			} else {
 				hv.Badge = &views.Badge{Label: i18n.T(ctx, "Pausado"), Class: "soft"}
 			}
+		case service.SearchGoal:
+			hv.Href = base + "/metas/" + url.PathEscape(h.Ref)
+			b := goalBadge(ctx, domain.GoalStatus(h.Status))
+			hv.Badge = &b
+		case service.SearchProject:
+			hv.Href = base + "/projetos/" + url.PathEscape(h.Ref)
+			if h.Status == string(domain.ProjectArchived) {
+				hv.Badge = &views.Badge{Label: i18n.T(ctx, "Arquivado"), Class: "soft"}
+			}
+		case service.SearchGate:
+			hv.Href = base + "/gates/" + url.PathEscape(h.Ref)
+			hv.Ref = h.TaskKey
+			b := gateBadge(ctx, domain.GateStatus(h.Status))
+			hv.Badge = &b
+		case service.SearchArtifact:
+			hv.Href = base + "/artefatos/" + url.PathEscape(h.Ref)
+			hv.Ref = h.TaskKey
 		case service.SearchMemory:
 			// páginas da memória não têm tela própria no Hanko: sem link.
 		}

@@ -655,6 +655,7 @@ func (q *Queries) IsStatusCardTask(ctx context.Context, taskID uuid.UUID) (bool,
 const listDueStatusCards = `-- name: ListDueStatusCards :many
 SELECT id, company_id FROM status_cards
 WHERE archived_at IS NULL AND next_eval_at IS NOT NULL AND next_eval_at <= $1
+  AND NOT EXISTS (SELECT 1 FROM companies c WHERE c.id = status_cards.company_id AND c.archived_at IS NOT NULL)
 ORDER BY next_eval_at
 LIMIT $2
 `

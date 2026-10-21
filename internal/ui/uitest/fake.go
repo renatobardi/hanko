@@ -58,6 +58,10 @@ type Fake struct {
 	// Conversations and ConvMessages are the chat (ADR-0027).
 	Conversations []service.ConversationView
 	ConvMessages  []domain.ConversationMessage
+	// Followups, RunActions and Steers are the resilience queue and what the UI sent (ADR-0039).
+	Followups  []domain.Followup
+	RunActions []RunActionCall
+	Steers     []SteerCall
 	// MyRoleIs é o papel do usuário logado nesta empresa (vazio = owner).
 	MyRoleIs domain.MemberRole
 	// Cards são os cards de status (ADR-0032).
@@ -65,9 +69,18 @@ type Fake struct {
 	// Tools é o estado de apps, gateway de tools e perfis (ADR-0036; uitest/tools.go).
 	Tools    ToolsData
 	nextTask int64
+	// Coord guarda dependências, pausas e política de revisão por task (ADR-0040).
+	Coord CoordState
+	// Git é o estado do workspace com Git (ADR-0054).
+	Git GitFakeState
 
 	// Env são os ambientes de execução (ADR-0037).
 	Env EnvFake
+	// Ready é a prontidão das personas e o catálogo de modelos (ADR-0055).
+	Ready ReadinessFake
+
+	// Caixa é o estado por pessoa da Caixa de entrada, os avisos e o web push (ADR-0042; uitest/caixa.go).
+	Caixa CaixaFake
 }
 
 var _ = (*Fake)(nil)
@@ -361,6 +374,13 @@ func (f *Fake) ListTasks(_ context.Context, _ domain.ID, fl service.TaskFilter) 
 		if q := strings.ToLower(fl.Query); q != "" && !strings.Contains(strings.ToLower(t.Title+" "+t.Key), q) {
 			continue
 		}
+		if fl.Mine { // "Minhas" (ADR-0042): só as de Caixa.MineTasks, com o motivo
+			reasons, ok := f.Caixa.MineTasks[t.Key]
+			if !ok {
+				continue
+			}
+			t.Participation = reasons
+		}
 		out = append(out, t)
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].UpdatedAt.After(out[j].UpdatedAt) })
@@ -386,6 +406,7 @@ func (f *Fake) GetTask(_ context.Context, _ domain.ID, ref string) (service.Task
 		return service.TaskView{}, err
 	}
 	if i, ok := f.findTask(ref); ok {
+		f.refreshCoord()
 		return f.Tasks[i], nil
 	}
 	return service.TaskView{}, domain.ErrNotFound
@@ -403,6 +424,26 @@ func (f *Fake) UpdateTask(_ context.Context, _ domain.Actor, _, taskID domain.ID
 		return service.TaskView{}, domain.ErrNotFound
 	}
 	t := &f.Tasks[i]
+	if in.ClearParent {
+		t.ParentID = nil
+	}
+	if in.ParentID != nil {
+		if _, ok := f.taskByID(*in.ParentID); !ok {
+			return service.TaskView{}, domain.Invalid("parent_id", "task not found in company")
+		}
+		t.ParentID = in.ParentID
+	}
+	if in.Status != nil && *in.Status == domain.TaskDone {
+		f.refreshCoord()
+		if t.ChildrenOpen > 0 {
+			if !in.ForceClose {
+				return service.TaskView{}, domain.ErrChildrenOpen
+			}
+			if strings.TrimSpace(in.OverrideReason) == "" {
+				return service.TaskView{}, domain.Invalid("override_reason", "obrigatório")
+			}
+		}
+	}
 	if in.Status != nil {
 		t.Status = *in.Status
 	}
@@ -503,7 +544,7 @@ func (f *Fake) ListRuns(_ context.Context, _ domain.ID, fl service.RunFilter) ([
 				continue
 			}
 		}
-		out = append(out, r)
+		out = append(out, withSteer(r))
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].CreatedAt.After(out[j].CreatedAt) })
 	if fl.Limit > 0 && len(out) > fl.Limit {
@@ -520,10 +561,18 @@ func (f *Fake) GetRun(_ context.Context, _, runID domain.ID) (service.RunView, e
 	}
 	for _, r := range f.Runs {
 		if r.ID == runID {
-			return r, nil
+			return withSteer(r), nil
 		}
 	}
 	return service.RunView{}, domain.ErrNotFound
+}
+
+// withSteer fills what the service adds to a run view: the steer capability of its harness.
+func withSteer(r service.RunView) service.RunView {
+	if r.SteerMode == "" {
+		r.SteerMode = domain.SteerModeFor(r.Agent)
+	}
+	return r
 }
 
 func (f *Fake) ListRunEvents(_ context.Context, _, runID domain.ID, after int64, limit int) ([]domain.RunEvent, error) {
@@ -604,6 +653,15 @@ func (f *Fake) ListActivity(_ context.Context, _ domain.ID, fl service.ActivityF
 		return nil, err
 	}
 	out := append([]domain.ActivityEvent(nil), f.Activity...)
+	if fl.ActorType != "" { // filtro por ator (ADR-0042)
+		kept := out[:0:0]
+		for _, a := range out {
+			if string(a.Actor.Type) == fl.ActorType && (fl.ActorID == nil || (a.Actor.ID != nil && *a.Actor.ID == *fl.ActorID)) {
+				kept = append(kept, a)
+			}
+		}
+		out = kept
+	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].OccurredAt.After(out[j].OccurredAt) })
 	if fl.Limit > 0 && len(out) > fl.Limit {
 		out = out[:fl.Limit]

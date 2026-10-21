@@ -11,7 +11,7 @@ SELECT pg_advisory_xact_lock(hashtextextended('artifacts:' || (@company_id::uuid
 
 -- name: LatestArtifactInChain :one
 SELECT * FROM artifacts
-WHERE company_id = @company_id
+WHERE company_id = @company_id AND kind = 'artifact'
   AND COALESCE(task_id, '00000000-0000-0000-0000-000000000000'::uuid) = COALESCE(sqlc.narg(task_id)::uuid, '00000000-0000-0000-0000-000000000000'::uuid)
   AND name = @name
 ORDER BY version DESC
@@ -19,9 +19,9 @@ LIMIT 1;
 
 -- name: CreateArtifact :one
 INSERT INTO artifacts (id, company_id, task_id, run_id, project_id, persona_id, author_type, author_id, name, mime,
-                       size_bytes, sha256, version, created_at)
+                       size_bytes, sha256, version, created_at, storage, kind, comment_id, conversation_id, message_id)
 VALUES (@id, @company_id, @task_id, @run_id, @project_id, @persona_id, @author_type, @author_id, @name, @mime,
-        @size_bytes, @sha256, @version, @created_at)
+        @size_bytes, @sha256, @version, @created_at, @storage, @kind, @comment_id, @conversation_id, @message_id)
 RETURNING *;
 
 -- name: CreateArtifactBlob :exec
@@ -41,16 +41,18 @@ FROM artifacts WHERE company_id = @company_id;
 -- name: ListArtifactChain :many
 -- Todas as versões da cadeia (empresa, task, nome), da mais nova para a mais antiga.
 SELECT * FROM artifacts
-WHERE company_id = @company_id
+WHERE company_id = @company_id AND kind = 'artifact'
   AND COALESCE(task_id, '00000000-0000-0000-0000-000000000000'::uuid) = COALESCE(sqlc.narg(task_id)::uuid, '00000000-0000-0000-0000-000000000000'::uuid)
   AND name = @name
 ORDER BY version DESC;
 
--- name: DeleteArtifactChain :execrows
+-- name: DeleteArtifactChain :many
+-- Devolve id e driver de cada versão apagada: o conteúdo fora do Postgres é apagado depois do commit (ADR-0051).
 DELETE FROM artifacts
-WHERE company_id = @company_id
+WHERE company_id = @company_id AND kind = 'artifact'
   AND COALESCE(task_id, '00000000-0000-0000-0000-000000000000'::uuid) = COALESCE(sqlc.narg(task_id)::uuid, '00000000-0000-0000-0000-000000000000'::uuid)
-  AND name = @name;
+  AND name = @name
+RETURNING id, storage;
 
 -- name: ListArtifactViews :many
 -- Cada linha é uma versão. latest_only deixa só a mais nova de cada cadeia (a listagem geral); a lista de uma run
@@ -61,8 +63,9 @@ SELECT sqlc.embed(a), c.task_prefix,
        COALESCE(pe.slug, '')::text AS persona_slug, COALESCE(pe.name, '')::text AS persona_name,
        COALESCE(r.name, '')::text AS run_name,
        (SELECT count(*) FROM artifacts v
-         WHERE v.company_id = a.company_id AND v.name = a.name
-           AND COALESCE(v.task_id, '00000000-0000-0000-0000-000000000000'::uuid) = COALESCE(a.task_id, '00000000-0000-0000-0000-000000000000'::uuid))::bigint AS versions
+         WHERE v.company_id = a.company_id AND v.name = a.name AND v.kind = a.kind
+           AND COALESCE(v.task_id, '00000000-0000-0000-0000-000000000000'::uuid) = COALESCE(a.task_id, '00000000-0000-0000-0000-000000000000'::uuid)
+           AND COALESCE(v.conversation_id, '00000000-0000-0000-0000-000000000000'::uuid) = COALESCE(a.conversation_id, '00000000-0000-0000-0000-000000000000'::uuid))::bigint AS versions
 FROM artifacts a
 JOIN companies c ON c.id = a.company_id
 LEFT JOIN tasks t ON t.id = a.task_id
@@ -74,6 +77,10 @@ WHERE a.company_id = @company_id
   AND (sqlc.narg(task_id)::uuid IS NULL OR a.task_id = sqlc.narg(task_id)::uuid)
   AND (sqlc.narg(persona_id)::uuid IS NULL OR a.persona_id = sqlc.narg(persona_id)::uuid)
   AND (sqlc.narg(run_id)::uuid IS NULL OR a.run_id = sqlc.narg(run_id)::uuid)
+  AND (sqlc.narg(comment_id)::uuid IS NULL OR a.comment_id = sqlc.narg(comment_id)::uuid)
+  AND (sqlc.narg(conversation_id)::uuid IS NULL OR a.conversation_id = sqlc.narg(conversation_id)::uuid)
+  AND (sqlc.narg(message_id)::uuid IS NULL OR a.message_id = sqlc.narg(message_id)::uuid)
+  AND (COALESCE(sqlc.narg(class)::text, 'artifact') = 'all' OR a.kind = COALESCE(sqlc.narg(class)::text, 'artifact'))
   AND (sqlc.narg(kind)::text IS NULL OR CASE sqlc.narg(kind)::text
         WHEN 'markdown' THEN a.mime = 'text/markdown'
         WHEN 'text' THEN a.mime LIKE 'text/%' AND a.mime <> 'text/markdown'
@@ -82,8 +89,9 @@ WHERE a.company_id = @company_id
   AND (sqlc.narg(q)::text IS NULL OR a.name ILIKE '%' || sqlc.narg(q)::text || '%')
   AND (NOT @latest_only::bool OR a.version = (
         SELECT max(v.version) FROM artifacts v
-         WHERE v.company_id = a.company_id AND v.name = a.name
-           AND COALESCE(v.task_id, '00000000-0000-0000-0000-000000000000'::uuid) = COALESCE(a.task_id, '00000000-0000-0000-0000-000000000000'::uuid)))
+         WHERE v.company_id = a.company_id AND v.name = a.name AND v.kind = a.kind
+           AND COALESCE(v.task_id, '00000000-0000-0000-0000-000000000000'::uuid) = COALESCE(a.task_id, '00000000-0000-0000-0000-000000000000'::uuid)
+           AND COALESCE(v.conversation_id, '00000000-0000-0000-0000-000000000000'::uuid) = COALESCE(a.conversation_id, '00000000-0000-0000-0000-000000000000'::uuid)))
 ORDER BY a.created_at DESC, a.id DESC
 LIMIT @lim OFFSET @off;
 
@@ -94,8 +102,9 @@ SELECT sqlc.embed(a), c.task_prefix,
        COALESCE(pe.slug, '')::text AS persona_slug, COALESCE(pe.name, '')::text AS persona_name,
        COALESCE(r.name, '')::text AS run_name,
        (SELECT count(*) FROM artifacts v
-         WHERE v.company_id = a.company_id AND v.name = a.name
-           AND COALESCE(v.task_id, '00000000-0000-0000-0000-000000000000'::uuid) = COALESCE(a.task_id, '00000000-0000-0000-0000-000000000000'::uuid))::bigint AS versions
+         WHERE v.company_id = a.company_id AND v.name = a.name AND v.kind = a.kind
+           AND COALESCE(v.task_id, '00000000-0000-0000-0000-000000000000'::uuid) = COALESCE(a.task_id, '00000000-0000-0000-0000-000000000000'::uuid)
+           AND COALESCE(v.conversation_id, '00000000-0000-0000-0000-000000000000'::uuid) = COALESCE(a.conversation_id, '00000000-0000-0000-0000-000000000000'::uuid))::bigint AS versions
 FROM artifacts a
 JOIN companies c ON c.id = a.company_id
 LEFT JOIN tasks t ON t.id = a.task_id
@@ -112,5 +121,54 @@ FROM artifacts a
 LEFT JOIN tasks t ON t.id = a.task_id
 LEFT JOIN projects pr ON pr.id = a.project_id
 LEFT JOIN personas pe ON pe.id = a.persona_id
-WHERE a.company_id = @company_id
+WHERE a.company_id = @company_id AND a.kind = 'artifact'
 ORDER BY a.created_at, a.version, a.id;
+
+-- name: ListArtifactsForBlobMigration :many
+-- Versões guardadas em um driver, em ordem estável, para o comando de migração entre drivers (ADR-0051).
+SELECT id, company_id, size_bytes, sha256, mime, storage FROM artifacts
+WHERE storage = @storage
+  AND (sqlc.narg(company_id)::uuid IS NULL OR company_id = sqlc.narg(company_id)::uuid)
+  AND id > @after_id
+ORDER BY id
+LIMIT @lim;
+
+-- name: SetArtifactStorage :execrows
+UPDATE artifacts SET storage = @to_storage WHERE company_id = @company_id AND id = @id AND storage = @from_storage;
+
+-- name: DeleteArtifactBlob :execrows
+DELETE FROM artifact_blobs WHERE company_id = @company_id AND artifact_id = @artifact_id;
+
+-- name: CountArtifactsByStorage :many
+SELECT storage, count(*)::bigint AS versions, COALESCE(sum(size_bytes), 0)::bigint AS bytes FROM artifacts GROUP BY storage ORDER BY storage;
+
+-- name: LinkAttachmentsToComment :execrows
+-- Anexos enviados antes do comentário (sem ligação ainda) passam a pertencer a ele, na transação do comentário.
+UPDATE artifacts SET comment_id = @comment_id
+WHERE company_id = @company_id AND kind = 'attachment' AND task_id = @task_id AND comment_id IS NULL
+  AND id = ANY(@ids::uuid[]);
+
+-- name: LinkAttachmentsToMessage :execrows
+-- Anexos enviados antes da mensagem (sem ligação ainda) passam a pertencer a ela, na transação da mensagem.
+UPDATE artifacts SET message_id = @message_id
+WHERE company_id = @company_id AND kind = 'attachment' AND conversation_id = @conversation_id AND message_id IS NULL
+  AND id = ANY(@ids::uuid[]);
+
+-- name: AttachmentNameTaken :one
+-- Anexos não formam cadeia: um nome repetido na mesma task (ou conversa) ganha sufixo, em vez de virar versão.
+SELECT EXISTS (
+    SELECT 1 FROM artifacts
+    WHERE company_id = @company_id AND kind = 'attachment' AND name = @name
+      AND COALESCE(task_id, '00000000-0000-0000-0000-000000000000'::uuid) = COALESCE(sqlc.narg(task_id)::uuid, '00000000-0000-0000-0000-000000000000'::uuid)
+      AND COALESCE(conversation_id, '00000000-0000-0000-0000-000000000000'::uuid) = COALESCE(sqlc.narg(conversation_id)::uuid, '00000000-0000-0000-0000-000000000000'::uuid)
+)::boolean AS taken;
+
+-- name: DeleteAttachment :one
+-- Um anexo é uma linha só (sem versões): apaga e devolve o driver para limpar o conteúdo fora do Postgres.
+DELETE FROM artifacts WHERE company_id = @company_id AND id = @id AND kind = 'attachment' RETURNING id, storage;
+
+-- name: CountAttachmentsOf :one
+SELECT count(*)::bigint FROM artifacts
+WHERE company_id = @company_id AND kind = 'attachment'
+  AND COALESCE(task_id, '00000000-0000-0000-0000-000000000000'::uuid) = COALESCE(sqlc.narg(task_id)::uuid, '00000000-0000-0000-0000-000000000000'::uuid)
+  AND COALESCE(conversation_id, '00000000-0000-0000-0000-000000000000'::uuid) = COALESCE(sqlc.narg(conversation_id)::uuid, '00000000-0000-0000-0000-000000000000'::uuid);

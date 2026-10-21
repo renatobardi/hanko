@@ -6,7 +6,6 @@ import (
 	"sort"
 
 	"github.com/renatobardi/hanko/internal/domain"
-	"github.com/renatobardi/hanko/internal/store"
 )
 
 // OrgNode is a persona in the chart with the people that report to it.
@@ -121,21 +120,6 @@ func (t *txc) checkDelegation(actor domain.Actor, companyID domain.ID, target *d
 		return fmt.Errorf("delegate: a persona only assigns work to itself or to personas below it in the org chart: %w", domain.ErrNotAllowed)
 	}
 	return nil
-}
-
-// reviewRequired reports whether the actor is a persona hired with require_review.
-func (t *txc) reviewRequired(actor domain.Actor, companyID domain.ID) (bool, error) {
-	if actor.Type != domain.ActorPersona || actor.ID == nil {
-		return false, nil
-	}
-	p, err := t.q.GetPersonaByID(t.ctx, store.GetPersonaByIDParams{CompanyID: companyID, ID: *actor.ID})
-	if isNoRows(err) {
-		return false, nil
-	}
-	if err != nil {
-		return false, fmt.Errorf("get actor persona: %w", err)
-	}
-	return p.RequireReview, nil
 }
 
 // checkTaskOwnership limits what a persona may change: tasks it owns, tasks owned by personas

@@ -13,6 +13,7 @@ import (
 
 	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/i18n"
+	"github.com/renatobardi/hanko/internal/service"
 	"github.com/renatobardi/hanko/internal/ui/views"
 )
 
@@ -22,6 +23,8 @@ type PlatformInfo struct {
 	Mode, AuthProvider       string
 	PublicURL, AgentURL      string
 	ClaudeBin, CodexBin      string
+	DevinBin, PiBin          string
+	CursorBin                string
 	ACPAllow                 bool
 	ACPCommands              []string
 	MemoryProvider           string
@@ -30,6 +33,7 @@ type PlatformInfo struct {
 	IntegrationsAllowStdio   bool
 	IntegrationsAllowPrivate bool
 	SecretKeySet             bool
+	VaultConfigured          bool
 	Workers                  int
 	RunTimeout               time.Duration
 	HeartbeatInterval        time.Duration
@@ -44,6 +48,10 @@ func settingsSections(ctx context.Context, base, cur string) []views.TabLink {
 		{"ambientes", i18n.T(ctx, "Ambientes"), "/configuracoes/ambientes"},
 		{"adapters", i18n.T(ctx, "Adapters"), "/configuracoes/adapters"},
 		{"plugins", i18n.T(ctx, "Plugins"), "/configuracoes/plugins"},
+		{"notificacoes", i18n.T(ctx, "Notificações"), "/configuracoes/notificacoes"},
+		{"segredos", i18n.T(ctx, "Segredos"), "/configuracoes/segredos"},
+		{"decisao", i18n.T(ctx, "Decision model"), "/configuracoes/decisao"},
+		{"instancia", i18n.T(ctx, "Instância"), "/configuracoes/instancia"},
 		{"dados", i18n.T(ctx, "Exportar e importar"), "/configuracoes/dados"},
 	}
 	out := make([]views.TabLink, 0, len(secs))
@@ -97,7 +105,7 @@ func rootWritable(ctx context.Context, root string) views.EnvCheck {
 // localEnvironment é o ambiente local (implícito) de Configurações › Ambientes: as verificações reais deste
 // servidor e a configuração da instalação (ADR-0031, ADR-0037).
 func (s *server) localEnvironment(ctx context.Context, co domain.Company) views.EnvLocalCard {
-	p := s.platform
+	p := s.platformNow()
 	root := s.workspacesRoot(co)
 	checks := []views.EnvCheck{
 		rootWritable(ctx, root),
@@ -135,7 +143,7 @@ func (s *server) localEnvironment(ctx context.Context, co domain.Company) views.
 
 func (s *server) handleAdapters(w http.ResponseWriter, r *http.Request, co domain.Company) {
 	ctx := r.Context()
-	p := s.platform
+	p := s.platformNow()
 	personas, err := s.be.ListPersonas(ctx, co.ID)
 	if err != nil {
 		s.fail(w, r, &co, err)
@@ -163,6 +171,10 @@ func (s *server) handleAdapters(w http.ResponseWriter, r *http.Request, co domai
 		row("claude", "Claude Code", "CLI", i18n.T(ctx, "stream-json, sessão preservada entre execuções, skills nativas e MCP do Hanko."), binCheck(ctx, i18n.T(ctx, "Binário"), p.ClaudeBin), ""),
 		row("codex", "Codex", "CLI", i18n.T(ctx, "exec em JSONL; o MCP do Hanko entra por configuração da execução."), binCheck(ctx, i18n.T(ctx, "Binário"), p.CodexBin), ""),
 		row("acp", "ACP", i18n.T(ctx, "Protocolo"), i18n.T(ctx, "Qualquer harness que fale ACP por stdio; você informa o comando na persona."), acp, acpExtra),
+		row("devin", "Devin CLI", i18n.T(ctx, "Protocolo"), i18n.T(ctx, "Devin pelo motor ACP (devin acp); o executável é definido por HANKO_DEVIN_BIN e a autenticação é feita fora do Hanko."), binCheck(ctx, i18n.T(ctx, "Binário"), p.DevinBin), ""),
+		row("pi", "Pi", "CLI", i18n.T(ctx, "pi --mode json -p; as tools do Hanko vão pela CLI hanko autenticada com o token da execução."), binCheck(ctx, i18n.T(ctx, "Binário"), p.PiBin), ""),
+		row("cursor", "Cursor CLI", "CLI", i18n.T(ctx, "cursor-agent em stream-json; as tools do Hanko vão pela CLI hanko autenticada com o token da execução."), binCheck(ctx, i18n.T(ctx, "Binário"), p.CursorBin), ""),
+		row("http", "HTTP", i18n.T(ctx, "Embutido"), i18n.T(ctx, "Loop de tool-use do próprio Hanko sobre um endpoint compatível com chat completions; o endpoint e a chave ficam na persona."), check(true, i18n.T(ctx, "Embutido"), i18n.T(ctx, "sempre disponível")), ""),
 		row("fake", "Fake", i18n.T(ctx, "Teste"), i18n.T(ctx, "Harness simulado para demonstrações e testes; não chama modelo nenhum."), check(true, i18n.T(ctx, "Embutido"), i18n.T(ctx, "sempre disponível")), ""),
 	}}
 	prices, err := s.be.ListModelPrices(ctx)
@@ -182,7 +194,7 @@ func (s *server) handleAdapters(w http.ResponseWriter, r *http.Request, co domai
 
 // builtinPluginItems são os pontos de extensão embutidos (Configurações › Plugins, abaixo dos plugins de terceiros).
 func (s *server) builtinPluginItems(ctx context.Context, co domain.Company) []views.PluginItem {
-	p := s.platform
+	p := s.platformNow()
 	base := "/c/" + co.Slug
 	agent := p.AgentURL
 	if agent == "" {
@@ -251,4 +263,19 @@ func (s *server) handleData(w http.ResponseWriter, r *http.Request, co domain.Co
 		ExportHref: api + "/export", ImportAction: "/api/v1/companies/import",
 		FileName: "hanko-" + co.Slug + "-" + s.now().In(loadLoc(co.Timezone)).Format("20060102") + ".json"}
 	s.render(w, r, http.StatusOK, views.DataPage(s.settingsShell(r, co, i18n.T(ctx, "Exportar e importar")), vm))
+}
+
+// platformToggles é o que o service sabe dos interruptores efetivos (env > banco > padrão, ADR-0050).
+type platformToggles interface {
+	PlatformToggles() service.PlatformToggles
+}
+
+// platformNow é PlatformInfo com os interruptores efetivos: o que o dono muda em Configurações › Instância vale sem reiniciar.
+func (s *server) platformNow() PlatformInfo {
+	p := s.platform
+	if t, ok := s.be.(platformToggles); ok {
+		x := t.PlatformToggles()
+		p.ACPAllow, p.ACPCommands, p.IntegrationsAllowStdio, p.IntegrationsAllowPrivate = x.ACPAllow, x.ACPCommands, x.AllowStdio, x.AllowPrivate
+	}
+	return p
 }

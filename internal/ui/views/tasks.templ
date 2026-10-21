@@ -112,6 +112,7 @@ templ TaskPage(sh Shell, vm TaskVM, base string) {
 		<div class="detail">
 			<div class="detail-main">
 				<div class="eyebrow">
+					@CoordCrumbs(vm.Coord)
 					<span class="mono">{ vm.Key }</span>
 					if vm.ProjectName != "" {
 						<span>·</span>
@@ -153,6 +154,9 @@ templ TaskPage(sh Shell, vm TaskVM, base string) {
 					</div>
 				}
 				@CommentForm(vm, base)
+				if vm.Followups != nil {
+					@FollowupPanel(*vm.Followups)
+				}
 			</div>
 			@TaskSide(vm, base)
 		</div>
@@ -173,6 +177,7 @@ templ TaskChips(vm TaskVM, oob bool) {
 
 templ Thread(vm TaskVM, base string) {
 	<div id="thread" class="thread" aria-live="polite">
+		@HoldBanner(vm.Coord.Hold)
 		if len(vm.Thread) == 0 {
 			<p class="thread-empty">{ i18n.T(ctx, "Nenhum comentário ainda. Escreva abaixo para orientar a persona.") }</p>
 		}
@@ -182,6 +187,9 @@ templ Thread(vm TaskVM, base string) {
 					<div class="bubble">
 						@MsgQuote(m)
 						<div class="md">@templ.Raw(string(m.Body))</div>
+						if len(m.Attachments) > 0 {
+							<div class="att-inline">@AttachmentItems(m.Attachments)</div>
+						}
 					</div>
 					<div class="meta"><span>{ i18n.T(ctx, "Você ·") } <time class="mono">{ m.When }</time></span></div>
 				</div>
@@ -196,11 +204,20 @@ templ Thread(vm TaskVM, base string) {
 						</div>
 						@MsgQuote(m)
 						<div class="body md">@templ.Raw(string(m.Body))</div>
+						if len(m.Attachments) > 0 {
+							<div class="att-inline">@AttachmentItems(m.Attachments)</div>
+						}
 					</div>
 				</div>
 			}
 		}
 	</div>
+}
+
+// ThreadAndAttachments é a resposta do envio de um comentário: a conversa nova e o cartão de anexos atualizado.
+templ ThreadAndAttachments(vm TaskVM, base string) {
+	@Thread(vm, base)
+	@TaskAttachments(vm.Attach, true)
 }
 
 // MsgQuote shows the passage an anchored comment is about, and flags a lost anchor.
@@ -223,14 +240,18 @@ templ CommentForm(vm TaskVM, base string) {
 			class="composer"
 			method="post"
 			action={ templ.SafeURL(base + "/tasks/" + vm.Key + "/comentarios") }
+			enctype="multipart/form-data"
 			hx-post={ base + "/tasks/" + vm.Key + "/comentarios" }
+			hx-encoding="multipart/form-data"
 			hx-target="#thread"
 			hx-swap="outerHTML"
-			hx-on::after-request="if(event.detail.successful){this.reset();}"
+			hx-on::after-request="if(event.detail.successful){this.querySelector('textarea').value='';var f=this.querySelector('input[type=file]');if(f){f.value='';f.dispatchEvent(new Event('change',{bubbles:true}));}}"
+			data-dropzone=""
 		>
-			<textarea name="body" required placeholder={ i18n.T(ctx, "Escreva um comentário (markdown). Fica na fila se a persona estiver ocupada.") } aria-label={ i18n.T(ctx, "Comentário") }>{ vm.Draft }</textarea>
+			@DraftTextarea("body", i18n.T(ctx, "Escreva um comentário (markdown). Fica na fila se a persona estiver ocupada."), i18n.T(ctx, "Comentário"), vm.DraftF)
+			@DropField(vm.UploadHint, false)
 			<div class="row">
-				<span class="hint">{ i18n.T(ctx, "Markdown · HTML é escapado") }</span>
+				<span class="hint">{ i18n.T(ctx, "Markdown · HTML é escapado") } · { i18n.T(ctx, "@ cita uma persona (@slug) ou uma pessoa (@parte-do-e-mail) e avisa") }</span>
 				<button type="submit" class="btn primary sm">
 					@Icon("send")
 					{ i18n.T(ctx, "Comentar") }
@@ -271,6 +292,7 @@ templ TaskSide(vm TaskVM, base string) {
 			}
 			<noscript><button class="btn sm mt-3" type="submit">{ i18n.T(ctx, "Salvar") }</button></noscript>
 		</form>
+		@TaskCoordSide(vm.Coord, vm.Key)
 		<div class="side-sec">
 			<div class="side-h">{ i18n.T(ctx, "Custo") }</div>
 			<div class="prop"><span>{ i18n.T(ctx, "Esta task") }</span><span class="mono ta-r">{ vm.Cost }</span></div>
@@ -279,6 +301,7 @@ templ TaskSide(vm TaskVM, base string) {
 			}
 		</div>
 		@TaskCasesPanel(vm.Cases)
+		@TaskAttachments(vm.Attach, false)
 		<div class="side-sec">
 			<div class="side-h row-between"><span>{ i18n.T(ctx, "Artefatos") }</span><a class="normal-case" href={ templ.SafeURL(vm.ArtifactsHref) }>{ i18n.T(ctx, "Ver todos") }</a></div>
 			@ArtifactMiniList(vm.Artifacts, "")
@@ -358,6 +381,17 @@ templ NewTaskPage(sh Shell, vm NewTaskVM) {
 							@Select("goal", "t-goal", vm.GoalOptions, false)
 						</div>
 					}
+				</div>
+				<div class="form-grid">
+					<div class="field">
+						<label for="t-parent">{ i18n.T(ctx, "Task pai (opcional)") }</label>
+						<input class="input" id="t-parent" name="parent" value={ vm.Parent } placeholder="HNK-12" maxlength="40" autocomplete="off"/>
+					</div>
+					<div class="field">
+						<label for="t-deps">{ i18n.T(ctx, "Depende de (opcional)") }</label>
+						<input class="input" id="t-deps" name="depends_on" value={ vm.DependsOn } placeholder="HNK-7, HNK-9" maxlength="200" autocomplete="off"/>
+						<span class="hint">{ i18n.T(ctx, "Separe por vírgula. A task só é despachada quando todas fecharem.") }</span>
+					</div>
 				</div>
 				<div class="field">
 					<label for="t-model">{ i18n.T(ctx, "Modelo (opcional)") }</label>

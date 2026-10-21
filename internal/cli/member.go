@@ -148,6 +148,7 @@ func (e *env) memberCmd() *cobra.Command {
 	}
 
 	c.AddCommand(ls, invite, revoke, setRole, remove)
+	c.AddCommand(e.memberJoinCmds()...)
 	return c
 }
 

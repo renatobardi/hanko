@@ -30,6 +30,7 @@ func (e *env) taskCmd() *cobra.Command {
 
 	var (
 		desc, persona, project, priority, status, ws, parent, eventID, model, goal string
+		dependsOn                                                                  []string
 	)
 	create := &cobra.Command{
 		Use: "create " + e.t("<título>"), Short: e.t("Cria uma task"), Args: cobra.ExactArgs(1),
@@ -39,7 +40,7 @@ func (e *env) taskCmd() *cobra.Command {
 				return err
 			}
 			t, err := e.client().CreateTask(cmd.Context(), co, client.CreateTaskReq{Title: args[0], Description: desc, Status: status,
-				Priority: priority, Persona: persona, Project: project, Workspace: ws, Goal: goal, Parent: parent, Model: model, EventID: eventID})
+				Priority: priority, Persona: persona, Project: project, Workspace: ws, Goal: goal, Parent: parent, DependsOn: dependsOn, Model: model, EventID: eventID})
 			if err != nil {
 				return err
 			}
@@ -63,6 +64,7 @@ func (e *env) taskCmd() *cobra.Command {
 	cf.StringVar(&ws, "workspace", "", e.t("workspace (id ou slug)"))
 	cf.StringVar(&goal, "goal", "", e.t("meta a que a task serve (id ou slug)"))
 	cf.StringVar(&parent, "parent", "", e.t("task pai (id ou chave)"))
+	cf.StringSliceVar(&dependsOn, "depends-on", nil, e.t("tasks de que a nova depende (ids ou chaves, repetível): ela só é despachada quando todas fecharem"))
 	cf.StringVar(&eventID, "event-id", "", e.t("chave de idempotência"))
 	cf.StringVar(&model, "model", "", e.t("modelo escolhido à mão (vence o da persona)"))
 
@@ -85,11 +87,20 @@ func (e *env) taskCmd() *cobra.Command {
 				fmt.Fprintln(e.out, e.t("Nenhuma task encontrada."))
 				return nil
 			}
+			if q.Mine { // com o motivo da participação (ADR-0042)
+				rows := e.taskRows(ts)
+				for i, t := range ts {
+					rows[i] = append(rows[i], dash(strings.Join(t.Participation, ",")))
+				}
+				e.table(append(e.taskHeader(), e.t("PARTICIPAÇÃO")), rows)
+				return nil
+			}
 			e.table(e.taskHeader(), e.taskRows(ts))
 			return nil
 		},
 	}
 	lf := ls.Flags()
+	lf.BoolVar(&q.Mine, "mine", false, e.t("só as tasks em que você participa: criou, atribuiu, foi mencionado, comentou ou é da audiência de um gate"))
 	lf.StringVar(&q.Status, "status", "", e.t("status separados por vírgula (ex.: todo,in_progress)"))
 	lf.StringVarP(&q.Persona, "persona", "p", "", e.t("filtra por persona (id ou slug)"))
 	lf.StringVar(&q.Project, "project", "", e.t("filtra por projeto (id ou slug)"))
@@ -114,6 +125,7 @@ func (e *env) taskCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			rel, _ := cl.TaskRelations(ctx, co, t.ID) // complemento: servidor anterior à coordenação não derruba o show
 			rs, err := cl.Runs(ctx, co, client.RunQuery{Task: t.ID, Limit: 50})
 			if err != nil {
 				return err
@@ -127,13 +139,21 @@ func (e *env) taskCmd() *cobra.Command {
 				}
 			}
 			if e.asJSON {
-				return e.printJSON(map[string]any{"task": t, "comments": cs, "runs": rs, "artifacts": arts})
+				return e.printJSON(map[string]any{"task": t, "comments": cs, "runs": rs, "artifacts": arts, "relations": rel})
 			}
 			fmt.Fprintf(e.out, "%s  %s\n\n", t.Key, t.Title)
 			persona := dash(t.PersonaName)
 			e.kv([2]string{e.t("Status"), t.Status}, [2]string{e.t("Prioridade"), t.Priority}, [2]string{e.t("Persona"), persona},
 				[2]string{e.t("Projeto"), dash(t.ProjectName)}, [2]string{e.t("Meta"), goalLine}, [2]string{e.t("Modelo (manual)"), dash(t.Model)}, [2]string{e.t("Execução ativa"), dash(t.ActiveRunID)},
 				[2]string{e.t("Criada em"), e.fmtTime(t.CreatedAt)}, [2]string{e.t("Atualizada em"), e.fmtTime(t.UpdatedAt)})
+			if t.Hold != nil {
+				origin := ""
+				if t.Hold.Inherited {
+					origin = " (" + fmt.Sprintf(e.t("herdada de %s"), t.Hold.OriginKey) + ")"
+				}
+				fmt.Fprintf(e.out, e.t("\nPAUSADA%s: %s\n"), origin, t.Hold.Reason)
+			}
+			e.printCoordination(t, rel)
 			if strings.TrimSpace(t.Description) != "" {
 				fmt.Fprintf(e.out, e.t("\nDescrição:\n%s\n"), strings.TrimSpace(t.Description))
 			}
@@ -195,6 +215,8 @@ func (e *env) taskCmd() *cobra.Command {
 	}
 	assign.Flags().BoolVar(&none, "none", false, e.t("remove a atribuição"))
 
+	var forceClose bool
+	var overrideReason string
 	statusCmd := &cobra.Command{
 		Use: "status " + e.t("<task>") + " " + e.t("<status>"), Short: e.t("Muda o status (backlog, todo, in_progress, in_review, blocked, done, cancelled)"), Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -206,7 +228,10 @@ func (e *env) taskCmd() *cobra.Command {
 				return usageError{fmt.Errorf(e.t("status desconhecido %q (válidos: backlog, todo, in_progress, in_review, blocked, done, cancelled)"), args[1])}
 			}
 			st := args[1]
-			t, err := e.client().UpdateTask(cmd.Context(), co, args[0], client.UpdateTaskReq{Status: &st})
+			if forceClose && strings.TrimSpace(overrideReason) == "" {
+				return usageError{errors.New(e.t("--force exige o motivo com --reason"))}
+			}
+			t, err := e.client().UpdateTask(cmd.Context(), co, args[0], client.UpdateTaskReq{Status: &st, ForceClose: forceClose, OverrideReason: overrideReason})
 			if err != nil {
 				return err
 			}
@@ -217,6 +242,8 @@ func (e *env) taskCmd() *cobra.Command {
 			return nil
 		},
 	}
+	statusCmd.Flags().BoolVar(&forceClose, "force", false, e.t("conclui o pai mesmo com subtask aberta (só humano; exige --reason)"))
+	statusCmd.Flags().StringVar(&overrideReason, "reason", "", e.t("motivo do override de --force"))
 
 	var noProject bool
 	projectCmd := &cobra.Command{
@@ -377,7 +404,34 @@ func (e *env) taskCmd() *cobra.Command {
 	}
 
 	c.AddCommand(create, ls, show, assign, statusCmd, projectCmd, goalCmd, modelCmd, comment, wake)
+	c.AddCommand(e.coordinationCmds()...)
 	return c
+}
+
+// printCoordination mostra a árvore e as dependências da task (vazio quando não há nada).
+func (e *env) printCoordination(t api.Task, rel api.TaskRelations) {
+	if len(rel.Ancestors) > 0 {
+		keys := make([]string, len(rel.Ancestors))
+		for i, a := range rel.Ancestors {
+			keys[i] = a.Key
+		}
+		fmt.Fprintf(e.out, e.t("\nFaz parte de: %s\n"), strings.Join(keys, " > "))
+	}
+	if t.Blocked {
+		fmt.Fprintf(e.out, e.t("\nBLOQUEADA: %d dependência(s) aberta(s)\n"), t.OpenDependencies)
+	}
+	if len(rel.DependsOn) > 0 {
+		fmt.Fprintf(e.out, e.t("\nDepende de (%d):\n"), len(rel.DependsOn))
+		e.table(e.refHeader(), e.refRows(rel.DependsOn))
+	}
+	if len(rel.Children) > 0 {
+		fmt.Fprintf(e.out, e.t("\nSubtasks (%d, %d abertas):\n"), len(rel.Children), t.ChildrenOpen)
+		e.table(e.refHeader(), e.refRows(rel.Children))
+	}
+	if len(rel.Dependents) > 0 {
+		fmt.Fprintf(e.out, e.t("\nEsperam por esta (%d):\n"), len(rel.Dependents))
+		e.table(e.refHeader(), e.refRows(rel.Dependents))
+	}
 }
 
 func (e *env) authorLabel(a api.ActorRef) string {

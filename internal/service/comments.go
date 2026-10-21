@@ -52,6 +52,16 @@ func (s *Service) AddComment(ctx context.Context, actor domain.Actor, companyID,
 				return mapErr(err, "add comment")
 			}
 			out = commentFromRow(row)
+			if actor.Type == domain.ActorHuman { // ADR-0052: enviar limpa o rascunho, na mesma transação
+				if err := t.clearDraft(companyID, domain.DraftTask, taskID); err != nil {
+					return err
+				}
+			}
+			if len(in.AttachmentIDs) > 0 {
+				if err := t.linkCommentAttachments(companyID, taskID, row.ID, in.AttachmentIDs); err != nil {
+					return err
+				}
+			}
 			if anchor != nil {
 				out.AnchorState = &state
 			}
@@ -74,6 +84,9 @@ func (s *Service) AddComment(ctx context.Context, actor domain.Actor, companyID,
 				if err := t.wake(companyID, taskID, task.PersonaID, domain.TaskStatus(task.Status), domain.TriggerComment, false); err != nil {
 					return err
 				}
+			}
+			if err := t.recordMentions(actor, companyID, task, row, body); err != nil {
+				return err
 			}
 			if tv, err := loadTaskView(ctx, t.q, companyID, taskID); err == nil {
 				t.publish(companyTopic(companyID), "task.updated", tv)

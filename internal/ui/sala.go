@@ -219,6 +219,14 @@ func (s *server) buildRoomVM(r *http.Request, co domain.Company, cv service.Conv
 		return views.RoomVM{}, err
 	}
 	names := s.lookup(ctx, personas, nil)
+	atts, err := s.messageAttachments(ctx, co, cv.ID, base, loc)
+	if err != nil {
+		return views.RoomVM{}, err
+	}
+	usage, err := s.be.GetArtifactUsage(ctx, co.ID)
+	if err != nil {
+		return views.RoomVM{}, err
+	}
 	byID := make(map[domain.ID]domain.Persona, len(personas))
 	for _, p := range personas {
 		byID[p.ID] = p
@@ -227,7 +235,9 @@ func (s *server) buildRoomVM(r *http.Request, co domain.Company, cv service.Conv
 		Title: cv.Title, Badge: roomBadge(ctx, cv), Archived: cv.Status == domain.ConversationArchived,
 		ThreadHref: room + "/mensagens", SendHref: room + "/mensagens", FeedHref: room + "/feed", ListHref: base + "/sala",
 		AddHref: room + "/participantes", ConfigHref: room + "/config", Cost: fmtUSDCtx(ctx, cv.CostUSD),
-		DraftKey: "hanko-sala-" + cv.ID.String(),
+		DraftKey:   "hanko-sala-" + cv.ID.String(),
+		DraftF:     s.draftFields(ctx, co, room+"/rascunho", domain.DraftConversation, cv.ID),
+		UploadHint: uploadHint(ctx, usage.MaxFileBytes),
 	}
 	if vm.Archived {
 		vm.StatusHref = room + "/reabrir"
@@ -278,7 +288,8 @@ func (s *server) buildRoomVM(r *http.Request, co domain.Company, cv service.Conv
 		vm.CanAdd = len(vm.AddOptions) > 0
 	}
 	for _, m := range msgs {
-		rm := views.RoomMsg{Kind: string(m.Kind), Author: names.actorName(m.Author), When: fmtDateTime(ctx, m.CreatedAt, loc)}
+		rm := views.RoomMsg{Kind: string(m.Kind), Author: names.actorName(m.Author), When: fmtDateTime(ctx, m.CreatedAt, loc),
+			Marker: m.Marker, Attachments: atts[m.ID]}
 		switch m.Kind {
 		case domain.MessageSystem:
 			rm.Body = views.HTML(m.Body) // texto puro, escapado na view
@@ -383,13 +394,7 @@ func (s *server) handleRoomSend(w http.ResponseWriter, r *http.Request, co domai
 	if !ok {
 		return
 	}
-	body := strings.TrimSpace(r.PostFormValue("message"))
-	if body == "" {
-		s.fail(w, r, &co, domain.Invalid(i18n.T(ctx, "mensagem"), i18n.T(ctx, "escreva algo antes de enviar")))
-		return
-	}
-	if _, err := s.be.SendMessage(ctx, actorFrom(ctx), co.ID, cv.ID, body); err != nil {
-		s.fail(w, r, &co, err)
+	if !s.sendFromForm(w, r, co, cv) {
 		return
 	}
 	room := "/c/" + co.Slug + "/sala/" + cv.ID.String()

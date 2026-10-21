@@ -214,6 +214,10 @@ templ ProjectPage(sh Shell, vm ProjectVM) {
 					</section>
 					@WorkspaceUsage(*vm.WS)
 				}
+			case "git":
+				@ProjectGitSection(vm.Git)
+			case "padroes":
+				@ProjectDefaultsSection(vm.Defaults)
 			case "orcamento":
 				<div class="stats4 mb-6">
 					<div class="stat"><div class="l">{ i18n.T(ctx, "Gasto no mês") }</div><div class="v"><a href={ templ.SafeURL(vm.CostHref) }>{ vm.Spent }</a></div></div>
@@ -228,6 +232,7 @@ templ ProjectPage(sh Shell, vm ProjectVM) {
 			case "configuracao":
 				if canAdmin(ctx) {
 					@ProjectForm(vm.Form)
+					@ProjectEnvironmentSlot(vm.EnvironmentHref)
 				} else {
 					@NeedRole(domain.MemberAdmin)
 				}
@@ -545,6 +550,8 @@ templ WorkspacePage(sh Shell, vm WorkspaceVM) {
 				} else {
 					@NeedRole(domain.MemberAdmin)
 				}
+			case "git":
+				@WorkspaceGitSection(vm.Git)
 			default:
 				@WorkspaceUsage(vm)
 		}

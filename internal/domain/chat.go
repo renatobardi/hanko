@@ -58,6 +58,9 @@ type ConversationMessage struct {
 	// recolheu (nil enquanto está na fila).
 	RunID     *ID       `json:"run_id,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
+	// Marker é "context_reset" na mensagem de sistema que /new insere (ADR-0052): o contexto da conversa recomeça
+	// depois dela. Vazio nas demais.
+	Marker string `json:"marker,omitempty"`
 	// Sala (ADR-0033): a persona que falou (ou de quem o aviso trata), a mensagem respondida, as personas
 	// mencionadas e, na mensagem que acorda personas, a entrega a cada uma (com a run que a recolheu).
 	PersonaID   *ID               `json:"persona_id,omitempty"`
