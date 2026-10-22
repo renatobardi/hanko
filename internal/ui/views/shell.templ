@@ -93,7 +93,7 @@ templ Layout(sh Shell) {
 					</header>
 					<main class={ "content", templ.KV("flush", sh.Flush) } id="content">
 						@archivedBanner(sh)
-						<div id="flash" aria-live="polite"></div>
+						<div id="flash" aria-live="polite" data-err-net={ i18n.T(ctx, "Sem conexão com o servidor: nada foi enviado. Confira a rede e tente de novo.") } data-err-server={ i18n.T(ctx, "O servidor não conseguiu concluir o pedido. Tente de novo em instantes.") }></div>
 						{ children... }
 					</main>
 				</div>

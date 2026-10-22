@@ -225,6 +225,8 @@ type TaskVM struct {
 	PriorityOptions []Option
 	PersonaOptions  []Option
 	Thread          []Msg
+	ThreadHref      string    // fragmento da conversa (atualização automática)
+	Live            bool      // a conversa se atualiza sozinha: run ativa ou comentário humano recente
 	Gates           []GateRow // pending gates of this task
 	Runs            []RunMini
 	CanWake         bool

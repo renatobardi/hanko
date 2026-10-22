@@ -64,7 +64,7 @@ func TestRoomPage(t *testing.T) {
 		`hx-post="`+path+`/mensagens"`, "@ para chamar uma persona", `data-mention="@kenji"`, "Feed do time", `id="room-feed"`,
 		`hx-get="`+path+`/feed"`, "moderadora", "Responde quem é citado", "Arquivar", `data-draft="hanko-sala-`+cv.ID.String()+`"`,
 		`action="`+path+`/participantes"`, `action="`+path+`/config"`, path+"/participantes/"+uitest.ID("persona:ada").String()+"/remover")
-	wantNotContains(t, rec, "está pensando…", `hx-trigger="every 2s"`)
+	wantNotContains(t, rec, "está pensando…", `hx-trigger="every 2s`)
 	// resposta da persona à esquerda com o nome dela; humano à direita
 	body := rec.Body.String()
 	if !strings.Contains(body, `class="msg me"`) || !strings.Contains(body, "<b>Hana</b>") {
@@ -81,7 +81,7 @@ func TestRoomThinkingPolls(t *testing.T) {
 	path := "/c/hanko/sala/" + cv.ID.String()
 	run := e.f.RoomThinking(cv.ID, uitest.ID("persona:kenji"))
 	rec := e.get(t, path+"/mensagens", "HX-Request", "true")
-	wantContains(t, rec, "Kenji", "está pensando…", `hx-trigger="every 2s"`, "/c/hanko/execucoes/"+run.String())
+	wantContains(t, rec, "Kenji", "está pensando…", `hx-trigger="every 2s`, "/c/hanko/execucoes/"+run.String())
 	wantNotContains(t, rec, "<html")
 
 	// enviar pelo htmx devolve a thread

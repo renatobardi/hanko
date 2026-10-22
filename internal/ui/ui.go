@@ -327,6 +327,7 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("POST /c/{company}/tasks/nova", post(co(s.handleCreateTask)))
 	mux.HandleFunc("GET /c/{company}/tasks/{task}", co(s.handleTask))
 	mux.HandleFunc("POST /c/{company}/tasks/{task}", post(co(s.handleUpdateTask)))
+	mux.HandleFunc("GET /c/{company}/tasks/{task}/conversa", co(s.handleTaskThread))
 	mux.HandleFunc("POST /c/{company}/tasks/{task}/comentarios", post(co(s.handleComment)))
 	mux.HandleFunc("PUT /c/{company}/tasks/{task}/rascunho", post(co(s.handleTaskDraft)))
 	mux.HandleFunc("POST /c/{company}/tasks/{task}/anexos", post(co(s.handleTaskAttach)))

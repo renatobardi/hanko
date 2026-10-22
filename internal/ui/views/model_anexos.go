@@ -28,3 +28,10 @@ type DraftFields struct {
 	Action string // PUT que grava o rascunho ("" = sem rascunho)
 	Text   string // rascunho salvo, já dentro do campo
 }
+
+// livePoll é o hx-trigger das conversas que se atualizam sozinhas (chat, sala, task): a cada intervalo, menos durante
+// um envio do compositor (o hanko.js também cancela uma atualização em andamento quando o envio sai). Uma resposta
+// atrasada trocaria a lista nova por uma velha: o htmx escolhe o alvo quando a requisição sai.
+func livePoll(every string) string {
+	return "every " + every + " [!document.querySelector('form[data-composer].htmx-request')]"
+}
