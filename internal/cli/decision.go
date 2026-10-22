@@ -121,7 +121,7 @@ func (e *env) decisionCmd() *cobra.Command {
 
 	var fModel string
 	feature := &cobra.Command{
-		Use: "feature " + e.t("<triage|phase_classifier|name_summary|card_summary> <on|off>"), Short: e.t("Liga ou desliga uma feature (--model dá um modelo próprio a ela)"), Args: cobra.ExactArgs(2),
+		Use: "feature " + e.t("<triage|phase_classifier|name_summary|fast_response|card_summary> <on|off>"), Short: e.t("Liga ou desliga uma feature (--model dá um modelo próprio a ela)"), Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, a []string) error {
 			co, err := e.needCompany()
 			if err != nil {

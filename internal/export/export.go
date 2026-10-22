@@ -136,18 +136,28 @@ type Task struct {
 }
 
 type Flow struct {
-	Slug            string    `json:"slug"`
-	Name            string    `json:"name"`
-	Description     string    `json:"description,omitempty"`
-	Cron            string    `json:"cron"`
-	Timezone        string    `json:"timezone"`
-	Enabled         bool      `json:"enabled"`
-	Persona         string    `json:"persona" doc:"Slug da persona que recebe as tasks."`
-	Project         string    `json:"project,omitempty"`
-	Priority        string    `json:"priority" enum:"critical,high,medium,low"`
-	TaskTitle       string    `json:"task_title,omitempty"`
-	TaskDescription string    `json:"task_description,omitempty"`
-	CreatedAt       time.Time `json:"created_at"`
+	Slug            string         `json:"slug"`
+	Name            string         `json:"name"`
+	Description     string         `json:"description,omitempty"`
+	Cron            string         `json:"cron"`
+	Timezone        string         `json:"timezone"`
+	Enabled         bool           `json:"enabled"`
+	Persona         string         `json:"persona" doc:"Slug da persona que recebe as tasks."`
+	Project         string         `json:"project,omitempty"`
+	Priority        string         `json:"priority" enum:"critical,high,medium,low"`
+	TaskTitle       string         `json:"task_title,omitempty"`
+	TaskDescription string         `json:"task_description,omitempty"`
+	Variables       []FlowVariable `json:"variables,omitempty" doc:"Variáveis declaradas ({{nome}} no título e na descrição). Gatilhos e segredos não viajam."`
+	Archived        bool           `json:"archived,omitempty"`
+	CreatedAt       time.Time      `json:"created_at"`
+}
+
+// FlowVariable é uma variável declarada de um fluxo (ADR-0047).
+type FlowVariable struct {
+	Name     string `json:"name"`
+	Label    string `json:"label,omitempty"`
+	Required bool   `json:"required,omitempty"`
+	Default  string `json:"default,omitempty"`
 }
 
 type Usage struct {

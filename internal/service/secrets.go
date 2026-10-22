@@ -482,6 +482,20 @@ func (s *Service) secretUsage(ctx context.Context, q *store.Queries, companyID d
 	} else if !isNoRows(err) {
 		return nil, fmt.Errorf("get decision model: %w", err)
 	}
+	trs, err := q.ListFlowTriggerSecretRefs(ctx, companyID)
+	if err != nil {
+		return nil, fmt.Errorf("list flow trigger secret refs: %w", err)
+	}
+	for _, tr := range trs {
+		add(secretref.Find(tr.SecretRef), domain.SecretUse{Kind: "flow_trigger", Slug: tr.FlowSlug + "/" + tr.Name, Name: tr.Name})
+	}
+	chs, err := q.ChannelSecretUsage(ctx, companyID)
+	if err != nil {
+		return nil, fmt.Errorf("list channel secret refs: %w", err)
+	}
+	for _, c := range chs {
+		add(secretref.Find(c.TokenRef+" "+c.WebhookSecretRef), domain.SecretUse{Kind: "channel", Slug: c.Name, Name: c.Name})
+	}
 	if !s.secretBox().Enabled() {
 		return uses, nil
 	}

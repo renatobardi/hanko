@@ -1,0 +1,311 @@
+package views
+
+import (
+	"fmt"
+
+	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/i18n"
+)
+
+// Configurações › Canais: Telegram e GitHub (ADR-0046).
+
+templ ChannelForm(vm ChannelFormVM) {
+	<form class="card pad form-card" method="post" action={ templ.SafeURL(vm.Action) } hx-boost="true">
+		if vm.Error != "" {
+			@Alert("danger", vm.Error)
+		}
+		<div class="form-grid">
+			<div class="field">
+				<label for="ch-name">{ i18n.T(ctx, "Nome") }</label>
+				<input class="input" id="ch-name" name="name" value={ vm.Name } required maxlength="80" placeholder={ i18n.T(ctx, "Bot do time") }/>
+				if e := vm.FieldErr["name"]; e != "" {
+					<span class="err">{ e }</span>
+				}
+			</div>
+			if !vm.Edit {
+				<div class="field">
+					<label for="ch-kind">{ i18n.T(ctx, "Tipo") }</label>
+					@Select("kind", "ch-kind", vm.KindOptions, false)
+				</div>
+			}
+		</div>
+		<div class="form-grid">
+			<div class="field">
+				<label for="ch-persona">{ i18n.T(ctx, "Persona") }</label>
+				@Select("persona", "ch-persona", vm.PersonaOpts, false)
+				<span class="hint">{ i18n.T(ctx, "Telegram: a persona com quem a pessoa conversa. GitHub: a persona acordada pelo comentário (obrigatória para ligar).") }</span>
+				if e := vm.FieldErr["persona_id"]; e != "" {
+					<span class="err">{ e }</span>
+				}
+			</div>
+			<div class="field">
+				<label for="ch-mention">{ i18n.T(ctx, "Citação (GitHub)") }</label>
+				<input class="input mono" id="ch-mention" name="mention" value={ vm.Mention } maxlength="40" placeholder="@hanko" autocomplete="off"/>
+				if e := vm.FieldErr["mention"]; e != "" {
+					<span class="err">{ e }</span>
+				}
+			</div>
+		</div>
+		<div class="form-grid">
+			<div class="field">
+				<label for="ch-token">{ i18n.T(ctx, "Token (segredo da empresa)") }</label>
+				<input class="input mono" id="ch-token" name="token_ref" value={ vm.TokenRef } maxlength="200" autocomplete="off" spellcheck="false" placeholder="${secret:telegram-token}" list="ch-secrets"/>
+				if e := vm.FieldErr["token_ref"]; e != "" {
+					<span class="err">{ e }</span>
+				}
+				<span class="hint">{ i18n.T(ctx, "O token do bot (Telegram) ou do GitHub. Crie-o em Segredos e informe a referência; o valor não é guardado aqui.") }</span>
+			</div>
+			<div class="field">
+				<label for="ch-secret">{ i18n.T(ctx, "Segredo do webhook") }</label>
+				<input class="input mono" id="ch-secret" name="webhook_secret_ref" value={ vm.SecretRef } maxlength="200" autocomplete="off" spellcheck="false" placeholder="${secret:telegram-webhook}" list="ch-secrets"/>
+				if e := vm.FieldErr["webhook_secret_ref"]; e != "" {
+					<span class="err">{ e }</span>
+				}
+				<span class="hint">{ i18n.T(ctx, "Autentica o que o provedor envia (secret_token do Telegram, segredo do webhook do GitHub).") }</span>
+			</div>
+		</div>
+		<datalist id="ch-secrets">
+			for _, s := range vm.Secrets {
+				<option value={ s }></option>
+			}
+		</datalist>
+		<div class="field">
+			<label for="ch-repos">{ i18n.T(ctx, "Repositórios (GitHub, um por linha)") }</label>
+			<textarea class="textarea mono" id="ch-repos" name="repos" rows="3" placeholder="acme/api&#10;acme/*">{ vm.Repos }</textarea>
+			if e := vm.FieldErr["repos"]; e != "" {
+				<span class="err">{ e }</span>
+			}
+			<span class="hint">{ i18n.T(ctx, "Só comentários desses repositórios acordam a persona. dono/* libera todos os repositórios do dono.") }</span>
+		</div>
+		<details class="mb-4">
+			<summary class="muted">{ i18n.T(ctx, "Avançado") }</summary>
+			<div class="field mt-3">
+				<label for="ch-base">{ i18n.T(ctx, "Raiz da API do provedor") }</label>
+				<input class="input mono" id="ch-base" name="api_base" value={ vm.APIBase } maxlength="300" autocomplete="off" spellcheck="false" placeholder="https://api.github.com"/>
+				if e := vm.FieldErr["api_base"]; e != "" {
+					<span class="err">{ e }</span>
+				}
+				<span class="hint">{ i18n.T(ctx, "Em branco usa a API pública. Preencha para um espelho ou GitHub Enterprise.") }</span>
+			</div>
+		</details>
+		<div class="form-actions">
+			<button class="btn primary" type="submit">
+				if vm.Edit {
+					{ i18n.T(ctx, "Salvar alterações") }
+				} else {
+					{ i18n.T(ctx, "Criar canal") }
+				}
+			</button>
+		</div>
+	</form>
+}
+
+templ ChannelsPage(sh Shell, vm ChannelsVM) {
+	@Layout(sh) {
+		@PageHead(i18n.T(ctx, "Canais"), i18n.T(ctx, "Conversar com as personas e decidir gates pelo Telegram, e acordar uma persona com um comentário num pull request do GitHub. Cada pessoa vincula a própria conta; sem vínculo, o canal não faz nada.")) {
+		}
+		<div class="mb-6">@Tabs(vm.Sections)</div>
+		if vm.Notice != "" {
+			@Alert("warn", vm.Notice)
+		}
+		if vm.Error != "" {
+			@Alert("danger", vm.Error)
+		}
+		if len(vm.Rows) == 0 {
+			@EmptyCard("link", i18n.T(ctx, "Nenhum canal ainda."), i18n.T(ctx, "Cadastre um bot do Telegram ou um repositório do GitHub abaixo."), false)
+		} else {
+			<div class="table-wrap mb-6">
+				<table class="table">
+					<thead>
+						<tr>
+							<th>{ i18n.T(ctx, "Canal") }</th>
+							<th>{ i18n.T(ctx, "Tipo") }</th>
+							<th>{ i18n.T(ctx, "Estado") }</th>
+							<th class="hide-sm">{ i18n.T(ctx, "Persona") }</th>
+							<th class="hide-sm">{ i18n.T(ctx, "Vinculados") }</th>
+							<th>{ i18n.T(ctx, "Falhas de envio") }</th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, r := range vm.Rows {
+							<tr class={ "row", templ.KV("is-off", !r.Enabled) }>
+								<td class="ttl"><a href={ templ.SafeURL(r.Href) }>{ r.Name }</a></td>
+								<td><span class="chip soft">{ r.KindLabel }</span></td>
+								<td>
+									if r.Enabled {
+										<span class="badge run">{ i18n.T(ctx, "Ligado") }</span>
+									} else {
+										<span class="badge soft">{ i18n.T(ctx, "Desligado") }</span>
+									}
+								</td>
+								<td class="hide-sm muted">{ dash(r.Persona) }</td>
+								<td class="hide-sm muted">{ fmt.Sprint(r.Linked) }</td>
+								<td>
+									if r.Failed > 0 {
+										<span class="badge danger">{ fmt.Sprint(r.Failed) }</span>
+									} else {
+										<span class="muted">0</span>
+									}
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+		if canAdmin(ctx) {
+			<h2 class="side-h mb-3">{ i18n.T(ctx, "Novo canal") }</h2>
+			@ChannelForm(vm.NewForm)
+		} else {
+			@NeedRole(domain.MemberAdmin)
+		}
+	}
+}
+
+templ ChannelPage(sh Shell, vm ChannelVM) {
+	@Layout(sh) {
+		@PageHead(vm.Name, i18n.Tf(ctx, "Canal %s", vm.KindLabel)) {
+			<a class="btn outline" href={ templ.SafeURL(vm.BackHref) }>{ i18n.T(ctx, "Todos os canais") }</a>
+		}
+		<div class="mb-6">@Tabs(vm.Sections)</div>
+		if vm.Notice != "" {
+			@Alert("warn", vm.Notice)
+		}
+		if vm.Error != "" {
+			@Alert("danger", vm.Error)
+		}
+		<div class="card pad mb-6">
+			<div class="flow-head">
+				<div>
+					<h2 class="side-h">{ i18n.T(ctx, "Estado") }
+						if vm.Enabled {
+							<span class="badge run">{ i18n.T(ctx, "Ligado") }</span>
+						} else {
+							<span class="badge soft">{ i18n.T(ctx, "Desligado") }</span>
+						}
+					</h2>
+					<p class="muted text-sm mt-2">{ i18n.T(ctx, "Persona:") } { dash(vm.Persona) }</p>
+				</div>
+				if canAdmin(ctx) {
+					<div class="flow-acts">
+						<form method="post" action={ templ.SafeURL(vm.ToggleHref) } hx-boost="true">
+							<button class="btn outline" type="submit">
+								if vm.Enabled {
+									{ i18n.T(ctx, "Desligar") }
+								} else {
+									{ i18n.T(ctx, "Ligar") }
+								}
+							</button>
+						</form>
+						<form method="post" action={ templ.SafeURL(vm.ConnectHref) } hx-boost="true">
+							<button class="btn outline" type="submit">
+								if vm.CanConnect {
+									{ i18n.T(ctx, "Conectar ao provedor") }
+								} else {
+									{ i18n.T(ctx, "Ver URL de entrada") }
+								}
+							</button>
+						</form>
+					</div>
+				}
+			</div>
+			<div class="field mt-4">
+				<span class="lbl">{ i18n.T(ctx, "URL de entrada (o provedor chama com POST)") }</span>
+				<code class="break">{ vm.URL }</code>
+			</div>
+		</div>
+		<h2 class="side-h sec-h">{ i18n.T(ctx, "Seu vínculo") }</h2>
+		<div class="card pad mb-6">
+			if vm.LinkCode != "" {
+				@Alert("warn", i18n.Tf(ctx, "Código de vínculo: %s (vale 15 minutos). %s", vm.LinkCode, vm.LinkHint))
+			}
+			switch vm.MyStatus {
+				case "linked":
+					<p>{ i18n.T(ctx, "Sua conta está vinculada a este canal.") }</p>
+					<form method="post" action={ templ.SafeURL(vm.MyRevoke) } hx-boost="true" class="mt-3" hx-confirm={ i18n.T(ctx, "Desfazer o seu vínculo? A conta deixa de agir no Hanko.") }>
+						<button class="btn outline" type="submit">{ i18n.T(ctx, "Desvincular minha conta") }</button>
+					</form>
+				default:
+					<p class="muted">{ i18n.T(ctx, "Gere um código aqui e envie-o no canal para vincular a sua conta: no Telegram, /vincular CÓDIGO; no GitHub, um comentário /hanko vincular CÓDIGO.") }</p>
+					<form method="post" action={ templ.SafeURL(vm.LinkHref) } hx-boost="true" class="mt-3">
+						<button class="btn primary" type="submit">{ i18n.T(ctx, "Gerar código de vínculo") }</button>
+					</form>
+			}
+		</div>
+		if canAdmin(ctx) {
+			<h2 class="side-h sec-h">{ i18n.Tf(ctx, "Pessoas vinculadas · %s", fmt.Sprint(len(vm.Identities))) }</h2>
+			if len(vm.Identities) == 0 {
+				@EmptyCard("user", i18n.T(ctx, "Ninguém vinculado ainda."), i18n.T(ctx, "Cada pessoa gera o próprio código e prova a conta no canal."), false)
+			} else {
+				<div class="table-wrap mb-6">
+					<table class="table">
+						<thead>
+							<tr><th>{ i18n.T(ctx, "Pessoa") }</th><th>{ i18n.T(ctx, "Conta no canal") }</th><th>{ i18n.T(ctx, "Estado") }</th><th>{ i18n.T(ctx, "Desde") }</th><th class="act-col"></th></tr>
+						</thead>
+						<tbody>
+							for _, r := range vm.Identities {
+								<tr class="row">
+									<td class="ttl">{ r.User }</td>
+									<td class="muted">{ dash(r.External) }</td>
+									<td>{ r.Status }</td>
+									<td class="muted">{ r.Since }</td>
+									<td class="act-col">
+										<form method="post" action={ templ.SafeURL(r.Revoke) } hx-boost="true" hx-confirm={ i18n.T(ctx, "Revogar este vínculo?") }>
+											<button class="btn ghost sm" type="submit">{ i18n.T(ctx, "Revogar") }</button>
+										</form>
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+			<h2 class="side-h sec-h">{ i18n.Tf(ctx, "Mensagens recentes · %s", fmt.Sprint(len(vm.Messages))) }</h2>
+			if len(vm.Messages) == 0 {
+				@EmptyCard("clock", i18n.T(ctx, "Nenhuma mensagem ainda."), i18n.T(ctx, "As que entram e saem aparecem aqui, com o estado de entrega."), false)
+			} else {
+				<div class="table-wrap mb-6">
+					<table class="table">
+						<thead>
+							<tr>
+								<th>{ i18n.T(ctx, "Quando") }</th>
+								<th>{ i18n.T(ctx, "Sentido") }</th>
+								<th class="hide-sm">{ i18n.T(ctx, "Tipo") }</th>
+								<th>{ i18n.T(ctx, "Texto") }</th>
+								<th>{ i18n.T(ctx, "Estado") }</th>
+								<th class="act-col"></th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, m := range vm.Messages {
+								<tr class="row">
+									<td class="muted">{ m.When }</td>
+									<td>{ m.DirLabel }</td>
+									<td class="hide-sm muted">{ m.Kind }</td>
+									<td class="ttl">{ m.Body }
+										if m.Note != "" {
+											<div class="note">{ m.Note }</div>
+										}
+									</td>
+									<td><span class={ "badge", m.StatusCls }>{ m.Status }</span></td>
+									<td class="act-col">
+										if m.Resend != "" {
+											<form method="post" action={ templ.SafeURL(m.Resend) } hx-boost="true">
+												<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Reenviar") }</button>
+											</form>
+										}
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+			<h2 class="side-h sec-h">{ i18n.T(ctx, "Configuração") }</h2>
+			@ChannelForm(vm.Form)
+			<form method="post" action={ templ.SafeURL(vm.DeleteHref) } hx-boost="true" class="mt-4" hx-confirm={ i18n.T(ctx, "Apagar este canal com os vínculos e as mensagens?") }>
+				<button class="btn ghost" type="submit">{ i18n.T(ctx, "Apagar canal") }</button>
+			</form>
+		}
+	}
+}
