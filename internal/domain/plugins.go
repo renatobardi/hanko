@@ -30,6 +30,12 @@ const (
 	PluginMaxEvents         = 32
 	PluginMaxWidgets        = 16
 	PluginMaxJobs           = 16
+	PluginMaxPages          = 8
+	PluginMaxFlowTriggers   = 16
+	PluginMaxEnvProviders   = 4
+	PluginMaxSkillSources   = 8
+	PluginPageHTMLMax       = 512 << 10
+	PluginPageCallMax       = 256 << 10
 	PluginMaxConfigFields   = 32
 	PluginMaxArgs           = 32
 	PluginToolSchemaMax     = 16 << 10
@@ -95,6 +101,11 @@ const (
 	CapWidgets         = "widgets"
 	CapJobs            = "jobs"
 	CapState           = "state"
+	// Capacidades do M18 (ADR-0045): páginas em iframe, gatilhos de fluxo, provider de ambiente e fonte de skills.
+	CapPages        = "pages"
+	CapFlowTriggers = "flows.trigger"
+	CapEnvProvider  = "environments.provider"
+	CapSkillSource  = "skills.source"
 	// CapHTTPOutbound é declarativa: avisa o operador que o plugin fala com a rede. O Hanko não tem como
 	// impedir rede de um processo; quem quiser isola o processo (container, firewall).
 	CapHTTPOutbound = "http.outbound"
@@ -102,7 +113,8 @@ const (
 
 // PluginCapabilities lista as capacidades na ordem de exibição.
 var PluginCapabilities = []string{CapTasksRead, CapTasksWrite, CapPersonasRead, CapProjectsRead, CapActivityRead,
-	CapEventsSubscribe, CapAgentTools, CapWidgets, CapJobs, CapState, CapHTTPOutbound}
+	CapEventsSubscribe, CapAgentTools, CapWidgets, CapJobs, CapState, CapHTTPOutbound,
+	CapPages, CapFlowTriggers, CapEnvProvider, CapSkillSource}
 
 // ValidPluginCapability informa se c é uma capacidade conhecida.
 func ValidPluginCapability(c string) bool { return slices.Contains(PluginCapabilities, c) }
@@ -144,6 +156,7 @@ var PluginMethodCapability = map[string]string{
 	"state.set":           CapState,
 	"state.delete":        CapState,
 	"state.list":          CapState,
+	"flows.fire":          CapFlowTriggers,
 	"config.get":          "",
 	"log":                 "",
 }
@@ -245,7 +258,92 @@ type PluginManifest struct {
 	Events       []string           `json:"events,omitempty"`
 	Widgets      []PluginWidget     `json:"widgets,omitempty"`
 	Jobs         []PluginJob        `json:"jobs,omitempty"`
+	// M18 (ADR-0045).
+	Pages        []PluginPage        `json:"pages,omitempty"`
+	FlowTriggers []PluginFlowTrigger `json:"flow_triggers,omitempty"`
+	EnvProviders []PluginEnvProvider `json:"environment_providers,omitempty"`
+	SkillSources []PluginSkillSource `json:"skill_sources,omitempty"`
 }
+
+// PluginPage é uma aba que o plugin acrescenta ao menu da empresa: o Hanko pede o HTML ao plugin (get_page) e o
+// serve num iframe com sandbox sem allow-same-origin, CSP sem rede e a ponte postMessage (ADR-0045).
+type PluginPage struct {
+	Key   string `json:"key"`
+	Title string `json:"title"`
+	Icon  string `json:"icon,omitempty"`
+}
+
+// PluginFlowTrigger é um gatilho que o plugin dispara (flows.fire); o admin da empresa liga cada gatilho a
+// fluxos existentes.
+type PluginFlowTrigger struct {
+	Key         string `json:"key"`
+	Title       string `json:"title"`
+	Description string `json:"description,omitempty"`
+}
+
+// PluginEnvProvider é um provider de sandbox em nuvem que o plugin implementa (env.ping|create|ssh|delete). Em
+// um ambiente cloud o provider aparece como plugin:<id>/<key>.
+type PluginEnvProvider struct {
+	Key   string `json:"key"`
+	Title string `json:"title"`
+	// KnownHosts são as linhas de known_hosts do gateway SSH do provider (obrigatórias: o ssh nunca aceita chave
+	// desconhecida).
+	KnownHosts string `json:"known_hosts"`
+}
+
+// PluginSkillSource é uma fonte de skills que o plugin implementa (skills.snapshot). A fonte da empresa tem a
+// URL plugin://<id>/<key>.
+type PluginSkillSource struct {
+	Key         string `json:"key"`
+	Title       string `json:"title"`
+	Description string `json:"description,omitempty"`
+}
+
+// PluginProviderPrefix abre o nome de um provider de ambiente vindo de plugin: plugin:<id>/<key>.
+const PluginProviderPrefix = "plugin:"
+
+// PluginProviderName monta o nome do provider de ambiente.
+func PluginProviderName(pluginID, key string) string {
+	return PluginProviderPrefix + pluginID + "/" + key
+}
+
+// ParsePluginProvider separa o id do plugin e a key do provider.
+func ParsePluginProvider(name string) (pluginID, key string, ok bool) {
+	rest, ok := strings.CutPrefix(name, PluginProviderPrefix)
+	if !ok {
+		return "", "", false
+	}
+	pluginID, key, ok = strings.Cut(rest, "/")
+	if !ok || !ValidPluginID(pluginID) || !pluginKeyRe.MatchString(key) {
+		return "", "", false
+	}
+	return pluginID, key, true
+}
+
+// PluginSkillScheme abre a URL de uma fonte de skills de plugin: plugin://<id>/<key>.
+const PluginSkillScheme = "plugin://"
+
+// PluginSkillURL monta a URL da fonte.
+func PluginSkillURL(pluginID, key string) string { return PluginSkillScheme + pluginID + "/" + key }
+
+// ParsePluginSkillURL separa o id do plugin e a key da fonte.
+func ParsePluginSkillURL(raw string) (pluginID, key string, ok bool) {
+	rest, ok := strings.CutPrefix(raw, PluginSkillScheme)
+	if !ok {
+		return "", "", false
+	}
+	pluginID, key, ok = strings.Cut(rest, "/")
+	if !ok || !ValidPluginID(pluginID) || !pluginKeyRe.MatchString(key) {
+		return "", "", false
+	}
+	return pluginID, key, true
+}
+
+// pluginBridgeMethodRe é o nome de um método da ponte da página.
+var pluginBridgeMethodRe = regexp.MustCompile(`^[a-z][a-z0-9_.]{0,63}$`)
+
+// ValidPluginBridgeMethod informa se m é um nome de método aceito na ponte postMessage.
+func ValidPluginBridgeMethod(m string) bool { return pluginBridgeMethodRe.MatchString(m) }
 
 var (
 	pluginIDRe   = regexp.MustCompile(`^[a-z][a-z0-9-]{1,62}$`)
@@ -334,7 +432,7 @@ func (m *PluginManifest) Validate() error {
 	if err := m.validateLists(); err != nil {
 		return err
 	}
-	return nil
+	return m.validateContributions()
 }
 
 func validPluginCommand(c string) error {
@@ -380,7 +478,19 @@ func (m *PluginManifest) validateCapabilities() error {
 	if err := need("widgets", len(m.Widgets), CapWidgets); err != nil {
 		return err
 	}
-	return need("jobs", len(m.Jobs), CapJobs)
+	if err := need("jobs", len(m.Jobs), CapJobs); err != nil {
+		return err
+	}
+	if err := need("pages", len(m.Pages), CapPages); err != nil {
+		return err
+	}
+	if err := need("flow_triggers", len(m.FlowTriggers), CapFlowTriggers); err != nil {
+		return err
+	}
+	if err := need("environment_providers", len(m.EnvProviders), CapEnvProvider); err != nil {
+		return err
+	}
+	return need("skill_sources", len(m.SkillSources), CapSkillSource)
 }
 
 func (s PluginConfigSchema) validate() error {
@@ -742,3 +852,129 @@ const (
 	PluginJobDone    = "done"
 	PluginJobFailed  = "failed"
 )
+
+// validateContributions confere o que o plugin contribui além de tools, eventos, widgets e jobs (ADR-0045).
+func (m *PluginManifest) validateContributions() error {
+	type item struct{ key, title string }
+	check := func(field string, max int, items []item) error {
+		if len(items) > max {
+			return Invalid(field, fmt.Sprintf("até %d itens", max))
+		}
+		seen := map[string]bool{}
+		for _, it := range items {
+			if !pluginKeyRe.MatchString(it.key) {
+				return Invalid(field, fmt.Sprintf("key inválida %q", it.key))
+			}
+			if seen[it.key] {
+				return Invalid(field, fmt.Sprintf("key repetida %q", it.key))
+			}
+			seen[it.key] = true
+			if strings.TrimSpace(it.title) == "" {
+				return Invalid(field+"."+it.key+".title", "obrigatório")
+			}
+			if err := limitText(field+"."+it.key+".title", it.title, 120); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	var pages, trig, envs, srcs []item
+	for _, p := range m.Pages {
+		pages = append(pages, item{p.Key, p.Title})
+		if p.Icon != "" && !pluginKeyRe.MatchString(p.Icon) {
+			return Invalid("pages."+p.Key+".icon", "nome de ícone inválido")
+		}
+	}
+	for _, t := range m.FlowTriggers {
+		trig = append(trig, item{t.Key, t.Title})
+		if err := limitText("flow_triggers."+t.Key+".description", t.Description, 500); err != nil {
+			return err
+		}
+	}
+	for _, e := range m.EnvProviders {
+		envs = append(envs, item{e.Key, e.Title})
+		if err := validKnownHosts(e.KnownHosts); err != nil {
+			return Invalid("environment_providers."+e.Key+".known_hosts", err.Error())
+		}
+	}
+	for _, s := range m.SkillSources {
+		srcs = append(srcs, item{s.Key, s.Title})
+		if err := limitText("skill_sources."+s.Key+".description", s.Description, 500); err != nil {
+			return err
+		}
+	}
+	for _, c := range []struct {
+		field string
+		max   int
+		items []item
+	}{{"pages", PluginMaxPages, pages}, {"flow_triggers", PluginMaxFlowTriggers, trig},
+		{"environment_providers", PluginMaxEnvProviders, envs}, {"skill_sources", PluginMaxSkillSources, srcs}} {
+		if err := check(c.field, c.max, c.items); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// validKnownHosts confere as linhas de known_hosts de um provider: obrigatórias, texto simples, sem coringa
+// de host (um "*" aceitaria qualquer servidor) e com tetos de tamanho.
+func validKnownHosts(v string) error {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return fmt.Errorf("obrigatório: o ssh nunca aceita uma chave de host desconhecida")
+	}
+	if len(v) > 8<<10 || !utf8.ValidString(v) || strings.ContainsRune(v, 0) {
+		return fmt.Errorf("inválido ou maior que 8 KiB")
+	}
+	for _, line := range strings.Split(v, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		f := strings.Fields(line)
+		if len(f) < 3 || strings.ContainsAny(f[0], "*?!") {
+			return fmt.Errorf("linha inválida (use: host tipo chave; sem coringa)")
+		}
+	}
+	return nil
+}
+
+// Page devolve a página pela key.
+func (m PluginManifest) Page(key string) (PluginPage, bool) {
+	for _, p := range m.Pages {
+		if p.Key == key {
+			return p, true
+		}
+	}
+	return PluginPage{}, false
+}
+
+// FlowTrigger devolve o gatilho pela key.
+func (m PluginManifest) FlowTrigger(key string) (PluginFlowTrigger, bool) {
+	for _, t := range m.FlowTriggers {
+		if t.Key == key {
+			return t, true
+		}
+	}
+	return PluginFlowTrigger{}, false
+}
+
+// EnvProvider devolve o provider de ambiente pela key.
+func (m PluginManifest) EnvProvider(key string) (PluginEnvProvider, bool) {
+	for _, e := range m.EnvProviders {
+		if e.Key == key {
+			return e, true
+		}
+	}
+	return PluginEnvProvider{}, false
+}
+
+// SkillSource devolve a fonte de skills pela key.
+func (m PluginManifest) SkillSource(key string) (PluginSkillSource, bool) {
+	for _, s := range m.SkillSources {
+		if s.Key == key {
+			return s, true
+		}
+	}
+	return PluginSkillSource{}, false
+}

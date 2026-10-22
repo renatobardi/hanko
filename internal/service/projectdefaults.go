@@ -194,6 +194,9 @@ func parseWorkspaceSkillURL(raw string) (domain.ID, string, bool) {
 
 // fetchSkillSnapshot lê as skills de uma fonte: do espelho do workspace (sem rede) ou clonando o endereço https.
 func (s *Service) fetchSkillSnapshot(ctx context.Context, src store.SkillSource) (skillgit.Snapshot, error) {
+	if isPluginSource(src.Url) {
+		return s.pluginSkillSnapshot(ctx, src)
+	}
 	wsID, _, ok := parseWorkspaceSkillURL(src.Url)
 	if !ok {
 		return skillgit.Fetch(ctx, src.Url, src.TrackingRef, skillgit.Scan{Prefix: src.PathPrefix, Excluded: src.ExcludedPaths}, s.gitOptions())
