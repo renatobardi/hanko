@@ -1,12 +1,14 @@
 package heartbeat
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -470,7 +472,7 @@ func (h *Heartbeat) buildSpec(rc service.RunContext, briefing, handoff string, s
 	// A review run is headless and read-only: it gets no run token, no Hanko MCP and no
 	// credentialed memory MCP (the artifact to judge is in the prompt).
 	var token string
-	var extraMCP map[string]json.RawMessage
+	var extraMCP, gatewayMCP map[string]json.RawMessage
 	if !review {
 		var err error
 		if rc.Chat != nil {
@@ -482,7 +484,8 @@ func (h *Heartbeat) buildSpec(rc service.RunContext, briefing, handoff string, s
 			return adapter.Spec{}, nil, fmt.Errorf("emitir run token: %w", err)
 		}
 		if !skillTest {
-			extraMCP = mergeMCP(extras.MCP, toolGatewayMCP(publicURL, token, extras.ToolGateway, h.opts.ToolsSingleEndpoint), h.mem.AgentMCP(scope, rc.Run.ID.String(), token))
+			gatewayMCP = toolGatewayMCP(publicURL, token, extras.ToolGateway, h.opts.ToolsSingleEndpoint)
+			extraMCP = mergeMCP(extras.MCP, gatewayMCP, h.mem.AgentMCP(scope, rc.Run.ID.String(), token))
 		}
 	}
 	mcpCfg, err := buildMCPConfig(publicURL, token, extraMCP)
@@ -537,7 +540,7 @@ func (h *Heartbeat) buildSpec(rc service.RunContext, briefing, handoff string, s
 		ConversationID: conversationID(rc), Agent: agent, Model: model, Dir: dir,
 		System: system, Prompt: prompt, SessionRef: sessionRef,
 		Env:       buildEnv(os.Getenv("OTEL_RESOURCE_ATTRIBUTES"), publicURL, token, rc),
-		MCPConfig: mcpCfg, Skills: skills, Config: cfg, ReadOnly: review,
+		MCPConfig: mcpCfg, GatewayMCP: gatewayNames(gatewayMCP, extraMCP), Skills: skills, Config: cfg, ReadOnly: review,
 		PlanOnly: rc.Plan != nil && rc.Plan.Phase == domain.PlanPhasePlan && !review, // plan-review: o run só planeja (ADR-0041)
 	}
 	if !review && !skillTest && extras.NativeTools {
@@ -671,6 +674,19 @@ func mergeMCP(maps ...map[string]json.RawMessage) map[string]json.RawMessage {
 			out[k] = v
 		}
 	}
+	return out
+}
+
+// gatewayNames são os servidores do gateway de tools que sobreviveram à mescla (a memória vem depois e pode tomar o
+// nome; o hanko é liberado à parte), em ordem estável para os argumentos do harness.
+func gatewayNames(gateway, merged map[string]json.RawMessage) []string {
+	var out []string
+	for name, raw := range gateway {
+		if name != "hanko" && bytes.Equal(merged[name], raw) {
+			out = append(out, name)
+		}
+	}
+	sort.Strings(out)
 	return out
 }
 

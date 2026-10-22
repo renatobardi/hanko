@@ -41,6 +41,7 @@ templ DashboardPage(sh Shell, vm DashboardVM) {
 		if len(vm.Gates) > 0 {
 			<div class="mb-6">@PendingGatesCard(vm.Gates, sh.Base())</div>
 		}
+		@DashboardCards(vm.Cards, vm.CardsHref)
 		@PluginWidgetsSlot(sh.Base(), "dashboard", "")
 		<div class="grid-dash">
 			if !vm.HasPersonas {

@@ -287,7 +287,7 @@ func (s *server) renderProject(w http.ResponseWriter, r *http.Request, co domain
 
 // projectSections são as abas do detalhe de projeto (?secao=).
 var projectSections = []struct{ key, label string }{
-	{"visao", i18n.N("Visão geral")}, {"tasks", i18n.N("Tasks")}, {"workspace", i18n.N("Workspace")}, {"git", "Git"}, {"padroes", i18n.N("Padrões")},
+	{"visao", i18n.N("Visão geral")}, {"tasks", i18n.N("Tasks")}, {"workspace", i18n.N("Workspace")}, {"git", "Git"}, {"padroes", i18n.N("Padrões")}, {"etapas", i18n.N("Etapas")},
 	{"orcamento", i18n.N("Orçamento")}, {"configuracao", i18n.N("Configuração")},
 }
 
@@ -338,6 +338,8 @@ func (s *server) handleProject(w http.ResponseWriter, r *http.Request, co domain
 		vm.Git = s.projectGitVM(r, co, p)
 	case "padroes":
 		vm.Defaults = s.projectDefaultsVM(r, co, p)
+	case "etapas":
+		vm.Stages = s.projectStagesVM(r, co, p)
 	}
 	if vm.Section == "workspace" && p.WorkspaceSlug != "" {
 		if wv, err := s.be.GetWorkspaceView(r.Context(), co.ID, p.WorkspaceSlug); err == nil {

@@ -329,6 +329,8 @@ type TaskView struct {
 	Participation []string `json:"participation,omitempty"`
 	// TaskCoord traz o que a coordenação deriva: dependências abertas (bloqueada), filhos e pausa (ADR-0040).
 	TaskCoord
+	// Stage é a etapa do pipeline do projeto em que a task está (ADR-0048); nil fora de pipeline.
+	Stage *TaskStageBrief `json:"stage,omitempty"`
 }
 
 // RunView is a run with display-ready joins.
@@ -398,6 +400,8 @@ type RunContext struct {
 	// Attachments são os anexos da task (ou da conversa, numa run de chat), do mais antigo ao mais novo, até
 	// MaxBriefingAttachments (ADR-0052).
 	Attachments []AttachmentBrief
+	// Stage é a etapa do pipeline do projeto em que a task está (ADR-0048); nil fora de pipeline.
+	Stage *StageContext
 }
 
 // MaxBriefingAttachments é quantos anexos entram no briefing da run.

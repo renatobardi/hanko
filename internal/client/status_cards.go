@@ -12,21 +12,26 @@ import (
 
 // CreateStatusCardReq cria um card.
 type CreateStatusCardReq struct {
-	Interest    string                `json:"interest"`
-	Title       string                `json:"title,omitempty"`
-	TitlePinned bool                  `json:"title_pinned,omitempty"`
-	Summarizer  string                `json:"summarizer,omitempty"`
-	Policy      *api.StatusCardPolicy `json:"refresh_policy,omitempty"`
+	Interest    string                  `json:"interest"`
+	Title       string                  `json:"title,omitempty"`
+	TitlePinned bool                    `json:"title_pinned,omitempty"`
+	Summarizer  string                  `json:"summarizer,omitempty"`
+	Policy      *api.StatusCardPolicy   `json:"refresh_policy,omitempty"`
+	Engine      string                  `json:"engine,omitempty"`
+	Queries     []api.StatusCardQueryIn `json:"queries,omitempty"`
+	OnDashboard bool                    `json:"on_dashboard,omitempty"`
 }
 
 // UpdateStatusCardReq altera um card; nil fica como está.
 type UpdateStatusCardReq struct {
-	Interest    *string               `json:"interest,omitempty"`
-	Title       *string               `json:"title,omitempty"`
-	TitlePinned *bool                 `json:"title_pinned,omitempty"`
-	Summarizer  string                `json:"summarizer,omitempty"`
-	Policy      *api.StatusCardPolicy `json:"refresh_policy,omitempty"`
-	Archived    *bool                 `json:"archived,omitempty"`
+	Interest    *string                  `json:"interest,omitempty"`
+	Title       *string                  `json:"title,omitempty"`
+	TitlePinned *bool                    `json:"title_pinned,omitempty"`
+	Summarizer  string                   `json:"summarizer,omitempty"`
+	Policy      *api.StatusCardPolicy    `json:"refresh_policy,omitempty"`
+	Archived    *bool                    `json:"archived,omitempty"`
+	Queries     *[]api.StatusCardQueryIn `json:"queries,omitempty"`
+	OnDashboard *bool                    `json:"on_dashboard,omitempty"`
 }
 
 func scPath(company, id string) string { return cp(company) + "/status-cards/" + url.PathEscape(id) }
