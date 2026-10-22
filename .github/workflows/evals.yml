@@ -1,6 +1,10 @@
 # evals: comportamento de persona real (modelo pequeno) usando as tools do Hanko (gate, delegação, dependência,
-# não vazar segredo) e caos (matar run, derrubar o banco). Custa token, então NÃO roda no PR: nightly e manual.
-# ESQUELETO: o conteúdo entra na onda 2 com o item #58. O custo das runs é marcado como teste.
+# não vazar segredo) e caos (matar a run, derrubar o banco). Runner: cmd/hanko-evals (internal/evals).
+#
+# Custo: o modelo real custa token, então NÃO roda no PR (este workflow nem tem gatilho de PR) e só liga quando
+# HÁ pedido explícito: manual com `live: true`, ou o nightly com a variável de repositório EVALS_LIVE=1. Sem isso
+# o runner usa o roteiro de mentira (sem rede, sem custo) e o job só garante que cenários e verificadores
+# continuam de pé. O gasto do live é estimado, limitado por EVALS_MAX_USD e marcado como teste no relatório.
 name: evals
 
 on:
@@ -11,6 +15,11 @@ on:
       suite:
         description: "suíte a rodar (behavior, chaos ou all)"
         default: all
+        required: false
+      live:
+        description: "usar o modelo real (CUSTA tokens; exige o secret ANTHROPIC_API_KEY)"
+        type: boolean
+        default: false
         required: false
 
 permissions:
@@ -23,14 +32,44 @@ concurrency:
 jobs:
   evals:
     runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: hanko_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      HANKO_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/hanko_test?sslmode=disable
+      SUITE: ${{ inputs.suite || 'all' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: pendente (#58)
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.27"
+          cache: true
+      - name: testes da própria suíte (fake + chaos de banco de verdade)
+        # sem custo: roteiros certos passam, controles negativos reprovam, o banco é derrubado e volta
+        run: go test -race -tags integration -p 1 ./internal/evals/...
+      - name: evals contra o roteiro de mentira (sem custo)
+        run: go run ./cmd/hanko-evals --suite "$SUITE" --report evals-fake.json
+      - name: evals com o modelo real (pago)
+        # liga só com pedido explícito; HANKO_EVALS_LIVE vem da condição, nunca é padrão
+        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.live) || (github.event_name == 'schedule' && vars.EVALS_LIVE == '1') }}
         env:
-          SUITE: ${{ inputs.suite || 'all' }}
-        run: |
-          echo "evals ainda sem suítes; preenchido na onda 2 (item #58). suite=$SUITE"
-      # Roteiro do #58, para quando entrar:
-      #   - secrets: chave do provedor do modelo pequeno, só neste workflow
-      #   - make build; cenários em evals/ rodando contra Postgres de serviço
-      #   - relatório (JSON + resumo no $GITHUB_STEP_SUMMARY) e falha só abaixo do limiar por cenário
+          HANKO_EVALS_LIVE: "1"
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          HANKO_EVALS_MODEL: ${{ vars.EVALS_MODEL }}
+          HANKO_EVALS_MAX_USD: ${{ vars.EVALS_MAX_USD || '1' }}
+        run: go run ./cmd/hanko-evals --suite "$SUITE" --report evals-live.json
+      - name: relatórios
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: evals-report
+          path: evals-*.json
+          if-no-files-found: ignore

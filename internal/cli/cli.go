@@ -179,6 +179,7 @@ func (e *env) root() *cobra.Command {
 	root.AddCommand(e.roomCmd())                                  // sala (ADR-0033)
 	root.AddCommand(e.environmentCmd())                           // ambientes de execução (ADR-0037)
 	root.AddCommand(e.modelCmd())                                 // catálogo de modelos (ADR-0055)
+	root.AddCommand(e.mcpCmd())                                   // ponte MCP stdio -> servidor remoto (#52)
 	root.AddCommand(e.pipelinesCmds()...)
 	root.AddCommand(e.planPolicyCmd())                                                                                // plan-review (ADR-0041)
 	root.AddCommand(e.stageCmd())                                                                                     // pipelines sobre tasks (ADR-0048)
