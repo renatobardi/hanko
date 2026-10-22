@@ -172,6 +172,7 @@ func New(pool *pgxpool.Pool, opts Options) (*Heartbeat, error) {
 		river.AddWorkerSafely(workers, &applyProposalWorker{h: h}),
 		river.AddWorkerSafely(workers, &skillTickWorker{h: h}),
 		addPluginWorkers(workers, h),
+		addChannelWorkers(workers, h),
 		river.AddWorkerSafely(workers, &statusCardTickWorker{h: h}),
 		river.AddWorkerSafely(workers, &worktreeTickWorker{h: h}),
 	); err != nil {

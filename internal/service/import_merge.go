@@ -360,25 +360,32 @@ func (t *txc) applyMerge(cid domain.ID, doc export.Document, p importPlan, plan 
 			continue
 		}
 		enabled := x.Enabled && opts.Active
-		next, err := NextCron(x.Cron, x.Timezone, t.now)
+		next, err := nextOrNil(cleanCron(x.Cron), x.Timezone, t.now)
 		if err != nil {
 			return ids, err
 		}
 		if d.Action == domain.ItemReplace {
 			cur := ex.flows[x.Slug]
 			if _, err := t.q.UpdateFlow(ctx, store.UpdateFlowParams{Name: strings.TrimSpace(x.Name), Description: x.Description,
-				Cron: strings.TrimSpace(x.Cron), Timezone: x.Timezone, Enabled: enabled, PersonaID: ids.personas[x.Persona],
+				Cron: cleanCron(x.Cron), Timezone: x.Timezone, Enabled: enabled, PersonaID: ids.personas[x.Persona],
 				ProjectID: optID(ids.pr, x.Project), Priority: x.Priority, TaskTitle: x.TaskTitle, TaskDescription: x.TaskDescription,
-				NextFireAt: &next, Now: t.now, CompanyID: cid, ID: cur.ID}); err != nil {
+				NextFireAt: next, Now: t.now, CompanyID: cid, ID: cur.ID}); err != nil {
 				return ids, mapErr(err, "replace flow "+x.Slug)
+			}
+			if err := t.afterFlowImport(cur.ID, x, true); err != nil {
+				return ids, err
 			}
 			continue
 		}
-		if _, err := t.q.ImportFlow(ctx, store.ImportFlowParams{ID: domain.NewID(), CompanyID: cid, Slug: d.Target, Name: strings.TrimSpace(x.Name),
-			Description: x.Description, Cron: strings.TrimSpace(x.Cron), Timezone: x.Timezone, Enabled: enabled, PersonaID: ids.personas[x.Persona],
+		row, err := t.q.ImportFlow(ctx, store.ImportFlowParams{ID: domain.NewID(), CompanyID: cid, Slug: d.Target, Name: strings.TrimSpace(x.Name),
+			Description: x.Description, Cron: cleanCron(x.Cron), Timezone: x.Timezone, Enabled: enabled, PersonaID: ids.personas[x.Persona],
 			ProjectID: optID(ids.pr, x.Project), Priority: x.Priority, TaskTitle: x.TaskTitle, TaskDescription: x.TaskDescription,
-			NextFireAt: &next, CreatedAt: t.now, UpdatedAt: t.now}); err != nil {
+			NextFireAt: next, CreatedAt: t.now, UpdatedAt: t.now})
+		if err != nil {
 			return ids, mapErr(err, "import flow "+x.Slug)
+		}
+		if err := t.afterFlowImport(row.ID, x, false); err != nil {
+			return ids, err
 		}
 	}
 

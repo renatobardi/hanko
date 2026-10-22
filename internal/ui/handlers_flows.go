@@ -16,12 +16,19 @@ import (
 )
 
 var flowNotices = map[string]string{
-	"criado":     i18n.N("Fluxo criado."),
-	"salvo":      i18n.N("Fluxo atualizado."),
-	"executado":  i18n.N("Disparo criado: a task foi atribuída à persona e a execução entra na fila."),
-	"duplicado":  i18n.N("Já existe um disparo deste fluxo neste minuto; nada novo foi criado."),
-	"ativado":    i18n.N("Fluxo ativado."),
-	"desativado": i18n.N("Fluxo desativado: não dispara na agenda até ser ativado de novo."),
+	"criado":            i18n.N("Fluxo criado."),
+	"salvo":             i18n.N("Fluxo atualizado."),
+	"executado":         i18n.N("Disparo criado: a task foi atribuída à persona e a execução entra na fila."),
+	"duplicado":         i18n.N("Já existe um disparo deste fluxo neste minuto; nada novo foi criado."),
+	"ativado":           i18n.N("Fluxo ativado."),
+	"desativado":        i18n.N("Fluxo desativado: não dispara na agenda até ser ativado de novo."),
+	"arquivado":         i18n.N("Fluxo arquivado: saiu da lista e não dispara mais."),
+	"desarquivado":      i18n.N("Fluxo desarquivado. Ele volta desativado; ative quando quiser."),
+	"gatilho-ligado":    i18n.N("Gatilho ligado."),
+	"gatilho-desligado": i18n.N("Gatilho desligado."),
+	"gatilho-removido":  i18n.N("Gatilho removido."),
+	"restaurado":        i18n.N("Revisão restaurada como uma edição nova."),
+	"gatilho-criado":    i18n.N("Gatilho criado."),
 }
 
 func (s *server) flowRow(ctx context.Context, f service.FlowView, base string, now time.Time, loc *time.Location) views.FlowRow {
@@ -31,9 +38,13 @@ func (s *server) flowRow(ctx context.Context, f service.FlowView, base string, n
 		toggle = fl + "/ativar"
 	}
 	row := views.FlowRow{Name: f.Name, Href: fl, Description: f.Description, Persona: f.PersonaName, Project: f.ProjectName,
-		Schedule: describeCronCtx(ctx, f.Cron), Cron: f.Cron, Enabled: f.Enabled, ToggleHref: toggle, RunHref: fl + "/executar", Last: i18n.T(ctx, "nunca")}
+		Schedule: describeCronCtx(ctx, f.Cron), Cron: f.Cron, Enabled: f.Enabled, ToggleHref: toggle, RunHref: fl + "/executar", Last: i18n.T(ctx, "nunca"),
+		Archived: f.ArchivedAt != nil, RunLink: len(f.Variables) > 0}
 	if row.Schedule == "" {
 		row.Schedule = f.Cron
+	}
+	if f.Cron == "" {
+		row.Schedule = i18n.T(ctx, "Sem agenda")
 	}
 	if f.NextFireAt != nil {
 		row.Next = fmtWhen(ctx, *f.NextFireAt, now, loc)
@@ -46,7 +57,14 @@ func (s *server) flowRow(ctx context.Context, f service.FlowView, base string, n
 
 func (s *server) handleFlows(w http.ResponseWriter, r *http.Request, co domain.Company) {
 	ctx := r.Context()
-	flows, err := s.be.ListFlows(ctx, co.ID)
+	archived := r.URL.Query().Get("arquivados") != ""
+	var flows []service.FlowView
+	var err error
+	if archived {
+		flows, err = s.be.ListFlowsFiltered(ctx, co.ID, true)
+	} else {
+		flows, err = s.be.ListFlows(ctx, co.ID)
+	}
 	if err != nil {
 		s.fail(w, r, &co, err)
 		return
@@ -55,7 +73,12 @@ func (s *server) handleFlows(w http.ResponseWriter, r *http.Request, co domain.C
 	now := s.now()
 	base := "/c/" + co.Slug
 	vm := views.FlowsVM{NewHref: base + "/fluxos/novo", Notice: i18n.T(ctx, flowNotices[r.URL.Query().Get("ok")]), Next: "—", Last: "—",
-		Subtitle: i18n.T(ctx, "Trabalho recorrente definido uma vez. Cada disparo vira uma task atribuída à persona, com sua execução.")}
+		Subtitle: i18n.T(ctx, "Trabalho recorrente definido uma vez. Cada disparo vira uma task atribuída à persona, com sua execução."),
+		Archived: archived, ViewHref: base + "/fluxos?arquivados=1", ViewLabel: i18n.T(ctx, "Arquivados")}
+	if archived {
+		vm.ViewHref, vm.ViewLabel = base+"/fluxos", i18n.T(ctx, "Ativos")
+		vm.Subtitle = i18n.T(ctx, "Fluxos arquivados não disparam por nenhum caminho; as tasks e o histórico ficam. Abra um fluxo para desarquivá-lo.")
+	}
 	var next, last *time.Time
 	for _, f := range flows {
 		if f.Enabled {
@@ -143,6 +166,7 @@ func (s *server) flowFormValues(r *http.Request, vm *views.FlowFormVM) {
 	vm.Timezone = trimForm(r, "timezone")
 	vm.TaskTitle = trimForm(r, "task_title")
 	vm.TaskDescription = r.PostFormValue("task_description")
+	vm.Variables = r.PostFormValue("variables")
 	vm.Enabled = r.PostFormValue("enabled") != ""
 	selectOption(vm.PersonaOptions, trimForm(r, "persona"))
 	selectOption(vm.ProjectOptions, trimForm(r, "project"))
@@ -158,6 +182,8 @@ func (s *server) flowFormError(ctx context.Context, vm *views.FlowFormVM, err er
 			field = "persona"
 		case "timezone":
 			field = "cron"
+		case "task_title", "task_description":
+			field = "variables" // modelo que cita uma variável não declarada: o remédio é declarar
 		}
 		msg := map[string]string{
 			"name":    i18n.T(ctx, "Dê um nome ao fluxo."),
@@ -209,10 +235,11 @@ func (s *server) handleCreateFlow(w http.ResponseWriter, r *http.Request, co dom
 		return
 	}
 	enabled := vm.Enabled
+	vars := parseVarLines(vm.Variables)
 	f, err := s.be.CreateFlow(r.Context(), actorFrom(r.Context()), co.ID, service.CreateFlowInput{
 		Name: vm.Name, Description: vm.Description, Cron: vm.Cron, Timezone: vm.Timezone, Enabled: &enabled,
 		PersonaID: *persona, ProjectID: project, Priority: domain.Priority(trimForm(r, "priority")),
-		TaskTitle: vm.TaskTitle, TaskDescription: vm.TaskDescription,
+		TaskTitle: vm.TaskTitle, TaskDescription: vm.TaskDescription, Variables: vars,
 	})
 	if err != nil {
 		bad(err)
@@ -262,14 +289,16 @@ func (s *server) buildFlowVM(r *http.Request, co domain.Company, f service.FlowV
 	vm.Form = views.FlowFormVM{
 		Action: base + "/fluxos/" + f.Slug, Edit: true, CancelHref: base + "/fluxos", HintHref: base + "/fluxos/cron",
 		Name: f.Name, Description: f.Description, Cron: f.Cron, Timezone: f.Timezone, Enabled: f.Enabled,
-		TaskTitle: f.TaskTitle, TaskDescription: f.TaskDescription, FieldErr: map[string]string{}, Presets: presetOptions(ctx),
+		TaskTitle: f.TaskTitle, TaskDescription: f.TaskDescription, Variables: formatVarLines(f.Variables), FieldErr: map[string]string{}, Presets: presetOptions(ctx),
 		PersonaOptions:  personaOptions(personas, &f.PersonaID, i18n.T(ctx, "Escolha a persona")),
 		ProjectOptions:  s.projectOptions(r, co, f.ProjectID),
 		PriorityOptions: priorityOptions(ctx, f.Priority),
 		Hint:            cronHint(ctx, f.Cron, f.Timezone, now, loc),
 	}
+	vm.M19 = s.flowM19VM(r, co, f, fires, base, loc, now)
 	for _, fe := range fires {
-		fr := views.FireRow{When: fmtDateTime(ctx, fe.ScheduledFor, loc), TaskKey: fe.TaskKey, Title: fe.TaskTitle}
+		fr := views.FireRow{When: fmtDateTime(ctx, fe.ScheduledFor, loc), TaskKey: fe.TaskKey, Title: fe.TaskTitle,
+			Source: fireSourceLabel(ctx, fe.Source, fe.TriggerName), Values: fireValuesText(fe.Variables)}
 		if fe.TaskKey != "" {
 			fr.TaskHref = base + "/tasks/" + fe.TaskKey
 			st := domain.TaskStatus(fe.TaskStatus)
@@ -331,8 +360,10 @@ func (s *server) handleUpdateFlow(w http.ResponseWriter, r *http.Request, co dom
 	}
 	prio := domain.Priority(trimForm(r, "priority"))
 	fm := vm.Form
+	vars := parseVarLines(fm.Variables)
 	in := service.UpdateFlowInput{Name: &fm.Name, Description: &fm.Description, Cron: &fm.Cron, Timezone: &fm.Timezone,
-		TaskTitle: &fm.TaskTitle, TaskDescription: &fm.TaskDescription, Enabled: &fm.Enabled, PersonaID: persona, Priority: &prio}
+		TaskTitle: &fm.TaskTitle, TaskDescription: &fm.TaskDescription, Enabled: &fm.Enabled, PersonaID: persona, Priority: &prio,
+		Variables: &vars}
 	if project == nil {
 		in.ClearProject = true
 	} else {
@@ -380,7 +411,30 @@ func (s *server) handleRunFlow(w http.ResponseWriter, r *http.Request, co domain
 		s.fail(w, r, &co, err)
 		return
 	}
-	res, err := s.be.RunFlowNow(ctx, actorFrom(ctx), co.ID, f.ID)
+	var res service.FlowFireResult
+	if len(f.Variables) > 0 {
+		vals := map[string]string{}
+		for _, v := range f.Variables {
+			vals[v.Name] = trimForm(r, "var_"+v.Name)
+		}
+		res, err = s.be.RunFlowNowWith(ctx, actorFrom(ctx), co.ID, f.ID, vals)
+		if errors.Is(err, domain.ErrInvalid) { // variável obrigatória faltando: volta ao formulário com o que foi digitado
+			vm, verr := s.buildFlowVM(r, co, f)
+			if verr != nil {
+				s.fail(w, r, &co, verr)
+				return
+			}
+			for i := range vm.M19.Run.Fields {
+				vm.M19.Run.Fields[i].Value = vals[vm.M19.Run.Fields[i].Name]
+			}
+			vm.M19.Run.Error = runErrorText(ctx, err)
+			vm.Notice = ""
+			s.renderFlow(w, r, co, http.StatusUnprocessableEntity, f, vm)
+			return
+		}
+	} else {
+		res, err = s.be.RunFlowNow(ctx, actorFrom(ctx), co.ID, f.ID)
+	}
 	if err != nil {
 		s.fail(w, r, &co, fmt.Errorf("rodar fluxo: %w", err))
 		return

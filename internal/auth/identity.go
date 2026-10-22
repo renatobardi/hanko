@@ -15,6 +15,9 @@ type Via string
 const (
 	ViaSession Via = "session"
 	ViaAPIKey  Via = "api_key"
+	// ViaChannel é uma pessoa que age por um canal externo vinculado (ADR-0046): o service age como ela, com o mesmo
+	// papel e a mesma audiência de qualquer superfície.
+	ViaChannel Via = "channel"
 )
 
 // Identity é o usuário resolvido pelo Guard para a requisição.

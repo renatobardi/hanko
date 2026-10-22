@@ -62,6 +62,9 @@ func RedactPath(path string) string {
 	if strings.HasPrefix(path, ClaimPath) {
 		return ClaimPath + "…"
 	}
+	if strings.HasPrefix(path, ChannelHookPath) { // o identificador do canal é o endereço secreto do webhook do provedor
+		return ChannelHookPath + "…"
+	}
 	return path
 }
 
@@ -71,10 +74,17 @@ func isPWAPath(p string) bool {
 	return p == "/manifest.webmanifest" || p == "/sw.js" || p == "/offline"
 }
 
+// HooksPrefix são as rotas públicas de entrada (webhooks de gatilhos de fluxo e de canais, ADR-0046/0047): ficam fora do
+// login porque se autenticam pelo próprio protocolo (HMAC, segredo do canal), verificado no service.
+const HooksPrefix = "/hooks/"
+
+// ChannelHookPath é o prefixo do webhook de entrada de um canal (/hooks/channels/<identificador>).
+const ChannelHookPath = HooksPrefix + "channels/"
+
 // Guard é o middleware do modo authenticated. Resolve a identidade (cookie de sessão ou
 // API key) e aplica a regra por rota:
 //
-//	livres:      /healthz, /readyz, /static/, /manifest.webmanifest, /sw.js, /offline (PWA), /entrar (e /entrar/…), /sair, /idioma, /auth/, /convite/, /claim/,
+//	livres:      /healthz, /readyz, /static/, /hooks/ (webhooks de entrada: autenticam por HMAC no service), /manifest.webmanifest, /sw.js, /offline (PWA), /entrar (e /entrar/…), /sair, /idioma, /auth/, /convite/, /claim/,
 //	             /pedir-acesso/ (a página exige login) e os endpoints públicos do login da CLI (/api/v1/cli-auth[/poll])
 //	/metrics:    loopback direto ou API key
 //	/api/…:      sessão (CSRF same-origin em métodos que mudam estado), API key ou run token
@@ -97,7 +107,7 @@ func (g *guard) wrap(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
 		switch {
-		case path == "/healthz" || path == "/readyz" || strings.HasPrefix(path, "/static/") || isPWAPath(path):
+		case path == "/healthz" || path == "/readyz" || strings.HasPrefix(path, "/static/") || isPWAPath(path) || strings.HasPrefix(path, HooksPrefix):
 			next.ServeHTTP(w, r)
 			return
 		}

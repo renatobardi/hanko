@@ -770,7 +770,7 @@ apagada) ocupam espaço sem aparecer na cota; a chave é `<prefixo>/<empresa>/<a
 Token bucket no Postgres (`rate_limit_buckets`, uma instrução atômica por decisão, vale com várias instâncias) por **API key**
 (hash), **usuário** de sessão, **run** (run token válido) ou **IP** (o mesmo `HANKO_TRUSTED_PROXIES` do login). Classes: `write`
 (POST/PUT/PATCH/DELETE na API e na UI; login, claim e convite têm limitador próprio), `mcp` (`/mcp`, gateway de tools,
-`/memory-mcp`), `webhook` (`/hooks/…`, reservado aos gatilhos do M19) e `browser_error` (`/telemetry/errors`). Escritas também
+`/memory-mcp`), `webhook` (`/hooks/…`: gatilhos de fluxo e canais, ADR-0046/0047) e `browser_error` (`/telemetry/errors`). Escritas também
 somam um teto por IP. Leituras, SSE, `/healthz`, `/readyz`, `/metrics` e `/static/` nunca consomem. Estourou: `429` com
 `Retry-After` (s), `RateLimit-Limit` e `RateLimit-Remaining`; corpo `problem+json` na API/MCP, texto simples na UI. Banco do limitador
 fora: a requisição **passa** (fail-open) e conta `outcome=error` na métrica.
@@ -985,3 +985,65 @@ hanko followup discard <id>
 
   Quando a run termina (por qualquer motivo, inclusive cancelada), os follow-ups pendentes acordam a persona e a run seguinte os recolhe
   em ordem. Se o wake se perder, o heartbeat enxerga o follow-up parado há mais de 1 minuto.
+
+## Fluxos: variáveis, gatilhos, revisões e arquivar (ADR-0047)
+
+Um fluxo continua sendo "trabalho definido uma vez, uma task por disparo"; agora ele aceita **parâmetros**, **outros gatilhos além do
+relógio** e tem **histórico**.
+
+- **Variáveis.** `hanko flow create "Revisar PR" -p ada --var repo! --var ambiente=staging --title 'Revisar {{repo}} ({{disparo}})'`.
+  `nome!` é obrigatória, `nome=padrão` dá um valor padrão. No título e na descrição valem `{{nome}}` e os embutidos `{{data}}`,
+  `{{n}}`, `{{semana}}` (ISO, `2026-W43`) e `{{disparo}}` (`agenda`, `manual`, `webhook` ou `evento`). Marcador que não é embutido nem
+  declarado é recusado ao salvar. O valor entra como texto, **sem** ser expandido de novo. A agenda exige padrão em toda variável
+  obrigatória (o cron não tem quem preencha); `hanko flow run revisar-pr --var repo=acme/api` (ou o formulário "Rodar agora" na tela do
+  fluxo) pede as obrigatórias.
+- **Agenda opcional.** `--cron` pode faltar: o fluxo só dispara por gatilho ou por "Rodar agora". `hanko flow edit <fluxo> --cron ''` remove a agenda.
+- **Webhook de entrada.** `hanko flow trigger add <fluxo> github --kind webhook --map repo=repository.full_name` cria o gatilho, **gera**
+  o segredo HMAC (`${secret:hook-…}`, mostrado uma vez) e devolve o caminho `POST /hooks/flows/<id>`. A entrega leva
+  `X-Hanko-Signature: t=<unix>,v1=<hex>` (HMAC-SHA256 de `<t>.<corpo>` com o segredo, janela de 5 min; é o mesmo esquema dos webhooks de
+  saída) e, opcionalmente, `X-Hanko-Delivery` ou `Idempotency-Key` (a mesma entrega repetida não cria outra task). Respostas: `202`
+  (task criada), `200` duplicada, `401` assinatura, `404` gatilho, `409` fluxo/gatilho desativado ou arquivado, `413` corpo acima de 256 KiB,
+  `422` variável obrigatória faltando, `429` limite do gatilho (`--rate`, padrão 30/min) ou do IP (`ratelimit.webhooks_per_min`).
+  Exemplo: `body='{"repository":{"full_name":"acme/api"}}'; t=$(date +%s); sig=$(printf '%s.%s' "$t" "$body" | openssl dgst -sha256 -hmac "$SEGREDO" -hex | sed 's/.* //'); curl -X POST "$URL/hooks/flows/<id>" -H "X-Hanko-Signature: t=$t,v1=$sig" -d "$body"`.
+- **Evento interno.** `hanko flow trigger add <fluxo> ao-decidir --kind event --event 'gate.*' --filter data.decision=approved --map gate=subject_id`
+  dispara quando um fato de atividade casa (verbo exato ou prefixo `x.*`, filtro opcional sobre `data`), na **mesma transação** do fato.
+  Fatos `flow.*` não disparam nada e os fatos gerados pelo próprio disparo não são reavaliados (sem laço). O excedente do limite por
+  gatilho é descartado e anotado como `flow.throttled`.
+- **Revisões.** Cada criação/edição (e mudança de gatilho) guarda uma revisão que não se altera: `hanko flow revisions <fluxo>`,
+  `hanko flow restore <fluxo> <n>` (vira uma edição nova; os gatilhos não voltam). Na tela do fluxo, seção Revisões.
+- **Arquivar ≠ desativar.** `hanko flow archive <fluxo>` tira o fluxo da lista e de todos os caminhos de disparo (agenda, "Rodar agora",
+  webhook → 409, evento); tasks e disparos antigos ficam; `hanko flow ls --archived` e `hanko flow unarchive` (volta desativado).
+- **Exportar/importar** levam variáveis e o estado de arquivado; **gatilhos e segredos não viajam** (são da instalação).
+
+## Canais externos: Telegram e GitHub (ADR-0046)
+
+Configurações › Canais (ou `hanko channel …`). Dois drivers: **Telegram** (conversar com a persona e decidir gates) e **GitHub**
+(um comentário num PR/issue acorda a persona, que devolve o resumo e pode publicar uma review).
+
+1. **Segredos.** Em Segredos, crie o token (bot do BotFather ou token do GitHub) e um segredo para autenticar a entrada. O canal guarda só
+   as referências `${secret:NOME}`.
+2. **Cadastrar.** `hanko channel add bot-do-time --kind telegram -p ada --token '${secret:tg-token}' --webhook-secret '${secret:tg-hook}' --enable`.
+   GitHub: `--kind github --repo acme/api --repo 'kubo/*' --mention @hanko` (a persona é obrigatória para ligar).
+3. **Conectar.** `hanko channel connect bot-do-time` registra o webhook no Telegram (`setWebhook` com o `secret_token`; precisa de
+   `HANKO_PUBLIC_URL` https). No GitHub, configure no repositório (Settings › Webhooks): URL `<HANKO_PUBLIC_URL>/hooks/channels/<identificador>`,
+   conteúdo `application/json`, o segredo do canal e os eventos *Issue comments*, *Pull request review comments* e *Pull request reviews*.
+4. **Vincular a pessoa.** Cada pessoa gera o próprio código (`hanko channel link bot-do-time` ou o botão na tela do canal; vale 15 min) e o
+   prova no canal: Telegram `/vincular XXXX-XXXX`; GitHub, um comentário `/hanko vincular XXXX-XXXX`. **Sem vínculo o canal não faz nada.**
+   O vínculo pode ser revogado a qualquer momento (`/desvincular`, `hanko channel unlink`, ou o admin na tela).
+5. **Telegram.** Gates novos chegam com botões Aprovar/Rejeitar para quem pode decidi-los (`approval`, `task_review`, `tool`, `memory`;
+   os demais tipos mostram o resumo e o link). O clique executa `DecideGate` **como a pessoa vinculada**, com o mesmo papel e a mesma
+   audiência de sempre. Comandos: `/pendentes`, `/novo`, `/desvincular`, `/ajuda`. Texto e arquivos (até a cota de anexos) vão para a
+   conversa direta com a persona do canal, e a resposta dela volta ao chat.
+6. **Respostas rápidas.** Em Configurações › Decision model, ligue a feature *Resposta rápida*: antes de acordar a persona, o decision model
+   responde perguntas simples ("quantas tasks abertas?") com um retrato curto da empresa, ou escala para a persona. Ele nunca decide gate.
+7. **GitHub.** Um comentário que cita a menção do canal (ou começa com `/hanko`), de uma pessoa **vinculada**, num repositório da lista,
+   cria uma task para a persona (o próximo comentário no mesmo PR vira comentário nela); o resumo da persona é publicado no PR.
+   `hanko channel review github --task ACM-7 --event request_changes --body '…'` (ou a tool MCP `hanko_publish_review`, para a persona)
+   publica uma review; **APPROVE só por admin humano**.
+8. **Estado de entrega.** `hanko channel messages <canal>` e a tela mostram cada mensagem (`na fila → entregue | falhou`, tentativas, erro).
+   A entrega é pelo menos uma vez, com 6 tentativas e backoff; `hanko channel resend` recoloca uma que falhou.
+
+Auditoria: fatos `channel.created|updated|enabled|disabled|deleted|connected`, `channel.identity_requested|linked|revoked`,
+`channel.message_received|sent|failed|requeued`, `channel.reply_fast`, `channel.review_requested`. Métricas `hanko.channel.inbound`,
+`hanko.channel.outbound` e `hanko.flow.fires`. Dependência nova: nenhuma. Os destinos dos drivers passam pelo `netguard` (a saída precisa
+alcançar `api.telegram.org`/`api.github.com` diretamente).

@@ -262,17 +262,23 @@ func (t *txc) notifyGate(actor domain.Actor, companyID domain.ID, g domain.Gate)
 		return mapErr(err, "company")
 	}
 	n := Notice{Title: "Gate para decidir: " + clipRunes(g.Title, 80), URL: "/c/" + c.Slug + "/gates/" + g.ID.String()}
+	taskTitle := ""
 	if g.TaskID != nil {
 		if task, err := t.q.GetTaskByID(t.ctx, store.GetTaskByIDParams{CompanyID: companyID, ID: *g.TaskID}); err == nil {
 			n.TaskKey = domain.TaskKey(c.TaskPrefix, task.Number)
 			n.Body = n.TaskKey + " — " + task.Title
+			taskTitle = task.Title
 		}
 	}
 	var except *domain.ID
 	if actor.Type == domain.ActorHuman {
 		except = actor.ID
 	}
-	return t.notifyMembers(companyID, domain.NotifyGate, except, n)
+	if err := t.notifyMembers(companyID, domain.NotifyGate, except, n); err != nil {
+		return err
+	}
+	// canais externos (ADR-0046): o Telegram avisa quem pode decidir, com botões
+	return t.channelNotifyGate(companyID, g, n.TaskKey, taskTitle)
 }
 
 // parkForGate holds the work behind a persona-requested gate: task to blocked/in_review and,

@@ -32,6 +32,7 @@ func flowSwitchLabel(ctx context.Context, name string, on bool) string {
 templ FlowsPage(sh Shell, vm FlowsVM) {
 	@Layout(sh) {
 		@PageHead(i18n.T(ctx, "Fluxos"), vm.Subtitle) {
+			<a class="btn outline" href={ templ.SafeURL(vm.ViewHref) }>{ vm.ViewLabel }</a>
 			if sh.CanAdmin() {
 				<a class="btn primary" href={ templ.SafeURL(vm.NewHref) }>
 					@Icon("plus")
@@ -89,26 +90,37 @@ templ FlowsPage(sh Shell, vm FlowsVM) {
 								<td class="hide-sm"><span class="chip soft" title={ r.Cron }>@Icon("clock") <span>{ r.Schedule }</span></span></td>
 								<td class="hide-sm muted">{ r.Last }</td>
 								<td class="muted">
-									if r.Enabled {
+									if r.Archived {
+										<span class="badge soft">{ i18n.T(ctx, "Arquivado") }</span>
+									} else if r.Enabled {
 										{ r.Next }
 									} else {
 										<span class="badge soft">{ i18n.T(ctx, "Desativado") }</span>
 									}
 								</td>
 								<td class="act-col">
-									<div class="row-acts">
-										@FlowSwitch(r.Enabled, r.ToggleHref, r.Name)
-										if canAdmin(ctx) {
-											<form method="post" action={ templ.SafeURL(r.RunHref) } hx-post={ r.RunHref } hx-swap="none">
-												<button class="btn outline sm" type="submit">
-													@Icon("play")
-													{ i18n.T(ctx, "Rodar agora") }
-												</button>
-											</form>
-										} else {
-											@NeedRole(domain.MemberAdmin)
-										}
-									</div>
+									if !r.Archived {
+										<div class="row-acts">
+											@FlowSwitch(r.Enabled, r.ToggleHref, r.Name)
+											if canAdmin(ctx) {
+												if r.RunLink {
+													<a class="btn outline sm" href={ templ.SafeURL(r.Href + "#rodar") }>
+														@Icon("play")
+														{ i18n.T(ctx, "Rodar agora") }
+													</a>
+												} else {
+													<form method="post" action={ templ.SafeURL(r.RunHref) } hx-post={ r.RunHref } hx-swap="none">
+														<button class="btn outline sm" type="submit">
+															@Icon("play")
+															{ i18n.T(ctx, "Rodar agora") }
+														</button>
+													</form>
+												}
+											} else {
+												@NeedRole(domain.MemberAdmin)
+											}
+										</div>
+									}
 								</td>
 							</tr>
 						}
@@ -179,7 +191,7 @@ templ FlowForm(vm FlowFormVM) {
 						<option value={ o.Value } selected?={ o.Selected }>{ o.Label }</option>
 					}
 				</select>
-				<input class="input sm mono" id="f-cron" name="cron" value={ vm.Cron } required placeholder="0 7 * * 5" autocomplete="off" spellcheck="false" aria-label={ i18n.T(ctx, "Expressão cron de 5 campos") }
+				<input class="input sm mono" id="f-cron" name="cron" value={ vm.Cron } placeholder="0 7 * * 5" autocomplete="off" spellcheck="false" aria-label={ i18n.T(ctx, "Expressão cron de 5 campos") }
 					hx-get={ vm.HintHref } hx-trigger="input changed delay:300ms, change" hx-include="#f-cron, #f-tz" hx-target="#cron-hint" hx-swap="outerHTML"/>
 				<input class="input sm" id="f-tz" name="timezone" value={ vm.Timezone } list="tzs" aria-label={ i18n.T(ctx, "Fuso horário") } placeholder={ i18n.T(ctx, "America/Sao_Paulo") }
 					hx-get={ vm.HintHref } hx-trigger="change" hx-include="#f-cron, #f-tz" hx-target="#cron-hint" hx-swap="outerHTML"/>
@@ -194,7 +206,7 @@ templ FlowForm(vm FlowFormVM) {
 			if e := vm.FieldErr["cron"]; e != "" {
 				<span class="err">{ e }</span>
 			}
-			<span class="hint">{ i18n.T(ctx, "Cinco campos: minuto, hora, dia do mês, mês e dia da semana, no fuso indicado.") }</span>
+			<span class="hint">{ i18n.T(ctx, "Cinco campos: minuto, hora, dia do mês, mês e dia da semana, no fuso indicado. Deixe em branco para um fluxo sem agenda, que dispara por gatilho ou pelo Rodar agora.") }</span>
 		</div>
 		<div class="form-grid">
 			<div class="field">
@@ -209,11 +221,19 @@ templ FlowForm(vm FlowFormVM) {
 		<div class="field">
 			<label for="f-title">{ i18n.T(ctx, "Título da task gerada") }</label>
 			<input class="input" id="f-title" name="task_title" value={ vm.TaskTitle } maxlength="200" placeholder={ i18n.T(ctx, "Digest semanal · {{data}}") }/>
-			<span class="hint">{ i18n.T(ctx, "Variáveis:") } <code>&#123;&#123;data&#125;&#125;</code> { i18n.T(ctx, "(data da ocorrência) e") } <code>&#123;&#123;n&#125;&#125;</code> { i18n.T(ctx, "(número do disparo).") }</span>
+			<span class="hint">{ i18n.T(ctx, "Variáveis:") } <code>&#123;&#123;data&#125;&#125;</code> { i18n.T(ctx, "(data da ocorrência),") } <code>&#123;&#123;n&#125;&#125;</code> { i18n.T(ctx, "(número do disparo),") } <code>&#123;&#123;semana&#125;&#125;</code> { i18n.T(ctx, "(semana ISO),") } <code>&#123;&#123;disparo&#125;&#125;</code> { i18n.T(ctx, "(origem) e as que você declara abaixo.") }</span>
 		</div>
 		<div class="field">
 			<label for="f-tdesc">{ i18n.T(ctx, "Pedido à persona") }</label>
 			<textarea class="textarea" id="f-tdesc" name="task_description" rows="6" placeholder={ i18n.T(ctx, "O que a task gerada pede à persona. Suporta as mesmas variáveis.") }>{ vm.TaskDescription }</textarea>
+		</div>
+		<div class="field">
+			<label for="f-vars">{ i18n.T(ctx, "Variáveis declaradas") }</label>
+			<textarea class="textarea mono" id="f-vars" name="variables" rows="3" placeholder="repo!&#10;ambiente=staging">{ vm.Variables }</textarea>
+			<span class="hint">{ i18n.T(ctx, "Uma por linha: nome, nome! (obrigatória), nome=padrão ou nome!=padrão. Use como") } <code>&#123;&#123;nome&#125;&#125;</code> { i18n.T(ctx, "no título e no pedido. Com agenda, toda variável obrigatória precisa de padrão.") }</span>
+			if e := vm.FieldErr["variables"]; e != "" {
+				<span class="err">{ e }</span>
+			}
 		</div>
 		<label class="check-line">
 			<input type="checkbox" name="enabled" value="1" checked?={ vm.Enabled }/>
@@ -258,31 +278,47 @@ templ FlowPage(sh Shell, vm FlowVM) {
 				<p class="muted mt-2 text-sm">{ vm.Meta }</p>
 			</div>
 			<div class="flow-acts">
-				@FlowSwitch(vm.Enabled, vm.ToggleHref, vm.Name)
-				if canAdmin(ctx) {
-					<form method="post" action={ templ.SafeURL(vm.RunHref) } hx-post={ vm.RunHref } hx-swap="none">
-						<button class="btn primary" type="submit">
-							@Icon("play")
-							{ i18n.T(ctx, "Rodar agora") }
-						</button>
-					</form>
-				} else {
-					@NeedRole(domain.MemberAdmin)
+				if !vm.M19.Archived {
+					@FlowSwitch(vm.Enabled, vm.ToggleHref, vm.Name)
+					if canAdmin(ctx) {
+						if len(vm.M19.Run.Fields) > 0 {
+							<a class="btn primary" href="#rodar">
+								@Icon("play")
+								{ i18n.T(ctx, "Rodar agora") }
+							</a>
+						} else {
+							<form method="post" action={ templ.SafeURL(vm.RunHref) } hx-post={ vm.RunHref } hx-swap="none">
+								<button class="btn primary" type="submit">
+									@Icon("play")
+									{ i18n.T(ctx, "Rodar agora") }
+								</button>
+							</form>
+						}
+					} else {
+						@NeedRole(domain.MemberAdmin)
+					}
 				}
 			</div>
 		</div>
+		@FlowArchiveBar(vm.M19)
+		if len(vm.M19.Run.Fields) > 0 && canAdmin(ctx) && !vm.M19.Archived {
+			@FlowRunCard(vm.M19.Run)
+		}
 		<div class="stats4 mb-6">
 			<div class="stat"><div class="l">{ i18n.T(ctx, "Agenda") }</div><div class="v">{ vm.Schedule }</div></div>
-			<div class="stat"><div class="l">{ i18n.T(ctx, "Expressão · fuso") }</div><div class="v">{ vm.Cron } · { vm.Timezone }</div></div>
+			<div class="stat"><div class="l">{ i18n.T(ctx, "Expressão · fuso") }</div><div class="v">{ dash(vm.Cron) } · { vm.Timezone }</div></div>
 			<div class="stat"><div class="l">{ i18n.T(ctx, "Próximo disparo") }</div><div class="v">{ vm.Next }</div></div>
 			<div class="stat"><div class="l">{ i18n.T(ctx, "Último disparo") }</div><div class="v">{ vm.Last }</div></div>
 		</div>
 		<h2 class="side-h mt-2 mb-3">{ i18n.T(ctx, "Definição") }</h2>
-		if canAdmin(ctx) {
+		if canAdmin(ctx) && !vm.M19.Archived {
 			@FlowForm(vm.Form)
-		} else {
+			@FlowArchiveAction(vm.M19)
+		} else if !canAdmin(ctx) {
 			@NeedRole(domain.MemberAdmin)
 		}
+		@FlowTriggersCard(vm.M19.Triggers, vm.M19.Archived)
+		@FlowRevisionsCard(vm.M19.Revisions, vm.M19.Archived)
 		<h2 class="side-h sec-h">{ i18n.Tf(ctx, "Histórico de disparos · %s", fmt.Sprint(vm.Fired)) }</h2>
 		if len(vm.Fires) == 0 {
 			@EmptyCard("clock", i18n.T(ctx, "Nenhum disparo ainda."), i18n.T(ctx, "Os disparos aparecem aqui, cada um com a task que gerou. Use Rodar agora para testar."), false)
@@ -290,12 +326,17 @@ templ FlowPage(sh Shell, vm FlowVM) {
 			<div class="table-wrap">
 				<table class="table">
 					<thead>
-						<tr><th>{ i18n.T(ctx, "Quando") }</th><th>{ i18n.T(ctx, "Task gerada") }</th><th>{ i18n.T(ctx, "Status da task") }</th></tr>
+						<tr><th>{ i18n.T(ctx, "Quando") }</th><th class="hide-sm">{ i18n.T(ctx, "Origem") }</th><th>{ i18n.T(ctx, "Task gerada") }</th><th>{ i18n.T(ctx, "Status da task") }</th></tr>
 					</thead>
 					<tbody>
 						for _, f := range vm.Fires {
 							<tr class="row">
 								<td class="muted">{ f.When }</td>
+								<td class="hide-sm muted">{ f.Source }
+									if f.Values != "" {
+										<div class="note">{ f.Values }</div>
+									}
+								</td>
 								<td class="ttl">
 									if f.TaskHref != "" {
 										<span class="id">{ f.TaskKey }</span> <a href={ templ.SafeURL(f.TaskHref) }>{ f.Title }</a>

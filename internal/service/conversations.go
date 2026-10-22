@@ -677,7 +677,8 @@ func (t *txc) addChatMessage(conv store.Conversation, kind domain.MessageAuthor,
 	if err := t.q.TouchConversation(t.ctx, store.TouchConversationParams{ID: conv.ID, Now: t.now}); err != nil {
 		return fmt.Errorf("touch conversation: %w", err)
 	}
-	return nil
+	// conversa ligada a um canal externo: a resposta da persona (ou o aviso do sistema) segue para lá (ADR-0046)
+	return t.channelMirrorChat(conv, body)
 }
 
 // loadChatContext reads the conversation for a chat run: what was already said, what this run must answer and

@@ -70,6 +70,8 @@ func TestGuardRoutes(t *testing.T) {
 	cases := []tc{
 		{name: "healthz livre", method: "GET", path: "/healthz", want: 200},
 		{name: "readyz livre", method: "GET", path: "/readyz", want: 200},
+		{name: "webhook de fluxo livre (HMAC no service)", method: "POST", path: "/hooks/flows/abc", want: 200},
+		{name: "webhook de canal livre (segredo do canal no service)", method: "POST", path: "/hooks/channels/tok", want: 200},
 		{name: "static livre", method: "GET", path: "/static/hanko.css", want: 200},
 		{name: "manifest livre", method: "GET", path: "/manifest.webmanifest", want: 200},
 		{name: "sw livre", method: "GET", path: "/sw.js", want: 200},

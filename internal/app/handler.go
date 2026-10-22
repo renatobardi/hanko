@@ -15,6 +15,7 @@ import (
 	"github.com/renatobardi/hanko/internal/auth"
 	"github.com/renatobardi/hanko/internal/config"
 	"github.com/renatobardi/hanko/internal/events"
+	"github.com/renatobardi/hanko/internal/hooks"
 	"github.com/renatobardi/hanko/internal/mcp"
 	"github.com/renatobardi/hanko/internal/memory"
 	"github.com/renatobardi/hanko/internal/ratelimit"
@@ -47,6 +48,7 @@ func buildHandler(d handlerDeps) (http.Handler, error) {
 	cfg := d.Cfg
 	d.Svc.Admission = auth.Admission{Emails: cfg.Auth.AllowedEmails, Domains: cfg.Auth.AllowedDomains}
 	d.Svc.OwnerEmail = cfg.Auth.OwnerEmail
+	d.Svc.Channels = service.ChannelsConfig{PublicURL: cfg.PublicURL}
 	d.Svc.ExternalIdentity = cfg.Auth.Provider == config.AuthFirebase
 	mux := http.NewServeMux()
 	api.Mount(mux, api.Deps{Svc: d.Svc, Broker: d.Broker, Logger: d.Logger, Version: d.Version, Tokens: &d.Tokens, DB: d.Pool,
@@ -66,6 +68,8 @@ func buildHandler(d handlerDeps) (http.Handler, error) {
 		}
 		mux.Handle(mcp.MemoryPath, mp)
 	}
+	mux.Handle(hooks.FlowPattern, hooks.Flows(d.Svc, d.Logger))                       // gatilhos de fluxo por webhook (ADR-0047)
+	mux.Handle(hooks.ChannelPattern, hooks.Channels(d.Svc, d.Logger))                 // entrada dos canais externos (ADR-0046)
 	mux.Handle("POST "+telemetry.BrowserErrorPath, telemetry.BrowserErrors(d.Logger)) // erros do navegador → OTel (ADR-0058 §C)
 	if d.Metrics != nil {
 		mux.Handle("GET /metrics", d.Metrics)
