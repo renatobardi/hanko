@@ -187,3 +187,36 @@ ORDER BY started_at DESC, id DESC LIMIT @lim;
 
 -- name: ListPluginSettingsForPlugin :many
 SELECT * FROM plugin_company_settings WHERE plugin_id = @plugin_id ORDER BY company_id;
+
+-- M18 (ADR-0045).
+
+-- name: SetPluginGrantedCapabilities :one
+-- Dono concede ou revoga capacidades já declaradas no manifesto.
+UPDATE plugins SET granted_capabilities = @granted_capabilities, updated_at = @now
+WHERE id = @id
+RETURNING *;
+
+-- name: LinkPluginFlowTrigger :execrows
+INSERT INTO plugin_flow_triggers (plugin_id, company_id, trigger_key, flow_id, created_by, created_at)
+VALUES (@plugin_id, @company_id, @trigger_key, @flow_id, @created_by, @now)
+ON CONFLICT DO NOTHING;
+
+-- name: UnlinkPluginFlowTrigger :execrows
+DELETE FROM plugin_flow_triggers
+WHERE plugin_id = @plugin_id AND company_id = @company_id AND trigger_key = @trigger_key AND flow_id = @flow_id;
+
+-- name: ListPluginFlowTriggers :many
+-- Ligações de um plugin numa empresa, com o fluxo.
+SELECT t.trigger_key, t.created_at, f.id AS flow_id, f.slug AS flow_slug, f.name AS flow_name
+FROM plugin_flow_triggers t JOIN flows f ON f.id = t.flow_id
+WHERE t.plugin_id = @plugin_id AND t.company_id = @company_id
+ORDER BY t.trigger_key, f.slug;
+
+-- name: ListFlowsForPluginTrigger :many
+-- Fluxos a disparar quando o plugin aciona o gatilho.
+SELECT flow_id FROM plugin_flow_triggers
+WHERE plugin_id = @plugin_id AND company_id = @company_id AND trigger_key = @trigger_key
+ORDER BY flow_id;
+
+-- name: DeletePluginFlowTriggers :exec
+DELETE FROM plugin_flow_triggers WHERE plugin_id = @plugin_id;

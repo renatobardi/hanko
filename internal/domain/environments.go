@@ -305,8 +305,8 @@ func (c *CloudConfig) Normalize() error {
 		c.Root = DefaultCloudRoot
 	}
 	switch {
-	case c.Provider != CloudDaytona:
-		return Invalid("provider", "unknown provider (supported: "+CloudDaytona+")")
+	case c.Provider != CloudDaytona && !validPluginProvider(c.Provider):
+		return Invalid("provider", "unknown provider (supported: "+CloudDaytona+" or plugin:<id>/<key>)")
 	case c.Snapshot != "" && (!snapshotRe.MatchString(c.Snapshot) || strings.Contains(c.Snapshot, "..")):
 		return Invalid("snapshot", "use a snapshot name like my-snapshot or registry/name:tag")
 	case c.Network != "none" && c.Network != "full":
@@ -433,4 +433,10 @@ func ChooseEnvironment(persona, project, company EnvCandidate) EnvChoice {
 	}
 	out.Source = EnvFromLocal
 	return out
+}
+
+// validPluginProvider informa se p é o nome de um provider de plugin (ADR-0045).
+func validPluginProvider(p string) bool {
+	_, _, ok := ParsePluginProvider(p)
+	return ok
 }

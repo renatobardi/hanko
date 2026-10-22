@@ -44,6 +44,13 @@ const (
 // SkillSourcesEnabled diz se o operador ligou as fontes.
 func (s *Service) SkillSourcesEnabled() bool { return s.SkillSources.Enabled }
 
+// isPluginSource diz se a URL é de uma fonte de skills de plugin (plugin://, ADR-0045): não clona nada, então não
+// depende de HANKO_SKILL_SOURCES.
+func isPluginSource(rawURL string) bool {
+	_, _, ok := domain.ParsePluginSkillURL(strings.TrimSpace(rawURL))
+	return ok
+}
+
 func (s *Service) requireSourcesOn() error {
 	if !s.SkillSources.Enabled {
 		return domain.Invalid("skill_sources", errSkillSourcesOff)
@@ -130,6 +137,9 @@ type SkillSyncResult struct {
 
 // SkillSourceLabel é o nome curto da fonte para a UI: host e caminho, sem .git.
 func SkillSourceLabel(raw string) string {
+	if id, key, ok := domain.ParsePluginSkillURL(raw); ok {
+		return "plugin " + id + " / " + key
+	}
 	if _, path, ok := parseWorkspaceSkillURL(raw); ok {
 		if path == "" {
 			return "repositório do workspace"
@@ -159,6 +169,17 @@ func sourceFromRow(r store.SkillSource) domain.SkillSource {
 		src.LastTreeHash = *r.LastTreeHash
 	}
 	return src
+}
+
+// sourceInput valida a entrada de uma fonte: clone (exige HANKO_SKILL_SOURCES) ou plugin://.
+func (s *Service) sourceInput(ctx context.Context, companyID domain.ID, in SkillSourceInput) (SkillSourceInput, error) {
+	if isPluginSource(in.URL) {
+		return s.pluginSourceInput(ctx, companyID, in)
+	}
+	if err := s.requireSourcesOn(); err != nil {
+		return in, err
+	}
+	return s.normalizeSourceInput(in)
 }
 
 // normalizeSourceInput valida a URL, a ref e os caminhos.
@@ -218,14 +239,16 @@ func (s *Service) DiscoverSkillSource(ctx context.Context, companyID domain.ID, 
 	if err := s.require(ctx, companyID, domain.MemberAdmin); err != nil {
 		return SkillSourceDiscovery{}, err
 	}
-	if err := s.requireSourcesOn(); err != nil {
-		return SkillSourceDiscovery{}, err
-	}
-	n, err := s.normalizeSourceInput(in)
+	n, err := s.sourceInput(ctx, companyID, in)
 	if err != nil {
 		return SkillSourceDiscovery{}, err
 	}
-	snap, err := skillgit.Fetch(ctx, n.URL, n.Ref, skillgit.Scan{Prefix: n.PathPrefix, Excluded: n.Excluded}, s.gitOptions())
+	var snap skillgit.Snapshot
+	if isPluginSource(n.URL) {
+		snap, err = s.pluginSkillSnapshot(ctx, store.SkillSource{CompanyID: companyID, Url: n.URL})
+	} else {
+		snap, err = skillgit.Fetch(ctx, n.URL, n.Ref, skillgit.Scan{Prefix: n.PathPrefix, Excluded: n.Excluded}, s.gitOptions())
+	}
 	if err != nil {
 		return SkillSourceDiscovery{}, domain.Invalid("url", "não foi possível ler o repositório: "+err.Error())
 	}
@@ -255,10 +278,7 @@ func (s *Service) CreateSkillSource(ctx context.Context, actor domain.Actor, com
 	if err := s.require(ctx, companyID, domain.MemberAdmin); err != nil {
 		return SkillSourceView{}, SkillSyncResult{}, err
 	}
-	if err := s.requireSourcesOn(); err != nil {
-		return SkillSourceView{}, SkillSyncResult{}, err
-	}
-	n, err := s.normalizeSourceInput(in.SkillSourceInput)
+	n, err := s.sourceInput(ctx, companyID, in.SkillSourceInput)
 	if err != nil {
 		return SkillSourceView{}, SkillSyncResult{}, err
 	}
@@ -518,8 +538,14 @@ func (s *Service) SyncSkillSource(ctx context.Context, actor domain.Actor, compa
 	if err := s.require(ctx, companyID, domain.MemberAdmin); err != nil {
 		return SkillSyncResult{}, err
 	}
-	if err := s.requireSourcesOn(); err != nil {
-		return SkillSyncResult{}, err
+	src, err := s.read().GetSkillSource(ctx, store.GetSkillSourceParams{CompanyID: companyID, ID: id})
+	if err != nil {
+		return SkillSyncResult{}, mapErr(err, "get skill source")
+	}
+	if !isPluginSource(src.Url) {
+		if err := s.requireSourcesOn(); err != nil {
+			return SkillSyncResult{}, err
+		}
 	}
 	return s.syncSource(ctx, actor, companyID, id, nil, force)
 }
@@ -527,28 +553,36 @@ func (s *Service) SyncSkillSource(ctx context.Context, actor domain.Actor, compa
 // SkillSourceRef identifica uma fonte devida.
 type SkillSourceRef struct {
 	CompanyID, ID domain.ID
+	// URL distingue a fonte de plugin (sem clone) da fonte de repositório.
+	URL string
 }
 
-// DueSkillSources lista as fontes com atualização automática vencida (tick). Com as fontes desligadas, nada.
+// DueSkillSources lista as fontes com atualização automática vencida (tick). Com as fontes desligadas, só as de
+// plugin (que não clonam nada) seguem; com os plugins desligados, só as de repositório.
 func (s *Service) DueSkillSources(ctx context.Context, now time.Time, limit int) ([]SkillSourceRef, error) {
-	if !s.SkillSources.Enabled {
+	if !s.SkillSources.Enabled && !s.Plugins.Enabled() {
 		return nil, nil
 	}
 	rows, err := s.read().DueSkillSources(ctx, store.DueSkillSourcesParams{Now: &now, StaleBefore: ptr(now.Add(-skillSyncStaleAfter)), Lim: i32(clamp(limit, 20, 200))})
 	if err != nil {
 		return nil, fmt.Errorf("due skill sources: %w", err)
 	}
-	out := make([]SkillSourceRef, len(rows))
-	for i, r := range rows {
-		out[i] = SkillSourceRef{CompanyID: r.CompanyID, ID: r.ID}
+	out := make([]SkillSourceRef, 0, len(rows))
+	for _, r := range rows {
+		if plug := isPluginSource(r.Url); (plug && !s.Plugins.Enabled()) || (!plug && !s.SkillSources.Enabled) {
+			continue
+		}
+		out = append(out, SkillSourceRef{CompanyID: r.CompanyID, ID: r.ID, URL: r.Url})
 	}
 	return out, nil
 }
 
 // SyncDueSkillSource sincroniza uma fonte pelo tick (sem identidade: ator sistema).
 func (s *Service) SyncDueSkillSource(ctx context.Context, ref SkillSourceRef) (SkillSyncResult, error) {
-	if err := s.requireSourcesOn(); err != nil {
-		return SkillSyncResult{}, err
+	if !isPluginSource(ref.URL) {
+		if err := s.requireSourcesOn(); err != nil {
+			return SkillSyncResult{}, err
+		}
 	}
 	return s.syncSource(ctx, domain.SystemActor, ref.CompanyID, ref.ID, nil, false)
 }

@@ -102,7 +102,7 @@ DELETE FROM skill_sources WHERE company_id = @company_id AND id = @id;
 
 -- name: DueSkillSources :many
 -- Fontes com atualização automática vencidas (o tick do river).
-SELECT company_id, id FROM skill_sources
+SELECT company_id, id, url FROM skill_sources
 WHERE enabled AND auto_update AND next_sync_at IS NOT NULL AND next_sync_at <= @now
   AND (status <> 'syncing' OR last_attempt_at IS NULL OR last_attempt_at < @stale_before)
 ORDER BY next_sync_at

@@ -335,6 +335,9 @@ func (s *Service) CreateEnvironment(ctx context.Context, actor domain.Actor, com
 	if err != nil {
 		return EnvironmentView{}, err
 	}
+	if err := s.checkCloudProvider(ctx, companyID, cfg.Cloud); err != nil {
+		return EnvironmentView{}, err
+	}
 	if err := s.checkEnvRefs(ctx, companyID, sec.refTexts()); err != nil {
 		return EnvironmentView{}, err
 	}
@@ -424,6 +427,11 @@ func (s *Service) UpdateEnvironment(ctx context.Context, actor domain.Actor, com
 		cfg, nsec, err := buildEnvironmentConfig(e.Driver, ssh, key, sb, cl, apiKey, env)
 		if err != nil {
 			return err
+		}
+		if in.Cloud != nil {
+			if err := s.checkCloudProvider(ctx, companyID, cfg.Cloud); err != nil {
+				return err
+			}
 		}
 		if err := s.checkEnvRefs(ctx, companyID, nsec.refTexts()); err != nil {
 			return err
@@ -803,6 +811,9 @@ func (s *Service) ProbeEnvironmentDraft(ctx context.Context, companyID domain.ID
 	}
 	cfg, sec, err := buildEnvironmentConfig(in.Driver, in.SSH, in.PrivateKey, in.Sandbox, in.Cloud, in.APIKey, in.Env)
 	if err != nil {
+		return domain.ProbeReport{}, err
+	}
+	if err := s.checkCloudProvider(ctx, companyID, cfg.Cloud); err != nil {
 		return domain.ProbeReport{}, err
 	}
 	tg := execenv.Target{Driver: in.Driver, Name: strings.TrimSpace(in.Name), PrivateKey: sec.PrivateKey, Env: sec.Env}

@@ -981,6 +981,15 @@ type PluginCompanySetting struct {
 	UpdatedAt time.Time
 }
 
+type PluginFlowTrigger struct {
+	PluginID   uuid.UUID
+	CompanyID  uuid.UUID
+	TriggerKey string
+	FlowID     uuid.UUID
+	CreatedBy  *uuid.UUID
+	CreatedAt  time.Time
+}
+
 type PluginJobRun struct {
 	ID         uuid.UUID
 	PluginID   uuid.UUID

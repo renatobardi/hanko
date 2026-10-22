@@ -40,7 +40,44 @@ func (e *env) printPlugin(p api.Plugin) {
 	if p.LastError != "" {
 		pairs = append(pairs, [2]string{e.t("Último erro"), p.LastError})
 	}
+	for _, x := range []struct {
+		label string
+		names []string
+	}{{e.t("Abas"), pageKeys(p.Pages)}, {e.t("Gatilhos"), triggerKeys(p.FlowTriggers)}, {e.t("Providers de ambiente"), providerNames(p.EnvProviders)},
+		{e.t("Fontes de skills"), sourceURLs(p.SkillSources)}} {
+		if len(x.names) > 0 {
+			pairs = append(pairs, [2]string{x.label, strings.Join(x.names, ", ")})
+		}
+	}
 	e.kv(pairs...)
+}
+
+func pageKeys(in []api.PluginPageDef) (out []string) {
+	for _, x := range in {
+		out = append(out, x.Key)
+	}
+	return out
+}
+
+func triggerKeys(in []api.PluginFlowTriggerDef) (out []string) {
+	for _, x := range in {
+		out = append(out, x.Key)
+	}
+	return out
+}
+
+func providerNames(in []api.PluginEnvProviderDef) (out []string) {
+	for _, x := range in {
+		out = append(out, x.Provider)
+	}
+	return out
+}
+
+func sourceURLs(in []api.PluginSkillSourceDef) (out []string) {
+	for _, x := range in {
+		out = append(out, x.URL)
+	}
+	return out
 }
 
 func (e *env) pluginCmd() *cobra.Command {
@@ -295,5 +332,6 @@ func (e *env) pluginCmd() *cobra.Command {
 	config.Flags().StringArrayVar(&clears, "clear", nil, e.t("apaga um campo secreto (repita a flag)"))
 
 	c.AddCommand(list, install, enable, disable, upgrade, uninstall, logs, config)
+	c.AddCommand(e.pluginM18Cmds()...)
 	return c
 }
