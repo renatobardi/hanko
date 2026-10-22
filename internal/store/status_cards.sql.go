@@ -157,8 +157,42 @@ func (q *Queries) FinishStatusCardUpdate(ctx context.Context, arg FinishStatusCa
 	return i, err
 }
 
+const getRunningDecisionCardUpdateForUpdate = `-- name: GetRunningDecisionCardUpdateForUpdate :one
+SELECT id, company_id, card_id, kind, trigger, task_id, run_id, changes, fingerprint, input_tokens, output_tokens, cost_usd, model, query_version, change_summary, started_at, finished_at, status, error FROM status_card_updates
+WHERE card_id = $1::uuid AND task_id IS NULL AND status = 'running'
+ORDER BY started_at DESC LIMIT 1 FOR UPDATE
+`
+
+// A rodada em andamento de um card cujo motor é o decision model (sem task de sistema).
+func (q *Queries) GetRunningDecisionCardUpdateForUpdate(ctx context.Context, cardID uuid.UUID) (StatusCardUpdate, error) {
+	row := q.db.QueryRow(ctx, getRunningDecisionCardUpdateForUpdate, cardID)
+	var i StatusCardUpdate
+	err := row.Scan(
+		&i.ID,
+		&i.CompanyID,
+		&i.CardID,
+		&i.Kind,
+		&i.Trigger,
+		&i.TaskID,
+		&i.RunID,
+		&i.Changes,
+		&i.Fingerprint,
+		&i.InputTokens,
+		&i.OutputTokens,
+		&i.CostUsd,
+		&i.Model,
+		&i.QueryVersion,
+		&i.ChangeSummary,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.Status,
+		&i.Error,
+	)
+	return i, err
+}
+
 const getStatusCard = `-- name: GetStatusCard :one
-SELECT id, company_id, title, title_pinned, interest, interest_hash, summarizer_persona_id, queries, query_version, query_compiled_at, refresh_policy, state, pending_change_count, pending_change_hash, last_change_at, fingerprint, fingerprint_at, mentioned_task_ids, summary, summary_revision, summary_query_version, incrementals_since_full, last_update_kind, last_generated_at, last_model, generating_task_id, generating_since, failure_reason, next_eval_at, archived_at, created_by_type, created_by_id, created_at, updated_at FROM status_cards WHERE company_id = $1 AND id = $2
+SELECT id, company_id, title, title_pinned, interest, interest_hash, summarizer_persona_id, queries, query_version, query_compiled_at, refresh_policy, state, pending_change_count, pending_change_hash, last_change_at, fingerprint, fingerprint_at, mentioned_task_ids, summary, summary_revision, summary_query_version, incrementals_since_full, last_update_kind, last_generated_at, last_model, generating_task_id, generating_since, failure_reason, next_eval_at, archived_at, created_by_type, created_by_id, created_at, updated_at, engine, artifact_name, artifact_id, on_dashboard FROM status_cards WHERE company_id = $1 AND id = $2
 `
 
 type GetStatusCardParams struct {
@@ -204,12 +238,16 @@ func (q *Queries) GetStatusCard(ctx context.Context, arg GetStatusCardParams) (S
 		&i.CreatedByID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Engine,
+		&i.ArtifactName,
+		&i.ArtifactID,
+		&i.OnDashboard,
 	)
 	return i, err
 }
 
 const getStatusCardByGeneratingTaskForUpdate = `-- name: GetStatusCardByGeneratingTaskForUpdate :one
-SELECT id, company_id, title, title_pinned, interest, interest_hash, summarizer_persona_id, queries, query_version, query_compiled_at, refresh_policy, state, pending_change_count, pending_change_hash, last_change_at, fingerprint, fingerprint_at, mentioned_task_ids, summary, summary_revision, summary_query_version, incrementals_since_full, last_update_kind, last_generated_at, last_model, generating_task_id, generating_since, failure_reason, next_eval_at, archived_at, created_by_type, created_by_id, created_at, updated_at FROM status_cards WHERE company_id = $1 AND generating_task_id = $2::uuid FOR UPDATE
+SELECT id, company_id, title, title_pinned, interest, interest_hash, summarizer_persona_id, queries, query_version, query_compiled_at, refresh_policy, state, pending_change_count, pending_change_hash, last_change_at, fingerprint, fingerprint_at, mentioned_task_ids, summary, summary_revision, summary_query_version, incrementals_since_full, last_update_kind, last_generated_at, last_model, generating_task_id, generating_since, failure_reason, next_eval_at, archived_at, created_by_type, created_by_id, created_at, updated_at, engine, artifact_name, artifact_id, on_dashboard FROM status_cards WHERE company_id = $1 AND generating_task_id = $2::uuid FOR UPDATE
 `
 
 type GetStatusCardByGeneratingTaskForUpdateParams struct {
@@ -255,12 +293,16 @@ func (q *Queries) GetStatusCardByGeneratingTaskForUpdate(ctx context.Context, ar
 		&i.CreatedByID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Engine,
+		&i.ArtifactName,
+		&i.ArtifactID,
+		&i.OnDashboard,
 	)
 	return i, err
 }
 
 const getStatusCardForUpdate = `-- name: GetStatusCardForUpdate :one
-SELECT id, company_id, title, title_pinned, interest, interest_hash, summarizer_persona_id, queries, query_version, query_compiled_at, refresh_policy, state, pending_change_count, pending_change_hash, last_change_at, fingerprint, fingerprint_at, mentioned_task_ids, summary, summary_revision, summary_query_version, incrementals_since_full, last_update_kind, last_generated_at, last_model, generating_task_id, generating_since, failure_reason, next_eval_at, archived_at, created_by_type, created_by_id, created_at, updated_at FROM status_cards WHERE company_id = $1 AND id = $2 FOR UPDATE
+SELECT id, company_id, title, title_pinned, interest, interest_hash, summarizer_persona_id, queries, query_version, query_compiled_at, refresh_policy, state, pending_change_count, pending_change_hash, last_change_at, fingerprint, fingerprint_at, mentioned_task_ids, summary, summary_revision, summary_query_version, incrementals_since_full, last_update_kind, last_generated_at, last_model, generating_task_id, generating_since, failure_reason, next_eval_at, archived_at, created_by_type, created_by_id, created_at, updated_at, engine, artifact_name, artifact_id, on_dashboard FROM status_cards WHERE company_id = $1 AND id = $2 FOR UPDATE
 `
 
 type GetStatusCardForUpdateParams struct {
@@ -306,12 +348,16 @@ func (q *Queries) GetStatusCardForUpdate(ctx context.Context, arg GetStatusCardF
 		&i.CreatedByID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Engine,
+		&i.ArtifactName,
+		&i.ArtifactID,
+		&i.OnDashboard,
 	)
 	return i, err
 }
 
 const getStatusCardForUpdateSkipLocked = `-- name: GetStatusCardForUpdateSkipLocked :one
-SELECT id, company_id, title, title_pinned, interest, interest_hash, summarizer_persona_id, queries, query_version, query_compiled_at, refresh_policy, state, pending_change_count, pending_change_hash, last_change_at, fingerprint, fingerprint_at, mentioned_task_ids, summary, summary_revision, summary_query_version, incrementals_since_full, last_update_kind, last_generated_at, last_model, generating_task_id, generating_since, failure_reason, next_eval_at, archived_at, created_by_type, created_by_id, created_at, updated_at FROM status_cards WHERE company_id = $1 AND id = $2 FOR UPDATE SKIP LOCKED
+SELECT id, company_id, title, title_pinned, interest, interest_hash, summarizer_persona_id, queries, query_version, query_compiled_at, refresh_policy, state, pending_change_count, pending_change_hash, last_change_at, fingerprint, fingerprint_at, mentioned_task_ids, summary, summary_revision, summary_query_version, incrementals_since_full, last_update_kind, last_generated_at, last_model, generating_task_id, generating_since, failure_reason, next_eval_at, archived_at, created_by_type, created_by_id, created_at, updated_at, engine, artifact_name, artifact_id, on_dashboard FROM status_cards WHERE company_id = $1 AND id = $2 FOR UPDATE SKIP LOCKED
 `
 
 type GetStatusCardForUpdateSkipLockedParams struct {
@@ -357,6 +403,10 @@ func (q *Queries) GetStatusCardForUpdateSkipLocked(ctx context.Context, arg GetS
 		&i.CreatedByID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Engine,
+		&i.ArtifactName,
+		&i.ArtifactID,
+		&i.OnDashboard,
 	)
 	return i, err
 }
@@ -452,12 +502,43 @@ func (q *Queries) GetStatusCardUpdateByTaskForUpdate(ctx context.Context, taskID
 	return i, err
 }
 
+const getStatusCardUpdateForUpdate = `-- name: GetStatusCardUpdateForUpdate :one
+SELECT id, company_id, card_id, kind, trigger, task_id, run_id, changes, fingerprint, input_tokens, output_tokens, cost_usd, model, query_version, change_summary, started_at, finished_at, status, error FROM status_card_updates WHERE id = $1::uuid FOR UPDATE
+`
+
+func (q *Queries) GetStatusCardUpdateForUpdate(ctx context.Context, id uuid.UUID) (StatusCardUpdate, error) {
+	row := q.db.QueryRow(ctx, getStatusCardUpdateForUpdate, id)
+	var i StatusCardUpdate
+	err := row.Scan(
+		&i.ID,
+		&i.CompanyID,
+		&i.CardID,
+		&i.Kind,
+		&i.Trigger,
+		&i.TaskID,
+		&i.RunID,
+		&i.Changes,
+		&i.Fingerprint,
+		&i.InputTokens,
+		&i.OutputTokens,
+		&i.CostUsd,
+		&i.Model,
+		&i.QueryVersion,
+		&i.ChangeSummary,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.Status,
+		&i.Error,
+	)
+	return i, err
+}
+
 const insertStatusCard = `-- name: InsertStatusCard :one
 INSERT INTO status_cards (id, company_id, title, title_pinned, interest, interest_hash, summarizer_persona_id, refresh_policy,
                           state, next_eval_at, created_by_type, created_by_id, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8,
         $9, $10, $11, $12, $13, $13)
-RETURNING id, company_id, title, title_pinned, interest, interest_hash, summarizer_persona_id, queries, query_version, query_compiled_at, refresh_policy, state, pending_change_count, pending_change_hash, last_change_at, fingerprint, fingerprint_at, mentioned_task_ids, summary, summary_revision, summary_query_version, incrementals_since_full, last_update_kind, last_generated_at, last_model, generating_task_id, generating_since, failure_reason, next_eval_at, archived_at, created_by_type, created_by_id, created_at, updated_at
+RETURNING id, company_id, title, title_pinned, interest, interest_hash, summarizer_persona_id, queries, query_version, query_compiled_at, refresh_policy, state, pending_change_count, pending_change_hash, last_change_at, fingerprint, fingerprint_at, mentioned_task_ids, summary, summary_revision, summary_query_version, incrementals_since_full, last_update_kind, last_generated_at, last_model, generating_task_id, generating_since, failure_reason, next_eval_at, archived_at, created_by_type, created_by_id, created_at, updated_at, engine, artifact_name, artifact_id, on_dashboard
 `
 
 type InsertStatusCardParams struct {
@@ -528,6 +609,10 @@ func (q *Queries) InsertStatusCard(ctx context.Context, arg InsertStatusCardPara
 		&i.CreatedByID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Engine,
+		&i.ArtifactName,
+		&i.ArtifactID,
+		&i.OnDashboard,
 	)
 	return i, err
 }
@@ -650,6 +735,72 @@ func (q *Queries) IsStatusCardTask(ctx context.Context, taskID uuid.UUID) (bool,
 	var column_1 bool
 	err := row.Scan(&column_1)
 	return column_1, err
+}
+
+const listDashboardStatusCards = `-- name: ListDashboardStatusCards :many
+SELECT id, company_id, title, title_pinned, interest, interest_hash, summarizer_persona_id, queries, query_version, query_compiled_at, refresh_policy, state, pending_change_count, pending_change_hash, last_change_at, fingerprint, fingerprint_at, mentioned_task_ids, summary, summary_revision, summary_query_version, incrementals_since_full, last_update_kind, last_generated_at, last_model, generating_task_id, generating_since, failure_reason, next_eval_at, archived_at, created_by_type, created_by_id, created_at, updated_at, engine, artifact_name, artifact_id, on_dashboard FROM status_cards
+WHERE company_id = $1 AND on_dashboard AND archived_at IS NULL AND summary_revision > 0
+ORDER BY last_generated_at DESC NULLS LAST, created_at DESC
+LIMIT 6
+`
+
+func (q *Queries) ListDashboardStatusCards(ctx context.Context, companyID uuid.UUID) ([]StatusCard, error) {
+	rows, err := q.db.Query(ctx, listDashboardStatusCards, companyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []StatusCard{}
+	for rows.Next() {
+		var i StatusCard
+		if err := rows.Scan(
+			&i.ID,
+			&i.CompanyID,
+			&i.Title,
+			&i.TitlePinned,
+			&i.Interest,
+			&i.InterestHash,
+			&i.SummarizerPersonaID,
+			&i.Queries,
+			&i.QueryVersion,
+			&i.QueryCompiledAt,
+			&i.RefreshPolicy,
+			&i.State,
+			&i.PendingChangeCount,
+			&i.PendingChangeHash,
+			&i.LastChangeAt,
+			&i.Fingerprint,
+			&i.FingerprintAt,
+			&i.MentionedTaskIds,
+			&i.Summary,
+			&i.SummaryRevision,
+			&i.SummaryQueryVersion,
+			&i.IncrementalsSinceFull,
+			&i.LastUpdateKind,
+			&i.LastGeneratedAt,
+			&i.LastModel,
+			&i.GeneratingTaskID,
+			&i.GeneratingSince,
+			&i.FailureReason,
+			&i.NextEvalAt,
+			&i.ArchivedAt,
+			&i.CreatedByType,
+			&i.CreatedByID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Engine,
+			&i.ArtifactName,
+			&i.ArtifactID,
+			&i.OnDashboard,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listDueStatusCards = `-- name: ListDueStatusCards :many
@@ -800,7 +951,7 @@ func (q *Queries) ListStatusCardUpdates(ctx context.Context, arg ListStatusCardU
 }
 
 const listStatusCards = `-- name: ListStatusCards :many
-SELECT c.id, c.company_id, c.title, c.title_pinned, c.interest, c.interest_hash, c.summarizer_persona_id, c.queries, c.query_version, c.query_compiled_at, c.refresh_policy, c.state, c.pending_change_count, c.pending_change_hash, c.last_change_at, c.fingerprint, c.fingerprint_at, c.mentioned_task_ids, c.summary, c.summary_revision, c.summary_query_version, c.incrementals_since_full, c.last_update_kind, c.last_generated_at, c.last_model, c.generating_task_id, c.generating_since, c.failure_reason, c.next_eval_at, c.archived_at, c.created_by_type, c.created_by_id, c.created_at, c.updated_at, COALESCE(p.name, '')::text AS summarizer_name, COALESCE(p.slug, '')::text AS summarizer_slug
+SELECT c.id, c.company_id, c.title, c.title_pinned, c.interest, c.interest_hash, c.summarizer_persona_id, c.queries, c.query_version, c.query_compiled_at, c.refresh_policy, c.state, c.pending_change_count, c.pending_change_hash, c.last_change_at, c.fingerprint, c.fingerprint_at, c.mentioned_task_ids, c.summary, c.summary_revision, c.summary_query_version, c.incrementals_since_full, c.last_update_kind, c.last_generated_at, c.last_model, c.generating_task_id, c.generating_since, c.failure_reason, c.next_eval_at, c.archived_at, c.created_by_type, c.created_by_id, c.created_at, c.updated_at, c.engine, c.artifact_name, c.artifact_id, c.on_dashboard, COALESCE(p.name, '')::text AS summarizer_name, COALESCE(p.slug, '')::text AS summarizer_slug
 FROM status_cards c
 LEFT JOIN personas p ON p.id = c.summarizer_persona_id
 WHERE c.company_id = $1
@@ -873,6 +1024,10 @@ func (q *Queries) ListStatusCards(ctx context.Context, arg ListStatusCardsParams
 			&i.StatusCard.CreatedByID,
 			&i.StatusCard.CreatedAt,
 			&i.StatusCard.UpdatedAt,
+			&i.StatusCard.Engine,
+			&i.StatusCard.ArtifactName,
+			&i.StatusCard.ArtifactID,
+			&i.StatusCard.OnDashboard,
 			&i.SummarizerName,
 			&i.SummarizerSlug,
 		); err != nil {
@@ -924,6 +1079,51 @@ type PruneStatusCardUpdatesParams struct {
 
 func (q *Queries) PruneStatusCardUpdates(ctx context.Context, arg PruneStatusCardUpdatesParams) error {
 	_, err := q.db.Exec(ctx, pruneStatusCardUpdates, arg.CardID, arg.Keep)
+	return err
+}
+
+const setStatusCardArtifact = `-- name: SetStatusCardArtifact :exec
+UPDATE status_cards SET artifact_id = $1 WHERE company_id = $2 AND id = $3
+`
+
+type SetStatusCardArtifactParams struct {
+	ArtifactID *uuid.UUID
+	CompanyID  uuid.UUID
+	ID         uuid.UUID
+}
+
+func (q *Queries) SetStatusCardArtifact(ctx context.Context, arg SetStatusCardArtifactParams) error {
+	_, err := q.db.Exec(ctx, setStatusCardArtifact, arg.ArtifactID, arg.CompanyID, arg.ID)
+	return err
+}
+
+const setStatusCardDelivery = `-- name: SetStatusCardDelivery :exec
+UPDATE status_cards
+SET engine = $1, on_dashboard = $2,
+    artifact_name = CASE WHEN artifact_name = '' THEN $3 ELSE artifact_name END,
+    updated_at = $4
+WHERE company_id = $5 AND id = $6
+`
+
+type SetStatusCardDeliveryParams struct {
+	Engine       string
+	OnDashboard  bool
+	ArtifactName string
+	Now          time.Time
+	CompanyID    uuid.UUID
+	ID           uuid.UUID
+}
+
+// Motor (persona ou decision model), nome do artefato e presença no Painel (ADR-0048). O nome só é gravado uma vez.
+func (q *Queries) SetStatusCardDelivery(ctx context.Context, arg SetStatusCardDeliveryParams) error {
+	_, err := q.db.Exec(ctx, setStatusCardDelivery,
+		arg.Engine,
+		arg.OnDashboard,
+		arg.ArtifactName,
+		arg.Now,
+		arg.CompanyID,
+		arg.ID,
+	)
 	return err
 }
 
@@ -1175,7 +1375,7 @@ UPDATE status_cards SET
     generating_since = $25, failure_reason = $26, next_eval_at = $27,
     archived_at = $28, updated_at = $29
 WHERE company_id = $30 AND id = $31
-RETURNING id, company_id, title, title_pinned, interest, interest_hash, summarizer_persona_id, queries, query_version, query_compiled_at, refresh_policy, state, pending_change_count, pending_change_hash, last_change_at, fingerprint, fingerprint_at, mentioned_task_ids, summary, summary_revision, summary_query_version, incrementals_since_full, last_update_kind, last_generated_at, last_model, generating_task_id, generating_since, failure_reason, next_eval_at, archived_at, created_by_type, created_by_id, created_at, updated_at
+RETURNING id, company_id, title, title_pinned, interest, interest_hash, summarizer_persona_id, queries, query_version, query_compiled_at, refresh_policy, state, pending_change_count, pending_change_hash, last_change_at, fingerprint, fingerprint_at, mentioned_task_ids, summary, summary_revision, summary_query_version, incrementals_since_full, last_update_kind, last_generated_at, last_model, generating_task_id, generating_since, failure_reason, next_eval_at, archived_at, created_by_type, created_by_id, created_at, updated_at, engine, artifact_name, artifact_id, on_dashboard
 `
 
 type UpdateStatusCardParams struct {
@@ -1283,6 +1483,10 @@ func (q *Queries) UpdateStatusCard(ctx context.Context, arg UpdateStatusCardPara
 		&i.CreatedByID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Engine,
+		&i.ArtifactName,
+		&i.ArtifactID,
+		&i.OnDashboard,
 	)
 	return i, err
 }

@@ -95,7 +95,7 @@ func cardTitle(ctx context.Context, v service.StatusCardView) (string, bool) {
 }
 
 func cardBusy(v service.StatusCardView) bool {
-	return v.ArchivedAt == nil && v.GeneratingTaskID != nil
+	return v.ArchivedAt == nil && (v.GeneratingTaskID != nil || (v.Engine == domain.CardEngineDecision && v.GeneratingSince != nil))
 }
 
 // cardCompileFailed: a montagem não terminou e o card não tem filtros.
@@ -183,6 +183,7 @@ func (s *server) cardSummarizerOptions(ctx context.Context, co domain.Company, s
 
 func policyForm(vm *views.StatusCardFormVM, p domain.CardPolicy) {
 	vm.Mode = p.Mode
+	vm.CronExpr, vm.CronTZ, vm.CronSkip = p.Cron, p.CronTZ, p.CronSkipUnchanged
 	vm.IntervalMinutes, vm.DebounceSeconds = strconv.Itoa(p.IntervalMinutes), strconv.Itoa(p.DebounceSeconds)
 	vm.MaxPerHour, vm.DailyTokenCap = strconv.Itoa(p.MaxUpdatesPerHour), strconv.FormatInt(p.DailyTokenCap, 10)
 	vm.TrStatus, vm.TrMembership, vm.TrHuman, vm.TrAssignee, vm.TrAny = p.Triggers.Status, p.Triggers.Membership, p.Triggers.HumanComments,
@@ -194,8 +195,10 @@ func policyForm(vm *views.StatusCardFormVM, p domain.CardPolicy) {
 
 func (s *server) blankStatusCardForm(ctx context.Context, co domain.Company) views.StatusCardFormVM {
 	vm := views.StatusCardFormVM{Action: cardsBase(co) + "/novo", CancelHref: cardsBase(co), FieldErr: map[string]string{},
-		SummarizerOptions: s.cardSummarizerOptions(ctx, co, nil), HoursTZ: co.Timezone}
+		SummarizerOptions: s.cardSummarizerOptions(ctx, co, nil), HoursTZ: co.Timezone, Engine: string(domain.CardEnginePersona),
+		CronTZ: co.Timezone, DecisionFields: true, QueryProject: s.cardProjectOptions(ctx, co, nil)}
 	policyForm(&vm, domain.DefaultCardPolicy())
+	vm.CronTZ = co.Timezone
 	return vm
 }
 
@@ -210,6 +213,48 @@ func statusCardFormValues(r *http.Request, vm *views.StatusCardFormVM) {
 	vm.TrHuman, vm.TrAssignee, vm.TrAny = r.PostFormValue("tr_human") == "1", r.PostFormValue("tr_assignee") == "1", r.PostFormValue("tr_any") == "1"
 	vm.HoursStart, vm.HoursEnd, vm.HoursTZ = trimForm(r, "hours_start"), trimForm(r, "hours_end"), trimForm(r, "hours_tz")
 	selectOption(vm.SummarizerOptions, trimForm(r, "summarizer"))
+	if !vm.Edit {
+		vm.Engine = trimForm(r, "engine")
+	}
+	vm.CronExpr, vm.CronTZ, vm.CronSkip = trimForm(r, "cron"), trimForm(r, "cron_tz"), r.PostFormValue("cron_skip") == "1"
+	vm.OnDashboard = r.PostFormValue("on_dashboard") == "1"
+	vm.QueryStatuses, vm.QueryOpen = trimForm(r, "q_status"), r.PostFormValue("q_open") == "1"
+	if len(vm.QueryProject) > 0 {
+		selectOption(vm.QueryProject, trimForm(r, "q_project"))
+	}
+}
+
+// cardProjectOptions lista os projetos para o filtro do card do decision model (a primeira opção é "todos").
+func (s *server) cardProjectOptions(ctx context.Context, co domain.Company, sel *domain.ID) []views.Option {
+	out := []views.Option{{Value: "", Label: i18n.T(ctx, "Todos os projetos"), Selected: sel == nil}}
+	ps, err := s.be.ListProjects(ctx, co.ID)
+	if err != nil {
+		return out
+	}
+	for _, p := range ps {
+		out = append(out, views.Option{Value: p.Slug, Label: p.Name, Selected: sel != nil && *sel == p.ID})
+	}
+	return out
+}
+
+// cardQueriesFromForm monta o filtro único do card do decision model (nil = as tasks abertas, o padrão do service).
+func cardQueriesFromForm(vm views.StatusCardFormVM) []service.CardQueryInput {
+	var statuses []string
+	for _, st := range strings.Split(vm.QueryStatuses, ",") {
+		if st = strings.TrimSpace(st); st != "" {
+			statuses = append(statuses, st)
+		}
+	}
+	project := ""
+	for _, o := range vm.QueryProject {
+		if o.Selected {
+			project = o.Value
+		}
+	}
+	if len(statuses) == 0 && project == "" && !vm.QueryOpen {
+		return nil
+	}
+	return []service.CardQueryInput{{Statuses: statuses, Project: project, OpenOnly: vm.QueryOpen}}
 }
 
 func formInt(field, v string) (int, error) {
@@ -226,7 +271,7 @@ func formInt(field, v string) (int, error) {
 // cardPolicyFromForm monta a política; os números vazios ficam com o padrão.
 func cardPolicyFromForm(vm views.StatusCardFormVM) (domain.CardPolicy, error) {
 	p := domain.CardPolicy{Mode: vm.Mode, Triggers: domain.CardTriggers{Status: vm.TrStatus, Membership: vm.TrMembership,
-		HumanComments: vm.TrHuman, Assignee: vm.TrAssignee, AnyUpdate: vm.TrAny}}
+		HumanComments: vm.TrHuman, Assignee: vm.TrAssignee, AnyUpdate: vm.TrAny}, Cron: vm.CronExpr, CronTZ: vm.CronTZ, CronSkipUnchanged: vm.CronSkip}
 	var err error
 	if p.IntervalMinutes, err = formInt("interval_minutes", vm.IntervalMinutes); err != nil {
 		return p, err
@@ -245,7 +290,20 @@ func cardPolicyFromForm(vm views.StatusCardFormVM) (domain.CardPolicy, error) {
 	if vm.HoursStart != "" || vm.HoursEnd != "" {
 		p.ActiveHours = &domain.ActiveHours{Start: vm.HoursStart, End: vm.HoursEnd, TZ: vm.HoursTZ}
 	}
-	return p, p.Normalize()
+	return p, normalizeCardPolicyUI(&p)
+}
+
+// normalizeCardPolicyUI normaliza a política e confere a expressão cron como o service faz.
+func normalizeCardPolicyUI(p *domain.CardPolicy) error {
+	if err := p.Normalize(); err != nil {
+		return err
+	}
+	if p.Mode == domain.CardModeCron {
+		if _, err := service.ParseCron(p.Cron, p.CronTZ); err != nil {
+			return domain.Invalid("refresh_policy.cron", "invalid")
+		}
+	}
+	return nil
 }
 
 func statusCardFormError(ctx context.Context, vm *views.StatusCardFormVM, err error) {
@@ -265,6 +323,12 @@ func statusCardFormError(ctx context.Context, vm *views.StatusCardFormVM, err er
 			msg = i18n.T(ctx, "Escolha uma persona desta empresa.")
 		case "mode":
 			msg = i18n.T(ctx, "Escolha quando atualizar.")
+		case "cron":
+			msg = i18n.T(ctx, "Informe uma expressão cron de 5 campos válida, por exemplo 0 7 * * 1-5.")
+		case "cron_tz":
+			msg = i18n.T(ctx, "Fuso desconhecido.")
+		case "engine":
+			msg = i18n.T(ctx, "Escolha a persona ou o decision model.")
 		case "interval_minutes":
 			msg = i18n.T(ctx, "Use de 15 a 1440 minutos.")
 		case "debounce_seconds":
@@ -314,13 +378,19 @@ func (s *server) handleCreateStatusCard(w http.ResponseWriter, r *http.Request, 
 		bad(err)
 		return
 	}
-	sum, ok := parseID(trimForm(r, "summarizer"))
-	if !ok {
-		bad(domain.Invalid("summarizer", "invalid"))
-		return
+	in := service.CreateStatusCardInput{Interest: vm.Interest, Title: vm.Title, TitlePinned: vm.TitlePinned, Policy: &pol,
+		Engine: domain.CardEngine(vm.Engine), OnDashboard: vm.OnDashboard}
+	if vm.Engine == string(domain.CardEngineDecision) {
+		in.Queries = cardQueriesFromForm(vm)
+	} else {
+		sum, ok := parseID(trimForm(r, "summarizer"))
+		if !ok {
+			bad(domain.Invalid("summarizer", "invalid"))
+			return
+		}
+		in.SummarizerPersonaID = sum
 	}
-	v, err := s.be.CreateStatusCard(ctx, actorFrom(ctx), co.ID, service.CreateStatusCardInput{Interest: vm.Interest, Title: vm.Title,
-		TitlePinned: vm.TitlePinned, SummarizerPersonaID: sum, Policy: &pol})
+	v, err := s.be.CreateStatusCard(ctx, actorFrom(ctx), co.ID, in)
 	if err != nil {
 		bad(err)
 		return
@@ -344,9 +414,36 @@ func (s *server) statusCardFrom(w http.ResponseWriter, r *http.Request, co domai
 	return v, true
 }
 
+func cardEngineLabel(ctx context.Context, e domain.CardEngine) string {
+	if e == domain.CardEngineDecision {
+		return i18n.T(ctx, "Decision model: o resumo sai de uma chamada só ao modelo da empresa.")
+	}
+	return i18n.T(ctx, "Persona resumidora: uma run completa a cada atualização.")
+}
+
+// cardEngineForm completa o formulário de configuração com o motor, os filtros do decision model e a presença no Painel.
+func (s *server) cardEngineForm(ctx context.Context, co domain.Company, v service.StatusCardView, f *views.StatusCardFormVM) {
+	f.Engine, f.EngineLabel, f.OnDashboard = string(v.Engine), cardEngineLabel(ctx, v.Engine), v.OnDashboard
+	if v.Engine != domain.CardEngineDecision {
+		return
+	}
+	f.DecisionFields = true
+	var proj *domain.ID
+	if len(v.Queries) > 0 {
+		q := v.Queries[0]
+		proj, f.QueryOpen = q.ProjectID, q.OpenOnly
+		sts := make([]string, len(q.Statuses))
+		for i, st := range q.Statuses {
+			sts[i] = string(st)
+		}
+		f.QueryStatuses = strings.Join(sts, ",")
+	}
+	f.QueryProject = s.cardProjectOptions(ctx, co, proj)
+}
+
 func (s *server) cardLiveVM(ctx context.Context, co domain.Company, v service.StatusCardView, rev *domain.StatusCardRevision, now time.Time, loc *time.Location) views.StatusCardLiveVM {
 	href := cardsBase(co) + "/" + v.ID.String()
-	lv := views.StatusCardLiveVM{Href: href + "/estado", Busy: cardBusy(v), Badge: statusCardBadge(ctx, v.ViewState),
+	lv := views.StatusCardLiveVM{Href: href + "/estado", Engine: string(v.Engine), Busy: cardBusy(v), Badge: statusCardBadge(ctx, v.ViewState),
 		Compiling: v.ViewState == domain.CardViewCompiling, CompileFailed: cardCompileFailed(v), Pending: v.PendingChangeCount,
 		RefreshURL: href + "/atualizar", RecompileURL: href + "/montar", CanRefresh: views.RoleFrom(ctx).AtLeast(domain.MemberMember) && v.ArchivedAt == nil}
 	if v.State == domain.CardError && v.FailureReason != "" && !lv.CompileFailed {
@@ -372,6 +469,9 @@ func (s *server) cardLiveVM(ctx context.Context, co domain.Company, v service.St
 	}
 	if at != nil {
 		lv.Updated = agoCtx(ctx, *at, now, loc)
+	}
+	if v.ArtifactID != nil {
+		lv.ArtifactHref, lv.ArtifactName = "/c/"+co.Slug+"/artefatos/"+v.ArtifactID.String(), v.ArtifactName
 	}
 	return lv
 }
@@ -412,6 +512,8 @@ func cardTriggerLabel(ctx context.Context, t domain.CardUpdateTrigger) string {
 		return i18n.T(ctx, "mudança")
 	case domain.CardTriggerRestore:
 		return i18n.T(ctx, "restauração")
+	case domain.CardTriggerCron:
+		return i18n.T(ctx, "horário (cron)")
 	}
 	return i18n.T(ctx, "filtros novos")
 }
@@ -439,7 +541,7 @@ func (s *server) buildStatusCardVM(r *http.Request, co domain.Company, v service
 		}
 	}
 	title, untitled := cardTitle(ctx, v)
-	vm := views.StatusCardVM{Title: title, Untitled: untitled, Badge: statusCardBadge(ctx, v.ViewState), Interest: v.Interest, Tab: tab,
+	vm := views.StatusCardVM{Decision: v.Engine == domain.CardEngineDecision, Engine: cardEngineLabel(ctx, v.Engine), Title: title, Untitled: untitled, Badge: statusCardBadge(ctx, v.ViewState), Interest: v.Interest, Tab: tab,
 		Notice: i18n.T(ctx, statusCardNotices[q.Get("ok")]), RevisionAction: href, RecompileURL: href + "/montar", ArchiveURL: href + "/arquivar",
 		RestoreURL: href + "/restaurar", DeleteURL: href + "/excluir", Archived: v.ArchivedAt != nil, CanArchive: canArchiveCard(ctx, v),
 		QueryVersion: v.QueryVersion}
@@ -501,6 +603,7 @@ func (s *server) buildStatusCardVM(r *http.Request, co domain.Company, v service
 		if vm.Form.HoursTZ == "" {
 			vm.Form.HoursTZ = co.Timezone
 		}
+		s.cardEngineForm(ctx, co, v, &vm.Form)
 	case "tasks", "filtros":
 		pv, err := s.be.PreviewStatusCard(ctx, co.ID, v.ID)
 		if err != nil {
@@ -588,6 +691,7 @@ func (s *server) handleUpdateStatusCard(w http.ResponseWriter, r *http.Request, 
 	}
 	form := views.StatusCardFormVM{Action: cardsBase(co) + "/" + v.ID.String(), Edit: true, FieldErr: map[string]string{},
 		SummarizerOptions: s.cardSummarizerOptions(ctx, co, v.SummarizerPersonaID)}
+	s.cardEngineForm(ctx, co, v, &form)
 	statusCardFormValues(r, &form)
 	bad := func(err error) {
 		q := r.URL.Query()
@@ -607,12 +711,19 @@ func (s *server) handleUpdateStatusCard(w http.ResponseWriter, r *http.Request, 
 		bad(err)
 		return
 	}
-	sum, ok := parseID(trimForm(r, "summarizer"))
-	if !ok {
-		bad(domain.Invalid("summarizer", "invalid"))
-		return
+	in := service.UpdateStatusCardInput{Interest: &form.Interest, Title: &form.Title, TitlePinned: &form.TitlePinned, Policy: &pol,
+		OnDashboard: &form.OnDashboard}
+	if v.Engine == domain.CardEngineDecision {
+		qs := cardQueriesFromForm(form)
+		in.Queries = &qs
+	} else {
+		sum, ok := parseID(trimForm(r, "summarizer"))
+		if !ok {
+			bad(domain.Invalid("summarizer", "invalid"))
+			return
+		}
+		in.SummarizerPersonaID = sum
 	}
-	in := service.UpdateStatusCardInput{Interest: &form.Interest, Title: &form.Title, TitlePinned: &form.TitlePinned, SummarizerPersonaID: sum, Policy: &pol}
 	if _, err := s.be.UpdateStatusCard(ctx, actorFrom(ctx), co.ID, v.ID, in); err != nil {
 		bad(err)
 		return

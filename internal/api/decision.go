@@ -50,7 +50,7 @@ type DecisionModelConfig struct {
 
 // DecisionFeature é uma feature registrada e o estado dela na empresa.
 type DecisionFeature struct {
-	Feature     string `json:"feature" enum:"triage,phase_classifier,name_summary"`
+	Feature     string `json:"feature" enum:"triage,phase_classifier,name_summary,card_summary"`
 	Title       string `json:"title"`
 	Description string `json:"description"`
 	Enabled     bool   `json:"enabled"`
@@ -89,7 +89,7 @@ type DecisionCatalogModel struct {
 // DecisionInvocation é uma linha do livro de invocações (ator sempre system).
 type DecisionInvocation struct {
 	ID           string    `json:"id" format:"uuid"`
-	Feature      string    `json:"feature" enum:"triage,phase_classifier,name_summary"`
+	Feature      string    `json:"feature" enum:"triage,phase_classifier,name_summary,card_summary"`
 	Actor        string    `json:"actor" enum:"system"`
 	TaskID       string    `json:"task_id,omitempty" format:"uuid"`
 	Model        string    `json:"model"`
@@ -156,7 +156,7 @@ type decisionCatalogIn struct {
 
 type decisionFeatureIn struct {
 	CompanyPath
-	Feature string `path:"feature" enum:"triage,phase_classifier,name_summary"`
+	Feature string `path:"feature" enum:"triage,phase_classifier,name_summary,card_summary"`
 	Body    struct {
 		Enabled bool   `json:"enabled"`
 		Model   string `json:"model,omitempty" maxLength:"200" doc:"Modelo próprio da feature; vazio usa o da empresa."`

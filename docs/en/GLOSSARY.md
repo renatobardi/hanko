@@ -43,6 +43,9 @@ One term per concept. Code, API, MCP and database use English; the UI is in Braz
 | uncertain outcome | Desfecho incerto | A tool with an external effect was in progress when the run died; only a human decides whether it continues. | — |
 | steer | Mudar o rumo | An operator message to an active run: injected live (claude, acp) or by interrupt-and-continue (codex). | — |
 | follow-up | Follow-up | An instruction or message that waits for the active run in the unified queue (task and chat); editable and discardable until delivered. | — |
+| project stage | Etapa do projeto | An ordered step of a project's pipeline over tasks: it maps a task status and a persona, with an optional exit gate (none, approval, review). Not to be confused with a case pipeline (ADR-0034). Completing the stage moves the task on and wakes the next persona (ADR-0048). | task pipeline (in the UI) |
+| stage learning | Aprendizado da etapa | A gate decision of a stage (with a note, or not approved): it becomes an immutable history row, a `pipeline.learning` memory fact and goes back into the stage persona's briefing (ADR-0048). | — |
+| card engine | Motor do card | Who writes a status card's summary: the summarizer persona or the company decision model (`card_summary` feature) (ADR-0048). | — |
 
 ## How the core terms fit together
 

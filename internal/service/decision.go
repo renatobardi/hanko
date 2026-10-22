@@ -348,6 +348,10 @@ type featureRun struct {
 	prompt  decision.Prompt
 	// handle lê o conteúdo da resposta; devolve o que gravar na transação do registro (pode ser nil) ou erro.
 	handle func(content string) (apply func(t *txc) error, err error)
+	// maxTokens limita a resposta (padrão decisionMaxTokens: as features pequenas).
+	maxTokens int
+	// onInvoked recebe a invocação já gravada, dentro da transação, antes do efeito da feature (apply).
+	onInvoked func(inv domain.DecisionInvocation)
 }
 
 // runFeature chama o decision model para uma feature, grava a invocação no ledger (ator system, ok ou erro) e, se a
@@ -400,7 +404,11 @@ func (s *Service) runFeature(ctx context.Context, companyID domain.ID, fr featur
 	zero := 0.0
 	cctx, cancel := context.WithTimeout(ctx, timeout)
 	start := time.Now()
-	resp, callErr := client.Chat(cctx, provider.ChatRequest{Model: model, JSONObject: true, Temperature: &zero, MaxTokens: decisionMaxTokens,
+	maxTokens := decisionMaxTokens
+	if fr.maxTokens > 0 {
+		maxTokens = fr.maxTokens
+	}
+	resp, callErr := client.Chat(cctx, provider.ChatRequest{Model: model, JSONObject: true, Temperature: &zero, MaxTokens: maxTokens,
 		Messages: []provider.Message{{Role: "system", Content: fr.prompt.System}, {Role: "user", Content: fr.prompt.User}}})
 	cancel()
 	latency := int(time.Since(start).Milliseconds())
@@ -428,6 +436,9 @@ func (s *Service) runFeature(ctx context.Context, companyID domain.ID, fr featur
 			return mapErr(err, "insert decision invocation")
 		}
 		inv = invocationFromRow(row)
+		if fr.onInvoked != nil {
+			fr.onInvoked(inv)
+		}
 		if err := t.activity(domain.SystemActor, companyID, "decision.invoked", "decision_invocation", row.ID,
 			map[string]any{"feature": fr.feature, "model": row.Model, "status": row.Status, "cost_usd": row.CostUsd, "cost_source": row.CostSource}, ""); err != nil {
 			return err

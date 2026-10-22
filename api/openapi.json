@@ -252,6 +252,20 @@
         ],
         "type": "object"
       },
+      "AdvanceStageInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "note": {
+            "maxLength": 16000,
+            "type": "string"
+          },
+          "to": {
+            "description": "Etapa de destino (para a frente ou para trás); vazio = a seguinte, ou o fim do pipeline na última.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "Anchor": {
         "additionalProperties": false,
         "properties": {
@@ -1931,6 +1945,17 @@
         ],
         "type": "object"
       },
+      "CompleteStageInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "note": {
+            "description": "O que foi entregue na etapa.",
+            "maxLength": 16000,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "Connection": {
         "additionalProperties": false,
         "properties": {
@@ -3217,11 +3242,34 @@
       "CreateStatusCardInBody": {
         "additionalProperties": false,
         "properties": {
+          "engine": {
+            "description": "Padrão persona. decision = o decision model da empresa escreve o resumo numa chamada só (exige a feature card_summary ligada); os filtros vêm em queries.",
+            "enum": [
+              "persona",
+              "decision"
+            ],
+            "type": "string"
+          },
           "interest": {
             "description": "O que acompanhar, em linguagem natural.",
             "maxLength": 20000,
             "minLength": 1,
             "type": "string"
+          },
+          "on_dashboard": {
+            "description": "Mostra o card no Painel.",
+            "type": "boolean"
+          },
+          "queries": {
+            "description": "Só no motor decision: filtros de task (vazio = as tasks abertas).",
+            "items": {
+              "$ref": "#/components/schemas/StatusCardQueryIn"
+            },
+            "maxItems": 10,
+            "type": [
+              "array",
+              "null"
+            ]
           },
           "refresh_policy": {
             "$ref": "#/components/schemas/StatusCardPolicy",
@@ -3625,6 +3673,61 @@
         ],
         "type": "object"
       },
+      "DashboardStatusCard": {
+        "additionalProperties": false,
+        "properties": {
+          "artifact_id": {
+            "description": "Versão mais nova do artefato versionado do card.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "artifact_name": {
+            "type": "string"
+          },
+          "engine": {
+            "enum": [
+              "persona",
+              "decision"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "next_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "revision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "state": {
+            "type": "string"
+          },
+          "summary": {
+            "description": "O resumo atual em markdown.",
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "summary",
+          "revision",
+          "engine",
+          "state"
+        ],
+        "type": "object"
+      },
       "DecideGateInBody": {
         "additionalProperties": false,
         "properties": {
@@ -3893,7 +3996,8 @@
             "enum": [
               "triage",
               "phase_classifier",
-              "name_summary"
+              "name_summary",
+              "card_summary"
             ],
             "type": "string"
           },
@@ -3961,7 +4065,8 @@
             "enum": [
               "triage",
               "phase_classifier",
-              "name_summary"
+              "name_summary",
+              "card_summary"
             ],
             "type": "string"
           },
@@ -7239,6 +7344,16 @@
         ],
         "type": "object"
       },
+      "LeaveStageInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "note": {
+            "maxLength": 16000,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "LinkCaseInBody": {
         "additionalProperties": false,
         "properties": {
@@ -7642,6 +7757,37 @@
             "description": "Itens da página.",
             "items": {
               "$ref": "#/components/schemas/ConversationMessage"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "limit": {
+            "description": "Limite aplicado.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "offset": {
+            "description": "Deslocamento aplicado.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "limit",
+          "offset"
+        ],
+        "type": "object"
+      },
+      "ListBodyDashboardStatusCard": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "description": "Itens da página.",
+            "items": {
+              "$ref": "#/components/schemas/DashboardStatusCard"
             },
             "type": [
               "array",
@@ -9068,6 +9214,37 @@
             "description": "Itens da página.",
             "items": {
               "$ref": "#/components/schemas/SkillVersion"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "limit": {
+            "description": "Limite aplicado.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "offset": {
+            "description": "Deslocamento aplicado.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "limit",
+          "offset"
+        ],
+        "type": "object"
+      },
+      "ListBodyStageLearning": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "description": "Itens da página.",
+            "items": {
+              "$ref": "#/components/schemas/StageLearning"
             },
             "type": [
               "array",
@@ -11407,6 +11584,150 @@
         ],
         "type": "object"
       },
+      "ProjectStage": {
+        "additionalProperties": false,
+        "properties": {
+          "exit_gate": {
+            "enum": [
+              "none",
+              "approval",
+              "review"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "instructions": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "persona_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "persona_name": {
+            "type": "string"
+          },
+          "persona_slug": {
+            "type": "string"
+          },
+          "position": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "todo",
+              "in_progress",
+              "in_review"
+            ],
+            "type": "string"
+          },
+          "tasks": {
+            "description": "Tasks que estão nesta etapa agora.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "name",
+          "position",
+          "status",
+          "exit_gate",
+          "tasks"
+        ],
+        "type": "object"
+      },
+      "ProjectStageSpec": {
+        "additionalProperties": false,
+        "properties": {
+          "exit_gate": {
+            "description": "O que para o avanço ao fim da etapa: nada (padrão), uma aprovação humana ou a revisão da task (com a revisão automática da política vigente).",
+            "enum": [
+              "none",
+              "approval",
+              "review"
+            ],
+            "type": "string"
+          },
+          "instructions": {
+            "description": "O que se espera da etapa; entra no briefing da persona.",
+            "maxLength": 8192,
+            "type": "string"
+          },
+          "key": {
+            "description": "Chave estável da etapa (minúsculas, dígitos, _ e -).",
+            "examples": [
+              "dev"
+            ],
+            "pattern": "^[a-z][a-z0-9_-]{0,39}$",
+            "type": "string"
+          },
+          "name": {
+            "examples": [
+              "Desenvolvimento"
+            ],
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "persona": {
+            "description": "Slug ou id da persona da etapa; vazio = etapa humana.",
+            "type": "string"
+          },
+          "status": {
+            "description": "Status que a task recebe ao entrar na etapa. Com persona, só todo ou in_progress.",
+            "enum": [
+              "todo",
+              "in_progress",
+              "in_review"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "name",
+          "status"
+        ],
+        "type": "object"
+      },
+      "ProjectStages": {
+        "additionalProperties": false,
+        "properties": {
+          "project_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "project_slug": {
+            "type": "string"
+          },
+          "stages": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectStage"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "project_id",
+          "project_slug",
+          "stages"
+        ],
+        "type": "object"
+      },
       "ProjectStats": {
         "additionalProperties": false,
         "properties": {
@@ -13374,6 +13695,27 @@
         ],
         "type": "object"
       },
+      "SetProjectStagesInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "stages": {
+            "description": "A lista inteira, em ordem: substitui o pipeline. As chaves casam as etapas existentes; uma etapa que sai da lista não pode ter tasks.",
+            "items": {
+              "$ref": "#/components/schemas/ProjectStageSpec"
+            },
+            "maxItems": 12,
+            "minItems": 1,
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "stages"
+        ],
+        "type": "object"
+      },
       "SetRoleInBody": {
         "additionalProperties": false,
         "properties": {
@@ -14320,6 +14662,42 @@
         },
         "type": "object"
       },
+      "StageLearning": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "decision": {
+            "enum": [
+              "approved",
+              "changes_requested",
+              "rejected"
+            ],
+            "type": "string"
+          },
+          "gate_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "stage": {
+            "type": "string"
+          },
+          "task_key": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "stage",
+          "decision",
+          "created_at"
+        ],
+        "type": "object"
+      },
       "StageReview": {
         "additionalProperties": false,
         "properties": {
@@ -14346,11 +14724,30 @@
         },
         "type": "object"
       },
+      "StartStageInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "stage": {
+            "description": "Chave da etapa de entrada; padrão a primeira.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "StatusCard": {
         "additionalProperties": false,
         "properties": {
           "archived_at": {
             "format": "date-time",
+            "type": "string"
+          },
+          "artifact_id": {
+            "description": "Versão mais nova do artefato que guarda o resultado do card.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "artifact_name": {
+            "description": "Nome do artefato versionado do card.",
             "type": "string"
           },
           "company_id": {
@@ -14363,6 +14760,14 @@
           },
           "created_by": {
             "$ref": "#/components/schemas/ActorRef"
+          },
+          "engine": {
+            "description": "Quem escreve o resumo: a persona resumidora ou o decision model da empresa.",
+            "enum": [
+              "persona",
+              "decision"
+            ],
+            "type": "string"
           },
           "failure_reason": {
             "description": "Por que a última montagem ou atualização não terminou.",
@@ -14412,6 +14817,10 @@
           "next_eval_at": {
             "format": "date-time",
             "type": "string"
+          },
+          "on_dashboard": {
+            "description": "O card aparece no Painel.",
+            "type": "boolean"
           },
           "pending_change_count": {
             "description": "Mudanças nas tasks observadas desde a última versão do resumo.",
@@ -14509,6 +14918,8 @@
           "pending_change_count",
           "summary",
           "summary_revision",
+          "engine",
+          "on_dashboard",
           "created_by",
           "created_at",
           "updated_at"
@@ -14644,6 +15055,24 @@
             "$ref": "#/components/schemas/StatusCardActiveHours",
             "description": "Horário em que o card se atualiza sozinho; fora dele fica pausado."
           },
+          "cron": {
+            "description": "Modo cron: expressão de 5 campos (minuto hora dia-do-mês mês dia-da-semana).",
+            "examples": [
+              "0 7 * * 1-5"
+            ],
+            "type": "string"
+          },
+          "cron_skip_unchanged": {
+            "description": "Modo cron: no horário, só atualiza se alguma task observada mudou.",
+            "type": "boolean"
+          },
+          "cron_tz": {
+            "description": "Modo cron: fuso IANA (padrão UTC).",
+            "examples": [
+              "America/Sao_Paulo"
+            ],
+            "type": "string"
+          },
           "daily_token_cap": {
             "description": "Teto de tokens por dia somando as rodadas do card (0 = padrão 100000); atingido, o card pausa.",
             "format": "int64",
@@ -14672,11 +15101,12 @@
             "type": "integer"
           },
           "mode": {
-            "description": "Padrão reactive. manual = só sob pedido; interval = em horário fixo, se algo mudou; reactive = assim que algo mudar, com espera.",
+            "description": "Padrão reactive. manual = só sob pedido; interval = em horário fixo, se algo mudou; reactive = assim que algo mudar, com espera; cron = num horário de cron (ex. toda manhã), mesmo sem mudanças.",
             "enum": [
               "manual",
               "interval",
-              "reactive"
+              "reactive",
+              "cron"
             ],
             "type": "string"
           },
@@ -14769,6 +15199,54 @@
           },
           "text": {
             "description": "Texto no título ou na descrição.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "StatusCardQueryIn": {
+        "additionalProperties": false,
+        "properties": {
+          "goal": {
+            "description": "Slug ou id da meta.",
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "open": {
+            "description": "Só tasks abertas.",
+            "type": "boolean"
+          },
+          "persona": {
+            "description": "Slug ou id da persona.",
+            "type": "string"
+          },
+          "priority": {
+            "description": "Prioridades aceitas.",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "project": {
+            "description": "Slug ou id do projeto.",
+            "type": "string"
+          },
+          "status": {
+            "description": "Status aceitos.",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "text": {
             "type": "string"
           }
         },
@@ -14996,7 +15474,8 @@
               "interval",
               "reactive",
               "restore",
-              "query"
+              "query",
+              "cron"
             ],
             "type": "string"
           }
@@ -15365,6 +15844,10 @@
           "project_name": {
             "type": "string"
           },
+          "stage": {
+            "$ref": "#/components/schemas/TaskStageBrief",
+            "description": "Etapa do pipeline do projeto em que a task está (ADR-0048)."
+          },
           "status": {
             "enum": [
               "backlog",
@@ -15657,6 +16140,160 @@
           "id",
           "task_id",
           "by",
+          "created_at"
+        ],
+        "type": "object"
+      },
+      "TaskStage": {
+        "additionalProperties": false,
+        "properties": {
+          "entered_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/TaskStageEvent"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "learnings": {
+            "description": "Aprendizados da etapa atual: decisões de gate com nota.",
+            "items": {
+              "$ref": "#/components/schemas/StageLearning"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "next_stage": {
+            "type": "string"
+          },
+          "position": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "project_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "stage": {
+            "$ref": "#/components/schemas/ProjectStage"
+          },
+          "state": {
+            "description": "working = a persona da etapa trabalha; completing = a etapa terminou e um gate decide o avanço; finished = atravessou a última etapa ou saiu do pipeline.",
+            "enum": [
+              "working",
+              "completing",
+              "finished"
+            ],
+            "type": "string"
+          },
+          "task_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "total": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "task_id",
+          "project_id",
+          "stage",
+          "state",
+          "position",
+          "total",
+          "entered_at",
+          "events",
+          "learnings"
+        ],
+        "type": "object"
+      },
+      "TaskStageBrief": {
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "examples": [
+              "dev"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "examples": [
+              "Desenvolvimento"
+            ],
+            "type": "string"
+          },
+          "position": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "state": {
+            "enum": [
+              "working",
+              "completing",
+              "finished"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "name",
+          "position",
+          "state"
+        ],
+        "type": "object"
+      },
+      "TaskStageEvent": {
+        "additionalProperties": false,
+        "properties": {
+          "actor": {
+            "$ref": "#/components/schemas/ActorRef"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "decision": {
+            "type": "string"
+          },
+          "gate_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "enrolled",
+              "completed",
+              "gate_requested",
+              "gate_decided",
+              "advanced",
+              "returned",
+              "finished",
+              "left"
+            ],
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "stage": {
+            "type": "string"
+          },
+          "to_stage": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "actor",
           "created_at"
         ],
         "type": "object"
@@ -17617,6 +18254,17 @@
             "maxLength": 20000,
             "minLength": 1,
             "type": "string"
+          },
+          "on_dashboard": {
+            "description": "Liga ou desliga o card no Painel.",
+            "type": "boolean"
+          },
+          "queries": {
+            "description": "Só no motor decision: troca os filtros e refaz o resumo.",
+            "items": {
+              "$ref": "#/components/schemas/StatusCardQueryIn"
+            },
+            "type": "array"
           },
           "refresh_policy": {
             "$ref": "#/components/schemas/StatusCardPolicy"
@@ -25261,6 +25909,102 @@
         ]
       }
     },
+    "/api/v1/companies/{company}/dashboard/status-cards": {
+      "get": {
+        "operationId": "get-dashboard-status-cards",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListBodyDashboardStatusCard"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Cards de status marcados para o Painel, com o resumo e o artefato versionado",
+        "tags": [
+          "status-cards"
+        ]
+      }
+    },
     "/api/v1/companies/{company}/decision": {
       "delete": {
         "operationId": "delete-decision-model",
@@ -26460,7 +27204,8 @@
               "enum": [
                 "triage",
                 "phase_classifier",
-                "name_summary"
+                "name_summary",
+                "card_summary"
               ],
               "type": "string"
             }
@@ -41475,6 +42220,463 @@
         ]
       }
     },
+    "/api/v1/companies/{company}/projects/{project}/stage-learnings": {
+      "get": {
+        "operationId": "list-stage-learnings",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug do projeto.",
+            "in": "path",
+            "name": "project",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug do projeto.",
+              "examples": [
+                "lancamento"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Chave da etapa; vazio = todas.",
+            "explode": false,
+            "in": "query",
+            "name": "stage",
+            "schema": {
+              "description": "Chave da etapa; vazio = todas.",
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "format": "int64",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListBodyStageLearning"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Aprendizados das etapas: as decisões de gate com nota (ou sem aprovação), da mais nova para a mais antiga",
+        "tags": [
+          "stages"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/projects/{project}/stages": {
+      "delete": {
+        "operationId": "clear-project-stages",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug do projeto.",
+            "in": "path",
+            "name": "project",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug do projeto.",
+              "examples": [
+                "lancamento"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Desliga o pipeline do projeto (admin); recusa enquanto houver task numa etapa",
+        "tags": [
+          "stages"
+        ]
+      },
+      "get": {
+        "operationId": "get-project-stages",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug do projeto.",
+            "in": "path",
+            "name": "project",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug do projeto.",
+              "examples": [
+                "lancamento"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectStages"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Pipeline do projeto: as etapas em ordem",
+        "tags": [
+          "stages"
+        ]
+      },
+      "put": {
+        "operationId": "set-project-stages",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug do projeto.",
+            "in": "path",
+            "name": "project",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug do projeto.",
+              "examples": [
+                "lancamento"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetProjectStagesInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectStages"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Define o pipeline do projeto, substituindo a lista de etapas (admin)",
+        "tags": [
+          "stages"
+        ]
+      }
+    },
     "/api/v1/companies/{company}/readiness": {
       "get": {
         "operationId": "list-readiness",
@@ -51337,6 +52539,584 @@
         "summary": "Define a sobreposição de revisão da task (admin); corpo vazio ou inherit remove",
         "tags": [
           "tasks"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/tasks/{task}/stage": {
+      "get": {
+        "operationId": "get-task-stage",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou chave da task.",
+            "in": "path",
+            "name": "task",
+            "required": true,
+            "schema": {
+              "description": "Id ou chave da task.",
+              "examples": [
+                "HNK-12"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskStage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Posição da task no pipeline do projeto, com o histórico e os aprendizados da etapa",
+        "tags": [
+          "stages"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/tasks/{task}/stage/advance": {
+      "post": {
+        "operationId": "advance-task-stage",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou chave da task.",
+            "in": "path",
+            "name": "task",
+            "required": true,
+            "schema": {
+              "description": "Id ou chave da task.",
+              "examples": [
+                "HNK-12"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdvanceStageInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskStage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Move a task à mão para a etapa seguinte ou para a etapa indicada, por cima dos gates (member humano)",
+        "tags": [
+          "stages"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/tasks/{task}/stage/complete": {
+      "post": {
+        "operationId": "complete-task-stage",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou chave da task.",
+            "in": "path",
+            "name": "task",
+            "required": true,
+            "schema": {
+              "description": "Id ou chave da task.",
+              "examples": [
+                "HNK-12"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompleteStageInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskStage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Conclui a etapa: a task avança para a seguinte, ou espera o gate da etapa (member; a persona dona da task)",
+        "tags": [
+          "stages"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/tasks/{task}/stage/leave": {
+      "post": {
+        "operationId": "leave-task-stage",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou chave da task.",
+            "in": "path",
+            "name": "task",
+            "required": true,
+            "schema": {
+              "description": "Id ou chave da task.",
+              "examples": [
+                "HNK-12"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeaveStageInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Tira a task do pipeline (member)",
+        "tags": [
+          "stages"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/tasks/{task}/stage/start": {
+      "post": {
+        "operationId": "start-task-stage",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou chave da task.",
+            "in": "path",
+            "name": "task",
+            "required": true,
+            "schema": {
+              "description": "Id ou chave da task.",
+              "examples": [
+                "HNK-12"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartStageInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskStage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Põe a task no pipeline do projeto dela (member)",
+        "tags": [
+          "stages"
         ]
       }
     },

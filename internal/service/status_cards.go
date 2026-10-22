@@ -88,6 +88,11 @@ type CreateStatusCardInput struct {
 	TitlePinned         bool
 	SummarizerPersonaID *domain.ID
 	Policy              *domain.CardPolicy // nil = padrão
+	// Engine escolhe quem escreve o resumo: a persona resumidora (padrão) ou o decision model (ADR-0048). No motor
+	// decision os filtros vêm daqui (vazio = as tasks abertas) e não há montagem nem resumidora.
+	Engine      domain.CardEngine
+	Queries     []CardQueryInput
+	OnDashboard bool // mostra o card no Painel
 }
 
 // UpdateStatusCardInput altera um card; nil fica como está. Mudar o interesse (ou a resumidora de um card sem
@@ -99,6 +104,10 @@ type UpdateStatusCardInput struct {
 	SummarizerPersonaID *domain.ID
 	Policy              *domain.CardPolicy
 	Archived            *bool
+	// Queries troca os filtros de um card cujo motor é o decision model (no motor persona quem grava os filtros é a
+	// resumidora); OnDashboard liga ou desliga o card no Painel.
+	Queries     *[]CardQueryInput
+	OnDashboard *bool
 }
 
 // CardQueryInput é um filtro como a resumidora o informa: referências por slug ou id.
@@ -144,6 +153,7 @@ func cardFromRow(r store.StatusCard) domain.StatusCard {
 		FingerprintAt: r.FingerprintAt, MentionedTaskIDs: r.MentionedTaskIds, Summary: r.Summary, SummaryRevision: int(r.SummaryRevision),
 		LastGeneratedAt: r.LastGeneratedAt, LastModel: r.LastModel, GeneratingTaskID: r.GeneratingTaskID, GeneratingSince: r.GeneratingSince,
 		FailureReason: r.FailureReason, NextEvalAt: r.NextEvalAt, ArchivedAt: r.ArchivedAt, CreatedBy: actorOf(r.CreatedByType, r.CreatedByID),
+		Engine: domain.CardEngine(r.Engine), ArtifactName: r.ArtifactName, ArtifactID: r.ArtifactID, OnDashboard: r.OnDashboard,
 		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt}
 	if r.LastUpdateKind != nil {
 		c.LastUpdateKind = domain.CardUpdateKind(*r.LastUpdateKind)
@@ -451,11 +461,25 @@ func (s *Service) CreateStatusCard(ctx context.Context, actor domain.Actor, comp
 	if in.Policy != nil {
 		pol = *in.Policy
 	}
-	if err := pol.Normalize(); err != nil {
+	if err := normalizeCardPolicy(&pol); err != nil {
 		return StatusCardView{}, err
+	}
+	engine := in.Engine
+	if engine == "" {
+		engine = domain.CardEnginePersona
+	}
+	if !engine.Valid() {
+		return StatusCardView{}, domain.Invalid("engine", "use persona ou decision")
+	}
+	if engine == domain.CardEngineDecision && isPersona {
+		return StatusCardView{}, domain.Invalid("engine", "só uma pessoa escolhe o decision model como motor de um card")
+	}
+	if engine == domain.CardEnginePersona && len(in.Queries) > 0 {
+		return StatusCardView{}, domain.Invalid("queries", "no motor persona a resumidora grava os filtros (montagem); informe o interesse")
 	}
 	pinned := in.TitlePinned && title != ""
 	var out StatusCardView
+	var job *cardDecisionJob
 	err = s.withTx(ctx, func(t *txc) error {
 		if _, err := t.q.GetCompanyByID(ctx, companyID); err != nil {
 			return mapErr(err, "company")
@@ -483,26 +507,67 @@ func (s *Service) CreateStatusCard(ctx context.Context, actor domain.Actor, comp
 				summarizer = actor.ID
 			}
 		}
-		if err := t.checkSummarizer(companyID, summarizer); err != nil {
+		if engine == domain.CardEngineDecision {
+			summarizer = nil // o decision model não precisa de resumidora
+		} else if err := t.checkSummarizer(companyID, summarizer); err != nil {
 			return err
 		}
+		state := domain.CardCompiling
+		if engine == domain.CardEngineDecision {
+			state = domain.CardActive
+		}
 		row, err := t.q.InsertStatusCard(ctx, store.InsertStatusCardParams{ID: domain.NewID(), CompanyID: companyID, Title: title, TitlePinned: pinned,
-			Interest: interest, SummarizerPersonaID: summarizer, RefreshPolicy: mustJSON(pol), State: string(domain.CardCompiling),
+			Interest: interest, SummarizerPersonaID: summarizer, RefreshPolicy: mustJSON(pol), State: string(state),
 			CreatedByType: string(actor.Type), CreatedByID: actor.ID, Now: t.now})
 		if err != nil {
 			return mapErr(err, "create status card")
 		}
+		if err := t.q.SetStatusCardDelivery(ctx, store.SetStatusCardDeliveryParams{CompanyID: companyID, ID: row.ID, Engine: string(engine),
+			OnDashboard: in.OnDashboard, ArtifactName: "", Now: t.now}); err != nil {
+			return mapErr(err, "set status card delivery")
+		}
+		row.Engine, row.OnDashboard = string(engine), in.OnDashboard
 		if err := t.activity(actor, companyID, "status_card.created", "status_card", row.ID, map[string]any{
-			"title": title, "summarizer_persona_id": summarizer, "mode": pol.Mode}, ""); err != nil {
+			"title": title, "summarizer_persona_id": summarizer, "mode": pol.Mode, "engine": engine, "on_dashboard": in.OnDashboard}, ""); err != nil {
 			return err
 		}
-		if row, err = t.startCardCompile(row, domain.CardTriggerManual); err != nil {
+		if engine == domain.CardEngineDecision {
+			qs, err := t.decisionCardQueries(companyID, in.Queries)
+			if err != nil {
+				return err
+			}
+			row.Queries, row.QueryVersion, row.QueryCompiledAt = mustJSON(qs), 1, &t.now
+			row.NextEvalAt = &t.now // a primeira atualização sai no próximo tick (ou em "Atualizar agora")
+			if row, err = t.saveCard(row); err != nil {
+				return err
+			}
+		} else if row, err = t.startCardCompile(row, domain.CardTriggerManual); err != nil {
 			return err
 		}
+		job = t.cardJob
 		out, err = s.cardView(ctx, t.q, row, false)
 		return err
 	})
+	if err == nil && job != nil {
+		s.logCardJob(ctx, job)
+	}
 	return out, err
+}
+
+// decisionCardQueries resolve os filtros de um card do motor decision; vazio = as tasks abertas da empresa.
+func (t *txc) decisionCardQueries(companyID domain.ID, in []CardQueryInput) ([]domain.StatusCardQuery, error) {
+	if len(in) == 0 {
+		return []domain.StatusCardQuery{{Label: "Tasks abertas", OpenOnly: true}}, nil
+	}
+	return t.resolveCardQueries(companyID, in)
+}
+
+// logCardJob executa a geração aberta por uma escrita que não devolve o erro dela (criar, editar, restaurar): a falha
+// já ficou no card e na rodada, aqui só vai para o log.
+func (s *Service) logCardJob(ctx context.Context, job *cardDecisionJob) {
+	if err := s.runCardDecision(ctx, job); err != nil && s.Log != nil {
+		s.Log.Warn("card de status: a atualização pelo decision model falhou", "card_id", job.cardID, "err", err.Error())
+	}
 }
 
 // UpdateStatusCard altera o card. Mudar o interesse dispara a montagem de novo (o mesmo interesse não);
@@ -512,6 +577,7 @@ func (s *Service) UpdateStatusCard(ctx context.Context, actor domain.Actor, comp
 		return StatusCardView{}, err
 	}
 	var out StatusCardView
+	var job *cardDecisionJob
 	err := s.withTx(ctx, func(t *txc) error {
 		cur, err := t.q.GetStatusCardForUpdate(ctx, store.GetStatusCardForUpdateParams{CompanyID: companyID, ID: cardID})
 		if err != nil {
@@ -523,13 +589,16 @@ func (s *Service) UpdateStatusCard(ctx context.Context, actor domain.Actor, comp
 		next := cur
 		var changed []string
 		recompile := false
+		decisionCard := domain.CardEngine(cur.Engine) == domain.CardEngineDecision
+		stale := false // card do decision model com interesse ou filtros novos: o resumo atual está desatualizado
 		if in.Archived != nil && *in.Archived != (cur.ArchivedAt != nil) {
 			if err := s.requireArchive(ctx, actor, cur); err != nil {
 				return err
 			}
 		}
 		if cur.ArchivedAt != nil && (in.Archived == nil || *in.Archived) &&
-			(in.Interest != nil || in.Title != nil || in.TitlePinned != nil || in.SummarizerPersonaID != nil || in.Policy != nil) {
+			(in.Interest != nil || in.Title != nil || in.TitlePinned != nil || in.SummarizerPersonaID != nil || in.Policy != nil ||
+				in.Queries != nil || in.OnDashboard != nil) {
 			return domain.Invalid("archived", "restaure o card antes de editá-lo")
 		}
 		if in.Interest != nil {
@@ -540,7 +609,11 @@ func (s *Service) UpdateStatusCard(ctx context.Context, actor domain.Actor, comp
 			if v != cur.Interest {
 				next.Interest = v
 				changed = append(changed, "interest")
-				recompile = true
+				if decisionCard {
+					stale = true
+				} else {
+					recompile = true
+				}
 			}
 		}
 		if in.Title != nil {
@@ -560,6 +633,27 @@ func (s *Service) UpdateStatusCard(ctx context.Context, actor domain.Actor, comp
 		if next.TitlePinned && next.Title == "" {
 			next.TitlePinned = false
 		}
+		if in.SummarizerPersonaID != nil && decisionCard {
+			return domain.Invalid("summarizer", "o card usa o decision model como motor: não há persona resumidora")
+		}
+		if in.Queries != nil {
+			if !decisionCard {
+				return domain.Invalid("queries", "no motor persona quem grava os filtros é a resumidora (Montar de novo)")
+			}
+			qs, err := t.decisionCardQueries(companyID, *in.Queries)
+			if err != nil {
+				return err
+			}
+			if raw := mustJSON(qs); string(raw) != string(cur.Queries) {
+				next.Queries = raw
+				changed = append(changed, "queries")
+				stale = true
+			}
+		}
+		if in.OnDashboard != nil && *in.OnDashboard != cur.OnDashboard {
+			next.OnDashboard = *in.OnDashboard
+			changed = append(changed, "on_dashboard")
+		}
 		if in.SummarizerPersonaID != nil && (cur.SummarizerPersonaID == nil || *cur.SummarizerPersonaID != *in.SummarizerPersonaID) {
 			if err := t.checkSummarizer(companyID, in.SummarizerPersonaID); err != nil {
 				return err
@@ -573,7 +667,7 @@ func (s *Service) UpdateStatusCard(ctx context.Context, actor domain.Actor, comp
 		}
 		if in.Policy != nil {
 			p := *in.Policy
-			if err := p.Normalize(); err != nil {
+			if err := normalizeCardPolicy(&p); err != nil {
 				return err
 			}
 			raw := mustJSON(p)
@@ -583,7 +677,7 @@ func (s *Service) UpdateStatusCard(ctx context.Context, actor domain.Actor, comp
 				if cur.State == string(domain.CardPausedBudget) || cur.State == string(domain.CardPausedHours) {
 					next.State = string(domain.CardActive)
 				}
-				if next.ArchivedAt == nil && next.GeneratingTaskID == nil && next.State != string(domain.CardError) && next.QueryVersion > 0 {
+				if next.ArchivedAt == nil && next.GeneratingTaskID == nil && next.GeneratingSince == nil && next.State != string(domain.CardError) && next.QueryVersion > 0 {
 					next.NextEvalAt = &t.now // a política nova vale já no próximo tick
 				}
 			}
@@ -609,9 +703,22 @@ func (s *Service) UpdateStatusCard(ctx context.Context, actor domain.Actor, comp
 				return err
 			}
 		}
+		if stale { // o interesse ou os filtros mudaram: o resumo atual vale menos que uma geração nova
+			next.QueryVersion++
+			if next.ArchivedAt == nil && next.GeneratingSince == nil && next.State != string(domain.CardError) {
+				next.NextEvalAt = &t.now
+			}
+		}
 		row, err := t.saveCard(next)
 		if err != nil {
 			return err
+		}
+		if next.OnDashboard != cur.OnDashboard {
+			if err := t.q.SetStatusCardDelivery(t.ctx, store.SetStatusCardDeliveryParams{CompanyID: companyID, ID: row.ID, Engine: row.Engine,
+				OnDashboard: next.OnDashboard, ArtifactName: row.ArtifactName, Now: t.now}); err != nil {
+				return mapErr(err, "set status card delivery")
+			}
+			row.OnDashboard = next.OnDashboard
 		}
 		verb := "status_card.updated"
 		switch {
@@ -637,9 +744,13 @@ func (s *Service) UpdateStatusCard(ctx context.Context, actor domain.Actor, comp
 				return err
 			}
 		}
+		job = t.cardJob
 		out, err = s.cardView(ctx, t.q, row, false)
 		return err
 	})
+	if err == nil && job != nil {
+		s.logCardJob(ctx, job)
+	}
 	return out, err
 }
 
@@ -694,6 +805,9 @@ func (s *Service) RecompileStatusCard(ctx context.Context, actor domain.Actor, c
 		if cur.ArchivedAt != nil {
 			return domain.Invalid("archived", "restaure o card antes de montá-lo de novo")
 		}
+		if domain.CardEngine(cur.Engine) == domain.CardEngineDecision {
+			return domain.Invalid("engine", "o card usa o decision model como motor: não há montagem; use Atualizar agora")
+		}
 		if cur.SummarizerPersonaID == nil {
 			return domain.Invalid("summarizer", "escolha a persona resumidora antes de montar o card")
 		}
@@ -719,6 +833,7 @@ func (s *Service) RefreshStatusCard(ctx context.Context, actor domain.Actor, com
 	}
 	var out StatusCardView
 	var refused error
+	var job *cardDecisionJob
 	err := s.withTx(ctx, func(t *txc) error {
 		cur, err := t.q.GetStatusCardForUpdate(ctx, store.GetStatusCardForUpdateParams{CompanyID: companyID, ID: cardID})
 		if err != nil {
@@ -734,7 +849,7 @@ func (s *Service) RefreshStatusCard(ctx context.Context, actor domain.Actor, com
 			return fmt.Errorf("o card já está sendo atualizado: %w", domain.ErrConflict)
 		case cur.QueryVersion == 0:
 			return domain.Invalid("queries", "o card ainda não tem filtros: rode a montagem de novo")
-		case cur.SummarizerPersonaID == nil:
+		case cur.SummarizerPersonaID == nil && domain.CardEngine(cur.Engine) != domain.CardEngineDecision:
 			return domain.Invalid("summarizer", "escolha a persona resumidora antes de atualizar o card")
 		}
 		reason := evalManual
@@ -745,7 +860,8 @@ func (s *Service) RefreshStatusCard(ctx context.Context, actor domain.Actor, com
 		if err != nil {
 			return err
 		}
-		if row.GeneratingTaskID == nil && row.State == string(domain.CardPausedBudget) {
+		job = t.cardJob
+		if row.GeneratingTaskID == nil && job == nil && row.State == string(domain.CardPausedBudget) {
 			refused = domain.Invalid("daily_token_cap", "o teto diário de tokens deste card foi atingido; aumente o teto ou espere o dia seguinte")
 		}
 		if err := t.activity(actor, companyID, "status_card.refresh_requested", "status_card", row.ID, map[string]any{"full": full}, ""); err != nil {
@@ -756,6 +872,13 @@ func (s *Service) RefreshStatusCard(ctx context.Context, actor domain.Actor, com
 	})
 	if err == nil && refused != nil {
 		return out, refused
+	}
+	if err == nil && job != nil {
+		// o decision model responde na hora: a atualização manual devolve o card já com o resumo (ou o erro dela)
+		if jerr := s.runCardDecision(ctx, job); jerr != nil {
+			return out, jerr
+		}
+		return s.GetStatusCard(ctx, companyID, cardID)
 	}
 	return out, err
 }

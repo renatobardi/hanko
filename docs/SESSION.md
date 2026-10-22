@@ -1,10 +1,10 @@
-# Estado da última sessão (card de prévia social + varredura do repo público)
+# Estado da última sessão (card social + personas claude com integrações MCP, ADR-0059)
 Data: 2026-10-22 · PR #26 (`claude/dreamy-johnson-btv0kl`) → `main`
 
 ## Feito
-- Card de prévia social: `docs/brand/social-card.html` (1280×640, tokens do Kubo DS, selo sakura, margem de 80px) e `scripts/gen-social-card.mjs` gerando 5 PNG (EN/PT, claro/escuro, guias).
-- Varredura do repo público (#23): nenhum segredo vazado (`docs/validacao/2026-10-repo-publico.md`); job `gitleaks` no `security.yml` + `.gitleaks.toml`.
+- Card de prévia social: `docs/brand/social-card.html` e `scripts/gen-social-card.mjs` (5 PNG, EN/PT, claro/escuro, guias). Publicar é manual (Settings → Social preview).
+- Deploy do `main` (32cdc08) no prd com `HANKO_GIT_WORKSPACES=true`; adapter claude libera os servidores do gateway de tools em `--allowedTools` (`Spec.GatewayMCP`, ADR-0059).
 ## Travado
-- Dono liga no GitHub: secret scanning, push protection, Dependabot alerts, branch protection; publicar o PNG é manual (Settings → Social preview).
+- `adapter_config` de persona não é editável depois da contratação (nem API nem UI).
 ## Próximo passo
-- Subir `docs/brand/social-card.png`; dono decide PII/topologia nos exemplos e no deploy, chave Web do Firebase, actions por SHA, `trivy-fs`. Deploy do `main` segue pendente.
+- Deploy da correção do ADR-0059; criar a Conexão OAuth do GitHub, ligar as tools de leitura do Delivery Manager e apagar a política provisória de `WebFetch`; subir `docs/brand/social-card.png`.
