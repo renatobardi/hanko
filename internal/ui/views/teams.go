@@ -11,6 +11,7 @@ type TeamCard struct {
 }
 
 type TeamCatalogVM struct {
-	Notice string
-	Teams  []TeamCard
+	Notice   string
+	Teams    []TeamCard
+	Packages PackagesVM // pacotes hanko.team.v1 (ADR-0044)
 }

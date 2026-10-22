@@ -242,6 +242,8 @@ type server struct {
 	// arquivos enviados à tela /importar entre a prévia e a confirmação.
 	life    lifeBackend
 	imports importCache
+	// teamPkgs guarda o pacote de time enviado à tela do catálogo entre a prévia e a instalação (ADR-0044).
+	teamPkgs teamCache
 }
 
 // Mount registers the UI routes on mux using the real service.
@@ -334,6 +336,7 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("GET /c/{company}/personas/nova", co(s.handleNewPersona))
 	mux.HandleFunc("GET /c/{company}/personas/catalogo", co(s.handleTeamCatalog))
 	mux.HandleFunc("POST /c/{company}/personas/catalogo", post(co(s.handleInstallTeam)))
+	s.teamPkgRoutes(mux) // pacotes de time hanko.team.v1 (ADR-0044)
 	mux.HandleFunc("POST /c/{company}/personas/nova", post(co(s.handleHirePersona)))
 	mux.HandleFunc("GET /c/{company}/personas/{persona}", co(s.handlePersona))
 	s.instructionsRoutes(mux) // revisões das instruções (ADR-0052)

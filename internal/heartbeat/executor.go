@@ -233,6 +233,7 @@ func (h *Heartbeat) executeRunJob(ctx context.Context, a ExecuteRunArgs, ji jobI
 	defer func() { cleanup() }()
 
 	extras := h.runExtras(execCtx, rc, emit)
+	h.recordRunSkills(execCtx, rc, extras, emit)
 	// ${secret:...} do adapter_config da persona: resolvidos aqui, só em memória (ADR-0050). Falhar cedo, com o nome do
 	// segredo que faltou, é melhor do que rodar o agente sem a credencial.
 	var resolved []string
@@ -579,6 +580,26 @@ func (h *Heartbeat) runExtras(ctx context.Context, rc service.RunContext, emit f
 		emit(domain.EventSystem, w)
 	}
 	return ex
+}
+
+// runSkillsRecorder grava as revisões de skill que a run recebeu (ADR-0044); opcional como runExtrasBackend.
+type runSkillsRecorder interface {
+	RecordRunSkills(ctx context.Context, companyID, runID domain.ID, skills []domain.Skill) error
+}
+
+// recordRunSkills guarda o retrato das skills da run (slug, revisão efetiva, sha256): é o que permite saber depois com
+// qual versão uma execução rodou. Melhor esforço: uma falha vira aviso no log da run.
+func (h *Heartbeat) recordRunSkills(ctx context.Context, rc service.RunContext, ex service.RunExtras, emit func(domain.RunEventKind, string)) {
+	if len(ex.Skills) == 0 {
+		return
+	}
+	rb, ok := h.svc.(runSkillsRecorder)
+	if !ok {
+		return
+	}
+	if err := rb.RecordRunSkills(ctx, rc.Company.ID, rc.Run.ID, ex.Skills); err != nil {
+		emit(domain.EventSystem, "não consegui registrar as versões das skills desta execução: "+err.Error())
+	}
 }
 
 // secretsBackend resolve as referências a segredos do adapter_config; opcional como runExtrasBackend.

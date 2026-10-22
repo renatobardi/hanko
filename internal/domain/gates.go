@@ -20,11 +20,13 @@ const (
 	GateQuestion GateKind = "question"
 	// GatePlan é o plano que a persona submete antes de executar, quando a política de plan-review vale (ADR-0041).
 	GatePlan GateKind = "plan"
+	// GateConnection pede a um humano autorizar uma conexão OAuth (ADR-0043); aprovar só vale com a conexão conectada.
+	GateConnection GateKind = "connection"
 )
 
 func (k GateKind) Valid() bool {
 	return k == GateApproval || k == GateTaskReview || k == GateHire || k == GateMemory || k == GateTool || k == GateInstruction ||
-		k == GateQuestion || k == GatePlan
+		k == GateQuestion || k == GatePlan || k == GateConnection
 }
 
 // Blocking reports whether a pending gate of this kind holds the requesting persona

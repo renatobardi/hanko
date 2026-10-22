@@ -292,6 +292,42 @@ type CompanyPolicy struct {
 	UpdatedAt       time.Time
 }
 
+type Connection struct {
+	ID                    uuid.UUID
+	CompanyID             uuid.UUID
+	Slug                  string
+	Name                  string
+	Url                   string
+	Identity              string
+	OwnerUserID           *uuid.UUID
+	Status                string
+	IntegrationID         *uuid.UUID
+	Resource              string
+	Issuer                string
+	AuthorizationEndpoint string
+	TokenEndpoint         string
+	RegistrationEndpoint  string
+	ClientID              string
+	ClientSecretRef       string
+	Scopes                []string
+	AuthStateHash         *string
+	AuthVerifierEnc       string
+	AuthStartedByID       *uuid.UUID
+	AuthExpiresAt         *time.Time
+	ExpiresAt             *time.Time
+	ConnectedAt           *time.Time
+	RefreshingUntil       *time.Time
+	LastRefreshAt         *time.Time
+	LastProbeAt           *time.Time
+	LastProbeStatus       string
+	LastError             string
+	GateID                *uuid.UUID
+	CreatedByType         string
+	CreatedByID           *uuid.UUID
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
+}
+
 type Conversation struct {
 	ID            uuid.UUID
 	CompanyID     uuid.UUID
@@ -1126,6 +1162,17 @@ type RunPolicyOrigin struct {
 	UpdatedAt            time.Time
 }
 
+type RunSkill struct {
+	RunID     uuid.UUID
+	CompanyID uuid.UUID
+	SkillID   *uuid.UUID
+	Slug      string
+	Revision  int32
+	Sha256    string
+	Pinned    bool
+	CreatedAt time.Time
+}
+
 type Secret struct {
 	ID            uuid.UUID
 	CompanyID     uuid.UUID
@@ -1158,23 +1205,25 @@ type Session struct {
 }
 
 type Skill struct {
-	ID             uuid.UUID
-	CompanyID      uuid.UUID
-	Slug           string
-	Name           string
-	Description    string
-	Body           string
-	Version        int32
-	CreatedByType  string
-	CreatedByID    *uuid.UUID
-	UpdatedByType  string
-	UpdatedByID    *uuid.UUID
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
-	SourceID       *uuid.UUID
-	SourcePath     string
-	SourceCommit   *string
-	SourceModified bool
+	ID                 uuid.UUID
+	CompanyID          uuid.UUID
+	Slug               string
+	Name               string
+	Description        string
+	Body               string
+	Version            int32
+	CreatedByType      string
+	CreatedByID        *uuid.UUID
+	UpdatedByType      string
+	UpdatedByID        *uuid.UUID
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	SourceID           *uuid.UUID
+	SourcePath         string
+	SourceCommit       *string
+	SourceModified     bool
+	ForkedFromID       *uuid.UUID
+	ForkedFromRevision *int32
 }
 
 type SkillSource struct {
@@ -1478,6 +1527,20 @@ type TaskWorktree struct {
 	RemovedAt     *time.Time
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
+}
+
+type TeamInstall struct {
+	ID              uuid.UUID
+	CompanyID       uuid.UUID
+	PackageSlug     string
+	PackageName     string
+	PackageVersion  string
+	Source          string
+	Sha256          string
+	Counts          []byte
+	InstalledByType string
+	InstalledByID   *uuid.UUID
+	CreatedAt       time.Time
 }
 
 type ToolCallApproval struct {

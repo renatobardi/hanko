@@ -28,6 +28,8 @@ func gateKindLabel(ctx context.Context, k domain.GateKind) string {
 		return i18n.T(ctx, "Memória")
 	case domain.GateTool:
 		return i18n.T(ctx, "Tool")
+	case domain.GateConnection:
+		return i18n.T(ctx, "Conexão")
 	case domain.GateInstruction:
 		return i18n.T(ctx, "Instruções")
 	case domain.GateQuestion:
@@ -112,6 +114,9 @@ func gateRow(ctx context.Context, g service.GateView, base string, now time.Time
 			row.Persona, row.PersonaHref = p.Name, base+"/personas/"+p.Slug
 		}
 	}
+	if g.Kind == domain.GateConnection {
+		row.ConnectHref = base + "/ferramentas/conexoes"
+	}
 	row.Aged = row.Pending && now.Sub(g.CreatedAt) > gateAged
 	if g.DecidedAt != nil {
 		row.Decided = agoCtx(ctx, *g.DecidedAt, now, loc)
@@ -161,6 +166,7 @@ var gateKindTabs = []gateKindTab{
 	{"contratacao", i18n.N("Contratação"), domain.GateHire},
 	{"memoria", i18n.N("Memória"), domain.GateMemory},
 	{"tools", i18n.N("Tools"), domain.GateTool},
+	{"conexoes", i18n.N("Conexões"), domain.GateConnection},
 	{"perguntas", i18n.N("Perguntas"), domain.GateQuestion},
 	{"planos", i18n.N("Planos"), domain.GatePlan},
 }
