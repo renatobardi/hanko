@@ -98,11 +98,11 @@ func (t *txc) insertFlowRevision(actor domain.Actor, flowID domain.ID, rev int, 
 	}
 	var rf *int32
 	if restoredFrom != nil {
-		v := int32(*restoredFrom) //nolint:gosec // número de revisão pequeno
+		v := i32(*restoredFrom)
 		rf = &v
 	}
 	if _, err := t.q.InsertFlowRevision(t.ctx, store.InsertFlowRevisionParams{ID: domain.NewID(), CompanyID: f.CompanyID, FlowID: flowID,
-		Revision: int32(rev), Snapshot: raw, Summary: truncateRunes(summary, 500), ActorType: string(actor.Type), ActorID: actor.ID, //nolint:gosec // idem
+		Revision: i32(rev), Snapshot: raw, Summary: truncateRunes(summary, 500), ActorType: string(actor.Type), ActorID: actor.ID,
 		Origin: origin, RestoredFrom: rf, Now: t.now}); err != nil {
 		return mapErr(err, "insert flow revision")
 	}
@@ -116,7 +116,7 @@ func (t *txc) bumpFlowRevision(actor domain.Actor, flowID domain.ID, summary str
 		return mapErr(err, "get flow")
 	}
 	rev := int(f.Revision) + 1
-	if err := t.q.UpdateFlowExtras(t.ctx, store.UpdateFlowExtrasParams{ID: flowID, Variables: f.Variables, Revision: int32(rev), Now: t.now}); err != nil { //nolint:gosec // idem
+	if err := t.q.UpdateFlowExtras(t.ctx, store.UpdateFlowExtrasParams{ID: flowID, Variables: f.Variables, Revision: i32(rev), Now: t.now}); err != nil {
 		return fmt.Errorf("bump flow revision: %w", err)
 	}
 	return t.insertFlowRevision(actor, flowID, rev, "edit", summary, nil)
@@ -750,7 +750,7 @@ func (t *txc) afterFlowImport(flowID domain.ID, x export.Flow, replace bool) err
 	if replace {
 		rev = int(f.Revision) + 1
 	}
-	if err := t.q.UpdateFlowExtras(t.ctx, store.UpdateFlowExtrasParams{ID: flowID, Variables: raw, Revision: int32(rev), Now: t.now}); err != nil { //nolint:gosec // número de revisão pequeno
+	if err := t.q.UpdateFlowExtras(t.ctx, store.UpdateFlowExtrasParams{ID: flowID, Variables: raw, Revision: i32(rev), Now: t.now}); err != nil {
 		return fmt.Errorf("import flow variables: %w", err)
 	}
 	if err := t.insertFlowRevision(domain.SystemActor, flowID, rev, "import", "", nil); err != nil {

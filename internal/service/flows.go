@@ -416,7 +416,7 @@ func (s *Service) updateFlow(ctx context.Context, actor domain.Actor, companyID,
 		}
 		rev := int(cur.Revision) + 1
 		rawVars, _ := json.Marshal(vars)
-		if err := t.q.UpdateFlowExtras(ctx, store.UpdateFlowExtrasParams{ID: flowID, Variables: rawVars, Revision: int32(rev), Now: t.now}); err != nil { //nolint:gosec // revisão pequena
+		if err := t.q.UpdateFlowExtras(ctx, store.UpdateFlowExtrasParams{ID: flowID, Variables: rawVars, Revision: i32(rev), Now: t.now}); err != nil {
 			return fmt.Errorf("set flow extras: %w", err)
 		}
 		if err := t.activity(actor, companyID, "flow.updated", "flow", flowID, map[string]any{"fields": changed, "revision": rev}, ""); err != nil {
