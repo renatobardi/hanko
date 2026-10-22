@@ -1,0 +1,213 @@
+package views
+
+import (
+	"fmt"
+
+	"github.com/renatobardi/hanko/internal/i18n"
+)
+
+// ProjectStagesSection é a aba Etapas do projeto: as etapas em ordem (cada uma mapeia um status de task e,
+// opcionalmente, uma persona), o gate de saída e os aprendizados. Admin edita.
+templ ProjectStagesSection(vm ProjectStagesVM) {
+	if vm.Error != "" {
+		@Alert("danger", vm.Error)
+	}
+	<section class="card pad mb-6">
+		<div class="card-head"><h2>{ i18n.T(ctx, "Etapas do projeto") }</h2></div>
+		<p class="muted text-sm">{ i18n.T(ctx, "Uma task do projeto passa pelas etapas em ordem. Cada etapa define o status da task e a persona que trabalha nela; quando a persona conclui a etapa, a task avança e a persona seguinte é acordada. Só os gates de saída (aprovação ou revisão) param o avanço.") }</p>
+		if vm.Empty && !vm.CanEdit {
+			<p class="muted">{ i18n.T(ctx, "Este projeto ainda não tem etapas.") }</p>
+		}
+	</section>
+	if vm.CanEdit {
+		<form class="card pad form-card" method="post" action={ templ.SafeURL(vm.Action) } hx-boost="true">
+			<div class="stage-rows">
+				for _, row := range vm.Rows {
+					<fieldset class="field stage-row">
+						<legend>
+							{ fmt.Sprintf("%d", row.N) }
+							if row.Key != "" {
+								<span class="mono faint"> · { row.Key }</span>
+							}
+							if row.Tasks > 0 {
+								<span class="badge soft">{ i18n.Tf(ctx, "%d task(s)", row.Tasks) }</span>
+							}
+						</legend>
+						<div class="form-grid">
+							<div class="field">
+								<label for={ fmt.Sprintf("st-key-%d", row.N) }>{ i18n.T(ctx, "Chave") }</label>
+								<input class="input mono" id={ fmt.Sprintf("st-key-%d", row.N) } name={ fmt.Sprintf("key_%d", row.N) } value={ row.Key } maxlength="40" placeholder="dev"/>
+							</div>
+							<div class="field">
+								<label for={ fmt.Sprintf("st-name-%d", row.N) }>{ i18n.T(ctx, "Nome") }</label>
+								<input class="input" id={ fmt.Sprintf("st-name-%d", row.N) } name={ fmt.Sprintf("name_%d", row.N) } value={ row.Name } maxlength="80" placeholder={ i18n.T(ctx, "Desenvolvimento") }/>
+							</div>
+						</div>
+						<div class="form-grid">
+							<div class="field">
+								<label for={ fmt.Sprintf("st-status-%d", row.N) }>{ i18n.T(ctx, "Status da task na etapa") }</label>
+								@Select(fmt.Sprintf("status_%d", row.N), fmt.Sprintf("st-status-%d", row.N), row.StatusOptions, false)
+							</div>
+							<div class="field">
+								<label for={ fmt.Sprintf("st-persona-%d", row.N) }>{ i18n.T(ctx, "Persona da etapa") }</label>
+								@Select(fmt.Sprintf("persona_%d", row.N), fmt.Sprintf("st-persona-%d", row.N), row.PersonaOption, false)
+							</div>
+							<div class="field">
+								<label for={ fmt.Sprintf("st-gate-%d", row.N) }>{ i18n.T(ctx, "Gate ao concluir") }</label>
+								@Select(fmt.Sprintf("gate_%d", row.N), fmt.Sprintf("st-gate-%d", row.N), row.GateOptions, false)
+							</div>
+						</div>
+						<div class="field">
+							<label for={ fmt.Sprintf("st-instr-%d", row.N) }>{ i18n.T(ctx, "O que se espera da etapa") }</label>
+							<textarea class="textarea" id={ fmt.Sprintf("st-instr-%d", row.N) } name={ fmt.Sprintf("instructions_%d", row.N) } rows="3" maxlength="8192">{ row.Instructions }</textarea>
+						</div>
+					</fieldset>
+				}
+			</div>
+			<span class="hint">{ i18n.T(ctx, "A ordem das linhas é a ordem do pipeline. Deixe a chave vazia para não usar a linha; apagar todas as chaves desliga o pipeline (só sem tasks nas etapas). Uma etapa com persona precisa de status todo ou em andamento.") }</span>
+			<div class="form-actions">
+				<button class="btn primary" type="submit">{ i18n.T(ctx, "Salvar etapas") }</button>
+			</div>
+		</form>
+	} else if !vm.Empty {
+		<section class="card pad">
+			<table class="table mini">
+				<thead><tr><th>#</th><th>{ i18n.T(ctx, "Etapa") }</th><th>Status</th><th>Persona</th><th>{ i18n.T(ctx, "Gate ao concluir") }</th><th class="num">Tasks</th></tr></thead>
+				<tbody>
+					for _, row := range vm.Rows {
+						if row.Key != "" {
+							<tr>
+								<td class="mono">{ fmt.Sprint(row.N) }</td>
+								<td>{ row.Name } <span class="mono faint">{ row.Key }</span></td>
+								<td>{ selectedLabel(row.StatusOptions) }</td>
+								<td>{ selectedLabel(row.PersonaOption) }</td>
+								<td>{ selectedLabel(row.GateOptions) }</td>
+								<td class="num mono">{ fmt.Sprint(row.Tasks) }</td>
+							</tr>
+						}
+					}
+				</tbody>
+			</table>
+		</section>
+	}
+	<section class="card pad mt-6">
+		<div class="card-head"><h2>{ i18n.T(ctx, "Aprendizados das etapas") }</h2></div>
+		<p class="muted text-sm">{ i18n.T(ctx, "As decisões de gate com nota (ou que não aprovaram) voltam no briefing da persona da etapa e ficam na memória do projeto.") }</p>
+		@StageLearningsList(vm.Learnings)
+	</section>
+}
+
+func selectedLabel(opts []Option) string {
+	for _, o := range opts {
+		if o.Selected {
+			return o.Label
+		}
+	}
+	return "—"
+}
+
+templ StageLearningsList(rows []StageLearningRow) {
+	if len(rows) == 0 {
+		<p class="muted">{ i18n.T(ctx, "Nenhum aprendizado ainda: ele nasce quando um humano decide o gate de uma etapa.") }</p>
+	} else {
+		<table class="table mini">
+			<tbody>
+				for _, l := range rows {
+					<tr>
+						<td class="mono text-xs">{ l.When }</td>
+						<td>{ l.Stage }</td>
+						<td class="mono">
+							if l.TaskHref != "" {
+								<a href={ templ.SafeURL(l.TaskHref) }>{ l.TaskKey }</a>
+							}
+						</td>
+						<td><span class={ "badge", l.Class }>{ l.Decision }</span></td>
+						<td>{ l.Note }</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+	}
+}
+
+// TaskStagePanel é o painel "Etapa do projeto" na lateral da task.
+templ TaskStagePanel(vm TaskStageVM) {
+	if vm.Show {
+		<div class="side-sec">
+			<div class="side-h">{ i18n.T(ctx, "Etapa do projeto") }</div>
+			if vm.InPipeline {
+				<div class="prop"><span>{ i18n.T(ctx, "Etapa") }</span><span class="ta-r">{ vm.StageName } <span class="mono faint">{ fmt.Sprintf("%d/%d", vm.Position, vm.Total) }</span></span></div>
+				<div class="prop"><span>{ i18n.T(ctx, "Situação") }</span><span class={ "badge", vm.StateClass }>{ vm.State }</span></div>
+				<div class="prop"><span>Persona</span><span class="ta-r">{ vm.Persona }</span></div>
+				<div class="prop"><span>{ i18n.T(ctx, "Gate ao concluir") }</span><span class="ta-r">{ vm.ExitGate }</span></div>
+				<div class="prop"><span>{ i18n.T(ctx, "Próxima") }</span><span class="ta-r">{ vm.Next }</span></div>
+				if vm.CanWrite {
+					<form class="mt-3" method="post" action={ templ.SafeURL(vm.CompleteURL) } hx-boost="true">
+						<input class="input sm" name="note" maxlength="2000" placeholder={ i18n.T(ctx, "O que foi entregue (opcional)") }/>
+						<button class="btn sm primary mt-1" type="submit" disabled?={ !vm.CanComplete }>{ i18n.T(ctx, "Concluir etapa") }</button>
+					</form>
+					<form class="mt-2" method="post" action={ templ.SafeURL(vm.AdvanceURL) } hx-boost="true">
+						@Select("to", "ts-to", vm.BackOptions, true)
+						<input class="input sm mt-1" name="note" maxlength="2000" placeholder={ i18n.T(ctx, "Motivo (opcional)") }/>
+						<button class="btn sm outline mt-1" type="submit">{ i18n.T(ctx, "Mover à mão") }</button>
+					</form>
+					<form class="mt-2" method="post" action={ templ.SafeURL(vm.LeaveURL) } hx-boost="true">
+						<button class="btn sm ghost" type="submit">{ i18n.T(ctx, "Tirar do pipeline") }</button>
+					</form>
+				}
+				if len(vm.Learnings) > 0 {
+					<div class="side-h mt-3">{ i18n.T(ctx, "Aprendizados desta etapa") }</div>
+					for _, l := range vm.Learnings {
+						<p class="text-xs m-0"><span class={ "badge", l.Class }>{ l.Decision }</span> { l.Note }</p>
+					}
+				}
+				if len(vm.History) > 0 {
+					<div class="side-h mt-3">{ i18n.T(ctx, "Histórico") }</div>
+					for _, h := range vm.History {
+						<p class="text-xs m-0"><span class="mono faint">{ h.When }</span> { h.Text }</p>
+						if h.Note != "" {
+							<p class="faint text-xs m-0">{ h.Note }</p>
+						}
+					}
+				}
+			} else {
+				<p class="muted text-sm">{ i18n.T(ctx, "O projeto desta task tem etapas, mas ela não está nelas.") }</p>
+				if vm.CanWrite {
+					<form method="post" action={ templ.SafeURL(vm.StartAction) } hx-boost="true">
+						@Select("stage", "ts-start", vm.StartStages, true)
+						<button class="btn sm outline mt-1" type="submit">{ i18n.T(ctx, "Entrar no pipeline") }</button>
+					</form>
+				}
+			}
+		</div>
+	}
+}
+
+// DashboardCards são os cards de status marcados para o Painel: o resumo mais recente e o artefato versionado.
+templ DashboardCards(cards []DashboardCardVM, allHref string) {
+	if len(cards) > 0 {
+		<section class="mb-6">
+			<div class="card-head"><h2>{ i18n.T(ctx, "Cards de status") }</h2><a class="more" href={ templ.SafeURL(allHref) }>{ i18n.T(ctx, "Ver todos") }</a></div>
+			<div class="grid-2">
+				for _, c := range cards {
+					<article class="card pad">
+						<div class="card-head">
+							<h3><a href={ templ.SafeURL(c.Href) }>{ c.Title }</a></h3>
+							<span class="sub mono">{ c.Revision }</span>
+						</div>
+						<div class="md">@templ.Raw(string(c.Summary))</div>
+						<p class="faint text-xs mt-2">
+							{ c.Updated }
+							if c.Next != "" {
+								· { c.Next }
+							}
+							if c.ArtifactHref != "" {
+								· <a href={ templ.SafeURL(c.ArtifactHref) }>{ c.ArtifactName }</a>
+							}
+						</p>
+					</article>
+				}
+			</div>
+		</section>
+	}
+}

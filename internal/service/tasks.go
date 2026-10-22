@@ -45,6 +45,7 @@ func (s *Service) CreateTask(ctx context.Context, actor domain.Actor, companyID 
 	if _, err := normalizeNewTask(in); err != nil {
 		return TaskView{}, err
 	}
+	explicitPersona := in.PersonaID != nil // quem escolheu a persona não entra no pipeline do projeto sozinho (ADR-0048)
 	if in.PersonaID == nil && !in.Unassigned && actor.Type == domain.ActorHuman {
 		pid, err := s.primaryPersonaID(ctx, companyID)
 		if err != nil {
@@ -55,8 +56,20 @@ func (s *Service) CreateTask(ctx context.Context, actor domain.Actor, companyID 
 	var out TaskView
 	run := func() error {
 		return s.withTx(ctx, func(t *txc) error {
-			var err error
-			out, err = t.createTask(actor, companyID, in)
+			// Projeto com pipeline: a task nasce na primeira etapa, com o status e a persona dela (ADR-0048).
+			cin := in
+			first, err := t.stageForNewTask(actor, companyID, &cin, explicitPersona)
+			if err != nil {
+				return err
+			}
+			out, err = t.createTask(actor, companyID, cin)
+			if err != nil || first == nil {
+				return err
+			}
+			if err := t.stageEnrollNew(actor, companyID, out.ID, *first); err != nil {
+				return err
+			}
+			out, err = loadTaskView(ctx, t.q, companyID, out.ID)
 			return err
 		})
 	}
@@ -458,6 +471,14 @@ func (s *Service) UpdateTask(ctx context.Context, actor domain.Actor, companyID,
 			statusChanged, closedNow := false, false
 			from := domain.TaskStatus(cur.Status)
 			want := in.Status
+			// Uma persona que dá como concluída uma task de pipeline conclui a etapa, não a task (ADR-0048).
+			stageDone, err := t.stageIntercepts(actor, companyID, taskID, want)
+			if err != nil {
+				return err
+			}
+			if stageDone {
+				want = nil
+			}
 			reviewGate := false // a persona with require_review closing the task: in_review + task_review gate
 			requested := domain.TaskDone
 			overridden := false // um humano concluiu o pai com subtask aberta (motivo registrado)
@@ -504,6 +525,11 @@ func (s *Service) UpdateTask(ctx context.Context, actor domain.Actor, companyID,
 				return err
 			}
 			if len(acts) == 0 {
+				if stageDone {
+					if err := t.stageComplete(actor, companyID, cur, ""); err != nil {
+						return err
+					}
+				}
 				out, err = loadTaskView(ctx, t.q, companyID, taskID)
 				return err
 			}
@@ -560,6 +586,9 @@ func (s *Service) UpdateTask(ctx context.Context, actor domain.Actor, companyID,
 				if err := t.expireTaskGates(companyID, taskID, "task_closed"); err != nil {
 					return err
 				}
+				if err := t.stageTaskClosed(actor, companyID, row); err != nil {
+					return err
+				}
 			}
 			if reviewGate {
 				if err := t.requestTaskReview(actor, companyID, row, requested); err != nil {
@@ -582,6 +611,11 @@ func (s *Service) UpdateTask(ctx context.Context, actor domain.Actor, companyID,
 			}
 			if closedNow { // libera quem dependia desta task e acorda o pai quando o último filho fecha (ADR-0040)
 				if err := t.onTaskClosed(companyID, row); err != nil {
+					return err
+				}
+			}
+			if stageDone {
+				if err := t.stageComplete(actor, companyID, row, ""); err != nil {
 					return err
 				}
 			}

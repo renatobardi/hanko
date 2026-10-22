@@ -47,10 +47,11 @@ func (e *env) cardTitle(c api.StatusCard) string {
 
 func (e *env) printCard(c api.StatusCard) {
 	e.kv([2]string{"ID", c.ID}, [2]string{e.t("Título"), e.cardTitle(c)}, [2]string{e.t("Estado"), c.ViewState},
-		[2]string{e.t("Resumidora"), dash(c.SummarizerSlug)}, [2]string{e.t("Política"), c.Policy.Mode},
+		[2]string{e.t("Resumidora"), dash(c.SummarizerSlug)}, [2]string{e.t("Motor"), c.Engine}, [2]string{e.t("Política"), e.cardPolicyLabel(c.Policy)},
 		[2]string{e.t("Filtros"), fmt.Sprintf("v%d (%d)", c.QueryVersion, len(c.Queries))}, [2]string{e.t("Versão do resumo"), strconv.Itoa(c.SummaryRevision)},
 		[2]string{e.t("Mudanças pendentes"), strconv.Itoa(c.PendingChangeCount)}, [2]string{e.t("Gerado em"), e.fmtTimePtr(c.LastGeneratedAt)},
-		[2]string{e.t("Próxima verificação"), e.fmtTimePtr(c.NextEvalAt)})
+		[2]string{e.t("Próxima verificação"), e.fmtTimePtr(c.NextEvalAt)}, [2]string{e.t("No Painel"), e.yesNo(c.OnDashboard)},
+		[2]string{e.t("Artefato"), dash(c.ArtifactName)})
 	if c.FailureReason != "" {
 		fmt.Fprintln(e.out, "\n"+e.t("Falha:")+" "+c.FailureReason)
 	}
@@ -58,6 +59,26 @@ func (e *env) printCard(c api.StatusCard) {
 	if c.Summary != "" {
 		fmt.Fprintln(e.out, "\n"+c.Summary)
 	}
+}
+
+// cardPolicyLabel mostra a política do card; no modo cron, com a expressão e o fuso.
+func (e *env) cardPolicyLabel(p api.StatusCardPolicy) string {
+	if p.Mode != "cron" {
+		return p.Mode
+	}
+	tz := p.CronTZ
+	if tz == "" {
+		tz = "UTC"
+	}
+	return "cron " + p.Cron + " (" + tz + ")"
+}
+
+// cardQueryFlags monta o filtro único dos cards do decision model a partir das flags (vazio = as tasks abertas).
+func cardQueryFlags(statuses, priorities []string, project, persona string, open bool) []api.StatusCardQueryIn {
+	if len(statuses) == 0 && len(priorities) == 0 && project == "" && persona == "" && !open {
+		return nil
+	}
+	return []api.StatusCardQueryIn{{Statuses: statuses, Priorities: priorities, Project: project, Persona: persona, OpenOnly: open}}
 }
 
 func (e *env) statusCardCmd() *cobra.Command {
@@ -106,8 +127,9 @@ func (e *env) statusCardCmd() *cobra.Command {
 		},
 	}
 
-	var title, summarizer, mode string
-	var pin bool
+	var title, summarizer, mode, engine, cronExpr, cronTZ, qProject, qPersona string
+	var pin, dashboard, cronSkip, qOpen bool
+	var qStatuses, qPriorities []string
 	create := &cobra.Command{
 		Use: "create " + e.t("<interesse>"), Short: e.t("Cria um card de status; a resumidora monta os filtros"), Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -115,9 +137,13 @@ func (e *env) statusCardCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			in := client.CreateStatusCardReq{Interest: strings.Join(args, " "), Title: title, TitlePinned: pin, Summarizer: summarizer}
+			in := client.CreateStatusCardReq{Interest: strings.Join(args, " "), Title: title, TitlePinned: pin, Summarizer: summarizer,
+				Engine: engine, OnDashboard: dashboard, Queries: cardQueryFlags(qStatuses, qPriorities, qProject, qPersona, qOpen)}
+			if cronExpr != "" && mode == "" {
+				mode = "cron"
+			}
 			if mode != "" {
-				in.Policy = &api.StatusCardPolicy{Mode: mode}
+				in.Policy = &api.StatusCardPolicy{Mode: mode, Cron: cronExpr, CronTZ: cronTZ, CronSkipUnchanged: cronSkip}
 			}
 			x, err := e.client().CreateStatusCard(cmd.Context(), co, in)
 			if err != nil {
@@ -134,10 +160,21 @@ func (e *env) statusCardCmd() *cobra.Command {
 	cf.StringVar(&title, "title", "", e.t("título do card (padrão: a resumidora propõe)"))
 	cf.BoolVar(&pin, "pin-title", false, e.t("fixa o título (a resumidora não o troca)"))
 	cf.StringVar(&summarizer, "summarizer", "", e.t("persona resumidora (id ou slug)"))
-	cf.StringVar(&mode, "mode", "", e.t("política: manual, interval ou reactive (padrão reactive)"))
+	cf.StringVar(&mode, "mode", "", e.t("política: manual, interval, reactive ou cron (padrão reactive)"))
+	cf.StringVar(&engine, "engine", "", e.t("motor: persona (padrão) ou decision (o decision model da empresa escreve o resumo)"))
+	cf.StringVar(&cronExpr, "cron", "", e.t("expressão cron de 5 campos (liga o modo cron), ex. \"0 7 * * 1-5\""))
+	cf.StringVar(&cronTZ, "tz", "", e.t("fuso do cron (padrão UTC)"))
+	cf.BoolVar(&cronSkip, "cron-skip-unchanged", false, e.t("no horário do cron, só atualiza se alguma task mudou"))
+	cf.BoolVar(&dashboard, "dashboard", false, e.t("mostra o card no Painel"))
+	cf.StringSliceVar(&qStatuses, "status", nil, e.t("motor decision: status das tasks observadas"))
+	cf.StringSliceVar(&qPriorities, "priority", nil, e.t("motor decision: prioridades das tasks observadas"))
+	cf.StringVar(&qProject, "project", "", e.t("motor decision: projeto das tasks observadas (slug)"))
+	cf.StringVar(&qPersona, "persona", "", e.t("motor decision: persona das tasks observadas (slug)"))
+	cf.BoolVar(&qOpen, "open", false, e.t("motor decision: só tasks abertas"))
 
-	var uInterest, uTitle, uSummarizer, uMode string
-	var uPin, uUnpin bool
+	var uInterest, uTitle, uSummarizer, uMode, uCron, uCronTZ, uProject, uPersona string
+	var uPin, uUnpin, uDashOn, uDashOff, uCronSkip, uOpen bool
+	var uStatuses, uPriorities []string
 	update := &cobra.Command{
 		Use: "update " + e.t("<id>"), Short: e.t("Altera um card (mudar o interesse remonta os filtros)"), Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -153,8 +190,18 @@ func (e *env) statusCardCmd() *cobra.Command {
 					v := uPin
 					in.TitlePinned = &v
 				}
+				if uCron != "" && uMode == "" {
+					uMode = "cron"
+				}
 				if uMode != "" {
-					in.Policy = &api.StatusCardPolicy{Mode: uMode}
+					in.Policy = &api.StatusCardPolicy{Mode: uMode, Cron: uCron, CronTZ: uCronTZ, CronSkipUnchanged: uCronSkip}
+				}
+				if uDashOn || uDashOff {
+					v := uDashOn
+					in.OnDashboard = &v
+				}
+				if qs := cardQueryFlags(uStatuses, uPriorities, uProject, uPersona, uOpen); qs != nil {
+					in.Queries = &qs
 				}
 				x, err := e.client().UpdateStatusCard(cmd.Context(), co, id, in)
 				if err != nil {
@@ -170,7 +217,17 @@ func (e *env) statusCardCmd() *cobra.Command {
 	uf.BoolVar(&uPin, "pin-title", false, e.t("fixa o título (a resumidora não o troca)"))
 	uf.BoolVar(&uUnpin, "unpin-title", false, e.t("deixa a resumidora propor o título"))
 	uf.StringVar(&uSummarizer, "summarizer", "", e.t("persona resumidora (id ou slug)"))
-	uf.StringVar(&uMode, "mode", "", e.t("política: manual, interval ou reactive (padrão reactive)"))
+	uf.StringVar(&uMode, "mode", "", e.t("política: manual, interval, reactive ou cron (padrão reactive)"))
+	uf.StringVar(&uCron, "cron", "", e.t("expressão cron de 5 campos (liga o modo cron), ex. \"0 7 * * 1-5\""))
+	uf.StringVar(&uCronTZ, "tz", "", e.t("fuso do cron (padrão UTC)"))
+	uf.BoolVar(&uCronSkip, "cron-skip-unchanged", false, e.t("no horário do cron, só atualiza se alguma task mudou"))
+	uf.BoolVar(&uDashOn, "dashboard", false, e.t("mostra o card no Painel"))
+	uf.BoolVar(&uDashOff, "no-dashboard", false, e.t("tira o card do Painel"))
+	uf.StringSliceVar(&uStatuses, "status", nil, e.t("motor decision: status das tasks observadas"))
+	uf.StringSliceVar(&uPriorities, "priority", nil, e.t("motor decision: prioridades das tasks observadas"))
+	uf.StringVar(&uProject, "project", "", e.t("motor decision: projeto das tasks observadas (slug)"))
+	uf.StringVar(&uPersona, "persona", "", e.t("motor decision: persona das tasks observadas (slug)"))
+	uf.BoolVar(&uOpen, "open", false, e.t("motor decision: só tasks abertas"))
 
 	archive := e.cardArchiveCmd("archive", e.t("Arquiva um card (encerra a geração em andamento)"), true, e.t("Card arquivado."))
 	restore := e.cardArchiveCmd("restore", e.t("Restaura um card arquivado (e refaz o resumo do zero)"), false, e.t("Card restaurado."))

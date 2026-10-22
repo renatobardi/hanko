@@ -179,3 +179,29 @@ FROM tasks t JOIN companies c ON c.id = t.company_id
 LEFT JOIN personas p ON p.id = t.persona_id
 WHERE t.company_id = @company_id AND t.id = ANY(@ids::uuid[])
 ORDER BY t.number;
+
+-- name: GetRunningDecisionCardUpdateForUpdate :one
+-- A rodada em andamento de um card cujo motor é o decision model (sem task de sistema).
+SELECT * FROM status_card_updates
+WHERE card_id = @card_id::uuid AND task_id IS NULL AND status = 'running'
+ORDER BY started_at DESC LIMIT 1 FOR UPDATE;
+
+-- name: GetStatusCardUpdateForUpdate :one
+SELECT * FROM status_card_updates WHERE id = @id::uuid FOR UPDATE;
+
+-- name: SetStatusCardDelivery :exec
+-- Motor (persona ou decision model), nome do artefato e presença no Painel (ADR-0048). O nome só é gravado uma vez.
+UPDATE status_cards
+SET engine = @engine, on_dashboard = @on_dashboard,
+    artifact_name = CASE WHEN artifact_name = '' THEN @artifact_name ELSE artifact_name END,
+    updated_at = @now
+WHERE company_id = @company_id AND id = @id;
+
+-- name: SetStatusCardArtifact :exec
+UPDATE status_cards SET artifact_id = @artifact_id WHERE company_id = @company_id AND id = @id;
+
+-- name: ListDashboardStatusCards :many
+SELECT * FROM status_cards
+WHERE company_id = @company_id AND on_dashboard AND archived_at IS NULL AND summary_revision > 0
+ORDER BY last_generated_at DESC NULLS LAST, created_at DESC
+LIMIT 6;

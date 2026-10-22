@@ -275,6 +275,12 @@ func (s *Service) PutArtifact(ctx context.Context, actor domain.Actor, companyID
 	if err := s.require(ctx, companyID, domain.MemberMember); err != nil {
 		return ArtifactView{}, err
 	}
+	return s.putArtifact(ctx, actor, companyID, in)
+}
+
+// putArtifact é o PutArtifact sem a checagem de papel: quem chama já autorizou a escrita (o Hanko publicando o
+// resultado de um card de status, por exemplo, sem pessoa autenticada no contexto).
+func (s *Service) putArtifact(ctx context.Context, actor domain.Actor, companyID domain.ID, in PutArtifactInput) (ArtifactView, error) {
 	name, err := cleanArtifactName(in.Name)
 	if err != nil {
 		return ArtifactView{}, err
