@@ -9,7 +9,13 @@ import (
 // GateDecideForm answers a pending gate. compact (inbox, dashboard) has no note field and
 // no "Pedir mudanças" (that one needs a note). next says where to go afterwards.
 templ GateDecideForm(g GateRow, next string, compact bool) {
-	if !canDecide(ctx, g.Kind) {
+	if g.Kind == "question" {
+		if compact {
+			<div class="gate-ro"><a class="btn primary sm" href={ templ.SafeURL(g.Href) }>{ i18n.T(ctx, "Responder") }</a></div>
+		} else {
+			@GateQuestionForm(g, next)
+		}
+	} else if !canDecide(ctx, g.Kind) {
 		<div class="gate-ro">
 			if compact {
 				<a class="btn ghost sm" href={ templ.SafeURL(g.Href) }>{ i18n.T(ctx, "Abrir") }</a>
@@ -41,10 +47,17 @@ templ GateDecideForm(g GateRow, next string, compact bool) {
 						{ i18n.T(ctx, "Aprovar e sempre permitir") }
 					</button>
 				}
-				<button class="btn primary sm" type="submit" name="decision" value="approved">
-					@Icon("check")
-					{ i18n.T(ctx, "Aprovar") }
-				</button>
+				if g.Kind == "connection" && g.ConnectHref != "" {
+					<a class="btn primary sm" href={ templ.SafeURL(g.ConnectHref) }>
+						@Icon("plug")
+						{ i18n.T(ctx, "Autorizar conexão") }
+					</a>
+				} else {
+					<button class="btn primary sm" type="submit" name="decision" value="approved">
+						@Icon("check")
+						{ i18n.T(ctx, "Aprovar") }
+					</button>
+				}
 			</div>
 		</form>
 	}
@@ -139,6 +152,17 @@ templ GatesPage(sh Shell, vm GatesVM) {
 			<span class="grow"></span>
 			@Tabs(vm.Kinds)
 		</div>
+		if vm.MineHref != "" {
+			<p class="filter-chip">
+				<a class={ "chip", templ.KV("soft", !vm.Mine) } href={ templ.SafeURL(vm.MineHref) } aria-pressed?={ vm.Mine }>
+					@Icon("user")
+					{ i18n.T(ctx, "Minha audiência") }
+				</a>
+				if vm.Mine {
+					<span class="muted text-sm">{ i18n.T(ctx, "Gates que você pediu ou decidiu, ou de tasks em que você participa.") }</span>
+				}
+			</p>
+		}
 		@GateRows(vm.Rows, vm.Empty)
 	}
 }
@@ -191,12 +215,19 @@ templ GatePage(sh Shell, vm GateVM) {
 						<p class="muted">{ i18n.T(ctx, "Sem detalhes além do título.") }</p>
 					}
 				</div>
+				if vm.Hire != nil {
+					@GateHireCard(*vm.Hire)
+				}
+				if vm.History != nil {
+					@GateHistoryCard(*vm.History)
+				}
+				@GateAnswerCard(vm.Row)
 				if vm.Row.Pending {
 					<section class="gate-banner mt-6" aria-label={ i18n.T(ctx, "Decidir") }>
 						<div class="gate-head">@Icon("shield") <b>{ i18n.T(ctx, "Sua decisão") }</b> <span class="gate-when">{ i18n.T(ctx, "a persona fica parada até você responder") }</span></div>
 						@GateDecideForm(vm.Row, "gate", false)
 					</section>
-				} else {
+				} else if vm.Row.Kind != "question" || vm.Row.Question == nil || !vm.Row.Question.Dismissed {
 					<section class="card pad mt-6">
 						<div class="card-head"><h2>{ i18n.T(ctx, "Decisão") }</h2></div>
 						<p>
@@ -235,6 +266,12 @@ templ GatePage(sh Shell, vm GateVM) {
 							}
 						</span></div>
 						<div class="prop"><span>{ i18n.T(ctx, "Pedido em") }</span><span class="mono text-xs">{ vm.Created }</span></div>
+						if vm.Row.Revision > 1 {
+							<div class="prop"><span>{ i18n.T(ctx, "Revisão") }</span><span class="mono text-xs">{ fmt.Sprint(vm.Row.Revision) }</span></div>
+						}
+						if vm.Row.Audience != "" {
+							<div class="prop"><span>{ i18n.T(ctx, "Audiência") }</span><span class="text-xs">{ vm.Row.Audience }</span></div>
+						}
 						if !vm.Row.Pending {
 							<div class="prop"><span>{ i18n.T(ctx, "Decidido em") }</span><span class="mono text-xs">{ vm.Decided }</span></div>
 						}

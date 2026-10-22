@@ -38,6 +38,11 @@ One term per concept. Code, API, MCP and database use English; the UI is in Braz
 | task dependency | Dependência | `task_dependencies`: a task is dispatched only when all its dependencies close (done or cancelled). No cycles, same company, at most 50. **Blocked** is derived (an open dependency), never a stored status; the `blocked` status stays the "parked waiting for someone" one (ADR-0040). | blocker (ambiguous with the `blocked` status) |
 | subtask / hold | Subtask / Pausa | A subtask is a task with `parent_id` (up to 10 levels); the parent wakes when the last one closes and cannot complete with an open child (human override with a reason). A hold (`task_holds`) freezes the task and, by computed inheritance, its whole subtree: no run opens; resuming wakes the requests that were refused (ADR-0040). | freeze, suspension |
 | review policy | Política de revisão | `require_review` and the automatic reviewer resolved by layer, task > project > persona, field by field; the run records where each decision came from (ADR-0040). | — |
+| continuation | Continuação | A run opened from an interrupted run (`continuation_of_run_id`): it resumes the harness session and receives a briefing of what was already done. At most 2 automatic ones per chain (ADR-0039). | retry (that is another action) |
+| diagnosis | Diagnóstico | The card of a run that stopped: cause, attempt, next action and owner; carries the uncertain outcome when there is one. | — |
+| uncertain outcome | Desfecho incerto | A tool with an external effect was in progress when the run died; only a human decides whether it continues. | — |
+| steer | Mudar o rumo | An operator message to an active run: injected live (claude, acp) or by interrupt-and-continue (codex). | — |
+| follow-up | Follow-up | An instruction or message that waits for the active run in the unified queue (task and chat); editable and discardable until delivered. | — |
 
 ## How the core terms fit together
 

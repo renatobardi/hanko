@@ -174,6 +174,8 @@ func (s *server) coordVM(ctx context.Context, co domain.Company, t service.TaskV
 	}
 	c.Review = views.CoordReview{Summary: reviewSummary(ctx, pol, pn), CanEdit: true, Action: taskBase + "/politica-revisao",
 		RequireOptions: requireOptions(ctx, pol.Task), ReviewerOptions: reviewerOptions(ctx, pol.Task, personas)}
+	c.Plan = s.taskPlanVM(ctx, co, t) // plan-review (ADR-0041)
+	s.gitCoord(ctx, co, t, &c)
 	return c, nil
 }
 

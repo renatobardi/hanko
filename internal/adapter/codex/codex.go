@@ -51,6 +51,10 @@ func New(o Options) *Adapter {
 
 func (a *Adapter) Name() string { return "codex" }
 
+// SteerMode: `codex exec` reads the prompt once and has no channel for a message mid-run, so an operator message
+// interrupts the run and continues it (ADR-0039).
+func (a *Adapter) SteerMode() domain.SteerMode { return domain.SteerRestart }
+
 // Config is the codex-specific part of persona.adapter_config.
 type Config struct {
 	Sandbox   string   `json:"sandbox"` // read-only | workspace-write | danger-full-access; default workspace-write
@@ -167,7 +171,7 @@ func BuildArgs(spec adapter.Spec, cfg Config, dir string, mcpArgs []string) []st
 	if sandbox == "" {
 		sandbox = "workspace-write"
 	}
-	if spec.ReadOnly {
+	if spec.ReadOnly || spec.PlanOnly {
 		sandbox = "read-only"
 	}
 	args := []string{"exec", "--json", "--skip-git-repo-check", "--sandbox", sandbox}
@@ -178,7 +182,7 @@ func BuildArgs(spec adapter.Spec, cfg Config, dir string, mcpArgs []string) []st
 		args = append(args, "-C", dir)
 	}
 	args = append(args, mcpArgs...)
-	if !spec.ReadOnly { // persona extra_args could override the sandbox
+	if !spec.ReadOnly && !spec.PlanOnly { // persona extra_args could override the sandbox
 		args = append(args, cfg.ExtraArgs...)
 	}
 	return append(args, "-")

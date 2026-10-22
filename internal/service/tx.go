@@ -85,6 +85,17 @@ func (t *txc) publishRunStatus(r domain.Run) {
 
 // activity records a domain fact in the current transaction and queues its publication.
 func (t *txc) activity(actor domain.Actor, companyID domain.ID, verb, subjectType string, subjectID domain.ID, data any, eventID string) error {
+	// Empresa arquivada é somente leitura (ADR-0057): toda escrita de domínio passa por aqui, então recusar o evento
+	// desfaz a transação inteira, seja qual for o caminho (API, UI, CLI, MCP, heartbeat).
+	if !domain.ArchiveAllowsVerb(verb) {
+		archived, err := t.q.IsCompanyArchived(t.ctx, companyID)
+		if err != nil {
+			return fmt.Errorf("check company archived: %w", err)
+		}
+		if archived {
+			return domain.ErrCompanyArchived
+		}
+	}
 	raw := json.RawMessage(`{}`)
 	if data != nil {
 		b, err := json.Marshal(data)

@@ -164,6 +164,7 @@ func New(pool *pgxpool.Pool, opts Options) (*Heartbeat, error) {
 		river.AddWorkerSafely(workers, &sweepWorker{h: h}),
 		river.AddWorkerSafely(workers, &flowTickWorker{h: h}),
 		river.AddWorkerSafely(workers, &alertTickWorker{h: h}),
+		river.AddWorkerSafely(workers, &readinessTickWorker{h: h}),
 		river.AddWorkerSafely(workers, &startReviewWorker{h: h}),
 		river.AddWorkerSafely(workers, &deliverWebhookWorker{h: h}),
 		river.AddWorkerSafely(workers, &memoryTickWorker{h: h}),
@@ -171,6 +172,7 @@ func New(pool *pgxpool.Pool, opts Options) (*Heartbeat, error) {
 		river.AddWorkerSafely(workers, &skillTickWorker{h: h}),
 		addPluginWorkers(workers, h),
 		river.AddWorkerSafely(workers, &statusCardTickWorker{h: h}),
+		river.AddWorkerSafely(workers, &worktreeTickWorker{h: h}),
 	); err != nil {
 		return nil, fmt.Errorf("heartbeat workers: %w", err)
 	}
@@ -202,6 +204,9 @@ func New(pool *pgxpool.Pool, opts Options) (*Heartbeat, error) {
 				func() (river.JobArgs, *river.InsertOpts) { return AlertTickArgs{}, nil },
 				&river.PeriodicJobOpts{ID: "alert_tick"}),
 			river.NewPeriodicJob(river.PeriodicInterval(opts.PeriodicInterval),
+				func() (river.JobArgs, *river.InsertOpts) { return ReadinessTickArgs{}, nil },
+				&river.PeriodicJobOpts{ID: "readiness_tick"}),
+			river.NewPeriodicJob(river.PeriodicInterval(opts.PeriodicInterval),
 				func() (river.JobArgs, *river.InsertOpts) { return MemoryTickArgs{}, nil },
 				&river.PeriodicJobOpts{ID: "memory_consolidation_tick"}),
 			river.NewPeriodicJob(river.PeriodicInterval(SkillTickInterval),
@@ -211,6 +216,9 @@ func New(pool *pgxpool.Pool, opts Options) (*Heartbeat, error) {
 			river.NewPeriodicJob(river.PeriodicInterval(opts.PeriodicInterval),
 				func() (river.JobArgs, *river.InsertOpts) { return StatusCardTickArgs{}, nil },
 				&river.PeriodicJobOpts{ID: "status_card_tick"}),
+			river.NewPeriodicJob(river.PeriodicInterval(service.WorktreeReapInterval),
+				func() (river.JobArgs, *river.InsertOpts) { return WorktreeTickArgs{}, nil },
+				&river.PeriodicJobOpts{ID: "worktree_tick"}),
 		},
 	})
 	if err != nil {

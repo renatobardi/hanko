@@ -16,6 +16,7 @@ type activityIn struct {
 	Before      string `query:"before" doc:"Cursor: só eventos anteriores a este instante (RFC 3339). Use o occurred_at do último item para a próxima página."`
 	SubjectType string `query:"subject_type" doc:"Filtra pelo tipo do sujeito (task, run, persona...)." example:"task"`
 	SubjectID   string `query:"subject_id" format:"uuid" doc:"Filtra pelo id do sujeito."`
+	Actor       string `query:"actor" doc:"Filtra por quem causou o fato: system, persona:<slug>, human:<e-mail> (ou persona/human sem nada, para todos do tipo)." example:"persona:ana"`
 }
 
 func (s *server) registerMisc(api huma.API) {
@@ -37,8 +38,15 @@ func (s *server) registerMisc(api huma.API) {
 				}
 				sid = &id
 			}
-			as, err := s.svc.ListActivity(ctx, sc.Company.ID, service.ActivityFilter{
-				SubjectType: in.SubjectType, SubjectID: sid, Before: before, Limit: in.Limit})
+			f := service.ActivityFilter{SubjectType: in.SubjectType, SubjectID: sid, Before: before, Limit: in.Limit}
+			if in.Actor != "" {
+				af, err := s.svc.ResolveActor(ctx, sc.Company.ID, in.Actor)
+				if err != nil {
+					return nil, s.fail(ctx, err)
+				}
+				f.ActorType, f.ActorID = af.Type, af.ID
+			}
+			as, err := s.svc.ListActivity(ctx, sc.Company.ID, f)
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}

@@ -253,7 +253,7 @@ INSERT INTO skills (id, company_id, slug, name, description, body, version, crea
                     updated_by_type, updated_by_id, created_at, updated_at, source_id, source_path, source_commit)
 VALUES ($1, $2, $3, $4, $5, $6, 1, 'system', NULL, 'system', NULL, $7, $7,
         $8, $9, $10)
-RETURNING id, company_id, slug, name, description, body, version, created_by_type, created_by_id, updated_by_type, updated_by_id, created_at, updated_at, source_id, source_path, source_commit, source_modified
+RETURNING id, company_id, slug, name, description, body, version, created_by_type, created_by_id, updated_by_type, updated_by_id, created_at, updated_at, source_id, source_path, source_commit, source_modified, forked_from_id, forked_from_revision
 `
 
 type CreateSourceSkillParams struct {
@@ -301,6 +301,8 @@ func (q *Queries) CreateSourceSkill(ctx context.Context, arg CreateSourceSkillPa
 		&i.SourcePath,
 		&i.SourceCommit,
 		&i.SourceModified,
+		&i.ForkedFromID,
+		&i.ForkedFromRevision,
 	)
 	return i, err
 }
@@ -1702,7 +1704,7 @@ UPDATE skills
 SET name = $1, description = $2, body = $3, version = $4, source_commit = $5,
     source_modified = false, updated_by_type = 'system', updated_by_id = NULL, updated_at = $6
 WHERE company_id = $7 AND id = $8
-RETURNING id, company_id, slug, name, description, body, version, created_by_type, created_by_id, updated_by_type, updated_by_id, created_at, updated_at, source_id, source_path, source_commit, source_modified
+RETURNING id, company_id, slug, name, description, body, version, created_by_type, created_by_id, updated_by_type, updated_by_id, created_at, updated_at, source_id, source_path, source_commit, source_modified, forked_from_id, forked_from_revision
 `
 
 type UpdateSourceSkillParams struct {
@@ -1746,6 +1748,8 @@ func (q *Queries) UpdateSourceSkill(ctx context.Context, arg UpdateSourceSkillPa
 		&i.SourcePath,
 		&i.SourceCommit,
 		&i.SourceModified,
+		&i.ForkedFromID,
+		&i.ForkedFromRevision,
 	)
 	return i, err
 }

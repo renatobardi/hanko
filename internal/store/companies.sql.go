@@ -32,10 +32,116 @@ func (q *Queries) AllocateTaskNumber(ctx context.Context, id uuid.UUID) (Allocat
 	return i, err
 }
 
+const archiveDisableFlows = `-- name: ArchiveDisableFlows :many
+UPDATE flows SET enabled = false, updated_at = $1
+WHERE company_id = $2 AND enabled
+RETURNING id
+`
+
+type ArchiveDisableFlowsParams struct {
+	Now       time.Time
+	CompanyID uuid.UUID
+}
+
+func (q *Queries) ArchiveDisableFlows(ctx context.Context, arg ArchiveDisableFlowsParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, archiveDisableFlows, arg.Now, arg.CompanyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const archivePausePersonas = `-- name: ArchivePausePersonas :many
+UPDATE personas SET status = 'paused', updated_at = $1
+WHERE company_id = $2 AND status IN ('active', 'idle', 'running', 'awaiting_gate', 'error')
+RETURNING id
+`
+
+type ArchivePausePersonasParams struct {
+	Now       time.Time
+	CompanyID uuid.UUID
+}
+
+// Arquivar pausa quem pode trabalhar, SEM pause_reason: o retomar-por-orçamento não as reativa.
+func (q *Queries) ArchivePausePersonas(ctx context.Context, arg ArchivePausePersonasParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, archivePausePersonas, arg.Now, arg.CompanyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const clearCompanyArchived = `-- name: ClearCompanyArchived :one
+UPDATE companies SET archived_at = NULL, archived_by = NULL, archive_snapshot = '{}'::jsonb, updated_at = $1
+WHERE id = $2
+RETURNING id, slug, name, task_prefix, timezone, next_task_number, created_at, updated_at, budget_monthly_cents, description, archived_at, archived_by, archive_snapshot
+`
+
+type ClearCompanyArchivedParams struct {
+	Now time.Time
+	ID  uuid.UUID
+}
+
+func (q *Queries) ClearCompanyArchived(ctx context.Context, arg ClearCompanyArchivedParams) (Company, error) {
+	row := q.db.QueryRow(ctx, clearCompanyArchived, arg.Now, arg.ID)
+	var i Company
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.Name,
+		&i.TaskPrefix,
+		&i.Timezone,
+		&i.NextTaskNumber,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.BudgetMonthlyCents,
+		&i.Description,
+		&i.ArchivedAt,
+		&i.ArchivedBy,
+		&i.ArchiveSnapshot,
+	)
+	return i, err
+}
+
+const countCompanyTasks = `-- name: CountCompanyTasks :one
+SELECT count(*) FROM tasks WHERE company_id = $1
+`
+
+func (q *Queries) CountCompanyTasks(ctx context.Context, companyID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countCompanyTasks, companyID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createCompany = `-- name: CreateCompany :one
 INSERT INTO companies (id, slug, name, task_prefix, timezone, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6, $6)
-RETURNING id, slug, name, task_prefix, timezone, next_task_number, created_at, updated_at, budget_monthly_cents
+RETURNING id, slug, name, task_prefix, timezone, next_task_number, created_at, updated_at, budget_monthly_cents, description, archived_at, archived_by, archive_snapshot
 `
 
 type CreateCompanyParams struct {
@@ -67,12 +173,28 @@ func (q *Queries) CreateCompany(ctx context.Context, arg CreateCompanyParams) (C
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.BudgetMonthlyCents,
+		&i.Description,
+		&i.ArchivedAt,
+		&i.ArchivedBy,
+		&i.ArchiveSnapshot,
 	)
 	return i, err
 }
 
+const deleteCompany = `-- name: DeleteCompany :execrows
+DELETE FROM companies WHERE id = $1
+`
+
+func (q *Queries) DeleteCompany(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteCompany, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const getCompanyByID = `-- name: GetCompanyByID :one
-SELECT id, slug, name, task_prefix, timezone, next_task_number, created_at, updated_at, budget_monthly_cents FROM companies WHERE id = $1
+SELECT id, slug, name, task_prefix, timezone, next_task_number, created_at, updated_at, budget_monthly_cents, description, archived_at, archived_by, archive_snapshot FROM companies WHERE id = $1
 `
 
 func (q *Queries) GetCompanyByID(ctx context.Context, id uuid.UUID) (Company, error) {
@@ -88,12 +210,41 @@ func (q *Queries) GetCompanyByID(ctx context.Context, id uuid.UUID) (Company, er
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.BudgetMonthlyCents,
+		&i.Description,
+		&i.ArchivedAt,
+		&i.ArchivedBy,
+		&i.ArchiveSnapshot,
+	)
+	return i, err
+}
+
+const getCompanyByIDForUpdate = `-- name: GetCompanyByIDForUpdate :one
+SELECT id, slug, name, task_prefix, timezone, next_task_number, created_at, updated_at, budget_monthly_cents, description, archived_at, archived_by, archive_snapshot FROM companies WHERE id = $1 FOR UPDATE
+`
+
+func (q *Queries) GetCompanyByIDForUpdate(ctx context.Context, id uuid.UUID) (Company, error) {
+	row := q.db.QueryRow(ctx, getCompanyByIDForUpdate, id)
+	var i Company
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.Name,
+		&i.TaskPrefix,
+		&i.Timezone,
+		&i.NextTaskNumber,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.BudgetMonthlyCents,
+		&i.Description,
+		&i.ArchivedAt,
+		&i.ArchivedBy,
+		&i.ArchiveSnapshot,
 	)
 	return i, err
 }
 
 const getCompanyBySlug = `-- name: GetCompanyBySlug :one
-SELECT id, slug, name, task_prefix, timezone, next_task_number, created_at, updated_at, budget_monthly_cents FROM companies WHERE slug = $1
+SELECT id, slug, name, task_prefix, timezone, next_task_number, created_at, updated_at, budget_monthly_cents, description, archived_at, archived_by, archive_snapshot FROM companies WHERE slug = $1
 `
 
 func (q *Queries) GetCompanyBySlug(ctx context.Context, slug string) (Company, error) {
@@ -109,12 +260,128 @@ func (q *Queries) GetCompanyBySlug(ctx context.Context, slug string) (Company, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.BudgetMonthlyCents,
+		&i.Description,
+		&i.ArchivedAt,
+		&i.ArchivedBy,
+		&i.ArchiveSnapshot,
 	)
 	return i, err
 }
 
+const getCompanyDeletion = `-- name: GetCompanyDeletion :one
+SELECT id, company_id, slug, name, deleted_by, deleted_at, export_gz, export_bytes, sha256 FROM company_deletions WHERE id = $1
+`
+
+func (q *Queries) GetCompanyDeletion(ctx context.Context, id uuid.UUID) (CompanyDeletion, error) {
+	row := q.db.QueryRow(ctx, getCompanyDeletion, id)
+	var i CompanyDeletion
+	err := row.Scan(
+		&i.ID,
+		&i.CompanyID,
+		&i.Slug,
+		&i.Name,
+		&i.DeletedBy,
+		&i.DeletedAt,
+		&i.ExportGz,
+		&i.ExportBytes,
+		&i.Sha256,
+	)
+	return i, err
+}
+
+const insertCompanyDeletion = `-- name: InsertCompanyDeletion :one
+INSERT INTO company_deletions (id, company_id, slug, name, deleted_by, deleted_at, export_gz, export_bytes, sha256)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+RETURNING id, company_id, slug, name, deleted_by, deleted_at, export_bytes, sha256
+`
+
+type InsertCompanyDeletionParams struct {
+	ID          uuid.UUID
+	CompanyID   uuid.UUID
+	Slug        string
+	Name        string
+	DeletedBy   *uuid.UUID
+	Now         time.Time
+	ExportGz    []byte
+	ExportBytes int64
+	Sha256      string
+}
+
+type InsertCompanyDeletionRow struct {
+	ID          uuid.UUID
+	CompanyID   uuid.UUID
+	Slug        string
+	Name        string
+	DeletedBy   *uuid.UUID
+	DeletedAt   time.Time
+	ExportBytes int64
+	Sha256      string
+}
+
+func (q *Queries) InsertCompanyDeletion(ctx context.Context, arg InsertCompanyDeletionParams) (InsertCompanyDeletionRow, error) {
+	row := q.db.QueryRow(ctx, insertCompanyDeletion,
+		arg.ID,
+		arg.CompanyID,
+		arg.Slug,
+		arg.Name,
+		arg.DeletedBy,
+		arg.Now,
+		arg.ExportGz,
+		arg.ExportBytes,
+		arg.Sha256,
+	)
+	var i InsertCompanyDeletionRow
+	err := row.Scan(
+		&i.ID,
+		&i.CompanyID,
+		&i.Slug,
+		&i.Name,
+		&i.DeletedBy,
+		&i.DeletedAt,
+		&i.ExportBytes,
+		&i.Sha256,
+	)
+	return i, err
+}
+
+const isCompanyArchived = `-- name: IsCompanyArchived :one
+SELECT COALESCE((SELECT archived_at IS NOT NULL FROM companies WHERE id = $1), false)::boolean
+`
+
+// Empresa inexistente conta como não arquivada (o erro vem da escrita que a referencia).
+func (q *Queries) IsCompanyArchived(ctx context.Context, id uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, isCompanyArchived, id)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const listActiveRunIDs = `-- name: ListActiveRunIDs :many
+SELECT id FROM runs WHERE company_id = $1 AND status IN ('queued', 'running') ORDER BY created_at, id
+`
+
+func (q *Queries) ListActiveRunIDs(ctx context.Context, companyID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listActiveRunIDs, companyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listCompanies = `-- name: ListCompanies :many
-SELECT id, slug, name, task_prefix, timezone, next_task_number, created_at, updated_at, budget_monthly_cents FROM companies ORDER BY created_at, id
+SELECT id, slug, name, task_prefix, timezone, next_task_number, created_at, updated_at, budget_monthly_cents, description, archived_at, archived_by, archive_snapshot FROM companies ORDER BY created_at, id
 `
 
 func (q *Queries) ListCompanies(ctx context.Context) ([]Company, error) {
@@ -136,6 +403,10 @@ func (q *Queries) ListCompanies(ctx context.Context) ([]Company, error) {
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.BudgetMonthlyCents,
+			&i.Description,
+			&i.ArchivedAt,
+			&i.ArchivedBy,
+			&i.ArchiveSnapshot,
 		); err != nil {
 			return nil, err
 		}
@@ -147,10 +418,157 @@ func (q *Queries) ListCompanies(ctx context.Context) ([]Company, error) {
 	return items, nil
 }
 
+const listCompanyBlobArtifacts = `-- name: ListCompanyBlobArtifacts :many
+SELECT a.id, a.storage FROM artifacts a WHERE a.company_id = $1 AND a.storage <> 'postgres'
+`
+
+type ListCompanyBlobArtifactsRow struct {
+	ID      uuid.UUID
+	Storage string
+}
+
+// Artefatos com conteúdo fora do Postgres, para limpar os blobs depois de apagar a empresa.
+func (q *Queries) ListCompanyBlobArtifacts(ctx context.Context, companyID uuid.UUID) ([]ListCompanyBlobArtifactsRow, error) {
+	rows, err := q.db.Query(ctx, listCompanyBlobArtifacts, companyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListCompanyBlobArtifactsRow{}
+	for rows.Next() {
+		var i ListCompanyBlobArtifactsRow
+		if err := rows.Scan(&i.ID, &i.Storage); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listCompanyDeletions = `-- name: ListCompanyDeletions :many
+SELECT id, company_id, slug, name, deleted_by, deleted_at, export_bytes, sha256
+FROM company_deletions ORDER BY deleted_at DESC, id DESC LIMIT $1
+`
+
+type ListCompanyDeletionsRow struct {
+	ID          uuid.UUID
+	CompanyID   uuid.UUID
+	Slug        string
+	Name        string
+	DeletedBy   *uuid.UUID
+	DeletedAt   time.Time
+	ExportBytes int64
+	Sha256      string
+}
+
+func (q *Queries) ListCompanyDeletions(ctx context.Context, lim int32) ([]ListCompanyDeletionsRow, error) {
+	rows, err := q.db.Query(ctx, listCompanyDeletions, lim)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListCompanyDeletionsRow{}
+	for rows.Next() {
+		var i ListCompanyDeletionsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CompanyID,
+			&i.Slug,
+			&i.Name,
+			&i.DeletedBy,
+			&i.DeletedAt,
+			&i.ExportBytes,
+			&i.Sha256,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const restoreResumePersonas = `-- name: RestoreResumePersonas :many
+UPDATE personas SET status = 'idle', updated_at = $1
+WHERE company_id = $2 AND id = ANY($3::uuid[]) AND status = 'paused' AND pause_reason IS NULL
+RETURNING id
+`
+
+type RestoreResumePersonasParams struct {
+	Now       time.Time
+	CompanyID uuid.UUID
+	Ids       []uuid.UUID
+}
+
+// Só reativa quem ainda está como o arquivamento deixou (pausada, sem motivo de orçamento).
+func (q *Queries) RestoreResumePersonas(ctx context.Context, arg RestoreResumePersonasParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, restoreResumePersonas, arg.Now, arg.CompanyID, arg.Ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const setCompanyArchived = `-- name: SetCompanyArchived :one
+UPDATE companies SET archived_at = $1, archived_by = $2, archive_snapshot = $3, updated_at = $1
+WHERE id = $4
+RETURNING id, slug, name, task_prefix, timezone, next_task_number, created_at, updated_at, budget_monthly_cents, description, archived_at, archived_by, archive_snapshot
+`
+
+type SetCompanyArchivedParams struct {
+	Now        *time.Time
+	ArchivedBy *uuid.UUID
+	Snapshot   []byte
+	ID         uuid.UUID
+}
+
+func (q *Queries) SetCompanyArchived(ctx context.Context, arg SetCompanyArchivedParams) (Company, error) {
+	row := q.db.QueryRow(ctx, setCompanyArchived,
+		arg.Now,
+		arg.ArchivedBy,
+		arg.Snapshot,
+		arg.ID,
+	)
+	var i Company
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.Name,
+		&i.TaskPrefix,
+		&i.Timezone,
+		&i.NextTaskNumber,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.BudgetMonthlyCents,
+		&i.Description,
+		&i.ArchivedAt,
+		&i.ArchivedBy,
+		&i.ArchiveSnapshot,
+	)
+	return i, err
+}
+
 const setCompanyBudget = `-- name: SetCompanyBudget :one
 UPDATE companies SET budget_monthly_cents = $1, updated_at = $2
 WHERE id = $3
-RETURNING id, slug, name, task_prefix, timezone, next_task_number, created_at, updated_at, budget_monthly_cents
+RETURNING id, slug, name, task_prefix, timezone, next_task_number, created_at, updated_at, budget_monthly_cents, description, archived_at, archived_by, archive_snapshot
 `
 
 type SetCompanyBudgetParams struct {
@@ -172,6 +590,53 @@ func (q *Queries) SetCompanyBudget(ctx context.Context, arg SetCompanyBudgetPara
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.BudgetMonthlyCents,
+		&i.Description,
+		&i.ArchivedAt,
+		&i.ArchivedBy,
+		&i.ArchiveSnapshot,
+	)
+	return i, err
+}
+
+const updateCompanyProfile = `-- name: UpdateCompanyProfile :one
+UPDATE companies SET name = $1, timezone = $2, description = $3, task_prefix = $4, updated_at = $5
+WHERE id = $6
+RETURNING id, slug, name, task_prefix, timezone, next_task_number, created_at, updated_at, budget_monthly_cents, description, archived_at, archived_by, archive_snapshot
+`
+
+type UpdateCompanyProfileParams struct {
+	Name        string
+	Timezone    string
+	Description string
+	TaskPrefix  string
+	Now         time.Time
+	ID          uuid.UUID
+}
+
+func (q *Queries) UpdateCompanyProfile(ctx context.Context, arg UpdateCompanyProfileParams) (Company, error) {
+	row := q.db.QueryRow(ctx, updateCompanyProfile,
+		arg.Name,
+		arg.Timezone,
+		arg.Description,
+		arg.TaskPrefix,
+		arg.Now,
+		arg.ID,
+	)
+	var i Company
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.Name,
+		&i.TaskPrefix,
+		&i.Timezone,
+		&i.NextTaskNumber,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.BudgetMonthlyCents,
+		&i.Description,
+		&i.ArchivedAt,
+		&i.ArchivedBy,
+		&i.ArchiveSnapshot,
 	)
 	return i, err
 }

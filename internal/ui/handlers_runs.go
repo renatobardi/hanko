@@ -127,6 +127,8 @@ func (s *server) runVM(ctx context.Context, co domain.Company, rv service.RunVie
 	if rv.Status.Active() {
 		vm.CancelHref = base + "/execucoes/" + rv.ID.String() + "/cancelar"
 	}
+	vm.Diag = diagVM(ctx, base, rv, base+"/execucoes/"+rv.ID.String())
+	vm.Steer = steerVM(ctx, base, rv)
 	return vm
 }
 
@@ -157,6 +159,17 @@ func (s *server) handleRun(w http.ResponseWriter, r *http.Request, co domain.Com
 	vm := s.runVM(ctx, co, rv, "", lines, last)
 	vm.IslandAPI, vm.LogMsgs, vm.TZ, vm.Lang = islandAPI(co), runLogMsgs(ctx), co.Timezone, string(i18n.FromContext(ctx))
 	vm.AnchorMsgs, vm.SummaryDoc = anchorMsgs(ctx), docOf(rv.Summary)
+	if rb, ok := s.be.(runSkillsBackend); ok { // skills e revisões da run (ADR-0044)
+		if list, err := rb.ListRunSkills(ctx, co.ID, rv.ID); err == nil {
+			for _, k := range list {
+				label := k.Slug + " v" + strconv.Itoa(k.Revision)
+				if k.Pinned {
+					label += " (" + i18n.T(ctx, "fixada") + ")"
+				}
+				vm.Skills = append(vm.Skills, label)
+			}
+		}
+	}
 	const runArtifactsMax = 20
 	arts, err := s.be.ListArtifacts(ctx, co.ID, service.ArtifactFilter{RunID: &rv.ID, AllVersions: true, Limit: runArtifactsMax})
 	if err != nil {
@@ -271,7 +284,7 @@ func (s *server) handleRunSSE(w http.ResponseWriter, r *http.Request, co domain.
 
 	loc := loadLoc(co.Timezone)
 	after := lastEventID(r)
-	lastKey := ""
+	lastKey, lastActions := "", ""
 
 	write := func(id int64, event, html string) bool {
 		var b strings.Builder
@@ -332,6 +345,18 @@ func (s *server) handleRunSSE(w http.ResponseWriter, r *http.Request, co domain.
 			lastKey = key
 			html, err := renderString(ctx, views.RunHeader(s.runVM(ctx, co, cur, "", nil, after)))
 			if err == nil && !write(0, "run-status", html) {
+				return false, false
+			}
+		}
+		// The diagnosis card and the steer box change only with the run's state, never per log line (the text being
+		// typed in the steer box must survive the stream).
+		akey := fmt.Sprintf("%s|%s|%v|%v|%v", cur.Status, cur.Decision, cur.DecisionPending, cur.ContinuedByRunID, cur.Diagnosis != nil)
+		if lastActions == "" {
+			lastActions = akey // the page was rendered with this state already
+		} else if akey != lastActions {
+			lastActions = akey
+			html, err := renderString(ctx, views.RunActionsBody(s.runVM(ctx, co, cur, "", nil, after)))
+			if err == nil && !write(0, "run-actions", html) {
 				return false, false
 			}
 		}
@@ -442,4 +467,9 @@ func subscriptionLabel(ctx context.Context, id *domain.ID) string {
 		return "—"
 	}
 	return i18n.T(ctx, "coberta por assinatura")
+}
+
+// runSkillsBackend lista as skills (e revisões) que uma run recebeu (ADR-0044); opcional como os demais.
+type runSkillsBackend interface {
+	ListRunSkills(ctx context.Context, companyID, runID domain.ID) ([]service.RunSkill, error)
 }

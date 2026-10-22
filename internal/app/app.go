@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"net/http"
 	"os"
 	"time"
 
@@ -16,8 +17,12 @@ import (
 	"github.com/renatobardi/hanko/internal/adapter"
 	"github.com/renatobardi/hanko/internal/adapter/acp"
 	"github.com/renatobardi/hanko/internal/adapter/claude"
+	"github.com/renatobardi/hanko/internal/adapter/cliharness"
 	"github.com/renatobardi/hanko/internal/adapter/codex"
+	"github.com/renatobardi/hanko/internal/adapter/cursor"
 	"github.com/renatobardi/hanko/internal/adapter/fake"
+	"github.com/renatobardi/hanko/internal/adapter/httpagent"
+	"github.com/renatobardi/hanko/internal/adapter/pi"
 	"github.com/renatobardi/hanko/internal/auth"
 	"github.com/renatobardi/hanko/internal/config"
 	"github.com/renatobardi/hanko/internal/db"
@@ -26,7 +31,9 @@ import (
 	"github.com/renatobardi/hanko/internal/heartbeat"
 	"github.com/renatobardi/hanko/internal/memory"
 	"github.com/renatobardi/hanko/internal/memory/aimemory"
+	"github.com/renatobardi/hanko/internal/netguard"
 	"github.com/renatobardi/hanko/internal/ratelimit"
+	"github.com/renatobardi/hanko/internal/readiness"
 	"github.com/renatobardi/hanko/internal/secretbox"
 	"github.com/renatobardi/hanko/internal/service"
 	"github.com/renatobardi/hanko/internal/settings"
@@ -89,6 +96,7 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 		AllowStdio: cfg.Integrations.AllowStdio, AllowPrivate: cfg.Integrations.AllowPrivateDestinations, Secrets: box,
 	}
 	svc.ACP = acp.Policy{Allow: cfg.ACP.Allow, Commands: cfg.ACP.Commands}
+	svc.Push = service.PushConfig{Subject: cfg.PushSubjectOrDefault()} // web push (ADR-0042); a chave VAPID nasce na primeira necessidade
 
 	// Settings da instância (ADR-0050): env > banco > yaml/padrão; leitura em tempo de uso, então mudar vale sem restart.
 	sm := settings.NewManager(settingsBase(cfg), cfg.EnvSet)
@@ -120,11 +128,28 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 	if cfg.SkillSources {
 		logger.Info("skills: fontes ligadas (HANKO_SKILL_SOURCES); o servidor clona repositórios públicos por https")
 	}
-	svc.Environments = execenv.Config{SSHAllowHosts: cfg.Environments.SSHAllowHosts, Sandbox: cfg.Environments.Sandbox,
-		SandboxHostRoot: cfg.Environments.SandboxHostRoot, WorkspacesRoot: cfg.WorkspacesRoot, RemoteURL: cfg.PublicURL}
-	if len(cfg.Environments.SSHAllowHosts) > 0 || cfg.Environments.Sandbox != "" {
-		logger.Warn("ambientes remotos liberados pelo operador (ADR-0037)", "ssh_allow_hosts", cfg.Environments.SSHAllowHosts, "sandbox", cfg.Environments.Sandbox)
+	svc.PublicURL = cfg.PublicURL
+	svc.GitWorkspaces = service.GitWorkspacesConfig{Enabled: cfg.GitWorkspaces, AllowPrivate: cfg.Integrations.AllowPrivateDestinations}
+	if cfg.GitWorkspaces {
+		logger.Info("workspaces: Git ligado (HANKO_GIT_WORKSPACES); o servidor clona repositórios e cria worktrees por task", "root", cfg.WorkspacesRoot)
 	}
+	svc.Environments = execenv.Config{SSHAllowHosts: cfg.Environments.SSHAllowHosts, Sandbox: cfg.Environments.Sandbox,
+		SandboxHostRoot: cfg.Environments.SandboxHostRoot, WorkspacesRoot: cfg.WorkspacesRoot, RemoteURL: cfg.PublicURL,
+		AgentEnvAllow: cfg.AgentEnvAllow}
+	if cfg.Environments.Cloud != "" {
+		d, err := execenv.NewDaytona(execenv.DaytonaOptions{APIURL: cfg.Environments.CloudAPIURL, SSHHost: cfg.Environments.CloudSSHHost,
+			KnownHosts: cfg.Environments.CloudSSHKnownHosts})
+		if err != nil {
+			return fmt.Errorf("app: sandbox em nuvem: %w", err)
+		}
+		svc.Environments.Cloud = d
+	}
+	if len(cfg.Environments.SSHAllowHosts) > 0 || cfg.Environments.Sandbox != "" || cfg.Environments.Cloud != "" {
+		logger.Warn("ambientes remotos liberados pelo operador (ADR-0037, ADR-0055)", "ssh_allow_hosts", cfg.Environments.SSHAllowHosts,
+			"sandbox", cfg.Environments.Sandbox, "cloud", cfg.Environments.Cloud)
+	}
+	svc.Readiness = readiness.Config{ClaudeBin: cfg.ClaudeBin, CodexBin: cfg.CodexBin}
+	svc.ReadinessEvery = cfg.ReadinessInterval
 	if cfg.ACP.Allow {
 		logger.Warn("acp: harness liberado (HANKO_ACP_ALLOW); personas acp executam comandos nesta máquina", "commands", cfg.ACP.Commands)
 	}
@@ -157,7 +182,20 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 			PolicyFunc: func() acp.Policy {
 				return acp.Policy{Allow: sm.Bool(settings.ACPAllow), Commands: sm.Strings(settings.ACPCommands)}
 			}}),
+		// harnesses do M12 (ADR-0056): o executável de devin/pi/cursor é decisão do operador (HANKO_*_BIN)
+		"devin":  acp.NewFixed(acp.Options{Logger: logger, Version: version, EnvAllow: cfg.AgentEnvAllow}, acp.DevinFixed(cfg.DevinBin)),
+		"pi":     pi.New(cfg.PiBin, cliharness.Options{Logger: logger, EnvAllow: cfg.AgentEnvAllow}),
+		"cursor": cursor.New(cfg.CursorBin, cliharness.Options{Logger: logger, EnvAllow: cfg.AgentEnvAllow}),
+		"http": httpagent.New(httpagent.Options{Logger: logger, Client: func(timeout time.Duration) *http.Client {
+			return netguard.NewClient(netguard.Policy{AllowPrivate: sm.Bool(settings.IntegrationsAllowPriv)}, timeout)
+		}}),
 		"fake": fake.New(fake.Options{}),
+	}
+	svc.Probers = map[string]adapter.Prober{}
+	for name, a := range reg {
+		if p, ok := a.(adapter.Prober); ok {
+			svc.Probers[name] = p
+		}
 	}
 	tokens := auth.RunTokens{Secret: []byte(cfg.Secret), TTL: cfg.RunTimeout + 5*time.Minute}
 	hb.Attach(svc, reg, mem, broker, tokens)

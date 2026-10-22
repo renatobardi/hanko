@@ -110,8 +110,9 @@ func (e *env) gateCmd() *cobra.Command {
 		},
 	}
 	lf := ls.Flags()
-	lf.StringVar(&q.Status, "status", "", e.t("pending, approved, rejected, changes_requested ou expired"))
-	lf.StringVar(&q.Kind, "kind", "", e.t("approval, task_review ou hire"))
+	lf.BoolVar(&q.Mine, "mine", false, e.t("só os gates da sua audiência: que você pediu ou decidiu, ou de tasks em que participa"))
+	lf.StringVar(&q.Status, "status", "", e.t("pending, approved, rejected, changes_requested, expired ou dismissed"))
+	lf.StringVar(&q.Kind, "kind", "", e.t("approval, task_review, hire, question ou plan"))
 	lf.StringVar(&q.Task, "task", "", e.t("task (id ou chave)"))
 	lf.StringVar(&q.Persona, "persona", "", e.t("persona (id ou slug)"))
 	lf.IntVar(&q.Limit, "limit", 0, e.t("limite"))
@@ -144,6 +145,28 @@ func (e *env) gateCmd() *cobra.Command {
 				[2]string{e.t("Nota da decisão"), g.DecisionNote})
 			if rv := g.Review; rv != nil {
 				e.kv([2]string{e.t("Revisão automática"), e.reviewLine(rv)}, [2]string{e.t("sha256 revisado"), dash(rv.ArtifactSHA256)})
+			}
+			if g.Revision > 1 {
+				e.kv([2]string{e.t("Revisão"), fmt.Sprint(g.Revision)})
+			}
+			if a := g.Audience; a != nil {
+				e.kv([2]string{e.t("Audiência"), strings.TrimSpace(strings.Join(a.Roles, ",") + " " + strings.Join(a.Users, ","))})
+			}
+			if f := g.Form; f != nil {
+				fmt.Fprintf(e.out, "\n%s\n", e.t("Perguntas:"))
+				for _, fl := range f.Fields {
+					opts := ""
+					for _, o := range fl.Options {
+						opts += " " + o.Value
+					}
+					fmt.Fprintf(e.out, "  %s (%s)%s%s\n", fl.Key, fl.Type, map[bool]string{true: " *", false: ""}[fl.Required], opts)
+				}
+			}
+			for k, v := range g.Answers {
+				fmt.Fprintf(e.out, e.t("Resposta %s: %s\n"), k, strings.Join(v, ", "))
+			}
+			if h := g.Hire; h != nil {
+				e.kv([2]string{e.t("Contratar"), fmt.Sprintf("%s (%s) · %s %s", h.Name, h.Slug, h.Agent, h.Model)})
 			}
 			if g.Body != "" {
 				fmt.Fprintf(e.out, "\n%s\n", strings.TrimSpace(g.Body))
@@ -190,6 +213,7 @@ func (e *env) gateCmd() *cobra.Command {
 		decide("approve", "approved", e.t("Aprova um gate"), e.t("aprovado")),
 		decide("reject", "rejected", e.t("Rejeita um gate"), e.t("rejeitado")),
 		decide("request-changes", "changes_requested", e.t("Pede mudanças em um gate"), e.t("devolvido com pedido de mudanças")))
+	c.AddCommand(e.gateExtraCmds()...)
 	return c
 }
 

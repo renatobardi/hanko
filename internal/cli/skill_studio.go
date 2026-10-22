@@ -18,7 +18,7 @@ import (
 var skillTestPoll = 2 * time.Second
 
 func (e *env) skillStudioCmds() []*cobra.Command {
-	return []*cobra.Command{e.skillVersionsCmd(), e.skillRestoreCmd(), e.skillPinCmd(), e.skillSourceCmd(), e.skillTestCmd()}
+	return []*cobra.Command{e.skillVersionsCmd(), e.skillRestoreCmd(), e.skillPinCmd(), e.skillForkCmd(), e.skillSourceCmd(), e.skillTestCmd()}
 }
 
 func (e *env) skillVersionsCmd() *cobra.Command {

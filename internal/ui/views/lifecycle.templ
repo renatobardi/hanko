@@ -1,0 +1,465 @@
+package views
+
+import (
+	"github.com/renatobardi/hanko/internal/i18n"
+)
+
+// Telas do ADR-0057: ciclo de vida da empresa, pedidos de entrada, login da CLI, contas da instalação e import.
+
+// archivedBanner é a faixa de empresa arquivada (somente leitura), mostrada no topo de toda página da empresa.
+templ archivedBanner(sh Shell) {
+	if sh.Archived {
+		<div class="alert warn" role="status" id="archived-banner">
+			@Icon("lock")
+			<div>
+				<b>{ i18n.T(ctx, "Empresa arquivada — somente leitura.") }</b>
+				{ " " }
+				{ i18n.T(ctx, "Nada novo é gravado e nenhuma persona trabalha. Quem administra pode restaurá-la.") }
+				{ " " }
+				<a class="link-u" href={ templ.SafeURL(sh.Base() + "/configuracoes#empresa") }>{ i18n.T(ctx, "Abrir configurações") }</a>
+			</div>
+		</div>
+	}
+}
+
+// companyAdminCard edita, arquiva, restaura e exclui a empresa.
+templ companyAdminCard(sh Shell, c CompanyAdminVM) {
+	if c.Show {
+		<div class="card pad form-card mb-6" id="empresa">
+			<div class="card-head">
+				<div>
+					<h2>{ i18n.T(ctx, "Empresa") }</h2>
+					<p class="sub">{ i18n.T(ctx, "Nome, fuso e descrição. O prefixo das chaves de task só muda enquanto a empresa não tem nenhuma task.") }</p>
+				</div>
+				if c.Archived {
+					<span class="badge warn">{ i18n.T(ctx, "Arquivada") }</span>
+				}
+			</div>
+			if c.Error != "" {
+				@Alert("danger", c.Error)
+			}
+			if c.Notice != "" {
+				<div class="alert" role="status"><div>{ c.Notice }</div></div>
+			}
+			<form method="post" action={ templ.SafeURL(sh.Base() + "/configuracoes/empresa") }>
+				<div class="form-grid">
+					<div class="field">
+						<label for="co-name">{ i18n.T(ctx, "Nome") }</label>
+						<input class="input" id="co-name" name="name" value={ c.Name } required maxlength="120" disabled?={ c.Archived || !c.CanAdmin }/>
+					</div>
+					<div class="field">
+						<label for="co-tz">{ i18n.T(ctx, "Fuso horário") }</label>
+						<input class="input" id="co-tz" name="timezone" value={ c.Timezone } required disabled?={ c.Archived || !c.CanAdmin }/>
+					</div>
+					<div class="field">
+						<label for="co-prefix">{ i18n.T(ctx, "Prefixo das tasks") }</label>
+						<input class="input mono" id="co-prefix" name="prefix" value={ c.Prefix } maxlength="10" pattern="[A-Z][A-Z0-9]{0,9}" disabled?={ c.Archived || !c.CanAdmin || c.HasTasks }/>
+						if c.HasTasks {
+							<p class="hint">{ i18n.T(ctx, "Esta empresa já tem tasks; o prefixo não muda mais.") }</p>
+						}
+					</div>
+				</div>
+				<div class="field">
+					<label for="co-desc">{ i18n.T(ctx, "Descrição") }</label>
+					<textarea class="input" id="co-desc" name="description" rows="3" maxlength="2000" disabled?={ c.Archived || !c.CanAdmin }>{ c.Description }</textarea>
+				</div>
+				if c.CanAdmin && !c.Archived {
+					<div class="form-actions"><button class="btn primary" type="submit">{ i18n.T(ctx, "Salvar") }</button></div>
+				}
+			</form>
+			if c.CanAdmin {
+				<hr class="mt-6"/>
+				if c.Archived {
+					<h3 class="mt-4">{ i18n.T(ctx, "Restaurar") }</h3>
+					<p class="sub">{ i18n.Tf(ctx, "Arquivada %s. Ao restaurar, a empresa volta a aceitar escrita; as personas e os fluxos continuam pausados até alguém liberar.", c.ArchivedAt) }</p>
+					<form method="post" action={ templ.SafeURL(sh.Base() + "/configuracoes/empresa/restaurar") } class="inline-form">
+						<label class="check"><input type="checkbox" name="resume" value="1"/> { i18n.T(ctx, "Reativar também as personas e os fluxos que o arquivamento pausou") }</label>
+						<button class="btn" type="submit">{ i18n.T(ctx, "Restaurar empresa") }</button>
+					</form>
+				} else {
+					<h3 class="mt-4">{ i18n.T(ctx, "Arquivar") }</h3>
+					<p class="sub">{ i18n.T(ctx, "Pausa todas as personas, cancela as execuções em andamento, desliga os fluxos e deixa a empresa somente leitura. Dá para restaurar depois.") }</p>
+					<form method="post" action={ templ.SafeURL(sh.Base() + "/configuracoes/empresa/arquivar") }>
+						<button class="btn danger" type="submit">{ i18n.T(ctx, "Arquivar empresa") }</button>
+					</form>
+				}
+			}
+			if c.Archived && c.CanOwner {
+				<hr class="mt-6"/>
+				<h3 class="mt-4">{ i18n.T(ctx, "Excluir") }</h3>
+				<p class="sub">{ i18n.T(ctx, "Apaga a empresa e tudo o que há nela. Antes, o Hanko guarda um arquivo de exportação que o dono da instalação pode baixar. Não dá para desfazer.") }</p>
+				<form method="post" action={ templ.SafeURL(sh.Base() + "/configuracoes/empresa/excluir") } class="inline-form">
+					<input class="input" name="confirm" placeholder={ i18n.Tf(ctx, "Digite %s para confirmar", c.Name) } required autocomplete="off" aria-label={ i18n.T(ctx, "Nome da empresa para confirmar") }/>
+					<button class="btn danger" type="submit">{ i18n.T(ctx, "Excluir empresa") }</button>
+				</form>
+			}
+		</div>
+	}
+}
+
+// joinCard é o link público de pedido de entrada e a fila de pedidos, dentro da seção Membros.
+templ joinCard(sh Shell, m MembersVM) {
+	if m.Join.Show {
+		<h3 class="mt-6" id="pedidos">{ i18n.T(ctx, "Pedidos de entrada") }</h3>
+		<p class="sub">{ i18n.T(ctx, "Em vez de convidar por e-mail, gere um link público: quem o abrir e estiver logado pede para entrar, e você escolhe o papel ao aprovar.") }</p>
+		if m.Join.Error != "" {
+			@Alert("danger", m.Join.Error)
+		}
+		if m.Join.NewLink != "" {
+			<div class="alert warn" role="status">
+				@Icon("key")
+				<div>
+					<b>{ i18n.T(ctx, "Copie o link de entrada. Ele não será mostrado de novo; gerar outro invalida este.") }</b>
+					<div class="mono keybox" id="join-link">{ m.Join.NewLink }</div>
+				</div>
+			</div>
+		}
+		<div class="inline-form">
+			<form method="post" action={ templ.SafeURL(sh.Base() + "/configuracoes/membros/entrada/link") }>
+				<button class="btn" type="submit">
+					@Icon("plus")
+					if m.Join.Enabled {
+						{ i18n.T(ctx, "Gerar outro link") }
+					} else {
+						{ i18n.T(ctx, "Gerar link de entrada") }
+					}
+				</button>
+			</form>
+			if m.Join.Enabled {
+				<form method="post" action={ templ.SafeURL(sh.Base() + "/configuracoes/membros/entrada/link/desligar") }>
+					<button class="btn danger" type="submit">{ i18n.T(ctx, "Desligar o link") }</button>
+				</form>
+			}
+		</div>
+		if len(m.Join.Requests) > 0 {
+			<div class="table-wrap mt-4">
+				<table class="table">
+					<thead>
+						<tr>
+							<th>{ i18n.T(ctx, "Pessoa") }</th>
+							<th class="hide-sm">{ i18n.T(ctx, "Mensagem") }</th>
+							<th>{ i18n.T(ctx, "Decisão") }</th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, rq := range m.Join.Requests {
+							<tr class="row">
+								<td>
+									{ rq.Name }
+									<div class="mono muted">{ rq.Email }</div>
+									<div class="when">{ rq.When }</div>
+								</td>
+								<td class="hide-sm">{ rq.Message }</td>
+								<td>
+									if rq.Status == "pending" {
+										<form method="post" action={ templ.SafeURL(sh.Base() + "/configuracoes/membros/entrada/" + rq.ID + "/decidir") } class="inline-form">
+											<select class="input" name="role" aria-label={ i18n.T(ctx, "Papel") }>
+												for _, r := range m.Roles {
+													<option value={ r.Value } selected?={ r.Value == "member" }>{ r.Label }</option>
+												}
+											</select>
+											<button class="btn sm primary" type="submit" name="decision" value="approve">{ i18n.T(ctx, "Aprovar") }</button>
+											<button class="btn sm danger" type="submit" name="decision" value="deny">{ i18n.T(ctx, "Negar") }</button>
+										</form>
+									} else if rq.Status == "approved" {
+										<span class="badge done">{ i18n.Tf(ctx, "Aprovado como %s", rq.Role) }</span>
+									} else {
+										<span class="badge outline">{ i18n.T(ctx, "Negado") }</span>
+									}
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+	}
+}
+
+// CLIAuthPage é a página de autorização do login da CLI (/cli-auth/<código>).
+templ CLIAuthPage(vm CLIAuthVM) {
+	@Bare(i18n.T(ctx, "Autorizar a CLI"), vm.Version) {
+		<div class="auth">
+			<div class="mark">
+				@Mark(40)
+				<b>Hanko</b>
+			</div>
+			switch vm.State {
+				case "invalid":
+					<div class="card">
+						<h1>{ i18n.T(ctx, "Pedido inválido") }</h1>
+						<p class="sub muted">{ i18n.T(ctx, "Este pedido de login não existe, expirou ou já foi decidido. Rode hanko login de novo no terminal.") }</p>
+					</div>
+				case "approved":
+					<div class="card">
+						<h1>{ i18n.T(ctx, "Pronto") }</h1>
+						<p class="sub muted">{ i18n.Tf(ctx, "O dispositivo “%s” foi autorizado. Pode voltar ao terminal.", vm.Device) }</p>
+					</div>
+				case "denied":
+					<div class="card">
+						<h1>{ i18n.T(ctx, "Pedido negado") }</h1>
+						<p class="sub muted">{ i18n.Tf(ctx, "O dispositivo “%s” não recebeu acesso.", vm.Device) }</p>
+					</div>
+				default:
+					<form class="card" method="post" action={ templ.SafeURL("/cli-auth/" + vm.Code) }>
+						<h1>{ i18n.T(ctx, "Autorizar a CLI") }</h1>
+						<p class="sub muted">{ i18n.T(ctx, "Um terminal pediu acesso à sua conta. Só autorize se foi você que rodou hanko login.") }</p>
+						if vm.Error != "" {
+							@Alert("danger", vm.Error)
+						}
+						<dl class="dl mt-4">
+							<dt>{ i18n.T(ctx, "Dispositivo") }</dt>
+							<dd>{ vm.Device }</dd>
+							<dt>{ i18n.T(ctx, "Acesso") }</dt>
+							<dd>{ vm.Scope }</dd>
+							<dt>{ i18n.T(ctx, "Conta") }</dt>
+							<dd class="mono">{ vm.Account }</dd>
+						</dl>
+						<div class="form-actions">
+							<button class="btn primary" type="submit" name="decision" value="approve">{ i18n.T(ctx, "Autorizar") }</button>
+							<button class="btn outline" type="submit" name="decision" value="deny">{ i18n.T(ctx, "Negar") }</button>
+						</div>
+					</form>
+			}
+			<div class="foot"><span>{ i18n.T(ctx, "Hanko · control plane de personas de IA") }</span></div>
+			@LangSwitch()
+		</div>
+	}
+}
+
+// JoinPage é a página pública do link de pedido de entrada (/pedir-acesso/<token>).
+templ JoinPage(vm JoinPageVM) {
+	@Bare(i18n.T(ctx, "Pedir acesso"), vm.Version) {
+		<div class="auth">
+			<div class="mark">
+				@Mark(40)
+				<b>Hanko</b>
+			</div>
+			switch vm.State {
+				case "invalid":
+					<div class="card">
+						<h1>{ i18n.T(ctx, "Link inválido") }</h1>
+						<p class="sub muted">{ i18n.T(ctx, "Este link de entrada não existe ou foi desligado. Peça um novo a quem administra a empresa.") }</p>
+					</div>
+				case "sent":
+					<div class="card">
+						<h1>{ i18n.T(ctx, "Pedido enviado") }</h1>
+						<p class="sub muted">{ i18n.Tf(ctx, "Quem administra %s vai analisar o pedido. Volte aqui depois para ver se foi aprovado.", vm.Company) }</p>
+						<a class="btn outline block" href="/">{ i18n.T(ctx, "Ir para o início") }</a>
+					</div>
+				case "member":
+					<div class="card">
+						<h1>{ i18n.T(ctx, "Você já participa") }</h1>
+						<p class="sub muted">{ i18n.Tf(ctx, "Você já faz parte de %s.", vm.Company) }</p>
+						<a class="btn primary block" href="/">{ i18n.T(ctx, "Abrir") }</a>
+					</div>
+				default:
+					<form class="card" method="post" action={ templ.SafeURL("/pedir-acesso/" + vm.Token) }>
+						<h1>{ i18n.Tf(ctx, "Pedir acesso a %s", vm.Company) }</h1>
+						<p class="sub muted">{ i18n.Tf(ctx, "Você entra como %s. Quem administra escolhe o seu papel ao aprovar.", vm.Account) }</p>
+						if vm.Error != "" {
+							@Alert("danger", vm.Error)
+						}
+						<div class="field">
+							<label for="jr-msg">{ i18n.T(ctx, "Mensagem (opcional)") }</label>
+							<textarea class="input" id="jr-msg" name="message" rows="3" maxlength="500">{ vm.Message }</textarea>
+						</div>
+						<button class="btn primary block" type="submit">{ i18n.T(ctx, "Pedir para entrar") }</button>
+					</form>
+			}
+			<div class="foot"><span>{ i18n.T(ctx, "Hanko · control plane de personas de IA") }</span></div>
+			@LangSwitch()
+		</div>
+	}
+}
+
+// UsersPage lista as contas da instalação (dono ou admin da instalação).
+templ UsersPage(vm UsersVM) {
+	@Bare(i18n.T(ctx, "Usuários"), vm.Version) {
+		<div class="auth wide">
+			<div class="mark">
+				@Mark(40)
+				<b>Hanko</b>
+			</div>
+			<div class="card">
+				<h1>{ i18n.T(ctx, "Usuários da instalação") }</h1>
+				<p class="sub muted">{ i18n.T(ctx, "Todas as contas, as empresas de que cada uma participa e as chaves de API ativas. Para redefinir senha ou remover uma conta, o dono usa hanko auth user.") }</p>
+				<div class="table-wrap mt-4">
+					<table class="table">
+						<thead>
+							<tr>
+								<th>{ i18n.T(ctx, "Pessoa") }</th>
+								<th>{ i18n.T(ctx, "Papel") }</th>
+								<th class="hide-sm">{ i18n.T(ctx, "Login") }</th>
+								<th>{ i18n.T(ctx, "Empresas") }</th>
+								<th>{ i18n.T(ctx, "Chaves") }</th>
+								<th class="hide-sm">{ i18n.T(ctx, "Último login") }</th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, u := range vm.Users {
+								<tr class="row">
+									<td>
+										{ u.Name }
+										if u.Self {
+											<span class="badge outline">{ i18n.T(ctx, "você") }</span>
+										}
+										<div class="mono muted">{ u.Email }</div>
+									</td>
+									<td><span class="badge outline">{ u.Role }</span></td>
+									<td class="hide-sm">{ u.Provider }</td>
+									<td>{ itoa64(u.Companies) }</td>
+									<td>{ itoa64(u.Keys) }</td>
+									<td class="when hide-sm">{ u.LastLogin }</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+				<a class="btn outline mt-4" href={ templ.SafeURL(vm.Home) }>{ i18n.T(ctx, "Voltar") }</a>
+			</div>
+			@LangSwitch()
+		</div>
+	}
+}
+
+// ImportPage é o import pela interface: arquivo, destino, prévia e confirmação.
+templ ImportPage(vm ImportVM) {
+	@Bare(i18n.T(ctx, "Importar empresa"), vm.Version) {
+		<div class="auth wide">
+			<div class="mark">
+				@Mark(40)
+				<b>Hanko</b>
+			</div>
+			<div class="card">
+				<h1>{ i18n.T(ctx, "Importar empresa") }</h1>
+				<p class="sub muted">{ i18n.T(ctx, "Envie um arquivo exportado (hanko.company.v1). Antes de gravar qualquer coisa você vê uma prévia do que vai acontecer.") }</p>
+				if vm.Error != "" {
+					@Alert("danger", vm.Error)
+				}
+				if vm.Done != "" {
+					<div class="alert" role="status">
+						<div>
+							{ i18n.Tf(ctx, "Importação concluída em %s.", vm.DoneName) }
+							{ " " }
+							<a class="link-u" href={ templ.SafeURL(vm.Done) }>{ i18n.T(ctx, "Abrir a empresa") }</a>
+						</div>
+					</div>
+				}
+				if vm.Preview == nil {
+					<form method="post" action="/importar" enctype="multipart/form-data">
+						<div class="field">
+							<label for="imp-file">{ i18n.T(ctx, "Arquivo") }</label>
+							<input class="input" id="imp-file" type="file" name="file" accept=".json,application/json" required/>
+						</div>
+						@importTargetFields(vm.Companies, vm.Into, vm.Slug, vm.Default, vm.Active)
+						<div class="form-actions"><button class="btn primary" type="submit">{ i18n.T(ctx, "Ver prévia") }</button></div>
+					</form>
+				} else {
+					@importPreview(vm)
+				}
+			</div>
+			@LangSwitch()
+		</div>
+	}
+}
+
+templ importTargetFields(companies []ImportCompanyOption, into, slug, def string, active bool) {
+	<div class="form-grid">
+		<div class="field">
+			<label for="imp-into">{ i18n.T(ctx, "Destino") }</label>
+			<select class="input" id="imp-into" name="into">
+				<option value="" selected?={ into == "" }>{ i18n.T(ctx, "Empresa nova") }</option>
+				for _, c := range companies {
+					<option value={ c.Slug } selected?={ c.Slug == into }>{ i18n.Tf(ctx, "Mesclar a configuração em %s", c.Name) }</option>
+				}
+			</select>
+		</div>
+		<div class="field">
+			<label for="imp-slug">{ i18n.T(ctx, "Slug da empresa nova") }</label>
+			<input class="input mono" id="imp-slug" name="slug" value={ slug } placeholder={ i18n.T(ctx, "(o do arquivo)") } pattern="[a-z0-9][a-z0-9-]{0,62}"/>
+		</div>
+		<div class="field">
+			<label for="imp-def">{ i18n.T(ctx, "Se o item já existir no destino") }</label>
+			<select class="input" id="imp-def" name="on_conflict">
+				<option value="skip" selected?={ def == "" || def == "skip" }>{ i18n.T(ctx, "Pular (manter o do destino)") }</option>
+				<option value="rename" selected?={ def == "rename" }>{ i18n.T(ctx, "Renomear (entra como -2, -3…)") }</option>
+				<option value="replace" selected?={ def == "replace" }>{ i18n.T(ctx, "Substituir (o do arquivo vence)") }</option>
+			</select>
+		</div>
+	</div>
+	<label class="check"><input type="checkbox" name="active" value="1" checked?={ active }/> { i18n.T(ctx, "Manter ligado o que o arquivo traz ligado (padrão: personas pausadas e fluxos desligados)") }</label>
+}
+
+templ importPreview(vm ImportVM) {
+	<h2 class="mt-4">{ vm.Preview.Title }</h2>
+	<p class="sub muted">{ i18n.T(ctx, "Prévia: nada foi gravado ainda.") }</p>
+	for _, w := range vm.Preview.Warnings {
+		<div class="alert warn" role="status">@Icon("alert")<div>{ w.Text }</div></div>
+	}
+	<div class="table-wrap">
+		<table class="table">
+			<thead><tr><th>{ i18n.T(ctx, "Item") }</th><th>{ i18n.T(ctx, "Qtd") }</th></tr></thead>
+			<tbody>
+				for _, c := range vm.Preview.Counts {
+					<tr class="row"><td>{ c.Label }</td><td>{ itoa(c.N) }</td></tr>
+				}
+			</tbody>
+		</table>
+	</div>
+	<form method="post" action="/importar/aplicar">
+		<input type="hidden" name="token" value={ vm.Preview.Token }/>
+		<input type="hidden" name="into" value={ vm.Preview.Into }/>
+		<input type="hidden" name="slug" value={ vm.Preview.Slug }/>
+		<input type="hidden" name="on_conflict" value={ vm.Preview.Default }/>
+		if vm.Preview.Active {
+			<input type="hidden" name="active" value="1"/>
+		}
+		if len(vm.Preview.Items) > 0 {
+			<h3 class="mt-4">{ i18n.T(ctx, "Itens") }</h3>
+			<div class="table-wrap">
+				<table class="table">
+					<thead>
+						<tr>
+							<th>{ i18n.T(ctx, "Tipo") }</th>
+							<th>{ i18n.T(ctx, "Item") }</th>
+							<th>{ i18n.T(ctx, "Ação") }</th>
+							<th class="hide-sm">{ i18n.T(ctx, "Destino") }</th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, it := range vm.Preview.Items {
+							<tr class="row">
+								<td>{ it.Kind }</td>
+								<td>{ it.Name }<div class="mono muted">{ it.Key }</div></td>
+								<td>
+									if it.Conflict {
+										<select class="input" name={ "r:" + it.Kind + "/" + it.Key } aria-label={ i18n.T(ctx, "Ação") }>
+											<option value="skip" selected?={ it.Action == "skip" }>{ i18n.T(ctx, "pular") }</option>
+											<option value="rename" selected?={ it.Action == "rename" }>{ i18n.T(ctx, "renomear") }</option>
+											<option value="replace" selected?={ it.Action == "replace" }>{ i18n.T(ctx, "substituir") }</option>
+										</select>
+									} else {
+										<span class="badge outline">{ it.ActionLabel }</span>
+									}
+								</td>
+								<td class="mono hide-sm">
+									if it.Target != it.Key {
+										{ "→ " + it.Target }
+									}
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+		<div class="form-actions">
+			if vm.Preview.Conflict > 0 {
+				<button class="btn outline" type="submit" name="intent" value="preview">{ i18n.T(ctx, "Atualizar prévia") }</button>
+			}
+			<button class="btn primary" type="submit" name="intent" value="confirm">{ i18n.T(ctx, "Confirmar importação") }</button>
+			<a class="btn outline" href="/importar">{ i18n.T(ctx, "Cancelar") }</a>
+		</div>
+	</form>
+}

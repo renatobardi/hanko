@@ -115,6 +115,7 @@ func (e *env) runCmd() *cobra.Command {
 				[2]string{e.t("Origem do modelo"), e.modelSourceLabel(r.ModelSource)},
 				[2]string{e.t("Custo"), e.cost(r.CostUSD) + " (" + e.costSourceLabel(r.CostSource) + ")"}, [2]string{e.t("Custo de lista"), e.cost(r.ListCostUSD)},
 				[2]string{e.t("Assinatura"), dash(r.SubscriptionID)},
+				[2]string{e.t("Ambiente (origem)"), dash(strings.TrimSpace(short(r.EnvironmentID) + " " + r.EnvironmentSource))},
 				[2]string{e.t("Tokens"), fmt.Sprintf("entrada %d · saída %d · cache %d/%d", r.Usage.InputTokens, r.Usage.OutputTokens,
 					r.Usage.CacheReadTokens, r.Usage.CacheCreationTokens)})
 			if r.Error != "" {
@@ -123,6 +124,7 @@ func (e *env) runCmd() *cobra.Command {
 			if r.Summary != "" {
 				fmt.Fprintf(e.out, e.t("\nResumo:\n%s\n"), strings.TrimSpace(r.Summary))
 			}
+			e.printRunResilience(r)
 			return nil
 		},
 	}
@@ -184,7 +186,8 @@ func (e *env) runCmd() *cobra.Command {
 			return nil
 		},
 	}
-	c.AddCommand(ls, show, logs, cancel)
+	c.AddCommand(ls, show, logs, cancel, e.runSkillsCmd())
+	c.AddCommand(e.runResilienceCmds()...)
 	return c
 }
 

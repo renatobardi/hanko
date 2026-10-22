@@ -111,6 +111,7 @@ func (q *Queries) DeleteMemoryGrant(ctx context.Context, arg DeleteMemoryGrantPa
 const dueMemoryProposals = `-- name: DueMemoryProposals :many
 SELECT id, company_id FROM memory_proposals
 WHERE status IN ('approved','failed') AND next_attempt_at IS NOT NULL AND next_attempt_at <= $1
+  AND NOT EXISTS (SELECT 1 FROM companies c WHERE c.id = memory_proposals.company_id AND c.archived_at IS NOT NULL)
 ORDER BY next_attempt_at, id
 LIMIT $2
 `
@@ -148,6 +149,7 @@ func (q *Queries) DueMemoryProposals(ctx context.Context, arg DueMemoryProposals
 const dueMemorySettings = `-- name: DueMemorySettings :many
 SELECT company_id, enabled, interval_hours, curator_persona_id, last_fired_at, next_fire_at, updated_at FROM memory_settings
 WHERE enabled AND curator_persona_id IS NOT NULL AND next_fire_at IS NOT NULL AND next_fire_at <= $1
+  AND NOT EXISTS (SELECT 1 FROM companies c WHERE c.id = memory_settings.company_id AND c.archived_at IS NOT NULL)
 ORDER BY next_fire_at, company_id
 LIMIT $2
 `

@@ -21,6 +21,11 @@ type skillStudioBackend interface {
 	SkillTestRunSpec(ctx context.Context, companyID, taskID domain.ID) (service.SkillTestSpec, error)
 }
 
+// connectionTickBackend é a renovação periódica dos tokens das conexões OAuth (ADR-0043).
+type connectionTickBackend interface {
+	RefreshDueConnections(ctx context.Context, now time.Time, limit int) (int, error)
+}
+
 type skillTickBackend interface {
 	DueSkillSources(ctx context.Context, now time.Time, limit int) ([]service.SkillSourceRef, error)
 	SyncDueSkillSource(ctx context.Context, ref service.SkillSourceRef) (service.SkillSyncResult, error)
@@ -91,11 +96,19 @@ func (h *Heartbeat) skillTick(ctx context.Context, now time.Time) error {
 	if h.svc == nil {
 		return errNotAttached
 	}
+	var errs []error
+	// conexões OAuth (ADR-0043): renova os tokens que vencem em breve; independe das fontes de skills
+	if cb, ok := h.svc.(connectionTickBackend); ok {
+		if n, err := cb.RefreshDueConnections(ctx, now, 20); err != nil {
+			errs = append(errs, fmt.Errorf("connection refresh: %w", err))
+		} else if n > 0 {
+			h.log.Info("skill_tick: tokens de conexão renovados", "count", n)
+		}
+	}
 	sb, ok := h.svc.(skillTickBackend)
 	if !ok {
-		return nil
+		return errors.Join(errs...)
 	}
-	var errs []error
 	if n, err := sb.ResolveStaleSkillTests(ctx); err != nil {
 		errs = append(errs, fmt.Errorf("stale skill tests: %w", err))
 	} else if n > 0 {

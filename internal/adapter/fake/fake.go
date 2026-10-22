@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -45,14 +46,22 @@ func (*Adapter) Name() string { return "fake" }
 // ResumesSessions: the fake pretends to resume sessions so chat flows can be exercised end to end.
 func (*Adapter) ResumesSessions() bool { return true }
 
+// SteerMode: the fake takes an operator message while it runs, so the injection path can be proved end to end.
+func (*Adapter) SteerMode() domain.SteerMode { return domain.SteerInject }
+
 // Config is read from persona.adapter_config.
 type Config struct {
 	DelayMS *int   `json:"delay_ms"` // overrides Options.Delay
 	Fail    bool   `json:"fail"`     // makes the run report an error
 	Summary string `json:"summary"`  // overrides the final answer (e.g. a reviewer verdict)
+	// HoldForSteerMS: before the last step, wait up to this long for an operator message (steer) when none arrived yet.
+	HoldForSteerMS int `json:"hold_for_steer_ms"`
 	// Touch grava um arquivo com este nome (só o nome, sem diretório) no diretório de trabalho da run; no
 	// ambiente remoto (ADR-0037) ele é gravado lá e volta pela sincronização.
 	Touch string `json:"touch"`
+	// Commit, com Touch, faz um commit com esta mensagem no diretório de trabalho (um worktree Git, ADR-0054). Só
+	// local; o autor vem de GIT_AUTHOR_* do ambiente da run.
+	Commit string `json:"commit"`
 	// RemoteSleepSec segura o comando no ambiente remoto por estes segundos (0 a 60), para exercitar o
 	// cancelamento; não vale localmente.
 	RemoteSleepSec int `json:"remote_sleep_sec"`
@@ -88,6 +97,8 @@ func (a *Adapter) Run(ctx context.Context, spec adapter.Spec, sink adapter.Sink)
 		if spec.SessionRef != "" {
 			summary = "Fake respondeu na conversa (sessão retomada): resposta registrada."
 		}
+	} else if spec.SessionRef != "" {
+		summary = fmt.Sprintf("Fake concluiu %s (sessão retomada): análise registrada. Próximo passo: revisar o resultado.", key)
 	}
 	if cfg.Summary != "" {
 		summary = cfg.Summary
@@ -122,24 +133,77 @@ func (a *Adapter) Run(ctx context.Context, spec adapter.Spec, sink adapter.Sink)
 		if err := os.WriteFile(filepath.Join(spec.Dir, cfg.Touch), []byte("fake\n"), 0o600); err != nil {
 			return adapter.Result{ExitCode: -1, IsError: true, Error: err.Error()}, fmt.Errorf("fake: touch: %w", err)
 		}
+		if cfg.Commit != "" {
+			if err := gitCommit(ctx, spec, cfg.Commit); err != nil {
+				return adapter.Result{ExitCode: -1, IsError: true, Error: err.Error()}, err
+			}
+		}
 	}
 	if cfg.Fail {
 		steps[len(steps)-1] = adapter.Event{Kind: domain.EventAssistant, Text: "Falha simulada."}
 		res.Summary, res.IsError, res.Error, res.ExitCode = "", true, "falha simulada pelo adapter fake", 1
 	}
 
-	for i, e := range steps {
-		if i > 0 && delay > 0 {
+	var steered []string
+	// take applies one operator message: the log shows it and the final answer carries the new direction.
+	take := func(m adapter.Steer) error {
+		steered = append(steered, m.Text)
+		err := sink.Emit(ctx, adapter.Event{Kind: domain.EventAssistant, Text: "Rumo alterado pelo operador: " + m.Text, OccurredAt: time.Now().UTC()})
+		m.Done(err)
+		return err
+	}
+	// pause waits d (or until ctx ends), taking steer messages that arrive meanwhile; it returns false when ctx ended.
+	// Com untilSteer a primeira mensagem tomada encerra a espera: é o hold antes do último passo, que existe só para
+	// esperar o operador.
+	pause := func(d time.Duration, untilSteer bool) (bool, error) {
+		t := time.NewTimer(d)
+		defer t.Stop()
+		for {
 			select {
 			case <-ctx.Done():
+				return false, nil
+			case m := <-spec.Steer:
+				if err := take(m); err != nil {
+					return true, err
+				}
+				if untilSteer {
+					return true, nil
+				}
+			case <-t.C:
+				return true, nil
+			}
+		}
+	}
+	for i, e := range steps {
+		if i > 0 && delay > 0 {
+			ok, err := pause(delay, false)
+			if err != nil {
+				return res, fmt.Errorf("fake: sink: %w", err)
+			}
+			if !ok {
 				return a.cancelled(res), nil
-			case <-time.After(delay):
+			}
+		}
+		if i == len(steps)-1 && cfg.HoldForSteerMS > 0 && len(steered) == 0 && spec.Steer != nil {
+			ok, err := pause(time.Duration(cfg.HoldForSteerMS)*time.Millisecond, true)
+			if err != nil {
+				return res, fmt.Errorf("fake: sink: %w", err)
+			}
+			if !ok {
+				return a.cancelled(res), nil
 			}
 		}
 		if ctx.Err() != nil {
 			return a.cancelled(res), nil
 		}
+		if i == len(steps)-1 && len(steered) > 0 && !res.IsError {
+			res.Summary += " Rumo alterado pelo operador: " + strings.Join(steered, " | ")
+			e.Text = res.Summary
+		}
 		e.OccurredAt = time.Now().UTC()
+		if i == 0 {
+			e.SessionRef = session
+		}
 		if err := sink.Emit(ctx, e); err != nil {
 			return res, fmt.Errorf("fake: sink: %w", err)
 		}
@@ -195,4 +259,22 @@ func (a *Adapter) remote(ctx context.Context, spec adapter.Spec, cfg Config) (st
 		return "", nil
 	}
 	return strings.TrimSpace(out[0]), nil
+}
+
+// gitCommit registra tudo o que está solto em spec.Dir num commit (o que uma persona faz no worktree da task).
+func gitCommit(ctx context.Context, spec adapter.Spec, message string) error {
+	env := append(os.Environ(), "GIT_CONFIG_GLOBAL="+os.DevNull, "GIT_CONFIG_NOSYSTEM=1", "GIT_TERMINAL_PROMPT=0")
+	for k, v := range spec.Env {
+		if strings.HasPrefix(k, "GIT_") {
+			env = append(env, k+"="+v)
+		}
+	}
+	for _, args := range [][]string{{"add", "-A"}, {"commit", "-q", "--no-verify", "-m", message}} {
+		cmd := exec.CommandContext(ctx, "git", append([]string{"-c", "core.hooksPath=" + os.DevNull}, args...)...) //nolint:gosec // argv fixo; só testes e demos
+		cmd.Dir, cmd.Env = spec.Dir, env
+		if out, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("fake: git %s: %w: %s", args[0], err, strings.TrimSpace(string(out)))
+		}
+	}
+	return nil
 }

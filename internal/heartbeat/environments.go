@@ -25,7 +25,7 @@ const envFinishTimeout = 15 * time.Minute
 // environmentBackend é o que o service oferece para ambientes; opcional para que os fakes de teste que não
 // os usam continuem valendo (sem ele, toda run é local).
 type environmentBackend interface {
-	RunEnvironment(ctx context.Context, companyID, personaID domain.ID) (service.RunEnvironment, error)
+	RunEnvironmentFor(ctx context.Context, companyID domain.ID, run domain.Run, projectID *domain.ID) (service.RunEnvironment, error)
 	AcquireEnvironmentLease(ctx context.Context, companyID, envID, runID domain.ID, remoteDir string) error
 	ReleaseEnvironmentLease(ctx context.Context, companyID, runID domain.ID, failure string) error
 }
@@ -49,7 +49,7 @@ func (h *Heartbeat) openEnvironment(ctx context.Context, a ExecuteRunArgs, rc se
 	if !ok {
 		return nil, nil
 	}
-	re, err := eb.RunEnvironment(ctx, rc.Company.ID, rc.Persona.ID)
+	re, err := eb.RunEnvironmentFor(ctx, rc.Company.ID, rc.Run, rc.Task.ProjectID)
 	if err != nil {
 		return nil, fmt.Errorf("ambiente de execução: %w", err)
 	}
@@ -61,16 +61,20 @@ func (h *Heartbeat) openEnvironment(ctx context.Context, a ExecuteRunArgs, rc se
 	}
 	env := re.Environment
 	d := env.Driver
+	if d == domain.EnvLocal {
+		return h.openLocalEnvironment(ctx, eb, a, rc, re, spec, emit, log)
+	}
 	if err := re.Config.DriverStatus(d); err != nil {
 		return nil, fmt.Errorf("o ambiente %q não pode rodar neste servidor: %w", env.Name, err)
 	}
-	needURL := d == domain.EnvSSH || d == domain.EnvSandbox && re.Target.Sandbox.Network != domain.SandboxNetworkNone
+	needURL := d == domain.EnvSSH || d == domain.EnvSandbox && re.Target.Sandbox.Network != domain.SandboxNetworkNone ||
+		d == domain.EnvCloud && re.Target.Cloud.Network != "none"
 	if needURL {
 		if err := re.Config.RemoteURLStatus(); err != nil {
 			return nil, fmt.Errorf("o ambiente %q não pode rodar: %w", env.Name, err)
 		}
 	} else {
-		emit(domain.EventSystem, "sandbox sem rede: o harness não alcança o MCP do Hanko nem a API do modelo")
+		emit(domain.EventSystem, "ambiente sem rede: o harness não alcança o MCP do Hanko nem a API do modelo")
 	}
 	if d == domain.EnvSandbox && !re.Target.Sandbox.Pinned() {
 		emit(domain.EventSystem, "aviso: imagem do sandbox sem digest (@sha256:…); o conteúdo pode mudar entre execuções")
@@ -85,6 +89,9 @@ func (h *Heartbeat) openEnvironment(ctx context.Context, a ExecuteRunArgs, rc se
 	}
 	if _, ok := spec.Env["HANKO_URL"]; ok && needURL {
 		spec.Env["HANKO_URL"] = strings.TrimRight(re.Config.RemoteURL, "/")
+	}
+	if rc.Worktree != nil {
+		emit(domain.EventSystem, "aviso: o worktree Git é sincronizado como pasta comum; o .git dele aponta para o espelho deste servidor, então o git não funciona dentro do ambiente remoto (ADR-0054)")
 	}
 	ws := ""
 	if rc.Workspace != nil && !tempDir {
@@ -101,7 +108,7 @@ func (h *Heartbeat) openEnvironment(ctx context.Context, a ExecuteRunArgs, rc se
 		sess.Close()
 		return nil, fmt.Errorf("registrar o uso do ambiente %q: %w", env.Name, err)
 	}
-	emit(domain.EventSystem, "executando no ambiente "+sess.Describe())
+	emit(domain.EventSystem, "executando no ambiente "+sess.Describe()+" (origem: "+re.Source+")")
 	return &runEnv{eb: eb, sess: sess, a: a, name: env.Name, secrets: re.EnvironmentSecretValues(), log: log}, nil
 }
 
@@ -110,8 +117,11 @@ func (h *Heartbeat) openEnvironment(ctx context.Context, a ExecuteRunArgs, rc se
 func (e *runEnv) finish(ctx context.Context, runFailure string) error {
 	fctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), envFinishTimeout)
 	defer cancel()
-	syncErr := e.sess.Finish(fctx, runFailure == "")
-	e.sess.Close()
+	var syncErr error
+	if e.sess != nil { // o local explícito não tem sessão: só o registro de uso
+		syncErr = e.sess.Finish(fctx, runFailure == "")
+		e.sess.Close()
+	}
 	reason := runFailure
 	if syncErr != nil {
 		syncErr = errors.New(adapter.Redact(syncErr.Error(), e.secrets...))
@@ -155,4 +165,28 @@ func rebaseMCP(raw json.RawMessage, from, to string) (json.RawMessage, []string,
 		return nil, nil, fmt.Errorf("mcp config: %w", err)
 	}
 	return out, dropped, nil
+}
+
+// openLocalEnvironment é o ambiente local explícito (ADR-0055): o harness roda como processo filho, como sempre,
+// com as variáveis do ambiente (valores já com ${secret:} resolvido) somadas às da run; as da run vencem. O uso é
+// registrado como nos remotos, sem diretório remoto.
+func (h *Heartbeat) openLocalEnvironment(ctx context.Context, eb environmentBackend, a ExecuteRunArgs, rc service.RunContext, re service.RunEnvironment,
+	spec *adapter.Spec, emit func(domain.RunEventKind, string), log *slog.Logger,
+) (*runEnv, error) {
+	env := re.Environment
+	if len(re.Target.Env) > 0 {
+		if spec.Env == nil {
+			spec.Env = map[string]string{}
+		}
+		for k, v := range re.Target.Env {
+			if _, ok := spec.Env[k]; !ok {
+				spec.Env[k] = v
+			}
+		}
+	}
+	if err := eb.AcquireEnvironmentLease(ctx, rc.Company.ID, env.ID, rc.Run.ID, ""); err != nil {
+		return nil, fmt.Errorf("registrar o uso do ambiente %q: %w", env.Name, err)
+	}
+	emit(domain.EventSystem, "executando no ambiente "+env.Name+" (local, origem: "+re.Source+")")
+	return &runEnv{eb: eb, a: a, name: env.Name, secrets: re.EnvironmentSecretValues(), log: log}, nil
 }

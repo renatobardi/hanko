@@ -271,6 +271,7 @@ type ToolTestVM struct {
 func integrationTabs(ctx context.Context, base, active string) []TabLink {
 	tabs := []TabLink{
 		{Key: "integracoes", Label: i18n.T(ctx, "Integrações"), Href: base + "/integracoes"},
+		{Key: "conexoes", Label: i18n.T(ctx, "Conexões"), Href: base + "/ferramentas/conexoes"},
 		{Key: "tools", Label: i18n.T(ctx, "Tools"), Href: base + "/ferramentas"},
 		{Key: "perfis", Label: i18n.T(ctx, "Perfis"), Href: base + "/ferramentas/perfis"},
 		{Key: "politica", Label: i18n.T(ctx, "Política"), Href: base + "/ferramentas/politica"},

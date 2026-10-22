@@ -1,0 +1,336 @@
+package views
+
+import (
+	"fmt"
+
+	"github.com/renatobardi/hanko/internal/i18n"
+)
+
+// Workspace de execução com Git, padrões de projeto e "Nova sessão" (ADR-0054). Ligar o Git e os padrões é de admin;
+// sincronizar é de membro; ver (inclusive a aba Git da task e o browser de arquivos, somente leitura) é de qualquer papel.
+
+templ gitWorktreeTable(rows []GitWorktreeRow) {
+	<div class="table-wrap">
+		<table class="table">
+			<thead>
+				<tr>
+					<th>Task</th>
+					<th>{ i18n.T(ctx, "Branch") }</th>
+					<th>{ i18n.T(ctx, "Estado") }</th>
+					<th>{ i18n.T(ctx, "Status da task") }</th>
+					<th>{ i18n.T(ctx, "Commit") }</th>
+				</tr>
+			</thead>
+			<tbody>
+				for _, r := range rows {
+					<tr>
+						<td><a href={ templ.SafeURL(r.TaskHref) }>{ r.TaskKey }</a> <span class="muted">{ r.TaskTitle }</span></td>
+						<td class="mono"><a href={ templ.SafeURL(r.GitHref) }>{ r.Branch }</a></td>
+						<td>
+							@BadgeEl(r.State)
+							if r.Error != "" {
+								<div class="muted text-xs">{ r.Error }</div>
+							}
+						</td>
+						<td>{ r.TaskStatus }</td>
+						<td class="mono">{ r.Head }</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+	</div>
+}
+
+// WorkspaceGitSection é a aba Git do workspace.
+templ WorkspaceGitSection(vm WorkspaceGitVM) {
+	if !vm.Available {
+		@Alert("warn", i18n.T(ctx, "O operador não ligou os workspaces com Git neste servidor (HANKO_GIT_WORKSPACES=true). Sem isso, nada é clonado."))
+	}
+	if !vm.Enabled {
+		<section class="card pad">
+			<div class="card-head"><h2>{ i18n.T(ctx, "Git do workspace") }</h2></div>
+			<p class="muted">{ i18n.T(ctx, "Com o Git ligado, o servidor mantém um clone espelho do repositório e cria um worktree com branch própria (por exemplo hnk-123) para cada task. As personas commitam na branch e os humanos veem o diff na aba Git da task.") }</p>
+			if vm.RepoURL == "" {
+				<p class="muted mt-2">{ i18n.T(ctx, "Este workspace não tem repositório. Informe a URL na aba Configuração para ligar o Git.") }</p>
+			} else if canAdmin(ctx) && vm.Available {
+				<form class="mt-3" method="post" action={ templ.SafeURL(vm.EnableAction) } hx-boost="true">
+					<p class="text-sm">{ i18n.T(ctx, "Repositório:") } <span class="mono">{ vm.RepoURL }</span></p>
+					<div class="field">
+						<label for="g-cred">{ i18n.T(ctx, "Credencial (segredo)") }</label>
+						<input class="input mono" id="g-cred" name="credential_ref" placeholder="${secret:repo-token}" maxlength="200" autocomplete="off"/>
+						<span class="hint">{ i18n.T(ctx, "Referência a um segredo da empresa, no formato ${secret:NOME}: token para https, chave privada para ssh. Vazio para repositório público. O valor nunca aparece aqui.") }</span>
+					</div>
+					<div class="form-actions">
+						<button class="btn primary" type="submit">{ i18n.T(ctx, "Ligar Git e clonar") }</button>
+					</div>
+				</form>
+			}
+		</section>
+	} else {
+		<section class="card pad">
+			<div class="card-head"><h2>{ i18n.T(ctx, "Espelho do repositório") }</h2>@BadgeEl(vm.Mirror)</div>
+			<dl class="kv" style="grid-template-columns:150px 1fr">
+				<dt>{ i18n.T(ctx, "Repositório") }</dt>
+				<dd class="mono">{ vm.RepoURL }</dd>
+				<dt>{ i18n.T(ctx, "Branch base") }</dt>
+				<dd class="mono">{ vm.Base }</dd>
+				<dt>{ i18n.T(ctx, "Commit") }</dt>
+				<dd class="mono">{ vm.Head }</dd>
+				<dt>{ i18n.T(ctx, "Última busca") }</dt>
+				<dd>{ vm.LastTime }</dd>
+				<dt>{ i18n.T(ctx, "Credencial") }</dt>
+				<dd class="mono">{ vm.Credential }</dd>
+			</dl>
+			if vm.LastErr != "" {
+				@Alert("danger", vm.LastErr)
+			}
+			<div class="form-actions">
+				if canWrite(ctx) && vm.Available {
+					<form method="post" action={ templ.SafeURL(vm.SyncAction) } hx-boost="true">
+						<button class="btn primary" type="submit">{ i18n.T(ctx, "Sincronizar agora") }</button>
+					</form>
+				}
+				if canAdmin(ctx) {
+					<form method="post" action={ templ.SafeURL(vm.DisableAction) } hx-boost="true">
+						<button class="btn outline" type="submit">{ i18n.T(ctx, "Desligar Git") }</button>
+					</form>
+				}
+			</div>
+			if canAdmin(ctx) && vm.Available {
+				<details class="mt-3">
+					<summary class="text-sm">{ i18n.T(ctx, "Trocar a credencial") }</summary>
+					<form method="post" action={ templ.SafeURL(vm.EnableAction) } hx-boost="true">
+						<div class="field">
+							<label for="g-cred2">{ i18n.T(ctx, "Credencial (segredo)") }</label>
+							<input class="input mono" id="g-cred2" name="credential_ref" value={ vm.Credential } placeholder="${secret:repo-token}" maxlength="200" autocomplete="off"/>
+						</div>
+						<div class="form-actions"><button class="btn outline" type="submit">{ i18n.T(ctx, "Salvar credencial") }</button></div>
+					</form>
+				</details>
+			}
+		</section>
+		<section class="mt-6">
+			<div class="card-head"><h2>{ i18n.T(ctx, "Worktrees das tasks") }</h2></div>
+			if len(vm.Worktrees) == 0 {
+				@EmptyCard("git-branch", i18n.T(ctx, "Nenhum worktree ainda."), i18n.T(ctx, "O worktree de uma task nasce quando uma persona começa a trabalhar nela e some quando a task é concluída."), false)
+			} else {
+				@gitWorktreeTable(vm.Worktrees)
+			}
+		</section>
+	}
+}
+
+// ProjectGitSection é a aba Git do projeto.
+templ ProjectGitSection(vm ProjectGitVM) {
+	if !vm.HasWorkspace {
+		@EmptyCard("git-branch", i18n.T(ctx, "Sem workspace."), i18n.T(ctx, "Escolha um workspace com repositório na aba Configuração para as tasks trabalharem em branches."), true)
+	} else if !vm.GitEnabled {
+		<section class="card pad">
+			<p class="muted">{ i18n.T(ctx, "O Git do workspace deste projeto não está ligado.") }</p>
+			<a class="btn outline mt-2" href={ templ.SafeURL(vm.WorkspaceHref) }>{ i18n.T(ctx, "Abrir workspace") }</a>
+		</section>
+	} else {
+		<div class="card-head"><h2>{ i18n.T(ctx, "Worktrees das tasks do projeto") }</h2><a class="more" href={ templ.SafeURL(vm.WorkspaceHref) }>{ i18n.T(ctx, "Espelho e credencial") }</a></div>
+		if len(vm.Rows) == 0 {
+			@EmptyCard("git-branch", i18n.T(ctx, "Nenhum worktree ainda."), i18n.T(ctx, "O worktree de uma task nasce quando uma persona começa a trabalhar nela e some quando a task é concluída."), false)
+		} else {
+			@gitWorktreeTable(vm.Rows)
+		}
+	}
+}
+
+// ProjectDefaultsSection é a aba Padrões do projeto.
+templ ProjectDefaultsSection(vm ProjectDefaultsVM) {
+	if vm.Error != "" {
+		@Alert("danger", vm.Error)
+	}
+	if !canAdmin(ctx) {
+		<section class="card pad">
+			<p class="muted">{ i18n.T(ctx, "Instruções do projeto:") }</p>
+			if vm.Instructions == "" {
+				<p class="muted">{ i18n.T(ctx, "Sem instruções do projeto.") }</p>
+			} else {
+				<div class="instr">{ vm.Instructions }</div>
+			}
+			<p class="muted mt-3 text-sm">{ vm.ReviewSummary }</p>
+		</section>
+	} else {
+		<form class="card pad form-card" method="post" action={ templ.SafeURL(vm.Action) } hx-boost="true">
+			<div class="field">
+				<label for="d-instr">{ i18n.T(ctx, "Instruções do projeto") }</label>
+				<textarea class="input" id="d-instr" name="instructions" rows="8" maxlength="16384" placeholder={ i18n.T(ctx, "Briefing que toda persona recebe ao trabalhar numa task deste projeto: stack, convenções, o que evitar.") }>{ vm.Instructions }</textarea>
+				<span class="hint">{ i18n.T(ctx, "Entra no prompt depois das instruções da própria persona.") }</span>
+			</div>
+			<div class="field">
+				<label for="d-goal">{ i18n.T(ctx, "Meta padrão") }</label>
+				@Select("goal", "d-goal", vm.GoalOptions, false)
+				<span class="hint">{ i18n.T(ctx, "Toda task nova do projeto sem meta própria passa a servir a esta.") }</span>
+			</div>
+			<div class="field">
+				<label class="check-line">
+					<input type="checkbox" name="import_skills" value="1" checked?={ vm.ImportSkills }/>
+					<span>{ i18n.T(ctx, "Importar as skills do repositório clonado") }</span>
+				</label>
+				if !vm.HasRepo {
+					<span class="hint">{ i18n.T(ctx, "Precisa do Git ligado no workspace do projeto. O import acontece a cada sincronização do espelho.") }</span>
+				}
+				<label for="d-path">{ i18n.T(ctx, "Caminho das skills no repositório") }</label>
+				<input class="input mono" id="d-path" name="skills_path" value={ vm.SkillsPath } maxlength="500" placeholder=".claude/skills"/>
+			</div>
+			<div class="form-actions">
+				<button class="btn primary" type="submit">{ i18n.T(ctx, "Salvar padrões") }</button>
+			</div>
+		</form>
+		<form class="card pad form-card mt-6" method="post" action={ templ.SafeURL(vm.ReviewAction) } hx-boost="true">
+			<div class="card-head"><h2>{ i18n.T(ctx, "Política de revisão do projeto") }</h2></div>
+			<p class="muted text-sm">{ vm.ReviewSummary }</p>
+			<label class="prop"><span>{ i18n.T(ctx, "Exigir revisão") }</span>@Select("require", "dr-require", vm.RequireOptions, true)</label>
+			<label class="prop"><span>{ i18n.T(ctx, "Revisor") }</span>@Select("reviewer", "dr-reviewer", vm.ReviewerOptions, true)</label>
+			<div class="form-actions"><button class="btn outline" type="submit">{ i18n.T(ctx, "Salvar política") }</button></div>
+		</form>
+	}
+}
+
+templ gitStatLine(label string, value any) {
+	<div class="stat"><div class="l">{ label }</div><div class="v">{ fmt.Sprint(value) }</div></div>
+}
+
+// TaskGitPage é a aba Git da task: status, diff, log e browser de arquivos somente leitura.
+templ TaskGitPage(sh Shell, vm TaskGitVM) {
+	@Layout(sh) {
+		if vm.Notice != "" {
+			@Alert("warn", vm.Notice)
+		}
+		if vm.Error != "" {
+			@Alert("danger", vm.Error)
+		}
+		<div class="flow-head">
+			<div>
+				<h1><a href={ templ.SafeURL(vm.TaskHref) }>{ vm.Key }</a> · <span class="mono">{ vm.Branch }</span> @BadgeEl(vm.State)</h1>
+				<p class="muted mt-2 text-sm">{ vm.Title }</p>
+			</div>
+			<div class="flow-acts">
+				<a class="btn outline" href={ templ.SafeURL(vm.TaskHref) }>{ i18n.T(ctx, "Voltar à task") }</a>
+				if canAdmin(ctx) && vm.Live {
+					<form method="post" action={ templ.SafeURL(vm.CleanAction) } hx-boost="true">
+						<button class="btn outline" type="submit">{ i18n.T(ctx, "Limpar worktree") }</button>
+					</form>
+				}
+			</div>
+		</div>
+		<div class="stats4 mb-6">
+			@gitStatLine(i18n.T(ctx, "Base"), vm.Base)
+			@gitStatLine(i18n.T(ctx, "À frente"), vm.Ahead)
+			@gitStatLine(i18n.T(ctx, "Atrás"), vm.Behind)
+			<div class="stat"><div class="l">{ i18n.T(ctx, "Integrada") }</div><div class="v">
+				if vm.Merged {
+					{ i18n.T(ctx, "sim") }
+				} else {
+					{ i18n.T(ctx, "não") }
+				}
+			</div></div>
+		</div>
+		if vm.WtError != "" {
+			@Alert("danger", vm.WtError)
+		}
+		if !vm.MirrorOK {
+			@Alert("warn", vm.MirrorEr)
+		}
+		if !vm.Live {
+			<p class="muted text-sm mb-3">{ i18n.T(ctx, "A pasta do worktree já foi limpa; o diff, o log e os arquivos vêm da branch guardada no espelho.") }</p>
+		}
+		<div class="mb-6">@Tabs(vm.Tabs)</div>
+		switch vm.Tab {
+			case "diff":
+				if vm.DiffStat != "" {
+					<pre class="git-stat mono">{ vm.DiffStat }</pre>
+				}
+				if len(vm.Diff) == 0 {
+					@EmptyCard("git-branch", i18n.T(ctx, "Sem diferenças."), i18n.T(ctx, "A branch ainda não mudou nada em relação à base."), false)
+				} else {
+					<div class="git-diff mono" role="region" aria-label={ i18n.T(ctx, "Diff da branch contra a base") }>
+						for _, l := range vm.Diff {
+							<div class={ "dl " + l.Kind }>{ l.Text }</div>
+						}
+					</div>
+					if vm.DiffTruncated {
+						@Alert("warn", i18n.T(ctx, "O diff passou do teto de 512 KiB e foi cortado."))
+					}
+				}
+			case "log":
+				if len(vm.Log) == 0 {
+					@EmptyCard("git-branch", i18n.T(ctx, "Nenhum commit na branch."), i18n.T(ctx, "Os commits da persona aparecem aqui."), false)
+				} else {
+					<div class="table-wrap">
+						<table class="table">
+							<thead><tr><th>{ i18n.T(ctx, "Commit") }</th><th>{ i18n.T(ctx, "Quando") }</th><th>{ i18n.T(ctx, "Autor") }</th><th>{ i18n.T(ctx, "Assunto") }</th></tr></thead>
+							<tbody>
+								for _, c := range vm.Log {
+									<tr><td class="mono">{ c.SHA }</td><td>{ c.When }</td><td>{ c.Author }</td><td>{ c.Subject }</td></tr>
+								}
+							</tbody>
+						</table>
+					</div>
+				}
+			case "arquivos":
+				<nav class="git-crumbs text-sm mb-3" aria-label={ i18n.T(ctx, "Caminho") }>
+					for i, c := range vm.Crumbs {
+						if i > 0 {
+							<span class="faint">/</span>
+						}
+						<a href={ templ.SafeURL(c.Href) }>{ c.Name }</a>
+					}
+				</nav>
+				if vm.File != nil {
+					<section class="card pad">
+						<div class="card-head"><h2 class="mono">{ vm.File.Path }</h2><span class="muted text-xs">{ vm.File.Size }</span></div>
+						if vm.File.Binary {
+							<p class="muted">{ i18n.T(ctx, "Arquivo binário: o conteúdo não é exibido.") }</p>
+						} else {
+							<pre class="git-file mono">{ vm.File.Content }</pre>
+							if vm.File.Truncated {
+								@Alert("warn", i18n.T(ctx, "O arquivo passou do teto de 256 KiB e foi cortado."))
+							}
+						}
+					</section>
+				} else if len(vm.Entries) == 0 {
+					@EmptyCard("git-branch", i18n.T(ctx, "Pasta vazia."), "", false)
+				} else {
+					<div class="table-wrap">
+						<table class="table">
+							<tbody>
+								for _, e := range vm.Entries {
+									<tr>
+										<td class="mono">
+											<a href={ templ.SafeURL(e.Href) }>
+												{ e.Name }
+												if e.Dir {
+													{ "/" }
+												}
+											</a>
+										</td>
+										<td class="num mono muted">{ e.Size }</td>
+									</tr>
+								}
+							</tbody>
+						</table>
+					</div>
+				}
+			default:
+				if vm.Clean {
+					<p class="muted">{ i18n.T(ctx, "Sem alterações soltas: tudo o que a persona fez já está em commits.") }</p>
+				} else {
+					<div class="table-wrap">
+						<table class="table">
+							<thead><tr><th>{ i18n.T(ctx, "Situação") }</th><th>{ i18n.T(ctx, "Arquivo") }</th></tr></thead>
+							<tbody>
+								for _, f := range vm.Files {
+									<tr><td class="mono">{ f.XY }</td><td class="mono">{ f.Path }</td></tr>
+								}
+							</tbody>
+						</table>
+					</div>
+				}
+		}
+	}
+}

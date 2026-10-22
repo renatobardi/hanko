@@ -26,6 +26,13 @@ func BuildPrompt(rc service.RunContext, briefing, handoff string) (system, promp
 		sb.WriteString(s)
 		sb.WriteString("\n\n")
 	}
+	if pi := strings.TrimSpace(rc.ProjectInstructions); pi != "" {
+		name := t.ProjectName
+		if name == "" {
+			name = "do projeto"
+		}
+		fmt.Fprintf(&sb, "## Instruções do projeto %s\n\n%s\n\n", name, pi)
+	}
 	title := p.Name
 	if p.Title != "" {
 		title += " (" + p.Title + ")"
@@ -33,13 +40,21 @@ func BuildPrompt(rc service.RunContext, briefing, handoff string) (system, promp
 	sb.WriteString("## Protocolo Hanko\n\n")
 	fmt.Fprintf(&sb, "Você é a persona %s da empresa %s.\n", title, c.Name)
 	fmt.Fprintf(&sb, "- Trabalhe na task %s e somente nela.\n", t.Key)
+	if t.PersonaID != nil && *t.PersonaID != p.ID && rc.Run.Trigger == domain.TriggerComment {
+		sb.WriteString("- Você foi citada com @ num comentário desta task, que é de outra persona: responda só ao que foi pedido a você, no resumo final, e não mude o status, a prioridade nem a atribuição da task.\n")
+	}
 	sb.WriteString("- Use as tools MCP `hanko_*` (por exemplo `hanko_task_get`, `hanko_task_comment`, `hanko_task_update`) para ler a task, comentar e atualizar status e prioridade.\n")
 	sb.WriteString("- Registre decisões e bloqueios como comentário na task; mude o status quando o trabalho avançar (`in_review` quando pronto para revisão, `blocked` quando depender de alguém).\n")
 	sb.WriteString("- Para dividir o trabalho, crie subtasks com `hanko_task_create` (o pai padrão é esta task) e ordene-as com `depends_on`; uma task com dependência aberta só é despachada quando todas fecharem. Deixe esta task em `in_progress` e encerre: você será acordada quando a última subtask fechar. `hanko_task_dependency` ajusta dependências depois.\n")
 	sb.WriteString("- Entregue arquivos (relatório, plano, dados, imagem) como artefato com `hanko_artifact_put` em vez de colar texto longo em comentário; o mesmo nome na mesma task cria a versão seguinte.\n")
 	sb.WriteString("- Se o seu trabalho mede uma das metas listadas, registre o valor atual (medido de fato) com `hanko_goal_update`; `hanko_goal_list` mostra todas as metas.\n")
 	sb.WriteString("- Se perceber que as suas instruções permanentes deveriam mudar, proponha com `hanko_persona_instruction_propose` (texto novo completo e motivo): um humano decide e você não fica bloqueada.\n")
+	sb.WriteString("- Se precisar de um servidor MCP remoto que exige autorização (OAuth) e ele ainda não está conectado, peça com `hanko_connection_request` e encerre a execução: um humano autoriza e você é acordada quando a task retomar.\n")
 	sb.WriteString("- Antes de uma ação irreversível (merge, deploy, gasto, contratação, apagar dados), peça a decisão de um humano com `hanko_gate_request` e encerre a execução; você será acordada com a decisão e a nota. Consulte `hanko_gate_status` se precisar.\n")
+	sb.WriteString("- Para uma dúvida objetiva que só um humano resolve, use `hanko_gate_request` com `kind=question` e `questions` (campos single, multi ou text): você recebe as respostas estruturadas ao ser acordada. Se um gate voltar com mudanças pedidas, ajuste e reenvie no mesmo gate com `hanko_gate_resubmit`. Para propor contratar uma persona use `hanko_hire_request`.\n")
+	if rc.Worktree != nil {
+		fmt.Fprintf(&sb, "- Seu diretório de trabalho é um worktree Git exclusivo desta task, na branch `%s`. Faça commits nessa branch (mensagens claras, uma mudança lógica por commit); não troque de branch, não faça push e não mexa fora do diretório. O diff da branch contra a base aparece para os humanos na aba Git da task.\n", rc.Worktree.Branch)
+	}
 	sb.WriteString("- Termine com um resumo objetivo do que fez e do próximo passo. Esse resumo é publicado automaticamente como comentário na task; não o repita via tool.\n")
 	system = strings.TrimSpace(sb.String())
 
@@ -49,8 +64,15 @@ func BuildPrompt(rc service.RunContext, briefing, handoff string) (system, promp
 	if t.ProjectName != "" {
 		fmt.Fprintf(&pb, "- Projeto: %s\n", t.ProjectName)
 	}
-	fmt.Fprintf(&pb, "- Execução: %s (gatilho: %s)\n\n", rc.Run.ID, rc.Run.Trigger)
-	pb.WriteString("## Descrição\n\n")
+	fmt.Fprintf(&pb, "- Execução: %s (gatilho: %s)\n", rc.Run.ID, rc.Run.Trigger)
+	if rc.SessionReset != nil {
+		fmt.Fprintf(&pb, "- Sessão nova: %s pediu para recomeçar; não há conversa anterior com o harness, só este briefing e a memória do projeto.", resetAuthor(rc))
+		if r := strings.TrimSpace(rc.SessionReset.Reason); r != "" {
+			fmt.Fprintf(&pb, " Motivo: %s.", clip(r, 300))
+		}
+		pb.WriteString("\n")
+	}
+	pb.WriteString("\n## Descrição\n\n")
 	if d := strings.TrimSpace(t.Description); d != "" {
 		pb.WriteString(d)
 	} else {
@@ -74,6 +96,7 @@ func BuildPrompt(rc service.RunContext, briefing, handoff string) (system, promp
 
 	pb.WriteString(attachmentsSection(rc))
 	pb.WriteString(coordinationSection(rc))
+	pb.WriteString(planSection(rc))
 
 	if len(rc.Goals) > 0 {
 		pb.WriteString("## Metas ativas\n\n")
@@ -93,6 +116,7 @@ func BuildPrompt(rc service.RunContext, briefing, handoff string) (system, promp
 			pb.WriteString("### Briefing\n\n" + briefing + "\n\n")
 		}
 	}
+	pb.WriteString(continuationSection(rc.Continuation, rc.ResumeSession != ""))
 	pb.WriteString("---\nExecute o trabalho desta task agora.\n")
 	return system, pb.String()
 }
@@ -152,6 +176,13 @@ func goalLine(g service.GoalBrief) string {
 	if g.DueDate != nil {
 		line += ", prazo " + g.DueDate.Format("2006-01-02")
 	}
+	if len(g.Chain) > 1 {
+		parts := make([]string, len(g.Chain))
+		for i, c := range g.Chain {
+			parts[i] = clip(c, 80)
+		}
+		line += ", cadeia: " + strings.Join(parts, " › ")
+	}
 	if g.Linked {
 		line += " (esta task serve a ela)"
 	}
@@ -159,6 +190,14 @@ func goalLine(g service.GoalBrief) string {
 }
 
 func fmtNum(v float64) string { return strconv.FormatFloat(v, 'f', -1, 64) }
+
+// resetAuthor diz quem pediu a nova sessão.
+func resetAuthor(rc service.RunContext) string {
+	if rc.SessionReset == nil || rc.SessionReset.By.Type == domain.ActorSystem {
+		return "o sistema"
+	}
+	return authorName(rc, rc.SessionReset.By)
+}
 
 func authorName(rc service.RunContext, a domain.Actor) string {
 	switch a.Type {
@@ -204,6 +243,12 @@ func buildEnv(base, publicURL, token string, rc service.RunContext) map[string]s
 	}
 	if rc.Chat != nil {
 		env["HANKO_CONVERSATION_ID"] = rc.Chat.Conversation.ID.String()
+	}
+	if rc.Worktree != nil { // os commits da persona saem com o nome dela (ADR-0054)
+		email := rc.Persona.Slug + "@hanko.local"
+		env["GIT_AUTHOR_NAME"], env["GIT_COMMITTER_NAME"] = rc.Persona.Name, rc.Persona.Name
+		env["GIT_AUTHOR_EMAIL"], env["GIT_COMMITTER_EMAIL"] = email, email
+		env["HANKO_WORKTREE_BRANCH"] = rc.Worktree.Branch
 	}
 	// No token means a credential-less (review) run: it does not even learn where Hanko is.
 	if token != "" {
@@ -316,4 +361,29 @@ func BuildMemoryPrompt(rc service.RunContext, briefing string) (system, prompt s
 	}
 	pb.WriteString("---\nExecute a curadoria agora.\n")
 	return system, pb.String()
+}
+
+// planSection é o bloco de plan-review do briefing (ADR-0041): na fase de planejamento diz que este run só planeja; na de
+// execução traz o plano aprovado. Vazio quando a política de plano não vale para a task.
+func planSection(rc service.RunContext) string {
+	pc := rc.Plan
+	if pc == nil {
+		return ""
+	}
+	var b strings.Builder
+	switch pc.Phase {
+	case domain.PlanPhasePlan:
+		b.WriteString("## Fase de planejamento (plan-review)\n\n")
+		b.WriteString("Esta task só executa depois que um humano aprovar o seu plano. **Neste run você apenas planeja**: investigue (leia, busque), " +
+			"mas não edite arquivos, não rode comandos que alterem o ambiente e não use tools de escrita do Hanko (elas são recusadas).\n\n")
+		b.WriteString("1. Escreva o plano (passos, riscos, como validar, o que fica de fora) e publique-o com `hanko_artifact_put` (por exemplo `plano.md`).\n")
+		b.WriteString("2. Peça a aprovação com `hanko_gate_request` `kind=plan` e `artifact=plano.md` (ou o texto em `body`), e encerre.\n")
+		b.WriteString("3. Se voltar com mudanças pedidas, leia a nota na thread, publique a nova versão do artefato e reenvie com `hanko_gate_resubmit`.\n\n")
+	case domain.PlanPhaseExecute:
+		fmt.Fprintf(&b, "## Plano aprovado (revisão %d)\n\n", pc.Revision)
+		b.WriteString("Um humano aprovou o plano abaixo. Execute-o; se perceber que ele não se sustenta, comente na task e peça um gate em vez de mudar o rumo sozinha.\n\n")
+		b.WriteString(clip(strings.TrimSpace(pc.ApprovedPlan), 20<<10))
+		b.WriteString("\n\n")
+	}
+	return b.String()
 }

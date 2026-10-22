@@ -49,13 +49,18 @@ func (e *env) companyCmd() *cobra.Command {
 			}
 			rows := make([][]string, 0, len(cs))
 			for _, co := range cs {
-				rows = append(rows, []string{co.Slug, co.Name, co.TaskPrefix, co.Timezone, co.ID})
+				state := e.t("ativa")
+				if co.ArchivedAt != nil {
+					state = e.t("arquivada")
+				}
+				rows = append(rows, []string{co.Slug, co.Name, co.TaskPrefix, co.Timezone, state, co.ID})
 			}
-			e.table([]string{e.t("SLUG"), e.t("NOME"), e.t("PREFIXO"), e.t("FUSO"), e.t("ID")}, rows)
+			e.table([]string{e.t("SLUG"), e.t("NOME"), e.t("PREFIXO"), e.t("FUSO"), e.t("ESTADO"), e.t("ID")}, rows)
 			return nil
 		},
 	}
-	c.AddCommand(create, ls)
+	c.AddCommand(create, ls, e.companyPolicyCmd())
+	c.AddCommand(e.companyLifecycleCmds()...)
 	return c
 }
 
@@ -115,7 +120,7 @@ func (e *env) workspaceCmd() *cobra.Command {
 			return nil
 		},
 	}
-	c.AddCommand(create, ls, e.workspaceShowCmd(), e.workspaceUpdateCmd(), e.workspaceDeleteCmd())
+	c.AddCommand(create, ls, e.workspaceShowCmd(), e.workspaceUpdateCmd(), e.workspaceDeleteCmd(), e.workspaceGitCmd())
 	return c
 }
 
@@ -180,7 +185,7 @@ func (e *env) projectCmd() *cobra.Command {
 			return nil
 		},
 	}
-	c.AddCommand(create, ls, e.projectShowCmd(), e.projectUpdateCmd(), e.projectReviewPolicyCmd())
+	c.AddCommand(create, ls, e.projectShowCmd(), e.projectUpdateCmd(), e.projectReviewPolicyCmd(), e.projectDefaultsCmd(), e.projectGitCmd(), e.projectEnvCmd())
 	return c
 }
 
@@ -195,6 +200,7 @@ func (e *env) personaCmd() *cobra.Command {
 		cfgJSON                                                                      string
 		review                                                                       bool
 		revPersona, revAgent, revModel                                               string
+		viaGate                                                                      bool
 	)
 	hire := &cobra.Command{
 		Use: "hire " + e.t("<nome>"), Short: e.t("Contrata uma persona"), Args: cobra.ExactArgs(1),
@@ -229,6 +235,21 @@ func (e *env) personaCmd() *cobra.Command {
 					req.AdapterConfig[k] = v
 				}
 			}
+			if viaGate { // a empresa exige gate para contratar (ADR-0041): abre o pedido em vez de contratar direto
+				spec := &api.GateHireSpec{Name: req.Name, Slug: req.Slug, Title: req.Title, Icon: req.Icon, Instructions: req.Instructions,
+					Agent: req.Agent, Model: req.Model, AdapterConfig: req.AdapterConfig, ReportsTo: req.ReportsTo, WorkspaceID: req.Workspace,
+					HeartbeatIntervalSec: req.HeartbeatIntervalSec, BudgetMonthlyCents: req.BudgetMonthlyCents, SubscriptionID: req.Subscription,
+					RequireReview: req.RequireReview, ReviewerPersona: req.Reviewer, ReviewerAgent: req.ReviewerAgent, ReviewerModel: req.ReviewerModel}
+				g, err := e.client().RequestGate(cmd.Context(), co, client.RequestGateReq{Kind: "hire", Title: e.t("Contratar ") + req.Name, Hire: spec})
+				if err != nil {
+					return err
+				}
+				if e.asJSON {
+					return e.printJSON(g)
+				}
+				fmt.Fprintf(e.out, e.t("Pedido de contratação aberto (gate %s). Aprove com: hanko gate approve %s\n"), shortID(g.ID), shortID(g.ID))
+				return nil
+			}
 			p, err := e.client().HirePersona(cmd.Context(), co, req)
 			if err != nil {
 				return err
@@ -246,7 +267,7 @@ func (e *env) personaCmd() *cobra.Command {
 	hf.StringVar(&icon, "icon", "", e.t("ícone da persona (bot, code, search, pen-line, shield-check…; padrão bot)"))
 	hf.StringVarP(&instr, "instructions", "i", "", e.t("instruções da persona"))
 	hf.StringVar(&instrFile, "instructions-file", "", e.t("arquivo com as instruções"))
-	hf.StringVar(&agent, "agent", "", e.t("harness: claude, codex, acp ou fake (obrigatório)"))
+	hf.StringVar(&agent, "agent", "", e.t("harness: claude, codex, acp, devin, pi, cursor, http ou fake (obrigatório); gemini/opencode: acp com --config-json '{\"preset\":\"gemini\"}'"))
 	hf.StringVar(&model, "model", "", e.t("modelo"))
 	hf.StringVar(&subscription, "subscription", "", e.t("assinatura que cobre a persona (id ou nome)"))
 	hf.StringVar(&reports, "reports-to", "", e.t("persona superior (id ou slug)"))
@@ -259,7 +280,35 @@ func (e *env) personaCmd() *cobra.Command {
 	hf.StringVar(&revPersona, "reviewer", "", e.t("persona que revisa as entregas antes do gate (id ou slug)"))
 	hf.StringVar(&revAgent, "reviewer-agent", "", e.t("harness alternativo revisor: claude, codex ou fake"))
 	hf.StringVar(&revModel, "reviewer-model", "", e.t("modelo do harness revisor"))
+	hf.BoolVar(&viaGate, "gate", false, e.t("abre um pedido de contratação (gate) em vez de contratar direto; obrigatório quando a empresa exige gate (workspace e assinatura por id)"))
 	_ = hire.MarkFlagRequired("agent")
+
+	probe := &cobra.Command{
+		Use: "probe " + e.t("<persona>"), Short: e.t("Confere se o harness da persona está pronto (binário, autenticação, endpoint), sem executar trabalho"), Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			co, err := e.needCompany()
+			if err != nil {
+				return err
+			}
+			r, err := e.client().ProbePersona(cmd.Context(), co, args[0])
+			if err != nil {
+				return err
+			}
+			if e.asJSON {
+				return e.printJSON(r)
+			}
+			rows := make([][]string, len(r.Steps))
+			for i, st := range r.Steps {
+				rows[i] = []string{st.Name, e.yesNo(st.OK), oneLine(st.Detail, 100)}
+			}
+			e.table([]string{e.t("PASSO"), e.t("OK"), e.t("DETALHE")}, rows)
+			if !r.OK {
+				return errors.New(e.t("a persona não está pronta: corrija o passo que falhou"))
+			}
+			fmt.Fprintln(e.out, e.t("Persona pronta."))
+			return nil
+		},
+	}
 
 	ls := &cobra.Command{
 		Use: "list", Aliases: []string{"ls"}, Short: e.t("Lista personas"), Args: cobra.NoArgs,
@@ -386,7 +435,8 @@ func (e *env) personaCmd() *cobra.Command {
 	uf.StringVar(&upInstrFile, "instructions-file", "", e.t("arquivo com as novas instruções"))
 	uf.StringVar(&upReason, "reason", "", e.t("motivo da mudança de instruções (fica na revisão)"))
 	uf.StringVar(&upEnv, "environment", "", e.t("ambiente de execução (id ou slug; local = o padrão da empresa)"))
-	c.AddCommand(hire, ls, show, update)
+	c.AddCommand(hire, ls, show, update, probe, e.personaTestCmd(), e.personaReadinessCmd())
+	c.AddCommand(e.personaExtraCmds()...)
 	c.AddCommand(e.instructionCmds()...)
 	return c
 }

@@ -360,25 +360,29 @@ func (q *Queries) PersonaRunReserve(ctx context.Context, arg PersonaRunReservePa
 }
 
 const spendBetween = `-- name: SpendBetween :one
-SELECT COALESCE(SUM(cost_usd), 0)::float8 AS spend
+SELECT (COALESCE(SUM(cost_usd), 0) + CASE WHEN $1::uuid IS NULL THEN
+          (SELECT COALESCE(SUM(d.cost_usd), 0) FROM decision_invocations d
+           WHERE d.company_id = $2 AND d.created_at >= $3 AND d.created_at < $4)
+        ELSE 0 END)::float8 AS spend
 FROM runs
-WHERE company_id = $1
-  AND ($2::uuid IS NULL OR persona_id = $2::uuid)
+WHERE company_id = $2
+  AND ($1::uuid IS NULL OR persona_id = $1::uuid)
   AND created_at >= $3 AND created_at < $4
 `
 
 type SpendBetweenParams struct {
-	CompanyID uuid.UUID
 	PersonaID *uuid.UUID
+	CompanyID uuid.UUID
 	FromTs    time.Time
 	ToTs      time.Time
 }
 
-// Gasto em USD da empresa (ou de uma persona) no intervalo [from, to).
+// Gasto em USD da empresa (ou de uma persona) no intervalo [from, to). O da empresa inclui o decision model
+// (ADR-0056), que não é de nenhuma persona.
 func (q *Queries) SpendBetween(ctx context.Context, arg SpendBetweenParams) (float64, error) {
 	row := q.db.QueryRow(ctx, spendBetween,
-		arg.CompanyID,
 		arg.PersonaID,
+		arg.CompanyID,
 		arg.FromTs,
 		arg.ToTs,
 	)

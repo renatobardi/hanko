@@ -22,8 +22,16 @@ type GateRow struct {
 	Pending     bool
 	Aged        bool // pending for more than 24 h
 	DecideHref  string
+	// ConnectHref leva à tela de Conexões, onde o humano autoriza (só gate kind=connection, ADR-0043).
+	ConnectHref string
 	// Revisão automática (outro modelo) feita antes do gate; a decisão segue humana.
 	Review *ReviewInfo
+	// ADR-0041: pergunta (formulário e resposta), audiência e versão do pedido.
+	Question *QuestionVM
+	Audience string
+	Revision int
+	// Ctl são os controles de lido/arquivado (só na Caixa de entrada, ADR-0042).
+	Ctl InboxCtl
 }
 
 // ReviewInfo é o parecer do revisor automático exibido junto do gate.
@@ -42,6 +50,9 @@ type GatesVM struct {
 	Rows     []GateRow
 	Notice   string
 	Empty    string // explains an empty list
+	// Mine: o filtro "minha audiência" está ligado (ADR-0042); MineHref alterna (vazio = sem pessoa autenticada).
+	Mine     bool
+	MineHref string
 }
 
 type GateVM struct {
@@ -55,6 +66,9 @@ type GateVM struct {
 	Notice   string
 	// Example é o "Salvar como exemplo" de um gate decidido (ADR-0034).
 	Example *ExampleFormVM
+	// ADR-0041: ficha da contratação e histórico de reenvios.
+	Hire    *HireVM
+	History *GateHistoryVM
 }
 
 type DecisionsVM struct {
@@ -73,6 +87,7 @@ type InboxTask struct {
 	When        string
 	ActionHref  string // POST: back to "A fazer"
 	ActionLabel string
+	Ctl         InboxCtl
 }
 
 type InboxRun struct {
@@ -86,6 +101,8 @@ type InboxRun struct {
 	Error      string
 	When       string
 	ActionHref string // POST: wake the persona again
+	Ctl        InboxCtl
+	Diag       *DiagVM // card de diagnóstico e ações (ADR-0039)
 }
 
 type InboxPersona struct {
@@ -96,6 +113,7 @@ type InboxPersona struct {
 	Failures   int
 	When       string
 	ActionHref string // POST: reactivate
+	Ctl        InboxCtl
 }
 
 // InboxAlert é um alerta operacional aberto (condição que some sozinha quando resolvida).
@@ -106,6 +124,7 @@ type InboxAlert struct {
 	Href     string
 	Link     string // texto do link para o sujeito
 	When     string
+	Ctl      InboxCtl
 }
 
 // InboxSub is a subscription whose weekly guard tripped.
@@ -117,6 +136,7 @@ type InboxSub struct {
 	Percent string
 	Guard   int
 	Week    string
+	Ctl     InboxCtl
 }
 
 // InboxQuarantine é uma tool em quarentena que espera a revisão de um admin (ADR-0036/0053).
@@ -137,11 +157,16 @@ type InboxVM struct {
 	Gates        []GateRow
 	Blocked      []InboxTask
 	Failed       []InboxRun
+	Stopped      []InboxRun // execuções interrompidas que esperam decisão (ADR-0039)
 	Personas     []InboxPersona
 	Alerts       []InboxAlert
 	Reviewing    []InboxReview     // revisões automáticas em andamento (informativo; não contam como pendência)
 	Goals        []AchievedGoalRow // metas atingidas há pouco (informativo; não contam como pendência)
+	Incidents    []InboxIncident   // tetos de orçamento estourados esperando decisão (ADR-0041)
 	Held         []InboxHeld       // raízes de pausa (ADR-0040): informativo, quem pausou decide quando retomar
+	Mentions     []InboxMention    // menções à pessoa em comentários (ADR-0042)
+	StateURL     string            // POST: marcar itens (lido, arquivado)
+	CanMarkAll   bool              // há pessoa autenticada e itens não lidos
 	Total        int               // items shown in the current tab
 	Notice       string
 	Pending      int
@@ -186,4 +211,24 @@ type OrgVM struct {
 	IslandAPI   string
 	IslandMsgs  string // JSON
 	CanEdit     bool   // admin/owner may drag
+}
+
+// InboxCtl são os controles de lido/arquivado de um item da Caixa (ADR-0042); Show falso = sem controles.
+type InboxCtl struct {
+	Show     bool
+	Ref      string // tipo:id do item
+	Unread   bool
+	Archived bool
+	Action   string // POST
+}
+
+// InboxMention é uma menção à pessoa num comentário.
+type InboxMention struct {
+	Key     string
+	Href    string
+	Title   string
+	Author  string
+	Excerpt string
+	When    string
+	Ctl     InboxCtl
 }

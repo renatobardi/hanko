@@ -12,6 +12,75 @@ import (
 	"github.com/google/uuid"
 )
 
+const countActiveAPIKeysByUser = `-- name: CountActiveAPIKeysByUser :many
+SELECT user_id, count(*)::bigint AS n FROM api_keys WHERE revoked_at IS NULL GROUP BY user_id
+`
+
+type CountActiveAPIKeysByUserRow struct {
+	UserID uuid.UUID
+	N      int64
+}
+
+func (q *Queries) CountActiveAPIKeysByUser(ctx context.Context) ([]CountActiveAPIKeysByUserRow, error) {
+	rows, err := q.db.Query(ctx, countActiveAPIKeysByUser)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountActiveAPIKeysByUserRow{}
+	for rows.Next() {
+		var i CountActiveAPIKeysByUserRow
+		if err := rows.Scan(&i.UserID, &i.N); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const countMembershipsByUser = `-- name: CountMembershipsByUser :many
+SELECT user_id, count(*)::bigint AS n FROM company_members GROUP BY user_id
+`
+
+type CountMembershipsByUserRow struct {
+	UserID uuid.UUID
+	N      int64
+}
+
+func (q *Queries) CountMembershipsByUser(ctx context.Context) ([]CountMembershipsByUserRow, error) {
+	rows, err := q.db.Query(ctx, countMembershipsByUser)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountMembershipsByUserRow{}
+	for rows.Next() {
+		var i CountMembershipsByUserRow
+		if err := rows.Scan(&i.UserID, &i.N); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const countOpenCLIAuthRequests = `-- name: CountOpenCLIAuthRequests :one
+SELECT count(*) FROM cli_auth_requests WHERE status = 'pending' AND expires_at > $1
+`
+
+func (q *Queries) CountOpenCLIAuthRequests(ctx context.Context, now time.Time) (int64, error) {
+	row := q.db.QueryRow(ctx, countOpenCLIAuthRequests, now)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countUsers = `-- name: CountUsers :one
 SELECT count(*) FROM users
 `
@@ -24,9 +93,9 @@ func (q *Queries) CountUsers(ctx context.Context) (int64, error) {
 }
 
 const createAPIKey = `-- name: CreateAPIKey :one
-INSERT INTO api_keys (id, user_id, name, prefix, hash, created_at)
-VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, user_id, name, prefix, hash, created_at, last_used_at, revoked_at
+INSERT INTO api_keys (id, user_id, name, prefix, hash, scope, device, created_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+RETURNING id, user_id, name, prefix, hash, created_at, last_used_at, revoked_at, scope, device
 `
 
 type CreateAPIKeyParams struct {
@@ -35,6 +104,8 @@ type CreateAPIKeyParams struct {
 	Name   string
 	Prefix string
 	Hash   string
+	Scope  string
+	Device string
 	Now    time.Time
 }
 
@@ -45,6 +116,8 @@ func (q *Queries) CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (Api
 		arg.Name,
 		arg.Prefix,
 		arg.Hash,
+		arg.Scope,
+		arg.Device,
 		arg.Now,
 	)
 	var i ApiKey
@@ -57,6 +130,50 @@ func (q *Queries) CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (Api
 		&i.CreatedAt,
 		&i.LastUsedAt,
 		&i.RevokedAt,
+		&i.Scope,
+		&i.Device,
+	)
+	return i, err
+}
+
+const createCLIAuthRequest = `-- name: CreateCLIAuthRequest :one
+INSERT INTO cli_auth_requests (id, code_hash, poll_hash, device, scope, created_at, expires_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+RETURNING id, code_hash, poll_hash, device, scope, status, user_id, created_at, expires_at, decided_at
+`
+
+type CreateCLIAuthRequestParams struct {
+	ID        uuid.UUID
+	CodeHash  string
+	PollHash  string
+	Device    string
+	Scope     string
+	Now       time.Time
+	ExpiresAt time.Time
+}
+
+func (q *Queries) CreateCLIAuthRequest(ctx context.Context, arg CreateCLIAuthRequestParams) (CliAuthRequest, error) {
+	row := q.db.QueryRow(ctx, createCLIAuthRequest,
+		arg.ID,
+		arg.CodeHash,
+		arg.PollHash,
+		arg.Device,
+		arg.Scope,
+		arg.Now,
+		arg.ExpiresAt,
+	)
+	var i CliAuthRequest
+	err := row.Scan(
+		&i.ID,
+		&i.CodeHash,
+		&i.PollHash,
+		&i.Device,
+		&i.Scope,
+		&i.Status,
+		&i.UserID,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.DecidedAt,
 	)
 	return i, err
 }
@@ -148,6 +265,43 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 	return i, err
 }
 
+const decideCLIAuth = `-- name: DecideCLIAuth :one
+UPDATE cli_auth_requests SET status = $1, user_id = $2, decided_at = $3
+WHERE code_hash = $4 AND status = 'pending' AND expires_at > $3
+RETURNING id, code_hash, poll_hash, device, scope, status, user_id, created_at, expires_at, decided_at
+`
+
+type DecideCLIAuthParams struct {
+	Status   string
+	UserID   *uuid.UUID
+	Now      *time.Time
+	CodeHash string
+}
+
+// Só decide o que está pendente e dentro da validade.
+func (q *Queries) DecideCLIAuth(ctx context.Context, arg DecideCLIAuthParams) (CliAuthRequest, error) {
+	row := q.db.QueryRow(ctx, decideCLIAuth,
+		arg.Status,
+		arg.UserID,
+		arg.Now,
+		arg.CodeHash,
+	)
+	var i CliAuthRequest
+	err := row.Scan(
+		&i.ID,
+		&i.CodeHash,
+		&i.PollHash,
+		&i.Device,
+		&i.Scope,
+		&i.Status,
+		&i.UserID,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.DecidedAt,
+	)
+	return i, err
+}
+
 const deleteExpiredSessions = `-- name: DeleteExpiredSessions :exec
 DELETE FROM sessions WHERE expires_at <= $1 OR absolute_expires_at <= $1
 `
@@ -188,7 +342,7 @@ func (q *Queries) DeleteUser(ctx context.Context, id uuid.UUID) (int64, error) {
 }
 
 const getAPIKeyByHash = `-- name: GetAPIKeyByHash :one
-SELECT id, user_id, name, prefix, hash, created_at, last_used_at, revoked_at FROM api_keys WHERE hash = $1 AND revoked_at IS NULL
+SELECT id, user_id, name, prefix, hash, created_at, last_used_at, revoked_at, scope, device FROM api_keys WHERE hash = $1 AND revoked_at IS NULL
 `
 
 func (q *Queries) GetAPIKeyByHash(ctx context.Context, hash string) (ApiKey, error) {
@@ -203,6 +357,79 @@ func (q *Queries) GetAPIKeyByHash(ctx context.Context, hash string) (ApiKey, err
 		&i.CreatedAt,
 		&i.LastUsedAt,
 		&i.RevokedAt,
+		&i.Scope,
+		&i.Device,
+	)
+	return i, err
+}
+
+const getAPIKeyByID = `-- name: GetAPIKeyByID :one
+SELECT id, user_id, name, prefix, hash, created_at, last_used_at, revoked_at, scope, device FROM api_keys WHERE id = $1 AND user_id = $2
+`
+
+type GetAPIKeyByIDParams struct {
+	ID     uuid.UUID
+	UserID uuid.UUID
+}
+
+func (q *Queries) GetAPIKeyByID(ctx context.Context, arg GetAPIKeyByIDParams) (ApiKey, error) {
+	row := q.db.QueryRow(ctx, getAPIKeyByID, arg.ID, arg.UserID)
+	var i ApiKey
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Prefix,
+		&i.Hash,
+		&i.CreatedAt,
+		&i.LastUsedAt,
+		&i.RevokedAt,
+		&i.Scope,
+		&i.Device,
+	)
+	return i, err
+}
+
+const getCLIAuthByCode = `-- name: GetCLIAuthByCode :one
+SELECT id, code_hash, poll_hash, device, scope, status, user_id, created_at, expires_at, decided_at FROM cli_auth_requests WHERE code_hash = $1
+`
+
+func (q *Queries) GetCLIAuthByCode(ctx context.Context, codeHash string) (CliAuthRequest, error) {
+	row := q.db.QueryRow(ctx, getCLIAuthByCode, codeHash)
+	var i CliAuthRequest
+	err := row.Scan(
+		&i.ID,
+		&i.CodeHash,
+		&i.PollHash,
+		&i.Device,
+		&i.Scope,
+		&i.Status,
+		&i.UserID,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.DecidedAt,
+	)
+	return i, err
+}
+
+const getCLIAuthByPollForUpdate = `-- name: GetCLIAuthByPollForUpdate :one
+SELECT id, code_hash, poll_hash, device, scope, status, user_id, created_at, expires_at, decided_at FROM cli_auth_requests WHERE poll_hash = $1 FOR UPDATE
+`
+
+func (q *Queries) GetCLIAuthByPollForUpdate(ctx context.Context, pollHash string) (CliAuthRequest, error) {
+	row := q.db.QueryRow(ctx, getCLIAuthByPollForUpdate, pollHash)
+	var i CliAuthRequest
+	err := row.Scan(
+		&i.ID,
+		&i.CodeHash,
+		&i.PollHash,
+		&i.Device,
+		&i.Scope,
+		&i.Status,
+		&i.UserID,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.DecidedAt,
 	)
 	return i, err
 }
@@ -305,7 +532,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 }
 
 const listAPIKeys = `-- name: ListAPIKeys :many
-SELECT id, user_id, name, prefix, hash, created_at, last_used_at, revoked_at FROM api_keys WHERE user_id = $1 ORDER BY created_at DESC, id
+SELECT id, user_id, name, prefix, hash, created_at, last_used_at, revoked_at, scope, device FROM api_keys WHERE user_id = $1 ORDER BY created_at DESC, id
 `
 
 func (q *Queries) ListAPIKeys(ctx context.Context, userID uuid.UUID) ([]ApiKey, error) {
@@ -326,6 +553,8 @@ func (q *Queries) ListAPIKeys(ctx context.Context, userID uuid.UUID) ([]ApiKey, 
 			&i.CreatedAt,
 			&i.LastUsedAt,
 			&i.RevokedAt,
+			&i.Scope,
+			&i.Device,
 		); err != nil {
 			return nil, err
 		}
@@ -382,9 +611,27 @@ func (q *Queries) LockUsers(ctx context.Context) error {
 	return err
 }
 
+const markCLIAuthConsumed = `-- name: MarkCLIAuthConsumed :exec
+UPDATE cli_auth_requests SET status = 'consumed' WHERE id = $1
+`
+
+func (q *Queries) MarkCLIAuthConsumed(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, markCLIAuthConsumed, id)
+	return err
+}
+
+const pruneCLIAuthRequests = `-- name: PruneCLIAuthRequests :exec
+DELETE FROM cli_auth_requests WHERE expires_at < $1
+`
+
+func (q *Queries) PruneCLIAuthRequests(ctx context.Context, cutoff time.Time) error {
+	_, err := q.db.Exec(ctx, pruneCLIAuthRequests, cutoff)
+	return err
+}
+
 const revokeAPIKey = `-- name: RevokeAPIKey :one
 UPDATE api_keys SET revoked_at = $1::timestamptz WHERE id = $2 AND user_id = $3 AND revoked_at IS NULL
-RETURNING id, user_id, name, prefix, hash, created_at, last_used_at, revoked_at
+RETURNING id, user_id, name, prefix, hash, created_at, last_used_at, revoked_at, scope, device
 `
 
 type RevokeAPIKeyParams struct {
@@ -405,6 +652,8 @@ func (q *Queries) RevokeAPIKey(ctx context.Context, arg RevokeAPIKeyParams) (Api
 		&i.CreatedAt,
 		&i.LastUsedAt,
 		&i.RevokedAt,
+		&i.Scope,
+		&i.Device,
 	)
 	return i, err
 }

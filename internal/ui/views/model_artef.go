@@ -165,6 +165,8 @@ type GoalRow struct {
 	OwnerHref   string
 	Tasks       string // "2 abertas · 3 no total"
 	Metric      string
+	Depth       int    // nível na árvore de metas (ADR-0042): 1 = raiz
+	Subs        string // "3 submetas" quando o progresso é o agregado delas
 }
 
 // GoalsVM é a página /metas.
@@ -198,6 +200,7 @@ type GoalFormVM struct {
 	Due            string
 	ProjectOptions []Option
 	OwnerOptions   []Option
+	ParentOptions  []Option // meta-pai (árvore de metas); vazio = só raízes possíveis
 	Error          string
 	FieldErr       map[string]string
 }
@@ -259,7 +262,10 @@ type GoalVM struct {
 	Tasks       []TaskRow
 	Chart       ChartVM
 	Updates     []GoalUpdateRow
-	CanProgress bool // a meta está ativa
+	Path        []Crumb    // cadeia de ancestrais, da raiz até o pai (ADR-0042)
+	Subgoals    []GoalMini // submetas diretas
+	Rollup      bool       // o progresso é o agregado das submetas
+	CanProgress bool       // a meta está ativa
 	ProgressURL string
 	Value       string
 	Note        string
@@ -291,4 +297,5 @@ type AchievedGoalRow struct {
 	Href  string
 	Text  string
 	When  string
+	Ctl   InboxCtl
 }

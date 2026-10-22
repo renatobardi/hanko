@@ -15,7 +15,8 @@ func actorOf(typ string, id *uuid.UUID) domain.Actor {
 
 func companyFromRow(r store.Company) domain.Company {
 	return domain.Company{ID: r.ID, Slug: r.Slug, Name: r.Name, TaskPrefix: r.TaskPrefix,
-		Timezone: r.Timezone, BudgetMonthlyCents: r.BudgetMonthlyCents, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt}
+		Timezone: r.Timezone, BudgetMonthlyCents: r.BudgetMonthlyCents, Description: r.Description,
+		ArchivedAt: r.ArchivedAt, ArchivedBy: r.ArchivedBy, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt}
 }
 
 func workspaceFromRow(r store.Workspace) domain.Workspace {
@@ -26,7 +27,7 @@ func workspaceFromRow(r store.Workspace) domain.Workspace {
 func projectFromRow(r store.Project) domain.Project {
 	return domain.Project{ID: r.ID, CompanyID: r.CompanyID, Slug: r.Slug, Name: r.Name,
 		Description: r.Description, WorkspaceID: r.WorkspaceID, Status: domain.ProjectStatus(r.Status),
-		BudgetMonthlyCents: r.BudgetMonthlyCents, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt}
+		BudgetMonthlyCents: r.BudgetMonthlyCents, EnvironmentID: r.EnvironmentID, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt}
 }
 
 func personaFromRow(r store.Persona) domain.Persona {
@@ -39,7 +40,7 @@ func personaFromRow(r store.Persona) domain.Persona {
 		Status: domain.PersonaStatus(r.Status), ReportsTo: r.ReportsTo, WorkspaceID: r.WorkspaceID,
 		HeartbeatIntervalSec: int(r.HeartbeatIntervalSec), BudgetMonthlyCents: r.BudgetMonthlyCents,
 		RequireReview: r.RequireReview, ReviewerPersonaID: r.ReviewerPersonaID, ReviewerAgent: r.ReviewerAgent,
-		ReviewerModel: r.ReviewerModel, SubscriptionID: r.SubscriptionID, EnvironmentID: r.EnvironmentID, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt}
+		ReviewerModel: r.ReviewerModel, SubscriptionID: r.SubscriptionID, EnvironmentID: r.EnvironmentID, System: r.System, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt}
 }
 
 func subscriptionFromRow(r store.Subscription) domain.Subscription {
@@ -94,6 +95,7 @@ func runFromRow(r store.Run) domain.Run {
 		CostSource: domain.CostSource(r.CostSource), ListCostUSD: r.ListCostUsd,
 		ModelSource: domain.ModelSource(r.ModelSource), SubscriptionID: r.SubscriptionID,
 		WorkspaceID: r.WorkspaceID, WorkspaceSource: domain.WorkspaceSource(r.WorkspaceSource),
+		EnvironmentID: r.EnvironmentID, EnvironmentSource: domain.EnvSource(r.EnvironmentSource),
 		Usage: domain.Usage{InputTokens: r.InputTokens, OutputTokens: r.OutputTokens,
 			CacheReadTokens: r.CacheReadTokens, CacheCreationTokens: r.CacheCreationTokens},
 		HandoffIn: r.HandoffIn, HandoffOut: r.HandoffOut, CreatedAt: r.CreatedAt,
@@ -104,6 +106,15 @@ func runFromRow(r store.Run) domain.Run {
 	if r.ExitCode != nil {
 		c := int(*r.ExitCode)
 		run.ExitCode = &c
+	}
+	run.ContinuationOfRunID, run.ContinuationAttempt = r.ContinuationOfRunID, int(r.ContinuationAttempt)
+	run.ContinuationReason = domain.ContinuationReason(r.ContinuationReason)
+	run.DecisionPending, run.Decision, run.DecisionNote, run.DecidedAt = r.DecisionPending, domain.RunDecision(r.Decision), r.DecisionNote, r.DecidedAt
+	if len(r.Diagnosis) > 0 {
+		var d domain.RunDiagnosis
+		if json.Unmarshal(r.Diagnosis, &d) == nil {
+			run.Diagnosis = &d
+		}
 	}
 	return run
 }
@@ -128,7 +139,16 @@ func gateFromRow(r store.Gate) domain.Gate {
 	g := domain.Gate{ID: r.ID, CompanyID: r.CompanyID, Kind: domain.GateKind(r.Kind), Status: domain.GateStatus(r.Status),
 		Title: r.Title, Body: r.Body, TaskID: r.TaskID, RunID: r.RunID, PersonaID: r.PersonaID,
 		RequestedBy: actorOf(r.RequestedByType, r.RequestedByID), DecisionNote: r.DecisionNote,
-		CreatedAt: r.CreatedAt, DecidedAt: r.DecidedAt}
+		CreatedAt: r.CreatedAt, DecidedAt: r.DecidedAt, Revision: int(r.Revision)}
+	if len(r.Payload) > 0 && string(r.Payload) != "{}" {
+		g.Payload = json.RawMessage(r.Payload)
+	}
+	if len(r.Answer) > 0 {
+		g.Answer = json.RawMessage(r.Answer)
+	}
+	if len(r.Audience) > 0 {
+		_ = json.Unmarshal(r.Audience, &g.Audience) // gravada pelo service; uma linha corrompida vira audiência vazia
+	}
 	if r.DecidedByType != nil {
 		a := actorOf(*r.DecidedByType, r.DecidedByID)
 		g.DecidedBy = &a

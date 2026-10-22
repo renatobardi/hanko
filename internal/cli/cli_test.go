@@ -145,7 +145,7 @@ func TestCompanyList(t *testing.T) {
 	if code != 0 {
 		t.Fatal(code)
 	}
-	want := "SLUG  NOME       PREFIXO  FUSO               ID\nacme  Acme Ltda  HNK      America/Sao_Paulo  id-1\n"
+	want := "SLUG  NOME       PREFIXO  FUSO               ESTADO  ID\nacme  Acme Ltda  HNK      America/Sao_Paulo  ativa   id-1\n"
 	if diff := cmp.Diff(want, out); diff != "" {
 		t.Fatalf("tabela:\n%s", diff)
 	}

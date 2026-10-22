@@ -19,17 +19,45 @@ type Resolver interface {
 	ResolveAPIKey(ctx context.Context, key string) (domain.User, error)
 }
 
+// KeyInfo descreve a API key que autenticou a requisição.
+type KeyInfo struct {
+	ID    domain.ID
+	Scope domain.KeyScope
+}
+
+// KeyResolver é um Resolver que também informa o id e o escopo da API key (ADR-0057). Quando o Resolver não o
+// implementa, a chave vale com escopo full.
+type KeyResolver interface {
+	ResolveAPIKeyInfo(ctx context.Context, key string) (domain.User, KeyInfo, error)
+}
+
 // LoginPath é a tela de entrada.
 const LoginPath = "/entrar"
 
 // InvitePath é o prefixo público de aceite de convite (/convite/{token}); a própria página decide o que exigir.
 const InvitePath = "/convite/"
 
-// RedactPath esconde o segredo que viaja no caminho: /convite/<token> vira /convite/…. Use em
-// qualquer log, nome de span ou atributo que carregue o caminho da requisição.
+// CLIAuthPath é o prefixo da página de autorização do login da CLI (/cli-auth/<código>); exige sessão.
+const CLIAuthPath = "/cli-auth/"
+
+// JoinPath é o prefixo público do link de pedido de entrada (/pedir-acesso/<token>); a página exige login.
+const JoinPath = "/pedir-acesso/"
+
+// OAuthCallbackPath é o retorno do servidor de autorização das conexões OAuth (ADR-0043); code e state viajam na query,
+// então o caminho é mascarado nos traces como os demais (a requisição original segue intacta para o mux).
+const OAuthCallbackPath = "/oauth/callback"
+
+// CLIAuthAPIPrefix são os endpoints públicos do login da CLI (criação e consulta); quem chama ainda não tem credencial.
+const CLIAuthAPIPrefix = "/api/v1/cli-auth"
+
+// RedactPath esconde o segredo que viaja no caminho: /convite/<token> vira /convite/…, e o mesmo para o código do
+// login da CLI e o token do link de entrada. Use em qualquer log, nome de span ou atributo que carregue o caminho
+// da requisição.
 func RedactPath(path string) string {
-	if strings.HasPrefix(path, InvitePath) {
-		return InvitePath + "…"
+	for _, p := range []string{InvitePath, CLIAuthPath, JoinPath, OAuthCallbackPath} {
+		if strings.HasPrefix(path, p) {
+			return p + "…"
+		}
 	}
 	if strings.HasPrefix(path, ClaimPath) {
 		return ClaimPath + "…"
@@ -46,7 +74,8 @@ func isPWAPath(p string) bool {
 // Guard é o middleware do modo authenticated. Resolve a identidade (cookie de sessão ou
 // API key) e aplica a regra por rota:
 //
-//	livres:      /healthz, /readyz, /static/, /manifest.webmanifest, /sw.js, /offline (PWA), /entrar (e /entrar/…), /sair, /idioma, /auth/, /convite/, /claim/
+//	livres:      /healthz, /readyz, /static/, /manifest.webmanifest, /sw.js, /offline (PWA), /entrar (e /entrar/…), /sair, /idioma, /auth/, /convite/, /claim/,
+//	             /pedir-acesso/ (a página exige login) e os endpoints públicos do login da CLI (/api/v1/cli-auth[/poll])
 //	/metrics:    loopback direto ou API key
 //	/api/…:      sessão (CSRF same-origin em métodos que mudam estado), API key ou run token
 //	/mcp, /memory-mcp: API key ou run token (run token é validado pelo handler)
@@ -79,10 +108,10 @@ func (g *guard) wrap(next http.Handler) http.Handler {
 		// 1. API key (Bearer hk_…).
 		var id *Identity
 		if hasBearer && IsAPIKey(bearer) {
-			u, err := g.res.ResolveAPIKey(r.Context(), bearer)
+			u, info, err := g.resolveKey(r.Context(), bearer)
 			switch {
 			case err == nil:
-				id = &Identity{User: u, Via: ViaAPIKey}
+				id = &Identity{User: u, Via: ViaAPIKey, KeyID: info.id, KeyScope: info.scope}
 			case errors.Is(err, domain.ErrUnauthenticated):
 				g.deny(w, r, "API key inválida ou revogada")
 				return
@@ -108,6 +137,10 @@ func (g *guard) wrap(next http.Handler) http.Handler {
 			}
 		}
 		if id != nil {
+			if id.Via == ViaAPIKey && !id.KeyScope.Allows(r.Method, path) {
+				g.deny(w, r, "a API key é só de leitura")
+				return
+			}
 			r = r.WithContext(WithIdentity(r.Context(), *id))
 		}
 
@@ -118,7 +151,10 @@ func (g *guard) wrap(next http.Handler) http.Handler {
 				return
 			}
 			g.deny(w, r, "autenticação necessária")
-		case path == LoginPath || strings.HasPrefix(path, LoginPath+"/") || path == "/sair" || path == "/idioma" || strings.HasPrefix(path, "/auth/") || strings.HasPrefix(path, InvitePath) || strings.HasPrefix(path, ClaimPath):
+		case path == LoginPath || strings.HasPrefix(path, LoginPath+"/") || path == "/sair" || path == "/idioma" || strings.HasPrefix(path, "/auth/") || strings.HasPrefix(path, InvitePath) || strings.HasPrefix(path, JoinPath) || strings.HasPrefix(path, ClaimPath):
+			next.ServeHTTP(w, r)
+		case path == CLIAuthAPIPrefix || path == CLIAuthAPIPrefix+"/poll":
+			// criação e consulta do login da CLI: públicas (o segredo é o código/poll token); ficam atrás do limitador
 			next.ServeHTTP(w, r)
 		case strings.HasPrefix(path, "/api/"):
 			switch {
@@ -147,6 +183,25 @@ func (g *guard) wrap(next http.Handler) http.Handler {
 			g.redirectToLogin(w, r)
 		}
 	})
+}
+
+type keyMeta struct {
+	id    *domain.ID
+	scope domain.KeyScope
+}
+
+// resolveKey resolve a API key com id e escopo quando o Resolver sabe (senão full).
+func (g *guard) resolveKey(ctx context.Context, key string) (domain.User, keyMeta, error) {
+	if kr, ok := g.res.(KeyResolver); ok {
+		u, info, err := kr.ResolveAPIKeyInfo(ctx, key)
+		if err != nil {
+			return domain.User{}, keyMeta{}, err
+		}
+		kid := info.ID
+		return u, keyMeta{id: &kid, scope: info.Scope}, nil
+	}
+	u, err := g.res.ResolveAPIKey(ctx, key)
+	return u, keyMeta{scope: domain.KeyScopeFull}, err
 }
 
 func safeMethod(m string) bool {

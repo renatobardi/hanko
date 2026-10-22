@@ -284,10 +284,12 @@ WITH page AS (
       AND ($3::uuid IS NULL OR t0.persona_id = $3::uuid)
       AND ($4::uuid IS NULL OR t0.project_id = $4::uuid)
       AND ($5::uuid IS NULL OR t0.goal_id = $5::uuid)
-      AND ($6::text IS NULL OR t0.title ILIKE '%' || $6::text || '%'
-           OR t0.description ILIKE '%' || $6::text || '%')
+      -- "Minhas" (ADR-0042): tasks em que a pessoa participa (task_participation, migration 00123)
+      AND ($6::uuid IS NULL OR t0.id IN (SELECT tp.task_id FROM task_participation($1, $6::uuid) tp))
+      AND ($7::text IS NULL OR t0.title ILIKE '%' || $7::text || '%'
+           OR t0.description ILIKE '%' || $7::text || '%')
     ORDER BY t0.updated_at DESC, t0.number DESC
-    LIMIT $8 OFFSET $7
+    LIMIT $9 OFFSET $8
 )
 SELECT t.id, t.company_id, t.number, t.title, t.description, t.status, t.priority, t.persona_id, t.project_id, t.workspace_id, t.parent_id, t.created_by_type, t.created_by_id, t.created_at, t.updated_at, t.closed_at, t.last_human_change_at, t.model, t.goal_id, t.search_tsv, COALESCE(p.name, '')::text AS persona_name, COALESCE(pr.name, '')::text AS project_name,
        ar.id AS active_run_id, c.task_prefix
@@ -306,6 +308,7 @@ type ListTaskViewsParams struct {
 	PersonaID *uuid.UUID
 	ProjectID *uuid.UUID
 	GoalID    *uuid.UUID
+	MineUser  *uuid.UUID
 	Q         *string
 	Off       int32
 	Lim       int32
@@ -329,6 +332,7 @@ func (q *Queries) ListTaskViews(ctx context.Context, arg ListTaskViewsParams) ([
 		arg.PersonaID,
 		arg.ProjectID,
 		arg.GoalID,
+		arg.MineUser,
 		arg.Q,
 		arg.Off,
 		arg.Lim,

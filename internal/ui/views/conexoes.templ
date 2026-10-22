@@ -1,0 +1,118 @@
+package views
+
+import "github.com/renatobardi/hanko/internal/i18n"
+
+// ---- Conexões OAuth (ADR-0043) ----
+
+templ ConnectionsPage(sh Shell, vm ConnectionsVM) {
+	@Layout(sh) {
+		@PageHead(i18n.T(ctx, "Integrações"), i18n.T(ctx, "Conexões OAuth com servidores MCP remotos: o humano autoriza no navegador, o token fica cifrado como segredo e é renovado sozinho. Quando uma persona pede uma conexão, o gate espera aqui.")) {
+		}
+		@IntegrationTabs(sh.Base(), "conexoes")
+		if vm.Notice != "" {
+			@Alert("warn", vm.Notice)
+		}
+		if vm.Error != "" {
+			@Alert("danger", vm.Error)
+		}
+		if vm.NoPublicURL {
+			@Alert("danger", i18n.T(ctx, "HANKO_PUBLIC_URL não está configurada: o servidor de autorização não tem para onde devolver o navegador, então nenhuma conexão consegue autorizar."))
+		}
+		if len(vm.Rows) == 0 {
+			@EmptyCard("plug", i18n.T(ctx, "Nenhuma conexão."), i18n.T(ctx, "Crie uma conexão para um servidor MCP que usa OAuth; o Hanko descobre o servidor de autorização, registra o cliente e guarda o token."), false)
+		} else {
+			<div class="table-wrap">
+				<table class="table">
+					<thead>
+						<tr>
+							<th>{ i18n.T(ctx, "Conexão") }</th>
+							<th>{ i18n.T(ctx, "Estado") }</th>
+							<th class="hide-sm">{ i18n.T(ctx, "Identidade") }</th>
+							<th class="hide-sm">{ i18n.T(ctx, "Token vale até") }</th>
+							<th class="act-col"></th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, r := range vm.Rows {
+							<tr class="row">
+								<td>
+									<b>{ r.Name }</b>
+									<div class="muted mono">{ r.URL }</div>
+									if r.Error != "" {
+										<div class="muted">{ r.Error }</div>
+									}
+									if r.Setup != "" {
+										<div class="muted">{ i18n.T(ctx, "Próximo passo:") } { r.Setup }</div>
+									}
+									if r.GateHref != "" {
+										<div><a class="link-u" href={ templ.SafeURL(r.GateHref) }>{ i18n.T(ctx, "Gate aguardando") }</a></div>
+									}
+								</td>
+								<td>@BadgeEl(r.Status)</td>
+								<td class="hide-sm">{ r.Identity }</td>
+								<td class="hide-sm muted">{ r.Expires }</td>
+								<td class="act-col">
+									if r.CanOperate {
+										<form method="post" action={ templ.SafeURL(r.AuthorizeHref) } class="inline">
+											<button class="btn primary sm" type="submit">{ r.AuthorizeLabel }</button>
+										</form>
+										if r.Connected {
+											<form method="post" action={ templ.SafeURL(r.ProbeHref) } class="inline">
+												<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Testar") }</button>
+											</form>
+											<form method="post" action={ templ.SafeURL(r.RefreshHref) } class="inline">
+												<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Renovar") }</button>
+											</form>
+											<form method="post" action={ templ.SafeURL(r.DisconnectHref) } hx-post={ r.DisconnectHref } hx-swap="none" hx-confirm={ i18n.T(ctx, "Apagar os tokens e desligar a integração?") } class="inline">
+												<button class="btn ghost sm" type="submit">{ i18n.T(ctx, "Desconectar") }</button>
+											</form>
+										}
+										<form method="post" action={ templ.SafeURL(r.DeleteHref) } hx-post={ r.DeleteHref } hx-swap="none" hx-confirm={ i18n.T(ctx, "Apagar a conexão, a integração e os tokens?") } class="inline">
+											<button class="btn ghost sm" type="submit">{ i18n.T(ctx, "Apagar") }</button>
+										</form>
+									}
+									if r.IntegrationHref != "" {
+										<a class="btn ghost sm" href={ templ.SafeURL(r.IntegrationHref) }>{ i18n.T(ctx, "Integração") }</a>
+									}
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+		if sh.CanWrite() {
+			<form class="card pad form-card mt-6" method="post" action={ templ.SafeURL(vm.CreateHref) }>
+				<div class="card-head">
+					<div>
+						<h2>{ i18n.T(ctx, "Nova conexão") }</h2>
+						<p class="sub">{ i18n.T(ctx, "Cria o rascunho e a integração MCP (desligada). Depois, Autorizar leva ao servidor de autorização; você pode concluir mais tarde.") }</p>
+					</div>
+				</div>
+				<div class="form-grid">
+					<div class="field">
+						<label for="cn-name">{ i18n.T(ctx, "Nome") }</label>
+						<input class="input" id="cn-name" name="name" maxlength="120" required/>
+					</div>
+					<div class="field">
+						<label for="cn-url">{ i18n.T(ctx, "Endereço do servidor MCP") }</label>
+						<input class="input" id="cn-url" name="url" type="url" placeholder="https://mcp.exemplo.com/mcp" required/>
+					</div>
+					<div class="field">
+						<label for="cn-identity">{ i18n.T(ctx, "Identidade") }</label>
+						@Select("identity", "cn-identity", vm.IdentityOpts, false)
+					</div>
+					<div class="field">
+						<label for="cn-scopes">{ i18n.T(ctx, "Escopos (opcional, separados por espaço)") }</label>
+						<input class="input" id="cn-scopes" name="scopes"/>
+					</div>
+					<div class="field">
+						<label for="cn-client">{ i18n.T(ctx, "client_id (só se o servidor não tem registro dinâmico)") }</label>
+						<input class="input" id="cn-client" name="client_id" maxlength="300"/>
+					</div>
+				</div>
+				<div class="form-actions"><button class="btn primary" type="submit">{ i18n.T(ctx, "Criar conexão") }</button></div>
+			</form>
+		}
+	}
+}

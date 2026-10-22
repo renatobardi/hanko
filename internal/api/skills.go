@@ -36,18 +36,21 @@ func (s *server) skills() (skillsBackend, error) {
 
 // Skill é uma habilidade reutilizável: um SKILL.md que as personas habilitadas carregam sob demanda.
 type Skill struct {
-	ID          string    `json:"id" format:"uuid"`
-	CompanyID   string    `json:"company_id" format:"uuid"`
-	Slug        string    `json:"slug" example:"revisar-pr" doc:"Nome da skill no harness (a pasta e o campo name do SKILL.md)."`
-	Name        string    `json:"name" example:"Revisar PR"`
-	Description string    `json:"description" doc:"Quando usar a skill; é o que o agente lê para decidir carregá-la."`
-	Body        string    `json:"body,omitempty" doc:"Instruções em markdown, sem o frontmatter. Ausente nas listagens."`
-	Version     int       `json:"version" doc:"Sobe a cada mudança de nome, descrição ou corpo."`
-	Personas    *int      `json:"personas,omitempty" doc:"Quantas personas a têm habilitada (só nas listagens)."`
-	CreatedBy   ActorRef  `json:"created_by"`
-	UpdatedBy   ActorRef  `json:"updated_by"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID          string `json:"id" format:"uuid"`
+	CompanyID   string `json:"company_id" format:"uuid"`
+	Slug        string `json:"slug" example:"revisar-pr" doc:"Nome da skill no harness (a pasta e o campo name do SKILL.md)."`
+	Name        string `json:"name" example:"Revisar PR"`
+	Description string `json:"description" doc:"Quando usar a skill; é o que o agente lê para decidir carregá-la."`
+	Body        string `json:"body,omitempty" doc:"Instruções em markdown, sem o frontmatter. Ausente nas listagens."`
+	Version     int    `json:"version" doc:"Sobe a cada mudança de nome, descrição ou corpo."`
+	Personas    *int   `json:"personas,omitempty" doc:"Quantas personas a têm habilitada (só nas listagens)."`
+	// ForkedFromID: a skill é uma cópia local (fork) daquela skill, na revisão ForkedFromRevision (ADR-0044).
+	ForkedFromID       string    `json:"forked_from_id,omitempty" format:"uuid"`
+	ForkedFromRevision int       `json:"forked_from_revision,omitempty"`
+	CreatedBy          ActorRef  `json:"created_by"`
+	UpdatedBy          ActorRef  `json:"updated_by"`
+	CreatedAt          time.Time `json:"created_at"`
+	UpdatedAt          time.Time `json:"updated_at"`
 }
 
 // SkillPersona é o estado de uma persona para uma skill.
@@ -76,6 +79,7 @@ type PersonaSkill struct {
 func skillOut(k domain.Skill, withBody bool) Skill {
 	o := Skill{ID: idStr(k.ID), CompanyID: idStr(k.CompanyID), Slug: k.Slug, Name: k.Name, Description: k.Description,
 		Version: k.Version, CreatedBy: actorRef(k.CreatedBy), UpdatedBy: actorRef(k.UpdatedBy), CreatedAt: k.CreatedAt, UpdatedAt: k.UpdatedAt}
+	o.ForkedFromID, o.ForkedFromRevision = idPtr(k.ForkedFromID), k.ForkedFromRevision
 	if withBody {
 		o.Body = k.Body
 	}

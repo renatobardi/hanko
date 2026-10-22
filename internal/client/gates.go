@@ -16,6 +16,11 @@ type RequestGateReq struct {
 	Body    string `json:"body,omitempty"`
 	Task    string `json:"task,omitempty"`
 	EventID string `json:"event_id,omitempty"`
+	// ADR-0041
+	Form     *api.GateForm     `json:"form,omitempty"`
+	Hire     *api.GateHireSpec `json:"hire,omitempty"`
+	Artifact string            `json:"artifact,omitempty"`
+	Audience *api.GateAudience `json:"audience,omitempty"`
 }
 
 // DecideGateReq é a decisão humana sobre um gate pendente.
@@ -28,6 +33,7 @@ type DecideGateReq struct {
 // GateQuery são os filtros de ListGates.
 type GateQuery struct {
 	Status, Kind, Task, Persona string
+	Mine                        bool // só os gates da audiência da pessoa autenticada (ADR-0042)
 	Limit, Offset               int
 }
 
@@ -37,6 +43,9 @@ func (g GateQuery) values() url.Values {
 		if v != "" {
 			q.Set(k, v)
 		}
+	}
+	if g.Mine {
+		q.Set("mine", "true")
 	}
 	if g.Limit > 0 {
 		q.Set("limit", strconv.Itoa(g.Limit))

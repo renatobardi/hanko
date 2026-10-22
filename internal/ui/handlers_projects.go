@@ -220,7 +220,7 @@ func (s *server) buildProjectVM(r *http.Request, co domain.Company, p service.Pr
 	loc := loadLoc(co.Timezone)
 	now := s.now()
 	archived := p.Status == domain.ProjectArchived
-	vm := views.ProjectVM{Name: p.Name, Description: p.Description, Archived: archived, Workspace: p.WorkspaceName,
+	vm := views.ProjectVM{EnvironmentHref: base + "/projetos/" + p.Slug + "/ambiente", Name: p.Name, Description: p.Description, Archived: archived, Workspace: p.WorkspaceName,
 		Notice: i18n.T(ctx, projectNotices[r.URL.Query().Get("ok")]),
 		Total:  p.TasksTotal, Progress: percentInt(p.Progress),
 		ProgressTxt: fmt.Sprintf("%d%% · %d/%d", int(math.Round(p.Progress)), p.Tasks[domain.TaskDone], p.TasksTotal),
@@ -287,7 +287,7 @@ func (s *server) renderProject(w http.ResponseWriter, r *http.Request, co domain
 
 // projectSections são as abas do detalhe de projeto (?secao=).
 var projectSections = []struct{ key, label string }{
-	{"visao", i18n.N("Visão geral")}, {"tasks", i18n.N("Tasks")}, {"workspace", i18n.N("Workspace")},
+	{"visao", i18n.N("Visão geral")}, {"tasks", i18n.N("Tasks")}, {"workspace", i18n.N("Workspace")}, {"git", "Git"}, {"padroes", i18n.N("Padrões")},
 	{"orcamento", i18n.N("Orçamento")}, {"configuracao", i18n.N("Configuração")},
 }
 
@@ -332,6 +332,12 @@ func (s *server) handleProject(w http.ResponseWriter, r *http.Request, co domain
 			return
 		}
 		vm.TaskList = tv
+	}
+	switch vm.Section {
+	case "git":
+		vm.Git = s.projectGitVM(r, co, p)
+	case "padroes":
+		vm.Defaults = s.projectDefaultsVM(r, co, p)
 	}
 	if vm.Section == "workspace" && p.WorkspaceSlug != "" {
 		if wv, err := s.be.GetWorkspaceView(r.Context(), co.ID, p.WorkspaceSlug); err == nil {
@@ -552,7 +558,7 @@ func (s *server) renderWorkspace(w http.ResponseWriter, r *http.Request, co doma
 
 // workspaceSections são as abas do detalhe do workspace (?secao=).
 var workspaceSections = []struct{ key, label string }{
-	{"visao", i18n.N("Visão geral")}, {"tasks", i18n.N("Tasks")}, {"execucoes", i18n.N("Execuções")}, {"configuracao", i18n.N("Configuração")},
+	{"visao", i18n.N("Visão geral")}, {"tasks", i18n.N("Tasks")}, {"execucoes", i18n.N("Execuções")}, {"git", "Git"}, {"configuracao", i18n.N("Configuração")},
 }
 
 // runsInWorkspace diz se a task resolve para este workspace: o da própria task, senão o do projeto, senão o da persona.
@@ -605,6 +611,8 @@ func (s *server) handleWorkspace(w http.ResponseWriter, r *http.Request, co doma
 			return
 		}
 		vm.TaskList = tv
+	case "git":
+		vm.Git = s.workspaceGitVM(r, co, wv)
 	case "execucoes":
 		runs, err := s.be.ListRuns(ctx, co.ID, service.RunFilter{Limit: 500})
 		if err != nil {
