@@ -246,7 +246,7 @@ func (e *env) sandboxCmd() *cobra.Command {
 	c := &cobra.Command{
 		Use:   "sandbox",
 		Short: e.t("Instância descartável de test-drive por branch ou worktree (banco próprio, porta própria, contexto próprio)"),
-		Long: e.t("Cria um banco `hanko_sbx_<branch>` no Postgres que você já usa (HANKO_SANDBOX_DATABASE_URL ou HANKO_DATABASE_URL), sobe o servidor num porto determinístico em modo trusted e registra o contexto `sandbox-<branch>`. Serve para testar uma branch sem tocar nos dados da instalação de verdade; `hanko sandbox down` apaga tudo."),
+		Long:  e.t("Cria um banco `hanko_sbx_<branch>` no Postgres que você já usa (HANKO_SANDBOX_DATABASE_URL ou HANKO_DATABASE_URL), sobe o servidor num porto determinístico em modo trusted e registra o contexto `sandbox-<branch>`. Serve para testar uma branch sem tocar nos dados da instalação de verdade; `hanko sandbox down` apaga tudo."),
 	}
 	c.AddCommand(e.sandboxUpCmd(), e.sandboxDownCmd(), e.sandboxListCmd())
 	return c

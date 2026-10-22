@@ -171,8 +171,8 @@ func (e *env) root() *cobra.Command {
 	root.AddCommand(e.environmentCmd())                           // ambientes de execução (ADR-0037)
 	root.AddCommand(e.modelCmd())                                 // catálogo de modelos (ADR-0055)
 	root.AddCommand(e.pipelinesCmds()...)
-	root.AddCommand(e.planPolicyCmd()) // plan-review (ADR-0041)
-	root.AddCommand(e.stageCmd())      // pipelines sobre tasks (ADR-0048)
+	root.AddCommand(e.planPolicyCmd())                                                                                // plan-review (ADR-0041)
+	root.AddCommand(e.stageCmd())                                                                                     // pipelines sobre tasks (ADR-0048)
 	root.AddCommand(e.contextCmd(), e.sandboxCmd(), e.onboardCmd(), e.profileCmd(), e.favoriteCmd(), e.whatsNewCmd()) // trilha onda 3 (ADR-0060)
 	e.localizeHelp(root)
 	return root

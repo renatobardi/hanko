@@ -596,4 +596,3 @@ func (s *server) setLangCookie(w http.ResponseWriter, l i18n.Lang) {
 	http.SetCookie(w, &http.Cookie{Name: i18n.Cookie, Value: string(l), Path: "/", MaxAge: int(langCookieTTL / time.Second), //nolint:gosec // Secure vem da config
 		Expires: s.now().Add(langCookieTTL), HttpOnly: true, Secure: s.secure, SameSite: http.SameSiteLaxMode})
 }
-
