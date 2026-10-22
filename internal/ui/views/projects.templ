@@ -218,6 +218,8 @@ templ ProjectPage(sh Shell, vm ProjectVM) {
 				@ProjectGitSection(vm.Git)
 			case "padroes":
 				@ProjectDefaultsSection(vm.Defaults)
+			case "etapas":
+				@ProjectStagesSection(vm.Stages)
 			case "orcamento":
 				<div class="stats4 mb-6">
 					<div class="stat"><div class="l">{ i18n.T(ctx, "Gasto no mês") }</div><div class="v"><a href={ templ.SafeURL(vm.CostHref) }>{ vm.Spent }</a></div></div>

@@ -72,6 +72,9 @@ type StatusCardVM struct {
 	DeleteURL    string
 	Archived     bool
 	CanArchive   bool
+	// Decision: o motor é o decision model (não há montagem nem resumidora). Engine é o rótulo.
+	Decision bool
+	Engine   string
 }
 
 // StatusCardLiveVM é a parte do detalhe que se atualiza sozinha (polling htmx) enquanto o card monta ou
@@ -94,6 +97,10 @@ type StatusCardLiveVM struct {
 	RefreshURL    string
 	RecompileURL  string
 	CanRefresh    bool
+	// O resultado também é um artefato versionado (ADR-0048).
+	ArtifactHref string
+	ArtifactName string
+	Engine       string
 }
 
 // StatusCardChangeRow é uma mudança mostrada.
@@ -163,4 +170,15 @@ type StatusCardFormVM struct {
 	HoursTZ           string
 	Error             string
 	FieldErr          map[string]string
+	// ADR-0048: motor do resumo, cron, Painel e os filtros do motor decision.
+	Engine         string // persona | decision
+	EngineLabel    string
+	CronExpr       string
+	CronTZ         string
+	CronSkip       bool
+	OnDashboard    bool
+	QueryProject   []Option
+	QueryStatuses  string // status separados por vírgula
+	QueryOpen      bool
+	DecisionFields bool // mostra os filtros do motor decision
 }

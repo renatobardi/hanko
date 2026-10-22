@@ -339,6 +339,7 @@ func (s *server) register(api huma.API) {
 	s.registerSearch(api)
 	s.registerPlugins(api)
 	s.registerStatusCards(api)
+	s.registerStages(api)
 	s.registerPipelines(api)
 	s.registerLifecycle(api)
 	s.registerAccess(api)

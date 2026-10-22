@@ -105,7 +105,9 @@ type DashboardVM struct {
 	OpenTasks       int
 	Activity        []ActivityItem
 	Tasks           []TaskRow
-	Gates           []GateRow // pending decisions, oldest first (at most 5)
+	Gates           []GateRow         // pending decisions, oldest first (at most 5)
+	Cards           []DashboardCardVM // cards de status marcados para o Painel (ADR-0048)
+	CardsHref       string
 	Notice          string
 	Budget          *BudgetBox // company monthly budget, when set
 }
@@ -212,6 +214,7 @@ type TaskVM struct {
 	Artifacts       []ArtifactMini
 	ArtifactsHref   string
 	Cases           []TaskCaseRow // cases ligados à task (ADR-0034)
+	Stage           TaskStageVM   // etapa do pipeline do projeto (ADR-0048)
 	Created         string
 	Updated         string
 	StatusOptions   []Option

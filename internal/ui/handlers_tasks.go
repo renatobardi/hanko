@@ -485,6 +485,7 @@ func (s *server) buildTaskVM(r *http.Request, co domain.Company, t service.TaskV
 		return views.TaskVM{}, err
 	}
 	vm.Cases = s.taskCases(ctx, co, t.ID) // ADR-0034
+	vm.Stage = s.taskStageVM(ctx, co, t)  // ADR-0048
 	return vm, nil
 }
 

@@ -95,6 +95,8 @@ type ProjectVM struct {
 	// Git e Defaults são as abas Git e Padrões (ADR-0054).
 	Git      ProjectGitVM
 	Defaults ProjectDefaultsVM
+	// Stages é a aba Etapas (pipeline do projeto sobre as tasks, ADR-0048).
+	Stages ProjectStagesVM
 }
 
 // WorkspaceRow é uma linha da lista de workspaces.

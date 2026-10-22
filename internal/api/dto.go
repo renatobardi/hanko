@@ -183,13 +183,22 @@ type Task struct {
 	UpdatedAt   time.Time  `json:"updated_at"`
 	ClosedAt    *time.Time `json:"closed_at,omitempty"`
 	// Coordenação (ADR-0040): derivados, nunca gravados.
-	OpenDependencies  int       `json:"open_dependencies" doc:"Dependências ainda abertas; a task está bloqueada enquanto for maior que zero."`
-	DependenciesTotal int       `json:"dependencies_total"`
-	Blocked           bool      `json:"blocked" doc:"Derivado: tem ao menos uma dependência aberta. Nenhuma execução abre enquanto durar."`
-	ChildrenTotal     int       `json:"children_total"`
-	ChildrenOpen      int       `json:"children_open"`
-	Participation     []string  `json:"participation,omitempty" doc:"Só com mine=true: por que a task é da pessoa (created, assigned, mentioned, commented, gate)."`
-	Hold              *TaskHold `json:"hold,omitempty" doc:"Pausa efetiva: a da própria task ou herdada do ancestral mais próximo. Nenhuma execução abre enquanto durar."`
+	OpenDependencies  int             `json:"open_dependencies" doc:"Dependências ainda abertas; a task está bloqueada enquanto for maior que zero."`
+	DependenciesTotal int             `json:"dependencies_total"`
+	Blocked           bool            `json:"blocked" doc:"Derivado: tem ao menos uma dependência aberta. Nenhuma execução abre enquanto durar."`
+	ChildrenTotal     int             `json:"children_total"`
+	ChildrenOpen      int             `json:"children_open"`
+	Participation     []string        `json:"participation,omitempty" doc:"Só com mine=true: por que a task é da pessoa (created, assigned, mentioned, commented, gate)."`
+	Hold              *TaskHold       `json:"hold,omitempty" doc:"Pausa efetiva: a da própria task ou herdada do ancestral mais próximo. Nenhuma execução abre enquanto durar."`
+	Stage             *TaskStageBrief `json:"stage,omitempty" doc:"Etapa do pipeline do projeto em que a task está (ADR-0048)."`
+}
+
+// TaskStageBrief é a etapa do pipeline em que uma task está.
+type TaskStageBrief struct {
+	Key      string `json:"key" example:"dev"`
+	Name     string `json:"name" example:"Desenvolvimento"`
+	Position int    `json:"position"`
+	State    string `json:"state" enum:"working,completing,finished"`
 }
 
 // TaskHold é a pausa de uma task (gravada nela ou herdada de um ancestral).
@@ -582,7 +591,15 @@ func taskOut(t service.TaskView) Task {
 		WorkspaceID: idPtr(t.WorkspaceID), GoalID: idPtr(t.GoalID), ParentID: idPtr(t.ParentID), Model: t.Model, ActiveRunID: idPtr(t.ActiveRunID),
 		CreatedBy: actorRef(t.CreatedBy), CreatedAt: t.CreatedAt, UpdatedAt: t.UpdatedAt, ClosedAt: t.ClosedAt,
 		OpenDependencies: t.OpenDependencies, DependenciesTotal: t.DependenciesTotal, Blocked: t.Blocked,
-		ChildrenTotal: t.ChildrenTotal, ChildrenOpen: t.ChildrenOpen, Hold: holdOut(t.Hold), Participation: t.Participation}
+		ChildrenTotal: t.ChildrenTotal, ChildrenOpen: t.ChildrenOpen, Hold: holdOut(t.Hold), Participation: t.Participation,
+		Stage: taskStageBriefOut(t.Stage)}
+}
+
+func taskStageBriefOut(b *service.TaskStageBrief) *TaskStageBrief {
+	if b == nil {
+		return nil
+	}
+	return &TaskStageBrief{Key: b.Key, Name: b.Name, Position: b.Position, State: string(b.State)}
 }
 
 func holdOut(h *domain.TaskHold) *TaskHold {
