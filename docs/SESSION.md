@@ -1,10 +1,11 @@
-# Estado da última sessão (fechamento do plano de evolução M7–M20 + trilha contínua)
-Data: 2026-10-22 · branch `docs/fechamento` → `main` (HEAD da main: 8abab60)
+# Estado da última sessão (correção dos compositores de chat)
+Data: 2026-10-22 · branch `fix/compositor-chat`
 
 ## Feito
-- 70/70 itens do plano na `main` (M7–M20, Ondas 1–3 da trilha), todos com `check` e `release-dry-run` verdes; ver `docs/PROGRESSO.md` (ressalvas por item).
-- Correções de integração entre PRs: build M18×M19 (#35), constraint de features M19×M20 (migration 00172), segredo fora de erro/log de backup (#36).
+- Causa do texto/anexo sumindo: o autosave do rascunho disparava a limpeza do form (hx-on::after-request). Limpeza movida para hanko.js, só no envio 2xx do form[data-composer]; autosave com `hx-sync="closest form:abort"`.
+- Envio que "não aparecia": poll da conversa suspenso/cancelado durante o envio; thread da task com polling (`/tasks/{task}/conversa`); erros 5xx/rede no #flash; botão desabilitado no envio.
+- Testes: unitários em `internal/ui/composer_test.go`, e2e `60-chat.spec.ts` (falha sem a correção, passa com ela).
 ## Travado (só o dono)
-- Tags v0.3.0–v0.6.0 (push de tag dá 403 daqui); deploy no hanko-prd (oute-server inalcançável); tap Homebrew e settings do GitHub.
+- Itens de `docs/VALIDACAO-MANHA.md` continuam (tags, deploy no hanko-prd).
 ## Próximo passo
-- Executar `docs/VALIDACAO-MANHA.md` na ordem: tags → backup.sh → deploy-prd.sh → smoke.sh → checklist por marco.
+- Deploy da main com a correção e validar digitando no chat em produção.

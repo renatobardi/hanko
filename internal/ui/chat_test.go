@@ -58,7 +58,7 @@ func TestChatThreadPage(t *testing.T) {
 	// markdown is rendered, the reply links to its run, the human bubble and the composer are there
 	wantContains(t, rec, "Qual o plano de hoje?", "<strong>revisar</strong>", `/c/hanko/execucoes/`+uitest.ID("run:chat").String(),
 		`id="chat-thread"`, `hx-post="/c/hanko/chat/`+cv.ID.String()+`/mensagens"`, "Arquivar", "Ada")
-	wantNotContains(t, rec, "pensando…", `hx-trigger="every 2s"`)
+	wantNotContains(t, rec, "pensando…", `hx-trigger="every 2s`)
 
 	wantStatus(t, e.get(t, "/c/hanko/chat/nao-e-id"), http.StatusNotFound)
 	wantStatus(t, e.get(t, "/c/hanko/chat/"+uitest.ID("conv:nope").String()), http.StatusNotFound)
@@ -71,9 +71,9 @@ func TestChatStrandedMessagesDoNotPollForever(t *testing.T) {
 	e.f.Stranded(cv.ID, 2)
 	rec := e.get(t, path)
 	wantContains(t, rec, "Mensagens esperando resposta: 2.", "recolhê-las")
-	wantNotContains(t, rec, "pensando…", `hx-trigger="every 2s"`)
+	wantNotContains(t, rec, "pensando…", `hx-trigger="every 2s`)
 	rec = e.get(t, path+"/mensagens", "HX-Request", "true")
-	wantNotContains(t, rec, `hx-trigger="every 2s"`)
+	wantNotContains(t, rec, `hx-trigger="every 2s`)
 }
 
 func TestChatSendAndPolling(t *testing.T) {
@@ -83,16 +83,16 @@ func TestChatSendAndPolling(t *testing.T) {
 	// htmx: the answer is the thread fragment, now polling with the "pensando…" indicator
 	rec := e.post(t, path+"/mensagens", url.Values{"message": {"E amanhã?"}}, true)
 	wantStatus(t, rec, http.StatusOK)
-	wantContains(t, rec, "E amanhã?", "pensando…", `hx-get="`+path+`/mensagens"`, `hx-trigger="every 2s"`)
+	wantContains(t, rec, "E amanhã?", "pensando…", `hx-get="`+path+`/mensagens"`, `hx-trigger="every 2s`)
 	wantNotContains(t, rec, "<html")
 
 	// the fragment keeps polling while busy, then goes quiet when the reply lands
-	wantContains(t, e.get(t, path+"/mensagens", "HX-Request", "true"), `hx-trigger="every 2s"`)
+	wantContains(t, e.get(t, path+"/mensagens", "HX-Request", "true"), `hx-trigger="every 2s`)
 	run := uitest.ID("run:chat2")
 	e.f.PersonaReplies(cv.ID, &run, "Amanhã: *nada* urgente.")
 	rec = e.get(t, path+"/mensagens", "HX-Request", "true")
 	wantContains(t, rec, "<em>nada</em>", "Amanhã: ")
-	wantNotContains(t, rec, "pensando…", `hx-trigger="every 2s"`)
+	wantNotContains(t, rec, "pensando…", `hx-trigger="every 2s`)
 
 	// plain form post redirects back to the thread
 	rec = e.post(t, path+"/mensagens", url.Values{"message": {"Obrigado"}}, false)

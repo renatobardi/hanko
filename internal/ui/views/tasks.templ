@@ -175,8 +175,10 @@ templ TaskChips(vm TaskVM, oob bool) {
 	</div>
 }
 
+// Thread é a conversa da task; com Live (run ativa ou comentário recente esperando a persona) ela se atualiza a cada
+// 3 s, menos durante um envio do compositor, e para quando a persona termina.
 templ Thread(vm TaskVM, base string) {
-	<div id="thread" class="thread" aria-live="polite">
+	<div id="thread" class="thread" aria-live="polite" if vm.Live { hx-get={ vm.ThreadHref } hx-trigger="every 3s [!document.querySelector('form[data-composer].htmx-request')]" hx-swap="outerHTML" }>
 		@HoldBanner(vm.Coord.Hold)
 		if len(vm.Thread) == 0 {
 			<p class="thread-empty">{ i18n.T(ctx, "Nenhum comentário ainda. Escreva abaixo para orientar a persona.") }</p>
@@ -245,7 +247,8 @@ templ CommentForm(vm TaskVM, base string) {
 			hx-encoding="multipart/form-data"
 			hx-target="#thread"
 			hx-swap="outerHTML"
-			hx-on::after-request="if(event.detail.successful){this.querySelector('textarea').value='';var f=this.querySelector('input[type=file]');if(f){f.value='';f.dispatchEvent(new Event('change',{bubbles:true}));}}"
+			hx-disabled-elt="find button[type=submit]"
+			data-composer=""
 			data-dropzone=""
 		>
 			@DraftTextarea("body", i18n.T(ctx, "Escreva um comentário (markdown). Fica na fila se a persona estiver ocupada."), i18n.T(ctx, "Comentário"), vm.DraftF)

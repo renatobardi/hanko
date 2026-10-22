@@ -117,3 +117,17 @@ func TestTemplEscapesViewModelText(t *testing.T) {
 		t.Error("Body (HTML sanitizado) deveria passar")
 	}
 }
+
+// O autosave do rascunho cede ao envio do formulário (hx-sync na caixa de texto) em vez de correr junto com ele.
+func TestDraftTextareaYieldsToTheSend(t *testing.T) {
+	var buf bytes.Buffer
+	if err := DraftTextarea("message", "p", "l", DraftFields{Action: "/c/hanko/chat/x/rascunho", Text: "oi"}).Render(context.Background(), &buf); err != nil {
+		t.Fatal(err)
+	}
+	out := buf.String()
+	for _, want := range []string{`hx-put="/c/hanko/chat/x/rascunho"`, `hx-sync="closest form:abort"`, `hx-params="message"`, ">oi</textarea>"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in %s", want, out)
+		}
+	}
+}

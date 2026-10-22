@@ -35,13 +35,38 @@
     });
   })();
 
-  // htmx ignores 4xx by default; our handlers answer errors with a fragment.
+  // htmx ignores 4xx/5xx by default; our handlers answer errors with a fragment (s.fail retargets it to #flash, so any
+  // status carrying HX-Retarget is safe to swap).
   document.addEventListener("htmx:beforeSwap", function (e) {
-    var s = e.detail.xhr && e.detail.xhr.status;
-    if (s === 403 || s === 404 || s === 409 || s === 422 || s === 429 || s === 501) {
+    var x = e.detail.xhr;
+    var s = x && x.status;
+    if (s === 403 || s === 404 || s === 409 || s === 422 || s === 429 || s === 501 || (s >= 400 && x.getResponseHeader("HX-Retarget"))) {
       e.detail.shouldSwap = true;
       e.detail.isError = false;
     }
+  });
+
+  // An error nobody swapped (a proxy's 502, a 500 without our fragment) or a request that never reached the server
+  // used to vanish: the person saw nothing and refreshed to find out. A request that changes something now says so in
+  // #flash (polls are GETs and retry on their own).
+  function flashError(e, key, status) {
+    var cfg = e.detail && e.detail.requestConfig;
+    var flash = document.getElementById("flash");
+    if (!flash || (cfg && String(cfg.verb).toLowerCase() === "get")) return;
+    var box = document.createElement("div");
+    box.className = "alert danger";
+    box.setAttribute("role", "alert");
+    var msg = document.createElement("div");
+    msg.textContent = (flash.getAttribute(key) || "") + (status ? " (HTTP " + status + ")" : "");
+    box.appendChild(msg);
+    flash.textContent = "";
+    flash.appendChild(box);
+  }
+  document.addEventListener("htmx:responseError", function (e) {
+    flashError(e, "data-err-server", e.detail.xhr && e.detail.xhr.status);
+  });
+  document.addEventListener("htmx:sendError", function (e) {
+    flashError(e, "data-err-net", 0);
   });
 
   // Mobile drawer: close after navigating.
@@ -139,6 +164,40 @@
     if (z.hasAttribute("data-dropzone-submit") && input.files.length) {
       var form = z.tagName === "FORM" ? z : z.closest("form");
       if (form && form.requestSubmit) form.requestSubmit();
+    }
+  });
+
+  // Compositores (form[data-composer]: chat, sala e comentário da task). Só o envio do próprio formulário, com resposta
+  // 2xx, limpa o texto e os arquivos: o autosave do rascunho (hx-put da caixa de texto) também dispara
+  // htmx:afterRequest, que sobe até o formulário, e um erro trocado para o #flash (409, 422) não pode apagar o que a
+  // pessoa escreveu. Ao sair o envio, a atualização da lista em andamento é cancelada: o htmx escolhe o alvo quando a
+  // requisição sai, e uma resposta atrasada trocaria a lista nova por uma velha ou deixaria o envio num nó fora da
+  // página (a lista também não se atualiza durante o envio: ver o hx-trigger das conversas).
+  function composerOf(e) {
+    var f = e.detail && e.detail.elt;
+    return f && f.tagName === "FORM" && f.hasAttribute("data-composer") ? f : null;
+  }
+  function sent(e) {
+    var x = e.detail && e.detail.xhr;
+    return !!x && x.status >= 200 && x.status < 300;
+  }
+  document.addEventListener("htmx:beforeRequest", function (e) {
+    var f = composerOf(e);
+    var sel = f && f.getAttribute("hx-target");
+    var live = sel && document.querySelector(sel);
+    if (live && window.htmx) window.htmx.trigger(live, "htmx:abort");
+  });
+  document.addEventListener("htmx:afterRequest", function (e) {
+    var f = composerOf(e);
+    if (!f || !sent(e)) return;
+    var ta = f.querySelector("textarea");
+    if (ta) ta.value = "";
+    var st = f.querySelector(".draft-state");
+    if (st) st.textContent = "";
+    var input = f.querySelector('input[type="file"]');
+    if (input) {
+      input.value = "";
+      input.dispatchEvent(new Event("change", { bubbles: true }));
     }
   });
 
@@ -378,10 +437,12 @@
     } catch (err) {}
   });
 
+  // só o envio do próprio formulário (2xx) apaga o rascunho local, nunca o autosave da caixa de texto nem um erro
   document.addEventListener("htmx:afterRequest", function (e) {
-    var f = e.target.closest && e.target.closest("form[data-draft]");
+    var f = e.detail.elt;
     var s = store();
-    if (!f || !s || !e.detail.successful) return;
+    var x = e.detail.xhr;
+    if (!f || !f.matches || !f.matches("form[data-draft]") || !s || !x || x.status < 200 || x.status >= 300) return;
     try {
       s.removeItem(f.getAttribute("data-draft"));
     } catch (err) {}

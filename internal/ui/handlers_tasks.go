@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/i18n"
@@ -451,6 +452,10 @@ func (s *server) buildTaskVM(r *http.Request, co domain.Company, t service.TaskV
 		vm.Runs = append(vm.Runs, mini)
 	}
 	vm.Cost = fmtUSDCtx(ctx, cost)
+	// a conversa se atualiza sozinha enquanto a persona trabalha ou acabou de ser chamada por um comentário (o wake
+	// passa por um job, então a run pode ainda não existir quando o envio responde)
+	vm.ThreadHref = base + "/tasks/" + t.Key + "/conversa"
+	vm.Live = t.Status.Open() && !t.System && t.PersonaID != nil && (vm.ActiveRun != nil || awaitingReply(comments, now))
 	if t.Status.Open() && !t.System {
 		fs, err := s.be.ListFollowups(ctx, co.ID, service.FollowupTarget{TaskID: &t.ID})
 		if err != nil {
@@ -487,6 +492,34 @@ func (s *server) buildTaskVM(r *http.Request, co domain.Company, t service.TaskV
 	vm.Cases = s.taskCases(ctx, co, t.ID) // ADR-0034
 	vm.Stage = s.taskStageVM(ctx, co, t)  // ADR-0048
 	return vm, nil
+}
+
+// threadLiveWindow é quanto tempo depois do último comentário humano a conversa da task segue se atualizando sem
+// run ativa: o bastante para o job do wake abrir a run, sem deixar a página consultando para sempre.
+const threadLiveWindow = 2 * time.Minute
+
+// awaitingReply diz se o último comentário (em ordem cronológica) é de uma pessoa e recente.
+func awaitingReply(comments []domain.Comment, now time.Time) bool {
+	if len(comments) == 0 {
+		return false
+	}
+	last := comments[len(comments)-1]
+	return last.Author.Type == domain.ActorHuman && now.Sub(last.CreatedAt) < threadLiveWindow
+}
+
+// handleTaskThread é o fragmento da conversa da task que se atualiza enquanto a persona responde.
+func (s *server) handleTaskThread(w http.ResponseWriter, r *http.Request, co domain.Company) {
+	t, err := s.be.GetTask(r.Context(), co.ID, r.PathValue("task"))
+	if err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
+	vm, err := s.buildTaskVM(r, co, t)
+	if err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
+	s.render(w, r, http.StatusOK, views.Thread(vm, "/c/"+co.Slug))
 }
 
 func (s *server) handleTask(w http.ResponseWriter, r *http.Request, co domain.Company) {
