@@ -1,4 +1,4 @@
-// Package backup cria, lista, confere e restaura backups da instalação (ADR-0060). Um backup é um arquivo tar com
+// Package backup cria, lista, confere e restaura backups da instalação (ADR-0062). Um backup é um arquivo tar com
 // o dump do Postgres (pg_dump -Fc, que já leva o conteúdo dos artefatos do driver postgres) e, à parte, o conteúdo
 // dos artefatos guardados em drivers externos (S3), mais um manifest com tamanho e sha256 de cada membro. O pg_dump
 // e o pg_restore rodam por syscmd.Runner e o conteúdo externo por Blobs, então tudo é testável sem Postgres nem S3.
@@ -111,6 +111,7 @@ type Manager struct {
 	DSN         string
 	DumpBin     string // padrão pg_dump
 	RestoreBin  string // padrão pg_restore
+	PSQLBin     string // padrão psql
 	Cmd         syscmd.Runner
 	Blobs       Blobs // nulo = sem conteúdo externo
 	SchemaFn    func(ctx context.Context) (int64, error)
@@ -165,6 +166,13 @@ func (m *Manager) dumpBin() string {
 		return m.DumpBin
 	}
 	return "pg_dump"
+}
+
+func (m *Manager) psqlBin() string {
+	if m.PSQLBin != "" {
+		return m.PSQLBin
+	}
+	return "psql"
 }
 
 func (m *Manager) restoreBin() string {
@@ -664,8 +672,10 @@ func (m *Manager) restore(ctx context.Context, name string, o RestoreOptions) (R
 	if len(man.Blobs) > 0 && m.Blobs == nil && !o.SkipBlobs {
 		return RestoreReport{}, errors.New("backup: o arquivo tem conteúdo de artefatos em driver externo, mas o driver não está configurado neste servidor (use --skip-blobs para restaurar só o banco)")
 	}
-	if _, err := m.Cmd.LookPath(m.restoreBin()); err != nil {
-		return RestoreReport{}, fmt.Errorf("backup: %s não encontrado no PATH (instale o cliente do PostgreSQL ou aponte HANKO_PG_RESTORE_BIN): %w", m.restoreBin(), err)
+	for _, bin := range []string{m.restoreBin(), m.psqlBin()} {
+		if _, err := m.Cmd.LookPath(bin); err != nil {
+			return RestoreReport{}, fmt.Errorf("backup: %s não encontrado no PATH (instale o cliente do PostgreSQL; HANKO_PG_RESTORE_BIN e HANKO_PSQL_BIN apontam outro caminho): %w", bin, err)
+		}
 	}
 	env, err := pgEnv(m.DSN)
 	if err != nil {
@@ -705,9 +715,29 @@ func (m *Manager) restore(ctx context.Context, name string, o RestoreOptions) (R
 	if err != nil {
 		return RestoreReport{}, err
 	}
-	if err := m.Cmd.Run(ctx, syscmd.Cmd{Name: m.restoreBin(), Env: env,
-		Args: []string{"--clean", "--if-exists", "--no-owner", "--no-acl", "--exit-on-error", "--single-transaction", "--dbname=" + dbName(env), dumpPath}}); err != nil {
-		return RestoreReport{}, fmt.Errorf("backup: pg_restore: %w", err)
+	// O banco é SUBSTITUÍDO, não mesclado: um --clean só apagaria o que o dump conhece e deixaria tabelas de migrations
+	// mais novas (o goose voltaria atrás e a próxima migration falharia com "já existe"). Por isso o script é
+	// "apaga o schema public + recria tudo", gerado pelo pg_restore e aplicado pelo psql em UMA transação: se o
+	// restore falhar no meio, nada muda.
+	script := filepath.Join(tmp, "restore.sql")
+	sf, err := os.OpenFile(script, os.O_CREATE|os.O_WRONLY|os.O_EXCL, 0o600) //nolint:gosec // diretório temporário
+	if err != nil {
+		return RestoreReport{}, err
+	}
+	_, werr := io.WriteString(sf, "DROP SCHEMA IF EXISTS public CASCADE;\nCREATE SCHEMA public;\n")
+	if werr == nil {
+		werr = m.Cmd.Run(ctx, syscmd.Cmd{Name: m.restoreBin(), Env: env, Stdout: sf,
+			Args: []string{"--no-owner", "--no-acl", "--file=-", dumpPath}})
+	}
+	if cerr := sf.Close(); werr == nil {
+		werr = cerr
+	}
+	if werr != nil {
+		return RestoreReport{}, fmt.Errorf("backup: pg_restore: %w", werr)
+	}
+	if err := m.Cmd.Run(ctx, syscmd.Cmd{Name: m.psqlBin(), Env: env,
+		Args: []string{"-X", "-q", "--single-transaction", "-v", "ON_ERROR_STOP=1", "--dbname=" + dbName(env), "--file=" + script}}); err != nil {
+		return RestoreReport{}, fmt.Errorf("backup: aplicar o restore (psql; o banco não foi alterado): %w", err)
 	}
 	rep := RestoreReport{Name: filepath.Base(p), SchemaVersion: man.SchemaVersion, NeedsMigrate: m.KnownSchema > man.SchemaVersion}
 	if !o.SkipBlobs {

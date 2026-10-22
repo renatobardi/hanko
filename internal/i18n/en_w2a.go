@@ -1,6 +1,6 @@
 package i18n
 
-// enW2A holds the English texts of the continuous track, wave 2 part A (ADR-0060, ADR-0061): `hanko doctor`,
+// enW2A holds the English texts of the continuous track, wave 2 part A (ADR-0062, ADR-0063): `hanko doctor`,
 // `hanko update`, `hanko service`, `hanko backup`, `hanko serve --embedded-pg` and Settings › Backups. init merges
 // them into the same catalog as the rest (en.go). Same rules: the key is the pt-BR text, and a key that another file
 // already translates is not repeated here.
@@ -95,7 +95,7 @@ var enW2A = map[string]string{
 	"Confere o arquivo inteiro contra o manifest (sha256), sem tocar no banco":    "Checks the whole file against the manifest (sha256), without touching the database",
 	"Íntegro: %s (criado em %s, schema %d, dump %s, %d conteúdo(s) externo(s))\n": "Intact: %s (created %s, schema %d, dump %s, %d external content item(s))\n",
 	"Restaura o banco (e o conteúdo externo) a partir de um backup: DESTRUTIVO":   "Restores the database (and external content) from a backup: DESTRUCTIVE",
-	"Substitui o conteúdo do banco apontado por HANKO_DATABASE_URL pelo do backup (pg_restore --clean em uma transação). Pare o servidor antes: o comando recusa se há outras conexões ao banco (--force ignora). Confere o sha256 do arquivo antes de tocar no banco. Exige --yes.": "Replaces the contents of the database pointed to by HANKO_DATABASE_URL with the backup's (pg_restore --clean in one transaction). Stop the server first: the command refuses if there are other connections to the database (--force ignores). Verifies the file's sha256 before touching the database. Requires --yes.",
+	"Substitui o conteúdo do banco apontado por HANKO_DATABASE_URL pelo do backup (apaga o schema public e recria tudo em uma única transação, via pg_restore e psql). Pare o servidor antes: o comando recusa se há outras conexões ao banco (--force ignora). Confere o sha256 do arquivo antes de tocar no banco. Exige --yes.": "Replaces the contents of the database pointed to by HANKO_DATABASE_URL with the backup's (drops the public schema and recreates everything in a single transaction, through pg_restore and psql). Stop the server first: the command refuses if there are other connections to the database (--force ignores). Verifies the file's sha256 before touching the database. Requires --yes.",
 	"confirma que o banco atual será substituído":                                                                                       "confirms the current database will be replaced",
 	"restaura mesmo com outras conexões ao banco ou schema do backup mais novo que o binário":                                           "restores even with other connections to the database or a backup schema newer than the binary",
 	"restaura só o banco, sem devolver o conteúdo externo (S3)":                                                                         "restores only the database, without putting the external content (S3) back",

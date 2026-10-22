@@ -326,7 +326,7 @@ docker compose -f deploy/compose.yaml exec -T postgres dropdb -U "$POSTGRES_USER
 
 Registre data e resultado em `docs/SESSION.md` ou no issue de operação.
 
-### Backups pelo próprio Hanko (ADR-0060)
+### Backups pelo próprio Hanko (ADR-0062)
 
 Além do `backup.sh` + restic do host, instalações em binário/host têm `hanko backup` (precisa de `pg_dump`/`pg_restore` no PATH):
 

@@ -11,7 +11,7 @@ import (
 	"github.com/renatobardi/hanko/internal/service"
 )
 
-// Backups da instalação (ADR-0060): histórico, disparo manual e agendamento (fluxo de sistema). Tudo é do dono da
+// Backups da instalação (ADR-0062): histórico, disparo manual e agendamento (fluxo de sistema). Tudo é do dono da
 // instalação; o backup leva o banco inteiro, não uma empresa.
 
 type backupBackend interface {

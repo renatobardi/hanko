@@ -60,7 +60,7 @@ func TestDeployPrdPreBackupDistinguishesPsFailure(t *testing.T) {
 	}
 }
 
-// O deploy usa os comandos de operação do próprio hanko (ADR-0060): doctor, update --check e as units geradas por
+// O deploy usa os comandos de operação do próprio hanko (ADR-0062): doctor, update --check e as units geradas por
 // `service print`, em vez de heredocs de unit escritos à mão.
 func TestDeployPrdUsesOpsCommands(t *testing.T) {
 	b, err := os.ReadFile("../../deploy/oute-server/deploy-prd.sh")

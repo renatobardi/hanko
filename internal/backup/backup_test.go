@@ -57,18 +57,29 @@ func (f *fakeBlobs) Put(_ context.Context, b BlobEntry, data []byte) error {
 // pgFake simula pg_dump (escreve um dump) e pg_restore (guarda o arquivo recebido).
 func pgFake(dump string, restored *string) *syscmd.Fake {
 	return &syscmd.Fake{
-		Paths: map[string]string{"pg_dump": "/bin/pg_dump", "pg_restore": "/bin/pg_restore"},
+		Paths: map[string]string{"pg_dump": "/bin/pg_dump", "pg_restore": "/bin/pg_restore", "psql": "/bin/psql"},
 		Handler: func(c syscmd.Cmd) error {
 			switch c.Name {
 			case "pg_dump":
 				_, err := io.WriteString(c.Stdout, dump)
 				return err
-			case "pg_restore":
+			case "pg_restore": // gera o script SQL a partir do dump (--file=-)
 				b, err := os.ReadFile(c.Args[len(c.Args)-1])
 				if err != nil {
 					return err
 				}
-				*restored = string(b)
+				_, err = io.WriteString(c.Stdout, "-- script\n"+string(b)+"\n")
+				return err
+			case "psql": // aplica o script
+				for _, a := range c.Args {
+					if f, ok := strings.CutPrefix(a, "--file="); ok {
+						b, err := os.ReadFile(f)
+						if err != nil {
+							return err
+						}
+						*restored = string(b)
+					}
+				}
 			}
 			return nil
 		},
@@ -128,15 +139,18 @@ func TestCreateListVerifyRestoreRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if restored != "PGDMP-conteudo-do-banco" || rep.BlobsRestored != 2 || rep.NeedsMigrate {
+	if !strings.HasPrefix(restored, "DROP SCHEMA IF EXISTS public CASCADE;\nCREATE SCHEMA public;\n") || !strings.Contains(restored, "PGDMP-conteudo-do-banco") || rep.BlobsRestored != 2 || rep.NeedsMigrate {
 		t.Fatalf("restored=%q rep=%+v", restored, rep)
 	}
 	if string(blobs.data["c1/a2"]) != "arquivo dois" {
 		t.Fatalf("blob não voltou: %q", blobs.data["c1/a2"])
 	}
 	last := fake.Calls()[len(fake.Calls())-1].Cmd
-	if last.Name != "pg_restore" || !strings.Contains(last.String(), "--clean") || !strings.Contains(last.String(), "--single-transaction") || !strings.Contains(last.String(), "--dbname=hanko") {
-		t.Fatalf("pg_restore = %s", last)
+	if last.Name != "psql" || !strings.Contains(last.String(), "--single-transaction") || !strings.Contains(last.String(), "ON_ERROR_STOP=1") || !strings.Contains(last.String(), "--dbname=hanko") {
+		t.Fatalf("psql = %s", last)
+	}
+	if strings.Contains(last.String(), "s3nha-secreta") {
+		t.Fatal("senha em argv")
 	}
 }
 
@@ -178,8 +192,8 @@ func TestVerifyDetectsCorruptionAndTruncation(t *testing.T) {
 		t.Fatalf("restore adulterado: %v", err)
 	}
 	for _, c := range m.Cmd.(*syscmd.Fake).Calls() {
-		if c.Cmd.Name == "pg_restore" {
-			t.Fatal("pg_restore não pode rodar com arquivo corrompido")
+		if c.Cmd.Name == "pg_restore" || c.Cmd.Name == "psql" {
+			t.Fatal("o restore não pode rodar com arquivo corrompido")
 		}
 	}
 

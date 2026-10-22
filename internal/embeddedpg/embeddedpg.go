@@ -1,4 +1,4 @@
-// Package embeddedpg sobe um Postgres local descartável para `hanko serve --embedded-pg` (ADR-0061). É só para
+// Package embeddedpg sobe um Postgres local descartável para `hanko serve --embedded-pg` (ADR-0063). É só para
 // desenvolvimento e trial: o Hanko NÃO empacota o Postgres nem baixa nada da rede; usa initdb e pg_ctl de uma
 // instalação local do PostgreSQL e gerencia um cluster próprio (dados, senha e porta em um diretório do usuário).
 // Produção continua com o Postgres externo, única dependência de runtime.

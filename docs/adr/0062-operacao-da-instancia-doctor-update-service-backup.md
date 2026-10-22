@@ -1,4 +1,4 @@
-# ADR-0060 — Operação da instância: doctor, update, service e backup
+# ADR-0062 — Operação da instância: doctor, update, service e backup
 Data: 2026-10-22 · Status: aceita · Complementa: ADR-0050, ADR-0051, ADR-0058 · Itens do plano: #64, #65
 
 ## Contexto
@@ -42,7 +42,7 @@ GitHub nem pg_dump de verdade.
 - A senha do banco vai por variáveis `PG*`, nunca em argv.
 - `verify` confere cada membro; `restore` verifica antes de tocar no banco, recusa schema do backup mais novo que o
   binário (`--force`), exige `--yes`, recusa com outras conexões ao banco (servidor no ar; `--force`), roda
-  `pg_restore --clean --if-exists --single-transaction` e devolve o conteúdo externo. Backup mais antigo pede `hanko migrate`.
+  o restore SUBSTITUI o banco (um `--clean` deixaria tabelas de migrations mais novas e o goose voltaria atrás): o `pg_restore` gera o script, que começa por `DROP SCHEMA public CASCADE` e é aplicado pelo `psql --single-transaction`, então uma falha no meio não altera nada; depois devolve o conteúdo externo. Backup mais antigo pede `hanko migrate`.
 - Retenção: `HANKO_BACKUP_KEEP` (padrão 7) poda só os automáticos (agendado, pré-atualização, pré-deploy); manuais ficam.
 - A imagem de contêiner é distroless e não tem `pg_dump`: nela o backup pela tela fica desligado (o servidor loga o motivo e a
   tela explica) e vale o backup do host (`backup.sh` + restic). Instalações em binário/host usam tudo.
@@ -68,5 +68,5 @@ GitHub nem pg_dump de verdade.
 
 ## Consequências
 Duas migrations aditivas (00180). Env novas: `HANKO_HOME`, `HANKO_BACKUP_DIR`, `HANKO_BACKUP_KEEP`, `HANKO_PG_DUMP_BIN`,
-`HANKO_PG_RESTORE_BIN`; `HANKO_UPDATE_CHANNEL/REPO/TOKEN` (só a CLI). Sem dependência Go nova. O `deploy-prd.sh` passa a
+`HANKO_PG_RESTORE_BIN`, `HANKO_PSQL_BIN`; `HANKO_UPDATE_CHANNEL/REPO/TOKEN` (só a CLI). Sem dependência Go nova. O `deploy-prd.sh` passa a
 gerar as units com `service print`, rodar `doctor` e `update --check` no contêiner; o `backup.sh` e o restic seguem.

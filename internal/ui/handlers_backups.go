@@ -13,7 +13,7 @@ import (
 	"github.com/renatobardi/hanko/internal/ui/views"
 )
 
-// Configurações › Backups (ADR-0060): histórico, backup agora e agendamento (fluxo de sistema). Dono da instalação.
+// Configurações › Backups (ADR-0062): histórico, backup agora e agendamento (fluxo de sistema). Dono da instalação.
 
 type backupsBackend interface {
 	ListBackups(ctx context.Context, limit int) ([]domain.InstanceBackup, error)

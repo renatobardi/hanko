@@ -104,7 +104,7 @@ type Service struct {
 	Blobs *storage.Registry
 	// Settings são os toggles não sensíveis da instalação (ADR-0050); nil usa os campos fixos acima (testes).
 	Settings *settings.Manager
-	// Backups executa os backups da instalação (ADR-0060); nil = backups indisponíveis neste servidor.
+	// Backups executa os backups da instalação (ADR-0062); nil = backups indisponíveis neste servidor.
 	Backups BackupRunner
 	// BackupDir é onde os backups ficam (HANKO_BACKUP_DIR); só informativo para a tela.
 	BackupDir string

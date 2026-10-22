@@ -1,5 +1,5 @@
 -- +goose Up
--- Backups da instalação e fluxos de sistema (ADR-0060). São da INSTÂNCIA, não de uma empresa (como instance_settings e
+-- Backups da instalação e fluxos de sistema (ADR-0062). São da INSTÂNCIA, não de uma empresa (como instance_settings e
 -- users): um backup leva o banco inteiro. Quem pode ler e mudar é só o dono da instalação; a trilha das mudanças de
 -- agendamento vai em instance_setting_audit (chave system_flow.backup) e cada backup guarda quem o pediu.
 

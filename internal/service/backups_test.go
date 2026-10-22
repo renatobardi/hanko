@@ -13,7 +13,7 @@ import (
 	"github.com/renatobardi/hanko/internal/service"
 )
 
-// Backups da instalação e o fluxo de sistema que os agenda (ADR-0060).
+// Backups da instalação e o fluxo de sistema que os agenda (ADR-0062).
 
 // fakeBackups é o executor de backups: devolve uma entrada fixa, ou o erro, e pode ficar preso até ser liberado.
 type fakeBackups struct {

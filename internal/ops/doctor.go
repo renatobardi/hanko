@@ -1,4 +1,4 @@
-// Package ops reúne a operação da instância (ADR-0060): o diagnóstico `hanko doctor`, a atualização do binário
+// Package ops reúne a operação da instância (ADR-0062): o diagnóstico `hanko doctor`, a atualização do binário
 // `hanko update` e a instalação como serviço do sistema `hanko service install`. Tudo que toca o mundo externo
 // (banco, rede, systemd/launchd, GitHub) entra por interfaces; os testes usam fakes.
 package ops
@@ -117,7 +117,7 @@ func Doctor(ctx context.Context, e DoctorEnv) Report {
 
 func checkConfig(e DoctorEnv) Check {
 	if e.CfgErr != nil {
-		return Check{Name: "config", Status: Fail, Detail: e.CfgErr.Error(), Hint: "corrija as variáveis HANKO_* (ou o hanko.yaml) e rode de novo"}
+		return Check{Name: "config", Status: Fail, Detail: strings.ReplaceAll(e.CfgErr.Error(), "\n", "; "), Hint: "corrija as variáveis HANKO_* (ou o hanko.yaml) e rode de novo"}
 	}
 	c := Check{Name: "config", Status: OK, Detail: "modo " + e.Cfg.Mode + ", escuta em " + e.Cfg.Addr}
 	if len(e.Cfg.Warnings) > 0 {
@@ -372,7 +372,10 @@ func checkPGTools(e DoctorEnv) Check {
 	if e.Cmd == nil {
 		return Check{Name: "pg_dump", Status: Skip, Detail: "sem executor"}
 	}
-	dump, restore := e.Cfg.Ops.PGDumpBin, e.Cfg.Ops.PGRestoreBin
+	dump, restore, psql := e.Cfg.Ops.PGDumpBin, e.Cfg.Ops.PGRestoreBin, e.Cfg.Ops.PSQLBin
+	if psql == "" {
+		psql = "psql"
+	}
 	if dump == "" {
 		dump = "pg_dump"
 	}
@@ -380,7 +383,7 @@ func checkPGTools(e DoctorEnv) Check {
 		restore = "pg_restore"
 	}
 	var miss []string
-	for _, b := range []string{dump, restore} {
+	for _, b := range []string{dump, restore, psql} {
 		if _, err := e.Cmd.LookPath(b); err != nil {
 			miss = append(miss, b)
 		}
@@ -388,7 +391,7 @@ func checkPGTools(e DoctorEnv) Check {
 	if len(miss) > 0 {
 		return Check{Name: "pg_dump", Status: Warn, Detail: strings.Join(miss, ", ") + " não encontrado(s) no PATH", Hint: "`hanko backup` precisa do cliente do PostgreSQL (postgresql-client); em contêiner, use o backup do host"}
 	}
-	return Check{Name: "pg_dump", Status: OK, Detail: dump + " e " + restore + " disponíveis"}
+	return Check{Name: "pg_dump", Status: OK, Detail: dump + ", " + restore + " e " + psql + " disponíveis"}
 }
 
 func checkBackup(e DoctorEnv) Check {

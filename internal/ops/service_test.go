@@ -142,9 +142,13 @@ func newMemFS() *memFS { return &memFS{files: map[string]string{}, modes: map[st
 
 func (m *memFS) inst(platform string, cmd syscmd.Runner) *Installer {
 	return &Installer{Platform: platform, Cmd: cmd, Home: "/home/ana", UID: 501,
-		WriteFile: func(p string, d []byte, mode os.FileMode) error { m.files[p] = string(d); m.modes[p] = mode; return nil },
-		MkdirAll:  func(p string, _ os.FileMode) error { m.dirs = append(m.dirs, p); return nil },
-		Exists:    func(p string) bool { _, ok := m.files[p]; return ok },
+		WriteFile: func(p string, d []byte, mode os.FileMode) error {
+			m.files[p] = string(d)
+			m.modes[p] = mode
+			return nil
+		},
+		MkdirAll: func(p string, _ os.FileMode) error { m.dirs = append(m.dirs, p); return nil },
+		Exists:   func(p string) bool { _, ok := m.files[p]; return ok },
 		Remove: func(p string) error {
 			if _, ok := m.files[p]; !ok {
 				return os.ErrNotExist

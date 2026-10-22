@@ -57,7 +57,7 @@ func goodEnv() DoctorEnv {
 		Cfg:        goodCfg(),
 		Getenv:     func(string) string { return "" },
 		DB:         fakeDB{version: "16.4", applied: db.EmbeddedVersions()},
-		Cmd:        &syscmd.Fake{Paths: map[string]string{"claude": "/bin/claude", "pg_dump": "/bin/pg_dump", "pg_restore": "/bin/pg_restore"}},
+		Cmd:        &syscmd.Fake{Paths: map[string]string{"claude": "/bin/claude", "pg_dump": "/bin/pg_dump", "pg_restore": "/bin/pg_restore", "psql": "/bin/psql"}},
 		HTTP:       &fakeHTTP{status: 200},
 		Dial:       func(context.Context, string) error { return nil },
 		DiskFree:   func(string) (uint64, error) { return 100 << 30, nil },

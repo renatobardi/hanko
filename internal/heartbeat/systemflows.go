@@ -13,7 +13,7 @@ import (
 )
 
 // SystemFlowTickArgs é a varredura periódica dos fluxos de sistema (job "system_flow_tick"): tarefas da própria
-// instalação, hoje o backup agendado (ADR-0060). Fica fora do flow_tick porque um backup dura minutos e o job
+// instalação, hoje o backup agendado (ADR-0062). Fica fora do flow_tick porque um backup dura minutos e o job
 // ganha um teto de tempo maior que o padrão do River.
 type SystemFlowTickArgs struct{}
 

@@ -2,7 +2,7 @@ package domain
 
 import "time"
 
-// Tipos de backup (quem o originou), espelho de instance_backups.kind (ADR-0060).
+// Tipos de backup (quem o originou), espelho de instance_backups.kind (ADR-0062).
 const (
 	BackupManual    = "manual"
 	BackupScheduled = "scheduled"

@@ -24,7 +24,7 @@ import (
 	"github.com/renatobardi/hanko/internal/syscmd"
 )
 
-// Operação da instância (ADR-0060 e ADR-0061): backups, doctor e Postgres embutido.
+// Operação da instância (ADR-0062 e ADR-0063): backups, doctor e Postgres embutido.
 
 // cliAppName marca as conexões abertas pelos comandos locais, para o restore não as contar como "outro cliente".
 const cliAppName = "hanko-cli"
@@ -33,7 +33,7 @@ const cliAppName = "hanko-cli"
 // comando local conecta só quando precisa.
 func newBackupManager(cfg config.Config, version string, blobs backup.Blobs, schema func(context.Context) (int64, error), log *slog.Logger) *backup.Manager {
 	return &backup.Manager{Dir: cfg.Ops.BackupDir, Keep: cfg.Ops.BackupKeep, Version: version, DSN: cfg.DatabaseURL,
-		DumpBin: cfg.Ops.PGDumpBin, RestoreBin: cfg.Ops.PGRestoreBin, Cmd: syscmd.OS{}, Blobs: blobs, SchemaFn: schema,
+		DumpBin: cfg.Ops.PGDumpBin, RestoreBin: cfg.Ops.PGRestoreBin, PSQLBin: cfg.Ops.PSQLBin, Cmd: syscmd.OS{}, Blobs: blobs, SchemaFn: schema,
 		KnownSchema: db.LatestEmbedded(), Log: log}
 }
 
@@ -238,7 +238,7 @@ func (f failedProbe) AppliedMigrations(context.Context) ([]int64, error) { retur
 // ---------- hanko serve --embedded-pg ----------
 
 // ServeEmbedded sobe o Postgres local (initdb/pg_ctl de uma instalação do PostgreSQL) e o servidor em cima dele. É só
-// para dev/trial (ADR-0061); o cluster é parado ao encerrar.
+// para dev/trial (ADR-0063); o cluster é parado ao encerrar.
 func ServeEmbedded(ctx context.Context, version string, o cli.EmbeddedOptions) error {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	dir := o.Dir

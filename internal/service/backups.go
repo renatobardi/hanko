@@ -19,7 +19,7 @@ import (
 	"github.com/renatobardi/hanko/internal/store"
 )
 
-// Backups da instalação (ADR-0060). São da instância, não de uma empresa: só o dono da instalação lê e dispara; a
+// Backups da instalação (ADR-0062). São da instância, não de uma empresa: só o dono da instalação lê e dispara; a
 // execução (pg_dump, tar, conteúdo externo) é do pacote backup, injetado em Service.Backups. O agendamento é o fluxo
 // de sistema "backup" (tabela system_flows), disparado pelo flow_tick do heartbeat com a mesma semântica de cron dos
 // fluxos de empresa.

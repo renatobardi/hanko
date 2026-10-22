@@ -17,7 +17,7 @@ import (
 	"github.com/renatobardi/hanko/internal/syscmd"
 )
 
-// Operação da instância (ADR-0060): doctor, update, service e backup. Tudo roda NO servidor (ou no computador onde o
+// Operação da instância (ADR-0062): doctor, update, service e backup. Tudo roda NO servidor (ou no computador onde o
 // Hanko está instalado), sem passar pela API: precisa funcionar com o servidor parado.
 
 // BackupAdmin é o acesso local aos backups (`hanko backup …`). A implementação do app conecta ao banco só quando um
@@ -580,7 +580,7 @@ func (e *env) backupCmd() *cobra.Command {
 	var yes, force, skipBlobs bool
 	restore := &cobra.Command{
 		Use: "restore " + e.t("<arquivo|latest>"), Short: e.t("Restaura o banco (e o conteúdo externo) a partir de um backup: DESTRUTIVO"), Args: cobra.ExactArgs(1),
-		Long: e.t("Substitui o conteúdo do banco apontado por HANKO_DATABASE_URL pelo do backup (pg_restore --clean em uma transação). " +
+		Long: e.t("Substitui o conteúdo do banco apontado por HANKO_DATABASE_URL pelo do backup (apaga o schema public e recria tudo em uma única transação, via pg_restore e psql). " +
 			"Pare o servidor antes: o comando recusa se há outras conexões ao banco (--force ignora). Confere o sha256 do arquivo antes de tocar no banco. " +
 			"Exige --yes."),
 		RunE: func(cmd *cobra.Command, args []string) error {

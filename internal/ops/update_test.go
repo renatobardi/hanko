@@ -88,7 +88,7 @@ func release(t *testing.T, version string, binary string) *fakeSource {
 	name := ArchiveName(version, "linux", "amd64")
 	sums := fmt.Sprintf("%s  %s\n%s  outro.tar.gz\n", hex.EncodeToString(sum[:]), name, strings.Repeat("0", 64))
 	return &fakeSource{
-		rel: Release{Version: version, Assets: []Asset{{Name: name, URL: "u/arch"}, {Name: "checksums.txt", URL: "u/sums"}}},
+		rel:   Release{Version: version, Assets: []Asset{{Name: name, URL: "u/arch"}, {Name: "checksums.txt", URL: "u/sums"}}},
 		files: map[string][]byte{"u/arch": arch, "u/sums": []byte(sums)},
 	}
 }

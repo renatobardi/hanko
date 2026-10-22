@@ -1,4 +1,4 @@
-# ADR-0061 — Postgres embutido só para desenvolvimento e trial
+# ADR-0063 — Postgres embutido só para desenvolvimento e trial
 Data: 2026-10-22 · Status: aceita · Complementa: ADR-0011 · Item do plano: #47
 
 ## Contexto
