@@ -47,3 +47,6 @@ Um termo por conceito. Código, API, MCP e banco em inglês; UI em pt-BR. Em dú
 | uncertain outcome | Desfecho incerto | Uma tool de efeito externo estava em andamento quando a run morreu; só um humano decide se continua. | — |
 | steer | Mudar o rumo | Mensagem do operador para uma run ativa: injetada ao vivo (claude, acp) ou por interromper e continuar (codex). | — |
 | follow-up | Follow-up | Instrução ou mensagem que espera a run ativa na fila unificada (task e chat); editável e descartável até a entrega. | — |
+| project stage | Etapa do projeto | Passo ordenado do pipeline de um projeto sobre as tasks: mapeia um status de task e uma persona, com gate de saída opcional (none, approval, review). Não confundir com pipeline de cases (ADR-0034). Concluir a etapa avança a task e acorda a persona seguinte (ADR-0048). | pipeline de tasks (na UI) |
+| stage learning | Aprendizado da etapa | Decisão de gate de uma etapa (com nota ou sem aprovação): vira histórico imutável, fato de memória `pipeline.learning` e volta no briefing da persona da etapa (ADR-0048). | — |
+| card engine | Motor do card | Quem escreve o resumo de um card de status: a persona resumidora ou o decision model da empresa (feature `card_summary`) (ADR-0048). | — |
