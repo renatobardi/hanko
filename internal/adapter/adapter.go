@@ -31,6 +31,10 @@ type Spec struct {
 	SessionRef     string // previous agent session id to resume, if any
 	Env            map[string]string
 	MCPConfig      json.RawMessage // {"mcpServers":{...}} written to a temp file for the harness
+	// GatewayMCP são os nomes, em MCPConfig, dos servidores que apontam para o gateway de tools do Hanko (ADR-0036/0053):
+	// perfil, política, gate e auditoria já valem no servidor a cada chamada. O harness headless pode liberá-los sem
+	// perguntar (ADR-0059); servidores stdio e o de memória não entram.
+	GatewayMCP []string
 	// Skills são as skills habilitadas da persona que o harness carrega nativamente (hoje só o claude, via
 	// um diretório temporário da run; ADR-0029). Nos demais harnesses o índice vai em System e o corpo
 	// sai pela tool MCP hanko_skill_get, então o campo fica vazio.

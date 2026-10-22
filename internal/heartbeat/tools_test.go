@@ -36,6 +36,43 @@ func TestBuildSpecRoutesHTTPIntegrationsThroughToolGateway(t *testing.T) {
 	if !strings.HasPrefix(auth, "Bearer ") || auth != hankoHdr["Authorization"] {
 		t.Fatalf("o gateway usa o run token: %q vs %v", auth, hankoHdr)
 	}
+	if len(spec.GatewayMCP) != 1 || spec.GatewayMCP[0] != "docs" {
+		t.Fatalf("o adapter precisa saber quais servidores são do gateway (ADR-0059): %v", spec.GatewayMCP)
+	}
+}
+
+// Só servidores que de fato apontam para o gateway são marcados: um nome tomado por outro servidor na mescla, ou o
+// próprio hanko, fica de fora.
+func TestGatewayNames(t *testing.T) {
+	gw := map[string]json.RawMessage{"jira": json.RawMessage(`{"g":1}`), "docs": json.RawMessage(`{"g":2}`),
+		"memory": json.RawMessage(`{"g":3}`), "hanko": json.RawMessage(`{"g":4}`)}
+	merged := map[string]json.RawMessage{"jira": gw["jira"], "docs": gw["docs"], "memory": json.RawMessage(`{"m":1}`), "hanko": gw["hanko"]}
+	got := gatewayNames(gw, merged)
+	if strings.Join(got, ",") != "docs,jira" {
+		t.Fatalf("%v", got)
+	}
+	if gatewayNames(nil, merged) != nil {
+		t.Fatal("sem gateway, nada a liberar")
+	}
+}
+
+// Revisão não recebe token nem gateway, então nada é liberado.
+func TestBuildSpecReviewHasNoGatewayMCP(t *testing.T) {
+	h, _ := newTestHB(t, &fakeBackend{}, okAdapter(), &mcpMem{}, Options{PublicURL: "http://h:7420"})
+	rc := sampleContext()
+	rc.Run.Trigger = domain.TriggerReview
+	rc.Review = &service.ReviewContext{}
+	spec, cleanup, err := h.buildSpec(rc, "", "", memory.Scope{Workspace: "acme"}, service.RunExtras{ToolGateway: []string{"docs"}},
+		func(domain.RunEventKind, string) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cleanup != nil {
+		defer cleanup()
+	}
+	if len(spec.GatewayMCP) != 0 {
+		t.Fatalf("%v", spec.GatewayMCP)
+	}
 }
 
 func TestToolGatewayMCPWithoutToken(t *testing.T) {

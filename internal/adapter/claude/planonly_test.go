@@ -11,7 +11,7 @@ import (
 // PlanOnly (plan-review, ADR-0041): modo plan e sem Edit/Write, mas as tools MCP do Hanko seguem liberadas e as
 // extra_args da persona não reabrem a escrita.
 func TestBuildArgsPlanOnly(t *testing.T) {
-	got := BuildArgs(adapter.Spec{PlanOnly: true}, Config{PermissionMode: "bypassPermissions", ExtraArgs: []string{"--dangerously-skip-permissions"}}, "/tmp/m.json", "")
+	got := BuildArgs(adapter.Spec{PlanOnly: true, GatewayMCP: []string{"github"}}, Config{PermissionMode: "bypassPermissions", ExtraArgs: []string{"--dangerously-skip-permissions"}}, "/tmp/m.json", "")
 	want := []string{"-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "plan", "--disallowedTools", "Edit", "Write", "NotebookEdit",
 		"--mcp-config", "/tmp/m.json", "--allowedTools", "mcp__hanko"}
 	if diff := cmp.Diff(want, got); diff != "" {

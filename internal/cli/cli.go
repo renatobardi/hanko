@@ -159,6 +159,7 @@ func (e *env) root() *cobra.Command {
 	root.AddCommand(e.modelCmd())                                 // catálogo de modelos (ADR-0055)
 	root.AddCommand(e.pipelinesCmds()...)
 	root.AddCommand(e.planPolicyCmd()) // plan-review (ADR-0041)
+	root.AddCommand(e.stageCmd())      // pipelines sobre tasks (ADR-0048)
 	e.localizeHelp(root)
 	return root
 }

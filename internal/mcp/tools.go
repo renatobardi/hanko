@@ -351,6 +351,7 @@ func registerTools(s *sdk.Server, t *tools) {
 	registerProjectGoalTools(s, t)
 	registerGatePlusTools(s, t)
 	registerChannelTools(s, t)
+	registerStageTools(s, t)
 }
 
 // ---- resolução de empresa ----

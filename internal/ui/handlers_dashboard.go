@@ -55,6 +55,8 @@ func (s *server) handleDashboard(w http.ResponseWriter, r *http.Request, co doma
 		HasPersonas:     len(personas) > 0,
 		OpenTasks:       stats.OpenTasks,
 		Gates:           gateRows(ctx, pending, base, now, loc, names),
+		Cards:           s.dashboardCards(ctx, co),
+		CardsHref:       cardsBase(co),
 		Notice:          i18n.T(ctx, gateNotices[r.URL.Query().Get("ok")]),
 	}
 	if stats.MonthBudgetCents != nil {

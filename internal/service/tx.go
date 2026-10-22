@@ -32,6 +32,9 @@ type txc struct {
 	onRollback []func()
 	// cancelled: runs whose cancellation this transaction already recorded (cancelRun is idempotent).
 	cancelled map[domain.ID]bool
+	// cardJob: a geração de um card pelo decision model que esta transação abriu; o chamador a executa depois do
+	// commit (a chamada HTTP não cabe dentro da transação; ADR-0048).
+	cardJob *cardDecisionJob
 	// wakeCount: quantos wakes esta transação realmente enfileirou (wake pula task pausada, bloqueada ou persona parada).
 	wakeCount int
 	// flowFiring: esta transação está criando a task de um disparo de fluxo; os fatos que isso gera não reavaliam

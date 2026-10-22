@@ -612,6 +612,9 @@ func (s *Service) LoadRunContext(ctx context.Context, companyID, runID domain.ID
 			if rc.Plan, err = planContext(ctx, q, task.ID, task.ProjectID, &persona.ID); err != nil {
 				return RunContext{}, err
 			}
+			if rc.Stage, err = stageContext(ctx, q, companyID, task.ID); err != nil {
+				return RunContext{}, err
+			}
 		}
 	}
 	if task.System {

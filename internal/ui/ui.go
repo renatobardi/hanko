@@ -517,6 +517,7 @@ func (s *server) routes(root *http.ServeMux) {
 	s.environmentRoutes(mux)
 	s.statusCardRoutes(mux)
 	s.pipelineRoutes(mux) // pipelines, cases, revisão e aprendizados (ADR-0034)
+	s.stageRoutes(mux)    // etapas do projeto sobre as tasks (ADR-0048)
 	s.toolRoutes(mux)     // apps, gateway de tools e perfis (ADR-0036)
 }
 

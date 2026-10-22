@@ -169,9 +169,42 @@ templ StatusCardForm(vm StatusCardFormVM) {
 			</div>
 		</div>
 		<fieldset class="field">
+			<legend>{ i18n.T(ctx, "Quem escreve o resumo") }</legend>
+			if vm.Edit {
+				<p class="muted text-sm">{ vm.EngineLabel }</p>
+			} else {
+				<div class="radio-cards">
+					<label><input type="radio" name="engine" value="persona" checked?={ vm.Engine != "decision" }/><span>{ i18n.T(ctx, "Uma persona (run completa, com tools)") }</span></label>
+					<label><input type="radio" name="engine" value="decision" checked?={ vm.Engine == "decision" }/><span>{ i18n.T(ctx, "O decision model (uma chamada, barato)") }</span></label>
+				</div>
+				<span class="hint">{ i18n.T(ctx, "O decision model exige o modelo configurado e a feature de resumo de card ligada em Decision model; ele usa os filtros abaixo em vez de a resumidora montá-los.") }</span>
+			}
+			if e := vm.FieldErr["engine"]; e != "" {
+				<span class="err">{ e }</span>
+			}
+		</fieldset>
+		if vm.DecisionFields {
+			<fieldset class="field">
+				<legend>{ i18n.T(ctx, "Tasks observadas (decision model)") }</legend>
+				<div class="form-grid">
+					<div class="field">
+						<label for="sc-qproj">{ i18n.T(ctx, "Projeto") }</label>
+						@Select("q_project", "sc-qproj", vm.QueryProject, false)
+					</div>
+					<div class="field">
+						<label for="sc-qstatus">{ i18n.T(ctx, "Status (separados por vírgula)") }</label>
+						<input class="input mono" id="sc-qstatus" name="q_status" value={ vm.QueryStatuses } placeholder="blocked,in_review"/>
+					</div>
+				</div>
+				<label class="check"><input type="checkbox" name="q_open" value="1" checked?={ vm.QueryOpen }/><span>{ i18n.T(ctx, "Só tasks abertas") }</span></label>
+				<span class="hint">{ i18n.T(ctx, "Sem nenhum filtro, o card observa as tasks abertas da empresa.") }</span>
+			</fieldset>
+		}
+		<fieldset class="field">
 			<legend>{ i18n.T(ctx, "Quando atualizar") }</legend>
 			<div class="radio-cards">
 				<label><input type="radio" name="mode" value="manual" checked?={ vm.Mode == "manual" }/><span>{ i18n.T(ctx, "Só manual") }</span></label>
+				<label><input type="radio" name="mode" value="cron" checked?={ vm.Mode == "cron" }/><span>{ i18n.T(ctx, "Num horário (cron), por exemplo toda manhã") }</span></label>
 				<label><input type="radio" name="mode" value="interval" checked?={ vm.Mode == "interval" }/><span>{ i18n.T(ctx, "Em horário fixo, se algo mudou") }</span></label>
 				<label><input type="radio" name="mode" value="reactive" checked?={ vm.Mode == "reactive" }/><span>{ i18n.T(ctx, "Assim que algo mudar (com espera)") }</span></label>
 			</div>
@@ -193,6 +226,21 @@ templ StatusCardForm(vm StatusCardFormVM) {
 				if e := vm.FieldErr["debounce_seconds"]; e != "" {
 					<span class="err">{ e }</span>
 				}
+			</div>
+		</div>
+		<div class="form-grid">
+			<div class="field">
+				<label for="sc-cron">{ i18n.T(ctx, "Cron (modo horário)") }</label>
+				<input class="input mono" id="sc-cron" name="cron" value={ vm.CronExpr } placeholder="0 7 * * 1-5"/>
+				if e := vm.FieldErr["cron"]; e != "" {
+					<span class="err">{ e }</span>
+				}
+				<span class="hint">{ i18n.T(ctx, "Minuto hora dia-do-mês mês dia-da-semana. Ex.: 0 7 * * 1-5 = dias úteis às 7h.") }</span>
+			</div>
+			<div class="field">
+				<label for="sc-crontz">{ i18n.T(ctx, "Fuso do cron") }</label>
+				<input class="input mono" id="sc-crontz" name="cron_tz" value={ vm.CronTZ } placeholder="America/Sao_Paulo"/>
+				<label class="check mt-1"><input type="checkbox" name="cron_skip" value="1" checked?={ vm.CronSkip }/><span>{ i18n.T(ctx, "No horário, só atualizar se algo mudou") }</span></label>
 			</div>
 		</div>
 		<fieldset class="field">
@@ -245,6 +293,10 @@ templ StatusCardForm(vm StatusCardFormVM) {
 			}
 			<span class="hint">{ i18n.T(ctx, "Sem horário, o card se atualiza a qualquer hora. Fora do horário ele fica pausado.") }</span>
 		</fieldset>
+		<div class="field">
+			<label class="check"><input type="checkbox" name="on_dashboard" value="1" checked?={ vm.OnDashboard }/><span>{ i18n.T(ctx, "Mostrar este card no Painel") }</span></label>
+			<span class="hint">{ i18n.T(ctx, "O resultado de cada atualização também vira uma versão de um artefato do card.") }</span>
+		</div>
 		<div class="form-actions">
 			<button class="btn primary" type="submit">
 				if vm.Edit {
@@ -399,6 +451,9 @@ templ StatusCardLive(vm StatusCardLiveVM) {
 				<p class="muted text-sm">{ i18n.T(ctx, "Mostrando o último resumo bom:") }</p>
 			}
 			<div class="md mt-3">@templ.Raw(string(vm.Summary))</div>
+			if vm.ArtifactHref != "" {
+				<p class="faint text-xs mt-3">{ i18n.T(ctx, "Resultado versionado:") } <a href={ templ.SafeURL(vm.ArtifactHref) }>{ vm.ArtifactName }</a></p>
+			}
 		} else if !vm.Compiling && !vm.CompileFailed {
 			<p class="faint">{ i18n.T(ctx, "Sem resumo ainda") }</p>
 		}

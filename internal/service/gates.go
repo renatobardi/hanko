@@ -314,7 +314,7 @@ func (t *txc) parkForGate(actor domain.Actor, companyID domain.ID, g domain.Gate
 func (t *txc) moveTask(actor domain.Actor, companyID domain.ID, cur store.Task, to domain.TaskStatus, extra map[string]any) (store.Task, error) {
 	from := domain.TaskStatus(cur.Status)
 	p := store.UpdateTaskParams{CompanyID: companyID, ID: cur.ID, Title: cur.Title, Description: cur.Description,
-		Status: string(to), Priority: cur.Priority, PersonaID: cur.PersonaID, ProjectID: cur.ProjectID, ClosedAt: nil, Now: t.now}
+		Status: string(to), Priority: cur.Priority, PersonaID: cur.PersonaID, ProjectID: cur.ProjectID, Model: cur.Model, ClosedAt: nil, Now: t.now}
 	closing := !to.Open()
 	if closing {
 		c := t.now
@@ -359,6 +359,9 @@ func (t *txc) moveTask(actor domain.Actor, companyID domain.ID, cur store.Task, 
 			if err := t.cancelTaskRun(actor, companyID, cur.ID, "task_closed"); err != nil {
 				return store.Task{}, err
 			}
+		}
+		if err := t.stageTaskClosed(actor, companyID, row); err != nil {
+			return store.Task{}, err
 		}
 		if err := t.onTaskClosed(companyID, row); err != nil {
 			return store.Task{}, err
@@ -562,6 +565,9 @@ func (t *txc) afterGateDecided(actor domain.Actor, companyID domain.ID, g domain
 			task = &tk
 		}
 	}
+	// Um gate que decide o avanço de uma etapa do pipeline (ADR-0048) não move a task pelo caminho comum: a etapa decide.
+	var stageTS store.TaskStage
+	managed := false
 	if task != nil {
 		c, err := t.q.GetCompanyByID(t.ctx, companyID)
 		if err != nil {
@@ -572,7 +578,10 @@ func (t *txc) afterGateDecided(actor domain.Actor, companyID domain.ID, g domain
 		if err := t.decisionComment(companyID, *task, g); err != nil {
 			return GateView{}, err
 		}
-		if g.PersonaID != nil {
+		if stageTS, managed, err = t.stageManagedGate(companyID, g); err != nil {
+			return GateView{}, err
+		}
+		if g.PersonaID != nil && !managed {
 			if to, ok := statusAfterDecision(g.Kind, moveAs, g.RequestedStatus, domain.TaskStatus(task.Status)); ok {
 				moved, err := t.moveTask(actor, companyID, *task, to, map[string]any{"gate_id": g.ID, "decision": moveAs})
 				if err != nil {
@@ -592,11 +601,19 @@ func (t *txc) afterGateDecided(actor domain.Actor, companyID domain.ID, g domain
 				return GateView{}, fmt.Errorf("release persona: %w", err)
 			}
 		}
-		if task != nil {
+		if task != nil && !managed {
 			// whoever owns the task now is woken, which is not necessarily who asked
 			if err := t.wake(companyID, task.ID, task.PersonaID, newStatus, domain.TriggerGate, false); err != nil {
 				return GateView{}, err
 			}
+		}
+	}
+	if managed {
+		if err := t.stageGateDecided(actor, companyID, g, stageTS, moveAs); err != nil {
+			return GateView{}, err
+		}
+		if tk, err := t.q.GetTaskByID(t.ctx, store.GetTaskByIDParams{CompanyID: companyID, ID: task.ID}); err == nil {
+			task = &tk
 		}
 	}
 	var wsID *domain.ID

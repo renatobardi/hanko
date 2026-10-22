@@ -56,7 +56,10 @@ type StatusCardActiveHours struct {
 
 // StatusCardPolicy é a política de atualização do resumo.
 type StatusCardPolicy struct {
-	Mode              string                 `json:"mode,omitempty" enum:"manual,interval,reactive" doc:"Padrão reactive. manual = só sob pedido; interval = em horário fixo, se algo mudou; reactive = assim que algo mudar, com espera."`
+	Mode              string                 `json:"mode,omitempty" enum:"manual,interval,reactive,cron" doc:"Padrão reactive. manual = só sob pedido; interval = em horário fixo, se algo mudou; reactive = assim que algo mudar, com espera; cron = num horário de cron (ex. toda manhã), mesmo sem mudanças."`
+	Cron              string                 `json:"cron,omitempty" example:"0 7 * * 1-5" doc:"Modo cron: expressão de 5 campos (minuto hora dia-do-mês mês dia-da-semana)."`
+	CronTZ            string                 `json:"cron_tz,omitempty" example:"America/Sao_Paulo" doc:"Modo cron: fuso IANA (padrão UTC)."`
+	CronSkipUnchanged bool                   `json:"cron_skip_unchanged,omitempty" doc:"Modo cron: no horário, só atualiza se alguma task observada mudou."`
 	IntervalMinutes   int                    `json:"interval_minutes,omitempty" minimum:"0" maximum:"1440" doc:"Modo interval: de 15 a 1440 minutos (0 = padrão 60)."`
 	DebounceSeconds   int                    `json:"debounce_seconds,omitempty" minimum:"0" maximum:"3600" doc:"Modo reactive: espera sem mudanças novas antes de atualizar, de 30 a 3600 s (0 = padrão 300)."`
 	MaxUpdatesPerHour int                    `json:"max_updates_per_hour,omitempty" minimum:"0" maximum:"60" doc:"Teto de atualizações automáticas por hora, de 1 a 60 (0 = padrão 6)."`
@@ -114,6 +117,10 @@ type StatusCard struct {
 	FailureReason       string            `json:"failure_reason,omitempty" doc:"Por que a última montagem ou atualização não terminou."`
 	NextEvalAt          *time.Time        `json:"next_eval_at,omitempty"`
 	ArchivedAt          *time.Time        `json:"archived_at,omitempty"`
+	Engine              string            `json:"engine" enum:"persona,decision" doc:"Quem escreve o resumo: a persona resumidora ou o decision model da empresa."`
+	ArtifactID          string            `json:"artifact_id,omitempty" format:"uuid" doc:"Versão mais nova do artefato que guarda o resultado do card."`
+	ArtifactName        string            `json:"artifact_name,omitempty" doc:"Nome do artefato versionado do card."`
+	OnDashboard         bool              `json:"on_dashboard" doc:"O card aparece no Painel."`
 	Mentioned           []StatusCardTask  `json:"mentioned,omitempty" doc:"Tasks citadas no resumo atual (só no detalhe)."`
 	CreatedBy           ActorRef          `json:"created_by"`
 	CreatedAt           time.Time         `json:"created_at"`
@@ -133,7 +140,7 @@ type StatusCardChange struct {
 type StatusCardUpdate struct {
 	ID            string             `json:"id" format:"uuid"`
 	Kind          string             `json:"kind" enum:"compile,full,incremental"`
-	Trigger       string             `json:"trigger" enum:"manual,interval,reactive,restore,query"`
+	Trigger       string             `json:"trigger" enum:"manual,interval,reactive,restore,query,cron"`
 	TaskID        string             `json:"task_id,omitempty" format:"uuid"`
 	TaskKey       string             `json:"task_key,omitempty"`
 	RunID         string             `json:"run_id,omitempty" format:"uuid"`
@@ -198,26 +205,52 @@ type listStatusCardsIn struct {
 	Archived string `query:"archived" enum:"false,true,all" default:"false" doc:"false = só os ativos; true = só os arquivados; all = todos."`
 }
 
+// StatusCardQueryIn é um filtro de task como o humano o informa (card do decision model): referências por slug ou id.
+type StatusCardQueryIn struct {
+	Label      string   `json:"label,omitempty"`
+	Statuses   []string `json:"status,omitempty" doc:"Status aceitos."`
+	Priorities []string `json:"priority,omitempty" doc:"Prioridades aceitas."`
+	Persona    string   `json:"persona,omitempty" doc:"Slug ou id da persona."`
+	Project    string   `json:"project,omitempty" doc:"Slug ou id do projeto."`
+	Goal       string   `json:"goal,omitempty" doc:"Slug ou id da meta."`
+	Text       string   `json:"text,omitempty"`
+	OpenOnly   bool     `json:"open,omitempty" doc:"Só tasks abertas."`
+}
+
+func scQueriesIn(in []StatusCardQueryIn) []service.CardQueryInput {
+	out := make([]service.CardQueryInput, len(in))
+	for i, q := range in {
+		out[i] = service.CardQueryInput{Label: q.Label, Statuses: q.Statuses, Priorities: q.Priorities, Persona: q.Persona,
+			Project: q.Project, Goal: q.Goal, Text: q.Text, OpenOnly: q.OpenOnly}
+	}
+	return out
+}
+
 type createStatusCardIn struct {
 	CompanyPath
 	Body struct {
-		Interest    string            `json:"interest" minLength:"1" maxLength:"20000" doc:"O que acompanhar, em linguagem natural."`
-		Title       string            `json:"title,omitempty" maxLength:"200"`
-		TitlePinned bool              `json:"title_pinned,omitempty" doc:"Fixa o título (a resumidora não o troca)."`
-		Summarizer  string            `json:"summarizer,omitempty" doc:"Id ou slug da persona resumidora; sem ela o card fica em erro até alguém escolher."`
-		Policy      *StatusCardPolicy `json:"refresh_policy,omitempty" doc:"Padrão: reactive, 5 min de espera, 6 por hora, 100 mil tokens por dia."`
+		Interest    string              `json:"interest" minLength:"1" maxLength:"20000" doc:"O que acompanhar, em linguagem natural."`
+		Title       string              `json:"title,omitempty" maxLength:"200"`
+		TitlePinned bool                `json:"title_pinned,omitempty" doc:"Fixa o título (a resumidora não o troca)."`
+		Summarizer  string              `json:"summarizer,omitempty" doc:"Id ou slug da persona resumidora; sem ela o card fica em erro até alguém escolher."`
+		Policy      *StatusCardPolicy   `json:"refresh_policy,omitempty" doc:"Padrão: reactive, 5 min de espera, 6 por hora, 100 mil tokens por dia."`
+		Engine      string              `json:"engine,omitempty" enum:"persona,decision" doc:"Padrão persona. decision = o decision model da empresa escreve o resumo numa chamada só (exige a feature card_summary ligada); os filtros vêm em queries."`
+		Queries     []StatusCardQueryIn `json:"queries,omitempty" maxItems:"10" doc:"Só no motor decision: filtros de task (vazio = as tasks abertas)."`
+		OnDashboard bool                `json:"on_dashboard,omitempty" doc:"Mostra o card no Painel."`
 	}
 }
 
 type updateStatusCardIn struct {
 	StatusCardPath
 	Body struct {
-		Interest    *string           `json:"interest,omitempty" minLength:"1" maxLength:"20000" doc:"Mudar o interesse dispara a montagem de novo."`
-		Title       *string           `json:"title,omitempty" maxLength:"200"`
-		TitlePinned *bool             `json:"title_pinned,omitempty"`
-		Summarizer  string            `json:"summarizer,omitempty" doc:"Id ou slug da nova resumidora."`
-		Policy      *StatusCardPolicy `json:"refresh_policy,omitempty"`
-		Archived    *bool             `json:"archived,omitempty" doc:"true arquiva; false restaura (e pede um resumo do zero)."`
+		Interest    *string              `json:"interest,omitempty" minLength:"1" maxLength:"20000" doc:"Mudar o interesse dispara a montagem de novo."`
+		Title       *string              `json:"title,omitempty" maxLength:"200"`
+		TitlePinned *bool                `json:"title_pinned,omitempty"`
+		Summarizer  string               `json:"summarizer,omitempty" doc:"Id ou slug da nova resumidora."`
+		Policy      *StatusCardPolicy    `json:"refresh_policy,omitempty"`
+		Archived    *bool                `json:"archived,omitempty" doc:"true arquiva; false restaura (e pede um resumo do zero)."`
+		Queries     *[]StatusCardQueryIn `json:"queries,omitempty" doc:"Só no motor decision: troca os filtros e refaz o resumo."`
+		OnDashboard *bool                `json:"on_dashboard,omitempty" doc:"Liga ou desliga o card no Painel."`
 	}
 }
 
@@ -238,7 +271,7 @@ func scPolicyIn(p *StatusCardPolicy) *domain.CardPolicy {
 		return nil
 	}
 	out := domain.CardPolicy{Mode: p.Mode, IntervalMinutes: p.IntervalMinutes, DebounceSeconds: p.DebounceSeconds, MaxUpdatesPerHour: p.MaxUpdatesPerHour,
-		Triggers: domain.CardTriggers(p.Triggers), DailyTokenCap: p.DailyTokenCap}
+		Triggers: domain.CardTriggers(p.Triggers), DailyTokenCap: p.DailyTokenCap, Cron: p.Cron, CronTZ: p.CronTZ, CronSkipUnchanged: p.CronSkipUnchanged}
 	if out.Triggers == (domain.CardTriggers{}) {
 		out.Triggers = domain.DefaultCardPolicy().Triggers
 	}
@@ -250,7 +283,7 @@ func scPolicyIn(p *StatusCardPolicy) *domain.CardPolicy {
 
 func scPolicyOut(p domain.CardPolicy) StatusCardPolicy {
 	out := StatusCardPolicy{Mode: p.Mode, IntervalMinutes: p.IntervalMinutes, DebounceSeconds: p.DebounceSeconds, MaxUpdatesPerHour: p.MaxUpdatesPerHour,
-		Triggers: StatusCardTriggers(p.Triggers), DailyTokenCap: p.DailyTokenCap}
+		Triggers: StatusCardTriggers(p.Triggers), DailyTokenCap: p.DailyTokenCap, Cron: p.Cron, CronTZ: p.CronTZ, CronSkipUnchanged: p.CronSkipUnchanged}
 	if p.ActiveHours != nil {
 		out.ActiveHours = &StatusCardActiveHours{Start: p.ActiveHours.Start, End: p.ActiveHours.End, TZ: p.ActiveHours.TZ}
 	}
@@ -276,7 +309,8 @@ func statusCardOut(v service.StatusCardView) StatusCard {
 		State: string(v.State), ViewState: string(v.ViewState), PendingChangeCount: v.PendingChangeCount, LastChangeAt: v.LastChangeAt,
 		Summary: v.Summary, SummaryRevision: v.SummaryRevision, LastUpdateKind: string(v.LastUpdateKind), LastGeneratedAt: v.LastGeneratedAt,
 		LastModel: v.LastModel, GeneratingTaskID: idPtr(v.GeneratingTaskID), FailureReason: v.FailureReason, NextEvalAt: v.NextEvalAt,
-		ArchivedAt: v.ArchivedAt, CreatedBy: actorRef(v.CreatedBy), CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt}
+		ArchivedAt: v.ArchivedAt, Engine: string(v.Engine), ArtifactID: idPtr(v.ArtifactID), ArtifactName: v.ArtifactName, OnDashboard: v.OnDashboard,
+		CreatedBy: actorRef(v.CreatedBy), CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt}
 	for _, q := range v.Queries {
 		o.Queries = append(o.Queries, scQueryOut(q))
 	}
@@ -385,7 +419,8 @@ func (s *server) registerStatusCards(api huma.API) {
 				return nil, s.fail(ctx, err)
 			}
 			v, err := b.CreateStatusCard(ctx, sc.Actor, sc.Company.ID, service.CreateStatusCardInput{Interest: in.Body.Interest, Title: in.Body.Title,
-				TitlePinned: in.Body.TitlePinned, SummarizerPersonaID: summarizer, Policy: scPolicyIn(in.Body.Policy)})
+				TitlePinned: in.Body.TitlePinned, SummarizerPersonaID: summarizer, Policy: scPolicyIn(in.Body.Policy),
+				Engine: domain.CardEngine(in.Body.Engine), Queries: scQueriesIn(in.Body.Queries), OnDashboard: in.Body.OnDashboard})
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}
@@ -416,7 +451,11 @@ func (s *server) registerStatusCards(api huma.API) {
 				return nil, err
 			}
 			up := service.UpdateStatusCardInput{Interest: in.Body.Interest, Title: in.Body.Title, TitlePinned: in.Body.TitlePinned,
-				Policy: scPolicyIn(in.Body.Policy), Archived: in.Body.Archived}
+				Policy: scPolicyIn(in.Body.Policy), Archived: in.Body.Archived, OnDashboard: in.Body.OnDashboard}
+			if in.Body.Queries != nil {
+				qs := scQueriesIn(*in.Body.Queries)
+				up.Queries = &qs
+			}
 			if up.SummarizerPersonaID, err = s.personaRef(ctx, sc.Company.ID, in.Body.Summarizer); err != nil {
 				return nil, s.fail(ctx, err)
 			}
