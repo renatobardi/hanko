@@ -66,6 +66,10 @@ type fakeBackend struct {
 	finCalls     int
 	due          []domain.Flow
 	fireErr      map[domain.ID]error
+	sysDue       []domain.SystemFlow
+	sysFired     []string
+	sysRes       map[string]service.SystemFlowResult
+	sysErr       map[string]error
 	fired        []time.Time
 	firedIDs     []domain.ID
 	seqs         []int64 // WakeSeq answers, one per call (the last repeats)

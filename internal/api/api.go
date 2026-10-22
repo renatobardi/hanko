@@ -333,6 +333,7 @@ func (s *server) register(api huma.API) {
 	s.registerDecision(api)
 	s.registerProbe(api)
 	s.registerInstance(api)
+	s.registerBackups(api)
 	s.registerEnvironments(api)
 	s.registerReadiness(api)
 	s.registerTools(api)

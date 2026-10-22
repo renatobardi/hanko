@@ -116,6 +116,10 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 	}
 	svc.Blobs = blobs
 	logger.Info("artefatos: driver de conteúdo", "active", blobs.Active().Name(), "available", blobs.Names())
+	svc.BackupDir = cfg.Ops.BackupDir
+	if m := setupBackups(cfg, version, pool, blobs, logger); m != nil {
+		svc.Backups = m // só atribui se houver executor: um *Manager nil dentro da interface não é nil
+	}
 	if cfg.Vault.Addr != "" {
 		v, err := vault.NewKV2(vault.KV2Options{Addr: cfg.Vault.Addr, Token: cfg.Vault.Token, Mount: cfg.Vault.Mount, Namespace: cfg.Vault.Namespace})
 		if err != nil {
@@ -232,6 +236,7 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 			err = errors.Join(err, fmt.Errorf("app: parar heartbeat: %w", herr))
 		}
 	}
+	waitBackups(svc.WaitBackups, ShutdownGrace, logger)
 	return err
 }
 
