@@ -19,9 +19,8 @@ func (e *env) serveCmd() *cobra.Command {
 	c := &cobra.Command{
 		Use:   "serve",
 		Short: e.t("Inicia o servidor (API, UI, MCP e heartbeat)"),
-		Long: e.t("Inicia o servidor. Com --embedded-pg sobe antes um Postgres local descartável (initdb/pg_ctl de uma instalação do PostgreSQL, sem baixar nada) " +
-			"e usa-o como banco: só para desenvolvimento e trial. Produção usa um Postgres externo (HANKO_DATABASE_URL)."),
-		Args: cobra.NoArgs,
+		Long:  e.t("Inicia o servidor. Com --embedded-pg sobe antes um Postgres local descartável (initdb/pg_ctl de uma instalação do PostgreSQL, sem baixar nada) e usa-o como banco: só para desenvolvimento e trial. Produção usa um Postgres externo (HANKO_DATABASE_URL)."),
+		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if embedded {
 				if e.rt.ServeEmbedded == nil {

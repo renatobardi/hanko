@@ -109,9 +109,8 @@ func (e *env) doctorCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "doctor",
 		Short: e.t("Diagnostica a instalação (Postgres, migrations, OTel, memória, harnesses, segredos, disco)"),
-		Long: e.t("Roda as checagens da instalação e mostra o que está ok, o que merece atenção e o que falhou, com a dica de correção. " +
-			"Sai com código 1 se alguma checagem falhou (avisos não contam). Não altera nada e nunca imprime valores de segredos."),
-		Args: cobra.NoArgs,
+		Long:  e.t("Roda as checagens da instalação e mostra o que está ok, o que merece atenção e o que falhou, com a dica de correção. Sai com código 1 se alguma checagem falhou (avisos não contam). Não altera nada e nunca imprime valores de segredos."),
+		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if e.rt.Doctor == nil {
 				return e.errNotWired()
@@ -149,9 +148,9 @@ func (e *env) statusWord(s ops.Status) string {
 
 func (e *env) printDoctor(rep ops.Report) {
 	for _, c := range rep.Checks {
-		fmt.Fprintf(e.out, "%-7s %-11s %s\n", e.statusWord(c.Status), c.Name, e.t(c.Detail))
+		fmt.Fprintf(e.out, "%-7s %-11s %s\n", e.statusWord(c.Status), c.Name, e.t(c.Detail)) // i18n:dyn (texto do pacote ops, em pt-BR)
 		if c.Hint != "" && (c.Status == ops.Warn || c.Status == ops.Fail) {
-			fmt.Fprintf(e.out, "%-7s %-11s → %s\n", "", "", e.t(c.Hint))
+			fmt.Fprintf(e.out, "%-7s %-11s → %s\n", "", "", e.t(c.Hint)) // i18n:dyn
 		}
 	}
 	fmt.Fprintf(e.out, e.t("\n%d ok, %d aviso(s), %d falha(s), %d pulado(s)\n"), rep.Count(ops.OK), rep.Count(ops.Warn), rep.Count(ops.Fail), rep.Count(ops.Skip))
@@ -182,10 +181,8 @@ func (e *env) updateCmd() *cobra.Command {
 	c := &cobra.Command{
 		Use:   "update",
 		Short: e.t("Atualiza o binário do hanko para a release mais nova do canal (com backup antes)"),
-		Long: e.t("Consulta as releases do canal (stable ou beta), faz um backup do banco, baixa o binário, confere o sha256 e troca o executável de forma atômica. " +
-			"O binário anterior fica ao lado (.prev) e `hanko update --rollback` o devolve. As migrations novas rodam no próximo start do servidor. " +
-			"Em contêiner a atualização é da imagem, não do binário."),
-		Args: cobra.NoArgs,
+		Long:  e.t("Consulta as releases do canal (stable ou beta), faz um backup do banco, baixa o binário, confere o sha256 e troca o executável de forma atômica. O binário anterior fica ao lado (.prev) e `hanko update --rollback` o devolve. As migrations novas rodam no próximo start do servidor. Em contêiner a atualização é da imagem, não do binário."),
+		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx := cmd.Context()
 			exe, err := e.exePath()
@@ -336,8 +333,7 @@ func (e *env) serviceCmd() *cobra.Command {
 
 	install := &cobra.Command{
 		Use: "install", Short: e.t("Grava a unit/plist do servidor e ativa o serviço"), Args: cobra.NoArgs,
-		Long: e.t("Cria a unit do systemd (ou o plist do launchd) que roda `hanko serve`, um arquivo de ambiente com modo 0600 para HANKO_DATABASE_URL e os segredos " +
-			"(nunca sobrescrito se já existir) e ativa o serviço. Sem --user precisa de root (use sudo). Reinstalar é seguro: atualiza a unit e reativa."),
+		Long: e.t("Cria a unit do systemd (ou o plist do launchd) que roda `hanko serve`, um arquivo de ambiente com modo 0600 para HANKO_DATABASE_URL e os segredos (nunca sobrescrito se já existir) e ativa o serviço. Sem --user precisa de root (use sudo). Reinstalar é seguro: atualiza a unit e reativa."),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			s, ins, err := spec()
 			if err != nil {
@@ -502,9 +498,7 @@ func (e *env) entryRow(b backup.Entry) []string {
 func (e *env) backupCmd() *cobra.Command {
 	c := &cobra.Command{
 		Use: "backup", Short: e.t("Cria, lista, confere e restaura backups da instalação (pg_dump + conteúdo externo)"),
-		Long: e.t("Um backup é um arquivo tar em HANKO_BACKUP_DIR com o dump do Postgres (pg_dump -Fc, que já leva os artefatos do driver postgres), " +
-			"o conteúdo dos artefatos guardados em S3 e um manifest com sha256. Roda no servidor, sem a API. " +
-			"O backup do host (restic) continua valendo: este comando é o ponto de volta rápido e o que `hanko update` usa antes de trocar o binário."),
+		Long: e.t("Um backup é um arquivo tar em HANKO_BACKUP_DIR com o dump do Postgres (pg_dump -Fc, que já leva os artefatos do driver postgres), o conteúdo dos artefatos guardados em S3 e um manifest com sha256. Roda no servidor, sem a API. O backup do host (restic) continua valendo: este comando é o ponto de volta rápido e o que `hanko update` usa antes de trocar o binário."),
 	}
 
 	var label string
@@ -580,9 +574,7 @@ func (e *env) backupCmd() *cobra.Command {
 	var yes, force, skipBlobs bool
 	restore := &cobra.Command{
 		Use: "restore " + e.t("<arquivo|latest>"), Short: e.t("Restaura o banco (e o conteúdo externo) a partir de um backup: DESTRUTIVO"), Args: cobra.ExactArgs(1),
-		Long: e.t("Substitui o conteúdo do banco apontado por HANKO_DATABASE_URL pelo do backup (apaga o schema public e recria tudo em uma única transação, via pg_restore e psql). " +
-			"Pare o servidor antes: o comando recusa se há outras conexões ao banco (--force ignora). Confere o sha256 do arquivo antes de tocar no banco. " +
-			"Exige --yes."),
+		Long: e.t("Substitui o conteúdo do banco apontado por HANKO_DATABASE_URL pelo do backup (apaga o schema public e recria tudo em uma única transação, via pg_restore e psql). Pare o servidor antes: o comando recusa se há outras conexões ao banco (--force ignora). Confere o sha256 do arquivo antes de tocar no banco. Exige --yes."),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 			adm, err := e.backupAdmin(ctx)
