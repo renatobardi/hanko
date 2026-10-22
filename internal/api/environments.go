@@ -59,7 +59,7 @@ type SandboxConfig struct {
 
 // CloudConfig é a configuração de um ambiente cloud (sandbox em nuvem por execução, ADR-0055).
 type CloudConfig struct {
-	Provider            string `json:"provider,omitempty" enum:"daytona" doc:"Provider (padrão daytona); o operador liga o driver com HANKO_ENV_CLOUD."`
+	Provider            string `json:"provider,omitempty" doc:"Provider (padrão daytona; o operador liga o driver com HANKO_ENV_CLOUD) ou plugin:<id>/<key>, um provider contribuído por plugin com a capacidade environments.provider (ADR-0045)."`
 	Snapshot            string `json:"snapshot,omitempty" doc:"Snapshot/imagem do provider; vazio = o padrão dele."`
 	CPUs                int    `json:"cpus,omitempty" minimum:"0" doc:"CPUs do sandbox (padrão 2)."`
 	MemoryGiB           int    `json:"memory_gib,omitempty" minimum:"0" doc:"Memória em GiB (padrão 4)."`

@@ -694,6 +694,8 @@ func (s *server) shell(r *http.Request, co domain.Company, active, title string,
 		Archived: co.Archived(),
 		// com pessoa autenticada a Caixa tem selo e toasts ao vivo (ADR-0042)
 		Personal: personal(r.Context()),
+		// abas dos plugins com a capacidade pages (ADR-0045)
+		PluginTabs: s.pluginTabLinks(r.Context(), co),
 	}
 }
 

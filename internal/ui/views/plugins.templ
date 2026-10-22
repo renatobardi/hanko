@@ -31,7 +31,32 @@ templ pluginOwnerButton(action, label, confirm string, primary bool) {
 	}
 }
 
+templ pluginCapToggles(p PluginCardVM) {
+	if len(p.CapToggles) > 0 {
+		<div class="plugin-owner mt-3">
+			<span class="card-label">{ i18n.T(ctx, "Capacidades concedidas") }</span>
+			<ul class="plugin-caps-grants">
+				for _, c := range p.CapToggles {
+					<li>
+						<span class={ "badge", templ.KV("done", c.Granted), templ.KV("soft", !c.Granted) } title={ c.Name }>{ c.Label }</span>
+						<form method="post" action={ templ.SafeURL(c.Action) } class="inline-form">
+							<input type="hidden" name="cap" value={ c.Name }/>
+							if c.Granted {
+								<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Revogar") }</button>
+							} else {
+								<button class="btn primary sm" type="submit">{ i18n.T(ctx, "Conceder") }</button>
+							}
+						</form>
+					</li>
+				}
+			</ul>
+			<p class="muted text-xs">{ i18n.T(ctx, "Revogar vale na hora: abas, tools, gatilhos, providers e fontes que dependem da capacidade deixam de funcionar.") }</p>
+		</div>
+	}
+}
+
 templ pluginOwnerActions(p PluginCardVM) {
+	@pluginCapToggles(p)
 	if p.OwnerBase != "" {
 		<div class="plugin-owner mt-3">
 			<span class="card-label">{ i18n.T(ctx, "Instalação") }</span>
@@ -58,6 +83,9 @@ templ PluginCard(p PluginCardVM) {
 		</div>
 		@pluginCaps(p.Caps)
 		<p class="muted text-xs mt-2">{ i18n.Tf(ctx, "%d tool(s) · %d widget(s) · %d job(s) · %d evento(s)", p.Tools, p.Widgets, p.Jobs, p.Events) }</p>
+		if p.Pages+p.Triggers+p.Providers+p.Sources > 0 {
+			<p class="muted text-xs">{ i18n.Tf(ctx, "%d aba(s) · %d gatilho(s) de fluxo · %d provider(s) de ambiente · %d fonte(s) de skills", p.Pages, p.Triggers, p.Providers, p.Sources) }</p>
+		}
 		if p.LastError != "" {
 			<p class="err text-xs mt-2">{ p.LastError }</p>
 		}
@@ -327,6 +355,7 @@ templ PluginDetailPage(sh Shell, vm PluginDetailVM) {
 				}
 			</div>
 		</div>
+		@pluginContributions(vm)
 		if len(vm.Jobs) > 0 {
 			<h2 class="side-h sec-h">{ i18n.T(ctx, "Últimas rodadas de job") }</h2>
 			<div class="table-wrap">
