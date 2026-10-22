@@ -128,8 +128,18 @@ func (s *Service) resolvePlan(ctx context.Context, companyID, taskID domain.ID, 
 		if err != nil {
 			return "", nil, domain.Invalid("artifact", "artefato não encontrado na empresa")
 		}
+		if a.TaskID == nil || *a.TaskID != taskID { // vale também a versão de um documento que tem versão nesta task
+			same, err := s.ListArtifacts(ctx, companyID, ArtifactFilter{TaskID: &taskID, DocumentID: &a.DocumentID, Limit: 1})
+			if err != nil {
+				return "", nil, err
+			}
+			if len(same) == 0 {
+				return "", nil, domain.Invalid("artifact", "o artefato do plano precisa ser da mesma task do gate")
+			}
+		}
 		art = a
 	} else {
+		// a lista por task traz os documentos com alguma versão nesta task, já na versão mais nova (ADR-0064)
 		list, err := s.ListArtifacts(ctx, companyID, ArtifactFilter{TaskID: &taskID, Limit: 500})
 		if err != nil {
 			return "", nil, err
@@ -144,9 +154,6 @@ func (s *Service) resolvePlan(ctx context.Context, companyID, taskID domain.ID, 
 			return "", nil, domain.Invalid("artifact", fmt.Sprintf("a task não tem o artefato %q: publique o plano com hanko_artifact_put antes", ref))
 		}
 	}
-	if art.TaskID == nil || *art.TaskID != taskID {
-		return "", nil, domain.Invalid("artifact", "o artefato do plano precisa ser da mesma task do gate")
-	}
 	if !strings.HasPrefix(art.Mime, "text/") {
 		return "", nil, domain.Invalid("artifact", "o plano precisa ser um artefato de texto (Markdown)")
 	}
@@ -157,7 +164,8 @@ func (s *Service) resolvePlan(ctx context.Context, companyID, taskID domain.ID, 
 	if !utf8.Valid(content) || utf8.RuneCount(content) > maxGateBody {
 		return "", nil, domain.Invalid("artifact", "o plano é grande demais ou não é texto UTF-8")
 	}
-	raw, err := json.Marshal(map[string]any{"artifact_id": art.ID, "artifact_name": art.Name, "artifact_version": art.Version, "sha256": art.SHA256})
+	raw, err := json.Marshal(map[string]any{"artifact_id": art.ID, "artifact_name": art.Name, "artifact_version": art.Version,
+		"artifact_semver": art.SemVer().String(), "artifact_document_id": art.DocumentID, "sha256": art.SHA256})
 	if err != nil {
 		return "", nil, fmt.Errorf("marshal plan payload: %w", err)
 	}

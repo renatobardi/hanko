@@ -1,5 +1,5 @@
 # ADR-0028 — Artefatos versionados e metas
-Data: 2026-10-15 · Status: aceita
+Data: 2026-10-15 · Status: aceita · Alterada por: ADR-0064 (documento estável, versão MAJOR.MINOR, leitura pela persona)
 
 ## Contexto
 O trabalho das personas acabava em comentários: um relatório, um plano ou um conjunto de dados virava texto colado na

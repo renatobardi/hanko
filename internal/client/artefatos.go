@@ -11,7 +11,7 @@ import (
 	"github.com/renatobardi/hanko/internal/api"
 )
 
-// Artefatos e metas (ADR-0028).
+// Artefatos e metas (ADR-0028); documentos de artefato com versão MAJOR.MINOR (ADR-0064).
 
 // PutArtifactReq publica uma versão de artefato; Content vai em base64 no JSON.
 type PutArtifactReq struct {
@@ -21,18 +21,25 @@ type PutArtifactReq struct {
 	Task    string `json:"task,omitempty"`
 	RunID   string `json:"run_id,omitempty"`
 	Project string `json:"project,omitempty"`
+	// Document é o documento a alterar; Change (major|minor) e ChangeReason classificam a mudança.
+	Document     string   `json:"document_id,omitempty"`
+	Change       string   `json:"change,omitempty"`
+	ChangeReason string   `json:"change_reason,omitempty"`
+	Tags         []string `json:"tags,omitempty"`
 }
 
 // ArtifactQuery são os filtros de ListArtifacts.
 type ArtifactQuery struct {
 	Project, Task, Persona, Run, Kind, Q string
+	Workspace, Tag, Document             string
 	AllVersions                          bool
 	Limit, Offset                        int
 }
 
 func (a ArtifactQuery) values() url.Values {
 	q := url.Values{}
-	for k, v := range map[string]string{"project": a.Project, "task": a.Task, "persona": a.Persona, "run": a.Run, "kind": a.Kind, "q": a.Q} {
+	for k, v := range map[string]string{"project": a.Project, "task": a.Task, "persona": a.Persona, "run": a.Run, "kind": a.Kind, "q": a.Q,
+		"workspace": a.Workspace, "tag": a.Tag, "document": a.Document} {
 		if v != "" {
 			q.Set(k, v)
 		}
@@ -70,6 +77,41 @@ func (c *Client) ArtifactDiff(ctx context.Context, company, id, against string) 
 		q.Set("against", against)
 	}
 	err := c.do(ctx, http.MethodGet, cp(company)+"/artifacts/"+url.PathEscape(id)+"/diff", q, nil, &out)
+	return out, err
+}
+
+// ArtifactDocumentVersion lê uma versão do documento por MAJOR.MINOR ("" ou "latest" = a mais nova), com o histórico.
+func (c *Client) ArtifactDocumentVersion(ctx context.Context, company, document, version string) (api.Artifact, error) {
+	if version == "" {
+		version = "latest"
+	}
+	return get[api.Artifact](ctx, c, http.MethodGet, cp(company)+"/artifact-documents/"+url.PathEscape(document)+"/versions/"+url.PathEscape(version), nil)
+}
+
+// RestoreArtifact publica o conteúdo da versão id como a versão mais nova do documento (major).
+func (c *Client) RestoreArtifact(ctx context.Context, company, id string) (api.Artifact, error) {
+	var out api.Artifact
+	err := c.do(ctx, http.MethodPost, cp(company)+"/artifacts/"+url.PathEscape(id)+"/restore", nil, struct{}{}, &out)
+	return out, err
+}
+
+// ReclassifyArtifact troca a classificação (major|minor) da versão mais nova do documento.
+func (c *Client) ReclassifyArtifact(ctx context.Context, company, id, change string) (api.Artifact, error) {
+	var out api.Artifact
+	err := c.do(ctx, http.MethodPost, cp(company)+"/artifacts/"+url.PathEscape(id)+"/reclassify", nil, map[string]string{"change": change}, &out)
+	return out, err
+}
+
+// ArtifactDocumentPatch muda projeto, workspace e tags de um documento; nil não muda, "" esvazia.
+type ArtifactDocumentPatch struct {
+	Project   *string  `json:"project,omitempty"`
+	Workspace *string  `json:"workspace,omitempty"`
+	Tags      []string `json:"tags,omitempty"`
+}
+
+func (c *Client) UpdateArtifactDocument(ctx context.Context, company, document string, p ArtifactDocumentPatch) (api.ArtifactDocument, error) {
+	var out api.ArtifactDocument
+	err := c.do(ctx, http.MethodPatch, cp(company)+"/artifact-documents/"+url.PathEscape(document), nil, p, &out)
 	return out, err
 }
 

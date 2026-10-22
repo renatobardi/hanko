@@ -1,12 +1,10 @@
-# Estado da última sessão (correção dos compositores de chat)
-Data: 2026-10-22 · branch `fix/compositor-chat` → `main` (PR #40)
+# Estado da última sessão (documentos de artefato com versão MAJOR.MINOR, ADR-0064)
+Data: 2026-10-22 · branch `claude/jolly-hamilton-wtnkxr` → `main` (depois do #40, compositores de chat)
 
 ## Feito
-- Texto/anexo sumindo: o autosave do rascunho disparava a limpeza do form (hx-on::after-request). Limpeza no hanko.js, só no envio 2xx do form[data-composer] e só do que foi enviado; autosave com `hx-sync="closest form:queue last"`.
-- Envio que "não aparecia": poll suspenso/cancelado durante o envio (livePoll); thread da task com polling (`/tasks/{task}/conversa`); erros 5xx/rede no #flash; botão desabilitado no envio.
-- Antes, no `main`: `deploy-prd.sh` chama `hanko` do PATH e gera as units por `.tmp` + `mv` (#39).
+- ADR-0064 + migration 00201: documento de artefato com id estável, versão MAJOR.MINOR (persona declara, servidor mede o diff), restaurar, reclassificar, tags; apagar task preserva versões.
+- Persona lê e altera artefatos: MCP `hanko_artifact_list|get|restore`, `artifact=` no put, seção "Artefatos" no briefing (task, chat, sala). API, CLI, UI, export/import, e2e e docs.
 ## Travado (só o dono)
-- Deploy no hanko-prd exige `ssh oute-server` do Mac. Unidades de backup podem estar vazias no LXC até o próximo deploy.
+- Deploy no hanko-prd exige `ssh oute-server` do Mac (com o #39 e o #40 também pendentes de deploy); tags v0.3.0–v0.6.0.
 ## Próximo passo
-- `deploy/oute-server/deploy-prd.sh` na `main`; conferir `systemctl list-timers hanko-backup.timer` e digitar/anexar no chat em produção.
-- Pendentes: tags v0.3.0–v0.6.0, checklist de `docs/VALIDACAO-MANHA.md`, OAuth do GitHub para o Delivery Manager.
+- `deploy/oute-server/deploy-prd.sh` na `main` (aplica a migration 00201); conferir `systemctl list-timers hanko-backup.timer`; no chat em produção, pedir a uma persona uma alteração num documento e ver a versão nova (não documento novo).

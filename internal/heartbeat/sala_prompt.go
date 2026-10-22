@@ -46,6 +46,7 @@ func BuildRoomPrompt(rc service.RunContext, briefing, handoff string) (system, p
 	fmt.Fprintf(&sb, "- As citações entre personas têm limite (até %d saltos a partir da mensagem humana); depois disso só um humano chama de novo.\n", room.MaxHops)
 	sb.WriteString("- Não peça confirmação ao humano para o que é reversível; faça e diga o que fez. Ações irreversíveis (merge, deploy, gasto, contratação, apagar dados) viram uma task com `hanko_task_create` e um pedido de decisão com `hanko_gate_request` nela.\n")
 	sb.WriteString("- Esta sala não tem task: as tools MCP `hanko_*` que dependem da task da execução não funcionam sem informar a task.\n")
+	sb.WriteString(artifactProtocol)
 	system = strings.TrimSpace(sb.String())
 
 	var pb strings.Builder
@@ -71,6 +72,7 @@ func BuildRoomPrompt(rc service.RunContext, briefing, handoff string) (system, p
 	}
 
 	pb.WriteString(attachmentsSection(rc))
+	pb.WriteString(artifactsSection(rc))
 	pb.WriteString("## Mensagens novas para você\n\n")
 	if len(cc.New) == 0 {
 		pb.WriteString("(nenhuma mensagem nova)\n\n")

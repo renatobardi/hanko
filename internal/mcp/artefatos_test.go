@@ -17,7 +17,9 @@ func (f *fake) PutArtifact(_ context.Context, a domain.Actor, _ domain.ID, in se
 	f.lastActor = a
 	f.puts = append(f.puts, in)
 	v := service.ArtifactView{Artifact: domain.Artifact{ID: domain.NewID(), CompanyID: f.company.ID, TaskID: in.TaskID, RunID: in.RunID,
-		Name: in.Name, Mime: "text/markdown", SizeBytes: int64(len(in.Content)), SHA256: strings.Repeat("a", 64), Version: len(f.puts)}, Versions: len(f.puts)}
+		Name: in.Name, Mime: "text/markdown", SizeBytes: int64(len(in.Content)), SHA256: strings.Repeat("a", 64), Version: len(f.puts),
+		Major: 1, Minor: len(f.puts) - 1, Change: domain.ChangeMinor}, Versions: len(f.puts)}
+	v.SemVer = v.Artifact.SemVer().String()
 	if in.TaskID != nil {
 		v.TaskKey = "HNK-1"
 	}
@@ -72,7 +74,7 @@ func TestArtifactPut(t *testing.T) {
 		t.Fatal(text(res))
 	}
 	structured(t, res, &out)
-	if out.Artifact.Name != "plano.md" || out.Artifact.Version != 1 || out.Artifact.TaskKey != "HNK-1" || out.Artifact.SizeBytes != 5 {
+	if out.Artifact.Name != "plano.md" || out.Artifact.Version != "1.0" || out.Artifact.TaskKey != "HNK-1" || out.Artifact.SizeBytes != 5 {
 		t.Fatalf("saída: %+v", out)
 	}
 	in := e.f.puts[0]

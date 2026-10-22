@@ -40,6 +40,7 @@ func BuildChatPrompt(rc service.RunContext, briefing, handoff string) (system, p
 	sb.WriteString("- Esta conversa não tem task. As tools MCP `hanko_*` que dependem da task da execução (como `hanko_gate_request` sem informar a task) não funcionam aqui.\n")
 	sb.WriteString("- Para trabalho que mereça acompanhamento, abra uma task com `hanko_task_create` (a conversa é citada na descrição) e diga a chave dela na resposta. Pode consultar tasks (`hanko_task_list`, `hanko_task_get`) e personas (`hanko_persona_list`).\n")
 	sb.WriteString("- Não execute ações irreversíveis (merge, deploy, gasto, contratação, apagar dados) a partir do chat: abra uma task e peça a decisão de um humano nela com `hanko_gate_request`.\n")
+	sb.WriteString(artifactProtocol)
 	system = strings.TrimSpace(sb.String())
 
 	var pb strings.Builder
@@ -66,6 +67,7 @@ func BuildChatPrompt(rc service.RunContext, briefing, handoff string) (system, p
 
 	pb.WriteString(continuationSection(rc.Continuation, cc.ResumeSession != ""))
 	pb.WriteString(attachmentsSection(rc))
+	pb.WriteString(artifactsSection(rc))
 	pb.WriteString("## Mensagens novas\n\n")
 	if len(cc.New) == 0 {
 		pb.WriteString("(nenhuma mensagem nova)\n\n")

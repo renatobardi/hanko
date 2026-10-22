@@ -1,17 +1,19 @@
 package views
 
-// Modelos de tela de artefatos e metas (ADR-0028). Tudo já vem formatado e traduzido pelos handlers.
+// Modelos de tela de artefatos e metas (ADR-0028, ADR-0064). Tudo já vem formatado e traduzido pelos handlers. As
+// versões de artefato são rótulos MAJOR.MINOR ("2.1").
 
 // ---- artefatos ----
 
-// ArtifactRow é uma linha da lista de artefatos (a versão mais nova de cada cadeia).
+// ArtifactRow é uma linha da lista de artefatos (a versão mais nova de cada documento).
 type ArtifactRow struct {
 	Name        string
 	Href        string
 	Kind        string // rótulo do tipo
 	Mime        string
 	Size        string
-	Version     int
+	Version     string
+	Tags        []string
 	Versions    int
 	TaskKey     string
 	TaskHref    string
@@ -28,6 +30,7 @@ type ArtifactFilterVM struct {
 	Action         string
 	Query          string
 	Task           string
+	Tag            string
 	ProjectOptions []Option
 	PersonaOptions []Option
 	KindOptions    []Option
@@ -51,12 +54,18 @@ type ArtifactsVM struct {
 	MoreHref string // próxima página
 }
 
-// ArtifactFormVM é o formulário de envio.
+// ArtifactFormVM é o formulário de envio. Com Document, o envio é uma versão nova daquele documento.
 type ArtifactFormVM struct {
 	Action         string
 	CancelHref     string
 	Task           string
 	Name           string
+	Document       string // id do documento a alterar
+	DocumentName   string
+	DocumentVer    string // a versão atual do documento
+	Change         string // "", "major" ou "minor"
+	Reason         string
+	Tags           string // separadas por vírgula
 	ProjectOptions []Option
 	MaxFile        string // "5 MiB"
 	Error          string
@@ -65,7 +74,12 @@ type ArtifactFormVM struct {
 
 // ArtifactVersionRow é uma versão na lista de versões do detalhe.
 type ArtifactVersionRow struct {
-	Version  int
+	Version  string
+	Change   string // major | minor
+	Reason   string
+	Disputed bool
+	Restored string // "restaurada de X.Y" já resolvido
+	Name     string
 	Href     string
 	Size     string
 	When     string
@@ -76,6 +90,8 @@ type ArtifactVersionRow struct {
 	Current  bool
 	DiffHref string // compara esta versão com a anterior ("" = sem diff)
 	Compared bool   // é a base do diff mostrado
+	// RestoreHref restaura esta versão (vazio na mais nova).
+	RestoreHref string
 }
 
 // DiffLine é uma linha do diff entre versões.
@@ -91,56 +107,69 @@ type DiffLine struct {
 type DiffVM struct {
 	FromVersion int
 	ToVersion   int
-	Added       int
-	Removed     int
-	Lines       []DiffLine
-	Coarse      bool
-	Cut         int // linhas omitidas no fim por passarem do teto da tela
-	Same        bool
-	Error       string
-	CloseHref   string
+	// FromLabel e ToLabel, quando preenchidos, substituem "vN" no título (artefatos: "1.2").
+	FromLabel string
+	ToLabel   string
+	Added     int
+	Removed   int
+	Lines     []DiffLine
+	Coarse    bool
+	Cut       int // linhas omitidas no fim por passarem do teto da tela
+	Same      bool
+	Error     string
+	CloseHref string
 }
 
-// ArtifactVM é o detalhe de um artefato (uma versão e a cadeia dela).
+// ArtifactVM é o detalhe de um artefato (uma versão e o documento dela).
 type ArtifactVM struct {
-	Name         string
-	Mime         string
-	Kind         string
-	Size         string
-	Version      int
-	Latest       bool
-	LatestHref   string
-	SHA          string
-	Created      string
-	Author       string
-	TaskKey      string
-	TaskHref     string
-	TaskTitle    string
-	Project      string
-	ProjectHref  string
-	Persona      string
-	PersonaHref  string
-	Run          string
-	RunHref      string
-	ContentHref  string
-	DownloadHref string
-	Preview      string // markdown | text | image | none
-	PreviewHTML  HTML
-	PreviewText  string
-	Truncated    bool
-	Versions     []ArtifactVersionRow
-	Diff         *DiffVM
-	DeleteHref   string
-	Notice       string
-	Error        string
-	ListHref     string
+	Name           string
+	Mime           string
+	Kind           string
+	Size           string
+	Version        string
+	Change         string // major | minor
+	Reason         string
+	Disputed       bool
+	Ratio          string // "62%" (vazio: não medido)
+	Document       string // id do documento
+	Tags           []string
+	TagsText       string // para o formulário
+	NewVersionHref string
+	TagsHref       string
+	ReclassifyHref string // vazio: não é a mais nova ou é a primeira versão
+	Latest         bool
+	LatestHref     string
+	SHA            string
+	Created        string
+	Author         string
+	TaskKey        string
+	TaskHref       string
+	TaskTitle      string
+	Project        string
+	ProjectHref    string
+	Persona        string
+	PersonaHref    string
+	Run            string
+	RunHref        string
+	ContentHref    string
+	DownloadHref   string
+	Preview        string // markdown | text | image | none
+	PreviewHTML    HTML
+	PreviewText    string
+	Truncated      bool
+	Versions       []ArtifactVersionRow
+	Diff           *DiffVM
+	DeleteHref     string
+	Notice         string
+	Error          string
+	ListHref       string
 }
 
 // ArtifactMini é um artefato citado na página de uma task, de uma run ou de um projeto.
 type ArtifactMini struct {
 	Name     string
 	Href     string
-	Version  int
+	Version  string
 	Versions int
 	Size     string
 	Kind     string

@@ -22,7 +22,8 @@ import (
 	"github.com/renatobardi/hanko/internal/ui/views"
 )
 
-// Artefatos (ADR-0028). Ler é de qualquer membro; enviar é de member; excluir é de admin. A barreira de papel é o
+// Artefatos (ADR-0028, ADR-0064). Ler é de qualquer membro; enviar, restaurar, reclassificar e editar tags é de
+// member; excluir é de admin. A barreira de papel é o
 // service; a UI só esconde os controles. O conteúdo é de terceiros: a prévia escapa o texto, o markdown passa pelo
 // renderizador que escapa HTML, imagens só dos tipos raster seguros, e o download sai por artifactsrv.
 
@@ -34,8 +35,16 @@ const (
 )
 
 var artifactNotices = map[string]string{
-	"enviado":  i18n.N("Artefato enviado."),
-	"excluido": i18n.N("Artefato excluído."),
+	"enviado":        i18n.N("Artefato enviado."),
+	"excluido":       i18n.N("Artefato excluído."),
+	"restaurado":     i18n.N("Versão restaurada como a mais nova."),
+	"reclassificado": i18n.N("Versão reclassificada."),
+	"tags":           i18n.N("Tags salvas."),
+}
+
+// splitTags lê "a, b c" como ["a","b","c"]; a validação é do service.
+func splitTags(s string) []string {
+	return strings.FieldsFunc(s, func(r rune) bool { return r == ',' || r == ' ' || r == ';' })
 }
 
 // fmtBytes é um tamanho legível (binário): "812 B", "1,5 KiB", "5 MiB".
@@ -76,7 +85,7 @@ func artifactLimitMessage(ctx context.Context, e *service.ArtifactLimitError) st
 }
 
 func artifactMini(ctx context.Context, a service.ArtifactView, base string) views.ArtifactMini {
-	return views.ArtifactMini{Name: a.Name, Href: base + "/artefatos/" + a.ID.String(), Version: a.Version, Versions: a.Versions,
+	return views.ArtifactMini{Name: a.Name, Href: base + "/artefatos/" + a.ID.String(), Version: a.SemVer, Versions: a.Versions,
 		Size: fmtBytes(ctx, a.SizeBytes), Kind: artifactKindLabel(ctx, a.Mime)}
 }
 
@@ -107,13 +116,13 @@ func (s *server) handleArtifacts(w http.ResponseWriter, r *http.Request, co doma
 	query := strings.TrimSpace(q.Get("q"))
 	projRef, personaRef := strings.TrimSpace(q.Get("projeto")), strings.TrimSpace(q.Get("persona"))
 	taskRef, kind := strings.TrimSpace(q.Get("task")), strings.TrimSpace(q.Get("tipo"))
-	runRef := strings.TrimSpace(q.Get("execucao"))
+	runRef, tag := strings.TrimSpace(q.Get("execucao")), strings.TrimSpace(strings.TrimPrefix(q.Get("tag"), "#"))
 	page, _ := strconv.Atoi(q.Get("pagina"))
 	if page < 1 || page > 1000 {
 		page = 1
 	}
 
-	filter := service.ArtifactFilter{Query: query, Limit: artifactPageSize + 1, Offset: (page - 1) * artifactPageSize}
+	filter := service.ArtifactFilter{Query: query, Tag: tag, Limit: artifactPageSize + 1, Offset: (page - 1) * artifactPageSize}
 	if kind != "" {
 		k := domain.ArtifactKind(kind)
 		if !k.Valid() {
@@ -175,7 +184,7 @@ func (s *server) handleArtifacts(w http.ResponseWriter, r *http.Request, co doma
 		return
 	}
 
-	active := query != "" || projRef != "" || personaRef != "" || taskRef != "" || kind != "" || runRef != ""
+	active := query != "" || projRef != "" || personaRef != "" || taskRef != "" || kind != "" || runRef != "" || tag != ""
 	vm := views.ArtifactsVM{
 		Subtitle: i18n.T(ctx, "Documentos e arquivos produzidos pelas personas."),
 		Notice:   i18n.T(ctx, artifactNotices[q.Get("ok")]),
@@ -185,7 +194,7 @@ func (s *server) handleArtifacts(w http.ResponseWriter, r *http.Request, co doma
 	if usage.QuotaBytes > 0 {
 		vm.UsedPct = int(math.Min(100, float64(usage.UsedBytes)*100/float64(usage.QuotaBytes)))
 	}
-	vm.Filters = views.ArtifactFilterVM{Action: base + "/artefatos", Query: query, Task: taskRef, Active: active, ClearHref: base + "/artefatos",
+	vm.Filters = views.ArtifactFilterVM{Action: base + "/artefatos", Query: query, Task: taskRef, Tag: tag, Active: active, ClearHref: base + "/artefatos",
 		ProjectOptions: []views.Option{{Value: "", Label: i18n.T(ctx, "Todos os projetos"), Selected: projRef == ""}},
 		PersonaOptions: []views.Option{{Value: "", Label: i18n.T(ctx, "Todas as personas"), Selected: personaRef == ""}},
 		KindOptions:    s.artifactKindOptions(ctx, kind)}
@@ -207,12 +216,15 @@ func (s *server) handleArtifacts(w http.ResponseWriter, r *http.Request, co doma
 	now := s.now()
 	for _, a := range list {
 		row := views.ArtifactRow{Name: a.Name, Href: base + "/artefatos/" + a.ID.String(), Kind: artifactKindLabel(ctx, a.Mime), Mime: a.Mime,
-			Size: fmtBytes(ctx, a.SizeBytes), Version: a.Version, Versions: a.Versions, When: agoCtx(ctx, a.CreatedAt, now, loc)}
+			Size: fmtBytes(ctx, a.SizeBytes), Version: a.SemVer, Versions: a.Versions, Tags: a.Tags, When: agoCtx(ctx, a.CreatedAt, now, loc)}
 		if a.TaskKey != "" {
 			row.TaskKey, row.TaskHref, row.TaskTitle = a.TaskKey, base+"/tasks/"+a.TaskKey, a.TaskTitle
 		}
-		if a.ProjectSlug != "" {
-			row.Project, row.ProjectHref = a.ProjectName, base+"/projetos/"+a.ProjectSlug
+		if a.DocumentProjectSlug != "" {
+			row.Project, row.ProjectHref = a.DocumentProjectSlug, base+"/projetos/"+a.DocumentProjectSlug
+			if a.DocumentProjectSlug == a.ProjectSlug {
+				row.Project = a.ProjectName
+			}
 		}
 		if a.PersonaSlug != "" {
 			row.Persona, row.PersonaHref = a.PersonaName, base+"/personas/"+a.PersonaSlug
@@ -255,12 +267,39 @@ func (s *server) handleNewArtifact(w http.ResponseWriter, r *http.Request, co do
 	}
 	vm := s.blankArtifactForm(r, co, usage.MaxFileBytes)
 	vm.Task = strings.TrimSpace(r.URL.Query().Get("task"))
+	if ref := strings.TrimSpace(r.URL.Query().Get("artefato")); ref != "" {
+		if err := s.fillArtifactDocument(r.Context(), co, ref, &vm); err != nil {
+			s.fail(w, r, &co, err)
+			return
+		}
+	}
 	if ref := strings.TrimSpace(r.URL.Query().Get("projeto")); ref != "" {
 		for i := range vm.ProjectOptions {
 			vm.ProjectOptions[i].Selected = vm.ProjectOptions[i].Slug == ref
 		}
 	}
 	s.renderArtifactForm(w, r, co, http.StatusOK, vm)
+}
+
+// fillArtifactDocument prepara o formulário para uma versão nova do documento ref (id do documento).
+func (s *server) fillArtifactDocument(ctx context.Context, co domain.Company, ref string, vm *views.ArtifactFormVM) error {
+	id, err := domain.ParseID(ref)
+	if err != nil {
+		return domain.ErrNotFound
+	}
+	d, err := s.be.GetArtifactDocument(ctx, co.ID, id)
+	if err != nil {
+		return err
+	}
+	list, err := s.be.ListArtifacts(ctx, co.ID, service.ArtifactFilter{DocumentID: &id, Limit: 1})
+	if err != nil {
+		return err
+	}
+	vm.Document, vm.DocumentName, vm.Name = d.ID.String(), d.Name, d.Name
+	if len(list) > 0 {
+		vm.DocumentVer = list[0].SemVer
+	}
+	return nil
 }
 
 // artifactFormError põe o erro do service no campo certo do formulário.
@@ -280,6 +319,8 @@ func artifactFormError(ctx context.Context, vm *views.ArtifactFormVM, err error)
 			msg = i18n.T(ctx, "Nome inválido: use até 200 caracteres, sem barras.")
 		case "task_id", "task":
 			field, msg = "task", i18n.T(ctx, "Task não encontrada nesta empresa.")
+		case "tags":
+			msg = i18n.T(ctx, "Tags inválidas: use a-z, 0-9 e -, até 40 caracteres cada e até 20 tags.")
 		}
 		vm.FieldErr[field] = msg
 		vm.Error = msg
@@ -330,7 +371,15 @@ func (s *server) handleUploadArtifact(w http.ResponseWriter, r *http.Request, co
 		defer func() { _ = r.MultipartForm.RemoveAll() }()
 	}
 	vm.Name, vm.Task = trimForm(r, "name"), trimForm(r, "task")
+	vm.Change, vm.Reason, vm.Tags = trimForm(r, "change"), trimForm(r, "reason"), trimForm(r, "tags")
 	selectOption(vm.ProjectOptions, trimForm(r, "project"))
+	if ref := trimForm(r, "artifact"); ref != "" {
+		if err := s.fillArtifactDocument(ctx, co, ref, &vm); err != nil {
+			s.fail(w, r, &co, err)
+			return
+		}
+		vm.Name = trimForm(r, "name")
+	}
 
 	file, hdr, err := r.FormFile("file")
 	if err != nil {
@@ -348,7 +397,26 @@ func (s *server) handleUploadArtifact(w http.ResponseWriter, r *http.Request, co
 		return
 	}
 
-	in := service.PutArtifactInput{Name: uploadName(vm.Name, hdr.Filename), Content: data}
+	in := service.PutArtifactInput{Name: uploadName(vm.Name, hdr.Filename), Content: data, ChangeReason: vm.Reason}
+	if vm.Document != "" {
+		doc, _ := domain.ParseID(vm.Document) // validado em fillArtifactDocument
+		in.DocumentID = &doc
+		if vm.Name == "" {
+			in.Name = vm.DocumentName
+		}
+	}
+	switch vm.Change {
+	case "":
+	case string(domain.ChangeMajor), string(domain.ChangeMinor):
+		k := domain.ChangeKind(vm.Change)
+		in.Change = &k
+	default:
+		bad(domain.Invalid("change", "major or minor"))
+		return
+	}
+	if vm.Tags != "" {
+		in.Tags = splitTags(vm.Tags)
+	}
 	if vm.Task != "" {
 		t, err := s.be.GetTask(ctx, co.ID, vm.Task)
 		if err != nil {
@@ -461,8 +529,11 @@ func (s *server) handleArtifact(w http.ResponseWriter, r *http.Request, co domai
 	loc := loadLoc(co.Timezone)
 	self := base + "/artefatos/" + a.ID.String()
 
-	vm := views.ArtifactVM{Name: a.Name, Mime: a.Mime, Kind: artifactKindLabel(ctx, a.Mime), Size: fmtBytes(ctx, a.SizeBytes), Version: a.Version,
-		SHA: a.SHA256, Created: fmtDateTime(ctx, a.CreatedAt, loc), Author: names.actorName(a.Author),
+	vm := views.ArtifactVM{Name: a.Name, Mime: a.Mime, Kind: artifactKindLabel(ctx, a.Mime), Size: fmtBytes(ctx, a.SizeBytes), Version: a.SemVer,
+		Change: string(a.Change), Reason: a.ChangeReason, Disputed: a.ChangeDisputed, Document: a.DocumentID.String(),
+		Tags: a.Tags, TagsText: strings.Join(a.Tags, ", "), TagsHref: self + "/tags",
+		NewVersionHref: base + "/artefatos/novo?artefato=" + a.DocumentID.String(),
+		SHA:            a.SHA256, Created: fmtDateTime(ctx, a.CreatedAt, loc), Author: names.actorName(a.Author),
 		ContentHref: self + "/conteudo", DownloadHref: self + "/conteudo?baixar=1", DeleteHref: self + "/excluir", ListHref: base + "/artefatos",
 		Notice: i18n.T(ctx, artifactNotices[r.URL.Query().Get("ok")])}
 	if a.TaskKey != "" {
@@ -480,14 +551,33 @@ func (s *server) handleArtifact(w http.ResponseWriter, r *http.Request, co domai
 			vm.Run = shortID(*a.RunID)
 		}
 	}
+	if a.ChangeRatio != nil {
+		vm.Ratio = strconv.Itoa(int(math.Round(*a.ChangeRatio*100))) + "%"
+	}
 	vm.Latest = len(versions) == 0 || versions[0].ID == a.ID
+	if vm.Latest && a.Version > 1 && a.Class != domain.ClassAttachment {
+		vm.ReclassifyHref = self + "/reclassificar"
+	}
+	byID := make(map[domain.ID]string, len(versions))
+	for _, v := range versions {
+		byID[v.ID] = v.SemVer().String()
+	}
 	if len(versions) > 0 {
 		vm.LatestHref = base + "/artefatos/" + versions[0].ID.String()
 	}
 	contra, _ := domain.ParseID(r.URL.Query().Get("contra"))
 	for i, v := range versions {
-		row := views.ArtifactVersionRow{Version: v.Version, Href: base + "/artefatos/" + v.ID.String(), Size: fmtBytes(ctx, v.SizeBytes),
+		row := views.ArtifactVersionRow{Version: v.SemVer().String(), Change: string(v.Change), Reason: v.ChangeReason, Disputed: v.ChangeDisputed,
+			Name: v.Name, Href: base + "/artefatos/" + v.ID.String(), Size: fmtBytes(ctx, v.SizeBytes),
 			When: fmtDateTime(ctx, v.CreatedAt, loc), Author: names.actorName(v.Author), SHA: v.SHA256, Current: v.ID == a.ID}
+		if v.RestoredFrom != nil {
+			if from, ok := byID[*v.RestoredFrom]; ok {
+				row.Restored = i18n.Tf(ctx, "restaurada de %s", from)
+			}
+		}
+		if i > 0 && v.Class != domain.ClassAttachment {
+			row.RestoreHref = base + "/artefatos/" + v.ID.String() + "/restaurar"
+		}
 		if v.RunID != nil {
 			row.Run, row.RunHref = shortID(*v.RunID), base+"/execucoes/"+v.RunID.String()
 		}
@@ -501,16 +591,16 @@ func (s *server) handleArtifact(w http.ResponseWriter, r *http.Request, co domai
 		return
 	}
 	if contra != (domain.ID{}) {
-		d := &views.DiffVM{ToVersion: a.Version, CloseHref: self}
+		d := &views.DiffVM{ToVersion: a.Version, ToLabel: a.SemVer, CloseHref: self}
 		res, err := s.be.ArtifactDiff(ctx, co.ID, contra, a.ID)
 		for _, v := range versions {
 			if v.ID == contra {
-				d.FromVersion = v.Version
+				d.FromVersion, d.FromLabel = v.Version, v.SemVer().String()
 			}
 		}
 		switch {
 		case errors.Is(err, domain.ErrInvalid):
-			d.Error = i18n.T(ctx, "Não foi possível comparar estas duas versões: são de artefatos diferentes, não são texto ou são grandes demais.")
+			d.Error = i18n.T(ctx, "Não foi possível comparar estas duas versões: são de documentos diferentes, não são texto ou são grandes demais.")
 		case err != nil:
 			_, _, d.Error = friendly(ctx, err)
 		default:
@@ -550,4 +640,58 @@ func (s *server) handleDeleteArtifact(w http.ResponseWriter, r *http.Request, co
 		return
 	}
 	redirect(w, r, "/c/"+co.Slug+"/artefatos?ok=excluido")
+}
+
+func (s *server) handleRestoreArtifact(w http.ResponseWriter, r *http.Request, co domain.Company) {
+	ctx := r.Context()
+	id, ok := artifactID(r)
+	if !ok {
+		s.fail(w, r, &co, domain.ErrNotFound)
+		return
+	}
+	v, err := s.be.RestoreArtifact(ctx, actorFrom(ctx), co.ID, id, nil, nil)
+	if err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
+	redirect(w, r, "/c/"+co.Slug+"/artefatos/"+v.ID.String()+"?ok=restaurado")
+}
+
+func (s *server) handleReclassifyArtifact(w http.ResponseWriter, r *http.Request, co domain.Company) {
+	ctx := r.Context()
+	id, ok := artifactID(r)
+	if !ok {
+		s.fail(w, r, &co, domain.ErrNotFound)
+		return
+	}
+	v, err := s.be.ReclassifyArtifact(ctx, actorFrom(ctx), co.ID, id, domain.ChangeKind(trimForm(r, "change")))
+	if err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
+	redirect(w, r, "/c/"+co.Slug+"/artefatos/"+v.ID.String()+"?ok=reclassificado")
+}
+
+// handleArtifactTags troca as tags do documento da versão {artifact}; volta para a mesma versão.
+func (s *server) handleArtifactTags(w http.ResponseWriter, r *http.Request, co domain.Company) {
+	ctx := r.Context()
+	id, ok := artifactID(r)
+	if !ok {
+		s.fail(w, r, &co, domain.ErrNotFound)
+		return
+	}
+	a, err := s.be.GetArtifactView(ctx, co.ID, id)
+	if err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
+	tags := splitTags(trimForm(r, "tags"))
+	if tags == nil {
+		tags = []string{}
+	}
+	if _, err := s.be.UpdateArtifactDocument(ctx, actorFrom(ctx), co.ID, a.DocumentID, service.ArtifactDocumentPatch{Tags: tags}); err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
+	redirect(w, r, "/c/"+co.Slug+"/artefatos/"+id.String()+"?ok=tags")
 }

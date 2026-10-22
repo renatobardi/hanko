@@ -84,12 +84,45 @@ type Artifact struct {
 	ConversationID *uuid.UUID
 	MessageID      *uuid.UUID
 	SearchTsv      interface{}
+	DocumentID     uuid.UUID
+	VersionMajor   int32
+	VersionMinor   int32
+	ChangeKind     string
+	ChangeDeclared *string
+	ChangeReason   string
+	ChangeRatio    *float64
+	ChangeDisputed bool
+	RestoredFrom   *uuid.UUID
 }
 
 type ArtifactBlob struct {
 	ArtifactID uuid.UUID
 	CompanyID  uuid.UUID
 	Content    []byte
+}
+
+type ArtifactChainMap struct {
+	DocumentID     uuid.UUID
+	CompanyID      uuid.UUID
+	Kind           string
+	TaskID         *uuid.UUID
+	ConversationID *uuid.UUID
+	Name           string
+	ProjectID      *uuid.UUID
+	WorkspaceID    *uuid.UUID
+}
+
+type ArtifactDocument struct {
+	ID          uuid.UUID
+	CompanyID   uuid.UUID
+	Kind        string
+	Name        string
+	ProjectID   *uuid.UUID
+	WorkspaceID *uuid.UUID
+	Tags        []string
+	Detached    bool
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 type BudgetAlert struct {

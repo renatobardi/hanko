@@ -407,12 +407,31 @@ type RunContext struct {
 	// Attachments são os anexos da task (ou da conversa, numa run de chat), do mais antigo ao mais novo, até
 	// MaxBriefingAttachments (ADR-0052).
 	Attachments []AttachmentBrief
+	// Artifacts são os documentos de artefato que a run deve conhecer para alterar em vez de recriar (ADR-0064): os
+	// com versão na task, os do projeto e os que a persona publicou, até MaxBriefingArtifacts.
+	Artifacts []ArtifactBrief
 	// Stage é a etapa do pipeline do projeto em que a task está (ADR-0048); nil fora de pipeline.
 	Stage *StageContext
 }
 
 // MaxBriefingAttachments é quantos anexos entram no briefing da run.
 const MaxBriefingAttachments = 30
+
+// MaxBriefingArtifacts é quantos documentos de artefato entram no briefing da run.
+const MaxBriefingArtifacts = 10
+
+// ArtifactBrief é um documento de artefato em formato curto para o briefing da run (a versão mais nova).
+type ArtifactBrief struct {
+	DocumentID domain.ID
+	Name       string
+	SemVer     string
+	Mime       string
+	TaskKey    string
+	Tags       []string
+	UpdatedAt  time.Time
+	// InTask: o documento tem versão nesta task.
+	InTask bool
+}
 
 // AttachmentBrief é um anexo em formato curto para o briefing da run.
 type AttachmentBrief struct {

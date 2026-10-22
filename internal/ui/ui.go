@@ -143,6 +143,10 @@ type Backend interface {
 	ArtifactDiff(ctx context.Context, companyID, from, to domain.ID) (textdiff.Result, error)
 	DeleteArtifact(ctx context.Context, actor domain.Actor, companyID, id domain.ID) error
 	GetArtifactUsage(ctx context.Context, companyID domain.ID) (service.ArtifactUsage, error)
+	GetArtifactDocument(ctx context.Context, companyID, id domain.ID) (domain.ArtifactDocument, error)
+	RestoreArtifact(ctx context.Context, actor domain.Actor, companyID, versionID domain.ID, taskID, runID *domain.ID) (service.ArtifactView, error)
+	ReclassifyArtifact(ctx context.Context, actor domain.Actor, companyID, versionID domain.ID, kind domain.ChangeKind) (service.ArtifactView, error)
+	UpdateArtifactDocument(ctx context.Context, actor domain.Actor, companyID, documentID domain.ID, p service.ArtifactDocumentPatch) (domain.ArtifactDocument, error)
 
 	CreateGoal(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.CreateGoalInput) (domain.Goal, error)
 	UpdateGoal(ctx context.Context, actor domain.Actor, companyID, goalID domain.ID, in service.UpdateGoalInput) (domain.Goal, error)
@@ -504,6 +508,9 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("GET /c/{company}/artefatos/{artifact}", co(s.handleArtifact))
 	mux.HandleFunc("GET /c/{company}/artefatos/{artifact}/conteudo", co(s.handleArtifactContent))
 	mux.HandleFunc("POST /c/{company}/artefatos/{artifact}/excluir", post(co(s.handleDeleteArtifact)))
+	mux.HandleFunc("POST /c/{company}/artefatos/{artifact}/restaurar", post(co(s.handleRestoreArtifact)))
+	mux.HandleFunc("POST /c/{company}/artefatos/{artifact}/reclassificar", post(co(s.handleReclassifyArtifact)))
+	mux.HandleFunc("POST /c/{company}/artefatos/{artifact}/tags", post(co(s.handleArtifactTags)))
 
 	mux.HandleFunc("GET /c/{company}/metas", co(s.handleGoals))
 	mux.HandleFunc("GET /c/{company}/metas/nova", co(s.handleNewGoal))

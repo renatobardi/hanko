@@ -16,7 +16,8 @@ import (
 	"github.com/renatobardi/hanko/internal/textdiff"
 )
 
-// Artefatos e metas do Fake (ADR-0028): as visões (nomes das ligações, versões, progresso, tasks por status) saem
+// Artefatos e metas do Fake (ADR-0028, ADR-0064): cada versão pertence a um documento (DocumentID) e é numerada
+// MAJOR.MINOR. As visões (nomes das ligações, versões, progresso, tasks por status) saem
 // dos dados em memória; as validações de nome e de limites ficam no service real, aqui só o essencial.
 
 const (
@@ -36,9 +37,9 @@ func (f *Fake) artifactLimits() (maxFile, quota int64) {
 }
 
 func (f *Fake) artifactView(a domain.Artifact) service.ArtifactView {
-	v := service.ArtifactView{Artifact: a}
+	v := service.ArtifactView{Artifact: a, SemVer: a.SemVer().String(), Tags: append([]string{}, f.ArtifactTags[a.DocumentID]...)}
 	for _, o := range f.Artifacts {
-		if o.Name == a.Name && sameIDPtr(o.TaskID, a.TaskID) {
+		if o.DocumentID == a.DocumentID {
 			v.Versions++
 		}
 	}
@@ -53,6 +54,7 @@ func (f *Fake) artifactView(a domain.Artifact) service.ArtifactView {
 		for _, p := range f.Projects {
 			if p.ID == *a.ProjectID {
 				v.ProjectSlug, v.ProjectName = p.Slug, p.Name
+				v.DocumentProjectID, v.DocumentProjectSlug = a.ProjectID, p.Slug
 			}
 		}
 	}
@@ -126,10 +128,33 @@ func (f *Fake) PutArtifact(_ context.Context, actor domain.Actor, companyID doma
 			}
 		}
 	}
-	for _, o := range f.Artifacts {
-		if o.Name == a.Name && sameIDPtr(o.TaskID, a.TaskID) && o.Version >= a.Version {
-			a.Version = o.Version + 1
+	// documento: o informado ou o de mesmo nome na mesma task; senão um novo (1.0)
+	a.DocumentID, a.Major, a.Change, a.ChangeReason = domain.NewID(), 1, domain.ChangeMajor, in.ChangeReason
+	var latest *domain.Artifact
+	for i, o := range f.Artifacts {
+		if (in.DocumentID != nil && o.DocumentID == *in.DocumentID) || (in.DocumentID == nil && o.Name == a.Name && sameIDPtr(o.TaskID, a.TaskID)) {
+			if latest == nil || o.Version > latest.Version {
+				latest = &f.Artifacts[i]
+			}
 		}
+	}
+	if in.DocumentID != nil && latest == nil {
+		return service.ArtifactView{}, domain.Invalid("artifact", "artifact document not found in company")
+	}
+	if latest != nil {
+		change := domain.ChangeMinor
+		if in.Change != nil {
+			change = *in.Change
+			a.ChangeDeclared = in.Change
+		}
+		next := latest.SemVer().Next(change)
+		a.DocumentID, a.Version, a.Major, a.Minor, a.Change, a.RestoredFrom = latest.DocumentID, latest.Version+1, next.Major, next.Minor, change, nil
+	}
+	if in.Tags != nil {
+		if f.ArtifactTags == nil {
+			f.ArtifactTags = map[domain.ID][]string{}
+		}
+		f.ArtifactTags[a.DocumentID] = append([]string{}, in.Tags...)
 	}
 	f.Artifacts = append(f.Artifacts, a)
 	if f.ArtifactData == nil {
@@ -145,14 +170,8 @@ func (f *Fake) ListArtifacts(_ context.Context, _ domain.ID, fl service.Artifact
 	if err := f.fail("ListArtifacts"); err != nil {
 		return nil, err
 	}
-	newest := map[string]int{}
-	key := func(a domain.Artifact) string {
-		t := ""
-		if a.TaskID != nil {
-			t = a.TaskID.String()
-		}
-		return t + "\x00" + a.Name
-	}
+	newest := map[domain.ID]int{}
+	key := func(a domain.Artifact) domain.ID { return a.DocumentID }
 	for _, a := range f.Artifacts {
 		if a.Version > newest[key(a)] {
 			newest[key(a)] = a.Version
@@ -174,6 +193,10 @@ func (f *Fake) ListArtifacts(_ context.Context, _ domain.ID, fl service.Artifact
 		case fl.Kind != "" && domain.KindOf(a.Mime) != fl.Kind:
 			continue
 		case fl.Query != "" && !strings.Contains(strings.ToLower(a.Name), strings.ToLower(fl.Query)):
+			continue
+		case fl.DocumentID != nil && a.DocumentID != *fl.DocumentID:
+			continue
+		case fl.Tag != "" && !containsStr(f.ArtifactTags[a.DocumentID], fl.Tag):
 			continue
 		}
 		out = append(out, f.artifactView(a))
@@ -225,7 +248,7 @@ func (f *Fake) ArtifactVersions(_ context.Context, _, id domain.ID) ([]domain.Ar
 	}
 	var out []domain.Artifact
 	for _, a := range f.Artifacts {
-		if a.Name == cur.Name && sameIDPtr(a.TaskID, cur.TaskID) {
+		if a.DocumentID == cur.DocumentID {
 			out = append(out, a)
 		}
 	}
@@ -534,15 +557,16 @@ func sampleArtefMetas(f *Fake, now time.Time) {
 	put := func(k, name, mt, body string, age time.Duration, run *domain.ID, persona string) {
 		t := taskByKey(k)
 		a := domain.Artifact{ID: ID("artifact:" + k + ":" + name + ":" + age.String()), CompanyID: co.ID, TaskID: &t.ID, RunID: run, ProjectID: t.ProjectID,
-			PersonaID: t.PersonaID, Author: domain.HumanActor, Name: name, Mime: mt, SizeBytes: int64(len(body)), Version: 1, CreatedAt: now.Add(-age)}
+			PersonaID: t.PersonaID, Author: domain.HumanActor, Name: name, Mime: mt, SizeBytes: int64(len(body)), Version: 1, CreatedAt: now.Add(-age),
+			DocumentID: ID("artifact-doc:" + k + ":" + name), Major: 1, Change: domain.ChangeMajor}
 		if persona != "" && t.PersonaID != nil {
 			a.Author = domain.PersonaActor(*t.PersonaID)
 		}
 		sum := sha256.Sum256([]byte(body))
 		a.SHA256 = hex.EncodeToString(sum[:])
 		for _, o := range f.Artifacts {
-			if o.Name == name && sameIDPtr(o.TaskID, a.TaskID) && o.Version >= a.Version {
-				a.Version = o.Version + 1
+			if o.DocumentID == a.DocumentID && o.Version >= a.Version {
+				a.Version, a.Major, a.Minor, a.Change, a.ChangeReason = o.Version+1, o.Major, o.Minor+1, domain.ChangeMinor, "ajuste do texto"
 			}
 		}
 		f.Artifacts = append(f.Artifacts, a)
@@ -598,4 +622,106 @@ func sampleArtefMetas(f *Fake, now time.Time) {
 	taskByKey("HNK-214").GoalID = &id
 	id2 := lat.ID
 	taskByKey("HNK-220").GoalID = &id2
+}
+
+func containsStr(list []string, s string) bool {
+	for _, x := range list {
+		if x == s {
+			return true
+		}
+	}
+	return false
+}
+
+func (f *Fake) GetArtifactDocument(_ context.Context, companyID, id domain.ID) (domain.ArtifactDocument, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var d domain.ArtifactDocument
+	top := 0
+	for _, a := range f.Artifacts { // o documento tem o nome e o projeto da versão mais nova
+		if a.DocumentID == id && a.Version > top {
+			top = a.Version
+			d = domain.ArtifactDocument{ID: id, CompanyID: companyID, Class: domain.ClassArtifact, Name: a.Name, ProjectID: a.ProjectID,
+				Tags: append([]string{}, f.ArtifactTags[id]...), UpdatedAt: a.CreatedAt}
+		}
+	}
+	if d.ID == (domain.ID{}) {
+		return d, domain.ErrNotFound
+	}
+	return d, nil
+}
+
+func (f *Fake) RestoreArtifact(ctx context.Context, actor domain.Actor, companyID, versionID domain.ID, taskID, runID *domain.ID) (service.ArtifactView, error) {
+	f.mu.Lock()
+	f.note("RestoreArtifact")
+	src, ok := f.findArtifact(versionID)
+	data := append([]byte(nil), f.ArtifactData[versionID]...)
+	f.mu.Unlock()
+	if !ok {
+		return service.ArtifactView{}, domain.ErrNotFound
+	}
+	major := domain.ChangeMajor
+	doc := src.DocumentID
+	v, err := f.PutArtifact(ctx, actor, companyID, service.PutArtifactInput{Name: src.Name, Mime: src.Mime, Content: data, DocumentID: &doc,
+		Change: &major, TaskID: taskID, RunID: runID})
+	if err != nil {
+		return v, err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for i := range f.Artifacts {
+		if f.Artifacts[i].ID == v.ID {
+			f.Artifacts[i].RestoredFrom, f.Artifacts[i].ChangeDeclared = &src.ID, nil
+			return f.artifactView(f.Artifacts[i]), nil
+		}
+	}
+	return v, nil
+}
+
+func (f *Fake) ReclassifyArtifact(_ context.Context, _ domain.Actor, _, versionID domain.ID, kind domain.ChangeKind) (service.ArtifactView, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.note("ReclassifyArtifact")
+	cur, ok := f.findArtifact(versionID)
+	if !ok {
+		return service.ArtifactView{}, domain.ErrNotFound
+	}
+	var prev *domain.Artifact
+	for i, a := range f.Artifacts {
+		if a.DocumentID == cur.DocumentID && a.Version > cur.Version {
+			return service.ArtifactView{}, domain.Invalid("version", "only the latest version can be reclassified")
+		}
+		if a.DocumentID == cur.DocumentID && a.Version == cur.Version-1 {
+			prev = &f.Artifacts[i]
+		}
+	}
+	if prev == nil {
+		return service.ArtifactView{}, domain.Invalid("version", "the first version is always 1.0")
+	}
+	next := prev.SemVer().Next(kind)
+	for i := range f.Artifacts {
+		if f.Artifacts[i].ID == versionID {
+			f.Artifacts[i].Major, f.Artifacts[i].Minor, f.Artifacts[i].Change, f.Artifacts[i].ChangeDisputed = next.Major, next.Minor, kind, false
+			return f.artifactView(f.Artifacts[i]), nil
+		}
+	}
+	return service.ArtifactView{}, domain.ErrNotFound
+}
+
+func (f *Fake) UpdateArtifactDocument(ctx context.Context, _ domain.Actor, companyID, documentID domain.ID, p service.ArtifactDocumentPatch) (domain.ArtifactDocument, error) {
+	f.mu.Lock()
+	f.note("UpdateArtifactDocument")
+	if p.Tags != nil {
+		tags, err := domain.NormalizeTags(p.Tags)
+		if err != nil {
+			f.mu.Unlock()
+			return domain.ArtifactDocument{}, err
+		}
+		if f.ArtifactTags == nil {
+			f.ArtifactTags = map[domain.ID][]string{}
+		}
+		f.ArtifactTags[documentID] = tags
+	}
+	f.mu.Unlock()
+	return f.GetArtifactDocument(ctx, companyID, documentID)
 }

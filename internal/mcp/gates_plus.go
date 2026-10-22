@@ -28,7 +28,7 @@ var planAllowed = map[string]bool{
 	"hanko_whoami": true, "hanko_task_list": true, "hanko_task_get": true, "hanko_task_comment": true,
 	"hanko_gate_request": true, "hanko_gate_status": true, "hanko_gate_resubmit": true, "hanko_hire_request": true,
 	"hanko_persona_list": true, "hanko_project_list": true, "hanko_search": true, "hanko_run_get": true,
-	"hanko_artifact_put": true, "hanko_attachment_list": true, "hanko_attachment_get": true,
+	"hanko_artifact_put": true, "hanko_artifact_list": true, "hanko_artifact_get": true, "hanko_attachment_list": true, "hanko_attachment_get": true,
 	"hanko_goal_list": true, "hanko_skill_list": true, "hanko_skill_get": true,
 	"hanko_case_get": true, "hanko_case_list": true, "hanko_pipeline_list": true, "hanko_status_card_list": true,
 }

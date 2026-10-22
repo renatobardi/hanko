@@ -97,9 +97,9 @@ func TestArtifactNameRejectsFormatChars(t *testing.T) {
 	e.put(t, domain.HumanActor, service.PutArtifactInput{Name: "relatório-ação.md", Content: []byte("x")})
 }
 
-// Apagar a task apaga as versões dos artefatos dela, em vez de fundi-las à cadeia "sem task" do mesmo nome (que
-// colidiria no índice único de versão).
-func TestArtifactTaskDeleteCascades(t *testing.T) {
+// Apagar a task preserva o histórico (ADR-0064): as versões perdem a task, mas continuam no documento delas, sem se
+// fundir ao documento "sem task" de mesmo nome (a unicidade é por documento).
+func TestArtifactTaskDeletePreservesHistory(t *testing.T) {
 	pool := testdb.New(t)
 	ctx := context.Background()
 	svc := service.New(pool, &fakeJobs{}, events.NewBroker())
@@ -123,11 +123,11 @@ func TestArtifactTaskDeleteCascades(t *testing.T) {
 		t.Fatalf("apagar a task: %v", err)
 	}
 	all, err := svc.ListArtifacts(ctx, co.ID, service.ArtifactFilter{AllVersions: true})
-	if err != nil || len(all) != 1 || all[0].TaskID != nil || all[0].Version != 1 {
-		t.Fatalf("depois de apagar a task sobra só a cadeia sem task: %+v %v", all, err)
+	if err != nil || len(all) != 2 || all[0].TaskID != nil || all[1].TaskID != nil || all[0].DocumentID == all[1].DocumentID {
+		t.Fatalf("depois de apagar a task os dois documentos continuam, sem task: %+v %v", all, err)
 	}
 	var blobs int
-	if err := pool.QueryRow(ctx, "SELECT count(*) FROM artifact_blobs").Scan(&blobs); err != nil || blobs != 1 {
-		t.Fatalf("blobs órfãos: %d %v", blobs, err)
+	if err := pool.QueryRow(ctx, "SELECT count(*) FROM artifact_blobs").Scan(&blobs); err != nil || blobs != 2 {
+		t.Fatalf("blobs: %d %v", blobs, err)
 	}
 }

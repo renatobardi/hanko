@@ -316,7 +316,7 @@ func TestListTools(t *testing.T) {
 		}
 	}
 	sort.Strings(got)
-	want := []string{"hanko_artifact_put", "hanko_attachment_get", "hanko_attachment_list", "hanko_attachment_put", "hanko_connection_request", "hanko_gate_request", "hanko_gate_status", "hanko_goal_create", "hanko_goal_list", "hanko_goal_update", "hanko_hire_request", "hanko_persona_instruction_propose", "hanko_persona_list", "hanko_project_create", "hanko_project_list", "hanko_publish_review", "hanko_run_get", "hanko_search", "hanko_skill_get", "hanko_skill_list", "hanko_status_card_create", "hanko_status_card_list", "hanko_status_card_set_query", "hanko_status_card_set_summary", "hanko_task_comment", "hanko_task_create", "hanko_task_dependency", "hanko_task_get", "hanko_task_list", "hanko_task_update", "hanko_whoami"}
+	want := []string{"hanko_artifact_get", "hanko_artifact_list", "hanko_artifact_put", "hanko_artifact_restore", "hanko_attachment_get", "hanko_attachment_list", "hanko_attachment_put", "hanko_connection_request", "hanko_gate_request", "hanko_gate_status", "hanko_goal_create", "hanko_goal_list", "hanko_goal_update", "hanko_hire_request", "hanko_persona_instruction_propose", "hanko_persona_list", "hanko_project_create", "hanko_project_list", "hanko_publish_review", "hanko_run_get", "hanko_search", "hanko_skill_get", "hanko_skill_list", "hanko_status_card_create", "hanko_status_card_list", "hanko_status_card_set_query", "hanko_status_card_set_summary", "hanko_task_comment", "hanko_task_create", "hanko_task_dependency", "hanko_task_get", "hanko_task_list", "hanko_task_update", "hanko_whoami"}
 	if d := cmp.Diff(want, got); d != "" {
 		t.Errorf("tools (-want +got):\n%s", d)
 	}

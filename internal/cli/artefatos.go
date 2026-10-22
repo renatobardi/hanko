@@ -23,22 +23,24 @@ const maxArtifactRead int64 = 16 << 20
 func (e *env) artifactCmd() *cobra.Command {
 	c := &cobra.Command{Use: "artifact", Aliases: []string{"artifacts"}, Short: e.t("Publica e consulta artefatos (arquivos com versões)")}
 
-	var name, mime, task, runID, project string
+	var name, mime, task, runID, project, document, change, reason string
+	var tags []string
 	put := &cobra.Command{
-		Use: "put " + e.t("<arquivo|->"), Short: e.t("Publica um arquivo como artefato (o mesmo nome na mesma task cria a versão seguinte)"), Args: cobra.ExactArgs(1),
+		Use: "put " + e.t("<arquivo|->"), Short: e.t("Publica um arquivo como artefato; com --artifact vira a versão seguinte daquele documento"), Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			co, err := e.needCompany()
 			if err != nil {
 				return err
 			}
 			var b []byte
+			// ao alterar um documento (--artifact) sem --name, o nome do documento é mantido (ADR-0064)
 			if args[0] == "-" {
-				if name == "" {
+				if name == "" && document == "" {
 					return usageError{errors.New(e.t("com entrada padrão (-), informe --name"))}
 				}
 				b, err = io.ReadAll(io.LimitReader(e.in, maxArtifactRead+1))
 			} else {
-				if name == "" {
+				if name == "" && document == "" {
 					name = filepath.Base(args[0])
 				}
 				b, err = readLimited(args[0], maxArtifactRead)
@@ -49,15 +51,20 @@ func (e *env) artifactCmd() *cobra.Command {
 			if int64(len(b)) > maxArtifactRead {
 				return fmt.Errorf(e.t("o arquivo passa de %d bytes"), maxArtifactRead)
 			}
-			a, err := e.client().PutArtifact(cmd.Context(), co, client.PutArtifactReq{Name: name, Mime: mime, Content: b, Task: task, RunID: runID, Project: project})
+			a, err := e.client().PutArtifact(cmd.Context(), co, client.PutArtifactReq{Name: name, Mime: mime, Content: b, Task: task, RunID: runID, Project: project,
+				Document: document, Change: change, ChangeReason: reason, Tags: tags})
 			if err != nil {
 				return err
 			}
 			if e.asJSON {
 				return e.printJSON(a)
 			}
-			fmt.Fprintf(e.out, e.t("Artefato %s v%d publicado (%s, %s)\n"), a.Name, a.Version, a.Mime, humanBytes(a.SizeBytes))
+			fmt.Fprintf(e.out, e.t("Artefato %s %s (%s) publicado (%s, %s)\n"), a.Name, a.SemVer, a.Change, a.Mime, humanBytes(a.SizeBytes))
 			fmt.Fprintf(e.out, e.t("id: %s\n"), a.ID)
+			fmt.Fprintf(e.out, e.t("documento: %s\n"), a.DocumentID)
+			if a.ChangeDisputed {
+				fmt.Fprintln(e.out, e.t("atenção: o tamanho do diff contradiz a classificação declarada"))
+			}
 			return nil
 		},
 	}
@@ -67,6 +74,10 @@ func (e *env) artifactCmd() *cobra.Command {
 	pf.StringVar(&task, "task", "", e.t("task a que pertence (id ou chave)"))
 	pf.StringVar(&runID, "run", "", e.t("execução de origem (id)"))
 	pf.StringVar(&project, "project", "", e.t("projeto (id ou slug); padrão: o da task"))
+	pf.StringVar(&document, "artifact", "", e.t("documento a alterar (id): a publicação vira a versão seguinte dele"))
+	pf.StringVar(&change, "change", "", e.t("major (mudança pesada) ou minor (ajuste); padrão: decidido pelo tamanho do diff"))
+	pf.StringVar(&reason, "reason", "", e.t("motivo curto da mudança"))
+	pf.StringSliceVar(&tags, "tag", nil, e.t("tag do documento (repita para várias; substitui as atuais)"))
 
 	var q client.ArtifactQuery
 	ls := &cobra.Command{
@@ -85,10 +96,10 @@ func (e *env) artifactCmd() *cobra.Command {
 			}
 			rows := make([][]string, 0, len(as))
 			for _, a := range as {
-				rows = append(rows, []string{short(a.ID), a.Name, "v" + strconv.Itoa(a.Version), a.Kind, humanBytes(a.SizeBytes),
-					dash(a.TaskKey), dash(a.PersonaSlug), e.fmtTime(a.CreatedAt)})
+				rows = append(rows, []string{short(a.ID), short(a.DocumentID), a.Name, a.SemVer, a.Kind, humanBytes(a.SizeBytes),
+					dash(a.TaskKey), dash(a.PersonaSlug), dash(strings.Join(a.Tags, ",")), e.fmtTime(a.CreatedAt)})
 			}
-			e.table([]string{"ID", e.t("NOME"), e.t("VERSÃO"), e.t("TIPO"), e.t("TAMANHO"), "TASK", "PERSONA", e.t("CRIADO EM")}, rows)
+			e.table([]string{"ID", e.t("DOCUMENTO"), e.t("NOME"), e.t("VERSÃO"), e.t("TIPO"), e.t("TAMANHO"), "TASK", "PERSONA", "TAGS", e.t("CRIADO EM")}, rows)
 			return nil
 		},
 	}
@@ -99,10 +110,13 @@ func (e *env) artifactCmd() *cobra.Command {
 	lf.StringVar(&q.Run, "run", "", e.t("filtra por execução (id)"))
 	lf.StringVar(&q.Kind, "kind", "", e.t("tipo: markdown, text, image ou other"))
 	lf.StringVarP(&q.Q, "query", "q", "", e.t("busca pelo nome"))
+	lf.StringVar(&q.Workspace, "workspace", "", e.t("filtra pelo workspace do documento (id ou slug)"))
+	lf.StringVar(&q.Tag, "tag", "", e.t("filtra pela tag do documento"))
+	lf.StringVar(&q.Document, "artifact", "", e.t("só este documento (id); com --all-versions, o histórico dele"))
 	lf.BoolVar(&q.AllVersions, "all-versions", false, e.t("lista todas as versões, não só a mais nova"))
 	lf.IntVar(&q.Limit, "limit", 0, e.t("máximo de itens"))
 
-	var out string
+	var out, version string
 	var showVersions bool
 	get := &cobra.Command{
 		Use: "get " + e.t("<id>"), Short: e.t("Baixa o conteúdo de uma versão (saída padrão ou -o arquivo); --info mostra os metadados e as versões"), Args: cobra.ExactArgs(1),
@@ -112,8 +126,16 @@ func (e *env) artifactCmd() *cobra.Command {
 				return err
 			}
 			cl := e.client()
+			id := args[0]
+			if cmd.Flags().Changed("version") { // o argumento é o documento; a versão é MAJOR.MINOR
+				a, err := cl.ArtifactDocumentVersion(cmd.Context(), co, args[0], version)
+				if err != nil {
+					return err
+				}
+				id = a.ID
+			}
 			if showVersions {
-				a, err := cl.Artifact(cmd.Context(), co, args[0])
+				a, err := cl.Artifact(cmd.Context(), co, id)
 				if err != nil {
 					return err
 				}
@@ -121,18 +143,23 @@ func (e *env) artifactCmd() *cobra.Command {
 					return e.printJSON(a)
 				}
 				e.kv([2]string{e.t("Nome"), a.Name}, [2]string{e.t("Tipo"), a.Mime}, [2]string{e.t("Tamanho"), humanBytes(a.SizeBytes)},
-					[2]string{e.t("Versão"), fmt.Sprintf("%d/%d", a.Version, a.Versions)}, [2]string{"Task", dash(a.TaskKey)},
+					[2]string{e.t("Versão"), fmt.Sprintf("%s (%s, %d/%d)", a.SemVer, a.Change, a.Version, a.Versions)}, [2]string{e.t("Documento"), a.DocumentID},
+					[2]string{"Tags", dash(strings.Join(a.Tags, ", "))}, [2]string{"Task", dash(a.TaskKey)},
 					[2]string{e.t("Projeto"), dash(a.ProjectName)}, [2]string{"Persona", dash(a.PersonaName)}, [2]string{"SHA-256", a.SHA256},
 					[2]string{e.t("Criado em"), e.fmtTime(a.CreatedAt)})
 				rows := make([][]string, 0, len(a.History))
 				for _, h := range a.History {
-					rows = append(rows, []string{"v" + strconv.Itoa(h.Version), short(h.ID), humanBytes(h.SizeBytes), e.authorLabel(h.Author), e.fmtTime(h.CreatedAt)})
+					change := h.Change
+					if h.Disputed {
+						change += "?"
+					}
+					rows = append(rows, []string{h.SemVer, change, short(h.ID), h.Name, humanBytes(h.SizeBytes), e.authorLabel(h.Author), dash(h.Reason), e.fmtTime(h.CreatedAt)})
 				}
 				fmt.Fprintln(e.out)
-				e.table([]string{e.t("VERSÃO"), "ID", e.t("TAMANHO"), e.t("AUTOR"), e.t("CRIADO EM")}, rows)
+				e.table([]string{e.t("VERSÃO"), e.t("MUDANÇA"), "ID", e.t("NOME"), e.t("TAMANHO"), e.t("AUTOR"), e.t("MOTIVO"), e.t("CRIADO EM")}, rows)
 				return nil
 			}
-			b, err := cl.ArtifactContent(cmd.Context(), co, args[0], maxArtifactRead)
+			b, err := cl.ArtifactContent(cmd.Context(), co, id, maxArtifactRead)
 			if err != nil {
 				return err
 			}
@@ -149,6 +176,7 @@ func (e *env) artifactCmd() *cobra.Command {
 	}
 	get.Flags().StringVarP(&out, "output", "o", "", e.t("grava neste arquivo (permissão 0600) em vez da saída padrão"))
 	get.Flags().BoolVar(&showVersions, "info", false, e.t("mostra os metadados e o histórico de versões em vez do conteúdo"))
+	get.Flags().StringVar(&version, "version", "", e.t("com o id do documento: a versão MAJOR.MINOR (vazio = a mais nova)"))
 
 	var against string
 	diff := &cobra.Command{
@@ -165,7 +193,7 @@ func (e *env) artifactCmd() *cobra.Command {
 			if e.asJSON {
 				return e.printJSON(d)
 			}
-			fmt.Fprintf(e.out, e.t("v%d → v%d: +%d −%d\n"), d.From, d.To, d.Added, d.Removed)
+			fmt.Fprintf(e.out, e.t("%s → %s: +%d −%d\n"), d.FromSemVer, d.ToSemVer, d.Added, d.Removed)
 			for _, l := range d.Lines {
 				switch l.Op {
 				case "insert":
@@ -194,6 +222,83 @@ func (e *env) artifactCmd() *cobra.Command {
 		},
 	}
 
+	restore := &cobra.Command{
+		Use: "restore " + e.t("<id>"), Short: e.t("Restaura uma versão: o conteúdo dela vira a versão mais nova do documento (major)"), Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			co, err := e.needCompany()
+			if err != nil {
+				return err
+			}
+			a, err := e.client().RestoreArtifact(cmd.Context(), co, args[0])
+			if err != nil {
+				return err
+			}
+			if e.asJSON {
+				return e.printJSON(a)
+			}
+			fmt.Fprintf(e.out, e.t("Restaurada como %s (%s)\n"), a.SemVer, a.ID)
+			return nil
+		},
+	}
+
+	reclassify := &cobra.Command{
+		Use: "reclassify " + e.t("<id>") + " major|minor", Short: e.t("Reclassifica a versão mais nova do documento e a renumera"), Args: cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			co, err := e.needCompany()
+			if err != nil {
+				return err
+			}
+			a, err := e.client().ReclassifyArtifact(cmd.Context(), co, args[0], args[1])
+			if err != nil {
+				return err
+			}
+			if e.asJSON {
+				return e.printJSON(a)
+			}
+			fmt.Fprintf(e.out, e.t("Agora é a versão %s (%s)\n"), a.SemVer, a.Change)
+			return nil
+		},
+	}
+
+	var docProject, docWorkspace string
+	var docTags []string
+	tagCmd := &cobra.Command{
+		Use: "tag " + e.t("<documento>"), Short: e.t("Muda tags, projeto ou workspace de um documento (não cria versão)"), Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			co, err := e.needCompany()
+			if err != nil {
+				return err
+			}
+			var p client.ArtifactDocumentPatch
+			f := cmd.Flags()
+			if f.Changed("tag") {
+				p.Tags = docTags
+				if p.Tags == nil {
+					p.Tags = []string{}
+				}
+			}
+			if f.Changed("project") {
+				p.Project = &docProject
+			}
+			if f.Changed("workspace") {
+				p.Workspace = &docWorkspace
+			}
+			d, err := e.client().UpdateArtifactDocument(cmd.Context(), co, args[0], p)
+			if err != nil {
+				return err
+			}
+			if e.asJSON {
+				return e.printJSON(d)
+			}
+			fmt.Fprintf(e.out, e.t("Documento %s: tags %s\n"), d.Name, dash(strings.Join(d.Tags, ", ")))
+			return nil
+		},
+	}
+	tf := tagCmd.Flags()
+	tf.StringSliceVar(&docTags, "tag", nil, e.t("tag do documento (repita para várias; substitui as atuais)"))
+	tf.StringVar(&docProject, "project", "", e.t("projeto (id ou slug); vazio tira o projeto"))
+	tf.StringVar(&docWorkspace, "workspace", "", e.t("workspace (id ou slug); vazio tira o workspace"))
+
 	usage := &cobra.Command{
 		Use: "usage", Short: e.t("Mostra o espaço de artefatos usado e a cota da empresa"), Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -213,7 +318,7 @@ func (e *env) artifactCmd() *cobra.Command {
 			return nil
 		},
 	}
-	c.AddCommand(put, ls, get, diff, rm, usage)
+	c.AddCommand(put, ls, get, diff, restore, reclassify, tagCmd, rm, usage)
 	return c
 }
 

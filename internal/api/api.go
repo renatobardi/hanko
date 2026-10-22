@@ -186,6 +186,10 @@ type backend interface {
 	ArtifactDiff(ctx context.Context, companyID, from, to domain.ID) (textdiff.Result, error)
 	DeleteArtifact(ctx context.Context, actor domain.Actor, companyID, id domain.ID) error
 	GetArtifactUsage(ctx context.Context, companyID domain.ID) (service.ArtifactUsage, error)
+	ArtifactVersionID(ctx context.Context, companyID, documentID domain.ID, version string) (domain.ID, error)
+	RestoreArtifact(ctx context.Context, actor domain.Actor, companyID, versionID domain.ID, taskID, runID *domain.ID) (service.ArtifactView, error)
+	ReclassifyArtifact(ctx context.Context, actor domain.Actor, companyID, versionID domain.ID, kind domain.ChangeKind) (service.ArtifactView, error)
+	UpdateArtifactDocument(ctx context.Context, actor domain.Actor, companyID, documentID domain.ID, p service.ArtifactDocumentPatch) (domain.ArtifactDocument, error)
 	CreateGoal(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.CreateGoalInput) (domain.Goal, error)
 	UpdateGoal(ctx context.Context, actor domain.Actor, companyID, goalID domain.ID, in service.UpdateGoalInput) (domain.Goal, error)
 	RecordGoalProgress(ctx context.Context, actor domain.Actor, companyID, goalID domain.ID, value float64, note string) (service.GoalView, error)

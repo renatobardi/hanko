@@ -310,10 +310,10 @@
         {
           "id": "knowledge.artifacts",
           "title": {"pt": "Artefatos com versões", "en": "Versioned artifacts"},
-          "surfaces": {"ui": ["GET /c/{company}/artefatos", "GET /c/{company}/artefatos/novo"], "cli": ["artifact put", "artifact list", "artifact diff"], "api": ["put-artifact", "list-artifacts", "diff-artifact"], "mcp": ["hanko_artifact_put"]},
+          "surfaces": {"ui": ["GET /c/{company}/artefatos", "GET /c/{company}/artefatos/novo", "POST /c/{company}/artefatos/{artifact}/restaurar", "POST /c/{company}/artefatos/{artifact}/reclassificar", "POST /c/{company}/artefatos/{artifact}/tags"], "cli": ["artifact put", "artifact list", "artifact diff", "artifact restore", "artifact reclassify", "artifact tag"], "api": ["put-artifact", "list-artifacts", "diff-artifact", "get-artifact-document-version", "restore-artifact", "reclassify-artifact", "update-artifact-document"], "mcp": ["hanko_artifact_put", "hanko_artifact_list", "hanko_artifact_get", "hanko_artifact_restore"]},
           "script": {
-            "pt": "Enviar um arquivo, listar, enviar de novo com o mesmo nome e ver a versão 2.",
-            "en": "Upload a file, list it, upload again with the same name and see version 2."
+            "pt": "Enviar um arquivo (1.0), enviar de novo com o mesmo nome (1.1, minor) e, em Nova versão, declarar major (2.0) mantendo o documento.",
+            "en": "Upload a file (1.0), upload again with the same name (1.1, minor) and, in New version, declare major (2.0) keeping the document."
           },
           "e2e": ["e2e/tests/70-artifacts.spec.ts"],
           "status": "covered"

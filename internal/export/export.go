@@ -202,16 +202,24 @@ type Run struct {
 // Artifact é uma versão de artefato (ADR-0028). Referências por número de task, slug e chave de run, como o resto
 // do arquivo; as versões de um mesmo artefato (task, nome) vêm em ordem crescente.
 type Artifact struct {
-	Name      string    `json:"name"`
-	Mime      string    `json:"mime"`
-	Version   int       `json:"version"`
-	Task      int64     `json:"task,omitempty" doc:"Número da task; ausente = artefato da empresa."`
-	Project   string    `json:"project,omitempty"`
-	Persona   string    `json:"persona,omitempty" doc:"Slug da persona autora."`
-	Run       string    `json:"run,omitempty" doc:"Chave (key) da execução, quando o arquivo traz runs."`
-	Author    Actor     `json:"author"`
-	SHA256    string    `json:"sha256"`
-	SizeBytes int64     `json:"size_bytes"`
-	Content   []byte    `json:"content" doc:"Conteúdo em base64."`
-	CreatedAt time.Time `json:"created_at"`
+	Name    string `json:"name"`
+	Mime    string `json:"mime"`
+	Version int    `json:"version" doc:"Ordinal da publicação dentro do documento (1, 2, 3...)."`
+	// Campos do ADR-0064, opcionais: um arquivo antigo agrupa as versões por (task, nome) e numera vN como N.0.
+	Document        string    `json:"document,omitempty" doc:"Chave do documento no arquivo; versões com a mesma chave são do mesmo documento."`
+	Major           int       `json:"major,omitempty"`
+	Minor           int       `json:"minor,omitempty"`
+	Change          string    `json:"change,omitempty" doc:"major ou minor."`
+	ChangeReason    string    `json:"change_reason,omitempty"`
+	Tags            []string  `json:"tags,omitempty" doc:"Tags do documento."`
+	DocumentProject string    `json:"document_project,omitempty" doc:"Slug do projeto do documento (pode diferir do desta versão)."`
+	Task            int64     `json:"task,omitempty" doc:"Número da task; ausente = artefato da empresa."`
+	Project         string    `json:"project,omitempty"`
+	Persona         string    `json:"persona,omitempty" doc:"Slug da persona autora."`
+	Run             string    `json:"run,omitempty" doc:"Chave (key) da execução, quando o arquivo traz runs."`
+	Author          Actor     `json:"author"`
+	SHA256          string    `json:"sha256"`
+	SizeBytes       int64     `json:"size_bytes"`
+	Content         []byte    `json:"content" doc:"Conteúdo em base64."`
+	CreatedAt       time.Time `json:"created_at"`
 }

@@ -554,19 +554,30 @@ hanko chat list --persona cto
 
 ## Artifacts and goals
 
-**Artifacts** (ADR-0028) are files with immutable versions: the same name on the same task creates the next version; publishing
-the same content again does not create one. The `/artefatos` screen (filters by project, task, persona, type and name; upload;
-a detail page with preview, versions and a text diff) and sections on the task, run and project pages. Roles: viewer reads, member
-publishes, admin deletes (the whole chain, with no trash).
+**Artifacts** (ADR-0028, ADR-0064) are documents with a stable identity and immutable versions numbered **MAJOR.MINOR**. Changing
+one means publishing with the document id (`--artifact`, `artifact=` in MCP): it becomes the next version even under another name
+or on another task. Without an id, the same name on the same task also versions. Publishing the same content again creates no
+version. A change is **major** (heavy) or **minor** (small): the publisher declares it and the server measures the line diff
+(≥ 40 % of the lines suggests major, < 10 % suggests minor); when the measure contradicts the declaration, the declaration wins and
+the version is flagged as "classification questioned". Project, workspace and free tags live on the document and drive filters.
+The `/artefatos` screen (filters by project, task, persona, tag, type and name; upload; a detail page with preview, the major/minor
+history, a text diff, **New version**, **restore** an earlier version (it becomes the latest, always major), **reclassify** the
+latest one, and tags) and sections on the task, run and project pages. Roles: viewer reads; member publishes, restores,
+reclassifies and edits tags; admin deletes (the whole document, with no trash). Deleting a task keeps its artifact versions (only
+attachments go).
 
 | Variable | Default | Effect |
 |---|---|---|
 | `HANKO_ARTIFACT_MAX_BYTES` | 5 MiB (1 to 16 MiB; 64 MiB with S3) | Maximum size of one file. |
 | `HANKO_ARTIFACT_QUOTA_BYTES` | 512 MiB | Company quota, summing every version. |
 
-- **Publishing:** the UI upload, `hanko artifact put <file|-> [--task HNK-1]` (also `list`, `get <id> [-o file] [--info]`,
-  `diff <id> [--against <id>]`, `rm <id>`, `usage`), the `…/artifacts` API and the MCP tool `hanko_artifact_put` (text in `content`,
-  binary in `content_base64`). A persona publishes only on its own task and run.
+- **Publishing:** the UI upload, `hanko artifact put <file|-> [--task HNK-1] [--artifact DOC --change major|minor --reason …]
+  [--tag t]` (also `list [--tag] [--workspace]`, `get <id> [-o file] [--info]` or `get <document> --version 1.2`,
+  `diff <id> [--against <id>]`, `restore <id>`, `reclassify <id> major|minor`, `tag <document> --tag …`, `rm <id>`, `usage`), the
+  `…/artifacts` and `…/artifact-documents/{document}` API and the MCP tools `hanko_artifact_put`, `hanko_artifact_list`,
+  `hanko_artifact_get` and `hanko_artifact_restore`. A persona reads any document of the company and versions those of its task's
+  project (or with no project); the run briefing lists the task's and project's documents and the ones it published, with the id to
+  change them.
 - **Safe serving:** content never becomes a page. Only plain text, Markdown and raster images (png, jpeg, gif, webp) open in the
   browser; HTML, SVG, PDF and everything else download. The response carries `nosniff`, a CSP with `sandbox` and
   `Cross-Origin-Resource-Policy`.
