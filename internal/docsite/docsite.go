@@ -185,7 +185,7 @@ func Build(root fs.FS, opt Options) (*Site, error) {
 func (s *Site) WriteTo(dir string) error {
 	for p, b := range s.Pages {
 		dst := filepath.Join(dir, filepath.FromSlash(p))
-		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil { //nolint:gosec // site público estático; o servidor web precisa ler
 			return err
 		}
 		if err := os.WriteFile(dst, b, 0o644); err != nil { //nolint:gosec // site público estático
