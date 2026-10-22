@@ -34,6 +34,9 @@ type txc struct {
 	cancelled map[domain.ID]bool
 	// wakeCount: quantos wakes esta transação realmente enfileirou (wake pula task pausada, bloqueada ou persona parada).
 	wakeCount int
+	// flowFiring: esta transação está criando a task de um disparo de fluxo; os fatos que isso gera não reavaliam
+	// gatilhos de evento (sem laço, ADR-0047).
+	flowFiring bool
 }
 
 // withTx runs fn in a single transaction. Broker notifications queued by fn are
@@ -119,6 +122,9 @@ func (t *txc) activity(actor domain.Actor, companyID domain.ID, verb, subjectTyp
 		return err
 	}
 	if err := t.enqueuePluginEvents(companyID, verb, actor, row.ID); err != nil {
+		return err
+	}
+	if err := t.dispatchEventTriggers(companyID, verb, actor, subjectType, subjectID, raw, row.ID); err != nil {
 		return err
 	}
 	t.publish(events.CompanyTopic(companyID.String()), "activity", activityFromRow(row))

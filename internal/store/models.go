@@ -189,6 +189,72 @@ type CaseTaskLink struct {
 	CreatedAt      time.Time
 }
 
+type Channel struct {
+	ID               uuid.UUID
+	CompanyID        uuid.UUID
+	Kind             string
+	Name             string
+	Enabled          bool
+	PersonaID        *uuid.UUID
+	ProjectID        *uuid.UUID
+	TokenRef         string
+	WebhookSecretRef string
+	Config           []byte
+	InboundToken     string
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+}
+
+type ChannelIdentity struct {
+	ID            uuid.UUID
+	CompanyID     uuid.UUID
+	ChannelID     uuid.UUID
+	UserID        uuid.UUID
+	ExternalID    *string
+	ExternalLabel string
+	Status        string
+	CodeHash      string
+	CodeExpiresAt *time.Time
+	LinkedAt      *time.Time
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
+type ChannelMessage struct {
+	ID            uuid.UUID
+	CompanyID     uuid.UUID
+	ChannelID     uuid.UUID
+	Direction     string
+	Kind          string
+	Peer          string
+	IdentityID    *uuid.UUID
+	ExternalID    *string
+	Body          string
+	Payload       []byte
+	SubjectType   string
+	SubjectID     *uuid.UUID
+	Status        string
+	StatusReason  string
+	Attempts      int32
+	LastError     string
+	ProviderMsgID string
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	SentAt        *time.Time
+}
+
+type ChannelThread struct {
+	ID             uuid.UUID
+	CompanyID      uuid.UUID
+	ChannelID      uuid.UUID
+	Peer           string
+	IdentityID     *uuid.UUID
+	ConversationID *uuid.UUID
+	TaskID         *uuid.UUID
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
 type CliAuthRequest struct {
 	ID        uuid.UUID
 	CodeHash  string
@@ -470,6 +536,9 @@ type Flow struct {
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 	SearchTsv       interface{}
+	Variables       []byte
+	Revision        int32
+	ArchivedAt      *time.Time
 }
 
 type FlowFire struct {
@@ -480,6 +549,41 @@ type FlowFire struct {
 	TaskID       *uuid.UUID
 	CreatedAt    time.Time
 	Manual       bool
+	Source       string
+	TriggerID    *uuid.UUID
+	DedupeKey    string
+	Variables    []byte
+}
+
+type FlowRevision struct {
+	ID           uuid.UUID
+	CompanyID    uuid.UUID
+	FlowID       uuid.UUID
+	Revision     int32
+	Snapshot     []byte
+	Summary      string
+	ActorType    string
+	ActorID      *uuid.UUID
+	Origin       string
+	RestoredFrom *int32
+	CreatedAt    time.Time
+}
+
+type FlowTrigger struct {
+	ID          uuid.UUID
+	CompanyID   uuid.UUID
+	FlowID      uuid.UUID
+	Kind        string
+	Name        string
+	Enabled     bool
+	SecretRef   string
+	RatePerMin  int32
+	EventVerb   string
+	EventFilter []byte
+	Mapping     []byte
+	LastFiredAt *time.Time
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 type Gate struct {
