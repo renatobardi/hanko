@@ -45,6 +45,10 @@ func skillFromRow(r store.Skill) domain.Skill {
 	if r.SourceCommit != nil {
 		k.SourceCommit = *r.SourceCommit
 	}
+	k.ForkedFromID = r.ForkedFromID
+	if r.ForkedFromRevision != nil {
+		k.ForkedFromRevision = int(*r.ForkedFromRevision)
+	}
 	return k
 }
 

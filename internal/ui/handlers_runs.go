@@ -159,6 +159,17 @@ func (s *server) handleRun(w http.ResponseWriter, r *http.Request, co domain.Com
 	vm := s.runVM(ctx, co, rv, "", lines, last)
 	vm.IslandAPI, vm.LogMsgs, vm.TZ, vm.Lang = islandAPI(co), runLogMsgs(ctx), co.Timezone, string(i18n.FromContext(ctx))
 	vm.AnchorMsgs, vm.SummaryDoc = anchorMsgs(ctx), docOf(rv.Summary)
+	if rb, ok := s.be.(runSkillsBackend); ok { // skills e revisões da run (ADR-0044)
+		if list, err := rb.ListRunSkills(ctx, co.ID, rv.ID); err == nil {
+			for _, k := range list {
+				label := k.Slug + " v" + strconv.Itoa(k.Revision)
+				if k.Pinned {
+					label += " (" + i18n.T(ctx, "fixada") + ")"
+				}
+				vm.Skills = append(vm.Skills, label)
+			}
+		}
+	}
 	const runArtifactsMax = 20
 	arts, err := s.be.ListArtifacts(ctx, co.ID, service.ArtifactFilter{RunID: &rv.ID, AllVersions: true, Limit: runArtifactsMax})
 	if err != nil {
@@ -456,4 +467,9 @@ func subscriptionLabel(ctx context.Context, id *domain.ID) string {
 		return "—"
 	}
 	return i18n.T(ctx, "coberta por assinatura")
+}
+
+// runSkillsBackend lista as skills (e revisões) que uma run recebeu (ADR-0044); opcional como os demais.
+type runSkillsBackend interface {
+	ListRunSkills(ctx context.Context, companyID, runID domain.ID) ([]service.RunSkill, error)
 }

@@ -56,6 +56,9 @@ func (s *Service) toolEndpoint(ctx context.Context, integ store.Integration) (mc
 	if err != nil {
 		return mcpupstream.Endpoint{}, fmt.Errorf("destino não permitido: %w", err)
 	}
+	if err := s.ensureConnectionFresh(ctx, integ); err != nil { // integração de uma conexão OAuth (ADR-0043)
+		return mcpupstream.Endpoint{}, err
+	}
 	sec, err := s.openResolved(ctx, integ.CompanyID, integ.ID, integ.SecretEnc)
 	if err != nil {
 		return mcpupstream.Endpoint{}, fmt.Errorf("segredos ilegíveis ou referência indisponível: %w", err)

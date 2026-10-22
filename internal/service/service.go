@@ -87,6 +87,9 @@ type Service struct {
 	// ArtifactMaxBytes é o tamanho máximo de um artefato (HANKO_ARTIFACT_MAX_BYTES) e ArtifactQuotaBytes a cota
 	// por empresa, somando todas as versões (HANKO_ARTIFACT_QUOTA_BYTES); zero usa os padrões (5 MiB e 512 MiB).
 	ArtifactMaxBytes, ArtifactQuotaBytes int64
+	// PublicURL é a URL pública da instalação (HANKO_PUBLIC_URL): o OAuth das conexões volta por PublicURL/oauth/callback
+	// (ADR-0043). Vazio = conexões OAuth não conseguem autorizar.
+	PublicURL string
 	// Integrations é a política e o cofre das integrações (ADR-0029). O zero value é o seguro: stdio desligado,
 	// destinos internos bloqueados e sem chave de cifragem.
 	Integrations IntegrationsConfig
