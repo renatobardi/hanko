@@ -101,9 +101,16 @@ func BuildArgsWith(spec adapter.Spec, cfg Config, mcpFile, skillsDir, settingsFi
 	if mcpFile != "" {
 		args = append(args, "--mcp-config", mcpFile)
 		if !spec.ReadOnly {
-			// Headless (-p) nega tool MCP sem permissão explícita: libera só o servidor do próprio Hanko
-			// (o token da run já limita o escopo). Revisão somente leitura não recebe a liberação.
+			// Headless (-p) nega tool MCP sem permissão explícita: libera o servidor do próprio Hanko (o token da run
+			// já limita o escopo) e os do gateway de tools, onde perfil, política e gate decidem cada chamada
+			// (ADR-0059). Revisão somente leitura não recebe a liberação; o plano (PlanOnly) só recebe a do Hanko,
+			// porque uma tool de integração pode escrever fora do workspace.
 			args = append(args, "--allowedTools", "mcp__hanko")
+			if !spec.PlanOnly {
+				for _, name := range spec.GatewayMCP {
+					args = append(args, "mcp__"+mcpServerName(name))
+				}
+			}
 		}
 	}
 	if skillsDir != "" {
@@ -119,6 +126,17 @@ func BuildArgsWith(spec adapter.Spec, cfg Config, mcpFile, skillsDir, settingsFi
 		return args // persona extra_args could re-enable writes
 	}
 	return append(args, cfg.ExtraArgs...)
+}
+
+// mcpServerName normaliza o nome de um servidor MCP como o claude faz ao nomear as tools (mcp__<servidor>__<tool>):
+// o que não é letra, dígito, _ ou - vira _.
+func mcpServerName(name string) string {
+	return strings.Map(func(r rune) rune {
+		if r == '_' || r == '-' || (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
+			return r
+		}
+		return '_'
+	}, name)
 }
 
 // Run executes the harness. Cancelling ctx terminates the whole process group; the
