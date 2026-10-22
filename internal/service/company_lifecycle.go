@@ -240,13 +240,13 @@ func (s *Service) RestoreCompany(ctx context.Context, actor domain.Actor, compan
 				if err != nil {
 					return fmt.Errorf("get flow: %w", err)
 				}
-				next, err := NextCron(f.Cron, f.Timezone, t.now)
-				if err != nil {
-					continue // cron que deixou de valer: o fluxo fica desligado
+				next, err := nextOrNil(f.Cron, f.Timezone, t.now)
+				if err != nil || f.ArchivedAt != nil {
+					continue // cron que deixou de valer (ou fluxo arquivado): o fluxo fica desligado
 				}
 				if _, err := t.q.UpdateFlow(ctx, store.UpdateFlowParams{Name: f.Name, Description: f.Description, Cron: f.Cron,
 					Timezone: f.Timezone, Enabled: true, PersonaID: f.PersonaID, ProjectID: f.ProjectID, Priority: f.Priority,
-					TaskTitle: f.TaskTitle, TaskDescription: f.TaskDescription, NextFireAt: &next, Now: t.now,
+					TaskTitle: f.TaskTitle, TaskDescription: f.TaskDescription, NextFireAt: next, Now: t.now,
 					CompanyID: companyID, ID: fid}); err != nil {
 					return mapErr(err, "enable flow")
 				}

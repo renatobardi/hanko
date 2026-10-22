@@ -49,7 +49,7 @@ type Secret struct {
 
 // SecretUse é um lugar que referencia o segredo.
 type SecretUse struct {
-	Kind string `json:"kind"` // persona | integration
+	Kind string `json:"kind"` // persona | integration | decision | flow_trigger | channel
 	Slug string `json:"slug"`
 	Name string `json:"name"`
 }

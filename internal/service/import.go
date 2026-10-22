@@ -464,8 +464,13 @@ func (s *Service) planImport(ctx context.Context, doc export.Document, opts Impo
 		if strings.TrimSpace(x.Name) == "" {
 			return p, domain.Invalid(iv("flows", i, "name"), "required")
 		}
-		if _, err := ParseCron(x.Cron, x.Timezone); err != nil {
-			return p, domain.Invalid(iv("flows", i, "cron"), err.Error())
+		if strings.TrimSpace(x.Cron) != "" {
+			if _, err := ParseCron(x.Cron, x.Timezone); err != nil {
+				return p, domain.Invalid(iv("flows", i, "cron"), err.Error())
+			}
+		}
+		if _, err := importFlowVariables(x); err != nil {
+			return p, domain.Invalid(iv("flows", i, "variables"), err.Error())
 		}
 		if x.Persona == "" {
 			return p, domain.Invalid(iv("flows", i, "persona"), "required")
@@ -805,15 +810,19 @@ func (t *txc) runImport(cid domain.ID, doc export.Document, p importPlan, opts I
 
 	for _, x := range doc.Flows {
 		enabled := x.Enabled && opts.Active
-		next, err := NextCron(x.Cron, x.Timezone, t.now)
+		next, err := nextOrNil(cleanCron(x.Cron), x.Timezone, t.now)
 		if err != nil {
 			return err
 		}
-		if _, err := t.q.ImportFlow(ctx, store.ImportFlowParams{ID: domain.NewID(), CompanyID: cid, Slug: x.Slug, Name: strings.TrimSpace(x.Name),
-			Description: x.Description, Cron: strings.TrimSpace(x.Cron), Timezone: x.Timezone, Enabled: enabled, PersonaID: peID[x.Persona],
+		row, err := t.q.ImportFlow(ctx, store.ImportFlowParams{ID: domain.NewID(), CompanyID: cid, Slug: x.Slug, Name: strings.TrimSpace(x.Name),
+			Description: x.Description, Cron: cleanCron(x.Cron), Timezone: x.Timezone, Enabled: enabled, PersonaID: peID[x.Persona],
 			ProjectID: optID(prID, x.Project), Priority: x.Priority, TaskTitle: x.TaskTitle, TaskDescription: x.TaskDescription,
-			NextFireAt: &next, CreatedAt: x.CreatedAt, UpdatedAt: x.CreatedAt}); err != nil {
+			NextFireAt: next, CreatedAt: x.CreatedAt, UpdatedAt: x.CreatedAt})
+		if err != nil {
 			return mapErr(err, "import flow "+x.Slug)
+		}
+		if err := t.afterFlowImport(row.ID, x, false); err != nil {
+			return err
 		}
 	}
 

@@ -372,22 +372,26 @@ func (c CostQuery) values() url.Values {
 }
 
 type CreateFlowReq struct {
-	Name            string `json:"name"`
-	Slug            string `json:"slug,omitempty"`
-	Description     string `json:"description,omitempty"`
-	Cron            string `json:"cron"`
-	Timezone        string `json:"timezone,omitempty"`
-	Enabled         *bool  `json:"enabled,omitempty"`
-	Persona         string `json:"persona"`
-	Project         string `json:"project,omitempty"`
-	Priority        string `json:"priority,omitempty"`
-	TaskTitle       string `json:"task_title,omitempty"`
-	TaskDescription string `json:"task_description,omitempty"`
+	Name            string             `json:"name"`
+	Slug            string             `json:"slug,omitempty"`
+	Description     string             `json:"description,omitempty"`
+	Cron            string             `json:"cron,omitempty"`
+	Timezone        string             `json:"timezone,omitempty"`
+	Enabled         *bool              `json:"enabled,omitempty"`
+	Persona         string             `json:"persona"`
+	Project         string             `json:"project,omitempty"`
+	Priority        string             `json:"priority,omitempty"`
+	TaskTitle       string             `json:"task_title,omitempty"`
+	TaskDescription string             `json:"task_description,omitempty"`
+	Variables       []api.FlowVariable `json:"variables,omitempty"`
 }
 
 type UpdateFlowReq struct {
-	Enabled *bool   `json:"enabled,omitempty"`
-	Cron    *string `json:"cron,omitempty"`
+	Enabled         *bool               `json:"enabled,omitempty"`
+	Cron            *string             `json:"cron,omitempty"`
+	TaskTitle       *string             `json:"task_title,omitempty"`
+	TaskDescription *string             `json:"task_description,omitempty"`
+	Variables       *[]api.FlowVariable `json:"variables,omitempty"`
 }
 
 // ---------- operações ----------

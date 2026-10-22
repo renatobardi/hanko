@@ -263,7 +263,7 @@ INSERT INTO flows (id, company_id, slug, name, description, cron, timezone, enab
                    priority, task_title, task_description, next_fire_at, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
         $11, $12, $13, $14, $15, $16)
-RETURNING id, company_id, slug, name, description, cron, timezone, enabled, persona_id, project_id, priority, task_title, task_description, last_fired_at, next_fire_at, created_at, updated_at, search_tsv
+RETURNING id, company_id, slug, name, description, cron, timezone, enabled, persona_id, project_id, priority, task_title, task_description, last_fired_at, next_fire_at, created_at, updated_at, search_tsv, variables, revision, archived_at
 `
 
 type ImportFlowParams struct {
@@ -324,6 +324,9 @@ func (q *Queries) ImportFlow(ctx context.Context, arg ImportFlowParams) (Flow, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.SearchTsv,
+		&i.Variables,
+		&i.Revision,
+		&i.ArchivedAt,
 	)
 	return i, err
 }
