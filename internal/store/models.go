@@ -798,6 +798,15 @@ type ModelReport struct {
 	LastSeenAt time.Time
 }
 
+type NavItem struct {
+	CompanyID uuid.UUID
+	Subject   string
+	Kind      string
+	Path      string
+	Title     string
+	TouchedAt time.Time
+}
+
 type NotificationPref struct {
 	CompanyID uuid.UUID
 	UserID    uuid.UUID
@@ -805,6 +814,20 @@ type NotificationPref struct {
 	Toast     bool
 	Push      bool
 	UpdatedAt time.Time
+}
+
+type OnboardingState struct {
+	CompanyID        uuid.UUID
+	HarnessAgent     string
+	HarnessModel     string
+	HarnessStatus    string
+	HarnessReason    string
+	HarnessSteps     []byte
+	HarnessCheckedAt *time.Time
+	Skipped          []string
+	FirstTaskID      *uuid.UUID
+	DismissedAt      *time.Time
+	UpdatedAt        time.Time
 }
 
 type OwnerClaim struct {
@@ -1722,6 +1745,22 @@ type User struct {
 	CreatedAt    time.Time
 	LastLoginAt  *time.Time
 	Invited      bool
+}
+
+type UserDismissal struct {
+	Subject   string
+	Key       string
+	Value     string
+	UpdatedAt time.Time
+}
+
+type UserProfile struct {
+	UserID      uuid.UUID
+	AvatarGlyph string
+	AvatarTone  string
+	Timezone    string
+	Locale      string
+	UpdatedAt   time.Time
 }
 
 type WakeRequest struct {
