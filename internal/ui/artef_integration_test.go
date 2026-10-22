@@ -139,7 +139,7 @@ func TestRealArtifactUploadServeAndDiff(t *testing.T) {
 
 	mustContain(t, u.get("/c/acme/artefatos"), 200, "plano.md", "v2", tk.Key)
 	mustContain(t, u.get("/c/acme/artefatos/"+v2+"?ok=enviado"), 200, "<h1>dois</h1>", "comparar com a anterior", "Artefato enviado.")
-	mustContain(t, u.get("/c/acme/artefatos/"+v2+"?contra="+v1), 200, "Diferenças: v1 → v2", "diff-row add", "diff-row del", "linha nova")
+	mustContain(t, u.get("/c/acme/artefatos/"+v2+"?contra="+v1), 200, "Diferenças: 1.0 → 2.0", "diff-row add", "diff-row del", "linha nova")
 	mustContain(t, u.get("/c/acme/tasks/"+tk.Key), 200, "plano.md")
 
 	// conteúdo: HTML nunca abre no navegador
