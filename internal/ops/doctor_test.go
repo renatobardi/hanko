@@ -203,6 +203,16 @@ func TestDoctorMemory(t *testing.T) {
 	if c := byName(Doctor(context.Background(), e), "ai-memory"); c.Status != Warn || !strings.Contains(c.Detail, "503") {
 		t.Fatalf("%+v", c)
 	}
+	// com o provider, vale o Ping dele (que cai na tool MCP quando a imagem não tem /health) e não o GET direto
+	h.hit = ""
+	e.MemoryPing = func(context.Context) error { return nil }
+	if c := byName(Doctor(context.Background(), e), "ai-memory"); c.Status != OK || h.hit != "" {
+		t.Fatalf("ping ok: %+v hit=%s", c, h.hit)
+	}
+	e.MemoryPing = func(context.Context) error { return errors.New("memory_status: recusado") }
+	if c := byName(Doctor(context.Background(), e), "ai-memory"); c.Status != Warn || !strings.Contains(c.Detail, "memory_status") {
+		t.Fatalf("ping falhou: %+v", c)
+	}
 	e.Cfg.Memory.Provider = config.MemoryNone
 	if c := byName(Doctor(context.Background(), e), "ai-memory"); c.Status != Skip {
 		t.Fatalf("%+v", c)

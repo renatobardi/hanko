@@ -226,9 +226,12 @@ func (e *env) updateCmd() *cobra.Command {
 				if e.asJSON {
 					return e.printJSON(plan)
 				}
-				if plan.Newer {
+				switch {
+				case plan.Dev: // um build de commit não se compara com o canal: anunciar "versão nova" seria pedir um downgrade
+					fmt.Fprintf(e.out, e.t("Build de desenvolvimento (%s): o canal %s está em %s. Não dá para saber se é mais nova; atualize pelo mesmo processo que instalou este build.\n"), plan.Current, plan.Channel, plan.Latest)
+				case plan.Newer:
 					fmt.Fprintf(e.out, e.t("Há versão nova no canal %s: %s (atual: %s). Rode `hanko update` para atualizar.\n"), plan.Channel, plan.Latest, plan.Current)
-				} else {
+				default:
 					fmt.Fprintf(e.out, e.t("Nada a atualizar: %s é a mais nova do canal %s.\n"), plan.Current, plan.Channel)
 				}
 				return nil

@@ -79,6 +79,9 @@ type DoctorEnv struct {
 	Dial func(ctx context.Context, addr string) error
 	// DiskFree devolve bytes livres do sistema de arquivos de path.
 	DiskFree func(path string) (uint64, error)
+	// MemoryPing verifica o ai-memory pelo provider (o /health, se a imagem tiver, senão a tool MCP memory_status);
+	// nulo cai no GET /health direto.
+	MemoryPing func(ctx context.Context) error
 	// LastBackup devolve quando foi o backup mais recente (zero: nenhum); nulo pula a checagem.
 	LastBackup func() (time.Time, error)
 	Now        func() time.Time
@@ -241,8 +244,17 @@ func checkMemory(ctx context.Context, e DoctorEnv) Check {
 	if e.Cfg.Memory.Provider != config.MemoryAIMemory {
 		return Check{Name: "ai-memory", Status: Skip, Detail: "memória desligada (HANKO_MEMORY_PROVIDER=" + e.Cfg.Memory.Provider + ")"}
 	}
-	if e.HTTP == nil || e.Cfg.Memory.URL == "" {
+	if e.Cfg.Memory.URL == "" || (e.HTTP == nil && e.MemoryPing == nil) {
 		return Check{Name: "ai-memory", Status: Skip, Detail: "sem URL configurada"}
+	}
+	if e.MemoryPing != nil {
+		pctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		if err := e.MemoryPing(pctx); err != nil {
+			return Check{Name: "ai-memory", Status: Warn, Detail: "sem resposta em " + e.Cfg.Memory.URL + ": " + redact(err.Error(), e.Cfg.Memory.Token),
+				Hint: "o Hanko segue sem memória (os fatos esperam na outbox); suba o ai-memory ou use HANKO_MEMORY_PROVIDER=none"}
+		}
+		return Check{Name: "ai-memory", Status: OK, Detail: "saudável em " + e.Cfg.Memory.URL}
 	}
 	hctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
