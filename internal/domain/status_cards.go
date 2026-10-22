@@ -67,6 +67,7 @@ const (
 	CardTriggerReactive CardUpdateTrigger = "reactive" // política assim que algo mudar
 	CardTriggerRestore  CardUpdateTrigger = "restore"  // card restaurado do arquivo
 	CardTriggerQuery    CardUpdateTrigger = "query"    // primeira atualização depois de a resumidora gravar os filtros
+	CardTriggerCron     CardUpdateTrigger = "cron"     // política de cron (ADR-0048)
 )
 
 // CardUpdateStatus é o desfecho de uma rodada.
@@ -83,7 +84,23 @@ const (
 	CardModeManual   = "manual"
 	CardModeInterval = "interval"
 	CardModeReactive = "reactive"
+	// CardModeCron atualiza num horário de cron (ADR-0048): "toda manhã às 7h", independente de mudanças (a menos que
+	// CronSkipUnchanged).
+	CardModeCron = "cron"
 )
+
+// CardEngine diz quem escreve o resumo do card.
+type CardEngine string
+
+const (
+	// CardEnginePersona é a persona resumidora (ADR-0032): uma run completa, com tools.
+	CardEnginePersona CardEngine = "persona"
+	// CardEngineDecision é o decision model da empresa (ADR-0056): uma chamada só, barata, sobre o retrato das tasks.
+	CardEngineDecision CardEngine = "decision"
+)
+
+// Valid diz se e é um motor conhecido.
+func (e CardEngine) Valid() bool { return e == CardEnginePersona || e == CardEngineDecision }
 
 // Limites (ADR-0032).
 const (
@@ -203,6 +220,11 @@ type CardPolicy struct {
 	Triggers          CardTriggers `json:"triggers"`
 	ActiveHours       *ActiveHours `json:"active_hours,omitempty"`
 	DailyTokenCap     int64        `json:"daily_token_cap"`
+	// Cron e CronTZ valem no modo cron (expressão de 5 campos e fuso IANA; padrão do fuso: UTC).
+	Cron   string `json:"cron,omitempty"`
+	CronTZ string `json:"cron_tz,omitempty"`
+	// CronSkipUnchanged: no horário do cron, só atualiza se alguma task observada mudou.
+	CronSkipUnchanged bool `json:"cron_skip_unchanged,omitempty"`
 }
 
 // DefaultCardPolicy é a política de um card novo: assim que algo mudar (com espera), status, entrada/saída e
@@ -221,8 +243,20 @@ func (p *CardPolicy) Normalize() error {
 	}
 	switch p.Mode {
 	case CardModeManual, CardModeInterval, CardModeReactive:
+	case CardModeCron:
+		p.Cron = strings.TrimSpace(p.Cron)
+		if p.Cron == "" {
+			return Invalid("refresh_policy.cron", "informe a expressão cron (5 campos)")
+		}
+		p.CronTZ = strings.TrimSpace(p.CronTZ)
+		if p.CronTZ == "" {
+			p.CronTZ = "UTC"
+		}
+		if _, err := time.LoadLocation(p.CronTZ); err != nil {
+			return Invalid("refresh_policy.cron_tz", "fuso desconhecido")
+		}
 	default:
-		return Invalid("refresh_policy.mode", "use manual, interval ou reactive")
+		return Invalid("refresh_policy.mode", "use manual, interval, reactive ou cron")
 	}
 	if p.IntervalMinutes == 0 {
 		p.IntervalMinutes = d.IntervalMinutes
@@ -247,6 +281,9 @@ func (p *CardPolicy) Normalize() error {
 	}
 	if p.DailyTokenCap < 1000 || p.DailyTokenCap > 100_000_000 {
 		return Invalid("refresh_policy.daily_token_cap", "de 1.000 a 100.000.000 tokens")
+	}
+	if p.Mode == CardModeCron && p.Triggers == (CardTriggers{}) {
+		p.Triggers = d.Triggers // no cron os gatilhos só valem para "atualizar só se mudou"
 	}
 	t := p.Triggers
 	if !t.Status && !t.Membership && !t.HumanComments && !t.Assignee && !t.AnyUpdate {
@@ -511,9 +548,15 @@ type StatusCard struct {
 	FailureReason       string            `json:"failure_reason,omitempty"`
 	NextEvalAt          *time.Time        `json:"next_eval_at,omitempty"`
 	ArchivedAt          *time.Time        `json:"archived_at,omitempty"`
-	CreatedBy           Actor             `json:"created_by"`
-	CreatedAt           time.Time         `json:"created_at"`
-	UpdatedAt           time.Time         `json:"updated_at"`
+	// Engine, ArtifactName, ArtifactID e OnDashboard são do ADR-0048: quem escreve o resumo, o artefato versionado que
+	// guarda o resultado (a versão mais nova) e a presença no Painel.
+	Engine       CardEngine `json:"engine"`
+	ArtifactName string     `json:"artifact_name,omitempty"`
+	ArtifactID   *ID        `json:"artifact_id,omitempty"`
+	OnDashboard  bool       `json:"on_dashboard"`
+	CreatedBy    Actor      `json:"created_by"`
+	CreatedAt    time.Time  `json:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
 }
 
 // View é o estado que a UI mostra (ordem do ADR-0032): arquivado, montando, erro, pausado por orçamento,
@@ -530,7 +573,7 @@ func (c StatusCard) View() StatusCardView {
 		return CardViewPausedBudget
 	case c.State == CardPausedHours:
 		return CardViewPausedHours
-	case c.GeneratingTaskID != nil:
+	case c.GeneratingTaskID != nil || (c.Engine == CardEngineDecision && c.GeneratingSince != nil):
 		return CardViewUpdating
 	case c.PendingChangeCount > 0:
 		return CardViewStale

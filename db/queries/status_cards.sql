@@ -180,6 +180,15 @@ LEFT JOIN personas p ON p.id = t.persona_id
 WHERE t.company_id = @company_id AND t.id = ANY(@ids::uuid[])
 ORDER BY t.number;
 
+-- name: GetRunningDecisionCardUpdateForUpdate :one
+-- A rodada em andamento de um card cujo motor é o decision model (sem task de sistema).
+SELECT * FROM status_card_updates
+WHERE card_id = @card_id::uuid AND task_id IS NULL AND status = 'running'
+ORDER BY started_at DESC LIMIT 1 FOR UPDATE;
+
+-- name: GetStatusCardUpdateForUpdate :one
+SELECT * FROM status_card_updates WHERE id = @id::uuid FOR UPDATE;
+
 -- name: SetStatusCardDelivery :exec
 -- Motor (persona ou decision model), nome do artefato e presença no Painel (ADR-0048). O nome só é gravado uma vez.
 UPDATE status_cards

@@ -25,6 +25,8 @@ const (
 	FeatureTriage          DecisionFeature = "triage"
 	FeaturePhaseClassifier DecisionFeature = "phase_classifier"
 	FeatureNameSummary     DecisionFeature = "name_summary"
+	// FeatureCardSummary escreve o resumo de um card de status cujo motor é o decision model (ADR-0048).
+	FeatureCardSummary DecisionFeature = "card_summary"
 )
 
 // DecisionFeatureSpec descreve uma feature registrada.
@@ -39,6 +41,7 @@ var DecisionFeatures = []DecisionFeatureSpec{
 	{FeatureTriage, "Triagem", "Sugere a persona e a prioridade para uma task nova, como comentário do sistema."},
 	{FeaturePhaseClassifier, "Classificador de fase", "Sugere em qual etapa de um pipeline um texto se encaixa."},
 	{FeatureNameSummary, "Nome e resumo", "Gera um nome curto e um resumo para um texto longo."},
+	{FeatureCardSummary, "Resumo de card de status", "Escreve o resumo dos cards de status que usam o decision model como motor."},
 }
 
 // Valid diz se f é uma feature registrada.

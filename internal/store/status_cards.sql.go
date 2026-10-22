@@ -157,6 +157,40 @@ func (q *Queries) FinishStatusCardUpdate(ctx context.Context, arg FinishStatusCa
 	return i, err
 }
 
+const getRunningDecisionCardUpdateForUpdate = `-- name: GetRunningDecisionCardUpdateForUpdate :one
+SELECT id, company_id, card_id, kind, trigger, task_id, run_id, changes, fingerprint, input_tokens, output_tokens, cost_usd, model, query_version, change_summary, started_at, finished_at, status, error FROM status_card_updates
+WHERE card_id = $1::uuid AND task_id IS NULL AND status = 'running'
+ORDER BY started_at DESC LIMIT 1 FOR UPDATE
+`
+
+// A rodada em andamento de um card cujo motor é o decision model (sem task de sistema).
+func (q *Queries) GetRunningDecisionCardUpdateForUpdate(ctx context.Context, cardID uuid.UUID) (StatusCardUpdate, error) {
+	row := q.db.QueryRow(ctx, getRunningDecisionCardUpdateForUpdate, cardID)
+	var i StatusCardUpdate
+	err := row.Scan(
+		&i.ID,
+		&i.CompanyID,
+		&i.CardID,
+		&i.Kind,
+		&i.Trigger,
+		&i.TaskID,
+		&i.RunID,
+		&i.Changes,
+		&i.Fingerprint,
+		&i.InputTokens,
+		&i.OutputTokens,
+		&i.CostUsd,
+		&i.Model,
+		&i.QueryVersion,
+		&i.ChangeSummary,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.Status,
+		&i.Error,
+	)
+	return i, err
+}
+
 const getStatusCard = `-- name: GetStatusCard :one
 SELECT id, company_id, title, title_pinned, interest, interest_hash, summarizer_persona_id, queries, query_version, query_compiled_at, refresh_policy, state, pending_change_count, pending_change_hash, last_change_at, fingerprint, fingerprint_at, mentioned_task_ids, summary, summary_revision, summary_query_version, incrementals_since_full, last_update_kind, last_generated_at, last_model, generating_task_id, generating_since, failure_reason, next_eval_at, archived_at, created_by_type, created_by_id, created_at, updated_at, engine, artifact_name, artifact_id, on_dashboard FROM status_cards WHERE company_id = $1 AND id = $2
 `
@@ -443,6 +477,37 @@ SELECT id, company_id, card_id, kind, trigger, task_id, run_id, changes, fingerp
 
 func (q *Queries) GetStatusCardUpdateByTaskForUpdate(ctx context.Context, taskID uuid.UUID) (StatusCardUpdate, error) {
 	row := q.db.QueryRow(ctx, getStatusCardUpdateByTaskForUpdate, taskID)
+	var i StatusCardUpdate
+	err := row.Scan(
+		&i.ID,
+		&i.CompanyID,
+		&i.CardID,
+		&i.Kind,
+		&i.Trigger,
+		&i.TaskID,
+		&i.RunID,
+		&i.Changes,
+		&i.Fingerprint,
+		&i.InputTokens,
+		&i.OutputTokens,
+		&i.CostUsd,
+		&i.Model,
+		&i.QueryVersion,
+		&i.ChangeSummary,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.Status,
+		&i.Error,
+	)
+	return i, err
+}
+
+const getStatusCardUpdateForUpdate = `-- name: GetStatusCardUpdateForUpdate :one
+SELECT id, company_id, card_id, kind, trigger, task_id, run_id, changes, fingerprint, input_tokens, output_tokens, cost_usd, model, query_version, change_summary, started_at, finished_at, status, error FROM status_card_updates WHERE id = $1::uuid FOR UPDATE
+`
+
+func (q *Queries) GetStatusCardUpdateForUpdate(ctx context.Context, id uuid.UUID) (StatusCardUpdate, error) {
+	row := q.db.QueryRow(ctx, getStatusCardUpdateForUpdate, id)
 	var i StatusCardUpdate
 	err := row.Scan(
 		&i.ID,

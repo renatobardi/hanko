@@ -55,8 +55,11 @@ func (r evalReason) trigger(mode string) domain.CardUpdateTrigger {
 	case evalQuery:
 		return domain.CardTriggerQuery
 	}
-	if mode == domain.CardModeInterval {
+	switch mode {
+	case domain.CardModeInterval:
 		return domain.CardTriggerInterval
+	case domain.CardModeCron:
+		return domain.CardTriggerCron
 	}
 	return domain.CardTriggerReactive
 }
@@ -243,6 +246,8 @@ func nextCardPoll(pol domain.CardPolicy, row store.StatusCard, now time.Time) ti
 			}
 		}
 		return next
+	case domain.CardModeCron:
+		return nextCronPoll(pol, row.LastGeneratedAt, now)
 	}
 	return now.Add(cardPollReactive)
 }
@@ -256,9 +261,19 @@ func (t *txc) evaluateCard(row store.StatusCard, reason evalReason) (store.Statu
 		row.NextEvalAt = next
 		return t.saveCard(row)
 	}
+	decision := domain.CardEngine(row.Engine) == domain.CardEngineDecision
 	switch {
 	case row.ArchivedAt != nil:
 		return save(nil)
+	case decision && row.GeneratingSince != nil:
+		if now.Sub(*row.GeneratingSince) >= cardDecisionTimeout {
+			return t.failDecisionGeneration(row, "A geração pelo decision model não terminou (o Hanko reiniciou ou o modelo não respondeu). Rode de novo para tentar outra vez.")
+		}
+		if reason.explicit() {
+			return store.StatusCard{}, fmt.Errorf("o card já está sendo atualizado: %w", domain.ErrConflict)
+		}
+		until := row.GeneratingSince.Add(cardDecisionTimeout)
+		return save(&until)
 	case row.GeneratingTaskID != nil:
 		if row.GeneratingSince == nil || now.Sub(*row.GeneratingSince) >= domain.CardGenerationTimeout {
 			return t.failCardGeneration(row, "A geração não terminou em 2 h (resumidora pausada, sem orçamento ou fila parada). Rode de novo para tentar outra vez.")
@@ -268,7 +283,7 @@ func (t *txc) evaluateCard(row store.StatusCard, reason evalReason) (store.Statu
 		}
 		until := row.GeneratingSince.Add(domain.CardGenerationTimeout)
 		return save(&until)
-	case row.SummarizerPersonaID == nil:
+	case !decision && row.SummarizerPersonaID == nil:
 		if reason.explicit() {
 			return store.StatusCard{}, domain.Invalid("summarizer", "escolha a persona resumidora antes de atualizar o card")
 		}
@@ -326,10 +341,12 @@ func (t *txc) evaluateCard(row store.StatusCard, reason evalReason) (store.Statu
 	}
 	if !reason.explicit() {
 		due := false
-		pending := len(changes) > 0 || !hasSummary
+		pending := len(changes) > 0 || !hasSummary || (decision && row.SummaryQueryVersion != row.QueryVersion)
 		switch pol.Mode {
 		case domain.CardModeInterval:
 			due = pending && (row.LastGeneratedAt == nil || !now.Before(row.LastGeneratedAt.Add(time.Duration(pol.IntervalMinutes)*time.Minute)))
+		case domain.CardModeCron:
+			due = cronDue(pol, row.LastGeneratedAt, now) && (pending || !pol.CronSkipUnchanged)
 		case domain.CardModeReactive:
 			if pending {
 				if hasSummary && row.LastChangeAt != nil {
@@ -352,6 +369,9 @@ func (t *txc) evaluateCard(row store.StatusCard, reason evalReason) (store.Statu
 			next := gens[0].Add(time.Hour)
 			return save(&next)
 		}
+	}
+	if decision { // o decision model refaz o resumo inteiro numa chamada só (ADR-0048)
+		return t.startDecisionGeneration(row, reason.trigger(pol.Mode), changes, fp, m)
 	}
 	kind := domain.ChooseCardUpdateKind(domain.CardKindInput{ExplicitFull: reason == evalManualFull, HasSummary: hasSummary,
 		Changes: len(changes), QueryChanged: int(row.SummaryQueryVersion) != int(row.QueryVersion),
@@ -566,6 +586,9 @@ func (s *Service) SetStatusCardSummary(ctx context.Context, actor domain.Actor, 
 		out, err = s.cardView(ctx, t.q, card, false)
 		return err
 	})
+	if err == nil { // o resultado também vira uma versão do artefato do card (ADR-0048)
+		s.publishCardArtifact(ctx, companyID, cardID)
+	}
 	return out, unknown, err
 }
 
@@ -721,6 +744,7 @@ func (s *Service) EvaluateDueStatusCards(ctx context.Context) (int, error) {
 	n := 0
 	var errs []error
 	for _, d := range due {
+		var job *cardDecisionJob
 		err := s.withTx(ctx, func(t *txc) error {
 			row, err := t.q.GetStatusCardForUpdateSkipLocked(ctx, store.GetStatusCardForUpdateSkipLockedParams{CompanyID: d.CompanyID, ID: d.ID})
 			if isNoRows(err) {
@@ -733,6 +757,7 @@ func (s *Service) EvaluateDueStatusCards(ctx context.Context) (int, error) {
 				return nil
 			}
 			_, err = t.evaluateCard(row, evalAuto)
+			job = t.cardJob
 			return err
 		})
 		if err != nil {
@@ -740,6 +765,9 @@ func (s *Service) EvaluateDueStatusCards(ctx context.Context) (int, error) {
 			continue
 		}
 		n++
+		if job != nil { // geração pelo decision model: a chamada HTTP roda fora da transação do card
+			s.logCardJob(ctx, job)
+		}
 	}
 	return n, errors.Join(errs...)
 }
