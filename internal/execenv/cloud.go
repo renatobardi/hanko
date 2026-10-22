@@ -113,7 +113,22 @@ func cloudParts(cfg Config, t Target) (CloudDriver, CloudProvider, domain.CloudC
 	if err := c.Normalize(); err != nil {
 		return nil, nil, c, fmt.Errorf("configuração cloud do ambiente %q: %w", t.Name, err)
 	}
-	drv := cfg.Cloud
+	var drv CloudDriver
+	if _, _, isPlugin := domain.ParsePluginProvider(c.Provider); isPlugin {
+		if cfg.CloudPlugins == nil {
+			return nil, nil, c, fmt.Errorf("os providers de plugin estão desligados neste servidor (HANKO_PLUGINS_DIR não definido)")
+		}
+		d, err := cfg.CloudPlugins(c.Provider)
+		if err != nil {
+			return nil, nil, c, fmt.Errorf("ambiente %q: %w", t.Name, err)
+		}
+		drv = d
+	} else {
+		drv = cfg.Cloud
+	}
+	if drv == nil {
+		return nil, nil, c, ErrCloudOff
+	}
 	if drv.Name() != c.Provider {
 		return nil, nil, c, fmt.Errorf("o provider %q do ambiente %q não é o que o operador liberou (%q)", c.Provider, t.Name, drv.Name())
 	}

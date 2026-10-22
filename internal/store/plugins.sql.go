@@ -121,6 +121,15 @@ func (q *Queries) DeleteAllPluginState(ctx context.Context, pluginID uuid.UUID) 
 	return err
 }
 
+const deletePluginFlowTriggers = `-- name: DeletePluginFlowTriggers :exec
+DELETE FROM plugin_flow_triggers WHERE plugin_id = $1
+`
+
+func (q *Queries) DeletePluginFlowTriggers(ctx context.Context, pluginID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deletePluginFlowTriggers, pluginID)
+	return err
+}
+
 const deletePluginSettings = `-- name: DeletePluginSettings :exec
 DELETE FROM plugin_company_settings WHERE plugin_id = $1
 `
@@ -500,6 +509,36 @@ func (q *Queries) LastPluginJobRuns(ctx context.Context, arg LastPluginJobRunsPa
 	return items, nil
 }
 
+const linkPluginFlowTrigger = `-- name: LinkPluginFlowTrigger :execrows
+INSERT INTO plugin_flow_triggers (plugin_id, company_id, trigger_key, flow_id, created_by, created_at)
+VALUES ($1, $2, $3, $4, $5, $6)
+ON CONFLICT DO NOTHING
+`
+
+type LinkPluginFlowTriggerParams struct {
+	PluginID   uuid.UUID
+	CompanyID  uuid.UUID
+	TriggerKey string
+	FlowID     uuid.UUID
+	CreatedBy  *uuid.UUID
+	Now        time.Time
+}
+
+func (q *Queries) LinkPluginFlowTrigger(ctx context.Context, arg LinkPluginFlowTriggerParams) (int64, error) {
+	result, err := q.db.Exec(ctx, linkPluginFlowTrigger,
+		arg.PluginID,
+		arg.CompanyID,
+		arg.TriggerKey,
+		arg.FlowID,
+		arg.CreatedBy,
+		arg.Now,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const listActivePluginsForCompany = `-- name: ListActivePluginsForCompany :many
 SELECT p.id, p.plugin_key, p.version, p.api_version, p.manifest, p.dir, p.status, p.granted_capabilities, p.pending_capabilities, p.pending_manifest, p.events, p.last_error, p.installed_by, p.installed_at, p.updated_at
 FROM plugins p JOIN plugin_company_settings s ON s.plugin_id = p.id
@@ -575,6 +614,39 @@ func (q *Queries) ListAllPluginSecrets(ctx context.Context) ([]ListAllPluginSecr
 	return items, nil
 }
 
+const listFlowsForPluginTrigger = `-- name: ListFlowsForPluginTrigger :many
+SELECT flow_id FROM plugin_flow_triggers
+WHERE plugin_id = $1 AND company_id = $2 AND trigger_key = $3
+ORDER BY flow_id
+`
+
+type ListFlowsForPluginTriggerParams struct {
+	PluginID   uuid.UUID
+	CompanyID  uuid.UUID
+	TriggerKey string
+}
+
+// Fluxos a disparar quando o plugin aciona o gatilho.
+func (q *Queries) ListFlowsForPluginTrigger(ctx context.Context, arg ListFlowsForPluginTriggerParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listFlowsForPluginTrigger, arg.PluginID, arg.CompanyID, arg.TriggerKey)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var flow_id uuid.UUID
+		if err := rows.Scan(&flow_id); err != nil {
+			return nil, err
+		}
+		items = append(items, flow_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPluginEnabledCompanies = `-- name: ListPluginEnabledCompanies :many
 SELECT c.id, c.slug, c.name
 FROM plugin_company_settings s JOIN companies c ON c.id = s.company_id
@@ -599,6 +671,53 @@ func (q *Queries) ListPluginEnabledCompanies(ctx context.Context, pluginID uuid.
 	for rows.Next() {
 		var i ListPluginEnabledCompaniesRow
 		if err := rows.Scan(&i.ID, &i.Slug, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPluginFlowTriggers = `-- name: ListPluginFlowTriggers :many
+SELECT t.trigger_key, t.created_at, f.id AS flow_id, f.slug AS flow_slug, f.name AS flow_name
+FROM plugin_flow_triggers t JOIN flows f ON f.id = t.flow_id
+WHERE t.plugin_id = $1 AND t.company_id = $2
+ORDER BY t.trigger_key, f.slug
+`
+
+type ListPluginFlowTriggersParams struct {
+	PluginID  uuid.UUID
+	CompanyID uuid.UUID
+}
+
+type ListPluginFlowTriggersRow struct {
+	TriggerKey string
+	CreatedAt  time.Time
+	FlowID     uuid.UUID
+	FlowSlug   string
+	FlowName   string
+}
+
+// Ligações de um plugin numa empresa, com o fluxo.
+func (q *Queries) ListPluginFlowTriggers(ctx context.Context, arg ListPluginFlowTriggersParams) ([]ListPluginFlowTriggersRow, error) {
+	rows, err := q.db.Query(ctx, listPluginFlowTriggers, arg.PluginID, arg.CompanyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPluginFlowTriggersRow{}
+	for rows.Next() {
+		var i ListPluginFlowTriggersRow
+		if err := rows.Scan(
+			&i.TriggerKey,
+			&i.CreatedAt,
+			&i.FlowID,
+			&i.FlowSlug,
+			&i.FlowName,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -993,6 +1112,44 @@ func (q *Queries) SetPluginError(ctx context.Context, arg SetPluginErrorParams) 
 	return err
 }
 
+const setPluginGrantedCapabilities = `-- name: SetPluginGrantedCapabilities :one
+
+UPDATE plugins SET granted_capabilities = $1, updated_at = $2
+WHERE id = $3
+RETURNING id, plugin_key, version, api_version, manifest, dir, status, granted_capabilities, pending_capabilities, pending_manifest, events, last_error, installed_by, installed_at, updated_at
+`
+
+type SetPluginGrantedCapabilitiesParams struct {
+	GrantedCapabilities []string
+	Now                 time.Time
+	ID                  uuid.UUID
+}
+
+// M18 (ADR-0045).
+// Dono concede ou revoga capacidades já declaradas no manifesto.
+func (q *Queries) SetPluginGrantedCapabilities(ctx context.Context, arg SetPluginGrantedCapabilitiesParams) (Plugin, error) {
+	row := q.db.QueryRow(ctx, setPluginGrantedCapabilities, arg.GrantedCapabilities, arg.Now, arg.ID)
+	var i Plugin
+	err := row.Scan(
+		&i.ID,
+		&i.PluginKey,
+		&i.Version,
+		&i.ApiVersion,
+		&i.Manifest,
+		&i.Dir,
+		&i.Status,
+		&i.GrantedCapabilities,
+		&i.PendingCapabilities,
+		&i.PendingManifest,
+		&i.Events,
+		&i.LastError,
+		&i.InstalledBy,
+		&i.InstalledAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const setPluginPending = `-- name: SetPluginPending :one
 UPDATE plugins
 SET status = 'upgrade_pending', pending_manifest = $1, pending_capabilities = $2, updated_at = $3
@@ -1126,6 +1283,31 @@ func (q *Queries) StartPluginJobRun(ctx context.Context, arg StartPluginJobRunPa
 		&i.Error,
 	)
 	return i, err
+}
+
+const unlinkPluginFlowTrigger = `-- name: UnlinkPluginFlowTrigger :execrows
+DELETE FROM plugin_flow_triggers
+WHERE plugin_id = $1 AND company_id = $2 AND trigger_key = $3 AND flow_id = $4
+`
+
+type UnlinkPluginFlowTriggerParams struct {
+	PluginID   uuid.UUID
+	CompanyID  uuid.UUID
+	TriggerKey string
+	FlowID     uuid.UUID
+}
+
+func (q *Queries) UnlinkPluginFlowTrigger(ctx context.Context, arg UnlinkPluginFlowTriggerParams) (int64, error) {
+	result, err := q.db.Exec(ctx, unlinkPluginFlowTrigger,
+		arg.PluginID,
+		arg.CompanyID,
+		arg.TriggerKey,
+		arg.FlowID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const upsertPluginSettings = `-- name: UpsertPluginSettings :one

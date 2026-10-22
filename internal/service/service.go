@@ -137,6 +137,9 @@ type Service struct {
 	// Push é a configuração do web push (ADR-0042); o zero value serve (precisa de HANKO_SECRET_KEY para a chave VAPID).
 	Push PushConfig
 
+	// Channels é a configuração do operador para os canais externos (ADR-0046).
+	Channels ChannelsConfig
+
 	// notifier guarda o estado dos avisos (entregas em andamento, cache da chave VAPID). É ponteiro para o Service
 	// poder ser copiado; New o cria, e sem ele vale o estado global do processo (ver ns).
 	notifier *notifyState

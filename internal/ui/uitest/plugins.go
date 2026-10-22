@@ -27,6 +27,8 @@ type PluginsFake struct {
 	Logs      []domain.PluginLog
 	// Actions registra as operações (instalação e empresa), na ordem.
 	Actions []string
+	bridge  []string
+	links   []string
 }
 
 // PluginSetting é o estado do plugin na empresa (os segredos ficam em Secrets e nunca saem nas views).
@@ -241,7 +243,8 @@ func (f *PluginsFake) companyView(p service.PluginView) service.CompanyPlugin {
 	m := p.Manifest
 	cp := service.CompanyPlugin{PluginID: p.ID, Key: p.Key, Name: m.Name, Description: m.Description, Author: m.Author, Homepage: m.Homepage,
 		Version: p.Version, Status: p.Status, Capabilities: p.GrantedCapabilities, ConfigSchema: m.ConfigSchema, Tools: m.Tools, Events: m.Events,
-		Widgets: m.Widgets, Jobs: m.Jobs, Config: map[string]any{}, SecretsSet: []string{}}
+		Widgets: m.Widgets, Jobs: m.Jobs, Pages: m.Pages, FlowTriggers: m.FlowTriggers, EnvProviders: m.EnvProviders, SkillSources: m.SkillSources,
+		Config: map[string]any{}, SecretsSet: []string{}}
 	if st := f.Settings[p.Key]; st != nil {
 		cp.Enabled = st.Enabled
 		for k, v := range st.Config {

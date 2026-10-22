@@ -522,32 +522,38 @@ func ParseID(s string) (ID, error) {
 
 // Flow is a recurring definition: on each cron occurrence it creates a task assigned to a persona.
 type Flow struct {
-	ID              ID         `json:"id"`
-	CompanyID       ID         `json:"company_id"`
-	Slug            string     `json:"slug"`
-	Name            string     `json:"name"`
-	Description     string     `json:"description,omitempty"`
-	Cron            string     `json:"cron"` // 5 fields
-	Timezone        string     `json:"timezone"`
-	Enabled         bool       `json:"enabled"`
-	PersonaID       ID         `json:"persona_id"`
-	ProjectID       *ID        `json:"project_id,omitempty"`
-	Priority        Priority   `json:"priority"`
-	TaskTitle       string     `json:"task_title"`       // template: {{data}}, {{n}}
-	TaskDescription string     `json:"task_description"` // same placeholders
-	LastFiredAt     *time.Time `json:"last_fired_at,omitempty"`
-	NextFireAt      *time.Time `json:"next_fire_at,omitempty"`
-	CreatedAt       time.Time  `json:"created_at"`
-	UpdatedAt       time.Time  `json:"updated_at"`
+	ID              ID             `json:"id"`
+	CompanyID       ID             `json:"company_id"`
+	Slug            string         `json:"slug"`
+	Name            string         `json:"name"`
+	Description     string         `json:"description,omitempty"`
+	Cron            string         `json:"cron,omitempty"` // 5 fields; empty = no schedule (triggers and "Rodar agora" only)
+	Timezone        string         `json:"timezone"`
+	Enabled         bool           `json:"enabled"`
+	PersonaID       ID             `json:"persona_id"`
+	ProjectID       *ID            `json:"project_id,omitempty"`
+	Priority        Priority       `json:"priority"`
+	TaskTitle       string         `json:"task_title"`       // template: {{data}}, {{n}}, {{semana}}, {{disparo}} and declared variables
+	TaskDescription string         `json:"task_description"` // same placeholders
+	Variables       []FlowVariable `json:"variables"`
+	Revision        int            `json:"revision"`
+	ArchivedAt      *time.Time     `json:"archived_at,omitempty"`
+	LastFiredAt     *time.Time     `json:"last_fired_at,omitempty"`
+	NextFireAt      *time.Time     `json:"next_fire_at,omitempty"`
+	CreatedAt       time.Time      `json:"created_at"`
+	UpdatedAt       time.Time      `json:"updated_at"`
 }
 
 // FlowFire is one firing of a flow; (FlowID, ScheduledFor) is unique.
 type FlowFire struct {
-	ID           ID        `json:"id"`
-	FlowID       ID        `json:"flow_id"`
-	CompanyID    ID        `json:"company_id"`
-	ScheduledFor time.Time `json:"scheduled_for"`
-	TaskID       *ID       `json:"task_id,omitempty"`
-	Manual       bool      `json:"manual,omitempty"` // "Rodar agora", not a cron occurrence
-	CreatedAt    time.Time `json:"created_at"`
+	ID           ID                `json:"id"`
+	FlowID       ID                `json:"flow_id"`
+	CompanyID    ID                `json:"company_id"`
+	ScheduledFor time.Time         `json:"scheduled_for"`
+	TaskID       *ID               `json:"task_id,omitempty"`
+	Manual       bool              `json:"manual,omitempty"` // "Rodar agora", not a cron occurrence
+	Source       FlowFireSource    `json:"source"`
+	TriggerID    *ID               `json:"trigger_id,omitempty"`
+	Variables    map[string]string `json:"variables,omitempty"`
+	CreatedAt    time.Time         `json:"created_at"`
 }

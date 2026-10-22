@@ -38,6 +38,9 @@ type Config struct {
 	Docker DockerClient
 	// Cloud é o provider de sandbox em nuvem (ADR-0055); nil = o driver cloud está desligado neste servidor.
 	Cloud CloudDriver
+	// CloudPlugins resolve um provider de plugin (plugin:<id>/<key>, ADR-0045) para o driver dele; nil = sem providers
+	// de plugin. A resolução confere, a cada uso, que o plugin está ativo e com a capacidade concedida.
+	CloudPlugins func(provider string) (CloudDriver, error)
 	// AgentEnvAllow é HANKO_AGENT_ENV_ALLOW: variáveis do servidor que o harness local recebe (também nos testes de readiness).
 	AgentEnvAllow []string
 }
@@ -105,7 +108,7 @@ func (c Config) SandboxStatus() error {
 
 // CloudStatus diz se o driver cloud pode rodar agora e, se não, por quê.
 func (c Config) CloudStatus() error {
-	if c.Cloud == nil {
+	if c.Cloud == nil && c.CloudPlugins == nil {
 		return ErrCloudOff
 	}
 	return nil

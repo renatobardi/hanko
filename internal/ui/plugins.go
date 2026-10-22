@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -35,6 +36,14 @@ type pluginsUIBackend interface {
 	ListPluginState(ctx context.Context, companyID domain.ID, ref, prefix string, limit int) ([]service.PluginStateItem, error)
 	PluginWidgets(ctx context.Context, companyID domain.ID, w service.PluginWidgetRef) ([]service.PluginWidgetView, error)
 	PluginsEnabled() bool
+	// M18 (ADR-0045).
+	SetPluginCapability(ctx context.Context, ref, capability string, granted bool) (service.PluginView, error)
+	PluginTabs(ctx context.Context, companyID domain.ID) ([]service.PluginTabView, error)
+	PluginPageHTML(ctx context.Context, companyID domain.ID, pluginKey, pageKey string) (title, html string, err error)
+	PluginPageCall(ctx context.Context, companyID domain.ID, pluginKey, pageKey, method string, params json.RawMessage) (json.RawMessage, error)
+	PluginFlowTriggers(ctx context.Context, companyID domain.ID, ref string) ([]domain.PluginFlowTrigger, []service.PluginFlowLink, error)
+	LinkPluginFlowTrigger(ctx context.Context, actor domain.Actor, companyID domain.ID, ref, trigger, flowRef string, link bool) error
+	ListFlows(ctx context.Context, companyID domain.ID) ([]service.FlowView, error)
 }
 
 func (s *server) pluginsBE() (pluginsUIBackend, bool) {
@@ -58,6 +67,11 @@ func (s *server) pluginRoutes(mux langMux) {
 	mux.HandleFunc("POST /c/{company}/configuracoes/plugins/{plugin}/ativar", post(co(s.handlePluginToggle)))
 	mux.HandleFunc("POST /c/{company}/configuracoes/plugins/{plugin}/instalacao/{acao}", post(co(s.handlePluginOwnerAction)))
 	mux.HandleFunc("GET /c/{company}/plugins/widgets", co(s.handlePluginWidgets))
+	// M18 (ADR-0045): abas de plugin (página hospedeira, documento do iframe e ponte) e gatilhos de fluxo.
+	mux.HandleFunc("GET /c/{company}/plugins/{plugin}/{page}", co(s.handlePluginPage))
+	mux.HandleFunc("GET /c/{company}/plugins/{plugin}/{page}/frame", co(s.handlePluginFrame))
+	mux.HandleFunc("POST /c/{company}/plugins/{plugin}/{page}/ponte", capped(post(co(s.handlePluginBridge))))
+	mux.HandleFunc("POST /c/{company}/configuracoes/plugins/{plugin}/gatilhos/{trigger}/{acao}", post(co(s.handlePluginTriggerLink)))
 }
 
 var pluginNotices = map[string]string{
@@ -71,6 +85,11 @@ var pluginNotices = map[string]string{
 	"pendente":     i18n.N("A versão nova pede capacidades a mais e aguarda a aprovação."),
 	"aprovado":     i18n.N("Capacidades aprovadas e versão aplicada."),
 	"desinstalado": i18n.N("Plugin desinstalado: configuração e estado das empresas apagados."),
+	// M18 (ADR-0045)
+	"concedida":         i18n.N("Capacidade concedida."),
+	"revogada":          i18n.N("Capacidade revogada: o que dependia dela deixou de funcionar."),
+	"gatilho-ligado":    i18n.N("Gatilho ligado ao fluxo."),
+	"gatilho-desligado": i18n.N("Gatilho desligado do fluxo."),
 }
 
 func capLabel(ctx context.Context, c string) views.PluginCap {
@@ -86,12 +105,16 @@ func capLabel(ctx context.Context, c string) views.PluginCap {
 		domain.CapJobs:            i18n.T(ctx, "Rodar jobs periódicos"),
 		domain.CapState:           i18n.T(ctx, "Guardar estado próprio"),
 		domain.CapHTTPOutbound:    i18n.T(ctx, "Acessar a rede (declarado)"),
+		domain.CapPages:           i18n.T(ctx, "Abas na barra lateral (a página do plugin roda isolada)"),
+		domain.CapFlowTriggers:    i18n.T(ctx, "Disparar fluxos ligados pelo admin"),
+		domain.CapEnvProvider:     i18n.T(ctx, "Oferecer sandboxes em nuvem (recebe a chave de API do ambiente)"),
+		domain.CapSkillSource:     i18n.T(ctx, "Oferecer fontes de skills"),
 	}
 	l := labels[c]
 	if l == "" {
 		l = c
 	}
-	return views.PluginCap{Name: c, Label: l, Warn: c == domain.CapTasksWrite || c == domain.CapHTTPOutbound || c == domain.CapAgentTools}
+	return views.PluginCap{Name: c, Label: l, Warn: c == domain.CapTasksWrite || c == domain.CapHTTPOutbound || c == domain.CapAgentTools || c == domain.CapPages || c == domain.CapEnvProvider}
 }
 
 func capsOf(ctx context.Context, cs []string) []views.PluginCap {
@@ -125,7 +148,8 @@ func pluginCard(ctx context.Context, co domain.Company, cp service.CompanyPlugin
 	href := pluginsBase(co) + "/" + url.PathEscape(cp.Key)
 	c := views.PluginCardVM{Key: cp.Key, Name: cp.Name, Desc: cp.Description, Version: cp.Version, Author: cp.Author, Homepage: cp.Homepage,
 		Badge: pluginBadge(ctx, cp.Status), Caps: capsOf(ctx, cp.Capabilities), Enabled: cp.Enabled, Active: cp.Active,
-		ToggleHref: href + "/ativar", Href: href, Tools: len(cp.Tools), Widgets: len(cp.Widgets), Jobs: len(cp.Jobs), Events: len(cp.Events)}
+		ToggleHref: href + "/ativar", Href: href, Tools: len(cp.Tools), Widgets: len(cp.Widgets), Jobs: len(cp.Jobs), Events: len(cp.Events),
+		Pages: len(cp.Pages), Triggers: len(cp.FlowTriggers), Providers: len(cp.EnvProviders), Sources: len(cp.SkillSources)}
 	if !strings.HasPrefix(c.Homepage, "https://") && !strings.HasPrefix(c.Homepage, "http://") {
 		c.Homepage = ""
 	}
@@ -134,6 +158,7 @@ func pluginCard(ctx context.Context, co domain.Company, cp service.CompanyPlugin
 		c.CanSuspend = owner.Status.CanBecome(domain.PluginDisabled)
 		c.CanResume = owner.Status == domain.PluginDisabled
 		c.LastError = owner.LastError
+		c.CapToggles = capToggles(ctx, c.OwnerBase, *owner)
 		if owner.PendingManifest != nil {
 			c.PendingVersion = owner.PendingManifest.Version
 			c.PendingCaps = capsOf(ctx, domain.ExtraCapabilities(owner.GrantedCapabilities, owner.PendingCapabilities))
@@ -268,6 +293,9 @@ func (s *server) handlePluginOwnerAction(w http.ResponseWriter, r *http.Request,
 	case "desinstalar":
 		err = pb.UninstallPlugin(ctx, ref)
 		ok2 = "desinstalado"
+	case "conceder", "revogar":
+		s.handlePluginCapability(w, r, co, r.PathValue("acao") == "conceder")
+		return
 	default:
 		s.fail(w, r, &co, domain.ErrNotFound)
 		return
@@ -362,6 +390,7 @@ func (s *server) pluginDetailVM(r *http.Request, co domain.Company, pb pluginsUI
 	if e := r.URL.Query().Get("erro"); e != "" {
 		vm.Error = pluginClip(e, 400)
 	}
+	s.pluginContribVM(ctx, co, pb, cp, &vm)
 	for _, t := range cp.Tools {
 		vm.Tools = append(vm.Tools, views.PluginToolRow{Name: t.Name, MCPName: domain.PluginToolName(cp.Key, t.Name), Desc: t.Description})
 	}

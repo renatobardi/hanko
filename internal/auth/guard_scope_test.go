@@ -92,11 +92,13 @@ func TestGuardPublicPaths(t *testing.T) {
 
 func TestRedactPathSegredos(t *testing.T) {
 	for in, want := range map[string]string{
-		"/convite/abc":     "/convite/…",
-		"/cli-auth/abc":    "/cli-auth/…",
-		"/pedir-acesso/xy": "/pedir-acesso/…",
-		"/oauth/callback":  "/oauth/callback…",
-		"/api/v1/x":        "/api/v1/x",
+		"/convite/abc":        "/convite/…",
+		"/cli-auth/abc":       "/cli-auth/…",
+		"/pedir-acesso/xy":    "/pedir-acesso/…",
+		"/oauth/callback":     "/oauth/callback…",
+		"/api/v1/x":           "/api/v1/x",
+		"/hooks/channels/T0k": "/hooks/channels/…",
+		"/hooks/flows/abc":    "/hooks/flows/abc",
 	} {
 		if got := RedactPath(in); got != want {
 			t.Errorf("RedactPath(%q) = %q, quer %q", in, got, want)

@@ -108,7 +108,6 @@ var enM20 = map[string]string{
 	"Aprendizados desta etapa:": "Learnings of this stage:",
 
 	// CLI: hanko decision feature (the list of features grew by card_summary)
-	"<triage|phase_classifier|name_summary|card_summary> <on|off>": "<triage|phase_classifier|name_summary|card_summary> <on|off>",
 
 	// CLI: hanko status-card
 	"Motor":     "Engine",

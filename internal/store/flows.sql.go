@@ -23,12 +23,23 @@ func (q *Queries) CountFlowFires(ctx context.Context, flowID uuid.UUID) (int64, 
 	return column_1, err
 }
 
+const countFlowTriggers = `-- name: CountFlowTriggers :one
+SELECT count(*)::bigint FROM flow_triggers WHERE flow_id = $1
+`
+
+func (q *Queries) CountFlowTriggers(ctx context.Context, flowID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countFlowTriggers, flowID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const createFlow = `-- name: CreateFlow :one
 INSERT INTO flows (id, company_id, slug, name, description, cron, timezone, enabled, persona_id, project_id,
                    priority, task_title, task_description, next_fire_at, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
         $11, $12, $13, $14, $15, $15)
-RETURNING id, company_id, slug, name, description, cron, timezone, enabled, persona_id, project_id, priority, task_title, task_description, last_fired_at, next_fire_at, created_at, updated_at, search_tsv
+RETURNING id, company_id, slug, name, description, cron, timezone, enabled, persona_id, project_id, priority, task_title, task_description, last_fired_at, next_fire_at, created_at, updated_at, search_tsv, variables, revision, archived_at
 `
 
 type CreateFlowParams struct {
@@ -87,13 +98,16 @@ func (q *Queries) CreateFlow(ctx context.Context, arg CreateFlowParams) (Flow, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.SearchTsv,
+		&i.Variables,
+		&i.Revision,
+		&i.ArchivedAt,
 	)
 	return i, err
 }
 
 const dueFlows = `-- name: DueFlows :many
-SELECT id, company_id, slug, name, description, cron, timezone, enabled, persona_id, project_id, priority, task_title, task_description, last_fired_at, next_fire_at, created_at, updated_at, search_tsv FROM flows
-WHERE enabled AND next_fire_at IS NOT NULL AND next_fire_at <= $1
+SELECT id, company_id, slug, name, description, cron, timezone, enabled, persona_id, project_id, priority, task_title, task_description, last_fired_at, next_fire_at, created_at, updated_at, search_tsv, variables, revision, archived_at FROM flows
+WHERE enabled AND archived_at IS NULL AND next_fire_at IS NOT NULL AND next_fire_at <= $1
   AND NOT EXISTS (SELECT 1 FROM companies c WHERE c.id = flows.company_id AND c.archived_at IS NOT NULL)
 ORDER BY next_fire_at, id
 LIMIT $2
@@ -132,6 +146,9 @@ func (q *Queries) DueFlows(ctx context.Context, arg DueFlowsParams) ([]Flow, err
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.SearchTsv,
+			&i.Variables,
+			&i.Revision,
+			&i.ArchivedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -165,7 +182,7 @@ func (q *Queries) FlowHasOpenTask(ctx context.Context, flowID uuid.UUID) (FlowHa
 }
 
 const getFlowByID = `-- name: GetFlowByID :one
-SELECT id, company_id, slug, name, description, cron, timezone, enabled, persona_id, project_id, priority, task_title, task_description, last_fired_at, next_fire_at, created_at, updated_at, search_tsv FROM flows WHERE company_id = $1 AND id = $2
+SELECT id, company_id, slug, name, description, cron, timezone, enabled, persona_id, project_id, priority, task_title, task_description, last_fired_at, next_fire_at, created_at, updated_at, search_tsv, variables, revision, archived_at FROM flows WHERE company_id = $1 AND id = $2
 `
 
 type GetFlowByIDParams struct {
@@ -195,12 +212,15 @@ func (q *Queries) GetFlowByID(ctx context.Context, arg GetFlowByIDParams) (Flow,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.SearchTsv,
+		&i.Variables,
+		&i.Revision,
+		&i.ArchivedAt,
 	)
 	return i, err
 }
 
 const getFlowByIDForUpdate = `-- name: GetFlowByIDForUpdate :one
-SELECT id, company_id, slug, name, description, cron, timezone, enabled, persona_id, project_id, priority, task_title, task_description, last_fired_at, next_fire_at, created_at, updated_at, search_tsv FROM flows WHERE id = $1 FOR UPDATE
+SELECT id, company_id, slug, name, description, cron, timezone, enabled, persona_id, project_id, priority, task_title, task_description, last_fired_at, next_fire_at, created_at, updated_at, search_tsv, variables, revision, archived_at FROM flows WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) GetFlowByIDForUpdate(ctx context.Context, id uuid.UUID) (Flow, error) {
@@ -225,12 +245,15 @@ func (q *Queries) GetFlowByIDForUpdate(ctx context.Context, id uuid.UUID) (Flow,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.SearchTsv,
+		&i.Variables,
+		&i.Revision,
+		&i.ArchivedAt,
 	)
 	return i, err
 }
 
 const getFlowBySlug = `-- name: GetFlowBySlug :one
-SELECT id, company_id, slug, name, description, cron, timezone, enabled, persona_id, project_id, priority, task_title, task_description, last_fired_at, next_fire_at, created_at, updated_at, search_tsv FROM flows WHERE company_id = $1 AND slug = $2
+SELECT id, company_id, slug, name, description, cron, timezone, enabled, persona_id, project_id, priority, task_title, task_description, last_fired_at, next_fire_at, created_at, updated_at, search_tsv, variables, revision, archived_at FROM flows WHERE company_id = $1 AND slug = $2
 `
 
 type GetFlowBySlugParams struct {
@@ -260,12 +283,15 @@ func (q *Queries) GetFlowBySlug(ctx context.Context, arg GetFlowBySlugParams) (F
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.SearchTsv,
+		&i.Variables,
+		&i.Revision,
+		&i.ArchivedAt,
 	)
 	return i, err
 }
 
 const getFlowFire = `-- name: GetFlowFire :one
-SELECT id, flow_id, company_id, scheduled_for, task_id, created_at, manual FROM flow_fires WHERE flow_id = $1 AND scheduled_for = $2 AND manual = $3
+SELECT id, flow_id, company_id, scheduled_for, task_id, created_at, manual, source, trigger_id, dedupe_key, variables FROM flow_fires WHERE flow_id = $1 AND scheduled_for = $2 AND manual = $3
 `
 
 type GetFlowFireParams struct {
@@ -285,12 +311,44 @@ func (q *Queries) GetFlowFire(ctx context.Context, arg GetFlowFireParams) (FlowF
 		&i.TaskID,
 		&i.CreatedAt,
 		&i.Manual,
+		&i.Source,
+		&i.TriggerID,
+		&i.DedupeKey,
+		&i.Variables,
+	)
+	return i, err
+}
+
+const getFlowFireByDedupe = `-- name: GetFlowFireByDedupe :one
+SELECT id, flow_id, company_id, scheduled_for, task_id, created_at, manual, source, trigger_id, dedupe_key, variables FROM flow_fires WHERE flow_id = $1 AND dedupe_key = $2
+`
+
+type GetFlowFireByDedupeParams struct {
+	FlowID    uuid.UUID
+	DedupeKey string
+}
+
+func (q *Queries) GetFlowFireByDedupe(ctx context.Context, arg GetFlowFireByDedupeParams) (FlowFire, error) {
+	row := q.db.QueryRow(ctx, getFlowFireByDedupe, arg.FlowID, arg.DedupeKey)
+	var i FlowFire
+	err := row.Scan(
+		&i.ID,
+		&i.FlowID,
+		&i.CompanyID,
+		&i.ScheduledFor,
+		&i.TaskID,
+		&i.CreatedAt,
+		&i.Manual,
+		&i.Source,
+		&i.TriggerID,
+		&i.DedupeKey,
+		&i.Variables,
 	)
 	return i, err
 }
 
 const getFlowView = `-- name: GetFlowView :one
-SELECT f.id, f.company_id, f.slug, f.name, f.description, f.cron, f.timezone, f.enabled, f.persona_id, f.project_id, f.priority, f.task_title, f.task_description, f.last_fired_at, f.next_fire_at, f.created_at, f.updated_at, f.search_tsv, p.name AS persona_name, COALESCE(pr.name, '')::text AS project_name
+SELECT f.id, f.company_id, f.slug, f.name, f.description, f.cron, f.timezone, f.enabled, f.persona_id, f.project_id, f.priority, f.task_title, f.task_description, f.last_fired_at, f.next_fire_at, f.created_at, f.updated_at, f.search_tsv, f.variables, f.revision, f.archived_at, p.name AS persona_name, COALESCE(pr.name, '')::text AS project_name
 FROM flows f
 JOIN personas p ON p.id = f.persona_id
 LEFT JOIN projects pr ON pr.id = f.project_id
@@ -330,6 +388,9 @@ func (q *Queries) GetFlowView(ctx context.Context, arg GetFlowViewParams) (GetFl
 		&i.Flow.CreatedAt,
 		&i.Flow.UpdatedAt,
 		&i.Flow.SearchTsv,
+		&i.Flow.Variables,
+		&i.Flow.Revision,
+		&i.Flow.ArchivedAt,
 		&i.PersonaName,
 		&i.ProjectName,
 	)
@@ -337,10 +398,10 @@ func (q *Queries) GetFlowView(ctx context.Context, arg GetFlowViewParams) (GetFl
 }
 
 const insertFlowFire = `-- name: InsertFlowFire :one
-INSERT INTO flow_fires (id, flow_id, company_id, scheduled_for, manual, created_at)
-VALUES ($1, $2, $3, $4, $5, $6)
-ON CONFLICT (flow_id, scheduled_for, manual) DO NOTHING
-RETURNING id, flow_id, company_id, scheduled_for, task_id, created_at, manual
+INSERT INTO flow_fires (id, flow_id, company_id, scheduled_for, manual, source, trigger_id, dedupe_key, variables, created_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+ON CONFLICT DO NOTHING
+RETURNING id, flow_id, company_id, scheduled_for, task_id, created_at, manual, source, trigger_id, dedupe_key, variables
 `
 
 type InsertFlowFireParams struct {
@@ -349,10 +410,15 @@ type InsertFlowFireParams struct {
 	CompanyID    uuid.UUID
 	ScheduledFor time.Time
 	Manual       bool
+	Source       string
+	TriggerID    *uuid.UUID
+	DedupeKey    string
+	Variables    []byte
 	Now          time.Time
 }
 
-// Sem linhas quando (flow_id, scheduled_for, manual) já existe.
+// Sem linhas quando o disparo já existe: (flow_id, scheduled_for, manual) para agenda e manual, (flow_id, dedupe_key) para
+// webhook e evento.
 func (q *Queries) InsertFlowFire(ctx context.Context, arg InsertFlowFireParams) (FlowFire, error) {
 	row := q.db.QueryRow(ctx, insertFlowFire,
 		arg.ID,
@@ -360,6 +426,10 @@ func (q *Queries) InsertFlowFire(ctx context.Context, arg InsertFlowFireParams) 
 		arg.CompanyID,
 		arg.ScheduledFor,
 		arg.Manual,
+		arg.Source,
+		arg.TriggerID,
+		arg.DedupeKey,
+		arg.Variables,
 		arg.Now,
 	)
 	var i FlowFire
@@ -371,15 +441,21 @@ func (q *Queries) InsertFlowFire(ctx context.Context, arg InsertFlowFireParams) 
 		&i.TaskID,
 		&i.CreatedAt,
 		&i.Manual,
+		&i.Source,
+		&i.TriggerID,
+		&i.DedupeKey,
+		&i.Variables,
 	)
 	return i, err
 }
 
 const listFlowFires = `-- name: ListFlowFires :many
-SELECT f.id, f.flow_id, f.company_id, f.scheduled_for, f.task_id, f.created_at, f.manual, COALESCE(c.task_prefix || '-' || t.number, '')::text AS task_key, t.title AS task_title, t.status AS task_status
+SELECT f.id, f.flow_id, f.company_id, f.scheduled_for, f.task_id, f.created_at, f.manual, f.source, f.trigger_id, f.dedupe_key, f.variables, COALESCE(c.task_prefix || '-' || t.number, '')::text AS task_key, t.title AS task_title, t.status AS task_status,
+       tr.name AS trigger_name
 FROM flow_fires f
 LEFT JOIN tasks t ON t.id = f.task_id
 LEFT JOIN companies c ON c.id = f.company_id
+LEFT JOIN flow_triggers tr ON tr.id = f.trigger_id
 WHERE f.flow_id = $1 AND f.company_id = $2
 ORDER BY f.scheduled_for DESC
 LIMIT $3
@@ -399,9 +475,14 @@ type ListFlowFiresRow struct {
 	TaskID       *uuid.UUID
 	CreatedAt    time.Time
 	Manual       bool
+	Source       string
+	TriggerID    *uuid.UUID
+	DedupeKey    string
+	Variables    []byte
 	TaskKey      string
 	TaskTitle    *string
 	TaskStatus   *string
+	TriggerName  *string
 }
 
 func (q *Queries) ListFlowFires(ctx context.Context, arg ListFlowFiresParams) ([]ListFlowFiresRow, error) {
@@ -421,9 +502,14 @@ func (q *Queries) ListFlowFires(ctx context.Context, arg ListFlowFiresParams) ([
 			&i.TaskID,
 			&i.CreatedAt,
 			&i.Manual,
+			&i.Source,
+			&i.TriggerID,
+			&i.DedupeKey,
+			&i.Variables,
 			&i.TaskKey,
 			&i.TaskTitle,
 			&i.TaskStatus,
+			&i.TriggerName,
 		); err != nil {
 			return nil, err
 		}
@@ -436,13 +522,18 @@ func (q *Queries) ListFlowFires(ctx context.Context, arg ListFlowFiresParams) ([
 }
 
 const listFlowViews = `-- name: ListFlowViews :many
-SELECT f.id, f.company_id, f.slug, f.name, f.description, f.cron, f.timezone, f.enabled, f.persona_id, f.project_id, f.priority, f.task_title, f.task_description, f.last_fired_at, f.next_fire_at, f.created_at, f.updated_at, f.search_tsv, p.name AS persona_name, COALESCE(pr.name, '')::text AS project_name
+SELECT f.id, f.company_id, f.slug, f.name, f.description, f.cron, f.timezone, f.enabled, f.persona_id, f.project_id, f.priority, f.task_title, f.task_description, f.last_fired_at, f.next_fire_at, f.created_at, f.updated_at, f.search_tsv, f.variables, f.revision, f.archived_at, p.name AS persona_name, COALESCE(pr.name, '')::text AS project_name
 FROM flows f
 JOIN personas p ON p.id = f.persona_id
 LEFT JOIN projects pr ON pr.id = f.project_id
-WHERE f.company_id = $1
+WHERE f.company_id = $1 AND (f.archived_at IS NOT NULL) = $2::boolean
 ORDER BY f.enabled DESC, f.name, f.id
 `
+
+type ListFlowViewsParams struct {
+	CompanyID uuid.UUID
+	Archived  bool
+}
 
 type ListFlowViewsRow struct {
 	Flow        Flow
@@ -450,8 +541,8 @@ type ListFlowViewsRow struct {
 	ProjectName string
 }
 
-func (q *Queries) ListFlowViews(ctx context.Context, companyID uuid.UUID) ([]ListFlowViewsRow, error) {
-	rows, err := q.db.Query(ctx, listFlowViews, companyID)
+func (q *Queries) ListFlowViews(ctx context.Context, arg ListFlowViewsParams) ([]ListFlowViewsRow, error) {
+	rows, err := q.db.Query(ctx, listFlowViews, arg.CompanyID, arg.Archived)
 	if err != nil {
 		return nil, err
 	}
@@ -478,6 +569,9 @@ func (q *Queries) ListFlowViews(ctx context.Context, companyID uuid.UUID) ([]Lis
 			&i.Flow.CreatedAt,
 			&i.Flow.UpdatedAt,
 			&i.Flow.SearchTsv,
+			&i.Flow.Variables,
+			&i.Flow.Revision,
+			&i.Flow.ArchivedAt,
 			&i.PersonaName,
 			&i.ProjectName,
 		); err != nil {
@@ -492,7 +586,7 @@ func (q *Queries) ListFlowViews(ctx context.Context, companyID uuid.UUID) ([]Lis
 }
 
 const listFlows = `-- name: ListFlows :many
-SELECT id, company_id, slug, name, description, cron, timezone, enabled, persona_id, project_id, priority, task_title, task_description, last_fired_at, next_fire_at, created_at, updated_at, search_tsv FROM flows WHERE company_id = $1 ORDER BY enabled DESC, name, id
+SELECT id, company_id, slug, name, description, cron, timezone, enabled, persona_id, project_id, priority, task_title, task_description, last_fired_at, next_fire_at, created_at, updated_at, search_tsv, variables, revision, archived_at FROM flows WHERE company_id = $1 ORDER BY enabled DESC, name, id
 `
 
 func (q *Queries) ListFlows(ctx context.Context, companyID uuid.UUID) ([]Flow, error) {
@@ -523,6 +617,9 @@ func (q *Queries) ListFlows(ctx context.Context, companyID uuid.UUID) ([]Flow, e
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.SearchTsv,
+			&i.Variables,
+			&i.Revision,
+			&i.ArchivedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -556,6 +653,29 @@ func (q *Queries) MarkFlowFired(ctx context.Context, arg MarkFlowFiredParams) er
 	return err
 }
 
+const setFlowArchived = `-- name: SetFlowArchived :exec
+UPDATE flows SET archived_at = $1, enabled = $2, next_fire_at = $3, updated_at = $4 WHERE id = $5
+`
+
+type SetFlowArchivedParams struct {
+	ArchivedAt *time.Time
+	Enabled    bool
+	NextFireAt *time.Time
+	Now        time.Time
+	ID         uuid.UUID
+}
+
+func (q *Queries) SetFlowArchived(ctx context.Context, arg SetFlowArchivedParams) error {
+	_, err := q.db.Exec(ctx, setFlowArchived,
+		arg.ArchivedAt,
+		arg.Enabled,
+		arg.NextFireAt,
+		arg.Now,
+		arg.ID,
+	)
+	return err
+}
+
 const setFlowFireTask = `-- name: SetFlowFireTask :exec
 UPDATE flow_fires SET task_id = $1 WHERE id = $2
 `
@@ -570,6 +690,20 @@ func (q *Queries) SetFlowFireTask(ctx context.Context, arg SetFlowFireTaskParams
 	return err
 }
 
+const setFlowFireVariables = `-- name: SetFlowFireVariables :exec
+UPDATE flow_fires SET variables = $1 WHERE id = $2
+`
+
+type SetFlowFireVariablesParams struct {
+	Variables []byte
+	ID        uuid.UUID
+}
+
+func (q *Queries) SetFlowFireVariables(ctx context.Context, arg SetFlowFireVariablesParams) error {
+	_, err := q.db.Exec(ctx, setFlowFireVariables, arg.Variables, arg.ID)
+	return err
+}
+
 const updateFlow = `-- name: UpdateFlow :one
 UPDATE flows
 SET name = $1, description = $2, cron = $3, timezone = $4, enabled = $5,
@@ -577,7 +711,7 @@ SET name = $1, description = $2, cron = $3, timezone = $4, enabled = $5,
     task_title = $9, task_description = $10,
     next_fire_at = $11, updated_at = $12
 WHERE company_id = $13 AND id = $14
-RETURNING id, company_id, slug, name, description, cron, timezone, enabled, persona_id, project_id, priority, task_title, task_description, last_fired_at, next_fire_at, created_at, updated_at, search_tsv
+RETURNING id, company_id, slug, name, description, cron, timezone, enabled, persona_id, project_id, priority, task_title, task_description, last_fired_at, next_fire_at, created_at, updated_at, search_tsv, variables, revision, archived_at
 `
 
 type UpdateFlowParams struct {
@@ -634,6 +768,31 @@ func (q *Queries) UpdateFlow(ctx context.Context, arg UpdateFlowParams) (Flow, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.SearchTsv,
+		&i.Variables,
+		&i.Revision,
+		&i.ArchivedAt,
 	)
 	return i, err
+}
+
+const updateFlowExtras = `-- name: UpdateFlowExtras :exec
+UPDATE flows SET variables = $1, revision = $2, updated_at = $3 WHERE id = $4
+`
+
+type UpdateFlowExtrasParams struct {
+	Variables []byte
+	Revision  int32
+	Now       time.Time
+	ID        uuid.UUID
+}
+
+// Variáveis declaradas e revisão vigente (gravadas junto de UpdateFlow, na mesma transação).
+func (q *Queries) UpdateFlowExtras(ctx context.Context, arg UpdateFlowExtrasParams) error {
+	_, err := q.db.Exec(ctx, updateFlowExtras,
+		arg.Variables,
+		arg.Revision,
+		arg.Now,
+		arg.ID,
+	)
+	return err
 }

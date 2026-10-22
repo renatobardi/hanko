@@ -448,9 +448,14 @@ func (s *Service) buildDoc(ctx context.Context, q *store.Queries, companyID doma
 		return doc, fmt.Errorf("export flows: %w", err)
 	}
 	for _, f := range flRows {
-		doc.Flows = append(doc.Flows, export.Flow{Slug: f.Slug, Name: f.Name, Description: red(f.Description), Cron: f.Cron,
+		ef := export.Flow{Slug: f.Slug, Name: f.Name, Description: red(f.Description), Cron: f.Cron,
 			Timezone: f.Timezone, Enabled: f.Enabled, Persona: peSlug[f.PersonaID], Project: refSlug(prSlug, f.ProjectID),
-			Priority: f.Priority, TaskTitle: red(f.TaskTitle), TaskDescription: red(f.TaskDescription), CreatedAt: f.CreatedAt})
+			Priority: f.Priority, TaskTitle: red(f.TaskTitle), TaskDescription: red(f.TaskDescription), Archived: f.ArchivedAt != nil,
+			CreatedAt: f.CreatedAt}
+		for _, v := range flowVarsOf(f.Variables) {
+			ef.Variables = append(ef.Variables, export.FlowVariable{Name: v.Name, Label: v.Label, Required: v.Required, Default: red(v.Default)})
+		}
+		doc.Flows = append(doc.Flows, ef)
 	}
 
 	if err := exportSkillsIntegrations(ctx, q, companyID, &doc, peSlug); err != nil {

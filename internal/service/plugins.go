@@ -762,6 +762,9 @@ func (s *Service) UninstallPlugin(ctx context.Context, ref string) error {
 		if err := t.q.DeleteAllPluginState(t.ctx, r.ID); err != nil {
 			return err
 		}
+		if err := t.q.DeletePluginFlowTriggers(t.ctx, r.ID); err != nil {
+			return err
+		}
 		if _, err := t.q.SetPluginStatus(t.ctx, store.SetPluginStatusParams{ID: r.ID, Status: string(domain.PluginUninstalled), Now: t.now}); err != nil {
 			return err
 		}

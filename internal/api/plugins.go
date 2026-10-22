@@ -23,6 +23,12 @@ type pluginsBackend interface {
 	GetPlugin(ctx context.Context, ref string) (service.PluginView, error)
 	InstallPlugin(ctx context.Context, key string) (service.PluginView, error)
 	SetPluginEnabled(ctx context.Context, ref string, on bool) (service.PluginView, error)
+	SetPluginCapability(ctx context.Context, ref, capability string, granted bool) (service.PluginView, error)
+	PluginTabs(ctx context.Context, companyID domain.ID) ([]service.PluginTabView, error)
+	PluginPageCall(ctx context.Context, companyID domain.ID, pluginKey, pageKey, method string, params json.RawMessage) (json.RawMessage, error)
+	PluginFlowTriggers(ctx context.Context, companyID domain.ID, ref string) ([]domain.PluginFlowTrigger, []service.PluginFlowLink, error)
+	LinkPluginFlowTrigger(ctx context.Context, actor domain.Actor, companyID domain.ID, ref, trigger, flowRef string, link bool) error
+	PluginSkillSources(ctx context.Context, companyID domain.ID) ([]service.PluginSkillSourceView, error)
 	UpgradePlugin(ctx context.Context, ref string) (service.PluginView, error)
 	ApprovePluginUpgrade(ctx context.Context, ref string) (service.PluginView, error)
 	UninstallPlugin(ctx context.Context, ref string) error
@@ -73,6 +79,60 @@ type PluginJobDef struct {
 	EveryMinutes int    `json:"every_minutes"`
 }
 
+// PluginPageDef é uma aba (página em iframe sandboxed) declarada no manifesto.
+type PluginPageDef struct {
+	Key   string `json:"key"`
+	Title string `json:"title"`
+	Icon  string `json:"icon,omitempty"`
+}
+
+// PluginFlowTriggerDef é um gatilho de fluxo declarado no manifesto.
+type PluginFlowTriggerDef struct {
+	Key         string `json:"key"`
+	Title       string `json:"title"`
+	Description string `json:"description,omitempty"`
+}
+
+// PluginEnvProviderDef é um provider de ambiente declarado no manifesto.
+type PluginEnvProviderDef struct {
+	Key      string `json:"key"`
+	Title    string `json:"title"`
+	Provider string `json:"provider" doc:"Nome a usar em cloud.provider do ambiente (plugin:<id>/<key>)."`
+}
+
+// PluginSkillSourceDef é uma fonte de skills declarada no manifesto.
+type PluginSkillSourceDef struct {
+	Key         string `json:"key"`
+	Title       string `json:"title"`
+	Description string `json:"description,omitempty"`
+	URL         string `json:"url" doc:"URL a usar ao criar a fonte de skills da empresa (plugin://<id>/<key>)."`
+}
+
+// Contributions são as contribuições do M18 declaradas no manifesto.
+type Contributions struct {
+	Pages        []PluginPageDef        `json:"pages"`
+	FlowTriggers []PluginFlowTriggerDef `json:"flow_triggers"`
+	EnvProviders []PluginEnvProviderDef `json:"environment_providers"`
+	SkillSources []PluginSkillSourceDef `json:"skill_sources"`
+}
+
+func contributionsOf(id string, pages []domain.PluginPage, trig []domain.PluginFlowTrigger, envs []domain.PluginEnvProvider, srcs []domain.PluginSkillSource) Contributions {
+	c := Contributions{Pages: []PluginPageDef{}, FlowTriggers: []PluginFlowTriggerDef{}, EnvProviders: []PluginEnvProviderDef{}, SkillSources: []PluginSkillSourceDef{}}
+	for _, p := range pages {
+		c.Pages = append(c.Pages, PluginPageDef{Key: p.Key, Title: p.Title, Icon: p.Icon})
+	}
+	for _, t := range trig {
+		c.FlowTriggers = append(c.FlowTriggers, PluginFlowTriggerDef{Key: t.Key, Title: t.Title, Description: t.Description})
+	}
+	for _, e := range envs {
+		c.EnvProviders = append(c.EnvProviders, PluginEnvProviderDef{Key: e.Key, Title: e.Title, Provider: domain.PluginProviderName(id, e.Key)})
+	}
+	for _, s := range srcs {
+		c.SkillSources = append(c.SkillSources, PluginSkillSourceDef{Key: s.Key, Title: s.Title, Description: s.Description, URL: domain.PluginSkillURL(id, s.Key)})
+	}
+	return c
+}
+
 // PluginToolDef é uma tool declarada no manifesto.
 type PluginToolDef struct {
 	Name        string `json:"name"`
@@ -101,9 +161,10 @@ type Plugin struct {
 	Events              []string          `json:"events"`
 	Widgets             []PluginWidgetDef `json:"widgets"`
 	Jobs                []PluginJobDef    `json:"jobs"`
-	Process             PluginProcess     `json:"process"`
-	InstalledAt         time.Time         `json:"installed_at"`
-	UpdatedAt           time.Time         `json:"updated_at"`
+	Contributions
+	Process     PluginProcess `json:"process"`
+	InstalledAt time.Time     `json:"installed_at"`
+	UpdatedAt   time.Time     `json:"updated_at"`
 }
 
 func manifestParts(m domain.PluginManifest) ([]PluginToolDef, []PluginWidgetDef, []PluginJobDef) {
@@ -136,7 +197,8 @@ func pluginOut(v service.PluginView) Plugin {
 		Version: v.Version, APIVersion: v.APIVersion, Status: string(v.Status), Capabilities: strs(v.GrantedCapabilities),
 		PendingCapabilities: strs(v.PendingCapabilities), LastError: v.LastError, Dir: v.Dir, Companies: v.Companies,
 		Tools: tools, Events: strs(m.Events), Widgets: widgets, Jobs: jobs, Process: processOut(v.Process),
-		InstalledAt: v.InstalledAt, UpdatedAt: v.UpdatedAt}
+		Contributions: contributionsOf(v.Key, m.Pages, m.FlowTriggers, m.EnvProviders, m.SkillSources),
+		InstalledAt:   v.InstalledAt, UpdatedAt: v.UpdatedAt}
 	if v.PendingManifest != nil {
 		o.PendingVersion = v.PendingManifest.Version
 	}
@@ -221,8 +283,9 @@ type CompanyPlugin struct {
 	Events       []string            `json:"events"`
 	Widgets      []PluginWidgetDef   `json:"widgets"`
 	Jobs         []PluginJobDef      `json:"jobs"`
-	JobRuns      []PluginJobRun      `json:"job_runs,omitempty"`
-	UpdatedAt    *time.Time          `json:"updated_at,omitempty"`
+	Contributions
+	JobRuns   []PluginJobRun `json:"job_runs,omitempty"`
+	UpdatedAt *time.Time     `json:"updated_at,omitempty"`
 }
 
 func configFields(s domain.PluginConfigSchema) []PluginConfigField {
@@ -245,7 +308,7 @@ func companyPluginOut(v service.CompanyPlugin) CompanyPlugin {
 	o := CompanyPlugin{PluginID: idStr(v.PluginID), Key: v.Key, Name: v.Name, Description: v.Description, Version: v.Version,
 		Status: string(v.Status), Capabilities: strs(v.Capabilities), Enabled: v.Enabled, Active: v.Active, Config: v.Config,
 		SecretsSet: strs(v.SecretsSet), Fields: configFields(v.ConfigSchema), Tools: tools, Events: strs(v.Events), Widgets: widgets,
-		Jobs: jobs, UpdatedAt: v.UpdatedAt}
+		Jobs: jobs, UpdatedAt: v.UpdatedAt, Contributions: contributionsOf(v.Key, v.Pages, v.FlowTriggers, v.EnvProviders, v.SkillSources)}
 	if o.Config == nil {
 		o.Config = map[string]any{}
 	}
@@ -293,6 +356,11 @@ type installPluginIn struct {
 	Body struct {
 		Key string `json:"key" pattern:"^[a-z][a-z0-9-]{1,62}$" doc:"Nome do diretório do plugin em HANKO_PLUGINS_DIR (igual ao id do manifesto)." example:"hello"`
 	}
+}
+
+type pluginCapabilityIn struct {
+	PluginPath
+	Capability string `path:"capability" enum:"tasks.read,tasks.write,personas.read,projects.read,activity.read,events.subscribe,agent.tools,widgets,jobs,state,http.outbound,pages,flows.trigger,environments.provider,skills.source" doc:"Capacidade do plugin."`
 }
 
 type pluginLogsIn struct {
@@ -449,7 +517,26 @@ func (s *server) registerPlugins(api huma.API) {
 			return &ItemOut[PluginHealth]{Body: PluginHealth{Status: string(h.Status), LastError: h.LastError, Companies: h.Companies, Process: processOut(h.Process)}}, nil
 		})
 
+	capability := func(id, verb, summary string, granted bool) {
+		huma.Register(api, op(id, http.MethodPost, "/plugins/{plugin}/capabilities/{capability}/"+verb, "plugins", summary),
+			func(ctx context.Context, in *pluginCapabilityIn) (*ItemOut[Plugin], error) {
+				pb, err := s.pluginAdmin(ctx)
+				if err != nil {
+					return nil, err
+				}
+				v, err := pb.SetPluginCapability(ctx, in.Plugin, in.Capability, granted)
+				if err != nil {
+					return nil, s.fail(ctx, err)
+				}
+				return &ItemOut[Plugin]{Body: pluginOut(v)}, nil
+			})
+	}
+	capability("grant-plugin-capability", "grant", "Concede uma capacidade declarada no manifesto do plugin (dono)", true)
+	capability("revoke-plugin-capability", "revoke",
+		"Revoga uma capacidade: tools, aba, widgets, gatilhos, provider e fonte de skills que dependem dela somem na hora (dono)", false)
+
 	s.registerCompanyPlugins(api)
+	s.registerPluginContributions(api)
 }
 
 func (s *server) registerCompanyPlugins(api huma.API) {

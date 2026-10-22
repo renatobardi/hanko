@@ -47,6 +47,17 @@ templ Layout(sh Shell) {
 								}
 							</div>
 						}
+						if len(sh.PluginTabs) > 0 {
+							<div class="nav-group">
+								<div class="nav-label">{ i18n.T(ctx, "Plugins") }</div>
+								for _, t := range sh.PluginTabs {
+									<a href={ templ.SafeURL(t.Href) } aria-current?={ sh.Active == "plugin:"+t.Href }>
+										@Icon("plug")
+										<span>{ t.Title }</span>
+									</a>
+								}
+							</div>
+						}
 					</nav>
 					@sidebarFoot(sh)
 				</aside>

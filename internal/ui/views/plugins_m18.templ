@@ -1,0 +1,93 @@
+package views
+
+import "github.com/renatobardi/hanko/internal/i18n"
+
+// ---- plugins: abas, gatilhos, providers e fontes (ADR-0045) ----
+
+// pluginContributions mostra o que o plugin contribui além de tools, eventos, widgets e jobs.
+templ pluginContributions(vm PluginDetailVM) {
+	if len(vm.Pages) > 0 {
+		<h2 class="side-h sec-h">{ i18n.T(ctx, "Abas") }</h2>
+		<ul class="plugin-tools mb-4">
+			for _, p := range vm.Pages {
+				<li><a class="link-u" href={ templ.SafeURL(p.Href) }>{ p.Title }</a></li>
+			}
+		</ul>
+	}
+	if len(vm.Triggers) > 0 {
+		<h2 class="side-h sec-h">{ i18n.T(ctx, "Gatilhos de fluxo") }</h2>
+		<p class="muted text-sm mb-3">{ i18n.T(ctx, "O plugin dispara o gatilho; os fluxos ligados aqui rodam (cada um cria a sua task). Só o admin liga.") }</p>
+		<div class="grid-2 items-start mb-4">
+			for _, t := range vm.Triggers {
+				<section class="card pad">
+					<div class="card-head"><div><h2>{ t.Title }</h2><p class="sub"><code>{ t.Key }</code></p></div></div>
+					if t.Desc != "" {
+						<p class="muted text-sm">{ t.Desc }</p>
+					}
+					if len(t.Links) == 0 {
+						<p class="muted text-sm">{ i18n.T(ctx, "Nenhum fluxo ligado: disparar o gatilho não faz nada.") }</p>
+					} else {
+						<ul class="plugin-caps-grants">
+							for _, l := range t.Links {
+								<li>
+									<span>{ l.Name } <code class="faint">{ l.Slug }</code></span>
+									if t.Admin {
+										@pluginOwnerButton(l.UnlinkAction, i18n.T(ctx, "Desligar"), "", false)
+									}
+								</li>
+							}
+						</ul>
+					}
+					if t.Admin && len(t.FlowOptions) > 0 {
+						<form method="post" action={ templ.SafeURL(t.LinkAction) } class="inline-form mt-3">
+							@Select("flow", "tr-"+t.Key, t.FlowOptions, false)
+							<button class="btn primary sm" type="submit">{ i18n.T(ctx, "Ligar a um fluxo") }</button>
+						</form>
+					}
+				</section>
+			}
+		</div>
+	}
+	if len(vm.Providers) > 0 {
+		<h2 class="side-h sec-h">{ i18n.T(ctx, "Providers de ambiente") }</h2>
+		<p class="muted text-sm mb-3">{ i18n.T(ctx, "Use o nome abaixo como provider ao criar um ambiente em nuvem. A chave de API do ambiente é enviada ao plugin.") }</p>
+		<ul class="plugin-tools mb-4">
+			for _, p := range vm.Providers {
+				<li><code>{ p.Provider }</code> <span class="muted text-sm">{ p.Title }</span></li>
+			}
+		</ul>
+	}
+	if len(vm.Sources) > 0 {
+		<h2 class="side-h sec-h">{ i18n.T(ctx, "Fontes de skills") }</h2>
+		<p class="muted text-sm mb-3">{ i18n.T(ctx, "Use a URL abaixo ao conectar uma fonte de skills (Skills › Fontes).") }</p>
+		<ul class="plugin-tools mb-4">
+			for _, s := range vm.Sources {
+				<li><code>{ s.URL }</code> <span class="muted text-sm">{ s.Title }</span></li>
+			}
+		</ul>
+	}
+}
+
+// PluginPageHostPage é a página hospedeira de uma aba: o iframe sandboxed (sem allow-same-origin) e o script da ponte.
+// O HTML do plugin só existe dentro do iframe, servido com CSP sem rede.
+templ PluginPageHostPage(sh Shell, vm PluginPageVM) {
+	@Layout(sh) {
+		@PageHead(vm.Title, vm.PluginName) {
+		}
+		<div class="plugin-frame-wrap">
+			<iframe
+				id="plugin-frame"
+				class="plugin-frame"
+				title={ vm.Title }
+				src={ vm.FrameSrc }
+				sandbox="allow-scripts"
+				referrerpolicy="no-referrer"
+				loading="eager"
+				data-bridge={ vm.BridgeURL }
+				data-company={ vm.Company }
+			></iframe>
+		</div>
+		<p class="muted text-xs mt-3">{ i18n.T(ctx, "Esta página é do plugin e roda isolada: sem acesso à sua sessão nem à rede; só fala com o plugin por meio do Hanko.") }</p>
+		<script src={ "/static/plugin-frame.js?v=" + sh.Version } defer></script>
+	}
+}
