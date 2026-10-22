@@ -203,6 +203,13 @@ func (s *Service) AdminRemoveUser(ctx context.Context, email string) error {
 		if _, err := t.q.DeleteUser(ctx, row.ID); err != nil {
 			return fmt.Errorf("delete user: %w", err)
 		}
+		// favoritos, recentes e dispensas não têm FK para users (o modo trusted não tem usuário): limpa à mão (ADR-0061)
+		if err := t.q.DeleteNavItemsForSubject(ctx, row.ID.String()); err != nil {
+			return fmt.Errorf("delete nav items: %w", err)
+		}
+		if err := t.q.DeleteDismissalsForSubject(ctx, row.ID.String()); err != nil {
+			return fmt.Errorf("delete dismissals: %w", err)
+		}
 		removed = row.ID
 		return s.recordAdmin(ctx, t.q, "user.remove", row.Email, &row.ID, "ok")
 	})

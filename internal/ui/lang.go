@@ -1,8 +1,10 @@
 package ui
 
 import (
+	"context"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/renatobardi/hanko/internal/auth"
@@ -25,19 +27,37 @@ type handlerRegistry interface {
 // langMux registers every route behind the language middleware, so each handler sees
 // the language in its request context (tests mount s.routes on a bare mux, so the
 // middleware lives here and not around the mux).
-type langMux struct{ mux *http.ServeMux }
+type langMux struct {
+	mux *http.ServeMux
+	// prof lê o perfil da pessoa autenticada (idioma e fuso, ADR-0061); nil = sem perfil.
+	prof func(context.Context) domain.UserProfile
+}
 
-func (m langMux) Handle(pattern string, h http.Handler) { m.mux.Handle(pattern, withLang(h)) }
+func (m langMux) Handle(pattern string, h http.Handler) { m.mux.Handle(pattern, withLang(h, m.prof)) }
 func (m langMux) HandleFunc(pattern string, h func(http.ResponseWriter, *http.Request)) {
-	m.mux.Handle(pattern, withLang(http.HandlerFunc(h)))
+	m.mux.Handle(pattern, withLang(http.HandlerFunc(h), m.prof))
 }
 
 // withLang resolves the UI language of the request: the hanko_lang cookie wins over
 // Accept-Language (en* is English, anything else pt-BR).
-func withLang(next http.Handler) http.Handler {
+func withLang(next http.Handler, prof func(context.Context) domain.UserProfile) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Vary", "Cookie, Accept-Language")
-		next.ServeHTTP(w, r.WithContext(i18n.WithLang(r.Context(), requestLang(r))))
+		ctx := r.Context()
+		lang := requestLang(r)
+		if prof != nil && !strings.HasPrefix(r.URL.Path, "/static/") {
+			memo := &profMemo{load: prof}
+			ctx = context.WithValue(ctx, profKey{}, memo)
+			// sem cookie, o idioma do perfil (quando há) vale mais que o Accept-Language do navegador
+			if _, err := r.Cookie(i18n.Cookie); err != nil {
+				if _, ok := auth.IdentityFrom(ctx); ok {
+					if l, ok := i18n.Parse(memo.get(ctx).Locale); ok {
+						lang = l
+					}
+				}
+			}
+		}
+		next.ServeHTTP(w, r.WithContext(i18n.WithLang(ctx, lang)))
 	})
 }
 
@@ -57,9 +77,7 @@ func (s *server) handleLang(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, nil, domain.Invalid("lang", i18n.T(r.Context(), "idioma desconhecido")))
 		return
 	}
-	// Secure follows the session cookie's config (https public URL); HttpOnly and Lax always.
-	http.SetCookie(w, &http.Cookie{Name: i18n.Cookie, Value: string(l), Path: "/", MaxAge: int(langCookieTTL / time.Second), //nolint:gosec // Secure vem da config (https)
-		Expires: s.now().Add(langCookieTTL), HttpOnly: true, Secure: s.secure, SameSite: http.SameSiteLaxMode})
+	s.setLangCookie(w, l) // Secure segue a config da cookie de sessão (URL pública https); HttpOnly e Lax sempre.
 	redirect(w, r, backTo(r))
 }
 

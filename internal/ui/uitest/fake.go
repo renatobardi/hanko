@@ -78,6 +78,8 @@ type Fake struct {
 	Coord CoordState
 	// Git é o estado do workspace com Git (ADR-0054).
 	Git GitFakeState
+	// W3 é o estado das telas da trilha onda 3 (ADR-0061; uitest/trilha_w3.go).
+	W3 W3Fake
 
 	// Env são os ambientes de execução (ADR-0037).
 	Env EnvFake

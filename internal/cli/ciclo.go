@@ -304,8 +304,8 @@ func (e *env) saveContexts(cs cliContexts) error {
 // currentContext devolve o contexto ativo, se houver.
 func (e *env) currentContext() (cliContext, bool) {
 	cs := e.loadContexts()
-	c, ok := cs.Contexts[cs.Current]
-	return c, ok && c.Token != ""
+	c, ok := cs.Contexts[e.activeContextName(cs)]
+	return c, ok && (c.Token != "" || c.URL != "") // contexto sem chave serve a um servidor em modo trusted
 }
 
 func (e *env) loginCmd() *cobra.Command {

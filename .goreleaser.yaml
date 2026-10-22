@@ -28,6 +28,33 @@ checksum:
 sboms:
   - artifacts: archive # requer syft no PATH (ver release.yml)
 
+# Tap Homebrew (#54): `brew install --cask renatobardi/tap/hanko` (macOS; no Linux use install.sh). O cask é gerado com o checksum de cada
+# arquivo e enviado ao repositório renatobardi/homebrew-tap SÓ quando HOMEBREW_TAP_GITHUB_TOKEN existe
+# (secret do release.yml); sem ele a release publica o resto e pula o cask (`skip_upload`), então um
+# fork ou um snapshot nunca falha por falta de token. O `release-dry-run` só valida (check + build --snapshot).
+homebrew_casks:
+  - name: hanko
+    ids: [default]
+    binaries: [hanko]
+    repository:
+      owner: renatobardi
+      name: homebrew-tap
+      token: '{{ envOrDefault "HOMEBREW_TAP_GITHUB_TOKEN" "" }}'
+    skip_upload: '{{ if envOrDefault "HOMEBREW_TAP_GITHUB_TOKEN" "" }}false{{ else }}true{{ end }}'
+    directory: Casks
+    homepage: https://github.com/renatobardi/hanko
+    description: "Control plane para times de agentes de IA (um binário, Postgres como única dependência)"
+    license: Apache-2.0
+    commit_author:
+      name: Renato Bardi
+      email: renato.bardi@outlook.com
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/hanko"]
+          end
+
 dockers:
   - id: amd64
     goos: linux
