@@ -107,10 +107,15 @@ func (s *Service) ReclassifyArtifact(ctx context.Context, actor domain.Actor, co
 			return domain.Invalid("version", "only the latest version can be reclassified")
 		case cur.Version == 1:
 			return domain.Invalid("version", "the first version is always 1.0")
+		case cur.RestoredFrom != nil:
+			return domain.Invalid("version", "a restored version is always major")
 		}
 		prev, err := t.q.ListArtifactDocumentVersions(t.ctx, store.ListArtifactDocumentVersionsParams{CompanyID: companyID, DocumentID: cur.DocumentID})
-		if err != nil || len(prev) < 2 {
+		if err != nil {
 			return fmt.Errorf("artifact versions: %w", err)
+		}
+		if len(prev) < 2 {
+			return domain.Invalid("version", "the first version is always 1.0")
 		}
 		before := artifactFromRow(prev[1]).SemVer() // a lista vem da mais nova para a mais antiga
 		next := before.Next(kind)

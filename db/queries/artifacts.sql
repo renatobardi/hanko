@@ -11,9 +11,10 @@ SELECT pg_advisory_xact_lock(hashtextextended('artifact-doc:' || (@document_id::
 
 -- name: FindArtifactDocumentByChain :one
 -- Compatibilidade sem id (ADR-0064): o documento de mesmo nome que já tem versão no escopo antigo (a mesma task ou,
--- sem task, o "sem task" da empresa). O mais recente vence.
+-- sem task, o "sem task" da empresa, sem os documentos que perderam a task ao apagá-la). O mais recente vence.
 SELECT d.* FROM artifact_documents d
 WHERE d.company_id = @company_id AND d.kind = 'artifact' AND d.name = @name
+  AND (sqlc.narg(task_id)::uuid IS NOT NULL OR NOT d.detached)
   AND EXISTS (SELECT 1 FROM artifacts a WHERE a.document_id = d.id
                 AND a.task_id IS NOT DISTINCT FROM sqlc.narg(task_id)::uuid)
 ORDER BY d.updated_at DESC, d.id DESC
@@ -153,9 +154,11 @@ WHERE a.company_id = @company_id AND a.id = @id;
 -- name: ExportArtifacts :many
 -- Todas as versões da empresa em ordem de criação, com as chaves que o arquivo usa para referenciar (sem o conteúdo).
 SELECT a.*, COALESCE(t.number, 0)::bigint AS task_number,
-       COALESCE(pr.slug, '')::text AS project_slug, COALESCE(pe.slug, '')::text AS persona_slug, d.tags AS doc_tags
+       COALESCE(pr.slug, '')::text AS project_slug, COALESCE(pe.slug, '')::text AS persona_slug, d.tags AS doc_tags,
+       COALESCE(dp.slug, '')::text AS doc_project_slug
 FROM artifacts a
 JOIN artifact_documents d ON d.id = a.document_id
+LEFT JOIN projects dp ON dp.id = d.project_id
 LEFT JOIN tasks t ON t.id = a.task_id
 LEFT JOIN projects pr ON pr.id = a.project_id
 LEFT JOIN personas pe ON pe.id = a.persona_id

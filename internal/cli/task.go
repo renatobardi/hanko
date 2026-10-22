@@ -160,7 +160,7 @@ func (e *env) taskCmd() *cobra.Command {
 			if len(arts) > 0 {
 				fmt.Fprintf(e.out, e.t("\nArtefatos (%d):\n"), len(arts))
 				for _, a := range arts {
-					fmt.Fprintf(e.out, "  %s v%d (%s, %s) %s\n", a.Name, a.Version, a.Mime, humanBytes(a.SizeBytes), short(a.ID))
+					fmt.Fprintf(e.out, "  %s v%s (%s, %s) %s\n", a.Name, a.SemVer, a.Mime, humanBytes(a.SizeBytes), short(a.ID))
 				}
 			}
 			fmt.Fprintf(e.out, e.t("\nComentários (%d):\n"), len(cs))

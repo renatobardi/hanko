@@ -13796,12 +13796,11 @@
             "type": "string"
           },
           "name": {
-            "description": "Nome do arquivo (sem barras). Sem document_id, o mesmo nome na mesma task cria a versão seguinte.",
+            "description": "Nome do arquivo (sem barras). Obrigatório, exceto com document_id (vazio mantém o nome do documento). Sem document_id, o mesmo nome na mesma task cria a versão seguinte.",
             "examples": [
               "plano.md"
             ],
             "maxLength": 200,
-            "minLength": 1,
             "type": "string"
           },
           "project": {
@@ -13829,7 +13828,6 @@
           }
         },
         "required": [
-          "name",
           "content"
         ],
         "type": "object"

@@ -289,3 +289,74 @@ func TestExportImportArtifactDocuments(t *testing.T) {
 		t.Fatalf("arquivo antigo: %+v %v", list, err)
 	}
 }
+
+// Correções da revisão do ADR-0064.
+func TestArtifactReviewFixes(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	p := e.persona(t, "Ana", nil)
+	pa, err := e.svc.CreateProject(ctx, domain.HumanActor, e.co.ID, service.CreateProjectInput{Name: "Alfa"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pb, err := e.svc.CreateProject(ctx, domain.HumanActor, e.co.ID, service.CreateProjectInput{Name: "Beta"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ta := e.task(t, service.CreateTaskInput{Title: "a", ProjectID: &pa.ID})
+	tb := e.task(t, service.CreateTaskInput{Title: "b", ProjectID: &pb.ID})
+	inB := e.put(t, domain.HumanActor, service.PutArtifactInput{Name: "b.md", Content: []byte("b\n"), TaskID: &tb.ID})
+	docB := inB.DocumentID
+
+	// a persona não escolhe o projeto que vale para a regra: informar project=B numa task de A não libera o documento de B
+	_, err = e.svc.PutArtifact(ctx, domain.PersonaActor(p.ID), e.co.ID, service.PutArtifactInput{Content: []byte("x\n"), TaskID: &ta.ID,
+		ProjectID: &pb.ID, DocumentID: &docB})
+	wantErr(t, err, domain.ErrNotAllowed)
+
+	// pelo nome, um documento que foi movido para outro projeto deixa de ser da persona: ela cria outro em vez de falhar
+	mine := e.put(t, domain.PersonaActor(p.ID), service.PutArtifactInput{Name: "r.md", Content: []byte("1\n"), TaskID: &ta.ID})
+	if _, err := e.svc.UpdateArtifactDocument(ctx, domain.HumanActor, e.co.ID, mine.DocumentID, service.ArtifactDocumentPatch{ProjectID: &pb.ID}); err != nil {
+		t.Fatal(err)
+	}
+	again := e.put(t, domain.PersonaActor(p.ID), service.PutArtifactInput{Name: "r.md", Content: []byte("2\n"), TaskID: &ta.ID})
+	if again.DocumentID == mine.DocumentID || again.SemVer != "1.0" {
+		t.Fatalf("documento movido: %+v", again)
+	}
+
+	// a persona define tags só num documento novo
+	_, err = e.svc.PutArtifact(ctx, domain.PersonaActor(p.ID), e.co.ID, service.PutArtifactInput{Content: []byte("3\n"), TaskID: &ta.ID,
+		DocumentID: &again.DocumentID, Tags: []string{"x"}})
+	wantErr(t, err, domain.ErrInvalid)
+	if v := e.put(t, domain.PersonaActor(p.ID), service.PutArtifactInput{Name: "novo.md", Content: []byte("n\n"), TaskID: &ta.ID, Tags: []string{"x"}}); len(v.Tags) != 1 {
+		t.Fatalf("tags num documento novo: %+v", v)
+	}
+
+	// mesmo conteúdo com tags: não cria versão, mas grava as tags
+	same := e.put(t, domain.HumanActor, service.PutArtifactInput{Name: "b.md", Content: []byte("b\n"), TaskID: &tb.ID, Tags: []string{"cliente-x"}})
+	if same.ID != inB.ID || len(same.Tags) != 1 || same.Tags[0] != "cliente-x" {
+		t.Fatalf("tags no mesmo conteúdo: %+v", same)
+	}
+
+	// apagar a task: as versões ficam, mas o documento órfão não captura uma publicação nova sem task de mesmo nome
+	orphan := e.put(t, domain.HumanActor, service.PutArtifactInput{Name: "solto.md", Content: []byte("o\n"), TaskID: &ta.ID})
+	if _, err := e.svc.Pool.Exec(ctx, "DELETE FROM tasks WHERE id = $1", ta.ID); err != nil {
+		t.Fatal(err)
+	}
+	fresh := e.put(t, domain.HumanActor, service.PutArtifactInput{Name: "solto.md", Content: []byte("f\n")})
+	if fresh.DocumentID == orphan.DocumentID || fresh.SemVer != "1.0" {
+		t.Fatalf("documento órfão capturou a publicação: %+v", fresh)
+	}
+	vs, _ := e.svc.ArtifactVersions(ctx, e.co.ID, orphan.ID)
+	if len(vs) != 1 {
+		t.Fatalf("histórico do órfão: %d", len(vs))
+	}
+
+	// restauração é sempre major: não vira minor
+	v2 := e.put(t, domain.HumanActor, service.PutArtifactInput{Content: []byte("b2\n"), DocumentID: &docB})
+	r, err := e.svc.RestoreArtifact(ctx, domain.HumanActor, e.co.ID, inB.ID, nil, nil)
+	if err != nil || v2.ID == r.ID {
+		t.Fatal(err)
+	}
+	_, err = e.svc.ReclassifyArtifact(ctx, domain.HumanActor, e.co.ID, r.ID, domain.ChangeMinor)
+	wantErr(t, err, domain.ErrInvalid)
+}

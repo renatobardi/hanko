@@ -97,12 +97,16 @@ As decisões abaixo foram tomadas pelo dono, pergunta a pergunta, em 2026-10-22.
 - `viewer` lê. `member` publica, edita projeto/workspace/tags, restaura e reclassifica. `admin` exclui o documento
   (todas as versões, definitivo).
 - **Persona (run token):** lê qualquer documento da empresa (a leitura equivale a `viewer`). Publica versão nova ou
-  restaura documento cujo projeto é o mesmo da task ou run dela, ou documento sem projeto. A versão grava a task e a run
-  do token. Reclassificar e editar tags cabe ao humano.
+  restaura documento cujo projeto é o mesmo da **task** dela (nunca o `project` informado na chamada), ou documento sem
+  projeto. Pela busca por nome (sem id), um documento de outro projeto não é dela: a publicação cria outro documento em vez
+  de falhar. A versão grava a task e a run do token. A persona define tags só ao criar um documento; reclassificar e
+  editar tags de um documento existente cabe ao humano.
 
 ### 7. Apagar a task preserva o histórico (substitui o adendo "Vínculo com a task" do ADR-0028)
 - Com o documento atravessando tasks, o `CASCADE` apagaria versões do meio do histórico. Um gatilho `BEFORE DELETE` em
-  `tasks` desliga as versões de artefato (`kind = 'artifact'`): `task_id = NULL`. Anexos continuam sendo apagados com a
+  `tasks` desliga as versões de artefato (`kind = 'artifact'`): `task_id = NULL`, e marca o documento como `detached`. Um
+  documento `detached` fica fora da busca por nome do escopo "sem task", para que uma publicação nova sem task não vire
+  versão de um documento órfão. Anexos continuam sendo apagados com a
   task. O gatilho fica no banco para cobrir todos os caminhos de exclusão (task, projeto, empresa), não só o service.
   O problema que motivou o `CASCADE` (versões órfãs se fundindo com a cadeia "sem task") deixa de existir, porque a
   unicidade agora é por documento.
@@ -122,8 +126,9 @@ As decisões abaixo foram tomadas pelo dono, pergunta a pergunta, em 2026-10-22.
   e nome. O detalhe mostra o histórico com selo major/minor, motivo e alerta de disputa, o diff entre duas versões
   escolhidas, Restaurar e Reclassificar (só na mais nova), e a edição de tags/projeto/workspace. O envio tem a escolha
   major/minor pré-marcada pela sugestão.
-- Export `hanko.company.v1`: o campo `artifacts` ganha `document`, `major`, `minor`, `change`, `change_reason` e `tags`
-  (opcionais). Arquivo antigo importa como hoje, agrupado por cadeia, com `N.0`. A cota e os limites por arquivo não
+- Export `hanko.company.v1`: o campo `artifacts` ganha `document`, `major`, `minor`, `change`, `change_reason`, `tags`
+  e `document_project` (opcionais). Arquivo antigo importa como hoje, agrupado por cadeia, com `N.0`. O workspace do
+  documento não é exportado: na importação ele fica vazio. A cota e os limites por arquivo não
   mudam.
 
 ## Alternativas descartadas
@@ -142,6 +147,10 @@ As decisões abaixo foram tomadas pelo dono, pergunta a pergunta, em 2026-10-22.
   válidos.
 - A listagem deixa de calcular "a mais nova da cadeia" por subconsulta correlacionada e passa a agrupar por
   `document_id` (índice próprio).
+- A medida do diff roda sob a trava de artefatos da empresa. No driver padrão (Postgres) é uma leitura na mesma
+  transação, com teto de 512 KiB e o teto de células do diff. Com S3 inclui um GET dentro da trava, e as gravações de
+  artefatos da empresa esperam por ele. Medir antes da trava, com nova conferência depois, fica como evolução se a
+  contenção aparecer.
 - A persona consome tokens para ler artefatos: `hanko_artifact_get` respeita o teto por arquivo e a prévia de texto é
   limitada como na tela.
 - O `Down` da migration volta ao modelo de cadeia sem apagar nada: renumera o ordinal por (task, nome) em ordem de

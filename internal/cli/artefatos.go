@@ -33,13 +33,14 @@ func (e *env) artifactCmd() *cobra.Command {
 				return err
 			}
 			var b []byte
+			// ao alterar um documento (--artifact) sem --name, o nome do documento é mantido (ADR-0064)
 			if args[0] == "-" {
-				if name == "" {
+				if name == "" && document == "" {
 					return usageError{errors.New(e.t("com entrada padrão (-), informe --name"))}
 				}
 				b, err = io.ReadAll(io.LimitReader(e.in, maxArtifactRead+1))
 			} else {
-				if name == "" {
+				if name == "" && document == "" {
 					name = filepath.Base(args[0])
 				}
 				b, err = readLimited(args[0], maxArtifactRead)

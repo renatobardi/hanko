@@ -9,6 +9,7 @@ import (
 	"mime"
 	"net/http"
 	"path"
+	"slices"
 	"strings"
 	"time"
 	"unicode"
@@ -395,7 +396,9 @@ func (s *Service) putArtifact(ctx context.Context, actor domain.Actor, companyID
 				return domain.Invalid("run_id", "run belongs to another task")
 			}
 		}
-		var workspaceID *domain.ID
+		// scopeProject é o projeto que vale para a regra da persona (ADR-0064): o da task, nunca o que a chamada
+		// informa, senão a persona escolheria o projeto do documento que quer alterar
+		var workspaceID, scopeProject *domain.ID
 		if taskID != nil {
 			task, err := t.q.GetTaskByID(ctx, store.GetTaskByIDParams{CompanyID: companyID, ID: *taskID})
 			if err != nil {
@@ -404,7 +407,7 @@ func (s *Service) putArtifact(ctx context.Context, actor domain.Actor, companyID
 			if projectID == nil {
 				projectID = task.ProjectID
 			}
-			workspaceID = task.WorkspaceID
+			workspaceID, scopeProject = task.WorkspaceID, task.ProjectID
 		}
 		if projectID != nil {
 			pr, err := t.q.GetProjectByID(ctx, store.GetProjectByIDParams{CompanyID: companyID, ID: *projectID})
@@ -428,23 +431,40 @@ func (s *Service) putArtifact(ctx context.Context, actor domain.Actor, companyID
 		if err := t.q.LockArtifactCompany(ctx, companyID); err != nil {
 			return fmt.Errorf("lock artifact company: %w", err)
 		}
-		doc, found, err := t.findArtifactDocument(actor, companyID, in.DocumentID, taskID, projectID, name)
+		doc, found, err := t.findArtifactDocument(actor, companyID, in.DocumentID, taskID, scopeProject, name)
 		if err != nil {
 			return err
+		}
+		if found && in.Tags != nil && actor.Type == domain.ActorPersona {
+			return domain.Invalid("tags", "a persona sets tags only on a new document; changing them is up to a human")
 		}
 		ver, ordinal := domain.FirstSemVer, int32(1)
 		change, declared, disputed := domain.ChangeMajor, (*domain.ChangeKind)(nil), false
 		var ratio *float64
+		var latest store.Artifact
 		if found {
 			if err := t.q.LockArtifactDocument(ctx, doc.ID); err != nil {
 				return fmt.Errorf("lock artifact document: %w", err)
 			}
-			latest, err := t.q.LatestArtifactOfDocument(ctx, doc.ID)
-			if err != nil {
+			latest, err = t.q.LatestArtifactOfDocument(ctx, doc.ID)
+			switch {
+			case isNoRows(err) && in.DocumentID != nil: // apagado entre a busca e a trava
+				return domain.Invalid("artifact", "artifact document not found in company")
+			case isNoRows(err):
+				doc, found = store.ArtifactDocument{}, false
+			case err != nil:
 				return fmt.Errorf("latest artifact: %w", err)
 			}
+		}
+		if found {
 			if latest.Sha256 == digest && latest.Mime == mt && latest.Name == name && in.restoredFrom == nil {
-				id = latest.ID // mesmo conteúdo: nada a gravar
+				id = latest.ID // mesmo conteúdo: nada a gravar, mas as tags pedidas valem
+				if in.Tags != nil && !slices.Equal(in.Tags, doc.Tags) {
+					if _, err := t.q.UpdateArtifactDocumentMeta(ctx, store.UpdateArtifactDocumentMetaParams{CompanyID: companyID, ID: doc.ID,
+						ProjectID: doc.ProjectID, WorkspaceID: doc.WorkspaceID, Tags: in.Tags, UpdatedAt: t.now}); err != nil {
+						return mapErr(err, "update artifact document")
+					}
+				}
 				return nil
 			}
 			// a leitura do conteúdo anterior usa a própria transação: uma conexão a mais do pool, com a trava da
@@ -561,8 +581,9 @@ func validateArtifactChange(actor domain.Actor, in *PutArtifactInput) error {
 
 // findArtifactDocument acha o documento a versionar: o informado (id) ou, sem id, o de mesmo nome que já tem versão
 // na mesma task (ou no "sem task" da empresa). found falso: a publicação cria um documento novo. A persona só
-// versiona documento do projeto da sua task ou run, ou sem projeto (ADR-0064).
-func (t *txc) findArtifactDocument(actor domain.Actor, companyID domain.ID, docID, taskID, projectID *domain.ID, name string) (store.ArtifactDocument, bool, error) {
+// versiona documento do projeto da sua task (scopeProject), ou sem projeto (ADR-0064); pelo nome, um documento de
+// outro projeto não é dela e a publicação cria outro.
+func (t *txc) findArtifactDocument(actor domain.Actor, companyID domain.ID, docID, taskID, scopeProject *domain.ID, name string) (store.ArtifactDocument, bool, error) {
 	var (
 		doc store.ArtifactDocument
 		err error
@@ -581,7 +602,10 @@ func (t *txc) findArtifactDocument(actor domain.Actor, companyID domain.ID, docI
 			return doc, false, fmt.Errorf("find artifact document: %w", err)
 		}
 	}
-	if actor.Type == domain.ActorPersona && doc.ProjectID != nil && (projectID == nil || *projectID != *doc.ProjectID) {
+	if actor.Type == domain.ActorPersona && doc.ProjectID != nil && (scopeProject == nil || *scopeProject != *doc.ProjectID) {
+		if docID == nil {
+			return store.ArtifactDocument{}, false, nil
+		}
 		return doc, false, fmt.Errorf("artifact: a persona versions only documents of its own project: %w", domain.ErrNotAllowed)
 	}
 	return doc, true, nil

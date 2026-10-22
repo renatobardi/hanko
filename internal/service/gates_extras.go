@@ -128,8 +128,14 @@ func (s *Service) resolvePlan(ctx context.Context, companyID, taskID domain.ID, 
 		if err != nil {
 			return "", nil, domain.Invalid("artifact", "artefato não encontrado na empresa")
 		}
-		if a.TaskID == nil || *a.TaskID != taskID {
-			return "", nil, domain.Invalid("artifact", "o artefato do plano precisa ser da mesma task do gate")
+		if a.TaskID == nil || *a.TaskID != taskID { // vale também a versão de um documento que tem versão nesta task
+			same, err := s.ListArtifacts(ctx, companyID, ArtifactFilter{TaskID: &taskID, DocumentID: &a.DocumentID, Limit: 1})
+			if err != nil {
+				return "", nil, err
+			}
+			if len(same) == 0 {
+				return "", nil, domain.Invalid("artifact", "o artefato do plano precisa ser da mesma task do gate")
+			}
 		}
 		art = a
 	} else {

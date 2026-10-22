@@ -131,7 +131,7 @@ type ArtifactPath struct {
 type putArtifactIn struct {
 	CompanyPath
 	Body struct {
-		Name         string   `json:"name" minLength:"1" maxLength:"200" example:"plano.md" doc:"Nome do arquivo (sem barras). Sem document_id, o mesmo nome na mesma task cria a versão seguinte."`
+		Name         string   `json:"name,omitempty" maxLength:"200" example:"plano.md" doc:"Nome do arquivo (sem barras). Obrigatório, exceto com document_id (vazio mantém o nome do documento). Sem document_id, o mesmo nome na mesma task cria a versão seguinte."`
 		Document     string   `json:"document_id,omitempty" format:"uuid" doc:"Documento a alterar: a publicação vira a versão seguinte dele, mesmo com outro nome ou em outra task."`
 		Change       string   `json:"change,omitempty" enum:"major,minor" doc:"Classificação declarada; vazio = o servidor decide pelo tamanho do diff."`
 		ChangeReason string   `json:"change_reason,omitempty" maxLength:"280" doc:"Motivo curto da mudança; obrigatório para run token que declara change."`

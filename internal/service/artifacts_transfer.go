@@ -40,7 +40,7 @@ func (s *Service) exportArtifacts(ctx context.Context, q *store.Queries, company
 			Persona: r.PersonaSlug, Run: refSlug(runKey, r.RunID), Author: exportActor(r.AuthorType, r.AuthorID, peSlug),
 			SHA256: r.Sha256, SizeBytes: r.SizeBytes, CreatedAt: r.CreatedAt,
 			Document: r.DocumentID.String(), Major: int(r.VersionMajor), Minor: int(r.VersionMinor), Change: r.ChangeKind,
-			ChangeReason: r.ChangeReason, Tags: r.DocTags}
+			ChangeReason: r.ChangeReason, Tags: r.DocTags, DocumentProject: r.DocProjectSlug}
 		doc.Artifacts = append(doc.Artifacts, a)
 		st.artIDs = append(st.artIDs, r.ID)
 		st.artStore = append(st.artStore, r.Storage)
@@ -84,6 +84,9 @@ func (s *Service) planArtifacts(doc export.Document, tk map[int64]int, pe, pr, r
 			}
 		}
 		if err := ref("artifacts", i, "project", a.Project, pr); err != nil {
+			return err
+		}
+		if err := ref("artifacts", i, "document_project", a.DocumentProject, pr); err != nil {
 			return err
 		}
 		if err := ref("artifacts", i, "persona", a.Persona, pe); err != nil {
@@ -184,8 +187,12 @@ func (t *txc) importArtifacts(cid domain.ID, doc export.Document, taskID map[int
 		docID, ok := docs[k]
 		if !ok {
 			tags, _ := domain.NormalizeTags(a.Tags) // validadas em planArtifacts
+			project := optID(prID, a.Project)
+			if a.DocumentProject != "" {
+				project = optID(prID, a.DocumentProject)
+			}
 			d, err := t.q.CreateArtifactDocument(ctx, store.CreateArtifactDocumentParams{ID: domain.NewID(), CompanyID: cid,
-				Kind: string(domain.ClassArtifact), Name: name, ProjectID: optID(prID, a.Project), Tags: tags, CreatedAt: a.CreatedAt})
+				Kind: string(domain.ClassArtifact), Name: name, ProjectID: project, Tags: tags, CreatedAt: a.CreatedAt})
 			if err != nil {
 				return mapErr(err, fmt.Sprintf("import artifact %d document", i))
 			}

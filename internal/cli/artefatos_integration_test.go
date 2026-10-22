@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-// hanko artifact/goal contra o servidor de verdade (ADR-0028).
+// hanko artifact/goal contra o servidor de verdade (ADR-0028, ADR-0064: versões MAJOR.MINOR).
 func TestCLIArtefatos(t *testing.T) {
 	_, _, env := realServer(t)
 	dir := t.TempDir()
@@ -21,18 +21,19 @@ func TestCLIArtefatos(t *testing.T) {
 	mustOK(t, env, "task", "create", "Relatório")
 
 	out := mustOK(t, env, "artifact", "put", plano, "--task", "HNK-1")
-	if !strings.Contains(out, "Artefato plano.md v1 publicado") {
+	if !strings.Contains(out, "Artefato plano.md 1.0 (major) publicado") {
 		t.Fatalf("put: %q", out)
 	}
 	if err := os.WriteFile(plano, []byte("# dois\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	// trocar o arquivo inteiro é mudança major: 2.0
 	out = mustOK(t, env, "artifact", "put", plano, "--task", "HNK-1")
-	if !strings.Contains(out, "plano.md v2 publicado") {
+	if !strings.Contains(out, "plano.md 2.0 (major) publicado") {
 		t.Fatalf("put v2: %q", out)
 	}
 	// o mesmo conteúdo não cria versão
-	if out = mustOK(t, env, "artifact", "put", plano, "--task", "HNK-1"); !strings.Contains(out, "plano.md v2 publicado") {
+	if out = mustOK(t, env, "artifact", "put", plano, "--task", "HNK-1"); !strings.Contains(out, "plano.md 2.0 (major) publicado") {
 		t.Errorf("put repetido: %q", out)
 	}
 	// entrada padrão exige --name
@@ -46,7 +47,7 @@ func TestCLIArtefatos(t *testing.T) {
 		t.Fatalf("list --json: %+v %v", as, err)
 	}
 	out = mustOK(t, env, "artifact", "list")
-	if !strings.Contains(out, "plano.md") || !strings.Contains(out, "v2") || !strings.Contains(out, "HNK-1") {
+	if !strings.Contains(out, "plano.md") || !strings.Contains(out, "2.0") || !strings.Contains(out, "HNK-1") {
 		t.Errorf("list:\n%s", out)
 	}
 	if out = mustOK(t, env, "artifact", "list", "--kind", "image"); strings.Contains(out, "plano.md") {
@@ -63,20 +64,46 @@ func TestCLIArtefatos(t *testing.T) {
 		t.Errorf("get -o: %q %v", b, err)
 	}
 	out = mustOK(t, env, "artifact", "get", as[0].ID, "--info")
-	if !strings.Contains(out, "2/2") || !strings.Contains(out, "text/markdown") || !strings.Contains(out, "v1") {
+	if !strings.Contains(out, "2.0 (major, 2/2)") || !strings.Contains(out, "text/markdown") || !strings.Contains(out, "1.0") {
 		t.Errorf("get --info:\n%s", out)
 	}
 	out = mustOK(t, env, "artifact", "diff", as[0].ID)
-	if !strings.Contains(out, "v1 → v2: +1 −1") || !strings.Contains(out, "+ # dois") || !strings.Contains(out, "- # um") {
+	if !strings.Contains(out, "1.0 → 2.0: +1 −1") || !strings.Contains(out, "+ # dois") || !strings.Contains(out, "- # um") {
 		t.Errorf("diff:\n%s", out)
 	}
-	if out = mustOK(t, env, "task", "show", "HNK-1"); !strings.Contains(out, "Artefatos (1)") || !strings.Contains(out, "plano.md v2") {
+	if out = mustOK(t, env, "task", "show", "HNK-1"); !strings.Contains(out, "Artefatos (1)") || !strings.Contains(out, "plano.md v2.0") {
 		t.Errorf("task show sem artefatos:\n%s", out)
 	}
 	if out = mustOK(t, env, "artifact", "usage"); !strings.Contains(out, "Usado") || !strings.Contains(out, "Cota") {
 		t.Errorf("usage:\n%s", out)
 	}
 	mustFail(t, env, 1, "404", "artifact", "get", "00000000-0000-0000-0000-000000000000")
+
+	// alterar pelo documento, com classificação e sem nome (mantém o nome); restaurar e reclassificar
+	var full struct {
+		DocumentID string `json:"document_id"`
+	}
+	if err := json.Unmarshal([]byte(mustOK(t, env, "--json", "artifact", "get", as[0].ID, "--info")), &full); err != nil || full.DocumentID == "" {
+		t.Fatalf("documento: %+v %v", full, err)
+	}
+	outro := filepath.Join(dir, "outro-nome.md")
+	if err := os.WriteFile(outro, []byte("# dois\nmais uma linha\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	out = mustOK(t, env, "artifact", "put", outro, "--artifact", full.DocumentID, "--change", "minor", "--reason", "acréscimo")
+	if !strings.Contains(out, "plano.md 2.1 (minor) publicado") {
+		t.Fatalf("put --artifact: %q", out)
+	}
+	if out = mustOK(t, env, "artifact", "get", full.DocumentID, "--version", "1.0"); out != "# um\n" {
+		t.Errorf("get --version 1.0: %q", out)
+	}
+	if out = mustOK(t, env, "artifact", "restore", as[0].ID); !strings.Contains(out, "Restaurada como 3.0") {
+		t.Errorf("restore: %q", out)
+	}
+	mustOK(t, env, "artifact", "tag", full.DocumentID, "--tag", "arquitetura")
+	if out = mustOK(t, env, "artifact", "list", "--tag", "arquitetura"); !strings.Contains(out, "plano.md") || !strings.Contains(out, "arquitetura") {
+		t.Errorf("list --tag:\n%s", out)
+	}
 
 	// exportar com artefatos
 	exp := filepath.Join(dir, "empresa.json")
@@ -90,7 +117,7 @@ func TestCLIArtefatos(t *testing.T) {
 		t.Errorf("import não contou os artefatos:\n%s", out)
 	}
 	copyEnv := map[string]string{"HANKO_URL": env["HANKO_URL"], "HANKO_COMPANY": "copia"}
-	if out = mustOK(t, copyEnv, "artifact", "list", "--all-versions"); strings.Count(out, "plano.md") != 2 {
+	if out = mustOK(t, copyEnv, "artifact", "list", "--all-versions"); strings.Count(out, "plano.md") != 4 {
 		t.Errorf("artefatos importados:\n%s", out)
 	}
 

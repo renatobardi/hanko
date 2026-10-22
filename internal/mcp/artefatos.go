@@ -48,7 +48,7 @@ type artifactPutIn struct {
 	Mime          string   `json:"mime,omitempty" jsonschema:"tipo do conteúdo (ex. text/markdown); vazio = deduzido do nome"`
 	Task          string   `json:"task,omitempty" jsonschema:"chave da task; com token de run é sempre a task da sua execução"`
 	Project       string   `json:"project,omitempty" jsonschema:"slug do projeto; vazio = o da task"`
-	Tags          []string `json:"tags,omitempty" jsonschema:"tags livres do documento (a-z, 0-9 e -); substituem as atuais"`
+	Tags          []string `json:"tags,omitempty" jsonschema:"tags livres de um documento NOVO (a-z, 0-9 e -); as de um documento existente são do humano"`
 }
 
 type artifactOut struct {

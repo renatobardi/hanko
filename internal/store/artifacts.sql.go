@@ -236,7 +236,7 @@ func (q *Queries) CreateArtifactBlob(ctx context.Context, arg CreateArtifactBlob
 const createArtifactDocument = `-- name: CreateArtifactDocument :one
 INSERT INTO artifact_documents (id, company_id, kind, name, project_id, workspace_id, tags, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)
-RETURNING id, company_id, kind, name, project_id, workspace_id, tags, created_at, updated_at
+RETURNING id, company_id, kind, name, project_id, workspace_id, tags, detached, created_at, updated_at
 `
 
 type CreateArtifactDocumentParams struct {
@@ -270,6 +270,7 @@ func (q *Queries) CreateArtifactDocument(ctx context.Context, arg CreateArtifact
 		&i.ProjectID,
 		&i.WorkspaceID,
 		&i.Tags,
+		&i.Detached,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -366,9 +367,11 @@ func (q *Queries) DeleteAttachment(ctx context.Context, arg DeleteAttachmentPara
 
 const exportArtifacts = `-- name: ExportArtifacts :many
 SELECT a.id, a.company_id, a.task_id, a.run_id, a.project_id, a.persona_id, a.author_type, a.author_id, a.name, a.mime, a.size_bytes, a.sha256, a.version, a.created_at, a.storage, a.kind, a.comment_id, a.conversation_id, a.message_id, a.search_tsv, a.document_id, a.version_major, a.version_minor, a.change_kind, a.change_declared, a.change_reason, a.change_ratio, a.change_disputed, a.restored_from, COALESCE(t.number, 0)::bigint AS task_number,
-       COALESCE(pr.slug, '')::text AS project_slug, COALESCE(pe.slug, '')::text AS persona_slug, d.tags AS doc_tags
+       COALESCE(pr.slug, '')::text AS project_slug, COALESCE(pe.slug, '')::text AS persona_slug, d.tags AS doc_tags,
+       COALESCE(dp.slug, '')::text AS doc_project_slug
 FROM artifacts a
 JOIN artifact_documents d ON d.id = a.document_id
+LEFT JOIN projects dp ON dp.id = d.project_id
 LEFT JOIN tasks t ON t.id = a.task_id
 LEFT JOIN projects pr ON pr.id = a.project_id
 LEFT JOIN personas pe ON pe.id = a.persona_id
@@ -410,6 +413,7 @@ type ExportArtifactsRow struct {
 	ProjectSlug    string
 	PersonaSlug    string
 	DocTags        []string
+	DocProjectSlug string
 }
 
 // Todas as versões da empresa em ordem de criação, com as chaves que o arquivo usa para referenciar (sem o conteúdo).
@@ -456,6 +460,7 @@ func (q *Queries) ExportArtifacts(ctx context.Context, companyID uuid.UUID) ([]E
 			&i.ProjectSlug,
 			&i.PersonaSlug,
 			&i.DocTags,
+			&i.DocProjectSlug,
 		); err != nil {
 			return nil, err
 		}
@@ -468,8 +473,9 @@ func (q *Queries) ExportArtifacts(ctx context.Context, companyID uuid.UUID) ([]E
 }
 
 const findArtifactDocumentByChain = `-- name: FindArtifactDocumentByChain :one
-SELECT d.id, d.company_id, d.kind, d.name, d.project_id, d.workspace_id, d.tags, d.created_at, d.updated_at FROM artifact_documents d
+SELECT d.id, d.company_id, d.kind, d.name, d.project_id, d.workspace_id, d.tags, d.detached, d.created_at, d.updated_at FROM artifact_documents d
 WHERE d.company_id = $1 AND d.kind = 'artifact' AND d.name = $2
+  AND ($3::uuid IS NOT NULL OR NOT d.detached)
   AND EXISTS (SELECT 1 FROM artifacts a WHERE a.document_id = d.id
                 AND a.task_id IS NOT DISTINCT FROM $3::uuid)
 ORDER BY d.updated_at DESC, d.id DESC
@@ -483,7 +489,7 @@ type FindArtifactDocumentByChainParams struct {
 }
 
 // Compatibilidade sem id (ADR-0064): o documento de mesmo nome que já tem versão no escopo antigo (a mesma task ou,
-// sem task, o "sem task" da empresa). O mais recente vence.
+// sem task, o "sem task" da empresa, sem os documentos que perderam a task ao apagá-la). O mais recente vence.
 func (q *Queries) FindArtifactDocumentByChain(ctx context.Context, arg FindArtifactDocumentByChainParams) (ArtifactDocument, error) {
 	row := q.db.QueryRow(ctx, findArtifactDocumentByChain, arg.CompanyID, arg.Name, arg.TaskID)
 	var i ArtifactDocument
@@ -495,6 +501,7 @@ func (q *Queries) FindArtifactDocumentByChain(ctx context.Context, arg FindArtif
 		&i.ProjectID,
 		&i.WorkspaceID,
 		&i.Tags,
+		&i.Detached,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -618,7 +625,7 @@ func (q *Queries) GetArtifactContent(ctx context.Context, arg GetArtifactContent
 }
 
 const getArtifactDocument = `-- name: GetArtifactDocument :one
-SELECT id, company_id, kind, name, project_id, workspace_id, tags, created_at, updated_at FROM artifact_documents WHERE company_id = $1 AND id = $2
+SELECT id, company_id, kind, name, project_id, workspace_id, tags, detached, created_at, updated_at FROM artifact_documents WHERE company_id = $1 AND id = $2
 `
 
 type GetArtifactDocumentParams struct {
@@ -637,6 +644,7 @@ func (q *Queries) GetArtifactDocument(ctx context.Context, arg GetArtifactDocume
 		&i.ProjectID,
 		&i.WorkspaceID,
 		&i.Tags,
+		&i.Detached,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -1247,7 +1255,7 @@ func (q *Queries) TouchArtifactDocument(ctx context.Context, arg TouchArtifactDo
 const updateArtifactDocumentMeta = `-- name: UpdateArtifactDocumentMeta :one
 UPDATE artifact_documents SET project_id = $1, workspace_id = $2, tags = $3, updated_at = $4
 WHERE company_id = $5 AND id = $6
-RETURNING id, company_id, kind, name, project_id, workspace_id, tags, created_at, updated_at
+RETURNING id, company_id, kind, name, project_id, workspace_id, tags, detached, created_at, updated_at
 `
 
 type UpdateArtifactDocumentMetaParams struct {
@@ -1277,6 +1285,7 @@ func (q *Queries) UpdateArtifactDocumentMeta(ctx context.Context, arg UpdateArti
 		&i.ProjectID,
 		&i.WorkspaceID,
 		&i.Tags,
+		&i.Detached,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

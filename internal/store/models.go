@@ -120,6 +120,7 @@ type ArtifactDocument struct {
 	ProjectID   *uuid.UUID
 	WorkspaceID *uuid.UUID
 	Tags        []string
+	Detached    bool
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }

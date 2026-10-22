@@ -10,6 +10,9 @@ CREATE TABLE artifact_documents (
     project_id   uuid        REFERENCES projects(id) ON DELETE SET NULL,
     workspace_id uuid        REFERENCES workspaces(id) ON DELETE SET NULL,
     tags         text[]      NOT NULL DEFAULT '{}' CHECK (cardinality(tags) <= 20),
+    -- detached: alguma task do documento foi apagada (as versões dela ficaram sem task). Um documento assim não entra na
+    -- busca por nome do escopo "sem task", senão uma publicação nova sem task viraria versão de um documento órfão.
+    detached     boolean     NOT NULL DEFAULT false,
     created_at   timestamptz NOT NULL,
     updated_at   timestamptz NOT NULL
 );
@@ -80,6 +83,8 @@ CREATE INDEX artifacts_chain_lookup_idx ON artifacts (company_id, kind, name, ta
 -- +goose StatementBegin
 CREATE FUNCTION artifacts_detach_task() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
+    UPDATE artifact_documents SET detached = true
+    WHERE id IN (SELECT document_id FROM artifacts WHERE task_id = OLD.id AND kind = 'artifact');
     UPDATE artifacts SET task_id = NULL WHERE task_id = OLD.id AND kind = 'artifact';
     RETURN OLD;
 END;
