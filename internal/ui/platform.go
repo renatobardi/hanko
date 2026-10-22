@@ -53,6 +53,7 @@ func settingsSections(ctx context.Context, base, cur string) []views.TabLink {
 		{"decisao", i18n.T(ctx, "Decision model"), "/configuracoes/decisao"},
 		{"canais", i18n.T(ctx, "Canais"), "/configuracoes/canais"},
 		{"instancia", i18n.T(ctx, "Instância"), "/configuracoes/instancia"},
+		{"backups", i18n.T(ctx, "Backups"), "/configuracoes/backups"},
 		{"dados", i18n.T(ctx, "Exportar e importar"), "/configuracoes/dados"},
 	}
 	out := make([]views.TabLink, 0, len(secs))

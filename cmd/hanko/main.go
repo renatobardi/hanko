@@ -41,7 +41,16 @@ func main() {
 			}
 			return app.BlobsMigrate(ctx, cfg, version, a.From, a.To, a.Company, a.KeepSource, a.DryRun, a.Batch)
 		},
-		OpenAPI: api.Spec,
+		Doctor: app.Doctor,
+		Backup: func(ctx context.Context) (cli.BackupAdmin, error) {
+			cfg, err := config.Load()
+			if err != nil {
+				return nil, err
+			}
+			return app.OpenBackupAdmin(ctx, cfg, version)
+		},
+		ServeEmbedded: func(ctx context.Context, o cli.EmbeddedOptions) error { return app.ServeEmbedded(ctx, version, o) },
+		OpenAPI:       api.Spec,
 		Auth: func(ctx context.Context) (cli.AuthAdmin, error) {
 			cfg, err := config.Load()
 			if err != nil {
