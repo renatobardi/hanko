@@ -55,24 +55,24 @@ Status: `pendente` · `em andamento` · `feito` · `parcial` · `bloqueado` (mot
 | 49 | Técnico › Error tracking | Trilha O1 | feito | 2a9bbd8 | painel do Grafana validado como JSON/YAML, não num Grafana rodando |
 | 50 | Técnico › Storage | M7 | feito | e64c5d5 | BlobStore; S3 contra fake |
 | 51 | Técnico › Rate limit | Trilha O1 | feito | 2a9bbd8 |  |
-| 52 | Técnico › MCP standalone | Trilha Onda 2B | feito | PR #34 | testado contra servidor MCP de mentira, não contra um Hanko completo |
+| 52 | Técnico › MCP standalone | Trilha Onda 2B | feito | PR #34 (8abab60) | testado contra servidor MCP de mentira, não contra um Hanko completo |
 | 53 | Técnico › Auth | Trilha O1 | feito | 2a9bbd8 |  |
-| 54 | Técnico › Distribuição | Trilha Onda 2B | feito | PR #34 | `install.sh` e cask nunca rodaram contra release real; exige o repo `homebrew-tap` e o secret antes da 1ª tag |
+| 54 | Técnico › Distribuição | Trilha Onda 2B | feito | PR #34 (8abab60) | `install.sh` e cask nunca rodaram contra release real; exige o repo `homebrew-tap` e o secret antes da 1ª tag |
 | 55 | Técnico › i18n | Decisão | fora |  | fica pt-BR + en |
 | 56 | Processos › Testes | Trilha Já | feito | 93da09a | pisos de cobertura no CI (domain/heartbeat ≥80, service ≥70) |
 | 57 | Processos › E2E | Trilha O1 | feito | 2a9bbd8 | 24 testes Playwright contra Postgres 16; não exercita 5xx real |
-| 58 | Processos › Evals | Trilha Onda 2B | parcial | PR #34 | cenários e chaos só contra roteiro de mentira; nenhuma chamada a modelo real foi feita |
+| 58 | Processos › Evals | Trilha Onda 2B | parcial | PR #34 (8abab60) | cenários e chaos só contra roteiro de mentira; nenhuma chamada a modelo real foi feita |
 | 59 | Processos › CI | Trilha Já | feito | 93da09a | CI por propósito (ADR-0049) |
 | 60 | Processos › Release | Trilha Já | parcial | 93da09a | goreleaser, `release.yml` e notas prontos; as tags v0.1.0/v0.3.0–v0.6.0 ainda não foram publicadas (passo do dono) |
-| 61 | Processos › Announcements | Trilha Onda 3 | feito | PR #37 (aguardando CI) | «O que há de novo» lido do CHANGELOG embutido |
-| 62 | Processos › Docs | Trilha Onda 3 | parcial | PR #37 (aguardando CI) | gerador do site e feature-map prontos; a hospedagem em `docs.hanko.oute.pro` ficou de fora |
+| 61 | Processos › Announcements | Trilha Onda 3 | feito | PR #37 (14aaf9a) | «O que há de novo» lido do CHANGELOG embutido |
+| 62 | Processos › Docs | Trilha Onda 3 | parcial | PR #37 (14aaf9a) | gerador do site e feature-map prontos; a hospedagem em `docs.hanko.oute.pro` ficou de fora |
 | 63 | Processos › Higiene do repo | Trilha Já | feito | 93da09a | Settings de segurança ligados pelo dono em 2026-10-20; falta só «Private vulnerability reporting» |
 | 64 | Operação › Instância | Trilha Onda 2A | feito | 2d154ae | imagem do prd (distroless) sem `pg_dump`; `doctor` avisa |
 | 65 | Operação › Backup | Trilha Onda 2A | feito | 2d154ae | no prd a tela de backup fica desligada (sem cliente PostgreSQL na imagem); segue valendo `backup.sh` + restic |
 | 66 | Operação › Settings | M7 | feito | e64c5d5 |  |
-| 67 | Operação › Onboarding | Trilha Onda 3 | feito | PR #37 (aguardando CI) | jornada Playwright do assistente não escrita |
-| 68 | Operação › CLI | Trilha Onda 3 | feito | PR #37 (aguardando CI) | `sandbox up` em primeiro plano coberto só por `--no-serve` |
-| 69 | Operação › Navegação | Trilha Onda 3 | feito | PR #37 (aguardando CI) |  |
+| 67 | Operação › Onboarding | Trilha Onda 3 | feito | PR #37 (14aaf9a) | jornada Playwright do assistente não escrita |
+| 68 | Operação › CLI | Trilha Onda 3 | feito | PR #37 (14aaf9a) | `sandbox up` em primeiro plano coberto só por `--no-serve` |
+| 69 | Operação › Navegação | Trilha Onda 3 | feito | PR #37 (14aaf9a) |  |
 | 70 | Operação › Dev labs | Trilha O1 | feito | 2a9bbd8 |  |
 
 **Total: 62/70 feito, 5 parcial, 3 fora, 0 pendente, 0 bloqueado.**

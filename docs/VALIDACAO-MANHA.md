@@ -5,7 +5,7 @@ Roteiro único para o dono validar o que entrou durante a execução autônoma d
 ## 1. Estado geral
 - 62 dos 70 itens `feito`, 5 `parcial`, 3 `fora` (decisão do plano). Nenhum `pendente` ou `bloqueado`.
 - M7 a M20, trilha Já, O1 e Onda 2A estão mergeados na `main` (o ruleset exige `check`, `release-dry-run` e `gitleaks`). O atraso anterior do Actions foi a cota de minutos em repositório privado, resolvida quando o repo virou público.
-- Ondas 2B (PR #34) e 3 (PR #37) estão em PR aberto; PR #37 aguarda CI. Os roteiros delas valem depois do merge.
+- Ondas 2B (PR #34, 8abab60) e 3 (PR #37, 14aaf9a) já estão na `main`; os roteiros delas valem agora.
 - Nada foi implantado no `hanko-prd` (o `oute-server` não é acessível do ambiente da execução) e nenhuma tag nova foi publicada: ver seção 4.
 - Quase tudo que toca o mundo externo foi testado contra fakes; a seção 3 lista exatamente o quê. Testes de integração rodaram em Postgres 16 local (o CI usa 17). As migrations (00035 a 00200) são aditivas e aplicam no boot.
 
@@ -83,10 +83,10 @@ Pré-requisito comum: `HANKO_URL`/`HANKO_TOKEN` na CLI e uma empresa com uma per
 - Depois do deploy: `docker compose -f /opt/app/docker-compose.yml exec -T hanko /hanko doctor` (aviso esperado de `pg_dump`); `systemctl list-timers hanko-backup.timer`.
 - Em host com PostgreSQL: `hanko backup create|list|verify`, `hanko backup restore latest --yes` com o servidor parado; `hanko serve --embedded-pg`; `hanko service install --dry-run`.
 
-**Trilha Onda 2B** (`trilha-w2b.md`, depois do merge do PR #34)
+**Trilha Onda 2B** (`trilha-w2b.md`)
 - `scripts/test-install.sh`; `go run ./cmd/hanko-evals` verde e `--bad` vermelho (código 1); `hanko mcp` com o handshake do roteiro lista as tools `hanko_*`. Tap e evals reais dependem da seção 4.
 
-**Trilha Onda 3** (`trilha-w3.md`, depois do merge do PR #37)
+**Trilha Onda 3** (`trilha-w3.md`)
 - Empresa nova cai em `/c/<slug>/primeiros-passos` (fechar a aba no meio e reabrir retoma); `hanko onboard --company-name Acme --harness fake --persona Ada --task "..."`.
 - `hanko context add prd --url ... --token-stdin`, `hanko sandbox up|list|down` por branch; estrela de favorito e Recentes na sidebar; `/c/<slug>/perfil`; `/c/<slug>/novidades`; `make docs-site`.
 
@@ -128,7 +128,7 @@ git tag -a v0.1.0 9a5d13e -m "Hanko v0.1.0" && git push origin v0.1.0   # marco 
 git tag -a v0.3.0 2a9bbd8 -m "Hanko v0.3.0 — Onda 1 (M7–M9)" && git push origin v0.3.0
 git tag -a v0.4.0 8801e28 -m "Hanko v0.4.0 — Onda 2 (M10–M13)" && git push origin v0.4.0
 git tag -a v0.5.0 bc620ad -m "Hanko v0.5.0 — Onda 3 (M14–M16)" && git push origin v0.5.0
-git tag -a v0.6.0 <HEAD da main> -m "Hanko v0.6.0 — Onda 4 (M17–M20)" && git push origin v0.6.0   # só depois do merge dos PRs #34 e #37
+git tag -a v0.6.0 8abab60 -m "Hanko v0.6.0 — Onda 4 (M17–M20)" && git push origin v0.6.0
 ```
 
 Alvos: o merge do último PR de cada onda na `main` (`2a9bbd8` = trilha O1 (#15), depois do M9; `8801e28` = M10 (#17); `bc620ad` = M15 (#25)). Se a tag local `v0.1.0` já existir (criada neste ambiente, aponta para `9a5d13e`), basta `git push origin v0.1.0`.
@@ -137,7 +137,7 @@ Atenção: o `release.yml` falha cedo se o `CHANGELOG.md` do commit tagueado nã
 - **Uma release só (mais simples):** `scripts/release-notes.sh cut 0.6.0` num ramo `release/v0.6.0`, PR, merge e tag no HEAD; `v0.3.0`–`v0.5.0` ficam como marcos sem release.
 - **Uma release por onda:** para cada alvo, `git switch -c release/vX.Y.Z <commit>`, `scripts/release-notes.sh cut X.Y.Z` (consome só os fragmentos que existem naquele commit), commit `-s` e tag nesse commit. Fluxo completo em `docs/RELEASING.md`.
 
-Antes da primeira tag depois do merge do PR #34: criar o repositório `renatobardi/homebrew-tap` (vazio, com branch padrão) e o secret `HOMEBREW_TAP_GITHUB_TOKEN` (PAT com escrita nesse repo). Sem o secret a release segue e o cask é pulado. Opcional para evals reais: secret `ANTHROPIC_API_KEY` e variáveis `EVALS_LIVE`, `EVALS_MODEL`, `EVALS_MAX_USD`.
+Antes da primeira tag: criar o repositório `renatobardi/homebrew-tap` (vazio, com branch padrão) e o secret `HOMEBREW_TAP_GITHUB_TOKEN` (PAT com escrita nesse repo). Sem o secret a release segue e o cask é pulado. Opcional para evals reais: secret `ANTHROPIC_API_KEY` e variáveis `EVALS_LIVE`, `EVALS_MODEL`, `EVALS_MAX_USD`.
 
 ### 4.2 Deploy no hanko-prd (nunca stg)
 No Mac, com `ssh oute-server` funcionando, na `main` (ou na tag) que será implantada e com a árvore limpa. Para ensaiar: `deploy/oute-server/deploy-prd.sh --dry-run`.
@@ -151,7 +151,7 @@ deploy/oute-server/deploy-prd.sh
 ssh oute-server "lxc exec hanko-prd -- env BASE=http://127.0.0.1:3810 PUBLIC_HOST=hanko.oute.pro bash /opt/app/deploy/oute-server/smoke.sh"
 ```
 
-Depois: conferir `/healthz`, `/readyz`, as migrations aplicadas (00035 a 00200; as da Onda 3 só se o PR #37 estiver na `main`) e um run de persona de ponta a ponta (RUNBOOK). Rollback: `deploy/oute-server/restore.sh --apply` com o dump do passo 1. Login do Claude para as personas, se ainda faltar: `ssh -t oute-server lxc exec hanko-prd -- docker compose -f /opt/app/docker-compose.yml exec hanko claude`.
+Depois: conferir `/healthz`, `/readyz`, as migrations aplicadas (00035 a 00200;) e um run de persona de ponta a ponta (RUNBOOK). Rollback: `deploy/oute-server/restore.sh --apply` com o dump do passo 1. Login do Claude para as personas, se ainda faltar: `ssh -t oute-server lxc exec hanko-prd -- docker compose -f /opt/app/docker-compose.yml exec hanko claude`.
 
 ### 4.3 Settings do GitHub
 Já ligados em 2026-10-20 (só conferir): push protection, Dependency graph, Dependabot alerts, malware alerts, security updates, CodeQL e o ruleset da `main` (PR obrigatório, sem force push, checks `check`, `release-dry-run`, `gitleaks`). Falta:
