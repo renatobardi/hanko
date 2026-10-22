@@ -1,7 +1,11 @@
 # Plugins de terceiros — protocolo (api_version 1)
 
-Decisão e limites: [ADR-0038](adr/0038-plugins-de-terceiros.md). Exemplo completo, só com a biblioteca padrão de Go:
-[`examples/plugins/hello`](../examples/plugins/hello).
+Decisão e limites: [ADR-0038](adr/0038-plugins-de-terceiros.md) e [ADR-0045](adr/0045-plugins-contribuicoes-e-sdk.md)
+(abas, gatilhos de fluxo, provider de ambiente, fonte de skills, concessão de capacidades e SDK). Exemplos:
+[`examples/plugins/hello`](../examples/plugins/hello) (só biblioteca padrão, protocolo cru) e
+[`examples/plugins/showcase`](../examples/plugins/showcase) (SDK Go: tool, aba com ponte, gatilho e fonte de skills).
+
+**Começo rápido:** `hanko plugin new meu-plugin` gera o manifesto, um `main.go` com o SDK e um README (seção 9).
 
 ## 1. Instalar um plugin (operador)
 
@@ -52,7 +56,11 @@ O Hanko nunca baixa plugin. Atualizar é trocar os arquivos do diretório por um
   "tools": [{"name": "hello_echo", "description": "Ecoa o texto.", "input_schema": {"type": "object", "properties": {"text": {"type": "string"}}}, "timeout_sec": 30}],
   "events": ["task.created"],
   "widgets": [{"key": "resumo", "title": "Resumo", "placement": "dashboard"}],
-  "jobs": [{"key": "tick", "every_minutes": 5}]
+  "jobs": [{"key": "tick", "every_minutes": 5}],
+  "pages": [{"key": "painel", "title": "Painel"}],
+  "flow_triggers": [{"key": "novo-pedido", "title": "Novo pedido"}],
+  "environment_providers": [{"key": "nuvem", "title": "Nuvem X", "known_hosts": "gw.nuvem.example ssh-ed25519 AAAA…"}],
+  "skill_sources": [{"key": "catalogo", "title": "Catálogo"}]
 }
 ```
 
@@ -68,6 +76,10 @@ O Hanko nunca baixa plugin. Atualizar é trocar os arquivos do diretório por um
 | `events[]` | verbos da atividade (`task.created`, `task.closed`, `comment.human`, `gate.decided`, `run.finished`…) |
 | `widgets[]` | `key`, `title`, `placement`: `dashboard`, `task` ou `persona` |
 | `jobs[]` | `key`, `every_minutes` 5..1440 |
+| `pages[]` | `key`, `title`, `icon?`; exige `pages`; até 8 (seção 10) |
+| `flow_triggers[]` | `key`, `title`, `description?`; exige `flows.trigger`; até 16 (seção 11) |
+| `environment_providers[]` | `key`, `title`, `known_hosts` (obrigatório, sem coringa de host); exige `environments.provider`; até 4 (seção 12) |
+| `skill_sources[]` | `key`, `title`, `description?`; exige `skills.source`; até 8 (seção 13) |
 
 Campos desconhecidos são erro. Tetos: manifesto 256 KiB, 32 tools, 32 eventos, 16 widgets, 16 jobs, 32 campos.
 
@@ -86,6 +98,10 @@ Campos desconhecidos são erro. Tetos: manifesto 256 KiB, 32 tools, 32 eventos, 
 | `jobs` | `run_job` periódico |
 | `state` | `state.get`, `state.set`, `state.delete`, `state.list` (chave ≤ 200 bytes, valor JSON ≤ 64 KiB, até 1000 chaves por empresa) |
 | `http.outbound` | declarativa: avisa o operador e repassa as variáveis de proxy. O Hanko não impede rede de um processo |
+| `pages` | abas na barra lateral da empresa: `get_page` e `page_call` (seção 10) |
+| `flows.trigger` | `flows.fire`: dispara os fluxos que o admin da empresa ligou ao gatilho (seção 11) |
+| `environments.provider` | `env.ping|create|ssh|delete`: provider de sandbox em nuvem; **recebe a chave de API do ambiente** (seção 12) |
+| `skills.source` | `skills.snapshot`: fonte de skills (seção 13) |
 
 `log` e `config.get` só exigem o plugin ligado na empresa. Fora da lista não existe nada: decidir gate, orçamento,
 autenticação, segredos do Hanko, banco.
@@ -153,3 +169,101 @@ na atividade como ator `system` com o id da instalação do plugin.
 Cada tool vira `plugin_<id>_<nome>` no servidor MCP do Hanko (`/mcp`), só para as runs de empresas com o plugin
 ativo e ligado. A descrição ganha o prefixo `[plugin <nome>]`. `is_error: true` ou um erro JSON-RPC aparecem para o
 agente como erro da tool; cada chamada fica na atividade da empresa (`plugin.tool_called`).
+
+## 8. Conceder e revogar capacidades
+
+Quem instala (dono da instalação) concede e revoga capacidades **uma a uma**, só as que o manifesto vigente declara:
+
+```sh
+hanko plugin cap revoke showcase pages      # a aba some na próxima página
+hanko plugin cap grant  showcase pages
+```
+
+Na tela: Configurações › Plugins › (plugin) › **Capacidades concedidas** (visível só ao dono). Revogar vale na hora, porque o
+host confere a concessão a cada uso: a aba e a ponte, a lista de tools, os widgets, `flows.fire`, a resolução do provider de
+ambiente e a sincronização da fonte de skills. Cada mudança vai para `admin_audit` e para a atividade das empresas que ligaram
+o plugin (`plugin.capability_granted|revoked`).
+
+## 9. SDK Go e `hanko plugin new`
+
+`github.com/renatobardi/hanko/sdk/plugin` (só biblioteca padrão) cuida do protocolo; o plugin registra o que contribui:
+
+```go
+p := plugin.New("meu-plugin")
+p.Tool("ping", func(ctx context.Context, h *plugin.Host, c plugin.ToolCall) (plugin.ToolResult, error) {
+	return plugin.ToolResult{Text: "pong"}, nil
+})
+p.Page("painel", func(ctx context.Context, h *plugin.Host, r plugin.PageRequest) (string, error) { return "<h1>Oi</h1>", nil })
+p.Bridge(func(ctx context.Context, h *plugin.Host, c plugin.BridgeCall) (any, error) { return map[string]any{"ok": true}, nil })
+p.SkillSource("catalogo", func(ctx context.Context, h *plugin.Host, co plugin.Company) (plugin.SkillSnapshot, error) { /* … */ })
+p.Environment("nuvem", meuProvider{}) // implementa plugin.EnvProvider
+log.Fatal(p.Run(context.Background()))
+```
+
+Também: `Widget`, `Job`, `OnEvent`, `ValidateConfig` e o cliente do host (`h.Call`, `h.StateGet/StateSet`, `h.CommentTask`,
+`h.FireTrigger`, `h.Config`, `h.Log`). `hanko plugin new <id> [--dir D] [--author A]` gera `hanko-plugin.json`, `main.go`
+(tool + aba com ponte + gatilho), `go.mod`, `.gitignore` e `README.md`; recusa diretório que já tem arquivos. Depois:
+`go mod tidy && go build -o <id> .`, copie para `HANKO_PLUGINS_DIR/<id>` e `hanko plugin install <id>`.
+
+## 10. Abas (`pages`)
+
+Cada `pages[]` vira um item do grupo "Plugins" da barra lateral (`hanko plugin tabs`). Hanko → plugin:
+
+| Método | Params | Resposta |
+|---|---|---|
+| `get_page` | `{company, page, user: {id, name, role}}` | `{html}` (até 512 KiB) |
+| `page_call` | `{company, page, method, params, user}` | qualquer JSON (até 256 KiB); erro = a página recebe a mensagem |
+
+**Isolamento.** O HTML roda num `<iframe sandbox="allow-scripts">` **sem** `allow-same-origin` (origem opaca: sem cookies, sem
+`localStorage`, sem acesso ao DOM do Hanko), servido com `Content-Security-Policy: default-src 'none'; script-src
+'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; font-src data:; sandbox allow-scripts` (**sem rede**, sem
+frames, sem formulários), `nosniff` e `no-referrer`. Imagens e fontes só `data:`. Estilo e script só inline.
+
+**Ponte.** O Hanko injeta antes do seu HTML `window.hanko.call(método, params) → Promise` (rejeita com `Error(mensagem)`),
+`window.hanko.resize(altura)` e `window.hanko.context` (`{company, plugin, page}`). A chamada vira `page_call` no seu plugin;
+`user.role` (`viewer|member|admin|owner`) diz quem está na página: **o plugin decide o que cada papel pode** (o Hanko só
+entrega). Método: `^[a-z][a-z0-9_.]{0,63}$`; até 8 chamadas simultâneas por página; timeout de 30 s. O e-mail da pessoa nunca
+vai ao plugin. API equivalente: `POST /api/v1/companies/{c}/plugins/{p}/pages/{page}/call`.
+
+## 11. Gatilhos de fluxo (`flows.trigger`)
+
+O plugin declara `flow_triggers[]`; o **admin da empresa** liga cada gatilho a fluxos existentes
+(`hanko plugin trigger link <plugin> <gatilho> <fluxo> --company acme`, ou na página do plugin). Plugin → Hanko:
+
+| Método | Params | Resposta |
+|---|---|---|
+| `flows.fire` | `{company, trigger}` | `{fired, flows: [{flow, task}], skipped_disabled}` |
+
+Cada fluxo ligado **e ativo** dispara como um disparo manual (cria a task do fluxo; ator `system` com o id do plugin); fluxos
+desligados são pulados; sem ligação, `fired = 0`. O plugin não escolhe fluxo, persona nem projeto. Não há deduplicação:
+cada chamada é um disparo (use `state` se precisar de idempotência).
+
+## 12. Provider de ambiente (`environments.provider`)
+
+O plugin implementa um provider de sandbox em nuvem; o ambiente da empresa usa `cloud.provider = plugin:<id>/<key>`
+(`hanko plugin list` mostra o nome; `hanko env create "Nuvem X" --driver cloud --provider plugin:<id>/<key> --api-key-file -`). O Hanko chama o plugin com `{provider: <key>, api_key, …}` (a chave de API do ambiente,
+cifrada no Hanko):
+
+| Método | Params extras | Resposta |
+|---|---|---|
+| `env.ping` | — | `{ok: true}` ou erro |
+| `env.create` | `spec: {name, labels, snapshot, cpus, memory_gib, disk_gib, block_network, idle_stop_sec, reap_sec}` | `{id}` (sandbox pronto para SSH) |
+| `env.ssh` | `id`, `ttl_sec` | `{host, port, user}` — `user` é o token de acesso do gateway SSH |
+| `env.delete` | `id` | `{ok: true}` (apagar um que já não existe não é erro) |
+
+O sandbox é alcançado pelo **mesmo** caminho SSH endurecido dos outros drivers (`known_hosts` do manifesto, obrigatório e sem
+coringa; o workspace vai e volta por tar). `idle_stop_sec` e `reap_sec` são a rede de segurança contra vazamento: o provider
+deve parar o sandbox ocioso e apagá-lo depois. Revogar `environments.provider` corta a próxima run.
+
+## 13. Fonte de skills (`skills.source`)
+
+A fonte da empresa tem a URL `plugin://<id>/<key>` (`hanko plugin skill-sources`; conecte com `hanko skill source add
+plugin://<id>/<key>` ou `POST /skill-sources`). Não depende de `HANKO_SKILL_SOURCES` (nada é clonado). Hanko → plugin:
+
+| Método | Params | Resposta |
+|---|---|---|
+| `skills.snapshot` | `{company, source}` | `{revision, skills: [{path, skill_md}]}` (até 200; `skill_md` é o SKILL.md completo) |
+
+`revision` é qualquer texto que mude quando o conteúdo muda. O resto é igual às fontes de repositório: seleção por caminho,
+edição local marcada como "modificada", fork e pin por persona. Revogar `skills.source` faz a próxima sincronização falhar
+com erro claro; as skills já importadas ficam.

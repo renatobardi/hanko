@@ -43,6 +43,8 @@ type Shell struct {
 	Archived bool
 	// Personal: há uma pessoa autenticada, então a Caixa tem selo de não lidos e toasts ao vivo (ADR-0042).
 	Personal bool
+	// PluginTabs são as abas dos plugins ativos e com a capacidade pages (ADR-0045); vazio = sem o grupo "Plugins".
+	PluginTabs []PluginTab
 }
 
 // Base returns the company-scoped URL prefix, e.g. "/c/hanko".

@@ -162,9 +162,9 @@ type Plugin struct {
 	Widgets             []PluginWidgetDef `json:"widgets"`
 	Jobs                []PluginJobDef    `json:"jobs"`
 	Contributions
-	Process             PluginProcess     `json:"process"`
-	InstalledAt         time.Time         `json:"installed_at"`
-	UpdatedAt           time.Time         `json:"updated_at"`
+	Process     PluginProcess `json:"process"`
+	InstalledAt time.Time     `json:"installed_at"`
+	UpdatedAt   time.Time     `json:"updated_at"`
 }
 
 func manifestParts(m domain.PluginManifest) ([]PluginToolDef, []PluginWidgetDef, []PluginJobDef) {
@@ -198,7 +198,7 @@ func pluginOut(v service.PluginView) Plugin {
 		PendingCapabilities: strs(v.PendingCapabilities), LastError: v.LastError, Dir: v.Dir, Companies: v.Companies,
 		Tools: tools, Events: strs(m.Events), Widgets: widgets, Jobs: jobs, Process: processOut(v.Process),
 		Contributions: contributionsOf(v.Key, m.Pages, m.FlowTriggers, m.EnvProviders, m.SkillSources),
-		InstalledAt: v.InstalledAt, UpdatedAt: v.UpdatedAt}
+		InstalledAt:   v.InstalledAt, UpdatedAt: v.UpdatedAt}
 	if v.PendingManifest != nil {
 		o.PendingVersion = v.PendingManifest.Version
 	}
@@ -284,8 +284,8 @@ type CompanyPlugin struct {
 	Widgets      []PluginWidgetDef   `json:"widgets"`
 	Jobs         []PluginJobDef      `json:"jobs"`
 	Contributions
-	JobRuns      []PluginJobRun      `json:"job_runs,omitempty"`
-	UpdatedAt    *time.Time          `json:"updated_at,omitempty"`
+	JobRuns   []PluginJobRun `json:"job_runs,omitempty"`
+	UpdatedAt *time.Time     `json:"updated_at,omitempty"`
 }
 
 func configFields(s domain.PluginConfigSchema) []PluginConfigField {
