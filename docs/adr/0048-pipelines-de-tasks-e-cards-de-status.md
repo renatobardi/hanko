@@ -125,4 +125,5 @@ só no texto técnico e nos ids de API.
   muitos cards decision vencendo ao mesmo tempo alongam o tick (a trava consultiva impede dois ticks juntos). Cron de
   resolução de minuto, no ritmo do tick.
 - Telemetria: span `hanko.decision.invoke` (já existente) cobre a chamada; `service.stage_complete` e
-  `service.status_card_decision` são spans novos; a métrica `hanko.decision.calls` ganha a feature `card_summary`.
+  `service.status_card_decision` são spans novos; a métrica `hanko.decision.calls` ganha a feature `card_summary`; o contador
+  `hanko.task.coordination` ganha `kind=stage` (op = tipo do evento do pipeline) e `kind=status_card` (op = `decision_ok|decision_error`).

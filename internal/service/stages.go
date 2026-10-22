@@ -551,6 +551,7 @@ func (t *txc) stageApply(actor domain.Actor, companyID domain.ID, task store.Tas
 		map[string]any{"stage": st.Key, "from": fromKey, "kind": ev, "persona_id": st.PersonaID}, ""); err != nil {
 		return store.Task{}, err
 	}
+	countCoord(ctx, "stage", string(ev))
 	if err := t.stageComment(companyID, task.ID, st, fromKey, ev, note); err != nil {
 		return store.Task{}, err
 	}
@@ -698,6 +699,7 @@ func (t *txc) stageHold(actor, requester domain.Actor, companyID domain.ID, task
 	if err := t.q.SetTaskStageState(ctx, store.SetTaskStageStateParams{TaskID: task.ID, State: string(domain.TaskStageCompleting), Now: t.now}); err != nil {
 		return fmt.Errorf("set task stage state: %w", err)
 	}
+	countCoord(ctx, "stage", string(domain.StageEvGateRequested))
 	if review {
 		if err := t.requestTaskReview(requester, companyID, row, domain.TaskDone); err != nil {
 			return err
@@ -748,6 +750,7 @@ func (t *txc) stageAdvance(actor domain.Actor, companyID domain.ID, task store.T
 		if err := t.activity(actor, companyID, "task_stage.finished", "task", task.ID, map[string]any{"stage": cur.Key}, ""); err != nil {
 			return store.Task{}, err
 		}
+		countCoord(t.ctx, "stage", string(domain.StageEvFinished))
 		row := task
 		if domain.TaskStatus(task.Status).Open() {
 			if row, err = t.moveTask(actor, companyID, task, domain.TaskDone, map[string]any{"stage": cur.Key}); err != nil {

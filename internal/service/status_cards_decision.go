@@ -201,6 +201,7 @@ func (s *Service) runCardDecision(ctx context.Context, job *cardDecisionJob) err
 			}, nil
 		}})
 	if err != nil {
+		countCoord(ctx, "status_card", "decision_error")
 		if got.ID != (domain.ID{}) {
 			inv = got
 		}
@@ -209,6 +210,7 @@ func (s *Service) runCardDecision(ctx context.Context, job *cardDecisionJob) err
 		}
 		return err
 	}
+	countCoord(ctx, "status_card", "decision_ok")
 	if applied {
 		s.publishCardArtifact(ctx, job.companyID, job.cardID)
 	}
