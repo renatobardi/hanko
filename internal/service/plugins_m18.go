@@ -389,7 +389,7 @@ func (s *Service) hostFlowsFire(ctx context.Context, p domain.Plugin, co store.C
 			skipped++
 			continue
 		}
-		res, err := s.fireFlow(ctx, pluginActor(p), &cid, id, s.Now().UTC(), false)
+		res, err := s.fireFlow(ctx, pluginActor(p), &cid, id, s.Now().UTC(), false, nil)
 		if err != nil {
 			return nil, err
 		}
