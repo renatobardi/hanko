@@ -229,6 +229,20 @@ func pgEnv(dsn string) ([]string, error) {
 	return env, nil
 }
 
+// secretFree devolve err sem a senha do banco. A saída dos processos externos (pg_dump, psql, pg_restore) entra nas
+// mensagens e elas vão para o log, para o histórico de backups e para a tela: a senha, que só viaja em PGPASSWORD,
+// nunca pode voltar por esse caminho.
+func secretFree(err error, dsn string) error {
+	if err == nil {
+		return nil
+	}
+	cfg, perr := pgconn.ParseConfig(dsn)
+	if perr != nil || cfg.Password == "" || !strings.Contains(err.Error(), cfg.Password) {
+		return err
+	}
+	return errors.New(strings.ReplaceAll(err.Error(), cfg.Password, "***"))
+}
+
 func sumHex(b []byte) string {
 	s := sha256.Sum256(b)
 	return hex.EncodeToString(s[:])
@@ -249,6 +263,7 @@ func (m *Manager) Create(ctx context.Context, o CreateOptions) (Entry, error) {
 	ctx, span := tracer.Start(ctx, "hanko.backup.create", trace.WithAttributes(attribute.String("hanko.backup.kind", o.Kind)))
 	defer span.End()
 	e, err := m.create(ctx, o)
+	err = secretFree(err, m.DSN)
 	record(ctx, "create", err)
 	if err != nil {
 		span.RecordError(err)
@@ -646,6 +661,7 @@ func (m *Manager) Restore(ctx context.Context, name string, o RestoreOptions) (R
 	ctx, span := tracer.Start(ctx, "hanko.backup.restore")
 	defer span.End()
 	rep, err := m.restore(ctx, name, o)
+	err = secretFree(err, m.DSN)
 	record(ctx, "restore", err)
 	if err != nil {
 		span.RecordError(err)

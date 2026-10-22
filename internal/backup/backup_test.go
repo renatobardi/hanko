@@ -371,3 +371,36 @@ func TestPgEnvRejectsBadDSN(t *testing.T) {
 		t.Fatalf("env = %v", env)
 	}
 }
+
+// A saída de um processo externo pode ecoar o ambiente; a senha do banco nunca sai nos erros de Create nem de Restore.
+func TestErrorsNeverCarryTheDatabasePassword(t *testing.T) {
+	echo := &syscmd.Fake{
+		Paths: map[string]string{"pg_dump": "/bin/pg_dump", "pg_restore": "/bin/pg_restore", "psql": "/bin/psql"},
+		Handler: func(c syscmd.Cmd) error {
+			return &syscmd.ExitError{Cmd: c.String(), Err: errors.New("exit status 1"), Stderr: "conexão recusada: PGPASSWORD=s3nha-secreta host=db.local"}
+		},
+	}
+	m := newMgr(t, echo, newFakeBlobs(nil))
+	_, err := m.Create(context.Background(), CreateOptions{})
+	if err == nil {
+		t.Fatal("o Create devia falhar")
+	}
+	if strings.Contains(err.Error(), "s3nha-secreta") || !strings.Contains(err.Error(), "***") {
+		t.Fatalf("erro do Create vaza a senha ou perdeu a pista: %v", err)
+	}
+
+	// o Restore precisa de um arquivo válido: gera um com o executor bom e restaura com o que ecoa a senha
+	var restored string
+	good := newMgr(t, pgFake("PGDMP-ok", &restored), newFakeBlobs(nil))
+	e, err := good.Create(context.Background(), CreateOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	bad := &Manager{Dir: good.Dir, Keep: good.Keep, Version: good.Version, DSN: testDSN, Cmd: echo, Blobs: newFakeBlobs(nil),
+		SchemaFn: good.SchemaFn, KnownSchema: good.KnownSchema, Now: good.Now}
+	if _, err := bad.Restore(context.Background(), e.Name, RestoreOptions{}); err == nil {
+		t.Fatal("o Restore devia falhar")
+	} else if strings.Contains(err.Error(), "s3nha-secreta") {
+		t.Fatalf("erro do Restore vaza a senha: %v", err)
+	}
+}
