@@ -103,8 +103,24 @@ func TestBuildArgs(t *testing.T) {
 	}
 }
 
+// Os servidores do gateway de tools entram no --allowedTools ao lado do Hanko (ADR-0059): sem isso o headless nega
+// toda tool de integração antes de o gateway decidir. O nome segue a normalização do claude.
+func TestBuildArgsAllowsGatewayMCP(t *testing.T) {
+	got := BuildArgs(adapter.Spec{GatewayMCP: []string{"github", "a b"}}, Config{}, "/tmp/m.json", "")
+	want := []string{"-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "acceptEdits",
+		"--mcp-config", "/tmp/m.json", "--allowedTools", "mcp__hanko", "mcp__github", "mcp__a_b"}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Fatal(diff)
+	}
+	// sem arquivo de MCP não há o que liberar
+	got = BuildArgs(adapter.Spec{GatewayMCP: []string{"github"}}, Config{}, "", "")
+	if diff := cmp.Diff([]string{"-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "acceptEdits"}, got); diff != "" {
+		t.Fatal(diff)
+	}
+}
+
 func TestBuildArgsReadOnly(t *testing.T) {
-	got := BuildArgs(adapter.Spec{ReadOnly: true}, Config{PermissionMode: "bypassPermissions", ExtraArgs: []string{"--dangerously-skip-permissions"}}, "", "")
+	got := BuildArgs(adapter.Spec{ReadOnly: true, GatewayMCP: []string{"github"}}, Config{PermissionMode: "bypassPermissions", ExtraArgs: []string{"--dangerously-skip-permissions"}}, "", "")
 	want := []string{"-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "plan", "--disallowedTools", "Edit", "Write", "NotebookEdit"}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Fatal(diff)
