@@ -47,6 +47,7 @@ templ Layout(sh Shell) {
 								}
 							</div>
 						}
+						@navPins(sh)
 						if len(sh.PluginTabs) > 0 {
 							<div class="nav-group">
 								<div class="nav-label">{ i18n.T(ctx, "Plugins") }</div>
@@ -80,6 +81,7 @@ templ Layout(sh Shell) {
 							}
 						</nav>
 						<span class="spacer"></span>
+						@favoriteToggle(sh)
 						if sh.Action != nil {
 							<a class="btn primary" href={ templ.SafeURL(sh.Action.Href) }>
 								if sh.Action.Icon != "" {
@@ -138,7 +140,7 @@ templ sidebarFoot(sh Shell) {
 	if u, ok := userFrom(ctx); ok {
 		<details class="usermenu">
 			<summary class="sidebar-foot">
-				<span class="avatar-sq">{ initial(u.Name) }</span>
+				<span class="avatar-sq" data-tone={ u.AvatarTone }>{ avatarText(u.AvatarGlyph, u.Name) }</span>
 				<div class="me"><b>{ u.Name }</b><span>{ u.Email }</span>
 					if r := RoleFrom(ctx); r != "" {
 						<span class="role-tag" data-role={ string(r) }>{ roleBadge(ctx, r) }</span>
@@ -147,6 +149,14 @@ templ sidebarFoot(sh Shell) {
 				<span class="gear">@Icon("chevron-down")</span>
 			</summary>
 			<div class="menu" role="menu">
+				<a href={ templ.SafeURL(sh.Base() + "/perfil") } role="menuitem" aria-current?={ sh.Active == "perfil" }>
+					@Icon("user")
+					<span>{ i18n.T(ctx, "Meu perfil") }</span>
+				</a>
+				<a href={ templ.SafeURL(sh.Base() + "/novidades") } role="menuitem" aria-current?={ sh.Active == "novidades" }>
+					@Icon("sparkles")
+					<span>{ i18n.T(ctx, "O que há de novo") }</span>
+				</a>
 				<a href={ templ.SafeURL(sh.Base() + "/configuracoes") } role="menuitem" aria-current?={ sh.Active == "configuracoes" }>
 					@Icon("settings")
 					<span>{ i18n.T(ctx, "Configurações") }</span>
@@ -241,4 +251,49 @@ templ ModelDatalist(id string) {
 		<option value="sonnet"></option>
 		<option value="opus"></option>
 	</datalist>
+}
+
+// navPins são os atalhos pessoais da sidebar: favoritos (marcados na barra de cima) e recentes (páginas de detalhe visitadas).
+templ navPins(sh Shell) {
+	if p := navPrefsFrom(ctx); len(p.Favorites) > 0 || len(p.Recents) > 0 {
+		if len(p.Favorites) > 0 {
+			<div class="nav-group nav-pins">
+				<div class="nav-label">{ i18n.T(ctx, "Favoritos") }</div>
+				for _, l := range p.Favorites {
+					<a href={ templ.SafeURL(l.Href) } aria-current?={ l.Href == sh.Base() + p.Current }>
+						@Icon("star")
+						<span>{ l.Title }</span>
+					</a>
+				}
+			</div>
+		}
+		if len(p.Recents) > 0 {
+			<div class="nav-group nav-pins">
+				<div class="nav-label">{ i18n.T(ctx, "Recentes") }</div>
+				for _, l := range p.Recents {
+					<a href={ templ.SafeURL(l.Href) } aria-current?={ l.Href == sh.Base() + p.Current }>
+						@Icon("clock")
+						<span>{ l.Title }</span>
+					</a>
+				}
+			</div>
+		}
+	}
+}
+
+// favoriteToggle é a estrela da barra de cima: favorita ou desfavorita a página atual (POST simples, volta para ela).
+templ favoriteToggle(sh Shell) {
+	if p := navPrefsFrom(ctx); p.Current != "" {
+		<form class="fav-form" method="post" action={ templ.SafeURL(sh.Base() + "/favoritos") }>
+			<input type="hidden" name="path" value={ p.Current }/>
+			<input type="hidden" name="title" value={ sh.Title }/>
+			if p.IsFavorite {
+				<input type="hidden" name="favorite" value="0"/>
+				<button class="icon-btn fav on" type="submit" aria-pressed="true" title={ i18n.T(ctx, "Remover dos favoritos") }>@Icon("star")</button>
+			} else {
+				<input type="hidden" name="favorite" value="1"/>
+				<button class="icon-btn fav" type="submit" aria-pressed="false" title={ i18n.T(ctx, "Favoritar esta página") }>@Icon("star")</button>
+			}
+		</form>
+	}
 }

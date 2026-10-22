@@ -141,7 +141,7 @@ func TestFlowArchiveUI(t *testing.T) {
 	if loc := rec.Header().Get("Location"); loc != "/c/hanko/fluxos?ok=arquivado" {
 		t.Fatalf("Location = %q", loc)
 	}
-	wantNotContains(t, e.get(t, "/c/hanko/fluxos"), "Digest semanal de fontes")
+	wantNotContainsInMain(t, e.get(t, "/c/hanko/fluxos"), "Digest semanal de fontes")
 	arch := e.get(t, "/c/hanko/fluxos?arquivados=1")
 	wantContains(t, arch, "Digest semanal de fontes", "Arquivado", "Ativos")
 	page := e.get(t, base)
