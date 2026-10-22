@@ -202,8 +202,10 @@ func (s *Service) executeBackup(ctx context.Context, rec domain.InstanceBackup, 
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "backup falhou")
 		fin.Status, fin.Error = domain.BackupFailed, truncateRunes(err.Error(), maxBackupError)
+		// O texto do erro vem de processos externos (pg_dump, psql) e não entra no log: o detalhe, já sem a senha do
+		// banco (backup.secretFree), fica no histórico de backups, na tela e no span.
 		if s.Log != nil {
-			s.Log.Warn("backup falhou", "id", rec.ID, "kind", kind, "err", err)
+			s.Log.Warn("backup falhou: o detalhe está no histórico de backups", "id", rec.ID, "kind", kind)
 		}
 	} else {
 		fin.Status, fin.FileName, fin.SizeBytes, fin.SchemaVersion, fin.Blobs = domain.BackupOK, ent.Name, ent.Size, ent.Manifest.SchemaVersion, i32(len(ent.Manifest.Blobs))
