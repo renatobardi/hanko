@@ -165,8 +165,24 @@ type RateLimit struct {
 	BrowserErrPerMin int64 `yaml:"browser_errors_per_min" env:"HANKO_RATELIMIT_BROWSER_ERRORS_PER_MIN"`
 }
 
+// Ops reúne o que a operação da instância precisa (ADR-0060): onde ficam os backups e os binários do Postgres cliente.
+type Ops struct {
+	// Home é HANKO_HOME: diretório de dados do Hanko (padrão ~/.hanko); backups e o Postgres embutido ficam abaixo dele.
+	Home string `yaml:"home" env:"HANKO_HOME"`
+	// BackupDir é HANKO_BACKUP_DIR: onde `hanko backup` grava os arquivos (padrão <Home>/backups).
+	BackupDir string `yaml:"backup_dir" env:"HANKO_BACKUP_DIR"`
+	// BackupKeep é HANKO_BACKUP_KEEP: quantos backups agendados ficam (os mais antigos são podados); 0 = padrão (7).
+	BackupKeep int `yaml:"backup_keep" env:"HANKO_BACKUP_KEEP"`
+	// PGDumpBin e PGRestoreBin são HANKO_PG_DUMP_BIN / HANKO_PG_RESTORE_BIN (padrão: pg_dump e pg_restore no PATH).
+	PGDumpBin    string `yaml:"pg_dump_bin" env:"HANKO_PG_DUMP_BIN"`
+	PGRestoreBin string `yaml:"pg_restore_bin" env:"HANKO_PG_RESTORE_BIN"`
+}
+
 // Config é a configuração completa do processo.
 type Config struct {
+	// Ops: backup e operação da instância (ADR-0060).
+	Ops Ops `yaml:"ops"`
+
 	// RateLimit: limites por minuto do rate limit geral (padrões seguros; env vence o banco).
 	RateLimit RateLimit `yaml:"rate_limit"`
 
@@ -280,6 +296,7 @@ func Defaults() Config {
 		AlertSilentFactor:  3,
 		AlertRunStuckAfter: 15 * time.Minute,
 		ReadinessInterval:  15 * time.Minute,
+		Ops:                Ops{BackupKeep: 7, PGDumpBin: "pg_dump", PGRestoreBin: "pg_restore"},
 		RateLimit:          RateLimit{Enabled: true, WritesPerMin: 600, IPPerMin: 1200, MCPPerMin: 1500, WebhooksPerMin: 120, BrowserErrPerMin: 20},
 		LogLevel:           "info",
 		LogFormat:          LogJSON,
@@ -351,6 +368,7 @@ func environFor(getenv func(string) string) map[string]string {
 		"HANKO_ENV_SSH_ALLOW_HOSTS", "HANKO_ENV_SANDBOX", "HANKO_ENV_SANDBOX_HOST_ROOT",
 		"HANKO_ENV_CLOUD", "HANKO_ENV_CLOUD_API_URL", "HANKO_ENV_CLOUD_SSH_HOST", "HANKO_ENV_CLOUD_SSH_KNOWN_HOSTS", "HANKO_READINESS_INTERVAL",
 		"HANKO_PLUGINS_DIR", "HANKO_PLUGINS_DATA_DIR",
+		"HANKO_HOME", "HANKO_BACKUP_DIR", "HANKO_BACKUP_KEEP", "HANKO_PG_DUMP_BIN", "HANKO_PG_RESTORE_BIN",
 	}
 	m := make(map[string]string, len(keys))
 	for _, k := range keys {
@@ -409,6 +427,26 @@ func (c *Config) finalize() error {
 		if home, err := os.UserHomeDir(); err == nil && home != "" {
 			c.WorkspacesRoot = filepath.Join(home, "hanko-workspaces")
 		}
+	}
+
+	c.Ops.Home = strings.TrimSpace(c.Ops.Home)
+	if c.Ops.Home == "" {
+		if home, err := os.UserHomeDir(); err == nil && home != "" {
+			c.Ops.Home = filepath.Join(home, ".hanko")
+		}
+	}
+	c.Ops.BackupDir = strings.TrimSpace(c.Ops.BackupDir)
+	if c.Ops.BackupDir == "" && c.Ops.Home != "" {
+		c.Ops.BackupDir = filepath.Join(c.Ops.Home, "backups")
+	}
+	if c.Ops.BackupKeep == 0 {
+		c.Ops.BackupKeep = 7
+	}
+	if c.Ops.PGDumpBin = strings.TrimSpace(c.Ops.PGDumpBin); c.Ops.PGDumpBin == "" {
+		c.Ops.PGDumpBin = "pg_dump"
+	}
+	if c.Ops.PGRestoreBin = strings.TrimSpace(c.Ops.PGRestoreBin); c.Ops.PGRestoreBin == "" {
+		c.Ops.PGRestoreBin = "pg_restore"
 	}
 
 	c.Plugins.Dir = strings.TrimSpace(c.Plugins.Dir)
@@ -493,6 +531,9 @@ func (c Config) Validate() error {
 		} else if c.Environments.CloudSSHKnownHosts == "" {
 			add("HANKO_ENV_CLOUD_SSH_KNOWN_HOSTS é obrigatório com HANKO_ENV_CLOUD=daytona: cole a saída de ssh-keyscan do gateway SSH")
 		}
+	}
+	if c.Ops.BackupKeep < 0 {
+		add("HANKO_BACKUP_KEEP %d inválido: use um valor >= 1 (padrão 7)", c.Ops.BackupKeep)
 	}
 	if c.ReadinessInterval < 0 {
 		add("HANKO_READINESS_INTERVAL %v inválido: use uma duração >= 0 (0 desliga a checagem periódica)", c.ReadinessInterval)

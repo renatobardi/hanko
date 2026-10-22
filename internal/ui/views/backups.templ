@@ -1,0 +1,100 @@
+package views
+
+import "github.com/renatobardi/hanko/internal/i18n"
+
+templ BackupsPage(sh Shell, vm BackupsVM) {
+	@Layout(sh) {
+		@PageHead(i18n.T(ctx, "Backups"), i18n.T(ctx, "Cópia do banco e dos arquivos da instalação inteira. O backup do servidor (restic) continua valendo; este é o ponto de volta rápido antes de atualizar e a rotina agendada.")) {
+		}
+		<div class="mb-6">@Tabs(vm.Sections)</div>
+		if vm.Notice != "" {
+			@Alert("warn", vm.Notice)
+		}
+		if vm.Error != "" {
+			@Alert("danger", vm.Error)
+		}
+		if vm.Forbidden {
+			@EmptyCard("lock", i18n.T(ctx, "Só o dono da instalação."), i18n.T(ctx, "Os backups levam o banco inteiro, não uma empresa."), false)
+		} else {
+			if !vm.Available {
+				@Alert("warn", i18n.T(ctx, "Este servidor não consegue fazer backups: falta o diretório de backups ou o pg_dump (cliente do PostgreSQL). Rode `hanko doctor` no servidor para ver o que falta."))
+			}
+			<h2 class="side-h mt-2 mb-3">{ i18n.T(ctx, "Agendamento") }</h2>
+			<form method="post" action={ templ.SafeURL(vm.ActionSchedule) } hx-boost="true" class="card pad mb-6">
+				<div class="form-grid">
+					<label class="field">
+						<span>{ i18n.T(ctx, "Agendamento automático") }</span>
+						<select class="select" name="enabled">
+							<option value="true" selected?={ vm.Enabled }>{ i18n.T(ctx, "ligado") }</option>
+							<option value="false" selected?={ !vm.Enabled }>{ i18n.T(ctx, "desligado") }</option>
+						</select>
+					</label>
+					<label class="field">
+						<span>{ i18n.T(ctx, "Cron de 5 campos") }</span>
+						<input class="input mono" name="cron" value={ vm.Cron } autocomplete="off" spellcheck="false" required/>
+					</label>
+					<label class="field">
+						<span>{ i18n.T(ctx, "Fuso horário") }</span>
+						<input class="input mono" name="timezone" value={ vm.Timezone } autocomplete="off" spellcheck="false" required/>
+					</label>
+				</div>
+				<p class="muted text-sm">
+					{ i18n.T(ctx, "Próximo:") } <b>{ vm.Next }</b> · { i18n.T(ctx, "Último:") } <b>{ vm.Last }</b>
+				</p>
+				<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Salvar agendamento") }</button>
+			</form>
+			<h2 class="side-h sec-h">{ i18n.T(ctx, "Fazer um backup agora") }</h2>
+			<form method="post" action={ templ.SafeURL(vm.ActionRun) } hx-boost="true" class="inline-form mb-6">
+				<input class="input" name="label" maxlength="120" placeholder={ i18n.T(ctx, "Rótulo (opcional), ex.: antes do upgrade") } aria-label={ i18n.T(ctx, "Rótulo") }/>
+				<button class="btn" type="submit" disabled?={ vm.Running || !vm.Available }>{ i18n.T(ctx, "Fazer backup") }</button>
+			</form>
+			if vm.Running {
+				<p class="muted text-sm mb-3" role="status">{ i18n.T(ctx, "Há um backup em andamento. Recarregue a página para ver o resultado.") }</p>
+			}
+			<h2 class="side-h sec-h">{ i18n.T(ctx, "Histórico") }</h2>
+			if len(vm.Rows) == 0 {
+				<p class="muted">{ i18n.T(ctx, "Nenhum backup feito por este servidor ainda.") }</p>
+			} else {
+				<div class="table-wrap">
+					<table class="table mini">
+						<thead><tr><th>{ i18n.T(ctx, "Quando") }</th><th>{ i18n.T(ctx, "Tipo") }</th><th>{ i18n.T(ctx, "Estado") }</th><th>{ i18n.T(ctx, "Arquivo") }</th><th class="num">{ i18n.T(ctx, "Tamanho") }</th><th class="hide-sm">{ i18n.T(ctx, "Duração") }</th><th class="hide-sm">{ i18n.T(ctx, "Autor") }</th></tr></thead>
+						<tbody>
+							for _, r := range vm.Rows {
+								<tr class="row">
+									<td class="muted">{ r.When }</td>
+									<td>
+										{ r.Kind }
+										if r.Label != "" {
+											<div class="sub-line">{ r.Label }</div>
+										}
+									</td>
+									<td>
+										<span class={ "badge", backupBadge(r.Status) }>{ r.StatusTx }</span>
+										if r.Error != "" {
+											<div class="sub-line">{ r.Error }</div>
+										}
+									</td>
+									<td class="mono">{ r.File }</td>
+									<td class="num">{ r.Size }</td>
+									<td class="hide-sm">{ r.Duration }</td>
+									<td class="hide-sm">{ r.Actor }</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+			<p class="muted text-sm mt-3">{ i18n.T(ctx, "Os arquivos ficam em") } <code class="mono">{ vm.Dir }</code>. { i18n.T(ctx, "No servidor: `hanko backup list`, `hanko backup verify` e `hanko backup restore` (o restore exige o servidor parado).") }</p>
+		}
+	}
+}
+
+func backupBadge(status string) string {
+	switch status {
+	case "ok":
+		return "done"
+	case "failed":
+		return "danger"
+	}
+	return "warn"
+}

@@ -14,17 +14,37 @@ func (e *env) errNotWired() error {
 }
 
 func (e *env) serveCmd() *cobra.Command {
-	return &cobra.Command{
+	var embedded bool
+	var eo EmbeddedOptions
+	c := &cobra.Command{
 		Use:   "serve",
 		Short: e.t("Inicia o servidor (API, UI, MCP e heartbeat)"),
-		Args:  cobra.NoArgs,
+		Long: e.t("Inicia o servidor. Com --embedded-pg sobe antes um Postgres local descartável (initdb/pg_ctl de uma instalação do PostgreSQL, sem baixar nada) " +
+			"e usa-o como banco: só para desenvolvimento e trial. Produção usa um Postgres externo (HANKO_DATABASE_URL)."),
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if embedded {
+				if e.rt.ServeEmbedded == nil {
+					return e.errNotWired()
+				}
+				if e.getenv("HANKO_DATABASE_URL") != "" {
+					return usageError{errors.New(e.t("--embedded-pg não se combina com HANKO_DATABASE_URL: o banco embutido é só para desenvolvimento e trial; para um banco seu, tire a flag"))}
+				}
+				fmt.Fprintln(e.errOut, e.t("AVISO: Postgres embutido é só para desenvolvimento e trial; não use em produção."))
+				return e.rt.ServeEmbedded(cmd.Context(), eo)
+			}
 			if e.rt.Serve == nil {
 				return e.errNotWired()
 			}
 			return e.rt.Serve(cmd.Context())
 		},
 	}
+	f := c.Flags()
+	f.BoolVar(&embedded, "embedded-pg", false, e.t("sobe um Postgres local descartável e o usa como banco (só dev/trial)"))
+	f.StringVar(&eo.Dir, "pg-dir", "", e.t("diretório do Postgres embutido (padrão <HANKO_HOME>/pg)"))
+	f.StringVar(&eo.BinDir, "pg-bin-dir", "", e.t("pasta com initdb e pg_ctl (padrão: procura no PATH e nos lugares comuns)"))
+	f.IntVar(&eo.Port, "pg-port", 0, e.t("porta do Postgres embutido (0 = a última usada ou uma livre)"))
+	return c
 }
 
 func (e *env) migrateCmd() *cobra.Command {
