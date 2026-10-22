@@ -25,6 +25,12 @@ mode: trusted            # trusted | authenticated (login; exige secret >= 32 by
 # plugins:               # plugins de terceiros (ADR-0038, docs/PLUGINS.md); desligados sem dir
 #   dir: ""              # diretório local com um subdiretório por plugin; HANKO_PLUGINS_DIR
 #   data_dir: ""         # diretórios de trabalho dos plugins (padrão $HOME/hanko-data); HANKO_PLUGINS_DATA_DIR
+# ops:                   # operação da instância (ADR-0060): backups e Postgres cliente
+#   home: ""             # diretório de dados do Hanko (padrão ~/.hanko); HANKO_HOME
+#   backup_dir: ""       # onde ficam os backups (padrão <home>/backups); HANKO_BACKUP_DIR
+#   backup_keep: 7       # backups automáticos retidos (os manuais nunca são podados); HANKO_BACKUP_KEEP
+#   pg_dump_bin: pg_dump         # HANKO_PG_DUMP_BIN
+#   pg_restore_bin: pg_restore   # HANKO_PG_RESTORE_BIN
 # agent_env_allow: []    # env extra do servidor repassado aos agentes (HANKO_AGENT_ENV_ALLOW)
 # auth:                  # só vale com mode: authenticated (docs/RUNBOOK.md §5)
 #   provider: firebase   # local | firebase

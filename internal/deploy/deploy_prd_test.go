@@ -59,3 +59,24 @@ func TestDeployPrdPreBackupDistinguishesPsFailure(t *testing.T) {
 		})
 	}
 }
+
+// O deploy usa os comandos de operação do próprio hanko (ADR-0060): doctor, update --check e as units geradas por
+// `service print`, em vez de heredocs de unit escritos à mão.
+func TestDeployPrdUsesOpsCommands(t *testing.T) {
+	b, err := os.ReadFile("../../deploy/oute-server/deploy-prd.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(b)
+	for _, want := range []string{"/hanko doctor", "/hanko update --check", "service print timer --name hanko-backup", "service print compose --dir /opt/app", "--part service", "--part timer"} {
+		if !strings.Contains(s, want) {
+			t.Errorf("deploy-prd.sh sem %q", want)
+		}
+	}
+	if strings.Contains(s, "cat > /etc/systemd/system/hanko-backup.service") {
+		t.Error("a unit do backup voltou a ser um heredoc escrito à mão")
+	}
+	if out, err := exec.Command("bash", "-n", "../../deploy/oute-server/deploy-prd.sh").CombinedOutput(); err != nil {
+		t.Fatalf("bash -n: %v %s", err, out)
+	}
+}

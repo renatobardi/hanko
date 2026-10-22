@@ -326,6 +326,23 @@ docker compose -f deploy/compose.yaml exec -T postgres dropdb -U "$POSTGRES_USER
 
 Registre data e resultado em `docs/SESSION.md` ou no issue de operação.
 
+### Backups pelo próprio Hanko (ADR-0060)
+
+Além do `backup.sh` + restic do host, instalações em binário/host têm `hanko backup` (precisa de `pg_dump`/`pg_restore` no PATH):
+
+```bash
+hanko backup create --label "antes do upgrade"   # tar em HANKO_BACKUP_DIR: dump + conteúdo em S3 + manifest sha256
+hanko backup list                                 # lê só o diretório; funciona com o servidor parado
+hanko backup verify latest                        # confere cada membro contra o manifest
+hanko backup restore latest --yes                 # DESTRUTIVO; pare o servidor antes (recusa com outras conexões)
+hanko backup schedule --enable --cron "0 3 * * *" --timezone America/Sao_Paulo   # ou Configurações › Backups
+hanko doctor                                      # inclui a idade do último backup e se pg_dump existe
+hanko update --channel stable                     # faz backup antes; --rollback volta o binário
+hanko service install                             # systemd/launchd (--user sem root; --dry-run mostra o que faria)
+```
+
+A imagem de contêiner (distroless) não tem `pg_dump`: lá a tela de Backups fica desligada e valem `backup.sh` e o restic.
+
 ## 4. Troubleshooting
 
 | Sintoma | Causa provável | O que fazer |
