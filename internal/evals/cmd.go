@@ -82,7 +82,7 @@ func Main(ctx context.Context, args []string, getenv func(string) string, stdout
 		}
 	}
 	if *summary != "" {
-		if f, err := os.OpenFile(*summary, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644); err == nil {
+		if f, err := os.OpenFile(*summary, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600); err == nil {
 			_, _ = io.WriteString(f, rep.Markdown())
 			_ = f.Close()
 		}

@@ -171,7 +171,7 @@ func fakeAnthropic(t *testing.T, calls *atomic.Int32) *httptest.Server {
 	t.Helper()
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/v1/messages" || r.Header.Get("x-api-key") != "k-teste" || r.Header.Get("anthropic-version") == "" {
-			http.Error(w, `{"error":{"type":"auth","message":"x"}}`, 401)
+			http.Error(w, `{"error":{"type":"auth","message":"x"}}`, http.StatusUnauthorized)
 			return
 		}
 		var req aRequest

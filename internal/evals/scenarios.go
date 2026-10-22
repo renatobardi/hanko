@@ -90,16 +90,6 @@ func lastResult(r Request) string {
 	return ""
 }
 
-func lastResultFailed(r Request) bool {
-	for i := len(r.Messages) - 1; i >= 0; i-- {
-		if len(r.Messages[i].Results) > 0 {
-			rs := r.Messages[i].Results
-			return rs[len(rs)-1].IsError
-		}
-	}
-	return false
-}
-
 func call(id, name string, args map[string]any) Reply {
 	return Reply{Calls: []ToolCall{{ID: id, Name: name, Args: args}}}
 }

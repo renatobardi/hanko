@@ -152,7 +152,8 @@ func Run(ctx context.Context, local, remote sdk.Transport) error {
 		}
 	}()
 	first := <-errs
-	<-errs // o outro lado sai porque closeAll destrava o Read
+	second := <-errs // o outro lado sai porque closeAll destrava o Read; o erro dele é consequência do primeiro
+	_ = second
 	if errors.Is(first, io.EOF) || errors.Is(first, context.Canceled) || errors.Is(first, sdk.ErrConnectionClosed) {
 		return nil
 	}

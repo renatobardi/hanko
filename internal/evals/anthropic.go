@@ -85,7 +85,7 @@ func (a *Anthropic) buildRequest(req Request) aRequest {
 		out.MaxTokens = 1024
 	}
 	for _, t := range req.Tools {
-		out.Tools = append(out.Tools, aTool{Name: t.Name, Description: t.Description, InputSchema: t.InputSchema})
+		out.Tools = append(out.Tools, aTool(t))
 	}
 	for _, m := range req.Messages {
 		am := aMessage{Role: m.Role}
