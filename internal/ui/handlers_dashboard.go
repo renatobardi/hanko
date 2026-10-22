@@ -58,6 +58,8 @@ func (s *server) handleDashboard(w http.ResponseWriter, r *http.Request, co doma
 		Cards:           s.dashboardCards(ctx, co),
 		CardsHref:       cardsBase(co),
 		Notice:          i18n.T(ctx, gateNotices[r.URL.Query().Get("ok")]),
+		Wizard:          s.wizardCard(ctx, co),
+		WhatsNew:        s.whatsNewCard(ctx),
 	}
 	if stats.MonthBudgetCents != nil {
 		b := budgetBox(ctx, i18n.T(ctx, "Orçamento do mês"), service.BudgetStatus{BudgetCents: stats.MonthBudgetCents, SpentUSD: stats.MonthCostUSD,

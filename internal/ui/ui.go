@@ -290,7 +290,7 @@ func (discard) Write(p []byte) (int, error) { return len(p), nil }
 type companyHandler func(w http.ResponseWriter, r *http.Request, co domain.Company)
 
 func (s *server) routes(root *http.ServeMux) {
-	mux := langMux{root}
+	mux := langMux{mux: root, prof: s.loadProfile}
 	co := func(h companyHandler) http.HandlerFunc { return s.withCompany(h) }
 	post := func(h http.HandlerFunc) http.HandlerFunc { return s.sameOrigin(h) }
 
@@ -301,6 +301,7 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("GET /{$}", s.handleRoot)
 	mux.HandleFunc("GET /bem-vindo", s.handleOnboarding)
 	mux.HandleFunc("POST /empresas", post(s.handleCreateCompany))
+	s.w3Routes(mux)
 	mux.HandleFunc("POST "+langPath, post(s.handleLang))
 	mux.HandleFunc("POST "+themePath, post(s.handleTheme))
 
@@ -537,6 +538,10 @@ func (s *server) withCompany(h companyHandler) http.HandlerFunc {
 			s.fail(w, r, nil, err)
 			return
 		}
+		// o fuso do perfil da pessoa vale, nas telas da empresa, no lugar do fuso da empresa (ADR-0060)
+		if tz := s.profileFor(r.Context()).Timezone; tz != "" {
+			co.Timezone = tz
+		}
 		ctx := views.WithRole(r.Context(), role)
 		// Glifo de cada persona para avatares e chips (Kubo DS); sem ele, o padrão. Falha não quebra a página.
 		if ps, err := s.be.ListPersonas(ctx, co.ID); err == nil {
@@ -560,15 +565,18 @@ func (s *server) render(w http.ResponseWriter, r *http.Request, status int, c te
 	var buf bytes.Buffer
 	ctx := r.Context()
 	if id, ok := auth.IdentityFrom(ctx); ok {
-		ctx = views.WithUser(ctx, views.UserRef{Name: id.User.DisplayName(), Email: id.User.Email})
+		pf := s.profileFor(ctx)
+		ctx = views.WithUser(ctx, views.UserRef{Name: id.User.DisplayName(), Email: id.User.Email, AvatarGlyph: pf.AvatarGlyph, AvatarTone: pf.AvatarTone})
 	}
 	ctx = s.withSwitcher(ctx, r)
 	ctx = views.WithTheme(ctx, requestTheme(r))
+	ctx, visit := s.withNavPrefs(ctx, r, status)
 	if err := c.Render(ctx, &buf); err != nil {
 		s.log.Error("ui render", "path", auth.RedactPath(r.URL.Path), "err", err)
 		http.Error(w, i18n.T(ctx, "erro ao renderizar a página"), http.StatusInternalServerError)
 		return
 	}
+	visit.record(ctx, buf.Bytes())
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(status)

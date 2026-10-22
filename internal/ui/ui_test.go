@@ -309,7 +309,7 @@ func TestCreateCompany(t *testing.T) {
 	e := newEnv(t, uitest.None())
 	rec := e.post(t, "/empresas", url.Values{"name": {"Acme Corp"}, "prefix": {"acm"}}, false)
 	wantStatus(t, rec, http.StatusSeeOther)
-	if loc := rec.Header().Get("Location"); loc != "/c/acme-corp/" {
+	if loc := rec.Header().Get("Location"); loc != "/c/acme-corp/primeiros-passos" {
 		t.Errorf("Location = %q", loc)
 	}
 	if got := e.f.Companies[0].TaskPrefix; got != "ACM" {
@@ -323,7 +323,7 @@ func TestCreateCompany(t *testing.T) {
 	wantContains(t, rec, "Conflito", `value="Acme Corp"`)
 	rec = e.post(t, "/empresas", url.Values{"name": {"Outra"}}, true)
 	wantStatus(t, rec, http.StatusNoContent)
-	if rec.Header().Get("HX-Redirect") != "/c/outra/" {
+	if rec.Header().Get("HX-Redirect") != "/c/outra/primeiros-passos" {
 		t.Errorf("HX-Redirect = %q", rec.Header().Get("HX-Redirect"))
 	}
 }

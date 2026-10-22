@@ -1,0 +1,327 @@
+package views
+
+import (
+	"fmt"
+
+	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/i18n"
+)
+
+// Trilha contínua, onda 3 (ADR-0060): assistente de primeiros passos, perfil próprio e "O que há de novo".
+
+// WizardPage é o assistente de primeiros passos: empresa → harness → persona ou pacote → primeira task. Os passos são
+// derivados do que a empresa já tem, então a página é retomável a qualquer momento.
+templ WizardPage(sh Shell, vm WizardVM) {
+	@Layout(sh) {
+		@PageHead(i18n.T(ctx, "Primeiros passos"), i18n.T(ctx, "Da empresa recém-criada à primeira task rodando. Pode parar e voltar quando quiser.")) {
+			if vm.Dismissed && sh.CanAdmin() {
+				<form method="post" action={ templ.SafeURL(sh.Base() + "/primeiros-passos/retomar") }>
+					<button class="btn outline" type="submit">{ i18n.T(ctx, "Voltar a oferecer o assistente") }</button>
+				</form>
+			} else if !vm.Complete && sh.CanAdmin() {
+				<form method="post" action={ templ.SafeURL(sh.Base() + "/primeiros-passos/dispensar") }>
+					<button class="btn ghost" type="submit">{ i18n.T(ctx, "Dispensar o assistente") }</button>
+				</form>
+			}
+		}
+		if vm.Notice != "" {
+			@Alert("warn", vm.Notice)
+		}
+		if vm.Error != "" {
+			@Alert("danger", vm.Error)
+		}
+		<section class="card pad wizard">
+			<p class="sub">{ i18n.Tf(ctx, "%s de %s", fmt.Sprint(vm.Done), fmt.Sprint(vm.Total)) }</p>
+			<div class="progress"><i style={ pct(vm.Done * 100 / max(vm.Total, 1)) }></i></div>
+			<ol class="steps">
+				for _, s := range vm.Steps {
+					<li class={ templ.KV("done", s.Done || s.Skipped), templ.KV("now", s.Current) }>
+						<span class="n">
+							if s.Done || s.Skipped {
+								@Icon("check")
+							} else {
+								{ fmt.Sprint(s.N) }
+							}
+						</span>
+						{ s.Label }
+						if s.Skipped {
+							<span class="badge soft">{ i18n.T(ctx, "pulado") }</span>
+						}
+					</li>
+				}
+			</ol>
+		</section>
+		if vm.Complete {
+			@EmptyCard("rocket", i18n.T(ctx, "Tudo pronto."), i18n.T(ctx, "A empresa tem harness, persona e uma task em andamento. Acompanhe a execução na task."), true) {
+				<a class="btn primary" href={ templ.SafeURL(sh.Base() + "/tasks") }>{ i18n.T(ctx, "Ver as tasks") }</a>
+				<a class="btn outline" href={ templ.SafeURL(sh.Base() + "/") }>{ i18n.T(ctx, "Ir para o Painel") }</a>
+			}
+		} else if !sh.CanAdmin() && vm.Current != "task" {
+			@NeedRole(domain.MemberAdmin)
+		} else {
+			switch vm.Current {
+				case "harness":
+					@wizardHarness(sh, vm)
+				case "persona":
+					@wizardPersona(sh, vm)
+				case "task":
+					@wizardTask(sh, vm)
+			}
+		}
+	}
+}
+
+templ wizardHarness(sh Shell, vm WizardVM) {
+	<section class="card pad form-card">
+		<h2>{ i18n.T(ctx, "Qual harness vai executar as personas?") }</h2>
+		<p class="sub">{ i18n.T(ctx, "O teste confere o binário, o login (ou a chave de API) e o modelo no ambiente padrão da empresa, antes de existir persona. É o mesmo teste que protege o despacho depois.") }</p>
+		if vm.Probe != nil {
+			<div class="probe">
+				if vm.Probe.Ready {
+					@Alert("warn", i18n.Tf(ctx, "O harness %s está pronto.", vm.Probe.Agent))
+				} else {
+					@Alert("danger", i18n.Tf(ctx, "O harness %s não está pronto: %s", vm.Probe.Agent, vm.Probe.Reason))
+				}
+				<table class="tbl">
+					<tbody>
+						for _, st := range vm.Probe.Steps {
+							<tr>
+								<td>{ st.Name }</td>
+								<td><span class={ "badge " + probeBadge(st.Status) }>{ st.Status }</span></td>
+								<td class="muted">{ st.Detail }</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+		<form method="post" action={ templ.SafeURL(sh.Base() + "/primeiros-passos/harness") }>
+			<div class="field">
+				<span class="lbl">Harness</span>
+				<div class="radio-cards rc2">
+					<label>
+						<input type="radio" name="agent" value="claude" checked?={ vm.Harness == "" || vm.Harness == "claude" }/>
+						<span class="rc"><b>@Icon("bot") Claude Code</b><span>{ i18n.T(ctx, "Login do Claude Code ou chave de API") }</span></span>
+					</label>
+					<label>
+						<input type="radio" name="agent" value="codex" checked?={ vm.Harness == "codex" }/>
+						<span class="rc"><b>@Icon("bot") Codex</b><span>{ i18n.T(ctx, "Login do Codex ou chave de API") }</span></span>
+					</label>
+					<label>
+						<input type="radio" name="agent" value="fake" checked?={ vm.Harness == "fake" }/>
+						<span class="rc"><b>@Icon("terminal") { i18n.T(ctx, "Teste (fake)") }</b><span>{ i18n.T(ctx, "Sem custo e sem rede: respostas fixas, para conhecer o produto") }</span></span>
+					</label>
+				</div>
+			</div>
+			<div class="field">
+				<label for="w-model">{ i18n.T(ctx, "Modelo") }</label>
+				<input class="input" id="w-model" name="model" value={ vm.Model } maxlength="128" placeholder={ i18n.T(ctx, "padrão do harness") }/>
+			</div>
+			<div class="actions">
+				<button class="btn primary" type="submit">{ i18n.T(ctx, "Testar o harness") }</button>
+			</div>
+		</form>
+		<form method="post" action={ templ.SafeURL(sh.Base() + "/primeiros-passos/pular") }>
+			<p class="hint">{ i18n.T(ctx, "Já tem o login do harness na máquina do servidor e prefere conferir depois? Dá para pular; o teste de cada persona continua valendo.") }</p>
+			<button class="btn ghost" type="submit">{ i18n.T(ctx, "Pular este passo") }</button>
+		</form>
+	</section>
+}
+
+templ wizardPersona(sh Shell, vm WizardVM) {
+	<div class="grid-2">
+		<section class="card pad form-card">
+			<h2>{ i18n.T(ctx, "Contratar uma persona") }</h2>
+			<p class="sub">{ i18n.T(ctx, "Uma só, para começar. Dá para ajustar instruções, modelo e orçamento depois.") }</p>
+			<form method="post" action={ templ.SafeURL(sh.Base() + "/primeiros-passos/persona") }>
+				<div class="field">
+					<label for="w-pname">{ i18n.T(ctx, "Nome") }</label>
+					<input class="input" id="w-pname" name="name" value={ vm.PersonaName } required maxlength="80" placeholder={ i18n.T(ctx, "Ada") }/>
+				</div>
+				<div class="field">
+					<label for="w-ptitle">{ i18n.T(ctx, "Cargo") }</label>
+					<input class="input" id="w-ptitle" name="title" value={ vm.PersonaTitle } maxlength="120" placeholder={ i18n.T(ctx, "Chief of staff") }/>
+				</div>
+				<div class="field">
+					<label for="w-pinstr">{ i18n.T(ctx, "Instruções") }</label>
+					<textarea class="input" id="w-pinstr" name="instructions" rows="4" maxlength="20000" placeholder={ i18n.T(ctx, "Como ela deve trabalhar, o que nunca faz, quando pergunta.") }>{ vm.PersonaInstr }</textarea>
+				</div>
+				<div class="field">
+					<label for="w-pagent">Harness</label>
+					@Select("agent", "w-pagent", vm.HarnessOptions, false)
+					<span class="hint">{ i18n.T(ctx, "O que o teste anterior validou vem marcado.") }</span>
+				</div>
+				<button class="btn primary" type="submit">{ i18n.T(ctx, "Contratar e continuar") }</button>
+			</form>
+		</section>
+		<section class="card pad">
+			<h2>{ i18n.T(ctx, "Ou instalar um pacote de time") }</h2>
+			<p class="sub">{ i18n.T(ctx, "Um time pronto: personas com organograma, skills e rotinas. Instala pausado; o assistente liga só a persona de topo.") }</p>
+			if len(vm.Teams) == 0 {
+				<p class="muted">{ i18n.T(ctx, "O catálogo está vazio nesta instalação.") }</p>
+			}
+			<ul class="list">
+				for _, t := range vm.Teams {
+					<li>
+						<div>
+							<b>{ t.Name }</b>
+							<span class="muted">{ i18n.Tf(ctx, "%s personas · harness %s", fmt.Sprint(t.Personas), t.Agents) }</span>
+							<p class="muted">{ t.Desc }</p>
+						</div>
+						<form method="post" action={ templ.SafeURL(sh.Base() + "/primeiros-passos/pacote") }>
+							<input type="hidden" name="slug" value={ t.Slug }/>
+							<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Instalar") }</button>
+						</form>
+					</li>
+				}
+			</ul>
+		</section>
+	</div>
+}
+
+templ wizardTask(sh Shell, vm WizardVM) {
+	<section class="card pad form-card">
+		<h2>{ i18n.T(ctx, "Peça a primeira task") }</h2>
+		<p class="sub">{ i18n.T(ctx, "A persona escolhida acorda assim que a task é criada. Algo pequeno e verificável funciona melhor, como resumir um arquivo.") }</p>
+		if !sh.CanWrite() {
+			@NeedRole(domain.MemberMember)
+		} else if len(vm.Personas) == 0 {
+			<p class="muted">{ i18n.T(ctx, "Nenhuma persona ativa pode receber a task: ative uma em Personas.") }</p>
+		} else {
+			<form method="post" action={ templ.SafeURL(sh.Base() + "/primeiros-passos/task") }>
+				<div class="field">
+					<label for="w-tpersona">{ i18n.T(ctx, "Persona") }</label>
+					@Select("persona", "w-tpersona", vm.Personas, false)
+				</div>
+				<div class="field">
+					<label for="w-ttitle">{ i18n.T(ctx, "Título") }</label>
+					<input class="input" id="w-ttitle" name="title" value={ vm.TaskTitle } required maxlength="500" placeholder={ i18n.T(ctx, "Resumir o README do projeto") }/>
+				</div>
+				<div class="field">
+					<label for="w-tdesc">{ i18n.T(ctx, "Descrição") }</label>
+					<textarea class="input" id="w-tdesc" name="description" rows="4" maxlength="20000">{ vm.TaskDesc }</textarea>
+				</div>
+				<button class="btn primary" type="submit">{ i18n.T(ctx, "Criar a task e acordar a persona") }</button>
+			</form>
+		}
+	</section>
+}
+
+func probeBadge(status string) string {
+	switch status {
+	case "ok":
+		return "done"
+	case "fail":
+		return "danger"
+	case "warn":
+		return "warn"
+	}
+	return "soft"
+}
+
+// WizardCard convida, no Painel, a continuar o assistente.
+templ WizardCard(vm WizardCardVM, base string) {
+	<section class="card pad wizard-card">
+		<div class="card-head">
+			<h2>{ i18n.T(ctx, "Assistente de primeiros passos") }</h2>
+			<a class="more" href={ templ.SafeURL(base + "/primeiros-passos") }>{ i18n.T(ctx, "Continuar") }</a>
+		</div>
+		<p class="sub">{ i18n.Tf(ctx, "%s de %s passos · próximo: %s", fmt.Sprint(vm.Done), fmt.Sprint(vm.Total), vm.Next) }</p>
+		<div class="progress"><i style={ pct(vm.Done * 100 / max(vm.Total, 1)) }></i></div>
+	</section>
+}
+
+// ProfilePage é o perfil próprio: nome, avatar, fuso e idioma.
+templ ProfilePage(sh Shell, vm ProfileVM) {
+	@Layout(sh) {
+		@PageHead(i18n.T(ctx, "Meu perfil"), i18n.T(ctx, "Vale em todas as empresas em que você participa.")) {
+		}
+		if vm.Trusted {
+			@EmptyCard("user", i18n.T(ctx, "Sem conta neste modo."), i18n.T(ctx, "O perfil pertence a uma conta. Com a instalação em modo authenticated, cada pessoa edita o seu."), true)
+		} else {
+			if vm.Notice != "" {
+				@Alert("warn", vm.Notice)
+			}
+			if vm.Error != "" {
+				@Alert("danger", vm.Error)
+			}
+			<form class="card pad form-card" method="post" action={ templ.SafeURL(sh.Base() + "/perfil") }>
+				<div class="profile-head">
+					<span class="avatar-sq lg" data-tone={ vm.AvatarTone }>{ avatarText(vm.AvatarGlyph, vm.Name) }</span>
+					<div><b>{ vm.Name }</b><span class="muted">{ vm.Email }</span></div>
+				</div>
+				<div class="form-grid">
+					<div class="field">
+						<label for="pf-name">{ i18n.T(ctx, "Nome") }</label>
+						<input class="input" id="pf-name" name="name" value={ vm.Name } required maxlength="80"/>
+					</div>
+					<div class="field">
+						<label for="pf-glyph">{ i18n.T(ctx, "Avatar") }</label>
+						<input class="input" id="pf-glyph" name="avatar_glyph" value={ vm.AvatarGlyph } maxlength="3" placeholder={ i18n.T(ctx, "inicial do nome") }/>
+						<span class="hint">{ i18n.T(ctx, "Até 3 caracteres; vazio usa a inicial.") }</span>
+					</div>
+					<div class="field">
+						<label for="pf-tone">{ i18n.T(ctx, "Cor do avatar") }</label>
+						@Select("avatar_tone", "pf-tone", vm.Tones, false)
+					</div>
+					<div class="field">
+						<label for="pf-tz">{ i18n.T(ctx, "Fuso horário") }</label>
+						<input class="input" id="pf-tz" name="timezone" value={ vm.Timezone } maxlength="64" placeholder="America/Sao_Paulo"/>
+						<span class="hint">{ i18n.T(ctx, "Datas e horas aparecem neste fuso. Vazio usa o da empresa.") }</span>
+					</div>
+					<div class="field">
+						<label for="pf-locale">{ i18n.T(ctx, "Idioma") }</label>
+						@Select("locale", "pf-locale", vm.Locales, false)
+					</div>
+				</div>
+				<div class="actions">
+					<button class="btn primary" type="submit">{ i18n.T(ctx, "Salvar perfil") }</button>
+				</div>
+			</form>
+		}
+	}
+}
+
+// WhatsNewPage mostra as novidades da versão instalada, lidas do CHANGELOG embutido (sem rede).
+templ WhatsNewPage(sh Shell, vm WhatsNewVM) {
+	@Layout(sh) {
+		@PageHead(i18n.T(ctx, "O que há de novo"), i18n.Tf(ctx, "Versão instalada: %s", vm.Installed)) {
+			if !vm.Dismissed {
+				<form method="post" action={ templ.SafeURL(sh.Base() + "/novidades/dispensar") }>
+					<input type="hidden" name="key" value={ vm.Key }/>
+					<button class="btn outline" type="submit">{ i18n.T(ctx, "Dispensar") }</button>
+				</form>
+			}
+		}
+		<article class="card pad">
+			<h2>{ vm.Version }</h2>
+			if vm.Date != "" {
+				<p class="muted">{ vm.Date }</p>
+			}
+			<div class="md">@templ.Raw(string(vm.BodyHTML))</div>
+		</article>
+	}
+}
+
+// WhatsNewCard é o aviso no Painel, dispensável por pessoa.
+templ WhatsNewCard(vm WhatsNewVM, base string) {
+	<section class="card pad whatsnew-card">
+		<div class="card-head">
+			<h2>{ i18n.T(ctx, "O que há de novo") }</h2>
+			<a class="more" href={ templ.SafeURL(base + "/novidades") }>{ i18n.T(ctx, "Ler") }</a>
+		</div>
+		<p class="sub">{ i18n.Tf(ctx, "Esta instalação está na versão %s.", vm.Installed) }</p>
+		<form method="post" action={ templ.SafeURL(base + "/novidades/dispensar") }>
+			<input type="hidden" name="key" value={ vm.Key }/>
+			<button class="btn ghost sm" type="submit">{ i18n.T(ctx, "Dispensar") }</button>
+		</form>
+	</section>
+}
+
+// avatarText é o texto do avatar: o glifo escolhido ou a inicial do nome.
+func avatarText(glyph, name string) string {
+	if glyph != "" {
+		return glyph
+	}
+	return initial(name)
+}

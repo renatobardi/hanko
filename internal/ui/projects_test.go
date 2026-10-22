@@ -120,6 +120,7 @@ func TestCreateAndArchiveProject(t *testing.T) {
 		}
 	})
 	t.Run("arquivar e reativar", func(t *testing.T) {
+		f.SetErr("TouchRecent", errors.New("sem recentes")) // a sidebar de recentes citaria o nome; aqui só importam as listas
 		rec := e.post(t, "/c/hanko/projetos/lancamento/arquivar", nil, false)
 		wantStatus(t, rec, http.StatusSeeOther)
 		if got.Status != domain.ProjectArchived {

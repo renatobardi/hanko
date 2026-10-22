@@ -1496,3 +1496,30 @@ pre.diff { margin: 8px 0; padding: 8px 12px; white-space: pre; overflow-x: auto;
   .diag-kv { grid-template-columns: 1fr; }
   .diag-kv dt { margin-top: 6px; }
 }
+
+/* Trilha onda 3 (ADR-0060): favoritos e recentes, perfil, assistente de primeiros passos, novidades. */
+:root {
+  --tone-green: oklch(0.55 0.13 150);
+  --tone-amber: oklch(0.6 0.14 70);
+  --tone-red: oklch(0.55 0.18 27);
+  --tone-blue: oklch(0.55 0.14 250);
+  --tone-violet: oklch(0.52 0.17 300);
+  --tone-gray: oklch(0.5 0.01 56);
+}
+.avatar-sq[data-tone="green"] { background: var(--tone-green); color: #fff; }
+.avatar-sq[data-tone="amber"] { background: var(--tone-amber); color: #fff; }
+.avatar-sq[data-tone="red"] { background: var(--tone-red); color: #fff; }
+.avatar-sq[data-tone="blue"] { background: var(--tone-blue); color: #fff; }
+.avatar-sq[data-tone="violet"] { background: var(--tone-violet); color: #fff; }
+.avatar-sq[data-tone="gray"] { background: var(--tone-gray); color: #fff; }
+.avatar-sq.lg { width: 48px; height: 48px; font-size: var(--text-base); }
+.profile-head { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.profile-head b { display: block; }
+.fav-form { display: inline-flex; margin: 0; }
+.icon-btn.fav svg.ic { color: var(--muted-foreground); }
+.icon-btn.fav.on svg.ic { color: var(--warn); fill: var(--warn); }
+.nav-pins a span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wizard .progress { margin: 8px 0 16px; }
+.wizard-card .progress, .whatsnew-card form { margin-top: 8px; }
+.probe { margin-bottom: 16px; }
+.probe .tbl td { padding: 6px 8px; }

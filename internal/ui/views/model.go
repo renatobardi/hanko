@@ -109,7 +109,9 @@ type DashboardVM struct {
 	Cards           []DashboardCardVM // cards de status marcados para o Painel (ADR-0048)
 	CardsHref       string
 	Notice          string
-	Budget          *BudgetBox // company monthly budget, when set
+	Budget          *BudgetBox    // company monthly budget, when set
+	Wizard          *WizardCardVM // convite para continuar o assistente de primeiros passos (ADR-0060)
+	WhatsNew        *WhatsNewVM   // novidades da versão instalada, enquanto a pessoa não dispensar
 }
 
 // ---- tasks ----

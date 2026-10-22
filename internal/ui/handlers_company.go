@@ -88,5 +88,5 @@ func (s *server) handleCreateCompany(w http.ResponseWriter, r *http.Request) {
 		s.render(w, r, statusFor(err), views.OnboardingPage(vm, s.version))
 		return
 	}
-	redirect(w, r, "/c/"+co.Slug+"/")
+	redirect(w, r, "/c/"+co.Slug+"/primeiros-passos")
 }

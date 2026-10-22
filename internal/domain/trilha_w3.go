@@ -170,7 +170,11 @@ func NormalizeNavPath(raw string) (string, error) {
 }
 
 // IsNavDetail informa se o caminho é de uma página de detalhe (mais de um segmento): só ela vira "recente".
-func IsNavDetail(path string) bool { return strings.Count(strings.Trim(path, "/"), "/") >= 1 }
+func IsNavDetail(path string) bool {
+	p := strings.Trim(path, "/")
+	last := p[strings.LastIndexByte(p, '/')+1:]
+	return strings.Contains(p, "/") && last != "nova" && last != "novo" // formulários de criação não são "recentes"
+}
 
 // CleanNavTitle apara e limita o título guardado.
 func CleanNavTitle(t string) string {

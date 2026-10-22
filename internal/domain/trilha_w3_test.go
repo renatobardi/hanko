@@ -76,7 +76,7 @@ func TestNormalizeNavPath(t *testing.T) {
 }
 
 func TestNavHelpers(t *testing.T) {
-	if !IsNavDetail("/tasks/HNK-1") || IsNavDetail("/tasks") {
+	if !IsNavDetail("/tasks/HNK-1") || IsNavDetail("/tasks") || IsNavDetail("/personas/nova") {
 		t.Error("IsNavDetail")
 	}
 	if got := CleanNavTitle("  a \n  b\t c "); got != "a b c" {

@@ -72,6 +72,12 @@ type env struct {
 	openBrowser func(string) error
 	// urlSet: --url ou HANKO_URL foi dado, então o contexto salvo não troca o servidor.
 	urlSet bool
+	// ctxName é o contexto pedido por --context/HANKO_CONTEXT para esta chamada ("" = o salvo como atual).
+	ctxName string
+	// pontos de injeção dos testes de `hanko sandbox`: porta livre, servidor de pé e o processo do servidor.
+	portFreeFn func(int) bool
+	healthyFn  func(context.Context, string) bool
+	serveFn    func(context.Context, []string) error
 	// ctx carrega o idioma da CLI, resolvido uma vez (HANKO_LANG > LC_ALL > LC_MESSAGES > LANG > pt-BR).
 	ctx context.Context
 }
@@ -138,14 +144,21 @@ func (e *env) root() *cobra.Command {
 		SilenceErrors: true,
 	}
 	root.SetFlagErrorFunc(func(_ *cobra.Command, err error) error { return usageError{err} })
-	root.PersistentPreRun = func(cmd *cobra.Command, _ []string) {
+	root.PersistentPreRunE = func(cmd *cobra.Command, _ []string) error {
 		e.urlSet = cmd.Flags().Changed("url") || e.getenv("HANKO_URL") != ""
+		if e.ctxName != "" {
+			if _, ok := e.loadContexts().Contexts[e.ctxName]; !ok {
+				return usageError{fmt.Errorf(e.t("contexto %q não existe: veja `hanko context list`"), e.ctxName)}
+			}
+		}
+		return nil
 	}
 	root.CompletionOptions.DisableDefaultCmd = true
 	f := root.PersistentFlags()
 	f.StringVar(&e.url, "url", def("HANKO_URL", client.DefaultURL), e.t("URL do servidor Hanko (HANKO_URL)"))
 	f.StringVarP(&e.company, "company", "c", def("HANKO_COMPANY", ""), e.t("empresa: id ou slug (HANKO_COMPANY)"))
 	f.StringVar(&e.token, "token", def("HANKO_TOKEN", ""), e.t("credencial opcional: API key hk_… (modo authenticated) ou run token (HANKO_TOKEN)"))
+	f.StringVar(&e.ctxName, "context", def("HANKO_CONTEXT", ""), e.t("contexto salvo a usar nesta chamada, no lugar do ativo (HANKO_CONTEXT)"))
 	f.BoolVar(&e.asJSON, "json", false, e.t("saída em JSON"))
 
 	root.AddCommand(e.serveCmd(), e.migrateCmd(), e.versionCmd(), e.openapiCmd(),
@@ -160,6 +173,7 @@ func (e *env) root() *cobra.Command {
 	root.AddCommand(e.pipelinesCmds()...)
 	root.AddCommand(e.planPolicyCmd()) // plan-review (ADR-0041)
 	root.AddCommand(e.stageCmd())      // pipelines sobre tasks (ADR-0048)
+	root.AddCommand(e.contextCmd(), e.sandboxCmd(), e.onboardCmd(), e.profileCmd(), e.favoriteCmd(), e.whatsNewCmd()) // trilha onda 3 (ADR-0060)
 	e.localizeHelp(root)
 	return root
 }
