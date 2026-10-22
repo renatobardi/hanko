@@ -51,6 +51,7 @@ type Fake struct {
 	// Artefatos e metas (ADR-0028). ArtifactData guarda o conteúdo de cada versão; os limites zerados valem o padrão.
 	Artifacts          []domain.Artifact
 	ArtifactData       map[domain.ID][]byte
+	ArtifactTags       map[domain.ID][]string // por documento (ADR-0064)
 	ArtifactMaxBytes   int64
 	ArtifactQuotaBytes int64
 	Goals              []domain.Goal

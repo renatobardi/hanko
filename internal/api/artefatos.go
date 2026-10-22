@@ -12,7 +12,8 @@ import (
 	"github.com/renatobardi/hanko/internal/service"
 )
 
-// Artefatos (ADR-0028). O envio é JSON com o conteúdo em base64 (cabe no mesmo cliente de todo o resto e na
+// Artefatos (ADR-0028, ADR-0064). Cada versão pertence a um documento de identidade estável e é numerada
+// MAJOR.MINOR; as rotas por {artifact} recebem o id de uma versão e as por {document}, o do documento. O envio é JSON com o conteúdo em base64 (cabe no mesmo cliente de todo o resto e na
 // ferramenta MCP); o download é bruto, com cabeçalhos de segurança (artifactsrv). Um run token publica só na
 // própria task/run; apagar é de admin humano.
 
@@ -30,34 +31,50 @@ func (s *server) artifactBodyLimit() int64 {
 
 // Artifact é uma versão de um artefato (sem o conteúdo).
 type Artifact struct {
-	ID          string    `json:"id" format:"uuid"`
-	CompanyID   string    `json:"company_id" format:"uuid"`
-	Name        string    `json:"name" example:"plano.md"`
-	Mime        string    `json:"mime" example:"text/markdown"`
-	Kind        string    `json:"kind" enum:"markdown,text,image,other"`
-	SizeBytes   int64     `json:"size_bytes"`
-	SHA256      string    `json:"sha256"`
-	Version     int       `json:"version" doc:"Número da versão na cadeia (empresa, task, nome)."`
-	Versions    int       `json:"versions" doc:"Quantas versões a cadeia tem."`
-	TaskID      string    `json:"task_id,omitempty" format:"uuid"`
-	TaskKey     string    `json:"task_key,omitempty"`
-	TaskTitle   string    `json:"task_title,omitempty"`
-	RunID       string    `json:"run_id,omitempty" format:"uuid"`
-	RunName     string    `json:"run_name,omitempty"`
-	ProjectID   string    `json:"project_id,omitempty" format:"uuid"`
-	ProjectSlug string    `json:"project_slug,omitempty"`
-	ProjectName string    `json:"project_name,omitempty"`
-	PersonaID   string    `json:"persona_id,omitempty" format:"uuid"`
-	PersonaSlug string    `json:"persona_slug,omitempty"`
-	PersonaName string    `json:"persona_name,omitempty"`
-	Author      ActorRef  `json:"author"`
-	CreatedAt   time.Time `json:"created_at"`
+	ID         string `json:"id" format:"uuid"`
+	CompanyID  string `json:"company_id" format:"uuid"`
+	Name       string `json:"name" example:"plano.md"`
+	Mime       string `json:"mime" example:"text/markdown"`
+	Kind       string `json:"kind" enum:"markdown,text,image,other"`
+	SizeBytes  int64  `json:"size_bytes"`
+	SHA256     string `json:"sha256"`
+	Version    int    `json:"version" doc:"Ordinal da publicação dentro do documento (1, 2, 3...)."`
+	Versions   int    `json:"versions" doc:"Quantas versões o documento tem."`
+	DocumentID string `json:"document_id" format:"uuid" doc:"Documento (identidade estável) de que esta é uma versão."`
+	SemVer     string `json:"semver" example:"2.1" doc:"Versão MAJOR.MINOR."`
+	Major      int    `json:"major"`
+	Minor      int    `json:"minor"`
+	Change     string `json:"change" enum:"major,minor" doc:"Classificação em relação à versão anterior (a primeira é major)."`
+	// Classificação: o que foi declarado (vazio = o servidor decidiu), o motivo, a fração de linhas mudadas e se a
+	// medida contradiz a declaração.
+	ChangeDeclared      string    `json:"change_declared,omitempty" enum:"major,minor"`
+	ChangeReason        string    `json:"change_reason,omitempty"`
+	ChangeRatio         *float64  `json:"change_ratio,omitempty" doc:"Fração das linhas mudadas (0 a 1); ausente se não medido."`
+	ChangeDisputed      bool      `json:"change_disputed,omitempty" doc:"A medida do diff contradiz a classificação declarada."`
+	RestoredFrom        string    `json:"restored_from,omitempty" format:"uuid" doc:"Versão restaurada, quando esta versão é uma restauração."`
+	Tags                []string  `json:"tags" doc:"Tags do documento."`
+	DocumentProjectSlug string    `json:"document_project_slug,omitempty" doc:"Projeto do documento (pode diferir do desta versão)."`
+	WorkspaceID         string    `json:"workspace_id,omitempty" format:"uuid" doc:"Workspace do documento."`
+	WorkspaceSlug       string    `json:"workspace_slug,omitempty"`
+	TaskID              string    `json:"task_id,omitempty" format:"uuid"`
+	TaskKey             string    `json:"task_key,omitempty"`
+	TaskTitle           string    `json:"task_title,omitempty"`
+	RunID               string    `json:"run_id,omitempty" format:"uuid"`
+	RunName             string    `json:"run_name,omitempty"`
+	ProjectID           string    `json:"project_id,omitempty" format:"uuid"`
+	ProjectSlug         string    `json:"project_slug,omitempty"`
+	ProjectName         string    `json:"project_name,omitempty"`
+	PersonaID           string    `json:"persona_id,omitempty" format:"uuid"`
+	PersonaSlug         string    `json:"persona_slug,omitempty"`
+	PersonaName         string    `json:"persona_name,omitempty"`
+	Author              ActorRef  `json:"author"`
+	CreatedAt           time.Time `json:"created_at"`
 	// Class: artifact (versionado, produzido pelo trabalho) ou attachment (anexo, ADR-0052).
 	Class          string `json:"class" enum:"artifact,attachment"`
 	CommentID      string `json:"comment_id,omitempty" format:"uuid" doc:"Anexo: o comentário da task a que pertence."`
 	ConversationID string `json:"conversation_id,omitempty" format:"uuid" doc:"Anexo: a conversa do chat a que pertence."`
 	MessageID      string `json:"message_id,omitempty" format:"uuid" doc:"Anexo: a mensagem da conversa a que pertence."`
-	// History só vem no detalhe: todas as versões da cadeia, da mais nova para a mais antiga.
+	// History só vem no detalhe: todas as versões do documento, da mais nova para a mais antiga.
 	History []ArtifactVersion `json:"history,omitempty"`
 }
 
@@ -65,6 +82,12 @@ type Artifact struct {
 type ArtifactVersion struct {
 	ID        string    `json:"id" format:"uuid"`
 	Version   int       `json:"version"`
+	SemVer    string    `json:"semver" example:"1.2"`
+	Name      string    `json:"name"`
+	Change    string    `json:"change" enum:"major,minor"`
+	Reason    string    `json:"change_reason,omitempty"`
+	Disputed  bool      `json:"change_disputed,omitempty"`
+	TaskID    string    `json:"task_id,omitempty" format:"uuid"`
 	SizeBytes int64     `json:"size_bytes"`
 	SHA256    string    `json:"sha256"`
 	Author    ActorRef  `json:"author"`
@@ -88,14 +111,16 @@ type ArtifactDiffLine struct {
 	NewNo int    `json:"new_no,omitempty"`
 }
 
-// ArtifactDiff é a comparação de texto entre duas versões da mesma cadeia.
+// ArtifactDiff é a comparação de texto entre duas versões do mesmo documento.
 type ArtifactDiff struct {
-	From    int                `json:"from_version"`
-	To      int                `json:"to_version"`
-	Added   int                `json:"added"`
-	Removed int                `json:"removed"`
-	Coarse  bool               `json:"coarse,omitempty" doc:"O trecho alterado era grande demais para o diff fino: aparece tudo removido e tudo adicionado."`
-	Lines   []ArtifactDiffLine `json:"lines"`
+	From       int                `json:"from_version"`
+	To         int                `json:"to_version"`
+	FromSemVer string             `json:"from_semver"`
+	ToSemVer   string             `json:"to_semver"`
+	Added      int                `json:"added"`
+	Removed    int                `json:"removed"`
+	Coarse     bool               `json:"coarse,omitempty" doc:"O trecho alterado era grande demais para o diff fino: aparece tudo removido e tudo adicionado."`
+	Lines      []ArtifactDiffLine `json:"lines"`
 }
 
 type ArtifactPath struct {
@@ -106,12 +131,16 @@ type ArtifactPath struct {
 type putArtifactIn struct {
 	CompanyPath
 	Body struct {
-		Name    string `json:"name" minLength:"1" maxLength:"200" example:"plano.md" doc:"Nome do arquivo (sem barras). O mesmo nome na mesma task cria a versão seguinte."`
-		Mime    string `json:"mime,omitempty" example:"text/markdown" doc:"Tipo do conteúdo; vazio = deduzido do nome e do conteúdo."`
-		Content []byte `json:"content" doc:"Conteúdo do arquivo em base64." minLength:"1"`
-		Task    string `json:"task,omitempty" doc:"Id ou chave da task. Run token: sempre a da execução."`
-		Run     string `json:"run_id,omitempty" format:"uuid" doc:"Execução de origem. Run token: sempre a do token."`
-		Project string `json:"project,omitempty" doc:"Id ou slug do projeto; vazio herda o da task."`
+		Name         string   `json:"name" minLength:"1" maxLength:"200" example:"plano.md" doc:"Nome do arquivo (sem barras). Sem document_id, o mesmo nome na mesma task cria a versão seguinte."`
+		Document     string   `json:"document_id,omitempty" format:"uuid" doc:"Documento a alterar: a publicação vira a versão seguinte dele, mesmo com outro nome ou em outra task."`
+		Change       string   `json:"change,omitempty" enum:"major,minor" doc:"Classificação declarada; vazio = o servidor decide pelo tamanho do diff."`
+		ChangeReason string   `json:"change_reason,omitempty" maxLength:"280" doc:"Motivo curto da mudança; obrigatório para run token que declara change."`
+		Tags         []string `json:"tags,omitempty" doc:"Substitui as tags do documento."`
+		Mime         string   `json:"mime,omitempty" example:"text/markdown" doc:"Tipo do conteúdo; vazio = deduzido do nome e do conteúdo."`
+		Content      []byte   `json:"content" doc:"Conteúdo do arquivo em base64." minLength:"1"`
+		Task         string   `json:"task,omitempty" doc:"Id ou chave da task. Run token: sempre a da execução."`
+		Run          string   `json:"run_id,omitempty" format:"uuid" doc:"Execução de origem. Run token: sempre a do token."`
+		Project      string   `json:"project,omitempty" doc:"Id ou slug do projeto; vazio herda o da task."`
 	}
 }
 
@@ -124,7 +153,10 @@ type listArtifactsIn struct {
 	Run         string `query:"run" format:"uuid" doc:"Id da execução."`
 	Kind        string `query:"kind" enum:"markdown,text,image,other" doc:"Tipo de conteúdo."`
 	Q           string `query:"q" doc:"Busca pelo nome."`
-	AllVersions bool   `query:"all_versions" doc:"Todas as versões, não só a mais nova de cada artefato."`
+	Workspace   string `query:"workspace" doc:"Id ou slug do workspace do documento."`
+	Tag         string `query:"tag" doc:"Tag do documento."`
+	Document    string `query:"document" format:"uuid" doc:"Só este documento (com all_versions, o histórico dele)."`
+	AllVersions bool   `query:"all_versions" doc:"Todas as versões, não só a mais nova de cada documento."`
 	Class       string `query:"class" enum:"artifact,attachment,all" doc:"Padrão artifact; attachment lista os anexos; all, os dois."`
 }
 
@@ -134,18 +166,71 @@ type diffArtifactIn struct {
 }
 
 func artifactOut(v service.ArtifactView) Artifact {
-	return Artifact{ID: idStr(v.ID), CompanyID: idStr(v.CompanyID), Name: v.Name, Mime: v.Mime, Kind: string(domain.KindOf(v.Mime)),
+	o := Artifact{ID: idStr(v.ID), CompanyID: idStr(v.CompanyID), Name: v.Name, Mime: v.Mime, Kind: string(domain.KindOf(v.Mime)),
 		SizeBytes: v.SizeBytes, SHA256: v.SHA256, Version: v.Version, Versions: v.Versions,
+		DocumentID: idStr(v.DocumentID), SemVer: v.SemVer, Major: v.Major, Minor: v.Minor, Change: string(v.Change),
+		ChangeReason: v.ChangeReason, ChangeRatio: v.ChangeRatio, ChangeDisputed: v.ChangeDisputed, RestoredFrom: idPtr(v.RestoredFrom),
+		Tags: v.Tags, DocumentProjectSlug: v.DocumentProjectSlug, WorkspaceID: idPtr(v.WorkspaceID), WorkspaceSlug: v.WorkspaceSlug,
 		TaskID: idPtr(v.TaskID), TaskKey: v.TaskKey, TaskTitle: v.TaskTitle, RunID: idPtr(v.RunID), RunName: v.RunName,
 		ProjectID: idPtr(v.ProjectID), ProjectSlug: v.ProjectSlug, ProjectName: v.ProjectName,
 		PersonaID: idPtr(v.PersonaID), PersonaSlug: v.PersonaSlug, PersonaName: v.PersonaName,
 		Author: actorRef(v.Author), CreatedAt: v.CreatedAt, Class: string(v.Class),
 		CommentID: idPtr(v.CommentID), ConversationID: idPtr(v.ConversationID), MessageID: idPtr(v.MessageID)}
+	if v.ChangeDeclared != nil {
+		o.ChangeDeclared = string(*v.ChangeDeclared)
+	}
+	if o.Tags == nil {
+		o.Tags = []string{}
+	}
+	return o
 }
 
 func artifactVersionOut(a domain.Artifact) ArtifactVersion {
-	return ArtifactVersion{ID: idStr(a.ID), Version: a.Version, SizeBytes: a.SizeBytes, SHA256: a.SHA256,
+	return ArtifactVersion{ID: idStr(a.ID), Version: a.Version, SemVer: a.SemVer().String(), Name: a.Name, Change: string(a.Change),
+		Reason: a.ChangeReason, Disputed: a.ChangeDisputed, TaskID: idPtr(a.TaskID), SizeBytes: a.SizeBytes, SHA256: a.SHA256,
 		Author: actorRef(a.Author), RunID: idPtr(a.RunID), CreatedAt: a.CreatedAt}
+}
+
+type DocumentPath struct {
+	CompanyPath
+	Document string `path:"document" format:"uuid" doc:"Id do documento de artefato."`
+}
+
+type documentVersionIn struct {
+	DocumentPath
+	Version string `path:"version" example:"1.2" doc:"MAJOR.MINOR, ou latest para a mais nova."`
+}
+
+type restoreArtifactIn struct {
+	ArtifactPath
+}
+
+type reclassifyArtifactIn struct {
+	ArtifactPath
+	Body struct {
+		Change string `json:"change" enum:"major,minor"`
+	}
+}
+
+type patchArtifactDocumentIn struct {
+	DocumentPath
+	Body struct {
+		Project   *string  `json:"project,omitempty" doc:"Id ou slug do projeto; vazio tira o projeto."`
+		Workspace *string  `json:"workspace,omitempty" doc:"Id ou slug do workspace; vazio tira o workspace."`
+		Tags      []string `json:"tags,omitempty" doc:"Substitui as tags (a-z, 0-9 e -; até 20)."`
+	}
+}
+
+// ArtifactDocument é a identidade estável de um artefato.
+type ArtifactDocument struct {
+	ID          string    `json:"id" format:"uuid"`
+	Class       string    `json:"class" enum:"artifact,attachment"`
+	Name        string    `json:"name"`
+	ProjectID   string    `json:"project_id,omitempty" format:"uuid"`
+	WorkspaceID string    `json:"workspace_id,omitempty" format:"uuid"`
+	Tags        []string  `json:"tags"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 func (s *server) artifactID(ctx context.Context, ref string) (domain.ID, error) {
@@ -187,7 +272,7 @@ func runScope(sc scope, task, run *domain.ID) (*domain.ID, *domain.ID, error) {
 
 func (s *server) registerArtifacts(api huma.API) {
 	put := created(op("put-artifact", http.MethodPost, "/companies/{company}/artifacts", "artifacts",
-		"Publica um artefato (nova versão se o nome já existe na task)"))
+		"Publica um artefato (nova versão do documento informado, ou do mesmo nome na task)"))
 	put.MaxBodyBytes = s.artifactBodyLimit()
 	huma.Register(api, put, func(ctx context.Context, in *putArtifactIn) (*ItemOut[Artifact], error) {
 		sc, err := s.scope(ctx, in.Company)
@@ -215,8 +300,20 @@ func (s *server) registerArtifacts(api huma.API) {
 		if task, run, err = runScope(sc, task, run); err != nil {
 			return nil, err
 		}
-		v, err := s.svc.PutArtifact(ctx, sc.Actor, cid, service.PutArtifactInput{Name: b.Name, Mime: b.Mime, Content: b.Content,
-			TaskID: task, RunID: run, ProjectID: project})
+		pi := service.PutArtifactInput{Name: b.Name, Mime: b.Mime, Content: b.Content, TaskID: task, RunID: run, ProjectID: project,
+			ChangeReason: b.ChangeReason, Tags: b.Tags}
+		if b.Document != "" {
+			id, err := domain.ParseID(b.Document)
+			if err != nil {
+				return nil, s.fail(ctx, domain.Invalid("document_id", "não é um uuid"))
+			}
+			pi.DocumentID = &id
+		}
+		if b.Change != "" {
+			k := domain.ChangeKind(b.Change)
+			pi.Change = &k
+		}
+		v, err := s.svc.PutArtifact(ctx, sc.Actor, cid, pi)
 		if err != nil {
 			return nil, s.fail(ctx, err)
 		}
@@ -246,6 +343,17 @@ func (s *server) registerArtifacts(api huma.API) {
 			if f.PersonaID, err = s.personaRef(ctx, cid, in.Persona); err != nil {
 				return nil, s.fail(ctx, err)
 			}
+			if f.WorkspaceID, err = s.workspaceRef(ctx, cid, in.Workspace); err != nil {
+				return nil, s.fail(ctx, err)
+			}
+			f.Tag = in.Tag
+			if in.Document != "" {
+				id, err := domain.ParseID(in.Document)
+				if err != nil {
+					return nil, s.fail(ctx, domain.Invalid("document", "não é um uuid"))
+				}
+				f.DocumentID = &id
+			}
 			if in.Run != "" {
 				id, err := domain.ParseID(in.Run)
 				if err != nil {
@@ -260,7 +368,7 @@ func (s *server) registerArtifacts(api huma.API) {
 			return listAll(vs, in.Page, artifactOut), nil
 		})
 
-	huma.Register(api, op("get-artifact", http.MethodGet, "/companies/{company}/artifacts/{artifact}", "artifacts", "Obtém uma versão de artefato e o histórico da cadeia"),
+	huma.Register(api, op("get-artifact", http.MethodGet, "/companies/{company}/artifacts/{artifact}", "artifacts", "Obtém uma versão de artefato e o histórico do documento"),
 		func(ctx context.Context, in *ArtifactPath) (*ItemOut[Artifact], error) {
 			sc, err := s.scope(ctx, in.Company)
 			if err != nil {
@@ -359,7 +467,7 @@ func (s *server) registerArtifacts(api huma.API) {
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}
-			out := ArtifactDiff{From: from.Version, To: cur.Version, Added: r.Added, Removed: r.Removed, Coarse: r.Coarse, Lines: make([]ArtifactDiffLine, 0, len(r.Lines))}
+			out := ArtifactDiff{From: from.Version, To: cur.Version, FromSemVer: from.SemVer().String(), ToSemVer: cur.SemVer().String(), Added: r.Added, Removed: r.Removed, Coarse: r.Coarse, Lines: make([]ArtifactDiffLine, 0, len(r.Lines))}
 			for _, l := range r.Lines {
 				op := "equal"
 				switch l.Op {
@@ -392,6 +500,125 @@ func (s *server) registerArtifacts(api huma.API) {
 		}
 		return &struct{}{}, nil
 	})
+
+	huma.Register(api, op("get-artifact-document-version", http.MethodGet, "/companies/{company}/artifact-documents/{document}/versions/{version}", "artifacts",
+		"Obtém uma versão do documento por MAJOR.MINOR (ou latest), com o histórico"),
+		func(ctx context.Context, in *documentVersionIn) (*ItemOut[Artifact], error) {
+			sc, err := s.scope(ctx, in.Company)
+			if err != nil {
+				return nil, err
+			}
+			doc, err := domain.ParseID(in.Document)
+			if err != nil {
+				return nil, s.fail(ctx, domain.Invalid("document", "não é um uuid"))
+			}
+			ver := in.Version
+			if ver == "latest" {
+				ver = ""
+			}
+			id, err := s.svc.ArtifactVersionID(ctx, sc.Company.ID, doc, ver)
+			if err != nil {
+				return nil, s.fail(ctx, err)
+			}
+			v, err := s.svc.GetArtifactView(ctx, sc.Company.ID, id)
+			if err != nil {
+				return nil, s.fail(ctx, err)
+			}
+			hist, err := s.svc.ArtifactVersions(ctx, sc.Company.ID, id)
+			if err != nil {
+				return nil, s.fail(ctx, err)
+			}
+			out := artifactOut(v)
+			for _, h := range hist {
+				out.History = append(out.History, artifactVersionOut(h))
+			}
+			return &ItemOut[Artifact]{Body: out}, nil
+		})
+
+	huma.Register(api, created(op("restore-artifact", http.MethodPost, "/companies/{company}/artifacts/{artifact}/restore", "artifacts",
+		"Restaura esta versão: o conteúdo dela vira a versão mais nova do documento (sempre major)")),
+		func(ctx context.Context, in *restoreArtifactIn) (*ItemOut[Artifact], error) {
+			sc, err := s.scope(ctx, in.Company)
+			if err != nil {
+				return nil, err
+			}
+			id, err := s.artifactID(ctx, in.Artifact)
+			if err != nil {
+				return nil, err
+			}
+			task, run, err := runScope(sc, nil, nil)
+			if err != nil {
+				return nil, err
+			}
+			v, err := s.svc.RestoreArtifact(ctx, sc.Actor, sc.Company.ID, id, task, run)
+			if err != nil {
+				return nil, s.fail(ctx, err)
+			}
+			return &ItemOut[Artifact]{Body: artifactOut(v)}, nil
+		})
+
+	huma.Register(api, op("reclassify-artifact", http.MethodPost, "/companies/{company}/artifacts/{artifact}/reclassify", "artifacts",
+		"Reclassifica a versão mais nova do documento (major ou minor) e a renumera"),
+		func(ctx context.Context, in *reclassifyArtifactIn) (*ItemOut[Artifact], error) {
+			if err := forbidPersona(ctx); err != nil {
+				return nil, err
+			}
+			sc, err := s.scope(ctx, in.Company)
+			if err != nil {
+				return nil, err
+			}
+			id, err := s.artifactID(ctx, in.Artifact)
+			if err != nil {
+				return nil, err
+			}
+			v, err := s.svc.ReclassifyArtifact(ctx, sc.Actor, sc.Company.ID, id, domain.ChangeKind(in.Body.Change))
+			if err != nil {
+				return nil, s.fail(ctx, err)
+			}
+			return &ItemOut[Artifact]{Body: artifactOut(v)}, nil
+		})
+
+	huma.Register(api, op("update-artifact-document", http.MethodPatch, "/companies/{company}/artifact-documents/{document}", "artifacts",
+		"Muda projeto, workspace e tags do documento (não cria versão)"),
+		func(ctx context.Context, in *patchArtifactDocumentIn) (*ItemOut[ArtifactDocument], error) {
+			if err := forbidPersona(ctx); err != nil {
+				return nil, err
+			}
+			sc, err := s.scope(ctx, in.Company)
+			if err != nil {
+				return nil, err
+			}
+			cid := sc.Company.ID
+			doc, err := domain.ParseID(in.Document)
+			if err != nil {
+				return nil, s.fail(ctx, domain.Invalid("document", "não é um uuid"))
+			}
+			p := service.ArtifactDocumentPatch{Tags: in.Body.Tags}
+			if pr := in.Body.Project; pr != nil {
+				if *pr == "" {
+					p.ClearProject = true
+				} else if p.ProjectID, err = s.projectRef(ctx, cid, *pr); err != nil {
+					return nil, s.fail(ctx, err)
+				}
+			}
+			if ws := in.Body.Workspace; ws != nil {
+				if *ws == "" {
+					p.ClearWorkspace = true
+				} else if p.WorkspaceID, err = s.workspaceRef(ctx, cid, *ws); err != nil {
+					return nil, s.fail(ctx, err)
+				}
+			}
+			d, err := s.svc.UpdateArtifactDocument(ctx, sc.Actor, cid, doc, p)
+			if err != nil {
+				return nil, s.fail(ctx, err)
+			}
+			out := ArtifactDocument{ID: idStr(d.ID), Class: string(d.Class), Name: d.Name, ProjectID: idPtr(d.ProjectID),
+				WorkspaceID: idPtr(d.WorkspaceID), Tags: d.Tags, CreatedAt: d.CreatedAt, UpdatedAt: d.UpdatedAt}
+			if out.Tags == nil {
+				out.Tags = []string{}
+			}
+			return &ItemOut[ArtifactDocument]{Body: out}, nil
+		})
 
 	huma.Register(api, op("get-artifact-usage", http.MethodGet, "/companies/{company}/artifact-usage", "artifacts", "Espaço de artefatos usado contra a cota da empresa"),
 		func(ctx context.Context, in *CompanyPath) (*ItemOut[ArtifactUsage], error) {

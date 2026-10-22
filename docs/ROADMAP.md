@@ -49,6 +49,8 @@ Plano único decidido item a item pelo dono em 2026-10-16 (70 itens; 8 ficaram f
 
 **Já entregue no v0.3 (ADR-0031):** UI alinhada ao Kubo DS, glifo por persona, tema, quadro de tasks arrastável e visões salvas, projeto e workspace em abas, timeline, painel ao vivo, ambientes/adapters/plugins (leitura), export/import pela UI, times prontos e troca da própria senha.
 
+**Entregue depois do plano (ADR-0064, migration 00201):** documentos de artefato com identidade estável e versão MAJOR.MINOR (persona declara major/minor, servidor confere pelo diff), restaurar, reclassificar e tags; a persona lista, lê e restaura artefatos pelo MCP e os vê no briefing.
+
 **Também entregue no v0.3, antes deste plano (ADR-0032 a 0038, migrations 00027–00034):** cards de status; sala com várias personas; pipelines, cases, fila de revisão e aprendizados; versões, fontes e estúdio de skills; catálogo de tools, perfis e gateways; ambientes SSH e sandbox; plugins de terceiros. Consequência: os números de ADR 0032–0048 previstos abaixo já estão ocupados; os ADRs do plano seguem a partir do 0039, e os marcos M11 (ambientes), M17/M18 (skills, plugins) e M20 (pipelines) partem do que já existe. Itens que o plano listava como "fora" (sala, cases) foram entregues por decisão posterior do dono.
 
 **Ordem de execução (por dependência, sem datas).** As «semanas» do v0.1 eram estimativa de capacidade humana; neste plano o único freio são os gates (testes verdes, ADR, contrato, smoke). Grafo:

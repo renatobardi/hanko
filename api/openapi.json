@@ -372,6 +372,33 @@
           "author": {
             "$ref": "#/components/schemas/ActorRef"
           },
+          "change": {
+            "description": "Classificação em relação à versão anterior (a primeira é major).",
+            "enum": [
+              "major",
+              "minor"
+            ],
+            "type": "string"
+          },
+          "change_declared": {
+            "enum": [
+              "major",
+              "minor"
+            ],
+            "type": "string"
+          },
+          "change_disputed": {
+            "description": "A medida do diff contradiz a classificação declarada.",
+            "type": "boolean"
+          },
+          "change_ratio": {
+            "description": "Fração das linhas mudadas (0 a 1); ausente se não medido.",
+            "format": "double",
+            "type": "number"
+          },
+          "change_reason": {
+            "type": "string"
+          },
           "class": {
             "enum": [
               "artifact",
@@ -397,6 +424,15 @@
             "format": "date-time",
             "type": "string"
           },
+          "document_id": {
+            "description": "Documento (identidade estável) de que esta é uma versão.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "document_project_slug": {
+            "description": "Projeto do documento (pode diferir do desta versão).",
+            "type": "string"
+          },
           "history": {
             "items": {
               "$ref": "#/components/schemas/ArtifactVersion"
@@ -419,6 +455,10 @@
             ],
             "type": "string"
           },
+          "major": {
+            "format": "int64",
+            "type": "integer"
+          },
           "message_id": {
             "description": "Anexo: a mensagem da conversa a que pertence.",
             "format": "uuid",
@@ -429,6 +469,10 @@
               "text/markdown"
             ],
             "type": "string"
+          },
+          "minor": {
+            "format": "int64",
+            "type": "integer"
           },
           "name": {
             "examples": [
@@ -456,11 +500,23 @@
           "project_slug": {
             "type": "string"
           },
+          "restored_from": {
+            "description": "Versão restaurada, quando esta versão é uma restauração.",
+            "format": "uuid",
+            "type": "string"
+          },
           "run_id": {
             "format": "uuid",
             "type": "string"
           },
           "run_name": {
+            "type": "string"
+          },
+          "semver": {
+            "description": "Versão MAJOR.MINOR.",
+            "examples": [
+              "2.1"
+            ],
             "type": "string"
           },
           "sha256": {
@@ -469,6 +525,16 @@
           "size_bytes": {
             "format": "int64",
             "type": "integer"
+          },
+          "tags": {
+            "description": "Tags do documento.",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
           },
           "task_id": {
             "format": "uuid",
@@ -481,14 +547,22 @@
             "type": "string"
           },
           "version": {
-            "description": "Número da versão na cadeia (empresa, task, nome).",
+            "description": "Ordinal da publicação dentro do documento (1, 2, 3...).",
             "format": "int64",
             "type": "integer"
           },
           "versions": {
-            "description": "Quantas versões a cadeia tem.",
+            "description": "Quantas versões o documento tem.",
             "format": "int64",
             "type": "integer"
+          },
+          "workspace_id": {
+            "description": "Workspace do documento.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "workspace_slug": {
+            "type": "string"
           }
         },
         "required": [
@@ -501,6 +575,12 @@
           "sha256",
           "version",
           "versions",
+          "document_id",
+          "semver",
+          "major",
+          "minor",
+          "change",
+          "tags",
           "author",
           "created_at",
           "class"
@@ -517,6 +597,9 @@
           "coarse": {
             "description": "O trecho alterado era grande demais para o diff fino: aparece tudo removido e tudo adicionado.",
             "type": "boolean"
+          },
+          "from_semver": {
+            "type": "string"
           },
           "from_version": {
             "format": "int64",
@@ -535,6 +618,9 @@
             "format": "int64",
             "type": "integer"
           },
+          "to_semver": {
+            "type": "string"
+          },
           "to_version": {
             "format": "int64",
             "type": "integer"
@@ -543,6 +629,8 @@
         "required": [
           "from_version",
           "to_version",
+          "from_semver",
+          "to_semver",
           "added",
           "removed",
           "lines"
@@ -575,6 +663,59 @@
         "required": [
           "op",
           "text"
+        ],
+        "type": "object"
+      },
+      "ArtifactDocument": {
+        "additionalProperties": false,
+        "properties": {
+          "class": {
+            "enum": [
+              "artifact",
+              "attachment"
+            ],
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "project_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "workspace_id": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "class",
+          "name",
+          "tags",
+          "created_at",
+          "updated_at"
         ],
         "type": "object"
       },
@@ -612,6 +753,19 @@
           "author": {
             "$ref": "#/components/schemas/ActorRef"
           },
+          "change": {
+            "enum": [
+              "major",
+              "minor"
+            ],
+            "type": "string"
+          },
+          "change_disputed": {
+            "type": "boolean"
+          },
+          "change_reason": {
+            "type": "string"
+          },
           "created_at": {
             "format": "date-time",
             "type": "string"
@@ -620,8 +774,17 @@
             "format": "uuid",
             "type": "string"
           },
+          "name": {
+            "type": "string"
+          },
           "run_id": {
             "format": "uuid",
+            "type": "string"
+          },
+          "semver": {
+            "examples": [
+              "1.2"
+            ],
             "type": "string"
           },
           "sha256": {
@@ -631,6 +794,10 @@
             "format": "int64",
             "type": "integer"
           },
+          "task_id": {
+            "format": "uuid",
+            "type": "string"
+          },
           "version": {
             "format": "int64",
             "type": "integer"
@@ -639,6 +806,9 @@
         "required": [
           "id",
           "version",
+          "semver",
+          "name",
+          "change",
           "size_bytes",
           "sha256",
           "author",
@@ -11675,6 +11845,30 @@
         ],
         "type": "object"
       },
+      "PatchArtifactDocumentInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "project": {
+            "description": "Id ou slug do projeto; vazio tira o projeto.",
+            "type": "string"
+          },
+          "tags": {
+            "description": "Substitui as tags (a-z, 0-9 e -; até 20).",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "workspace": {
+            "description": "Id ou slug do workspace; vazio tira o workspace.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "Persona": {
         "additionalProperties": false,
         "properties": {
@@ -13570,10 +13764,28 @@
       "PutArtifactInBody": {
         "additionalProperties": false,
         "properties": {
+          "change": {
+            "description": "Classificação declarada; vazio = o servidor decide pelo tamanho do diff.",
+            "enum": [
+              "major",
+              "minor"
+            ],
+            "type": "string"
+          },
+          "change_reason": {
+            "description": "Motivo curto da mudança; obrigatório para run token que declara change.",
+            "maxLength": 280,
+            "type": "string"
+          },
           "content": {
             "contentEncoding": "base64",
             "description": "Conteúdo do arquivo em base64.",
             "minLength": 1,
+            "type": "string"
+          },
+          "document_id": {
+            "description": "Documento a alterar: a publicação vira a versão seguinte dele, mesmo com outro nome ou em outra task.",
+            "format": "uuid",
             "type": "string"
           },
           "mime": {
@@ -13584,7 +13796,7 @@
             "type": "string"
           },
           "name": {
-            "description": "Nome do arquivo (sem barras). O mesmo nome na mesma task cria a versão seguinte.",
+            "description": "Nome do arquivo (sem barras). Sem document_id, o mesmo nome na mesma task cria a versão seguinte.",
             "examples": [
               "plano.md"
             ],
@@ -13600,6 +13812,16 @@
             "description": "Execução de origem. Run token: sempre a do token.",
             "format": "uuid",
             "type": "string"
+          },
+          "tags": {
+            "description": "Substitui as tags do documento.",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
           },
           "task": {
             "description": "Id ou chave da task. Run token: sempre a da execução.",
@@ -13727,6 +13949,22 @@
         "required": [
           "name",
           "status"
+        ],
+        "type": "object"
+      },
+      "ReclassifyArtifactInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "change": {
+            "enum": [
+              "major",
+              "minor"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "change"
         ],
         "type": "object"
       },
@@ -22160,6 +22398,243 @@
         ]
       }
     },
+    "/api/v1/companies/{company}/artifact-documents/{document}": {
+      "patch": {
+        "operationId": "update-artifact-document",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id do documento de artefato.",
+            "in": "path",
+            "name": "document",
+            "required": true,
+            "schema": {
+              "description": "Id do documento de artefato.",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchArtifactDocumentInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtifactDocument"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Muda projeto, workspace e tags do documento (não cria versão)",
+        "tags": [
+          "artifacts"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/artifact-documents/{document}/versions/{version}": {
+      "get": {
+        "operationId": "get-artifact-document-version",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id do documento de artefato.",
+            "in": "path",
+            "name": "document",
+            "required": true,
+            "schema": {
+              "description": "Id do documento de artefato.",
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "MAJOR.MINOR, ou latest para a mais nova.",
+            "in": "path",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "description": "MAJOR.MINOR, ou latest para a mais nova.",
+              "examples": [
+                "1.2"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Artifact"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Obtém uma versão do documento por MAJOR.MINOR (ou latest), com o histórico",
+        "tags": [
+          "artifacts"
+        ]
+      }
+    },
     "/api/v1/companies/{company}/artifact-usage": {
       "get": {
         "operationId": "get-artifact-usage",
@@ -22368,12 +22843,43 @@
             }
           },
           {
-            "description": "Todas as versões, não só a mais nova de cada artefato.",
+            "description": "Id ou slug do workspace do documento.",
+            "explode": false,
+            "in": "query",
+            "name": "workspace",
+            "schema": {
+              "description": "Id ou slug do workspace do documento.",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Tag do documento.",
+            "explode": false,
+            "in": "query",
+            "name": "tag",
+            "schema": {
+              "description": "Tag do documento.",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Só este documento (com all_versions, o histórico dele).",
+            "explode": false,
+            "in": "query",
+            "name": "document",
+            "schema": {
+              "description": "Só este documento (com all_versions, o histórico dele).",
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Todas as versões, não só a mais nova de cada documento.",
             "explode": false,
             "in": "query",
             "name": "all_versions",
             "schema": {
-              "description": "Todas as versões, não só a mais nova de cada artefato.",
+              "description": "Todas as versões, não só a mais nova de cada documento.",
               "type": "boolean"
             }
           },
@@ -22569,7 +23075,7 @@
             "description": "Internal Server Error"
           }
         },
-        "summary": "Publica um artefato (nova versão se o nome já existe na task)",
+        "summary": "Publica um artefato (nova versão do documento informado, ou do mesmo nome na task)",
         "tags": [
           "artifacts"
         ]
@@ -22774,7 +23280,7 @@
             "description": "Internal Server Error"
           }
         },
-        "summary": "Obtém uma versão de artefato e o histórico da cadeia",
+        "summary": "Obtém uma versão de artefato e o histórico do documento",
         "tags": [
           "artifacts"
         ]
@@ -23002,6 +23508,230 @@
           }
         },
         "summary": "Compara o texto de uma versão com a anterior (ou com `against`)",
+        "tags": [
+          "artifacts"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/artifacts/{artifact}/reclassify": {
+      "post": {
+        "operationId": "reclassify-artifact",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id da versão do artefato.",
+            "in": "path",
+            "name": "artifact",
+            "required": true,
+            "schema": {
+              "description": "Id da versão do artefato.",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReclassifyArtifactInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Artifact"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Reclassifica a versão mais nova do documento (major ou minor) e a renumera",
+        "tags": [
+          "artifacts"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/artifacts/{artifact}/restore": {
+      "post": {
+        "operationId": "restore-artifact",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id da versão do artefato.",
+            "in": "path",
+            "name": "artifact",
+            "required": true,
+            "schema": {
+              "description": "Id da versão do artefato.",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Artifact"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Restaura esta versão: o conteúdo dela vira a versão mais nova do documento (sempre major)",
         "tags": [
           "artifacts"
         ]

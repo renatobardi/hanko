@@ -46,7 +46,7 @@ func BuildPrompt(rc service.RunContext, briefing, handoff string) (system, promp
 	sb.WriteString("- Use as tools MCP `hanko_*` (por exemplo `hanko_task_get`, `hanko_task_comment`, `hanko_task_update`) para ler a task, comentar e atualizar status e prioridade.\n")
 	sb.WriteString("- Registre decisões e bloqueios como comentário na task; mude o status quando o trabalho avançar (`in_review` quando pronto para revisão, `blocked` quando depender de alguém).\n")
 	sb.WriteString("- Para dividir o trabalho, crie subtasks com `hanko_task_create` (o pai padrão é esta task) e ordene-as com `depends_on`; uma task com dependência aberta só é despachada quando todas fecharem. Deixe esta task em `in_progress` e encerre: você será acordada quando a última subtask fechar. `hanko_task_dependency` ajusta dependências depois.\n")
-	sb.WriteString("- Entregue arquivos (relatório, plano, dados, imagem) como artefato com `hanko_artifact_put` em vez de colar texto longo em comentário; o mesmo nome na mesma task cria a versão seguinte.\n")
+	sb.WriteString(artifactProtocol)
 	sb.WriteString("- Se o seu trabalho mede uma das metas listadas, registre o valor atual (medido de fato) com `hanko_goal_update`; `hanko_goal_list` mostra todas as metas.\n")
 	sb.WriteString("- Se perceber que as suas instruções permanentes deveriam mudar, proponha com `hanko_persona_instruction_propose` (texto novo completo e motivo): um humano decide e você não fica bloqueada.\n")
 	sb.WriteString("- Se precisar de um servidor MCP remoto que exige autorização (OAuth) e ele ainda não está conectado, peça com `hanko_connection_request` e encerre a execução: um humano autoriza e você é acordada quando a task retomar.\n")
@@ -95,6 +95,7 @@ func BuildPrompt(rc service.RunContext, briefing, handoff string) (system, promp
 	}
 
 	pb.WriteString(attachmentsSection(rc))
+	pb.WriteString(artifactsSection(rc))
 	pb.WriteString(coordinationSection(rc))
 	pb.WriteString(planSection(rc))
 	pb.WriteString(stageSection(rc))
@@ -149,6 +150,42 @@ func attachmentsSection(rc service.RunContext) string {
 	}
 	if len(rc.Attachments) >= service.MaxBriefingAttachments {
 		fmt.Fprintf(&b, "\n(mostrando os %d anexos mais recentes)\n", service.MaxBriefingAttachments)
+	}
+	b.WriteString("\n")
+	return b.String()
+}
+
+// artifactProtocol é a regra de artefatos do protocolo (ADR-0064): alterar é versionar o mesmo documento, nunca
+// publicar outro com outro nome.
+const artifactProtocol = "- Entregue arquivos (relatório, plano, dados, imagem) como artefato com `hanko_artifact_put` em vez de colar texto longo em comentário. " +
+	"Para ALTERAR um artefato que já existe (inclusive um que você mesma publicou antes), leia a versão atual com `hanko_artifact_get` e publique com `artifact=<id do documento>`, " +
+	"`change=major` (mudança pesada: estrutura, premissa, conclusão, reescrita) ou `change=minor` (ajuste pontual) e `change_reason`, omitindo `name` para manter o nome: isso cria a versão seguinte (MAJOR.MINOR) do mesmo documento. " +
+	"Nunca crie outro documento (por exemplo `plano-v2.md`) para uma alteração. `hanko_artifact_list` acha documentos que não estão na lista abaixo; `hanko_artifact_restore` volta a uma versão anterior.\n"
+
+// artifactsSection lista os documentos de artefato que a run deve conhecer (ADR-0064), com o id para alterar. O
+// conteúdo não vai no prompt: a persona lê com `hanko_artifact_get`. Vazio quando não há documento.
+func artifactsSection(rc service.RunContext) string {
+	if len(rc.Artifacts) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("## Artefatos\n\n")
+	b.WriteString("Documentos já publicados (versão mais nova). Para alterar um deles use `artifact=<id>` em `hanko_artifact_put`; leia o conteúdo com `hanko_artifact_get`.\n\n")
+	for _, a := range rc.Artifacts {
+		fmt.Fprintf(&b, "- `%s` %s (%s) · id %s", clip(a.Name, 120), a.SemVer, a.Mime, a.DocumentID)
+		if a.TaskKey != "" {
+			fmt.Fprintf(&b, " · %s", a.TaskKey)
+		}
+		if a.InTask {
+			b.WriteString(" · desta task")
+		}
+		if len(a.Tags) > 0 {
+			fmt.Fprintf(&b, " · #%s", strings.Join(a.Tags, " #"))
+		}
+		fmt.Fprintf(&b, " · %s\n", a.UpdatedAt.UTC().Format("2006-01-02 15:04 UTC"))
+	}
+	if len(rc.Artifacts) >= service.MaxBriefingArtifacts {
+		fmt.Fprintf(&b, "\n(mostrando %d documentos; `hanko_artifact_list` lista os demais)\n", service.MaxBriefingArtifacts)
 	}
 	b.WriteString("\n")
 	return b.String()

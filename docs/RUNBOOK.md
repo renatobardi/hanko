@@ -644,19 +644,28 @@ hanko room add 01a14700 cfo; hanko room remove 01a14700 design
 
 ## Artefatos e metas
 
-**Artefatos** (ADR-0028) são arquivos com versões imutáveis: o mesmo nome na mesma task cria a versão seguinte; publicar o mesmo
-conteúdo de novo não cria versão. Tela `/artefatos` (filtros por projeto, task, persona, tipo e nome; envio; detalhe com prévia,
-versões e diff de texto), seções nas páginas da task, da execução e do projeto. Papéis: viewer lê, member publica, admin exclui
-(a cadeia inteira, sem lixeira).
+**Artefatos** (ADR-0028, ADR-0064) são documentos com identidade estável e versões imutáveis numeradas **MAJOR.MINOR**. Alterar
+é publicar com o id do documento (`--artifact`, `artifact=` no MCP): vira a versão seguinte mesmo com outro nome ou em outra task.
+Sem id, o mesmo nome na mesma task também versiona. Publicar o mesmo conteúdo de novo não cria versão. A mudança é **major**
+(pesada) ou **minor** (ajuste): quem publica declara, e o servidor mede o diff por linha (≥ 40 % das linhas sugere major, < 10 %
+sugere minor). Se a medida contradiz o declarado, vale o declarado e a versão fica marcada como "classificação questionada".
+Projeto, workspace e tags (livres) ficam no documento e servem para filtrar. Tela `/artefatos` (filtros por projeto, task,
+persona, tag, tipo e nome; envio; detalhe com prévia, histórico major/minor, diff de texto, **Nova versão**, **restaurar** uma
+versão anterior (vira a mais nova, sempre major), **reclassificar** a mais nova e tags), seções nas páginas da task, da execução
+e do projeto. Papéis: viewer lê; member publica, restaura, reclassifica e edita tags; admin exclui (o documento inteiro, sem
+lixeira). Apagar uma task não apaga as versões de artefato dela (só os anexos).
 
 | Variável | Padrão | Efeito |
 |---|---|---|
 | `HANKO_ARTIFACT_MAX_BYTES` | 5 MiB (de 1 a 16 MiB; 64 MiB com S3) | Tamanho máximo de um arquivo. |
 | `HANKO_ARTIFACT_QUOTA_BYTES` | 512 MiB | Cota da empresa, somando todas as versões. |
 
-- **Publicar:** UI (envio na tela), `hanko artifact put <arquivo|-> [--task HNK-1]` (também `list`, `get <id> [-o arquivo] [--info]`,
-  `diff <id> [--against <id>]`, `rm <id>`, `usage`), API `…/artifacts` e a tool MCP `hanko_artifact_put` (texto em `content`, binário em
-  `content_base64`). A persona publica só na própria task e execução.
+- **Publicar:** UI (envio na tela), `hanko artifact put <arquivo|-> [--task HNK-1] [--artifact DOC --change major|minor --reason …]
+  [--tag t]` (também `list [--tag] [--workspace]`, `get <id> [-o arquivo] [--info]` ou `get <documento> --version 1.2`,
+  `diff <id> [--against <id>]`, `restore <id>`, `reclassify <id> major|minor`, `tag <documento> --tag …`, `rm <id>`, `usage`),
+  API `…/artifacts` e `…/artifact-documents/{documento}` e as tools MCP `hanko_artifact_put`, `hanko_artifact_list`,
+  `hanko_artifact_get` e `hanko_artifact_restore`. A persona lê qualquer documento da empresa e versiona os do projeto da sua task
+  (ou sem projeto); o briefing da run lista os documentos da task, do projeto e os que ela publicou, com o id para alterar.
 - **Entrega segura:** o conteúdo nunca vira página. Só texto puro, Markdown e imagem raster (png, jpeg, gif, webp) abrem no
   navegador; HTML, SVG, PDF e o resto baixam. A resposta leva `nosniff`, CSP com `sandbox` e `Cross-Origin-Resource-Policy`.
 - **Exportar com artefatos:** `hanko export --with-artifacts` (API `with_artifacts=true`); o conteúdo dos artefatos tem teto de

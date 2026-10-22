@@ -21,8 +21,9 @@ import (
 	"github.com/renatobardi/hanko/internal/textdiff"
 )
 
-// Artefatos (ADR-0028). Quem publica é member ou uma persona (run token, sem papel); admin exclui. O limite por
-// arquivo e a cota por empresa vêm da configuração (HANKO_ARTIFACT_MAX_BYTES / HANKO_ARTIFACT_QUOTA_BYTES).
+// Artefatos (ADR-0028, ADR-0064). Quem publica é member ou uma persona (run token, sem papel); admin exclui. O limite
+// por arquivo e a cota por empresa vêm da configuração (HANKO_ARTIFACT_MAX_BYTES / HANKO_ARTIFACT_QUOTA_BYTES). Cada
+// publicação é uma versão de um documento de identidade estável, numerada MAJOR.MINOR.
 
 const (
 	// DefaultArtifactMaxBytes é o tamanho máximo de um arquivo quando a configuração não diz.
@@ -100,6 +101,18 @@ type PutArtifactInput struct {
 	Mime    string // vazio = deduzido da extensão e do conteúdo
 	Content []byte
 
+	// DocumentID é o documento a alterar (ADR-0064). Vazio: o documento de mesmo nome na mesma task (ou no "sem
+	// task" da empresa), se houver; senão um documento novo.
+	DocumentID *domain.ID
+	// Change é a classificação declarada (nil: o servidor decide pela medida); ChangeReason, o motivo (obrigatório
+	// para persona que declara).
+	Change       *domain.ChangeKind
+	ChangeReason string
+	// Tags substitui as tags do documento quando não é nil.
+	Tags []string
+	// restoredFrom marca a publicação como restauração dessa versão (sempre major).
+	restoredFrom *domain.ID
+
 	TaskID, RunID, ProjectID *domain.ID
 
 	// Class vazio = artefato. Anexo (ADR-0052): sempre versão 1, ligado a uma task (e a um comentário dela) ou a uma
@@ -111,24 +124,35 @@ type PutArtifactInput struct {
 	createdAt time.Time
 }
 
-// ArtifactView é uma versão com os nomes das ligações e o número de versões da cadeia.
+// ArtifactView é uma versão com os nomes das ligações, os dados do documento e o número de versões dele.
 type ArtifactView struct {
 	domain.Artifact
-	TaskKey     string `json:"task_key,omitempty"`
-	TaskTitle   string `json:"task_title,omitempty"`
-	ProjectSlug string `json:"project_slug,omitempty"`
-	ProjectName string `json:"project_name,omitempty"`
-	PersonaSlug string `json:"persona_slug,omitempty"`
-	PersonaName string `json:"persona_name,omitempty"`
-	RunName     string `json:"run_name,omitempty"`
-	// Versions é quantas versões a cadeia (task, nome) tem.
+	// SemVer é a versão "MAJOR.MINOR".
+	SemVer string `json:"semver"`
+	// Projeto, workspace e tags do documento (podem diferir do projeto em que esta versão foi publicada).
+	DocumentProjectID   *domain.ID `json:"document_project_id,omitempty"`
+	DocumentProjectSlug string     `json:"document_project_slug,omitempty"`
+	WorkspaceID         *domain.ID `json:"workspace_id,omitempty"`
+	WorkspaceSlug       string     `json:"workspace_slug,omitempty"`
+	Tags                []string   `json:"tags"`
+	TaskKey             string     `json:"task_key,omitempty"`
+	TaskTitle           string     `json:"task_title,omitempty"`
+	ProjectSlug         string     `json:"project_slug,omitempty"`
+	ProjectName         string     `json:"project_name,omitempty"`
+	PersonaSlug         string     `json:"persona_slug,omitempty"`
+	PersonaName         string     `json:"persona_name,omitempty"`
+	RunName             string     `json:"run_name,omitempty"`
+	// Versions é quantas versões o documento tem.
 	Versions int `json:"versions"`
 }
 
-// ArtifactFilter filtra a listagem. Por padrão só a versão mais nova de cada cadeia; AllVersions lista todas
-// (a lista de uma run: o que aquela run publicou).
+// ArtifactFilter filtra a listagem. Por padrão só a versão mais nova de cada documento (aí TaskID traz os documentos
+// com alguma versão na task, e projeto/workspace são os do documento); AllVersions lista todas (a lista de uma run:
+// o que aquela run publicou).
 type ArtifactFilter struct {
 	ProjectID, TaskID, PersonaID, RunID *domain.ID
+	DocumentID, WorkspaceID             *domain.ID
+	Tag                                 string
 	// Class filtra artefato (padrão) ou anexo; AllClasses lista os dois. CommentID, ConversationID e MessageID
 	// filtram os anexos de um comentário, de uma conversa ou de uma mensagem.
 	Class                                domain.ArtifactClass
@@ -171,17 +195,37 @@ type ArtifactUsage struct {
 }
 
 func artifactFromRow(r store.Artifact) domain.Artifact {
-	return domain.Artifact{ID: r.ID, CompanyID: r.CompanyID, TaskID: r.TaskID, RunID: r.RunID, ProjectID: r.ProjectID,
+	a := domain.Artifact{ID: r.ID, CompanyID: r.CompanyID, TaskID: r.TaskID, RunID: r.RunID, ProjectID: r.ProjectID,
 		PersonaID: r.PersonaID, Author: actorOf(r.AuthorType, r.AuthorID), Name: r.Name, Mime: r.Mime, SizeBytes: r.SizeBytes,
 		SHA256: r.Sha256, Version: int(r.Version), CreatedAt: r.CreatedAt, Class: domain.ArtifactClass(r.Kind),
-		CommentID: r.CommentID, ConversationID: r.ConversationID, MessageID: r.MessageID}
+		CommentID: r.CommentID, ConversationID: r.ConversationID, MessageID: r.MessageID,
+		DocumentID: r.DocumentID, Major: int(r.VersionMajor), Minor: int(r.VersionMinor), Change: domain.ChangeKind(r.ChangeKind),
+		ChangeReason: r.ChangeReason, ChangeRatio: r.ChangeRatio, ChangeDisputed: r.ChangeDisputed, RestoredFrom: r.RestoredFrom}
+	if r.ChangeDeclared != nil {
+		k := domain.ChangeKind(*r.ChangeDeclared)
+		a.ChangeDeclared = &k
+	}
+	return a
 }
 
-func artifactView(a store.Artifact, prefix string, taskNum int64, taskTitle, prSlug, prName, peSlug, peName, runName string, versions int64) ArtifactView {
-	v := ArtifactView{Artifact: artifactFromRow(a), TaskTitle: taskTitle, ProjectSlug: prSlug, ProjectName: prName,
-		PersonaSlug: peSlug, PersonaName: peName, RunName: runName, Versions: int(versions)}
+func artifactDocumentFromRow(r store.ArtifactDocument) domain.ArtifactDocument {
+	return domain.ArtifactDocument{ID: r.ID, CompanyID: r.CompanyID, Class: domain.ArtifactClass(r.Kind), Name: r.Name,
+		ProjectID: r.ProjectID, WorkspaceID: r.WorkspaceID, Tags: r.Tags, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt}
+}
+
+// artifactView monta a vista de uma versão a partir das colunas comuns de ListArtifactViews e GetArtifactView.
+func artifactView(r store.ListArtifactViewsRow) ArtifactView {
+	a := r.Artifact
+	v := ArtifactView{Artifact: artifactFromRow(a), TaskTitle: r.TaskTitle, ProjectSlug: r.ProjectSlug, ProjectName: r.ProjectName,
+		PersonaSlug: r.PersonaSlug, PersonaName: r.PersonaName, RunName: r.RunName, Versions: int(r.Versions),
+		DocumentProjectID: r.DocProjectID, DocumentProjectSlug: r.DocProjectSlug, WorkspaceID: r.DocWorkspaceID,
+		WorkspaceSlug: r.DocWorkspaceSlug, Tags: r.DocTags}
+	v.SemVer = v.Artifact.SemVer().String()
+	if v.Tags == nil {
+		v.Tags = []string{}
+	}
 	if a.TaskID != nil {
-		v.TaskKey = domain.TaskKey(prefix, taskNum)
+		v.TaskKey = domain.TaskKey(r.TaskPrefix, r.TaskNumber)
 	}
 	return v
 }
@@ -261,14 +305,6 @@ func cleanArtifactName(name string) (string, error) {
 	return name, nil
 }
 
-func chainKey(companyID domain.ID, taskID *domain.ID, name string) string {
-	t := ""
-	if taskID != nil {
-		t = taskID.String()
-	}
-	return companyID.String() + "|" + t + "|" + name
-}
-
 // PutArtifact grava uma versão do artefato (idempotente: o mesmo conteúdo do mesmo nome na mesma task não cria
 // versão nova e devolve a existente). Member ou persona.
 func (s *Service) PutArtifact(ctx context.Context, actor domain.Actor, companyID domain.ID, in PutArtifactInput) (ArtifactView, error) {
@@ -281,6 +317,13 @@ func (s *Service) PutArtifact(ctx context.Context, actor domain.Actor, companyID
 // putArtifact é o PutArtifact sem a checagem de papel: quem chama já autorizou a escrita (o Hanko publicando o
 // resultado de um card de status, por exemplo, sem pessoa autenticada no contexto).
 func (s *Service) putArtifact(ctx context.Context, actor domain.Actor, companyID domain.ID, in PutArtifactInput) (ArtifactView, error) {
+	if strings.TrimSpace(in.Name) == "" && in.DocumentID != nil { // alterar sem nome mantém o nome do documento
+		d, err := s.read().GetArtifactDocument(ctx, store.GetArtifactDocumentParams{CompanyID: companyID, ID: *in.DocumentID})
+		if err != nil {
+			return ArtifactView{}, domain.Invalid("artifact", "artifact document not found in company")
+		}
+		in.Name = d.Name
+	}
 	name, err := cleanArtifactName(in.Name)
 	if err != nil {
 		return ArtifactView{}, err
@@ -305,6 +348,11 @@ func (s *Service) putArtifact(ctx context.Context, actor domain.Actor, companyID
 	attach := in.Class == domain.ClassAttachment
 	if !attach && (in.CommentID != nil || in.ConversationID != nil || in.MessageID != nil) {
 		return ArtifactView{}, domain.Invalid("class", "comment, conversation and message links are for attachments")
+	}
+	if !attach {
+		if err := validateArtifactChange(actor, &in); err != nil {
+			return ArtifactView{}, err
+		}
 	}
 	sum := sha256.Sum256(in.Content)
 	digest := hex.EncodeToString(sum[:])
@@ -347,6 +395,7 @@ func (s *Service) putArtifact(ctx context.Context, actor domain.Actor, companyID
 				return domain.Invalid("run_id", "run belongs to another task")
 			}
 		}
+		var workspaceID *domain.ID
 		if taskID != nil {
 			task, err := t.q.GetTaskByID(ctx, store.GetTaskByIDParams{CompanyID: companyID, ID: *taskID})
 			if err != nil {
@@ -355,10 +404,15 @@ func (s *Service) putArtifact(ctx context.Context, actor domain.Actor, companyID
 			if projectID == nil {
 				projectID = task.ProjectID
 			}
+			workspaceID = task.WorkspaceID
 		}
 		if projectID != nil {
-			if _, err := t.q.GetProjectByID(ctx, store.GetProjectByIDParams{CompanyID: companyID, ID: *projectID}); err != nil {
+			pr, err := t.q.GetProjectByID(ctx, store.GetProjectByIDParams{CompanyID: companyID, ID: *projectID})
+			if err != nil {
 				return domain.Invalid("project_id", "project not found in company")
+			}
+			if workspaceID == nil {
+				workspaceID = pr.WorkspaceID
 			}
 		}
 		var personaID *domain.ID
@@ -369,24 +423,44 @@ func (s *Service) putArtifact(ctx context.Context, actor domain.Actor, companyID
 			personaID = actor.ID
 		}
 
-		// primeiro a trava da empresa (a cota é lida e consumida sob ela), depois a da cadeia (numeração da versão)
+		// primeiro a trava da empresa (a cota é lida e consumida sob ela e a busca do documento por nome não corre
+		// com outra criação), depois a do documento (numeração da versão)
 		if err := t.q.LockArtifactCompany(ctx, companyID); err != nil {
 			return fmt.Errorf("lock artifact company: %w", err)
 		}
-		if err := t.q.LockArtifactChain(ctx, chainKey(companyID, taskID, name)); err != nil {
-			return fmt.Errorf("lock artifact chain: %w", err)
+		doc, found, err := t.findArtifactDocument(actor, companyID, in.DocumentID, taskID, projectID, name)
+		if err != nil {
+			return err
 		}
-		version := int32(1)
-		latest, err := t.q.LatestArtifactInChain(ctx, store.LatestArtifactInChainParams{CompanyID: companyID, TaskID: taskID, Name: name})
-		switch {
-		case err == nil:
-			if latest.Sha256 == digest && latest.Mime == mt {
+		ver, ordinal := domain.FirstSemVer, int32(1)
+		change, declared, disputed := domain.ChangeMajor, (*domain.ChangeKind)(nil), false
+		var ratio *float64
+		if found {
+			if err := t.q.LockArtifactDocument(ctx, doc.ID); err != nil {
+				return fmt.Errorf("lock artifact document: %w", err)
+			}
+			latest, err := t.q.LatestArtifactOfDocument(ctx, doc.ID)
+			if err != nil {
+				return fmt.Errorf("latest artifact: %w", err)
+			}
+			if latest.Sha256 == digest && latest.Mime == mt && latest.Name == name && in.restoredFrom == nil {
 				id = latest.ID // mesmo conteúdo: nada a gravar
 				return nil
 			}
-			version = latest.Version + 1
-		case !isNoRows(err):
-			return fmt.Errorf("latest artifact: %w", err)
+			// a leitura do conteúdo anterior usa a própria transação: uma conexão a mais do pool, com a trava da
+			// empresa segura, esgota o pool sob publicações concorrentes
+			m := t.s.measureArtifactChange(storage.WithTx(ctx, t.q), latest, mt, in.Content)
+			if m.Measured {
+				r := m.Ratio
+				ratio = &r
+			}
+			declared = in.Change
+			change, disputed = domain.ClassifyChange(declared, m)
+			if in.restoredFrom != nil { // restaurar é sempre major (ADR-0064)
+				change, disputed = domain.ChangeMajor, false
+			}
+			ordinal = latest.Version + 1
+			ver = artifactFromRow(latest).SemVer().Next(change)
 		}
 		usage, err := t.q.ArtifactCompanyUsage(ctx, companyID)
 		if err != nil {
@@ -399,10 +473,40 @@ func (s *Service) putArtifact(ctx context.Context, actor domain.Actor, companyID
 		if !in.createdAt.IsZero() {
 			at = in.createdAt.UTC()
 		}
+		tags := in.Tags
+		if tags == nil {
+			tags = doc.Tags
+		}
+		if tags == nil {
+			tags = []string{}
+		}
+		if !found {
+			if doc, err = t.q.CreateArtifactDocument(ctx, store.CreateArtifactDocumentParams{ID: domain.NewID(), CompanyID: companyID,
+				Kind: string(domain.ClassArtifact), Name: name, ProjectID: projectID, WorkspaceID: workspaceID, Tags: tags, CreatedAt: at}); err != nil {
+				return mapErr(err, "create artifact document")
+			}
+		} else {
+			if err := t.q.TouchArtifactDocument(ctx, store.TouchArtifactDocumentParams{CompanyID: companyID, ID: doc.ID, Name: name, UpdatedAt: at}); err != nil {
+				return mapErr(err, "update artifact document")
+			}
+			if in.Tags != nil {
+				if _, err := t.q.UpdateArtifactDocumentMeta(ctx, store.UpdateArtifactDocumentMetaParams{CompanyID: companyID, ID: doc.ID,
+					ProjectID: doc.ProjectID, WorkspaceID: doc.WorkspaceID, Tags: tags, UpdatedAt: at}); err != nil {
+					return mapErr(err, "update artifact document")
+				}
+			}
+		}
+		var declaredCol *string
+		if declared != nil {
+			d := string(*declared)
+			declaredCol = &d
+		}
 		row, err := t.q.CreateArtifact(ctx, store.CreateArtifactParams{ID: newID, CompanyID: companyID, TaskID: taskID,
 			RunID: runID, ProjectID: projectID, PersonaID: personaID, AuthorType: string(actor.Type), AuthorID: actor.ID,
-			Name: name, Mime: mt, SizeBytes: int64(len(in.Content)), Sha256: digest, Version: version, CreatedAt: at, Storage: drv.Name(),
-			Kind: string(domain.ClassArtifact)})
+			Name: name, Mime: mt, SizeBytes: int64(len(in.Content)), Sha256: digest, Version: ordinal, CreatedAt: at, Storage: drv.Name(),
+			Kind: string(domain.ClassArtifact), DocumentID: doc.ID, VersionMajor: i32(ver.Major), VersionMinor: i32(ver.Minor),
+			ChangeKind: string(change), ChangeDeclared: declaredCol, ChangeReason: strings.TrimSpace(in.ChangeReason),
+			ChangeRatio: ratio, ChangeDisputed: disputed, RestoredFrom: in.restoredFrom})
 		if err != nil {
 			return mapErr(err, "create artifact")
 		}
@@ -412,8 +516,12 @@ func (s *Service) putArtifact(ctx context.Context, actor domain.Actor, companyID
 			}
 		}
 		id = row.ID
-		return t.activity(actor, companyID, "artifact.created", "artifact", row.ID, map[string]any{
-			"name": name, "version": version, "mime": mt, "size_bytes": len(in.Content), "task_id": taskID, "run_id": runID}, "")
+		verb, payload := "artifact.created", map[string]any{"name": name, "document_id": doc.ID, "version": ver.String(),
+			"change": change, "change_disputed": disputed, "mime": mt, "size_bytes": len(in.Content), "task_id": taskID, "run_id": runID}
+		if in.restoredFrom != nil {
+			verb, payload["restored_from"] = "artifact.restored", in.restoredFrom
+		}
+		return t.activity(actor, companyID, verb, "artifact", row.ID, payload, "")
 	})
 	if uploaded && (err != nil || id != newID) {
 		// nenhuma versão nova apontou para este objeto (falha, mesmo conteúdo ou cota): apaga o que subiu
@@ -429,6 +537,90 @@ func (s *Service) putArtifact(ctx context.Context, actor domain.Actor, companyID
 	return s.GetArtifactView(ctx, companyID, id)
 }
 
+// validateArtifactChange confere a classificação declarada, o motivo e as tags de uma publicação (ADR-0064).
+func validateArtifactChange(actor domain.Actor, in *PutArtifactInput) error {
+	in.ChangeReason = strings.TrimSpace(in.ChangeReason)
+	if in.Change != nil && !in.Change.Valid() {
+		return domain.Invalid("change", fmt.Sprintf("unknown change %q (use major or minor)", *in.Change))
+	}
+	if utf8.RuneCountInString(in.ChangeReason) > domain.MaxChangeReasonRunes {
+		return domain.Invalid("change_reason", fmt.Sprintf("too long (max %d characters)", domain.MaxChangeReasonRunes))
+	}
+	if in.Change != nil && actor.Type == domain.ActorPersona && in.ChangeReason == "" && in.restoredFrom == nil {
+		return domain.Invalid("change_reason", "required when a persona declares the change")
+	}
+	if in.Tags != nil {
+		tags, err := domain.NormalizeTags(in.Tags)
+		if err != nil {
+			return err
+		}
+		in.Tags = tags
+	}
+	return nil
+}
+
+// findArtifactDocument acha o documento a versionar: o informado (id) ou, sem id, o de mesmo nome que já tem versão
+// na mesma task (ou no "sem task" da empresa). found falso: a publicação cria um documento novo. A persona só
+// versiona documento do projeto da sua task ou run, ou sem projeto (ADR-0064).
+func (t *txc) findArtifactDocument(actor domain.Actor, companyID domain.ID, docID, taskID, projectID *domain.ID, name string) (store.ArtifactDocument, bool, error) {
+	var (
+		doc store.ArtifactDocument
+		err error
+	)
+	if docID != nil {
+		doc, err = t.q.GetArtifactDocument(t.ctx, store.GetArtifactDocumentParams{CompanyID: companyID, ID: *docID})
+		if err != nil || doc.Kind != string(domain.ClassArtifact) {
+			return doc, false, domain.Invalid("artifact", "artifact document not found in company")
+		}
+	} else {
+		doc, err = t.q.FindArtifactDocumentByChain(t.ctx, store.FindArtifactDocumentByChainParams{CompanyID: companyID, Name: name, TaskID: taskID})
+		if isNoRows(err) {
+			return store.ArtifactDocument{}, false, nil
+		}
+		if err != nil {
+			return doc, false, fmt.Errorf("find artifact document: %w", err)
+		}
+	}
+	if actor.Type == domain.ActorPersona && doc.ProjectID != nil && (projectID == nil || *projectID != *doc.ProjectID) {
+		return doc, false, fmt.Errorf("artifact: a persona versions only documents of its own project: %w", domain.ErrNotAllowed)
+	}
+	return doc, true, nil
+}
+
+// measureArtifactChange mede a versão nova contra a mais nova do documento (diff por linha). Binário, texto grande
+// demais ou conteúdo ilegível não são medidos: a declaração vale sozinha.
+func (s *Service) measureArtifactChange(ctx context.Context, latest store.Artifact, mt string, content []byte) domain.ChangeMeasure {
+	mimeChanged := latest.Mime != mt
+	if !domain.IsText(latest.Mime) || !domain.IsText(mt) || len(content) > maxDiffBytes || latest.SizeBytes > maxDiffBytes || !utf8.Valid(content) {
+		if mimeChanged {
+			return domain.ChangeMeasure{Measured: true, Ratio: 1, Suggested: domain.ChangeMajor}
+		}
+		return domain.ChangeMeasure{}
+	}
+	d, err := s.blobs().Driver(latest.Storage)
+	if err != nil {
+		return domain.ChangeMeasure{}
+	}
+	prev, err := d.Get(ctx, storage.Key{CompanyID: latest.CompanyID, ArtifactID: latest.ID})
+	if err != nil || !utf8.Valid(prev) {
+		return domain.ChangeMeasure{}
+	}
+	r := textdiff.Lines(string(prev), string(content))
+	return domain.MeasureChange(r.Removed, r.Added, countLines(prev), countLines(content), mimeChanged)
+}
+
+// countLines conta as linhas de um texto (a última sem \n também conta).
+func countLines(b []byte) int {
+	if len(b) == 0 {
+		return 0
+	}
+	n := strings.Count(string(b), "\n")
+	if b[len(b)-1] != '\n' {
+		n++
+	}
+	return n
+}
+
 // ListArtifacts lista os artefatos da empresa (a versão mais nova de cada um, a menos que AllVersions), do mais
 // recente para o mais antigo.
 func (s *Service) ListArtifacts(ctx context.Context, companyID domain.ID, f ArtifactFilter) ([]ArtifactView, error) {
@@ -437,7 +629,11 @@ func (s *Service) ListArtifacts(ctx context.Context, companyID domain.ID, f Arti
 	}
 	p := store.ListArtifactViewsParams{CompanyID: companyID, ProjectID: f.ProjectID, TaskID: f.TaskID, PersonaID: f.PersonaID,
 		RunID: f.RunID, CommentID: f.CommentID, ConversationID: f.ConversationID, MessageID: f.MessageID,
+		DocumentID: f.DocumentID, WorkspaceID: f.WorkspaceID,
 		LatestOnly: !f.AllVersions, Lim: i32(clamp(f.Limit, 100, 500)), Off: i32(max(f.Offset, 0))}
+	if tag := strings.ToLower(strings.TrimSpace(f.Tag)); tag != "" {
+		p.Tag = &tag
+	}
 	switch {
 	case f.AllClasses:
 		all := "all"
@@ -466,7 +662,7 @@ func (s *Service) ListArtifacts(ctx context.Context, companyID domain.ID, f Arti
 	}
 	out := make([]ArtifactView, len(rows))
 	for i, r := range rows {
-		out[i] = artifactView(r.Artifact, r.TaskPrefix, r.TaskNumber, r.TaskTitle, r.ProjectSlug, r.ProjectName, r.PersonaSlug, r.PersonaName, r.RunName, r.Versions)
+		out[i] = artifactView(r)
 	}
 	return out, nil
 }
@@ -480,10 +676,10 @@ func (s *Service) GetArtifactView(ctx context.Context, companyID, id domain.ID) 
 	if err != nil {
 		return ArtifactView{}, mapErr(err, "get artifact")
 	}
-	return artifactView(r.Artifact, r.TaskPrefix, r.TaskNumber, r.TaskTitle, r.ProjectSlug, r.ProjectName, r.PersonaSlug, r.PersonaName, r.RunName, r.Versions), nil
+	return artifactView(store.ListArtifactViewsRow(r)), nil
 }
 
-// ArtifactVersions lista todas as versões da cadeia a que id pertence, da mais nova para a mais antiga.
+// ArtifactVersions lista todas as versões do documento a que a versão id pertence, da mais nova para a mais antiga.
 func (s *Service) ArtifactVersions(ctx context.Context, companyID, id domain.ID) ([]domain.Artifact, error) {
 	if err := s.require(ctx, companyID, domain.MemberViewer); err != nil {
 		return nil, err
@@ -493,10 +689,7 @@ func (s *Service) ArtifactVersions(ctx context.Context, companyID, id domain.ID)
 	if err != nil {
 		return nil, mapErr(err, "get artifact")
 	}
-	if cur.Kind == string(domain.ClassAttachment) { // anexo não tem cadeia de versões
-		return []domain.Artifact{artifactFromRow(cur)}, nil
-	}
-	rows, err := q.ListArtifactChain(ctx, store.ListArtifactChainParams{CompanyID: companyID, TaskID: cur.TaskID, Name: cur.Name})
+	rows, err := q.ListArtifactDocumentVersions(ctx, store.ListArtifactDocumentVersionsParams{CompanyID: companyID, DocumentID: cur.DocumentID})
 	if err != nil {
 		return nil, fmt.Errorf("list artifact versions: %w", err)
 	}
@@ -531,7 +724,7 @@ func (s *Service) ArtifactContent(ctx context.Context, companyID, id domain.ID) 
 	return artifactFromRow(a), b, nil
 }
 
-// DeleteArtifact apaga o artefato com todas as versões (admin). Libera a cota.
+// DeleteArtifact apaga o documento com todas as versões (admin). Libera a cota.
 func (s *Service) DeleteArtifact(ctx context.Context, actor domain.Actor, companyID, id domain.ID) error {
 	if err := s.require(ctx, companyID, domain.MemberAdmin); err != nil {
 		return err
@@ -550,12 +743,15 @@ func (s *Service) DeleteArtifact(ctx context.Context, actor domain.Actor, compan
 			return t.activity(actor, companyID, "attachment.deleted", "artifact", id,
 				map[string]any{"name": cur.Name, "task_id": cur.TaskID, "conversation_id": cur.ConversationID}, "")
 		}
-		if err := t.q.LockArtifactChain(t.ctx, chainKey(companyID, cur.TaskID, cur.Name)); err != nil {
-			return fmt.Errorf("lock artifact chain: %w", err)
+		if err := t.q.LockArtifactDocument(t.ctx, cur.DocumentID); err != nil {
+			return fmt.Errorf("lock artifact document: %w", err)
 		}
-		gone, err := t.q.DeleteArtifactChain(t.ctx, store.DeleteArtifactChainParams{CompanyID: companyID, TaskID: cur.TaskID, Name: cur.Name})
+		gone, err := t.q.DeleteArtifactDocumentVersions(t.ctx, store.DeleteArtifactDocumentVersionsParams{CompanyID: companyID, DocumentID: cur.DocumentID})
 		if err != nil {
 			return fmt.Errorf("delete artifact: %w", err)
+		}
+		if err := t.q.DeleteArtifactDocument(t.ctx, store.DeleteArtifactDocumentParams{CompanyID: companyID, ID: cur.DocumentID}); err != nil {
+			return fmt.Errorf("delete artifact document: %w", err)
 		}
 		ids, drivers := make([]domain.ID, len(gone)), make([]string, len(gone))
 		for i, g := range gone {
@@ -563,7 +759,7 @@ func (s *Service) DeleteArtifact(ctx context.Context, actor domain.Actor, compan
 		}
 		t.deleteBlobsAfterCommit(companyID, ids, drivers)
 		return t.activity(actor, companyID, "artifact.deleted", "artifact", id,
-			map[string]any{"name": cur.Name, "versions": len(gone), "task_id": cur.TaskID}, "")
+			map[string]any{"name": cur.Name, "document_id": cur.DocumentID, "versions": len(gone), "task_id": cur.TaskID}, "")
 	})
 }
 
@@ -580,7 +776,7 @@ func (s *Service) GetArtifactUsage(ctx context.Context, companyID domain.ID) (Ar
 	return ArtifactUsage{UsedBytes: u.UsedBytes, Versions: int(u.Versions), QuotaBytes: quota, MaxFileBytes: maxFile}, nil
 }
 
-// ArtifactDiff compara o texto de duas versões da mesma cadeia (from → to). Só texto, até 512 KiB cada.
+// ArtifactDiff compara o texto de duas versões do mesmo documento (from → to). Só texto, até 512 KiB cada.
 func (s *Service) ArtifactDiff(ctx context.Context, companyID, from, to domain.ID) (textdiff.Result, error) {
 	a, ab, err := s.ArtifactContent(ctx, companyID, from)
 	if err != nil {
@@ -591,7 +787,7 @@ func (s *Service) ArtifactDiff(ctx context.Context, companyID, from, to domain.I
 		return textdiff.Result{}, err
 	}
 	switch {
-	case a.Name != b.Name || !sameID(a.TaskID, b.TaskID):
+	case a.DocumentID != b.DocumentID:
 		return textdiff.Result{}, domain.Invalid("to", "versions belong to different artifacts")
 	case !domain.IsText(a.Mime) || !domain.IsText(b.Mime):
 		return textdiff.Result{}, domain.Invalid("mime", "diff is only available for text")

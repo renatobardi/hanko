@@ -107,7 +107,7 @@ func TestArtifactPagesRender(t *testing.T) {
 	t.Run("diff entre versões", func(t *testing.T) {
 		rec := e.get(t, "/c/hanko/artefatos/"+slide2+"?contra="+slide1)
 		wantStatus(t, rec, http.StatusOK)
-		wantContains(t, rec, `id="diff"`, "Diferenças: v1 → v2", `class="diff"`, "diff-row add", "diff-row del", "+2", "−1", "fonte: relatório de setembro")
+		wantContains(t, rec, `id="diff"`, "Diferenças: 1.0 → 1.1", `class="diff"`, "diff-row add", "diff-row del", "+2", "−1", "fonte: relatório de setembro")
 		// contra uma versão de outro artefato: aviso, não erro de página
 		other := artifactIDOf(t, f, "plano-migracao.txt", 1)
 		rec = e.get(t, "/c/hanko/artefatos/"+slide2+"?contra="+other)
@@ -130,7 +130,7 @@ func TestArtifactPagesRender(t *testing.T) {
 	})
 	t.Run("em inglês", func(t *testing.T) {
 		rec := e.get(t, "/c/hanko/artefatos/"+slide2+"?contra="+slide1, "Cookie", "hanko_lang=en")
-		wantContains(t, rec, "Differences: v1 → v2", "Versions", "compare with the previous one", "Preview", "Download")
+		wantContains(t, rec, "Differences: 1.0 → 1.1", "Versions", "compare with the previous one", "Preview", "Download")
 	})
 	t.Run("não encontrado", func(t *testing.T) {
 		wantStatus(t, e.get(t, "/c/hanko/artefatos/"+uitest.ID("nada").String()), http.StatusNotFound)
@@ -750,5 +750,80 @@ func TestUploadName(t *testing.T) {
 		if got := uploadName(c.field, c.file); got != c.want {
 			t.Errorf("uploadName(%q, %q) = %q; quer %q", c.field, c.file, got, c.want)
 		}
+	}
+}
+
+// Documento com versão MAJOR.MINOR (ADR-0064): nova versão pelo formulário, restaurar, reclassificar e tags.
+func TestArtifactDocumentFlows(t *testing.T) {
+	f := uitest.Sample()
+	e := newEnv(t, f)
+	slide2 := artifactIDOf(t, f, "slide-01-tese.md", 2)
+	slide1 := artifactIDOf(t, f, "slide-01-tese.md", 1)
+	sid, err := domain.ParseID(slide2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cur, err := f.GetArtifactView(context.Background(), f.Companies[0].ID, sid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc := cur.DocumentID.String()
+
+	rec := e.get(t, "/c/hanko/artefatos/"+slide2)
+	wantStatus(t, rec, http.StatusOK)
+	wantContains(t, rec, "v1.1", "Minor", "Nova versão", `/c/hanko/artefatos/novo?artefato=`+doc, "ajuste do texto", "Reclassificar esta versão:",
+		`/c/hanko/artefatos/`+slide1+`/restaurar`, "Salvar tags")
+	wantNotContains(t, rec, `/c/hanko/artefatos/`+slide2+`/restaurar`)
+
+	// formulário de nova versão do documento
+	rec = e.get(t, "/c/hanko/artefatos/novo?artefato="+doc)
+	wantStatus(t, rec, http.StatusOK)
+	wantContains(t, rec, "Nova versão", "hoje na versão 1.1", `name="artifact"`, `value="major"`, `value="minor"`)
+
+	rec = e.upload(t, "/c/hanko/artefatos/novo", map[string]string{"artifact": doc, "change": "major", "reason": "nova tese"}, "outro-nome.md", []byte("# Tese nova\n"))
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("nova versão: status %d\n%s", rec.Code, rec.Body.String())
+	}
+	var nv domain.Artifact
+	for _, a := range f.Artifacts {
+		if a.DocumentID == cur.DocumentID && a.Version == 3 {
+			nv = a
+		}
+	}
+	// sem nome no formulário, a versão nova mantém o nome do documento (não importa o nome do arquivo enviado)
+	if nv.SemVer().String() != "2.0" || nv.ChangeReason != "nova tese" || nv.Name != "slide-01-tese.md" {
+		t.Fatalf("versão nova: %+v", nv)
+	}
+	if rec := e.upload(t, "/c/hanko/artefatos/novo", map[string]string{"artifact": doc, "change": "patch"}, "x.md", []byte("x")); rec.Code == http.StatusSeeOther {
+		t.Error("change inválido deveria voltar ao formulário")
+	}
+
+	// restaurar a 1.0: vira a 3.0, com a origem marcada
+	rec = e.post(t, "/c/hanko/artefatos/"+slide1+"/restaurar", url.Values{}, false)
+	if rec.Code != http.StatusSeeOther || !f.Called("RestoreArtifact") {
+		t.Fatalf("restaurar: %d", rec.Code)
+	}
+	loc := rec.Header().Get("Location")
+	rec = e.get(t, strings.TrimSuffix(loc, "?ok=restaurado")+"?ok=restaurado")
+	wantContains(t, rec, "v3.0", "Versão restaurada como a mais nova.", "restaurada de 1.0")
+
+	// reclassificar a mais nova
+	latest := strings.TrimSuffix(strings.TrimPrefix(loc, "/c/hanko/artefatos/"), "?ok=restaurado")
+	rec = e.post(t, "/c/hanko/artefatos/"+latest+"/reclassificar", url.Values{"change": {"minor"}}, false)
+	if rec.Code != http.StatusSeeOther || !f.Called("ReclassifyArtifact") {
+		t.Fatalf("reclassificar: %d", rec.Code)
+	}
+	wantContains(t, e.get(t, "/c/hanko/artefatos/"+latest), "v2.1")
+
+	// tags do documento e filtro por tag
+	rec = e.post(t, "/c/hanko/artefatos/"+latest+"/tags", url.Values{"tags": {"Arquitetura, cliente-x"}}, false)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("tags: %d", rec.Code)
+	}
+	rec = e.get(t, "/c/hanko/artefatos?tag=arquitetura")
+	wantContains(t, rec, "slide-01-tese.md", "#arquitetura")
+	wantNotContains(t, rec, "plano-migracao.txt")
+	if rec := e.post(t, "/c/hanko/artefatos/"+latest+"/tags", url.Values{"tags": {"com/barra"}}, false); rec.Code == http.StatusSeeOther {
+		t.Error("tag inválida deveria falhar")
 	}
 }

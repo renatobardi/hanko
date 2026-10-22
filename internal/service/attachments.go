@@ -148,10 +148,17 @@ func (t *txc) putAttachment(actor domain.Actor, companyID domain.ID, in PutArtif
 	if !in.createdAt.IsZero() {
 		at = in.createdAt.UTC()
 	}
+	// todo anexo é um documento de uma versão só, 1.0 (ADR-0064)
+	doc, err := t.q.CreateArtifactDocument(ctx, store.CreateArtifactDocumentParams{ID: domain.NewID(), CompanyID: companyID,
+		Kind: string(domain.ClassAttachment), Name: unique, ProjectID: projectID, Tags: []string{}, CreatedAt: at})
+	if err != nil {
+		return domain.ID{}, mapErr(err, "create attachment document")
+	}
 	row, err := t.q.CreateArtifact(ctx, store.CreateArtifactParams{ID: newID, CompanyID: companyID, TaskID: taskID,
 		RunID: runID, ProjectID: projectID, PersonaID: personaID, AuthorType: string(actor.Type), AuthorID: actor.ID,
 		Name: unique, Mime: mt, SizeBytes: int64(len(in.Content)), Sha256: digest, Version: 1, CreatedAt: at, Storage: drv.Name(),
-		Kind: string(domain.ClassAttachment), CommentID: in.CommentID, ConversationID: convID, MessageID: in.MessageID})
+		Kind: string(domain.ClassAttachment), CommentID: in.CommentID, ConversationID: convID, MessageID: in.MessageID,
+		DocumentID: doc.ID, VersionMajor: 1, ChangeKind: string(domain.ChangeMajor)})
 	if err != nil {
 		return domain.ID{}, mapErr(err, "create attachment")
 	}

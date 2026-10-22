@@ -18,9 +18,7 @@ WITH cand AS MATERIALIZED (
     FROM artifacts a
     WHERE a.company_id = $1 AND a.search_tsv @@ to_tsquery('simple', $2::text)
       AND NOT EXISTS (
-          SELECT 1 FROM artifacts n
-          WHERE n.company_id = a.company_id AND n.name = a.name AND n.version > a.version
-            AND COALESCE(n.task_id, '00000000-0000-0000-0000-000000000000'::uuid) = COALESCE(a.task_id, '00000000-0000-0000-0000-000000000000'::uuid))
+          SELECT 1 FROM artifacts n WHERE n.document_id = a.document_id AND n.version > a.version)
     ORDER BY a.created_at DESC, a.id DESC
     LIMIT 2000
 ),
@@ -32,7 +30,7 @@ top AS MATERIALIZED (
     ORDER BY score DESC, c.created_at DESC, c.id
     LIMIT $4
 )
-SELECT a.id, a.name, a.mime, a.version, a.size_bytes, a.created_at,
+SELECT a.id, a.name, a.mime, a.version, a.version_major, a.version_minor, a.size_bytes, a.created_at,
        COALESCE(co.task_prefix || '-' || t.number, '')::text AS task_key, COALESCE(t.title, '')::text AS task_title, top.score
 FROM top
 JOIN artifacts a ON a.id = top.id
@@ -49,18 +47,20 @@ type SearchArtifactsParams struct {
 }
 
 type SearchArtifactsRow struct {
-	ID        uuid.UUID
-	Name      string
-	Mime      string
-	Version   int32
-	SizeBytes int64
-	CreatedAt time.Time
-	TaskKey   string
-	TaskTitle string
-	Score     float64
+	ID           uuid.UUID
+	Name         string
+	Mime         string
+	Version      int32
+	VersionMajor int32
+	VersionMinor int32
+	SizeBytes    int64
+	CreatedAt    time.Time
+	TaskKey      string
+	TaskTitle    string
+	Score        float64
 }
 
-// Só a versão mais recente de cada cadeia (empresa, task ou "sem task", nome) aparece.
+// Só a versão mais recente de cada documento aparece (ADR-0064).
 func (q *Queries) SearchArtifacts(ctx context.Context, arg SearchArtifactsParams) ([]SearchArtifactsRow, error) {
 	rows, err := q.db.Query(ctx, searchArtifacts,
 		arg.CompanyID,
@@ -80,6 +80,8 @@ func (q *Queries) SearchArtifacts(ctx context.Context, arg SearchArtifactsParams
 			&i.Name,
 			&i.Mime,
 			&i.Version,
+			&i.VersionMajor,
+			&i.VersionMinor,
 			&i.SizeBytes,
 			&i.CreatedAt,
 			&i.TaskKey,

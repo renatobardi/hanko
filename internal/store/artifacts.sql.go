@@ -111,10 +111,14 @@ func (q *Queries) CountAttachmentsOf(ctx context.Context, arg CountAttachmentsOf
 
 const createArtifact = `-- name: CreateArtifact :one
 INSERT INTO artifacts (id, company_id, task_id, run_id, project_id, persona_id, author_type, author_id, name, mime,
-                       size_bytes, sha256, version, created_at, storage, kind, comment_id, conversation_id, message_id)
+                       size_bytes, sha256, version, created_at, storage, kind, comment_id, conversation_id, message_id,
+                       document_id, version_major, version_minor, change_kind, change_declared, change_reason,
+                       change_ratio, change_disputed, restored_from)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-        $11, $12, $13, $14, $15, $16, $17, $18, $19)
-RETURNING id, company_id, task_id, run_id, project_id, persona_id, author_type, author_id, name, mime, size_bytes, sha256, version, created_at, storage, kind, comment_id, conversation_id, message_id, search_tsv
+        $11, $12, $13, $14, $15, $16, $17, $18, $19,
+        $20, $21, $22, $23, $24, $25,
+        $26, $27, $28)
+RETURNING id, company_id, task_id, run_id, project_id, persona_id, author_type, author_id, name, mime, size_bytes, sha256, version, created_at, storage, kind, comment_id, conversation_id, message_id, search_tsv, document_id, version_major, version_minor, change_kind, change_declared, change_reason, change_ratio, change_disputed, restored_from
 `
 
 type CreateArtifactParams struct {
@@ -137,6 +141,15 @@ type CreateArtifactParams struct {
 	CommentID      *uuid.UUID
 	ConversationID *uuid.UUID
 	MessageID      *uuid.UUID
+	DocumentID     uuid.UUID
+	VersionMajor   int32
+	VersionMinor   int32
+	ChangeKind     string
+	ChangeDeclared *string
+	ChangeReason   string
+	ChangeRatio    *float64
+	ChangeDisputed bool
+	RestoredFrom   *uuid.UUID
 }
 
 func (q *Queries) CreateArtifact(ctx context.Context, arg CreateArtifactParams) (Artifact, error) {
@@ -160,6 +173,15 @@ func (q *Queries) CreateArtifact(ctx context.Context, arg CreateArtifactParams) 
 		arg.CommentID,
 		arg.ConversationID,
 		arg.MessageID,
+		arg.DocumentID,
+		arg.VersionMajor,
+		arg.VersionMinor,
+		arg.ChangeKind,
+		arg.ChangeDeclared,
+		arg.ChangeReason,
+		arg.ChangeRatio,
+		arg.ChangeDisputed,
+		arg.RestoredFrom,
 	)
 	var i Artifact
 	err := row.Scan(
@@ -183,6 +205,15 @@ func (q *Queries) CreateArtifact(ctx context.Context, arg CreateArtifactParams) 
 		&i.ConversationID,
 		&i.MessageID,
 		&i.SearchTsv,
+		&i.DocumentID,
+		&i.VersionMajor,
+		&i.VersionMinor,
+		&i.ChangeKind,
+		&i.ChangeDeclared,
+		&i.ChangeReason,
+		&i.ChangeRatio,
+		&i.ChangeDisputed,
+		&i.RestoredFrom,
 	)
 	return i, err
 }
@@ -202,6 +233,49 @@ func (q *Queries) CreateArtifactBlob(ctx context.Context, arg CreateArtifactBlob
 	return err
 }
 
+const createArtifactDocument = `-- name: CreateArtifactDocument :one
+INSERT INTO artifact_documents (id, company_id, kind, name, project_id, workspace_id, tags, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)
+RETURNING id, company_id, kind, name, project_id, workspace_id, tags, created_at, updated_at
+`
+
+type CreateArtifactDocumentParams struct {
+	ID          uuid.UUID
+	CompanyID   uuid.UUID
+	Kind        string
+	Name        string
+	ProjectID   *uuid.UUID
+	WorkspaceID *uuid.UUID
+	Tags        []string
+	CreatedAt   time.Time
+}
+
+func (q *Queries) CreateArtifactDocument(ctx context.Context, arg CreateArtifactDocumentParams) (ArtifactDocument, error) {
+	row := q.db.QueryRow(ctx, createArtifactDocument,
+		arg.ID,
+		arg.CompanyID,
+		arg.Kind,
+		arg.Name,
+		arg.ProjectID,
+		arg.WorkspaceID,
+		arg.Tags,
+		arg.CreatedAt,
+	)
+	var i ArtifactDocument
+	err := row.Scan(
+		&i.ID,
+		&i.CompanyID,
+		&i.Kind,
+		&i.Name,
+		&i.ProjectID,
+		&i.WorkspaceID,
+		&i.Tags,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const deleteArtifactBlob = `-- name: DeleteArtifactBlob :execrows
 DELETE FROM artifact_blobs WHERE company_id = $1 AND artifact_id = $2
 `
@@ -219,35 +293,44 @@ func (q *Queries) DeleteArtifactBlob(ctx context.Context, arg DeleteArtifactBlob
 	return result.RowsAffected(), nil
 }
 
-const deleteArtifactChain = `-- name: DeleteArtifactChain :many
-DELETE FROM artifacts
-WHERE company_id = $1 AND kind = 'artifact'
-  AND COALESCE(task_id, '00000000-0000-0000-0000-000000000000'::uuid) = COALESCE($2::uuid, '00000000-0000-0000-0000-000000000000'::uuid)
-  AND name = $3
-RETURNING id, storage
+const deleteArtifactDocument = `-- name: DeleteArtifactDocument :exec
+DELETE FROM artifact_documents WHERE company_id = $1 AND id = $2
 `
 
-type DeleteArtifactChainParams struct {
+type DeleteArtifactDocumentParams struct {
 	CompanyID uuid.UUID
-	TaskID    *uuid.UUID
-	Name      string
+	ID        uuid.UUID
 }
 
-type DeleteArtifactChainRow struct {
+func (q *Queries) DeleteArtifactDocument(ctx context.Context, arg DeleteArtifactDocumentParams) error {
+	_, err := q.db.Exec(ctx, deleteArtifactDocument, arg.CompanyID, arg.ID)
+	return err
+}
+
+const deleteArtifactDocumentVersions = `-- name: DeleteArtifactDocumentVersions :many
+DELETE FROM artifacts WHERE company_id = $1 AND document_id = $2 RETURNING id, storage
+`
+
+type DeleteArtifactDocumentVersionsParams struct {
+	CompanyID  uuid.UUID
+	DocumentID uuid.UUID
+}
+
+type DeleteArtifactDocumentVersionsRow struct {
 	ID      uuid.UUID
 	Storage string
 }
 
 // Devolve id e driver de cada versão apagada: o conteúdo fora do Postgres é apagado depois do commit (ADR-0051).
-func (q *Queries) DeleteArtifactChain(ctx context.Context, arg DeleteArtifactChainParams) ([]DeleteArtifactChainRow, error) {
-	rows, err := q.db.Query(ctx, deleteArtifactChain, arg.CompanyID, arg.TaskID, arg.Name)
+func (q *Queries) DeleteArtifactDocumentVersions(ctx context.Context, arg DeleteArtifactDocumentVersionsParams) ([]DeleteArtifactDocumentVersionsRow, error) {
+	rows, err := q.db.Query(ctx, deleteArtifactDocumentVersions, arg.CompanyID, arg.DocumentID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []DeleteArtifactChainRow{}
+	items := []DeleteArtifactDocumentVersionsRow{}
 	for rows.Next() {
-		var i DeleteArtifactChainRow
+		var i DeleteArtifactDocumentVersionsRow
 		if err := rows.Scan(&i.ID, &i.Storage); err != nil {
 			return nil, err
 		}
@@ -282,14 +365,15 @@ func (q *Queries) DeleteAttachment(ctx context.Context, arg DeleteAttachmentPara
 }
 
 const exportArtifacts = `-- name: ExportArtifacts :many
-SELECT a.id, a.company_id, a.task_id, a.run_id, a.project_id, a.persona_id, a.author_type, a.author_id, a.name, a.mime, a.size_bytes, a.sha256, a.version, a.created_at, a.storage, a.kind, a.comment_id, a.conversation_id, a.message_id, a.search_tsv, COALESCE(t.number, 0)::bigint AS task_number,
-       COALESCE(pr.slug, '')::text AS project_slug, COALESCE(pe.slug, '')::text AS persona_slug
+SELECT a.id, a.company_id, a.task_id, a.run_id, a.project_id, a.persona_id, a.author_type, a.author_id, a.name, a.mime, a.size_bytes, a.sha256, a.version, a.created_at, a.storage, a.kind, a.comment_id, a.conversation_id, a.message_id, a.search_tsv, a.document_id, a.version_major, a.version_minor, a.change_kind, a.change_declared, a.change_reason, a.change_ratio, a.change_disputed, a.restored_from, COALESCE(t.number, 0)::bigint AS task_number,
+       COALESCE(pr.slug, '')::text AS project_slug, COALESCE(pe.slug, '')::text AS persona_slug, d.tags AS doc_tags
 FROM artifacts a
+JOIN artifact_documents d ON d.id = a.document_id
 LEFT JOIN tasks t ON t.id = a.task_id
 LEFT JOIN projects pr ON pr.id = a.project_id
 LEFT JOIN personas pe ON pe.id = a.persona_id
 WHERE a.company_id = $1 AND a.kind = 'artifact'
-ORDER BY a.created_at, a.version, a.id
+ORDER BY a.created_at, a.document_id, a.version, a.id
 `
 
 type ExportArtifactsRow struct {
@@ -313,9 +397,19 @@ type ExportArtifactsRow struct {
 	ConversationID *uuid.UUID
 	MessageID      *uuid.UUID
 	SearchTsv      interface{}
+	DocumentID     uuid.UUID
+	VersionMajor   int32
+	VersionMinor   int32
+	ChangeKind     string
+	ChangeDeclared *string
+	ChangeReason   string
+	ChangeRatio    *float64
+	ChangeDisputed bool
+	RestoredFrom   *uuid.UUID
 	TaskNumber     int64
 	ProjectSlug    string
 	PersonaSlug    string
+	DocTags        []string
 }
 
 // Todas as versões da empresa em ordem de criação, com as chaves que o arquivo usa para referenciar (sem o conteúdo).
@@ -349,9 +443,19 @@ func (q *Queries) ExportArtifacts(ctx context.Context, companyID uuid.UUID) ([]E
 			&i.ConversationID,
 			&i.MessageID,
 			&i.SearchTsv,
+			&i.DocumentID,
+			&i.VersionMajor,
+			&i.VersionMinor,
+			&i.ChangeKind,
+			&i.ChangeDeclared,
+			&i.ChangeReason,
+			&i.ChangeRatio,
+			&i.ChangeDisputed,
+			&i.RestoredFrom,
 			&i.TaskNumber,
 			&i.ProjectSlug,
 			&i.PersonaSlug,
+			&i.DocTags,
 		); err != nil {
 			return nil, err
 		}
@@ -363,8 +467,42 @@ func (q *Queries) ExportArtifacts(ctx context.Context, companyID uuid.UUID) ([]E
 	return items, nil
 }
 
+const findArtifactDocumentByChain = `-- name: FindArtifactDocumentByChain :one
+SELECT d.id, d.company_id, d.kind, d.name, d.project_id, d.workspace_id, d.tags, d.created_at, d.updated_at FROM artifact_documents d
+WHERE d.company_id = $1 AND d.kind = 'artifact' AND d.name = $2
+  AND EXISTS (SELECT 1 FROM artifacts a WHERE a.document_id = d.id
+                AND a.task_id IS NOT DISTINCT FROM $3::uuid)
+ORDER BY d.updated_at DESC, d.id DESC
+LIMIT 1
+`
+
+type FindArtifactDocumentByChainParams struct {
+	CompanyID uuid.UUID
+	Name      string
+	TaskID    *uuid.UUID
+}
+
+// Compatibilidade sem id (ADR-0064): o documento de mesmo nome que já tem versão no escopo antigo (a mesma task ou,
+// sem task, o "sem task" da empresa). O mais recente vence.
+func (q *Queries) FindArtifactDocumentByChain(ctx context.Context, arg FindArtifactDocumentByChainParams) (ArtifactDocument, error) {
+	row := q.db.QueryRow(ctx, findArtifactDocumentByChain, arg.CompanyID, arg.Name, arg.TaskID)
+	var i ArtifactDocument
+	err := row.Scan(
+		&i.ID,
+		&i.CompanyID,
+		&i.Kind,
+		&i.Name,
+		&i.ProjectID,
+		&i.WorkspaceID,
+		&i.Tags,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getArtifactByID = `-- name: GetArtifactByID :one
-SELECT id, company_id, task_id, run_id, project_id, persona_id, author_type, author_id, name, mime, size_bytes, sha256, version, created_at, storage, kind, comment_id, conversation_id, message_id, search_tsv FROM artifacts WHERE company_id = $1 AND id = $2
+SELECT id, company_id, task_id, run_id, project_id, persona_id, author_type, author_id, name, mime, size_bytes, sha256, version, created_at, storage, kind, comment_id, conversation_id, message_id, search_tsv, document_id, version_major, version_minor, change_kind, change_declared, change_reason, change_ratio, change_disputed, restored_from FROM artifacts WHERE company_id = $1 AND id = $2
 `
 
 type GetArtifactByIDParams struct {
@@ -396,6 +534,69 @@ func (q *Queries) GetArtifactByID(ctx context.Context, arg GetArtifactByIDParams
 		&i.ConversationID,
 		&i.MessageID,
 		&i.SearchTsv,
+		&i.DocumentID,
+		&i.VersionMajor,
+		&i.VersionMinor,
+		&i.ChangeKind,
+		&i.ChangeDeclared,
+		&i.ChangeReason,
+		&i.ChangeRatio,
+		&i.ChangeDisputed,
+		&i.RestoredFrom,
+	)
+	return i, err
+}
+
+const getArtifactBySemVer = `-- name: GetArtifactBySemVer :one
+SELECT id, company_id, task_id, run_id, project_id, persona_id, author_type, author_id, name, mime, size_bytes, sha256, version, created_at, storage, kind, comment_id, conversation_id, message_id, search_tsv, document_id, version_major, version_minor, change_kind, change_declared, change_reason, change_ratio, change_disputed, restored_from FROM artifacts
+WHERE company_id = $1 AND document_id = $2 AND version_major = $3 AND version_minor = $4
+`
+
+type GetArtifactBySemVerParams struct {
+	CompanyID  uuid.UUID
+	DocumentID uuid.UUID
+	Major      int32
+	Minor      int32
+}
+
+func (q *Queries) GetArtifactBySemVer(ctx context.Context, arg GetArtifactBySemVerParams) (Artifact, error) {
+	row := q.db.QueryRow(ctx, getArtifactBySemVer,
+		arg.CompanyID,
+		arg.DocumentID,
+		arg.Major,
+		arg.Minor,
+	)
+	var i Artifact
+	err := row.Scan(
+		&i.ID,
+		&i.CompanyID,
+		&i.TaskID,
+		&i.RunID,
+		&i.ProjectID,
+		&i.PersonaID,
+		&i.AuthorType,
+		&i.AuthorID,
+		&i.Name,
+		&i.Mime,
+		&i.SizeBytes,
+		&i.Sha256,
+		&i.Version,
+		&i.CreatedAt,
+		&i.Storage,
+		&i.Kind,
+		&i.CommentID,
+		&i.ConversationID,
+		&i.MessageID,
+		&i.SearchTsv,
+		&i.DocumentID,
+		&i.VersionMajor,
+		&i.VersionMinor,
+		&i.ChangeKind,
+		&i.ChangeDeclared,
+		&i.ChangeReason,
+		&i.ChangeRatio,
+		&i.ChangeDisputed,
+		&i.RestoredFrom,
 	)
 	return i, err
 }
@@ -416,22 +617,50 @@ func (q *Queries) GetArtifactContent(ctx context.Context, arg GetArtifactContent
 	return content, err
 }
 
+const getArtifactDocument = `-- name: GetArtifactDocument :one
+SELECT id, company_id, kind, name, project_id, workspace_id, tags, created_at, updated_at FROM artifact_documents WHERE company_id = $1 AND id = $2
+`
+
+type GetArtifactDocumentParams struct {
+	CompanyID uuid.UUID
+	ID        uuid.UUID
+}
+
+func (q *Queries) GetArtifactDocument(ctx context.Context, arg GetArtifactDocumentParams) (ArtifactDocument, error) {
+	row := q.db.QueryRow(ctx, getArtifactDocument, arg.CompanyID, arg.ID)
+	var i ArtifactDocument
+	err := row.Scan(
+		&i.ID,
+		&i.CompanyID,
+		&i.Kind,
+		&i.Name,
+		&i.ProjectID,
+		&i.WorkspaceID,
+		&i.Tags,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getArtifactView = `-- name: GetArtifactView :one
-SELECT a.id, a.company_id, a.task_id, a.run_id, a.project_id, a.persona_id, a.author_type, a.author_id, a.name, a.mime, a.size_bytes, a.sha256, a.version, a.created_at, a.storage, a.kind, a.comment_id, a.conversation_id, a.message_id, a.search_tsv, c.task_prefix,
+SELECT a.id, a.company_id, a.task_id, a.run_id, a.project_id, a.persona_id, a.author_type, a.author_id, a.name, a.mime, a.size_bytes, a.sha256, a.version, a.created_at, a.storage, a.kind, a.comment_id, a.conversation_id, a.message_id, a.search_tsv, a.document_id, a.version_major, a.version_minor, a.change_kind, a.change_declared, a.change_reason, a.change_ratio, a.change_disputed, a.restored_from, c.task_prefix,
        COALESCE(t.number, 0)::bigint AS task_number, COALESCE(t.title, '')::text AS task_title,
        COALESCE(pr.slug, '')::text AS project_slug, COALESCE(pr.name, '')::text AS project_name,
        COALESCE(pe.slug, '')::text AS persona_slug, COALESCE(pe.name, '')::text AS persona_name,
        COALESCE(r.name, '')::text AS run_name,
-       (SELECT count(*) FROM artifacts v
-         WHERE v.company_id = a.company_id AND v.name = a.name AND v.kind = a.kind
-           AND COALESCE(v.task_id, '00000000-0000-0000-0000-000000000000'::uuid) = COALESCE(a.task_id, '00000000-0000-0000-0000-000000000000'::uuid)
-           AND COALESCE(v.conversation_id, '00000000-0000-0000-0000-000000000000'::uuid) = COALESCE(a.conversation_id, '00000000-0000-0000-0000-000000000000'::uuid))::bigint AS versions
+       d.project_id AS doc_project_id, d.workspace_id AS doc_workspace_id, d.tags AS doc_tags,
+       COALESCE(dp.slug, '')::text AS doc_project_slug, COALESCE(ws.slug, '')::text AS doc_workspace_slug,
+       (SELECT count(*) FROM artifacts v WHERE v.document_id = a.document_id)::bigint AS versions
 FROM artifacts a
+JOIN artifact_documents d ON d.id = a.document_id
 JOIN companies c ON c.id = a.company_id
 LEFT JOIN tasks t ON t.id = a.task_id
 LEFT JOIN projects pr ON pr.id = a.project_id
 LEFT JOIN personas pe ON pe.id = a.persona_id
 LEFT JOIN runs r ON r.id = a.run_id
+LEFT JOIN projects dp ON dp.id = d.project_id
+LEFT JOIN workspaces ws ON ws.id = d.workspace_id
 WHERE a.company_id = $1 AND a.id = $2
 `
 
@@ -441,16 +670,21 @@ type GetArtifactViewParams struct {
 }
 
 type GetArtifactViewRow struct {
-	Artifact    Artifact
-	TaskPrefix  string
-	TaskNumber  int64
-	TaskTitle   string
-	ProjectSlug string
-	ProjectName string
-	PersonaSlug string
-	PersonaName string
-	RunName     string
-	Versions    int64
+	Artifact         Artifact
+	TaskPrefix       string
+	TaskNumber       int64
+	TaskTitle        string
+	ProjectSlug      string
+	ProjectName      string
+	PersonaSlug      string
+	PersonaName      string
+	RunName          string
+	DocProjectID     *uuid.UUID
+	DocWorkspaceID   *uuid.UUID
+	DocTags          []string
+	DocProjectSlug   string
+	DocWorkspaceSlug string
+	Versions         int64
 }
 
 func (q *Queries) GetArtifactView(ctx context.Context, arg GetArtifactViewParams) (GetArtifactViewRow, error) {
@@ -477,6 +711,15 @@ func (q *Queries) GetArtifactView(ctx context.Context, arg GetArtifactViewParams
 		&i.Artifact.ConversationID,
 		&i.Artifact.MessageID,
 		&i.Artifact.SearchTsv,
+		&i.Artifact.DocumentID,
+		&i.Artifact.VersionMajor,
+		&i.Artifact.VersionMinor,
+		&i.Artifact.ChangeKind,
+		&i.Artifact.ChangeDeclared,
+		&i.Artifact.ChangeReason,
+		&i.Artifact.ChangeRatio,
+		&i.Artifact.ChangeDisputed,
+		&i.Artifact.RestoredFrom,
 		&i.TaskPrefix,
 		&i.TaskNumber,
 		&i.TaskTitle,
@@ -485,28 +728,22 @@ func (q *Queries) GetArtifactView(ctx context.Context, arg GetArtifactViewParams
 		&i.PersonaSlug,
 		&i.PersonaName,
 		&i.RunName,
+		&i.DocProjectID,
+		&i.DocWorkspaceID,
+		&i.DocTags,
+		&i.DocProjectSlug,
+		&i.DocWorkspaceSlug,
 		&i.Versions,
 	)
 	return i, err
 }
 
-const latestArtifactInChain = `-- name: LatestArtifactInChain :one
-SELECT id, company_id, task_id, run_id, project_id, persona_id, author_type, author_id, name, mime, size_bytes, sha256, version, created_at, storage, kind, comment_id, conversation_id, message_id, search_tsv FROM artifacts
-WHERE company_id = $1 AND kind = 'artifact'
-  AND COALESCE(task_id, '00000000-0000-0000-0000-000000000000'::uuid) = COALESCE($2::uuid, '00000000-0000-0000-0000-000000000000'::uuid)
-  AND name = $3
-ORDER BY version DESC
-LIMIT 1
+const latestArtifactOfDocument = `-- name: LatestArtifactOfDocument :one
+SELECT id, company_id, task_id, run_id, project_id, persona_id, author_type, author_id, name, mime, size_bytes, sha256, version, created_at, storage, kind, comment_id, conversation_id, message_id, search_tsv, document_id, version_major, version_minor, change_kind, change_declared, change_reason, change_ratio, change_disputed, restored_from FROM artifacts WHERE document_id = $1 ORDER BY version DESC LIMIT 1
 `
 
-type LatestArtifactInChainParams struct {
-	CompanyID uuid.UUID
-	TaskID    *uuid.UUID
-	Name      string
-}
-
-func (q *Queries) LatestArtifactInChain(ctx context.Context, arg LatestArtifactInChainParams) (Artifact, error) {
-	row := q.db.QueryRow(ctx, latestArtifactInChain, arg.CompanyID, arg.TaskID, arg.Name)
+func (q *Queries) LatestArtifactOfDocument(ctx context.Context, documentID uuid.UUID) (Artifact, error) {
+	row := q.db.QueryRow(ctx, latestArtifactOfDocument, documentID)
 	var i Artifact
 	err := row.Scan(
 		&i.ID,
@@ -529,6 +766,15 @@ func (q *Queries) LatestArtifactInChain(ctx context.Context, arg LatestArtifactI
 		&i.ConversationID,
 		&i.MessageID,
 		&i.SearchTsv,
+		&i.DocumentID,
+		&i.VersionMajor,
+		&i.VersionMinor,
+		&i.ChangeKind,
+		&i.ChangeDeclared,
+		&i.ChangeReason,
+		&i.ChangeRatio,
+		&i.ChangeDisputed,
+		&i.RestoredFrom,
 	)
 	return i, err
 }
@@ -587,23 +833,18 @@ func (q *Queries) LinkAttachmentsToMessage(ctx context.Context, arg LinkAttachme
 	return result.RowsAffected(), nil
 }
 
-const listArtifactChain = `-- name: ListArtifactChain :many
-SELECT id, company_id, task_id, run_id, project_id, persona_id, author_type, author_id, name, mime, size_bytes, sha256, version, created_at, storage, kind, comment_id, conversation_id, message_id, search_tsv FROM artifacts
-WHERE company_id = $1 AND kind = 'artifact'
-  AND COALESCE(task_id, '00000000-0000-0000-0000-000000000000'::uuid) = COALESCE($2::uuid, '00000000-0000-0000-0000-000000000000'::uuid)
-  AND name = $3
-ORDER BY version DESC
+const listArtifactDocumentVersions = `-- name: ListArtifactDocumentVersions :many
+SELECT id, company_id, task_id, run_id, project_id, persona_id, author_type, author_id, name, mime, size_bytes, sha256, version, created_at, storage, kind, comment_id, conversation_id, message_id, search_tsv, document_id, version_major, version_minor, change_kind, change_declared, change_reason, change_ratio, change_disputed, restored_from FROM artifacts WHERE company_id = $1 AND document_id = $2 ORDER BY version DESC
 `
 
-type ListArtifactChainParams struct {
-	CompanyID uuid.UUID
-	TaskID    *uuid.UUID
-	Name      string
+type ListArtifactDocumentVersionsParams struct {
+	CompanyID  uuid.UUID
+	DocumentID uuid.UUID
 }
 
-// Todas as versões da cadeia (empresa, task, nome), da mais nova para a mais antiga.
-func (q *Queries) ListArtifactChain(ctx context.Context, arg ListArtifactChainParams) ([]Artifact, error) {
-	rows, err := q.db.Query(ctx, listArtifactChain, arg.CompanyID, arg.TaskID, arg.Name)
+// Todas as versões do documento, da mais nova para a mais antiga.
+func (q *Queries) ListArtifactDocumentVersions(ctx context.Context, arg ListArtifactDocumentVersionsParams) ([]Artifact, error) {
+	rows, err := q.db.Query(ctx, listArtifactDocumentVersions, arg.CompanyID, arg.DocumentID)
 	if err != nil {
 		return nil, err
 	}
@@ -632,6 +873,15 @@ func (q *Queries) ListArtifactChain(ctx context.Context, arg ListArtifactChainPa
 			&i.ConversationID,
 			&i.MessageID,
 			&i.SearchTsv,
+			&i.DocumentID,
+			&i.VersionMajor,
+			&i.VersionMinor,
+			&i.ChangeKind,
+			&i.ChangeDeclared,
+			&i.ChangeReason,
+			&i.ChangeRatio,
+			&i.ChangeDisputed,
+			&i.RestoredFrom,
 		); err != nil {
 			return nil, err
 		}
@@ -644,48 +894,56 @@ func (q *Queries) ListArtifactChain(ctx context.Context, arg ListArtifactChainPa
 }
 
 const listArtifactViews = `-- name: ListArtifactViews :many
-SELECT a.id, a.company_id, a.task_id, a.run_id, a.project_id, a.persona_id, a.author_type, a.author_id, a.name, a.mime, a.size_bytes, a.sha256, a.version, a.created_at, a.storage, a.kind, a.comment_id, a.conversation_id, a.message_id, a.search_tsv, c.task_prefix,
+SELECT a.id, a.company_id, a.task_id, a.run_id, a.project_id, a.persona_id, a.author_type, a.author_id, a.name, a.mime, a.size_bytes, a.sha256, a.version, a.created_at, a.storage, a.kind, a.comment_id, a.conversation_id, a.message_id, a.search_tsv, a.document_id, a.version_major, a.version_minor, a.change_kind, a.change_declared, a.change_reason, a.change_ratio, a.change_disputed, a.restored_from, c.task_prefix,
        COALESCE(t.number, 0)::bigint AS task_number, COALESCE(t.title, '')::text AS task_title,
        COALESCE(pr.slug, '')::text AS project_slug, COALESCE(pr.name, '')::text AS project_name,
        COALESCE(pe.slug, '')::text AS persona_slug, COALESCE(pe.name, '')::text AS persona_name,
        COALESCE(r.name, '')::text AS run_name,
-       (SELECT count(*) FROM artifacts v
-         WHERE v.company_id = a.company_id AND v.name = a.name AND v.kind = a.kind
-           AND COALESCE(v.task_id, '00000000-0000-0000-0000-000000000000'::uuid) = COALESCE(a.task_id, '00000000-0000-0000-0000-000000000000'::uuid)
-           AND COALESCE(v.conversation_id, '00000000-0000-0000-0000-000000000000'::uuid) = COALESCE(a.conversation_id, '00000000-0000-0000-0000-000000000000'::uuid))::bigint AS versions
+       d.project_id AS doc_project_id, d.workspace_id AS doc_workspace_id, d.tags AS doc_tags,
+       COALESCE(dp.slug, '')::text AS doc_project_slug, COALESCE(ws.slug, '')::text AS doc_workspace_slug,
+       (SELECT count(*) FROM artifacts v WHERE v.document_id = a.document_id)::bigint AS versions
 FROM artifacts a
+JOIN artifact_documents d ON d.id = a.document_id
 JOIN companies c ON c.id = a.company_id
 LEFT JOIN tasks t ON t.id = a.task_id
 LEFT JOIN projects pr ON pr.id = a.project_id
 LEFT JOIN personas pe ON pe.id = a.persona_id
 LEFT JOIN runs r ON r.id = a.run_id
+LEFT JOIN projects dp ON dp.id = d.project_id
+LEFT JOIN workspaces ws ON ws.id = d.workspace_id
 WHERE a.company_id = $1
-  AND ($2::uuid IS NULL OR a.project_id = $2::uuid)
-  AND ($3::uuid IS NULL OR a.task_id = $3::uuid)
-  AND ($4::uuid IS NULL OR a.persona_id = $4::uuid)
-  AND ($5::uuid IS NULL OR a.run_id = $5::uuid)
-  AND ($6::uuid IS NULL OR a.comment_id = $6::uuid)
-  AND ($7::uuid IS NULL OR a.conversation_id = $7::uuid)
-  AND ($8::uuid IS NULL OR a.message_id = $8::uuid)
-  AND (COALESCE($9::text, 'artifact') = 'all' OR a.kind = COALESCE($9::text, 'artifact'))
-  AND ($10::text IS NULL OR CASE $10::text
+  AND ($2::uuid IS NULL OR a.document_id = $2::uuid)
+  AND ($3::uuid IS NULL OR CASE WHEN $4::bool
+        THEN d.project_id = $3::uuid ELSE a.project_id = $3::uuid END)
+  AND ($5::uuid IS NULL OR d.workspace_id = $5::uuid)
+  AND ($6::text IS NULL OR $6::text = ANY(d.tags))
+  AND ($7::uuid IS NULL OR CASE WHEN $4::bool
+        THEN EXISTS (SELECT 1 FROM artifacts tv WHERE tv.document_id = a.document_id AND tv.task_id = $7::uuid)
+        ELSE a.task_id = $7::uuid END)
+  AND ($8::uuid IS NULL OR a.persona_id = $8::uuid)
+  AND ($9::uuid IS NULL OR a.run_id = $9::uuid)
+  AND ($10::uuid IS NULL OR a.comment_id = $10::uuid)
+  AND ($11::uuid IS NULL OR a.conversation_id = $11::uuid)
+  AND ($12::uuid IS NULL OR a.message_id = $12::uuid)
+  AND (COALESCE($13::text, 'artifact') = 'all' OR a.kind = COALESCE($13::text, 'artifact'))
+  AND ($14::text IS NULL OR CASE $14::text
         WHEN 'markdown' THEN a.mime = 'text/markdown'
         WHEN 'text' THEN a.mime LIKE 'text/%' AND a.mime <> 'text/markdown'
         WHEN 'image' THEN a.mime LIKE 'image/%'
         ELSE NOT (a.mime LIKE 'text/%' OR a.mime LIKE 'image/%') END)
-  AND ($11::text IS NULL OR a.name ILIKE '%' || $11::text || '%')
-  AND (NOT $12::bool OR a.version = (
-        SELECT max(v.version) FROM artifacts v
-         WHERE v.company_id = a.company_id AND v.name = a.name AND v.kind = a.kind
-           AND COALESCE(v.task_id, '00000000-0000-0000-0000-000000000000'::uuid) = COALESCE(a.task_id, '00000000-0000-0000-0000-000000000000'::uuid)
-           AND COALESCE(v.conversation_id, '00000000-0000-0000-0000-000000000000'::uuid) = COALESCE(a.conversation_id, '00000000-0000-0000-0000-000000000000'::uuid)))
+  AND ($15::text IS NULL OR a.name ILIKE '%' || $15::text || '%')
+  AND (NOT $4::bool OR a.version = (SELECT max(v.version) FROM artifacts v WHERE v.document_id = a.document_id))
 ORDER BY a.created_at DESC, a.id DESC
-LIMIT $14 OFFSET $13
+LIMIT $17 OFFSET $16
 `
 
 type ListArtifactViewsParams struct {
 	CompanyID      uuid.UUID
+	DocumentID     *uuid.UUID
 	ProjectID      *uuid.UUID
+	LatestOnly     bool
+	WorkspaceID    *uuid.UUID
+	Tag            *string
 	TaskID         *uuid.UUID
 	PersonaID      *uuid.UUID
 	RunID          *uuid.UUID
@@ -695,30 +953,39 @@ type ListArtifactViewsParams struct {
 	Class          *string
 	Kind           *string
 	Q              *string
-	LatestOnly     bool
 	Off            int32
 	Lim            int32
 }
 
 type ListArtifactViewsRow struct {
-	Artifact    Artifact
-	TaskPrefix  string
-	TaskNumber  int64
-	TaskTitle   string
-	ProjectSlug string
-	ProjectName string
-	PersonaSlug string
-	PersonaName string
-	RunName     string
-	Versions    int64
+	Artifact         Artifact
+	TaskPrefix       string
+	TaskNumber       int64
+	TaskTitle        string
+	ProjectSlug      string
+	ProjectName      string
+	PersonaSlug      string
+	PersonaName      string
+	RunName          string
+	DocProjectID     *uuid.UUID
+	DocWorkspaceID   *uuid.UUID
+	DocTags          []string
+	DocProjectSlug   string
+	DocWorkspaceSlug string
+	Versions         int64
 }
 
-// Cada linha é uma versão. latest_only deixa só a mais nova de cada cadeia (a listagem geral); a lista de uma run
-// usa latest_only=false (o que aquela run publicou). kind: markdown | text | image | other.
+// Cada linha é uma versão. latest_only deixa só a mais nova de cada documento (a listagem geral): aí projeto e
+// workspace são os do documento e o filtro de task traz os documentos com ALGUMA versão produzida nela (ADR-0064).
+// A lista de uma run usa latest_only=false (o que aquela run publicou). kind: markdown | text | image | other.
 func (q *Queries) ListArtifactViews(ctx context.Context, arg ListArtifactViewsParams) ([]ListArtifactViewsRow, error) {
 	rows, err := q.db.Query(ctx, listArtifactViews,
 		arg.CompanyID,
+		arg.DocumentID,
 		arg.ProjectID,
+		arg.LatestOnly,
+		arg.WorkspaceID,
+		arg.Tag,
 		arg.TaskID,
 		arg.PersonaID,
 		arg.RunID,
@@ -728,7 +995,6 @@ func (q *Queries) ListArtifactViews(ctx context.Context, arg ListArtifactViewsPa
 		arg.Class,
 		arg.Kind,
 		arg.Q,
-		arg.LatestOnly,
 		arg.Off,
 		arg.Lim,
 	)
@@ -760,6 +1026,15 @@ func (q *Queries) ListArtifactViews(ctx context.Context, arg ListArtifactViewsPa
 			&i.Artifact.ConversationID,
 			&i.Artifact.MessageID,
 			&i.Artifact.SearchTsv,
+			&i.Artifact.DocumentID,
+			&i.Artifact.VersionMajor,
+			&i.Artifact.VersionMinor,
+			&i.Artifact.ChangeKind,
+			&i.Artifact.ChangeDeclared,
+			&i.Artifact.ChangeReason,
+			&i.Artifact.ChangeRatio,
+			&i.Artifact.ChangeDisputed,
+			&i.Artifact.RestoredFrom,
 			&i.TaskPrefix,
 			&i.TaskNumber,
 			&i.TaskTitle,
@@ -768,6 +1043,11 @@ func (q *Queries) ListArtifactViews(ctx context.Context, arg ListArtifactViewsPa
 			&i.PersonaSlug,
 			&i.PersonaName,
 			&i.RunName,
+			&i.DocProjectID,
+			&i.DocWorkspaceID,
+			&i.DocTags,
+			&i.DocProjectSlug,
+			&i.DocWorkspaceSlug,
 			&i.Versions,
 		); err != nil {
 			return nil, err
@@ -838,17 +1118,6 @@ func (q *Queries) ListArtifactsForBlobMigration(ctx context.Context, arg ListArt
 	return items, nil
 }
 
-const lockArtifactChain = `-- name: LockArtifactChain :exec
-SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))
-`
-
-// Serializa a criação de versões do mesmo nome (a chave é "empresa|task|nome"): duas gravações simultâneas não
-// disputam o mesmo número de versão. A trava vale até o fim da transação.
-func (q *Queries) LockArtifactChain(ctx context.Context, key string) error {
-	_, err := q.db.Exec(ctx, lockArtifactChain, key)
-	return err
-}
-
 const lockArtifactCompany = `-- name: LockArtifactCompany :exec
 SELECT pg_advisory_xact_lock(hashtextextended('artifacts:' || ($1::uuid)::text, 0))
 `
@@ -859,6 +1128,74 @@ SELECT pg_advisory_xact_lock(hashtextextended('artifacts:' || ($1::uuid)::text, 
 func (q *Queries) LockArtifactCompany(ctx context.Context, companyID uuid.UUID) error {
 	_, err := q.db.Exec(ctx, lockArtifactCompany, companyID)
 	return err
+}
+
+const lockArtifactDocument = `-- name: LockArtifactDocument :exec
+SELECT pg_advisory_xact_lock(hashtextextended('artifact-doc:' || ($1::uuid)::text, 0))
+`
+
+// Serializa a numeração das versões de um documento (vem sempre depois da trava da empresa). Vale até o fim da
+// transação.
+func (q *Queries) LockArtifactDocument(ctx context.Context, documentID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, lockArtifactDocument, documentID)
+	return err
+}
+
+const reclassifyArtifactVersion = `-- name: ReclassifyArtifactVersion :one
+UPDATE artifacts SET version_major = $1, version_minor = $2, change_kind = $3, change_disputed = false
+WHERE company_id = $4 AND id = $5
+RETURNING id, company_id, task_id, run_id, project_id, persona_id, author_type, author_id, name, mime, size_bytes, sha256, version, created_at, storage, kind, comment_id, conversation_id, message_id, search_tsv, document_id, version_major, version_minor, change_kind, change_declared, change_reason, change_ratio, change_disputed, restored_from
+`
+
+type ReclassifyArtifactVersionParams struct {
+	Major      int32
+	Minor      int32
+	ChangeKind string
+	CompanyID  uuid.UUID
+	ID         uuid.UUID
+}
+
+func (q *Queries) ReclassifyArtifactVersion(ctx context.Context, arg ReclassifyArtifactVersionParams) (Artifact, error) {
+	row := q.db.QueryRow(ctx, reclassifyArtifactVersion,
+		arg.Major,
+		arg.Minor,
+		arg.ChangeKind,
+		arg.CompanyID,
+		arg.ID,
+	)
+	var i Artifact
+	err := row.Scan(
+		&i.ID,
+		&i.CompanyID,
+		&i.TaskID,
+		&i.RunID,
+		&i.ProjectID,
+		&i.PersonaID,
+		&i.AuthorType,
+		&i.AuthorID,
+		&i.Name,
+		&i.Mime,
+		&i.SizeBytes,
+		&i.Sha256,
+		&i.Version,
+		&i.CreatedAt,
+		&i.Storage,
+		&i.Kind,
+		&i.CommentID,
+		&i.ConversationID,
+		&i.MessageID,
+		&i.SearchTsv,
+		&i.DocumentID,
+		&i.VersionMajor,
+		&i.VersionMinor,
+		&i.ChangeKind,
+		&i.ChangeDeclared,
+		&i.ChangeReason,
+		&i.ChangeRatio,
+		&i.ChangeDisputed,
+		&i.RestoredFrom,
+	)
+	return i, err
 }
 
 const setArtifactStorage = `-- name: SetArtifactStorage :execrows
@@ -883,4 +1220,65 @@ func (q *Queries) SetArtifactStorage(ctx context.Context, arg SetArtifactStorage
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const touchArtifactDocument = `-- name: TouchArtifactDocument :exec
+UPDATE artifact_documents SET name = $1, updated_at = $2 WHERE company_id = $3 AND id = $4
+`
+
+type TouchArtifactDocumentParams struct {
+	Name      string
+	UpdatedAt time.Time
+	CompanyID uuid.UUID
+	ID        uuid.UUID
+}
+
+// A versão nova dá o nome ao documento.
+func (q *Queries) TouchArtifactDocument(ctx context.Context, arg TouchArtifactDocumentParams) error {
+	_, err := q.db.Exec(ctx, touchArtifactDocument,
+		arg.Name,
+		arg.UpdatedAt,
+		arg.CompanyID,
+		arg.ID,
+	)
+	return err
+}
+
+const updateArtifactDocumentMeta = `-- name: UpdateArtifactDocumentMeta :one
+UPDATE artifact_documents SET project_id = $1, workspace_id = $2, tags = $3, updated_at = $4
+WHERE company_id = $5 AND id = $6
+RETURNING id, company_id, kind, name, project_id, workspace_id, tags, created_at, updated_at
+`
+
+type UpdateArtifactDocumentMetaParams struct {
+	ProjectID   *uuid.UUID
+	WorkspaceID *uuid.UUID
+	Tags        []string
+	UpdatedAt   time.Time
+	CompanyID   uuid.UUID
+	ID          uuid.UUID
+}
+
+func (q *Queries) UpdateArtifactDocumentMeta(ctx context.Context, arg UpdateArtifactDocumentMetaParams) (ArtifactDocument, error) {
+	row := q.db.QueryRow(ctx, updateArtifactDocumentMeta,
+		arg.ProjectID,
+		arg.WorkspaceID,
+		arg.Tags,
+		arg.UpdatedAt,
+		arg.CompanyID,
+		arg.ID,
+	)
+	var i ArtifactDocument
+	err := row.Scan(
+		&i.ID,
+		&i.CompanyID,
+		&i.Kind,
+		&i.Name,
+		&i.ProjectID,
+		&i.WorkspaceID,
+		&i.Tags,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }

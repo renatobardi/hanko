@@ -1,10 +1,10 @@
-# Estado da última sessão (fechamento do plano de evolução M7–M20 + trilha contínua)
-Data: 2026-10-22 · branch `docs/fechamento` → `main` (HEAD da main: 8abab60)
+# Estado da última sessão (documentos de artefato com versão MAJOR.MINOR, ADR-0064)
+Data: 2026-10-22 · branch `claude/jolly-hamilton-wtnkxr`
 
 ## Feito
-- 70/70 itens do plano na `main` (M7–M20, Ondas 1–3 da trilha), todos com `check` e `release-dry-run` verdes; ver `docs/PROGRESSO.md` (ressalvas por item).
-- Correções de integração entre PRs: build M18×M19 (#35), constraint de features M19×M20 (migration 00172), segredo fora de erro/log de backup (#36).
-## Travado (só o dono)
-- Tags v0.3.0–v0.6.0 (push de tag dá 403 daqui); deploy no hanko-prd (oute-server inalcançável); tap Homebrew e settings do GitHub.
+- ADR-0064 + migration 00201: documento de artefato com id estável, versão MAJOR.MINOR (persona declara, servidor mede o diff), restaurar, reclassificar, tags; apagar task preserva versões.
+- Persona lê e altera artefatos: MCP `hanko_artifact_list|get|restore`, `artifact=` no put, seção "Artefatos" no briefing (task, chat, sala). API, CLI, UI, export/import e e2e atualizados.
+## Travado
+- Nada no código. Deploy no hanko-prd depende do acesso ao oute-server (ver `docs/VALIDACAO-MANHA.md`).
 ## Próximo passo
-- Executar `docs/VALIDACAO-MANHA.md` na ordem: tags → backup.sh → deploy-prd.sh → smoke.sh → checklist por marco.
+- Dogfood: pedir a uma persona uma alteração num documento existente e conferir que vira versão nova (não documento novo); ajustar os limiares 0,10/0,40 se a disputa aparecer demais.

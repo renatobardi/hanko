@@ -7,8 +7,8 @@ import (
 	"github.com/renatobardi/hanko/internal/i18n"
 )
 
-// Artefatos (ADR-0028): arquivos versionados produzidos pelas personas ou enviados por um humano. Ler é de qualquer
-// membro; enviar é de member; excluir é de admin.
+// Artefatos (ADR-0028, ADR-0064): documentos versionados (MAJOR.MINOR) produzidos pelas personas ou enviados por um
+// humano. Ler é de qualquer membro; enviar, restaurar, reclassificar e editar tags é de member; excluir é de admin.
 
 templ ArtifactsPage(sh Shell, vm ArtifactsVM) {
 	@Layout(sh) {
@@ -45,6 +45,7 @@ templ ArtifactsPage(sh Shell, vm ArtifactsVM) {
 				<input class="input" type="search" name="q" value={ vm.Filters.Query } placeholder={ i18n.T(ctx, "Buscar pelo nome...") } aria-label={ i18n.T(ctx, "Buscar pelo nome") }/>
 				@Select("projeto", "f-art-projeto", vm.Filters.ProjectOptions, true)
 				<input class="input mono" style="max-width:130px" name="task" value={ vm.Filters.Task } placeholder="HNK-12" aria-label={ i18n.T(ctx, "Task") } autocomplete="off"/>
+				<input class="input mono" style="max-width:140px" name="tag" value={ vm.Filters.Tag } placeholder="#tag" aria-label={ i18n.T(ctx, "Tag") } autocomplete="off"/>
 				@Select("persona", "f-art-persona", vm.Filters.PersonaOptions, true)
 				@Select("tipo", "f-art-tipo", vm.Filters.KindOptions, true)
 				<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Filtrar") }</button>
@@ -72,9 +73,12 @@ templ ArtifactsPage(sh Shell, vm ArtifactsVM) {
 								<tr class="row">
 									<td class="ttl">
 										<a href={ templ.SafeURL(r.Href) }>{ r.Name }</a>
-										<span class="badge soft mono">{ fmt.Sprintf("v%d", r.Version) }</span>
+										<span class="badge soft mono">{ "v" + r.Version }</span>
 										if r.Versions > 1 {
 											<span class="faint text-xs">{ i18n.Tf(ctx, "%d versões", r.Versions) }</span>
+										}
+										for _, t := range r.Tags {
+											<span class="badge mono text-xs">{ "#" + t }</span>
 										}
 										if r.Project != "" {
 											<div class="note"><a href={ templ.SafeURL(r.ProjectHref) }>{ r.Project }</a></div>
@@ -112,12 +116,44 @@ templ ArtifactsPage(sh Shell, vm ArtifactsVM) {
 
 templ ArtifactFormPage(sh Shell, vm ArtifactFormVM) {
 	@Layout(sh) {
-		@PageHead(i18n.T(ctx, "Enviar artefato"), i18n.T(ctx, "Publique um arquivo. O mesmo nome na mesma task cria a versão seguinte.")) {
+		if vm.Document != "" {
+			@PageHead(i18n.T(ctx, "Nova versão"), i18n.Tf(ctx, "%s, hoje na versão %s. Escolha se a mudança é major ou minor.", vm.DocumentName, vm.DocumentVer)) {
+			}
+		} else {
+			@PageHead(i18n.T(ctx, "Enviar artefato"), i18n.T(ctx, "Publique um arquivo. O mesmo nome na mesma task cria a versão seguinte.")) {
+			}
 		}
 		if sh.CanWrite() {
 			<form class="card pad form-card" method="post" action={ templ.SafeURL(vm.Action) } enctype="multipart/form-data">
 				if vm.Error != "" {
 					@Alert("danger", vm.Error)
+				}
+				if vm.Document != "" {
+					<input type="hidden" name="artifact" value={ vm.Document }/>
+					<div class="field">
+						<span class="lbl">{ i18n.T(ctx, "Tipo de mudança") }</span>
+						<div class="radio-cards">
+							<label>
+								<input type="radio" name="change" value="" checked?={ vm.Change == "" }/>
+								<span class="rc"><b>{ i18n.T(ctx, "Automático") }</b><span>{ i18n.T(ctx, "Decidido pelo tamanho do diff") }</span></span>
+							</label>
+							<label>
+								<input type="radio" name="change" value="major" checked?={ vm.Change == "major" }/>
+								<span class="rc"><b>Major</b><span>{ i18n.T(ctx, "Mudança pesada: estrutura, premissa, conclusão, reescrita") }</span></span>
+							</label>
+							<label>
+								<input type="radio" name="change" value="minor" checked?={ vm.Change == "minor" }/>
+								<span class="rc"><b>Minor</b><span>{ i18n.T(ctx, "Ajuste pontual: correção, acréscimo pequeno") }</span></span>
+							</label>
+						</div>
+						if e := vm.FieldErr["change"]; e != "" {
+							<span class="err">{ e }</span>
+						}
+					</div>
+					<div class="field">
+						<label for="a-reason">{ i18n.T(ctx, "Motivo (opcional)") }</label>
+						<input class="input" id="a-reason" name="reason" value={ vm.Reason } maxlength="280" autocomplete="off"/>
+					</div>
 				}
 				<div class="field">
 					<label for="a-file">{ i18n.T(ctx, "Arquivo") }</label>
@@ -143,7 +179,16 @@ templ ArtifactFormPage(sh Shell, vm ArtifactFormVM) {
 						}
 					</div>
 				</div>
-				if len(vm.ProjectOptions) > 1 {
+				if vm.Document == "" {
+					<div class="field">
+						<label for="a-tags">{ i18n.T(ctx, "Tags (opcional)") }</label>
+						<input class="input mono" id="a-tags" name="tags" value={ vm.Tags } maxlength="400" placeholder="arquitetura, cliente-x" autocomplete="off"/>
+						if e := vm.FieldErr["tags"]; e != "" {
+							<span class="err">{ e }</span>
+						}
+					</div>
+				}
+				if len(vm.ProjectOptions) > 1 && vm.Document == "" {
 					<div class="field">
 						<label for="a-proj">{ i18n.T(ctx, "Projeto (opcional)") }</label>
 						@Select("project", "a-proj", vm.ProjectOptions, false)
@@ -164,7 +209,11 @@ templ ArtifactFormPage(sh Shell, vm ArtifactFormVM) {
 templ ArtifactDiffBox(d DiffVM) {
 	<section class="card pad mt-6" id="diff">
 		<div class="card-head">
-			<h2>{ i18n.Tf(ctx, "Diferenças: v%d → v%d", d.FromVersion, d.ToVersion) }</h2>
+			if d.FromLabel != "" {
+				<h2>{ i18n.Tf(ctx, "Diferenças: %s → %s", d.FromLabel, d.ToLabel) }</h2>
+			} else {
+				<h2>{ i18n.Tf(ctx, "Diferenças: v%d → v%d", d.FromVersion, d.ToVersion) }</h2>
+			}
 			<a class="sub" href={ templ.SafeURL(d.CloseHref) }>{ i18n.T(ctx, "Fechar") }</a>
 		</div>
 		if d.Error != "" {
@@ -219,9 +268,12 @@ templ ArtifactPage(sh Shell, vm ArtifactVM) {
 		}
 		<div class="flow-head">
 			<div>
-				<h1>{ vm.Name } <span class="badge soft mono">{ fmt.Sprintf("v%d", vm.Version) }</span></h1>
+				<h1>{ vm.Name } <span class="badge soft mono">{ "v" + vm.Version }</span> @changeBadge(vm.Change)</h1>
 				<p class="muted mt-2 text-sm">
 					{ vm.Kind } · { vm.Size }
+					for _, t := range vm.Tags {
+						· <span class="mono">{ "#" + t }</span>
+					}
 					if !vm.Latest {
 						· <span class="badge warn">{ i18n.T(ctx, "versão antiga") }</span>
 						<a href={ templ.SafeURL(vm.LatestHref) }>{ i18n.T(ctx, "ver a mais nova") }</a>
@@ -229,6 +281,12 @@ templ ArtifactPage(sh Shell, vm ArtifactVM) {
 				</p>
 			</div>
 			<div class="flow-acts">
+				if sh.CanWrite() {
+					<a class="btn primary" href={ templ.SafeURL(vm.NewVersionHref) }>
+						@Icon("plus")
+						{ i18n.T(ctx, "Nova versão") }
+					</a>
+				}
 				<a class="btn outline" href={ templ.SafeURL(vm.DownloadHref) }>{ i18n.T(ctx, "Baixar") }</a>
 				if canAdmin(ctx) {
 					<form method="post" action={ templ.SafeURL(vm.DeleteHref) } hx-post={ vm.DeleteHref } hx-swap="none" hx-confirm={ i18n.T(ctx, "Apagar este artefato com todas as versões?") }>
@@ -237,10 +295,24 @@ templ ArtifactPage(sh Shell, vm ArtifactVM) {
 				}
 			</div>
 		</div>
+		if vm.Disputed {
+			@Alert("warn", i18n.Tf(ctx, "Classificação questionada: foi declarada %s, mas %s das linhas mudaram. Confira e, se for o caso, reclassifique.", vm.Change, vm.Ratio))
+		}
 		<div class="grid-2 items-start">
 			<section class="card pad">
 				<div class="card-head"><h2>{ i18n.T(ctx, "Detalhes") }</h2></div>
 				<dl class="kv">
+					<dt>{ i18n.T(ctx, "Mudança") }</dt>
+					<dd>
+						@changeBadge(vm.Change)
+						if vm.Reason != "" {
+							{ vm.Reason }
+						}
+						if vm.Ratio != "" {
+							<span class="faint text-xs">{ i18n.Tf(ctx, "(%s das linhas)", vm.Ratio) }</span>
+						}
+					</dd>
+					<dt>{ i18n.T(ctx, "Documento") }</dt><dd class="mono text-xs break-any">{ vm.Document }</dd>
 					<dt>{ i18n.T(ctx, "Tipo MIME") }</dt><dd class="mono">{ vm.Mime }</dd>
 					<dt>{ i18n.T(ctx, "Tamanho") }</dt><dd>{ vm.Size }</dd>
 					<dt>{ i18n.T(ctx, "Publicado") }</dt><dd>{ vm.Created }</dd>
@@ -279,19 +351,47 @@ templ ArtifactPage(sh Shell, vm ArtifactVM) {
 					</dd>
 					<dt>SHA-256</dt><dd class="mono text-xs break-any">{ vm.SHA }</dd>
 				</dl>
+				if sh.CanWrite() {
+					<form class="mt-3 toolbar" method="post" action={ templ.SafeURL(vm.TagsHref) }>
+						<input class="input mono" name="tags" value={ vm.TagsText } maxlength="400" placeholder="arquitetura, cliente-x" aria-label={ i18n.T(ctx, "Tags") }/>
+						<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Salvar tags") }</button>
+					</form>
+					if vm.ReclassifyHref != "" {
+						<form class="mt-3 toolbar" method="post" action={ templ.SafeURL(vm.ReclassifyHref) }>
+							<span class="muted text-sm">{ i18n.T(ctx, "Reclassificar esta versão:") }</span>
+							if vm.Change != "major" {
+								<button class="btn outline sm" type="submit" name="change" value="major">Major</button>
+							}
+							if vm.Change != "minor" {
+								<button class="btn outline sm" type="submit" name="change" value="minor">Minor</button>
+							}
+						</form>
+					}
+				}
 			</section>
 			<section class="card pad">
 				<div class="card-head"><h2>{ i18n.T(ctx, "Versões") }</h2></div>
 				<table class="table mini">
-					<thead><tr><th>{ i18n.T(ctx, "Versão") }</th><th>{ i18n.T(ctx, "Publicado") }</th><th class="num">{ i18n.T(ctx, "Tamanho") }</th><th></th></tr></thead>
+					<thead><tr><th>{ i18n.T(ctx, "Versão") }</th><th>{ i18n.T(ctx, "Mudança") }</th><th>{ i18n.T(ctx, "Publicado") }</th><th class="num">{ i18n.T(ctx, "Tamanho") }</th><th></th></tr></thead>
 					<tbody>
 						for _, v := range vm.Versions {
 							<tr>
 								<td>
 									if v.Current {
-										<b class="mono">{ fmt.Sprintf("v%d", v.Version) }</b>
+										<b class="mono">{ "v" + v.Version }</b>
 									} else {
-										<a class="mono" href={ templ.SafeURL(v.Href) }>{ fmt.Sprintf("v%d", v.Version) }</a>
+										<a class="mono" href={ templ.SafeURL(v.Href) }>{ "v" + v.Version }</a>
+									}
+								</td>
+								<td class="text-xs">
+									@changeBadge(v.Change)
+									if v.Disputed {
+										<span class="badge warn" title={ i18n.T(ctx, "A medida do diff contradiz a classificação declarada") }>?</span>
+									}
+									if v.Restored != "" {
+										<span class="muted">{ v.Restored }</span>
+									} else if v.Reason != "" {
+										<span class="muted">{ v.Reason }</span>
 									}
 								</td>
 								<td class="muted text-xs">
@@ -307,6 +407,11 @@ templ ArtifactPage(sh Shell, vm ArtifactVM) {
 								<td class="num">
 									if v.DiffHref != "" {
 										<a href={ templ.SafeURL(v.DiffHref) }>{ i18n.T(ctx, "comparar com a anterior") }</a>
+									}
+									if v.RestoreHref != "" && sh.CanWrite() {
+										<form method="post" action={ templ.SafeURL(v.RestoreHref) } class="inline" hx-confirm={ i18n.T(ctx, "Restaurar esta versão? O conteúdo dela vira a versão mais nova (major); nada é apagado.") }>
+											<button class="btn ghost sm" type="submit">{ i18n.T(ctx, "restaurar") }</button>
+										</form>
 									}
 								</td>
 							</tr>
@@ -346,11 +451,21 @@ templ ArtifactMiniList(items []ArtifactMini, all string) {
 		<a class="side-run" href={ templ.SafeURL(a.Href) } title={ a.Kind }>
 			@Icon("file")
 			<span>{ a.Name }</span>
-			<span class="badge soft mono">{ fmt.Sprintf("v%d", a.Version) }</span>
+			<span class="badge soft mono">{ "v" + a.Version }</span>
 			<span class="d mono">{ a.Size }</span>
 		</a>
 	}
 	if all != "" {
 		<p class="mt-2 text-sm"><a href={ templ.SafeURL(all) }>{ i18n.T(ctx, "Ver todos") }</a></p>
+	}
+}
+
+// changeBadge marca uma versão como major (mudança pesada) ou minor (ajuste).
+templ changeBadge(change string) {
+	switch change {
+		case "major":
+			<span class="badge run">Major</span>
+		case "minor":
+			<span class="badge soft">Minor</span>
 	}
 }

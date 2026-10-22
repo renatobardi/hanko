@@ -38,7 +38,9 @@ func (s *Service) exportArtifacts(ctx context.Context, q *store.Queries, company
 	for _, r := range rows {
 		a := export.Artifact{Name: r.Name, Mime: r.Mime, Version: int(r.Version), Task: r.TaskNumber, Project: r.ProjectSlug,
 			Persona: r.PersonaSlug, Run: refSlug(runKey, r.RunID), Author: exportActor(r.AuthorType, r.AuthorID, peSlug),
-			SHA256: r.Sha256, SizeBytes: r.SizeBytes, CreatedAt: r.CreatedAt}
+			SHA256: r.Sha256, SizeBytes: r.SizeBytes, CreatedAt: r.CreatedAt,
+			Document: r.DocumentID.String(), Major: int(r.VersionMajor), Minor: int(r.VersionMinor), Change: r.ChangeKind,
+			ChangeReason: r.ChangeReason, Tags: r.DocTags}
 		doc.Artifacts = append(doc.Artifacts, a)
 		st.artIDs = append(st.artIDs, r.ID)
 		st.artStore = append(st.artStore, r.Storage)
@@ -53,11 +55,8 @@ func (s *Service) planArtifacts(doc export.Document, tk map[int64]int, pe, pr, r
 	}
 	maxFile, quota := s.artifactLimits()
 	var total int64
-	type chain struct {
-		task int64
-		name string
-	}
-	last := map[chain]int{}
+	last := map[string]int{}
+	seen := map[string]bool{}
 	for i, a := range doc.Artifacts {
 		name, err := cleanArtifactName(a.Name)
 		if err != nil {
@@ -102,19 +101,59 @@ func (s *Service) planArtifacts(doc export.Document, tk map[int64]int, pe, pr, r
 				return domain.Invalid(iv("artifacts", i, "run"), "the run belongs to another task")
 			}
 		}
-		// versões de uma cadeia: 1, 2, 3... em ordem
-		k := chain{a.Task, name}
+		// versões de um documento: 1, 2, 3... em ordem, com MAJOR.MINOR distintos (ADR-0064)
+		k := importDocKey(a, name)
 		if a.Version != last[k]+1 {
 			return domain.Invalid(iv("artifacts", i, "version"), fmt.Sprintf("expected version %d after %d in the same artifact", last[k]+1, last[k]))
 		}
 		last[k] = a.Version
+		sv, change := importSemVer(a)
+		if sv.Major < 1 || sv.Minor < 0 || !change.Valid() || (change == domain.ChangeMajor && sv.Minor != 0) {
+			return domain.Invalid(iv("artifacts", i, "major"), "invalid MAJOR.MINOR or change")
+		}
+		sk := k + "@" + sv.String()
+		if seen[sk] {
+			return domain.Invalid(iv("artifacts", i, "major"), fmt.Sprintf("version %s repeated in the same artifact", sv))
+		}
+		seen[sk] = true
+		if len([]rune(a.ChangeReason)) > domain.MaxChangeReasonRunes {
+			return domain.Invalid(iv("artifacts", i, "change_reason"), "too long")
+		}
+		if _, err := domain.NormalizeTags(a.Tags); err != nil {
+			return domain.Invalid(iv("artifacts", i, "tags"), invalidReason(err))
+		}
 	}
 	return nil
+}
+
+// importDocKey agrupa as versões de um documento: pela chave do arquivo (ADR-0064) ou, num arquivo antigo, pela
+// cadeia (task, nome).
+func importDocKey(a export.Artifact, name string) string {
+	if a.Document != "" {
+		return "doc:" + a.Document
+	}
+	return fmt.Sprintf("chain:%d|%s", a.Task, name)
+}
+
+// importSemVer lê MAJOR.MINOR e a classificação do arquivo; um arquivo antigo numera vN como N.0 (major).
+func importSemVer(a export.Artifact) (domain.SemVer, domain.ChangeKind) {
+	if a.Major == 0 {
+		return domain.SemVer{Major: a.Version}, domain.ChangeMajor
+	}
+	c := domain.ChangeKind(a.Change)
+	if c == "" {
+		c = domain.ChangeMinor
+		if a.Minor == 0 {
+			c = domain.ChangeMajor
+		}
+	}
+	return domain.SemVer{Major: a.Major, Minor: a.Minor}, c
 }
 
 // importArtifacts grava os artefatos do arquivo na empresa nova.
 func (t *txc) importArtifacts(cid domain.ID, doc export.Document, taskID map[int64]domain.ID, prID, peID, runID map[string]domain.ID) error {
 	ctx := t.ctx
+	docs := map[string]domain.ID{}
 	for i, a := range doc.Artifacts {
 		name, err := cleanArtifactName(a.Name)
 		if err != nil {
@@ -141,10 +180,26 @@ func (t *txc) importArtifacts(cid domain.ID, doc export.Document, taskID map[int
 		}
 		persona := optID(peID, a.Persona)
 		authorID := optID(peID, a.Author.Persona)
+		k := importDocKey(a, name)
+		docID, ok := docs[k]
+		if !ok {
+			tags, _ := domain.NormalizeTags(a.Tags) // validadas em planArtifacts
+			d, err := t.q.CreateArtifactDocument(ctx, store.CreateArtifactDocumentParams{ID: domain.NewID(), CompanyID: cid,
+				Kind: string(domain.ClassArtifact), Name: name, ProjectID: optID(prID, a.Project), Tags: tags, CreatedAt: a.CreatedAt})
+			if err != nil {
+				return mapErr(err, fmt.Sprintf("import artifact %d document", i))
+			}
+			docID, docs[k] = d.ID, d.ID
+		} else if err := t.q.TouchArtifactDocument(ctx, store.TouchArtifactDocumentParams{CompanyID: cid, ID: docID, Name: name, UpdatedAt: a.CreatedAt}); err != nil {
+			return mapErr(err, fmt.Sprintf("import artifact %d document", i))
+		}
+		sv, change := importSemVer(a)
 		id := domain.NewID()
 		row, err := t.q.CreateArtifact(ctx, store.CreateArtifactParams{ID: id, CompanyID: cid, TaskID: task, RunID: run,
 			ProjectID: optID(prID, a.Project), PersonaID: persona, AuthorType: a.Author.Type, AuthorID: authorID, Name: name, Mime: mt,
-			SizeBytes: int64(len(a.Content)), Sha256: hex.EncodeToString(sum[:]), Version: i32(a.Version), CreatedAt: a.CreatedAt, Storage: t.s.blobs().Active().Name(), Kind: string(domain.ClassArtifact)})
+			SizeBytes: int64(len(a.Content)), Sha256: hex.EncodeToString(sum[:]), Version: i32(a.Version), CreatedAt: a.CreatedAt, Storage: t.s.blobs().Active().Name(), Kind: string(domain.ClassArtifact),
+			DocumentID: docID, VersionMajor: i32(sv.Major), VersionMinor: i32(sv.Minor), ChangeKind: string(change),
+			ChangeReason: strings.TrimSpace(a.ChangeReason)})
 		if err != nil {
 			return mapErr(err, fmt.Sprintf("import artifact %d", i))
 		}
