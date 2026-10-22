@@ -160,14 +160,7 @@ func (s *server) coordVM(ctx context.Context, co domain.Company, t service.TaskV
 	if n := len(rel.Ancestors); n > 0 {
 		c.ParentKey = rel.Ancestors[n-1].Key
 	}
-	if h := t.Hold; h != nil {
-		ch := &views.CoordHold{Reason: h.Reason, By: names.actorName(h.By), When: fmtDateTime(ctx, h.At, loc), OriginKey: h.OriginKey,
-			OriginHref: base + "/tasks/" + h.OriginKey, Inherited: h.Inherited}
-		if !h.Inherited {
-			ch.ResumeHref = taskBase + "/retomar"
-		}
-		c.Hold = ch
-	}
+	c.Hold = holdVM(ctx, base, t, names, loc)
 	pn := personaNamer{byID: map[domain.ID]string{}}
 	for _, p := range personas {
 		pn.byID[p.ID] = p.Name
@@ -177,6 +170,20 @@ func (s *server) coordVM(ctx context.Context, co domain.Company, t service.TaskV
 	c.Plan = s.taskPlanVM(ctx, co, t) // plan-review (ADR-0041)
 	s.gitCoord(ctx, co, t, &c)
 	return c, nil
+}
+
+// holdVM é o aviso de pausa da task (nil se ela não está pausada).
+func holdVM(ctx context.Context, base string, t service.TaskView, names lookup, loc *time.Location) *views.CoordHold {
+	h := t.Hold
+	if h == nil {
+		return nil
+	}
+	ch := &views.CoordHold{Reason: h.Reason, By: names.actorName(h.By), When: fmtDateTime(ctx, h.At, loc), OriginKey: h.OriginKey,
+		OriginHref: base + "/tasks/" + h.OriginKey, Inherited: h.Inherited}
+	if !h.Inherited {
+		ch.ResumeHref = base + "/tasks/" + t.Key + "/retomar"
+	}
+	return ch
 }
 
 // respondTaskSide devolve o painel lateral atualizado (htmx) ou volta para a task (sem JS).

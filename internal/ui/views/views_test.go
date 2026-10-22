@@ -125,7 +125,7 @@ func TestDraftTextareaYieldsToTheSend(t *testing.T) {
 		t.Fatal(err)
 	}
 	out := buf.String()
-	for _, want := range []string{`hx-put="/c/hanko/chat/x/rascunho"`, `hx-sync="closest form:abort"`, `hx-params="message"`, ">oi</textarea>"} {
+	for _, want := range []string{`hx-put="/c/hanko/chat/x/rascunho"`, `hx-sync="closest form:queue last"`, `hx-params="message"`, ">oi</textarea>"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q in %s", want, out)
 		}

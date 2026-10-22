@@ -44,7 +44,7 @@ func TestTaskThreadPollsWhileAwaitingThePersona(t *testing.T) {
 	e.f.Comments = append(e.f.Comments, domain.Comment{ID: domain.NewID(), CompanyID: task.CompanyID, TaskID: task.ID,
 		Author: domain.HumanActor, Body: "e agora?", CreatedAt: uitest.Now().Add(-10 * time.Second)})
 	rec := e.get(t, frag, "HX-Request", "true")
-	wantContains(t, rec, "e agora?", `hx-get="`+frag+`"`, `hx-trigger="every 3s [!document.querySelector('form[data-composer].htmx-request')]"`)
+	wantContains(t, rec, "e agora?", `hx-get="`+frag+`"`, `hx-trigger="every 3s [!document.querySelector(&#39;form[data-composer].htmx-request&#39;)]"`)
 	wantNotContains(t, rec, "<html")
 }
 

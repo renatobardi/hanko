@@ -176,9 +176,9 @@ templ TaskChips(vm TaskVM, oob bool) {
 }
 
 // Thread é a conversa da task; com Live (run ativa ou comentário recente esperando a persona) ela se atualiza a cada
-// 3 s, menos durante um envio do compositor, e para quando a persona termina.
+// 3 s (livePoll) e para quando a persona termina.
 templ Thread(vm TaskVM, base string) {
-	<div id="thread" class="thread" aria-live="polite" if vm.Live { hx-get={ vm.ThreadHref } hx-trigger="every 3s [!document.querySelector('form[data-composer].htmx-request')]" hx-swap="outerHTML" }>
+	<div id="thread" class="thread" aria-live="polite" if vm.Live { hx-get={ vm.ThreadHref } hx-trigger={ livePoll("3s") } hx-swap="outerHTML" }>
 		@HoldBanner(vm.Coord.Hold)
 		if len(vm.Thread) == 0 {
 			<p class="thread-empty">{ i18n.T(ctx, "Nenhum comentário ainda. Escreva abaixo para orientar a persona.") }</p>
@@ -248,6 +248,7 @@ templ CommentForm(vm TaskVM, base string) {
 			hx-target="#thread"
 			hx-swap="outerHTML"
 			hx-disabled-elt="find button[type=submit]"
+			hx-disinherit="hx-disabled-elt"
 			data-composer=""
 			data-dropzone=""
 		>

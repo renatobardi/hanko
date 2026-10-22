@@ -406,28 +406,7 @@ func (s *server) buildTaskVM(r *http.Request, co domain.Company, t service.TaskV
 	if err != nil {
 		return views.TaskVM{}, err
 	}
-	byComment := map[domain.ID][]service.ArtifactView{}
-	for _, a := range atts {
-		if a.CommentID != nil {
-			byComment[*a.CommentID] = append(byComment[*a.CommentID], a)
-		}
-	}
-	sort.SliceStable(comments, func(i, j int) bool { return comments[i].CreatedAt.Before(comments[j].CreatedAt) })
-	for _, c := range comments {
-		m := views.Msg{
-			Attachments: attachmentRows(ctx, byComment[c.ID], base, "", s.now(), loc),
-			Author:      names.actorName(c.Author),
-			Human:       c.Author.Type == domain.ActorHuman,
-			Body:        renderMD(c.Body),
-			When:        fmtDateTime(ctx, c.CreatedAt, loc),
-			Initials:    initialsOf(names.actorName(c.Author)),
-		}
-		if c.RunID != nil {
-			m.RunHref = base + "/execucoes/" + c.RunID.String()
-		}
-		m.Quote, m.QuoteLost = quoteOf(c)
-		vm.Thread = append(vm.Thread, m)
-	}
+	s.fillTaskThread(ctx, &vm, co, t, comments, atts, names, loc)
 
 	var cost float64
 	var activeRun *service.RunView
@@ -452,10 +431,6 @@ func (s *server) buildTaskVM(r *http.Request, co domain.Company, t service.TaskV
 		vm.Runs = append(vm.Runs, mini)
 	}
 	vm.Cost = fmtUSDCtx(ctx, cost)
-	// a conversa se atualiza sozinha enquanto a persona trabalha ou acabou de ser chamada por um comentário (o wake
-	// passa por um job, então a run pode ainda não existir quando o envio responde)
-	vm.ThreadHref = base + "/tasks/" + t.Key + "/conversa"
-	vm.Live = t.Status.Open() && !t.System && t.PersonaID != nil && (vm.ActiveRun != nil || awaitingReply(comments, now))
 	if t.Status.Open() && !t.System {
 		fs, err := s.be.ListFollowups(ctx, co.ID, service.FollowupTarget{TaskID: &t.ID})
 		if err != nil {
@@ -494,9 +469,44 @@ func (s *server) buildTaskVM(r *http.Request, co domain.Company, t service.TaskV
 	return vm, nil
 }
 
+// fillTaskThread monta a conversa da task (comentários em ordem, com os anexos de cada um e o aviso de pausa). Ela se
+// atualiza sozinha (Live) enquanto a task tem run ativa ou o último comentário humano é recente: o wake passa por um
+// job e a persona pode estar na fila, então a run pode ainda não existir quando o envio responde.
+func (s *server) fillTaskThread(ctx context.Context, vm *views.TaskVM, co domain.Company, t service.TaskView, comments []domain.Comment,
+	atts []service.ArtifactView, names lookup, loc *time.Location,
+) {
+	base := "/c/" + co.Slug
+	now := s.now()
+	byComment := map[domain.ID][]service.ArtifactView{}
+	for _, a := range atts {
+		if a.CommentID != nil {
+			byComment[*a.CommentID] = append(byComment[*a.CommentID], a)
+		}
+	}
+	sort.SliceStable(comments, func(i, j int) bool { return comments[i].CreatedAt.Before(comments[j].CreatedAt) })
+	for _, c := range comments {
+		m := views.Msg{
+			Attachments: attachmentRows(ctx, byComment[c.ID], base, "", now, loc),
+			Author:      names.actorName(c.Author),
+			Human:       c.Author.Type == domain.ActorHuman,
+			Body:        renderMD(c.Body),
+			When:        fmtDateTime(ctx, c.CreatedAt, loc),
+			Initials:    initialsOf(names.actorName(c.Author)),
+		}
+		if c.RunID != nil {
+			m.RunHref = base + "/execucoes/" + c.RunID.String()
+		}
+		m.Quote, m.QuoteLost = quoteOf(c)
+		vm.Thread = append(vm.Thread, m)
+	}
+	vm.Coord.Hold = holdVM(ctx, base, t, names, loc)
+	vm.ThreadHref = base + "/tasks/" + t.Key + "/conversa"
+	vm.Live = t.Status.Open() && !t.System && (t.ActiveRunID != nil || awaitingReply(comments, now))
+}
+
 // threadLiveWindow é quanto tempo depois do último comentário humano a conversa da task segue se atualizando sem
-// run ativa: o bastante para o job do wake abrir a run, sem deixar a página consultando para sempre.
-const threadLiveWindow = 2 * time.Minute
+// run ativa: cobre o job do wake e uma persona ocupada com outra task, sem deixar a página consultando para sempre.
+const threadLiveWindow = 10 * time.Minute
 
 // awaitingReply diz se o último comentário (em ordem cronológica) é de uma pessoa e recente.
 func awaitingReply(comments []domain.Comment, now time.Time) bool {
@@ -507,18 +517,32 @@ func awaitingReply(comments []domain.Comment, now time.Time) bool {
 	return last.Author.Type == domain.ActorHuman && now.Sub(last.CreatedAt) < threadLiveWindow
 }
 
-// handleTaskThread é o fragmento da conversa da task que se atualiza enquanto a persona responde.
+// handleTaskThread é o fragmento da conversa da task que se atualiza enquanto a persona responde: lê só o que a
+// conversa mostra (comentários, anexos e nomes), não a página inteira.
 func (s *server) handleTaskThread(w http.ResponseWriter, r *http.Request, co domain.Company) {
-	t, err := s.be.GetTask(r.Context(), co.ID, r.PathValue("task"))
+	ctx := r.Context()
+	t, err := s.be.GetTask(ctx, co.ID, r.PathValue("task"))
 	if err != nil {
 		s.fail(w, r, &co, err)
 		return
 	}
-	vm, err := s.buildTaskVM(r, co, t)
+	personas, err := s.be.ListPersonas(ctx, co.ID)
 	if err != nil {
 		s.fail(w, r, &co, err)
 		return
 	}
+	comments, err := s.be.ListComments(ctx, co.ID, t.ID)
+	if err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
+	atts, err := s.taskAttachments(ctx, co, t.ID)
+	if err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
+	var vm views.TaskVM
+	s.fillTaskThread(ctx, &vm, co, t, comments, atts, s.lookup(ctx, personas, nil), loadLoc(co.Timezone))
 	s.render(w, r, http.StatusOK, views.Thread(vm, "/c/"+co.Slug))
 }
 

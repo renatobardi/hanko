@@ -28,6 +28,10 @@ test("chat: conversar com a Ada e continuar a conversa", async ({ page }) => {
 // Regressão: o autosave do rascunho (1 s depois da última tecla) disparava a limpeza do compositor, que apagava o
 // texto e o arquivo escolhido. Agora só o envio limpa, e o anexo chega junto da mensagem.
 test("chat: o rascunho salvo não apaga o texto nem o anexo; o envio leva os dois", async ({ page }) => {
+  const consoleErrors: string[] = [];
+  page.on("console", (m) => {
+    if (m.type() === "error") consoleErrors.push(m.text());
+  });
   await ensurePersona(page, "Ada");
   await page.goto(`${B}/chat`);
   const ada = await page.locator("#c-persona option", { hasText: "Ada" }).first().getAttribute("value");
@@ -56,4 +60,6 @@ test("chat: o rascunho salvo não apaga o texto nem o anexo; o envio leva os doi
   // o rascunho foi apagado pelo envio e não volta ao recarregar
   await page.reload();
   await expect(page.getByPlaceholder(/Escreva uma mensagem/)).toHaveValue("");
+  // o autosave não herda o hx-disabled-elt do formulário (o htmx reclamaria a cada tecla)
+  expect(consoleErrors.filter((t) => t.includes("hx-disabled-elt"))).toEqual([]);
 });

@@ -65,9 +65,10 @@ templ DraftText(text string) {
 }
 
 // DraftTextarea é a caixa de texto de um compositor com o rascunho do servidor: salva sozinha um segundo depois da
-// última tecla e ao sair do campo, sem recarregar a página. O autosave se sincroniza com o formulário: enviar a
-// mensagem cancela um salvamento em andamento e nenhum sai durante o envio (senão ele regravaria o rascunho que o envio
-// acabou de apagar).
+// última tecla e ao sair do campo, sem recarregar a página. O autosave entra na fila do formulário (queue last): um
+// envio espera o salvamento em andamento terminar, e um salvamento pedido durante o envio sai depois dele, com o que
+// estiver na caixa (vazia, se o envio deu certo), então não regrava o rascunho que o envio apagou nem perde o texto
+// mais novo.
 templ DraftTextarea(name, placeholder, label string, d DraftFields) {
 	<textarea
 		name={ name }
@@ -80,7 +81,7 @@ templ DraftTextarea(name, placeholder, label string, d DraftFields) {
 			hx-swap="outerHTML"
 			hx-params={ name }
 			hx-encoding="application/x-www-form-urlencoded"
-			hx-sync="closest form:abort"
+			hx-sync="closest form:queue last"
 		}
 	>{ d.Text }</textarea>
 	if d.Action != "" {
