@@ -721,6 +721,23 @@ type InboxState struct {
 	UpdatedAt   time.Time
 }
 
+type InstanceBackup struct {
+	ID            uuid.UUID
+	Kind          string
+	Status        string
+	Label         string
+	FileName      string
+	SizeBytes     int64
+	SchemaVersion int64
+	Blobs         int32
+	Error         string
+	ActorType     string
+	ActorID       *uuid.UUID
+	ScheduledFor  *time.Time
+	StartedAt     time.Time
+	FinishedAt    *time.Time
+}
+
 type InstanceSecret struct {
 	Name      string
 	ValueEnc  string
@@ -1565,6 +1582,17 @@ type SubscriptionPeriod struct {
 	SubscriptionID uuid.UUID
 	StartedAt      time.Time
 	EndedAt        *time.Time
+}
+
+type SystemFlow struct {
+	Key         string
+	Cron        string
+	Timezone    string
+	Enabled     bool
+	LastFiredAt *time.Time
+	NextFireAt  *time.Time
+	UpdatedBy   *uuid.UUID
+	UpdatedAt   time.Time
 }
 
 type Task struct {

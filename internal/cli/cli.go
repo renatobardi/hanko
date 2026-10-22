@@ -17,6 +17,7 @@ import (
 
 	"github.com/renatobardi/hanko/internal/client"
 	"github.com/renatobardi/hanko/internal/i18n"
+	"github.com/renatobardi/hanko/internal/ops"
 	"github.com/renatobardi/hanko/internal/storage"
 )
 
@@ -31,6 +32,14 @@ type Runtime struct {
 	Auth func(ctx context.Context) (AuthAdmin, error)
 	// BlobsMigrate move o conteúdo dos artefatos entre drivers (`hanko blobs migrate`): usa o banco e o env do processo.
 	BlobsMigrate func(ctx context.Context, a BlobsMigrateArgs) (storage.MigrateReport, error)
+	// Doctor roda as checagens da instalação (`hanko doctor`, ADR-0062).
+	Doctor func(ctx context.Context) (ops.Report, error)
+	// Backup abre o acesso local aos backups (`hanko backup …`); a conexão ao banco é aberta só quando preciso.
+	Backup func(ctx context.Context) (BackupAdmin, error)
+	// ServeEmbedded sobe o Postgres local e o servidor (`hanko serve --embedded-pg`, só dev/trial, ADR-0063).
+	ServeEmbedded func(ctx context.Context, o EmbeddedOptions) error
+	// Ops injeta o mundo externo de update e service (testes); o zero value usa o computador de verdade.
+	Ops OpsRuntime
 }
 
 // Exit codes.
@@ -173,6 +182,7 @@ func (e *env) root() *cobra.Command {
 	root.AddCommand(e.pipelinesCmds()...)
 	root.AddCommand(e.planPolicyCmd())                                                                                // plan-review (ADR-0041)
 	root.AddCommand(e.stageCmd())                                                                                     // pipelines sobre tasks (ADR-0048)
+	root.AddCommand(e.doctorCmd(), e.updateCmd(), e.serviceCmd(), e.backupCmd())                                      // operação da instância (ADR-0062)
 	root.AddCommand(e.contextCmd(), e.sandboxCmd(), e.onboardCmd(), e.profileCmd(), e.favoriteCmd(), e.whatsNewCmd()) // trilha onda 3 (ADR-0061)
 	e.localizeHelp(root)
 	return root
