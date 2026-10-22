@@ -218,6 +218,9 @@ func (f *Fake) SetCompanyBudget(_ context.Context, _ domain.Actor, _ domain.ID, 
 // ---- flows ----
 
 func (f *Fake) flowView(fl domain.Flow) service.FlowView {
+	if fl.Revision == 0 {
+		fl.Revision = 1 // o service começa em 1
+	}
 	v := service.FlowView{Flow: fl}
 	for _, p := range f.Personas {
 		if p.ID == fl.PersonaID {

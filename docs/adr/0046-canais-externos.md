@@ -51,13 +51,13 @@ espera o modelo nem a persona). Corpo até 2 MiB. Canal desligado ou inexistente
 2. **Comandos** (pt-BR): `/vincular CÓDIGO`, `/desvincular`, `/pendentes` (gates que a pessoa pode decidir), `/novo`
    (recomeça a conversa), `/ajuda`.
 3. **Gates**: ao ser pedido, um gate vira uma mensagem para cada pessoa vinculada **que pode decidi-lo** (papel e
-   audiência do ADR-0041), com botões Aprovar / Rejeitar / Abrir. O clique chega como `callback_query` e executa
+   audiência do ADR-0041), com botões Aprovar / Rejeitar (só para `approval`, `task_review`, `tool` e `memory`; gates de contratação e de instrução levam só o resumo e o link). O clique chega como `callback_query` e executa
    **`DecideGate` como o usuário vinculado**, com o mesmo `require`/audiência de qualquer superfície (um membro removido
    ou sem papel recebe "sem permissão"). Gate já decidido responde "já decidido". Gates `question`, `plan` e os que pedem
    nota (mudanças pedidas) mostram só o resumo e o link: decidir exige a UI.
 4. **Conversar**: texto livre de uma pessoa vinculada abre (ou continua) a **conversa direta** com a persona do canal,
    como ela, e a resposta da persona é espelhada de volta ao chat. Anexos (foto/documento até a cota de anexos do
-   ADR-0052) são baixados e viram **anexos da mensagem**; arquivos que a persona deixa na conversa saem como documento.
+   ADR-0052) são baixados e viram **anexos da mensagem**; documentos só saem ao chat por envio explícito de um admin (`SendChannelMessage` com `artifact_ids`).
 5. **Respostas rápidas (decision model, #27)**: nova feature `fast_response`. Antes de acordar a persona, se a feature está
    ligada, o decision model recebe a mensagem e um retrato curto da empresa (gates pendentes da pessoa, contagem de tasks)
    e devolve `{"action":"reply"|"escalate","reply":"…"}`. `reply` é enviado direto (custo no ledger, ator `system`);
@@ -83,7 +83,8 @@ espera o modelo nem a persona). Corpo até 2 MiB. Canal desligado ou inexistente
 
 ### F. Segurança e operação
 - Toda escrita gera `activity_event` na mesma transação: `channel.created|updated|enabled|disabled|deleted`,
-  `channel.identity_linked|identity_revoked`, `channel.message_received|message_sent|message_failed`, `channel.reply_fast`.
+  `channel.identity_requested|identity_linked|identity_revoked`, `channel.message_received|message_sent|message_failed`, `channel.reply_fast`.
+- Review no GitHub: o `APPROVE` exige admin humano; a tool MCP `hanko_publish_review` recusa `APPROVE`.
 - Quem administra canais é **admin**; vincular é do próprio usuário (member). Persona nunca cria nem altera canais.
 - Mensagens de entrada têm tamanho cortado (8000 caracteres) e entram como **dado**: nunca viram instrução do sistema;
   o texto do usuário vai à persona como mensagem de chat/comentário comum.

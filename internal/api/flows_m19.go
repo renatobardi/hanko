@@ -172,8 +172,10 @@ type createFlowTriggerIn struct {
 }
 
 type updateFlowTriggerIn struct {
-	flowTriggerPath
-	Body struct {
+	CompanyPath
+	Flow    string `path:"flow" doc:"Id ou slug do fluxo."`
+	Trigger string `path:"trigger" format:"uuid" doc:"Id do gatilho."`
+	Body    struct {
 		Name        *string            `json:"name,omitempty"`
 		Enabled     *bool              `json:"enabled,omitempty"`
 		RatePerMin  *int               `json:"rate_per_min,omitempty" minimum:"1" maximum:"600"`
