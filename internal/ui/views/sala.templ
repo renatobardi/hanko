@@ -141,9 +141,9 @@ templ RoomsPage(sh Shell, vm RoomsVM) {
 }
 
 // RoomThread é a lista de mensagens; enquanto uma persona responde, ela se atualiza a cada 2 s e, ociosa,
-// é trocada por uma versão sem o gatilho.
+// é trocada por uma versão sem o gatilho. Pausa durante um envio do compositor (livePoll).
 templ RoomThread(vm RoomVM) {
-	<div id="room-thread" class="thread" aria-live="polite" if vm.Busy { hx-get={ vm.ThreadHref } hx-trigger="every 2s" hx-swap="outerHTML" }>
+	<div id="room-thread" class="thread" aria-live="polite" if vm.Busy { hx-get={ vm.ThreadHref } hx-trigger={ livePoll("2s") } hx-swap="outerHTML" }>
 		if len(vm.Messages) == 0 {
 			<p class="thread-empty">{ i18n.T(ctx, "Nenhuma mensagem ainda. Cite uma persona com @ para começar.") }</p>
 		}
@@ -229,7 +229,9 @@ templ RoomComposer(vm RoomVM) {
 			hx-encoding="multipart/form-data"
 			hx-target="#room-thread"
 			hx-swap="outerHTML"
-			hx-on::after-request="if(event.detail.successful){this.querySelector('textarea').value='';var f=this.querySelector('input[type=file]');if(f){f.value='';f.dispatchEvent(new Event('change',{bubbles:true}));}}"
+			hx-disabled-elt="find button[type=submit]"
+			hx-disinherit="hx-disabled-elt"
+			data-composer=""
 			data-draft={ vm.DraftKey }
 			data-dropzone=""
 		>

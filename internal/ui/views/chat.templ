@@ -81,9 +81,9 @@ templ ChatsPage(sh Shell, vm ChatsVM) {
 }
 
 // ChatThread is the message list; while the persona answers it polls itself every two seconds and, once
-// idle, is replaced by a version without the trigger.
+// idle, is replaced by a version without the trigger. It pauses while the composer sends (livePoll).
 templ ChatThread(vm ChatVM) {
-	<div id="chat-thread" class="thread" aria-live="polite" if vm.Busy { hx-get={ vm.ThreadHref } hx-trigger="every 2s" hx-swap="outerHTML" }>
+	<div id="chat-thread" class="thread" aria-live="polite" if vm.Busy { hx-get={ vm.ThreadHref } hx-trigger={ livePoll("2s") } hx-swap="outerHTML" }>
 		if len(vm.Messages) == 0 {
 			<p class="thread-empty">{ i18n.T(ctx, "Nenhuma mensagem ainda.") }</p>
 		}
@@ -165,7 +165,9 @@ templ ChatComposer(vm ChatVM) {
 			hx-encoding="multipart/form-data"
 			hx-target="#chat-thread"
 			hx-swap="outerHTML"
-			hx-on::after-request="if(event.detail.successful){this.querySelector('textarea').value='';var f=this.querySelector('input[type=file]');if(f){f.value='';f.dispatchEvent(new Event('change',{bubbles:true}));}}"
+			hx-disabled-elt="find button[type=submit]"
+			hx-disinherit="hx-disabled-elt"
+			data-composer=""
 			data-dropzone=""
 		>
 			if vm.Blocked != "" {
