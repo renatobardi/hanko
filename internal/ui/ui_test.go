@@ -105,6 +105,27 @@ func wantNotContains(t *testing.T, rec *httptest.ResponseRecorder, subs ...strin
 	}
 }
 
+// wantNotContainsInMain é wantNotContains restrito ao conteúdo principal da página (<main id="content">): a barra
+// lateral é chrome global (favoritos e recentes citam páginas visitadas) e não faz parte do que uma lista mostra.
+func wantNotContainsInMain(t *testing.T, rec *httptest.ResponseRecorder, subs ...string) {
+	t.Helper()
+	body := rec.Body.String()
+	start := strings.Index(body, `id="content"`)
+	if start < 0 {
+		t.Fatalf("a página não tem <main id=\"content\">\nbody: %.600s", body)
+	}
+	end := strings.Index(body[start:], "</main>")
+	if end < 0 {
+		t.Fatalf("a página não fecha o <main>")
+	}
+	content := body[start : start+end]
+	for _, s := range subs {
+		if strings.Contains(content, s) {
+			t.Errorf("o conteúdo principal não pode conter %q", s)
+		}
+	}
+}
+
 func TestRoot(t *testing.T) {
 	t.Run("sem empresa vai para o onboarding", func(t *testing.T) {
 		e := newEnv(t, uitest.None())

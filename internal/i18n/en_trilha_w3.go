@@ -90,7 +90,6 @@ var enTrilhaW3 = map[string]string{
 	"Servidores conhecidos pela CLI: adiciona, troca e lista (o `hanko login` também grava aqui)": "Servers known to the CLI: add, switch and list (`hanko login` also saves here)",
 	"Lista os contextos salvos (o ativo leva *)":                                                  "List the saved contexts (the active one is marked *)",
 	"nenhum contexto salvo: use `hanko login` ou `hanko context add`":                             "no saved context: use `hanko login` or `hanko context add`",
-	"USUÁRIO":                 "USER",
 	"DISPOSITIVO":             "DEVICE",
 	"Mostra o contexto ativo": "Show the active context",
 	"nenhum contexto ativo (servidor padrão: %s)\n":                        "no active context (default server: %s)\n",
