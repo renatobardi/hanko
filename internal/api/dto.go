@@ -455,38 +455,46 @@ type CostSummary struct {
 
 // Flow é uma definição recorrente que cria tasks por cron.
 type Flow struct {
-	ID              string     `json:"id" format:"uuid"`
-	CompanyID       string     `json:"company_id" format:"uuid"`
-	Slug            string     `json:"slug" example:"resumo-diario"`
-	Name            string     `json:"name" example:"Resumo diário"`
-	Description     string     `json:"description,omitempty"`
-	Cron            string     `json:"cron" example:"0 9 * * 1-5"`
-	Timezone        string     `json:"timezone" example:"America/Sao_Paulo"`
-	Enabled         bool       `json:"enabled"`
-	PersonaID       string     `json:"persona_id" format:"uuid"`
-	PersonaName     string     `json:"persona_name"`
-	ProjectID       string     `json:"project_id,omitempty" format:"uuid"`
-	ProjectName     string     `json:"project_name,omitempty"`
-	Priority        string     `json:"priority" enum:"critical,high,medium,low"`
-	TaskTitle       string     `json:"task_title" doc:"Modelo do título: {{data}}, {{n}}."`
-	TaskDescription string     `json:"task_description"`
-	LastFiredAt     *time.Time `json:"last_fired_at,omitempty"`
-	NextFireAt      *time.Time `json:"next_fire_at,omitempty"`
-	CreatedAt       time.Time  `json:"created_at"`
-	UpdatedAt       time.Time  `json:"updated_at"`
+	ID              string         `json:"id" format:"uuid"`
+	CompanyID       string         `json:"company_id" format:"uuid"`
+	Slug            string         `json:"slug" example:"resumo-diario"`
+	Name            string         `json:"name" example:"Resumo diário"`
+	Description     string         `json:"description,omitempty"`
+	Cron            string         `json:"cron" example:"0 9 * * 1-5" doc:"Vazio = sem agenda (só gatilhos e Rodar agora)."`
+	Timezone        string         `json:"timezone" example:"America/Sao_Paulo"`
+	Enabled         bool           `json:"enabled"`
+	PersonaID       string         `json:"persona_id" format:"uuid"`
+	PersonaName     string         `json:"persona_name"`
+	ProjectID       string         `json:"project_id,omitempty" format:"uuid"`
+	ProjectName     string         `json:"project_name,omitempty"`
+	Priority        string         `json:"priority" enum:"critical,high,medium,low"`
+	TaskTitle       string         `json:"task_title" doc:"Modelo do título: {{data}}, {{n}}, {{semana}}, {{disparo}} e as variáveis declaradas."`
+	TaskDescription string         `json:"task_description"`
+	Variables       []FlowVariable `json:"variables" doc:"Variáveis declaradas ({{nome}} no título e na descrição)."`
+	Revision        int            `json:"revision" doc:"Revisão vigente da definição."`
+	ArchivedAt      *time.Time     `json:"archived_at,omitempty" doc:"Preenchido quando o fluxo está arquivado (não dispara por caminho nenhum)."`
+	Triggers        []FlowTrigger  `json:"triggers,omitempty" doc:"Só na leitura de um fluxo."`
+	LastFiredAt     *time.Time     `json:"last_fired_at,omitempty"`
+	NextFireAt      *time.Time     `json:"next_fire_at,omitempty"`
+	CreatedAt       time.Time      `json:"created_at"`
+	UpdatedAt       time.Time      `json:"updated_at"`
 }
 
 // FlowFire é um disparo de um fluxo.
 type FlowFire struct {
-	ID           string    `json:"id" format:"uuid"`
-	FlowID       string    `json:"flow_id" format:"uuid"`
-	ScheduledFor time.Time `json:"scheduled_for"`
-	TaskID       string    `json:"task_id,omitempty" format:"uuid"`
-	TaskKey      string    `json:"task_key,omitempty" example:"HNK-12"`
-	TaskTitle    string    `json:"task_title,omitempty"`
-	TaskStatus   string    `json:"task_status,omitempty"`
-	Manual       bool      `json:"manual,omitempty" doc:"true no disparo de \"Rodar agora\" (não é uma ocorrência do cron)."`
-	CreatedAt    time.Time `json:"created_at"`
+	ID           string            `json:"id" format:"uuid"`
+	FlowID       string            `json:"flow_id" format:"uuid"`
+	ScheduledFor time.Time         `json:"scheduled_for"`
+	TaskID       string            `json:"task_id,omitempty" format:"uuid"`
+	TaskKey      string            `json:"task_key,omitempty" example:"HNK-12"`
+	TaskTitle    string            `json:"task_title,omitempty"`
+	TaskStatus   string            `json:"task_status,omitempty"`
+	Manual       bool              `json:"manual,omitempty" doc:"true no disparo de \"Rodar agora\" (não é uma ocorrência do cron)."`
+	Source       string            `json:"source" enum:"schedule,manual,webhook,event" doc:"Origem do disparo."`
+	TriggerID    string            `json:"trigger_id,omitempty" format:"uuid"`
+	TriggerName  string            `json:"trigger_name,omitempty"`
+	Variables    map[string]string `json:"variables,omitempty" doc:"Valores efetivos das variáveis neste disparo."`
+	CreatedAt    time.Time         `json:"created_at"`
 }
 
 // FlowRun é o resultado de "rodar agora".
@@ -731,18 +739,21 @@ func flowOut(f service.FlowView) Flow {
 	return Flow{ID: idStr(f.ID), CompanyID: idStr(f.CompanyID), Slug: f.Slug, Name: f.Name, Description: f.Description,
 		Cron: f.Cron, Timezone: f.Timezone, Enabled: f.Enabled, PersonaID: idStr(f.PersonaID), PersonaName: f.PersonaName,
 		ProjectID: idPtr(f.ProjectID), ProjectName: f.ProjectName, Priority: string(f.Priority), TaskTitle: f.TaskTitle,
-		TaskDescription: f.TaskDescription, LastFiredAt: f.LastFiredAt, NextFireAt: f.NextFireAt,
+		TaskDescription: f.TaskDescription, Variables: flowVarsOut(f.Variables), Revision: f.Revision, ArchivedAt: f.ArchivedAt,
+		Triggers: triggersOut(f.Triggers), LastFiredAt: f.LastFiredAt, NextFireAt: f.NextFireAt,
 		CreatedAt: f.CreatedAt, UpdatedAt: f.UpdatedAt}
 }
 
 func flowFireOut(f service.FlowFireView) FlowFire {
 	return FlowFire{ID: idStr(f.ID), FlowID: idStr(f.FlowID), ScheduledFor: f.ScheduledFor, TaskID: idPtr(f.TaskID),
-		TaskKey: f.TaskKey, TaskTitle: f.TaskTitle, TaskStatus: f.TaskStatus, Manual: f.Manual, CreatedAt: f.CreatedAt}
+		TaskKey: f.TaskKey, TaskTitle: f.TaskTitle, TaskStatus: f.TaskStatus, Manual: f.Manual, Source: string(f.Source),
+		TriggerID: idPtr(f.TriggerID), TriggerName: f.TriggerName, Variables: f.Variables, CreatedAt: f.CreatedAt}
 }
 
 func flowRunOut(r service.FlowFireResult) FlowRun {
 	out := FlowRun{Fire: FlowFire{ID: idStr(r.Fire.ID), FlowID: idStr(r.Fire.FlowID), ScheduledFor: r.Fire.ScheduledFor,
-		TaskID: idPtr(r.Fire.TaskID), Manual: r.Fire.Manual, CreatedAt: r.Fire.CreatedAt}, Duplicate: r.Duplicate}
+		TaskID: idPtr(r.Fire.TaskID), Manual: r.Fire.Manual, Source: string(r.Fire.Source), TriggerID: idPtr(r.Fire.TriggerID),
+		Variables: r.Fire.Variables, CreatedAt: r.Fire.CreatedAt}, Duplicate: r.Duplicate}
 	if r.Task != nil {
 		t := taskOut(*r.Task)
 		out.Task = &t

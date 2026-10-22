@@ -31,6 +31,7 @@ var featureTexts = map[domain.DecisionFeature][2]string{
 	domain.FeatureTriage:          {i18n.N("Triagem"), i18n.N("Sugere a persona e a prioridade para uma task nova, como comentário do sistema.")},
 	domain.FeaturePhaseClassifier: {i18n.N("Classificador de fase"), i18n.N("Sugere em qual etapa de um pipeline um texto se encaixa.")},
 	domain.FeatureNameSummary:     {i18n.N("Nome e resumo"), i18n.N("Gera um nome curto e um resumo para um texto longo.")},
+	domain.FeatureFastResponse:    {i18n.N("Resposta rápida"), i18n.N("Responde direto a perguntas simples que chegam por um canal externo, sem acordar a persona.")},
 }
 
 func (s *server) decisionBE() (decisionBackend, bool) {

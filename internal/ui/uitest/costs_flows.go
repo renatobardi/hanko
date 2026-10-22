@@ -242,7 +242,9 @@ func (f *Fake) ListFlows(_ context.Context, _ domain.ID) ([]service.FlowView, er
 	}
 	out := make([]service.FlowView, 0, len(f.Flows))
 	for _, v := range f.Flows {
-		out = append(out, f.flowView(v.Flow))
+		if v.ArchivedAt == nil {
+			out = append(out, f.flowView(v.Flow))
+		}
 	}
 	return out, nil
 }
@@ -255,7 +257,7 @@ func (f *Fake) GetFlow(_ context.Context, _ domain.ID, ref string) (service.Flow
 	}
 	for _, v := range f.Flows {
 		if v.Slug == ref || v.ID.String() == ref {
-			return f.flowView(v.Flow), nil
+			return f.withTriggers(f.flowView(v.Flow)), nil
 		}
 	}
 	return service.FlowView{}, domain.ErrNotFound
@@ -275,7 +277,15 @@ func (f *Fake) CreateFlow(_ context.Context, _ domain.Actor, companyID domain.ID
 	if tz == "" {
 		tz = f.Companies[0].Timezone
 	}
-	next, err := service.NextCron(in.Cron, tz, Now())
+	var next *time.Time
+	if strings.TrimSpace(in.Cron) != "" {
+		n, err := service.NextCron(in.Cron, tz, Now())
+		if err != nil {
+			return service.FlowView{}, err
+		}
+		next = &n
+	}
+	vars, err := domain.NormalizeFlowVariables(in.Variables)
 	if err != nil {
 		return service.FlowView{}, err
 	}
@@ -296,7 +306,7 @@ func (f *Fake) CreateFlow(_ context.Context, _ domain.Actor, companyID domain.ID
 	now := Now()
 	fl := domain.Flow{ID: domain.NewID(), CompanyID: companyID, Slug: slug, Name: in.Name, Description: in.Description, Cron: in.Cron, Timezone: tz,
 		Enabled: enabled, PersonaID: in.PersonaID, ProjectID: in.ProjectID, Priority: prio, TaskTitle: in.TaskTitle, TaskDescription: in.TaskDescription,
-		NextFireAt: &next, CreatedAt: now, UpdatedAt: now}
+		Variables: vars, Revision: 1, NextFireAt: next, CreatedAt: now, UpdatedAt: now}
 	v := f.flowView(fl)
 	f.Flows = append(f.Flows, v)
 	return v, nil
@@ -319,11 +329,22 @@ func (f *Fake) UpdateFlow(_ context.Context, _ domain.Actor, _, flowID domain.ID
 			if in.Timezone != nil {
 				tz = *in.Timezone
 			}
-			next, err := service.NextCron(*in.Cron, tz, Now())
+			if strings.TrimSpace(*in.Cron) == "" {
+				fl.Cron, fl.NextFireAt = "", nil
+			} else {
+				next, err := service.NextCron(*in.Cron, tz, Now())
+				if err != nil {
+					return service.FlowView{}, err
+				}
+				fl.Cron, fl.NextFireAt = *in.Cron, &next
+			}
+		}
+		if in.Variables != nil {
+			vars, err := domain.NormalizeFlowVariables(*in.Variables)
 			if err != nil {
 				return service.FlowView{}, err
 			}
-			fl.Cron, fl.NextFireAt = *in.Cron, &next
+			fl.Variables = vars
 		}
 		if in.Timezone != nil {
 			fl.Timezone = *in.Timezone

@@ -83,7 +83,7 @@ var enM12 = map[string]string{
 	"prazo de cada chamada em segundos (padrão 30)":                                     "timeout of each call in seconds (default 30)",
 	"salva desligado": "save turned off",
 	"Remove o decision model e desliga as features":                    "Removes the decision model and turns the features off",
-	"<triage|phase_classifier|name_summary> <on|off>":                  "<triage|phase_classifier|name_summary> <on|off>",
+	"<triage|phase_classifier|name_summary|fast_response> <on|off>":    "<triage|phase_classifier|name_summary|fast_response> <on|off>",
 	"Liga ou desliga uma feature (--model dá um modelo próprio a ela)": "Turns a feature on or off (--model gives it its own model)",
 	"use on ou off, não %q":                                            "use on or off, not %q",
 	"Feature %s: %s\n":                                                 "Feature %s: %s\n",

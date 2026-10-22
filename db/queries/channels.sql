@@ -136,3 +136,14 @@ RETURNING *;
 
 -- name: PruneChannelMessages :execrows
 DELETE FROM channel_messages WHERE channel_id = @channel_id AND created_at < @before AND status IN ('processed', 'ignored', 'sent');
+
+-- name: ChannelCounts :one
+SELECT
+    (SELECT count(*) FROM channel_identities ci WHERE ci.channel_id = @channel_id AND ci.status = 'linked')::bigint AS linked,
+    (SELECT count(*) FROM channel_identities cp WHERE cp.channel_id = @channel_id AND cp.status = 'pending')::bigint AS pending,
+    (SELECT count(*) FROM channel_messages cm WHERE cm.channel_id = @channel_id AND cm.direction = 'out' AND cm.status = 'failed')::bigint AS failed;
+
+-- name: ListLinkedChannelIdentitiesWithUser :many
+SELECT i.*, u.email AS user_email, u.name AS user_name FROM channel_identities i
+JOIN users u ON u.id = i.user_id
+WHERE i.channel_id = @channel_id AND i.status = 'linked' ORDER BY i.created_at, i.id;

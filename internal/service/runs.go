@@ -866,6 +866,10 @@ func (s *Service) FinishRun(ctx context.Context, companyID, runID domain.ID, in 
 						return err
 					}
 				}
+				// task nascida de um comentário do GitHub: o resumo é publicado no PR/issue (ADR-0046)
+				if err := t.channelMirrorTask(companyID, *row.TaskID, res.Summary); err != nil {
+					return err
+				}
 			}
 		}
 		if (in.Status == domain.RunFailed || in.Status == domain.RunExpired) && !isReview && !isMemory && !isSkillTest && !isStatusCard {

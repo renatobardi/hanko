@@ -644,6 +644,8 @@ type FlowRow struct {
 	Last        string
 	ToggleHref  string
 	RunHref     string
+	Archived    bool
+	RunLink     bool // fluxo com variáveis: "Rodar agora" abre a tela do fluxo, que pede os valores
 }
 
 type FlowsVM struct {
@@ -655,6 +657,10 @@ type FlowsVM struct {
 	Rows     []FlowRow
 	NewHref  string
 	Notice   string
+	// Arquivados: a lista mostra os fluxos arquivados; ViewHref/ViewLabel alternam entre ativos e arquivados.
+	Archived  bool
+	ViewHref  string
+	ViewLabel string
 }
 
 type FlowFormVM struct {
@@ -667,6 +673,7 @@ type FlowFormVM struct {
 	Enabled         bool
 	TaskTitle       string
 	TaskDescription string
+	Variables       string // uma por linha: nome, nome!, nome=padrão ou nome!=padrão
 	PersonaOptions  []Option
 	ProjectOptions  []Option
 	PriorityOptions []Option
@@ -686,6 +693,8 @@ type CronHintVM struct {
 
 type FireRow struct {
 	When     string
+	Source   string
+	Values   string
 	TaskKey  string
 	TaskHref string
 	Title    string
@@ -709,6 +718,7 @@ type FlowVM struct {
 	Notice     string
 	Error      string
 	Fired      int
+	M19        FlowM19VM
 }
 
 // ---- auth ----

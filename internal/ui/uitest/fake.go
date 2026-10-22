@@ -21,28 +21,30 @@ import (
 // Fake is a mutable in-memory backend. Err injects a failure per method name
 // (e.g. Err["GetTask"] = domain.ErrNotFound).
 type Fake struct {
-	mu         sync.Mutex
-	Err        map[string]error
-	Companies  []domain.Company
-	Personas   []domain.Persona
-	Projects   []domain.Project
-	Workspaces []domain.Workspace
-	Tasks      []service.TaskView
-	Comments   []domain.Comment
-	Runs       []service.RunView
-	Events     map[domain.ID][]domain.RunEvent
-	Activity   []domain.ActivityEvent
-	Health     map[domain.ID]service.PersonaHealth
-	Alerts     []domain.Alert
-	Reviewing  []service.InboxReview // automatic reviews in progress (Caixa de entrada)
-	Gates      []service.GateView
-	Calls      []string // names of mutating calls, in order
-	Ledger     []LedgerEntry
-	Flows      []service.FlowView
-	Fires      []service.FlowFireView
-	Subs       []service.SubscriptionStatus
-	Members    []domain.Member
-	Invites    []domain.Invite
+	mu           sync.Mutex
+	Err          map[string]error
+	Companies    []domain.Company
+	Personas     []domain.Persona
+	Projects     []domain.Project
+	Workspaces   []domain.Workspace
+	Tasks        []service.TaskView
+	FlowTriggers []domain.FlowTrigger
+	FlowRevs     []domain.FlowRevision
+	Comments     []domain.Comment
+	Runs         []service.RunView
+	Events       map[domain.ID][]domain.RunEvent
+	Activity     []domain.ActivityEvent
+	Health       map[domain.ID]service.PersonaHealth
+	Alerts       []domain.Alert
+	Reviewing    []service.InboxReview // automatic reviews in progress (Caixa de entrada)
+	Gates        []service.GateView
+	Calls        []string // names of mutating calls, in order
+	Ledger       []LedgerEntry
+	Flows        []service.FlowView
+	Fires        []service.FlowFireView
+	Subs         []service.SubscriptionStatus
+	Members      []domain.Member
+	Invites      []domain.Invite
 	// Artefatos e metas (ADR-0028). ArtifactData guarda o conteúdo de cada versão; os limites zerados valem o padrão.
 	Artifacts          []domain.Artifact
 	ArtifactData       map[domain.ID][]byte

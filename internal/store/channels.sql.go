@@ -12,6 +12,26 @@ import (
 	"github.com/google/uuid"
 )
 
+const channelCounts = `-- name: ChannelCounts :one
+SELECT
+    (SELECT count(*) FROM channel_identities ci WHERE ci.channel_id = $1 AND ci.status = 'linked')::bigint AS linked,
+    (SELECT count(*) FROM channel_identities cp WHERE cp.channel_id = $1 AND cp.status = 'pending')::bigint AS pending,
+    (SELECT count(*) FROM channel_messages cm WHERE cm.channel_id = $1 AND cm.direction = 'out' AND cm.status = 'failed')::bigint AS failed
+`
+
+type ChannelCountsRow struct {
+	Linked  int64
+	Pending int64
+	Failed  int64
+}
+
+func (q *Queries) ChannelCounts(ctx context.Context, channelID uuid.UUID) (ChannelCountsRow, error) {
+	row := q.db.QueryRow(ctx, channelCounts, channelID)
+	var i ChannelCountsRow
+	err := row.Scan(&i.Linked, &i.Pending, &i.Failed)
+	return i, err
+}
+
 const channelSecretUsage = `-- name: ChannelSecretUsage :many
 SELECT id, name, token_ref, webhook_secret_ref FROM channels WHERE company_id = $1
 `
@@ -859,6 +879,64 @@ func (q *Queries) ListEnabledChannelsByKind(ctx context.Context, arg ListEnabled
 			&i.InboundToken,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listLinkedChannelIdentitiesWithUser = `-- name: ListLinkedChannelIdentitiesWithUser :many
+SELECT i.id, i.company_id, i.channel_id, i.user_id, i.external_id, i.external_label, i.status, i.code_hash, i.code_expires_at, i.linked_at, i.created_at, i.updated_at, u.email AS user_email, u.name AS user_name FROM channel_identities i
+JOIN users u ON u.id = i.user_id
+WHERE i.channel_id = $1 AND i.status = 'linked' ORDER BY i.created_at, i.id
+`
+
+type ListLinkedChannelIdentitiesWithUserRow struct {
+	ID            uuid.UUID
+	CompanyID     uuid.UUID
+	ChannelID     uuid.UUID
+	UserID        uuid.UUID
+	ExternalID    *string
+	ExternalLabel string
+	Status        string
+	CodeHash      string
+	CodeExpiresAt *time.Time
+	LinkedAt      *time.Time
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	UserEmail     string
+	UserName      string
+}
+
+func (q *Queries) ListLinkedChannelIdentitiesWithUser(ctx context.Context, channelID uuid.UUID) ([]ListLinkedChannelIdentitiesWithUserRow, error) {
+	rows, err := q.db.Query(ctx, listLinkedChannelIdentitiesWithUser, channelID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListLinkedChannelIdentitiesWithUserRow{}
+	for rows.Next() {
+		var i ListLinkedChannelIdentitiesWithUserRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CompanyID,
+			&i.ChannelID,
+			&i.UserID,
+			&i.ExternalID,
+			&i.ExternalLabel,
+			&i.Status,
+			&i.CodeHash,
+			&i.CodeExpiresAt,
+			&i.LinkedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.UserEmail,
+			&i.UserName,
 		); err != nil {
 			return nil, err
 		}

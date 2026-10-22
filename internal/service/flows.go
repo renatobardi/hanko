@@ -270,7 +270,9 @@ func (t *txc) checkFlowRefs(companyID domain.ID, personaID, projectID *domain.ID
 }
 
 // errFlowArchived: o fluxo arquivado não muda nem dispara; só se desarquiva (ADR-0047 §C).
-func errFlowArchived() error { return fmt.Errorf("o fluxo está arquivado; desarquive para continuar: %w", domain.ErrConflict) }
+func errFlowArchived() error {
+	return fmt.Errorf("o fluxo está arquivado; desarquive para continuar: %w", domain.ErrConflict)
+}
 
 // UpdateFlow changes a Fluxo; enabling it or changing its schedule recomputes the next
 // occurrence from now (no catch-up of what was missed while it was off). Clearing the cron
