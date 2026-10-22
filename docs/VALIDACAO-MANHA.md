@@ -80,7 +80,7 @@ Pré-requisito comum: `HANKO_URL`/`HANKO_TOKEN` na CLI e uma empresa com uma per
 - `/design-guide`, `/dev/ux/thread-longo`, `/dev/ux/run-10k` como dono; 404 para membro. `cd e2e && npm ci && npx playwright test`.
 
 **Trilha Onda 2A** (`trilha-w2a.md`)
-- Depois do deploy: `docker compose -f /opt/app/docker-compose.yml exec -T hanko /hanko doctor` (aviso esperado de `pg_dump`); `systemctl list-timers hanko-backup.timer`.
+- Depois do deploy: `docker compose -f /opt/app/docker-compose.yml exec -T hanko hanko doctor` (aviso esperado de `pg_dump`); `systemctl list-timers hanko-backup.timer`.
 - Em host com PostgreSQL: `hanko backup create|list|verify`, `hanko backup restore latest --yes` com o servidor parado; `hanko serve --embedded-pg`; `hanko service install --dry-run`.
 
 **Trilha Onda 2B** (`trilha-w2b.md`)

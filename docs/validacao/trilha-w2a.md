@@ -14,7 +14,7 @@ teste contra fake ou `httptest`. Nenhum teste chama serviço real. Nenhum deploy
 
 ## Como validar no hanko-prd
 O prd roda a imagem distroless (sem `pg_dump`/`psql`), então:
-1. Depois do próximo deploy: `docker compose -f /opt/app/docker-compose.yml exec -T hanko /hanko doctor` (o deploy já roda e mostra).
+1. Depois do próximo deploy: `docker compose -f /opt/app/docker-compose.yml exec -T hanko hanko doctor` (o deploy já roda e mostra).
    Esperado: postgres e migrations OK; `pg_dump` com AVISO (a imagem não tem o cliente) e harnesses/OTel conforme o ambiente.
 2. `systemctl list-timers hanko-backup.timer` e `cat /etc/systemd/system/hanko-backup.service`: as units agora vêm de
    `hanko service print timer`; devem ser equivalentes às antigas (01:30 UTC, `backup.sh`, timeout 30 min). Existe também
