@@ -133,19 +133,22 @@ x "BASE=http://127.0.0.1:${PORT} PUBLIC_HOST=${DOMAIN} bash /opt/app/deploy/oute
 # 4a) Diagnóstico da instalação (hanko doctor) e consulta de versão nova (hanko update --check). Informativos: um aviso do
 #     doctor não derruba o deploy já no ar, mas fica visível. O update em si não se aplica aqui: a imagem é reconstruída
 #     pelo `compose up --build` acima (o binário do contêiner não se troca no lugar).
-x "docker compose -f /opt/app/docker-compose.yml exec -T hanko /hanko doctor || echo 'AVISO: hanko doctor encontrou falhas (veja acima); o deploy segue'"
-x "docker compose -f /opt/app/docker-compose.yml exec -T hanko /hanko update --check || echo '(consulta de versão publicada indisponível; ignorado)'"
+x "docker compose -f /opt/app/docker-compose.yml exec -T hanko hanko doctor || echo 'AVISO: hanko doctor encontrou falhas (veja acima); o deploy segue'"
+x "docker compose -f /opt/app/docker-compose.yml exec -T hanko hanko update --check || echo '(consulta de versão publicada indisponível; ignorado)'"
 
 # 4b) Backup: timer systemd DENTRO do LXC (diário 01:30 UTC) roda deploy/oute-server/backup.sh → /var/backups/hanko
 #     (pg_dump -Fc + tar do ai-memory com o container pausado). O restic semanal do lab coleta esse diretório
 #     e o próprio banco (inventário: strategy pg_dump + backup_paths). Idempotente: reescreve as units e reativa.
 # As units saem de `hanko service print` (mesmo gerador testado do `hanko service install`), não de heredocs aqui.
-HK="docker compose -f /opt/app/docker-compose.yml exec -T hanko /hanko"
+# O binário é o do PATH: a imagem do prd (Dockerfile.agents) o instala em /usr/local/bin, não em /hanko.
+# Cada unit é gerada num .tmp e só substitui a atual se saiu inteira: uma falha não deixa unit vazia no lugar.
+HK="docker compose -f /opt/app/docker-compose.yml exec -T hanko hanko"
 x "set -e
+unit() { f=\"\$1\"; shift; if \"\$@\" > \"\$f.tmp\" && [ -s \"\$f.tmp\" ]; then mv \"\$f.tmp\" \"\$f\"; else rm -f \"\$f.tmp\"; echo \"erro: não gerei \$f (unit atual mantida)\" >&2; return 1; fi; }
 chmod 755 /opt/app/deploy/oute-server/backup.sh /opt/app/deploy/oute-server/restore.sh
-${HK} service print timer --name hanko-backup --description 'Backup local do Hanko (pg_dump + ai-memory)' --exec /opt/app/deploy/oute-server/backup.sh --calendar '*-*-* 01:30:00' --random-delay 10min --timeout 30min --after docker.service --part service > /etc/systemd/system/hanko-backup.service
-${HK} service print timer --name hanko-backup --description 'Backup local do Hanko (pg_dump + ai-memory)' --exec /opt/app/deploy/oute-server/backup.sh --calendar '*-*-* 01:30:00' --random-delay 10min --timeout 30min --after docker.service --part timer > /etc/systemd/system/hanko-backup.timer
-${HK} service print compose --dir /opt/app > /etc/systemd/system/hanko-stack.service
+unit /etc/systemd/system/hanko-backup.service ${HK} service print timer --name hanko-backup --description 'Backup local do Hanko (pg_dump + ai-memory)' --exec /opt/app/deploy/oute-server/backup.sh --calendar '*-*-* 01:30:00' --random-delay 10min --timeout 30min --after docker.service --part service
+unit /etc/systemd/system/hanko-backup.timer ${HK} service print timer --name hanko-backup --description 'Backup local do Hanko (pg_dump + ai-memory)' --exec /opt/app/deploy/oute-server/backup.sh --calendar '*-*-* 01:30:00' --random-delay 10min --timeout 30min --after docker.service --part timer
+unit /etc/systemd/system/hanko-stack.service ${HK} service print compose --dir /opt/app
 systemctl daemon-reload && systemctl enable --now hanko-backup.timer && systemctl enable hanko-stack.service"
 x "systemctl start hanko-backup.service || echo 'AVISO: backup inicial falhou (veja journalctl -u hanko-backup.service); o deploy segue'; ls -1 /var/backups/hanko || true; systemctl list-timers hanko-backup.timer --no-pager || true"
 $SNAP && r "lxc snapshot ${NAME} deploy-\$(date +%Y%m%d%H%M%S)"
