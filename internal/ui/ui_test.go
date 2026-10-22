@@ -105,6 +105,27 @@ func wantNotContains(t *testing.T, rec *httptest.ResponseRecorder, subs ...strin
 	}
 }
 
+// wantNotContainsInMain é wantNotContains restrito ao conteúdo principal da página (<main id="content">): a barra
+// lateral é chrome global (favoritos e recentes citam páginas visitadas) e não faz parte do que uma lista mostra.
+func wantNotContainsInMain(t *testing.T, rec *httptest.ResponseRecorder, subs ...string) {
+	t.Helper()
+	body := rec.Body.String()
+	start := strings.Index(body, `id="content"`)
+	if start < 0 {
+		t.Fatalf("a página não tem <main id=\"content\">\nbody: %.600s", body)
+	}
+	end := strings.Index(body[start:], "</main>")
+	if end < 0 {
+		t.Fatalf("a página não fecha o <main>")
+	}
+	content := body[start : start+end]
+	for _, s := range subs {
+		if strings.Contains(content, s) {
+			t.Errorf("o conteúdo principal não pode conter %q", s)
+		}
+	}
+}
+
 func TestRoot(t *testing.T) {
 	t.Run("sem empresa vai para o onboarding", func(t *testing.T) {
 		e := newEnv(t, uitest.None())
@@ -309,7 +330,7 @@ func TestCreateCompany(t *testing.T) {
 	e := newEnv(t, uitest.None())
 	rec := e.post(t, "/empresas", url.Values{"name": {"Acme Corp"}, "prefix": {"acm"}}, false)
 	wantStatus(t, rec, http.StatusSeeOther)
-	if loc := rec.Header().Get("Location"); loc != "/c/acme-corp/" {
+	if loc := rec.Header().Get("Location"); loc != "/c/acme-corp/primeiros-passos" {
 		t.Errorf("Location = %q", loc)
 	}
 	if got := e.f.Companies[0].TaskPrefix; got != "ACM" {
@@ -323,7 +344,7 @@ func TestCreateCompany(t *testing.T) {
 	wantContains(t, rec, "Conflito", `value="Acme Corp"`)
 	rec = e.post(t, "/empresas", url.Values{"name": {"Outra"}}, true)
 	wantStatus(t, rec, http.StatusNoContent)
-	if rec.Header().Get("HX-Redirect") != "/c/outra/" {
+	if rec.Header().Get("HX-Redirect") != "/c/outra/primeiros-passos" {
 		t.Errorf("HX-Redirect = %q", rec.Header().Get("HX-Redirect"))
 	}
 }

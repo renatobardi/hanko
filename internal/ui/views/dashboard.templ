@@ -32,6 +32,12 @@ templ DashboardPage(sh Shell, vm DashboardVM) {
 		} else if vm.Budget != nil && vm.Budget.State == "warning" {
 			@Alert("warn", i18n.T(ctx, "O gasto do mês passou de 80% do orçamento da empresa."))
 		}
+		if vm.Wizard != nil {
+			<div class="mb-6">@WizardCard(*vm.Wizard, sh.Base())</div>
+		}
+		if vm.WhatsNew != nil {
+			<div class="mb-6">@WhatsNewCard(*vm.WhatsNew, sh.Base())</div>
+		}
 		<div class="kpis">
 			@Kpi("bot", fmt.Sprint(vm.ActivePersonas), i18n.T(ctx, "Personas ativas"), false)
 			@Kpi("activity", fmt.Sprint(vm.TasksInProgress), i18n.T(ctx, "Tasks em andamento"), false)
