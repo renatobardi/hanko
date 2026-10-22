@@ -10,7 +10,7 @@ import (
 	"github.com/renatobardi/hanko/internal/execenv"
 )
 
-// Trilha onda 3 (ADR-0060) contra o servidor HTTP real: onboarding, favoritos, novidades e perfil.
+// Trilha onda 3 (ADR-0061) contra o servidor HTTP real: onboarding, favoritos, novidades e perfil.
 
 func TestAPIOnboardingFlow(t *testing.T) {
 	e := newAPIEnv(t)

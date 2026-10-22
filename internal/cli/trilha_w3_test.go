@@ -10,7 +10,7 @@ import (
 	"github.com/renatobardi/hanko/internal/api"
 )
 
-// Trilha onda 3 (ADR-0060) na CLI: contextos, sandbox, onboard, perfil, favoritos e novidades.
+// Trilha onda 3 (ADR-0061) na CLI: contextos, sandbox, onboard, perfil, favoritos e novidades.
 
 func TestContextAddUseListRm(t *testing.T) {
 	url, _ := loginServer(t, "approved") // serve /whoami

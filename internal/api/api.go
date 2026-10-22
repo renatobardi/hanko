@@ -346,7 +346,7 @@ func (s *server) register(api huma.API) {
 	s.registerPipelines(api)
 	s.registerLifecycle(api)
 	s.registerAccess(api)
-	s.registerOnboarding(api) // trilha onda 3 (ADR-0060)
+	s.registerOnboarding(api) // trilha onda 3 (ADR-0061)
 	s.registerW3Me(api)
 }
 

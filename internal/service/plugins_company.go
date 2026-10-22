@@ -36,6 +36,11 @@ type CompanyPlugin struct {
 	Events       []string                  `json:"events"`
 	Widgets      []domain.PluginWidget     `json:"widgets"`
 	Jobs         []domain.PluginJob        `json:"jobs"`
+	// Contribuições do M18 (ADR-0045).
+	Pages        []domain.PluginPage        `json:"pages"`
+	FlowTriggers []domain.PluginFlowTrigger `json:"flow_triggers"`
+	EnvProviders []domain.PluginEnvProvider `json:"environment_providers"`
+	SkillSources []domain.PluginSkillSource `json:"skill_sources"`
 	// Enabled: a empresa ligou o plugin. Active: além disso o plugin está atendendo (ready ou upgrade pendente).
 	Enabled bool `json:"enabled"`
 	Active  bool `json:"active"`
@@ -51,6 +56,7 @@ func companyPluginFrom(p domain.Plugin, st *store.PluginCompanySetting, secretNa
 	cp := CompanyPlugin{PluginID: p.ID, Key: p.Key, Name: m.Name, Description: m.Description, Author: m.Author, Homepage: m.Homepage,
 		Version: p.Version, Status: p.Status, Capabilities: p.GrantedCapabilities, ConfigSchema: m.ConfigSchema,
 		Tools: emptyIfNil(m.Tools), Events: emptyIfNil(m.Events), Widgets: emptyIfNil(m.Widgets), Jobs: emptyIfNil(m.Jobs),
+		Pages: emptyIfNil(m.Pages), FlowTriggers: emptyIfNil(m.FlowTriggers), EnvProviders: emptyIfNil(m.EnvProviders), SkillSources: emptyIfNil(m.SkillSources),
 		Config: map[string]any{}, SecretsSet: emptyIfNil(secretNames)}
 	if st != nil {
 		cp.Enabled = st.Enabled

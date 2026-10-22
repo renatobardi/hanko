@@ -11,7 +11,7 @@ import (
 	"github.com/renatobardi/hanko/internal/teams"
 )
 
-// W3Fake é o estado das telas da trilha onda 3 (ADR-0060): favoritos e recentes, perfil, novidades e onboarding.
+// W3Fake é o estado das telas da trilha onda 3 (ADR-0061): favoritos e recentes, perfil, novidades e onboarding.
 type W3Fake struct {
 	Favorites []domain.NavItem
 	Recents   []domain.NavItem

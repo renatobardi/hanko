@@ -1,5 +1,5 @@
 -- +goose Up
--- Trilha contínua, onda 3 (ADR-0060): perfil próprio, favoritos e recentes, itens dispensáveis por pessoa e o estado
+-- Trilha contínua, onda 3 (ADR-0061): perfil próprio, favoritos e recentes, itens dispensáveis por pessoa e o estado
 -- do onboarding. Tudo aditivo.
 
 -- Perfil próprio (#69). O nome continua em users.name; aqui ficam avatar, fuso e idioma. Sem linha = padrões

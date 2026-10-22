@@ -2,7 +2,7 @@ package views
 
 import "context"
 
-// Trilha contínua, onda 3 (ADR-0060): onboarding, favoritos e recentes, perfil, "O que há de novo".
+// Trilha contínua, onda 3 (ADR-0061): onboarding, favoritos e recentes, perfil, "O que há de novo".
 
 // ---- sidebar: favoritos e recentes ----
 

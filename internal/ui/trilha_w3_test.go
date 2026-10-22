@@ -10,7 +10,7 @@ import (
 	"github.com/renatobardi/hanko/internal/ui/uitest"
 )
 
-// Trilha onda 3 (ADR-0060) na UI: assistente de primeiros passos, favoritos e recentes, perfil, novidades.
+// Trilha onda 3 (ADR-0061) na UI: assistente de primeiros passos, favoritos e recentes, perfil, novidades.
 
 func locationOf(t *testing.T, e *env, path string, form url.Values) string {
 	t.Helper()

@@ -20,6 +20,8 @@ func setupPlugins(cfg config.Config, svc *service.Service, logger *slog.Logger, 
 	mgr := plugin.NewManager(plugin.Options{HostVersion: version, Logger: logger,
 		Handler: svc.HandlePluginCall, OnLog: svc.PluginLogLine, OnState: svc.PluginProcessState})
 	svc.Plugins = service.PluginsConfig{Dir: cfg.Plugins.Dir, DataDir: cfg.Plugins.DataDir, Runtime: mgr}
+	// providers de ambiente contribuídos por plugin (ADR-0045): resolvidos a cada uso, com a capacidade conferida
+	svc.Environments.CloudPlugins = svc.PluginCloudDriver
 	logger.Warn("plugins de terceiros ligados (HANKO_PLUGINS_DIR); cada plugin instalado roda como processo nesta máquina",
 		"dir", cfg.Plugins.Dir, "data_dir", cfg.Plugins.DataDir)
 	return func(ctx context.Context) { svc.ReconcilePlugins(ctx) }, func() {

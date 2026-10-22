@@ -8,7 +8,7 @@ import (
 	"unicode/utf8"
 )
 
-// Trilha contínua, onda 3 (ADR-0060): perfil próprio, favoritos e recentes da sidebar, itens dispensáveis e onboarding.
+// Trilha contínua, onda 3 (ADR-0061): perfil próprio, favoritos e recentes da sidebar, itens dispensáveis e onboarding.
 
 // ---------- perfil próprio (#69) ----------
 

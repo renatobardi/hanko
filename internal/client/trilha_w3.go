@@ -7,7 +7,7 @@ import (
 	"github.com/renatobardi/hanko/internal/api"
 )
 
-// Trilha contínua, onda 3 (ADR-0060): onboarding, perfil, favoritos e "O que há de novo".
+// Trilha contínua, onda 3 (ADR-0061): onboarding, perfil, favoritos e "O que há de novo".
 
 // Onboarding devolve o estado do assistente de primeiros passos da empresa.
 func (c *Client) Onboarding(ctx context.Context, company string) (api.OnboardingState, error) {

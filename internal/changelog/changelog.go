@@ -1,5 +1,5 @@
 // Package changelog lê o CHANGELOG.md (formato Keep a Changelog) embutido no binário e escolhe as novidades da versão
-// instalada. Não faz rede: o texto é o da versão que está rodando (ADR-0060).
+// instalada. Não faz rede: o texto é o da versão que está rodando (ADR-0061).
 package changelog
 
 import (

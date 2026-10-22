@@ -187,7 +187,7 @@ func TestBuildRealSite(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, p := range []string{"index.html", "en/index.html", "feature-map.html", "en/feature-map.html", "feature-map.json", "sitemap.txt",
-		"RUNBOOK.html", "GLOSSARIO.html", "en/RUNBOOK.html", "en/GLOSSARY.html", "adr/0060-trilha-onda3-onboarding-contextos-preferencias-docs.html"} {
+		"RUNBOOK.html", "GLOSSARIO.html", "en/RUNBOOK.html", "en/GLOSSARY.html", "adr/0061-trilha-onda3-onboarding-contextos-preferencias-docs.html"} {
 		if len(site.Pages[p]) == 0 {
 			t.Errorf("página ausente: %s", p)
 		}

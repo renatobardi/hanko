@@ -1,5 +1,5 @@
 // Package docsite gera o site estático de documentação (docs/ em pt-BR e docs/en em inglês) e a página do feature-map.
-// É só um gerador: lê um fs.FS com o repositório e devolve as páginas em memória; nada é publicado (ADR-0060).
+// É só um gerador: lê um fs.FS com o repositório e devolve as páginas em memória; nada é publicado (ADR-0061).
 package docsite
 
 import (

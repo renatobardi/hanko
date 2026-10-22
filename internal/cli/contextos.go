@@ -23,7 +23,7 @@ import (
 	"github.com/renatobardi/hanko/internal/sandbox"
 )
 
-// Contextos da CLI (#68, ADR-0060): `hanko context add|use|list|current|rm`. O arquivo é o mesmo que `hanko login` grava
+// Contextos da CLI (#68, ADR-0061): `hanko context add|use|list|current|rm`. O arquivo é o mesmo que `hanko login` grava
 // (contexts.json); cada contexto é um servidor e, quando há, a API key dele. Mais `hanko sandbox`: a instância
 // descartável de test-drive por branch ou worktree.
 

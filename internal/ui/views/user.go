@@ -6,7 +6,7 @@ import "context"
 type UserRef struct {
 	Name  string
 	Email string
-	// AvatarGlyph e AvatarTone vêm do perfil próprio (ADR-0060); vazios = a inicial do nome na cor padrão.
+	// AvatarGlyph e AvatarTone vêm do perfil próprio (ADR-0061); vazios = a inicial do nome na cor padrão.
 	AvatarGlyph string
 	AvatarTone  string
 }

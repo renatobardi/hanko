@@ -1,4 +1,4 @@
-# Validação — Trilha contínua, onda 3 (ADR-0060)
+# Validação — Trilha contínua, onda 3 (ADR-0061)
 
 Itens: #67 onboarding, #68 contextos + sandbox, #69 favoritos/recentes/perfil, #61 O que há de novo, #62 site de docs + feature-map.
 

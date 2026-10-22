@@ -538,7 +538,7 @@ func (s *server) withCompany(h companyHandler) http.HandlerFunc {
 			s.fail(w, r, nil, err)
 			return
 		}
-		// o fuso do perfil da pessoa vale, nas telas da empresa, no lugar do fuso da empresa (ADR-0060)
+		// o fuso do perfil da pessoa vale, nas telas da empresa, no lugar do fuso da empresa (ADR-0061)
 		if tz := s.profileFor(r.Context()).Timezone; tz != "" {
 			co.Timezone = tz
 		}
@@ -699,6 +699,8 @@ func (s *server) shell(r *http.Request, co domain.Company, active, title string,
 		Archived: co.Archived(),
 		// com pessoa autenticada a Caixa tem selo e toasts ao vivo (ADR-0042)
 		Personal: personal(r.Context()),
+		// abas dos plugins com a capacidade pages (ADR-0045)
+		PluginTabs: s.pluginTabLinks(r.Context(), co),
 	}
 }
 

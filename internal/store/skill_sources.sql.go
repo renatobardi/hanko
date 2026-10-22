@@ -410,7 +410,7 @@ func (q *Queries) DetachSourceSkills(ctx context.Context, arg DetachSourceSkills
 }
 
 const dueSkillSources = `-- name: DueSkillSources :many
-SELECT company_id, id FROM skill_sources
+SELECT company_id, id, url FROM skill_sources
 WHERE enabled AND auto_update AND next_sync_at IS NOT NULL AND next_sync_at <= $1
   AND (status <> 'syncing' OR last_attempt_at IS NULL OR last_attempt_at < $2)
 ORDER BY next_sync_at
@@ -426,6 +426,7 @@ type DueSkillSourcesParams struct {
 type DueSkillSourcesRow struct {
 	CompanyID uuid.UUID
 	ID        uuid.UUID
+	Url       string
 }
 
 // Fontes com atualização automática vencidas (o tick do river).
@@ -438,7 +439,7 @@ func (q *Queries) DueSkillSources(ctx context.Context, arg DueSkillSourcesParams
 	items := []DueSkillSourcesRow{}
 	for rows.Next() {
 		var i DueSkillSourcesRow
-		if err := rows.Scan(&i.CompanyID, &i.ID); err != nil {
+		if err := rows.Scan(&i.CompanyID, &i.ID, &i.Url); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

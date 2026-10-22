@@ -21,7 +21,7 @@ import (
 	"github.com/renatobardi/hanko/internal/teams"
 )
 
-// Onboarding (ADR-0060, #67): assistente retomável empresa → harness (probe) → primeira persona ou pacote de time →
+// Onboarding (ADR-0061, #67): assistente retomável empresa → harness (probe) → primeira persona ou pacote de time →
 // primeira task. Os passos são derivados do que a empresa já tem (domain.ComputeOnboarding); o banco guarda só o que não
 // se deduz (último probe, passos pulados, dispensa).
 

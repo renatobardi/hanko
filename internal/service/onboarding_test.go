@@ -8,7 +8,7 @@ import (
 	"github.com/renatobardi/hanko/internal/teams"
 )
 
-// Assistente de primeiros passos (ADR-0060, #67): retomável porque os passos são derivados do que a empresa tem.
+// Assistente de primeiros passos (ADR-0061, #67): retomável porque os passos são derivados do que a empresa tem.
 
 func TestOnboardingStepsAreDerivedAndResumable(t *testing.T) {
 	e := newEnv(t)

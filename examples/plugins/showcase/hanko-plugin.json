@@ -1,0 +1,27 @@
+{
+  "id": "showcase",
+  "api_version": 1,
+  "version": "1.0.0",
+  "name": "Showcase",
+  "description": "Plugin de exemplo do SDK Go: uma tool, uma aba com ponte, um gatilho de fluxo e uma fonte de skills.",
+  "author": "Hanko",
+  "homepage": "https://hanko.oute.pro",
+  "command": "showcase",
+  "capabilities": ["agent.tools", "pages", "state", "flows.trigger", "skills.source"],
+  "tools": [
+    {
+      "name": "ping",
+      "description": "Devolve pong com o texto recebido. Útil para testar a ligação entre a persona e o plugin.",
+      "input_schema": {"type": "object", "properties": {"text": {"type": "string", "description": "texto a ecoar"}}}
+    }
+  ],
+  "pages": [
+    {"key": "painel", "title": "Showcase", "icon": "puzzle"}
+  ],
+  "flow_triggers": [
+    {"key": "novo-pedido", "title": "Novo pedido", "description": "Disparado pelo botão da aba Showcase."}
+  ],
+  "skill_sources": [
+    {"key": "catalogo", "title": "Catálogo do Showcase", "description": "Uma skill de exemplo entregue pelo plugin."}
+  ]
+}

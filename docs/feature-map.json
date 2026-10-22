@@ -4,7 +4,7 @@
     {
       "id": "onboarding",
       "title": {"pt": "Primeiros passos", "en": "First steps"},
-      "adrs": ["0060", "0044", "0055"],
+      "adrs": ["0061", "0044", "0055"],
       "features": [
         {
           "id": "onboarding.company",
@@ -38,7 +38,7 @@
     {
       "id": "cli",
       "title": {"pt": "CLI e contextos", "en": "CLI and contexts"},
-      "adrs": ["0060", "0057"],
+      "adrs": ["0061", "0057"],
       "features": [
         {
           "id": "cli.login",
@@ -75,7 +75,7 @@
     {
       "id": "preferences",
       "title": {"pt": "Preferências pessoais", "en": "Personal preferences"},
-      "adrs": ["0060"],
+      "adrs": ["0061"],
       "features": [
         {
           "id": "preferences.favorites",

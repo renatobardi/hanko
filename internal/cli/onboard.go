@@ -11,7 +11,7 @@ import (
 	"github.com/renatobardi/hanko/internal/client"
 )
 
-// `hanko onboard` (#67, ADR-0060): o assistente de primeiros passos pela CLI. Segue os mesmos passos e o mesmo estado da
+// `hanko onboard` (#67, ADR-0061): o assistente de primeiros passos pela CLI. Segue os mesmos passos e o mesmo estado da
 // tela /c/{empresa}/primeiros-passos: empresa → harness (com probe) → primeira persona ou pacote de time → primeira task.
 // Cada chamada executa os passos que as flags permitem, na ordem, e para no primeiro que faltar informação, dizendo o
 // comando exato para continuar. Pode ser rodado de novo quantas vezes for preciso.

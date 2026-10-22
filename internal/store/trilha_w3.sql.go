@@ -137,7 +137,7 @@ const getUserProfile = `-- name: GetUserProfile :one
 SELECT user_id, avatar_glyph, avatar_tone, timezone, locale, updated_at FROM user_profiles WHERE user_id = $1
 `
 
-// Trilha contínua, onda 3 (ADR-0060): perfil, favoritos e recentes, itens dispensados, onboarding.
+// Trilha contínua, onda 3 (ADR-0061): perfil, favoritos e recentes, itens dispensados, onboarding.
 func (q *Queries) GetUserProfile(ctx context.Context, userID uuid.UUID) (UserProfile, error) {
 	row := q.db.QueryRow(ctx, getUserProfile, userID)
 	var i UserProfile

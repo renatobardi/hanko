@@ -1,4 +1,4 @@
-# ADR-0060 — Trilha contínua, onda 3: onboarding, contextos, preferências, novidades e site de docs
+# ADR-0061 — Trilha contínua, onda 3: onboarding, contextos, preferências, novidades e site de docs
 Data: 2026-10-22 · Status: aceita
 
 ## Contexto

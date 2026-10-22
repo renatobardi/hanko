@@ -1613,10 +1613,7 @@
             "type": "string"
           },
           "provider": {
-            "description": "Provider (padrão daytona); o operador liga o driver com HANKO_ENV_CLOUD.",
-            "enum": [
-              "daytona"
-            ],
+            "description": "Provider (padrão daytona; o operador liga o driver com HANKO_ENV_CLOUD) ou plugin:\u003cid\u003e/\u003ckey\u003e, um provider contribuído por plugin com a capacidade environments.provider (ADR-0045).",
             "type": "string"
           },
           "remote_workspace_root": {
@@ -1826,6 +1823,15 @@
             "description": "A empresa ligou o plugin.",
             "type": "boolean"
           },
+          "environment_providers": {
+            "items": {
+              "$ref": "#/components/schemas/PluginEnvProviderDef"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "events": {
             "items": {
               "type": "string"
@@ -1839,6 +1845,15 @@
             "description": "O formulário gerado do config_schema.",
             "items": {
               "$ref": "#/components/schemas/PluginConfigField"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "flow_triggers": {
+            "items": {
+              "$ref": "#/components/schemas/PluginFlowTriggerDef"
             },
             "type": [
               "array",
@@ -1869,6 +1884,15 @@
           "name": {
             "type": "string"
           },
+          "pages": {
+            "items": {
+              "$ref": "#/components/schemas/PluginPageDef"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "plugin_id": {
             "format": "uuid",
             "type": "string"
@@ -1877,6 +1901,15 @@
             "description": "Campos secretos definidos (só os nomes).",
             "items": {
               "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "skill_sources": {
+            "items": {
+              "$ref": "#/components/schemas/PluginSkillSourceDef"
             },
             "type": [
               "array",
@@ -1928,7 +1961,11 @@
           "tools",
           "events",
           "widgets",
-          "jobs"
+          "jobs",
+          "pages",
+          "flow_triggers",
+          "environment_providers",
+          "skill_sources"
         ],
         "type": "object"
       },
@@ -8787,6 +8824,37 @@
         ],
         "type": "object"
       },
+      "ListBodyPluginSkillSourceItem": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "description": "Itens da página.",
+            "items": {
+              "$ref": "#/components/schemas/PluginSkillSourceItem"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "limit": {
+            "description": "Limite aplicado.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "offset": {
+            "description": "Deslocamento aplicado.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "limit",
+          "offset"
+        ],
+        "type": "object"
+      },
       "ListBodyPluginStateItem": {
         "additionalProperties": false,
         "properties": {
@@ -8794,6 +8862,37 @@
             "description": "Itens da página.",
             "items": {
               "$ref": "#/components/schemas/PluginStateItem"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "limit": {
+            "description": "Limite aplicado.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "offset": {
+            "description": "Deslocamento aplicado.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "limit",
+          "offset"
+        ],
+        "type": "object"
+      },
+      "ListBodyPluginTab": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "description": "Itens da página.",
+            "items": {
+              "$ref": "#/components/schemas/PluginTab"
             },
             "type": [
               "array",
@@ -11176,9 +11275,27 @@
           "dir": {
             "type": "string"
           },
+          "environment_providers": {
+            "items": {
+              "$ref": "#/components/schemas/PluginEnvProviderDef"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "events": {
             "items": {
               "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "flow_triggers": {
+            "items": {
+              "$ref": "#/components/schemas/PluginFlowTriggerDef"
             },
             "type": [
               "array",
@@ -11218,6 +11335,15 @@
           "name": {
             "type": "string"
           },
+          "pages": {
+            "items": {
+              "$ref": "#/components/schemas/PluginPageDef"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "pending_capabilities": {
             "description": "Capacidades pedidas pela versão pendente.",
             "items": {
@@ -11234,6 +11360,15 @@
           },
           "process": {
             "$ref": "#/components/schemas/PluginProcess"
+          },
+          "skill_sources": {
+            "items": {
+              "$ref": "#/components/schemas/PluginSkillSourceDef"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
           },
           "status": {
             "enum": [
@@ -11289,7 +11424,11 @@
           "jobs",
           "process",
           "installed_at",
-          "updated_at"
+          "updated_at",
+          "pages",
+          "flow_triggers",
+          "environment_providers",
+          "skill_sources"
         ],
         "type": "object"
       },
@@ -11336,6 +11475,99 @@
           "type",
           "required",
           "secret"
+        ],
+        "type": "object"
+      },
+      "PluginEnvProviderDef": {
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "provider": {
+            "description": "Nome a usar em cloud.provider do ambiente (plugin:\u003cid\u003e/\u003ckey\u003e).",
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "title",
+          "provider"
+        ],
+        "type": "object"
+      },
+      "PluginFlowLink": {
+        "additionalProperties": false,
+        "properties": {
+          "flow_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "flow_name": {
+            "type": "string"
+          },
+          "flow_slug": {
+            "type": "string"
+          },
+          "trigger": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "trigger",
+          "flow_id",
+          "flow_slug",
+          "flow_name"
+        ],
+        "type": "object"
+      },
+      "PluginFlowTriggerDef": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "title"
+        ],
+        "type": "object"
+      },
+      "PluginFlowTriggers": {
+        "additionalProperties": false,
+        "properties": {
+          "links": {
+            "items": {
+              "$ref": "#/components/schemas/PluginFlowLink"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "triggers": {
+            "items": {
+              "$ref": "#/components/schemas/PluginFlowTriggerDef"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "triggers",
+          "links"
         ],
         "type": "object"
       },
@@ -11455,6 +11687,54 @@
         ],
         "type": "object"
       },
+      "PluginPageCallInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "method": {
+            "description": "Método da ponte (o plugin decide o que aceita).",
+            "pattern": "^[a-z][a-z0-9_.]{0,63}$",
+            "type": "string"
+          },
+          "params": {
+            "description": "Parâmetros livres (até 256 KiB)."
+          }
+        },
+        "required": [
+          "method"
+        ],
+        "type": "object"
+      },
+      "PluginPageCallResult": {
+        "additionalProperties": false,
+        "properties": {
+          "result": {
+            "description": "Resposta do método page_call do plugin."
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "type": "object"
+      },
+      "PluginPageDef": {
+        "additionalProperties": false,
+        "properties": {
+          "icon": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "title"
+        ],
+        "type": "object"
+      },
       "PluginProcess": {
         "additionalProperties": false,
         "properties": {
@@ -11495,6 +11775,63 @@
         ],
         "type": "object"
       },
+      "PluginSkillSourceDef": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "description": "URL a usar ao criar a fonte de skills da empresa (plugin://\u003cid\u003e/\u003ckey\u003e).",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "title",
+          "url"
+        ],
+        "type": "object"
+      },
+      "PluginSkillSourceItem": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "plugin": {
+            "type": "string"
+          },
+          "source_id": {
+            "description": "Fonte já conectada na empresa.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "description": "Use em POST /skill-sources como url.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "plugin",
+          "key",
+          "title",
+          "url"
+        ],
+        "type": "object"
+      },
       "PluginStateItem": {
         "additionalProperties": false,
         "properties": {
@@ -11511,6 +11848,38 @@
           "key",
           "value",
           "updated_at"
+        ],
+        "type": "object"
+      },
+      "PluginTab": {
+        "additionalProperties": false,
+        "properties": {
+          "icon": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "plugin": {
+            "type": "string"
+          },
+          "plugin_name": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "description": "Caminho da página na interface web.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "plugin",
+          "plugin_name",
+          "key",
+          "title",
+          "url"
         ],
         "type": "object"
       },
@@ -41357,6 +41726,198 @@
         ]
       }
     },
+    "/api/v1/companies/{company}/plugin-skill-sources": {
+      "get": {
+        "operationId": "list-plugin-skill-sources",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListBodyPluginSkillSourceItem"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Fontes de skills oferecidas por plugins ativos e ligados na empresa (conecte com POST /skill-sources e a url devolvida)",
+        "tags": [
+          "plugins"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/plugin-tabs": {
+      "get": {
+        "operationId": "list-plugin-tabs",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListBodyPluginTab"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Abas dos plugins ativos, ligados na empresa e com a capacidade pages concedida",
+        "tags": [
+          "plugins"
+        ]
+      }
+    },
     "/api/v1/companies/{company}/plugins": {
       "get": {
         "operationId": "list-company-plugins",
@@ -41701,6 +42262,485 @@
           }
         },
         "summary": "Liga, desliga e configura o plugin na empresa (admin); a configuração passa pelo schema e pelo validate_config do plugin",
+        "tags": [
+          "plugins"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/plugins/{plugin}/flow-triggers": {
+      "get": {
+        "operationId": "plugin-flow-triggers",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id do plugin (slug do manifesto) ou id da instalação.",
+            "in": "path",
+            "name": "plugin",
+            "required": true,
+            "schema": {
+              "description": "Id do plugin (slug do manifesto) ou id da instalação.",
+              "examples": [
+                "hello"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PluginFlowTriggers"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Gatilhos de fluxo declarados pelo plugin e os fluxos da empresa ligados a cada um",
+        "tags": [
+          "plugins"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/plugins/{plugin}/flow-triggers/{trigger}/flows/{flow}": {
+      "delete": {
+        "operationId": "unlink-plugin-flow-trigger",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id do plugin (slug do manifesto) ou id da instalação.",
+            "in": "path",
+            "name": "plugin",
+            "required": true,
+            "schema": {
+              "description": "Id do plugin (slug do manifesto) ou id da instalação.",
+              "examples": [
+                "hello"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "trigger",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-z][a-z0-9_-]{0,47}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Slug ou id do fluxo.",
+            "in": "path",
+            "name": "flow",
+            "required": true,
+            "schema": {
+              "description": "Slug ou id do fluxo.",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Desliga o gatilho do fluxo (admin)",
+        "tags": [
+          "plugins"
+        ]
+      },
+      "put": {
+        "operationId": "link-plugin-flow-trigger",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id do plugin (slug do manifesto) ou id da instalação.",
+            "in": "path",
+            "name": "plugin",
+            "required": true,
+            "schema": {
+              "description": "Id do plugin (slug do manifesto) ou id da instalação.",
+              "examples": [
+                "hello"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "trigger",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-z][a-z0-9_-]{0,47}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Slug ou id do fluxo.",
+            "in": "path",
+            "name": "flow",
+            "required": true,
+            "schema": {
+              "description": "Slug ou id do fluxo.",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Liga um gatilho do plugin a um fluxo da empresa (admin); idempotente",
+        "tags": [
+          "plugins"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/plugins/{plugin}/pages/{page}/call": {
+      "post": {
+        "operationId": "plugin-page-call",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id do plugin (slug do manifesto) ou id da instalação.",
+            "in": "path",
+            "name": "plugin",
+            "required": true,
+            "schema": {
+              "description": "Id do plugin (slug do manifesto) ou id da instalação.",
+              "examples": [
+                "hello"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Key da página no manifesto.",
+            "in": "path",
+            "name": "page",
+            "required": true,
+            "schema": {
+              "description": "Key da página no manifesto.",
+              "pattern": "^[a-z][a-z0-9_-]{0,47}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PluginPageCallInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PluginPageCallResult"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Ponte da página: chama um método do próprio plugin (page_call); o plugin recebe quem chamou e decide o que permitir",
         "tags": [
           "plugins"
         ]
@@ -61065,6 +62105,252 @@
           }
         },
         "summary": "Aprova as capacidades da versão pendente e a aplica (dono)",
+        "tags": [
+          "plugins"
+        ]
+      }
+    },
+    "/api/v1/plugins/{plugin}/capabilities/{capability}/grant": {
+      "post": {
+        "operationId": "grant-plugin-capability",
+        "parameters": [
+          {
+            "description": "Id do plugin (slug do manifesto) ou id da instalação.",
+            "in": "path",
+            "name": "plugin",
+            "required": true,
+            "schema": {
+              "description": "Id do plugin (slug do manifesto) ou id da instalação.",
+              "examples": [
+                "hello"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Capacidade do plugin.",
+            "in": "path",
+            "name": "capability",
+            "required": true,
+            "schema": {
+              "description": "Capacidade do plugin.",
+              "enum": [
+                "tasks.read",
+                "tasks.write",
+                "personas.read",
+                "projects.read",
+                "activity.read",
+                "events.subscribe",
+                "agent.tools",
+                "widgets",
+                "jobs",
+                "state",
+                "http.outbound",
+                "pages",
+                "flows.trigger",
+                "environments.provider",
+                "skills.source"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Plugin"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Concede uma capacidade declarada no manifesto do plugin (dono)",
+        "tags": [
+          "plugins"
+        ]
+      }
+    },
+    "/api/v1/plugins/{plugin}/capabilities/{capability}/revoke": {
+      "post": {
+        "operationId": "revoke-plugin-capability",
+        "parameters": [
+          {
+            "description": "Id do plugin (slug do manifesto) ou id da instalação.",
+            "in": "path",
+            "name": "plugin",
+            "required": true,
+            "schema": {
+              "description": "Id do plugin (slug do manifesto) ou id da instalação.",
+              "examples": [
+                "hello"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Capacidade do plugin.",
+            "in": "path",
+            "name": "capability",
+            "required": true,
+            "schema": {
+              "description": "Capacidade do plugin.",
+              "enum": [
+                "tasks.read",
+                "tasks.write",
+                "personas.read",
+                "projects.read",
+                "activity.read",
+                "events.subscribe",
+                "agent.tools",
+                "widgets",
+                "jobs",
+                "state",
+                "http.outbound",
+                "pages",
+                "flows.trigger",
+                "environments.provider",
+                "skills.source"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Plugin"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Revoga uma capacidade: tools, aba, widgets, gatilhos, provider e fonte de skills que dependem dela somem na hora (dono)",
         "tags": [
           "plugins"
         ]

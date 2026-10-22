@@ -22,7 +22,7 @@ import (
 	"github.com/renatobardi/hanko/internal/ui/views"
 )
 
-// Trilha contínua, onda 3 (ADR-0060): assistente de primeiros passos, favoritos e recentes, perfil próprio e
+// Trilha contínua, onda 3 (ADR-0061): assistente de primeiros passos, favoritos e recentes, perfil próprio e
 // "O que há de novo". Tudo opcional no Backend (o fake dos testes também implementa).
 
 // w3Backend é o que as telas desta fatia pedem ao service.

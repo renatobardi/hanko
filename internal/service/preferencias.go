@@ -14,7 +14,7 @@ import (
 	"github.com/renatobardi/hanko/internal/store"
 )
 
-// Preferências da pessoa no servidor (ADR-0060): perfil próprio, favoritos e recentes da sidebar e avisos dispensados.
+// Preferências da pessoa no servidor (ADR-0061): perfil próprio, favoritos e recentes da sidebar e avisos dispensados.
 // São estado de navegação pessoal: favoritos geram fato de atividade (baixa frequência, e a empresa é quem os guarda);
 // recentes e dispensas não (como o lido/não lido da Caixa, ADR-0042).
 

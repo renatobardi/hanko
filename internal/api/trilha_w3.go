@@ -14,7 +14,7 @@ import (
 	"github.com/renatobardi/hanko/internal/service"
 )
 
-// Trilha contínua, onda 3 (ADR-0060): onboarding, perfil próprio, favoritos e recentes, "O que há de novo".
+// Trilha contínua, onda 3 (ADR-0061): onboarding, perfil próprio, favoritos e recentes, "O que há de novo".
 
 // w3Backend é o subconjunto do service desta fatia; opcional pelo mesmo motivo de readinessBackend.
 type w3Backend interface {

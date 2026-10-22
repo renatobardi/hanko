@@ -9,7 +9,7 @@ import (
 	"github.com/renatobardi/hanko/internal/domain"
 )
 
-// Preferências da pessoa no servidor (ADR-0060): favoritos, recentes, perfil e dispensa do "O que há de novo".
+// Preferências da pessoa no servidor (ADR-0061): favoritos, recentes, perfil e dispensa do "O que há de novo".
 
 func navPaths(items []domain.NavItem) []string {
 	out := make([]string, len(items))

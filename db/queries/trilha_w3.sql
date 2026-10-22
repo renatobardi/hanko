@@ -1,4 +1,4 @@
--- Trilha contínua, onda 3 (ADR-0060): perfil, favoritos e recentes, itens dispensados, onboarding.
+-- Trilha contínua, onda 3 (ADR-0061): perfil, favoritos e recentes, itens dispensados, onboarding.
 
 -- name: GetUserProfile :one
 SELECT * FROM user_profiles WHERE user_id = @user_id;

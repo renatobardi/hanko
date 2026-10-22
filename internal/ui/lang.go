@@ -29,7 +29,7 @@ type handlerRegistry interface {
 // middleware lives here and not around the mux).
 type langMux struct {
 	mux *http.ServeMux
-	// prof lê o perfil da pessoa autenticada (idioma e fuso, ADR-0060); nil = sem perfil.
+	// prof lê o perfil da pessoa autenticada (idioma e fuso, ADR-0061); nil = sem perfil.
 	prof func(context.Context) domain.UserProfile
 }
 

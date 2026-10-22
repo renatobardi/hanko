@@ -1,4 +1,4 @@
-// Package sandbox cria e apaga as instâncias descartáveis de test-drive (uma por branch ou worktree, ADR-0060): um banco
+// Package sandbox cria e apaga as instâncias descartáveis de test-drive (uma por branch ou worktree, ADR-0061): um banco
 // próprio no Postgres que o desenvolvedor já tem, uma porta determinística e um contexto da CLI apontando para ela.
 // Nada aqui sobe o servidor; quem chama (o comando `hanko sandbox`) decide como.
 package sandbox

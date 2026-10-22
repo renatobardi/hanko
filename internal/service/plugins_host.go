@@ -181,6 +181,8 @@ func (s *Service) hostDispatch(ctx context.Context, p domain.Plugin, co store.Co
 	cid := co.ID
 	actor := pluginActor(p)
 	switch method {
+	case "flows.fire":
+		return s.hostFlowsFire(ctx, p, co, params)
 	case "tasks.list":
 		in, err := decode[struct {
 			Status  []string `json:"status"`

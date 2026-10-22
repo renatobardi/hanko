@@ -1,6 +1,6 @@
 package i18n
 
-// enTrilhaW3 holds the English texts of the continuous track, wave 3 (ADR-0060): the first-steps wizard and
+// enTrilhaW3 holds the English texts of the continuous track, wave 3 (ADR-0061): the first-steps wizard and
 // `hanko onboard`, `hanko context` and `hanko sandbox`, favorites and recents in the sidebar, the own profile, and
 // "What's new". init merges them into the same catalog as the rest (en.go). Same rules: the key is the pt-BR text, and
 // a key that another file already translates is not repeated here.
