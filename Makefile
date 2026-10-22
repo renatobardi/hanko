@@ -7,7 +7,7 @@ LDFLAGS  := -X main.version=$(VERSION)
 COMPOSE  := docker compose -f deploy/compose.yaml --env-file .env
 # Testes de integração leem HANKO_TEST_DATABASE_URL do ambiente (e fazem skip se vazio).
 
-.PHONY: help build test test-integration lint fmt fmt-check vet generate openapi islands islands-test dev up down logs clean perf-seed perf-explain
+.PHONY: docs-site help build test test-integration lint fmt fmt-check vet generate openapi islands islands-test dev up down logs clean perf-seed perf-explain
 
 help: ## lista os alvos
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-18s %s\n", $$1, $$2}'
@@ -40,6 +40,9 @@ generate: ## sqlc + templ
 
 openapi: build ## regenera api/openapi.json
 	$(BIN) openapi > api/openapi.json
+
+docs-site: ## gera o site estático de docs (docs/ + docs/en + feature-map) em dist/docs, sem publicar
+	go run ./tools/docsite -out dist/docs
 
 islands: ## ilhas React: npm ci + typecheck + testes + build (ui/islands -> internal/ui/static/islands; exige Node 22+)
 	cd ui/islands && npm ci && npm run typecheck && npm test && npm run build && npm run smoke

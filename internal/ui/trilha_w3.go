@@ -54,15 +54,14 @@ func (s *server) w3be() (w3Backend, bool) {
 func (s *server) w3Routes(mux handlerRegistry) {
 	co := func(h companyHandler) http.HandlerFunc { return s.withCompany(h) }
 	post := func(h http.HandlerFunc) http.HandlerFunc { return s.sameOrigin(h) }
-	const wiz = "/c/{company}/primeiros-passos"
-	mux.HandleFunc("GET "+wiz, co(s.handleWizard))
-	mux.HandleFunc("POST "+wiz+"/harness", post(co(s.handleWizardHarness)))
-	mux.HandleFunc("POST "+wiz+"/pular", post(co(s.handleWizardSkip)))
-	mux.HandleFunc("POST "+wiz+"/pacote", post(co(s.handleWizardTeam)))
-	mux.HandleFunc("POST "+wiz+"/persona", post(co(s.handleWizardPersona)))
-	mux.HandleFunc("POST "+wiz+"/task", post(co(s.handleWizardTask)))
-	mux.HandleFunc("POST "+wiz+"/dispensar", post(co(s.handleWizardDismiss)))
-	mux.HandleFunc("POST "+wiz+"/retomar", post(co(s.handleWizardResume)))
+	mux.HandleFunc("GET /c/{company}/primeiros-passos", co(s.handleWizard))
+	mux.HandleFunc("POST /c/{company}/primeiros-passos/harness", post(co(s.handleWizardHarness)))
+	mux.HandleFunc("POST /c/{company}/primeiros-passos/pular", post(co(s.handleWizardSkip)))
+	mux.HandleFunc("POST /c/{company}/primeiros-passos/pacote", post(co(s.handleWizardTeam)))
+	mux.HandleFunc("POST /c/{company}/primeiros-passos/persona", post(co(s.handleWizardPersona)))
+	mux.HandleFunc("POST /c/{company}/primeiros-passos/task", post(co(s.handleWizardTask)))
+	mux.HandleFunc("POST /c/{company}/primeiros-passos/dispensar", post(co(s.handleWizardDismiss)))
+	mux.HandleFunc("POST /c/{company}/primeiros-passos/retomar", post(co(s.handleWizardResume)))
 	mux.HandleFunc("GET /c/{company}/perfil", co(s.handleProfile))
 	mux.HandleFunc("POST /c/{company}/perfil", post(co(s.handleProfileSave)))
 	mux.HandleFunc("GET /c/{company}/novidades", co(s.handleWhatsNew))

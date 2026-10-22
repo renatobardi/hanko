@@ -1,0 +1,423 @@
+{
+  "version": 1,
+  "domains": [
+    {
+      "id": "onboarding",
+      "title": {"pt": "Primeiros passos", "en": "First steps"},
+      "adrs": ["0060", "0044", "0055"],
+      "features": [
+        {
+          "id": "onboarding.company",
+          "title": {"pt": "Criar a primeira empresa", "en": "Create the first company"},
+          "surfaces": {"ui": ["GET /bem-vindo", "POST /empresas"], "cli": ["company create"], "api": ["create-company"]},
+          "script": {
+            "pt": "Abrir a instalação sem empresa; preencher o nome e o prefixo; cair no assistente de primeiros passos.",
+            "en": "Open an installation with no company; fill in name and prefix; land on the first-steps wizard."
+          },
+          "e2e": ["e2e/tests/02-company.setup.ts"],
+          "evals": [],
+          "status": "covered"
+        },
+        {
+          "id": "onboarding.wizard",
+          "title": {"pt": "Assistente: harness, persona ou time, primeira task", "en": "Wizard: harness, persona or team, first task"},
+          "surfaces": {
+            "ui": ["GET /c/{company}/primeiros-passos", "POST /c/{company}/primeiros-passos/harness", "POST /c/{company}/primeiros-passos/persona", "POST /c/{company}/primeiros-passos/pacote", "POST /c/{company}/primeiros-passos/task"],
+            "cli": ["onboard"],
+            "api": ["get-onboarding", "onboarding-probe", "onboarding-skip", "onboarding-dismiss", "onboarding-install-team", "onboarding-first-task"]
+          },
+          "script": {
+            "pt": "Testar o harness fake; contratar uma persona (ou instalar um pacote); pedir a primeira task; ver a execução começar. Fechar a aba no meio e voltar: o assistente continua no passo certo.",
+            "en": "Test the fake harness; hire a persona (or install a package); ask for the first task; watch the run start. Close the tab midway and come back: the wizard resumes at the right step."
+          },
+          "evals": ["onboarding.first-task-from-scratch"],
+          "status": "partial"
+        }
+      ]
+    },
+    {
+      "id": "cli",
+      "title": {"pt": "CLI e contextos", "en": "CLI and contexts"},
+      "adrs": ["0060", "0057"],
+      "features": [
+        {
+          "id": "cli.login",
+          "title": {"pt": "Login pelo navegador e whoami", "en": "Browser login and whoami"},
+          "surfaces": {"cli": ["login", "logout", "whoami"], "api": ["start-cli-auth", "poll-cli-auth", "whoami"]},
+          "script": {
+            "pt": "Rodar hanko login; autorizar no navegador; conferir com hanko whoami; sair.",
+            "en": "Run hanko login; authorize in the browser; check with hanko whoami; log out."
+          },
+          "status": "partial"
+        },
+        {
+          "id": "cli.context",
+          "title": {"pt": "Contextos: adicionar, trocar, listar", "en": "Contexts: add, switch, list"},
+          "surfaces": {"cli": ["context", "context add", "context use", "context list", "context current", "context rm"]},
+          "script": {
+            "pt": "Adicionar dois servidores; alternar entre eles com context use; usar --context numa chamada avulsa; remover um.",
+            "en": "Add two servers; switch between them with context use; use --context on a one-off call; remove one."
+          },
+          "status": "partial"
+        },
+        {
+          "id": "cli.sandbox",
+          "title": {"pt": "Instância descartável por branch (test-drive)", "en": "Disposable instance per branch (test-drive)"},
+          "surfaces": {"cli": ["sandbox", "sandbox up", "sandbox down", "sandbox list"]},
+          "script": {
+            "pt": "Em duas branches, rodar sandbox up; confirmar bancos e portas distintos; sandbox down apaga o banco e o contexto.",
+            "en": "On two branches, run sandbox up; confirm distinct databases and ports; sandbox down removes the database and the context."
+          },
+          "status": "partial"
+        }
+      ]
+    },
+    {
+      "id": "preferences",
+      "title": {"pt": "Preferências pessoais", "en": "Personal preferences"},
+      "adrs": ["0060"],
+      "features": [
+        {
+          "id": "preferences.favorites",
+          "title": {"pt": "Favoritos e recentes na sidebar", "en": "Favorites and recents in the sidebar"},
+          "surfaces": {"ui": ["POST /c/{company}/favoritos"], "cli": ["favorite", "favorite list", "favorite add", "favorite rm"], "api": ["get-nav", "set-nav-favorite"]},
+          "script": {
+            "pt": "Abrir uma task, favoritar pela estrela, recarregar em outra aba: o favorito e o recente aparecem; desfavoritar.",
+            "en": "Open a task, favorite it with the star, reload in another tab: the favorite and the recent show up; unfavorite."
+          },
+          "status": "partial"
+        },
+        {
+          "id": "preferences.profile",
+          "title": {"pt": "Perfil próprio: nome, avatar, fuso e idioma", "en": "Own profile: name, avatar, time zone and language"},
+          "surfaces": {"ui": ["GET /c/{company}/perfil", "POST /c/{company}/perfil"], "cli": ["profile", "profile show", "profile set"], "api": ["get-profile", "update-profile"]},
+          "script": {
+            "pt": "Trocar o nome, o avatar e o idioma para inglês; a UI inteira muda sem cookie; o avatar da sidebar reflete a escolha.",
+            "en": "Change the name, the avatar and the language to English; the whole UI changes without a cookie; the sidebar avatar reflects the choice."
+          },
+          "e2e": ["e2e/tests/94-lang-theme.spec.ts"],
+          "status": "partial"
+        },
+        {
+          "id": "preferences.whats-new",
+          "title": {"pt": "O que há de novo (CHANGELOG da versão instalada)", "en": "What's new (installed version's CHANGELOG)"},
+          "surfaces": {"ui": ["GET /c/{company}/novidades", "POST /c/{company}/novidades/dispensar"], "cli": ["whats-new"], "api": ["get-whats-new", "dismiss-whats-new"]},
+          "script": {
+            "pt": "Ver o cartão no Painel; abrir a página; dispensar; o cartão some só para esta pessoa.",
+            "en": "See the card on the Dashboard; open the page; dismiss it; the card disappears for this person only."
+          },
+          "status": "partial"
+        },
+        {
+          "id": "preferences.lang-theme",
+          "title": {"pt": "Idioma e tema", "en": "Language and theme"},
+          "surfaces": {"ui": ["POST /idioma", "POST /tema"]},
+          "script": {
+            "pt": "Trocar o idioma e o tema no rodapé da sidebar; recarregar; a escolha persiste.",
+            "en": "Switch language and theme in the sidebar footer; reload; the choice persists."
+          },
+          "e2e": ["e2e/tests/94-lang-theme.spec.ts"],
+          "status": "covered"
+        }
+      ]
+    },
+    {
+      "id": "access",
+      "title": {"pt": "Acesso e pessoas", "en": "Access and people"},
+      "adrs": ["0007", "0021", "0057"],
+      "features": [
+        {
+          "id": "access.login",
+          "title": {"pt": "Entrar e sair", "en": "Sign in and out"},
+          "surfaces": {"ui": ["POST /sair"]},
+          "script": {
+            "pt": "Entrar com senha errada (recusa), com a certa (entra) e sair (sessão encerrada).",
+            "en": "Sign in with a wrong password (refused), the right one (in) and sign out (session ended)."
+          },
+          "e2e": ["e2e/tests/10-auth.spec.ts"],
+          "status": "covered"
+        },
+        {
+          "id": "access.members",
+          "title": {"pt": "Convites, papéis e pedidos de entrada", "en": "Invites, roles and join requests"},
+          "surfaces": {"cli": ["member invite", "member role", "member join-link", "member approve"], "api": ["invite-member", "set-member-role", "create-join-link", "decide-join-request"]},
+          "script": {
+            "pt": "Convidar um membro; ele entra pelo link; não alcança telas de dono; o admin muda o papel.",
+            "en": "Invite a member; they join through the link; they cannot reach owner screens; the admin changes the role."
+          },
+          "e2e": ["e2e/tests/95-invite-roles.spec.ts"],
+          "status": "covered"
+        },
+        {
+          "id": "access.company-lifecycle",
+          "title": {"pt": "Editar, arquivar e excluir a empresa", "en": "Edit, archive and delete the company"},
+          "surfaces": {"cli": ["company edit", "company archive", "company restore", "company delete"], "api": ["update-company", "archive-company", "restore-company", "delete-company"]},
+          "script": {
+            "pt": "Arquivar a empresa (somente leitura), restaurar, arquivar de novo e excluir com o nome exato.",
+            "en": "Archive the company (read-only), restore it, archive again and delete it with the exact name."
+          },
+          "status": "partial"
+        }
+      ]
+    },
+    {
+      "id": "personas",
+      "title": {"pt": "Personas", "en": "Personas"},
+      "adrs": ["0016", "0055", "0052"],
+      "features": [
+        {
+          "id": "personas.hire",
+          "title": {"pt": "Contratar e ver a persona", "en": "Hire and view a persona"},
+          "surfaces": {"ui": ["GET /c/{company}/personas", "GET /c/{company}/personas/nova", "GET /c/{company}/personas/{persona}"], "cli": ["persona hire", "persona list", "persona show"], "api": ["hire-persona", "list-personas", "get-persona"], "mcp": ["hanko_persona_list"]},
+          "script": {
+            "pt": "Contratar a Ada com o harness fake; abrir a lista e a página dela.",
+            "en": "Hire Ada with the fake harness; open the list and her page."
+          },
+          "e2e": ["e2e/tests/20-persona.spec.ts"],
+          "evals": ["personas.list-colleagues"],
+          "status": "covered"
+        },
+        {
+          "id": "personas.readiness",
+          "title": {"pt": "Prontidão do harness da persona", "en": "Persona harness readiness"},
+          "surfaces": {"ui": ["GET /c/{company}/personas/{persona}/prontidao"], "cli": ["persona readiness", "persona test"], "api": ["test-persona-readiness", "get-persona-readiness"]},
+          "script": {
+            "pt": "Testar a persona; com o probe falhando, o despacho é barrado com o motivo; corrigir e liberar.",
+            "en": "Test the persona; with the probe failing, dispatch is blocked with the reason; fix and release."
+          },
+          "status": "partial"
+        },
+        {
+          "id": "personas.instructions",
+          "title": {"pt": "Instruções com revisões e restauração", "en": "Instructions with revisions and restore"},
+          "surfaces": {"ui": ["GET /c/{company}/personas/{persona}/instrucoes"], "api": ["list-instruction-revisions", "restore-instruction-revision", "propose-persona-instructions"], "mcp": ["hanko_persona_instruction_propose"]},
+          "script": {
+            "pt": "Editar as instruções com motivo; ver o diff; restaurar a revisão anterior; a persona propõe uma mudança e abre gate.",
+            "en": "Edit the instructions with a reason; see the diff; restore the previous revision; the persona proposes a change and opens a gate."
+          },
+          "evals": ["personas.propose-instruction-change"],
+          "status": "partial"
+        }
+      ]
+    },
+    {
+      "id": "work",
+      "title": {"pt": "Trabalho: projetos, tasks e execuções", "en": "Work: projects, tasks and runs"},
+      "adrs": ["0025", "0040", "0048"],
+      "features": [
+        {
+          "id": "work.projects",
+          "title": {"pt": "Projetos", "en": "Projects"},
+          "surfaces": {"ui": ["GET /c/{company}/projetos", "GET /c/{company}/projetos/novo", "GET /c/{company}/projetos/{project}"], "cli": ["project create", "project list", "project show"], "api": ["create-project", "list-projects"], "mcp": ["hanko_project_create", "hanko_project_list"]},
+          "script": {
+            "pt": "Criar um projeto e abri-lo.",
+            "en": "Create a project and open it."
+          },
+          "e2e": ["e2e/tests/30-project.spec.ts"],
+          "status": "covered"
+        },
+        {
+          "id": "work.tasks",
+          "title": {"pt": "Tasks: criar, comentar, atribuir", "en": "Tasks: create, comment, assign"},
+          "surfaces": {"ui": ["GET /c/{company}/tasks", "GET /c/{company}/tasks/nova", "GET /c/{company}/tasks/{task}"], "cli": ["task create", "task list", "task show", "task comment", "task assign"], "api": ["create-task", "list-tasks", "get-task", "add-comment"], "mcp": ["hanko_task_create", "hanko_task_comment", "hanko_task_list"]},
+          "script": {
+            "pt": "Criar uma task atribuída à Ada; ver a execução abrir; comentar como humano e ver o comentário no thread.",
+            "en": "Create a task assigned to Ada; watch the run open; comment as a human and see the comment in the thread."
+          },
+          "e2e": ["e2e/tests/40-task-run.spec.ts"],
+          "evals": ["tasks.create-and-delegate"],
+          "status": "covered"
+        },
+        {
+          "id": "work.dependencies",
+          "title": {"pt": "Dependências, subtasks e pausa", "en": "Dependencies, subtasks and hold"},
+          "surfaces": {"cli": ["task dep", "task hold", "task resume", "task parent"], "api": ["add-task-dependency", "hold-task", "resume-task"], "mcp": ["hanko_task_dependency"]},
+          "script": {
+            "pt": "Quebrar uma task em três com dependência; elas destravam em cascata; pausar o pai congela tudo.",
+            "en": "Split a task into three with a dependency; they unblock in cascade; holding the parent freezes everything."
+          },
+          "evals": ["tasks.dependency-cascade"],
+          "status": "partial"
+        },
+        {
+          "id": "work.runs",
+          "title": {"pt": "Execuções: log, cancelar, continuar, mudar o rumo", "en": "Runs: log, cancel, continue, steer"},
+          "surfaces": {"ui": ["GET /c/{company}/execucoes", "GET /c/{company}/execucoes/{run}"], "cli": ["run list", "run show", "run logs", "run cancel", "run continue", "run steer"], "api": ["list-runs", "get-run", "cancel-run", "steer-run"], "mcp": ["hanko_run_get"]},
+          "script": {
+            "pt": "Abrir uma execução em andamento; ler o log; mandar uma instrução (steer); cancelar.",
+            "en": "Open a run in progress; read the log; send an instruction (steer); cancel."
+          },
+          "e2e": ["e2e/tests/40-task-run.spec.ts"],
+          "status": "covered"
+        },
+        {
+          "id": "work.flows",
+          "title": {"pt": "Fluxos (rotinas agendadas)", "en": "Flows (scheduled routines)"},
+          "surfaces": {"ui": ["GET /c/{company}/fluxos", "GET /c/{company}/fluxos/novo"], "cli": ["flow create", "flow list", "flow run"], "api": ["create-flow", "run-flow"]},
+          "script": {
+            "pt": "Criar um fluxo com cron; rodar agora; ver a task criada.",
+            "en": "Create a flow with a cron; run it now; see the task it created."
+          },
+          "status": "partial"
+        }
+      ]
+    },
+    {
+      "id": "decisions",
+      "title": {"pt": "Decisões: gates e Caixa", "en": "Decisions: gates and Inbox"},
+      "adrs": ["0041", "0042"],
+      "features": [
+        {
+          "id": "decisions.gates",
+          "title": {"pt": "Gate: a persona pede, o humano decide", "en": "Gate: the persona asks, the human decides"},
+          "surfaces": {"ui": ["GET /c/{company}/gates", "GET /c/{company}/gates/{gate}"], "cli": ["gate list", "gate approve", "gate reject", "gate answer", "gate resubmit"], "api": ["request-gate", "decide-gate", "answer-gate", "resubmit-gate"], "mcp": ["hanko_gate_request", "hanko_gate_status", "hanko_gate_resubmit"]},
+          "script": {
+            "pt": "A persona abre um gate; o humano aprova com nota; a persona retoma. Em outro caso, pede mudança e a persona reenvia no mesmo gate.",
+            "en": "The persona opens a gate; the human approves with a note; the persona resumes. In another case, asks for a change and the persona resubmits on the same gate."
+          },
+          "e2e": ["e2e/tests/50-gate.spec.ts"],
+          "evals": ["gates.ask-before-irreversible"],
+          "status": "covered"
+        },
+        {
+          "id": "decisions.inbox",
+          "title": {"pt": "Caixa de entrada por pessoa", "en": "Per-person Inbox"},
+          "surfaces": {"ui": ["GET /c/{company}/caixa"], "cli": ["inbox list", "inbox read", "inbox archive"], "api": ["list-inbox", "set-inbox-state"]},
+          "script": {
+            "pt": "Ver um gate pendente na Caixa; marcar como lido; arquivar sem fechar a origem.",
+            "en": "See a pending gate in the Inbox; mark it read; archive it without closing the source."
+          },
+          "status": "partial"
+        }
+      ]
+    },
+    {
+      "id": "knowledge",
+      "title": {"pt": "Conhecimento: chat, artefatos, metas e busca", "en": "Knowledge: chat, artifacts, goals and search"},
+      "adrs": ["0027", "0028", "0024"],
+      "features": [
+        {
+          "id": "knowledge.chat",
+          "title": {"pt": "Chat com uma persona", "en": "Chat with a persona"},
+          "surfaces": {"ui": ["GET /c/{company}/chat"], "cli": ["chat list", "chat show"], "api": ["create-conversation", "send-conversation-message"]},
+          "script": {
+            "pt": "Conversar com a Ada, receber a resposta e continuar a conversa.",
+            "en": "Chat with Ada, get the answer and keep the conversation going."
+          },
+          "e2e": ["e2e/tests/60-chat.spec.ts"],
+          "status": "covered"
+        },
+        {
+          "id": "knowledge.artifacts",
+          "title": {"pt": "Artefatos com versões", "en": "Versioned artifacts"},
+          "surfaces": {"ui": ["GET /c/{company}/artefatos", "GET /c/{company}/artefatos/novo"], "cli": ["artifact put", "artifact list", "artifact diff"], "api": ["put-artifact", "list-artifacts", "diff-artifact"], "mcp": ["hanko_artifact_put"]},
+          "script": {
+            "pt": "Enviar um arquivo, listar, enviar de novo com o mesmo nome e ver a versão 2.",
+            "en": "Upload a file, list it, upload again with the same name and see version 2."
+          },
+          "e2e": ["e2e/tests/70-artifacts.spec.ts"],
+          "status": "covered"
+        },
+        {
+          "id": "knowledge.goals",
+          "title": {"pt": "Metas e progresso", "en": "Goals and progress"},
+          "surfaces": {"ui": ["GET /c/{company}/metas", "GET /c/{company}/metas/nova"], "cli": ["goal create", "goal progress"], "api": ["create-goal", "record-goal-progress"], "mcp": ["hanko_goal_create", "hanko_goal_update"]},
+          "script": {
+            "pt": "Criar uma meta e registrar progresso até atingi-la.",
+            "en": "Create a goal and record progress until it is reached."
+          },
+          "e2e": ["e2e/tests/80-goals-search-costs.spec.ts"],
+          "status": "covered"
+        },
+        {
+          "id": "knowledge.search",
+          "title": {"pt": "Busca única", "en": "Unified search"},
+          "surfaces": {"ui": ["GET /c/{company}/buscar"], "cli": ["search"], "api": ["search"], "mcp": ["hanko_search"]},
+          "script": {
+            "pt": "Buscar um termo e achar a task e a persona que o citam.",
+            "en": "Search for a term and find the task and persona that mention it."
+          },
+          "e2e": ["e2e/tests/80-goals-search-costs.spec.ts"],
+          "status": "covered"
+        }
+      ]
+    },
+    {
+      "id": "operations",
+      "title": {"pt": "Operação: custos, segredos, integrações e skills", "en": "Operations: costs, secrets, integrations and skills"},
+      "adrs": ["0019", "0050", "0029", "0044"],
+      "features": [
+        {
+          "id": "operations.costs",
+          "title": {"pt": "Custos e orçamento", "en": "Costs and budget"},
+          "surfaces": {"ui": ["GET /c/{company}/custos"], "cli": ["cost", "budget"], "api": ["get-costs"]},
+          "script": {
+            "pt": "Definir o limite mensal da empresa e conferir o painel de custos.",
+            "en": "Set the company's monthly limit and check the costs screen."
+          },
+          "e2e": ["e2e/tests/80-goals-search-costs.spec.ts"],
+          "status": "covered"
+        },
+        {
+          "id": "operations.secrets",
+          "title": {"pt": "Segredos da empresa", "en": "Company secrets"},
+          "surfaces": {"ui": ["GET /c/{company}/configuracoes/segredos"], "cli": ["secret create", "secret ls", "secret rotate"], "api": ["create-secret", "list-secrets", "rotate-secret"]},
+          "script": {
+            "pt": "Criar um segredo, referenciá-lo por ${secret:NOME} numa integração e revelá-lo uma vez.",
+            "en": "Create a secret, reference it with ${secret:NAME} in an integration and reveal it once."
+          },
+          "evals": ["secrets.never-leak-value"],
+          "status": "partial"
+        },
+        {
+          "id": "operations.integrations",
+          "title": {"pt": "Integrações e tools", "en": "Integrations and tools"},
+          "surfaces": {"ui": ["GET /c/{company}/integracoes"], "cli": ["integration create", "integration list", "integration tools"], "api": ["create-integration", "list-integration-tools"]},
+          "script": {
+            "pt": "Criar uma integração MCP, revisar as tools novas (quarentena) e liberar para uma persona.",
+            "en": "Create an MCP integration, review the new tools (quarantine) and enable them for a persona."
+          },
+          "status": "partial"
+        },
+        {
+          "id": "operations.skills",
+          "title": {"pt": "Skills com versões", "en": "Versioned skills"},
+          "surfaces": {"ui": ["GET /c/{company}/skills"], "cli": ["skill create", "skill list", "skill versions"], "api": ["create-skill", "list-skill-versions"], "mcp": ["hanko_skill_list", "hanko_skill_get"]},
+          "script": {
+            "pt": "Criar uma skill, editar (nova versão), restaurar a anterior e ligar a uma persona.",
+            "en": "Create a skill, edit it (new version), restore the previous one and enable it for a persona."
+          },
+          "status": "partial"
+        },
+        {
+          "id": "operations.teams",
+          "title": {"pt": "Pacotes de time", "en": "Team packages"},
+          "surfaces": {"cli": ["teams catalog", "teams preview", "teams install"], "api": ["list-team-catalog", "preview-team", "install-team"]},
+          "script": {
+            "pt": "Ver o catálogo, pré-visualizar um pacote e instalar; as personas chegam pausadas.",
+            "en": "See the catalog, preview a package and install it; the personas arrive paused."
+          },
+          "status": "partial"
+        }
+      ]
+    },
+    {
+      "id": "platform",
+      "title": {"pt": "Plataforma", "en": "Platform"},
+      "adrs": ["0013", "0058"],
+      "features": [
+        {
+          "id": "platform.design-guide",
+          "title": {"pt": "Catálogo do design system", "en": "Design system catalog"},
+          "surfaces": {"ui": ["GET /design-guide"]},
+          "script": {
+            "pt": "Abrir /design-guide como dono em claro e escuro; como membro, 404.",
+            "en": "Open /design-guide as owner in light and dark; as a member, 404."
+          },
+          "e2e": ["e2e/tests/92-design-guide.spec.ts"],
+          "status": "covered"
+        }
+      ]
+    }
+  ]
+}
