@@ -48,7 +48,7 @@ const createSkill = `-- name: CreateSkill :one
 INSERT INTO skills (id, company_id, slug, name, description, body, version, created_by_type, created_by_id,
                     updated_by_type, updated_by_id, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6, 1, $7, $8, $7, $8, $9, $9)
-RETURNING id, company_id, slug, name, description, body, version, created_by_type, created_by_id, updated_by_type, updated_by_id, created_at, updated_at, source_id, source_path, source_commit, source_modified
+RETURNING id, company_id, slug, name, description, body, version, created_by_type, created_by_id, updated_by_type, updated_by_id, created_at, updated_at, source_id, source_path, source_commit, source_modified, forked_from_id, forked_from_revision
 `
 
 type CreateSkillParams struct {
@@ -94,6 +94,8 @@ func (q *Queries) CreateSkill(ctx context.Context, arg CreateSkillParams) (Skill
 		&i.SourcePath,
 		&i.SourceCommit,
 		&i.SourceModified,
+		&i.ForkedFromID,
+		&i.ForkedFromRevision,
 	)
 	return i, err
 }
@@ -151,7 +153,7 @@ func (q *Queries) ExportPersonaSkills(ctx context.Context, companyID uuid.UUID) 
 }
 
 const getEnabledSkillForPersona = `-- name: GetEnabledSkillForPersona :one
-SELECT s.id, s.company_id, s.slug, s.name, s.description, s.body, s.version, s.created_by_type, s.created_by_id, s.updated_by_type, s.updated_by_id, s.created_at, s.updated_at, s.source_id, s.source_path, s.source_commit, s.source_modified FROM skills s
+SELECT s.id, s.company_id, s.slug, s.name, s.description, s.body, s.version, s.created_by_type, s.created_by_id, s.updated_by_type, s.updated_by_id, s.created_at, s.updated_at, s.source_id, s.source_path, s.source_commit, s.source_modified, s.forked_from_id, s.forked_from_revision FROM skills s
 JOIN persona_skills ps ON ps.skill_id = s.id
 WHERE ps.persona_id = $1 AND ps.enabled AND s.company_id = $2 AND s.slug = $3
 `
@@ -183,12 +185,14 @@ func (q *Queries) GetEnabledSkillForPersona(ctx context.Context, arg GetEnabledS
 		&i.SourcePath,
 		&i.SourceCommit,
 		&i.SourceModified,
+		&i.ForkedFromID,
+		&i.ForkedFromRevision,
 	)
 	return i, err
 }
 
 const getSkillByID = `-- name: GetSkillByID :one
-SELECT id, company_id, slug, name, description, body, version, created_by_type, created_by_id, updated_by_type, updated_by_id, created_at, updated_at, source_id, source_path, source_commit, source_modified FROM skills WHERE company_id = $1 AND id = $2
+SELECT id, company_id, slug, name, description, body, version, created_by_type, created_by_id, updated_by_type, updated_by_id, created_at, updated_at, source_id, source_path, source_commit, source_modified, forked_from_id, forked_from_revision FROM skills WHERE company_id = $1 AND id = $2
 `
 
 type GetSkillByIDParams struct {
@@ -217,12 +221,14 @@ func (q *Queries) GetSkillByID(ctx context.Context, arg GetSkillByIDParams) (Ski
 		&i.SourcePath,
 		&i.SourceCommit,
 		&i.SourceModified,
+		&i.ForkedFromID,
+		&i.ForkedFromRevision,
 	)
 	return i, err
 }
 
 const getSkillByIDForUpdate = `-- name: GetSkillByIDForUpdate :one
-SELECT id, company_id, slug, name, description, body, version, created_by_type, created_by_id, updated_by_type, updated_by_id, created_at, updated_at, source_id, source_path, source_commit, source_modified FROM skills WHERE company_id = $1 AND id = $2 FOR UPDATE
+SELECT id, company_id, slug, name, description, body, version, created_by_type, created_by_id, updated_by_type, updated_by_id, created_at, updated_at, source_id, source_path, source_commit, source_modified, forked_from_id, forked_from_revision FROM skills WHERE company_id = $1 AND id = $2 FOR UPDATE
 `
 
 type GetSkillByIDForUpdateParams struct {
@@ -251,12 +257,14 @@ func (q *Queries) GetSkillByIDForUpdate(ctx context.Context, arg GetSkillByIDFor
 		&i.SourcePath,
 		&i.SourceCommit,
 		&i.SourceModified,
+		&i.ForkedFromID,
+		&i.ForkedFromRevision,
 	)
 	return i, err
 }
 
 const getSkillBySlug = `-- name: GetSkillBySlug :one
-SELECT id, company_id, slug, name, description, body, version, created_by_type, created_by_id, updated_by_type, updated_by_id, created_at, updated_at, source_id, source_path, source_commit, source_modified FROM skills WHERE company_id = $1 AND slug = $2
+SELECT id, company_id, slug, name, description, body, version, created_by_type, created_by_id, updated_by_type, updated_by_id, created_at, updated_at, source_id, source_path, source_commit, source_modified, forked_from_id, forked_from_revision FROM skills WHERE company_id = $1 AND slug = $2
 `
 
 type GetSkillBySlugParams struct {
@@ -285,12 +293,14 @@ func (q *Queries) GetSkillBySlug(ctx context.Context, arg GetSkillBySlugParams) 
 		&i.SourcePath,
 		&i.SourceCommit,
 		&i.SourceModified,
+		&i.ForkedFromID,
+		&i.ForkedFromRevision,
 	)
 	return i, err
 }
 
 const listEnabledSkillsForPersona = `-- name: ListEnabledSkillsForPersona :many
-SELECT s.id, s.company_id, s.slug, s.name, s.description, s.body, s.version, s.created_by_type, s.created_by_id, s.updated_by_type, s.updated_by_id, s.created_at, s.updated_at, s.source_id, s.source_path, s.source_commit, s.source_modified FROM skills s
+SELECT s.id, s.company_id, s.slug, s.name, s.description, s.body, s.version, s.created_by_type, s.created_by_id, s.updated_by_type, s.updated_by_id, s.created_at, s.updated_at, s.source_id, s.source_path, s.source_commit, s.source_modified, s.forked_from_id, s.forked_from_revision FROM skills s
 JOIN persona_skills ps ON ps.skill_id = s.id
 WHERE ps.persona_id = $1 AND ps.enabled AND s.company_id = $2
 ORDER BY s.slug, s.id
@@ -328,6 +338,8 @@ func (q *Queries) ListEnabledSkillsForPersona(ctx context.Context, arg ListEnabl
 			&i.SourcePath,
 			&i.SourceCommit,
 			&i.SourceModified,
+			&i.ForkedFromID,
+			&i.ForkedFromRevision,
 		); err != nil {
 			return nil, err
 		}
@@ -445,7 +457,7 @@ func (q *Queries) ListSkillPersonaLinks(ctx context.Context, arg ListSkillPerson
 }
 
 const listSkills = `-- name: ListSkills :many
-SELECT id, company_id, slug, name, description, body, version, created_by_type, created_by_id, updated_by_type, updated_by_id, created_at, updated_at, source_id, source_path, source_commit, source_modified FROM skills WHERE company_id = $1 ORDER BY name, id
+SELECT id, company_id, slug, name, description, body, version, created_by_type, created_by_id, updated_by_type, updated_by_id, created_at, updated_at, source_id, source_path, source_commit, source_modified, forked_from_id, forked_from_revision FROM skills WHERE company_id = $1 ORDER BY name, id
 `
 
 func (q *Queries) ListSkills(ctx context.Context, companyID uuid.UUID) ([]Skill, error) {
@@ -475,6 +487,8 @@ func (q *Queries) ListSkills(ctx context.Context, companyID uuid.UUID) ([]Skill,
 			&i.SourcePath,
 			&i.SourceCommit,
 			&i.SourceModified,
+			&i.ForkedFromID,
+			&i.ForkedFromRevision,
 		); err != nil {
 			return nil, err
 		}
@@ -516,7 +530,7 @@ UPDATE skills
 SET name = $1, description = $2, body = $3, version = $4,
     updated_by_type = $5, updated_by_id = $6, updated_at = $7
 WHERE company_id = $8 AND id = $9
-RETURNING id, company_id, slug, name, description, body, version, created_by_type, created_by_id, updated_by_type, updated_by_id, created_at, updated_at, source_id, source_path, source_commit, source_modified
+RETURNING id, company_id, slug, name, description, body, version, created_by_type, created_by_id, updated_by_type, updated_by_id, created_at, updated_at, source_id, source_path, source_commit, source_modified, forked_from_id, forked_from_revision
 `
 
 type UpdateSkillParams struct {
@@ -562,6 +576,8 @@ func (q *Queries) UpdateSkill(ctx context.Context, arg UpdateSkillParams) (Skill
 		&i.SourcePath,
 		&i.SourceCommit,
 		&i.SourceModified,
+		&i.ForkedFromID,
+		&i.ForkedFromRevision,
 	)
 	return i, err
 }

@@ -231,6 +231,36 @@ templ SkillEditorPage(sh Shell, vm SkillEditorVM) {
 					@ToggleList(vm.Personas)
 				}
 			</section>
+			if vm.ForkedFrom != "" {
+				<section class="card pad mt-6">
+					<p class="muted">{ i18n.T(ctx, "Esta skill é uma cópia local de") } <a class="link-u" href={ templ.SafeURL(vm.ForkedFromHref) }>{ vm.ForkedFrom }</a>. { i18n.T(ctx, "Ela tem história própria: a sincronização da fonte não a toca.") }</p>
+				</section>
+			}
+			if len(vm.Forks) > 0 {
+				<section class="card pad mt-6">
+					<div class="card-head"><div><h2>{ i18n.T(ctx, "Cópias locais") }</h2></div></div>
+					<ul>
+						for _, f := range vm.Forks {
+							<li><a class="link-u" href={ templ.SafeURL(f.Href) }>{ f.Name }</a> <span class="mono muted">{ f.Slug }</span></li>
+						}
+					</ul>
+				</section>
+			}
+			if vm.ForkHref != "" && canAdmin(ctx) {
+				<section class="card pad mt-6">
+					<div class="card-head"><div><h2>{ i18n.T(ctx, "Bifurcar") }</h2><p class="sub">{ i18n.T(ctx, "Cria uma cópia local editável desta skill, solta da fonte e com a própria história de versões. É o jeito recomendado de mexer numa skill que vem de uma fonte.") }</p></div></div>
+					<form method="post" action={ templ.SafeURL(vm.ForkHref) } class="form-grid">
+						<div class="field">
+							<label for="fk-slug">{ i18n.T(ctx, "Identificador da cópia (opcional)") }</label>
+							<input class="input mono" id="fk-slug" name="slug" maxlength="63" pattern="[a-z0-9][a-z0-9-]*" autocomplete="off"/>
+						</div>
+						<div class="field">
+							<label><input type="checkbox" name="move_personas" value="1"/> { i18n.T(ctx, "Passar as personas desta skill para a cópia") }</label>
+						</div>
+						<div class="form-actions"><button class="btn outline" type="submit">{ i18n.T(ctx, "Bifurcar") }</button></div>
+					</form>
+				</section>
+			}
 			if canAdmin(ctx) {
 				<section class="card pad mt-6">
 					<div class="card-head"><div><h2>{ i18n.T(ctx, "Apagar skill") }</h2><p class="sub">{ i18n.T(ctx, "Remove a skill e o vínculo com todas as personas. As execuções futuras deixam de carregá-la.") }</p></div></div>

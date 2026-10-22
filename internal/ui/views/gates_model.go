@@ -22,6 +22,8 @@ type GateRow struct {
 	Pending     bool
 	Aged        bool // pending for more than 24 h
 	DecideHref  string
+	// ConnectHref leva à tela de Conexões, onde o humano autoriza (só gate kind=connection, ADR-0043).
+	ConnectHref string
 	// Revisão automática (outro modelo) feita antes do gate; a decisão segue humana.
 	Review *ReviewInfo
 	// ADR-0041: pergunta (formulário e resposta), audiência e versão do pedido.

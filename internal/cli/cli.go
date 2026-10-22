@@ -152,7 +152,7 @@ func (e *env) root() *cobra.Command {
 		e.companyCmd(), e.workspaceCmd(), e.projectCmd(), e.personaCmd(), e.taskCmd(), e.runCmd(), e.followupCmd(), e.gateCmd(), e.chatCmd(), e.orgCmd(),
 		e.costCmd(), e.budgetCmd(), e.subscriptionCmd(), e.flowCmd(), e.channelCmd(), e.memoryCmd(), e.memberCmd(), e.authCmd(), e.exportCmd(), e.importCmd(), e.searchCmd(), e.skillCmd(), e.integrationCmd(), e.pluginCmd(),
 		e.artifactCmd(), e.attachCmd(), e.attachmentCmd(), e.goalCmd(), e.statusCardCmd(), e.toolProfileCmd(), e.toolGatewayCmd(),
-		e.secretCmd(), e.settingsCmd(), e.blobsCmd(), e.decisionCmd(), e.toolPolicyCmd(), e.hookCmd(), e.loginCmd(), e.logoutCmd(), e.whoamiCmd(), e.usersCmd())
+		e.secretCmd(), e.settingsCmd(), e.blobsCmd(), e.decisionCmd(), e.toolPolicyCmd(), e.hookCmd(), e.connectionCmd(), e.teamsCmd(), e.loginCmd(), e.logoutCmd(), e.whoamiCmd(), e.usersCmd())
 	root.AddCommand(e.inboxCmd(), e.notifyCmd(), e.activityCmd()) // Caixa por pessoa, avisos e atividade por ator (ADR-0042)
 	root.AddCommand(e.roomCmd())                                  // sala (ADR-0033)
 	root.AddCommand(e.environmentCmd())                           // ambientes de execução (ADR-0037)

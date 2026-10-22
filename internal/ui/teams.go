@@ -101,6 +101,7 @@ func (s *server) handleTeamCatalog(w http.ResponseWriter, r *http.Request, co do
 	for _, t := range teamCatalog {
 		vm.Teams = append(vm.Teams, teamVM(ctx, base, t))
 	}
+	vm.Packages = s.packagesVM(ctx, co)
 	sh := s.shell(r, co, "personas", i18n.T(ctx, "Catálogo de times"), views.Crumb{Label: i18n.T(ctx, "Personas"), Href: base + "/personas"}, views.Crumb{Label: i18n.T(ctx, "Catálogo de times")})
 	s.render(w, r, http.StatusOK, views.TeamCatalogPage(sh, vm))
 }

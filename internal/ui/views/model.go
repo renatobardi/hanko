@@ -445,15 +445,17 @@ type RunVM struct {
 	// leva ao texto daquela revisão (ADR-0052). Vazios em runs anteriores às revisões.
 	Instructions     string
 	InstructionsHref string
-	ExitCode         string
-	Error            string
-	Summary          HTML
-	Active           bool
-	Terminal         bool
-	CancelHref       string
-	SSEHref          string
-	Lines            []LogLine
-	LastSeq          int64
+	// Skills são as skills e revisões que a run recebeu ("revisar-pr v3 (fixada)"), ADR-0044.
+	Skills     []string
+	ExitCode   string
+	Error      string
+	Summary    HTML
+	Active     bool
+	Terminal   bool
+	CancelHref string
+	SSEHref    string
+	Lines      []LogLine
+	LastSeq    int64
 	// Islands (ADR-0026): virtualized log and anchored comments on the summary.
 	IslandAPI      string
 	LogMsgs        string // JSON

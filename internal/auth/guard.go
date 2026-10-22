@@ -43,6 +43,10 @@ const CLIAuthPath = "/cli-auth/"
 // JoinPath é o prefixo público do link de pedido de entrada (/pedir-acesso/<token>); a página exige login.
 const JoinPath = "/pedir-acesso/"
 
+// OAuthCallbackPath é o retorno do servidor de autorização das conexões OAuth (ADR-0043); code e state viajam na query,
+// então o caminho é mascarado nos traces como os demais (a requisição original segue intacta para o mux).
+const OAuthCallbackPath = "/oauth/callback"
+
 // CLIAuthAPIPrefix são os endpoints públicos do login da CLI (criação e consulta); quem chama ainda não tem credencial.
 const CLIAuthAPIPrefix = "/api/v1/cli-auth"
 
@@ -50,7 +54,7 @@ const CLIAuthAPIPrefix = "/api/v1/cli-auth"
 // login da CLI e o token do link de entrada. Use em qualquer log, nome de span ou atributo que carregue o caminho
 // da requisição.
 func RedactPath(path string) string {
-	for _, p := range []string{InvitePath, CLIAuthPath, JoinPath} {
+	for _, p := range []string{InvitePath, CLIAuthPath, JoinPath, OAuthCallbackPath} {
 		if strings.HasPrefix(path, p) {
 			return p + "…"
 		}

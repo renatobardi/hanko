@@ -549,8 +549,8 @@ func linkHint(kind domain.ChannelKind, code string) string {
 	return "Envie ao bot no Telegram: /vincular " + code
 }
 
-// callerUserID devolve o usuário autenticado do contexto (vínculo e revogação exigem uma pessoa).
-func callerUserID(ctx context.Context) (domain.User, error) {
+// channelCaller devolve o usuário autenticado do contexto (vínculo e revogação exigem uma pessoa).
+func channelCaller(ctx context.Context) (domain.User, error) {
 	id, ok := auth.IdentityFrom(ctx)
 	if !ok {
 		return domain.User{}, domain.Invalid("user", "exige uma pessoa autenticada")
@@ -563,7 +563,7 @@ func (s *Service) CreateChannelLink(ctx context.Context, actor domain.Actor, com
 	if err := s.require(ctx, companyID, domain.MemberMember); err != nil {
 		return ChannelLink{}, err
 	}
-	user, err := callerUserID(ctx)
+	user, err := channelCaller(ctx)
 	if err != nil {
 		return ChannelLink{}, err
 	}
@@ -632,7 +632,7 @@ func (s *Service) MyChannelIdentity(ctx context.Context, companyID, channelID do
 	if err := s.require(ctx, companyID, domain.MemberMember); err != nil {
 		return nil, err
 	}
-	user, err := callerUserID(ctx)
+	user, err := channelCaller(ctx)
 	if err != nil {
 		return nil, nil //nolint:nilerr // sem pessoa autenticada não há vínculo a mostrar
 	}
@@ -652,7 +652,7 @@ func (s *Service) RevokeChannelIdentity(ctx context.Context, actor domain.Actor,
 	if err := s.require(ctx, companyID, domain.MemberMember); err != nil {
 		return err
 	}
-	user, err := callerUserID(ctx)
+	user, err := channelCaller(ctx)
 	if err != nil {
 		return err
 	}

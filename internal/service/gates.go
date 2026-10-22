@@ -39,6 +39,8 @@ type RequestGateInput struct {
 	requestedStatus domain.TaskStatus
 	// review is the outcome of the automatic review that preceded the gate; set only by completeReview.
 	review *gateReviewData
+	// connectionID liga o gate à conexão que o motivou; set só por RequestConnection (ADR-0043).
+	connectionID *domain.ID
 }
 
 // DecideGateInput is the human answer to a pending gate.
@@ -110,6 +112,9 @@ func (s *Service) RequestGate(ctx context.Context, actor domain.Actor, companyID
 		return GateView{}, domain.Invalid("kind", fmt.Sprintf("unknown kind %q", in.Kind))
 	}
 	in.Title = title
+	if in.Kind == domain.GateConnection && in.connectionID == nil { // o gate nasce de um pedido de conexão, que sabe qual é
+		return GateView{}, domain.Invalid("kind", "connection gates are opened by requesting a connection")
+	}
 	if err := s.prepareGateExtras(ctx, actor, companyID, &in); err != nil {
 		return GateView{}, err
 	}
@@ -173,6 +178,11 @@ func (s *Service) RequestGate(ctx context.Context, actor domain.Actor, companyID
 			g, err := t.createGate(actor, companyID, in, personaID)
 			if err != nil {
 				return err
+			}
+			if in.connectionID != nil {
+				if err := t.q.SetConnectionGate(ctx, store.SetConnectionGateParams{CompanyID: companyID, ID: *in.connectionID, GateID: &g.ID, Now: t.now}); err != nil {
+					return fmt.Errorf("link connection gate: %w", err)
+				}
 			}
 			if personaID != nil {
 				if err := t.parkForGate(actor, companyID, g, task); err != nil {
@@ -485,6 +495,11 @@ func (s *Service) DecideGate(ctx context.Context, actor domain.Actor, companyID,
 		}
 		if k := domain.GateKind(cur.Kind); k == domain.GateHire || k == domain.GateInstruction { // contratar e mudar instruções são decisões de admin (ADR-0021)
 			if err := s.require(ctx, companyID, domain.MemberAdmin); err != nil {
+				return err
+			}
+		}
+		if domain.GateKind(cur.Kind) == domain.GateConnection {
+			if err := t.connectionGateCheck(cur, in.Decision); err != nil {
 				return err
 			}
 		}

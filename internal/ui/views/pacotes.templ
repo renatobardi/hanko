@@ -1,0 +1,166 @@
+package views
+
+import (
+	"fmt"
+
+	"github.com/renatobardi/hanko/internal/i18n"
+)
+
+// ---- Pacotes de time hanko.team.v1 (ADR-0044) ----
+
+// PackagesSection é a seção de pacotes embutida no Catálogo de times.
+templ PackagesSection(vm PackagesVM) {
+	if !vm.Unavailable {
+		<section class="mt-6" id="pacotes">
+			<div class="card-head">
+				<div>
+					<h2>{ i18n.T(ctx, "Pacotes de time") }</h2>
+					<p class="sub">{ i18n.T(ctx, "Pacotes hanko.team.v1: personas, skills e rotinas que se instalam numa empresa existente, sempre pausados. Veja a prévia antes de instalar.") }</p>
+				</div>
+			</div>
+			<div class="grid-2 team-grid">
+				for _, c := range vm.Cards {
+					<section class="card pad team-card">
+						<div class="pc-t"><h3>{ c.Name } <span class="muted mono">{ c.Version }</span></h3><p class="sub">{ c.Desc }</p></div>
+						<div class="row-between mt-4">
+							<span class="muted text-xs">{ i18n.Tf(ctx, "%s personas · %s skills · %s rotinas · harness %s", fmt.Sprint(c.Personas), fmt.Sprint(c.Skills), fmt.Sprint(c.Flows), c.Agents) }</span>
+							if vm.CanAdmin {
+								<a class="btn primary sm" href={ templ.SafeURL(c.PreviewHref) }>{ i18n.T(ctx, "Ver prévia") }</a>
+							}
+						</div>
+					</section>
+				}
+			</div>
+			if vm.CanAdmin {
+				<div class="grid-2 mt-6 items-start">
+					<form class="card pad form-card" method="post" action={ templ.SafeURL(vm.UploadHref) } enctype="multipart/form-data">
+						<div class="card-head"><div><h3>{ i18n.T(ctx, "Instalar de um arquivo") }</h3><p class="sub">{ i18n.T(ctx, "Envie um pacote hanko.team.v1 (até 2 MiB). A prévia mostra o que entra antes de gravar.") }</p></div></div>
+						<div class="field">
+							<label for="pk-file">{ i18n.T(ctx, "Arquivo do pacote (.json)") }</label>
+							<input class="input" id="pk-file" type="file" name="file" accept="application/json,.json" required/>
+						</div>
+						<div class="form-actions"><button class="btn outline" type="submit">{ i18n.T(ctx, "Ver prévia") }</button></div>
+					</form>
+					<form class="card pad form-card" method="get" action={ templ.SafeURL(vm.ExportHref) }>
+						<div class="card-head"><div><h3>{ i18n.T(ctx, "Exportar um time") }</h3><p class="sub">{ i18n.T(ctx, "Baixa as personas marcadas, as skills delas e as rotinas como pacote hanko.team.v1. Sem nenhuma marcada, leva todas.") }</p></div></div>
+						<div class="field">
+							for _, o := range vm.ExportOpts {
+								<label><input type="checkbox" name="personas" value={ o.Value }/> { o.Label }</label>
+							}
+						</div>
+						<div class="field">
+							<label for="pk-name">{ i18n.T(ctx, "Nome do pacote") }</label>
+							<input class="input" id="pk-name" name="name" maxlength="120"/>
+						</div>
+						<div class="form-actions"><button class="btn outline" type="submit">{ i18n.T(ctx, "Baixar pacote") }</button></div>
+					</form>
+				</div>
+			}
+			if len(vm.Installs) > 0 {
+				<div class="table-wrap mt-6">
+					<table class="table">
+						<thead><tr><th>{ i18n.T(ctx, "Pacote instalado") }</th><th>{ i18n.T(ctx, "Versão") }</th><th class="hide-sm">{ i18n.T(ctx, "Origem") }</th><th class="num">{ i18n.T(ctx, "Quando") }</th></tr></thead>
+						<tbody>
+							for _, r := range vm.Installs {
+								<tr class="row"><td>{ r.Name }</td><td class="mono">{ r.Version }</td><td class="hide-sm muted">{ r.Source }</td><td class="num muted">{ r.When }</td></tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+		</section>
+	}
+}
+
+// PackagePreviewPage é a prévia e a instalação de um pacote.
+templ PackagePreviewPage(sh Shell, vm PackagePreviewVM) {
+	@Layout(sh) {
+		@PageHead(vm.Name, vm.Desc) {
+			<a class="btn ghost" href={ templ.SafeURL(vm.BackHref) }>{ i18n.T(ctx, "Voltar ao catálogo") }</a>
+		}
+		<p class="muted"><span class="mono">{ vm.Version }</span> · { vm.Source }
+			if vm.Author != "" {
+				· { vm.Author }
+			}
+		</p>
+		if vm.Notice != "" {
+			@Alert("warn", vm.Notice)
+		}
+		if vm.Error != "" {
+			@Alert("danger", vm.Error)
+		}
+		if vm.Installed {
+			<section class="card pad mt-6">
+				<p>{ i18n.T(ctx, "Nada trabalha até você liberar: retome as personas na tela delas e ligue as rotinas em Fluxos.") }</p>
+			</section>
+		}
+		for _, w := range vm.Warnings {
+			@Alert("warn", w)
+		}
+		<form method="post" action={ templ.SafeURL(vm.PreviewHref) }>
+			<section class="card pad mt-6">
+				<div class="card-head"><div><h2>{ i18n.T(ctx, "O que entra") }</h2></div></div>
+				<div class="table-wrap">
+					<table class="table">
+						<thead><tr><th>{ i18n.T(ctx, "Tipo") }</th><th>{ i18n.T(ctx, "Item") }</th><th>{ i18n.T(ctx, "Ação") }</th><th class="hide-sm">{ i18n.T(ctx, "Destino") }</th></tr></thead>
+						<tbody>
+							for _, it := range vm.Items {
+								<tr class="row">
+									<td class="muted">{ it.Kind }</td>
+									<td><b>{ it.Name }</b> <span class="mono muted">{ it.Key }</span></td>
+									<td>
+										if it.Conflict && !vm.Installed {
+											@Select(it.Select, "", it.Actions, true)
+										} else {
+											@BadgeEl(it.Action)
+										}
+									</td>
+									<td class="hide-sm mono muted">{ it.Target }</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+				if !vm.Installed {
+					<div class="field mt-4">
+						<label for="pk-conflict">{ i18n.T(ctx, "Para o que já existe na empresa") }</label>
+						@Select("on_conflict", "pk-conflict", vm.DefaultOpts, false)
+					</div>
+				}
+			</section>
+			if len(vm.Agents) > 0 {
+				<section class="card pad mt-6">
+					<div class="card-head"><div><h2>{ i18n.T(ctx, "Harness e assinaturas") }</h2><p class="sub">{ i18n.T(ctx, "As personas do pacote usam estes harnesses. Escolha uma assinatura existente da empresa para cada um, ou deixe sem para usar o login do harness.") }</p></div></div>
+					for _, a := range vm.Agents {
+						<div class="field">
+							<label for={ "ag-" + a.Agent }>{ i18n.Tf(ctx, "Assinatura para %s", a.Agent) } <span class="muted">({ a.Active })</span></label>
+							@Select(a.Field, "ag-"+a.Agent, a.Opts, false)
+						</div>
+					}
+				</section>
+			}
+			if len(vm.Secrets) > 0 {
+				<section class="card pad mt-6">
+					<div class="card-head"><div><h2>{ i18n.T(ctx, "Segredos citados") }</h2><p class="sub">{ i18n.T(ctx, "O pacote não leva segredo nenhum; ele só cita nomes. Crie os que faltam em Configurações › Segredos.") }</p></div></div>
+					<ul>
+						for _, s := range vm.Secrets {
+							<li><span class="mono">{ s.Name }</span>
+								if s.Exists {
+									<span class="badge done">{ i18n.T(ctx, "existe") }</span>
+								} else {
+									<span class="badge danger">{ i18n.T(ctx, "falta") }</span>
+								}
+							</li>
+						}
+					</ul>
+				</section>
+			}
+			if !vm.Installed {
+				<div class="form-actions mt-6">
+					<button class="btn outline" type="submit">{ i18n.T(ctx, "Atualizar prévia") }</button>
+					<button class="btn primary" type="submit" formaction={ templ.SafeURL(vm.InstallHref) }>{ i18n.T(ctx, "Instalar pausado") }</button>
+				</div>
+			}
+		</form>
+	}
+}

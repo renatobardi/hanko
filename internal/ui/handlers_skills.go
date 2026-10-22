@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"sort"
+	"strconv"
 
 	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/i18n"
@@ -60,6 +61,7 @@ func (s *server) skillRoutes(mux langMux) {
 	mux.HandleFunc("GET /c/{company}/skills/{skill}", co(s.handleSkill))
 	mux.HandleFunc("POST /c/{company}/skills/{skill}", capped(post(co(s.handleUpdateSkill))))
 	mux.HandleFunc("POST /c/{company}/skills/{skill}/remover", post(co(s.handleDeleteSkill)))
+	mux.HandleFunc("POST /c/{company}/skills/{skill}/bifurcar", post(co(s.handleForkSkill)))
 	mux.HandleFunc("POST /c/{company}/skills/{skill}/personas/{persona}", post(co(s.handleSkillPersona(false))))
 	mux.HandleFunc("POST /c/{company}/personas/{persona}/skills/{skill}", post(co(s.handleSkillPersona(true))))
 
@@ -76,9 +78,10 @@ func (s *server) skillRoutes(mux langMux) {
 }
 
 var skillNotices = map[string]string{
-	"criada":  i18n.N("Skill criada."),
-	"salva":   i18n.N("Skill atualizada."),
-	"apagada": i18n.N("Skill apagada."),
+	"criada":    i18n.N("Skill criada."),
+	"salva":     i18n.N("Skill atualizada."),
+	"apagada":   i18n.N("Skill apagada."),
+	"bifurcada": i18n.N("Cópia local criada."),
 }
 
 // enabledForm lê o campo enabled (1 liga, qualquer outra coisa desliga) dos interruptores.
@@ -196,6 +199,19 @@ func (s *server) skillEditorVM(r *http.Request, co domain.Company, sb skillsBack
 	if _, ok := s.studioBE(); ok { // abas Visão geral/Versões/Personas e o aviso de skill de fonte (ADR-0035)
 		vm.Tabs = skillPageTabs(ctx, base, k.Slug, "visao")
 		vm.SourceNote = s.sourceNote(ctx, co, k)
+	}
+	if fb, ok := s.be.(skillForkBackend); ok { // fork de skill (ADR-0044)
+		vm.ForkHref = base + "/skills/" + url.PathEscape(k.Slug) + "/bifurcar"
+		if forks, err := fb.ListSkillForks(ctx, co.ID, k.ID); err == nil {
+			for _, f := range forks {
+				vm.Forks = append(vm.Forks, views.ForkLink{Name: f.Name, Slug: f.Slug, Href: base + "/skills/" + url.PathEscape(f.Slug)})
+			}
+		}
+		if k.ForkedFromID != nil {
+			if o, err := sb.GetSkill(ctx, co.ID, k.ForkedFromID.String()); err == nil {
+				vm.ForkedFrom, vm.ForkedFromHref = o.Name+" (v"+strconv.Itoa(k.ForkedFromRevision)+")", base+"/skills/"+url.PathEscape(o.Slug)
+			}
+		}
 	}
 	for _, p := range ps {
 		vm.Personas = append(vm.Personas, views.ToggleRow{Name: p.Name, Slug: p.Slug, Href: base + "/personas/" + url.PathEscape(p.Slug), Enabled: p.Enabled,
@@ -353,4 +369,31 @@ func (s *server) personaExtras(ctx context.Context, co domain.Company, p domain.
 		}
 	}
 	return vm
+}
+
+// skillForkBackend é o fork de skills (ADR-0044); opcional como os demais.
+type skillForkBackend interface {
+	ForkSkill(ctx context.Context, actor domain.Actor, companyID, skillID domain.ID, in service.ForkSkillInput) (domain.Skill, error)
+	ListSkillForks(ctx context.Context, companyID, skillID domain.ID) ([]domain.Skill, error)
+}
+
+func (s *server) handleForkSkill(w http.ResponseWriter, r *http.Request, co domain.Company) {
+	sb, ok := s.skillsBE()
+	fb, ok2 := s.be.(skillForkBackend)
+	if !ok || !ok2 {
+		s.unavailable(w, r)
+		return
+	}
+	ctx := r.Context()
+	k, err := sb.GetSkill(ctx, co.ID, r.PathValue("skill"))
+	if err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
+	f, err := fb.ForkSkill(ctx, actorFrom(ctx), co.ID, k.ID, service.ForkSkillInput{Slug: trimForm(r, "slug"), MovePersonas: trimForm(r, "move_personas") == "1"})
+	if err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
+	redirect(w, r, "/c/"+co.Slug+"/skills/"+url.PathEscape(f.Slug)+"?ok=bifurcada")
 }

@@ -128,6 +128,7 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 	if cfg.SkillSources {
 		logger.Info("skills: fontes ligadas (HANKO_SKILL_SOURCES); o servidor clona repositórios públicos por https")
 	}
+	svc.PublicURL = cfg.PublicURL
 	svc.GitWorkspaces = service.GitWorkspacesConfig{Enabled: cfg.GitWorkspaces, AllowPrivate: cfg.Integrations.AllowPrivateDestinations}
 	if cfg.GitWorkspaces {
 		logger.Info("workspaces: Git ligado (HANKO_GIT_WORKSPACES); o servidor clona repositórios e cria worktrees por task", "root", cfg.WorkspacesRoot)
