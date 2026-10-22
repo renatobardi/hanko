@@ -283,7 +283,7 @@ func (s *Service) CreateChannel(ctx context.Context, actor domain.Actor, company
 
 func channelView(ctx context.Context, q *store.Queries, row store.Channel) (ChannelView, error) {
 	v := ChannelView{Channel: channelFromRow(row)}
-	v.HookPath = v.Channel.ChannelHookPath()
+	v.HookPath = v.ChannelHookPath()
 	if row.PersonaID != nil {
 		if p, err := q.GetPersonaByID(ctx, store.GetPersonaByIDParams{CompanyID: row.CompanyID, ID: *row.PersonaID}); err == nil {
 			v.PersonaName = p.Name

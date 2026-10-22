@@ -30438,6 +30438,42 @@
       },
       "patch": {
         "operationId": "update-flow-trigger",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug do fluxo.",
+            "in": "path",
+            "name": "flow",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug do fluxo.",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id do gatilho.",
+            "in": "path",
+            "name": "trigger",
+            "required": true,
+            "schema": {
+              "description": "Id do gatilho.",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {

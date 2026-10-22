@@ -577,17 +577,6 @@ func latestDue(spec, tz string, first, now time.Time) (latest time.Time, missed 
 	return latest, missed, nil
 }
 
-// fireSpec descreve um disparo que não é da agenda: de onde veio e com que valores.
-type fireSpec struct {
-	actor     domain.Actor
-	source    domain.FlowFireSource
-	at        time.Time
-	triggerID *domain.ID
-	dedupe    string
-	given     map[string]string
-	strict    bool
-}
-
 func (s *Service) fireFlow(ctx context.Context, actor domain.Actor, companyID *domain.ID, flowID domain.ID, scheduledFor time.Time, scheduled bool, given map[string]string) (FlowFireResult, error) {
 	ctx, span := otel.Tracer("hanko/flows").Start(ctx, "hanko.flow.fire", trace.WithAttributes(attribute.String("hanko.flow.id", flowID.String())))
 	defer span.End()

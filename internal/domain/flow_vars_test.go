@@ -138,7 +138,7 @@ func TestEventVerbs(t *testing.T) {
 	if !MatchEventVerb("task.created", "task.created") || MatchEventVerb("task.created", "task.created2") {
 		t.Error("exato")
 	}
-	if !(FlowTriggerKind("webhook").Valid() && FlowTriggerKind("event").Valid()) || FlowTriggerKind("x").Valid() {
+	if !FlowTriggerKind("webhook").Valid() || !FlowTriggerKind("event").Valid() || FlowTriggerKind("x").Valid() {
 		t.Error("kinds")
 	}
 }

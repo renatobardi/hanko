@@ -30,7 +30,7 @@ const (
 	telegramMaxText     = 4096
 	telegramChunk       = 4000
 	telegramMaxCallback = 64
-	telegramSecretHdr   = "X-Telegram-Bot-Api-Secret-Token"
+	telegramSecretHdr   = "X-Telegram-Bot-Api-Secret-Token" //nolint:gosec // nome de cabeçalho, não é credencial
 )
 
 // Kind implementa Driver.
