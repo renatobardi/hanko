@@ -89,36 +89,31 @@ type ChannelRow struct {
 	Failed    int
 }
 
-// ChannelsVM é a lista de canais.
-type ChannelsVM struct {
-	Rows      []ChannelRow
-	NewHref   string
-	Notice    string
-	Telegram  bool // há decision model com resposta rápida ligada
-	Subtitle  string
-	FastHref  string
-	FastOn    bool
-	FastKnown bool
-}
-
 // ChannelFormVM é o formulário de criar/editar um canal.
 type ChannelFormVM struct {
-	Action        string
-	Edit          bool
-	Kind          string
-	KindOptions   []Option
-	Name          string
-	PersonaOpts   []Option
-	ProjectOpts   []Option
-	TokenRef      string
-	SecretRef     string
-	Repos         string
-	Mention       string
-	APIBase       string
-	Error         string
-	FieldErr      map[string]string
-	CancelHref    string
-	SecretOptions []string
+	Action      string
+	Edit        bool
+	Kind        string
+	KindOptions []Option
+	Name        string
+	PersonaOpts []Option
+	TokenRef    string
+	SecretRef   string
+	Repos       string // um por linha
+	Mention     string
+	APIBase     string
+	Secrets     []string // ${secret:NOME} existentes, para o datalist
+	Error       string
+	FieldErr    map[string]string
+}
+
+// ChannelsVM é a lista de canais.
+type ChannelsVM struct {
+	Sections []TabLink
+	Rows     []ChannelRow
+	Notice   string
+	Error    string
+	NewForm  ChannelFormVM
 }
 
 // IdentityRow é uma pessoa vinculada (ou com vínculo pendente) a um canal.
@@ -133,21 +128,20 @@ type IdentityRow struct {
 // MessageRow é uma mensagem do canal com o estado de entrega.
 type MessageRow struct {
 	When      string
-	Direction string // "in" ou "out"
 	DirLabel  string
 	Kind      string
 	Peer      string
 	Body      string
 	Status    string
 	StatusCls string
-	Reason    string
+	Note      string
 	Attempts  int
-	Error     string
 	Resend    string
 }
 
 // ChannelVM é a tela de um canal.
 type ChannelVM struct {
+	Sections    []TabLink
 	Name        string
 	Kind        string
 	KindLabel   string
@@ -155,8 +149,7 @@ type ChannelVM struct {
 	Persona     string
 	Notice      string
 	Error       string
-	URL         string // URL de entrada (webhook do provedor)
-	URLHint     string
+	URL         string // URL de entrada que o provedor chama
 	ToggleHref  string
 	ConnectHref string
 	CanConnect  bool
@@ -164,9 +157,10 @@ type ChannelVM struct {
 	LinkHref    string
 	LinkCode    string // código recém-gerado (aparece uma vez)
 	LinkHint    string
+	MyStatus    string // "linked", "pending" ou ""
+	MyRevoke    string
 	Identities  []IdentityRow
 	Messages    []MessageRow
 	Form        ChannelFormVM
-	ReviewHref  string
-	IsGitHub    bool
+	BackHref    string
 }

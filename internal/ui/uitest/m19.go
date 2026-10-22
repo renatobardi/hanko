@@ -192,7 +192,7 @@ func (f *Fake) FlowRevisions(_ context.Context, _, flowID domain.ID, _ int) ([]d
 	if len(out) == 0 {
 		if i := f.flowIndex(flowID); i >= 0 {
 			fl := f.Flows[i]
-			out = append(out, domain.FlowRevision{ID: domain.NewID(), FlowID: flowID, Revision: 1, Origin: "create", Actor: domain.HumanActor,
+			out = append(out, domain.FlowRevision{ID: domain.NewID(), FlowID: flowID, Revision: max(1, fl.Revision), Origin: "create", Actor: domain.HumanActor,
 				CreatedAt: fl.CreatedAt, Snapshot: domain.FlowSnapshot{Name: fl.Name, Cron: fl.Cron, Timezone: fl.Timezone, PersonaID: fl.PersonaID,
 					Priority: string(fl.Priority), TaskTitle: fl.TaskTitle, Variables: fl.Variables}})
 		}
