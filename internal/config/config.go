@@ -84,7 +84,7 @@ type Storage struct {
 	Driver string `yaml:"driver" env:"HANKO_BLOB_DRIVER"` // postgres (padrão) | s3 | fs
 	// Dir é a raiz do driver fs (caminho absoluto; ADR-0065): os arquivos ficam em <Dir>/<empresa>/<artefato>.
 	Dir string `yaml:"dir" env:"HANKO_BLOB_DIR"`
-	S3     S3     `yaml:"s3"`
+	S3  S3     `yaml:"s3"`
 }
 
 // S3 configura o driver s3 (qualquer endpoint compatível). AccessKey e SecretKey não vão no yaml: só por ambiente.
