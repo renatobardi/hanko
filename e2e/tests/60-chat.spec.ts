@@ -92,7 +92,7 @@ test("chat: colar, Enter, alfinete e setas", async ({ page }) => {
   const thumb = form.locator("[data-dz-list] .att-thumb");
   await expect(thumb).toHaveCount(1);
   await expect(thumb).toHaveAttribute("title", /^colado-\d{4}-\d{2}-\d{2}-\d{4}\.png · /);
-  await expect(thumb.locator("img")).toHaveCount(1);
+  await expect(thumb.locator("canvas")).toHaveCount(1); // a miniatura do que foi colado é desenhada num canvas
   await thumb.locator(".dz-remove").click();
   await expect(thumb).toHaveCount(0);
 

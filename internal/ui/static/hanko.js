@@ -121,7 +121,6 @@
   }
   var FILE_ICON = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5z"></path><path d="M14 2v6h6"></path></svg>';
   var X_ICON = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg>';
-  var thumbURLs = new WeakMap(); // lista -> object URLs a liberar no próximo desenho
   function fmtSize(n) {
     return n >= 1048576 ? (n / 1048576).toFixed(1) + " MiB" : n >= 1024 ? Math.round(n / 1024) + " KiB" : n + " B";
   }
@@ -131,10 +130,6 @@
     var list = z.querySelector("[data-dz-list]");
     var input = dzInput(z);
     if (!list || !input) return;
-    (thumbURLs.get(list) || []).forEach(function (u) {
-      URL.revokeObjectURL(u);
-    });
-    var urls = [];
     list.textContent = "";
     Array.prototype.forEach.call(input.files, function (f, i) {
       var li = document.createElement("li");
@@ -143,12 +138,22 @@
       box.title = f.name + " · " + fmtSize(f.size);
       box.setAttribute("aria-label", box.title);
       if (/^image\/(png|jpeg|gif|webp)$/.test(f.type) && f.size <= 5 * 1048576) {
-        var img = document.createElement("img");
-        var u = URL.createObjectURL(f);
-        urls.push(u);
-        img.src = u;
-        img.alt = "";
-        box.appendChild(img);
+        // a miniatura é desenhada num canvas (recorte quadrado, como object-fit: cover), sem atribuir uma URL derivada do
+        // arquivo a um elemento HTML; se a imagem não decodifica, cai no ícone
+        var cv = document.createElement("canvas");
+        cv.width = cv.height = 144;
+        box.appendChild(cv);
+        window
+          .createImageBitmap(f)
+          .then(function (bm) {
+            var side = Math.min(bm.width, bm.height);
+            cv.getContext("2d").drawImage(bm, (bm.width - side) / 2, (bm.height - side) / 2, side, side, 0, 0, 144, 144);
+            if (bm.close) bm.close();
+          })
+          .catch(function () {
+            cv.remove();
+            box.insertAdjacentHTML("afterbegin", FILE_ICON);
+          });
       } else {
         box.insertAdjacentHTML("beforeend", FILE_ICON);
         var m = /\.([A-Za-z0-9]{1,5})$/.exec(f.name);
@@ -169,7 +174,6 @@
       li.appendChild(box);
       list.appendChild(li);
     });
-    thumbURLs.set(list, urls);
   }
   function dzSetFiles(input, files) {
     try {
