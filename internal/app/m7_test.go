@@ -37,6 +37,21 @@ func TestNewBlobRegistry(t *testing.T) {
 	if _, err := NewBlobRegistry(cfg, nil); err == nil {
 		t.Fatal("endpoint inválido deve falhar")
 	}
+
+	// fs (ADR-0065): ativo com HANKO_BLOB_DIR; postgres segue registrado para ler o que ainda está no banco
+	cfg = config.Defaults()
+	cfg.Storage.Driver = config.BlobFS
+	if _, err := NewBlobRegistry(cfg, nil); err == nil {
+		t.Fatal("driver fs sem HANKO_BLOB_DIR deve falhar")
+	}
+	cfg.Storage.Dir = t.TempDir()
+	reg, err = NewBlobRegistry(cfg, nil)
+	if err != nil || reg.Active().Name() != storage.DriverFS || len(reg.Names()) != 2 {
+		t.Fatalf("fs ativo: %v %v", reg.Names(), err)
+	}
+	if _, err := reg.Driver(storage.DriverPostgres); err != nil {
+		t.Fatalf("postgres fora do registro com fs ativo: %v", err)
+	}
 }
 
 // Toda chave do registro de settings precisa de um valor-base vindo da configuração; senão ela nasceria zerada.

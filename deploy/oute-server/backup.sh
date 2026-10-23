@@ -3,6 +3,8 @@
 # Gera, em HANKO_BACKUP_DIR (padrão /var/backups/hanko, modo 0700), um par consistente:
 #   hanko-<UTC>.pgdump         pg_dump -Fc do banco (snapshot transacional; conferido com pg_restore -l)
 #   aimemory-<UTC>.tar.gz      volume do ai-memory (wiki git + índice SQLite) com o container pausado
+#   blobs-<UTC>.tar            conteúdo dos artefatos no disco (driver fs, ADR-0065), depois do dump: todo arquivo que
+#                              o dump referencia já está gravado (o conteúdo sobe antes da transação do artefato)
 #   SHA256SUMS                 somas dos arquivos retidos
 # O backup do lab (restic, semanal) coleta esse diretório (backup.backup_paths no inventário) além
 # do próprio pg_dump; aqui fica a cópia local rápida (retém HANKO_BACKUP_KEEP gerações, padrão 3).
@@ -17,6 +19,7 @@ PG_USER="${HANKO_PG_USER:-hanko}"
 PG_DB="${HANKO_PG_DB:-hanko}"
 MEM_SERVICE="${HANKO_MEMORY_SERVICE:-ai-memory}"
 MEM_MOUNT="${HANKO_MEMORY_MOUNT:-/data}"
+BLOB_MOUNT="${HANKO_BLOB_MOUNT:-/var/lib/hanko/blobs}"
 TS="$(date -u +%Y%m%dT%H%M%SZ)"
 
 compose() { docker compose -f "${APP_DIR}/docker-compose.yml" --project-directory "$APP_DIR" "$@"; }
@@ -53,14 +56,28 @@ else
   log "AVISO: ${MEM_SERVICE} não está rodando; sem tar da memória nesta geração"
 fi
 
-# 3) Publica atomicamente (mv no mesmo filesystem), poda e recalcula as somas
+# 3) Artefatos no disco (driver fs): arquivos imutáveis, sem pausa; os temporários de gravação ficam de fora. Sem
+#    tar comprimido: o conteúdo típico (imagens, PDFs) já vem comprimido. Sem o volume (driver postgres), pula.
+hid="$(compose ps -q hanko 2>/dev/null || true)"
+bsrc=""
+[[ -z "$hid" ]] || bsrc="$(docker inspect -f "{{range .Mounts}}{{if eq .Destination \"${BLOB_MOUNT}\"}}{{.Source}}{{end}}{{end}}" "$hid")"
+if [[ -n "$bsrc" && -d "$bsrc" ]]; then
+  log "tar dos artefatos (${bsrc})"
+  tar cf "${tmp}/blobs.tar" --exclude='.tmp-*' --exclude='.probe-*' -C "$bsrc" .
+  tar tf "${tmp}/blobs.tar" >/dev/null
+else
+  log "AVISO: volume de artefatos (${BLOB_MOUNT}) não encontrado; sem tar dos artefatos nesta geração"
+fi
+
+# 4) Publica atomicamente (mv no mesmo filesystem), poda e recalcula as somas
 mv "${tmp}/hanko.pgdump" "${OUT}/hanko-${TS}.pgdump"
 [[ ! -f "${tmp}/aimemory.tar.gz" ]] || mv "${tmp}/aimemory.tar.gz" "${OUT}/aimemory-${TS}.tar.gz"
-for prefix in hanko aimemory; do
+[[ ! -f "${tmp}/blobs.tar" ]] || mv "${tmp}/blobs.tar" "${OUT}/blobs-${TS}.tar"
+for prefix in hanko aimemory blobs; do
   # sem nenhuma geração do prefixo (ex.: ai-memory fora do ar) o ls falha e, com pipefail, derrubaria o script aqui
   # shellcheck disable=SC2012
   { ls -1 "${OUT}/${prefix}-"*.* 2>/dev/null || true; } | sort -r | tail -n +$((KEEP + 1)) | xargs -r rm -f --
 done
 # nullglob: padrão sem arquivo some em vez de virar texto literal (senão o sha256sum falha e o mv nunca roda)
-( shopt -s nullglob; cd "$OUT" && sha256sum hanko-*.pgdump aimemory-*.tar.gz > SHA256SUMS.new && mv SHA256SUMS.new SHA256SUMS )
+( shopt -s nullglob; cd "$OUT" && sha256sum hanko-*.pgdump aimemory-*.tar.gz blobs-*.tar > SHA256SUMS.new && mv SHA256SUMS.new SHA256SUMS )
 log "ok: $(ls -1 "$OUT" | tr '\n' ' ')"

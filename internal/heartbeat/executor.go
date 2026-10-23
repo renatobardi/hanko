@@ -245,15 +245,18 @@ func (h *Heartbeat) executeRunJob(ctx context.Context, a ExecuteRunArgs, ji jobI
 		rc, secErr = h.useWorktree(execCtx, rc, emit)
 	}
 	var spec adapter.Spec
-	var dirCleanup func()
+	var dirCleanup, filesCleanup func()
 	var specErr error
 	if secErr != nil {
 		specErr = secErr
 	} else {
-		spec, dirCleanup, specErr = h.buildSpec(rc, briefing, handoff, scope, extras, emit)
+		spec, dirCleanup, filesCleanup, specErr = h.buildRunSpec(execCtx, rc, briefing, handoff, scope, extras, emit)
 	}
 	if dirCleanup != nil {
 		cleanup = dirCleanup
+	}
+	if filesCleanup != nil {
+		cleanup = chainCleanup(filesCleanup, cleanup)
 	}
 	// Ambiente de execução (ADR-0037): nil = local, como sempre.
 	var renv *runEnv
@@ -457,7 +460,20 @@ func (h *Heartbeat) finishFailed(ctx context.Context, a ExecuteRunArgs, ferr err
 
 // buildSpec assembles the adapter.Spec and resolves the working directory. The returned
 // cleanup removes a temp workspace; it may be nil.
-func (h *Heartbeat) buildSpec(rc service.RunContext, briefing, handoff string, scope memory.Scope, extras service.RunExtras, emit func(domain.RunEventKind, string)) (adapter.Spec, func(), error) {
+func (h *Heartbeat) buildSpec(ctx context.Context, rc service.RunContext, briefing, handoff string, scope memory.Scope, extras service.RunExtras, emit func(domain.RunEventKind, string)) (adapter.Spec, func(), error) {
+	spec, tempCleanup, filesCleanup, err := h.buildRunSpec(ctx, rc, briefing, handoff, scope, extras, emit)
+	if filesCleanup != nil {
+		return spec, chainCleanup(filesCleanup, tempCleanup), err
+	}
+	return spec, tempCleanup, err
+}
+
+// buildRunSpec é buildSpec com as duas limpezas separadas: tempCleanup apaga o diretório temporário (não nil só
+// quando a run não tem workspace utilizável, o que o ambiente de execução precisa saber) e filesCleanup apaga os
+// anexos gravados no diretório de trabalho (ADR-0066).
+func (h *Heartbeat) buildRunSpec(ctx context.Context, rc service.RunContext, briefing, handoff string, scope memory.Scope, extras service.RunExtras,
+	emit func(domain.RunEventKind, string),
+) (spec adapter.Spec, tempCleanup, filesCleanup func(), err error) {
 	publicURL := strings.TrimRight(h.opts.PublicURL, "/")
 	review := rc.Review != nil && rc.Run.Trigger == domain.TriggerReview
 	// Teste do estúdio (ADR-0035): só a skill testada, a entrada como prompt, sem MCP da empresa nem memória e num
@@ -465,7 +481,7 @@ func (h *Heartbeat) buildSpec(rc service.RunContext, briefing, handoff string, s
 	skillTest := rc.Run.Trigger == domain.TriggerSkillTest
 	if skillTest {
 		if extras.SkillTest == nil {
-			return adapter.Spec{}, nil, errors.New("teste de skill sem a skill ou a entrada (o teste foi apagado?)")
+			return adapter.Spec{}, nil, nil, errors.New("teste de skill sem a skill ou a entrada (o teste foi apagado?)")
 		}
 		rc.Workspace = nil
 	}
@@ -481,7 +497,7 @@ func (h *Heartbeat) buildSpec(rc service.RunContext, briefing, handoff string, s
 			token, err = h.tokens.Issue(rc.Company.ID, rc.Persona.ID, rc.Run.ID, rc.Task.ID)
 		}
 		if err != nil {
-			return adapter.Spec{}, nil, fmt.Errorf("emitir run token: %w", err)
+			return adapter.Spec{}, nil, nil, fmt.Errorf("emitir run token: %w", err)
 		}
 		if !skillTest {
 			gatewayMCP = toolGatewayMCP(publicURL, token, extras.ToolGateway, h.opts.ToolsSingleEndpoint)
@@ -490,12 +506,15 @@ func (h *Heartbeat) buildSpec(rc service.RunContext, briefing, handoff string, s
 	}
 	mcpCfg, err := buildMCPConfig(publicURL, token, extraMCP)
 	if err != nil {
-		return adapter.Spec{}, nil, err
+		return adapter.Spec{}, nil, nil, err
 	}
 
 	dir, cleanup, err := workspaceDir(rc, h.opts.WorkspacesRoot, emit)
 	if err != nil {
-		return adapter.Spec{}, nil, err
+		return adapter.Spec{}, nil, nil, err
+	}
+	if !review && !skillTest { // anexos em disco antes do prompt, que dá o caminho de cada um (ADR-0066)
+		filesCleanup = h.materializeAttachments(ctx, &rc, dir, emit)
 	}
 	system, prompt := "", ""
 	if rc.Chat != nil {
@@ -535,7 +554,7 @@ func (h *Heartbeat) buildSpec(rc service.RunContext, briefing, handoff string, s
 			system = strings.TrimSpace(system + "\n\n" + SkillIndex(extras.Skills))
 		}
 	}
-	spec := adapter.Spec{
+	spec = adapter.Spec{
 		RunID: rc.Run.ID, CompanyID: rc.Company.ID, PersonaID: rc.Persona.ID, TaskID: rc.Task.ID, TaskKey: rc.Task.Key,
 		ConversationID: conversationID(rc), Agent: agent, Model: model, Dir: dir,
 		System: system, Prompt: prompt, SessionRef: sessionRef,
@@ -546,7 +565,7 @@ func (h *Heartbeat) buildSpec(rc service.RunContext, briefing, handoff string, s
 	if !review && !skillTest && extras.NativeTools {
 		h.attachToolPolicy(&spec, rc, emit) // política de tools para as tools nativas do harness (ADR-0053)
 	}
-	return spec, cleanup, nil
+	return spec, cleanup, filesCleanup, nil
 }
 
 // instructionBackend grava na run a revisão das instruções com que ela rodou (ADR-0052); opcional como os demais.

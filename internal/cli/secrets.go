@@ -424,7 +424,7 @@ func dashRaw(b []byte) string {
 // ---------- blobs (ADR-0051) ----------
 
 func (e *env) blobsCmd() *cobra.Command {
-	c := &cobra.Command{Use: "blobs", Short: e.t("Onde o conteúdo dos artefatos fica guardado (postgres ou s3)")}
+	c := &cobra.Command{Use: "blobs", Short: e.t("Onde o conteúdo dos artefatos fica guardado (postgres, s3 ou fs)")}
 
 	status := &cobra.Command{
 		Use: "status", Short: e.t("Mostra o driver ativo e quanto há em cada um (via API; dono da instalação)"), Args: cobra.NoArgs,
@@ -454,7 +454,7 @@ func (e *env) blobsCmd() *cobra.Command {
 				return e.errNotWired()
 			}
 			if a.From == "" || a.To == "" {
-				return usageError{errors.New(e.t("informe --from e --to (postgres ou s3)"))}
+				return usageError{errors.New(e.t("informe --from e --to (postgres, s3 ou fs)"))}
 			}
 			a.Company = e.company // --company restringe a uma empresa; sem ele, todas
 			rep, err := e.rt.BlobsMigrate(cmd.Context(), a)
@@ -475,8 +475,8 @@ func (e *env) blobsCmd() *cobra.Command {
 		},
 	}
 	mf := migrate.Flags()
-	mf.StringVar(&a.From, "from", "", e.t("driver de origem: postgres ou s3"))
-	mf.StringVar(&a.To, "to", "", e.t("driver de destino: postgres ou s3"))
+	mf.StringVar(&a.From, "from", "", e.t("driver de origem: postgres, s3 ou fs"))
+	mf.StringVar(&a.To, "to", "", e.t("driver de destino: postgres, s3 ou fs"))
 	mf.BoolVar(&a.KeepSource, "keep-source", false, e.t("não apaga o conteúdo da origem depois de copiar"))
 	mf.BoolVar(&a.DryRun, "dry-run", false, e.t("só conta o que seria movido"))
 	mf.IntVar(&a.Batch, "batch", 100, e.t("tamanho do lote"))

@@ -125,7 +125,7 @@ func TestRealTaskAttachmentsDraftsAndComment(t *testing.T) {
 	}
 	page := "/c/acme/tasks/" + tk.Key
 	mustContain(t, u.get(page), 200, "Anexos", "Nenhum anexo ainda.", `name="files"`, `enctype="multipart/form-data"`, `data-dropzone`,
-		"/c/acme/tasks/"+tk.Key+"/anexos", "/c/acme/tasks/"+tk.Key+"/rascunho", "Até 5 MiB por arquivo")
+		"/c/acme/tasks/"+tk.Key+"/anexos", "/c/acme/tasks/"+tk.Key+"/rascunho", "Até 16 MiB por arquivo")
 
 	// arrastar e soltar: o cartão envia na hora e devolve o cartão atualizado
 	rec := u.multi("/c/acme/tasks/"+tk.Key+"/anexos", nil, map[string]string{"foto.txt": "olá", "notas.md": "# notas"})

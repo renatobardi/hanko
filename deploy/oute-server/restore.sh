@@ -2,10 +2,10 @@
 # Restore do Hanko em produção (roda DENTRO do LXC hanko-prd, como root). Contraparte de backup.sh.
 #
 #   restore.sh --check [--pgdump ARQ]            drill: restaura num banco descartável e confere; NÃO toca no prd
-#   restore.sh --apply [--pgdump ARQ] [--aimemory ARQ] [--yes]
+#   restore.sh --apply [--pgdump ARQ] [--aimemory ARQ] [--blobs ARQ] [--yes]
 #                                                restaura o dump num banco novo `hanko` (o atual vira hanko_pre_restore_<ts>,
-#                                                nunca é dropado) e substitui o volume do ai-memory
-# Sem --pgdump/--aimemory usa os arquivos mais novos de HANKO_BACKUP_DIR (/var/backups/hanko).
+#                                                nunca é dropado), substitui o volume do ai-memory e repõe os artefatos em disco
+# Sem --pgdump/--aimemory/--blobs usa os arquivos mais novos de HANKO_BACKUP_DIR (/var/backups/hanko).
 # Para trazer de fora (backup do lab), veja docs/RUNBOOK.md: extraia o arquivo e passe o caminho aqui.
 # --apply para o hanko e o ai-memory, e sobe de novo ao final. Migrations são append-only: restaurar um
 # dump mais velho que o binário em execução é seguro (o boot migra para frente).
@@ -18,11 +18,12 @@ PG_USER="${HANKO_PG_USER:-hanko}"
 PG_DB="${HANKO_PG_DB:-hanko}"
 MEM_SERVICE="${HANKO_MEMORY_SERVICE:-ai-memory}"
 MEM_MOUNT="${HANKO_MEMORY_MOUNT:-/data}"
-MODE=""; PGDUMP=""; AIMEM=""; YES=false
+BLOB_MOUNT="${HANKO_BLOB_MOUNT:-/var/lib/hanko/blobs}"
+MODE=""; PGDUMP=""; AIMEM=""; BLOBS=""; YES=false
 usage() { sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 while [[ $# -gt 0 ]]; do case "$1" in
   --check) MODE=check ;; --apply) MODE=apply ;; --yes) YES=true ;;
-  --pgdump) PGDUMP="${2:?}"; shift ;; --aimemory) AIMEM="${2:?}"; shift ;;
+  --pgdump) PGDUMP="${2:?}"; shift ;; --aimemory) AIMEM="${2:?}"; shift ;; --blobs) BLOBS="${2:?}"; shift ;;
   *) usage ;;
 esac; shift; done
 [[ -n "$MODE" ]] || usage
@@ -35,7 +36,8 @@ psql_() { compose exec -T postgres psql -U "$PG_USER" -v ON_ERROR_STOP=1 -X -q "
 [[ -n "$PGDUMP" ]] || PGDUMP="$(newest hanko)"
 [[ -f "$PGDUMP" ]] || { echo "erro: sem dump do Postgres (use --pgdump ARQ)" >&2; exit 1; }
 if [[ -z "$AIMEM" ]]; then AIMEM="$(newest aimemory)"; fi
-log "dump: ${PGDUMP}; memória: ${AIMEM:-<nenhuma>}"
+if [[ -z "$BLOBS" ]]; then BLOBS="$(newest blobs)"; fi
+log "dump: ${PGDUMP}; memória: ${AIMEM:-<nenhuma>}; artefatos: ${BLOBS:-<nenhum>}"
 compose exec -T postgres pg_restore -l < "$PGDUMP" >/dev/null || { echo "erro: dump ilegível" >&2; exit 1; }
 
 if [[ "$MODE" == check ]]; then
@@ -47,6 +49,7 @@ if [[ "$MODE" == check ]]; then
   psql_ -d "$scratch" -At -c "select 'tabelas='||count(*) from information_schema.tables where table_schema='public'" \
                            -c "select 'migration='||max(version_id) from goose_db_version where is_applied"
   if [[ -n "$AIMEM" ]]; then tar tzf "$AIMEM" >/dev/null && log "tar da memória legível"; fi
+  if [[ -n "$BLOBS" ]]; then tar tf "$BLOBS" >/dev/null && log "tar dos artefatos legível"; fi
   log "drill ok (prd intocado)"
   exit 0
 fi
@@ -104,6 +107,19 @@ if [[ -n "$AIMEM" ]]; then
     tar xzf "$AIMEM" -C "$src"
   else
     log "AVISO: volume do ${MEM_SERVICE} não encontrado; tar da memória NÃO restaurado"
+  fi
+fi
+# Artefatos (driver fs, ADR-0065): extrai por cima do volume, sem apagar. Cada arquivo é uma versão imutável com nome
+# único, então o que o backup tem volta igual, e um arquivo mais novo que o dump só fica sem referência.
+if [[ -n "$BLOBS" ]]; then
+  hid="$(compose ps -aq hanko 2>/dev/null || true)"
+  bsrc=""
+  [[ -z "$hid" ]] || bsrc="$(docker inspect -f "{{range .Mounts}}{{if eq .Destination \"${BLOB_MOUNT}\"}}{{.Source}}{{end}}{{end}}" "$hid")"
+  if [[ -n "$bsrc" && -d "$bsrc" ]]; then
+    log "restaurando artefatos em ${bsrc}"
+    tar xf "$BLOBS" -C "$bsrc"
+  else
+    log "AVISO: volume de artefatos (${BLOB_MOUNT}) não encontrado; tar dos artefatos NÃO restaurado"
   fi
 fi
 log "subindo a stack"

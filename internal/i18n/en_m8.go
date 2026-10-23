@@ -38,7 +38,7 @@ var enM8 = map[string]string{
 	"apagar":                      "delete",
 	"escolha ao menos um arquivo": "choose at least one file",
 	"Enviei %d anexo(s).":         "I sent %d attachment(s).",
-	"Até %s por arquivo, %d arquivos por envio.":            "Up to %s per file, %d files per upload.",
+	"Até %s por arquivo, %d arquivos e %s por envio.":       "Up to %s per file, %d files and %s per upload.",
 	"no máximo %d arquivos por envio":                       "at most %d files per upload",
 	"Rascunho salvo às %s":                                  "Draft saved at %s",
 	"Rascunho não salvo":                                    "Draft not saved",

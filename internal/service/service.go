@@ -445,6 +445,9 @@ type AttachmentBrief struct {
 	MessageID *domain.ID
 	// New: o anexo veio numa mensagem que esta run de chat recolheu.
 	New bool
+	// LocalPath é o caminho do arquivo no diretório de trabalho da run, relativo a ele, quando o heartbeat o gravou em
+	// disco para a persona abrir com as ferramentas de arquivo do harness (ADR-0066); vazio = só pelo MCP.
+	LocalPath string
 }
 
 // WakeCandidate is an (assigned, workable, idle) task found by the periodic heartbeat.

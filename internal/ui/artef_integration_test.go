@@ -176,10 +176,10 @@ func TestRealArtifactLimitsAreFriendly(t *testing.T) {
 	maxFile, _ := u.svc.ArtifactLimits()
 	// corpo acima do limite: 413 com a explicação, sem gravar nada
 	rec := u.upload("/c/acme/artefatos/novo", nil, "enorme.bin", bytes.Repeat([]byte("a"), int(maxFile)+2<<20))
-	mustContain(t, rec, http.StatusRequestEntityTooLarge, "O arquivo passa do limite de 5 MiB por arquivo.")
+	mustContain(t, rec, http.StatusRequestEntityTooLarge, "O arquivo passa do limite de 16 MiB por arquivo.")
 	// um pouco acima do limite (cabe no corpo): 422 do service, mesma mensagem
 	rec = u.upload("/c/acme/artefatos/novo", nil, "grande.bin", bytes.Repeat([]byte("a"), int(maxFile)+1))
-	mustContain(t, rec, http.StatusUnprocessableEntity, "O arquivo passa do limite de 5 MiB por arquivo.")
+	mustContain(t, rec, http.StatusUnprocessableEntity, "O arquivo passa do limite de 16 MiB por arquivo.")
 	if n := len(mustList(t, u)); n != 0 {
 		t.Errorf("artefatos gravados = %d", n)
 	}

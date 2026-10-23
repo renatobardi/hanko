@@ -19,8 +19,13 @@ import (
 // hanko.js; sem script o seletor funciona igual), com o corpo limitado por http.MaxBytesReader. O conteúdo é de
 // terceiros: a entrega continua por artifactsrv (a mesma rota de /artefatos/{id}/conteudo).
 
-// maxUploadFiles é quantos arquivos um envio aceita.
-const maxUploadFiles = 10
+const (
+	// maxUploadFiles é quantos arquivos um envio aceita.
+	maxUploadFiles = 10
+	// maxUploadBytes é a soma dos arquivos de um envio (ADR-0065): o limite por arquivo vale para cada um, e o envio
+	// inteiro não passa disto, o que limita a memória de uma requisição.
+	maxUploadBytes int64 = 128 << 20
+)
 
 type uploadedFile struct {
 	Name string
@@ -45,11 +50,16 @@ type sendWithBackend interface {
 
 // uploadHint é a dica do campo de arquivos.
 func uploadHint(ctx context.Context, maxFile int64) string {
-	return i18n.Tf(ctx, "Até %s por arquivo, %d arquivos por envio.", fmtBytes(ctx, maxFile), maxUploadFiles)
+	return i18n.Tf(ctx, "Até %s por arquivo, %d arquivos e %s por envio.", fmtBytes(ctx, maxFile), maxUploadFiles, fmtBytes(ctx, uploadBudget(maxFile)))
+}
+
+// uploadBudget é o máximo que um envio soma: 10 arquivos no limite por arquivo, sem passar de maxUploadBytes.
+func uploadBudget(maxFile int64) int64 {
+	return min(int64(maxUploadFiles)*maxFile, maxUploadBytes)
 }
 
 // readForm lê o corpo do POST: multipart (com os arquivos do campo "files") ou urlencoded. O corpo é limitado ao
-// máximo de arquivos × o limite por arquivo. Chame cleanup (sempre devolvido) ao terminar.
+// orçamento do envio (uploadBudget). Chame cleanup (sempre devolvido) ao terminar.
 func (s *server) readForm(w http.ResponseWriter, r *http.Request, co domain.Company) (files []uploadedFile, maxFile int64, cleanup func(), err error) {
 	ctx := r.Context()
 	cleanup = func() {}
@@ -64,11 +74,12 @@ func (s *server) readForm(w http.ResponseWriter, r *http.Request, co domain.Comp
 		}
 		return nil, maxFile, cleanup, nil
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, int64(maxUploadFiles)*maxFile+uploadFormOverhead)
+	budget := uploadBudget(maxFile)
+	r.Body = http.MaxBytesReader(w, r.Body, budget+uploadFormOverhead)
 	if err := r.ParseMultipartForm(1 << 20); err != nil {
 		var mbe *http.MaxBytesError
 		if errors.As(err, &mbe) {
-			return nil, maxFile, cleanup, service.NewArtifactLimitError(false, maxFile, 0, mbe.Limit)
+			return nil, maxFile, cleanup, domain.Invalid("files", i18n.Tf(ctx, "o envio passa de %s; mande os arquivos em partes", fmtBytes(ctx, budget)))
 		}
 		return nil, maxFile, cleanup, domain.Invalid("files", i18n.T(ctx, "envio inválido"))
 	}
@@ -79,6 +90,7 @@ func (s *server) readForm(w http.ResponseWriter, r *http.Request, co domain.Comp
 	if r.MultipartForm != nil {
 		hdrs = r.MultipartForm.File["files"]
 	}
+	var total int64
 	for _, h := range hdrs {
 		if h.Filename == "" && h.Size == 0 { // o navegador manda uma parte vazia quando nenhum arquivo foi escolhido
 			continue
@@ -88,6 +100,9 @@ func (s *server) readForm(w http.ResponseWriter, r *http.Request, co domain.Comp
 		}
 		if h.Size > maxFile {
 			return nil, maxFile, cleanup, service.NewArtifactLimitError(false, maxFile, 0, h.Size)
+		}
+		if total += h.Size; total > budget {
+			return nil, maxFile, cleanup, domain.Invalid("files", i18n.Tf(ctx, "o envio passa de %s; mande os arquivos em partes", fmtBytes(ctx, budget)))
 		}
 		f, err := h.Open()
 		if err != nil {
