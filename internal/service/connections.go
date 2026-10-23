@@ -303,6 +303,9 @@ func (s *Service) createConnectionTx(t *txc, actor domain.Actor, companyID domai
 		if err != nil {
 			return store.Connection{}, mapErr(err, "create integration")
 		}
+		if err := t.createPendingCatalog(companyID, irow.ID, irow.Kind); err != nil {
+			return store.Connection{}, err
+		}
 		integrationID = &irow.ID
 		if err := t.activity(actor, companyID, "integration.created", "integration", irow.ID,
 			map[string]any{"slug": irow.Slug, "name": irow.Name, "kind": irow.Kind, "connection": true}, ""); err != nil {

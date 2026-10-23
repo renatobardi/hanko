@@ -1,10 +1,10 @@
-# Estado da última sessão (documentos de artefato com versão MAJOR.MINOR, ADR-0064)
-Data: 2026-10-22 · branch `claude/jolly-hamilton-wtnkxr` → `main` (depois do #40, compositores de chat)
+# Estado da última sessão (integração MCP nova nasce fechada para escrita, ADR-0065)
+Data: 2026-10-23 · ramo `claude/eager-brahmagupta-4dj6tw` → `main`
 
 ## Feito
-- ADR-0064 + migration 00201: documento de artefato com id estável, versão MAJOR.MINOR (persona declara, servidor mede o diff), restaurar, reclassificar, tags; apagar task preserva versões.
-- Persona lê e altera artefatos: MCP `hanko_artifact_list|get|restore`, `artifact=` no put, seção "Artefatos" no briefing (task, chat, sala). API, CLI, UI, export/import, e2e e docs.
+- ADR-0065: servidor MCP novo não vem mais para todas as personas; integração criada agora grava catálogo pendente e a primeira descoberta põe escrita/destrutiva/sem risco em quarentena (antigas mantêm a linha de base do ADR-0036); regra por risco exige escolha explícita.
+- Em produção: GitHub ligado ao Delivery Manager por token fine-grained + perfil "leitura livre, escrita pede aprovação"; deploy com #39 feito.
 ## Travado (só o dono)
-- Deploy no hanko-prd exige `ssh oute-server` do Mac (com o #39 e o #40 também pendentes de deploy); tags v0.3.0–v0.6.0.
+- Deploy da `main` com o ADR-0064 (migration 00201) e este ADR; tags v0.3.0–v0.6.0.
 ## Próximo passo
-- `deploy/oute-server/deploy-prd.sh` na `main` (aplica a migration 00201); conferir `systemctl list-timers hanko-backup.timer`; no chat em produção, pedir a uma persona uma alteração num documento e ver a versão nova (não documento novo).
+- Deploy; cadastrar um servidor MCP de teste e ver as tools de escrita em quarentena e na Caixa. Assistente "conectar ferramenta a uma persona" segue como issue.

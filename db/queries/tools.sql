@@ -14,6 +14,13 @@ VALUES (@integration_id, @company_id, @now, '', @tools_count, @now)
 ON CONFLICT (integration_id) DO UPDATE
 SET synced_at = @now, last_error = '', tools_count = @tools_count, updated_at = @now;
 
+-- name: CreatePendingToolCatalog :exec
+-- Integração criada nesta instalação: o catálogo nasce sem descoberta, e a primeira descoberta põe em quarentena o que
+-- escreve (ADR-0065). Sem linha nenhuma é integração anterior à regra: a primeira descoberta é a linha de base.
+INSERT INTO integration_tool_catalogs (integration_id, company_id, last_error, updated_at)
+VALUES (@integration_id, @company_id, '', @now)
+ON CONFLICT (integration_id) DO NOTHING;
+
 -- name: RecordToolCatalogError :exec
 -- A falha não apaga a data da última descoberta boa: o catálogo antigo segue valendo.
 INSERT INTO integration_tool_catalogs (integration_id, company_id, last_error, updated_at)

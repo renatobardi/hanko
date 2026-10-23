@@ -37,7 +37,7 @@ func (e *toolsEnv) toolPolicy(persona *domain.Persona, target domain.ToolPolicyT
 func TestPolicyAskThenAlwaysAllowDemo(t *testing.T) {
 	e := newToolsEnv(t)
 	ctx := context.Background()
-	e.refresh(t)
+	e.reviewed(t)
 	ana := e.persona(t, "Ana", nil)
 	iid := e.integ.ID
 	e.policy(t, e.toolPolicy(&ana, domain.PolicyTargetTool, &iid, "apagar", domain.PolicyAsk))
@@ -141,7 +141,7 @@ func TestPolicyAskThenAlwaysAllowDemo(t *testing.T) {
 func TestPolicyPrecedenceCompanyPersonaAndProfile(t *testing.T) {
 	e := newToolsEnv(t)
 	ctx := context.Background()
-	e.refresh(t)
+	e.reviewed(t)
 	ana := e.persona(t, "Ana", nil)
 	bia := e.persona(t, "Bia", nil)
 	iid := e.integ.ID
@@ -307,7 +307,7 @@ func TestPolicyValidationAndRoles(t *testing.T) {
 func TestNamedGatewayPoliciesOnlyTighten(t *testing.T) {
 	e := newToolsEnv(t)
 	ctx := context.Background()
-	e.refresh(t)
+	e.reviewed(t)
 	iid := e.integ.ID
 	// o perfil do gateway: tudo permitido, apagar em ask, misterio excluída
 	prof, _ := e.svc.CreateToolProfile(ctx, domain.HumanActor, e.co.ID, service.CreateToolProfileInput{Name: "IDE", DefaultAction: domain.ToolDefaultAllow})
@@ -360,7 +360,7 @@ func TestNamedGatewayPoliciesOnlyTighten(t *testing.T) {
 func TestAggregateRunEndpointPrefixesTools(t *testing.T) {
 	e := newToolsEnv(t)
 	ctx := context.Background()
-	e.refresh(t)
+	e.reviewed(t)
 	ana := e.persona(t, "Ana", nil)
 	c, _ := toolRun(t, e, ana)
 	c.Aggregate = true
@@ -607,7 +607,7 @@ func TestAwaitNativeToolGateReturnsOnDecisionAndCancel(t *testing.T) {
 func TestToolGateTimeoutExpiresAndOpensNewGate(t *testing.T) {
 	e := newToolsEnv(t)
 	ctx := context.Background()
-	e.refresh(t)
+	e.reviewed(t)
 	ana := e.persona(t, "Ana", nil)
 	iid := e.integ.ID
 	t0 := time.Now().UTC().Truncate(time.Second)
@@ -666,7 +666,7 @@ func TestToolGateTimeoutExpiresAndOpensNewGate(t *testing.T) {
 func TestTestToolAsPersona(t *testing.T) {
 	e := newToolsEnv(t)
 	ctx := context.Background()
-	e.refresh(t)
+	e.reviewed(t)
 	ana := e.persona(t, "Ana", nil)
 	iid := e.integ.ID
 	e.policy(t, e.toolPolicy(&ana, domain.PolicyTargetTool, &iid, "apagar", domain.PolicyAsk))
@@ -773,7 +773,7 @@ func TestResultPreviewIsRedacted(t *testing.T) {
 func TestInboxWarnsAboutQuarantinedTools(t *testing.T) {
 	e := newToolsEnv(t)
 	ctx := context.Background()
-	e.refresh(t) // linha de base: tudo ativo
+	e.reviewed(t) // primeira descoberta revisada pelo admin: tudo ativo
 	in, err := e.svc.Inbox(ctx, e.co.ID)
 	if err != nil || len(in.QuarantinedTools) != 0 {
 		t.Fatalf("antes: %+v %v", in.QuarantinedTools, err)

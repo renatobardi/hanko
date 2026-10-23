@@ -121,3 +121,33 @@ func TestInboxToolsTab(t *testing.T) {
 	rec = e.get(t, "/c/hanko/gates?tipo=tools")
 	wantStatus(t, rec, 200)
 }
+
+// Regra por risco sem escolha explícita não é gravada: o seletor começa vazio e o servidor recusa o que não for
+// desligado, perguntar antes ou permitido (ADR-0065).
+func TestRiskRuleRequiresExplicitChoice(t *testing.T) {
+	f := uitest.Sample()
+	e := newEnv(t, f)
+	b := "/c/hanko/ferramentas/perfis/seguro"
+	rec := e.get(t, b+"?passo=2")
+	wantContains(t, rec, `<option value="" selected disabled>Escolha…</option>`)
+	for _, choice := range []string{"", "talvez"} {
+		rec = e.post(t, b+"/riscos", url.Values{"risk": {"read"}, "choice": {choice}}, false)
+		if rec.Code < 400 || f.Called("AddToolProfileRule") {
+			t.Fatalf("escolha %q gravou a regra: %d", choice, rec.Code)
+		}
+	}
+	rec = e.post(t, b+"/riscos", url.Values{"risk": {"read"}, "choice": {"allow"}}, false)
+	wantStatus(t, rec, 303)
+	if !f.Called("AddToolProfileRule") {
+		t.Fatal("permitido explícito deveria gravar")
+	}
+}
+
+// Servidor MCP novo não vale para todas as personas por padrão: quem recebe é uma escolha explícita (ADR-0065).
+func TestNewMCPIntegrationIsNotForAllPersonasByDefault(t *testing.T) {
+	e, _ := newSkillsEnv(t, domain.MemberAdmin)
+	rec := e.get(t, "/c/hanko/integracoes/nova?tipo=mcp")
+	wantStatus(t, rec, 200)
+	wantContains(t, rec, `name="all_personas" value="1">`, "Uma persona sem perfil de ferramentas recebe todas as tools")
+	wantNotContains(t, rec, `name="all_personas" value="1" checked`)
+}

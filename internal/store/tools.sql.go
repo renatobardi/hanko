@@ -170,6 +170,25 @@ func (q *Queries) CreateGatewayToken(ctx context.Context, arg CreateGatewayToken
 	return i, err
 }
 
+const createPendingToolCatalog = `-- name: CreatePendingToolCatalog :exec
+INSERT INTO integration_tool_catalogs (integration_id, company_id, last_error, updated_at)
+VALUES ($1, $2, '', $3)
+ON CONFLICT (integration_id) DO NOTHING
+`
+
+type CreatePendingToolCatalogParams struct {
+	IntegrationID uuid.UUID
+	CompanyID     uuid.UUID
+	Now           time.Time
+}
+
+// Integração criada nesta instalação: o catálogo nasce sem descoberta, e a primeira descoberta põe em quarentena o que
+// escreve (ADR-0065). Sem linha nenhuma é integração anterior à regra: a primeira descoberta é a linha de base.
+func (q *Queries) CreatePendingToolCatalog(ctx context.Context, arg CreatePendingToolCatalogParams) error {
+	_, err := q.db.Exec(ctx, createPendingToolCatalog, arg.IntegrationID, arg.CompanyID, arg.Now)
+	return err
+}
+
 const createToolCallApproval = `-- name: CreateToolCallApproval :one
 
 INSERT INTO tool_call_approvals (id, company_id, gate_id, integration_id, native_tool, tool, args_sha256, run_id, task_id, persona_id, gateway_id, created_at)

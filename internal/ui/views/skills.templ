@@ -466,6 +466,7 @@ templ IntegrationForm(vm IntegrationFormVM) {
 				<input type="checkbox" name="all_personas" value="1" checked?={ vm.AllPersonas }/>
 				<span>{ i18n.T(ctx, "Vale para todas as personas") }</span>
 			</label>
+			<span class="hint">{ i18n.T(ctx, "Desmarcado, você escolhe as personas na página da integração depois de salvar. Uma persona sem perfil de ferramentas recebe todas as tools do servidor, inclusive as que escrevem.") }</span>
 		} else {
 			<div class="field">
 				<span class="lbl">{ i18n.T(ctx, "Eventos") }</span>

@@ -5,6 +5,9 @@ package i18n
 // Dashboard and `hanko status-card`). init merges them into the same catalog as the rest (en.go). Same rules: the key
 // is the pt-BR text, and a key that another file already translates is not repeated here.
 var enM20 = map[string]string{
+	// integrações: quem recebe um servidor MCP novo e regras por risco sem escolha implícita (ADR-0065)
+	"Desmarcado, você escolhe as personas na página da integração depois de salvar. Uma persona sem perfil de ferramentas recebe todas as tools do servidor, inclusive as que escrevem.": "Unchecked, you pick the personas on the integration page after saving. A persona without a tool profile gets every tool of the server, including those that write.",
+	"Escolha…": "Choose…",
 	// web UI: project › Stages
 	"Etapas do projeto":              "Project stages",
 	"Etapas do projeto salvas.":      "Project stages saved.",
@@ -69,11 +72,11 @@ var enM20 = map[string]string{
 	"Decision model: o resumo sai de uma chamada só ao modelo da empresa.":           "Decision model: the summary comes from a single call to the company's model.",
 	"Persona resumidora: uma run completa a cada atualização.":                       "Summarizer persona: a full run on every update.",
 	"Informe uma expressão cron de 5 campos válida, por exemplo 0 7 * * 1-5.":        "Enter a valid 5-field cron expression, for example 0 7 * * 1-5.",
-	"Fuso desconhecido.":                     "Unknown time zone.",
-	"Escolha a persona ou o decision model.": "Choose the persona or the decision model.",
-	"horário (cron)":                         "time (cron)",
-	"atualizado %s":                          "updated %s",
-	"próxima %s":                             "next %s",
+	"Fuso desconhecido.":                                                             "Unknown time zone.",
+	"Escolha a persona ou o decision model.":                                         "Choose the persona or the decision model.",
+	"horário (cron)":                                                                 "time (cron)",
+	"atualizado %s":                                                                  "updated %s",
+	"próxima %s":                                                                     "next %s",
 
 	// the registered decision feature (domain.DecisionFeatures)
 	"Resumo de card de status": "Status card summary",
