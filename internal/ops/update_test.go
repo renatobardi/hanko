@@ -207,6 +207,9 @@ func TestUpdateRefusals(t *testing.T) {
 	t.Run("binário dev", func(t *testing.T) {
 		u, _ := newUpdater(t, "dev", src)
 		p, _ := u.Check(context.Background(), ChannelStable)
+		if !p.Dev {
+			t.Fatal("um binário que não é release deveria vir marcado como dev")
+		}
 		if _, err := u.Apply(context.Background(), p, ApplyOptions{SkipBackup: true}); err == nil || !strings.Contains(err.Error(), "--force") {
 			t.Fatalf("err = %v", err)
 		}
