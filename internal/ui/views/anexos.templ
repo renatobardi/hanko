@@ -12,10 +12,23 @@ templ DropField(hint string, box bool) {
 			<span>{ i18n.T(ctx, "Anexar arquivos") }</span>
 			<input type="file" name="files" multiple aria-label={ i18n.T(ctx, "Arquivos a anexar") }/>
 		</label>
-		<ul class="dz-list" data-dz-list></ul>
+		<ul class="dz-list" data-dz-list data-remove-label={ i18n.T(ctx, "Remover anexo") }></ul>
 		if hint != "" {
 			<span class="hint">{ hint }</span>
 		}
+	</div>
+}
+
+// ComposerTools são os controles do compositor de uma conversa: o alfinete que fixa a caixa embaixo da tela (padrão;
+// a escolha fica no navegador) e as setas flutuantes para ir ao início ou ao fim. O comportamento mora no hanko.js.
+templ ComposerTools() {
+	<button type="button" class="btn ghost sm composer-pin" data-composer-pin="" aria-pressed="true" title={ i18n.T(ctx, "Fixar a caixa embaixo (desligue para ela rolar junto com a conversa)") }>
+		@Icon("pin")
+		<span>{ i18n.T(ctx, "Fixar") }</span>
+	</button>
+	<div class="scroll-arrows" data-scroll-arrows="">
+		<button type="button" data-scroll-to="top" aria-label={ i18n.T(ctx, "Ir ao início da conversa") } title={ i18n.T(ctx, "Ir ao início da conversa") }>@Icon("arrow-up")</button>
+		<button type="button" data-scroll-to="bottom" aria-label={ i18n.T(ctx, "Ir ao fim da conversa") } title={ i18n.T(ctx, "Ir ao fim da conversa") }>@Icon("arrow-down")</button>
 	</div>
 }
 
@@ -32,6 +45,27 @@ templ AttachmentItems(rows []AttachmentRow) {
 						<button class="btn ghost sm" type="submit" aria-label={ i18n.T(ctx, "Apagar anexo") }>{ i18n.T(ctx, "apagar") }</button>
 					</form>
 				}
+			</li>
+		}
+	</ul>
+}
+
+// AttachmentThumbs mostra os anexos de uma mensagem como miniaturas: uma imagem pequena vira a própria miniatura, o
+// resto um cartão com ícone e extensão. Nome e tamanho aparecem ao passar o mouse e para leitor de tela; o clique abre.
+templ AttachmentThumbs(rows []AttachmentRow) {
+	<ul class="att-thumbs">
+		for _, a := range rows {
+			<li>
+				<a class="att-thumb" href={ templ.SafeURL(a.Href) } target="_blank" rel="noopener" title={ a.Name + " · " + a.Size } aria-label={ a.Name + " · " + a.Size }>
+					if a.Thumb {
+						<img src={ a.Href } alt="" loading="lazy" decoding="async"/>
+					} else {
+						@Icon("file")
+						if a.Ext != "" {
+							<span class="att-ext">{ a.Ext }</span>
+						}
+					}
+				</a>
 			</li>
 		}
 	</ul>

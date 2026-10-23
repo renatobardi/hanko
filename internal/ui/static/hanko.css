@@ -528,6 +528,24 @@ table.table { width: 100%; border-collapse: collapse; font-size: var(--text-sm);
 .composer .row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
 .composer .hint { font-size: var(--text-xs); color: var(--subtle-foreground); }
 .composer:focus-within { border-color: var(--subtle-foreground); }
+/* caixa fixa embaixo enquanto a conversa rola (padrão; o botão de alfinete desliga e a escolha fica no navegador) */
+.composer.is-pinned { position: sticky; bottom: 12px; z-index: 6; box-shadow: var(--shadow-pop); }
+.composer.is-pinned textarea { max-height: 32vh; }
+.composer .tools { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.composer-pin[aria-pressed="true"] { color: var(--foreground); background: var(--muted); }
+.composer-pin[aria-pressed="false"] { color: var(--subtle-foreground); }
+/* setas flutuantes: ir ao início / ao fim da conversa; cada uma só aparece quando faz sentido */
+.scroll-arrows { position: fixed; right: 20px; top: 50%; transform: translateY(-50%); display: grid; gap: 8px; z-index: 7; pointer-events: none; }
+.scroll-arrows button { pointer-events: auto; width: 36px; height: 36px; border-radius: var(--radius-full); border: 1px solid var(--border);
+  background: var(--card); color: var(--foreground); box-shadow: var(--shadow-pop); display: grid; place-items: center; cursor: pointer;
+  opacity: 0; visibility: hidden; transition: opacity .15s, visibility .15s; }
+.scroll-arrows button.is-on { opacity: .92; visibility: visible; }
+.scroll-arrows button:hover { opacity: 1; }
+@media (max-width: 640px) {
+  .composer.is-pinned { bottom: 6px; }
+  .composer.is-pinned textarea { min-height: 44px; max-height: 24vh; }
+  .scroll-arrows { right: 10px; }
+}
 
 /* ---------- run page ---------- */
 .run-split { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
@@ -1456,14 +1474,31 @@ details > summary.btn::-webkit-details-marker { display: none; }
 .dropzone { border: 1px dashed var(--border); border-radius: var(--radius-lg); padding: 10px 12px; display: grid; gap: 6px; color: var(--muted-foreground); font-size: var(--text-sm); transition: border-color .12s, background .12s; }
 .dropzone.is-over, form[data-dropzone].is-over { border-color: var(--foreground); background: var(--row-hover); }
 .dropzone label { cursor: pointer; display: flex; align-items: center; gap: 8px; }
-.dropzone input[type="file"] { font-size: var(--text-xs); max-width: 100%; }
-.dz-list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
-.dz-list li { border: 1px solid var(--border); border-radius: var(--radius-full); padding: 1px 8px; font-size: var(--text-xs); color: var(--foreground); }
+/* o seletor nativo ("Choose Files / No file chosen") fica só para leitor de tela e teclado; o rótulo vira o botão "Anexar" e a
+   prévia em miniaturas mostra o que foi escolhido */
+.composer label:has(> input[type="file"]), .dropzone label:has(> input[type="file"]) { display: inline-flex; align-items: center; gap: 8px; width: fit-content;
+  padding: 4px 12px; border: 1px solid var(--border); border-radius: var(--radius-full); font-size: var(--text-sm); color: var(--muted-foreground); cursor: pointer; }
+.composer label:has(> input[type="file"]):hover, .dropzone label:has(> input[type="file"]):hover { color: var(--foreground); background: var(--row-hover); }
+.composer label:has(> input[type="file"]):focus-within, .dropzone label:has(> input[type="file"]):focus-within { outline: 2px solid var(--subtle-foreground); outline-offset: 2px; }
+.composer label > input[type="file"], .dropzone label > input[type="file"] { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); opacity: 0; }
 .att-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
 .att-list li { display: flex; align-items: center; gap: 8px; font-size: var(--text-sm); padding: 3px 0; min-width: 0; }
 .att-list li a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .att-list .d { margin-left: auto; color: var(--muted-foreground); font-size: var(--text-xs); white-space: nowrap; }
 .att-inline { margin-top: 6px; }
+/* anexos como miniaturas (mensagens e prévia do compositor): imagem vira a própria miniatura; o resto, ícone + extensão */
+.att-thumbs, .dz-list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.att-thumb { position: relative; width: 72px; height: 72px; border-radius: var(--radius-lg); border: 1px solid var(--border);
+  background: var(--muted); color: var(--muted-foreground); display: grid; place-items: center; overflow: hidden; text-decoration: none; }
+.att-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.att-thumb .ic { width: 22px; height: 22px; }
+.att-thumb .att-ext { position: absolute; bottom: 5px; left: 50%; transform: translateX(-50%); font-size: 10px; font-weight: 600;
+  letter-spacing: .02em; color: var(--foreground); }
+a.att-thumb:hover { border-color: var(--subtle-foreground); }
+.att-thumb .dz-remove { position: absolute; top: 3px; right: 3px; width: 20px; height: 20px; border-radius: var(--radius-full); border: 0;
+  background: rgba(12, 10, 9, .65); color: #fff; display: grid; place-items: center; cursor: pointer; padding: 0; }
+.att-thumb .dz-remove .ic { width: 12px; height: 12px; }
+.msg.me .bubble .att-thumb { border-color: rgba(255, 255, 255, .25); }
 .draft-state { font-size: var(--text-xs); color: var(--subtle-foreground); }
 .run-sep.context-reset { color: var(--foreground); }
 

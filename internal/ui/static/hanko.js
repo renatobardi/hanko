@@ -119,17 +119,108 @@
   function dzInput(z) {
     return z.querySelector('input[type="file"]');
   }
+  var FILE_ICON = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5z"></path><path d="M14 2v6h6"></path></svg>';
+  var X_ICON = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg>';
+  var thumbURLs = new WeakMap(); // lista -> object URLs a liberar no próximo desenho
+  function fmtSize(n) {
+    return n >= 1048576 ? (n / 1048576).toFixed(1) + " MiB" : n >= 1024 ? Math.round(n / 1024) + " KiB" : n + " B";
+  }
+  // A prévia dos arquivos escolhidos, colados ou soltos: miniatura da imagem, ou ícone com a extensão; nome e tamanho no
+  // title (mouse por cima) e no aria-label; o X remove só aquele arquivo.
   function dzRender(z) {
     var list = z.querySelector("[data-dz-list]");
     var input = dzInput(z);
     if (!list || !input) return;
+    (thumbURLs.get(list) || []).forEach(function (u) {
+      URL.revokeObjectURL(u);
+    });
+    var urls = [];
     list.textContent = "";
-    for (var i = 0; i < input.files.length; i++) {
+    Array.prototype.forEach.call(input.files, function (f, i) {
       var li = document.createElement("li");
-      li.textContent = input.files[i].name;
+      var box = document.createElement("span");
+      box.className = "att-thumb";
+      box.title = f.name + " · " + fmtSize(f.size);
+      box.setAttribute("aria-label", box.title);
+      if (/^image\/(png|jpeg|gif|webp)$/.test(f.type) && f.size <= 5 * 1048576) {
+        var img = document.createElement("img");
+        var u = URL.createObjectURL(f);
+        urls.push(u);
+        img.src = u;
+        img.alt = "";
+        box.appendChild(img);
+      } else {
+        box.insertAdjacentHTML("beforeend", FILE_ICON);
+        var m = /\.([A-Za-z0-9]{1,5})$/.exec(f.name);
+        if (m) {
+          var ext = document.createElement("span");
+          ext.className = "att-ext";
+          ext.textContent = m[1].toUpperCase();
+          box.appendChild(ext);
+        }
+      }
+      var rm = document.createElement("button");
+      rm.type = "button";
+      rm.className = "dz-remove";
+      rm.setAttribute("data-dz-remove", String(i));
+      rm.setAttribute("aria-label", (list.getAttribute("data-remove-label") || "Remover anexo") + ": " + f.name);
+      rm.innerHTML = X_ICON;
+      box.appendChild(rm);
+      li.appendChild(box);
       list.appendChild(li);
-    }
+    });
+    thumbURLs.set(list, urls);
   }
+  function dzSetFiles(input, files) {
+    try {
+      var dt = new DataTransfer();
+      files.forEach(function (f) {
+        dt.items.add(f);
+      });
+      input.files = dt.files;
+    } catch (err) {
+      return false;
+    }
+    return true;
+  }
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest && e.target.closest("[data-dz-remove]");
+    if (!b) return;
+    var z = dropzoneOf(b);
+    var input = z && dzInput(z);
+    if (!input) return;
+    e.preventDefault();
+    var drop = Number(b.getAttribute("data-dz-remove"));
+    dzSetFiles(
+      input,
+      Array.prototype.filter.call(input.files, function (_, i) {
+        return i !== drop;
+      })
+    );
+    dzRender(z);
+  });
+  // Colar (Ctrl/Cmd+V) uma imagem ou arquivo da área de transferência anexa e mostra a miniatura; texto colado segue
+  // para a caixa. Cópia de texto formatado (com HTML) não é interceptada. Print sem nome ganha um nome legível.
+  document.addEventListener("paste", function (e) {
+    var z = dropzoneOf(e.target);
+    var cd = e.clipboardData;
+    var input = z && dzInput(z);
+    if (!input || !cd || !cd.files || !cd.files.length || cd.types.indexOf("text/html") >= 0) return;
+    var now = new Date();
+    var p2 = function (n) {
+      return String(n).padStart(2, "0");
+    };
+    var stamp = now.getFullYear() + "-" + p2(now.getMonth() + 1) + "-" + p2(now.getDate()) + "-" + p2(now.getHours()) + p2(now.getMinutes());
+    var added = Array.prototype.map.call(cd.files, function (f, i) {
+      if (f.name && !/^image\.(png|jpe?g|gif|webp)$/i.test(f.name)) return f;
+      var ext = (f.type.split("/")[1] || "png").replace("jpeg", "jpg");
+      return new File([f], "colado-" + stamp + (cd.files.length > 1 ? "-" + (i + 1) : "") + "." + ext, { type: f.type, lastModified: Date.now() });
+    });
+    var all = Array.prototype.slice.call(input.files).concat(added);
+    if (!dzSetFiles(input, all)) return;
+    e.preventDefault();
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  });
   document.addEventListener("dragover", function (e) {
     var z = dropzoneOf(e.target);
     if (!z || !e.dataTransfer || Array.prototype.indexOf.call(e.dataTransfer.types || [], "Files") < 0) return;
@@ -216,6 +307,108 @@
       input.dispatchEvent(new Event("change", { bubbles: true }));
     }
   });
+
+  // Enter envia; Shift+Enter quebra a linha (Ctrl/Cmd+Enter também envia). No celular (teclado virtual) o Enter quebra a
+  // linha e o envio é pelo botão. Não envia no meio de uma composição (acento, IME) nem uma caixa vazia sem anexo.
+  document.addEventListener("keydown", function (e) {
+    var ta = e.target;
+    if (e.key !== "Enter" || e.isComposing || e.keyCode === 229 || !ta.matches || !ta.matches("textarea")) return;
+    var form = ta.closest("form[data-composer], form[data-enter-send]");
+    if (!form) return;
+    var modifier = e.ctrlKey || e.metaKey;
+    if (!modifier && (e.shiftKey || e.altKey || (window.matchMedia && window.matchMedia("(pointer: coarse)").matches))) return;
+    e.preventDefault();
+    var file = form.querySelector('input[type="file"]');
+    if (!ta.value.trim() && !(file && file.files.length)) return;
+    var send = form.querySelector('button[type="submit"]');
+    if (send && send.disabled) return;
+    if (form.requestSubmit) form.requestSubmit();
+  });
+
+  // Caixa fixa embaixo (padrão) com alfinete para soltá-la, e setas flutuantes para o início e o fim da conversa. A
+  // escolha do alfinete fica no navegador; a conversa abre no fim e acompanha mensagem nova só se você estiver perto do fim.
+  var PIN_KEY = "hanko.composer.pinned";
+  function pinStored() {
+    try {
+      return window.localStorage.getItem(PIN_KEY) !== "0";
+    } catch (err) {
+      return true;
+    }
+  }
+  function applyPin(pinned) {
+    document.querySelectorAll("form[data-composer]").forEach(function (f) {
+      f.classList.toggle("is-pinned", pinned);
+      var b = f.querySelector("[data-composer-pin]");
+      if (b) b.setAttribute("aria-pressed", pinned ? "true" : "false");
+    });
+  }
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest && e.target.closest("[data-composer-pin]");
+    if (!b) return;
+    var next = b.getAttribute("aria-pressed") !== "true";
+    try {
+      window.localStorage.setItem(PIN_KEY, next ? "1" : "0");
+    } catch (err) {}
+    applyPin(next);
+  });
+  function docBottomGap() {
+    return document.documentElement.scrollHeight - (window.scrollY + window.innerHeight);
+  }
+  function updateArrows() {
+    document.querySelectorAll("[data-scroll-arrows]").forEach(function (box) {
+      var up = box.querySelector('[data-scroll-to="top"]');
+      var down = box.querySelector('[data-scroll-to="bottom"]');
+      if (up) up.classList.toggle("is-on", window.scrollY > 400);
+      if (down) down.classList.toggle("is-on", docBottomGap() > 400);
+    });
+  }
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest && e.target.closest("[data-scroll-to]");
+    if (!b) return;
+    var top = b.getAttribute("data-scroll-to") === "top" ? 0 : document.documentElement.scrollHeight;
+    window.scrollTo({ top: top, behavior: window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  });
+  var scrollTick = false;
+  function onScroll() {
+    if (scrollTick) return;
+    scrollTick = true;
+    window.requestAnimationFrame(function () {
+      scrollTick = false;
+      updateArrows();
+    });
+  }
+  window.addEventListener("scroll", onScroll, { passive: true });
+  window.addEventListener("resize", onScroll);
+  var followBottom = false; // perto do fim (ou acabou de enviar) quando a lista é trocada: acompanha a mensagem nova
+  document.addEventListener("htmx:beforeSwap", function (e) {
+    var t = e.detail && e.detail.target;
+    if (t && (t.id === "chat-thread" || t.id === "room-thread" || t.id === "thread")) followBottom = followBottom || docBottomGap() < 160;
+  });
+  document.addEventListener("htmx:afterSettle", function (e) {
+    var t = e.detail && e.detail.target;
+    var id = t && t.id;
+    if (followBottom && (id === "chat-thread" || id === "room-thread" || id === "thread")) {
+      window.scrollTo({ top: document.documentElement.scrollHeight });
+    }
+    followBottom = false;
+    updateArrows();
+  });
+  document.addEventListener("htmx:afterRequest", function (e) {
+    var f = e.detail && e.detail.elt;
+    if (f && f.tagName === "FORM" && f.hasAttribute("data-composer") && e.detail.xhr && e.detail.xhr.status < 300) followBottom = true;
+  });
+  function initConversation() {
+    if (!document.querySelector("form[data-composer]")) return;
+    applyPin(pinStored());
+    if (!document.body.hasAttribute("data-conv-opened") && document.querySelector("#chat-thread, #room-thread")) {
+      document.body.setAttribute("data-conv-opened", "1");
+      window.scrollTo({ top: document.documentElement.scrollHeight });
+    }
+    updateArrows();
+  }
+  document.addEventListener("htmx:load", initConversation);
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", initConversation);
+  else initConversation();
 
   // Live log: stick to the bottom unless the reader scrolled up.
   function watchLog() {

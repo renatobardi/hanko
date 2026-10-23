@@ -1,10 +1,11 @@
-# Estado da última sessão (integração MCP nova nasce fechada para escrita, ADR-0067)
-Data: 2026-10-23 · ramo `claude/eager-brahmagupta-4dj6tw` → `main` (depois do #43 e #44, anexos)
+# Estado da última sessão (compositor: colar, miniaturas, Enter, caixa fixa e PDF grande)
+Data: 2026-10-23 · branch `feat/compositor-colar-miniaturas` → `main`
 
 ## Feito
-- ADR-0067: servidor MCP novo não vem mais para todas as personas; integração criada agora grava catálogo pendente e a primeira descoberta põe escrita/destrutiva/sem risco em quarentena (antigas mantêm a linha de base do ADR-0036); regra por risco exige escolha explícita.
-- Em produção: GitHub ligado ao Delivery Manager por token fine-grained + perfil "leitura livre, escrita pede aprovação".
+- Colar imagem/arquivo anexa e mostra a miniatura; anexos viram miniaturas (nome ao passar o mouse); X remove da prévia.
+- Enter envia, Shift+Enter quebra a linha (celular: Enter quebra); caixa fixa embaixo com alfinete e setas início/fim.
+- PDF grande: texto extraído + partes de 20 páginas antes da run (poppler-utils e qpdf na imagem); adendo no ADR-0066.
 ## Travado (só o dono)
-- Deploy com `--edge` (nginx novo dos anexos, #43/#44): `deploy/oute-server/deploy-prd.sh --edge`. Tags v0.3.0–v0.6.0; SonarCloud falhando em todo PR.
+- Deploy pelo Mac (`deploy/oute-server/deploy-prd.sh`, sem `--edge`: o nginx não mudou); a imagem muda (apt: poppler-utils, qpdf), então o build demora mais.
 ## Próximo passo
-- Deploy; cadastrar um servidor MCP de teste e ver as tools de escrita em quarentena e na Caixa; anexar uma imagem num chat e pedir à persona para descrevê-la. Assistente "conectar ferramenta a uma persona" segue na issue #45.
+- Depois do deploy: reenviar o PDF de 23 MiB e pedir à persona um resumo; colar um print no chat e conferir a miniatura.

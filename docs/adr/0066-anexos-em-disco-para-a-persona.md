@@ -39,3 +39,20 @@ próprias ferramentas: o Read do claude lê texto, imagem e PDF.
   `hanko doctor` já avisa com pouco espaço.
 - Uma queda do processo no meio da run pode deixar `.hanko-anexos/<run>/` para trás; o `.gitignore` impede que isso
   vá para um commit, e a próxima run usa outra pasta.
+
+## Adendo (2026-10-23) — PDF grande e compositor
+O primeiro uso real (um PDF de 23 MiB) mostrou o limite do harness: a ferramenta de leitura de arquivos recusa PDF acima de
+~20 MB, e a imagem do container não tinha nenhum utilitário de PDF, então a persona não leu nada.
+1. **Utilitários na imagem:** `poppler-utils` (`pdfinfo`, `pdftotext`) e `qpdf` entram no `Dockerfile.agents`.
+2. **PDF grande é extraído e dividido antes da run:** acima de 15 MiB ou de 100 páginas, o heartbeat grava ao lado do
+   original o texto inteiro (`<nome>.txt`, `pdftotext -layout`) e partes de 20 páginas (`<nome>.parte-NN.pdf`, `qpdf
+   --pages`); com mais de 50 partes, as partes crescem para caber em 50. Cada utilitário tem timeout de 2 min e o PDF, 5
+   min no total. O que as partes e o texto ocupam entra no teto de 512 MiB por run.
+3. **Briefing:** o anexo traz o caminho do texto ("leia primeiro") e o padrão das partes, e diz para abrir só as partes com
+   figura ou tabela que importam. PDF escaneado (sem texto extraível) recebe só as partes, com aviso no log da run.
+4. **Sem os utilitários** (instalação fora do container) nada quebra: o PDF segue inteiro e o briefing não promete partes.
+5. **Compositor (chat, sala, comentário de task):** colar imagem ou arquivo (Ctrl/Cmd+V) anexa e mostra a miniatura, com nome
+   e tamanho ao passar o mouse e um X para remover; anexos enviados aparecem como miniaturas (imagem até 5 MiB; o resto
+   vira cartão com ícone e extensão). Enter envia e Shift+Enter quebra a linha (no celular o Enter quebra a linha). A caixa
+   fica fixa embaixo da tela por padrão, com um alfinete para soltá-la (a escolha fica no navegador), e setas flutuantes
+   levam ao início e ao fim da conversa, que abre no fim e acompanha mensagem nova só se o leitor estiver perto do fim.

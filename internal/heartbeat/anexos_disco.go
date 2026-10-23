@@ -72,6 +72,16 @@ func (h *Heartbeat) materializeAttachments(ctx context.Context, rc *service.RunC
 		total += int64(len(body))
 		a.LocalPath = filepath.ToSlash(filepath.Join(attachmentsDirName, rc.Run.ID.String(), name))
 		wrote++
+		if a.Mime == "application/pdf" && total+a.SizeBytes*2 <= maxDiskAttachmentsBytes {
+			ex, notes := splitPDF(ctx, filepath.Join(runDir, name), a.LocalPath, a.SizeBytes)
+			for _, n := range notes {
+				emit(domain.EventSystem, fmt.Sprintf("anexos: %q: %s", a.Name, n))
+			}
+			if ex != nil {
+				total += ex.Bytes
+				a.PDFPages, a.PDFText, a.PDFParts, a.PDFPartPages, a.PDFPartsPath = ex.Pages, ex.TextPath, ex.Parts, ex.PartPages, ex.PartsGlob
+			}
+		}
 	}
 	if wrote == 0 {
 		cleanup()

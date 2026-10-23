@@ -190,7 +190,7 @@ templ Thread(vm TaskVM, base string) {
 						@MsgQuote(m)
 						<div class="md">@templ.Raw(string(m.Body))</div>
 						if len(m.Attachments) > 0 {
-							<div class="att-inline">@AttachmentItems(m.Attachments)</div>
+							<div class="att-inline">@AttachmentThumbs(m.Attachments)</div>
 						}
 					</div>
 					<div class="meta"><span>{ i18n.T(ctx, "Você ·") } <time class="mono">{ m.When }</time></span></div>
@@ -207,7 +207,7 @@ templ Thread(vm TaskVM, base string) {
 						@MsgQuote(m)
 						<div class="body md">@templ.Raw(string(m.Body))</div>
 						if len(m.Attachments) > 0 {
-							<div class="att-inline">@AttachmentItems(m.Attachments)</div>
+							<div class="att-inline">@AttachmentThumbs(m.Attachments)</div>
 						}
 					</div>
 				</div>
@@ -255,7 +255,8 @@ templ CommentForm(vm TaskVM, base string) {
 			@DraftTextarea("body", i18n.T(ctx, "Escreva um comentário (markdown). Fica na fila se a persona estiver ocupada."), i18n.T(ctx, "Comentário"), vm.DraftF)
 			@DropField(vm.UploadHint, false)
 			<div class="row">
-				<span class="hint">{ i18n.T(ctx, "Markdown · HTML é escapado") } · { i18n.T(ctx, "@ cita uma persona (@slug) ou uma pessoa (@parte-do-e-mail) e avisa") }</span>
+				<span class="hint">{ i18n.T(ctx, "Enter envia · Shift+Enter quebra a linha · Markdown") } · { i18n.T(ctx, "@ cita uma persona (@slug) ou uma pessoa (@parte-do-e-mail) e avisa") }</span>
+				@ComposerTools()
 				<button type="submit" class="btn primary sm">
 					@Icon("send")
 					{ i18n.T(ctx, "Comentar") }
