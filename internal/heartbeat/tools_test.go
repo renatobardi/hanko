@@ -17,7 +17,7 @@ import (
 func TestBuildSpecRoutesHTTPIntegrationsThroughToolGateway(t *testing.T) {
 	h, _ := newTestHB(t, &fakeBackend{}, okAdapter(), &mcpMem{}, Options{PublicURL: "http://h:7420"})
 	rc := sampleContext()
-	spec, cleanup, err := h.buildSpec(rc, "", "", memory.Scope{Workspace: "acme"}, service.RunExtras{ToolGateway: []string{"docs"}},
+	spec, cleanup, err := h.buildSpec(context.Background(), rc, "", "", memory.Scope{Workspace: "acme"}, service.RunExtras{ToolGateway: []string{"docs"}},
 		func(domain.RunEventKind, string) {})
 	if err != nil {
 		t.Fatal(err)
@@ -62,7 +62,7 @@ func TestBuildSpecReviewHasNoGatewayMCP(t *testing.T) {
 	rc := sampleContext()
 	rc.Run.Trigger = domain.TriggerReview
 	rc.Review = &service.ReviewContext{}
-	spec, cleanup, err := h.buildSpec(rc, "", "", memory.Scope{Workspace: "acme"}, service.RunExtras{ToolGateway: []string{"docs"}},
+	spec, cleanup, err := h.buildSpec(context.Background(), rc, "", "", memory.Scope{Workspace: "acme"}, service.RunExtras{ToolGateway: []string{"docs"}},
 		func(domain.RunEventKind, string) {})
 	if err != nil {
 		t.Fatal(err)

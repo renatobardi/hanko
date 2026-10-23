@@ -1,5 +1,5 @@
 # Estado da última sessão (anexos de 64 MiB, driver fs e cota de 5 GiB, ADR-0065)
-Data: 2026-10-23 · branch `feat/anexos-64mib` → `main`
+Data: 2026-10-23 · branches `feat/anexos-64mib` (ADR-0065) e `feat/anexos-em-disco` (ADR-0066, sobre a primeira)
 
 ## Feito
 - Driver `fs` do BlobStore (`HANKO_BLOB_DRIVER=fs`, `HANKO_BLOB_DIR`); migration 00202 aceita `fs` em `artifacts.storage`.
@@ -8,4 +8,5 @@ Data: 2026-10-23 · branch `feat/anexos-64mib` → `main`
 ## Travado (só o dono)
 - Deploy com `--edge` para o nginx novo valer: `deploy/oute-server/deploy-prd.sh --edge`.
 ## Próximo passo
-- PR 2: anexos em disco para a persona (Read do claude lê imagem e PDF), em vez de base64 pelo MCP.
+- Feito também: anexos em `.hanko-anexos/<run>/` no diretório de trabalho, com caminho no briefing (ADR-0066).
+- Merge do PR 1, depois do PR 2; deploy com `--edge`; testar anexando uma imagem e pedindo à persona para descrevê-la.

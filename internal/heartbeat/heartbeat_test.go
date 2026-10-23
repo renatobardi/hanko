@@ -985,7 +985,7 @@ func TestBuildSpecReviewKeepsConfigOnlyForSameHarness(t *testing.T) {
 	rc.Run.Agent = "acp"
 	rc.Review = &service.ReviewContext{ID: domain.NewID(), Artifact: "x", AuthorName: "Ana"} // sem revisor dedicado
 	build := func() adapter.Spec {
-		spec, cleanup, err := h.buildSpec(rc, "", "", memory.Scope{Workspace: "acme"}, service.RunExtras{}, func(domain.RunEventKind, string) {})
+		spec, cleanup, err := h.buildSpec(context.Background(), rc, "", "", memory.Scope{Workspace: "acme"}, service.RunExtras{}, func(domain.RunEventKind, string) {})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1011,7 +1011,7 @@ func TestBuildSpecReviewHasNoCredentials(t *testing.T) {
 	rc.Run.Trigger = domain.TriggerReview
 	rc.Review = &service.ReviewContext{ID: domain.NewID(), Artifact: "x", AuthorName: "Ana"}
 	scope := memory.Scope{Workspace: "acme"}
-	spec, cleanup, err := h.buildSpec(rc, "", "", scope, service.RunExtras{}, func(domain.RunEventKind, string) {})
+	spec, cleanup, err := h.buildSpec(context.Background(), rc, "", "", scope, service.RunExtras{}, func(domain.RunEventKind, string) {})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1037,7 +1037,7 @@ func TestBuildSpecReviewHasNoCredentials(t *testing.T) {
 	}
 	// A normal run still gets them.
 	rc.Run.Trigger, rc.Review = domain.TriggerAssign, nil
-	spec, cleanup, err = h.buildSpec(rc, "", "", scope, service.RunExtras{}, func(domain.RunEventKind, string) {})
+	spec, cleanup, err = h.buildSpec(context.Background(), rc, "", "", scope, service.RunExtras{}, func(domain.RunEventKind, string) {})
 	if err != nil {
 		t.Fatal(err)
 	}
