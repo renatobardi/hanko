@@ -50,9 +50,10 @@ homebrew_casks:
       email: renato.bardi@outlook.com
     hooks:
       post:
-        install: |
-          if OS.mac?
-            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/hanko"]
+        # passos declarativos do Homebrew (goreleaser >= v2.19; o `install` em Ruby foi depreciado)
+        install_steps: |
+          on_macos do
+            run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ .StagedPath }}/hanko"]
           end
 
 dockers:

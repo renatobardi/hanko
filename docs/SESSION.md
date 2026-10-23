@@ -1,10 +1,10 @@
-# Estado da última sessão (documentos de artefato com versão MAJOR.MINOR, ADR-0064)
-Data: 2026-10-22 · branch `claude/jolly-hamilton-wtnkxr` → `main` (depois do #40, compositores de chat)
+# Estado da última sessão (deploy do ADR-0064 e correções do doctor/update)
+Data: 2026-10-22 · branch `claude/jolly-hamilton-wtnkxr` → `main`
 
 ## Feito
-- ADR-0064 + migration 00201: documento de artefato com id estável, versão MAJOR.MINOR (persona declara, servidor mede o diff), restaurar, reclassificar, tags; apagar task preserva versões.
-- Persona lê e altera artefatos: MCP `hanko_artifact_list|get|restore`, `artifact=` no put, seção "Artefatos" no briefing (task, chat, sala). API, CLI, UI, export/import, e2e e docs.
+- ADR-0064 (documentos de artefato MAJOR.MINOR) mergeado no #41 e implantado no hanko-prd (`a6ea0ca7`, migration 201, smoke ok, timer de backup ativo).
+- `hanko doctor`: ai-memory checado pelo Ping do provider (a imagem não tem `/health`; usa `memory_status`). `hanko update --check` não sugere "versão nova" a build de commit.
 ## Travado (só o dono)
-- Deploy no hanko-prd exige `ssh oute-server` do Mac (com o #39 e o #40 também pendentes de deploy); tags v0.3.0–v0.6.0.
+- Deploy pelo Mac (`deploy/oute-server/deploy-prd.sh`, sempre na `main` atualizada); tags v0.3.0–v0.6.0; SonarCloud do projeto falhando em todo PR.
 ## Próximo passo
-- `deploy/oute-server/deploy-prd.sh` na `main` (aplica a migration 00201); conferir `systemctl list-timers hanko-backup.timer`; no chat em produção, pedir a uma persona uma alteração num documento e ver a versão nova (não documento novo).
+- No chat em produção, pedir a uma persona uma alteração num documento e ver a versão nova; implantar este PR para o doctor ficar sem o aviso falso.
