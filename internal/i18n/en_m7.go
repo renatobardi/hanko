@@ -139,8 +139,8 @@ var enM7 = map[string]string{
 	"Driver ativo: %s (configurados: %s)\n":                                                              "Active driver: %s (configured: %s)\n",
 	"movidos":                                                                                            "moved",
 	"seriam movidos":                                                                                     "would be moved",
-	"%s → %s: %d encontrado(s), %d %s (%d bytes), %d com falha, %d com sobra na origem.\n": "%s → %s: %d found, %d %s (%d bytes), %d failed, %d left over at the source.\n",
-	"%d artefato(s) não puderam ser movidos":                                               "%d artifact(s) could not be moved",
+	"%s → %s: %d encontrado(s), %d %s (%d bytes), %d com falha, %d com sobra na origem.\n":               "%s → %s: %d found, %d %s (%d bytes), %d failed, %d left over at the source.\n",
+	"%d artefato(s) não puderam ser movidos":                                                             "%d artifact(s) could not be moved",
 	"VERSÕES": "VERSIONS",
 	"BYTES":   "BYTES",
 }
