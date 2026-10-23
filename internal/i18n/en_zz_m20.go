@@ -72,11 +72,11 @@ var enM20 = map[string]string{
 	"Decision model: o resumo sai de uma chamada só ao modelo da empresa.":           "Decision model: the summary comes from a single call to the company's model.",
 	"Persona resumidora: uma run completa a cada atualização.":                       "Summarizer persona: a full run on every update.",
 	"Informe uma expressão cron de 5 campos válida, por exemplo 0 7 * * 1-5.":        "Enter a valid 5-field cron expression, for example 0 7 * * 1-5.",
-	"Fuso desconhecido.":                                                             "Unknown time zone.",
-	"Escolha a persona ou o decision model.":                                         "Choose the persona or the decision model.",
-	"horário (cron)":                                                                 "time (cron)",
-	"atualizado %s":                                                                  "updated %s",
-	"próxima %s":                                                                     "next %s",
+	"Fuso desconhecido.":                     "Unknown time zone.",
+	"Escolha a persona ou o decision model.": "Choose the persona or the decision model.",
+	"horário (cron)":                         "time (cron)",
+	"atualizado %s":                          "updated %s",
+	"próxima %s":                             "next %s",
 
 	// the registered decision feature (domain.DecisionFeatures)
 	"Resumo de card de status": "Status card summary",
