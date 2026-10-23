@@ -33,10 +33,14 @@ const (
 
 	BlobPostgres = "postgres"
 	BlobS3       = "s3"
+	BlobFS       = "fs"
 
-	// MaxArtifactBytesPostgres e MaxArtifactBytesS3 são os tetos do limite por arquivo de artefato por driver.
+	// MaxArtifactBytesPostgres e MaxArtifactBytesS3 são os tetos do limite por arquivo de artefato por driver; sem
+	// HANKO_ARTIFACT_MAX_BYTES, o limite é o teto do driver ativo (ADR-0065).
 	MaxArtifactBytesPostgres int64 = 16 << 20
 	MaxArtifactBytesS3       int64 = 64 << 20
+	// DefaultArtifactQuotaBytes é a cota de artefatos por empresa quando a configuração não diz (ADR-0065).
+	DefaultArtifactQuotaBytes int64 = 5 << 30
 
 	LogJSON = "json"
 	LogText = "text"
@@ -77,7 +81,9 @@ type Integrations struct {
 // Storage configura onde o conteúdo dos artefatos fica (ADR-0051). O driver postgres é o padrão; com s3 as escritas
 // novas vão para o bucket. Credenciais só por ambiente.
 type Storage struct {
-	Driver string `yaml:"driver" env:"HANKO_BLOB_DRIVER"` // postgres (padrão) | s3
+	Driver string `yaml:"driver" env:"HANKO_BLOB_DRIVER"` // postgres (padrão) | s3 | fs
+	// Dir é a raiz do driver fs (caminho absoluto; ADR-0065): os arquivos ficam em <Dir>/<empresa>/<artefato>.
+	Dir string `yaml:"dir" env:"HANKO_BLOB_DIR"`
 	S3     S3     `yaml:"s3"`
 }
 
@@ -249,8 +255,9 @@ type Config struct {
 	// run, gasto + reservas das runs abertas + a reserva da nova não podem passar do teto. A reserva
 	// de cada run é o maior entre a média das últimas 10 runs da persona e este piso.
 	RunReserveUSD float64 `yaml:"run_reserve_usd" env:"HANKO_RUN_RESERVE_USD"`
-	// ArtifactMaxBytes é o tamanho máximo de um artefato (1 byte a 16 MiB); ArtifactQuotaBytes, a cota por
-	// empresa somando todas as versões (ADR-0028).
+	// ArtifactMaxBytes é o tamanho máximo de um artefato: de 1 byte ao teto do driver de blobs (16 MiB no postgres,
+	// 64 MiB no s3); sem valor, vale o teto do driver (ADR-0065). ArtifactQuotaBytes é a cota por empresa somando
+	// todas as versões (padrão 5 GiB; ADR-0028).
 	ArtifactMaxBytes   int64 `yaml:"artifact_max_bytes" env:"HANKO_ARTIFACT_MAX_BYTES"`
 	ArtifactQuotaBytes int64 `yaml:"artifact_quota_bytes" env:"HANKO_ARTIFACT_QUOTA_BYTES"`
 	// AlertSilentFactor é o N do alerta "persona sem heartbeat": a persona com trabalho esperando e
@@ -293,8 +300,7 @@ func Defaults() Config {
 		RunTimeout:         30 * time.Minute,
 		HeartbeatInterval:  time.Minute,
 		RunReserveUSD:      1.0,
-		ArtifactMaxBytes:   5 << 20,
-		ArtifactQuotaBytes: 512 << 20,
+		ArtifactQuotaBytes: DefaultArtifactQuotaBytes,
 		AlertSilentFactor:  3,
 		AlertRunStuckAfter: 15 * time.Minute,
 		ReadinessInterval:  15 * time.Minute,
@@ -364,7 +370,7 @@ func environFor(getenv func(string) string) map[string]string {
 		"HANKO_AUTH_OWNER_EMAIL", "HANKO_AUTH_WEB_BOOTSTRAP", "HANKO_TRUSTED_PROXIES",
 		"HANKO_SECRET_KEY", "HANKO_SECRET_KEY_PREVIOUS", "HANKO_PUSH_SUBJECT", "HANKO_INTEGRATIONS_ALLOW_STDIO", "HANKO_INTEGRATIONS_ALLOW_PRIVATE",
 		"HANKO_ACP_ALLOW", "HANKO_ACP_COMMANDS", "HANKO_SKILL_SOURCES", "HANKO_GIT_WORKSPACES", "HANKO_TOOLS_SINGLE_ENDPOINT",
-		"HANKO_BLOB_DRIVER", "HANKO_S3_ENDPOINT", "HANKO_S3_REGION", "HANKO_S3_BUCKET", "HANKO_S3_PREFIX", "HANKO_S3_PATH_STYLE",
+		"HANKO_BLOB_DRIVER", "HANKO_BLOB_DIR", "HANKO_S3_ENDPOINT", "HANKO_S3_REGION", "HANKO_S3_BUCKET", "HANKO_S3_PREFIX", "HANKO_S3_PATH_STYLE",
 		"HANKO_S3_ACCESS_KEY", "HANKO_S3_SECRET_KEY",
 		"HANKO_VAULT_ADDR", "HANKO_VAULT_MOUNT", "HANKO_VAULT_NAMESPACE", "HANKO_VAULT_TOKEN",
 		"HANKO_ENV_SSH_ALLOW_HOSTS", "HANKO_ENV_SANDBOX", "HANKO_ENV_SANDBOX_HOST_ROOT",
@@ -402,6 +408,10 @@ func (c *Config) finalize() error {
 	if c.Storage.Driver == "" {
 		c.Storage.Driver = BlobPostgres
 	}
+	if c.ArtifactMaxBytes == 0 && !c.EnvSet["HANKO_ARTIFACT_MAX_BYTES"] { // sem valor: o teto do driver ativo (ADR-0065)
+		c.ArtifactMaxBytes = c.MaxArtifactBytes()
+	}
+	c.Storage.Dir = strings.TrimSpace(c.Storage.Dir)
 	c.Storage.S3.Endpoint = strings.TrimSpace(c.Storage.S3.Endpoint)
 	c.Storage.S3.Bucket = strings.TrimSpace(c.Storage.S3.Bucket)
 	c.Vault.Addr = strings.TrimSpace(c.Vault.Addr)
@@ -493,7 +503,7 @@ func (c *Config) finalize() error {
 
 // MaxArtifactBytes é o teto do limite por arquivo de artefato para o driver de blobs configurado (ADR-0051).
 func (c Config) MaxArtifactBytes() int64 {
-	if c.Storage.Driver == BlobS3 {
+	if c.Storage.Driver == BlobS3 || c.Storage.Driver == BlobFS {
 		return MaxArtifactBytesS3
 	}
 	return MaxArtifactBytesPostgres
@@ -550,7 +560,7 @@ func (c Config) Validate() error {
 		add("HANKO_RUN_RESERVE_USD %v inválido: use um valor >= 0 (0 usa o padrão de US$ 1,00)", c.RunReserveUSD)
 	}
 	if maxBytes := c.MaxArtifactBytes(); c.ArtifactMaxBytes < 1 || c.ArtifactMaxBytes > maxBytes {
-		add("HANKO_ARTIFACT_MAX_BYTES %d inválido: use de 1 a %d (%d MiB com o driver %s; padrão 5 MiB)", c.ArtifactMaxBytes, maxBytes, maxBytes>>20, c.Storage.Driver)
+		add("HANKO_ARTIFACT_MAX_BYTES %d inválido: use de 1 a %d (%d MiB com o driver %s; sem valor, vale esse teto)", c.ArtifactMaxBytes, maxBytes, maxBytes>>20, c.Storage.Driver)
 	}
 	switch c.Storage.Driver {
 	case BlobPostgres:
@@ -558,14 +568,21 @@ func (c Config) Validate() error {
 		if c.Storage.S3.Endpoint == "" || c.Storage.S3.Bucket == "" || c.Storage.S3.AccessKey == "" || c.Storage.S3.SecretKey == "" {
 			add("HANKO_BLOB_DRIVER=s3 exige HANKO_S3_ENDPOINT, HANKO_S3_BUCKET, HANKO_S3_ACCESS_KEY e HANKO_S3_SECRET_KEY")
 		}
+	case BlobFS:
+		if c.Storage.Dir == "" {
+			add("HANKO_BLOB_DRIVER=fs exige HANKO_BLOB_DIR (caminho absoluto)")
+		}
 	default:
-		add("HANKO_BLOB_DRIVER %q inválido: use %q ou %q", c.Storage.Driver, BlobPostgres, BlobS3)
+		add("HANKO_BLOB_DRIVER %q inválido: use %q, %q ou %q", c.Storage.Driver, BlobPostgres, BlobS3, BlobFS)
+	}
+	if d := c.Storage.Dir; d != "" && !filepath.IsAbs(d) {
+		add("HANKO_BLOB_DIR %q inválido: use um caminho absoluto", d)
 	}
 	if (c.Vault.Addr == "") != (c.Vault.Token == "") {
 		add("HANKO_VAULT_ADDR e HANKO_VAULT_TOKEN precisam ser definidos juntos")
 	}
 	if c.ArtifactQuotaBytes < c.ArtifactMaxBytes {
-		add("HANKO_ARTIFACT_QUOTA_BYTES %d inválido: a cota por empresa precisa caber ao menos um artefato máximo (padrão 512 MiB)", c.ArtifactQuotaBytes)
+		add("HANKO_ARTIFACT_QUOTA_BYTES %d inválido: a cota por empresa precisa caber ao menos um artefato máximo (padrão 5 GiB)", c.ArtifactQuotaBytes)
 	}
 	if c.AlertSilentFactor < 1 {
 		add("HANKO_ALERT_SILENT_FACTOR %d inválido: use um valor >= 1 (padrão 3)", c.AlertSilentFactor)

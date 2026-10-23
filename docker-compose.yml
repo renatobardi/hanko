@@ -20,11 +20,15 @@ services:
       HANKO_MEMORY_URL: http://ai-memory:49374
       HANKO_MEMORY_TOKEN: ${AI_MEMORY_AUTH_TOKEN:-}
       HANKO_WORKSPACES_ROOT: /home/node/hanko-workspaces
+      # conteúdo dos artefatos e anexos no disco do LXC (driver fs, ADR-0065): até 64 MiB por arquivo
+      HANKO_BLOB_DRIVER: fs
+      HANKO_BLOB_DIR: /var/lib/hanko/blobs
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-lgtm:4317
     ports:
       - "${HANKO_PORT:-3810}:7420"          # o nginx do host conecta em <ip-do-lxc>:3810
     volumes:
       - agent-home:/home/node               # login do claude/codex e workspaces das personas
+      - blobs:/var/lib/hanko/blobs          # artefatos e anexos (driver fs); o backup.sh arquiva este volume
     depends_on:
       postgres:
         condition: service_healthy
@@ -73,6 +77,7 @@ services:
 volumes:
   pgdata:
   agent-home:
+  blobs:
   lgtm:
   aimemory:
 

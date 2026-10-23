@@ -127,12 +127,12 @@ var enM7 = map[string]string{
 	"TRAVA":                                                                        "LOCK",
 
 	// CLI: hanko blobs
-	"Onde o conteúdo dos artefatos fica guardado (postgres ou s3)":                                       "Where artifact content is stored (postgres or s3)",
+	"Onde o conteúdo dos artefatos fica guardado (postgres, s3 ou fs)":                                   "Where artifact content is stored (postgres, s3 or fs)",
 	"Mostra o driver ativo e quanto há em cada um (via API; dono da instalação)":                         "Shows the active driver and how much each one holds (via API; installation owner)",
 	"Move o conteúdo dos artefatos de um driver para outro (retomável; usa o banco e o env do servidor)": "Moves artifact content from one driver to another (resumable; uses the server database and env)",
-	"informe --from e --to (postgres ou s3)":                                                             "provide --from and --to (postgres or s3)",
-	"driver de origem: postgres ou s3":                                                                   "source driver: postgres or s3",
-	"driver de destino: postgres ou s3":                                                                  "destination driver: postgres or s3",
+	"informe --from e --to (postgres, s3 ou fs)":                                                         "provide --from and --to (postgres, s3 or fs)",
+	"driver de origem: postgres, s3 ou fs":                                                               "source driver: postgres, s3 or fs",
+	"driver de destino: postgres, s3 ou fs":                                                              "destination driver: postgres, s3 or fs",
 	"não apaga o conteúdo da origem depois de copiar":                                                    "does not delete the source content after copying",
 	"só conta o que seria movido":                                                                        "only counts what would be moved",
 	"tamanho do lote":                                                                                    "batch size",

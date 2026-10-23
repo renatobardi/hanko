@@ -27,10 +27,11 @@ import (
 // publicação é uma versão de um documento de identidade estável, numerada MAJOR.MINOR.
 
 const (
-	// DefaultArtifactMaxBytes é o tamanho máximo de um arquivo quando a configuração não diz.
-	DefaultArtifactMaxBytes int64 = 5 << 20
+	// DefaultArtifactMaxBytes é o tamanho máximo de um arquivo quando a configuração não diz: o teto do postgres, o
+	// driver sem configuração (a config já resolve o teto do driver ativo; ADR-0065).
+	DefaultArtifactMaxBytes int64 = MaxArtifactMaxBytes
 	// DefaultArtifactQuotaBytes é a cota por empresa (soma de todas as versões) quando a configuração não diz.
-	DefaultArtifactQuotaBytes int64 = 512 << 20
+	DefaultArtifactQuotaBytes int64 = 5 << 30
 	// MaxArtifactMaxBytes é o teto do limite por arquivo que a configuração pode escolher.
 	MaxArtifactMaxBytes int64 = 16 << 20
 	// MaxArtifactMaxBytesBlob é o teto com um driver de blobs externo (s3, ADR-0051).

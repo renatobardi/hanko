@@ -254,7 +254,8 @@ the old database (`DROP DATABASE hanko_pre_restore_<ts>`). It asks for confirmat
 ssh -t oute-server "lxc exec hanko-prd -- /opt/app/deploy/oute-server/restore.sh --apply"
 ssh oute-server "lxc exec hanko-prd -- curl -fsS http://127.0.0.1:3810/readyz"
 # a specific generation:
-#   restore.sh --apply --pgdump /var/backups/hanko/hanko-<UTC>.pgdump --aimemory /var/backups/hanko/aimemory-<UTC>.tar.gz
+#   restore.sh --apply --pgdump /var/backups/hanko/hanko-<UTC>.pgdump --aimemory /var/backups/hanko/aimemory-<UTC>.tar.gz \
+#                      --blobs /var/backups/hanko/blobs-<UTC>.tar
 ```
 
 **Restore from the lab's restic (LXC lost or local copy corrupted):** on oute-server, as root (it needs the lab's
@@ -568,8 +569,8 @@ attachments go).
 
 | Variable | Default | Effect |
 |---|---|---|
-| `HANKO_ARTIFACT_MAX_BYTES` | 5 MiB (1 to 16 MiB; 64 MiB with S3) | Maximum size of one file. |
-| `HANKO_ARTIFACT_QUOTA_BYTES` | 512 MiB | Company quota, summing every version. |
+| `HANKO_ARTIFACT_MAX_BYTES` | the driver's ceiling: 16 MiB (postgres) or 64 MiB (S3) | Maximum size of one file (1 byte up to the ceiling; ADR-0065). One upload takes at most 10 files and 128 MiB. |
+| `HANKO_ARTIFACT_QUOTA_BYTES` | 5 GiB | Company quota, summing every version. |
 
 - **Publishing:** the UI upload, `hanko artifact put <file|-> [--task HNK-1] [--artifact DOC --change major|minor --reason …]
   [--tag t]` (also `list [--tag] [--workspace]`, `get <id> [-o file] [--info]` or `get <document> --version 1.2`,
@@ -595,7 +596,7 @@ and link tasks; admin creates, edits, abandons and reopens.
 
 | Symptom | Cause | Action |
 |---|---|---|
-| Upload refused: "over the N MiB per-file limit" | file above `HANKO_ARTIFACT_MAX_BYTES` | split the file or raise the limit (up to 16 MiB) |
+| Upload refused: "over the N MiB per-file limit" | file above `HANKO_ARTIFACT_MAX_BYTES` | split the file or raise the limit (up to 16 MiB; 64 MiB with S3) |
 | Upload refused: company artifact quota | versions sum above `HANKO_ARTIFACT_QUOTA_BYTES` | delete old artifacts (admin) or raise the quota |
 | Export with `--with-artifacts` refused | content above 20 MiB | export without the option |
 | HTML or PDF downloads instead of opening | by design: only text, Markdown and raster images open | open the downloaded file |
@@ -654,16 +655,19 @@ are recorded in `instance_setting_audit` (before, after, author). Secrets and ke
 
 ### Artifact storage (BlobStore)
 
-Default: Postgres (`artifact_blobs`), as before. For S3-compatible storage (S3, MinIO, R2):
+Default: Postgres (`artifact_blobs`), as before. For large files, two drivers outside the database: **`fs`**, files in a local
+directory (ADR-0065; `hanko-prd` uses it, on the `blobs` volume), and **`s3`**, any S3-compatible store (S3, R2, Garage):
 
 | Variable | Effect |
 |---|---|
-| `HANKO_BLOB_DRIVER` | `postgres` (default) or `s3`: where **new** writes go. |
+| `HANKO_BLOB_DRIVER` | `postgres` (default), `fs` or `s3`: where **new** writes go. |
+| `HANKO_BLOB_DIR` | Root of the `fs` driver (absolute path, writable by the process): `<root>/<company>/<artifact>`. |
 | `HANKO_S3_ENDPOINT` · `HANKO_S3_BUCKET` | Address (`https://…`; `http` only on loopback) and bucket. |
 | `HANKO_S3_ACCESS_KEY` · `HANKO_S3_SECRET_KEY` | Credentials (**environment only**). |
 | `HANKO_S3_REGION` (`us-east-1`) · `HANKO_S3_PREFIX` · `HANKO_S3_PATH_STYLE` (`true`) | Signing region, key prefix and path-style addressing (`false` = virtual host). |
 
-With `s3` active the per-file limit goes up: `HANKO_ARTIFACT_MAX_BYTES` accepts up to 64 MiB. Each artifact records which driver holds it, so
+With `fs` or `s3` active the per-file limit goes up: without `HANKO_ARTIFACT_MAX_BYTES` it is 64 MiB.
+With `fs`, the local backup (`backup.sh`) archives the directory as `blobs-<UTC>.tar` and `restore.sh --apply` puts it back (`--blobs FILE`). Each artifact records which driver holds it, so
 the two coexist. **Moving what already exists:**
 
 ```

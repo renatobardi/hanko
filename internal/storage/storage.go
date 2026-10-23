@@ -1,6 +1,7 @@
-// Package storage guarda o conteúdo dos artefatos atrás da interface BlobStore (ADR-0051). Dois drivers: postgres
-// (o padrão, a tabela artifact_blobs, dentro da transação do artefato) e s3 (qualquer endpoint S3 compatível, com
-// SigV4 próprio sobre a stdlib). O artefato registra em que driver está (artifacts.storage), então os dois convivem.
+// Package storage guarda o conteúdo dos artefatos atrás da interface BlobStore (ADR-0051). Três drivers: postgres
+// (o padrão, a tabela artifact_blobs, dentro da transação do artefato), s3 (qualquer endpoint S3 compatível, com
+// SigV4 próprio sobre a stdlib) e fs (arquivos num diretório local, ADR-0065). O artefato registra em que driver está
+// (artifacts.storage), então os drivers convivem.
 package storage
 
 import (
@@ -23,6 +24,7 @@ import (
 const (
 	DriverPostgres = "postgres"
 	DriverS3       = "s3"
+	DriverFS       = "fs"
 )
 
 // ErrNotFound: o driver não tem conteúdo para a chave.
@@ -38,7 +40,7 @@ func (k Key) String() string { return k.CompanyID.String() + "/" + k.ArtifactID.
 
 // BlobStore guarda e devolve o conteúdo de uma versão de artefato.
 type BlobStore interface {
-	// Name é o nome do driver ("postgres" | "s3").
+	// Name é o nome do driver ("postgres" | "s3" | "fs").
 	Name() string
 	// Transactional informa que Put deve rodar dentro da transação do artefato (a transação vai no contexto,
 	// WithTx). Falso: o conteúdo é gravado antes da transação, com compensação em caso de falha.

@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -258,5 +260,70 @@ func TestBlobStatusAndLimits(t *testing.T) {
 	}
 	if b, _ := json.Marshal(st); strings.Contains(string(b), "SK-secret") {
 		t.Fatal("o status não pode carregar credencial")
+	}
+}
+
+// Driver fs (ADR-0065): com ele ativo, o conteúdo vai para um arquivo e não para o banco; o que já estava no postgres
+// migra para o disco e continua legível; apagar o artefato apaga o arquivo depois do commit.
+func TestArtifactGoesToFSAndMigrates(t *testing.T) {
+	e := newEnv(t)
+	bg := context.Background()
+	root := t.TempDir()
+	fs, err := storage.NewFS(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pg := storage.NewPostgres(e.svc.Pool)
+	pgRows := func() int {
+		var n int
+		if err := e.svc.Pool.QueryRow(bg, `SELECT count(*) FROM artifact_blobs`).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	storageOf := func(id domain.ID) string {
+		var s string
+		if err := e.svc.Pool.QueryRow(bg, `SELECT storage FROM artifacts WHERE id=$1`, id).Scan(&s); err != nil {
+			t.Fatal(err)
+		}
+		return s
+	}
+
+	// antes da troca: uma versão no postgres
+	e.svc.Blobs = storage.NewRegistry(pg, fs)
+	old := e.put(t, domain.HumanActor, service.PutArtifactInput{Name: "antigo.txt", Content: []byte("no banco")})
+	if storageOf(old.ID) != storage.DriverPostgres || pgRows() != 1 {
+		t.Fatalf("antes: storage=%s pg=%d", storageOf(old.ID), pgRows())
+	}
+
+	// fs ativo: a versão nova vai para <raiz>/<empresa>/<artefato>
+	e.svc.Blobs = storage.NewRegistry(fs, pg)
+	content := bytes.Repeat([]byte("imagem "), 1000)
+	v := e.put(t, domain.HumanActor, service.PutArtifactInput{Name: "foto.bin", Content: content})
+	if storageOf(v.ID) != storage.DriverFS || pgRows() != 1 {
+		t.Fatalf("fs: storage=%s pg=%d", storageOf(v.ID), pgRows())
+	}
+	if b, err := os.ReadFile(filepath.Join(root, e.co.ID.String(), v.ID.String())); err != nil || !bytes.Equal(b, content) {
+		t.Fatalf("arquivo no disco: %v", err)
+	}
+	if _, b, err := e.svc.ArtifactContent(bg, e.co.ID, v.ID); err != nil || !bytes.Equal(b, content) {
+		t.Fatalf("leitura pelo service: %v", err)
+	}
+
+	// o que estava no banco migra para o disco
+	rep, err := storage.Migrate(bg, e.svc.Pool, e.svc.Blobs, storage.MigrateOptions{From: storage.DriverPostgres, To: storage.DriverFS})
+	if err != nil || rep.Moved != 1 || rep.Failed != 0 || pgRows() != 0 || storageOf(old.ID) != storage.DriverFS {
+		t.Fatalf("migração: %+v %v pg=%d storage=%s", rep, err, pgRows(), storageOf(old.ID))
+	}
+	if _, b, err := e.svc.ArtifactContent(bg, e.co.ID, old.ID); err != nil || string(b) != "no banco" {
+		t.Fatalf("leitura depois de migrar: %q %v", b, err)
+	}
+
+	// apagar o artefato apaga o arquivo
+	if err := e.svc.DeleteArtifact(bg, domain.HumanActor, e.co.ID, v.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, e.co.ID.String(), v.ID.String())); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("arquivo depois de apagar o artefato: %v", err)
 	}
 }
