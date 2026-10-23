@@ -26,6 +26,8 @@ func TestAPIToolPoliciesTestAndPermission(t *testing.T) {
 	base := e.base()
 	e.want(201, "POST", base+"/integrations", `{"kind":"mcp","name":"Docs","url":"`+up.URL+`/mcp","all_personas":true}`, nil)
 	e.want(200, "POST", base+"/integrations/docs/tools/refresh", "", nil)
+	// integração nova: a primeira descoberta põe a escrita em quarentena (ADR-0067); o admin revisa e libera
+	e.want(200, "POST", base+"/integrations/docs/tools/review", "{}", nil)
 
 	// política: gravar, trocar (mesma chave), listar por persona, validar
 	var pol api.ToolPolicy

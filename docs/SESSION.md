@@ -1,13 +1,10 @@
-# Estado da última sessão (anexos de 64 MiB com driver fs, ADR-0065; anexos em disco para a persona, ADR-0066)
-Data: 2026-10-23 · branches `feat/anexos-64mib` (#43) e `feat/anexos-em-disco` (#44, sobre a primeira)
+# Estado da última sessão (integração MCP nova nasce fechada para escrita, ADR-0067)
+Data: 2026-10-23 · ramo `claude/eager-brahmagupta-4dj6tw` → `main` (depois do #43 e #44, anexos)
 
 ## Feito
-- Driver `fs` do BlobStore (`HANKO_BLOB_DRIVER=fs`, `HANKO_BLOB_DIR`); migration 00202 aceita `fs` em `artifacts.storage`.
-- Limite por arquivo = teto do driver sem configuração (64 MiB fs/s3, 16 MiB postgres); envio: 10 arquivos e 128 MiB; cota padrão 5 GiB.
-- Prd: volume `blobs` em `/var/lib/hanko/blobs`, deploy migra postgres→fs, backup.sh/restore.sh cobrem `blobs-<UTC>.tar`; vhost nginx 130m.
-- Anexos em `.hanko-anexos/<run>/` no diretório de trabalho, com o caminho no briefing (ADR-0066).
-- Antes, no `main` (#42): doctor checa o ai-memory pelo provider; `update --check` não sugere downgrade; cask sem o hook depreciado.
+- ADR-0067: servidor MCP novo não vem mais para todas as personas; integração criada agora grava catálogo pendente e a primeira descoberta põe escrita/destrutiva/sem risco em quarentena (antigas mantêm a linha de base do ADR-0036); regra por risco exige escolha explícita.
+- Em produção: GitHub ligado ao Delivery Manager por token fine-grained + perfil "leitura livre, escrita pede aprovação".
 ## Travado (só o dono)
-- Deploy com `--edge` para o nginx novo valer: `deploy/oute-server/deploy-prd.sh --edge`. Tags v0.3.0–v0.6.0; SonarCloud falhando em todo PR.
+- Deploy com `--edge` (nginx novo dos anexos, #43/#44): `deploy/oute-server/deploy-prd.sh --edge`. Tags v0.3.0–v0.6.0; SonarCloud falhando em todo PR.
 ## Próximo passo
-- Merge do #43 e depois do #44; deploy com `--edge`; anexar uma imagem num chat e pedir à persona para descrevê-la.
+- Deploy; cadastrar um servidor MCP de teste e ver as tools de escrita em quarentena e na Caixa; anexar uma imagem num chat e pedir à persona para descrevê-la. Assistente "conectar ferramenta a uma persona" segue na issue #45.

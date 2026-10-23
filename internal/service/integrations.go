@@ -517,6 +517,9 @@ func (s *Service) CreateIntegration(ctx context.Context, actor domain.Actor, com
 		if err != nil {
 			return mapErr(err, "create integration")
 		}
+		if err := t.createPendingCatalog(companyID, id, row.Kind); err != nil {
+			return err
+		}
 		for _, pid := range in.PersonaIDs {
 			if err := t.q.SetIntegrationPersona(ctx, store.SetIntegrationPersonaParams{CompanyID: companyID, IntegrationID: id, PersonaID: pid}); err != nil {
 				return fmt.Errorf("link integration persona: %w", err)

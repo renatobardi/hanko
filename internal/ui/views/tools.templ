@@ -337,7 +337,8 @@ templ ToolProfilePage(sh Shell, vm ToolProfileVM) {
 						<form class="inline-form mt-3 d-flex gap-2 wrap" method="post" action={ templ.SafeURL(vm.RiskAction) } hx-boost="true">
 							@Select("risk", "rk-risk", vm.RiskOpts, true)
 							@Select("integration", "rk-integ", vm.RiskIntegOpts, true)
-							<select name="choice" class="select sm" aria-label={ i18n.T(ctx, "Escolha") }>
+							<select name="choice" class="select sm" aria-label={ i18n.T(ctx, "Escolha") } required>
+								<option value="" selected disabled>{ i18n.T(ctx, "Escolha…") }</option>
 								<option value="off">{ i18n.T(ctx, "Desligado") }</option>
 								<option value="ask">{ i18n.T(ctx, "Perguntar antes") }</option>
 								<option value="allow">{ i18n.T(ctx, "Permitido") }</option>

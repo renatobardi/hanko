@@ -224,6 +224,10 @@ func newToolStack(t *testing.T, single bool) *toolStack {
 	if res, err := svc.RefreshIntegrationTools(ctx, domain.HumanActor, co.ID, integ.ID); err != nil || !res.OK {
 		t.Fatalf("refresh: %+v %v", res, err)
 	}
+	// integração nova: a primeira descoberta põe a escrita em quarentena (ADR-0067); o admin revisa e libera
+	if _, err := svc.ReviewQuarantinedTools(ctx, domain.HumanActor, co.ID, integ.ID, nil); err != nil {
+		t.Fatalf("revisar: %v", err)
+	}
 	if err := hb.Start(ctx); err != nil {
 		t.Fatal(err)
 	}

@@ -133,7 +133,9 @@ func (s *server) blankIntegrationForm(ctx context.Context, co domain.Company, ki
 		Transport: domain.TransportHTTP}
 	vm.TransportOptions = []views.Option{{Value: domain.TransportHTTP, Label: "http", Selected: true}, {Value: domain.TransportStdio, Label: "stdio"}}
 	vm.EventOptions = eventOptions(ctx, nil)
-	vm.AllPersonas = kind == string(domain.IntegrationMCP)
+	// Desmarcado por padrão: uma persona sem perfil de ferramentas recebe todas as tools do servidor, então quem recebe a
+	// integração é uma escolha explícita (na página da integração, depois de salvar).
+	vm.AllPersonas = false
 	return vm
 }
 

@@ -102,6 +102,17 @@ func (e *toolsEnv) refresh(t *testing.T) service.ToolCatalogResult {
 	return res
 }
 
+// reviewed faz a primeira descoberta e libera o que ela pôs em quarentena, como o admin faz ao cadastrar o servidor
+// (ADR-0067): os testes que não tratam da quarentena partem de um catálogo todo ativo.
+func (e *toolsEnv) reviewed(t *testing.T) service.ToolCatalogResult {
+	t.Helper()
+	res := e.refresh(t)
+	if _, err := e.svc.ReviewQuarantinedTools(context.Background(), domain.HumanActor, e.co.ID, e.integ.ID, nil); err != nil {
+		t.Fatalf("revisar: %v", err)
+	}
+	return res
+}
+
 func (e *toolsEnv) catalog(t *testing.T) map[string]domain.IntegrationTool {
 	t.Helper()
 	v, err := e.svc.ListIntegrationTools(context.Background(), e.co.ID, e.integ.ID)
@@ -119,17 +130,26 @@ func TestToolCatalogDiscoveryQuarantineAndRemoval(t *testing.T) {
 	e := newToolsEnv(t)
 	ctx := context.Background()
 
-	// linha de base: tudo ativo, risco derivado das anotações
+	// primeira descoberta de uma integração criada aqui (ADR-0067): só a leitura nasce ativa; o que escreve, o destrutivo
+	// e o que não declara o risco entram em quarentena. Risco derivado das anotações.
 	res := e.refresh(t)
-	if !res.Baseline || res.Tools != 4 || res.Quarantined != 0 {
-		t.Fatalf("baseline: %+v", res)
+	if !res.Baseline || res.Tools != 4 || res.Quarantined != 3 {
+		t.Fatalf("primeira descoberta: %+v", res)
 	}
 	cat := e.catalog(t)
 	want := map[string]domain.ToolRisk{"ler": domain.ToolRiskRead, "escrever": domain.ToolRiskWrite, "apagar": domain.ToolRiskDestructive, "misterio": domain.ToolRiskUnknown}
 	for n, r := range want {
-		if cat[n].Risk != r || cat[n].Status != domain.ToolActive || cat[n].SchemaSHA256 == "" {
+		st := domain.ToolQuarantined
+		if n == "ler" {
+			st = domain.ToolActive
+		}
+		if cat[n].Risk != r || cat[n].Status != st || cat[n].SchemaSHA256 == "" {
 			t.Errorf("%s: %+v", n, cat[n])
 		}
+	}
+	// o admin revisa a primeira descoberta e libera tudo
+	if n, err := e.svc.ReviewQuarantinedTools(ctx, domain.HumanActor, e.co.ID, e.integ.ID, nil); err != nil || n != 3 {
+		t.Fatalf("revisar a primeira descoberta: %d %v", n, err)
 	}
 	// a descoberta passou o segredo guardado ao servidor
 	if a := e.up.auths; len(a) == 0 || a[0] != upstreamSecret {
@@ -338,7 +358,7 @@ func names(ts []service.GatewayTool) string {
 func TestRunGatewayListCallAskAndApproval(t *testing.T) {
 	e := newToolsEnv(t)
 	ctx := context.Background()
-	e.refresh(t)
+	e.reviewed(t)
 	ana := e.persona(t, "Ana", nil)
 	prof, err := e.svc.CreateToolProfile(ctx, domain.HumanActor, e.co.ID, service.CreateToolProfileInput{Name: "Seguro"})
 	if err != nil {
@@ -478,7 +498,11 @@ func TestRunGatewayWithoutProfileKeepsCurrentBehaviour(t *testing.T) {
 	ctx := context.Background()
 	ana := e.persona(t, "Ana", nil)
 	c, _ := toolRun(t, e, ana)
-	// sem perfil e com o catálogo nunca descoberto: o gateway descobre na hora e mostra tudo
+	// integração anterior à regra do ADR-0067 (sem linha de catálogo), sem perfil e nunca descoberta: o gateway descobre
+	// na hora, a primeira descoberta é a linha de base e tudo aparece
+	if _, err := e.svc.Pool.Exec(ctx, "DELETE FROM integration_tool_catalogs WHERE integration_id = $1", e.integ.ID); err != nil {
+		t.Fatal(err)
+	}
 	list, err := e.svc.GatewayListTools(ctx, c, "docs")
 	if err != nil || names(list) != "apagar,escrever,ler,misterio" {
 		t.Fatalf("sem perfil: %s %v", names(list), err)
@@ -486,6 +510,23 @@ func TestRunGatewayWithoutProfileKeepsCurrentBehaviour(t *testing.T) {
 	res, err := e.svc.GatewayCallTool(ctx, c, "docs", "apagar", json.RawMessage(`{}`))
 	if err != nil || res.Decision != domain.ToolDecisionAllow {
 		t.Fatalf("sem perfil, allow: %+v %v", res, err)
+	}
+}
+
+// Integração criada depois do ADR-0067 e descoberta pela primeira vez numa execução (sem admin olhando): só a leitura
+// aparece; o que escreve fica em quarentena até a revisão.
+func TestRunGatewayFirstDiscoveryQuarantinesWrites(t *testing.T) {
+	e := newToolsEnv(t)
+	ctx := context.Background()
+	ana := e.persona(t, "Ana", nil)
+	c, _ := toolRun(t, e, ana)
+	list, err := e.svc.GatewayListTools(ctx, c, "docs")
+	if err != nil || names(list) != "ler" {
+		t.Fatalf("primeira descoberta pelo gateway: %s %v", names(list), err)
+	}
+	res, err := e.svc.GatewayCallTool(ctx, c, "docs", "apagar", json.RawMessage(`{}`))
+	if err != nil || res.Decision != domain.ToolDecisionQuarantined {
+		t.Fatalf("apagar em quarentena: %+v %v", res, err)
 	}
 }
 
@@ -519,7 +560,7 @@ func TestRunGatewayRateLimit(t *testing.T) {
 func TestNamedGatewayTokens(t *testing.T) {
 	e := newToolsEnv(t)
 	ctx := context.Background()
-	e.refresh(t)
+	e.reviewed(t)
 	prof, _ := e.svc.CreateToolProfile(ctx, domain.HumanActor, e.co.ID, service.CreateToolProfileInput{Name: "IDE", DefaultAction: domain.ToolDefaultAllow})
 	iid := e.integ.ID
 	if _, err := e.svc.AddToolProfileRule(ctx, domain.HumanActor, e.co.ID, prof.ID, service.ToolRuleInput{Target: domain.ToolTargetRisk,
@@ -775,5 +816,23 @@ func TestToolsRoles(t *testing.T) {
 			}
 		}
 		wantErr(t, o.run(as(outsider)), domain.ErrNotFound)
+	}
+}
+
+// Integração anterior à regra (sem linha de catálogo, ADR-0067): a primeira descoberta continua sendo a linha de base
+// do ADR-0036, com tudo ativo, para nada mudar para quem já a usa.
+func TestToolCatalogLegacyIntegrationKeepsBaseline(t *testing.T) {
+	e := newToolsEnv(t)
+	if _, err := e.svc.Pool.Exec(context.Background(), "DELETE FROM integration_tool_catalogs WHERE integration_id = $1", e.integ.ID); err != nil {
+		t.Fatal(err)
+	}
+	res := e.refresh(t)
+	if !res.Baseline || res.Tools != 4 || res.Quarantined != 0 {
+		t.Fatalf("linha de base: %+v", res)
+	}
+	for n, tl := range e.catalog(t) {
+		if tl.Status != domain.ToolActive {
+			t.Errorf("%s: %+v", n, tl)
+		}
 	}
 }

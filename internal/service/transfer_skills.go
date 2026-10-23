@@ -224,6 +224,9 @@ func (t *txc) importSkillsIntegrations(cid domain.ID, doc export.Document, p ski
 			Config: p.integrations[i].cfg, Events: events, ActorType: string(domain.ActorSystem), Now: t.now}); err != nil {
 			return mapErr(err, "import integration "+x.Slug)
 		}
+		if err := t.createPendingCatalog(cid, id, x.Kind); err != nil {
+			return err
+		}
 		if x.Kind != string(domain.IntegrationMCP) {
 			continue
 		}

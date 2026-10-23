@@ -210,15 +210,19 @@ func (s *Service) refreshCatalog(ctx context.Context, actor domain.Actor, integ 
 	var res ToolCatalogResult
 	err = s.withTx(ctx, func(t *txc) error {
 		res = ToolCatalogResult{OK: true}
+		legacy := false
 		if err := t.q.LockToolCatalog(ctx, integ.ID.String()); err != nil {
 			return fmt.Errorf("lock catalog: %w", err)
 		}
+		// Linha de base (ADR-0036) só para integração anterior à regra, que não tem linha de catálogo: nada muda para quem
+		// já a usa. Integração criada depois nasce com o catálogo pendente, e a primeira descoberta já põe em quarentena o
+		// que escreve (ADR-0067).
 		cat, err := t.q.GetToolCatalog(ctx, store.GetToolCatalogParams{CompanyID: integ.CompanyID, IntegrationID: integ.ID})
 		switch {
 		case err == nil:
 			res.Baseline = cat.SyncedAt == nil
 		case isNoRows(err):
-			res.Baseline = true
+			res.Baseline, legacy = true, true
 		default:
 			return fmt.Errorf("get catalog: %w", err)
 		}
@@ -234,7 +238,7 @@ func (s *Service) refreshCatalog(ctx context.Context, actor domain.Actor, integ 
 			}
 			seen[st.name] = true
 			names = append(names, st.name)
-			if err := t.upsertCatalogTool(integ, st, res.Baseline, &res); err != nil {
+			if err := t.upsertCatalogTool(integ, st, res.Baseline && legacy, &res); err != nil {
 				return err
 			}
 		}
@@ -528,6 +532,19 @@ func (s *Service) ReviewQuarantinedTools(ctx context.Context, actor domain.Actor
 			map[string]any{"slug": integ.Slug, "tools": released}, "")
 	})
 	return n, err
+}
+
+// createPendingCatalog registra o catálogo de uma integração MCP recém-criada como pendente (ADR-0067): a primeira
+// descoberta dela não é linha de base, e o que escreve entra em quarentena até um admin revisar.
+func (t *txc) createPendingCatalog(companyID, integrationID domain.ID, kind string) error {
+	if kind != string(domain.IntegrationMCP) {
+		return nil
+	}
+	if err := t.q.CreatePendingToolCatalog(t.ctx, store.CreatePendingToolCatalogParams{IntegrationID: integrationID,
+		CompanyID: companyID, Now: t.now}); err != nil {
+		return fmt.Errorf("create pending catalog: %w", err)
+	}
+	return nil
 }
 
 // ensureCatalog descobre o catálogo quando ele nunca foi descoberto ou está velho (melhor esforço: com um

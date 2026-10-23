@@ -423,6 +423,9 @@ func (t *txc) applyMerge(cid domain.ID, doc export.Document, p importPlan, plan 
 				ActorType: string(domain.ActorSystem), Now: t.now}); err != nil {
 				return ids, mapErr(err, "import integration "+x.Slug)
 			}
+			if err := t.createPendingCatalog(cid, id, x.Kind); err != nil {
+				return ids, err
+			}
 		}
 		ids.integ[x.Slug] = id
 		if x.Kind != string(domain.IntegrationMCP) {

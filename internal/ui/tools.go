@@ -584,6 +584,10 @@ func (s *server) handleRiskRule(w http.ResponseWriter, r *http.Request, co domai
 		in.Effect = domain.ToolExclude
 	case service.ToolChoiceAsk:
 		in.Mode = domain.ToolModeAsk
+	case service.ToolChoiceAllow:
+	default: // sem escolha explícita não grava nada: a regra não pode cair num modo que o admin não escolheu
+		s.fail(w, r, &co, domain.Invalid("choice", "escolha desligado, perguntar antes ou permitido"))
+		return
 	}
 	if ref := trimForm(r, "integration"); ref != "" {
 		it, err := s.toolIntegration(ctx, co, ref)

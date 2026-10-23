@@ -5,6 +5,9 @@ package i18n
 // Dashboard and `hanko status-card`). init merges them into the same catalog as the rest (en.go). Same rules: the key
 // is the pt-BR text, and a key that another file already translates is not repeated here.
 var enM20 = map[string]string{
+	// integrações: quem recebe um servidor MCP novo e regras por risco sem escolha implícita (ADR-0067)
+	"Desmarcado, você escolhe as personas na página da integração depois de salvar. Uma persona sem perfil de ferramentas recebe todas as tools do servidor, inclusive as que escrevem.": "Unchecked, you pick the personas on the integration page after saving. A persona without a tool profile gets every tool of the server, including those that write.",
+	"Escolha…": "Choose…",
 	// web UI: project › Stages
 	"Etapas do projeto":              "Project stages",
 	"Etapas do projeto salvas.":      "Project stages saved.",
