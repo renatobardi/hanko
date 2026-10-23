@@ -291,8 +291,11 @@ type Plan struct {
 	Latest     string `json:"latest"`
 	Newer      bool   `json:"newer"`
 	Prerelease bool   `json:"prerelease"`
-	Archive    Asset  `json:"archive"`
-	Checksums  Asset  `json:"checksums"`
+	// Dev: o binário atual não é uma release (build de commit ou dev). Comparar com o canal não diz se ele é mais
+	// velho: num build da main, a release do canal costuma ser anterior.
+	Dev       bool  `json:"dev,omitempty"`
+	Archive   Asset `json:"archive"`
+	Checksums Asset `json:"checksums"`
 }
 
 // ArchiveName é o nome do tar.gz da release para esta plataforma (o do goreleaser).
@@ -324,6 +327,7 @@ func (u *Updater) Check(ctx context.Context, channel string) (Plan, error) {
 		p.Newer = c > 0
 	} else {
 		p.Newer = rel.Version != strings.TrimPrefix(u.Current, "v") // binário de desenvolvimento: qualquer release é "outra"
+		p.Dev = true
 	}
 	want := ArchiveName(rel.Version, u.GOOS, u.GOARCH)
 	for _, a := range rel.Assets {
