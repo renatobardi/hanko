@@ -19,7 +19,7 @@ type AttachmentRow struct {
 type AttachBox struct {
 	Rows         []AttachmentRow
 	UploadAction string // POST multipart; vazio = só leitura
-	Hint         string // "Até 5 MiB por arquivo, 10 arquivos por envio."
+	Hint         string // "Até 64 MiB por arquivo, 10 arquivos e 128 MiB por envio."
 	AllHref      string
 }
 

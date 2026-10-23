@@ -130,6 +130,10 @@ x "cd /opt/app && docker compose up -d --build"
 x "for i in \$(seq 1 90); do curl -fsS --max-time 2 http://127.0.0.1:${PORT}/readyz >/dev/null && echo 'readyz ok' && exit 0; sleep 2; done; docker compose -f /opt/app/docker-compose.yml logs --tail 80 hanko; exit 1"
 x "for i in \$(seq 1 30); do s=\$(docker inspect -f '{{.State.Health.Status}}' \$(docker compose -f /opt/app/docker-compose.yml ps -q ai-memory) 2>/dev/null); [ \"\$s\" = healthy ] && echo 'ai-memory ok' && exit 0; sleep 2; done; echo \"AVISO: ai-memory \${s:-ausente}; o Hanko segue sem memória (outbox)\"; docker compose -f /opt/app/docker-compose.yml logs --tail 30 ai-memory"
 x "BASE=http://127.0.0.1:${PORT} PUBLIC_HOST=${DOMAIN} bash /opt/app/deploy/oute-server/smoke.sh"
+# 4-) Artefatos no disco do LXC (driver fs, ADR-0065): move o que ainda está no Postgres. Idempotente e retomável; cada
+#     versão é copiada e conferida (tamanho + sha256) antes de trocar de driver e sair do banco. O backup pré-deploy
+#     acima ainda tem o conteúdo no pg_dump. Falha de um artefato não derruba o deploy: ele segue legível no Postgres.
+x "docker compose -f /opt/app/docker-compose.yml exec -T hanko hanko blobs migrate --from postgres --to fs || echo 'AVISO: migração de artefatos para o disco incompleta; rode de novo: hanko blobs migrate --from postgres --to fs'"
 # 4a) Diagnóstico da instalação (hanko doctor) e consulta de versão nova (hanko update --check). Informativos: um aviso do
 #     doctor não derruba o deploy já no ar, mas fica visível. O update em si não se aplica aqui: a imagem é reconstruída
 #     pelo `compose up --build` acima (o binário do contêiner não se troca no lugar).
@@ -146,8 +150,8 @@ HK="docker compose -f /opt/app/docker-compose.yml exec -T hanko hanko"
 x "set -e
 unit() { f=\"\$1\"; shift; if \"\$@\" > \"\$f.tmp\" && [ -s \"\$f.tmp\" ]; then mv \"\$f.tmp\" \"\$f\"; else rm -f \"\$f.tmp\"; echo \"erro: não gerei \$f (unit atual mantida)\" >&2; return 1; fi; }
 chmod 755 /opt/app/deploy/oute-server/backup.sh /opt/app/deploy/oute-server/restore.sh
-unit /etc/systemd/system/hanko-backup.service ${HK} service print timer --name hanko-backup --description 'Backup local do Hanko (pg_dump + ai-memory)' --exec /opt/app/deploy/oute-server/backup.sh --calendar '*-*-* 01:30:00' --random-delay 10min --timeout 30min --after docker.service --part service
-unit /etc/systemd/system/hanko-backup.timer ${HK} service print timer --name hanko-backup --description 'Backup local do Hanko (pg_dump + ai-memory)' --exec /opt/app/deploy/oute-server/backup.sh --calendar '*-*-* 01:30:00' --random-delay 10min --timeout 30min --after docker.service --part timer
+unit /etc/systemd/system/hanko-backup.service ${HK} service print timer --name hanko-backup --description 'Backup local do Hanko (pg_dump + ai-memory + artefatos)' --exec /opt/app/deploy/oute-server/backup.sh --calendar '*-*-* 01:30:00' --random-delay 10min --timeout 30min --after docker.service --part service
+unit /etc/systemd/system/hanko-backup.timer ${HK} service print timer --name hanko-backup --description 'Backup local do Hanko (pg_dump + ai-memory + artefatos)' --exec /opt/app/deploy/oute-server/backup.sh --calendar '*-*-* 01:30:00' --random-delay 10min --timeout 30min --after docker.service --part timer
 unit /etc/systemd/system/hanko-stack.service ${HK} service print compose --dir /opt/app
 systemctl daemon-reload && systemctl enable --now hanko-backup.timer && systemctl enable hanko-stack.service"
 x "systemctl start hanko-backup.service || echo 'AVISO: backup inicial falhou (veja journalctl -u hanko-backup.service); o deploy segue'; ls -1 /var/backups/hanko || true; systemctl list-timers hanko-backup.timer --no-pager || true"
@@ -177,7 +181,11 @@ fi
 cat > "$AVAILABLE" <<VHOST
 server {
     server_name ${DOMAIN};
-    client_max_body_size 20m;
+    # anexos (ADR-0065): 10 arquivos e 128 MiB por envio, mais a folga do multipart; o corpo vai direto ao Hanko,
+    # que impõe os limites, sem passar por arquivo temporário aqui; 5 min para um upload lento
+    client_max_body_size 130m;
+    client_body_timeout 300s;
+    proxy_request_buffering off;
 
     location / {
         proxy_pass http://${UPSTREAM};

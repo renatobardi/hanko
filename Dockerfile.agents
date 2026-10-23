@@ -16,6 +16,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
     && npm install -g @anthropic-ai/claude-code @openai/codex \
     && npm cache clean --force
 COPY --from=builder /out/hanko /usr/local/bin/hanko
+# raiz do driver fs (ADR-0065): o volume nomeado montado aqui herda o dono node na primeira vez
+RUN mkdir -p /var/lib/hanko/blobs && chown node:node /var/lib/hanko/blobs && chmod 700 /var/lib/hanko/blobs
 # usuário "node" (uid 1000) já existe na imagem base
 USER node
 WORKDIR /home/node

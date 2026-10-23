@@ -343,7 +343,18 @@ secret: 0123456789abcdef0123456789abcdef
 			name: "artefatos padrão",
 			env:  map[string]string{"HANKO_DATABASE_URL": db},
 			check: func(t *testing.T, c Config) {
-				if c.ArtifactMaxBytes != 5<<20 || c.ArtifactQuotaBytes != 512<<20 {
+				// sem valor, o limite por arquivo é o teto do driver (postgres: 16 MiB) e a cota, 5 GiB (ADR-0065)
+				if c.ArtifactMaxBytes != 16<<20 || c.ArtifactQuotaBytes != 5<<30 {
+					t.Fatal(c.ArtifactMaxBytes, c.ArtifactQuotaBytes)
+				}
+			},
+		},
+		{
+			name: "artefatos padrão com s3",
+			env: map[string]string{"HANKO_DATABASE_URL": db, "HANKO_BLOB_DRIVER": "s3", "HANKO_S3_ENDPOINT": "https://s3.example.com",
+				"HANKO_S3_BUCKET": "b", "HANKO_S3_ACCESS_KEY": "k", "HANKO_S3_SECRET_KEY": "s"},
+			check: func(t *testing.T, c Config) {
+				if c.ArtifactMaxBytes != 64<<20 || c.ArtifactQuotaBytes != 5<<30 {
 					t.Fatal(c.ArtifactMaxBytes, c.ArtifactQuotaBytes)
 				}
 			},

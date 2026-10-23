@@ -158,3 +158,18 @@ func TestDeployPrdUnitsAreReplacedOnlyWhenGenerated(t *testing.T) {
 		})
 	}
 }
+
+// O vhost do nginx precisa aceitar o maior envio de anexos do Hanko (10 arquivos, 128 MiB; ADR-0065), senão a borda
+// devolve 413 antes de o Hanko ver o pedido.
+func TestDeployPrdVhostFitsTheUploadBudget(t *testing.T) {
+	b, err := os.ReadFile("../../deploy/oute-server/deploy-prd.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(b)
+	for _, want := range []string{"client_max_body_size 130m;", "client_body_timeout 300s;", "proxy_request_buffering off;"} {
+		if !strings.Contains(s, want) {
+			t.Errorf("vhost sem %q", want)
+		}
+	}
+}

@@ -38,25 +38,43 @@ func settingsBase(cfg config.Config) map[string]any {
 	}
 }
 
-// NewBlobRegistry monta os drivers de conteúdo de artefatos (ADR-0051): postgres sempre; s3 quando configurado.
-// O driver ativo (HANKO_BLOB_DRIVER) recebe as escritas novas.
+// NewBlobRegistry monta os drivers de conteúdo de artefatos (ADR-0051, ADR-0065): postgres sempre; s3 e fs quando
+// configurados (HANKO_S3_*, HANKO_BLOB_DIR). O driver ativo (HANKO_BLOB_DRIVER) recebe as escritas novas; os demais
+// seguem legíveis e servem de origem ou destino de `hanko blobs migrate`.
 func NewBlobRegistry(cfg config.Config, pool *pgxpool.Pool) (*storage.Registry, error) {
-	pg := storage.NewPostgres(pool)
-	if !cfg.S3Configured() {
-		if cfg.Storage.Driver == config.BlobS3 {
-			return nil, fmt.Errorf("app: HANKO_BLOB_DRIVER=s3 sem a configuração HANKO_S3_*")
+	byName := map[string]storage.BlobStore{config.BlobPostgres: storage.NewPostgres(pool)}
+	if cfg.S3Configured() {
+		s3, err := storage.NewS3(storage.S3Config{Endpoint: cfg.Storage.S3.Endpoint, Region: cfg.Storage.S3.Region, Bucket: cfg.Storage.S3.Bucket,
+			AccessKey: cfg.Storage.S3.AccessKey, SecretKey: cfg.Storage.S3.SecretKey, Prefix: cfg.Storage.S3.Prefix, PathStyle: cfg.Storage.S3.PathStyle})
+		if err != nil {
+			return nil, fmt.Errorf("app: driver s3: %w", err)
 		}
-		return storage.NewRegistry(pg), nil
+		byName[config.BlobS3] = s3
 	}
-	s3, err := storage.NewS3(storage.S3Config{Endpoint: cfg.Storage.S3.Endpoint, Region: cfg.Storage.S3.Region, Bucket: cfg.Storage.S3.Bucket,
-		AccessKey: cfg.Storage.S3.AccessKey, SecretKey: cfg.Storage.S3.SecretKey, Prefix: cfg.Storage.S3.Prefix, PathStyle: cfg.Storage.S3.PathStyle})
-	if err != nil {
-		return nil, fmt.Errorf("app: driver s3: %w", err)
+	if cfg.Storage.Dir != "" {
+		fs, err := storage.NewFS(cfg.Storage.Dir)
+		if err != nil {
+			return nil, fmt.Errorf("app: driver fs: %w", err)
+		}
+		byName[config.BlobFS] = fs
 	}
-	if cfg.Storage.Driver == config.BlobS3 {
-		return storage.NewRegistry(s3, pg), nil
+	active, ok := byName[cfg.Storage.Driver]
+	if !ok {
+		switch cfg.Storage.Driver {
+		case config.BlobS3:
+			return nil, fmt.Errorf("app: HANKO_BLOB_DRIVER=s3 sem a configuração HANKO_S3_*")
+		case config.BlobFS:
+			return nil, fmt.Errorf("app: HANKO_BLOB_DRIVER=fs sem HANKO_BLOB_DIR")
+		}
+		return nil, fmt.Errorf("app: HANKO_BLOB_DRIVER %q desconhecido", cfg.Storage.Driver)
 	}
-	return storage.NewRegistry(pg, s3), nil
+	var others []storage.BlobStore
+	for _, n := range []string{config.BlobPostgres, config.BlobS3, config.BlobFS} {
+		if d, ok := byName[n]; ok && n != cfg.Storage.Driver {
+			others = append(others, d)
+		}
+	}
+	return storage.NewRegistry(active, others...), nil
 }
 
 // migratePersonaEnvAtBoot move o env em claro das personas para segredos cifrados quando há chave (idempotente); sem

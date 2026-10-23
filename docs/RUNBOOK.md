@@ -255,7 +255,8 @@ o banco antigo (`DROP DATABASE hanko_pre_restore_<ts>`). Pede confirmação (`--
 ssh -t oute-server "lxc exec hanko-prd -- /opt/app/deploy/oute-server/restore.sh --apply"
 ssh oute-server "lxc exec hanko-prd -- curl -fsS http://127.0.0.1:3810/readyz"
 # uma geração específica:
-#   restore.sh --apply --pgdump /var/backups/hanko/hanko-<UTC>.pgdump --aimemory /var/backups/hanko/aimemory-<UTC>.tar.gz
+#   restore.sh --apply --pgdump /var/backups/hanko/hanko-<UTC>.pgdump --aimemory /var/backups/hanko/aimemory-<UTC>.tar.gz \
+#                      --blobs /var/backups/hanko/blobs-<UTC>.tar
 ```
 
 **Voltar um deploy que trouxe migrations (código + banco):** o `restore.sh --apply` sobe a stack com o código que estiver em
@@ -657,8 +658,8 @@ lixeira). Apagar uma task não apaga as versões de artefato dela (só os anexos
 
 | Variável | Padrão | Efeito |
 |---|---|---|
-| `HANKO_ARTIFACT_MAX_BYTES` | 5 MiB (de 1 a 16 MiB; 64 MiB com S3) | Tamanho máximo de um arquivo. |
-| `HANKO_ARTIFACT_QUOTA_BYTES` | 512 MiB | Cota da empresa, somando todas as versões. |
+| `HANKO_ARTIFACT_MAX_BYTES` | o teto do driver: 16 MiB (postgres) ou 64 MiB (S3) | Tamanho máximo de um arquivo (de 1 byte ao teto; ADR-0065). Um envio leva no máximo 10 arquivos e 128 MiB. |
+| `HANKO_ARTIFACT_QUOTA_BYTES` | 5 GiB | Cota da empresa, somando todas as versões. |
 
 - **Publicar:** UI (envio na tela), `hanko artifact put <arquivo|-> [--task HNK-1] [--artifact DOC --change major|minor --reason …]
   [--tag t]` (também `list [--tag] [--workspace]`, `get <id> [-o arquivo] [--info]` ou `get <documento> --version 1.2`,
@@ -681,7 +682,7 @@ histórico, tasks ligadas (uma meta ativa por task) e o quadro "Metas" no projet
 
 | Sintoma | Causa | Ação |
 |---|---|---|
-| Envio recusado: "passa do limite de N MiB por arquivo" | arquivo acima de `HANKO_ARTIFACT_MAX_BYTES` | divida o arquivo ou suba o limite (até 16 MiB) |
+| Envio recusado: "passa do limite de N MiB por arquivo" | arquivo acima de `HANKO_ARTIFACT_MAX_BYTES` | divida o arquivo ou suba o limite (até 16 MiB; 64 MiB com S3) |
 | Envio recusado: "cota de artefatos da empresa" | soma das versões acima de `HANKO_ARTIFACT_QUOTA_BYTES` | apague artefatos antigos (admin) ou suba a cota |
 | Exportação com `--with-artifacts` recusada | conteúdo acima de 20 MiB | exporte sem a opção |
 | HTML ou PDF baixa em vez de abrir | proposital: só texto, Markdown e imagem raster abrem | abra o arquivo baixado |
@@ -740,16 +741,19 @@ Precedência: **variável de ambiente > banco > yaml/padrão**. Com a variável 
 
 ### Armazenamento de artefatos (BlobStore)
 
-Padrão: Postgres (`artifact_blobs`), como antes. Para S3 compatível (S3, MinIO, R2):
+Padrão: Postgres (`artifact_blobs`), como antes. Para arquivos grandes, dois drivers fora do banco: **`fs`**, arquivos num
+diretório local (ADR-0065; é o que o `hanko-prd` usa, no volume `blobs`), e **`s3`**, qualquer S3 compatível (S3, R2, Garage):
 
 | Variável | Efeito |
 |---|---|
-| `HANKO_BLOB_DRIVER` | `postgres` (padrão) ou `s3`: onde as escritas **novas** vão. |
+| `HANKO_BLOB_DRIVER` | `postgres` (padrão), `fs` ou `s3`: onde as escritas **novas** vão. |
+| `HANKO_BLOB_DIR` | Raiz do driver `fs` (caminho absoluto, gravável pelo processo): `<raiz>/<empresa>/<artefato>`. |
 | `HANKO_S3_ENDPOINT` · `HANKO_S3_BUCKET` | Endereço (`https://…`; `http` só em loopback) e bucket. |
 | `HANKO_S3_ACCESS_KEY` · `HANKO_S3_SECRET_KEY` | Credenciais (**só por ambiente**). |
 | `HANKO_S3_REGION` (`us-east-1`) · `HANKO_S3_PREFIX` · `HANKO_S3_PATH_STYLE` (`true`) | Região de assinatura, prefixo das chaves e endereçamento por caminho (`false` = por host virtual). |
 
-Com `s3` ativo o limite por arquivo sobe: `HANKO_ARTIFACT_MAX_BYTES` aceita até 64 MiB. Cada artefato registra em que driver está, então os
+Com `fs` ou `s3` ativo o limite por arquivo sobe: sem `HANKO_ARTIFACT_MAX_BYTES` ele é 64 MiB.
+Com `fs`, o backup local (`backup.sh`) arquiva o diretório em `blobs-<UTC>.tar` e o `restore.sh --apply` o repõe (`--blobs ARQ`). Cada artefato registra em que driver está, então os
 dois convivem. **Migrar o que já existe:**
 
 ```
