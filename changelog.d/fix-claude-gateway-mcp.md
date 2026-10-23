@@ -1,3 +1,0 @@
-### Correção — personas `claude` conseguem usar integrações MCP (ADR-0059)
-- O claude headless negava toda tool de integração porque só `mcp__hanko` estava em `--allowedTools`. Agora os servidores que apontam para o gateway de tools também entram; perfil, política, gate e auditoria continuam decidindo cada chamada no servidor. Revisão e fase de plano não recebem a liberação.
-- English summary: headless `claude` personas could not call any MCP integration (only `mcp__hanko` was allowed). Tool-gateway servers are now allowed too; the gateway still enforces profile, policy, gates and audit per call. Review and plan-only runs are unchanged.

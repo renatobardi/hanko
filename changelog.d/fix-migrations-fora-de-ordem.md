@@ -1,3 +1,0 @@
-### Correção — migrations fora de ordem numérica
-- O goose recusava subir quando uma migration de número menor chegava depois de uma maior já aplicada (`detected N missing (out-of-order) migrations`), o que as faixas de numeração por marco (00050, 00080, 00090, 00100, 00120…) tornam inevitável. `db.Migrate` agora aceita migrations fora de ordem; teste reproduz o banco na 00100 recebendo a 00050, 00080 e 00090.
-- English summary: `db.Migrate` now allows out-of-order migrations (goose `WithAllowOutofOrder`), needed because milestones reserve numbering ranges that land out of numeric order; covered by a test that starts from a database at version 100.
