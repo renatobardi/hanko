@@ -322,9 +322,16 @@ templ RoomPage(sh Shell, vm RoomVM) {
 				@RoomThread(vm)
 				@RoomComposer(vm)
 			</section>
-			<aside class="room-side">
+			<aside class="room-side is-pinned" data-feed-aside="">
 				<details class="card pad room-feed" open>
-					<summary class="side-h">{ i18n.T(ctx, "Feed do time") }</summary>
+					<summary class="side-h">
+						{ i18n.T(ctx, "Feed do time") }
+						<button type="button" class="btn ghost sm composer-pin feed-pin" data-feed-pin="" aria-pressed="true" title={ i18n.T(ctx, "Feed fixo ao lado: clique para soltá-lo e deixá-lo rolar junto com a página") }>
+							@Icon("pin")
+							<span class="pin-off">{ i18n.T(ctx, "Fixar") }</span>
+							<span class="pin-on">{ i18n.T(ctx, "Fixado") }</span>
+						</button>
+					</summary>
 					@RoomFeed(vm)
 				</details>
 				if canWrite(ctx) && !vm.Archived {

@@ -137,10 +137,10 @@ test("chat: colar, Enter, alfinete e setas", async ({ page }) => {
   await page.locator("form[data-composer] [data-composer-pin]").click();
   await expect(page.locator("form[data-composer]")).toHaveClass(/is-pinned/);
 
-  // setas flutuantes: com a página alta, descem ao fim e sobem ao início
+  // seta flutuante: na metade de cima só a que desce ao fim; na de baixo só a que sobe ao início
   await page.evaluate(() => {
     const spacer = document.createElement("div");
-    spacer.style.height = "500px"; // poucas telas já bastam para a seta aparecer
+    spacer.style.height = "1500px"; // páginas altas o bastante para haver metade de cima e de baixo
     document.getElementById("chat-thread")!.before(spacer);
     window.scrollTo(0, 0);
     window.dispatchEvent(new Event("scroll"));
@@ -152,6 +152,7 @@ test("chat: colar, Enter, alfinete e setas", async ({ page }) => {
   await down.click();
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollHeight - (window.scrollY + window.innerHeight))).toBeLessThan(5);
   await expect(up).toHaveClass(/is-on/);
+  await expect(down).not.toHaveClass(/is-on/);
   await up.click();
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
 });

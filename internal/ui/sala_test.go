@@ -61,7 +61,7 @@ func TestRoomPage(t *testing.T) {
 	rec := e.get(t, path)
 	wantStatus(t, rec, http.StatusOK)
 	wantContains(t, rec, "Planejamento da semana", "@hana como está a pesquisa?", "<strong>3 fontes</strong>", `id="room-thread"`,
-		`hx-post="`+path+`/mensagens"`, "@ para chamar uma persona", `data-mention="@kenji"`, "Feed do time", `id="room-feed"`,
+		`hx-post="`+path+`/mensagens"`, "@ para chamar uma persona", `data-mention="@kenji"`, "Feed do time", `data-feed-aside=""`, `data-feed-pin=""`, `id="room-feed"`,
 		`hx-get="`+path+`/feed"`, "moderadora", "Responde quem é citado", "Arquivar", `data-draft="hanko-sala-`+cv.ID.String()+`"`,
 		`action="`+path+`/participantes"`, `action="`+path+`/config"`, path+"/participantes/"+uitest.ID("persona:ada").String()+"/remover")
 	wantNotContains(t, rec, "está pensando…", `hx-trigger="every 2s`)
