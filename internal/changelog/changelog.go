@@ -66,7 +66,8 @@ func normalize(v string) []string {
 }
 
 // For escolhe o bloco da versão instalada. Versão desconhecida, de desenvolvimento ("dev") ou ainda sem bloco próprio
-// (compilada depois do último release) usa o [Unreleased]. ok é false só quando o arquivo não tem nada utilizável.
+// (compilada depois do último release) usa o [Unreleased]; recém-cortada a versão ele fica vazio e então vale o bloco
+// mais novo com conteúdo. ok é false só quando o arquivo não tem nada utilizável.
 func For(rels []Release, installed string) (Release, bool) {
 	for _, c := range normalize(installed) {
 		for _, r := range rels {
@@ -76,7 +77,12 @@ func For(rels []Release, installed string) (Release, bool) {
 		}
 	}
 	for _, r := range rels {
-		if r.Version == UnreleasedVersion {
+		if r.Version == UnreleasedVersion && strings.TrimSpace(r.Body) != "" {
+			return r, true
+		}
+	}
+	for _, r := range rels {
+		if r.Version != UnreleasedVersion {
 			return r, true
 		}
 	}
