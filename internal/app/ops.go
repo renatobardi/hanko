@@ -19,6 +19,7 @@ import (
 	"github.com/renatobardi/hanko/internal/config"
 	"github.com/renatobardi/hanko/internal/db"
 	"github.com/renatobardi/hanko/internal/embeddedpg"
+	"github.com/renatobardi/hanko/internal/memory/aimemory"
 	"github.com/renatobardi/hanko/internal/ops"
 	"github.com/renatobardi/hanko/internal/storage"
 	"github.com/renatobardi/hanko/internal/syscmd"
@@ -203,6 +204,9 @@ func Doctor(ctx context.Context) (ops.Report, error) {
 	}
 	e := ops.DoctorEnv{Cfg: cfg, CfgErr: cfgErr, Getenv: os.Getenv, Cmd: syscmd.OS{}, HTTP: &http.Client{Timeout: 3 * time.Second},
 		DiskFree: ops.DiskFree, Now: time.Now}
+	if cfg.Memory.Provider == config.MemoryAIMemory && cfg.Memory.URL != "" {
+		e.MemoryPing = aimemory.New(aimemory.Options{URL: cfg.Memory.URL, Token: cfg.Memory.Token, ReadPageTool: cfg.Memory.ReadTool}).Ping
+	}
 	if cfg.DatabaseURL != "" {
 		pctx, cancel := context.WithTimeout(ctx, 6*time.Second)
 		defer cancel()

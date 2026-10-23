@@ -279,9 +279,10 @@ func TestUpdateCheckApplyAndRollback(t *testing.T) {
 	rt.Ops = OpsRuntime{UpdateSource: cliRelease(t, "9.9.9", "novo"), Exe: func() (string, error) { return exe, nil }, GOOS: "linux", GOARCH: "amd64", InContainer: func() bool { return false }}
 	env := map[string]string{}
 
-	// binário de teste é "v-test" (não semver): --check informa, apply exige --force
+	// binário de teste é "v-test" (não semver): --check diz que é build de desenvolvimento, sem anunciar "versão nova"
+	// (num build da main a release do canal costuma ser anterior); apply exige --force
 	code, out, _ := exec(t, rt, env, "", "update", "--check")
-	if code != 0 || !strings.Contains(out, "Há versão nova no canal stable: 9.9.9") {
+	if code != 0 || !strings.Contains(out, "Build de desenvolvimento") || !strings.Contains(out, "o canal stable está em 9.9.9") || strings.Contains(out, "Há versão nova") {
 		t.Fatalf("check: %d\n%s", code, out)
 	}
 	code, _, errOut := exec(t, rt, env, "", "update")
