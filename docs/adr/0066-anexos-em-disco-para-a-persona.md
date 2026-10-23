@@ -45,13 +45,17 @@ O primeiro uso real (um PDF de 23 MiB) mostrou o limite do harness: a ferramenta
 ~20 MB, e a imagem do container não tinha nenhum utilitário de PDF, então a persona não leu nada.
 1. **Utilitários na imagem:** `poppler-utils` (`pdfinfo`, `pdftotext`) e `qpdf` entram no `Dockerfile.agents`.
 2. **PDF grande é extraído e dividido antes da run:** acima de 15 MiB ou de 100 páginas, o heartbeat grava ao lado do
-   original o texto inteiro (`<nome>.txt`, `pdftotext -layout`) e partes de 20 páginas (`<nome>.parte-NN.pdf`, `qpdf
-   --pages`); com mais de 50 partes, as partes crescem para caber em 50. Cada utilitário tem timeout de 2 min e o PDF, 5
-   min no total. O que as partes e o texto ocupam entra no teto de 512 MiB por run.
+   original o texto inteiro (`<nome>.txt`, `pdftotext -layout`) e partes (`<nome>.parte-NN.pdf`) feitas por um único
+   `qpdf --split-pages` (um só parse do arquivo). O número de partes é o maior entre 1 por 20 páginas e 1 por 10 MiB,
+   até 50; assim um escaneado pesado de 15 páginas também é dividido (em partes de 5). A divisão é tudo ou nada: se o qpdf
+   falha ou as partes passam do que ainda cabe no teto de disco, nenhuma parte fica e o briefing não as promete. Aviso do
+   qpdf (saída 3) não é falha (`--warning-exit-0`). Cada utilitário tem timeout de 2 min e o PDF, 5 min no total. O que
+   as partes e o texto ocupam entra no teto de 512 MiB por run. Os nomes gerados (`.txt` e `.parte-NN.pdf`) são reservados
+   no mapa de nomes da run, então nunca colidem com outro anexo (um `Plano.txt` ao lado de `Plano.pdf`).
 3. **Briefing:** o anexo traz o caminho do texto ("leia primeiro") e o padrão das partes, e diz para abrir só as partes com
    figura ou tabela que importam. PDF escaneado (sem texto extraível) recebe só as partes, com aviso no log da run.
 4. **Sem os utilitários** (instalação fora do container) nada quebra: o PDF segue inteiro e o briefing não promete partes.
-5. **Compositor (chat, sala, comentário de task):** colar imagem ou arquivo (Ctrl/Cmd+V) anexa e mostra a miniatura, com nome
+5. **Compositor (chat, sala, comentário de task):** colar imagem ou arquivo (Ctrl/Cmd+V, quando não há texto na área de transferência) anexa e mostra a miniatura, com nome
    e tamanho ao passar o mouse e um X para remover; anexos enviados aparecem como miniaturas (imagem até 5 MiB; o resto
    vira cartão com ícone e extensão). Enter envia e Shift+Enter quebra a linha (no celular o Enter quebra a linha). A caixa
    fica fixa embaixo da tela por padrão, com um alfinete para soltá-la (a escolha fica no navegador), e setas flutuantes

@@ -200,12 +200,14 @@
     dzRender(z);
   });
   // Colar (Ctrl/Cmd+V) uma imagem ou arquivo da área de transferência anexa e mostra a miniatura; texto colado segue
-  // para a caixa. Cópia de texto formatado (com HTML) não é interceptada. Print sem nome ganha um nome legível.
+  // para a caixa. Só se intercepta quando há arquivo e nenhum texto: "Copiar imagem" do navegador, prints e arquivos do
+  // Finder/Explorer trazem arquivo (e às vezes um <img> em HTML), enquanto uma tabela do Excel ou texto formatado trazem
+  // texto e continuam colando como texto. Print sem nome ganha um nome legível.
   document.addEventListener("paste", function (e) {
     var z = dropzoneOf(e.target);
     var cd = e.clipboardData;
     var input = z && dzInput(z);
-    if (!input || !cd || !cd.files || !cd.files.length || cd.types.indexOf("text/html") >= 0) return;
+    if (!input || !cd || !cd.files || !cd.files.length || cd.getData("text/plain").trim() !== "") return;
     var now = new Date();
     var p2 = function (n) {
       return String(n).padStart(2, "0");
@@ -387,21 +389,23 @@
   document.addEventListener("htmx:afterSettle", function (e) {
     var t = e.detail && e.detail.target;
     var id = t && t.id;
-    if (followBottom && (id === "chat-thread" || id === "room-thread" || id === "thread")) {
-      window.scrollTo({ top: document.documentElement.scrollHeight });
+    if (id === "chat-thread" || id === "room-thread" || id === "thread") {
+      if (followBottom) window.scrollTo({ top: document.documentElement.scrollHeight });
+      followBottom = false;
     }
-    followBottom = false;
     updateArrows();
   });
   document.addEventListener("htmx:afterRequest", function (e) {
     var f = e.detail && e.detail.elt;
-    if (f && f.tagName === "FORM" && f.hasAttribute("data-composer") && e.detail.xhr && e.detail.xhr.status < 300) followBottom = true;
+    var st = e.detail && e.detail.xhr ? e.detail.xhr.status : 0;
+    if (f && f.tagName === "FORM" && f.hasAttribute("data-composer") && st >= 200 && st < 300) followBottom = true;
   });
   function initConversation() {
     if (!document.querySelector("form[data-composer]")) return;
     applyPin(pinStored());
-    if (!document.body.hasAttribute("data-conv-opened") && document.querySelector("#chat-thread, #room-thread")) {
-      document.body.setAttribute("data-conv-opened", "1");
+    // o body sobrevive à navegação do hx-boost: guarda o caminho da conversa aberta, não um simples "já abri uma"
+    if (document.body.getAttribute("data-conv-opened") !== location.pathname && document.querySelector("#chat-thread, #room-thread")) {
+      document.body.setAttribute("data-conv-opened", location.pathname);
       window.scrollTo({ top: document.documentElement.scrollHeight });
     }
     updateArrows();
