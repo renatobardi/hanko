@@ -161,6 +161,13 @@ func attachmentsSection(rc service.RunContext) string {
 		if a.LocalPath != "" {
 			fmt.Fprintf(&b, " · arquivo `%s`", a.LocalPath)
 		}
+		if a.PDFText != "" {
+			fmt.Fprintf(&b, " · PDF grande: leia primeiro o texto extraído `%s`", a.PDFText)
+		}
+		if a.PDFParts > 0 {
+			fmt.Fprintf(&b, " · %d páginas divididas em %d partes de até %d páginas (`%s`, NN de 01 a %02d): abra só as partes com figura ou tabela que importam, "+
+				"porque o PDF inteiro é grande demais para a ferramenta de leitura", a.PDFPages, a.PDFParts, a.PDFPartPages, a.PDFPartsPath, a.PDFParts)
+		}
 		b.WriteString("\n")
 	}
 	if len(rc.Attachments) >= service.MaxBriefingAttachments {

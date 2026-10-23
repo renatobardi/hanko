@@ -1,7 +1,8 @@
 # syntax=docker/dockerfile:1
 # Variante com os CLIs de agentes (claude, codex) para quem quer executar runs
 # dentro do container. Imagem maior que a distroless; use só se precisar.
-# Traz também o openssh-client, que os ambientes SSH usam (ADR-0037).
+# Traz também o openssh-client, que os ambientes SSH usam (ADR-0037), e poppler-utils + qpdf, com que o heartbeat extrai
+# o texto e divide PDFs grandes anexados (ADR-0066).
 FROM golang:1.27 AS builder
 WORKDIR /src
 COPY go.mod go.sum ./
@@ -11,7 +12,7 @@ ARG VERSION=dev
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o /out/hanko ./cmd/hanko
 
 FROM node:22-bookworm-slim
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates git openssh-client \
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates git openssh-client poppler-utils qpdf \
     && rm -rf /var/lib/apt/lists/* \
     && npm install -g @anthropic-ai/claude-code @openai/codex \
     && npm cache clean --force

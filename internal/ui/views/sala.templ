@@ -154,7 +154,7 @@ templ RoomThread(vm RoomVM) {
 						<div class="bubble">
 							<div class="md">@templ.Raw(string(m.Body))</div>
 							if len(m.Attachments) > 0 {
-								<div class="att-inline">@AttachmentItems(m.Attachments)</div>
+								<div class="att-inline">@AttachmentThumbs(m.Attachments)</div>
 							}
 						</div>
 						<div class="meta">
@@ -243,8 +243,9 @@ templ RoomComposer(vm RoomVM) {
 					for _, p := range vm.Members {
 						<button type="button" class="chip soft" data-mention={ "@" + p.Slug }>{ "@" + p.Slug }</button>
 					}
-					<span>{ i18n.T(ctx, "/new reinicia o contexto") }</span>
+					<span>{ i18n.T(ctx, "Enter envia · Shift+Enter quebra a linha · /new reinicia o contexto") }</span>
 				</span>
+				@ComposerTools()
 				<button type="submit" class="btn primary sm">
 					@Icon("send")
 					{ i18n.T(ctx, "Enviar") }

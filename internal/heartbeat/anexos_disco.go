@@ -72,6 +72,17 @@ func (h *Heartbeat) materializeAttachments(ctx context.Context, rc *service.RunC
 		total += int64(len(body))
 		a.LocalPath = filepath.ToSlash(filepath.Join(attachmentsDirName, rc.Run.ID.String(), name))
 		wrote++
+		if a.Mime == "application/pdf" {
+			derived := pdfDerivedBase(name, a.ID, used)
+			ex, notes := splitPDF(ctx, filepath.Join(runDir, name), a.LocalPath, derived, a.SizeBytes, maxDiskAttachmentsBytes-total)
+			for _, n := range notes {
+				emit(domain.EventSystem, fmt.Sprintf("anexos: %q: %s", a.Name, n))
+			}
+			if ex != nil {
+				total += ex.Bytes
+				a.PDFPages, a.PDFText, a.PDFParts, a.PDFPartPages, a.PDFPartsPath = ex.Pages, ex.TextPath, ex.Parts, ex.PartPages, ex.PartsGlob
+			}
+		}
 	}
 	if wrote == 0 {
 		cleanup()
@@ -102,4 +113,30 @@ func chainCleanup(first, next func()) func() {
 			next()
 		}
 	}
+}
+
+// pdfDerivedBase reserva, no mapa de nomes da run, o nome-base dos arquivos que o PDF vai gerar ao lado (<base>.txt e
+// <base>.parte-NN.pdf), de modo que outro anexo (um "Plano.txt" ao lado de "Plano.pdf", ou "a.PDF" e "a.pdf") nunca
+// seja sobrescrito nem sobrescreva o texto extraído. Em colisão, o começo do id vai na frente.
+func pdfDerivedBase(name string, id domain.ID, used map[string]bool) string {
+	base := strings.TrimSuffix(name, filepath.Ext(name))
+	taken := func(b string) bool {
+		if used[b+".txt"] {
+			return true
+		}
+		for i := 1; i <= pdfMaxParts; i++ {
+			if used[fmt.Sprintf("%s.parte-%02d.pdf", b, i)] {
+				return true
+			}
+		}
+		return false
+	}
+	if taken(base) {
+		base = id.String()[:8] + "-" + base
+	}
+	used[base+".txt"] = true
+	for i := 1; i <= pdfMaxParts; i++ {
+		used[fmt.Sprintf("%s.parte-%02d.pdf", base, i)] = true
+	}
+	return base
 }

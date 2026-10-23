@@ -44,7 +44,7 @@ templ ChatsPage(sh Shell, vm ChatsVM) {
 					<a class="btn primary sm" href={ templ.SafeURL(sh.Base() + "/personas/nova") }>{ i18n.T(ctx, "Contratar persona") }</a>
 				}
 			} else {
-				<form class="card pad form-card mb-6" method="post" action={ templ.SafeURL(vm.NewAction) } hx-boost="true">
+				<form class="card pad form-card mb-6" method="post" action={ templ.SafeURL(vm.NewAction) } hx-boost="true" data-enter-send="">
 					<h2 class="side-h m-0 mb-1">{ i18n.T(ctx, "Nova conversa") }</h2>
 					if vm.Error != "" {
 						@Alert("danger", vm.Error)
@@ -94,7 +94,7 @@ templ ChatThread(vm ChatVM) {
 						<div class="bubble">
 							<div class="md">@templ.Raw(string(m.Body))</div>
 							if len(m.Attachments) > 0 {
-								<div class="att-inline">@AttachmentItems(m.Attachments)</div>
+								<div class="att-inline">@AttachmentThumbs(m.Attachments)</div>
 							}
 						</div>
 						<div class="meta"><span>{ m.Author } · <time class="mono">{ m.When }</time></span></div>
@@ -124,7 +124,7 @@ templ ChatThread(vm ChatVM) {
 							</div>
 							<div class="body md">@templ.Raw(string(m.Body))</div>
 							if len(m.Attachments) > 0 {
-								<div class="att-inline">@AttachmentItems(m.Attachments)</div>
+								<div class="att-inline">@AttachmentThumbs(m.Attachments)</div>
 							}
 						</div>
 					</div>
@@ -176,7 +176,8 @@ templ ChatComposer(vm ChatVM) {
 			@DraftTextarea("message", i18n.T(ctx, "Escreva uma mensagem (markdown). Se a persona estiver respondendo, ela lê esta junto com a próxima."), i18n.T(ctx, "Mensagem"), vm.DraftF)
 			@DropField(vm.UploadHint, false)
 			<div class="row">
-				<span class="hint">{ i18n.T(ctx, "Markdown · HTML é escapado · /new reinicia o contexto") }</span>
+				<span class="hint">{ i18n.T(ctx, "Enter envia · Shift+Enter quebra a linha · Markdown · /new reinicia o contexto") }</span>
+				@ComposerTools()
 				<button type="submit" class="btn primary sm" disabled?={ vm.Blocked != "" }>
 					@Icon("send")
 					{ i18n.T(ctx, "Enviar") }

@@ -448,6 +448,12 @@ type AttachmentBrief struct {
 	// LocalPath é o caminho do arquivo no diretório de trabalho da run, relativo a ele, quando o heartbeat o gravou em
 	// disco para a persona abrir com as ferramentas de arquivo do harness (ADR-0066); vazio = só pelo MCP.
 	LocalPath string
+	// PDF grande (ADR-0066, adendo): o que o heartbeat gerou ao lado do arquivo em disco; vazio = nada gerado.
+	PDFPages     int    // páginas do PDF
+	PDFText      string // texto extraído (caminho relativo ao diretório de trabalho)
+	PDFParts     int    // quantas partes
+	PDFPartPages int    // páginas por parte
+	PDFPartsPath string // caminho das partes com NN no lugar do número
 }
 
 // WakeCandidate is an (assigned, workable, idle) task found by the periodic heartbeat.

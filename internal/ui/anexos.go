@@ -6,6 +6,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -46,6 +47,19 @@ func (s *server) draftBE() (draftBackend, bool) {
 // sendWithBackend é o envio de mensagem com anexos já enviados (opcional como os demais).
 type sendWithBackend interface {
 	SendMessageWith(ctx context.Context, actor domain.Actor, companyID, conversationID domain.ID, body string, attachments []domain.ID) (domain.ConversationMessage, error)
+}
+
+// maxThumbBytes é o maior arquivo de imagem que vira miniatura na conversa: o <img> baixa o arquivo inteiro, então
+// uma foto enorme aparece como cartão (abre ao clicar) em vez de pesar a página.
+const maxThumbBytes = 5 << 20
+
+// fileExt é a extensão do nome em maiúsculas, para o cartão do anexo ("relatório.pdf" → "PDF"); até 5 letras.
+func fileExt(name string) string {
+	ext := strings.TrimPrefix(filepath.Ext(name), ".")
+	if ext == "" || len(ext) > 5 {
+		return ""
+	}
+	return strings.ToUpper(ext)
 }
 
 // uploadHint é a dica do campo de arquivos.
@@ -142,7 +156,8 @@ func attachmentRows(ctx context.Context, list []service.ArtifactView, base, dele
 	for _, a := range list {
 		row := views.AttachmentRow{ID: a.ID.String(), Name: a.Name, Href: base + "/artefatos/" + a.ID.String() + "/conteudo",
 			DetailHref: base + "/artefatos/" + a.ID.String(), Size: fmtBytes(ctx, a.SizeBytes), Kind: artifactKindLabel(ctx, a.Mime),
-			Author: actorLabel(ctx, a.Author), When: agoCtx(ctx, a.CreatedAt, now, loc)}
+			Author: actorLabel(ctx, a.Author), When: agoCtx(ctx, a.CreatedAt, now, loc),
+			Thumb: domain.PreviewOf(a.Mime) == domain.PreviewImage && a.SizeBytes <= maxThumbBytes, Ext: fileExt(a.Name)}
 		if deleteBase != "" {
 			row.DeleteAction = deleteBase + a.ID.String() + "/excluir"
 		}

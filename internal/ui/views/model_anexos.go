@@ -13,6 +13,8 @@ type AttachmentRow struct {
 	Author       string
 	When         string
 	DeleteAction string // POST que apaga ("" = sem permissão de apagar)
+	Thumb        bool   // imagem pequena o bastante para virar miniatura (o <img> carrega o próprio Href)
+	Ext          string // extensão em maiúsculas para o cartão sem miniatura ("PDF", "XLSX"; "" = sem extensão)
 }
 
 // AttachBox é o cartão de anexos de uma task, com a zona de soltar arquivos.
