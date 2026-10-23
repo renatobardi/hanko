@@ -126,8 +126,12 @@ test("chat: colar, Enter, alfinete e setas", async ({ page }) => {
   const pin = form.locator("[data-composer-pin]");
   await expect(form).toHaveClass(/is-pinned/);
   await expect(pin).toHaveAttribute("aria-pressed", "true");
+  await expect(pin.locator(".pin-on")).toBeVisible(); // ligado: "Fixado"
+  await expect(pin.locator(".pin-off")).toBeHidden();
   await pin.click();
   await expect(form).not.toHaveClass(/is-pinned/);
+  await expect(pin.locator(".pin-off")).toBeVisible(); // desligado: "Fixar"
+  await expect(pin.locator(".pin-on")).toBeHidden();
   await page.reload();
   await expect(page.locator("form[data-composer]")).not.toHaveClass(/is-pinned/);
   await page.locator("form[data-composer] [data-composer-pin]").click();
@@ -136,7 +140,7 @@ test("chat: colar, Enter, alfinete e setas", async ({ page }) => {
   // setas flutuantes: com a página alta, descem ao fim e sobem ao início
   await page.evaluate(() => {
     const spacer = document.createElement("div");
-    spacer.style.height = "4000px";
+    spacer.style.height = "500px"; // poucas telas já bastam para a seta aparecer
     document.getElementById("chat-thread")!.before(spacer);
     window.scrollTo(0, 0);
     window.dispatchEvent(new Event("scroll"));

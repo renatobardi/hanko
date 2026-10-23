@@ -360,12 +360,13 @@
   function docBottomGap() {
     return document.documentElement.scrollHeight - (window.scrollY + window.innerHeight);
   }
+  var ARROW_MIN = 120; // px de rolagem para a seta aparecer: uma conversa de poucas telas já a mostra
   function updateArrows() {
     document.querySelectorAll("[data-scroll-arrows]").forEach(function (box) {
       var up = box.querySelector('[data-scroll-to="top"]');
       var down = box.querySelector('[data-scroll-to="bottom"]');
-      if (up) up.classList.toggle("is-on", window.scrollY > 400);
-      if (down) down.classList.toggle("is-on", docBottomGap() > 400);
+      if (up) up.classList.toggle("is-on", window.scrollY > ARROW_MIN);
+      if (down) down.classList.toggle("is-on", docBottomGap() > ARROW_MIN);
     });
   }
   document.addEventListener("click", function (e) {
