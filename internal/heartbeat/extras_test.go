@@ -68,7 +68,7 @@ func TestBuildSpecInjectsCompanyMCP(t *testing.T) {
 	mem := &mcpMem{}
 	h, _ := newTestHB(t, &fakeBackend{}, okAdapter(), mem, Options{PublicURL: "http://h:7420"})
 	rc := sampleContext()
-	spec, cleanup, err := h.buildSpec(rc, "", "", memory.Scope{Workspace: "acme"}, service.RunExtras{MCP: companyMCP()}, func(domain.RunEventKind, string) {})
+	spec, cleanup, err := h.buildSpec(context.Background(), rc, "", "", memory.Scope{Workspace: "acme"}, service.RunExtras{MCP: companyMCP()}, func(domain.RunEventKind, string) {})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +86,7 @@ func TestBuildSpecInjectsCompanyMCP(t *testing.T) {
 
 	// a memória vence a empresa quando o nome colide
 	mem.name = "docs"
-	spec, cleanup, err = h.buildSpec(rc, "", "", memory.Scope{Workspace: "acme"}, service.RunExtras{MCP: companyMCP()}, func(domain.RunEventKind, string) {})
+	spec, cleanup, err = h.buildSpec(context.Background(), rc, "", "", memory.Scope{Workspace: "acme"}, service.RunExtras{MCP: companyMCP()}, func(domain.RunEventKind, string) {})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +120,7 @@ func TestBuildSpecSkillsPerHarness(t *testing.T) {
 
 	rc := sampleContext()
 	rc.Persona.Agent = "claude"
-	spec, cleanup, err := h.buildSpec(rc, "", "", scope, service.RunExtras{Skills: twoSkills()}, emit)
+	spec, cleanup, err := h.buildSpec(context.Background(), rc, "", "", scope, service.RunExtras{Skills: twoSkills()}, emit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +133,7 @@ func TestBuildSpecSkillsPerHarness(t *testing.T) {
 
 	for _, agent := range []string{"codex", "acp", "fake"} {
 		rc.Persona.Agent = agent
-		spec, cleanup, err = h.buildSpec(rc, "", "", scope, service.RunExtras{Skills: twoSkills()}, emit)
+		spec, cleanup, err = h.buildSpec(context.Background(), rc, "", "", scope, service.RunExtras{Skills: twoSkills()}, emit)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -158,7 +158,7 @@ func TestBuildSpecSkillsPerHarness(t *testing.T) {
 
 	// sem skills: nada muda
 	rc.Persona.Agent = "codex"
-	spec, cleanup, err = h.buildSpec(rc, "", "", scope, service.RunExtras{}, emit)
+	spec, cleanup, err = h.buildSpec(context.Background(), rc, "", "", scope, service.RunExtras{}, emit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -177,7 +177,7 @@ func TestBuildSpecReviewGetsNoExtras(t *testing.T) {
 	rc.Persona.Agent = "claude"
 	rc.Run.Trigger = domain.TriggerReview
 	rc.Review = &service.ReviewContext{ID: domain.NewID(), Artifact: "x", AuthorName: "Ana"}
-	spec, cleanup, err := h.buildSpec(rc, "", "", memory.Scope{}, service.RunExtras{Skills: twoSkills(), MCP: companyMCP()}, func(domain.RunEventKind, string) {})
+	spec, cleanup, err := h.buildSpec(context.Background(), rc, "", "", memory.Scope{}, service.RunExtras{Skills: twoSkills(), MCP: companyMCP()}, func(domain.RunEventKind, string) {})
 	if err != nil {
 		t.Fatal(err)
 	}

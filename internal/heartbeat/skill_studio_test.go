@@ -94,7 +94,7 @@ func TestSkillTestRunGetsOnlyTheSkill(t *testing.T) {
 	// claude carrega a skill nativamente: só ela
 	rc := skillTestContext()
 	rc.Persona.Agent = "claude"
-	spec, cleanup, err := h.buildSpec(rc, "", "", memory.Scope{}, service.RunExtras{Skills: []domain.Skill{testSpec().Skill}, SkillTest: ptrSpec(testSpec())},
+	spec, cleanup, err := h.buildSpec(context.Background(), rc, "", "", memory.Scope{}, service.RunExtras{Skills: []domain.Skill{testSpec().Skill}, SkillTest: ptrSpec(testSpec())},
 		func(domain.RunEventKind, string) {})
 	if err != nil {
 		t.Fatal(err)

@@ -124,14 +124,26 @@ func BuildPrompt(rc service.RunContext, briefing, handoff string) (system, promp
 }
 
 // attachmentsSection lista os anexos da task (ou da conversa) no briefing (ADR-0052). O conteúdo não vai no prompt: a
-// persona lê o que precisar com `hanko_attachment_get`. Vazio quando não há anexo.
+// persona abre o arquivo que o heartbeat gravou no diretório de trabalho (ADR-0066) ou lê com `hanko_attachment_get`.
+// Vazio quando não há anexo.
 func attachmentsSection(rc service.RunContext) string {
 	if len(rc.Attachments) == 0 {
 		return ""
 	}
 	var b strings.Builder
 	b.WriteString("## Anexos\n\n")
-	b.WriteString("Arquivos anexados pela equipe. O conteúdo não está neste prompt: leia o que precisar com `hanko_attachment_get` (pelo id ou pelo nome).\n\n")
+	onDisk := false
+	for _, a := range rc.Attachments {
+		onDisk = onDisk || a.LocalPath != ""
+	}
+	if onDisk {
+		b.WriteString("Arquivos anexados pela equipe. O conteúdo não está neste prompt: cada arquivo está no seu diretório de trabalho, " +
+			"no caminho indicado; abra com a sua ferramenta de leitura de arquivos, que lê texto, imagem e PDF. Os arquivos são " +
+			"temporários e somem no fim da execução: não os mova nem os inclua em commit. Sem caminho, use `hanko_attachment_get` " +
+			"(pelo id ou pelo nome).\n\n")
+	} else {
+		b.WriteString("Arquivos anexados pela equipe. O conteúdo não está neste prompt: leia o que precisar com `hanko_attachment_get` (pelo id ou pelo nome).\n\n")
+	}
 	for _, a := range rc.Attachments {
 		fmt.Fprintf(&b, "- `%s` (%s, %s) · %s · %s · id %s", clip(a.Name, 120), a.Mime, fmtBytes(a.SizeBytes), authorName(rc, a.Author),
 			a.CreatedAt.UTC().Format("2006-01-02 15:04 UTC"), a.ID)
@@ -145,6 +157,9 @@ func attachmentsSection(rc service.RunContext) string {
 		}
 		if a.New {
 			b.WriteString(" · NOVO nesta mensagem")
+		}
+		if a.LocalPath != "" {
+			fmt.Fprintf(&b, " · arquivo `%s`", a.LocalPath)
 		}
 		b.WriteString("\n")
 	}
