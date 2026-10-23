@@ -360,13 +360,50 @@
   function docBottomGap() {
     return document.documentElement.scrollHeight - (window.scrollY + window.innerHeight);
   }
-  var ARROW_MIN = 120; // px de rolagem para a seta aparecer: uma conversa de poucas telas já a mostra
+  // Feed do time (coluna da direita da sala): fixo por padrão, com o mesmo alfinete; a escolha também fica no navegador.
+  var FEED_PIN_KEY = "hanko.feed.pinned";
+  function feedPinStored() {
+    try {
+      return window.localStorage.getItem(FEED_PIN_KEY) !== "0";
+    } catch (err) {
+      return true;
+    }
+  }
+  function applyFeedPin(pinned) {
+    document.querySelectorAll("[data-feed-aside]").forEach(function (aside) {
+      aside.classList.toggle("is-pinned", pinned);
+      var b = aside.querySelector("[data-feed-pin]");
+      if (b) b.setAttribute("aria-pressed", pinned ? "true" : "false");
+    });
+  }
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest && e.target.closest("[data-feed-pin]");
+    if (!b) return;
+    e.preventDefault(); // o botão mora no <summary>: não recolhe o card
+    var next = b.getAttribute("aria-pressed") !== "true";
+    try {
+      window.localStorage.setItem(FEED_PIN_KEY, next ? "1" : "0");
+    } catch (err) {}
+    applyFeedPin(next);
+  });
+  // Setas: uma por vez, centradas na coluna da conversa logo acima da caixa. Na metade de cima aparece a que desce ao
+  // fim; na de baixo, a que sobe ao início. Conversa curta (cabe em poucas telas) não mostra nenhuma.
+  var ARROW_MIN = 120; // px de rolagem mínima para a seta valer a pena
   function updateArrows() {
     document.querySelectorAll("[data-scroll-arrows]").forEach(function (box) {
       var up = box.querySelector('[data-scroll-to="top"]');
       var down = box.querySelector('[data-scroll-to="bottom"]');
-      if (up) up.classList.toggle("is-on", window.scrollY > ARROW_MIN);
-      if (down) down.classList.toggle("is-on", docBottomGap() > ARROW_MIN);
+      var room = document.documentElement.scrollHeight - window.innerHeight;
+      var longEnough = room > 2 * ARROW_MIN;
+      var upper = window.scrollY < room / 2;
+      if (down) down.classList.toggle("is-on", longEnough && upper && docBottomGap() > ARROW_MIN);
+      if (up) up.classList.toggle("is-on", longEnough && !upper && window.scrollY > ARROW_MIN);
+      var form = box.closest("form");
+      if (form) {
+        var r = form.getBoundingClientRect();
+        box.style.left = r.left + r.width / 2 + "px";
+        box.style.bottom = (r.top < window.innerHeight ? Math.max(16, window.innerHeight - r.top + 12) : 16) + "px";
+      }
     });
   }
   document.addEventListener("click", function (e) {
@@ -406,6 +443,7 @@
     if (f && f.tagName === "FORM" && f.hasAttribute("data-composer") && st >= 200 && st < 300) followBottom = true;
   });
   function initConversation() {
+    applyFeedPin(feedPinStored());
     if (!document.querySelector("form[data-composer]")) return;
     applyPin(pinStored());
     // o body sobrevive à navegação do hx-boost: guarda o caminho da conversa aberta, não um simples "já abri uma"
