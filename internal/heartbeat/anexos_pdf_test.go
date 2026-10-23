@@ -268,7 +268,7 @@ func minimalPDF(n int) []byte {
 	var offs []int
 	obj := func(s string) {
 		offs = append(offs, b.Len())
-		b.WriteString(fmt.Sprintf("%d 0 obj\n%s\nendobj\n", len(offs), s))
+		fmt.Fprintf(&b, "%d 0 obj\n%s\nendobj\n", len(offs), s)
 	}
 	b.WriteString("%PDF-1.4\n")
 	kids := make([]string, n)
@@ -284,10 +284,10 @@ func minimalPDF(n int) []byte {
 		obj(fmt.Sprintf("<< /Length %d >>\nstream\n%s\nendstream", len(content), content))
 	}
 	xref := b.Len()
-	b.WriteString(fmt.Sprintf("xref\n0 %d\n0000000000 65535 f \n", len(offs)+1))
+	fmt.Fprintf(&b, "xref\n0 %d\n0000000000 65535 f \n", len(offs)+1)
 	for _, o := range offs {
-		b.WriteString(fmt.Sprintf("%010d 00000 n \n", o))
+		fmt.Fprintf(&b, "%010d 00000 n \n", o)
 	}
-	b.WriteString(fmt.Sprintf("trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n", len(offs)+1, xref))
+	fmt.Fprintf(&b, "trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n", len(offs)+1, xref)
 	return []byte(b.String())
 }
