@@ -123,7 +123,7 @@ func TestInboxToolsTab(t *testing.T) {
 }
 
 // Regra por risco sem escolha explícita não é gravada: o seletor começa vazio e o servidor recusa o que não for
-// desligado, perguntar antes ou permitido (ADR-0065).
+// desligado, perguntar antes ou permitido (ADR-0067).
 func TestRiskRuleRequiresExplicitChoice(t *testing.T) {
 	f := uitest.Sample()
 	e := newEnv(t, f)
@@ -143,7 +143,7 @@ func TestRiskRuleRequiresExplicitChoice(t *testing.T) {
 	}
 }
 
-// Servidor MCP novo não vale para todas as personas por padrão: quem recebe é uma escolha explícita (ADR-0065).
+// Servidor MCP novo não vale para todas as personas por padrão: quem recebe é uma escolha explícita (ADR-0067).
 func TestNewMCPIntegrationIsNotForAllPersonasByDefault(t *testing.T) {
 	e, _ := newSkillsEnv(t, domain.MemberAdmin)
 	rec := e.get(t, "/c/hanko/integracoes/nova?tipo=mcp")

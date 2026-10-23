@@ -1,5 +1,5 @@
 # ADR-0036 — Apps, gateway de tools e perfis de ferramentas
-Data: 2026-10-16 · Status: aceita · Alterada por: ADR-0065 (integração nova nasce com a escrita em quarentena)
+Data: 2026-10-16 · Status: aceita · Alterada por: ADR-0067 (integração nova nasce com a escrita em quarentena)
 
 ## Contexto
 As integrações MCP da empresa (ADR-0029) chegavam ao agente inteiras: a URL do servidor e os headers com segredo iam

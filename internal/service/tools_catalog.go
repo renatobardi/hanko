@@ -216,7 +216,7 @@ func (s *Service) refreshCatalog(ctx context.Context, actor domain.Actor, integ 
 		}
 		// Linha de base (ADR-0036) só para integração anterior à regra, que não tem linha de catálogo: nada muda para quem
 		// já a usa. Integração criada depois nasce com o catálogo pendente, e a primeira descoberta já põe em quarentena o
-		// que escreve (ADR-0065).
+		// que escreve (ADR-0067).
 		cat, err := t.q.GetToolCatalog(ctx, store.GetToolCatalogParams{CompanyID: integ.CompanyID, IntegrationID: integ.ID})
 		switch {
 		case err == nil:
@@ -534,7 +534,7 @@ func (s *Service) ReviewQuarantinedTools(ctx context.Context, actor domain.Actor
 	return n, err
 }
 
-// createPendingCatalog registra o catálogo de uma integração MCP recém-criada como pendente (ADR-0065): a primeira
+// createPendingCatalog registra o catálogo de uma integração MCP recém-criada como pendente (ADR-0067): a primeira
 // descoberta dela não é linha de base, e o que escreve entra em quarentena até um admin revisar.
 func (t *txc) createPendingCatalog(companyID, integrationID domain.ID, kind string) error {
 	if kind != string(domain.IntegrationMCP) {

@@ -16,7 +16,7 @@ SET synced_at = @now, last_error = '', tools_count = @tools_count, updated_at = 
 
 -- name: CreatePendingToolCatalog :exec
 -- Integração criada nesta instalação: o catálogo nasce sem descoberta, e a primeira descoberta põe em quarentena o que
--- escreve (ADR-0065). Sem linha nenhuma é integração anterior à regra: a primeira descoberta é a linha de base.
+-- escreve (ADR-0067). Sem linha nenhuma é integração anterior à regra: a primeira descoberta é a linha de base.
 INSERT INTO integration_tool_catalogs (integration_id, company_id, last_error, updated_at)
 VALUES (@integration_id, @company_id, '', @now)
 ON CONFLICT (integration_id) DO NOTHING;

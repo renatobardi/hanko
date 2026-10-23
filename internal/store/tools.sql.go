@@ -183,7 +183,7 @@ type CreatePendingToolCatalogParams struct {
 }
 
 // Integração criada nesta instalação: o catálogo nasce sem descoberta, e a primeira descoberta põe em quarentena o que
-// escreve (ADR-0065). Sem linha nenhuma é integração anterior à regra: a primeira descoberta é a linha de base.
+// escreve (ADR-0067). Sem linha nenhuma é integração anterior à regra: a primeira descoberta é a linha de base.
 func (q *Queries) CreatePendingToolCatalog(ctx context.Context, arg CreatePendingToolCatalogParams) error {
 	_, err := q.db.Exec(ctx, createPendingToolCatalog, arg.IntegrationID, arg.CompanyID, arg.Now)
 	return err

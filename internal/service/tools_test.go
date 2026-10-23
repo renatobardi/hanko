@@ -103,7 +103,7 @@ func (e *toolsEnv) refresh(t *testing.T) service.ToolCatalogResult {
 }
 
 // reviewed faz a primeira descoberta e libera o que ela pôs em quarentena, como o admin faz ao cadastrar o servidor
-// (ADR-0065): os testes que não tratam da quarentena partem de um catálogo todo ativo.
+// (ADR-0067): os testes que não tratam da quarentena partem de um catálogo todo ativo.
 func (e *toolsEnv) reviewed(t *testing.T) service.ToolCatalogResult {
 	t.Helper()
 	res := e.refresh(t)
@@ -130,7 +130,7 @@ func TestToolCatalogDiscoveryQuarantineAndRemoval(t *testing.T) {
 	e := newToolsEnv(t)
 	ctx := context.Background()
 
-	// primeira descoberta de uma integração criada aqui (ADR-0065): só a leitura nasce ativa; o que escreve, o destrutivo
+	// primeira descoberta de uma integração criada aqui (ADR-0067): só a leitura nasce ativa; o que escreve, o destrutivo
 	// e o que não declara o risco entram em quarentena. Risco derivado das anotações.
 	res := e.refresh(t)
 	if !res.Baseline || res.Tools != 4 || res.Quarantined != 3 {
@@ -498,7 +498,7 @@ func TestRunGatewayWithoutProfileKeepsCurrentBehaviour(t *testing.T) {
 	ctx := context.Background()
 	ana := e.persona(t, "Ana", nil)
 	c, _ := toolRun(t, e, ana)
-	// integração anterior à regra do ADR-0065 (sem linha de catálogo), sem perfil e nunca descoberta: o gateway descobre
+	// integração anterior à regra do ADR-0067 (sem linha de catálogo), sem perfil e nunca descoberta: o gateway descobre
 	// na hora, a primeira descoberta é a linha de base e tudo aparece
 	if _, err := e.svc.Pool.Exec(ctx, "DELETE FROM integration_tool_catalogs WHERE integration_id = $1", e.integ.ID); err != nil {
 		t.Fatal(err)
@@ -513,7 +513,7 @@ func TestRunGatewayWithoutProfileKeepsCurrentBehaviour(t *testing.T) {
 	}
 }
 
-// Integração criada depois do ADR-0065 e descoberta pela primeira vez numa execução (sem admin olhando): só a leitura
+// Integração criada depois do ADR-0067 e descoberta pela primeira vez numa execução (sem admin olhando): só a leitura
 // aparece; o que escreve fica em quarentena até a revisão.
 func TestRunGatewayFirstDiscoveryQuarantinesWrites(t *testing.T) {
 	e := newToolsEnv(t)
@@ -819,7 +819,7 @@ func TestToolsRoles(t *testing.T) {
 	}
 }
 
-// Integração anterior à regra (sem linha de catálogo, ADR-0065): a primeira descoberta continua sendo a linha de base
+// Integração anterior à regra (sem linha de catálogo, ADR-0067): a primeira descoberta continua sendo a linha de base
 // do ADR-0036, com tudo ativo, para nada mudar para quem já a usa.
 func TestToolCatalogLegacyIntegrationKeepsBaseline(t *testing.T) {
 	e := newToolsEnv(t)

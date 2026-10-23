@@ -1,4 +1,4 @@
-# ADR-0065 — Integração MCP nova nasce fechada para escrita
+# ADR-0067 — Integração MCP nova nasce fechada para escrita
 Data: 2026-10-23 · Status: aceita · Altera: ADR-0036 (decisão 3, linha de base do catálogo)
 
 ## Contexto
