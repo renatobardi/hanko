@@ -31,7 +31,13 @@ One term per concept. Code, API, MCP and database use English; the UI is in Braz
 | session | Sessão | A user's `hanko_session` cookie (30-day sliding); only the token hash is stored in the database. | — |
 | api key | Chave de API | An `hk_...` key belonging to a user, for API, MCP and CLI; only the hash is stored; revocable. Not the persona's run token. | token (ambiguous) |
 | artifact | Artefato | A file delivered by a persona or uploaded by a person, with immutable versions: the same name on the same task creates the next version (ADR-0028). | attachment, work product |
-| skill, secret | Skill, Segredo | Named as shown. | plugin (only in the harness's native sense) |
+| skill | Skill | Named as shown. | plugin (only in the harness's native sense) |
+| secret | Segredo | Vault item: name, description, scope (company or user) and one or more fields. Referenced as `${secret:ITEM#field}`; without `#field`, the `value` field applies (ADR-0050, ADR-0068). | credential (ambiguous) |
+| secret field | Campo | One value inside a secret: `text`, `totp` or `file`; sensitive (reveal once per version) or visible (readable by members). Always encrypted (ADR-0068). | — |
+| vault | Cofre | The company's secrets, collections, sends and health (screen and menu). A third-party store resolved by reference is the **external provider** (`internal/extvault`). | — |
+| collection | Coleção | Group of company secrets with grants: `use` to a persona, an org-chart subtree or all personas; `view`/`manage` to humans. A run only resolves items from granted collections (ADR-0068). | folder (grants nothing) |
+| send | Envio | Public link with expiry, access limit and optional password; the key lives in the URL fragment and the server stores only ciphertext (ADR-0069). | share (ambiguous) |
+| delegation | Delegação | Owner-granted use of a personal secret by the runs of a task or conversation they requested, with expiry (ADR-0068). | — |
 | memory consolidation | Consolidação de memória | System run (`memory` trigger) where the curator persona deduplicates and summarises a workspace's memory; cost goes to the ledger. | — |
 | memory proposal | Proposta de curadoria | A destructive curator write held by the proxy, with diff and sha256; reaches ai-memory only after the `memory` gate. | pending write (ambiguous) |
 | memory grant | Concessão de memória | Persona × workspace permission (`read`/`write`) to reach another workspace's memory in the same company. | — |

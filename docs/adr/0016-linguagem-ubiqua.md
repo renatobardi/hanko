@@ -22,6 +22,7 @@ Código, API, MCP, banco e docs usam o equivalente em inglês do termo da UI; a 
 | `inbox` / `decision` | Caixa de entrada / Decisão | — |
 | `cost` / `budget` | Custos e orçamentos | spend |
 | `skill` · `artifact` · `secret` · `activity` | Skill · Artefato · Segredo · Atividade | — |
+| `secret_field` · `vault` · `collection` · `send` · `delegation` | Campo · Cofre · Coleção · Envio · Delegação (ADR-0068, ADR-0069) | pasta, compartilhamento |
 
 `heartbeat` continua como nome do **mecanismo** (pacote `internal/heartbeat`), nunca como conceito de UI. `agent` = o harness que executa (adapter), não a persona contratada.
 
