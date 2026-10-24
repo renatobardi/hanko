@@ -322,12 +322,13 @@ type OpenedSend struct {
 type createSendIn struct {
 	CompanyPath
 	Body struct {
+		PublicID         string `json:"public_id" pattern:"^[A-Za-z0-9_-]{22}$" doc:"Id público do envio, gerado no cliente (16 bytes em base64url): entra no AAD do texto cifrado."`
 		Kind             string `json:"kind" enum:"text,file"`
 		Ciphertext       string `json:"ciphertext,omitempty" maxLength:"90000" doc:"Texto: conteúdo já cifrado no cliente, base64url."`
 		SizeBytes        int    `json:"size_bytes" minimum:"0" maximum:"26214400"`
 		Label            string `json:"label,omitempty" maxLength:"120"`
 		KdfSalt          string `json:"kdf_salt,omitempty" doc:"Com senha: sal usado no cliente."`
-		PasswordVerifier string `json:"password_verifier,omitempty" doc:"Com senha: SHA-256 da prova derivada da senha, base64url."`
+		PasswordVerifier string `json:"password_verifier,omitempty" doc:"Com senha: a prova derivada da senha (32 bytes, base64url). O servidor guarda só o hash argon2id dela."`
 		ExpiresInSeconds int    `json:"expires_in_seconds" minimum:"60" maximum:"2592000"`
 		MaxAccesses      *int   `json:"max_accesses,omitempty" minimum:"1" maximum:"1000"`
 	}
@@ -352,18 +353,21 @@ type publicSendPath struct {
 	PublicID string `path:"public_id" pattern:"^[A-Za-z0-9_-]{22}$"`
 }
 
+// openSendIn repete o campo do caminho em vez de embutir publicSendPath: o huma não lê o parâmetro de um tipo
+// embutido com nome minúsculo.
 type openSendIn struct {
-	publicSendPath
-	Body struct {
+	PublicID string `path:"public_id" pattern:"^[A-Za-z0-9_-]{22}$"`
+	Body     struct {
 		PasswordProof string `json:"password_proof,omitempty" doc:"Com senha: a prova derivada no cliente, base64url."`
 	}
 }
 
-func registerSends(api huma.API) {
+// registerSends registra o envio: criar, abrir e a página pública ligam o service (registerSendOps); enviar o blob de
+// arquivo, listar, obter e apagar seguem em 501 até a entrega seguinte da fatia 4.
+func (s *server) registerSends(api huma.API) {
+	s.registerSendOps(api)
 	base := "/companies/{company}/sends"
 	tag := "vault"
-	pendingOp[createSendIn, ItemOut[SecretSend]](api, created(op("create-send", http.MethodPost, base, tag,
-		"Cria um envio com conteúdo já cifrado no cliente (exige reautenticação recente)")), sliceSends)
 	pendingOp[uploadSendIn, ItemOut[SecretSend]](api, op("upload-send-content", http.MethodPut, base+"/{id}/content", tag,
 		"Envia o blob cifrado de um envio de arquivo"), sliceSends)
 	pendingOp[listSendsIn, ListOut[SecretSend]](api, op("list-sends", http.MethodGet, base, tag,
@@ -372,10 +376,6 @@ func registerSends(api huma.API) {
 		"Obtém os metadados de um envio"), sliceSends)
 	pendingOp[sendPath, struct{}](api, noContent(op("delete-send", http.MethodDelete, base+"/{id}", tag,
 		"Apaga o conteúdo de um envio antes do prazo")), sliceSends)
-	pendingOp[publicSendPath, ItemOut[PublicSend]](api, op("get-public-send", http.MethodGet, "/s/{public_id}", "public",
-		"Página pública: o que o envio pede para abrir (sem conta)"), sliceSends)
-	pendingOp[openSendIn, ItemOut[OpenedSend]](api, op("open-public-send", http.MethodPost, "/s/{public_id}/open", "public",
-		"Página pública: abre o envio, conta o acesso e devolve o conteúdo cifrado (sem conta)"), sliceSends)
 }
 
 // ---------- delegação e uso (fatia 5) ----------
@@ -560,7 +560,7 @@ func (s *server) registerVault(api huma.API) {
 	s.registerSecretFieldsScope(api, domain.SecretScopeUser, "user-secrets", "user-secret", "segredo do usuário")
 	s.registerCollections(api)
 	s.registerReauth(api)
-	registerSends(api)
+	s.registerSends(api)
 	registerDelegations(api)
 	registerHealth(api)
 	registerPortability(api)

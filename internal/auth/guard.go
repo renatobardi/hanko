@@ -56,6 +56,13 @@ const OAuthCallbackPath = "/oauth/callback"
 // CLIAuthAPIPrefix são os endpoints públicos do login da CLI (criação e consulta); quem chama ainda não tem credencial.
 const CLIAuthAPIPrefix = "/api/v1/cli-auth"
 
+// PublicSendPagePrefix e PublicSendAPIPrefix são a página de recebimento de um envio e a API pública dele (ADR-0069
+// §6): quem abre não tem conta. O segredo é a chave do fragmento do link, que o navegador não envia ao servidor.
+const (
+	PublicSendPagePrefix = "/s/"
+	PublicSendAPIPrefix  = "/api/v1/s/"
+)
+
 // RedactPath esconde o segredo que viaja no caminho: /convite/<token> vira /convite/…, e o mesmo para o código do
 // login da CLI e o token do link de entrada. Use em qualquer log, nome de span ou atributo que carregue o caminho
 // da requisição.
@@ -70,6 +77,12 @@ func RedactPath(path string) string {
 	}
 	if strings.HasPrefix(path, ChannelHookPath) { // o identificador do canal é o endereço secreto do webhook do provedor
 		return ChannelHookPath + "…"
+	}
+	if strings.HasPrefix(path, PublicSendAPIPrefix) { // o id público do envio é a alça de acesso dele
+		return PublicSendAPIPrefix + "…"
+	}
+	if strings.HasPrefix(path, PublicSendPagePrefix) {
+		return PublicSendPagePrefix + "…"
 	}
 	return path
 }
@@ -171,6 +184,8 @@ func (g *guard) wrap(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		case path == CLIAuthAPIPrefix || path == CLIAuthAPIPrefix+"/poll":
 			// criação e consulta do login da CLI: públicas (o segredo é o código/poll token); ficam atrás do limitador
+			next.ServeHTTP(w, r)
+		case strings.HasPrefix(path, PublicSendPagePrefix) || strings.HasPrefix(path, PublicSendAPIPrefix):
 			next.ServeHTTP(w, r)
 		case strings.HasPrefix(path, "/api/"):
 			switch {
