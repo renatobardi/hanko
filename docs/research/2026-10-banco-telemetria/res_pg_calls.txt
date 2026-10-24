@@ -1,0 +1,8 @@
+construção: 194 s
+model_calls 1812721 linhas 338124800 bytes
+calls_daily 211577 linhas 27246592 bytes
+q1	1a=19	mediana=16	linhas=48
+q3	1a=34	mediana=30	linhas=30
+q4	1a=438	mediana=330	linhas=365
+q4_agregado	1a=14	mediana=13	linhas=365
+q10	1a=22	mediana=20	linhas=168
