@@ -114,3 +114,40 @@ func TestExpandJSON(t *testing.T) {
 		t.Fatal("a entrada não pode ser alterada")
 	}
 }
+
+func TestFindFileRefs(t *testing.T) {
+	// ${secretfile:ITEM#campo} (ADR-0068 §5.2): mesma gramática, forma de arquivo.
+	got := Find("KUBECONFIG=${secretfile:prd#kubeconfig} ${secret:prd#kubeconfig} ${secretfile:user/p#key}")
+	want := []Ref{
+		{Name: "prd", Field: "kubeconfig", File: true},
+		{Name: "prd", Field: "kubeconfig"},
+		{Name: "p", Field: "key", User: true, File: true},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("Find = %v, want %v", got, want)
+	}
+	if !Has("${secretfile:prd#kubeconfig}") || !HasFile("${secretfile:prd#kubeconfig}") {
+		t.Fatal("Has/HasFile não viram a referência de arquivo")
+	}
+	if HasFile("${secret:prd#kubeconfig}") || HasFile("sem ref") {
+		t.Fatal("HasFile acusou arquivo onde não há")
+	}
+	if s := got[0].String(); s != "${secretfile:prd#kubeconfig}" {
+		t.Fatalf("String de arquivo = %q", s)
+	}
+	if s := (Ref{Name: "prd", File: true}).String(); s != "${secretfile:prd}" {
+		t.Fatalf("String de arquivo sem campo = %q", s)
+	}
+}
+
+func TestExpandFileRefGoesToLookupWithFlag(t *testing.T) {
+	out, used, err := Expand("k=${secretfile:prd#kubeconfig}", func(r Ref) (string, error) {
+		if !r.File || r.Field != "kubeconfig" {
+			return "", errors.New("referência de valor onde se pedia arquivo")
+		}
+		return "/tmp/x/kubeconfig", nil
+	})
+	if err != nil || out != "k=/tmp/x/kubeconfig" || !reflect.DeepEqual(used, []string{"/tmp/x/kubeconfig"}) {
+		t.Fatalf("Expand = %q, %v, %v", out, used, err)
+	}
+}

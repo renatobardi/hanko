@@ -36,6 +36,7 @@ type runEnv struct {
 	sess    execenv.Session
 	a       ExecuteRunArgs
 	name    string
+	driver  domain.EnvironmentDriver
 	secrets []string
 	log     *slog.Logger
 }
@@ -109,7 +110,7 @@ func (h *Heartbeat) openEnvironment(ctx context.Context, a ExecuteRunArgs, rc se
 		return nil, fmt.Errorf("registrar o uso do ambiente %q: %w", env.Name, err)
 	}
 	emit(domain.EventSystem, "executando no ambiente "+sess.Describe()+" (origem: "+re.Source+")")
-	return &runEnv{eb: eb, sess: sess, a: a, name: env.Name, secrets: re.EnvironmentSecretValues(), log: log}, nil
+	return &runEnv{eb: eb, sess: sess, a: a, name: env.Name, driver: d, secrets: re.EnvironmentSecretValues(), log: log}, nil
 }
 
 // finish traz o trabalho de volta, limpa o alvo e fecha o uso. Devolve o erro de sincronização (a run falha
@@ -188,5 +189,5 @@ func (h *Heartbeat) openLocalEnvironment(ctx context.Context, eb environmentBack
 		return nil, fmt.Errorf("registrar o uso do ambiente %q: %w", env.Name, err)
 	}
 	emit(domain.EventSystem, "executando no ambiente "+env.Name+" (local, origem: "+re.Source+")")
-	return &runEnv{eb: eb, a: a, name: env.Name, secrets: re.EnvironmentSecretValues(), log: log}, nil
+	return &runEnv{eb: eb, a: a, name: env.Name, driver: env.Driver, secrets: re.EnvironmentSecretValues(), log: log}, nil
 }

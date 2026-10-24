@@ -1,6 +1,6 @@
 // Package secretref reconhece e expande referências a segredos (`${secret:NOME}` e `${secret:user/NOME}`,
-// ADR-0050; `${secret:ITEM#campo}` e `${secret:user/ITEM#campo}`, ADR-0068 §1.4). É puro: não lê banco nem rede.
-// Quem resolve o valor é o service, que passa uma função de busca.
+// ADR-0050; `${secret:ITEM#campo}` e `${secret:user/ITEM#campo}`, ADR-0068 §1.4; `${secretfile:ITEM#campo}`, §5.2).
+// É puro: não lê banco nem rede. Quem resolve o valor é o service, que passa uma função de busca.
 package secretref
 
 import (
@@ -23,7 +23,8 @@ const DefaultField = "value"
 var (
 	nameRe  = regexp.MustCompile(`^` + NamePattern + `$`)
 	fieldRe = regexp.MustCompile(`^` + FieldPattern + `$`)
-	refRe   = regexp.MustCompile(`\$\{secret:(user/)?(` + NamePattern + `)(?:#(` + FieldPattern + `))?\}`)
+	// grupos: 1 = secret ou secretfile; 2 = user/; 3 = nome; 4 = campo
+	refRe = regexp.MustCompile(`\$\{(secret|secretfile):(user/)?(` + NamePattern + `)(?:#(` + FieldPattern + `))?\}`)
 )
 
 // Ref é uma referência encontrada em um texto.
@@ -33,6 +34,8 @@ type Ref struct {
 	// então a gramática não é ambígua.
 	Field string
 	User  bool // ${secret:user/NOME}
+	// File: ${secretfile:ITEM#campo} — o valor vira o caminho de um arquivo 0600 da run (ADR-0068 §5.2).
+	File bool
 }
 
 // FieldName devolve o campo a ler: o da referência ou o padrão.
@@ -43,10 +46,14 @@ func (r Ref) FieldName() string {
 	return r.Field
 }
 
-// String devolve a forma textual `${secret:...}`, com `#campo` só quando difere do padrão.
+// String devolve a forma textual `${secret:...}` (ou `${secretfile:...}`), com `#campo` só quando difere do padrão.
 func (r Ref) String() string {
 	var b strings.Builder
-	b.WriteString("${secret:")
+	if r.File {
+		b.WriteString("${secretfile:")
+	} else {
+		b.WriteString("${secret:")
+	}
 	if r.User {
 		b.WriteString("user/")
 	}
@@ -65,8 +72,18 @@ func ValidName(name string) bool { return nameRe.MatchString(name) }
 // ValidFieldName informa se name serve de nome de campo.
 func ValidFieldName(name string) bool { return fieldRe.MatchString(name) }
 
-// Has informa se o texto contém alguma referência.
-func Has(text string) bool { return strings.Contains(text, "${secret:") && refRe.MatchString(text) }
+// Has informa se o texto contém alguma referência (de valor ou de arquivo).
+func Has(text string) bool { return strings.Contains(text, "${secret") && refRe.MatchString(text) }
+
+// HasFile informa se o texto contém alguma referência `${secretfile:}`.
+func HasFile(text string) bool {
+	for _, m := range refRe.FindAllStringSubmatch(text, -1) {
+		if m[1] == "secretfile" {
+			return true
+		}
+	}
+	return false
+}
 
 // IsRef informa se o texto inteiro é uma única referência.
 func IsRef(text string) bool {
@@ -79,13 +96,18 @@ func Find(text string) []Ref {
 	var out []Ref
 	seen := map[Ref]bool{}
 	for _, m := range refRe.FindAllStringSubmatch(text, -1) {
-		r := Ref{Name: m[2], Field: m[3], User: m[1] != ""}
+		r := refOf(m)
 		if !seen[r] {
 			seen[r] = true
 			out = append(out, r)
 		}
 	}
 	return out
+}
+
+// refOf monta a Ref de um casamento de refRe (com os grupos de submatch).
+func refOf(m []string) Ref {
+	return Ref{Name: m[3], Field: m[4], User: m[2] != "", File: m[1] == "secretfile"}
 }
 
 // ErrUnresolved é o erro base de uma referência que não pôde ser resolvida; o texto nunca leva valor.
@@ -100,8 +122,7 @@ func Expand(text string, lookup func(Ref) (string, error)) (out string, used []s
 	var firstErr error
 	cache := map[Ref]string{}
 	out = refRe.ReplaceAllStringFunc(text, func(m string) string {
-		sm := refRe.FindStringSubmatch(m)
-		r := Ref{Name: sm[2], Field: sm[3], User: sm[1] != ""}
+		r := refOf(refRe.FindStringSubmatch(m))
 		if v, ok := cache[r]; ok {
 			return v
 		}

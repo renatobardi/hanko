@@ -312,3 +312,38 @@ func TestPropertyAlwaysAllowStopsAsking(t *testing.T) {
 		}
 	})
 }
+
+// Tool do próprio Hanko (ADR-0068 §4.2): sem política, pergunta antes; a política por nome manda; o curinga não a alcança.
+func TestHankoToolVerdict(t *testing.T) {
+	pa := tid(1001)
+	hanko := func(p *ID, tool string) ToolSubject {
+		return ToolSubject{Kind: SubjectHanko, PersonaID: p, Tool: tool}
+	}
+	byName := func(n int, scope ToolPolicyScope, persona *ID, m ToolPolicyMode) ToolPolicy {
+		return pol(n, scope, persona, PolicyTargetNative, nil, "hanko_secret_get", m)
+	}
+	cases := []struct {
+		name     string
+		policies []ToolPolicy
+		s        ToolSubject
+		want     ToolVerdict
+	}{
+		{"sem política pergunta", nil, hanko(&pa, "hanko_secret_get"),
+			ToolVerdict{Allowed: true, Mode: ToolModeAsk, Source: "default"}},
+		{"política da empresa off nega", []ToolPolicy{byName(1, PolicyScopeCompany, nil, PolicyOff)}, hanko(&pa, "hanko_secret_get"),
+			ToolVerdict{Allowed: false, Source: "policy:company"}},
+		{"política da persona allow libera", []ToolPolicy{byName(2, PolicyScopePersona, &pa, PolicyAllow)}, hanko(&pa, "hanko_secret_get"),
+			ToolVerdict{Allowed: true, Mode: ToolModeAllow, Source: "policy:persona"}},
+		{"curinga de integração não alcança a tool do Hanko",
+			[]ToolPolicy{pol(3, PolicyScopeCompany, nil, PolicyTargetAll, nil, "", PolicyOff)}, hanko(&pa, "hanko_secret_get"),
+			ToolVerdict{Allowed: true, Mode: ToolModeAsk, Source: "default"}},
+		{"outra tool não é alcançada pela política do nome", []ToolPolicy{byName(4, PolicyScopeCompany, nil, PolicyOff)}, hanko(&pa, "hanko_task_get"),
+			ToolVerdict{Allowed: true, Mode: ToolModeAsk, Source: "default"}},
+	}
+	for _, c := range cases {
+		got := HankoToolVerdict(c.policies, c.s)
+		if got.Allowed != c.want.Allowed || got.Mode != c.want.Mode || got.Source != c.want.Source {
+			t.Errorf("%s: veredito = %+v, quero %+v", c.name, got, c.want)
+		}
+	}
+}

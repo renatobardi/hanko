@@ -468,6 +468,16 @@ func (s *Service) DeleteSecret(ctx context.Context, actor domain.Actor, companyI
 				return fmt.Errorf("segredo %q em uso por %s (force para apagar mesmo assim): %w", name, strings.Join(names, ", "), domain.ErrConflict)
 			}
 		}
+		// os arquivos dos campos arquivo saem com o segredo: no postgres pela cascata; nos demais drivers, depois do commit
+		fields, err := t.q.ListSecretFields(t.ctx, store.ListSecretFieldsParams{CompanyID: companyID, SecretID: cur.ID})
+		if err != nil {
+			return fmt.Errorf("list secret fields: %w", err)
+		}
+		for _, f := range fields {
+			if f.Kind == string(domain.SecretFieldFile) {
+				t.dropFieldBlobAfterCommit(companyID, f.ID)
+			}
+		}
 		if n, err := t.q.DeleteSecret(t.ctx, store.DeleteSecretParams{ID: cur.ID, CompanyID: companyID}); err != nil || n == 0 {
 			return mapErr(err, "delete secret")
 		}
@@ -609,10 +619,10 @@ func (s *Service) checkSecretRefs(ctx context.Context, q *store.Queries, company
 			if r.User {
 				return domain.Invalid(field, fmt.Sprintf("%s: segredo de usuário não vale em configuração compartilhada", r.String()))
 			}
-			if seen[r.Name+"#"+r.FieldName()] {
+			if seen[r.String()] {
 				continue
 			}
-			seen[r.Name+"#"+r.FieldName()] = true
+			seen[r.String()] = true
 			sec, err := q.GetCompanySecretByName(ctx, store.GetCompanySecretByNameParams{CompanyID: companyID, Name: r.Name})
 			if err != nil {
 				if isNoRows(err) {
@@ -620,13 +630,29 @@ func (s *Service) checkSecretRefs(ctx context.Context, q *store.Queries, company
 				}
 				return fmt.Errorf("check secret ref: %w", err)
 			}
-			if _, err := q.GetSecretField(ctx, store.GetSecretFieldParams{CompanyID: companyID, SecretID: sec.ID, Name: r.FieldName()}); err != nil {
+			f, err := q.GetSecretField(ctx, store.GetSecretFieldParams{CompanyID: companyID, SecretID: sec.ID, Name: r.FieldName()})
+			if err != nil {
 				if isNoRows(err) {
 					return domain.Invalid(field, fmt.Sprintf("o campo %q do segredo %q não existe", r.FieldName(), r.Name))
 				}
 				return fmt.Errorf("check secret field: %w", err)
 			}
+			if err := refKindErr(r, domain.SecretFieldKind(f.Kind)); err != nil {
+				return domain.Invalid(field, err.Error())
+			}
 		}
+	}
+	return nil
+}
+
+// refKindErr recusa a referência que não cabe no tipo do campo (ADR-0068 §4.3 e §5.2): ${secret:} não lê semente TOTP
+// nem arquivo, e ${secretfile:} não lê semente TOTP. Nil quando a referência cabe.
+func refKindErr(r secretref.Ref, kind domain.SecretFieldKind) error {
+	switch {
+	case kind == domain.SecretFieldTOTP:
+		return fmt.Errorf("%s: campo TOTP não vira valor nem arquivo; quem precisa do código usa hanko_secret_get", r.String())
+	case kind == domain.SecretFieldFile && !r.File:
+		return fmt.Errorf("%s: campo arquivo se usa com ${secretfile:ITEM#campo}", r.String())
 	}
 	return nil
 }
@@ -636,6 +662,9 @@ func (s *Service) checkSecretRefs(ctx context.Context, q *store.Queries, company
 // resolveRef lê o valor de uma referência. Sem autorização por papel: quem chama (despacho, ação do dono) já foi
 // decidido. userID é o dono para referências user/ (nil = não permitidas).
 func (s *Service) resolveRef(ctx context.Context, companyID domain.ID, r secretref.Ref, userID *uuid.UUID) (val string, err error) {
+	if r.File { // ${secretfile:} vira arquivo só no despacho da run (MaterializeSecretFiles, ADR-0068 §5.2)
+		return "", errors.New("${secretfile:} só vale no adapter_config da persona, no despacho da run")
+	}
 	ctx, span := otel.Tracer("hanko/secrets").Start(ctx, "hanko.secrets.resolve")
 	provider, result := "local", "ok"
 	defer func() {
@@ -673,6 +702,9 @@ func (s *Service) resolveRef(ctx context.Context, companyID domain.ID, r secretr
 			return "", fmt.Errorf("o campo %q não existe", r.FieldName())
 		}
 		return "", fmt.Errorf("ler campo: %w", err)
+	}
+	if err := refKindErr(r, domain.SecretFieldKind(f.Kind)); err != nil {
+		return "", err
 	}
 	provider = f.Provider
 	switch domain.SecretProvider(f.Provider) {
@@ -729,7 +761,7 @@ func (s *Service) ResolveAdapterConfig(ctx context.Context, companyID, personaID
 	if err := json.Unmarshal(cfg, &doc); err != nil {
 		return cfg, nil, fmt.Errorf("adapter_config: %w", err)
 	}
-	out, used, err := secretref.ExpandJSON(doc, s.resolverFor(ctx, companyID, &personaID))
+	out, used, err := secretref.ExpandJSON(doc, s.configResolverFor(ctx, companyID, personaID))
 	if err != nil {
 		return cfg, nil, err
 	}
@@ -939,8 +971,8 @@ type rekeyTarget struct {
 	save  func(ctx context.Context, enc string) error
 }
 
-// rekeySecrets reescreve com a chave atual o que foi cifrado com a chave anterior: o segredo (legado), cada campo e
-// cada linha do histórico (ADR-0068 §1.3 e §3.1). Cada linha usa o AAD do seu aad_version.
+// rekeySecrets reescreve com a chave atual o que foi cifrado com a chave anterior: o segredo (legado), cada campo, cada
+// linha do histórico (ADR-0068 §1.3 e §3.1) e o arquivo de cada campo arquivo (§5.1). Cada linha usa o AAD do seu aad_version.
 func (s *Service) rekeySecrets(ctx context.Context) (int, error) {
 	q, w := s.read(), store.New(s.Pool)
 	secrets, err := q.ListAllSecretsForRekey(ctx)
@@ -993,7 +1025,11 @@ func (s *Service) rekeySecrets(ctx context.Context) (int, error) {
 		}
 		n++
 	}
-	return n, nil
+	rn, err := s.rekeyFieldBlobs(ctx)
+	if err != nil {
+		return n, err
+	}
+	return n + rn, nil
 }
 
 // checkEnvRefs confere as referências ${secret:...} nos valores de env de um ambiente de execução (ADR-0050).

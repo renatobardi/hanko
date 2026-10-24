@@ -1475,6 +1475,12 @@ type SecretField struct {
 	UpdatedAt   time.Time
 }
 
+type SecretFieldBlob struct {
+	FieldID   uuid.UUID
+	CompanyID uuid.UUID
+	Content   []byte
+}
+
 type SecretFieldVersion struct {
 	ID             uuid.UUID
 	CompanyID      uuid.UUID

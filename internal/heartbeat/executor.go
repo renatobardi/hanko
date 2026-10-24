@@ -22,6 +22,7 @@ import (
 	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/events"
 	"github.com/renatobardi/hanko/internal/memory"
+	"github.com/renatobardi/hanko/internal/secretref"
 	"github.com/renatobardi/hanko/internal/service"
 )
 
@@ -233,6 +234,9 @@ func (h *Heartbeat) executeRunJob(ctx context.Context, a ExecuteRunArgs, ji jobI
 	)
 	cleanup := func() {}
 	defer func() { cleanup() }()
+	if rs, ok := h.svc.(runSecretsBackend); ok {
+		defer rs.ForgetRunSecrets(a.RunID) // os valores que a tool de cofre entregou saem da memória com a run
+	}
 
 	extras := h.runExtras(execCtx, rc, emit)
 	h.recordRunSkills(execCtx, rc, extras, emit)
@@ -263,6 +267,16 @@ func (h *Heartbeat) executeRunJob(ctx context.Context, a ExecuteRunArgs, ji jobI
 	if specErr == nil {
 		renv, specErr = h.openEnvironment(execCtx, a, rc, &spec, dirCleanup != nil, emit, log)
 	}
+	// ${secretfile:} do adapter_config (ADR-0068 §5.2): o arquivo é criado para esta run e a limpeza roda ao fim, mesmo
+	// quando a run falha. A redação passa a cobrir o conteúdo escrito.
+	var secretFileValues []string
+	if specErr == nil && secretref.HasFile(string(spec.Config)) {
+		var filesCleanup func()
+		secretFileValues, filesCleanup, specErr = h.materializeSecretFiles(execCtx, rc, renv, &spec)
+		if filesCleanup != nil {
+			cleanup = chainCleanup(filesCleanup, cleanup)
+		}
+	}
 	if specErr != nil {
 		runErr = specErr
 	} else {
@@ -270,6 +284,7 @@ func (h *Heartbeat) executeRunJob(ctx context.Context, a ExecuteRunArgs, ji jobI
 		if steerCh != nil && !spec.ReadOnly {
 			spec.Steer = steerCh
 		}
+		resolved = append(resolved, secretFileValues...)
 		spec.Secrets = resolved
 		redact := append([]string(nil), resolved...)
 		if renv != nil {
@@ -282,7 +297,14 @@ func (h *Heartbeat) executeRunJob(ctx context.Context, a ExecuteRunArgs, ji jobI
 		if len(redact) > 0 { // defesa em profundidade: vale para qualquer adapter, não só os que já redigem
 			sink = adapter.RedactingSink(sink, redact...)
 		}
+		rs, hasRS := h.svc.(runSecretsBackend)
+		if hasRS { // valores entregues pela tool durante a run: cada evento é redigido com os que já existem
+			sink = toolSecretSink(sink, rs, a.RunID)
+		}
 		res, runErr = safeRun(execCtx, ad, spec, sink)
+		if hasRS {
+			resolved = append(resolved, rs.RunSecretValues(a.RunID)...)
+		}
 		if len(resolved) > 0 {
 			res = adapter.RedactResult(res, resolved...)
 			if runErr != nil {
@@ -642,6 +664,58 @@ func (h *Heartbeat) resolveSecrets(ctx context.Context, rc service.RunContext) (
 	}
 	rc.Persona.AdapterConfig = cfg
 	return rc, values, nil
+}
+
+// runSecretsBackend guarda os valores que a tool de cofre entregou a cada run (ADR-0068 §4.4); opcional como os demais.
+type runSecretsBackend interface {
+	RunSecretValues(runID domain.ID) []string
+	ForgetRunSecrets(runID domain.ID)
+}
+
+// toolSecretSink redige, em cada evento, os valores que a tool de cofre entregou à run até aquele momento.
+func toolSecretSink(next adapter.Sink, rs runSecretsBackend, runID domain.ID) adapter.Sink {
+	return adapter.SinkFunc(func(c context.Context, e adapter.Event) error {
+		if vals := rs.RunSecretValues(runID); len(vals) > 0 {
+			e = adapter.RedactEvent(e, vals...)
+		}
+		return next.Emit(c, e)
+	})
+}
+
+// secretFilesBackend materializa os ${secretfile:} do adapter_config da persona (ADR-0068 §5.2); opcional como os demais.
+type secretFilesBackend interface {
+	MaterializeSecretFiles(ctx context.Context, companyID, personaID, runID domain.ID, cfg json.RawMessage) (json.RawMessage, []string, func(), error)
+}
+
+// envLabel é o nome do ambiente como o usuário o vê na mensagem de erro.
+func envLabel(d domain.EnvironmentDriver) string {
+	switch d {
+	case domain.EnvSSH:
+		return "SSH"
+	case domain.EnvSandbox:
+		return "sandbox"
+	case domain.EnvCloud:
+		return "cloud"
+	}
+	return string(d)
+}
+
+// materializeSecretFiles cria os arquivos de ${secretfile:} desta run. Só o ambiente local os recebe nesta entrega: num
+// ambiente remoto o caminho não existe lá, então a run falha cedo com o nome do ambiente (ADR-0068 §5.3).
+func (h *Heartbeat) materializeSecretFiles(ctx context.Context, rc service.RunContext, renv *runEnv, spec *adapter.Spec) ([]string, func(), error) {
+	if renv != nil && renv.driver != domain.EnvLocal {
+		return nil, nil, fmt.Errorf("arquivo de segredo ainda não é suportado em ambiente %s", envLabel(renv.driver))
+	}
+	sb, ok := h.svc.(secretFilesBackend)
+	if !ok {
+		return nil, nil, errors.New("arquivo de segredo indisponível neste servidor")
+	}
+	cfg, values, cleanup, err := sb.MaterializeSecretFiles(ctx, rc.Company.ID, rc.Persona.ID, rc.Run.ID, spec.Config)
+	if err != nil {
+		return nil, nil, fmt.Errorf("arquivo de segredo: %w", err)
+	}
+	spec.Config = cfg
+	return values, cleanup, nil
 }
 
 // worktreeBackend prepara o worktree Git da task; opcional como os demais backends.
