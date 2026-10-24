@@ -46,7 +46,7 @@ UPDATE secret_fields SET last_used_at = @now WHERE id = @id AND company_id = @co
 DELETE FROM secret_fields WHERE id = @id AND company_id = @company_id;
 
 -- name: ListSecretFieldsForRekey :many
-SELECT id, secret_id, value_enc, aad_version FROM secret_fields WHERE provider = 'local' AND value_enc <> '';
+SELECT id, secret_id, value_enc, aad_version FROM secret_fields WHERE provider = 'local' AND length(value_enc) > 0;
 
 -- name: SetSecretFieldValueEnc :exec
 UPDATE secret_fields SET value_enc = @value_enc, aad_version = @aad_version WHERE id = @id;

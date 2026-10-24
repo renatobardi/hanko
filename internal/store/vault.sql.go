@@ -1049,7 +1049,7 @@ func (q *Queries) ListSecretFields(ctx context.Context, arg ListSecretFieldsPara
 }
 
 const listSecretFieldsForRekey = `-- name: ListSecretFieldsForRekey :many
-SELECT id, secret_id, value_enc, aad_version FROM secret_fields WHERE provider = 'local' AND value_enc <> ''
+SELECT id, secret_id, value_enc, aad_version FROM secret_fields WHERE provider = 'local' AND length(value_enc) > 0
 `
 
 type ListSecretFieldsForRekeyRow struct {
