@@ -24,6 +24,7 @@ import (
 	"github.com/renatobardi/hanko/internal/adapter/httpagent"
 	"github.com/renatobardi/hanko/internal/adapter/pi"
 	"github.com/renatobardi/hanko/internal/auth"
+	"github.com/renatobardi/hanko/internal/auth/passkey"
 	"github.com/renatobardi/hanko/internal/config"
 	"github.com/renatobardi/hanko/internal/db"
 	"github.com/renatobardi/hanko/internal/events"
@@ -96,6 +97,22 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 		AllowStdio: cfg.Integrations.AllowStdio, AllowPrivate: cfg.Integrations.AllowPrivateDestinations, Secrets: box,
 	}
 	svc.ACP = acp.Policy{Allow: cfg.ACP.Allow, Commands: cfg.ACP.Commands}
+	// Reautenticação e passkey (ADR-0070): a parte confiante sai da URL pública; sem ela, a passkey fica desligada.
+	// Sem passkey válida (URL com IP que não é loopback, ou host que o WebAuthn recusa), o boot segue: a passkey fica
+	// desligada e o aviso vai para o log.
+	if cfg.PublicURL != "" {
+		pc, err := passkey.ParseConfig(cfg.PublicURL)
+		if err == nil {
+			svc.Passkeys, err = pc.New()
+		}
+		if err != nil {
+			logger.Warn("passkey desligada: HANKO_PUBLIC_URL não serve como RP ID do WebAuthn", "err", err)
+		}
+	}
+	svc.ReauthLimiter = &auth.LoginLimiter{}
+	if cfg.Auth.Provider == config.AuthFirebase {
+		svc.IDVerifier = &auth.FirebaseVerifier{ProjectID: cfg.Auth.Firebase.ProjectID, Log: logger}
+	}
 	svc.Push = service.PushConfig{Subject: cfg.PushSubjectOrDefault()} // web push (ADR-0042); a chave VAPID nasce na primeira necessidade
 
 	// Settings da instância (ADR-0050): env > banco > yaml/padrão; leitura em tempo de uso, então mudar vale sem restart.

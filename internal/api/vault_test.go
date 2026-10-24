@@ -13,8 +13,6 @@ func TestVaultContratoResponde501(t *testing.T) {
 	for _, c := range []struct{ method, path string }{
 		{"GET", "/api/v1/companies/acme/user-secrets/gh/fields/password/history"},
 		{"DELETE", "/api/v1/companies/acme/secret-collections/infra/grants/" + uuid},
-		{"GET", "/api/v1/me/passkeys"},
-		{"POST", "/api/v1/me/reauth/options"},
 		{"GET", "/api/v1/companies/acme/sends/" + uuid},
 		{"GET", "/api/v1/s/AAAAAAAAAAAAAAAAAAAAAA"},
 		{"GET", "/api/v1/companies/acme/me/delegations"},
@@ -55,9 +53,9 @@ func TestVaultContratoResponde501(t *testing.T) {
 			}
 		}
 	}
-	// A fatia 1 (#56) liga 17 das 54 operações do contrato; as restantes (reautenticação, envios, delegações,
-	// saúde, portabilidade) seguem com a descrição "Contrato do cofre" e respondem 501.
-	if n < 37 {
-		t.Fatalf("operações do contrato do cofre ainda em 501 = %d, quer pelo menos 37", n)
+	// A fatia 1 (#56) liga 17 das 54 operações do contrato e a fatia 2 (#57) liga 6 (reautenticação e passkeys);
+	// as restantes (envios, delegações, saúde, portabilidade) seguem com a descrição "Contrato do cofre" e respondem 501.
+	if n < 31 {
+		t.Fatalf("operações do contrato do cofre ainda em 501 = %d, quer pelo menos 31 (54 menos 17 da fatia 1 e 6 da fatia 2)", n)
 	}
 }

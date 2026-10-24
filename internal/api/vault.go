@@ -281,22 +281,6 @@ type reauthIn struct {
 	}
 }
 
-func registerReauth(api huma.API) {
-	tag := "auth"
-	pendingOp[struct{}, ItemOut[WebauthnOptions]](api, op("begin-passkey-registration", http.MethodPost, "/me/passkeys/registration", tag,
-		"Começa o cadastro de uma passkey (exige reautenticação recente)"), sliceReauth)
-	pendingOp[finishPasskeyIn, ItemOut[Passkey]](api, created(op("finish-passkey-registration", http.MethodPost, "/me/passkeys", tag,
-		"Conclui o cadastro de uma passkey")), sliceReauth)
-	pendingOp[struct{}, ListOut[Passkey]](api, op("list-passkeys", http.MethodGet, "/me/passkeys", tag,
-		"Lista as passkeys do usuário"), sliceReauth)
-	pendingOp[passkeyPath, struct{}](api, noContent(op("delete-passkey", http.MethodDelete, "/me/passkeys/{id}", tag,
-		"Remove uma passkey (exige reautenticação recente)")), sliceReauth)
-	pendingOp[struct{}, ItemOut[ReauthOptions]](api, op("reauth-options", http.MethodPost, "/me/reauth/options", tag,
-		"Provas aceitas para reautenticar agora (e o desafio da passkey)"), sliceReauth)
-	pendingOp[reauthIn, ItemOut[ReauthResult]](api, op("reauthenticate", http.MethodPost, "/me/reauth", tag,
-		"Prova recente de identidade para as ações sensíveis do cofre (ADR-0070)"), sliceReauth)
-}
-
 // ---------- envio (fatia 4) ----------
 
 // SecretSend são os metadados de um envio (nunca chave, senha nem conteúdo).
@@ -575,7 +559,7 @@ func (s *server) registerVault(api huma.API) {
 	s.registerSecretFieldsScope(api, domain.SecretScopeCompany, "secrets", "secret", "segredo da empresa")
 	s.registerSecretFieldsScope(api, domain.SecretScopeUser, "user-secrets", "user-secret", "segredo do usuário")
 	s.registerCollections(api)
-	registerReauth(api)
+	s.registerReauth(api)
 	registerSends(api)
 	registerDelegations(api)
 	registerHealth(api)

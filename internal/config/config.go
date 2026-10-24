@@ -265,6 +265,8 @@ type Config struct {
 	// sem nenhum evento a partir do qual uma run em running vira alerta "execução presa".
 	AlertSilentFactor  int           `yaml:"alert_silent_factor" env:"HANKO_ALERT_SILENT_FACTOR"`
 	AlertRunStuckAfter time.Duration `yaml:"alert_run_stuck_after" env:"HANKO_ALERT_RUN_STUCK_AFTER"`
+	// ReauthMinutes é a janela da reautenticação recente das ações sensíveis do cofre (ADR-0070): 1 a 60 min.
+	ReauthMinutes int `yaml:"reauth_minutes" env:"HANKO_REAUTH_MINUTES"`
 	// ReadinessInterval é a idade a partir da qual o teste de readiness de uma persona é refeito pela checagem
 	// periódica (ADR-0055). 0 desliga a checagem periódica ("Testar agora" segue valendo).
 	ReadinessInterval time.Duration `yaml:"readiness_interval" env:"HANKO_READINESS_INTERVAL"`
@@ -303,6 +305,7 @@ func Defaults() Config {
 		ArtifactQuotaBytes: DefaultArtifactQuotaBytes,
 		AlertSilentFactor:  3,
 		AlertRunStuckAfter: 15 * time.Minute,
+		ReauthMinutes:      5,
 		ReadinessInterval:  15 * time.Minute,
 		Ops:                Ops{BackupKeep: 7, PGDumpBin: "pg_dump", PGRestoreBin: "pg_restore", PSQLBin: "psql"},
 		RateLimit:          RateLimit{Enabled: true, WritesPerMin: 600, IPPerMin: 1200, MCPPerMin: 1500, WebhooksPerMin: 120, BrowserErrPerMin: 20},
@@ -362,7 +365,7 @@ func environFor(getenv func(string) string) map[string]string {
 		"HANKO_MIGRATE_ON_BOOT", "HANKO_MEMORY_PROVIDER", "HANKO_MEMORY_URL", "HANKO_MEMORY_TOKEN", "HANKO_MEMORY_READ_TOOL",
 		"HANKO_CLAUDE_BIN", "HANKO_CODEX_BIN", "HANKO_DEVIN_BIN", "HANKO_PI_BIN", "HANKO_CURSOR_BIN", "HANKO_WORKERS", "HANKO_RUN_TIMEOUT",
 		"HANKO_HEARTBEAT_INTERVAL", "HANKO_LOG_LEVEL", "HANKO_LOG_FORMAT",
-		"HANKO_AGENT_ENV_ALLOW", "HANKO_ALLOWED_HOSTS", "HANKO_WORKSPACES_ROOT", "HANKO_RUN_RESERVE_USD", "HANKO_ARTIFACT_MAX_BYTES", "HANKO_ARTIFACT_QUOTA_BYTES", "HANKO_ALERT_SILENT_FACTOR", "HANKO_ALERT_RUN_STUCK_AFTER",
+		"HANKO_AGENT_ENV_ALLOW", "HANKO_ALLOWED_HOSTS", "HANKO_WORKSPACES_ROOT", "HANKO_RUN_RESERVE_USD", "HANKO_ARTIFACT_MAX_BYTES", "HANKO_ARTIFACT_QUOTA_BYTES", "HANKO_ALERT_SILENT_FACTOR", "HANKO_ALERT_RUN_STUCK_AFTER", "HANKO_REAUTH_MINUTES",
 		"HANKO_RATELIMIT_ENABLED", "HANKO_RATELIMIT_WRITES_PER_MIN", "HANKO_RATELIMIT_IP_PER_MIN", "HANKO_RATELIMIT_MCP_PER_MIN",
 		"HANKO_RATELIMIT_WEBHOOKS_PER_MIN", "HANKO_RATELIMIT_BROWSER_ERRORS_PER_MIN",
 		"HANKO_AUTH_PROVIDER", "HANKO_AUTH_ALLOWED_EMAILS", "HANKO_AUTH_ALLOWED_DOMAINS",
@@ -589,6 +592,9 @@ func (c Config) Validate() error {
 	}
 	if c.AlertRunStuckAfter <= 0 {
 		add("HANKO_ALERT_RUN_STUCK_AFTER deve ser positivo (ex.: 15m)")
+	}
+	if c.ReauthMinutes < 1 || c.ReauthMinutes > 60 {
+		add("HANKO_REAUTH_MINUTES %d inválido: use de 1 a 60 (padrão 5)", c.ReauthMinutes)
 	}
 	for name, v := range map[string]int64{"HANKO_RATELIMIT_WRITES_PER_MIN": c.RateLimit.WritesPerMin, "HANKO_RATELIMIT_IP_PER_MIN": c.RateLimit.IPPerMin,
 		"HANKO_RATELIMIT_MCP_PER_MIN": c.RateLimit.MCPPerMin, "HANKO_RATELIMIT_WEBHOOKS_PER_MIN": c.RateLimit.WebhooksPerMin,

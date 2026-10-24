@@ -45,6 +45,7 @@ const (
 	RateLimitBrowserErrors = "ratelimit.browser_errors_per_min"
 	SecretsHistoryVersions = "secrets.history_keep_versions"
 	SecretsHistoryDays     = "secrets.history_keep_days"
+	ReauthMinutes          = "reauth.minutes"
 )
 
 // Def declara uma chave.
@@ -68,6 +69,7 @@ var Defs = []Def{
 	{Key: ArtifactsMaxBytes, Group: "artifacts", Kind: Int, Env: "HANKO_ARTIFACT_MAX_BYTES", Label: "Tamanho máximo de artefato (bytes)", Min: 1, Max: 64 << 20},
 	{Key: ArtifactsQuotaBytes, Group: "artifacts", Kind: Int, Env: "HANKO_ARTIFACT_QUOTA_BYTES", Label: "Cota de artefatos por empresa (bytes)", Min: 1},
 	{Key: RunReserveUSD, Group: "run", Kind: Float, Env: "HANKO_RUN_RESERVE_USD", Label: "Piso da reserva de orçamento por run (US$)", Min: 0, Max: 1000},
+	{Key: ReauthMinutes, Group: "reauth", Kind: Int, Env: "HANKO_REAUTH_MINUTES", Label: "Janela da reautenticação recente (min)", Help: "Quanto tempo uma prova de identidade libera as ações sensíveis do cofre (ADR-0070).", Min: 1, Max: 60},
 	{Key: AlertsSilentFactor, Group: "alerts", Kind: Int, Env: "HANKO_ALERT_SILENT_FACTOR", Label: "Fator do alerta de persona silenciosa", Min: 1, Max: 1000},
 	{Key: AlertsRunStuckAfter, Group: "alerts", Kind: Duration, Env: "HANKO_ALERT_RUN_STUCK_AFTER", Label: "Tempo para uma run presa virar alerta", Min: 1},
 	{Key: RateLimitEnabled, Group: "ratelimit", Kind: Bool, Env: "HANKO_RATELIMIT_ENABLED", Label: "Ligar o rate limit geral", Help: "Token bucket por API key, usuário e IP para escritas, MCP e webhooks de entrada (429 + Retry-After)."},

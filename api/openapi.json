@@ -73291,7 +73291,6 @@
     },
     "/api/v1/me/passkeys": {
       "get": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 2 (#57).",
         "operationId": "list-passkeys",
         "responses": {
           "200": {
@@ -73363,16 +73362,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Lista as passkeys do usuário",
@@ -73381,7 +73370,6 @@
         ]
       },
       "post": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 2 (#57).",
         "operationId": "finish-passkey-registration",
         "requestBody": {
           "content": {
@@ -73463,16 +73451,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Conclui o cadastro de uma passkey",
@@ -73483,7 +73461,6 @@
     },
     "/api/v1/me/passkeys/registration": {
       "post": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 2 (#57).",
         "operationId": "begin-passkey-registration",
         "responses": {
           "200": {
@@ -73555,16 +73532,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Começa o cadastro de uma passkey (exige reautenticação recente)",
@@ -73575,7 +73542,6 @@
     },
     "/api/v1/me/passkeys/{id}": {
       "delete": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 2 (#57).",
         "operationId": "delete-passkey",
         "parameters": [
           {
@@ -73651,16 +73617,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Remove uma passkey (exige reautenticação recente)",
@@ -74097,7 +74053,6 @@
     },
     "/api/v1/me/reauth": {
       "post": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 2 (#57).",
         "operationId": "reauthenticate",
         "requestBody": {
           "content": {
@@ -74179,16 +74134,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Prova recente de identidade para as ações sensíveis do cofre (ADR-0070)",
@@ -74199,7 +74144,6 @@
     },
     "/api/v1/me/reauth/options": {
       "post": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 2 (#57).",
         "operationId": "reauth-options",
         "responses": {
           "200": {
@@ -74271,16 +74215,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Provas aceitas para reautenticar agora (e o desafio da passkey)",
