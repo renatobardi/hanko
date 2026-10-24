@@ -32,7 +32,7 @@ const (
 	// DefaultSecretField é o campo de `${secret:X}` sem `#campo`: o segredo do ADR-0050 vira um item com esse campo.
 	DefaultSecretField = "value"
 	// SecretFieldNamePattern é o formato do nome de um campo (o mesmo da constraint do banco).
-	SecretFieldNamePattern = `[A-Za-z][A-Za-z0-9_-]{0,63}`
+	SecretFieldNamePattern = `[A-Za-z][A-Za-z0-9_-]{0,63}` //nolint:gosec // regex de nome, não credencial
 	// MaxSecretFieldTextBytes é o limite de um campo texto ou totp (o mesmo do valor do ADR-0050).
 	MaxSecretFieldTextBytes = 8 << 10
 	// MaxSecretFieldFileBytes é o limite de um campo arquivo.
