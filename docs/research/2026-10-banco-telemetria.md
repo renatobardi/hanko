@@ -300,7 +300,7 @@ só o período depois do filtro. O gerador usa a média de 180 conversas por dia
 demais números não mudam. O rótulo foi corrigido no script; o texto aprovado do pedido fica como foi.
 
 **Consequências para a v0.8:**
-- O alerta de disco do Hanko em 70% e 85% (bloco 4 do gate da #67, limites por empresa) cobre o disco de dados do
-  Postgres desde o primeiro dia da ingestão.
+- Um alerta de disco do Postgres entra no Hanko desde o primeiro dia da ingestão (ponto 2). Os limites seguem a regra
+  de limites por empresa do bloco 4 do gate da #67 e ficam para o contrato da v0.8.
 - O replay do bucket (gate da #67, §9.3) continua como rede de segurança, não como fonte do detalhe antigo.
 - Não há ADR novo para o banco. As tabelas derivadas e as partições entram no contrato da v0.8 (migrations).
