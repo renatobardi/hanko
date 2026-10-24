@@ -6,19 +6,17 @@
   // ---- WebAuthn: base64url <-> ArrayBuffer, e o JSON do servidor para as opções do navegador ----
 
   function b64uToBuf(s) {
-    var b = s.replace(/-/g, '+').replace(/_/g, '/');
+    var b = s.replaceAll('-', '+').replaceAll('_', '/');
     while (b.length % 4) b += '=';
     var bin = atob(b);
-    var out = new Uint8Array(bin.length);
-    for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-    return out.buffer;
+    return Uint8Array.from(bin, function (ch) { return ch.codePointAt(0); }).buffer;
   }
 
   function bufToB64u(buf) {
-    var bytes = new Uint8Array(buf);
-    var s = '';
-    for (var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
-    return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    var s = Array.from(new Uint8Array(buf), function (byte) { return String.fromCodePoint(byte); }).join('');
+    var b = btoa(s).replaceAll('+', '-').replaceAll('/', '_');
+    while (b.endsWith('=')) b = b.slice(0, -1);
+    return b;
   }
 
   function creationOptions(pk) {
@@ -70,10 +68,15 @@
   }
 
   function isReauth(r) {
-    return r.status === 401 && !!r.data && String(r.data.detail || '').indexOf('reauth_required') === 0;
+    return r.status === 401 && !!r.data && String(r.data.detail || '').startsWith('reauth_required');
   }
 
-  function has(list, m) { return (list || []).indexOf(m) >= 0; }
+  function has(list, m) { return (list || []).includes(m); }
+
+  function show(el, msg) {
+    el.textContent = msg || '';
+    el.hidden = !msg;
+  }
 
   // ---- a seção do perfil ----
 
@@ -98,14 +101,9 @@
     var pending = null;      // resolve da prova em curso (o diálogo aberto)
     var pendingOpts = null;  // opções de prova devolvidas por /reauth/options
 
-    function show(el, msg) {
-      el.textContent = msg || '';
-      el.hidden = !msg;
-    }
-
     // failure: a falha da API vira erro mostrado ao usuário; reauth_required (prova cancelada) mostra o texto geral.
     function failure(r) {
-      var e = new Error(!isReauth(r) && r.data && r.data.detail || t.error);
+      var e = new Error((!isReauth(r) && r.data?.detail) || t.error);
       e.api = true;
       return e;
     }
@@ -115,8 +113,8 @@
     function askProof() {
       return call('POST', '/reauth/options').then(function (r) {
         if (!r.ok) {
-          show(errBox, (r.data && r.data.detail) || t.error);
-          return false;
+          show(errBox, r.data?.detail || t.error);
+          return Promise.resolve(false);
         }
         pendingOpts = r.data;
         pwForm.hidden = !has(r.data.methods, 'password');
@@ -143,18 +141,20 @@
       var password = pwInput.value;
       pwInput.value = '';
       call('POST', '/reauth', { method: 'password', password: password }).then(function (r) {
-        if (r.ok) finishProof(true); else show(reauthErr, (r.data && r.data.detail) || t.error);
+        if (r.ok) finishProof(true); else show(reauthErr, r.data?.detail || t.error);
+      }).catch(function () {
+        show(reauthErr, t.error);
       });
     });
 
     pkBtn.addEventListener('click', function () {
-      var pk = pendingOpts && pendingOpts.passkey;
+      var pk = pendingOpts?.passkey;
       if (!pk) return;
       show(reauthErr, '');
       navigator.credentials.get({ publicKey: requestOptions(pk.public_key.publicKey) }).then(function (assertion) {
         return call('POST', '/reauth', { method: 'passkey', challenge_id: pk.challenge_id, credential: credentialJSON(assertion) });
       }).then(function (r) {
-        if (r.ok) finishProof(true); else show(reauthErr, (r.data && r.data.detail) || t.error);
+        if (r.ok) finishProof(true); else show(reauthErr, r.data?.detail || t.error);
       }, function () {
         show(reauthErr, t.cancelled);
       });
@@ -195,40 +195,53 @@
 
     function load() {
       return call('GET', '/passkeys').then(function (r) {
-        if (!r.ok) return show(errBox, (r.data && r.data.detail) || t.error);
-        render((r.data && r.data.items) || []);
+        if (!r.ok) return show(errBox, r.data?.detail || t.error);
+        render(r.data?.items || []);
       });
     }
 
     function remove(id) {
       show(errBox, '');
       withReauth(function () { return call('DELETE', '/passkeys/' + encodeURIComponent(id)); }).then(function (r) {
-        if (!r.ok) return show(errBox, (r.data && r.data.detail) || t.error);
+        if (!r.ok) return show(errBox, r.data?.detail || t.error);
         return load();
+      }).catch(function () {
+        show(errBox, t.error);
       });
+    }
+
+    function beginRegistration() {
+      return call('POST', '/passkeys/registration');
+    }
+
+    function finishRegistration(begin, cred) {
+      return call('POST', '/passkeys', {
+        challenge_id: begin.data.challenge_id,
+        name: nameInput.value.trim(),
+        credential: credentialJSON(cred)
+      });
+    }
+
+    // createCredential: o navegador cria a passkey; a conclusão no servidor passa pela reautenticação, se pedir.
+    function createCredential(begin) {
+      return navigator.credentials.create({ publicKey: creationOptions(begin.data.public_key.publicKey) })
+        .catch(function () { throw new Error(t.cancelled); })
+        .then(function (cred) {
+          return withReauth(function () { return finishRegistration(begin, cred); });
+        });
     }
 
     function add() {
       show(errBox, '');
-      withReauth(function () { return call('POST', '/passkeys/registration'); }).then(function (begin) {
+      withReauth(beginRegistration).then(function (begin) {
         if (!begin.ok) throw failure(begin);
-        return navigator.credentials.create({ publicKey: creationOptions(begin.data.public_key.publicKey) }).then(function (cred) {
-          return withReauth(function () {
-            return call('POST', '/passkeys', {
-              challenge_id: begin.data.challenge_id,
-              name: nameInput.value.trim(),
-              credential: credentialJSON(cred)
-            });
-          });
-        }, function () {
-          throw new Error(t.cancelled);
-        });
+        return createCredential(begin);
       }).then(function (fin) {
         if (!fin.ok) throw failure(fin);
         nameInput.value = '';
         return load();
       }).catch(function (e) {
-        show(errBox, e && e.api ? e.message : (e && e.message) || t.error);
+        show(errBox, e?.api ? e.message : (e?.message || t.error));
       });
     }
 
@@ -238,10 +251,12 @@
       addBtn.disabled = true;
       show(errBox, t.nowebauthn);
     }
-    load();
+    load().catch(function () {
+      show(errBox, t.error);
+    });
   }
 
-  // Módulo para o teste em node (internal/ui/passkey_js_test.go); no navegador não existe.
+  // Módulo para o teste em node (internal/ui/passkey_test.go); no navegador não existe.
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = { b64uToBuf: b64uToBuf, bufToB64u: bufToB64u, creationOptions: creationOptions,
       requestOptions: requestOptions, credentialJSON: credentialJSON };

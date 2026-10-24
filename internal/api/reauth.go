@@ -14,6 +14,9 @@ import (
 
 // ---------- reautenticação recente e passkey (fatia 2, ADR-0070) ----------
 
+// msgIDInvalido é a mensagem de id mal formado nas rotas de passkey e de prova.
+const msgIDInvalido = "id inválido"
+
 // registerReauth liga as rotas de /me: provas, passkeys e o desafio de cada uma. As rotas de senha e Firebase usam o
 // mesmo Guard das demais; quem não tem sessão recebe 403 (só sessão prova).
 func (s *server) registerReauth(api huma.API) {
@@ -43,7 +46,7 @@ func (s *server) registerReauth(api huma.API) {
 			case "passkey":
 				cid, perr := domain.ParseID(in.Body.ChallengeID)
 				if perr != nil {
-					return nil, s.fail(ctx, domain.Invalid("challenge_id", "id inválido"))
+					return nil, s.fail(ctx, domain.Invalid("challenge_id", msgIDInvalido))
 				}
 				proof, err = s.svc.FinishPasskeyReauth(ctx, id, cid, in.Body.Credential)
 			case "password":
@@ -82,7 +85,7 @@ func (s *server) registerReauth(api huma.API) {
 			}
 			cid, perr := domain.ParseID(in.Body.ChallengeID)
 			if perr != nil {
-				return nil, s.fail(ctx, domain.Invalid("challenge_id", "id inválido"))
+				return nil, s.fail(ctx, domain.Invalid("challenge_id", msgIDInvalido))
 			}
 			p, err := s.svc.FinishPasskeyRegistration(ctx, id, cid, in.Body.Name, in.Body.Credential)
 			if err != nil {
@@ -114,7 +117,7 @@ func (s *server) registerReauth(api huma.API) {
 			}
 			pid, perr := domain.ParseID(in.ID)
 			if perr != nil {
-				return nil, s.fail(ctx, domain.Invalid("id", "id inválido"))
+				return nil, s.fail(ctx, domain.Invalid("id", msgIDInvalido))
 			}
 			if err := s.svc.DeletePasskey(ctx, id, pid); err != nil {
 				return nil, s.fail(ctx, err)

@@ -21,6 +21,15 @@ func newService(t *testing.T) *Service {
 	return s
 }
 
+// creationOptions lê só o que o teste confere das opções de cadastro (publicKey.rp.id).
+type creationOptions struct {
+	PublicKey struct {
+		RP struct {
+			ID string `json:"id"`
+		} `json:"rp"`
+	} `json:"publicKey"`
+}
+
 // register faz o cadastro de um autenticador de software para u e devolve a credencial guardada.
 func register(t *testing.T, s *Service, a *authtest.Authenticator, u User) Credential {
 	t.Helper()
@@ -53,13 +62,7 @@ func TestRegisterAndLogin(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var creation struct {
-		PublicKey struct {
-			RP struct {
-				ID string `json:"id"`
-			} `json:"rp"`
-		} `json:"publicKey"`
-	}
+	var creation creationOptions
 	if err := json.Unmarshal(opts, &creation); err != nil {
 		t.Fatal(err)
 	}
