@@ -1,0 +1,11 @@
+tamanho 51934932992 bytes
+q1	1a=20	mediana=8	linhas=48
+q2	1a=342	mediana=120	linhas=8
+q3	1a=81	mediana=19	linhas=30
+q4	1a=1076	mediana=219	linhas=365
+q5	1a=33	mediana=15	linhas=50
+q6	1a=32	mediana=14	linhas=391
+q7	1a=3	mediana=2	linhas=4
+q8	1a=18	mediana=3	linhas=8
+q9	1a=81	mediana=42	linhas=8
+q10	1a=6	mediana=5	linhas=168

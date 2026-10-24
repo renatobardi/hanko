@@ -1,0 +1,42 @@
+== r16plain
+tamanho logs tabela 1071874048 índices 105472000
+tamanho spans tabela 2949300224 índices 472457216
+tamanho metrics tabela 730193920 índices 128278528
+q1	1a=8598	mediana=86	linhas=48
+q2	1a=9983	mediana=676	linhas=8
+q3	1a=4798	mediana=148	linhas=16
+q4	1a=140	mediana=150	linhas=16
+q5	1a=15948	mediana=996	linhas=50
+q6	1a=6	mediana=1	linhas=384
+q7	1a=22	mediana=7	linhas=4
+q8	1a=466	mediana=89	linhas=8
+q9	1a=107	mediana=24	linhas=8
+q10	1a=124	mediana=50	linhas=168
+== r16part
+tamanho logs tabela 1071874048 índices 116645888
+tamanho spans tabela 2949300224 índices 508387328
+tamanho metrics tabela 730193920 índices 144793600
+q1	1a=4900	mediana=67	linhas=48
+q2	1a=5074	mediana=433	linhas=8
+q3	1a=4729	mediana=123	linhas=16
+q4	1a=122	mediana=120	linhas=16
+q5	1a=9689	mediana=2551	linhas=50
+q6	1a=15	mediana=1	linhas=384
+q7	1a=58	mediana=8	linhas=4
+q8	1a=361	mediana=115	linhas=8
+q9	1a=357	mediana=25	linhas=8
+q10	1a=125	mediana=39	linhas=168
+== m12part
+tamanho logs tabela 24442929152 índices 2657296384
+tamanho spans tabela 67285475328 índices 11592024064
+tamanho metrics tabela 16657539072 índices 3298516992
+q1	1a=4180	mediana=35	linhas=48
+q2	1a=2798	mediana=90	linhas=8
+q3	1a=14457	mediana=16053	linhas=30
+q4	1a=88250	mediana=86978	linhas=365
+q5	1a=5679	mediana=5468	linhas=50
+q6	1a=40	mediana=2	linhas=391
+q7	1a=473	mediana=7	linhas=4
+q8	1a=1009	mediana=51	linhas=8
+q9	1a=1123	mediana=20	linhas=8
+q10	1a=1520	mediana=39	linhas=168
