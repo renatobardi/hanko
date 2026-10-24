@@ -1,11 +1,10 @@
-# Estado da última sessão (cofre para agentes, fatia 2)
-Data: 2026-10-24 · branch `sessao/57-reauth-passkey` · issue #57 (fatia 2 de #54, ADR-0070)
+# Estado da última sessão (shard `resto` do CI, #75)
+Data: 2026-10-24 · branch `chore/75-resto-compila-paralelo` · issue #75
 
 ## Feito
-- Reautenticação recente (`RequireReauth`, janela `reauth.minutes`, padrão 5) com provas por senha, Firebase (`auth_time`) e passkey; `/me/reauth*` e `/me/passkeys*` saíram do 501; passkey na tela de perfil com o diálogo de prova.
-- `internal/auth/passkey`: contador de assinatura conferido (clone recusado); testes com autenticador de software.
+- Job `test` do CI: um passo compila os testes em paralelo antes da rodada com `-p 1`, e `GORACE=atexit_sleep_ms=0` tira a espera de 1 s na saída de cada binário com `-race`. Nenhum teste nem gate muda.
+- Medido localmente no `resto`: compilação a frio 226 s → 102 s; rodada completa 343 s → 268 s.
 ## Travado
-- Ações do cofre (revelar, histórico, restaurar, envio, concessão) seguem 501: entram com as fatias 1, 3 e 4, e chamam `RequireReauth`.
-- Decisões para o Bardi: a chave é `reauth.minutes` (o ADR-0070 diz `secrets.reauth_minutes`, mas a guarda do registro, ADR-0032, recusa nome com "secret"); e o fato vai para cada empresa do usuário (`activity_events.company_id` é obrigatório).
+- Merge do PR da #75 (só o dono). Seguem abertas as decisões da sessão anterior (#57, cofre): nome `reauth.minutes` e fato por empresa.
 ## Próximo passo
-- Fatia 3 (#58): ligar `RequireReauth` em revelar e histórico. Prova por Firebase pelo SDK na tela ainda não existe (o diálogo só avisa).
+- Medir `test (resto)` em 3 execuções do CI (meta ≤ ~8 min). Se ainda for o caminho crítico: shard próprio para o `internal/heartbeat` (104 s locais), o que muda a decisão de dois shards fixos da #51.
