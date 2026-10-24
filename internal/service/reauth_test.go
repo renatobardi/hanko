@@ -257,16 +257,8 @@ func TestRemoverPasskeySemProvaPedeReauth(t *testing.T) {
 	}
 }
 
-func TestAPIKeyReadRecusadaEFullPassaComIdDaChaveNoFato(t *testing.T) {
+func TestAPIKeyReadRecusadaEFullPassaComIdDaChaveNoGrant(t *testing.T) {
 	f := newReauthFixture(t)
-	ctx := context.Background()
-	pk, err := passkey.Config{RPID: "localhost", Origins: []string{"https://localhost:8080"}}.New()
-	if err != nil {
-		t.Fatal(err)
-	}
-	f.e.svc.Passkeys = pk
-	a := authtest.New()
-	a.Origin = "https://localhost:8080"
 
 	read := auth.Identity{User: f.owner, Via: auth.ViaAPIKey, KeyScope: domain.KeyScopeRead, KeyID: ptrID(domain.NewID())}
 	if _, err := f.e.svc.RequireReauth(read); !errors.Is(err, domain.ErrNotAllowed) {
@@ -279,27 +271,55 @@ func TestAPIKeyReadRecusadaEFullPassaComIdDaChaveNoFato(t *testing.T) {
 	if err != nil || grant.Via != "api_key" || grant.KeyID == nil || *grant.KeyID != kid {
 		t.Fatalf("API key full = %+v, %v", grant, err)
 	}
+}
 
-	// A ação passa sem prova, e o fato de passkey_added leva o id da chave.
-	reg, err := f.e.svc.BeginPasskeyRegistration(ctx, full)
+// Passkey é credencial de sessão: a API key, mesmo full, não cadastra nem remove (achado 1 da auditoria #70).
+func TestAPIKeyFullNaoCadastraNemRemovePasskey(t *testing.T) {
+	f := newReauthFixture(t)
+	ctx := context.Background()
+	pk, err := passkey.Config{RPID: "localhost", Origins: []string{"https://localhost:8080"}}.New()
 	if err != nil {
-		t.Fatalf("BeginPasskeyRegistration com API key full: %v", err)
+		t.Fatal(err)
+	}
+	f.e.svc.Passkeys = pk
+	a := authtest.New()
+	a.Origin = "https://localhost:8080"
+
+	// Uma sessão com reautenticação recente cria a passkey: o desafio fica preso a essa sessão.
+	tok, id := f.session(t, f.owner)
+	if _, err := f.e.svc.ReauthWithPassword(ctx, id, goodPass); err != nil {
+		t.Fatalf("prova por senha: %v", err)
+	}
+	id = f.identityOf(t, tok)
+	reg, err := f.e.svc.BeginPasskeyRegistration(ctx, id)
+	if err != nil {
+		t.Fatalf("BeginPasskeyRegistration por sessão: %v", err)
 	}
 	resp, err := a.Create(reg.Options)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.e.svc.FinishPasskeyRegistration(ctx, full, reg.ID, "CLI", resp); err != nil {
-		t.Fatalf("FinishPasskeyRegistration com API key full: %v", err)
-	}
-	var keyID string
-	err = f.e.svc.Pool.QueryRow(ctx, `SELECT data->>'key_id' FROM activity_events WHERE verb = 'auth.passkey_added' AND company_id = $1`,
-		f.co.ID).Scan(&keyID)
+	p, err := f.e.svc.FinishPasskeyRegistration(ctx, id, reg.ID, "Notebook", resp)
 	if err != nil {
-		t.Fatalf("fato auth.passkey_added: %v", err)
+		t.Fatalf("FinishPasskeyRegistration por sessão: %v", err)
 	}
-	if keyID != kid.String() {
-		t.Fatalf("key_id no fato = %q, quer %q", keyID, kid)
+
+	kid := domain.NewID()
+	full := auth.Identity{User: f.owner, Via: auth.ViaAPIKey, KeyScope: domain.KeyScopeFull, KeyID: &kid}
+	if _, err := f.e.svc.BeginPasskeyRegistration(ctx, full); !errors.Is(err, domain.ErrNotAllowed) {
+		t.Fatalf("BeginPasskeyRegistration com API key full = %v, quer ErrNotAllowed (403)", err)
+	}
+	if _, err := f.e.svc.FinishPasskeyRegistration(ctx, full, reg.ID, "CLI", resp); !errors.Is(err, domain.ErrNotAllowed) {
+		t.Fatalf("FinishPasskeyRegistration com API key full = %v, quer ErrNotAllowed (403)", err)
+	}
+	if err := f.e.svc.DeletePasskey(ctx, full, p.ID); !errors.Is(err, domain.ErrNotAllowed) {
+		t.Fatalf("DeletePasskey com API key full = %v, quer ErrNotAllowed (403)", err)
+	}
+
+	// A passkey continua lá: a chave full não a removeu.
+	lista, err := f.e.svc.ListPasskeys(ctx, f.owner.ID)
+	if err != nil || len(lista) != 1 {
+		t.Fatalf("passkeys após tentativa com API key = %d, %v; quer 1", len(lista), err)
 	}
 }
 

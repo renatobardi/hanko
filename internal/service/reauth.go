@@ -275,10 +275,22 @@ func (s *Service) FinishPasskeyReauth(ctx context.Context, id auth.Identity, cha
 	return s.markReauth(ctx, id, dom, "passkey", touch)
 }
 
-// BeginPasskeyRegistration cria o desafio de cadastro (ADR-0070 §4). Exige reautenticação recente.
+// requireSession recusa a API key nas operações que mexem nas passkeys (cadastro e remoção): credencial nova ou
+// removida é coisa de quem tem a sessão, não de uma chave de escopo full (decisão do Bardi, achado 1 da auditoria #70).
+func requireSession(id auth.Identity) error {
+	if id.Via != auth.ViaSession {
+		return fmt.Errorf("%w: passkey só se cadastra ou remove por sessão", domain.ErrNotAllowed)
+	}
+	return nil
+}
+
+// BeginPasskeyRegistration cria o desafio de cadastro (ADR-0070 §4). Exige sessão e reautenticação recente.
 func (s *Service) BeginPasskeyRegistration(ctx context.Context, id auth.Identity) (PasskeyChallenge, error) {
 	if s.Passkeys == nil {
 		return PasskeyChallenge{}, ErrPasskeyOff
+	}
+	if err := requireSession(id); err != nil {
+		return PasskeyChallenge{}, err
 	}
 	if _, err := s.RequireReauth(id); err != nil {
 		return PasskeyChallenge{}, err
@@ -301,10 +313,13 @@ func (s *Service) BeginPasskeyRegistration(ctx context.Context, id auth.Identity
 	return PasskeyChallenge{ID: cid, Options: options}, nil
 }
 
-// FinishPasskeyRegistration verifica a resposta de cadastro e grava a passkey. Exige reautenticação recente.
+// FinishPasskeyRegistration verifica a resposta de cadastro e grava a passkey. Exige sessão e reautenticação recente.
 func (s *Service) FinishPasskeyRegistration(ctx context.Context, id auth.Identity, challengeID domain.ID, name string, response json.RawMessage) (domain.Passkey, error) {
 	if s.Passkeys == nil {
 		return domain.Passkey{}, ErrPasskeyOff
+	}
+	if err := requireSession(id); err != nil {
+		return domain.Passkey{}, err
 	}
 	grant, err := s.RequireReauth(id)
 	if err != nil {
@@ -356,8 +371,11 @@ func (s *Service) ListPasskeys(ctx context.Context, userID domain.ID) ([]domain.
 	return out, nil
 }
 
-// DeletePasskey remove uma passkey do usuário. Exige reautenticação recente.
+// DeletePasskey remove uma passkey do usuário. Exige sessão e reautenticação recente.
 func (s *Service) DeletePasskey(ctx context.Context, id auth.Identity, passkeyID domain.ID) error {
+	if err := requireSession(id); err != nil {
+		return err
+	}
 	grant, err := s.RequireReauth(id)
 	if err != nil {
 		return err
