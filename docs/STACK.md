@@ -108,7 +108,7 @@ Camadas: handler → service → store. Handler não toca DB. Store não contém
 ## 5. Deploy (ADR-0008)
 - oute-server (OCI, LXD): containers `hanko-stg` (branch `develop`) e `hanko-prd` (tag `v*`). Compose: `hanko` + `postgres:17` + `caddy` (TLS) + `grafana/otel-lgtm` (collector + Tempo + Loki + Mimir + Grafana em 1 container; ~1,5 GB RAM). Split-horizon via Tailscale, runbook do kura-dev reaproveitado.
 - Backup: `pg_dump` diário + `restic` → R2. Restore testado 1x/mês.
-- CI (GitHub Actions): lint → vet → govulncheck → test (PG service) → openapi diff → bundle ilhas → build. Tag `v*` → goreleaser → ghcr.io + GitHub Release.
+- CI (GitHub Actions, `ci.yml`): jobs paralelos `estatico` (fmt, vet, lint), `gerados` (build, drift de openapi/templ/ilhas/sqlc) e `test` (shards com PG service próprio), agregados no `check`; `govulncheck` mora no `security.yml` (ADR-0049). Tag `v*` → goreleaser → ghcr.io + GitHub Release.
 - VPS externo só quando houver usuário externo.
 
 ## 6. Convenções de código (Go)

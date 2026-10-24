@@ -69,7 +69,7 @@ Rollback = previous tag + restore:
 
 | Workflow | Purpose |
 |---|---|
-| `ci.yml` | Fast PR checks: fmt, vet, lint, build, tests (unit + integration), coverage floor, drift gates (openapi, templ, sqlc, islands bundle) and `release-dry-run`. The `check` and `release-dry-run` jobs are the required statuses; do not rename them. |
+| `ci.yml` | Fast PR checks in parallel jobs: `estatico` (fmt, vet, lint), `gerados` (build and drift gates for openapi, templ, sqlc and the islands bundle), `test` (unit + integration in a single run, sharded into `service` and `resto`, each with its own Postgres) and `release-dry-run`. `check` aggregates them: it passes only if all of them pass, verifies that the shards covered every package and applies the coverage floor to the merged profile. The `check` and `release-dry-run` jobs are the required statuses; do not rename them. |
 | `security.yml` | `govulncheck`, `trivy fs` and dependency review on PRs; weekly too. |
 | `e2e.yml` | browser journeys (skeleton; #57, wave 1). |
 | `evals.yml` | persona behavior, nightly + manual (skeleton; #58, wave 2). |

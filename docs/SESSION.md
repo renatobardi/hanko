@@ -1,11 +1,10 @@
-# Estado da última sessão (cofre para agentes, fatia 0)
-Data: 2026-10-24 · branch `feat/55-cofre-contrato` → `main` · issues #54 (guarda-chuva) e #55
+# Estado da última sessão (CI em jobs paralelos, PR 2 da #51)
+Data: 2026-10-24 · branch `chore/51-ci-jobs-paralelos` → `main` · issue #51 (plano no comentário de 2026-10-23)
 
 ## Feito
-- ADR-0068 (cofre), 0069 (envio), 0070 (reautenticação e passkey); ADR-0016 e glossários com os termos novos.
-- Contrato: migration 00203 (só schema), `internal/domain/vault.go`, queries `vault`/`sends`/`passkeys`, 54 operações da API em 501; `internal/vault` → `internal/extvault`.
-- ADRs aceitos pelo Bardi em 2026-10-24 (PR #63), com `persona_tree`, delegação por alvo, API key `full` e `go-webauthn/webauthn`.
+- PR 1 (#53) na main: uma rodada de testes só. `check` de ~65 para ~27–41 min.
+- PR 2: `ci.yml` em jobs `estatico`, `gerados`, `test` (shards `service` | `resto`, Postgres próprio) e `check` agregador (`if: always()`, união dos shards, perfil mesclado, piso). Docs do CI atualizadas.
 ## Travado (só o dono)
-- Merge do PR #63.
+- Merge do PR 2; medir o `check` em 3 PRs típicos (meta ≤ ~25 min).
 ## Próximo passo
-- Fatia 1 (#56) e fatia 2 (#57), em paralelo, depois do merge da fatia 0.
+- Se o `internal/service` (~18 min) continuar sendo o gargalo, abrir issue para acelerar esse pacote.
