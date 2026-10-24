@@ -173,29 +173,28 @@ func (s *Service) rekeyFieldBlobs(ctx context.Context) (int, error) {
 		return out, err == nil, err
 	}
 	drv := s.blobs().Active()
+	files, err := q.ListSecretFileFieldsForRekey(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("list secret file fields: %w", err)
+	}
 	if drv.Name() == storage.DriverPostgres {
-		rows, err := q.ListSecretFieldBlobsForRekey(ctx)
-		if err != nil {
-			return 0, fmt.Errorf("list secret field blobs: %w", err)
-		}
-		for _, r := range rows {
-			enc, ok, err := reseal(string(r.Content), fieldAAD(r.SecretID, r.FieldID))
+		for _, f := range files {
+			if f.Content == nil { // campo arquivo sem linha de blob nesta gravação
+				continue
+			}
+			enc, ok, err := reseal(string(f.Content), fieldAAD(f.SecretID, f.ID))
 			if err != nil {
-				return n, fmt.Errorf("arquivo do campo %s: %w", r.FieldID, err)
+				return n, fmt.Errorf("arquivo do campo %s: %w", f.ID, err)
 			}
 			if !ok {
 				continue
 			}
-			if err := w.SetSecretFieldBlob(ctx, store.SetSecretFieldBlobParams{FieldID: r.FieldID, Content: []byte(enc)}); err != nil {
-				return n, fmt.Errorf("arquivo do campo %s: %w", r.FieldID, err)
+			if err := w.SetSecretFieldBlob(ctx, store.SetSecretFieldBlobParams{FieldID: f.ID, Content: []byte(enc)}); err != nil {
+				return n, fmt.Errorf("arquivo do campo %s: %w", f.ID, err)
 			}
 			n++
 		}
 		return n, nil
-	}
-	files, err := q.ListSecretFileFieldsForRekey(ctx)
-	if err != nil {
-		return 0, fmt.Errorf("list secret file fields: %w", err)
 	}
 	for _, f := range files {
 		k := fieldBlobKey(f.CompanyID, f.ID)

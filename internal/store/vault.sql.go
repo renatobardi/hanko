@@ -1037,36 +1037,6 @@ func (q *Queries) ListSecretCollectionsWithCounts(ctx context.Context, companyID
 	return items, nil
 }
 
-const listSecretFieldBlobsForRekey = `-- name: ListSecretFieldBlobsForRekey :many
-SELECT b.field_id, f.secret_id, b.content FROM secret_field_blobs b JOIN secret_fields f ON f.id = b.field_id
-`
-
-type ListSecretFieldBlobsForRekeyRow struct {
-	FieldID  uuid.UUID
-	SecretID uuid.UUID
-	Content  []byte
-}
-
-func (q *Queries) ListSecretFieldBlobsForRekey(ctx context.Context) ([]ListSecretFieldBlobsForRekeyRow, error) {
-	rows, err := q.db.Query(ctx, listSecretFieldBlobsForRekey)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListSecretFieldBlobsForRekeyRow{}
-	for rows.Next() {
-		var i ListSecretFieldBlobsForRekeyRow
-		if err := rows.Scan(&i.FieldID, &i.SecretID, &i.Content); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listSecretFieldVersions = `-- name: ListSecretFieldVersions :many
 SELECT id, company_id, field_id, version, provider, value_enc, external_ref, blob_key, file_name, content_type, size_bytes, aad_version, revealed_at, replaced_by_type, replaced_by_id, created_at, replaced_at FROM secret_field_versions WHERE company_id = $1 AND field_id = $2 ORDER BY version DESC
 `
@@ -1247,13 +1217,16 @@ func (q *Queries) ListSecretFieldsForRekey(ctx context.Context) ([]ListSecretFie
 }
 
 const listSecretFileFieldsForRekey = `-- name: ListSecretFileFieldsForRekey :many
-SELECT id, company_id, secret_id FROM secret_fields WHERE kind = 'file' AND provider = 'local'
+SELECT f.id, f.company_id, f.secret_id, b.content FROM secret_fields f
+LEFT JOIN secret_field_blobs b ON b.field_id = f.id
+WHERE f.kind = 'file' AND f.provider = 'local'
 `
 
 type ListSecretFileFieldsForRekeyRow struct {
 	ID        uuid.UUID
 	CompanyID uuid.UUID
 	SecretID  uuid.UUID
+	Content   []byte
 }
 
 func (q *Queries) ListSecretFileFieldsForRekey(ctx context.Context) ([]ListSecretFileFieldsForRekeyRow, error) {
@@ -1265,7 +1238,12 @@ func (q *Queries) ListSecretFileFieldsForRekey(ctx context.Context) ([]ListSecre
 	items := []ListSecretFileFieldsForRekeyRow{}
 	for rows.Next() {
 		var i ListSecretFileFieldsForRekeyRow
-		if err := rows.Scan(&i.ID, &i.CompanyID, &i.SecretID); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.CompanyID,
+			&i.SecretID,
+			&i.Content,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

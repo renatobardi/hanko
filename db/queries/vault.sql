@@ -266,11 +266,10 @@ INSERT INTO secret_field_blobs (field_id, company_id, content) VALUES (@field_id
 -- name: GetSecretFieldBlob :one
 SELECT content FROM secret_field_blobs WHERE company_id = @company_id AND field_id = @field_id;
 
--- name: ListSecretFieldBlobsForRekey :many
-SELECT b.field_id, f.secret_id, b.content FROM secret_field_blobs b JOIN secret_fields f ON f.id = b.field_id;
-
 -- name: SetSecretFieldBlob :exec
 UPDATE secret_field_blobs SET content = @content WHERE field_id = @field_id;
 
 -- name: ListSecretFileFieldsForRekey :many
-SELECT id, company_id, secret_id FROM secret_fields WHERE kind = 'file' AND provider = 'local';
+SELECT f.id, f.company_id, f.secret_id, b.content FROM secret_fields f
+LEFT JOIN secret_field_blobs b ON b.field_id = f.id
+WHERE f.kind = 'file' AND f.provider = 'local';
