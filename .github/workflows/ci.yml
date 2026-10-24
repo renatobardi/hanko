@@ -194,8 +194,6 @@ jobs:
           done
           { echo "mode: atomic"; for f in shards/cover-*.out; do tail -n +2 "$f"; done; } > cover.out
       - name: piso de cobertura
-        env:
-          COVERAGE_FLOOR_SERVICE: 99 # TEMPORÁRIO (#51): prova que o piso derruba o check; reverter antes do merge
         run: scripts/coverage-gate.sh cover.out
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
