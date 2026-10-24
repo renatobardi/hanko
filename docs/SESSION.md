@@ -1,3 +1,18 @@
+# Estado da última sessão (cofre, fatia 6, #61)
+Data: 2026-10-24 · branch `feat/61-cofre-saude` · issue #61 (parte de #54)
+
+## Feito
+- Gerador configurável (tamanho 8–128, classes, frase-senha 3–12 palavras de lista embutida) na API, na criação e troca de valor e na UI; sem opções, o padrão de sempre.
+- Relatório de saúde (`vault/health`, só admin, sem rede): repetido por HMAC sem decifrar, velho, sem uso, órfão (usos de persona, integração, ambiente, plugin, canal, gatilho, decisão e git), fraco (campo `password`/`senha` abaixo de 60 bits). Tela em Segredos › Saúde.
+- Alerta `secret_rotation_due` (ADR-0020), um por segredo, fecha ao rotacionar. PATCH de descrição e prazo do item.
+
+## Travado
+- Nada. Fora do escopo: "marca explícita" de senha (ADR-0068 §7.2); hoje vale só o nome do campo.
+
+## Próximo passo
+- Depois do deploy, `hanko secret rekey` uma vez: preenche o HMAC dos campos antigos (sem ele, repetidos entre campos anteriores não aparecem).
+- QA: demo do critério `qa` da #61 (repetido, órfão e velho no relatório; alerta dispara).
+
 # Estado da última sessão (envio por link, fatia 4 do cofre, #59)
 Data: 2026-10-24 · branch `sessao/59-cofre-envio-link` · issue #59 (parte de #54)
 

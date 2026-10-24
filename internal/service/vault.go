@@ -36,6 +36,7 @@ type SecretFieldValueInput struct {
 	Provider    domain.SecretProvider
 	Value       string
 	Generate    bool
+	Gen         domain.GenOptions // opções do gerador (ADR-0068 §7.1); só com Generate
 	ExternalRef string
 }
 
@@ -190,7 +191,7 @@ func (s *Service) prepareFieldMaterial(secretID, fieldID uuid.UUID, in SecretFie
 	if providerOf(in) == domain.SecretProviderVault && kind == domain.SecretFieldTOTP {
 		return secretMaterial{}, domain.Invalid("provider", "semente TOTP é guardada cifrada no Hanko (provider local)")
 	}
-	m, err := s.prepareMaterialAAD(fieldAAD(secretID, fieldID), in.Provider, in.Value, in.Generate, in.ExternalRef)
+	m, err := s.prepareMaterialAAD(fieldAAD(secretID, fieldID), in.Provider, in.Value, in.Generate, in.Gen, in.ExternalRef)
 	if err != nil {
 		return m, err
 	}
@@ -278,7 +279,7 @@ func (s *Service) CreateSecretField(ctx context.Context, actor domain.Actor, com
 			}
 			row, err = t.q.CreateSecretField(t.ctx, store.CreateSecretFieldParams{ID: id, CompanyID: companyID, SecretID: sec.ID,
 				Name: in.Name, Kind: string(kind), Sensitive: sensitive, Provider: string(m.provider), ValueEnc: m.enc,
-				ExternalRef: m.ext, AadVersion: 1, Position: i32(pos), RevealedAt: revealedAt, Now: t.now})
+				ExternalRef: m.ext, ValueHmac: m.mac, AadVersion: 1, Position: i32(pos), RevealedAt: revealedAt, Now: t.now})
 			if err != nil {
 				return mapErr(err, "create secret field")
 			}
@@ -448,7 +449,7 @@ func (s *Service) rotateFieldTx(t *txc, actor domain.Actor, companyID domain.ID,
 		revealedAt = &n
 	}
 	row, err := t.q.RotateSecretField(t.ctx, store.RotateSecretFieldParams{ID: f.ID, CompanyID: companyID,
-		Provider: string(m.provider), ValueEnc: m.enc, ExternalRef: m.ext, AadVersion: 1, RevealedAt: revealedAt, Now: t.now})
+		Provider: string(m.provider), ValueEnc: m.enc, ExternalRef: m.ext, ValueHmac: m.mac, AadVersion: 1, RevealedAt: revealedAt, Now: t.now})
 	if err != nil {
 		return store.SecretField{}, mapErr(err, "rotate secret field")
 	}

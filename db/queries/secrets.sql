@@ -24,6 +24,11 @@ SELECT * FROM secrets WHERE company_id = @company_id AND scope = 'company' ORDER
 -- Só os do dono: nenhuma outra consulta devolve segredo de usuário.
 SELECT * FROM secrets WHERE company_id = @company_id AND scope = 'user' AND owner_user_id = @owner_user_id ORDER BY name;
 
+-- name: UpdateSecretMeta :execrows
+-- Descrição e prazo de rotação do item (ADR-0068 §7). Não mexe em valor nem em versão.
+UPDATE secrets SET description = @description, rotate_after_days = sqlc.narg(rotate_after_days), updated_at = @now
+WHERE id = @id AND company_id = @company_id;
+
 -- name: RotateSecret :one
 UPDATE secrets SET provider = @provider, value_enc = @value_enc, external_ref = @external_ref, version = version + 1,
        revealed_at = sqlc.narg(revealed_at), description = @description, updated_at = @now

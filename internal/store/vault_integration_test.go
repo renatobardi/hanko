@@ -163,9 +163,16 @@ func TestVaultQueries(t *testing.T) {
 	field(prd, "password", "h1", now.Add(-31*24*time.Hour))
 	field(prd, "username", "", now.Add(-time.Hour))
 	field(gh, "token", "h1", now.Add(-365*24*time.Hour))
-	due, err := q.ListSecretsDueRotation(ctx, store.ListSecretsDueRotationParams{CompanyID: co, Now: now})
+	vencidos, err := q.ListSecretsDueRotation(ctx, now)
 	if err != nil {
 		t.Fatal(err)
+	}
+	// a consulta é global (o alerta roda sobre todas as empresas): aqui só interessa a linha desta empresa
+	var due []store.ListSecretsDueRotationRow
+	for _, d := range vencidos {
+		if d.CompanyID == co {
+			due = append(due, d)
+		}
 	}
 	if len(due) != 1 || due[0].SecretName != "prd" || due[0].FieldName != "password" || due[0].LimitDays != 30 {
 		t.Fatalf("rotação vencida = %+v, quer só prd#password (gh não tem prazo)", due)

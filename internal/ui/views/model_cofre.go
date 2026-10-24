@@ -51,6 +51,29 @@ type CollectionSecretVM struct {
 }
 
 // CollectionsVM é a página de coleções (lista e criação).
+// SecretsHealthVM é a página de saúde dos segredos (ADR-0068 §7.2).
+type SecretsHealthVM struct {
+	Sections []TabLink
+	Error    string
+	BackHref string
+	Counts   []HealthCountVM
+	Rows     []HealthRowVM
+}
+
+// HealthCountVM é a contagem de uma categoria do relatório.
+type HealthCountVM struct {
+	Label string
+	Count int
+}
+
+// HealthRowVM é um achado do relatório, sem valor.
+type HealthRowVM struct {
+	Kind   string
+	Secret string
+	Field  string
+	Detail string
+}
+
 type CollectionsVM struct {
 	Sections   []TabLink
 	Notice     string

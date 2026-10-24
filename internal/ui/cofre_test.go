@@ -25,10 +25,20 @@ type cofreFake struct {
 	*uitest.Fake
 	removed []string
 	deleted []string
+	gen     []domain.GenOptions // opções do gerador que chegaram ao backend, na ordem
 }
 
-func (c *cofreFake) CreateSecretField(context.Context, domain.Actor, domain.ID, domain.SecretScope, string, service.CreateSecretFieldInput) (service.SecretFieldView, error) {
+func (c *cofreFake) CreateSecretField(_ context.Context, _ domain.Actor, _ domain.ID, _ domain.SecretScope, _ string, in service.CreateSecretFieldInput) (service.SecretFieldView, error) {
+	c.gen = append(c.gen, in.Gen)
 	return service.SecretFieldView{}, nil
+}
+
+// VaultHealth devolve um achado de cada categoria, para a página de saúde ter linhas para mostrar.
+func (c *cofreFake) VaultHealth(context.Context, domain.ID) (service.HealthReport, error) {
+	return service.HealthReport{Findings: []domain.HealthFinding{
+		{Kind: domain.HealthOrphan, Secret: "solto", Detail: "nenhuma persona, integração, ambiente, plugin, canal ou gatilho usa este segredo"},
+		{Kind: domain.HealthStale, Secret: "velho", Field: "value", Detail: "sem rotação há 100 dias (prazo 30)"},
+	}}, nil
 }
 
 func (c *cofreFake) ListSecretFields(context.Context, domain.ID, domain.SecretScope, string) ([]service.SecretFieldView, error) {
@@ -42,7 +52,8 @@ func (c *cofreFake) UpdateSecretFieldMeta(context.Context, domain.Actor, domain.
 	return service.SecretFieldView{}, nil
 }
 
-func (c *cofreFake) RotateSecretField(context.Context, domain.Actor, domain.ID, domain.SecretScope, string, string, service.SecretFieldValueInput) (service.SecretFieldView, error) {
+func (c *cofreFake) RotateSecretField(_ context.Context, _ domain.Actor, _ domain.ID, _ domain.SecretScope, _ string, _ string, in service.SecretFieldValueInput) (service.SecretFieldView, error) {
+	c.gen = append(c.gen, in.Gen)
 	return service.SecretFieldView{}, nil
 }
 

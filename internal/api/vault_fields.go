@@ -30,6 +30,9 @@ type vaultBackend interface {
 	AddSecretToCollection(ctx context.Context, actor domain.Actor, companyID domain.ID, idOrName, secretName string) error
 	RemoveSecretFromCollection(ctx context.Context, actor domain.Actor, companyID domain.ID, idOrName, secretName string) error
 	ListCollectionGrants(ctx context.Context, companyID domain.ID, idOrName string) ([]service.CollectionGrantView, error)
+	GenerateValue(ctx context.Context, o domain.GenOptions) (domain.Generated, error)
+	VaultHealth(ctx context.Context, companyID domain.ID) (service.HealthReport, error)
+	UpdateSecretMeta(ctx context.Context, actor domain.Actor, companyID domain.ID, name string, in service.SecretMetaInput) (service.SecretView, error)
 }
 
 // vaultOp põe a guarda do cofre (run token, backend, empresa e ator) antes de cada operação da API.
@@ -99,7 +102,7 @@ func secretFieldOut(v service.SecretFieldView, secretName string, scope domain.S
 
 func fieldValueIn(v SecretFieldValue) service.SecretFieldValueInput {
 	return service.SecretFieldValueInput{Provider: domain.SecretProvider(v.Provider), Value: v.Value,
-		Generate: v.Generate, ExternalRef: v.ExternalRef}
+		Generate: v.Generate, Gen: v.Generator.opts(), ExternalRef: v.ExternalRef}
 }
 
 // registerFieldWrites registra as operações de campo que já ligam o service (criar, listar, mudar, trocar valor).

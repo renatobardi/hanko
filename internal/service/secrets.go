@@ -55,6 +55,7 @@ type CreateSecretInput struct {
 	Provider    domain.SecretProvider // padrão local
 	Value       string
 	Generate    bool
+	Gen         domain.GenOptions // opções do gerador (ADR-0068 §7.1); só com Generate
 	ExternalRef string
 }
 
@@ -63,6 +64,7 @@ type RotateSecretInput struct {
 	Provider    domain.SecretProvider // vazio = mantém o atual
 	Value       string
 	Generate    bool
+	Gen         domain.GenOptions // opções do gerador; só com Generate
 	ExternalRef string
 	Description *string
 }
@@ -86,8 +88,8 @@ func secretAAD(id uuid.UUID) string { return "secret/" + id.String() }
 
 func secretFromRow(r store.Secret) domain.Secret {
 	return domain.Secret{ID: r.ID, CompanyID: r.CompanyID, Scope: domain.SecretScope(r.Scope), Name: r.Name, Description: r.Description,
-		Provider: domain.SecretProvider(r.Provider), ExternalRef: r.ExternalRef, Version: int(r.Version), RevealedAt: r.RevealedAt,
-		LastUsedAt: r.LastUsedAt, CreatedBy: actorOf(r.CreatedByType, r.CreatedByID), CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt}
+		Provider: domain.SecretProvider(r.Provider), ExternalRef: r.ExternalRef, Version: int(r.Version), RotateAfterDays: rotateDays(r.RotateAfterDays),
+		RevealedAt: r.RevealedAt, LastUsedAt: r.LastUsedAt, CreatedBy: actorOf(r.CreatedByType, r.CreatedByID), CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt}
 }
 
 // secretCaller valida quem chama e devolve o usuário (nil no escopo company, ou sem identidade).
@@ -145,29 +147,46 @@ func newGeneratedSecret() (string, error) {
 	return "hk_" + base64.RawURLEncoding.EncodeToString(b), nil
 }
 
+// generatedValue gera o valor pedido: sem opções, o padrão de sempre (hk_ + 32 bytes); com opções, o gerador
+// configurável (ADR-0068 §7.1). Não grava nada: quem chama decide o que faz com o valor.
+func generatedValue(o domain.GenOptions) (string, error) {
+	if o.IsZero() {
+		return newGeneratedSecret()
+	}
+	g, err := domain.Generate(o)
+	if err != nil {
+		return "", err
+	}
+	return g.Value, nil
+}
+
 // secretMaterial é o que vai para a linha: valor cifrado ou referência no cofre.
 type secretMaterial struct {
 	provider  domain.SecretProvider
 	enc       string
 	ext       string
+	mac       string // HMAC do valor, para achar repetidos sem decifrar (ADR-0068 §7.2); vazio no cofre externo
 	revealed  bool   // o valor sai na resposta (gerado pelo servidor)
 	plaintext string // só quando revealed
 	plain     []byte // o valor em claro, só em memória, para cifrar de novo com outro AAD (campo `value`)
 }
 
 // prepareMaterial valida a combinação valor/geração/cofre e cifra. id é o do segredo (entra no AAD).
-func (s *Service) prepareMaterial(id uuid.UUID, provider domain.SecretProvider, value string, generate bool, ext string) (secretMaterial, error) {
-	return s.prepareMaterialAAD(secretAAD(id), provider, value, generate, ext)
+func (s *Service) prepareMaterial(id uuid.UUID, provider domain.SecretProvider, value string, generate bool, gen domain.GenOptions, ext string) (secretMaterial, error) {
+	return s.prepareMaterialAAD(secretAAD(id), provider, value, generate, gen, ext)
 }
 
 // prepareMaterialAAD é prepareMaterial com o AAD explícito: um campo do cofre cifra com
 // `secret/<segredo>/field/<campo>` (ADR-0068 §1.5), o segredo inteiro com `secret/<segredo>` (ADR-0050).
-func (s *Service) prepareMaterialAAD(aad string, provider domain.SecretProvider, value string, generate bool, ext string) (secretMaterial, error) {
+func (s *Service) prepareMaterialAAD(aad string, provider domain.SecretProvider, value string, generate bool, gen domain.GenOptions, ext string) (secretMaterial, error) {
 	if provider == "" {
 		provider = domain.SecretProviderLocal
 	}
 	if !provider.Valid() {
 		return secretMaterial{}, domain.Invalid("provider", "must be local or vault")
+	}
+	if !generate && !gen.IsZero() {
+		return secretMaterial{}, domain.Invalid("generator", "as opções do gerador valem só com gerar (generate)")
 	}
 	if provider == domain.SecretProviderVault {
 		if value != "" || generate {
@@ -192,7 +211,7 @@ func (s *Service) prepareMaterialAAD(aad string, provider domain.SecretProvider,
 	case value != "" && generate:
 		return secretMaterial{}, domain.Invalid("value", "informe o valor ou peça para gerar, não os dois")
 	case generate:
-		v, err := newGeneratedSecret()
+		v, err := generatedValue(gen)
 		if err != nil {
 			return secretMaterial{}, err
 		}
@@ -208,6 +227,9 @@ func (s *Service) prepareMaterialAAD(aad string, provider domain.SecretProvider,
 	}
 	m.enc = enc
 	m.plain = []byte(value)
+	if m.mac, err = s.secretBox().MAC(m.plain); err != nil {
+		return secretMaterial{}, fmt.Errorf("mac secret: %w", err)
+	}
 	return m, nil
 }
 
@@ -237,7 +259,7 @@ func (s *Service) CreateSecret(ctx context.Context, actor domain.Actor, companyI
 		return SecretView{}, err
 	}
 	id := domain.NewID()
-	m, err := s.prepareMaterial(id, in.Provider, in.Value, in.Generate, in.ExternalRef)
+	m, err := s.prepareMaterial(id, in.Provider, in.Value, in.Generate, in.Gen, in.ExternalRef)
 	if err != nil {
 		return SecretView{}, err
 	}
@@ -300,7 +322,7 @@ func (s *Service) createValueFieldTx(t *txc, companyID domain.ID, sec store.Secr
 	}
 	_, err = t.q.CreateSecretField(t.ctx, store.CreateSecretFieldParams{ID: id, CompanyID: companyID, SecretID: sec.ID,
 		Name: domain.DefaultSecretField, Kind: string(domain.SecretFieldText), Sensitive: true, Provider: string(m.provider),
-		ValueEnc: enc, ExternalRef: m.ext, AadVersion: 1, Position: 0, RevealedAt: revealedAt, Now: t.now})
+		ValueEnc: enc, ExternalRef: m.ext, ValueHmac: m.mac, AadVersion: 1, Position: 0, RevealedAt: revealedAt, Now: t.now})
 	return mapErr(err, "create value field")
 }
 
@@ -353,7 +375,7 @@ func (s *Service) RotateSecret(ctx context.Context, actor domain.Actor, companyI
 		if provider == "" {
 			provider = domain.SecretProvider(cur.Provider)
 		}
-		m, err := s.prepareMaterial(cur.ID, provider, in.Value, in.Generate, in.ExternalRef)
+		m, err := s.prepareMaterial(cur.ID, provider, in.Value, in.Generate, in.Gen, in.ExternalRef)
 		if err != nil {
 			return err
 		}
@@ -603,6 +625,51 @@ func (s *Service) secretUsage(ctx context.Context, q *store.Queries, companyID d
 			refs = append(refs, secretref.Find(v)...)
 		}
 		add(refs, domain.SecretUse{Kind: "integration", Slug: it.Slug, Name: it.Name})
+	}
+	// ambientes, plugins e credencial git também guardam referências (ADR-0068 §7.2 "órfão"): o relatório de saúde
+	// precisa vê-las para não apontar como órfão um segredo que o ambiente ou o plugin usa.
+	envs, err := q.ListEnvironments(ctx, companyID)
+	if err != nil {
+		return nil, fmt.Errorf("list environments: %w", err)
+	}
+	for _, e := range envs {
+		if e.SecretEnc == "" {
+			continue
+		}
+		v, err := s.openEnvironment(e.ID, e.SecretEnc)
+		if err != nil {
+			continue
+		}
+		var refs []secretref.Ref
+		for _, t := range v.refTexts() {
+			refs = append(refs, secretref.Find(t)...)
+		}
+		add(refs, domain.SecretUse{Kind: "environment", Slug: e.Slug, Name: e.Name})
+	}
+	plugs, err := q.ListAllPluginSecrets(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list plugin secrets: %w", err)
+	}
+	for _, p := range plugs {
+		if p.CompanyID != companyID {
+			continue
+		}
+		vals, err := s.openPluginSecrets(p.PluginID, p.CompanyID, p.SecretEnc)
+		if err != nil {
+			continue
+		}
+		var refs []secretref.Ref
+		for _, t := range vals {
+			refs = append(refs, secretref.Find(t)...)
+		}
+		add(refs, domain.SecretUse{Kind: "plugin", Slug: p.PluginID.String(), Name: "plugin"})
+	}
+	gits, err := q.ListWorkspaceGit(ctx, companyID)
+	if err != nil {
+		return nil, fmt.Errorf("list workspace git: %w", err)
+	}
+	for _, g := range gits {
+		add(secretref.Find(g.CredentialRef), domain.SecretUse{Kind: "workspace_git", Slug: g.WorkspaceID.String(), Name: "credencial git"})
 	}
 	for k := range uses {
 		slices.SortFunc(uses[k], func(a, b domain.SecretUse) int { return strings.Compare(a.Kind+a.Slug, b.Kind+b.Slug) })
@@ -873,7 +940,7 @@ func (s *Service) upsertCompanySecretTx(t *txc, actor domain.Actor, companyID do
 	cur, err := t.q.GetCompanySecretByNameForUpdate(t.ctx, store.GetCompanySecretByNameForUpdateParams{CompanyID: companyID, Name: name})
 	switch {
 	case err == nil:
-		m, err := s.prepareMaterial(cur.ID, domain.SecretProviderLocal, value, false, "")
+		m, err := s.prepareMaterial(cur.ID, domain.SecretProviderLocal, value, false, domain.GenOptions{}, "")
 		if err != nil {
 			return err
 		}
@@ -886,7 +953,7 @@ func (s *Service) upsertCompanySecretTx(t *txc, actor domain.Actor, companyID do
 		return fmt.Errorf("get secret: %w", err)
 	}
 	id := domain.NewID()
-	m, err := s.prepareMaterial(id, domain.SecretProviderLocal, value, false, "")
+	m, err := s.prepareMaterial(id, domain.SecretProviderLocal, value, false, domain.GenOptions{}, "")
 	if err != nil {
 		return err
 	}
@@ -994,12 +1061,6 @@ func (s *Service) rekeySecrets(ctx context.Context) (int, error) {
 				return w.SetSecretValueEnc(ctx, store.SetSecretValueEncParams{ID: r.ID, ValueEnc: enc})
 			}})
 	}
-	for _, f := range fields {
-		targets = append(targets, rekeyTarget{label: "campo " + f.ID.String(), enc: f.ValueEnc, aad: fieldAADFor(f.AadVersion, f.SecretID, f.ID),
-			save: func(ctx context.Context, enc string) error {
-				return w.SetSecretFieldValueEnc(ctx, store.SetSecretFieldValueEncParams{ID: f.ID, ValueEnc: enc, AadVersion: f.AadVersion})
-			}})
-	}
 	for _, v := range versions {
 		targets = append(targets, rekeyTarget{label: "histórico do campo " + v.FieldID.String(), enc: v.ValueEnc,
 			aad: fieldVersionAADFor(v.AadVersion, v.SecretID, v.FieldID, int(v.Version)),
@@ -1008,6 +1069,32 @@ func (s *Service) rekeySecrets(ctx context.Context) (int, error) {
 			}})
 	}
 	n := 0
+	// campo: abre cada um também para recalcular o HMAC, que muda com a chave (ADR-0068 §7.2); o MAC antigo não serve
+	// de comparação depois de uma rotação, então o campo é regravado quando o texto ou o MAC mudou.
+	for _, f := range fields {
+		aad := fieldAADFor(f.AadVersion, f.SecretID, f.ID)
+		plain, err := s.secretBox().Open(f.ValueEnc, aad)
+		if err != nil {
+			return n, fmt.Errorf("campo %s: %w", f.ID, err)
+		}
+		mac, err := s.secretBox().MAC(plain)
+		if err != nil {
+			return n, fmt.Errorf("campo %s: %w", f.ID, err)
+		}
+		enc := f.ValueEnc
+		if s.secretBox().NeedsReseal(enc) {
+			if enc, err = s.secretBox().Seal(plain, aad); err != nil {
+				return n, fmt.Errorf("campo %s: %w", f.ID, err)
+			}
+		}
+		if enc == f.ValueEnc && mac == f.ValueHmac {
+			continue
+		}
+		if err := w.SetSecretFieldValueEnc(ctx, store.SetSecretFieldValueEncParams{ID: f.ID, ValueEnc: enc, AadVersion: f.AadVersion, ValueHmac: mac}); err != nil {
+			return n, fmt.Errorf("campo %s: %w", f.ID, err)
+		}
+		n++
+	}
 	for _, t := range targets {
 		if !s.secretBox().NeedsReseal(t.enc) {
 			continue

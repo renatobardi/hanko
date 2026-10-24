@@ -39,6 +39,8 @@ type Secret struct {
 	ExternalRef string `json:"external_ref,omitempty"`
 	// Version sobe a cada rotação.
 	Version int `json:"version"`
+	// RotateAfterDays é o prazo de rotação do item (nulo = vale o da coleção, se houver); alimenta "velho" e o alerta.
+	RotateAfterDays *int `json:"rotate_after_days,omitempty"`
 	// RevealedAt: quando o valor desta versão foi mostrado (criação com valor gerado, ou "revelar"); nulo = ainda não.
 	RevealedAt *time.Time `json:"revealed_at,omitempty"`
 	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
