@@ -363,31 +363,42 @@ func (s *Service) RotateSecret(ctx context.Context, actor domain.Actor, companyI
 				return err
 			}
 		}
-		var revealedAt *time.Time
-		if m.revealed {
-			n := t.now
-			revealedAt = &n
-		}
-		row, err := t.q.RotateSecret(t.ctx, store.RotateSecretParams{ID: cur.ID, CompanyID: companyID, Provider: string(m.provider),
-			ValueEnc: m.enc, ExternalRef: m.ext, RevealedAt: revealedAt, Description: desc, Now: t.now})
+		row, err := s.rotateSecretTx(t, actor, companyID, cur, m, desc)
 		if err != nil {
-			return mapErr(err, "rotate secret")
-		}
-		// o valor anterior do `value` vai para o histórico do campo; o novo segue cifrado com o AAD do campo
-		f, err := fieldRow(t.ctx, t.q, companyID, cur.ID, domain.DefaultSecretField, true)
-		if err != nil {
-			return err
-		}
-		if m.enc, err = s.sealMaterialFor(m, fieldAAD(cur.ID, f.ID)); err != nil {
-			return err
-		}
-		if _, err := s.rotateFieldTx(t, actor, companyID, f, m); err != nil {
 			return err
 		}
 		out = SecretView{Secret: secretFromRow(row), RevealedValue: m.plaintext}
 		return t.activity(actor, companyID, "secret.rotated", "secret", row.ID, secretEventData(row), "")
 	})
 	return out, err
+}
+
+// rotateSecretTx troca o valor do segredo cur na transação: a linha do segredo recebe a cópia legada (m.enc) e o
+// campo value recebe o valor novo, com o valor anterior no histórico. Todo caminho que troca o valor de um segredo
+// passa aqui, para o campo e a cópia legada não divergirem. Quem chama emite o fato.
+func (s *Service) rotateSecretTx(t *txc, actor domain.Actor, companyID domain.ID, cur store.Secret, m secretMaterial, desc string) (store.Secret, error) {
+	var revealedAt *time.Time
+	if m.revealed {
+		n := t.now
+		revealedAt = &n
+	}
+	row, err := t.q.RotateSecret(t.ctx, store.RotateSecretParams{ID: cur.ID, CompanyID: companyID, Provider: string(m.provider),
+		ValueEnc: m.enc, ExternalRef: m.ext, RevealedAt: revealedAt, Description: desc, Now: t.now})
+	if err != nil {
+		return row, mapErr(err, "rotate secret")
+	}
+	// o valor anterior do `value` vai para o histórico do campo; o novo segue cifrado com o AAD do campo
+	f, err := fieldRow(t.ctx, t.q, companyID, cur.ID, domain.DefaultSecretField, true)
+	if err != nil {
+		return row, err
+	}
+	if m.enc, err = s.sealMaterialFor(m, fieldAAD(cur.ID, f.ID)); err != nil {
+		return row, err
+	}
+	if _, err := s.rotateFieldTx(t, actor, companyID, f, m); err != nil {
+		return row, err
+	}
+	return row, nil
 }
 
 // RevealSecret mostra o valor, uma única vez por versão (admin da empresa; o dono, no escopo user). A segunda
@@ -589,7 +600,8 @@ func (s *Service) secretUsage(ctx context.Context, q *store.Queries, companyID d
 	return uses, nil
 }
 
-// checkSecretRefs confere que cada referência de company existe e recusa as de user (configuração compartilhada).
+// checkSecretRefs confere que cada referência de company existe, com o campo que ela lê, e recusa as de user
+// (configuração compartilhada).
 func (s *Service) checkSecretRefs(ctx context.Context, q *store.Queries, companyID domain.ID, field string, texts ...string) error {
 	seen := map[string]bool{}
 	for _, text := range texts {
@@ -597,15 +609,22 @@ func (s *Service) checkSecretRefs(ctx context.Context, q *store.Queries, company
 			if r.User {
 				return domain.Invalid(field, fmt.Sprintf("%s: segredo de usuário não vale em configuração compartilhada", r.String()))
 			}
-			if seen[r.Name] {
+			if seen[r.Name+"#"+r.FieldName()] {
 				continue
 			}
-			seen[r.Name] = true
-			if _, err := q.GetCompanySecretByName(ctx, store.GetCompanySecretByNameParams{CompanyID: companyID, Name: r.Name}); err != nil {
+			seen[r.Name+"#"+r.FieldName()] = true
+			sec, err := q.GetCompanySecretByName(ctx, store.GetCompanySecretByNameParams{CompanyID: companyID, Name: r.Name})
+			if err != nil {
 				if isNoRows(err) {
 					return domain.Invalid(field, fmt.Sprintf("o segredo %q não existe (crie-o em Configurações › Segredos)", r.Name))
 				}
 				return fmt.Errorf("check secret ref: %w", err)
+			}
+			if _, err := q.GetSecretField(ctx, store.GetSecretFieldParams{CompanyID: companyID, SecretID: sec.ID, Name: r.FieldName()}); err != nil {
+				if isNoRows(err) {
+					return domain.Invalid(field, fmt.Sprintf("o campo %q do segredo %q não existe", r.FieldName(), r.Name))
+				}
+				return fmt.Errorf("check secret field: %w", err)
 			}
 		}
 	}
@@ -647,24 +666,34 @@ func (s *Service) resolveRef(ctx context.Context, companyID domain.ID, r secretr
 		}
 		return "", fmt.Errorf("ler segredo: %w", err)
 	}
-	provider = row.Provider
-	switch domain.SecretProvider(row.Provider) {
+	// o campo da referência (ADR-0068 §2): o provider e o valor são os dele, não os do item
+	f, err := q.GetSecretField(ctx, store.GetSecretFieldParams{CompanyID: companyID, SecretID: row.ID, Name: r.FieldName()})
+	if err != nil {
+		if isNoRows(err) {
+			return "", fmt.Errorf("o campo %q não existe", r.FieldName())
+		}
+		return "", fmt.Errorf("ler campo: %w", err)
+	}
+	provider = f.Provider
+	switch domain.SecretProvider(f.Provider) {
 	case domain.SecretProviderVault:
 		if s.Vault == nil {
 			return "", errors.New("cofre externo não configurado")
 		}
-		val, err = s.Vault.Get(ctx, row.ExternalRef)
+		val, err = s.Vault.Get(ctx, f.ExternalRef)
 		if err != nil {
 			return "", fmt.Errorf("cofre: %w", err)
 		}
 	default:
-		plain, oerr := s.secretBox().Open(row.ValueEnc, secretAAD(row.ID))
+		plain, oerr := s.openField(f, row.ID)
 		if oerr != nil {
 			return "", fmt.Errorf("decifrar: %w", oerr)
 		}
 		val = string(plain)
 	}
-	_ = q.TouchSecretUsed(ctx, store.TouchSecretUsedParams{ID: row.ID, CompanyID: companyID, Now: ptrTime(s.Now().UTC())})
+	now := ptrTime(s.Now().UTC())
+	_ = q.TouchSecretUsed(ctx, store.TouchSecretUsedParams{ID: row.ID, CompanyID: companyID, Now: now})
+	_ = q.TouchSecretFieldUsed(ctx, store.TouchSecretFieldUsedParams{ID: f.ID, CompanyID: companyID, Now: now})
 	return val, nil
 }
 
@@ -816,10 +845,9 @@ func (s *Service) upsertCompanySecretTx(t *txc, actor domain.Actor, companyID do
 		if err != nil {
 			return err
 		}
-		row, err := t.q.RotateSecret(t.ctx, store.RotateSecretParams{ID: cur.ID, CompanyID: companyID, Provider: string(m.provider),
-			ValueEnc: m.enc, Description: cur.Description, Now: t.now})
+		row, err := s.rotateSecretTx(t, actor, companyID, cur, m, cur.Description)
 		if err != nil {
-			return mapErr(err, "rotate secret")
+			return err
 		}
 		return t.activity(actor, companyID, "secret.rotated", "secret", row.ID, secretEventData(row), "")
 	case !isNoRows(err):
@@ -903,27 +931,65 @@ func (s *Service) CountPersonasWithPlainEnv(ctx context.Context) (int, error) {
 
 func ptrTime(t time.Time) *time.Time { return &t }
 
-// rekeySecrets reescreve com a chave atual os segredos (empresa e usuário) cifrados com a chave anterior.
+// rekeyTarget é uma linha cifrada a reescrever: o texto atual, o AAD que o amarra e a gravação do texto novo.
+type rekeyTarget struct {
+	label string
+	enc   string
+	aad   string
+	save  func(ctx context.Context, enc string) error
+}
+
+// rekeySecrets reescreve com a chave atual o que foi cifrado com a chave anterior: o segredo (legado), cada campo e
+// cada linha do histórico (ADR-0068 §1.3 e §3.1). Cada linha usa o AAD do seu aad_version.
 func (s *Service) rekeySecrets(ctx context.Context) (int, error) {
-	rows, err := s.read().ListAllSecretsForRekey(ctx)
+	q, w := s.read(), store.New(s.Pool)
+	secrets, err := q.ListAllSecretsForRekey(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("list secrets: %w", err)
 	}
+	fields, err := q.ListSecretFieldsForRekey(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("list secret fields: %w", err)
+	}
+	versions, err := q.ListSecretFieldVersionsForRekey(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("list secret field versions: %w", err)
+	}
+	var targets []rekeyTarget
+	for _, r := range secrets {
+		targets = append(targets, rekeyTarget{label: "segredo " + r.ID.String(), enc: r.ValueEnc, aad: secretAAD(r.ID),
+			save: func(ctx context.Context, enc string) error {
+				return w.SetSecretValueEnc(ctx, store.SetSecretValueEncParams{ID: r.ID, ValueEnc: enc})
+			}})
+	}
+	for _, f := range fields {
+		targets = append(targets, rekeyTarget{label: "campo " + f.ID.String(), enc: f.ValueEnc, aad: fieldAADFor(f.AadVersion, f.SecretID, f.ID),
+			save: func(ctx context.Context, enc string) error {
+				return w.SetSecretFieldValueEnc(ctx, store.SetSecretFieldValueEncParams{ID: f.ID, ValueEnc: enc, AadVersion: f.AadVersion})
+			}})
+	}
+	for _, v := range versions {
+		targets = append(targets, rekeyTarget{label: "histórico do campo " + v.FieldID.String(), enc: v.ValueEnc,
+			aad: fieldVersionAADFor(v.AadVersion, v.SecretID, v.FieldID, int(v.Version)),
+			save: func(ctx context.Context, enc string) error {
+				return w.SetSecretFieldVersionValueEnc(ctx, store.SetSecretFieldVersionValueEncParams{ID: v.ID, ValueEnc: enc})
+			}})
+	}
 	n := 0
-	for _, r := range rows {
-		if !s.secretBox().NeedsReseal(r.ValueEnc) {
+	for _, t := range targets {
+		if !s.secretBox().NeedsReseal(t.enc) {
 			continue
 		}
-		plain, err := s.secretBox().Open(r.ValueEnc, secretAAD(r.ID))
+		plain, err := s.secretBox().Open(t.enc, t.aad)
 		if err != nil {
-			return n, fmt.Errorf("segredo %s: %w", r.ID, err)
+			return n, fmt.Errorf("%s: %w", t.label, err)
 		}
-		enc, err := s.secretBox().Seal(plain, secretAAD(r.ID))
+		enc, err := s.secretBox().Seal(plain, t.aad)
 		if err != nil {
-			return n, fmt.Errorf("segredo %s: %w", r.ID, err)
+			return n, fmt.Errorf("%s: %w", t.label, err)
 		}
-		if err := store.New(s.Pool).SetSecretValueEnc(ctx, store.SetSecretValueEncParams{ID: r.ID, ValueEnc: enc}); err != nil {
-			return n, fmt.Errorf("segredo %s: %w", r.ID, err)
+		if err := t.save(ctx, enc); err != nil {
+			return n, fmt.Errorf("%s: %w", t.label, err)
 		}
 		n++
 	}

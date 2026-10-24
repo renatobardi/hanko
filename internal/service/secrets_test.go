@@ -512,17 +512,17 @@ func TestSecretRekeyAndAAD(t *testing.T) {
 	a := e.create(t, "a", sentinel)
 	b := e.create(t, "b", sentinelB)
 
-	// o texto cifrado de "a" colado na linha de "b" não decifra (AAD = id do segredo)
+	// o texto cifrado do campo value de "a" colado no campo value de "b" não decifra (AAD = id do campo)
 	var encA, encB string
-	_ = e.svc.Pool.QueryRow(bg, `SELECT value_enc FROM secrets WHERE id=$1`, a.ID).Scan(&encA)
-	_ = e.svc.Pool.QueryRow(bg, `SELECT value_enc FROM secrets WHERE id=$1`, b.ID).Scan(&encB)
-	if _, err := e.svc.Pool.Exec(bg, `UPDATE secrets SET value_enc=$2 WHERE id=$1`, b.ID, encA); err != nil {
+	_ = e.svc.Pool.QueryRow(bg, `SELECT value_enc FROM secret_fields WHERE secret_id=$1 AND name='value'`, a.ID).Scan(&encA)
+	_ = e.svc.Pool.QueryRow(bg, `SELECT value_enc FROM secret_fields WHERE secret_id=$1 AND name='value'`, b.ID).Scan(&encB)
+	if _, err := e.svc.Pool.Exec(bg, `UPDATE secret_fields SET value_enc=$2 WHERE secret_id=$1 AND name='value'`, b.ID, encA); err != nil {
 		t.Fatal(err)
 	}
 	if _, _, err := e.svc.ResolveSecretText(bg, e.co.ID, "${secret:b}"); err == nil {
 		t.Fatal("copiar o texto cifrado para outra linha não pode decifrar")
 	}
-	if _, err := e.svc.Pool.Exec(bg, `UPDATE secrets SET value_enc=$2 WHERE id=$1`, b.ID, encB); err != nil {
+	if _, err := e.svc.Pool.Exec(bg, `UPDATE secret_fields SET value_enc=$2 WHERE secret_id=$1 AND name='value'`, b.ID, encB); err != nil {
 		t.Fatal(err)
 	}
 

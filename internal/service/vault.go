@@ -75,19 +75,28 @@ func itoa(n int) string {
 // openField decifra o valor de um campo conforme o aad_version: 0 é o AAD legado `secret/<secret_id>` do
 // segredo migrado (ADR-0068 §1.7); 1 é o AAD por campo.
 func (s *Service) openField(r store.SecretField, secretID uuid.UUID) ([]byte, error) {
-	aad := fieldAAD(secretID, r.ID)
-	if r.AadVersion == 0 {
-		aad = secretAAD(secretID)
-	}
-	return s.secretBox().Open(r.ValueEnc, aad)
+	return s.secretBox().Open(r.ValueEnc, fieldAADFor(r.AadVersion, secretID, r.ID))
 }
 
 // openFieldVersion decifra uma linha do histórico; mesmo significado do aad_version do campo de onde veio.
 func (s *Service) openFieldVersion(v store.SecretFieldVersion, secretID, fieldID uuid.UUID) ([]byte, error) {
-	if v.AadVersion == 0 {
-		return s.secretBox().Open(v.ValueEnc, secretAAD(secretID))
+	return s.secretBox().Open(v.ValueEnc, fieldVersionAADFor(v.AadVersion, secretID, fieldID, int(v.Version)))
+}
+
+// fieldAADFor é o AAD do valor de um campo conforme o aad_version (0 = legado do segredo migrado, 1 = por campo).
+func fieldAADFor(aadVersion int16, secretID, fieldID uuid.UUID) string {
+	if aadVersion == 0 {
+		return secretAAD(secretID)
 	}
-	return s.secretBox().Open(v.ValueEnc, fieldVersionAAD(secretID, fieldID, int(v.Version)))
+	return fieldAAD(secretID, fieldID)
+}
+
+// fieldVersionAADFor é o AAD de uma linha do histórico conforme o aad_version do campo de onde ela veio.
+func fieldVersionAADFor(aadVersion int16, secretID, fieldID uuid.UUID, version int) string {
+	if aadVersion == 0 {
+		return secretAAD(secretID)
+	}
+	return fieldVersionAAD(secretID, fieldID, version)
 }
 
 // secretFieldFromRow mapeia a linha do banco para o domínio.
@@ -1182,12 +1191,19 @@ func (s *Service) requirePersonaUse(ctx context.Context, companyID, personaID do
 	if err != nil {
 		return fmt.Errorf("checar coleções da persona: %w", err)
 	}
-	if ok {
-		return nil
+	if !ok {
+		slug := personaID.String()
+		if p, err := q.GetPersonaByID(ctx, store.GetPersonaByIDParams{CompanyID: companyID, ID: personaID}); err == nil {
+			slug = p.Slug
+		}
+		return fmt.Errorf("a persona %q não alcança %s: nenhuma coleção que contém o item foi concedida a ela (ADR-0068 §2)", slug, r.String())
 	}
-	slug := personaID.String()
-	if p, err := q.GetPersonaByID(ctx, store.GetPersonaByIDParams{CompanyID: companyID, ID: personaID}); err == nil {
-		slug = p.Slug
+	// o alcance é do item, mas a referência lê um campo: o campo tem de existir (sem vazar o valor)
+	if _, err := q.GetSecretField(ctx, store.GetSecretFieldParams{CompanyID: companyID, SecretID: sec.ID, Name: r.FieldName()}); err != nil {
+		if isNoRows(err) {
+			return fmt.Errorf("o campo %q não existe em %s", r.FieldName(), r.Name)
+		}
+		return fmt.Errorf("ler campo: %w", err)
 	}
-	return fmt.Errorf("a persona %q não alcança %s: nenhuma coleção que contém o item foi concedida a ela (ADR-0068 §2)", slug, r.String())
+	return nil
 }
