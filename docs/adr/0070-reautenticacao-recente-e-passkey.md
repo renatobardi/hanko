@@ -1,5 +1,5 @@
 # ADR-0070 — Reautenticação recente e passkey para ações sensíveis do cofre
-Data: 2026-10-24 · Status: proposta · Issue: #54 (decisão 10), contrato em #55, entrega em #57
+Data: 2026-10-24 · Status: aceita (2026-10-24) · Issue: #54 (decisão 10), contrato em #55, entrega em #57
 
 ## Contexto
 O Hanko autentica por sessão em cookie, nos providers `local` (e-mail e senha com argon2id) e `firebase` (ADR-0007,
@@ -30,17 +30,17 @@ identidade, sem mudar o login de todo mundo (2FA no login ficou fora).
 5. **Quem não passa por reautenticação.**
    - **Persona** (run token): nunca chega a essas rotas de humano; as tools de persona (`hanko_secret_get`,
      `hanko_send_create`) são controladas pela política de tools (ADR-0053), com padrão `ask`.
-   - **API key de humano** (CLI, automação): não há como reautenticar de forma interativa. **Ponto para o Bardi
-     aprovar:** este ADR propõe aceitar a ação sensível só com chave de escopo `full` (ADR-0057; a de escopo `read` é
-     recusada com 403) e registrar no fato que a ação veio por API key, com o id da chave. A alternativa é recusar as
-     ações sensíveis por API key, o que impede `hanko secret export` e `import-env` na CLI.
+   - **API key de humano** (CLI, automação): não há como reautenticar de forma interativa. A ação sensível
+     é aceita só com chave de escopo `full` (ADR-0057; a de escopo `read` é recusada com 403), e o fato registra que a
+     ação veio por API key, com o id da chave (aceito pelo Bardi em 2026-10-24, PR #63). Recusar as ações sensíveis por
+     API key foi descartado: impediria `hanko secret export` e `import-env` na CLI.
    - **Modo trusted** (ADR-0017): sem identidade, sem reautenticação; já não há escopo de usuário nesse modo.
 6. **Fatos.** `auth.reauthenticated` (método, sem segredo), `auth.passkey_added|passkey_removed`. Falha de prova entra
    no limitador de login e no log, sem o valor tentado.
 
 ## Dependência nova
 WebAuthn exige validar atestação, CBOR/COSE e assinaturas de vários algoritmos. Escrever isso do zero é a parte mais
-arriscada desta entrega. **Ponto para o Bardi aprovar:** o ADR propõe `github.com/go-webauthn/webauthn` (licença BSD-3,
+arriscada desta entrega. Decisão (aceita pelo Bardi em 2026-10-24, PR #63): usar `github.com/go-webauthn/webauthn` (licença BSD-3,
 sem cgo), usado só em `internal/auth/passkey`, com atestação `none` (o Hanko não precisa provar o modelo do
 autenticador). A regra do ADR-0011 (stdlib primeiro) cede aqui porque a alternativa é uma implementação própria de
 criptografia.

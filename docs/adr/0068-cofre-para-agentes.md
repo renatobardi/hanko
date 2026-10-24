@@ -1,5 +1,5 @@
 # ADR-0068 — Cofre para agentes: campos, coleções, uso na run, histórico, saúde e portabilidade
-Data: 2026-10-24 · Status: proposta · Complementa: ADR-0050 · Issue: #54 (decisões 1–5, 8, 9, 11–14), contrato em #55
+Data: 2026-10-24 · Status: aceita (2026-10-24) · Complementa: ADR-0050 · Issue: #54 (decisões 1–5, 8, 9, 11–14), contrato em #55
 
 ## Contexto
 O ADR-0050 fez do segredo um recurso da empresa: **um valor** cifrado no servidor (`secretbox`, AES-256-GCM),
@@ -58,7 +58,7 @@ servidor de entregar o valor à run, que é o motivo de o cofre existir.
    | `user` | `view` | o humano vê nomes, campos visíveis e uso dos itens da coleção |
    | `user` | `manage` | o humano também cria, rotaciona, revela, restaura e apaga itens da coleção |
 
-   **Desvio da decisão 3, para o Bardi aprovar:** a issue fala em conceder a "times". O Hanko não tem a entidade time:
+   **Desvio da decisão 3 (aceito pelo Bardi em 2026-10-24, PR #63):** a issue fala em conceder a "times". O Hanko não tem a entidade time:
    pacotes de time instalam personas soltas (`db/migrations/00132_pacotes_de_time.sql`, ADR-0044). Este ADR troca "time"
    por `persona_tree` (subárvore do organograma), que é o agrupamento que existe. Se um dia existir a entidade time, ela
    entra como novo `subject_type` sem mudar o resto.
@@ -120,8 +120,8 @@ servidor de entregar o valor à run, que é o motivo de o cofre existir.
 2. **Alcance.** `${secret:user/ITEM#campo}` e `hanko_secret_get` de item pessoal só resolvem numa run cujo alvo tem
    delegação válida do dono. A referência `user/` continua recusada na configuração compartilhada (persona,
    integração, ADR-0050 §3): a delegação é o único caminho.
-3. **Desvio da decisão 11, para o Bardi aprovar:** a issue diz "só para aquela run". A run não existe quando o humano
-   cria a task, e uma task pode gerar várias runs (retentativa, retomada, ADR-0039). Este ADR propõe: a delegação vale
+3. **Desvio da decisão 11 (aceito pelo Bardi em 2026-10-24, PR #63):** a issue diz "só para aquela run". A run não existe quando o humano
+   cria a task, e uma task pode gerar várias runs (retentativa, retomada, ADR-0039). A delegação vale
    para as runs do alvo enquanto ele está aberto, até `expires_at` (padrão 24 h, máximo 7 dias) ou até o dono revogar.
    Uma delegação com `target_type = run` existe para o caso estrito (delegar a uma run já em curso).
 4. **Relatório do dono.** Cada uso vira linha em `secret_access_log` com a delegação. Só o dono vê esse histórico

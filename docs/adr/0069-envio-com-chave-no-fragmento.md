@@ -1,5 +1,5 @@
 # ADR-0069 — Envio: link público com prazo e chave no fragmento
-Data: 2026-10-24 · Status: proposta · Issue: #54 (decisões 6 e 7), contrato em #55, entrega em #59
+Data: 2026-10-24 · Status: aceita (2026-10-24) · Issue: #54 (decisões 6 e 7), contrato em #55, entrega em #59
 
 ## Contexto
 Hoje, para passar uma credencial a alguém de fora (ou de uma persona a um humano), o valor vai por comentário, chat ou
