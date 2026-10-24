@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/google/uuid"
@@ -454,6 +455,9 @@ func (s *Service) passkeyCreds(ctx context.Context, uid domain.ID) ([]passkey.Cr
 	}
 	creds := make([]passkey.Credential, len(rows))
 	for i, r := range rows {
+		if r.SignCount < 0 || r.SignCount > math.MaxUint32 {
+			return nil, nil, fmt.Errorf("passkey: contador de assinatura fora da faixa: %d", r.SignCount)
+		}
 		creds[i] = passkey.Credential{CredentialID: r.CredentialID, PublicKey: r.PublicKey, SignCount: uint32(r.SignCount),
 			AAGUID: uuidBytes(r.Aaguid), Transports: r.Transports, BackupEligible: r.BackupEligible, BackupState: r.BackupState}
 	}

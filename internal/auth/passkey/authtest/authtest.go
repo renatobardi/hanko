@@ -82,13 +82,16 @@ func (a *Authenticator) Create(options json.RawMessage) (json.RawMessage, error)
 	}
 	rpIDHash := sha256.Sum256([]byte(o.RP.ID))
 
-	cose := coseKey(&a.Key.PublicKey)
+	cose, err := coseKey(&a.Key.PublicKey)
+	if err != nil {
+		return nil, err
+	}
 	authData := make([]byte, 0, 37+2+len(a.CredID)+len(cose))
 	authData = append(authData, rpIDHash[:]...)
 	authData = append(authData, 0x5D) // UP | UV | BE | BS | AT
 	authData = binary.BigEndian.AppendUint32(authData, 0)
 	authData = append(authData, a.AAGUID[:]...)
-	authData = binary.BigEndian.AppendUint16(authData, uint16(len(a.CredID)))
+	authData = binary.BigEndian.AppendUint16(authData, uint16(len(a.CredID))) //nolint:gosec // CredID tem 32 bytes (New); cabe em 16 bits
 	authData = append(authData, a.CredID...)
 	authData = append(authData, cose...)
 
@@ -171,9 +174,12 @@ func (a *Authenticator) origin(rpID string) string {
 }
 
 // coseKey monta a chave pública ES256 em COSE (mapa CBOR: kty 2, alg -7, crv 1, x, y).
-func coseKey(pub *ecdsa.PublicKey) []byte {
-	x := pub.X.FillBytes(make([]byte, 32))
-	y := pub.Y.FillBytes(make([]byte, 32))
+func coseKey(pub *ecdsa.PublicKey) ([]byte, error) {
+	raw, err := pub.Bytes() // ponto SEC 1 sem compressão: 0x04 || X || Y, com 32 bytes por coordenada em P-256
+	if err != nil {
+		return nil, fmt.Errorf("authtest: chave pública: %w", err)
+	}
+	x, y := raw[1:33], raw[33:65]
 	out := cborHead(5, 5)             // map(5)
 	out = append(out, cborUint(1)...) // kty
 	out = append(out, cborUint(2)...)
@@ -185,7 +191,7 @@ func coseKey(pub *ecdsa.PublicKey) []byte {
 	out = append(out, cborBytes(x)...)
 	out = append(out, cborNeg(3)...) // y
 	out = append(out, cborBytes(y)...)
-	return out
+	return out, nil
 }
 
 // cborAttestation monta o attestationObject com fmt "none" (atestação none, ADR-0070).
@@ -210,9 +216,9 @@ func cborLen(prefix byte, n uint64) []byte {
 	case n <= 0xff:
 		return []byte{prefix | 24, byte(n)}
 	case n <= 0xffff:
-		return []byte{prefix | 25, byte(n >> 8), byte(n)}
+		return []byte{prefix | 25, byte(n >> 8), byte(n)} //nolint:gosec // n <= 0xffff neste ramo
 	default:
-		return []byte{prefix | 26, byte(n >> 24), byte(n >> 16), byte(n >> 8), byte(n)}
+		return []byte{prefix | 26, byte(n >> 24), byte(n >> 16), byte(n >> 8), byte(n)} //nolint:gosec // n <= 0xffffffff neste ramo
 	}
 }
 
