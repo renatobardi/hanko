@@ -1,10 +1,10 @@
-# Estado da última sessão (CI em jobs paralelos, PR 2 da #51)
-Data: 2026-10-24 · branch `chore/51-ci-jobs-paralelos` → `main` · issue #51 (plano no comentário de 2026-10-23)
+# Estado da última sessão (testes do service mais rápidos, #71)
+Data: 2026-10-24 · branch `chore/71-service-testes-rapidos` → `main` · issue #71
 
 ## Feito
-- PR 1 (#53) na main: uma rodada de testes só. `check` de ~65 para ~27–41 min.
-- PR 2: `ci.yml` em jobs `estatico`, `gerados`, `test` (shards `service` | `resto`, Postgres próprio) e `check` agregador (`if: always()`, união dos shards, perfil mesclado, piso). Docs do CI atualizadas.
+- `testdb.New` clona um template migrado uma vez por processo, em vez de recriar o schema e rodar as 70 migrations a cada teste (ADR-0071).
+- `internal/service`: 1036 s → 130 s localmente; mesmos 654 testes e cobertura (77,9 %). Suíte inteira verde local (623 s).
 ## Travado (só o dono)
-- Merge do PR 2; medir o `check` em 3 PRs típicos (meta ≤ ~25 min).
+- Nada: merge autorizado pelo dono na conversa.
 ## Próximo passo
-- Se o `internal/service` (~18 min) continuar sendo o gargalo, abrir issue para acelerar esse pacote.
+- Medir `test (service)` em 3 execuções do CI (meta ≤ ~8 min). O caminho crítico do `check` passa a ser o shard `resto`.
