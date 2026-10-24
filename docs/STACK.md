@@ -7,7 +7,7 @@
 > - Adapters em `internal/adapter`: `claude`, `codex`, `acp` (qualquer agente que fale ACP v1 por stdio, ADR-0023) e `fake`. O adapter `http` (webhook) não foi feito.
 > - MCP: servidor `/mcp` (tools `hanko_*`) e proxy `/memory-mcp` para o ai-memory; não há gateway allow/ask/off.
 > - CSS próprio com tokens Kubo (adendo da ADR-0005), sem Tailwind; o JS do Firebase está versionado em `internal/ui/static/`, sem `tools/bundle`.
-> - Segredos (ADR-0050) e BlobStore (ADR-0051) existem: `internal/secretbox`, `secretref`, `vault`, `settings` e `storage` (ver §11). Não existem ainda: `tools/bundle`, embedded-postgres, testcontainers (os testes usam `HANKO_TEST_DATABASE_URL`), `go-i18n`.
+> - Segredos (ADR-0050) e BlobStore (ADR-0051) existem: `internal/secretbox`, `secretref`, `extvault`, `settings` e `storage` (ver §11). Não existem ainda: `tools/bundle`, embedded-postgres, testcontainers (os testes usam `HANKO_TEST_DATABASE_URL`), `go-i18n`.
 > - Imagem: `ghcr.io/renatobardi/hanko`.
 
 
@@ -170,7 +170,7 @@ no serviço e a UI desenha o histórico em SVG no servidor, sem script. Export/i
 `${secret:user/NOME}` (só do dono; recusada em configuração compartilhada). Vale em headers/env de integrações MCP e no
 `adapter_config` da persona; `HirePersona` troca o `env` em claro por `persona.<slug>.<VAR>` e o boot migra o legado. A expansão é no
 despacho (`RunExtras`, `ResolveAdapterConfig`), os valores entram em `adapter.Spec.Secrets` e na redação do log. Revelar: uma vez por
-versão. Pacotes: `internal/secretref` (análise/expansão), `internal/vault` (interface + KV v2).
+versão. Pacotes: `internal/secretref` (análise/expansão), `internal/extvault` (provider externo: interface + KV v2; ADR-0068 §9).
 
 **Settings.** `instance_settings` (sem `company_id`, com `instance_setting_audit`): só as chaves do registro `internal/settings`
 (`acp.*`, `integrations.*`, `artifacts.*`, `run.reserve_usd`, `alerts.*`), env > banco > yaml/padrão, lidas em tempo de uso.

@@ -1,10 +1,11 @@
-# Estado da última sessão (CI: uma rodada de testes só)
-Data: 2026-10-23 · branch `chore/51-ci-rodada-unica` → `main` · issue #51 (plano no comentário de 2026-10-23)
+# Estado da última sessão (cofre para agentes, fatia 0)
+Data: 2026-10-24 · branch `feat/55-cofre-contrato` → `main` · issues #54 (guarda-chuva) e #55
 
 ## Feito
-- PR 1 da #51: `ci.yml` roda os testes uma vez só, com `-tags integration` (antes, a suíte base rodava duas vezes). Prova: `go test -list .` sem a tag = 2034 testes, com a tag = 2207, nenhum só sem a tag.
-- Passo novo falha se algum `_test.go` tiver `//go:build !integration` (ele sairia do CI).
+- ADR-0068 (cofre), 0069 (envio), 0070 (reautenticação e passkey); ADR-0016 e glossários com os termos novos.
+- Contrato: migration 00203 (só schema), `internal/domain/vault.go`, queries `vault`/`sends`/`passkeys`, 54 operações da API em 501; `internal/vault` → `internal/extvault`.
+- ADRs aceitos pelo Bardi em 2026-10-24 (PR #63), com `persona_tree`, delegação por alvo, API key `full` e `go-webauthn/webauthn`.
 ## Travado (só o dono)
-- Merge do PR 1; medir o `check` (esperado ~38 min, antes ~65).
+- Merge do PR #63.
 ## Próximo passo
-- PR 2 da #51: jobs `estatico`/`gerados`/`test` (matriz `service` | `resto`) e `check` agregador com `if: always()`.
+- Fatia 1 (#56) e fatia 2 (#57), em paralelo, depois do merge da fatia 0.

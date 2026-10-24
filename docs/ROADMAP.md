@@ -104,5 +104,21 @@ Começa junto com M7 e roda em paralelo a todas as ondas.
 ### Fora deste plano (decisão de 2026-10-16)
 Sala com várias personas; override de projeto/workspace no "Run now"; catálogo curado de apps; proposta de segredo via gate; Cases; política de skills por empresa; CODEOWNERS e templates de issue/PR; reordenar a sidebar; WebSocket (fica só SSE); i18n além de pt-BR e en; serviços de workspace (dev server); imagens custom de sandbox; OIDC genérico; cloud gerenciada.
 
+## v0.7 — Cofre para agentes (decidido em 2026-10-24, #54)
+
+Decisões da entrevista de intent em #54; ADR-0068 (cofre), ADR-0069 (envio) e ADR-0070 (reautenticação e passkey).
+Regra de parada: se estourar, corta-se na ordem inversa das fatias (7, depois 6, depois 5).
+
+| Fatia | Issue | Entregável | Depende de |
+|---|---|---|---|
+| 0 | #55 | ADRs + contrato (migration 00203, tipos de domínio, queries, 54 operações da API em 501) | — |
+| 1 | #56 | Campos, coleções, migração para a coleção `padrão`, histórico e restaurar | 0 |
+| 2 | #57 | Reautenticação recente e passkey | 0 |
+| 3 | #58 | `hanko_secret_get`, TOTP e `${secretfile:}` | 1 |
+| 4 | #59 | Envio com chave no fragmento | 1, 2 |
+| 5 | #60 | Delegação de segredo pessoal e saída do humano | 1, 3 |
+| 6 | #61 | Gerador, relatório de saúde e alerta de rotação | 1 |
+| 7 | #62 | Import de `.env` e export cifrado | 1, 2 |
+
 ## Depois (ideias, sem data)
 - Modelo local no Mac (oMLX) por persona: harness `claude` com `adapter_config.env` (`ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_MODEL`) apontando ao endpoint Anthropic do oMLX; não suportado oficialmente pela Anthropic para modelos não-Claude. **Testado em 2026-10-15 (Mac 24 GB, oMLX 0.7.0 via Tailscale): inviável por ora.** Rede, chave e `/v1/messages` funcionam a partir do container do Hanko, mas Qwen2.5-Coder-14B e Qwen3-8B-4bit devolvem a chamada de tool como texto (sem `tool_use`), e o Qwen3.8-27B não cabe na RAM com o Mac em uso. Persona operacional simples fica no Haiku; reavaliar com mais RAM ou com um modelo de tool calling comprovado no oMLX (o harness HTTP do M12 reabre o teste). Se testar de novo: guard de memória `aggressive`, `sudo purge` antes e `--tools Bash` para encolher o prompt.

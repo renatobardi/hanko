@@ -35,7 +35,12 @@ Um termo por conceito. Código, API, MCP e banco em inglês; UI em pt-BR. Em dú
 | skill | Skill | Habilidade reutilizável em markdown (`SKILL.md`) que uma persona carrega sob demanda; ligada por persona (ADR-0029). | plugin (só no sentido nativo do harness) |
 | integration | Integração | Serviço externo da empresa: servidor MCP injetado nas runs ou webhook de saída assinado com HMAC (ADR-0029). Os segredos ficam cifrados e nunca voltam. | connector |
 | artifact | Artefato | Arquivo entregue por uma persona ou enviado por uma pessoa, com versões imutáveis: o mesmo nome na mesma task cria a versão seguinte (ADR-0028). | anexo, work product |
-| secret | Segredo | Como nomeado. | — |
+| secret | Segredo | Item do cofre: nome, descrição, escopo (empresa ou usuário) e um ou mais campos. Citado por `${secret:ITEM#campo}`; sem `#campo`, vale o campo `value` (ADR-0050, ADR-0068). | credencial (ambíguo) |
+| secret field | Campo | Um valor dentro do segredo: `text`, `totp` ou `file`; secreto (só revelar uma vez por versão) ou visível (legível por member). Sempre cifrado (ADR-0068). | — |
+| vault | Cofre | Conjunto dos segredos, coleções, envios e saúde da empresa (tela e menu). O cofre de terceiros que guarda valores por referência é o **provider externo** (`internal/extvault`). | — |
+| collection | Coleção | Grupo de segredos da empresa com concessões: `use` a persona, subárvore do organograma ou todas as personas; `view`/`manage` a humanos. A run só resolve itens de coleção concedida (ADR-0068). | pasta (não dá permissão) |
+| send | Envio | Link público com prazo, limite de acessos e senha opcional; a chave vai no fragmento do link e o servidor guarda só o texto cifrado (ADR-0069). | compartilhamento (ambíguo) |
+| delegation | Delegação | Concessão, pelo dono, do uso de um segredo pessoal às runs de uma task ou conversa que ele pediu, com prazo (ADR-0068). | — |
 | memory consolidation | Consolidação de memória | Run de sistema (gatilho `memory`) em que a persona curadora deduplica e resume a memória de um workspace; custo no ledger. | — |
 | memory proposal | Proposta de curadoria | Escrita destrutiva da curadoria retida pelo proxy, com diff e sha256; só vai ao ai-memory após o gate `memory`. | pending write (ambíguo) |
 | memory grant | Concessão de memória | Permissão persona × workspace (`read`/`write`) para alcançar a memória de outro workspace da empresa. | — |

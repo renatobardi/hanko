@@ -1375,22 +1375,150 @@ type RunSkill struct {
 }
 
 type Secret struct {
+	ID              uuid.UUID
+	CompanyID       uuid.UUID
+	Scope           string
+	OwnerUserID     *uuid.UUID
+	Name            string
+	Description     string
+	Provider        string
+	ValueEnc        string
+	ExternalRef     string
+	Version         int32
+	RevealedAt      *time.Time
+	LastUsedAt      *time.Time
+	CreatedByType   string
+	CreatedByID     *uuid.UUID
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+	RotateAfterDays *int32
+}
+
+type SecretAccessLog struct {
+	ID           uuid.UUID
+	CompanyID    uuid.UUID
+	SecretID     uuid.UUID
+	FieldName    string
+	Via          string
+	RunID        *uuid.UUID
+	PersonaID    *uuid.UUID
+	DelegationID *uuid.UUID
+	AccessedAt   time.Time
+}
+
+type SecretCollection struct {
+	ID              uuid.UUID
+	CompanyID       uuid.UUID
+	Name            string
+	Description     string
+	IsDefault       bool
+	RotateAfterDays *int32
+	CreatedByType   string
+	CreatedByID     *uuid.UUID
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
+type SecretCollectionGrant struct {
 	ID            uuid.UUID
 	CompanyID     uuid.UUID
-	Scope         string
-	OwnerUserID   *uuid.UUID
-	Name          string
-	Description   string
-	Provider      string
-	ValueEnc      string
-	ExternalRef   string
-	Version       int32
-	RevealedAt    *time.Time
-	LastUsedAt    *time.Time
+	CollectionID  uuid.UUID
+	SubjectType   string
+	SubjectID     *uuid.UUID
+	Permission    string
 	CreatedByType string
 	CreatedByID   *uuid.UUID
 	CreatedAt     time.Time
-	UpdatedAt     time.Time
+}
+
+type SecretCollectionItem struct {
+	CompanyID    uuid.UUID
+	CollectionID uuid.UUID
+	SecretID     uuid.UUID
+	AddedAt      time.Time
+}
+
+type SecretDelegation struct {
+	ID          uuid.UUID
+	CompanyID   uuid.UUID
+	OwnerUserID uuid.UUID
+	SecretID    uuid.UUID
+	TargetType  string
+	TargetID    uuid.UUID
+	ExpiresAt   time.Time
+	RevokedAt   *time.Time
+	CreatedAt   time.Time
+}
+
+type SecretField struct {
+	ID          uuid.UUID
+	CompanyID   uuid.UUID
+	SecretID    uuid.UUID
+	Name        string
+	Kind        string
+	Sensitive   bool
+	Provider    string
+	ValueEnc    string
+	ExternalRef string
+	BlobKey     string
+	FileName    string
+	ContentType string
+	SizeBytes   int32
+	ValueHmac   string
+	AadVersion  int16
+	Position    int32
+	Version     int32
+	RevealedAt  *time.Time
+	LastUsedAt  *time.Time
+	RotatedAt   time.Time
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+type SecretFieldVersion struct {
+	ID             uuid.UUID
+	CompanyID      uuid.UUID
+	FieldID        uuid.UUID
+	Version        int32
+	Provider       string
+	ValueEnc       string
+	ExternalRef    string
+	BlobKey        string
+	FileName       string
+	ContentType    string
+	SizeBytes      int32
+	AadVersion     int16
+	RevealedAt     *time.Time
+	ReplacedByType string
+	ReplacedByID   *uuid.UUID
+	CreatedAt      time.Time
+	ReplacedAt     time.Time
+}
+
+type SecretSend struct {
+	ID               uuid.UUID
+	CompanyID        uuid.UUID
+	PublicID         string
+	Kind             string
+	Ciphertext       string
+	BlobKey          string
+	SizeBytes        int32
+	Label            string
+	KdfSalt          string
+	PasswordVerifier string
+	FailedAttempts   int32
+	LockedUntil      *time.Time
+	MaxAccesses      *int32
+	AccessCount      int32
+	ExpiresAt        time.Time
+	LastAccessedAt   *time.Time
+	PurgedAt         *time.Time
+	SourceSecretID   *uuid.UUID
+	SourceField      string
+	RunID            *uuid.UUID
+	CreatedByType    string
+	CreatedByID      *uuid.UUID
+	CreatedAt        time.Time
 }
 
 type Session struct {
@@ -1403,6 +1531,8 @@ type Session struct {
 	UserAgent         string
 	Ip                string
 	AbsoluteExpiresAt time.Time
+	ReauthAt          *time.Time
+	ReauthMethod      *string
 }
 
 type Skill struct {
@@ -1928,6 +2058,21 @@ type UserDismissal struct {
 	UpdatedAt time.Time
 }
 
+type UserPasskey struct {
+	ID             uuid.UUID
+	UserID         uuid.UUID
+	CredentialID   []byte
+	PublicKey      []byte
+	SignCount      int64
+	Aaguid         *uuid.UUID
+	Transports     []string
+	BackupEligible bool
+	BackupState    bool
+	Name           string
+	CreatedAt      time.Time
+	LastUsedAt     *time.Time
+}
+
 type UserProfile struct {
 	UserID      uuid.UUID
 	AvatarGlyph string
@@ -1943,6 +2088,16 @@ type WakeRequest struct {
 	TaskID    uuid.UUID
 	Seq       int64
 	UpdatedAt time.Time
+}
+
+type WebauthnChallenge struct {
+	ID        uuid.UUID
+	UserID    uuid.UUID
+	SessionID *uuid.UUID
+	Purpose   string
+	Challenge []byte
+	ExpiresAt time.Time
+	CreatedAt time.Time
 }
 
 type WebhookDelivery struct {

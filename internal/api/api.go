@@ -334,6 +334,7 @@ func (s *server) register(api huma.API) {
 	s.registerSkillForks(api)
 	s.registerIntegrations(api)
 	s.registerSecrets(api)
+	s.registerVault(api) // contrato do cofre (ADR-0068/0069/0070); 501 até cada fatia
 	s.registerDecision(api)
 	s.registerProbe(api)
 	s.registerInstance(api)

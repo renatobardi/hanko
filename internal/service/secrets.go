@@ -22,10 +22,10 @@ import (
 
 	"github.com/renatobardi/hanko/internal/auth"
 	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/extvault"
 	"github.com/renatobardi/hanko/internal/secretbox"
 	"github.com/renatobardi/hanko/internal/secretref"
 	"github.com/renatobardi/hanko/internal/store"
-	"github.com/renatobardi/hanko/internal/vault"
 )
 
 // Segredos como recurso (ADR-0050). O valor só existe em claro (a) na resposta de uma criação/rotação com valor
@@ -169,7 +169,7 @@ func (s *Service) prepareMaterial(id uuid.UUID, provider domain.SecretProvider, 
 		if s.Vault == nil {
 			return secretMaterial{}, domain.Invalid("provider", "nenhum cofre externo configurado neste servidor (HANKO_VAULT_ADDR)")
 		}
-		if _, _, err := vault.SplitRef(ext); err != nil {
+		if _, _, err := extvault.SplitRef(ext); err != nil {
 			return secretMaterial{}, domain.Invalid("external_ref", err.Error())
 		}
 		return secretMaterial{provider: provider, ext: strings.TrimSpace(ext)}, nil
