@@ -1,10 +1,10 @@
 # Banco e retenção da telemetria do oute no Hanko (#68)
 
 Fase `strat` (AI-DLC) · 2026-10-24 · autor: agente (Claude), a pedido do Bardi · parte de #66 (decisões 9 e 13) ·
-**o banco e a retenção são decisão do Bardi** (gate desta fase).
+**gate fechado pelo Bardi em 2026-10-24** (§10).
 
-**O que o Bardi decide aqui:** em que banco o Hanko guarda a telemetria e o estado vindos do oute, e por quanto tempo
-o detalhe fica no banco. A recomendação no fim é do autor.
+**Gate:** o Bardi decidiu banco, retenção, os spans internos do Codex e a base da projeção (§10). Onde o texto das §7 e
+§8 e a §10 divergem, vale a §10.
 
 ## Resumo
 
@@ -269,3 +269,38 @@ uv venv .venv && uv pip install --python .venv/bin/python -r <oute-agent>/docker
 
 `gen.py`, `pgload.py` e `ingest.py` importam `agent_studio.store` de um checkout do oute-agent em
 `/workspace/oute-agent` (o schema é o de `845764f`).
+
+## 10. Decisões do gate (Bardi, 2026-10-24)
+
+Respostas do Bardi na sessão `hanko-decom-agent-studio`, uma pergunta por vez.
+
+| Ponto | Decisão |
+|---|---|
+| 1. Banco | **Só Postgres.** O ADR-0011 vale como está. As telas leem tabelas derivadas: chamadas ao modelo, agregados diários, conversas e o resto do estado (§3, §6). |
+| 2. Retenção | **Tudo quente, sem prazo.** Nada sai do banco, nas palavras do Bardi: "não quero perder nada do que tenho hj, não quero corte de prazo". Sem plano de disco agora: um alerta de disco avisa, e a decisão se toma perto do limite. A janela quente da §8 não vale. |
+| 3. Spans internos do Codex anteriores ao filtro | **Migram inteiros.** O Bardi escolheu não migrar o detalhe e guardar só um resumo diário, com a condição de uma prova no dado. A prova falhou nos tokens (abaixo), e pela regra combinada vale "migram". |
+| 4. Base da projeção | **236.121 linhas por dia**, a decidida no gate da #67: ~126 GB por ano no Postgres (§2) e ~214 dias até os 74 GB livres de hoje. |
+
+**Prova do ponto 3** (pedido `20261024-223745` do canal, só leitura, rc 0, aprovado em 2026-10-24T22:41:44Z):
+
+| Conferência | Resultado |
+|---|---|
+| Spans com os 8 nomes do `filter/codex_noise`, agente `codex` | 1.156.027, de 2026-10-03 a 2026-10-06 |
+| Com modelo · com custo · com conversa | 0 · 0 · 0 |
+| **Com tokens** | **1.285, somando 157.142.069 tokens** |
+| No escopo de chamada ao modelo (`cost.py:39-47@845764f`) | 0 |
+| Uso da janela inteira com e sem eles: chamadas, tokens, custo | igual: 50.908, 64.723.138, US$ 0,974852 |
+| Conversas cuja contagem de spans muda | 0 |
+
+O agent-studio nunca contou esses tokens. Saber se são uso do Codex não contado ou contagem acumulada é a #81.
+
+**Correção do perfil:** em `host_runner.py`, a constante `1760140800000000000` é 2025-10-11, não 2026-10-11. Os itens
+"conversas e traces distintos por dia" e "30 nomes de span" do pedido `20261024-181500` cobrem a janela inteira, não
+só o período depois do filtro. O gerador usa a média de 180 conversas por dia, que é a média da janela inteira; os
+demais números não mudam. O rótulo foi corrigido no script; o texto aprovado do pedido fica como foi.
+
+**Consequências para a v0.8:**
+- Um alerta de disco do Postgres entra no Hanko desde o primeiro dia da ingestão (ponto 2). Os limites seguem a regra
+  de limites por empresa do bloco 4 do gate da #67 e ficam para o contrato da v0.8.
+- O replay do bucket (gate da #67, §9.3) continua como rede de segurança, não como fonte do detalhe antigo.
+- Não há ADR novo para o banco. As tabelas derivadas e as partições entram no contrato da v0.8 (migrations).

@@ -20,11 +20,11 @@ for t, cols in (("logs", ("body", "attributes", "resource_attributes")),
         show(f"{t}.{c}: média, p50, p95, máx (bytes)",
              f"SELECT round(avg(length(coalesce({c}::VARCHAR,'')))), quantile_disc(length(coalesce({c}::VARCHAR,'')), 0.5), "
              f"quantile_disc(length(coalesce({c}::VARCHAR,'')), 0.95), max(length(coalesce({c}::VARCHAR,''))) FROM {t}")
-    show(f"{t}: conversas e traces distintos por dia (média dos dias desde 2026-10-11)",
+    show(f"{t}: conversas e traces distintos por dia (média da janela inteira: a constante abaixo é 2025-10-11, ver nota §10)",
          f"SELECT round(avg(c)), round(avg(n)) FROM (SELECT time_unix_nano // 86400000000000 d, count(DISTINCT session_id) c, count(*) n "
          f"FROM {t} WHERE time_unix_nano >= 1760140800000000000 GROUP BY 1)")
 show("spans: sem session_id (fração)", "SELECT round(avg(CASE WHEN session_id IS NULL THEN 1 ELSE 0 END), 3) FROM spans")
-show("spans desde 2026-10-11: 30 nomes", "SELECT name, count(*) FROM spans WHERE time_unix_nano >= 1760140800000000000 GROUP BY 1 ORDER BY 2 DESC LIMIT 30")
+show("spans: 30 nomes (janela inteira; a constante é 2025-10-11, ver nota §10)", "SELECT name, count(*) FROM spans WHERE time_unix_nano >= 1760140800000000000 GROUP BY 1 ORDER BY 2 DESC LIMIT 30")
 show("logs: 30 event_name", "SELECT event_name, count(*) FROM logs GROUP BY 1 ORDER BY 2 DESC LIMIT 30")
 show("metrics: 30 metric_name", "SELECT metric_name, metric_type, count(*) FROM metrics GROUP BY 1, 2 ORDER BY 3 DESC LIMIT 30")
 show("spans: chamadas ao modelo por dia (últimos 14)", f"SELECT time_unix_nano // 86400000000000 d, count(*) FROM spans WHERE {CALL} GROUP BY 1 ORDER BY 1 DESC LIMIT 14")
