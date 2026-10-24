@@ -3900,6 +3900,28 @@
       "CreateSecretFieldInBody": {
         "additionalProperties": false,
         "properties": {
+          "content_base64": {
+            "description": "Campo arquivo: conteúdo em base64 (até 1 MiB).",
+            "maxLength": 1398104,
+            "type": "string"
+          },
+          "content_type": {
+            "maxLength": 255,
+            "type": "string"
+          },
+          "external_ref": {
+            "description": "Provider vault: caminho#campo.",
+            "maxLength": 500,
+            "type": "string"
+          },
+          "file_name": {
+            "maxLength": 255,
+            "type": "string"
+          },
+          "generate": {
+            "description": "O servidor gera o valor (gerador da fatia 6) e o devolve uma vez.",
+            "type": "boolean"
+          },
           "kind": {
             "description": "Padrão text.",
             "enum": [
@@ -3920,9 +3942,22 @@
             "format": "int64",
             "type": "integer"
           },
+          "provider": {
+            "description": "Padrão local.",
+            "enum": [
+              "local",
+              "vault"
+            ],
+            "type": "string"
+          },
           "sensitive": {
             "description": "Padrão true; totp e file são sempre secretos.",
             "type": "boolean"
+          },
+          "value": {
+            "description": "Texto ou semente TOTP (base32 ou otpauth://). Cifrado; nunca devolvido.",
+            "maxLength": 8192,
+            "type": "string"
           }
         },
         "required": [
@@ -52638,7 +52673,6 @@
     },
     "/api/v1/companies/{company}/secret-collections": {
       "get": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 1 (#56).",
         "operationId": "list-secret-collections",
         "parameters": [
           {
@@ -52752,16 +52786,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Lista as coleções que o usuário alcança",
@@ -52770,7 +52794,6 @@
         ]
       },
       "post": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 1 (#56).",
         "operationId": "create-secret-collection",
         "parameters": [
           {
@@ -52867,16 +52890,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Cria uma coleção de segredos (admin)",
@@ -52887,7 +52900,6 @@
     },
     "/api/v1/companies/{company}/secret-collections/{collection}": {
       "delete": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 1 (#56).",
         "operationId": "delete-secret-collection",
         "parameters": [
           {
@@ -52977,16 +52989,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Apaga uma coleção; os segredos continuam existindo (admin; a padrão não se apaga)",
@@ -52995,7 +52997,6 @@
         ]
       },
       "get": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 1 (#56).",
         "operationId": "get-secret-collection",
         "parameters": [
           {
@@ -53092,16 +53093,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Obtém uma coleção",
@@ -53110,8 +53101,32 @@
         ]
       },
       "patch": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 1 (#56).",
         "operationId": "update-secret-collection",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou nome da coleção.",
+            "in": "path",
+            "name": "collection",
+            "required": true,
+            "schema": {
+              "description": "Id ou nome da coleção.",
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -53192,16 +53207,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Muda nome, descrição e prazo de rotação de uma coleção (admin)",
@@ -53212,9 +53217,31 @@
     },
     "/api/v1/companies/{company}/secret-collections/{collection}/grants": {
       "get": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 1 (#56).",
         "operationId": "list-collection-grants",
         "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou nome da coleção.",
+            "in": "path",
+            "name": "collection",
+            "required": true,
+            "schema": {
+              "description": "Id ou nome da coleção.",
+              "type": "string"
+            }
+          },
           {
             "description": "Máximo de itens retornados.",
             "explode": false,
@@ -53313,16 +53340,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Lista quem alcança a coleção",
@@ -53331,8 +53348,33 @@
         ]
       },
       "post": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 1 (#56).",
+        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 2 (#57).",
         "operationId": "create-collection-grant",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou nome da coleção.",
+            "in": "path",
+            "name": "collection",
+            "required": true,
+            "schema": {
+              "description": "Id ou nome da coleção.",
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -53433,9 +53475,32 @@
     },
     "/api/v1/companies/{company}/secret-collections/{collection}/grants/{grant}": {
       "delete": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 1 (#56).",
+        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 2 (#57).",
         "operationId": "delete-collection-grant",
         "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou nome da coleção.",
+            "in": "path",
+            "name": "collection",
+            "required": true,
+            "schema": {
+              "description": "Id ou nome da coleção.",
+              "type": "string"
+            }
+          },
           {
             "in": "path",
             "name": "grant",
@@ -53529,9 +53594,31 @@
     },
     "/api/v1/companies/{company}/secret-collections/{collection}/secrets": {
       "get": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 1 (#56).",
         "operationId": "list-collection-secrets",
         "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou nome da coleção.",
+            "in": "path",
+            "name": "collection",
+            "required": true,
+            "schema": {
+              "description": "Id ou nome da coleção.",
+              "type": "string"
+            }
+          },
           {
             "description": "Máximo de itens retornados.",
             "explode": false,
@@ -53630,16 +53717,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Lista os segredos de uma coleção",
@@ -53650,9 +53727,31 @@
     },
     "/api/v1/companies/{company}/secret-collections/{collection}/secrets/{name}": {
       "delete": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 1 (#56).",
         "operationId": "remove-secret-from-collection",
         "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou nome da coleção.",
+            "in": "path",
+            "name": "collection",
+            "required": true,
+            "schema": {
+              "description": "Id ou nome da coleção.",
+              "type": "string"
+            }
+          },
           {
             "description": "Nome do segredo da empresa.",
             "in": "path",
@@ -53727,16 +53826,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Tira um segredo da coleção (admin ou manage)",
@@ -53745,9 +53834,31 @@
         ]
       },
       "put": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 1 (#56).",
         "operationId": "add-secret-to-collection",
         "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou nome da coleção.",
+            "in": "path",
+            "name": "collection",
+            "required": true,
+            "schema": {
+              "description": "Id ou nome da coleção.",
+              "type": "string"
+            }
+          },
           {
             "description": "Nome do segredo da empresa.",
             "in": "path",
@@ -53822,16 +53933,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Põe um segredo da empresa na coleção (admin ou manage)",
@@ -54416,7 +54517,6 @@
     },
     "/api/v1/companies/{company}/secrets/{name}/fields": {
       "get": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 1 (#56).",
         "operationId": "list-secret-fields",
         "parameters": [
           {
@@ -54543,16 +54643,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Lista os campos de um segredo da empresa (metadados; valor só dos campos visíveis)",
@@ -54561,7 +54651,6 @@
         ]
       },
       "post": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 1 (#56).",
         "operationId": "create-secret-field",
         "parameters": [
           {
@@ -54671,16 +54760,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Cria um campo num segredo da empresa",
@@ -54691,7 +54770,7 @@
     },
     "/api/v1/companies/{company}/secrets/{name}/fields/{field}": {
       "delete": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 1 (#56).",
+        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 2 (#57).",
         "operationId": "delete-secret-field",
         "parameters": [
           {
@@ -54815,8 +54894,48 @@
         ]
       },
       "patch": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 1 (#56).",
         "operationId": "update-secret-field",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Nome do segredo.",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "description": "Nome do segredo.",
+              "examples": [
+                "openrouter-key"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Nome do campo.",
+            "in": "path",
+            "name": "field",
+            "required": true,
+            "schema": {
+              "description": "Nome do campo.",
+              "examples": [
+                "password"
+              ],
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -54897,16 +55016,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Muda marca de visível e posição de um campo",
@@ -54917,7 +55026,7 @@
     },
     "/api/v1/companies/{company}/secrets/{name}/fields/{field}/history": {
       "get": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 1 (#56).",
+        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 2 (#57).",
         "operationId": "list-secret-field-history",
         "parameters": [
           {
@@ -55050,9 +55159,48 @@
     },
     "/api/v1/companies/{company}/secrets/{name}/fields/{field}/history/{version}/restore": {
       "post": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 1 (#56).",
+        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 2 (#57).",
         "operationId": "restore-secret-field-version",
         "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Nome do segredo.",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "description": "Nome do segredo.",
+              "examples": [
+                "openrouter-key"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Nome do campo.",
+            "in": "path",
+            "name": "field",
+            "required": true,
+            "schema": {
+              "description": "Nome do campo.",
+              "examples": [
+                "password"
+              ],
+              "type": "string"
+            }
+          },
           {
             "in": "path",
             "name": "version",
@@ -55154,9 +55302,48 @@
     },
     "/api/v1/companies/{company}/secrets/{name}/fields/{field}/history/{version}/reveal": {
       "post": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 1 (#56).",
+        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 2 (#57).",
         "operationId": "reveal-secret-field-version",
         "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Nome do segredo.",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "description": "Nome do segredo.",
+              "examples": [
+                "openrouter-key"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Nome do campo.",
+            "in": "path",
+            "name": "field",
+            "required": true,
+            "schema": {
+              "description": "Nome do campo.",
+              "examples": [
+                "password"
+              ],
+              "type": "string"
+            }
+          },
           {
             "in": "path",
             "name": "version",
@@ -55258,7 +55445,7 @@
     },
     "/api/v1/companies/{company}/secrets/{name}/fields/{field}/reveal": {
       "post": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 1 (#56).",
+        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 2 (#57).",
         "operationId": "reveal-secret-field",
         "parameters": [
           {
@@ -55391,8 +55578,48 @@
     },
     "/api/v1/companies/{company}/secrets/{name}/fields/{field}/rotate": {
       "post": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 1 (#56).",
         "operationId": "rotate-secret-field",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Nome do segredo.",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "description": "Nome do segredo.",
+              "examples": [
+                "openrouter-key"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Nome do campo.",
+            "in": "path",
+            "name": "field",
+            "required": true,
+            "schema": {
+              "description": "Nome do campo.",
+              "examples": [
+                "password"
+              ],
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -55473,16 +55700,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Troca o valor de um campo; o anterior vai para o histórico",
@@ -68820,7 +69037,6 @@
     },
     "/api/v1/companies/{company}/user-secrets/{name}/fields": {
       "get": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 1 (#56).",
         "operationId": "list-user-secret-fields",
         "parameters": [
           {
@@ -68947,16 +69163,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Lista os campos de um segredo do usuário (metadados; valor só dos campos visíveis)",
@@ -68965,7 +69171,6 @@
         ]
       },
       "post": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 1 (#56).",
         "operationId": "create-user-secret-field",
         "parameters": [
           {
@@ -69075,16 +69280,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Cria um campo num segredo do usuário",
@@ -69095,7 +69290,7 @@
     },
     "/api/v1/companies/{company}/user-secrets/{name}/fields/{field}": {
       "delete": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 1 (#56).",
+        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 2 (#57).",
         "operationId": "delete-user-secret-field",
         "parameters": [
           {
@@ -69219,8 +69414,48 @@
         ]
       },
       "patch": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 1 (#56).",
         "operationId": "update-user-secret-field",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Nome do segredo.",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "description": "Nome do segredo.",
+              "examples": [
+                "openrouter-key"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Nome do campo.",
+            "in": "path",
+            "name": "field",
+            "required": true,
+            "schema": {
+              "description": "Nome do campo.",
+              "examples": [
+                "password"
+              ],
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -69301,16 +69536,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Muda marca de visível e posição de um campo",
@@ -69321,7 +69546,7 @@
     },
     "/api/v1/companies/{company}/user-secrets/{name}/fields/{field}/history": {
       "get": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 1 (#56).",
+        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 2 (#57).",
         "operationId": "list-user-secret-field-history",
         "parameters": [
           {
@@ -69454,9 +69679,48 @@
     },
     "/api/v1/companies/{company}/user-secrets/{name}/fields/{field}/history/{version}/restore": {
       "post": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 1 (#56).",
+        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 2 (#57).",
         "operationId": "restore-user-secret-field-version",
         "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Nome do segredo.",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "description": "Nome do segredo.",
+              "examples": [
+                "openrouter-key"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Nome do campo.",
+            "in": "path",
+            "name": "field",
+            "required": true,
+            "schema": {
+              "description": "Nome do campo.",
+              "examples": [
+                "password"
+              ],
+              "type": "string"
+            }
+          },
           {
             "in": "path",
             "name": "version",
@@ -69558,9 +69822,48 @@
     },
     "/api/v1/companies/{company}/user-secrets/{name}/fields/{field}/history/{version}/reveal": {
       "post": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 1 (#56).",
+        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 2 (#57).",
         "operationId": "reveal-user-secret-field-version",
         "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Nome do segredo.",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "description": "Nome do segredo.",
+              "examples": [
+                "openrouter-key"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Nome do campo.",
+            "in": "path",
+            "name": "field",
+            "required": true,
+            "schema": {
+              "description": "Nome do campo.",
+              "examples": [
+                "password"
+              ],
+              "type": "string"
+            }
+          },
           {
             "in": "path",
             "name": "version",
@@ -69662,7 +69965,7 @@
     },
     "/api/v1/companies/{company}/user-secrets/{name}/fields/{field}/reveal": {
       "post": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 1 (#56).",
+        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 2 (#57).",
         "operationId": "reveal-user-secret-field",
         "parameters": [
           {
@@ -69795,8 +70098,48 @@
     },
     "/api/v1/companies/{company}/user-secrets/{name}/fields/{field}/rotate": {
       "post": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 1 (#56).",
         "operationId": "rotate-user-secret-field",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Nome do segredo.",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "description": "Nome do segredo.",
+              "examples": [
+                "openrouter-key"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Nome do campo.",
+            "in": "path",
+            "name": "field",
+            "required": true,
+            "schema": {
+              "description": "Nome do campo.",
+              "examples": [
+                "password"
+              ],
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -69877,16 +70220,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Troca o valor de um campo; o anterior vai para o histórico",

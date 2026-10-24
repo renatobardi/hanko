@@ -1,0 +1,275 @@
+package views
+
+import (
+	"fmt"
+	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/i18n"
+)
+
+templ fieldRow(f SecretFieldRowVM, canWrite bool) {
+	<tr class="row">
+		<td>
+			<b>{ f.Name }</b>
+			<div class="sub-line"><code class="mono">{ f.Reference }</code></div>
+		</td>
+		<td><span class="badge outline">{ f.Kind }</span></td>
+		<td>
+			if f.Sensitive {
+				<span class="badge warn">{ i18n.T(ctx, "secreto") }</span>
+			} else {
+				<span class="badge done">{ i18n.T(ctx, "visível") }</span>
+			}
+		</td>
+		<td class="num">{ fmt.Sprint(f.Version) }</td>
+		<td class="hide-sm">
+			if f.Sensitive {
+				if f.Revealed {
+					<span class="muted">{ i18n.T(ctx, "sim") }</span>
+				} else {
+					<span class="muted">{ i18n.T(ctx, "não") }</span>
+				}
+			} else {
+				<code class="mono">{ f.VisibleText }</code>
+			}
+		</td>
+		<td>
+			if canWrite {
+				<details class="sec-actions">
+					<summary class="btn outline sm">{ i18n.T(ctx, "Ações") }</summary>
+					<form method="post" action={ templ.SafeURL(f.ValueHref) } hx-boost="true" class="mt-2">
+						<input class="input mono" name="value" type="password" autocomplete="new-password" placeholder={ i18n.T(ctx, "novo valor") } maxlength="8192"/>
+						<label class="check-line"><input type="checkbox" name="generate" value="1"/><span>{ i18n.T(ctx, "gerar") }</span></label>
+						<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Trocar valor") }</button>
+					</form>
+					<form method="post" action={ templ.SafeURL(f.MetaHref) } hx-boost="true" class="mt-2">
+						if f.Kind == "text" {
+							<select class="select" name="visibilidade" aria-label={ i18n.T(ctx, "Visibilidade") }>
+								<option value="secreto" selected?={ f.Sensitive }>{ i18n.T(ctx, "secreto") }</option>
+								<option value="visivel" selected?={ !f.Sensitive }>{ i18n.T(ctx, "visível") }</option>
+							</select>
+							<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Mudar marca") }</button>
+						}
+					</form>
+				</details>
+			}
+		</td>
+	</tr>
+}
+
+templ SecretFieldsPage(sh Shell, vm SecretFieldsVM) {
+	@Layout(sh) {
+		@PageHead(vm.Name, i18n.T(ctx, "Campos do segredo. Campo visível mostra o texto; campo secreto nunca volta para a tela.")) {
+		}
+		<div class="mb-6">@Tabs(vm.Sections)</div>
+		<p class="mb-3"><a href={ templ.SafeURL(vm.BackHref) }>{ i18n.T(ctx, "Voltar aos segredos") }</a></p>
+		@flashAlerts(vm.Notice, vm.Error)
+		if vm.Reveal != nil {
+			@revealBox(vm.Reveal.Name, vm.Reveal.Reference, vm.Reveal.Value)
+		}
+		if len(vm.Fields) == 0 {
+			@EmptyCard("lock", i18n.T(ctx, "Nenhum campo."), i18n.T(ctx, "Um segredo pode ter vários campos, como usuário e senha, cada um com a sua marca de visível ou secreto."), false)
+		} else {
+			<div class="table-wrap mb-6">
+				<table class="table">
+					<thead>
+						<tr>
+							<th>{ i18n.T(ctx, "Nome") }</th>
+							<th>{ i18n.T(ctx, "Tipo") }</th>
+							<th>{ i18n.T(ctx, "Visibilidade") }</th>
+							<th class="num">{ i18n.T(ctx, "Versão") }</th>
+							<th class="hide-sm">{ i18n.T(ctx, "Valor / revelado") }</th>
+							<th></th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, f := range vm.Fields {
+							@fieldRow(f, vm.CanWrite)
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+		<p class="muted text-sm mb-3">{ i18n.T(ctx, "Revelar um campo secreto, ver o histórico de versões e restaurar uma versão: requer reautenticação (fatia 2, #57).") }</p>
+		if vm.CanWrite {
+			<h2 class="side-h sec-h">{ i18n.T(ctx, "Novo campo") }</h2>
+			<form class="card pad form-card" method="post" action={ templ.SafeURL(vm.CreateHref) } hx-boost="true">
+				<div class="form-grid">
+					<div class="field">
+						<label for="fld-name">{ i18n.T(ctx, "Nome") }</label>
+						<input class="input mono" id="fld-name" name="name" value={ vm.NewName } required maxlength="64" autocomplete="off" spellcheck="false"/>
+					</div>
+					<div class="field">
+						<label for="fld-kind">{ i18n.T(ctx, "Tipo") }</label>
+						<select class="select" id="fld-kind" name="kind">
+							<option value="text" selected?={ vm.NewKind != "totp" }>text</option>
+							<option value="totp" selected?={ vm.NewKind == "totp" }>totp</option>
+						</select>
+					</div>
+					<div class="field">
+						<label for="fld-vis">{ i18n.T(ctx, "Visibilidade") }</label>
+						<select class="select" id="fld-vis" name="visibilidade">
+							<option value="secreto" selected?={ !vm.NewVisible }>{ i18n.T(ctx, "secreto") }</option>
+							<option value="visivel" selected?={ vm.NewVisible }>{ i18n.T(ctx, "visível") }</option>
+						</select>
+					</div>
+				</div>
+				<div class="field">
+					<label for="fld-val">{ i18n.T(ctx, "Valor") }</label>
+					<input class="input mono" id="fld-val" name="value" type="password" value="" autocomplete="new-password" spellcheck="false" maxlength="8192"/>
+					<span class="hint">{ i18n.T(ctx, "O valor é cifrado. Campo secreto nunca volta para a tela; em branco com a opção abaixo, o Hanko gera um e o mostra uma única vez.") }</span>
+				</div>
+				<label class="check-line">
+					<input type="checkbox" name="generate" value="1" checked?={ vm.NewGenerate }/>
+					<span>{ i18n.T(ctx, "Gerar o valor e mostrá-lo uma vez") }</span>
+				</label>
+				<div class="form-actions">
+					<button class="btn primary" type="submit">{ i18n.T(ctx, "Adicionar campo") }</button>
+				</div>
+			</form>
+		} else {
+			@NeedRole(domain.MemberAdmin)
+		}
+	}
+}
+
+templ CollectionsPage(sh Shell, vm CollectionsVM) {
+	@Layout(sh) {
+		@PageHead(i18n.T(ctx, "Coleções de segredos"), i18n.T(ctx, "Agrupam segredos para dar acesso e cobrar a rotação de uma vez.")) {
+		}
+		<div class="mb-6">@Tabs(vm.Sections)</div>
+		<p class="mb-3"><a href={ templ.SafeURL(vm.BackHref) }>{ i18n.T(ctx, "Voltar aos segredos") }</a></p>
+		@flashAlerts(vm.Notice, vm.Error)
+		<div class="table-wrap mb-6">
+			<table class="table">
+				<thead>
+					<tr>
+						<th>{ i18n.T(ctx, "Nome") }</th>
+						<th>{ i18n.T(ctx, "Padrão") }</th>
+						<th class="num">{ i18n.T(ctx, "Segredos") }</th>
+						<th class="hide-sm">{ i18n.T(ctx, "Prazo de rotação (dias)") }</th>
+					</tr>
+				</thead>
+				<tbody>
+					for _, r := range vm.Rows {
+						<tr class="row">
+							<td>
+								<a href={ templ.SafeURL(r.Href) }><b>{ r.Name }</b></a>
+								if r.Description != "" {
+									<div class="sub-line">{ r.Description }</div>
+								}
+							</td>
+							<td>
+								if r.IsDefault {
+									<span class="badge done">{ i18n.T(ctx, "padrão") }</span>
+								}
+							</td>
+							<td class="num">{ fmt.Sprint(r.Secrets) }</td>
+							<td class="hide-sm muted">{ r.RotateDays }</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+		if vm.CanAdmin {
+			<h2 class="side-h sec-h">{ i18n.T(ctx, "Nova coleção") }</h2>
+			<form class="card pad form-card" method="post" action={ templ.SafeURL(vm.CreateHref) } hx-boost="true">
+				<div class="form-grid">
+					<div class="field">
+						<label for="col-name">{ i18n.T(ctx, "Nome") }</label>
+						<input class="input" id="col-name" name="name" value={ vm.NewName } required maxlength="64"/>
+					</div>
+					<div class="field">
+						<label for="col-desc">{ i18n.T(ctx, "Descrição (opcional)") }</label>
+						<input class="input" id="col-desc" name="description" value={ vm.NewDesc } maxlength="300"/>
+					</div>
+					<div class="field">
+						<label for="col-days">{ i18n.T(ctx, "Prazo de rotação (dias)") }</label>
+						<input class="input" id="col-days" name="rotate_after_days" type="number" min="1" max="3650" value={ vm.NewDays }/>
+					</div>
+				</div>
+				<div class="form-actions">
+					<button class="btn primary" type="submit">{ i18n.T(ctx, "Criar coleção") }</button>
+				</div>
+			</form>
+		}
+	}
+}
+
+templ CollectionPage(sh Shell, vm CollectionVM) {
+	@Layout(sh) {
+		@PageHead(vm.Name, vm.Desc) {
+		}
+		<div class="mb-6">@Tabs(vm.Sections)</div>
+		<p class="mb-3"><a href={ templ.SafeURL(vm.BackHref) }>{ i18n.T(ctx, "Voltar às coleções") }</a></p>
+		@flashAlerts(vm.Notice, vm.Error)
+		if vm.IsDefault {
+			<p class="mb-3"><span class="badge done">{ i18n.T(ctx, "padrão") }</span></p>
+		}
+		if vm.RotateDays != "" {
+			<p class="muted text-sm mb-3">{ i18n.Tf(ctx, "Prazo de rotação: %s dias.", vm.RotateDays) }</p>
+		}
+		if len(vm.Secrets) == 0 {
+			@EmptyCard("lock", i18n.T(ctx, "Nenhum segredo nesta coleção."), "", false)
+		} else {
+			<div class="table-wrap mb-6">
+				<table class="table">
+					<thead><tr><th>{ i18n.T(ctx, "Nome") }</th><th></th></tr></thead>
+					<tbody>
+						for _, s := range vm.Secrets {
+							<tr class="row">
+								<td><b>{ s.Name }</b></td>
+								<td>
+									if vm.CanAdmin {
+										<form method="post" action={ templ.SafeURL(s.RemoveHref) } hx-boost="true">
+											<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Tirar da coleção") }</button>
+										</form>
+									}
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+		<p class="muted text-sm mb-3">{ i18n.Tf(ctx, "Concessões da coleção: %d. Conceder e revogar: requer reautenticação (fatia 2, #57).", vm.GrantCount) }</p>
+		if vm.CanAdmin {
+			<h2 class="side-h sec-h">{ i18n.T(ctx, "Pôr um segredo na coleção") }</h2>
+			<form class="card pad form-card" method="post" action={ templ.SafeURL(vm.AddHref) } hx-boost="true">
+				<div class="field">
+					<label for="col-add">{ i18n.T(ctx, "Nome do segredo") }</label>
+					<input class="input mono" id="col-add" name="secret" required maxlength="64" autocomplete="off" spellcheck="false"/>
+				</div>
+				<div class="form-actions">
+					<button class="btn primary" type="submit">{ i18n.T(ctx, "Pôr na coleção") }</button>
+				</div>
+			</form>
+			if !vm.IsDefault {
+				<form method="post" action={ templ.SafeURL(vm.DeleteHref) } hx-boost="true" class="mt-4">
+					<button class="btn outline sm danger" type="submit">{ i18n.T(ctx, "Apagar coleção") }</button>
+				</form>
+			}
+		}
+	}
+}
+
+// revealBox mostra o valor revelado uma vez (criação gerada, rotação ou revelar), com a referência para citar.
+templ revealBox(name, reference, value string) {
+	<div class="alert warn secret-box" role="status">
+		@Icon("alert")
+		<div>
+			<b>{ i18n.Tf(ctx, "Valor de %s: copie agora, ele não será mostrado de novo.", name) }</b>
+			<div><code class="mono secret-val">{ value }</code></div>
+			<div class="sub-line">{ i18n.T(ctx, "Referência:") } <code class="mono">{ reference }</code></div>
+		</div>
+	</div>
+}
+
+// flashAlerts mostra o aviso e o erro de uma tela do cofre.
+templ flashAlerts(notice, errMsg string) {
+	if notice != "" {
+		@Alert("warn", notice)
+	}
+	if errMsg != "" {
+		@Alert("danger", errMsg)
+	}
+}

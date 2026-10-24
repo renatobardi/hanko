@@ -38,7 +38,7 @@ func (s *Service) ProbePersona(ctx context.Context, companyID domain.ID, ref str
 		out.Add("probe", false, "o harness "+p.Agent+" ainda não tem verificação de prontidão; rode uma task simples para testar")
 		return out, nil
 	}
-	cfg, secrets, err := s.ResolveAdapterConfig(ctx, companyID, p.AdapterConfig)
+	cfg, secrets, err := s.ResolveAdapterConfig(ctx, companyID, p.ID, p.AdapterConfig)
 	if err != nil {
 		var out adapter.ProbeResult
 		out.Add("segredos", false, err.Error())

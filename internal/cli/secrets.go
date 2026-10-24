@@ -45,6 +45,19 @@ func (e *env) secretLine(s api.Secret) []string {
 	return []string{s.Name, s.Provider, fmt.Sprint(s.Version), revealed, last, oneLine(used, 40)}
 }
 
+// printSecretList imprime a tabela de segredos (nomes e metadados), ou a linha de "nenhum" quando não há.
+func (e *env) printSecretList(l []api.Secret) {
+	if len(l) == 0 {
+		fmt.Fprintln(e.out, e.t("Nenhum segredo."))
+		return
+	}
+	rows := make([][]string, len(l))
+	for i, s := range l {
+		rows[i] = e.secretLine(s)
+	}
+	e.table([]string{e.t("NOME"), e.t("PROVIDER"), e.t("VERSÃO"), e.t("REVELADO"), e.t("ÚLTIMO USO"), e.t("USADO POR")}, rows)
+}
+
 // showRevealed imprime o valor entregue pelo servidor (criação/rotação gerada ou revelar), que não pode ser lido de novo.
 func (e *env) showRevealed(s api.Secret) {
 	if s.Value == "" {
@@ -126,15 +139,7 @@ func (e *env) secretCmd() *cobra.Command {
 			if e.asJSON {
 				return e.printJSON(l)
 			}
-			if len(l) == 0 {
-				fmt.Fprintln(e.out, e.t("Nenhum segredo."))
-				return nil
-			}
-			rows := make([][]string, len(l))
-			for i, s := range l {
-				rows[i] = e.secretLine(s)
-			}
-			e.table([]string{e.t("NOME"), e.t("PROVIDER"), e.t("VERSÃO"), e.t("REVELADO"), e.t("ÚLTIMO USO"), e.t("USADO POR")}, rows)
+			e.printSecretList(l)
 			return nil
 		},
 	}
@@ -267,7 +272,7 @@ func (e *env) secretCmd() *cobra.Command {
 		},
 	}
 
-	c.AddCommand(create, ls, show, rotate, reveal, rm, migrate, rekey)
+	c.AddCommand(create, ls, show, rotate, reveal, rm, migrate, rekey, e.secretFieldCmd(&user), e.secretCollectionCmd())
 	return c
 }
 

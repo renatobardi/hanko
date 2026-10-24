@@ -158,3 +158,106 @@ func TestBlobsStatus(t *testing.T) {
 		t.Fatalf("%d %q", code, out)
 	}
 }
+
+func TestSecretFieldCommands(t *testing.T) {
+	visible := api.SecretField{ID: "f1", Name: "login", Reference: "${secret:gw#login}", Kind: "text", Sensitive: false, Version: 1, VisibleText: "bot@acme"}
+	hidden := api.SecretField{ID: "f2", Name: "password", Reference: "${secret:gw#password}", Kind: "text", Sensitive: true, Version: 2, Revealed: true}
+	generated := hidden
+	generated.Value = "hk_gerado-xyz"
+	const base = "/api/v1/companies/acme/secrets/gw/fields"
+	ts, f := newFakeAPI(t, map[string]http.HandlerFunc{
+		"GET " + base:                                       jsonResp(200, list(visible, hidden)),
+		"POST " + base:                                      jsonResp(201, generated),
+		"POST " + base + "/password/rotate":                 jsonResp(200, generated),
+		"PATCH " + base + "/password":                       jsonResp(200, hidden),
+		"GET /api/v1/companies/acme/user-secrets/gw/fields": jsonResp(200, list(visible)),
+	})
+	code, out, _ := exec(t, Runtime{}, gateEnv(ts.URL), "", "secret", "field", "ls", "gw")
+	if code != 0 || !strings.Contains(out, "bot@acme") || !strings.Contains(out, "password") || !strings.Contains(out, "secreto") {
+		t.Fatalf("ls: %d %q", code, out)
+	}
+	if code, out, _ = exec(t, Runtime{}, gateEnv(ts.URL), "", "secret", "--user", "field", "ls", "gw"); code != 0 || !strings.Contains(out, "login") {
+		t.Fatalf("ls --user: %d %q", code, out)
+	}
+	code, out, errs := exec(t, Runtime{}, gateEnv(ts.URL), "senha-do-usuario\n", "secret", "field", "add", "gw", "password", "--value-stdin", "--position", "2")
+	if code != 0 || strings.Contains(out+errs, "senha-do-usuario") || !strings.Contains(out, "Campo criado: password") {
+		t.Fatalf("add: %d %q %q", code, out, errs)
+	}
+	if b := f.last().Body; !strings.Contains(b, `"name":"password"`) || !strings.Contains(b, `"value":"senha-do-usuario"`) || !strings.Contains(b, `"position":2`) || strings.Contains(b, "sensitive") {
+		t.Fatalf("corpo: %s", b)
+	}
+	// --generate mostra o valor gerado pelo servidor; --visible envia sensitive=false
+	code, out, _ = exec(t, Runtime{}, gateEnv(ts.URL), "", "secret", "field", "add", "gw", "password", "--generate", "--visible")
+	if code != 0 || !strings.Contains(out, "hk_gerado-xyz") || !strings.Contains(f.last().Body, `"sensitive":false`) {
+		t.Fatalf("add --generate: %d %q %s", code, out, f.last().Body)
+	}
+	code, out, _ = exec(t, Runtime{}, gateEnv(ts.URL), "", "secret", "field", "rotate", "gw", "password", "--generate")
+	if code != 0 || !strings.Contains(out, "rotacionado (versão 2)") || !strings.Contains(out, "hk_gerado-xyz") {
+		t.Fatalf("rotate: %d %q", code, out)
+	}
+	if code, _, _ = exec(t, Runtime{}, gateEnv(ts.URL), "x", "secret", "field", "rotate", "gw", "password", "--value", "x", "--value-stdin"); code != 2 {
+		t.Fatalf("value+stdin: %d", code)
+	}
+	code, out, _ = exec(t, Runtime{}, gateEnv(ts.URL), "", "secret", "field", "set", "gw", "password", "--visible", "--position", "3")
+	if code != 0 || f.last().Method != "PATCH" || !strings.Contains(f.last().Body, `"sensitive":false`) || !strings.Contains(f.last().Body, `"position":3`) {
+		t.Fatalf("set: %d %q %+v", code, out, f.last())
+	}
+	if code, _, _ = exec(t, Runtime{}, gateEnv(ts.URL), "", "secret", "field", "set", "gw", "password"); code != 2 {
+		t.Fatalf("set sem nada: %d", code)
+	}
+	if code, _, _ = exec(t, Runtime{}, gateEnv(ts.URL), "", "secret", "field", "set", "gw", "password", "--visible", "--secret"); code != 2 {
+		t.Fatalf("set visible+secret: %d", code)
+	}
+}
+
+func TestSecretCollectionCommands(t *testing.T) {
+	def := api.SecretCollection{ID: "c1", Name: "default", Description: "Todas as personas", IsDefault: true, Secrets: 3}
+	rot := 90
+	infra := api.SecretCollection{ID: "c2", Name: "infra", Description: "servidores", RotateAfterDays: &rot, Secrets: 1}
+	const base = "/api/v1/companies/acme/secret-collections"
+	ts, f := newFakeAPI(t, map[string]http.HandlerFunc{
+		"GET " + base:                                     jsonResp(200, list(def, infra)),
+		"POST " + base:                                    jsonResp(201, infra),
+		"GET " + base + "/infra":                          jsonResp(200, infra),
+		"PATCH " + base + "/infra":                        jsonResp(200, infra),
+		"GET " + base + "/infra/secrets":                  jsonResp(200, list(secret1)),
+		"PUT " + base + "/infra/secrets/gateway-token":    jsonResp(204, nil),
+		"DELETE " + base + "/infra/secrets/gateway-token": jsonResp(204, nil),
+		"DELETE " + base + "/default":                     jsonResp(422, map[string]any{"title": "Inválido", "status": 422, "detail": "a coleção padrão não se apaga"}),
+	})
+	code, out, _ := exec(t, Runtime{}, gateEnv(ts.URL), "", "secret", "collection", "ls")
+	if code != 0 || !strings.Contains(out, "infra") || !strings.Contains(out, "default") || !strings.Contains(out, "90") {
+		t.Fatalf("ls: %d %q", code, out)
+	}
+	code, out, _ = exec(t, Runtime{}, gateEnv(ts.URL), "", "secret", "collection", "create", "infra", "--description", "servidores", "--rotate-days", "90")
+	if code != 0 || !strings.Contains(out, "Coleção criada: infra") || !strings.Contains(f.last().Body, `"rotate_after_days":90`) {
+		t.Fatalf("create: %d %q %s", code, out, f.last().Body)
+	}
+	if code, out, _ = exec(t, Runtime{}, gateEnv(ts.URL), "", "secret", "collection", "show", "infra"); code != 0 || !strings.Contains(out, "servidores") {
+		t.Fatalf("show: %d %q", code, out)
+	}
+	if code, out, _ = exec(t, Runtime{}, gateEnv(ts.URL), "", "secret", "collection", "secrets", "infra"); code != 0 || !strings.Contains(out, "gateway-token") {
+		t.Fatalf("secrets: %d %q", code, out)
+	}
+	// update parte da coleção atual: só o nome muda, descrição e prazo seguem
+	code, out, _ = exec(t, Runtime{}, gateEnv(ts.URL), "", "secret", "collection", "update", "infra", "--name", "infra2")
+	b := f.last().Body
+	if code != 0 || f.last().Method != "PATCH" || !strings.Contains(b, `"name":"infra2"`) || !strings.Contains(b, `"description":"servidores"`) || !strings.Contains(b, `"rotate_after_days":90`) {
+		t.Fatalf("update: %d %q %s", code, out, b)
+	}
+	if code, _, _ = exec(t, Runtime{}, gateEnv(ts.URL), "", "secret", "collection", "update", "infra"); code != 2 {
+		t.Fatalf("update sem flags: %d", code)
+	}
+	code, out, _ = exec(t, Runtime{}, gateEnv(ts.URL), "", "secret", "collection", "add", "infra", "gateway-token")
+	if code != 0 || f.last().Method != "PUT" || !strings.Contains(out, "gateway-token") {
+		t.Fatalf("add: %d %q %+v", code, out, f.last())
+	}
+	code, _, _ = exec(t, Runtime{}, gateEnv(ts.URL), "", "secret", "collection", "remove", "infra", "gateway-token")
+	if code != 0 || f.last().Method != "DELETE" {
+		t.Fatalf("remove: %d %+v", code, f.last())
+	}
+	code, _, errs := exec(t, Runtime{}, gateEnv(ts.URL), "", "secret", "collection", "rm", "default")
+	if code == 0 || !strings.Contains(errs, "a coleção padrão não se apaga") {
+		t.Fatalf("rm padrão: %d %q", code, errs)
+	}
+}

@@ -3,6 +3,7 @@ package secretref
 import (
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -17,6 +18,35 @@ func TestFindAndIsRef(t *testing.T) {
 	}
 	if !ValidName("Tok_en-1.a") || ValidName("1abc") || ValidName("") || ValidName("a b") {
 		t.Fatal("ValidName incorreto")
+	}
+}
+
+func TestFindFields(t *testing.T) {
+	// #campo (ADR-0068 §1.4): campo do item; sem #campo vale o campo padrão "value".
+	got := Find("${secret:gh#password} ${secret:gh} ${secret:user/p#totp-seed} ${secret:gh#value} ${secret:gh#1x} ${secret:gh#}")
+	want := []Ref{
+		{Name: "gh", Field: "password"},
+		{Name: "gh"},
+		{Name: "p", Field: "totp-seed", User: true},
+		{Name: "gh", Field: "value"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("Find = %v, want %v", got, want)
+	}
+	if got[1].FieldName() != DefaultField {
+		t.Fatalf("FieldName sem #campo = %q, want %q", got[1].FieldName(), DefaultField)
+	}
+	if !IsRef("${secret:gh#password}") || IsRef("x ${secret:gh#password}") {
+		t.Fatal("IsRef incorreto com campo")
+	}
+	if !ValidFieldName("Campo_1-x") || ValidFieldName("1x") || ValidFieldName("") || ValidFieldName("a b") {
+		t.Fatal("ValidFieldName incorreto")
+	}
+	if s := (Ref{Name: "gh", Field: "password"}).String(); s != "${secret:gh#password}" {
+		t.Fatalf("String com campo = %q", s)
+	}
+	if s := (Ref{Name: "gh", Field: "value"}).String(); s != "${secret:gh}" {
+		t.Fatalf("String com campo padrão = %q (não imprime #value)", s)
 	}
 }
 
@@ -40,6 +70,30 @@ func TestExpand(t *testing.T) {
 	_, _, err = Expand("x ${secret:missing}", look)
 	if !errors.Is(err, ErrUnresolved) {
 		t.Fatalf("err = %v, want ErrUnresolved", err)
+	}
+}
+
+func TestExpandFields(t *testing.T) {
+	// Campos diferentes do mesmo item são buscas distintas; o erro nomeia a referência com o campo.
+	seen := map[string]bool{}
+	look := func(r Ref) (string, error) {
+		k := r.Name + "#" + r.FieldName()
+		if seen[k] {
+			return "", errors.New("buscou de novo: " + k)
+		}
+		seen[k] = true
+		return "V-" + k, nil
+	}
+	out, used, err := Expand("${secret:gh#user} ${secret:gh#pass} ${secret:gh}", look)
+	if err != nil || out != "V-gh#user V-gh#pass V-gh#value" {
+		t.Fatalf("Expand = %q, %v", out, err)
+	}
+	if len(used) != 3 {
+		t.Fatalf("used = %v", used)
+	}
+	_, _, err = Expand("${secret:gh#missing}", func(r Ref) (string, error) { return "", errors.New("não existe") })
+	if !errors.Is(err, ErrUnresolved) || !strings.Contains(err.Error(), "${secret:gh#missing}") {
+		t.Fatalf("err = %v, want ErrUnresolved com a referência", err)
 	}
 }
 

@@ -10,6 +10,7 @@ import (
 
 	"github.com/renatobardi/hanko/internal/config"
 	"github.com/renatobardi/hanko/internal/db"
+	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/service"
 	"github.com/renatobardi/hanko/internal/settings"
 	"github.com/renatobardi/hanko/internal/storage"
@@ -36,6 +37,9 @@ func settingsBase(cfg config.Config) map[string]any {
 		settings.RateLimitMCP:           cfg.RateLimit.MCPPerMin,
 		settings.RateLimitWebhooks:      cfg.RateLimit.WebhooksPerMin,
 		settings.RateLimitBrowserErrors: cfg.RateLimit.BrowserErrPerMin,
+		// retenção do histórico do cofre (ADR-0068 §3.2): padrão da domínio até o operador mudar
+		settings.SecretsHistoryVersions: int64(domain.DefaultHistoryKeepVersions),
+		settings.SecretsHistoryDays:     int64(domain.DefaultHistoryKeepDays),
 	}
 }
 

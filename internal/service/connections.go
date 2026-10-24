@@ -722,10 +722,9 @@ func (s *Service) upsertScopedSecretTx(t *txc, actor domain.Actor, companyID dom
 		if err != nil {
 			return err
 		}
-		row, err := t.q.RotateSecret(t.ctx, store.RotateSecretParams{ID: cur.ID, CompanyID: companyID, Provider: string(m.provider),
-			ValueEnc: m.enc, Description: cur.Description, Now: t.now})
+		row, err := s.rotateSecretTx(t, actor, companyID, cur, m, cur.Description)
 		if err != nil {
-			return mapErr(err, "rotate secret")
+			return err
 		}
 		return t.activity(actor, companyID, "secret.rotated", "secret", row.ID, secretEventData(row), "")
 	case !isNoRows(err):
