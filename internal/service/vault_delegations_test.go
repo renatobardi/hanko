@@ -35,13 +35,13 @@ func newDelegEnv(t *testing.T) *delegEnv {
 	join(t, e.env, alice, domain.MemberMember)
 	join(t, e.env, bob, domain.MemberMember)
 	d := &delegEnv{toolsEnv: e, alice: alice, bob: bob, ac: as(alice), bc: as(bob), ana: e.persona(t, "Ana", nil)}
-	d.personal(t, d.ac, alice, "meu-token", sentinelPessoal)
+	d.personal(d.ac, t, alice, "meu-token", sentinelPessoal)
 	e.policy(t, e.toolPolicy(&d.ana, domain.PolicyTargetNative, nil, service.HankoSecretGetTool, domain.PolicyAllow))
 	return d
 }
 
 // personal cria um segredo pessoal do usuário.
-func (d *delegEnv) personal(t *testing.T, ctx context.Context, u domain.User, name, value string) {
+func (d *delegEnv) personal(ctx context.Context, t *testing.T, u domain.User, name, value string) {
 	t.Helper()
 	in := service.CreateSecretInput{Scope: domain.SecretScopeUser, Name: name, Value: value}
 	if _, err := d.svc.CreateSecret(ctx, u.Actor(), d.co.ID, in); err != nil {
@@ -50,7 +50,7 @@ func (d *delegEnv) personal(t *testing.T, ctx context.Context, u domain.User, na
 }
 
 // run abre uma task pedida por u e a run da Ana nela.
-func (d *delegEnv) run(t *testing.T, ctx context.Context, u domain.User, title string) (domain.Run, service.TaskView) {
+func (d *delegEnv) run(ctx context.Context, t *testing.T, u domain.User, title string) (domain.Run, service.TaskView) {
 	t.Helper()
 	tk, err := d.svc.CreateTask(ctx, u.Actor(), d.co.ID, service.CreateTaskInput{Title: title, PersonaID: &d.ana.ID})
 	if err != nil {
@@ -92,8 +92,8 @@ func wantDenied(t *testing.T, what, out string, err error) {
 // Critério 1: run sem delegação não resolve o item pessoal; run de outro humano também não.
 func TestDelegacaoRunSemDelegacaoOuDeOutroHumanoNaoResolve(t *testing.T) {
 	d := newDelegEnv(t)
-	runA, taskA := d.run(t, d.ac, d.alice, "tarefa da Alice")
-	runB, taskB := d.run(t, d.bc, d.bob, "tarefa do Bob")
+	runA, taskA := d.run(d.ac, t, d.alice, "tarefa da Alice")
+	runB, taskB := d.run(d.bc, t, d.bob, "tarefa do Bob")
 
 	// sem delegação nenhuma, nem a run da dona resolve (texto e tool)
 	out, _, err := d.resolve(runA.ID, refPessoal)
@@ -110,7 +110,7 @@ func TestDelegacaoRunSemDelegacaoOuDeOutroHumanoNaoResolve(t *testing.T) {
 	}
 
 	// a delegação da Alice à task dela libera a run dela, mas não a run do Bob, mesmo com um item homônimo do Bob
-	d.personal(t, d.bc, d.bob, "meu-token", sentinelPessoalB)
+	d.personal(d.bc, t, d.bob, "meu-token", sentinelPessoalB)
 	if _, err := d.delegate(d.ac, d.alice, domain.DelegationTask, taskA.ID, 0); err != nil {
 		t.Fatal(err)
 	}
@@ -140,8 +140,8 @@ func isNotFound(err error) bool { return errors.Is(err, domain.ErrNotFound) }
 // Critério 2: a delegação deixa de valer depois do prazo e depois da revogação.
 func TestDelegacaoPrazoERevogacao(t *testing.T) {
 	d := newDelegEnv(t)
-	runA, taskA := d.run(t, d.ac, d.alice, "tarefa da Alice")
-	now := time.Now().UTC()
+	runA, taskA := d.run(d.ac, t, d.alice, "tarefa da Alice")
+	now := time.Now().UTC().Truncate(time.Millisecond) // o banco guarda microssegundos
 	d.svc.Now = func() time.Time { return now }
 
 	// prazo: padrão de 24 h, máximo de 7 dias
@@ -208,9 +208,9 @@ func TestDelegacaoPrazoERevogacao(t *testing.T) {
 // Delegação a uma run em curso vale só para ela; o relatório do dono mostra quando e em que run o item foi usado.
 func TestDelegacaoPorRunERelatorioDoDono(t *testing.T) {
 	d := newDelegEnv(t)
-	run1, _ := d.run(t, d.ac, d.alice, "tarefa 1")
-	run2, _ := d.run(t, d.ac, d.alice, "tarefa 2")
-	runB, _ := d.run(t, d.bc, d.bob, "tarefa do Bob")
+	run1, _ := d.run(d.ac, t, d.alice, "tarefa 1")
+	run2, _ := d.run(d.ac, t, d.alice, "tarefa 2")
+	runB, _ := d.run(d.bc, t, d.bob, "tarefa do Bob")
 
 	if _, err := d.delegate(d.ac, d.alice, domain.DelegationRun, runB.ID, 0); err == nil {
 		t.Fatal("run de outro humano não é delegável")
@@ -242,7 +242,7 @@ func TestDelegacaoPorRunERelatorioDoDono(t *testing.T) {
 		t.Fatalf("vias registradas: %v", vias)
 	}
 	// só o dono vê o relatório; o homônimo do Bob não mostra os usos da Alice
-	d.personal(t, d.bc, d.bob, "meu-token", sentinelPessoalB)
+	d.personal(d.bc, t, d.bob, "meu-token", sentinelPessoalB)
 	if theirs, err := d.svc.ListUserSecretUsage(d.bc, d.co.ID, "meu-token", 50); err != nil || len(theirs) != 0 {
 		t.Fatalf("Bob vê os usos da Alice: %d %v", len(theirs), err)
 	}
@@ -258,9 +258,9 @@ func TestDelegacaoPorRunERelatorioDoDono(t *testing.T) {
 // Critério 3: a saída apaga os itens pessoais, lista as delegações ativas e grava o fato, sem nome nem valor.
 func TestSaidaDoHumanoApagaItensEListaDelegacoes(t *testing.T) {
 	d := newDelegEnv(t)
-	d.personal(t, d.ac, d.alice, "outro-token", "SENTINELA-outro-1f2e3d")
-	_, taskA := d.run(t, d.ac, d.alice, "tarefa 1")
-	_, taskA2 := d.run(t, d.ac, d.alice, "tarefa 2")
+	d.personal(d.ac, t, d.alice, "outro-token", "SENTINELA-outro-1f2e3d")
+	_, taskA := d.run(d.ac, t, d.alice, "tarefa 1")
+	_, taskA2 := d.run(d.ac, t, d.alice, "tarefa 2")
 	live, err := d.delegate(d.ac, d.alice, domain.DelegationTask, taskA.ID, 0)
 	if err != nil {
 		t.Fatal(err)
@@ -272,7 +272,7 @@ func TestSaidaDoHumanoApagaItensEListaDelegacoes(t *testing.T) {
 	if err := d.svc.RevokeSecretDelegation(d.ac, d.alice.Actor(), d.co.ID, gone.ID); err != nil {
 		t.Fatal(err)
 	}
-	d.personal(t, d.bc, d.bob, "meu-token", sentinelPessoalB)
+	d.personal(d.bc, t, d.bob, "meu-token", sentinelPessoalB)
 
 	rep, err := d.svc.RemoveMemberReport(d.ac, d.alice.Actor(), d.co.ID, d.alice.ID)
 	if err != nil {
