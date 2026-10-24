@@ -12,6 +12,14 @@ import (
 
 // Campos e coleções do cofre (ADR-0068, fatia 1). Reveal de campo, histórico e concessões chegam na fatia 2.
 
+// valueFlags registra --value, --value-stdin e --generate; cada comando passa o próprio texto de ajuda.
+func (e *env) valueFlags(cmd *cobra.Command, value *string, stdin, gen *bool, valueHelp, stdinHelp, genHelp string) {
+	f := cmd.Flags()
+	f.StringVar(value, "value", "", valueHelp)
+	f.BoolVar(stdin, "value-stdin", false, stdinHelp)
+	f.BoolVar(gen, "generate", false, genHelp)
+}
+
 // showRevealedField mostra o valor que o servidor devolveu (gerado), uma vez; nunca ecoa o que o usuário enviou.
 func (e *env) showRevealedField(f api.SecretField) {
 	if f.Value == "" {
@@ -101,9 +109,9 @@ func (e *env) secretFieldCmd(user *bool) *cobra.Command {
 		},
 	}
 	af := add.Flags()
-	af.StringVar(&aValue, "value", "", e.t("valor (prefira --value-stdin: o valor não fica no histórico do shell)"))
-	af.BoolVar(&aStdin, "value-stdin", false, e.t("lê o valor do stdin"))
-	af.BoolVar(&aGen, "generate", false, e.t("o servidor gera o valor e o mostra uma vez"))
+	e.valueFlags(add, &aValue, &aStdin, &aGen,
+		e.t("valor (prefira --value-stdin: o valor não fica no histórico do shell)"), e.t("lê o valor do stdin"),
+		e.t("o servidor gera o valor e o mostra uma vez"))
 	af.BoolVar(&aVis, "visible", false, e.t("campo visível: o valor aparece na listagem (padrão: secreto)"))
 	af.StringVar(&aKind, "kind", "text", e.t("tipo do campo: text ou totp"))
 	af.IntVar(&aPos, "position", 0, e.t("posição do campo na lista"))
@@ -135,10 +143,9 @@ func (e *env) secretFieldCmd(user *bool) *cobra.Command {
 			return nil
 		},
 	}
-	rf := rotate.Flags()
-	rf.StringVar(&rValue, "value", "", e.t("novo valor (prefira --value-stdin)"))
-	rf.BoolVar(&rStdin, "value-stdin", false, e.t("lê o novo valor do stdin"))
-	rf.BoolVar(&rGen, "generate", false, e.t("o servidor gera o novo valor e o mostra uma vez"))
+	e.valueFlags(rotate, &rValue, &rStdin, &rGen,
+		e.t("novo valor (prefira --value-stdin)"), e.t("lê o novo valor do stdin"),
+		e.t("o servidor gera o novo valor e o mostra uma vez"))
 
 	var sVis, sSecret bool
 	var sPos int
@@ -290,15 +297,7 @@ func (e *env) secretCollectionCmd() *cobra.Command {
 			if e.asJSON {
 				return e.printJSON(l)
 			}
-			if len(l) == 0 {
-				fmt.Fprintln(e.out, e.t("Nenhum segredo."))
-				return nil
-			}
-			rows := make([][]string, len(l))
-			for i, s := range l {
-				rows[i] = e.secretLine(s)
-			}
-			e.table([]string{e.t("NOME"), e.t("PROVIDER"), e.t("VERSÃO"), e.t("REVELADO"), e.t("ÚLTIMO USO"), e.t("USADO POR")}, rows)
+			e.printSecretList(l)
 			return nil
 		},
 	}
