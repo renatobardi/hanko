@@ -153,6 +153,29 @@ func TestLoginFinishRecusaProvaErrada(t *testing.T) {
 	}
 }
 
+// Um IP de loopback vira localhost (o RP ID é domínio); outro IP é recusado; o domínio segue igual.
+func TestParseConfigRPIDNaoEIP(t *testing.T) {
+	for _, c := range []struct{ url, rpID string }{
+		{"http://127.0.0.1:7420", "localhost"},
+		{"http://[::1]:7420", "localhost"},
+		{"https://hanko.oute.pro", "hanko.oute.pro"},
+	} {
+		cfg, err := ParseConfig(c.url)
+		if err != nil {
+			t.Fatalf("ParseConfig(%q): %v", c.url, err)
+		}
+		if cfg.RPID != c.rpID {
+			t.Fatalf("ParseConfig(%q).RPID = %q, quer %q", c.url, cfg.RPID, c.rpID)
+		}
+		if _, err := cfg.New(); err != nil {
+			t.Fatalf("New com RPID %q: %v", cfg.RPID, err)
+		}
+	}
+	if _, err := ParseConfig("http://10.0.0.5:7420"); err == nil {
+		t.Fatal("IP que não é loopback deve ser recusado")
+	}
+}
+
 func TestParseConfig(t *testing.T) {
 	c, err := ParseConfig("https://hanko.example.com:8443/")
 	if err != nil {

@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/url"
 
 	"github.com/go-webauthn/webauthn/protocol"
@@ -32,13 +33,21 @@ type Config struct {
 	Origins []string
 }
 
-// ParseConfig deriva a configuração da URL pública da instalação.
+// ParseConfig deriva a configuração da URL pública da instalação. O RP ID é o host, e o WebAuthn só aceita domínio:
+// um IP de loopback vira "localhost" (uso local e testes); outro IP é recusado, e quem chama deixa a passkey desligada.
 func ParseConfig(publicURL string) (Config, error) {
 	u, err := url.Parse(publicURL)
 	if err != nil || u.Scheme == "" || u.Host == "" {
 		return Config{}, fmt.Errorf("passkey: URL pública inválida: %q", publicURL)
 	}
-	return Config{RPID: u.Hostname(), Origins: []string{u.Scheme + "://" + u.Host}}, nil
+	host := u.Hostname()
+	if ip := net.ParseIP(host); ip != nil {
+		if !ip.IsLoopback() {
+			return Config{}, fmt.Errorf("passkey: a URL pública usa o IP %s; o WebAuthn exige um domínio", host)
+		}
+		host = "localhost"
+	}
+	return Config{RPID: host, Origins: []string{u.Scheme + "://" + u.Host}}, nil
 }
 
 // Service executa as cerimônias. Zero value não serve: use New.

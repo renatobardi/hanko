@@ -98,13 +98,15 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 	}
 	svc.ACP = acp.Policy{Allow: cfg.ACP.Allow, Commands: cfg.ACP.Commands}
 	// Reautenticação e passkey (ADR-0070): a parte confiante sai da URL pública; sem ela, a passkey fica desligada.
+	// Sem passkey válida (URL com IP que não é loopback, ou host que o WebAuthn recusa), o boot segue: a passkey fica
+	// desligada e o aviso vai para o log.
 	if cfg.PublicURL != "" {
 		pc, err := passkey.ParseConfig(cfg.PublicURL)
-		if err != nil {
-			return fmt.Errorf("app: passkey: %w", err)
+		if err == nil {
+			svc.Passkeys, err = pc.New()
 		}
-		if svc.Passkeys, err = pc.New(); err != nil {
-			return fmt.Errorf("app: passkey: %w", err)
+		if err != nil {
+			logger.Warn("passkey desligada: HANKO_PUBLIC_URL não serve como RP ID do WebAuthn", "err", err)
 		}
 	}
 	svc.ReauthLimiter = &auth.LoginLimiter{}
