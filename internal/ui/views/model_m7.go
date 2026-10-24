@@ -16,6 +16,7 @@ type SecretRowVM struct {
 	RotateHref  string
 	RevealHref  string
 	DeleteHref  string
+	FieldsHref  string
 }
 
 // SecretFormVM é o formulário de criação (e o que volta num erro, sem o valor).
@@ -51,6 +52,8 @@ type SecretsVM struct {
 	Form    SecretFormVM
 	UForm   SecretFormVM
 	Reveal  *SecretRevealVM
+	// CollectionsHref leva à página de coleções (ADR-0068).
+	CollectionsHref string
 }
 
 // ---- Configurações › Instância (ADR-0050 §C, ADR-0051) ----

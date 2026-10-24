@@ -76,6 +76,8 @@ var settingTexts = map[string][2]string{
 	settings.RateLimitMCP:           {i18n.N("Chamadas MCP por minuto (por identidade ou run)"), ""},
 	settings.RateLimitWebhooks:      {i18n.N("Webhooks de entrada por minuto (por IP)"), ""},
 	settings.RateLimitBrowserErrors: {i18n.N("Erros de navegador por minuto (por IP)"), ""},
+	settings.SecretsHistoryVersions: {i18n.N("Versões de histórico por campo"), i18n.N("Retenção do histórico de cada campo: as últimas N versões ou as de até D dias, o que guardar menos (ADR-0068 §3.2).")},
+	settings.SecretsHistoryDays:     {i18n.N("Dias de histórico por campo"), ""},
 }
 
 func scopeOf(user bool) domain.SecretScope {
@@ -101,7 +103,7 @@ func secretRow(base string, v service.SecretView, user bool) views.SecretRowVM {
 	}
 	row := views.SecretRowVM{Name: v.Name, Reference: ref, Description: v.Description, Provider: string(v.Provider), ExternalRef: v.ExternalRef,
 		Version: v.Version, Revealed: v.RevealedAt != nil, LastUsed: "—",
-		RotateHref: base + seg + "/rotacionar" + q, RevealHref: base + seg + "/revelar" + q, DeleteHref: base + seg + "/apagar" + q}
+		RotateHref: base + seg + "/rotacionar" + q, RevealHref: base + seg + "/revelar" + q, DeleteHref: base + seg + "/apagar" + q, FieldsHref: base + seg + "/campos" + q}
 	if v.LastUsedAt != nil {
 		row.LastUsed = v.LastUsedAt.Local().Format("02/01/2006 15:04")
 	}
@@ -116,7 +118,7 @@ func (s *server) secretsVM(r *http.Request, co domain.Company, be secretsBackend
 	ctx := r.Context()
 	base := "/c/" + co.Slug
 	vm := views.SecretsVM{Sections: settingsSections(ctx, base, "segredos"), KeySet: s.platform.SecretKeySet, VaultOn: s.platform.VaultConfigured,
-		Notice: i18n.T(ctx, secretNotices[r.URL.Query().Get("ok")]), Reveal: reveal,
+		Notice: i18n.T(ctx, secretNotices[r.URL.Query().Get("ok")]), Reveal: reveal, CollectionsHref: base + "/configuracoes/colecoes",
 		Form:  views.SecretFormVM{Action: base + "/configuracoes/segredos", Provider: "local", FieldErr: map[string]string{}},
 		UForm: views.SecretFormVM{Action: base + "/configuracoes/segredos?escopo=usuario", Provider: "local", User: true, FieldErr: map[string]string{}}}
 	_, vm.UserOK = auth.IdentityFrom(ctx)
@@ -321,6 +323,8 @@ func groupTitle(ctx context.Context, g string) string {
 		return i18n.T(ctx, "Alertas")
 	case "ratelimit":
 		return i18n.T(ctx, "Limite de taxa")
+	case "secrets":
+		return i18n.T(ctx, "Segredos")
 	}
 	return i18n.T(ctx, "Experimentais")
 }

@@ -11,9 +11,7 @@ func TestVaultContratoResponde501(t *testing.T) {
 	ts, _ := newTestServer(t, &fakeSvc{}, nil)
 	const uuid = "00000000-0000-0000-0000-000000000001"
 	for _, c := range []struct{ method, path string }{
-		{"GET", "/api/v1/companies/acme/secrets/gh/fields"},
 		{"GET", "/api/v1/companies/acme/user-secrets/gh/fields/password/history"},
-		{"GET", "/api/v1/companies/acme/secret-collections"},
 		{"DELETE", "/api/v1/companies/acme/secret-collections/infra/grants/" + uuid},
 		{"GET", "/api/v1/me/passkeys"},
 		{"POST", "/api/v1/me/reauth/options"},
@@ -57,7 +55,9 @@ func TestVaultContratoResponde501(t *testing.T) {
 			}
 		}
 	}
-	if n < 50 {
-		t.Fatalf("operações do contrato do cofre = %d, quer todas (54)", n)
+	// A fatia 1 (#56) liga 17 das 54 operações do contrato; as restantes (reautenticação, envios, delegações,
+	// saúde, portabilidade) seguem com a descrição "Contrato do cofre" e respondem 501.
+	if n < 37 {
+		t.Fatalf("operações do contrato do cofre ainda em 501 = %d, quer pelo menos 37", n)
 	}
 }

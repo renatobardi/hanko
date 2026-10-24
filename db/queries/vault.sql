@@ -88,8 +88,18 @@ RETURNING *;
 DELETE FROM secret_field_versions WHERE company_id = @company_id AND id = ANY(@ids::uuid[]);
 
 -- name: ListFieldsWithHistory :many
--- Campos que têm histórico (o job de retenção percorre um por vez).
-SELECT DISTINCT company_id, field_id FROM secret_field_versions;
+-- Campos que têm histórico (o job de retenção percorre um por vez); secret_id é o sujeito do fato.
+SELECT DISTINCT v.company_id, v.field_id, f.secret_id
+FROM secret_field_versions v JOIN secret_fields f ON f.id = v.field_id;
+
+-- name: ListSecretFieldVersionsForRekey :many
+-- Histórico cifrado a reescrever na troca de HANKO_SECRET_KEY (secret_id e version entram no AAD).
+SELECT v.id, v.field_id, f.secret_id, v.version, v.value_enc, v.aad_version
+FROM secret_field_versions v JOIN secret_fields f ON f.id = v.field_id
+WHERE v.provider = 'local' AND length(v.value_enc) > 0;
+
+-- name: SetSecretFieldVersionValueEnc :exec
+UPDATE secret_field_versions SET value_enc = @value_enc WHERE id = @id;
 
 -- ---------- coleções ----------
 
@@ -102,6 +112,13 @@ RETURNING *;
 
 -- name: ListSecretCollections :many
 SELECT * FROM secret_collections WHERE company_id = @company_id ORDER BY is_default DESC, name;
+
+-- name: ListSecretCollectionsWithCounts :many
+-- Coleções da empresa com quantos segredos cada uma tem (a resposta da API leva a contagem).
+SELECT c.*, count(i.secret_id)::bigint AS secrets_count
+FROM secret_collections c LEFT JOIN secret_collection_items i ON i.collection_id = c.id
+WHERE c.company_id = @company_id
+GROUP BY c.id ORDER BY c.is_default DESC, c.name;
 
 -- name: GetSecretCollection :one
 SELECT * FROM secret_collections WHERE company_id = @company_id AND id = @id;

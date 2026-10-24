@@ -128,7 +128,7 @@ func (s *Service) checkReadiness(ctx context.Context, actor domain.Actor, compan
 			tg = execenv.Target{Driver: domain.EnvironmentDriver(res.env.Driver)}
 		}
 	}
-	cfg, _, cfgErr := s.ResolveAdapterConfig(ctx, companyID, p.AdapterConfig)
+	cfg, _, cfgErr := s.ResolveAdapterConfig(ctx, companyID, p.ID, p.AdapterConfig)
 	prices, err := q.ListModelPrices(ctx)
 	if err != nil {
 		return domain.Readiness{}, fmt.Errorf("list model prices: %w", err)

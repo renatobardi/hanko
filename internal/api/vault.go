@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
+
+	"github.com/renatobardi/hanko/internal/domain"
 )
 
 // Contrato do cofre para agentes (ADR-0068), do envio (ADR-0069) e da reautenticação com passkey (ADR-0070).
@@ -70,8 +72,8 @@ type SecretFieldVersion struct {
 	RevealedAt *time.Time `json:"revealed_at,omitempty"`
 }
 
-// secretFieldValue é o valor de um campo na criação ou rotação: texto, gerado, arquivo ou referência externa.
-type secretFieldValue struct {
+// SecretFieldValue é o valor de um campo na criação ou rotação: texto, gerado, arquivo ou referência externa.
+type SecretFieldValue struct {
 	Provider      string `json:"provider,omitempty" enum:"local,vault" doc:"Padrão local."`
 	Value         string `json:"value,omitempty" maxLength:"8192" doc:"Texto ou semente TOTP (base32 ou otpauth://). Cifrado; nunca devolvido."`
 	Generate      bool   `json:"generate,omitempty" doc:"O servidor gera o valor (gerador da fatia 6) e o devolve uma vez."`
@@ -81,13 +83,13 @@ type secretFieldValue struct {
 	ExternalRef   string `json:"external_ref,omitempty" maxLength:"500" doc:"Provider vault: caminho#campo."`
 }
 
-type secretFieldPath struct {
+type SecretFieldPath struct {
 	SecretPath
 	Field string `path:"field" doc:"Nome do campo." example:"password"`
 }
 
 type secretFieldVersionPath struct {
-	secretFieldPath
+	SecretFieldPath
 	Version int `path:"version" minimum:"1"`
 }
 
@@ -98,12 +100,12 @@ type createSecretFieldIn struct {
 		Kind      string `json:"kind,omitempty" enum:"text,totp,file" doc:"Padrão text."`
 		Sensitive *bool  `json:"sensitive,omitempty" doc:"Padrão true; totp e file são sempre secretos."`
 		Position  int    `json:"position,omitempty"`
-		secretFieldValue
+		SecretFieldValue
 	}
 }
 
 type updateSecretFieldIn struct {
-	secretFieldPath
+	SecretFieldPath
 	Body struct {
 		Sensitive *bool `json:"sensitive,omitempty"`
 		Position  *int  `json:"position,omitempty"`
@@ -111,8 +113,8 @@ type updateSecretFieldIn struct {
 }
 
 type rotateSecretFieldIn struct {
-	secretFieldPath
-	Body secretFieldValue
+	SecretFieldPath
+	Body SecretFieldValue
 }
 
 type listSecretFieldsIn struct {
@@ -120,27 +122,22 @@ type listSecretFieldsIn struct {
 	Page
 }
 
-func registerSecretFieldsScope(api huma.API, seg, opPrefix, what string) {
+// registerSecretFieldsScope registra os campos de um escopo. Criar, listar, mudar e trocar valor ligam o service
+// (registerFieldWrites); revelar, apagar e o histórico exigem reautenticação recente e ficam em 501 até a fatia 2.
+func (s *server) registerSecretFieldsScope(api huma.API, scope domain.SecretScope, seg, opPrefix, what string) {
+	s.registerFieldWrites(api, scope, seg, opPrefix, what)
 	base := "/companies/{company}/" + seg + "/{name}/fields"
 	tag := "vault"
-	pendingOp[createSecretFieldIn, ItemOut[SecretField]](api, created(op("create-"+opPrefix+"-field", http.MethodPost, base, tag,
-		"Cria um campo num "+what)), sliceFields)
-	pendingOp[listSecretFieldsIn, ListOut[SecretField]](api, op("list-"+opPrefix+"-fields", http.MethodGet, base, tag,
-		"Lista os campos de um "+what+" (metadados; valor só dos campos visíveis)"), sliceFields)
-	pendingOp[updateSecretFieldIn, ItemOut[SecretField]](api, op("update-"+opPrefix+"-field", http.MethodPatch, base+"/{field}", tag,
-		"Muda marca de visível e posição de um campo"), sliceFields)
-	pendingOp[rotateSecretFieldIn, ItemOut[SecretField]](api, op("rotate-"+opPrefix+"-field", http.MethodPost, base+"/{field}/rotate", tag,
-		"Troca o valor de um campo; o anterior vai para o histórico"), sliceFields)
-	pendingOp[secretFieldPath, ItemOut[SecretField]](api, op("reveal-"+opPrefix+"-field", http.MethodPost, base+"/{field}/reveal", tag,
-		"Mostra o valor de um campo UMA vez por versão (exige reautenticação recente)"), sliceFields)
-	pendingOp[secretFieldPath, struct{}](api, noContent(op("delete-"+opPrefix+"-field", http.MethodDelete, base+"/{field}", tag,
-		"Apaga um campo e o seu histórico (exige reautenticação recente)")), sliceFields)
-	pendingOp[secretFieldPath, ListOut[SecretFieldVersion]](api, op("list-"+opPrefix+"-field-history", http.MethodGet, base+"/{field}/history", tag,
-		"Lista as versões anteriores de um campo (exige reautenticação recente)"), sliceFields)
+	pendingOp[SecretFieldPath, ItemOut[SecretField]](api, op("reveal-"+opPrefix+"-field", http.MethodPost, base+"/{field}/reveal", tag,
+		"Mostra o valor de um campo UMA vez por versão (exige reautenticação recente)"), sliceReauth)
+	pendingOp[SecretFieldPath, struct{}](api, noContent(op("delete-"+opPrefix+"-field", http.MethodDelete, base+"/{field}", tag,
+		"Apaga um campo e o seu histórico (exige reautenticação recente)")), sliceReauth)
+	pendingOp[SecretFieldPath, ListOut[SecretFieldVersion]](api, op("list-"+opPrefix+"-field-history", http.MethodGet, base+"/{field}/history", tag,
+		"Lista as versões anteriores de um campo (exige reautenticação recente)"), sliceReauth)
 	pendingOp[secretFieldVersionPath, ItemOut[SecretFieldVersion]](api, op("reveal-"+opPrefix+"-field-version", http.MethodPost,
-		base+"/{field}/history/{version}/reveal", tag, "Mostra uma versão anterior UMA vez (exige reautenticação recente)"), sliceFields)
+		base+"/{field}/history/{version}/reveal", tag, "Mostra uma versão anterior UMA vez (exige reautenticação recente)"), sliceReauth)
 	pendingOp[secretFieldVersionPath, ItemOut[SecretField]](api, op("restore-"+opPrefix+"-field-version", http.MethodPost,
-		base+"/{field}/history/{version}/restore", tag, "Restaura uma versão anterior como versão nova (exige reautenticação recente)"), sliceFields)
+		base+"/{field}/history/{version}/restore", tag, "Restaura uma versão anterior como versão nova (exige reautenticação recente)"), sliceReauth)
 }
 
 // ---------- coleções e concessões (fatia 1) ----------
@@ -169,7 +166,7 @@ type CollectionGrant struct {
 	CreatedAt   time.Time `json:"created_at"`
 }
 
-type collectionPath struct {
+type CollectionPath struct {
 	CompanyPath
 	Collection string `path:"collection" doc:"Id ou nome da coleção."`
 }
@@ -186,7 +183,7 @@ type createCollectionIn struct {
 }
 
 type updateCollectionIn struct {
-	collectionPath
+	CollectionPath
 	Body collectionBody
 }
 
@@ -196,17 +193,17 @@ type listCollectionsIn struct {
 }
 
 type collectionSecretPath struct {
-	collectionPath
+	CollectionPath
 	Name string `path:"name" doc:"Nome do segredo da empresa."`
 }
 
 type listCollectionPageIn struct {
-	collectionPath
+	CollectionPath
 	Page
 }
 
 type createGrantIn struct {
-	collectionPath
+	CollectionPath
 	Body struct {
 		SubjectType string `json:"subject_type" enum:"persona,persona_tree,all_personas,user"`
 		Subject     string `json:"subject,omitempty" doc:"Slug ou id da persona; e-mail ou id do humano. Vazio em all_personas."`
@@ -215,35 +212,20 @@ type createGrantIn struct {
 }
 
 type grantPath struct {
-	collectionPath
+	CollectionPath
 	Grant string `path:"grant" format:"uuid"`
 }
 
-func registerCollections(api huma.API) {
+// registerCollections registra as coleções: o CRUD e os segredos da coleção ligam o service (registerCollectionOps);
+// conceder e revogar exigem reautenticação recente e ficam em 501 até a fatia 2.
+func (s *server) registerCollections(api huma.API) {
+	s.registerCollectionOps(api)
 	base := "/companies/{company}/secret-collections"
 	tag := "vault"
-	pendingOp[createCollectionIn, ItemOut[SecretCollection]](api, created(op("create-secret-collection", http.MethodPost, base, tag,
-		"Cria uma coleção de segredos (admin)")), sliceFields)
-	pendingOp[listCollectionsIn, ListOut[SecretCollection]](api, op("list-secret-collections", http.MethodGet, base, tag,
-		"Lista as coleções que o usuário alcança"), sliceFields)
-	pendingOp[collectionPath, ItemOut[SecretCollection]](api, op("get-secret-collection", http.MethodGet, base+"/{collection}", tag,
-		"Obtém uma coleção"), sliceFields)
-	pendingOp[updateCollectionIn, ItemOut[SecretCollection]](api, op("update-secret-collection", http.MethodPatch, base+"/{collection}", tag,
-		"Muda nome, descrição e prazo de rotação de uma coleção (admin)"), sliceFields)
-	pendingOp[collectionPath, struct{}](api, noContent(op("delete-secret-collection", http.MethodDelete, base+"/{collection}", tag,
-		"Apaga uma coleção; os segredos continuam existindo (admin; a padrão não se apaga)")), sliceFields)
-	pendingOp[listCollectionPageIn, ListOut[Secret]](api, op("list-collection-secrets", http.MethodGet, base+"/{collection}/secrets", tag,
-		"Lista os segredos de uma coleção"), sliceFields)
-	pendingOp[collectionSecretPath, struct{}](api, noContent(op("add-secret-to-collection", http.MethodPut, base+"/{collection}/secrets/{name}", tag,
-		"Põe um segredo da empresa na coleção (admin ou manage)")), sliceFields)
-	pendingOp[collectionSecretPath, struct{}](api, noContent(op("remove-secret-from-collection", http.MethodDelete,
-		base+"/{collection}/secrets/{name}", tag, "Tira um segredo da coleção (admin ou manage)")), sliceFields)
-	pendingOp[listCollectionPageIn, ListOut[CollectionGrant]](api, op("list-collection-grants", http.MethodGet, base+"/{collection}/grants", tag,
-		"Lista quem alcança a coleção"), sliceFields)
 	pendingOp[createGrantIn, ItemOut[CollectionGrant]](api, created(op("create-collection-grant", http.MethodPost, base+"/{collection}/grants", tag,
-		"Concede a coleção a persona, subárvore, todas as personas ou humano (admin; exige reautenticação recente)")), sliceFields)
+		"Concede a coleção a persona, subárvore, todas as personas ou humano (admin; exige reautenticação recente)")), sliceReauth)
 	pendingOp[grantPath, struct{}](api, noContent(op("delete-collection-grant", http.MethodDelete, base+"/{collection}/grants/{grant}", tag,
-		"Revoga uma concessão (admin; exige reautenticação recente)")), sliceFields)
+		"Revoga uma concessão (admin; exige reautenticação recente)")), sliceReauth)
 }
 
 // ---------- reautenticação e passkeys (fatia 2) ----------
@@ -590,9 +572,9 @@ func registerPortability(api huma.API) {
 }
 
 func (s *server) registerVault(api huma.API) {
-	registerSecretFieldsScope(api, "secrets", "secret", "segredo da empresa")
-	registerSecretFieldsScope(api, "user-secrets", "user-secret", "segredo do usuário")
-	registerCollections(api)
+	s.registerSecretFieldsScope(api, domain.SecretScopeCompany, "secrets", "secret", "segredo da empresa")
+	s.registerSecretFieldsScope(api, domain.SecretScopeUser, "user-secrets", "user-secret", "segredo do usuário")
+	s.registerCollections(api)
 	registerReauth(api)
 	registerSends(api)
 	registerDelegations(api)

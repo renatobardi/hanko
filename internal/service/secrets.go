@@ -152,10 +152,17 @@ type secretMaterial struct {
 	ext       string
 	revealed  bool   // o valor sai na resposta (gerado pelo servidor)
 	plaintext string // só quando revealed
+	plain     []byte // o valor em claro, só em memória, para cifrar de novo com outro AAD (campo `value`)
 }
 
 // prepareMaterial valida a combinação valor/geração/cofre e cifra. id é o do segredo (entra no AAD).
 func (s *Service) prepareMaterial(id uuid.UUID, provider domain.SecretProvider, value string, generate bool, ext string) (secretMaterial, error) {
+	return s.prepareMaterialAAD(secretAAD(id), provider, value, generate, ext)
+}
+
+// prepareMaterialAAD é prepareMaterial com o AAD explícito: um campo do cofre cifra com
+// `secret/<segredo>/field/<campo>` (ADR-0068 §1.5), o segredo inteiro com `secret/<segredo>` (ADR-0050).
+func (s *Service) prepareMaterialAAD(aad string, provider domain.SecretProvider, value string, generate bool, ext string) (secretMaterial, error) {
 	if provider == "" {
 		provider = domain.SecretProviderLocal
 	}
@@ -195,11 +202,12 @@ func (s *Service) prepareMaterial(id uuid.UUID, provider domain.SecretProvider, 
 	case len(value) > maxSecretValueBytes || strings.ContainsRune(value, 0):
 		return secretMaterial{}, domain.Invalid("value", fmt.Sprintf("at most %d bytes, sem NUL", maxSecretValueBytes))
 	}
-	enc, err := s.secretBox().Seal([]byte(value), secretAAD(id))
+	enc, err := s.secretBox().Seal([]byte(value), aad)
 	if err != nil {
 		return secretMaterial{}, fmt.Errorf("seal secret: %w", err)
 	}
 	m.enc = enc
+	m.plain = []byte(value)
 	return m, nil
 }
 
@@ -265,8 +273,48 @@ func (s *Service) createSecretTx(t *txc, actor domain.Actor, companyID domain.ID
 	if err != nil {
 		return mapErr(err, "create secret")
 	}
+	if err := s.createValueFieldTx(t, companyID, row, m); err != nil {
+		return err
+	}
+	if scope == domain.SecretScopeCompany {
+		if err := s.addToDefaultCollectionTx(t, actor, companyID, row.ID, row.Name); err != nil {
+			return err
+		}
+	}
 	*out = SecretView{Secret: secretFromRow(row), RevealedValue: m.plaintext}
 	return t.activity(actor, companyID, "secret.created", "secret", row.ID, secretEventData(row), "")
+}
+
+// createValueFieldTx cria o campo `value` do segredo novo, com o mesmo material que as colunas de secrets: o valor
+// passa a sair pelo campo (ADR-0068 §1.4), e a cópia legada segue até a migration que tira as colunas.
+func (s *Service) createValueFieldTx(t *txc, companyID domain.ID, sec store.Secret, m secretMaterial) error {
+	id := domain.NewID()
+	enc, err := s.sealMaterialFor(m, fieldAAD(sec.ID, id))
+	if err != nil {
+		return err
+	}
+	var revealedAt *time.Time
+	if m.revealed {
+		n := t.now
+		revealedAt = &n
+	}
+	_, err = t.q.CreateSecretField(t.ctx, store.CreateSecretFieldParams{ID: id, CompanyID: companyID, SecretID: sec.ID,
+		Name: domain.DefaultSecretField, Kind: string(domain.SecretFieldText), Sensitive: true, Provider: string(m.provider),
+		ValueEnc: enc, ExternalRef: m.ext, AadVersion: 1, Position: 0, RevealedAt: revealedAt, Now: t.now})
+	return mapErr(err, "create value field")
+}
+
+// addToDefaultCollectionTx põe o segredo da empresa na coleção padrão (ADR-0068 §2.6), criada se ainda não existir.
+func (s *Service) addToDefaultCollectionTx(t *txc, actor domain.Actor, companyID domain.ID, secretID domain.ID, name string) error {
+	col, err := s.ensureDefaultCollectionTx(t, actor, companyID)
+	if err != nil {
+		return err
+	}
+	if err := t.q.AddSecretToCollection(t.ctx, store.AddSecretToCollectionParams{CompanyID: companyID,
+		CollectionID: col.ID, SecretID: secretID, Now: t.now}); err != nil {
+		return mapErr(err, "add secret to collection")
+	}
+	return t.activity(actor, companyID, "collection.item_added", "collection", col.ID, map[string]any{"secret": name}, "")
 }
 
 // getSecretRow lê o segredo visível ao chamador: o da empresa pelo nome, ou o do próprio usuário.
@@ -325,6 +373,17 @@ func (s *Service) RotateSecret(ctx context.Context, actor domain.Actor, companyI
 		if err != nil {
 			return mapErr(err, "rotate secret")
 		}
+		// o valor anterior do `value` vai para o histórico do campo; o novo segue cifrado com o AAD do campo
+		f, err := fieldRow(t.ctx, t.q, companyID, cur.ID, domain.DefaultSecretField, true)
+		if err != nil {
+			return err
+		}
+		if m.enc, err = s.sealMaterialFor(m, fieldAAD(cur.ID, f.ID)); err != nil {
+			return err
+		}
+		if _, err := s.rotateFieldTx(t, actor, companyID, f, m); err != nil {
+			return err
+		}
 		out = SecretView{Secret: secretFromRow(row), RevealedValue: m.plaintext}
 		return t.activity(actor, companyID, "secret.rotated", "secret", row.ID, secretEventData(row), "")
 	})
@@ -353,6 +412,16 @@ func (s *Service) RevealSecret(ctx context.Context, actor domain.Actor, companyI
 		}
 		if err != nil {
 			return mapErr(err, "reveal secret")
+		}
+		// o campo `value` marca o mesmo revelado: a versão não sai duas vezes, pelo segredo nem pelo campo
+		f, err := fieldRow(t.ctx, t.q, companyID, cur.ID, domain.DefaultSecretField, true)
+		if err != nil {
+			return err
+		}
+		if _, err := t.q.MarkSecretFieldRevealed(t.ctx, store.MarkSecretFieldRevealedParams{ID: f.ID, CompanyID: companyID, Now: &t.now}); isNoRows(err) {
+			return fmt.Errorf("segredo %q: o valor desta versão já foi revelado; rotacione para obter outro: %w", name, domain.ErrConflict)
+		} else if err != nil {
+			return mapErr(err, "reveal secret field")
 		}
 		plain, err := s.secretBox().Open(cur.ValueEnc, secretAAD(cur.ID))
 		if err != nil {
@@ -623,7 +692,7 @@ func (s *Service) ResolveUserSecretText(ctx context.Context, companyID domain.ID
 // ResolveAdapterConfig expande as referências do adapter_config da persona no despacho. Devolve a configuração
 // pronta para o adapter e os valores resolvidos (para a redação do log da run). Sem referência, devolve cfg como
 // está. Falha cedo com o nome do segredo que faltou.
-func (s *Service) ResolveAdapterConfig(ctx context.Context, companyID domain.ID, cfg json.RawMessage) (json.RawMessage, []string, error) {
+func (s *Service) ResolveAdapterConfig(ctx context.Context, companyID, personaID domain.ID, cfg json.RawMessage) (json.RawMessage, []string, error) {
 	if !secretref.Has(string(cfg)) {
 		return cfg, nil, nil
 	}
@@ -631,7 +700,7 @@ func (s *Service) ResolveAdapterConfig(ctx context.Context, companyID domain.ID,
 	if err := json.Unmarshal(cfg, &doc); err != nil {
 		return cfg, nil, fmt.Errorf("adapter_config: %w", err)
 	}
-	out, used, err := secretref.ExpandJSON(doc, func(r secretref.Ref) (string, error) { return s.resolveRef(ctx, companyID, r, nil) })
+	out, used, err := secretref.ExpandJSON(doc, s.resolverFor(ctx, companyID, &personaID))
 	if err != nil {
 		return cfg, nil, err
 	}
@@ -644,13 +713,19 @@ func (s *Service) ResolveAdapterConfig(ctx context.Context, companyID domain.ID,
 
 // expandIntegrationSecrets resolve referências nos headers/env/segredo de uma integração (RunExtras, teste).
 func (s *Service) expandMap(ctx context.Context, companyID domain.ID, m map[string]string) (map[string]string, []string, error) {
+	return s.expandMapFor(ctx, companyID, nil, m)
+}
+
+// expandMapFor é expandMap com a persona da run: cada item precisa estar numa coleção que ela alcança (ADR-0068 §2.4).
+func (s *Service) expandMapFor(ctx context.Context, companyID domain.ID, personaID *domain.ID, m map[string]string) (map[string]string, []string, error) {
 	if len(m) == 0 {
 		return m, nil, nil
 	}
 	out := make(map[string]string, len(m))
 	var used []string
+	resolve := s.resolverFor(ctx, companyID, personaID)
 	for k, v := range m {
-		x, u, err := s.ResolveSecretText(ctx, companyID, v)
+		x, u, err := secretref.Expand(v, resolve)
 		if err != nil {
 			return nil, nil, err
 		}

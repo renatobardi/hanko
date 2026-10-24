@@ -107,6 +107,15 @@ func TestMigrationCofreCampos(t *testing.T) {
 		t.Fatalf("concessão all_personas = %s, want 1", n)
 	}
 
+	// A persona que já existia alcança os segredos da empresa pela concessão: a run não quebra depois da migração.
+	for _, id := range []string{"44444444-4444-4444-8444-444444444441", "44444444-4444-4444-8444-444444444442"} {
+		if ok := one(`SELECT EXISTS (SELECT 1 FROM secret_collection_items i
+		              JOIN secret_collection_grants g ON g.collection_id = i.collection_id AND g.permission = 'use'
+		              WHERE i.secret_id = $1 AND g.subject_type = 'all_personas')::text`, id); ok != "true" {
+			t.Fatalf("a persona existente não alcança o segredo %s depois da migração", id)
+		}
+	}
+
 	// Fatos da migração, sem valor.
 	for verb, n := range map[string]string{
 		"secret.fields_migrated": "1",

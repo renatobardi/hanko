@@ -43,6 +43,8 @@ const (
 	RateLimitMCP           = "ratelimit.mcp_per_min"
 	RateLimitWebhooks      = "ratelimit.webhooks_per_min"
 	RateLimitBrowserErrors = "ratelimit.browser_errors_per_min"
+	SecretsHistoryVersions = "secrets.history_keep_versions"
+	SecretsHistoryDays     = "secrets.history_keep_days"
 )
 
 // Def declara uma chave.
@@ -74,6 +76,8 @@ var Defs = []Def{
 	{Key: RateLimitMCP, Group: "ratelimit", Kind: Int, Env: "HANKO_RATELIMIT_MCP_PER_MIN", Label: "Chamadas MCP por minuto (por identidade ou run)", Min: 10, Max: 1000000},
 	{Key: RateLimitWebhooks, Group: "ratelimit", Kind: Int, Env: "HANKO_RATELIMIT_WEBHOOKS_PER_MIN", Label: "Webhooks de entrada por minuto (por IP)", Min: 1, Max: 1000000},
 	{Key: RateLimitBrowserErrors, Group: "ratelimit", Kind: Int, Env: "HANKO_RATELIMIT_BROWSER_ERRORS_PER_MIN", Label: "Erros de navegador por minuto (por IP)", Min: 1, Max: 100000},
+	{Key: SecretsHistoryVersions, Group: "secrets", Kind: Int, Env: "HANKO_SECRETS_HISTORY_KEEP_VERSIONS", Label: "Versões de histórico por campo", Help: "Retenção do histórico de cada campo: as últimas N versões ou as de até D dias, o que guardar menos (ADR-0068 §3.2).", Min: 1, Max: 1000},
+	{Key: SecretsHistoryDays, Group: "secrets", Kind: Int, Env: "HANKO_SECRETS_HISTORY_KEEP_DAYS", Label: "Dias de histórico por campo", Min: 1, Max: 3650},
 }
 
 var (
@@ -96,7 +100,12 @@ func Lookup(key string) (Def, bool) {
 }
 
 // SensitiveName informa se o nome de uma chave parece credencial (o teste do registro usa isto).
-func SensitiveName(key string) bool { return credentialKey.MatchString(key) }
+func SensitiveName(key string) bool {
+	if key == SecretsHistoryVersions || key == SecretsHistoryDays {
+		return false // retenção do histórico do cofre (ADR-0068 §3.2): inteiros, não credenciais
+	}
+	return credentialKey.MatchString(key)
+}
 
 // Source diz de onde veio o valor efetivo.
 type Source string

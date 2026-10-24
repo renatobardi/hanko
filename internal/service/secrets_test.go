@@ -406,7 +406,7 @@ func TestPersonaEnvIsSealedOnHire(t *testing.T) {
 	if err != nil || len(names) != 2 {
 		t.Fatalf("segredos criados: %v %v", names, err)
 	}
-	resolved, used, err := e.svc.ResolveAdapterConfig(bg, e.co.ID, p.AdapterConfig)
+	resolved, used, err := e.svc.ResolveAdapterConfig(bg, e.co.ID, p.ID, p.AdapterConfig)
 	if err != nil || !strings.Contains(string(resolved), sentinel) || len(used) != 2 {
 		t.Fatalf("ResolveAdapterConfig = %s %v %v", resolved, used, err)
 	}
@@ -417,7 +417,7 @@ func TestPersonaEnvIsSealedOnHire(t *testing.T) {
 	if !strings.Contains(string(p2.AdapterConfig), sentinel) {
 		t.Fatalf("sem chave o env fica como estava: %s", p2.AdapterConfig)
 	}
-	if r, u, err := e.svc.ResolveAdapterConfig(bg, e.co.ID, p2.AdapterConfig); err != nil || len(u) != 0 || string(r) != string(p2.AdapterConfig) {
+	if r, u, err := e.svc.ResolveAdapterConfig(bg, e.co.ID, p2.ID, p2.AdapterConfig); err != nil || len(u) != 0 || string(r) != string(p2.AdapterConfig) {
 		t.Fatalf("legado: %s %v %v", r, u, err)
 	}
 }
@@ -569,7 +569,7 @@ func TestSecretValueNeverLeaks(t *testing.T) {
 	_, _ = e.svc.RevealSecret(bg, domain.HumanActor, e.co.ID, domain.SecretScopeCompany, "docs-token")
 	_, _ = e.svc.RotateSecret(bg, domain.HumanActor, e.co.ID, domain.SecretScopeCompany, "docs-token", service.RotateSecretInput{Value: sentinelB})
 	_, _ = e.svc.RunExtras(bg, e.co.ID, hr.ID)
-	_, _, _ = e.svc.ResolveAdapterConfig(bg, e.co.ID, hr.AdapterConfig)
+	_, _, _ = e.svc.ResolveAdapterConfig(bg, e.co.ID, hr.ID, hr.AdapterConfig)
 	_, _ = e.svc.CreateSecret(bg, domain.HumanActor, e.co.ID, service.CreateSecretInput{Name: "dup", Value: sentinel})
 	_, errDup := e.svc.CreateSecret(bg, domain.HumanActor, e.co.ID, service.CreateSecretInput{Name: "dup", Value: sentinel})
 	if errDup != nil && strings.Contains(errDup.Error(), sentinel) {

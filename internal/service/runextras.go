@@ -79,7 +79,7 @@ func (s *Service) RunExtrasForProject(ctx context.Context, companyID, personaID 
 			ex.Warnings = append(ex.Warnings, fmt.Sprintf("integração %q ignorada: stdio está desligado neste servidor", r.Slug))
 			continue
 		}
-		env, _, eerr := s.expandMap(ctx, companyID, sec.Env)
+		env, _, eerr := s.expandMapFor(ctx, companyID, &personaID, sec.Env)
 		if eerr != nil {
 			// o texto do erro nomeia o segredo que faltou, nunca o valor
 			ex.Warnings = append(ex.Warnings, fmt.Sprintf("integração %q ignorada: %v", r.Slug, eerr))

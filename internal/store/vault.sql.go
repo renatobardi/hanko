@@ -801,15 +801,17 @@ func (q *Queries) ListDuplicateSecretFieldHmacs(ctx context.Context, companyID u
 }
 
 const listFieldsWithHistory = `-- name: ListFieldsWithHistory :many
-SELECT DISTINCT company_id, field_id FROM secret_field_versions
+SELECT DISTINCT v.company_id, v.field_id, f.secret_id
+FROM secret_field_versions v JOIN secret_fields f ON f.id = v.field_id
 `
 
 type ListFieldsWithHistoryRow struct {
 	CompanyID uuid.UUID
 	FieldID   uuid.UUID
+	SecretID  uuid.UUID
 }
 
-// Campos que têm histórico (o job de retenção percorre um por vez).
+// Campos que têm histórico (o job de retenção percorre um por vez); secret_id é o sujeito do fato.
 func (q *Queries) ListFieldsWithHistory(ctx context.Context) ([]ListFieldsWithHistoryRow, error) {
 	rows, err := q.db.Query(ctx, listFieldsWithHistory)
 	if err != nil {
@@ -819,7 +821,7 @@ func (q *Queries) ListFieldsWithHistory(ctx context.Context) ([]ListFieldsWithHi
 	items := []ListFieldsWithHistoryRow{}
 	for rows.Next() {
 		var i ListFieldsWithHistoryRow
-		if err := rows.Scan(&i.CompanyID, &i.FieldID); err != nil {
+		if err := rows.Scan(&i.CompanyID, &i.FieldID, &i.SecretID); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -948,6 +950,60 @@ func (q *Queries) ListSecretCollectionsOf(ctx context.Context, arg ListSecretCol
 	return items, nil
 }
 
+const listSecretCollectionsWithCounts = `-- name: ListSecretCollectionsWithCounts :many
+SELECT c.id, c.company_id, c.name, c.description, c.is_default, c.rotate_after_days, c.created_by_type, c.created_by_id, c.created_at, c.updated_at, count(i.secret_id)::bigint AS secrets_count
+FROM secret_collections c LEFT JOIN secret_collection_items i ON i.collection_id = c.id
+WHERE c.company_id = $1
+GROUP BY c.id ORDER BY c.is_default DESC, c.name
+`
+
+type ListSecretCollectionsWithCountsRow struct {
+	ID              uuid.UUID
+	CompanyID       uuid.UUID
+	Name            string
+	Description     string
+	IsDefault       bool
+	RotateAfterDays *int32
+	CreatedByType   string
+	CreatedByID     *uuid.UUID
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+	SecretsCount    int64
+}
+
+// Coleções da empresa com quantos segredos cada uma tem (a resposta da API leva a contagem).
+func (q *Queries) ListSecretCollectionsWithCounts(ctx context.Context, companyID uuid.UUID) ([]ListSecretCollectionsWithCountsRow, error) {
+	rows, err := q.db.Query(ctx, listSecretCollectionsWithCounts, companyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSecretCollectionsWithCountsRow{}
+	for rows.Next() {
+		var i ListSecretCollectionsWithCountsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CompanyID,
+			&i.Name,
+			&i.Description,
+			&i.IsDefault,
+			&i.RotateAfterDays,
+			&i.CreatedByType,
+			&i.CreatedByID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.SecretsCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSecretFieldVersions = `-- name: ListSecretFieldVersions :many
 SELECT id, company_id, field_id, version, provider, value_enc, external_ref, blob_key, file_name, content_type, size_bytes, aad_version, revealed_at, replaced_by_type, replaced_by_id, created_at, replaced_at FROM secret_field_versions WHERE company_id = $1 AND field_id = $2 ORDER BY version DESC
 `
@@ -985,6 +1041,49 @@ func (q *Queries) ListSecretFieldVersions(ctx context.Context, arg ListSecretFie
 			&i.ReplacedByID,
 			&i.CreatedAt,
 			&i.ReplacedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSecretFieldVersionsForRekey = `-- name: ListSecretFieldVersionsForRekey :many
+SELECT v.id, v.field_id, f.secret_id, v.version, v.value_enc, v.aad_version
+FROM secret_field_versions v JOIN secret_fields f ON f.id = v.field_id
+WHERE v.provider = 'local' AND length(v.value_enc) > 0
+`
+
+type ListSecretFieldVersionsForRekeyRow struct {
+	ID         uuid.UUID
+	FieldID    uuid.UUID
+	SecretID   uuid.UUID
+	Version    int32
+	ValueEnc   string
+	AadVersion int16
+}
+
+// Histórico cifrado a reescrever na troca de HANKO_SECRET_KEY (secret_id e version entram no AAD).
+func (q *Queries) ListSecretFieldVersionsForRekey(ctx context.Context) ([]ListSecretFieldVersionsForRekeyRow, error) {
+	rows, err := q.db.Query(ctx, listSecretFieldVersionsForRekey)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSecretFieldVersionsForRekeyRow{}
+	for rows.Next() {
+		var i ListSecretFieldVersionsForRekeyRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.FieldID,
+			&i.SecretID,
+			&i.Version,
+			&i.ValueEnc,
+			&i.AadVersion,
 		); err != nil {
 			return nil, err
 		}
@@ -1473,6 +1572,20 @@ type SetSecretFieldValueEncParams struct {
 
 func (q *Queries) SetSecretFieldValueEnc(ctx context.Context, arg SetSecretFieldValueEncParams) error {
 	_, err := q.db.Exec(ctx, setSecretFieldValueEnc, arg.ValueEnc, arg.AadVersion, arg.ID)
+	return err
+}
+
+const setSecretFieldVersionValueEnc = `-- name: SetSecretFieldVersionValueEnc :exec
+UPDATE secret_field_versions SET value_enc = $1 WHERE id = $2
+`
+
+type SetSecretFieldVersionValueEncParams struct {
+	ValueEnc string
+	ID       uuid.UUID
+}
+
+func (q *Queries) SetSecretFieldVersionValueEnc(ctx context.Context, arg SetSecretFieldVersionValueEncParams) error {
+	_, err := q.db.Exec(ctx, setSecretFieldVersionValueEnc, arg.ValueEnc, arg.ID)
 	return err
 }
 

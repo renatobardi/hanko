@@ -1,11 +1,13 @@
-# Estado da última sessão (cofre para agentes, fatia 0)
-Data: 2026-10-24 · branch `feat/55-cofre-contrato` → `main` · issues #54 (guarda-chuva) e #55
+# Estado da última sessão (cofre, fatia 1, #56)
+Data: 2026-10-24 · branch `feat/56-cofre-campos` · issue #56 (parte de #54)
 
 ## Feito
-- ADR-0068 (cofre), 0069 (envio), 0070 (reautenticação e passkey); ADR-0016 e glossários com os termos novos.
-- Contrato: migration 00203 (só schema), `internal/domain/vault.go`, queries `vault`/`sends`/`passkeys`, 54 operações da API em 501; `internal/vault` → `internal/extvault`.
-- ADRs aceitos pelo Bardi em 2026-10-24 (PR #63), com `persona_tree`, delegação por alvo, API key `full` e `go-webauthn/webauthn`.
-## Travado (só o dono)
-- Merge do PR #63.
+- Campos de segredo (N por item, visível ou secreto), histórico por campo com retenção (5 versões ou 90 dias) e restaurar como versão nova, coleções com concessões, migração 00204.
+- API (campos e coleções), CLI `hanko secret field|collection`, UI de campos e coleções, job `secret_history_tick`.
+- Testes: service (critérios de build), API de integração, migração, UI e CLI.
+
+## Travado
+- Revelar campo, histórico, restaurar e conceder ou revogar concessão exigem reautenticação (ADR-0070, #57): seguem em 501 na API.
+
 ## Próximo passo
-- Fatia 1 (#56) e fatia 2 (#57), em paralelo, depois do merge da fatia 0.
+- Fatia 2 (#57): fechar a reautenticação e ligar essas 7 operações da API ao service já pronto.
