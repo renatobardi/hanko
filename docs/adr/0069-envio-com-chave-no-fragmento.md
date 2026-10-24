@@ -30,8 +30,9 @@ ameaça próprio, separado do cofre (ADR-0068), em que o servidor precisa ler o 
    - Texto livre digitado pela persona não vira envio: o valor teria passado pelo contexto do modelo.
 5. **Senha opcional.** Derivada **no cliente** com PBKDF2-SHA256 (600 000 iterações, sal de 16 bytes guardado no
    envio) e misturada à chave do link no HKDF. Para contar acesso só depois da senha certa, o cliente manda uma prova
-   (`HKDF(senha_derivada, "hanko-send-auth")`), e o servidor guarda só o SHA-256 dela (`password_verifier`). Senha
-   errada não conta acesso e não devolve o texto cifrado. Cinco erros seguidos bloqueiam o envio por 15 minutos.
+   (`HKDF(senha_derivada, "hanko-send-auth")`), e o servidor guarda só o hash argon2id dela (`password_verifier`), com
+   o mesmo KDF das senhas do Hanko (`auth.HashPassword`). Um SHA-256 simples deixaria a verificação barata num banco
+   vazado; com argon2id, cada chute custa um argon2id. Senha errada não conta acesso e não devolve o texto cifrado. Cinco erros seguidos bloqueiam o envio por 15 minutos.
 6. **Abrir.** Página pública `/s/<public_id>` (sem conta, sem cookie de sessão, `Referrer-Policy: no-referrer`,
    `Cache-Control: no-store`, CSP sem script de terceiros). A página pede a senha se houver, chama
    `POST /api/v1/s/<public_id>/open` com a prova, recebe o texto cifrado e decifra com WebCrypto. A chamada conta o
