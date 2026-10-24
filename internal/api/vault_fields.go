@@ -31,6 +31,36 @@ type vaultBackend interface {
 	ListCollectionGrants(ctx context.Context, companyID domain.ID, idOrName string) ([]service.CollectionGrantView, error)
 }
 
+// vaultOp põe a guarda do cofre (run token, backend, empresa e ator) antes de cada operação da API.
+func vaultOp[I interface{ companyRef() string }, B any](s *server, run func(ctx context.Context, vb vaultBackend, sc scope, in *I) (*B, error)) func(context.Context, *I) (*B, error) {
+	return func(ctx context.Context, in *I) (*B, error) {
+		vb, sc, err := s.vaultCall(ctx, (*in).companyRef())
+		if err != nil {
+			return nil, err
+		}
+		return run(ctx, vb, sc, in)
+	}
+}
+
+// companyRef devolve a empresa do caminho, comum a todas as entradas do cofre.
+func (p CompanyPath) companyRef() string { return p.Company }
+
+// vaultDone devolve a resposta sem corpo das operações do cofre (apagar, pôr, tirar).
+func (s *server) vaultDone(ctx context.Context, err error) (*struct{}, error) {
+	if err != nil {
+		return nil, s.fail(ctx, err)
+	}
+	return &struct{}{}, nil
+}
+
+// vaultItem devolve o item das operações do cofre; o erro do service vira problema da API.
+func vaultItem[T any](s *server, ctx context.Context, body T, err error) (*ItemOut[T], error) {
+	if err != nil {
+		return nil, s.fail(ctx, err)
+	}
+	return &ItemOut[T]{Body: body}, nil
+}
+
 // vaultCall faz o que toda operação do cofre precisa antes do service: barra run token, acha o backend e resolve
 // a empresa e o ator.
 func (s *server) vaultCall(ctx context.Context, company string) (vaultBackend, scope, error) {
@@ -72,73 +102,51 @@ func fieldValueIn(v SecretFieldValue) service.SecretFieldValueInput {
 }
 
 // registerFieldWrites registra as operações de campo que já ligam o service (criar, listar, mudar, trocar valor).
-func (s *server) registerFieldWrites(api huma.API, scope domain.SecretScope, seg, opPrefix, what string) {
+func (s *server) registerFieldWrites(api huma.API, secretScope domain.SecretScope, seg, opPrefix, what string) {
 	base := "/companies/{company}/" + seg + "/{name}/fields"
 	tag := "vault"
 
 	huma.Register(api, created(op("create-"+opPrefix+"-field", http.MethodPost, base, tag, "Cria um campo num "+what)),
-		func(ctx context.Context, in *createSecretFieldIn) (*ItemOut[SecretField], error) {
-			vb, sc, err := s.vaultCall(ctx, in.Company)
-			if err != nil {
-				return nil, err
-			}
+		vaultOp(s, func(ctx context.Context, vb vaultBackend, sc scope, in *createSecretFieldIn) (*ItemOut[SecretField], error) {
 			if in.Body.ContentBase64 != "" {
 				return nil, problem(http.StatusUnprocessableEntity, "campo arquivo chega na fatia 3 (#58), com ${secretfile:}")
 			}
 			b := in.Body
-			v, err := vb.CreateSecretField(ctx, sc.Actor, sc.Company.ID, scope, in.Name, service.CreateSecretFieldInput{
+			v, err := vb.CreateSecretField(ctx, sc.Actor, sc.Company.ID, secretScope, in.Name, service.CreateSecretFieldInput{
 				Name: b.Name, Kind: domain.SecretFieldKind(b.Kind), Sensitive: b.Sensitive, Position: b.Position,
 				SecretFieldValueInput: fieldValueIn(b.SecretFieldValue)})
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}
-			return &ItemOut[SecretField]{Body: secretFieldOut(v, in.Name, scope)}, nil
-		})
+			return &ItemOut[SecretField]{Body: secretFieldOut(v, in.Name, secretScope)}, nil
+		}))
 
 	huma.Register(api, op("list-"+opPrefix+"-fields", http.MethodGet, base, tag,
 		"Lista os campos de um "+what+" (metadados; valor só dos campos visíveis)"),
-		func(ctx context.Context, in *listSecretFieldsIn) (*ListOut[SecretField], error) {
-			vb, sc, err := s.vaultCall(ctx, in.Company)
-			if err != nil {
-				return nil, err
-			}
-			list, err := vb.ListSecretFields(ctx, sc.Company.ID, scope, in.Name)
+		vaultOp(s, func(ctx context.Context, vb vaultBackend, sc scope, in *listSecretFieldsIn) (*ListOut[SecretField], error) {
+			list, err := vb.ListSecretFields(ctx, sc.Company.ID, secretScope, in.Name)
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}
-			return listOf(list, in.Page, func(v service.SecretFieldView) SecretField { return secretFieldOut(v, in.Name, scope) }), nil
-		})
+			return listOf(list, in.Page, func(v service.SecretFieldView) SecretField { return secretFieldOut(v, in.Name, secretScope) }), nil
+		}))
 
 	huma.Register(api, op("update-"+opPrefix+"-field", http.MethodPatch, base+"/{field}", tag,
 		"Muda marca de visível e posição de um campo"),
-		func(ctx context.Context, in *updateSecretFieldIn) (*ItemOut[SecretField], error) {
-			vb, sc, err := s.vaultCall(ctx, in.Company)
-			if err != nil {
-				return nil, err
-			}
-			v, err := vb.UpdateSecretFieldMeta(ctx, sc.Actor, sc.Company.ID, scope, in.Name, in.Field, in.Body.Sensitive, in.Body.Position)
-			if err != nil {
-				return nil, s.fail(ctx, err)
-			}
-			return &ItemOut[SecretField]{Body: secretFieldOut(v, in.Name, scope)}, nil
-		})
+		vaultOp(s, func(ctx context.Context, vb vaultBackend, sc scope, in *updateSecretFieldIn) (*ItemOut[SecretField], error) {
+			v, err := vb.UpdateSecretFieldMeta(ctx, sc.Actor, sc.Company.ID, secretScope, in.Name, in.Field, in.Body.Sensitive, in.Body.Position)
+			return vaultItem(s, ctx, secretFieldOut(v, in.Name, secretScope), err)
+		}))
 
 	huma.Register(api, op("rotate-"+opPrefix+"-field", http.MethodPost, base+"/{field}/rotate", tag,
 		"Troca o valor de um campo; o anterior vai para o histórico"),
-		func(ctx context.Context, in *rotateSecretFieldIn) (*ItemOut[SecretField], error) {
-			vb, sc, err := s.vaultCall(ctx, in.Company)
-			if err != nil {
-				return nil, err
-			}
+		vaultOp(s, func(ctx context.Context, vb vaultBackend, sc scope, in *rotateSecretFieldIn) (*ItemOut[SecretField], error) {
 			if in.Body.ContentBase64 != "" {
 				return nil, problem(http.StatusUnprocessableEntity, "campo arquivo chega na fatia 3 (#58), com ${secretfile:}")
 			}
-			v, err := vb.RotateSecretField(ctx, sc.Actor, sc.Company.ID, scope, in.Name, in.Field, fieldValueIn(in.Body))
-			if err != nil {
-				return nil, s.fail(ctx, err)
-			}
-			return &ItemOut[SecretField]{Body: secretFieldOut(v, in.Name, scope)}, nil
-		})
+			v, err := vb.RotateSecretField(ctx, sc.Actor, sc.Company.ID, secretScope, in.Name, in.Field, fieldValueIn(in.Body))
+			return vaultItem(s, ctx, secretFieldOut(v, in.Name, secretScope), err)
+		}))
 }
 
 // collectionOut mostra uma coleção com a contagem de segredos.
@@ -169,120 +177,66 @@ func (s *server) registerCollectionOps(api huma.API) {
 	tag := "vault"
 
 	huma.Register(api, created(op("create-secret-collection", http.MethodPost, base, tag, "Cria uma coleção de segredos (admin)")),
-		func(ctx context.Context, in *createCollectionIn) (*ItemOut[SecretCollection], error) {
-			vb, sc, err := s.vaultCall(ctx, in.Company)
-			if err != nil {
-				return nil, err
-			}
+		vaultOp(s, func(ctx context.Context, vb vaultBackend, sc scope, in *createCollectionIn) (*ItemOut[SecretCollection], error) {
 			v, err := vb.CreateCollection(ctx, sc.Actor, sc.Company.ID, collectionInput(in.Body))
-			if err != nil {
-				return nil, s.fail(ctx, err)
-			}
-			return &ItemOut[SecretCollection]{Body: collectionOut(v)}, nil
-		})
+			return vaultItem(s, ctx, collectionOut(v), err)
+		}))
 
 	huma.Register(api, op("list-secret-collections", http.MethodGet, base, tag, "Lista as coleções que o usuário alcança"),
-		func(ctx context.Context, in *listCollectionsIn) (*ListOut[SecretCollection], error) {
-			vb, sc, err := s.vaultCall(ctx, in.Company)
-			if err != nil {
-				return nil, err
-			}
+		vaultOp(s, func(ctx context.Context, vb vaultBackend, sc scope, in *listCollectionsIn) (*ListOut[SecretCollection], error) {
 			list, err := vb.ListCollections(ctx, sc.Company.ID)
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}
 			return listOf(list, in.Page, collectionOut), nil
-		})
+		}))
 
 	huma.Register(api, op("get-secret-collection", http.MethodGet, base+"/{collection}", tag, "Obtém uma coleção"),
-		func(ctx context.Context, in *CollectionPath) (*ItemOut[SecretCollection], error) {
-			vb, sc, err := s.vaultCall(ctx, in.Company)
-			if err != nil {
-				return nil, err
-			}
+		vaultOp(s, func(ctx context.Context, vb vaultBackend, sc scope, in *CollectionPath) (*ItemOut[SecretCollection], error) {
 			v, err := vb.GetCollection(ctx, sc.Company.ID, in.Collection)
-			if err != nil {
-				return nil, s.fail(ctx, err)
-			}
-			return &ItemOut[SecretCollection]{Body: collectionOut(v)}, nil
-		})
+			return vaultItem(s, ctx, collectionOut(v), err)
+		}))
 
 	huma.Register(api, op("update-secret-collection", http.MethodPatch, base+"/{collection}", tag,
 		"Muda nome, descrição e prazo de rotação de uma coleção (admin)"),
-		func(ctx context.Context, in *updateCollectionIn) (*ItemOut[SecretCollection], error) {
-			vb, sc, err := s.vaultCall(ctx, in.Company)
-			if err != nil {
-				return nil, err
-			}
+		vaultOp(s, func(ctx context.Context, vb vaultBackend, sc scope, in *updateCollectionIn) (*ItemOut[SecretCollection], error) {
 			v, err := vb.UpdateCollection(ctx, sc.Actor, sc.Company.ID, in.Collection, collectionInput(in.Body))
-			if err != nil {
-				return nil, s.fail(ctx, err)
-			}
-			return &ItemOut[SecretCollection]{Body: collectionOut(v)}, nil
-		})
+			return vaultItem(s, ctx, collectionOut(v), err)
+		}))
 
 	huma.Register(api, noContent(op("delete-secret-collection", http.MethodDelete, base+"/{collection}", tag,
 		"Apaga uma coleção; os segredos continuam existindo (admin; a padrão não se apaga)")),
-		func(ctx context.Context, in *CollectionPath) (*struct{}, error) {
-			vb, sc, err := s.vaultCall(ctx, in.Company)
-			if err != nil {
-				return nil, err
-			}
-			if err := vb.DeleteCollection(ctx, sc.Actor, sc.Company.ID, in.Collection); err != nil {
-				return nil, s.fail(ctx, err)
-			}
-			return &struct{}{}, nil
-		})
+		vaultOp(s, func(ctx context.Context, vb vaultBackend, sc scope, in *CollectionPath) (*struct{}, error) {
+			return s.vaultDone(ctx, vb.DeleteCollection(ctx, sc.Actor, sc.Company.ID, in.Collection))
+		}))
 
 	huma.Register(api, op("list-collection-secrets", http.MethodGet, base+"/{collection}/secrets", tag, "Lista os segredos de uma coleção"),
-		func(ctx context.Context, in *listCollectionPageIn) (*ListOut[Secret], error) {
-			vb, sc, err := s.vaultCall(ctx, in.Company)
-			if err != nil {
-				return nil, err
-			}
+		vaultOp(s, func(ctx context.Context, vb vaultBackend, sc scope, in *listCollectionPageIn) (*ListOut[Secret], error) {
 			list, err := vb.ListCollectionSecrets(ctx, sc.Company.ID, in.Collection)
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}
 			return listOf(list, in.Page, func(d domain.Secret) Secret { return secretOut(service.SecretView{Secret: d}) }), nil
-		})
+		}))
 
 	huma.Register(api, noContent(op("add-secret-to-collection", http.MethodPut, base+"/{collection}/secrets/{name}", tag,
 		"Põe um segredo da empresa na coleção (admin ou manage)")),
-		func(ctx context.Context, in *collectionSecretPath) (*struct{}, error) {
-			vb, sc, err := s.vaultCall(ctx, in.Company)
-			if err != nil {
-				return nil, err
-			}
-			if err := vb.AddSecretToCollection(ctx, sc.Actor, sc.Company.ID, in.Collection, in.Name); err != nil {
-				return nil, s.fail(ctx, err)
-			}
-			return &struct{}{}, nil
-		})
+		vaultOp(s, func(ctx context.Context, vb vaultBackend, sc scope, in *collectionSecretPath) (*struct{}, error) {
+			return s.vaultDone(ctx, vb.AddSecretToCollection(ctx, sc.Actor, sc.Company.ID, in.Collection, in.Name))
+		}))
 
 	huma.Register(api, noContent(op("remove-secret-from-collection", http.MethodDelete, base+"/{collection}/secrets/{name}", tag,
 		"Tira um segredo da coleção (admin ou manage)")),
-		func(ctx context.Context, in *collectionSecretPath) (*struct{}, error) {
-			vb, sc, err := s.vaultCall(ctx, in.Company)
-			if err != nil {
-				return nil, err
-			}
-			if err := vb.RemoveSecretFromCollection(ctx, sc.Actor, sc.Company.ID, in.Collection, in.Name); err != nil {
-				return nil, s.fail(ctx, err)
-			}
-			return &struct{}{}, nil
-		})
+		vaultOp(s, func(ctx context.Context, vb vaultBackend, sc scope, in *collectionSecretPath) (*struct{}, error) {
+			return s.vaultDone(ctx, vb.RemoveSecretFromCollection(ctx, sc.Actor, sc.Company.ID, in.Collection, in.Name))
+		}))
 
 	huma.Register(api, op("list-collection-grants", http.MethodGet, base+"/{collection}/grants", tag, "Lista quem alcança a coleção"),
-		func(ctx context.Context, in *listCollectionPageIn) (*ListOut[CollectionGrant], error) {
-			vb, sc, err := s.vaultCall(ctx, in.Company)
-			if err != nil {
-				return nil, err
-			}
+		vaultOp(s, func(ctx context.Context, vb vaultBackend, sc scope, in *listCollectionPageIn) (*ListOut[CollectionGrant], error) {
 			list, err := vb.ListCollectionGrants(ctx, sc.Company.ID, in.Collection)
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}
 			return listOf(list, in.Page, grantOut), nil
-		})
+		}))
 }

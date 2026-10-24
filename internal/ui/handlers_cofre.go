@@ -33,6 +33,16 @@ type vaultUIBackend interface {
 	ListCollectionGrants(ctx context.Context, companyID domain.ID, idOrName string) ([]service.CollectionGrantView, error)
 }
 
+// vaultReq devolve o backend do cofre e o contexto da requisição; sem o cofre ligado, responde indisponível.
+func (s *server) vaultReq(w http.ResponseWriter, r *http.Request) (vaultUIBackend, context.Context, bool) {
+	be, ok := s.vaultBE()
+	if !ok {
+		s.unavailable(w, r)
+		return nil, nil, false
+	}
+	return be, r.Context(), true
+}
+
 func (s *server) vaultBE() (vaultUIBackend, bool) {
 	b, ok := s.be.(vaultUIBackend)
 	return b, ok
@@ -172,12 +182,10 @@ func okQuery(user bool, ok string) string {
 }
 
 func (s *server) handleCreateSecretField(w http.ResponseWriter, r *http.Request, co domain.Company) {
-	be, ok := s.vaultBE()
+	be, ctx, ok := s.vaultReq(w, r)
 	if !ok {
-		s.unavailable(w, r)
 		return
 	}
-	ctx := r.Context()
 	user, name := userScopeForm(r), r.PathValue("name")
 	fname, kind := trimForm(r, "name"), trimForm(r, "kind")
 	visible := r.PostFormValue("visibilidade") == "visivel"
@@ -196,12 +204,10 @@ func (s *server) handleCreateSecretField(w http.ResponseWriter, r *http.Request,
 }
 
 func (s *server) handleRotateSecretField(w http.ResponseWriter, r *http.Request, co domain.Company) {
-	be, ok := s.vaultBE()
+	be, ctx, ok := s.vaultReq(w, r)
 	if !ok {
-		s.unavailable(w, r)
 		return
 	}
-	ctx := r.Context()
 	user, name := userScopeForm(r), r.PathValue("name")
 	in := service.SecretFieldValueInput{Value: r.PostFormValue("value"), Generate: r.PostFormValue("generate") != ""}
 	v, err := be.RotateSecretField(ctx, actorFrom(ctx), co.ID, scopeOf(user), name, r.PathValue("field"), in)
@@ -213,12 +219,10 @@ func (s *server) handleRotateSecretField(w http.ResponseWriter, r *http.Request,
 }
 
 func (s *server) handleSecretFieldMeta(w http.ResponseWriter, r *http.Request, co domain.Company) {
-	be, ok := s.vaultBE()
+	be, ctx, ok := s.vaultReq(w, r)
 	if !ok {
-		s.unavailable(w, r)
 		return
 	}
-	ctx := r.Context()
 	user, name := userScopeForm(r), r.PathValue("name")
 	sensitive := r.PostFormValue("visibilidade") != "visivel"
 	v, err := be.UpdateSecretFieldMeta(ctx, actorFrom(ctx), co.ID, scopeOf(user), name, r.PathValue("field"), &sensitive, nil)
@@ -280,12 +284,10 @@ func (s *server) handleCollections(w http.ResponseWriter, r *http.Request, co do
 }
 
 func (s *server) handleCreateCollection(w http.ResponseWriter, r *http.Request, co domain.Company) {
-	be, ok := s.vaultBE()
+	be, ctx, ok := s.vaultReq(w, r)
 	if !ok {
-		s.unavailable(w, r)
 		return
 	}
-	ctx := r.Context()
 	name, desc, days := trimForm(r, "name"), trimForm(r, "description"), trimForm(r, "rotate_after_days")
 	in := service.CollectionInput{Name: name, Description: desc}
 	if days != "" {
@@ -352,12 +354,10 @@ func (s *server) handleCollection(w http.ResponseWriter, r *http.Request, co dom
 }
 
 func (s *server) handleDeleteCollection(w http.ResponseWriter, r *http.Request, co domain.Company) {
-	be, ok := s.vaultBE()
+	be, ctx, ok := s.vaultReq(w, r)
 	if !ok {
-		s.unavailable(w, r)
 		return
 	}
-	ctx := r.Context()
 	if err := be.DeleteCollection(ctx, actorFrom(ctx), co.ID, r.PathValue("coll")); err != nil {
 		s.showCollection(w, r, co, be, statusFor(err), err)
 		return
@@ -366,12 +366,10 @@ func (s *server) handleDeleteCollection(w http.ResponseWriter, r *http.Request, 
 }
 
 func (s *server) handleCollectionAdd(w http.ResponseWriter, r *http.Request, co domain.Company) {
-	be, ok := s.vaultBE()
+	be, ctx, ok := s.vaultReq(w, r)
 	if !ok {
-		s.unavailable(w, r)
 		return
 	}
-	ctx := r.Context()
 	if err := be.AddSecretToCollection(ctx, actorFrom(ctx), co.ID, r.PathValue("coll"), trimForm(r, "secret")); err != nil {
 		s.showCollection(w, r, co, be, statusFor(err), err)
 		return
@@ -380,12 +378,10 @@ func (s *server) handleCollectionAdd(w http.ResponseWriter, r *http.Request, co 
 }
 
 func (s *server) handleCollectionRemove(w http.ResponseWriter, r *http.Request, co domain.Company) {
-	be, ok := s.vaultBE()
+	be, ctx, ok := s.vaultReq(w, r)
 	if !ok {
-		s.unavailable(w, r)
 		return
 	}
-	ctx := r.Context()
 	if err := be.RemoveSecretFromCollection(ctx, actorFrom(ctx), co.ID, r.PathValue("coll"), r.PathValue("name")); err != nil {
 		s.showCollection(w, r, co, be, statusFor(err), err)
 		return

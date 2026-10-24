@@ -12,6 +12,17 @@ import (
 
 // Campos e coleções do cofre (ADR-0068, fatia 1). Reveal de campo, histórico e concessões chegam na fatia 2.
 
+// inCompany resolve a empresa antes do comando: sem empresa, o erro sai antes de qualquer chamada ao servidor.
+func (e *env) inCompany(run func(cmd *cobra.Command, co string, a []string) error) func(*cobra.Command, []string) error {
+	return func(cmd *cobra.Command, a []string) error {
+		co, err := e.needCompany()
+		if err != nil {
+			return err
+		}
+		return run(cmd, co, a)
+	}
+}
+
 // valueFlags registra --value, --value-stdin e --generate; cada comando passa o próprio texto de ajuda.
 func (e *env) valueFlags(cmd *cobra.Command, value *string, stdin, gen *bool, valueHelp, stdinHelp, genHelp string) {
 	f := cmd.Flags()
@@ -51,11 +62,7 @@ func (e *env) secretFieldCmd(user *bool) *cobra.Command {
 
 	ls := &cobra.Command{
 		Use: "ls " + e.t("<segredo>"), Aliases: []string{"list"}, Short: e.t("Lista os campos de um segredo"), Args: cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, a []string) error {
-			co, err := e.needCompany()
-			if err != nil {
-				return err
-			}
+		RunE: e.inCompany(func(cmd *cobra.Command, co string, a []string) error {
 			l, err := e.client().ListSecretFields(cmd.Context(), co, *user, a[0])
 			if err != nil {
 				return err
@@ -73,7 +80,7 @@ func (e *env) secretFieldCmd(user *bool) *cobra.Command {
 			}
 			e.table(fieldHeader(e), rows)
 			return nil
-		},
+		}),
 	}
 
 	var (
@@ -83,11 +90,7 @@ func (e *env) secretFieldCmd(user *bool) *cobra.Command {
 	)
 	add := &cobra.Command{
 		Use: "add " + e.t("<segredo> <campo>"), Short: e.t("Acrescenta um campo (--value-stdin ou --generate; padrão secreto)"), Args: cobra.ExactArgs(2),
-		RunE: func(cmd *cobra.Command, a []string) error {
-			co, err := e.needCompany()
-			if err != nil {
-				return err
-			}
+		RunE: e.inCompany(func(cmd *cobra.Command, co string, a []string) error {
 			v, err := e.secretValue(aValue, aStdin)
 			if err != nil {
 				return err
@@ -106,7 +109,7 @@ func (e *env) secretFieldCmd(user *bool) *cobra.Command {
 			fmt.Fprintf(e.out, e.t("Campo criado: %s (use %s)\n"), f.Name, f.Reference)
 			e.showRevealedField(f)
 			return nil
-		},
+		}),
 	}
 	af := add.Flags()
 	e.valueFlags(add, &aValue, &aStdin, &aGen,
@@ -122,11 +125,7 @@ func (e *env) secretFieldCmd(user *bool) *cobra.Command {
 	)
 	rotate := &cobra.Command{
 		Use: "rotate " + e.t("<segredo> <campo>"), Short: e.t("Troca o valor de um campo (a versão sobe)"), Args: cobra.ExactArgs(2),
-		RunE: func(cmd *cobra.Command, a []string) error {
-			co, err := e.needCompany()
-			if err != nil {
-				return err
-			}
+		RunE: e.inCompany(func(cmd *cobra.Command, co string, a []string) error {
 			v, err := e.secretValue(rValue, rStdin)
 			if err != nil {
 				return err
@@ -141,7 +140,7 @@ func (e *env) secretFieldCmd(user *bool) *cobra.Command {
 			fmt.Fprintf(e.out, e.t("Campo %s rotacionado (versão %d).\n"), f.Name, f.Version)
 			e.showRevealedField(f)
 			return nil
-		},
+		}),
 	}
 	e.valueFlags(rotate, &rValue, &rStdin, &rGen,
 		e.t("novo valor (prefira --value-stdin)"), e.t("lê o novo valor do stdin"),
@@ -151,11 +150,7 @@ func (e *env) secretFieldCmd(user *bool) *cobra.Command {
 	var sPos int
 	set := &cobra.Command{
 		Use: "set " + e.t("<segredo> <campo>"), Short: e.t("Muda a marca (--visible ou --secret) e a posição de um campo"), Args: cobra.ExactArgs(2),
-		RunE: func(cmd *cobra.Command, a []string) error {
-			co, err := e.needCompany()
-			if err != nil {
-				return err
-			}
+		RunE: e.inCompany(func(cmd *cobra.Command, co string, a []string) error {
 			if sVis && sSecret {
 				return usageError{fmt.Errorf("%s", e.t("use --visible ou --secret, não os dois"))}
 			}
@@ -179,7 +174,7 @@ func (e *env) secretFieldCmd(user *bool) *cobra.Command {
 			fmt.Fprintf(e.out, e.t("Campo %s atualizado.\n"), f.Name)
 			e.table(fieldHeader(e), [][]string{e.fieldLine(f)})
 			return nil
-		},
+		}),
 	}
 	sf := set.Flags()
 	sf.BoolVar(&sVis, "visible", false, e.t("torna o campo visível (o valor passa a aparecer na listagem)"))
@@ -212,11 +207,7 @@ func (e *env) secretCollectionCmd() *cobra.Command {
 
 	ls := &cobra.Command{
 		Use: "ls", Aliases: []string{"list"}, Short: e.t("Lista as coleções"), Args: cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			co, err := e.needCompany()
-			if err != nil {
-				return err
-			}
+		RunE: e.inCompany(func(cmd *cobra.Command, co string, _ []string) error {
 			l, err := e.client().ListSecretCollections(cmd.Context(), co)
 			if err != nil {
 				return err
@@ -234,18 +225,14 @@ func (e *env) secretCollectionCmd() *cobra.Command {
 			}
 			e.table(e.collectionHeader(), rows)
 			return nil
-		},
+		}),
 	}
 
 	var cDesc string
 	var cRot int
 	create := &cobra.Command{
 		Use: "create " + e.t("<nome>"), Short: e.t("Cria uma coleção (admin)"), Args: cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, a []string) error {
-			co, err := e.needCompany()
-			if err != nil {
-				return err
-			}
+		RunE: e.inCompany(func(cmd *cobra.Command, co string, a []string) error {
 			req := client.CollectionReq{Name: a[0], Description: cDesc}
 			if cmd.Flags().Changed("rotate-days") {
 				req.RotateAfterDays = &cRot
@@ -259,18 +246,14 @@ func (e *env) secretCollectionCmd() *cobra.Command {
 			}
 			fmt.Fprintf(e.out, e.t("Coleção criada: %s\n"), x.Name)
 			return nil
-		},
+		}),
 	}
 	create.Flags().StringVar(&cDesc, "description", "", e.t("descrição"))
 	create.Flags().IntVar(&cRot, "rotate-days", 0, e.t("prazo de rotação, em dias, dos itens sem prazo próprio"))
 
 	show := &cobra.Command{
 		Use: "show " + e.t("<coleção>"), Short: e.t("Mostra uma coleção (id ou nome)"), Args: cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, a []string) error {
-			co, err := e.needCompany()
-			if err != nil {
-				return err
-			}
+		RunE: e.inCompany(func(cmd *cobra.Command, co string, a []string) error {
 			x, err := e.client().GetSecretCollection(cmd.Context(), co, a[0])
 			if err != nil {
 				return err
@@ -280,16 +263,12 @@ func (e *env) secretCollectionCmd() *cobra.Command {
 			}
 			e.table(e.collectionHeader(), [][]string{e.collectionLine(x)})
 			return nil
-		},
+		}),
 	}
 
 	secrets := &cobra.Command{
 		Use: "secrets " + e.t("<coleção>"), Short: e.t("Lista os segredos de uma coleção"), Args: cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, a []string) error {
-			co, err := e.needCompany()
-			if err != nil {
-				return err
-			}
+		RunE: e.inCompany(func(cmd *cobra.Command, co string, a []string) error {
 			l, err := e.client().ListCollectionSecrets(cmd.Context(), co, a[0])
 			if err != nil {
 				return err
@@ -299,18 +278,14 @@ func (e *env) secretCollectionCmd() *cobra.Command {
 			}
 			e.printSecretList(l)
 			return nil
-		},
+		}),
 	}
 
 	var uName, uDesc string
 	var uRot int
 	update := &cobra.Command{
 		Use: "update " + e.t("<coleção>"), Short: e.t("Muda nome, descrição ou prazo de rotação (admin)"), Args: cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, a []string) error {
-			co, err := e.needCompany()
-			if err != nil {
-				return err
-			}
+		RunE: e.inCompany(func(cmd *cobra.Command, co string, a []string) error {
 			fl := cmd.Flags()
 			if !fl.Changed("name") && !fl.Changed("description") && !fl.Changed("rotate-days") {
 				return usageError{fmt.Errorf("%s", e.t("nada para mudar: use --name, --description ou --rotate-days"))}
@@ -339,7 +314,7 @@ func (e *env) secretCollectionCmd() *cobra.Command {
 			}
 			fmt.Fprintf(e.out, e.t("Coleção %s atualizada.\n"), x.Name)
 			return nil
-		},
+		}),
 	}
 	uf := update.Flags()
 	uf.StringVar(&uName, "name", "", e.t("novo nome"))
@@ -348,46 +323,34 @@ func (e *env) secretCollectionCmd() *cobra.Command {
 
 	rm := &cobra.Command{
 		Use: "rm " + e.t("<coleção>"), Aliases: []string{"delete"}, Short: e.t("Apaga uma coleção (os segredos ficam; a padrão não se apaga)"), Args: cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, a []string) error {
-			co, err := e.needCompany()
-			if err != nil {
-				return err
-			}
+		RunE: e.inCompany(func(cmd *cobra.Command, co string, a []string) error {
 			if err := e.client().DeleteSecretCollection(cmd.Context(), co, a[0]); err != nil {
 				return err
 			}
 			fmt.Fprintf(e.out, e.t("Coleção %s apagada.\n"), a[0])
 			return nil
-		},
+		}),
 	}
 
 	add := &cobra.Command{
 		Use: "add " + e.t("<coleção> <segredo>"), Short: e.t("Põe um segredo na coleção"), Args: cobra.ExactArgs(2),
-		RunE: func(cmd *cobra.Command, a []string) error {
-			co, err := e.needCompany()
-			if err != nil {
-				return err
-			}
+		RunE: e.inCompany(func(cmd *cobra.Command, co string, a []string) error {
 			if err := e.client().AddSecretToCollection(cmd.Context(), co, a[0], a[1]); err != nil {
 				return err
 			}
 			fmt.Fprintf(e.out, e.t("Segredo %s na coleção %s.\n"), a[1], a[0])
 			return nil
-		},
+		}),
 	}
 	remove := &cobra.Command{
 		Use: "remove " + e.t("<coleção> <segredo>"), Short: e.t("Tira um segredo da coleção"), Args: cobra.ExactArgs(2),
-		RunE: func(cmd *cobra.Command, a []string) error {
-			co, err := e.needCompany()
-			if err != nil {
-				return err
-			}
+		RunE: e.inCompany(func(cmd *cobra.Command, co string, a []string) error {
 			if err := e.client().RemoveSecretFromCollection(cmd.Context(), co, a[0], a[1]); err != nil {
 				return err
 			}
 			fmt.Fprintf(e.out, e.t("Segredo %s fora da coleção %s.\n"), a[1], a[0])
 			return nil
-		},
+		}),
 	}
 
 	c.AddCommand(ls, create, show, secrets, update, rm, add, remove)
