@@ -25,7 +25,6 @@ func pendingOp[I, O any](api huma.API, o huma.Operation, slice string) {
 
 const (
 	sliceFields      = "fatia 1 (#56)"
-	sliceReauth      = "fatia 2 (#57)"
 	sliceSends       = "fatia 4 (#59)"
 	sliceDelegations = "fatia 5 (#60)"
 	sliceHealth      = "fatia 6 (#61)"
@@ -297,22 +296,6 @@ type reauthIn struct {
 		ChallengeID string          `json:"challenge_id,omitempty" format:"uuid" doc:"Passkey: o desafio de /me/reauth/options."`
 		Credential  json.RawMessage `json:"credential,omitempty" doc:"Passkey: resposta de navigator.credentials.get."`
 	}
-}
-
-func registerReauth(api huma.API) {
-	tag := "auth"
-	pendingOp[struct{}, ItemOut[WebauthnOptions]](api, op("begin-passkey-registration", http.MethodPost, "/me/passkeys/registration", tag,
-		"Começa o cadastro de uma passkey (exige reautenticação recente)"), sliceReauth)
-	pendingOp[finishPasskeyIn, ItemOut[Passkey]](api, created(op("finish-passkey-registration", http.MethodPost, "/me/passkeys", tag,
-		"Conclui o cadastro de uma passkey")), sliceReauth)
-	pendingOp[struct{}, ListOut[Passkey]](api, op("list-passkeys", http.MethodGet, "/me/passkeys", tag,
-		"Lista as passkeys do usuário"), sliceReauth)
-	pendingOp[passkeyPath, struct{}](api, noContent(op("delete-passkey", http.MethodDelete, "/me/passkeys/{id}", tag,
-		"Remove uma passkey (exige reautenticação recente)")), sliceReauth)
-	pendingOp[struct{}, ItemOut[ReauthOptions]](api, op("reauth-options", http.MethodPost, "/me/reauth/options", tag,
-		"Provas aceitas para reautenticar agora (e o desafio da passkey)"), sliceReauth)
-	pendingOp[reauthIn, ItemOut[ReauthResult]](api, op("reauthenticate", http.MethodPost, "/me/reauth", tag,
-		"Prova recente de identidade para as ações sensíveis do cofre (ADR-0070)"), sliceReauth)
 }
 
 // ---------- envio (fatia 4) ----------
@@ -593,7 +576,7 @@ func (s *server) registerVault(api huma.API) {
 	registerSecretFieldsScope(api, "secrets", "secret", "segredo da empresa")
 	registerSecretFieldsScope(api, "user-secrets", "user-secret", "segredo do usuário")
 	registerCollections(api)
-	registerReauth(api)
+	s.registerReauth(api)
 	registerSends(api)
 	registerDelegations(api)
 	registerHealth(api)

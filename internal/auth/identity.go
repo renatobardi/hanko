@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/renatobardi/hanko/internal/domain"
 )
@@ -27,6 +28,15 @@ type Identity struct {
 	// KeyID e KeyScope só valem com ViaAPIKey (ADR-0057); escopo vazio = full.
 	KeyID    *domain.ID
 	KeyScope domain.KeyScope
+	// Session só vale com ViaSession: a sessão que autenticou a requisição e a sua reautenticação recente (ADR-0070).
+	Session SessionInfo
+}
+
+// SessionInfo é o estado da sessão, lido a cada requisição. ReauthAt é nil sem prova feita.
+type SessionInfo struct {
+	ID           domain.ID
+	ReauthAt     *time.Time
+	ReauthMethod string
 }
 
 type identityKey struct{}

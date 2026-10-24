@@ -25,6 +25,12 @@ type KeyInfo struct {
 	Scope domain.KeyScope
 }
 
+// SessionInfoResolver é um Resolver que também informa a sessão (id e reautenticação recente, ADR-0070). Quando o
+// Resolver não o implementa, a sessão vem sem essas informações.
+type SessionInfoResolver interface {
+	ResolveSessionInfo(ctx context.Context, token string) (domain.User, SessionInfo, error)
+}
+
 // KeyResolver é um Resolver que também informa o id e o escopo da API key (ADR-0057). Quando o Resolver não o
 // implementa, a chave vale com escopo full.
 type KeyResolver interface {
@@ -134,10 +140,10 @@ func (g *guard) wrap(next http.Handler) http.Handler {
 		// 2. Sessão por cookie (só quando não há Authorization).
 		if id == nil && !hasAuthz {
 			if c, err := r.Cookie(SessionCookie); err == nil && c.Value != "" {
-				u, err := g.res.ResolveSession(r.Context(), c.Value)
+				u, info, err := g.resolveSession(r.Context(), c.Value)
 				switch {
 				case err == nil:
-					id = &Identity{User: u, Via: ViaSession}
+					id = &Identity{User: u, Via: ViaSession, Session: info}
 				case errors.Is(err, domain.ErrUnauthenticated):
 					// cookie velho: trata como anônimo
 				default:
@@ -193,6 +199,14 @@ func (g *guard) wrap(next http.Handler) http.Handler {
 			g.redirectToLogin(w, r)
 		}
 	})
+}
+
+func (g *guard) resolveSession(ctx context.Context, token string) (domain.User, SessionInfo, error) {
+	if sr, ok := g.res.(SessionInfoResolver); ok {
+		return sr.ResolveSessionInfo(ctx, token)
+	}
+	u, err := g.res.ResolveSession(ctx, token)
+	return u, SessionInfo{}, err
 }
 
 type keyMeta struct {

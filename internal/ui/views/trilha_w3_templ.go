@@ -1716,6 +1716,10 @@ func ProfilePage(sh Shell, vm ProfileVM) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
+				templ_7745c5c3_Err = PasskeySection(sh.Version).Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
 			}
 			return nil
 		})
@@ -1781,7 +1785,7 @@ func WhatsNewPage(sh Shell, vm WhatsNewVM) templ.Component {
 					var templ_7745c5c3_Var105 templ.SafeURL
 					templ_7745c5c3_Var105, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(sh.Base() + "/novidades/dispensar"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `trilha_w3.templ`, Line: 290, Col: 82}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `trilha_w3.templ`, Line: 291, Col: 82}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var105))
 					if templ_7745c5c3_Err != nil {
@@ -1794,7 +1798,7 @@ func WhatsNewPage(sh Shell, vm WhatsNewVM) templ.Component {
 					var templ_7745c5c3_Var106 string
 					templ_7745c5c3_Var106, templ_7745c5c3_Err = templ.ResolveAttributeValue(vm.Key)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `trilha_w3.templ`, Line: 291, Col: 51}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `trilha_w3.templ`, Line: 292, Col: 51}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var106)
 					if templ_7745c5c3_Err != nil {
@@ -1807,7 +1811,7 @@ func WhatsNewPage(sh Shell, vm WhatsNewVM) templ.Component {
 					var templ_7745c5c3_Var107 string
 					templ_7745c5c3_Var107, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Dispensar"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `trilha_w3.templ`, Line: 292, Col: 73}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `trilha_w3.templ`, Line: 293, Col: 73}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var107))
 					if templ_7745c5c3_Err != nil {
@@ -1831,7 +1835,7 @@ func WhatsNewPage(sh Shell, vm WhatsNewVM) templ.Component {
 			var templ_7745c5c3_Var108 string
 			templ_7745c5c3_Var108, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Version)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `trilha_w3.templ`, Line: 297, Col: 19}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `trilha_w3.templ`, Line: 298, Col: 19}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var108))
 			if templ_7745c5c3_Err != nil {
@@ -1849,7 +1853,7 @@ func WhatsNewPage(sh Shell, vm WhatsNewVM) templ.Component {
 				var templ_7745c5c3_Var109 string
 				templ_7745c5c3_Var109, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Date)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `trilha_w3.templ`, Line: 299, Col: 30}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `trilha_w3.templ`, Line: 300, Col: 30}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var109))
 				if templ_7745c5c3_Err != nil {
@@ -1911,7 +1915,7 @@ func WhatsNewCard(vm WhatsNewVM, base string) templ.Component {
 		var templ_7745c5c3_Var111 string
 		templ_7745c5c3_Var111, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "O que há de novo"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `trilha_w3.templ`, Line: 310, Col: 41}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `trilha_w3.templ`, Line: 311, Col: 41}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var111))
 		if templ_7745c5c3_Err != nil {
@@ -1924,7 +1928,7 @@ func WhatsNewCard(vm WhatsNewVM, base string) templ.Component {
 		var templ_7745c5c3_Var112 templ.SafeURL
 		templ_7745c5c3_Var112, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(base + "/novidades"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `trilha_w3.templ`, Line: 311, Col: 60}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `trilha_w3.templ`, Line: 312, Col: 60}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var112))
 		if templ_7745c5c3_Err != nil {
@@ -1937,7 +1941,7 @@ func WhatsNewCard(vm WhatsNewVM, base string) templ.Component {
 		var templ_7745c5c3_Var113 string
 		templ_7745c5c3_Var113, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Ler"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `trilha_w3.templ`, Line: 311, Col: 83}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `trilha_w3.templ`, Line: 312, Col: 83}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var113))
 		if templ_7745c5c3_Err != nil {
@@ -1950,7 +1954,7 @@ func WhatsNewCard(vm WhatsNewVM, base string) templ.Component {
 		var templ_7745c5c3_Var114 string
 		templ_7745c5c3_Var114, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.Tf(ctx, "Esta instalação está na versão %s.", vm.Installed))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `trilha_w3.templ`, Line: 313, Col: 87}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `trilha_w3.templ`, Line: 314, Col: 87}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var114))
 		if templ_7745c5c3_Err != nil {
@@ -1963,7 +1967,7 @@ func WhatsNewCard(vm WhatsNewVM, base string) templ.Component {
 		var templ_7745c5c3_Var115 templ.SafeURL
 		templ_7745c5c3_Var115, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(base + "/novidades/dispensar"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `trilha_w3.templ`, Line: 314, Col: 75}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `trilha_w3.templ`, Line: 315, Col: 75}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var115))
 		if templ_7745c5c3_Err != nil {
@@ -1976,7 +1980,7 @@ func WhatsNewCard(vm WhatsNewVM, base string) templ.Component {
 		var templ_7745c5c3_Var116 string
 		templ_7745c5c3_Var116, templ_7745c5c3_Err = templ.ResolveAttributeValue(vm.Key)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `trilha_w3.templ`, Line: 315, Col: 49}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `trilha_w3.templ`, Line: 316, Col: 49}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var116)
 		if templ_7745c5c3_Err != nil {
@@ -1989,7 +1993,7 @@ func WhatsNewCard(vm WhatsNewVM, base string) templ.Component {
 		var templ_7745c5c3_Var117 string
 		templ_7745c5c3_Var117, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Dispensar"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `trilha_w3.templ`, Line: 316, Col: 72}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `trilha_w3.templ`, Line: 317, Col: 72}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var117))
 		if templ_7745c5c3_Err != nil {

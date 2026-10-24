@@ -1,10 +1,11 @@
-# Estado da última sessão (testes do service mais rápidos, #71)
-Data: 2026-10-24 · branch `chore/71-service-testes-rapidos` → `main` · issue #71
+# Estado da última sessão (cofre para agentes, fatia 2)
+Data: 2026-10-24 · branch `sessao/57-reauth-passkey` · issue #57 (fatia 2 de #54, ADR-0070)
 
 ## Feito
-- `testdb.New` clona um template migrado uma vez por processo, em vez de recriar o schema e rodar as 70 migrations a cada teste (ADR-0071).
-- `internal/service`: 1036 s → 130 s localmente; mesmos 654 testes e cobertura (77,9 %). Suíte inteira verde local (623 s).
-## Travado (só o dono)
-- Nada: merge autorizado pelo dono na conversa.
+- Reautenticação recente (`RequireReauth`, janela `reauth.minutes`, padrão 5) com provas por senha, Firebase (`auth_time`) e passkey; `/me/reauth*` e `/me/passkeys*` saíram do 501; passkey na tela de perfil com o diálogo de prova.
+- `internal/auth/passkey`: contador de assinatura conferido (clone recusado); testes com autenticador de software.
+## Travado
+- Ações do cofre (revelar, histórico, restaurar, envio, concessão) seguem 501: entram com as fatias 1, 3 e 4, e chamam `RequireReauth`.
+- Decisões para o Bardi: a chave é `reauth.minutes` (o ADR-0070 diz `secrets.reauth_minutes`, mas a guarda do registro, ADR-0032, recusa nome com "secret"); e o fato vai para cada empresa do usuário (`activity_events.company_id` é obrigatório).
 ## Próximo passo
-- Medir `test (service)` em 3 execuções do CI (meta ≤ ~8 min). O caminho crítico do `check` passa a ser o shard `resto`.
+- Fatia 3 (#58): ligar `RequireReauth` em revelar e histórico. Prova por Firebase pelo SDK na tela ainda não existe (o diálogo só avisa).

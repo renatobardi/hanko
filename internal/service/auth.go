@@ -358,46 +358,66 @@ func (s *Service) stillAdmitted(u store.User) bool {
 // Sessão desconhecida ou expirada = ErrUnauthenticated; no provider firebase, com listas de
 // admissão, usuário que saiu delas também.
 func (s *Service) ResolveSession(ctx context.Context, token string) (domain.User, error) {
-	return s.resolveSession(ctx, token, true)
+	u, _, err := s.resolveSession(ctx, token, true)
+	return u, err
+}
+
+// ResolveSessionInfo é ResolveSession que também devolve o estado da sessão (id e reautenticação recente, ADR-0070),
+// lido nesta requisição: o guard o usa para conferir as ações sensíveis.
+func (s *Service) ResolveSessionInfo(ctx context.Context, token string) (domain.User, auth.SessionInfo, error) {
+	u, sess, err := s.resolveSession(ctx, token, true)
+	if err != nil {
+		return domain.User{}, auth.SessionInfo{}, err
+	}
+	return u, sessionInfo(sess), nil
+}
+
+func sessionInfo(sess store.Session) auth.SessionInfo {
+	info := auth.SessionInfo{ID: sess.ID, ReauthAt: sess.ReauthAt}
+	if sess.ReauthMethod != nil {
+		info.ReauthMethod = *sess.ReauthMethod
+	}
+	return info
 }
 
 // CheckSession faz as mesmas verificações de ResolveSession (sessão existente e não expirada, usuário presente e
 // ainda admitido) SEM efeito colateral: não renova a validade deslizante. É para revalidações automáticas (o ping
 // do SSE): um stream aberto não pode manter a sessão viva sozinho; só o uso de verdade (requisições) renova.
 func (s *Service) CheckSession(ctx context.Context, token string) (domain.User, error) {
-	return s.resolveSession(ctx, token, false)
+	u, _, err := s.resolveSession(ctx, token, false)
+	return u, err
 }
 
-func (s *Service) resolveSession(ctx context.Context, token string, touch bool) (domain.User, error) {
+func (s *Service) resolveSession(ctx context.Context, token string, touch bool) (domain.User, store.Session, error) {
 	if token == "" {
-		return domain.User{}, domain.ErrUnauthenticated
+		return domain.User{}, store.Session{}, domain.ErrUnauthenticated
 	}
 	q := s.read()
 	now := s.Now().UTC()
 	sess, err := q.GetSessionByHash(ctx, store.GetSessionByHashParams{TokenHash: auth.HashToken(token), Now: now})
 	if err != nil {
 		if isNoRows(err) {
-			return domain.User{}, domain.ErrUnauthenticated
+			return domain.User{}, store.Session{}, domain.ErrUnauthenticated
 		}
-		return domain.User{}, fmt.Errorf("get session: %w", err)
+		return domain.User{}, store.Session{}, fmt.Errorf("get session: %w", err)
 	}
 	u, err := q.GetUserByID(ctx, sess.UserID)
 	if err != nil {
 		if isNoRows(err) {
-			return domain.User{}, domain.ErrUnauthenticated
+			return domain.User{}, store.Session{}, domain.ErrUnauthenticated
 		}
-		return domain.User{}, fmt.Errorf("get session user: %w", err)
+		return domain.User{}, store.Session{}, fmt.Errorf("get session user: %w", err)
 	}
 	if !s.stillAdmitted(u) {
 		_ = q.DeleteSessionByHash(ctx, auth.HashToken(token))
-		return domain.User{}, domain.ErrUnauthenticated
+		return domain.User{}, store.Session{}, domain.ErrUnauthenticated
 	}
 	if touch && now.Sub(sess.LastSeenAt) >= auth.TouchEvery {
 		if err := q.TouchSession(ctx, store.TouchSessionParams{ID: sess.ID, Now: now, ExpiresAt: now.Add(auth.SessionTTL)}); err != nil {
-			return domain.User{}, fmt.Errorf("touch session: %w", err)
+			return domain.User{}, store.Session{}, fmt.Errorf("touch session: %w", err)
 		}
 	}
-	return userFromRow(u), nil
+	return userFromRow(u), sess, nil
 }
 
 // EndSession encerra a sessão do token (idempotente).

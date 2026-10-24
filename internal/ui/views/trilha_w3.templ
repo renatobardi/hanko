@@ -278,6 +278,7 @@ templ ProfilePage(sh Shell, vm ProfileVM) {
 					<button class="btn primary" type="submit">{ i18n.T(ctx, "Salvar perfil") }</button>
 				</div>
 			</form>
+			@PasskeySection(sh.Version)
 		}
 	}
 }
