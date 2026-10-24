@@ -39,16 +39,109 @@ autor; ela não é decisão.
   `names.py` do agent-studio para o nome da rodada, e o teto de custo do modo dark (`config/swarm.toml:4-6`) lê
   `GET /v1/usage?rodada=`.
 
-## Medição no host (não medido)
+## Medição no host (2026-10-24)
 
-O volume atual não está medido. O primeiro pedido de leitura rodou no Mac, onde o agent-studio não existe (pedido
-`20261024-101920-…`, `rc 1`). O segundo pedido confere o caminho Mac → oute-server (pedido `20261024-102035-…`). Esta
-seção recebe os números quando a medição rodar:
+Fonte: pedidos do canal de aprovação `20261024-111422-s-leitura-hanko-67-mede-o-agent-studio-n` e
+`20261024-111550-hanko-67-contagens-do-agent-studio-numa-`, aprovados pelo Bardi e rodados no oute-server por
+`ssh oute-server` a partir do Mac. As contagens vêm de uma cópia consistente feita pelo próprio serviço
+(`python -m agent_studio.backup`), aberta em `read_only` e apagada no fim. O banco vivo não foi aberto. A saída trouxe
+só nomes e contagens.
 
-- tamanho do `.duckdb` e do RocksDB do SurrealDB;
-- linhas por tabela, janela de datas, volume por mês;
-- `oute_repo` distintos e se há nomes repetidos (critério de #67 e decisão 14 de #66);
-- hosts, instâncias e `service.name`.
+### Tamanho
+
+| Item | Valor |
+|---|---|
+| `agent-studio.duckdb` (arquivo vivo) | 3.024.629.760 bytes, mais 95.765.958 bytes de WAL |
+| Cópia consistente | 2.479.108.096 bytes, em 50,864 s |
+| SurrealDB (`/mnt/lxd/oute-data/surrealdb`) | 109 MB (`du -sh`) |
+| Fila do collector (`oute-agent_oute-otel-queue`) | 131,2 MB (`docker system df -v`) |
+| Disco de dados (`/data/agent-studio`, `/dev/sdb`) | 196 GB, 75 GB livres |
+| Disco raiz do oute-server | 45 GB, 17 GB livres |
+
+A nota de 2026-09 ([oute-agent#139](https://github.com/renatobardi/oute-agent/issues/139#issuecomment-5881197413))
+media ~14 MiB gzip em 4 dias, no bucket. Os dois números não se comparam direto (gzip no bucket × banco com índices),
+mas a ordem de grandeza mudou. Isso entra na pesquisa de banco (#68).
+
+### Linhas por tabela
+
+| Tabela | Linhas |
+|---|---|
+| `logs` | 450.388 |
+| `spans` | 1.446.922 |
+| `metrics` | 1.916.867 |
+| `conversation_phase` | 3.173 |
+| `phase_jev` | 1.792 |
+| `price_checks` | 1.306 |
+| `price_runs` | 210 |
+| `ack_marks` | 57 |
+| `price_history` | 21 |
+| `plan_history` | 3 |
+| `action_marks` | 0 |
+| `phase_marks` | 0 |
+
+Nos `logs`, o corpo soma 21.261.745 bytes; o JSON `attributes`, 536.792.388; o `resource_attributes`, 187.760.563.
+
+### Janela e volume
+
+- Os três sinais começam em 2026-09-30 (UTC) e vão até a hora da cópia (2026-10-24T11:16Z).
+- 2 hosts: `oute-server` (408.065 logs) e `oute-mac` (42.323 logs), os dois com instância `oute-agent`.
+- 3.171 conversas distintas nos `logs`; 3.167 nos `spans`.
+- `service.name` nos `logs`: `claude-code` 417.738; `agent-studio` 17.084; `codex_cli_rs` 7.884; `oute` 7.171;
+  `codex-app-server` 258; `codex_exec` 253.
+- Pico de spans em 2026-10-05: 1.148.602 num dia (79% de todos os spans). Causa não verificada.
+
+### Queda de logs e spans desde 2026-10-14: pausa de uso
+
+| Dia (UTC) | logs | spans | metrics |
+|---|---|---|---|
+| 2026-10-11 | 20.372 | 8.949 | 46.144 |
+| 2026-10-12 | 41.006 | 17.574 | 60.927 |
+| 2026-10-13 | 26.454 | 9.279 | 60.002 |
+| 2026-10-14 | 1.680 | 123 | 32.669 |
+| 2026-10-15 a 2026-10-23 | entre 1.345 e 1.466 por dia | 19 em 10-18, 7 em 10-19, 0 nos outros dias | entre 25.632 e 47.520 por dia |
+| 2026-10-24 | 11.023 | 4.966 | 22.665 |
+
+As métricas seguiram chegando; logs e spans quase pararam entre 2026-10-14 e 2026-10-23. Explicação do Bardi
+(2026-10-24, nesta sessão): ele parou de usar o oute nesse período. Não foi conferido no bucket.
+
+### Projeção para a pesquisa de banco (#68)
+
+Regra do Bardi (2026-10-24): **usar o dia de pico como média diária**, porque o período medido inclui a pausa.
+
+- Bytes por linha: 2.479.108.096 bytes ÷ 3.814.177 linhas = 650 bytes, média das três tabelas na cópia.
+- Dia de pico por sinal: logs 41.006 (2026-10-12, maior dia dos 14 últimos); spans 1.148.602 (2026-10-05); metrics
+  60.927 (2026-10-12, maior dia dos 14 últimos). Soma: 1.250.535 linhas por dia.
+- O maior dia de logs e de metrics antes de 2026-10-11 não foi medido (a saída listou só os 14 últimos dias).
+
+| Horizonte | Volume no formato do DuckDB |
+|---|---|
+| 1 dia | 812,8 MB |
+| 12 meses | 296,7 GB |
+| 36 meses | 890,0 GB |
+| Até encher os 75 GB livres do disco de dados | 92,3 dias |
+
+Comando: `python3 -c` com os números acima (multiplicação simples; não é medição no Postgres). O pico de spans de
+2026-10-05 pesa 92% da soma de pico; causa não verificada. O volume no Postgres não foi medido e é a primeira tarefa da
+#68.
+
+### Repositórios (`oute_repo`)
+
+| Repositório | logs | spans | metrics |
+|---|---|---|---|
+| `oute-agent` | 350.979 | 877.843 | 1.110.790 |
+| `frentes-engenharia` | 49.712 | 219.257 | 14.684 |
+| `lab` | 4.360 | 337.254 | 803 |
+| `hanko` | 10.221 | 4.963 | 2.555 |
+| `financial-control` | 7.031 | 3.499 | 2.401 |
+| `regression` | 197 | — | — |
+| `proj` | 2 | — | — |
+| `(sem)` | 27.886 | 4.106 | 785.634 |
+
+- Oito valores, contando "sem repositório". Pelo nome não há repetição.
+- O histórico guarda só o nome, sem dono, então **não dá para provar** que dois donos não usam o mesmo nome. Todos os
+  repositórios conhecidos são de `renatobardi`; isso é **não verificado** para `regression` e `proj`.
+- `regression` e `proj` parecem pastas, não repositórios. Decisão 14 de #66: entram como estão e o Bardi decide se viram
+  workspace ou "sem repositório".
 
 ---
 
@@ -355,3 +448,6 @@ Achadas na leitura. A migração segue o **código**, salvo decisão do Bardi.
 5. Jev × decision model do Hanko (§4.9).
 6. Ícone do Hanko Desktop (§5).
 7. Mover `names.py` para fora do agent-studio antes do corte (§6.1). É mudança no oute-agent.
+8. `regression` e `proj`: viram workspace ou "sem repositório" ("Medição no host").
+9. O pico de spans de 2026-10-05 (1.148.602 num dia) é uso real ou carga atípica (replay, teste)? A projeção da #68
+   depende disso ("Medição no host").
