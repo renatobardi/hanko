@@ -142,6 +142,9 @@ func (s *server) middleware(next http.Handler) http.Handler {
 			return
 		}
 		if isPublicAPI(r.URL.Path) {
+			if strings.HasPrefix(r.URL.Path, auth.PublicSendAPIPrefix) {
+				sw.Header().Set("Cache-Control", "no-store") // o texto cifrado de um envio não fica em cache
+			}
 			// login da CLI: quem chama ainda não tem credencial (o segredo é o poll token / o código)
 			r = r.WithContext(context.WithValue(r.Context(), keyPrincipal, principal{Actor: domain.HumanActor}))
 		} else if strings.HasPrefix(r.URL.Path, "/api/") {
@@ -163,6 +166,9 @@ func (s *server) middleware(next http.Handler) http.Handler {
 
 // isPublicAPI: endpoints sem credencial (criação e consulta do login da CLI, ADR-0057).
 func isPublicAPI(path string) bool {
+	if strings.HasPrefix(path, auth.PublicSendAPIPrefix) {
+		return true // envio por link (ADR-0069 §6): quem abre não tem conta
+	}
 	return path == auth.CLIAuthAPIPrefix || path == auth.CLIAuthAPIPrefix+"/poll"
 }
 

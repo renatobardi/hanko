@@ -80,6 +80,10 @@ func TestGuardPublicPaths(t *testing.T) {
 		{http.MethodGet, "/api/v1/cli-auth/outra", 401}, // só os dois endpoints são públicos
 		{http.MethodGet, "/pedir-acesso/abc", 200},
 		{http.MethodGet, "/cli-auth/abc", 303}, // a página de autorização exige sessão
+		{http.MethodGet, "/s/AAAAAAAAAAAAAAAAAAAAAA", 200},
+		{http.MethodGet, "/api/v1/s/AAAAAAAAAAAAAAAAAAAAAA", 200},
+		{http.MethodPost, "/api/v1/s/AAAAAAAAAAAAAAAAAAAAAA/open", 200},
+		{http.MethodPost, "/api/v1/companies/acme/sends", 401}, // criar envio exige login
 	} {
 		req := httptest.NewRequest(c.method, c.path, nil)
 		rec := httptest.NewRecorder()
@@ -92,13 +96,15 @@ func TestGuardPublicPaths(t *testing.T) {
 
 func TestRedactPathSegredos(t *testing.T) {
 	for in, want := range map[string]string{
-		"/convite/abc":        "/convite/…",
-		"/cli-auth/abc":       "/cli-auth/…",
-		"/pedir-acesso/xy":    "/pedir-acesso/…",
-		"/oauth/callback":     "/oauth/callback…",
-		"/api/v1/x":           "/api/v1/x",
-		"/hooks/channels/T0k": "/hooks/channels/…",
-		"/hooks/flows/abc":    "/hooks/flows/abc",
+		"/convite/abc":                          "/convite/…",
+		"/cli-auth/abc":                         "/cli-auth/…",
+		"/s/AAAAAAAAAAAAAAAAAAAAAA":             "/s/…",
+		"/api/v1/s/AAAAAAAAAAAAAAAAAAAAAA/open": "/api/v1/s/…",
+		"/pedir-acesso/xy":                      "/pedir-acesso/…",
+		"/oauth/callback":                       "/oauth/callback…",
+		"/api/v1/x":                             "/api/v1/x",
+		"/hooks/channels/T0k":                   "/hooks/channels/…",
+		"/hooks/flows/abc":                      "/hooks/flows/abc",
 	} {
 		if got := RedactPath(in); got != want {
 			t.Errorf("RedactPath(%q) = %q, quer %q", in, got, want)

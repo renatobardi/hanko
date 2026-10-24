@@ -4044,6 +4044,11 @@
             "description": "Com senha: SHA-256 da prova derivada da senha, base64url.",
             "type": "string"
           },
+          "public_id": {
+            "description": "Id público do envio, gerado no cliente (16 bytes em base64url): entra no AAD do texto cifrado.",
+            "pattern": "^[A-Za-z0-9_-]{22}$",
+            "type": "string"
+          },
           "size_bytes": {
             "format": "int64",
             "maximum": 26214400,
@@ -4052,6 +4057,7 @@
           }
         },
         "required": [
+          "public_id",
           "kind",
           "size_bytes",
           "expires_in_seconds"
@@ -56217,7 +56223,6 @@
         ]
       },
       "post": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 4 (#59).",
         "operationId": "create-send",
         "parameters": [
           {
@@ -56314,16 +56319,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Cria um envio com conteúdo já cifrado no cliente (exige reautenticação recente)",
@@ -75403,7 +75398,6 @@
     },
     "/api/v1/s/{public_id}": {
       "get": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 4 (#59).",
         "operationId": "get-public-send",
         "parameters": [
           {
@@ -75486,16 +75480,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Página pública: o que o envio pede para abrir (sem conta)",
@@ -75506,8 +75490,18 @@
     },
     "/api/v1/s/{public_id}/open": {
       "post": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 4 (#59).",
         "operationId": "open-public-send",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "public_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z0-9_-]{22}$",
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -75588,16 +75582,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Página pública: abre o envio, conta o acesso e devolve o conteúdo cifrado (sem conta)",

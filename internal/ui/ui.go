@@ -307,6 +307,7 @@ func (s *server) routes(root *http.ServeMux) {
 	post := func(h http.HandlerFunc) http.HandlerFunc { return s.sameOrigin(h) }
 
 	mux.Handle("GET /static/", staticHandler())
+	mux.HandleFunc("GET /s/{public_id}", sendPage)
 	mux.HandleFunc("GET "+manifestPath, s.handleManifest)
 	mux.HandleFunc("GET "+swPath, s.handleSW)
 	mux.HandleFunc("GET "+offlinePath, s.handleOffline)
