@@ -54,7 +54,7 @@ func (s *server) vaultDone(ctx context.Context, err error) (*struct{}, error) {
 }
 
 // vaultItem devolve o item das operações do cofre; o erro do service vira problema da API.
-func vaultItem[T any](s *server, ctx context.Context, body T, err error) (*ItemOut[T], error) {
+func vaultItem[T any](ctx context.Context, s *server, body T, err error) (*ItemOut[T], error) {
 	if err != nil {
 		return nil, s.fail(ctx, err)
 	}
@@ -135,7 +135,7 @@ func (s *server) registerFieldWrites(api huma.API, secretScope domain.SecretScop
 		"Muda marca de visível e posição de um campo"),
 		vaultOp(s, func(ctx context.Context, vb vaultBackend, sc scope, in *updateSecretFieldIn) (*ItemOut[SecretField], error) {
 			v, err := vb.UpdateSecretFieldMeta(ctx, sc.Actor, sc.Company.ID, secretScope, in.Name, in.Field, in.Body.Sensitive, in.Body.Position)
-			return vaultItem(s, ctx, secretFieldOut(v, in.Name, secretScope), err)
+			return vaultItem(ctx, s, secretFieldOut(v, in.Name, secretScope), err)
 		}))
 
 	huma.Register(api, op("rotate-"+opPrefix+"-field", http.MethodPost, base+"/{field}/rotate", tag,
@@ -145,7 +145,7 @@ func (s *server) registerFieldWrites(api huma.API, secretScope domain.SecretScop
 				return nil, problem(http.StatusUnprocessableEntity, "campo arquivo chega na fatia 3 (#58), com ${secretfile:}")
 			}
 			v, err := vb.RotateSecretField(ctx, sc.Actor, sc.Company.ID, secretScope, in.Name, in.Field, fieldValueIn(in.Body))
-			return vaultItem(s, ctx, secretFieldOut(v, in.Name, secretScope), err)
+			return vaultItem(ctx, s, secretFieldOut(v, in.Name, secretScope), err)
 		}))
 }
 
@@ -179,7 +179,7 @@ func (s *server) registerCollectionOps(api huma.API) {
 	huma.Register(api, created(op("create-secret-collection", http.MethodPost, base, tag, "Cria uma coleção de segredos (admin)")),
 		vaultOp(s, func(ctx context.Context, vb vaultBackend, sc scope, in *createCollectionIn) (*ItemOut[SecretCollection], error) {
 			v, err := vb.CreateCollection(ctx, sc.Actor, sc.Company.ID, collectionInput(in.Body))
-			return vaultItem(s, ctx, collectionOut(v), err)
+			return vaultItem(ctx, s, collectionOut(v), err)
 		}))
 
 	huma.Register(api, op("list-secret-collections", http.MethodGet, base, tag, "Lista as coleções que o usuário alcança"),
@@ -194,14 +194,14 @@ func (s *server) registerCollectionOps(api huma.API) {
 	huma.Register(api, op("get-secret-collection", http.MethodGet, base+"/{collection}", tag, "Obtém uma coleção"),
 		vaultOp(s, func(ctx context.Context, vb vaultBackend, sc scope, in *CollectionPath) (*ItemOut[SecretCollection], error) {
 			v, err := vb.GetCollection(ctx, sc.Company.ID, in.Collection)
-			return vaultItem(s, ctx, collectionOut(v), err)
+			return vaultItem(ctx, s, collectionOut(v), err)
 		}))
 
 	huma.Register(api, op("update-secret-collection", http.MethodPatch, base+"/{collection}", tag,
 		"Muda nome, descrição e prazo de rotação de uma coleção (admin)"),
 		vaultOp(s, func(ctx context.Context, vb vaultBackend, sc scope, in *updateCollectionIn) (*ItemOut[SecretCollection], error) {
 			v, err := vb.UpdateCollection(ctx, sc.Actor, sc.Company.ID, in.Collection, collectionInput(in.Body))
-			return vaultItem(s, ctx, collectionOut(v), err)
+			return vaultItem(ctx, s, collectionOut(v), err)
 		}))
 
 	huma.Register(api, noContent(op("delete-secret-collection", http.MethodDelete, base+"/{collection}", tag,

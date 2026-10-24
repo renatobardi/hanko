@@ -62,21 +62,9 @@ templ SecretFieldsPage(sh Shell, vm SecretFieldsVM) {
 		}
 		<div class="mb-6">@Tabs(vm.Sections)</div>
 		<p class="mb-3"><a href={ templ.SafeURL(vm.BackHref) }>{ i18n.T(ctx, "Voltar aos segredos") }</a></p>
-		if vm.Notice != "" {
-			@Alert("warn", vm.Notice)
-		}
-		if vm.Error != "" {
-			@Alert("danger", vm.Error)
-		}
+		@flashAlerts(vm.Notice, vm.Error)
 		if vm.Reveal != nil {
-			<div class="alert warn secret-box" role="status">
-				@Icon("alert")
-				<div>
-					<b>{ i18n.Tf(ctx, "Valor de %s: copie agora, ele não será mostrado de novo.", vm.Reveal.Name) }</b>
-					<div><code class="mono secret-val">{ vm.Reveal.Value }</code></div>
-					<div class="sub-line">{ i18n.T(ctx, "Referência:") } <code class="mono">{ vm.Reveal.Reference }</code></div>
-				</div>
-			</div>
+			@revealBox(vm.Reveal.Name, vm.Reveal.Reference, vm.Reveal.Value)
 		}
 		if len(vm.Fields) == 0 {
 			@EmptyCard("lock", i18n.T(ctx, "Nenhum campo."), i18n.T(ctx, "Um segredo pode ter vários campos, como usuário e senha, cada um com a sua marca de visível ou secreto."), false)
@@ -150,12 +138,7 @@ templ CollectionsPage(sh Shell, vm CollectionsVM) {
 		}
 		<div class="mb-6">@Tabs(vm.Sections)</div>
 		<p class="mb-3"><a href={ templ.SafeURL(vm.BackHref) }>{ i18n.T(ctx, "Voltar aos segredos") }</a></p>
-		if vm.Notice != "" {
-			@Alert("warn", vm.Notice)
-		}
-		if vm.Error != "" {
-			@Alert("danger", vm.Error)
-		}
+		@flashAlerts(vm.Notice, vm.Error)
 		<div class="table-wrap mb-6">
 			<table class="table">
 				<thead>
@@ -218,12 +201,7 @@ templ CollectionPage(sh Shell, vm CollectionVM) {
 		}
 		<div class="mb-6">@Tabs(vm.Sections)</div>
 		<p class="mb-3"><a href={ templ.SafeURL(vm.BackHref) }>{ i18n.T(ctx, "Voltar às coleções") }</a></p>
-		if vm.Notice != "" {
-			@Alert("warn", vm.Notice)
-		}
-		if vm.Error != "" {
-			@Alert("danger", vm.Error)
-		}
+		@flashAlerts(vm.Notice, vm.Error)
 		if vm.IsDefault {
 			<p class="mb-3"><span class="badge done">{ i18n.T(ctx, "padrão") }</span></p>
 		}
@@ -271,5 +249,27 @@ templ CollectionPage(sh Shell, vm CollectionVM) {
 				</form>
 			}
 		}
+	}
+}
+
+// revealBox mostra o valor revelado uma vez (criação gerada, rotação ou revelar), com a referência para citar.
+templ revealBox(name, reference, value string) {
+	<div class="alert warn secret-box" role="status">
+		@Icon("alert")
+		<div>
+			<b>{ i18n.Tf(ctx, "Valor de %s: copie agora, ele não será mostrado de novo.", name) }</b>
+			<div><code class="mono secret-val">{ value }</code></div>
+			<div class="sub-line">{ i18n.T(ctx, "Referência:") } <code class="mono">{ reference }</code></div>
+		</div>
+	</div>
+}
+
+// flashAlerts mostra o aviso e o erro de uma tela do cofre.
+templ flashAlerts(notice, errMsg string) {
+	if notice != "" {
+		@Alert("warn", notice)
+	}
+	if errMsg != "" {
+		@Alert("danger", errMsg)
 	}
 }
