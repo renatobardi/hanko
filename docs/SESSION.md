@@ -1,11 +1,11 @@
-# Estado da última sessão (seta central e Feed fixo)
-Data: 2026-10-23 · branch `fix/setas-centro-feed-fixo` → `main`
+# Estado da última sessão (cofre para agentes, fatia 0)
+Data: 2026-10-24 · branch `feat/55-cofre-contrato` → `main` · issues #54 (guarda-chuva) e #55
 
 ## Feito
-- Alfinete "Fixado/Fixar" validado em produção (#48).
-- Seta única centrada na conversa, acima da caixa: desce ao fim na metade de cima, sobe ao início na de baixo.
-- Feed do time da sala fixo por padrão, com alfinete próprio (`hanko.feed.pinned` no navegador).
+- ADR-0068 (cofre), 0069 (envio), 0070 (reautenticação e passkey); ADR-0016 e glossários com os termos novos.
+- Contrato: migration 00203 (só schema), `internal/domain/vault.go`, queries `vault`/`sends`/`passkeys`, 54 operações da API em 501; `internal/vault` → `internal/extvault`.
+- ADRs aceitos pelo Bardi em 2026-10-24 (PR #63), com `persona_tree`, delegação por alvo, API key `full` e `go-webauthn/webauthn`.
 ## Travado (só o dono)
-- Merge e deploy pelo Mac (`deploy/oute-server/deploy-prd.sh`, sem `--edge`).
+- Merge do PR #63.
 ## Próximo passo
-- Depois do deploy: conferir a seta no centro e o Feed fixo/solto na sala.
+- Fatia 1 (#56) e fatia 2 (#57), em paralelo, depois do merge da fatia 0.

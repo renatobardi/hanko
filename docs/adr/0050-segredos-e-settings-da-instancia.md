@@ -1,5 +1,5 @@
 # ADR-0050 — Segredos da empresa, cofre externo e settings da instância
-Data: 2026-10-17 · Status: aceita
+Data: 2026-10-17 · Status: aceita · Complementado por: ADR-0068 (campos, coleções, uso na run, histórico), ADR-0069 (envio), ADR-0070 (reautenticação)
 
 ## Contexto
 O ADR-0029 cifrou os segredos das integrações (headers de MCP, variáveis do stdio, segredo HMAC de webhook) com
