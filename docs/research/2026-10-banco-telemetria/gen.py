@@ -1,10 +1,9 @@
 """Gera telemetria sintética no schema do agent-studio (store.TABLES, oute-agent @845764f), num DuckDB.
 
-Uso: gen.py <arquivo.duckdb> <dias> [perfil.json]
-Volume por dia e formas (tamanhos de JSON, nomes, cardinalidades) vêm do perfil (medido no host, pedido do canal);
-sem perfil, os valores de PERFIL abaixo. O fim dos dados é END_NS (2026-10-24T00:00Z) e os dias vão para trás.
+Uso: gen.py <nome.duckdb> <dias>   (grava em ./data/<nome.duckdb>)
+Volume por dia e formas (tamanhos de JSON, nomes, cardinalidades) vêm de PERFIL abaixo (medido no host, pedido do canal). O fim dos dados é END_NS (2026-10-24T00:00Z) e os dias vão para trás.
 """
-import json, sys, time
+import os, sys, time
 import duckdb
 sys.path.insert(0, "/workspace/oute-agent/docker/agent-studio")
 from agent_studio import store  # noqa: E402
@@ -114,7 +113,6 @@ def gen(path, days, p):
 
 
 if __name__ == "__main__":
-    p = dict(PERFIL)
-    if len(sys.argv) > 3:
-        p.update(json.load(open(sys.argv[3])))
-    gen(sys.argv[1], int(sys.argv[2]), p)
+    # o arquivo fica sempre em ./data/ (só o nome vem da linha de comando); o perfil é o PERFIL acima
+    out = os.path.join("data", os.path.basename(sys.argv[1]))
+    gen(out, int(sys.argv[2]), dict(PERFIL))

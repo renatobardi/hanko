@@ -257,14 +257,14 @@ Bardi em 2026-10-24T18:29:55Z, sha256 `12584507dc53…`).
 
 ```bash
 uv venv .venv && uv pip install --python .venv/bin/python -r <oute-agent>/docker/agent-studio/requirements.txt 'psycopg[binary]==3.2.3'
-.venv/bin/python gen.py data/real16.duckdb 16        # volume do host
-.venv/bin/python gen.py data/m12.duckdb 365          # 12 meses (~20 min, 52 GB)
+.venv/bin/python gen.py real16.duckdb 16             # volume do host (grava em data/)
+.venv/bin/python gen.py m12.duckdb 365                # 12 meses (~20 min, 52 GB)
 .venv/bin/python bench.py duckdb data/m12.duckdb 2GB
 .venv/bin/python pgload.py data/m12.duckdb m12part part   # Postgres em 127.0.0.1:56432 (PGDSN)
 .venv/bin/python bench.py pg m12part
 .venv/bin/python calls.py
 .venv/bin/python ingest.py pg m12part
-.venv/bin/python state.py http://127.0.0.1:58000     # surreal start --user … --pass … rocksdb://…
+.venv/bin/python state.py 58000                      # surreal start --user … --pass … rocksdb://…
 ```
 
 `gen.py`, `pgload.py` e `ingest.py` importam `agent_studio.store` de um checkout do oute-agent em

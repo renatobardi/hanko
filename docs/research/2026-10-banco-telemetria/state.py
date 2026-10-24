@@ -4,7 +4,7 @@ Volume (do perfil do host, pedido 20261024-181500, e do inventário §3.3), por 
 sessões e 5 etapas cada, 12 pedidos do canal. 36 meses = 1095 dias.
 Consultas: s1 as 50 conversas mais novas com o nome da rodada; s2 a página de uma rodada (sessões, etapas, pedidos);
 s3 os pedidos pendentes. Tempo: mediana de 5, em ms.
-Uso: state.py <url do surreal> (Postgres no DSN padrão, schema `state`).
+Uso: state.py <porta do surreal em 127.0.0.1> (Postgres no DSN padrão, schema `state`).
 """
 import base64, json, os, statistics, sys, time, urllib.request
 import psycopg
@@ -100,4 +100,4 @@ def main(url):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1])
+    main(f"http://127.0.0.1:{int(sys.argv[1])}")  # só o servidor de teste local
