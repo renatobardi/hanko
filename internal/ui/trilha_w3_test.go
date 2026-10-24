@@ -243,7 +243,13 @@ func TestWhatsNewCardAndPage(t *testing.T) {
 
 	page := e.get(t, "/c/hanko/novidades")
 	wantStatus(t, page, http.StatusOK)
-	wantContains(t, page, "Versão instalada: test", "Unreleased") // a versão do teste não está no CHANGELOG: cai no [Unreleased]
+	// a versão do teste não está no CHANGELOG: mostra o bloco que o CHANGELOG embutido escolhe para ela ([Unreleased], ou
+	// a versão mais nova logo após um corte)
+	rel, ok := installedRelease("test")
+	if !ok || rel.Body == "" {
+		t.Fatalf("o CHANGELOG embutido não tem bloco com conteúdo para versão desconhecida: %+v", rel)
+	}
+	wantContains(t, page, "Versão instalada: test", rel.Version)
 
 	// dispensar some o cartão do Painel, não a página
 	if loc := locationOf(t, e, "/c/hanko/novidades/dispensar", url.Values{"key": {"test"}}); loc == "" {

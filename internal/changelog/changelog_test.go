@@ -75,14 +75,26 @@ func TestKey(t *testing.T) {
 	}
 }
 
-// O CHANGELOG embutido no binário é o do repositório e tem o bloco [Unreleased] para as versões de desenvolvimento.
+// Versão de desenvolvimento com [Unreleased] vazio (recém-cortada a versão) mostra o bloco mais novo, não uma página em branco.
+func TestForSkipsAnEmptyUnreleased(t *testing.T) {
+	rels := changelog.Parse("# Changelog\n\n## [Unreleased]\n\n## [0.6.0] — 2026-10-23\n\n- algo\n\n## [0.2.0] — 2026-10-15\n\n- antes\n")
+	for _, in := range []string{"dev", "", "v9.9.9"} {
+		r, ok := changelog.For(rels, in)
+		if !ok || r.Version != "0.6.0" || r.Body == "" {
+			t.Errorf("For(%q) = %+v, %v; quer o bloco 0.6.0 com conteúdo", in, r, ok)
+		}
+	}
+}
+
+// O CHANGELOG embutido no binário é o do repositório; a versão de desenvolvimento sempre cai num bloco com conteúdo
+// ([Unreleased] ou, logo após um corte, a versão mais nova).
 func TestEmbeddedChangelog(t *testing.T) {
 	rels := changelog.Parse(hanko.Changelog)
 	if len(rels) < 2 {
 		t.Fatalf("o CHANGELOG embutido tem %d blocos", len(rels))
 	}
-	if r, ok := changelog.For(rels, "dev"); !ok || r.Version != changelog.UnreleasedVersion || r.Body == "" {
-		t.Errorf("dev deveria cair no [Unreleased] com conteúdo: %+v", r)
+	if r, ok := changelog.For(rels, "dev"); !ok || r.Body == "" {
+		t.Errorf("dev deveria cair num bloco com conteúdo: %+v", r)
 	}
 	if r, ok := changelog.For(rels, "v0.2.0"); !ok || r.Version != "0.2.0" {
 		t.Errorf("0.2.0 deveria existir: %+v", r)

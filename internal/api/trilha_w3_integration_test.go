@@ -75,7 +75,8 @@ func TestAPIFavoritesWhatsNewAndProfile(t *testing.T) {
 
 	var w api.WhatsNew
 	e.want(200, "GET", "/api/v1/whats-new", "", &w)
-	if w.Version != "Unreleased" || w.Body == "" || w.Dismissed || w.Key != "it" {
+	// versão desconhecida: o bloco que o CHANGELOG embutido escolhe ([Unreleased] ou, logo após um corte, a mais nova)
+	if w.Version == "" || w.Body == "" || w.Dismissed || w.Key != "it" {
 		t.Fatalf("novidades: %+v", w)
 	}
 	e.want(204, "POST", "/api/v1/whats-new/dismiss", `{"key":"`+w.Key+`"}`, nil)

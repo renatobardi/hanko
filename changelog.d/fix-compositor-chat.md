@@ -1,7 +1,0 @@
-### Correção — compositores de chat, sala e comentário da task
-- O texto digitado sumia ~1 s depois da última tecla: o autosave do rascunho disparava a limpeza do formulário (o evento `htmx:afterRequest` da caixa de texto subia até o `<form>`). Agora só o envio do próprio formulário, com resposta 2xx, limpa o texto e os arquivos; um erro mostrado no aviso não apaga mais o que foi escrito.
-- Anexos escolhidos ou arrastados eram descartados pelo mesmo motivo antes do envio; agora chegam com a mensagem.
-- O autosave entra na fila do formulário (`hx-sync="closest form:queue last"`): o envio espera o salvamento em andamento, e nada regrava o rascunho que o envio apagou. O que for digitado ou anexado durante o envio fica na caixa.
-- A lista da conversa não se atualiza durante um envio, e uma atualização em andamento é cancelada, para não trocar a mensagem nova por uma lista velha. A conversa da task passa a se atualizar sozinha enquanto há run ativa ou até 10 min depois do último comentário humano (`GET /c/{company}/tasks/{task}/conversa`, que lê só a conversa).
-- Erros sem fragmento (5xx de proxy, falha de rede) aparecem no aviso da página; o botão de envio fica desabilitado durante o envio.
-- English summary: chat/room/task composers no longer wipe the text and the chosen files when the draft autosaves; sends can't be hidden by an in-flight poll, the task thread refreshes while the persona works, and network/server errors show in the flash.
