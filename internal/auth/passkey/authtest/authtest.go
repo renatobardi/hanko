@@ -12,6 +12,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"math"
 )
 
 // Authenticator é uma credencial de software. O contador de assinatura sobe a cada prova, como o
@@ -91,7 +92,11 @@ func (a *Authenticator) Create(options json.RawMessage) (json.RawMessage, error)
 	authData = append(authData, 0x5D) // UP | UV | BE | BS | AT
 	authData = binary.BigEndian.AppendUint32(authData, 0)
 	authData = append(authData, a.AAGUID[:]...)
-	authData = binary.BigEndian.AppendUint16(authData, uint16(len(a.CredID))) //nolint:gosec // CredID tem 32 bytes (New); cabe em 16 bits
+	credLen := len(a.CredID)
+	if credLen > math.MaxUint16 {
+		return nil, fmt.Errorf("authtest: credencial grande demais (%d bytes)", credLen)
+	}
+	authData = binary.BigEndian.AppendUint16(authData, uint16(credLen))
 	authData = append(authData, a.CredID...)
 	authData = append(authData, cose...)
 
@@ -210,15 +215,18 @@ func cborAttestation(authData []byte) []byte {
 func cborHead(major byte, n uint64) []byte { return cborLen(major<<5, n) }
 
 func cborLen(prefix byte, n uint64) []byte {
+	b := binary.BigEndian.AppendUint64(nil, n) // os bytes de n; o cabeçalho usa só a cauda que cabe na faixa
 	switch {
 	case n < 24:
-		return []byte{prefix | byte(n)}
+		return []byte{prefix | b[7]}
 	case n <= 0xff:
-		return []byte{prefix | 24, byte(n)}
+		return []byte{prefix | 24, b[7]}
 	case n <= 0xffff:
-		return []byte{prefix | 25, byte(n >> 8), byte(n)} //nolint:gosec // n <= 0xffff neste ramo
+		return append([]byte{prefix | 25}, b[6:]...)
+	case n <= 0xffffffff:
+		return append([]byte{prefix | 26}, b[4:]...)
 	default:
-		return []byte{prefix | 26, byte(n >> 24), byte(n >> 16), byte(n >> 8), byte(n)} //nolint:gosec // n <= 0xffffffff neste ramo
+		return append([]byte{prefix | 27}, b...)
 	}
 }
 
