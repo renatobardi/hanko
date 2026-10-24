@@ -308,10 +308,11 @@ func (s *server) handleInboxReactivate(w http.ResponseWriter, r *http.Request, c
 }
 
 var alertKindText = map[domain.AlertKind]string{
-	domain.AlertPersonaSilent:   i18n.N("Persona sem heartbeat"),
-	domain.AlertRunStuck:        i18n.N("Execução presa"),
-	domain.AlertBudgetNearLimit: i18n.N("Orçamento"),
-	domain.AlertPersonaNotReady: i18n.N("Persona não pronta"),
+	domain.AlertPersonaSilent:     i18n.N("Persona sem heartbeat"),
+	domain.AlertRunStuck:          i18n.N("Execução presa"),
+	domain.AlertBudgetNearLimit:   i18n.N("Orçamento"),
+	domain.AlertPersonaNotReady:   i18n.N("Persona não pronta"),
+	domain.AlertSecretRotationDue: i18n.N("Rotação de segredo"),
 }
 
 // weekLabel is the first day of a subscription week: "02/01" / "Jan 2".
@@ -340,6 +341,8 @@ func alertRow(ctx context.Context, a domain.Alert, base string, now time.Time, l
 		row.Href, row.Link = base+"/projetos/"+d.ProjectSlug, i18n.T(ctx, "Abrir projeto")
 	case a.SubjectType == "company":
 		row.Href, row.Link = base+"/custos", i18n.T(ctx, "Ver custos")
+	case a.SubjectType == "secret":
+		row.Href, row.Link = base+"/configuracoes/segredos/saude", i18n.T(ctx, "Ver saúde dos segredos")
 	}
 	return row
 }

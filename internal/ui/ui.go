@@ -451,6 +451,7 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("GET /c/{company}/configuracoes/adapters", co(s.handleAdapters))
 	mux.HandleFunc("GET /c/{company}/configuracoes/dados", co(s.handleData))
 	mux.HandleFunc("GET /c/{company}/configuracoes/segredos", co(s.handleSecrets))
+	mux.HandleFunc("GET /c/{company}/configuracoes/segredos/saude", co(s.handleSecretsHealth))
 	mux.HandleFunc("POST /c/{company}/configuracoes/segredos", post(co(s.handleCreateSecret)))
 	mux.HandleFunc("POST /c/{company}/configuracoes/segredos/{name}/rotacionar", post(co(s.handleRotateSecret)))
 	mux.HandleFunc("POST /c/{company}/configuracoes/segredos/{name}/revelar", post(co(s.handleRevealSecret)))

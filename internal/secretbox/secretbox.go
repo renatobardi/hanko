@@ -7,6 +7,7 @@ package secretbox
 import (
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
@@ -35,6 +36,8 @@ type key struct {
 type Box struct {
 	cur  *key
 	prev *key
+	// mac é a chave do HMAC de comparação (ADR-0068 §7.2), derivada da chave atual com rótulo próprio.
+	mac []byte
 }
 
 func derive(secret string) (*key, error) {
@@ -61,6 +64,12 @@ func New(current, previous string) (*Box, error) {
 	if b.cur, err = derive(current); err != nil {
 		return nil, err
 	}
+	// A chave da MAC sai da chave atual por HMAC-SHA256 com o segredo como chave (PRF), e não por SHA-256 puro
+	// sobre o segredo: hash simples de segredo é o que o CodeQL marca (go/weak-sensitive-data-hashing). O rótulo
+	// separa esta chave da chave de cifragem, que sai do mesmo segredo.
+	kdf := hmac.New(sha256.New, []byte(current))
+	kdf.Write([]byte("hanko/secretbox/mac/v1"))
+	b.mac = kdf.Sum(nil)
 	if previous != "" {
 		if b.prev, err = derive(previous); err != nil {
 			return nil, err
@@ -78,6 +87,17 @@ func (b *Box) KeyID() string {
 		return ""
 	}
 	return b.cur.id
+}
+
+// MAC devolve o HMAC-SHA256 de plain em hex, com a chave atual. Serve para achar valores repetidos sem decifrar
+// (ADR-0068 §7.2). Quem guarda o MAC precisa recalculá-lo depois de uma rotação de chave (`hanko secret rekey`).
+func (b *Box) MAC(plain []byte) (string, error) {
+	if !b.Enabled() {
+		return "", ErrNoKey
+	}
+	h := hmac.New(sha256.New, b.mac)
+	h.Write(plain)
+	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
 // Seal cifra plain. aad liga o texto cifrado ao seu dono (por exemplo o id da integração): copiar o valor

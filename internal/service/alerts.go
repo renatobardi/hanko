@@ -4,7 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/settings"
@@ -219,7 +222,44 @@ func (t *txc) alertConditions(cfg AlertConfig) ([]alertCond, error) {
 	if err != nil {
 		return nil, err
 	}
-	return append(out, budget...), nil
+	out = append(out, budget...)
+
+	due, err := t.q.ListSecretsDueRotation(t.ctx, t.now)
+	if err != nil {
+		return nil, fmt.Errorf("list secrets due rotation: %w", err)
+	}
+	return append(out, rotationConditions(due)...), nil
+}
+
+// rotationConditions abre um alerta por segredo com campo vencido (ADR-0068 §7.3). A consulta vem ordenada por
+// empresa e nome, então os campos de um segredo chegam juntos. O texto diz o nome do segredo, os campos e o prazo;
+// nunca o valor. Quando o campo é rotacionado, a condição some e o alerta fecha sozinho.
+func rotationConditions(rows []store.ListSecretsDueRotationRow) []alertCond {
+	type group struct {
+		row    store.ListSecretsDueRotationRow
+		fields []string
+	}
+	var order []uuid.UUID
+	groups := map[uuid.UUID]*group{}
+	for _, r := range rows {
+		g, ok := groups[r.SecretID]
+		if !ok {
+			g = &group{row: r}
+			groups[r.SecretID] = g
+			order = append(order, r.SecretID)
+		}
+		g.fields = append(g.fields, r.FieldName)
+	}
+	out := make([]alertCond, 0, len(order))
+	for _, id := range order {
+		g := groups[id]
+		out = append(out, alertCond{companyID: g.row.CompanyID, kind: domain.AlertSecretRotationDue, subjectType: "secret", subjectID: id,
+			severity: domain.AlertWarning,
+			message: fmt.Sprintf("Segredo %s: %s com rotação vencida (prazo de %d dias)", g.row.SecretName,
+				strings.Join(g.fields, ", "), g.row.LimitDays),
+			data: map[string]any{"secret_name": g.row.SecretName, "fields": g.fields, "limit_days": g.row.LimitDays}})
+	}
+	return out
 }
 
 // budgetConditions usa a mesma conta do painel de custos (budgetStatus, janela do mês no fuso da

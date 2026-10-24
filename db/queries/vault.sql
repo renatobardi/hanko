@@ -46,10 +46,18 @@ UPDATE secret_fields SET last_used_at = @now WHERE id = @id AND company_id = @co
 DELETE FROM secret_fields WHERE id = @id AND company_id = @company_id;
 
 -- name: ListSecretFieldsForRekey :many
-SELECT id, secret_id, value_enc, aad_version FROM secret_fields WHERE provider = 'local' AND length(value_enc) > 0;
+SELECT id, secret_id, value_enc, aad_version, value_hmac FROM secret_fields WHERE provider = 'local' AND length(value_enc) > 0;
 
 -- name: SetSecretFieldValueEnc :exec
-UPDATE secret_fields SET value_enc = @value_enc, aad_version = @aad_version WHERE id = @id;
+UPDATE secret_fields SET value_enc = @value_enc, aad_version = @aad_version, value_hmac = @value_hmac WHERE id = @id;
+
+-- name: ListHealthSecretFields :many
+-- Campos locais dos segredos da empresa para o relatório de saúde (ADR-0068 §7.2). O valor cifrado vai só para a conta
+-- dos campos fracos, que decifra em memória e descarta; nunca sai na resposta. Segredo de usuário não entra.
+SELECT f.id, f.secret_id, s.name AS secret_name, f.name AS field_name, f.value_enc, f.aad_version, f.last_used_at
+FROM secret_fields f JOIN secrets s ON s.id = f.secret_id
+WHERE f.company_id = @company_id AND s.scope = 'company' AND f.provider = 'local' AND length(f.value_enc) > 0
+ORDER BY s.name, f.name;
 
 -- name: ListDuplicateSecretFieldHmacs :many
 -- Relatório de saúde: campos com o mesmo HMAC de valor (ADR-0068 §7). Nunca devolve valor.
@@ -245,15 +253,16 @@ DELETE FROM secret_access_log WHERE accessed_at < @before;
 
 -- name: ListSecretsDueRotation :many
 -- Campos de segredos da empresa sem rotacao alem do prazo: o do item ou, sem prazo no item, o menor das colecoes.
+-- Sem filtro de empresa: o alerta roda sobre todas (company_id vem na linha); o relatório filtra pela sua.
 WITH due AS (
-    SELECT s.id, s.name,
+    SELECT s.id, s.company_id, s.name,
            COALESCE(s.rotate_after_days, (SELECT min(c.rotate_after_days) FROM secret_collections c
                                           JOIN secret_collection_items i ON i.collection_id = c.id
                                           WHERE i.secret_id = s.id)) AS limit_days
     FROM secrets s
-    WHERE s.company_id = @company_id AND s.scope = 'company'
+    WHERE s.scope = 'company'
 )
-SELECT due.id AS secret_id, due.name AS secret_name, f.name AS field_name, f.rotated_at, due.limit_days::integer AS limit_days
+SELECT due.company_id, due.id AS secret_id, due.name AS secret_name, f.name AS field_name, f.rotated_at, due.limit_days::integer AS limit_days
 FROM due JOIN secret_fields f ON f.secret_id = due.id
 WHERE due.limit_days IS NOT NULL AND f.rotated_at + make_interval(days => due.limit_days) < @now::timestamptz
-ORDER BY due.name, f.name;
+ORDER BY due.company_id, due.name, f.name;

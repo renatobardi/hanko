@@ -327,7 +327,7 @@ func (s *Service) CreateFlowTrigger(ctx context.Context, actor domain.Actor, com
 			} else {
 				secName := genHookSecretName(f.Slug, id)
 				sid := uuid.New()
-				m, err := s.prepareMaterial(sid, "", "", true, "")
+				m, err := s.prepareMaterial(sid, "", "", true, domain.GenOptions{}, "")
 				if err != nil {
 					return err
 				}

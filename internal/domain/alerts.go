@@ -18,10 +18,13 @@ const (
 	// AlertPersonaNotReady: o último teste de readiness da persona falhou (binário, login ou modelo); o despacho está
 	// bloqueado até um teste passar (ADR-0055).
 	AlertPersonaNotReady AlertKind = "persona_not_ready"
+	// AlertSecretRotationDue: um campo de segredo da empresa passou do prazo de rotação (do item ou da coleção); um
+	// alerta por item, fechado quando o campo é rotacionado (ADR-0068 §7.3).
+	AlertSecretRotationDue AlertKind = "secret_rotation_due"
 )
 
 // AlertKinds lista todos os tipos, na ordem em que aparecem em /metrics.
-var AlertKinds = []AlertKind{AlertPersonaSilent, AlertRunStuck, AlertBudgetNearLimit, AlertPersonaNotReady}
+var AlertKinds = []AlertKind{AlertPersonaSilent, AlertRunStuck, AlertBudgetNearLimit, AlertPersonaNotReady, AlertSecretRotationDue}
 
 func (k AlertKind) Valid() bool {
 	for _, v := range AlertKinds {
