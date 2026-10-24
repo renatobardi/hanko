@@ -106,6 +106,10 @@ func Generate(o GenOptions) (Generated, error) {
 }
 
 func generatePassphrase(n int) (Generated, error) {
+	// o limite confere antes da alocação: n vem do usuário (go/uncontrolled-allocation-size)
+	if n < GenMinWords || n > GenMaxWords {
+		return Generated{}, Invalid("passphrase_words", "frase-senha de 3 a 12 palavras")
+	}
 	words := make([]string, n)
 	for i := range words {
 		k, err := pickIndex(len(passphraseWords))
@@ -127,6 +131,10 @@ func generateChars(o GenOptions) (Generated, error) {
 	length := o.Length
 	if length == 0 {
 		length = GenDefaultLength
+	}
+	// o limite confere antes da alocação: length vem do usuário (go/uncontrolled-allocation-size)
+	if length < GenMinLength || length > GenMaxLength {
+		return Generated{}, Invalid("length", "tamanho de 8 a 128 caracteres")
 	}
 	var pool string
 	for _, c := range classes {

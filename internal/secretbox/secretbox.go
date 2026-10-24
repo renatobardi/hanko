@@ -64,8 +64,12 @@ func New(current, previous string) (*Box, error) {
 	if b.cur, err = derive(current); err != nil {
 		return nil, err
 	}
-	macKey := sha256.Sum256([]byte("hanko/secretbox/mac/v1\x00" + current))
-	b.mac = macKey[:]
+	// A chave da MAC sai da chave atual por HMAC-SHA256 com o segredo como chave (PRF), e não por SHA-256 puro
+	// sobre o segredo: hash simples de segredo é o que o CodeQL marca (go/weak-sensitive-data-hashing). O rótulo
+	// separa esta chave da chave de cifragem, que sai do mesmo segredo.
+	kdf := hmac.New(sha256.New, []byte(current))
+	kdf.Write([]byte("hanko/secretbox/mac/v1"))
+	b.mac = kdf.Sum(nil)
 	if previous != "" {
 		if b.prev, err = derive(previous); err != nil {
 			return nil, err
