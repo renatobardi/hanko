@@ -31,9 +31,9 @@ const sfSentinel = "SENTINELA-secretfile-kubeconfig-5c4b3a"
 type failingSpy struct{ *spyAdapter }
 
 func (f *failingSpy) Run(ctx context.Context, spec adapter.Spec, sink adapter.Sink) (adapter.Result, error) {
-	f.spyAdapter.mu.Lock()
-	f.spyAdapter.specs = append(f.spyAdapter.specs, spec)
-	f.spyAdapter.mu.Unlock()
+	f.mu.Lock()
+	f.specs = append(f.specs, spec)
+	f.mu.Unlock()
 	return adapter.Result{}, errors.New("harness caiu no meio da execução")
 }
 
