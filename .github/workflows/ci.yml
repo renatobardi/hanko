@@ -120,12 +120,25 @@ jobs:
     env:
       HANKO_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/hanko_test?sslmode=disable
       SHARD: ${{ matrix.shard }}
+      # com -race, todo binário de teste (e todo subprocesso que reexecuta o binário) espera 1 s ao sair, por padrão.
+      # Com os pacotes em série, isso soma ~1 min por shard (#75).
+      GORACE: atexit_sleep_ms=0
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: "1.27"
           cache: true
+      - name: cache do build dos testes
+        # o cache do setup-go é salvo uma vez por go.sum e não tem o build com -race. Este guarda o do shard: a main
+        # salva a cada push (passo no fim do job), e PRs e a main restauram o mais recente (#75).
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/go-build
+          key: go-test-${{ runner.os }}-${{ runner.arch }}-${{ matrix.shard }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
+          restore-keys: |
+            go-test-${{ runner.os }}-${{ runner.arch }}-${{ matrix.shard }}-${{ hashFiles('go.sum') }}-
+            go-test-${{ runner.os }}-${{ runner.arch }}-${{ matrix.shard }}-
       - name: cliente Postgres 17 (pg_dump/pg_restore do teste de restore)
         run: sudo apt-get install -y postgresql-client-17 || echo "sem postgresql-client-17; o teste de restore vai pular"
       - name: pacotes do shard
@@ -138,6 +151,16 @@ jobs:
             go list -tags integration "./internal/$SHARD" > "pacotes-$SHARD.txt"
           fi
           wc -l < "pacotes-$SHARD.txt"
+      - name: compila os testes (em paralelo)
+        # o -p 1 do passo seguinte também serializa a compilação, e o cache do setup-go não guarda o build com -race.
+        # Aqui a compilação usa todos os núcleos e o passo seguinte só reaproveita o cache (#75). Mesmas flags de build;
+        # -run '^$' não roda teste nenhum, e sem a URL nenhum teste toca o banco.
+        env:
+          HANKO_TEST_DATABASE_URL: ""
+        run: |
+          # shellcheck disable=SC2046 # um argumento por pacote
+          go test -race -tags integration -covermode=atomic -coverprofile="$RUNNER_TEMP/aquece.out" -run '^$' \
+            $(cat "pacotes-$SHARD.txt") > /dev/null
       - name: test (unit + integration + cobertura)
         # uma rodada só: -tags integration roda também os testes sem tag (#51).
         # pacotes em série (-p 1): todos resetam o schema do mesmo banco; em paralelo (runners de 4 vCPU) eles se atropelam.
@@ -147,6 +170,13 @@ jobs:
           # shellcheck disable=SC2046 # um argumento por pacote
           go test -race -p 1 -timeout 30m -tags integration -covermode=atomic -coverprofile="cover-$SHARD.out" \
             $(cat "pacotes-$SHARD.txt")
+      - name: salva o cache do build dos testes
+        # só a main salva: PRs leem o cache da main, e uma entrada por PR encheria o limite de cache do repositório
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/go-build
+          key: go-test-${{ runner.os }}-${{ runner.arch }}-${{ matrix.shard }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: shard-${{ matrix.shard }}
