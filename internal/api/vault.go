@@ -422,16 +422,61 @@ type listSecretPageIn struct {
 	Page
 }
 
-func registerDelegations(api huma.API) {
+func delegationOut(v service.DelegationView) SecretDelegation {
+	return SecretDelegation{ID: idStr(v.ID), Secret: v.Secret, TargetType: string(v.TargetType), TargetID: idStr(v.TargetID),
+		ExpiresAt: v.ExpiresAt, RevokedAt: v.RevokedAt, Active: v.Active, CreatedAt: v.CreatedAt}
+}
+
+func accessOut(v service.SecretAccessView) SecretAccess {
+	out := SecretAccess{Field: v.Field, Via: string(v.Via), Persona: v.Persona, Delegated: v.Delegated, AccessedAt: v.AccessedAt}
+	if v.RunID != nil {
+		out.RunID = idStr(*v.RunID)
+	}
+	return out
+}
+
+func (s *server) registerDelegations(api huma.API) {
 	tag := "vault"
-	pendingOp[createDelegationIn, ItemOut[SecretDelegation]](api, created(op("create-secret-delegation", http.MethodPost,
-		"/companies/{company}/user-secrets/{name}/delegations", tag, "Delega um segredo pessoal às runs de uma task ou conversa sua")), sliceDelegations)
-	pendingOp[listSecretsIn, ListOut[SecretDelegation]](api, op("list-my-delegations", http.MethodGet, "/companies/{company}/me/delegations", tag,
-		"Lista as suas delegações"), sliceDelegations)
-	pendingOp[delegationPath, struct{}](api, noContent(op("revoke-secret-delegation", http.MethodDelete, "/companies/{company}/me/delegations/{id}", tag,
-		"Revoga uma delegação")), sliceDelegations)
-	pendingOp[listSecretPageIn, ListOut[SecretAccess]](api, op("list-user-secret-usage", http.MethodGet, "/companies/{company}/user-secrets/{name}/usage",
-		tag, "Onde e quando um segredo pessoal foi usado (só o dono)"), sliceDelegations)
+	huma.Register(api, created(op("create-secret-delegation", http.MethodPost,
+		"/companies/{company}/user-secrets/{name}/delegations", tag, "Delega um segredo pessoal às runs de uma task ou conversa sua")),
+		vaultOp(s, func(ctx context.Context, vb vaultBackend, sc scope, in *createDelegationIn) (*ItemOut[SecretDelegation], error) {
+			target, err := domain.ParseID(in.Body.TargetID)
+			if err != nil {
+				return nil, s.fail(ctx, domain.Invalid("target_id", "não é um uuid"))
+			}
+			v, err := vb.CreateSecretDelegation(ctx, sc.Actor, sc.Company.ID, in.Name, service.CreateDelegationInput{
+				TargetType: domain.DelegationTarget(in.Body.TargetType), TargetID: target,
+				TTL: time.Duration(in.Body.ExpiresInSeconds) * time.Second})
+			if err != nil {
+				return nil, s.fail(ctx, err)
+			}
+			return &ItemOut[SecretDelegation]{Body: delegationOut(v)}, nil
+		}))
+	huma.Register(api, op("list-my-delegations", http.MethodGet, "/companies/{company}/me/delegations", tag, "Lista as suas delegações"),
+		vaultOp(s, func(ctx context.Context, vb vaultBackend, sc scope, in *listSecretsIn) (*ListOut[SecretDelegation], error) {
+			list, err := vb.ListMyDelegations(ctx, sc.Company.ID, in.Offset+in.Limit)
+			if err != nil {
+				return nil, s.fail(ctx, err)
+			}
+			return listOf(list, in.Page, delegationOut), nil
+		}))
+	huma.Register(api, noContent(op("revoke-secret-delegation", http.MethodDelete, "/companies/{company}/me/delegations/{id}", tag, "Revoga uma delegação")),
+		vaultOp(s, func(ctx context.Context, vb vaultBackend, sc scope, in *delegationPath) (*struct{}, error) {
+			id, err := domain.ParseID(in.ID)
+			if err != nil {
+				return nil, s.fail(ctx, domain.Invalid("id", "não é um uuid"))
+			}
+			return s.vaultDone(ctx, vb.RevokeSecretDelegation(ctx, sc.Actor, sc.Company.ID, id))
+		}))
+	huma.Register(api, op("list-user-secret-usage", http.MethodGet, "/companies/{company}/user-secrets/{name}/usage", tag,
+		"Onde e quando um segredo pessoal foi usado (só o dono)"),
+		vaultOp(s, func(ctx context.Context, vb vaultBackend, sc scope, in *listSecretPageIn) (*ListOut[SecretAccess], error) {
+			list, err := vb.ListUserSecretUsage(ctx, sc.Company.ID, in.Name, in.Offset+in.Limit)
+			if err != nil {
+				return nil, s.fail(ctx, err)
+			}
+			return listOf(list, in.Page, accessOut), nil
+		}))
 	pendingOp[listSecretPageIn, ListOut[SecretAccess]](api, op("list-secret-usage", http.MethodGet, "/companies/{company}/secrets/{name}/usage",
 		tag, "Onde e quando um segredo da empresa foi usado (admin, view ou manage)"), sliceDelegations)
 }
@@ -620,7 +665,7 @@ func (s *server) registerVault(api huma.API) {
 	s.registerCollections(api)
 	s.registerReauth(api)
 	s.registerSends(api)
-	registerDelegations(api)
+	s.registerDelegations(api)
 	s.registerHealth(api)
 	registerPortability(api)
 }

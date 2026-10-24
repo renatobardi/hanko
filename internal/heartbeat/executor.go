@@ -277,6 +277,11 @@ func (h *Heartbeat) executeRunJob(ctx context.Context, a ExecuteRunArgs, ji jobI
 			cleanup = chainCleanup(filesCleanup, cleanup)
 		}
 	}
+	// ${secret:user/...} do texto da run (ADR-0068 §6): só com delegação válida do dono; a redação passa a cobrir o valor.
+	var userSecretValues []string
+	if specErr == nil {
+		userSecretValues, specErr = h.resolveRunUserSecrets(execCtx, rc, &spec)
+	}
 	if specErr != nil {
 		runErr = specErr
 	} else {
@@ -285,6 +290,7 @@ func (h *Heartbeat) executeRunJob(ctx context.Context, a ExecuteRunArgs, ji jobI
 			spec.Steer = steerCh
 		}
 		resolved = append(resolved, secretFileValues...)
+		resolved = append(resolved, userSecretValues...)
 		spec.Secrets = resolved
 		redact := append([]string(nil), resolved...)
 		if renv != nil {
@@ -685,6 +691,27 @@ func toolSecretSink(next adapter.Sink, rs runSecretsBackend, runID domain.ID) ad
 // secretFilesBackend materializa os ${secretfile:} do adapter_config da persona (ADR-0068 §5.2); opcional como os demais.
 type secretFilesBackend interface {
 	MaterializeSecretFiles(ctx context.Context, companyID, personaID, runID domain.ID, cfg json.RawMessage) (json.RawMessage, []string, func(), error)
+}
+
+// userSecretsBackend expande o ${secret:user/...} do texto de uma run com as delegações do dono (ADR-0068 §6); opcional
+// como os demais.
+type userSecretsBackend interface {
+	ResolveRunUserSecrets(ctx context.Context, companyID, runID domain.ID, text string) (string, []string, error)
+}
+
+// resolveRunUserSecrets troca, no prompt da run, cada ${secret:user/...} pelo segredo pessoal que o dono delegou a ela.
+// Sem referência, nada muda. Sem delegação válida a run falha cedo, com o nome da referência e nunca o valor.
+func (h *Heartbeat) resolveRunUserSecrets(ctx context.Context, rc service.RunContext, spec *adapter.Spec) ([]string, error) {
+	ub, ok := h.svc.(userSecretsBackend)
+	if !ok || !strings.Contains(spec.Prompt, "${secret:user/") {
+		return nil, nil
+	}
+	prompt, values, err := ub.ResolveRunUserSecrets(ctx, rc.Company.ID, rc.Run.ID, spec.Prompt)
+	if err != nil {
+		return nil, fmt.Errorf("segredo pessoal: %w", err)
+	}
+	spec.Prompt = prompt
+	return values, nil
 }
 
 // envLabel é o nome do ambiente como o usuário o vê na mensagem de erro.

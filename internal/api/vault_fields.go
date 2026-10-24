@@ -33,6 +33,10 @@ type vaultBackend interface {
 	GenerateValue(ctx context.Context, o domain.GenOptions) (domain.Generated, error)
 	VaultHealth(ctx context.Context, companyID domain.ID) (service.HealthReport, error)
 	UpdateSecretMeta(ctx context.Context, actor domain.Actor, companyID domain.ID, name string, in service.SecretMetaInput) (service.SecretView, error)
+	CreateSecretDelegation(ctx context.Context, actor domain.Actor, companyID domain.ID, name string, in service.CreateDelegationInput) (service.DelegationView, error)
+	ListMyDelegations(ctx context.Context, companyID domain.ID, limit int) ([]service.DelegationView, error)
+	RevokeSecretDelegation(ctx context.Context, actor domain.Actor, companyID, id domain.ID) error
+	ListUserSecretUsage(ctx context.Context, companyID domain.ID, name string, limit int) ([]service.SecretAccessView, error)
 }
 
 // vaultOp põe a guarda do cofre (run token, backend, empresa e ator) antes de cada operação da API.

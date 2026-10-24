@@ -23,7 +23,7 @@ var _ secretBackend = (*service.Service)(nil)
 
 type secretGetIn struct {
 	Company string `json:"company,omitempty" jsonschema:"slug ou id da empresa (obrigatório só sem token de run)"`
-	Item    string `json:"item" jsonschema:"nome do item do cofre (ex. prd-cluster)"`
+	Item    string `json:"item" jsonschema:"nome do item do cofre (ex. prd-cluster); item pessoal delegado a esta run: user/NOME"`
 	Campo   string `json:"campo,omitempty" jsonschema:"campo do item (ex. kubeconfig, password, totp); vazio = value"`
 }
 

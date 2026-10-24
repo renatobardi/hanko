@@ -115,7 +115,7 @@ func (s *Service) fileRefValue(ctx context.Context, companyID, personaID, runID 
 		return nil, fmt.Errorf("ler %s: %w", r.String(), err)
 	}
 	c := ToolCaller{CompanyID: companyID, RunID: &runID, PersonaID: &personaID}
-	if err := s.recordSecretUse(ctx, c, companyID, sec.ID, f, domain.SecretAccessFile); err != nil {
+	if err := s.recordSecretUse(ctx, c, companyID, sec.ID, f, domain.SecretAccessFile, nil); err != nil {
 		return nil, err
 	}
 	return plain, nil
