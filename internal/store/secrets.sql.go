@@ -17,7 +17,7 @@ INSERT INTO secrets (id, company_id, scope, owner_user_id, name, description, pr
                      revealed_at, created_by_type, created_by_id, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 1,
         $10, $11, $12, $13, $13)
-RETURNING id, company_id, scope, owner_user_id, name, description, provider, value_enc, external_ref, version, revealed_at, last_used_at, created_by_type, created_by_id, created_at, updated_at
+RETURNING id, company_id, scope, owner_user_id, name, description, provider, value_enc, external_ref, version, revealed_at, last_used_at, created_by_type, created_by_id, created_at, updated_at, rotate_after_days
 `
 
 type CreateSecretParams struct {
@@ -70,6 +70,7 @@ func (q *Queries) CreateSecret(ctx context.Context, arg CreateSecretParams) (Sec
 		&i.CreatedByID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.RotateAfterDays,
 	)
 	return i, err
 }
@@ -92,7 +93,7 @@ func (q *Queries) DeleteSecret(ctx context.Context, arg DeleteSecretParams) (int
 }
 
 const getCompanySecretByName = `-- name: GetCompanySecretByName :one
-SELECT id, company_id, scope, owner_user_id, name, description, provider, value_enc, external_ref, version, revealed_at, last_used_at, created_by_type, created_by_id, created_at, updated_at FROM secrets WHERE company_id = $1 AND scope = 'company' AND name = $2
+SELECT id, company_id, scope, owner_user_id, name, description, provider, value_enc, external_ref, version, revealed_at, last_used_at, created_by_type, created_by_id, created_at, updated_at, rotate_after_days FROM secrets WHERE company_id = $1 AND scope = 'company' AND name = $2
 `
 
 type GetCompanySecretByNameParams struct {
@@ -120,12 +121,13 @@ func (q *Queries) GetCompanySecretByName(ctx context.Context, arg GetCompanySecr
 		&i.CreatedByID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.RotateAfterDays,
 	)
 	return i, err
 }
 
 const getCompanySecretByNameForUpdate = `-- name: GetCompanySecretByNameForUpdate :one
-SELECT id, company_id, scope, owner_user_id, name, description, provider, value_enc, external_ref, version, revealed_at, last_used_at, created_by_type, created_by_id, created_at, updated_at FROM secrets WHERE company_id = $1 AND scope = 'company' AND name = $2 FOR UPDATE
+SELECT id, company_id, scope, owner_user_id, name, description, provider, value_enc, external_ref, version, revealed_at, last_used_at, created_by_type, created_by_id, created_at, updated_at, rotate_after_days FROM secrets WHERE company_id = $1 AND scope = 'company' AND name = $2 FOR UPDATE
 `
 
 type GetCompanySecretByNameForUpdateParams struct {
@@ -153,12 +155,13 @@ func (q *Queries) GetCompanySecretByNameForUpdate(ctx context.Context, arg GetCo
 		&i.CreatedByID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.RotateAfterDays,
 	)
 	return i, err
 }
 
 const getUserSecretByName = `-- name: GetUserSecretByName :one
-SELECT id, company_id, scope, owner_user_id, name, description, provider, value_enc, external_ref, version, revealed_at, last_used_at, created_by_type, created_by_id, created_at, updated_at FROM secrets WHERE company_id = $1 AND scope = 'user' AND owner_user_id = $2 AND name = $3
+SELECT id, company_id, scope, owner_user_id, name, description, provider, value_enc, external_ref, version, revealed_at, last_used_at, created_by_type, created_by_id, created_at, updated_at, rotate_after_days FROM secrets WHERE company_id = $1 AND scope = 'user' AND owner_user_id = $2 AND name = $3
 `
 
 type GetUserSecretByNameParams struct {
@@ -187,12 +190,13 @@ func (q *Queries) GetUserSecretByName(ctx context.Context, arg GetUserSecretByNa
 		&i.CreatedByID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.RotateAfterDays,
 	)
 	return i, err
 }
 
 const getUserSecretByNameForUpdate = `-- name: GetUserSecretByNameForUpdate :one
-SELECT id, company_id, scope, owner_user_id, name, description, provider, value_enc, external_ref, version, revealed_at, last_used_at, created_by_type, created_by_id, created_at, updated_at FROM secrets WHERE company_id = $1 AND scope = 'user' AND owner_user_id = $2 AND name = $3 FOR UPDATE
+SELECT id, company_id, scope, owner_user_id, name, description, provider, value_enc, external_ref, version, revealed_at, last_used_at, created_by_type, created_by_id, created_at, updated_at, rotate_after_days FROM secrets WHERE company_id = $1 AND scope = 'user' AND owner_user_id = $2 AND name = $3 FOR UPDATE
 `
 
 type GetUserSecretByNameForUpdateParams struct {
@@ -221,6 +225,7 @@ func (q *Queries) GetUserSecretByNameForUpdate(ctx context.Context, arg GetUserS
 		&i.CreatedByID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.RotateAfterDays,
 	)
 	return i, err
 }
@@ -255,7 +260,7 @@ func (q *Queries) ListAllSecretsForRekey(ctx context.Context) ([]ListAllSecretsF
 }
 
 const listCompanySecrets = `-- name: ListCompanySecrets :many
-SELECT id, company_id, scope, owner_user_id, name, description, provider, value_enc, external_ref, version, revealed_at, last_used_at, created_by_type, created_by_id, created_at, updated_at FROM secrets WHERE company_id = $1 AND scope = 'company' ORDER BY name
+SELECT id, company_id, scope, owner_user_id, name, description, provider, value_enc, external_ref, version, revealed_at, last_used_at, created_by_type, created_by_id, created_at, updated_at, rotate_after_days FROM secrets WHERE company_id = $1 AND scope = 'company' ORDER BY name
 `
 
 func (q *Queries) ListCompanySecrets(ctx context.Context, companyID uuid.UUID) ([]Secret, error) {
@@ -284,6 +289,7 @@ func (q *Queries) ListCompanySecrets(ctx context.Context, companyID uuid.UUID) (
 			&i.CreatedByID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.RotateAfterDays,
 		); err != nil {
 			return nil, err
 		}
@@ -370,7 +376,7 @@ func (q *Queries) ListPersonasWithEnv(ctx context.Context) ([]ListPersonasWithEn
 }
 
 const listUserSecrets = `-- name: ListUserSecrets :many
-SELECT id, company_id, scope, owner_user_id, name, description, provider, value_enc, external_ref, version, revealed_at, last_used_at, created_by_type, created_by_id, created_at, updated_at FROM secrets WHERE company_id = $1 AND scope = 'user' AND owner_user_id = $2 ORDER BY name
+SELECT id, company_id, scope, owner_user_id, name, description, provider, value_enc, external_ref, version, revealed_at, last_used_at, created_by_type, created_by_id, created_at, updated_at, rotate_after_days FROM secrets WHERE company_id = $1 AND scope = 'user' AND owner_user_id = $2 ORDER BY name
 `
 
 type ListUserSecretsParams struct {
@@ -405,6 +411,7 @@ func (q *Queries) ListUserSecrets(ctx context.Context, arg ListUserSecretsParams
 			&i.CreatedByID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.RotateAfterDays,
 		); err != nil {
 			return nil, err
 		}
@@ -418,7 +425,7 @@ func (q *Queries) ListUserSecrets(ctx context.Context, arg ListUserSecretsParams
 
 const markSecretRevealed = `-- name: MarkSecretRevealed :one
 UPDATE secrets SET revealed_at = $1 WHERE id = $2 AND company_id = $3 AND revealed_at IS NULL
-RETURNING id, company_id, scope, owner_user_id, name, description, provider, value_enc, external_ref, version, revealed_at, last_used_at, created_by_type, created_by_id, created_at, updated_at
+RETURNING id, company_id, scope, owner_user_id, name, description, provider, value_enc, external_ref, version, revealed_at, last_used_at, created_by_type, created_by_id, created_at, updated_at, rotate_after_days
 `
 
 type MarkSecretRevealedParams struct {
@@ -448,6 +455,7 @@ func (q *Queries) MarkSecretRevealed(ctx context.Context, arg MarkSecretRevealed
 		&i.CreatedByID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.RotateAfterDays,
 	)
 	return i, err
 }
@@ -456,7 +464,7 @@ const rotateSecret = `-- name: RotateSecret :one
 UPDATE secrets SET provider = $1, value_enc = $2, external_ref = $3, version = version + 1,
        revealed_at = $4, description = $5, updated_at = $6
 WHERE id = $7 AND company_id = $8
-RETURNING id, company_id, scope, owner_user_id, name, description, provider, value_enc, external_ref, version, revealed_at, last_used_at, created_by_type, created_by_id, created_at, updated_at
+RETURNING id, company_id, scope, owner_user_id, name, description, provider, value_enc, external_ref, version, revealed_at, last_used_at, created_by_type, created_by_id, created_at, updated_at, rotate_after_days
 `
 
 type RotateSecretParams struct {
@@ -499,6 +507,7 @@ func (q *Queries) RotateSecret(ctx context.Context, arg RotateSecretParams) (Sec
 		&i.CreatedByID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.RotateAfterDays,
 	)
 	return i, err
 }

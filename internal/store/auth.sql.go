@@ -181,7 +181,7 @@ func (q *Queries) CreateCLIAuthRequest(ctx context.Context, arg CreateCLIAuthReq
 const createSession = `-- name: CreateSession :one
 INSERT INTO sessions (id, user_id, token_hash, created_at, expires_at, absolute_expires_at, last_seen_at, user_agent, ip)
 VALUES ($1, $2, $3, $4, $5, $6, $4, $7, $8)
-RETURNING id, user_id, token_hash, created_at, expires_at, last_seen_at, user_agent, ip, absolute_expires_at
+RETURNING id, user_id, token_hash, created_at, expires_at, last_seen_at, user_agent, ip, absolute_expires_at, reauth_at, reauth_method
 `
 
 type CreateSessionParams struct {
@@ -217,6 +217,8 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (S
 		&i.UserAgent,
 		&i.Ip,
 		&i.AbsoluteExpiresAt,
+		&i.ReauthAt,
+		&i.ReauthMethod,
 	)
 	return i, err
 }
@@ -435,7 +437,7 @@ func (q *Queries) GetCLIAuthByPollForUpdate(ctx context.Context, pollHash string
 }
 
 const getSessionByHash = `-- name: GetSessionByHash :one
-SELECT id, user_id, token_hash, created_at, expires_at, last_seen_at, user_agent, ip, absolute_expires_at FROM sessions WHERE token_hash = $1 AND expires_at > $2 AND absolute_expires_at > $2
+SELECT id, user_id, token_hash, created_at, expires_at, last_seen_at, user_agent, ip, absolute_expires_at, reauth_at, reauth_method FROM sessions WHERE token_hash = $1 AND expires_at > $2 AND absolute_expires_at > $2
 `
 
 type GetSessionByHashParams struct {
@@ -456,6 +458,8 @@ func (q *Queries) GetSessionByHash(ctx context.Context, arg GetSessionByHashPara
 		&i.UserAgent,
 		&i.Ip,
 		&i.AbsoluteExpiresAt,
+		&i.ReauthAt,
+		&i.ReauthMethod,
 	)
 	return i, err
 }
