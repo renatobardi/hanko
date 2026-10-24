@@ -678,13 +678,26 @@ func (s *Service) secretUsage(ctx context.Context, q *store.Queries, companyID d
 }
 
 // checkSecretRefs confere que cada referência de company existe, com o campo que ela lê, e recusa as de user
-// (configuração compartilhada).
+// (configuração compartilhada) e as ${secretfile:} (só valem no adapter_config da persona: checkAdapterSecretRefs).
 func (s *Service) checkSecretRefs(ctx context.Context, q *store.Queries, companyID domain.ID, field string, texts ...string) error {
+	return s.checkRefs(ctx, q, companyID, field, false, texts...)
+}
+
+// checkAdapterSecretRefs confere as referências do adapter_config da persona, onde ${secretfile:} vira arquivo no
+// despacho da run (MaterializeSecretFiles).
+func (s *Service) checkAdapterSecretRefs(ctx context.Context, q *store.Queries, companyID domain.ID, field string, texts ...string) error {
+	return s.checkRefs(ctx, q, companyID, field, true, texts...)
+}
+
+func (s *Service) checkRefs(ctx context.Context, q *store.Queries, companyID domain.ID, field string, allowFile bool, texts ...string) error {
 	seen := map[string]bool{}
 	for _, text := range texts {
 		for _, r := range secretref.Find(text) {
 			if r.User {
 				return domain.Invalid(field, fmt.Sprintf("%s: segredo de usuário não vale em configuração compartilhada", r.String()))
+			}
+			if r.File && !allowFile {
+				return domain.Invalid(field, fmt.Sprintf("%s: ${secretfile:} só vale no adapter_config da persona", r.String()))
 			}
 			if seen[r.String()] {
 				continue
@@ -885,7 +898,7 @@ func (s *Service) sealPersonaEnv(t *txc, actor domain.Actor, companyID domain.ID
 	}
 	// harness http (ADR-0056): a chave do endpoint é uma referência; ela precisa existir
 	if ref, _ := doc["api_key_ref"].(string); ref != "" {
-		if err := s.checkSecretRefs(t.ctx, t.q, companyID, "adapter_config.api_key_ref", ref); err != nil {
+		if err := s.checkAdapterSecretRefs(t.ctx, t.q, companyID, "adapter_config.api_key_ref", ref); err != nil {
 			return nil, 0, err
 		}
 	}
@@ -900,7 +913,7 @@ func (s *Service) sealPersonaEnv(t *txc, actor domain.Actor, companyID domain.ID
 			continue
 		}
 		if secretref.Has(v) {
-			if err := s.checkSecretRefs(t.ctx, t.q, companyID, "adapter_config.env."+k, v); err != nil {
+			if err := s.checkAdapterSecretRefs(t.ctx, t.q, companyID, "adapter_config.env."+k, v); err != nil {
 				return nil, 0, err
 			}
 			continue
