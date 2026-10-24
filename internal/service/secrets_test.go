@@ -12,9 +12,9 @@ import (
 	"testing"
 
 	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/extvault"
 	"github.com/renatobardi/hanko/internal/secretbox"
 	"github.com/renatobardi/hanko/internal/service"
-	"github.com/renatobardi/hanko/internal/vault"
 )
 
 // Valores sentinela: se qualquer um aparecer num lugar proibido, o teste de não-vazamento falha.
@@ -24,7 +24,7 @@ const (
 	sentinelVT = "SENTINELA-do-cofre-externo-77aa"
 )
 
-// fakeVault é um vault.Provider em memória.
+// fakeVault é um extvault.Provider em memória.
 type fakeVault struct {
 	mu   sync.Mutex
 	data map[string]string
@@ -43,7 +43,7 @@ func (f *fakeVault) Get(_ context.Context, ref string) (string, error) {
 	}
 	v, ok := f.data[ref]
 	if !ok {
-		return "", vault.ErrNotFound
+		return "", extvault.ErrNotFound
 	}
 	return v, nil
 }

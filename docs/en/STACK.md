@@ -164,7 +164,7 @@ only place that serves the bytes (nosniff, a sandboxing CSP, inline only for pla
 (company) and `${secret:user/NAME}` (owner only; refused in shared configuration). It works in MCP integration headers/env and in the
 persona `adapter_config`; `HirePersona` swaps a plaintext `env` for `persona.<slug>.<VAR>` and boot migrates the legacy ones. Expansion
 happens at dispatch (`RunExtras`, `ResolveAdapterConfig`); the values go into `adapter.Spec.Secrets` and the log redaction. Reveal: once
-per version. Packages: `internal/secretref` (parse/expand), `internal/vault` (interface + KV v2).
+per version. Packages: `internal/secretref` (parse/expand), `internal/extvault` (external provider: interface + KV v2; ADR-0068 §9).
 
 **Settings.** `instance_settings` (no `company_id`, with `instance_setting_audit`): only the keys of the `internal/settings` registry
 (`acp.*`, `integrations.*`, `artifacts.*`, `run.reserve_usd`, `alerts.*`), env > database > yaml/default, read at use time.

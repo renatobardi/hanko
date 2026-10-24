@@ -28,6 +28,7 @@ import (
 	"github.com/renatobardi/hanko/internal/db"
 	"github.com/renatobardi/hanko/internal/events"
 	"github.com/renatobardi/hanko/internal/execenv"
+	"github.com/renatobardi/hanko/internal/extvault"
 	"github.com/renatobardi/hanko/internal/heartbeat"
 	"github.com/renatobardi/hanko/internal/memory"
 	"github.com/renatobardi/hanko/internal/memory/aimemory"
@@ -38,7 +39,6 @@ import (
 	"github.com/renatobardi/hanko/internal/service"
 	"github.com/renatobardi/hanko/internal/settings"
 	"github.com/renatobardi/hanko/internal/telemetry"
-	"github.com/renatobardi/hanko/internal/vault"
 )
 
 const serviceName = "hanko"
@@ -121,7 +121,7 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 		svc.Backups = m // só atribui se houver executor: um *Manager nil dentro da interface não é nil
 	}
 	if cfg.Vault.Addr != "" {
-		v, err := vault.NewKV2(vault.KV2Options{Addr: cfg.Vault.Addr, Token: cfg.Vault.Token, Mount: cfg.Vault.Mount, Namespace: cfg.Vault.Namespace})
+		v, err := extvault.NewKV2(extvault.KV2Options{Addr: cfg.Vault.Addr, Token: cfg.Vault.Token, Mount: cfg.Vault.Mount, Namespace: cfg.Vault.Namespace})
 		if err != nil {
 			return fmt.Errorf("app: cofre externo: %w", err)
 		}

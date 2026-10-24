@@ -19,11 +19,11 @@ import (
 	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/events"
 	"github.com/renatobardi/hanko/internal/execenv"
+	"github.com/renatobardi/hanko/internal/extvault"
 	"github.com/renatobardi/hanko/internal/memory"
 	"github.com/renatobardi/hanko/internal/readiness"
 	"github.com/renatobardi/hanko/internal/settings"
 	"github.com/renatobardi/hanko/internal/storage"
-	"github.com/renatobardi/hanko/internal/vault"
 )
 
 // ErrNotImplemented marks contract stubs not yet filled.
@@ -98,8 +98,8 @@ type Service struct {
 	ACP acp.Policy
 	// Probers são os probes de readiness por harness (ADR-0056); o app os registra junto dos adapters.
 	Probers map[string]adapter.Prober
-	// Vault é o cofre externo de segredos (ADR-0050); nil = nenhum configurado (segredos provider=vault recusados).
-	Vault vault.Provider
+	// Vault é o provider externo de segredos (ADR-0050, pacote extvault); nil = nenhum configurado (segredos provider=vault recusados).
+	Vault extvault.Provider
 	// Blobs guarda o conteúdo dos artefatos (ADR-0051); nil usa o driver postgres sobre o pool.
 	Blobs *storage.Registry
 	// Settings são os toggles não sensíveis da instalação (ADR-0050); nil usa os campos fixos acima (testes).
