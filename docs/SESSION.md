@@ -1,3 +1,16 @@
+# Estado da última sessão (envio por link, fatia 4 do cofre, #59)
+Data: 2026-10-24 · branch `sessao/59-cofre-envio-link` · issue #59 (parte de #54)
+
+## Feito
+- Envio de texto por link `/s/<id>#<chave>` (ADR-0069): criação por humano pela API com reautenticação, criação por persona pelo service (`item#campo` de coleção concedida), página de recebimento com WebCrypto, senha com prova e bloqueio, expiração por prazo e por acessos, job `send_purge_tick`.
+- Testes: chave ausente de banco, evento e log (humano e persona), prazo, limite de acessos, senha errada, coleção concedida, reautenticação, interoperabilidade com o WebCrypto no Node, API pública sem credencial e cabeçalhos da página.
+
+## Travado
+- Envio de arquivo, listar/consultar/apagar envio e a tool `hanko_send_create` (precisa da política `ask` padrão antes de publicar) ficam em 501 ou fora. Tela e CLI de criação também.
+
+## Próximo passo
+- Tool MCP `hanko_send_create` com política `ask` padrão; depois upload do blob de arquivo e a rota de download de uso único; depois tela e CLI de criação.
+
 # Estado da última sessão (cofre, fatia 1, #56)
 Data: 2026-10-24 · branch `feat/56-cofre-campos` · issue #56 (parte de #54)
 
