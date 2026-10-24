@@ -129,6 +129,16 @@ jobs:
         with:
           go-version: "1.27"
           cache: true
+      - name: cache do build dos testes
+        # o cache do setup-go é salvo uma vez por go.sum e não tem o build com -race. Este guarda o do shard: a main
+        # salva a cada push (passo no fim do job), e PRs e a main restauram o mais recente (#75).
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/go-build
+          key: go-test-${{ runner.os }}-${{ runner.arch }}-${{ matrix.shard }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
+          restore-keys: |
+            go-test-${{ runner.os }}-${{ runner.arch }}-${{ matrix.shard }}-${{ hashFiles('go.sum') }}-
+            go-test-${{ runner.os }}-${{ runner.arch }}-${{ matrix.shard }}-
       - name: cliente Postgres 17 (pg_dump/pg_restore do teste de restore)
         run: sudo apt-get install -y postgresql-client-17 || echo "sem postgresql-client-17; o teste de restore vai pular"
       - name: pacotes do shard
@@ -160,6 +170,13 @@ jobs:
           # shellcheck disable=SC2046 # um argumento por pacote
           go test -race -p 1 -timeout 30m -tags integration -covermode=atomic -coverprofile="cover-$SHARD.out" \
             $(cat "pacotes-$SHARD.txt")
+      - name: salva o cache do build dos testes
+        # só a main salva: PRs leem o cache da main, e uma entrada por PR encheria o limite de cache do repositório
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/go-build
+          key: go-test-${{ runner.os }}-${{ runner.arch }}-${{ matrix.shard }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: shard-${{ matrix.shard }}
