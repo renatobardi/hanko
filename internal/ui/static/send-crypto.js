@@ -12,12 +12,12 @@ const PROOF_INFO = 'hanko-send-auth';
 export function b64uEncode(bytes) {
   let bin = '';
   for (const b of bytes) bin += String.fromCharCode(b);
-  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  return btoa(bin).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
 }
 
 export function b64uDecode(text) {
   const pad = text.length % 4 === 0 ? '' : '='.repeat(4 - (text.length % 4));
-  const bin = atob(text.replace(/-/g, '+').replace(/_/g, '/') + pad);
+  const bin = atob(text.replaceAll('-', '+').replaceAll('_', '/') + pad);
   return Uint8Array.from(bin, (c) => c.charCodeAt(0));
 }
 

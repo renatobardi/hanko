@@ -297,11 +297,10 @@ func TestEnvioSenhaErradaNaoDecifra(t *testing.T) {
 		t.Fatal(err)
 	}
 	pwd, prova := clienteSenha("correta-cavalo", salt)
-	verificador := sha256.Sum256(prova)
 	cifra := clienteCifra(t, clienteAESKey(linkKey, pwd, salt), publicID, sentinelEnvio)
 	if _, err := f.e.svc.CreateSend(ctx, f.owner.Actor(), f.co.ID, service.CreateSendInput{
 		PublicID: publicID, Kind: domain.SendText, Ciphertext: cifra, ExpiresIn: time.Hour,
-		KdfSalt: b64u(salt), PasswordVerifier: b64u(verificador[:])}); err != nil {
+		KdfSalt: b64u(salt), PasswordVerifier: b64u(prova)}); err != nil {
 		t.Fatalf("criar envio com senha: %v", err)
 	}
 	_, provaErrada := clienteSenha("errada", salt)

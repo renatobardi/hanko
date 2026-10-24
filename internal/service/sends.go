@@ -6,7 +6,6 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/sha256"
-	"crypto/subtle"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -112,19 +111,30 @@ func newGCM(aesKey []byte) (cipher.AEAD, error) {
 	return cipher.NewGCM(block)
 }
 
-// sendProofOK confere a prova da senha (HKDF(senha derivada, hanko-send-auth)) contra o verificador guardado
-// (SHA-256 da prova). O servidor não vê a senha nem a chave do link.
-func sendProofOK(row store.SecretSend, proof string) bool {
-	want, err := unb64u(row.PasswordVerifier)
-	if err != nil || len(want) != sha256.Size {
-		return false
+// hashSendVerifier guarda a prova da senha como hash argon2id, o mesmo KDF das senhas do Hanko (auth.HashPassword).
+// A prova já sai do navegador com PBKDF2 de 600 000 iterações, mas um SHA-256 simples sobre ela deixaria um banco
+// vazado com verificação barata: cada chute ainda custaria um argon2id, e não um SHA-256.
+func (s *Service) hashSendVerifier(ctx context.Context, proof string) (string, error) {
+	release, err := s.PasswordGate.Acquire(ctx)
+	if err != nil {
+		return "", err
 	}
-	got, err := unb64u(proof)
-	if err != nil || len(got) == 0 {
-		return false
+	defer release()
+	return auth.HashPassword(proof)
+}
+
+// sendProofOK confere a prova da senha (HKDF(senha derivada, hanko-send-auth)) contra o hash argon2id guardado. O
+// servidor não vê a senha nem a chave do link.
+func (s *Service) sendProofOK(ctx context.Context, row store.SecretSend, proof string) (bool, error) {
+	if b, err := unb64u(proof); err != nil || len(b) != sha256.Size {
+		return false, nil
 	}
-	sum := sha256.Sum256(got)
-	return subtle.ConstantTimeCompare(sum[:], want) == 1
+	release, err := s.PasswordGate.Acquire(ctx)
+	if err != nil {
+		return false, err
+	}
+	defer release()
+	return auth.VerifyPassword(proof, row.PasswordVerifier)
 }
 
 // CreateSendInput é o envio criado por humano: o conteúdo já chega cifrado no cliente (UI/CLI), com o id público
@@ -135,7 +145,7 @@ type CreateSendInput struct {
 	Ciphertext       string // texto: base64url(nonce||cifra), até MaxSendTextBytes em claro
 	Label            string
 	KdfSalt          string // com senha: sal do PBKDF2 (base64url); sem senha: vazio
-	PasswordVerifier string // com senha: base64url(SHA-256 da prova)
+	PasswordVerifier string // com senha: base64url da prova (32 bytes); o servidor guarda só o hash argon2id dela
 	ExpiresIn        time.Duration
 	MaxAccesses      *int
 }
@@ -268,6 +278,13 @@ func (s *Service) CreateSend(ctx context.Context, actor domain.Actor, companyID 
 	}
 	if err := validateSendInput(in); err != nil {
 		return SendView{}, err
+	}
+	if in.KdfSalt != "" {
+		hash, err := s.hashSendVerifier(ctx, in.PasswordVerifier)
+		if err != nil {
+			return SendView{}, err
+		}
+		in.PasswordVerifier = hash
 	}
 	createdBy, createdByID := sendCreator(actor)
 	id := domain.NewID()
@@ -453,7 +470,14 @@ func (s *Service) checkSendAccess(ctx context.Context, row store.SecretSend, pas
 	if !sendOpenable(row, now) {
 		return ErrSendGone
 	}
-	if row.KdfSalt != "" && !sendProofOK(row, passwordProof) {
+	if row.KdfSalt == "" {
+		return nil
+	}
+	ok, err := s.sendProofOK(ctx, row, passwordProof)
+	if err != nil {
+		return err
+	}
+	if !ok {
 		return s.failSendPassword(ctx, row.PublicID, now)
 	}
 	return nil

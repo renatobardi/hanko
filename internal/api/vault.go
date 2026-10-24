@@ -328,7 +328,7 @@ type createSendIn struct {
 		SizeBytes        int    `json:"size_bytes" minimum:"0" maximum:"26214400"`
 		Label            string `json:"label,omitempty" maxLength:"120"`
 		KdfSalt          string `json:"kdf_salt,omitempty" doc:"Com senha: sal usado no cliente."`
-		PasswordVerifier string `json:"password_verifier,omitempty" doc:"Com senha: SHA-256 da prova derivada da senha, base64url."`
+		PasswordVerifier string `json:"password_verifier,omitempty" doc:"Com senha: a prova derivada da senha (32 bytes, base64url). O servidor guarda só o hash argon2id dela."`
 		ExpiresInSeconds int    `json:"expires_in_seconds" minimum:"60" maximum:"2592000"`
 		MaxAccesses      *int   `json:"max_accesses,omitempty" minimum:"1" maximum:"1000"`
 	}

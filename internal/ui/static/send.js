@@ -27,9 +27,12 @@ function readLinkKey() {
 }
 
 async function getInfo() {
-  const res = await fetch('/api/v1/s/' + publicId, { headers: { accept: 'application/json' } });
-  if (!res.ok) return null;
-  return res.json();
+  try {
+    const res = await fetch('/api/v1/s/' + publicId, { headers: { accept: 'application/json' } });
+    return res.ok ? await res.json() : null;
+  } catch {
+    return null;
+  }
 }
 
 async function openSend(info, linkKey, password) {
@@ -66,14 +69,14 @@ async function main() {
   if (!linkKey) return say('Este link está incompleto ou alterado: falta a chave depois do #.');
   const info = await getInfo();
   if (!info) return say('Este envio não existe, venceu ou foi apagado.');
-  if (!info.has_password) return openSend(info, linkKey, null);
+  if (!info.has_password) return await openSend(info, linkKey, null);
   say('Digite a senha para abrir este envio.');
   form.hidden = false;
-  form.addEventListener('submit', (event) => {
+  form.addEventListener('submit', async (event) => {
     event.preventDefault();
     const password = document.getElementById('password').value;
-    openSend(info, linkKey, password);
+    await openSend(info, linkKey, password);
   });
 }
 
-main();
+await main();

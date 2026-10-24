@@ -4041,7 +4041,7 @@
             "type": "integer"
           },
           "password_verifier": {
-            "description": "Com senha: SHA-256 da prova derivada da senha, base64url.",
+            "description": "Com senha: a prova derivada da senha (32 bytes, base64url). O servidor guarda só o hash argon2id dela.",
             "type": "string"
           },
           "public_id": {
