@@ -832,6 +832,53 @@ func (q *Queries) ListFieldsWithHistory(ctx context.Context) ([]ListFieldsWithHi
 	return items, nil
 }
 
+const listHealthSecretFields = `-- name: ListHealthSecretFields :many
+SELECT f.id, f.secret_id, s.name AS secret_name, f.name AS field_name, f.value_enc, f.aad_version, f.last_used_at
+FROM secret_fields f JOIN secrets s ON s.id = f.secret_id
+WHERE f.company_id = $1 AND s.scope = 'company' AND f.provider = 'local' AND length(f.value_enc) > 0
+ORDER BY s.name, f.name
+`
+
+type ListHealthSecretFieldsRow struct {
+	ID         uuid.UUID
+	SecretID   uuid.UUID
+	SecretName string
+	FieldName  string
+	ValueEnc   string
+	AadVersion int16
+	LastUsedAt *time.Time
+}
+
+// Campos locais dos segredos da empresa para o relatório de saúde (ADR-0068 §7.2). O valor cifrado vai só para a conta
+// dos campos fracos, que decifra em memória e descarta; nunca sai na resposta. Segredo de usuário não entra.
+func (q *Queries) ListHealthSecretFields(ctx context.Context, companyID uuid.UUID) ([]ListHealthSecretFieldsRow, error) {
+	rows, err := q.db.Query(ctx, listHealthSecretFields, companyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListHealthSecretFieldsRow{}
+	for rows.Next() {
+		var i ListHealthSecretFieldsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.SecretID,
+			&i.SecretName,
+			&i.FieldName,
+			&i.ValueEnc,
+			&i.AadVersion,
+			&i.LastUsedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSecretAccess = `-- name: ListSecretAccess :many
 SELECT id, company_id, secret_id, field_name, via, run_id, persona_id, delegation_id, accessed_at FROM secret_access_log WHERE company_id = $1 AND secret_id = $2
 ORDER BY accessed_at DESC LIMIT $3
@@ -1148,7 +1195,7 @@ func (q *Queries) ListSecretFields(ctx context.Context, arg ListSecretFieldsPara
 }
 
 const listSecretFieldsForRekey = `-- name: ListSecretFieldsForRekey :many
-SELECT id, secret_id, value_enc, aad_version FROM secret_fields WHERE provider = 'local' AND length(value_enc) > 0
+SELECT id, secret_id, value_enc, aad_version, value_hmac FROM secret_fields WHERE provider = 'local' AND length(value_enc) > 0
 `
 
 type ListSecretFieldsForRekeyRow struct {
@@ -1156,6 +1203,7 @@ type ListSecretFieldsForRekeyRow struct {
 	SecretID   uuid.UUID
 	ValueEnc   string
 	AadVersion int16
+	ValueHmac  string
 }
 
 func (q *Queries) ListSecretFieldsForRekey(ctx context.Context) ([]ListSecretFieldsForRekeyRow, error) {
@@ -1172,6 +1220,7 @@ func (q *Queries) ListSecretFieldsForRekey(ctx context.Context) ([]ListSecretFie
 			&i.SecretID,
 			&i.ValueEnc,
 			&i.AadVersion,
+			&i.ValueHmac,
 		); err != nil {
 			return nil, err
 		}
@@ -1185,25 +1234,21 @@ func (q *Queries) ListSecretFieldsForRekey(ctx context.Context) ([]ListSecretFie
 
 const listSecretsDueRotation = `-- name: ListSecretsDueRotation :many
 WITH due AS (
-    SELECT s.id, s.name,
+    SELECT s.id, s.company_id, s.name,
            COALESCE(s.rotate_after_days, (SELECT min(c.rotate_after_days) FROM secret_collections c
                                           JOIN secret_collection_items i ON i.collection_id = c.id
                                           WHERE i.secret_id = s.id)) AS limit_days
     FROM secrets s
-    WHERE s.company_id = $2 AND s.scope = 'company'
+    WHERE s.scope = 'company'
 )
-SELECT due.id AS secret_id, due.name AS secret_name, f.name AS field_name, f.rotated_at, due.limit_days::integer AS limit_days
+SELECT due.company_id, due.id AS secret_id, due.name AS secret_name, f.name AS field_name, f.rotated_at, due.limit_days::integer AS limit_days
 FROM due JOIN secret_fields f ON f.secret_id = due.id
 WHERE due.limit_days IS NOT NULL AND f.rotated_at + make_interval(days => due.limit_days) < $1::timestamptz
-ORDER BY due.name, f.name
+ORDER BY due.company_id, due.name, f.name
 `
 
-type ListSecretsDueRotationParams struct {
-	Now       time.Time
-	CompanyID uuid.UUID
-}
-
 type ListSecretsDueRotationRow struct {
+	CompanyID  uuid.UUID
 	SecretID   uuid.UUID
 	SecretName string
 	FieldName  string
@@ -1212,8 +1257,9 @@ type ListSecretsDueRotationRow struct {
 }
 
 // Campos de segredos da empresa sem rotacao alem do prazo: o do item ou, sem prazo no item, o menor das colecoes.
-func (q *Queries) ListSecretsDueRotation(ctx context.Context, arg ListSecretsDueRotationParams) ([]ListSecretsDueRotationRow, error) {
-	rows, err := q.db.Query(ctx, listSecretsDueRotation, arg.Now, arg.CompanyID)
+// Sem filtro de empresa: o alerta roda sobre todas (company_id vem na linha); o relatório filtra pela sua.
+func (q *Queries) ListSecretsDueRotation(ctx context.Context, now time.Time) ([]ListSecretsDueRotationRow, error) {
+	rows, err := q.db.Query(ctx, listSecretsDueRotation, now)
 	if err != nil {
 		return nil, err
 	}
@@ -1222,6 +1268,7 @@ func (q *Queries) ListSecretsDueRotation(ctx context.Context, arg ListSecretsDue
 	for rows.Next() {
 		var i ListSecretsDueRotationRow
 		if err := rows.Scan(
+			&i.CompanyID,
 			&i.SecretID,
 			&i.SecretName,
 			&i.FieldName,
@@ -1561,17 +1608,23 @@ func (q *Queries) RotateSecretField(ctx context.Context, arg RotateSecretFieldPa
 }
 
 const setSecretFieldValueEnc = `-- name: SetSecretFieldValueEnc :exec
-UPDATE secret_fields SET value_enc = $1, aad_version = $2 WHERE id = $3
+UPDATE secret_fields SET value_enc = $1, aad_version = $2, value_hmac = $3 WHERE id = $4
 `
 
 type SetSecretFieldValueEncParams struct {
 	ValueEnc   string
 	AadVersion int16
+	ValueHmac  string
 	ID         uuid.UUID
 }
 
 func (q *Queries) SetSecretFieldValueEnc(ctx context.Context, arg SetSecretFieldValueEncParams) error {
-	_, err := q.db.Exec(ctx, setSecretFieldValueEnc, arg.ValueEnc, arg.AadVersion, arg.ID)
+	_, err := q.db.Exec(ctx, setSecretFieldValueEnc,
+		arg.ValueEnc,
+		arg.AadVersion,
+		arg.ValueHmac,
+		arg.ID,
+	)
 	return err
 }
 

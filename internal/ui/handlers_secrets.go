@@ -119,7 +119,7 @@ func (s *server) secretsVM(r *http.Request, co domain.Company, be secretsBackend
 	ctx := r.Context()
 	base := "/c/" + co.Slug
 	vm := views.SecretsVM{Sections: settingsSections(ctx, base, "segredos"), KeySet: s.platform.SecretKeySet, VaultOn: s.platform.VaultConfigured,
-		Notice: i18n.T(ctx, secretNotices[r.URL.Query().Get("ok")]), Reveal: reveal, CollectionsHref: base + "/configuracoes/colecoes",
+		Notice: i18n.T(ctx, secretNotices[r.URL.Query().Get("ok")]), Reveal: reveal, CollectionsHref: base + "/configuracoes/colecoes", HealthHref: base + "/configuracoes/segredos/saude",
 		Form:  views.SecretFormVM{Action: base + "/configuracoes/segredos", Provider: "local", FieldErr: map[string]string{}},
 		UForm: views.SecretFormVM{Action: base + "/configuracoes/segredos?escopo=usuario", Provider: "local", User: true, FieldErr: map[string]string{}}}
 	_, vm.UserOK = auth.IdentityFrom(ctx)
@@ -222,8 +222,13 @@ func (s *server) handleCreateSecret(w http.ResponseWriter, r *http.Request, co d
 	if user {
 		form.Action += "?escopo=usuario"
 	}
+	gen, gerr := genOptsFromForm(r)
+	if gerr != nil {
+		s.secretsFail(w, r, co, be, gerr, &form)
+		return
+	}
 	in := service.CreateSecretInput{Scope: scopeOf(user), Name: form.Name, Description: form.Description, Provider: domain.SecretProvider(form.Provider),
-		Value: r.PostFormValue("value"), Generate: form.Generate, ExternalRef: form.ExternalRef}
+		Value: r.PostFormValue("value"), Generate: form.Generate, Gen: gen, ExternalRef: form.ExternalRef}
 	if in.Provider == domain.SecretProviderVault {
 		in.Value, in.Generate = "", false
 	}
@@ -264,8 +269,13 @@ func (s *server) handleRotateSecret(w http.ResponseWriter, r *http.Request, co d
 	}
 	ctx := r.Context()
 	user, name := userScopeForm(r), r.PathValue("name")
+	gen, gerr := genOptsFromForm(r)
+	if gerr != nil {
+		s.secretsFail(w, r, co, be, gerr, nil)
+		return
+	}
 	in := service.RotateSecretInput{Provider: domain.SecretProvider(trimForm(r, "provider")), Value: r.PostFormValue("value"),
-		Generate: r.PostFormValue("generate") != "", ExternalRef: trimForm(r, "external_ref")}
+		Generate: r.PostFormValue("generate") != "", Gen: gen, ExternalRef: trimForm(r, "external_ref")}
 	if in.Provider == domain.SecretProviderVault {
 		in.Value, in.Generate = "", false
 	}

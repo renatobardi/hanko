@@ -278,7 +278,7 @@ func (s *Service) createConnectionTx(t *txc, actor domain.Actor, companyID domai
 	if in.Identity == domain.ConnIdentityCompany {
 		// segredo-placeholder: a integração (desligada) já referencia o token; o valor de verdade chega ao conectar
 		sid := domain.NewID()
-		m, err := s.prepareMaterial(sid, domain.SecretProviderLocal, "pending", false, "")
+		m, err := s.prepareMaterial(sid, domain.SecretProviderLocal, "pending", false, domain.GenOptions{}, "")
 		if err != nil {
 			return store.Connection{}, err
 		}
@@ -718,7 +718,7 @@ func (s *Service) upsertScopedSecretTx(t *txc, actor domain.Actor, companyID dom
 	cur, err := t.q.GetUserSecretByNameForUpdate(t.ctx, store.GetUserSecretByNameForUpdateParams{CompanyID: companyID, OwnerUserID: owner, Name: name})
 	switch {
 	case err == nil:
-		m, err := s.prepareMaterial(cur.ID, domain.SecretProviderLocal, value, false, "")
+		m, err := s.prepareMaterial(cur.ID, domain.SecretProviderLocal, value, false, domain.GenOptions{}, "")
 		if err != nil {
 			return err
 		}
@@ -731,7 +731,7 @@ func (s *Service) upsertScopedSecretTx(t *txc, actor domain.Actor, companyID dom
 		return fmt.Errorf("get secret: %w", err)
 	}
 	id := domain.NewID()
-	m, err := s.prepareMaterial(id, domain.SecretProviderLocal, value, false, "")
+	m, err := s.prepareMaterial(id, domain.SecretProviderLocal, value, false, domain.GenOptions{}, "")
 	if err != nil {
 		return err
 	}

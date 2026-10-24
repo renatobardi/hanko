@@ -44,23 +44,24 @@ type SecretUse struct {
 
 // Secret são os metadados de um segredo (nunca o valor).
 type Secret struct {
-	ID          string      `json:"id" format:"uuid"`
-	CompanyID   string      `json:"company_id" format:"uuid"`
-	Scope       string      `json:"scope" enum:"company,user"`
-	Name        string      `json:"name" example:"openrouter-key"`
-	Reference   string      `json:"reference" doc:"Como referenciar em integrações e no env da persona." example:"${secret:openrouter-key}"`
-	Description string      `json:"description,omitempty"`
-	Provider    string      `json:"provider" enum:"local,vault" doc:"local: cifrado no Hanko. vault: lido do cofre externo a cada despacho."`
-	ExternalRef string      `json:"external_ref,omitempty" doc:"Provider vault: caminho#campo no cofre."`
-	Version     int         `json:"version" doc:"Sobe a cada rotação."`
-	Revealed    bool        `json:"revealed" doc:"O valor desta versão já foi mostrado (criação gerada ou revelar)."`
-	RevealedAt  *time.Time  `json:"revealed_at,omitempty"`
-	LastUsedAt  *time.Time  `json:"last_used_at,omitempty"`
-	UsedBy      []SecretUse `json:"used_by,omitempty" doc:"Personas e integrações que referenciam o segredo (admin)."`
-	Value       string      `json:"value,omitempty" doc:"SÓ na resposta de criação/rotação com valor gerado e na de revelar. Guarde-o: não é possível ler de novo."`
-	CreatedBy   ActorRef    `json:"created_by"`
-	CreatedAt   time.Time   `json:"created_at"`
-	UpdatedAt   time.Time   `json:"updated_at"`
+	ID              string      `json:"id" format:"uuid"`
+	CompanyID       string      `json:"company_id" format:"uuid"`
+	Scope           string      `json:"scope" enum:"company,user"`
+	Name            string      `json:"name" example:"openrouter-key"`
+	Reference       string      `json:"reference" doc:"Como referenciar em integrações e no env da persona." example:"${secret:openrouter-key}"`
+	Description     string      `json:"description,omitempty"`
+	Provider        string      `json:"provider" enum:"local,vault" doc:"local: cifrado no Hanko. vault: lido do cofre externo a cada despacho."`
+	ExternalRef     string      `json:"external_ref,omitempty" doc:"Provider vault: caminho#campo no cofre."`
+	Version         int         `json:"version" doc:"Sobe a cada rotação."`
+	RotateAfterDays *int        `json:"rotate_after_days,omitempty" doc:"Prazo de rotação do item em dias; sem ele, vale o da coleção (relatório de saúde e alerta)."`
+	Revealed        bool        `json:"revealed" doc:"O valor desta versão já foi mostrado (criação gerada ou revelar)."`
+	RevealedAt      *time.Time  `json:"revealed_at,omitempty"`
+	LastUsedAt      *time.Time  `json:"last_used_at,omitempty"`
+	UsedBy          []SecretUse `json:"used_by,omitempty" doc:"Personas e integrações que referenciam o segredo (admin)."`
+	Value           string      `json:"value,omitempty" doc:"SÓ na resposta de criação/rotação com valor gerado e na de revelar. Guarde-o: não é possível ler de novo."`
+	CreatedBy       ActorRef    `json:"created_by"`
+	CreatedAt       time.Time   `json:"created_at"`
+	UpdatedAt       time.Time   `json:"updated_at"`
 }
 
 func secretOut(v service.SecretView) Secret {
@@ -69,7 +70,8 @@ func secretOut(v service.SecretView) Secret {
 		ref = "${secret:user/" + v.Name + "}"
 	}
 	o := Secret{ID: idStr(v.ID), CompanyID: idStr(v.CompanyID), Scope: string(v.Scope), Name: v.Name, Reference: ref, Description: v.Description,
-		Provider: string(v.Provider), ExternalRef: v.ExternalRef, Version: v.Version, Revealed: v.RevealedAt != nil, RevealedAt: v.RevealedAt,
+		Provider: string(v.Provider), ExternalRef: v.ExternalRef, Version: v.Version, RotateAfterDays: v.RotateAfterDays,
+		Revealed: v.RevealedAt != nil, RevealedAt: v.RevealedAt,
 		LastUsedAt: v.LastUsedAt, Value: v.RevealedValue, CreatedBy: actorRef(v.CreatedBy), CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt}
 	for _, u := range v.UsedBy {
 		o.UsedBy = append(o.UsedBy, SecretUse{Kind: u.Kind, Slug: u.Slug, Name: u.Name})
@@ -85,23 +87,25 @@ type SecretPath struct {
 type createSecretIn struct {
 	CompanyPath
 	Body struct {
-		Name        string `json:"name" pattern:"^[A-Za-z][A-Za-z0-9_.-]{0,63}$" example:"openrouter-key"`
-		Description string `json:"description,omitempty" maxLength:"300"`
-		Provider    string `json:"provider,omitempty" enum:"local,vault" doc:"Padrão local."`
-		Value       string `json:"value,omitempty" doc:"Provider local: o valor (até 8 KiB). Cifrado; nunca devolvido."`
-		Generate    bool   `json:"generate,omitempty" doc:"Provider local: o servidor gera o valor e o devolve uma vez."`
-		ExternalRef string `json:"external_ref,omitempty" doc:"Provider vault: caminho#campo no cofre externo."`
+		Name        string            `json:"name" pattern:"^[A-Za-z][A-Za-z0-9_.-]{0,63}$" example:"openrouter-key"`
+		Description string            `json:"description,omitempty" maxLength:"300"`
+		Provider    string            `json:"provider,omitempty" enum:"local,vault" doc:"Padrão local."`
+		Value       string            `json:"value,omitempty" doc:"Provider local: o valor (até 8 KiB). Cifrado; nunca devolvido."`
+		Generate    bool              `json:"generate,omitempty" doc:"Provider local: o servidor gera o valor e o devolve uma vez."`
+		Generator   *GeneratorOptions `json:"generator,omitempty" doc:"Com generate: tamanho, classes ou frase-senha (ADR-0068 §7.1)."`
+		ExternalRef string            `json:"external_ref,omitempty" doc:"Provider vault: caminho#campo no cofre externo."`
 	}
 }
 
 type rotateSecretIn struct {
 	SecretPath
 	Body struct {
-		Provider    string  `json:"provider,omitempty" enum:"local,vault"`
-		Value       string  `json:"value,omitempty"`
-		Generate    bool    `json:"generate,omitempty"`
-		ExternalRef string  `json:"external_ref,omitempty"`
-		Description *string `json:"description,omitempty" maxLength:"300"`
+		Provider    string            `json:"provider,omitempty" enum:"local,vault"`
+		Value       string            `json:"value,omitempty"`
+		Generate    bool              `json:"generate,omitempty"`
+		Generator   *GeneratorOptions `json:"generator,omitempty" doc:"Com generate: tamanho, classes ou frase-senha (ADR-0068 §7.1)."`
+		ExternalRef string            `json:"external_ref,omitempty"`
+		Description *string           `json:"description,omitempty" maxLength:"300"`
 	}
 }
 
@@ -161,7 +165,7 @@ func (s *server) registerSecretsScope(api huma.API, scope domain.SecretScope, se
 			}
 			b := in.Body
 			v, err := sb.CreateSecret(ctx, sc.Actor, sc.Company.ID, service.CreateSecretInput{Scope: scope, Name: b.Name, Description: b.Description,
-				Provider: domain.SecretProvider(b.Provider), Value: b.Value, Generate: b.Generate, ExternalRef: b.ExternalRef})
+				Provider: domain.SecretProvider(b.Provider), Value: b.Value, Generate: b.Generate, Gen: b.Generator.opts(), ExternalRef: b.ExternalRef})
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}
@@ -223,7 +227,7 @@ func (s *server) registerSecretsScope(api huma.API, scope domain.SecretScope, se
 			}
 			b := in.Body
 			v, err := sb.RotateSecret(ctx, sc.Actor, sc.Company.ID, scope, in.Name, service.RotateSecretInput{
-				Provider: domain.SecretProvider(b.Provider), Value: b.Value, Generate: b.Generate, ExternalRef: b.ExternalRef, Description: b.Description})
+				Provider: domain.SecretProvider(b.Provider), Value: b.Value, Generate: b.Generate, Gen: b.Generator.opts(), ExternalRef: b.ExternalRef, Description: b.Description})
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}

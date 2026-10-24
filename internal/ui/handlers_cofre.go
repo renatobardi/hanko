@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 
 	"github.com/renatobardi/hanko/internal/auth"
 	"github.com/renatobardi/hanko/internal/domain"
@@ -31,6 +32,7 @@ type vaultUIBackend interface {
 	AddSecretToCollection(ctx context.Context, actor domain.Actor, companyID domain.ID, idOrName, secretName string) error
 	RemoveSecretFromCollection(ctx context.Context, actor domain.Actor, companyID domain.ID, idOrName, secretName string) error
 	ListCollectionGrants(ctx context.Context, companyID domain.ID, idOrName string) ([]service.CollectionGrantView, error)
+	VaultHealth(ctx context.Context, companyID domain.ID) (service.HealthReport, error)
 }
 
 // vaultReq devolve o backend do cofre e o contexto da requisição; sem o cofre ligado, responde indisponível.
@@ -190,9 +192,14 @@ func (s *server) handleCreateSecretField(w http.ResponseWriter, r *http.Request,
 	fname, kind := trimForm(r, "name"), trimForm(r, "kind")
 	visible := r.PostFormValue("visibilidade") == "visivel"
 	generate := r.PostFormValue("generate") != ""
+	gen, gerr := genOptsFromForm(r)
+	if gerr != nil {
+		s.fieldsFail(w, r, co, be, gerr, nil)
+		return
+	}
 	sensitive := !visible
 	in := service.CreateSecretFieldInput{Name: fname, Kind: domain.SecretFieldKind(kind), Sensitive: &sensitive,
-		SecretFieldValueInput: service.SecretFieldValueInput{Value: r.PostFormValue("value"), Generate: generate}}
+		SecretFieldValueInput: service.SecretFieldValueInput{Value: r.PostFormValue("value"), Generate: generate, Gen: gen}}
 	v, err := be.CreateSecretField(ctx, actorFrom(ctx), co.ID, scopeOf(user), name, in)
 	if err != nil {
 		s.fieldsFail(w, r, co, be, err, func(vm *views.SecretFieldsVM) { // o valor digitado nunca volta
@@ -209,7 +216,12 @@ func (s *server) handleRotateSecretField(w http.ResponseWriter, r *http.Request,
 		return
 	}
 	user, name := userScopeForm(r), r.PathValue("name")
-	in := service.SecretFieldValueInput{Value: r.PostFormValue("value"), Generate: r.PostFormValue("generate") != ""}
+	gen, gerr := genOptsFromForm(r)
+	if gerr != nil {
+		s.fieldsFail(w, r, co, be, gerr, nil)
+		return
+	}
+	in := service.SecretFieldValueInput{Value: r.PostFormValue("value"), Generate: r.PostFormValue("generate") != "", Gen: gen}
 	v, err := be.RotateSecretField(ctx, actorFrom(ctx), co.ID, scopeOf(user), name, r.PathValue("field"), in)
 	if err != nil {
 		s.fieldsFail(w, r, co, be, err, nil)
@@ -234,6 +246,74 @@ func (s *server) handleSecretFieldMeta(w http.ResponseWriter, r *http.Request, c
 }
 
 // ---------- coleções ----------
+
+// genOptsFromForm lê o bloco do gerador (gen_length, gen_class e gen_words, ADR-0068 §7.1). Campo vazio vale o padrão;
+// número que não lê vira erro de validação, não o padrão em silêncio.
+func genOptsFromForm(r *http.Request) (domain.GenOptions, error) {
+	var o domain.GenOptions
+	if v := strings.TrimSpace(r.PostFormValue("gen_length")); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			return o, domain.Invalid("length", "tamanho: um número de 8 a 128")
+		}
+		o.Length = n
+	}
+	if v := strings.TrimSpace(r.PostFormValue("gen_words")); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			return o, domain.Invalid("passphrase_words", "palavras: um número de 3 a 12")
+		}
+		o.PassphraseWords = n
+	}
+	for _, c := range r.PostForm["gen_class"] {
+		o.Classes = append(o.Classes, domain.GenClass(c))
+	}
+	return o, nil
+}
+
+// healthKindText dá o nome de cada categoria do relatório de saúde.
+var healthKindText = map[domain.HealthKind]string{
+	domain.HealthDuplicate: i18n.N("Repetido"),
+	domain.HealthStale:     i18n.N("Velho (passou do prazo de rotação)"),
+	domain.HealthUnused:    i18n.N("Sem uso"),
+	domain.HealthOrphan:    i18n.N("Órfão"),
+	domain.HealthWeak:      i18n.N("Fraco"),
+}
+
+// secretsHealthVM monta a página de saúde: contagem por categoria e os achados, na ordem do domínio.
+func (s *server) secretsHealthVM(r *http.Request, co domain.Company, be vaultUIBackend) (views.SecretsHealthVM, error) {
+	ctx := r.Context()
+	base := "/c/" + co.Slug
+	vm := views.SecretsHealthVM{Sections: settingsSections(ctx, base, "segredos"), BackHref: base + "/configuracoes/segredos"}
+	rep, err := be.VaultHealth(ctx, co.ID)
+	if err != nil {
+		return vm, err
+	}
+	counts := map[domain.HealthKind]int{}
+	for _, f := range rep.Findings {
+		counts[f.Kind]++
+		vm.Rows = append(vm.Rows, views.HealthRowVM{Kind: i18n.T(ctx, healthKindText[f.Kind]), Secret: f.Secret, Field: f.Field, Detail: f.Detail})
+	}
+	for _, k := range domain.HealthKinds {
+		vm.Counts = append(vm.Counts, views.HealthCountVM{Label: i18n.T(ctx, healthKindText[k]), Count: counts[k]})
+	}
+	return vm, nil
+}
+
+func (s *server) handleSecretsHealth(w http.ResponseWriter, r *http.Request, co domain.Company) {
+	be, ok := s.vaultBE()
+	if !ok {
+		s.unavailable(w, r)
+		return
+	}
+	sh := s.settingsShell(r, co, i18n.T(r.Context(), "Saúde dos segredos"))
+	vm, err := s.secretsHealthVM(r, co, be)
+	if err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
+	s.render(w, r, http.StatusOK, views.SecretsHealthPage(sh, vm))
+}
 
 func daysText(d *int) string {
 	if d == nil {

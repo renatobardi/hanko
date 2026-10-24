@@ -39,6 +39,7 @@ templ fieldRow(f SecretFieldRowVM, canWrite bool) {
 					<form method="post" action={ templ.SafeURL(f.ValueHref) } hx-boost="true" class="mt-2">
 						<input class="input mono" name="value" type="password" autocomplete="new-password" placeholder={ i18n.T(ctx, "novo valor") } maxlength="8192"/>
 						<label class="check-line"><input type="checkbox" name="generate" value="1"/><span>{ i18n.T(ctx, "gerar") }</span></label>
+						@genOptionsFields()
 						<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Trocar valor") }</button>
 					</form>
 					<form method="post" action={ templ.SafeURL(f.MetaHref) } hx-boost="true" class="mt-2">
@@ -122,6 +123,7 @@ templ SecretFieldsPage(sh Shell, vm SecretFieldsVM) {
 					<input type="checkbox" name="generate" value="1" checked?={ vm.NewGenerate }/>
 					<span>{ i18n.T(ctx, "Gerar o valor e mostrá-lo uma vez") }</span>
 				</label>
+				@genOptionsFields()
 				<div class="form-actions">
 					<button class="btn primary" type="submit">{ i18n.T(ctx, "Adicionar campo") }</button>
 				</div>
@@ -271,5 +273,85 @@ templ flashAlerts(notice, errMsg string) {
 	}
 	if errMsg != "" {
 		@Alert("danger", errMsg)
+	}
+}
+
+// genOptionsFields é o bloco do gerador (ADR-0068 §7.1): tamanho, classes ou frase-senha. Tudo em branco é o padrão de
+// sempre (32 bytes aleatórios). Sem id nos campos: o bloco se repete por linha em algumas tabelas.
+templ genOptionsFields() {
+	<details class="gen-opts">
+		<summary>{ i18n.T(ctx, "Opções do gerador") }</summary>
+		<label class="field">
+			<span>{ i18n.T(ctx, "Tamanho (8 a 128 caracteres)") }</span>
+			<input class="input mono" name="gen_length" type="number" min="8" max="128" inputmode="numeric"/>
+		</label>
+		<fieldset class="field">
+			<legend>{ i18n.T(ctx, "Classes de caractere") }</legend>
+			<label class="check-line"><input type="checkbox" name="gen_class" value="lower"/><span>{ i18n.T(ctx, "minúsculas") }</span></label>
+			<label class="check-line"><input type="checkbox" name="gen_class" value="upper"/><span>{ i18n.T(ctx, "maiúsculas") }</span></label>
+			<label class="check-line"><input type="checkbox" name="gen_class" value="digits"/><span>{ i18n.T(ctx, "dígitos") }</span></label>
+			<label class="check-line"><input type="checkbox" name="gen_class" value="symbols"/><span>{ i18n.T(ctx, "símbolos") }</span></label>
+		</fieldset>
+		<label class="field">
+			<span>{ i18n.T(ctx, "Frase-senha (palavras, 3 a 12)") }</span>
+			<input class="input" name="gen_words" type="number" min="3" max="12" inputmode="numeric"/>
+			<span class="hint">{ i18n.T(ctx, "Frase-senha não combina com tamanho nem classes.") }</span>
+		</label>
+	</details>
+}
+
+// SecretsHealthPage mostra o relatório de saúde dos segredos da empresa (ADR-0068 §7.2): contagem por categoria e a
+// lista de achados. Nenhum valor de campo nem HMAC aparece.
+templ SecretsHealthPage(sh Shell, vm SecretsHealthVM) {
+	@Layout(sh) {
+		@PageHead(i18n.T(ctx, "Saúde dos segredos"), i18n.T(ctx, "Repetidos, velhos, sem uso, órfãos e fracos. Calculado aqui, sem chamada a serviço externo.")) {
+		}
+		<div class="mb-6">@Tabs(vm.Sections)</div>
+		<p class="mb-3"><a href={ templ.SafeURL(vm.BackHref) }>{ i18n.T(ctx, "Voltar aos segredos") }</a></p>
+		@flashAlerts("", vm.Error)
+		<div class="table-wrap mb-6">
+			<table class="table">
+				<thead>
+					<tr>
+						<th>{ i18n.T(ctx, "Categoria") }</th>
+						<th class="num">{ i18n.T(ctx, "Achados") }</th>
+					</tr>
+				</thead>
+				<tbody>
+					for _, c := range vm.Counts {
+						<tr class="row">
+							<td>{ c.Label }</td>
+							<td class="num">{ c.Count }</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+		if len(vm.Rows) == 0 {
+			<p class="muted">{ i18n.T(ctx, "Nenhum achado.") }</p>
+		} else {
+			<div class="table-wrap mb-6">
+				<table class="table">
+					<thead>
+						<tr>
+							<th>{ i18n.T(ctx, "Categoria") }</th>
+							<th>{ i18n.T(ctx, "Segredo") }</th>
+							<th>{ i18n.T(ctx, "Campo") }</th>
+							<th>{ i18n.T(ctx, "Detalhe") }</th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, r := range vm.Rows {
+							<tr class="row">
+								<td>{ r.Kind }</td>
+								<td><code class="mono">{ r.Secret }</code></td>
+								<td>{ r.Field }</td>
+								<td>{ r.Detail }</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		}
 	}
 }

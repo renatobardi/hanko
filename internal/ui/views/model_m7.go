@@ -54,6 +54,8 @@ type SecretsVM struct {
 	Reveal  *SecretRevealVM
 	// CollectionsHref leva à página de coleções (ADR-0068).
 	CollectionsHref string
+	// HealthHref leva ao relatório de saúde dos segredos (ADR-0068 §7.2).
+	HealthHref string
 }
 
 // ---- Configurações › Instância (ADR-0050 §C, ADR-0051) ----

@@ -561,3 +561,31 @@ func (q *Queries) TouchSecretUsed(ctx context.Context, arg TouchSecretUsedParams
 	_, err := q.db.Exec(ctx, touchSecretUsed, arg.Now, arg.ID, arg.CompanyID)
 	return err
 }
+
+const updateSecretMeta = `-- name: UpdateSecretMeta :execrows
+UPDATE secrets SET description = $1, rotate_after_days = $2, updated_at = $3
+WHERE id = $4 AND company_id = $5
+`
+
+type UpdateSecretMetaParams struct {
+	Description     string
+	RotateAfterDays *int32
+	Now             time.Time
+	ID              uuid.UUID
+	CompanyID       uuid.UUID
+}
+
+// Descrição e prazo de rotação do item (ADR-0068 §7). Não mexe em valor nem em versão.
+func (q *Queries) UpdateSecretMeta(ctx context.Context, arg UpdateSecretMetaParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateSecretMeta,
+		arg.Description,
+		arg.RotateAfterDays,
+		arg.Now,
+		arg.ID,
+		arg.CompanyID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}

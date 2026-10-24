@@ -9,6 +9,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/service"
 )
 
 // Contrato do cofre para agentes (ADR-0068), do envio (ADR-0069) e da reautenticação com passkey (ADR-0070).
@@ -30,7 +31,6 @@ const (
 	sliceReauth      = "fatia 2 (#57)"
 	sliceSends       = "fatia 4 (#59)"
 	sliceDelegations = "fatia 5 (#60)"
-	sliceHealth      = "fatia 6 (#61)"
 	slicePortability = "fatia 7 (#62)"
 )
 
@@ -74,13 +74,14 @@ type SecretFieldVersion struct {
 
 // SecretFieldValue é o valor de um campo na criação ou rotação: texto, gerado, arquivo ou referência externa.
 type SecretFieldValue struct {
-	Provider      string `json:"provider,omitempty" enum:"local,vault" doc:"Padrão local."`
-	Value         string `json:"value,omitempty" maxLength:"8192" doc:"Texto ou semente TOTP (base32 ou otpauth://). Cifrado; nunca devolvido."`
-	Generate      bool   `json:"generate,omitempty" doc:"O servidor gera o valor (gerador da fatia 6) e o devolve uma vez."`
-	ContentBase64 string `json:"content_base64,omitempty" maxLength:"1398104" doc:"Campo arquivo: conteúdo em base64 (até 1 MiB)."`
-	FileName      string `json:"file_name,omitempty" maxLength:"255"`
-	ContentType   string `json:"content_type,omitempty" maxLength:"255"`
-	ExternalRef   string `json:"external_ref,omitempty" maxLength:"500" doc:"Provider vault: caminho#campo."`
+	Provider      string            `json:"provider,omitempty" enum:"local,vault" doc:"Padrão local."`
+	Value         string            `json:"value,omitempty" maxLength:"8192" doc:"Texto ou semente TOTP (base32 ou otpauth://). Cifrado; nunca devolvido."`
+	Generate      bool              `json:"generate,omitempty" doc:"O servidor gera o valor e o devolve uma vez."`
+	Generator     *GeneratorOptions `json:"generator,omitempty" doc:"Com generate: tamanho, classes ou frase-senha (ADR-0068 §7.1)."`
+	ContentBase64 string            `json:"content_base64,omitempty" maxLength:"1398104" doc:"Campo arquivo: conteúdo em base64 (até 1 MiB)."`
+	FileName      string            `json:"file_name,omitempty" maxLength:"255"`
+	ContentType   string            `json:"content_type,omitempty" maxLength:"255"`
+	ExternalRef   string            `json:"external_ref,omitempty" maxLength:"500" doc:"Provider vault: caminho#campo."`
 }
 
 type SecretFieldPath struct {
@@ -459,12 +460,41 @@ type VaultHealth struct {
 	Findings    []VaultHealthFinding `json:"findings"`
 }
 
-type generateIn struct {
-	Body struct {
-		Length          int      `json:"length,omitempty" minimum:"0" maximum:"128" doc:"Padrão: 32 bytes aleatórios em base64url."`
-		Classes         []string `json:"classes,omitempty" enum:"lower,upper,digits,symbols"`
-		PassphraseWords int      `json:"passphrase_words,omitempty" minimum:"0" maximum:"12" doc:"Frase-senha com 3 a 12 palavras."`
+// GeneratorOptions são as opções do gerador (ADR-0068 §7.1). Vazias = 32 bytes aleatórios em base64url.
+type GeneratorOptions struct {
+	Length          int      `json:"length,omitempty" minimum:"0" maximum:"128" doc:"Tamanho de 8 a 128 caracteres. Padrão: 32."`
+	Classes         []string `json:"classes,omitempty" enum:"lower,upper,digits,symbols" doc:"Classes de caractere; padrão: minúsculas, maiúsculas e dígitos."`
+	PassphraseWords int      `json:"passphrase_words,omitempty" minimum:"0" maximum:"12" doc:"Frase-senha de 3 a 12 palavras; não combina com tamanho nem classes."`
+}
+
+// opts converte o corpo da API nas opções do domínio; nil = nenhuma opção.
+func (g *GeneratorOptions) opts() domain.GenOptions {
+	if g == nil {
+		return domain.GenOptions{}
 	}
+	o := domain.GenOptions{Length: g.Length, PassphraseWords: g.PassphraseWords}
+	for _, c := range g.Classes {
+		o.Classes = append(o.Classes, domain.GenClass(c))
+	}
+	return o
+}
+
+type generateIn struct {
+	Body GeneratorOptions
+}
+
+// healthOut monta a resposta do relatório: todas as categorias aparecem na contagem, mesmo zeradas.
+func healthOut(r service.HealthReport) VaultHealth {
+	out := VaultHealth{GeneratedAt: r.GeneratedAt, Counts: map[string]int{}, Findings: []VaultHealthFinding{}}
+	for _, k := range domain.HealthKinds {
+		out.Counts[string(k)] = 0
+	}
+	for _, f := range r.Findings {
+		out.Counts[string(f.Kind)]++
+		out.Findings = append(out.Findings, VaultHealthFinding{Kind: string(f.Kind), Secret: f.Secret, Field: f.Field,
+			Detail: f.Detail, Related: f.Related})
+	}
+	return out
 }
 
 type updateSecretMetaIn struct {
@@ -475,14 +505,43 @@ type updateSecretMetaIn struct {
 	}
 }
 
-func registerHealth(api huma.API) {
+func (s *server) registerHealth(api huma.API) {
 	tag := "vault"
-	pendingOp[generateIn, ItemOut[GeneratedValue]](api, op("generate-secret-value", http.MethodPost, "/secrets/generate", tag,
-		"Gera um valor aleatório ou frase-senha (não grava nada)"), sliceHealth)
-	pendingOp[CompanyPath, ItemOut[VaultHealth]](api, op("get-vault-health", http.MethodGet, "/companies/{company}/vault/health", tag,
-		"Relatório de saúde dos segredos: repetidos, velhos, sem uso, órfãos e fracos"), sliceHealth)
-	pendingOp[updateSecretMetaIn, ItemOut[Secret]](api, op("update-secret", http.MethodPatch, "/companies/{company}/secrets/{name}", tag,
-		"Muda descrição e prazo de rotação de um segredo da empresa"), sliceHealth)
+	huma.Register(api, op("generate-secret-value", http.MethodPost, "/secrets/generate", tag,
+		"Gera um valor aleatório ou frase-senha (não grava nada)"),
+		func(ctx context.Context, in *generateIn) (*ItemOut[GeneratedValue], error) {
+			if err := forbidPersona(ctx); err != nil {
+				return nil, err
+			}
+			vb, err := s.vault()
+			if err != nil {
+				return nil, err
+			}
+			g, err := vb.GenerateValue(ctx, in.Body.opts())
+			if err != nil {
+				return nil, s.fail(ctx, err)
+			}
+			return &ItemOut[GeneratedValue]{Body: GeneratedValue{Value: g.Value, EntropyBits: g.EntropyBits}}, nil
+		})
+	huma.Register(api, op("get-vault-health", http.MethodGet, "/companies/{company}/vault/health", tag,
+		"Relatório de saúde dos segredos: repetidos, velhos, sem uso, órfãos e fracos"),
+		vaultOp(s, func(ctx context.Context, vb vaultBackend, sc scope, in *CompanyPath) (*ItemOut[VaultHealth], error) {
+			r, err := vb.VaultHealth(ctx, sc.Company.ID)
+			if err != nil {
+				return nil, s.fail(ctx, err)
+			}
+			return &ItemOut[VaultHealth]{Body: healthOut(r)}, nil
+		}))
+	huma.Register(api, op("update-secret", http.MethodPatch, "/companies/{company}/secrets/{name}", tag,
+		"Muda descrição e prazo de rotação de um segredo da empresa"),
+		vaultOp(s, func(ctx context.Context, vb vaultBackend, sc scope, in *updateSecretMetaIn) (*ItemOut[Secret], error) {
+			v, err := vb.UpdateSecretMeta(ctx, sc.Actor, sc.Company.ID, in.Name, service.SecretMetaInput{
+				Description: in.Body.Description, RotateAfterDays: in.Body.RotateAfterDays})
+			if err != nil {
+				return nil, s.fail(ctx, err)
+			}
+			return &ItemOut[Secret]{Body: secretOut(v)}, nil
+		}))
 }
 
 // ---------- import de .env e export cifrado (fatia 7) ----------
@@ -562,6 +621,6 @@ func (s *server) registerVault(api huma.API) {
 	s.registerReauth(api)
 	s.registerSends(api)
 	registerDelegations(api)
-	registerHealth(api)
+	s.registerHealth(api)
 	registerPortability(api)
 }
