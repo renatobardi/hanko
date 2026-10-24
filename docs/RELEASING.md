@@ -69,7 +69,7 @@ Rollback = voltar para a tag anterior e restaurar o backup:
 
 | Workflow | Propósito |
 |---|---|
-| `ci.yml` | PR rápido: fmt, vet, lint, build, testes (unit + integração), piso de cobertura, drift gates (openapi, templ, sqlc, bundle das ilhas) e `release-dry-run`. Os jobs `check` e `release-dry-run` são os status exigidos; não renomear. |
+| `ci.yml` | PR rápido, em jobs paralelos: `estatico` (fmt, vet, lint), `gerados` (build e drift gates de openapi, templ, sqlc e bundle das ilhas), `test` (unit + integração numa rodada só, em shards `service` e `resto`, cada um com seu Postgres) e `release-dry-run`. O `check` agrega: só passa se todos passarem, confere que os shards cobriram todos os pacotes e aplica o piso de cobertura no perfil mesclado. Os jobs `check` e `release-dry-run` são os status exigidos; não renomear. |
 | `security.yml` | `govulncheck`, `trivy fs` e revisão de dependências no PR; semanal também. |
 | `e2e.yml` | jornadas no navegador (esqueleto; #57, onda 1). |
 | `evals.yml` | comportamento das personas, nightly + manual (esqueleto; #58, onda 2). |
