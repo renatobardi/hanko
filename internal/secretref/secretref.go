@@ -1,5 +1,6 @@
-// Package secretref reconhece e expande referências a segredos (`${secret:NOME}` e `${secret:user/NOME}`, ADR-0050).
-// É puro: não lê banco nem rede. Quem resolve o valor é o service, que passa uma função de busca.
+// Package secretref reconhece e expande referências a segredos (`${secret:NOME}` e `${secret:user/NOME}`,
+// ADR-0050; `${secret:ITEM#campo}` e `${secret:user/ITEM#campo}`, ADR-0068 §1.4). É puro: não lê banco nem rede.
+// Quem resolve o valor é o service, que passa uma função de busca.
 package secretref
 
 import (
@@ -12,27 +13,57 @@ import (
 // NamePattern é o formato do nome de um segredo (o mesmo da constraint do banco).
 const NamePattern = `[A-Za-z][A-Za-z0-9_.-]{0,63}`
 
+// FieldPattern é o formato do nome de um campo (o mesmo da constraint do banco, ADR-0068 §1.1).
+const FieldPattern = `[A-Za-z][A-Za-z0-9_-]{0,63}`
+
+// DefaultField é o campo de uma referência sem `#campo`: o segredo do ADR-0050 vira um item com esse campo
+// (ADR-0068 §1.4: `${secret:X}` continua resolvendo como hoje).
+const DefaultField = "value"
+
 var (
-	nameRe = regexp.MustCompile(`^` + NamePattern + `$`)
-	refRe  = regexp.MustCompile(`\$\{secret:(user/)?(` + NamePattern + `)\}`)
+	nameRe  = regexp.MustCompile(`^` + NamePattern + `$`)
+	fieldRe = regexp.MustCompile(`^` + FieldPattern + `$`)
+	refRe   = regexp.MustCompile(`\$\{secret:(user/)?(` + NamePattern + `)(?:#(` + FieldPattern + `))?\}`)
 )
 
 // Ref é uma referência encontrada em um texto.
 type Ref struct {
 	Name string
-	User bool // ${secret:user/NOME}
+	// Field é o campo do item; vazio vale DefaultField. O `#` não pertence ao nome do segredo (ADR-0050 §A.1),
+	// então a gramática não é ambígua.
+	Field string
+	User  bool // ${secret:user/NOME}
 }
 
-// String devolve a forma textual `${secret:...}`.
-func (r Ref) String() string {
-	if r.User {
-		return "${secret:user/" + r.Name + "}"
+// FieldName devolve o campo a ler: o da referência ou o padrão.
+func (r Ref) FieldName() string {
+	if r.Field == "" {
+		return DefaultField
 	}
-	return "${secret:" + r.Name + "}"
+	return r.Field
+}
+
+// String devolve a forma textual `${secret:...}`, com `#campo` só quando difere do padrão.
+func (r Ref) String() string {
+	var b strings.Builder
+	b.WriteString("${secret:")
+	if r.User {
+		b.WriteString("user/")
+	}
+	b.WriteString(r.Name)
+	if r.Field != "" && r.Field != DefaultField {
+		b.WriteByte('#')
+		b.WriteString(r.Field)
+	}
+	b.WriteByte('}')
+	return b.String()
 }
 
 // ValidName informa se name serve de nome de segredo.
 func ValidName(name string) bool { return nameRe.MatchString(name) }
+
+// ValidFieldName informa se name serve de nome de campo.
+func ValidFieldName(name string) bool { return fieldRe.MatchString(name) }
 
 // Has informa se o texto contém alguma referência.
 func Has(text string) bool { return strings.Contains(text, "${secret:") && refRe.MatchString(text) }
@@ -48,7 +79,7 @@ func Find(text string) []Ref {
 	var out []Ref
 	seen := map[Ref]bool{}
 	for _, m := range refRe.FindAllStringSubmatch(text, -1) {
-		r := Ref{Name: m[2], User: m[1] != ""}
+		r := Ref{Name: m[2], Field: m[3], User: m[1] != ""}
 		if !seen[r] {
 			seen[r] = true
 			out = append(out, r)
@@ -70,7 +101,7 @@ func Expand(text string, lookup func(Ref) (string, error)) (out string, used []s
 	cache := map[Ref]string{}
 	out = refRe.ReplaceAllStringFunc(text, func(m string) string {
 		sm := refRe.FindStringSubmatch(m)
-		r := Ref{Name: sm[2], User: sm[1] != ""}
+		r := Ref{Name: sm[2], Field: sm[3], User: sm[1] != ""}
 		if v, ok := cache[r]; ok {
 			return v
 		}
