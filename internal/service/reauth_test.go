@@ -72,6 +72,31 @@ func (f *reauthFixture) session(t *testing.T, u domain.User) (string, auth.Ident
 	return tok, f.identityOf(t, tok)
 }
 
+// provedSession abre uma sessão já reautenticada por senha e devolve a identidade com essa prova.
+func (f *reauthFixture) provedSession(t *testing.T) (string, auth.Identity) {
+	t.Helper()
+	tok, id := f.session(t, f.owner)
+	if _, err := f.e.svc.ReauthWithPassword(context.Background(), id, goodPass); err != nil {
+		t.Fatalf("prova por senha: %v", err)
+	}
+	return tok, f.identityOf(t, tok)
+}
+
+// passkeyOn liga a passkey no serviço (RP ID localhost) e devolve o autenticador de software que responde por ela.
+func (f *reauthFixture) passkeyOn(t *testing.T) *authtest.Authenticator {
+	t.Helper()
+	pk, err := passkey.Config{RPID: "localhost", Origins: []string{localOrigin}}.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.e.svc.Passkeys = pk
+	a := authtest.New()
+	a.Origin = localOrigin
+	return a
+}
+
+const localOrigin = "https://localhost:8080"
+
 // requireReauth confere que a ação sensível é recusada pedindo prova, com a janela padrão de cinco minutos.
 func requireReauth(t *testing.T, svc *service.Service, id auth.Identity) {
 	t.Helper()
@@ -185,13 +210,7 @@ func TestProvaSenhaSoNoProviderLocal(t *testing.T) {
 func TestPasskeyProvaCadastroEDesafioDeUsoUnico(t *testing.T) {
 	f := newReauthFixture(t)
 	ctx := context.Background()
-	pk, err := passkey.Config{RPID: "localhost", Origins: []string{"https://localhost:8080"}}.New()
-	if err != nil {
-		t.Fatal(err)
-	}
-	f.e.svc.Passkeys = pk
-	a := authtest.New()
-	a.Origin = "https://localhost:8080"
+	a := f.passkeyOn(t)
 
 	tok, id := f.session(t, f.owner)
 	if _, err := f.e.svc.BeginPasskeyRegistration(ctx, id); err == nil {
@@ -277,20 +296,10 @@ func TestAPIKeyReadRecusadaEFullPassaComIdDaChaveNoGrant(t *testing.T) {
 func TestAPIKeyFullNaoCadastraNemRemovePasskey(t *testing.T) {
 	f := newReauthFixture(t)
 	ctx := context.Background()
-	pk, err := passkey.Config{RPID: "localhost", Origins: []string{"https://localhost:8080"}}.New()
-	if err != nil {
-		t.Fatal(err)
-	}
-	f.e.svc.Passkeys = pk
-	a := authtest.New()
-	a.Origin = "https://localhost:8080"
+	a := f.passkeyOn(t)
 
 	// Uma sessão com reautenticação recente cria a passkey: o desafio fica preso a essa sessão.
-	tok, id := f.session(t, f.owner)
-	if _, err := f.e.svc.ReauthWithPassword(ctx, id, goodPass); err != nil {
-		t.Fatalf("prova por senha: %v", err)
-	}
-	id = f.identityOf(t, tok)
+	_, id := f.provedSession(t)
 	reg, err := f.e.svc.BeginPasskeyRegistration(ctx, id)
 	if err != nil {
 		t.Fatalf("BeginPasskeyRegistration por sessão: %v", err)
@@ -343,18 +352,8 @@ func TestProvaRegistraFatoNaEmpresaDoUsuario(t *testing.T) {
 func TestOpcoesDeProvaSemPasskeyLigada(t *testing.T) {
 	f := newReauthFixture(t)
 	ctx := context.Background()
-	pk, err := passkey.Config{RPID: "localhost", Origins: []string{"https://localhost:8080"}}.New()
-	if err != nil {
-		t.Fatal(err)
-	}
-	f.e.svc.Passkeys = pk
-	a := authtest.New()
-	a.Origin = "https://localhost:8080"
-	tok, id := f.session(t, f.owner)
-	if _, err := f.e.svc.ReauthWithPassword(ctx, id, goodPass); err != nil {
-		t.Fatalf("prova por senha: %v", err)
-	}
-	id = f.identityOf(t, tok)
+	a := f.passkeyOn(t)
+	_, id := f.provedSession(t)
 	reg, err := f.e.svc.BeginPasskeyRegistration(ctx, id)
 	if err != nil {
 		t.Fatalf("BeginPasskeyRegistration: %v", err)
