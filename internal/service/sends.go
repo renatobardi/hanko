@@ -414,14 +414,8 @@ func (s *Service) OpenPublicSend(ctx context.Context, publicID, passwordProof st
 	if err != nil {
 		return OpenedSendView{}, mapErr(err, "abrir envio")
 	}
-	if row.LockedUntil != nil && row.LockedUntil.After(now) {
-		return OpenedSendView{}, ErrSendLocked
-	}
-	if !sendOpenable(row, now) {
-		return OpenedSendView{}, ErrSendGone
-	}
-	if row.KdfSalt != "" && !sendProofOK(row, passwordProof) {
-		return OpenedSendView{}, s.failSendPassword(ctx, publicID, now)
+	if err := s.checkSendAccess(ctx, row, passwordProof, now); err != nil {
+		return OpenedSendView{}, err
 	}
 	var out OpenedSendView
 	err = s.withTx(ctx, func(t *txc) error {
@@ -448,6 +442,21 @@ func (s *Service) OpenPublicSend(ctx context.Context, publicID, passwordProof st
 			map[string]any{"reason": reason}, "")
 	})
 	return out, err
+}
+
+// checkSendAccess confere se o envio pode ser aberto agora: sem bloqueio, no prazo com acesso sobrando e, com senha,
+// com a prova certa. Senha errada conta a falha.
+func (s *Service) checkSendAccess(ctx context.Context, row store.SecretSend, passwordProof string, now time.Time) error {
+	if row.LockedUntil != nil && row.LockedUntil.After(now) {
+		return ErrSendLocked
+	}
+	if !sendOpenable(row, now) {
+		return ErrSendGone
+	}
+	if row.KdfSalt != "" && !sendProofOK(row, passwordProof) {
+		return s.failSendPassword(ctx, row.PublicID, now)
+	}
+	return nil
 }
 
 // sendSpentReason diz por que o envio deve sair do ar depois desta entrega: "limit" ou "expired". Vazio = segue.
@@ -514,6 +523,6 @@ func i32p(p *int) *int32 {
 	if p == nil {
 		return nil
 	}
-	v := int32(*p)
+	v := i32(*p) // o limite já foi conferido por ValidateSend (1 a 1000)
 	return &v
 }

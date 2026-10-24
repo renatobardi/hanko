@@ -1,6 +1,6 @@
 // Página de recebimento de um envio (ADR-0069 §6): lê o id do caminho e a chave do fragmento, pede a senha se houver,
 // abre o envio pela API pública e decifra no navegador. A chave não é enviada ao servidor.
-import { aesKeyFor, b64uDecode, b64uEncode, decryptText, derivePassword, proofFor } from '/static/send-crypto.js';
+import { aesKeyFor, b64uDecode, b64uEncode, decryptText, derivePassword, proofFor } from './send-crypto.js';
 
 const LINK_KEY_BYTES = 32;
 const publicId = location.pathname.split('/').filter(Boolean).pop() || '';

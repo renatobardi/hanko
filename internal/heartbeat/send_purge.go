@@ -18,7 +18,7 @@ func (SendPurgeTickArgs) Kind() string { return "send_purge_tick" }
 
 func (SendPurgeTickArgs) InsertOpts() river.InsertOpts { return river.InsertOpts{MaxAttempts: 1} }
 
-type sendPurgeBackend interface {
+type sendPurger interface {
 	PurgeExpiredSends(ctx context.Context) (int, error)
 }
 
@@ -32,7 +32,7 @@ func (w *sendPurgeTickWorker) Work(ctx context.Context, _ *river.Job[SendPurgeTi
 	if w.h.svc == nil {
 		return errNotAttached
 	}
-	sb, ok := w.h.svc.(sendPurgeBackend)
+	sb, ok := w.h.svc.(sendPurger)
 	if !ok {
 		return nil
 	}
