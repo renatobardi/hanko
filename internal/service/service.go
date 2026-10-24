@@ -16,6 +16,7 @@ import (
 	"github.com/renatobardi/hanko/internal/adapter"
 	"github.com/renatobardi/hanko/internal/adapter/acp"
 	"github.com/renatobardi/hanko/internal/auth"
+	"github.com/renatobardi/hanko/internal/auth/passkey"
 	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/events"
 	"github.com/renatobardi/hanko/internal/execenv"
@@ -73,6 +74,12 @@ type Service struct {
 	Alerts AlertConfig
 	// OwnerEmail é HANKO_AUTH_OWNER_EMAIL (minúsculas): o dono nomeado passa mesmo fora das listas.
 	OwnerEmail string
+	// Passkeys verifica as cerimônias WebAuthn (ADR-0070); nil = passkey desligada (a API responde 503).
+	Passkeys *passkey.Service
+	// IDVerifier valida o ID token do Firebase na prova de reautenticação; nil fora do provider firebase.
+	IDVerifier IDTokenVerifier
+	// ReauthLimiter limita as provas erradas por usuário (o mesmo limitador do login); nil = sem limite.
+	ReauthLimiter *auth.LoginLimiter
 	// ExternalIdentity: o provider (firebase) prova a identidade por fora, então um convite não cria
 	// conta com senha. Falso (provider local), o link do convite é a prova de identidade e convidar
 	// e-mail sem conta exige owner da empresa (ADR-0021).

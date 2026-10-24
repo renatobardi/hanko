@@ -65,6 +65,15 @@ type server struct {
 // backend é o subconjunto de *service.Service usado pelos handlers; existe para
 // que os testes unitários troquem o service por um fake em memória.
 type backend interface {
+	// reautenticação recente e passkey (ADR-0070, fatia 2)
+	ReauthOptionsFor(ctx context.Context, id auth.Identity) (service.ReauthOptions, error)
+	ReauthWithPassword(ctx context.Context, id auth.Identity, password string) (service.ReauthProof, error)
+	ReauthWithFirebase(ctx context.Context, id auth.Identity, idToken string) (service.ReauthProof, error)
+	FinishPasskeyReauth(ctx context.Context, id auth.Identity, challengeID domain.ID, response json.RawMessage) (service.ReauthProof, error)
+	BeginPasskeyRegistration(ctx context.Context, id auth.Identity) (service.PasskeyChallenge, error)
+	FinishPasskeyRegistration(ctx context.Context, id auth.Identity, challengeID domain.ID, name string, response json.RawMessage) (domain.Passkey, error)
+	ListPasskeys(ctx context.Context, userID domain.ID) ([]domain.Passkey, error)
+	DeletePasskey(ctx context.Context, id auth.Identity, passkeyID domain.ID) error
 	CreateCompany(ctx context.Context, actor domain.Actor, in service.CreateCompanyInput) (domain.Company, error)
 	GetCompany(ctx context.Context, ref string) (domain.Company, error)
 	ListCompanies(ctx context.Context) ([]domain.Company, error)

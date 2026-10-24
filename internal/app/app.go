@@ -24,6 +24,7 @@ import (
 	"github.com/renatobardi/hanko/internal/adapter/httpagent"
 	"github.com/renatobardi/hanko/internal/adapter/pi"
 	"github.com/renatobardi/hanko/internal/auth"
+	"github.com/renatobardi/hanko/internal/auth/passkey"
 	"github.com/renatobardi/hanko/internal/config"
 	"github.com/renatobardi/hanko/internal/db"
 	"github.com/renatobardi/hanko/internal/events"
@@ -96,6 +97,20 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 		AllowStdio: cfg.Integrations.AllowStdio, AllowPrivate: cfg.Integrations.AllowPrivateDestinations, Secrets: box,
 	}
 	svc.ACP = acp.Policy{Allow: cfg.ACP.Allow, Commands: cfg.ACP.Commands}
+	// Reautenticação e passkey (ADR-0070): a parte confiante sai da URL pública; sem ela, a passkey fica desligada.
+	if cfg.PublicURL != "" {
+		pc, err := passkey.ParseConfig(cfg.PublicURL)
+		if err != nil {
+			return fmt.Errorf("app: passkey: %w", err)
+		}
+		if svc.Passkeys, err = pc.New(); err != nil {
+			return fmt.Errorf("app: passkey: %w", err)
+		}
+	}
+	svc.ReauthLimiter = &auth.LoginLimiter{}
+	if cfg.Auth.Provider == config.AuthFirebase {
+		svc.IDVerifier = &auth.FirebaseVerifier{ProjectID: cfg.Auth.Firebase.ProjectID, Log: logger}
+	}
 	svc.Push = service.PushConfig{Subject: cfg.PushSubjectOrDefault()} // web push (ADR-0042); a chave VAPID nasce na primeira necessidade
 
 	// Settings da instância (ADR-0050): env > banco > yaml/padrão; leitura em tempo de uso, então mudar vale sem restart.

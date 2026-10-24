@@ -1,10 +1,11 @@
-# Estado da última sessão (CI em jobs paralelos, PR 2 da #51)
-Data: 2026-10-24 · branch `chore/51-ci-jobs-paralelos` → `main` · issue #51 (plano no comentário de 2026-10-23)
+# Estado da última sessão (cofre para agentes, fatia 2)
+Data: 2026-10-24 · branch `sessao/57-reauth-passkey` · issue #57 (fatia 2 de #54, ADR-0070)
 
 ## Feito
-- PR 1 (#53) na main: uma rodada de testes só. `check` de ~65 para ~27–41 min.
-- PR 2: `ci.yml` em jobs `estatico`, `gerados`, `test` (shards `service` | `resto`, Postgres próprio) e `check` agregador (`if: always()`, união dos shards, perfil mesclado, piso). Docs do CI atualizadas.
-## Travado (só o dono)
-- Merge do PR 2; medir o `check` em 3 PRs típicos (meta ≤ ~25 min).
+- Reautenticação recente (`RequireReauth`, janela `reauth.minutes`, padrão 5) com provas por senha, Firebase (`auth_time`) e passkey; `/me/reauth*` e `/me/passkeys*` saíram do 501; passkey na tela de perfil com o diálogo de prova.
+- `internal/auth/passkey`: contador de assinatura conferido (clone recusado); testes com autenticador de software.
+## Travado
+- Ações do cofre (revelar, histórico, restaurar, envio, concessão) seguem 501: entram com as fatias 1, 3 e 4, e chamam `RequireReauth`.
+- Decisões para o Bardi: a chave é `reauth.minutes` (o ADR-0070 diz `secrets.reauth_minutes`, mas a guarda do registro, ADR-0032, recusa nome com "secret"); e o fato vai para cada empresa do usuário (`activity_events.company_id` é obrigatório).
 ## Próximo passo
-- Se o `internal/service` (~18 min) continuar sendo o gargalo, abrir issue para acelerar esse pacote.
+- Fatia 3 (#58): ligar `RequireReauth` em revelar e histórico. Prova por Firebase pelo SDK na tela ainda não existe (o diálogo só avisa).

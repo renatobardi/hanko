@@ -15,8 +15,6 @@ func TestVaultContratoResponde501(t *testing.T) {
 		{"GET", "/api/v1/companies/acme/user-secrets/gh/fields/password/history"},
 		{"GET", "/api/v1/companies/acme/secret-collections"},
 		{"DELETE", "/api/v1/companies/acme/secret-collections/infra/grants/" + uuid},
-		{"GET", "/api/v1/me/passkeys"},
-		{"POST", "/api/v1/me/reauth/options"},
 		{"GET", "/api/v1/companies/acme/sends/" + uuid},
 		{"GET", "/api/v1/s/AAAAAAAAAAAAAAAAAAAAAA"},
 		{"GET", "/api/v1/companies/acme/me/delegations"},
@@ -57,7 +55,7 @@ func TestVaultContratoResponde501(t *testing.T) {
 			}
 		}
 	}
-	if n < 50 {
-		t.Fatalf("operações do contrato do cofre = %d, quer todas (54)", n)
+	if n < 48 {
+		t.Fatalf("operações do contrato do cofre ainda em 501 = %d, quer 48 (54 menos as 6 da fatia 2)", n)
 	}
 }
