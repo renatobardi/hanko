@@ -1,10 +1,10 @@
 # Inventário: agent-studio e Tray → destino no Hanko (#67)
 
-Fase `strat` (AI-DLC) · 2026-10-24 · autor: agente (Claude), a pedido do Bardi · parte de #66 · **o destino de cada linha
-é decisão do Bardi** (gate desta fase).
+Fase `strat` (AI-DLC) · 2026-10-24 · autor: agente (Claude), a pedido do Bardi · parte de #66 · **gate fechado pelo Bardi
+em 2026-10-24** (§9).
 
-**O que o Bardi decide aqui:** o destino de cada linha das tabelas abaixo. A coluna "Destino" traz só a recomendação do
-autor; ela não é decisão.
+**Gate:** o Bardi decidiu os 9 pontos da §8 e revisou, em 7 blocos, as linhas cujo destino não é "porta como está"
+(§9). A coluna "Destino" vale como decisão, com as mudanças da §9; onde a tabela e a §9 divergem, vale a §9.
 
 ## Como ler
 
@@ -140,8 +140,7 @@ Comando: `python3 -c` com os números acima (multiplicação simples; não é me
 - Oito valores, contando "sem repositório". Pelo nome não há repetição.
 - O histórico guarda só o nome, sem dono, então **não dá para provar** que dois donos não usam o mesmo nome. Todos os
   repositórios conhecidos são de `renatobardi`; isso é **não verificado** para `regression` e `proj`.
-- `regression` e `proj` parecem pastas, não repositórios. Decisão 14 de #66: entram como estão e o Bardi decide se viram
-  workspace ou "sem repositório".
+- `regression` e `proj` não são repositórios (`gh repo view` não acha nenhum dos dois). Destino no §9, ponto 8.
 
 ---
 
@@ -174,7 +173,7 @@ marcação, `Origin` igual ao `Host`, `csrf` e corpo até 4096 bytes (`AS/marcar
 |---|---|---|---|
 | `GET/POST /marcar`: entra no modo de marcação (`AS/marcar.py:148-172`) | tem: sessão de usuário com papel (ADR-0021) e reautenticação recente (ADR-0070) | sessão do Hanko; owner/admin | — |
 | `POST /rodada/acao`: marca ação de etapa como feita/pendente (`AS/marcar.py:174-228`) | não tem | ação de etapa da rodada externa | `action_marks` |
-| `POST /ack`: "visto" por 24 h (`AS/marcar.py:278-337`; ADR-08, adendo #537) | parcial: `inbox_state` por pessoa, com `fingerprint` (ADR-0042 §A) | Caixa por pessoa (ADR-0042), com prazo de 24 h | `ack_marks` |
+| `POST /ack`: "visto" por 24 h (`AS/marcar.py:278-337`; ADR-08, adendo #537) | parcial: `inbox_state` por pessoa, com `fingerprint` (ADR-0042 §A) | Caixa por pessoa (ADR-0042), com "vence em" por tipo de alerta (§9, ponto 3) | `ack_marks` |
 | `POST /planos/novo`: valor de plano com início (`AS/marcar.py:231-273`) | parcial: assinaturas sem histórico de valor | assinaturas com histórico (decisão 8) | `plan_history` |
 | `POST /fase`: troca manual da fase da conversa (`AS/marcar.py:339-385`) | não tem | classificação de conversa (decisão 6) | `phase_marks` |
 
@@ -206,21 +205,21 @@ organograma (ADR-0026). O Hanko **não tem** filtro por repositório, host ou ag
 
 | Tela (rota e fonte) | Conteúdo | Hanko hoje | Destino (recomendação do autor) |
 |---|---|---|---|
-| Dashboard `/` (`AS/web.py:533-577`; `AS/dashboard.py:435-474`) | KPIs, insights, chamadas, custo por modelo, latência, fases, atividade (heatmap de 7 dias), sessões, repos, assinaturas, ferramentas; comparação com a janela anterior | parcial: painel `/c/{company}/` e `/ao-vivo`, sem telemetria externa | painel da empresa com blocos de telemetria |
+| Dashboard `/` (`AS/web.py:533-577`; `AS/dashboard.py:435-474`) | KPIs, insights, chamadas, custo por modelo, latência, fases, atividade (heatmap de 7 dias), sessões, repos, assinaturas, ferramentas; comparação com a janela anterior | parcial: painel `/c/{company}/` e `/ao-vivo`, sem telemetria externa | tela própria "Telemetria" na empresa, fora do painel (§9, bloco 6) |
 | Conversas `/conversas` (`AS/web.py:674-694`) | início, host, agente, duração, chamadas, tokens, custo, p95, erros | não tem (só runs do Hanko em `/execucoes`) | lista de conversas externas |
 | Conversa `/conversa` (`AS/web.py:696-710`) | árvore de spans (até 5000), logs de 200 em 200, subagentes com % do custo | parcial: log de run com SSE (`run_events`, `db/migrations/00001_init.sql:130`) | detalhe da conversa externa; conteúdo só para owner/admin (decisão 10) |
 | Logs e span `/conversa/logs`, `/conversa/span` (`AS/web.py:712-744`) | atributos, eventos, links, resource | não tem | idem |
 | Sessões `/sessoes` (`AS/web.py:761-782`) | sessões com estado e rodada; conversas sem sessão | não tem | lista de sessões externas |
 | Sessão `/sessao` (`AS/web.py:784-801`) | fase, reserva (#598/#621), abertura (`aba`/`terminal`/`sem-tela`, #825), eventos (até 200) | não tem | detalhe da sessão externa |
-| Uso `/uso` (`AS/web.py:804-845`) | custo e tokens por dia; custo por papel, fase e assinatura; papel×modelo; papel×fase; sessões e conversas mais caras; "dias sem uso" | parcial: `/custos` com quatro custos e "sem uso" (`idle_usd`) (ADR-0019) | `/custos` estendido |
-| Ferramentas `/ferramentas` e `/ferramenta` (`AS/web.py:603-641`) | usos por ferramenta; conversas que usaram (até 200); grupos do Bash (`AS/tools.py:31`) | parcial: `tool_invocations` só do gateway do Hanko (`db/migrations/00032_tools_gateway.sql:164`) | ferramentas, incluindo as de fonte externa |
+| Uso `/uso` (`AS/web.py:804-845`) | custo e tokens por dia; custo por papel, fase e assinatura; papel×modelo; papel×fase; sessões e conversas mais caras; "dias sem uso" | parcial: `/custos` com quatro custos e "sem uso" (`idle_usd`) (ADR-0019) | `/custos` estendido; uma tela de custo só (§9, bloco 3) |
+| Ferramentas `/ferramentas` e `/ferramenta` (`AS/web.py:603-641`) | usos por ferramenta; conversas que usaram (até 200); grupos do Bash (`AS/tools.py:31`) | parcial: `tool_invocations` só do gateway do Hanko (`db/migrations/00032_tools_gateway.sql:164`) | ferramentas, incluindo as de fonte externa, com coluna de origem (§9, bloco 6) |
 | Preços `/precos` (`AS/web.py:1019-1027`; `AS/prices.py:345-404`) | fontes, vigente, histórico, tendência de 30 dias, gráfico | não tem tela de preços | tela de preços (decisão 8) |
 | Planos `/planos` (`AS/web.py:1006-1016`) | planos e histórico; formulário com marcação | parcial: tela de assinaturas sem histórico de valor | assinaturas com histórico |
 | Pedidos `/pedidos` e Pedido `/pedido` (`AS/web.py:864-897`; `TPL/proposal.html:79-87`) | pendentes e decididos; script, sha256, versões, eventos, comando `oute approve <id>` para copiar | não tem | aprovação externa (decisão 6); "aprovar" só abre o Terminal (decisão 4) |
 | Rodadas `/rodadas` e Rodada `/rodada` (`AS/web.py:909-965`; `AS/etapas.py:49-145`) | rodadas com repo, estado, sessões, PRs, etapas, ciclo; barra de etapas, caixas de ação, subagentes do dispatcher (até 100) | não tem | rodada externa (decisão 6) |
 | Ciclo `/ciclo?id=<dono>/<repo>#<n>` (`AS/web.py:967-987`) | resumo do ciclo e suas rodadas | não tem | rodada externa (agrupamento por issue) |
 | Fases `/fases` (`AS/web.py:990-999`) | conversas com baixa confiança (até 200), formulário de troca | não tem | classificação de conversa |
-| A/B do Jev por nome do trace (ADR-08:82) | não achado no código (relatório da leitura); não verificado se saiu com o jev-router (#218 do oute-agent) | — | **o Bardi decide**: confirmar se a tela existe antes de dar destino |
+| A/B do Jev por nome do trace (ADR-08:82) | não existe: era do jev-router (`5895553`, #15), removido em 2026-10-02 (`9799422`, #218) | — | fica fora (§9, ponto 2) |
 
 ---
 
@@ -252,7 +251,7 @@ Acertos de dado feitos na subida, que a migração precisa preservar como estão
 | `price_runs` | (checked_unix_nano, source) | só acréscimo | não tem | conferência de preço (decisão 8) |
 | `price_checks` | (checked_unix_nano, model), detalhe JSON | só acréscimo | não tem | idem |
 | `action_marks` | (rodada, kind, key, action_id, marked_unix_nano) (`AS/marks.py:14-17`) | só acréscimo; marca do Bardi | não tem | ação de etapa da rodada externa |
-| `ack_marks` | (target, acked_unix_nano); 24 h (`AS/acks.py:28,46-49`) | só acréscimo; marca do Bardi | parcial: `inbox_state` (ADR-0042) | Caixa por pessoa; **o Bardi decide** se o prazo de 24 h entra no ADR-0042 |
+| `ack_marks` | (target, acked_unix_nano); 24 h (`AS/acks.py:28,46-49`) | só acréscimo; marca do Bardi | parcial: `inbox_state` (ADR-0042) | Caixa por pessoa, com "vence em" no Hanko todo (§9, ponto 3; bloco 5) |
 | `plan_history` | (subscription, start_date, registered_unix_nano) (`AS/planos.py:37-40`) | só acréscimo | não tem histórico de valor | assinaturas com histórico (decisão 8) |
 | `conversation_phase` | conversation (`AS/phase.py:41-50,276`) | derivada, `INSERT OR REPLACE` | não tem | classificação de conversa |
 | `phase_jev` | conversation (`AS/phase.py:290-291`) | `INSERT OR REPLACE` (o ADR-08:376 diz "acréscimo": diverge do código) | não tem | idem; a resposta do Jev não se repete igual |
@@ -278,7 +277,8 @@ Tudo é derivado e se remonta com `rebuild_state` a partir do DuckDB (`AS/rebuil
 | `conversa.phase*` | tabelas de fase | classificação de conversa |
 
 Como o SurrealDB é derivado, a migração lê o DuckDB e remonta o estado no Hanko. O `surreal export` entra só na cópia
-final, como garantia (decisão 13).
+final, como garantia (decisão 13). Isso diz só que os **dados** do SurrealDB não precisam ser copiados; **que banco o Hanko
+usa** (Postgres, DuckDB ou SurrealDB) é decidido na #68 (decisão 9 de #66; ADR-0011 do Hanko).
 
 ---
 
@@ -290,11 +290,11 @@ final, como garantia (decisão 13).
 | 4.2 Custo real (`AS/cost.py:87,229-251`) | `cost_usd` do span ou do log `api_request` de mesmo `request_id`, folga de 1 h; descartado na `zai` | parcial: real = `cost_usd` do harness (ADR-0019 item 2) | modelo de custo do Hanko (decisão 8) |
 | 4.3 Classe da chamada (`AS/cost.py:216-226`) | real, `listed`, `estimated`, `unpriced` | parcial: real, lista, estimado (ADR-0019) | acrescentar `unpriced` |
 | 4.4 Erros (`AS/cost.py:90-92`) | span com status 2; log com severidade ≥ 17 | não tem para fonte externa | idem |
-| 4.5 Preço vigente (`AS/cost.py:128-197`) | preço da hora do fato; antes da primeira linha vale a primeira | parcial: preço vigente no fim do run (ADR-0019 item 1) | **o Bardi decide** a regra para fonte externa |
+| 4.5 Preço vigente (`AS/cost.py:128-197`) | preço da hora do fato; antes da primeira linha vale a primeira | parcial: preço vigente no fim do run (ADR-0019 item 1) | fonte externa: preço da hora do fato, calculado uma vez na ingestão (§9, ponto 4) |
 | 4.6 Custo pago rateado (`AS/rateio.py:1-16`) | mensalidade ÷ dias do mês; dividido pelo custo de lista; dia sem chamada = "sem uso"; sem plano = `no_plan_calls` | tem, com mensalidade atual (ADR-0019 item 2) | igual, com histórico de valor |
 | 4.7 Preços: conferência diária (`AS/prices.py:251-313`; `AS/price_sources.py:27-42`) | na subida e a cada 24 h; modelos do seletor e com chamada em 30 dias; troca só com as duas fontes de acordo; `models.dev` e `openrouter.ai`; 20 s, 60 s, 32 MiB, teto US$ 100.000 por 1M | não tem: preço entra por migration ou seed (ADR-0019, "Consequências") | conferência no Hanko (decisão 8); é saída à internet |
 | 4.8 Alertas (`AS/alerts.py`; `CFG:154-200`) | ver a tabela abaixo | parcial: 4 tipos (`persona_silent`, `run_stuck`, `budget_near_limit`, `persona_not_ready`) | tipos novos em `alerts` |
-| 4.9 Fase da conversa (`AS/phase.py:29-69,199-230`) | 12 fases; sinais em ordem: manual, abertura, label, skill, revisor, dispatcher, ação, Jev; ação forte ≥ 4 pontos e 2× a segunda; Jev com confiança ≥ 0,6; padrão `build` | parcial: decision model por empresa (ADR-0056), sem classificação de conversa | classificação de conversa; **o Bardi decide** se o Jev vira o decision model do Hanko |
+| 4.9 Fase da conversa (`AS/phase.py:29-69,199-230`) | 12 fases; sinais em ordem: manual, abertura, label, skill, revisor, dispatcher, ação, Jev; ação forte ≥ 4 pontos e 2× a segunda; Jev com confiança ≥ 0,6; padrão `build` | parcial: decision model por empresa (ADR-0056), sem classificação de conversa | classificação de conversa; o Jev vira segundo provedor do decision model (§9, ponto 5) |
 | 4.10 Jev (`AS/jev.py:28-64,136,167`) | `jev-1.13.0`, 3 s, até 16000 caracteres, 20 conversas por passada, parada há mais de 10 min, nova tentativa em 600 s, filtro de segredo antes do envio | parcial: decision model (ADR-0056) | idem |
 | 4.11 Medição por sessão (`AS/medicao.py:14-40`; `AS/usage.py:378-407`) | top 20 sessões e conversas; contexto = `input + cache_read` (média e máximo); `output_usd`, `input_cache_usd` | não tem | uso estendido |
 | 4.12 Papéis (`AS/usage.py:57,82-108`) | `subagente`, `reviewer`, `worker`, `dispatcher`, `standalone` | não tem | papel da conversa externa |
@@ -303,7 +303,7 @@ final, como garantia (decisão 13).
 | 4.15 Decisão pendente (`AS/decisions.py:16-40`) | última pergunta ≥ última resposta, sem `closed`, até 2× `lookback_hours`; até 50 | parcial: gates (ADR-0041) | aprovação externa ou item da Caixa |
 | 4.16 Atenção (`AS/avisos.py`) | `ci`, `blocked`, `question`, `merged`; até 50 | parcial: Caixa (ADR-0042) | item da Caixa |
 | 4.17 Insights do Dashboard (`AS/dashboard.py:28-33,489-558`) | p95 +25% com ≥ 5 chamadas; gate pendente > 10 min; modelo < 10% das chamadas e > 35% do custo; cache; ≥ 2 erros da mesma ferramenta no mesmo host; chamadas sem preço | não tem | painel |
-| 4.18 Nome da rodada (`AS/names.py:41,60`) | sorteio `draw`, chamado pelo `oute-swarm` | tem: nome `Adjetivo_Substantivo` de run (`internal/domain/runname.go:10`) | **sai do agent-studio antes do corte** (§6.1) |
+| 4.18 Nome da rodada (`AS/names.py:41,60`) | sorteio `draw`, chamado pelo `oute-swarm` | tem: nome `Adjetivo_Substantivo` de run (`internal/domain/runname.go:10`) | sai do agent-studio antes do corte; gerador único em inglês, 256 × 256 (§9, ponto 7) |
 
 ### 4.8 Alertas, um a um
 
@@ -348,7 +348,7 @@ Destino de toda a seção: Hanko Desktop (decisão 4 de #66). Fonte: `tray/` em 
 | "Visto" em memória (`SeenProposals.swift`, `SeenSteps.swift`, `SeenAttention.swift`) | avisa só item novo, nunca na primeira leitura | parcial: `inbox_state` (ADR-0042) | — |
 | Config (`TrayConfig.swift:18-75`; `TrayHosts.swift`) | `AGENT_STUDIO_READ_TOKEN` lido de `~/.oute/agent.env`; `OUTE_AGENT_STUDIO_URL`; só `https`; polling de 15 s; timeout 10 s; sem cookie, sem cache, sem redirecionamento | parcial: API key `read` (`internal/domain/ciclo_de_vida_test.go:21`) | — |
 | Instalação (`oute:1789-1956`) | `swift build`, `.app` em `~/Applications/OuteTray.app`, `codesign -`, LaunchAgent `pro.oute.tray`, `tray-hosts` padrão, sync por commit | não tem | quem já instalou roda `oute tray uninstall` antes de remover o comando |
-| Ícone e cores (`SakuraIcon.swift:8-25`; `Sakura.swift:3-38`) | sakura copiada do `lucide.svg` do agent-studio; cores do `studio.css` | não verificado se o Kubo DS do Hanko tem a sakura | **o Bardi decide** o ícone do Hanko Desktop |
+| Ícone e cores (`SakuraIcon.swift:8-25`; `Sakura.swift:3-38`) | sakura copiada do `lucide.svg` do agent-studio; cores do `studio.css` | tem: sakura de 5 pétalas (`docs/CONTRACT-M1M2.md:78`; `internal/ui/static/favicon.svg`) | sakura do Hanko (§9, ponto 6) |
 | Testes (`tray/Tests/TrayCoreTests/`, 16 arquivos; `tests/oute-tray.test.sh`) | o CI não roda `swift test` (`.github/workflows/pr.yml:29-30`) | — | o Hanko Desktop precisa de CI próprio no macOS |
 
 Issues abertas do oute-agent sobre o Tray: #448 (aprovar pelo menu) e #612 (tray como painel).
@@ -385,7 +385,7 @@ Issues abertas do oute-agent sobre o Tray: #448 (aprovar pelo menu) e #612 (tray
 |---|---|---|
 | Segredos `AGENT_STUDIO_*` e pasta `oute-services` | `oute:55-67,161-204` | sair, por último (decisão 13) |
 | Profile `agent-studio`, URLs, pastas de dados | `oute:206-283,1990-2004` | sair |
-| `oute studio replay`, `rebuild-state`, `backup` | `oute:387-615,2017-2027` | sair depois do ok final |
+| `oute studio replay`, `rebuild-state`, `backup` | `oute:387-615,2017-2027` | sair depois do ok final; o replay do bucket ganha equivalente no Hanko (§9, ponto extra) |
 | Subnet `studio`; reserva de fila de 4 GB | `oute:847-853,1021-1055` | sair; reserva cai para uma fila |
 | Serviços `agent-studio` e `surrealdb`, volumes, rede `studio` | `docker/compose.yaml:197-306,364-387` | sair |
 | `AGENT_STUDIO_URL` no serviço `agent` | `docker/compose.yaml:50-52` | trocar pela URL do Hanko |
@@ -439,7 +439,7 @@ Achadas na leitura. A migração segue o **código**, salvo decisão do Bardi.
 7. O "A/B do Jev" (ADR-08:82) não foi achado no código.
 8. O Dashboard `/` (#469) não tem seção própria no ADR-08.
 
-## 8. Pontos para o gate do Bardi
+## 8. Pontos para o gate do Bardi (respondidos na §9)
 
 1. Destino de cada linha (a coluna "Destino" é só recomendação do autor).
 2. O A/B do Jev: confirmar se existe antes de dar destino (§2, §7 item 7).
@@ -451,3 +451,66 @@ Achadas na leitura. A migração segue o **código**, salvo decisão do Bardi.
 8. `regression` e `proj`: viram workspace ou "sem repositório" ("Medição no host").
 9. O pico de spans de 2026-10-05 (1.148.602 num dia) é uso real ou carga atípica (replay, teste)? A projeção da #68
    depende disso ("Medição no host").
+
+---
+
+## 9. Decisões do gate (Bardi, 2026-10-24)
+
+Respostas do Bardi na sessão `hanko-decom-agent-studio`, uma pergunta por vez. As recomendações eram do autor; o que
+está aqui é decisão.
+
+### 9.1 Os 9 pontos da §8
+
+| Ponto | Decisão | Fonte dos fatos |
+|---|---|---|
+| 2. A/B do Jev | **Fica fora.** Era do jev-router (`5895553`, "feat: A/B Jev × openrouter/auto no jev-router (#15)", 2026-09-25), removido em 2026-10-02 (`9799422`, #218). O ADR-08:82 ficou desatualizado (§7 item 7). | `git log` do oute-agent; busca em `AS/*.py@845764f` |
+| 3. Prazo do "visto" | **"Vence em" por tipo de alerta, no Hanko todo.** A Caixa passa a valer "volta se mudar **ou** se vencer"; ADR que altera o ADR-0042. | `AS/acks.py:28`; ADR-0042 item 2 |
+| 4. Preço da fonte externa | **Hora do fato**, calculado uma vez na ingestão e gravado, sem recálculo. Os runs do Hanko seguem com o preço do fim do run (ADR-0019 item 1). | `AS/cost.py:128-133`; ADR-0019:9-11 |
+| 5. Jev × decision model | **O Jev vira segundo provedor do decision model**, ao lado do compatível com OpenAI; a empresa Oute usa o Jev em `phase_classifier`. ADR que altera o ADR-0056. O histórico (`phase_jev`, `conversation_phase`) migra com a origem. | `AS/jev.py:28-33`; ADR-0056 §A |
+| 6. Ícone do Hanko Desktop | **Sakura do Hanko** (o desenho de `internal/ui/static/favicon.svg`, cores do Kubo DS); na barra de menu, só o traço, como hoje. | `docs/CONTRACT-M1M2.md:78`; `tray/Sources/OuteTray/SakuraIcon.swift:8-25@845764f` |
+| 7. `names.py` | **Sai do agent-studio antes do corte** (PR no oute-agent), com duas correções do Bardi: **um gerador só** para runs do Hanko, conversas e rodadas, **em inglês**, com **256 × 256 = 65.536** combinações. Nome já existente não muda: a migração grava o nome atual de cada conversa; runs gravados e rodadas abertas ficam como estão. As 192 + 192 palavras novas vão num PR para revisão do Bardi. Muda o contrato de `internal/domain/runname.go` (hoje pt-BR, 64 × 64). | `AS/names.py:1-7,39-44@845764f`; `docker/oute-swarm:203`; `runname.go:10-30` |
+| 8. `regression` e `proj` | **`regression` → workspace `oute-agent`, com a marca de origem "regressão"** na classificação de conversa (decisão 6 de #66), vinda do `oute.task.id` `regression-*` ou do repositório `regression`; custo e conversas separáveis por essa marca; atribuição inferida (as 197 linhas e as do #803). O nome vem do `.ai-memory.toml` da pasta descartável da suíte (`docker/oute-regression:356`). **`proj` → ignorado**: as 2 linhas não entram no Hanko e seguem no bucket e na cópia final (decisão 13). | `docker/oute-regression:1-70`; `AS/repo.py:33-46` |
+| 9. Pico de 2026-10-05 | **Atípico.** 1.129.844 dos 1.148.602 spans são do `codex_cli_rs`, quase todos spans internos (`receiving`, `handle_responses`, `append_items`…) sem `session_id`; sem duplicata (1.148.602 pares `trace_id+span_id` distintos); mesmo dia do incidente #570 do oute-agent. A #68 projeta com o maior dia de cada tabela fora do pico: 134.188 spans (10-06) + 41.006 logs + 60.927 metrics (10-12) = **236.121 linhas por dia, ~153 MB por dia, ~56 GB em 12 meses, ~168 GB em 36 meses** (650 B por linha). | pedido `20261024-160053` no canal |
+
+O ponto 1 (destino de cada linha) foi feito pela revisão em blocos da §9.2.
+
+### 9.2 Linhas que não são "porta como está", em 7 blocos
+
+Todas aceitas como propostas (opção A em cada bloco).
+
+1. **Ingestão e banco.** `/v1/backup` → `hanko backup` (ADR-0062), no formato da #68. O filtro `filter/codex_noise`
+   continua: o ruído fica só no bucket. A #68 investiga por que os spans internos do Codex de 10-05 entraram no DuckDB;
+   na dúvida, migram. O SurrealDB não se copia: o estado se remonta do DuckDB e o ensaio confere 100%. `/readyz` →
+   prontidão nova de ingestão.
+2. **Credenciais.** Uma API key `read` **por consumidor** (Tray/Hanko Desktop, `ops-observe`, `oute-swarm --budget`,
+   plugin herdr, `oute-regression`). Login por pessoa no lugar do cookie da credencial de leitura. Marcação = sessão
+   owner/admin da empresa Oute com reautenticação recente (ADR-0070), com `activity_event`. Ingestão = escopo `ingest`
+   (decisão 5). As marcas existentes migram atribuídas ao Bardi, marcadas `migrado`.
+3. **Custo e preço.** API de uso estendida (p95, papel, fase, erros, rodada). `/uso` se junta a `/custos`. Custo real
+   (4.2) com a regra da `zai`. Classe `unpriced` nova (ADR que altera o ADR-0019). Rateio com histórico de valor.
+   `price_history` → `model_prices` com a origem preservada. Conferência diária de preços, com saída à internet pelo
+   `netguard` (ADR-0050). Assinaturas com histórico de valor (ADR que altera o ADR-0019). Regras 4.1, 4.4, 4.11 e 4.12
+   novas para a fonte externa.
+4. **Alertas.** Os 17 tipos entram em `alerts` com os mesmos nomes e regras (`alerts_kind_check` de 4 para 21). Limites
+   por empresa, com os valores de `CFG:154-200` como padrão da Oute. Regras gerais mantidas (host parado; "antigos"
+   depois de 2 h; `price_changed` some em 7 dias). A regra "nunca pela linha `Exporting failed. Dropping data`" vai
+   para o ADR. Na migração, só os alertas abertos na hora do corte; os passados se recalculam da telemetria migrada.
+   Não verificado: se o agent-studio guarda histórico de alertas além das marcas.
+5. **Caixa e "visto".** As 57 `ack_marks` → `inbox_state` com "vence em", marcadas `migrado`; o ensaio confere que cada
+   alvo aponta para o item certo. Decisão pendente (4.15) = **item da Caixa** "pergunta da rodada", não aprovação
+   externa. Atenção (4.16) → itens da Caixa; o id de cada ocorrência vira a `fingerprint`. O visto do Tray fica
+   local no Hanko Desktop. Notificações nativas no Desktop; Web Push desligado por padrão na empresa Oute (liga por
+   pessoa).
+6. **Telas.** Dashboard → tela própria "Telemetria" (muda a recomendação da §2). Ferramentas juntas às do gateway, com
+   coluna de origem. Os filtros comuns da §2 viram padrão (host, agente, janela de 366 dias, repositório = workspace).
+   Faixa de alertas abertos no topo, além do selo da Caixa. Carregamento por bloco com htmx.
+7. **Saída do oute-agent.** Na ordem da decisão 13. Consumidores reescritos contra a API do Hanko (decisão 11), cada um
+   com a sua chave. Exporters para o Hanko com as mesmas filas, retentativa, redact e filtro. Os valores do
+   `config.toml` migram para a empresa Oute. Os testes saem ou se adaptam junto com o código. `oute tray uninstall`
+   antes de o comando sair. As 9 issues do oute-agent (§6.4) são triadas: viram issue no Hanko ou fecham com o destino
+   escrito. A migração segue o **código**; o ADR que substitui o ADR-08 registra as 8 divergências da §7.
+
+### 9.3 Ponto extra
+
+**Replay do bucket no Hanko**, para a fonte externa: reingere uma janela do bucket com a mesma dedupe, sem duplicar.
+Serve também ao ensaio da migração (decisão 3 de #66). Não repõe o que só existe no DuckDB (Resumo); isso migra pela cópia.
