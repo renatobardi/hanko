@@ -35,6 +35,8 @@ func statusFor(err error) (status int, known bool) {
 		return http.StatusForbidden, true
 	case errors.Is(err, auth.ErrBadToken):
 		return http.StatusUnauthorized, true
+	case errors.Is(err, service.ErrPasskeyOff):
+		return http.StatusServiceUnavailable, true
 	case errors.Is(err, service.ErrNotImplemented):
 		return http.StatusNotImplemented, true
 	case errors.Is(err, context.DeadlineExceeded):
@@ -57,6 +59,7 @@ var titles = map[int]string{
 	http.StatusUnprocessableEntity: "Entrada inválida",
 	http.StatusInternalServerError: "Erro interno",
 	http.StatusNotImplemented:      "Não implementado",
+	http.StatusServiceUnavailable:  "Indisponível",
 	http.StatusGatewayTimeout:      "Tempo esgotado",
 }
 

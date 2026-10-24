@@ -318,6 +318,51 @@ func TestProvaRegistraFatoNaEmpresaDoUsuario(t *testing.T) {
 	}
 }
 
+// Com a passkey desligada (HANKO_PUBLIC_URL sem RP ID válido), quem já tem passkey recebe as outras provas, sem erro
+// e sem desafio de passkey; o cadastro responde ErrPasskeyOff.
+func TestOpcoesDeProvaSemPasskeyLigada(t *testing.T) {
+	f := newReauthFixture(t)
+	ctx := context.Background()
+	pk, err := passkey.Config{RPID: "localhost", Origins: []string{"https://localhost:8080"}}.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.e.svc.Passkeys = pk
+	a := authtest.New()
+	a.Origin = "https://localhost:8080"
+	tok, id := f.session(t, f.owner)
+	if _, err := f.e.svc.ReauthWithPassword(ctx, id, goodPass); err != nil {
+		t.Fatalf("prova por senha: %v", err)
+	}
+	id = f.identityOf(t, tok)
+	reg, err := f.e.svc.BeginPasskeyRegistration(ctx, id)
+	if err != nil {
+		t.Fatalf("BeginPasskeyRegistration: %v", err)
+	}
+	resp, err := a.Create(reg.Options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.e.svc.FinishPasskeyRegistration(ctx, id, reg.ID, "Notebook", resp); err != nil {
+		t.Fatalf("FinishPasskeyRegistration: %v", err)
+	}
+
+	f.e.svc.Passkeys = nil
+	opts, err := f.e.svc.ReauthOptionsFor(ctx, id)
+	if err != nil {
+		t.Fatalf("ReauthOptionsFor com passkey desligada = %v, quer opções sem erro", err)
+	}
+	if hasMethod(opts.Methods, "passkey") || opts.Passkey != nil {
+		t.Fatalf("passkey oferecida com o serviço desligado: %+v", opts)
+	}
+	if !hasMethod(opts.Methods, "password") {
+		t.Fatalf("senha tem que continuar oferecida: %+v", opts.Methods)
+	}
+	if _, err := f.e.svc.BeginPasskeyRegistration(ctx, id); !errors.Is(err, service.ErrPasskeyOff) {
+		t.Fatalf("cadastro com passkey desligada = %v, quer ErrPasskeyOff", err)
+	}
+}
+
 func hasMethod(ms []string, want string) bool {
 	for _, m := range ms {
 		if m == want {

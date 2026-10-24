@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/service"
 )
 
 // Sem prova recente, a API responde 401 com o código reauth_required: a UI usa isso para abrir o pedido de prova e
@@ -32,6 +33,7 @@ func TestReauthErrosViramHTTP(t *testing.T) {
 		{"muitas provas erradas", domain.ErrTooManyAttempts, http.StatusTooManyRequests},
 		{"credencial recusada", domain.ErrUnauthenticated, http.StatusUnauthorized},
 		{"API key de escopo read", fmt.Errorf("x: %w", domain.ErrNotAllowed), http.StatusForbidden},
+		{"passkey desligada", service.ErrPasskeyOff, http.StatusServiceUnavailable},
 	} {
 		p, known := toProblem(c.err)
 		if !known || p.Status != c.status {

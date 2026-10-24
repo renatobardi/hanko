@@ -112,7 +112,8 @@ func (s *Service) ReauthOptionsFor(ctx context.Context, id auth.Identity) (Reaut
 	if err != nil {
 		return ReauthOptions{}, fmt.Errorf("list passkeys: %w", err)
 	}
-	if len(rows) > 0 {
+	// Passkey só entra nas opções com o serviço ligado: senão a tela pediria um desafio que o servidor não cria.
+	if len(rows) > 0 && s.Passkeys != nil {
 		out.Methods = append(out.Methods, "passkey")
 		ch, err := s.BeginPasskeyReauth(ctx, id)
 		if err != nil {
@@ -198,7 +199,7 @@ func (s *Service) ReauthWithFirebase(ctx context.Context, id auth.Identity, idTo
 // BeginPasskeyReauth cria o desafio de prova por passkey (ADR-0070 §3). Exige passkey cadastrada.
 func (s *Service) BeginPasskeyReauth(ctx context.Context, id auth.Identity) (PasskeyChallenge, error) {
 	if s.Passkeys == nil {
-		return PasskeyChallenge{}, errPasskeyOff
+		return PasskeyChallenge{}, ErrPasskeyOff
 	}
 	if id.Via != auth.ViaSession {
 		return PasskeyChallenge{}, fmt.Errorf("%w: reautenticação é só por sessão", domain.ErrNotAllowed)
@@ -229,7 +230,7 @@ func (s *Service) BeginPasskeyReauth(ctx context.Context, id auth.Identity) (Pas
 // FinishPasskeyReauth verifica a prova por passkey (desafio, origem, assinatura, contador e UV) e grava a reautenticação.
 func (s *Service) FinishPasskeyReauth(ctx context.Context, id auth.Identity, challengeID domain.ID, response json.RawMessage) (ReauthProof, error) {
 	if s.Passkeys == nil {
-		return ReauthProof{}, errPasskeyOff
+		return ReauthProof{}, ErrPasskeyOff
 	}
 	if id.Via != auth.ViaSession {
 		return ReauthProof{}, fmt.Errorf("%w: reautenticação é só por sessão", domain.ErrNotAllowed)
@@ -277,7 +278,7 @@ func (s *Service) FinishPasskeyReauth(ctx context.Context, id auth.Identity, cha
 // BeginPasskeyRegistration cria o desafio de cadastro (ADR-0070 §4). Exige reautenticação recente.
 func (s *Service) BeginPasskeyRegistration(ctx context.Context, id auth.Identity) (PasskeyChallenge, error) {
 	if s.Passkeys == nil {
-		return PasskeyChallenge{}, errPasskeyOff
+		return PasskeyChallenge{}, ErrPasskeyOff
 	}
 	if _, err := s.RequireReauth(id); err != nil {
 		return PasskeyChallenge{}, err
@@ -303,7 +304,7 @@ func (s *Service) BeginPasskeyRegistration(ctx context.Context, id auth.Identity
 // FinishPasskeyRegistration verifica a resposta de cadastro e grava a passkey. Exige reautenticação recente.
 func (s *Service) FinishPasskeyRegistration(ctx context.Context, id auth.Identity, challengeID domain.ID, name string, response json.RawMessage) (domain.Passkey, error) {
 	if s.Passkeys == nil {
-		return domain.Passkey{}, errPasskeyOff
+		return domain.Passkey{}, ErrPasskeyOff
 	}
 	grant, err := s.RequireReauth(id)
 	if err != nil {
@@ -554,4 +555,5 @@ func uuidBytes(u *uuid.UUID) []byte {
 	return u[:]
 }
 
-var errPasskeyOff = errors.New("passkey desligada nesta instalação (HANKO_PUBLIC_URL inválida)")
+// ErrPasskeyOff: a passkey está desligada nesta instalação (HANKO_PUBLIC_URL não serve como RP ID). A API responde 503.
+var ErrPasskeyOff = errors.New("passkey desligada nesta instalação (HANKO_PUBLIC_URL inválida)")
