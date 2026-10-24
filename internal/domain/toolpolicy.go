@@ -122,6 +122,7 @@ const (
 	SubjectIntegration ToolSubjectKind = "integration" // tool de uma integração MCP (pelo gateway)
 	SubjectNative      ToolSubjectKind = "native"      // tool do harness
 	SubjectPlugin      ToolSubjectKind = "plugin"      // tool contribuída por um plugin (servidor MCP do Hanko)
+	SubjectHanko       ToolSubjectKind = "hanko"       // tool do próprio Hanko (hanko_secret_get, ADR-0068 §4): só por nome
 )
 
 // ToolSubject é a chamada que a política avalia.
@@ -154,7 +155,7 @@ func (p ToolPolicy) Matches(s ToolSubject) bool {
 		return s.Kind == SubjectIntegration && p.IntegrationID != nil && s.IntegrationID != nil &&
 			*p.IntegrationID == *s.IntegrationID && p.ToolName == s.Tool
 	case PolicyTargetNative:
-		return (s.Kind == SubjectNative || s.Kind == SubjectPlugin) && p.ToolName == s.Tool
+		return (s.Kind == SubjectNative || s.Kind == SubjectPlugin || s.Kind == SubjectHanko) && p.ToolName == s.Tool
 	}
 	return false
 }
@@ -220,6 +221,15 @@ func NativeToolVerdict(policies []ToolPolicy, s ToolSubject) (v ToolVerdict, opi
 		return ToolVerdict{Source: "no_policy"}, false
 	}
 	return policyVerdict(p), true
+}
+
+// HankoToolVerdict decide uma tool do próprio Hanko que expõe segredo (ADR-0068 §4.2). Sem política que a alcance,
+// vale perguntar antes (ask): o padrão de toda empresa. Uma política off nega; allow libera.
+func HankoToolVerdict(policies []ToolPolicy, s ToolSubject) ToolVerdict {
+	if p, ok := ResolveToolPolicy(policies, s); ok {
+		return policyVerdict(p)
+	}
+	return ToolVerdict{Allowed: true, Mode: ToolModeAsk, Source: "default"}
 }
 
 // PolicyKey identifica o alvo de uma política dentro de um escopo (o que a unicidade do banco garante).

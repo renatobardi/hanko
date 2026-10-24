@@ -138,6 +138,9 @@ type Service struct {
 
 	gitSt *gitState // executor do git e locks de espelho; ver gitState
 
+	// runSecrets são os valores que a tool hanko_secret_get entregou a cada run, para a redação do log (ADR-0068 §4.4).
+	runSecrets *runSecretValues
+
 	// Readiness são os binários dos harnesses locais e ReadinessEvery o intervalo da checagem periódica da persona
 	// (HANKO_READINESS_INTERVAL, ADR-0055); zero desliga a checagem periódica (o app define DefaultReadinessInterval).
 	Readiness      readiness.Config
@@ -158,7 +161,7 @@ type Service struct {
 
 func New(pool *pgxpool.Pool, jobs Jobs, broker *events.Broker) *Service {
 	return &Service{Pool: pool, Jobs: jobs, Broker: broker, Now: func() time.Time { return time.Now().UTC() },
-		PasswordGate: auth.NewPasswordGate(0, 0), gitSt: &gitState{}, notifier: &notifyState{}}
+		PasswordGate: auth.NewPasswordGate(0, 0), gitSt: &gitState{}, notifier: &notifyState{}, runSecrets: &runSecretValues{}}
 }
 
 // ---------- inputs ----------

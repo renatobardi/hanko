@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/base64"
 	"net/http"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -104,20 +105,34 @@ func fieldValueIn(v SecretFieldValue) service.SecretFieldValueInput {
 		Generate: v.Generate, Gen: v.Generator.opts(), ExternalRef: v.ExternalRef}
 }
 
+// maxFieldBodyBytes é o corpo que cabe um campo arquivo de 1 MiB em base64 (ADR-0068 §5.1), com folga para os demais
+// campos. O padrão do huma é 1 MiB e recusaria o arquivo de 1 MiB com 413.
+var maxFieldBodyBytes = base64.StdEncoding.EncodedLen(domain.MaxSecretFieldFileBytes) + 64<<10
+
 // registerFieldWrites registra as operações de campo que já ligam o service (criar, listar, mudar, trocar valor).
 func (s *server) registerFieldWrites(api huma.API, secretScope domain.SecretScope, seg, opPrefix, what string) {
 	base := "/companies/{company}/" + seg + "/{name}/fields"
 	tag := "vault"
 
-	huma.Register(api, created(op("create-"+opPrefix+"-field", http.MethodPost, base, tag, "Cria um campo num "+what)),
+	createField := created(op("create-"+opPrefix+"-field", http.MethodPost, base, tag, "Cria um campo num "+what))
+	createField.MaxBodyBytes = int64(maxFieldBodyBytes)
+	huma.Register(api, createField,
 		vaultOp(s, func(ctx context.Context, vb vaultBackend, sc scope, in *createSecretFieldIn) (*ItemOut[SecretField], error) {
-			if in.Body.ContentBase64 != "" {
-				return nil, problem(http.StatusUnprocessableEntity, "campo arquivo chega na fatia 3 (#58), com ${secretfile:}")
-			}
 			b := in.Body
-			v, err := vb.CreateSecretField(ctx, sc.Actor, sc.Company.ID, secretScope, in.Name, service.CreateSecretFieldInput{
-				Name: b.Name, Kind: domain.SecretFieldKind(b.Kind), Sensitive: b.Sensitive, Position: b.Position,
-				SecretFieldValueInput: fieldValueIn(b.SecretFieldValue)})
+			kind := domain.SecretFieldKind(b.Kind)
+			fi := service.CreateSecretFieldInput{Name: b.Name, Kind: kind, Sensitive: b.Sensitive, Position: b.Position,
+				SecretFieldValueInput: fieldValueIn(b.SecretFieldValue), FileName: b.FileName, ContentType: b.ContentType}
+			if b.ContentBase64 != "" { // o conteúdo de campo arquivo (ADR-0068 §5.1): até 1 MiB, cifrado antes do driver
+				if kind != domain.SecretFieldFile {
+					return nil, problem(http.StatusUnprocessableEntity, "content_base64 só vale para campo do tipo file")
+				}
+				content, err := base64.StdEncoding.DecodeString(b.ContentBase64)
+				if err != nil {
+					return nil, problem(http.StatusUnprocessableEntity, "content_base64 não é base64 válido")
+				}
+				fi.File = content
+			}
+			v, err := vb.CreateSecretField(ctx, sc.Actor, sc.Company.ID, secretScope, in.Name, fi)
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}
@@ -145,7 +160,7 @@ func (s *server) registerFieldWrites(api huma.API, secretScope domain.SecretScop
 		"Troca o valor de um campo; o anterior vai para o histórico"),
 		vaultOp(s, func(ctx context.Context, vb vaultBackend, sc scope, in *rotateSecretFieldIn) (*ItemOut[SecretField], error) {
 			if in.Body.ContentBase64 != "" {
-				return nil, problem(http.StatusUnprocessableEntity, "campo arquivo chega na fatia 3 (#58), com ${secretfile:}")
+				return nil, problem(http.StatusUnprocessableEntity, "campo arquivo não se troca: apague o campo e crie outro com o arquivo novo")
 			}
 			v, err := vb.RotateSecretField(ctx, sc.Actor, sc.Company.ID, secretScope, in.Name, in.Field, fieldValueIn(in.Body))
 			return vaultItem(ctx, s, secretFieldOut(v, in.Name, secretScope), err)

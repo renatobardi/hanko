@@ -320,6 +320,23 @@ func (q *Queries) CreateSecretField(ctx context.Context, arg CreateSecretFieldPa
 	return i, err
 }
 
+const createSecretFieldBlob = `-- name: CreateSecretFieldBlob :exec
+
+INSERT INTO secret_field_blobs (field_id, company_id, content) VALUES ($1, $2, $3)
+`
+
+type CreateSecretFieldBlobParams struct {
+	FieldID   uuid.UUID
+	CompanyID uuid.UUID
+	Content   []byte
+}
+
+// ---------- arquivo (driver postgres; ADR-0068 §5.1) ----------
+func (q *Queries) CreateSecretFieldBlob(ctx context.Context, arg CreateSecretFieldBlobParams) error {
+	_, err := q.db.Exec(ctx, createSecretFieldBlob, arg.FieldID, arg.CompanyID, arg.Content)
+	return err
+}
+
 const createSecretFieldVersion = `-- name: CreateSecretFieldVersion :one
 
 INSERT INTO secret_field_versions (id, company_id, field_id, version, provider, value_enc, external_ref, blob_key,
@@ -597,6 +614,22 @@ func (q *Queries) GetSecretField(ctx context.Context, arg GetSecretFieldParams) 
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const getSecretFieldBlob = `-- name: GetSecretFieldBlob :one
+SELECT content FROM secret_field_blobs WHERE company_id = $1 AND field_id = $2
+`
+
+type GetSecretFieldBlobParams struct {
+	CompanyID uuid.UUID
+	FieldID   uuid.UUID
+}
+
+func (q *Queries) GetSecretFieldBlob(ctx context.Context, arg GetSecretFieldBlobParams) ([]byte, error) {
+	row := q.db.QueryRow(ctx, getSecretFieldBlob, arg.CompanyID, arg.FieldID)
+	var content []byte
+	err := row.Scan(&content)
+	return content, err
 }
 
 const getSecretFieldForUpdate = `-- name: GetSecretFieldForUpdate :one
@@ -1232,6 +1265,44 @@ func (q *Queries) ListSecretFieldsForRekey(ctx context.Context) ([]ListSecretFie
 	return items, nil
 }
 
+const listSecretFileFieldsForRekey = `-- name: ListSecretFileFieldsForRekey :many
+SELECT f.id, f.company_id, f.secret_id, b.content FROM secret_fields f
+LEFT JOIN secret_field_blobs b ON b.field_id = f.id
+WHERE f.kind = 'file' AND f.provider = 'local'
+`
+
+type ListSecretFileFieldsForRekeyRow struct {
+	ID        uuid.UUID
+	CompanyID uuid.UUID
+	SecretID  uuid.UUID
+	Content   []byte
+}
+
+func (q *Queries) ListSecretFileFieldsForRekey(ctx context.Context) ([]ListSecretFileFieldsForRekeyRow, error) {
+	rows, err := q.db.Query(ctx, listSecretFileFieldsForRekey)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSecretFileFieldsForRekeyRow{}
+	for rows.Next() {
+		var i ListSecretFileFieldsForRekeyRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CompanyID,
+			&i.SecretID,
+			&i.Content,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSecretsDueRotation = `-- name: ListSecretsDueRotation :many
 WITH due AS (
     SELECT s.id, s.company_id, s.name,
@@ -1605,6 +1676,20 @@ func (q *Queries) RotateSecretField(ctx context.Context, arg RotateSecretFieldPa
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const setSecretFieldBlob = `-- name: SetSecretFieldBlob :exec
+UPDATE secret_field_blobs SET content = $1 WHERE field_id = $2
+`
+
+type SetSecretFieldBlobParams struct {
+	Content []byte
+	FieldID uuid.UUID
+}
+
+func (q *Queries) SetSecretFieldBlob(ctx context.Context, arg SetSecretFieldBlobParams) error {
+	_, err := q.db.Exec(ctx, setSecretFieldBlob, arg.Content, arg.FieldID)
+	return err
 }
 
 const setSecretFieldValueEnc = `-- name: SetSecretFieldValueEnc :exec

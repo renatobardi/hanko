@@ -40,13 +40,17 @@ type SecretFieldValueInput struct {
 	ExternalRef string
 }
 
-// CreateSecretFieldInput cria um campo num segredo (ADR-0068 §1.1). O campo arquivo chega na fatia 3 (#58).
+// CreateSecretFieldInput cria um campo num segredo (ADR-0068 §1.1). Campo arquivo (§5.1) leva o conteúdo em File, com
+// o nome e o tipo do arquivo; o valor de texto fica vazio.
 type CreateSecretFieldInput struct {
 	Name      string
 	Kind      domain.SecretFieldKind // vazio = text
 	Sensitive *bool                  // nil = true
 	Position  int
 	SecretFieldValueInput
+	File        []byte
+	FileName    string
+	ContentType string
 }
 
 // fieldAAD é o AAD de um campo (aad_version 1): copiar o texto cifrado entre campos não decifra (ADR-0068 §1.5).
@@ -177,11 +181,12 @@ func (s *Service) identityUserID(ctx context.Context) (*uuid.UUID, bool) {
 	return &uid, true
 }
 
-// prepareFieldMaterial valida o material de um campo e cifra com o AAD do campo (aad_version 1). O campo arquivo
-// não existe nesta fatia: o ${secretfile:} e a tool MCP chegam com a fatia 3 (#58).
+// prepareFieldMaterial valida o material de um campo texto ou totp e cifra com o AAD do campo (aad_version 1). Campo
+// arquivo não passa por aqui: a criação grava o conteúdo com createFileField, e a troca de conteúdo não existe (o
+// campo se apaga e se cria de novo).
 func (s *Service) prepareFieldMaterial(secretID, fieldID uuid.UUID, in SecretFieldValueInput, kind domain.SecretFieldKind) (secretMaterial, error) {
 	if kind == domain.SecretFieldFile {
-		return secretMaterial{}, domain.Invalid("kind", "campo arquivo chega na fatia 3 (#58), com ${secretfile:}")
+		return secretMaterial{}, domain.Invalid("kind", "campo arquivo não se troca: apague o campo e crie outro com o arquivo novo")
 	}
 	if providerOf(in) == domain.SecretProviderVault && kind == domain.SecretFieldTOTP {
 		return secretMaterial{}, domain.Invalid("provider", "semente TOTP é guardada cifrada no Hanko (provider local)")
@@ -255,22 +260,32 @@ func (s *Service) CreateSecretField(ctx context.Context, actor domain.Actor, com
 			pos = len(fields)
 		}
 		id := domain.NewID()
-		m, err := s.prepareFieldMaterial(sec.ID, id, in.SecretFieldValueInput, kind)
-		if err != nil {
-			return err
+		var row store.SecretField
+		var plain string
+		if kind == domain.SecretFieldFile {
+			row, err = s.createFileField(t, companyID, sec, id, in, pos, sensitive)
+			if err != nil {
+				return err
+			}
+		} else {
+			m, err := s.prepareFieldMaterial(sec.ID, id, in.SecretFieldValueInput, kind)
+			if err != nil {
+				return err
+			}
+			var revealedAt *time.Time
+			if m.revealed {
+				n := t.now
+				revealedAt = &n
+			}
+			row, err = t.q.CreateSecretField(t.ctx, store.CreateSecretFieldParams{ID: id, CompanyID: companyID, SecretID: sec.ID,
+				Name: in.Name, Kind: string(kind), Sensitive: sensitive, Provider: string(m.provider), ValueEnc: m.enc,
+				ExternalRef: m.ext, ValueHmac: m.mac, AadVersion: 1, Position: i32(pos), RevealedAt: revealedAt, Now: t.now})
+			if err != nil {
+				return mapErr(err, "create secret field")
+			}
+			plain = m.plaintext
 		}
-		var revealedAt *time.Time
-		if m.revealed {
-			n := t.now
-			revealedAt = &n
-		}
-		row, err := t.q.CreateSecretField(t.ctx, store.CreateSecretFieldParams{ID: id, CompanyID: companyID, SecretID: sec.ID,
-			Name: in.Name, Kind: string(kind), Sensitive: sensitive, Provider: string(m.provider), ValueEnc: m.enc,
-			ExternalRef: m.ext, ValueHmac: m.mac, AadVersion: 1, Position: i32(pos), RevealedAt: revealedAt, Now: t.now})
-		if err != nil {
-			return mapErr(err, "create secret field")
-		}
-		out = SecretFieldView{SecretField: secretFieldFromRow(row), RevealedValue: m.plaintext}
+		out = SecretFieldView{SecretField: secretFieldFromRow(row), RevealedValue: plain}
 		return t.activity(actor, companyID, "secret.field_created", "secret", sec.ID, fieldEventData(row), "")
 	})
 	return out, err
@@ -487,6 +502,9 @@ func (s *Service) RevealSecretField(ctx context.Context, actor domain.Actor, com
 		if f.Provider != string(domain.SecretProviderLocal) {
 			return domain.Invalid("provider", "o valor deste campo mora no cofre externo; leia-o lá")
 		}
+		if f.Kind == string(domain.SecretFieldFile) {
+			return domain.Invalid("kind", "campo arquivo não se revela: a persona recebe o arquivo por ${secretfile:} ou hanko_secret_get")
+		}
 		row, err := t.q.MarkSecretFieldRevealed(t.ctx, store.MarkSecretFieldRevealedParams{ID: f.ID, CompanyID: companyID, Now: &t.now})
 		if isNoRows(err) {
 			return fmt.Errorf("campo %q de %q: o valor desta versão já foi revelado; rotacione para obter outro: %w", fieldName, secretName, domain.ErrConflict)
@@ -529,6 +547,9 @@ func (s *Service) DeleteSecretField(ctx context.Context, actor domain.Actor, com
 		}
 		if n, err := t.q.DeleteSecretField(t.ctx, store.DeleteSecretFieldParams{ID: f.ID, CompanyID: companyID}); err != nil || n == 0 {
 			return mapErr(err, "delete secret field")
+		}
+		if f.Kind == string(domain.SecretFieldFile) {
+			t.dropFieldBlobAfterCommit(companyID, f.ID)
 		}
 		return t.activity(actor, companyID, "secret.field_deleted", "secret", sec.ID, fieldEventData(f), "")
 	})

@@ -266,3 +266,19 @@ SELECT due.company_id, due.id AS secret_id, due.name AS secret_name, f.name AS f
 FROM due JOIN secret_fields f ON f.secret_id = due.id
 WHERE due.limit_days IS NOT NULL AND f.rotated_at + make_interval(days => due.limit_days) < @now::timestamptz
 ORDER BY due.company_id, due.name, f.name;
+
+-- ---------- arquivo (driver postgres; ADR-0068 §5.1) ----------
+
+-- name: CreateSecretFieldBlob :exec
+INSERT INTO secret_field_blobs (field_id, company_id, content) VALUES (@field_id, @company_id, @content);
+
+-- name: GetSecretFieldBlob :one
+SELECT content FROM secret_field_blobs WHERE company_id = @company_id AND field_id = @field_id;
+
+-- name: SetSecretFieldBlob :exec
+UPDATE secret_field_blobs SET content = @content WHERE field_id = @field_id;
+
+-- name: ListSecretFileFieldsForRekey :many
+SELECT f.id, f.company_id, f.secret_id, b.content FROM secret_fields f
+LEFT JOIN secret_field_blobs b ON b.field_id = f.id
+WHERE f.kind = 'file' AND f.provider = 'local';

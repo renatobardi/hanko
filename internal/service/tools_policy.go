@@ -312,6 +312,9 @@ type NativeToolRequest struct {
 	Title  string // texto curto para o gate (ACP traz o título da chamada)
 	Input  json.RawMessage
 	Plugin bool // tool de plugin: só política por nome, sem o curinga
+	// Hanko: tool do próprio servidor MCP do Hanko que expõe segredo (hanko_secret_get, ADR-0068 §4.2): só por nome, e sem
+	// política a chamada pergunta antes (ask), o padrão da empresa.
+	Hanko bool
 }
 
 // NativeToolDecision é a decisão do motor.
@@ -372,16 +375,23 @@ func (s *Service) NativeToolCheck(ctx context.Context, c ToolCaller, req NativeT
 		return NativeToolDecision{}, err
 	}
 	kind := domain.SubjectNative
-	if req.Plugin {
+	switch {
+	case req.Hanko:
+		kind = domain.SubjectHanko
+	case req.Plugin:
 		kind = domain.SubjectPlugin
 	}
-	verdict, opinion := domain.NativeToolVerdict(pols, domain.ToolSubject{Kind: kind, PersonaID: c.PersonaID, Tool: name})
+	subject := domain.ToolSubject{Kind: kind, PersonaID: c.PersonaID, Tool: name}
+	verdict, opinion := domain.NativeToolVerdict(pols, subject)
+	if req.Hanko {
+		verdict, opinion = domain.HankoToolVerdict(pols, subject), true
+	}
 	if !opinion {
 		return NativeToolDecision{Decision: NativeNone}, nil
 	}
 	sha, size, canon, _ := nativeCallHash(name, req.Input)
 	v := invocation{tool: name, sha: sha, size: size, native: true, policy: verdict.Source, decision: domain.ToolDecisionDeny, status: domain.ToolCallBlocked}
-	label := policyLabel(*verdict.Policy)
+	label := verdictLabel(verdict)
 	switch {
 	case !verdict.Allowed:
 		v.errText = "desligada pela política (" + label + ")"
@@ -397,6 +407,14 @@ func (s *Service) NativeToolCheck(ctx context.Context, c ToolCaller, req NativeT
 		return NativeToolDecision{Decision: NativeAllow, Policy: verdict.Source}, nil
 	}
 	return s.nativeAsk(ctx, c, req, name, sha, size, canon, v, verdict)
+}
+
+// verdictLabel diz de onde veio o veredito: a política que decidiu ou, sem política, o padrão de perguntar antes.
+func verdictLabel(v domain.ToolVerdict) string {
+	if v.Policy == nil {
+		return "padrão: pergunta antes"
+	}
+	return policyLabel(*v.Policy)
 }
 
 func (s *Service) nativeAsk(ctx context.Context, c ToolCaller, req NativeToolRequest, name, sha string, size int, canon []byte,
@@ -458,11 +476,15 @@ func (s *Service) nativeAsk(ctx context.Context, c ToolCaller, req NativeToolReq
 
 func (t *txc) openNativeGate(c ToolCaller, req NativeToolRequest, name, sha string, size int, canon []byte, verdict domain.ToolVerdict) (domain.ID, error) {
 	what := "a tool nativa"
-	if req.Plugin {
+	switch {
+	case req.Hanko:
+		what = "a tool do Hanko"
+	case req.Plugin:
 		what = "a tool de plugin"
 	}
+	repeat := req.Plugin || req.Hanko // a chamada volta com erro e a persona a repete depois da decisão
 	var b strings.Builder
-	fmt.Fprintf(&b, "A persona **%s** quer usar %s `%s` e a política (%s) pede aprovação antes.\n\n", c.Persona, what, name, policyLabel(*verdict.Policy))
+	fmt.Fprintf(&b, "A persona **%s** quer usar %s `%s` e a política (%s) pede aprovação antes.\n\n", c.Persona, what, name, verdictLabel(verdict))
 	if req.Title != "" {
 		fmt.Fprintf(&b, "- Pedido: %s\n", truncateRunes(adapter.Redact(req.Title), 300))
 	}
@@ -473,7 +495,7 @@ func (t *txc) openNativeGate(c ToolCaller, req NativeToolRequest, name, sha stri
 		fmt.Fprintf(&b, "- Task: %s\n", c.TaskKey)
 	}
 	fmt.Fprintf(&b, "- sha256 da chamada: `%s` (%d bytes de entrada)\n\n", sha, size)
-	if req.Plugin {
+	if repeat {
 		b.WriteString("Aprovar libera **uma** repetição desta chamada com exatamente os mesmos argumentos.\n")
 	} else {
 		b.WriteString("A execução da persona está parada esperando esta decisão e segue se você aprovar. Rejeitar (ou deixar o prazo passar) nega a chamada.\n")
@@ -491,7 +513,7 @@ func (t *txc) openNativeGate(c ToolCaller, req NativeToolRequest, name, sha stri
 		return domain.ID{}, err
 	}
 	ttl := nativeGateTTL
-	if req.Plugin {
+	if repeat {
 		ttl = toolGateTTL
 	}
 	if err := t.q.SetGateExpiry(t.ctx, store.SetGateExpiryParams{CompanyID: c.CompanyID, ID: g.ID, ExpiresAt: ptr(t.now.Add(ttl))}); err != nil {
