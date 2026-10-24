@@ -12,11 +12,7 @@ import (
 	"github.com/renatobardi/hanko/internal/adapter"
 	"github.com/renatobardi/hanko/internal/adapter/fake"
 	"github.com/renatobardi/hanko/internal/domain"
-	"github.com/renatobardi/hanko/internal/events"
-	"github.com/renatobardi/hanko/internal/memory"
-	"github.com/renatobardi/hanko/internal/secretbox"
 	"github.com/renatobardi/hanko/internal/service"
-	"github.com/renatobardi/hanko/internal/testdb"
 )
 
 // Fatia 3 do cofre (ADR-0068 §4.4): o valor que a tool hanko_secret_get entrega à run sai do log dela. O adapter chama a
@@ -44,36 +40,12 @@ func (a *toolUseAgent) Run(ctx context.Context, spec adapter.Spec, sink adapter.
 
 func TestValorDaToolNaoSaiDoLogDaRun(t *testing.T) {
 	ctx := context.Background()
-	pool := testdb.New(t)
-	if err := Migrate(ctx, pool); err != nil {
-		t.Fatal(err)
-	}
-	broker := events.NewBroker()
-	hb, err := New(pool, Options{Workers: 2, PeriodicInterval: time.Hour, RunTimeout: time.Minute})
-	if err != nil {
-		t.Fatal(err)
-	}
-	svc := service.New(pool, hb, broker)
-	box, err := secretbox.New("0123456789abcdef0123456789abcdef-hb", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	svc.Integrations = service.IntegrationsConfig{Secrets: box}
-	ag := &toolUseAgent{Adapter: fake.New(fake.Options{Delay: -1}), svc: svc}
-	hb.Attach(svc, adapter.Registry{"fake": ag}, memory.Noop{}, broker, authForTest())
-	co, err := svc.CreateCompany(ctx, domain.HumanActor, service.CreateCompanyInput{Name: "Acme", Slug: "acme", TaskPrefix: "ACM"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	ag.co = co.ID
-	if err := hb.Start(ctx); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		sctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		_ = hb.Stop(sctx)
+	var ag *toolUseAgent
+	svc, co := newCofreStack(t, func(svc *service.Service) adapter.Adapter {
+		ag = &toolUseAgent{Adapter: fake.New(fake.Options{Delay: -1}), svc: svc}
+		return ag
 	})
+	ag.co = co.ID // antes de qualquer run: o agente só lê o id da empresa dentro dela
 
 	if _, err := svc.CreateSecret(ctx, domain.HumanActor, co.ID, service.CreateSecretInput{Name: "gh-login", Value: toolRedactSentinel}); err != nil {
 		t.Fatal(err)

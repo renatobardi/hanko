@@ -37,9 +37,9 @@ func (f *failingSpy) Run(ctx context.Context, spec adapter.Spec, sink adapter.Si
 	return adapter.Result{}, errors.New("harness caiu no meio da execução")
 }
 
-// newSecretfileStack monta o serviço e o heartbeat com um adapter que vai passar pelo despacho; o adapter é o spy ou o
-// que falha, conforme o teste.
-func newSecretfileStack(t *testing.T, failing bool) (*service.Service, *spyAdapter, domain.Company) {
+// newCofreStack monta o serviço, o heartbeat e a empresa "acme" para os testes de cofre numa run. A fábrica recebe o
+// serviço e devolve o adapter que a run vai usar; ele só roda depois que o teste cria a persona.
+func newCofreStack(t *testing.T, mkAdapter func(*service.Service) adapter.Adapter) (*service.Service, domain.Company) {
 	t.Helper()
 	ctx := context.Background()
 	pool := testdb.New(t)
@@ -57,12 +57,7 @@ func newSecretfileStack(t *testing.T, failing bool) (*service.Service, *spyAdapt
 		t.Fatal(err)
 	}
 	svc.Integrations = service.IntegrationsConfig{Secrets: box}
-	spy := &spyAdapter{Adapter: fake.New(fake.Options{Delay: -1})}
-	var ad adapter.Adapter = spy
-	if failing {
-		ad = &failingSpy{spy}
-	}
-	hb.Attach(svc, adapter.Registry{"fake": ad}, memory.Noop{}, broker, authForTest())
+	hb.Attach(svc, adapter.Registry{"fake": mkAdapter(svc)}, memory.Noop{}, broker, authForTest())
 	co, err := svc.CreateCompany(ctx, domain.HumanActor, service.CreateCompanyInput{Name: "Acme", Slug: "acme", TaskPrefix: "ACM"})
 	if err != nil {
 		t.Fatal(err)
@@ -74,6 +69,20 @@ func newSecretfileStack(t *testing.T, failing bool) (*service.Service, *spyAdapt
 		sctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		_ = hb.Stop(sctx)
+	})
+	return svc, co
+}
+
+// newSecretfileStack monta o cofre com um adapter que vai passar pelo despacho; o adapter é o spy ou o que falha,
+// conforme o teste.
+func newSecretfileStack(t *testing.T, failing bool) (*service.Service, *spyAdapter, domain.Company) {
+	t.Helper()
+	spy := &spyAdapter{Adapter: fake.New(fake.Options{Delay: -1})}
+	svc, co := newCofreStack(t, func(*service.Service) adapter.Adapter {
+		if failing {
+			return &failingSpy{spy}
+		}
+		return spy
 	})
 	return svc, spy, co
 }

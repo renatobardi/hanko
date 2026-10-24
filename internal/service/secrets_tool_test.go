@@ -41,6 +41,24 @@ func addField(t *testing.T, e *toolsEnv, secret string, in service.CreateSecretF
 	}
 }
 
+// kubeconfigSecret cria o item prd-cluster com o campo arquivo kubeconfig, que leva o conteúdo dado.
+func kubeconfigSecret(t *testing.T, e *toolsEnv, file []byte) {
+	t.Helper()
+	createSecretWithValue(t, e, "prd-cluster", "principal")
+	addField(t, e, "prd-cluster", service.CreateSecretFieldInput{Name: "kubeconfig", Kind: domain.SecretFieldFile,
+		File: file, FileName: "kubeconfig"})
+}
+
+// fieldIDOf devolve o id do campo de nome dado.
+func fieldIDOf(t *testing.T, e *toolsEnv, name string) domain.ID {
+	t.Helper()
+	var id domain.ID
+	if err := e.svc.Pool.QueryRow(context.Background(), `SELECT id FROM secret_fields WHERE name=$1`, name).Scan(&id); err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
 func getSecret(e *toolsEnv, c service.ToolCaller, item, field string) (service.SecretGetResult, error) {
 	return e.svc.SecretGet(context.Background(), e.co.ID, service.SecretGetInput{RunID: *c.RunID, Item: item, Field: field})
 }
@@ -266,14 +284,9 @@ func TestCampoArquivoNoBlobStoreFSCifrado(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.svc.Blobs = storage.NewRegistry(fs)
-	createSecretWithValue(t, e, "prd-cluster", "principal")
-	addField(t, e, "prd-cluster", service.CreateSecretFieldInput{Name: "kubeconfig", Kind: domain.SecretFieldFile,
-		File: []byte(sentinelArquivo), FileName: "kubeconfig"})
+	kubeconfigSecret(t, e, []byte(sentinelArquivo))
 
-	var fieldID domain.ID
-	if err := e.svc.Pool.QueryRow(ctx, `SELECT id FROM secret_fields WHERE name='kubeconfig'`).Scan(&fieldID); err != nil {
-		t.Fatal(err)
-	}
+	fieldID := fieldIDOf(t, e, "kubeconfig")
 	raw, err := fs.Get(ctx, storage.Key{CompanyID: e.co.ID, ArtifactID: fieldID})
 	if err != nil {
 		t.Fatalf("driver fs sem o arquivo do campo: %v", err)
@@ -305,9 +318,7 @@ func TestSecretfileArquivo0600ApagadoAoFim(t *testing.T) {
 	ctx := context.Background()
 	ana := e.persona(t, "Ana", nil)
 	c, _ := toolRun(t, e, ana)
-	createSecretWithValue(t, e, "prd-cluster", "principal")
-	addField(t, e, "prd-cluster", service.CreateSecretFieldInput{Name: "kubeconfig", Kind: domain.SecretFieldFile,
-		File: []byte(sentinelArquivo), FileName: "kubeconfig"})
+	kubeconfigSecret(t, e, []byte(sentinelArquivo))
 
 	cfg := json.RawMessage(`{"env":{"KUBECONFIG":"${secretfile:prd-cluster#kubeconfig}"},"model":"m1"}`)
 	out, values, cleanup, err := e.svc.MaterializeSecretFiles(ctx, e.co.ID, ana.ID, *c.RunID, cfg)
@@ -360,9 +371,7 @@ func TestSecretfileRecusaSemAlcanceSemArquivo(t *testing.T) {
 	ctx := context.Background()
 	ana := e.persona(t, "Ana", nil)
 	c, _ := toolRun(t, e, ana)
-	createSecretWithValue(t, e, "prd-cluster", "principal")
-	addField(t, e, "prd-cluster", service.CreateSecretFieldInput{Name: "kubeconfig", Kind: domain.SecretFieldFile,
-		File: []byte(sentinelArquivo), FileName: "kubeconfig"})
+	kubeconfigSecret(t, e, []byte(sentinelArquivo))
 	if err := e.svc.RemoveSecretFromCollection(ctx, domain.HumanActor, e.co.ID, domain.DefaultCollectionName, "prd-cluster"); err != nil {
 		t.Fatal(err)
 	}
@@ -378,9 +387,7 @@ func TestSecretfileRecusaSemAlcanceSemArquivo(t *testing.T) {
 func TestRekeyRecifraArquivoDeCampo(t *testing.T) {
 	e := newToolsEnv(t)
 	ctx := context.Background()
-	createSecretWithValue(t, e, "prd-cluster", "principal")
-	addField(t, e, "prd-cluster", service.CreateSecretFieldInput{Name: "kubeconfig", Kind: domain.SecretFieldFile,
-		File: []byte(sentinelArquivo), FileName: "kubeconfig"})
+	kubeconfigSecret(t, e, []byte(sentinelArquivo))
 
 	// a chave nova passa a ser a atual; a antiga fica como anterior, para ler o que ainda não foi recifrado
 	novo, err := secretbox.New(keyTwo, keyOne)
@@ -413,13 +420,8 @@ func TestApagarSegredoComArquivoApagaOBlobNoFS(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.svc.Blobs = storage.NewRegistry(fs)
-	createSecretWithValue(t, e, "prd-cluster", "principal")
-	addField(t, e, "prd-cluster", service.CreateSecretFieldInput{Name: "kubeconfig", Kind: domain.SecretFieldFile,
-		File: []byte(sentinelArquivo), FileName: "kubeconfig"})
-	var fieldID domain.ID
-	if err := e.svc.Pool.QueryRow(ctx, `SELECT id FROM secret_fields WHERE name='kubeconfig'`).Scan(&fieldID); err != nil {
-		t.Fatal(err)
-	}
+	kubeconfigSecret(t, e, []byte(sentinelArquivo))
+	fieldID := fieldIDOf(t, e, "kubeconfig")
 	if err := e.svc.DeleteSecret(ctx, domain.HumanActor, e.co.ID, domain.SecretScopeCompany, "prd-cluster", true); err != nil {
 		t.Fatal(err)
 	}
