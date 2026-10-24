@@ -28,6 +28,7 @@ func settingsBase(cfg config.Config) map[string]any {
 		settings.ArtifactsQuotaBytes:    cfg.ArtifactQuotaBytes,
 		settings.RunReserveUSD:          cfg.RunReserveUSD,
 		settings.AlertsSilentFactor:     int64(cfg.AlertSilentFactor),
+		settings.ReauthMinutes:          int64(cfg.ReauthMinutes),
 		settings.AlertsRunStuckAfter:    cfg.AlertRunStuckAfter,
 		settings.RateLimitEnabled:       cfg.RateLimit.Enabled,
 		settings.RateLimitWrites:        cfg.RateLimit.WritesPerMin,

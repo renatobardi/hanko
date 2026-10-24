@@ -1,0 +1,51 @@
+package views
+
+import "github.com/renatobardi/hanko/internal/i18n"
+
+// PasskeySection é a seção de passkeys do perfil e o diálogo de reautenticação recente (ADR-0070). Quem monta a lista
+// e as ações é static/passkey.js, que fala só com /api/v1/me: o servidor decide o que vale, e o diálogo abre quando a
+// API responde reauth_required. Os textos do JS vêm nos data-t-*, traduzidos aqui.
+templ PasskeySection(version string) {
+	<section class="card pad form-card" id="passkey-section"
+		data-t-remove={ i18n.T(ctx, "Remover") }
+		data-t-unnamed={ i18n.T(ctx, "Sem nome") }
+		data-t-error={ i18n.T(ctx, "Não foi possível concluir. Tente de novo.") }
+		data-t-cancelled={ i18n.T(ctx, "A passkey não foi usada. Tente de novo.") }
+		data-t-nomethod={ i18n.T(ctx, "Esta conta confirma pelo login do Google. Entre de novo para confirmar.") }
+		data-t-nowebauthn={ i18n.T(ctx, "Este navegador não tem suporte a passkey.") }>
+		<h3>{ i18n.T(ctx, "Passkeys") }</h3>
+		<p class="muted">{ i18n.T(ctx, "Confirme sua identidade com uma passkey. Ela libera as ações sensíveis do cofre por alguns minutos.") }</p>
+		<ul class="passkey-list" id="passkey-list" aria-live="polite"></ul>
+		<p class="muted" id="passkey-empty" hidden>{ i18n.T(ctx, "Nenhuma passkey cadastrada.") }</p>
+		<div class="form-grid">
+			<div class="field">
+				<label for="passkey-name">{ i18n.T(ctx, "Nome da passkey") }</label>
+				<input class="input" id="passkey-name" maxlength="80" placeholder={ i18n.T(ctx, "Ex.: Notebook") }/>
+			</div>
+		</div>
+		<div class="actions">
+			<button class="btn" type="button" id="passkey-add">{ i18n.T(ctx, "Adicionar passkey") }</button>
+		</div>
+		<p class="alert danger" id="passkey-error" role="alert" hidden></p>
+		<dialog id="reauth-dialog" class="card pad">
+			<h3>{ i18n.T(ctx, "Confirme sua identidade") }</h3>
+			<p class="muted">{ i18n.T(ctx, "Esta ação pede uma confirmação recente. Ela vale por") } <span id="reauth-window">5</span> { i18n.T(ctx, "minutos.") }</p>
+			<form id="reauth-password" class="form-grid">
+				<div class="field">
+					<label for="reauth-pass">{ i18n.T(ctx, "Senha") }</label>
+					<input class="input" id="reauth-pass" type="password" name="password" autocomplete="current-password" required/>
+				</div>
+				<div class="actions">
+					<button class="btn primary" type="submit">{ i18n.T(ctx, "Confirmar com senha") }</button>
+				</div>
+			</form>
+			<div class="actions">
+				<button class="btn" type="button" id="reauth-passkey">{ i18n.T(ctx, "Usar passkey") }</button>
+				<button class="btn" type="button" id="reauth-cancel">{ i18n.T(ctx, "Cancelar") }</button>
+			</div>
+			<p class="alert danger" id="reauth-error" role="alert" hidden></p>
+			<p class="muted" id="reauth-nomethod" hidden></p>
+		</dialog>
+		<script src={ "/static/passkey.js?v=" + version } defer></script>
+	</section>
+}

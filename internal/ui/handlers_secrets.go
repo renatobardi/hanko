@@ -69,6 +69,7 @@ var settingTexts = map[string][2]string{
 	settings.RunReserveUSD:          {i18n.N("Piso da reserva de orçamento por run (US$)"), ""},
 	settings.AlertsSilentFactor:     {i18n.N("Fator do alerta de persona silenciosa"), ""},
 	settings.AlertsRunStuckAfter:    {i18n.N("Tempo para uma run presa virar alerta"), ""},
+	settings.ReauthMinutes:          {i18n.N("Janela da reautenticação recente (min)"), i18n.N("Quanto tempo uma prova de identidade libera as ações sensíveis do cofre (ADR-0070).")},
 	settings.RateLimitEnabled: {i18n.N("Ligar o rate limit geral"),
 		i18n.N("Token bucket por API key, usuário e IP para escritas, MCP e webhooks de entrada (429 + Retry-After).")},
 	settings.RateLimitWrites:        {i18n.N("Escritas por minuto (por API key ou usuário)"), ""},

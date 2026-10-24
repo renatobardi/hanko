@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strconv"
 
 	"github.com/danielgtaylor/huma/v2"
 
@@ -20,6 +21,10 @@ func statusFor(err error) (status int, known bool) {
 	switch {
 	case err == nil:
 		return http.StatusOK, true
+	case isReauthRequired(err), errors.Is(err, domain.ErrUnauthenticated):
+		return http.StatusUnauthorized, true
+	case errors.Is(err, domain.ErrTooManyAttempts):
+		return http.StatusTooManyRequests, true
 	case errors.Is(err, domain.ErrNotFound):
 		return http.StatusNotFound, true
 	case errors.Is(err, domain.ErrInvalid):
@@ -30,12 +35,20 @@ func statusFor(err error) (status int, known bool) {
 		return http.StatusForbidden, true
 	case errors.Is(err, auth.ErrBadToken):
 		return http.StatusUnauthorized, true
+	case errors.Is(err, service.ErrPasskeyOff):
+		return http.StatusServiceUnavailable, true
 	case errors.Is(err, service.ErrNotImplemented):
 		return http.StatusNotImplemented, true
 	case errors.Is(err, context.DeadlineExceeded):
 		return http.StatusGatewayTimeout, true
 	}
 	return http.StatusInternalServerError, false
+}
+
+// isReauthRequired diz se o erro pede uma prova recente de identidade (ADR-0070).
+func isReauthRequired(err error) bool {
+	var re *domain.ReauthError
+	return errors.As(err, &re)
 }
 
 var titles = map[int]string{
@@ -46,6 +59,7 @@ var titles = map[int]string{
 	http.StatusUnprocessableEntity: "Entrada inválida",
 	http.StatusInternalServerError: "Erro interno",
 	http.StatusNotImplemented:      "Não implementado",
+	http.StatusServiceUnavailable:  "Indisponível",
 	http.StatusGatewayTimeout:      "Tempo esgotado",
 }
 
@@ -70,6 +84,12 @@ func toProblem(err error) (*huma.ErrorModel, bool) {
 			return em, true
 		}
 		return problem(sm.GetStatus(), sm.Error()), true
+	}
+	var re *domain.ReauthError
+	if errors.As(err, &re) {
+		// reauth_required: a UI abre o pedido de prova e repete a ação (ADR-0070 §2).
+		return problem(http.StatusUnauthorized, "reauth_required: prova de identidade recente exigida, "+
+			"válida por "+strconv.Itoa(re.WindowMinutes)+" min"), true
 	}
 	status, known := statusFor(err)
 	if !known {

@@ -62,6 +62,7 @@ artifact_max_bytes: 5242880      # tamanho máximo de um artefato, de 1 a 167772
 artifact_quota_bytes: 536870912  # cota de artefatos por empresa, todas as versões somadas (HANKO_ARTIFACT_QUOTA_BYTES)
 alert_silent_factor: 3      # alerta "persona sem heartbeat" além de N× o intervalo dela (HANKO_ALERT_SILENT_FACTOR)
 alert_run_stuck_after: 15m  # alerta "execução presa": running sem eventos há mais que isto (HANKO_ALERT_RUN_STUCK_AFTER)
+reauth_minutes: 5  # janela da reautenticação recente das ações sensíveis do cofre, de 1 a 60 min (HANKO_REAUTH_MINUTES)
 readiness_interval: 15m     # refaz o teste de prontidão do harness de cada persona após este tempo; 0 desliga (HANKO_READINESS_INTERVAL)
 tools_single_endpoint: false  # o harness recebe um só servidor MCP (/mcp/run) para as integrações, com as tools como <integração>__<tool> (HANKO_TOOLS_SINGLE_ENDPOINT)
 # storage:                # conteúdo dos artefatos (ADR-0051); as chaves de acesso só por ambiente
