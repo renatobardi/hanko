@@ -154,7 +154,7 @@ func (e *env) secretFieldCmd(user *bool) *cobra.Command {
 		e.t("valor (prefira --value-stdin: o valor não fica no histórico do shell)"), e.t("lê o valor do stdin"),
 		e.t("o servidor gera o valor e o mostra uma vez"))
 	af.BoolVar(&aVis, "visible", false, e.t("campo visível: o valor aparece na listagem (padrão: secreto)"))
-	af.StringVar(&aKind, "kind", "text", e.t("tipo do campo: text, totp ou file"))
+	af.StringVar(&aKind, "kind", "text", e.t("tipo do campo: text ou totp"))
 	af.StringVar(&aFile, "file", "", e.t("campo arquivo (--kind file): caminho do arquivo, até 1 MiB; sempre secreto"))
 	af.IntVar(&aPos, "position", 0, e.t("posição do campo na lista"))
 
