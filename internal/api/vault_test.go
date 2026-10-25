@@ -15,7 +15,7 @@ func TestVaultContratoResponde501(t *testing.T) {
 		{"DELETE", "/api/v1/companies/acme/secret-collections/infra/grants/" + uuid},
 		{"GET", "/api/v1/companies/acme/sends/" + uuid},
 		{"GET", "/api/v1/s/AAAAAAAAAAAAAAAAAAAAAA"},
-		{"GET", "/api/v1/companies/acme/me/delegations"},
+		{"GET", "/api/v1/companies/acme/secrets/gh/usage"},
 		{"GET", "/api/v1/companies/acme/vault/health"},
 	} {
 		resp, body := do(t, c.method, ts.URL+c.path, "", nil)
@@ -55,9 +55,10 @@ func TestVaultContratoResponde501(t *testing.T) {
 	}
 	// A fatia 1 (#56) liga 17 das 54 operações do contrato, a fatia 2 (#57) liga 6 (reautenticação e passkeys) e a
 	// fatia 4 (#59) liga 3 (criar envio, página pública e abrir); fatia 6 (#61) liga 3 (gerador, relatório de saúde e
-	// PATCH do segredo); a fatia 7 (#62) liga 4 (prévia e import de .env, export e import do cofre cifrado); as
-	// restantes (envio, delegações) seguem com a descrição "Contrato do cofre" e respondem 501.
-	if n < 21 {
-		t.Fatalf("operações do contrato do cofre ainda em 501 = %d, quer pelo menos 21 (54 menos 17, 6, 3, 3 e 4 das fatias 1, 2, 4, 6 e 7)", n)
+	// PATCH do segredo); a fatia 5 (#60) liga 4 (criar, listar e revogar delegação, e o uso do segredo pessoal); a fatia 7
+	// (#62) liga 4 (prévia e import de .env, export e import do cofre cifrado); as restantes (envio, uso do segredo da
+	// empresa) seguem com a descrição "Contrato do cofre" e respondem 501.
+	if n < 17 {
+		t.Fatalf("operações do contrato do cofre ainda em 501 = %d, quer pelo menos 17 (54 menos 17, 6, 3, 3, 4 e 4 das fatias 1, 2, 4, 6, 5 e 7)", n)
 	}
 }

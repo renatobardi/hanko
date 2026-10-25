@@ -204,18 +204,26 @@ func (s *Service) SetMemberRole(ctx context.Context, actor domain.Actor, company
 // RemoveMember tira um membro da empresa. Qualquer membro pode sair (remover a si mesmo), exceto o
 // último owner; remover outro exige admin (só member/viewer) ou owner.
 func (s *Service) RemoveMember(ctx context.Context, actor domain.Actor, companyID, userID domain.ID) error {
+	_, err := s.RemoveMemberReport(ctx, actor, companyID, userID)
+	return err
+}
+
+// RemoveMemberReport é RemoveMember que também devolve o que a saída apagou: os segredos pessoais do membro e as
+// delegações ativas que caíram junto (ADR-0068 §6.5).
+func (s *Service) RemoveMemberReport(ctx context.Context, actor domain.Actor, companyID, userID domain.ID) (MemberExitReport, error) {
 	by, restricted, err := s.callerRole(ctx, companyID)
 	if err != nil {
-		return err
+		return MemberExitReport{}, err
 	}
 	self := false
 	if id, ok := auth.IdentityFrom(ctx); ok && id.User.ID == userID {
 		self = true
 	}
 	if restricted && !self && !by.AtLeast(domain.MemberAdmin) {
-		return domain.ErrForbidden
+		return MemberExitReport{}, domain.ErrForbidden
 	}
-	return s.withTx(ctx, func(t *txc) error {
+	var rep MemberExitReport
+	err = s.withTx(ctx, func(t *txc) error {
 		if err := t.q.LockCompanyMembers(ctx, companyID); err != nil {
 			return mapErr(err, "company")
 		}
@@ -246,8 +254,12 @@ func (s *Service) RemoveMember(ctx context.Context, actor domain.Actor, companyI
 				return fmt.Errorf("clear invited: %w", err)
 			}
 		}
+		if rep, err = t.purgeMemberSecrets(actor, companyID, userID); err != nil {
+			return err
+		}
 		return t.activity(actor, companyID, "member.removed", "user", userID, map[string]any{"email": cur.Email, "role": old}, "")
 	})
+	return rep, err
 }
 
 // lastOwnerGuard recusa a mudança se o membro é o único owner (chamar com a empresa travada).
