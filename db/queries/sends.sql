@@ -10,10 +10,16 @@ VALUES (@id, @company_id, @public_id, @kind, @ciphertext, @blob_key, @size_bytes
 RETURNING *;
 
 -- name: ListSecretSends :many
-SELECT * FROM secret_sends WHERE company_id = @company_id ORDER BY created_at DESC LIMIT @lim OFFSET @off;
+-- Admin (created_by_id nulo) vê todos os envios da empresa; membro, só os próprios.
+SELECT * FROM secret_sends WHERE company_id = @company_id
+  AND (sqlc.narg(created_by_id)::uuid IS NULL OR created_by_id = sqlc.narg(created_by_id)::uuid)
+ORDER BY created_at DESC LIMIT @lim OFFSET @off;
 
 -- name: GetSecretSend :one
 SELECT * FROM secret_sends WHERE company_id = @company_id AND id = @id;
+
+-- name: LockSecretSend :one
+SELECT * FROM secret_sends WHERE company_id = @company_id AND id = @id FOR UPDATE;
 
 -- name: GetSecretSendByPublicID :one
 SELECT * FROM secret_sends WHERE public_id = @public_id;
@@ -44,3 +50,13 @@ RETURNING id, company_id, blob_key AS old_blob_key;
 SELECT id, company_id, blob_key FROM secret_sends
 WHERE purged_at IS NULL AND (expires_at <= @now OR (max_accesses IS NOT NULL AND access_count >= max_accesses))
 ORDER BY expires_at LIMIT @lim;
+
+-- name: CreateSecretSendBlob :exec
+-- Grava o blob cifrado do envio de arquivo (driver postgres; fs e s3 usam o BlobStore, ADR-0051). Sobrescreve:
+-- subir o conteúdo de novo troca o blob.
+INSERT INTO secret_send_blobs (send_id, company_id, content) VALUES (@send_id, @company_id, @content)
+ON CONFLICT (send_id) DO UPDATE SET content = EXCLUDED.content;
+
+-- name: DeleteSecretSendBlob :execrows
+-- Apaga o blob de um envio purgado, na mesma transação do purge.
+DELETE FROM secret_send_blobs WHERE company_id = @company_id AND send_id = @send_id;

@@ -20,6 +20,23 @@ func (f *sendFake) CreateSend(context.Context, domain.Actor, domain.ID, service.
 	return service.SendView{}, nil
 }
 
+// As operações de gestão do envio não são usadas aqui; o fake só precisa implementar a interface do backend.
+func (f *sendFake) ListSends(context.Context, domain.Actor, domain.ID, int) ([]service.SendView, error) {
+	return nil, nil
+}
+
+func (f *sendFake) GetSend(context.Context, domain.Actor, domain.ID, domain.ID) (service.SendView, error) {
+	return service.SendView{}, nil
+}
+
+func (f *sendFake) DeleteSend(context.Context, domain.Actor, domain.ID, domain.ID) error {
+	return nil
+}
+
+func (f *sendFake) UploadSendContent(context.Context, domain.Actor, domain.ID, domain.ID, []byte) (service.SendView, error) {
+	return service.SendView{}, nil
+}
+
 func (f *sendFake) PublicSendInfo(_ context.Context, id string) (service.PublicSendView, error) {
 	if id != sendFakeID {
 		return service.PublicSendView{}, domain.ErrNotFound

@@ -349,6 +349,7 @@ func registerTools(s *sdk.Server, t *tools) {
 	registerConnectionTools(s, t)
 	registerAttachmentTools(s, t)
 	registerSecretTools(s, t)
+	registerSendTools(s, t)
 	registerProjectGoalTools(s, t)
 	registerGatePlusTools(s, t)
 	registerChannelTools(s, t)

@@ -1527,6 +1527,12 @@ type SecretSend struct {
 	CreatedAt        time.Time
 }
 
+type SecretSendBlob struct {
+	SendID    uuid.UUID
+	CompanyID uuid.UUID
+	Content   []byte
+}
+
 type Session struct {
 	ID                uuid.UUID
 	UserID            uuid.UUID
