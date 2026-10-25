@@ -27,13 +27,22 @@ func (c *cofreFake) PreviewEnvImport(_ context.Context, _ domain.ID, in service.
 		Skipped: []service.EnvImportSkip{{Line: 4, Reason: "valor vazio"}}}, nil
 }
 
-func (c *cofreFake) ImportEnv(_ context.Context, _ domain.Actor, _ domain.ID, in service.EnvImportInput) (service.VaultImportResult, error) {
+func (c *cofreFake) ImportEnv(ctx context.Context, _ domain.Actor, _ domain.ID, in service.EnvImportInput) (service.VaultImportResult, error) {
 	c.envImports = append(c.envImports, in)
+	if c.needProof && !comProva(ctx) {
+		return service.VaultImportResult{}, &domain.ReauthError{WindowMinutes: 5}
+	}
+	if c.needProof {
+		c.proved++
+	}
 	return service.VaultImportResult{Secrets: 2}, c.envImportErr
 }
 
 func (c *cofreFake) ReauthWithPassword(_ context.Context, _ auth.Identity, password string) (service.ReauthProof, error) {
 	c.reauthPasswords = append(c.reauthPasswords, password)
+	if c.reauthWrong {
+		return service.ReauthProof{}, domain.ErrUnauthenticated
+	}
 	return service.ReauthProof{Method: "password"}, nil
 }
 

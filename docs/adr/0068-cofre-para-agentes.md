@@ -161,7 +161,7 @@ servidor de entregar o valor à run, que é o motivo de o cofre existir.
    e e-mail e só se aplicam se existirem no destino. Exige admin e reautenticação. O `hanko export` de empresa
    (ADR-0022) continua levando só referências.
 3. **Import do export** grava tudo ou nada; senha errada falha sem gravar.
-4. **Como ficou (#62).** CLI `hanko secret import-env`, `hanko secret export` e `hanko secret import`; API em `/companies/{c}/vault/import-env[/preview]`, `/vault/export` e `/vault/import`; tela Configurações › Segredos › Importar .env.
+4. **Como ficou (#62).** CLI `hanko secret import-env`, `hanko secret export` e `hanko secret import`; API em `/companies/{c}/vault/import-env[/preview]`, `/vault/export` e `/vault/import`; telas Configurações › Segredos › Importar .env e Configurações › Segredos › Cofre cifrado (.hkv), para exportar e importar o arquivo (admin; senha do arquivo de 12 caracteres ou mais; senha da conta quando o servidor pede reautenticação).
    - Variável de `.env` → segredo: com um item por variável, o valor vai no campo `value`; com um item só, a primeira variável vira o campo `value` (todo segredo tem esse campo, §1.4) e as demais viram campos com o nome da variável. Nome que não serve de segredo ou de campo, valor vazio e linha ilegível ficam fora e voltam na prévia com o número da linha.
    - Segredo que já existe: o import pula; com `overwrite` rotaciona (versão anterior no histórico). O arquivo exportado não leva histórico, uso nem segredo de usuário, e o import do arquivo nunca troca um segredo que já existe.
    - Item novo do `.env` entra só na coleção escolhida (ou na `padrão`, que é concedida a todas as personas).

@@ -58,6 +58,8 @@ type SecretsVM struct {
 	HealthHref string
 	// ImportEnvHref leva ao import de .env (ADR-0068 §8.1); só admin vê o link.
 	ImportEnvHref string
+	// VaultFileHref leva ao export e import do cofre cifrado (.hkv, ADR-0068 §8.2); só admin vê o link.
+	VaultFileHref string
 }
 
 // ---- Configurações › Instância (ADR-0050 §C, ADR-0051) ----
