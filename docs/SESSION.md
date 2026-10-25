@@ -1,12 +1,12 @@
-# Corte da v0.7.2 · sessão `release-v0-7-2` (sem issue, #825)
-Data: 2026-10-25 · rodada swarm-1024-0625
+# Aviso de alcance na aprovação do gate · sessão `95-aviso-gate` (issue #95)
+Data: 2026-10-25 · rodada swarm-1024-0625 · fase `build`
 
 ## Feito
-- `scripts/release-notes.sh cut 0.7.2` no ramo `release/v0.7.2`: seção 0.7.2 no `CHANGELOG.md` (entradas dos PRs #99, #100 e #108); os 3 fragmentos de `changelog.d/` saíram. `cofre-contrato.md` já tinha saído na v0.7.0.
-- README/ROADMAP não citavam a v0.7.1: sem mudança. `scripts/test-release-notes.sh` verde.
+- Aprovar um gate `hire` com ficha devolve os avisos de alcance da persona criada: `GateView.HirePersonaID` (service) → campo `warnings` na resposta do decide (API) → `hanko gate approve` imprime `aviso: …` (ADR-0068 §2.5). Nunca o valor.
+- Testes: integração da API (aviso presente, valor não vaza, sem pendência e rejeição sem aviso), service (`HirePersonaID` = persona criada) e CLI (imprime e `--json`). Prova contra a `main`: resposta da aprovação sem `warnings` (falha confirmada). openapi.json regenerado; fragmento em `changelog.d/cofre-aviso-gate-95.md`.
 
 ## Travado
-- Nada. Tag e deploy ficam com o Bardi (docs/RELEASING.md, passos 4–6).
+- Nada.
 
 ## Próximo passo
-- PR do corte mergeado → Bardi tagueia `v0.7.2` no commit mergeado e faz o deploy no `hanko-prd`.
+- Merge do PR → o #95 fecha com todos os critérios de build e o qa já visto em produção.
