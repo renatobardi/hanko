@@ -5,6 +5,28 @@ English summary at the end of each release.
 
 ## [Unreleased]
 
+## [0.7.2] — 2026-10-25
+
+### Cofre: pendências do #72 e do #86
+
+- Aviso na contratação: quando o `adapter_config` da persona referencia um `${secret:…}` que ela não alcança, a API (campo `warnings` da persona), a CLI e a página da persona avisam. É aviso, não bloqueia: a concessão pode vir depois, e a run só falha no despacho.
+- Uso no despacho: a resolução de `${secret:…}` do `adapter_config` e do env dos servidores MCP grava o uso do segredo da empresa em `secret_access_log` (via `dispatch`), com a run e a persona. O valor não entra no registro.
+- Coleção na criação: `hanko secret create --collection`, o campo `collection` da API e a escolha no formulário da UI. Sem escolha, o segredo entra na coleção padrão.
+- Remover o que não existe responde "não encontrado" (404), em vez de sucesso: remover um segredo de uma coleção que não o tem, ou apagar uma coleção que já não existe.
+
+- English summary: vault leftovers from #72 and #86: a warning on hire when the persona's adapter_config references a secret it cannot reach (API `warnings`, CLI and persona page; not blocking); dispatch-time use of company secrets (adapter_config and MCP env) recorded in secret_access_log (via dispatch, no value); collection choice on secret creation (`hanko secret create --collection`, API `collection`, UI form; default when omitted); 404 instead of success when removing a secret from a collection that does not hold it or deleting an already-deleted collection.
+
+### Cofre: exportar e importar (.hkv) e importar .env aceitam prova por Google e passkey (#92)
+
+- Quando o servidor pede prova recente, as telas de exportar e importar o cofre cifrado (`.hkv`) e a de importar `.env` oferecem "Confirmar identidade": o mesmo diálogo do perfil (senha, passkey ou Google). Depois da prova, envie o formulário de novo sem a senha da conta (ADR-0070 §3). Antes, só a senha da conta valia nessas telas.
+- English summary: the encrypted-vault (`.hkv`) export and import screens and the `.env` import screen now accept a passkey or Google (Firebase) proof, through the profile's proof dialog, besides the account password.
+
+### Perfil: prova recente pelo Google para contas do Firebase (#98)
+
+- Em **Meu perfil › Passkeys**, a conta do provider `firebase` confirma o diálogo "Confirme sua identidade" pelo Google (login do SDK, ID token com `auth_time` recente) e a ação que abriu o diálogo é repetida. Antes, a conta só via "Entre de novo para confirmar" e não cadastrava a primeira passkey (ADR-0070 §3).
+- Conta `local` e conta com passkey seguem como antes.
+- English summary: on the profile page, Firebase accounts confirm the "Confirm your identity" dialog with a Google sign-in through the Firebase SDK (ID token with recent `auth_time`), and the action that opened the dialog is repeated. Before, these accounts could not register their first passkey (ADR-0070 §3).
+
 ## [0.7.1] — 2026-10-25
 
 ### Cofre: campo arquivo pela CLI, varredura de pastas e migração entre drivers (fatia 3, #58)
