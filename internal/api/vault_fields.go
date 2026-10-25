@@ -11,9 +11,10 @@ import (
 	"github.com/renatobardi/hanko/internal/service"
 )
 
-// Operações da fatia 1 do cofre (#56) que ligam o service: campos (criar, listar, mudar marca e posição, trocar valor)
-// e coleções (criar, listar, obter, mudar, apagar, pôr e tirar segredos, listar concessões). Revelar, apagar campo,
-// histórico, restaurar, conceder e revogar exigem reautenticação recente (ADR-0070): ficam em 501 até a fatia 2 (#57).
+// Operações da fatia 1 do cofre (#56) que ligam o service: campos (criar, listar, mudar marca e posição, trocar valor,
+// revelar, apagar, histórico e restaurar) e coleções (criar, listar, obter, mudar, apagar, pôr e tirar segredos,
+// concessões). As ações sensíveis (revelar, apagar campo, histórico, restaurar, conceder e revogar) exigem
+// reautenticação recente (ADR-0070): o service pede a prova e responde 401 reauth_required sem ela.
 
 // vaultBackend é o subconjunto do service do cofre da fatia 1; opcional como secretsBackend.
 type vaultBackend interface {
@@ -21,6 +22,11 @@ type vaultBackend interface {
 	ListSecretFields(ctx context.Context, companyID domain.ID, scope domain.SecretScope, secretName string) ([]service.SecretFieldView, error)
 	UpdateSecretFieldMeta(ctx context.Context, actor domain.Actor, companyID domain.ID, scope domain.SecretScope, secretName, fieldName string, sensitive *bool, position *int) (service.SecretFieldView, error)
 	RotateSecretField(ctx context.Context, actor domain.Actor, companyID domain.ID, scope domain.SecretScope, secretName, fieldName string, in service.SecretFieldValueInput) (service.SecretFieldView, error)
+	RevealSecretField(ctx context.Context, actor domain.Actor, companyID domain.ID, scope domain.SecretScope, secretName, fieldName string) (service.SecretFieldView, error)
+	DeleteSecretField(ctx context.Context, actor domain.Actor, companyID domain.ID, scope domain.SecretScope, secretName, fieldName string) error
+	ListSecretFieldHistory(ctx context.Context, actor domain.Actor, companyID domain.ID, scope domain.SecretScope, secretName, fieldName string) ([]domain.SecretFieldVersion, error)
+	RevealSecretFieldVersion(ctx context.Context, actor domain.Actor, companyID domain.ID, scope domain.SecretScope, secretName, fieldName string, version int) (domain.SecretFieldVersion, string, error)
+	RestoreSecretFieldVersion(ctx context.Context, actor domain.Actor, companyID domain.ID, scope domain.SecretScope, secretName, fieldName string, version int) (service.SecretFieldView, error)
 	CreateCollection(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.CollectionInput) (service.CollectionView, error)
 	ListCollections(ctx context.Context, companyID domain.ID) ([]service.CollectionView, error)
 	GetCollection(ctx context.Context, companyID domain.ID, idOrName string) (service.CollectionView, error)
@@ -30,6 +36,8 @@ type vaultBackend interface {
 	AddSecretToCollection(ctx context.Context, actor domain.Actor, companyID domain.ID, idOrName, secretName string) error
 	RemoveSecretFromCollection(ctx context.Context, actor domain.Actor, companyID domain.ID, idOrName, secretName string) error
 	ListCollectionGrants(ctx context.Context, companyID domain.ID, idOrName string) ([]service.CollectionGrantView, error)
+	CreateCollectionGrant(ctx context.Context, actor domain.Actor, companyID domain.ID, idOrName string, in service.GrantInput) (service.CollectionGrantView, error)
+	DeleteCollectionGrant(ctx context.Context, actor domain.Actor, companyID domain.ID, idOrName string, grantID domain.ID) error
 	GenerateValue(ctx context.Context, o domain.GenOptions) (domain.Generated, error)
 	VaultHealth(ctx context.Context, companyID domain.ID) (service.HealthReport, error)
 	UpdateSecretMeta(ctx context.Context, actor domain.Actor, companyID domain.ID, name string, in service.SecretMetaInput) (service.SecretView, error)
@@ -106,6 +114,13 @@ func secretFieldOut(v service.SecretFieldView, secretName string, scope domain.S
 		SizeBytes: v.SizeBytes, Position: v.Position, Version: v.Version, Revealed: v.RevealedAt != nil,
 		VisibleText: v.VisibleText, Value: v.RevealedValue, LastUsedAt: v.LastUsedAt, RotatedAt: v.RotatedAt,
 		CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt}
+}
+
+// fieldVersionOut mostra uma versão anterior de um campo; o valor só sai quando o service o revelou.
+func fieldVersionOut(v domain.SecretFieldVersion, value string) SecretFieldVersion {
+	return SecretFieldVersion{Version: v.Version, Provider: string(v.Provider), Revealed: v.RevealedAt != nil,
+		Value: value, ReplacedBy: actorRef(v.ReplacedBy), CreatedAt: v.CreatedAt, ReplacedAt: v.ReplacedAt,
+		RevealedAt: v.RevealedAt}
 }
 
 func fieldValueIn(v SecretFieldValue) service.SecretFieldValueInput {
@@ -264,5 +279,77 @@ func (s *server) registerCollectionOps(api huma.API) {
 				return nil, s.fail(ctx, err)
 			}
 			return listOf(list, in.Page, grantOut), nil
+		}))
+}
+
+// registerFieldSensitive liga as ações sensíveis do campo (revelar, apagar, histórico e restaurar). Cada uma exige
+// reautenticação recente (ADR-0070 §1): o service pede a prova e a API responde 401 reauth_required sem ela.
+func (s *server) registerFieldSensitive(api huma.API, secretScope domain.SecretScope, seg, opPrefix string) {
+	base := "/companies/{company}/" + seg + "/{name}/fields"
+	tag := "vault"
+
+	huma.Register(api, op("reveal-"+opPrefix+"-field", http.MethodPost, base+"/{field}/reveal", tag,
+		"Mostra o valor de um campo UMA vez por versão (exige reautenticação recente)"),
+		vaultOp(s, func(ctx context.Context, vb vaultBackend, sc scope, in *SecretFieldPath) (*ItemOut[SecretField], error) {
+			v, err := vb.RevealSecretField(ctx, sc.Actor, sc.Company.ID, secretScope, in.Name, in.Field)
+			return vaultItem(ctx, s, secretFieldOut(v, in.Name, secretScope), err)
+		}))
+
+	huma.Register(api, noContent(op("delete-"+opPrefix+"-field", http.MethodDelete, base+"/{field}", tag,
+		"Apaga um campo e o seu histórico (exige reautenticação recente)")),
+		vaultOp(s, func(ctx context.Context, vb vaultBackend, sc scope, in *SecretFieldPath) (*struct{}, error) {
+			return s.vaultDone(ctx, vb.DeleteSecretField(ctx, sc.Actor, sc.Company.ID, secretScope, in.Name, in.Field))
+		}))
+
+	huma.Register(api, op("list-"+opPrefix+"-field-history", http.MethodGet, base+"/{field}/history", tag,
+		"Lista as versões anteriores de um campo (exige reautenticação recente)"),
+		vaultOp(s, func(ctx context.Context, vb vaultBackend, sc scope, in *SecretFieldPath) (*ListOut[SecretFieldVersion], error) {
+			list, err := vb.ListSecretFieldHistory(ctx, sc.Actor, sc.Company.ID, secretScope, in.Name, in.Field)
+			if err != nil {
+				return nil, s.fail(ctx, err)
+			}
+			return listAll(list, Page{Limit: len(list)}, func(v domain.SecretFieldVersion) SecretFieldVersion {
+				return fieldVersionOut(v, "")
+			}), nil
+		}))
+
+	huma.Register(api, op("reveal-"+opPrefix+"-field-version", http.MethodPost,
+		base+"/{field}/history/{version}/reveal", tag, "Mostra uma versão anterior UMA vez (exige reautenticação recente)"),
+		vaultOp(s, func(ctx context.Context, vb vaultBackend, sc scope, in *secretFieldVersionPath) (*ItemOut[SecretFieldVersion], error) {
+			v, val, err := vb.RevealSecretFieldVersion(ctx, sc.Actor, sc.Company.ID, secretScope, in.Name, in.Field, in.Version)
+			return vaultItem(ctx, s, fieldVersionOut(v, val), err)
+		}))
+
+	huma.Register(api, op("restore-"+opPrefix+"-field-version", http.MethodPost,
+		base+"/{field}/history/{version}/restore", tag, "Restaura uma versão anterior como versão nova (exige reautenticação recente)"),
+		vaultOp(s, func(ctx context.Context, vb vaultBackend, sc scope, in *secretFieldVersionPath) (*ItemOut[SecretField], error) {
+			v, err := vb.RestoreSecretFieldVersion(ctx, sc.Actor, sc.Company.ID, secretScope, in.Name, in.Field, in.Version)
+			return vaultItem(ctx, s, secretFieldOut(v, in.Name, secretScope), err)
+		}))
+}
+
+// registerGrantOps liga conceder e revogar concessão de coleção (admin), que exigem reautenticação recente
+// (ADR-0070 §1).
+func (s *server) registerGrantOps(api huma.API) {
+	base := "/companies/{company}/secret-collections"
+	tag := "vault"
+
+	huma.Register(api, created(op("create-collection-grant", http.MethodPost, base+"/{collection}/grants", tag,
+		"Concede a coleção a persona, subárvore, todas as personas ou humano (admin; exige reautenticação recente)")),
+		vaultOp(s, func(ctx context.Context, vb vaultBackend, sc scope, in *createGrantIn) (*ItemOut[CollectionGrant], error) {
+			g, err := vb.CreateCollectionGrant(ctx, sc.Actor, sc.Company.ID, in.Collection, service.GrantInput{
+				SubjectType: domain.CollectionSubject(in.Body.SubjectType), Subject: in.Body.Subject,
+				Permission: domain.CollectionPermission(in.Body.Permission)})
+			return vaultItem(ctx, s, grantOut(g), err)
+		}))
+
+	huma.Register(api, noContent(op("delete-collection-grant", http.MethodDelete, base+"/{collection}/grants/{grant}", tag,
+		"Revoga uma concessão (admin; exige reautenticação recente)")),
+		vaultOp(s, func(ctx context.Context, vb vaultBackend, sc scope, in *grantPath) (*struct{}, error) {
+			gid, err := domain.ParseID(in.Grant)
+			if err != nil {
+				return nil, s.fail(ctx, domain.Invalid("grant", "não é um uuid"))
+			}
+			return s.vaultDone(ctx, vb.DeleteCollectionGrant(ctx, sc.Actor, sc.Company.ID, in.Collection, gid))
 		}))
 }
