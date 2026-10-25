@@ -93,14 +93,15 @@ func (s *Service) DeleteSend(ctx context.Context, actor domain.Actor, companyID,
 	}
 	return s.withTx(ctx, func(t *txc) error {
 		now := t.now
-		purged, err := t.q.PurgeSecretSend(t.ctx, store.PurgeSecretSendParams{Now: &now, CompanyID: companyID, ID: id})
+		// o RETURNING do purge devolve a linha já atualizada (blob_key vazio): o blob vem da leitura de antes
+		_, err := t.q.PurgeSecretSend(t.ctx, store.PurgeSecretSendParams{Now: &now, CompanyID: companyID, ID: id})
 		if isNoRows(err) {
 			return ErrSendGone // já apagado: pelo prazo, pelo limite ou por outro pedido
 		}
 		if err != nil {
 			return mapErr(err, "apagar envio")
 		}
-		if purged.OldBlobKey != "" {
+		if row.BlobKey != "" {
 			if err := t.dropSendBlob(companyID, id); err != nil {
 				return err
 			}

@@ -8,6 +8,7 @@ import (
 
 	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/secretref"
+	"github.com/renatobardi/hanko/internal/store"
 )
 
 // hanko_send_create (ADR-0069 §4): a persona cria um envio por link de um campo do cofre que ela alcança. Ela não digita
@@ -51,6 +52,10 @@ func (s *Service) PersonaSendCreate(ctx context.Context, companyID, runID domain
 	}
 	if c.PersonaID == nil {
 		return PersonaSendResult{}, domain.Invalid("run", "hanko_send_create só roda numa run de persona")
+	}
+	// o item tem que existir antes do alcance e do gate: um nome inexistente não abre aprovação (como hanko_secret_get)
+	if _, err := s.read().GetCompanySecretByName(ctx, store.GetCompanySecretByNameParams{CompanyID: companyID, Name: in.Item}); err != nil {
+		return PersonaSendResult{}, mapErr(err, "segredo "+in.Item)
 	}
 	ref := secretref.Ref{Name: in.Item, Field: field}
 	if err := s.requirePersonaUse(ctx, companyID, *c.PersonaID, ref); err != nil {

@@ -13,8 +13,17 @@ import (
 // Gestão do envio (ADR-0069, fatia 4, #59): subir o conteúdo de um envio de arquivo, listar, ver e apagar. O servidor
 // guarda o blob cifrado como veio; o teste confere o tamanho declarado, o alcance por papel e a limpeza do blob.
 
+// juntaNaEmpresa põe o usuário como membro da empresa do fixture (f.co), onde os envios dos testes caem.
+func juntaNaEmpresa(t *testing.T, f *reauthFixture, u domain.User) {
+	t.Helper()
+	if _, err := f.e.svc.Pool.Exec(context.Background(),
+		`INSERT INTO company_members (company_id, user_id, role) VALUES ($1,$2,$3)`, f.co.ID, u.ID, string(domain.MemberMember)); err != nil {
+		t.Fatalf("juntar à empresa: %v", err)
+	}
+}
+
 // criaArquivo cria um envio de arquivo de 10 bytes em claro, pelo dono logado (com reautenticação).
-func criaArquivo(t *testing.T, f *reauthFixture, ctx context.Context, expira time.Duration) service.SendView {
+func criaArquivo(ctx context.Context, t *testing.T, f *reauthFixture, expira time.Duration) service.SendView {
 	t.Helper()
 	_, publicID := clienteChave(t)
 	v, err := f.e.svc.CreateSend(ctx, f.owner.Actor(), f.co.ID, service.CreateSendInput{
@@ -34,7 +43,7 @@ func cifraDeArquivo() []byte { return make([]byte, 10+28) }
 func TestEnvioArquivoSobeEConfereOTamanho(t *testing.T) {
 	f := newReauthFixture(t)
 	ctx := logadoComEnvio(t, f)
-	v := criaArquivo(t, f, ctx, time.Hour)
+	v := criaArquivo(ctx, t, f, time.Hour)
 	if v.Kind != domain.SendFile || v.SizeBytes != 10 || v.PurgedAt != nil {
 		t.Fatalf("envio = %+v; quer arquivo de 10 bytes, não apagado", v.SecretSend)
 	}
@@ -67,7 +76,7 @@ func TestEnvioArquivoSobeEConfereOTamanho(t *testing.T) {
 func TestEnvioArquivoNaoAbrePeloLink(t *testing.T) {
 	f := newReauthFixture(t)
 	ctx := logadoComEnvio(t, f)
-	v := criaArquivo(t, f, ctx, time.Hour)
+	v := criaArquivo(ctx, t, f, time.Hour)
 	bg := context.Background()
 	info, err := f.e.svc.PublicSendInfo(bg, v.PublicID)
 	if err != nil || info.Openable {
@@ -87,10 +96,10 @@ func TestEnvioGestaoRespeitaOPapel(t *testing.T) {
 	f := newReauthFixture(t)
 	bg := context.Background()
 	logado := logadoComEnvio(t, f)
-	dono := criaArquivo(t, f, logado, time.Hour)
+	dono := criaArquivo(logado, t, f, time.Hour)
 
 	bruno := mkUser(t, f.e, "bruno@exemplo.com", domain.RoleMember)
-	join(t, f.e, bruno, domain.MemberMember)
+	juntaNaEmpresa(t, f, bruno)
 	linkKey, publicID := clienteChave(t)
 	cifra := clienteCifra(t, clienteAESKey(linkKey, nil, nil), publicID, sentinelEnvio)
 	// sem identidade no contexto é o modo confiável: a criação não pede reautenticação, como nas outras ações do servidor
@@ -128,9 +137,9 @@ func TestEnvioGestaoRespeitaOPapel(t *testing.T) {
 func TestEnvioArquivoSoCriadorSobe(t *testing.T) {
 	f := newReauthFixture(t)
 	bg := context.Background()
-	v := criaArquivo(t, f, logadoComEnvio(t, f), time.Hour)
+	v := criaArquivo(logadoComEnvio(t, f), t, f, time.Hour)
 	bruno := mkUser(t, f.e, "bruno@exemplo.com", domain.RoleMember)
-	join(t, f.e, bruno, domain.MemberMember)
+	juntaNaEmpresa(t, f, bruno)
 	if _, err := f.e.svc.UploadSendContent(bg, bruno.Actor(), f.co.ID, v.ID, cifraDeArquivo()); !errors.Is(err, domain.ErrNotFound) {
 		t.Fatalf("membro subiu conteúdo de envio alheio = %v; quer não encontrado", err)
 	}
@@ -143,7 +152,7 @@ func TestEnvioArquivoSoCriadorSobe(t *testing.T) {
 func TestEnvioArquivoExpiraEApagaOBlob(t *testing.T) {
 	f := newReauthFixture(t)
 	ctx := logadoComEnvio(t, f)
-	v := criaArquivo(t, f, ctx, 10*time.Minute)
+	v := criaArquivo(ctx, t, f, 10*time.Minute)
 	if _, err := f.e.svc.UploadSendContent(ctx, f.owner.Actor(), f.co.ID, v.ID, cifraDeArquivo()); err != nil {
 		t.Fatalf("subir: %v", err)
 	}
@@ -164,7 +173,7 @@ func TestEnvioArquivoExpiraEApagaOBlob(t *testing.T) {
 func TestEnvioApagadoPeloCriadorLimpaOBlob(t *testing.T) {
 	f := newReauthFixture(t)
 	bg := context.Background()
-	v := criaArquivo(t, f, logadoComEnvio(t, f), time.Hour)
+	v := criaArquivo(logadoComEnvio(t, f), t, f, time.Hour)
 	if _, err := f.e.svc.UploadSendContent(bg, f.owner.Actor(), f.co.ID, v.ID, cifraDeArquivo()); err != nil {
 		t.Fatalf("subir: %v", err)
 	}
@@ -213,7 +222,7 @@ func TestEnvioGestaoRecusaEstadosInvalidos(t *testing.T) {
 	f := newReauthFixture(t)
 	ctx := logadoComEnvio(t, f)
 	bg := context.Background()
-	v := criaArquivo(t, f, ctx, time.Hour)
+	v := criaArquivo(ctx, t, f, time.Hour)
 
 	linkKey, publicID := clienteChave(t)
 	cifra := clienteCifra(t, clienteAESKey(linkKey, nil, nil), publicID, sentinelEnvio)
