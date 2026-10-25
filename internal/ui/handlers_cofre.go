@@ -33,6 +33,9 @@ type vaultUIBackend interface {
 	RemoveSecretFromCollection(ctx context.Context, actor domain.Actor, companyID domain.ID, idOrName, secretName string) error
 	ListCollectionGrants(ctx context.Context, companyID domain.ID, idOrName string) ([]service.CollectionGrantView, error)
 	VaultHealth(ctx context.Context, companyID domain.ID) (service.HealthReport, error)
+	PreviewEnvImport(ctx context.Context, companyID domain.ID, in service.EnvImportInput) (service.EnvImportPlan, error)
+	ImportEnv(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.EnvImportInput) (service.VaultImportResult, error)
+	ReauthWithPassword(ctx context.Context, id auth.Identity, password string) (service.ReauthProof, error)
 }
 
 // vaultReq devolve o backend do cofre e o contexto da requisição; sem o cofre ligado, responde indisponível.
@@ -467,4 +470,137 @@ func (s *server) handleCollectionRemove(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 	redirect(w, r, "/c/"+co.Slug+"/configuracoes/colecoes/"+url.PathEscape(r.PathValue("coll"))+"?ok=fora")
+}
+
+// ---------- import de .env (ADR-0068 §8.1, #62) ----------
+
+// envImportVM monta o formulário do import; as coleções vêm da lista da empresa, a padrão fica na opção vazia.
+func (s *server) envImportVM(r *http.Request, co domain.Company, be vaultUIBackend) (views.EnvImportVM, error) {
+	ctx := r.Context()
+	base := "/c/" + co.Slug
+	vm := views.EnvImportVM{Sections: settingsSections(ctx, base, "segredos"), BackHref: base + "/configuracoes/segredos",
+		PostHref: base + "/configuracoes/segredos/importar-env", Mode: service.EnvImportItems}
+	cols, err := be.ListCollections(ctx, co.ID)
+	if err != nil {
+		return vm, err
+	}
+	for _, c := range cols {
+		if !c.IsDefault {
+			vm.Collections = append(vm.Collections, c.Name)
+		}
+	}
+	return vm, nil
+}
+
+func (s *server) handleEnvImportForm(w http.ResponseWriter, r *http.Request, co domain.Company) {
+	be, ok := s.vaultBE()
+	if !ok {
+		s.unavailable(w, r)
+		return
+	}
+	sh := s.settingsShell(r, co, i18n.T(r.Context(), "Importar .env"))
+	if !sh.CanAdmin() {
+		s.fail(w, r, &co, domain.ErrForbidden)
+		return
+	}
+	vm, err := s.envImportVM(r, co, be)
+	if err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	s.render(w, r, http.StatusOK, views.EnvImportPage(sh, vm))
+}
+
+// envImportInput lê o formulário. O conteúdo não é aparado: o .env vai como foi colado.
+func envImportInput(r *http.Request) service.EnvImportInput {
+	mode := service.EnvImportItems
+	if r.PostFormValue("mode") == service.EnvImportSingleItem {
+		mode = service.EnvImportSingleItem
+	}
+	return service.EnvImportInput{Content: r.PostFormValue("content"), Mode: mode, ItemName: trimForm(r, "item_name"),
+		Collection: trimForm(r, "collection"), Overwrite: r.PostFormValue("overwrite") != ""}
+}
+
+// envPlanVM devolve a prévia sem valores: nomes de segredo e de campo e as linhas ignoradas, com o motivo.
+func envPlanVM(ctx context.Context, p service.EnvImportPlan) *views.EnvImportPlanVM {
+	out := &views.EnvImportPlanVM{Collection: p.Collection}
+	if out.Collection == "" {
+		out.Collection = i18n.T(ctx, "padrão")
+	}
+	for _, it := range p.Items {
+		out.Rows = append(out.Rows, views.EnvImportRowVM{Secret: it.Secret, Fields: strings.Join(it.Fields, ", "), Exists: it.Exists})
+	}
+	for _, sk := range p.Skipped {
+		out.Skipped = append(out.Skipped, i18n.T(ctx, "linha")+" "+strconv.Itoa(sk.Line)+": "+sk.Reason)
+	}
+	return out
+}
+
+func (s *server) renderEnvImport(w http.ResponseWriter, r *http.Request, co domain.Company, be vaultUIBackend, status int, in service.EnvImportInput,
+	plan *service.EnvImportPlan, err error, needPassword bool) {
+	ctx := r.Context()
+	sh := s.settingsShell(r, co, i18n.T(ctx, "Importar .env"))
+	vm, lerr := s.envImportVM(r, co, be)
+	if lerr != nil {
+		s.fail(w, r, &co, lerr)
+		return
+	}
+	vm.Content, vm.Mode, vm.ItemName, vm.Collection, vm.Overwrite = in.Content, in.Mode, in.ItemName, in.Collection, in.Overwrite
+	if plan != nil {
+		vm.Plan = envPlanVM(ctx, *plan)
+	}
+	vm.NeedPassword = needPassword
+	var re *domain.ReauthError
+	switch {
+	case needPassword && errors.As(err, &re):
+		vm.Error = i18n.T(ctx, "O servidor pede uma prova recente de identidade: informe a senha da conta e grave de novo.")
+	case needPassword:
+		vm.Error = i18n.T(ctx, "Senha da conta incorreta.")
+	case err != nil:
+		vm.Error = vaultErrorMsg(ctx, err)
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	s.render(w, r, status, views.EnvImportPage(sh, vm))
+}
+
+// handleEnvImport faz as duas etapas do formulário: "previa" mostra o mapeamento sem gravar; "gravar" grava, com a senha
+// da conta como prova de identidade quando o servidor a pede (ADR-0070).
+func (s *server) handleEnvImport(w http.ResponseWriter, r *http.Request, co domain.Company) {
+	be, ctx, ok := s.vaultReq(w, r)
+	if !ok {
+		return
+	}
+	in := envImportInput(r)
+	plan, err := be.PreviewEnvImport(ctx, co.ID, in)
+	if err != nil {
+		s.renderEnvImport(w, r, co, be, statusFor(err), in, nil, err, false)
+		return
+	}
+	if r.PostFormValue("etapa") != "gravar" {
+		s.renderEnvImport(w, r, co, be, http.StatusOK, in, &plan, nil, false)
+		return
+	}
+	if pw := r.PostFormValue("senha"); pw != "" {
+		id, has := auth.IdentityFrom(ctx)
+		if has && id.Via == auth.ViaSession {
+			proof, perr := be.ReauthWithPassword(ctx, id, pw)
+			if perr != nil {
+				s.renderEnvImport(w, r, co, be, http.StatusUnauthorized, in, &plan, perr, true)
+				return
+			}
+			id.Session.ReauthAt, id.Session.ReauthMethod = &proof.At, proof.Method
+			ctx = auth.WithIdentity(ctx, id)
+		}
+	}
+	if _, err := be.ImportEnv(ctx, actorFrom(ctx), co.ID, in); err != nil {
+		var re *domain.ReauthError
+		if errors.As(err, &re) {
+			s.renderEnvImport(w, r, co, be, http.StatusUnauthorized, in, &plan, err, true)
+			return
+		}
+		s.renderEnvImport(w, r, co, be, statusFor(err), in, &plan, err, false)
+		return
+	}
+	redirect(w, r, "/c/"+co.Slug+"/configuracoes/segredos?ok=env")
 }

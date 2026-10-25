@@ -33,6 +33,10 @@ type vaultBackend interface {
 	GenerateValue(ctx context.Context, o domain.GenOptions) (domain.Generated, error)
 	VaultHealth(ctx context.Context, companyID domain.ID) (service.HealthReport, error)
 	UpdateSecretMeta(ctx context.Context, actor domain.Actor, companyID domain.ID, name string, in service.SecretMetaInput) (service.SecretView, error)
+	PreviewEnvImport(ctx context.Context, companyID domain.ID, in service.EnvImportInput) (service.EnvImportPlan, error)
+	ImportEnv(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.EnvImportInput) (service.VaultImportResult, error)
+	ExportVault(ctx context.Context, actor domain.Actor, companyID domain.ID, password string) (service.VaultExportResult, error)
+	ImportVault(ctx context.Context, actor domain.Actor, companyID domain.ID, file []byte, password string) (service.VaultImportResult, error)
 	CreateSecretDelegation(ctx context.Context, actor domain.Actor, companyID domain.ID, name string, in service.CreateDelegationInput) (service.DelegationView, error)
 	ListMyDelegations(ctx context.Context, companyID domain.ID, limit int) ([]service.DelegationView, error)
 	RevokeSecretDelegation(ctx context.Context, actor domain.Actor, companyID, id domain.ID) error

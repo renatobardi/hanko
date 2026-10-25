@@ -26,6 +26,10 @@ type cofreFake struct {
 	removed []string
 	deleted []string
 	gen     []domain.GenOptions // opções do gerador que chegaram ao backend, na ordem
+
+	envPreviews, envImports []service.EnvImportInput // pedidos do import de .env que chegaram ao backend
+	envImportErr            error                    // erro que ImportEnv devolve (nil = grava)
+	reauthPasswords         []string                 // senhas que chegaram em ReauthWithPassword
 }
 
 func (c *cofreFake) CreateSecretField(_ context.Context, _ domain.Actor, _ domain.ID, _ domain.SecretScope, _ string, in service.CreateSecretFieldInput) (service.SecretFieldView, error) {

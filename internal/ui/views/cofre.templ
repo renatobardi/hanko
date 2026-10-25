@@ -355,3 +355,94 @@ templ SecretsHealthPage(sh Shell, vm SecretsHealthVM) {
 		}
 	}
 }
+
+// EnvImportPage importa um .env para o cofre (ADR-0068 §8.1): cola o conteúdo, vê a prévia do mapeamento e dos
+// conflitos, e só então grava. A prévia mostra nomes de segredo e de campo, nunca valores.
+templ EnvImportPage(sh Shell, vm EnvImportVM) {
+	@Layout(sh) {
+		@PageHead(i18n.T(ctx, "Importar .env"), i18n.T(ctx, "Cada variável vira um segredo, ou todas viram campos de um segredo só. Veja a prévia antes de gravar.")) {
+		}
+		<div class="mb-6">@Tabs(vm.Sections)</div>
+		<p class="mb-3"><a href={ templ.SafeURL(vm.BackHref) }>{ i18n.T(ctx, "Voltar aos segredos") }</a></p>
+		@flashAlerts("", vm.Error)
+		if vm.Plan != nil {
+			<h2 class="side-h sec-h">{ i18n.T(ctx, "Prévia") }</h2>
+			<p class="muted mb-3">{ i18n.T(ctx, "Coleção de destino") }: <code class="mono">{ vm.Plan.Collection }</code></p>
+			<div class="table-wrap mb-3">
+				<table class="table">
+					<thead>
+						<tr>
+							<th>{ i18n.T(ctx, "Segredo") }</th>
+							<th>{ i18n.T(ctx, "Campos") }</th>
+							<th>{ i18n.T(ctx, "Situação") }</th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, r := range vm.Plan.Rows {
+							<tr class="row">
+								<td><code class="mono">{ r.Secret }</code></td>
+								<td>{ r.Fields }</td>
+								<td>
+									if r.Exists {
+										{ i18n.T(ctx, "já existe") }
+									} else {
+										{ i18n.T(ctx, "novo") }
+									}
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+			if len(vm.Plan.Skipped) > 0 {
+				<p class="muted">{ i18n.T(ctx, "Linhas ignoradas:") }</p>
+				<ul class="mb-3">
+					for _, sk := range vm.Plan.Skipped {
+						<li>{ sk }</li>
+					}
+				</ul>
+			}
+		}
+		<form class="card pad form-card" method="post" action={ templ.SafeURL(vm.PostHref) } autocomplete="off">
+			<div class="field">
+				<label for="env-content">{ i18n.T(ctx, "Conteúdo do .env") }</label>
+				<textarea class="input mono" id="env-content" name="content" rows="10" required maxlength="262144" spellcheck="false" autocomplete="off">{ vm.Content }</textarea>
+			</div>
+			<div class="form-grid">
+				<div class="field">
+					<label for="env-mode">{ i18n.T(ctx, "Como importar") }</label>
+					<select class="select" id="env-mode" name="mode">
+						<option value="items" selected?={ vm.Mode != "single_item" }>{ i18n.T(ctx, "Um segredo por variável") }</option>
+						<option value="single_item" selected?={ vm.Mode == "single_item" }>{ i18n.T(ctx, "Um segredo só, com um campo por variável") }</option>
+					</select>
+				</div>
+				<div class="field">
+					<label for="env-item">{ i18n.T(ctx, "Nome do segredo (só no modo de um segredo)") }</label>
+					<input class="input mono" id="env-item" name="item_name" value={ vm.ItemName } maxlength="64" autocomplete="off" spellcheck="false"/>
+				</div>
+				<div class="field">
+					<label for="env-col">{ i18n.T(ctx, "Coleção") }</label>
+					<select class="select" id="env-col" name="collection">
+						<option value="" selected?={ vm.Collection == "" }>{ i18n.T(ctx, "padrão") }</option>
+						for _, c := range vm.Collections {
+							<option value={ c } selected?={ vm.Collection == c }>{ c }</option>
+						}
+					</select>
+				</div>
+			</div>
+			<label class="check-line"><input type="checkbox" name="overwrite" value="1" checked?={ vm.Overwrite }/><span>{ i18n.T(ctx, "Rotacionar o que já existe (sem marcar, o que existe é pulado)") }</span></label>
+			if vm.Plan != nil {
+				<div class="field">
+					<label for="env-pass">{ i18n.T(ctx, "Senha da conta, para confirmar (se o servidor pedir)") }</label>
+					<input class="input" id="env-pass" name="senha" type="password" autocomplete="current-password" maxlength="256" autofocus?={ vm.NeedPassword }/>
+				</div>
+			}
+			<div class="form-actions">
+				<button class="btn outline" type="submit" name="etapa" value="previa">{ i18n.T(ctx, "Ver prévia") }</button>
+				if vm.Plan != nil {
+					<button class="btn primary" type="submit" name="etapa" value="gravar">{ i18n.T(ctx, "Gravar") }</button>
+				}
+			</div>
+		</form>
+	}
+}

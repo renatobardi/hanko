@@ -31,7 +31,6 @@ const (
 	sliceReauth      = "fatia 2 (#57)"
 	sliceSends       = "fatia 4 (#59)"
 	sliceDelegations = "fatia 5 (#60)"
-	slicePortability = "fatia 7 (#62)"
 )
 
 // ---------- campos e histórico (fatia 1) ----------
@@ -593,9 +592,10 @@ func (s *server) registerHealth(api huma.API) {
 
 // EnvImportPlan é a prévia do import de .env.
 type EnvImportPlan struct {
-	Items     []EnvImportItem `json:"items"`
-	Conflicts []string        `json:"conflicts,omitempty" doc:"Nomes que já existem."`
-	Skipped   []string        `json:"skipped,omitempty" doc:"Linhas ignoradas (comentário, vazia, inválida) com o número da linha."`
+	Items      []EnvImportItem `json:"items"`
+	Conflicts  []string        `json:"conflicts,omitempty" doc:"Nomes que já existem."`
+	Skipped    []string        `json:"skipped,omitempty" doc:"Linhas ignoradas (valor vazio, nome inválido, aspas sem fechar...) com o número da linha; comentário e linha vazia não entram."`
+	Collection string          `json:"collection" doc:"Coleção de destino dos segredos novos."`
 }
 
 // EnvImportItem é um segredo que o import cria ou atualiza.
@@ -607,11 +607,13 @@ type EnvImportItem struct {
 
 // VaultImportResult resume um import.
 type VaultImportResult struct {
-	Secrets     int `json:"secrets"`
-	Fields      int `json:"fields"`
-	Collections int `json:"collections"`
-	Grants      int `json:"grants"`
-	Skipped     int `json:"skipped" doc:"Concessões a persona ou humano que não existe no destino."`
+	Secrets     int `json:"secrets" doc:"Segredos criados."`
+	Fields      int `json:"fields" doc:"Campos criados ou trocados."`
+	Updated     int `json:"updated" doc:"Segredos que já existiam e foram rotacionados (só com overwrite no .env)."`
+	Existing    int `json:"existing" doc:"Segredos que já existiam e ficaram como estavam."`
+	Collections int `json:"collections" doc:"Coleções criadas."`
+	Grants      int `json:"grants" doc:"Concessões criadas."`
+	Skipped     int `json:"skipped" doc:"Concessões não aplicadas: persona ou humano que não existe no destino, ou coleção que já existia."`
 }
 
 // VaultExport é o arquivo cifrado do cofre.
@@ -647,18 +649,6 @@ type importVaultIn struct {
 	}
 }
 
-func registerPortability(api huma.API) {
-	tag := "vault"
-	pendingOp[envImportIn, ItemOut[EnvImportPlan]](api, op("preview-env-import", http.MethodPost, "/companies/{company}/vault/import-env/preview", tag,
-		"Prévia do import de um .env (não grava)"), slicePortability)
-	pendingOp[envImportIn, ItemOut[VaultImportResult]](api, op("apply-env-import", http.MethodPost, "/companies/{company}/vault/import-env", tag,
-		"Importa um .env para o cofre (admin; exige reautenticação recente)"), slicePortability)
-	pendingOp[exportVaultIn, ItemOut[VaultExport]](api, op("export-vault", http.MethodPost, "/companies/{company}/vault/export", tag,
-		"Exporta o cofre cifrado com senha (admin; exige reautenticação recente)"), slicePortability)
-	pendingOp[importVaultIn, ItemOut[VaultImportResult]](api, op("import-vault", http.MethodPost, "/companies/{company}/vault/import", tag,
-		"Importa um cofre exportado por outra instância (admin; exige reautenticação recente; tudo ou nada)"), slicePortability)
-}
-
 func (s *server) registerVault(api huma.API) {
 	s.registerSecretFieldsScope(api, domain.SecretScopeCompany, "secrets", "secret", "segredo da empresa")
 	s.registerSecretFieldsScope(api, domain.SecretScopeUser, "user-secrets", "user-secret", "segredo do usuário")
@@ -667,5 +657,5 @@ func (s *server) registerVault(api huma.API) {
 	s.registerSends(api)
 	s.registerDelegations(api)
 	s.registerHealth(api)
-	registerPortability(api)
+	s.registerPortability(api)
 }

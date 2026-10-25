@@ -178,3 +178,38 @@ func TestUIInstanceSettingsPage(t *testing.T) {
 		}
 	}
 }
+
+// Import de .env pela UI com o service de verdade (fatia 7, #62): o link aparece, a prévia não grava, gravar cria os
+// segredos e o valor não volta na lista.
+func TestUIImportEnv(t *testing.T) {
+	u := newSecretsUI(t)
+	const page = "/c/acme/configuracoes/segredos"
+	const envPage = page + "/importar-env"
+	const valor = "SENTINELA-ui-import-env-3b9f"
+
+	if rec := u.get(page); rec.Code != 200 || !strings.Contains(bodyOf(rec), "importar-env") {
+		t.Fatalf("link do import na lista: %d", rec.Code)
+	}
+	if rec := u.get(envPage); rec.Code != 200 || !strings.Contains(bodyOf(rec), `name="content"`) {
+		t.Fatalf("formulário: %d", rec.Code)
+	}
+	form := url.Values{"content": {"# banco\nexport DB_HOST=h1\nTOKEN=\"" + valor + "\" # fim\nVAZIA=\n"}, "mode": {"items"}, "etapa": {"previa"}}
+	rec := u.form(envPage, form)
+	b := bodyOf(rec)
+	if rec.Code != 200 || !strings.Contains(b, "DB_HOST") || !strings.Contains(b, "linha 4: valor vazio") {
+		t.Fatalf("prévia: %d %s", rec.Code, b)
+	}
+	if strings.Contains(bodyOf(u.get(page)), "DB_HOST") {
+		t.Fatal("a prévia gravou")
+	}
+
+	form.Set("etapa", "gravar")
+	rec = u.form(envPage, form)
+	if rec.Code != 303 || !strings.Contains(rec.Header().Get("Location"), "ok=env") {
+		t.Fatalf("gravar: %d %s", rec.Code, bodyOf(rec))
+	}
+	b = bodyOf(u.get(page))
+	if !strings.Contains(b, "DB_HOST") || !strings.Contains(b, "TOKEN") || strings.Contains(b, valor) {
+		t.Fatalf("lista depois do import (valor na página? %v)", strings.Contains(b, valor))
+	}
+}

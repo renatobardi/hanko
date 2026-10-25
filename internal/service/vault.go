@@ -237,58 +237,65 @@ func (s *Service) CreateSecretField(ctx context.Context, actor domain.Actor, com
 		if err := s.requireFieldWriter(ctx, t.q, actor, companyID, sec); err != nil {
 			return err
 		}
-		fields, err := t.q.ListSecretFields(t.ctx, store.ListSecretFieldsParams{CompanyID: companyID, SecretID: sec.ID})
-		if err != nil {
-			return fmt.Errorf("list fields: %w", err)
-		}
-		if len(fields) >= domain.MaxSecretFields {
-			return domain.Invalid("name", fmt.Sprintf("o segredo já tem %d campos (o máximo)", domain.MaxSecretFields))
-		}
-		kind := in.Kind
-		if kind == "" {
-			kind = domain.SecretFieldText
-		}
-		sensitive := true
-		if in.Sensitive != nil {
-			sensitive = *in.Sensitive
-		}
-		if err := domain.ValidateSecretField(in.Name, kind, sensitive, providerOf(in.SecretFieldValueInput)); err != nil {
-			return err
-		}
-		pos := in.Position
-		if pos == 0 {
-			pos = len(fields)
-		}
-		id := domain.NewID()
-		var row store.SecretField
-		var plain string
-		if kind == domain.SecretFieldFile {
-			row, err = s.createFileField(t, companyID, sec, id, in, pos, sensitive)
-			if err != nil {
-				return err
-			}
-		} else {
-			m, err := s.prepareFieldMaterial(sec.ID, id, in.SecretFieldValueInput, kind)
-			if err != nil {
-				return err
-			}
-			var revealedAt *time.Time
-			if m.revealed {
-				n := t.now
-				revealedAt = &n
-			}
-			row, err = t.q.CreateSecretField(t.ctx, store.CreateSecretFieldParams{ID: id, CompanyID: companyID, SecretID: sec.ID,
-				Name: in.Name, Kind: string(kind), Sensitive: sensitive, Provider: string(m.provider), ValueEnc: m.enc,
-				ExternalRef: m.ext, ValueHmac: m.mac, AadVersion: 1, Position: i32(pos), RevealedAt: revealedAt, Now: t.now})
-			if err != nil {
-				return mapErr(err, "create secret field")
-			}
-			plain = m.plaintext
-		}
-		out = SecretFieldView{SecretField: secretFieldFromRow(row), RevealedValue: plain}
-		return t.activity(actor, companyID, "secret.field_created", "secret", sec.ID, fieldEventData(row), "")
+		out, err = s.createFieldTx(t, actor, companyID, sec, in)
+		return err
 	})
 	return out, err
+}
+
+// createFieldTx cria o campo na transação, com o segredo já lido e a permissão já conferida por quem chama: limite de
+// campos, regras do campo, cifra e fato `secret.field_created`.
+func (s *Service) createFieldTx(t *txc, actor domain.Actor, companyID domain.ID, sec store.Secret, in CreateSecretFieldInput) (SecretFieldView, error) {
+	fields, err := t.q.ListSecretFields(t.ctx, store.ListSecretFieldsParams{CompanyID: companyID, SecretID: sec.ID})
+	if err != nil {
+		return SecretFieldView{}, fmt.Errorf("list fields: %w", err)
+	}
+	if len(fields) >= domain.MaxSecretFields {
+		return SecretFieldView{}, domain.Invalid("name", fmt.Sprintf("o segredo já tem %d campos (o máximo)", domain.MaxSecretFields))
+	}
+	kind := in.Kind
+	if kind == "" {
+		kind = domain.SecretFieldText
+	}
+	sensitive := true
+	if in.Sensitive != nil {
+		sensitive = *in.Sensitive
+	}
+	if err := domain.ValidateSecretField(in.Name, kind, sensitive, providerOf(in.SecretFieldValueInput)); err != nil {
+		return SecretFieldView{}, err
+	}
+	pos := in.Position
+	if pos == 0 {
+		pos = len(fields)
+	}
+	id := domain.NewID()
+	var row store.SecretField
+	var plain string
+	if kind == domain.SecretFieldFile {
+		row, err = s.createFileField(t, companyID, sec, id, in, pos, sensitive)
+		if err != nil {
+			return SecretFieldView{}, err
+		}
+	} else {
+		m, err := s.prepareFieldMaterial(sec.ID, id, in.SecretFieldValueInput, kind)
+		if err != nil {
+			return SecretFieldView{}, err
+		}
+		var revealedAt *time.Time
+		if m.revealed {
+			n := t.now
+			revealedAt = &n
+		}
+		row, err = t.q.CreateSecretField(t.ctx, store.CreateSecretFieldParams{ID: id, CompanyID: companyID, SecretID: sec.ID,
+			Name: in.Name, Kind: string(kind), Sensitive: sensitive, Provider: string(m.provider), ValueEnc: m.enc,
+			ExternalRef: m.ext, ValueHmac: m.mac, AadVersion: 1, Position: i32(pos), RevealedAt: revealedAt, Now: t.now})
+		if err != nil {
+			return SecretFieldView{}, mapErr(err, "create secret field")
+		}
+		plain = m.plaintext
+	}
+	out := SecretFieldView{SecretField: secretFieldFromRow(row), RevealedValue: plain}
+	return out, t.activity(actor, companyID, "secret.field_created", "secret", sec.ID, fieldEventData(row), "")
 }
 
 // providerOf devolve o provider do input com o padrão local.

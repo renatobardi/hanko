@@ -272,16 +272,33 @@ func (s *Service) CreateSecret(ctx context.Context, actor domain.Actor, companyI
 
 func (s *Service) createSecretTx(t *txc, actor domain.Actor, companyID domain.ID, scope domain.SecretScope, owner *uuid.UUID,
 	id uuid.UUID, name, desc string, m secretMaterial, out *SecretView) error {
+	row, err := s.createSecretRowTx(t, actor, companyID, scope, owner, id, name, desc, m)
+	if err != nil {
+		return err
+	}
+	if scope == domain.SecretScopeCompany {
+		if err := s.addToDefaultCollectionTx(t, actor, companyID, row.ID, row.Name); err != nil {
+			return err
+		}
+	}
+	*out = SecretView{Secret: secretFromRow(row), RevealedValue: m.plaintext}
+	return t.activity(actor, companyID, "secret.created", "secret", row.ID, secretEventData(row), "")
+}
+
+// createSecretRowTx cria a linha do segredo e o campo `value`, sem coleção nem fato: quem chama escolhe a coleção
+// (a padrão em createSecretTx; a escolhida no import, ADR-0068 §8) e emite `secret.created`.
+func (s *Service) createSecretRowTx(t *txc, actor domain.Actor, companyID domain.ID, scope domain.SecretScope, owner *uuid.UUID,
+	id uuid.UUID, name, desc string, m secretMaterial) (store.Secret, error) {
 	if _, err := t.q.GetCompanyByID(t.ctx, companyID); err != nil {
-		return mapErr(err, "company")
+		return store.Secret{}, mapErr(err, "company")
 	}
 	if scope == domain.SecretScopeCompany {
 		list, err := t.q.ListCompanySecrets(t.ctx, companyID)
 		if err != nil {
-			return fmt.Errorf("list secrets: %w", err)
+			return store.Secret{}, fmt.Errorf("list secrets: %w", err)
 		}
 		if len(list) >= maxSecretsPerCompany {
-			return domain.Invalid("name", fmt.Sprintf("a empresa já tem %d segredos (o máximo)", maxSecretsPerCompany))
+			return store.Secret{}, domain.Invalid("name", fmt.Sprintf("a empresa já tem %d segredos (o máximo)", maxSecretsPerCompany))
 		}
 	}
 	var revealedAt *time.Time
@@ -293,18 +310,12 @@ func (s *Service) createSecretTx(t *txc, actor domain.Actor, companyID domain.ID
 		Name: name, Description: desc, Provider: string(m.provider), ValueEnc: m.enc, ExternalRef: m.ext, RevealedAt: revealedAt,
 		CreatedByType: string(actor.Type), CreatedByID: actor.ID, Now: t.now})
 	if err != nil {
-		return mapErr(err, "create secret")
+		return store.Secret{}, mapErr(err, "create secret")
 	}
 	if err := s.createValueFieldTx(t, companyID, row, m); err != nil {
-		return err
+		return store.Secret{}, err
 	}
-	if scope == domain.SecretScopeCompany {
-		if err := s.addToDefaultCollectionTx(t, actor, companyID, row.ID, row.Name); err != nil {
-			return err
-		}
-	}
-	*out = SecretView{Secret: secretFromRow(row), RevealedValue: m.plaintext}
-	return t.activity(actor, companyID, "secret.created", "secret", row.ID, secretEventData(row), "")
+	return row, nil
 }
 
 // createValueFieldTx cria o campo `value` do segredo novo, com o mesmo material que as colunas de secrets: o valor
