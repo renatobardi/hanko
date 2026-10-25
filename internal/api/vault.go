@@ -41,6 +41,7 @@ type SecretField struct {
 	Reference   string     `json:"reference" doc:"Como citar o campo." example:"${secret:github-bot#password}"`
 	Kind        string     `json:"kind" enum:"text,totp,file"`
 	Sensitive   bool       `json:"sensitive" doc:"Secreto (só revelar uma vez por versão) ou visível (legível por member)."`
+	Password    bool       `json:"password" doc:"Campo de senha (ADR-0074): entra no achado fraco do relatório de saúde."`
 	Provider    string     `json:"provider" enum:"local,vault" doc:"local: cifrado no Hanko. vault: lido do provider externo a cada uso."`
 	ExternalRef string     `json:"external_ref,omitempty" doc:"Provider vault: caminho#campo no provider externo."`
 	FileName    string     `json:"file_name,omitempty"`
@@ -98,6 +99,7 @@ type createSecretFieldIn struct {
 		Kind      string `json:"kind,omitempty" enum:"text,totp,file" doc:"Padrão text."`
 		Sensitive *bool  `json:"sensitive,omitempty" doc:"Padrão true; totp e file são sempre secretos."`
 		Position  int    `json:"position,omitempty"`
+		Password  bool   `json:"password,omitempty" doc:"Marca de senha (ADR-0074): só texto secreto."`
 		SecretFieldValue
 	}
 }
@@ -106,6 +108,7 @@ type updateSecretFieldIn struct {
 	SecretFieldPath
 	Body struct {
 		Sensitive *bool `json:"sensitive,omitempty"`
+		Password  *bool `json:"password,omitempty" doc:"Marca de senha (ADR-0074): só texto secreto."`
 		Position  *int  `json:"position,omitempty"`
 	}
 }

@@ -67,14 +67,15 @@ func (s *Service) VaultHealth(ctx context.Context, companyID domain.ID) (HealthR
 	var weak []domain.HealthFinding
 	for _, f := range fieldRows {
 		uses = append(uses, domain.UseFact{Secret: f.SecretName, Field: f.FieldName, LastUsedAt: f.LastUsedAt})
-		if !domain.IsPasswordField(f.FieldName) {
+		password := domain.IsPasswordMark(f.FieldName, f.Password)
+		if !password {
 			continue
 		}
 		plain, err := s.secretBox().Open(f.ValueEnc, fieldAADFor(f.AadVersion, f.SecretID, f.ID))
 		if err != nil {
 			return HealthReport{}, fmt.Errorf("abrir campo %s#%s: %w", f.SecretName, f.FieldName, err)
 		}
-		if finding, ok := domain.WeakFinding(f.SecretName, f.FieldName, string(plain)); ok {
+		if finding, ok := domain.WeakFinding(f.SecretName, f.FieldName, password, string(plain)); ok {
 			weak = append(weak, finding)
 		}
 	}

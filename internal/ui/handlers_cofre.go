@@ -22,7 +22,7 @@ import (
 type vaultUIBackend interface {
 	CreateSecretField(ctx context.Context, actor domain.Actor, companyID domain.ID, scope domain.SecretScope, secretName string, in service.CreateSecretFieldInput) (service.SecretFieldView, error)
 	ListSecretFields(ctx context.Context, companyID domain.ID, scope domain.SecretScope, secretName string) ([]service.SecretFieldView, error)
-	UpdateSecretFieldMeta(ctx context.Context, actor domain.Actor, companyID domain.ID, scope domain.SecretScope, secretName, fieldName string, sensitive *bool, position *int) (service.SecretFieldView, error)
+	UpdateSecretFieldMeta(ctx context.Context, actor domain.Actor, companyID domain.ID, scope domain.SecretScope, secretName, fieldName string, sensitive, password *bool, position *int) (service.SecretFieldView, error)
 	RotateSecretField(ctx context.Context, actor domain.Actor, companyID domain.ID, scope domain.SecretScope, secretName, fieldName string, in service.SecretFieldValueInput) (service.SecretFieldView, error)
 	CreateCollection(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.CollectionInput) (service.CollectionView, error)
 	ListCollections(ctx context.Context, companyID domain.ID) ([]service.CollectionView, error)
@@ -240,7 +240,7 @@ func (s *server) handleSecretFieldMeta(w http.ResponseWriter, r *http.Request, c
 	}
 	user, name := userScopeForm(r), r.PathValue("name")
 	sensitive := r.PostFormValue("visibilidade") != "visivel"
-	v, err := be.UpdateSecretFieldMeta(ctx, actorFrom(ctx), co.ID, scopeOf(user), name, r.PathValue("field"), &sensitive, nil)
+	v, err := be.UpdateSecretFieldMeta(ctx, actorFrom(ctx), co.ID, scopeOf(user), name, r.PathValue("field"), &sensitive, nil, nil)
 	if err != nil {
 		s.fieldsFail(w, r, co, be, err, nil)
 		return

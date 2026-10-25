@@ -46,6 +46,7 @@ type CreateSecretFieldInput struct {
 	Name      string
 	Kind      domain.SecretFieldKind // vazio = text
 	Sensitive *bool                  // nil = true
+	Password  bool                   // marca de senha (ADR-0074): só texto secreto
 	Position  int
 	SecretFieldValueInput
 	File        []byte
@@ -110,7 +111,7 @@ func secretFieldFromRow(r store.SecretField) domain.SecretField {
 		Sensitive: r.Sensitive, Provider: domain.SecretProvider(r.Provider), ExternalRef: r.ExternalRef,
 		FileName: r.FileName, ContentType: r.ContentType, SizeBytes: int(r.SizeBytes), Position: int(r.Position),
 		Version: int(r.Version), RevealedAt: r.RevealedAt, LastUsedAt: r.LastUsedAt, RotatedAt: r.RotatedAt,
-		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt}
+		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, Password: r.Password}
 }
 
 func fieldEventData(f store.SecretField) map[string]any {
@@ -276,6 +277,9 @@ func (s *Service) createFieldTx(t *txc, actor domain.Actor, companyID domain.ID,
 	if err := domain.ValidateSecretField(in.Name, kind, sensitive, providerOf(in.SecretFieldValueInput)); err != nil {
 		return SecretFieldView{}, err
 	}
+	if err := domain.ValidatePasswordMark(kind, sensitive, in.Password); err != nil {
+		return SecretFieldView{}, err
+	}
 	pos := in.Position
 	if pos == 0 {
 		pos = len(fields)
@@ -300,7 +304,8 @@ func (s *Service) createFieldTx(t *txc, actor domain.Actor, companyID domain.ID,
 		}
 		row, err = t.q.CreateSecretField(t.ctx, store.CreateSecretFieldParams{ID: id, CompanyID: companyID, SecretID: sec.ID,
 			Name: in.Name, Kind: string(kind), Sensitive: sensitive, Provider: string(m.provider), ValueEnc: m.enc,
-			ExternalRef: m.ext, ValueHmac: m.mac, AadVersion: 1, Position: i32(pos), RevealedAt: revealedAt, Now: t.now})
+			ExternalRef: m.ext, ValueHmac: m.mac, AadVersion: 1, Position: i32(pos), RevealedAt: revealedAt, Now: t.now,
+			Password: in.Password})
 		if err != nil {
 			return SecretFieldView{}, mapErr(err, "create secret field")
 		}
@@ -349,9 +354,9 @@ func (s *Service) ListSecretFields(ctx context.Context, companyID domain.ID, sco
 	return out, nil
 }
 
-// UpdateSecretFieldMeta muda a marca de visível e a posição de um campo. Tirar o visível não exige chave;
-// marcar visível exige (o texto passa a ser lido na listagem).
-func (s *Service) UpdateSecretFieldMeta(ctx context.Context, actor domain.Actor, companyID domain.ID, scope domain.SecretScope, secretName, fieldName string, sensitive *bool, position *int) (SecretFieldView, error) {
+// UpdateSecretFieldMeta muda a marca de visível, a marca de senha (ADR-0074) e a posição de um campo. Tirar o visível
+// não exige chave; marcar visível exige (o texto passa a ser lido na listagem).
+func (s *Service) UpdateSecretFieldMeta(ctx context.Context, actor domain.Actor, companyID domain.ID, scope domain.SecretScope, secretName, fieldName string, sensitive, password *bool, position *int) (SecretFieldView, error) {
 	owner, err := s.secretCaller(ctx, actor, companyID, scope, false)
 	if err != nil {
 		return SecretFieldView{}, err
@@ -365,7 +370,7 @@ func (s *Service) UpdateSecretFieldMeta(ctx context.Context, actor domain.Actor,
 		if err := s.requireFieldWriter(ctx, t.q, actor, companyID, sec); err != nil {
 			return err
 		}
-		ns, np := f.Sensitive, int(f.Position)
+		ns, np, nw := f.Sensitive, int(f.Position), f.Password
 		if sensitive != nil {
 			if !*sensitive && domain.SecretFieldKind(f.Kind).AlwaysSensitive() {
 				return domain.Invalid("sensitive", "campo "+f.Kind+" é sempre secreto")
@@ -375,11 +380,17 @@ func (s *Service) UpdateSecretFieldMeta(ctx context.Context, actor domain.Actor,
 			}
 			ns = *sensitive
 		}
+		if password != nil {
+			nw = *password
+		}
+		if err := domain.ValidatePasswordMark(domain.SecretFieldKind(f.Kind), ns, nw); err != nil {
+			return err
+		}
 		if position != nil {
 			np = *position
 		}
 		row, err := t.q.UpdateSecretFieldMeta(t.ctx, store.UpdateSecretFieldMetaParams{ID: f.ID, CompanyID: companyID,
-			Sensitive: ns, Position: i32(np), Now: t.now})
+			Sensitive: ns, Position: i32(np), Password: nw, Now: t.now})
 		if err != nil {
 			return mapErr(err, "update secret field")
 		}

@@ -1,3 +1,16 @@
+# Cofre, fatia 6: marca de senha em campo (#61) · branch `feat/61-cofre-marca-senha`
+Data: 2026-10-25 · sessão `61-cofre-saude-extras` (rodada swarm-1024-0625)
+
+## Feito
+- Marca explícita de senha em campo (ADR-0074, migration 00206): `password` criado por `POST …/fields` e alterado por `PATCH …/fields/{field}` e pela CLI (`--password`, `--no-password`). O relatório de fracos lê a marca além do nome.
+
+## Travado
+- Prazo de rotação por campo na UI (item b do Falta): decisão do Bardi, por BLOQUEADO.
+- Container sem Go nem sqlc: o CI do PR valida o código gerado e o build.
+
+## Próximo passo
+- Aplicar o diff de código gerado do CI e conferir os testes; PR com `Refs #61`.
+
 # Cofre, fatia 5: delegação de segredo pessoal, uso da empresa e testes (#60)
 Data: 2026-10-25 · branch `feat/60-cofre-delegacao-extras` · sessão `60-cofre-delegacao-extras` (rodada swarm-1024-0625)
 

@@ -138,7 +138,7 @@ func TestCampoVisivelESecretoPorPapel(t *testing.T) {
 
 	// o campo value é o próprio segredo: não pode virar visível (sairia para member)
 	if _, err := e.svc.UpdateSecretFieldMeta(bg, domain.HumanActor, e.co.ID, domain.SecretScopeCompany, "login", domain.DefaultSecretField,
-		&visivel, nil); err == nil {
+		&visivel, nil, nil); err == nil {
 		t.Fatal("o campo value virou visível")
 	}
 }

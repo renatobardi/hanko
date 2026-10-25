@@ -83,18 +83,39 @@ func TestOrphanFindingsOnlyUnreferenced(t *testing.T) {
 }
 
 func TestWeakFindingOnlyPasswordFieldsBelowThreshold(t *testing.T) {
-	f, ok := WeakFinding("conta", "password", "abc123")
+	f, ok := WeakFinding("conta", "password", true, "abc123")
 	if !ok || f.Kind != HealthWeak || f.Secret != "conta" || f.Field != "password" {
 		t.Fatalf("senha fraca não marcada: %+v %v", f, ok)
 	}
 	if strings.Contains(f.Detail, "abc123") {
 		t.Fatalf("achado de fraco vaza o valor: %q", f.Detail)
 	}
-	if _, ok := WeakFinding("conta", "password", "Tr0ub4dor&3-horse-battery"); ok {
+	if _, ok := WeakFinding("conta", "password", true, "Tr0ub4dor&3-horse-battery"); ok {
 		t.Fatal("senha forte marcada como fraca")
 	}
-	if _, ok := WeakFinding("conta", "usuario", "abc123"); ok {
+	if _, ok := WeakFinding("conta", "usuario", false, "abc123"); ok {
 		t.Fatal("campo que não é senha entrou na conta de fracos")
+	}
+	if _, ok := WeakFinding("conta", "chave", true, "abc123"); !ok {
+		t.Fatal("campo com marca de senha, de outro nome, ficou de fora dos fracos")
+	}
+}
+
+func TestIsPasswordMarkByNameOrMark(t *testing.T) {
+	cases := []struct {
+		name   string
+		marked bool
+		want   bool
+	}{
+		{"password", false, true},
+		{"SENHA", false, true},
+		{"usuario", false, false},
+		{"chave", true, true},
+	}
+	for _, c := range cases {
+		if got := IsPasswordMark(c.name, c.marked); got != c.want {
+			t.Errorf("IsPasswordMark(%q, %v) = %v, quer %v", c.name, c.marked, got, c.want)
+		}
 	}
 }
 
