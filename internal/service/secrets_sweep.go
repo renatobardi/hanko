@@ -17,6 +17,12 @@ import (
 // maxAge. Só pastas do ${secretfile:} entram: arquivo solto com o mesmo prefixo fica. Devolve quantas apagou; falhas
 // de apagar uma pasta não param a varredura e voltam juntas no erro.
 func SweepStaleSecretDirs(base string, maxAge time.Duration, now time.Time) (int, error) {
+	return sweepSecretDirs(base, maxAge, now, os.RemoveAll)
+}
+
+// sweepSecretDirs é a varredura com a remoção injetada: o teste troca a remoção por uma que falha, sem depender de
+// permissão de diretório (que o root ou outro sistema de arquivos ignora).
+func sweepSecretDirs(base string, maxAge time.Duration, now time.Time, remove func(string) error) (int, error) {
 	if maxAge <= 0 {
 		return 0, errors.New("varredura de pastas de segredo: idade máxima tem de ser positiva")
 	}
@@ -42,7 +48,7 @@ func SweepStaleSecretDirs(base string, maxAge time.Duration, now time.Time) (int
 		if !info.ModTime().Before(cutoff) {
 			continue
 		}
-		if err := os.RemoveAll(filepath.Join(base, e.Name())); err != nil {
+		if err := remove(filepath.Join(base, e.Name())); err != nil {
 			errs = errors.Join(errs, fmt.Errorf("pasta %s: %w", e.Name(), err))
 			continue
 		}

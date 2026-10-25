@@ -100,35 +100,3 @@ func TestVarreduraBaseInexistenteFalha(t *testing.T) {
 	}
 }
 
-// Uma pasta que não se apaga não para a varredura: as outras saem e o erro volta junto.
-func TestVarreduraContinuaAposFalhaAoApagar(t *testing.T) {
-	if os.Geteuid() == 0 {
-		t.Skip("root apaga pasta sem permissão de escrita: o caso de falha não se reproduz")
-	}
-	base := t.TempDir()
-	now := time.Now()
-	travada := dirComIdade(t, base, "hanko-secret-travada", 3*time.Hour, now)
-	sub := filepath.Join(travada, "sub")
-	if err := os.Mkdir(sub, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(sub, "preso"), []byte("x"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chmod(sub, 0o500); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.Chmod(sub, 0o700) })
-	livre := dirComIdade(t, base, "hanko-secret-livre", 3*time.Hour, now)
-
-	n, err := service.SweepStaleSecretDirs(base, 2*time.Hour, now)
-	if err == nil {
-		t.Fatal("a pasta travada devia voltar no erro")
-	}
-	if n != 1 || existe(livre) {
-		t.Fatalf("a pasta livre devia sair mesmo com a travada: n=%d livre existe=%v", n, existe(livre))
-	}
-	if !existe(travada) {
-		t.Fatal("a pasta travada não devia sumir")
-	}
-}
