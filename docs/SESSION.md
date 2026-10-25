@@ -1,12 +1,12 @@
-# Telas do cofre com prova por Google e passkey · issue #92
-Data: 2026-10-25 · sessão `92-hkv-reauth-firebase-passkey` (rodada swarm-1024-0625, fase `build`)
+# Corte da v0.7.2 · sessão `release-v0-7-2` (sem issue, #825)
+Data: 2026-10-25 · rodada swarm-1024-0625
 
 ## Feito
-- Export/import do `.hkv` e import de `.env`: quando o servidor pede prova, a tela traz o botão "Confirmar identidade" (`ReauthHost`), que abre o diálogo do `passkey.js` (`ReauthDialog`, extraído da seção do perfil). A prova grava na sessão por `POST /me/reauth`; o formulário seguinte vai sem senha da conta. Senha no formulário continua valendo.
-- Backend sem mudança. Testes: service por prova (senha, Google, passkey), UI das três telas por método, JS do diálogo nas telas do cofre.
+- `scripts/release-notes.sh cut 0.7.2` no ramo `release/v0.7.2`: seção 0.7.2 no `CHANGELOG.md` (entradas dos PRs #99, #100 e #108); os 3 fragmentos de `changelog.d/` saíram. `cofre-contrato.md` já tinha saído na v0.7.0.
+- README/ROADMAP não citavam a v0.7.1: sem mudança. `scripts/test-release-notes.sh` verde.
 
 ## Travado
-- Nada. A prova por Google no JS das telas do cofre usa o código do perfil (#98); o teste node cobre senha, passkey e o SDK que não carrega.
+- Nada. Tag e deploy ficam com o Bardi (docs/RELEASING.md, passos 4–6).
 
 ## Próximo passo
-- Revisar o PR; demo com conta Google e com conta só com passkey (exportar o `.hkv` depois da prova).
+- PR do corte mergeado → Bardi tagueia `v0.7.2` no commit mergeado e faz o deploy no `hanko-prd`.
