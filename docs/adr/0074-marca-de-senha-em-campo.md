@@ -1,5 +1,6 @@
 # ADR-0074 — Marca explícita de senha em campo
-Data: 2026-10-25 · Status: proposta (aguarda aceite do Bardi) · Issue: #61 (parte de #54) · Completa: ADR-0068 §7.2
+Data: 2026-10-25 · Status: aceita · Issue: #61 (parte de #54) · Completa: ADR-0068 §7.2
+Aceite: 2026-10-25, aceito pelo Bardi.
 
 ## Contexto
 O ADR-0068 §7.2 mede o achado "fraco" (entropia abaixo de 60 bits) só em campo marcado como senha. Hoje a marca vale
