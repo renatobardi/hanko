@@ -246,3 +246,33 @@ func TestEnvioGestaoRecusaEstadosInvalidos(t *testing.T) {
 		t.Fatalf("persona apagou envio = %v; quer proibido", err)
 	}
 }
+
+// Subir o conteúdo e apagar o envio ao mesmo tempo: o upload trava a linha, então ou grava antes do apagar (e o apagar
+// tira o blob) ou o apagar vence e o upload recusa. Em nenhum caso sobra blob de envio apagado. Repete para pegar a corrida.
+func TestEnvioUploadEApagarNaoDeixamBlobOrfao(t *testing.T) {
+	f := newReauthFixture(t)
+	ctx := logadoComEnvio(t, f)
+	bg := context.Background()
+	for i := 0; i < 20; i++ {
+		v := criaArquivo(ctx, t, f, time.Hour)
+		erros := make(chan error, 2)
+		go func() {
+			_, err := f.e.svc.UploadSendContent(ctx, f.owner.Actor(), f.co.ID, v.ID, cifraDeArquivo())
+			erros <- err
+		}()
+		go func() {
+			erros <- f.e.svc.DeleteSend(bg, f.owner.Actor(), f.co.ID, v.ID)
+		}()
+		for j := 0; j < 2; j++ {
+			if err := <-erros; err != nil && !errors.Is(err, service.ErrSendGone) {
+				t.Fatalf("rodada %d: %v", i, err)
+			}
+		}
+		if n := f.e.count(t, `SELECT count(*) FROM secret_sends WHERE id = $1 AND purged_at IS NOT NULL`, v.ID); n != 1 {
+			t.Fatalf("rodada %d: envio não ficou apagado", i)
+		}
+		if k := f.e.count(t, `SELECT count(*) FROM secret_send_blobs WHERE send_id = $1`, v.ID); k != 0 {
+			t.Fatalf("rodada %d: blob órfão de envio apagado (%d)", i, k)
+		}
+	}
+}

@@ -119,7 +119,9 @@ func (s *Service) UploadSendContent(ctx context.Context, actor domain.Actor, com
 	}
 	var out SendView
 	err := s.withTx(ctx, func(t *txc) error {
-		row, err := t.q.GetSecretSend(t.ctx, store.GetSecretSendParams{CompanyID: companyID, ID: id})
+		// trava a linha até o commit: um apagar concorrente espera aqui e, depois, o purged_at aparece na leitura abaixo.
+		// Sem a trava, o blob poderia ser gravado depois do purge e ficar órfão (o job só varre envios sem purged_at).
+		row, err := t.q.LockSecretSend(t.ctx, store.LockSecretSendParams{CompanyID: companyID, ID: id})
 		if err != nil {
 			return mapErr(err, "envio")
 		}

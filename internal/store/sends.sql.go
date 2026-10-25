@@ -333,6 +333,46 @@ func (q *Queries) ListSecretSendsToPurge(ctx context.Context, arg ListSecretSend
 	return items, nil
 }
 
+const lockSecretSend = `-- name: LockSecretSend :one
+SELECT id, company_id, public_id, kind, ciphertext, blob_key, size_bytes, label, kdf_salt, password_verifier, failed_attempts, locked_until, max_accesses, access_count, expires_at, last_accessed_at, purged_at, source_secret_id, source_field, run_id, created_by_type, created_by_id, created_at FROM secret_sends WHERE company_id = $1 AND id = $2 FOR UPDATE
+`
+
+type LockSecretSendParams struct {
+	CompanyID uuid.UUID
+	ID        uuid.UUID
+}
+
+func (q *Queries) LockSecretSend(ctx context.Context, arg LockSecretSendParams) (SecretSend, error) {
+	row := q.db.QueryRow(ctx, lockSecretSend, arg.CompanyID, arg.ID)
+	var i SecretSend
+	err := row.Scan(
+		&i.ID,
+		&i.CompanyID,
+		&i.PublicID,
+		&i.Kind,
+		&i.Ciphertext,
+		&i.BlobKey,
+		&i.SizeBytes,
+		&i.Label,
+		&i.KdfSalt,
+		&i.PasswordVerifier,
+		&i.FailedAttempts,
+		&i.LockedUntil,
+		&i.MaxAccesses,
+		&i.AccessCount,
+		&i.ExpiresAt,
+		&i.LastAccessedAt,
+		&i.PurgedAt,
+		&i.SourceSecretID,
+		&i.SourceField,
+		&i.RunID,
+		&i.CreatedByType,
+		&i.CreatedByID,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const openSecretSend = `-- name: OpenSecretSend :one
 UPDATE secret_sends SET access_count = access_count + 1, last_accessed_at = $1::timestamptz, failed_attempts = 0
 WHERE public_id = $2 AND purged_at IS NULL AND expires_at > $1

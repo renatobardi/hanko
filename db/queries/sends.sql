@@ -18,6 +18,9 @@ ORDER BY created_at DESC LIMIT @lim OFFSET @off;
 -- name: GetSecretSend :one
 SELECT * FROM secret_sends WHERE company_id = @company_id AND id = @id;
 
+-- name: LockSecretSend :one
+SELECT * FROM secret_sends WHERE company_id = @company_id AND id = @id FOR UPDATE;
+
 -- name: GetSecretSendByPublicID :one
 SELECT * FROM secret_sends WHERE public_id = @public_id;
 
