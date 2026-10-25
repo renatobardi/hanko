@@ -1,12 +1,13 @@
-# Aviso de alcance na aprovação do gate · sessão `95-aviso-gate` (issue #95)
-Data: 2026-10-25 · rodada swarm-1024-0625 · fase `build`
+# Fase 3 (ADRs) do decom do agent-studio · sessão `hanko-decom-agent-studio` (#66)
+Data: 2026-10-25
 
 ## Feito
-- Aprovar um gate `hire` com ficha devolve os avisos de alcance da persona criada: `GateView.HirePersonaID` (service) → campo `warnings` na resposta do decide (API) → `hanko gate approve` imprime `aviso: …` (ADR-0068 §2.5). Nunca o valor.
-- Testes: integração da API (aviso presente, valor não vaza, sem pendência e rejeição sem aviso), service (`HirePersonaID` = persona criada) e CLI (imprime e `--json`). Prova contra a `main`: resposta da aprovação sem `warnings` (falha confirmada). openapi.json regenerado; fragmento em `changelog.d/cofre-aviso-gate-95.md`.
+- ADR-0080 a ADR-0086 aceitos pelo Bardi (PRs #106, #107, #109, #111, #112, #113 e #114); com eles, a lista de ADRs da #66 fecha.
+- Banco e retenção não têm ADR novo: o gate da #68 decidiu só Postgres, tudo quente e sem prazo (`docs/research/2026-10-banco-telemetria.md` §10).
+- Alerta de disco do Postgres registrado na #66 como item obrigatório do contrato da v0.8 (comentário 6402851982).
 
 ## Travado
-- Nada.
+- Contrato e código da v0.8 esperam o fechamento da v0.7. A #81 (tokens do Codex) segue aberta.
 
 ## Próximo passo
-- Merge do PR → o #95 fecha com todos os critérios de build e o qa já visto em produção.
+- Com a v0.7 fechada: contrato da v0.8 (migrations + tipos de domínio + OpenAPI) a partir dos ADR-0075 a 0086, com gate do Bardi.
