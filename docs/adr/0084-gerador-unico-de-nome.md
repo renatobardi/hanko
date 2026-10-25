@@ -1,5 +1,5 @@
 # ADR-0084 — Gerador único de nome: inglês, 256 × 256, listas como dado do contrato
-Data: 2026-10-25 · Status: proposta (aguarda aceite do Bardi) · Issue: #66 (v0.8) · Usa: ADR-0078, ADR-0080
+Data: 2026-10-25 · Status: aceita (Bardi, 2026-10-25) · Issue: #66 (v0.8) · Usa: ADR-0078, ADR-0080
 
 ## Contexto
 Há três geradores de nome amigável no formato `Adjetivo_Substantivo`, cada um com uma regra própria:
@@ -33,8 +33,7 @@ A conversa externa ganha o nome do gerador único e guarda o nome migrado (ADR-0
 2. **Duas regras, escritas junto com as listas.**
    - **Derivado do id**, para runs e conversas externas: o nome sai do sha256 do id. Se já existe na empresa, o gerador
      tenta as variações seguintes e, no fim, acrescenta o número de 3 dígitos, que só existe aqui. É a regra de
-     `runname.go` de hoje. O nome fica
-     gravado.
+     `runname.go` de hoje. O nome fica gravado.
    - **Sorteio entre os livres**, para a rodada: um nome que nenhuma rodada aberta usa, como no `draw` de hoje.
 3. **Cópia no oute-agent.** O oute-agent guarda uma cópia do arquivo, com a versão do Hanko fixada. Um teste confere a
    cópia contra a do Hanko nessa versão. O `oute-swarm` sorteia sozinho, sem chamar o Hanko: a rodada abre mesmo com o
