@@ -53,11 +53,7 @@ func (q *Queries) ListSecretFileFieldsAfter(ctx context.Context, arg ListSecretF
 	items := []ListSecretFileFieldsAfterRow{}
 	for rows.Next() {
 		var i ListSecretFileFieldsAfterRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.CompanyID,
-			&i.SecretID,
-		); err != nil {
+		if err := rows.Scan(&i.ID, &i.CompanyID, &i.SecretID); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -95,10 +91,7 @@ func (q *Queries) ListUserSecretFileFields(ctx context.Context, arg ListUserSecr
 	items := []ListUserSecretFileFieldsRow{}
 	for rows.Next() {
 		var i ListUserSecretFileFieldsRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.CompanyID,
-		); err != nil {
+		if err := rows.Scan(&i.ID, &i.CompanyID); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
