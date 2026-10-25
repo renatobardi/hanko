@@ -12,4 +12,4 @@ Issue #95 · rodada swarm-1024-0625 · sessão retomada depois de cota esgotada 
 - Contratação por gate: o aviso aparece na página da persona (live), mas a API e a CLI não o devolvem na aprovação, que devolve o gate.
 
 ## Próximo passo
-- PR com `Refs #95` (o gate fica de fora). Demo em produção do aviso (qa) com o Bardi.
+- PR #100 (`Refs #95`, o gate fica de fora): fazer merge pelo Bardi. Demo em produção do aviso (qa) depois do deploy.

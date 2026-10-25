@@ -14,9 +14,17 @@ identidade, sem mudar o login de todo mundo (2FA no login ficou fora).
 1. **Ações sensíveis** (exigem prova recente): revelar campo ou versão do histórico, ver histórico, restaurar versão,
    criar envio, conceder ou revogar coleção, apagar segredo ou campo, importar `.env`, exportar e importar o cofre
    cifrado, cadastrar ou remover passkey.
-2. **Janela.** A prova vale por `secrets.reauth_minutes` (instance setting, ADR-0050 §C; padrão 5, de 1 a 60) a partir
-   do instante em que foi feita. A sessão guarda `reauth_at` e `reauth_method` (migration 00203). Sem prova válida, a
-   API responde **401** com o código `reauth_required` e a janela exigida; a UI abre o pedido de prova e repete a ação.
+2. **Janela.** A prova vale por `reauth.minutes` (instance setting, ADR-0050 §C; variável `HANKO_REAUTH_MINUTES`;
+   padrão 5, de 1 a 60) a partir do instante em que foi feita. A sessão guarda `reauth_at` e `reauth_method`
+   (migration 00203). Sem prova válida, a API responde **401** com o código `reauth_required` e a janela exigida; a
+   UI abre o pedido de prova e repete a ação.
+
+   > **Nota (2026-10-25).** Publicada com o nome de chave `secrets.reauth_minutes`; o nome vigente é `reauth.minutes`
+   > (decisão do Bardi em 2026-10-25: manter o nome do código e corrigir este ADR). O nome mudou porque a guarda do
+   > registro de configurações (ADR-0050 §C; teste `TestRegistryHasNoCredentialKeys`, função `SensitiveName` em
+   > `internal/settings/settings.go`) recusa nomes que parecem credencial, incluindo `secret`; a isenção existente
+   > vale só para `secrets.history_keep_versions` e `secrets.history_keep_days` (ADR-0068 §3.2) e não foi estendida.
+   > A decisão da janela (valor, faixa, padrão) não muda.
 3. **Provas aceitas.**
    - **Passkey (WebAuthn)**, em qualquer provider, quando o usuário cadastrou uma. Verificação de usuário (`UV`)
      obrigatória, desafio de uso único com validade de 2 minutos (`webauthn_challenges`), contador de assinatura
