@@ -1,5 +1,5 @@
 # ADR-0081 — Aprovação externa: pedido do canal observado, script restrito e decisão no host
-Data: 2026-10-25 · Status: proposta (aguarda aceite do Bardi) · Issue: #66 (v0.8) · Usa: ADR-0042, ADR-0075, ADR-0076, ADR-0077, ADR-0078
+Data: 2026-10-25 · Status: aceita (Bardi, 2026-10-25) · Issue: #66 (v0.8) · Usa: ADR-0042, ADR-0075, ADR-0076, ADR-0077, ADR-0078
 
 ## Contexto
 O canal de aprovação do oute leva ao host o que um agente não pode rodar sozinho. O agente propõe um script pelo
