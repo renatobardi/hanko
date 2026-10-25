@@ -281,3 +281,28 @@ func TestEnvImportSenhaDaContaErradaNaoGrava(t *testing.T) {
 		t.Fatalf("gravou com a senha da conta errada: %d", len(cf.envImports))
 	}
 }
+
+// Envio que não é multipart válido (fronteira que não aparece no corpo) responde 422 e não chega ao backend.
+func TestVaultImportEnvioInvalido(t *testing.T) {
+	e, cf := newCofreEnv(t, domain.MemberAdmin)
+	rq := httptest.NewRequest(http.MethodPost, cofreImportPath, strings.NewReader("lixo sem fronteira"))
+	rq.Header.Set("Content-Type", "multipart/form-data; boundary=fronteira")
+	rq.Header.Set("Sec-Fetch-Site", "same-origin")
+	rec := httptest.NewRecorder()
+	e.h.ServeHTTP(rec, rq)
+	wantStatus(t, rec, http.StatusUnprocessableEntity)
+	wantContains(t, rec, "Envio inválido.")
+	if len(cf.importFile) != 0 {
+		t.Fatal("envio inválido chegou ao backend")
+	}
+}
+
+// Sem HANKO_SECRET_KEY no servidor o service recusa o export: a tela mostra a causa e não baixa nada.
+func TestVaultExportSemChaveDoServidor(t *testing.T) {
+	e, cf := newCofreEnv(t, domain.MemberAdmin)
+	cf.vaultErr = domain.Invalid("secrets", "HANKO_SECRET_KEY não está configurada neste servidor")
+	rec := e.post(t, cofreExportPath, url.Values{"senha_arquivo": {senhaArquivo}}, false)
+	wantStatus(t, rec, http.StatusUnprocessableEntity)
+	wantContains(t, rec, "O servidor não tem HANKO_SECRET_KEY")
+	wantNotContains(t, rec, hkvExportado)
+}
