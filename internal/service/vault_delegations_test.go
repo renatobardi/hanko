@@ -334,3 +334,96 @@ func TestSaidaDoHumanoApagaItensEListaDelegacoes(t *testing.T) {
 		t.Fatalf("fato de purga sem nada a purgar: %d %v", purged, err)
 	}
 }
+
+// Alvo conversa (ADR-0068 §6): a delegação feita na conversa da dona libera a run dela; arquivada, a conversa fecha
+// o alvo e a delegação para de valer até a reabertura.
+func TestDelegacaoAlvoConversa(t *testing.T) {
+	d := newDelegEnv(t)
+	cv, err := d.svc.CreateConversation(d.ac, d.alice.Actor(), d.co.ID, service.CreateConversationInput{PersonaID: d.ana.ID, Message: "oi"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	runC := lastExec(d.env) // a run que a mensagem abriu
+
+	out, _, err := d.resolve(runC, refPessoal)
+	wantDenied(t, "conversa sem delegação", out, err)
+	if _, err := d.delegate(d.bc, d.bob, domain.DelegationConversation, cv.ID, 0); err == nil {
+		t.Fatal("Bob delegou a conversa da Alice")
+	}
+	if _, err := d.delegate(d.ac, d.alice, domain.DelegationConversation, cv.ID, 0); err != nil {
+		t.Fatal(err)
+	}
+	if out, vals, err := d.resolve(runC, refPessoal); err != nil || out != "tok="+sentinelPessoal || len(vals) != 1 {
+		t.Fatalf("conversa delegada: %q %v %v", out, vals, err)
+	}
+
+	if _, err := d.svc.SetConversationStatus(d.ac, d.alice.Actor(), d.co.ID, cv.ID, domain.ConversationArchived); err != nil {
+		t.Fatal(err)
+	}
+	out, _, err = d.resolve(runC, refPessoal)
+	wantDenied(t, "conversa arquivada (texto)", out, err)
+	res, err := d.get(runC, "user/meu-token")
+	wantDenied(t, "conversa arquivada (tool)", res.Value, err)
+
+	if _, err := d.svc.SetConversationStatus(d.ac, d.alice.Actor(), d.co.ID, cv.ID, domain.ConversationOpen); err != nil {
+		t.Fatal(err)
+	}
+	if out, _, err := d.resolve(runC, refPessoal); err != nil || out != "tok="+sentinelPessoal {
+		t.Fatalf("conversa reaberta: %q %v", out, err)
+	}
+}
+
+// Alvo task (ADR-0068 §6.3): fechada (cancelada), a task fecha o alvo e a delegação para de valer; reaberta, volta.
+func TestDelegacaoSoEnquantoATaskEstaAberta(t *testing.T) {
+	d := newDelegEnv(t)
+	runA, taskA := d.run(d.ac, t, d.alice, "tarefa da Alice")
+	if _, err := d.delegate(d.ac, d.alice, domain.DelegationTask, taskA.ID, 0); err != nil {
+		t.Fatal(err)
+	}
+	if out, _, err := d.resolve(runA.ID, refPessoal); err != nil || out != "tok="+sentinelPessoal {
+		t.Fatalf("task aberta: %q %v", out, err)
+	}
+
+	cancelled := domain.TaskCancelled
+	if _, err := d.svc.UpdateTask(d.ac, d.alice.Actor(), d.co.ID, taskA.ID, service.UpdateTaskInput{Status: &cancelled}); err != nil {
+		t.Fatal(err)
+	}
+	out, _, err := d.resolve(runA.ID, refPessoal)
+	wantDenied(t, "task cancelada (texto)", out, err)
+	res, err := d.get(runA.ID, "user/meu-token")
+	wantDenied(t, "task cancelada (tool)", res.Value, err)
+
+	todo := domain.TaskTodo
+	if _, err := d.svc.UpdateTask(d.ac, d.alice.Actor(), d.co.ID, taskA.ID, service.UpdateTaskInput{Status: &todo}); err != nil {
+		t.Fatal(err)
+	}
+	if out, _, err := d.resolve(runA.ID, refPessoal); err != nil || out != "tok="+sentinelPessoal {
+		t.Fatalf("task reaberta: %q %v", out, err)
+	}
+}
+
+// Uso do segredo da empresa: o admin vê; o membro só com `view` ou `manage` numa coleção que contém o segredo.
+func TestUsoDoSegredoDaEmpresaSoParaQuemVe(t *testing.T) {
+	d := newDelegEnv(t)
+	bg := context.Background()
+	if _, err := d.svc.CreateSecret(bg, domain.HumanActor, d.co.ID, service.CreateSecretInput{Scope: domain.SecretScopeCompany,
+		Name: "base", Value: "SENTINELA-base-6b7a8c"}); err != nil {
+		t.Fatal(err)
+	}
+	if uses, err := d.svc.ListSecretUsage(bg, d.co.ID, "base", 50); err != nil || len(uses) != 0 {
+		t.Fatalf("admin: %d usos %v", len(uses), err)
+	}
+	if _, err := d.svc.ListSecretUsage(d.ac, d.co.ID, "base", 50); !errors.Is(err, domain.ErrForbidden) {
+		t.Fatalf("membro sem coleção: %v", err)
+	}
+	if _, err := d.svc.CreateCollectionGrant(bg, domain.HumanActor, d.co.ID, domain.DefaultCollectionName,
+		service.GrantInput{SubjectType: domain.CollectionSubjectUser, Subject: d.alice.ID.String(), Permission: domain.CollectionView}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := d.svc.ListSecretUsage(d.ac, d.co.ID, "base", 50); err != nil {
+		t.Fatalf("membro com view na coleção padrão: %v", err)
+	}
+	if _, err := d.svc.ListSecretUsage(d.bc, d.co.ID, "base", 50); !errors.Is(err, domain.ErrForbidden) {
+		t.Fatalf("Bob sem concessão: %v", err)
+	}
+}
