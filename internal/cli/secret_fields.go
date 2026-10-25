@@ -1,13 +1,18 @@
 package cli
 
 import (
+	"encoding/base64"
+	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strconv"
 
 	"github.com/spf13/cobra"
 
 	"github.com/renatobardi/hanko/internal/api"
 	"github.com/renatobardi/hanko/internal/client"
+	"github.com/renatobardi/hanko/internal/domain"
 )
 
 // Campos e coleções do cofre (ADR-0068, fatia 1). Reveal de campo, histórico e concessões chegam na fatia 2.
@@ -29,6 +34,29 @@ func (e *env) valueFlags(cmd *cobra.Command, value *string, stdin, gen *bool, va
 	f.StringVar(value, "value", "", valueHelp)
 	f.BoolVar(stdin, "value-stdin", false, stdinHelp)
 	f.BoolVar(gen, "generate", false, genHelp)
+}
+
+// fillFileField põe no pedido o conteúdo de --file, em base64, com o nome-base do arquivo (ADR-0068 §5.1). Campo arquivo
+// é sempre secreto e não leva valor: as recusas saem antes de qualquer chamada ao servidor, que confere o mesmo limite.
+func (e *env) fillFileField(req *client.CreateFieldReq, path string, otherValue, visible bool) error {
+	switch {
+	case path == "":
+		return usageError{errors.New(e.t("campo arquivo: use --file <caminho>"))}
+	case otherValue:
+		return usageError{errors.New(e.t("campo arquivo não leva --value, --value-stdin nem --generate"))}
+	case visible:
+		return usageError{errors.New(e.t("campo arquivo é sempre secreto: tire --visible"))}
+	}
+	b, err := os.ReadFile(path) //nolint:gosec // o arquivo é o que o usuário apontou na linha de comando
+	if err != nil {
+		return fmt.Errorf(e.t("ler --file: %w"), err)
+	}
+	if len(b) == 0 || len(b) > domain.MaxSecretFieldFileBytes {
+		return usageError{fmt.Errorf(e.t("o arquivo tem de ter de 1 byte a %d bytes (1 MiB)"), domain.MaxSecretFieldFileBytes)}
+	}
+	req.ContentBase64 = base64.StdEncoding.EncodeToString(b)
+	req.FileName = filepath.Base(path)
+	return nil
 }
 
 // showRevealedField mostra o valor que o servidor devolveu (gerado), uma vez; nunca ecoa o que o usuário enviou.
@@ -84,20 +112,30 @@ func (e *env) secretFieldCmd(user *bool) *cobra.Command {
 	}
 
 	var (
-		aValue, aKind      string
-		aStdin, aGen, aVis bool
-		aPos               int
+		aValue, aKind, aFile string
+		aStdin, aGen, aVis   bool
+		aPos                 int
 	)
 	add := &cobra.Command{
 		Use: "add " + e.t("<segredo> <campo>"), Short: e.t("Acrescenta um campo (--value-stdin ou --generate; padrão secreto)"), Args: cobra.ExactArgs(2),
 		RunE: e.inCompany(func(cmd *cobra.Command, co string, a []string) error {
-			v, err := e.secretValue(aValue, aStdin)
-			if err != nil {
-				return err
-			}
-			req := client.CreateFieldReq{Name: a[1], Kind: aKind, Position: aPos, Value: v, Generate: aGen}
-			if aVis {
-				req.Sensitive = new(bool)
+			req := client.CreateFieldReq{Name: a[1], Kind: aKind, Position: aPos}
+			if aKind == string(domain.SecretFieldFile) {
+				if err := e.fillFileField(&req, aFile, aValue != "" || aStdin || aGen, aVis); err != nil {
+					return err
+				}
+			} else {
+				if aFile != "" {
+					return usageError{errors.New(e.t("--file só vale com --kind file"))}
+				}
+				v, err := e.secretValue(aValue, aStdin)
+				if err != nil {
+					return err
+				}
+				req.Value, req.Generate = v, aGen
+				if aVis {
+					req.Sensitive = new(bool)
+				}
 			}
 			f, err := e.client().CreateSecretField(cmd.Context(), co, *user, a[0], req)
 			if err != nil {
@@ -117,6 +155,7 @@ func (e *env) secretFieldCmd(user *bool) *cobra.Command {
 		e.t("o servidor gera o valor e o mostra uma vez"))
 	af.BoolVar(&aVis, "visible", false, e.t("campo visível: o valor aparece na listagem (padrão: secreto)"))
 	af.StringVar(&aKind, "kind", "text", e.t("tipo do campo: text ou totp"))
+	af.StringVar(&aFile, "file", "", e.t("campo arquivo (--kind file): caminho do arquivo, até 1 MiB; sempre secreto"))
 	af.IntVar(&aPos, "position", 0, e.t("posição do campo na lista"))
 
 	var (

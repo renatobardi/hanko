@@ -357,6 +357,15 @@ func (t *txc) purgeMemberSecrets(actor domain.Actor, companyID, userID domain.ID
 		}
 		rep.Delegations = append(rep.Delegations, delegationView(d, "", t.now))
 	}
+	// os campos arquivo dos itens pessoais podem ter cópia nos drivers de blob (fs, s3), que a cascata do postgres não
+	// alcança: os ids são lidos antes do delete e os objetos saem depois do commit
+	files, err := t.q.ListUserSecretFileFields(t.ctx, store.ListUserSecretFileFieldsParams{CompanyID: companyID, OwnerUserID: &userID})
+	if err != nil {
+		return MemberExitReport{}, fmt.Errorf("listar arquivos dos segredos pessoais: %w", err)
+	}
+	for _, f := range files {
+		t.dropFieldBlobAfterCommit(f.CompanyID, f.ID)
+	}
 	n, err := t.q.DeleteUserSecrets(t.ctx, store.DeleteUserSecretsParams{CompanyID: companyID, OwnerUserID: &userID})
 	if err != nil {
 		return MemberExitReport{}, fmt.Errorf("apagar segredos pessoais: %w", err)
