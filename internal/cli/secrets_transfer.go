@@ -72,7 +72,7 @@ func (e *env) importEnvCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			var r io.Reader = e.in
+			r := e.in
 			if a[0] != "-" {
 				f, err := os.Open(a[0])
 				if err != nil {
