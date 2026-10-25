@@ -1,5 +1,5 @@
 # ADR-0083 — Alertas de agente externo e "vence em" por tipo na Caixa
-Data: 2026-10-25 · Status: proposta (aguarda aceite do Bardi) · Issue: #66 (v0.8) · Usa: ADR-0075, ADR-0076, ADR-0077, ADR-0080, ADR-0082 · Altera: ADR-0042
+Data: 2026-10-25 · Status: aceita (Bardi, 2026-10-25) · Issue: #66 (v0.8) · Usa: ADR-0075, ADR-0076, ADR-0077, ADR-0080, ADR-0082 · Altera: ADR-0042
 
 ## Contexto
 O agent-studio calcula 17 tipos de alerta da telemetria, na hora da consulta e sem estado guardado. Um alerta liga
@@ -39,7 +39,8 @@ O host parado e o `host_no_data` estão no ADR-0077 itens 4 e 5. As escolhas aba
    `cost_alerts.py@845764f`. O `alerts_kind_check` passa de 4 para 21 tipos. Os sujeitos novos são: host externo,
    agente externo, rodada externa, modelo e fonte de preço. As dimensões de cada tipo são as de `acks.py:36-44@845764f`
    e formam a identidade da ocorrência. Uma ocorrência nova abre uma linha; quando o dado deixa de mostrar o problema, a
-   linha fecha.
+   linha fecha. Um nome muda: `price_fixed_differs` vira `price_locked_differs`, para casar com a marca de trava e com
+   o `locked_differs` do ADR-0082 item 7. A migração mapeia o nome e o ensaio o registra.
 2. **Avaliação no Hanko.** Um job avalia as regras sobre os fatos da ingestão (ADR-0076), pela hora do fato. Uma regra
    que falha não derruba as outras. As regras gerais valem como estão:
    - host parado não liga os outros alertas desse host (ADR-0077 item 5);
@@ -51,17 +52,19 @@ O host parado e o `host_no_data` estão no ADR-0077 itens 4 e 5. As escolhas aba
    60 min; cota 98%, com folga de 20 min na janela de 5 h; rodada parada em 30 min; `lookback_hours` 24; proxy parado
    em 5 min; captura até 20% em 7 dias; "antigos" em 2 h; diferença de custo 10%. Owner e admin trocam, com
    `activity_event`.
-4. **Alertas de preço em cada empresa afetada.** `price_changed`, `price_model_unpriced` e `price_fixed_differs` abrem
+4. **Alertas de preço em cada empresa afetada.** `price_changed`, `price_model_unpriced` e `price_locked_differs` abrem
    nas empresas com run ou chamada daquele modelo nos últimos 30 dias. `price_sources_diverge` e `price_source_down`
    abrem em toda empresa com uso nesse período. Os de custo (`cost_*`) são da empresa das chamadas.
-5. **"Vence em" por tipo** (altera o ADR-0042 §A item 2). Um item marcado volta como não lido e não arquivado quando a
+5. **Severidade.** `critical` para o que perde dado ou trava trabalho: `host_no_data`, `destination_refusing`, `spool`
+   e `quota`. `warning` para os outros 13.
+6. **"Vence em" por tipo** (altera o ADR-0042 §A item 2). Um item marcado volta como não lido e não arquivado quando a
    impressão digital muda **ou** quando o prazo do tipo vence, contado no servidor desde a marca. Os prazos padrão são:
    - 24 h para os alertas da fonte externa e para a pergunta da rodada (ADR-0080 item 6), como hoje;
    - "sem prazo" para os tipos que o Hanko já tem, e nada muda para quem já usa.
 
    Cada empresa troca o prazo de cada tipo, de "sem prazo" até 30 dias. A Oute nasce com os valores de hoje. Vencer
    não apaga a marca: só tira o efeito dela.
-6. **Migração.** Só os alertas abertos na hora do corte entram como abertos; os passados se recalculam das regras sobre
+7. **Migração.** Só os alertas abertos na hora do corte entram como abertos; os passados se recalculam das regras sobre
    a telemetria migrada, e o ensaio confere os abertos contra o `GET /v1/alerts` do agent-studio. As 57 `ack_marks`
    vão para `inbox_state`, com a validade que tinham, atribuídas ao Bardi e marcadas `migrated`; o ensaio confere que
    cada alvo aponta para o item certo.
@@ -72,7 +75,6 @@ O host parado e o `host_no_data` estão no ADR-0077 itens 4 e 5. As escolhas aba
 - Um problema de preço aparece uma vez em cada empresa afetada; hoje é só a Oute.
 - O histórico de alertas passa a existir no Hanko, recalculado; não verificado se o agent-studio guarda algum além
   das marcas (inventário §9.2 bloco 4).
-- A severidade de cada tipo novo vai no contrato do v0.8, com o ok do Bardi.
 
 ## Alternativas descartadas
 - **24 h para todos os tipos**: o gate e a task bloqueada arquivados voltariam todo dia.
