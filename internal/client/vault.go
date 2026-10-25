@@ -12,14 +12,17 @@ import (
 
 // CreateFieldReq cria um campo em um segredo.
 type CreateFieldReq struct {
-	Name        string `json:"name"`
-	Kind        string `json:"kind,omitempty"`
-	Sensitive   *bool  `json:"sensitive,omitempty"`
-	Position    int    `json:"position,omitempty"`
-	Provider    string `json:"provider,omitempty"`
-	Value       string `json:"value,omitempty"`
-	Generate    bool   `json:"generate,omitempty"`
-	ExternalRef string `json:"external_ref,omitempty"`
+	Name          string `json:"name"`
+	Kind          string `json:"kind,omitempty"`
+	Sensitive     *bool  `json:"sensitive,omitempty"`
+	Position      int    `json:"position,omitempty"`
+	Provider      string `json:"provider,omitempty"`
+	Value         string `json:"value,omitempty"`
+	Generate      bool   `json:"generate,omitempty"`
+	ExternalRef   string `json:"external_ref,omitempty"`
+	ContentBase64 string `json:"content_base64,omitempty"`
+	FileName      string `json:"file_name,omitempty"`
+	ContentType   string `json:"content_type,omitempty"`
 }
 
 // RotateFieldReq troca o valor de um campo.

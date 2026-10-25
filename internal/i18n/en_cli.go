@@ -459,6 +459,20 @@ var enCLI = map[string]string{
 	"torna o campo visível (o valor passa a aparecer na listagem)": "makes the field visible (the value shows in the listing)",
 	"use --visible ou --secret, não os dois":                       "use --visible or --secret, not both",
 	"visível": "visible",
+
+	"--file só vale com --kind file": "--file only works with --kind file",
+
+	"campo arquivo (--kind file): caminho do arquivo, até 1 MiB; sempre secreto": "file field (--kind file): path to the file, up to 1 MiB; always secret",
+
+	"campo arquivo não leva --value, --value-stdin nem --generate": "file field takes no --value, --value-stdin or --generate",
+
+	"campo arquivo é sempre secreto: tire --visible": "file field is always secret: drop --visible",
+
+	"campo arquivo: use --file <caminho>": "file field: use --file <path>",
+
+	"ler --file: %w": "read --file: %w",
+
+	"o arquivo tem de ter de 1 byte a %d bytes (1 MiB)": "the file must be 1 byte to %d bytes (1 MiB)",
 }
 
 func init() {

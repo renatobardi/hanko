@@ -1265,44 +1265,6 @@ func (q *Queries) ListSecretFieldsForRekey(ctx context.Context) ([]ListSecretFie
 	return items, nil
 }
 
-const listSecretFileFieldsForRekey = `-- name: ListSecretFileFieldsForRekey :many
-SELECT f.id, f.company_id, f.secret_id, b.content FROM secret_fields f
-LEFT JOIN secret_field_blobs b ON b.field_id = f.id
-WHERE f.kind = 'file' AND f.provider = 'local'
-`
-
-type ListSecretFileFieldsForRekeyRow struct {
-	ID        uuid.UUID
-	CompanyID uuid.UUID
-	SecretID  uuid.UUID
-	Content   []byte
-}
-
-func (q *Queries) ListSecretFileFieldsForRekey(ctx context.Context) ([]ListSecretFileFieldsForRekeyRow, error) {
-	rows, err := q.db.Query(ctx, listSecretFileFieldsForRekey)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListSecretFileFieldsForRekeyRow{}
-	for rows.Next() {
-		var i ListSecretFileFieldsForRekeyRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.CompanyID,
-			&i.SecretID,
-			&i.Content,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listSecretsDueRotation = `-- name: ListSecretsDueRotation :many
 WITH due AS (
     SELECT s.id, s.company_id, s.name,

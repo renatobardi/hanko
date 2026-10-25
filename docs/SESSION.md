@@ -27,3 +27,12 @@ Data: 2026-10-24 · branch `release/v0.7.0` · sessão `release-v0-7-0` (sem iss
 - Feito (código sem compilar no container; CI é a verificação): envio de arquivo (criar, subir conteúdo, blob em `secret_send_blobs`/BlobStore), listar, ver e apagar por papel, tool `hanko_send_create` (política `ask`), 4 operações saindo do 501 no OpenAPI e no piso de `vault_test.go`.
 - Travado: nada. Falta documentada no PR.
 - Próximo passo: entregar a abertura de envio de arquivo pelo link (`content_url`, uso único em 60 s) e a demo qa (persona cria envio e o link expira no navegador).
+
+# Sessão #58 (cofre, fatia 3: build) · rodada swarm-1024-0625 · branch `feat/58-cofre-arquivo-build`
+Data: 2026-10-24 · issue #58 · `Refs #58`
+## Feito
+- Varredura de `hanko-secret-*` no boot (ADR-0073, proposta), rekey de campo arquivo em páginas, migração de campos arquivo entre drivers (`hanko blobs migrate`), purga dos arquivos pessoais na saída, CLI `secret field add --kind file --file`.
+## Travado
+- Sem Go no container: nada foi compilado nem testado aqui; o CI é a primeira validação.
+## Próximo passo
+- Ver o CI do PR; aceite do Bardi no ADR-0073. Sandbox para `${secretfile:}` e o `qa` ficam no `## Falta` do PR.
