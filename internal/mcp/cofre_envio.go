@@ -31,8 +31,8 @@ type sendCreateIn struct {
 }
 
 type sendCreateOut struct {
-	Decision  string    `json:"decision" jsonschema:"allow (link criado), ask (aguardando aprovação) ou deny (negado pela política)"`
-	Link      string    `json:"link,omitempty" jsonschema:"o link do envio; a chave está no fragmento. É um segredo: entregue só ao destinatário"`
+	Decision  string `json:"decision" jsonschema:"allow (link criado), ask (aguardando aprovação) ou deny (negado pela política)"`
+	Link      string `json:"link,omitempty" jsonschema:"o link do envio; a chave está no fragmento. É um segredo: entregue só ao destinatário"`
 	ExpiresAt string `json:"expires_at,omitempty" jsonschema:"quando o envio vence (RFC 3339)"`
 }
 

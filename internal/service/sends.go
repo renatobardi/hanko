@@ -315,8 +315,7 @@ func (s *Service) CreateSend(ctx context.Context, actor domain.Actor, companyID 
 	err := s.withTx(ctx, func(t *txc) error {
 		row, err := t.q.CreateSecretSend(t.ctx, store.CreateSecretSendParams{
 			ID: id, CompanyID: companyID, PublicID: in.PublicID, Kind: string(in.Kind),
-			Ciphertext: in.Ciphertext, BlobKey: blobKey, SizeBytes: size, Label: in.Label, KdfSalt: in.KdfSalt,
-			PasswordVerifier: in.PasswordVerifier,
+			Ciphertext: in.Ciphertext, BlobKey: blobKey, SizeBytes: size, Label: in.Label, KdfSalt: in.KdfSalt, PasswordVerifier: in.PasswordVerifier,
 			MaxAccesses: i32p(in.MaxAccesses), ExpiresAt: t.now.Add(in.ExpiresIn),
 			CreatedByType: createdBy, CreatedByID: createdByID, Now: t.now,
 		})

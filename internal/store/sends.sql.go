@@ -95,6 +95,42 @@ func (q *Queries) CreateSecretSend(ctx context.Context, arg CreateSecretSendPara
 	return i, err
 }
 
+const createSecretSendBlob = `-- name: CreateSecretSendBlob :exec
+INSERT INTO secret_send_blobs (send_id, company_id, content) VALUES ($1, $2, $3)
+ON CONFLICT (send_id) DO UPDATE SET content = EXCLUDED.content
+`
+
+type CreateSecretSendBlobParams struct {
+	SendID    uuid.UUID
+	CompanyID uuid.UUID
+	Content   []byte
+}
+
+// Grava o blob cifrado do envio de arquivo (driver postgres; fs e s3 usam o BlobStore, ADR-0051). Sobrescreve:
+// subir o conteúdo de novo troca o blob.
+func (q *Queries) CreateSecretSendBlob(ctx context.Context, arg CreateSecretSendBlobParams) error {
+	_, err := q.db.Exec(ctx, createSecretSendBlob, arg.SendID, arg.CompanyID, arg.Content)
+	return err
+}
+
+const deleteSecretSendBlob = `-- name: DeleteSecretSendBlob :execrows
+DELETE FROM secret_send_blobs WHERE company_id = $1 AND send_id = $2
+`
+
+type DeleteSecretSendBlobParams struct {
+	CompanyID uuid.UUID
+	SendID    uuid.UUID
+}
+
+// Apaga o blob de um envio purgado, na mesma transação do purge.
+func (q *Queries) DeleteSecretSendBlob(ctx context.Context, arg DeleteSecretSendBlobParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteSecretSendBlob, arg.CompanyID, arg.SendID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const failSecretSendPassword = `-- name: FailSecretSendPassword :one
 UPDATE secret_sends SET failed_attempts = failed_attempts + 1,
        locked_until = CASE WHEN failed_attempts + 1 >= $1::int THEN $2::timestamptz ELSE locked_until END
@@ -210,8 +246,14 @@ type ListSecretSendsParams struct {
 	Lim         int32
 }
 
+// Admin (created_by_id nulo) vê todos os envios da empresa; membro, só os próprios.
 func (q *Queries) ListSecretSends(ctx context.Context, arg ListSecretSendsParams) ([]SecretSend, error) {
-	rows, err := q.db.Query(ctx, listSecretSends, arg.CompanyID, arg.CreatedByID, arg.Off, arg.Lim)
+	rows, err := q.db.Query(ctx, listSecretSends,
+		arg.CompanyID,
+		arg.CreatedByID,
+		arg.Off,
+		arg.Lim,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -361,40 +403,4 @@ func (q *Queries) PurgeSecretSend(ctx context.Context, arg PurgeSecretSendParams
 	var i PurgeSecretSendRow
 	err := row.Scan(&i.ID, &i.CompanyID, &i.OldBlobKey)
 	return i, err
-}
-
-const createSecretSendBlob = `-- name: CreateSecretSendBlob :exec
--- Grava o blob cifrado do envio de arquivo (driver postgres; fs e s3 usam o BlobStore, ADR-0051). Sobrescreve:
--- subir o conteúdo de novo troca o blob.
-INSERT INTO secret_send_blobs (send_id, company_id, content) VALUES ($1, $2, $3)
-ON CONFLICT (send_id) DO UPDATE SET content = EXCLUDED.content
-`
-
-type CreateSecretSendBlobParams struct {
-	SendID    uuid.UUID
-	CompanyID uuid.UUID
-	Content   []byte
-}
-
-func (q *Queries) CreateSecretSendBlob(ctx context.Context, arg CreateSecretSendBlobParams) error {
-	_, err := q.db.Exec(ctx, createSecretSendBlob, arg.SendID, arg.CompanyID, arg.Content)
-	return err
-}
-
-const deleteSecretSendBlob = `-- name: DeleteSecretSendBlob :execrows
--- Apaga o blob de um envio purgado, na mesma transação do purge.
-DELETE FROM secret_send_blobs WHERE company_id = $1 AND send_id = $2
-`
-
-type DeleteSecretSendBlobParams struct {
-	CompanyID uuid.UUID
-	SendID    uuid.UUID
-}
-
-func (q *Queries) DeleteSecretSendBlob(ctx context.Context, arg DeleteSecretSendBlobParams) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteSecretSendBlob, arg.CompanyID, arg.SendID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
 }
