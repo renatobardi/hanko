@@ -56,6 +56,8 @@ type SecretsVM struct {
 	CollectionsHref string
 	// HealthHref leva ao relatório de saúde dos segredos (ADR-0068 §7.2).
 	HealthHref string
+	// ImportEnvHref leva ao import de .env (ADR-0068 §8.1); só admin vê o link.
+	ImportEnvHref string
 }
 
 // ---- Configurações › Instância (ADR-0050 §C, ADR-0051) ----

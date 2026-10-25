@@ -5452,6 +5452,10 @@
       "EnvImportPlan": {
         "additionalProperties": false,
         "properties": {
+          "collection": {
+            "description": "Coleção de destino dos segredos novos.",
+            "type": "string"
+          },
           "conflicts": {
             "description": "Nomes que já existem.",
             "items": {
@@ -5472,7 +5476,7 @@
             ]
           },
           "skipped": {
-            "description": "Linhas ignoradas (comentário, vazia, inválida) com o número da linha.",
+            "description": "Linhas ignoradas (valor vazio, nome inválido, aspas sem fechar...) com o número da linha; comentário e linha vazia não entram.",
             "items": {
               "type": "string"
             },
@@ -5483,7 +5487,8 @@
           }
         },
         "required": [
-          "items"
+          "items",
+          "collection"
         ],
         "type": "object"
       },
@@ -22265,23 +22270,37 @@
         "additionalProperties": false,
         "properties": {
           "collections": {
+            "description": "Coleções criadas.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "existing": {
+            "description": "Segredos que já existiam e ficaram como estavam.",
             "format": "int64",
             "type": "integer"
           },
           "fields": {
+            "description": "Campos criados ou trocados.",
             "format": "int64",
             "type": "integer"
           },
           "grants": {
+            "description": "Concessões criadas.",
             "format": "int64",
             "type": "integer"
           },
           "secrets": {
+            "description": "Segredos criados.",
             "format": "int64",
             "type": "integer"
           },
           "skipped": {
-            "description": "Concessões a persona ou humano que não existe no destino.",
+            "description": "Concessões não aplicadas: persona ou humano que não existe no destino, ou coleção que já existia.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "updated": {
+            "description": "Segredos que já existiam e foram rotacionados (só com overwrite no .env).",
             "format": "int64",
             "type": "integer"
           }
@@ -22289,6 +22308,8 @@
         "required": [
           "secrets",
           "fields",
+          "updated",
+          "existing",
           "collections",
           "grants",
           "skipped"
@@ -70611,7 +70632,6 @@
     },
     "/api/v1/companies/{company}/vault/export": {
       "post": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 7 (#62).",
         "operationId": "export-vault",
         "parameters": [
           {
@@ -70708,16 +70728,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Exporta o cofre cifrado com senha (admin; exige reautenticação recente)",
@@ -70824,7 +70834,6 @@
     },
     "/api/v1/companies/{company}/vault/import": {
       "post": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 7 (#62).",
         "operationId": "import-vault",
         "parameters": [
           {
@@ -70921,16 +70930,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Importa um cofre exportado por outra instância (admin; exige reautenticação recente; tudo ou nada)",
@@ -70941,7 +70940,6 @@
     },
     "/api/v1/companies/{company}/vault/import-env": {
       "post": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 7 (#62).",
         "operationId": "apply-env-import",
         "parameters": [
           {
@@ -71038,19 +71036,9 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
-        "summary": "Importa um .env para o cofre (admin; exige reautenticação recente)",
+        "summary": "Importa um .env para o cofre (admin; exige reautenticação recente; tudo ou nada)",
         "tags": [
           "vault"
         ]
@@ -71058,7 +71046,6 @@
     },
     "/api/v1/companies/{company}/vault/import-env/preview": {
       "post": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 7 (#62).",
         "operationId": "preview-env-import",
         "parameters": [
           {
@@ -71155,19 +71142,9 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
-        "summary": "Prévia do import de um .env (não grava)",
+        "summary": "Prévia do import de um .env (admin; não grava)",
         "tags": [
           "vault"
         ]

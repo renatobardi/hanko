@@ -1,3 +1,17 @@
+# Estado da última sessão (cofre, fatia 7, #62)
+Data: 2026-10-24 · branch `sessao/62-cofre-import-export` · issue #62 (parte de #54)
+
+## Feito
+- Import de `.env` (CLI `hanko secret import-env`, API e tela): prévia sem valores, conflitos, coleção escolhida, `--overwrite`; grava tudo ou nada com admin e reautenticação.
+- Export cifrado `.hkv` (`hanko secret export|import`, API): AES-256-GCM, PBKDF2-SHA256 600 000; leva segredos, campos (arquivo inclusive), coleções e concessões; senha errada não grava.
+- Sem migration: nada de banco novo. Detalhes e regras de borda no ADR-0068 §8.4.
+
+## Travado
+- Nada. Fora do escopo: tela de export e import do `.hkv` (só CLI e API); concessão a coleção que já existia no destino não é aplicada.
+
+## Próximo passo
+- QA: demo do critério `qa` da #62 (um `.env` vira segredo; o cofre vai de uma instância para outra).
+
 # Estado da última sessão (cofre, fatia 6, #61)
 Data: 2026-10-24 · branch `feat/61-cofre-saude` · issue #61 (parte de #54)
 

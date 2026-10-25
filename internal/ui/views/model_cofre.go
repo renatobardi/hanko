@@ -103,3 +103,34 @@ type CollectionVM struct {
 	DeleteHref string
 	GrantCount int
 }
+
+// EnvImportRowVM é um segredo da prévia do import de .env: os campos que ele leva (nunca os valores).
+type EnvImportRowVM struct {
+	Secret string
+	Fields string
+	Exists bool
+}
+
+// EnvImportPlanVM é a prévia do import: o que seria gravado e as linhas ignoradas.
+type EnvImportPlanVM struct {
+	Collection string
+	Rows       []EnvImportRowVM
+	Skipped    []string
+}
+
+// EnvImportVM é a página de import de .env (ADR-0068 §8.1). Content volta ao formulário do jeito que a pessoa colou;
+// Plan só existe depois de "Ver prévia"; NeedPassword pede a senha da conta quando o servidor pediu reautenticação.
+type EnvImportVM struct {
+	Sections     []TabLink
+	Error        string
+	BackHref     string
+	PostHref     string
+	Content      string
+	Mode         string
+	ItemName     string
+	Collection   string
+	Overwrite    bool
+	Collections  []string
+	Plan         *EnvImportPlanVM
+	NeedPassword bool
+}

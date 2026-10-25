@@ -50,6 +50,7 @@ var secretNotices = map[string]string{
 	"criado":      i18n.N("Segredo criado."),
 	"rotacionado": i18n.N("Segredo rotacionado: a versão subiu e quem o referencia já usa o valor novo na próxima execução."),
 	"apagado":     i18n.N("Segredo apagado."),
+	"env":         i18n.N("Import do .env concluído."),
 }
 
 var instanceNotices = map[string]string{
@@ -119,7 +120,7 @@ func (s *server) secretsVM(r *http.Request, co domain.Company, be secretsBackend
 	ctx := r.Context()
 	base := "/c/" + co.Slug
 	vm := views.SecretsVM{Sections: settingsSections(ctx, base, "segredos"), KeySet: s.platform.SecretKeySet, VaultOn: s.platform.VaultConfigured,
-		Notice: i18n.T(ctx, secretNotices[r.URL.Query().Get("ok")]), Reveal: reveal, CollectionsHref: base + "/configuracoes/colecoes", HealthHref: base + "/configuracoes/segredos/saude",
+		Notice: i18n.T(ctx, secretNotices[r.URL.Query().Get("ok")]), Reveal: reveal, CollectionsHref: base + "/configuracoes/colecoes", HealthHref: base + "/configuracoes/segredos/saude", ImportEnvHref: base + "/configuracoes/segredos/importar-env",
 		Form:  views.SecretFormVM{Action: base + "/configuracoes/segredos", Provider: "local", FieldErr: map[string]string{}},
 		UForm: views.SecretFormVM{Action: base + "/configuracoes/segredos?escopo=usuario", Provider: "local", User: true, FieldErr: map[string]string{}}}
 	_, vm.UserOK = auth.IdentityFrom(ctx)

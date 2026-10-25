@@ -112,3 +112,33 @@ func (c *Client) AddSecretToCollection(ctx context.Context, company, collection,
 func (c *Client) RemoveSecretFromCollection(ctx context.Context, company, collection, secret string) error {
 	return c.do(ctx, http.MethodDelete, collectionPath(company, collection)+"/secrets/"+url.PathEscape(secret), nil, nil, nil)
 }
+
+// EnvImportReq é o pedido de prévia ou de import de um .env (ADR-0068 §8.1).
+type EnvImportReq struct {
+	Content    string `json:"content"`
+	Mode       string `json:"mode"`
+	ItemName   string `json:"item_name,omitempty"`
+	Collection string `json:"collection,omitempty"`
+	Overwrite  bool   `json:"overwrite,omitempty"`
+}
+
+// PreviewEnvImport mostra o que o import de um .env faria, sem gravar.
+func (c *Client) PreviewEnvImport(ctx context.Context, company string, req EnvImportReq) (api.EnvImportPlan, error) {
+	return get[api.EnvImportPlan](ctx, c, http.MethodPost, cp(company)+"/vault/import-env/preview", req)
+}
+
+// ImportEnv grava o .env no cofre (admin, reautenticação recente).
+func (c *Client) ImportEnv(ctx context.Context, company string, req EnvImportReq) (api.VaultImportResult, error) {
+	return get[api.VaultImportResult](ctx, c, http.MethodPost, cp(company)+"/vault/import-env", req)
+}
+
+// ExportVault pede o cofre cifrado com a senha (admin, reautenticação recente); o arquivo vem em base64.
+func (c *Client) ExportVault(ctx context.Context, company, password string) (api.VaultExport, error) {
+	return get[api.VaultExport](ctx, c, http.MethodPost, cp(company)+"/vault/export", map[string]string{"password": password})
+}
+
+// ImportVault grava um cofre exportado por outra instância (admin, reautenticação recente; tudo ou nada).
+func (c *Client) ImportVault(ctx context.Context, company, fileBase64, password string) (api.VaultImportResult, error) {
+	return get[api.VaultImportResult](ctx, c, http.MethodPost, cp(company)+"/vault/import",
+		map[string]string{"file_base64": fileBase64, "password": password})
+}
