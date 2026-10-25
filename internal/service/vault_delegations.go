@@ -118,6 +118,26 @@ func runOwner(ctx context.Context, q *store.Queries, companyID domain.ID, run st
 	return nil, nil
 }
 
+// targetOpen diz se o trabalho que a run atende segue aberto: task não fechada (nem cancelada) ou conversa não arquivada.
+// Run sem task nem conversa não tem trabalho aberto.
+func targetOpen(ctx context.Context, q *store.Queries, companyID domain.ID, run store.Run) (bool, error) {
+	switch {
+	case run.TaskID != nil:
+		tk, err := q.GetTaskByID(ctx, store.GetTaskByIDParams{CompanyID: companyID, ID: *run.TaskID})
+		if err != nil {
+			return false, mapErr(err, "task")
+		}
+		return domain.TaskStatus(tk.Status).Open(), nil
+	case run.ConversationID != nil:
+		cv, err := q.GetConversation(ctx, store.GetConversationParams{CompanyID: companyID, ID: *run.ConversationID})
+		if err != nil {
+			return false, mapErr(err, "conversa")
+		}
+		return domain.ConversationStatus(cv.Status) == domain.ConversationOpen, nil
+	}
+	return false, nil
+}
+
 // CreateSecretDelegation delega o segredo pessoal `name` do chamador às runs do alvo. O alvo tem de ser trabalho que
 // o próprio dono pediu; uma delegação a uma run exige a run em curso.
 func (s *Service) CreateSecretDelegation(ctx context.Context, actor domain.Actor, companyID domain.ID, name string, in CreateDelegationInput) (DelegationView, error) {
@@ -234,6 +254,52 @@ func (s *Service) ListUserSecretUsage(ctx context.Context, companyID domain.ID, 
 	if err != nil {
 		return nil, fmt.Errorf("listar usos: %w", err)
 	}
+	return accessViews(ctx, q, companyID, rows), nil
+}
+
+// ListSecretUsage mostra onde e quando um segredo da empresa foi usado. Vê o admin, ou o membro com `view` ou `manage`
+// numa coleção que contém o segredo (ADR-0068 §2, tabela de permissões).
+func (s *Service) ListSecretUsage(ctx context.Context, companyID domain.ID, name string, limit int) ([]SecretAccessView, error) {
+	if err := s.require(ctx, companyID, domain.MemberMember); err != nil {
+		return nil, err
+	}
+	q := s.read()
+	sec, err := getSecretRow(ctx, q, companyID, domain.SecretScopeCompany, nil, name, false)
+	if err != nil {
+		return nil, err
+	}
+	if s.require(ctx, companyID, domain.MemberAdmin) != nil {
+		uid, ok := s.identityUserID(ctx)
+		if !ok {
+			return nil, domain.ErrForbidden
+		}
+		perms, err := q.UserCollectionPermissions(ctx, store.UserCollectionPermissionsParams{CompanyID: companyID, SecretID: sec.ID, UserID: *uid})
+		if err != nil {
+			return nil, fmt.Errorf("permissões do segredo: %w", err)
+		}
+		if !canSeeUsage(perms) {
+			return nil, domain.ErrForbidden
+		}
+	}
+	rows, err := q.ListSecretAccess(ctx, store.ListSecretAccessParams{CompanyID: companyID, SecretID: sec.ID, Lim: int32(min(max(limit, 1), 500))}) //nolint:gosec // limitado a 500
+	if err != nil {
+		return nil, fmt.Errorf("listar usos: %w", err)
+	}
+	return accessViews(ctx, q, companyID, rows), nil
+}
+
+// canSeeUsage diz se alguma permissão da coleção deixa ver o uso: view ou manage.
+func canSeeUsage(perms []string) bool {
+	for _, p := range perms {
+		if p == string(domain.CollectionView) || p == string(domain.CollectionManage) {
+			return true
+		}
+	}
+	return false
+}
+
+// accessViews traduz os usos registrados: a persona pelo slug, a delegação como flag. Nunca o valor.
+func accessViews(ctx context.Context, q *store.Queries, companyID domain.ID, rows []store.SecretAccessLog) []SecretAccessView {
 	slugs := map[uuid.UUID]string{}
 	out := make([]SecretAccessView, 0, len(rows))
 	for _, r := range rows {
@@ -250,7 +316,7 @@ func (s *Service) ListUserSecretUsage(ctx context.Context, companyID domain.ID, 
 		}
 		out = append(out, v)
 	}
-	return out, nil
+	return out
 }
 
 // delegatedUserSecret acha o segredo pessoal `ref` de quem pediu o trabalho da run e a delegação válida dele para a
@@ -268,6 +334,14 @@ func (s *Service) delegatedUserSecret(ctx context.Context, companyID, runID doma
 	}
 	if owner == nil {
 		return store.Secret{}, store.SecretDelegation{}, uuid.UUID{}, denied
+	}
+	// a delegação só vale enquanto o trabalho (task ou conversa) está aberto (ADR-0068 §6.3)
+	open, err := targetOpen(ctx, q, companyID, run)
+	if err != nil {
+		return store.Secret{}, store.SecretDelegation{}, uuid.UUID{}, err
+	}
+	if !open {
+		return store.Secret{}, store.SecretDelegation{}, uuid.UUID{}, fmt.Errorf("%s: o trabalho desta run já está fechado ou arquivado (ADR-0068 §6.3)", r.String())
 	}
 	sec, err := q.GetUserSecretByName(ctx, store.GetUserSecretByNameParams{CompanyID: companyID, OwnerUserID: owner, Name: r.Name})
 	if err != nil {

@@ -49,10 +49,9 @@ func TestVaultContratoResponde501(t *testing.T) {
 			}
 		}
 	}
-	// Com as fatias 1 (#56, reautenticação das ações sensíveis, PR #86) e 4 (#59, envio), as operações do contrato ligadas
-	// são todas menos uma: o uso do segredo da empresa (list-secret-usage) segue com a descrição "Contrato do cofre" e
-	// responde 501.
-	if n < 1 {
-		t.Fatalf("operações do contrato do cofre ainda em 501 = %d, quer pelo menos 1 (o uso do segredo da empresa)", n)
+	// Com todas as fatias do contrato ligadas (1, 2, 4, 5, 6 e 7), nenhuma operação do cofre responde 501: o openapi
+	// não tem mais descrição "Contrato do cofre" pendente. Se uma operação nova entrar em contrato, este teste acusa.
+	if n != 0 {
+		t.Fatalf("operações do contrato do cofre ainda em 501 = %d, quer 0 (todas as fatias ligadas)", n)
 	}
 }

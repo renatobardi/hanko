@@ -49,6 +49,7 @@ type vaultBackend interface {
 	ListMyDelegations(ctx context.Context, companyID domain.ID, limit int) ([]service.DelegationView, error)
 	RevokeSecretDelegation(ctx context.Context, actor domain.Actor, companyID, id domain.ID) error
 	ListUserSecretUsage(ctx context.Context, companyID domain.ID, name string, limit int) ([]service.SecretAccessView, error)
+	ListSecretUsage(ctx context.Context, companyID domain.ID, name string, limit int) ([]service.SecretAccessView, error)
 }
 
 // vaultOp põe a guarda do cofre (run token, backend, empresa e ator) antes de cada operação da API.
