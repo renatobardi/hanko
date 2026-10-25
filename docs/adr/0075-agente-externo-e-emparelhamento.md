@@ -1,5 +1,5 @@
 # ADR-0075 — Agente externo e emparelhamento de repositório com workspace
-Data: 2026-10-25 · Status: proposta (aguarda aceite do Bardi) · Issue: #66 (v0.8)
+Data: 2026-10-25 · Status: aceita (Bardi, 2026-10-25) · Issue: #66 (v0.8)
 
 ## Contexto
 O v0.8 desliga o agent-studio do oute-agent e traz para o Hanko toda a telemetria dos agentes do oute (#66). Esses
