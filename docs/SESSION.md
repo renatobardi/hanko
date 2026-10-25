@@ -2,7 +2,7 @@
 Data: 2026-10-25 · sessão `61-cofre-saude-extras` (rodada swarm-1024-0625)
 
 ## Feito
-- Marca de senha em campo (ADR-0074, migration 00206): API, CLI, evento de atividade e relatório de fracos. CI verde no `1f482fd`.
+- Marca de senha em campo (ADR-0074, migration 00207): API, CLI, evento de atividade e relatório de fracos. CI verde no `1f482fd`.
 
 ## Travado
 - Prazo de rotação por campo (item b da issue #61): decisão do Bardi.

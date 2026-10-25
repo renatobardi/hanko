@@ -8,7 +8,7 @@ pelo nome do campo (`password` ou `senha`). Um campo `chave` ou `pin` com valor 
 diz "marca explícita", mas não define a forma. O PR #79 deixou isso em aberto.
 
 ## Decisão
-1. **Forma: coluna booleana.** `secret_fields.password boolean NOT NULL DEFAULT false` (migration 00206). Não é um valor
+1. **Forma: coluna booleana.** `secret_fields.password boolean NOT NULL DEFAULT false` (migration 00207). Não é um valor
    novo de `kind`: `kind` diz como o valor é guardado e revelado (ADR-0068 §1.2), e a marca não muda isso. Um valor novo
    de `kind` mexeria nos enums da API, dos envios e do import.
 2. **Só texto secreto.** A marca vale para `kind = text` com `sensitive = true`. A regra fica no banco (CHECK) e no
