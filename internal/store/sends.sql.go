@@ -233,7 +233,6 @@ func (q *Queries) GetSecretSendByPublicID(ctx context.Context, publicID string) 
 }
 
 const listSecretSends = `-- name: ListSecretSends :many
--- Admin (created_by_id nulo) vê todos os envios da empresa; membro, só os próprios.
 SELECT id, company_id, public_id, kind, ciphertext, blob_key, size_bytes, label, kdf_salt, password_verifier, failed_attempts, locked_until, max_accesses, access_count, expires_at, last_accessed_at, purged_at, source_secret_id, source_field, run_id, created_by_type, created_by_id, created_at FROM secret_sends WHERE company_id = $1
   AND ($2::uuid IS NULL OR created_by_id = $2::uuid)
 ORDER BY created_at DESC LIMIT $4 OFFSET $3
