@@ -1,12 +1,13 @@
-# Correção do nome da chave da janela no ADR-0070 · issue #57
-Data: 2026-10-25 · sessão `57-adr-0070-nome-da-chave` (rodada swarm-1024-0625, fase `build`)
+# Diálogo de prova recente com Firebase · issue #98
+Data: 2026-10-25 · sessão `98-prova-firebase` (rodada swarm-1024-0625, fase `build`)
 
 ## Feito
-- ADR-0070 §2: chave corrigida para `reauth.minutes` (variável `HANKO_REAUTH_MINUTES`, padrão 5, 1 a 60) e nota datada de 2026-10-25 com o motivo: a guarda do registro (ADR-0050 §C, `SensitiveName`) recusa `secret`; a isenção vale só para as duas chaves de histórico (ADR-0068 §3.2). A citação da guarda é o ADR-0050 §C, não o ADR-0032 (que é "Cards de status").
-- Sem mudança em `internal/`; CHANGELOG já documenta `HANKO_REAUTH_MINUTES`. PR #97 aberto com `Refs #57`; conflito com a main (pós-#96) resolvido sobrescrevendo este arquivo.
+- Diálogo "Confirme sua identidade" (perfil › Passkeys) oferece "Confirmar com Google" quando a API lista `firebase`: login do SDK, ID token novo, `POST /me/reauth` com `method: firebase`, e a ação que abriu o diálogo é repetida.
+- Backend sem mudança: `ReauthWithFirebase` já confere uid e `auth_time` (teste `TestProvaFirebaseExigeUidEAuthTimeRecente`).
+- Testes: UI (página do perfil nos dois providers, JS das provas e do login do Google com SDK falso) passam localmente.
 
 ## Travado
-- Nada.
+- Testes de integração de `internal/service` (reauth) não rodaram aqui: sem `HANKO_TEST_DATABASE_URL`. Vão no CI.
 
 ## Próximo passo
-- Dispatcher/Bardi: revisar e fazer merge do PR #97; o critério `qa` (demo) da issue #57 segue em aberto.
+- Revisar o PR; demo do critério `qa` com a conta Google do Bardi (cadastrar a primeira passkey; 5 min depois, pedido de prova de novo).

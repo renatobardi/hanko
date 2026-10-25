@@ -1,5 +1,6 @@
-// Passkeys no perfil e reautenticação recente (ADR-0070). Fala só com /api/v1/me: o servidor decide o que vale, e o
-// diálogo abre quando a API responde 401 reauth_required. Os textos vêm dos data-t-* da seção (traduzidos no servidor).
+// Passkeys no perfil e reautenticação recente (ADR-0070). Fala com /api/v1/me: o servidor decide o que vale, e o
+// diálogo abre quando a API responde 401 reauth_required. No provider firebase, a prova é um login do Google pelo SDK
+// (import sob demanda dos arquivos vendorizados). Os textos vêm dos data-t-* da seção (traduzidos no servidor).
 (function () {
   'use strict';
 
@@ -48,6 +49,27 @@
     return out;
   }
 
+  // ---- Firebase: a prova é um login do Google pelo SDK (ADR-0070 §3). Só carrega o SDK quando a conta usa a prova. ----
+
+  function loadFirebase() {
+    return Promise.all([
+      import('/static/vendor/firebase/firebase-app.js'),
+      import('/static/vendor/firebase/firebase-auth.js'),
+    ]).then(function (m) { return Object.assign({}, m[0], m[1]); });
+  }
+
+  // googleIDToken entra com o Google e devolve um ID token novo (auth_time agora). A sessão do SDK sai logo: quem
+  // guarda a prova é o Hanko.
+  function googleIDToken(auth, fb) {
+    var provider = new fb.GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+    return fb.signInWithPopup(auth, provider).then(function (cred) {
+      return cred.user.getIdToken(true).then(function (idToken) {
+        return fb.signOut(auth).catch(function () {}).then(function () { return idToken; });
+      });
+    });
+  }
+
   // ---- API ----
 
   var API = '/api/v1/me';
@@ -73,6 +95,16 @@
 
   function has(list, m) { return (list || []).includes(m); }
 
+  // proofChoices diz quais provas o diálogo oferece: só as que a API lista, e a do Google só com a configuração do
+  // Firebase na página. Sem nenhuma, o diálogo avisa para entrar de novo.
+  function proofChoices(methods, firebaseOn) {
+    return {
+      password: has(methods, 'password'),
+      passkey: has(methods, 'passkey'),
+      firebase: has(methods, 'firebase') && firebaseOn,
+    };
+  }
+
   function show(el, msg) {
     el.textContent = msg || '';
     el.hidden = !msg;
@@ -82,8 +114,8 @@
 
   function init(section) {
     var d = section.dataset;
-    var t = { remove: d.tRemove, unnamed: d.tUnnamed, error: d.tError, cancelled: d.tCancelled, nomethod: d.tNomethod,
-      nowebauthn: d.tNowebauthn };
+    var t = { remove: d.tRemove, unnamed: d.tUnnamed, error: d.tError, cancelled: d.tCancelled, firebase: d.tFirebase,
+      nomethod: d.tNomethod, nowebauthn: d.tNowebauthn };
     var list = section.querySelector('#passkey-list');
     var empty = section.querySelector('#passkey-empty');
     var nameInput = section.querySelector('#passkey-name');
@@ -93,6 +125,7 @@
     var pwForm = section.querySelector('#reauth-password');
     var pwInput = section.querySelector('#reauth-pass');
     var pkBtn = section.querySelector('#reauth-passkey');
+    var fbBtn = section.querySelector('#reauth-firebase');
     var cancelBtn = section.querySelector('#reauth-cancel');
     var reauthErr = section.querySelector('#reauth-error');
     var noMethod = section.querySelector('#reauth-nomethod');
@@ -100,6 +133,20 @@
 
     var pending = null;      // resolve da prova em curso (o diálogo aberto)
     var pendingOpts = null;  // opções de prova devolvidas por /reauth/options
+    var firebaseReady = null; // SDK carregado e auth criado, uma vez por página
+
+    function getFirebase() {
+      if (!firebaseReady) {
+        firebaseReady = loadFirebase().then(function (fb) {
+          var app = fb.initializeApp({ apiKey: d.fbApiKey, authDomain: d.fbAuthDomain, projectId: d.fbProjectId });
+          return { fb: fb, auth: fb.getAuth(app) };
+        }).catch(function (e) {
+          firebaseReady = null; // a próxima tentativa carrega de novo
+          throw e;
+        });
+      }
+      return firebaseReady;
+    }
 
     // failure: a falha da API vira erro mostrado ao usuário; reauth_required (prova cancelada) mostra o texto geral.
     function failure(r) {
@@ -117,9 +164,11 @@
           return Promise.resolve(false);
         }
         pendingOpts = r.data;
-        pwForm.hidden = !has(r.data.methods, 'password');
-        pkBtn.hidden = !has(r.data.methods, 'passkey') || !r.data.passkey;
-        show(noMethod, pwForm.hidden && pkBtn.hidden ? t.nomethod : '');
+        var choice = proofChoices(r.data.methods, !!d.fbApiKey);
+        pwForm.hidden = !choice.password;
+        pkBtn.hidden = !choice.passkey || !r.data.passkey;
+        fbBtn.hidden = !choice.firebase;
+        show(noMethod, pwForm.hidden && pkBtn.hidden && fbBtn.hidden ? t.nomethod : '');
         windowSpan.textContent = String(r.data.window_minutes);
         show(reauthErr, '');
         if (dialog.showModal) dialog.showModal(); else dialog.setAttribute('open', '');
@@ -144,6 +193,22 @@
         if (r.ok) finishProof(true); else show(reauthErr, r.data?.detail || t.error);
       }).catch(function () {
         show(reauthErr, t.error);
+      });
+    });
+
+    fbBtn.addEventListener('click', function () {
+      show(reauthErr, '');
+      fbBtn.disabled = true;
+      getFirebase().then(function (fbs) {
+        return googleIDToken(fbs.auth, fbs.fb);
+      }).then(function (idToken) {
+        return call('POST', '/reauth', { method: 'firebase', id_token: idToken });
+      }).then(function (r) {
+        if (r.ok) finishProof(true); else show(reauthErr, r.data?.detail || t.firebase);
+      }, function () {
+        show(reauthErr, t.firebase);
+      }).then(function () {
+        fbBtn.disabled = false;
       });
     });
 
@@ -259,7 +324,8 @@
   // Módulo para o teste em node (internal/ui/passkey_test.go); no navegador não existe.
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = { b64uToBuf: b64uToBuf, bufToB64u: bufToB64u, creationOptions: creationOptions,
-      requestOptions: requestOptions, credentialJSON: credentialJSON };
+      requestOptions: requestOptions, credentialJSON: credentialJSON, proofChoices: proofChoices,
+      googleIDToken: googleIDToken };
   }
   if (typeof document !== 'undefined') {
     var section = document.getElementById('passkey-section');
