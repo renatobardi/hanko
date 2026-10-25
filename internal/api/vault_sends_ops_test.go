@@ -77,7 +77,7 @@ func (f *sendOpsFake) UploadSendContent(_ context.Context, _ domain.Actor, _, id
 // o status certo para cada resultado (201 ao criar, 204 ao apagar, 404 e 422 para erro).
 func TestEnvioGestaoLigaOService(t *testing.T) {
 	ts, s := newTestServer(t, &fakeSvc{}, nil)
-	f := &sendOpsFake{fakeSvc: &fakeSvc{}}
+	f := &sendOpsFake{fakeSvc: &fakeSvc{companies: []domain.Company{{Slug: "acme"}}}}
 	s.svc = f
 	base := ts.URL + "/api/v1/companies/acme/sends"
 	json := map[string]string{"content-type": "application/json"}
