@@ -115,12 +115,12 @@
   function init(section) {
     var d = section.dataset;
     var t = { remove: d.tRemove, unnamed: d.tUnnamed, error: d.tError, cancelled: d.tCancelled, firebase: d.tFirebase,
-      nomethod: d.tNomethod, nowebauthn: d.tNowebauthn };
+      nomethod: d.tNomethod, nowebauthn: d.tNowebauthn, proved: d.tProved };
     var list = section.querySelector('#passkey-list');
     var empty = section.querySelector('#passkey-empty');
     var nameInput = section.querySelector('#passkey-name');
     var addBtn = section.querySelector('#passkey-add');
-    var errBox = section.querySelector('#passkey-error');
+    var errBox = section.querySelector('#passkey-error') || section.querySelector('#reauth-proved');
     var dialog = section.querySelector('#reauth-dialog');
     var pwForm = section.querySelector('#reauth-password');
     var pwInput = section.querySelector('#reauth-pass');
@@ -310,6 +310,22 @@
       });
     }
 
+    // Nas telas do cofre (.hkv e .env) não há lista: o botão abre o mesmo diálogo, a API grava a prova na sessão e a
+    // pessoa envia o formulário de novo (#92).
+    var proveBtn = section.querySelector('#reauth-prove');
+    if (proveBtn) {
+      var proved = section.querySelector('#reauth-proved');
+      proveBtn.addEventListener('click', function () {
+        show(proved, '');
+        askProof().then(function (ok) {
+          if (ok) show(proved, t.proved);
+        }).catch(function () {
+          show(proved, t.error);
+        });
+      });
+    }
+    if (!list) return;
+
     addBtn.addEventListener('click', add);
 
     if (!window.PublicKeyCredential || !navigator.credentials) {
@@ -328,7 +344,7 @@
       googleIDToken: googleIDToken };
   }
   if (typeof document !== 'undefined') {
-    var section = document.getElementById('passkey-section');
+    var section = document.getElementById('passkey-section') || document.getElementById('reauth-host');
     if (section) init(section);
   }
 })();

@@ -33,7 +33,7 @@ func (c *cofreFake) ImportEnv(ctx context.Context, _ domain.Actor, _ domain.ID, 
 		return service.VaultImportResult{}, &domain.ReauthError{WindowMinutes: 5}
 	}
 	if c.needProof {
-		c.proved++
+		c.prove(ctx)
 	}
 	return service.VaultImportResult{Secrets: 2}, c.envImportErr
 }

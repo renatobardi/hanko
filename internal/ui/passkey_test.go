@@ -148,3 +148,112 @@ h.googleIDToken('auth', fb).then(function (tok) {
 		t.Fatalf("saída do node = %q", out)
 	}
 }
+
+// Nas telas do cofre (.hkv e .env) o passkey.js sobe só o diálogo de prova (#92): o botão abre o diálogo, a prova sai por
+// /api/v1/me/reauth (senha ou passkey), a tela avisa que a identidade foi confirmada, e prova cancelada ou falha não
+// avisa nada. O DOM é falso: o teste confere o que o script pede à API e o que mostra. Roda no node quando ele existe.
+func TestPasskeyJSProvaNasTelasDoCofre(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skip("node não instalado")
+	}
+	path, err := filepath.Abs(filepath.Join("static", "passkey.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	const script = `
+const path = process.argv[1];
+const eq = (a, b, what) => { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error(what + ': ' + JSON.stringify(a) + ' != ' + JSON.stringify(b)); };
+const tick = () => new Promise(function (r) { setTimeout(r, 0); });
+
+function el() {
+  const e = { hidden: false, disabled: false, textContent: '', value: '', handlers: {}, open: false };
+  e.addEventListener = function (ev, fn) { e.handlers[ev] = fn; };
+  e.fire = function (ev) { return e.handlers[ev]({ preventDefault: function () {} }); };
+  e.showModal = function () { e.open = true; };
+  e.close = function () { e.open = false; };
+  return e;
+}
+
+// run monta a página do cofre com o script, responde à API com 'respostas' (por método e caminho) e roda 'fluxo'.
+async function run(fbApiKey, respostas, fluxo) {
+  const ids = ['reauth-dialog', 'reauth-password', 'reauth-pass', 'reauth-passkey', 'reauth-firebase', 'reauth-cancel',
+    'reauth-error', 'reauth-nomethod', 'reauth-window', 'reauth-prove', 'reauth-proved'];
+  const els = {};
+  ids.forEach(function (id) { els['#' + id] = el(); });
+  els['#reauth-proved'].hidden = true;
+  const section = { dataset: { tProved: 'Identidade confirmada.', tError: 'erro', tFirebase: 'erro-google', tCancelled: 'cancelada',
+    tNomethod: 'sem método', fbApiKey: fbApiKey }, querySelector: function (sel) { return els[sel] || null; } };
+  const chamadas = [];
+  global.window = {};
+  global.document = { getElementById: function (id) { return id === 'reauth-host' ? section : null; } };
+  global.fetch = function (url, opts) {
+    chamadas.push({ method: opts.method, url: url, body: opts.body ? JSON.parse(opts.body) : null });
+    const r = respostas[opts.method + ' ' + url] || { status: 200, body: {} };
+    return Promise.resolve({ ok: r.status < 400, status: r.status, text: function () { return Promise.resolve(JSON.stringify(r.body)); } });
+  };
+  Object.defineProperty(global, 'navigator', { configurable: true, writable: true, value: { credentials: { get: function () {
+    const b = new Uint8Array([1, 2]).buffer;
+    return Promise.resolve({ id: 'cred', rawId: b, type: 'public-key', response: { clientDataJSON: b, authenticatorData: b, signature: b } });
+  } } } });
+  delete require.cache[require.resolve(path)];
+  require(path);
+  await fluxo(els, chamadas);
+}
+
+const opcoes = function (metodos, passkey) {
+  return { 'POST /api/v1/me/reauth/options': { status: 200, body: { methods: metodos, window_minutes: 5, passkey: passkey } } };
+};
+
+(async function () {
+  // senha: o botão abre o diálogo só com a senha; o envio manda a senha à API e a tela avisa
+  await run('', Object.assign(opcoes(['password']), { 'POST /api/v1/me/reauth': { status: 200, body: { method: 'password' } } }), async function (els, calls) {
+    await els['#reauth-prove'].fire('click'); await tick();
+    eq(els['#reauth-dialog'].open, true, 'diálogo aberto');
+    eq([els['#reauth-password'].hidden, els['#reauth-passkey'].hidden, els['#reauth-firebase'].hidden], [false, true, true], 'só a senha');
+    els['#reauth-pass'].value = 's3nha-da-conta';
+    await els['#reauth-password'].fire('submit'); await tick();
+    eq(calls[1], { method: 'POST', url: '/api/v1/me/reauth', body: { method: 'password', password: 's3nha-da-conta' } }, 'prova por senha');
+    eq(els['#reauth-pass'].value, '', 'senha limpa do campo');
+    eq([els['#reauth-dialog'].open, els['#reauth-proved'].hidden, els['#reauth-proved'].textContent], [false, false, 'Identidade confirmada.'], 'aviso');
+  });
+
+  // passkey: o botão da passkey assina o desafio e a API recebe o desafio e a credencial
+  const pk = { challenge_id: 'ch-1', public_key: { publicKey: { challenge: 'AQI', allowCredentials: [] } } };
+  await run('', Object.assign(opcoes(['passkey'], pk), { 'POST /api/v1/me/reauth': { status: 200, body: { method: 'passkey' } } }), async function (els, calls) {
+    await els['#reauth-prove'].fire('click'); await tick();
+    eq([els['#reauth-password'].hidden, els['#reauth-passkey'].hidden], [true, false], 'só a passkey');
+    await els['#reauth-passkey'].fire('click'); await tick();
+    eq([calls[1].url, calls[1].body.method, calls[1].body.challenge_id, calls[1].body.credential.id], ['/api/v1/me/reauth', 'passkey', 'ch-1', 'cred'], 'prova por passkey');
+    eq([els['#reauth-proved'].hidden, els['#reauth-proved'].textContent], [false, 'Identidade confirmada.'], 'aviso');
+  });
+
+  // Google: com o botão à mostra, o SDK que não carrega não vira prova (a API não é chamada) e a tela mostra o erro
+  await run('chave', opcoes(['firebase']), async function (els, calls) {
+    await els['#reauth-prove'].fire('click'); await tick();
+    eq(els['#reauth-firebase'].hidden, false, 'botão do Google');
+    await els['#reauth-firebase'].fire('click'); await tick(); await tick();
+    eq(calls.map(function (c) { return c.url; }), ['/api/v1/me/reauth/options'], 'sem prova sem o SDK');
+    eq([els['#reauth-error'].textContent, els['#reauth-proved'].hidden], ['erro-google', true], 'erro do Google');
+  });
+
+  // prova recusada pela API e prova cancelada: nada de aviso de identidade confirmada
+  await run('', Object.assign(opcoes(['password']), { 'POST /api/v1/me/reauth': { status: 401, body: { detail: 'senha errada' } } }), async function (els) {
+    await els['#reauth-prove'].fire('click'); await tick();
+    els['#reauth-pass'].value = 'x';
+    await els['#reauth-password'].fire('submit'); await tick();
+    eq([els['#reauth-error'].textContent, els['#reauth-dialog'].open, els['#reauth-proved'].hidden], ['senha errada', true, true], 'senha recusada');
+    await els['#reauth-cancel'].fire('click'); await tick();
+    eq([els['#reauth-dialog'].open, els['#reauth-proved'].hidden], [false, true], 'cancelada');
+  });
+  console.log('ok');
+})().catch(function (e) { console.error(e.stack || e); process.exit(1); });
+`
+	out, err := exec.Command(node, "-e", script, path).CombinedOutput()
+	if err != nil {
+		t.Fatalf("node: %v\n%s", err, out)
+	}
+	if strings.TrimSpace(string(out)) != "ok" {
+		t.Fatalf("saída do node = %q", out)
+	}
+}

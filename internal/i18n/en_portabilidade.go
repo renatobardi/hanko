@@ -22,7 +22,7 @@ var enPortabilidade = map[string]string{
 	"Senha da conta, para confirmar (se o servidor pedir)":           "Account password, to confirm (if the server asks)",
 	"Gravar":                    "Write",
 	"Import do .env concluído.": ".env import finished.",
-	"O servidor pede uma prova recente de identidade: informe a senha da conta e grave de novo.": "The server asks for recent proof of identity: enter the account password and write again.",
+	"O servidor pede uma prova recente de identidade: informe a senha da conta ou confirme com passkey ou Google, e grave de novo.": "The server asks for recent proof of identity: enter the account password or confirm with a passkey or Google, and write again.",
 	"Senha da conta incorreta.":              "Wrong account password.",
 	"linha":                                  "line",
 	"a senha do arquivo veio vazia no stdin": "the file password came empty on stdin",

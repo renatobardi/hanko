@@ -34,6 +34,7 @@ type cofreFake struct {
 	reauthWrong bool     // ReauthWithPassword recusa a senha da conta
 	needProof   bool     // ImportEnv, ExportVault e ImportVault exigem prova de reautenticação no contexto
 	proved      int      // gravações e exportações que chegaram com a prova
+	provedBy    []string // método da prova de cada uma (password, firebase ou passkey)
 	vaultErr    error    // erro que ExportVault e ImportVault devolvem (nil = segue)
 	exportPass  []string // senhas do arquivo que chegaram em ExportVault
 	importFile  [][]byte // arquivos que chegaram em ImportVault

@@ -31,26 +31,54 @@ templ PasskeySection(version string, fb FirebaseWeb) {
 			<button class="btn" type="button" id="passkey-add">{ i18n.T(ctx, "Adicionar passkey") }</button>
 		</div>
 		<p class="alert danger" id="passkey-error" role="alert" hidden></p>
-		<dialog id="reauth-dialog" class="card pad">
-			<h3>{ i18n.T(ctx, "Confirme sua identidade") }</h3>
-			<p class="muted">{ i18n.T(ctx, "Esta ação pede uma confirmação recente. Ela vale por") } <span id="reauth-window">5</span> { i18n.T(ctx, "minutos.") }</p>
-			<form id="reauth-password" class="form-grid">
-				<div class="field">
-					<label for="reauth-pass">{ i18n.T(ctx, "Senha") }</label>
-					<input class="input" id="reauth-pass" type="password" name="password" autocomplete="current-password" required/>
-				</div>
-				<div class="actions">
-					<button class="btn primary" type="submit">{ i18n.T(ctx, "Confirmar com senha") }</button>
-				</div>
-			</form>
-			<div class="actions">
-				<button class="btn primary" type="button" id="reauth-firebase" hidden>{ i18n.T(ctx, "Confirmar com Google") }</button>
-				<button class="btn" type="button" id="reauth-passkey">{ i18n.T(ctx, "Usar passkey") }</button>
-				<button class="btn" type="button" id="reauth-cancel">{ i18n.T(ctx, "Cancelar") }</button>
+		@ReauthDialog()
+		<script src={ "/static/passkey.js?v=" + version } defer></script>
+	</section>
+}
+
+// ReauthDialog é o diálogo de prova recente: senha, passkey ou Google. Fica no perfil e nas telas do cofre que pedem a
+// prova (.hkv e .env); static/passkey.js é quem o abre, nos dois casos.
+templ ReauthDialog() {
+	<dialog id="reauth-dialog" class="card pad">
+		<h3>{ i18n.T(ctx, "Confirme sua identidade") }</h3>
+		<p class="muted">{ i18n.T(ctx, "Esta ação pede uma confirmação recente. Ela vale por") } <span id="reauth-window">5</span> { i18n.T(ctx, "minutos.") }</p>
+		<form id="reauth-password" class="form-grid">
+			<div class="field">
+				<label for="reauth-pass">{ i18n.T(ctx, "Senha") }</label>
+				<input class="input" id="reauth-pass" type="password" name="password" autocomplete="current-password" required/>
 			</div>
-			<p class="alert danger" id="reauth-error" role="alert" hidden></p>
-			<p class="muted" id="reauth-nomethod" hidden></p>
-		</dialog>
+			<div class="actions">
+				<button class="btn primary" type="submit">{ i18n.T(ctx, "Confirmar com senha") }</button>
+			</div>
+		</form>
+		<div class="actions">
+			<button class="btn primary" type="button" id="reauth-firebase" hidden>{ i18n.T(ctx, "Confirmar com Google") }</button>
+			<button class="btn" type="button" id="reauth-passkey">{ i18n.T(ctx, "Usar passkey") }</button>
+			<button class="btn" type="button" id="reauth-cancel">{ i18n.T(ctx, "Cancelar") }</button>
+		</div>
+		<p class="alert danger" id="reauth-error" role="alert" hidden></p>
+		<p class="muted" id="reauth-nomethod" hidden></p>
+	</dialog>
+}
+
+// ReauthHost leva ao formulário do cofre a mesma prova do perfil (ADR-0070 §3, #92): o botão abre o diálogo, a API
+// grava a prova na sessão e a pessoa envia o formulário de novo. Os data-* são os da PasskeySection.
+templ ReauthHost(version string, fb FirebaseWeb) {
+	<section class="card pad form-card mb-6" id="reauth-host"
+		data-t-error={ i18n.T(ctx, "Não foi possível concluir. Tente de novo.") }
+		data-t-cancelled={ i18n.T(ctx, "A passkey não foi usada. Tente de novo.") }
+		data-t-firebase={ i18n.T(ctx, "Não foi possível confirmar pelo Google. Tente de novo.") }
+		data-t-nomethod={ i18n.T(ctx, "Esta conta confirma pelo login do Google. Entre de novo para confirmar.") }
+		data-t-proved={ i18n.T(ctx, "Identidade confirmada. Envie o formulário de novo.") }
+		data-fb-api-key={ fb.APIKey }
+		data-fb-auth-domain={ fb.AuthDomain }
+		data-fb-project-id={ fb.ProjectID }>
+		<p class="muted">{ i18n.T(ctx, "Sem a senha da conta, confirme com uma passkey ou com o Google.") }</p>
+		<div class="actions">
+			<button class="btn" type="button" id="reauth-prove">{ i18n.T(ctx, "Confirmar identidade") }</button>
+		</div>
+		<p class="alert" id="reauth-proved" role="status" hidden></p>
+		@ReauthDialog()
 		<script src={ "/static/passkey.js?v=" + version } defer></script>
 	</section>
 }
