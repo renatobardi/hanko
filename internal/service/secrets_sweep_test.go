@@ -99,4 +99,3 @@ func TestVarreduraBaseInexistenteFalha(t *testing.T) {
 		t.Fatalf("base inexistente: n=%d err=%v", n, err)
 	}
 }
-
