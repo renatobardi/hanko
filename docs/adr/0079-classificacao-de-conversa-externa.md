@@ -1,5 +1,5 @@
 # ADR-0079 — Classificação de conversa externa, Jev no decision model e filtro de segredo
-Data: 2026-10-25 · Status: proposta (aguarda aceite do Bardi) · Issue: #66 (v0.8) · Usa: ADR-0078 · Altera: ADR-0056
+Data: 2026-10-25 · Status: aceita (Bardi, 2026-10-25) · Issue: #66 (v0.8) · Usa: ADR-0078 · Altera: ADR-0056
 
 ## Contexto
 O agent-studio dá a cada conversa uma fase do AI-DLC (12 fases, `strat` a `iter`), com origem e confiança, por
