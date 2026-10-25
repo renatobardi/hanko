@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -97,6 +98,18 @@ func migratePersonaEnvAtBoot(ctx context.Context, svc *service.Service, hasKey b
 		logger.Warn("segredos: migração do env das personas falhou (tenta de novo no próximo boot)", "err", err)
 	case n > 0:
 		logger.Info("segredos: env das personas movido para segredos cifrados", "personas", n)
+	}
+}
+
+// sweepStaleSecretDirsAtBoot apaga as pastas hanko-secret-* mais velhas que o teto de vida de uma run: run_timeout
+// mais a margem do resgate, o mesmo limite do heartbeat (ADR-0073). Nunca derruba o boot.
+func sweepStaleSecretDirsAtBoot(cfg config.Config, logger *slog.Logger) {
+	n, err := service.SweepStaleSecretDirs("", cfg.RunTimeout+time.Hour, time.Now())
+	switch {
+	case err != nil:
+		logger.Warn("cofre: varredura de pastas de arquivos de segredo antigas falhou (tenta de novo no próximo boot)", "err", err)
+	case n > 0:
+		logger.Info("cofre: pastas de arquivos de segredo antigas apagadas", "pastas", n)
 	}
 }
 

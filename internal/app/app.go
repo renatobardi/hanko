@@ -186,6 +186,7 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 		return err
 	}
 	migratePersonaEnvAtBoot(ctx, svc, box.Enabled(), logger)
+	sweepStaleSecretDirsAtBoot(cfg, logger)
 
 	// Runs de antes dos nomes amigáveis ganham o delas; falha aqui só deixa o nome vazio (a UI cai no id curto).
 	if n, err := svc.BackfillRunNames(ctx); err != nil {

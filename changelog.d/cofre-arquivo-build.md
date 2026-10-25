@@ -1,0 +1,8 @@
+### Cofre: campo arquivo pela CLI, varredura de pastas e migração entre drivers (fatia 3, #58)
+
+- CLI `hanko secret field add <segredo> <campo> --kind file --file <caminho>`: envia o arquivo (de 1 byte a 1 MiB) cifrado, como os demais campos arquivo. Campo arquivo é sempre secreto e não leva `--value`, `--generate` nem `--visible`; a recusa sai antes de chamar o servidor. Com `--user`, vale para o segredo pessoal.
+- Boot: apaga as pastas `hanko-secret-*` deixadas em `/tmp` por runs que morreram no meio, quando mais velhas que `run_timeout` + 1 h. Erro vira aviso no log e não derruba o boot (ADR-0073).
+- `hanko secret rekey` recifra os arquivos dos campos um a um, em páginas de 100 ids. Antes, carregava o conteúdo de todos de uma vez.
+- `hanko blobs migrate` move também os arquivos dos campos entre postgres, fs e s3, com conferência byte a byte e retomada. Enquanto a migração corre, a leitura acha o arquivo no driver que o tem.
+- Sair da empresa apaga do driver de blob (fs ou s3) os arquivos dos segredos pessoais, e não só as linhas do postgres.
+- English summary: `hanko secret field add --kind file --file` uploads a file field (up to 1 MiB) sealed like the other file fields, with `--user` for personal secrets; the boot sweep removes stale `hanko-secret-*` directories older than `run_timeout` + 1 h (ADR-0073); `hanko secret rekey` re-seals file fields one by one in pages of 100 ids; `hanko blobs migrate` also moves file-field content between postgres, fs and s3, with byte-by-byte verification and resume; leaving a company deletes personal file-field objects from fs and s3 after commit.
