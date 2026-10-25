@@ -1,12 +1,12 @@
-# Corte da versão v0.7.1 · branch `release/v0.7.1`
-Data: 2026-10-25 · sessão `release-v0-7-1` (sem issue, #825; rodada swarm-1024-0625)
+# Kaizen #94: geradores antes do push e número de migration no AGENTS.md
+Data: 2026-10-25 · sessão `94-kaizen-hanko-agents` (kaizen da rodada swarm-1024-0625)
 
 ## Feito
-- Corte da v0.7.1 (`docs/RELEASING.md` passos 1–3): main verde antes do corte (`ci` — jobs `check` e `release-dry-run` success — e `security` no head `804ae43`), seção `## [0.7.1] — 2026-10-25` no `CHANGELOG.md` com as 6 entregas desde a v0.7.0 (#86–#91; fatias 3–7 e a ligação da fatia 1 à reautenticação), `[Unreleased]` vazio, os 6 fragmentos de `changelog.d/` removidos; `scripts/release-notes.sh notes 0.7.1` imprime a seção (46 linhas, 29 marcadores).
-- Commit assinado `release: v0.7.1` (`a841b84`); PR do ramo `release/v0.7.1` para a `main`. Sem tag, sem merge, sem deploy (passos 4–6, do Bardi).
+- `AGENTS.md` ("Regras de trabalho") com as duas regras da #94: rodar antes do push os geradores que o job `gerados` confere (`make openapi`, `make generate`, `make islands`) e commitar o resultado; e, ao criar migration e ao atualizar o branch com a `origin/main`, conferir o maior número em `db/migrations/` da `origin/main` e usar o seguinte.
+- Conferido: o `AGENTS.md` não tem teto de tamanho (busca por `AGENTS` no repo inteiro: nenhuma regra de tamanho). Nenhuma regra saiu ou fundiu.
 
 ## Travado
 - Nada.
 
 ## Próximo passo
-- Bardi: fazer merge do PR, taguear `v0.7.1` no commit mergeado e deployar no `hanko-prd` (canal de aprovação).
+- Dispatcher/Bardi: fazer merge do PR da #94.
