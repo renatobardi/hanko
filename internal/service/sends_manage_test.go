@@ -206,3 +206,34 @@ func TestEnvioArquivoRecusaEntradaInvalida(t *testing.T) {
 		t.Fatalf("pedidos inválidos gravaram %d envio(s)", n)
 	}
 }
+
+// Estados que o upload e o apagar recusam: envio de texto não recebe conteúdo em PUT; envio já apagado não recebe; só
+// pessoa apaga (uma persona não).
+func TestEnvioGestaoRecusaEstadosInvalidos(t *testing.T) {
+	f := newReauthFixture(t)
+	ctx := logadoComEnvio(t, f)
+	bg := context.Background()
+	v := criaArquivo(t, f, ctx, time.Hour)
+
+	linkKey, publicID := clienteChave(t)
+	cifra := clienteCifra(t, clienteAESKey(linkKey, nil, nil), publicID, sentinelEnvio)
+	texto, err := f.e.svc.CreateSend(ctx, f.owner.Actor(), f.co.ID, service.CreateSendInput{
+		PublicID: publicID, Kind: domain.SendText, Ciphertext: cifra, ExpiresIn: time.Hour})
+	if err != nil {
+		t.Fatalf("criar envio de texto: %v", err)
+	}
+	if _, err := f.e.svc.UploadSendContent(ctx, f.owner.Actor(), f.co.ID, texto.ID, cifraDeArquivo()); !errors.Is(err, domain.ErrInvalid) {
+		t.Fatalf("subir conteúdo em envio de texto = %v; quer inválido", err)
+	}
+
+	if err := f.e.svc.DeleteSend(bg, f.owner.Actor(), f.co.ID, v.ID); err != nil {
+		t.Fatalf("apagar: %v", err)
+	}
+	if _, err := f.e.svc.UploadSendContent(ctx, f.owner.Actor(), f.co.ID, v.ID, cifraDeArquivo()); !errors.Is(err, service.ErrSendGone) {
+		t.Fatalf("subir em envio apagado = %v; quer ErrSendGone", err)
+	}
+
+	if err := f.e.svc.DeleteSend(bg, domain.PersonaActor(domain.NewID()), f.co.ID, texto.ID); !errors.Is(err, domain.ErrForbidden) {
+		t.Fatalf("persona apagou envio = %v; quer proibido", err)
+	}
+}
