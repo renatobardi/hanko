@@ -1,5 +1,5 @@
 # ADR-0078 — Conversa externa, sessão externa e papel da chamada
-Data: 2026-10-25 · Status: proposta (aguarda aceite do Bardi) · Issue: #66 (v0.8) · Usa: ADR-0075, ADR-0077
+Data: 2026-10-25 · Status: aceita (Bardi, 2026-10-25) · Issue: #66 (v0.8) · Usa: ADR-0075, ADR-0077
 
 ## Contexto
 Acima da chamada ao modelo, o agent-studio agrupa a telemetria em dois níveis (`agent_studio/sessions.py:1-5`,
