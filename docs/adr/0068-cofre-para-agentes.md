@@ -129,6 +129,11 @@ servidor de entregar o valor à run, que é o motivo de o cofre existir.
 5. **Saída do humano** (ADR-0057). Ao remover alguém da empresa, os segredos de usuário dele naquela empresa são
    apagados na mesma transação, as delegações caem junto e o fato `secret.user_purged` registra quantos itens e quantas
    delegações ativas havia, sem nomes. Não existe acesso de emergência.
+6. **Fato `delegation.expired` não é emitido (fatia 5, #60).** A validade é conferida no uso: a run só resolve com uma
+   delegação não revogada, de prazo ainda não vencido, e com o trabalho (task não fechada, conversa não arquivada) aberto.
+   Emitir o fato na recusa faria uma escrita no caminho de leitura do uso, e cada recusa de uma run com retentativa
+   geraria um fato novo. Não há varredura de delegações vencidas, então o vencimento não tem momento de disparo. O dono
+   vê o vencimento na listagem (`active: false`) e o uso no relatório. Para ter o fato, é preciso ADR novo com a varredura.
 
 ### 7. Saúde dos segredos e gerador
 1. **Gerador** configurável (tamanho 8–128, classes de caractere, frase-senha de 3–12 palavras de uma lista embutida),
@@ -208,7 +213,7 @@ para que "vault" no código signifique só o cofre do Hanko. O valor `provider =
 - `secretref` ganha `#campo` e `${secretfile:}` na fatia 1 e 3. Até lá, nenhum comportamento muda.
 - Novas tabelas com `company_id` em toda linha (ADR-0010); toda escrita gera `activity_event` na mesma transação.
 - Fatos novos: `secret.field_created|field_updated|field_deleted|field_restored|history_pruned|accessed|user_purged`,
-  `collection.created|updated|deleted|item_added|item_removed|granted|revoked`, `delegation.created|revoked|expired`.
+  `collection.created|updated|deleted|item_added|item_removed|granted|revoked`, `delegation.created|revoked` (`expired` não é emitido: §6, item 6).
 - Testes de não-vazamento com valor sentinela (padrão do ADR-0050 §10) passam a cobrir campos, histórico, arquivo,
   `hanko_secret_get`, relatório de saúde e export cifrado.
 - O ADR-0050 continua valendo em tudo que este não altera.
