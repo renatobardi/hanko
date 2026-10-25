@@ -9,10 +9,7 @@ import (
 // O contrato do cofre (ADR-0068/0069/0070) está no OpenAPI e responde 501 até cada fatia ligar o backend.
 func TestVaultContratoResponde501(t *testing.T) {
 	ts, _ := newTestServer(t, &fakeSvc{}, nil)
-	const uuid = "00000000-0000-0000-0000-000000000001"
 	for _, c := range []struct{ method, path string }{
-		{"GET", "/api/v1/companies/acme/user-secrets/gh/fields/password/history"},
-		{"DELETE", "/api/v1/companies/acme/secret-collections/infra/grants/" + uuid},
 		{"GET", "/api/v1/s/AAAAAAAAAAAAAAAAAAAAAA"},
 		{"GET", "/api/v1/companies/acme/secrets/gh/usage"},
 		{"GET", "/api/v1/companies/acme/vault/health"},
@@ -52,13 +49,10 @@ func TestVaultContratoResponde501(t *testing.T) {
 			}
 		}
 	}
-	// A fatia 1 (#56) liga 17 das 54 operações do contrato, a fatia 2 (#57) liga 6 (reautenticação e passkeys) e a
-	// fatia 4 (#59) liga 7 (criar envio, página pública e abrir, e depois subir conteúdo, listar, ver e apagar); fatia 6
-	// (#61) liga 3 (gerador, relatório de saúde e PATCH do segredo); a fatia 5 (#60) liga 4 (criar, listar e revogar
-	// delegação, e o uso do segredo pessoal); a fatia 7 (#62) liga 4 (prévia e import de .env, export e import do cofre
-	// cifrado); as 13 restantes (revelar, histórico, concessões, apagar e restaurar campo, e uso) seguem com a descrição
-	// "Contrato do cofre" e respondem 501.
-	if n < 13 {
-		t.Fatalf("operações do contrato do cofre ainda em 501 = %d, quer pelo menos 13 (54 menos 17, 6, 3, 3, 4, 4 e 4 das fatias 1, 2, 4, 6, 5, 7 e das quatro de envio da fatia 4)", n)
+	// Com as fatias 1 (#56, reautenticação das ações sensíveis, PR #86) e 4 (#59, envio), as operações do contrato ligadas
+	// são todas menos uma: o uso do segredo da empresa (list-secret-usage) segue com a descrição "Contrato do cofre" e
+	// responde 501.
+	if n < 1 {
+		t.Fatalf("operações do contrato do cofre ainda em 501 = %d, quer pelo menos 1 (o uso do segredo da empresa)", n)
 	}
 }

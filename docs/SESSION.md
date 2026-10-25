@@ -1,3 +1,15 @@
+# Cofre, fatia 1: ações sensíveis ligadas à reautenticação (#56)
+Data: 2026-10-24 · branch `feat/56-cofre-ligar-501` · sessão `56-cofre-ligar-501` (rodada swarm-1024-0625)
+
+## Feito
+- 12 operações saíram do 501 (revelar campo, histórico listar/revelar/restaurar, apagar campo, em `secrets` e `user-secrets`; criar/revogar concessão). Reautenticação exigida no service (`requireFieldSensitive`, `requireGrantAction`); teste do gate no service e da API no teste de integração de campos.
+- CI do PR é a validação: o container não tem Go.
+- CI reprovou duas vezes e foi corrigido: 67a0afa (teste do histórico, linha 86: v2 gerada já conta como revelada) e 74a26d2 (revogar concessão já revogada: `n == 0` virava 204; agora 404 em concessão e em apagar campo). Head 2425856: `ci`, `security`, `e2e` verdes.
+- Fora deste PR: o mesmo `n == 0` em `DeleteSecretCollection` e na remoção de membro de coleção (vault.go, ~941 e ~987).
+
+## Próximo passo
+- Merge pelo dispatcher. Nada pendente nesta issue além do `## Falta` do PR #86.
+
 # Estado da última sessão (corte da v0.7.0)
 Data: 2026-10-24 · branch `release/v0.7.0` · sessão `release-v0-7-0` (sem issue, rodada swarm-1024-0625)
 

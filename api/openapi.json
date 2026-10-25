@@ -53375,7 +53375,6 @@
         ]
       },
       "post": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 2 (#57).",
         "operationId": "create-collection-grant",
         "parameters": [
           {
@@ -53482,16 +53481,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Concede a coleção a persona, subárvore, todas as personas ou humano (admin; exige reautenticação recente)",
@@ -53502,7 +53491,6 @@
     },
     "/api/v1/companies/{company}/secret-collections/{collection}/grants/{grant}": {
       "delete": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 2 (#57).",
         "operationId": "delete-collection-grant",
         "parameters": [
           {
@@ -53601,16 +53589,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Revoga uma concessão (admin; exige reautenticação recente)",
@@ -54786,7 +54764,6 @@
     },
     "/api/v1/companies/{company}/secrets/{name}/fields/{field}": {
       "delete": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 2 (#57).",
         "operationId": "delete-secret-field",
         "parameters": [
           {
@@ -54892,16 +54869,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Apaga um campo e o seu histórico (exige reautenticação recente)",
@@ -55042,7 +55009,6 @@
     },
     "/api/v1/companies/{company}/secrets/{name}/fields/{field}/history": {
       "get": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 2 (#57).",
         "operationId": "list-secret-field-history",
         "parameters": [
           {
@@ -55155,16 +55121,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Lista as versões anteriores de um campo (exige reautenticação recente)",
@@ -55175,7 +55131,6 @@
     },
     "/api/v1/companies/{company}/secrets/{name}/fields/{field}/history/{version}/restore": {
       "post": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 2 (#57).",
         "operationId": "restore-secret-field-version",
         "parameters": [
           {
@@ -55298,16 +55253,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Restaura uma versão anterior como versão nova (exige reautenticação recente)",
@@ -55318,7 +55263,6 @@
     },
     "/api/v1/companies/{company}/secrets/{name}/fields/{field}/history/{version}/reveal": {
       "post": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 2 (#57).",
         "operationId": "reveal-secret-field-version",
         "parameters": [
           {
@@ -55441,16 +55385,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Mostra uma versão anterior UMA vez (exige reautenticação recente)",
@@ -55461,7 +55395,6 @@
     },
     "/api/v1/companies/{company}/secrets/{name}/fields/{field}/reveal": {
       "post": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 2 (#57).",
         "operationId": "reveal-secret-field",
         "parameters": [
           {
@@ -55574,16 +55507,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Mostra o valor de um campo UMA vez por versão (exige reautenticação recente)",
@@ -69240,7 +69163,6 @@
     },
     "/api/v1/companies/{company}/user-secrets/{name}/fields/{field}": {
       "delete": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 2 (#57).",
         "operationId": "delete-user-secret-field",
         "parameters": [
           {
@@ -69346,16 +69268,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Apaga um campo e o seu histórico (exige reautenticação recente)",
@@ -69496,7 +69408,6 @@
     },
     "/api/v1/companies/{company}/user-secrets/{name}/fields/{field}/history": {
       "get": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 2 (#57).",
         "operationId": "list-user-secret-field-history",
         "parameters": [
           {
@@ -69609,16 +69520,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Lista as versões anteriores de um campo (exige reautenticação recente)",
@@ -69629,7 +69530,6 @@
     },
     "/api/v1/companies/{company}/user-secrets/{name}/fields/{field}/history/{version}/restore": {
       "post": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 2 (#57).",
         "operationId": "restore-user-secret-field-version",
         "parameters": [
           {
@@ -69752,16 +69652,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Restaura uma versão anterior como versão nova (exige reautenticação recente)",
@@ -69772,7 +69662,6 @@
     },
     "/api/v1/companies/{company}/user-secrets/{name}/fields/{field}/history/{version}/reveal": {
       "post": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 2 (#57).",
         "operationId": "reveal-user-secret-field-version",
         "parameters": [
           {
@@ -69895,16 +69784,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Mostra uma versão anterior UMA vez (exige reautenticação recente)",
@@ -69915,7 +69794,6 @@
     },
     "/api/v1/companies/{company}/user-secrets/{name}/fields/{field}/reveal": {
       "post": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 2 (#57).",
         "operationId": "reveal-user-secret-field",
         "parameters": [
           {
@@ -70028,16 +69906,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Mostra o valor de um campo UMA vez por versão (exige reautenticação recente)",
