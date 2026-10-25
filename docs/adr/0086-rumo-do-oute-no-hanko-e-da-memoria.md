@@ -1,5 +1,5 @@
 # ADR-0086 — Direção: o oute dentro do Hanko pela mesma ingestão, e a memória num ai-memory só
-Data: 2026-10-25 · Status: proposta (aguarda aceite do Bardi) · Issue: #66 (v0.8) · Usa: ADR-0015, ADR-0075, ADR-0076, ADR-0077, ADR-0078, ADR-0080, ADR-0081
+Data: 2026-10-25 · Status: aceita (Bardi, 2026-10-25) · Issue: #66 (v0.8) · Usa: ADR-0015, ADR-0075, ADR-0076, ADR-0077, ADR-0078, ADR-0080, ADR-0081
 
 ## Contexto
 A decisão 7 da #66 deixa fora deste projeto trazer o oute para dentro do Hanko. O nome futuro é "Hanko CLI", mas ele
