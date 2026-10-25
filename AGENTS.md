@@ -16,6 +16,8 @@ Este arquivo é a memória de trabalho do projeto. Toda sessão (humano, Claude 
 
 ## Regras de trabalho
 - Milestone tem contrato antes de código: migrations + tipos de domínio + OpenAPI. Trilhas paralelas só depois do contrato.
+- Antes do push, rodar localmente os geradores que o job `gerados` confere (openapi, templ, sqlc e bundle das ilhas; `make openapi`, `make generate`, `make islands`) e commitar o resultado.
+- Ao criar migration e ao atualizar o branch com a `origin/main`, conferir o maior número em `db/migrations/` da `origin/main` e usar o seguinte.
 - Camadas handler → service → store. Handler não toca DB. Store não tem regra. Domain não importa infra.
 - Toda escrita de domínio gera `activity_event` na mesma transação.
 - Nunca citar produtos de terceiros como referência nos artefatos do projeto.

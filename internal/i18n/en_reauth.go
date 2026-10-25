@@ -16,9 +16,11 @@ var enReauth = map[string]string{
 	"Sem nome":                "Unnamed",
 	"Confirme sua identidade": "Confirm your identity",
 	"Esta ação pede uma confirmação recente. Ela vale por": "This action needs a recent confirmation. It lasts for",
-	"minutos.":            "minutes.",
-	"Confirmar com senha": "Confirm with password",
-	"Usar passkey":        "Use passkey",
+	"minutos.":             "minutes.",
+	"Confirmar com senha":  "Confirm with password",
+	"Usar passkey":         "Use passkey",
+	"Confirmar com Google": "Confirm with Google",
+	"Não foi possível confirmar pelo Google. Tente de novo.": "Could not confirm with Google. Try again.",
 }
 
 func init() {

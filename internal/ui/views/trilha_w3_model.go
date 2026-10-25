@@ -116,8 +116,10 @@ type ProfileVM struct {
 	Locales     []Option
 	// Trusted: sem conta (modo trusted), o perfil não existe.
 	Trusted bool
-	Error   string
-	Notice  string
+	// Firebase: configuração pública do SDK, com provider firebase; vazia nos demais (a prova pelo Google, ADR-0070 §3).
+	Firebase FirebaseWeb
+	Error    string
+	Notice   string
 }
 
 // ---- o que há de novo ----
