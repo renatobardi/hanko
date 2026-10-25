@@ -163,6 +163,18 @@ func (s *Service) requireFieldWriter(ctx context.Context, q *store.Queries, acto
 	return domain.ErrForbidden
 }
 
+// requireFieldSensitive confere quem revela, apaga, vê o histórico ou restaura um campo: o mesmo dono de
+// requireFieldWriter, mais a reautenticação recente da ação sensível (ADR-0070 §1). Sem identidade no contexto é o
+// modo confiável (instalação sem login): RequireReauth passa, como nas outras ações sensíveis (ADR-0070 §5).
+func (s *Service) requireFieldSensitive(ctx context.Context, q *store.Queries, actor domain.Actor, companyID domain.ID, secretRow store.Secret) error {
+	if err := s.requireFieldWriter(ctx, q, actor, companyID, secretRow); err != nil {
+		return err
+	}
+	id, _ := auth.IdentityFrom(ctx)
+	_, err := s.RequireReauth(id)
+	return err
+}
+
 // callerUserID devolve o usuário autenticado (member da empresa) ou falso.
 func (s *Service) callerUserID(ctx context.Context, companyID domain.ID) (*uuid.UUID, bool) {
 	if err := s.require(ctx, companyID, domain.MemberMember); err != nil {
@@ -491,7 +503,8 @@ func (s *Service) mirrorValueTx(t *txc, companyID domain.ID, sec store.Secret, m
 	return nil
 }
 
-// RevealSecretField mostra o valor de um campo UMA vez por versão (ADR-0050 §6 vale por campo).
+// RevealSecretField mostra o valor de um campo UMA vez por versão (ADR-0050 §6); exige reautenticação recente
+// (ADR-0070 §1).
 func (s *Service) RevealSecretField(ctx context.Context, actor domain.Actor, companyID domain.ID, scope domain.SecretScope, secretName, fieldName string) (SecretFieldView, error) {
 	owner, err := s.secretCaller(ctx, actor, companyID, scope, false)
 	if err != nil {
@@ -503,7 +516,7 @@ func (s *Service) RevealSecretField(ctx context.Context, actor domain.Actor, com
 		if err != nil {
 			return err
 		}
-		if err := s.requireFieldWriter(ctx, t.q, actor, companyID, sec); err != nil {
+		if err := s.requireFieldSensitive(ctx, t.q, actor, companyID, sec); err != nil {
 			return err
 		}
 		if f.Provider != string(domain.SecretProviderLocal) {
@@ -534,7 +547,7 @@ func (s *Service) RevealSecretField(ctx context.Context, actor domain.Actor, com
 	return out, err
 }
 
-// DeleteSecretField apaga um campo e o histórico dele. O campo `value` não se apaga: é o padrão da referência
+// DeleteSecretField apaga um campo e o histórico dele; exige reautenticação recente (ADR-0070 §1). O campo `value` não se apaga: é o padrão da referência
 // ${secret:X}; apagar o item é o caminho.
 func (s *Service) DeleteSecretField(ctx context.Context, actor domain.Actor, companyID domain.ID, scope domain.SecretScope, secretName, fieldName string) error {
 	owner, err := s.secretCaller(ctx, actor, companyID, scope, false)
@@ -546,7 +559,7 @@ func (s *Service) DeleteSecretField(ctx context.Context, actor domain.Actor, com
 		if err != nil {
 			return err
 		}
-		if err := s.requireFieldWriter(ctx, t.q, actor, companyID, sec); err != nil {
+		if err := s.requireFieldSensitive(ctx, t.q, actor, companyID, sec); err != nil {
 			return err
 		}
 		if f.Name == domain.DefaultSecretField {
@@ -565,6 +578,7 @@ func (s *Service) DeleteSecretField(ctx context.Context, actor domain.Actor, com
 // ---------- histórico ----------
 
 // ListSecretFieldHistory devolve as versões anteriores de um campo (metadados; o valor só em RevealSecretFieldVersion).
+// Exige reautenticação recente (ADR-0070 §1).
 func (s *Service) ListSecretFieldHistory(ctx context.Context, actor domain.Actor, companyID domain.ID, scope domain.SecretScope, secretName, fieldName string) ([]domain.SecretFieldVersion, error) {
 	owner, err := s.secretCaller(ctx, actor, companyID, scope, false)
 	if err != nil {
@@ -575,7 +589,7 @@ func (s *Service) ListSecretFieldHistory(ctx context.Context, actor domain.Actor
 	if err != nil {
 		return nil, err
 	}
-	if err := s.requireFieldWriter(ctx, q, actor, companyID, sec); err != nil {
+	if err := s.requireFieldSensitive(ctx, q, actor, companyID, sec); err != nil {
 		return nil, err
 	}
 	f, err := fieldRow(ctx, q, companyID, sec.ID, fieldName, false)
@@ -595,7 +609,8 @@ func (s *Service) ListSecretFieldHistory(ctx context.Context, actor domain.Actor
 	return out, nil
 }
 
-// RevealSecretFieldVersion mostra uma versão anterior UMA vez (ADR-0068 §3.4).
+// RevealSecretFieldVersion mostra uma versão anterior UMA vez (ADR-0068 §3.4); exige reautenticação recente
+// (ADR-0070 §1).
 func (s *Service) RevealSecretFieldVersion(ctx context.Context, actor domain.Actor, companyID domain.ID, scope domain.SecretScope, secretName, fieldName string, version int) (domain.SecretFieldVersion, string, error) {
 	owner, err := s.secretCaller(ctx, actor, companyID, scope, false)
 	if err != nil {
@@ -608,7 +623,7 @@ func (s *Service) RevealSecretFieldVersion(ctx context.Context, actor domain.Act
 		if err != nil {
 			return err
 		}
-		if err := s.requireFieldWriter(ctx, t.q, actor, companyID, sec); err != nil {
+		if err := s.requireFieldSensitive(ctx, t.q, actor, companyID, sec); err != nil {
 			return err
 		}
 		v, err := t.q.GetSecretFieldVersion(t.ctx, store.GetSecretFieldVersionParams{CompanyID: companyID, FieldID: f.ID, Version: i32(version)})
@@ -640,6 +655,7 @@ func (s *Service) RevealSecretFieldVersion(ctx context.Context, actor domain.Act
 }
 
 // RestoreSecretFieldVersion copia uma versão anterior como versão NOVA do campo (ADR-0068 §3.3): nada é apagado.
+// Exige reautenticação recente (ADR-0070 §1).
 func (s *Service) RestoreSecretFieldVersion(ctx context.Context, actor domain.Actor, companyID domain.ID, scope domain.SecretScope, secretName, fieldName string, version int) (SecretFieldView, error) {
 	owner, err := s.secretCaller(ctx, actor, companyID, scope, false)
 	if err != nil {
@@ -651,7 +667,7 @@ func (s *Service) RestoreSecretFieldVersion(ctx context.Context, actor domain.Ac
 		if err != nil {
 			return err
 		}
-		if err := s.requireFieldWriter(ctx, t.q, actor, companyID, sec); err != nil {
+		if err := s.requireFieldSensitive(ctx, t.q, actor, companyID, sec); err != nil {
 			return err
 		}
 		v, err := t.q.GetSecretFieldVersion(t.ctx, store.GetSecretFieldVersionParams{CompanyID: companyID, FieldID: f.ID, Version: i32(version)})
@@ -1070,9 +1086,21 @@ func (s *Service) subjectName(ctx context.Context, q *store.Queries, companyID d
 	return ""
 }
 
-// CreateCollectionGrant concede a coleção (admin). Subject resolve slug/id da persona ou e-mail/id do humano.
-func (s *Service) CreateCollectionGrant(ctx context.Context, actor domain.Actor, companyID domain.ID, idOrName string, in GrantInput) (CollectionGrantView, error) {
+// requireGrantAction confere quem concede ou revoga uma concessão de coleção: admin da empresa e reautenticação
+// recente (ADR-0070 §1). Sem identidade no contexto é o modo confiável: RequireReauth passa (ADR-0070 §5).
+func (s *Service) requireGrantAction(ctx context.Context, companyID domain.ID) error {
 	if err := s.require(ctx, companyID, domain.MemberAdmin); err != nil {
+		return err
+	}
+	id, _ := auth.IdentityFrom(ctx)
+	_, err := s.RequireReauth(id)
+	return err
+}
+
+// CreateCollectionGrant concede a coleção (admin, com reautenticação recente, ADR-0070 §1). Subject resolve
+// slug/id da persona ou e-mail/id do humano.
+func (s *Service) CreateCollectionGrant(ctx context.Context, actor domain.Actor, companyID domain.ID, idOrName string, in GrantInput) (CollectionGrantView, error) {
+	if err := s.requireGrantAction(ctx, companyID); err != nil {
 		return CollectionGrantView{}, err
 	}
 	var out CollectionGrantView
@@ -1140,9 +1168,9 @@ func (s *Service) resolveGrantSubject(ctx context.Context, q *store.Queries, com
 	}
 }
 
-// DeleteCollectionGrant revoga uma concessão (admin).
+// DeleteCollectionGrant revoga uma concessão (admin, com reautenticação recente, ADR-0070 §1).
 func (s *Service) DeleteCollectionGrant(ctx context.Context, actor domain.Actor, companyID domain.ID, idOrName string, grantID domain.ID) error {
-	if err := s.require(ctx, companyID, domain.MemberAdmin); err != nil {
+	if err := s.requireGrantAction(ctx, companyID); err != nil {
 		return err
 	}
 	return s.withTx(ctx, func(t *txc) error {
