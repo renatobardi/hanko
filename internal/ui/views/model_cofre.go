@@ -133,6 +133,8 @@ type EnvImportVM struct {
 	Collections  []string
 	Plan         *EnvImportPlanVM
 	NeedPassword bool
+	Version      string
+	Firebase     FirebaseWeb // configuração do SDK para a prova pelo Google; vazia fora do provider firebase
 }
 
 // VaultFileVM é a página do cofre cifrado (.hkv, ADR-0068 §8.2 e §8.3): exportar e importar. ReauthFor diz qual formulário
@@ -144,4 +146,6 @@ type VaultFileVM struct {
 	ExportHref string
 	ImportHref string
 	ReauthFor  string
+	Version    string
+	Firebase   FirebaseWeb
 }

@@ -1,15 +1,12 @@
-# Cofre, fatia 1: pendências do #72 e do #86 · branch `sessao/95-cofre-pendencias-fatia1`
-Issue #95 · rodada swarm-1024-0625 · sessão retomada depois de cota esgotada na sessão anterior
+# Telas do cofre com prova por Google e passkey · issue #92
+Data: 2026-10-25 · sessão `92-hkv-reauth-firebase-passkey` (rodada swarm-1024-0625, fase `build`)
 
 ## Feito
-- Aviso de alcance na contratação: API (`warnings` da persona), CLI e página da persona (`PersonaReachWarnings`, testes de service, API e UI).
-- Uso no despacho: `${secret:…}` do adapter_config e do env MCP grava `secret_access_log` (via `dispatch`), sem o valor (teste de service).
-- Coleção na criação: `hanko secret create --collection`, campo `collection` da API e select no formulário da UI (testes).
-- 404 em `DeleteCollection` e `RemoveSecretFromCollection` quando não há o que remover (teste).
-- openapi.json, templ e fragmento `changelog.d/cofre-pendencias-95.md`. Sem migration (nenhuma tabela nova).
+- Export/import do `.hkv` e import de `.env`: quando o servidor pede prova, a tela traz o botão "Confirmar identidade" (`ReauthHost`), que abre o diálogo do `passkey.js` (`ReauthDialog`, extraído da seção do perfil). A prova grava na sessão por `POST /me/reauth`; o formulário seguinte vai sem senha da conta. Senha no formulário continua valendo.
+- Backend sem mudança. Testes: service por prova (senha, Google, passkey), UI das três telas por método, JS do diálogo nas telas do cofre.
 
 ## Travado
-- Contratação por gate: o aviso aparece na página da persona (live), mas a API e a CLI não o devolvem na aprovação, que devolve o gate.
+- Nada. A prova por Google no JS das telas do cofre usa o código do perfil (#98); o teste node cobre senha, passkey e o SDK que não carrega.
 
 ## Próximo passo
-- PR #100 (`Refs #95`, o gate fica de fora): fazer merge pelo Bardi. Demo em produção do aviso (qa) depois do deploy.
+- Revisar o PR; demo com conta Google e com conta só com passkey (exportar o `.hkv` depois da prova).
