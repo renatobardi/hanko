@@ -30,6 +30,14 @@ type cofreFake struct {
 	envPreviews, envImports []service.EnvImportInput // pedidos do import de .env que chegaram ao backend
 	envImportErr            error                    // erro que ImportEnv devolve (nil = grava)
 	reauthPasswords         []string                 // senhas que chegaram em ReauthWithPassword
+
+	reauthWrong bool     // ReauthWithPassword recusa a senha da conta
+	needProof   bool     // ImportEnv, ExportVault e ImportVault exigem prova de reautenticação no contexto
+	proved      int      // gravações e exportações que chegaram com a prova
+	vaultErr    error    // erro que ExportVault e ImportVault devolvem (nil = segue)
+	exportPass  []string // senhas do arquivo que chegaram em ExportVault
+	importFile  [][]byte // arquivos que chegaram em ImportVault
+	importPass  []string // senhas do arquivo que chegaram em ImportVault
 }
 
 func (c *cofreFake) CreateSecretField(_ context.Context, _ domain.Actor, _ domain.ID, _ domain.SecretScope, _ string, in service.CreateSecretFieldInput) (service.SecretFieldView, error) {

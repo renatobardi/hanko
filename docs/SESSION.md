@@ -1,3 +1,13 @@
+# Cofre, fatia 7: tela do .hkv e testes do #84 (#62, build)
+Data: 2026-10-25 · branch `feat/62-cofre-hkv-tela` · sessão `62-cofre-hkv-tela` (rodada swarm-1024-0625) · `Refs #62`
+## Feito
+- Tela Configurações › Segredos › Cofre cifrado (.hkv): exporta (baixa o arquivo) e importa (envia o arquivo), com senha do arquivo (12+) e senha da conta quando pedida.
+- Testes que faltavam do #84: senha da conta na UI, export que pula concessão de persona apagada, `.env` acima de 256 KiB.
+## Travado
+- Sem Go nem templ no container: nada foi compilado nem gerado aqui; o `_templ.go` foi escrito à mão e o job `gerados` é a conferência.
+## Próximo passo
+- CI do PR (compilação, lint, drift do templ). A demo `qa` fica no `## Falta` do PR.
+
 # Cofre, fatia 1: ações sensíveis ligadas à reautenticação (#56)
 Data: 2026-10-24 · branch `feat/56-cofre-ligar-501` · sessão `56-cofre-ligar-501` (rodada swarm-1024-0625)
 

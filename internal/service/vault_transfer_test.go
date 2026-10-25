@@ -554,3 +554,43 @@ func TestImportCofreConteudoInvalido(t *testing.T) {
 		t.Fatal("conteúdo inválido gravou segredo")
 	}
 }
+
+// .env acima de 256 KiB é recusado na prévia e na gravação, antes de qualquer linha ser lida (ADR-0068 §8.1, #62).
+func TestImportEnvAcimaDe256KiBRecusado(t *testing.T) {
+	e := newSecEnv(t)
+	bg := context.Background()
+	in := service.EnvImportInput{Content: "A=" + strings.Repeat("x", 256<<10), Mode: service.EnvImportItems}
+	if _, err := e.svc.PreviewEnvImport(bg, e.co.ID, in); !errors.Is(err, domain.ErrInvalid) {
+		t.Fatalf("prévia de .env acima do limite: %v, quer ErrInvalid", err)
+	}
+	if _, err := e.svc.ImportEnv(bg, domain.HumanActor, e.co.ID, in); !errors.Is(err, domain.ErrInvalid) {
+		t.Fatalf("import de .env acima do limite: %v, quer ErrInvalid", err)
+	}
+	if n := secretCount(t, e); n != 0 {
+		t.Fatalf("segredos gravados com o .env acima do limite: %d", n)
+	}
+}
+
+// Concessão a persona apagada não vai no export: o sujeito já não existe e a concessão não aponta para ninguém (#62).
+func TestExportPulaConcessaoDePersonaApagada(t *testing.T) {
+	a := newSecEnv(t)
+	bg := context.Background()
+	seedVault(t, a)
+	if _, err := a.svc.Pool.Exec(bg, `DELETE FROM personas WHERE company_id=$1 AND slug=$2`, a.co.ID, "beto"); err != nil {
+		t.Fatal(err)
+	}
+	exp, err := a.svc.ExportVault(bg, domain.HumanActor, a.co.ID, exportPass)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plain, err := vaultfile.Open(exp.File, exportPass)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(plain), `"subject":"beto"`) {
+		t.Fatal("o export levou a concessão da persona apagada")
+	}
+	if !strings.Contains(string(plain), `"subject":"ana"`) { // sem esta, o teste não prova que a concessão existia
+		t.Fatal("o export não levou a concessão da persona que continua")
+	}
+}
