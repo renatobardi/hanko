@@ -29,6 +29,15 @@ func sendOpsView() service.SendView {
 		ExpiresAt: time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC), CreatedBy: domain.HumanActor}}
 }
 
+// A página pública não é tema destes testes: o fake responde não encontrado, para que o backend exista (sendBackend).
+func (f *sendOpsFake) PublicSendInfo(context.Context, string) (service.PublicSendView, error) {
+	return service.PublicSendView{}, domain.ErrNotFound
+}
+
+func (f *sendOpsFake) OpenPublicSend(context.Context, string, string) (service.OpenedSendView, error) {
+	return service.OpenedSendView{}, domain.ErrNotFound
+}
+
 func (f *sendOpsFake) CreateSend(_ context.Context, _ domain.Actor, _ domain.ID, in service.CreateSendInput) (service.SendView, error) {
 	f.created = in
 	return sendOpsView(), nil
