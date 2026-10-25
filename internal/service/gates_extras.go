@@ -234,8 +234,12 @@ func (t *txc) hireGateDecided(actor domain.Actor, g domain.Gate, decision domain
 	if err != nil {
 		return err
 	}
-	_, err = t.createPersona(actor, g.CompanyID, prep, &g.ID)
-	return err
+	hired, err := t.createPersona(actor, g.CompanyID, prep, &g.ID)
+	if err != nil {
+		return err
+	}
+	t.hiredPersona = &hired.ID
+	return nil
 }
 
 // ---------- audiência ----------

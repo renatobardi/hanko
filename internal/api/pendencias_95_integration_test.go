@@ -50,3 +50,47 @@ func TestAPIColecaoNaCriacaoEAvisoDeAlcance(t *testing.T) {
 		t.Fatalf("persona sem referência com aviso: %v", beto.Warnings)
 	}
 }
+
+// A aprovação do gate de contratação traz o aviso de alcance (ADR-0068 §2.5), como a contratação direta: nomeia a
+// persona e o item, nunca o valor.
+func TestAPIAvisoDeAlcanceNaAprovacaoDoGate(t *testing.T) {
+	e := newAPIEnv(t)
+	box, err := secretbox.New("0123456789abcdef0123456789abcdef-one", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.svc.Integrations.Secrets = box
+	base := e.base()
+	if _, err := e.svc.CreateCollection(context.Background(), domain.HumanActor, e.co.ID, service.CollectionInput{Name: "infra"}); err != nil {
+		t.Fatal(err)
+	}
+	e.want(201, "POST", base+"/secrets", `{"name":"restrito","value":"`+apiSentinel+`","collection":"infra"}`, nil)
+
+	// aprovar a contratação de uma persona cujo adapter_config referencia um item que ela não alcança: a decisão
+	// sai com o aviso, sem o valor
+	var g api.Gate
+	e.want(201, "POST", base+"/gates", `{"title":"Contratar Ciro","kind":"hire","hire":{"name":"Ciro","agent":"fake","model":"m1","adapter_config":{"api_key_ref":"${secret:restrito}"}}}`, &g)
+	var dec api.Gate
+	raw := e.want(200, "POST", base+"/gates/"+g.ID+"/decide", `{"decision":"approved"}`, &dec)
+	if len(dec.Warnings) != 1 || !strings.Contains(dec.Warnings[0], `"ciro"`) || !strings.Contains(dec.Warnings[0], "${secret:restrito}") || strings.Contains(string(raw), apiSentinel) {
+		t.Fatalf("aviso na aprovação: %+v\n%s", dec.Warnings, raw)
+	}
+
+	// aprovar contratação sem referência inalcançável: sem aviso
+	var g2 api.Gate
+	e.want(201, "POST", base+"/gates", `{"title":"Contratar Duda","kind":"hire","hire":{"name":"Duda","agent":"fake","model":"m1"}}`, &g2)
+	var dec2 api.Gate
+	raw2 := e.want(200, "POST", base+"/gates/"+g2.ID+"/decide", `{"decision":"approved"}`, &dec2)
+	if len(dec2.Warnings) != 0 || strings.Contains(string(raw2), apiSentinel) {
+		t.Fatalf("aprovação sem pendência com aviso: %+v\n%s", dec2.Warnings, raw2)
+	}
+
+	// rejeitar não cria persona: sem aviso
+	var g3 api.Gate
+	e.want(201, "POST", base+"/gates", `{"title":"Contratar Eva","kind":"hire","hire":{"name":"Eva","agent":"fake","model":"m1","adapter_config":{"api_key_ref":"${secret:restrito}"}}}`, &g3)
+	var dec3 api.Gate
+	e.want(200, "POST", base+"/gates/"+g3.ID+"/decide", `{"decision":"rejected","note":"sem verba"}`, &dec3)
+	if len(dec3.Warnings) != 0 {
+		t.Fatalf("rejeição com aviso: %v", dec3.Warnings)
+	}
+}

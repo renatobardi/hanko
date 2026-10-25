@@ -40,6 +40,9 @@ type txc struct {
 	// flowFiring: esta transação está criando a task de um disparo de fluxo; os fatos que isso gera não reavaliam
 	// gatilhos de evento (sem laço, ADR-0047).
 	flowFiring bool
+	// hiredPersona: a persona que a aprovação de um gate hire criou nesta transação; DecideGate a expõe no GateView
+	// para a API trazer os avisos de alcance (ADR-0068 §2.5).
+	hiredPersona *domain.ID
 }
 
 // withTx runs fn in a single transaction. Broker notifications queued by fn are
