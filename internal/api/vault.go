@@ -27,9 +27,8 @@ func pendingOp[I, O any](api huma.API, o huma.Operation, slice string) {
 }
 
 const (
-	sliceFields      = "fatia 1 (#56)"
-	sliceSends       = "fatia 4 (#59)"
-	sliceDelegations = "fatia 5 (#60)"
+	sliceFields = "fatia 1 (#56)"
+	sliceSends  = "fatia 4 (#59)"
 )
 
 // ---------- campos e histórico (fatia 1) ----------
@@ -460,8 +459,15 @@ func (s *server) registerDelegations(api huma.API) {
 			}
 			return listOf(list, in.Page, accessOut), nil
 		}))
-	pendingOp[listSecretPageIn, ListOut[SecretAccess]](api, op("list-secret-usage", http.MethodGet, "/companies/{company}/secrets/{name}/usage",
-		tag, "Onde e quando um segredo da empresa foi usado (admin, view ou manage)"), sliceDelegations)
+	huma.Register(api, op("list-secret-usage", http.MethodGet, "/companies/{company}/secrets/{name}/usage", tag,
+		"Onde e quando um segredo da empresa foi usado (admin, view ou manage)"),
+		vaultOp(s, func(ctx context.Context, vb vaultBackend, sc scope, in *listSecretPageIn) (*ListOut[SecretAccess], error) {
+			list, err := vb.ListSecretUsage(ctx, sc.Company.ID, in.Name, in.Offset+in.Limit)
+			if err != nil {
+				return nil, s.fail(ctx, err)
+			}
+			return listOf(list, in.Page, accessOut), nil
+		}))
 }
 
 // ---------- saúde e gerador (fatia 6) ----------

@@ -8,6 +8,21 @@ Data: 2026-10-25 · branch `feat/62-cofre-hkv-tela` · sessão `62-cofre-hkv-tel
 ## Próximo passo
 - CI do PR (compilação, lint, drift do templ). A demo `qa` fica no `## Falta` do PR.
 
+# Cofre, fatia 5: delegação de segredo pessoal, uso da empresa e testes (#60)
+Data: 2026-10-25 · branch `feat/60-cofre-delegacao-extras` · sessão `60-cofre-delegacao-extras` (rodada swarm-1024-0625)
+
+## Feito
+- Delegação só vale com o alvo aberto (task não fechada, conversa não arquivada), ADR-0068 §6.3.
+- `GET .../secrets/{name}/usage` ligado: admin, ou membro com `view`/`manage` numa coleção que contém o segredo.
+- `delegation.expired` não é emitido: motivo no ADR-0068 §6, item 6.
+- Testes novos: alvo conversa, task fechada, uso da empresa (service); resolve no executor (heartbeat); 4 rotas de delegação e o uso da empresa (API, integração).
+
+## Travado
+- Nada. O container não tem Go: a validação é o CI do PR.
+
+## Próximo passo
+- Conferir o CI do PR; o merge fica com o dispatcher.
+
 # Cofre, fatia 1: ações sensíveis ligadas à reautenticação (#56)
 Data: 2026-10-24 · branch `feat/56-cofre-ligar-501` · sessão `56-cofre-ligar-501` (rodada swarm-1024-0625)
 
