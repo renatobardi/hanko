@@ -397,8 +397,13 @@ func TestDelegacaoSoEnquantoATaskEstaAberta(t *testing.T) {
 	if _, err := d.svc.UpdateTask(d.ac, d.alice.Actor(), d.co.ID, taskA.ID, service.UpdateTaskInput{Status: &todo}); err != nil {
 		t.Fatal(err)
 	}
-	if out, _, err := d.resolve(runA.ID, refPessoal); err != nil || out != "tok="+sentinelPessoal {
-		t.Fatalf("task reaberta: %q %v", out, err)
+	// fechar a task cancela a run dela; reabrir não a reativa. A run nova da task reaberta resolve de novo.
+	novaRun, err := d.svc.CheckoutRun(context.Background(), wakeOf(d.ana, taskA, domain.TriggerAssign))
+	if err != nil {
+		t.Fatalf("run nova da task reaberta: %v", err)
+	}
+	if out, _, err := d.resolve(novaRun.ID, refPessoal); err != nil || out != "tok="+sentinelPessoal {
+		t.Fatalf("task reaberta, run nova: %q %v", out, err)
 	}
 }
 
