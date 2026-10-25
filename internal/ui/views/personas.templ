@@ -241,6 +241,9 @@ templ PersonaPage(sh Shell, vm PersonaVM) {
 		if vm.Notice != "" {
 			@Alert("warn", vm.Notice)
 		}
+		for _, w := range vm.ReachWarnings {
+			@Alert("warn", w)
+		}
 		if vm.LastError != "" {
 			@Alert("danger", personaErrorText(ctx, vm))
 		}

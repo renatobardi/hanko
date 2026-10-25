@@ -403,6 +403,9 @@ templ EnvImportPage(sh Shell, vm EnvImportVM) {
 				</ul>
 			}
 		}
+		if vm.NeedPassword {
+			@ReauthHost(vm.Version, vm.Firebase)
+		}
 		<form class="card pad form-card" method="post" action={ templ.SafeURL(vm.PostHref) } autocomplete="off">
 			<div class="field">
 				<label for="env-content">{ i18n.T(ctx, "Conteúdo do .env") }</label>
@@ -456,6 +459,9 @@ templ VaultFilePage(sh Shell, vm VaultFileVM) {
 		<div class="mb-6">@Tabs(vm.Sections)</div>
 		<p class="mb-3"><a href={ templ.SafeURL(vm.BackHref) }>{ i18n.T(ctx, "Voltar aos segredos") }</a></p>
 		@flashAlerts("", vm.Error)
+		if vm.ReauthFor != "" {
+			@ReauthHost(vm.Version, vm.Firebase)
+		}
 		<form class="card pad form-card mb-6" method="post" action={ templ.SafeURL(vm.ExportHref) } autocomplete="off">
 			<h2 class="side-h">{ i18n.T(ctx, "Exportar o cofre") }</h2>
 			<p class="muted mb-3">{ i18n.T(ctx, "Gera um arquivo .hkv com segredos, campos, coleções e concessões. Ele é cifrado com a senha abaixo; nenhum valor fica em claro.") }</p>

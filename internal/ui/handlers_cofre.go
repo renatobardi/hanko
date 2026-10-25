@@ -559,10 +559,11 @@ func (s *server) renderEnvImport(w http.ResponseWriter, r *http.Request, co doma
 		vm.Plan = envPlanVM(ctx, *plan)
 	}
 	vm.NeedPassword = needPassword
+	vm.Version, vm.Firebase = s.version, s.firebaseWeb()
 	var re *domain.ReauthError
 	switch {
 	case needPassword && errors.As(err, &re):
-		vm.Error = i18n.T(ctx, "O servidor pede uma prova recente de identidade: informe a senha da conta e grave de novo.")
+		vm.Error = i18n.T(ctx, "O servidor pede uma prova recente de identidade: informe a senha da conta ou confirme com passkey ou Google, e grave de novo.")
 	case needPassword:
 		vm.Error = i18n.T(ctx, "Senha da conta incorreta.")
 	case err != nil:
@@ -606,7 +607,17 @@ func (s *server) handleEnvImport(w http.ResponseWriter, r *http.Request, co doma
 	redirect(w, r, "/c/"+co.Slug+"/configuracoes/segredos?ok=env")
 }
 
-// reauthForm prova a identidade com a senha da conta quando a pessoa a informou (ADR-0070). Sem sessão (modo confiável)
+// firebaseWeb é a configuração pública do SDK para a prova pelo Google (ADR-0070 §3); vazia no modo confiável e fora do
+// provider firebase.
+func (s *server) firebaseWeb() views.FirebaseWeb {
+	if s.auth != nil && s.auth.Provider == "firebase" {
+		return s.auth.Firebase
+	}
+	return views.FirebaseWeb{}
+}
+
+// reauthForm prova a identidade com a senha da conta quando a pessoa a informou (ADR-0070). Sem senha, vale a prova já
+// gravada na sessão por /api/v1/me/reauth (passkey, Google ou senha). Sem sessão (modo confiável)
 // não há o que provar: o pedido segue e o service decide.
 func reauthForm(ctx context.Context, be vaultUIBackend, pw string) (context.Context, error) {
 	id, has := auth.IdentityFrom(ctx)
@@ -652,10 +663,11 @@ func (s *server) vaultFileFail(w http.ResponseWriter, r *http.Request, co domain
 	ctx := r.Context()
 	vm := vaultFileVM(ctx, co, "")
 	status := statusFor(err)
+	vm.Version, vm.Firebase = s.version, s.firebaseWeb()
 	var re *domain.ReauthError
 	switch {
 	case errors.As(err, &re):
-		vm.ReauthFor, vm.Error, status = form, i18n.T(ctx, "O servidor pede uma prova recente de identidade: informe a senha da conta e envie de novo."), http.StatusUnauthorized
+		vm.ReauthFor, vm.Error, status = form, i18n.T(ctx, "O servidor pede uma prova recente de identidade: informe a senha da conta ou confirme com passkey ou Google, e envie de novo."), http.StatusUnauthorized
 	case errors.Is(err, domain.ErrUnauthenticated):
 		vm.ReauthFor, vm.Error, status = form, i18n.T(ctx, "Senha da conta incorreta."), http.StatusUnauthorized
 	default:

@@ -34,6 +34,13 @@ func comProva(ctx context.Context) bool {
 	return ok && id.Session.ReauthAt != nil
 }
 
+// prove conta a ação que chegou com a prova e guarda o método dela.
+func (c *cofreFake) prove(ctx context.Context) {
+	c.proved++
+	id, _ := auth.IdentityFrom(ctx)
+	c.provedBy = append(c.provedBy, id.Session.ReauthMethod)
+}
+
 // comSessao põe uma pessoa autenticada por sessão em todas as requisições: a senha da conta tem onde ser provada.
 func comSessao(e *env) {
 	inner := e.h
@@ -81,7 +88,7 @@ func (c *cofreFake) ExportVault(ctx context.Context, _ domain.Actor, _ domain.ID
 		return service.VaultExportResult{}, c.vaultErr
 	}
 	if c.needProof {
-		c.proved++
+		c.prove(ctx)
 	}
 	return service.VaultExportResult{File: []byte(hkvExportado), Secrets: 2}, nil
 }
@@ -96,7 +103,7 @@ func (c *cofreFake) ImportVault(ctx context.Context, _ domain.Actor, _ domain.ID
 		return service.VaultImportResult{}, c.vaultErr
 	}
 	if c.needProof {
-		c.proved++
+		c.prove(ctx)
 	}
 	return service.VaultImportResult{Secrets: 2}, nil
 }

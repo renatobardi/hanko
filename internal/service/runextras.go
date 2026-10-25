@@ -30,11 +30,12 @@ type RunExtras struct {
 // (sem identidade de usuário): não aplica papéis. Uma integração ilegível ou desligada pelo operador (stdio)
 // é pulada com aviso, e a run segue.
 func (s *Service) RunExtras(ctx context.Context, companyID, personaID domain.ID) (RunExtras, error) {
-	return s.RunExtrasForProject(ctx, companyID, personaID, nil)
+	return s.RunExtrasForProject(ctx, companyID, personaID, nil, nil)
 }
 
-// RunExtrasForProject é RunExtras com o projeto da run, para o perfil de ferramentas do projeto valer (ADR-0036).
-func (s *Service) RunExtrasForProject(ctx context.Context, companyID, personaID domain.ID, projectID *domain.ID) (RunExtras, error) {
+// RunExtrasForProject é RunExtras com o projeto da run, para o perfil de ferramentas do projeto valer (ADR-0036). Com a
+// run (runID não nil), o uso dos segredos das integrações fica no registro de acesso (ADR-0068 §4.4).
+func (s *Service) RunExtrasForProject(ctx context.Context, companyID, personaID domain.ID, projectID, runID *domain.ID) (RunExtras, error) {
 	var ex RunExtras
 	q := s.read()
 
@@ -79,7 +80,7 @@ func (s *Service) RunExtrasForProject(ctx context.Context, companyID, personaID 
 			ex.Warnings = append(ex.Warnings, fmt.Sprintf("integração %q ignorada: stdio está desligado neste servidor", r.Slug))
 			continue
 		}
-		env, _, eerr := s.expandMapFor(ctx, companyID, &personaID, sec.Env)
+		env, _, eerr := s.expandMapFor(ctx, companyID, &personaID, runID, sec.Env)
 		if eerr != nil {
 			// o texto do erro nomeia o segredo que faltou, nunca o valor
 			ex.Warnings = append(ex.Warnings, fmt.Sprintf("integração %q ignorada: %v", r.Slug, eerr))

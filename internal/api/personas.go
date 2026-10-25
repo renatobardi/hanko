@@ -114,7 +114,11 @@ func (s *server) registerPersonas(api huma.API) {
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}
-			return &ItemOut[Persona]{Body: personaOut(p)}, nil
+			out := personaOut(p)
+			if out.Warnings, err = s.svc.PersonaReachWarnings(ctx, cid, p.ID); err != nil {
+				return nil, s.fail(ctx, err)
+			}
+			return &ItemOut[Persona]{Body: out}, nil
 		})
 
 	huma.Register(api, op("list-personas", http.MethodGet, "/companies/{company}/personas", "personas", "Lista personas"),

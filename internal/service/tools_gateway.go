@@ -737,7 +737,7 @@ func (s *Service) RunExtrasForRun(ctx context.Context, companyID, personaID, run
 			projectID = task.ProjectID
 		}
 	}
-	ex, err := s.RunExtrasForProject(ctx, companyID, personaID, projectID)
+	ex, err := s.RunExtrasForProject(ctx, companyID, personaID, projectID, &runID)
 	if err != nil {
 		return ex, err
 	}

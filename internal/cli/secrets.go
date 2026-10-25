@@ -88,8 +88,8 @@ func (e *env) secretCmd() *cobra.Command {
 	c.PersistentFlags().BoolVar(&user, "user", false, e.t("operar nos segredos do seu usuário (só você vê e usa)"))
 
 	var (
-		value, desc, vaultRef string
-		fromStdin, generate   bool
+		value, desc, vaultRef, collection string
+		fromStdin, generate               bool
 	)
 	create := &cobra.Command{
 		Use: "create " + e.t("<nome>"), Short: e.t("Cria um segredo (--value-stdin, --generate ou --vault-ref)"), Args: cobra.ExactArgs(1),
@@ -102,7 +102,7 @@ func (e *env) secretCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			req := client.CreateSecretReq{Name: a[0], Description: desc, Value: v, Generate: generate}
+			req := client.CreateSecretReq{Name: a[0], Description: desc, Value: v, Generate: generate, Collection: collection}
 			if vaultRef != "" {
 				req.Provider, req.ExternalRef = "vault", vaultRef
 			}
@@ -124,6 +124,7 @@ func (e *env) secretCmd() *cobra.Command {
 	cf.BoolVar(&generate, "generate", false, e.t("o servidor gera o valor e o mostra uma vez"))
 	cf.StringVar(&vaultRef, "vault-ref", "", e.t("segredo no cofre externo: caminho#campo (o valor não passa pelo Hanko)"))
 	cf.StringVar(&desc, "description", "", e.t("descrição"))
+	cf.StringVar(&collection, "collection", "", e.t("coleção que recebe o segredo (nome ou id); sem ela, a padrão"))
 
 	ls := &cobra.Command{
 		Use: "ls", Aliases: []string{"list"}, Short: e.t("Lista os segredos (nomes e metadados; nunca valores)"), Args: cobra.NoArgs,
