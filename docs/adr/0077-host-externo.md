@@ -1,5 +1,5 @@
 # ADR-0077 — Host externo
-Data: 2026-10-25 · Status: proposta (aguarda aceite do Bardi) · Issue: #66 (v0.8) · Usa: ADR-0075, ADR-0076
+Data: 2026-10-25 · Status: aceita (Bardi, 2026-10-25) · Issue: #66 (v0.8) · Usa: ADR-0075, ADR-0076
 
 ## Contexto
 Cada fato da telemetria do oute traz o host em que o agente externo rodou (`host_name`, preenchido pelo collector de
