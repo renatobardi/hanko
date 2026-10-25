@@ -10,3 +10,8 @@ Data: 2026-10-24 · branch `release/v0.7.0` · sessão `release-v0-7-0` (sem iss
 
 ## Próximo passo
 - Bardi: fazer merge, taguear `v0.7.0` no commit mergeado e deployar no `hanko-prd` (canal de aprovação).
+
+## Cofre, fatia 4 (#59), sessão `hanko-59-cofre-envios-tool`
+- Feito (código sem compilar no container; CI é a verificação): envio de arquivo (criar, subir conteúdo, blob em `secret_send_blobs`/BlobStore), listar, ver e apagar por papel, tool `hanko_send_create` (política `ask`), 4 operações saindo do 501 no OpenAPI e no piso de `vault_test.go`.
+- Travado: nada. Falta documentada no PR.
+- Próximo passo: entregar a abertura de envio de arquivo pelo link (`content_url`, uso único em 60 s) e a demo qa (persona cria envio e o link expira no navegador).

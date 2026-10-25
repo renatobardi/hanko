@@ -41,6 +41,9 @@ var (
 	ErrSendGone     = fmt.Errorf("envio indisponível: venceu, atingiu o limite de acessos ou foi apagado: %w", domain.ErrNotFound)
 	ErrSendLocked   = fmt.Errorf("envio bloqueado por senha errada repetida; tente de novo mais tarde: %w", domain.ErrConflict)
 	ErrSendPassword = fmt.Errorf("senha do envio incorreta: %w", domain.ErrNotAllowed)
+	// ErrSendFileOpen: o envio de arquivo grava o conteúdo (PUT …/content), mas ainda não sai pelo link: a entrega do
+	// blob para a página fica para a fatia seguinte do #59 (o link devolveria texto vazio).
+	ErrSendFileOpen = fmt.Errorf("envio de arquivo ainda não abre pelo link: a entrega do arquivo fica para a fatia seguinte do #59: %w", domain.ErrConflict)
 )
 
 func b64u(b []byte) string { return base64.RawURLEncoding.EncodeToString(b) }
@@ -142,7 +145,8 @@ func (s *Service) sendProofOK(ctx context.Context, row store.SecretSend, proof s
 type CreateSendInput struct {
 	PublicID         string
 	Kind             domain.SendKind
-	Ciphertext       string // texto: base64url(nonce||cifra), até MaxSendTextBytes em claro
+	Ciphertext       string // texto: base64url(nonce||cifra), até MaxSendTextBytes em claro; arquivo: vazio
+	SizeBytes        int    // arquivo: tamanho em claro (1 byte a MaxSendFileBytes); texto: não usado
 	Label            string
 	KdfSalt          string // com senha: sal do PBKDF2 (base64url); sem senha: vazio
 	PasswordVerifier string // com senha: base64url da prova (32 bytes); o servidor guarda só o hash argon2id dela
@@ -200,8 +204,8 @@ func validateSendInput(in CreateSendInput) error {
 			return domain.Invalid("password_verifier", "verificador inválido (32 bytes em base64url)")
 		}
 	}
-	if in.Kind != domain.SendText {
-		return domain.Invalid("kind", "envio de arquivo chega com o upload do blob, na entrega seguinte do #59")
+	if in.Kind == domain.SendFile {
+		return validateFileSend(in)
 	}
 	if in.Ciphertext == "" {
 		return domain.Invalid("ciphertext", "envio de texto exige o conteúdo cifrado")
@@ -209,6 +213,18 @@ func validateSendInput(in CreateSendInput) error {
 	raw, err := unb64u(in.Ciphertext)
 	if err != nil || len(raw) > domain.MaxSendTextBytes+sendCipherOverhead {
 		return domain.Invalid("ciphertext", "conteúdo cifrado inválido ou maior que 64 KiB")
+	}
+	return nil
+}
+
+// validateFileSend confere um envio de arquivo novo: sem texto cifrado (o conteúdo sobe depois, em PUT …/content) e
+// com o tamanho do arquivo em claro dentro do limite.
+func validateFileSend(in CreateSendInput) error {
+	if in.Ciphertext != "" {
+		return domain.Invalid("ciphertext", "envio de arquivo não leva texto: o conteúdo cifrado sobe depois, em PUT …/content")
+	}
+	if in.SizeBytes < 1 || in.SizeBytes > domain.MaxSendFileBytes {
+		return domain.Invalid("size_bytes", "arquivo de 1 byte a 25 MiB")
 	}
 	return nil
 }
@@ -288,11 +304,19 @@ func (s *Service) CreateSend(ctx context.Context, actor domain.Actor, companyID 
 	}
 	createdBy, createdByID := sendCreator(actor)
 	id := domain.NewID()
+	// arquivo: a linha já leva a chave do blob (a restrição da tabela exige) e o tamanho; o blob sobe depois
+	var blobKey string
+	var size int32
+	if in.Kind == domain.SendFile {
+		blobKey = sendBlobKey(companyID, id).String()
+		size = i32(in.SizeBytes)
+	}
 	var out SendView
 	err := s.withTx(ctx, func(t *txc) error {
 		row, err := t.q.CreateSecretSend(t.ctx, store.CreateSecretSendParams{
 			ID: id, CompanyID: companyID, PublicID: in.PublicID, Kind: string(in.Kind),
-			Ciphertext: in.Ciphertext, Label: in.Label, KdfSalt: in.KdfSalt, PasswordVerifier: in.PasswordVerifier,
+			Ciphertext: in.Ciphertext, BlobKey: blobKey, SizeBytes: size, Label: in.Label, KdfSalt: in.KdfSalt,
+			PasswordVerifier: in.PasswordVerifier,
 			MaxAccesses: i32p(in.MaxAccesses), ExpiresAt: t.now.Add(in.ExpiresIn),
 			CreatedByType: createdBy, CreatedByID: createdByID, Now: t.now,
 		})
@@ -378,7 +402,8 @@ func (s *Service) CreatePersonaSend(ctx context.Context, actor domain.Actor, com
 }
 
 // personaSendField lê o segredo e o campo de uma referência de envio. Semente TOTP e arquivo não saem por envio:
-// a semente não vale depois do código atual, e o arquivo chega com o upload do blob (entrega seguinte do #59).
+// a semente não vale depois do código atual, e o arquivo não sai por persona: o envio de arquivo é criado por humano, que
+// sobe o conteúdo cifrado (PUT …/content); a persona não digita nem decifra o valor (ADR-0069 §4).
 func (s *Service) personaSendField(ctx context.Context, companyID domain.ID, ref secretref.Ref) (store.Secret, store.SecretField, error) {
 	q := s.read()
 	sec, err := q.GetCompanySecretByName(ctx, store.GetCompanySecretByNameParams{CompanyID: companyID, Name: ref.Name})
@@ -407,7 +432,7 @@ func (s *Service) PublicSendInfo(ctx context.Context, publicID string) (PublicSe
 	now := s.Now()
 	return PublicSendView{
 		Kind: domain.SendKind(row.Kind), HasPassword: row.KdfSalt != "", KdfSalt: row.KdfSalt,
-		ExpiresAt: row.ExpiresAt, LockedUntil: row.LockedUntil, Openable: sendOpenable(row, now),
+		ExpiresAt: row.ExpiresAt, LockedUntil: row.LockedUntil, Openable: row.Kind == string(domain.SendText) && sendOpenable(row, now),
 	}, nil
 }
 
@@ -430,6 +455,9 @@ func (s *Service) OpenPublicSend(ctx context.Context, publicID, passwordProof st
 	row, err := s.read().GetSecretSendByPublicID(ctx, publicID)
 	if err != nil {
 		return OpenedSendView{}, mapErr(err, "abrir envio")
+	}
+	if row.Kind == string(domain.SendFile) {
+		return OpenedSendView{}, ErrSendFileOpen // antes da senha: não conta falha nem acesso
 	}
 	if err := s.checkSendAccess(ctx, row, passwordProof, now); err != nil {
 		return OpenedSendView{}, err
@@ -522,6 +550,11 @@ func (s *Service) PurgeExpiredSends(ctx context.Context) (int, error) {
 			}
 			if err != nil {
 				return mapErr(err, "apagar envio")
+			}
+			if r.BlobKey != "" {
+				if err := t.dropSendBlob(r.CompanyID, r.ID); err != nil {
+					return err
+				}
 			}
 			done = true
 			return t.activity(domain.SystemActor, r.CompanyID, "send.expired", "secret_send", r.ID,

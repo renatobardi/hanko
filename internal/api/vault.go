@@ -29,7 +29,6 @@ func pendingOp[I, O any](api huma.API, o huma.Operation, slice string) {
 const (
 	sliceFields      = "fatia 1 (#56)"
 	sliceReauth      = "fatia 2 (#57)"
-	sliceSends       = "fatia 4 (#59)"
 	sliceDelegations = "fatia 5 (#60)"
 )
 
@@ -362,20 +361,10 @@ type openSendIn struct {
 	}
 }
 
-// registerSends registra o envio: criar, abrir e a página pública ligam o service (registerSendOps); enviar o blob de
-// arquivo, listar, obter e apagar seguem em 501 até a entrega seguinte da fatia 4.
+// registerSends registra o envio: criar, subir o conteúdo, listar, obter, apagar, a página pública e abrir ligam o
+// service (registerSendOps).
 func (s *server) registerSends(api huma.API) {
 	s.registerSendOps(api)
-	base := "/companies/{company}/sends"
-	tag := "vault"
-	pendingOp[uploadSendIn, ItemOut[SecretSend]](api, op("upload-send-content", http.MethodPut, base+"/{id}/content", tag,
-		"Envia o blob cifrado de um envio de arquivo"), sliceSends)
-	pendingOp[listSendsIn, ListOut[SecretSend]](api, op("list-sends", http.MethodGet, base, tag,
-		"Lista os envios da empresa (os próprios; admin vê todos)"), sliceSends)
-	pendingOp[sendPath, ItemOut[SecretSend]](api, op("get-send", http.MethodGet, base+"/{id}", tag,
-		"Obtém os metadados de um envio"), sliceSends)
-	pendingOp[sendPath, struct{}](api, noContent(op("delete-send", http.MethodDelete, base+"/{id}", tag,
-		"Apaga o conteúdo de um envio antes do prazo")), sliceSends)
 }
 
 // ---------- delegação e uso (fatia 5) ----------

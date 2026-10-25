@@ -56101,7 +56101,6 @@
     },
     "/api/v1/companies/{company}/sends": {
       "get": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 4 (#59).",
         "operationId": "list-sends",
         "parameters": [
           {
@@ -56215,16 +56214,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Lista os envios da empresa (os próprios; admin vê todos)",
@@ -56331,7 +56320,7 @@
             "description": "Internal Server Error"
           }
         },
-        "summary": "Cria um envio com conteúdo já cifrado no cliente (exige reautenticação recente)",
+        "summary": "Cria um envio: texto com o conteúdo já cifrado no cliente, ou arquivo (o conteúdo sobe depois, em PUT …/content); exige reautenticação recente",
         "tags": [
           "vault"
         ]
@@ -56339,7 +56328,6 @@
     },
     "/api/v1/companies/{company}/sends/{id}": {
       "delete": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 4 (#59).",
         "operationId": "delete-send",
         "parameters": [
           {
@@ -56428,16 +56416,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Apaga o conteúdo de um envio antes do prazo",
@@ -56446,7 +56424,6 @@
         ]
       },
       "get": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 4 (#59).",
         "operationId": "get-send",
         "parameters": [
           {
@@ -56542,16 +56519,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Obtém os metadados de um envio",
@@ -56562,7 +56529,6 @@
     },
     "/api/v1/companies/{company}/sends/{id}/content": {
       "put": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 4 (#59).",
         "operationId": "upload-send-content",
         "requestBody": {
           "content": {
@@ -56646,16 +56612,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Envia o blob cifrado de um envio de arquivo",

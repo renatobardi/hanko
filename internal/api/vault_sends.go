@@ -11,13 +11,17 @@ import (
 	"github.com/renatobardi/hanko/internal/service"
 )
 
-// Operações da fatia 4 do cofre (#59) que ligam o service: criar um envio por humano (com o conteúdo já cifrado
-// no cliente), a página pública (o que pedir antes de abrir) e abrir o envio. A chave do link nunca chega aqui: ela
-// fica no fragmento da URL (ADR-0069 §2).
+// Operações da fatia 4 do cofre (#59) que ligam o service: criar um envio por humano (texto com o conteúdo já cifrado
+// no cliente, ou arquivo que sobe depois), subir o conteúdo do arquivo, listar, ver e apagar, a página pública (o que
+// pedir antes de abrir) e abrir o envio. A chave do link nunca chega aqui: ela fica no fragmento da URL (ADR-0069 §2).
 
 // sendBackend é o subconjunto do service dos envios; opcional como vaultBackend.
 type sendBackend interface {
 	CreateSend(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.CreateSendInput) (service.SendView, error)
+	ListSends(ctx context.Context, actor domain.Actor, companyID domain.ID, limit int) ([]service.SendView, error)
+	GetSend(ctx context.Context, actor domain.Actor, companyID, id domain.ID) (service.SendView, error)
+	DeleteSend(ctx context.Context, actor domain.Actor, companyID, id domain.ID) error
+	UploadSendContent(ctx context.Context, actor domain.Actor, companyID, id domain.ID, sealed []byte) (service.SendView, error)
 	PublicSendInfo(ctx context.Context, publicID string) (service.PublicSendView, error)
 	OpenPublicSend(ctx context.Context, publicID, passwordProof string) (service.OpenedSendView, error)
 }
@@ -53,11 +57,11 @@ func sendOut(v service.SendView) SecretSend {
 		CreatedAt: x.CreatedAt}
 }
 
-// registerSendOps registra criar, página pública e abrir, todas ligadas ao service.
+// registerSendOps registra criar, subir o conteúdo, listar, ver, apagar, página pública e abrir, todas ligadas ao service.
 func (s *server) registerSendOps(api huma.API) {
 	base := "/companies/{company}/sends"
 	huma.Register(api, created(op("create-send", http.MethodPost, base, "vault",
-		"Cria um envio com conteúdo já cifrado no cliente (exige reautenticação recente)")),
+		"Cria um envio: texto com o conteúdo já cifrado no cliente, ou arquivo (o conteúdo sobe depois, em PUT …/content); exige reautenticação recente")),
 		func(ctx context.Context, in *createSendIn) (*ItemOut[SecretSend], error) {
 			sb, sc, err := s.sendCall(ctx, in.Company)
 			if err != nil {
@@ -65,10 +69,69 @@ func (s *server) registerSendOps(api huma.API) {
 			}
 			b := in.Body
 			v, err := sb.CreateSend(ctx, sc.Actor, sc.Company.ID, service.CreateSendInput{
-				PublicID: b.PublicID, Kind: domain.SendKind(b.Kind), Ciphertext: b.Ciphertext, Label: b.Label,
-				KdfSalt: b.KdfSalt, PasswordVerifier: b.PasswordVerifier,
+				PublicID: b.PublicID, Kind: domain.SendKind(b.Kind), Ciphertext: b.Ciphertext, SizeBytes: b.SizeBytes,
+				Label: b.Label, KdfSalt: b.KdfSalt, PasswordVerifier: b.PasswordVerifier,
 				ExpiresIn: time.Duration(b.ExpiresInSeconds) * time.Second, MaxAccesses: b.MaxAccesses})
 			return vaultItem(ctx, s, sendOut(v), err)
+		})
+
+	upload := op("upload-send-content", http.MethodPut, base+"/{id}/content", "vault",
+		"Envia o blob cifrado de um envio de arquivo")
+	upload.MaxBodyBytes = service.MaxSendUploadBytes
+	huma.Register(api, upload, func(ctx context.Context, in *uploadSendIn) (*ItemOut[SecretSend], error) {
+		sb, sc, err := s.sendCall(ctx, in.Company)
+		if err != nil {
+			return nil, err
+		}
+		id, err := domain.ParseID(in.ID)
+		if err != nil {
+			return nil, s.fail(ctx, domain.Invalid("id", "não é um uuid"))
+		}
+		v, err := sb.UploadSendContent(ctx, sc.Actor, sc.Company.ID, id, in.RawBody)
+		return vaultItem(ctx, s, sendOut(v), err)
+	})
+
+	huma.Register(api, op("list-sends", http.MethodGet, base, "vault",
+		"Lista os envios da empresa (os próprios; admin vê todos)"),
+		func(ctx context.Context, in *listSendsIn) (*ListOut[SecretSend], error) {
+			sb, sc, err := s.sendCall(ctx, in.Company)
+			if err != nil {
+				return nil, err
+			}
+			list, err := sb.ListSends(ctx, sc.Actor, sc.Company.ID, in.Offset+in.Limit)
+			if err != nil {
+				return nil, s.fail(ctx, err)
+			}
+			return listOf(list, in.Page, sendOut), nil
+		})
+
+	huma.Register(api, op("get-send", http.MethodGet, base+"/{id}", "vault",
+		"Obtém os metadados de um envio"),
+		func(ctx context.Context, in *sendPath) (*ItemOut[SecretSend], error) {
+			sb, sc, err := s.sendCall(ctx, in.Company)
+			if err != nil {
+				return nil, err
+			}
+			id, err := domain.ParseID(in.ID)
+			if err != nil {
+				return nil, s.fail(ctx, domain.Invalid("id", "não é um uuid"))
+			}
+			v, err := sb.GetSend(ctx, sc.Actor, sc.Company.ID, id)
+			return vaultItem(ctx, s, sendOut(v), err)
+		})
+
+	huma.Register(api, noContent(op("delete-send", http.MethodDelete, base+"/{id}", "vault",
+		"Apaga o conteúdo de um envio antes do prazo")),
+		func(ctx context.Context, in *sendPath) (*struct{}, error) {
+			sb, sc, err := s.sendCall(ctx, in.Company)
+			if err != nil {
+				return nil, err
+			}
+			id, err := domain.ParseID(in.ID)
+			if err != nil {
+				return nil, s.fail(ctx, domain.Invalid("id", "não é um uuid"))
+			}
+			return s.vaultDone(ctx, sb.DeleteSend(ctx, sc.Actor, sc.Company.ID, id))
 		})
 
 	huma.Register(api, op("get-public-send", http.MethodGet, "/s/{public_id}", "public",
