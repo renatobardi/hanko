@@ -61,6 +61,26 @@ func TestGateDecisoes(t *testing.T) {
 	}
 }
 
+// A aprovação de um gate de contratação imprime os avisos de alcance da persona criada (ADR-0068 §2.5, #95).
+func TestGateApproveImprimeAvisoDeAlcance(t *testing.T) {
+	hired := api.Gate{ID: gid, Kind: "hire", Status: "approved", Title: "Contratar Yuki",
+		Warnings:    []string{`a persona "yuki" não alcança ${secret:restrito}: nenhuma coleção que contém o item foi concedida a ela. A run falha até a concessão (ADR-0068 §2.5).`},
+		RequestedBy: api.ActorRef{Type: "human"}, CreatedAt: time.Date(2026, 10, 25, 9, 0, 0, 0, time.UTC)}
+	ts, _ := newFakeAPI(t, map[string]http.HandlerFunc{
+		"GET /api/v1/companies/acme/gates":                     jsonResp(200, list(gate1)),
+		"POST /api/v1/companies/acme/gates/" + gid + "/decide": jsonResp(200, hired),
+	})
+	code, out, _ := exec(t, Runtime{}, gateEnv(ts.URL), "", "gate", "approve", "0198f2a0")
+	if code != 0 || !strings.Contains(out, "aprovado") || !strings.Contains(out, "aviso: a persona \"yuki\" não alcança ${secret:restrito}") {
+		t.Fatalf("%d %q", code, out)
+	}
+	// em JSON, o aviso vai no campo warnings, sem texto extra
+	code, out, _ = exec(t, Runtime{}, gateEnv(ts.URL), "", "--json", "gate", "approve", "0198f2a0")
+	if code != 0 || !strings.Contains(out, `"warnings"`) || strings.Contains(out, "aviso: a persona") {
+		t.Fatalf("%d %q", code, out)
+	}
+}
+
 func TestOrgArvore(t *testing.T) {
 	child := api.OrgNode{Persona: api.Persona{Name: "Davi", Slug: "davi", Status: "idle"}, Depth: 1, OpenTasks: 2, PendingGates: 1}
 	root := api.OrgNode{Persona: api.Persona{Name: "Marina", Slug: "marina", Status: "running"}, Children: []api.OrgNode{child}}

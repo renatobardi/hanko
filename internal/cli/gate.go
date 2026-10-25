@@ -200,6 +200,9 @@ func (e *env) gateCmd() *cobra.Command {
 					return e.printJSON(g)
 				}
 				fmt.Fprintf(e.out, e.t("Gate %s %s: %s\n"), shortID(g.ID), done, g.Title)
+				for _, w := range g.Warnings { // contratação aprovada: aviso de alcance da persona criada (ADR-0068 §2.5)
+					fmt.Fprintln(e.out, e.t("aviso: ")+w)
+				}
 				return nil
 			},
 		}

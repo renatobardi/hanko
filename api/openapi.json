@@ -6625,6 +6625,16 @@
               "Fazer deploy em produção"
             ],
             "type": "string"
+          },
+          "warnings": {
+            "description": "Só na resposta da aprovação de contratação: referências ${secret:} do adapter_config da persona criada que ela não alcança. Aviso, não bloqueia; a run falha até a concessão (ADR-0068 §2.5).",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
           }
         },
         "required": [

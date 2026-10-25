@@ -40,6 +40,7 @@ type Gate struct {
 	Form       *GateForm           `json:"form,omitempty" doc:"Gate question: o formulário."`
 	Answers    map[string][]string `json:"answers,omitempty" doc:"Gate question respondido: chave do campo → valores."`
 	Hire       *GateHireSpec       `json:"hire,omitempty" doc:"Gate hire: a ficha; aprovar cria a persona."`
+	Warnings   []string            `json:"warnings,omitempty" doc:"Só na resposta da aprovação de contratação: referências ${secret:} do adapter_config da persona criada que ela não alcança. Aviso, não bloqueia; a run falha até a concessão (ADR-0068 §2.5)."`
 	ArtifactID string              `json:"artifact_id,omitempty" format:"uuid" doc:"Gate plan: o artefato (versão) de onde veio o plano."`
 }
 
@@ -282,7 +283,13 @@ func (s *server) registerGates(api huma.API) {
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}
-			return &ItemOut[Gate]{Body: gateOut(g)}, nil
+			out := gateOut(g)
+			if g.HirePersonaID != nil { // contratação aprovada: aviso de alcance da persona criada (ADR-0068 §2.5), como na contratação direta
+				if out.Warnings, err = s.svc.PersonaReachWarnings(ctx, sc.Company.ID, *g.HirePersonaID); err != nil {
+					return nil, s.fail(ctx, err)
+				}
+			}
+			return &ItemOut[Gate]{Body: out}, nil
 		})
 
 	huma.Register(api, op("get-org-chart", http.MethodGet, "/companies/{company}/org-chart", "personas", "Organograma da empresa (árvore reports_to)"),

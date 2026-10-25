@@ -71,6 +71,9 @@ type GateView struct {
 	TaskKey     string `json:"task_key,omitempty"`
 	TaskTitle   string `json:"task_title,omitempty"`
 	PersonaName string `json:"persona_name,omitempty"`
+	// HirePersonaID: a persona que a aprovação de um gate hire com ficha criou; nil nos demais casos. A API usa para
+	// trazer os avisos de alcance (ADR-0068 §2.5) na resposta da aprovação, como na contratação direta.
+	HirePersonaID *domain.ID `json:"-"`
 }
 
 func gateView(r store.Gate, taskKey, taskTitle, personaName string) GateView {
@@ -540,6 +543,7 @@ func (s *Service) DecideGate(ctx context.Context, actor domain.Actor, companyID,
 		}
 
 		out, err = t.afterGateDecided(actor, companyID, g, in.Decision, memWS)
+		out.HirePersonaID = t.hiredPersona // contratação aprovada: a resposta traz os avisos de alcance da persona criada
 		return err
 	})
 	if err != nil {

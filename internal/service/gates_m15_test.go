@@ -380,7 +380,8 @@ func TestHireGateCreatesPersona(t *testing.T) {
 	}
 	// rejeitar não cria
 	// (o gate segue pendente: aprova)
-	if _, err := e.svc.DecideGate(ctx, domain.HumanActor, e.co.ID, g.ID, service.DecideGateInput{Decision: domain.GateApproved, Note: "bem-vinda"}); err != nil {
+	decided, err := e.svc.DecideGate(ctx, domain.HumanActor, e.co.ID, g.ID, service.DecideGateInput{Decision: domain.GateApproved, Note: "bem-vinda"})
+	if err != nil {
 		t.Fatal(err)
 	}
 	y, err := e.svc.GetPersona(ctx, e.co.ID, "yuki")
@@ -389,6 +390,10 @@ func TestHireGateCreatesPersona(t *testing.T) {
 	}
 	if y.Name != "Yuki" || y.Agent != "fake" || y.ReportsTo == nil || *y.ReportsTo != boss.ID || y.Instructions != "Você analisa dados." || y.InstructionRevision != 1 {
 		t.Fatalf("persona contratada: %+v", y)
+	}
+	// a aprovação devolve a persona criada: a API traz os avisos de alcance nela (ADR-0068 §2.5, #95)
+	if decided.HirePersonaID == nil || *decided.HirePersonaID != y.ID {
+		t.Fatalf("a aprovação devolve a persona criada: %+v", decided.HirePersonaID)
 	}
 	if n := countVerb(t, e, "persona.hired"); n != 2 { // a do fixture e a do gate
 		t.Fatalf("persona.hired = %d", n)
