@@ -82,7 +82,9 @@ func TestAPICamposECollecoes(t *testing.T) {
 
 	var hist api.ListBody[api.SecretFieldVersion]
 	raw = e.want(200, "GET", base+"/secrets/gh/fields/senha/history", "", &hist)
-	if len(hist.Items) != 2 || hist.Items[0].Version != 2 || hist.Items[0].Revealed || hist.Items[1].Value != "" {
+	// v2 veio de rotacionar com valor gerado, que é mostrado na hora: a versão já conta como revelada (secrets.go:218).
+	// v1 nunca foi revelada. O histórico lista só as versões substituídas, então a atual (v3) não aparece.
+	if len(hist.Items) != 2 || hist.Items[0].Version != 2 || !hist.Items[0].Revealed || hist.Items[1].Version != 1 || hist.Items[1].Revealed || hist.Items[1].Value != "" {
 		t.Fatalf("histórico do campo senha: %+v", hist.Items)
 	}
 	if strings.Contains(string(raw), sentinela) {
