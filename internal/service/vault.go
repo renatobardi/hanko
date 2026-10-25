@@ -115,7 +115,8 @@ func secretFieldFromRow(r store.SecretField) domain.SecretField {
 }
 
 func fieldEventData(f store.SecretField) map[string]any {
-	return map[string]any{"field": f.Name, "kind": f.Kind, "sensitive": f.Sensitive, "provider": f.Provider, "version": f.Version}
+	return map[string]any{"field": f.Name, "kind": f.Kind, "sensitive": f.Sensitive, "password": f.Password,
+		"provider": f.Provider, "version": f.Version}
 }
 
 // fieldRow lê o campo de um segredo pelo nome (forUpdate tranca a linha na transação da rotação).

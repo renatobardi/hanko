@@ -2,14 +2,13 @@
 Data: 2026-10-25 · sessão `61-cofre-saude-extras` (rodada swarm-1024-0625)
 
 ## Feito
-- Marca explícita de senha em campo (ADR-0074, migration 00206): `password` criado por `POST …/fields` e alterado por `PATCH …/fields/{field}` e pela CLI (`--password`, `--no-password`). O relatório de fracos lê a marca além do nome.
+- Marca de senha em campo (ADR-0074, migration 00206): API, CLI, evento de atividade e relatório de fracos. CI verde no `1f482fd`.
 
 ## Travado
-- Prazo de rotação por campo na UI (item b do Falta): decisão do Bardi, por BLOQUEADO.
-- Container sem Go nem sqlc: o CI do PR valida o código gerado e o build.
+- Prazo de rotação por campo (item b da issue #61): decisão do Bardi.
 
 ## Próximo passo
-- Aplicar o diff de código gerado do CI e conferir os testes; PR com `Refs #61`.
+- Corpo final do PR #91 (`Refs #61`, `## Falta`) e aceite do ADR-0074 pelo Bardi.
 
 # Cofre, fatia 7: tela do .hkv e testes do #84 (#62, build)
 Data: 2026-10-25 · branch `feat/62-cofre-hkv-tela` · sessão `62-cofre-hkv-tela` (rodada swarm-1024-0625) · `Refs #62`
