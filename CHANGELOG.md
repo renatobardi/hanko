@@ -5,6 +5,78 @@ English summary at the end of each release.
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-10-25
+
+### Cofre para agentes: campos, coleções e histórico (fatia 1, #56)
+
+- Segredo com N campos: `${secret:ITEM#campo}` lê um campo; `${secret:ITEM}` continua lendo o campo `value`. Campo visível (aparece para member) ou secreto (nunca aparece na listagem).
+- Coleções com concessões a persona, subárvore do organograma, todas as personas ou humano (`use`, `view`, `manage`). Na configuração (`adapter_config`) da persona, um item que ela não alcança falha a run antes do adapter, com o nome do item e da persona, nunca o valor.
+- Migração 00204: cada segredo ganha o campo `value` com o mesmo material; cada empresa ganha a coleção `padrão`, concedida a todas as personas. Nada que roda hoje quebra.
+- Histórico por campo com retenção de 5 versões ou 90 dias (configurável em `secrets.history_keep_versions` e `secrets.history_keep_days`); restaurar uma versão cria versão nova.
+- API: criar, listar, mudar e trocar valor de campo; CRUD de coleção e segredos da coleção. Revelar campo, histórico, restaurar e conceder ou revogar concessão exigem reautenticação (#57) e seguem em 501.
+- CLI `hanko secret field …` e `hanko secret collection …`; tela de campos e coleções em Configurações › Segredos.
+- English summary: vault fields and collections (ADR-0068 §1–§3) — secrets with N fields, collections with use/view/manage grants, migration 00204 copies each secret into the `value` field and creates the default collection granted to all personas, per-field history with 5-version/90-day retention, and restore as a new version. Reveal, history, restore and grants wait for re-authentication (#57) and stay 501 in the API.
+
+### Cofre para agentes: contrato (ADR-0068, 0069, 0070)
+
+- ADRs do cofre para agentes (segredos com campos, coleções, `hanko_secret_get`, TOTP, campo arquivo, histórico, delegação de segredo pessoal, saúde, import de `.env` e export cifrado), do envio com chave no fragmento do link e da reautenticação recente com passkey.
+- Migration 00203: tabelas novas do cofre, do envio e das passkeys; colunas `secrets.rotate_after_days` e `sessions.reauth_at`/`reauth_method`; alerta `secret_rotation_due`. Nenhum dado existente é movido e nada muda no comportamento atual.
+- API: 54 operações novas no OpenAPI (tag `vault`, `auth` e `public`), que respondem 501 até cada fatia ser entregue.
+- O pacote do cofre externo passou de `internal/vault` para `internal/extvault`; `provider = "vault"` na API e no banco não muda.
+- English summary: vault-for-agents contract — ADRs 0068–0070, migration 00203 (schema only, no data moved), 54 new API operations that return 501 until each slice ships, and `internal/vault` renamed to `internal/extvault`.
+
+### Cofre para agentes: delegação de segredo pessoal e saída do humano (fatia 5, #60)
+
+- O dono de um segredo pessoal o delega às runs de uma task ou conversa que ele pediu, ou a uma run em curso (`POST /companies/{company}/user-secrets/{name}/delegations`). A delegação vale por 24 h por padrão, no máximo 7 dias, ou até ser revogada (`DELETE /companies/{company}/me/delegations/{id}`). Só quem pediu o trabalho delega a ele.
+- `${secret:user/NOME}` no texto que a run recebe e `hanko_secret_get` com `item = user/NOME` só resolvem com delegação válida do dono da task ou da conversa. Sem ela, ou numa run de outro humano, a run falha cedo com o nome da referência e nunca com o valor. A delegação é conferida de novo depois do gate da tool.
+- Cada uso entra no registro do item com a delegação; o dono o vê em `GET /companies/{company}/user-secrets/{name}/usage` (quando, em que run e por qual persona).
+- Saída do humano da empresa: os segredos pessoais dele são apagados na mesma transação, as delegações caem junto, e o fato `secret.user_purged` registra quantos itens e quais delegações ativas havia (ids, alvo e prazo; sem nome nem valor).
+- English summary: owners delegate personal secrets to the runs of a task or conversation they requested (default 24 h, max 7 days, revocable); `${secret:user/NAME}` and `hanko_secret_get user/NAME` resolve only with a valid delegation from the requester of the run's work; uses are logged per delegation and shown to the owner; removing a member deletes their personal secrets and records the active delegations in `secret.user_purged`.
+
+### Cofre para agentes: envio por link com a chave no fragmento (fatia 4, #59)
+
+- Envio de texto por link `/s/<id>#<chave>`: o servidor guarda só o texto cifrado (AES-256-GCM). A chave vai só no fragmento, que o navegador não envia; não aparece no banco, nos eventos nem no log.
+- Criação por humano pela API (exige reautenticação recente): o navegador ou a CLI gera a chave, cifra e envia só o texto cifrado.
+- Criação por persona pelo service: `item#campo` de coleção concedida à persona; o servidor cifra, monta o link e descarta a chave. A tool MCP `hanko_send_create` (política `ask`) fica para a entrega seguinte.
+- Página de recebimento `/s/<id>`, sem conta: pede a senha quando há, abre pela API pública e decifra no navegador com WebCrypto. Senha errada não devolve o texto e, depois de 5 erros, bloqueia o envio por 15 minutos.
+- Expira por prazo e por limite de acessos; o último acesso já apaga o conteúdo, e o job `send_purge_tick` (a cada 5 min) apaga o que ninguém abriu.
+- Ainda não entram nesta entrega: envio de arquivo (upload do blob), listar, consultar e apagar envios, a tool MCP da persona, a tela e o comando da CLI de criação, e o limite de taxa da rota pública (ADR-0058).
+- English summary: secure send by link (ADR-0069, #59): text ciphertext only on the server, key in the URL fragment, human creation via API with recent re-authentication, persona creation from a granted `item#field` (server encrypts and drops the key), password proof with lock after 5 failures, expiry by time and access count with purge, and a public page that decrypts in the browser with WebCrypto. File sends, list/get/delete, the persona MCP tool, the UI/CLI creation and the public-route rate limit are still pending.
+
+### Cofre para agentes: import de .env e export cifrado entre instâncias (fatia 7, #62)
+
+- Import de `.env` (`hanko secret import-env ARQUIVO|-`, tela Configurações › Segredos › Importar .env): comentários, `export`, aspas simples e duplas e linhas vazias. Um segredo por variável, ou um segredo só com um campo por variável (`--item NOME`; a primeira variável vira o campo `value`). A prévia mostra o mapeamento, os conflitos de nome e as linhas ignoradas, nunca valores; `--collection` escolhe a coleção de destino e `--overwrite` rotaciona o que já existe em vez de pular. Gravar exige admin e reautenticação recente; é tudo ou nada.
+- Export cifrado do cofre (`hanko secret export --out cofre.hkv`) e import em outra instância (`hanko secret import cofre.hkv`): arquivo `.hkv` com AES-256-GCM sob chave PBKDF2-SHA256 (600 000 iterações) derivada da senha (mínimo de 12 caracteres, lida do stdin com `--password-stdin` ou de `HANKO_VAULT_PASSWORD`). Leva segredos com todos os campos (arquivo inclusive), coleções e concessões; nomes e valores ficam dentro do conteúdo cifrado. Senha errada ou arquivo alterado falha sem gravar nada. Segredo que já existe no destino fica como está. Concessão a persona ou humano só vale se o sujeito existir no destino, e só em coleção que o import criou.
+- API: `POST /companies/{company}/vault/import-env/preview`, `…/vault/import-env`, `…/vault/export` e `…/vault/import`. O `hanko export` de empresa continua levando só referências (ADR-0022).
+- English summary: `.env` import (CLI and web) with a preview of the mapping, name conflicts and the target collection, and an encrypted vault export (`.hkv`, AES-256-GCM, PBKDF2-SHA256 at 600,000 iterations) that imports into another instance all-or-nothing; a wrong password writes nothing. Both writes need an admin and recent re-authentication. The company `hanko export` still carries references only.
+
+### Cofre para agentes: reautenticação recente e passkey (ADR-0070)
+
+- Ação sensível pede prova recente de identidade: senha (provider `local`), token do Firebase com `auth_time` recente (provider `firebase`) ou passkey. A janela padrão é de 5 minutos e pode ser mudada com `HANKO_REAUTH_MINUTES` (1 a 60). Sem prova, a API responde 401 com `reauth_required`, e a tela abre o pedido de prova.
+- Passkey por usuário na tela de perfil (até 10 por usuário), com verificação de usuário obrigatória e contador de assinatura conferido. Cadastrar e remover passkey também exigem prova recente.
+- API key de escopo `read` recebe 403 em ação sensível; a de escopo `full` passa, e o fato `auth.*` registra o id da chave.
+- Fatos `auth.reauthenticated`, `auth.passkey_added` e `auth.passkey_removed` vão para cada empresa ativa do usuário.
+- English summary: sensitive actions now require a recent identity proof (password, Firebase `auth_time`, or passkey) for 5 minutes by default (`HANKO_REAUTH_MINUTES`); the profile page manages passkeys; read-scope API keys get 403 and full-scope keys pass with their key id on the audit fact.
+
+### Cofre para agentes: gerador, saúde e alerta de rotação (fatia 6, #61)
+
+- Gerador configurável (ADR-0068 §7.1): tamanho de 8 a 128, classes de caractere (minúsculas, maiúsculas, dígitos, símbolos) ou frase-senha de 3 a 12 palavras. Vale na API (`POST /api/v1/secrets/generate`), na criação e na troca de valor de segredo e de campo (`generator`), e na tela de segredos. Sem opções, continua o padrão de sempre.
+- Relatório de saúde por empresa (`GET /api/v1/companies/{company}/vault/health`, na tela Configurações › Segredos › Saúde): repetidos (comparados por HMAC do valor, sem decifrar), velhos (prazo do item ou da coleção), sem uso (90 dias), órfãos (nenhuma persona, integração, ambiente, plugin, canal, gatilho, modelo de decisão ou credencial git usa o segredo) e fracos (campo `password` ou `senha` com entropia estimada abaixo de 60 bits). Sem chamada a serviço externo; só admin.
+- Alerta `secret_rotation_due` (ADR-0020): um por segredo com campo além do prazo de rotação, na Caixa de entrada. Fecha sozinho quando o campo é rotacionado.
+- `PATCH /api/v1/companies/{company}/secrets/{name}` muda a descrição e o prazo de rotação do item (0 tira o prazo).
+- Campos locais passam a guardar o HMAC do valor. Campos criados antes desta versão só entram na comparação de repetidos depois de `hanko secret rekey`, que preenche o HMAC de todos.
+- English summary: secret generator (length 8–128, character classes or a 3–12 word passphrase, in the API, the create/rotate forms and the UI; no options keeps the old default), a health report with duplicates by HMAC without decrypting, stale, unused, orphan and weak findings (admin only, no network call), a `secret_rotation_due` alert per overdue secret, and a PATCH for a secret's description and rotation deadline. Fields created before this release need one `hanko secret rekey` to fill their HMAC.
+
+### Cofre para agentes: tool `hanko_secret_get`, TOTP e campo arquivo (fatia 3, #58)
+
+- Tool MCP `hanko_secret_get(item, campo)`: a persona lê um campo de um item das coleções que ela alcança. A política de tools começa em `ask`: a primeira chamada abre um gate, e "sempre permitir" grava a regra da persona. Item fora das coleções é recusado antes do gate. Cada chamada fica no registro de uso, sem o valor.
+- Campo TOTP: a tool devolve só o código do momento e os segundos que faltam para ele vencer. A semente não sai pela tool nem pela API, e `${secret:ITEM#totp}` é recusado.
+- Campo arquivo (até 1 MiB): cifrado com o AAD do campo antes de sair do processo. No driver postgres, o texto cifrado fica na tabela nova `secret_field_blobs` (migração 00205), porque `artifact_blobs` tem FK para artefatos; nos drivers fs e s3, fica no BlobStore. Criado pela API com `content_base64`; não se revela nem se troca (apaga-se e cria-se de novo).
+- `${secretfile:ITEM#campo}` no adapter da persona vira um arquivo 0600 num diretório temporário 0700, apagado ao fim da run, inclusive quando ela falha. Em ambiente SSH, a run falha cedo com "arquivo de segredo ainda não é suportado em ambiente SSH"; sandbox e cloud também recusam nesta entrega.
+- O valor entregue pela tool entra na redação do log da run, e a lista de valores é esquecida ao fim dela.
+- `hanko secret rekey` recifra também os arquivos dos campos; sem isso, trocar `HANKO_SECRET_KEY` deixaria os arquivos ilegíveis.
+- English summary: MCP tool `hanko_secret_get` (ADR-0068 §4) with an `ask` default policy and gate, per-run redaction of the delivered value; TOTP fields return only the current code; file fields (up to 1 MiB) are sealed with the field AAD before the driver (migration 00205 adds `secret_field_blobs` for the postgres driver); `${secretfile:}` becomes a 0600 file in a 0700 temporary directory removed when the run ends, even on failure; SSH, sandbox and cloud runs refuse it for now.
+
 ## [0.6.0] — 2026-10-23
 
 ### Paridade v0.3 (ADR-0032 a 0038; migrations 00027–00034)

@@ -1,9 +1,0 @@
-### Cofre para agentes: tool `hanko_secret_get`, TOTP e campo arquivo (fatia 3, #58)
-
-- Tool MCP `hanko_secret_get(item, campo)`: a persona lê um campo de um item das coleções que ela alcança. A política de tools começa em `ask`: a primeira chamada abre um gate, e "sempre permitir" grava a regra da persona. Item fora das coleções é recusado antes do gate. Cada chamada fica no registro de uso, sem o valor.
-- Campo TOTP: a tool devolve só o código do momento e os segundos que faltam para ele vencer. A semente não sai pela tool nem pela API, e `${secret:ITEM#totp}` é recusado.
-- Campo arquivo (até 1 MiB): cifrado com o AAD do campo antes de sair do processo. No driver postgres, o texto cifrado fica na tabela nova `secret_field_blobs` (migração 00205), porque `artifact_blobs` tem FK para artefatos; nos drivers fs e s3, fica no BlobStore. Criado pela API com `content_base64`; não se revela nem se troca (apaga-se e cria-se de novo).
-- `${secretfile:ITEM#campo}` no adapter da persona vira um arquivo 0600 num diretório temporário 0700, apagado ao fim da run, inclusive quando ela falha. Em ambiente SSH, a run falha cedo com "arquivo de segredo ainda não é suportado em ambiente SSH"; sandbox e cloud também recusam nesta entrega.
-- O valor entregue pela tool entra na redação do log da run, e a lista de valores é esquecida ao fim dela.
-- `hanko secret rekey` recifra também os arquivos dos campos; sem isso, trocar `HANKO_SECRET_KEY` deixaria os arquivos ilegíveis.
-- English summary: MCP tool `hanko_secret_get` (ADR-0068 §4) with an `ask` default policy and gate, per-run redaction of the delivered value; TOTP fields return only the current code; file fields (up to 1 MiB) are sealed with the field AAD before the driver (migration 00205 adds `secret_field_blobs` for the postgres driver); `${secretfile:}` becomes a 0600 file in a 0700 temporary directory removed when the run ends, even on failure; SSH, sandbox and cloud runs refuse it for now.
