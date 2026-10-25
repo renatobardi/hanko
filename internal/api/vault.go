@@ -308,7 +308,8 @@ type sendPath struct {
 }
 
 type uploadSendIn struct {
-	sendPath
+	CompanyPath
+	ID      string `path:"id" format:"uuid"`
 	RawBody []byte `contentType:"application/octet-stream" doc:"Arquivo: o blob já cifrado no cliente (até 25 MiB)."`
 }
 

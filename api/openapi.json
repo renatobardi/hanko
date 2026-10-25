@@ -56442,6 +56442,30 @@
     "/api/v1/companies/{company}/sends/{id}/content": {
       "put": {
         "operationId": "upload-send-content",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/octet-stream": {
