@@ -326,6 +326,10 @@ func (s *server) profileVM(ctx context.Context, b w3Backend) views.ProfileVM {
 		return vm
 	}
 	vm.Email, vm.Name, vm.AvatarGlyph, vm.AvatarTone, vm.Timezone, vm.Locale = p.Email, p.Name, p.AvatarGlyph, p.AvatarTone, p.Timezone, p.Locale
+	// a prova pelo Google (ADR-0070 §3) precisa da configuração do SDK na página; nil no modo trusted
+	if s.auth != nil && s.auth.Provider == "firebase" {
+		vm.Firebase = s.auth.Firebase
+	}
 	vm.Tones = append(vm.Tones, views.Option{Value: "", Label: i18n.T(ctx, "Padrão"), Selected: p.AvatarTone == ""})
 	for _, t := range domain.AvatarTones {
 		vm.Tones = append(vm.Tones, views.Option{Value: t, Label: toneLabel(ctx, t), Selected: p.AvatarTone == t})
