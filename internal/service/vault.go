@@ -954,8 +954,12 @@ func (s *Service) DeleteCollection(ctx context.Context, actor domain.Actor, comp
 		if cur.IsDefault {
 			return domain.Invalid("collection", "a coleção padrão não se apaga")
 		}
-		if n, err := t.q.DeleteSecretCollection(t.ctx, store.DeleteSecretCollectionParams{CompanyID: companyID, ID: cur.ID}); err != nil || n == 0 {
+		n, err := t.q.DeleteSecretCollection(t.ctx, store.DeleteSecretCollectionParams{CompanyID: companyID, ID: cur.ID})
+		if err != nil {
 			return mapErr(err, "delete secret collection")
+		}
+		if n == 0 { // já apagada entre a leitura e o delete: mapErr(nil) devolveria nil e o 204 mentiria
+			return fmt.Errorf("delete secret collection: %w", domain.ErrNotFound)
 		}
 		return t.activity(actor, companyID, "collection.deleted", "collection", cur.ID,
 			map[string]any{"name": cur.Name}, "")
@@ -999,9 +1003,13 @@ func (s *Service) RemoveSecretFromCollection(ctx context.Context, actor domain.A
 		if err != nil {
 			return err
 		}
-		if n, err := t.q.RemoveSecretFromCollection(t.ctx, store.RemoveSecretFromCollectionParams{CompanyID: companyID,
-			CollectionID: col.ID, SecretID: sec.ID}); err != nil || n == 0 {
+		n, err := t.q.RemoveSecretFromCollection(t.ctx, store.RemoveSecretFromCollectionParams{CompanyID: companyID,
+			CollectionID: col.ID, SecretID: sec.ID})
+		if err != nil {
 			return mapErr(err, "remove secret from collection")
+		}
+		if n == 0 { // o item já não estava na coleção: 404, não sucesso (mesmo padrão da concessão revogada)
+			return fmt.Errorf("remove secret from collection: %w", domain.ErrNotFound)
 		}
 		return t.activity(actor, companyID, "collection.item_removed", "collection", col.ID,
 			map[string]any{"secret": sec.Name}, "")
@@ -1283,4 +1291,36 @@ func (s *Service) requirePersonaUse(ctx context.Context, companyID, personaID do
 		return fmt.Errorf("ler campo: %w", err)
 	}
 	return nil
+}
+
+// PersonaReachWarnings lista as referências ${secret:} do adapter_config da persona que ela não alcança (ADR-0068 §2.5).
+// É aviso, não bloqueio: a concessão pode vir depois, e a run só falha no despacho. O texto nomeia a persona e o item,
+// nunca o valor. Referência a item que não existe não entra aqui: o despacho já falha com o nome dela.
+func (s *Service) PersonaReachWarnings(ctx context.Context, companyID, personaID domain.ID) ([]string, error) {
+	q := s.read()
+	p, err := q.GetPersonaByID(ctx, store.GetPersonaByIDParams{CompanyID: companyID, ID: personaID})
+	if err != nil {
+		return nil, mapErr(err, "persona")
+	}
+	var warnings []string
+	for _, r := range secretref.Find(string(p.AdapterConfig)) {
+		if r.User {
+			continue
+		}
+		sec, err := q.GetCompanySecretByName(ctx, store.GetCompanySecretByNameParams{CompanyID: companyID, Name: r.Name})
+		if isNoRows(err) {
+			continue
+		}
+		if err != nil {
+			return nil, fmt.Errorf("ler segredo: %w", err)
+		}
+		ok, err := q.PersonaCanUseSecret(ctx, store.PersonaCanUseSecretParams{CompanyID: companyID, PersonaID: personaID, SecretID: sec.ID})
+		if err != nil {
+			return nil, fmt.Errorf("checar coleções da persona: %w", err)
+		}
+		if !ok {
+			warnings = append(warnings, fmt.Sprintf("a persona %q não alcança %s: nenhuma coleção que contém o item foi concedida a ela. A run falha até a concessão (ADR-0068 §2.5).", p.Slug, r.String()))
+		}
+	}
+	return warnings, nil
 }
