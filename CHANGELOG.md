@@ -5,6 +5,55 @@ English summary at the end of each release.
 
 ## [Unreleased]
 
+## [0.7.1] — 2026-10-25
+
+### Cofre: campo arquivo pela CLI, varredura de pastas e migração entre drivers (fatia 3, #58)
+
+- CLI `hanko secret field add <segredo> <campo> --kind file --file <caminho>`: envia o arquivo (de 1 byte a 1 MiB) cifrado, como os demais campos arquivo. Campo arquivo é sempre secreto e não leva `--value`, `--generate` nem `--visible`; a recusa sai antes de chamar o servidor. Com `--user`, vale para o segredo pessoal.
+- Boot: apaga as pastas `hanko-secret-*` deixadas em `/tmp` por runs que morreram no meio, quando mais velhas que `run_timeout` + 1 h. Erro vira aviso no log e não derruba o boot (ADR-0073).
+- `hanko secret rekey` recifra os arquivos dos campos um a um, em páginas de 100 ids. Antes, carregava o conteúdo de todos de uma vez.
+- `hanko blobs migrate` move também os arquivos dos campos entre postgres, fs e s3, com conferência byte a byte e retomada. Enquanto a migração corre, a leitura acha o arquivo no driver que o tem.
+- Sair da empresa apaga do driver de blob (fs ou s3) os arquivos dos segredos pessoais, e não só as linhas do postgres.
+- English summary: `hanko secret field add --kind file --file` uploads a file field (up to 1 MiB) sealed like the other file fields, with `--user` for personal secrets; the boot sweep removes stale `hanko-secret-*` directories older than `run_timeout` + 1 h (ADR-0073); `hanko secret rekey` re-seals file fields one by one in pages of 100 ids; `hanko blobs migrate` also moves file-field content between postgres, fs and s3, with byte-by-byte verification and resume; leaving a company deletes personal file-field objects from fs and s3 after commit.
+
+### Cofre para agentes: delegação só com o alvo aberto e uso do segredo da empresa (fatia 5, #60)
+
+- Delegação de segredo pessoal deixa de valer enquanto a task está fechada (feita ou cancelada) ou a conversa arquivada; reaberta, volta a valer (ADR-0068 §6.3).
+- `GET /companies/{company}/secrets/{name}/usage` responde: onde e quando um segredo da empresa foi usado. Vê o admin e o membro com `view` ou `manage` numa coleção que contém o segredo.
+- O fato `delegation.expired` não é emitido; o motivo está no ADR-0068 §6.
+- Sem migration.
+- English summary: a personal-secret delegation stops working while its task is closed (done or cancelled) or its conversation is archived, and works again when reopened (ADR-0068 §6.3). `GET /companies/{company}/secrets/{name}/usage` now lists where and when a company secret was used; admins and members with `view` or `manage` on a collection that holds the secret can see it. The `delegation.expired` fact is not emitted; ADR-0068 §6 says why. No migration.
+
+### Cofre para agentes: envio com link, gestão e tool da persona (fatia 4, #59)
+
+- Envio de arquivo: `POST /companies/{company}/sends` aceita `kind: file` com o tamanho do arquivo (até 25 MiB), sem conteúdo; o conteúdo cifrado sobe em `PUT /companies/{company}/sends/{id}/content`, só de quem criou o envio, com o tamanho declarado mais a cifra. Subir de novo troca o conteúdo.
+- Gestão do envio: `GET /companies/{company}/sends` (admin vê todos; membro, só os que criou), `GET …/sends/{id}` e `DELETE …/sends/{id}` (apaga o conteúdo antes do prazo, pelo criador ou pelo admin). O blob sai junto com o conteúdo, no prazo, no limite de acessos ou no pedido.
+- Envio de arquivo ainda não abre pelo link: a página recebe recusa clara, sem contar acesso. A entrega do arquivo para a página fica para a fatia seguinte.
+- Tool MCP `hanko_send_create(item, campo?, expira_em?, max_acessos?)`: a persona cria um envio de um campo que alcança e recebe o link, sem digitar o valor. Política `ask` por padrão, como `hanko_secret_get`; pedido inválido nem abre aprovação. O link entra na redação do log da run.
+- English summary: encrypted file sends (up to 25 MiB, uploaded after creation by the sender only), send list, read and delete by role (admin sees all, members their own), and the persona MCP tool `hanko_send_create` with an `ask` default policy. File sends do not open through the public link yet.
+
+### Cofre: tela para exportar e importar o cofre cifrado (.hkv) (fatia 7, #62)
+
+- Configurações › Segredos › Cofre cifrado (.hkv) (só admin): exporta o cofre com uma senha do arquivo (mínimo de 12 caracteres) e baixa o `.hkv`; importa um `.hkv` de outra instância com a senha do arquivo. As duas operações pedem a senha da conta quando o servidor exige reautenticação recente.
+- Importar grava tudo ou nada: senha errada ou arquivo alterado não grava nada. Segredo que já existe não é trocado.
+- Nenhuma senha volta à página, e o arquivo sai só na resposta do download.
+- English summary: a new Settings › Secrets › Encrypted vault (.hkv) page (admins only) exports the vault as a downloadable `.hkv` file under a file password (at least 12 characters) and imports a `.hkv` from another instance with that password. Both ask for the account password when the server requires recent re-authentication. Imports are all-or-nothing, a wrong password writes nothing, and no password is echoed back.
+
+### Cofre: marca de senha em campo (fatia 6, #61)
+
+- Campo pode ser marcado como senha (ADR-0074): entra no achado "fraco" do relatório de saúde mesmo com outro nome (`chave`, `pin`). Vale só para campo texto secreto. Marca via `POST …/fields`, `PATCH …/fields/{field}` e `hanko secret field add|set` (`--password`, `--no-password`).
+- Campos `password` e `senha` continuam no relatório pelo nome, como antes.
+- English summary: a vault field can be marked as a password (ADR-0074). Marked fields join the weak-password finding of the health report even with another name. Only secret text fields can be marked. Set with `POST …/fields`, `PATCH …/fields/{field}` or `hanko secret field add|set` (`--password`, `--no-password`).
+
+### Cofre para agentes: ações sensíveis da fatia 1 ligadas à reautenticação (#56)
+
+- Doze operações do contrato (fatia 0, #55) saem do 501 e passam a responder: revelar campo, listar histórico, revelar versão anterior, restaurar versão e apagar campo, em `secrets` e em `user-secrets`; criar e revogar concessão de coleção em `secret-collections/{coleção}/grants`.
+- Todas são ações sensíveis (ADR-0070 §1) e exigem reautenticação recente no service: sessão sem prova recebe `401 reauth_required` com a janela; API key de escopo `full` e modo trusted passam (ADR-0070 §5).
+- Revelar segue uma vez por versão (campo e versão do histórico); restaurar cria versão nova; apagar campo leva o histórico junto e o campo `value` não se apaga.
+- Com isso, uma concessão de coleção nova pode ser criada por HTTP: até esta versão, as personas só alcançavam segredos pela coleção `padrão` (concedida a todas).
+- Sem migration.
+- English summary: twelve contract operations now respond instead of 501 — reveal field, list history, reveal and restore a previous version, and delete a field (for both company and personal secrets), plus creating and revoking a collection grant. All are sensitive actions under ADR-0070 and require recent re-authentication in the service (401 `reauth_required` without it; full-scope API keys and trusted mode pass). Reveal stays once per version, restore still creates a new version, and deleting a field drops its history while the `value` field cannot be deleted. No migration.
+
 ## [0.7.0] — 2026-10-25
 
 ### Cofre para agentes: campos, coleções e histórico (fatia 1, #56)
