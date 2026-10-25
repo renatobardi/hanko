@@ -94,6 +94,7 @@ type createSecretIn struct {
 		Generate    bool              `json:"generate,omitempty" doc:"Provider local: o servidor gera o valor e o devolve uma vez."`
 		Generator   *GeneratorOptions `json:"generator,omitempty" doc:"Com generate: tamanho, classes ou frase-senha (ADR-0068 §7.1)."`
 		ExternalRef string            `json:"external_ref,omitempty" doc:"Provider vault: caminho#campo no cofre externo."`
+		Collection  string            `json:"collection,omitempty" doc:"Coleção que recebe o segredo (nome ou id). Vazio = a padrão. Só segredo da empresa."`
 	}
 }
 
@@ -165,7 +166,8 @@ func (s *server) registerSecretsScope(api huma.API, scope domain.SecretScope, se
 			}
 			b := in.Body
 			v, err := sb.CreateSecret(ctx, sc.Actor, sc.Company.ID, service.CreateSecretInput{Scope: scope, Name: b.Name, Description: b.Description,
-				Provider: domain.SecretProvider(b.Provider), Value: b.Value, Generate: b.Generate, Gen: b.Generator.opts(), ExternalRef: b.ExternalRef})
+				Provider: domain.SecretProvider(b.Provider), Value: b.Value, Generate: b.Generate, Gen: b.Generator.opts(), ExternalRef: b.ExternalRef,
+				Collection: b.Collection})
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}

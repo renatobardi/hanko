@@ -258,6 +258,9 @@ func (e *env) personaCmd() *cobra.Command {
 				return e.printJSON(p)
 			}
 			fmt.Fprintf(e.out, e.t("Persona contratada: %s (%s) — agente %s\n"), p.Name, p.Slug, p.Agent)
+			for _, w := range p.Warnings {
+				fmt.Fprintln(e.out, e.t("aviso: ")+w)
+			}
 			return nil
 		},
 	}

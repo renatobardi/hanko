@@ -28,6 +28,7 @@ type CreateSecretReq struct {
 	Value       string `json:"value,omitempty"`
 	Generate    bool   `json:"generate,omitempty"`
 	ExternalRef string `json:"external_ref,omitempty"`
+	Collection  string `json:"collection,omitempty"`
 }
 
 // RotateSecretReq troca o valor de um segredo.

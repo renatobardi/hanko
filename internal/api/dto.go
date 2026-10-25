@@ -148,6 +148,7 @@ type Persona struct {
 	BudgetMonthlyCents   *int64         `json:"budget_monthly_cents,omitempty" doc:"Orçamento mensal em centavos de dólar."`
 	RequireReview        bool           `json:"require_review" doc:"Quando verdadeiro, concluir uma task passa por um gate de revisão (task_review)."`
 	PauseReason          string         `json:"pause_reason,omitempty" doc:"Motivo de uma pausa automática (orçamento estourado)."`
+	Warnings             []string       `json:"warnings,omitempty" doc:"Só na contratação: referências ${secret:} do adapter_config que a persona não alcança. Aviso, não bloqueia; a run falha até a concessão."`
 	ReviewerPersonaID    string         `json:"reviewer_persona_id,omitempty" format:"uuid" doc:"Persona que revisa, em run headless, as entregas desta antes do gate."`
 	ReviewerAgent        string         `json:"reviewer_agent,omitempty" enum:"claude,codex,fake" doc:"Harness alternativo que revisa no papel desta persona."`
 	ReviewerModel        string         `json:"reviewer_model,omitempty" doc:"Modelo do harness revisor."`

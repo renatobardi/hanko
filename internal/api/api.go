@@ -105,6 +105,7 @@ type backend interface {
 	GetProjectDefaults(ctx context.Context, companyID, projectID domain.ID) (domain.ProjectDefaults, error)
 	SetProjectDefaults(ctx context.Context, actor domain.Actor, companyID, projectID domain.ID, in service.SetProjectDefaultsInput) (domain.ProjectDefaults, error)
 	HirePersona(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.HirePersonaInput) (domain.Persona, error)
+	PersonaReachWarnings(ctx context.Context, companyID, personaID domain.ID) ([]string, error)
 	ListPersonas(ctx context.Context, companyID domain.ID) ([]domain.Persona, error)
 	GetPersona(ctx context.Context, companyID domain.ID, ref string) (domain.Persona, error)
 	UpdatePersona(ctx context.Context, actor domain.Actor, companyID, personaID domain.ID, in service.UpdatePersonaInput) (domain.Persona, error)
