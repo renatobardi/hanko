@@ -1,5 +1,5 @@
 # ADR-0080 — Rodada externa: participante, etapa da rodada, ação e ciclo
-Data: 2026-10-25 · Status: proposta (aguarda aceite do Bardi) · Issue: #66 (v0.8) · Usa: ADR-0042, ADR-0070, ADR-0075, ADR-0076, ADR-0078
+Data: 2026-10-25 · Status: aceita (Bardi, 2026-10-25) · Issue: #66 (v0.8) · Usa: ADR-0042, ADR-0070, ADR-0075, ADR-0076, ADR-0078
 
 ## Contexto
 O agent-studio monta a rodada do swarm a partir dos eventos `oute.swarm.*` dos logs (`agent_studio/etapas.py:1-33@845764f`
