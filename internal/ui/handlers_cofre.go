@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -13,6 +14,7 @@ import (
 	"github.com/renatobardi/hanko/internal/i18n"
 	"github.com/renatobardi/hanko/internal/service"
 	"github.com/renatobardi/hanko/internal/ui/views"
+	"github.com/renatobardi/hanko/internal/vaultfile"
 )
 
 // Configurações › Segredos › campos e coleções (ADR-0068, fatia 1). Revelar campo, histórico, restaurar versão e
@@ -36,6 +38,8 @@ type vaultUIBackend interface {
 	PreviewEnvImport(ctx context.Context, companyID domain.ID, in service.EnvImportInput) (service.EnvImportPlan, error)
 	ImportEnv(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.EnvImportInput) (service.VaultImportResult, error)
 	ReauthWithPassword(ctx context.Context, id auth.Identity, password string) (service.ReauthProof, error)
+	ExportVault(ctx context.Context, actor domain.Actor, companyID domain.ID, password string) (service.VaultExportResult, error)
+	ImportVault(ctx context.Context, actor domain.Actor, companyID domain.ID, file []byte, password string) (service.VaultImportResult, error)
 }
 
 // vaultReq devolve o backend do cofre e o contexto da requisição; sem o cofre ligado, responde indisponível.
@@ -76,6 +80,10 @@ func vaultErrorMsg(ctx context.Context, err error) string {
 			return i18n.T(ctx, "Prazo de rotação inválido: de 1 a 3650 dias.")
 		case "collection":
 			return i18n.T(ctx, "A coleção padrão não se apaga.")
+		case "password": // senha do arquivo .hkv errada, ou arquivo alterado: o import não grava nada
+			return i18n.T(ctx, "Senha errada ou arquivo alterado: nada foi gravado.")
+		case "file":
+			return i18n.T(ctx, "Arquivo .hkv inválido: nada foi gravado.")
 		}
 	}
 	if errors.Is(err, domain.ErrConflict) {
@@ -581,17 +589,10 @@ func (s *server) handleEnvImport(w http.ResponseWriter, r *http.Request, co doma
 		s.renderEnvImport(w, r, co, be, http.StatusOK, in, &plan, nil, false)
 		return
 	}
-	if pw := r.PostFormValue("senha"); pw != "" {
-		id, has := auth.IdentityFrom(ctx)
-		if has && id.Via == auth.ViaSession {
-			proof, perr := be.ReauthWithPassword(ctx, id, pw)
-			if perr != nil {
-				s.renderEnvImport(w, r, co, be, http.StatusUnauthorized, in, &plan, perr, true)
-				return
-			}
-			id.Session.ReauthAt, id.Session.ReauthMethod = &proof.At, proof.Method
-			ctx = auth.WithIdentity(ctx, id)
-		}
+	ctx, perr := reauthForm(ctx, be, r.PostFormValue("senha"))
+	if perr != nil {
+		s.renderEnvImport(w, r, co, be, http.StatusUnauthorized, in, &plan, perr, true)
+		return
 	}
 	if _, err := be.ImportEnv(ctx, actorFrom(ctx), co.ID, in); err != nil {
 		var re *domain.ReauthError
@@ -603,4 +604,150 @@ func (s *server) handleEnvImport(w http.ResponseWriter, r *http.Request, co doma
 		return
 	}
 	redirect(w, r, "/c/"+co.Slug+"/configuracoes/segredos?ok=env")
+}
+
+// reauthForm prova a identidade com a senha da conta quando a pessoa a informou (ADR-0070). Sem sessão (modo confiável)
+// não há o que provar: o pedido segue e o service decide.
+func reauthForm(ctx context.Context, be vaultUIBackend, pw string) (context.Context, error) {
+	id, has := auth.IdentityFrom(ctx)
+	if pw == "" || !has || id.Via != auth.ViaSession {
+		return ctx, nil
+	}
+	proof, err := be.ReauthWithPassword(ctx, id, pw)
+	if err != nil {
+		return ctx, err
+	}
+	id.Session.ReauthAt, id.Session.ReauthMethod = &proof.At, proof.Method
+	return auth.WithIdentity(ctx, id), nil
+}
+
+// ---------- cofre cifrado (.hkv): export e import (ADR-0068 §8.2 e §8.3, #62) ----------
+
+// vaultFileMaxBytes é o maior .hkv aceito no import; é o mesmo limite da API (internal/api/vault_transfer.go).
+const vaultFileMaxBytes = 96 << 20
+
+// vaultFileVM monta a página do .hkv. reauth diz qual formulário pede a senha da conta: "exportar" ou "importar".
+func vaultFileVM(ctx context.Context, co domain.Company, reauth string) views.VaultFileVM {
+	base := "/c/" + co.Slug
+	return views.VaultFileVM{Sections: settingsSections(ctx, base, "segredos"), BackHref: base + "/configuracoes/segredos",
+		ExportHref: base + "/configuracoes/segredos/cofre/exportar", ImportHref: base + "/configuracoes/segredos/cofre/importar", ReauthFor: reauth}
+}
+
+func (s *server) renderVaultFile(w http.ResponseWriter, r *http.Request, co domain.Company, status int, vm views.VaultFileVM) {
+	sh := s.settingsShell(r, co, i18n.T(r.Context(), "Cofre cifrado (.hkv)"))
+	w.Header().Set("Cache-Control", "no-store")
+	s.render(w, r, status, views.VaultFilePage(sh, vm))
+}
+
+// vaultFileMsg mostra um erro de envio (senha curta, arquivo ausente ou grande demais) sem passar pelo service.
+func (s *server) vaultFileMsg(w http.ResponseWriter, r *http.Request, co domain.Company, msg string, status int) {
+	vm := vaultFileVM(r.Context(), co, "")
+	vm.Error = msg
+	s.renderVaultFile(w, r, co, status, vm)
+}
+
+// vaultFileFail mostra o erro do service na página do .hkv. Pedido de prova (ReauthError) e senha da conta errada voltam
+// com o campo da senha da conta no formulário que o pediu. Nenhuma senha volta ao HTML.
+func (s *server) vaultFileFail(w http.ResponseWriter, r *http.Request, co domain.Company, form string, err error) {
+	ctx := r.Context()
+	vm := vaultFileVM(ctx, co, "")
+	status := statusFor(err)
+	var re *domain.ReauthError
+	switch {
+	case errors.As(err, &re):
+		vm.ReauthFor, vm.Error, status = form, i18n.T(ctx, "O servidor pede uma prova recente de identidade: informe a senha da conta e envie de novo."), http.StatusUnauthorized
+	case errors.Is(err, domain.ErrUnauthenticated):
+		vm.ReauthFor, vm.Error, status = form, i18n.T(ctx, "Senha da conta incorreta."), http.StatusUnauthorized
+	default:
+		vm.Error = vaultErrorMsg(ctx, err)
+	}
+	s.renderVaultFile(w, r, co, status, vm)
+}
+
+// handleVaultFileForm mostra a página do .hkv: exportar e importar, só para admin.
+func (s *server) handleVaultFileForm(w http.ResponseWriter, r *http.Request, co domain.Company) {
+	if _, ok := s.vaultBE(); !ok {
+		s.unavailable(w, r)
+		return
+	}
+	if sh := s.settingsShell(r, co, i18n.T(r.Context(), "Cofre cifrado (.hkv)")); !sh.CanAdmin() {
+		s.fail(w, r, &co, domain.ErrForbidden)
+		return
+	}
+	s.renderVaultFile(w, r, co, http.StatusOK, vaultFileVM(r.Context(), co, ""))
+}
+
+// handleVaultExport gera o .hkv e o devolve para baixar. A senha do arquivo tem pelo menos 12 caracteres (o service
+// confere de novo) e a conta reautentica (ADR-0070). A resposta é o arquivo cifrado, e só ele: nenhum valor vai ao HTML.
+func (s *server) handleVaultExport(w http.ResponseWriter, r *http.Request, co domain.Company) {
+	be, ctx, ok := s.vaultReq(w, r)
+	if !ok {
+		return
+	}
+	pw := r.PostFormValue("senha_arquivo")
+	if len(pw) < vaultfile.MinPasswordLen {
+		s.vaultFileMsg(w, r, co, i18n.Tf(ctx, "A senha do arquivo precisa de pelo menos %d caracteres.", vaultfile.MinPasswordLen), http.StatusUnprocessableEntity)
+		return
+	}
+	ctx, err := reauthForm(ctx, be, r.PostFormValue("senha"))
+	if err != nil {
+		s.vaultFileFail(w, r, co, "exportar", err)
+		return
+	}
+	res, err := be.ExportVault(ctx, actorFrom(ctx), co.ID, pw)
+	if err != nil {
+		s.vaultFileFail(w, r, co, "exportar", err)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Disposition", `attachment; filename="cofre.hkv"`)
+	_, _ = w.Write(res.File)
+}
+
+// handleVaultImport grava um .hkv de outra instância, tudo ou nada. A senha do arquivo abre o conteúdo e a conta
+// reautentica (ADR-0070). Arquivo e senha não voltam à página nem ao log.
+func (s *server) handleVaultImport(w http.ResponseWriter, r *http.Request, co domain.Company) {
+	be, ctx, ok := s.vaultReq(w, r)
+	if !ok {
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, vaultFileMaxBytes+uploadFormOverhead)
+	if err := r.ParseMultipartForm(1 << 20); err != nil {
+		var mbe *http.MaxBytesError
+		if errors.As(err, &mbe) {
+			s.vaultFileMsg(w, r, co, i18n.Tf(ctx, "O arquivo passa de %s.", fmtBytes(ctx, vaultFileMaxBytes)), http.StatusRequestEntityTooLarge)
+			return
+		}
+		s.vaultFileMsg(w, r, co, i18n.T(ctx, "Envio inválido."), http.StatusUnprocessableEntity)
+		return
+	}
+	if r.MultipartForm != nil {
+		defer func() { _ = r.MultipartForm.RemoveAll() }()
+	}
+	file, _, err := r.FormFile("arquivo")
+	if err != nil {
+		s.vaultFileMsg(w, r, co, i18n.T(ctx, "Escolha um arquivo .hkv."), http.StatusUnprocessableEntity)
+		return
+	}
+	defer func() { _ = file.Close() }()
+	data, err := io.ReadAll(io.LimitReader(file, vaultFileMaxBytes+1))
+	if err != nil {
+		s.vaultFileMsg(w, r, co, i18n.T(ctx, "Não foi possível ler o arquivo."), http.StatusUnprocessableEntity)
+		return
+	}
+	if len(data) > vaultFileMaxBytes {
+		s.vaultFileMsg(w, r, co, i18n.Tf(ctx, "O arquivo passa de %s.", fmtBytes(ctx, vaultFileMaxBytes)), http.StatusRequestEntityTooLarge)
+		return
+	}
+	ctx, err = reauthForm(ctx, be, r.PostFormValue("senha"))
+	if err != nil {
+		s.vaultFileFail(w, r, co, "importar", err)
+		return
+	}
+	if _, err := be.ImportVault(ctx, actorFrom(ctx), co.ID, data, r.PostFormValue("senha_arquivo")); err != nil {
+		s.vaultFileFail(w, r, co, "importar", err)
+		return
+	}
+	redirect(w, r, "/c/"+co.Slug+"/configuracoes/segredos?ok=cofre")
 }

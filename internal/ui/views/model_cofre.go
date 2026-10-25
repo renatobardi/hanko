@@ -134,3 +134,14 @@ type EnvImportVM struct {
 	Plan         *EnvImportPlanVM
 	NeedPassword bool
 }
+
+// VaultFileVM é a página do cofre cifrado (.hkv, ADR-0068 §8.2 e §8.3): exportar e importar. ReauthFor diz qual formulário
+// pede a senha da conta ("exportar" ou "importar"). Senha nenhuma volta ao HTML.
+type VaultFileVM struct {
+	Sections   []TabLink
+	Error      string
+	BackHref   string
+	ExportHref string
+	ImportHref string
+	ReauthFor  string
+}

@@ -446,3 +446,53 @@ templ EnvImportPage(sh Shell, vm EnvImportVM) {
 		</form>
 	}
 }
+
+// VaultFilePage exporta o cofre cifrado com a senha do arquivo e importa um .hkv de outra instância (ADR-0068 §8.2 e
+// §8.3). Os dois pedem a senha da conta quando o servidor pede reautenticação; senha nenhuma volta ao HTML.
+templ VaultFilePage(sh Shell, vm VaultFileVM) {
+	@Layout(sh) {
+		@PageHead(i18n.T(ctx, "Cofre cifrado (.hkv)"), i18n.T(ctx, "Exporte o cofre com uma senha para importar em outra instância, ou importe um arquivo exportado. Os valores ficam dentro do arquivo cifrado.")) {
+		}
+		<div class="mb-6">@Tabs(vm.Sections)</div>
+		<p class="mb-3"><a href={ templ.SafeURL(vm.BackHref) }>{ i18n.T(ctx, "Voltar aos segredos") }</a></p>
+		@flashAlerts("", vm.Error)
+		<form class="card pad form-card mb-6" method="post" action={ templ.SafeURL(vm.ExportHref) } autocomplete="off">
+			<h2 class="side-h">{ i18n.T(ctx, "Exportar o cofre") }</h2>
+			<p class="muted mb-3">{ i18n.T(ctx, "Gera um arquivo .hkv com segredos, campos, coleções e concessões. Ele é cifrado com a senha abaixo; nenhum valor fica em claro.") }</p>
+			<div class="field">
+				<label for="vault-export-pass">{ i18n.T(ctx, "Senha do arquivo (mínimo de 12 caracteres)") }</label>
+				<input class="input" id="vault-export-pass" name="senha_arquivo" type="password" minlength="12" maxlength="256" autocomplete="new-password" required/>
+			</div>
+			if vm.ReauthFor == "exportar" {
+				<div class="field">
+					<label for="vault-export-account">{ i18n.T(ctx, "Senha da conta, para confirmar") }</label>
+					<input class="input" id="vault-export-account" name="senha" type="password" maxlength="256" autocomplete="current-password" autofocus/>
+				</div>
+			}
+			<div class="form-actions">
+				<button class="btn primary" type="submit">{ i18n.T(ctx, "Baixar o arquivo .hkv") }</button>
+			</div>
+		</form>
+		<form class="card pad form-card" method="post" action={ templ.SafeURL(vm.ImportHref) } enctype="multipart/form-data" autocomplete="off">
+			<h2 class="side-h">{ i18n.T(ctx, "Importar um arquivo .hkv") }</h2>
+			<p class="muted mb-3">{ i18n.T(ctx, "Grava tudo o que o arquivo leva, ou nada. Segredo que já existe aqui não é trocado. Senha errada não grava nada.") }</p>
+			<div class="field">
+				<label for="vault-import-file">{ i18n.T(ctx, "Arquivo .hkv") }</label>
+				<input class="input" id="vault-import-file" name="arquivo" type="file" accept=".hkv" required/>
+			</div>
+			<div class="field">
+				<label for="vault-import-pass">{ i18n.T(ctx, "Senha do arquivo") }</label>
+				<input class="input" id="vault-import-pass" name="senha_arquivo" type="password" maxlength="256" autocomplete="off" required/>
+			</div>
+			if vm.ReauthFor == "importar" {
+				<div class="field">
+					<label for="vault-import-account">{ i18n.T(ctx, "Senha da conta, para confirmar") }</label>
+					<input class="input" id="vault-import-account" name="senha" type="password" maxlength="256" autocomplete="current-password" autofocus/>
+				</div>
+			}
+			<div class="form-actions">
+				<button class="btn primary" type="submit">{ i18n.T(ctx, "Importar o arquivo") }</button>
+			</div>
+		</form>
+	}
+}
