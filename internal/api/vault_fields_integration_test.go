@@ -10,8 +10,9 @@ import (
 	"github.com/renatobardi/hanko/internal/secretbox"
 )
 
-// Campos e coleções da fatia 1 (#56) pela API: o que liga o service responde, nenhum valor de campo secreto sai e
-// as operações que pedem reautenticação seguem em 501 até a fatia 2 (#57).
+// Campos e coleções da fatia 1 (#56) pela API: o que liga o service responde, nenhum valor de campo secreto sai nas
+// listagens e as ações sensíveis (revelar, histórico, restaurar, apagar, concessões) passam pela reautenticação que
+// o service exige (ADR-0070).
 func TestAPICamposECollecoes(t *testing.T) {
 	e := newAPIEnv(t)
 	const sentinela = "SENTINELA-api-campo-3e9d1b7a"
@@ -64,14 +65,83 @@ func TestAPICamposECollecoes(t *testing.T) {
 		t.Fatalf("apagar a padrão: %d %s", status, body)
 	}
 
-	// concessão e revelar campo exigem reautenticação (ADR-0070): seguem em 501
-	for _, c := range []struct{ method, path, body string }{
-		{"POST", base + "/secret-collections/padrão/grants", `{"subject_type":"all_personas","permission":"use"}`},
-		{"POST", base + "/secrets/gh/fields/senha/reveal", ""},
-		{"GET", base + "/secrets/gh/fields/senha/history", ""},
-	} {
-		if status, body := e.call(c.method, c.path, c.body, nil); status != 501 {
-			t.Errorf("%s %s: %d %s, quer 501 (reautenticação, fatia 2)", c.method, c.path, status, body)
-		}
+	// revelar, apagar campo, histórico, restaurar e concessões exigem reautenticação recente (ADR-0070 §1). Este
+	// servidor de teste roda sem login (modo trusted): a prova passa (ADR-0070 §5). O gate por sessão, que devolve
+	// 401 reauth_required, é TestAcoesSensiveisDoCofrePedemReauth no service.
+	const nova = "SENTINELA-api-campo-nova-5f6a7b"
+	e.want(200, "POST", base+"/secrets/gh/fields/senha/rotate", `{"value":"`+nova+`"}`, nil)
+
+	var rev api.SecretField
+	raw = e.want(200, "POST", base+"/secrets/gh/fields/senha/reveal", "", &rev)
+	if rev.Value != nova || strings.Contains(string(raw), sentinela) {
+		t.Fatalf("revelar campo = %q (corpo %s)", rev.Value, raw)
+	}
+	if status, body := e.call("POST", base+"/secrets/gh/fields/senha/reveal", "", nil); status != 409 {
+		t.Errorf("revelar a mesma versão duas vezes = %d %s, quer 409", status, body)
+	}
+
+	var hist api.ListBody[api.SecretFieldVersion]
+	raw = e.want(200, "GET", base+"/secrets/gh/fields/senha/history", "", &hist)
+	// v2 veio de rotacionar com valor gerado, que é mostrado na hora: a versão já conta como revelada (secrets.go:218).
+	// v1 nunca foi revelada. O histórico lista só as versões substituídas, então a atual (v3) não aparece.
+	if len(hist.Items) != 2 || hist.Items[0].Version != 2 || !hist.Items[0].Revealed || hist.Items[1].Version != 1 || hist.Items[1].Revealed || hist.Items[1].Value != "" {
+		t.Fatalf("histórico do campo senha: %+v", hist.Items)
+	}
+	if strings.Contains(string(raw), sentinela) {
+		t.Fatalf("histórico vazou valor: %s", raw)
+	}
+
+	var v1 api.SecretFieldVersion
+	e.want(200, "POST", base+"/secrets/gh/fields/senha/history/1/reveal", "", &v1)
+	if v1.Value != sentinela || v1.Version != 1 {
+		t.Fatalf("revelar a versão 1 = %+v, quer a sentinela", v1)
+	}
+	if status, body := e.call("POST", base+"/secrets/gh/fields/senha/history/1/reveal", "", nil); status != 409 {
+		t.Errorf("revelar a versão 1 duas vezes = %d %s, quer 409", status, body)
+	}
+	if status, body := e.call("POST", base+"/secrets/gh/fields/senha/history/9/reveal", "", nil); status != 404 {
+		t.Errorf("revelar versão inexistente = %d %s, quer 404", status, body)
+	}
+
+	// restaurar a versão 1 cria a versão 4 (nova, não revelada) e o valor atual volta a ser o dela
+	var res api.SecretField
+	e.want(200, "POST", base+"/secrets/gh/fields/senha/history/1/restore", "", &res)
+	if res.Version != 4 || res.Revealed {
+		t.Fatalf("restaurar a versão 1 = %+v, quer versão 4 não revelada", res)
+	}
+	var rev2 api.SecretField
+	e.want(200, "POST", base+"/secrets/gh/fields/senha/reveal", "", &rev2)
+	if rev2.Value != sentinela {
+		t.Fatalf("revelar depois de restaurar = %q, quer a sentinela da versão 1", rev2.Value)
+	}
+
+	// apagar campo: o value não se apaga (é o padrão da referência); um campo comum some com o histórico
+	if status, body := e.call("DELETE", base+"/secrets/gh/fields/value", "", nil); status != 422 {
+		t.Errorf("apagar o campo value = %d %s, quer 422", status, body)
+	}
+	e.want(204, "DELETE", base+"/secrets/gh/fields/usuario", "", nil)
+	if status, _ := e.call("DELETE", base+"/secrets/gh/fields/usuario", "", nil); status != 404 {
+		t.Errorf("apagar campo inexistente = %d, quer 404", status)
+	}
+
+	// conceder e revogar (admin): persona recebe use, humano view ou manage
+	ana := e.persona(e.co, "ana", nil)
+	var g api.CollectionGrant
+	e.want(201, "POST", base+"/secret-collections/padrão/grants",
+		`{"subject_type":"persona","subject":"`+ana.Slug+`","permission":"use"}`, &g)
+	if g.SubjectName != ana.Slug || g.Permission != "use" || g.SubjectID == "" {
+		t.Fatalf("concessão = %+v", g)
+	}
+	if status, body := e.call("POST", base+"/secret-collections/padrão/grants",
+		`{"subject_type":"persona","subject":"`+ana.Slug+`","permission":"view"}`, nil); status != 422 {
+		t.Errorf("persona com view = %d %s, quer 422", status, body)
+	}
+	if status, body := e.call("POST", base+"/secret-collections/sem-nome/grants",
+		`{"subject_type":"all_personas","permission":"use"}`, nil); status != 404 {
+		t.Errorf("conceder em coleção inexistente = %d %s, quer 404", status, body)
+	}
+	e.want(204, "DELETE", base+"/secret-collections/padrão/grants/"+g.ID, "", nil)
+	if status, _ := e.call("DELETE", base+"/secret-collections/padrão/grants/"+g.ID, "", nil); status != 404 {
+		t.Errorf("revogar concessão já revogada = %d, quer 404", status)
 	}
 }

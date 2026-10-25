@@ -28,7 +28,6 @@ func pendingOp[I, O any](api huma.API, o huma.Operation, slice string) {
 
 const (
 	sliceFields      = "fatia 1 (#56)"
-	sliceReauth      = "fatia 2 (#57)"
 	sliceSends       = "fatia 4 (#59)"
 	sliceDelegations = "fatia 5 (#60)"
 )
@@ -123,21 +122,11 @@ type listSecretFieldsIn struct {
 }
 
 // registerSecretFieldsScope registra os campos de um escopo. Criar, listar, mudar e trocar valor ligam o service
-// (registerFieldWrites); revelar, apagar e o histórico exigem reautenticação recente e ficam em 501 até a fatia 2.
+// (registerFieldWrites); revelar, apagar, o histórico e restaurar (ações sensíveis, ADR-0070) ligam em
+// registerFieldSensitive, com a prova recente exigida pelo service.
 func (s *server) registerSecretFieldsScope(api huma.API, scope domain.SecretScope, seg, opPrefix, what string) {
 	s.registerFieldWrites(api, scope, seg, opPrefix, what)
-	base := "/companies/{company}/" + seg + "/{name}/fields"
-	tag := "vault"
-	pendingOp[SecretFieldPath, ItemOut[SecretField]](api, op("reveal-"+opPrefix+"-field", http.MethodPost, base+"/{field}/reveal", tag,
-		"Mostra o valor de um campo UMA vez por versão (exige reautenticação recente)"), sliceReauth)
-	pendingOp[SecretFieldPath, struct{}](api, noContent(op("delete-"+opPrefix+"-field", http.MethodDelete, base+"/{field}", tag,
-		"Apaga um campo e o seu histórico (exige reautenticação recente)")), sliceReauth)
-	pendingOp[SecretFieldPath, ListOut[SecretFieldVersion]](api, op("list-"+opPrefix+"-field-history", http.MethodGet, base+"/{field}/history", tag,
-		"Lista as versões anteriores de um campo (exige reautenticação recente)"), sliceReauth)
-	pendingOp[secretFieldVersionPath, ItemOut[SecretFieldVersion]](api, op("reveal-"+opPrefix+"-field-version", http.MethodPost,
-		base+"/{field}/history/{version}/reveal", tag, "Mostra uma versão anterior UMA vez (exige reautenticação recente)"), sliceReauth)
-	pendingOp[secretFieldVersionPath, ItemOut[SecretField]](api, op("restore-"+opPrefix+"-field-version", http.MethodPost,
-		base+"/{field}/history/{version}/restore", tag, "Restaura uma versão anterior como versão nova (exige reautenticação recente)"), sliceReauth)
+	s.registerFieldSensitive(api, scope, seg, opPrefix)
 }
 
 // ---------- coleções e concessões (fatia 1) ----------
@@ -217,15 +206,10 @@ type grantPath struct {
 }
 
 // registerCollections registra as coleções: o CRUD e os segredos da coleção ligam o service (registerCollectionOps);
-// conceder e revogar exigem reautenticação recente e ficam em 501 até a fatia 2.
+// conceder e revogar (ação sensível, ADR-0070) ligam em registerGrantOps, com a prova recente exigida pelo service.
 func (s *server) registerCollections(api huma.API) {
 	s.registerCollectionOps(api)
-	base := "/companies/{company}/secret-collections"
-	tag := "vault"
-	pendingOp[createGrantIn, ItemOut[CollectionGrant]](api, created(op("create-collection-grant", http.MethodPost, base+"/{collection}/grants", tag,
-		"Concede a coleção a persona, subárvore, todas as personas ou humano (admin; exige reautenticação recente)")), sliceReauth)
-	pendingOp[grantPath, struct{}](api, noContent(op("delete-collection-grant", http.MethodDelete, base+"/{collection}/grants/{grant}", tag,
-		"Revoga uma concessão (admin; exige reautenticação recente)")), sliceReauth)
+	s.registerGrantOps(api)
 }
 
 // ---------- reautenticação e passkeys (fatia 2) ----------
