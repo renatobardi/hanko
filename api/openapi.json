@@ -3942,6 +3942,10 @@
             "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$",
             "type": "string"
           },
+          "password": {
+            "description": "Marca de senha (ADR-0074): só texto secreto.",
+            "type": "boolean"
+          },
           "position": {
             "format": "int64",
             "type": "integer"
@@ -16569,6 +16573,10 @@
             ],
             "type": "string"
           },
+          "password": {
+            "description": "Campo de senha (ADR-0074): entra no achado fraco do relatório de saúde.",
+            "type": "boolean"
+          },
           "position": {
             "format": "int64",
             "type": "integer"
@@ -16628,6 +16636,7 @@
           "reference",
           "kind",
           "sensitive",
+          "password",
           "provider",
           "position",
           "version",
@@ -21688,6 +21697,10 @@
       "UpdateSecretFieldInBody": {
         "additionalProperties": false,
         "properties": {
+          "password": {
+            "description": "Marca de senha (ADR-0074): só texto secreto.",
+            "type": "boolean"
+          },
           "position": {
             "format": "int64",
             "type": "integer"
@@ -55001,7 +55014,7 @@
             "description": "Internal Server Error"
           }
         },
-        "summary": "Muda marca de visível e posição de um campo",
+        "summary": "Muda marca de visível, marca de senha e posição de um campo",
         "tags": [
           "vault"
         ]
@@ -69433,7 +69446,7 @@
             "description": "Internal Server Error"
           }
         },
-        "summary": "Muda marca de visível e posição de um campo",
+        "summary": "Muda marca de visível, marca de senha e posição de um campo",
         "tags": [
           "vault"
         ]
