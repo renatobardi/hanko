@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/storage"
 	"github.com/renatobardi/hanko/internal/store"
@@ -50,20 +52,26 @@ func (s *Service) putFieldBlob(t *txc, companyID, fieldID domain.ID, sealed []by
 	return nil
 }
 
-// dropFieldBlobAfterCommit apaga, depois do commit, o arquivo de um campo removido. No postgres a linha sai em cascata.
+// dropFieldBlobAfterCommit apaga, depois do commit, o arquivo de um campo removido, em todos os drivers registrados
+// (no meio de uma migração entre drivers pode haver cópia em mais de um). No postgres a linha sai em cascata.
 func (t *txc) dropFieldBlobAfterCommit(companyID, fieldID domain.ID) {
-	drv := t.s.blobs().Active()
-	if drv.Name() == storage.DriverPostgres {
-		return
-	}
 	k := fieldBlobKey(companyID, fieldID)
-	t.after = append(t.after, func() {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-		defer cancel()
-		if err := drv.Delete(ctx, k); err != nil && t.s.Log != nil {
-			t.s.Log.Warn("cofre: apagar arquivo de campo", "field_id", fieldID.String(), "err", err)
+	for _, name := range t.s.blobs().Names() {
+		if name == storage.DriverPostgres {
+			continue
 		}
-	})
+		drv, err := t.s.blobs().Driver(name)
+		if err != nil {
+			continue // o nome vem do próprio registro; não falha
+		}
+		t.after = append(t.after, func() {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+			defer cancel()
+			if err := drv.Delete(ctx, k); err != nil && t.s.Log != nil {
+				t.s.Log.Warn("cofre: apagar arquivo de campo", "field_id", fieldID.String(), "err", err)
+			}
+		})
+	}
 }
 
 // createFileField cria um campo arquivo: confere o tamanho e os metadados, cifra o conteúdo com o AAD do campo, grava o
@@ -108,21 +116,47 @@ func (s *Service) createFileField(t *txc, companyID domain.ID, sec store.Secret,
 	return row, nil
 }
 
-// readFieldBlob devolve o texto cifrado de um campo arquivo; quem chama decifra.
+// readFieldBlob devolve o texto cifrado de um campo arquivo; quem chama decifra. O conteúdo vive no lugar do driver
+// ativo; se ele não tem (migração entre drivers em andamento, ADR-0051 §4), procura na tabela do postgres e nos demais
+// drivers registrados antes de declarar que o arquivo não existe.
 func (s *Service) readFieldBlob(ctx context.Context, q *store.Queries, companyID, fieldID domain.ID) ([]byte, error) {
+	k := fieldBlobKey(companyID, fieldID)
 	drv := s.blobs().Active()
 	if drv.Name() == storage.DriverPostgres {
 		b, err := q.GetSecretFieldBlob(ctx, store.GetSecretFieldBlobParams{CompanyID: companyID, FieldID: fieldID})
-		if err != nil {
+		switch {
+		case err == nil:
+			return b, nil
+		case !isNoRows(err):
 			return nil, mapErr(err, "secret field blob")
 		}
+	} else if b, err := drv.Get(ctx, k); err == nil {
 		return b, nil
+	} else if !errors.Is(err, storage.ErrNotFound) {
+		return nil, err
 	}
-	b, err := drv.Get(ctx, fieldBlobKey(companyID, fieldID))
-	if errors.Is(err, storage.ErrNotFound) {
-		return nil, notFound("arquivo do campo")
+	if drv.Name() != storage.DriverPostgres {
+		if b, err := q.GetSecretFieldBlob(ctx, store.GetSecretFieldBlobParams{CompanyID: companyID, FieldID: fieldID}); err == nil {
+			return b, nil
+		} else if !isNoRows(err) {
+			return nil, mapErr(err, "secret field blob")
+		}
 	}
-	return b, err
+	for _, name := range s.blobs().Names() {
+		if name == drv.Name() || name == storage.DriverPostgres {
+			continue
+		}
+		d, err := s.blobs().Driver(name)
+		if err != nil {
+			return nil, err
+		}
+		if b, err := d.Get(ctx, k); err == nil {
+			return b, nil
+		} else if !errors.Is(err, storage.ErrNotFound) {
+			return nil, err
+		}
+	}
+	return nil, notFound("arquivo do campo")
 }
 
 // fieldValue devolve o valor em claro de um campo do segredo: o conteúdo do arquivo, o texto do cofre externo ou o
@@ -156,63 +190,76 @@ func (s *Service) fieldValue(ctx context.Context, companyID domain.ID, sec store
 	return plain, nil
 }
 
+// rekeyFieldBatch é o tamanho da página do rekey dos arquivos de campo.
+const rekeyFieldBatch = 100
+
 // rekeyFieldBlobs recifra os arquivos de campo com a chave atual: os das linhas do postgres e os do BlobStore dos
-// demais drivers. Sem isso, trocar HANKO_SECRET_KEY deixaria os arquivos ilegíveis.
+// demais drivers. Sem isso, trocar HANKO_SECRET_KEY deixaria os arquivos ilegíveis. Os campos vêm em páginas por id e o
+// conteúdo de cada um entra e sai de memória um por vez, nunca o de todos de uma vez (achado 6 da auditoria do PR #80).
 func (s *Service) rekeyFieldBlobs(ctx context.Context) (int, error) {
 	q, w := s.read(), store.New(s.Pool)
-	n := 0
-	reseal := func(enc string, aad string) (string, bool, error) {
-		if !s.secretBox().NeedsReseal(enc) {
-			return "", false, nil
-		}
-		plain, err := s.secretBox().Open(enc, aad)
-		if err != nil {
-			return "", false, err
-		}
-		out, err := s.secretBox().Seal(plain, aad)
-		return out, err == nil, err
-	}
 	drv := s.blobs().Active()
-	files, err := q.ListSecretFileFieldsForRekey(ctx)
-	if err != nil {
-		return 0, fmt.Errorf("list secret file fields: %w", err)
+	pg := drv.Name() == storage.DriverPostgres
+	get := func(f store.ListSecretFileFieldsAfterRow) (string, error) {
+		if pg {
+			b, err := q.GetSecretFieldBlob(ctx, store.GetSecretFieldBlobParams{CompanyID: f.CompanyID, FieldID: f.ID})
+			if isNoRows(err) {
+				return "", nil // campo arquivo sem linha de blob nesta gravação
+			}
+			if err != nil {
+				return "", fmt.Errorf("arquivo do campo %s: %w", f.ID, err)
+			}
+			return string(b), nil
+		}
+		b, err := drv.Get(ctx, fieldBlobKey(f.CompanyID, f.ID))
+		if errors.Is(err, storage.ErrNotFound) {
+			return "", nil
+		}
+		if err != nil {
+			return "", fmt.Errorf("arquivo do campo %s: %w", f.ID, err)
+		}
+		return string(b), nil
 	}
-	if drv.Name() == storage.DriverPostgres {
-		for _, f := range files {
-			if f.Content == nil { // campo arquivo sem linha de blob nesta gravação
+	save := func(f store.ListSecretFileFieldsAfterRow, enc string) error {
+		if pg {
+			return w.SetSecretFieldBlob(ctx, store.SetSecretFieldBlobParams{FieldID: f.ID, Content: []byte(enc)})
+		}
+		return drv.Put(ctx, fieldBlobKey(f.CompanyID, f.ID), []byte(enc), "application/octet-stream")
+	}
+	n := 0
+	after := uuid.Nil
+	for {
+		fields, err := q.ListSecretFileFieldsAfter(ctx, store.ListSecretFileFieldsAfterParams{AfterID: after, Lim: rekeyFieldBatch})
+		if err != nil {
+			return n, fmt.Errorf("list secret file fields: %w", err)
+		}
+		if len(fields) == 0 {
+			return n, nil
+		}
+		for _, f := range fields {
+			after = f.ID
+			enc, err := get(f)
+			if err != nil {
+				return n, err
+			}
+			if enc == "" {
 				continue
 			}
-			enc, ok, err := reseal(string(f.Content), fieldAAD(f.SecretID, f.ID))
+			if !s.secretBox().NeedsReseal(enc) {
+				continue
+			}
+			plain, err := s.secretBox().Open(enc, fieldAAD(f.SecretID, f.ID))
 			if err != nil {
 				return n, fmt.Errorf("arquivo do campo %s: %w", f.ID, err)
 			}
-			if !ok {
-				continue
+			out, err := s.secretBox().Seal(plain, fieldAAD(f.SecretID, f.ID))
+			if err != nil {
+				return n, fmt.Errorf("arquivo do campo %s: %w", f.ID, err)
 			}
-			if err := w.SetSecretFieldBlob(ctx, store.SetSecretFieldBlobParams{FieldID: f.ID, Content: []byte(enc)}); err != nil {
+			if err := save(f, out); err != nil {
 				return n, fmt.Errorf("arquivo do campo %s: %w", f.ID, err)
 			}
 			n++
 		}
-		return n, nil
 	}
-	for _, f := range files {
-		k := fieldBlobKey(f.CompanyID, f.ID)
-		sealed, err := drv.Get(ctx, k)
-		if err != nil {
-			return n, fmt.Errorf("arquivo do campo %s: %w", f.ID, err)
-		}
-		enc, ok, err := reseal(string(sealed), fieldAAD(f.SecretID, f.ID))
-		if err != nil {
-			return n, fmt.Errorf("arquivo do campo %s: %w", f.ID, err)
-		}
-		if !ok {
-			continue
-		}
-		if err := drv.Put(ctx, k, []byte(enc), "application/octet-stream"); err != nil {
-			return n, fmt.Errorf("arquivo do campo %s: %w", f.ID, err)
-		}
-		n++
-	}
-	return n, nil
 }
