@@ -654,7 +654,7 @@ func (h *Heartbeat) recordRunSkills(ctx context.Context, rc service.RunContext, 
 
 // secretsBackend resolve as referências a segredos do adapter_config; opcional como runExtrasBackend.
 type secretsBackend interface {
-	ResolveAdapterConfig(ctx context.Context, companyID, personaID domain.ID, cfg json.RawMessage) (json.RawMessage, []string, error)
+	ResolveRunAdapterConfig(ctx context.Context, companyID, personaID, runID domain.ID, cfg json.RawMessage) (json.RawMessage, []string, error)
 }
 
 // resolveSecrets devolve rc com o adapter_config da persona já sem referências e os valores resolvidos (para a
@@ -664,7 +664,7 @@ func (h *Heartbeat) resolveSecrets(ctx context.Context, rc service.RunContext) (
 	if !ok || len(rc.Persona.AdapterConfig) == 0 {
 		return rc, nil, nil
 	}
-	cfg, values, err := sb.ResolveAdapterConfig(ctx, rc.Company.ID, rc.Persona.ID, rc.Persona.AdapterConfig)
+	cfg, values, err := sb.ResolveRunAdapterConfig(ctx, rc.Company.ID, rc.Persona.ID, rc.Run.ID, rc.Persona.AdapterConfig)
 	if err != nil {
 		return rc, nil, fmt.Errorf("configuração da persona: %w", err)
 	}

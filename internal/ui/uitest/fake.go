@@ -783,3 +783,9 @@ func (f *Fake) applyReviewer(p *domain.Persona, in service.UpdatePersonaInput) e
 	}
 	return nil
 }
+
+func (f *Fake) PersonaReachWarnings(_ context.Context, _, _ domain.ID) ([]string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return nil, f.fail("PersonaReachWarnings")
+}

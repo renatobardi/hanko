@@ -64,6 +64,7 @@ type Backend interface {
 	WorkspacesRootPath() string
 
 	HirePersona(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.HirePersonaInput) (domain.Persona, error)
+	PersonaReachWarnings(ctx context.Context, companyID, personaID domain.ID) ([]string, error)
 	ListPersonas(ctx context.Context, companyID domain.ID) ([]domain.Persona, error)
 	GetPersona(ctx context.Context, companyID domain.ID, ref string) (domain.Persona, error)
 	GetPersonaHealth(ctx context.Context, companyID, personaID domain.ID) (service.PersonaHealth, error)

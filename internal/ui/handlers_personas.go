@@ -254,8 +254,13 @@ func (s *server) renderPersona(w http.ResponseWriter, r *http.Request, co domain
 		s.fail(w, r, &co, err)
 		return
 	}
+	reach, err := s.be.PersonaReachWarnings(ctx, co.ID, p.ID)
+	if err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
 	vm := views.PersonaVM{
-		Notice: i18n.T(ctx, personaNotices[r.URL.Query().Get("ok")]), Controls: personaControls(ctx, p, base),
+		Notice: i18n.T(ctx, personaNotices[r.URL.Query().Get("ok")]), Controls: personaControls(ctx, p, base), ReachWarnings: reach,
 		Name: p.Name, Initials: initialsOf(p.Name), Title: p.Title, Badge: personaBadge(ctx, p.Status),
 		Agent: p.Agent, Model: p.Model, Heartbeat: heartbeatLabelCtx(ctx, p.HeartbeatIntervalSec), Instructions: p.Instructions,
 		Hired: fmtDateTime(ctx, p.CreatedAt, loc), Slug: p.Slug,

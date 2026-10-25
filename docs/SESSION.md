@@ -1,13 +1,15 @@
-# Diálogo de prova recente com Firebase · issue #98
-Data: 2026-10-25 · sessão `98-prova-firebase` (rodada swarm-1024-0625, fase `build`)
+# Cofre, fatia 1: pendências do #72 e do #86 · branch `sessao/95-cofre-pendencias-fatia1`
+Issue #95 · rodada swarm-1024-0625 · sessão retomada depois de cota esgotada na sessão anterior
 
 ## Feito
-- Diálogo "Confirme sua identidade" (perfil › Passkeys) oferece "Confirmar com Google" quando a API lista `firebase`: login do SDK, ID token novo, `POST /me/reauth` com `method: firebase`, e a ação que abriu o diálogo é repetida.
-- Backend sem mudança: `ReauthWithFirebase` já confere uid e `auth_time` (teste `TestProvaFirebaseExigeUidEAuthTimeRecente`).
-- Testes: UI (página do perfil nos dois providers, JS das provas e do login do Google com SDK falso) passam localmente.
+- Aviso de alcance na contratação: API (`warnings` da persona), CLI e página da persona (`PersonaReachWarnings`, testes de service, API e UI).
+- Uso no despacho: `${secret:…}` do adapter_config e do env MCP grava `secret_access_log` (via `dispatch`), sem o valor (teste de service).
+- Coleção na criação: `hanko secret create --collection`, campo `collection` da API e select no formulário da UI (testes).
+- 404 em `DeleteCollection` e `RemoveSecretFromCollection` quando não há o que remover (teste).
+- openapi.json, templ e fragmento `changelog.d/cofre-pendencias-95.md`. Sem migration (nenhuma tabela nova).
 
 ## Travado
-- Testes de integração de `internal/service` (reauth) não rodaram aqui: sem `HANKO_TEST_DATABASE_URL`. Vão no CI.
+- Contratação por gate: o aviso aparece na página da persona (live), mas a API e a CLI não o devolvem na aprovação, que devolve o gate.
 
 ## Próximo passo
-- Revisar o PR; demo do critério `qa` com a conta Google do Bardi (cadastrar a primeira passkey; 5 min depois, pedido de prova de novo).
+- PR #100 (`Refs #95`, o gate fica de fora): fazer merge pelo Bardi. Demo em produção do aviso (qa) depois do deploy.

@@ -19,14 +19,45 @@ import (
 
 // configResolverFor é o resolvedor do adapter_config da persona no despacho: ${secret:} vira o valor agora, e
 // ${secretfile:} fica como está até a run criar o arquivo (MaterializeSecretFiles).
-func (s *Service) configResolverFor(ctx context.Context, companyID, personaID domain.ID) func(secretref.Ref) (string, error) {
-	base := s.resolverFor(ctx, companyID, &personaID)
+func (s *Service) configResolverFor(ctx context.Context, companyID, personaID domain.ID, runID *domain.ID) func(secretref.Ref) (string, error) {
+	base := s.runResolverFor(ctx, companyID, personaID, runID)
 	return func(r secretref.Ref) (string, error) {
 		if r.File {
 			return r.String(), nil
 		}
 		return base(r)
 	}
+}
+
+// runResolverFor lê ${secret:} para a persona e, com a run, registra o uso do item da empresa (via dispatch). O erro
+// nomeia a referência, nunca o valor. Sem run (runID nil), só lê.
+func (s *Service) runResolverFor(ctx context.Context, companyID, personaID domain.ID, runID *domain.ID) func(secretref.Ref) (string, error) {
+	base := s.resolverFor(ctx, companyID, &personaID)
+	return func(r secretref.Ref) (string, error) {
+		val, err := base(r)
+		if err != nil || runID == nil || r.User {
+			return val, err
+		}
+		if err := s.logDispatchUse(ctx, companyID, personaID, *runID, r); err != nil {
+			return "", err
+		}
+		return val, nil
+	}
+}
+
+// logDispatchUse grava em secret_access_log o uso do campo da referência no despacho da run (via dispatch).
+func (s *Service) logDispatchUse(ctx context.Context, companyID, personaID, runID domain.ID, r secretref.Ref) error {
+	q := s.read()
+	sec, err := q.GetCompanySecretByName(ctx, store.GetCompanySecretByNameParams{CompanyID: companyID, Name: r.Name})
+	if err != nil {
+		return mapErr(err, "segredo "+r.Name)
+	}
+	f, err := q.GetSecretField(ctx, store.GetSecretFieldParams{CompanyID: companyID, SecretID: sec.ID, Name: r.FieldName()})
+	if err != nil {
+		return mapErr(err, "campo "+r.String())
+	}
+	c := ToolCaller{CompanyID: companyID, RunID: &runID, PersonaID: &personaID}
+	return s.recordSecretUse(ctx, c, companyID, sec.ID, f, domain.SecretAccessDispatch, nil)
 }
 
 // MaterializeSecretFiles troca cada ${secretfile:} de cfg (o adapter_config da persona, já com os valores resolvidos)
