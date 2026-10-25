@@ -1,5 +1,5 @@
 # ADR-0082 — Modelo de custo elevado: fonte externa, `unpriced`, histórico de mensalidade e conferência de preços
-Data: 2026-10-25 · Status: proposta (aguarda aceite do Bardi) · Issue: #66 (v0.8) · Usa: ADR-0029, ADR-0070, ADR-0075, ADR-0076, ADR-0078 · Altera: ADR-0019
+Data: 2026-10-25 · Status: aceita (Bardi, 2026-10-25) · Issue: #66 (v0.8) · Usa: ADR-0029, ADR-0070, ADR-0075, ADR-0076, ADR-0078 · Altera: ADR-0019
 
 ## Contexto
 O Hanko tem um modelo de custo por run, com quatro custos: real, lista, estimado e pago (ADR-0019 item 2). O preço vale
