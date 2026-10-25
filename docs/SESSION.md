@@ -1,75 +1,12 @@
-# Cofre, fatia 6: marca de senha em campo (#61) · branch `feat/61-cofre-marca-senha`
-Data: 2026-10-25 · sessão `61-cofre-saude-extras` (rodada swarm-1024-0625)
+# Corte da versão v0.7.1 · branch `release/v0.7.1`
+Data: 2026-10-25 · sessão `release-v0-7-1` (sem issue, #825; rodada swarm-1024-0625)
 
 ## Feito
-- Marca de senha em campo (ADR-0074, migration 00207): API, CLI, evento de atividade e relatório de fracos. CI verde no `1f482fd`.
-
-## Travado
-- Prazo de rotação por campo (item b da issue #61): decisão do Bardi.
-
-## Próximo passo
-- Corpo final do PR #91 (`Refs #61`, `## Falta`) e aceite do ADR-0074 pelo Bardi.
-
-# Cofre, fatia 7: tela do .hkv e testes do #84 (#62, build)
-Data: 2026-10-25 · branch `feat/62-cofre-hkv-tela` · sessão `62-cofre-hkv-tela` (rodada swarm-1024-0625) · `Refs #62`
-## Feito
-- Tela Configurações › Segredos › Cofre cifrado (.hkv): exporta (baixa o arquivo) e importa (envia o arquivo), com senha do arquivo (12+) e senha da conta quando pedida.
-- Testes que faltavam do #84: senha da conta na UI, export que pula concessão de persona apagada, `.env` acima de 256 KiB.
-## Travado
-- Sem Go nem templ no container: nada foi compilado nem gerado aqui; o `_templ.go` foi escrito à mão e o job `gerados` é a conferência.
-## Próximo passo
-- CI do PR (compilação, lint, drift do templ). A demo `qa` fica no `## Falta` do PR.
-
-# Cofre, fatia 5: delegação de segredo pessoal, uso da empresa e testes (#60)
-Data: 2026-10-25 · branch `feat/60-cofre-delegacao-extras` · sessão `60-cofre-delegacao-extras` (rodada swarm-1024-0625)
-
-## Feito
-- Delegação só vale com o alvo aberto (task não fechada, conversa não arquivada), ADR-0068 §6.3.
-- `GET .../secrets/{name}/usage` ligado: admin, ou membro com `view`/`manage` numa coleção que contém o segredo.
-- `delegation.expired` não é emitido: motivo no ADR-0068 §6, item 6.
-- Testes novos: alvo conversa, task fechada, uso da empresa (service); resolve no executor (heartbeat); 4 rotas de delegação e o uso da empresa (API, integração).
-
-## Travado
-- Nada. O container não tem Go: a validação é o CI do PR.
-
-## Próximo passo
-- Conferir o CI do PR; o merge fica com o dispatcher.
-
-# Cofre, fatia 1: ações sensíveis ligadas à reautenticação (#56)
-Data: 2026-10-24 · branch `feat/56-cofre-ligar-501` · sessão `56-cofre-ligar-501` (rodada swarm-1024-0625)
-
-## Feito
-- 12 operações saíram do 501 (revelar campo, histórico listar/revelar/restaurar, apagar campo, em `secrets` e `user-secrets`; criar/revogar concessão). Reautenticação exigida no service (`requireFieldSensitive`, `requireGrantAction`); teste do gate no service e da API no teste de integração de campos.
-- CI do PR é a validação: o container não tem Go.
-- CI reprovou duas vezes e foi corrigido: 67a0afa (teste do histórico, linha 86: v2 gerada já conta como revelada) e 74a26d2 (revogar concessão já revogada: `n == 0` virava 204; agora 404 em concessão e em apagar campo). Head 2425856: `ci`, `security`, `e2e` verdes.
-- Fora deste PR: o mesmo `n == 0` em `DeleteSecretCollection` e na remoção de membro de coleção (vault.go, ~941 e ~987).
-
-## Próximo passo
-- Merge pelo dispatcher. Nada pendente nesta issue além do `## Falta` do PR #86.
-
-# Estado da última sessão (corte da v0.7.0)
-Data: 2026-10-24 · branch `release/v0.7.0` · sessão `release-v0-7-0` (sem issue, rodada swarm-1024-0625)
-
-## Feito
-- Corte da v0.7.0 (docs/RELEASING.md passos 1–3): seção `## [0.7.0] — 2026-10-25` no CHANGELOG.md com as 8 fatias (#55–#62), `[Unreleased]` vazio, fragmentos de `changelog.d/` removidos; `scripts/release-notes.sh notes 0.7.0` imprime a seção.
-- Commit assinado `release: v0.7.0`; PR do ramo `release/v0.7.0` para a main. Main verde antes do corte (ci e security em 4c3d86b). Sem tag, sem merge, sem deploy (passos 4–6, do Bardi).
+- Corte da v0.7.1 (`docs/RELEASING.md` passos 1–3): main verde antes do corte (`ci` — jobs `check` e `release-dry-run` success — e `security` no head `804ae43`), seção `## [0.7.1] — 2026-10-25` no `CHANGELOG.md` com as 6 entregas desde a v0.7.0 (#86–#91; fatias 3–7 e a ligação da fatia 1 à reautenticação), `[Unreleased]` vazio, os 6 fragmentos de `changelog.d/` removidos; `scripts/release-notes.sh notes 0.7.1` imprime a seção (46 linhas, 29 marcadores).
+- Commit assinado `release: v0.7.1` (`a841b84`); PR do ramo `release/v0.7.1` para a `main`. Sem tag, sem merge, sem deploy (passos 4–6, do Bardi).
 
 ## Travado
 - Nada.
 
 ## Próximo passo
-- Bardi: fazer merge, taguear `v0.7.0` no commit mergeado e deployar no `hanko-prd` (canal de aprovação).
-
-## Cofre, fatia 4 (#59), sessão `hanko-59-cofre-envios-tool`
-- Feito (código sem compilar no container; CI é a verificação): envio de arquivo (criar, subir conteúdo, blob em `secret_send_blobs`/BlobStore), listar, ver e apagar por papel, tool `hanko_send_create` (política `ask`), 4 operações saindo do 501 no OpenAPI e no piso de `vault_test.go`.
-- Travado: nada. Falta documentada no PR.
-- Próximo passo: entregar a abertura de envio de arquivo pelo link (`content_url`, uso único em 60 s) e a demo qa (persona cria envio e o link expira no navegador).
-
-# Sessão #58 (cofre, fatia 3: build) · rodada swarm-1024-0625 · branch `feat/58-cofre-arquivo-build`
-Data: 2026-10-24 · issue #58 · `Refs #58`
-## Feito
-- Varredura de `hanko-secret-*` no boot (ADR-0073, proposta), rekey de campo arquivo em páginas, migração de campos arquivo entre drivers (`hanko blobs migrate`), purga dos arquivos pessoais na saída, CLI `secret field add --kind file --file`.
-## Travado
-- Sem Go no container: nada foi compilado nem testado aqui; o CI é a primeira validação.
-## Próximo passo
-- Ver o CI do PR; aceite do Bardi no ADR-0073. Sandbox para `${secretfile:}` e o `qa` ficam no `## Falta` do PR.
+- Bardi: fazer merge do PR, taguear `v0.7.1` no commit mergeado e deployar no `hanko-prd` (canal de aprovação).
