@@ -1,5 +1,5 @@
 # ADR-0076 — Ingestão OTLP de agente externo: listener na tailnet, escopo `ingest`, protobuf e replay
-Data: 2026-10-25 · Status: proposta (aguarda aceite do Bardi) · Issue: #66 (v0.8) · Usa: ADR-0075
+Data: 2026-10-25 · Status: aceita (Bardi, 2026-10-25) · Issue: #66 (v0.8) · Usa: ADR-0075
 
 ## Contexto
 O agente externo (ADR-0075) chega ao Hanko pela telemetria OTLP que o collector do oute hoje manda ao agent-studio.
