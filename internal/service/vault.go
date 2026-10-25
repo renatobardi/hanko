@@ -565,8 +565,12 @@ func (s *Service) DeleteSecretField(ctx context.Context, actor domain.Actor, com
 		if f.Name == domain.DefaultSecretField {
 			return domain.Invalid("field", "o campo value é o padrão da referência ${secret:X}; apague o segredo")
 		}
-		if n, err := t.q.DeleteSecretField(t.ctx, store.DeleteSecretFieldParams{ID: f.ID, CompanyID: companyID}); err != nil || n == 0 {
+		n, err := t.q.DeleteSecretField(t.ctx, store.DeleteSecretFieldParams{ID: f.ID, CompanyID: companyID})
+		if err != nil {
 			return mapErr(err, "delete secret field")
+		}
+		if n == 0 {
+			return fmt.Errorf("delete secret field: %w", domain.ErrNotFound)
 		}
 		if f.Kind == string(domain.SecretFieldFile) {
 			t.dropFieldBlobAfterCommit(companyID, f.ID)
@@ -1178,9 +1182,13 @@ func (s *Service) DeleteCollectionGrant(ctx context.Context, actor domain.Actor,
 		if err != nil {
 			return err
 		}
-		if n, err := t.q.DeleteCollectionGrant(t.ctx, store.DeleteCollectionGrantParams{CompanyID: companyID,
-			CollectionID: col.ID, ID: grantID}); err != nil || n == 0 {
+		n, err := t.q.DeleteCollectionGrant(t.ctx, store.DeleteCollectionGrantParams{CompanyID: companyID,
+			CollectionID: col.ID, ID: grantID})
+		if err != nil {
 			return mapErr(err, "delete collection grant")
+		}
+		if n == 0 { // já revogada: mapErr(nil) devolve nil e a revogação parecia ok (204 no lugar de 404)
+			return fmt.Errorf("delete collection grant: %w", domain.ErrNotFound)
 		}
 		return t.activity(actor, companyID, "collection.revoked", "collection", col.ID,
 			map[string]any{"grant": grantID.String()}, "")
