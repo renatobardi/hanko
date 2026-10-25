@@ -12,24 +12,9 @@ import (
 	"github.com/renatobardi/hanko/internal/service"
 )
 
-// Contrato do cofre para agentes (ADR-0068), do envio (ADR-0069) e da reautenticação com passkey (ADR-0070).
-// Cada operação já tem entrada e saída no OpenAPI e responde 501 até a fatia que a implementa ligar o backend; a
-// descrição de cada uma diz qual fatia (issues #56 a #62). Nenhuma resposta leva valor de campo secreto, exceto as
-// de revelar e de gerar, como no ADR-0050 §6.
-
-// pendingOp registra uma operação do contrato que ainda responde 501.
-func pendingOp[I, O any](api huma.API, o huma.Operation, slice string) {
-	o.Description = "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a " + slice + "."
-	o.Errors = append(o.Errors, http.StatusNotImplemented)
-	huma.Register(api, o, func(context.Context, *I) (*O, error) {
-		return nil, problem(http.StatusNotImplemented, "operação ainda não implementada")
-	})
-}
-
-const (
-	sliceFields = "fatia 1 (#56)"
-	sliceSends  = "fatia 4 (#59)"
-)
+// Contrato do cofre para agentes (ADR-0068), do envio (ADR-0069) e da reautenticação com passkey (ADR-0070). Todas as
+// operações do contrato estão ligadas ao service; nenhuma resposta leva valor de campo secreto, exceto as de revelar e
+// de gerar, como no ADR-0050 §6.
 
 // ---------- campos e histórico (fatia 1) ----------
 
@@ -326,7 +311,8 @@ type sendPath struct {
 }
 
 type uploadSendIn struct {
-	sendPath
+	CompanyPath
+	ID      string `path:"id" format:"uuid"`
 	RawBody []byte `contentType:"application/octet-stream" doc:"Arquivo: o blob já cifrado no cliente (até 25 MiB)."`
 }
 
@@ -348,20 +334,10 @@ type openSendIn struct {
 	}
 }
 
-// registerSends registra o envio: criar, abrir e a página pública ligam o service (registerSendOps); enviar o blob de
-// arquivo, listar, obter e apagar seguem em 501 até a entrega seguinte da fatia 4.
+// registerSends registra o envio: criar, subir o conteúdo, listar, obter, apagar, a página pública e abrir ligam o
+// service (registerSendOps).
 func (s *server) registerSends(api huma.API) {
 	s.registerSendOps(api)
-	base := "/companies/{company}/sends"
-	tag := "vault"
-	pendingOp[uploadSendIn, ItemOut[SecretSend]](api, op("upload-send-content", http.MethodPut, base+"/{id}/content", tag,
-		"Envia o blob cifrado de um envio de arquivo"), sliceSends)
-	pendingOp[listSendsIn, ListOut[SecretSend]](api, op("list-sends", http.MethodGet, base, tag,
-		"Lista os envios da empresa (os próprios; admin vê todos)"), sliceSends)
-	pendingOp[sendPath, ItemOut[SecretSend]](api, op("get-send", http.MethodGet, base+"/{id}", tag,
-		"Obtém os metadados de um envio"), sliceSends)
-	pendingOp[sendPath, struct{}](api, noContent(op("delete-send", http.MethodDelete, base+"/{id}", tag,
-		"Apaga o conteúdo de um envio antes do prazo")), sliceSends)
 }
 
 // ---------- delegação e uso (fatia 5) ----------

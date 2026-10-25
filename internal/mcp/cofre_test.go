@@ -28,6 +28,13 @@ func setupSecret(t *testing.T, res service.SecretGetResult) (*env, *secretFake) 
 	t.Helper()
 	f := newFake()
 	sf := &secretFake{fake: f, res: res}
+	return startToolEnv(t, f, sf), sf
+}
+
+// startToolEnv sobe o servidor MCP com o backend dado e um token de run da persona. A run fica ativa (o token só vale
+// com ela, como em setup, handler_test.go).
+func startToolEnv(t *testing.T, f *fake, b Backend) *env {
+	t.Helper()
 	tokens := auth.RunTokens{Secret: []byte("0123456789abcdef0123456789abcdef"), TTL: time.Hour}
 	runID := domain.NewID()
 	tok, err := tokens.Issue(f.company.ID, f.personas[1].ID, runID, f.tasks[0].ID)
@@ -35,12 +42,12 @@ func setupSecret(t *testing.T, res service.SecretGetResult) (*env, *secretFake) 
 		t.Fatal(err)
 	}
 	e := &env{f: f, tokens: tokens, tok: tok, runID: runID}
-	started := time.Now() // o token só vale com uma run ativa (como em setup, handler_test.go)
+	started := time.Now()
 	f.runs[runID] = service.RunView{Run: domain.Run{ID: runID, Status: domain.RunRunning, Trigger: domain.TriggerAssign, Agent: "fake", CreatedAt: started, StartedAt: &started},
 		TaskKey: "HNK-1", TaskTitle: "Tarefa A", PersonaName: "Engenheira"}
-	e.srv = httptest.NewServer(newHandler(sf, Deps{Tokens: tokens, Version: "test"}))
+	e.srv = httptest.NewServer(newHandler(b, Deps{Tokens: tokens, Version: "test"}))
 	t.Cleanup(e.srv.Close)
-	return e, sf
+	return e
 }
 
 // A tool aparece na lista (é a tool MCP da fatia 3 do cofre, ADR-0068 §4.1).
