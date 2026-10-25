@@ -130,10 +130,11 @@ func OrphanFindings(secrets []string, used map[string]bool) []HealthFinding {
 	return sortFindings(out)
 }
 
-// WeakFinding diz se um campo de senha é fraco (entropia estimada abaixo de WeakEntropyBits). O valor entra só para
-// estimar e não sai do achado: quem chama descarta o valor logo depois.
-func WeakFinding(secret, field, value string) (HealthFinding, bool) {
-	if !IsPasswordField(field) {
+// WeakFinding diz se um campo de senha é fraco (entropia estimada abaixo de WeakEntropyBits). password diz se o campo
+// é de senha (IsPasswordMark: marca explícita ou nome). O valor entra só para estimar e não sai do achado: quem chama
+// descarta o valor logo depois.
+func WeakFinding(secret, field string, password bool, value string) (HealthFinding, bool) {
+	if !password {
 		return HealthFinding{}, false
 	}
 	bits := EstimateEntropy(value)

@@ -115,11 +115,12 @@ func (e *env) secretFieldCmd(user *bool) *cobra.Command {
 		aValue, aKind, aFile string
 		aStdin, aGen, aVis   bool
 		aPos                 int
+		aPassword            bool
 	)
 	add := &cobra.Command{
 		Use: "add " + e.t("<segredo> <campo>"), Short: e.t("Acrescenta um campo (--value-stdin ou --generate; padrão secreto)"), Args: cobra.ExactArgs(2),
 		RunE: e.inCompany(func(cmd *cobra.Command, co string, a []string) error {
-			req := client.CreateFieldReq{Name: a[1], Kind: aKind, Position: aPos}
+			req := client.CreateFieldReq{Name: a[1], Kind: aKind, Position: aPos, Password: aPassword}
 			if aKind == string(domain.SecretFieldFile) {
 				if err := e.fillFileField(&req, aFile, aValue != "" || aStdin || aGen, aVis); err != nil {
 					return err
@@ -157,6 +158,7 @@ func (e *env) secretFieldCmd(user *bool) *cobra.Command {
 	af.StringVar(&aKind, "kind", "text", e.t("tipo do campo: text ou totp"))
 	af.StringVar(&aFile, "file", "", e.t("campo arquivo (--kind file): caminho do arquivo, até 1 MiB; sempre secreto"))
 	af.IntVar(&aPos, "position", 0, e.t("posição do campo na lista"))
+	af.BoolVar(&aPassword, "password", false, e.t("marca o campo como senha (só texto secreto): entra no relatório de saúde"))
 
 	var (
 		rValue       string
@@ -187,21 +189,28 @@ func (e *env) secretFieldCmd(user *bool) *cobra.Command {
 
 	var sVis, sSecret bool
 	var sPos int
+	var sPassword, sNoPassword bool
 	set := &cobra.Command{
-		Use: "set " + e.t("<segredo> <campo>"), Short: e.t("Muda a marca (--visible ou --secret) e a posição de um campo"), Args: cobra.ExactArgs(2),
+		Use: "set " + e.t("<segredo> <campo>"), Short: e.t("Muda a marca (--visible ou --secret), a de senha (--password ou --no-password) e a posição de um campo"), Args: cobra.ExactArgs(2),
 		RunE: e.inCompany(func(cmd *cobra.Command, co string, a []string) error {
 			if sVis && sSecret {
 				return usageError{fmt.Errorf("%s", e.t("use --visible ou --secret, não os dois"))}
+			}
+			if sPassword && sNoPassword {
+				return usageError{fmt.Errorf("%s", e.t("use --password ou --no-password, não os dois"))}
 			}
 			var req client.UpdateFieldReq
 			if sVis || sSecret {
 				req.Sensitive = &sSecret
 			}
+			if sPassword || sNoPassword {
+				req.Password = &sPassword
+			}
 			if cmd.Flags().Changed("position") {
 				req.Position = &sPos
 			}
-			if req.Sensitive == nil && req.Position == nil {
-				return usageError{fmt.Errorf("%s", e.t("nada para mudar: use --visible, --secret ou --position"))}
+			if req.Sensitive == nil && req.Password == nil && req.Position == nil {
+				return usageError{fmt.Errorf("%s", e.t("nada para mudar: use --visible, --secret, --password, --no-password ou --position"))}
 			}
 			f, err := e.client().UpdateSecretField(cmd.Context(), co, *user, a[0], a[1], req)
 			if err != nil {
@@ -219,6 +228,8 @@ func (e *env) secretFieldCmd(user *bool) *cobra.Command {
 	sf.BoolVar(&sVis, "visible", false, e.t("torna o campo visível (o valor passa a aparecer na listagem)"))
 	sf.BoolVar(&sSecret, "secret", false, e.t("torna o campo secreto"))
 	sf.IntVar(&sPos, "position", 0, e.t("posição do campo na lista"))
+	sf.BoolVar(&sPassword, "password", false, e.t("marca o campo como senha (só texto secreto)"))
+	sf.BoolVar(&sNoPassword, "no-password", false, e.t("tira a marca de senha do campo"))
 
 	c.AddCommand(ls, add, rotate, set)
 	return c

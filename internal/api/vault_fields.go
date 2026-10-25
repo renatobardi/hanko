@@ -20,7 +20,7 @@ import (
 type vaultBackend interface {
 	CreateSecretField(ctx context.Context, actor domain.Actor, companyID domain.ID, scope domain.SecretScope, secretName string, in service.CreateSecretFieldInput) (service.SecretFieldView, error)
 	ListSecretFields(ctx context.Context, companyID domain.ID, scope domain.SecretScope, secretName string) ([]service.SecretFieldView, error)
-	UpdateSecretFieldMeta(ctx context.Context, actor domain.Actor, companyID domain.ID, scope domain.SecretScope, secretName, fieldName string, sensitive *bool, position *int) (service.SecretFieldView, error)
+	UpdateSecretFieldMeta(ctx context.Context, actor domain.Actor, companyID domain.ID, scope domain.SecretScope, secretName, fieldName string, sensitive, password *bool, position *int) (service.SecretFieldView, error)
 	RotateSecretField(ctx context.Context, actor domain.Actor, companyID domain.ID, scope domain.SecretScope, secretName, fieldName string, in service.SecretFieldValueInput) (service.SecretFieldView, error)
 	RevealSecretField(ctx context.Context, actor domain.Actor, companyID domain.ID, scope domain.SecretScope, secretName, fieldName string) (service.SecretFieldView, error)
 	DeleteSecretField(ctx context.Context, actor domain.Actor, companyID domain.ID, scope domain.SecretScope, secretName, fieldName string) error
@@ -111,7 +111,7 @@ func secretFieldOut(v service.SecretFieldView, secretName string, scope domain.S
 		ref = "${secret:user/" + secretName + "#" + v.Name + "}"
 	}
 	return SecretField{ID: idStr(v.ID), Name: v.Name, Reference: ref, Kind: string(v.Kind), Sensitive: v.Sensitive,
-		Provider: string(v.Provider), ExternalRef: v.ExternalRef, FileName: v.FileName, ContentType: v.ContentType,
+		Password: v.Password, Provider: string(v.Provider), ExternalRef: v.ExternalRef, FileName: v.FileName, ContentType: v.ContentType,
 		SizeBytes: v.SizeBytes, Position: v.Position, Version: v.Version, Revealed: v.RevealedAt != nil,
 		VisibleText: v.VisibleText, Value: v.RevealedValue, LastUsedAt: v.LastUsedAt, RotatedAt: v.RotatedAt,
 		CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt}
@@ -144,8 +144,9 @@ func (s *server) registerFieldWrites(api huma.API, secretScope domain.SecretScop
 		vaultOp(s, func(ctx context.Context, vb vaultBackend, sc scope, in *createSecretFieldIn) (*ItemOut[SecretField], error) {
 			b := in.Body
 			kind := domain.SecretFieldKind(b.Kind)
-			fi := service.CreateSecretFieldInput{Name: b.Name, Kind: kind, Sensitive: b.Sensitive, Position: b.Position,
-				SecretFieldValueInput: fieldValueIn(b.SecretFieldValue), FileName: b.FileName, ContentType: b.ContentType}
+			fi := service.CreateSecretFieldInput{Name: b.Name, Kind: kind, Sensitive: b.Sensitive, Password: b.Password,
+				Position: b.Position, SecretFieldValueInput: fieldValueIn(b.SecretFieldValue), FileName: b.FileName,
+				ContentType: b.ContentType}
 			if b.ContentBase64 != "" { // o conteúdo de campo arquivo (ADR-0068 §5.1): até 1 MiB, cifrado antes do driver
 				if kind != domain.SecretFieldFile {
 					return nil, problem(http.StatusUnprocessableEntity, "content_base64 só vale para campo do tipo file")
@@ -174,9 +175,10 @@ func (s *server) registerFieldWrites(api huma.API, secretScope domain.SecretScop
 		}))
 
 	huma.Register(api, op("update-"+opPrefix+"-field", http.MethodPatch, base+"/{field}", tag,
-		"Muda marca de visível e posição de um campo"),
+		"Muda marca de visível, marca de senha e posição de um campo"),
 		vaultOp(s, func(ctx context.Context, vb vaultBackend, sc scope, in *updateSecretFieldIn) (*ItemOut[SecretField], error) {
-			v, err := vb.UpdateSecretFieldMeta(ctx, sc.Actor, sc.Company.ID, secretScope, in.Name, in.Field, in.Body.Sensitive, in.Body.Position)
+			v, err := vb.UpdateSecretFieldMeta(ctx, sc.Actor, sc.Company.ID, secretScope, in.Name, in.Field,
+				in.Body.Sensitive, in.Body.Password, in.Body.Position)
 			return vaultItem(ctx, s, secretFieldOut(v, in.Name, secretScope), err)
 		}))
 

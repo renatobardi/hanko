@@ -241,11 +241,11 @@ const createSecretField = `-- name: CreateSecretField :one
 
 INSERT INTO secret_fields (id, company_id, secret_id, name, kind, sensitive, provider, value_enc, external_ref, blob_key,
                            file_name, content_type, size_bytes, value_hmac, aad_version, position, version,
-                           revealed_at, rotated_at, created_at, updated_at)
+                           revealed_at, rotated_at, created_at, updated_at, password)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
         $11, $12, $13, $14, $15, $16, 1,
-        $17, $18, $18, $18)
-RETURNING id, company_id, secret_id, name, kind, sensitive, provider, value_enc, external_ref, blob_key, file_name, content_type, size_bytes, value_hmac, aad_version, position, version, revealed_at, last_used_at, rotated_at, created_at, updated_at
+        $17, $18, $18, $18, $19)
+RETURNING id, company_id, secret_id, name, kind, sensitive, provider, value_enc, external_ref, blob_key, file_name, content_type, size_bytes, value_hmac, aad_version, position, version, revealed_at, last_used_at, rotated_at, created_at, updated_at, password
 `
 
 type CreateSecretFieldParams struct {
@@ -267,6 +267,7 @@ type CreateSecretFieldParams struct {
 	Position    int32
 	RevealedAt  *time.Time
 	Now         time.Time
+	Password    bool
 }
 
 // Cofre para agentes (ADR-0068): campos, histórico, coleções, concessões, delegações e registro de uso.
@@ -291,6 +292,7 @@ func (q *Queries) CreateSecretField(ctx context.Context, arg CreateSecretFieldPa
 		arg.Position,
 		arg.RevealedAt,
 		arg.Now,
+		arg.Password,
 	)
 	var i SecretField
 	err := row.Scan(
@@ -316,6 +318,7 @@ func (q *Queries) CreateSecretField(ctx context.Context, arg CreateSecretFieldPa
 		&i.RotatedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Password,
 	)
 	return i, err
 }
@@ -577,7 +580,7 @@ func (q *Queries) GetSecretCollectionByName(ctx context.Context, arg GetSecretCo
 }
 
 const getSecretField = `-- name: GetSecretField :one
-SELECT id, company_id, secret_id, name, kind, sensitive, provider, value_enc, external_ref, blob_key, file_name, content_type, size_bytes, value_hmac, aad_version, position, version, revealed_at, last_used_at, rotated_at, created_at, updated_at FROM secret_fields WHERE company_id = $1 AND secret_id = $2 AND name = $3
+SELECT id, company_id, secret_id, name, kind, sensitive, provider, value_enc, external_ref, blob_key, file_name, content_type, size_bytes, value_hmac, aad_version, position, version, revealed_at, last_used_at, rotated_at, created_at, updated_at, password FROM secret_fields WHERE company_id = $1 AND secret_id = $2 AND name = $3
 `
 
 type GetSecretFieldParams struct {
@@ -612,6 +615,7 @@ func (q *Queries) GetSecretField(ctx context.Context, arg GetSecretFieldParams) 
 		&i.RotatedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Password,
 	)
 	return i, err
 }
@@ -633,7 +637,7 @@ func (q *Queries) GetSecretFieldBlob(ctx context.Context, arg GetSecretFieldBlob
 }
 
 const getSecretFieldForUpdate = `-- name: GetSecretFieldForUpdate :one
-SELECT id, company_id, secret_id, name, kind, sensitive, provider, value_enc, external_ref, blob_key, file_name, content_type, size_bytes, value_hmac, aad_version, position, version, revealed_at, last_used_at, rotated_at, created_at, updated_at FROM secret_fields WHERE company_id = $1 AND secret_id = $2 AND name = $3 FOR UPDATE
+SELECT id, company_id, secret_id, name, kind, sensitive, provider, value_enc, external_ref, blob_key, file_name, content_type, size_bytes, value_hmac, aad_version, position, version, revealed_at, last_used_at, rotated_at, created_at, updated_at, password FROM secret_fields WHERE company_id = $1 AND secret_id = $2 AND name = $3 FOR UPDATE
 `
 
 type GetSecretFieldForUpdateParams struct {
@@ -668,6 +672,7 @@ func (q *Queries) GetSecretFieldForUpdate(ctx context.Context, arg GetSecretFiel
 		&i.RotatedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Password,
 	)
 	return i, err
 }
@@ -866,7 +871,7 @@ func (q *Queries) ListFieldsWithHistory(ctx context.Context) ([]ListFieldsWithHi
 }
 
 const listHealthSecretFields = `-- name: ListHealthSecretFields :many
-SELECT f.id, f.secret_id, s.name AS secret_name, f.name AS field_name, f.value_enc, f.aad_version, f.last_used_at
+SELECT f.id, f.secret_id, s.name AS secret_name, f.name AS field_name, f.value_enc, f.aad_version, f.last_used_at, f.password
 FROM secret_fields f JOIN secrets s ON s.id = f.secret_id
 WHERE f.company_id = $1 AND s.scope = 'company' AND f.provider = 'local' AND length(f.value_enc) > 0
 ORDER BY s.name, f.name
@@ -880,6 +885,7 @@ type ListHealthSecretFieldsRow struct {
 	ValueEnc   string
 	AadVersion int16
 	LastUsedAt *time.Time
+	Password   bool
 }
 
 // Campos locais dos segredos da empresa para o relatório de saúde (ADR-0068 §7.2). O valor cifrado vai só para a conta
@@ -901,6 +907,7 @@ func (q *Queries) ListHealthSecretFields(ctx context.Context, companyID uuid.UUI
 			&i.ValueEnc,
 			&i.AadVersion,
 			&i.LastUsedAt,
+			&i.Password,
 		); err != nil {
 			return nil, err
 		}
@@ -1176,7 +1183,7 @@ func (q *Queries) ListSecretFieldVersionsForRekey(ctx context.Context) ([]ListSe
 }
 
 const listSecretFields = `-- name: ListSecretFields :many
-SELECT id, company_id, secret_id, name, kind, sensitive, provider, value_enc, external_ref, blob_key, file_name, content_type, size_bytes, value_hmac, aad_version, position, version, revealed_at, last_used_at, rotated_at, created_at, updated_at FROM secret_fields WHERE company_id = $1 AND secret_id = $2 ORDER BY position, name
+SELECT id, company_id, secret_id, name, kind, sensitive, provider, value_enc, external_ref, blob_key, file_name, content_type, size_bytes, value_hmac, aad_version, position, version, revealed_at, last_used_at, rotated_at, created_at, updated_at, password FROM secret_fields WHERE company_id = $1 AND secret_id = $2 ORDER BY position, name
 `
 
 type ListSecretFieldsParams struct {
@@ -1216,6 +1223,7 @@ func (q *Queries) ListSecretFields(ctx context.Context, arg ListSecretFieldsPara
 			&i.RotatedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Password,
 		); err != nil {
 			return nil, err
 		}
@@ -1396,7 +1404,7 @@ func (q *Queries) LogSecretAccess(ctx context.Context, arg LogSecretAccessParams
 
 const markSecretFieldRevealed = `-- name: MarkSecretFieldRevealed :one
 UPDATE secret_fields SET revealed_at = $1 WHERE id = $2 AND company_id = $3 AND revealed_at IS NULL
-RETURNING id, company_id, secret_id, name, kind, sensitive, provider, value_enc, external_ref, blob_key, file_name, content_type, size_bytes, value_hmac, aad_version, position, version, revealed_at, last_used_at, rotated_at, created_at, updated_at
+RETURNING id, company_id, secret_id, name, kind, sensitive, provider, value_enc, external_ref, blob_key, file_name, content_type, size_bytes, value_hmac, aad_version, position, version, revealed_at, last_used_at, rotated_at, created_at, updated_at, password
 `
 
 type MarkSecretFieldRevealedParams struct {
@@ -1432,6 +1440,7 @@ func (q *Queries) MarkSecretFieldRevealed(ctx context.Context, arg MarkSecretFie
 		&i.RotatedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Password,
 	)
 	return i, err
 }
@@ -1576,7 +1585,7 @@ UPDATE secret_fields SET provider = $1, value_enc = $2, external_ref = $3, blob_
        aad_version = $9, version = version + 1, revealed_at = $10, rotated_at = $11,
        updated_at = $11
 WHERE id = $12 AND company_id = $13
-RETURNING id, company_id, secret_id, name, kind, sensitive, provider, value_enc, external_ref, blob_key, file_name, content_type, size_bytes, value_hmac, aad_version, position, version, revealed_at, last_used_at, rotated_at, created_at, updated_at
+RETURNING id, company_id, secret_id, name, kind, sensitive, provider, value_enc, external_ref, blob_key, file_name, content_type, size_bytes, value_hmac, aad_version, position, version, revealed_at, last_used_at, rotated_at, created_at, updated_at, password
 `
 
 type RotateSecretFieldParams struct {
@@ -1636,6 +1645,7 @@ func (q *Queries) RotateSecretField(ctx context.Context, arg RotateSecretFieldPa
 		&i.RotatedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Password,
 	)
 	return i, err
 }
@@ -1746,14 +1756,15 @@ func (q *Queries) UpdateSecretCollection(ctx context.Context, arg UpdateSecretCo
 }
 
 const updateSecretFieldMeta = `-- name: UpdateSecretFieldMeta :one
-UPDATE secret_fields SET sensitive = $1, position = $2, updated_at = $3
-WHERE id = $4 AND company_id = $5
-RETURNING id, company_id, secret_id, name, kind, sensitive, provider, value_enc, external_ref, blob_key, file_name, content_type, size_bytes, value_hmac, aad_version, position, version, revealed_at, last_used_at, rotated_at, created_at, updated_at
+UPDATE secret_fields SET sensitive = $1, position = $2, password = $3, updated_at = $4
+WHERE id = $5 AND company_id = $6
+RETURNING id, company_id, secret_id, name, kind, sensitive, provider, value_enc, external_ref, blob_key, file_name, content_type, size_bytes, value_hmac, aad_version, position, version, revealed_at, last_used_at, rotated_at, created_at, updated_at, password
 `
 
 type UpdateSecretFieldMetaParams struct {
 	Sensitive bool
 	Position  int32
+	Password  bool
 	Now       time.Time
 	ID        uuid.UUID
 	CompanyID uuid.UUID
@@ -1763,6 +1774,7 @@ func (q *Queries) UpdateSecretFieldMeta(ctx context.Context, arg UpdateSecretFie
 	row := q.db.QueryRow(ctx, updateSecretFieldMeta,
 		arg.Sensitive,
 		arg.Position,
+		arg.Password,
 		arg.Now,
 		arg.ID,
 		arg.CompanyID,
@@ -1791,6 +1803,7 @@ func (q *Queries) UpdateSecretFieldMeta(ctx context.Context, arg UpdateSecretFie
 		&i.RotatedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Password,
 	)
 	return i, err
 }

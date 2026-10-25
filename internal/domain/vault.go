@@ -68,6 +68,8 @@ type SecretField struct {
 	RotatedAt   time.Time  `json:"rotated_at"`
 	CreatedAt   time.Time  `json:"created_at"`
 	UpdatedAt   time.Time  `json:"updated_at"`
+	// Password é a marca de senha (ADR-0074): o campo entra no achado fraco do relatório de saúde.
+	Password bool `json:"password"`
 }
 
 // ValidateSecretField confere as regras de um campo que não dependem do banco.
@@ -86,6 +88,20 @@ func ValidateSecretField(name string, kind SecretFieldKind, sensitive bool, prov
 	}
 	if kind == SecretFieldFile && provider != SecretProviderLocal {
 		return Invalid("provider", "campo arquivo só existe no provider local")
+	}
+	return nil
+}
+
+// ValidatePasswordMark confere a marca de senha de um campo (ADR-0074): só vale para texto secreto.
+func ValidatePasswordMark(kind SecretFieldKind, sensitive, password bool) error {
+	if !password {
+		return nil
+	}
+	if kind != SecretFieldText {
+		return Invalid("password", "a marca de senha vale só para campo texto")
+	}
+	if !sensitive {
+		return Invalid("password", "campo de senha é secreto: marque o campo como secreto antes")
 	}
 	return nil
 }

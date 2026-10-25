@@ -1473,6 +1473,7 @@ type SecretField struct {
 	RotatedAt   time.Time
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+	Password    bool
 }
 
 type SecretFieldBlob struct {

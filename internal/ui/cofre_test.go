@@ -60,7 +60,7 @@ func (c *cofreFake) ListSecretFields(context.Context, domain.ID, domain.SecretSc
 	}, nil
 }
 
-func (c *cofreFake) UpdateSecretFieldMeta(context.Context, domain.Actor, domain.ID, domain.SecretScope, string, string, *bool, *int) (service.SecretFieldView, error) {
+func (c *cofreFake) UpdateSecretFieldMeta(context.Context, domain.Actor, domain.ID, domain.SecretScope, string, string, *bool, *bool, *int) (service.SecretFieldView, error) {
 	return service.SecretFieldView{}, nil
 }
 

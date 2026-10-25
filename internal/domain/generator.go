@@ -196,11 +196,14 @@ func EstimateEntropy(value string) int {
 	return int(float64(n) * math.Log2(float64(pool)))
 }
 
-// IsPasswordField diz se o campo é de senha pelo nome (`password` ou `senha`). Só esses campos entram no achado "fraco".
+// IsPasswordField diz se o campo é de senha pelo nome (`password` ou `senha`).
 func IsPasswordField(name string) bool {
 	n := strings.ToLower(name)
 	return n == "password" || n == "senha"
 }
+
+// IsPasswordMark diz se o campo entra no achado "fraco": pela marca explícita (ADR-0074) ou pelo nome (ADR-0068 §7.2).
+func IsPasswordMark(name string, marked bool) bool { return marked || IsPasswordField(name) }
 
 func uniqueClasses(in []GenClass) []GenClass {
 	var out []GenClass

@@ -5,10 +5,10 @@
 -- name: CreateSecretField :one
 INSERT INTO secret_fields (id, company_id, secret_id, name, kind, sensitive, provider, value_enc, external_ref, blob_key,
                            file_name, content_type, size_bytes, value_hmac, aad_version, position, version,
-                           revealed_at, rotated_at, created_at, updated_at)
+                           revealed_at, rotated_at, created_at, updated_at, password)
 VALUES (@id, @company_id, @secret_id, @name, @kind, @sensitive, @provider, @value_enc, @external_ref, @blob_key,
         @file_name, @content_type, @size_bytes, @value_hmac, @aad_version, @position, 1,
-        sqlc.narg(revealed_at), @now, @now, @now)
+        sqlc.narg(revealed_at), @now, @now, @now, @password)
 RETURNING *;
 
 -- name: ListSecretFields :many
@@ -30,7 +30,7 @@ WHERE id = @id AND company_id = @company_id
 RETURNING *;
 
 -- name: UpdateSecretFieldMeta :one
-UPDATE secret_fields SET sensitive = @sensitive, position = @position, updated_at = @now
+UPDATE secret_fields SET sensitive = @sensitive, position = @position, password = @password, updated_at = @now
 WHERE id = @id AND company_id = @company_id
 RETURNING *;
 
@@ -54,7 +54,7 @@ UPDATE secret_fields SET value_enc = @value_enc, aad_version = @aad_version, val
 -- name: ListHealthSecretFields :many
 -- Campos locais dos segredos da empresa para o relatório de saúde (ADR-0068 §7.2). O valor cifrado vai só para a conta
 -- dos campos fracos, que decifra em memória e descarta; nunca sai na resposta. Segredo de usuário não entra.
-SELECT f.id, f.secret_id, s.name AS secret_name, f.name AS field_name, f.value_enc, f.aad_version, f.last_used_at
+SELECT f.id, f.secret_id, s.name AS secret_name, f.name AS field_name, f.value_enc, f.aad_version, f.last_used_at, f.password
 FROM secret_fields f JOIN secrets s ON s.id = f.secret_id
 WHERE f.company_id = @company_id AND s.scope = 'company' AND f.provider = 'local' AND length(f.value_enc) > 0
 ORDER BY s.name, f.name;

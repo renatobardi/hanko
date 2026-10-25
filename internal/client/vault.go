@@ -16,6 +16,7 @@ type CreateFieldReq struct {
 	Kind          string `json:"kind,omitempty"`
 	Sensitive     *bool  `json:"sensitive,omitempty"`
 	Position      int    `json:"position,omitempty"`
+	Password      bool   `json:"password,omitempty"`
 	Provider      string `json:"provider,omitempty"`
 	Value         string `json:"value,omitempty"`
 	Generate      bool   `json:"generate,omitempty"`
@@ -33,9 +34,10 @@ type RotateFieldReq struct {
 	ExternalRef string `json:"external_ref,omitempty"`
 }
 
-// UpdateFieldReq muda a marca secreto/visível e a posição de um campo.
+// UpdateFieldReq muda a marca secreto/visível, a marca de senha e a posição de um campo.
 type UpdateFieldReq struct {
 	Sensitive *bool `json:"sensitive,omitempty"`
+	Password  *bool `json:"password,omitempty"`
 	Position  *int  `json:"position,omitempty"`
 }
 

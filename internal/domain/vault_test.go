@@ -47,6 +47,27 @@ func TestValidateSecretField(t *testing.T) {
 	}
 }
 
+func TestValidatePasswordMark(t *testing.T) {
+	cases := []struct {
+		name      string
+		kind      SecretFieldKind
+		sensitive bool
+		password  bool
+		wantField string // campo do erro; "" = válido
+	}{
+		{"sem marca", SecretFieldFile, false, false, ""},
+		{"senha de texto secreto", SecretFieldText, true, true, ""},
+		{"senha visível", SecretFieldText, false, true, "password"},
+		{"senha em totp", SecretFieldTOTP, true, true, "password"},
+		{"senha em arquivo", SecretFieldFile, true, true, "password"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			assertInvalidField(t, ValidatePasswordMark(c.kind, c.sensitive, c.password), c.wantField)
+		})
+	}
+}
+
 func TestPruneHistory(t *testing.T) {
 	now := time.Date(2026, 10, 24, 12, 0, 0, 0, time.UTC)
 	day := 24 * time.Hour
