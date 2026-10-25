@@ -57,6 +57,8 @@ type CreateSecretInput struct {
 	Generate    bool
 	Gen         domain.GenOptions // opções do gerador (ADR-0068 §7.1); só com Generate
 	ExternalRef string
+	// Collection é a coleção que recebe o segredo (nome ou id); vazio = a padrão. Só segredo da empresa.
+	Collection string
 }
 
 // RotateSecretInput troca o valor (ou a referência no cofre) de um segredo. Description nil mantém a atual.
@@ -263,21 +265,44 @@ func (s *Service) CreateSecret(ctx context.Context, actor domain.Actor, companyI
 	if err != nil {
 		return SecretView{}, err
 	}
+	if in.Collection != "" && scope != domain.SecretScopeCompany {
+		return SecretView{}, domain.Invalid("collection", "só segredo da empresa entra em coleção")
+	}
 	var out SecretView
 	err = s.withTx(ctx, func(t *txc) error {
-		return s.createSecretTx(t, actor, companyID, scope, owner, id, name, desc, m, &out)
+		var col *store.SecretCollection
+		// a padrão tem nome fixo e é criada sob demanda: escolhê-la pelo nome é o mesmo que não escolher
+		if in.Collection != "" && in.Collection != domain.DefaultCollectionName {
+			c, err := s.resolveCollection(t.ctx, t.q, companyID, in.Collection)
+			if err != nil {
+				return err
+			}
+			col = &c
+		}
+		return s.createSecretInTx(t, actor, companyID, scope, owner, id, name, desc, m, col, &out)
 	})
 	return out, err
 }
 
 func (s *Service) createSecretTx(t *txc, actor domain.Actor, companyID domain.ID, scope domain.SecretScope, owner *uuid.UUID,
 	id uuid.UUID, name, desc string, m secretMaterial, out *SecretView) error {
+	return s.createSecretInTx(t, actor, companyID, scope, owner, id, name, desc, m, nil, out)
+}
+
+// createSecretInTx cria o segredo na coleção dada (col) ou, sem ela, na padrão (ADR-0068 §2.6).
+func (s *Service) createSecretInTx(t *txc, actor domain.Actor, companyID domain.ID, scope domain.SecretScope, owner *uuid.UUID,
+	id uuid.UUID, name, desc string, m secretMaterial, col *store.SecretCollection, out *SecretView) error {
 	row, err := s.createSecretRowTx(t, actor, companyID, scope, owner, id, name, desc, m)
 	if err != nil {
 		return err
 	}
 	if scope == domain.SecretScopeCompany {
-		if err := s.addToDefaultCollectionTx(t, actor, companyID, row.ID, row.Name); err != nil {
+		if col == nil {
+			err = s.addToDefaultCollectionTx(t, actor, companyID, row.ID, row.Name)
+		} else {
+			err = s.addToCollectionTx(t, actor, companyID, *col, row.ID, row.Name)
+		}
+		if err != nil {
 			return err
 		}
 	}
@@ -841,10 +866,21 @@ func (s *Service) ResolveUserSecretText(ctx context.Context, companyID domain.ID
 	return secretref.Expand(text, func(r secretref.Ref) (string, error) { return s.resolveRef(ctx, companyID, r, uid) })
 }
 
-// ResolveAdapterConfig expande as referências do adapter_config da persona no despacho. Devolve a configuração
-// pronta para o adapter e os valores resolvidos (para a redação do log da run). Sem referência, devolve cfg como
-// está. Falha cedo com o nome do segredo que faltou.
+// ResolveAdapterConfig expande as referências do adapter_config da persona fora de uma run (prontidão, teste de
+// adapter): não registra uso. No despacho, ResolveRunAdapterConfig.
 func (s *Service) ResolveAdapterConfig(ctx context.Context, companyID, personaID domain.ID, cfg json.RawMessage) (json.RawMessage, []string, error) {
+	return s.resolveAdapterConfig(ctx, companyID, personaID, nil, cfg)
+}
+
+// ResolveRunAdapterConfig expande as referências do adapter_config da persona no despacho de uma run, e cada uso de
+// segredo da empresa fica em secret_access_log (via dispatch, ADR-0068 §4.4). Devolve a configuração pronta para o
+// adapter e os valores resolvidos (para a redação do log da run). Sem referência, devolve cfg como está. Falha cedo
+// com o nome do segredo que faltou.
+func (s *Service) ResolveRunAdapterConfig(ctx context.Context, companyID, personaID, runID domain.ID, cfg json.RawMessage) (json.RawMessage, []string, error) {
+	return s.resolveAdapterConfig(ctx, companyID, personaID, &runID, cfg)
+}
+
+func (s *Service) resolveAdapterConfig(ctx context.Context, companyID, personaID domain.ID, runID *domain.ID, cfg json.RawMessage) (json.RawMessage, []string, error) {
 	if !secretref.Has(string(cfg)) {
 		return cfg, nil, nil
 	}
@@ -852,7 +888,7 @@ func (s *Service) ResolveAdapterConfig(ctx context.Context, companyID, personaID
 	if err := json.Unmarshal(cfg, &doc); err != nil {
 		return cfg, nil, fmt.Errorf("adapter_config: %w", err)
 	}
-	out, used, err := secretref.ExpandJSON(doc, s.configResolverFor(ctx, companyID, personaID))
+	out, used, err := secretref.ExpandJSON(doc, s.configResolverFor(ctx, companyID, personaID, runID))
 	if err != nil {
 		return cfg, nil, err
 	}
@@ -865,17 +901,21 @@ func (s *Service) ResolveAdapterConfig(ctx context.Context, companyID, personaID
 
 // expandIntegrationSecrets resolve referências nos headers/env/segredo de uma integração (RunExtras, teste).
 func (s *Service) expandMap(ctx context.Context, companyID domain.ID, m map[string]string) (map[string]string, []string, error) {
-	return s.expandMapFor(ctx, companyID, nil, m)
+	return s.expandMapFor(ctx, companyID, nil, nil, m)
 }
 
 // expandMapFor é expandMap com a persona da run: cada item precisa estar numa coleção que ela alcança (ADR-0068 §2.4).
-func (s *Service) expandMapFor(ctx context.Context, companyID domain.ID, personaID *domain.ID, m map[string]string) (map[string]string, []string, error) {
+// Com runID, cada uso de segredo da empresa fica em secret_access_log (via dispatch).
+func (s *Service) expandMapFor(ctx context.Context, companyID domain.ID, personaID, runID *domain.ID, m map[string]string) (map[string]string, []string, error) {
 	if len(m) == 0 {
 		return m, nil, nil
 	}
 	out := make(map[string]string, len(m))
 	var used []string
 	resolve := s.resolverFor(ctx, companyID, personaID)
+	if personaID != nil {
+		resolve = s.runResolverFor(ctx, companyID, *personaID, runID)
+	}
 	for k, v := range m {
 		x, u, err := secretref.Expand(v, resolve)
 		if err != nil {

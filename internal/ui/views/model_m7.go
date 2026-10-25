@@ -24,6 +24,7 @@ type SecretFormVM struct {
 	Action      string
 	Name        string
 	Description string
+	Collection  string
 	Provider    string
 	ExternalRef string
 	Generate    bool
@@ -41,10 +42,12 @@ type SecretRevealVM struct {
 // SecretsVM é a página Configurações › Segredos.
 type SecretsVM struct {
 	Sections []TabLink
-	Notice   string
-	Error    string
-	KeySet   bool // o servidor tem HANKO_SECRET_KEY
-	VaultOn  bool // há cofre externo configurado
+	// Collections são os nomes das coleções da empresa: a escolha do formulário de segredo da empresa (padrão primeiro).
+	Collections []string
+	Notice      string
+	Error       string
+	KeySet      bool // o servidor tem HANKO_SECRET_KEY
+	VaultOn     bool // há cofre externo configurado
 	// UserOK: há uma pessoa autenticada (segredos de usuário exigem identidade).
 	UserOK  bool
 	Company []SecretRowVM

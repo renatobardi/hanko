@@ -26,6 +26,7 @@ type secretsBackend interface {
 	RevealSecret(ctx context.Context, actor domain.Actor, companyID domain.ID, scope domain.SecretScope, name string) (service.SecretView, error)
 	DeleteSecret(ctx context.Context, actor domain.Actor, companyID domain.ID, scope domain.SecretScope, name string, force bool) error
 	ListSecrets(ctx context.Context, companyID domain.ID, scope domain.SecretScope, withUsage bool) ([]service.SecretView, error)
+	ListCollections(ctx context.Context, companyID domain.ID) ([]service.CollectionView, error)
 }
 
 type instanceBackend interface {
@@ -132,6 +133,17 @@ func (s *server) secretsVM(r *http.Request, co domain.Company, be secretsBackend
 	for _, v := range list {
 		vm.Company = append(vm.Company, secretRow(base, v, false))
 	}
+	cols, err := be.ListCollections(ctx, co.ID)
+	if err != nil {
+		return vm, err
+	}
+	// a padrão vem sempre primeiro: a empresa pode ainda não tê-la (criada na primeira escolha, ADR-0068 §2.6)
+	vm.Collections = []string{domain.DefaultCollectionName}
+	for _, c := range cols {
+		if c.Name != domain.DefaultCollectionName {
+			vm.Collections = append(vm.Collections, c.Name)
+		}
+	}
 	if vm.UserOK {
 		ul, err := be.ListSecrets(ctx, co.ID, domain.SecretScopeUser, false)
 		if err != nil {
@@ -218,7 +230,7 @@ func (s *server) handleCreateSecret(w http.ResponseWriter, r *http.Request, co d
 	ctx := r.Context()
 	user := userScopeForm(r)
 	base := "/c/" + co.Slug
-	form := views.SecretFormVM{Action: base + "/configuracoes/segredos", Name: trimForm(r, "name"), Description: trimForm(r, "description"),
+	form := views.SecretFormVM{Action: base + "/configuracoes/segredos", Name: trimForm(r, "name"), Description: trimForm(r, "description"), Collection: trimForm(r, "collection"),
 		Provider: trimForm(r, "provider"), ExternalRef: trimForm(r, "external_ref"), Generate: r.PostFormValue("generate") != "", User: user,
 		FieldErr: map[string]string{}} // o valor digitado nunca volta para o formulário
 	if user {
@@ -230,7 +242,7 @@ func (s *server) handleCreateSecret(w http.ResponseWriter, r *http.Request, co d
 		return
 	}
 	in := service.CreateSecretInput{Scope: scopeOf(user), Name: form.Name, Description: form.Description, Provider: domain.SecretProvider(form.Provider),
-		Value: r.PostFormValue("value"), Generate: form.Generate, Gen: gen, ExternalRef: form.ExternalRef}
+		Value: r.PostFormValue("value"), Generate: form.Generate, Gen: gen, ExternalRef: form.ExternalRef, Collection: form.Collection}
 	if in.Provider == domain.SecretProviderVault {
 		in.Value, in.Generate = "", false
 	}

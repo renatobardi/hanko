@@ -3976,6 +3976,10 @@
       "CreateSecretInBody": {
         "additionalProperties": false,
         "properties": {
+          "collection": {
+            "description": "Coleção que recebe o segredo (nome ou id). Vazio = a padrão. Só segredo da empresa.",
+            "type": "string"
+          },
           "description": {
             "maxLength": 300,
             "type": "string"
@@ -12819,6 +12823,16 @@
           "updated_at": {
             "format": "date-time",
             "type": "string"
+          },
+          "warnings": {
+            "description": "Só na contratação: referências ${secret:} do adapter_config que a persona não alcança. Aviso, não bloqueia; a run falha até a concessão.",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
           },
           "workspace_id": {
             "format": "uuid",
