@@ -1,5 +1,5 @@
 # ADR-0085 — Hanko Desktop: app de barra de menu, chave no Keychain e aprovação pelo Terminal
-Data: 2026-10-25 · Status: proposta (aguarda aceite do Bardi) · Issue: #66 (v0.8) · Usa: ADR-0042, ADR-0076, ADR-0077, ADR-0080, ADR-0081, ADR-0082, ADR-0083
+Data: 2026-10-25 · Status: aceita (Bardi, 2026-10-25) · Issue: #66 (v0.8) · Usa: ADR-0042, ADR-0076, ADR-0077, ADR-0080, ADR-0081, ADR-0082, ADR-0083
 
 ## Contexto
 O Tray do oute é um app Swift de barra de menu no macOS, que lê o agent-studio (`tray/` em `845764f` do oute-agent):
