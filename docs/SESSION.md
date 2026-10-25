@@ -1,12 +1,15 @@
-# Corte da versão v0.7.1 · branch `release/v0.7.1`
-Data: 2026-10-25 · sessão `release-v0-7-1` (sem issue, #825; rodada swarm-1024-0625)
+# Cofre, fatia 1: pendências do #72 e do #86 · branch `sessao/95-cofre-pendencias-fatia1`
+Issue #95 · rodada swarm-1024-0625 · sessão retomada depois de cota esgotada na sessão anterior
 
 ## Feito
-- Corte da v0.7.1 (`docs/RELEASING.md` passos 1–3): main verde antes do corte (`ci` — jobs `check` e `release-dry-run` success — e `security` no head `804ae43`), seção `## [0.7.1] — 2026-10-25` no `CHANGELOG.md` com as 6 entregas desde a v0.7.0 (#86–#91; fatias 3–7 e a ligação da fatia 1 à reautenticação), `[Unreleased]` vazio, os 6 fragmentos de `changelog.d/` removidos; `scripts/release-notes.sh notes 0.7.1` imprime a seção (46 linhas, 29 marcadores).
-- Commit assinado `release: v0.7.1` (`a841b84`); PR do ramo `release/v0.7.1` para a `main`. Sem tag, sem merge, sem deploy (passos 4–6, do Bardi).
+- Aviso de alcance na contratação: API (`warnings` da persona), CLI e página da persona (`PersonaReachWarnings`, testes de service, API e UI).
+- Uso no despacho: `${secret:…}` do adapter_config e do env MCP grava `secret_access_log` (via `dispatch`), sem o valor (teste de service).
+- Coleção na criação: `hanko secret create --collection`, campo `collection` da API e select no formulário da UI (testes).
+- 404 em `DeleteCollection` e `RemoveSecretFromCollection` quando não há o que remover (teste).
+- openapi.json, templ e fragmento `changelog.d/cofre-pendencias-95.md`. Sem migration (nenhuma tabela nova).
 
 ## Travado
-- Nada.
+- Contratação por gate: o aviso aparece na página da persona (live), mas a API e a CLI não o devolvem na aprovação, que devolve o gate.
 
 ## Próximo passo
-- Bardi: fazer merge do PR, taguear `v0.7.1` no commit mergeado e deployar no `hanko-prd` (canal de aprovação).
+- PR com `Refs #95` (o gate fica de fora). Demo em produção do aviso (qa) com o Bardi.
