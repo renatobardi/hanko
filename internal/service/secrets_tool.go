@@ -82,7 +82,9 @@ func (s *Service) SecretGet(ctx context.Context, companyID domain.ID, in SecretG
 	if field == "" {
 		field = secretref.DefaultField
 	}
-	if !secretref.ValidName(item) {
+	user := strings.HasPrefix(item, UserSecretPrefix)
+	name := strings.TrimPrefix(item, UserSecretPrefix)
+	if !secretref.ValidName(name) {
 		return SecretGetResult{}, domain.Invalid("item", "nome de item inválido")
 	}
 	if !secretref.ValidFieldName(field) {
@@ -95,13 +97,20 @@ func (s *Service) SecretGet(ctx context.Context, companyID domain.ID, in SecretG
 	if c.PersonaID == nil {
 		return SecretGetResult{}, domain.Invalid("run", "hanko_secret_get só roda numa run de persona")
 	}
-	ref := secretref.Ref{Name: item, Field: field}
-	if _, err := s.read().GetCompanySecretByName(ctx, store.GetCompanySecretByNameParams{CompanyID: companyID, Name: item}); err != nil {
-		return SecretGetResult{}, mapErr(err, "segredo "+item)
-	}
-	// alcance antes da política: um item que a persona não alcança nem abre gate (ADR-0068 §2.5)
-	if err := s.requirePersonaUse(ctx, companyID, *c.PersonaID, ref); err != nil {
-		return SecretGetResult{}, err
+	ref := secretref.Ref{Name: name, Field: field, User: user}
+	if user {
+		// item pessoal: só com delegação válida do dono para esta run (ADR-0068 §6.2); sem ela nem abre gate
+		if _, _, _, err := s.delegatedUserSecret(ctx, companyID, in.RunID, ref); err != nil {
+			return SecretGetResult{}, err
+		}
+	} else {
+		if _, err := s.read().GetCompanySecretByName(ctx, store.GetCompanySecretByNameParams{CompanyID: companyID, Name: name}); err != nil {
+			return SecretGetResult{}, mapErr(err, "segredo "+name)
+		}
+		// alcance antes da política: um item que a persona não alcança nem abre gate (ADR-0068 §2.5)
+		if err := s.requirePersonaUse(ctx, companyID, *c.PersonaID, ref); err != nil {
+			return SecretGetResult{}, err
+		}
 	}
 	args, err := json.Marshal(map[string]string{"item": item, "campo": field})
 	if err != nil {
@@ -117,14 +126,27 @@ func (s *Service) SecretGet(ctx context.Context, companyID domain.ID, in SecretG
 	return s.readSecretForTool(ctx, c, companyID, ref)
 }
 
+// secretForTool acha o item da referência: o da empresa, ou o pessoal de quem pediu a run, com a delegação que o
+// libera. A delegação é conferida de novo aqui: ela pode ter sido revogada enquanto o gate esperava.
+func (s *Service) secretForTool(ctx context.Context, c ToolCaller, companyID domain.ID, ref secretref.Ref) (store.Secret, *domain.ID, error) {
+	if ref.User {
+		sec, d, _, err := s.delegatedUserSecret(ctx, companyID, *c.RunID, ref)
+		return sec, &d.ID, err
+	}
+	sec, err := s.read().GetCompanySecretByName(ctx, store.GetCompanySecretByNameParams{CompanyID: companyID, Name: ref.Name})
+	if err != nil {
+		return store.Secret{}, nil, mapErr(err, "segredo "+ref.Name)
+	}
+	return sec, nil, nil
+}
+
 // readSecretForTool lê o campo liberado pela política, entrega o que o tipo permite e registra o uso (sem valor).
 func (s *Service) readSecretForTool(ctx context.Context, c ToolCaller, companyID domain.ID, ref secretref.Ref) (SecretGetResult, error) {
-	q := s.read()
-	sec, err := q.GetCompanySecretByName(ctx, store.GetCompanySecretByNameParams{CompanyID: companyID, Name: ref.Name})
+	sec, delegationID, err := s.secretForTool(ctx, c, companyID, ref)
 	if err != nil {
-		return SecretGetResult{}, mapErr(err, "segredo "+ref.Name)
+		return SecretGetResult{}, err
 	}
-	f, err := q.GetSecretField(ctx, store.GetSecretFieldParams{CompanyID: companyID, SecretID: sec.ID, Name: ref.FieldName()})
+	f, err := s.read().GetSecretField(ctx, store.GetSecretFieldParams{CompanyID: companyID, SecretID: sec.ID, Name: ref.FieldName()})
 	if err != nil {
 		return SecretGetResult{}, mapErr(err, "campo "+ref.String())
 	}
@@ -153,18 +175,19 @@ func (s *Service) readSecretForTool(ctx context.Context, c ToolCaller, companyID
 		shown = out.Value
 	}
 	s.runSecrets.add(*c.RunID, shown)
-	if err := s.recordSecretUse(ctx, c, companyID, sec.ID, f, domain.SecretAccessTool); err != nil {
+	if err := s.recordSecretUse(ctx, c, companyID, sec.ID, f, domain.SecretAccessTool, delegationID); err != nil {
 		return SecretGetResult{}, err
 	}
 	return out, nil
 }
 
 // recordSecretUse registra o uso de um campo: a linha de secret_access_log (campo, via, run e persona), o instante de
-// uso do campo e o fato secret.accessed. Nunca leva o valor (ADR-0068 §4.4).
-func (s *Service) recordSecretUse(ctx context.Context, c ToolCaller, companyID, secretID domain.ID, f store.SecretField, via domain.SecretAccessVia) error {
+// uso do campo e o fato secret.accessed. delegationID é a delegação que liberou um item pessoal (nil nos demais). Nunca leva
+// o valor (ADR-0068 §4.4).
+func (s *Service) recordSecretUse(ctx context.Context, c ToolCaller, companyID, secretID domain.ID, f store.SecretField, via domain.SecretAccessVia, delegationID *domain.ID) error {
 	return s.withTx(ctx, func(t *txc) error {
 		if err := t.q.LogSecretAccess(t.ctx, store.LogSecretAccessParams{ID: domain.NewID(), CompanyID: companyID, SecretID: secretID,
-			FieldName: f.Name, Via: string(via), RunID: c.RunID, PersonaID: c.PersonaID, Now: t.now}); err != nil {
+			FieldName: f.Name, Via: string(via), RunID: c.RunID, PersonaID: c.PersonaID, DelegationID: delegationID, Now: t.now}); err != nil {
 			return mapErr(err, "log secret access")
 		}
 		now := ptrTime(t.now)
@@ -175,6 +198,6 @@ func (s *Service) recordSecretUse(ctx context.Context, c ToolCaller, companyID, 
 			return fmt.Errorf("touch secret field: %w", err)
 		}
 		return t.activity(domain.PersonaActor(*c.PersonaID), companyID, "secret.accessed", "secret", secretID,
-			map[string]any{"field": f.Name, "via": string(via), "run_id": c.RunID, "persona_id": c.PersonaID}, "")
+			map[string]any{"field": f.Name, "via": string(via), "run_id": c.RunID, "persona_id": c.PersonaID, "delegation_id": delegationID}, "")
 	})
 }

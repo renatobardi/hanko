@@ -41324,7 +41324,6 @@
     },
     "/api/v1/companies/{company}/me/delegations": {
       "get": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 5 (#60).",
         "operationId": "list-my-delegations",
         "parameters": [
           {
@@ -41438,16 +41437,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Lista as suas delegações",
@@ -41458,7 +41447,6 @@
     },
     "/api/v1/companies/{company}/me/delegations/{id}": {
       "delete": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 5 (#60).",
         "operationId": "revoke-secret-delegation",
         "parameters": [
           {
@@ -41547,16 +41535,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Revoga uma delegação",
@@ -68913,7 +68891,6 @@
     },
     "/api/v1/companies/{company}/user-secrets/{name}/delegations": {
       "post": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 5 (#60).",
         "operationId": "create-secret-delegation",
         "parameters": [
           {
@@ -69023,16 +69000,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Delega um segredo pessoal às runs de uma task ou conversa sua",
@@ -70464,7 +70431,6 @@
     },
     "/api/v1/companies/{company}/user-secrets/{name}/usage": {
       "get": {
-        "description": "Contrato do cofre (ADR-0068/0069/0070). Responde 501 até a fatia 5 (#60).",
         "operationId": "list-user-secret-usage",
         "parameters": [
           {
@@ -70591,16 +70557,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Onde e quando um segredo pessoal foi usado (só o dono)",
