@@ -1,5 +1,5 @@
 # ADR-0087 — Tags de persona e filtros do organograma por tag e por nível
-Data: 2026-10-26 · Status: proposta (aguarda aceite do Bardi) · Issue: #118 · Usa: ADR-0005, ADR-0021, ADR-0022, ADR-0024, ADR-0031 · Não muda: ADR-0064
+Data: 2026-10-26 · Status: aceita (Bardi, 2026-10-26) · Issue: #118 · Usa: ADR-0005, ADR-0021, ADR-0022, ADR-0024, ADR-0031 · Não muda: ADR-0064
 
 ## Contexto
 Hoje, só os documentos de artefato têm tags. Elas são texto livre num `text[]` do próprio documento, com até 20 por
@@ -85,8 +85,7 @@ filtrar o organograma por tag e por nível. As escolhas abaixo foram feitas por 
       `persona_tag.unarchived` e `persona_tag.deleted` (com o nome e a contagem de personas afetadas);
     - `persona.tagged` e `persona.untagged`, uma por persona.
 
-    Esses nomes foram propostos pelo autor no resumo final da sessão. O Bardi aceitou o resumo, mas não discutiu este
-    item em separado.
+    Esses nomes foram propostos pelo autor e aceitos pelo Bardi no gate do PR #119, junto com os itens 9 a 11.
 13. **Entrega.** É uma trilha paralela à v0.7 e à v0.8, porque não toca nas tabelas de cofre nem nas de agente externo.
     A ordem é: este ADR, depois o contrato (migrations no próximo número livre da `origin/main`, tipos de domínio e
     OpenAPI), cada um com o gate do Bardi. Em seguida vêm duas fatias de código: a primeira com os itens 1 a 4 e 6 a 12
