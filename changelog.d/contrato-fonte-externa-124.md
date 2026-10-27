@@ -1,0 +1,5 @@
+### Contrato da v0.8, grupo 1: fonte externa e ingestão
+
+- A migration 00208 cria o contrato da fonte externa e da ingestão (ADR-0075 a 0079, 0084 e 0086): agente, host e emparelhamento com os apelidos, sessão e conversa externas com a classificação, as tabelas de telemetria bruta particionadas por mês, as chamadas ao modelo e o agregado diário. A chave de API ganha o escopo `ingest`, presa a uma empresa, e o workspace ganha a marca de sistema para o `no-repo`. Só o contrato: nenhuma tela, rota ou ingestão funciona ainda, e nenhum dado se move.
+
+- English summary: migration 00208 adds the contract for the external source and ingestion (ADR-0075 to 0079, 0084 and 0086): agent, host and repo pairing with their aliases, external session and conversation with classification, monthly-partitioned raw telemetry tables, model calls and the daily aggregate. API keys gain the `ingest` scope, tied to a company, and workspaces gain a system flag for `no-repo`. Contract only: no screen, route or ingestion works yet, and no data moves.
