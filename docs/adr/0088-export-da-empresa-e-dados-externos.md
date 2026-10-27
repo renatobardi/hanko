@@ -1,5 +1,5 @@
 # ADR-0088 — Export da empresa: o que dos dados externos viaja
-Data: 2026-10-26 · Status: proposta (aguarda aceite do Bardi) · Issue: #66 (v0.8) · Usa: ADR-0022, ADR-0062, ADR-0075, ADR-0076, ADR-0077, ADR-0078, ADR-0082, ADR-0083 · Altera: ADR-0078
+Data: 2026-10-26 · Status: aceita (Bardi, 2026-10-26) · Issue: #66 (v0.8) · Usa: ADR-0022, ADR-0062, ADR-0075, ADR-0076, ADR-0077, ADR-0078, ADR-0082, ADR-0083 · Altera: ADR-0078
 
 ## Contexto
 O export serve para levar um time de personas de uma instalação para outra, ou guardar um modelo de empresa. O backup
