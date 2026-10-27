@@ -14,13 +14,19 @@ import (
 // As rotas de ingestão (`/v1/traces|logs|metrics` e `/v1/replay/*`) ficam no listener da ingestão e têm o OpenAPI
 // próprio (`api/openapi-ingest.json`).
 
-// pendingExternalOp registra uma operação do contrato da fonte externa que ainda responde 501.
-func pendingExternalOp[I, O any](api huma.API, o huma.Operation, slice string) {
-	o.Description = "Contrato da fonte externa (ADR-0075 a 0079). Responde 501 até a " + slice + "."
+// pendingContractOp registra uma operação de um contrato da v0.8 que ainda responde 501; `contract` diz de qual (por
+// exemplo "Contrato da fonte externa (ADR-0075 a 0079)") e `slice` em qual fatia ela fica pronta.
+func pendingContractOp[I, O any](api huma.API, o huma.Operation, contract, slice string) {
+	o.Description = contract + ". Responde 501 até a " + slice + "."
 	o.Errors = append(o.Errors, http.StatusNotImplemented)
 	huma.Register(api, o, func(context.Context, *I) (*O, error) {
 		return nil, problem(http.StatusNotImplemented, "operação ainda não implementada")
 	})
+}
+
+// pendingExternalOp registra uma operação do contrato da fonte externa que ainda responde 501.
+func pendingExternalOp[I, O any](api huma.API, o huma.Operation, slice string) {
+	pendingContractOp[I, O](api, o, "Contrato da fonte externa (ADR-0075 a 0079)", slice)
 }
 
 const (

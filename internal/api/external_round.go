@@ -8,24 +8,22 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 )
 
-// Contrato da rodada e da aprovação externas (ADR-0080 e 0081) e dos limites de disco e de alerta (ADR-0083 e comentário
-// da #66), grupo 3 da v0.8 (#124). Cada operação já tem entrada e saída no OpenAPI e responde 501 até a fatia que a
-// implementa; a descrição diz qual. O Hanko só observa: nenhuma operação marca, aprova nem roda algo no host. O texto de
-// uma etapa e o script de um pedido saem do fato da ingestão, com permissão e `activity_event` (ADR-0080 item 3; ADR-0081 item 3).
+// Contrato da rodada e da aprovação externas (ADR-0080 e 0081), grupo 3 da v0.8 (#124). Cada operação já tem entrada e
+// saída no OpenAPI e responde 501 até a fatia que a implementa; a descrição diz qual. Os limites de alerta (incluindo o
+// de disco) já têm operação no grupo 2 (`alert-settings`, ADR-0083). O Hanko só observa: nenhuma operação marca, aprova
+// nem roda algo no host. O texto de uma etapa e o script de um pedido saem do fato da ingestão, com permissão e
+// `activity_event` (ADR-0080 item 3; ADR-0081 item 3).
 
 // pendingRoundOp registra uma operação do contrato da rodada e da aprovação que ainda responde 501.
 func pendingRoundOp[I, O any](api huma.API, o huma.Operation, slice string) {
-	o.Description = "Contrato do grupo 3 da v0.8 (#124): rodada e aprovação externas (ADR-0080 e 0081), limites de alerta (ADR-0083). Responde 501 até a " + slice + "."
+	o.Description = "Contrato do grupo 3 da v0.8 (#124): rodada e aprovação externas (ADR-0080 e 0081). Responde 501 até a " + slice + "."
 	o.Errors = append(o.Errors, http.StatusNotImplemented)
 	huma.Register(api, o, func(context.Context, *I) (*O, error) {
 		return nil, problem(http.StatusNotImplemented, "operação ainda não implementada")
 	})
 }
 
-const (
-	sliceRoundApproval = "fatia 3 (#127)"
-	sliceAlertLimits   = "fatia 2 (#126)"
-)
+const sliceRoundApproval = "fatia 3 (#127)"
 
 // ---------- recursos ----------
 
@@ -138,11 +136,6 @@ type ApprovalScript struct {
 	Versions   []ApprovalVersion `json:"versions"`
 }
 
-// AlertLimits são os limites e prazos que a empresa mudou (ADR-0083 item 3; comentário da #66). O padrão vale pelo código.
-type AlertLimits struct {
-	Values map[string]float64 `json:"values" doc:"Só as chaves que a empresa mudou. Chaves limit.* e due.*."`
-}
-
 // ---------- entradas ----------
 
 type ExternalRoundPath struct {
@@ -189,13 +182,6 @@ type markRoundActionIn struct {
 	}
 }
 
-type updateAlertLimitsIn struct {
-	CompanyPath
-	Body struct {
-		Values map[string]float64 `json:"values" doc:"Chaves limit.* ou due.* (ADR-0083). Valor vazio ou nulo volta ao padrão."`
-	}
-}
-
 // ---------- registro ----------
 
 func (s *server) registerExternalRounds(api huma.API) {
@@ -219,11 +205,6 @@ func (s *server) registerExternalRounds(api huma.API) {
 		"Mostra um pedido do canal, com o sha256 e as versões; o comando oute approve <id> vai para copiar"), sliceRoundApproval)
 	pendingRoundOp[ExternalApprovalPath, ItemOut[ApprovalScript]](api, op("get-approval-script", http.MethodGet, b+"/external-approvals/{approval}/script", tag,
 		"Mostra o corpo do script de um pedido (owner ou admin; cada leitura gera activity_event)"), sliceRoundApproval)
-
-	pendingRoundOp[CompanyPath, ItemOut[AlertLimits]](api, op("get-alert-limits", http.MethodGet, b+"/alert-limits", tag,
-		"Mostra os limites e prazos que a empresa mudou; o resto vale o padrão do código"), sliceAlertLimits)
-	pendingRoundOp[updateAlertLimitsIn, ItemOut[AlertLimits]](api, op("update-alert-limits", http.MethodPatch, b+"/alert-limits", tag,
-		"Muda limites e prazos da empresa, incluindo o alerta de disco do Postgres (owner ou admin)"), sliceAlertLimits)
 }
 
 // RoundStepContent é o texto de uma etapa, lido do fato (ADR-0080 item 3). Só owner e admin leem.

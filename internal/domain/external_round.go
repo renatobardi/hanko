@@ -144,23 +144,3 @@ var sha256Re = regexp.MustCompile(`^[0-9a-f]{64}$`)
 
 // ValidSHA256 confere um resumo sha256 no formato do `oute approve`.
 func ValidSHA256(s string) bool { return sha256Re.MatchString(s) }
-
-// ---------- alerta de disco do Postgres ----------
-
-// AlertDBDiskLow é o alerta de disco do Postgres (comentário da #66, decisão do Bardi de 2026-10-25). O sujeito é a
-// empresa, como os demais alertas (`alerts.company_id` é obrigatório).
-const AlertDBDiskLow AlertKind = "db_disk_low"
-
-// Limites de disco por empresa (chaves de `company_alert_settings`, ADR-0083 item 3). Só guardam o que a empresa mudou;
-// o padrão vale pelo código. A unidade é GiB, no nome da chave.
-const (
-	LimitDBDiskWarnGiB     = "limit.db_disk_warn_gib"
-	LimitDBDiskCriticalGiB = "limit.db_disk_critical_gib"
-)
-
-// Padrões do alerta de disco: os mesmos avisos do `hanko doctor` (ADR-0062: aviso abaixo de 5 GiB livres, falha abaixo
-// de 512 MiB). Recomendação do autor, a confirmar com o Bardi antes da fatia do alerta (#126).
-const (
-	DefaultDBDiskWarnGiB     = 5.0
-	DefaultDBDiskCriticalGiB = 0.5
-)

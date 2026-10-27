@@ -21,10 +21,13 @@ const (
 	// AlertSecretRotationDue: um campo de segredo da empresa passou do prazo de rotação (do item ou da coleção); um
 	// alerta por item, fechado quando o campo é rotacionado (ADR-0068 §7.3).
 	AlertSecretRotationDue AlertKind = "secret_rotation_due"
+	// AlertDBDiskLow: o disco do Postgres está abaixo do limite de aviso ou de falha (comentário da #66; ADR-0062). O Hanko
+	// mede por job, por isso entra em AlertKinds, e não em ExternalAlertKinds. Limites: `limit.db_disk_*_gib`.
+	AlertDBDiskLow AlertKind = "db_disk_low"
 )
 
 // AlertKinds lista todos os tipos, na ordem em que aparecem em /metrics.
-var AlertKinds = []AlertKind{AlertPersonaSilent, AlertRunStuck, AlertBudgetNearLimit, AlertPersonaNotReady, AlertSecretRotationDue}
+var AlertKinds = []AlertKind{AlertPersonaSilent, AlertRunStuck, AlertBudgetNearLimit, AlertPersonaNotReady, AlertSecretRotationDue, AlertDBDiskLow}
 
 func (k AlertKind) Valid() bool {
 	for _, v := range AlertKinds {
@@ -32,7 +35,7 @@ func (k AlertKind) Valid() bool {
 			return true
 		}
 	}
-	return false
+	return k.IsExternal()
 }
 
 // AlertSeverity separa o que merece atenção (warning) do que já está parando trabalho (critical).
@@ -49,7 +52,7 @@ type Alert struct {
 	ID          ID              `json:"id"`
 	CompanyID   ID              `json:"company_id"`
 	Kind        AlertKind       `json:"kind"`
-	SubjectType string          `json:"subject_type"` // persona | run | company
+	SubjectType string          `json:"subject_type"` // persona | run | company | secret | external_host | external_agent | external_round | model | price_source
 	SubjectID   ID              `json:"subject_id"`
 	Severity    AlertSeverity   `json:"severity"`
 	Message     string          `json:"message"`

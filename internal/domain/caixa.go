@@ -21,11 +21,14 @@ const (
 	InboxSubscription InboxItemKind = "subscription"
 	InboxMention      InboxItemKind = "mention"
 	InboxGoalAchieved InboxItemKind = "goal_achieved"
+	// InboxRoundQuestion e InboxExternalApproval são os itens da rodada e da aprovação externas (ADR-0080 item 6; ADR-0081 item 6).
+	InboxRoundQuestion    InboxItemKind = "round_question"
+	InboxExternalApproval InboxItemKind = "external_approval"
 )
 
 // InboxItemKinds lista os tipos na ordem em que a API os documenta.
 var InboxItemKinds = []InboxItemKind{InboxGate, InboxTaskBlocked, InboxTaskHeld, InboxRunFailed, InboxPersonaError,
-	InboxAlert, InboxSubscription, InboxMention, InboxGoalAchieved}
+	InboxAlert, InboxSubscription, InboxMention, InboxGoalAchieved, InboxRoundQuestion, InboxExternalApproval}
 
 // Valid diz se k é um tipo conhecido.
 func (k InboxItemKind) Valid() bool {

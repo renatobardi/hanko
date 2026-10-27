@@ -100,11 +100,16 @@ func TestApprovalEnumsAndSHA(t *testing.T) {
 	}
 }
 
-func TestDBDiskDefaultsAndKeys(t *testing.T) {
-	if DefaultDBDiskCriticalGiB >= DefaultDBDiskWarnGiB {
+func TestDBDiskLimitsAndAlert(t *testing.T) {
+	warn, okWarn := AlertSettingSpecOf("limit.db_disk_warn_gib")
+	crit, okCrit := AlertSettingSpecOf("limit.db_disk_critical_gib")
+	if !okWarn || !okCrit {
+		t.Fatal("os limites de disco têm que estar em AlertLimitSpecs")
+	}
+	if crit.Default >= warn.Default {
 		t.Error("o limite crítico do disco tem que ficar abaixo do aviso")
 	}
-	if !strings.HasPrefix(LimitDBDiskWarnGiB, "limit.") || !strings.HasPrefix(LimitDBDiskCriticalGiB, "limit.") {
-		t.Error("as chaves do disco seguem o formato limit.<nome> de company_alert_settings")
+	if !AlertDBDiskLow.Valid() {
+		t.Error("o alerta de disco tem que ser um tipo válido")
 	}
 }

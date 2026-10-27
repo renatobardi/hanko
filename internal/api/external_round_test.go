@@ -6,8 +6,7 @@ import (
 	"testing"
 )
 
-// O contrato da rodada e da aprovação externas (ADR-0080 e 0081) e dos limites de disco responde 501 até cada fatia ligar
-// o backend (#124, grupo 3).
+// O contrato da rodada e da aprovação externas (ADR-0080 e 0081) responde 501 até cada fatia ligar o backend (#124, grupo 3).
 func TestExternalRoundContratoResponde501(t *testing.T) {
 	ts, _ := newTestServer(t, &fakeSvc{}, nil)
 	const id = "00000000-0000-0000-0000-000000000001"
@@ -21,8 +20,6 @@ func TestExternalRoundContratoResponde501(t *testing.T) {
 		{"GET", base + "/external-approvals", ""},
 		{"GET", base + "/external-approvals/" + id, ""},
 		{"GET", base + "/external-approvals/" + id + "/script", ""},
-		{"GET", base + "/alert-limits", ""},
-		{"PATCH", base + "/alert-limits", `{"values":{"limit.db_disk_warn_gib":5}}`},
 	} {
 		resp, body := do(t, c.method, ts.URL+c.path, c.body, nil)
 		if resp.StatusCode != 501 {
@@ -59,7 +56,7 @@ func TestExternalRoundContratoResponde501(t *testing.T) {
 			}
 		}
 	}
-	if n != 10 {
-		t.Fatalf("operações do contrato da rodada e da aprovação = %d, quer 10", n)
+	if n != 8 {
+		t.Fatalf("operações do contrato da rodada e da aprovação = %d, quer 8", n)
 	}
 }
