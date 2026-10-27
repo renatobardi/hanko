@@ -11,6 +11,19 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type ActionMark struct {
+	ID             uuid.UUID
+	CompanyID      uuid.UUID
+	StepID         uuid.UUID
+	ActionID       string
+	State          string
+	MarkedByType   string
+	MarkedByID     *uuid.UUID
+	MarkedUnixNano int64
+	Migrated       bool
+	CreatedAt      time.Time
+}
+
 type ActivityEvent struct {
 	ID          uuid.UUID
 	CompanyID   uuid.UUID
@@ -646,6 +659,43 @@ type ExternalAgentAlias struct {
 	CreatedAt time.Time
 }
 
+type ExternalApproval struct {
+	ID                uuid.UUID
+	CompanyID         uuid.UUID
+	SourceKind        string
+	CanalID           string
+	Title             string
+	RequestedAs       string
+	Origin            string
+	HostID            *uuid.UUID
+	HostName          string
+	AgentID           *uuid.UUID
+	ExternalSessionID *uuid.UUID
+	State             string
+	Decision          *string
+	Approver          *string
+	Rc                *int32
+	DurationMs        *int32
+	OutputBytes       *int32
+	DecidedSha256     *string
+	ScriptSha256      string
+	FactDedupeKey     string
+	FactTimeUnixNano  *int64
+	RequestedAt       *int64
+	DecidedAt         *int64
+	ListedAt          *int64
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+}
+
+type ExternalApprovalVersion struct {
+	ApprovalID       uuid.UUID
+	Sha256           string
+	FactDedupeKey    string
+	FactTimeUnixNano int64
+	SeenAt           int64
+}
+
 type ExternalConversation struct {
 	ID                  uuid.UUID
 	CompanyID           uuid.UUID
@@ -688,6 +738,7 @@ type ExternalConversation struct {
 	Tags                []string
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
+	SearchTsv           interface{}
 }
 
 type ExternalHost struct {
@@ -709,6 +760,33 @@ type ExternalHostAlias struct {
 	CreatedAt time.Time
 }
 
+type ExternalOutboxSnapshot struct {
+	HostID     uuid.UUID
+	CompanyID  uuid.UUID
+	SnapshotAt int64
+	CanalIds   []string
+	ReceivedAt int64
+}
+
+type ExternalRound struct {
+	ID          uuid.UUID
+	CompanyID   uuid.UUID
+	SourceKind  string
+	RoundKey    string
+	Name        string
+	CycleID     *uuid.UUID
+	CycleAt     *int64
+	Repo        string
+	RepoAt      *int64
+	WorkspaceID *uuid.UUID
+	MaxSessions *int32
+	MaxAt       *int64
+	OpenedAt    *int64
+	ClosedAt    *int64
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
 type ExternalSession struct {
 	ID          uuid.UUID
 	CompanyID   uuid.UUID
@@ -725,6 +803,7 @@ type ExternalSession struct {
 	LastAt      *int64
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+	SearchTsv   interface{}
 }
 
 type Flow struct {
@@ -1493,6 +1572,47 @@ type Review struct {
 	FinishedAt        *time.Time
 }
 
+type RoundCycle struct {
+	ID         uuid.UUID
+	CompanyID  uuid.UUID
+	SourceKind string
+	IssueRef   string
+	CreatedAt  time.Time
+}
+
+type RoundParticipant struct {
+	ID                uuid.UUID
+	CompanyID         uuid.UUID
+	SourceKind        string
+	RoundID           uuid.UUID
+	Slug              string
+	IssueRef          string
+	ExternalSessionID *uuid.UUID
+	SpawnedAt         *int64
+	ClosedAt          *int64
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+}
+
+type RoundStep struct {
+	ID               uuid.UUID
+	CompanyID        uuid.UUID
+	SourceKind       string
+	RoundID          *uuid.UUID
+	CycleID          *uuid.UUID
+	Kind             string
+	StepKey          string
+	Revision         int64
+	Sha256           string
+	Review           string
+	ReferenceCheck   string
+	FactDedupeKey    string
+	FactTimeUnixNano int64
+	PublishedAt      int64
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+}
+
 type Run struct {
 	ID                  uuid.UUID
 	CompanyID           uuid.UUID
@@ -1934,6 +2054,16 @@ type StatusCardUpdate struct {
 	FinishedAt    *time.Time
 	Status        string
 	Error         string
+}
+
+type StepAction struct {
+	ID          uuid.UUID
+	CompanyID   uuid.UUID
+	SourceKind  string
+	StepID      uuid.UUID
+	ActionID    string
+	ApprovalKey string
+	CreatedAt   time.Time
 }
 
 type Subscription struct {
