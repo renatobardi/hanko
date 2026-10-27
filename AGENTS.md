@@ -27,7 +27,7 @@ Este arquivo é a memória de trabalho do projeto. Toda sessão (humano, Claude 
 Cada item abaixo já reprovou PR no CI depois de aberto. Confira no diff antes do push.
 - `ctx context.Context` é o primeiro parâmetro, inclusive em helper de teste (revive `context-as-argument`).
 - Conversão entre tipos inteiros só com limite validado antes (gosec G115); não converta `int` para `int32`/`uint` sem checar a faixa.
-- Nunca hash simples (SHA-256, MD5…) para senha ou dado sensível de baixa entropia (CodeQL `go/weak-sensitive-data-hashing`); use KDF (bcrypt, argon2 ou scrypt). Token de alta entropia usa HMAC com rótulo, como `internal/auth/secretbox.go`.
+- Nunca hash simples (SHA-256, MD5…) para senha ou dado sensível de baixa entropia (CodeQL `go/weak-sensitive-data-hashing`); use KDF (bcrypt, argon2 ou scrypt). Token de alta entropia usa HMAC com rótulo, como `internal/secretbox/secretbox.go`.
 - Função com complexidade cognitiva até 15 (Sonar); extraia helpers antes de passar disso.
 - Texto novo de CLI ou UI entra no catálogo de tradução; rode `go test ./internal/i18n ./internal/ui` (`TestCatalogCoversSources`).
 - Depois do push, rode `oute-sonar pr <n> --json` (ou leia o check SonarCloud do PR) e só avise que o PR está pronto com o gate OK.
