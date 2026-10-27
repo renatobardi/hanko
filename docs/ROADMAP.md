@@ -131,14 +131,14 @@ Antes do ensaio (fatia 6), a #81 (tokens gravados nos spans internos do Codex) p
 
 | Fatia | Issue | Entregável | Depende de | Demo |
 |---|---|---|---|---|
-| 0 | a abrir | Contrato: migrations (a partir da maior da `origin/main`), tipos de domínio, queries e OpenAPI em 501, com `source_kind` em cada conceito (ADR-0086) e o alerta de disco do Postgres (comentário da #66) | v0.7 fechada | Os geradores passam e a API nova responde 501 em cada operação |
-| 1 | a abrir | Fonte e ingestão: agente externo, emparelhamento, host, listener `ingest`, OTLP, conversa e sessão, classificação e gerador único de nome (ADR-0075 a 0079 e 0084) | 0 | Um host manda OTLP à ingestão e a conversa aparece com nome, classe e repositório emparelhado |
-| 2 | a abrir | Custo elevado e alertas de agente externo (ADR-0082 e 0083) | 1 | A chamada externa aparece com custo e classe; um alerta abre e fecha |
-| 3 | a abrir | Rodada externa e aprovação externa (ADR-0080 e 0081) | 1, 2 | Uma rodada do swarm e um pedido do canal aparecem; a tela mostra `oute approve <id>` |
-| 4 | a abrir | Telas, Caixa, busca e export dos dados externos (ADR-0088) | 1, 2, 3 | Os conceitos aparecem nas telas, na Caixa e na busca; o export leva só a configuração |
-| 5 | a abrir | Hanko Desktop (ADR-0085) | 4 | O app mostra a Caixa e abre o Terminal no `oute approve` |
-| 6 | a abrir | Migração, ensaio e conciliação 100% contra uma cópia do DuckDB (ADR-0082 item 8) | 1, 2, 3, 4 | Cada diferença do ensaio tem explicação, e as somas de custo batem |
-| 7 | a abrir | PRs dos consumidores no oute-agent e janela de corte, com volta garantida (#66, decisões 2, 3, 11 e 13) | 5, 6 | O oute manda e lê pelo Hanko; o agent-studio fica parado e intacto até o ok do Bardi |
+| 0 | #124 | Contrato: migrations (a partir da maior da `origin/main`), tipos de domínio, queries e OpenAPI em 501, com `source_kind` em cada conceito (ADR-0086) e o alerta de disco do Postgres (comentário da #66) | v0.7 fechada | Os geradores passam e a API nova responde 501 em cada operação |
+| 1 | #125 | Fonte e ingestão: agente externo, emparelhamento, host, listener `ingest`, OTLP, conversa e sessão, classificação e gerador único de nome (ADR-0075 a 0079 e 0084) | 0 | Um host manda OTLP à ingestão e a conversa aparece com nome, classe e repositório emparelhado |
+| 2 | #126 | Custo elevado e alertas de agente externo (ADR-0082 e 0083) | 1 | A chamada externa aparece com custo e classe; um alerta abre e fecha |
+| 3 | #127 | Rodada externa e aprovação externa (ADR-0080 e 0081) | 1, 2 | Uma rodada do swarm e um pedido do canal aparecem; a tela mostra `oute approve <id>` |
+| 4 | #128 | Telas, Caixa, busca e export dos dados externos (ADR-0088) | 1, 2, 3 | Os conceitos aparecem nas telas, na Caixa e na busca; o export leva só a configuração |
+| 5 | #129 | Hanko Desktop (ADR-0085) | 4 | O app mostra a Caixa e abre o Terminal no `oute approve` |
+| 6 | #130 | Migração, ensaio e conciliação 100% contra uma cópia do DuckDB (ADR-0082 item 8) | 1, 2, 3, 4 | Cada diferença do ensaio tem explicação, e as somas de custo batem |
+| 7 | #131 | PRs dos consumidores no oute-agent e janela de corte, com volta garantida (#66, decisões 2, 3, 11 e 13) | 5, 6 | O oute manda e lê pelo Hanko; o agent-studio fica parado e intacto até o ok do Bardi |
 
 ## Depois (ideias, sem data)
 - Modelo local no Mac (oMLX) por persona: harness `claude` com `adapter_config.env` (`ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_MODEL`) apontando ao endpoint Anthropic do oMLX; não suportado oficialmente pela Anthropic para modelos não-Claude. **Testado em 2026-10-15 (Mac 24 GB, oMLX 0.7.0 via Tailscale): inviável por ora.** Rede, chave e `/v1/messages` funcionam a partir do container do Hanko, mas Qwen2.5-Coder-14B e Qwen3-8B-4bit devolvem a chamada de tool como texto (sem `tool_use`), e o Qwen3.8-27B não cabe na RAM com o Mac em uso. Persona operacional simples fica no Haiku; reavaliar com mais RAM ou com um modelo de tool calling comprovado no oMLX (o harness HTTP do M12 reabre o teste). Se testar de novo: guard de memória `aggressive`, `sudo purge` antes e `--tools Bash` para encolher o prompt.
