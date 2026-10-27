@@ -32,7 +32,7 @@ CREATE UNIQUE INDEX external_agent_name_uq ON external_agent (company_id, lower(
 -- Apelido: cada texto de agente que já chegou aponta para um agente externo. Juntar dois agentes move os apelidos.
 CREATE TABLE external_agent_alias (
     company_id uuid NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-    alias      text NOT NULL CHECK (alias <> '' AND length(alias) <= 200),
+    alias      text NOT NULL CHECK (length(alias) BETWEEN 1 AND 200),
     agent_id   uuid NOT NULL REFERENCES external_agent(id) ON DELETE CASCADE,
     created_at timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (company_id, alias)
@@ -55,7 +55,7 @@ CREATE UNIQUE INDEX external_host_name_uq ON external_host (company_id, lower(na
 
 CREATE TABLE external_host_alias (
     company_id uuid NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-    alias      text NOT NULL CHECK (alias <> '' AND length(alias) <= 200),
+    alias      text NOT NULL CHECK (length(alias) BETWEEN 1 AND 200),
     host_id    uuid NOT NULL REFERENCES external_host(id) ON DELETE CASCADE,
     created_at timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (company_id, alias)
@@ -67,7 +67,7 @@ CREATE INDEX external_host_alias_host_idx ON external_host_alias (host_id);
 CREATE TABLE repo_pairing (
     id           uuid PRIMARY KEY,
     company_id   uuid NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-    repo_key     text NOT NULL CHECK (repo_key <> '' AND length(repo_key) <= 500),
+    repo_key     text NOT NULL CHECK (length(repo_key) BETWEEN 1 AND 500),
     key_kind     text NOT NULL CHECK (key_kind IN ('url', 'name')),
     workspace_id uuid NOT NULL REFERENCES workspaces(id) ON DELETE RESTRICT,
     created_at   timestamptz NOT NULL DEFAULT now(),
@@ -81,7 +81,7 @@ CREATE TABLE external_session (
     id           uuid PRIMARY KEY,
     company_id   uuid NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
     source_kind  text NOT NULL DEFAULT 'external' CHECK (source_kind IN ('external')),
-    task_id      text NOT NULL CHECK (task_id <> '' AND length(task_id) <= 200),
+    task_id      text NOT NULL CHECK (length(task_id) BETWEEN 1 AND 200),
     oute_repo    text NOT NULL DEFAULT '',
     workspace_id uuid REFERENCES workspaces(id) ON DELETE SET NULL,
     slug         text NOT NULL DEFAULT '',
@@ -103,7 +103,7 @@ CREATE TABLE external_conversation (
     id                  uuid PRIMARY KEY,
     company_id          uuid NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
     source_kind         text NOT NULL DEFAULT 'external' CHECK (source_kind IN ('external')),
-    session_id          text NOT NULL CHECK (session_id <> '' AND length(session_id) <= 200),
+    session_id          text NOT NULL CHECK (length(session_id) BETWEEN 1 AND 200),
     name                text NOT NULL CHECK (name ~ '^[A-Z][a-z]+_[A-Z][a-z]+(_[1-9][0-9]{2})?$'),
     external_session_id uuid REFERENCES external_session(id) ON DELETE SET NULL,
     host_id             uuid REFERENCES external_host(id) ON DELETE RESTRICT,
@@ -157,7 +157,7 @@ CREATE TABLE conversation_class_input (
     company_id             uuid NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
     conversation_id        uuid NOT NULL REFERENCES external_conversation(id) ON DELETE CASCADE,
     kind                   text NOT NULL CHECK (kind IN ('decision_model', 'manual')),
-    class                  text NOT NULL CHECK (class <> '' AND length(class) <= 40),
+    class                  text NOT NULL CHECK (length(class) BETWEEN 1 AND 40),
     confidence             text NOT NULL CHECK (confidence IN ('high', 'low')),
     decision_invocation_id uuid REFERENCES decision_invocations(id) ON DELETE SET NULL,
     actor_type             text NOT NULL CHECK (actor_type IN ('human', 'system')),

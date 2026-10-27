@@ -775,7 +775,7 @@ func (q *Queries) ImportTask(ctx context.Context, arg ImportTaskParams) (Task, e
 const importWorkspace = `-- name: ImportWorkspace :one
 INSERT INTO workspaces (id, company_id, slug, name, path, repo_url, default_branch, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-RETURNING id, company_id, slug, name, path, repo_url, created_at, updated_at, default_branch
+RETURNING id, company_id, slug, name, path, repo_url, created_at, updated_at, default_branch, is_system
 `
 
 type ImportWorkspaceParams struct {
@@ -813,6 +813,7 @@ func (q *Queries) ImportWorkspace(ctx context.Context, arg ImportWorkspaceParams
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DefaultBranch,
+		&i.IsSystem,
 	)
 	return i, err
 }

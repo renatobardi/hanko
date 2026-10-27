@@ -61,6 +61,7 @@ type ApiKey struct {
 	RevokedAt  *time.Time
 	Scope      string
 	Device     string
+	CompanyID  *uuid.UUID
 }
 
 type Artifact struct {
@@ -152,6 +153,25 @@ type BudgetIncident struct {
 	ResolvedByID   *uuid.UUID
 	OpenedAt       time.Time
 	ResolvedAt     *time.Time
+}
+
+type CallsDaily struct {
+	CompanyID           uuid.UUID
+	Day                 time.Time
+	HostID              uuid.UUID
+	AgentID             uuid.UUID
+	WorkspaceID         uuid.UUID
+	Model               string
+	SubscriptionKey     string
+	Calls               int64
+	Errors              int64
+	InputTokens         int64
+	OutputTokens        int64
+	CacheReadTokens     int64
+	CacheCreationTokens int64
+	CostRealUsd         float64
+	CostListUsd         float64
+	UnpricedCalls       int64
 }
 
 type Case struct {
@@ -442,6 +462,20 @@ type Conversation struct {
 	RoomSettings  []byte
 }
 
+type ConversationClassInput struct {
+	ID                   uuid.UUID
+	CompanyID            uuid.UUID
+	ConversationID       uuid.UUID
+	Kind                 string
+	Class                string
+	Confidence           string
+	DecisionInvocationID *uuid.UUID
+	ActorType            string
+	ActorID              *uuid.UUID
+	Migrated             bool
+	CreatedAt            time.Time
+}
+
 type ConversationMessage struct {
 	ID             uuid.UUID
 	CompanyID      uuid.UUID
@@ -584,6 +618,104 @@ type EnvironmentLease struct {
 	AcquiredAt    time.Time
 	ReleasedAt    *time.Time
 	FailureReason string
+}
+
+type ExternalAgent struct {
+	ID         uuid.UUID
+	CompanyID  uuid.UUID
+	SourceKind string
+	Name       string
+	ArchivedAt *time.Time
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+}
+
+type ExternalAgentAlias struct {
+	CompanyID uuid.UUID
+	Alias     string
+	AgentID   uuid.UUID
+	CreatedAt time.Time
+}
+
+type ExternalConversation struct {
+	ID                  uuid.UUID
+	CompanyID           uuid.UUID
+	SourceKind          string
+	SessionID           string
+	Name                string
+	ExternalSessionID   *uuid.UUID
+	HostID              *uuid.UUID
+	HostAt              *int64
+	AgentID             *uuid.UUID
+	AgentAt             *int64
+	OuteInstance        string
+	OuteInstanceAt      *int64
+	ServiceName         string
+	ServiceNameAt       *int64
+	SubscriptionKey     string
+	SubscriptionKeyAt   *int64
+	OuteRepo            string
+	OuteRepoAt          *int64
+	WorkspaceID         *uuid.UUID
+	InferredAttribution bool
+	FirstAt             *int64
+	LastAt              *int64
+	Calls               int64
+	Errors              int64
+	InputTokens         int64
+	OutputTokens        int64
+	CacheReadTokens     int64
+	CacheCreationTokens int64
+	CostRealUsd         float64
+	CostListUsd         float64
+	UnpricedCalls       int64
+	P95Ms               *int32
+	ContextAvg          *int64
+	ContextMax          *int64
+	Class               string
+	ClassOrigin         string
+	ClassConfidence     string
+	Classifier          string
+	Tags                []string
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+}
+
+type ExternalHost struct {
+	ID         uuid.UUID
+	CompanyID  uuid.UUID
+	SourceKind string
+	Name       string
+	AlwaysOn   bool
+	LastSeenAt *time.Time
+	ArchivedAt *time.Time
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+}
+
+type ExternalHostAlias struct {
+	CompanyID uuid.UUID
+	Alias     string
+	HostID    uuid.UUID
+	CreatedAt time.Time
+}
+
+type ExternalSession struct {
+	ID          uuid.UUID
+	CompanyID   uuid.UUID
+	SourceKind  string
+	TaskID      string
+	OuteRepo    string
+	WorkspaceID *uuid.UUID
+	Slug        string
+	AgentID     *uuid.UUID
+	State       string
+	Round       string
+	Worker      string
+	FirstAt     *int64
+	LastAt      *int64
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 type Flow struct {
@@ -932,6 +1064,30 @@ type MemorySetting struct {
 	UpdatedAt        time.Time
 }
 
+type ModelCall struct {
+	CompanyID           uuid.UUID
+	DedupeKey           string
+	TimeUnixNano        int64
+	ConversationID      *uuid.UUID
+	HostID              uuid.UUID
+	AgentID             uuid.UUID
+	WorkspaceID         uuid.UUID
+	Role                string
+	Model               string
+	SubscriptionKey     string
+	InputTokens         int64
+	OutputTokens        int64
+	CacheReadTokens     int64
+	CacheCreationTokens int64
+	DurationNs          *int64
+	IsError             bool
+	CostClass           string
+	CostRealUsd         *float64
+	CostListUsd         *float64
+	PriceID             *uuid.UUID
+	Origin              string
+}
+
 type ModelPrice struct {
 	ID                   uuid.UUID
 	Model                string
@@ -1265,6 +1421,16 @@ type RateLimitBucket struct {
 	Tokens      float64
 	UpdatedAt   time.Time
 	LastAllowed bool
+}
+
+type RepoPairing struct {
+	ID          uuid.UUID
+	CompanyID   uuid.UUID
+	RepoKey     string
+	KeyKind     string
+	WorkspaceID uuid.UUID
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 type Review struct {
@@ -1928,6 +2094,100 @@ type TeamInstall struct {
 	CreatedAt       time.Time
 }
 
+type TelemetryLog struct {
+	CompanyID          uuid.UUID
+	DedupeKey          string
+	TimeUnixNano       int64
+	ObservedUnixNano   *int64
+	HostName           *string
+	OuteInstance       *string
+	OuteAgent          *string
+	ServiceName        *string
+	SessionID          *string
+	OuteTaskID         *string
+	OuteSwarmRound     *string
+	OuteRepo           *string
+	OuteSubscription   *string
+	EventName          *string
+	OuteEventID        *string
+	SeverityNumber     *int32
+	SeverityText       *string
+	Body               *string
+	TraceID            *string
+	SpanID             *string
+	ScopeName          *string
+	ResourceAttributes []byte
+	Attributes         []byte
+	ReceivedUnixNano   int64
+	IngestedByKeyID    *uuid.UUID
+}
+
+type TelemetryMetric struct {
+	CompanyID              uuid.UUID
+	DedupeKey              string
+	TimeUnixNano           int64
+	StartUnixNano          *int64
+	HostName               *string
+	OuteInstance           *string
+	OuteAgent              *string
+	ServiceName            *string
+	SessionID              *string
+	OuteTaskID             *string
+	OuteSwarmRound         *string
+	OuteRepo               *string
+	OuteSubscription       *string
+	MetricName             string
+	MetricType             string
+	Unit                   *string
+	Value                  *float64
+	Count                  *int64
+	IsMonotonic            pgtype.Bool
+	AggregationTemporality *int32
+	ScopeName              *string
+	ResourceAttributes     []byte
+	Attributes             []byte
+	Point                  []byte
+	ReceivedUnixNano       int64
+	IngestedByKeyID        *uuid.UUID
+}
+
+type TelemetrySpan struct {
+	CompanyID           uuid.UUID
+	DedupeKey           string
+	TimeUnixNano        int64
+	EndUnixNano         *int64
+	DurationNs          *int64
+	HostName            *string
+	OuteInstance        *string
+	OuteAgent           *string
+	ServiceName         *string
+	SessionID           *string
+	OuteTaskID          *string
+	OuteSwarmRound      *string
+	OuteRepo            *string
+	OuteSubscription    *string
+	TraceID             string
+	SpanID              string
+	ParentSpanID        *string
+	Name                *string
+	Kind                *int32
+	StatusCode          *int32
+	StatusMessage       *string
+	Model               *string
+	InputTokens         *int64
+	OutputTokens        *int64
+	CacheReadTokens     *int64
+	CacheCreationTokens *int64
+	CostUsd             *float64
+	ScopeName           *string
+	ResourceAttributes  []byte
+	Attributes          []byte
+	Events              []byte
+	Links               []byte
+	ReceivedUnixNano    int64
+	IngestedByKeyID     *uuid.UUID
+}
+
 type ToolCallApproval struct {
 	ID            uuid.UUID
 	CompanyID     uuid.UUID
@@ -2141,6 +2401,7 @@ type Workspace struct {
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 	DefaultBranch string
+	IsSystem      bool
 }
 
 type WorkspaceGit struct {
