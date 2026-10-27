@@ -9,4 +9,4 @@ Data: 2026-10-26
 - Nada.
 
 ## Próximo passo
-- Bardi decide o merge do PR; a v0.8 segue esperando o fechamento da v0.7.
+- Bardi decide o merge do PR #121 após os ajustes da auditoria; a v0.8 segue esperando o fechamento da v0.7.
