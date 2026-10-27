@@ -330,6 +330,7 @@ var enCLI = map[string]string{
 	"Aplica as migrações do banco (schema e fila)":              "Applies the database migrations (schema and queue)",
 	"Mostra a versão": "Shows the version",
 	"Imprime o OpenAPI da API (não precisa de banco)":                                                                          "Prints the API's OpenAPI (needs no database)",
+	"Imprime o OpenAPI da ingestão (listener próprio), em vez do da API":                                                       "Prints the ingestion OpenAPI (own listener) instead of the API one",
 	"Imprime o OpenAPI gerado a partir dos handlers. Para atualizar o arquivo versionado:\n  hanko openapi > api/openapi.json": "Prints the OpenAPI generated from the handlers. To update the versioned file:\n  hanko openapi > api/openapi.json",
 	"livre":                               "free",
 	"TRAVADA: novas execuções bloqueadas": "LOCKED: new runs blocked",

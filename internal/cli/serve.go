@@ -76,7 +76,8 @@ func (e *env) versionCmd() *cobra.Command {
 }
 
 func (e *env) openapiCmd() *cobra.Command {
-	return &cobra.Command{
+	var ingest bool
+	cmd := &cobra.Command{
 		Use:   "openapi",
 		Short: e.t("Imprime o OpenAPI da API (não precisa de banco)"),
 		Long:  e.t("Imprime o OpenAPI gerado a partir dos handlers. Para atualizar o arquivo versionado:\n  hanko openapi > api/openapi.json"),
@@ -86,6 +87,9 @@ func (e *env) openapiCmd() *cobra.Command {
 			if gen == nil {
 				gen = api.Spec
 			}
+			if ingest {
+				gen = api.SpecIngest
+			}
 			b, err := gen()
 			if err != nil {
 				return err
@@ -94,4 +98,6 @@ func (e *env) openapiCmd() *cobra.Command {
 			return err
 		},
 	}
+	cmd.Flags().BoolVar(&ingest, "ingest", false, e.t("Imprime o OpenAPI da ingestão (listener próprio), em vez do da API"))
+	return cmd
 }
