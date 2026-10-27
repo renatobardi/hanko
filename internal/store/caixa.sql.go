@@ -68,7 +68,7 @@ func (q *Queries) HasRecentPersonaMention(ctx context.Context, arg HasRecentPers
 
 const listInboxStates = `-- name: ListInboxStates :many
 
-SELECT company_id, user_id, item_kind, item_id, fingerprint, read_at, archived_at, updated_at FROM inbox_state WHERE company_id = $1 AND user_id = $2
+SELECT company_id, user_id, item_kind, item_id, fingerprint, read_at, archived_at, updated_at, migrated FROM inbox_state WHERE company_id = $1 AND user_id = $2
 `
 
 type ListInboxStatesParams struct {
@@ -95,6 +95,7 @@ func (q *Queries) ListInboxStates(ctx context.Context, arg ListInboxStatesParams
 			&i.ReadAt,
 			&i.ArchivedAt,
 			&i.UpdatedAt,
+			&i.Migrated,
 		); err != nil {
 			return nil, err
 		}

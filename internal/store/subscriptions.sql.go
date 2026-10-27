@@ -32,7 +32,7 @@ INSERT INTO subscriptions (id, company_id, name, agent, monthly_usd, model_prefi
                            weekly_guard_pct, active, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7,
         $8, $9, $10, $10)
-RETURNING id, company_id, name, agent, monthly_usd, model_prefixes, weekly_limit_usd, weekly_guard_pct, active, ended_at, created_at, updated_at
+RETURNING id, company_id, name, agent, monthly_usd, model_prefixes, weekly_limit_usd, weekly_guard_pct, active, ended_at, created_at, updated_at, external_key
 `
 
 type CreateSubscriptionParams struct {
@@ -75,6 +75,7 @@ func (q *Queries) CreateSubscription(ctx context.Context, arg CreateSubscription
 		&i.EndedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ExternalKey,
 	)
 	return i, err
 }
@@ -94,7 +95,7 @@ func (q *Queries) DeleteSubscription(ctx context.Context, arg DeleteSubscription
 }
 
 const getSubscriptionByID = `-- name: GetSubscriptionByID :one
-SELECT id, company_id, name, agent, monthly_usd, model_prefixes, weekly_limit_usd, weekly_guard_pct, active, ended_at, created_at, updated_at FROM subscriptions WHERE company_id = $1 AND id = $2
+SELECT id, company_id, name, agent, monthly_usd, model_prefixes, weekly_limit_usd, weekly_guard_pct, active, ended_at, created_at, updated_at, external_key FROM subscriptions WHERE company_id = $1 AND id = $2
 `
 
 type GetSubscriptionByIDParams struct {
@@ -118,12 +119,13 @@ func (q *Queries) GetSubscriptionByID(ctx context.Context, arg GetSubscriptionBy
 		&i.EndedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ExternalKey,
 	)
 	return i, err
 }
 
 const getSubscriptionByIDForUpdate = `-- name: GetSubscriptionByIDForUpdate :one
-SELECT id, company_id, name, agent, monthly_usd, model_prefixes, weekly_limit_usd, weekly_guard_pct, active, ended_at, created_at, updated_at FROM subscriptions WHERE company_id = $1 AND id = $2 FOR UPDATE
+SELECT id, company_id, name, agent, monthly_usd, model_prefixes, weekly_limit_usd, weekly_guard_pct, active, ended_at, created_at, updated_at, external_key FROM subscriptions WHERE company_id = $1 AND id = $2 FOR UPDATE
 `
 
 type GetSubscriptionByIDForUpdateParams struct {
@@ -147,12 +149,13 @@ func (q *Queries) GetSubscriptionByIDForUpdate(ctx context.Context, arg GetSubsc
 		&i.EndedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ExternalKey,
 	)
 	return i, err
 }
 
 const getSubscriptionByName = `-- name: GetSubscriptionByName :one
-SELECT id, company_id, name, agent, monthly_usd, model_prefixes, weekly_limit_usd, weekly_guard_pct, active, ended_at, created_at, updated_at FROM subscriptions WHERE company_id = $1 AND name = $2
+SELECT id, company_id, name, agent, monthly_usd, model_prefixes, weekly_limit_usd, weekly_guard_pct, active, ended_at, created_at, updated_at, external_key FROM subscriptions WHERE company_id = $1 AND name = $2
 `
 
 type GetSubscriptionByNameParams struct {
@@ -176,6 +179,7 @@ func (q *Queries) GetSubscriptionByName(ctx context.Context, arg GetSubscription
 		&i.EndedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ExternalKey,
 	)
 	return i, err
 }
@@ -235,7 +239,7 @@ func (q *Queries) ListSubscriptionPeriods(ctx context.Context, companyID uuid.UU
 }
 
 const listSubscriptions = `-- name: ListSubscriptions :many
-SELECT id, company_id, name, agent, monthly_usd, model_prefixes, weekly_limit_usd, weekly_guard_pct, active, ended_at, created_at, updated_at FROM subscriptions WHERE company_id = $1 ORDER BY created_at, id
+SELECT id, company_id, name, agent, monthly_usd, model_prefixes, weekly_limit_usd, weekly_guard_pct, active, ended_at, created_at, updated_at, external_key FROM subscriptions WHERE company_id = $1 ORDER BY created_at, id
 `
 
 func (q *Queries) ListSubscriptions(ctx context.Context, companyID uuid.UUID) ([]Subscription, error) {
@@ -260,6 +264,7 @@ func (q *Queries) ListSubscriptions(ctx context.Context, companyID uuid.UUID) ([
 			&i.EndedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ExternalKey,
 		); err != nil {
 			return nil, err
 		}
@@ -391,7 +396,7 @@ SET name = $1, agent = $2, monthly_usd = $3, model_prefixes = $4,
     weekly_limit_usd = $5, weekly_guard_pct = $6, active = $7,
     ended_at = $8, updated_at = $9
 WHERE company_id = $10 AND id = $11
-RETURNING id, company_id, name, agent, monthly_usd, model_prefixes, weekly_limit_usd, weekly_guard_pct, active, ended_at, created_at, updated_at
+RETURNING id, company_id, name, agent, monthly_usd, model_prefixes, weekly_limit_usd, weekly_guard_pct, active, ended_at, created_at, updated_at, external_key
 `
 
 type UpdateSubscriptionParams struct {
@@ -437,6 +442,7 @@ func (q *Queries) UpdateSubscription(ctx context.Context, arg UpdateSubscription
 		&i.EndedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ExternalKey,
 	)
 	return i, err
 }

@@ -51,7 +51,7 @@ CREATE TABLE price_check_source (
     status      text NOT NULL CHECK (status IN ('ok', 'down')),
     error_code  text NOT NULL DEFAULT '' CHECK (length(error_code) <= 100),
     PRIMARY KEY (run_id, source),
-    CHECK (status = 'down' OR error_code = '')
+    CHECK (status = 'down' OR length(error_code) = 0)
 );
 
 CREATE TABLE price_check_result (
@@ -106,12 +106,19 @@ ALTER TABLE inbox_state ADD COLUMN migrated boolean NOT NULL DEFAULT false;
 -- junto com as tabelas e as linhas; os runs e as assinaturas não mudam.
 ALTER TABLE inbox_state DROP COLUMN migrated;
 DROP TABLE company_alert_settings;
-DELETE FROM alerts WHERE kind NOT IN ('persona_silent', 'run_stuck', 'budget_near_limit', 'persona_not_ready', 'secret_rotation_due')
-    OR subject_type NOT IN ('persona', 'run', 'company', 'secret');
-ALTER TABLE alerts DROP CONSTRAINT alerts_subject_type_check;
-ALTER TABLE alerts DROP CONSTRAINT alerts_kind_check;
-ALTER TABLE alerts ADD CONSTRAINT alerts_kind_check CHECK (kind IN ('persona_silent', 'run_stuck', 'budget_near_limit', 'persona_not_ready', 'secret_rotation_due'));
-ALTER TABLE alerts ADD CONSTRAINT alerts_subject_type_check CHECK (subject_type IN ('persona', 'run', 'company', 'secret'));
+-- +goose StatementBegin
+DO $$
+DECLARE
+    kinds    text[] := ARRAY['persona_silent', 'run_stuck', 'budget_near_limit', 'persona_not_ready', 'secret_rotation_due'];
+    subjects text[] := ARRAY['persona', 'run', 'company', 'secret'];
+BEGIN
+    DELETE FROM alerts WHERE kind <> ALL (kinds) OR subject_type <> ALL (subjects);
+    ALTER TABLE alerts DROP CONSTRAINT alerts_subject_type_check;
+    ALTER TABLE alerts DROP CONSTRAINT alerts_kind_check;
+    EXECUTE format('ALTER TABLE alerts ADD CONSTRAINT alerts_kind_check CHECK (kind = ANY (%L::text[]))', kinds);
+    EXECUTE format('ALTER TABLE alerts ADD CONSTRAINT alerts_subject_type_check CHECK (subject_type = ANY (%L::text[]))', subjects);
+END $$;
+-- +goose StatementEnd
 DROP TABLE price_check_result;
 DROP TABLE price_check_source;
 DROP TABLE price_check_run;

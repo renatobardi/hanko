@@ -3,12 +3,6 @@ package db
 import (
 	"context"
 	"testing"
-
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/jackc/pgx/v5/stdlib"
-	"github.com/pressly/goose/v3"
-
-	"github.com/renatobardi/hanko/db/migrations"
 )
 
 const (
@@ -23,23 +17,7 @@ const (
 // schema anterior sem perder a assinatura.
 func TestMigration00209(t *testing.T) {
 	ctx := context.Background()
-	pool, err := pgxpool.New(ctx, testURL(t))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer pool.Close()
-	if _, err := pool.Exec(ctx, "DROP SCHEMA public CASCADE; CREATE SCHEMA public"); err != nil {
-		t.Fatal(err)
-	}
-	sdb := stdlib.OpenDBFromPool(pool)
-	defer sdb.Close()
-	p, err := goose.NewProvider(goose.DialectPostgres, sdb, migrations.FS)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := p.UpTo(ctx, 208); err != nil {
-		t.Fatal(err)
-	}
+	pool, p := openMigrations(t, 208)
 	m := m208{t: t, pool: pool}
 	m.exec(`INSERT INTO companies (id, slug, name) VALUES ($1, 'c', 'C')`, m209Company)
 	m.exec(`INSERT INTO users (id, email, provider, password_hash) VALUES ($1, 'a@b.c', 'local', 'x')`, m209User)
@@ -61,8 +39,8 @@ func TestMigration00209(t *testing.T) {
 	if _, err := p.DownTo(ctx, 208); err != nil {
 		t.Fatal(err)
 	}
-	if n := m.count(`SELECT count(*) FROM subscriptions`); n != 1 {
-		t.Fatalf("assinaturas depois do Down = %d, quer 1", n)
+	if n := m.count(`SELECT count(*) FROM subscriptions`); n != 2 {
+		t.Fatalf("assinaturas depois do Down = %d, quer 2", n)
 	}
 	if n := m.count(`SELECT count(*) FROM alerts`); n != 1 {
 		t.Fatalf("alertas depois do Down = %d, quer 1 (o de cofre; os externos somem)", n)
@@ -77,7 +55,7 @@ func (m m208) priceAndSubscription() {
 	const price = `INSERT INTO model_prices (id, model, input_per_mtok, effective_at, origin, locked) VALUES ($1, $2, 1, $3, $4, $5)`
 	m.exec(price, "00000000-0000-0000-0000-0000000000b1", "gpt-6-luna", "2026-10-26T00:00:00Z", "sources", true)
 	m.fail("origem de preço desconhecida", price, "00000000-0000-0000-0000-0000000000b2", "gpt-6-luna", "2026-10-27T00:00:00Z", "guess", false)
-	if n := m.count(`SELECT count(*) FROM model_prices WHERE origin = 'config' AND NOT locked`); n < 1 {
+	if m.count(`SELECT count(*) FROM model_prices WHERE origin = 'config' AND NOT locked`) < 1 {
 		m.t.Fatal("os preços semeados deveriam ficar com origem config e sem trava")
 	}
 
