@@ -70,6 +70,8 @@ jobs:
         run: |
           bin/hanko openapi > "$RUNNER_TEMP/openapi.json"
           diff -u api/openapi.json "$RUNNER_TEMP/openapi.json"
+          bin/hanko openapi --ingest > "$RUNNER_TEMP/openapi-ingest.json"
+          diff -u api/openapi-ingest.json "$RUNNER_TEMP/openapi-ingest.json"
 
       - name: templ generate diff
         run: |

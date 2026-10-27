@@ -1,0 +1,348 @@
+{
+  "components": {
+    "schemas": {},
+    "securitySchemes": {
+      "ingestKey": {
+        "bearerFormat": "hk_…",
+        "description": "Chave de escopo `ingest`: uma por host, presa a uma empresa. Só grava telemetria; não lê nada.",
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
+  },
+  "info": {
+    "description": "Ingestão de telemetria de agente externo (ADR-0076): OTLP/HTTP em protobuf, replay do bucket e prontidão. Listener próprio, só na tailnet, só com a chave de escopo `ingest`.",
+    "license": {
+      "identifier": "Apache-2.0",
+      "name": "Apache-2.0"
+    },
+    "title": "Hanko Ingest API",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/v1/logs": {
+      "post": {
+        "description": "Aceita só `application/x-protobuf`, com gzip. Os fatos são gravados com a empresa da chave e a chave que os entregou; o host é o declarado no fato. Repetir um fato não duplica nada. O 2xx só vem depois do commit. Contrato da fonte externa (ADR-0076). Responde 501 até a fatia 1 (#125).",
+        "operationId": "ingest-logs",
+        "parameters": [
+          {
+            "description": "`gzip` ou ausente.",
+            "in": "header",
+            "name": "Content-Encoding",
+            "schema": {
+              "enum": [
+                "gzip"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/x-protobuf": {
+              "schema": {
+                "contentMediaType": "application/octet-stream",
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/x-protobuf": {
+                "schema": {
+                  "contentMediaType": "application/octet-stream",
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Aceito e gravado."
+          },
+          "400": {
+            "description": "Corpo inválido, ou acima de 64 MB descomprimido. O collector não retenta."
+          },
+          "401": {
+            "description": "Sem chave, ou chave inválida ou revogada."
+          },
+          "403": {
+            "description": "A chave não tem o escopo `ingest`."
+          },
+          "501": {
+            "description": "Ainda não implementada."
+          },
+          "503": {
+            "description": "Ingestão cheia ou gravação falhou. O collector retenta sem prazo.",
+            "headers": {
+              "Retry-After": {
+                "description": "Segundos até tentar de novo.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Recebe logs em OTLP/HTTP (protobuf)",
+        "tags": [
+          "ingest"
+        ]
+      }
+    },
+    "/v1/metrics": {
+      "post": {
+        "description": "Aceita só `application/x-protobuf`, com gzip. Os fatos são gravados com a empresa da chave e a chave que os entregou; o host é o declarado no fato. Repetir um fato não duplica nada. O 2xx só vem depois do commit. Contrato da fonte externa (ADR-0076). Responde 501 até a fatia 1 (#125).",
+        "operationId": "ingest-metrics",
+        "parameters": [
+          {
+            "description": "`gzip` ou ausente.",
+            "in": "header",
+            "name": "Content-Encoding",
+            "schema": {
+              "enum": [
+                "gzip"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/x-protobuf": {
+              "schema": {
+                "contentMediaType": "application/octet-stream",
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/x-protobuf": {
+                "schema": {
+                  "contentMediaType": "application/octet-stream",
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Aceito e gravado."
+          },
+          "400": {
+            "description": "Corpo inválido, ou acima de 64 MB descomprimido. O collector não retenta."
+          },
+          "401": {
+            "description": "Sem chave, ou chave inválida ou revogada."
+          },
+          "403": {
+            "description": "A chave não tem o escopo `ingest`."
+          },
+          "501": {
+            "description": "Ainda não implementada."
+          },
+          "503": {
+            "description": "Ingestão cheia ou gravação falhou. O collector retenta sem prazo.",
+            "headers": {
+              "Retry-After": {
+                "description": "Segundos até tentar de novo.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Recebe métricas em OTLP/HTTP (protobuf)",
+        "tags": [
+          "ingest"
+        ]
+      }
+    },
+    "/v1/ready": {
+      "get": {
+        "description": "Substitui o `/readyz` do agent-studio. Contrato da fonte externa (ADR-0076). Responde 501 até a fatia 1 (#125).",
+        "operationId": "ingest-ready",
+        "responses": {
+          "200": {
+            "description": "Pronta para receber."
+          },
+          "401": {
+            "description": "Sem chave, ou chave inválida ou revogada."
+          },
+          "403": {
+            "description": "A chave não tem o escopo `ingest`."
+          },
+          "501": {
+            "description": "Ainda não implementada."
+          },
+          "503": {
+            "description": "Não está pronta."
+          }
+        },
+        "summary": "Prontidão da ingestão",
+        "tags": [
+          "ingest"
+        ]
+      }
+    },
+    "/v1/replay/{signal}": {
+      "post": {
+        "description": "Aceita o objeto do bucket como ele é (`otlp_json`, com ou sem gzip). É a única entrada de JSON. Quem lê o bucket é a fonte; o Hanko nunca guarda credencial do bucket. Contrato da fonte externa (ADR-0076). Responde 501 até a fatia 1 (#125).",
+        "operationId": "ingest-replay",
+        "parameters": [
+          {
+            "description": "O sinal do objeto.",
+            "in": "path",
+            "name": "signal",
+            "required": true,
+            "schema": {
+              "enum": [
+                "traces",
+                "logs",
+                "metrics"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "`gzip` ou ausente.",
+            "in": "header",
+            "name": "Content-Encoding",
+            "schema": {
+              "enum": [
+                "gzip"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Aceito e gravado."
+          },
+          "400": {
+            "description": "Corpo inválido, ou acima de 64 MB descomprimido."
+          },
+          "401": {
+            "description": "Sem chave, ou chave inválida ou revogada."
+          },
+          "403": {
+            "description": "A chave não tem o escopo `ingest`."
+          },
+          "501": {
+            "description": "Ainda não implementada."
+          },
+          "503": {
+            "description": "Ingestão cheia ou gravação falhou. O collector retenta sem prazo.",
+            "headers": {
+              "Retry-After": {
+                "description": "Segundos até tentar de novo.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Reenvia um objeto do bucket de telemetria",
+        "tags": [
+          "ingest"
+        ]
+      }
+    },
+    "/v1/traces": {
+      "post": {
+        "description": "Aceita só `application/x-protobuf`, com gzip. Os fatos são gravados com a empresa da chave e a chave que os entregou; o host é o declarado no fato. Repetir um fato não duplica nada. O 2xx só vem depois do commit. Contrato da fonte externa (ADR-0076). Responde 501 até a fatia 1 (#125).",
+        "operationId": "ingest-traces",
+        "parameters": [
+          {
+            "description": "`gzip` ou ausente.",
+            "in": "header",
+            "name": "Content-Encoding",
+            "schema": {
+              "enum": [
+                "gzip"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/x-protobuf": {
+              "schema": {
+                "contentMediaType": "application/octet-stream",
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/x-protobuf": {
+                "schema": {
+                  "contentMediaType": "application/octet-stream",
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Aceito e gravado."
+          },
+          "400": {
+            "description": "Corpo inválido, ou acima de 64 MB descomprimido. O collector não retenta."
+          },
+          "401": {
+            "description": "Sem chave, ou chave inválida ou revogada."
+          },
+          "403": {
+            "description": "A chave não tem o escopo `ingest`."
+          },
+          "501": {
+            "description": "Ainda não implementada."
+          },
+          "503": {
+            "description": "Ingestão cheia ou gravação falhou. O collector retenta sem prazo.",
+            "headers": {
+              "Retry-After": {
+                "description": "Segundos até tentar de novo.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Recebe spans em OTLP/HTTP (protobuf)",
+        "tags": [
+          "ingest"
+        ]
+      }
+    }
+  },
+  "security": [
+    {
+      "ingestKey": []
+    }
+  ]
+}

@@ -38,8 +38,9 @@ generate: ## sqlc + templ
 	sqlc generate
 	templ generate -path internal/ui/views
 
-openapi: build ## regenera api/openapi.json
+openapi: build ## regenera api/openapi.json e api/openapi-ingest.json
 	$(BIN) openapi > api/openapi.json
+	$(BIN) openapi --ingest > api/openapi-ingest.json
 
 docs-site: ## gera o site estático de docs (docs/ + docs/en + feature-map) em dist/docs, sem publicar
 	go run ./tools/docsite -out dist/docs
