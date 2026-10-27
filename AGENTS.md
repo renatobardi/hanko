@@ -12,6 +12,7 @@ Este arquivo é a memória de trabalho do projeto. Toda sessão (humano, Claude 
 ## Fim de sessão (obrigatório)
 - Toda sessão termina com algo executável + commit (`-s`). Sem exceção. Zero sessões "só refatorando".
 - Atualizar `docs/SESSION.md`: feito / travado / próximo passo em ≤10 linhas. Sobrescrever, não acumular.
+- `docs/SESSION.md` é o **último commit** da sessão, feito **depois** de `git merge origin/main` (ou rebase) e só com o estado da sessão. Se outro PR entrar na `main` depois disso, atualize o branch e refaça só esse commit; não resolva o conflito somando o texto das duas sessões.
 - Decisão de arquitetura tomada no meio → ADR novo em `docs/adr/NNNN-*.md`.
 
 ## Regras de trabalho
@@ -22,3 +23,12 @@ Este arquivo é a memória de trabalho do projeto. Toda sessão (humano, Claude 
 - Toda escrita de domínio gera `activity_event` na mesma transação.
 - Nunca citar produtos de terceiros como referência nos artefatos do projeto.
 - Nunca `panic` fora de `main`; nunca `log.Fatal` fora de `cmd/`.
+
+## Validar antes do PR
+Cada item abaixo já reprovou PR no CI depois de aberto. Confira no diff antes do push.
+- `ctx context.Context` é o primeiro parâmetro, inclusive em helper de teste (revive `context-as-argument`).
+- Conversão entre tipos inteiros só com limite validado antes (gosec G115); não converta `int` para `int32`/`uint` sem checar a faixa.
+- Nunca hash simples (SHA-256, MD5…) para dado sensível, como senha ou token (CodeQL `go/weak-sensitive-data-hashing`); use KDF próprio para o caso (bcrypt, argon2 ou scrypt).
+- Função com complexidade cognitiva até 15 (Sonar); extraia helpers antes de passar disso.
+- Texto novo de CLI ou UI entra no catálogo de tradução; rode `go test ./internal/i18n ./internal/ui` (`TestCatalogCoversSources`).
+- Depois do push, rode `oute-sonar pr <n> --json` e só avise que o PR está pronto com o gate OK.
