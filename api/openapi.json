@@ -33,6 +33,44 @@
         ],
         "type": "object"
       },
+      "ActionMark": {
+        "additionalProperties": false,
+        "properties": {
+          "marked_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "marked_by_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "marked_by_type": {
+            "enum": [
+              "human",
+              "system"
+            ],
+            "type": "string"
+          },
+          "migrated": {
+            "description": "Marca trazida do agent-studio, atribuída ao Bardi pela migração.",
+            "type": "boolean"
+          },
+          "state": {
+            "enum": [
+              "done",
+              "pending"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "marked_by_type",
+          "marked_at",
+          "migrated"
+        ],
+        "type": "object"
+      },
       "Activity": {
         "additionalProperties": false,
         "properties": {
@@ -266,6 +304,23 @@
         },
         "type": "object"
       },
+      "AlertLimits": {
+        "additionalProperties": false,
+        "properties": {
+          "values": {
+            "additionalProperties": {
+              "format": "double",
+              "type": "number"
+            },
+            "description": "Só as chaves que a empresa mudou. Chaves limit.* e due.*.",
+            "type": "object"
+          }
+        },
+        "required": [
+          "values"
+        ],
+        "type": "object"
+      },
       "Anchor": {
         "additionalProperties": false,
         "properties": {
@@ -363,6 +418,54 @@
         },
         "required": [
           "answers"
+        ],
+        "type": "object"
+      },
+      "ApprovalScript": {
+        "additionalProperties": false,
+        "properties": {
+          "approval_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "script": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "versions": {
+            "items": {
+              "$ref": "#/components/schemas/ApprovalVersion"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "approval_id",
+          "sha256",
+          "script",
+          "versions"
+        ],
+        "type": "object"
+      },
+      "ApprovalVersion": {
+        "additionalProperties": false,
+        "properties": {
+          "seen_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "sha256",
+          "seen_at"
         ],
         "type": "object"
       },
@@ -6067,6 +6170,108 @@
         ],
         "type": "object"
       },
+      "ExternalApproval": {
+        "additionalProperties": false,
+        "properties": {
+          "agent_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "approver": {
+            "enum": [
+              "human",
+              "human_dark"
+            ],
+            "type": "string"
+          },
+          "canal_id": {
+            "examples": [
+              "20261027-080000-cafe"
+            ],
+            "type": "string"
+          },
+          "decided_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "decided_sha256": {
+            "description": "Resumo do que rodou no host.",
+            "type": "string"
+          },
+          "decision": {
+            "enum": [
+              "rejected",
+              "executed"
+            ],
+            "type": "string"
+          },
+          "duration_ms": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "host_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "host_name": {
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "listed_at": {
+            "description": "Última vez que esteve na lista da outbox do host.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "output_bytes": {
+            "description": "Tamanho da saída; a saída nunca sai do host.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "rc": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "requested_as": {
+            "description": "Usuário que pediu (campo as).",
+            "type": "string"
+          },
+          "requested_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "script_sha256": {
+            "description": "Resumo do script que a página mostra, no formato do oute approve.",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "pending",
+              "decided"
+            ],
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "versions": {
+            "description": "Quantas versões diferentes do pedido chegaram. Com mais de uma, a página avisa.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "canal_id",
+          "title",
+          "state",
+          "script_sha256",
+          "versions"
+        ],
+        "type": "object"
+      },
       "ExternalConversation": {
         "additionalProperties": false,
         "properties": {
@@ -6242,6 +6447,45 @@
         ],
         "type": "object"
       },
+      "ExternalCycle": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "issue_ref": {
+            "examples": [
+              "renatobardi/oute-agent#12"
+            ],
+            "type": "string"
+          },
+          "rounds": {
+            "items": {
+              "$ref": "#/components/schemas/ExternalRound"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "summary": {
+            "$ref": "#/components/schemas/RoundStep",
+            "description": "A etapa cycle_summary, quando já chegou."
+          }
+        },
+        "required": [
+          "id",
+          "issue_ref",
+          "rounds",
+          "created_at"
+        ],
+        "type": "object"
+      },
       "ExternalHost": {
         "additionalProperties": false,
         "properties": {
@@ -6298,6 +6542,174 @@
           "aliases",
           "source_kind",
           "always_on",
+          "created_at",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "ExternalRound": {
+        "additionalProperties": false,
+        "properties": {
+          "closed_at": {
+            "description": "Vazio enquanto a rodada está aberta.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "cycle_id": {
+            "description": "O ciclo da issue, quando a triagem já trouxe o ciclo.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "max_sessions": {
+            "description": "Número de sessões que a rodada permite.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "name": {
+            "description": "Nome amigável do gerador único (ADR-0084).",
+            "examples": [
+              "Brave_Otter"
+            ],
+            "type": "string"
+          },
+          "opened_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "repo": {
+            "description": "Repositório da rodada; liga ao workspace pelo emparelhamento (ADR-0075).",
+            "type": "string"
+          },
+          "round_key": {
+            "description": "Id da rodada no agent-studio.",
+            "examples": [
+              "swarm-1027-0802"
+            ],
+            "type": "string"
+          },
+          "source_kind": {
+            "enum": [
+              "external"
+            ],
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "workspace_id": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "round_key",
+          "name",
+          "source_kind",
+          "repo",
+          "created_at",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "ExternalRoundDetail": {
+        "additionalProperties": false,
+        "properties": {
+          "closed_at": {
+            "description": "Vazio enquanto a rodada está aberta.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "cycle_id": {
+            "description": "O ciclo da issue, quando a triagem já trouxe o ciclo.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "max_sessions": {
+            "description": "Número de sessões que a rodada permite.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "name": {
+            "description": "Nome amigável do gerador único (ADR-0084).",
+            "examples": [
+              "Brave_Otter"
+            ],
+            "type": "string"
+          },
+          "opened_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "participants": {
+            "items": {
+              "$ref": "#/components/schemas/RoundParticipant"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "repo": {
+            "description": "Repositório da rodada; liga ao workspace pelo emparelhamento (ADR-0075).",
+            "type": "string"
+          },
+          "round_key": {
+            "description": "Id da rodada no agent-studio.",
+            "examples": [
+              "swarm-1027-0802"
+            ],
+            "type": "string"
+          },
+          "source_kind": {
+            "enum": [
+              "external"
+            ],
+            "type": "string"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/RoundStep"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "workspace_id": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "participants",
+          "steps",
+          "id",
+          "round_key",
+          "name",
+          "source_kind",
+          "repo",
           "created_at",
           "updated_at"
         ],
@@ -10343,6 +10755,37 @@
         ],
         "type": "object"
       },
+      "ListBodyExternalApproval": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "description": "Itens da página.",
+            "items": {
+              "$ref": "#/components/schemas/ExternalApproval"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "limit": {
+            "description": "Limite aplicado.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "offset": {
+            "description": "Deslocamento aplicado.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "limit",
+          "offset"
+        ],
+        "type": "object"
+      },
       "ListBodyExternalConversation": {
         "additionalProperties": false,
         "properties": {
@@ -10381,6 +10824,37 @@
             "description": "Itens da página.",
             "items": {
               "$ref": "#/components/schemas/ExternalHost"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "limit": {
+            "description": "Limite aplicado.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "offset": {
+            "description": "Deslocamento aplicado.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "limit",
+          "offset"
+        ],
+        "type": "object"
+      },
+      "ListBodyExternalRound": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "description": "Itens da página.",
+            "items": {
+              "$ref": "#/components/schemas/ExternalRound"
             },
             "type": [
               "array",
@@ -12634,6 +13108,23 @@
           "items",
           "limit",
           "offset"
+        ],
+        "type": "object"
+      },
+      "MarkRoundActionInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "state": {
+            "description": "A marca nova. Só se acrescenta: a mais nova vence (owner ou admin, com reautenticação recente).",
+            "enum": [
+              "done",
+              "pending"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
         ],
         "type": "object"
       },
@@ -16546,6 +17037,128 @@
         },
         "type": "object"
       },
+      "RoundParticipant": {
+        "additionalProperties": false,
+        "properties": {
+          "closed_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "external_session_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "issue_ref": {
+            "description": "Issue \u003cdono\u003e/\u003crepo\u003e#\u003cn\u003e do worker.",
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "spawned_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "slug"
+        ],
+        "type": "object"
+      },
+      "RoundStep": {
+        "additionalProperties": false,
+        "properties": {
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/StepAction"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "triage",
+              "merge",
+              "kaizen",
+              "closing",
+              "cycle_summary"
+            ],
+            "type": "string"
+          },
+          "published_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "reference_check": {
+            "enum": [
+              "ok",
+              "failed",
+              "missing"
+            ],
+            "type": "string"
+          },
+          "review": {
+            "enum": [
+              "approved",
+              "rejected",
+              "no_reviewer"
+            ],
+            "type": "string"
+          },
+          "revision": {
+            "description": "A revisão mais alta vence, em qualquer ordem de chegada.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "step_key": {
+            "description": "Número do PR, na etapa merge.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "revision",
+          "sha256",
+          "review",
+          "reference_check",
+          "published_at",
+          "actions"
+        ],
+        "type": "object"
+      },
+      "RoundStepContent": {
+        "additionalProperties": false,
+        "properties": {
+          "step_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "text": {
+            "description": "Texto da revisão vigente, dado não confiável: o Markdown restrito se interpreta só em dados.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "step_id",
+          "text"
+        ],
+        "type": "object"
+      },
       "Run": {
         "additionalProperties": false,
         "properties": {
@@ -19934,6 +20547,28 @@
         ],
         "type": "object"
       },
+      "StepAction": {
+        "additionalProperties": false,
+        "properties": {
+          "action_id": {
+            "examples": [
+              "ab1"
+            ],
+            "type": "string"
+          },
+          "approval_key": {
+            "description": "Pedido do canal que a ação cita (pedido:\u003cid\u003e).",
+            "type": "string"
+          },
+          "mark": {
+            "$ref": "#/components/schemas/ActionMark"
+          }
+        },
+        "required": [
+          "action_id"
+        ],
+        "type": "object"
+      },
       "Subscription": {
         "additionalProperties": false,
         "properties": {
@@ -21905,6 +22540,23 @@
         "required": [
           "name",
           "seq"
+        ],
+        "type": "object"
+      },
+      "UpdateAlertLimitsInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "values": {
+            "additionalProperties": {
+              "format": "double",
+              "type": "number"
+            },
+            "description": "Chaves limit.* ou due.* (ADR-0083). Valor vazio ou nulo volta ao padrão.",
+            "type": "object"
+          }
+        },
+        "required": [
+          "values"
         ],
         "type": "object"
       },
@@ -24893,6 +25545,228 @@
         "summary": "Lista a atividade da empresa",
         "tags": [
           "activity"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/alert-limits": {
+      "get": {
+        "description": "Contrato do grupo 3 da v0.8 (#124): rodada e aprovação externas (ADR-0080 e 0081), limites de alerta (ADR-0083). Responde 501 até a fatia 2 (#126).",
+        "operationId": "get-alert-limits",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertLimits"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          }
+        },
+        "summary": "Mostra os limites e prazos que a empresa mudou; o resto vale o padrão do código",
+        "tags": [
+          "external-rounds"
+        ]
+      },
+      "patch": {
+        "description": "Contrato do grupo 3 da v0.8 (#124): rodada e aprovação externas (ADR-0080 e 0081), limites de alerta (ADR-0083). Responde 501 até a fatia 2 (#126).",
+        "operationId": "update-alert-limits",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAlertLimitsInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertLimits"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          }
+        },
+        "summary": "Muda limites e prazos da empresa, incluindo o alerta de disco do Postgres (owner ou admin)",
+        "tags": [
+          "external-rounds"
         ]
       }
     },
@@ -36336,6 +37210,390 @@
         ]
       }
     },
+    "/api/v1/companies/{company}/external-approvals": {
+      "get": {
+        "description": "Contrato do grupo 3 da v0.8 (#124): rodada e aprovação externas (ADR-0080 e 0081), limites de alerta (ADR-0083). Responde 501 até a fatia 3 (#127).",
+        "operationId": "list-external-approvals",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Máximo de itens retornados.",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "description": "Máximo de itens retornados.",
+              "format": "int64",
+              "maximum": 500,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Quantos itens pular.",
+            "explode": false,
+            "in": "query",
+            "name": "offset",
+            "schema": {
+              "default": 0,
+              "description": "Quantos itens pular.",
+              "format": "int64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Só os pedidos neste estado.",
+            "explode": false,
+            "in": "query",
+            "name": "state",
+            "schema": {
+              "description": "Só os pedidos neste estado.",
+              "enum": [
+                "pending",
+                "decided"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListBodyExternalApproval"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          }
+        },
+        "summary": "Lista os pedidos do canal de aprovação observados nos hosts, sem o script",
+        "tags": [
+          "external-rounds"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/external-approvals/{approval}": {
+      "get": {
+        "description": "Contrato do grupo 3 da v0.8 (#124): rodada e aprovação externas (ADR-0080 e 0081), limites de alerta (ADR-0083). Responde 501 até a fatia 3 (#127).",
+        "operationId": "get-external-approval",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id da aprovação externa.",
+            "in": "path",
+            "name": "approval",
+            "required": true,
+            "schema": {
+              "description": "Id da aprovação externa.",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalApproval"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          }
+        },
+        "summary": "Mostra um pedido do canal, com o sha256 e as versões; o comando oute approve \u003cid\u003e vai para copiar",
+        "tags": [
+          "external-rounds"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/external-approvals/{approval}/script": {
+      "get": {
+        "description": "Contrato do grupo 3 da v0.8 (#124): rodada e aprovação externas (ADR-0080 e 0081), limites de alerta (ADR-0083). Responde 501 até a fatia 3 (#127).",
+        "operationId": "get-approval-script",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id da aprovação externa.",
+            "in": "path",
+            "name": "approval",
+            "required": true,
+            "schema": {
+              "description": "Id da aprovação externa.",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalScript"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          }
+        },
+        "summary": "Mostra o corpo do script de um pedido (owner ou admin; cada leitura gera activity_event)",
+        "tags": [
+          "external-rounds"
+        ]
+      }
+    },
     "/api/v1/companies/{company}/external-conversations": {
       "get": {
         "description": "Contrato da fonte externa (ADR-0075 a 0079). Responde 501 até a fatia 1 (#125).",
@@ -37035,6 +38293,124 @@
         ]
       }
     },
+    "/api/v1/companies/{company}/external-cycles/{cycle}": {
+      "get": {
+        "description": "Contrato do grupo 3 da v0.8 (#124): rodada e aprovação externas (ADR-0080 e 0081), limites de alerta (ADR-0083). Responde 501 até a fatia 3 (#127).",
+        "operationId": "get-external-cycle",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id do ciclo.",
+            "in": "path",
+            "name": "cycle",
+            "required": true,
+            "schema": {
+              "description": "Id do ciclo.",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalCycle"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          }
+        },
+        "summary": "Mostra o ciclo de uma issue, com o resumo no topo e as rodadas",
+        "tags": [
+          "external-rounds"
+        ]
+      }
+    },
     "/api/v1/companies/{company}/external-hosts": {
       "get": {
         "description": "Contrato da fonte externa (ADR-0075 a 0079). Responde 501 até a fatia 1 (#125).",
@@ -37549,6 +38925,548 @@
         "summary": "Junta este host a outro; o passado dele passa para o que fica (owner ou admin)",
         "tags": [
           "external-source"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/external-rounds": {
+      "get": {
+        "description": "Contrato do grupo 3 da v0.8 (#124): rodada e aprovação externas (ADR-0080 e 0081), limites de alerta (ADR-0083). Responde 501 até a fatia 3 (#127).",
+        "operationId": "list-external-rounds",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Máximo de itens retornados.",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "description": "Máximo de itens retornados.",
+              "format": "int64",
+              "maximum": 500,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Quantos itens pular.",
+            "explode": false,
+            "in": "query",
+            "name": "offset",
+            "schema": {
+              "default": 0,
+              "description": "Quantos itens pular.",
+              "format": "int64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Só as rodadas deste ciclo.",
+            "explode": false,
+            "in": "query",
+            "name": "cycle",
+            "schema": {
+              "description": "Só as rodadas deste ciclo.",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListBodyExternalRound"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          }
+        },
+        "summary": "Lista as rodadas externas, com filtro por ciclo",
+        "tags": [
+          "external-rounds"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/external-rounds/{round}": {
+      "get": {
+        "description": "Contrato do grupo 3 da v0.8 (#124): rodada e aprovação externas (ADR-0080 e 0081), limites de alerta (ADR-0083). Responde 501 até a fatia 3 (#127).",
+        "operationId": "get-external-round",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id da rodada externa.",
+            "in": "path",
+            "name": "round",
+            "required": true,
+            "schema": {
+              "description": "Id da rodada externa.",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalRoundDetail"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          }
+        },
+        "summary": "Mostra uma rodada externa, com participantes, etapas vigentes e ações com a marca mais nova",
+        "tags": [
+          "external-rounds"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/external-rounds/{round}/steps/{step}/actions/{action}/marks": {
+      "post": {
+        "description": "Contrato do grupo 3 da v0.8 (#124): rodada e aprovação externas (ADR-0080 e 0081), limites de alerta (ADR-0083). Responde 501 até a fatia 3 (#127).",
+        "operationId": "mark-round-action",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id da rodada externa.",
+            "in": "path",
+            "name": "round",
+            "required": true,
+            "schema": {
+              "description": "Id da rodada externa.",
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id da etapa da rodada.",
+            "in": "path",
+            "name": "step",
+            "required": true,
+            "schema": {
+              "description": "Id da etapa da rodada.",
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id da ação na etapa (o id que o dispatcher escreveu).",
+            "in": "path",
+            "name": "action",
+            "required": true,
+            "schema": {
+              "description": "Id da ação na etapa (o id que o dispatcher escreveu).",
+              "pattern": "^[a-z][a-z0-9]{0,15}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarkRoundActionInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActionMark"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          }
+        },
+        "summary": "Marca uma ação da etapa como feita ou pendente (owner ou admin, com reautenticação recente; gera activity_event)",
+        "tags": [
+          "external-rounds"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/external-rounds/{round}/steps/{step}/content": {
+      "get": {
+        "description": "Contrato do grupo 3 da v0.8 (#124): rodada e aprovação externas (ADR-0080 e 0081), limites de alerta (ADR-0083). Responde 501 até a fatia 3 (#127).",
+        "operationId": "get-round-step-content",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id da rodada externa.",
+            "in": "path",
+            "name": "round",
+            "required": true,
+            "schema": {
+              "description": "Id da rodada externa.",
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id da etapa da rodada.",
+            "in": "path",
+            "name": "step",
+            "required": true,
+            "schema": {
+              "description": "Id da etapa da rodada.",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoundStepContent"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          }
+        },
+        "summary": "Mostra o texto da etapa, lido do fato da ingestão (owner ou admin; cada leitura gera activity_event)",
+        "tags": [
+          "external-rounds"
         ]
       }
     },
