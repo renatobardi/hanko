@@ -31,6 +31,15 @@ func TestExternalRoundContratoResponde501(t *testing.T) {
 	if resp.StatusCode != 200 {
 		t.Fatalf("openapi.json: %d", resp.StatusCode)
 	}
+	n := checkRoundContractOps(t, body)
+	if n != 8 {
+		t.Fatalf("operações do contrato da rodada e da aprovação = %d, quer 8", n)
+	}
+}
+
+// checkRoundContractOps confere cada operação do grupo 3 no OpenAPI: resposta 501 e a descrição com a fatia, e devolve quantas são.
+func checkRoundContractOps(t *testing.T, body string) int {
+	t.Helper()
 	var doc struct {
 		Paths map[string]map[string]struct {
 			OperationID string                     `json:"operationId"`
@@ -56,7 +65,5 @@ func TestExternalRoundContratoResponde501(t *testing.T) {
 			}
 		}
 	}
-	if n != 8 {
-		t.Fatalf("operações do contrato da rodada e da aprovação = %d, quer 8", n)
-	}
+	return n
 }
