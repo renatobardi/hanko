@@ -4,6 +4,11 @@ package i18n
 // collections page. init merges them into the same catalog as the rest (en.go). Same rules: the key is the pt-BR
 // text, and a key that another file already translates is not repeated here.
 var enCofreUI = map[string]string{
+	"Campo apagado.": "Field deleted.",
+	"Campo arquivo não se troca: apague o campo e crie outro com o arquivo novo.": "A file field cannot be replaced: delete the field and create another one with the new file.",
+	"Apagar campo":                  "Delete field",
+	"Arquivo (só para o tipo file)": "File (only for the file type)",
+	"Até 1 MiB. Campo arquivo é sempre secreto e o conteúdo nunca volta para a tela; a persona o recebe por ${secretfile:…}.": "Up to 1 MiB. A file field is always secret and its content never comes back to the screen; the persona receives it through ${secretfile:…}.",
 	"Versões de histórico por campo": "History versions per field",
 	"Retenção do histórico de cada campo: as últimas N versões ou as de até D dias, o que guardar menos (ADR-0068 §3.2).": "History retention of each field: the last N versions or those up to D days old, whichever keeps fewer (ADR-0068 §3.2).",
 	"Dias de histórico por campo": "History days per field",

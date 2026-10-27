@@ -1,12 +1,11 @@
-# Kaizen do AGENTS.md · sessão `kaizen-hanko-0625`
-Data: 2026-10-26
+# Cofre pela interface · sessão `117-cofre-tela-cli`
+Data: 2026-10-27
 
 ## Feito
-- `AGENTS.md`: seção "Validar antes do PR" (ctx primeiro, conversão de inteiro, hash de dado sensível, complexidade cognitiva, catálogo i18n, `oute-sonar`).
-- `AGENTS.md`: `docs/SESSION.md` passa a ser o último commit da sessão, depois de `git merge origin/main`.
+- Item 1 da #117: "Novo campo" aceita o tipo `file` (envio de até 1 MiB), sempre secreto; o conteúdo nunca volta à página. "Apagar campo" para trocar o arquivo (ADR-0068 §5.1). Testes em `internal/ui/cofre_campo_arquivo_test.go`.
 
 ## Travado
-- Nada.
+- Nada. A ordem dos itens 2 (delegação, tela e CLI) e 3 (env da persona) é decisão do Bardi.
 
 ## Próximo passo
-- Bardi decide o merge do PR #121 após os ajustes da auditoria; a v0.8 segue esperando o fechamento da v0.7.
+- Bardi decide a ordem dos itens 2 e 3 (pergunta no comentário da #117).

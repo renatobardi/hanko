@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -26,6 +27,7 @@ type vaultUIBackend interface {
 	ListSecretFields(ctx context.Context, companyID domain.ID, scope domain.SecretScope, secretName string) ([]service.SecretFieldView, error)
 	UpdateSecretFieldMeta(ctx context.Context, actor domain.Actor, companyID domain.ID, scope domain.SecretScope, secretName, fieldName string, sensitive, password *bool, position *int) (service.SecretFieldView, error)
 	RotateSecretField(ctx context.Context, actor domain.Actor, companyID domain.ID, scope domain.SecretScope, secretName, fieldName string, in service.SecretFieldValueInput) (service.SecretFieldView, error)
+	DeleteSecretField(ctx context.Context, actor domain.Actor, companyID domain.ID, scope domain.SecretScope, secretName, fieldName string) error
 	CreateCollection(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.CollectionInput) (service.CollectionView, error)
 	ListCollections(ctx context.Context, companyID domain.ID) ([]service.CollectionView, error)
 	GetCollection(ctx context.Context, companyID domain.ID, idOrName string) (service.CollectionView, error)
@@ -61,6 +63,7 @@ var vaultNotices = map[string]string{
 	"campo":           i18n.N("Campo adicionado."),
 	"valor":           i18n.N("Valor do campo trocado: a versão do campo subiu."),
 	"marca":           i18n.N("Marca do campo atualizada."),
+	"campo-apagado":   i18n.N("Campo apagado."),
 	"colecao":         i18n.N("Coleção criada."),
 	"colecao-apagada": i18n.N("Coleção apagada."),
 	"no":              i18n.N("Segredo posto na coleção."),
@@ -127,7 +130,11 @@ func (s *server) fieldsVM(r *http.Request, co domain.Company, be vaultUIBackend,
 		}
 		row := views.SecretFieldRowVM{Name: f.Name, Reference: ref, Kind: string(f.Kind), Sensitive: f.Sensitive, Version: f.Version,
 			Revealed:  f.RevealedAt != nil,
-			ValueHref: seg + "/" + url.PathEscape(f.Name) + "/valor" + scopeQuery(user), MetaHref: seg + "/" + url.PathEscape(f.Name) + "/marca" + scopeQuery(user)}
+			ValueHref: seg + "/" + url.PathEscape(f.Name) + "/valor" + scopeQuery(user), MetaHref: seg + "/" + url.PathEscape(f.Name) + "/marca" + scopeQuery(user),
+			DeleteHref: seg + "/" + url.PathEscape(f.Name) + "/apagar" + scopeQuery(user)}
+		if f.Kind == domain.SecretFieldFile { // só metadados do arquivo; o conteúdo nunca chega à página
+			row.FileName, row.FileSize = f.FileName, fmtBytes(r.Context(), int64(f.SizeBytes))
+		}
 		if !f.Sensitive { // campo secreto nunca leva texto para a página
 			row.VisibleText = f.VisibleText
 		}
@@ -200,6 +207,11 @@ func (s *server) handleCreateSecretField(w http.ResponseWriter, r *http.Request,
 		return
 	}
 	user, name := userScopeForm(r), r.PathValue("name")
+	file, ferr := readFieldFile(w, r)
+	if ferr != nil {
+		s.fieldsFail(w, r, co, be, ferr, nil)
+		return
+	}
 	fname, kind := trimForm(r, "name"), trimForm(r, "kind")
 	visible := r.PostFormValue("visibilidade") == "visivel"
 	generate := r.PostFormValue("generate") != ""
@@ -211,14 +223,65 @@ func (s *server) handleCreateSecretField(w http.ResponseWriter, r *http.Request,
 	sensitive := !visible
 	in := service.CreateSecretFieldInput{Name: fname, Kind: domain.SecretFieldKind(kind), Sensitive: &sensitive,
 		SecretFieldValueInput: service.SecretFieldValueInput{Value: r.PostFormValue("value"), Generate: generate, Gen: gen}}
+	if in.Kind == domain.SecretFieldFile { // sempre secreto, sem valor de texto (ADR-0068 §5.1)
+		sensitive, in.Value, in.Generate = true, "", false
+		in.File, in.FileName, in.ContentType = file.data, file.name, file.contentType
+	}
 	v, err := be.CreateSecretField(ctx, actorFrom(ctx), co.ID, scopeOf(user), name, in)
 	if err != nil {
-		s.fieldsFail(w, r, co, be, err, func(vm *views.SecretFieldsVM) { // o valor digitado nunca volta
+		s.fieldsFail(w, r, co, be, err, func(vm *views.SecretFieldsVM) { // o valor e o arquivo digitados nunca voltam
 			vm.NewName, vm.NewKind, vm.NewVisible, vm.NewGenerate = fname, kind, visible, generate
 		})
 		return
 	}
 	s.afterFieldWrite(w, r, co, be, v, user, "campo")
+}
+
+// uploadedField é o arquivo do formulário "Novo campo". O conteúdo só vai ao service; nunca ao HTML.
+type uploadedField struct {
+	data        []byte
+	name        string
+	contentType string
+}
+
+// readFieldFile lê o campo "arquivo" quando o formulário é multipart (campo do tipo file, até 1 MiB). Formulário
+// urlencoded segue sem arquivo. Arquivo vazio ou acima do limite vira erro de validação, sem chamar o service.
+func readFieldFile(w http.ResponseWriter, r *http.Request) (uploadedField, error) {
+	var up uploadedField
+	if !strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
+		return up, nil
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, domain.MaxSecretFieldFileBytes+uploadFormOverhead)
+	if err := r.ParseMultipartForm(1 << 20); err != nil {
+		return up, domain.Invalid("file", "envio inválido ou acima de 1 MiB")
+	}
+	if r.MultipartForm != nil {
+		defer func() { _ = r.MultipartForm.RemoveAll() }()
+	}
+	f, hdr, err := r.FormFile("arquivo")
+	if err != nil {
+		return up, nil // sem arquivo: o service recusa se o tipo for file
+	}
+	defer func() { _ = f.Close() }()
+	data, err := io.ReadAll(io.LimitReader(f, domain.MaxSecretFieldFileBytes+1))
+	if err != nil || len(data) > domain.MaxSecretFieldFileBytes {
+		return up, domain.Invalid("file", "o arquivo tem de ter de 1 byte a 1 MiB")
+	}
+	up.data, up.name, up.contentType = data, filepath.Base(hdr.Filename), hdr.Header.Get("Content-Type")
+	return up, nil
+}
+
+func (s *server) handleDeleteSecretField(w http.ResponseWriter, r *http.Request, co domain.Company) {
+	be, ctx, ok := s.vaultReq(w, r)
+	if !ok {
+		return
+	}
+	user, name := userScopeForm(r), r.PathValue("name")
+	if err := be.DeleteSecretField(ctx, actorFrom(ctx), co.ID, scopeOf(user), name, r.PathValue("field")); err != nil {
+		s.fieldsFail(w, r, co, be, err, nil)
+		return
+	}
+	redirect(w, r, "/c/"+co.Slug+"/configuracoes/segredos/"+url.PathEscape(name)+"/campos"+scopeQuery(user)+okQuery(user, "campo-apagado"))
 }
 
 func (s *server) handleRotateSecretField(w http.ResponseWriter, r *http.Request, co domain.Company) {
