@@ -2,6 +2,7 @@ package ui
 
 import (
 	"bytes"
+	"io"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -145,4 +146,52 @@ func TestNovoCampoArquivoComErroNaoDevolveOConteudo(t *testing.T) {
 	rec := postCampo(t, e, map[string]string{"name": "kubeconfig", "kind": "file"}, []byte(conteudoArquivo))
 	wantStatus(t, rec, http.StatusUnprocessableEntity)
 	wantNotContains(t, rec, conteudoArquivo)
+}
+
+// contaLeitura conta os bytes que o servidor leu do corpo.
+type contaLeitura struct {
+	r io.Reader
+	n int64
+}
+
+func (c *contaLeitura) Read(p []byte) (int, error) {
+	n, err := c.r.Read(p)
+	c.n += int64(n)
+	return n, err
+}
+
+func TestNovoCampoArquivoCorpoGigantePara1MiBDeFolga(t *testing.T) {
+	e, cf := newCofreEnv(t, domain.MemberAdmin)
+	var body bytes.Buffer
+	mw := multipart.NewWriter(&body)
+	fw, _ := mw.CreateFormFile("arquivo", "enorme.bin")
+	_, _ = fw.Write(bytes.Repeat([]byte("x"), 40<<20))
+	_ = mw.Close()
+	cl := &contaLeitura{r: &body}
+	rq := httptest.NewRequest(http.MethodPost, camposPage, cl)
+	rq.Header.Set("Content-Type", mw.FormDataContentType())
+	rq.Header.Set("Sec-Fetch-Site", "same-origin")
+	rec := httptest.NewRecorder()
+	e.h.ServeHTTP(rec, rq)
+	wantStatus(t, rec, http.StatusUnprocessableEntity)
+	if len(cf.created) != 0 {
+		t.Fatalf("o service recebeu um envio de 40 MiB")
+	}
+	if limite := int64(limiteArquivoByte + uploadFormOverhead + 64<<10); cl.n > limite {
+		t.Fatalf("o servidor leu %d bytes do corpo, quer no máximo %d", cl.n, limite)
+	}
+}
+
+func TestApagarCampoPedeProvaDeIdentidade(t *testing.T) {
+	e, cf := newCofreEnv(t, domain.MemberAdmin)
+	cf.fileField = true
+	cf.deleteErr = &domain.ReauthError{WindowMinutes: 5}
+	rec := e.post(t, camposPage+"/kubeconfig/apagar", url.Values{}, false)
+	wantStatus(t, rec, http.StatusUnauthorized)
+	wantContains(t, rec, "prova recente de identidade", `name="senha"`)
+
+	cf.deleteErr = nil
+	rec = e.post(t, camposPage+"/kubeconfig/apagar", url.Values{"senha": {senhaConta}}, false)
+	wantStatus(t, rec, http.StatusSeeOther) // modo confiável: sem sessão, a senha não é provada e o pedido segue
+	wantNotContains(t, rec, senhaConta)
 }

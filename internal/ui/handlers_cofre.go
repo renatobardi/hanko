@@ -206,12 +206,12 @@ func (s *server) handleCreateSecretField(w http.ResponseWriter, r *http.Request,
 	if !ok {
 		return
 	}
-	user, name := userScopeForm(r), r.PathValue("name")
-	file, ferr := readFieldFile(w, r)
+	file, ferr := readFieldFile(w, r) // antes de qualquer PostFormValue: ele leria o corpo sem teto
 	if ferr != nil {
 		s.fieldsFail(w, r, co, be, ferr, nil)
 		return
 	}
+	user, name := userScopeForm(r), r.PathValue("name")
 	fname, kind := trimForm(r, "name"), trimForm(r, "kind")
 	visible := r.PostFormValue("visibilidade") == "visivel"
 	generate := r.PostFormValue("generate") != ""
@@ -271,17 +271,41 @@ func readFieldFile(w http.ResponseWriter, r *http.Request) (uploadedField, error
 	return up, nil
 }
 
+// handleDeleteSecretField apaga um campo. O service pede prova recente de identidade (ADR-0070): a senha da conta vem
+// no formulário ou a sessão já traz a prova; sem ela a tela pede a senha de novo, sem eco.
 func (s *server) handleDeleteSecretField(w http.ResponseWriter, r *http.Request, co domain.Company) {
 	be, ctx, ok := s.vaultReq(w, r)
 	if !ok {
 		return
 	}
 	user, name := userScopeForm(r), r.PathValue("name")
-	if err := be.DeleteSecretField(ctx, actorFrom(ctx), co.ID, scopeOf(user), name, r.PathValue("field")); err != nil {
-		s.fieldsFail(w, r, co, be, err, nil)
+	ctx, err := reauthForm(ctx, be, r.PostFormValue("senha"))
+	if err == nil {
+		err = be.DeleteSecretField(ctx, actorFrom(ctx), co.ID, scopeOf(user), name, r.PathValue("field"))
+	}
+	if err != nil {
+		s.deleteFieldFail(w, r, co, be, err)
 		return
 	}
 	redirect(w, r, "/c/"+co.Slug+"/configuracoes/segredos/"+url.PathEscape(name)+"/campos"+scopeQuery(user)+okQuery(user, "campo-apagado"))
+}
+
+// deleteFieldFail mostra o erro de apagar campo; pedido de prova e senha errada voltam como 401 com o texto que manda
+// informar a senha da conta no formulário do campo.
+func (s *server) deleteFieldFail(w http.ResponseWriter, r *http.Request, co domain.Company, be vaultUIBackend, err error) {
+	var re *domain.ReauthError
+	switch {
+	case errors.As(err, &re):
+		s.showFields(w, r, co, be, http.StatusUnauthorized, "", func(vm *views.SecretFieldsVM) {
+			vm.Error = i18n.T(r.Context(), "O servidor pede uma prova recente de identidade: informe a senha da conta no formulário do campo e apague de novo.")
+		})
+	case errors.Is(err, domain.ErrUnauthenticated):
+		s.showFields(w, r, co, be, http.StatusUnauthorized, "", func(vm *views.SecretFieldsVM) {
+			vm.Error = i18n.T(r.Context(), "Senha da conta incorreta.")
+		})
+	default:
+		s.fieldsFail(w, r, co, be, err, nil)
+	}
 }
 
 func (s *server) handleRotateSecretField(w http.ResponseWriter, r *http.Request, co domain.Company) {

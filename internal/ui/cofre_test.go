@@ -43,6 +43,7 @@ type cofreFake struct {
 	created      []service.CreateSecretFieldInput // campos que chegaram em CreateSecretField
 	createErr    error                            // erro que CreateSecretField devolve (nil = grava)
 	deletedField []string                         // campos apagados
+	deleteErr    error                            // erro que DeleteSecretField devolve
 	fileField    bool                             // ListSecretFields inclui um campo arquivo
 }
 
@@ -53,6 +54,9 @@ func (c *cofreFake) CreateSecretField(_ context.Context, _ domain.Actor, _ domai
 }
 
 func (c *cofreFake) DeleteSecretField(_ context.Context, _ domain.Actor, _ domain.ID, _ domain.SecretScope, _, field string) error {
+	if c.deleteErr != nil {
+		return c.deleteErr
+	}
 	c.deletedField = append(c.deletedField, field)
 	return nil
 }
