@@ -95,7 +95,7 @@ func (q *Queries) CountUsers(ctx context.Context) (int64, error) {
 const createAPIKey = `-- name: CreateAPIKey :one
 INSERT INTO api_keys (id, user_id, name, prefix, hash, scope, device, created_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-RETURNING id, user_id, name, prefix, hash, created_at, last_used_at, revoked_at, scope, device
+RETURNING id, user_id, name, prefix, hash, created_at, last_used_at, revoked_at, scope, device, company_id
 `
 
 type CreateAPIKeyParams struct {
@@ -132,6 +132,7 @@ func (q *Queries) CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (Api
 		&i.RevokedAt,
 		&i.Scope,
 		&i.Device,
+		&i.CompanyID,
 	)
 	return i, err
 }
@@ -344,7 +345,7 @@ func (q *Queries) DeleteUser(ctx context.Context, id uuid.UUID) (int64, error) {
 }
 
 const getAPIKeyByHash = `-- name: GetAPIKeyByHash :one
-SELECT id, user_id, name, prefix, hash, created_at, last_used_at, revoked_at, scope, device FROM api_keys WHERE hash = $1 AND revoked_at IS NULL
+SELECT id, user_id, name, prefix, hash, created_at, last_used_at, revoked_at, scope, device, company_id FROM api_keys WHERE hash = $1 AND revoked_at IS NULL
 `
 
 func (q *Queries) GetAPIKeyByHash(ctx context.Context, hash string) (ApiKey, error) {
@@ -361,12 +362,13 @@ func (q *Queries) GetAPIKeyByHash(ctx context.Context, hash string) (ApiKey, err
 		&i.RevokedAt,
 		&i.Scope,
 		&i.Device,
+		&i.CompanyID,
 	)
 	return i, err
 }
 
 const getAPIKeyByID = `-- name: GetAPIKeyByID :one
-SELECT id, user_id, name, prefix, hash, created_at, last_used_at, revoked_at, scope, device FROM api_keys WHERE id = $1 AND user_id = $2
+SELECT id, user_id, name, prefix, hash, created_at, last_used_at, revoked_at, scope, device, company_id FROM api_keys WHERE id = $1 AND user_id = $2
 `
 
 type GetAPIKeyByIDParams struct {
@@ -388,6 +390,7 @@ func (q *Queries) GetAPIKeyByID(ctx context.Context, arg GetAPIKeyByIDParams) (A
 		&i.RevokedAt,
 		&i.Scope,
 		&i.Device,
+		&i.CompanyID,
 	)
 	return i, err
 }
@@ -536,7 +539,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 }
 
 const listAPIKeys = `-- name: ListAPIKeys :many
-SELECT id, user_id, name, prefix, hash, created_at, last_used_at, revoked_at, scope, device FROM api_keys WHERE user_id = $1 ORDER BY created_at DESC, id
+SELECT id, user_id, name, prefix, hash, created_at, last_used_at, revoked_at, scope, device, company_id FROM api_keys WHERE user_id = $1 ORDER BY created_at DESC, id
 `
 
 func (q *Queries) ListAPIKeys(ctx context.Context, userID uuid.UUID) ([]ApiKey, error) {
@@ -559,6 +562,7 @@ func (q *Queries) ListAPIKeys(ctx context.Context, userID uuid.UUID) ([]ApiKey, 
 			&i.RevokedAt,
 			&i.Scope,
 			&i.Device,
+			&i.CompanyID,
 		); err != nil {
 			return nil, err
 		}
@@ -635,7 +639,7 @@ func (q *Queries) PruneCLIAuthRequests(ctx context.Context, cutoff time.Time) er
 
 const revokeAPIKey = `-- name: RevokeAPIKey :one
 UPDATE api_keys SET revoked_at = $1::timestamptz WHERE id = $2 AND user_id = $3 AND revoked_at IS NULL
-RETURNING id, user_id, name, prefix, hash, created_at, last_used_at, revoked_at, scope, device
+RETURNING id, user_id, name, prefix, hash, created_at, last_used_at, revoked_at, scope, device, company_id
 `
 
 type RevokeAPIKeyParams struct {
@@ -658,6 +662,7 @@ func (q *Queries) RevokeAPIKey(ctx context.Context, arg RevokeAPIKeyParams) (Api
 		&i.RevokedAt,
 		&i.Scope,
 		&i.Device,
+		&i.CompanyID,
 	)
 	return i, err
 }

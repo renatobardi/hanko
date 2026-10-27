@@ -125,7 +125,7 @@ func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (P
 const createWorkspace = `-- name: CreateWorkspace :one
 INSERT INTO workspaces (id, company_id, slug, name, path, repo_url, default_branch, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)
-RETURNING id, company_id, slug, name, path, repo_url, created_at, updated_at, default_branch
+RETURNING id, company_id, slug, name, path, repo_url, created_at, updated_at, default_branch, is_system
 `
 
 type CreateWorkspaceParams struct {
@@ -161,6 +161,7 @@ func (q *Queries) CreateWorkspace(ctx context.Context, arg CreateWorkspaceParams
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DefaultBranch,
+		&i.IsSystem,
 	)
 	return i, err
 }
@@ -241,7 +242,7 @@ func (q *Queries) GetProjectBySlug(ctx context.Context, arg GetProjectBySlugPara
 }
 
 const getWorkspaceByID = `-- name: GetWorkspaceByID :one
-SELECT id, company_id, slug, name, path, repo_url, created_at, updated_at, default_branch FROM workspaces WHERE company_id = $1 AND id = $2
+SELECT id, company_id, slug, name, path, repo_url, created_at, updated_at, default_branch, is_system FROM workspaces WHERE company_id = $1 AND id = $2
 `
 
 type GetWorkspaceByIDParams struct {
@@ -262,12 +263,13 @@ func (q *Queries) GetWorkspaceByID(ctx context.Context, arg GetWorkspaceByIDPara
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DefaultBranch,
+		&i.IsSystem,
 	)
 	return i, err
 }
 
 const getWorkspaceBySlug = `-- name: GetWorkspaceBySlug :one
-SELECT id, company_id, slug, name, path, repo_url, created_at, updated_at, default_branch FROM workspaces WHERE company_id = $1 AND slug = $2
+SELECT id, company_id, slug, name, path, repo_url, created_at, updated_at, default_branch, is_system FROM workspaces WHERE company_id = $1 AND slug = $2
 `
 
 type GetWorkspaceBySlugParams struct {
@@ -288,6 +290,7 @@ func (q *Queries) GetWorkspaceBySlug(ctx context.Context, arg GetWorkspaceBySlug
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DefaultBranch,
+		&i.IsSystem,
 	)
 	return i, err
 }
@@ -433,7 +436,7 @@ func (q *Queries) ListWorkspaceProjects(ctx context.Context, arg ListWorkspacePr
 }
 
 const listWorkspaces = `-- name: ListWorkspaces :many
-SELECT id, company_id, slug, name, path, repo_url, created_at, updated_at, default_branch FROM workspaces WHERE company_id = $1 ORDER BY created_at, id
+SELECT id, company_id, slug, name, path, repo_url, created_at, updated_at, default_branch, is_system FROM workspaces WHERE company_id = $1 ORDER BY created_at, id
 `
 
 func (q *Queries) ListWorkspaces(ctx context.Context, companyID uuid.UUID) ([]Workspace, error) {
@@ -455,6 +458,7 @@ func (q *Queries) ListWorkspaces(ctx context.Context, companyID uuid.UUID) ([]Wo
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DefaultBranch,
+			&i.IsSystem,
 		); err != nil {
 			return nil, err
 		}
@@ -789,7 +793,7 @@ const updateWorkspace = `-- name: UpdateWorkspace :one
 UPDATE workspaces
 SET name = $1, path = $2, repo_url = $3, default_branch = $4, updated_at = $5
 WHERE company_id = $6 AND id = $7
-RETURNING id, company_id, slug, name, path, repo_url, created_at, updated_at, default_branch
+RETURNING id, company_id, slug, name, path, repo_url, created_at, updated_at, default_branch, is_system
 `
 
 type UpdateWorkspaceParams struct {
@@ -823,6 +827,7 @@ func (q *Queries) UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DefaultBranch,
+		&i.IsSystem,
 	)
 	return i, err
 }
