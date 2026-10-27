@@ -11,8 +11,7 @@ Este arquivo é a memória de trabalho do projeto. Toda sessão (humano, Claude 
 
 ## Fim de sessão (obrigatório)
 - Toda sessão termina com algo executável + commit (`-s`). Sem exceção. Zero sessões "só refatorando".
-- Atualizar `docs/SESSION.md`: feito / travado / próximo passo em ≤10 linhas. Sobrescrever, não acumular.
-- `docs/SESSION.md` é o **último commit** da sessão, feito **depois** de `git merge origin/main` (ou rebase) e só com o estado da sessão. Se outro PR entrar na `main` depois disso, atualize o branch e refaça só esse commit; não resolva o conflito somando o texto das duas sessões.
+- `docs/SESSION.md`: feito / travado / próximo passo em ≤10 linhas, só com o estado da sessão. Sobrescrever, não acumular. É o **último commit** da sessão, feito **depois** de `git merge origin/main` (ou rebase). Se outro PR entrar na `main` depois, atualize o branch e refaça só esse commit; não resolva o conflito somando o texto das duas sessões.
 - Decisão de arquitetura tomada no meio → ADR novo em `docs/adr/NNNN-*.md`.
 
 ## Regras de trabalho
@@ -28,7 +27,7 @@ Este arquivo é a memória de trabalho do projeto. Toda sessão (humano, Claude 
 Cada item abaixo já reprovou PR no CI depois de aberto. Confira no diff antes do push.
 - `ctx context.Context` é o primeiro parâmetro, inclusive em helper de teste (revive `context-as-argument`).
 - Conversão entre tipos inteiros só com limite validado antes (gosec G115); não converta `int` para `int32`/`uint` sem checar a faixa.
-- Nunca hash simples (SHA-256, MD5…) para dado sensível, como senha ou token (CodeQL `go/weak-sensitive-data-hashing`); use KDF próprio para o caso (bcrypt, argon2 ou scrypt).
+- Nunca hash simples (SHA-256, MD5…) para senha ou dado sensível de baixa entropia (CodeQL `go/weak-sensitive-data-hashing`); use KDF (bcrypt, argon2 ou scrypt). Token de alta entropia usa HMAC com rótulo, como `internal/auth/secretbox.go`.
 - Função com complexidade cognitiva até 15 (Sonar); extraia helpers antes de passar disso.
 - Texto novo de CLI ou UI entra no catálogo de tradução; rode `go test ./internal/i18n ./internal/ui` (`TestCatalogCoversSources`).
-- Depois do push, rode `oute-sonar pr <n> --json` e só avise que o PR está pronto com o gate OK.
+- Depois do push, rode `oute-sonar pr <n> --json` (ou leia o check SonarCloud do PR) e só avise que o PR está pronto com o gate OK.
