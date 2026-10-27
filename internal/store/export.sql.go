@@ -632,7 +632,7 @@ INSERT INTO subscriptions (id, company_id, name, agent, monthly_usd, model_prefi
                            weekly_guard_pct, active, ended_at, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7,
         $8, $9, $10, $11, $12)
-RETURNING id, company_id, name, agent, monthly_usd, model_prefixes, weekly_limit_usd, weekly_guard_pct, active, ended_at, created_at, updated_at
+RETURNING id, company_id, name, agent, monthly_usd, model_prefixes, weekly_limit_usd, weekly_guard_pct, active, ended_at, created_at, updated_at, external_key
 `
 
 type ImportSubscriptionParams struct {
@@ -679,6 +679,7 @@ func (q *Queries) ImportSubscription(ctx context.Context, arg ImportSubscription
 		&i.EndedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ExternalKey,
 	)
 	return i, err
 }

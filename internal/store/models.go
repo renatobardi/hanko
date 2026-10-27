@@ -350,6 +350,15 @@ type Company struct {
 	ArchiveSnapshot    []byte
 }
 
+type CompanyAlertSetting struct {
+	CompanyID     uuid.UUID
+	Key           string
+	Value         float64
+	UpdatedByType string
+	UpdatedByID   *uuid.UUID
+	UpdatedAt     time.Time
+}
+
 type CompanyDeletion struct {
 	ID          uuid.UUID
 	CompanyID   uuid.UUID
@@ -884,6 +893,7 @@ type InboxState struct {
 	ReadAt      *time.Time
 	ArchivedAt  *time.Time
 	UpdatedAt   time.Time
+	Migrated    bool
 }
 
 type InstanceBackup struct {
@@ -1098,6 +1108,8 @@ type ModelPrice struct {
 	Fixed                float64
 	EffectiveAt          time.Time
 	CreatedAt            time.Time
+	Origin               string
+	Locked               bool
 }
 
 type ModelReport struct {
@@ -1349,6 +1361,32 @@ type PluginState struct {
 	Key       string
 	Value     []byte
 	UpdatedAt time.Time
+}
+
+type PriceCheckResult struct {
+	RunID                uuid.UUID
+	Model                string
+	Source               string
+	Status               string
+	InputPerMtok         *float64
+	OutputPerMtok        *float64
+	CacheReadPerMtok     *float64
+	CacheCreationPerMtok *float64
+	PriceID              *uuid.UUID
+}
+
+type PriceCheckRun struct {
+	ID         uuid.UUID
+	Reason     string
+	StartedAt  time.Time
+	FinishedAt *time.Time
+}
+
+type PriceCheckSource struct {
+	RunID     uuid.UUID
+	Source    string
+	Status    string
+	ErrorCode string
 }
 
 type Project struct {
@@ -1911,12 +1949,25 @@ type Subscription struct {
 	EndedAt        *time.Time
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
+	ExternalKey    *string
 }
 
 type SubscriptionGuardAlert struct {
 	SubscriptionID uuid.UUID
 	Week           string
 	CreatedAt      time.Time
+}
+
+type SubscriptionMonthlyHistory struct {
+	ID             uuid.UUID
+	CompanyID      uuid.UUID
+	SubscriptionID uuid.UUID
+	MonthlyUsd     float64
+	StartsOn       time.Time
+	RecordedAt     time.Time
+	Origin         string
+	ActorType      string
+	ActorID        *uuid.UUID
 }
 
 type SubscriptionPeriod struct {

@@ -161,7 +161,7 @@ func (q *Queries) DeleteBudgetAlert(ctx context.Context, arg DeleteBudgetAlertPa
 }
 
 const getModelPrice = `-- name: GetModelPrice :one
-SELECT id, model, input_per_mtok, output_per_mtok, cache_read_per_mtok, cache_creation_per_mtok, fixed, effective_at, created_at FROM model_prices
+SELECT id, model, input_per_mtok, output_per_mtok, cache_read_per_mtok, cache_creation_per_mtok, fixed, effective_at, created_at, origin, locked FROM model_prices
 WHERE starts_with($1::text, model) AND effective_at <= $2::timestamptz
 ORDER BY length(model) DESC, effective_at DESC
 LIMIT 1
@@ -186,6 +186,8 @@ func (q *Queries) GetModelPrice(ctx context.Context, arg GetModelPriceParams) (M
 		&i.Fixed,
 		&i.EffectiveAt,
 		&i.CreatedAt,
+		&i.Origin,
+		&i.Locked,
 	)
 	return i, err
 }
@@ -264,7 +266,7 @@ func (q *Queries) InsertCostNotice(ctx context.Context, arg InsertCostNoticePara
 }
 
 const listModelPrices = `-- name: ListModelPrices :many
-SELECT id, model, input_per_mtok, output_per_mtok, cache_read_per_mtok, cache_creation_per_mtok, fixed, effective_at, created_at FROM model_prices ORDER BY model, effective_at DESC
+SELECT id, model, input_per_mtok, output_per_mtok, cache_read_per_mtok, cache_creation_per_mtok, fixed, effective_at, created_at, origin, locked FROM model_prices ORDER BY model, effective_at DESC
 `
 
 func (q *Queries) ListModelPrices(ctx context.Context) ([]ModelPrice, error) {
@@ -286,6 +288,8 @@ func (q *Queries) ListModelPrices(ctx context.Context) ([]ModelPrice, error) {
 			&i.Fixed,
 			&i.EffectiveAt,
 			&i.CreatedAt,
+			&i.Origin,
+			&i.Locked,
 		); err != nil {
 			return nil, err
 		}

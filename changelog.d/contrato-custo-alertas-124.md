@@ -1,0 +1,5 @@
+### Contrato da v0.8, grupo 2: custo elevado e alertas de agente externo
+
+- A migration 00209 cria o contrato do custo elevado e dos alertas de agente externo (ADR-0082 e 0083): origem e trava do preço de modelo, chave externa da assinatura, histórico de mensalidade (cada assinatura que já existe ganha a linha inicial com o valor atual, então nenhum "pago" de hoje muda), conferência diária de preços, os 17 tipos de alerta e os cinco sujeitos novos, e os limites e prazos de cada empresa. Os runs do Hanko não mudam no banco. Só o contrato: nenhuma tela, rota ou job funciona ainda.
+
+- English summary: migration 00209 adds the contract for the elevated cost model and the external-agent alerts (ADR-0082 and 0083): price origin and lock, subscription external key, monthly-value history (every existing subscription gets its initial row with the current value, so no existing "paid" figure changes), the daily price check, the 17 alert types and five new subjects, and per-company limits and deadlines. Hanko runs do not change in the database. Contract only: no screen, route or job works yet.
