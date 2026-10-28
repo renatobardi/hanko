@@ -1,11 +1,14 @@
-# Cofre pela interface · sessão `117-cofre-tela-cli`
-Data: 2026-10-27
+# Contrato da v0.8 · sessão `feat-124-contrato-rodada-aprovacao`
+Data: 2026-10-28
 
 ## Feito
-- Item 1 da #117: "Novo campo" aceita o tipo `file` (envio de até 1 MiB), sempre secreto; o conteúdo nunca volta à página. "Apagar campo" para trocar o arquivo (ADR-0068 §5.1). Testes em `internal/ui/cofre_campo_arquivo_test.go`.
+- Migration 00210 (rodada, ciclo, participante, etapa, ação, marca, aprovação, versões do script, lista da outbox, busca de conversa e sessão externas, `db_disk_low`, itens da Caixa), testada do zero e sobre a 00209.
+- Domínio e 8 operações novas em 501 (rodada, ciclo, etapa, aprovação, script). Limites de disco em `AlertLimitSpecs`.
+- Corpo do PR #138 com os itens do `## Falta`; branch atualizado com a `origin/main` (#137 entrou).
 
 ## Travado
-- Nada. A ordem dos itens 2 (delegação, tela e CLI) e 3 (env da persona) é decisão do Bardi.
+- Padrões do disco (aviso 5 GiB, crítico 0,5 GiB) e alerta por empresa: recomendação do autor, a confirmar com o Bardi.
+- Gate do SonarCloud do #138 sem resultado (`NONE`); CI não acompanhado.
 
 ## Próximo passo
-- Bardi decide a ordem dos itens 2 e 3 (pergunta no comentário da #117).
+- Bardi revisa o #138 e decide o merge. Depois: fatia 2 (#126), custo e alertas externos; fatia 3 (#127), rodada e aprovação, com a severidade do disco; fatia 4 (#128), busca e export.

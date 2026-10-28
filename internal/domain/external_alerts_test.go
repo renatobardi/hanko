@@ -47,8 +47,8 @@ func TestAlertSubjectID(t *testing.T) {
 }
 
 func TestAlertSettings(t *testing.T) {
-	if len(AlertLimitSpecs) != 14 {
-		t.Errorf("limites = %d, quer 14", len(AlertLimitSpecs))
+	if len(AlertLimitSpecs) != 16 {
+		t.Errorf("limites = %d, quer 16 (14 do ADR-0083 e 2 do disco do Postgres)", len(AlertLimitSpecs))
 	}
 	seen := map[string]bool{}
 	for _, s := range append(append([]AlertSettingSpec{}, AlertLimitSpecs...), AlertDueSpecs()...) {
@@ -60,9 +60,9 @@ func TestAlertSettings(t *testing.T) {
 			t.Errorf("%s: o padrão %g está fora da faixa %g a %g", s.Key, s.Default, s.Min, s.Max)
 		}
 	}
-	// 22 tipos (5 do Hanko e 17 externos) mais a pergunta da rodada.
-	if n := len(AlertDueSpecs()); n != 23 {
-		t.Errorf("prazos = %d, quer 23", n)
+	// 23 tipos (6 do Hanko, com o de disco, e 17 externos) mais a pergunta da rodada.
+	if n := len(AlertDueSpecs()); n != 24 {
+		t.Errorf("prazos = %d, quer 24", n)
 	}
 	if AlertDueDefaultHours(AlertQueue) != 24 || AlertDueDefaultHours(AlertRunStuck) != 0 {
 		t.Error("prazo padrão: 24 h para externo, sem prazo para os do Hanko")
