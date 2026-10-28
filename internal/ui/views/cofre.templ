@@ -22,7 +22,9 @@ templ fieldRow(f SecretFieldRowVM, canWrite bool) {
 		</td>
 		<td class="num">{ fmt.Sprint(f.Version) }</td>
 		<td class="hide-sm">
-			if f.Sensitive {
+			if f.Kind == "file" {
+				<code class="mono">{ f.FileName }</code> <span class="muted">{ f.FileSize }</span>
+			} else if f.Sensitive {
 				if f.Revealed {
 					<span class="muted">{ i18n.T(ctx, "sim") }</span>
 				} else {
@@ -36,6 +38,13 @@ templ fieldRow(f SecretFieldRowVM, canWrite bool) {
 			if canWrite {
 				<details class="sec-actions">
 					<summary class="btn outline sm">{ i18n.T(ctx, "Ações") }</summary>
+					if f.Kind == "file" {
+						<form method="post" action={ templ.SafeURL(f.DeleteHref) } hx-boost="true" class="mt-2">
+							<p class="muted text-sm">{ i18n.T(ctx, "Campo arquivo não se troca: apague o campo e crie outro com o arquivo novo.") }</p>
+							<input class="input" name="senha" type="password" autocomplete="current-password" maxlength="256" placeholder={ i18n.T(ctx, "senha da conta (se o servidor pedir)") } aria-label={ i18n.T(ctx, "senha da conta (se o servidor pedir)") }/>
+							<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Apagar campo") }</button>
+						</form>
+					} else {
 					<form method="post" action={ templ.SafeURL(f.ValueHref) } hx-boost="true" class="mt-2">
 						<input class="input mono" name="value" type="password" autocomplete="new-password" placeholder={ i18n.T(ctx, "novo valor") } maxlength="8192"/>
 						<label class="check-line"><input type="checkbox" name="generate" value="1"/><span>{ i18n.T(ctx, "gerar") }</span></label>
@@ -51,6 +60,7 @@ templ fieldRow(f SecretFieldRowVM, canWrite bool) {
 							<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Mudar marca") }</button>
 						}
 					</form>
+					}
 				</details>
 			}
 		</td>
@@ -93,7 +103,7 @@ templ SecretFieldsPage(sh Shell, vm SecretFieldsVM) {
 		<p class="muted text-sm mb-3">{ i18n.T(ctx, "Revelar um campo secreto, ver o histórico de versões e restaurar uma versão: requer reautenticação (fatia 2, #57).") }</p>
 		if vm.CanWrite {
 			<h2 class="side-h sec-h">{ i18n.T(ctx, "Novo campo") }</h2>
-			<form class="card pad form-card" method="post" action={ templ.SafeURL(vm.CreateHref) } hx-boost="true">
+			<form class="card pad form-card" method="post" action={ templ.SafeURL(vm.CreateHref) } enctype="multipart/form-data" hx-boost="true">
 				<div class="form-grid">
 					<div class="field">
 						<label for="fld-name">{ i18n.T(ctx, "Nome") }</label>
@@ -102,8 +112,9 @@ templ SecretFieldsPage(sh Shell, vm SecretFieldsVM) {
 					<div class="field">
 						<label for="fld-kind">{ i18n.T(ctx, "Tipo") }</label>
 						<select class="select" id="fld-kind" name="kind">
-							<option value="text" selected?={ vm.NewKind != "totp" }>text</option>
+							<option value="text" selected?={ vm.NewKind != "totp" && vm.NewKind != "file" }>text</option>
 							<option value="totp" selected?={ vm.NewKind == "totp" }>totp</option>
+							<option value="file" selected?={ vm.NewKind == "file" }>file</option>
 						</select>
 					</div>
 					<div class="field">
@@ -118,6 +129,11 @@ templ SecretFieldsPage(sh Shell, vm SecretFieldsVM) {
 					<label for="fld-val">{ i18n.T(ctx, "Valor") }</label>
 					<input class="input mono" id="fld-val" name="value" type="password" value="" autocomplete="new-password" spellcheck="false" maxlength="8192"/>
 					<span class="hint">{ i18n.T(ctx, "O valor é cifrado. Campo secreto nunca volta para a tela; em branco com a opção abaixo, o Hanko gera um e o mostra uma única vez.") }</span>
+				</div>
+				<div class="field">
+					<label for="fld-file">{ i18n.T(ctx, "Arquivo (só para o tipo file)") }</label>
+					<input class="input" id="fld-file" name="arquivo" type="file"/>
+					<span class="hint">{ i18n.T(ctx, "Até 1 MiB. Campo arquivo é sempre secreto e o conteúdo nunca volta para a tela; a persona o recebe por ${secretfile:…}.") }</span>
 				</div>
 				<label class="check-line">
 					<input type="checkbox" name="generate" value="1" checked?={ vm.NewGenerate }/>

@@ -466,6 +466,7 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("POST /c/{company}/configuracoes/segredos/{name}/campos", post(co(s.handleCreateSecretField)))
 	mux.HandleFunc("POST /c/{company}/configuracoes/segredos/{name}/campos/{field}/valor", post(co(s.handleRotateSecretField)))
 	mux.HandleFunc("POST /c/{company}/configuracoes/segredos/{name}/campos/{field}/marca", post(co(s.handleSecretFieldMeta)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/segredos/{name}/campos/{field}/apagar", post(co(s.handleDeleteSecretField)))
 	mux.HandleFunc("GET /c/{company}/configuracoes/colecoes", co(s.handleCollections))
 	mux.HandleFunc("POST /c/{company}/configuracoes/colecoes", post(co(s.handleCreateCollection)))
 	mux.HandleFunc("GET /c/{company}/configuracoes/colecoes/{coll}", co(s.handleCollection))

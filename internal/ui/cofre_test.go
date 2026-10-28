@@ -39,11 +39,26 @@ type cofreFake struct {
 	exportPass  []string // senhas do arquivo que chegaram em ExportVault
 	importFile  [][]byte // arquivos que chegaram em ImportVault
 	importPass  []string // senhas do arquivo que chegaram em ImportVault
+
+	created      []service.CreateSecretFieldInput // campos que chegaram em CreateSecretField
+	createErr    error                            // erro que CreateSecretField devolve (nil = grava)
+	deletedField []string                         // campos apagados
+	deleteErr    error                            // erro que DeleteSecretField devolve
+	fileField    bool                             // ListSecretFields inclui um campo arquivo
 }
 
 func (c *cofreFake) CreateSecretField(_ context.Context, _ domain.Actor, _ domain.ID, _ domain.SecretScope, _ string, in service.CreateSecretFieldInput) (service.SecretFieldView, error) {
 	c.gen = append(c.gen, in.Gen)
-	return service.SecretFieldView{}, nil
+	c.created = append(c.created, in)
+	return service.SecretFieldView{}, c.createErr
+}
+
+func (c *cofreFake) DeleteSecretField(_ context.Context, _ domain.Actor, _ domain.ID, _ domain.SecretScope, _, field string) error {
+	if c.deleteErr != nil {
+		return c.deleteErr
+	}
+	c.deletedField = append(c.deletedField, field)
+	return nil
 }
 
 // VaultHealth devolve um achado de cada categoria, para a página de saúde ter linhas para mostrar.
@@ -55,6 +70,10 @@ func (c *cofreFake) VaultHealth(context.Context, domain.ID) (service.HealthRepor
 }
 
 func (c *cofreFake) ListSecretFields(context.Context, domain.ID, domain.SecretScope, string) ([]service.SecretFieldView, error) {
+	if c.fileField {
+		return []service.SecretFieldView{{SecretField: domain.SecretField{Name: "kubeconfig", Kind: domain.SecretFieldFile, Sensitive: true,
+			Version: 1, FileName: "config.yaml", SizeBytes: 2048}}}, nil
+	}
 	return []service.SecretFieldView{
 		{SecretField: domain.SecretField{Name: "senha", Kind: domain.SecretFieldText, Sensitive: true, Version: 2}, VisibleText: cofreSecretText},
 		{SecretField: domain.SecretField{Name: "usuario", Kind: domain.SecretFieldText, Sensitive: false, Version: 1}, VisibleText: cofreVisibleText},
