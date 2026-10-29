@@ -111,8 +111,8 @@ var AlertLimitSpecs = []AlertSettingSpec{
 	{"limit.round_stalled_minutes", 30, 1, 10080, "min"},
 	// Disco do Postgres (comentário da #66; ADR-0062): os avisos do `hanko doctor`, de 5 GiB e de 512 MiB. Recomendação do
 	// autor, a confirmar com o Bardi; a faixa é do autor.
-	{"limit.db_disk_warn_gib", 5, 0.01, 1024, "GiB"},
-	{"limit.db_disk_critical_gib", 0.5, 0.01, 1024, "GiB"},
+	{"limit.db_disk_warn_gib", 20, 0.01, 1024, "GiB"},
+	{"limit.db_disk_critical_gib", 5, 0.01, 1024, "GiB"},
 }
 
 // AlertDueRoundQuestion é a chave do prazo da pergunta da rodada, que também vence em 24 h (ADR-0083 item 6).

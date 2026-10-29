@@ -29,18 +29,21 @@ const sliceRoundApproval = "fatia 3 (#127)"
 
 // ExternalRound é uma rodada do swarm observada pela ingestão (ADR-0080 item 2).
 type ExternalRound struct {
-	ID          string     `json:"id" format:"uuid"`
-	RoundKey    string     `json:"round_key" example:"swarm-1027-0802" doc:"Id da rodada no agent-studio."`
-	Name        string     `json:"name" example:"Brave_Otter" doc:"Nome amigável do gerador único (ADR-0084)."`
-	SourceKind  string     `json:"source_kind" enum:"external"`
-	CycleID     *string    `json:"cycle_id,omitempty" format:"uuid" doc:"O ciclo da issue, quando a triagem já trouxe o ciclo."`
-	Repo        string     `json:"repo" doc:"Repositório da rodada; liga ao workspace pelo emparelhamento (ADR-0075)."`
-	WorkspaceID *string    `json:"workspace_id,omitempty" format:"uuid"`
-	MaxSessions *int       `json:"max_sessions,omitempty" doc:"Número de sessões que a rodada permite."`
-	OpenedAt    *time.Time `json:"opened_at,omitempty"`
-	ClosedAt    *time.Time `json:"closed_at,omitempty" doc:"Vazio enquanto a rodada está aberta."`
-	CreatedAt   time.Time  `json:"created_at"`
-	UpdatedAt   time.Time  `json:"updated_at"`
+	ID             string     `json:"id" format:"uuid"`
+	RoundKey       string     `json:"round_key" example:"swarm-1027-0802" doc:"Id da rodada no agent-studio."`
+	Name           string     `json:"name" example:"Brave_Otter" doc:"Nome amigável do gerador único (ADR-0084)."`
+	SourceKind     string     `json:"source_kind" enum:"external"`
+	CycleID        *string    `json:"cycle_id,omitempty" format:"uuid" doc:"O ciclo da issue, quando a triagem já trouxe o ciclo."`
+	Repo           string     `json:"repo" doc:"Repositório da rodada; liga ao workspace pelo emparelhamento (ADR-0075)."`
+	WorkspaceID    *string    `json:"workspace_id,omitempty" format:"uuid"`
+	MaxSessions    *int       `json:"max_sessions,omitempty" doc:"Número de sessões que a rodada permite."`
+	OpenedAt       *time.Time `json:"opened_at,omitempty"`
+	ClosedAt       *time.Time `json:"closed_at,omitempty" doc:"Vazio enquanto a rodada está aberta."`
+	LastEventAt    *time.Time `json:"last_event_at,omitempty" doc:"Último evento oute.swarm.* da rodada."`
+	LastAskedAt    *time.Time `json:"last_asked_at,omitempty" doc:"Última pergunta ao Bardi."`
+	LastAnsweredAt *time.Time `json:"last_answered_at,omitempty" doc:"Última resposta. Com a pergunta igual ou mais nova que ela, a pergunta está pendente (ADR-0080 item 6)."`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
 }
 
 // RoundParticipant é um worker da rodada, ligado à sessão externa quando ela já chegou (ADR-0080 item 2).
@@ -111,11 +114,12 @@ type ExternalApproval struct {
 	State         string     `json:"state" enum:"pending,decided"`
 	Decision      *string    `json:"decision,omitempty" enum:"rejected,executed"`
 	Approver      *string    `json:"approver,omitempty" enum:"human,human_dark"`
+	ApprovedBy    string     `json:"approved_by,omitempty" doc:"Nome de quem aprovou ou recusou, como o host o declarou."`
 	RC            *int       `json:"rc,omitempty"`
-	DurationMs    *int       `json:"duration_ms,omitempty"`
+	DurationS     *int       `json:"duration_s,omitempty" doc:"Duração da execução no host, em segundos."`
 	OutputBytes   *int       `json:"output_bytes,omitempty" doc:"Tamanho da saída; a saída nunca sai do host."`
 	ScriptSHA256  string     `json:"script_sha256" doc:"Resumo do script que a página mostra, no formato do oute approve."`
-	DecidedSHA256 *string    `json:"decided_sha256,omitempty" doc:"Resumo do que rodou no host."`
+	DecidedSHA256 *string    `json:"decided_sha256,omitempty" doc:"Resumo do que rodou no host. Pode faltar, em especial numa recusa."`
 	Versions      int        `json:"versions" doc:"Quantas versões diferentes do pedido chegaram. Com mais de uma, a página avisa."`
 	RequestedAt   *time.Time `json:"requested_at,omitempty"`
 	DecidedAt     *time.Time `json:"decided_at,omitempty"`
