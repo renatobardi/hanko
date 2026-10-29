@@ -675,7 +675,7 @@ type ExternalApproval struct {
 	Decision          *string
 	Approver          *string
 	Rc                *int32
-	DurationMs        *int32
+	DurationS         *int32
 	OutputBytes       *int32
 	DecidedSha256     *string
 	ScriptSha256      string
@@ -686,6 +686,7 @@ type ExternalApproval struct {
 	ListedAt          *int64
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
+	ApprovedBy        string
 }
 
 type ExternalApprovalVersion struct {
@@ -769,22 +770,25 @@ type ExternalOutboxSnapshot struct {
 }
 
 type ExternalRound struct {
-	ID          uuid.UUID
-	CompanyID   uuid.UUID
-	SourceKind  string
-	RoundKey    string
-	Name        string
-	CycleID     *uuid.UUID
-	CycleAt     *int64
-	Repo        string
-	RepoAt      *int64
-	WorkspaceID *uuid.UUID
-	MaxSessions *int32
-	MaxAt       *int64
-	OpenedAt    *int64
-	ClosedAt    *int64
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	ID             uuid.UUID
+	CompanyID      uuid.UUID
+	SourceKind     string
+	RoundKey       string
+	Name           string
+	CycleID        *uuid.UUID
+	CycleAt        *int64
+	Repo           string
+	RepoAt         *int64
+	WorkspaceID    *uuid.UUID
+	MaxSessions    *int32
+	MaxAt          *int64
+	OpenedAt       *int64
+	ClosedAt       *int64
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	LastEventAt    *int64
+	LastAskedAt    *int64
+	LastAnsweredAt *int64
 }
 
 type ExternalSession struct {

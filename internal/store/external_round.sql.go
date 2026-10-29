@@ -12,7 +12,7 @@ import (
 )
 
 const getExternalApproval = `-- name: GetExternalApproval :one
-SELECT id, company_id, source_kind, canal_id, title, requested_as, origin, host_id, host_name, agent_id, external_session_id, state, decision, approver, rc, duration_ms, output_bytes, decided_sha256, script_sha256, fact_dedupe_key, fact_time_unix_nano, requested_at, decided_at, listed_at, created_at, updated_at FROM external_approval WHERE company_id = $1 AND id = $2
+SELECT id, company_id, source_kind, canal_id, title, requested_as, origin, host_id, host_name, agent_id, external_session_id, state, decision, approver, rc, duration_s, output_bytes, decided_sha256, script_sha256, fact_dedupe_key, fact_time_unix_nano, requested_at, decided_at, listed_at, created_at, updated_at, approved_by FROM external_approval WHERE company_id = $1 AND id = $2
 `
 
 type GetExternalApprovalParams struct {
@@ -39,7 +39,7 @@ func (q *Queries) GetExternalApproval(ctx context.Context, arg GetExternalApprov
 		&i.Decision,
 		&i.Approver,
 		&i.Rc,
-		&i.DurationMs,
+		&i.DurationS,
 		&i.OutputBytes,
 		&i.DecidedSha256,
 		&i.ScriptSha256,
@@ -50,12 +50,13 @@ func (q *Queries) GetExternalApproval(ctx context.Context, arg GetExternalApprov
 		&i.ListedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ApprovedBy,
 	)
 	return i, err
 }
 
 const getExternalRound = `-- name: GetExternalRound :one
-SELECT id, company_id, source_kind, round_key, name, cycle_id, cycle_at, repo, repo_at, workspace_id, max_sessions, max_at, opened_at, closed_at, created_at, updated_at FROM external_round WHERE company_id = $1 AND id = $2
+SELECT id, company_id, source_kind, round_key, name, cycle_id, cycle_at, repo, repo_at, workspace_id, max_sessions, max_at, opened_at, closed_at, created_at, updated_at, last_event_at, last_asked_at, last_answered_at FROM external_round WHERE company_id = $1 AND id = $2
 `
 
 type GetExternalRoundParams struct {
@@ -83,6 +84,9 @@ func (q *Queries) GetExternalRound(ctx context.Context, arg GetExternalRoundPara
 		&i.ClosedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.LastEventAt,
+		&i.LastAskedAt,
+		&i.LastAnsweredAt,
 	)
 	return i, err
 }
@@ -190,7 +194,7 @@ func (q *Queries) ListApprovalVersions(ctx context.Context, approvalID uuid.UUID
 }
 
 const listExternalApprovals = `-- name: ListExternalApprovals :many
-SELECT id, company_id, source_kind, canal_id, title, requested_as, origin, host_id, host_name, agent_id, external_session_id, state, decision, approver, rc, duration_ms, output_bytes, decided_sha256, script_sha256, fact_dedupe_key, fact_time_unix_nano, requested_at, decided_at, listed_at, created_at, updated_at FROM external_approval
+SELECT id, company_id, source_kind, canal_id, title, requested_as, origin, host_id, host_name, agent_id, external_session_id, state, decision, approver, rc, duration_s, output_bytes, decided_sha256, script_sha256, fact_dedupe_key, fact_time_unix_nano, requested_at, decided_at, listed_at, created_at, updated_at, approved_by FROM external_approval
 WHERE company_id = $1
   AND ($2::text IS NULL OR state = $2::text)
 ORDER BY requested_at ASC NULLS LAST, id
@@ -229,7 +233,7 @@ func (q *Queries) ListExternalApprovals(ctx context.Context, arg ListExternalApp
 			&i.Decision,
 			&i.Approver,
 			&i.Rc,
-			&i.DurationMs,
+			&i.DurationS,
 			&i.OutputBytes,
 			&i.DecidedSha256,
 			&i.ScriptSha256,
@@ -240,6 +244,7 @@ func (q *Queries) ListExternalApprovals(ctx context.Context, arg ListExternalApp
 			&i.ListedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ApprovedBy,
 		); err != nil {
 			return nil, err
 		}
@@ -253,7 +258,7 @@ func (q *Queries) ListExternalApprovals(ctx context.Context, arg ListExternalApp
 
 const listExternalRounds = `-- name: ListExternalRounds :many
 
-SELECT id, company_id, source_kind, round_key, name, cycle_id, cycle_at, repo, repo_at, workspace_id, max_sessions, max_at, opened_at, closed_at, created_at, updated_at FROM external_round
+SELECT id, company_id, source_kind, round_key, name, cycle_id, cycle_at, repo, repo_at, workspace_id, max_sessions, max_at, opened_at, closed_at, created_at, updated_at, last_event_at, last_asked_at, last_answered_at FROM external_round
 WHERE company_id = $1
   AND ($2::uuid IS NULL OR cycle_id = $2::uuid)
 ORDER BY opened_at DESC NULLS LAST, id
@@ -295,6 +300,9 @@ func (q *Queries) ListExternalRounds(ctx context.Context, arg ListExternalRounds
 			&i.ClosedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.LastEventAt,
+			&i.LastAskedAt,
+			&i.LastAnsweredAt,
 		); err != nil {
 			return nil, err
 		}
