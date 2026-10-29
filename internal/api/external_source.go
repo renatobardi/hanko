@@ -303,6 +303,7 @@ type externalUsageIn struct {
 	Since   time.Time `query:"since"`
 	Until   time.Time `query:"until"`
 	GroupBy []string  `query:"group_by" enum:"day,host,agent,model,workspace,subscription" doc:"Dimensões do agrupamento."`
+	Round   string    `query:"round" format:"uuid" doc:"Só as chamadas da rodada externa (ADR-0080 item 8), para o teto de custo do modo dark."`
 }
 
 // ---------- registro ----------

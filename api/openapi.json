@@ -6235,6 +6235,10 @@
             "format": "uuid",
             "type": "string"
           },
+          "approved_by": {
+            "description": "Nome de quem aprovou ou recusou, como o host o declarou.",
+            "type": "string"
+          },
           "approver": {
             "enum": [
               "human",
@@ -6253,7 +6257,7 @@
             "type": "string"
           },
           "decided_sha256": {
-            "description": "Resumo do que rodou no host.",
+            "description": "Resumo do que rodou no host. Pode faltar, em especial numa recusa.",
             "type": "string"
           },
           "decision": {
@@ -6263,7 +6267,8 @@
             ],
             "type": "string"
           },
-          "duration_ms": {
+          "duration_s": {
+            "description": "Duração da execução no host, em segundos.",
             "format": "int64",
             "type": "integer"
           },
@@ -6626,6 +6631,21 @@
             "format": "uuid",
             "type": "string"
           },
+          "last_answered_at": {
+            "description": "Última resposta. Com a pergunta igual ou mais nova que ela, a pergunta está pendente (ADR-0080 item 6).",
+            "format": "date-time",
+            "type": "string"
+          },
+          "last_asked_at": {
+            "description": "Última pergunta ao Bardi.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "last_event_at": {
+            "description": "Último evento oute.swarm.* da rodada.",
+            "format": "date-time",
+            "type": "string"
+          },
           "max_sessions": {
             "description": "Número de sessões que a rodada permite.",
             "format": "int64",
@@ -6698,6 +6718,21 @@
           },
           "id": {
             "format": "uuid",
+            "type": "string"
+          },
+          "last_answered_at": {
+            "description": "Última resposta. Com a pergunta igual ou mais nova que ela, a pergunta está pendente (ADR-0080 item 6).",
+            "format": "date-time",
+            "type": "string"
+          },
+          "last_asked_at": {
+            "description": "Última pergunta ao Bardi.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "last_event_at": {
+            "description": "Último evento oute.swarm.* da rodada.",
+            "format": "date-time",
             "type": "string"
           },
           "max_sessions": {
@@ -40282,6 +40317,17 @@
                 "array",
                 "null"
               ]
+            }
+          },
+          {
+            "description": "Só as chamadas da rodada externa (ADR-0080 item 8), para o teto de custo do modo dark.",
+            "explode": false,
+            "in": "query",
+            "name": "round",
+            "schema": {
+              "description": "Só as chamadas da rodada externa (ADR-0080 item 8), para o teto de custo do modo dark.",
+              "format": "uuid",
+              "type": "string"
             }
           }
         ],
