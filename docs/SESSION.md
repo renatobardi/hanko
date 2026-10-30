@@ -1,14 +1,13 @@
-# Fonte externa e ingestão (#125, fatia 1) · sessão `153-junta-contadores`
+# Fonte externa e ingestão (#125, fatia 1) · sessão `filtro-segredo`
 Data: 2026-10-30
 
 ## Feito
-- Juntar agente e host soma as nove colunas contadoras de `calls_daily` do juntado nas linhas do que fica com a mesma chave; repetir a junção não soma de novo (#153).
-- Juntar host escolhe a lista de `external_outbox_snapshot` de hora mais nova; em empate fica a do que fica (ADR-0081 item 5).
-- Testes: nove colunas, outra empresa, reversão e snapshot sem lista. `go test ./...` com Postgres local: exit 0. Lint: 0 issues.
-- Gate do Sonar: OK no head anterior (e652643); o head desta sessão ainda não foi analisado.
+- Filtro de segredo no decision model (ADR-0079 item 6): texto com padrão de segredo não sai do Hanko em triage, phase_classifier e name_summary. Ledger e evento guardam só o tipo do padrão.
+- `go test ./...` com Postgres local: exit 0. Lint: 0 issues.
 
 ## Travado
-- Retirada do pendente que a lista mais nova não tem (ADR-0081 item 5) não está implementada. Quando estiver, um pendente vindo do juntado pode sumir (UNCERTAIN 7 do PR #154). Decisão do Bardi.
+- Classificação de conversa (ADR-0079 itens 1 a 3, 5 e 7): não começada. Depende de conversa externa (ADR-0078), não das palavras do gerador.
+- Gerador de nome (ADR-0084): aguarda as 192 + 192 palavras do Bardi.
 
 ## Próximo passo
-- Conferir `oute-sonar pr 154 --json` no head novo; avisar o head só com gate OK. Sem merge.
+- Conferir `oute-sonar pr <n> --json` no head; avisar o head só com gate OK. Sem merge.
