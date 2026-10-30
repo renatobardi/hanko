@@ -1,16 +1,15 @@
-# Fonte externa e ingestão (#125, fatia 1) · sessão `125-emparelhamento-repo`
+# Fonte externa e ingestão (#125, fatia 1) · sessão `125-sessao-externa`
 Data: 2026-10-30
 
 ## Feito
-- Ingestão deriva, na transação do lote, o agente externo, o host externo e o emparelhamento do repositório (ADR-0075 itens 2 a 6, ADR-0077 item 2), com `activity_event`.
-- Ajustes da auditoria do #147: `no-repo` reservado (colisão tratada), texto fora do CHECK não derruba o lote, corrida de criação tratada, eventos só de quem inseriu.
-- Testes: 10 `TestDerive*` (incluem colisão, entrada inválida e corrida). `go test ./...` com Postgres local: 68 pacotes ok. Lint: 0 issues.
-- Sem migration nova: as tabelas e a coluna `is_system` já vieram na 00208.
+- Sessão externa (ADR-0078 item 2): a ingestão agrupa os fatos pelo `oute.task.id` e cria a sessão uma vez por empresa, com `activity_event`. Repositório, agente e rodada seguem a hora do fato mais antigo (migration 00213).
+- Testes: `TestMigration00213`, `TestDeriveSession*` (valor do fato mais antigo, sem task não cria, workspace segue o repositório). `go test ./...` com Postgres local: 68 pacotes ok. Lint: 0 issues.
 
 ## Travado
-- Caixa "emparelhamento a conferir" (ADR-0075 item 4.4, caso de URL em conflito), corrigir emparelhamento com passado (item 5), renomear/arquivar/juntar agente e host, telas.
-- Chave de repositório por URL (item 4.1): o fato de hoje traz só o nome.
-- Repositório com slug inválido, reservado ou fora do limite vai para `no-repo`, ou fica sem workspace se o `no-repo` não puder existir (decisão deste PR, não do ADR).
+- Gerador de nome (ADR-0084): as 192 + 192 palavras novas precisam de revisão do Bardi antes do código. Sem elas, a conversa externa não tem nome e não é criada.
+- Conversa externa (ADR-0078 item 1) e o vínculo `external_conversation.external_session_id`: dependem do gerador.
+- Sessão: estado, worker e slug ainda não vêm da ingestão (os atributos fixos não os trazem).
+- Caixa, classificação (ADR-0079), telas e leitura.
 
 ## Próximo passo
-- Sessão e conversa (ADR-0078) e a conversa com o nome do gerador (ADR-0084); depois classificação (ADR-0079) e leitura.
+- Palavras novas do ADR-0084 para a revisão do Bardi; com elas, o gerador e a conversa externa.
