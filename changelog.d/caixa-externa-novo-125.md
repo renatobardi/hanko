@@ -2,6 +2,7 @@
 
 - A Caixa de entrada lista os agentes e hosts externos criados nos últimos 30 dias como itens informativos: não entram
   na contagem nem no selo, e marcar como lido segue o de todo item. Agente ou host criado há mais de 30 dias sai da lista.
+- A API da Caixa ganha os tipos `external_agent` e `external_host` no enum `kind` dos itens e das referências. Cliente que valida o enum de forma estrita precisa aceitar os dois.
 - Ainda não há a seção visual desses itens na tela, nem a caixa de emparelhamento a conferir, nem renomear, arquivar ou
   juntar agente e host.
 

@@ -295,6 +295,20 @@ func (i *Inbox) Filter(view domain.InboxView) {
 		}
 	}
 	i.AchievedGoals = goals
+	var agents []ExternalNew
+	for _, a := range i.NewAgents {
+		if keep(domain.InboxExternalAgent, a.ID) {
+			agents = append(agents, a)
+		}
+	}
+	i.NewAgents = agents
+	var hosts []ExternalNew
+	for _, h := range i.NewHosts {
+		if keep(domain.InboxExternalHost, h.ID) {
+			hosts = append(hosts, h)
+		}
+	}
+	i.NewHosts = hosts
 	// a revisão em andamento não é item (só informa): fica como está
 }
 
