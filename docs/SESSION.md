@@ -1,15 +1,14 @@
-# Fonte externa e ingestão (#125, fatia 1) · sessão `alerta-host`
+# Fonte externa e ingestão (#125, fatia 1) · sessão `testes-secretscan`
 Data: 2026-10-30
 
 ## Feito
-- Alerta `host_no_data` (ADR-0077 item 4; ADR-0083 itens 2 e 5), com testes de host sem fato (prazo da criação), outra empresa e passada repetida sem duplicar (auditoria do #156).
+- SHOULD-FIX do #155: teste de entrada longa no secretscan e teste de recusa do phase_classifier (cfc136a).
 - `go test ./...` com Postgres local: exit 0. Lint: 0 issues.
-- Sonar do head 8cf38c7: OK, com um MINOR (S8193) no teste; corrigido em 4cb21b7.
-- Head 6b56caa: CI verde, mas o check SonarCloud não apareceu; novo commit de docs para republicar a análise.
 
 ## Travado
-- UNCERTAIN 2 do #156: se o `last_seen_at` deve usar o relógio do fato ou o do recebimento. Pergunta ao Bardi; a ingestão não foi alterada.
-- Classificação de conversa (ADR-0079 itens 1 a 3, 5 e 7): não começada. Gerador de nome (ADR-0084): aguarda as palavras do Bardi.
+- Emparelhamento, troca de workspace com passado (ADR-0075 item 5): `calls_daily` não guarda o repositório, então o custo do repositório não se separa só somando linhas; é preciso recalcular a partir de `model_calls`. Decisão do Bardi (ver o PR).
+- Classificação de conversa (ADR-0079 itens 1 a 3, 5 e 7): exige os atributos de ferramenta do `phase.py` (`full_command`, `file_path`, `tool_name`) em `telemetry_spans`; não verificado se o Hanko os guarda. Não começada.
+- Gerador de nome (ADR-0084): aguarda as palavras do Bardi.
 
 ## Próximo passo
-- Conferir `oute-sonar pr 156 --json` no head novo; avisar só com gate OK. Sem merge.
+- Conferir os atributos de `telemetry_spans` para a classificação; decidir o recálculo de `calls_daily` para o emparelhamento. Avisar o head só com o SonarCloud verde. Sem merge.

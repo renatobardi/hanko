@@ -47,3 +47,14 @@ func TestKindReturnsTheFirstPatternOnly(t *testing.T) {
 		t.Errorf("Kind = %q, quero api_key (o primeiro da lista)", got)
 	}
 }
+
+// Entrada longa: o segredo no fim de um texto grande é achado, e um texto grande sem segredo passa sem achar nada.
+func TestKindOnLongInput(t *testing.T) {
+	longo := strings.Repeat("texto comum sem segredo ", 40000) + " api_key=abc12345xyz"
+	if got := Kind(longo); got != "assignment" {
+		t.Errorf("Kind(texto longo com segredo no fim) = %q, quero assignment", got)
+	}
+	if got := Kind(strings.Repeat("texto comum ", 80000)); got != "" {
+		t.Errorf("Kind(texto longo sem segredo) = %q, quero vazio", got)
+	}
+}
