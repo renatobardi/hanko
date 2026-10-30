@@ -159,6 +159,14 @@ type ReplaceFieldFileInput struct {
 	ContentType string
 }
 
+// fieldRef identifica o campo a trocar: escopo, dono (usuário, ou nil na empresa), segredo e campo.
+type fieldRef struct {
+	scope      domain.SecretScope
+	owner      *uuid.UUID
+	secretName string
+	fieldName  string
+}
+
 // ReplaceSecretFieldFile troca o conteúdo de um campo arquivo pelo arquivo novo (#117). O campo mantém o nome, o id e a
 // marca de visibilidade. O conteúdo anterior é sobrescrito e não vai para o histórico: o histórico de campo arquivo não
 // guarda o arquivo de versões anteriores. Troca, metadados e evento secret.field_updated (sem conteúdo) são da mesma
@@ -168,45 +176,56 @@ func (s *Service) ReplaceSecretFieldFile(ctx context.Context, actor domain.Actor
 	if err != nil {
 		return SecretFieldView{}, err
 	}
-	fileName, contentType, err := checkFileContent(in.File, in.FileName, in.ContentType)
-	if err != nil {
-		return SecretFieldView{}, err
-	}
-	size, err := fileSize(in.File)
+	in.FileName, in.ContentType, err = checkFileContent(in.File, in.FileName, in.ContentType)
 	if err != nil {
 		return SecretFieldView{}, err
 	}
 	if err := s.requireSecretBox(); err != nil {
 		return SecretFieldView{}, err
 	}
+	ref := fieldRef{scope: scope, owner: owner, secretName: secretName, fieldName: fieldName}
 	var out SecretFieldView
 	err = s.withTx(ctx, func(t *txc) error {
-		sec, f, err := s.lockField(t, companyID, scope, owner, secretName, fieldName)
-		if err != nil {
-			return err
-		}
-		if err := s.requireFieldWriter(ctx, t.q, actor, companyID, sec); err != nil {
-			return err
-		}
-		if f.Kind != string(domain.SecretFieldFile) {
-			return domain.Invalid("kind", "só campo arquivo recebe arquivo novo; campo de texto troca pelo valor")
-		}
-		sealed, err := s.secretBox().Seal(in.File, fieldAAD(sec.ID, f.ID))
-		if err != nil {
-			return fmt.Errorf("cifrar arquivo: %w", err)
-		}
-		row, err := t.q.ReplaceSecretFieldFile(t.ctx, store.ReplaceSecretFieldFileParams{ID: f.ID, CompanyID: companyID,
-			FileName: fileName, ContentType: contentType, SizeBytes: size, Now: t.now})
-		if err != nil {
-			return mapErr(err, "replace secret field file")
-		}
-		if err := s.replaceFieldBlob(t, companyID, f.ID, []byte(sealed)); err != nil {
-			return err
-		}
-		out = SecretFieldView{SecretField: secretFieldFromRow(row)}
-		return t.activity(actor, companyID, "secret.field_updated", "secret", sec.ID, fieldEventData(row), "")
+		v, err := s.replaceFileTx(t, actor, companyID, ref, in)
+		out = v
+		return err
 	})
 	return out, err
+}
+
+// replaceFileTx faz a troca dentro da transação: trava o campo, confere quem escreve e se é campo arquivo, cifra, grava
+// o conteúdo e os metadados, e registra o evento sem conteúdo. `in` já vem com nome e tipo conferidos.
+func (s *Service) replaceFileTx(t *txc, actor domain.Actor, companyID domain.ID, ref fieldRef, in ReplaceFieldFileInput) (SecretFieldView, error) {
+	size, err := fileSize(in.File)
+	if err != nil {
+		return SecretFieldView{}, err
+	}
+	sec, f, err := s.lockField(t, companyID, ref.scope, ref.owner, ref.secretName, ref.fieldName)
+	if err != nil {
+		return SecretFieldView{}, err
+	}
+	if err := s.requireFieldWriter(t.ctx, t.q, actor, companyID, sec); err != nil {
+		return SecretFieldView{}, err
+	}
+	if f.Kind != string(domain.SecretFieldFile) {
+		return SecretFieldView{}, domain.Invalid("kind", "só campo arquivo recebe arquivo novo; campo de texto troca pelo valor")
+	}
+	sealed, err := s.secretBox().Seal(in.File, fieldAAD(sec.ID, f.ID))
+	if err != nil {
+		return SecretFieldView{}, fmt.Errorf("cifrar arquivo: %w", err)
+	}
+	row, err := t.q.ReplaceSecretFieldFile(t.ctx, store.ReplaceSecretFieldFileParams{ID: f.ID, CompanyID: companyID,
+		FileName: in.FileName, ContentType: in.ContentType, SizeBytes: size, Now: t.now})
+	if err != nil {
+		return SecretFieldView{}, mapErr(err, "replace secret field file")
+	}
+	if err := s.replaceFieldBlob(t, companyID, f.ID, []byte(sealed)); err != nil {
+		return SecretFieldView{}, err
+	}
+	if err := t.activity(actor, companyID, "secret.field_updated", "secret", sec.ID, fieldEventData(row), ""); err != nil {
+		return SecretFieldView{}, err
+	}
+	return SecretFieldView{SecretField: secretFieldFromRow(row)}, nil
 }
 
 // replaceFieldBlob grava o texto cifrado novo de um campo arquivo, na transação da troca. Com o driver postgres ativo,
