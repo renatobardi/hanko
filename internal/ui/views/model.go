@@ -357,6 +357,7 @@ type PersonaVM struct {
 	OrgOptions          []Option // "Reporta a" choices
 	Reviewer            ReviewerVM
 	Extras              PersonaExtrasVM // skills e servidores MCP (ADR-0029)
+	Vars                PersonaVarsVM   // variáveis de ambiente do adapter, só referências a segredo (#117 fatia 3)
 	Plus                PersonaPlusVM   // persona principal, de sistema e política de plano (ADR-0041)
 }
 
