@@ -5,6 +5,7 @@ Data: 2026-10-30
 - Alerta `host_no_data` (ADR-0077 item 4; ADR-0083 itens 2 e 5), com testes de host sem fato (prazo da criação), outra empresa e passada repetida sem duplicar (auditoria do #156).
 - `go test ./...` com Postgres local: exit 0. Lint: 0 issues.
 - Sonar do head 8cf38c7: OK, com um MINOR (S8193) no teste; corrigido em 4cb21b7.
+- Head 6b56caa: CI verde, mas o check SonarCloud não apareceu; novo commit de docs para republicar a análise.
 
 ## Travado
 - UNCERTAIN 2 do #156: se o `last_seen_at` deve usar o relógio do fato ou o do recebimento. Pergunta ao Bardi; a ingestão não foi alterada.
