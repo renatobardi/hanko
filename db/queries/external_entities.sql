@@ -86,3 +86,31 @@ UPDATE external_host SET
   last_seen_at = GREATEST(last_seen_at, sqlc.narg(from_seen)::timestamptz),
   updated_at = @now
 WHERE company_id = @company_id AND id = @id;
+
+-- name: LockExternalAgent :one
+-- Trava a linha do agente na junção (ordem de id, para duas junções cruzadas não se esperarem).
+SELECT id, archived_at FROM external_agent WHERE company_id = @company_id AND id = @id FOR UPDATE;
+
+-- name: LockExternalHost :one
+SELECT id, archived_at FROM external_host WHERE company_id = @company_id AND id = @id FOR UPDATE;
+
+-- name: ArchiveMergedExternalAgent :exec
+-- Arquiva o juntado sem mexer no horário de quando foi arquivado antes (COALESCE).
+UPDATE external_agent SET archived_at = COALESCE(archived_at, @now), updated_at = @now
+WHERE company_id = @company_id AND id = @id;
+
+-- name: ArchiveMergedExternalHost :exec
+UPDATE external_host SET archived_at = COALESCE(archived_at, @now), updated_at = @now
+WHERE company_id = @company_id AND id = @id;
+
+-- name: MoveModelCallsAgent :exec
+UPDATE model_calls SET agent_id = @to_id WHERE company_id = @company_id AND agent_id = @from_id;
+
+-- name: MoveModelCallsHost :exec
+UPDATE model_calls SET host_id = @to_id WHERE company_id = @company_id AND host_id = @from_id;
+
+-- name: MoveExternalApprovalsAgent :exec
+UPDATE external_approval SET agent_id = @to_id WHERE company_id = @company_id AND agent_id = @from_id;
+
+-- name: MoveExternalApprovalsHost :exec
+UPDATE external_approval SET host_id = @to_id WHERE company_id = @company_id AND host_id = @from_id;

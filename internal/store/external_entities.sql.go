@@ -12,6 +12,39 @@ import (
 	"github.com/google/uuid"
 )
 
+const archiveMergedExternalAgent = `-- name: ArchiveMergedExternalAgent :exec
+UPDATE external_agent SET archived_at = COALESCE(archived_at, $1), updated_at = $1
+WHERE company_id = $2 AND id = $3
+`
+
+type ArchiveMergedExternalAgentParams struct {
+	Now       time.Time
+	CompanyID uuid.UUID
+	ID        uuid.UUID
+}
+
+// Arquiva o juntado sem mexer no horário de quando foi arquivado antes (COALESCE).
+func (q *Queries) ArchiveMergedExternalAgent(ctx context.Context, arg ArchiveMergedExternalAgentParams) error {
+	_, err := q.db.Exec(ctx, archiveMergedExternalAgent, arg.Now, arg.CompanyID, arg.ID)
+	return err
+}
+
+const archiveMergedExternalHost = `-- name: ArchiveMergedExternalHost :exec
+UPDATE external_host SET archived_at = COALESCE(archived_at, $1), updated_at = $1
+WHERE company_id = $2 AND id = $3
+`
+
+type ArchiveMergedExternalHostParams struct {
+	Now       time.Time
+	CompanyID uuid.UUID
+	ID        uuid.UUID
+}
+
+func (q *Queries) ArchiveMergedExternalHost(ctx context.Context, arg ArchiveMergedExternalHostParams) error {
+	_, err := q.db.Exec(ctx, archiveMergedExternalHost, arg.Now, arg.CompanyID, arg.ID)
+	return err
+}
+
 const getExternalAgentView = `-- name: GetExternalAgentView :one
 SELECT a.id, a.name, a.archived_at, a.created_at, a.updated_at,
        COALESCE(array_agg(al.alias ORDER BY al.alias) FILTER (WHERE al.alias IS NOT NULL), '{}')::text[] AS aliases
@@ -215,6 +248,49 @@ func (q *Queries) ListExternalHostViews(ctx context.Context, arg ListExternalHos
 	return items, nil
 }
 
+const lockExternalAgent = `-- name: LockExternalAgent :one
+SELECT id, archived_at FROM external_agent WHERE company_id = $1 AND id = $2 FOR UPDATE
+`
+
+type LockExternalAgentParams struct {
+	CompanyID uuid.UUID
+	ID        uuid.UUID
+}
+
+type LockExternalAgentRow struct {
+	ID         uuid.UUID
+	ArchivedAt *time.Time
+}
+
+// Trava a linha do agente na junção (ordem de id, para duas junções cruzadas não se esperarem).
+func (q *Queries) LockExternalAgent(ctx context.Context, arg LockExternalAgentParams) (LockExternalAgentRow, error) {
+	row := q.db.QueryRow(ctx, lockExternalAgent, arg.CompanyID, arg.ID)
+	var i LockExternalAgentRow
+	err := row.Scan(&i.ID, &i.ArchivedAt)
+	return i, err
+}
+
+const lockExternalHost = `-- name: LockExternalHost :one
+SELECT id, archived_at FROM external_host WHERE company_id = $1 AND id = $2 FOR UPDATE
+`
+
+type LockExternalHostParams struct {
+	CompanyID uuid.UUID
+	ID        uuid.UUID
+}
+
+type LockExternalHostRow struct {
+	ID         uuid.UUID
+	ArchivedAt *time.Time
+}
+
+func (q *Queries) LockExternalHost(ctx context.Context, arg LockExternalHostParams) (LockExternalHostRow, error) {
+	row := q.db.QueryRow(ctx, lockExternalHost, arg.CompanyID, arg.ID)
+	var i LockExternalHostRow
+	err := row.Scan(&i.ID, &i.ArchivedAt)
+	return i, err
+}
+
 const mergeExternalHostFacts = `-- name: MergeExternalHostFacts :exec
 UPDATE external_host SET
   always_on = always_on OR $1::bool,
@@ -256,6 +332,36 @@ type MoveExternalAgentAliasesParams struct {
 
 func (q *Queries) MoveExternalAgentAliases(ctx context.Context, arg MoveExternalAgentAliasesParams) error {
 	_, err := q.db.Exec(ctx, moveExternalAgentAliases, arg.ToID, arg.CompanyID, arg.FromID)
+	return err
+}
+
+const moveExternalApprovalsAgent = `-- name: MoveExternalApprovalsAgent :exec
+UPDATE external_approval SET agent_id = $1 WHERE company_id = $2 AND agent_id = $3
+`
+
+type MoveExternalApprovalsAgentParams struct {
+	ToID      *uuid.UUID
+	CompanyID uuid.UUID
+	FromID    *uuid.UUID
+}
+
+func (q *Queries) MoveExternalApprovalsAgent(ctx context.Context, arg MoveExternalApprovalsAgentParams) error {
+	_, err := q.db.Exec(ctx, moveExternalApprovalsAgent, arg.ToID, arg.CompanyID, arg.FromID)
+	return err
+}
+
+const moveExternalApprovalsHost = `-- name: MoveExternalApprovalsHost :exec
+UPDATE external_approval SET host_id = $1 WHERE company_id = $2 AND host_id = $3
+`
+
+type MoveExternalApprovalsHostParams struct {
+	ToID      *uuid.UUID
+	CompanyID uuid.UUID
+	FromID    *uuid.UUID
+}
+
+func (q *Queries) MoveExternalApprovalsHost(ctx context.Context, arg MoveExternalApprovalsHostParams) error {
+	_, err := q.db.Exec(ctx, moveExternalApprovalsHost, arg.ToID, arg.CompanyID, arg.FromID)
 	return err
 }
 
@@ -338,6 +444,36 @@ func (q *Queries) MoveExternalSessionsAgent(ctx context.Context, arg MoveExterna
 		arg.CompanyID,
 		arg.FromID,
 	)
+	return err
+}
+
+const moveModelCallsAgent = `-- name: MoveModelCallsAgent :exec
+UPDATE model_calls SET agent_id = $1 WHERE company_id = $2 AND agent_id = $3
+`
+
+type MoveModelCallsAgentParams struct {
+	ToID      uuid.UUID
+	CompanyID uuid.UUID
+	FromID    uuid.UUID
+}
+
+func (q *Queries) MoveModelCallsAgent(ctx context.Context, arg MoveModelCallsAgentParams) error {
+	_, err := q.db.Exec(ctx, moveModelCallsAgent, arg.ToID, arg.CompanyID, arg.FromID)
+	return err
+}
+
+const moveModelCallsHost = `-- name: MoveModelCallsHost :exec
+UPDATE model_calls SET host_id = $1 WHERE company_id = $2 AND host_id = $3
+`
+
+type MoveModelCallsHostParams struct {
+	ToID      uuid.UUID
+	CompanyID uuid.UUID
+	FromID    uuid.UUID
+}
+
+func (q *Queries) MoveModelCallsHost(ctx context.Context, arg MoveModelCallsHostParams) error {
+	_, err := q.db.Exec(ctx, moveModelCallsHost, arg.ToID, arg.CompanyID, arg.FromID)
 	return err
 }
 

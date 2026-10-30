@@ -1,11 +1,16 @@
 package service
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/jackc/pgx/v5"
 
 	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/store"
@@ -68,7 +73,7 @@ func (s *Service) ListExternalAgents(ctx context.Context, companyID domain.ID, i
 	}
 	out := make([]ExternalAgentView, 0, len(rows))
 	for _, r := range rows {
-		out = append(out, ExternalAgentView{ID: r.ID, Name: r.Name, Aliases: r.Aliases, ArchivedAt: r.ArchivedAt, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt})
+		out = append(out, agentViewOf(store.GetExternalAgentViewRow(r)))
 	}
 	return out, nil
 }
@@ -96,8 +101,7 @@ func (s *Service) ListExternalHosts(ctx context.Context, companyID domain.ID, in
 	}
 	out := make([]ExternalHostView, 0, len(rows))
 	for _, r := range rows {
-		out = append(out, ExternalHostView{ID: r.ID, Name: r.Name, Aliases: r.Aliases, AlwaysOn: r.AlwaysOn, LastSeenAt: r.LastSeenAt,
-			ArchivedAt: r.ArchivedAt, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt})
+		out = append(out, hostViewOf(store.GetExternalHostViewRow(r)))
 	}
 	return out, nil
 }
@@ -144,6 +148,37 @@ func (s *Service) UpdateExternalAgent(ctx context.Context, actor domain.Actor, c
 	return out, err
 }
 
+// checkAgentAliasFree recusa renomear para um texto que já é apelido de outro agente: fato com esse texto cairia nele
+// (409). Apelido do próprio agente é aceito.
+func checkAgentAliasFree(t *txc, companyID domain.ID, name string, self domain.ID) error {
+	owner, err := t.q.ExternalAgentIDByAlias(t.ctx, store.ExternalAgentIDByAliasParams{CompanyID: companyID, Alias: name})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("ingest: ver o apelido %q: %w", name, err)
+	}
+	if owner != self {
+		return fmt.Errorf("%q já é apelido de outro agente: %w", name, domain.ErrConflict)
+	}
+	return nil
+}
+
+// checkHostAliasFree é o mesmo para hosts.
+func checkHostAliasFree(t *txc, companyID domain.ID, name string, self domain.ID) error {
+	owner, err := t.q.ExternalHostIDByAlias(t.ctx, store.ExternalHostIDByAliasParams{CompanyID: companyID, Alias: name})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("ingest: ver o apelido %q: %w", name, err)
+	}
+	if owner != self {
+		return fmt.Errorf("%q já é apelido de outro host: %w", name, domain.ErrConflict)
+	}
+	return nil
+}
+
 // applyAgentPatch aplica a alteração de nome e de arquivado de um agente, cada um com seu evento.
 func applyAgentPatch(t *txc, actor domain.Actor, companyID, id domain.ID, cur store.GetExternalAgentViewRow, p ExternalAgentPatch) error {
 	ctx := t.ctx
@@ -153,6 +188,9 @@ func applyAgentPatch(t *txc, actor domain.Actor, companyID, id domain.ID, cur st
 			return err
 		}
 		if name != cur.Name {
+			if err := checkAgentAliasFree(t, companyID, name, id); err != nil {
+				return err
+			}
 			if _, err := t.q.RenameExternalAgent(ctx, store.RenameExternalAgentParams{CompanyID: companyID, ID: id, Name: name, Now: t.now}); err != nil {
 				return mapErr(err, "rename external agent")
 			}
@@ -223,6 +261,9 @@ func applyHostPatch(t *txc, actor domain.Actor, companyID, id domain.ID, cur sto
 			return err
 		}
 		if name != cur.Name {
+			if err := checkHostAliasFree(t, companyID, name, id); err != nil {
+				return err
+			}
 			if _, err := t.q.RenameExternalHost(ctx, store.RenameExternalHostParams{CompanyID: companyID, ID: id, Name: name, Now: t.now}); err != nil {
 				return mapErr(err, "rename external host")
 			}
@@ -262,8 +303,47 @@ func applyHostPatch(t *txc, actor domain.Actor, companyID, id domain.ID, cur sto
 	return nil
 }
 
-// MergeExternalAgent junta `from` em `into`: os apelidos e as sessões e conversas de `from` passam para `into`, o nome
-// de `from` vira apelido de `into`, e `from` fica arquivado. Os dois precisam ser da empresa e diferentes.
+// lockPair trava as duas linhas de uma junção na ordem dos ids (para duas junções cruzadas não se esperarem em
+// deadlock) e devolve o arquivado de cada uma. Id fora da empresa ou inexistente é não encontrado.
+func lockPair(t *txc, lock func(id domain.ID) (*time.Time, error), from, into domain.ID) (fromArch, intoArch *time.Time, err error) {
+	ids := []domain.ID{from, into}
+	sort.Slice(ids, func(a, b int) bool { return bytes.Compare(ids[a][:], ids[b][:]) < 0 })
+	arch := map[domain.ID]*time.Time{}
+	for _, id := range ids {
+		a, err := lock(id)
+		if err != nil {
+			return nil, nil, err
+		}
+		arch[id] = a
+	}
+	return arch[from], arch[into], nil
+}
+
+// lockExternalAgentPair trava os dois agentes da junção.
+func lockExternalAgentPair(t *txc, companyID domain.ID, from, into domain.ID) (fromArch, intoArch *time.Time, err error) {
+	return lockPair(t, func(id domain.ID) (*time.Time, error) {
+		r, err := t.q.LockExternalAgent(t.ctx, store.LockExternalAgentParams{CompanyID: companyID, ID: id})
+		if err != nil {
+			return nil, mapErr(err, "external agent")
+		}
+		return r.ArchivedAt, nil
+	}, from, into)
+}
+
+// lockExternalHostPair trava os dois hosts da junção.
+func lockExternalHostPair(t *txc, companyID domain.ID, from, into domain.ID) (fromArch, intoArch *time.Time, err error) {
+	return lockPair(t, func(id domain.ID) (*time.Time, error) {
+		r, err := t.q.LockExternalHost(t.ctx, store.LockExternalHostParams{CompanyID: companyID, ID: id})
+		if err != nil {
+			return nil, mapErr(err, "external host")
+		}
+		return r.ArchivedAt, nil
+	}, from, into)
+}
+
+// MergeExternalAgent junta `from` em `into`: apelidos, sessões, conversas, chamadas do modelo e aprovações de `from`
+// passam para `into`; o nome de `from` vira apelido de `into`; `from` fica arquivado, com o horário que já tinha.
+// Os dois são travados na junção. `into` arquivado é recusado (409), e nada muda.
 func (s *Service) MergeExternalAgent(ctx context.Context, actor domain.Actor, companyID, from, into domain.ID) (ExternalAgentView, error) {
 	if err := s.require(ctx, companyID, domain.MemberAdmin); err != nil {
 		return ExternalAgentView{}, err
@@ -273,11 +353,15 @@ func (s *Service) MergeExternalAgent(ctx context.Context, actor domain.Actor, co
 	}
 	var out ExternalAgentView
 	err := s.withTx(ctx, func(t *txc) error {
+		_, intoArch, err := lockExternalAgentPair(t, companyID, from, into)
+		if err != nil {
+			return err
+		}
+		if intoArch != nil {
+			return fmt.Errorf("o agente que fica está arquivado: %w", domain.ErrConflict)
+		}
 		src, err := t.q.GetExternalAgentView(ctx, store.GetExternalAgentViewParams{CompanyID: companyID, ID: from})
 		if err != nil {
-			return mapErr(err, "external agent")
-		}
-		if _, err := t.q.GetExternalAgentView(ctx, store.GetExternalAgentViewParams{CompanyID: companyID, ID: into}); err != nil {
 			return mapErr(err, "external agent")
 		}
 		if err := t.q.MoveExternalAgentAliases(ctx, store.MoveExternalAgentAliasesParams{CompanyID: companyID, FromID: from, ToID: into}); err != nil {
@@ -286,14 +370,10 @@ func (s *Service) MergeExternalAgent(ctx context.Context, actor domain.Actor, co
 		if err := t.q.InsertExternalAgentAlias(ctx, store.InsertExternalAgentAliasParams{CompanyID: companyID, Alias: src.Name, AgentID: into, Now: t.now}); err != nil {
 			return fmt.Errorf("ingest: apelido do agente juntado: %w", err)
 		}
-		if err := t.q.MoveExternalSessionsAgent(ctx, store.MoveExternalSessionsAgentParams{CompanyID: companyID, FromID: &from, ToID: &into, Now: t.now}); err != nil {
-			return fmt.Errorf("ingest: mover sessões: %w", err)
+		if err := moveAgentReferences(t, companyID, from, into); err != nil {
+			return err
 		}
-		if err := t.q.MoveExternalConversationsAgent(ctx, store.MoveExternalConversationsAgentParams{CompanyID: companyID, FromID: &from, ToID: &into, Now: t.now}); err != nil {
-			return fmt.Errorf("ingest: mover conversas: %w", err)
-		}
-		now := t.now
-		if err := t.q.SetExternalAgentArchived(ctx, store.SetExternalAgentArchivedParams{CompanyID: companyID, ID: from, ArchivedAt: &now, Now: t.now}); err != nil {
+		if err := t.q.ArchiveMergedExternalAgent(ctx, store.ArchiveMergedExternalAgentParams{CompanyID: companyID, ID: from, Now: t.now}); err != nil {
 			return mapErr(err, "archive external agent")
 		}
 		if err := t.activity(actor, companyID, "external_agent.merged", "external_agent", into,
@@ -310,8 +390,26 @@ func (s *Service) MergeExternalAgent(ctx context.Context, actor domain.Actor, co
 	return out, err
 }
 
-// MergeExternalHost junta `from` em `into`, como o agente: apelidos e conversas passam, o sempre ligado de qualquer um
-// dos dois vale para `into`, a última hora de fato é a mais nova, e `from` fica arquivado.
+// moveAgentReferences passa as sessões, conversas, chamadas do modelo e aprovações de um agente para o outro.
+func moveAgentReferences(t *txc, companyID, from, into domain.ID) error {
+	if err := t.q.MoveExternalSessionsAgent(t.ctx, store.MoveExternalSessionsAgentParams{CompanyID: companyID, FromID: &from, ToID: &into, Now: t.now}); err != nil {
+		return fmt.Errorf("ingest: mover sessões: %w", err)
+	}
+	if err := t.q.MoveExternalConversationsAgent(t.ctx, store.MoveExternalConversationsAgentParams{CompanyID: companyID, FromID: &from, ToID: &into, Now: t.now}); err != nil {
+		return fmt.Errorf("ingest: mover conversas: %w", err)
+	}
+	if err := t.q.MoveModelCallsAgent(t.ctx, store.MoveModelCallsAgentParams{CompanyID: companyID, FromID: from, ToID: into}); err != nil {
+		return fmt.Errorf("ingest: mover chamadas do modelo: %w", err)
+	}
+	if err := t.q.MoveExternalApprovalsAgent(t.ctx, store.MoveExternalApprovalsAgentParams{CompanyID: companyID, FromID: &from, ToID: &into}); err != nil {
+		return fmt.Errorf("ingest: mover aprovações: %w", err)
+	}
+	return nil
+}
+
+// MergeExternalHost junta `from` em `into`, como o agente: apelidos, conversas, chamadas e aprovações passam; o sempre
+// ligado de qualquer um vale para `into`; a hora de fato mais nova fica; `from` fica arquivado com o horário que tinha.
+// Os dois são travados; `into` arquivado é recusado (409).
 func (s *Service) MergeExternalHost(ctx context.Context, actor domain.Actor, companyID, from, into domain.ID) (ExternalHostView, error) {
 	if err := s.require(ctx, companyID, domain.MemberAdmin); err != nil {
 		return ExternalHostView{}, err
@@ -321,11 +419,15 @@ func (s *Service) MergeExternalHost(ctx context.Context, actor domain.Actor, com
 	}
 	var out ExternalHostView
 	err := s.withTx(ctx, func(t *txc) error {
+		_, intoArch, err := lockExternalHostPair(t, companyID, from, into)
+		if err != nil {
+			return err
+		}
+		if intoArch != nil {
+			return fmt.Errorf("o host que fica está arquivado: %w", domain.ErrConflict)
+		}
 		src, err := t.q.GetExternalHostView(ctx, store.GetExternalHostViewParams{CompanyID: companyID, ID: from})
 		if err != nil {
-			return mapErr(err, "external host")
-		}
-		if _, err := t.q.GetExternalHostView(ctx, store.GetExternalHostViewParams{CompanyID: companyID, ID: into}); err != nil {
 			return mapErr(err, "external host")
 		}
 		if err := t.q.MoveExternalHostAliases(ctx, store.MoveExternalHostAliasesParams{CompanyID: companyID, FromID: from, ToID: into}); err != nil {
@@ -334,14 +436,13 @@ func (s *Service) MergeExternalHost(ctx context.Context, actor domain.Actor, com
 		if err := t.q.InsertExternalHostAlias(ctx, store.InsertExternalHostAliasParams{CompanyID: companyID, Alias: src.Name, HostID: into, Now: t.now}); err != nil {
 			return fmt.Errorf("ingest: apelido do host juntado: %w", err)
 		}
-		if err := t.q.MoveExternalConversationsHost(ctx, store.MoveExternalConversationsHostParams{CompanyID: companyID, FromID: &from, ToID: &into, Now: t.now}); err != nil {
-			return fmt.Errorf("ingest: mover conversas do host: %w", err)
+		if err := moveHostReferences(t, companyID, from, into); err != nil {
+			return err
 		}
 		if err := t.q.MergeExternalHostFacts(ctx, store.MergeExternalHostFactsParams{CompanyID: companyID, ID: into, FromAlwaysOn: src.AlwaysOn, FromSeen: src.LastSeenAt, Now: t.now}); err != nil {
 			return fmt.Errorf("ingest: juntar fatos do host: %w", err)
 		}
-		now := t.now
-		if err := t.q.SetExternalHostArchived(ctx, store.SetExternalHostArchivedParams{CompanyID: companyID, ID: from, ArchivedAt: &now, Now: t.now}); err != nil {
+		if err := t.q.ArchiveMergedExternalHost(ctx, store.ArchiveMergedExternalHostParams{CompanyID: companyID, ID: from, Now: t.now}); err != nil {
 			return mapErr(err, "archive external host")
 		}
 		if err := t.activity(actor, companyID, "external_host.merged", "external_host", into,
@@ -356,4 +457,18 @@ func (s *Service) MergeExternalHost(ctx context.Context, actor domain.Actor, com
 		return nil
 	})
 	return out, err
+}
+
+// moveHostReferences passa as conversas, chamadas do modelo e aprovações de um host para o outro.
+func moveHostReferences(t *txc, companyID, from, into domain.ID) error {
+	if err := t.q.MoveExternalConversationsHost(t.ctx, store.MoveExternalConversationsHostParams{CompanyID: companyID, FromID: &from, ToID: &into, Now: t.now}); err != nil {
+		return fmt.Errorf("ingest: mover conversas do host: %w", err)
+	}
+	if err := t.q.MoveModelCallsHost(t.ctx, store.MoveModelCallsHostParams{CompanyID: companyID, FromID: from, ToID: into}); err != nil {
+		return fmt.Errorf("ingest: mover chamadas do modelo do host: %w", err)
+	}
+	if err := t.q.MoveExternalApprovalsHost(t.ctx, store.MoveExternalApprovalsHostParams{CompanyID: companyID, FromID: &from, ToID: &into}); err != nil {
+		return fmt.Errorf("ingest: mover aprovações do host: %w", err)
+	}
+	return nil
 }

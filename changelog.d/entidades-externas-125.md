@@ -4,6 +4,7 @@
   "sempre ligado" (só host) e juntar dois agentes ou dois hosts. Alterar e juntar são de owner ou admin. Cada alteração
   gera evento de atividade. O nome antigo vira apelido do mesmo agente ou host, e o agente ou host juntado fica
   arquivado com os apelidos, as sessões e as conversas no que ficou.
+- A junção recusa agente ou host que fica arquivado (409), trava as duas linhas, preserva o horário de arquivamento do juntado, e move também as chamadas do modelo e as aprovações. Renomear para um texto que já é apelido de outro agente ou host dá 409.
 - Ainda não há telas, o alerta `host_no_data`, a troca de workspace de um emparelhamento, nem classificação de conversa.
 
 - English summary: external agent and host routes stop answering 501: list, get, rename, archive/unarchive, always-on
