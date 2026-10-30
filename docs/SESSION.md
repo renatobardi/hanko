@@ -1,13 +1,15 @@
-# Contrato das tags de persona · sessão `118-tags-contrato`
-Data: 2026-10-29
+# Fonte externa e ingestão (#125, fatia 1) · PR #142 (`feat/125-ingestao-nucleo`)
+Data: 2026-10-30
 
 ## Feito
-- Migration 00212 (cadastro `persona_tags`, ligação `persona_tag_links` com chaves por empresa, `personas.tag_names` com peso B na busca), testada sobre a 00211 e no Down.
-- Domínio (`internal/domain/persona_tags.go`): paleta de 8 cores, limites, chave sem caixa, verbos dos eventos, any/all, highlight/prune, nível.
-- 11 operações em 501 (`internal/api/persona_tags.go`); nomes dos comandos da CLI no comentário do contrato.
+- Auditoria do #142: `registerIngestKeys` virou métodos do `server`, uma função curta por rota (BLOCKING 1).
+- `HANKO_INGEST_ADDR` recusa endereço curinga (vazio, `0.0.0.0`, `::`); listener de ingestão com `ReadTimeout` de 2 min.
+- `git merge origin/main` (c3e6159, #140, migration 00212): conflito em `internal/api/api.go` resolvido; `make openapi`, `make generate` e `make islands` rodados, sem gerado à mão.
+- Testes: `go test ./...` com Postgres local e lint (0 issues) passaram no branch.
 
 ## Travado
-- Gate do Bardi no contrato (#118): paleta, `untagged` por OU e `POST /personas/{persona}/tags` são recomendação do autor.
+- Sonar do PR: gate ainda não verificado.
+- SHOULD-FIX não tratados: enum de `scope` em `internal/api/access.go` (justificado no PR: o CLI nunca emite chave `ingest`); concorrência já vem antes de ler o corpo (justificado no PR).
 
 ## Próximo passo
-- Com o ok do Bardi: fatia 1 (cadastro, aplicação, filtros, API, CLI, MCP, busca, export), depois fatia 2 (lote).
+- Conferir o gate do Sonar (`oute-sonar pr 142 --json`) e tratar os achados de código novo; avisar o head novo para o dispatcher.
