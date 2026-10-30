@@ -125,9 +125,7 @@ func (s *Service) ResolveIngestKey(ctx context.Context, token string) (ingest.Ke
 // WriteTelemetry grava um lote de telemetria bruta numa transação só (ingest.Writer). Cada tabela recebe o lote por COPY
 // numa tabela temporária e depois por INSERT ... ON CONFLICT DO NOTHING: um fato repetido não duplica nada, nem dentro do
 // mesmo lote (pesquisa da #68, §4). O fato sem hora (hora = chegada) tem a chave conferida em todas as partições. O handler responde 2xx só depois do commit.
-// WriteTelemetry grava o lote bruto e, na mesma transação, liga cada fato às entidades da empresa (agente, host e
-// emparelhamento). Empresa arquivada recebe o bruto e não recebe derivação: as entidades são escrita de domínio, e o
-// ADR-0057 deixa a empresa arquivada só de leitura.
+// Na mesma transação, liga cada fato às entidades da empresa (agente, host e emparelhamento); empresa arquivada recebe só o bruto (ADR-0057).
 func (s *Service) WriteTelemetry(ctx context.Context, key ingest.Key, b ingest.Batch) error {
 	companyID := key.CompanyID
 	return s.withTx(ctx, func(t *txc) error {

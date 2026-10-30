@@ -49,15 +49,19 @@ SELECT workspace_id FROM repo_pairing WHERE company_id = @company_id AND repo_ke
 SELECT id FROM workspaces WHERE company_id = @company_id AND slug = @slug AND NOT is_system;
 
 -- name: InsertRepoWorkspace :one
--- Workspace só de metadado, sem caminho em disco (ADR-0075 item 4.3, ADR-0025 item 1).
+-- Workspace só de metadado, sem caminho em disco (ADR-0075 item 4.3, ADR-0025 item 1). Sem linha de retorno quando
+-- outra transação criou o mesmo slug primeiro (corrida): quem chamou relê.
 INSERT INTO workspaces (id, company_id, slug, name, path, repo_url, created_at, updated_at)
 VALUES (@id, @company_id, @slug, @name, '', '', @now, @now)
+ON CONFLICT (company_id, slug) DO NOTHING
 RETURNING id;
 
--- name: InsertRepoPairing :exec
+-- name: InsertRepoPairing :one
+-- Sem linha de retorno quando o repositório já estava emparelhado (outra transação): não se gera evento de novo.
 INSERT INTO repo_pairing (id, company_id, repo_key, key_kind, workspace_id, created_at, updated_at)
 VALUES (@id, @company_id, @repo_key, 'name', @workspace_id, @now, @now)
-ON CONFLICT (company_id, repo_key) DO NOTHING;
+ON CONFLICT (company_id, repo_key) DO NOTHING
+RETURNING id;
 
 -- name: SystemWorkspaceID :one
 SELECT id FROM workspaces WHERE company_id = @company_id AND is_system;

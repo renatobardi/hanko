@@ -194,3 +194,102 @@ func TestDeriveSkipsArchivedCompany(t *testing.T) {
 		t.Errorf("agentes numa empresa arquivada = %d, quero 0", n)
 	}
 }
+
+// Entrada inválida: texto fora do CHECK do banco não derruba o lote nem o bruto. Texto aparado vira entidade; o que não
+// serve fica sem derivação, e o fato segue no bruto.
+func TestDeriveInvalidTextKeepsRawAndTheBatch(t *testing.T) {
+	e, key, count := derivEnv(t)
+	at := time.Now().UnixNano()
+	long := strings.Repeat("a", 101)
+	longRepo := strings.Repeat("r", 501)
+	writeBatch(t, e, key, derivBatch(t,
+		derivRec{id: "i1", agent: " claude ", host: "oute-server", repo: "oute-agent", at: at},
+		derivRec{id: "i2", agent: long, host: "   ", repo: longRepo, at: at + 1},
+		derivRec{id: "i3", agent: "   ", host: "oute-server", at: at + 2},
+	))
+	if n := count(`SELECT count(*) FROM telemetry_logs WHERE company_id = $1`, e.co.ID); n != 3 {
+		t.Errorf("bruto gravado = %d, quero 3 (o lote inteiro)", n)
+	}
+	if n := count(`SELECT count(*) FROM external_agent WHERE company_id = $1 AND name = 'claude'`, e.co.ID); n != 1 {
+		t.Errorf("agente aparado = %d, quero 1", n)
+	}
+	if n := count(`SELECT count(*) FROM external_agent WHERE company_id = $1`, e.co.ID); n != 1 {
+		t.Errorf("agentes = %d, quero 1: o de 101 caracteres e o vazio não entram", n)
+	}
+	if n := count(`SELECT count(*) FROM external_host WHERE company_id = $1`, e.co.ID); n != 1 {
+		t.Errorf("hosts = %d, quero 1 (oute-server)", n)
+	}
+	if n := count(`SELECT count(*) FROM repo_pairing WHERE company_id = $1 AND repo_key = 'oute-agent'`, e.co.ID); n != 1 {
+		t.Errorf("emparelhamento do repositório válido = %d, quero 1", n)
+	}
+	if n := count(`SELECT count(*) FROM workspaces WHERE company_id = $1 AND is_system`, e.co.ID); n != 1 {
+		t.Errorf("no-repo = %d, quero 1: o repositório de 501 caracteres vai para ele", n)
+	}
+}
+
+// Colisão: o slug `no-repo` é do workspace de sistema. Um repositório com esse nome vai para o de sistema, e nunca a um
+// workspace comum de mesmo slug.
+func TestDeriveRepoNamedNoRepoGoesToTheSystemWorkspace(t *testing.T) {
+	e, key, count := derivEnv(t)
+	at := time.Now().UnixNano()
+	writeBatch(t, e, key, derivBatch(t, derivRec{id: "c1", repo: "no-repo", host: "oute-server", at: at}))
+	if n := count(`SELECT count(*) FROM repo_pairing rp JOIN workspaces w ON w.id = rp.workspace_id
+		WHERE rp.company_id = $1 AND rp.repo_key = 'no-repo' AND w.is_system`, e.co.ID); n != 1 {
+		t.Errorf("emparelhamento de 'no-repo' com o workspace de sistema = %d, quero 1", n)
+	}
+	if n := count(`SELECT count(*) FROM workspaces WHERE company_id = $1 AND slug = 'no-repo' AND NOT is_system`, e.co.ID); n != 0 {
+		t.Errorf("workspace comum com slug no-repo = %d, quero 0", n)
+	}
+}
+
+// Colisão: a empresa já tem um workspace comum com slug `no-repo`. O fato sem repositório não derruba o lote: o bruto
+// grava e o workspace de sistema não nasce.
+func TestDeriveNoRepoSlugTakenByAUserWorkspace(t *testing.T) {
+	e, key, count := derivEnv(t)
+	ctx := context.Background()
+	if _, err := e.svc.Pool.Exec(ctx, `INSERT INTO workspaces (id, company_id, slug, name, path) VALUES ($1, $2, 'no-repo', 'Meu no-repo', '')`,
+		domain.NewID(), e.co.ID); err != nil {
+		t.Fatal(err)
+	}
+	at := time.Now().UnixNano()
+	writeBatch(t, e, key, derivBatch(t, derivRec{id: "k1", host: "oute-server", at: at}))
+	writeBatch(t, e, key, derivBatch(t, derivRec{id: "k2", repo: "no-repo", host: "oute-server", at: at + 1}))
+	if n := count(`SELECT count(*) FROM telemetry_logs WHERE company_id = $1`, e.co.ID); n != 2 {
+		t.Errorf("bruto gravado = %d, quero 2", n)
+	}
+	if n := count(`SELECT count(*) FROM workspaces WHERE company_id = $1 AND is_system`, e.co.ID); n != 0 {
+		t.Errorf("workspace de sistema = %d, quero 0 (o slug está tomado)", n)
+	}
+	if n := count(`SELECT count(*) FROM workspaces WHERE company_id = $1 AND slug = 'no-repo' AND NOT is_system`, e.co.ID); n != 1 {
+		t.Errorf("workspace comum no-repo = %d, quero 1, intacto", n)
+	}
+}
+
+// Corrida: lotes concorrentes com o mesmo repositório e o mesmo agente novos criam uma vez só e nenhum lote falha.
+func TestDeriveConcurrentBatchesCreateOnce(t *testing.T) {
+	e, key, count := derivEnv(t)
+	at := time.Now().UnixNano()
+	const n = 4
+	errs := make(chan error, n)
+	for i := 0; i < n; i++ {
+		b := derivBatch(t, derivRec{id: fmt.Sprintf("p%d", i), agent: "corrida", repo: "corrida-repo", host: "oute-server", at: at + int64(i)})
+		go func() { errs <- e.svc.WriteTelemetry(context.Background(), key, b) }()
+	}
+	for i := 0; i < n; i++ {
+		if err := <-errs; err != nil {
+			t.Fatalf("lote concorrente falhou: %v", err)
+		}
+	}
+	if got := count(`SELECT count(*) FROM workspaces WHERE company_id = $1 AND slug = 'corrida-repo'`, e.co.ID); got != 1 {
+		t.Errorf("workspaces criados = %d, quero 1", got)
+	}
+	if got := count(`SELECT count(*) FROM repo_pairing WHERE company_id = $1 AND repo_key = 'corrida-repo'`, e.co.ID); got != 1 {
+		t.Errorf("emparelhamentos = %d, quero 1", got)
+	}
+	if got := count(`SELECT count(*) FROM external_agent WHERE company_id = $1`, e.co.ID); got != 1 {
+		t.Errorf("agentes = %d, quero 1", got)
+	}
+	if got := count(`SELECT count(*) FROM activity_events WHERE company_id = $1 AND verb = 'repo_pairing.created'`, e.co.ID); got != 1 {
+		t.Errorf("eventos de emparelhamento = %d, quero 1", got)
+	}
+}

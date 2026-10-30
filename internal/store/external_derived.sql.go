@@ -178,10 +178,11 @@ func (q *Queries) InsertExternalHostAlias(ctx context.Context, arg InsertExterna
 	return err
 }
 
-const insertRepoPairing = `-- name: InsertRepoPairing :exec
+const insertRepoPairing = `-- name: InsertRepoPairing :one
 INSERT INTO repo_pairing (id, company_id, repo_key, key_kind, workspace_id, created_at, updated_at)
 VALUES ($1, $2, $3, 'name', $4, $5, $5)
 ON CONFLICT (company_id, repo_key) DO NOTHING
+RETURNING id
 `
 
 type InsertRepoPairingParams struct {
@@ -192,20 +193,24 @@ type InsertRepoPairingParams struct {
 	Now         time.Time
 }
 
-func (q *Queries) InsertRepoPairing(ctx context.Context, arg InsertRepoPairingParams) error {
-	_, err := q.db.Exec(ctx, insertRepoPairing,
+// Sem linha de retorno quando o repositório já estava emparelhado (outra transação): não se gera evento de novo.
+func (q *Queries) InsertRepoPairing(ctx context.Context, arg InsertRepoPairingParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, insertRepoPairing,
 		arg.ID,
 		arg.CompanyID,
 		arg.RepoKey,
 		arg.WorkspaceID,
 		arg.Now,
 	)
-	return err
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
 }
 
 const insertRepoWorkspace = `-- name: InsertRepoWorkspace :one
 INSERT INTO workspaces (id, company_id, slug, name, path, repo_url, created_at, updated_at)
 VALUES ($1, $2, $3, $4, '', '', $5, $5)
+ON CONFLICT (company_id, slug) DO NOTHING
 RETURNING id
 `
 
@@ -217,7 +222,8 @@ type InsertRepoWorkspaceParams struct {
 	Now       time.Time
 }
 
-// Workspace só de metadado, sem caminho em disco (ADR-0075 item 4.3, ADR-0025 item 1).
+// Workspace só de metadado, sem caminho em disco (ADR-0075 item 4.3, ADR-0025 item 1). Sem linha de retorno quando
+// outra transação criou o mesmo slug primeiro (corrida): quem chamou relê.
 func (q *Queries) InsertRepoWorkspace(ctx context.Context, arg InsertRepoWorkspaceParams) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, insertRepoWorkspace,
 		arg.ID,
