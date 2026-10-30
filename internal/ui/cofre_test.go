@@ -45,6 +45,11 @@ type cofreFake struct {
 	deletedField []string                         // campos apagados
 	deleteErr    error                            // erro que DeleteSecretField devolve
 	fileField    bool                             // ListSecretFields inclui um campo arquivo
+	delegations  []service.DelegationView         // delegações do usuário que ListMyDelegations devolve
+	delegCreated []service.CreateDelegationInput  // pedidos de delegação que chegaram
+	delegSecrets []string                         // segredos que chegaram em CreateSecretDelegation
+	delegErr     error                            // erro que CreateSecretDelegation e RevokeSecretDelegation devolvem
+	delegRevoked []domain.ID                      // delegações revogadas, na ordem
 }
 
 func (c *cofreFake) CreateSecretField(_ context.Context, _ domain.Actor, _ domain.ID, _ domain.SecretScope, _ string, in service.CreateSecretFieldInput) (service.SecretFieldView, error) {
