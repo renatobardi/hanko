@@ -439,7 +439,7 @@ func TestPersonaTagIsolamentoEntreEmpresas(t *testing.T) {
 // Aplicações concorrentes não passam do teto de 20 por persona: com 19 tags e 3 aplicações ao mesmo tempo, só uma entra.
 // Para as três se sobreporem sempre, o teste segura a linha da persona com FOR UPDATE: a inserção da ligação pede FOR KEY
 // SHARE nessa linha (chave estrangeira) e espera. Sem a trava das tags, as três já contaram 19 e entram todas quando a
-// linha é solta; com a trava, só a primeira passa da contagem. Criações concorrentes não passam do teto de 200 por empresa.
+// linha é solta; com a trava, só a primeira passa da contagem.
 func TestPersonaTagTetoConcorrente(t *testing.T) {
 	ctx := context.Background()
 	e := newEnv(t)
@@ -484,18 +484,38 @@ func TestPersonaTagTetoConcorrente(t *testing.T) {
 	if p, _ := e.svc.GetPersona(ctx, e.co.ID, ana.Slug); ok != 1 || len(p.Tags) != domain.MaxTagsPerPersona {
 		t.Fatalf("aplicações aceitas = %d, tags = %d; quer 1 e %d", ok, len(p.Tags), domain.MaxTagsPerPersona)
 	}
+}
 
+// Criações concorrentes não passam do teto de 200 tags por empresa: com 199 no cadastro e 3 criações ao mesmo tempo, o
+// cadastro fica com 200. Como no teto por persona, o teste segura a linha da empresa com FOR UPDATE: a inserção da tag pede
+// FOR KEY SHARE nela (chave estrangeira) e espera, então as três já contaram 199 antes de inserir se não houver trava.
+func TestPersonaTagTetoConcorrenteEmpresa(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
 	if _, err := e.svc.Pool.Exec(ctx, `INSERT INTO persona_tags (id, company_id, name)
-		SELECT gen_random_uuid(), $1, 'massa ' || g FROM generate_series(1, $2) g`, e.co.ID, domain.MaxPersonaTagsPerCompany-len(extras)-domain.MaxTagsPerPersona); err != nil {
+		SELECT gen_random_uuid(), $1, 'massa ' || g FROM generate_series(1, $2) g`, e.co.ID, domain.MaxPersonaTagsPerCompany-1); err != nil {
 		t.Fatal(err)
 	}
-	created := make([]error, 5)
+	hold, err := e.svc.Pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = hold.Rollback(ctx) }() // solta a linha mesmo se o teste falhar antes
+	if _, err := hold.Exec(ctx, `SELECT 1 FROM companies WHERE id = $1 FOR UPDATE`, e.co.ID); err != nil {
+		t.Fatal(err)
+	}
+	var wg sync.WaitGroup
+	created := make([]error, 3)
 	for i := range created {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			_, created[i] = e.svc.CreatePersonaTag(ctx, domain.HumanActor, e.co.ID, service.PersonaTagInput{Name: fmt.Sprintf("nova %d", i)})
 		}()
+	}
+	waitLockWaiters(ctx, t, e.svc.Pool.Config().ConnConfig, len(created))
+	if err := hold.Rollback(ctx); err != nil {
+		t.Fatal(err)
 	}
 	wg.Wait()
 	all, err := e.svc.ListPersonaTags(ctx, e.co.ID, true)
