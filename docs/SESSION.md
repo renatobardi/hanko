@@ -1,14 +1,14 @@
-# Contrato da v0.8 · sessão `feat-124-contrato-rodada-aprovacao`
-Data: 2026-10-28
+# Fonte externa e ingestão · sessão `feat-125-fonte-externa-ingestao`
+Data: 2026-10-29
 
 ## Feito
-- Migration 00210 (rodada, ciclo, participante, etapa, ação, marca, aprovação, versões do script, lista da outbox, busca de conversa e sessão externas, `db_disk_low`, itens da Caixa), testada do zero e sobre a 00209.
-- Domínio e 8 operações novas em 501 (rodada, ciclo, etapa, aprovação, script). Limites de disco em `AlertLimitSpecs`.
-- Corpo do PR #138 com os itens do `## Falta`; branch atualizado com a `origin/main` (#137 entrou).
+- Gerador único de nome (ADR-0084): listas 64 + 64 em `internal/domain/names/`, derivação por hash com tentativas e sufixo; testes de formato e de nunca repetir numa empresa.
+- Escopo `ingest` (ADR-0076 item 3): chave presa à empresa; a API pública e o `/mcp` a recusam; listener `HANKO_INGEST_ADDR` com `POST /v1/traces` (protobuf, gzip).
+- Span gravado uma vez pela chave de dedupe; o fato novo cria agente, host e conversa externos, com `activity_event`.
 
 ## Travado
-- Padrões do disco (aviso 5 GiB, crítico 0,5 GiB) e alerta por empresa: recomendação do autor, a confirmar com o Bardi.
-- Gate do SonarCloud do #138 sem resultado (`NONE`); CI não acompanhado.
+- Ficou de fora: logs, métricas, replay e prontidão (501); contadores e custo (fatia 2, #126); emparelhamento e workspace `no-repo`; classificação; Caixa; telas; vhost nginx na tailnet (ação de host).
+- As 192 + 192 palavras novas do ADR-0084 aguardam a revisão do Bardi.
 
 ## Próximo passo
-- Bardi revisa o #138 e decide o merge. Depois: fatia 2 (#126), custo e alertas externos; fatia 3 (#127), rodada e aprovação, com a severidade do disco; fatia 4 (#128), busca e export.
+- Revisão do PR e demo qa (Bardi). Depois: logs e métricas OTLP, e o custo (#126).
