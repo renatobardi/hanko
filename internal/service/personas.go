@@ -232,7 +232,7 @@ func (s *Service) ListPersonas(ctx context.Context, companyID domain.ID) ([]doma
 	for i, r := range rows {
 		out[i] = personaFromRow(r)
 	}
-	return out, nil
+	return out, attachTags(ctx, s.read(), companyID, out)
 }
 
 // GetPersona resolves ref as UUID or slug within the company.
@@ -251,7 +251,8 @@ func (s *Service) GetPersona(ctx context.Context, companyID domain.ID, ref strin
 	if err != nil {
 		return domain.Persona{}, mapErr(err, "get persona")
 	}
-	return personaFromRow(row), nil
+	out := []domain.Persona{personaFromRow(row)}
+	return out[0], attachTags(ctx, q, companyID, out)
 }
 
 func (s *Service) UpdatePersona(ctx context.Context, actor domain.Actor, companyID, personaID domain.ID, in UpdatePersonaInput) (domain.Persona, error) {

@@ -159,7 +159,7 @@ type Persona struct {
 	EnvironmentID string `json:"environment_id,omitempty" format:"uuid" doc:"Ambiente de execução da persona; ausente = o padrão da empresa (ADR-0037)."`
 	System        bool   `json:"system,omitempty" doc:"Persona de sistema (curadoria, revisor): não se desliga e só um owner a edita (ADR-0041)."`
 
-	Tags []PersonaTagRef `json:"tags,omitempty" doc:"Tags da persona (ADR-0087), em ordem de nome. Vem preenchido a partir da fatia 1 da #118."`
+	Tags []PersonaTagRef `json:"tags,omitempty" doc:"Tags da persona (ADR-0087), em ordem de nome. Vem nas leituras de persona e do organograma."`
 }
 
 // Task é uma unidade de trabalho atribuída a uma persona.
@@ -592,7 +592,7 @@ func personaOut(p domain.Persona) Persona {
 		Instructions: p.Instructions, InstructionRevision: p.InstructionRevision, Agent: p.Agent, Model: p.Model, AdapterConfig: export.MaskConfig(cfg), Status: string(p.Status),
 		ReportsTo: idPtr(p.ReportsTo), WorkspaceID: idPtr(p.WorkspaceID), HeartbeatIntervalSec: p.HeartbeatIntervalSec,
 		BudgetMonthlyCents: p.BudgetMonthlyCents, PauseReason: p.PauseReason, SubscriptionID: idPtr(p.SubscriptionID), RequireReview: p.RequireReview, ReviewerPersonaID: idPtr(p.ReviewerPersonaID), ReviewerAgent: p.ReviewerAgent, ReviewerModel: p.ReviewerModel, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt,
-		EnvironmentID: idPtr(p.EnvironmentID), System: p.System}
+		EnvironmentID: idPtr(p.EnvironmentID), System: p.System, Tags: personaTagRefsOut(p.Tags)}
 }
 
 func taskOut(t service.TaskView) Task {

@@ -181,6 +181,9 @@ type Persona struct {
 
 	// System marca a persona de sistema (curadoria, revisor; ADR-0041): não pode ser desligada e só um owner a edita.
 	System bool `json:"system,omitempty"`
+
+	// Tags são as tags da persona em ordem de nome (ADR-0087). Só as leituras de persona e do organograma preenchem.
+	Tags []PersonaTag `json:"tags,omitempty"`
 }
 
 // PersonaIcons é o catálogo fechado de glifos de persona (Kubo DS: glifo de linha monocromático num círculo

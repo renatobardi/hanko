@@ -52,26 +52,6 @@ func TestValidPersonaTagDescription(t *testing.T) {
 	}
 }
 
-func TestPersonaTagNames(t *testing.T) {
-	in := []string{"infra", "Dados", "backend"}
-	if got := PersonaTagNames(in); got != "backend\nDados\ninfra" {
-		t.Fatalf("PersonaTagNames = %q", got)
-	}
-	if in[0] != "infra" {
-		t.Fatal("PersonaTagNames não deve reordenar a entrada")
-	}
-	if PersonaTagNames(nil) != "" {
-		t.Fatal("sem tags, a coluna fica vazia")
-	}
-	full := make([]string, MaxTagsPerPersona)
-	for i := range full {
-		full[i] = strings.Repeat("x", PersonaTagNameMax)
-	}
-	if n := len([]rune(PersonaTagNames(full))); n > 1000 {
-		t.Fatalf("20 nomes de 40 caracteres = %d, passa do teto 1000 da coluna", n)
-	}
-}
-
 func TestOrgFiltros(t *testing.T) {
 	if !OrgTagAny.Valid() || !OrgTagAll.Valid() || OrgTagMatch("or").Valid() {
 		t.Fatal("OrgTagMatch aceita só any e all")

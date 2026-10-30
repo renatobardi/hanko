@@ -22,11 +22,13 @@ type Document struct {
 	Projects      []Project      `json:"projects,omitempty"`
 	Subscriptions []Subscription `json:"subscriptions,omitempty"`
 	Personas      []Persona      `json:"personas,omitempty" doc:"Em ordem de contratação; o organograma é o campo reports_to."`
-	Tasks         []Task         `json:"tasks,omitempty" doc:"Em ordem de número, com os comentários."`
-	Flows         []Flow         `json:"flows,omitempty"`
-	Skills        []Skill        `json:"skills,omitempty" doc:"Skills da empresa (SKILL.md); a ligação com as personas está em personas[].skills. Opcional (ADR-0029)."`
-	Integrations  []Integration  `json:"integrations,omitempty" doc:"Integrações SEM segredos (headers, variáveis, segredo HMAC); entram desligadas na importação. Opcional (ADR-0029)."`
-	Runs          []Run          `json:"runs,omitempty" doc:"Só com with_runs: execuções encerradas, sem logs a menos que with_logs."`
+	// PersonaTags é opcional (ADR-0087): arquivos antigos não têm o campo, e o formato continua v1.
+	PersonaTags  []PersonaTag  `json:"persona_tags,omitempty" doc:"Cadastro de tags de persona, com as arquivadas; a ligação está em personas[].tags."`
+	Tasks        []Task        `json:"tasks,omitempty" doc:"Em ordem de número, com os comentários."`
+	Flows        []Flow        `json:"flows,omitempty"`
+	Skills       []Skill       `json:"skills,omitempty" doc:"Skills da empresa (SKILL.md); a ligação com as personas está em personas[].skills. Opcional (ADR-0029)."`
+	Integrations []Integration `json:"integrations,omitempty" doc:"Integrações SEM segredos (headers, variáveis, segredo HMAC); entram desligadas na importação. Opcional (ADR-0029)."`
+	Runs         []Run         `json:"runs,omitempty" doc:"Só com with_runs: execuções encerradas, sem logs a menos que with_logs."`
 	// Artifacts só vem com with_artifacts (ADR-0028); arquivos antigos não têm o campo, e o formato continua v1.
 	Artifacts []Artifact `json:"artifacts,omitempty" doc:"Só com with_artifacts: todas as versões dos artefatos, com o conteúdo em base64."`
 }
@@ -101,7 +103,18 @@ type Persona struct {
 	ReviewerAgent        string         `json:"reviewer_agent,omitempty" enum:"claude,codex,fake"`
 	ReviewerModel        string         `json:"reviewer_model,omitempty"`
 	Skills               []string       `json:"skills,omitempty" doc:"Slugs das skills habilitadas para a persona."`
+	Tags                 []string       `json:"tags,omitempty" doc:"Nomes das tags da persona (de persona_tags)."`
 	CreatedAt            time.Time      `json:"created_at"`
+}
+
+// PersonaTag é uma tag do cadastro (ADR-0087). Na importação, uma tag com o mesmo nome, sem distinguir caixa, de uma
+// tag que já existe passa a ser essa tag.
+type PersonaTag struct {
+	Name        string    `json:"name"`
+	Color       string    `json:"color,omitempty" enum:"gray,red,amber,green,teal,blue,violet,pink" doc:"Ausente = gray."`
+	Description string    `json:"description,omitempty"`
+	Archived    bool      `json:"archived,omitempty"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 // Actor é quem fez algo. O id de um humano é da instalação de origem e não viaja.

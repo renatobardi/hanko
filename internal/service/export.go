@@ -388,6 +388,10 @@ func (s *Service) buildDoc(ctx context.Context, q *store.Queries, companyID doma
 	for _, p := range peRows {
 		peSlug[p.ID] = p.Slug
 	}
+	tagsBy, err := exportPersonaTags(ctx, q, companyID, &doc)
+	if err != nil {
+		return doc, err
+	}
 	for _, p := range peRows {
 		var cfg map[string]any
 		if len(p.AdapterConfig) > 0 {
@@ -401,7 +405,7 @@ func (s *Service) buildDoc(ctx context.Context, q *store.Queries, companyID doma
 			HeartbeatIntervalSec: int(p.HeartbeatIntervalSec), BudgetMonthlyCents: p.BudgetMonthlyCents,
 			Subscription: refSlug(subName, p.SubscriptionID), RequireReview: p.RequireReview,
 			Reviewer: refSlug(peSlug, p.ReviewerPersonaID), ReviewerAgent: p.ReviewerAgent, ReviewerModel: p.ReviewerModel,
-			CreatedAt: p.CreatedAt})
+			Tags: tagsBy[p.ID], CreatedAt: p.CreatedAt})
 	}
 
 	taskRows, err := q.ExportTasks(ctx, companyID)
@@ -513,4 +517,28 @@ func exportActor(typ string, id *domain.ID, personas map[domain.ID]string) expor
 		return export.Actor{Type: string(domain.ActorSystem)}
 	}
 	return export.Actor{Type: typ}
+}
+
+// exportPersonaTags põe o cadastro de tags (com as arquivadas) no documento e devolve os nomes das tags de cada persona
+// (ADR-0087 item 11).
+func exportPersonaTags(ctx context.Context, q *store.Queries, companyID domain.ID, doc *export.Document) (map[domain.ID][]string, error) {
+	rows, err := q.ListPersonaTags(ctx, store.ListPersonaTagsParams{CompanyID: companyID, IncludeArchived: true})
+	if err != nil {
+		return nil, fmt.Errorf("export persona tags: %w", err)
+	}
+	for _, r := range rows {
+		doc.PersonaTags = append(doc.PersonaTags, export.PersonaTag{Name: r.Name, Color: r.Color, Description: r.Description,
+			Archived: r.ArchivedAt != nil, CreatedAt: r.CreatedAt})
+	}
+	by, err := personaTagsByPersona(ctx, q, companyID)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[domain.ID][]string, len(by))
+	for id, tags := range by {
+		for _, t := range tags {
+			out[id] = append(out[id], t.Name)
+		}
+	}
+	return out, nil
 }

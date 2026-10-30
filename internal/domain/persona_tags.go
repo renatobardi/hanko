@@ -82,14 +82,6 @@ func ValidPersonaTagDescription(s string) error {
 	return nil
 }
 
-// PersonaTagNames monta a coluna `personas.tag_names` (ADR-0087 item 10): os nomes das tags ligadas, em ordem, separados
-// por quebra de linha. O service grava o resultado na mesma transação de aplicar, tirar, renomear ou deletar uma tag.
-func PersonaTagNames(names []string) string {
-	s := slices.Clone(names)
-	slices.SortFunc(s, func(a, b string) int { return strings.Compare(PersonaTagKey(a), PersonaTagKey(b)) })
-	return strings.Join(s, "\n")
-}
-
 // Verbos de `activity_event` das tags (ADR-0087 item 12). `persona_tag.deleted` leva o nome e a contagem de personas
 // que perderam a tag; não há um evento por persona afetada.
 const (

@@ -143,6 +143,9 @@ func (p importPlan) counts(d export.Document) map[string]int {
 	if n := len(d.Artifacts); n > 0 {
 		out["artifacts"] = n
 	}
+	if n := len(d.PersonaTags); n > 0 {
+		out["persona_tags"] = n
+	}
 	if n := len(p.clearedPaths); n > 0 {
 		out["workspace_paths_cleared"] = n
 	}
@@ -555,6 +558,9 @@ func (s *Service) planImport(ctx context.Context, doc export.Document, opts Impo
 	if p.si, err = s.planSkillsIntegrations(doc, pe); err != nil {
 		return p, err
 	}
+	if err := planPersonaTags(doc); err != nil {
+		return p, err
+	}
 	if err := s.planArtifacts(doc, tk, pe, pr, runKeys); err != nil {
 		return p, err
 	}
@@ -773,6 +779,9 @@ func (t *txc) runImport(cid domain.ID, doc export.Document, p importPlan, opts I
 			ReportsTo: optID(peID, x.ReportsTo), ReviewerPersonaID: optID(peID, x.Reviewer)}); err != nil {
 			return mapErr(err, "link persona "+x.Slug)
 		}
+	}
+	if err := t.importPersonaTags(cid, doc, peID, func(string) bool { return true }); err != nil {
+		return err
 	}
 
 	runID := map[string]domain.ID{}

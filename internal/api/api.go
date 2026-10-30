@@ -146,6 +146,17 @@ type backend interface {
 	ListGates(ctx context.Context, companyID domain.ID, f service.GateFilter) ([]service.GateView, error)
 	GetGate(ctx context.Context, companyID, gateID domain.ID) (service.GateView, error)
 	OrgChart(ctx context.Context, companyID domain.ID) (service.OrgChart, error)
+	ListPersonaTags(ctx context.Context, companyID domain.ID, includeArchived bool) ([]service.PersonaTagView, error)
+	GetPersonaTag(ctx context.Context, companyID, tagID domain.ID) (service.PersonaTagView, error)
+	CreatePersonaTag(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.PersonaTagInput) (service.PersonaTagView, error)
+	UpdatePersonaTag(ctx context.Context, actor domain.Actor, companyID, tagID domain.ID, in service.UpdatePersonaTagInput) (service.PersonaTagView, error)
+	ArchivePersonaTag(ctx context.Context, actor domain.Actor, companyID, tagID domain.ID) (service.PersonaTagView, error)
+	UnarchivePersonaTag(ctx context.Context, actor domain.Actor, companyID, tagID domain.ID) (service.PersonaTagView, error)
+	DeletePersonaTag(ctx context.Context, actor domain.Actor, companyID, tagID domain.ID) (int, error)
+	TagPersona(ctx context.Context, actor domain.Actor, companyID, personaID, tagID domain.ID) error
+	UntagPersona(ctx context.Context, actor domain.Actor, companyID, personaID, tagID domain.ID) error
+	CreateAndTagPersona(ctx context.Context, actor domain.Actor, companyID, personaID domain.ID, in service.PersonaTagInput) (domain.PersonaTag, error)
+	ListOrgPersonas(ctx context.Context, companyID domain.ID, f service.OrgPersonaFilter) ([]service.OrgPersona, error)
 	CostSummary(ctx context.Context, companyID domain.ID, f service.CostFilter) (service.CostSummary, error)
 	CreateSubscription(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.CreateSubscriptionInput) (domain.Subscription, error)
 	ListSubscriptions(ctx context.Context, companyID domain.ID) ([]service.SubscriptionStatus, error)
@@ -352,7 +363,7 @@ func (s *server) register(api huma.API) {
 	s.registerExternalRounds(api) // contrato da rodada e da aprovação externas (ADR-0080 e 0081); 501 até a fatia 3
 	s.registerExternalCost(api)   // contrato do custo elevado e dos alertas externos (ADR-0082/0083); 501 até a fatia 2
 	s.registerIngestKeys(api)
-	s.registerPersonaTags(api) // contrato das tags de persona (ADR-0087); 501 até a fatia 1
+	s.registerPersonaTags(api) // tags de persona e recorte do organograma (ADR-0087)
 	s.registerDecision(api)
 	s.registerProbe(api)
 	s.registerInstance(api)

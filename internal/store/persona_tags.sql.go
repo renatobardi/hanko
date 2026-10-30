@@ -7,9 +7,9 @@ package store
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const countPersonaTagLinks = `-- name: CountPersonaTagLinks :one
@@ -26,6 +26,108 @@ func (q *Queries) CountPersonaTagLinks(ctx context.Context, arg CountPersonaTagL
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const countPersonaTags = `-- name: CountPersonaTags :one
+SELECT count(*) FROM persona_tags WHERE company_id = $1
+`
+
+func (q *Queries) CountPersonaTags(ctx context.Context, companyID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countPersonaTags, companyID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countTagsOfPersona = `-- name: CountTagsOfPersona :one
+SELECT count(*) FROM persona_tag_links WHERE company_id = $1 AND persona_id = $2
+`
+
+type CountTagsOfPersonaParams struct {
+	CompanyID uuid.UUID
+	PersonaID uuid.UUID
+}
+
+func (q *Queries) CountTagsOfPersona(ctx context.Context, arg CountTagsOfPersonaParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countTagsOfPersona, arg.CompanyID, arg.PersonaID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const createPersonaTag = `-- name: CreatePersonaTag :one
+INSERT INTO persona_tags (id, company_id, name, color, description, archived_at, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
+RETURNING id, company_id, name, color, description, archived_at, created_at, updated_at
+`
+
+type CreatePersonaTagParams struct {
+	ID          uuid.UUID
+	CompanyID   uuid.UUID
+	Name        string
+	Color       string
+	Description string
+	ArchivedAt  *time.Time
+	Now         time.Time
+}
+
+func (q *Queries) CreatePersonaTag(ctx context.Context, arg CreatePersonaTagParams) (PersonaTag, error) {
+	row := q.db.QueryRow(ctx, createPersonaTag,
+		arg.ID,
+		arg.CompanyID,
+		arg.Name,
+		arg.Color,
+		arg.Description,
+		arg.ArchivedAt,
+		arg.Now,
+	)
+	var i PersonaTag
+	err := row.Scan(
+		&i.ID,
+		&i.CompanyID,
+		&i.Name,
+		&i.Color,
+		&i.Description,
+		&i.ArchivedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const deletePersonaTag = `-- name: DeletePersonaTag :execrows
+DELETE FROM persona_tags WHERE company_id = $1 AND id = $2
+`
+
+type DeletePersonaTagParams struct {
+	CompanyID uuid.UUID
+	ID        uuid.UUID
+}
+
+func (q *Queries) DeletePersonaTag(ctx context.Context, arg DeletePersonaTagParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deletePersonaTag, arg.CompanyID, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deletePersonaTagLink = `-- name: DeletePersonaTagLink :execrows
+DELETE FROM persona_tag_links WHERE company_id = $1 AND persona_id = $2 AND tag_id = $3
+`
+
+type DeletePersonaTagLinkParams struct {
+	CompanyID uuid.UUID
+	PersonaID uuid.UUID
+	TagID     uuid.UUID
+}
+
+func (q *Queries) DeletePersonaTagLink(ctx context.Context, arg DeletePersonaTagLinkParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deletePersonaTagLink, arg.CompanyID, arg.PersonaID, arg.TagID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const getPersonaTag = `-- name: GetPersonaTag :one
@@ -51,6 +153,110 @@ func (q *Queries) GetPersonaTag(ctx context.Context, arg GetPersonaTagParams) (P
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const getPersonaTagByName = `-- name: GetPersonaTagByName :one
+SELECT id, company_id, name, color, description, archived_at, created_at, updated_at FROM persona_tags WHERE company_id = $1 AND lower(name) = lower($2::text)
+`
+
+type GetPersonaTagByNameParams struct {
+	CompanyID uuid.UUID
+	Name      string
+}
+
+func (q *Queries) GetPersonaTagByName(ctx context.Context, arg GetPersonaTagByNameParams) (PersonaTag, error) {
+	row := q.db.QueryRow(ctx, getPersonaTagByName, arg.CompanyID, arg.Name)
+	var i PersonaTag
+	err := row.Scan(
+		&i.ID,
+		&i.CompanyID,
+		&i.Name,
+		&i.Color,
+		&i.Description,
+		&i.ArchivedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getPersonaTagForUpdate = `-- name: GetPersonaTagForUpdate :one
+SELECT id, company_id, name, color, description, archived_at, created_at, updated_at FROM persona_tags WHERE company_id = $1 AND id = $2 FOR UPDATE
+`
+
+type GetPersonaTagForUpdateParams struct {
+	CompanyID uuid.UUID
+	ID        uuid.UUID
+}
+
+func (q *Queries) GetPersonaTagForUpdate(ctx context.Context, arg GetPersonaTagForUpdateParams) (PersonaTag, error) {
+	row := q.db.QueryRow(ctx, getPersonaTagForUpdate, arg.CompanyID, arg.ID)
+	var i PersonaTag
+	err := row.Scan(
+		&i.ID,
+		&i.CompanyID,
+		&i.Name,
+		&i.Color,
+		&i.Description,
+		&i.ArchivedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const insertPersonaTagLink = `-- name: InsertPersonaTagLink :execrows
+INSERT INTO persona_tag_links (company_id, persona_id, tag_id, created_at) VALUES ($1, $2, $3, $4)
+ON CONFLICT (persona_id, tag_id) DO NOTHING
+`
+
+type InsertPersonaTagLinkParams struct {
+	CompanyID uuid.UUID
+	PersonaID uuid.UUID
+	TagID     uuid.UUID
+	Now       time.Time
+}
+
+func (q *Queries) InsertPersonaTagLink(ctx context.Context, arg InsertPersonaTagLinkParams) (int64, error) {
+	result, err := q.db.Exec(ctx, insertPersonaTagLink,
+		arg.CompanyID,
+		arg.PersonaID,
+		arg.TagID,
+		arg.Now,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const listPersonaIDsWithTag = `-- name: ListPersonaIDsWithTag :many
+SELECT persona_id FROM persona_tag_links WHERE company_id = $1 AND tag_id = $2 ORDER BY persona_id
+`
+
+type ListPersonaIDsWithTagParams struct {
+	CompanyID uuid.UUID
+	TagID     uuid.UUID
+}
+
+func (q *Queries) ListPersonaIDsWithTag(ctx context.Context, arg ListPersonaIDsWithTagParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listPersonaIDsWithTag, arg.CompanyID, arg.TagID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var persona_id uuid.UUID
+		if err := rows.Scan(&persona_id); err != nil {
+			return nil, err
+		}
+		items = append(items, persona_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listPersonaTagLinks = `-- name: ListPersonaTagLinks :many
@@ -82,19 +288,62 @@ func (q *Queries) ListPersonaTagLinks(ctx context.Context, companyID uuid.UUID) 
 	return items, nil
 }
 
+const listPersonaTagRefs = `-- name: ListPersonaTagRefs :many
+SELECT l.persona_id, t.id, t.company_id, t.name, t.color, t.description, t.archived_at, t.created_at, t.updated_at
+FROM persona_tag_links l JOIN persona_tags t ON t.id = l.tag_id
+WHERE l.company_id = $1
+ORDER BY l.persona_id, lower(t.name), t.id
+`
+
+type ListPersonaTagRefsRow struct {
+	PersonaID  uuid.UUID
+	PersonaTag PersonaTag
+}
+
+// As tags de cada persona da empresa, para o chip (ficha, lista, organograma, MCP).
+func (q *Queries) ListPersonaTagRefs(ctx context.Context, companyID uuid.UUID) ([]ListPersonaTagRefsRow, error) {
+	rows, err := q.db.Query(ctx, listPersonaTagRefs, companyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPersonaTagRefsRow{}
+	for rows.Next() {
+		var i ListPersonaTagRefsRow
+		if err := rows.Scan(
+			&i.PersonaID,
+			&i.PersonaTag.ID,
+			&i.PersonaTag.CompanyID,
+			&i.PersonaTag.Name,
+			&i.PersonaTag.Color,
+			&i.PersonaTag.Description,
+			&i.PersonaTag.ArchivedAt,
+			&i.PersonaTag.CreatedAt,
+			&i.PersonaTag.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPersonaTags = `-- name: ListPersonaTags :many
 
 SELECT id, company_id, name, color, description, archived_at, created_at, updated_at FROM persona_tags
-WHERE company_id = $1 AND ($2::boolean IS TRUE OR archived_at IS NULL)
+WHERE company_id = $1 AND ($2::boolean OR archived_at IS NULL)
 ORDER BY lower(name), id
 `
 
 type ListPersonaTagsParams struct {
 	CompanyID       uuid.UUID
-	IncludeArchived pgtype.Bool
+	IncludeArchived bool
 }
 
-// Tags de persona (ADR-0087). Leituras do contrato da #118; as escritas entram na fatia 1.
+// Tags de persona (ADR-0087). O service confere papel, limites e estado; aqui só leitura e escrita.
 func (q *Queries) ListPersonaTags(ctx context.Context, arg ListPersonaTagsParams) ([]PersonaTag, error) {
 	rows, err := q.db.Query(ctx, listPersonaTags, arg.CompanyID, arg.IncludeArchived)
 	if err != nil {
@@ -122,4 +371,152 @@ func (q *Queries) ListPersonaTags(ctx context.Context, arg ListPersonaTagsParams
 		return nil, err
 	}
 	return items, nil
+}
+
+const listPersonaTagsWithCount = `-- name: ListPersonaTagsWithCount :many
+SELECT t.id, t.company_id, t.name, t.color, t.description, t.archived_at, t.created_at, t.updated_at, (SELECT count(*) FROM persona_tag_links l WHERE l.tag_id = t.id)::bigint AS persona_count
+FROM persona_tags t
+WHERE t.company_id = $1 AND ($2::boolean OR t.archived_at IS NULL)
+ORDER BY lower(t.name), t.id
+`
+
+type ListPersonaTagsWithCountParams struct {
+	CompanyID       uuid.UUID
+	IncludeArchived bool
+}
+
+type ListPersonaTagsWithCountRow struct {
+	PersonaTag   PersonaTag
+	PersonaCount int64
+}
+
+func (q *Queries) ListPersonaTagsWithCount(ctx context.Context, arg ListPersonaTagsWithCountParams) ([]ListPersonaTagsWithCountRow, error) {
+	rows, err := q.db.Query(ctx, listPersonaTagsWithCount, arg.CompanyID, arg.IncludeArchived)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPersonaTagsWithCountRow{}
+	for rows.Next() {
+		var i ListPersonaTagsWithCountRow
+		if err := rows.Scan(
+			&i.PersonaTag.ID,
+			&i.PersonaTag.CompanyID,
+			&i.PersonaTag.Name,
+			&i.PersonaTag.Color,
+			&i.PersonaTag.Description,
+			&i.PersonaTag.ArchivedAt,
+			&i.PersonaTag.CreatedAt,
+			&i.PersonaTag.UpdatedAt,
+			&i.PersonaCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const lockPersonaTags = `-- name: LockPersonaTags :exec
+SELECT pg_advisory_xact_lock(hashtext('hanko:persona_tags:' || $1::text))
+`
+
+// Serializa as escritas de tag da empresa: os limites de 20 por persona e 200 por empresa contam e inserem sem corrida.
+func (q *Queries) LockPersonaTags(ctx context.Context, companyID string) error {
+	_, err := q.db.Exec(ctx, lockPersonaTags, companyID)
+	return err
+}
+
+const refreshPersonaTagNames = `-- name: RefreshPersonaTagNames :exec
+UPDATE personas p SET tag_names = coalesce((
+    SELECT string_agg(t.name, E'\n' ORDER BY lower(t.name), t.id)
+    FROM persona_tag_links l JOIN persona_tags t ON t.id = l.tag_id
+    WHERE l.persona_id = p.id), '')
+WHERE p.company_id = $1 AND p.id = ANY($2::uuid[])
+`
+
+type RefreshPersonaTagNamesParams struct {
+	CompanyID  uuid.UUID
+	PersonaIds []uuid.UUID
+}
+
+// Recalcula personas.tag_names (ADR-0087 item 10) das personas dadas, na transação da escrita de tag.
+func (q *Queries) RefreshPersonaTagNames(ctx context.Context, arg RefreshPersonaTagNamesParams) error {
+	_, err := q.db.Exec(ctx, refreshPersonaTagNames, arg.CompanyID, arg.PersonaIds)
+	return err
+}
+
+const setPersonaTagArchived = `-- name: SetPersonaTagArchived :one
+UPDATE persona_tags SET archived_at = $1, updated_at = $2
+WHERE company_id = $3 AND id = $4
+RETURNING id, company_id, name, color, description, archived_at, created_at, updated_at
+`
+
+type SetPersonaTagArchivedParams struct {
+	ArchivedAt *time.Time
+	Now        time.Time
+	CompanyID  uuid.UUID
+	ID         uuid.UUID
+}
+
+func (q *Queries) SetPersonaTagArchived(ctx context.Context, arg SetPersonaTagArchivedParams) (PersonaTag, error) {
+	row := q.db.QueryRow(ctx, setPersonaTagArchived,
+		arg.ArchivedAt,
+		arg.Now,
+		arg.CompanyID,
+		arg.ID,
+	)
+	var i PersonaTag
+	err := row.Scan(
+		&i.ID,
+		&i.CompanyID,
+		&i.Name,
+		&i.Color,
+		&i.Description,
+		&i.ArchivedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updatePersonaTag = `-- name: UpdatePersonaTag :one
+UPDATE persona_tags SET name = $1, color = $2, description = $3, updated_at = $4
+WHERE company_id = $5 AND id = $6
+RETURNING id, company_id, name, color, description, archived_at, created_at, updated_at
+`
+
+type UpdatePersonaTagParams struct {
+	Name        string
+	Color       string
+	Description string
+	Now         time.Time
+	CompanyID   uuid.UUID
+	ID          uuid.UUID
+}
+
+func (q *Queries) UpdatePersonaTag(ctx context.Context, arg UpdatePersonaTagParams) (PersonaTag, error) {
+	row := q.db.QueryRow(ctx, updatePersonaTag,
+		arg.Name,
+		arg.Color,
+		arg.Description,
+		arg.Now,
+		arg.CompanyID,
+		arg.ID,
+	)
+	var i PersonaTag
+	err := row.Scan(
+		&i.ID,
+		&i.CompanyID,
+		&i.Name,
+		&i.Color,
+		&i.Description,
+		&i.ArchivedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
