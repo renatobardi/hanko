@@ -155,7 +155,7 @@ func (in classInputs) signalsFor(c store.ListConversationsToClassifyRow) aidlc.S
 func (t *txc) writeClass(companyID domain.ID, c store.ListConversationsToClassifyRow, res aidlc.Result, tags []string) (bool, error) {
 	if err := t.q.SetConversationClass(t.ctx, store.SetConversationClassParams{ID: c.ID, CompanyID: companyID, Class: res.Class,
 		ClassOrigin: res.Origin, ClassConfidence: res.Confidence, Classifier: aidlc.Classifier, Tags: tags,
-		ClassifiedLastAt: c.SessionLast, Now: t.now}); err != nil {
+		ClassifiedSessionAt: c.SessionUpdatedAt, Now: t.now}); err != nil {
 		return false, mapErr(err, "set conversation class")
 	}
 	if sameClass(c, res, tags) {

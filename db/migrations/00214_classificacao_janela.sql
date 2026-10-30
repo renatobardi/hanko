@@ -1,7 +1,8 @@
 -- +goose Up
--- Janela da classificação de conversa externa (ADR-0079; auditoria do #158): a última hora de fato da sessão que a
--- conversa tinha quando foi classificada. A passada só relê conversas cuja sessão recebeu fato depois dessa hora.
-ALTER TABLE external_conversation ADD COLUMN classified_last_at bigint NOT NULL DEFAULT 0 CHECK (classified_last_at >= 0);
+-- Janela da classificação de conversa externa (ADR-0079; auditoria do #158): a hora de recebimento da sessão
+-- (external_session.updated_at, gravada a cada lote de fatos) que a conversa tinha quando foi classificada. NULL = nunca.
+-- Não usa o relógio do fato: um fato com relógio atrasado também reabre a conversa.
+ALTER TABLE external_conversation ADD COLUMN classified_session_at timestamptz;
 
 -- +goose Down
-ALTER TABLE external_conversation DROP COLUMN classified_last_at;
+ALTER TABLE external_conversation DROP COLUMN classified_session_at;

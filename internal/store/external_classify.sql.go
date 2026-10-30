@@ -60,7 +60,7 @@ func (q *Queries) ClassifyOpenings(ctx context.Context, companyID uuid.UUID) ([]
 }
 
 const classifySessionFacts = `-- name: ClassifySessionFacts :many
-SELECT session_id, max(time_unix_nano)::bigint AS last_at,
+SELECT session_id,
     COALESCE((array_agg(oute_task_id ORDER BY time_unix_nano) FILTER (WHERE oute_task_id IS NOT NULL))[1], '')::text AS task_id,
     bool_or(COALESCE(oute_swarm_round, resource_attributes->>'oute.swarm.round') IS NOT NULL) AS has_round,
     bool_or(resource_attributes->>'oute.swarm.session' IS NOT NULL) AS has_worker,
@@ -84,14 +84,13 @@ type ClassifySessionFactsParams struct {
 
 type ClassifySessionFactsRow struct {
 	SessionID *string
-	LastAt    int64
 	TaskID    string
 	HasRound  bool
 	HasWorker bool
 	HasStep   bool
 }
 
-// Fatos das sessões pedidas: a hora do último fato, o oute.task.id (o primeiro que chegou) e os papéis da rodada.
+// Fatos das sessões pedidas: o oute.task.id (o primeiro que chegou) e os papéis da rodada.
 func (q *Queries) ClassifySessionFacts(ctx context.Context, arg ClassifySessionFactsParams) ([]ClassifySessionFactsRow, error) {
 	rows, err := q.db.Query(ctx, classifySessionFacts, arg.CompanyID, arg.Sessions)
 	if err != nil {
@@ -103,7 +102,6 @@ func (q *Queries) ClassifySessionFacts(ctx context.Context, arg ClassifySessionF
 		var i ClassifySessionFactsRow
 		if err := rows.Scan(
 			&i.SessionID,
-			&i.LastAt,
 			&i.TaskID,
 			&i.HasRound,
 			&i.HasWorker,
@@ -255,12 +253,12 @@ func (q *Queries) ListCompaniesWithExternalConversations(ctx context.Context) ([
 
 const listConversationsToClassify = `-- name: ListConversationsToClassify :many
 SELECT c.id, c.session_id, c.oute_repo, c.class, c.class_origin, c.class_confidence, c.classifier, c.tags,
-    COALESCE(s.last_at, 0)::bigint AS session_last
+    s.updated_at AS session_updated_at
 FROM external_conversation c
 LEFT JOIN external_session s ON s.id = c.external_session_id
 WHERE c.company_id = $1 AND (
     c.classifier <> $2::text
-    OR COALESCE(s.last_at, 0) > c.classified_last_at
+    OR (s.id IS NOT NULL AND (c.classified_session_at IS NULL OR s.updated_at > c.classified_session_at))
     OR (c.class_origin <> 'manual' AND EXISTS (SELECT 1 FROM conversation_class_input m WHERE m.conversation_id = c.id AND m.kind = 'manual'))
     OR (c.class_origin = 'manual' AND EXISTS (SELECT 1 FROM conversation_class_input m WHERE m.conversation_id = c.id AND m.kind = 'manual')
         AND (SELECT m.class FROM conversation_class_input m WHERE m.conversation_id = c.id AND m.kind = 'manual'
@@ -277,19 +275,20 @@ type ListConversationsToClassifyParams struct {
 }
 
 type ListConversationsToClassifyRow struct {
-	ID              uuid.UUID
-	SessionID       string
-	OuteRepo        string
-	Class           string
-	ClassOrigin     string
-	ClassConfidence string
-	Classifier      string
-	Tags            []string
-	SessionLast     int64
+	ID               uuid.UUID
+	SessionID        string
+	OuteRepo         string
+	Class            string
+	ClassOrigin      string
+	ClassConfidence  string
+	Classifier       string
+	Tags             []string
+	SessionUpdatedAt *time.Time
 }
 
-// Só as conversas que precisam: classificadas por outra versão do classificador, com fato da sessão depois da última
-// classificação, ou com troca manual que ainda não está na classe. Lote limitado por passada.
+// Só as conversas que precisam: classificadas por outra versão do classificador, com lote de recebimento da sessão depois
+// da última classificação (external_session.updated_at, a hora de recebimento), ou com troca manual que ainda não está na
+// classe. Conversa sem vínculo com a sessão só é relida por versão ou troca manual. Lote limitado por passada.
 func (q *Queries) ListConversationsToClassify(ctx context.Context, arg ListConversationsToClassifyParams) ([]ListConversationsToClassifyRow, error) {
 	rows, err := q.db.Query(ctx, listConversationsToClassify, arg.CompanyID, arg.Classifier, arg.BatchLimit)
 	if err != nil {
@@ -308,7 +307,7 @@ func (q *Queries) ListConversationsToClassify(ctx context.Context, arg ListConve
 			&i.ClassConfidence,
 			&i.Classifier,
 			&i.Tags,
-			&i.SessionLast,
+			&i.SessionUpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -366,23 +365,23 @@ func (q *Queries) LockExternalClassify(ctx context.Context) error {
 const setConversationClass = `-- name: SetConversationClass :exec
 UPDATE external_conversation
 SET class = $1, class_origin = $2, class_confidence = $3, classifier = $4,
-    tags = $5, classified_last_at = $6::bigint, updated_at = $7
+    tags = $5, classified_session_at = $6::timestamptz, updated_at = $7
 WHERE id = $8 AND company_id = $9
 `
 
 type SetConversationClassParams struct {
-	Class            string
-	ClassOrigin      string
-	ClassConfidence  string
-	Classifier       string
-	Tags             []string
-	ClassifiedLastAt int64
-	Now              time.Time
-	ID               uuid.UUID
-	CompanyID        uuid.UUID
+	Class               string
+	ClassOrigin         string
+	ClassConfidence     string
+	Classifier          string
+	Tags                []string
+	ClassifiedSessionAt *time.Time
+	Now                 time.Time
+	ID                  uuid.UUID
+	CompanyID           uuid.UUID
 }
 
-// Grava a classe e a janela da classificação. A janela avança mesmo quando a classe não muda, para a conversa sair da lista.
+// Grava a classe e a janela de recebimento da sessão. A janela avança mesmo quando a classe não muda, para a conversa sair da lista.
 func (q *Queries) SetConversationClass(ctx context.Context, arg SetConversationClassParams) error {
 	_, err := q.db.Exec(ctx, setConversationClass,
 		arg.Class,
@@ -390,7 +389,7 @@ func (q *Queries) SetConversationClass(ctx context.Context, arg SetConversationC
 		arg.ClassConfidence,
 		arg.Classifier,
 		arg.Tags,
-		arg.ClassifiedLastAt,
+		arg.ClassifiedSessionAt,
 		arg.Now,
 		arg.ID,
 		arg.CompanyID,

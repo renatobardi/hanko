@@ -10,15 +10,16 @@ SELECT DISTINCT company_id FROM external_conversation ORDER BY company_id ASC;
 SELECT pg_advisory_xact_lock(hashtext('hanko:classify_external'));
 
 -- name: ListConversationsToClassify :many
--- Só as conversas que precisam: classificadas por outra versão do classificador, com fato da sessão depois da última
--- classificação, ou com troca manual que ainda não está na classe. Lote limitado por passada.
+-- Só as conversas que precisam: classificadas por outra versão do classificador, com lote de recebimento da sessão depois
+-- da última classificação (external_session.updated_at, a hora de recebimento), ou com troca manual que ainda não está na
+-- classe. Conversa sem vínculo com a sessão só é relida por versão ou troca manual. Lote limitado por passada.
 SELECT c.id, c.session_id, c.oute_repo, c.class, c.class_origin, c.class_confidence, c.classifier, c.tags,
-    COALESCE(s.last_at, 0)::bigint AS session_last
+    s.updated_at AS session_updated_at
 FROM external_conversation c
 LEFT JOIN external_session s ON s.id = c.external_session_id
 WHERE c.company_id = @company_id AND (
     c.classifier <> @classifier::text
-    OR COALESCE(s.last_at, 0) > c.classified_last_at
+    OR (s.id IS NOT NULL AND (c.classified_session_at IS NULL OR s.updated_at > c.classified_session_at))
     OR (c.class_origin <> 'manual' AND EXISTS (SELECT 1 FROM conversation_class_input m WHERE m.conversation_id = c.id AND m.kind = 'manual'))
     OR (c.class_origin = 'manual' AND EXISTS (SELECT 1 FROM conversation_class_input m WHERE m.conversation_id = c.id AND m.kind = 'manual')
         AND (SELECT m.class FROM conversation_class_input m WHERE m.conversation_id = c.id AND m.kind = 'manual'
@@ -28,8 +29,8 @@ ORDER BY c.id ASC
 LIMIT @batch_limit::int;
 
 -- name: ClassifySessionFacts :many
--- Fatos das sessões pedidas: a hora do último fato, o oute.task.id (o primeiro que chegou) e os papéis da rodada.
-SELECT session_id, max(time_unix_nano)::bigint AS last_at,
+-- Fatos das sessões pedidas: o oute.task.id (o primeiro que chegou) e os papéis da rodada.
+SELECT session_id,
     COALESCE((array_agg(oute_task_id ORDER BY time_unix_nano) FILTER (WHERE oute_task_id IS NOT NULL))[1], '')::text AS task_id,
     bool_or(COALESCE(oute_swarm_round, resource_attributes->>'oute.swarm.round') IS NOT NULL) AS has_round,
     bool_or(resource_attributes->>'oute.swarm.session' IS NOT NULL) AS has_worker,
@@ -87,8 +88,8 @@ WHERE company_id = @company_id AND kind = 'manual'
 ORDER BY conversation_id ASC, created_at DESC;
 
 -- name: SetConversationClass :exec
--- Grava a classe e a janela da classificação. A janela avança mesmo quando a classe não muda, para a conversa sair da lista.
+-- Grava a classe e a janela de recebimento da sessão. A janela avança mesmo quando a classe não muda, para a conversa sair da lista.
 UPDATE external_conversation
 SET class = @class, class_origin = @class_origin, class_confidence = @class_confidence, classifier = @classifier,
-    tags = @tags, classified_last_at = @classified_last_at::bigint, updated_at = @now
+    tags = @tags, classified_session_at = sqlc.narg(classified_session_at)::timestamptz, updated_at = @now
 WHERE id = @id AND company_id = @company_id;

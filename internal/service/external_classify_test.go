@@ -169,13 +169,14 @@ func TestClassifyOtherCompanyStaysApart(t *testing.T) {
 	}
 }
 
-// Reclassificação: fato novo da sessão reabre a conversa; sem fato novo ela não é relida.
-func TestClassifyRereadsOnlyWhenTheSessionGetsNewFacts(t *testing.T) {
+// Reclassificação pelo recebimento: um lote novo da sessão (updated_at) reabre a conversa, mesmo com relógio do fato
+// atrasado (last_at não sobe); sem lote novo ela não é relida. Simula o recebimento direto no banco (ver #125, Falta).
+func TestClassifyRereadsOnlyWhenTheSessionReceivesABatch(t *testing.T) {
 	e := newEnv(t)
 	conv := convFixture(t, e, "s-novo", "Pi_Rho")
 	var sess domain.ID
-	if err := e.svc.Pool.QueryRow(context.Background(), `INSERT INTO external_session (id, company_id, task_id, last_at) VALUES ($1, $2, 'task-novo', 100) RETURNING id`,
-		domain.NewID(), e.co.ID).Scan(&sess); err != nil {
+	if err := e.svc.Pool.QueryRow(context.Background(), `INSERT INTO external_session (id, company_id, task_id, last_at, updated_at)
+		VALUES ($1, $2, 'task-novo', 100, now() - interval '1 hour') RETURNING id`, domain.NewID(), e.co.ID).Scan(&sess); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := e.svc.Pool.Exec(context.Background(), `UPDATE external_conversation SET external_session_id = $1 WHERE id = $2`, sess, conv); err != nil {
@@ -188,19 +189,21 @@ func TestClassifyRereadsOnlyWhenTheSessionGetsNewFacts(t *testing.T) {
 		spanTool(t, e, "s-novo", "", map[string]any{"tool_name": "Bash", "full_command": "gh pr review 2"})
 	}
 	if n := passada(t, e); n != 0 {
-		t.Fatalf("sem fato novo, a passada releu a conversa: %d; quero 0", n)
+		t.Fatalf("sem lote novo, a passada releu a conversa: %d; quero 0", n)
 	}
-	if _, err := e.svc.Pool.Exec(context.Background(), `UPDATE external_session SET last_at = 200 WHERE id = $1`, sess); err != nil {
+	// o fato chega com relógio atrasado (last_at continua 100), mas o lote entra agora: updated_at avança
+	if _, err := e.svc.Pool.Exec(context.Background(), `UPDATE external_session SET updated_at = now() WHERE id = $1`, sess); err != nil {
 		t.Fatal(err)
 	}
 	if n := passada(t, e); n != 1 {
-		t.Fatalf("com fato novo = %d mudadas; quero 1", n)
+		t.Fatalf("com lote novo = %d mudadas; quero 1", n)
 	}
 	if class, _, _, _, _ := classOf(t, e, conv); class != "qa" {
-		t.Errorf("classe depois do fato novo = %q; quero qa", class)
+		t.Errorf("classe depois do lote novo = %q; quero qa", class)
 	}
-	if n := rowCount(t, e, `SELECT count(*) FROM external_conversation WHERE id = $1 AND classified_last_at = 200`, conv); n != 1 {
-		t.Errorf("janela da conversa não avançou para 200")
+	if n := rowCount(t, e, `SELECT count(*) FROM external_conversation c JOIN external_session s ON s.id = c.external_session_id
+		WHERE c.id = $1 AND c.classified_session_at = s.updated_at`, conv); n != 1 {
+		t.Errorf("janela da conversa não acompanhou o recebimento da sessão")
 	}
 }
 
