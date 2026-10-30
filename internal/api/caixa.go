@@ -17,7 +17,7 @@ import (
 
 // InboxItem é um item da Caixa de entrada com o estado da pessoa.
 type InboxItem struct {
-	Kind          string    `json:"kind" enum:"gate,task_blocked,task_held,run_failed,persona_error,alert,subscription,mention,goal_achieved" doc:"Tipo do item; o id é o da origem (gate, task, execução, persona, alerta, assinatura, menção, meta)."`
+	Kind          string    `json:"kind" enum:"gate,task_blocked,task_held,run_failed,persona_error,alert,subscription,mention,goal_achieved,external_agent,external_host" doc:"Tipo do item; o id é o da origem (gate, task, execução, persona, alerta, assinatura, menção, meta, agente ou host externo)."`
 	ID            string    `json:"id" format:"uuid"`
 	Title         string    `json:"title"`
 	Detail        string    `json:"detail,omitempty" doc:"Erro, motivo da pausa ou trecho do comentário."`
@@ -45,7 +45,7 @@ type inboxIn struct {
 
 // InboxRef identifica um item para marcar.
 type InboxRef struct {
-	Kind string `json:"kind" enum:"gate,task_blocked,task_held,run_failed,persona_error,alert,subscription,mention,goal_achieved"`
+	Kind string `json:"kind" enum:"gate,task_blocked,task_held,run_failed,persona_error,alert,subscription,mention,goal_achieved,external_agent,external_host"`
 	ID   string `json:"id" format:"uuid"`
 }
 

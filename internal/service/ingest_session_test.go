@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -119,11 +120,21 @@ func TestDeriveSessionConcurrentBatchesMatchSerial(t *testing.T) {
 		{id: "c3", task: "task-race", repo: "oute-agent", agent: "claude", round: "r1", host: "oute-server", at: base + 100},
 		{id: "c4", task: "task-race", repo: "oute-site", agent: "claude", round: "r4", host: "oute-server", at: base + 400},
 	}
+	// barreira de partida: todos os lotes esperam o canal, e ele fecha quando estão prontos, para se sobreporem de verdade
+	var ready sync.WaitGroup
+	ready.Add(len(facts))
+	start := make(chan struct{})
 	errs := make(chan error, len(facts))
 	for _, f := range facts {
 		b := derivBatch(t, f)
-		go func() { errs <- e.svc.WriteTelemetry(context.Background(), key, b) }()
+		go func() {
+			ready.Done()
+			<-start
+			errs <- e.svc.WriteTelemetry(context.Background(), key, b)
+		}()
 	}
+	ready.Wait() // todas as goroutines estão na barreira antes de a primeira passar
+	close(start)
 	for range facts {
 		if err := <-errs; err != nil {
 			t.Fatalf("lote concorrente falhou: %v", err)
