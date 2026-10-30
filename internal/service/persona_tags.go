@@ -335,36 +335,38 @@ func (s *Service) TagPersona(ctx context.Context, actor domain.Actor, companyID,
 		if err != nil {
 			return err
 		}
-		return t.tagPersona(actor, companyID, personaID, personaTagFromRow(tag))
+		_, err = t.tagPersona(actor, companyID, personaID, personaTagFromRow(tag))
+		return err
 	})
 }
 
 // tagPersona liga a tag à persona, com o teto e o evento. A trava das tags já foi tomada por quem chama.
-func (t *txc) tagPersona(actor domain.Actor, companyID, personaID domain.ID, tag domain.PersonaTag) error {
+func (t *txc) tagPersona(actor domain.Actor, companyID, personaID domain.ID, tag domain.PersonaTag) (bool, error) {
 	if tag.Archived() {
-		return fmt.Errorf("a tag %q está arquivada e não se aplica: %w", tag.Name, domain.ErrConflict)
+		return false, fmt.Errorf("a tag %q está arquivada e não se aplica: %w", tag.Name, domain.ErrConflict)
 	}
-	if _, err := t.q.GetPersonaByID(t.ctx, store.GetPersonaByIDParams{CompanyID: companyID, ID: personaID}); err != nil {
-		return mapErr(err, "persona")
+	p, err := t.q.GetPersonaByID(t.ctx, store.GetPersonaByIDParams{CompanyID: companyID, ID: personaID})
+	if err != nil {
+		return false, mapErr(err, "persona")
 	}
 	n, err := t.q.CountTagsOfPersona(t.ctx, store.CountTagsOfPersonaParams{CompanyID: companyID, PersonaID: personaID})
 	if err != nil {
-		return fmt.Errorf("count persona tags: %w", err)
+		return false, fmt.Errorf("count persona tags: %w", err)
 	}
 	added, err := t.q.InsertPersonaTagLink(t.ctx, store.InsertPersonaTagLinkParams{CompanyID: companyID, PersonaID: personaID, TagID: tag.ID, Now: t.now})
 	if err != nil {
-		return fmt.Errorf("tag persona: %w", err)
+		return false, fmt.Errorf("tag persona: %w", err)
 	}
 	if added == 0 {
-		return nil
+		return false, nil
 	}
 	if n >= domain.MaxTagsPerPersona {
-		return domain.Invalid("tag", fmt.Sprintf("too many tags on the persona (max %d)", domain.MaxTagsPerPersona))
+		return false, domain.Invalid("tag", fmt.Sprintf("too many tags on persona %q (max %d)", p.Slug, domain.MaxTagsPerPersona))
 	}
 	if err := t.refreshTagNames(companyID, []domain.ID{personaID}); err != nil {
-		return err
+		return false, err
 	}
-	return t.activity(actor, companyID, domain.VerbPersonaTagged, "persona", personaID,
+	return true, t.activity(actor, companyID, domain.VerbPersonaTagged, "persona", personaID,
 		map[string]any{"tag_id": tag.ID, "tag": tag.Name}, "")
 }
 
@@ -380,23 +382,29 @@ func (s *Service) CreateAndTagPersona(ctx context.Context, actor domain.Actor, c
 	}
 	var tag domain.PersonaTag
 	err = s.withTx(ctx, func(t *txc) error {
-		if err := t.q.LockPersonaTags(t.ctx, companyID.String()); err != nil {
-			return fmt.Errorf("lock persona tags: %w", err)
+		if tag, err = t.tagByNameOrCreate(actor, companyID, in); err != nil {
+			return err
 		}
-		r, err := t.q.GetPersonaTagByName(t.ctx, store.GetPersonaTagByNameParams{CompanyID: companyID, Name: in.Name})
-		switch {
-		case err == nil:
-			tag = personaTagFromRow(r)
-		case isNoRows(err):
-			if tag, err = t.createPersonaTag(actor, companyID, in); err != nil {
-				return err
-			}
-		default:
-			return fmt.Errorf("get persona tag by name: %w", err)
-		}
-		return t.tagPersona(actor, companyID, personaID, tag)
+		_, err = t.tagPersona(actor, companyID, personaID, tag)
+		return err
 	})
 	return tag, err
+}
+
+// tagByNameOrCreate devolve a tag de nome dado (sem distinguir caixa), criando-a se não existe. Toma a trava das tags.
+func (t *txc) tagByNameOrCreate(actor domain.Actor, companyID domain.ID, in PersonaTagInput) (domain.PersonaTag, error) {
+	if err := t.q.LockPersonaTags(t.ctx, companyID.String()); err != nil {
+		return domain.PersonaTag{}, fmt.Errorf("lock persona tags: %w", err)
+	}
+	r, err := t.q.GetPersonaTagByName(t.ctx, store.GetPersonaTagByNameParams{CompanyID: companyID, Name: in.Name})
+	switch {
+	case err == nil:
+		return personaTagFromRow(r), nil
+	case isNoRows(err):
+		return t.createPersonaTag(actor, companyID, in)
+	default:
+		return domain.PersonaTag{}, fmt.Errorf("get persona tag by name: %w", err)
+	}
 }
 
 // UntagPersona tira a tag da persona (member; vale para tag arquivada). Tirar o que não está não muda nada.
@@ -409,19 +417,26 @@ func (s *Service) UntagPersona(ctx context.Context, actor domain.Actor, companyI
 		if err != nil {
 			return err
 		}
-		if _, err := t.q.GetPersonaByID(t.ctx, store.GetPersonaByIDParams{CompanyID: companyID, ID: personaID}); err != nil {
-			return mapErr(err, "persona")
-		}
-		removed, err := t.q.DeletePersonaTagLink(t.ctx, store.DeletePersonaTagLinkParams{CompanyID: companyID, PersonaID: personaID, TagID: tagID})
-		if err != nil || removed == 0 {
-			return err
-		}
-		if err := t.refreshTagNames(companyID, []domain.ID{personaID}); err != nil {
-			return err
-		}
-		return t.activity(actor, companyID, domain.VerbPersonaUntagged, "persona", personaID,
-			map[string]any{"tag_id": tagID, "tag": tag.Name}, "")
+		_, err = t.untagPersona(actor, companyID, personaID, personaTagFromRow(tag))
+		return err
 	})
+}
+
+// untagPersona tira a tag da persona e grava persona.untagged; tirar o que não está não muda nada. A trava das tags já foi
+// tomada por quem chama.
+func (t *txc) untagPersona(actor domain.Actor, companyID, personaID domain.ID, tag domain.PersonaTag) (bool, error) {
+	if _, err := t.q.GetPersonaByID(t.ctx, store.GetPersonaByIDParams{CompanyID: companyID, ID: personaID}); err != nil {
+		return false, mapErr(err, "persona")
+	}
+	removed, err := t.q.DeletePersonaTagLink(t.ctx, store.DeletePersonaTagLinkParams{CompanyID: companyID, PersonaID: personaID, TagID: tag.ID})
+	if err != nil || removed == 0 {
+		return false, err
+	}
+	if err := t.refreshTagNames(companyID, []domain.ID{personaID}); err != nil {
+		return false, err
+	}
+	return true, t.activity(actor, companyID, domain.VerbPersonaUntagged, "persona", personaID,
+		map[string]any{"tag_id": tag.ID, "tag": tag.Name}, "")
 }
 
 // personaTagsByPersona devolve as tags de cada persona da empresa, em ordem de nome.

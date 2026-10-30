@@ -95,6 +95,13 @@
     btn.textContent = name && !known ? input.dataset.tagApply.split("{name}").join(name) : btn.dataset.tagApplyLabel;
   });
 
+  // Lote de tags na lista de Personas (ADR-0087): "marcar todas" marca as caixas ligadas ao mesmo formulário.
+  document.addEventListener("change", function (e) {
+    var all = e.target;
+    if (!all.matches?.("input[data-select-all]")) return;
+    for (var box of document.querySelectorAll('input[type=checkbox][form="' + all.dataset.selectAll + '"]')) box.checked = all.checked;
+  });
+
   // Cron presets: choosing a template fills the expression and lets htmx refresh the hint.
   document.addEventListener("change", function (e) {
     var sel = e.target;

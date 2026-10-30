@@ -194,3 +194,54 @@ func (f *Fake) CreateAndTagPersona(_ context.Context, _ domain.Actor, companyID,
 	}
 	return t, nil
 }
+
+func (f *Fake) BulkTagPersonas(ctx context.Context, actor domain.Actor, companyID domain.ID, personaIDs []domain.ID, in service.PersonaTagInput) (service.BulkTagResult, error) {
+	f.mu.Lock()
+	f.note("BulkTagPersonas")
+	err := f.fail("BulkTagPersonas")
+	f.mu.Unlock()
+	if err != nil {
+		return service.BulkTagResult{}, err
+	}
+	if len(personaIDs) == 0 {
+		return service.BulkTagResult{}, domain.Invalid("personas", "select at least one persona")
+	}
+	var res service.BulkTagResult
+	for _, id := range personaIDs {
+		f.mu.Lock()
+		pi := slices.IndexFunc(f.Personas, func(p domain.Persona) bool { return p.ID == id })
+		had := pi >= 0 && slices.ContainsFunc(f.Personas[pi].Tags, func(t domain.PersonaTag) bool { return domain.PersonaTagKey(t.Name) == domain.PersonaTagKey(in.Name) })
+		f.mu.Unlock()
+		t, err := f.CreateAndTagPersona(ctx, actor, companyID, id, in)
+		if err != nil {
+			return res, err
+		}
+		res.Tag = t
+		if !had {
+			res.Changed++
+		}
+	}
+	return res, nil
+}
+
+func (f *Fake) BulkUntagPersonas(_ context.Context, _ domain.Actor, _ domain.ID, personaIDs []domain.ID, tagID domain.ID) (service.BulkTagResult, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.note("BulkUntagPersonas")
+	i := f.tagIndex(tagID)
+	if i < 0 {
+		return service.BulkTagResult{}, domain.ErrNotFound
+	}
+	res := service.BulkTagResult{Tag: f.PersonaTags[i]}
+	for j := range f.Personas {
+		if !slices.Contains(personaIDs, f.Personas[j].ID) {
+			continue
+		}
+		before := len(f.Personas[j].Tags)
+		f.Personas[j].Tags = slices.DeleteFunc(f.Personas[j].Tags, func(t domain.PersonaTag) bool { return t.ID == tagID })
+		if len(f.Personas[j].Tags) < before {
+			res.Changed++
+		}
+	}
+	return res, nil
+}

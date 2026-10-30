@@ -64,3 +64,13 @@ type TagsPageVM struct {
 	Colors       []Option
 	Error        string
 }
+
+// PersonasBulkVM é a barra de edição em lote da lista de Personas (ADR-0087 item 5, fatia 2).
+type PersonasBulkVM struct {
+	CanWrite bool
+	Action   string   // POST com persona (várias), name e acao (aplicar | tirar)
+	Options  []string // nomes das tags ativas, para o seletor
+}
+
+// BulkFormID é o id do formulário do lote; as caixas de seleção das linhas apontam para ele pelo atributo form.
+const BulkFormID = "tag-lote"
