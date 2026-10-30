@@ -32,6 +32,8 @@ type derived struct {
 	hosts  map[string]int64 // host -> hora do fato mais novo do lote (ns)
 	repos  map[string]bool
 	noRepo bool // há fato sem repositório válido: vai para o workspace de sistema
+	// sessions: uma por `oute.task.id` do lote (ADR-0078 item 2)
+	sessions map[string]*sessionFacts
 }
 
 // entityText devolve o texto aparado e dentro do limite, ou falso quando o texto não serve como entidade.
@@ -51,8 +53,16 @@ func textOf(p *string) string {
 }
 
 func collectDerived(b ingest.Batch) derived {
-	d := derived{agents: map[string]bool{}, hosts: map[string]int64{}, repos: map[string]bool{}}
+	d := derived{agents: map[string]bool{}, hosts: map[string]int64{}, repos: map[string]bool{}, sessions: map[string]*sessionFacts{}}
 	note := func(f ingest.Fixed, at int64) {
+		if task, ok := entityText(textOf(f.OuteTaskID), maxSessionTask); ok {
+			s := d.sessions[task]
+			if s == nil {
+				s = &sessionFacts{first: at, last: at}
+				d.sessions[task] = s
+			}
+			s.note(f, at)
+		}
 		if t, ok := entityText(textOf(f.OuteAgent), maxEntityName); ok {
 			d.agents[t] = true
 		}
@@ -103,6 +113,11 @@ func deriveFromBatch(t *txc, companyID domain.ID, d derived) error {
 	}
 	if d.noRepo {
 		if _, _, err := systemWorkspace(t, companyID); err != nil {
+			return err
+		}
+	}
+	for _, task := range sortedTexts(d.sessions) {
+		if err := upsertSession(t, companyID, task, d.sessions[task]); err != nil {
 			return err
 		}
 	}
