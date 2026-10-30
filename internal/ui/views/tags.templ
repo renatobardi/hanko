@@ -9,7 +9,6 @@ import (
 )
 
 // Tags de persona (ADR-0087): chips, o cartão da ficha e a aba Tags em Personas.
-
 templ TagChipEl(t TagChip) {
 	<span class={ "tag-chip", "tag-c-" + t.Color, templ.KV("archived", t.Archived) } title={ tagChipTitle(ctx, t) }>{ t.Name }</span>
 }
@@ -43,106 +42,138 @@ templ PersonaTagsCard(vm PersonaTagsVM) {
 			<div><h2>{ i18n.T(ctx, "Tags") }</h2><p class="sub">{ i18n.T(ctx, "Classificam a persona para filtrar o organograma e achar a quem delegar.") }</p></div>
 			<a class="more" href={ templ.SafeURL(vm.TagsHref) }>{ i18n.T(ctx, "Gerenciar tags") }</a>
 		</div>
-		if len(vm.Chips) == 0 {
-			<p class="muted text-sm">{ i18n.T(ctx, "Nenhuma tag.") }</p>
-		} else {
-			<div class="tag-chips">
-				for _, c := range vm.Chips {
-					<span class={ "tag-chip", "tag-c-" + c.Color, templ.KV("archived", c.Archived) } title={ tagChipTitle(ctx, c.TagChip) }>
-						{ c.Name }
-						if vm.CanWrite {
-							<form method="post" action={ templ.SafeURL(c.RemoveHref) }>
-								<button class="x" type="submit" aria-label={ i18n.Tf(ctx, "Tirar a tag %s", c.Name) }>×</button>
-							</form>
-						}
-					</span>
-				}
-			</div>
-		}
+		@personaTagChipList(vm)
 		if vm.CanWrite {
-			<form method="post" action={ templ.SafeURL(vm.ApplyHref) } class="tag-apply">
-				<label class="sr-only" for="tag-apply-name">{ i18n.T(ctx, "Tag") }</label>
-				<input class="input sm" type="text" id="tag-apply-name" name="name" list="tag-apply-options" required maxlength="40" autocomplete="off"
-					placeholder={ i18n.T(ctx, "Nome da tag") } data-tag-apply={ i18n.T(ctx, "Criar tag «{name}»") }/>
-				<datalist id="tag-apply-options">
-					for _, o := range vm.Options {
-						<option value={ o }></option>
-					}
-				</datalist>
-				<button class="btn outline sm" type="submit" data-tag-apply-label={ i18n.T(ctx, "Aplicar tag") }>{ i18n.T(ctx, "Aplicar tag") }</button>
-			</form>
+			@tagApplyForm(vm)
 		} else {
 			@NeedRole(domain.MemberMember)
 		}
 	</section>
 }
 
+templ personaTagChipList(vm PersonaTagsVM) {
+	if len(vm.Chips) == 0 {
+		<p class="muted text-sm">{ i18n.T(ctx, "Nenhuma tag.") }</p>
+	} else {
+		<div class="tag-chips">
+			for _, c := range vm.Chips {
+				<span class={ "tag-chip", "tag-c-" + c.Color, templ.KV("archived", c.Archived) } title={ tagChipTitle(ctx, c.TagChip) }>
+					{ c.Name }
+					if vm.CanWrite {
+						<form method="post" action={ templ.SafeURL(c.RemoveHref) }>
+							<button class="x" type="submit" aria-label={ i18n.Tf(ctx, "Tirar a tag %s", c.Name) }>×</button>
+						</form>
+					}
+				</span>
+			}
+		</div>
+	}
+}
+
+// tagApplyForm aplica pelo nome; um nome que não existe cria a tag (o hanko.js troca o rótulo do botão).
+templ tagApplyForm(vm PersonaTagsVM) {
+	<form method="post" action={ templ.SafeURL(vm.ApplyHref) } class="tag-apply">
+		<label class="sr-only" for="tag-apply-name">{ i18n.T(ctx, "Tag") }</label>
+		<input
+			class="input sm"
+			type="text"
+			id="tag-apply-name"
+			name="name"
+			list="tag-apply-options"
+			required
+			maxlength="40"
+			autocomplete="off"
+			placeholder={ i18n.T(ctx, "Nome da tag") }
+			data-tag-apply={ i18n.T(ctx, "Criar tag «{name}»") }
+		/>
+		<datalist id="tag-apply-options">
+			for _, o := range vm.Options {
+				<option value={ o }></option>
+			}
+		</datalist>
+		<button class="btn outline sm" type="submit" data-tag-apply-label={ i18n.T(ctx, "Aplicar tag") }>{ i18n.T(ctx, "Aplicar tag") }</button>
+	</form>
+}
+
 // TagsPage é a aba Tags em Personas: o cadastro da empresa.
 templ TagsPage(sh Shell, vm TagsPageVM) {
 	@Layout(sh) {
 		@PageHead(i18n.T(ctx, "Personas"), vm.Subtitle) {
-			<a class="btn outline" href={ templ.SafeURL(sh.Base() + "/organograma") }>@Icon("network") { " " + i18n.T(ctx, "Organograma") }</a>
+			<a class="btn outline" href={ templ.SafeURL(sh.Base() + "/organograma") }>@Icon("network") {
+	" " + i18n.T(ctx, "Organograma") 
+}</a>
 		}
 		@PersonasTabs(sh.Base(), true)
 		if vm.Error != "" {
 			@Alert("danger", vm.Error)
 		}
 		if sh.CanWrite() {
-			<section class="card pad mb-6" id="nova-tag">
-				<div class="card-head"><div><h2>{ i18n.T(ctx, "Nova tag") }</h2><p class="sub">{ i18n.T(ctx, "Nome de 1 a 40 caracteres, único na empresa sem distinguir maiúsculas. Até 200 tags por empresa e 20 por persona.") }</p></div></div>
-				<form method="post" action={ templ.SafeURL(vm.CreateHref) } class="form-grid">
-					<div class="field">
-						<label for="t-name">{ i18n.T(ctx, "Nome") }</label>
-						<input class="input" id="t-name" name="name" required maxlength="40"/>
-					</div>
-					<div class="field">
-						<label for="t-color">{ i18n.T(ctx, "Cor") }</label>
-						@Select("color", "t-color", vm.Colors, false)
-					</div>
-					<div class="field">
-						<label for="t-desc">{ i18n.T(ctx, "Descrição") }</label>
-						<input class="input" id="t-desc" name="description" maxlength="200"/>
-					</div>
-					<div class="form-actions mt-0"><button class="btn primary sm" type="submit">@Icon("plus") { i18n.T(ctx, "Criar tag") }</button></div>
-				</form>
-			</section>
+			@tagCreateCard(vm)
 		}
-		<div class="d-flex gap-2 mb-4">
-			<a class="btn outline sm" href={ templ.SafeURL(vm.ToggleHref) }>
-				if vm.ShowArchived {
-					{ i18n.T(ctx, "Esconder arquivadas") }
-				} else {
-					{ i18n.T(ctx, "Mostrar arquivadas") }
-				}
-			</a>
-		</div>
-		if len(vm.Rows) == 0 {
-			@EmptyCard("layers", i18n.T(ctx, "Nenhuma tag ainda."), i18n.T(ctx, "Crie uma tag aqui ou digite um nome novo no seletor da ficha da persona."), false)
-		} else {
-			<div class="table-wrap">
-				<table class="table">
-					<thead>
-						<tr>
-							<th>{ i18n.T(ctx, "Tag") }</th>
-							<th class="hide-sm">{ i18n.T(ctx, "Descrição") }</th>
-							<th class="num">{ i18n.T(ctx, "Personas") }</th>
-							<th></th>
-						</tr>
-					</thead>
-					<tbody>
-						for _, r := range vm.Rows {
-							@tagRow(sh, r)
-						}
-					</tbody>
-				</table>
+		@tagsTable(sh, vm)
+	}
+}
+
+templ tagCreateCard(vm TagsPageVM) {
+	<section class="card pad mb-6" id="nova-tag">
+		<div class="card-head"><div><h2>{ i18n.T(ctx, "Nova tag") }</h2><p class="sub">{ i18n.T(ctx, "Nome de 1 a 40 caracteres, único na empresa sem distinguir maiúsculas. Até 200 tags por empresa e 20 por persona.") }</p></div></div>
+		<form method="post" action={ templ.SafeURL(vm.CreateHref) } class="form-grid">
+			<div class="field">
+				<label for="t-name">{ i18n.T(ctx, "Nome") }</label>
+				<input class="input" id="t-name" name="name" required maxlength="40"/>
 			</div>
-		}
+			<div class="field">
+				<label for="t-color">{ i18n.T(ctx, "Cor") }</label>
+				@Select("color", "t-color", vm.Colors, false)
+			</div>
+			<div class="field">
+				<label for="t-desc">{ i18n.T(ctx, "Descrição") }</label>
+				<input class="input" id="t-desc" name="description" maxlength="200"/>
+			</div>
+			<div class="form-actions mt-0"><button class="btn primary sm" type="submit">@Icon("plus") {
+	i18n.T(ctx, "Criar tag") 
+}</button></div>
+		</form>
+	</section>
+}
+
+templ tagsTable(sh Shell, vm TagsPageVM) {
+	<div class="d-flex gap-2 mb-4">
+		<a class="btn outline sm" href={ templ.SafeURL(vm.ToggleHref) }>
+			if vm.ShowArchived {
+				{ i18n.T(ctx, "Esconder arquivadas") }
+			} else {
+				{ i18n.T(ctx, "Mostrar arquivadas") }
+			}
+		</a>
+	</div>
+	if len(vm.Rows) == 0 {
+		@EmptyCard("layers", i18n.T(ctx, "Nenhuma tag ainda."), i18n.T(ctx, "Crie uma tag aqui ou digite um nome novo no seletor da ficha da persona."), false)
+	} else {
+		<div class="table-wrap">
+			<table class="table">
+				<thead>
+					<tr>
+						<th>{ i18n.T(ctx, "Tag") }</th>
+						<th class="hide-sm">{ i18n.T(ctx, "Descrição") }</th>
+						<th class="num">{ i18n.T(ctx, "Personas") }</th>
+						<th></th>
+					</tr>
+				</thead>
+				<tbody>
+					for _, r := range vm.Rows {
+						@tagRow(sh, r)
+					}
+				</tbody>
+			</table>
+		</div>
 	}
 }
 
 templ tagRow(sh Shell, r TagRow) {
 	<tr class="row" id={ "tag-" + r.ID }>
-		<td>@TagChipEl(r.TagChip)
+		<td>
+			@TagChipEl(r.TagChip)
 			if r.Archived {
 				<span class="muted text-xs">{ " " + i18n.T(ctx, "arquivada") }</span>
 			}
@@ -152,37 +183,47 @@ templ tagRow(sh Shell, r TagRow) {
 		<td>
 			<div class="tag-row-actions">
 				if sh.CanWrite() {
-					<details>
-						<summary class="btn outline sm">{ i18n.T(ctx, "Editar") }</summary>
-						<form method="post" action={ templ.SafeURL(r.EditHref) } class="tag-edit">
-							<input class="input sm" name="name" value={ r.Name } required maxlength="40" aria-label={ i18n.T(ctx, "Nome") }/>
-							@Select("color", "t-color-"+r.ID, r.Colors, true)
-							<input class="input sm" name="description" value={ r.Description } maxlength="200" aria-label={ i18n.T(ctx, "Descrição") }/>
-							<button class="btn primary sm" type="submit">{ i18n.T(ctx, "Salvar") }</button>
-						</form>
-					</details>
+					@tagEditForm(r)
 				}
 				if sh.CanAdmin() {
-					if r.ArchiveHref != "" {
-						<form method="post" action={ templ.SafeURL(r.ArchiveHref) }><button class="btn outline sm" type="submit">@Icon("archive") { i18n.T(ctx, "Arquivar") }</button></form>
-					} else {
-						<form method="post" action={ templ.SafeURL(r.UnarchiveHref) }><button class="btn outline sm" type="submit">{ i18n.T(ctx, "Desarquivar") }</button></form>
-					}
-					<details>
-						<summary class="btn danger sm">{ i18n.T(ctx, "Deletar") }</summary>
-						<form method="post" action={ templ.SafeURL(r.DeleteHref) } class="tag-edit">
-							<p class="text-sm">{ deleteTagText(ctx, r) }</p>
-							<label class="check">
-								<input type="checkbox" name="confirm" value="1" required/>
-								<span>{ i18n.T(ctx, "Entendo que não se desfaz") }</span>
-							</label>
-							<button class="btn danger sm" type="submit">{ i18n.Tf(ctx, "Deletar «%s»", r.Name) }</button>
-						</form>
-					</details>
+					@tagAdminActions(r)
 				}
 			</div>
 		</td>
 	</tr>
+}
+
+templ tagEditForm(r TagRow) {
+	<details>
+		<summary class="btn outline sm">{ i18n.T(ctx, "Editar") }</summary>
+		<form method="post" action={ templ.SafeURL(r.EditHref) } class="tag-edit">
+			<input class="input sm" name="name" value={ r.Name } required maxlength="40" aria-label={ i18n.T(ctx, "Nome") }/>
+			@Select("color", "t-color-"+r.ID, r.Colors, true)
+			<input class="input sm" name="description" value={ r.Description } maxlength="200" aria-label={ i18n.T(ctx, "Descrição") }/>
+			<button class="btn primary sm" type="submit">{ i18n.T(ctx, "Salvar") }</button>
+		</form>
+	</details>
+}
+
+templ tagAdminActions(r TagRow) {
+	if r.ArchiveHref != "" {
+		<form method="post" action={ templ.SafeURL(r.ArchiveHref) }><button class="btn outline sm" type="submit">@Icon("archive") {
+	i18n.T(ctx, "Arquivar") 
+}</button></form>
+	} else {
+		<form method="post" action={ templ.SafeURL(r.UnarchiveHref) }><button class="btn outline sm" type="submit">{ i18n.T(ctx, "Desarquivar") }</button></form>
+	}
+	<details>
+		<summary class="btn danger sm">{ i18n.T(ctx, "Deletar") }</summary>
+		<form method="post" action={ templ.SafeURL(r.DeleteHref) } class="tag-edit">
+			<p class="text-sm">{ deleteTagText(ctx, r) }</p>
+			<label class="check">
+				<input type="checkbox" name="confirm" value="1" required/>
+				<span>{ i18n.T(ctx, "Entendo que não se desfaz") }</span>
+			</label>
+			<button class="btn danger sm" type="submit">{ i18n.Tf(ctx, "Deletar «%s»", r.Name) }</button>
+		</form>
+	</details>
 }
 
 func tagChipTitle(ctx context.Context, t TagChip) string {

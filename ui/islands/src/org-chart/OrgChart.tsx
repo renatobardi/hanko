@@ -39,7 +39,7 @@ interface TagRef {
 const clipName = (s: string, n: number) => (s.length <= n ? s : s.slice(0, n - 1) + "…");
 
 /** Chips do nó: até 3, cabendo na largura do card, e "+N" para o resto. */
-function NodeChips({ tags }: { tags: TagInfo[] }) {
+function NodeChips({ tags }: Readonly<{ tags: TagInfo[] }>) {
   if (tags.length === 0) return null;
   const out = [];
   let x = 50;
@@ -344,9 +344,7 @@ export function OrgChart(props: OrgChartProps) {
       </div>
       <FilterBar tags={catalog} filter={filter} onChange={setFilter} levels={maxLevel} tagsHref={props.tagsHref} t={t} />
       {slice.active && slice.matched === 0 && (
-        <div className="org-empty muted" role="status">
-          {t("org.filter.empty")}
-        </div>
+        <output className="org-empty muted">{t("org.filter.empty")}</output>
       )}
       <div
         className={"org-stage" + (dragging ? " is-dragging" : "")}

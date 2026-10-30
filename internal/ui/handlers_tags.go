@@ -53,7 +53,7 @@ func tagChipsOf(tags []domain.PersonaTag) views.TagChipsVM {
 // personaTagsVM monta o cartão de tags da ficha: chips com o POST que tira e os nomes ativos para o seletor.
 func (s *server) personaTagsVM(ctx context.Context, co domain.Company, p domain.Persona) (views.PersonaTagsVM, error) {
 	base := "/c/" + co.Slug
-	pb := base + "/personas/" + p.Slug
+	pb := personaPagePath(co, p)
 	vm := views.PersonaTagsVM{ApplyHref: pb + "/tags", TagsHref: base + "/personas/tags", CanWrite: views.RoleFrom(ctx).AtLeast(domain.MemberMember)}
 	for _, t := range p.Tags {
 		vm.Chips = append(vm.Chips, views.PersonaTagChip{TagChip: tagChipOf(t), RemoveHref: pb + "/tags/" + t.ID.String() + "/remover"})
@@ -118,6 +118,9 @@ func (s *server) tagFormFail(w http.ResponseWriter, r *http.Request, co domain.C
 	}
 	s.renderPersonaTags(w, r, co, st, msg)
 }
+
+// personaPagePath é a ficha da persona.
+func personaPagePath(co domain.Company, p domain.Persona) string { return "/c/" + co.Slug + "/personas/" + p.Slug }
 
 func tagsRedirect(w http.ResponseWriter, r *http.Request, co domain.Company, ok string) {
 	redirect(w, r, "/c/"+co.Slug+"/personas/tags?ok="+url.QueryEscape(ok))
@@ -202,7 +205,7 @@ func (s *server) handleApplyPersonaTag(w http.ResponseWriter, r *http.Request, c
 		s.fail(w, r, &co, err)
 		return
 	}
-	redirect(w, r, "/c/"+co.Slug+"/personas/"+p.Slug+"?ok=tag#tags")
+	redirect(w, r, personaPagePath(co, p)+"?ok=tag#tags")
 }
 
 func (s *server) handleRemovePersonaTag(w http.ResponseWriter, r *http.Request, co domain.Company) {
@@ -221,5 +224,5 @@ func (s *server) handleRemovePersonaTag(w http.ResponseWriter, r *http.Request, 
 		s.fail(w, r, &co, err)
 		return
 	}
-	redirect(w, r, "/c/"+co.Slug+"/personas/"+p.Slug+"?ok=tag-removida#tags")
+	redirect(w, r, personaPagePath(co, p)+"?ok=tag-removida#tags")
 }

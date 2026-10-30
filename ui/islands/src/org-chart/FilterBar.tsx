@@ -14,13 +14,14 @@ export interface FilterBarProps {
 const toggle = <V,>(list: readonly V[], v: V): V[] => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
 
 /** Filtros do organograma (ADR-0087 item 7): tags (OU ou E), sem tag, arquivadas, níveis, profundidade e modo. */
-export function FilterBar({ tags, filter, onChange, levels, tagsHref, t }: FilterBarProps) {
+export function FilterBar({ tags, filter, onChange, levels, tagsHref, t }: Readonly<FilterBarProps>) {
   const set = (patch: Partial<OrgFilter>) => onChange({ ...filter, ...patch });
   const listed = tags.filter((tg) => filter.archived || !tg.archived);
   const levelList = Array.from({ length: Math.max(levels, 1) }, (_, i) => i + 1);
   const tagCount = filter.tags.length + (filter.untagged ? 1 : 0);
   return (
-    <div className="org-filters" role="group" aria-label={t("org.filter.label")}>
+    <fieldset className="org-filters">
+      <legend className="sr-only">{t("org.filter.label")}</legend>
       <details>
         <summary className="btn sm outline">{tagCount > 0 ? t("org.filter.tags.n", { n: tagCount }) : t("org.filter.tags")}</summary>
         <div className="org-pop">
@@ -92,6 +93,6 @@ export function FilterBar({ tags, filter, onChange, levels, tagsHref, t }: Filte
           {t("org.filter.clear")}
         </button>
       )}
-    </div>
+    </fieldset>
   );
 }

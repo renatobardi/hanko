@@ -187,7 +187,7 @@ describe("tags no organograma (ADR-0087)", () => {
   it("desenha os chips do nó e esmaece quem está fora do recorte; guarda o filtro", () => {
     const persist = vi.fn();
     render(<OrgChart nodes={tagged()} canEdit={false} apiBase="" msgs={{}} tags={tags} filter={{ tags: ["test"] }} persist={persist} />);
-    expect(document.querySelectorAll('[data-node="eng"] .org-chip').length).toBe(2);
+    expect(document.querySelectorAll('[data-node="eng"] .org-chip')).toHaveLength(2);
     expect(document.querySelector('[data-node="ceo"] .org-chip.tag-c-blue')).toBeTruthy();
     expect(document.querySelector('[data-node="eng"]')!.classList.contains("dim")).toBe(false);
     expect(document.querySelector('[data-node="ceo"]')!.classList.contains("dim")).toBe(true);
@@ -218,7 +218,7 @@ describe("tags no organograma (ADR-0087)", () => {
     await waitFor(() => expect(fetchImpl).toHaveBeenCalledTimes(1));
     expect(fetchImpl.mock.calls[0]![0]).toBe("/api/v1/companies/acme/personas/qa/tags/test");
     expect(fetchImpl.mock.calls[0]![1]!.method).toBe("PUT");
-    await waitFor(() => expect(document.querySelectorAll('[data-node="qa"] .org-chip').length).toBe(1));
+    await waitFor(() => expect(document.querySelectorAll('[data-node="qa"] .org-chip')).toHaveLength(1));
 
     await waitFor(() => expect(dialog().getByRole("checkbox", { name: "Testes" })).not.toHaveProperty("disabled", true));
     fireEvent.click(dialog().getByRole("checkbox", { name: "Testes" }));
@@ -231,7 +231,7 @@ describe("tags no organograma (ADR-0087)", () => {
     await waitFor(() => expect(fetchImpl).toHaveBeenCalledTimes(3));
     expect(fetchImpl.mock.calls[2]![0]).toBe("/api/v1/companies/acme/personas/qa/tags");
     expect(JSON.parse(fetchImpl.mock.calls[2]![1]!.body as string)).toEqual({ name: "Infra" });
-    await waitFor(() => expect(document.querySelectorAll('[data-node="qa"] .org-chip').length).toBe(1));
+    await waitFor(() => expect(document.querySelectorAll('[data-node="qa"] .org-chip')).toHaveLength(1));
   });
 
   it("viewer não vê o botão de tags", () => {
