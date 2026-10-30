@@ -20,24 +20,17 @@ const maxDelegationTTL = 7 * 24 * time.Hour
 func (e *env) secretDelegationCmd() *cobra.Command {
 	c := &cobra.Command{Use: "delegation", Aliases: []string{"delegations"},
 		Short: e.t("Delegações de segredo pessoal a uma task, conversa ou run sua (só você; nunca mostra valor)")}
+	c.AddCommand(e.delegationCreateCmd(), e.delegationLsCmd(), e.delegationRevokeCmd())
+	return c
+}
 
+func (e *env) delegationCreateCmd() *cobra.Command {
 	var targetType, target string
 	var expires time.Duration
 	create := &cobra.Command{
 		Use: "create " + e.t("<segredo>"), Short: e.t("Delega um segredo pessoal ao trabalho que você pediu (padrão 24 h, máximo 7 dias)"), Args: cobra.ExactArgs(1),
 		RunE: e.inCompany(func(cmd *cobra.Command, co string, a []string) error {
-			if expires < 0 || expires > maxDelegationTTL {
-				return usageError{errors.New(e.t("prazo inválido: de 0 a 7 dias (ex.: 24h, 168h)"))}
-			}
-			d, err := e.client().DelegateSecret(cmd.Context(), co, a[0], delegationReq(targetType, target, expires))
-			if err != nil {
-				return err
-			}
-			if e.asJSON {
-				return e.printJSON(d)
-			}
-			fmt.Fprintf(e.out, e.t("Delegação criada: %s para %s %s (até %s)\n"), d.Secret, d.TargetType, d.TargetID, e.fmtTime(d.ExpiresAt))
-			return nil
+			return e.createDelegation(cmd, co, a[0], targetType, target, expires)
 		}),
 	}
 	cf := create.Flags()
@@ -46,8 +39,27 @@ func (e *env) secretDelegationCmd() *cobra.Command {
 	cf.DurationVar(&expires, "expires", 0, e.t("prazo, como 24h ou 168h (padrão 24h, máximo 168h)"))
 	_ = create.MarkFlagRequired("target-type")
 	_ = create.MarkFlagRequired("target")
+	return create
+}
 
-	ls := &cobra.Command{
+// createDelegation confere o prazo antes de montar o pedido e de chamar a API; prazo zero fica com o padrão do servidor.
+func (e *env) createDelegation(cmd *cobra.Command, co, secret, targetType, target string, expires time.Duration) error {
+	if expires < 0 || expires > maxDelegationTTL {
+		return usageError{errors.New(e.t("prazo inválido: de 0 a 7 dias (ex.: 24h, 168h)"))}
+	}
+	d, err := e.client().DelegateSecret(cmd.Context(), co, secret, delegationReq(targetType, target, expires))
+	if err != nil {
+		return err
+	}
+	if e.asJSON {
+		return e.printJSON(d)
+	}
+	fmt.Fprintf(e.out, e.t("Delegação criada: %s para %s %s (até %s)\n"), d.Secret, d.TargetType, d.TargetID, e.fmtTime(d.ExpiresAt))
+	return nil
+}
+
+func (e *env) delegationLsCmd() *cobra.Command {
+	return &cobra.Command{
 		Use: "ls", Aliases: []string{"list"}, Short: e.t("Lista as suas delegações (segredo, alvo, prazo e estado)"), Args: cobra.NoArgs,
 		RunE: e.inCompany(func(cmd *cobra.Command, co string, _ []string) error {
 			l, err := e.client().ListMyDelegations(cmd.Context(), co)
@@ -57,20 +69,26 @@ func (e *env) secretDelegationCmd() *cobra.Command {
 			if e.asJSON {
 				return e.printJSON(l)
 			}
-			if len(l) == 0 {
-				fmt.Fprintln(e.out, e.t("Nenhuma delegação."))
-				return nil
-			}
-			rows := make([][]string, len(l))
-			for i, d := range l {
-				rows[i] = []string{d.ID, d.Secret, d.TargetType + " " + d.TargetID, e.fmtTime(d.ExpiresAt), delegationState(e, d)}
-			}
-			e.table([]string{e.t("ID"), e.t("SEGREDO"), e.t("ALVO"), e.t("EXPIRA EM"), e.t("ESTADO")}, rows)
+			e.printDelegations(l)
 			return nil
 		}),
 	}
+}
 
-	revoke := &cobra.Command{
+func (e *env) printDelegations(l []api.SecretDelegation) {
+	if len(l) == 0 {
+		fmt.Fprintln(e.out, e.t("Nenhuma delegação."))
+		return
+	}
+	rows := make([][]string, len(l))
+	for i, d := range l {
+		rows[i] = []string{d.ID, d.Secret, d.TargetType + " " + d.TargetID, e.fmtTime(d.ExpiresAt), delegationState(e, d)}
+	}
+	e.table([]string{e.t("ID"), e.t("SEGREDO"), e.t("ALVO"), e.t("EXPIRA EM"), e.t("ESTADO")}, rows)
+}
+
+func (e *env) delegationRevokeCmd() *cobra.Command {
+	return &cobra.Command{
 		Use: "revoke " + e.t("<id>"), Short: e.t("Revoga uma delegação sua; a run deixa de resolver o segredo"), Args: cobra.ExactArgs(1),
 		RunE: e.inCompany(func(cmd *cobra.Command, co string, a []string) error {
 			if err := e.client().RevokeDelegation(cmd.Context(), co, a[0]); err != nil {
@@ -80,9 +98,6 @@ func (e *env) secretDelegationCmd() *cobra.Command {
 			return nil
 		}),
 	}
-
-	c.AddCommand(create, ls, revoke)
-	return c
 }
 
 // delegationReq monta o pedido da API; prazo zero deixa o padrão de 24 h para o servidor.
