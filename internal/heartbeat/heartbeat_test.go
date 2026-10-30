@@ -182,7 +182,8 @@ func (f *fakeBackend) FailReview(_ context.Context, _, _ domain.ID, reason strin
 	f.reviewFails = append(f.reviewFails, reason)
 	return nil
 }
-func (f *fakeBackend) ResolveStaleReviews(context.Context) (int, error) { return 0, nil }
+func (f *fakeBackend) ResolveStaleReviews(context.Context) (int, error)           { return 0, nil }
+func (f *fakeBackend) ClassifyExternalConversations(context.Context) (int, error) { return 0, nil }
 func (f *fakeBackend) EvaluateAlerts(context.Context) (service.AlertEval, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()

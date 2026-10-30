@@ -96,6 +96,7 @@ type backend interface {
 	DueFlows(ctx context.Context, now time.Time) ([]domain.Flow, error)
 	FireFlow(ctx context.Context, flowID domain.ID, scheduledFor time.Time) (service.FlowFireResult, error)
 	EvaluateAlerts(ctx context.Context) (service.AlertEval, error)
+	ClassifyExternalConversations(ctx context.Context) (int, error)
 	StartReview(ctx context.Context, companyID, reviewID domain.ID) error
 	FailReview(ctx context.Context, companyID, reviewID domain.ID, reason string) error
 	ResolveStaleReviews(ctx context.Context) (int, error)
