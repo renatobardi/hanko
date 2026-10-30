@@ -34,6 +34,12 @@ func (h *Heartbeat) alertTick(ctx context.Context) error {
 	if ev.Opened > 0 || ev.Closed > 0 {
 		h.log.Info("alert_tick", "opened", ev.Opened, "closed", ev.Closed, "open", ev.Open)
 	}
+	// A classificação das conversas externas (ADR-0079) roda no mesmo tick; uma falha dela não derruba os alertas.
+	if n, err := h.svc.ClassifyExternalConversations(ctx); err != nil {
+		h.log.Warn("classify_external: falhou", "err", err)
+	} else if n > 0 {
+		h.log.Info("classify_external", "changed", n)
+	}
 	return nil
 }
 

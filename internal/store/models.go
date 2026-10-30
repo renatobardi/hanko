@@ -740,6 +740,7 @@ type ExternalConversation struct {
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
 	SearchTsv           interface{}
+	ClassifiedSessionAt *time.Time
 }
 
 type ExternalHost struct {
