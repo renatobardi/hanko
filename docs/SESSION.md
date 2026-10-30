@@ -16,5 +16,7 @@ Data: 2026-10-30
 - Sessão: estado, worker e slug ainda não vêm da ingestão (os atributos fixos não os trazem).
 - Caixa, classificação (ADR-0079), telas e leitura.
 
+- Branch atualizado com a origin/main em 85fc1dd (#148, sem migration); a 00213 continua a seguinte à 00212.
+
 ## Próximo passo
 - Palavras novas do ADR-0084 para a revisão do Bardi; com elas, o gerador e a conversa externa.
