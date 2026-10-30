@@ -179,46 +179,101 @@ func checkHostAliasFree(t *txc, companyID domain.ID, name string, self domain.ID
 	return nil
 }
 
-// applyAgentPatch aplica a alteração de nome e de arquivado de um agente, cada um com seu evento.
-func applyAgentPatch(t *txc, actor domain.Actor, companyID, id domain.ID, cur store.GetExternalAgentViewRow, p ExternalAgentPatch) error {
-	ctx := t.ctx
-	if p.Name != nil {
-		name, err := checkExternalName(*p.Name)
-		if err != nil {
-			return err
-		}
-		if name != cur.Name {
-			if err := checkAgentAliasFree(t, companyID, name, id); err != nil {
-				return err
-			}
-			if _, err := t.q.RenameExternalAgent(ctx, store.RenameExternalAgentParams{CompanyID: companyID, ID: id, Name: name, Now: t.now}); err != nil {
-				return mapErr(err, "rename external agent")
-			}
-			if err := t.q.InsertExternalAgentAlias(ctx, store.InsertExternalAgentAliasParams{CompanyID: companyID, Alias: cur.Name, AgentID: id, Now: t.now}); err != nil {
+// extRename são os passos de escrita da troca de nome de um agente ou de um host.
+type extRename struct {
+	kind       string // external_agent ou external_host: o tipo nos eventos
+	id         domain.ID
+	oldName    string
+	checkAlias func(name string) error // o nome novo não pode ser apelido de outra entidade
+	rename     func(name string) error
+	keepOld    func(old string) error // o nome antigo vira apelido da mesma entidade
+}
+
+// renameExternal troca o nome (se mudou), deixa o antigo como apelido e grava o evento.
+func renameExternal(t *txc, actor domain.Actor, companyID domain.ID, r extRename, raw string) error {
+	name, err := checkExternalName(raw)
+	if err != nil {
+		return err
+	}
+	if name == r.oldName {
+		return nil
+	}
+	if err := r.checkAlias(name); err != nil {
+		return err
+	}
+	if err := r.rename(name); err != nil {
+		return err
+	}
+	if err := r.keepOld(r.oldName); err != nil {
+		return err
+	}
+	return t.activity(actor, companyID, r.kind+".renamed", r.kind, r.id, map[string]any{"from": r.oldName, "to": name}, "")
+}
+
+// agentRename monta os passos de troca de nome de um agente.
+func agentRename(t *txc, companyID, id domain.ID, oldName string) extRename {
+	return extRename{
+		kind:       "external_agent",
+		id:         id,
+		oldName:    oldName,
+		checkAlias: func(name string) error { return checkAgentAliasFree(t, companyID, name, id) },
+		rename: func(name string) error {
+			_, err := t.q.RenameExternalAgent(t.ctx, store.RenameExternalAgentParams{CompanyID: companyID, ID: id, Name: name, Now: t.now})
+			return mapErr(err, "rename external agent")
+		},
+		keepOld: func(old string) error {
+			if err := t.q.InsertExternalAgentAlias(t.ctx, store.InsertExternalAgentAliasParams{CompanyID: companyID, Alias: old, AgentID: id, Now: t.now}); err != nil {
 				return fmt.Errorf("ingest: apelido do nome antigo: %w", err)
 			}
-			if err := t.activity(actor, companyID, "external_agent.renamed", "external_agent", id,
-				map[string]any{"from": cur.Name, "to": name}, ""); err != nil {
-				return err
-			}
-		}
+			return nil
+		},
 	}
-	if p.Archived != nil && (cur.ArchivedAt != nil) != *p.Archived {
-		var at *time.Time
-		verb := "external_agent.unarchived"
-		if *p.Archived {
-			now := t.now
-			at = &now
-			verb = "external_agent.archived"
-		}
-		if err := t.q.SetExternalAgentArchived(ctx, store.SetExternalAgentArchivedParams{CompanyID: companyID, ID: id, ArchivedAt: at, Now: t.now}); err != nil {
-			return mapErr(err, "archive external agent")
-		}
-		if err := t.activity(actor, companyID, verb, "external_agent", id, map[string]any{"name": cur.Name}, ""); err != nil {
+}
+
+// extArchive é o arquivado pedido de um agente ou de um host: want é o estado novo e archived o atual.
+type extArchive struct {
+	kind     string
+	id       domain.ID
+	name     string
+	archived bool
+	want     bool
+	set      func(at *time.Time) error
+}
+
+// archiveExternal arquiva ou desarquiva e grava o evento. Se já está no estado pedido, não faz nada.
+func archiveExternal(t *txc, actor domain.Actor, companyID domain.ID, a extArchive) error {
+	if a.archived == a.want {
+		return nil
+	}
+	var at *time.Time
+	verb := a.kind + ".unarchived"
+	if a.want {
+		now := t.now
+		at = &now
+		verb = a.kind + ".archived"
+	}
+	if err := a.set(at); err != nil {
+		return err
+	}
+	return t.activity(actor, companyID, verb, a.kind, a.id, map[string]any{"name": a.name}, "")
+}
+
+// applyAgentPatch aplica a alteração de nome e de arquivado de um agente, cada um com seu evento.
+func applyAgentPatch(t *txc, actor domain.Actor, companyID, id domain.ID, cur store.GetExternalAgentViewRow, p ExternalAgentPatch) error {
+	if p.Name != nil {
+		if err := renameExternal(t, actor, companyID, agentRename(t, companyID, id, cur.Name), *p.Name); err != nil {
 			return err
 		}
 	}
-	return nil
+	if p.Archived == nil {
+		return nil
+	}
+	return archiveExternal(t, actor, companyID, extArchive{
+		kind: "external_agent", id: id, name: cur.Name, archived: cur.ArchivedAt != nil, want: *p.Archived,
+		set: func(at *time.Time) error {
+			return mapErr(t.q.SetExternalAgentArchived(t.ctx, store.SetExternalAgentArchivedParams{CompanyID: companyID, ID: id, ArchivedAt: at, Now: t.now}), "archive external agent")
+		},
+	})
 }
 
 // ExternalHostPatch é a alteração de um host: os campos ausentes ficam como estão.
@@ -252,55 +307,59 @@ func (s *Service) UpdateExternalHost(ctx context.Context, actor domain.Actor, co
 	return out, err
 }
 
-// applyHostPatch aplica nome, sempre ligado e arquivado de um host, cada um com seu evento.
-func applyHostPatch(t *txc, actor domain.Actor, companyID, id domain.ID, cur store.GetExternalHostViewRow, p ExternalHostPatch) error {
-	ctx := t.ctx
-	if p.Name != nil {
-		name, err := checkExternalName(*p.Name)
-		if err != nil {
-			return err
-		}
-		if name != cur.Name {
-			if err := checkHostAliasFree(t, companyID, name, id); err != nil {
-				return err
-			}
-			if _, err := t.q.RenameExternalHost(ctx, store.RenameExternalHostParams{CompanyID: companyID, ID: id, Name: name, Now: t.now}); err != nil {
-				return mapErr(err, "rename external host")
-			}
-			if err := t.q.InsertExternalHostAlias(ctx, store.InsertExternalHostAliasParams{CompanyID: companyID, Alias: cur.Name, HostID: id, Now: t.now}); err != nil {
+// hostRename monta os passos de troca de nome de um host.
+func hostRename(t *txc, companyID, id domain.ID, oldName string) extRename {
+	return extRename{
+		kind:       "external_host",
+		id:         id,
+		oldName:    oldName,
+		checkAlias: func(name string) error { return checkHostAliasFree(t, companyID, name, id) },
+		rename: func(name string) error {
+			_, err := t.q.RenameExternalHost(t.ctx, store.RenameExternalHostParams{CompanyID: companyID, ID: id, Name: name, Now: t.now})
+			return mapErr(err, "rename external host")
+		},
+		keepOld: func(old string) error {
+			if err := t.q.InsertExternalHostAlias(t.ctx, store.InsertExternalHostAliasParams{CompanyID: companyID, Alias: old, HostID: id, Now: t.now}); err != nil {
 				return fmt.Errorf("ingest: apelido do nome antigo do host: %w", err)
 			}
-			if err := t.activity(actor, companyID, "external_host.renamed", "external_host", id,
-				map[string]any{"from": cur.Name, "to": name}, ""); err != nil {
-				return err
-			}
-		}
+			return nil
+		},
 	}
-	if p.AlwaysOn != nil && cur.AlwaysOn != *p.AlwaysOn {
-		if err := t.q.SetExternalHostAlwaysOn(ctx, store.SetExternalHostAlwaysOnParams{CompanyID: companyID, ID: id, AlwaysOn: *p.AlwaysOn, Now: t.now}); err != nil {
-			return mapErr(err, "always on external host")
-		}
-		if err := t.activity(actor, companyID, "external_host.always_on_changed", "external_host", id,
-			map[string]any{"name": cur.Name, "always_on": *p.AlwaysOn}, ""); err != nil {
+}
+
+// setHostAlwaysOn marca ou desmarca o sempre ligado de um host, com evento. Se já está como pedido, não faz nada.
+func setHostAlwaysOn(t *txc, actor domain.Actor, companyID, id domain.ID, cur store.GetExternalHostViewRow, on bool) error {
+	if cur.AlwaysOn == on {
+		return nil
+	}
+	if err := t.q.SetExternalHostAlwaysOn(t.ctx, store.SetExternalHostAlwaysOnParams{CompanyID: companyID, ID: id, AlwaysOn: on, Now: t.now}); err != nil {
+		return mapErr(err, "always on external host")
+	}
+	return t.activity(actor, companyID, "external_host.always_on_changed", "external_host", id,
+		map[string]any{"name": cur.Name, "always_on": on}, "")
+}
+
+// applyHostPatch aplica nome, sempre ligado e arquivado de um host, cada um com seu evento.
+func applyHostPatch(t *txc, actor domain.Actor, companyID, id domain.ID, cur store.GetExternalHostViewRow, p ExternalHostPatch) error {
+	if p.Name != nil {
+		if err := renameExternal(t, actor, companyID, hostRename(t, companyID, id, cur.Name), *p.Name); err != nil {
 			return err
 		}
 	}
-	if p.Archived != nil && (cur.ArchivedAt != nil) != *p.Archived {
-		var at *time.Time
-		verb := "external_host.unarchived"
-		if *p.Archived {
-			now := t.now
-			at = &now
-			verb = "external_host.archived"
-		}
-		if err := t.q.SetExternalHostArchived(ctx, store.SetExternalHostArchivedParams{CompanyID: companyID, ID: id, ArchivedAt: at, Now: t.now}); err != nil {
-			return mapErr(err, "archive external host")
-		}
-		if err := t.activity(actor, companyID, verb, "external_host", id, map[string]any{"name": cur.Name}, ""); err != nil {
+	if p.AlwaysOn != nil {
+		if err := setHostAlwaysOn(t, actor, companyID, id, cur, *p.AlwaysOn); err != nil {
 			return err
 		}
 	}
-	return nil
+	if p.Archived == nil {
+		return nil
+	}
+	return archiveExternal(t, actor, companyID, extArchive{
+		kind: "external_host", id: id, name: cur.Name, archived: cur.ArchivedAt != nil, want: *p.Archived,
+		set: func(at *time.Time) error {
+			return mapErr(t.q.SetExternalHostArchived(t.ctx, store.SetExternalHostArchivedParams{CompanyID: companyID, ID: id, ArchivedAt: at, Now: t.now}), "archive external host")
+		},
+	})
 }
 
 // lockPair trava as duas linhas de uma junção na ordem dos ids (para duas junções cruzadas não se esperarem em
@@ -404,6 +463,12 @@ func moveAgentReferences(t *txc, companyID, from, into domain.ID) error {
 	if err := t.q.MoveExternalApprovalsAgent(t.ctx, store.MoveExternalApprovalsAgentParams{CompanyID: companyID, FromID: &from, ToID: &into}); err != nil {
 		return fmt.Errorf("ingest: mover aprovações: %w", err)
 	}
+	if err := t.q.MergeCallsDaily(t.ctx, store.MergeCallsDailyParams{ByAgent: true, CompanyID: companyID, FromID: from, ToID: into}); err != nil {
+		return fmt.Errorf("ingest: somar o agregado diário: %w", err)
+	}
+	if err := t.q.DeleteCallsDailyOfAgent(t.ctx, store.DeleteCallsDailyOfAgentParams{CompanyID: companyID, AgentID: from}); err != nil {
+		return fmt.Errorf("ingest: tirar o agregado do juntado: %w", err)
+	}
 	return nil
 }
 
@@ -469,6 +534,18 @@ func moveHostReferences(t *txc, companyID, from, into domain.ID) error {
 	}
 	if err := t.q.MoveExternalApprovalsHost(t.ctx, store.MoveExternalApprovalsHostParams{CompanyID: companyID, FromID: &from, ToID: &into}); err != nil {
 		return fmt.Errorf("ingest: mover aprovações do host: %w", err)
+	}
+	if err := t.q.MergeCallsDaily(t.ctx, store.MergeCallsDailyParams{ByAgent: false, CompanyID: companyID, FromID: from, ToID: into}); err != nil {
+		return fmt.Errorf("ingest: somar o agregado diário do host: %w", err)
+	}
+	if err := t.q.DeleteCallsDailyOfHost(t.ctx, store.DeleteCallsDailyOfHostParams{CompanyID: companyID, HostID: from}); err != nil {
+		return fmt.Errorf("ingest: tirar o agregado do host juntado: %w", err)
+	}
+	if err := t.q.MergeOutboxSnapshotHost(t.ctx, store.MergeOutboxSnapshotHostParams{CompanyID: companyID, FromID: from, ToID: into}); err != nil {
+		return fmt.Errorf("ingest: escolher a lista da outbox: %w", err)
+	}
+	if err := t.q.DeleteOutboxSnapshotOfHost(t.ctx, store.DeleteOutboxSnapshotOfHostParams{CompanyID: companyID, HostID: from}); err != nil {
+		return fmt.Errorf("ingest: tirar a lista da outbox do juntado: %w", err)
 	}
 	return nil
 }
