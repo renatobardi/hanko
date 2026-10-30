@@ -39,3 +39,16 @@ func TestCheckFileContent(t *testing.T) {
 		t.Fatalf("1 MiB exato tem de passar: %v", err)
 	}
 }
+
+// fileSize converte o tamanho para int32 só dentro da faixa do campo arquivo (gosec G115).
+func TestFileSizeConfereAFaixaAntesDeConverter(t *testing.T) {
+	if n, err := fileSize(make([]byte, domain.MaxSecretFieldFileBytes)); err != nil || n != domain.MaxSecretFieldFileBytes {
+		t.Fatalf("1 MiB exato: %d %v", n, err)
+	}
+	if _, err := fileSize(nil); err == nil {
+		t.Fatal("vazio passou")
+	}
+	if _, err := fileSize(make([]byte, domain.MaxSecretFieldFileBytes+1)); err == nil {
+		t.Fatal("acima do limite passou")
+	}
+}

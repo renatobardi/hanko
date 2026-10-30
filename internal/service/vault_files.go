@@ -87,7 +87,10 @@ func (s *Service) createFileField(t *txc, companyID domain.ID, sec store.Secret,
 	if err := s.requireSecretBox(); err != nil {
 		return store.SecretField{}, err
 	}
-	size := len(in.File)
+	size, err := fileSize(in.File)
+	if err != nil {
+		return store.SecretField{}, err
+	}
 	sealed, err := s.secretBox().Seal(in.File, fieldAAD(sec.ID, id))
 	if err != nil {
 		return store.SecretField{}, fmt.Errorf("cifrar arquivo: %w", err)
@@ -95,7 +98,7 @@ func (s *Service) createFileField(t *txc, companyID domain.ID, sec store.Secret,
 	// a linha do campo vem antes do blob: no postgres, a tabela do blob referencia o campo
 	row, err := t.q.CreateSecretField(t.ctx, store.CreateSecretFieldParams{ID: id, CompanyID: companyID, SecretID: sec.ID,
 		Name: in.Name, Kind: string(domain.SecretFieldFile), Sensitive: sensitive, Provider: string(domain.SecretProviderLocal),
-		BlobKey: fieldBlobKey(companyID, id).String(), FileName: fileName, ContentType: contentType, SizeBytes: int32(size),
+		BlobKey: fieldBlobKey(companyID, id).String(), FileName: fileName, ContentType: contentType, SizeBytes: size,
 		AadVersion: 1, Position: i32(pos), Now: t.now})
 	if err != nil {
 		return store.SecretField{}, mapErr(err, "create secret field")
@@ -126,6 +129,15 @@ func checkFileContent(file []byte, fileName, contentType string) (string, string
 	return name, ct, nil
 }
 
+// fileSize devolve o tamanho do conteúdo como int32 (coluna size_bytes), conferido contra o limite antes da conversão.
+func fileSize(file []byte) (int32, error) {
+	n := len(file)
+	if n <= 0 || n > domain.MaxSecretFieldFileBytes {
+		return 0, domain.Invalid("file", fmt.Sprintf("o arquivo tem de ter de 1 byte a %d bytes (1 MiB)", domain.MaxSecretFieldFileBytes))
+	}
+	return int32(n), nil
+}
+
 // requireSecretBox recusa guardar um arquivo de campo sem a chave de cifragem do servidor.
 func (s *Service) requireSecretBox() error {
 	if !s.secretBox().Enabled() {
@@ -154,6 +166,10 @@ func (s *Service) ReplaceSecretFieldFile(ctx context.Context, actor domain.Actor
 	if err != nil {
 		return SecretFieldView{}, err
 	}
+	size, err := fileSize(in.File)
+	if err != nil {
+		return SecretFieldView{}, err
+	}
 	if err := s.requireSecretBox(); err != nil {
 		return SecretFieldView{}, err
 	}
@@ -174,7 +190,7 @@ func (s *Service) ReplaceSecretFieldFile(ctx context.Context, actor domain.Actor
 			return fmt.Errorf("cifrar arquivo: %w", err)
 		}
 		row, err := t.q.ReplaceSecretFieldFile(t.ctx, store.ReplaceSecretFieldFileParams{ID: f.ID, CompanyID: companyID,
-			FileName: fileName, ContentType: contentType, SizeBytes: int32(len(in.File)), Now: t.now})
+			FileName: fileName, ContentType: contentType, SizeBytes: size, Now: t.now})
 		if err != nil {
 			return mapErr(err, "replace secret field file")
 		}
