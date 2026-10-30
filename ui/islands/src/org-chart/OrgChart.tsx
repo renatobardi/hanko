@@ -3,6 +3,9 @@ import type { PointerEvent as ReactPointerEvent } from "react";
 import { ApiError, requestJSON, type FetchLike } from "../shared/api";
 import { makeT, type Msgs } from "../shared/island";
 import { CARD_H, CARD_W, MAX_ZOOM, MIN_ZOOM, checkMove, clampZoom, layoutTree, type OrgNode } from "./layout";
+import { FilterBar } from "./FilterBar";
+import { TagMenu } from "./TagMenu";
+import { applyFilter, levelsOf, persistFilter, sanitize, type OrgFilter, type TagInfo } from "./filter";
 
 export interface OrgChartProps {
   nodes: OrgNode[];
@@ -12,6 +15,62 @@ export interface OrgChartProps {
   apiBase: string;
   msgs: Msgs;
   fetchImpl?: FetchLike;
+  /** Cadastro de tags (com as arquivadas), ADR-0087. */
+  tags?: TagInfo[];
+  /** Filtro inicial (URL ou cookie hanko_org, lido pelo host). */
+  filter?: Partial<OrgFilter>;
+  /** Member ou mais: aplica e tira tag pelo menu do nó (o service confere de novo). */
+  canTag?: boolean;
+  /** Aba Tags em Personas. */
+  tagsHref?: string;
+  /** Guarda o filtro (URL e cookie); os testes trocam por um espião. */
+  persist?: (f: OrgFilter) => void;
+}
+
+/** Ref de tag devolvida pela API ao criar e aplicar. */
+interface TagRef {
+  id: string;
+  name: string;
+  color: string;
+  description?: string;
+  archived: boolean;
+}
+
+const clipName = (s: string, n: number) => (s.length <= n ? s : s.slice(0, n - 1) + "…");
+
+/** Chips do nó: até 3, cabendo na largura do card, e "+N" para o resto. */
+function NodeChips({ tags }: { tags: TagInfo[] }) {
+  if (tags.length === 0) return null;
+  const out = [];
+  let x = 50;
+  let shown = 0;
+  for (const tg of tags) {
+    if (shown === 3) break;
+    const label = clipName(tg.name, 10);
+    const w = Math.round(label.length * 5.4 + 10);
+    const reserve = tags.length - shown > 1 ? 26 : 0;
+    if (x + w > CARD_W - 10 - reserve) break;
+    out.push(
+      <g key={tg.id} className={`org-chip tag-c-${tg.color}${tg.archived ? " archived" : ""}`} transform={`translate(${x} 46)`}>
+        <title>{tg.description ? `${tg.name} · ${tg.description}` : tg.name}</title>
+        <rect width={w} height={12} rx={6} />
+        <text x={5} y={9}>
+          {label}
+        </text>
+      </g>,
+    );
+    x += w + 4;
+    shown++;
+  }
+  const more = tags.length - shown;
+  if (more > 0)
+    out.push(
+      <g key="more" className="org-chip" transform={`translate(${x} 46)`}>
+        <rect width={22} height={12} rx={6} />
+        <text x={4} y={9}>{`+${more}`}</text>
+      </g>,
+    );
+  return <g className="org-chips">{out}</g>;
 }
 
 interface View {
@@ -40,6 +99,10 @@ export function OrgChart(props: OrgChartProps) {
   const t = useMemo(() => makeT(msgs), [msgs]);
 
   const [nodes, setNodes] = useState<OrgNode[]>(props.nodes);
+  const [catalog, setCatalog] = useState<TagInfo[]>(props.tags ?? []);
+  const [filter, setFilter] = useState<OrgFilter>(() => sanitize(props.filter, props.tags ?? []));
+  const [menu, setMenu] = useState<string | null>(null);
+  const persist = props.persist ?? persistFilter;
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
   const [view, setView] = useState<View>({ k: 1, x: 8, y: 8 });
   const [drag, setDrag] = useState<DragState | null>(null);
@@ -54,7 +117,22 @@ export function OrgChart(props: OrgChartProps) {
   const viewRef = useRef(view);
   viewRef.current = view;
 
-  const layout = useMemo(() => layoutTree(nodes, collapsed), [nodes, collapsed]);
+  const slice = useMemo(() => applyFilter(nodes, filter), [nodes, filter]);
+  const shownNodes = useMemo(() => nodes.filter((n) => slice.visible.has(n.id)), [nodes, slice]);
+  const layout = useMemo(() => layoutTree(shownNodes, collapsed), [shownNodes, collapsed]);
+  const maxLevel = useMemo(() => Math.max(1, ...levelsOf(nodes).values()), [nodes]);
+  const tagById = useMemo(() => new Map(catalog.map((tg) => [tg.id, tg])), [catalog]);
+  const tagsOf = (n: OrgNode): TagInfo[] =>
+    (n.tags ?? [])
+      .map((id) => tagById.get(id))
+      .filter((tg): tg is TagInfo => !!tg)
+      .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+
+  // o filtro vai para a URL e para o cookie hanko_org a cada mudança (e na montagem, para a URL refletir o recorte)
+  useEffect(() => {
+    persist(filter);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter]);
   const byId = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
 
   // enquadra o organograma na largura disponível ao montar
@@ -196,6 +274,49 @@ export function OrgChart(props: OrgChartProps) {
       return next;
     });
 
+  // ---- tags do nó (ADR-0087): aplicar, tirar e criar na hora --------------------------------------------
+  const setNodeTags = (id: string, fn: (tags: string[]) => string[]) =>
+    setNodes((prev) => prev.map((n) => (n.id === id ? { ...n, tags: fn(n.tags ?? []) } : n)));
+
+  const toggleTag = async (id: string, tagId: string, on: boolean) => {
+    const node = byId.get(id);
+    const tg = tagById.get(tagId);
+    if (!node || !tg) return;
+    setBusy(true);
+    try {
+      const url = `${apiBase}/personas/${encodeURIComponent(node.slug)}/tags/${encodeURIComponent(tagId)}`;
+      await requestJSON(doFetch, url, { method: on ? "PUT" : "DELETE" });
+      setNodeTags(id, (tags) => (on ? [...tags.filter((x) => x !== tagId), tagId] : tags.filter((x) => x !== tagId)));
+      setNotice({ kind: "ok", text: t(on ? "org.tags.applied" : "org.tags.removed", { tag: tg.name, name: node.name }) });
+    } catch (e) {
+      setNotice({ kind: "err", text: t("org.tags.err", { err: e instanceof ApiError ? e.message : String(e) }) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const createTag = async (id: string, name: string) => {
+    const node = byId.get(id);
+    if (!node) return;
+    setBusy(true);
+    try {
+      const ref = await requestJSON<TagRef>(doFetch, `${apiBase}/personas/${encodeURIComponent(node.slug)}/tags`, {
+        method: "POST",
+        body: JSON.stringify({ name }),
+      });
+      setCatalog((prev) => (prev.some((x) => x.id === ref.id) ? prev : [...prev, { id: ref.id, name: ref.name, color: ref.color, description: ref.description ?? "", archived: ref.archived }]));
+      setNodeTags(id, (tags) => [...tags.filter((x) => x !== ref.id), ref.id]);
+      setNotice({ kind: "ok", text: t("org.tags.applied", { tag: ref.name, name: node.name }) });
+    } catch (e) {
+      setNotice({ kind: "err", text: t("org.tags.err", { err: e instanceof ApiError ? e.message : String(e) }) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const menuNode = menu ? byId.get(menu) : undefined;
+  const menuAt = menu ? layout.byId.get(menu) : undefined;
+
   const dragging = drag?.active ? drag : null;
   const overCheck = dragging && dragging.over !== null ? checkMove(nodes, dragging.id, dragging.over) : null;
   const anyCollapsed = collapsed.size > 0;
@@ -221,6 +342,12 @@ export function OrgChart(props: OrgChartProps) {
         <span className="grow" />
         <span className="muted org-hint">{canEdit ? t("org.hint.edit") : t("org.hint.view")}</span>
       </div>
+      <FilterBar tags={catalog} filter={filter} onChange={setFilter} levels={maxLevel} tagsHref={props.tagsHref} t={t} />
+      {slice.active && slice.matched === 0 && (
+        <div className="org-empty muted" role="status">
+          {t("org.filter.empty")}
+        </div>
+      )}
       <div
         className={"org-stage" + (dragging ? " is-dragging" : "")}
         ref={stage}
@@ -248,7 +375,7 @@ export function OrgChart(props: OrgChartProps) {
                   key={p.id}
                   data-node={p.id}
                   transform={`translate(${p.x} ${p.y})`}
-                  className={`org-node st-${n.cls}${n.gate ? " gate" : ""}${canEdit ? " movable" : ""}${dragging?.id === p.id ? " is-dragged" : ""}${over}`}
+                  className={`org-node st-${n.cls}${n.gate ? " gate" : ""}${canEdit ? " movable" : ""}${dragging?.id === p.id ? " is-dragged" : ""}${over}${slice.dim.has(p.id) ? " dim" : ""}${slice.path.has(p.id) ? " path" : ""}`}
                 >
                   <a
                     href={n.href}
@@ -258,7 +385,7 @@ export function OrgChart(props: OrgChartProps) {
                       if (suppressClick.current) ev.preventDefault();
                     }}
                   >
-                    <rect width={CARD_W} height={CARD_H} rx={12} />
+                    <rect className="org-card" width={CARD_W} height={CARD_H} rx={12} />
                     <circle className="org-av" cx={26} cy={28} r={14} />
                     <use className="org-glyph" href={`#pg-${n.icon || "bot"}`} x={18} y={20} width={16} height={16} />
                     <text className="org-name" x={50} y={25}>
@@ -267,6 +394,7 @@ export function OrgChart(props: OrgChartProps) {
                     <text className="org-title" x={50} y={42}>
                       {n.title}
                     </text>
+                    <NodeChips tags={tagsOf(n)} />
                     {n.cls === "run" && <circle className="org-pulse" cx={16} cy={64} r={3.5} />}
                     <circle className="org-dot" cx={16} cy={64} r={3.5} />
                     <text className="org-meta" x={26} y={68}>
@@ -274,6 +402,31 @@ export function OrgChart(props: OrgChartProps) {
                       {n.meta}
                     </text>
                   </a>
+                  {props.canTag && (
+                    <g
+                      data-toggle=""
+                      className="org-tagbtn"
+                      role="button"
+                      tabIndex={0}
+                      aria-label={t("org.tags.edit", { name: n.name })}
+                      transform={`translate(${CARD_W - 16} 16)`}
+                      onClick={(ev) => {
+                        ev.stopPropagation();
+                        setMenu(menu === p.id ? null : p.id);
+                      }}
+                      onKeyDown={(ev) => {
+                        if (ev.key === "Enter" || ev.key === " ") {
+                          ev.preventDefault();
+                          setMenu(menu === p.id ? null : p.id);
+                        }
+                      }}
+                    >
+                      <circle r={9} />
+                      <text textAnchor="middle" y={4}>
+                        #
+                      </text>
+                    </g>
+                  )}
                   {p.hasChildren && (
                     <g
                       data-toggle=""
@@ -313,6 +466,20 @@ export function OrgChart(props: OrgChartProps) {
             )}
           </g>
         </svg>
+        {menuNode && menuAt && (
+          <TagMenu
+            personaName={menuNode.name}
+            catalog={catalog}
+            applied={menuNode.tags ?? []}
+            busy={busy}
+            left={view.x + (menuAt.x + CARD_W - 16) * view.k}
+            top={view.y + (menuAt.y + 28) * view.k}
+            onToggle={(tagId, on) => void toggleTag(menuNode.id, tagId, on)}
+            onCreate={(name) => void createTag(menuNode.id, name)}
+            onClose={() => setMenu(null)}
+            t={t}
+          />
+        )}
       </div>
       <div className="org-live" role={notice?.kind === "err" ? "alert" : "status"} aria-live="polite">
         {notice && <span className={"org-notice " + notice.kind}>{notice.text}</span>}

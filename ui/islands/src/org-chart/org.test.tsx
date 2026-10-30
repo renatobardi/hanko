@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { OrgChart } from "./OrgChart";
 import { CARD_H, CARD_W, GAP_X, GAP_Y, PAD, checkMove, layoutTree, type OrgNode } from "./layout";
@@ -176,3 +176,66 @@ describe("glifo da persona", () => {
   });
 });
 
+
+describe("tags no organograma (ADR-0087)", () => {
+  const tags = [
+    { id: "back", name: "Backend", color: "blue", description: "servidor", archived: false },
+    { id: "test", name: "Testes", color: "green", description: "", archived: false },
+  ];
+  const tagged = (): OrgNode[] => [node("ceo", "", { tags: ["back"] }), node("cto", "ceo"), node("eng", "cto", { tags: ["back", "test"] }), node("qa", "cto"), node("solo")];
+
+  it("desenha os chips do nó e esmaece quem está fora do recorte; guarda o filtro", () => {
+    const persist = vi.fn();
+    render(<OrgChart nodes={tagged()} canEdit={false} apiBase="" msgs={{}} tags={tags} filter={{ tags: ["test"] }} persist={persist} />);
+    expect(document.querySelectorAll('[data-node="eng"] .org-chip').length).toBe(2);
+    expect(document.querySelector('[data-node="ceo"] .org-chip.tag-c-blue')).toBeTruthy();
+    expect(document.querySelector('[data-node="eng"]')!.classList.contains("dim")).toBe(false);
+    expect(document.querySelector('[data-node="ceo"]')!.classList.contains("dim")).toBe(true);
+    expect(persist).toHaveBeenLastCalledWith(expect.objectContaining({ tags: ["test"], mode: "highlight" }));
+  });
+
+  it("Podar mostra só o recorte e o caminho; recorte vazio avisa sem bloquear", () => {
+    const persist = vi.fn();
+    render(<OrgChart nodes={tagged()} canEdit={false} apiBase="" msgs={{ "org.filter.empty": "vazio" }} tags={tags} filter={{ tags: ["test"], mode: "prune" }} persist={persist} />);
+    const shown = Array.from(document.querySelectorAll("[data-node]")).map((e) => e.getAttribute("data-node")).sort();
+    expect(shown).toEqual(["ceo", "cto", "eng"]);
+    expect(document.querySelector('[data-node="cto"]')!.classList.contains("path")).toBe(true);
+    fireEvent.change(screen.getAllByRole("combobox")[0]!, { target: { value: "1" } });
+    expect(screen.getByText("vazio")).toBeTruthy();
+    expect(persist).toHaveBeenLastCalledWith(expect.objectContaining({ maxDepth: 1 }));
+  });
+
+  it("o menu do nó aplica, tira e cria a tag na hora", async () => {
+    const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) =>
+      init?.method === "POST"
+        ? new Response(JSON.stringify({ id: "nova", name: "Infra", color: "gray", archived: false }), { status: 201 })
+        : new Response(null, { status: 204 }),
+    );
+    render(<OrgChart nodes={tagged()} canEdit={false} canTag apiBase="/api/v1/companies/acme" msgs={{ "org.tags.create": "criar tag «{name}»" }} tags={tags} persist={() => {}} fetchImpl={fetchImpl} />);
+    fireEvent.click(document.querySelector('[data-node="qa"] .org-tagbtn')!);
+    const dialog = () => within(screen.getByRole("dialog"));
+    fireEvent.click(dialog().getByRole("checkbox", { name: "Testes" }));
+    await waitFor(() => expect(fetchImpl).toHaveBeenCalledTimes(1));
+    expect(fetchImpl.mock.calls[0]![0]).toBe("/api/v1/companies/acme/personas/qa/tags/test");
+    expect(fetchImpl.mock.calls[0]![1]!.method).toBe("PUT");
+    await waitFor(() => expect(document.querySelectorAll('[data-node="qa"] .org-chip').length).toBe(1));
+
+    await waitFor(() => expect(dialog().getByRole("checkbox", { name: "Testes" })).not.toHaveProperty("disabled", true));
+    fireEvent.click(dialog().getByRole("checkbox", { name: "Testes" }));
+    await waitFor(() => expect(fetchImpl).toHaveBeenCalledTimes(2));
+    expect(fetchImpl.mock.calls[1]![1]!.method).toBe("DELETE");
+
+    await waitFor(() => expect(dialog().getByRole("checkbox", { name: "Testes" })).not.toHaveProperty("disabled", true));
+    fireEvent.change(dialog().getByRole("textbox"), { target: { value: "Infra" } });
+    fireEvent.click(dialog().getByRole("button", { name: "criar tag «Infra»" }));
+    await waitFor(() => expect(fetchImpl).toHaveBeenCalledTimes(3));
+    expect(fetchImpl.mock.calls[2]![0]).toBe("/api/v1/companies/acme/personas/qa/tags");
+    expect(JSON.parse(fetchImpl.mock.calls[2]![1]!.body as string)).toEqual({ name: "Infra" });
+    await waitFor(() => expect(document.querySelectorAll('[data-node="qa"] .org-chip').length).toBe(1));
+  });
+
+  it("viewer não vê o botão de tags", () => {
+    render(<OrgChart nodes={tagged()} canEdit={false} apiBase="" msgs={{}} tags={tags} persist={() => {}} />);
+    expect(document.querySelector(".org-tagbtn")).toBeNull();
+  });
+});
