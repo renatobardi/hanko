@@ -424,6 +424,7 @@ templ PersonaPage(sh Shell, vm PersonaVM) {
 			</section>
 		}
 		@PersonaEnvironmentSlot(vm)
+		@PersonaVarsCard(vm.Vars)
 		@PersonaReadinessSlot(vm.ReadinessHref)
 		@PersonaExtras(vm.Extras)
 		@EffectiveToolsSlot(sh.Base(), vm.Slug)
@@ -475,4 +476,62 @@ func personaErrorText(ctx context.Context, vm PersonaVM) string {
 		msg += " (" + i18n.Tf(ctx, "%d falhas seguidas", vm.Failures) + ")"
 	}
 	return msg + ": " + vm.LastError
+}
+
+// PersonaVarsCard é a seção de variáveis de ambiente: nome e referência, nunca o valor (#117 fatia 3).
+templ PersonaVarsCard(vm PersonaVarsVM) {
+	<section class="card pad mt-6" id="variaveis">
+		<div class="card-head"><div><h2>{ i18n.T(ctx, "Variáveis de ambiente") }</h2><p class="sub">{ i18n.T(ctx, "Chegam ao processo da persona. Cada valor é uma referência a segredo; o valor em si nunca aparece aqui.") }</p></div></div>
+		if len(vm.Rows) == 0 {
+			<p class="muted">{ i18n.T(ctx, "Nenhuma variável.") }</p>
+		} else {
+			<div class="table-wrap">
+				<table class="table">
+					<thead>
+						<tr>
+							<th>{ i18n.T(ctx, "Nome") }</th>
+							<th>{ i18n.T(ctx, "Referência") }</th>
+							<th></th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, r := range vm.Rows {
+							@personaVarRow(r, vm.Admin)
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+		if vm.Admin {
+			<form class="inline-form mt-3" method="post" action={ templ.SafeURL(vm.SetHref) } hx-boost="true">
+				<input class="input mono" name="nome" required maxlength="64" autocomplete="off" spellcheck="false" aria-label={ i18n.T(ctx, "Nome") }/>
+				<input class="input mono" name="referencia" required maxlength="300" autocomplete="off" spellcheck="false" aria-label={ i18n.T(ctx, "Referência") }/>
+				<button class="btn primary sm" type="submit">{ i18n.T(ctx, "Salvar variável") }</button>
+			</form>
+			<p class="hint">{ i18n.T(ctx, "Use ${secret:NOME#campo} ou, para campo arquivo, ${secretfile:NOME#campo}. O segredo precisa existir na empresa.") }</p>
+		} else {
+			@NeedRole(domain.MemberAdmin)
+		}
+	</section>
+}
+
+templ personaVarRow(r PersonaVarRow, admin bool) {
+	<tr class="row">
+		<td><code class="mono">{ r.Name }</code></td>
+		<td>
+			if r.Masked {
+				<span class="badge warn">{ i18n.T(ctx, "valor em claro") }</span> <code class="mono">***</code>
+				<div class="note muted">{ i18n.T(ctx, "Troque por uma referência a segredo, com o mesmo nome, no formulário abaixo.") }</div>
+			} else {
+				<code class="mono">{ r.Ref }</code>
+			}
+		</td>
+		<td>
+			if admin {
+				<form method="post" action={ templ.SafeURL(r.RemoveHref) } hx-boost="true">
+					<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Remover") }</button>
+				</form>
+			}
+		</td>
+	</tr>
 }
