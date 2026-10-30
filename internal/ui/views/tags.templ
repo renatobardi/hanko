@@ -57,17 +57,21 @@ templ personaTagChipList(vm PersonaTagsVM) {
 	} else {
 		<div class="tag-chips">
 			for _, c := range vm.Chips {
-				<span class={ "tag-chip", "tag-c-" + c.Color, templ.KV("archived", c.Archived) } title={ tagChipTitle(ctx, c.TagChip) }>
-					{ c.Name }
-					if vm.CanWrite {
-						<form method="post" action={ templ.SafeURL(c.RemoveHref) }>
-							<button class="x" type="submit" aria-label={ i18n.Tf(ctx, "Tirar a tag %s", c.Name) }>×</button>
-						</form>
-					}
-				</span>
+				@personaTagChip(c, vm.CanWrite)
 			}
 		</div>
 	}
+}
+
+templ personaTagChip(c PersonaTagChip, canWrite bool) {
+	<span class={ "tag-chip", "tag-c-" + c.Color, templ.KV("archived", c.Archived) } title={ tagChipTitle(ctx, c.TagChip) }>
+		{ c.Name }
+		if canWrite {
+			<form method="post" action={ templ.SafeURL(c.RemoveHref) }>
+				<button class="x" type="submit" aria-label={ i18n.Tf(ctx, "Tirar a tag %s", c.Name) }>×</button>
+			</form>
+		}
+	</span>
 }
 
 // tagApplyForm aplica pelo nome; um nome que não existe cria a tag (o hanko.js troca o rótulo do botão).
@@ -98,19 +102,24 @@ templ tagApplyForm(vm PersonaTagsVM) {
 // TagsPage é a aba Tags em Personas: o cadastro da empresa.
 templ TagsPage(sh Shell, vm TagsPageVM) {
 	@Layout(sh) {
-		@PageHead(i18n.T(ctx, "Personas"), vm.Subtitle) {
-			<a class="btn outline" href={ templ.SafeURL(sh.Base() + "/organograma") }>@Icon("network") {
-	" " + i18n.T(ctx, "Organograma") 
-}</a>
-		}
-		@PersonasTabs(sh.Base(), true)
-		if vm.Error != "" {
-			@Alert("danger", vm.Error)
-		}
+		@tagsPageTop(sh, vm)
 		if sh.CanWrite() {
 			@tagCreateCard(vm)
 		}
 		@tagsTable(sh, vm)
+	}
+}
+
+templ tagsPageTop(sh Shell, vm TagsPageVM) {
+	@PageHead(i18n.T(ctx, "Personas"), vm.Subtitle) {
+		<a class="btn outline" href={ templ.SafeURL(sh.Base() + "/organograma") }>
+			@Icon("network")
+			{ i18n.T(ctx, "Organograma") }
+		</a>
+	}
+	@PersonasTabs(sh.Base(), true)
+	if vm.Error != "" {
+		@Alert("danger", vm.Error)
 	}
 }
 
@@ -130,9 +139,13 @@ templ tagCreateCard(vm TagsPageVM) {
 				<label for="t-desc">{ i18n.T(ctx, "Descrição") }</label>
 				<input class="input" id="t-desc" name="description" maxlength="200"/>
 			</div>
-			<div class="form-actions mt-0"><button class="btn primary sm" type="submit">@Icon("plus") {
-	i18n.T(ctx, "Criar tag") 
-}</button></div>
+			<div class="form-actions mt-0">
+				<button class="btn primary sm" type="submit">
+					@Icon("plus") {
+						i18n.T(ctx, "Criar tag") 
+					}
+				</button>
+			</div>
 		</form>
 	</section>
 }
@@ -207,9 +220,13 @@ templ tagEditForm(r TagRow) {
 
 templ tagAdminActions(r TagRow) {
 	if r.ArchiveHref != "" {
-		<form method="post" action={ templ.SafeURL(r.ArchiveHref) }><button class="btn outline sm" type="submit">@Icon("archive") {
-	i18n.T(ctx, "Arquivar") 
-}</button></form>
+		<form method="post" action={ templ.SafeURL(r.ArchiveHref) }>
+			<button class="btn outline sm" type="submit">
+				@Icon("archive") {
+					i18n.T(ctx, "Arquivar") 
+				}
+			</button>
+		</form>
 	} else {
 		<form method="post" action={ templ.SafeURL(r.UnarchiveHref) }><button class="btn outline sm" type="submit">{ i18n.T(ctx, "Desarquivar") }</button></form>
 	}
