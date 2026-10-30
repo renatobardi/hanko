@@ -202,7 +202,7 @@ func TestPersonaTagAplicarEBusca(t *testing.T) {
 	archivedTagRules(t, e, ana, beto, dados)
 }
 
-// archivedTagRules: a tag arquivada não se aplica nem por nome, mas sai da persona; confere os eventos do teste todo.
+// archivedTagRules: a tag arquivada não se aplica nem por nome, mas sai da persona; confere os eventos do teste inteiro.
 func archivedTagRules(t *testing.T, e *env, ana, beto domain.Persona, dados domain.PersonaTag) {
 	t.Helper()
 	ctx := context.Background()
