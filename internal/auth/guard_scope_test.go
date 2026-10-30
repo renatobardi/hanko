@@ -49,6 +49,14 @@ func TestGuardKeyScope(t *testing.T) {
 		{http.MethodGet, "/api/v1/companies", "hk_ingest", 401},
 		{http.MethodPost, "/api/v1/companies", "hk_ingest", 401},
 		{http.MethodPost, "/mcp", "hk_ingest", 401},
+		// agentes e hosts externos: a chave só de leitura não altera nem junta (401 pelo escopo, antes do handler);
+		// a de ingestão não passa em nenhuma rota pública.
+		{http.MethodPatch, "/api/v1/companies/x/external-agents/a", "hk_read", 401},
+		{http.MethodPost, "/api/v1/companies/x/external-agents/a/merge", "hk_read", 401},
+		{http.MethodPatch, "/api/v1/companies/x/external-hosts/h", "hk_read", 401},
+		{http.MethodPost, "/api/v1/companies/x/external-hosts/h/merge", "hk_read", 401},
+		{http.MethodGet, "/api/v1/companies/x/external-agents", "hk_ingest", 401},
+		{http.MethodPatch, "/api/v1/companies/x/external-hosts/h", "hk_ingest", 401},
 	} {
 		if got := do(c.method, c.path, c.key); got != c.want {
 			t.Errorf("%s %s com %s = %d, quer %d", c.method, c.path, c.key, got, c.want)

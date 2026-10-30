@@ -1,19 +1,17 @@
-# Fonte externa e ingestão (#125, fatia 1) · sessão `125-caixa-externa`
+# Fonte externa e ingestão (#125, fatia 1) · sessão `125-entidades-externas`
 Data: 2026-10-30
 
 ## Feito
-- Caixa lista agentes e hosts externos criados nos últimos 30 dias como itens informativos (fora de Count e do selo); lido e arquivado seguem o de todo item (ADR-0075 item 2; ADR-0077).
-- Enum da API de Caixa e OpenAPI ganham `external_agent` e `external_host`.
-- Teste de corrida das sessões com barreira de partida (SHOULD-FIX A do #149).
-- Testes: `TestInboxListsNewExternalAgentsAndHostsAsInformational`, `TestInboxLeavesOutOldExternalAgents`, `TestInboxExternalItemFollowsReadState`. `go test ./...` com Postgres local: 68 pacotes ok. Lint: 0 issues.
+- Agentes e hosts externos: listar, ver, renomear, arquivar ou voltar, sempre ligado (host) e juntar. As oito rotas deixam o 501 (ADR-0075 item 2; ADR-0077 itens 3 e 4).
+- Juntar trava as duas linhas (ordem de id), recusa `into` arquivado (409), preserva o horário de arquivamento do juntado e move sessões, conversas, chamadas do modelo e aprovações. Renomear para apelido de outra entidade dá 409.
+- Testes: serviço (conversa e host movidos, recusa sem efeito, horário preservado, idempotência, outra empresa, junção cruzada concorrente, apelido em conflito) e API (409, 403, 404, 422 e rotas ligadas). Guard: chave `read` barrada em PATCH e merge; chave `ingest` barrada em rotas públicas.
+- Testes da junção: chamada do modelo e aprovação passam ao que fica; conflito de apelido de host (409); evento por junção feita. `go test ./...` com Postgres local: 68 pacotes ok. Lint: 0 issues.
 
 ## Travado
-- Seção visual dos itens na tela da Caixa (views e i18n): próximo PR.
-- Janela de 30 dias é escolha do autor; registrar com o Bardi.
-- Gerador de nome (ADR-0084): as 192 + 192 palavras do Bardi.
-- Caixa "emparelhamento a conferir" (só existe com chave por URL), renomear, arquivar e juntar agente e host (ADR-0075 item 2).
-
-- Auditoria do #151: filtro das visões para agente e host externos (default, não lidos, arquivados), testes de outra empresa, repetição e janela, e barreira do teste de corrida com WaitGroup de pronto. Branch atualizado com a origin/main em bf21f27 (#150).
+- `calls_daily` e `external_outbox_snapshot` não são movidos na junção: issue #153.
+- Troca de workspace de emparelhamento com o passado junto e `repo-pairings` seguem em 501 (ADR-0075 item 5).
+- Alerta `host_no_data` e parada de alertas de host parado (ADR-0077 itens 4 e 5).
+- Janela de 30 dias da Caixa e arquivar com ingestão mantida: decisões do autor, para o Bardi confirmar.
 
 ## Próximo passo
-- Seção da Caixa para agente e host externos novos, com i18n; depois renomear, arquivar e juntar.
+- Issue #153 (somar `calls_daily`, decidir o snapshot); depois o alerta `host_no_data`.
