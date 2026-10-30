@@ -125,25 +125,34 @@ func (s *Service) ResolveIngestKey(ctx context.Context, token string) (ingest.Ke
 // WriteTelemetry grava um lote de telemetria bruta numa transação só (ingest.Writer). Cada tabela recebe o lote por COPY
 // numa tabela temporária e depois por INSERT ... ON CONFLICT DO NOTHING: um fato repetido não duplica nada, nem dentro do
 // mesmo lote (pesquisa da #68, §4). O fato sem hora (hora = chegada) tem a chave conferida em todas as partições. O handler responde 2xx só depois do commit.
+// WriteTelemetry grava o lote bruto e, na mesma transação, liga cada fato às entidades da empresa (agente, host e
+// emparelhamento). Empresa arquivada recebe o bruto e não recebe derivação: as entidades são escrita de domínio, e o
+// ADR-0057 deixa a empresa arquivada só de leitura.
 func (s *Service) WriteTelemetry(ctx context.Context, key ingest.Key, b ingest.Batch) error {
-	tx, err := s.Pool.BeginTx(ctx, pgx.TxOptions{})
-	if err != nil {
-		return fmt.Errorf("ingest: iniciar transação: %w", err)
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-	if err := copyTelemetry(ctx, tx, "telemetry_spans", ingest.SpanColumns, b.Spans, func(r ingest.SpanRow) []any { return r.Values(key) }); err != nil {
-		return err
-	}
-	if err := copyTelemetry(ctx, tx, "telemetry_logs", ingest.LogColumns, b.Logs, func(r ingest.LogRow) []any { return r.Values(key) }); err != nil {
-		return err
-	}
-	if err := copyTelemetry(ctx, tx, "telemetry_metrics", ingest.MetricColumns, b.Metrics, func(r ingest.MetricRow) []any { return r.Values(key) }); err != nil {
-		return err
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("ingest: commit: %w", err)
-	}
-	return nil
+	companyID := key.CompanyID
+	return s.withTx(ctx, func(t *txc) error {
+		if err := copyTelemetry(ctx, t.tx, "telemetry_spans", ingest.SpanColumns, b.Spans, func(r ingest.SpanRow) []any { return r.Values(key) }); err != nil {
+			return err
+		}
+		if err := copyTelemetry(ctx, t.tx, "telemetry_logs", ingest.LogColumns, b.Logs, func(r ingest.LogRow) []any { return r.Values(key) }); err != nil {
+			return err
+		}
+		if err := copyTelemetry(ctx, t.tx, "telemetry_metrics", ingest.MetricColumns, b.Metrics, func(r ingest.MetricRow) []any { return r.Values(key) }); err != nil {
+			return err
+		}
+		d := collectDerived(b)
+		if len(d.agents) == 0 && len(d.hosts) == 0 && len(d.repos) == 0 && !d.noRepo {
+			return nil
+		}
+		archived, err := t.q.IsCompanyArchived(ctx, companyID)
+		if err != nil {
+			return fmt.Errorf("ingest: ver se a empresa está arquivada: %w", err)
+		}
+		if archived {
+			return nil
+		}
+		return deriveFromBatch(t, companyID, d)
+	})
 }
 
 func copyTelemetry[T any](ctx context.Context, tx pgx.Tx, table string, cols []string, rows []T, values func(T) []any) error {
