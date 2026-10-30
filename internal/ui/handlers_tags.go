@@ -120,7 +120,9 @@ func (s *server) tagFormFail(w http.ResponseWriter, r *http.Request, co domain.C
 }
 
 // personaPagePath é a ficha da persona.
-func personaPagePath(co domain.Company, p domain.Persona) string { return "/c/" + co.Slug + "/personas/" + p.Slug }
+func personaPagePath(co domain.Company, p domain.Persona) string {
+	return "/c/" + co.Slug + "/personas/" + p.Slug
+}
 
 func tagsRedirect(w http.ResponseWriter, r *http.Request, co domain.Company, ok string) {
 	redirect(w, r, "/c/"+co.Slug+"/personas/tags?ok="+url.QueryEscape(ok))
