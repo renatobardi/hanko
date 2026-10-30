@@ -195,3 +195,77 @@ func TestApagarCampoPedeProvaDeIdentidade(t *testing.T) {
 	wantStatus(t, rec, http.StatusSeeOther) // modo confiável: sem sessão, a senha não é provada e o pedido segue
 	wantNotContains(t, rec, senhaConta)
 }
+
+// Troca do arquivo de um campo pela tela (#117): o formulário do campo arquivo manda o envio novo para o service; a
+// resposta é o aviso, nunca o conteúdo, e um erro do service não redireciona.
+
+const conteudoArquivoNovo = "SENTINELA-kubeconfig-novo-7c1e"
+
+// postTroca manda o envio de troca de um campo arquivo, como o navegador manda: multipart com o campo "arquivo".
+func postTroca(t *testing.T, e *env, field string, file []byte) *httptest.ResponseRecorder {
+	t.Helper()
+	var body bytes.Buffer
+	mw := multipart.NewWriter(&body)
+	fw, err := mw.CreateFormFile("arquivo", nomeArquivoCampo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fw.Write(file); err != nil {
+		t.Fatal(err)
+	}
+	if err := mw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	rq := httptest.NewRequest(http.MethodPost, camposPage+"/"+field+"/arquivo", &body)
+	rq.Header.Set("Content-Type", mw.FormDataContentType())
+	rq.Header.Set("Sec-Fetch-Site", "same-origin")
+	rec := httptest.NewRecorder()
+	e.h.ServeHTTP(rec, rq)
+	return rec
+}
+
+func TestCampoArquivoTemTrocaNaTelaSemOTextoAntigo(t *testing.T) {
+	e, cf := newCofreEnv(t, domain.MemberAdmin)
+	cf.fileField = true
+	rec := e.get(t, camposPage)
+	wantStatus(t, rec, http.StatusOK)
+	wantContains(t, rec, "/campos/kubeconfig/arquivo", `name="arquivo"`, "Trocar arquivo", "Apagar campo")
+	wantNotContains(t, rec, "não se troca")
+}
+
+func TestTrocaArquivoChegaAoServiceESemVoltarAPagina(t *testing.T) {
+	e, cf := newCofreEnv(t, domain.MemberAdmin)
+	cf.fileField = true
+	rec := postTroca(t, e, "kubeconfig", []byte(conteudoArquivoNovo))
+	wantStatus(t, rec, http.StatusSeeOther)
+	if len(cf.replaced) != 1 {
+		t.Fatalf("trocas no backend = %d, quer 1", len(cf.replaced))
+	}
+	in := cf.replaced[0]
+	if string(in.File) != conteudoArquivoNovo || in.FileName != nomeArquivoCampo {
+		t.Fatalf("troca = %d bytes, nome %q", len(in.File), in.FileName)
+	}
+	loc := rec.Header().Get("Location")
+	if !strings.Contains(loc, "ok=arquivo") {
+		t.Fatalf("Location = %q", loc)
+	}
+	wantNotContains(t, rec, conteudoArquivoNovo)
+	if strings.Contains(loc, conteudoArquivoNovo) {
+		t.Fatalf("o conteúdo foi para a URL: %q", loc)
+	}
+	page := e.get(t, camposPage+"?ok=arquivo")
+	wantContains(t, page, "Arquivo do campo trocado")
+	wantNotContains(t, page, conteudoArquivoNovo)
+}
+
+func TestTrocaArquivoRecusadaPeloServiceNaoRedireciona(t *testing.T) {
+	e, cf := newCofreEnv(t, domain.MemberAdmin)
+	cf.fileField = true
+	cf.replaceErr = domain.Invalid("file", "o arquivo tem de ter de 1 byte a 1 MiB")
+	rec := postTroca(t, e, "kubeconfig", []byte(conteudoArquivoNovo))
+	wantStatus(t, rec, http.StatusUnprocessableEntity)
+	if rec.Header().Get("Location") != "" {
+		t.Fatalf("recusa redirecionou para %q", rec.Header().Get("Location"))
+	}
+	wantNotContains(t, rec, conteudoArquivoNovo)
+}

@@ -80,24 +80,14 @@ func (s *Service) createFileField(t *txc, companyID domain.ID, sec store.Secret,
 	if in.Value != "" || in.Generate || in.ExternalRef != "" || providerOf(in.SecretFieldValueInput) != domain.SecretProviderLocal {
 		return store.SecretField{}, domain.Invalid("value", "campo arquivo recebe o conteúdo em file, sem valor de texto nem provider externo")
 	}
+	fileName, contentType, err := checkFileContent(in.File, in.FileName, in.ContentType)
+	if err != nil {
+		return store.SecretField{}, err
+	}
+	if err := s.requireSecretBox(); err != nil {
+		return store.SecretField{}, err
+	}
 	size := len(in.File)
-	if size == 0 || size > domain.MaxSecretFieldFileBytes {
-		return store.SecretField{}, domain.Invalid("file", fmt.Sprintf("o arquivo tem de ter de 1 byte a %d bytes (1 MiB)", domain.MaxSecretFieldFileBytes))
-	}
-	fileName := strings.TrimSpace(in.FileName)
-	if fileName == "" || len(fileName) > 255 {
-		return store.SecretField{}, domain.Invalid("file_name", "nome do arquivo: de 1 a 255 caracteres")
-	}
-	contentType := strings.TrimSpace(in.ContentType)
-	if contentType == "" {
-		contentType = "application/octet-stream"
-	}
-	if len(contentType) > 255 {
-		return store.SecretField{}, domain.Invalid("content_type", "tipo do conteúdo: até 255 caracteres")
-	}
-	if !s.secretBox().Enabled() {
-		return store.SecretField{}, domain.Invalid("secrets", "HANKO_SECRET_KEY não está configurada neste servidor; sem ela não há como guardar segredos")
-	}
 	sealed, err := s.secretBox().Seal(in.File, fieldAAD(sec.ID, id))
 	if err != nil {
 		return store.SecretField{}, fmt.Errorf("cifrar arquivo: %w", err)
@@ -114,6 +104,107 @@ func (s *Service) createFileField(t *txc, companyID domain.ID, sec store.Secret,
 		return store.SecretField{}, err
 	}
 	return row, nil
+}
+
+// checkFileContent confere o conteúdo de um campo arquivo: de 1 byte a 1 MiB, nome de 1 a 255 caracteres e tipo de até
+// 255 (vazio vira application/octet-stream). Devolve o nome e o tipo já aparados.
+func checkFileContent(file []byte, fileName, contentType string) (string, string, error) {
+	if size := len(file); size == 0 || size > domain.MaxSecretFieldFileBytes {
+		return "", "", domain.Invalid("file", fmt.Sprintf("o arquivo tem de ter de 1 byte a %d bytes (1 MiB)", domain.MaxSecretFieldFileBytes))
+	}
+	name := strings.TrimSpace(fileName)
+	if name == "" || len(name) > 255 {
+		return "", "", domain.Invalid("file_name", "nome do arquivo: de 1 a 255 caracteres")
+	}
+	ct := strings.TrimSpace(contentType)
+	if ct == "" {
+		ct = "application/octet-stream"
+	}
+	if len(ct) > 255 {
+		return "", "", domain.Invalid("content_type", "tipo do conteúdo: até 255 caracteres")
+	}
+	return name, ct, nil
+}
+
+// requireSecretBox recusa guardar um arquivo de campo sem a chave de cifragem do servidor.
+func (s *Service) requireSecretBox() error {
+	if !s.secretBox().Enabled() {
+		return domain.Invalid("secrets", "HANKO_SECRET_KEY não está configurada neste servidor; sem ela não há como guardar segredos")
+	}
+	return nil
+}
+
+// ReplaceFieldFileInput é o arquivo novo de um campo arquivo, com as mesmas regras de CreateSecretFieldInput.
+type ReplaceFieldFileInput struct {
+	File        []byte
+	FileName    string
+	ContentType string
+}
+
+// ReplaceSecretFieldFile troca o conteúdo de um campo arquivo pelo arquivo novo (#117). O campo mantém o nome, o id e a
+// marca de visibilidade. O conteúdo anterior é sobrescrito e não vai para o histórico: o histórico de campo arquivo não
+// guarda o arquivo de versões anteriores. Troca, metadados e evento secret.field_updated (sem conteúdo) são da mesma
+// transação; num driver fora da transação, o arquivo é gravado antes do commit e a falha do commit não o desfaz.
+func (s *Service) ReplaceSecretFieldFile(ctx context.Context, actor domain.Actor, companyID domain.ID, scope domain.SecretScope, secretName, fieldName string, in ReplaceFieldFileInput) (SecretFieldView, error) {
+	owner, err := s.secretCaller(ctx, actor, companyID, scope, false)
+	if err != nil {
+		return SecretFieldView{}, err
+	}
+	fileName, contentType, err := checkFileContent(in.File, in.FileName, in.ContentType)
+	if err != nil {
+		return SecretFieldView{}, err
+	}
+	if err := s.requireSecretBox(); err != nil {
+		return SecretFieldView{}, err
+	}
+	var out SecretFieldView
+	err = s.withTx(ctx, func(t *txc) error {
+		sec, f, err := s.lockField(t, companyID, scope, owner, secretName, fieldName)
+		if err != nil {
+			return err
+		}
+		if err := s.requireFieldWriter(ctx, t.q, actor, companyID, sec); err != nil {
+			return err
+		}
+		if f.Kind != string(domain.SecretFieldFile) {
+			return domain.Invalid("kind", "só campo arquivo recebe arquivo novo; campo de texto troca pelo valor")
+		}
+		sealed, err := s.secretBox().Seal(in.File, fieldAAD(sec.ID, f.ID))
+		if err != nil {
+			return fmt.Errorf("cifrar arquivo: %w", err)
+		}
+		row, err := t.q.ReplaceSecretFieldFile(t.ctx, store.ReplaceSecretFieldFileParams{ID: f.ID, CompanyID: companyID,
+			FileName: fileName, ContentType: contentType, SizeBytes: int32(len(in.File)), Now: t.now})
+		if err != nil {
+			return mapErr(err, "replace secret field file")
+		}
+		if err := s.replaceFieldBlob(t, companyID, f.ID, []byte(sealed)); err != nil {
+			return err
+		}
+		out = SecretFieldView{SecretField: secretFieldFromRow(row)}
+		return t.activity(actor, companyID, "secret.field_updated", "secret", sec.ID, fieldEventData(row), "")
+	})
+	return out, err
+}
+
+// replaceFieldBlob sobrescreve o texto cifrado de um campo arquivo na transação da troca. Ao contrário de putFieldBlob,
+// não apaga nada no rollback: o conteúdo anterior foi sobrescrito, então um driver fora da transação não o recupera.
+func (s *Service) replaceFieldBlob(t *txc, companyID, fieldID domain.ID, sealed []byte) error {
+	drv := s.blobs().Active()
+	if drv.Name() == storage.DriverPostgres {
+		if err := t.q.SetSecretFieldBlob(t.ctx, store.SetSecretFieldBlobParams{FieldID: fieldID, Content: sealed}); err != nil {
+			return mapErr(err, "set secret field blob")
+		}
+		return nil
+	}
+	ctx := t.ctx
+	if drv.Transactional() {
+		ctx = storage.WithTx(t.ctx, t.q)
+	}
+	if err := drv.Put(ctx, fieldBlobKey(companyID, fieldID), sealed, "application/octet-stream"); err != nil {
+		return fmt.Errorf("gravar arquivo do campo: %w", err)
+	}
+	return nil
 }
 
 // readFieldBlob devolve o texto cifrado de um campo arquivo; quem chama decifra. O conteúdo vive no lugar do driver

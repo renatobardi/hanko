@@ -7,6 +7,7 @@ package store
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -100,4 +101,60 @@ func (q *Queries) ListUserSecretFileFields(ctx context.Context, arg ListUserSecr
 		return nil, err
 	}
 	return items, nil
+}
+
+const replaceSecretFieldFile = `-- name: ReplaceSecretFieldFile :one
+UPDATE secret_fields SET file_name = $1, content_type = $2, size_bytes = $3,
+       rotated_at = $4, updated_at = $4
+WHERE id = $5 AND company_id = $6 AND kind = 'file'
+RETURNING id, company_id, secret_id, name, kind, sensitive, provider, value_enc, external_ref, blob_key, file_name, content_type, size_bytes, value_hmac, aad_version, position, version, revealed_at, last_used_at, rotated_at, created_at, updated_at, password
+`
+
+type ReplaceSecretFieldFileParams struct {
+	FileName    string
+	ContentType string
+	SizeBytes   int32
+	Now         time.Time
+	ID          uuid.UUID
+	CompanyID   uuid.UUID
+}
+
+// Troca o conteúdo de um campo arquivo: metadados novos e data da troca. Não sobe a versão nem arquiva a anterior
+// (o histórico não guarda o conteúdo de versões de arquivo); quem chama já regravou o blob na mesma transação.
+func (q *Queries) ReplaceSecretFieldFile(ctx context.Context, arg ReplaceSecretFieldFileParams) (SecretField, error) {
+	row := q.db.QueryRow(ctx, replaceSecretFieldFile,
+		arg.FileName,
+		arg.ContentType,
+		arg.SizeBytes,
+		arg.Now,
+		arg.ID,
+		arg.CompanyID,
+	)
+	var i SecretField
+	err := row.Scan(
+		&i.ID,
+		&i.CompanyID,
+		&i.SecretID,
+		&i.Name,
+		&i.Kind,
+		&i.Sensitive,
+		&i.Provider,
+		&i.ValueEnc,
+		&i.ExternalRef,
+		&i.BlobKey,
+		&i.FileName,
+		&i.ContentType,
+		&i.SizeBytes,
+		&i.ValueHmac,
+		&i.AadVersion,
+		&i.Position,
+		&i.Version,
+		&i.RevealedAt,
+		&i.LastUsedAt,
+		&i.RotatedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Password,
+	)
+	return i, err
 }

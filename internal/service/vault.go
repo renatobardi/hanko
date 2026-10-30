@@ -196,11 +196,11 @@ func (s *Service) identityUserID(ctx context.Context) (*uuid.UUID, bool) {
 }
 
 // prepareFieldMaterial valida o material de um campo texto ou totp e cifra com o AAD do campo (aad_version 1). Campo
-// arquivo não passa por aqui: a criação grava o conteúdo com createFileField, e a troca de conteúdo não existe (o
-// campo se apaga e se cria de novo).
+// arquivo não passa por aqui: a criação grava o conteúdo com createFileField, e a troca do arquivo com
+// ReplaceSecretFieldFile.
 func (s *Service) prepareFieldMaterial(secretID, fieldID uuid.UUID, in SecretFieldValueInput, kind domain.SecretFieldKind) (secretMaterial, error) {
 	if kind == domain.SecretFieldFile {
-		return secretMaterial{}, domain.Invalid("kind", "campo arquivo não se troca: apague o campo e crie outro com o arquivo novo")
+		return secretMaterial{}, domain.Invalid("kind", "campo arquivo não recebe valor de texto: troque o arquivo pela tela ou apague o campo e crie outro")
 	}
 	if providerOf(in) == domain.SecretProviderVault && kind == domain.SecretFieldTOTP {
 		return secretMaterial{}, domain.Invalid("provider", "semente TOTP é guardada cifrada no Hanko (provider local)")

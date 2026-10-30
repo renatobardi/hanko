@@ -18,3 +18,11 @@ WHERE s.company_id = @company_id AND s.scope = 'user' AND s.owner_user_id = @own
 -- name: DeleteSecretFieldBlob :exec
 -- Apaga a linha do conteúdo cifrado de um campo arquivo (driver postgres), depois de copiada para outro driver.
 DELETE FROM secret_field_blobs WHERE field_id = @field_id;
+
+-- name: ReplaceSecretFieldFile :one
+-- Troca o conteúdo de um campo arquivo: metadados novos e data da troca. Não sobe a versão nem arquiva a anterior
+-- (o histórico não guarda o conteúdo de versões de arquivo); quem chama já regravou o blob na mesma transação.
+UPDATE secret_fields SET file_name = @file_name, content_type = @content_type, size_bytes = @size_bytes,
+       rotated_at = @now, updated_at = @now
+WHERE id = @id AND company_id = @company_id AND kind = 'file'
+RETURNING *;
