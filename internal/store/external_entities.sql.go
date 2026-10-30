@@ -45,6 +45,48 @@ func (q *Queries) ArchiveMergedExternalHost(ctx context.Context, arg ArchiveMerg
 	return err
 }
 
+const deleteCallsDailyOfAgent = `-- name: DeleteCallsDailyOfAgent :exec
+DELETE FROM calls_daily WHERE company_id = $1 AND agent_id = $2
+`
+
+type DeleteCallsDailyOfAgentParams struct {
+	CompanyID uuid.UUID
+	AgentID   uuid.UUID
+}
+
+func (q *Queries) DeleteCallsDailyOfAgent(ctx context.Context, arg DeleteCallsDailyOfAgentParams) error {
+	_, err := q.db.Exec(ctx, deleteCallsDailyOfAgent, arg.CompanyID, arg.AgentID)
+	return err
+}
+
+const deleteCallsDailyOfHost = `-- name: DeleteCallsDailyOfHost :exec
+DELETE FROM calls_daily WHERE company_id = $1 AND host_id = $2
+`
+
+type DeleteCallsDailyOfHostParams struct {
+	CompanyID uuid.UUID
+	HostID    uuid.UUID
+}
+
+func (q *Queries) DeleteCallsDailyOfHost(ctx context.Context, arg DeleteCallsDailyOfHostParams) error {
+	_, err := q.db.Exec(ctx, deleteCallsDailyOfHost, arg.CompanyID, arg.HostID)
+	return err
+}
+
+const deleteOutboxSnapshotOfHost = `-- name: DeleteOutboxSnapshotOfHost :exec
+DELETE FROM external_outbox_snapshot WHERE company_id = $1 AND host_id = $2
+`
+
+type DeleteOutboxSnapshotOfHostParams struct {
+	CompanyID uuid.UUID
+	HostID    uuid.UUID
+}
+
+func (q *Queries) DeleteOutboxSnapshotOfHost(ctx context.Context, arg DeleteOutboxSnapshotOfHostParams) error {
+	_, err := q.db.Exec(ctx, deleteOutboxSnapshotOfHost, arg.CompanyID, arg.HostID)
+	return err
+}
+
 const getExternalAgentView = `-- name: GetExternalAgentView :one
 SELECT a.id, a.name, a.archived_at, a.created_at, a.updated_at,
        COALESCE(array_agg(al.alias ORDER BY al.alias) FILTER (WHERE al.alias IS NOT NULL), '{}')::text[] AS aliases
@@ -291,6 +333,66 @@ func (q *Queries) LockExternalHost(ctx context.Context, arg LockExternalHostPara
 	return i, err
 }
 
+const mergeCallsDailyAgent = `-- name: MergeCallsDailyAgent :exec
+INSERT INTO calls_daily (company_id, day, host_id, agent_id, workspace_id, model, subscription_key, calls, errors,
+    input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, cost_real_usd, cost_list_usd, unpriced_calls)
+SELECT company_id, day, host_id, $1, workspace_id, model, subscription_key, calls, errors,
+    input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, cost_real_usd, cost_list_usd, unpriced_calls
+FROM calls_daily WHERE calls_daily.company_id = $2 AND calls_daily.agent_id = $3
+ON CONFLICT (company_id, day, host_id, agent_id, workspace_id, model, subscription_key) DO UPDATE SET
+    calls = calls_daily.calls + EXCLUDED.calls,
+    errors = calls_daily.errors + EXCLUDED.errors,
+    input_tokens = calls_daily.input_tokens + EXCLUDED.input_tokens,
+    output_tokens = calls_daily.output_tokens + EXCLUDED.output_tokens,
+    cache_read_tokens = calls_daily.cache_read_tokens + EXCLUDED.cache_read_tokens,
+    cache_creation_tokens = calls_daily.cache_creation_tokens + EXCLUDED.cache_creation_tokens,
+    cost_real_usd = calls_daily.cost_real_usd + EXCLUDED.cost_real_usd,
+    cost_list_usd = calls_daily.cost_list_usd + EXCLUDED.cost_list_usd,
+    unpriced_calls = calls_daily.unpriced_calls + EXCLUDED.unpriced_calls
+`
+
+type MergeCallsDailyAgentParams struct {
+	ToID      uuid.UUID
+	CompanyID uuid.UUID
+	FromID    uuid.UUID
+}
+
+// Agregado diário (#153): juntar agente soma as linhas do agente juntado nas do que fica. Quando o que fica já tem a
+// mesma chave (dia, host, workspace, modelo, assinatura), os contadores somam; a linha do juntado sai depois.
+func (q *Queries) MergeCallsDailyAgent(ctx context.Context, arg MergeCallsDailyAgentParams) error {
+	_, err := q.db.Exec(ctx, mergeCallsDailyAgent, arg.ToID, arg.CompanyID, arg.FromID)
+	return err
+}
+
+const mergeCallsDailyHost = `-- name: MergeCallsDailyHost :exec
+INSERT INTO calls_daily (company_id, day, host_id, agent_id, workspace_id, model, subscription_key, calls, errors,
+    input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, cost_real_usd, cost_list_usd, unpriced_calls)
+SELECT company_id, day, $1, agent_id, workspace_id, model, subscription_key, calls, errors,
+    input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, cost_real_usd, cost_list_usd, unpriced_calls
+FROM calls_daily WHERE calls_daily.company_id = $2 AND calls_daily.host_id = $3
+ON CONFLICT (company_id, day, host_id, agent_id, workspace_id, model, subscription_key) DO UPDATE SET
+    calls = calls_daily.calls + EXCLUDED.calls,
+    errors = calls_daily.errors + EXCLUDED.errors,
+    input_tokens = calls_daily.input_tokens + EXCLUDED.input_tokens,
+    output_tokens = calls_daily.output_tokens + EXCLUDED.output_tokens,
+    cache_read_tokens = calls_daily.cache_read_tokens + EXCLUDED.cache_read_tokens,
+    cache_creation_tokens = calls_daily.cache_creation_tokens + EXCLUDED.cache_creation_tokens,
+    cost_real_usd = calls_daily.cost_real_usd + EXCLUDED.cost_real_usd,
+    cost_list_usd = calls_daily.cost_list_usd + EXCLUDED.cost_list_usd,
+    unpriced_calls = calls_daily.unpriced_calls + EXCLUDED.unpriced_calls
+`
+
+type MergeCallsDailyHostParams struct {
+	ToID      uuid.UUID
+	CompanyID uuid.UUID
+	FromID    uuid.UUID
+}
+
+func (q *Queries) MergeCallsDailyHost(ctx context.Context, arg MergeCallsDailyHostParams) error {
+	_, err := q.db.Exec(ctx, mergeCallsDailyHost, arg.ToID, arg.CompanyID, arg.FromID)
+	return err
+}
+
 const mergeExternalHostFacts = `-- name: MergeExternalHostFacts :exec
 UPDATE external_host SET
   always_on = always_on OR $1::bool,
@@ -316,6 +418,30 @@ func (q *Queries) MergeExternalHostFacts(ctx context.Context, arg MergeExternalH
 		arg.CompanyID,
 		arg.ID,
 	)
+	return err
+}
+
+const mergeOutboxSnapshotHost = `-- name: MergeOutboxSnapshotHost :exec
+INSERT INTO external_outbox_snapshot (host_id, company_id, snapshot_at, canal_ids, received_at)
+SELECT $1, company_id, snapshot_at, canal_ids, received_at
+FROM external_outbox_snapshot WHERE external_outbox_snapshot.company_id = $2 AND external_outbox_snapshot.host_id = $3
+ON CONFLICT (host_id) DO UPDATE SET
+    snapshot_at = EXCLUDED.snapshot_at,
+    canal_ids = EXCLUDED.canal_ids,
+    received_at = EXCLUDED.received_at
+WHERE external_outbox_snapshot.snapshot_at < EXCLUDED.snapshot_at
+`
+
+type MergeOutboxSnapshotHostParams struct {
+	ToID      uuid.UUID
+	CompanyID uuid.UUID
+	FromID    uuid.UUID
+}
+
+// Lista da outbox do host (ADR-0081 item 5; #153): a de hora mais nova vence. Na junção, a lista do juntado só entra se
+// for mais nova; em empate, fica a do que fica.
+func (q *Queries) MergeOutboxSnapshotHost(ctx context.Context, arg MergeOutboxSnapshotHostParams) error {
+	_, err := q.db.Exec(ctx, mergeOutboxSnapshotHost, arg.ToID, arg.CompanyID, arg.FromID)
 	return err
 }
 

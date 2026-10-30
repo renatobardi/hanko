@@ -114,3 +114,60 @@ UPDATE external_approval SET agent_id = @to_id WHERE company_id = @company_id AN
 
 -- name: MoveExternalApprovalsHost :exec
 UPDATE external_approval SET host_id = @to_id WHERE company_id = @company_id AND host_id = @from_id;
+
+-- Agregado diário (#153): juntar agente soma as linhas do agente juntado nas do que fica. Quando o que fica já tem a
+-- mesma chave (dia, host, workspace, modelo, assinatura), os contadores somam; a linha do juntado sai depois.
+-- name: MergeCallsDailyAgent :exec
+INSERT INTO calls_daily (company_id, day, host_id, agent_id, workspace_id, model, subscription_key, calls, errors,
+    input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, cost_real_usd, cost_list_usd, unpriced_calls)
+SELECT company_id, day, host_id, @to_id, workspace_id, model, subscription_key, calls, errors,
+    input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, cost_real_usd, cost_list_usd, unpriced_calls
+FROM calls_daily WHERE calls_daily.company_id = @company_id AND calls_daily.agent_id = @from_id
+ON CONFLICT (company_id, day, host_id, agent_id, workspace_id, model, subscription_key) DO UPDATE SET
+    calls = calls_daily.calls + EXCLUDED.calls,
+    errors = calls_daily.errors + EXCLUDED.errors,
+    input_tokens = calls_daily.input_tokens + EXCLUDED.input_tokens,
+    output_tokens = calls_daily.output_tokens + EXCLUDED.output_tokens,
+    cache_read_tokens = calls_daily.cache_read_tokens + EXCLUDED.cache_read_tokens,
+    cache_creation_tokens = calls_daily.cache_creation_tokens + EXCLUDED.cache_creation_tokens,
+    cost_real_usd = calls_daily.cost_real_usd + EXCLUDED.cost_real_usd,
+    cost_list_usd = calls_daily.cost_list_usd + EXCLUDED.cost_list_usd,
+    unpriced_calls = calls_daily.unpriced_calls + EXCLUDED.unpriced_calls;
+
+-- name: DeleteCallsDailyOfAgent :exec
+DELETE FROM calls_daily WHERE company_id = @company_id AND agent_id = @agent_id;
+
+-- name: MergeCallsDailyHost :exec
+INSERT INTO calls_daily (company_id, day, host_id, agent_id, workspace_id, model, subscription_key, calls, errors,
+    input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, cost_real_usd, cost_list_usd, unpriced_calls)
+SELECT company_id, day, @to_id, agent_id, workspace_id, model, subscription_key, calls, errors,
+    input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, cost_real_usd, cost_list_usd, unpriced_calls
+FROM calls_daily WHERE calls_daily.company_id = @company_id AND calls_daily.host_id = @from_id
+ON CONFLICT (company_id, day, host_id, agent_id, workspace_id, model, subscription_key) DO UPDATE SET
+    calls = calls_daily.calls + EXCLUDED.calls,
+    errors = calls_daily.errors + EXCLUDED.errors,
+    input_tokens = calls_daily.input_tokens + EXCLUDED.input_tokens,
+    output_tokens = calls_daily.output_tokens + EXCLUDED.output_tokens,
+    cache_read_tokens = calls_daily.cache_read_tokens + EXCLUDED.cache_read_tokens,
+    cache_creation_tokens = calls_daily.cache_creation_tokens + EXCLUDED.cache_creation_tokens,
+    cost_real_usd = calls_daily.cost_real_usd + EXCLUDED.cost_real_usd,
+    cost_list_usd = calls_daily.cost_list_usd + EXCLUDED.cost_list_usd,
+    unpriced_calls = calls_daily.unpriced_calls + EXCLUDED.unpriced_calls;
+
+-- name: DeleteCallsDailyOfHost :exec
+DELETE FROM calls_daily WHERE company_id = @company_id AND host_id = @host_id;
+
+-- Lista da outbox do host (ADR-0081 item 5; #153): a de hora mais nova vence. Na junção, a lista do juntado só entra se
+-- for mais nova; em empate, fica a do que fica.
+-- name: MergeOutboxSnapshotHost :exec
+INSERT INTO external_outbox_snapshot (host_id, company_id, snapshot_at, canal_ids, received_at)
+SELECT @to_id, company_id, snapshot_at, canal_ids, received_at
+FROM external_outbox_snapshot WHERE external_outbox_snapshot.company_id = @company_id AND external_outbox_snapshot.host_id = @from_id
+ON CONFLICT (host_id) DO UPDATE SET
+    snapshot_at = EXCLUDED.snapshot_at,
+    canal_ids = EXCLUDED.canal_ids,
+    received_at = EXCLUDED.received_at
+WHERE external_outbox_snapshot.snapshot_at < EXCLUDED.snapshot_at;
+
+-- name: DeleteOutboxSnapshotOfHost :exec
+DELETE FROM external_outbox_snapshot WHERE company_id = @company_id AND host_id = @host_id;
