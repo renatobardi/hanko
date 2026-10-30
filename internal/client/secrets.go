@@ -113,3 +113,25 @@ func (c *Client) InstanceSettingsAudit(ctx context.Context, limit int) ([]api.In
 func (c *Client) BlobStatus(ctx context.Context) (api.BlobStatus, error) {
 	return get[api.BlobStatus](ctx, c, http.MethodGet, "/instance/blobs", nil)
 }
+
+// CreateDelegationReq delega um segredo pessoal a uma task, conversa ou run sua. ExpiresInSeconds zero vale 24 h.
+type CreateDelegationReq struct {
+	TargetType       string `json:"target_type"`
+	TargetID         string `json:"target_id"`
+	ExpiresInSeconds int    `json:"expires_in_seconds,omitempty"`
+}
+
+// DelegateSecret delega o segredo pessoal `name` ao alvo.
+func (c *Client) DelegateSecret(ctx context.Context, company, name string, req CreateDelegationReq) (api.SecretDelegation, error) {
+	return get[api.SecretDelegation](ctx, c, http.MethodPost, secretPath(company, true)+"/"+url.PathEscape(name)+"/delegations", req)
+}
+
+// ListMyDelegations lista as delegações do usuário (só as dele).
+func (c *Client) ListMyDelegations(ctx context.Context, company string) ([]api.SecretDelegation, error) {
+	return list[api.SecretDelegation](ctx, c, cp(company)+"/me/delegations", nil)
+}
+
+// RevokeDelegation revoga uma delegação do usuário; a run deixa de resolver o segredo.
+func (c *Client) RevokeDelegation(ctx context.Context, company, id string) error {
+	return c.do(ctx, http.MethodDelete, cp(company)+"/me/delegations/"+url.PathEscape(id), nil, nil, nil)
+}

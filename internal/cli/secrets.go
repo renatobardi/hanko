@@ -274,7 +274,7 @@ func (e *env) secretCmd() *cobra.Command {
 	}
 
 	c.AddCommand(create, ls, show, rotate, reveal, rm, migrate, rekey, e.secretFieldCmd(&user), e.secretCollectionCmd(),
-		e.importEnvCmd(), e.exportVaultCmd(), e.importVaultCmd())
+		e.secretDelegationCmd(), e.importEnvCmd(), e.exportVaultCmd(), e.importVaultCmd())
 	return c
 }
 

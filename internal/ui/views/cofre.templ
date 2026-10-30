@@ -147,7 +147,81 @@ templ SecretFieldsPage(sh Shell, vm SecretFieldsVM) {
 		} else {
 			@NeedRole(domain.MemberAdmin)
 		}
+		if vm.User && vm.CanWrite {
+			@delegationSection(vm)
+		}
 	}
+}
+
+// delegationSection lista e cria as delegações deste segredo pessoal (ADR-0068 §6). Mostra alvo, prazo e estado; o
+// valor do segredo nunca entra aqui.
+templ delegationSection(vm SecretFieldsVM) {
+	<h2 class="side-h sec-h">{ i18n.T(ctx, "Delegações deste segredo") }</h2>
+	<p class="muted text-sm mb-3">{ i18n.T(ctx, "Vale pelo prazo escolhido (padrão 24 h, máximo 7 dias) ou até ser revogada. Só o trabalho que você pediu pode recebê-la; a run usa o segredo sem mostrar o valor.") }</p>
+	if len(vm.Delegations) == 0 {
+		<p class="muted mb-3">{ i18n.T(ctx, "Nenhuma delegação deste segredo.") }</p>
+	} else {
+		<div class="table-wrap mb-6">
+			<table class="table">
+				<thead>
+					<tr>
+						<th>{ i18n.T(ctx, "Alvo") }</th>
+						<th>{ i18n.T(ctx, "Expira em") }</th>
+						<th>{ i18n.T(ctx, "Estado") }</th>
+						<th></th>
+					</tr>
+				</thead>
+				<tbody>
+					for _, d := range vm.Delegations {
+						@delegationRow(d)
+					}
+				</tbody>
+			</table>
+		</div>
+	}
+	<form class="card pad form-card" method="post" action={ templ.SafeURL(vm.DelegateHref) } hx-boost="true">
+		<div class="form-grid">
+			<div class="field">
+				<label for="del-type">{ i18n.T(ctx, "Tipo do alvo") }</label>
+				<select class="select" id="del-type" name="alvo_tipo">
+					<option value="task" selected?={ vm.DelegateType != "conversation" && vm.DelegateType != "run" }>task</option>
+					<option value="conversation" selected?={ vm.DelegateType == "conversation" }>conversation</option>
+					<option value="run" selected?={ vm.DelegateType == "run" }>run</option>
+				</select>
+			</div>
+			<div class="field">
+				<label for="del-target">{ i18n.T(ctx, "ID do alvo") }</label>
+				<input class="input mono" id="del-target" name="alvo" value={ vm.DelegateTarget } required maxlength="36" autocomplete="off" spellcheck="false"/>
+				<span class="hint">{ i18n.T(ctx, "Id da task ou da conversa que você pediu, ou de uma run em curso dela.") }</span>
+			</div>
+			<div class="field">
+				<label for="del-exp">{ i18n.T(ctx, "Validade") }</label>
+				<select class="select" id="del-exp" name="prazo">
+					<option value="3600">{ i18n.T(ctx, "1 hora") }</option>
+					<option value="86400" selected>{ i18n.T(ctx, "24 horas (padrão)") }</option>
+					<option value="604800">{ i18n.T(ctx, "7 dias (máximo)") }</option>
+				</select>
+			</div>
+		</div>
+		<div class="form-actions">
+			<button class="btn primary" type="submit">{ i18n.T(ctx, "Delegar") }</button>
+		</div>
+	</form>
+}
+
+templ delegationRow(d DelegationRowVM) {
+	<tr class="row">
+		<td><code class="mono">{ d.Target }</code></td>
+		<td>{ d.ExpiresAt }</td>
+		<td><span class="badge outline">{ d.State }</span></td>
+		<td>
+			if d.Active {
+				<form method="post" action={ templ.SafeURL(d.RevokeHref) } hx-boost="true">
+					<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Revogar") }</button>
+				</form>
+			}
+		</td>
+	</tr>
 }
 
 templ CollectionsPage(sh Shell, vm CollectionsVM) {
