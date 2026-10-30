@@ -123,20 +123,21 @@ type listOrgPersonasIn struct {
 func (s *server) registerPersonaTags(api huma.API) {
 	const tag = "personas"
 	b := "/companies/{company}"
+	one := b + "/persona-tags/{tag}"
 
 	pendingTagOp[listPersonaTagsIn, ListOut[PersonaTag]](api, op("list-persona-tags", http.MethodGet, b+"/persona-tags", tag,
 		"Lista o cadastro de tags de persona, sem as arquivadas por padrão"))
 	pendingTagOp[createPersonaTagIn, ItemOut[PersonaTag]](api, created(op("create-persona-tag", http.MethodPost, b+"/persona-tags", tag,
 		"Cria uma tag de persona (member; até 200 por empresa, contando as arquivadas)")))
-	pendingTagOp[PersonaTagPath, ItemOut[PersonaTag]](api, op("get-persona-tag", http.MethodGet, b+"/persona-tags/{tag}", tag,
+	pendingTagOp[PersonaTagPath, ItemOut[PersonaTag]](api, op("get-persona-tag", http.MethodGet, one, tag,
 		"Obtém uma tag, com a contagem de personas"))
-	pendingTagOp[updatePersonaTagIn, ItemOut[PersonaTag]](api, op("update-persona-tag", http.MethodPatch, b+"/persona-tags/{tag}", tag,
+	pendingTagOp[updatePersonaTagIn, ItemOut[PersonaTag]](api, op("update-persona-tag", http.MethodPatch, one, tag,
 		"Edita nome, cor ou descrição de uma tag (member)"))
-	pendingTagOp[PersonaTagPath, ItemOut[PersonaTag]](api, op("archive-persona-tag", http.MethodPost, b+"/persona-tags/{tag}/archive", tag,
+	pendingTagOp[PersonaTagPath, ItemOut[PersonaTag]](api, op("archive-persona-tag", http.MethodPost, one+"/archive", tag,
 		"Arquiva uma tag (admin; se desfaz)"))
-	pendingTagOp[PersonaTagPath, ItemOut[PersonaTag]](api, op("unarchive-persona-tag", http.MethodPost, b+"/persona-tags/{tag}/unarchive", tag,
+	pendingTagOp[PersonaTagPath, ItemOut[PersonaTag]](api, op("unarchive-persona-tag", http.MethodPost, one+"/unarchive", tag,
 		"Desarquiva uma tag (admin)"))
-	pendingTagOp[PersonaTagPath, struct{}](api, noContent(op("delete-persona-tag", http.MethodDelete, b+"/persona-tags/{tag}", tag,
+	pendingTagOp[PersonaTagPath, struct{}](api, noContent(op("delete-persona-tag", http.MethodDelete, one, tag,
 		"Deleta uma tag e tira de todas as personas (admin; não se desfaz)")))
 
 	pendingTagOp[PersonaTagLinkPath, struct{}](api, noContent(op("tag-persona", http.MethodPut, b+"/personas/{persona}/tags/{tag}", tag,
