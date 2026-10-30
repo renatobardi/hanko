@@ -68,20 +68,32 @@ func upsertSession(t *txc, companyID domain.ID, task string, s *sessionFacts) er
 	if err != nil {
 		return fmt.Errorf("ingest: sessão %q: %w", task, err)
 	}
+	p, err := s.params(t, companyID, id)
+	if err != nil {
+		return err
+	}
+	if err := t.q.UpdateExternalSessionFacts(t.ctx, p); err != nil {
+		return fmt.Errorf("ingest: atualizar a sessão %q: %w", task, err)
+	}
+	return nil
+}
+
+// params monta os atributos que o lote traz para a sessão. Cada um só vai ao UPDATE quando o lote o trouxe.
+func (s *sessionFacts) params(t *txc, companyID domain.ID, id domain.ID) (store.UpdateExternalSessionFactsParams, error) {
 	p := store.UpdateExternalSessionFactsParams{ID: id, Now: t.now, FirstAt: s.first, LastAt: s.last}
 	if s.repo.ok {
 		at := s.repo.at
 		p.RepoAt, p.OuteRepo = &at, s.repo.text
 		ws, err := repoWorkspace(t, companyID, s.repo.text)
 		if err != nil {
-			return err
+			return p, err
 		}
 		p.WorkspaceID = ws
 	}
 	if s.agent.ok {
 		agentID, err := resolveEntity(t, companyID, s.agent.text, agentEntity)
 		if err != nil {
-			return err
+			return p, err
 		}
 		at := s.agent.at
 		p.AgentAt, p.AgentID = &at, &agentID
@@ -90,10 +102,7 @@ func upsertSession(t *txc, companyID domain.ID, task string, s *sessionFacts) er
 		at := s.round.at
 		p.RoundAt, p.Round = &at, s.round.text
 	}
-	if err := t.q.UpdateExternalSessionFacts(t.ctx, p); err != nil {
-		return fmt.Errorf("ingest: atualizar a sessão %q: %w", task, err)
-	}
-	return nil
+	return p, nil
 }
 
 // repoWorkspace devolve o workspace do emparelhamento do repositório, ou nil quando ele não tem um.

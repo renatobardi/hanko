@@ -139,7 +139,7 @@ func (s *Service) WriteTelemetry(ctx context.Context, key ingest.Key, b ingest.B
 			return err
 		}
 		d := collectDerived(b)
-		if len(d.agents) == 0 && len(d.hosts) == 0 && len(d.repos) == 0 && !d.noRepo {
+		if len(d.agents) == 0 && len(d.hosts) == 0 && len(d.repos) == 0 && len(d.sessions) == 0 && !d.noRepo {
 			return nil
 		}
 		archived, err := t.q.IsCompanyArchived(ctx, companyID)
