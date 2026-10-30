@@ -438,7 +438,7 @@ func (e *env) personaCmd() *cobra.Command {
 	uf.StringVar(&upInstrFile, "instructions-file", "", e.t("arquivo com as novas instruções"))
 	uf.StringVar(&upReason, "reason", "", e.t("motivo da mudança de instruções (fica na revisão)"))
 	uf.StringVar(&upEnv, "environment", "", e.t("ambiente de execução (id ou slug; local = o padrão da empresa)"))
-	c.AddCommand(hire, ls, show, update, probe, e.personaTestCmd(), e.personaReadinessCmd())
+	c.AddCommand(hire, ls, show, update, probe, e.personaTestCmd(), e.personaReadinessCmd(), e.personaTagCmd())
 	c.AddCommand(e.personaExtraCmds()...)
 	c.AddCommand(e.instructionCmds()...)
 	return c
