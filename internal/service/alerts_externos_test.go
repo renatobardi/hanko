@@ -128,7 +128,7 @@ func TestHostNoDataWithoutAnyFactCountsFromCreation(t *testing.T) {
 	if n := hostAlertRows(t, e, true); n != 1 {
 		t.Fatalf("alertas host_no_data abertos = %d, quero 1 (só o host criado há 40 min)", n)
 	}
-	if n := rowCount(t, e, `SELECT count(*) FROM alerts WHERE company_id = $1 AND kind = 'host_no_data' AND closed_at IS NULL AND subject_id = $2`, e.co.ID, parado); n != 1 {
+	if rowCount(t, e, `SELECT count(*) FROM alerts WHERE company_id = $1 AND kind = 'host_no_data' AND closed_at IS NULL AND subject_id = $2`, e.co.ID, parado) != 1 {
 		t.Errorf("o alerta aberto não é o do host criado há 40 min")
 	}
 }
