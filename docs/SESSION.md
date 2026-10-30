@@ -2,16 +2,16 @@
 Data: 2026-10-30
 
 ## Feito
-- Agentes e hosts externos: listar, ver, renomear, arquivar ou voltar, marcar sempre ligado (host) e juntar (ADR-0075 item 2; ADR-0077 itens 3 e 4). As oito rotas deixam o 501.
-- Renomear guarda o nome antigo como apelido do mesmo agente ou host. Juntar move apelidos, sessões e conversas para o que fica, arquiva o juntado e leva o nome dele como apelido.
-- Testes: serviço (renomear com apelido, conflito, arquivar e desarquivar, visualizador recusado, juntar agente, juntar host com sempre ligado e hora, junção consigo mesmo) e API (rotas ligadas, contrato de 501 com 10 operações restantes). `go test ./...` com Postgres local: 68 pacotes ok. Lint: 0 issues.
+- Agentes e hosts externos: listar, ver, renomear, arquivar ou voltar, sempre ligado (host) e juntar. As oito rotas deixam o 501 (ADR-0075 item 2; ADR-0077 itens 3 e 4).
+- Juntar trava as duas linhas (ordem de id), recusa `into` arquivado (409), preserva o horário de arquivamento do juntado e move sessões, conversas, chamadas do modelo e aprovações. Renomear para apelido de outra entidade dá 409.
+- Testes: serviço (conversa e host movidos, recusa sem efeito, horário preservado, idempotência, outra empresa, junção cruzada concorrente, apelido em conflito) e API (409, 403, 404, 422 e rotas ligadas). Guard: chave `read` barrada em PATCH e merge; chave `ingest` barrada em rotas públicas.
+- `go test ./...` com Postgres local: 68 pacotes ok. Lint: 0 issues.
 
 ## Travado
-- Repositório: trocar o workspace de um emparelhamento com o passado junto (ADR-0075 item 5) e a rota de emparelhamentos (`repo-pairings`) seguem em 501.
-- Alerta `host_no_data` (ADR-0077 item 4) e a parada de alertas de host parado (item 5): dependem dos alertas, ainda não ligados.
-- Telas da fonte externa e classificação de conversa (ADR-0079).
-- Gerador de nome (ADR-0084): as 192 + 192 palavras do Bardi.
-- Janela de 30 dias da Caixa é escolha do autor, a confirmar.
+- `calls_daily` e `external_outbox_snapshot` não são movidos na junção: issue #153.
+- Troca de workspace de emparelhamento com o passado junto e `repo-pairings` seguem em 501 (ADR-0075 item 5).
+- Alerta `host_no_data` e parada de alertas de host parado (ADR-0077 itens 4 e 5).
+- Janela de 30 dias da Caixa e arquivar com ingestão mantida: decisões do autor, para o Bardi confirmar.
 
 ## Próximo passo
-- Alerta `host_no_data` e o emparelhamento com a troca de workspace; depois a classificação, quando o gerador de nome tiver as palavras.
+- Issue #153 (somar `calls_daily`, decidir o snapshot); depois o alerta `host_no_data`.
