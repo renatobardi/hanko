@@ -62,3 +62,29 @@ func TestTriageRefusesSecretInTaskDescription(t *testing.T) {
 		t.Fatalf("o provedor recebeu %d chamadas com segredo na descrição; quero nenhuma", n)
 	}
 }
+
+// O classificador de fase é a terceira feature: texto com segredo para antes do provedor e vira erro no ledger.
+func TestPhaseClassifierRefusesSecretText(t *testing.T) {
+	e, f := decisionEnv(t)
+	e.configureDecision(t, f, "vendor/small")
+	bg := context.Background()
+	if _, err := e.svc.CreatePipeline(bg, domain.HumanActor, e.co.ID, service.CreatePipelineInput{Key: "vendas", Name: "Vendas", Stages: []service.StageInput{
+		{Key: "novo", Name: "Novo", Kind: domain.StageWorking}, {Key: "ganho", Name: "Ganho", Kind: domain.StageDone}}}); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := e.svc.ClassifyPhase(bg, domain.HumanActor, e.co.ID, "vendas", "o cliente mandou api_key=abc12345xyz")
+	if err == nil || !strings.Contains(err.Error(), "secret_detected: assignment") {
+		t.Fatalf("classificação com segredo = %v; quero secret_detected: assignment", err)
+	}
+	if n := len(f.models); n != 0 {
+		t.Fatalf("o provedor recebeu %d chamadas com segredo no texto; quero nenhuma", n)
+	}
+	var status, errText string
+	if err := e.svc.Pool.QueryRow(bg, `SELECT status, error FROM decision_invocations WHERE company_id = $1 AND feature = 'phase_classifier'`, e.co.ID).Scan(&status, &errText); err != nil {
+		t.Fatalf("ledger: %v", err)
+	}
+	if status != "error" || errText != "secret_detected: assignment" {
+		t.Errorf("ledger = %q, %q; quero error e só o tipo do padrão", status, errText)
+	}
+}
