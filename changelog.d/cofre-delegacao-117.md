@@ -1,0 +1,5 @@
+### Cofre: delegação de segredo pessoal pela tela e pela CLI
+
+- A tela de um segredo pessoal ganhou "Delegações deste segredo": delegar a uma task, conversa ou run que você pediu, com validade de 1 hora, 24 horas (padrão) ou 7 dias; listar as delegações do segredo com alvo, validade e estado; e revogar. A lista não mostra o valor do segredo. A CLI ganhou `hanko secret delegation create <segredo> --target-type ... --target <id> [--expires 24h]`, `hanko secret delegation ls` e `hanko secret delegation revoke <id>`. A API (`POST /companies/{company}/user-secrets/{name}/delegations`, `GET /me/delegations`, `DELETE /me/delegations/{id}`) não mudou.
+
+- English summary: a personal secret's screen gained "Delegations of this secret": delegate it to a task, conversation or run you requested, valid for 1 hour, 24 hours (default) or 7 days; list the secret's delegations with target, validity and state; and revoke. The list never shows the secret's value. The CLI gained `hanko secret delegation create <secret> --target-type ... --target <id> [--expires 24h]`, `hanko secret delegation ls` and `hanko secret delegation revoke <id>`. The API did not change.

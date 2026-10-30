@@ -1271,11 +1271,12 @@ type Persona struct {
 	ReviewerPersonaID    *uuid.UUID
 	ReviewerAgent        string
 	ReviewerModel        string
-	SearchTsv            interface{}
 	Icon                 string
 	EnvironmentID        *uuid.UUID
 	InstructionRevision  int32
 	System               bool
+	TagNames             string
+	SearchTsv            interface{}
 }
 
 type PersonaInstructionProposal struct {
@@ -1331,6 +1332,24 @@ type PersonaSkill struct {
 	Enabled        bool
 	UpdatedAt      time.Time
 	PinnedRevision *int32
+}
+
+type PersonaTag struct {
+	ID          uuid.UUID
+	CompanyID   uuid.UUID
+	Name        string
+	Color       string
+	Description string
+	ArchivedAt  *time.Time
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+type PersonaTagLink struct {
+	CompanyID uuid.UUID
+	PersonaID uuid.UUID
+	TagID     uuid.UUID
+	CreatedAt time.Time
 }
 
 type Pipeline struct {

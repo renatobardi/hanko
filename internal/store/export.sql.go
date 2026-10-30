@@ -338,7 +338,7 @@ INSERT INTO personas (id, company_id, slug, name, title, instructions, agent, mo
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
         $11, $12, $13, $14, $15,
         $16, $17, $18, $19, $20)
-RETURNING id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason, budget_refused_at, subscription_id, reviewer_persona_id, reviewer_agent, reviewer_model, search_tsv, icon, environment_id, instruction_revision, system
+RETURNING id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason, budget_refused_at, subscription_id, reviewer_persona_id, reviewer_agent, reviewer_model, icon, environment_id, instruction_revision, system, tag_names, search_tsv
 `
 
 type ImportPersonaParams struct {
@@ -416,11 +416,12 @@ func (q *Queries) ImportPersona(ctx context.Context, arg ImportPersonaParams) (P
 		&i.ReviewerPersonaID,
 		&i.ReviewerAgent,
 		&i.ReviewerModel,
-		&i.SearchTsv,
 		&i.Icon,
 		&i.EnvironmentID,
 		&i.InstructionRevision,
 		&i.System,
+		&i.TagNames,
+		&i.SearchTsv,
 	)
 	return i, err
 }
@@ -840,7 +841,7 @@ UPDATE personas SET name = $1, title = $2, instructions = $3, agent = $4, model 
     budget_monthly_cents = $9, subscription_id = $10, require_review = $11,
     reviewer_agent = $12, reviewer_model = $13, icon = $14, updated_at = $15
 WHERE company_id = $16 AND id = $17
-RETURNING id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason, budget_refused_at, subscription_id, reviewer_persona_id, reviewer_agent, reviewer_model, search_tsv, icon, environment_id, instruction_revision, system
+RETURNING id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason, budget_refused_at, subscription_id, reviewer_persona_id, reviewer_agent, reviewer_model, icon, environment_id, instruction_revision, system, tag_names, search_tsv
 `
 
 type ReplaceImportedPersonaParams struct {
@@ -913,11 +914,12 @@ func (q *Queries) ReplaceImportedPersona(ctx context.Context, arg ReplaceImporte
 		&i.ReviewerPersonaID,
 		&i.ReviewerAgent,
 		&i.ReviewerModel,
-		&i.SearchTsv,
 		&i.Icon,
 		&i.EnvironmentID,
 		&i.InstructionRevision,
 		&i.System,
+		&i.TagNames,
+		&i.SearchTsv,
 	)
 	return i, err
 }

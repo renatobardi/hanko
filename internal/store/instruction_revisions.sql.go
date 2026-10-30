@@ -269,7 +269,7 @@ func (q *Queries) SetPersonaInstructionRevision(ctx context.Context, arg SetPers
 const setPersonaInstructions = `-- name: SetPersonaInstructions :one
 UPDATE personas SET instructions = $1, instruction_revision = $2, updated_at = $3
 WHERE company_id = $4 AND id = $5
-RETURNING id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason, budget_refused_at, subscription_id, reviewer_persona_id, reviewer_agent, reviewer_model, search_tsv, icon, environment_id, instruction_revision, system
+RETURNING id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason, budget_refused_at, subscription_id, reviewer_persona_id, reviewer_agent, reviewer_model, icon, environment_id, instruction_revision, system, tag_names, search_tsv
 `
 
 type SetPersonaInstructionsParams struct {
@@ -317,11 +317,12 @@ func (q *Queries) SetPersonaInstructions(ctx context.Context, arg SetPersonaInst
 		&i.ReviewerPersonaID,
 		&i.ReviewerAgent,
 		&i.ReviewerModel,
-		&i.SearchTsv,
 		&i.Icon,
 		&i.EnvironmentID,
 		&i.InstructionRevision,
 		&i.System,
+		&i.TagNames,
+		&i.SearchTsv,
 	)
 	return i, err
 }

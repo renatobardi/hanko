@@ -35,6 +35,21 @@ type SecretFieldsVM struct {
 	NewVisible  bool
 	NewGenerate bool
 	Reveal      *SecretRevealVM
+	// Delegações do usuário a este segredo (só no escopo do usuário); o id do alvo não é segredo e volta num erro.
+	Delegations    []DelegationRowVM
+	DelegateHref   string // POST: delegar este segredo
+	DelegateType   string
+	DelegateTarget string
+}
+
+// DelegationRowVM é uma delegação na lista: alvo, prazo e estado; nunca o valor do segredo.
+type DelegationRowVM struct {
+	ID         string
+	Target     string // tipo e id do alvo
+	ExpiresAt  string
+	State      string // ativa, inativa ou revogada
+	Active     bool   // só a ativa tem o botão de revogar
+	RevokeHref string // POST: revogar
 }
 
 // CollectionRowVM é uma coleção na lista.

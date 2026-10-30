@@ -814,7 +814,7 @@ func (q *Queries) LatestApprovedPlanGate(ctx context.Context, taskID *uuid.UUID)
 }
 
 const listErrorPersonas = `-- name: ListErrorPersonas :many
-SELECT id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason, budget_refused_at, subscription_id, reviewer_persona_id, reviewer_agent, reviewer_model, search_tsv, icon, environment_id, instruction_revision, system FROM personas WHERE company_id = $1 AND status = 'error' ORDER BY updated_at DESC, id
+SELECT id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason, budget_refused_at, subscription_id, reviewer_persona_id, reviewer_agent, reviewer_model, icon, environment_id, instruction_revision, system, tag_names, search_tsv FROM personas WHERE company_id = $1 AND status = 'error' ORDER BY updated_at DESC, id
 `
 
 func (q *Queries) ListErrorPersonas(ctx context.Context, companyID uuid.UUID) ([]Persona, error) {
@@ -853,11 +853,12 @@ func (q *Queries) ListErrorPersonas(ctx context.Context, companyID uuid.UUID) ([
 			&i.ReviewerPersonaID,
 			&i.ReviewerAgent,
 			&i.ReviewerModel,
-			&i.SearchTsv,
 			&i.Icon,
 			&i.EnvironmentID,
 			&i.InstructionRevision,
 			&i.System,
+			&i.TagNames,
+			&i.SearchTsv,
 		); err != nil {
 			return nil, err
 		}
@@ -1275,7 +1276,7 @@ func (q *Queries) SetPersonaAwaitingGate(ctx context.Context, arg SetPersonaAwai
 }
 
 const setPersonaSystem = `-- name: SetPersonaSystem :one
-UPDATE personas SET system = $1, updated_at = $2 WHERE company_id = $3 AND id = $4 RETURNING id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason, budget_refused_at, subscription_id, reviewer_persona_id, reviewer_agent, reviewer_model, search_tsv, icon, environment_id, instruction_revision, system
+UPDATE personas SET system = $1, updated_at = $2 WHERE company_id = $3 AND id = $4 RETURNING id, company_id, slug, name, title, instructions, agent, model, adapter_config, status, reports_to, workspace_id, heartbeat_interval_sec, budget_monthly_cents, created_at, updated_at, last_error, last_error_at, consecutive_failures, require_review, pause_reason, budget_refused_at, subscription_id, reviewer_persona_id, reviewer_agent, reviewer_model, icon, environment_id, instruction_revision, system, tag_names, search_tsv
 `
 
 type SetPersonaSystemParams struct {
@@ -1320,11 +1321,12 @@ func (q *Queries) SetPersonaSystem(ctx context.Context, arg SetPersonaSystemPara
 		&i.ReviewerPersonaID,
 		&i.ReviewerAgent,
 		&i.ReviewerModel,
-		&i.SearchTsv,
 		&i.Icon,
 		&i.EnvironmentID,
 		&i.InstructionRevision,
 		&i.System,
+		&i.TagNames,
+		&i.SearchTsv,
 	)
 	return i, err
 }

@@ -1,14 +1,13 @@
-# Contrato da v0.8 · sessão `feat-124-contrato-rodada-aprovacao`
-Data: 2026-10-28
+# Contrato das tags de persona · sessão `118-tags-contrato`
+Data: 2026-10-29
 
 ## Feito
-- Migration 00210 (rodada, ciclo, participante, etapa, ação, marca, aprovação, versões do script, lista da outbox, busca de conversa e sessão externas, `db_disk_low`, itens da Caixa), testada do zero e sobre a 00209.
-- Domínio e 8 operações novas em 501 (rodada, ciclo, etapa, aprovação, script). Limites de disco em `AlertLimitSpecs`.
-- Corpo do PR #138 com os itens do `## Falta`; branch atualizado com a `origin/main` (#137 entrou).
+- Migration 00212 (cadastro `persona_tags`, ligação `persona_tag_links` com chaves por empresa, `personas.tag_names` com peso B na busca), testada sobre a 00211 e no Down.
+- Domínio (`internal/domain/persona_tags.go`): paleta de 8 cores, limites, chave sem caixa, verbos dos eventos, any/all, highlight/prune, nível.
+- 11 operações em 501 (`internal/api/persona_tags.go`); nomes dos comandos da CLI no comentário do contrato.
 
 ## Travado
-- Padrões do disco (aviso 5 GiB, crítico 0,5 GiB) e alerta por empresa: recomendação do autor, a confirmar com o Bardi.
-- Gate do SonarCloud do #138 sem resultado (`NONE`); CI não acompanhado.
+- Gate do Bardi no contrato (#118): paleta, `untagged` por OU e `POST /personas/{persona}/tags` são recomendação do autor.
 
 ## Próximo passo
-- Bardi revisa o #138 e decide o merge. Depois: fatia 2 (#126), custo e alertas externos; fatia 3 (#127), rodada e aprovação, com a severidade do disco; fatia 4 (#128), busca e export.
+- Com o ok do Bardi: fatia 1 (cadastro, aplicação, filtros, API, CLI, MCP, busca, export), depois fatia 2 (lote).
