@@ -193,7 +193,8 @@ type OrgNodeVM struct {
 	Gate        bool   // a gate of this persona waits for a human
 	Review      bool   // requires review
 	Initials    string
-	Icon        string // glifo da persona (domain.PersonaIcons), desenhado por <use href="#pg-…">
+	Icon        string   // glifo da persona (domain.PersonaIcons), desenhado por <use href="#pg-…">
+	TagIDs      []string // tags da persona (ADR-0087), em ordem de nome
 }
 
 type OrgEdgeVM struct{ D string }
@@ -211,6 +212,11 @@ type OrgVM struct {
 	IslandAPI   string
 	IslandMsgs  string // JSON
 	CanEdit     bool   // admin/owner may drag
+	// Tags (ADR-0087): o cadastro (com as arquivadas), o filtro inicial (URL ou cookie hanko_org) e quem aplica tag.
+	IslandTags   string // JSON
+	IslandFilter string // JSON
+	CanTag       bool   // member ou mais aplica e tira tag pelo menu do nó
+	TagsHref     string // aba Tags em Personas
 }
 
 // InboxCtl são os controles de lido/arquivado de um item da Caixa (ADR-0042); Show falso = sem controles.

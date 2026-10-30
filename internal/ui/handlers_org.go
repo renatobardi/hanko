@@ -90,7 +90,7 @@ func layoutOrgCtx(ctx context.Context, chart service.OrgChart, base string) view
 			Name: clip(p.Name, 22), Title: clip(p.Title, 28), Meta: meta, Status: status, StatusClass: orgStatusClass(p.Status),
 			Href: base + "/personas/" + p.Slug, Initials: initialsOf(p.Name), Icon: orgIcon(p.Icon),
 			Gate: p.Status == domain.PersonaAwaitingGate || n.PendingGates > 0, Review: p.RequireReview,
-			Label: fmt.Sprintf("%s, %s, %s", p.Name, p.Title, status),
+			Label: fmt.Sprintf("%s, %s, %s", p.Name, p.Title, status), TagIDs: tagIDsOf(p.Tags),
 		}
 		vm.Nodes = append(vm.Nodes, node)
 		idx := len(vm.Nodes) - 1
@@ -122,6 +122,14 @@ func (s *server) handleOrg(w http.ResponseWriter, r *http.Request, co domain.Com
 	vm := layoutOrgCtx(ctx, chart, base)
 	vm.IslandNodes, vm.IslandAPI, vm.IslandMsgs = orgNodesJSON(vm), islandAPI(co), orgMsgs(ctx)
 	vm.CanEdit = views.RoleFrom(r.Context()).AtLeast(domain.MemberAdmin)
+	vm.CanTag = views.RoleFrom(r.Context()).AtLeast(domain.MemberMember)
+	vm.TagsHref = base + "/personas/tags"
+	tags, err := s.be.ListPersonaTags(ctx, co.ID, true)
+	if err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
+	vm.IslandTags, vm.IslandFilter = orgTagsJSON(tags), orgFilterFrom(r).json()
 	switch chart.Total {
 	case 0:
 		vm.Subtitle = i18n.T(ctx, "Quem reporta a quem. A delegação de tasks segue a árvore.")

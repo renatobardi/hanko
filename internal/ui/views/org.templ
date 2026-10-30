@@ -12,6 +12,7 @@ templ OrgPage(sh Shell, vm OrgVM) {
 		@PageHead(i18n.T(ctx, "Organograma"), vm.Subtitle) {
 			<a class="btn outline" href={ templ.SafeURL(sh.Base() + "/personas") }>@Icon("bot")
 { " " + i18n.T(ctx, "Personas") }</a>
+			<a class="btn outline" href={ templ.SafeURL(vm.TagsHref) }>@Icon("layers") { " " + i18n.T(ctx, "Gerenciar tags") }</a>
 			if sh.CanAdmin() {
 				<a class="btn primary" href={ templ.SafeURL(vm.HireHref) }>
 					@Icon("plus")
@@ -39,6 +40,10 @@ templ OrgPage(sh Shell, vm OrgVM) {
 				data-api={ vm.IslandAPI }
 				data-nodes={ vm.IslandNodes }
 				data-can-edit={ flag(vm.CanEdit) }
+				data-can-tag={ flag(vm.CanTag) }
+				data-tags={ vm.IslandTags }
+				data-filter={ vm.IslandFilter }
+				data-tags-href={ vm.TagsHref }
 				data-msgs={ vm.IslandMsgs }
 			>
 				@PersonaSprite()
