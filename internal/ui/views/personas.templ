@@ -13,6 +13,7 @@ templ PersonasPage(sh Shell, vm PersonasVM) {
 		@PageHead(i18n.T(ctx, "Personas"), vm.Subtitle) {
 			<a class="btn outline" href={ templ.SafeURL(sh.Base() + "/personas/catalogo") }>@Icon("layers") { i18n.T(ctx, "Catálogo de times") }</a>
 		}
+		@PersonasTabs(sh.Base(), false)
 		<div class="kpis">
 			@Kpi("bot", fmt.Sprint(vm.Active), i18n.T(ctx, "Ativas agora"), false)
 			@Kpi("activity", fmt.Sprint(vm.Running), i18n.T(ctx, "Executando"), false)
@@ -35,10 +36,22 @@ templ PersonasPage(sh Shell, vm PersonasVM) {
 				}
 			}
 		} else {
+			if vm.Notice != "" {
+				@Alert("ok", vm.Notice)
+			}
+			if vm.Error != "" {
+				@Alert("danger", vm.Error)
+			}
+			if vm.Bulk.CanWrite {
+				@PersonasBulkBar(vm.Bulk)
+			}
 			<div class="table-wrap">
 				<table class="table">
 					<thead>
 						<tr>
+							if vm.Bulk.CanWrite {
+								@bulkSelectAllCell()
+							}
 							<th>Persona</th>
 							<th>{ i18n.T(ctx, "Status") }</th>
 							<th class="hide-sm">{ i18n.T(ctx, "Harness · modelo") }</th>
@@ -49,11 +62,15 @@ templ PersonasPage(sh Shell, vm PersonasVM) {
 					<tbody>
 						for _, r := range vm.Rows {
 							<tr class="row">
+								if vm.Bulk.CanWrite {
+									@bulkSelectCell(r)
+								}
 								<td>
 									<a class="p-name" href={ templ.SafeURL(r.Href) }>
 										<span class="mini-avatar">@PersonaGlyph(r.Name)</span>
 										<span class="pn"><b>{ r.Name }</b><span>{ r.Title }</span></span>
 									</a>
+									@TagChips(r.Tags)
 								</td>
 								<td>@BadgeEl(r.Badge)</td>
 								<td class="hide-sm mono text-xs">{ r.Agent }
@@ -349,6 +366,7 @@ templ PersonaPage(sh Shell, vm PersonaVM) {
 				</form>
 			</section>
 		}
+		@PersonaTagsCard(vm.Tags)
 		<section class="card pad mt-6" id="organizacao">
 			<div class="card-head"><div><h2>{ i18n.T(ctx, "Organização") }</h2><p class="sub">{ i18n.T(ctx, "Quem esta persona reporta e se o trabalho dela passa por revisão antes de concluir.") }</p></div></div>
 			if canAdmin(ctx) {

@@ -11,6 +11,10 @@ import (
 
 // Tags de persona no import (ADR-0087 item 11; ADR-0022). O arquivo traz o cadastro e, em cada persona, os nomes das
 // tags. Uma tag com o mesmo nome, sem distinguir caixa, de uma tag que já existe na empresa passa a ser essa tag.
+// Cada tag criada e cada ligação nova gravam o seu evento (item 12), com o ator system e origin=import.
+
+// importOrigin marca nos dados do evento que a escrita veio do import da empresa.
+const importOrigin = "import"
 
 // planPersonaTags valida o cadastro e as ligações do arquivo sem tocar no banco.
 func planPersonaTags(doc export.Document) error {
@@ -54,20 +58,20 @@ func (t *txc) importPersonaTags(cid domain.ID, doc export.Document, personas map
 	if err := t.q.LockPersonaTags(t.ctx, cid.String()); err != nil {
 		return fmt.Errorf("lock persona tags: %w", err)
 	}
-	byKey := map[string]domain.ID{}
+	byKey, names := map[string]domain.ID{}, map[domain.ID]string{}
 	for _, x := range doc.PersonaTags {
-		id, err := t.importPersonaTag(cid, x)
+		id, name, err := t.importPersonaTag(cid, x)
 		if err != nil {
 			return err
 		}
-		byKey[domain.PersonaTagKey(x.Name)] = id
+		byKey[domain.PersonaTagKey(x.Name)], names[id] = id, name
 	}
 	var touched []domain.ID
 	for _, p := range doc.Personas {
 		if len(p.Tags) == 0 || !link(p.Slug) {
 			continue
 		}
-		if err := t.linkImportedTags(cid, personas[p.Slug], p, byKey); err != nil {
+		if err := t.linkImportedTags(cid, personas[p.Slug], p, byKey, names); err != nil {
 			return err
 		}
 		touched = append(touched, personas[p.Slug])
@@ -76,11 +80,19 @@ func (t *txc) importPersonaTags(cid domain.ID, doc export.Document, personas map
 }
 
 // linkImportedTags liga as tags do arquivo à persona e confere o teto de 20 com as que ela já tinha.
-func (t *txc) linkImportedTags(cid, pid domain.ID, p export.Persona, byKey map[string]domain.ID) error {
+func (t *txc) linkImportedTags(cid, pid domain.ID, p export.Persona, byKey map[string]domain.ID, names map[domain.ID]string) error {
 	for _, n := range p.Tags {
-		if _, err := t.q.InsertPersonaTagLink(t.ctx, store.InsertPersonaTagLinkParams{CompanyID: cid, PersonaID: pid,
-			TagID: byKey[domain.PersonaTagKey(n)], Now: t.now}); err != nil {
+		tagID := byKey[domain.PersonaTagKey(n)]
+		added, err := t.q.InsertPersonaTagLink(t.ctx, store.InsertPersonaTagLinkParams{CompanyID: cid, PersonaID: pid, TagID: tagID, Now: t.now})
+		if err != nil {
 			return fmt.Errorf("import persona tag link: %w", err)
+		}
+		if added == 0 {
+			continue
+		}
+		if err := t.activity(domain.SystemActor, cid, domain.VerbPersonaTagged, "persona", pid,
+			map[string]any{"tag_id": tagID, "tag": names[tagID], "origin": importOrigin}, ""); err != nil {
+			return err
 		}
 	}
 	n, err := t.q.CountTagsOfPersona(t.ctx, store.CountTagsOfPersonaParams{CompanyID: cid, PersonaID: pid})
@@ -93,25 +105,25 @@ func (t *txc) linkImportedTags(cid, pid domain.ID, p export.Persona, byKey map[s
 	return nil
 }
 
-// importPersonaTag devolve a tag da empresa com o nome dado, criando-a se não existe.
-func (t *txc) importPersonaTag(cid domain.ID, x export.PersonaTag) (domain.ID, error) {
+// importPersonaTag devolve o id e o nome da tag da empresa com o nome dado, criando-a (com o evento) se não existe.
+func (t *txc) importPersonaTag(cid domain.ID, x export.PersonaTag) (domain.ID, string, error) {
 	in, err := normalizeTagInput(importTagInput(x))
 	if err != nil {
-		return domain.ID{}, err
+		return domain.ID{}, "", err
 	}
 	cur, err := t.q.GetPersonaTagByName(t.ctx, store.GetPersonaTagByNameParams{CompanyID: cid, Name: in.Name})
 	if err == nil {
-		return cur.ID, nil
+		return cur.ID, cur.Name, nil
 	}
 	if !isNoRows(err) {
-		return domain.ID{}, fmt.Errorf("get persona tag by name: %w", err)
+		return domain.ID{}, "", fmt.Errorf("get persona tag by name: %w", err)
 	}
 	n, err := t.q.CountPersonaTags(t.ctx, cid)
 	if err != nil {
-		return domain.ID{}, fmt.Errorf("count persona tags: %w", err)
+		return domain.ID{}, "", fmt.Errorf("count persona tags: %w", err)
 	}
 	if n >= domain.MaxPersonaTagsPerCompany {
-		return domain.ID{}, domain.Invalid("persona_tags", fmt.Sprintf("the company would have more than %d tags", domain.MaxPersonaTagsPerCompany))
+		return domain.ID{}, "", domain.Invalid("persona_tags", fmt.Sprintf("the company would have more than %d tags", domain.MaxPersonaTagsPerCompany))
 	}
 	var archived *time.Time
 	if x.Archived {
@@ -124,7 +136,8 @@ func (t *txc) importPersonaTag(cid domain.ID, x export.PersonaTag) (domain.ID, e
 	r, err := t.q.CreatePersonaTag(t.ctx, store.CreatePersonaTagParams{ID: domain.NewID(), CompanyID: cid, Name: in.Name,
 		Color: string(in.Color), Description: in.Description, ArchivedAt: archived, Now: created})
 	if err != nil {
-		return domain.ID{}, tagNameErr(err, in.Name)
+		return domain.ID{}, "", tagNameErr(err, in.Name)
 	}
-	return r.ID, nil
+	return r.ID, r.Name, t.activity(domain.SystemActor, cid, domain.VerbPersonaTagCreated, subjectPersonaTag, r.ID,
+		map[string]any{"name": r.Name, "color": r.Color, "archived": x.Archived, "origin": importOrigin}, "")
 }

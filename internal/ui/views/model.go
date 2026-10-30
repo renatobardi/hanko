@@ -271,6 +271,7 @@ type NewTaskVM struct {
 // ---- personas ----
 
 type PersonaRow struct {
+	ID        string // persona id (seleção do lote)
 	Name      string
 	Initials  string
 	Title     string
@@ -280,10 +281,14 @@ type PersonaRow struct {
 	Model     string
 	OpenTasks int
 	Heartbeat string
+	Tags      TagChipsVM
 }
 
 type PersonasVM struct {
 	Subtitle string
+	Notice   string // aviso de sucesso do último lote
+	Error    string // erro do último lote
+	Bulk     PersonasBulkVM
 	Rows     []PersonaRow
 	Active   int
 	Running  int
@@ -359,6 +364,8 @@ type PersonaVM struct {
 	Extras              PersonaExtrasVM // skills e servidores MCP (ADR-0029)
 	Vars                PersonaVarsVM   // variáveis de ambiente do adapter, só referências a segredo (#117 fatia 3)
 	Plus                PersonaPlusVM   // persona principal, de sistema e política de plano (ADR-0041)
+	// Tags é o cartão de tags da ficha (ADR-0087).
+	Tags PersonaTagsVM
 }
 
 // ReviewerVM is the reviewer block of the persona page: the configured reviewer (summary) and the

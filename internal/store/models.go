@@ -740,6 +740,7 @@ type ExternalConversation struct {
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
 	SearchTsv           interface{}
+	ClassifiedSessionAt *time.Time
 }
 
 type ExternalHost struct {
@@ -808,6 +809,9 @@ type ExternalSession struct {
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 	SearchTsv   interface{}
+	OuteRepoAt  *int64
+	AgentAt     *int64
+	RoundAt     *int64
 }
 
 type Flow struct {

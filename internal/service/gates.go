@@ -816,6 +816,8 @@ type Inbox struct {
 	// UnderReview are in_review tasks whose automatic review is still running: informational, there is
 	// no gate yet and nothing for the human to do, so they are not part of Count.
 	UnderReview []InboxReview
+	// NewAgents e NewHosts são os agentes e hosts externos criados na janela: informativos, fora de Count (ADR-0075 item 2).
+	NewAgents, NewHosts []ExternalNew
 	// AchievedGoals são as metas atingidas nos últimos dias: informativo (ninguém precisa agir), fora de Count.
 	AchievedGoals []GoalView
 	// HeldTasks são as raízes de pausa (ADR-0040): informativo, o humano que pausou decide quando retomar; fora de Count.
@@ -947,6 +949,9 @@ func (s *Service) buildInbox(ctx context.Context, companyID domain.ID) (Inbox, e
 		if in.BudgetIncidents, err = s.ListBudgetIncidents(ctx, companyID, true, 50); err != nil {
 			return in, err
 		}
+	}
+	if err := s.addExternalNew(ctx, companyID, &in); err != nil {
+		return in, err
 	}
 	return in, nil
 }

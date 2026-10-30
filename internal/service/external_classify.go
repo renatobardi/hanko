@@ -1,0 +1,362 @@
+package service
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"regexp"
+	"strings"
+
+	"github.com/renatobardi/hanko/internal/aidlc"
+	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/store"
+)
+
+// classifyBatch é o máximo de conversas por passada e por empresa: o resto espera a próxima passada.
+const classifyBatch = 500
+
+// ClassifyExternalConversations classifica as conversas externas de todas as empresas (ADR-0079 itens 1 a 3 e 7). Cada
+// passada relê só as conversas com fato novo, troca manual pendente ou classificador de outra versão; grava só o que
+// mudou e gera `conversation.classified`. Uma passada por vez (trava própria, como os alertas). Devolve quantas mudaram.
+func (s *Service) ClassifyExternalConversations(ctx context.Context) (int, error) {
+	cos, err := s.read().ListCompaniesWithExternalConversations(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("list companies with external conversations: %w", err)
+	}
+	total := 0
+	for _, co := range cos {
+		var n int
+		err := s.withTx(ctx, func(t *txc) error {
+			if err := t.q.LockExternalClassify(t.ctx); err != nil {
+				return fmt.Errorf("lock classify: %w", err)
+			}
+			var err error
+			n, err = t.classifyConversations(co)
+			return err
+		})
+		if err != nil {
+			return total, fmt.Errorf("classify conversations of company %s: %w", co, err)
+		}
+		total += n
+	}
+	return total, nil
+}
+
+// sessionFact são os fatos de uma sessão (phase.py `_facts`): o oute.task.id e os papéis da rodada.
+type sessionFact struct {
+	task                string
+	round, worker, step bool
+}
+
+// openingFact é a abertura de um oute.task.id: a primeira fase válida, a origem dela, o repositório e o número da issue.
+type openingFact struct {
+	phase, origin, repo, number string
+}
+
+var slugNumber = regexp.MustCompile(`^([0-9]+)-`)
+
+// classInputs são as leituras de uma passada. Telemetria só das sessões candidatas; aberturas de todas, porque o label
+// vale entre sessões da mesma issue.
+type classInputs struct {
+	facts    map[string]sessionFact
+	openings map[string]openingFact
+	labels   map[[2]string]map[string]int
+	actions  map[string]map[string]int
+	skills   map[string]map[string]aidlc.SkillUse
+	manual   map[domain.ID]string
+}
+
+// classifyConversations relê as conversas candidatas de uma empresa e grava a classe e a janela de cada uma.
+func (t *txc) classifyConversations(companyID domain.ID) (int, error) {
+	cands, err := t.q.ListConversationsToClassify(t.ctx, store.ListConversationsToClassifyParams{CompanyID: companyID,
+		Classifier: aidlc.Classifier, BatchLimit: classifyBatch})
+	if err != nil {
+		return 0, fmt.Errorf("list conversations to classify: %w", err)
+	}
+	if len(cands) == 0 {
+		return 0, nil
+	}
+	in, err := t.loadClassInputs(companyID, sessionIDs(cands))
+	if err != nil {
+		return 0, err
+	}
+	changed := 0
+	for _, c := range cands {
+		res := aidlc.Decide(in.signalsFor(c))
+		moved, err := t.writeClass(companyID, c, res, conversationTags(in.facts[c.SessionID].task, c.OuteRepo))
+		if err != nil {
+			return changed, err
+		}
+		if moved {
+			changed++
+		}
+	}
+	return changed, nil
+}
+
+// sessionIDs são as sessões das conversas candidatas, sem repetição e sem vazio.
+func sessionIDs(cands []store.ListConversationsToClassifyRow) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, c := range cands {
+		if c.SessionID != "" && !seen[c.SessionID] {
+			seen[c.SessionID] = true
+			out = append(out, c.SessionID)
+		}
+	}
+	return out
+}
+
+// loadClassInputs lê as entradas da passada: telemetria só das sessões pedidas, aberturas e troca manual da empresa.
+func (t *txc) loadClassInputs(companyID domain.ID, sessions []string) (classInputs, error) {
+	var in classInputs
+	var err error
+	if in.facts, err = t.sessionFacts(companyID, sessions); err != nil {
+		return in, err
+	}
+	if in.openings, err = t.openingFacts(companyID); err != nil {
+		return in, err
+	}
+	in.labels = labelVotes(in.openings)
+	if in.actions, err = t.actionPoints(companyID, sessions); err != nil {
+		return in, err
+	}
+	if in.skills, err = t.skillUses(companyID, sessions); err != nil {
+		return in, err
+	}
+	manual, err := t.q.ListManualClasses(t.ctx, companyID)
+	if err != nil {
+		return in, fmt.Errorf("list manual classes: %w", err)
+	}
+	in.manual = map[domain.ID]string{}
+	for _, m := range manual {
+		in.manual[m.ConversationID] = m.Class
+	}
+	return in, nil
+}
+
+// signalsFor monta os sinais de uma conversa a partir das leituras da passada.
+func (in classInputs) signalsFor(c store.ListConversationsToClassifyRow) aidlc.Signals {
+	f := in.facts[c.SessionID]
+	o := in.openings[f.task]
+	return aidlc.Signals{
+		Manual:     in.manual[c.ID],
+		Opening:    o.phase,
+		Label:      labelOf(in.labels, o),
+		Skills:     in.skills[c.SessionID],
+		Reviewer:   f.step && f.round && !f.worker,
+		Dispatcher: f.round && !f.worker && !f.step,
+		Actions:    in.actions[c.SessionID],
+	}
+}
+
+// writeClass grava a janela da conversa (sempre, para ela sair da lista) e, se a classe mudou, a classe e o evento
+// conversation.classified. Devolve se a classe mudou.
+func (t *txc) writeClass(companyID domain.ID, c store.ListConversationsToClassifyRow, res aidlc.Result, tags []string) (bool, error) {
+	if err := t.q.SetConversationClass(t.ctx, store.SetConversationClassParams{ID: c.ID, CompanyID: companyID, Class: res.Class,
+		ClassOrigin: res.Origin, ClassConfidence: res.Confidence, Classifier: aidlc.Classifier, Tags: tags,
+		ClassifiedSessionAt: c.SessionUpdatedAt, Now: t.now}); err != nil {
+		return false, mapErr(err, "set conversation class")
+	}
+	if sameClass(c, res, tags) {
+		return false, nil
+	}
+	if err := t.activity(domain.SystemActor, companyID, "conversation.classified", "external_conversation", c.ID,
+		map[string]any{"from": c.Class, "to": res.Class, "origin": res.Origin, "confidence": res.Confidence}, ""); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// sameClass informa se a conversa já tem essa classe, origem, confiança, classificador e marcas.
+func sameClass(c store.ListConversationsToClassifyRow, res aidlc.Result, tags []string) bool {
+	return c.Class == res.Class && c.ClassOrigin == res.Origin && c.ClassConfidence == res.Confidence &&
+		c.Classifier == aidlc.Classifier && equalStrings(c.Tags, tags)
+}
+
+// sessionFacts lê os fatos das sessões pedidas.
+func (t *txc) sessionFacts(companyID domain.ID, sessions []string) (map[string]sessionFact, error) {
+	out := map[string]sessionFact{}
+	if len(sessions) == 0 {
+		return out, nil
+	}
+	rows, err := t.q.ClassifySessionFacts(t.ctx, store.ClassifySessionFactsParams{CompanyID: companyID, Sessions: sessions})
+	if err != nil {
+		return nil, fmt.Errorf("classify session facts: %w", err)
+	}
+	for _, r := range rows {
+		if r.SessionID == nil {
+			continue
+		}
+		out[*r.SessionID] = sessionFact{task: r.TaskID, round: r.HasRound, worker: r.HasWorker, step: r.HasStep}
+	}
+	return out, nil
+}
+
+// openingFacts lê as aberturas por oute.task.id, na ordem da hora do fato (phase.py `_openings`).
+func (t *txc) openingFacts(companyID domain.ID) (map[string]openingFact, error) {
+	rows, err := t.q.ClassifyOpenings(t.ctx, companyID)
+	if err != nil {
+		return nil, fmt.Errorf("classify openings: %w", err)
+	}
+	out := map[string]openingFact{}
+	for _, r := range rows {
+		if r.OuteTaskID == nil {
+			continue
+		}
+		o := out[*r.OuteTaskID]
+		if aidlc.IsPhase(r.Phase) && o.phase == "" {
+			o.phase, o.origin = r.Phase, r.Origin
+		}
+		if o.repo == "" {
+			o.repo = r.Repo
+		}
+		if o.number == "" {
+			if m := slugNumber.FindStringSubmatch(r.Slug); m != nil {
+				o.number = m[1]
+			}
+		}
+		out[*r.OuteTaskID] = o
+	}
+	return out, nil
+}
+
+// labelVotes conta, por (repositório, número da issue), as fases das sessões abertas com origem `label` (phase.py `_labels`).
+func labelVotes(openings map[string]openingFact) map[[2]string]map[string]int {
+	votes := map[[2]string]map[string]int{}
+	for _, o := range openings {
+		if o.origin != aidlc.OriginLabel || !aidlc.IsPhase(o.phase) || o.repo == "" || o.number == "" {
+			continue
+		}
+		k := [2]string{o.repo, o.number}
+		if votes[k] == nil {
+			votes[k] = map[string]int{}
+		}
+		votes[k][o.phase]++
+	}
+	return votes
+}
+
+// labelOf é a fase de label da abertura, quando o repositório e o número da issue são conhecidos.
+func labelOf(votes map[[2]string]map[string]int, o openingFact) string {
+	if o.repo == "" || o.number == "" {
+		return ""
+	}
+	tally := votes[[2]string{o.repo, o.number}]
+	if len(tally) == 0 {
+		return ""
+	}
+	phase, _ := aidlc.Top(tally)
+	return phase
+}
+
+// actionPoints soma os pontos das ações de cada sessão pedida, pela tabela de regras (phase.py `_actions`).
+func (t *txc) actionPoints(companyID domain.ID, sessions []string) (map[string]map[string]int, error) {
+	out := map[string]map[string]int{}
+	if len(sessions) == 0 {
+		return out, nil
+	}
+	rows, err := t.q.ClassifyToolActions(t.ctx, store.ClassifyToolActionsParams{CompanyID: companyID, Sessions: sessions})
+	if err != nil {
+		return nil, fmt.Errorf("classify tool actions: %w", err)
+	}
+	for _, r := range rows {
+		if r.SessionID == nil {
+			continue
+		}
+		phase, pts, ok := aidlc.ActionPoints(aidlc.Action{Tool: r.Tool, Command: r.Command, Path: r.Path})
+		if !ok {
+			continue
+		}
+		if out[*r.SessionID] == nil {
+			out[*r.SessionID] = map[string]int{}
+		}
+		out[*r.SessionID][phase] += pts * int(r.N)
+	}
+	return out, nil
+}
+
+// skillUses conta os usos das skills de fase por sessão pedida (phase.py `_skills`).
+func (t *txc) skillUses(companyID domain.ID, sessions []string) (map[string]map[string]aidlc.SkillUse, error) {
+	out := map[string]map[string]aidlc.SkillUse{}
+	if len(sessions) == 0 {
+		return out, nil
+	}
+	rows, err := t.q.ClassifySkillRows(t.ctx, store.ClassifySkillRowsParams{CompanyID: companyID, Sessions: sessions})
+	if err != nil {
+		return nil, fmt.Errorf("classify skill rows: %w", err)
+	}
+	for _, r := range rows {
+		if r.SessionID == nil {
+			continue
+		}
+		if phase := aidlc.SkillPhase(skillExpr(r.Tool, r.Skill, r.ToolParameters, r.Path)); phase != "" {
+			addSkillUse(out, *r.SessionID, phase, r.TimeUnixNano)
+		}
+	}
+	return out, nil
+}
+
+// skillExpr é o texto onde a skill aparece: o nome da skill na ferramenta `Skill`, ou o caminho lido.
+func skillExpr(tool, skill, params, path string) string {
+	if tool == "Skill" {
+		if s := firstNonEmpty(skill, nestedSkillName(params)); s != "" {
+			return s
+		}
+	}
+	return path
+}
+
+// addSkillUse soma um uso da fase na sessão e guarda a hora do primeiro.
+func addSkillUse(out map[string]map[string]aidlc.SkillUse, session, phase string, at int64) {
+	if out[session] == nil {
+		out[session] = map[string]aidlc.SkillUse{}
+	}
+	u := out[session][phase]
+	u.Uses++
+	if u.First == 0 || at < u.First {
+		u.First = at
+	}
+	out[session][phase] = u
+}
+
+// nestedSkillName lê `skill_name` de `tool_parameters`, que chega como texto JSON. Texto que não é JSON não conta.
+func nestedSkillName(params string) string {
+	var m map[string]any
+	if err := json.Unmarshal([]byte(params), &m); err != nil {
+		return ""
+	}
+	s, _ := m["skill_name"].(string)
+	return s
+}
+
+// firstNonEmpty devolve o primeiro texto não vazio.
+func firstNonEmpty(xs ...string) string {
+	for _, x := range xs {
+		if x != "" {
+			return x
+		}
+	}
+	return ""
+}
+
+// conversationTags são as marcas da conversa (ADR-0079 item 7): `regression` quando o oute.task.id começa com
+// `regression-` ou o repositório é `regression`.
+func conversationTags(task, repo string) []string {
+	if strings.HasPrefix(task, "regression-") || repo == "regression" {
+		return []string{"regression"}
+	}
+	return []string{}
+}
+
+func equalStrings(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}

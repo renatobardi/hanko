@@ -16,6 +16,8 @@ export interface OrgNode {
   initials: string;
   /** Glifo da persona: o host define um <symbol id="pg-{icon}"> por glifo na página. */
   icon?: string;
+  /** ids das tags da persona (ADR-0087), em ordem de nome. */
+  tags?: string[];
 }
 
 // Mesma geometria do host (internal/ui/handlers_org.go): 1 unidade = 1 px.

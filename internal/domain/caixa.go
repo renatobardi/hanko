@@ -24,11 +24,15 @@ const (
 	// InboxRoundQuestion e InboxExternalApproval são os itens da rodada e da aprovação externas (ADR-0080 item 6; ADR-0081 item 6).
 	InboxRoundQuestion    InboxItemKind = "round_question"
 	InboxExternalApproval InboxItemKind = "external_approval"
+	// InboxExternalAgent e InboxExternalHost são os agentes e hosts externos novos (ADR-0075 item 2; ADR-0077). Informativos.
+	InboxExternalAgent InboxItemKind = "external_agent"
+	InboxExternalHost  InboxItemKind = "external_host"
 )
 
 // InboxItemKinds lista os tipos na ordem em que a API os documenta.
 var InboxItemKinds = []InboxItemKind{InboxGate, InboxTaskBlocked, InboxTaskHeld, InboxRunFailed, InboxPersonaError,
-	InboxAlert, InboxSubscription, InboxMention, InboxGoalAchieved, InboxRoundQuestion, InboxExternalApproval}
+	InboxAlert, InboxSubscription, InboxMention, InboxGoalAchieved, InboxRoundQuestion, InboxExternalApproval,
+	InboxExternalAgent, InboxExternalHost}
 
 // Valid diz se k é um tipo conhecido.
 func (k InboxItemKind) Valid() bool {

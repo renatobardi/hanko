@@ -6,20 +6,12 @@ import (
 	"testing"
 )
 
-// O contrato da fonte externa (ADR-0075 a 0079) está no OpenAPI e responde 501 até cada fatia ligar o backend.
+// O contrato da fonte externa (ADR-0075 a 0079) está no OpenAPI e responde 501 até cada fatia ligar o backend; agentes e hosts já estão ligados (external_entities_test.go).
 func TestExternalSourceContratoResponde501(t *testing.T) {
 	ts, _ := newTestServer(t, &fakeSvc{}, nil)
 	const id = "00000000-0000-0000-0000-000000000001"
 	const base = "/api/v1/companies/acme"
 	for _, c := range []struct{ method, path, body string }{
-		{"GET", base + "/external-agents", ""},
-		{"GET", base + "/external-agents/" + id, ""},
-		{"PATCH", base + "/external-agents/" + id, `{"name":"x"}`},
-		{"POST", base + "/external-agents/" + id + "/merge", `{"into":"` + id + `"}`},
-		{"GET", base + "/external-hosts", ""},
-		{"GET", base + "/external-hosts/" + id, ""},
-		{"PATCH", base + "/external-hosts/" + id, `{"always_on":true}`},
-		{"POST", base + "/external-hosts/" + id + "/merge", `{"into":"` + id + `"}`},
 		{"GET", base + "/repo-pairings", ""},
 		{"PATCH", base + "/repo-pairings/" + id, `{"workspace_id":"` + id + `"}`},
 		{"GET", base + "/external-sessions", ""},
@@ -66,8 +58,8 @@ func TestExternalSourceContratoResponde501(t *testing.T) {
 			}
 		}
 	}
-	if n != 18 {
-		t.Fatalf("operações do contrato da fonte externa = %d, quer 18 (as 3 de chave de ingestão já estão ligadas)", n)
+	if n != 10 {
+		t.Fatalf("operações do contrato da fonte externa ainda em 501 = %d, quer 10 (agentes e hosts já estão ligados)", n)
 	}
 }
 

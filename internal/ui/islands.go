@@ -70,6 +70,33 @@ func orgMsgs(ctx context.Context) string {
 		"org.err.cycle":  i18n.T(ctx, "Não dá: {to} já está abaixo de {name}; isso criaria um ciclo."),
 		"org.err.self":   i18n.T(ctx, "Uma persona não reporta a si mesma."),
 		"org.err.api":    i18n.T(ctx, "Não foi possível mover: {err}"),
+		// filtros e tags (ADR-0087)
+		"org.filter.label":          i18n.T(ctx, "Filtros do organograma"),
+		"org.filter.tags":           i18n.T(ctx, "Tags"),
+		"org.filter.tags.n":         i18n.T(ctx, "Tags ({n})"),
+		"org.filter.notags":         i18n.T(ctx, "Nenhuma tag no cadastro."),
+		"org.filter.untagged":       i18n.T(ctx, "Sem tag"),
+		"org.filter.all":            i18n.T(ctx, "Exigir todas as tags (E)"),
+		"org.filter.archived":       i18n.T(ctx, "Mostrar arquivadas"),
+		"org.filter.manage":         i18n.T(ctx, "Gerenciar tags"),
+		"org.filter.levels":         i18n.T(ctx, "Níveis"),
+		"org.filter.levels.n":       i18n.T(ctx, "Níveis {n}"),
+		"org.filter.level":          i18n.T(ctx, "Nível {n}"),
+		"org.filter.depth":          i18n.T(ctx, "Até o nível"),
+		"org.filter.depth.all":      i18n.T(ctx, "todos"),
+		"org.filter.mode":           i18n.T(ctx, "Modo"),
+		"org.filter.mode.highlight": i18n.T(ctx, "Destacar"),
+		"org.filter.mode.prune":     i18n.T(ctx, "Podar mantendo o caminho"),
+		"org.filter.clear":          i18n.T(ctx, "Limpar filtros"),
+		"org.filter.empty":          i18n.T(ctx, "Nenhuma persona nesse recorte."),
+		"org.tags.edit":             i18n.T(ctx, "Tags de {name}"),
+		"org.tags.menu":             i18n.T(ctx, "Aplicar ou tirar tags de {name}"),
+		"org.tags.search":           i18n.T(ctx, "Buscar ou criar tag"),
+		"org.tags.create":           i18n.T(ctx, "Criar tag «{name}»"),
+		"org.tags.close":            i18n.T(ctx, "Fechar"),
+		"org.tags.applied":          i18n.T(ctx, "Tag {tag} aplicada a {name}."),
+		"org.tags.removed":          i18n.T(ctx, "Tag {tag} tirada de {name}."),
+		"org.tags.err":              i18n.T(ctx, "Não foi possível mudar a tag: {err}"),
 	})
 }
 
@@ -96,23 +123,28 @@ func anchorMsgs(ctx context.Context) string {
 // orgNodesJSON is the tree handed to the org-chart island (post-order, siblings in chart order).
 func orgNodesJSON(vm views.OrgVM) string {
 	type node struct {
-		ID       string `json:"id"`
-		Slug     string `json:"slug"`
-		Name     string `json:"name"`
-		Title    string `json:"title"`
-		Parent   string `json:"parent"`
-		Status   string `json:"status"`
-		Cls      string `json:"cls"`
-		Meta     string `json:"meta"`
-		Href     string `json:"href"`
-		Gate     bool   `json:"gate"`
-		Initials string `json:"initials"`
-		Icon     string `json:"icon"`
+		ID       string   `json:"id"`
+		Slug     string   `json:"slug"`
+		Name     string   `json:"name"`
+		Title    string   `json:"title"`
+		Parent   string   `json:"parent"`
+		Status   string   `json:"status"`
+		Cls      string   `json:"cls"`
+		Meta     string   `json:"meta"`
+		Href     string   `json:"href"`
+		Gate     bool     `json:"gate"`
+		Initials string   `json:"initials"`
+		Icon     string   `json:"icon"`
+		Tags     []string `json:"tags"`
 	}
 	out := make([]node, 0, len(vm.Nodes))
 	for _, n := range vm.Nodes {
+		tags := n.TagIDs
+		if tags == nil {
+			tags = []string{}
+		}
 		out = append(out, node{ID: n.ID, Slug: n.Slug, Name: n.Name, Title: n.Title, Parent: n.ParentID, Status: n.Status,
-			Cls: n.StatusClass, Meta: n.Meta, Href: n.Href, Gate: n.Gate, Initials: n.Initials, Icon: n.Icon})
+			Cls: n.StatusClass, Meta: n.Meta, Href: n.Href, Gate: n.Gate, Initials: n.Initials, Icon: n.Icon, Tags: tags})
 	}
 	b, err := json.Marshal(out)
 	if err != nil {

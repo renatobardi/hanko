@@ -8932,7 +8932,7 @@
             "type": "boolean"
           },
           "kind": {
-            "description": "Tipo do item; o id é o da origem (gate, task, execução, persona, alerta, assinatura, menção, meta).",
+            "description": "Tipo do item; o id é o da origem (gate, task, execução, persona, alerta, assinatura, menção, meta, agente ou host externo).",
             "enum": [
               "gate",
               "task_blocked",
@@ -8942,7 +8942,9 @@
               "alert",
               "subscription",
               "mention",
-              "goal_achieved"
+              "goal_achieved",
+              "external_agent",
+              "external_host"
             ],
             "type": "string"
           },
@@ -9032,7 +9034,9 @@
               "alert",
               "subscription",
               "mention",
-              "goal_achieved"
+              "goal_achieved",
+              "external_agent",
+              "external_host"
             ],
             "type": "string"
           }
@@ -37514,7 +37518,6 @@
     },
     "/api/v1/companies/{company}/external-agents": {
       "get": {
-        "description": "Contrato da fonte externa (ADR-0075 a 0079). Responde 501 até a fatia 1 (#125).",
         "operationId": "list-external-agents",
         "parameters": [
           {
@@ -37639,16 +37642,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Lista os agentes externos",
@@ -37659,7 +37652,6 @@
     },
     "/api/v1/companies/{company}/external-agents/{agent}": {
       "get": {
-        "description": "Contrato da fonte externa (ADR-0075 a 0079). Responde 501 até a fatia 1 (#125).",
         "operationId": "get-external-agent",
         "parameters": [
           {
@@ -37757,16 +37749,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Mostra um agente externo",
@@ -37775,7 +37757,6 @@
         ]
       },
       "patch": {
-        "description": "Contrato da fonte externa (ADR-0075 a 0079). Responde 501 até a fatia 1 (#125).",
         "operationId": "update-external-agent",
         "parameters": [
           {
@@ -37883,16 +37864,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Renomeia, arquiva ou volta um agente externo (owner ou admin)",
@@ -37903,7 +37874,6 @@
     },
     "/api/v1/companies/{company}/external-agents/{agent}/merge": {
       "post": {
-        "description": "Contrato da fonte externa (ADR-0075 a 0079). Responde 501 até a fatia 1 (#125).",
         "operationId": "merge-external-agent",
         "parameters": [
           {
@@ -38011,16 +37981,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Junta este agente a outro; o passado dele passa para o que fica (owner ou admin)",
@@ -39232,7 +39192,6 @@
     },
     "/api/v1/companies/{company}/external-hosts": {
       "get": {
-        "description": "Contrato da fonte externa (ADR-0075 a 0079). Responde 501 até a fatia 1 (#125).",
         "operationId": "list-external-hosts",
         "parameters": [
           {
@@ -39357,16 +39316,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Lista os hosts externos, com o último dado e há quanto tempo",
@@ -39377,7 +39326,6 @@
     },
     "/api/v1/companies/{company}/external-hosts/{host}": {
       "get": {
-        "description": "Contrato da fonte externa (ADR-0075 a 0079). Responde 501 até a fatia 1 (#125).",
         "operationId": "get-external-host",
         "parameters": [
           {
@@ -39475,16 +39423,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Mostra um host externo",
@@ -39493,7 +39431,6 @@
         ]
       },
       "patch": {
-        "description": "Contrato da fonte externa (ADR-0075 a 0079). Responde 501 até a fatia 1 (#125).",
         "operationId": "update-external-host",
         "parameters": [
           {
@@ -39601,16 +39538,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Renomeia, marca \"sempre ligado\", arquiva ou volta um host externo (owner ou admin)",
@@ -39621,7 +39548,6 @@
     },
     "/api/v1/companies/{company}/external-hosts/{host}/merge": {
       "post": {
-        "description": "Contrato da fonte externa (ADR-0075 a 0079). Responde 501 até a fatia 1 (#125).",
         "operationId": "merge-external-host",
         "parameters": [
           {
@@ -39729,16 +39655,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Junta este host a outro; o passado dele passa para o que fica (owner ou admin)",

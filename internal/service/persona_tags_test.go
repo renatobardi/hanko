@@ -3,9 +3,15 @@ package service_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
+	"time"
+
+	"github.com/jackc/pgx/v5"
 
 	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/service"
@@ -391,5 +397,156 @@ func TestListOrgPersonas(t *testing.T) {
 	chart, err := e.svc.OrgChart(ctx, e.co.ID)
 	if err != nil || len(chart.Roots[0].Persona.Tags) != 1 {
 		t.Fatalf("o organograma traz as tags: %v", err)
+	}
+}
+
+// Uma tag de uma empresa não se aplica a uma persona de outra, e nenhuma operação acha a tag pela outra empresa.
+func TestPersonaTagIsolamentoEntreEmpresas(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	ana := e.persona(t, "Ana", nil)
+	outra, err := e.svc.CreateCompany(ctx, domain.HumanActor, service.CreateCompanyInput{Name: "Outra", Slug: "outra"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	beto, err := e.svc.HirePersona(ctx, domain.HumanActor, outra.ID, service.HirePersonaInput{Name: "Beto", Agent: "fake", Model: "m1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	daOutra, err := e.svc.CreatePersonaTag(ctx, domain.HumanActor, outra.ID, service.PersonaTagInput{Name: "Externa"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantErr(t, e.svc.TagPersona(ctx, domain.HumanActor, e.co.ID, ana.ID, daOutra.ID), domain.ErrNotFound)
+	wantErr(t, e.svc.TagPersona(ctx, domain.HumanActor, outra.ID, ana.ID, daOutra.ID), domain.ErrNotFound)
+	wantErr(t, e.svc.UntagPersona(ctx, domain.HumanActor, e.co.ID, beto.ID, daOutra.ID), domain.ErrNotFound)
+	_, err = e.svc.GetPersonaTag(ctx, e.co.ID, daOutra.ID)
+	wantErr(t, err, domain.ErrNotFound)
+	_, err = e.svc.ArchivePersonaTag(ctx, domain.HumanActor, e.co.ID, daOutra.ID)
+	wantErr(t, err, domain.ErrNotFound)
+	_, err = e.svc.DeletePersonaTag(ctx, domain.HumanActor, e.co.ID, daOutra.ID)
+	wantErr(t, err, domain.ErrNotFound)
+	_, err = e.svc.ListOrgPersonas(ctx, e.co.ID, service.OrgPersonaFilter{TagIDs: []domain.ID{daOutra.ID}})
+	wantErr(t, err, domain.ErrNotFound)
+	if l, _ := e.svc.ListPersonaTags(ctx, e.co.ID, true); len(l) != 0 {
+		t.Fatalf("tags da outra empresa no cadastro: %+v", l)
+	}
+	if v, _ := e.svc.GetPersonaTag(ctx, outra.ID, daOutra.ID); v.PersonaCount != 0 {
+		t.Fatalf("ligação entre empresas: %+v", v)
+	}
+}
+
+// Aplicações concorrentes não passam do teto de 20 por persona: com 19 tags e 3 aplicações ao mesmo tempo, só uma entra.
+// Para as três se sobreporem sempre, o teste segura a linha da persona com FOR UPDATE: a inserção da ligação pede FOR KEY
+// SHARE nessa linha (chave estrangeira) e espera. Sem a trava das tags, as três já contaram 19 e entram todas quando a
+// linha é solta; com a trava, só a primeira passa da contagem.
+func TestPersonaTagTetoConcorrente(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	ana := e.persona(t, "Ana", nil)
+	for i := range domain.MaxTagsPerPersona - 1 {
+		e.tagPersona(t, ana, e.tag(t, fmt.Sprintf("base %d", i)))
+	}
+	extras := make([]service.PersonaTagView, 3)
+	for i := range extras {
+		extras[i] = e.tag(t, fmt.Sprintf("extra %d", i))
+	}
+	hold, err := e.svc.Pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = hold.Rollback(ctx) }() // solta a linha mesmo se o teste falhar antes
+	if _, err := hold.Exec(ctx, `SELECT 1 FROM personas WHERE id = $1 FOR UPDATE`, ana.ID); err != nil {
+		t.Fatal(err)
+	}
+	errs := make([]error, len(extras))
+	var wg sync.WaitGroup
+	for i, x := range extras {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			errs[i] = e.svc.TagPersona(ctx, domain.HumanActor, e.co.ID, ana.ID, x.ID)
+		}()
+	}
+	waitLockWaiters(ctx, t, e.svc.Pool.Config().ConnConfig, len(extras))
+	if err := hold.Rollback(ctx); err != nil {
+		t.Fatal(err)
+	}
+	wg.Wait()
+	ok := 0
+	for _, err := range errs {
+		if err == nil {
+			ok++
+		} else if !errors.Is(err, domain.ErrInvalid) {
+			t.Fatalf("erro inesperado: %v", err)
+		}
+	}
+	if p, _ := e.svc.GetPersona(ctx, e.co.ID, ana.Slug); ok != 1 || len(p.Tags) != domain.MaxTagsPerPersona {
+		t.Fatalf("aplicações aceitas = %d, tags = %d; quer 1 e %d", ok, len(p.Tags), domain.MaxTagsPerPersona)
+	}
+}
+
+// Criações concorrentes não passam do teto de 200 tags por empresa: com 199 no cadastro e 3 criações ao mesmo tempo, o
+// cadastro fica com 200. Como no teto por persona, o teste segura a linha da empresa com FOR UPDATE: a inserção da tag pede
+// FOR KEY SHARE nela (chave estrangeira) e espera, então as três já contaram 199 antes de inserir se não houver trava.
+func TestPersonaTagTetoConcorrenteEmpresa(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	if _, err := e.svc.Pool.Exec(ctx, `INSERT INTO persona_tags (id, company_id, name)
+		SELECT gen_random_uuid(), $1, 'massa ' || g FROM generate_series(1, $2) g`, e.co.ID, domain.MaxPersonaTagsPerCompany-1); err != nil {
+		t.Fatal(err)
+	}
+	hold, err := e.svc.Pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = hold.Rollback(ctx) }() // solta a linha mesmo se o teste falhar antes
+	if _, err := hold.Exec(ctx, `SELECT 1 FROM companies WHERE id = $1 FOR UPDATE`, e.co.ID); err != nil {
+		t.Fatal(err)
+	}
+	var wg sync.WaitGroup
+	created := make([]error, 3)
+	for i := range created {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, created[i] = e.svc.CreatePersonaTag(ctx, domain.HumanActor, e.co.ID, service.PersonaTagInput{Name: fmt.Sprintf("nova %d", i)})
+		}()
+	}
+	waitLockWaiters(ctx, t, e.svc.Pool.Config().ConnConfig, len(created))
+	if err := hold.Rollback(ctx); err != nil {
+		t.Fatal(err)
+	}
+	wg.Wait()
+	all, err := e.svc.ListPersonaTags(ctx, e.co.ID, true)
+	if err != nil || len(all) != domain.MaxPersonaTagsPerCompany {
+		t.Fatalf("cadastro = %d tags (%v), quer %d", len(all), err, domain.MaxPersonaTagsPerCompany)
+	}
+}
+
+// waitLockWaiters espera até n conexões do banco do teste estarem paradas em espera de lock (no máximo 10 s). Usa uma
+// conexão própria, fora do pool, para não disputar vaga com quem espera; cfg é a do pool, que aponta para o banco do
+// teste (testdb cria um banco por teste).
+func waitLockWaiters(ctx context.Context, t *testing.T, cfg *pgx.ConnConfig, n int) {
+	t.Helper()
+	conn, err := pgx.ConnectConfig(ctx, cfg.Copy())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = conn.Close(ctx) }()
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		var waiting int
+		if err := conn.QueryRow(ctx, `SELECT count(*) FROM pg_stat_activity
+			WHERE datname = current_database() AND wait_event_type = 'Lock'`).Scan(&waiting); err != nil {
+			t.Fatal(err)
+		}
+		if waiting >= n {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("só %d de %d aplicações chegaram à espera de lock", waiting, n)
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
 }

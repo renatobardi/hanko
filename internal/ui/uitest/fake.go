@@ -21,10 +21,12 @@ import (
 // Fake is a mutable in-memory backend. Err injects a failure per method name
 // (e.g. Err["GetTask"] = domain.ErrNotFound).
 type Fake struct {
-	mu            sync.Mutex
-	Err           map[string]error
-	Companies     []domain.Company
-	Personas      []domain.Persona
+	mu        sync.Mutex
+	Err       map[string]error
+	Companies []domain.Company
+	Personas  []domain.Persona
+	// PersonaTags é o cadastro de tags (ADR-0087); as ligações ficam em Personas[i].Tags.
+	PersonaTags   []domain.PersonaTag
 	Projects      []domain.Project
 	Workspaces    []domain.Workspace
 	Tasks         []service.TaskView

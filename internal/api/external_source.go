@@ -305,23 +305,7 @@ func (s *server) registerExternalSource(api huma.API) {
 	const tag = "external-source"
 	b := "/companies/{company}"
 
-	pendingExternalOp[listExternalNamedIn, ListOut[ExternalAgent]](api, op("list-external-agents", http.MethodGet, b+"/external-agents", tag,
-		"Lista os agentes externos"), sliceExternalSource)
-	pendingExternalOp[ExternalAgentPath, ItemOut[ExternalAgent]](api, op("get-external-agent", http.MethodGet, b+"/external-agents/{agent}", tag,
-		"Mostra um agente externo"), sliceExternalSource)
-	pendingExternalOp[updateExternalAgentIn, ItemOut[ExternalAgent]](api, op("update-external-agent", http.MethodPatch, b+"/external-agents/{agent}", tag,
-		"Renomeia, arquiva ou volta um agente externo (owner ou admin)"), sliceExternalSource)
-	pendingExternalOp[mergeExternalAgentIn, ItemOut[ExternalAgent]](api, op("merge-external-agent", http.MethodPost, b+"/external-agents/{agent}/merge", tag,
-		"Junta este agente a outro; o passado dele passa para o que fica (owner ou admin)"), sliceExternalSource)
-
-	pendingExternalOp[listExternalNamedIn, ListOut[ExternalHost]](api, op("list-external-hosts", http.MethodGet, b+"/external-hosts", tag,
-		"Lista os hosts externos, com o último dado e há quanto tempo"), sliceExternalSource)
-	pendingExternalOp[ExternalHostPath, ItemOut[ExternalHost]](api, op("get-external-host", http.MethodGet, b+"/external-hosts/{host}", tag,
-		"Mostra um host externo"), sliceExternalSource)
-	pendingExternalOp[updateExternalHostIn, ItemOut[ExternalHost]](api, op("update-external-host", http.MethodPatch, b+"/external-hosts/{host}", tag,
-		"Renomeia, marca \"sempre ligado\", arquiva ou volta um host externo (owner ou admin)"), sliceExternalSource)
-	pendingExternalOp[mergeExternalHostIn, ItemOut[ExternalHost]](api, op("merge-external-host", http.MethodPost, b+"/external-hosts/{host}/merge", tag,
-		"Junta este host a outro; o passado dele passa para o que fica (owner ou admin)"), sliceExternalSource)
+	s.registerExternalEntities(api)
 
 	pendingExternalOp[listExternalNamedIn, ListOut[RepoPairing]](api, op("list-repo-pairings", http.MethodGet, b+"/repo-pairings", tag,
 		"Lista os emparelhamentos de repositório com workspace"), sliceExternalSource)

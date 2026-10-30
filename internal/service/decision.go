@@ -20,6 +20,7 @@ import (
 	"github.com/renatobardi/hanko/internal/netguard"
 	"github.com/renatobardi/hanko/internal/provider"
 	"github.com/renatobardi/hanko/internal/secretref"
+	"github.com/renatobardi/hanko/internal/secretscan"
 	"github.com/renatobardi/hanko/internal/store"
 )
 
@@ -354,6 +355,30 @@ type featureRun struct {
 	onInvoked func(inv domain.DecisionInvocation)
 }
 
+// secretDetectedError é a recusa de uma invocação cujo prompt tem segredo colado (ADR-0079 item 6). Leva só o tipo do
+// padrão: o trecho nunca entra em erro, ledger nem evento.
+type secretDetectedError struct{ kind string }
+
+func (e secretDetectedError) Error() string { return "secret_detected: " + e.kind }
+
+// chatOrRefuse manda o pedido ao provedor, a não ser que o prompt tenha segredo: aí nada sai do Hanko.
+func chatOrRefuse(ctx context.Context, client *provider.Client, req provider.ChatRequest, p decision.Prompt) (provider.ChatResponse, error) {
+	if kind := secretscan.Kind(p.System + "\n" + p.User); kind != "" {
+		return provider.ChatResponse{}, secretDetectedError{kind: kind}
+	}
+	return client.Chat(ctx, req)
+}
+
+// invocationData são os dados do evento decision.invoked. Numa recusa por segredo leva o tipo do padrão.
+func invocationData(feature domain.DecisionFeature, row store.DecisionInvocation, failure error) map[string]any {
+	data := map[string]any{"feature": feature, "model": row.Model, "status": row.Status, "cost_usd": row.CostUsd, "cost_source": row.CostSource}
+	var sd secretDetectedError
+	if errors.As(failure, &sd) {
+		data["secret_kind"] = sd.kind
+	}
+	return data
+}
+
 // runFeature chama o decision model para uma feature, grava a invocação no ledger (ator system, ok ou erro) e, se a
 // resposta é válida, o efeito da feature, tudo na mesma transação de registro.
 func (s *Service) runFeature(ctx context.Context, companyID domain.ID, fr featureRun) (inv domain.DecisionInvocation, err error) {
@@ -408,8 +433,8 @@ func (s *Service) runFeature(ctx context.Context, companyID domain.ID, fr featur
 	if fr.maxTokens > 0 {
 		maxTokens = fr.maxTokens
 	}
-	resp, callErr := client.Chat(cctx, provider.ChatRequest{Model: model, JSONObject: true, Temperature: &zero, MaxTokens: maxTokens,
-		Messages: []provider.Message{{Role: "system", Content: fr.prompt.System}, {Role: "user", Content: fr.prompt.User}}})
+	resp, callErr := chatOrRefuse(cctx, client, provider.ChatRequest{Model: model, JSONObject: true, Temperature: &zero, MaxTokens: maxTokens,
+		Messages: []provider.Message{{Role: "system", Content: fr.prompt.System}, {Role: "user", Content: fr.prompt.User}}}, fr.prompt)
 	cancel()
 	latency := int(time.Since(start).Milliseconds())
 
@@ -440,7 +465,7 @@ func (s *Service) runFeature(ctx context.Context, companyID domain.ID, fr featur
 			fr.onInvoked(inv)
 		}
 		if err := t.activity(domain.SystemActor, companyID, "decision.invoked", "decision_invocation", row.ID,
-			map[string]any{"feature": fr.feature, "model": row.Model, "status": row.Status, "cost_usd": row.CostUsd, "cost_source": row.CostSource}, ""); err != nil {
+			invocationData(fr.feature, row, failure), ""); err != nil {
 			return err
 		}
 		if failure == nil && apply != nil {
