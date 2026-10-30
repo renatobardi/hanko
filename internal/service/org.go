@@ -60,10 +60,15 @@ func (s *Service) OrgChart(ctx context.Context, companyID domain.ID) (OrgChart, 
 		}
 	}
 
+	tags, err := personaTagsByPersona(ctx, q, companyID)
+	if err != nil {
+		return OrgChart{}, err
+	}
 	nodes := make(map[domain.ID]*OrgNode, len(rows))
 	order := make([]*OrgNode, 0, len(rows))
 	for _, r := range rows {
 		p := personaFromRow(r)
+		p.Tags = tags[p.ID]
 		n := &OrgNode{Persona: p, OpenTasks: open[p.ID], PendingGates: pending[p.ID]}
 		nodes[p.ID] = n
 		order = append(order, n)

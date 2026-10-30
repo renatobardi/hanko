@@ -2,35 +2,22 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
+	"github.com/google/uuid"
+
+	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/service"
 )
 
-// Contrato das tags de persona e dos filtros do organograma (ADR-0087, #118). Cada operação já tem entrada e saída no
-// OpenAPI e responde 501 até a fatia 1; a descrição diz isso. A autorização fica no service (ADR-0087 item 4): viewer lê,
-// member cria, edita, aplica e tira, admin arquiva, desarquiva e deleta. Toda escrita gera `activity_event` na mesma
-// transação, com os verbos de `domain.VerbPersonaTag*` (item 12).
-//
-// A CLI segue as mesmas operações (item 9): `hanko persona tag list [--archived]`, `hanko persona tag create <nome>
-// [--color] [--description]`, `hanko persona tag edit <tag> [--name] [--color] [--description]`, `hanko persona tag
-// archive|unarchive <tag>`, `hanko persona tag delete <tag> [--yes]`, `hanko persona tag add <persona> <tag> [--create]`,
-// `hanko persona tag remove <persona> <tag>` e `hanko persona tag personas [--tag] [--match] [--untagged] [--level]
-// [--max-depth] [--archived]`. `<tag>` é o id ou o nome, sem distinguir caixa.
-//
-// Na fatia 1 também mudam, sem operação nova: `Persona.tags` passa a vir preenchido; o MCP `hanko_persona_list` devolve
-// as tags e aceita o filtro `tag`, e `hanko_whoami` devolve as tags da própria persona, só leitura (item 9); o export da
-// empresa leva o cadastro e as ligações (item 11).
-
-// pendingTagOp registra uma operação do contrato das tags que ainda responde 501.
-func pendingTagOp[I, O any](api huma.API, o huma.Operation) {
-	o.Description = "Contrato das tags de persona (ADR-0087, #118). Responde 501 até a fatia 1."
-	o.Errors = append(o.Errors, http.StatusNotImplemented)
-	huma.Register(api, o, func(context.Context, *I) (*O, error) {
-		return nil, problem(http.StatusNotImplemented, "operação ainda não implementada")
-	})
-}
+// Tags de persona e recorte do organograma (ADR-0087, #118). A autorização fica no service (item 4): viewer lê, member
+// cria, edita, aplica e tira, admin arquiva, desarquiva e deleta; run token não escreve tag (item 9). Toda escrita gera
+// `activity_event` na mesma transação, com os verbos de `domain.VerbPersonaTag*` (item 12).
 
 // ---------- recursos ----------
 
@@ -118,6 +105,72 @@ type listOrgPersonasIn struct {
 	Archived bool   `query:"archived" doc:"Aceita tags arquivadas no filtro."`
 }
 
+// ---------- conversões ----------
+
+func personaTagOut(v service.PersonaTagView) PersonaTag {
+	return PersonaTag{ID: idStr(v.ID), Name: v.Name, Color: string(v.Color), Description: v.Description, Archived: v.Archived(),
+		ArchivedAt: v.ArchivedAt, PersonaCount: v.PersonaCount, CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt}
+}
+
+func personaTagRefOut(t domain.PersonaTag) PersonaTagRef {
+	return PersonaTagRef{ID: idStr(t.ID), Name: t.Name, Color: string(t.Color), Description: t.Description, Archived: t.Archived()}
+}
+
+func personaTagRefsOut(ts []domain.PersonaTag) []PersonaTagRef {
+	if len(ts) == 0 {
+		return nil
+	}
+	out := make([]PersonaTagRef, len(ts))
+	for i, t := range ts {
+		out[i] = personaTagRefOut(t)
+	}
+	return out
+}
+
+func orgPersonaOut(p service.OrgPersona) OrgPersona {
+	tags := personaTagRefsOut(p.Persona.Tags)
+	if tags == nil {
+		tags = []PersonaTagRef{}
+	}
+	return OrgPersona{Persona: personaOut(p.Persona), Level: p.Level, Tags: tags}
+}
+
+// orgFilterIn converte os parâmetros do recorte. Id de tag ou nível malformado é erro de validação.
+func orgFilterIn(in *listOrgPersonasIn) (service.OrgPersonaFilter, error) {
+	f := service.OrgPersonaFilter{Match: domain.OrgTagMatch(in.Match), Untagged: in.Untagged, MaxDepth: in.MaxDepth, IncludeArchived: in.Archived}
+	for _, part := range splitList(in.Tag) {
+		id, err := uuid.Parse(part)
+		if err != nil {
+			return f, domain.Invalid("tag", fmt.Sprintf("tag id %q is not a uuid", part))
+		}
+		f.TagIDs = append(f.TagIDs, id)
+	}
+	for _, part := range splitList(in.Level) {
+		n, err := strconv.Atoi(part)
+		if err != nil {
+			return f, domain.Invalid("level", fmt.Sprintf("level %q is not a number", part))
+		}
+		f.Levels = append(f.Levels, n)
+	}
+	return f, nil
+}
+
+// tagIDOf lê o id da tag do caminho. O esquema já exige uuid; um valor fora disso vira o id zero, que não existe.
+func tagIDOf(ref string) domain.ID {
+	id, _ := uuid.Parse(ref)
+	return id
+}
+
+func splitList(s string) []string {
+	var out []string
+	for _, part := range strings.Split(s, ",") {
+		if part = strings.TrimSpace(part); part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
+}
+
 // ---------- registro ----------
 
 func (s *server) registerPersonaTags(api huma.API) {
@@ -125,28 +178,162 @@ func (s *server) registerPersonaTags(api huma.API) {
 	b := "/companies/{company}"
 	one := b + "/persona-tags/{tag}"
 
-	pendingTagOp[listPersonaTagsIn, ListOut[PersonaTag]](api, op("list-persona-tags", http.MethodGet, b+"/persona-tags", tag,
-		"Lista o cadastro de tags de persona, sem as arquivadas por padrão"))
-	pendingTagOp[createPersonaTagIn, ItemOut[PersonaTag]](api, created(op("create-persona-tag", http.MethodPost, b+"/persona-tags", tag,
-		"Cria uma tag de persona (member; até 200 por empresa, contando as arquivadas)")))
-	pendingTagOp[PersonaTagPath, ItemOut[PersonaTag]](api, op("get-persona-tag", http.MethodGet, one, tag,
-		"Obtém uma tag, com a contagem de personas"))
-	pendingTagOp[updatePersonaTagIn, ItemOut[PersonaTag]](api, op("update-persona-tag", http.MethodPatch, one, tag,
-		"Edita nome, cor ou descrição de uma tag (member)"))
-	pendingTagOp[PersonaTagPath, ItemOut[PersonaTag]](api, op("archive-persona-tag", http.MethodPost, one+"/archive", tag,
-		"Arquiva uma tag (admin; se desfaz)"))
-	pendingTagOp[PersonaTagPath, ItemOut[PersonaTag]](api, op("unarchive-persona-tag", http.MethodPost, one+"/unarchive", tag,
-		"Desarquiva uma tag (admin)"))
-	pendingTagOp[PersonaTagPath, struct{}](api, noContent(op("delete-persona-tag", http.MethodDelete, one, tag,
-		"Deleta uma tag e tira de todas as personas (admin; não se desfaz)")))
+	huma.Register(api, op("list-persona-tags", http.MethodGet, b+"/persona-tags", tag, "Lista o cadastro de tags de persona, sem as arquivadas por padrão"),
+		func(ctx context.Context, in *listPersonaTagsIn) (*ListOut[PersonaTag], error) {
+			sc, err := s.scope(ctx, in.Company)
+			if err != nil {
+				return nil, err
+			}
+			vs, err := s.svc.ListPersonaTags(ctx, sc.Company.ID, in.Archived)
+			if err != nil {
+				return nil, s.fail(ctx, err)
+			}
+			return listOf(vs, in.Page, personaTagOut), nil
+		})
 
-	pendingTagOp[PersonaTagLinkPath, struct{}](api, noContent(op("tag-persona", http.MethodPut, b+"/personas/{persona}/tags/{tag}", tag,
-		"Aplica uma tag ativa a uma persona (member; até 20 por persona; aplicar de novo não muda nada)")))
-	pendingTagOp[createAndTagPersonaIn, ItemOut[PersonaTagRef]](api, created(op("create-and-tag-persona", http.MethodPost, b+"/personas/{persona}/tags", tag,
-		"Cria a tag pelo nome, se não existe, e aplica à persona numa transação só (member)")))
-	pendingTagOp[PersonaTagLinkPath, struct{}](api, noContent(op("untag-persona", http.MethodDelete, b+"/personas/{persona}/tags/{tag}", tag,
-		"Tira uma tag de uma persona (member; vale também para tag arquivada)")))
+	huma.Register(api, created(op("create-persona-tag", http.MethodPost, b+"/persona-tags", tag, "Cria uma tag de persona (member; até 200 por empresa, contando as arquivadas)")),
+		func(ctx context.Context, in *createPersonaTagIn) (*ItemOut[PersonaTag], error) {
+			sc, err := s.tagWriteScope(ctx, in.Company)
+			if err != nil {
+				return nil, err
+			}
+			v, err := s.svc.CreatePersonaTag(ctx, sc.Actor, sc.Company.ID, service.PersonaTagInput{Name: in.Body.Name,
+				Color: domain.PersonaTagColor(in.Body.Color), Description: in.Body.Description})
+			if err != nil {
+				return nil, s.fail(ctx, err)
+			}
+			return &ItemOut[PersonaTag]{Body: personaTagOut(v)}, nil
+		})
 
-	pendingTagOp[listOrgPersonasIn, ListOut[OrgPersona]](api, op("list-org-personas", http.MethodGet, b+"/org-chart/personas", tag,
-		"Lista as personas do recorte do organograma por tag e por nível, com o nível de cada uma"))
+	huma.Register(api, op("get-persona-tag", http.MethodGet, one, tag, "Obtém uma tag, com a contagem de personas"),
+		func(ctx context.Context, in *PersonaTagPath) (*ItemOut[PersonaTag], error) {
+			sc, err := s.scope(ctx, in.Company)
+			if err != nil {
+				return nil, err
+			}
+			v, err := s.svc.GetPersonaTag(ctx, sc.Company.ID, tagIDOf(in.Tag))
+			if err != nil {
+				return nil, s.fail(ctx, err)
+			}
+			return &ItemOut[PersonaTag]{Body: personaTagOut(v)}, nil
+		})
+
+	huma.Register(api, op("update-persona-tag", http.MethodPatch, one, tag, "Edita nome, cor ou descrição de uma tag (member)"),
+		func(ctx context.Context, in *updatePersonaTagIn) (*ItemOut[PersonaTag], error) {
+			sc, err := s.tagWriteScope(ctx, in.Company)
+			if err != nil {
+				return nil, err
+			}
+			up := service.UpdatePersonaTagInput{Name: in.Body.Name, Description: in.Body.Description}
+			if in.Body.Color != nil {
+				c := domain.PersonaTagColor(*in.Body.Color)
+				up.Color = &c
+			}
+			v, err := s.svc.UpdatePersonaTag(ctx, sc.Actor, sc.Company.ID, tagIDOf(in.Tag), up)
+			if err != nil {
+				return nil, s.fail(ctx, err)
+			}
+			return &ItemOut[PersonaTag]{Body: personaTagOut(v)}, nil
+		})
+
+	archive := func(fn func(context.Context, domain.Actor, domain.ID, domain.ID) (service.PersonaTagView, error)) func(context.Context, *PersonaTagPath) (*ItemOut[PersonaTag], error) {
+		return func(ctx context.Context, in *PersonaTagPath) (*ItemOut[PersonaTag], error) {
+			sc, err := s.tagWriteScope(ctx, in.Company)
+			if err != nil {
+				return nil, err
+			}
+			v, err := fn(ctx, sc.Actor, sc.Company.ID, tagIDOf(in.Tag))
+			if err != nil {
+				return nil, s.fail(ctx, err)
+			}
+			return &ItemOut[PersonaTag]{Body: personaTagOut(v)}, nil
+		}
+	}
+	huma.Register(api, op("archive-persona-tag", http.MethodPost, one+"/archive", tag, "Arquiva uma tag (admin; se desfaz)"), archive(func(ctx context.Context, a domain.Actor, c, t domain.ID) (service.PersonaTagView, error) {
+		return s.svc.ArchivePersonaTag(ctx, a, c, t)
+	}))
+	huma.Register(api, op("unarchive-persona-tag", http.MethodPost, one+"/unarchive", tag, "Desarquiva uma tag (admin)"), archive(func(ctx context.Context, a domain.Actor, c, t domain.ID) (service.PersonaTagView, error) {
+		return s.svc.UnarchivePersonaTag(ctx, a, c, t)
+	}))
+
+	huma.Register(api, noContent(op("delete-persona-tag", http.MethodDelete, one, tag, "Deleta uma tag e tira de todas as personas (admin; não se desfaz)")),
+		func(ctx context.Context, in *PersonaTagPath) (*struct{}, error) {
+			sc, err := s.tagWriteScope(ctx, in.Company)
+			if err != nil {
+				return nil, err
+			}
+			if _, err := s.svc.DeletePersonaTag(ctx, sc.Actor, sc.Company.ID, tagIDOf(in.Tag)); err != nil {
+				return nil, s.fail(ctx, err)
+			}
+			return nil, nil
+		})
+
+	link := func(fn func(context.Context, domain.Actor, domain.ID, domain.ID, domain.ID) error) func(context.Context, *PersonaTagLinkPath) (*struct{}, error) {
+		return func(ctx context.Context, in *PersonaTagLinkPath) (*struct{}, error) {
+			sc, err := s.tagWriteScope(ctx, in.Company)
+			if err != nil {
+				return nil, err
+			}
+			p, err := s.svc.GetPersona(ctx, sc.Company.ID, in.Persona)
+			if err != nil {
+				return nil, s.fail(ctx, err)
+			}
+			if err := fn(ctx, sc.Actor, sc.Company.ID, p.ID, tagIDOf(in.Tag)); err != nil {
+				return nil, s.fail(ctx, err)
+			}
+			return nil, nil
+		}
+	}
+	huma.Register(api, noContent(op("tag-persona", http.MethodPut, b+"/personas/{persona}/tags/{tag}", tag,
+		"Aplica uma tag ativa a uma persona (member; até 20 por persona; aplicar de novo não muda nada)")), link(func(ctx context.Context, a domain.Actor, c, p, t domain.ID) error {
+		return s.svc.TagPersona(ctx, a, c, p, t)
+	}))
+	huma.Register(api, noContent(op("untag-persona", http.MethodDelete, b+"/personas/{persona}/tags/{tag}", tag,
+		"Tira uma tag de uma persona (member; vale também para tag arquivada)")), link(func(ctx context.Context, a domain.Actor, c, p, t domain.ID) error {
+		return s.svc.UntagPersona(ctx, a, c, p, t)
+	}))
+
+	huma.Register(api, created(op("create-and-tag-persona", http.MethodPost, b+"/personas/{persona}/tags", tag,
+		"Cria a tag pelo nome, se não existe, e aplica à persona numa transação só (member)")),
+		func(ctx context.Context, in *createAndTagPersonaIn) (*ItemOut[PersonaTagRef], error) {
+			sc, err := s.tagWriteScope(ctx, in.Company)
+			if err != nil {
+				return nil, err
+			}
+			p, err := s.svc.GetPersona(ctx, sc.Company.ID, in.Persona)
+			if err != nil {
+				return nil, s.fail(ctx, err)
+			}
+			t, err := s.svc.CreateAndTagPersona(ctx, sc.Actor, sc.Company.ID, p.ID, service.PersonaTagInput{Name: in.Body.Name, Color: domain.PersonaTagColor(in.Body.Color)})
+			if err != nil {
+				return nil, s.fail(ctx, err)
+			}
+			return &ItemOut[PersonaTagRef]{Body: personaTagRefOut(t)}, nil
+		})
+
+	huma.Register(api, op("list-org-personas", http.MethodGet, b+"/org-chart/personas", tag,
+		"Lista as personas do recorte do organograma por tag e por nível, com o nível de cada uma"),
+		func(ctx context.Context, in *listOrgPersonasIn) (*ListOut[OrgPersona], error) {
+			sc, err := s.scope(ctx, in.Company)
+			if err != nil {
+				return nil, err
+			}
+			f, err := orgFilterIn(in)
+			if err != nil {
+				return nil, s.fail(ctx, err)
+			}
+			ps, err := s.svc.ListOrgPersonas(ctx, sc.Company.ID, f)
+			if err != nil {
+				return nil, s.fail(ctx, err)
+			}
+			return listOf(ps, in.Page, orgPersonaOut), nil
+		})
+}
+
+// tagWriteScope resolve a empresa de uma escrita de tag; run token não escreve (ADR-0087 item 9).
+func (s *server) tagWriteScope(ctx context.Context, company string) (scope, error) {
+	if err := forbidPersona(ctx); err != nil {
+		return scope{}, err
+	}
+	return s.scope(ctx, company)
 }

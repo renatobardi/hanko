@@ -14571,7 +14571,7 @@
             "type": "boolean"
           },
           "tags": {
-            "description": "Tags da persona (ADR-0087), em ordem de nome. Vem preenchido a partir da fatia 1 da #118.",
+            "description": "Tags da persona (ADR-0087), em ordem de nome. Vem nas leituras de persona e do organograma.",
             "items": {
               "$ref": "#/components/schemas/PersonaTagRef"
             },
@@ -50855,7 +50855,6 @@
     },
     "/api/v1/companies/{company}/org-chart/personas": {
       "get": {
-        "description": "Contrato das tags de persona (ADR-0087, #118). Responde 501 até a fatia 1.",
         "operationId": "list-org-personas",
         "parameters": [
           {
@@ -51042,16 +51041,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Lista as personas do recorte do organograma por tag e por nível, com o nível de cada uma",
@@ -51062,7 +51051,6 @@
     },
     "/api/v1/companies/{company}/persona-tags": {
       "get": {
-        "description": "Contrato das tags de persona (ADR-0087, #118). Responde 501 até a fatia 1.",
         "operationId": "list-persona-tags",
         "parameters": [
           {
@@ -51186,16 +51174,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Lista o cadastro de tags de persona, sem as arquivadas por padrão",
@@ -51204,7 +51182,6 @@
         ]
       },
       "post": {
-        "description": "Contrato das tags de persona (ADR-0087, #118). Responde 501 até a fatia 1.",
         "operationId": "create-persona-tag",
         "parameters": [
           {
@@ -51301,16 +51278,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Cria uma tag de persona (member; até 200 por empresa, contando as arquivadas)",
@@ -51321,7 +51288,6 @@
     },
     "/api/v1/companies/{company}/persona-tags/{tag}": {
       "delete": {
-        "description": "Contrato das tags de persona (ADR-0087, #118). Responde 501 até a fatia 1.",
         "operationId": "delete-persona-tag",
         "parameters": [
           {
@@ -51412,16 +51378,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Deleta uma tag e tira de todas as personas (admin; não se desfaz)",
@@ -51430,7 +51386,6 @@
         ]
       },
       "get": {
-        "description": "Contrato das tags de persona (ADR-0087, #118). Responde 501 até a fatia 1.",
         "operationId": "get-persona-tag",
         "parameters": [
           {
@@ -51528,16 +51483,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Obtém uma tag, com a contagem de personas",
@@ -51546,7 +51491,6 @@
         ]
       },
       "patch": {
-        "description": "Contrato das tags de persona (ADR-0087, #118). Responde 501 até a fatia 1.",
         "operationId": "update-persona-tag",
         "parameters": [
           {
@@ -51654,16 +51598,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Edita nome, cor ou descrição de uma tag (member)",
@@ -51674,7 +51608,6 @@
     },
     "/api/v1/companies/{company}/persona-tags/{tag}/archive": {
       "post": {
-        "description": "Contrato das tags de persona (ADR-0087, #118). Responde 501 até a fatia 1.",
         "operationId": "archive-persona-tag",
         "parameters": [
           {
@@ -51772,16 +51705,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Arquiva uma tag (admin; se desfaz)",
@@ -51792,7 +51715,6 @@
     },
     "/api/v1/companies/{company}/persona-tags/{tag}/unarchive": {
       "post": {
-        "description": "Contrato das tags de persona (ADR-0087, #118). Responde 501 até a fatia 1.",
         "operationId": "unarchive-persona-tag",
         "parameters": [
           {
@@ -51890,16 +51812,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Desarquiva uma tag (admin)",
@@ -53752,7 +53664,6 @@
     },
     "/api/v1/companies/{company}/personas/{persona}/tags": {
       "post": {
-        "description": "Contrato das tags de persona (ADR-0087, #118). Responde 501 até a fatia 1.",
         "operationId": "create-and-tag-persona",
         "parameters": [
           {
@@ -53862,16 +53773,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Cria a tag pelo nome, se não existe, e aplica à persona numa transação só (member)",
@@ -53882,7 +53783,6 @@
     },
     "/api/v1/companies/{company}/personas/{persona}/tags/{tag}": {
       "delete": {
-        "description": "Contrato das tags de persona (ADR-0087, #118). Responde 501 até a fatia 1.",
         "operationId": "untag-persona",
         "parameters": [
           {
@@ -53986,16 +53886,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Tira uma tag de uma persona (member; vale também para tag arquivada)",
@@ -54004,7 +53894,6 @@
         ]
       },
       "put": {
-        "description": "Contrato das tags de persona (ADR-0087, #118). Responde 501 até a fatia 1.",
         "operationId": "tag-persona",
         "parameters": [
           {
@@ -54108,16 +53997,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Aplica uma tag ativa a uma persona (member; até 20 por persona; aplicar de novo não muda nada)",
