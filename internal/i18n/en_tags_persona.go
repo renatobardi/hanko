@@ -60,6 +60,18 @@ var enTagsPersona = map[string]string{
 	"Nova tag":       "New tag",
 	"Tirar a tag %s": "Remove the tag %s",
 
+	// edição em lote na lista de Personas
+	"A tag «%s» não existe.":              "The tag «%s» does not exist.",
+	"Escolha aplicar ou tirar.":           "Choose apply or remove.",
+	"Persona inválida no lote.":           "Invalid persona in the batch.",
+	"Tag «%s» aplicada a %d persona(s).":  "Tag «%s» applied to %d persona(s).",
+	"Tag «%s» tirada de %d persona(s).":   "Tag «%s» removed from %d persona(s).",
+	"Marcar %s":                           "Select %s",
+	"Marcar todas as personas":            "Select all personas",
+	"Personas marcadas:":                  "Selected personas:",
+	"Tirar tag":                           "Remove tag",
+	"Um nome novo cria a tag ao aplicar.": "A new name creates the tag when applying.",
+
 	// CLI (`hanko persona tag`)
 	"Gerencia as tags de persona (cadastro, aplicar, tirar e recorte do organograma)": "Manages the persona tags (registry, apply, remove and org chart slice)",
 	"Lista o cadastro de tags (sem as arquivadas, a menos que --archived)":            "Lists the tag registry (without the archived ones, unless --archived)",

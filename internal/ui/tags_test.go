@@ -130,3 +130,43 @@ func TestOrgChartTagFilter(t *testing.T) {
 		t.Error("com filtro na URL, o cookie não vale")
 	}
 }
+
+// A lista de Personas tem a barra do lote para member: marcar, aplicar (criando a tag) e tirar; o aviso diz quantas
+// mudaram. Sem persona marcada, a lista volta com o erro. Viewer não vê a barra (ADR-0087 item 5, fatia 2).
+func TestPersonasBulkTags(t *testing.T) {
+	f := tagged(t)
+	e := newEnv(t, f)
+	rec := e.get(t, "/c/hanko/personas")
+	wantContains(t, rec, `id="tag-lote"`, `action="/c/hanko/tags/lote"`, `data-select-all="tag-lote"`,
+		`name="persona" value="`+f.Personas[1].ID.String()+`" form="tag-lote"`, `value="aplicar"`, `value="tirar"`)
+
+	hana, kenji := f.Personas[1].ID.String(), f.Personas[2].ID.String()
+	rec = e.post(t, "/c/hanko/tags/lote", url.Values{"persona": {hana, kenji}, "name": {"Plantão"}, "acao": {"aplicar"}}, false)
+	wantStatus(t, rec, http.StatusSeeOther)
+	loc := rec.Header().Get("Location")
+	if !strings.HasPrefix(loc, "/c/hanko/personas?") || !strings.Contains(loc, "n=2") || !strings.Contains(loc, "ok=lote-aplicada") {
+		t.Fatalf("Location = %q", loc)
+	}
+	wantContains(t, e.get(t, loc), "Tag «Plantão» aplicada a 2 persona(s).")
+	if len(f.Personas[1].Tags) != 1 || len(f.Personas[2].Tags) != 1 {
+		t.Fatal("o lote não aplicou a tag às duas personas")
+	}
+
+	rec = e.post(t, "/c/hanko/tags/lote", url.Values{"persona": {hana}, "name": {"plantão"}, "acao": {"tirar"}}, false)
+	wantStatus(t, rec, http.StatusSeeOther)
+	if len(f.Personas[1].Tags) != 0 || len(f.Personas[2].Tags) != 1 {
+		t.Fatal("tirar em lote deve mexer só na Hana")
+	}
+
+	rec = e.post(t, "/c/hanko/tags/lote", url.Values{"name": {"Plantão"}, "acao": {"aplicar"}}, false)
+	wantStatus(t, rec, http.StatusUnprocessableEntity)
+	wantContains(t, rec, `class="alert danger"`, `id="tag-lote"`)
+	rec = e.post(t, "/c/hanko/tags/lote", url.Values{"persona": {hana}, "name": {"Nenhuma"}, "acao": {"tirar"}}, false)
+	wantStatus(t, rec, http.StatusUnprocessableEntity)
+	wantContains(t, rec, "A tag «Nenhuma» não existe.")
+	rec = e.post(t, "/c/hanko/tags/lote", url.Values{"persona": {"nao-e-uuid"}, "name": {"x"}, "acao": {"aplicar"}}, false)
+	wantStatus(t, rec, http.StatusUnprocessableEntity)
+
+	f.MyRoleIs = domain.MemberViewer
+	wantNotContains(t, e.get(t, "/c/hanko/personas"), `id="tag-lote"`, `name="persona"`)
+}

@@ -271,6 +271,7 @@ type NewTaskVM struct {
 // ---- personas ----
 
 type PersonaRow struct {
+	ID        string // persona id (seleção do lote)
 	Name      string
 	Initials  string
 	Title     string
@@ -285,6 +286,9 @@ type PersonaRow struct {
 
 type PersonasVM struct {
 	Subtitle string
+	Notice   string // aviso de sucesso do último lote
+	Error    string // erro do último lote
+	Bulk     PersonasBulkVM
 	Rows     []PersonaRow
 	Active   int
 	Running  int
