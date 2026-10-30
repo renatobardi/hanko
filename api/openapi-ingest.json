@@ -23,7 +23,7 @@
   "paths": {
     "/v1/logs": {
       "post": {
-        "description": "Aceita só `application/x-protobuf`, com gzip. Os fatos são gravados com a empresa da chave e a chave que os entregou; o host é o declarado no fato. Repetir um fato não duplica nada. O 2xx só vem depois do commit. Contrato da fonte externa (ADR-0076). Responde 501 até a fatia 1 (#125).",
+        "description": "Aceita só `application/x-protobuf`, com gzip. Os fatos são gravados com a empresa da chave e a chave que os entregou; o host é o declarado no fato. Repetir um fato não duplica nada. O 2xx só vem depois do commit. Contrato da fonte externa (ADR-0076).",
         "operationId": "ingest-logs",
         "parameters": [
           {
@@ -72,8 +72,8 @@
           "403": {
             "description": "A chave não tem o escopo `ingest`."
           },
-          "501": {
-            "description": "Ainda não implementada."
+          "415": {
+            "description": "O corpo não é application/x-protobuf."
           },
           "503": {
             "description": "Ingestão cheia ou gravação falhou. O collector retenta sem prazo.",
@@ -95,7 +95,7 @@
     },
     "/v1/metrics": {
       "post": {
-        "description": "Aceita só `application/x-protobuf`, com gzip. Os fatos são gravados com a empresa da chave e a chave que os entregou; o host é o declarado no fato. Repetir um fato não duplica nada. O 2xx só vem depois do commit. Contrato da fonte externa (ADR-0076). Responde 501 até a fatia 1 (#125).",
+        "description": "Aceita só `application/x-protobuf`, com gzip. Os fatos são gravados com a empresa da chave e a chave que os entregou; o host é o declarado no fato. Repetir um fato não duplica nada. O 2xx só vem depois do commit. Contrato da fonte externa (ADR-0076).",
         "operationId": "ingest-metrics",
         "parameters": [
           {
@@ -144,8 +144,8 @@
           "403": {
             "description": "A chave não tem o escopo `ingest`."
           },
-          "501": {
-            "description": "Ainda não implementada."
+          "415": {
+            "description": "O corpo não é application/x-protobuf."
           },
           "503": {
             "description": "Ingestão cheia ou gravação falhou. O collector retenta sem prazo.",
@@ -167,7 +167,7 @@
     },
     "/v1/ready": {
       "get": {
-        "description": "Substitui o `/readyz` do agent-studio. Contrato da fonte externa (ADR-0076). Responde 501 até a fatia 1 (#125).",
+        "description": "Substitui o `/readyz` do agent-studio. Contrato da fonte externa (ADR-0076).",
         "operationId": "ingest-ready",
         "responses": {
           "200": {
@@ -179,11 +179,8 @@
           "403": {
             "description": "A chave não tem o escopo `ingest`."
           },
-          "501": {
-            "description": "Ainda não implementada."
-          },
           "503": {
-            "description": "Não está pronta."
+            "description": "Não está pronta: o banco não responde ou falta a partição do mês corrente."
           }
         },
         "summary": "Prontidão da ingestão",
@@ -194,7 +191,7 @@
     },
     "/v1/replay/{signal}": {
       "post": {
-        "description": "Aceita o objeto do bucket como ele é (`otlp_json`, com ou sem gzip). É a única entrada de JSON. Quem lê o bucket é a fonte; o Hanko nunca guarda credencial do bucket. Contrato da fonte externa (ADR-0076). Responde 501 até a fatia 1 (#125).",
+        "description": "Aceita o objeto do bucket como ele é (`otlp_json`, com ou sem gzip). É a única entrada de JSON. Quem lê o bucket é a fonte; o Hanko nunca guarda credencial do bucket. Contrato da fonte externa (ADR-0076).",
         "operationId": "ingest-replay",
         "parameters": [
           {
@@ -246,8 +243,8 @@
           "403": {
             "description": "A chave não tem o escopo `ingest`."
           },
-          "501": {
-            "description": "Ainda não implementada."
+          "404": {
+            "description": "Sinal desconhecido."
           },
           "503": {
             "description": "Ingestão cheia ou gravação falhou. O collector retenta sem prazo.",
@@ -269,7 +266,7 @@
     },
     "/v1/traces": {
       "post": {
-        "description": "Aceita só `application/x-protobuf`, com gzip. Os fatos são gravados com a empresa da chave e a chave que os entregou; o host é o declarado no fato. Repetir um fato não duplica nada. O 2xx só vem depois do commit. Contrato da fonte externa (ADR-0076). Responde 501 até a fatia 1 (#125).",
+        "description": "Aceita só `application/x-protobuf`, com gzip. Os fatos são gravados com a empresa da chave e a chave que os entregou; o host é o declarado no fato. Repetir um fato não duplica nada. O 2xx só vem depois do commit. Contrato da fonte externa (ADR-0076).",
         "operationId": "ingest-traces",
         "parameters": [
           {
@@ -318,8 +315,8 @@
           "403": {
             "description": "A chave não tem o escopo `ingest`."
           },
-          "501": {
-            "description": "Ainda não implementada."
+          "415": {
+            "description": "O corpo não é application/x-protobuf."
           },
           "503": {
             "description": "Ingestão cheia ou gravação falhou. O collector retenta sem prazo.",

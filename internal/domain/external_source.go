@@ -4,6 +4,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"time"
 	"unicode/utf8"
 )
 
@@ -178,3 +179,21 @@ var externalConversationName = regexp.MustCompile(`^[A-Z][a-z]+_[A-Z][a-z]+(_[1-
 func ValidExternalConversationName(name string) bool {
 	return externalConversationName.MatchString(name)
 }
+
+// ---------- chave de ingestão ----------
+
+// IngestKey é uma chave de escopo `ingest` (ADR-0076 item 3): uma por host, presa a uma empresa. Só grava telemetria; o
+// token em claro existe só na criação.
+type IngestKey struct {
+	ID         ID         `json:"id"`
+	CompanyID  ID         `json:"company_id"`
+	Name       string     `json:"name"`
+	Prefix     string     `json:"prefix"`
+	CreatedAt  time.Time  `json:"created_at"`
+	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
+	RevokedAt  *time.Time `json:"revoked_at,omitempty"`
+}
+
+// KeyScopeIngest é o escopo da chave de ingestão. Não entra em KeyScope.Valid: nenhuma rota pública cria uma chave
+// assim, e a chave nunca autentica a API pública nem o /mcp (KeyScope.Allows recusa tudo que não é full ou read).
+const KeyScopeIngest KeyScope = "ingest"
