@@ -1,14 +1,16 @@
-# Fonte externa e ingestão (#125, fatia 1) · sessão `testes-secretscan`
+# Fonte externa e ingestão (#125, fatia 1) · sessão `classificacao`
 Data: 2026-10-30
 
 ## Feito
-- SHOULD-FIX do #155: teste de entrada longa no secretscan e teste de recusa do phase_classifier (cfc136a).
+- Classificação de conversa externa pela telemetria (ADR-0079 itens 1 a 3 e 7): pacote `internal/aidlc` (regra do phase.py), passada no tick de alertas, marca `regression`, troca manual vale sobre tudo.
+- Verificação: `telemetry_spans.attributes` guarda o mapa completo de atributos (internal/ingest/rows.go:349, :365); o collector não remove full_command, file_path nem tool_name (config/otel/collector.yaml:81-91).
 - `go test ./...` com Postgres local: exit 0. Lint: 0 issues.
 
 ## Travado
-- Emparelhamento, troca de workspace com passado (ADR-0075 item 5): `calls_daily` não guarda o repositório, então o custo do repositório não se separa só somando linhas; é preciso recalcular a partir de `model_calls`. Decisão do Bardi (ver o PR).
-- Classificação de conversa (ADR-0079 itens 1 a 3, 5 e 7): exige os atributos de ferramenta do `phase.py` (`full_command`, `file_path`, `tool_name`) em `telemetry_spans`; não verificado se o Hanko os guarda. Não começada.
+- `full_command` depende de OTEL_LOG_TOOL_DETAILS (docker/compose.yaml:43@845764f); o nome do atributo no bucket real não foi verificado (docs/adr/0004-observabilidade.md:210@845764f). Sem ele, as regras de ação não casam.
+- O Jev (decision model, ADR-0079 itens 4 e 5) não é chamado nesta fatia.
+- Emparelhamento com troca de workspace (ADR-0075 item 5): depende de decisão do Bardi sobre calls_daily.
 - Gerador de nome (ADR-0084): aguarda as palavras do Bardi.
 
 ## Próximo passo
-- Conferir os atributos de `telemetry_spans` para a classificação; decidir o recálculo de `calls_daily` para o emparelhamento. Avisar o head só com o SonarCloud verde. Sem merge.
+- Conferir o gate do SonarCloud no head; avisar só com o check verde. Sem merge.
