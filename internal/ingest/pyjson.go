@@ -151,6 +151,9 @@ func writeString(b *strings.Builder, s string) {
 			b.WriteString(`\b`)
 		case r == '\f':
 			b.WriteString(`\f`)
+		case r == 0:
+			// o jsonb do Postgres recusa \u0000: o NUL vai como U+FFFD no JSON bruto (as colunas fixas o tratam à parte)
+			b.WriteRune(utf8.RuneError)
 		case r < 0x20:
 			fmt.Fprintf(b, `\u%04x`, r)
 		case r == utf8.RuneError:
