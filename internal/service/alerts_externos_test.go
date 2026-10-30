@@ -104,3 +104,73 @@ func TestHostNoDataAlertStaysQuietWhenItShouldNot(t *testing.T) {
 		})
 	}
 }
+
+// hostDireto põe um host externo sempre ligado, sem nenhum fato, criado `minutosCriado` minutos atrás.
+func hostDireto(t *testing.T, e *env, company domain.ID, name string, minutosCriado int) domain.ID {
+	t.Helper()
+	var id domain.ID
+	if err := e.svc.Pool.QueryRow(context.Background(), `INSERT INTO external_host (id, company_id, name, always_on, created_at, updated_at)
+		VALUES ($1, $2, $3, true, now() - make_interval(mins => $4), now()) RETURNING id`,
+		domain.NewID(), company, name, minutosCriado).Scan(&id); err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
+// Host sem nenhum fato: o prazo conta da criação (ADR-0077 item 4). Criado há 40 min abre; criado há 5 min não.
+func TestHostNoDataWithoutAnyFactCountsFromCreation(t *testing.T) {
+	e, _, _ := derivEnv(t)
+	parado := hostDireto(t, e, e.co.ID, "sem-fato-antigo", 40)
+	hostDireto(t, e, e.co.ID, "sem-fato-novo", 5)
+	if _, err := e.svc.EvaluateAlerts(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if n := hostAlertRows(t, e, true); n != 1 {
+		t.Fatalf("alertas host_no_data abertos = %d, quero 1 (só o host criado há 40 min)", n)
+	}
+	if n := rowCount(t, e, `SELECT count(*) FROM alerts WHERE company_id = $1 AND kind = 'host_no_data' AND closed_at IS NULL AND subject_id = $2`, e.co.ID, parado); n != 1 {
+		t.Errorf("o alerta aberto não é o do host criado há 40 min")
+	}
+}
+
+// Outra empresa: o alerta sai com a empresa do host parado, e o host de outra empresa em dia não abre nada.
+func TestHostNoDataAlertBelongsToItsOwnCompany(t *testing.T) {
+	e, _, _ := derivEnv(t)
+	hostDireto(t, e, e.co.ID, "em-dia", 5)
+	other, err := e.svc.CreateCompany(context.Background(), domain.HumanActor, service.CreateCompanyInput{Name: "Outra"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	hostDireto(t, e, other.ID, "parado-outra", 40)
+	if _, err := e.svc.EvaluateAlerts(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if n := rowCount(t, e, `SELECT count(*) FROM alerts WHERE company_id = $1 AND kind = 'host_no_data' AND closed_at IS NULL`, e.co.ID); n != 0 {
+		t.Errorf("alertas na empresa do host em dia = %d, quero 0", n)
+	}
+	if n := rowCount(t, e, `SELECT count(*) FROM alerts WHERE company_id = $1 AND kind = 'host_no_data' AND closed_at IS NULL`, other.ID); n != 1 {
+		t.Errorf("alertas na empresa do host parado = %d, quero 1", n)
+	}
+}
+
+// Passada repetida não duplica: o segundo passe atualiza o alerta aberto, sem abrir outro nem gerar outro alert.opened.
+func TestHostNoDataRepeatedPassDoesNotDuplicate(t *testing.T) {
+	e, _, _ := derivEnv(t)
+	hostDireto(t, e, e.co.ID, "parado", 40)
+	if _, err := e.svc.EvaluateAlerts(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	ev, err := e.svc.EvaluateAlerts(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ev.Opened != 0 || ev.Open != 1 {
+		t.Errorf("segunda passada = abriu %d, aberto %d; quero 0 e 1", ev.Opened, ev.Open)
+	}
+	if n := hostAlertRows(t, e, true); n != 1 {
+		t.Errorf("alertas abertos depois de duas passadas = %d, quero 1", n)
+	}
+	if n := rowCount(t, e, `SELECT count(*) FROM activity_events WHERE company_id = $1 AND verb = 'alert.opened' AND data->>'kind' = 'host_no_data'`, e.co.ID); n != 1 {
+		t.Errorf("eventos alert.opened de host_no_data = %d, quero 1", n)
+	}
+}
