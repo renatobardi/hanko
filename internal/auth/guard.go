@@ -19,10 +19,12 @@ type Resolver interface {
 	ResolveAPIKey(ctx context.Context, key string) (domain.User, error)
 }
 
-// KeyInfo descreve a API key que autenticou a requisição.
+// KeyInfo descreve a API key que autenticou a requisição. Company só vale para a chave de ingestão (ADR-0076 item 3),
+// que é presa a uma empresa; nas outras chaves é zero.
 type KeyInfo struct {
-	ID    domain.ID
-	Scope domain.KeyScope
+	ID      domain.ID
+	Scope   domain.KeyScope
+	Company domain.ID
 }
 
 // SessionInfoResolver é um Resolver que também informa a sessão (id e reautenticação recente, ADR-0070). Quando o
@@ -167,7 +169,7 @@ func (g *guard) wrap(next http.Handler) http.Handler {
 		}
 		if id != nil {
 			if id.Via == ViaAPIKey && !id.KeyScope.Allows(r.Method, path) {
-				g.deny(w, r, "a API key é só de leitura")
+				g.deny(w, r, keyScopeDenyMessage(id.KeyScope))
 				return
 			}
 			r = r.WithContext(WithIdentity(r.Context(), *id))
@@ -241,6 +243,14 @@ func (g *guard) resolveKey(ctx context.Context, key string) (domain.User, keyMet
 	}
 	u, err := g.res.ResolveAPIKey(ctx, key)
 	return u, keyMeta{scope: domain.KeyScopeFull}, err
+}
+
+// keyScopeDenyMessage diz por que a API pública recusou a chave: a de ingestão só vale no seu listener.
+func keyScopeDenyMessage(scope domain.KeyScope) string {
+	if scope == domain.KeyScopeIngest {
+		return "a API key de ingestão só vale no listener de ingestão"
+	}
+	return "a API key é só de leitura"
 }
 
 func safeMethod(m string) bool {

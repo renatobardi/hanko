@@ -29,12 +29,18 @@ const (
 	KeyScopeFull KeyScope = "full"
 	// KeyScopeRead só lê: métodos seguros da API; nunca /mcp.
 	KeyScopeRead KeyScope = "read"
+	// KeyScopeIngest só grava telemetria no listener de ingestão (ADR-0076 item 3). Não lê nada, não serve na API
+	// pública nem em /mcp; é presa a uma empresa.
+	KeyScopeIngest KeyScope = "ingest"
 )
 
 // Valid informa se o escopo é conhecido.
-func (k KeyScope) Valid() bool { return k == KeyScopeFull || k == KeyScopeRead }
+func (k KeyScope) Valid() bool {
+	return k == KeyScopeFull || k == KeyScopeRead || k == KeyScopeIngest
+}
 
-// Allows informa se uma chave com este escopo pode fazer a requisição. Escopo vazio vale como full (chaves antigas).
+// Allows informa se uma chave com este escopo pode fazer a requisição na API pública. Escopo vazio vale como full
+// (chaves antigas). A chave de ingestão nunca passa aqui: só o listener de ingestão a aceita.
 func (k KeyScope) Allows(method, path string) bool {
 	if k == "" || k == KeyScopeFull {
 		return true

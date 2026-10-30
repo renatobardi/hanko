@@ -23,6 +23,7 @@ import (
 	"github.com/renatobardi/hanko/internal/adapter/fake"
 	"github.com/renatobardi/hanko/internal/adapter/httpagent"
 	"github.com/renatobardi/hanko/internal/adapter/pi"
+	"github.com/renatobardi/hanko/internal/api"
 	"github.com/renatobardi/hanko/internal/auth"
 	"github.com/renatobardi/hanko/internal/auth/passkey"
 	"github.com/renatobardi/hanko/internal/config"
@@ -234,6 +235,15 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 		return err
 	}
 	srv := newHTTPServer(cfg.Addr, handler, logger)
+	if cfg.IngestAddr != "" {
+		// listener próprio da ingestão (ADR-0076): só as rotas de ingestão, só com a chave ingest; roda junto do público
+		ingestSrv := newHTTPServer(cfg.IngestAddr, api.IngestHandler(svc, logger), logger)
+		go func() {
+			if err := serve(ctx, ingestSrv, ShutdownGrace, logger, nil); err != nil {
+				logger.Error("ingestão: listener parou", "err", err)
+			}
+		}()
+	}
 
 	var hbStarted bool
 	err = serve(ctx, srv, ShutdownGrace, logger, func(_ net.Addr) error {

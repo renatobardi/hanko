@@ -442,7 +442,8 @@ func (s *Service) CreateAPIKeyScoped(ctx context.Context, userID domain.ID, name
 }
 
 func createAPIKey(ctx context.Context, q *store.Queries, now time.Time, userID domain.ID, name string, scope domain.KeyScope, device string) (string, domain.APIKey, error) {
-	if !scope.Valid() {
+	if !scope.Valid() || scope == domain.KeyScopeIngest {
+		// a de ingestão é presa a uma empresa e nasce só por CreateIngestAPIKey (ADR-0076 item 3)
 		return "", domain.APIKey{}, domain.Invalid("scope", "want full or read")
 	}
 	device = strings.TrimSpace(device)
@@ -538,7 +539,11 @@ func (s *Service) resolveAPIKeyInfo(ctx context.Context, key string, touch bool)
 			return domain.User{}, auth.KeyInfo{}, fmt.Errorf("touch api key: %w", err)
 		}
 	}
-	return userFromRow(u), auth.KeyInfo{ID: k.ID, Scope: domain.KeyScope(k.Scope)}, nil
+	info := auth.KeyInfo{ID: k.ID, Scope: domain.KeyScope(k.Scope)}
+	if k.CompanyID != nil {
+		info.Company = *k.CompanyID
+	}
+	return userFromRow(u), info, nil
 }
 
 func clip(s string, n int) string {

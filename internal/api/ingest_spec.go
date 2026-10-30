@@ -36,6 +36,23 @@ func SpecIngest() ([]byte, error) {
 	return append(b, '\n'), nil
 }
 
+// otlpResponses são as respostas de uma rota OTLP. Rota ainda não implementada responde 501; a de traces responde 415
+// para corpo que não é protobuf.
+func otlpResponses(pending bool, busy *huma.Response) map[string]*huma.Response {
+	out := map[string]*huma.Response{
+		"200": {Description: "Aceito e gravado.", Content: map[string]*huma.MediaType{
+			"application/x-protobuf": {Schema: &huma.Schema{Type: "string", Format: "binary"}}}},
+		"400": {Description: "Corpo inválido, ou acima de 64 MB descomprimido. O collector não retenta."},
+		"503": busy,
+	}
+	if pending {
+		out["501"] = &huma.Response{Description: "Ainda não implementada."}
+		return out
+	}
+	out["415"] = &huma.Response{Description: "Content-Type diferente de application/x-protobuf."}
+	return out
+}
+
 func registerIngestDoc(api huma.API) {
 	retry := map[string]*huma.Param{"Retry-After": {Description: "Segundos até tentar de novo.", Schema: &huma.Schema{Type: "string"}}}
 	problem := func(d string) *huma.Response { return &huma.Response{Description: d} }
@@ -54,11 +71,18 @@ func registerIngestDoc(api huma.API) {
 		}
 		return out
 	}
-	for _, sig := range []struct{ id, path, what string }{
-		{"ingest-traces", "/v1/traces", "spans"},
-		{"ingest-logs", "/v1/logs", "logs"},
-		{"ingest-metrics", "/v1/metrics", "métricas"},
+	for _, sig := range []struct {
+		id, path, what string
+		pending        bool
+	}{
+		{"ingest-traces", "/v1/traces", "spans", false},
+		{"ingest-logs", "/v1/logs", "logs", true},
+		{"ingest-metrics", "/v1/metrics", "métricas", true},
 	} {
+		tail := "Contrato da fonte externa (ADR-0076)."
+		if sig.pending {
+			tail += " Responde 501 até a fatia 1 (#125)."
+		}
 		api.OpenAPI().AddOperation(&huma.Operation{
 			OperationID: sig.id,
 			Method:      http.MethodPost,
@@ -67,18 +91,12 @@ func registerIngestDoc(api huma.API) {
 			Summary:     "Recebe " + sig.what + " em OTLP/HTTP (protobuf)",
 			Description: "Aceita só `application/x-protobuf`, com gzip. Os fatos são gravados com a empresa da chave e a chave " +
 				"que os entregou; o host é o declarado no fato. Repetir um fato não duplica nada. O 2xx só vem depois do commit. " +
-				"Contrato da fonte externa (ADR-0076). Responde 501 até a fatia 1 (#125).",
+				tail,
 			Parameters: []*huma.Param{{Name: "Content-Encoding", In: "header", Description: "`gzip` ou ausente.",
 				Schema: &huma.Schema{Type: "string", Enum: []any{"gzip"}}}},
 			RequestBody: &huma.RequestBody{Required: true, Content: map[string]*huma.MediaType{
 				"application/x-protobuf": {Schema: &huma.Schema{Type: "string", Format: "binary"}}}},
-			Responses: merge(map[string]*huma.Response{
-				"200": {Description: "Aceito e gravado.", Content: map[string]*huma.MediaType{
-					"application/x-protobuf": {Schema: &huma.Schema{Type: "string", Format: "binary"}}}},
-				"400": problem("Corpo inválido, ou acima de 64 MB descomprimido. O collector não retenta."),
-				"501": problem("Ainda não implementada."),
-				"503": busy,
-			}),
+			Responses: merge(otlpResponses(sig.pending, busy)),
 		})
 	}
 	api.OpenAPI().AddOperation(&huma.Operation{

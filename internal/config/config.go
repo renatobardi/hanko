@@ -196,7 +196,9 @@ type Config struct {
 
 	DatabaseURL string `yaml:"database_url" env:"HANKO_DATABASE_URL"`
 	Addr        string `yaml:"addr" env:"HANKO_ADDR"`
-	PublicURL   string `yaml:"public_url" env:"HANKO_PUBLIC_URL"`
+	// IngestAddr é o listener da ingestão de agente externo (ADR-0076), separado do público; vazio = desligado.
+	IngestAddr string `yaml:"ingest_addr" env:"HANKO_INGEST_ADDR"`
+	PublicURL  string `yaml:"public_url" env:"HANKO_PUBLIC_URL"`
 	// AgentURL é a base pela qual os agentes (processos filhos, no mesmo container) chamam /mcp.
 	// Vazio = PublicURL. Em prd use http://127.0.0.1:7420 para não depender de DNS/proxy/TLS públicos.
 	AgentURL string `yaml:"agent_url" env:"HANKO_AGENT_URL"`
@@ -361,7 +363,7 @@ func LoadFrom(getenv func(string) string, readFile func(string) ([]byte, error))
 // environFor monta o mapa de ambiente para as chaves HANKO_* conhecidas.
 func environFor(getenv func(string) string) map[string]string {
 	keys := []string{
-		"HANKO_DATABASE_URL", "HANKO_ADDR", "HANKO_PUBLIC_URL", "HANKO_AGENT_URL", "HANKO_MODE", "HANKO_SECRET",
+		"HANKO_DATABASE_URL", "HANKO_ADDR", "HANKO_INGEST_ADDR", "HANKO_PUBLIC_URL", "HANKO_AGENT_URL", "HANKO_MODE", "HANKO_SECRET",
 		"HANKO_MIGRATE_ON_BOOT", "HANKO_MEMORY_PROVIDER", "HANKO_MEMORY_URL", "HANKO_MEMORY_TOKEN", "HANKO_MEMORY_READ_TOOL",
 		"HANKO_CLAUDE_BIN", "HANKO_CODEX_BIN", "HANKO_DEVIN_BIN", "HANKO_PI_BIN", "HANKO_CURSOR_BIN", "HANKO_WORKERS", "HANKO_RUN_TIMEOUT",
 		"HANKO_HEARTBEAT_INTERVAL", "HANKO_LOG_LEVEL", "HANKO_LOG_FORMAT",

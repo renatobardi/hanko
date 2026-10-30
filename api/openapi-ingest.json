@@ -269,7 +269,7 @@
     },
     "/v1/traces": {
       "post": {
-        "description": "Aceita só `application/x-protobuf`, com gzip. Os fatos são gravados com a empresa da chave e a chave que os entregou; o host é o declarado no fato. Repetir um fato não duplica nada. O 2xx só vem depois do commit. Contrato da fonte externa (ADR-0076). Responde 501 até a fatia 1 (#125).",
+        "description": "Aceita só `application/x-protobuf`, com gzip. Os fatos são gravados com a empresa da chave e a chave que os entregou; o host é o declarado no fato. Repetir um fato não duplica nada. O 2xx só vem depois do commit. Contrato da fonte externa (ADR-0076).",
         "operationId": "ingest-traces",
         "parameters": [
           {
@@ -318,8 +318,8 @@
           "403": {
             "description": "A chave não tem o escopo `ingest`."
           },
-          "501": {
-            "description": "Ainda não implementada."
+          "415": {
+            "description": "Content-Type diferente de application/x-protobuf."
           },
           "503": {
             "description": "Ingestão cheia ou gravação falhou. O collector retenta sem prazo.",
