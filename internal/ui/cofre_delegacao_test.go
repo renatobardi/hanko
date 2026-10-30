@@ -176,4 +176,7 @@ func TestDelegacaoRevogaRecusadaPeloServiceVoltaComoErro(t *testing.T) {
 	cf.delegErr = domain.ErrNotFound
 	rec := e.post(t, delegBase+"/delegacoes/"+delegAtiva+"/revogar?escopo=usuario", nil, false)
 	wantStatus(t, rec, http.StatusNotFound)
+	if len(cf.delegRevoked) != 1 { // 404 sozinho também sai quando a rota não existe: o service tem de ter sido chamado
+		t.Fatalf("o service não foi chamado para revogar: %v", cf.delegRevoked)
+	}
 }
