@@ -42,6 +42,9 @@ type vaultUIBackend interface {
 	ReauthWithPassword(ctx context.Context, id auth.Identity, password string) (service.ReauthProof, error)
 	ExportVault(ctx context.Context, actor domain.Actor, companyID domain.ID, password string) (service.VaultExportResult, error)
 	ImportVault(ctx context.Context, actor domain.Actor, companyID domain.ID, file []byte, password string) (service.VaultImportResult, error)
+	CreateSecretDelegation(ctx context.Context, actor domain.Actor, companyID domain.ID, name string, in service.CreateDelegationInput) (service.DelegationView, error)
+	ListMyDelegations(ctx context.Context, companyID domain.ID, limit int) ([]service.DelegationView, error)
+	RevokeSecretDelegation(ctx context.Context, actor domain.Actor, companyID, id domain.ID) error
 }
 
 // vaultReq devolve o backend do cofre e o contexto da requisição; sem o cofre ligado, responde indisponível.
@@ -60,14 +63,16 @@ func (s *server) vaultBE() (vaultUIBackend, bool) {
 }
 
 var vaultNotices = map[string]string{
-	"campo":           i18n.N("Campo adicionado."),
-	"valor":           i18n.N("Valor do campo trocado: a versão do campo subiu."),
-	"marca":           i18n.N("Marca do campo atualizada."),
-	"campo-apagado":   i18n.N("Campo apagado."),
-	"colecao":         i18n.N("Coleção criada."),
-	"colecao-apagada": i18n.N("Coleção apagada."),
-	"no":              i18n.N("Segredo posto na coleção."),
-	"fora":            i18n.N("Segredo tirado da coleção."),
+	"campo":              i18n.N("Campo adicionado."),
+	"valor":              i18n.N("Valor do campo trocado: a versão do campo subiu."),
+	"marca":              i18n.N("Marca do campo atualizada."),
+	"campo-apagado":      i18n.N("Campo apagado."),
+	"colecao":            i18n.N("Coleção criada."),
+	"colecao-apagada":    i18n.N("Coleção apagada."),
+	"no":                 i18n.N("Segredo posto na coleção."),
+	"fora":               i18n.N("Segredo tirado da coleção."),
+	"delegacao":          i18n.N("Delegação criada."),
+	"delegacao-revogada": i18n.N("Delegação revogada."),
 }
 
 // vaultErrorMsg traduz o erro do service em texto para a página, sem ecoar valor.
@@ -87,6 +92,10 @@ func vaultErrorMsg(ctx context.Context, err error) string {
 			return i18n.T(ctx, "Senha errada ou arquivo alterado: nada foi gravado.")
 		case "file":
 			return i18n.T(ctx, "Arquivo .hkv inválido: nada foi gravado.")
+		case "target_id":
+			return i18n.T(ctx, "Alvo inválido: informe o id de uma task, conversa ou run sua.")
+		case "expires_in":
+			return i18n.T(ctx, "Prazo inválido: de 0 a 7 dias.")
 		}
 	}
 	if errors.Is(err, domain.ErrConflict) {
@@ -139,6 +148,14 @@ func (s *server) fieldsVM(r *http.Request, co domain.Company, be vaultUIBackend,
 			row.VisibleText = f.VisibleText
 		}
 		vm.Fields = append(vm.Fields, row)
+	}
+	if user { // delegação só existe para segredo pessoal (ADR-0068 §6)
+		rows, err := delegationRows(ctx, co, be, name)
+		if err != nil {
+			return vm, err
+		}
+		vm.Delegations = rows
+		vm.DelegateHref = base + "/configuracoes/segredos/" + url.PathEscape(name) + "/delegacoes" + scopeQuery(true)
 	}
 	return vm, nil
 }
