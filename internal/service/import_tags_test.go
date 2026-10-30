@@ -2,6 +2,7 @@ package service_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"slices"
 	"testing"
@@ -43,6 +44,7 @@ func TestExportImportPersonaTags(t *testing.T) {
 	if hits := searchIn(t, e, res.Company.ID, "backend"); hits != 1 {
 		t.Fatalf("busca na cópia = %d, quer 1", hits)
 	}
+	importEvents(t, e, res.Company.ID, 2, 2)
 
 	// merge numa empresa que já tem "BACKEND": a tag é a mesma, sem duplicata
 	dest, err := e.svc.CreateCompany(ctx, domain.HumanActor, service.CreateCompanyInput{Name: "Destino", Slug: "destino"})
@@ -99,4 +101,28 @@ func searchIn(t *testing.T, e *env, cid domain.ID, q string) int {
 		}
 	}
 	return 0
+}
+
+// importEvents confere os eventos que o import gravou na empresa: um persona_tag.created por tag criada e um
+// persona.tagged por ligação, com o ator system e origin=import (ADR-0087 item 12).
+func importEvents(t *testing.T, e *env, cid domain.ID, created, tagged int) {
+	t.Helper()
+	n := map[string]int{}
+	for _, st := range []string{"persona_tag", "persona"} {
+		acts, err := e.svc.ListActivity(context.Background(), cid, service.ActivityFilter{SubjectType: st, Limit: 200})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, a := range acts {
+			var data struct {
+				Origin string `json:"origin"`
+			}
+			if json.Unmarshal(a.Data, &data) == nil && data.Origin == "import" && a.Actor.Type == domain.ActorSystem {
+				n[a.Verb]++
+			}
+		}
+	}
+	if n[domain.VerbPersonaTagCreated] != created || n[domain.VerbPersonaTagged] != tagged {
+		t.Fatalf("eventos do import = %v, quer %d created e %d tagged", n, created, tagged)
+	}
 }

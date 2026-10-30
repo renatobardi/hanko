@@ -1,0 +1,265 @@
+package views
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/i18n"
+)
+
+// Tags de persona (ADR-0087): chips, o cartão da ficha e a aba Tags em Personas.
+templ TagChipEl(t TagChip) {
+	<span class={ "tag-chip", "tag-c-" + t.Color, templ.KV("archived", t.Archived) } title={ tagChipTitle(ctx, t) }>{ t.Name }</span>
+}
+
+// TagChips mostra até MaxChips chips e "+N" para o resto.
+templ TagChips(vm TagChipsVM) {
+	if len(vm.Shown) > 0 {
+		<span class="tag-chips">
+			for _, t := range vm.Shown {
+				@TagChipEl(t)
+			}
+			if vm.More > 0 {
+				<span class="tag-chip more">{ fmt.Sprintf("+%d", vm.More) }</span>
+			}
+		</span>
+	}
+}
+
+// PersonasTabs são as abas de Personas: a lista e o cadastro de tags.
+templ PersonasTabs(base string, tags bool) {
+	<div class="tabs mb-6">
+		<a href={ templ.SafeURL(base + "/personas") } aria-current?={ !tags }>{ i18n.T(ctx, "Personas") }</a>
+		<a href={ templ.SafeURL(base + "/personas/tags") } aria-current?={ tags }>{ i18n.T(ctx, "Tags") }</a>
+	</div>
+}
+
+// PersonaTagsCard é o cartão de tags da ficha: chips com "tirar" e o seletor que aplica ou cria a tag.
+templ PersonaTagsCard(vm PersonaTagsVM) {
+	<section class="card pad mt-6" id="tags">
+		<div class="card-head">
+			<div><h2>{ i18n.T(ctx, "Tags") }</h2><p class="sub">{ i18n.T(ctx, "Classificam a persona para filtrar o organograma e achar a quem delegar.") }</p></div>
+			<a class="more" href={ templ.SafeURL(vm.TagsHref) }>{ i18n.T(ctx, "Gerenciar tags") }</a>
+		</div>
+		@personaTagChipList(vm)
+		if vm.CanWrite {
+			@tagApplyForm(vm)
+		} else {
+			@NeedRole(domain.MemberMember)
+		}
+	</section>
+}
+
+templ personaTagChipList(vm PersonaTagsVM) {
+	if len(vm.Chips) == 0 {
+		<p class="muted text-sm">{ i18n.T(ctx, "Nenhuma tag.") }</p>
+	} else {
+		<div class="tag-chips">
+			for _, c := range vm.Chips {
+				@personaTagChip(c, vm.CanWrite)
+			}
+		</div>
+	}
+}
+
+templ personaTagChip(c PersonaTagChip, canWrite bool) {
+	<span class={ "tag-chip", "tag-c-" + c.Color, templ.KV("archived", c.Archived) } title={ tagChipTitle(ctx, c.TagChip) }>
+		{ c.Name }
+		if canWrite {
+			<form method="post" action={ templ.SafeURL(c.RemoveHref) }>
+				<button class="x" type="submit" aria-label={ i18n.Tf(ctx, "Tirar a tag %s", c.Name) }>×</button>
+			</form>
+		}
+	</span>
+}
+
+// tagApplyForm aplica pelo nome; um nome que não existe cria a tag (o hanko.js troca o rótulo do botão).
+templ tagApplyForm(vm PersonaTagsVM) {
+	<form method="post" action={ templ.SafeURL(vm.ApplyHref) } class="tag-apply">
+		<label class="sr-only" for="tag-apply-name">{ i18n.T(ctx, "Tag") }</label>
+		<input
+			class="input sm"
+			type="text"
+			id="tag-apply-name"
+			name="name"
+			list="tag-apply-options"
+			required
+			maxlength="40"
+			autocomplete="off"
+			placeholder={ i18n.T(ctx, "Nome da tag") }
+			data-tag-apply={ i18n.T(ctx, "Criar tag «{name}»") }
+		/>
+		<datalist id="tag-apply-options">
+			for _, o := range vm.Options {
+				<option value={ o }></option>
+			}
+		</datalist>
+		<button class="btn outline sm" type="submit" data-tag-apply-label={ i18n.T(ctx, "Aplicar tag") }>{ i18n.T(ctx, "Aplicar tag") }</button>
+	</form>
+}
+
+// TagsPage é a aba Tags em Personas: o cadastro da empresa.
+templ TagsPage(sh Shell, vm TagsPageVM) {
+	@Layout(sh) {
+		@tagsPageTop(sh, vm)
+		if sh.CanWrite() {
+			@tagCreateCard(vm)
+		}
+		@tagsTable(sh, vm)
+	}
+}
+
+templ tagsPageTop(sh Shell, vm TagsPageVM) {
+	@PageHead(i18n.T(ctx, "Personas"), vm.Subtitle) {
+		<a class="btn outline" href={ templ.SafeURL(sh.Base() + "/organograma") }>
+			@Icon("network")
+			{ i18n.T(ctx, "Organograma") }
+		</a>
+	}
+	@PersonasTabs(sh.Base(), true)
+	if vm.Error != "" {
+		@Alert("danger", vm.Error)
+	}
+}
+
+templ tagCreateCard(vm TagsPageVM) {
+	<section class="card pad mb-6" id="nova-tag">
+		<div class="card-head"><div><h2>{ i18n.T(ctx, "Nova tag") }</h2><p class="sub">{ i18n.T(ctx, "Nome de 1 a 40 caracteres, único na empresa sem distinguir maiúsculas. Até 200 tags por empresa e 20 por persona.") }</p></div></div>
+		<form method="post" action={ templ.SafeURL(vm.CreateHref) } class="form-grid">
+			<div class="field">
+				<label for="t-name">{ i18n.T(ctx, "Nome") }</label>
+				<input class="input" id="t-name" name="name" required maxlength="40"/>
+			</div>
+			<div class="field">
+				<label for="t-color">{ i18n.T(ctx, "Cor") }</label>
+				@Select("color", "t-color", vm.Colors, false)
+			</div>
+			<div class="field">
+				<label for="t-desc">{ i18n.T(ctx, "Descrição") }</label>
+				<input class="input" id="t-desc" name="description" maxlength="200"/>
+			</div>
+			<div class="form-actions mt-0">
+				<button class="btn primary sm" type="submit">
+					@Icon("plus") {
+						i18n.T(ctx, "Criar tag") 
+					}
+				</button>
+			</div>
+		</form>
+	</section>
+}
+
+templ tagsTable(sh Shell, vm TagsPageVM) {
+	<div class="d-flex gap-2 mb-4">
+		<a class="btn outline sm" href={ templ.SafeURL(vm.ToggleHref) }>
+			if vm.ShowArchived {
+				{ i18n.T(ctx, "Esconder arquivadas") }
+			} else {
+				{ i18n.T(ctx, "Mostrar arquivadas") }
+			}
+		</a>
+	</div>
+	if len(vm.Rows) == 0 {
+		@EmptyCard("layers", i18n.T(ctx, "Nenhuma tag ainda."), i18n.T(ctx, "Crie uma tag aqui ou digite um nome novo no seletor da ficha da persona."), false)
+	} else {
+		<div class="table-wrap">
+			<table class="table">
+				<thead>
+					<tr>
+						<th>{ i18n.T(ctx, "Tag") }</th>
+						<th class="hide-sm">{ i18n.T(ctx, "Descrição") }</th>
+						<th class="num">{ i18n.T(ctx, "Personas") }</th>
+						<th></th>
+					</tr>
+				</thead>
+				<tbody>
+					for _, r := range vm.Rows {
+						@tagRow(sh, r)
+					}
+				</tbody>
+			</table>
+		</div>
+	}
+}
+
+templ tagRow(sh Shell, r TagRow) {
+	<tr class="row" id={ "tag-" + r.ID }>
+		<td>
+			@TagChipEl(r.TagChip)
+			if r.Archived {
+				<span class="muted text-xs">{ " " + i18n.T(ctx, "arquivada") }</span>
+			}
+		</td>
+		<td class="hide-sm muted">{ r.Description }</td>
+		<td class="num mono">{ fmt.Sprint(r.Personas) }</td>
+		<td>
+			<div class="tag-row-actions">
+				if sh.CanWrite() {
+					@tagEditForm(r)
+				}
+				if sh.CanAdmin() {
+					@tagAdminActions(r)
+				}
+			</div>
+		</td>
+	</tr>
+}
+
+templ tagEditForm(r TagRow) {
+	<details>
+		<summary class="btn outline sm">{ i18n.T(ctx, "Editar") }</summary>
+		<form method="post" action={ templ.SafeURL(r.EditHref) } class="tag-edit">
+			<input class="input sm" name="name" value={ r.Name } required maxlength="40" aria-label={ i18n.T(ctx, "Nome") }/>
+			@Select("color", "t-color-"+r.ID, r.Colors, true)
+			<input class="input sm" name="description" value={ r.Description } maxlength="200" aria-label={ i18n.T(ctx, "Descrição") }/>
+			<button class="btn primary sm" type="submit">{ i18n.T(ctx, "Salvar") }</button>
+		</form>
+	</details>
+}
+
+templ tagAdminActions(r TagRow) {
+	if r.ArchiveHref != "" {
+		<form method="post" action={ templ.SafeURL(r.ArchiveHref) }>
+			<button class="btn outline sm" type="submit">
+				@Icon("archive") {
+					i18n.T(ctx, "Arquivar") 
+				}
+			</button>
+		</form>
+	} else {
+		<form method="post" action={ templ.SafeURL(r.UnarchiveHref) }><button class="btn outline sm" type="submit">{ i18n.T(ctx, "Desarquivar") }</button></form>
+	}
+	<details>
+		<summary class="btn danger sm">{ i18n.T(ctx, "Deletar") }</summary>
+		<form method="post" action={ templ.SafeURL(r.DeleteHref) } class="tag-edit">
+			<p class="text-sm">{ deleteTagText(ctx, r) }</p>
+			<label class="check">
+				<input type="checkbox" name="confirm" value="1" required/>
+				<span>{ i18n.T(ctx, "Entendo que não se desfaz") }</span>
+			</label>
+			<button class="btn danger sm" type="submit">{ i18n.Tf(ctx, "Deletar «%s»", r.Name) }</button>
+		</form>
+	</details>
+}
+
+func tagChipTitle(ctx context.Context, t TagChip) string {
+	s := t.Description
+	if t.Archived {
+		if s != "" {
+			s += " · "
+		}
+		s += i18n.T(ctx, "arquivada")
+	}
+	return s
+}
+
+func deleteTagText(ctx context.Context, r TagRow) string {
+	switch r.Personas {
+	case 0:
+		return i18n.Tf(ctx, "Nenhuma persona tem a tag «%s». A exclusão não se desfaz.", r.Name)
+	case 1:
+		return i18n.Tf(ctx, "1 persona perde a tag «%s». A exclusão não se desfaz.", r.Name)
+	}
+	return i18n.Tf(ctx, "%d personas perdem a tag «%s». A exclusão não se desfaz.", r.Personas, r.Name)
+}

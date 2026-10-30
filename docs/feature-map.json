@@ -201,10 +201,10 @@
         {
           "id": "personas.tags",
           "title": {"pt": "Tags de persona e recorte do organograma", "en": "Persona tags and org chart slice"},
-          "surfaces": {"cli": ["persona tag ls", "persona tag create", "persona tag edit", "persona tag archive", "persona tag unarchive", "persona tag delete", "persona tag add", "persona tag remove", "persona tag personas"], "api": ["list-persona-tags", "create-persona-tag", "get-persona-tag", "update-persona-tag", "archive-persona-tag", "unarchive-persona-tag", "delete-persona-tag", "tag-persona", "create-and-tag-persona", "untag-persona", "list-org-personas"], "mcp": ["hanko_persona_list", "hanko_whoami"]},
+          "surfaces": {"ui": ["GET /c/{company}/personas/tags", "POST /c/{company}/personas/tags", "POST /c/{company}/tags/{tag}/editar", "POST /c/{company}/tags/{tag}/arquivar", "POST /c/{company}/tags/{tag}/desarquivar", "POST /c/{company}/tags/{tag}/deletar", "POST /c/{company}/personas/{persona}/tags", "POST /c/{company}/personas/{persona}/tags/{tag}/remover", "GET /c/{company}/organograma"], "cli": ["persona tag ls", "persona tag create", "persona tag edit", "persona tag archive", "persona tag unarchive", "persona tag delete", "persona tag add", "persona tag remove", "persona tag personas"], "api": ["list-persona-tags", "create-persona-tag", "get-persona-tag", "update-persona-tag", "archive-persona-tag", "unarchive-persona-tag", "delete-persona-tag", "tag-persona", "create-and-tag-persona", "untag-persona", "list-org-personas"], "mcp": ["hanko_persona_list", "hanko_whoami"]},
           "script": {
-            "pt": "Criar a tag Backend, aplicar à Eng e criar Gestão na hora para o Ceo; listar o recorte por tag e nível 2; arquivar e deletar com a contagem.",
-            "en": "Create the Backend tag, apply it to Eng and create Gestão on the fly for Ceo; list the slice by tag and level 2; archive and delete with the count."
+            "pt": "Criar a tag Backend na aba Tags, aplicar à Eng na ficha e criar Gestão na hora pelo menu do nó do Ceo; filtrar o organograma por tag e nível 2 em Destacar e em Podar; reabrir pelo link e pelo cookie; arquivar e deletar com a contagem.",
+            "en": "Create the Backend tag on the Tags tab, apply it to Eng on her page and create Gestão on the fly from Ceo's node menu; filter the org chart by tag and level 2 in Highlight and in Prune; reopen from the link and the cookie; archive and delete with the count."
           },
           "status": "partial"
         }
