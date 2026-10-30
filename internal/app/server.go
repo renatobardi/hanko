@@ -18,6 +18,8 @@ const (
 	ShutdownGrace = 30 * time.Second
 
 	readHeaderTimeout = 10 * time.Second
+	// ingestReadTimeout cobre cabeçalho e corpo do listener de ingestão (ADR-0076); o público não tem.
+	ingestReadTimeout = 2 * time.Minute
 	idleTimeout       = 120 * time.Second
 )
 

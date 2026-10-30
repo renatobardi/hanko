@@ -535,8 +535,11 @@ func (c Config) Validate() error {
 		add("HANKO_ADDR %q inválido: use host:porta (ex.: 127.0.0.1:7420)", c.Addr)
 	}
 	if c.IngestAddr != "" {
-		if _, _, err := net.SplitHostPort(c.IngestAddr); err != nil {
+		host, _, err := net.SplitHostPort(c.IngestAddr)
+		if err != nil {
 			add("HANKO_INGEST_ADDR %q inválido: use host:porta (ex.: 100.64.0.1:7421)", c.IngestAddr)
+		} else if ip := net.ParseIP(host); host == "" || (ip != nil && ip.IsUnspecified()) {
+			add("HANKO_INGEST_ADDR %q escuta em todas as interfaces: use o endereço da tailnet (ex.: 100.64.0.1:7421)", c.IngestAddr)
 		} else if c.IngestAddr == c.Addr {
 			add("HANKO_INGEST_ADDR não pode ser o mesmo endereço de HANKO_ADDR: a ingestão tem listener próprio (ADR-0076)")
 		}

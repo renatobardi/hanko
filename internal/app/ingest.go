@@ -32,6 +32,8 @@ func startIngest(ctx context.Context, cfg config.Config, svc *service.Service, l
 	}
 	h := ingest.NewHandler(ingest.Deps{Resolver: svc, Writer: svc, Ready: svc.IngestReady, Now: svc.Now, Log: logger})
 	srv := newHTTPServer(cfg.IngestAddr, h, logger)
+	// o corpo do collector pode chegar devagar (teto de 64 MB): sem ReadTimeout, um cliente lento segura a vaga para sempre
+	srv.ReadTimeout = ingestReadTimeout
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go func() {
