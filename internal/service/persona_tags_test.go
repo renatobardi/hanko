@@ -9,6 +9,9 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
+
+	"github.com/jackc/pgx/v5"
 
 	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/service"
@@ -433,8 +436,10 @@ func TestPersonaTagIsolamentoEntreEmpresas(t *testing.T) {
 	}
 }
 
-// Aplicações concorrentes não passam do teto de 20 por persona: com 19 tags e 12 aplicações ao mesmo tempo, só uma entra.
-// Criações concorrentes não passam do teto de 200 por empresa.
+// Aplicações concorrentes não passam do teto de 20 por persona: com 19 tags e 3 aplicações ao mesmo tempo, só uma entra.
+// Para as três se sobreporem sempre, o teste segura a linha da persona com FOR UPDATE: a inserção da ligação pede FOR KEY
+// SHARE nessa linha (chave estrangeira) e espera. Sem a trava das tags, as três já contaram 19 e entram todas quando a
+// linha é solta; com a trava, só a primeira passa da contagem. Criações concorrentes não passam do teto de 200 por empresa.
 func TestPersonaTagTetoConcorrente(t *testing.T) {
 	ctx := context.Background()
 	e := newEnv(t)
@@ -442,9 +447,17 @@ func TestPersonaTagTetoConcorrente(t *testing.T) {
 	for i := range domain.MaxTagsPerPersona - 1 {
 		e.tagPersona(t, ana, e.tag(t, fmt.Sprintf("base %d", i)))
 	}
-	extras := make([]service.PersonaTagView, 12)
+	extras := make([]service.PersonaTagView, 3)
 	for i := range extras {
 		extras[i] = e.tag(t, fmt.Sprintf("extra %d", i))
+	}
+	hold, err := e.svc.Pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = hold.Rollback(ctx) }() // solta a linha mesmo se o teste falhar antes
+	if _, err := hold.Exec(ctx, `SELECT 1 FROM personas WHERE id = $1 FOR UPDATE`, ana.ID); err != nil {
+		t.Fatal(err)
 	}
 	errs := make([]error, len(extras))
 	var wg sync.WaitGroup
@@ -454,6 +467,10 @@ func TestPersonaTagTetoConcorrente(t *testing.T) {
 			defer wg.Done()
 			errs[i] = e.svc.TagPersona(ctx, domain.HumanActor, e.co.ID, ana.ID, x.ID)
 		}()
+	}
+	waitLockWaiters(ctx, t, e.svc.Pool.Config().ConnConfig, len(extras))
+	if err := hold.Rollback(ctx); err != nil {
+		t.Fatal(err)
 	}
 	wg.Wait()
 	ok := 0
@@ -484,5 +501,32 @@ func TestPersonaTagTetoConcorrente(t *testing.T) {
 	all, err := e.svc.ListPersonaTags(ctx, e.co.ID, true)
 	if err != nil || len(all) != domain.MaxPersonaTagsPerCompany {
 		t.Fatalf("cadastro = %d tags (%v), quer %d", len(all), err, domain.MaxPersonaTagsPerCompany)
+	}
+}
+
+// waitLockWaiters espera até n conexões do banco do teste estarem paradas em espera de lock (no máximo 10 s). Usa uma
+// conexão própria, fora do pool, para não disputar vaga com quem espera; cfg é a do pool, que aponta para o banco do
+// teste (testdb cria um banco por teste).
+func waitLockWaiters(ctx context.Context, t *testing.T, cfg *pgx.ConnConfig, n int) {
+	t.Helper()
+	conn, err := pgx.ConnectConfig(ctx, cfg.Copy())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = conn.Close(ctx) }()
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		var waiting int
+		if err := conn.QueryRow(ctx, `SELECT count(*) FROM pg_stat_activity
+			WHERE datname = current_database() AND wait_event_type = 'Lock'`).Scan(&waiting); err != nil {
+			t.Fatal(err)
+		}
+		if waiting >= n {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("só %d de %d aplicações chegaram à espera de lock", waiting, n)
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
 }
