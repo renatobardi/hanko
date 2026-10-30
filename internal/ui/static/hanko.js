@@ -81,6 +81,22 @@
   });
 
   // Cron presets: choosing a template fills the expression and lets htmx refresh the hint.
+  // Seletor de tag da ficha (ADR-0087): um nome que ainda não existe troca o botão para "criar tag «nome»".
+  document.addEventListener("input", function (e) {
+    var input = e.target;
+    if (!input.matches || !input.matches("input[data-tag-apply]")) return;
+    var btn = input.form && input.form.querySelector("[data-tag-apply-label]");
+    if (!btn) return;
+    var name = input.value.trim();
+    var key = name.toLowerCase();
+    var known = false;
+    var opts = input.list ? input.list.options : [];
+    for (var i = 0; i < opts.length; i++) {
+      if (opts[i].value.toLowerCase() === key) known = true;
+    }
+    btn.textContent = name && !known ? input.getAttribute("data-tag-apply").split("{name}").join(name) : btn.getAttribute("data-tag-apply-label");
+  });
+
   document.addEventListener("change", function (e) {
     var sel = e.target;
     if (!sel.matches || !sel.matches("select[data-cron-preset]")) return;

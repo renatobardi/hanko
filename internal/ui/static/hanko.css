@@ -1569,3 +1569,60 @@ pre.diff { margin: 8px 0; padding: 8px 12px; white-space: pre; overflow-x: auto;
 .wizard-card .progress, .whatsnew-card form { margin-top: 8px; }
 .probe { margin-bottom: 16px; }
 .probe .tbl td { padding: 6px 8px; }
+
+/* Tags de persona (ADR-0087): paleta fechada. Cada cor é um matiz médio; o fundo e o texto do chip saem dele misturados
+   com o tema (o texto puxa para --foreground), então a mesma cor vale no claro e no escuro. */
+:root {
+  --tag-gray: oklch(0.6 0.01 60);
+  --tag-red: oklch(0.62 0.19 25);
+  --tag-amber: oklch(0.72 0.15 75);
+  --tag-green: oklch(0.64 0.14 150);
+  --tag-teal: oklch(0.65 0.1 190);
+  --tag-blue: oklch(0.6 0.15 255);
+  --tag-violet: oklch(0.6 0.17 300);
+  --tag-pink: oklch(0.68 0.15 350);
+}
+.tag-c-gray { --c: var(--tag-gray); }
+.tag-c-red { --c: var(--tag-red); }
+.tag-c-amber { --c: var(--tag-amber); }
+.tag-c-green { --c: var(--tag-green); }
+.tag-c-teal { --c: var(--tag-teal); }
+.tag-c-blue { --c: var(--tag-blue); }
+.tag-c-violet { --c: var(--tag-violet); }
+.tag-c-pink { --c: var(--tag-pink); }
+.tag-chips { display: inline-flex; gap: 4px; flex-wrap: wrap; align-items: center; vertical-align: middle; }
+.tag-chip { --c: var(--tag-gray); display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 8px; max-width: 14em;
+  border-radius: var(--radius-4xl); font-size: var(--text-xs); line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  background: color-mix(in oklab, var(--c) 18%, transparent); color: color-mix(in oklab, var(--c) 60%, var(--foreground));
+  border: 1px solid color-mix(in oklab, var(--c) 35%, transparent); }
+.tag-chip.archived { opacity: .55; border-style: dashed; }
+.tag-chip.more { background: var(--muted); color: var(--muted-foreground); border-color: transparent; }
+.tag-chip form { display: contents; }
+.tag-chip .x { all: unset; cursor: pointer; margin-left: 2px; opacity: .7; }
+.tag-chip .x:hover, .tag-chip .x:focus-visible { opacity: 1; }
+.tag-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--c); vertical-align: middle; }
+.tag-apply { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+.tag-apply input[type=text] { max-width: 16em; }
+.tag-row-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.tag-row-actions details > summary { list-style: none; }
+.tag-edit { display: grid; gap: 8px; margin-top: 8px; min-width: 16em; }
+
+/* Organograma: chips no nó, recorte por tag e por nível (Destacar esmaece; Podar mantém só o caminho). */
+.org-chip rect { --c: var(--tag-gray); fill: color-mix(in oklab, var(--c) 18%, var(--card)); stroke: color-mix(in oklab, var(--c) 40%, transparent); }
+.org-chip text { fill: color-mix(in oklab, var(--c) 60%, var(--foreground)); font-size: 10px; }
+.org-chip.archived { opacity: .55; }
+.org-node.dim { opacity: .32; }
+.org-node.path .org-card { stroke-dasharray: 4 3; }
+.org-tagbtn circle { fill: var(--card); stroke: var(--border); }
+.org-tagbtn text { fill: var(--muted-foreground); font-size: 11px; }
+.org-tagbtn:hover circle, .org-tagbtn:focus-visible circle { stroke: var(--ring); }
+.org-filters { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; padding: 8px 0; }
+.org-filters details { position: relative; }
+.org-filters details > summary { list-style: none; cursor: pointer; }
+.org-pop { position: absolute; z-index: 20; top: calc(100% + 4px); left: 0; min-width: 14em; max-height: 20em; overflow: auto; padding: 8px;
+  background: var(--popover); color: var(--popover-foreground); border-radius: var(--radius-lg); box-shadow: var(--shadow-pop); display: grid; gap: 4px; }
+.org-pop label { display: flex; gap: 6px; align-items: center; font-size: var(--text-sm); }
+.org-empty { padding: 8px 12px; }
+.org-tagmenu { position: absolute; z-index: 25; width: 16em; padding: 8px; display: grid; gap: 6px;
+  background: var(--popover); color: var(--popover-foreground); border-radius: var(--radius-lg); box-shadow: var(--shadow-pop); }
+.org-tagmenu label { display: flex; gap: 6px; align-items: center; font-size: var(--text-sm); }
