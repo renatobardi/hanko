@@ -13,6 +13,7 @@ import (
 )
 
 const createIngestKey = `-- name: CreateIngestKey :one
+
 INSERT INTO api_keys (id, user_id, name, prefix, hash, scope, company_id, created_at)
 VALUES ($1, $2, $3, $4, $5, 'ingest', $6, $7)
 RETURNING id, user_id, name, prefix, hash, created_at, last_used_at, revoked_at, scope, device, company_id
@@ -28,6 +29,7 @@ type CreateIngestKeyParams struct {
 	Now       time.Time
 }
 
+// Chaves de ingestão (ADR-0076 item 3): escopo `ingest`, uma por host, presa a uma empresa.
 func (q *Queries) CreateIngestKey(ctx context.Context, arg CreateIngestKeyParams) (ApiKey, error) {
 	row := q.db.QueryRow(ctx, createIngestKey,
 		arg.ID,
@@ -59,22 +61,22 @@ const listIngestKeys = `-- name: ListIngestKeys :many
 SELECT id, user_id, name, prefix, hash, created_at, last_used_at, revoked_at, scope, device, company_id FROM api_keys
 WHERE company_id = $1 AND scope = 'ingest' AND ($2::bool OR revoked_at IS NULL)
 ORDER BY created_at DESC, id
-LIMIT $3::int OFFSET $4::int
+LIMIT $4::int OFFSET $3::int
 `
 
 type ListIngestKeysParams struct {
 	CompanyID      *uuid.UUID
 	IncludeRevoked bool
-	PageLimit      int32
 	PageOffset     int32
+	PageLimit      int32
 }
 
 func (q *Queries) ListIngestKeys(ctx context.Context, arg ListIngestKeysParams) ([]ApiKey, error) {
 	rows, err := q.db.Query(ctx, listIngestKeys,
 		arg.CompanyID,
 		arg.IncludeRevoked,
-		arg.PageLimit,
 		arg.PageOffset,
+		arg.PageLimit,
 	)
 	if err != nil {
 		return nil, err
