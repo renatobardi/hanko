@@ -1,6 +1,7 @@
 # Copie para hanko.yaml. Variáveis HANKO_* sobrescrevem estes valores.
 database_url: postgres://hanko:hanko@127.0.0.1:5432/hanko?sslmode=disable
 addr: 127.0.0.1:7420
+# ingest_addr: 100.64.0.1:7421   # HANKO_INGEST_ADDR: listener próprio da ingestão de telemetria de agente externo (ADR-0076); vazio = desligada
 # public_url: http://127.0.0.1:7420
 mode: trusted            # trusted | authenticated (login; exige secret >= 32 bytes e public_url https)
 # secret: ""             # prefira HANKO_SECRET (mínimo 32 bytes); vazio = gerado por boot

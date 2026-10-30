@@ -291,13 +291,6 @@ type classifyExternalConversationIn struct {
 	}
 }
 
-type createIngestKeyIn struct {
-	CompanyPath
-	Body struct {
-		Name string `json:"name" minLength:"1" maxLength:"100" doc:"Por convenção, o nome do host."`
-	}
-}
-
 type externalUsageIn struct {
 	CompanyPath
 	Since   time.Time `query:"since"`
@@ -353,12 +346,4 @@ func (s *server) registerExternalSource(api huma.API) {
 
 	pendingExternalOp[externalUsageIn, ListOut[ExternalUsageRow]](api, op("get-external-usage", http.MethodGet, b+"/external-usage", tag,
 		"Uso e custo de lista das chamadas externas, agrupados"), sliceExternalUsage)
-
-	pendingExternalOp[listExternalNamedIn, ListOut[IngestKey]](api, op("list-ingest-keys", http.MethodGet, b+"/ingest-keys", tag,
-		"Lista as chaves de ingestão da empresa (owner ou admin)"), sliceExternalSource)
-	pendingExternalOp[createIngestKeyIn, ItemOut[IngestKeyCreated]](api, created(op("create-ingest-key", http.MethodPost, b+"/ingest-keys", tag,
-		"Cria uma chave de ingestão; o token aparece uma vez (owner ou admin)")), sliceExternalSource)
-	del := op("revoke-ingest-key", http.MethodDelete, b+"/ingest-keys/{key}", tag, "Revoga uma chave de ingestão (owner ou admin)")
-	del.DefaultStatus = http.StatusNoContent
-	pendingExternalOp[IngestKeyPath, struct{}](api, del, sliceExternalSource)
 }

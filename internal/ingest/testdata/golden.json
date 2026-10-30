@@ -1,0 +1,829 @@
+{
+ "logs": {
+  "payload": {
+   "resourceLogs": [
+    {
+     "resource": {
+      "attributes": [
+       {
+        "key": "host.name",
+        "value": {
+         "stringValue": "oute-server"
+        }
+       },
+       {
+        "key": "service.name",
+        "value": {
+         "stringValue": "claude-code"
+        }
+       },
+       {
+        "key": "oute.agent",
+        "value": {
+         "stringValue": "claude"
+        }
+       },
+       {
+        "key": "oute.instance",
+        "value": {
+         "stringValue": "oute-1"
+        }
+       },
+       {
+        "key": "n",
+        "value": {
+         "intValue": "42"
+        }
+       },
+       {
+        "key": "f",
+        "value": {
+         "doubleValue": 1.5
+        }
+       },
+       {
+        "key": "b",
+        "value": {
+         "boolValue": true
+        }
+       },
+       {
+        "key": "arr",
+        "value": {
+         "arrayValue": {
+          "values": [
+           {
+            "stringValue": "á\"\n\t "
+           },
+           {
+            "intValue": "7"
+           }
+          ]
+         }
+        }
+       },
+       {
+        "key": "kv",
+        "value": {
+         "kvlistValue": {
+          "values": [
+           {
+            "key": "z",
+            "value": {
+             "stringValue": "1"
+            }
+           },
+           {
+            "key": "a",
+            "value": {
+             "doubleValue": 3.0
+            }
+           }
+          ]
+         }
+        }
+       },
+       {
+        "key": "raw",
+        "value": {
+         "bytesValue": "AAEC"
+        }
+       },
+       {
+        "key": "unk",
+        "value": {
+         "foo": 1
+        }
+       }
+      ]
+     },
+     "scopeLogs": [
+      {
+       "logRecords": [
+        {
+         "attributes": [
+          {
+           "key": "oute.event.id",
+           "value": {
+            "stringValue": "e-1"
+           }
+          },
+          {
+           "key": "session.id",
+           "value": {
+            "stringValue": "s-1"
+           }
+          },
+          {
+           "key": "oute.task.repo",
+           "value": {
+            "stringValue": ""
+           }
+          },
+          {
+           "key": "event.name",
+           "value": {
+            "stringValue": "oute.canal.proposed"
+           }
+          }
+         ],
+         "body": {
+          "stringValue": "olá"
+         },
+         "severityNumber": 9,
+         "severityText": "INFO",
+         "spanId": "b7ad6b7169203331",
+         "timeUnixNano": "1790000000000000001",
+         "traceId": "0af7651916cd43dd8448eb211c80319c"
+        },
+        {
+         "attributes": [
+          {
+           "key": "x",
+           "value": {
+            "doubleValue": 1e+20
+           }
+          },
+          {
+           "key": "y",
+           "value": {
+            "doubleValue": 1e-05
+           }
+          },
+          {
+           "key": "oute.subscription",
+           "value": {
+            "stringValue": "zai"
+           }
+          }
+         ],
+         "body": {
+          "intValue": "5"
+         },
+         "eventName": "api_request",
+         "flags": 1,
+         "observedTimeUnixNano": "1790000000000000003",
+         "severityNumber": 17,
+         "timeUnixNano": "1790000000000000002"
+        },
+        {
+         "body": {
+          "kvlistValue": {
+           "values": [
+            {
+             "key": "k",
+             "value": {
+              "boolValue": false
+             }
+            }
+           ]
+          }
+         },
+         "observedTimeUnixNano": "1790000000000000004"
+        },
+        {
+         "attributes": [],
+         "body": {
+          "stringValue": "sem hora"
+         }
+        }
+       ],
+       "scope": {
+        "name": "oute-emit",
+        "version": "1"
+       }
+      }
+     ]
+    }
+   ]
+  },
+  "rows": [
+   {
+    "attributes": "{\"event.name\":\"oute.canal.proposed\",\"oute.event.id\":\"e-1\",\"oute.task.repo\":\"\",\"session.id\":\"s-1\"}",
+    "body": "olá",
+    "dedupe_key": "ev:e-1",
+    "event_name": "oute.canal.proposed",
+    "host_name": "oute-server",
+    "observed_unix_nano": null,
+    "oute_agent": "claude",
+    "oute_event_id": "e-1",
+    "oute_instance": "oute-1",
+    "oute_repo": null,
+    "oute_subscription": null,
+    "oute_swarm_round": null,
+    "oute_task_id": null,
+    "received_unix_nano": 1790000000999999999,
+    "resource_attributes": "{\"arr\":[\"á\\\"\\n\\t \",7],\"b\":true,\"f\":1.5,\"host.name\":\"oute-server\",\"kv\":{\"a\":3.0,\"z\":\"1\"},\"n\":42,\"oute.agent\":\"claude\",\"oute.instance\":\"oute-1\",\"raw\":\"AAEC\",\"service.name\":\"claude-code\",\"unk\":null}",
+    "scope_name": "oute-emit",
+    "service_name": "claude-code",
+    "session_id": "s-1",
+    "severity_number": 9,
+    "severity_text": "INFO",
+    "span_id": "b7ad6b7169203331",
+    "time_unix_nano": 1790000000000000001,
+    "trace_id": "0af7651916cd43dd8448eb211c80319c"
+   },
+   {
+    "attributes": "{\"oute.subscription\":\"zai\",\"x\":1e+20,\"y\":1e-05}",
+    "body": "5",
+    "dedupe_key": "h:0feef297d08b892449a2c2f274e8ed86869324e3ebce75c1a94c38c8038349d6",
+    "event_name": "api_request",
+    "host_name": "oute-server",
+    "observed_unix_nano": 1790000000000000003,
+    "oute_agent": "claude",
+    "oute_event_id": null,
+    "oute_instance": "oute-1",
+    "oute_repo": null,
+    "oute_subscription": "zai",
+    "oute_swarm_round": null,
+    "oute_task_id": null,
+    "received_unix_nano": 1790000000999999999,
+    "resource_attributes": "{\"arr\":[\"á\\\"\\n\\t \",7],\"b\":true,\"f\":1.5,\"host.name\":\"oute-server\",\"kv\":{\"a\":3.0,\"z\":\"1\"},\"n\":42,\"oute.agent\":\"claude\",\"oute.instance\":\"oute-1\",\"raw\":\"AAEC\",\"service.name\":\"claude-code\",\"unk\":null}",
+    "scope_name": "oute-emit",
+    "service_name": "claude-code",
+    "session_id": null,
+    "severity_number": 17,
+    "severity_text": null,
+    "span_id": null,
+    "time_unix_nano": 1790000000000000002,
+    "trace_id": null
+   },
+   {
+    "attributes": "{}",
+    "body": "{\"k\":false}",
+    "dedupe_key": "h:ac333984da8f5718c266057dc62ed1dc985de3a932b13938f0eddce776bd9050",
+    "event_name": null,
+    "host_name": "oute-server",
+    "observed_unix_nano": 1790000000000000004,
+    "oute_agent": "claude",
+    "oute_event_id": null,
+    "oute_instance": "oute-1",
+    "oute_repo": null,
+    "oute_subscription": null,
+    "oute_swarm_round": null,
+    "oute_task_id": null,
+    "received_unix_nano": 1790000000999999999,
+    "resource_attributes": "{\"arr\":[\"á\\\"\\n\\t \",7],\"b\":true,\"f\":1.5,\"host.name\":\"oute-server\",\"kv\":{\"a\":3.0,\"z\":\"1\"},\"n\":42,\"oute.agent\":\"claude\",\"oute.instance\":\"oute-1\",\"raw\":\"AAEC\",\"service.name\":\"claude-code\",\"unk\":null}",
+    "scope_name": "oute-emit",
+    "service_name": "claude-code",
+    "session_id": null,
+    "severity_number": null,
+    "severity_text": null,
+    "span_id": null,
+    "time_unix_nano": 1790000000000000004,
+    "trace_id": null
+   },
+   {
+    "attributes": "{}",
+    "body": "sem hora",
+    "dedupe_key": "h:510ff1b1a1819164611f641184e9a2cf6d02f3160de3083207c1a337174574f4",
+    "event_name": null,
+    "host_name": "oute-server",
+    "observed_unix_nano": null,
+    "oute_agent": "claude",
+    "oute_event_id": null,
+    "oute_instance": "oute-1",
+    "oute_repo": null,
+    "oute_subscription": null,
+    "oute_swarm_round": null,
+    "oute_task_id": null,
+    "received_unix_nano": 1790000000999999999,
+    "resource_attributes": "{\"arr\":[\"á\\\"\\n\\t \",7],\"b\":true,\"f\":1.5,\"host.name\":\"oute-server\",\"kv\":{\"a\":3.0,\"z\":\"1\"},\"n\":42,\"oute.agent\":\"claude\",\"oute.instance\":\"oute-1\",\"raw\":\"AAEC\",\"service.name\":\"claude-code\",\"unk\":null}",
+    "scope_name": "oute-emit",
+    "service_name": "claude-code",
+    "session_id": null,
+    "severity_number": null,
+    "severity_text": null,
+    "span_id": null,
+    "time_unix_nano": 1790000000999999999,
+    "trace_id": null
+   }
+  ]
+ },
+ "metrics": {
+  "payload": {
+   "resourceMetrics": [
+    {
+     "resource": {
+      "attributes": [
+       {
+        "key": "host.name",
+        "value": {
+         "stringValue": "oute-server"
+        }
+       },
+       {
+        "key": "service.name",
+        "value": {
+         "stringValue": "claude-code"
+        }
+       },
+       {
+        "key": "oute.agent",
+        "value": {
+         "stringValue": "claude"
+        }
+       },
+       {
+        "key": "oute.instance",
+        "value": {
+         "stringValue": "oute-1"
+        }
+       },
+       {
+        "key": "n",
+        "value": {
+         "intValue": "42"
+        }
+       },
+       {
+        "key": "f",
+        "value": {
+         "doubleValue": 1.5
+        }
+       },
+       {
+        "key": "b",
+        "value": {
+         "boolValue": true
+        }
+       },
+       {
+        "key": "arr",
+        "value": {
+         "arrayValue": {
+          "values": [
+           {
+            "stringValue": "á\"\n\t "
+           },
+           {
+            "intValue": "7"
+           }
+          ]
+         }
+        }
+       },
+       {
+        "key": "kv",
+        "value": {
+         "kvlistValue": {
+          "values": [
+           {
+            "key": "z",
+            "value": {
+             "stringValue": "1"
+            }
+           },
+           {
+            "key": "a",
+            "value": {
+             "doubleValue": 3.0
+            }
+           }
+          ]
+         }
+        }
+       },
+       {
+        "key": "raw",
+        "value": {
+         "bytesValue": "AAEC"
+        }
+       },
+       {
+        "key": "unk",
+        "value": {
+         "foo": 1
+        }
+       }
+      ]
+     },
+     "scopeMetrics": [
+      {
+       "metrics": [
+        {
+         "gauge": {
+          "dataPoints": [
+           {
+            "asInt": "7",
+            "attributes": [
+             {
+              "key": "a",
+              "value": {
+               "stringValue": "1"
+              }
+             }
+            ],
+            "startTimeUnixNano": "1790000000000000000",
+            "timeUnixNano": "1790000000000000100"
+           }
+          ]
+         },
+         "name": "g",
+         "unit": "By"
+        },
+        {
+         "name": "s",
+         "sum": {
+          "aggregationTemporality": 2,
+          "dataPoints": [
+           {
+            "asDouble": 2.5,
+            "attributes": [
+             {
+              "key": "a",
+              "value": {
+               "stringValue": "1"
+              }
+             }
+            ],
+            "startTimeUnixNano": "1790000000000000000",
+            "timeUnixNano": "1790000000000000100"
+           }
+          ],
+          "isMonotonic": true
+         }
+        },
+        {
+         "histogram": {
+          "aggregationTemporality": 1,
+          "dataPoints": [
+           {
+            "attributes": [
+             {
+              "key": "a",
+              "value": {
+               "stringValue": "1"
+              }
+             }
+            ],
+            "bucketCounts": [
+             "1",
+             "2"
+            ],
+            "count": "3",
+            "explicitBounds": [
+             1.0
+            ],
+            "startTimeUnixNano": "1790000000000000000",
+            "sum": 10.0,
+            "timeUnixNano": "1790000000000000100"
+           }
+          ]
+         },
+         "name": "h"
+        },
+        {
+         "name": "vazio"
+        }
+       ],
+       "scope": {
+        "name": "m",
+        "version": "2"
+       }
+      }
+     ]
+    }
+   ]
+  },
+  "rows": [
+   {
+    "aggregation_temporality": null,
+    "attributes": "{\"a\":\"1\"}",
+    "count": null,
+    "dedupe_key": "h:a87ca645f934c386813bb1112b2fbb90075d0768bd8a55b5f8299b2686705d4a",
+    "host_name": "oute-server",
+    "is_monotonic": null,
+    "metric_name": "g",
+    "metric_type": "gauge",
+    "oute_agent": "claude",
+    "oute_instance": "oute-1",
+    "oute_repo": null,
+    "oute_subscription": null,
+    "oute_swarm_round": null,
+    "oute_task_id": null,
+    "point": "{\"asInt\":\"7\",\"startTimeUnixNano\":\"1790000000000000000\",\"timeUnixNano\":\"1790000000000000100\"}",
+    "received_unix_nano": 1790000000999999999,
+    "resource_attributes": "{\"arr\":[\"á\\\"\\n\\t \",7],\"b\":true,\"f\":1.5,\"host.name\":\"oute-server\",\"kv\":{\"a\":3.0,\"z\":\"1\"},\"n\":42,\"oute.agent\":\"claude\",\"oute.instance\":\"oute-1\",\"raw\":\"AAEC\",\"service.name\":\"claude-code\",\"unk\":null}",
+    "scope_name": "m",
+    "service_name": "claude-code",
+    "session_id": null,
+    "start_unix_nano": 1790000000000000000,
+    "time_unix_nano": 1790000000000000100,
+    "unit": "By",
+    "value": 7.0
+   },
+   {
+    "aggregation_temporality": 2,
+    "attributes": "{\"a\":\"1\"}",
+    "count": null,
+    "dedupe_key": "h:aeae22002005328572acb88841f6b346dcb0c6ebf6f6d469ad48208773c8888c",
+    "host_name": "oute-server",
+    "is_monotonic": true,
+    "metric_name": "s",
+    "metric_type": "sum",
+    "oute_agent": "claude",
+    "oute_instance": "oute-1",
+    "oute_repo": null,
+    "oute_subscription": null,
+    "oute_swarm_round": null,
+    "oute_task_id": null,
+    "point": "{\"asDouble\":2.5,\"startTimeUnixNano\":\"1790000000000000000\",\"timeUnixNano\":\"1790000000000000100\"}",
+    "received_unix_nano": 1790000000999999999,
+    "resource_attributes": "{\"arr\":[\"á\\\"\\n\\t \",7],\"b\":true,\"f\":1.5,\"host.name\":\"oute-server\",\"kv\":{\"a\":3.0,\"z\":\"1\"},\"n\":42,\"oute.agent\":\"claude\",\"oute.instance\":\"oute-1\",\"raw\":\"AAEC\",\"service.name\":\"claude-code\",\"unk\":null}",
+    "scope_name": "m",
+    "service_name": "claude-code",
+    "session_id": null,
+    "start_unix_nano": 1790000000000000000,
+    "time_unix_nano": 1790000000000000100,
+    "unit": null,
+    "value": 2.5
+   },
+   {
+    "aggregation_temporality": 1,
+    "attributes": "{\"a\":\"1\"}",
+    "count": 3,
+    "dedupe_key": "h:bee42d6fca340e6345f86097105dbcfe22efcad48a87de60972b8f3c4d81cedb",
+    "host_name": "oute-server",
+    "is_monotonic": null,
+    "metric_name": "h",
+    "metric_type": "histogram",
+    "oute_agent": "claude",
+    "oute_instance": "oute-1",
+    "oute_repo": null,
+    "oute_subscription": null,
+    "oute_swarm_round": null,
+    "oute_task_id": null,
+    "point": "{\"bucketCounts\":[\"1\",\"2\"],\"count\":\"3\",\"explicitBounds\":[1.0],\"startTimeUnixNano\":\"1790000000000000000\",\"sum\":10.0,\"timeUnixNano\":\"1790000000000000100\"}",
+    "received_unix_nano": 1790000000999999999,
+    "resource_attributes": "{\"arr\":[\"á\\\"\\n\\t \",7],\"b\":true,\"f\":1.5,\"host.name\":\"oute-server\",\"kv\":{\"a\":3.0,\"z\":\"1\"},\"n\":42,\"oute.agent\":\"claude\",\"oute.instance\":\"oute-1\",\"raw\":\"AAEC\",\"service.name\":\"claude-code\",\"unk\":null}",
+    "scope_name": "m",
+    "service_name": "claude-code",
+    "session_id": null,
+    "start_unix_nano": 1790000000000000000,
+    "time_unix_nano": 1790000000000000100,
+    "unit": null,
+    "value": 10.0
+   }
+  ]
+ },
+ "received_ns": 1790000000999999999,
+ "spans": {
+  "payload": {
+   "resourceSpans": [
+    {
+     "resource": {
+      "attributes": [
+       {
+        "key": "host.name",
+        "value": {
+         "stringValue": "oute-server"
+        }
+       },
+       {
+        "key": "service.name",
+        "value": {
+         "stringValue": "claude-code"
+        }
+       },
+       {
+        "key": "oute.agent",
+        "value": {
+         "stringValue": "claude"
+        }
+       },
+       {
+        "key": "oute.instance",
+        "value": {
+         "stringValue": "oute-1"
+        }
+       },
+       {
+        "key": "n",
+        "value": {
+         "intValue": "42"
+        }
+       },
+       {
+        "key": "f",
+        "value": {
+         "doubleValue": 1.5
+        }
+       },
+       {
+        "key": "b",
+        "value": {
+         "boolValue": true
+        }
+       },
+       {
+        "key": "arr",
+        "value": {
+         "arrayValue": {
+          "values": [
+           {
+            "stringValue": "á\"\n\t "
+           },
+           {
+            "intValue": "7"
+           }
+          ]
+         }
+        }
+       },
+       {
+        "key": "kv",
+        "value": {
+         "kvlistValue": {
+          "values": [
+           {
+            "key": "z",
+            "value": {
+             "stringValue": "1"
+            }
+           },
+           {
+            "key": "a",
+            "value": {
+             "doubleValue": 3.0
+            }
+           }
+          ]
+         }
+        }
+       },
+       {
+        "key": "raw",
+        "value": {
+         "bytesValue": "AAEC"
+        }
+       },
+       {
+        "key": "unk",
+        "value": {
+         "foo": 1
+        }
+       }
+      ]
+     },
+     "scopeSpans": [
+      {
+       "scope": {
+        "name": "claude"
+       },
+       "spans": [
+        {
+         "attributes": [
+          {
+           "key": "gen_ai.response.model",
+           "value": {
+            "stringValue": "claude-opus-5-5"
+           }
+          },
+          {
+           "key": "gen_ai.usage.input_tokens",
+           "value": {
+            "intValue": "100"
+           }
+          },
+          {
+           "key": "output_tokens",
+           "value": {
+            "intValue": "20"
+           }
+          },
+          {
+           "key": "codex.turn.token_usage.cached_input_tokens",
+           "value": {
+            "intValue": "5"
+           }
+          },
+          {
+           "key": "oute.cost_usd",
+           "value": {
+            "doubleValue": 0.0123
+           }
+          },
+          {
+           "key": "session.id",
+           "value": {
+            "stringValue": "s-9"
+           }
+          }
+         ],
+         "endTimeUnixNano": "1790000000000000090",
+         "events": [
+          {
+           "attributes": [
+            {
+             "key": "a",
+             "value": {
+              "stringValue": "b"
+             }
+            }
+           ],
+           "name": "e",
+           "timeUnixNano": "1790000000000000020"
+          }
+         ],
+         "kind": 3,
+         "links": [
+          {
+           "attributes": [],
+           "spanId": "bb",
+           "traceId": "aa"
+          }
+         ],
+         "name": "claude_code.llm_request",
+         "parentSpanId": "00F067AA0BA902B7",
+         "spanId": "B7AD6B7169203331",
+         "startTimeUnixNano": "1790000000000000010",
+         "status": {
+          "code": 2,
+          "message": "boom"
+         },
+         "traceId": "0AF7651916CD43DD8448EB211C80319C"
+        },
+        {
+         "name": "so",
+         "spanId": "22",
+         "traceId": "11"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  "rows": [
+   {
+    "attributes": "{\"codex.turn.token_usage.cached_input_tokens\":5,\"gen_ai.response.model\":\"claude-opus-5-5\",\"gen_ai.usage.input_tokens\":100,\"oute.cost_usd\":0.0123,\"output_tokens\":20,\"session.id\":\"s-9\"}",
+    "cache_creation_tokens": null,
+    "cache_read_tokens": 5,
+    "cost_usd": 0.0123,
+    "dedupe_key": "s:0af7651916cd43dd8448eb211c80319c:b7ad6b7169203331",
+    "duration_ns": 80,
+    "end_unix_nano": 1790000000000000090,
+    "events": "[{\"attributes\":{\"a\":\"b\"},\"name\":\"e\",\"time_unix_nano\":1790000000000000020}]",
+    "host_name": "oute-server",
+    "input_tokens": 100,
+    "kind": 3,
+    "links": "[{\"attributes\":{},\"span_id\":\"bb\",\"trace_id\":\"aa\"}]",
+    "model": "claude-opus-5-5",
+    "name": "claude_code.llm_request",
+    "oute_agent": "claude",
+    "oute_instance": "oute-1",
+    "oute_repo": null,
+    "oute_subscription": null,
+    "oute_swarm_round": null,
+    "oute_task_id": null,
+    "output_tokens": 20,
+    "parent_span_id": "00f067aa0ba902b7",
+    "received_unix_nano": 1790000000999999999,
+    "resource_attributes": "{\"arr\":[\"á\\\"\\n\\t \",7],\"b\":true,\"f\":1.5,\"host.name\":\"oute-server\",\"kv\":{\"a\":3.0,\"z\":\"1\"},\"n\":42,\"oute.agent\":\"claude\",\"oute.instance\":\"oute-1\",\"raw\":\"AAEC\",\"service.name\":\"claude-code\",\"unk\":null}",
+    "scope_name": "claude",
+    "service_name": "claude-code",
+    "session_id": "s-9",
+    "span_id": "b7ad6b7169203331",
+    "status_code": 2,
+    "status_message": "boom",
+    "time_unix_nano": 1790000000000000010,
+    "trace_id": "0af7651916cd43dd8448eb211c80319c"
+   },
+   {
+    "attributes": "{}",
+    "cache_creation_tokens": null,
+    "cache_read_tokens": null,
+    "cost_usd": null,
+    "dedupe_key": "s:11:22",
+    "duration_ns": null,
+    "end_unix_nano": null,
+    "events": "[]",
+    "host_name": "oute-server",
+    "input_tokens": null,
+    "kind": null,
+    "links": "[]",
+    "model": null,
+    "name": "so",
+    "oute_agent": "claude",
+    "oute_instance": "oute-1",
+    "oute_repo": null,
+    "oute_subscription": null,
+    "oute_swarm_round": null,
+    "oute_task_id": null,
+    "output_tokens": null,
+    "parent_span_id": null,
+    "received_unix_nano": 1790000000999999999,
+    "resource_attributes": "{\"arr\":[\"á\\\"\\n\\t \",7],\"b\":true,\"f\":1.5,\"host.name\":\"oute-server\",\"kv\":{\"a\":3.0,\"z\":\"1\"},\"n\":42,\"oute.agent\":\"claude\",\"oute.instance\":\"oute-1\",\"raw\":\"AAEC\",\"service.name\":\"claude-code\",\"unk\":null}",
+    "scope_name": "claude",
+    "service_name": "claude-code",
+    "session_id": null,
+    "span_id": "22",
+    "status_code": null,
+    "status_message": null,
+    "time_unix_nano": 1790000000999999999,
+    "trace_id": "11"
+   }
+  ]
+ }
+}

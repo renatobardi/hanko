@@ -30,9 +30,6 @@ func TestExternalSourceContratoResponde501(t *testing.T) {
 		{"POST", base + "/external-conversations/" + id + "/class", `{"class":"qa"}`},
 		{"GET", base + "/external-conversations/" + id + "/content", ""},
 		{"GET", base + "/external-usage", ""},
-		{"GET", base + "/ingest-keys", ""},
-		{"POST", base + "/ingest-keys", `{"name":"oute-server"}`},
-		{"DELETE", base + "/ingest-keys/" + id, ""},
 	} {
 		resp, body := do(t, c.method, ts.URL+c.path, c.body, nil)
 		if resp.StatusCode != 501 {
@@ -69,8 +66,8 @@ func TestExternalSourceContratoResponde501(t *testing.T) {
 			}
 		}
 	}
-	if n != 21 {
-		t.Fatalf("operações do contrato da fonte externa = %d, quer 21", n)
+	if n != 18 {
+		t.Fatalf("operações do contrato da fonte externa = %d, quer 18 (as 3 de chave de ingestão já estão ligadas)", n)
 	}
 }
 

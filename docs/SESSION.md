@@ -1,14 +1,15 @@
-# Cofre (#117) · sessão `feat-117-cofre-env-persona`
+# Fonte externa e ingestão (#125, fatia 1) · PR #142 (`feat/125-ingestao-nucleo`)
 Data: 2026-10-30
 
 ## Feito
-- Fatia 2 (delegação pela tela e pela CLI) entrou na main pela PR #141 (e72bfc7).
-- Fatia 3 (variáveis de ambiente da persona pela tela, só referência) está nesta PR #144. Testes de banco de `SetPersonaEnvRef` (transação, trava `FOR UPDATE`, evento `persona.updated` sem valor) em `internal/service/persona_env_db_test.go`.
-- Branch atualizado com `origin/main` (c3e6159, #140); geradores (openapi, templ, sqlc, islands) sem diferença; `go test ./internal/service ./internal/ui ./internal/i18n` ok.
+- Auditoria do #142: `registerIngestKeys` virou métodos do `server`, uma função curta por rota (BLOCKING 1).
+- `HANKO_INGEST_ADDR` recusa endereço curinga (vazio, `0.0.0.0`, `::`); listener de ingestão com `ReadTimeout` de 2 min.
+- `git merge origin/main` em c3e6159 (#140, migration 00212) e em 02227e0 (#144): conflitos resolvidos; `make openapi`, `make generate` e `make islands` rodados, sem gerado à mão.
+- `go test ./...` com Postgres local passou (68 pacotes ok) e `golangci-lint run ./...` deu 0 issues.
 
 ## Travado
-- Os testes de banco da fatia 3 pulam aqui (sem Postgres local); quem roda é o CI com `HANKO_TEST_DATABASE_URL`.
-- Critério (a) da #117 (substituir campo arquivo pela tela): não entrou em nenhuma fatia; a tela ainda apaga e cria.
+- Sonar do PR: gate do head novo ainda não verificado; achados em código novo listados no PR para decisão do Bardi.
+- SHOULD-FIX não tratados: enum de `scope` em `internal/api/access.go` (justificado no PR); concorrência já vem antes de ler o corpo (justificado no PR).
 
 ## Próximo passo
-- Dispatcher reaudita o head novo do #144; depois o Bardi decide o merge. Critério (a) e demo `qa` em produção seguem pendentes.
+- Conferir o gate do Sonar depois do CI (`oute-sonar pr 142 --json`); avisar o head novo para o dispatcher.

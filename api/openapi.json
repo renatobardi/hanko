@@ -44659,7 +44659,6 @@
     },
     "/api/v1/companies/{company}/ingest-keys": {
       "get": {
-        "description": "Contrato da fonte externa (ADR-0075 a 0079). Responde 501 até a fatia 1 (#125).",
         "operationId": "list-ingest-keys",
         "parameters": [
           {
@@ -44703,13 +44702,13 @@
             }
           },
           {
-            "description": "Inclui os arquivados.",
+            "description": "Inclui as revogadas.",
             "explode": false,
             "in": "query",
-            "name": "include_archived",
+            "name": "include_revoked",
             "schema": {
               "default": false,
-              "description": "Inclui os arquivados.",
+              "description": "Inclui as revogadas.",
               "type": "boolean"
             }
           }
@@ -44784,16 +44783,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Lista as chaves de ingestão da empresa (owner ou admin)",
@@ -44802,7 +44791,6 @@
         ]
       },
       "post": {
-        "description": "Contrato da fonte externa (ADR-0075 a 0079). Responde 501 até a fatia 1 (#125).",
         "operationId": "create-ingest-key",
         "parameters": [
           {
@@ -44899,16 +44887,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Cria uma chave de ingestão; o token aparece uma vez (owner ou admin)",
@@ -44919,7 +44897,6 @@
     },
     "/api/v1/companies/{company}/ingest-keys/{key}": {
       "delete": {
-        "description": "Contrato da fonte externa (ADR-0075 a 0079). Responde 501 até a fatia 1 (#125).",
         "operationId": "revoke-ingest-key",
         "parameters": [
           {
@@ -45010,16 +44987,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Revoga uma chave de ingestão (owner ou admin)",

@@ -393,6 +393,25 @@ Requer `HANKO_MEMORY_PROVIDER=ai-memory` (ADR-0030). Com `none` a seção "Memó
 | Muitas propostas | tool de nome desconhecido é retida por segurança | aprovar/rejeitar; ver ADR-0030 |
 | Consolidação não roda | curador pausado ou sem orçamento | ver Inbox/alertas; expira em 6 h |
 
+## Ingestão de telemetria de agente externo (ADR-0076)
+
+A ingestão recebe o OTLP/HTTP que o collector de cada host manda (fatia 1 da v0.8, #125). Ela tem **listener próprio**,
+separado do público, ligado por `HANKO_INGEST_ADDR` (ex.: `100.64.0.1:7421`, o IP da tailnet). Sem a variável, a ingestão
+fica desligada e nada abre. Não pode ser o mesmo endereço de `HANKO_ADDR`.
+
+- **Rotas** (`api/openapi-ingest.json`, `hanko openapi --ingest`): `POST /v1/traces`, `/v1/logs` e `/v1/metrics` (só
+  `application/x-protobuf`, com gzip), `POST /v1/replay/{traces|logs|metrics}` (o objeto do bucket em JSON) e `GET /v1/ready`.
+- **Chave**: só a de escopo `ingest`, uma por host, presa à empresa. Crie com `POST /api/v1/companies/{company}/ingest-keys`
+  (owner ou admin); o token aparece uma vez. A API pública e o `/mcp` recusam essa chave.
+- **Garantia de entrega**: o 2xx só vem depois do commit. `503` com `Retry-After` quando a ingestão está cheia ou a gravação
+  falha; `400` para corpo inválido ou acima de 64 MB descomprimido (o collector não retenta); `401` sem chave ou revogada;
+  `403` para chave de outro escopo.
+- **Dedupe**: reenviar o mesmo fato não duplica nada. A chave é a do agent-studio (`oute.event.id`, `trace_id:span_id` ou o
+  hash do conteúdo).
+- **Partições**: `telemetry_spans`, `telemetry_logs` e `telemetry_metrics` são particionadas por mês. Na partida e a cada 24 h o
+  Hanko cria o mês corrente e os dois seguintes. Se o job falhar, a ingestão grava na partição `DEFAULT`; `GET /v1/ready`
+  responde 503 quando falta a partição do mês corrente.
+
 ## Alertas operacionais
 
 O job periódico `alert_tick` (mesmo período do `heartbeat_tick`, `HANKO_HEARTBEAT_INTERVAL`) compara as condições de agora com os

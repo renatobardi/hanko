@@ -149,6 +149,9 @@ type backend interface {
 	CostSummary(ctx context.Context, companyID domain.ID, f service.CostFilter) (service.CostSummary, error)
 	CreateSubscription(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.CreateSubscriptionInput) (domain.Subscription, error)
 	ListSubscriptions(ctx context.Context, companyID domain.ID) ([]service.SubscriptionStatus, error)
+	CreateIngestKey(ctx context.Context, actor domain.Actor, companyID domain.ID, name string) (string, domain.IngestKey, error)
+	ListIngestKeys(ctx context.Context, companyID domain.ID, includeRevoked bool, limit, offset int) ([]domain.IngestKey, error)
+	RevokeIngestKey(ctx context.Context, actor domain.Actor, companyID, keyID domain.ID) (domain.IngestKey, error)
 	GetSubscription(ctx context.Context, companyID domain.ID, ref string) (service.SubscriptionStatus, error)
 	UpdateSubscription(ctx context.Context, actor domain.Actor, companyID, id domain.ID, in service.UpdateSubscriptionInput) (domain.Subscription, error)
 	DeleteSubscription(ctx context.Context, actor domain.Actor, companyID, id domain.ID) error
@@ -348,7 +351,8 @@ func (s *server) register(api huma.API) {
 	s.registerExternalSource(api) // contrato da fonte externa (ADR-0075 a 0079); 501 até cada fatia
 	s.registerExternalRounds(api) // contrato da rodada e da aprovação externas (ADR-0080 e 0081); 501 até a fatia 3
 	s.registerExternalCost(api)   // contrato do custo elevado e dos alertas externos (ADR-0082/0083); 501 até a fatia 2
-	s.registerPersonaTags(api)    // contrato das tags de persona (ADR-0087); 501 até a fatia 1
+	s.registerIngestKeys(api)
+	s.registerPersonaTags(api) // contrato das tags de persona (ADR-0087); 501 até a fatia 1
 	s.registerDecision(api)
 	s.registerProbe(api)
 	s.registerInstance(api)
