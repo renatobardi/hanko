@@ -6,6 +6,10 @@ Data: 2026-10-30
 - CI `gerados`: `make generate` regenerou `internal/store/models.go` (campos de hora da sessão), commit 2bee3e8.
 - Testes: `TestMigration00213`, `TestDeriveSession*` (valor do fato mais antigo, sem task não cria, workspace segue o repositório). `go test ./...` com Postgres local: 68 pacotes ok. Lint: 0 issues.
 
+- Entrada inválida: task id vazio, só espaços, acima de 200 runas ou com NUL não cria sessão; o lote e o bruto entram. NUL em agente e host vira ausente (coluna fixa); no JSON bruto vira U+FFFD (jsonb recusa \u0000).
+- Corrida: lotes concorrentes com a mesma task_id e horas diferentes dão a mesma sessão do lote em série (`TestDeriveSessionConcurrentBatchesMatchSerial`).
+- Sessão com repositório inválido: fica sem workspace (ADR-0078 não diz o que fazer; decisão deste PR, a registrar).
+
 ## Travado
 - Gerador de nome (ADR-0084): as 192 + 192 palavras novas precisam de revisão do Bardi antes do código. Sem elas, a conversa externa não tem nome e não é criada.
 - Conversa externa (ADR-0078 item 1) e o vínculo `external_conversation.external_session_id`: dependem do gerador.
