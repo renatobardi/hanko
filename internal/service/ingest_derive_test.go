@@ -14,8 +14,8 @@ import (
 
 // derivRec é um registro de log com os atributos fixos que a derivação lê; campo vazio = atributo ausente.
 type derivRec struct {
-	id, agent, host, repo string
-	at                    int64
+	id, agent, host, repo, task, round string
+	at                                 int64
 }
 
 // derivBatch monta o lote como o handler monta: DecodeJSON, depois LogRows.
@@ -32,6 +32,12 @@ func derivBatch(t *testing.T, recs ...derivRec) ingest.Batch {
 		}
 		if r.repo != "" {
 			attrs = append(attrs, attr("oute.task.repo", r.repo))
+		}
+		if r.task != "" {
+			attrs = append(attrs, attr("oute.task.id", r.task))
+		}
+		if r.round != "" {
+			attrs = append(attrs, attr("oute.swarm.round", r.round))
 		}
 		parts = append(parts, fmt.Sprintf(`{"timeUnixNano":"%d","body":{"stringValue":"x"},"attributes":[%s]}`, r.at, strings.Join(attrs, ",")))
 	}

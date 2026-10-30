@@ -20,12 +20,22 @@ type Fixed struct {
 	OuteSubscription *string `json:"oute_subscription"`
 }
 
+// noNUL: a coluna de texto do Postgres não aceita o byte NUL. Valor com NUL vira ausente (a coluna fica NULL); o fato
+// segue no bruto, em `attributes`, e a derivação não usa o texto.
+func noNUL(s *string) *string {
+	if s != nil && strings.ContainsRune(*s, 0) {
+		return nil
+	}
+	return s
+}
+
 func fixedOf(rec, res map[string]any) Fixed {
 	pick := func(key string) *string {
-		if v := rec[key]; v != nil {
-			return pyText(v)
+		v := rec[key]
+		if v == nil {
+			v = res[key]
 		}
-		return pyText(res[key])
+		return noNUL(pyText(v))
 	}
 	f := Fixed{
 		HostName: pick("host.name"), OuteInstance: pick("oute.instance"), OuteAgent: pick("oute.agent"),
