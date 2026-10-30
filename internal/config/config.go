@@ -196,7 +196,10 @@ type Config struct {
 
 	DatabaseURL string `yaml:"database_url" env:"HANKO_DATABASE_URL"`
 	Addr        string `yaml:"addr" env:"HANKO_ADDR"`
-	PublicURL   string `yaml:"public_url" env:"HANKO_PUBLIC_URL"`
+	// IngestAddr é o listener próprio da ingestão de telemetria de agente externo (ADR-0076), separado do público e
+	// pensado para a tailnet. Vazio = a ingestão fica desligada.
+	IngestAddr string `yaml:"ingest_addr" env:"HANKO_INGEST_ADDR"`
+	PublicURL  string `yaml:"public_url" env:"HANKO_PUBLIC_URL"`
 	// AgentURL é a base pela qual os agentes (processos filhos, no mesmo container) chamam /mcp.
 	// Vazio = PublicURL. Em prd use http://127.0.0.1:7420 para não depender de DNS/proxy/TLS públicos.
 	AgentURL string `yaml:"agent_url" env:"HANKO_AGENT_URL"`
@@ -361,7 +364,7 @@ func LoadFrom(getenv func(string) string, readFile func(string) ([]byte, error))
 // environFor monta o mapa de ambiente para as chaves HANKO_* conhecidas.
 func environFor(getenv func(string) string) map[string]string {
 	keys := []string{
-		"HANKO_DATABASE_URL", "HANKO_ADDR", "HANKO_PUBLIC_URL", "HANKO_AGENT_URL", "HANKO_MODE", "HANKO_SECRET",
+		"HANKO_DATABASE_URL", "HANKO_ADDR", "HANKO_INGEST_ADDR", "HANKO_PUBLIC_URL", "HANKO_AGENT_URL", "HANKO_MODE", "HANKO_SECRET",
 		"HANKO_MIGRATE_ON_BOOT", "HANKO_MEMORY_PROVIDER", "HANKO_MEMORY_URL", "HANKO_MEMORY_TOKEN", "HANKO_MEMORY_READ_TOOL",
 		"HANKO_CLAUDE_BIN", "HANKO_CODEX_BIN", "HANKO_DEVIN_BIN", "HANKO_PI_BIN", "HANKO_CURSOR_BIN", "HANKO_WORKERS", "HANKO_RUN_TIMEOUT",
 		"HANKO_HEARTBEAT_INTERVAL", "HANKO_LOG_LEVEL", "HANKO_LOG_FORMAT",
@@ -530,6 +533,16 @@ func (c Config) Validate() error {
 	}
 	if _, _, err := net.SplitHostPort(c.Addr); err != nil {
 		add("HANKO_ADDR %q inválido: use host:porta (ex.: 127.0.0.1:7420)", c.Addr)
+	}
+	if c.IngestAddr != "" {
+		host, _, err := net.SplitHostPort(c.IngestAddr)
+		if err != nil {
+			add("HANKO_INGEST_ADDR %q inválido: use host:porta (ex.: 100.64.0.1:7421)", c.IngestAddr)
+		} else if ip := net.ParseIP(host); host == "" || (ip != nil && ip.IsUnspecified()) {
+			add("HANKO_INGEST_ADDR %q escuta em todas as interfaces: use o endereço da tailnet (ex.: 100.64.0.1:7421)", c.IngestAddr)
+		} else if c.IngestAddr == c.Addr {
+			add("HANKO_INGEST_ADDR não pode ser o mesmo endereço de HANKO_ADDR: a ingestão tem listener próprio (ADR-0076)")
+		}
 	}
 	if sub := strings.TrimSpace(c.PushSubject); sub != "" && !strings.HasPrefix(sub, "mailto:") && !strings.HasPrefix(sub, "https://") {
 		add("HANKO_PUSH_SUBJECT %q inválido: use mailto:alguem@exemplo.org ou uma URL https", c.PushSubject)

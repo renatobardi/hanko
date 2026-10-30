@@ -233,6 +233,14 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 	if err != nil {
 		return err
 	}
+	ingestCtx, stopIngest := context.WithCancel(ctx)
+	waitIngest, err := startIngest(ingestCtx, cfg, svc, logger)
+	if err != nil {
+		stopIngest()
+		return err
+	}
+	defer waitIngest() // roda depois de stopIngest: a ingestão termina com o servidor, mesmo se ele falhar
+	defer stopIngest()
 	srv := newHTTPServer(cfg.Addr, handler, logger)
 
 	var hbStarted bool

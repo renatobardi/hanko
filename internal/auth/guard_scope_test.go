@@ -23,8 +23,8 @@ func (s scopedResolver) ResolveAPIKeyInfo(ctx context.Context, key string) (doma
 func TestGuardKeyScope(t *testing.T) {
 	ana := domain.User{ID: domain.NewID(), Email: "ana@x.com"}
 	res := scopedResolver{
-		fakeResolver: fakeResolver{sessions: map[string]domain.User{"sess": ana}, keys: map[string]domain.User{"hk_read": ana, "hk_full": ana}},
-		scope:        map[string]domain.KeyScope{"hk_read": domain.KeyScopeRead, "hk_full": domain.KeyScopeFull},
+		fakeResolver: fakeResolver{sessions: map[string]domain.User{"sess": ana}, keys: map[string]domain.User{"hk_read": ana, "hk_full": ana, "hk_ingest": ana}},
+		scope:        map[string]domain.KeyScope{"hk_read": domain.KeyScopeRead, "hk_full": domain.KeyScopeFull, "hk_ingest": domain.KeyScopeIngest},
 	}
 	h, _ := guarded(res)
 	do := func(method, path, key string) int {
@@ -44,6 +44,11 @@ func TestGuardKeyScope(t *testing.T) {
 		{http.MethodPost, "/mcp", "hk_read", 401},
 		{http.MethodPost, "/api/v1/companies", "hk_full", 200},
 		{http.MethodPost, "/mcp", "hk_full", 200},
+		// A chave de ingestão (ADR-0076) só grava telemetria no listener próprio: a API pública e o /mcp a recusam,
+		// inclusive nos métodos seguros.
+		{http.MethodGet, "/api/v1/companies", "hk_ingest", 401},
+		{http.MethodPost, "/api/v1/companies", "hk_ingest", 401},
+		{http.MethodPost, "/mcp", "hk_ingest", 401},
 	} {
 		if got := do(c.method, c.path, c.key); got != c.want {
 			t.Errorf("%s %s com %s = %d, quer %d", c.method, c.path, c.key, got, c.want)
