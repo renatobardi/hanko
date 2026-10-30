@@ -353,6 +353,10 @@ func (t *txc) applyMerge(cid domain.ID, doc export.Document, p importPlan, plan 
 		}
 	}
 
+	if err := t.importPersonaTags(cid, doc, ids.personas, func(slug string) bool { return touched[slug] }); err != nil {
+		return ids, err
+	}
+
 	// fluxos
 	for _, x := range doc.Flows {
 		d := plan.decision(KindFlows, x.Slug)

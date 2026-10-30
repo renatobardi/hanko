@@ -610,6 +610,7 @@ var importCountLabels = map[string]string{
 	"tasks": i18n.N("Tasks"), "comments": i18n.N("Comentários"), "flows": i18n.N("Fluxos"), "runs": i18n.N("Execuções"),
 	"run_events": i18n.N("Eventos de execução"), "skills": i18n.N("Skills"), "integrations": i18n.N("Integrações"),
 	"artifacts": i18n.N("Artefatos"), "workspace_paths_cleared": i18n.N("Workspaces sem caminho"), "secret_refs_to_create": i18n.N("Segredos a recriar"),
+	"persona_tags": i18n.N("Tags de persona"),
 }
 
 func importCountLabel(ctx context.Context, k string) string {

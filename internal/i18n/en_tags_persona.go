@@ -4,6 +4,9 @@ package i18n
 // them into the same catalog as the rest (en.go). Same rules: the key is the pt-BR text, and a key that another file
 // already translates is not repeated here.
 var enTagsPersona = map[string]string{
+	// prévia do import
+	"Tags de persona": "Persona tags",
+
 	// CLI (`hanko persona tag`)
 	"Gerencia as tags de persona (cadastro, aplicar, tirar e recorte do organograma)": "Manages the persona tags (registry, apply, remove and org chart slice)",
 	"Lista o cadastro de tags (sem as arquivadas, a menos que --archived)":            "Lists the tag registry (without the archived ones, unless --archived)",
