@@ -16,6 +16,11 @@ import (
 )
 
 func (s *server) handlePersonas(w http.ResponseWriter, r *http.Request, co domain.Company) {
+	s.renderPersonas(w, r, co, http.StatusOK, "")
+}
+
+// renderPersonas desenha a lista; errMsg não vazio é o erro do último lote.
+func (s *server) renderPersonas(w http.ResponseWriter, r *http.Request, co domain.Company, status int, errMsg string) {
 	ctx := r.Context()
 	personas, err := s.be.ListPersonas(ctx, co.ID)
 	if err != nil {
@@ -34,7 +39,14 @@ func (s *server) handlePersonas(w http.ResponseWriter, r *http.Request, co domai
 		}
 	}
 	base := "/c/" + co.Slug
-	vm := views.PersonasVM{}
+	vm := views.PersonasVM{Error: errMsg}
+	if vm.Bulk, err = s.personasBulkVM(ctx, co); err != nil {
+		s.fail(w, r, &co, err)
+		return
+	}
+	if errMsg == "" {
+		vm.Notice = bulkNotice(r)
+	}
 	nameOf := map[domain.ID]string{}
 	for _, p := range personas {
 		nameOf[p.ID] = p.Name
@@ -56,7 +68,7 @@ func (s *server) handlePersonas(w http.ResponseWriter, r *http.Request, co domai
 			title += " · " + i18n.Tf(ctx, "reporta a %s", nameOf[*p.ReportsTo])
 		}
 		vm.Rows = append(vm.Rows, views.PersonaRow{
-			Name: p.Name, Initials: initialsOf(p.Name), Title: title, Href: base + "/personas/" + p.Slug,
+			ID: p.ID.String(), Name: p.Name, Initials: initialsOf(p.Name), Title: title, Href: base + "/personas/" + p.Slug,
 			Badge: personaBadge(ctx, p.Status), Agent: p.Agent, Model: p.Model, OpenTasks: open[p.ID], Heartbeat: heartbeatLabelCtx(ctx, p.HeartbeatIntervalSec),
 			Tags: tagChipsOf(p.Tags),
 		})
@@ -73,7 +85,7 @@ func (s *server) handlePersonas(w http.ResponseWriter, r *http.Request, co domai
 	if sh.CanAdmin() {
 		sh.Action = &views.Action{Label: i18n.T(ctx, "Contratar persona"), Href: base + "/personas/nova", Icon: "plus"}
 	}
-	s.render(w, r, http.StatusOK, views.PersonasPage(sh, vm))
+	s.render(w, r, status, views.PersonasPage(sh, vm))
 }
 
 func (s *server) handleNewPersona(w http.ResponseWriter, r *http.Request, co domain.Company) {

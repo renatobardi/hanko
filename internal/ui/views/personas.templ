@@ -36,10 +36,22 @@ templ PersonasPage(sh Shell, vm PersonasVM) {
 				}
 			}
 		} else {
+			if vm.Notice != "" {
+				@Alert("ok", vm.Notice)
+			}
+			if vm.Error != "" {
+				@Alert("danger", vm.Error)
+			}
+			if vm.Bulk.CanWrite {
+				@PersonasBulkBar(vm.Bulk)
+			}
 			<div class="table-wrap">
 				<table class="table">
 					<thead>
 						<tr>
+							if vm.Bulk.CanWrite {
+								@bulkSelectAllCell()
+							}
 							<th>Persona</th>
 							<th>{ i18n.T(ctx, "Status") }</th>
 							<th class="hide-sm">{ i18n.T(ctx, "Harness · modelo") }</th>
@@ -50,6 +62,9 @@ templ PersonasPage(sh Shell, vm PersonasVM) {
 					<tbody>
 						for _, r := range vm.Rows {
 							<tr class="row">
+								if vm.Bulk.CanWrite {
+									@bulkSelectCell(r)
+								}
 								<td>
 									<a class="p-name" href={ templ.SafeURL(r.Href) }>
 										<span class="mini-avatar">@PersonaGlyph(r.Name)</span>

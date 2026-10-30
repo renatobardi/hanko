@@ -263,3 +263,32 @@ func deleteTagText(ctx context.Context, r TagRow) string {
 	}
 	return i18n.Tf(ctx, "%d personas perdem a tag «%s». A exclusão não se desfaz.", r.Personas, r.Name)
 }
+
+// PersonasBulkBar é a barra de edição em lote da lista (fatia 2): o nome da tag e aplicar ou tirar das personas marcadas.
+templ PersonasBulkBar(vm PersonasBulkVM) {
+	<form id={ BulkFormID } method="post" action={ templ.SafeURL(vm.Action) } class="tag-apply tag-bulk mb-4">
+		<span class="text-sm">{ i18n.T(ctx, "Personas marcadas:") }</span>
+		<label class="sr-only" for="tag-bulk-name">{ i18n.T(ctx, "Tag") }</label>
+		<input class="input sm" type="text" id="tag-bulk-name" name="name" list="tag-bulk-options" required maxlength="40" autocomplete="off" placeholder={ i18n.T(ctx, "Nome da tag") }/>
+		<datalist id="tag-bulk-options">
+			for _, o := range vm.Options {
+				<option value={ o }></option>
+			}
+		</datalist>
+		<button class="btn outline sm" type="submit" name="acao" value="aplicar">{ i18n.T(ctx, "Aplicar tag") }</button>
+		<button class="btn outline sm" type="submit" name="acao" value="tirar">{ i18n.T(ctx, "Tirar tag") }</button>
+		<span class="hint">{ i18n.T(ctx, "Um nome novo cria a tag ao aplicar.") }</span>
+	</form>
+}
+
+templ bulkSelectAllCell() {
+	<th class="sel">
+		<input type="checkbox" data-select-all={ BulkFormID } aria-label={ i18n.T(ctx, "Marcar todas as personas") }/>
+	</th>
+}
+
+templ bulkSelectCell(r PersonaRow) {
+	<td class="sel">
+		<input type="checkbox" name="persona" value={ r.ID } form={ BulkFormID } aria-label={ i18n.Tf(ctx, "Marcar %s", r.Name) }/>
+	</td>
+}
