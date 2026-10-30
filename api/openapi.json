@@ -8932,7 +8932,7 @@
             "type": "boolean"
           },
           "kind": {
-            "description": "Tipo do item; o id é o da origem (gate, task, execução, persona, alerta, assinatura, menção, meta).",
+            "description": "Tipo do item; o id é o da origem (gate, task, execução, persona, alerta, assinatura, menção, meta, agente ou host externo).",
             "enum": [
               "gate",
               "task_blocked",
@@ -8942,7 +8942,9 @@
               "alert",
               "subscription",
               "mention",
-              "goal_achieved"
+              "goal_achieved",
+              "external_agent",
+              "external_host"
             ],
             "type": "string"
           },
@@ -9032,7 +9034,9 @@
               "alert",
               "subscription",
               "mention",
-              "goal_achieved"
+              "goal_achieved",
+              "external_agent",
+              "external_host"
             ],
             "type": "string"
           }

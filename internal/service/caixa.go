@@ -127,6 +127,12 @@ func (i Inbox) Items() []InboxItem {
 		add(InboxItem{Kind: domain.InboxTaskHeld, ID: h.Task.ID, Title: h.Task.Title, Detail: h.Hold.Reason, TaskKey: h.Task.Key, Ref: h.Task.Key, At: h.Hold.At,
 			Informational: true, Fingerprint: heldFingerprint(h)})
 	}
+	for _, a := range i.NewAgents {
+		add(InboxItem{Kind: domain.InboxExternalAgent, ID: a.ID, Title: a.Name, Ref: a.ID.String(), At: a.At, Informational: true, Fingerprint: micros(a.At)})
+	}
+	for _, h := range i.NewHosts {
+		add(InboxItem{Kind: domain.InboxExternalHost, ID: h.ID, Title: h.Name, Ref: h.ID.String(), At: h.At, Informational: true, Fingerprint: micros(h.At)})
+	}
 	for _, g := range i.AchievedGoals {
 		add(InboxItem{Kind: domain.InboxGoalAchieved, ID: g.ID, Title: g.Title, Ref: g.Slug, At: g.UpdatedAt, Informational: true, Fingerprint: goalFingerprint(g)})
 	}
