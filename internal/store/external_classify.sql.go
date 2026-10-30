@@ -13,7 +13,8 @@ import (
 )
 
 const classifyOpenings = `-- name: ClassifyOpenings :many
-SELECT oute_task_id, time_unix_nano, COALESCE(attributes->>'oute.task.phase', '')::text AS phase, COALESCE(attributes->>'oute.task.origin', '')::text AS origin,
+SELECT oute_task_id, time_unix_nano, COALESCE(attributes->>'oute.task.phase', '')::text AS phase,
+    COALESCE(attributes->>'oute.task.origin', '')::text AS origin,
     COALESCE(attributes->>'oute.task.repo', '')::text AS repo, COALESCE(attributes->>'oute.task.slug', '')::text AS slug
 FROM telemetry_logs
 WHERE company_id = $1 AND event_name IN ('oute.task.opened', 'oute.task.reopened') AND oute_task_id IS NOT NULL
@@ -29,7 +30,8 @@ type ClassifyOpeningsRow struct {
 	Slug         string
 }
 
-// Eventos de abertura do oute-task, em ordem de hora (ADR-0079 item 2; phase.py `_openings`).
+// Eventos de abertura do oute-task, em ordem de hora (ADR-0079 item 2; phase.py `_openings`). Todas as sessões da empresa,
+// porque o label vale entre sessões da mesma issue.
 func (q *Queries) ClassifyOpenings(ctx context.Context, companyID uuid.UUID) ([]ClassifyOpeningsRow, error) {
 	rows, err := q.db.Query(ctx, classifyOpenings, companyID)
 	if err != nil {
@@ -64,14 +66,21 @@ SELECT session_id, max(time_unix_nano)::bigint AS last_at,
     bool_or(resource_attributes->>'oute.swarm.session' IS NOT NULL) AS has_worker,
     bool_or(resource_attributes->>'oute.swarm.step' IS NOT NULL) AS has_step
 FROM (
-    SELECT session_id, time_unix_nano, oute_task_id, oute_swarm_round, resource_attributes FROM telemetry_spans
-    WHERE telemetry_spans.company_id = $1 AND session_id IS NOT NULL
+    SELECT telemetry_spans.session_id, telemetry_spans.time_unix_nano, telemetry_spans.oute_task_id, telemetry_spans.oute_swarm_round,
+        telemetry_spans.resource_attributes FROM telemetry_spans
+    WHERE telemetry_spans.company_id = $1 AND telemetry_spans.session_id = ANY($2::text[])
     UNION ALL
-    SELECT session_id, time_unix_nano, oute_task_id, oute_swarm_round, resource_attributes FROM telemetry_logs
-    WHERE company_id = $1 AND session_id IS NOT NULL
+    SELECT telemetry_logs.session_id, telemetry_logs.time_unix_nano, telemetry_logs.oute_task_id, telemetry_logs.oute_swarm_round,
+        telemetry_logs.resource_attributes FROM telemetry_logs
+    WHERE telemetry_logs.company_id = $1 AND telemetry_logs.session_id = ANY($2::text[])
 ) f
 GROUP BY session_id
 `
+
+type ClassifySessionFactsParams struct {
+	CompanyID uuid.UUID
+	Sessions  []string
+}
 
 type ClassifySessionFactsRow struct {
 	SessionID *string
@@ -82,9 +91,9 @@ type ClassifySessionFactsRow struct {
 	HasStep   bool
 }
 
-// Fatos da sessão: a hora do último fato, o oute.task.id (o primeiro que chegou), e se há papel de rodada, worker e passo.
-func (q *Queries) ClassifySessionFacts(ctx context.Context, companyID uuid.UUID) ([]ClassifySessionFactsRow, error) {
-	rows, err := q.db.Query(ctx, classifySessionFacts, companyID)
+// Fatos das sessões pedidas: a hora do último fato, o oute.task.id (o primeiro que chegou) e os papéis da rodada.
+func (q *Queries) ClassifySessionFacts(ctx context.Context, arg ClassifySessionFactsParams) ([]ClassifySessionFactsRow, error) {
+	rows, err := q.db.Query(ctx, classifySessionFacts, arg.CompanyID, arg.Sessions)
 	if err != nil {
 		return nil, err
 	}
@@ -115,14 +124,20 @@ SELECT session_id, COALESCE(attributes->>'tool_name', '')::text AS tool, COALESC
     COALESCE(attributes->>'tool_parameters', '')::text AS tool_parameters, COALESCE(attributes->>'file_path', '')::text AS path,
     time_unix_nano
 FROM (
-    SELECT session_id, attributes, time_unix_nano FROM telemetry_spans
-    WHERE telemetry_spans.company_id = $1 AND name = 'claude_code.tool' AND session_id IS NOT NULL AND attributes::text LIKE '%oute-aidlc-%'
+    SELECT telemetry_spans.session_id, telemetry_spans.attributes, telemetry_spans.time_unix_nano FROM telemetry_spans
+    WHERE telemetry_spans.company_id = $1 AND telemetry_spans.name = 'claude_code.tool'
+        AND telemetry_spans.session_id = ANY($2::text[]) AND telemetry_spans.attributes::text LIKE '%oute-aidlc-%'
     UNION ALL
-    SELECT session_id, attributes, time_unix_nano FROM telemetry_logs
-    WHERE company_id = $1 AND event_name IN ('tool_result', 'claude_code.tool_result') AND session_id IS NOT NULL
-        AND attributes::text LIKE '%oute-aidlc-%'
+    SELECT telemetry_logs.session_id, telemetry_logs.attributes, telemetry_logs.time_unix_nano FROM telemetry_logs
+    WHERE telemetry_logs.company_id = $1 AND telemetry_logs.event_name IN ('tool_result', 'claude_code.tool_result')
+        AND telemetry_logs.session_id = ANY($2::text[]) AND telemetry_logs.attributes::text LIKE '%oute-aidlc-%'
 ) f
 `
+
+type ClassifySkillRowsParams struct {
+	CompanyID uuid.UUID
+	Sessions  []string
+}
 
 type ClassifySkillRowsRow struct {
 	SessionID      *string
@@ -133,10 +148,10 @@ type ClassifySkillRowsRow struct {
 	TimeUnixNano   int64
 }
 
-// Linhas de ferramenta que citam uma skill `oute-aidlc-` (ADR-0079 item 2; phase.py `_skills`). O tool_parameters vem como
-// texto e é lido no serviço, para um JSON malformado não derrubar a passada.
-func (q *Queries) ClassifySkillRows(ctx context.Context, companyID uuid.UUID) ([]ClassifySkillRowsRow, error) {
-	rows, err := q.db.Query(ctx, classifySkillRows, companyID)
+// Linhas de ferramenta que citam uma skill `oute-aidlc-` nas sessões pedidas (phase.py `_skills`). O tool_parameters vem
+// como texto e é lido no serviço, para um JSON malformado não derrubar a passada.
+func (q *Queries) ClassifySkillRows(ctx context.Context, arg ClassifySkillRowsParams) ([]ClassifySkillRowsRow, error) {
+	rows, err := q.db.Query(ctx, classifySkillRows, arg.CompanyID, arg.Sessions)
 	if err != nil {
 		return nil, err
 	}
@@ -166,9 +181,14 @@ const classifyToolActions = `-- name: ClassifyToolActions :many
 SELECT session_id, COALESCE(attributes->>'tool_name', '')::text AS tool, COALESCE(attributes->>'full_command', '')::text AS command,
     COALESCE(attributes->>'file_path', '')::text AS path, count(*)::bigint AS n
 FROM telemetry_spans
-WHERE company_id = $1 AND name = 'claude_code.tool' AND session_id IS NOT NULL
+WHERE company_id = $1 AND name = 'claude_code.tool' AND session_id = ANY($2::text[])
 GROUP BY session_id, tool, command, path
 `
+
+type ClassifyToolActionsParams struct {
+	CompanyID uuid.UUID
+	Sessions  []string
+}
 
 type ClassifyToolActionsRow struct {
 	SessionID *string
@@ -178,9 +198,9 @@ type ClassifyToolActionsRow struct {
 	N         int64
 }
 
-// Ações de ferramenta, contadas pelo que as regras leem (ADR-0079 item 2; phase.py `_actions`).
-func (q *Queries) ClassifyToolActions(ctx context.Context, companyID uuid.UUID) ([]ClassifyToolActionsRow, error) {
-	rows, err := q.db.Query(ctx, classifyToolActions, companyID)
+// Ações de ferramenta das sessões pedidas, contadas pelo que as regras leem (ADR-0079 item 2; phase.py `_actions`).
+func (q *Queries) ClassifyToolActions(ctx context.Context, arg ClassifyToolActionsParams) ([]ClassifyToolActionsRow, error) {
+	rows, err := q.db.Query(ctx, classifyToolActions, arg.CompanyID, arg.Sessions)
 	if err != nil {
 		return nil, err
 	}
@@ -211,7 +231,8 @@ SELECT DISTINCT company_id FROM external_conversation ORDER BY company_id ASC
 `
 
 // Classificação da conversa externa (ADR-0079 itens 1 a 3 e 7). São os sinais que phase.py (oute-agent@845764f) lê, na
-// telemetria do Hanko. A passada refaz tudo por empresa; o serviço só grava o que mudou.
+// telemetria do Hanko. A passada relê só as conversas com fato novo (janela pela sessão), mudança de classificador ou troca
+// manual; as consultas de telemetria ficam restritas às sessões dessas conversas, exceto as aberturas (label entre sessões).
 func (q *Queries) ListCompaniesWithExternalConversations(ctx context.Context) ([]uuid.UUID, error) {
 	rows, err := q.db.Query(ctx, listCompaniesWithExternalConversations)
 	if err != nil {
@@ -233,9 +254,27 @@ func (q *Queries) ListCompaniesWithExternalConversations(ctx context.Context) ([
 }
 
 const listConversationsToClassify = `-- name: ListConversationsToClassify :many
-SELECT id, session_id, oute_repo, class, class_origin, class_confidence, classifier, tags
-FROM external_conversation WHERE company_id = $1 ORDER BY session_id ASC
+SELECT c.id, c.session_id, c.oute_repo, c.class, c.class_origin, c.class_confidence, c.classifier, c.tags,
+    COALESCE(s.last_at, 0)::bigint AS session_last
+FROM external_conversation c
+LEFT JOIN external_session s ON s.id = c.external_session_id
+WHERE c.company_id = $1 AND (
+    c.classifier <> $2::text
+    OR COALESCE(s.last_at, 0) > c.classified_last_at
+    OR (c.class_origin <> 'manual' AND EXISTS (SELECT 1 FROM conversation_class_input m WHERE m.conversation_id = c.id AND m.kind = 'manual'))
+    OR (c.class_origin = 'manual' AND EXISTS (SELECT 1 FROM conversation_class_input m WHERE m.conversation_id = c.id AND m.kind = 'manual')
+        AND (SELECT m.class FROM conversation_class_input m WHERE m.conversation_id = c.id AND m.kind = 'manual'
+             ORDER BY m.created_at DESC LIMIT 1) IS DISTINCT FROM c.class)
+)
+ORDER BY c.id ASC
+LIMIT $3::int
 `
+
+type ListConversationsToClassifyParams struct {
+	CompanyID  uuid.UUID
+	Classifier string
+	BatchLimit int32
+}
 
 type ListConversationsToClassifyRow struct {
 	ID              uuid.UUID
@@ -246,10 +285,13 @@ type ListConversationsToClassifyRow struct {
 	ClassConfidence string
 	Classifier      string
 	Tags            []string
+	SessionLast     int64
 }
 
-func (q *Queries) ListConversationsToClassify(ctx context.Context, companyID uuid.UUID) ([]ListConversationsToClassifyRow, error) {
-	rows, err := q.db.Query(ctx, listConversationsToClassify, companyID)
+// Só as conversas que precisam: classificadas por outra versão do classificador, com fato da sessão depois da última
+// classificação, ou com troca manual que ainda não está na classe. Lote limitado por passada.
+func (q *Queries) ListConversationsToClassify(ctx context.Context, arg ListConversationsToClassifyParams) ([]ListConversationsToClassifyRow, error) {
+	rows, err := q.db.Query(ctx, listConversationsToClassify, arg.CompanyID, arg.Classifier, arg.BatchLimit)
 	if err != nil {
 		return nil, err
 	}
@@ -266,6 +308,7 @@ func (q *Queries) ListConversationsToClassify(ctx context.Context, companyID uui
 			&i.ClassConfidence,
 			&i.Classifier,
 			&i.Tags,
+			&i.SessionLast,
 		); err != nil {
 			return nil, err
 		}
@@ -310,23 +353,36 @@ func (q *Queries) ListManualClasses(ctx context.Context, companyID uuid.UUID) ([
 	return items, nil
 }
 
+const lockExternalClassify = `-- name: LockExternalClassify :exec
+SELECT pg_advisory_xact_lock(hashtext('hanko:classify_external'))
+`
+
+// Uma passada por vez, mesmo com mais de uma instância (como `hanko:alerts`).
+func (q *Queries) LockExternalClassify(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, lockExternalClassify)
+	return err
+}
+
 const setConversationClass = `-- name: SetConversationClass :exec
 UPDATE external_conversation
 SET class = $1, class_origin = $2, class_confidence = $3, classifier = $4,
-    tags = $5, updated_at = $6
-WHERE id = $7
+    tags = $5, classified_last_at = $6::bigint, updated_at = $7
+WHERE id = $8 AND company_id = $9
 `
 
 type SetConversationClassParams struct {
-	Class           string
-	ClassOrigin     string
-	ClassConfidence string
-	Classifier      string
-	Tags            []string
-	Now             time.Time
-	ID              uuid.UUID
+	Class            string
+	ClassOrigin      string
+	ClassConfidence  string
+	Classifier       string
+	Tags             []string
+	ClassifiedLastAt int64
+	Now              time.Time
+	ID               uuid.UUID
+	CompanyID        uuid.UUID
 }
 
+// Grava a classe e a janela da classificação. A janela avança mesmo quando a classe não muda, para a conversa sair da lista.
 func (q *Queries) SetConversationClass(ctx context.Context, arg SetConversationClassParams) error {
 	_, err := q.db.Exec(ctx, setConversationClass,
 		arg.Class,
@@ -334,8 +390,10 @@ func (q *Queries) SetConversationClass(ctx context.Context, arg SetConversationC
 		arg.ClassConfidence,
 		arg.Classifier,
 		arg.Tags,
+		arg.ClassifiedLastAt,
 		arg.Now,
 		arg.ID,
+		arg.CompanyID,
 	)
 	return err
 }

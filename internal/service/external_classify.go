@@ -12,9 +12,12 @@ import (
 	"github.com/renatobardi/hanko/internal/store"
 )
 
+// classifyBatch é o máximo de conversas por passada e por empresa: o resto espera a próxima passada.
+const classifyBatch = 500
+
 // ClassifyExternalConversations classifica as conversas externas de todas as empresas (ADR-0079 itens 1 a 3 e 7). Cada
-// passada refaz a classe de cada conversa pelos sinais da telemetria; só o que mudou grava e gera `conversation.classified`.
-// Devolve quantas conversas mudaram.
+// passada relê só as conversas com fato novo, troca manual pendente ou classificador de outra versão; grava só o que
+// mudou e gera `conversation.classified`. Uma passada por vez (trava própria, como os alertas). Devolve quantas mudaram.
 func (s *Service) ClassifyExternalConversations(ctx context.Context) (int, error) {
 	cos, err := s.read().ListCompaniesWithExternalConversations(ctx)
 	if err != nil {
@@ -24,6 +27,9 @@ func (s *Service) ClassifyExternalConversations(ctx context.Context) (int, error
 	for _, co := range cos {
 		var n int
 		err := s.withTx(ctx, func(t *txc) error {
+			if err := t.q.LockExternalClassify(t.ctx); err != nil {
+				return fmt.Errorf("lock classify: %w", err)
+			}
 			var err error
 			n, err = t.classifyConversations(co)
 			return err
@@ -36,7 +42,7 @@ func (s *Service) ClassifyExternalConversations(ctx context.Context) (int, error
 	return total, nil
 }
 
-// sessionFact são os fatos de uma sessão (phase.py `_facts`): a hora do último, o oute.task.id e os papéis da rodada.
+// sessionFact são os fatos de uma sessão (phase.py `_facts`): o oute.task.id e os papéis da rodada.
 type sessionFact struct {
 	task                string
 	round, worker, step bool
@@ -49,7 +55,8 @@ type openingFact struct {
 
 var slugNumber = regexp.MustCompile(`^([0-9]+)-`)
 
-// classInputs são as leituras de uma empresa que a classificação de cada conversa usa.
+// classInputs são as leituras de uma passada. Telemetria só das sessões candidatas; aberturas de todas, porque o label
+// vale entre sessões da mesma issue.
 type classInputs struct {
 	facts    map[string]sessionFact
 	openings map[string]openingFact
@@ -59,49 +66,62 @@ type classInputs struct {
 	manual   map[domain.ID]string
 }
 
-// classifyConversations lê os sinais de uma empresa e grava a classe das conversas que mudaram.
+// classifyConversations relê as conversas candidatas de uma empresa e grava a classe e a janela de cada uma.
 func (t *txc) classifyConversations(companyID domain.ID) (int, error) {
-	convs, err := t.q.ListConversationsToClassify(t.ctx, companyID)
+	cands, err := t.q.ListConversationsToClassify(t.ctx, store.ListConversationsToClassifyParams{CompanyID: companyID,
+		Classifier: aidlc.Classifier, BatchLimit: classifyBatch})
 	if err != nil {
 		return 0, fmt.Errorf("list conversations to classify: %w", err)
 	}
-	if len(convs) == 0 {
+	if len(cands) == 0 {
 		return 0, nil
 	}
-	in, err := t.loadClassInputs(companyID)
+	in, err := t.loadClassInputs(companyID, sessionIDs(cands))
 	if err != nil {
 		return 0, err
 	}
 	changed := 0
-	for _, c := range convs {
+	for _, c := range cands {
 		res := aidlc.Decide(in.signalsFor(c))
-		tags := conversationTags(in.facts[c.SessionID].task, c.OuteRepo)
-		if sameClass(c, res, tags) {
-			continue
-		}
-		if err := t.writeClass(companyID, c, res, tags); err != nil {
+		moved, err := t.writeClass(companyID, c, res, conversationTags(in.facts[c.SessionID].task, c.OuteRepo))
+		if err != nil {
 			return changed, err
 		}
-		changed++
+		if moved {
+			changed++
+		}
 	}
 	return changed, nil
 }
 
-// loadClassInputs lê, de uma vez, os sinais de todas as conversas da empresa.
-func (t *txc) loadClassInputs(companyID domain.ID) (classInputs, error) {
+// sessionIDs são as sessões das conversas candidatas, sem repetição e sem vazio.
+func sessionIDs(cands []store.ListConversationsToClassifyRow) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, c := range cands {
+		if c.SessionID != "" && !seen[c.SessionID] {
+			seen[c.SessionID] = true
+			out = append(out, c.SessionID)
+		}
+	}
+	return out
+}
+
+// loadClassInputs lê as entradas da passada: telemetria só das sessões pedidas, aberturas e troca manual da empresa.
+func (t *txc) loadClassInputs(companyID domain.ID, sessions []string) (classInputs, error) {
 	var in classInputs
 	var err error
-	if in.facts, err = t.sessionFacts(companyID); err != nil {
+	if in.facts, err = t.sessionFacts(companyID, sessions); err != nil {
 		return in, err
 	}
 	if in.openings, err = t.openingFacts(companyID); err != nil {
 		return in, err
 	}
 	in.labels = labelVotes(in.openings)
-	if in.actions, err = t.actionPoints(companyID); err != nil {
+	if in.actions, err = t.actionPoints(companyID, sessions); err != nil {
 		return in, err
 	}
-	if in.skills, err = t.skillUses(companyID); err != nil {
+	if in.skills, err = t.skillUses(companyID, sessions); err != nil {
 		return in, err
 	}
 	manual, err := t.q.ListManualClasses(t.ctx, companyID)
@@ -115,7 +135,7 @@ func (t *txc) loadClassInputs(companyID domain.ID) (classInputs, error) {
 	return in, nil
 }
 
-// signalsFor monta os sinais de uma conversa a partir das leituras da empresa.
+// signalsFor monta os sinais de uma conversa a partir das leituras da passada.
 func (in classInputs) signalsFor(c store.ListConversationsToClassifyRow) aidlc.Signals {
 	f := in.facts[c.SessionID]
 	o := in.openings[f.task]
@@ -130,29 +150,40 @@ func (in classInputs) signalsFor(c store.ListConversationsToClassifyRow) aidlc.S
 	}
 }
 
+// writeClass grava a janela da conversa (sempre, para ela sair da lista) e, se a classe mudou, a classe e o evento
+// conversation.classified. Devolve se a classe mudou.
+func (t *txc) writeClass(companyID domain.ID, c store.ListConversationsToClassifyRow, res aidlc.Result, tags []string) (bool, error) {
+	if err := t.q.SetConversationClass(t.ctx, store.SetConversationClassParams{ID: c.ID, CompanyID: companyID, Class: res.Class,
+		ClassOrigin: res.Origin, ClassConfidence: res.Confidence, Classifier: aidlc.Classifier, Tags: tags,
+		ClassifiedLastAt: c.SessionLast, Now: t.now}); err != nil {
+		return false, mapErr(err, "set conversation class")
+	}
+	if sameClass(c, res, tags) {
+		return false, nil
+	}
+	if err := t.activity(domain.SystemActor, companyID, "conversation.classified", "external_conversation", c.ID,
+		map[string]any{"from": c.Class, "to": res.Class, "origin": res.Origin, "confidence": res.Confidence}, ""); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 // sameClass informa se a conversa já tem essa classe, origem, confiança, classificador e marcas.
 func sameClass(c store.ListConversationsToClassifyRow, res aidlc.Result, tags []string) bool {
 	return c.Class == res.Class && c.ClassOrigin == res.Origin && c.ClassConfidence == res.Confidence &&
 		c.Classifier == aidlc.Classifier && equalStrings(c.Tags, tags)
 }
 
-// writeClass grava a classe da conversa e o evento conversation.classified.
-func (t *txc) writeClass(companyID domain.ID, c store.ListConversationsToClassifyRow, res aidlc.Result, tags []string) error {
-	if err := t.q.SetConversationClass(t.ctx, store.SetConversationClassParams{ID: c.ID, Class: res.Class, ClassOrigin: res.Origin,
-		ClassConfidence: res.Confidence, Classifier: aidlc.Classifier, Tags: tags, Now: t.now}); err != nil {
-		return mapErr(err, "set conversation class")
+// sessionFacts lê os fatos das sessões pedidas.
+func (t *txc) sessionFacts(companyID domain.ID, sessions []string) (map[string]sessionFact, error) {
+	out := map[string]sessionFact{}
+	if len(sessions) == 0 {
+		return out, nil
 	}
-	return t.activity(domain.SystemActor, companyID, "conversation.classified", "external_conversation", c.ID,
-		map[string]any{"from": c.Class, "to": res.Class, "origin": res.Origin, "confidence": res.Confidence}, "")
-}
-
-// sessionFacts lê os fatos de cada sessão da empresa.
-func (t *txc) sessionFacts(companyID domain.ID) (map[string]sessionFact, error) {
-	rows, err := t.q.ClassifySessionFacts(t.ctx, companyID)
+	rows, err := t.q.ClassifySessionFacts(t.ctx, store.ClassifySessionFactsParams{CompanyID: companyID, Sessions: sessions})
 	if err != nil {
 		return nil, fmt.Errorf("classify session facts: %w", err)
 	}
-	out := make(map[string]sessionFact, len(rows))
 	for _, r := range rows {
 		if r.SessionID == nil {
 			continue
@@ -173,8 +204,7 @@ func (t *txc) openingFacts(companyID domain.ID) (map[string]openingFact, error) 
 		if r.OuteTaskID == nil {
 			continue
 		}
-		task := *r.OuteTaskID
-		o := out[task]
+		o := out[*r.OuteTaskID]
 		if aidlc.IsPhase(r.Phase) && o.phase == "" {
 			o.phase, o.origin = r.Phase, r.Origin
 		}
@@ -186,7 +216,7 @@ func (t *txc) openingFacts(companyID domain.ID) (map[string]openingFact, error) 
 				o.number = m[1]
 			}
 		}
-		out[task] = o
+		out[*r.OuteTaskID] = o
 	}
 	return out, nil
 }
@@ -220,13 +250,16 @@ func labelOf(votes map[[2]string]map[string]int, o openingFact) string {
 	return phase
 }
 
-// actionPoints soma os pontos das ações de cada sessão, pela tabela de regras (phase.py `_actions`).
-func (t *txc) actionPoints(companyID domain.ID) (map[string]map[string]int, error) {
-	rows, err := t.q.ClassifyToolActions(t.ctx, companyID)
+// actionPoints soma os pontos das ações de cada sessão pedida, pela tabela de regras (phase.py `_actions`).
+func (t *txc) actionPoints(companyID domain.ID, sessions []string) (map[string]map[string]int, error) {
+	out := map[string]map[string]int{}
+	if len(sessions) == 0 {
+		return out, nil
+	}
+	rows, err := t.q.ClassifyToolActions(t.ctx, store.ClassifyToolActionsParams{CompanyID: companyID, Sessions: sessions})
 	if err != nil {
 		return nil, fmt.Errorf("classify tool actions: %w", err)
 	}
-	out := map[string]map[string]int{}
 	for _, r := range rows {
 		if r.SessionID == nil {
 			continue
@@ -243,13 +276,16 @@ func (t *txc) actionPoints(companyID domain.ID) (map[string]map[string]int, erro
 	return out, nil
 }
 
-// skillUses conta os usos das skills de fase por sessão (phase.py `_skills`).
-func (t *txc) skillUses(companyID domain.ID) (map[string]map[string]aidlc.SkillUse, error) {
-	rows, err := t.q.ClassifySkillRows(t.ctx, companyID)
+// skillUses conta os usos das skills de fase por sessão pedida (phase.py `_skills`).
+func (t *txc) skillUses(companyID domain.ID, sessions []string) (map[string]map[string]aidlc.SkillUse, error) {
+	out := map[string]map[string]aidlc.SkillUse{}
+	if len(sessions) == 0 {
+		return out, nil
+	}
+	rows, err := t.q.ClassifySkillRows(t.ctx, store.ClassifySkillRowsParams{CompanyID: companyID, Sessions: sessions})
 	if err != nil {
 		return nil, fmt.Errorf("classify skill rows: %w", err)
 	}
-	out := map[string]map[string]aidlc.SkillUse{}
 	for _, r := range rows {
 		if r.SessionID == nil {
 			continue

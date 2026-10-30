@@ -37,44 +37,46 @@ func sampleContext() service.RunContext {
 }
 
 type fakeBackend struct {
-	mu           sync.Mutex
-	alertTicks   int
-	reviewStarts int
-	reviewErr    error
-	reviewFails  []string
-	alertErr     error
-	rc           service.RunContext
-	loadErr      error
-	startErr     error
-	finErr       error
-	events       []adapter.Event
-	started      []string // traceID
-	handoff      string
-	finished     []service.FinishRunInput
-	checkout     func(service.Wake) (domain.Run, error)
-	orphans      int
-	cands        []service.WakeCandidate
-	pending      []domain.ID
-	item         service.MemoryItem
-	itemErr      error
-	sent         []domain.ID
-	failed       []string
-	failPerm     []bool
-	pendingSaved []service.FinishRunInput
-	pendErr      error
-	finFails     int // FinishRun fails this many times before succeeding
-	finCalls     int
-	due          []domain.Flow
-	fireErr      map[domain.ID]error
-	sysDue       []domain.SystemFlow
-	sysFired     []string
-	sysRes       map[string]service.SystemFlowResult
-	sysErr       map[string]error
-	fired        []time.Time
-	firedIDs     []domain.ID
-	seqs         []int64 // WakeSeq answers, one per call (the last repeats)
-	seqCalls     int
-	resumed      int
+	mu            sync.Mutex
+	alertTicks    int
+	classifyTicks int
+	classifyErr   error
+	reviewStarts  int
+	reviewErr     error
+	reviewFails   []string
+	alertErr      error
+	rc            service.RunContext
+	loadErr       error
+	startErr      error
+	finErr        error
+	events        []adapter.Event
+	started       []string // traceID
+	handoff       string
+	finished      []service.FinishRunInput
+	checkout      func(service.Wake) (domain.Run, error)
+	orphans       int
+	cands         []service.WakeCandidate
+	pending       []domain.ID
+	item          service.MemoryItem
+	itemErr       error
+	sent          []domain.ID
+	failed        []string
+	failPerm      []bool
+	pendingSaved  []service.FinishRunInput
+	pendErr       error
+	finFails      int // FinishRun fails this many times before succeeding
+	finCalls      int
+	due           []domain.Flow
+	fireErr       map[domain.ID]error
+	sysDue        []domain.SystemFlow
+	sysFired      []string
+	sysRes        map[string]service.SystemFlowResult
+	sysErr        map[string]error
+	fired         []time.Time
+	firedIDs      []domain.ID
+	seqs          []int64 // WakeSeq answers, one per call (the last repeats)
+	seqCalls      int
+	resumed       int
 }
 
 func (f *fakeBackend) CheckoutRun(_ context.Context, w service.Wake) (domain.Run, error) {
@@ -182,8 +184,13 @@ func (f *fakeBackend) FailReview(_ context.Context, _, _ domain.ID, reason strin
 	f.reviewFails = append(f.reviewFails, reason)
 	return nil
 }
-func (f *fakeBackend) ResolveStaleReviews(context.Context) (int, error)           { return 0, nil }
-func (f *fakeBackend) ClassifyExternalConversations(context.Context) (int, error) { return 0, nil }
+func (f *fakeBackend) ResolveStaleReviews(context.Context) (int, error) { return 0, nil }
+func (f *fakeBackend) ClassifyExternalConversations(context.Context) (int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.classifyTicks++
+	return 0, f.classifyErr
+}
 func (f *fakeBackend) EvaluateAlerts(context.Context) (service.AlertEval, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -929,6 +936,14 @@ func TestAlertTick(t *testing.T) {
 	h, _ := newTestHB(t, be, okAdapter(), nil, Options{})
 	if err := h.alertTick(context.Background()); err != nil || be.alertTicks != 1 {
 		t.Fatalf("err=%v ticks=%d", err, be.alertTicks)
+	}
+	if be.classifyTicks != 1 {
+		t.Fatalf("o tick de alertas deve rodar a classificação de conversa externa: ticks=%d", be.classifyTicks)
+	}
+	// falha da classificação não derruba o tick de alertas (a falha só é registrada)
+	be.classifyErr = errors.New("classify")
+	if err := h.alertTick(context.Background()); err != nil || be.classifyTicks != 2 {
+		t.Fatalf("falha da classificação: err=%v ticks=%d; quero nil e 2", err, be.classifyTicks)
 	}
 	be.alertErr = errors.New("db")
 	if err := h.alertTick(context.Background()); err == nil || !strings.Contains(err.Error(), "alert_tick") {
