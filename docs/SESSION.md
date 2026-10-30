@@ -13,5 +13,7 @@ Data: 2026-10-30
 - Gerador de nome (ADR-0084): as 192 + 192 palavras do Bardi.
 - Caixa "emparelhamento a conferir" (só existe com chave por URL), renomear, arquivar e juntar agente e host (ADR-0075 item 2).
 
+- Auditoria do #151: filtro das visões para agente e host externos (default, não lidos, arquivados), testes de outra empresa, repetição e janela, e barreira do teste de corrida com WaitGroup de pronto. Branch atualizado com a origin/main em bf21f27 (#150).
+
 ## Próximo passo
 - Seção da Caixa para agente e host externos novos, com i18n; depois renomear, arquivar e juntar.
