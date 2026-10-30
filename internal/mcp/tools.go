@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
@@ -73,6 +74,7 @@ type taskCommentIn struct {
 
 type personaListIn struct {
 	Company string `json:"company,omitempty" jsonschema:"slug ou id da empresa (obrigatório só sem token de run)"`
+	Tag     string `json:"tag,omitempty" jsonschema:"nomes de tag separados por vírgula: só as personas com alguma delas (sem distinguir maiúscula)"`
 }
 
 type projectListIn struct {
@@ -174,6 +176,8 @@ type whoamiOut struct {
 	TaskKey     string `json:"task_key,omitempty"`
 	// ConversationID is set instead of the task when the run is a chat.
 	ConversationID string `json:"conversation_id,omitempty"`
+	// Tags são as tags da própria persona (ADR-0087 item 9); só leitura.
+	Tags []string `json:"tags,omitempty"`
 }
 
 type taskOut struct {
@@ -224,12 +228,13 @@ type commentWriteOut struct {
 }
 
 type personaOut struct {
-	ID     string `json:"id"`
-	Slug   string `json:"slug"`
-	Name   string `json:"name"`
-	Title  string `json:"title"`
-	Agent  string `json:"agent"`
-	Status string `json:"status"`
+	ID     string   `json:"id"`
+	Slug   string   `json:"slug"`
+	Name   string   `json:"name"`
+	Title  string   `json:"title"`
+	Agent  string   `json:"agent"`
+	Status string   `json:"status"`
+	Tags   []string `json:"tags,omitempty"`
 }
 
 type personaListOut struct {
@@ -320,7 +325,7 @@ func registerTools(s *sdk.Server, t *tools) {
 	}, t.gateStatus)
 	sdk.AddTool(s, &sdk.Tool{
 		Name:        "hanko_persona_list",
-		Description: "Lista as personas da empresa (slug, cargo, agente, status) para saber a quem delegar.",
+		Description: "Lista as personas da empresa (slug, cargo, agente, status, tags) para saber a quem delegar. Com tag, só as personas com alguma das tags. Só leitura: tags são criadas e aplicadas por humanos.",
 		Annotations: &sdk.ToolAnnotations{ReadOnlyHint: true},
 	}, t.personaList)
 	sdk.AddTool(s, &sdk.Tool{
@@ -510,7 +515,7 @@ func (t *tools) whoami(ctx context.Context, _ *sdk.CallToolRequest, in whoamiIn)
 	}
 	if id.PersonaID != nil && id.CompanyID != nil {
 		if p, err := t.b.GetPersona(ctx, company, id.PersonaID.String()); err == nil {
-			out.PersonaSlug, out.PersonaName = p.Slug, p.Name
+			out.PersonaSlug, out.PersonaName, out.Tags = p.Slug, p.Name, personaTagNames(p)
 		}
 	}
 	if id.TaskID != nil && id.CompanyID != nil {
@@ -528,6 +533,9 @@ func (t *tools) whoami(ctx context.Context, _ *sdk.CallToolRequest, in whoamiIn)
 	}
 	if out.CompanySlug != "" {
 		fmt.Fprintf(&sb, " na empresa %s", out.CompanySlug)
+	}
+	if len(out.Tags) > 0 {
+		fmt.Fprintf(&sb, "; suas tags: %s", strings.Join(out.Tags, ", "))
 	}
 	if out.TaskKey != "" {
 		fmt.Fprintf(&sb, "; task atual %s", out.TaskKey)
@@ -820,14 +828,38 @@ func (t *tools) personaList(ctx context.Context, _ *sdk.CallToolRequest, in pers
 	if err != nil {
 		return nil, personaListOut{}, opErr("listar personas", err)
 	}
+	want := map[string]bool{}
+	for _, n := range strings.Split(in.Tag, ",") {
+		if n = domain.PersonaTagKey(n); n != "" {
+			want[n] = true
+		}
+	}
 	out := personaListOut{Personas: make([]personaOut, 0, len(list))}
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "%d persona(s)", len(list))
 	for _, p := range list {
-		out.Personas = append(out.Personas, personaOut{ID: p.ID.String(), Slug: p.Slug, Name: p.Name, Title: p.Title, Agent: p.Agent, Status: string(p.Status)})
+		tags := personaTagNames(p)
+		if len(want) > 0 && !slices.ContainsFunc(tags, func(n string) bool { return want[domain.PersonaTagKey(n)] }) {
+			continue
+		}
+		out.Personas = append(out.Personas, personaOut{ID: p.ID.String(), Slug: p.Slug, Name: p.Name, Title: p.Title, Agent: p.Agent, Status: string(p.Status), Tags: tags})
 		fmt.Fprintf(&sb, "\n- %s (%s) — %s [%s, %s]", p.Slug, p.Name, p.Title, p.Agent, p.Status)
+		if len(tags) > 0 {
+			fmt.Fprintf(&sb, " tags: %s", strings.Join(tags, ", "))
+		}
 	}
-	return textResult("%s", sb.String()), out, nil
+	return textResult("%d persona(s)%s", len(out.Personas), sb.String()), out, nil
+}
+
+// personaTagNames são os nomes das tags da persona, em ordem de nome.
+func personaTagNames(p domain.Persona) []string {
+	if len(p.Tags) == 0 {
+		return nil
+	}
+	out := make([]string, len(p.Tags))
+	for i, t := range p.Tags {
+		out[i] = t.Name
+	}
+	return out
 }
 
 func (t *tools) projectList(ctx context.Context, _ *sdk.CallToolRequest, in projectListIn) (*sdk.CallToolResult, projectListOut, error) {
