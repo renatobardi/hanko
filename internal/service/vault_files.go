@@ -55,9 +55,15 @@ func (s *Service) putFieldBlob(t *txc, companyID, fieldID domain.ID, sealed []by
 // dropFieldBlobAfterCommit apaga, depois do commit, o arquivo de um campo removido, em todos os drivers registrados
 // (no meio de uma migração entre drivers pode haver cópia em mais de um). No postgres a linha sai em cascata.
 func (t *txc) dropFieldBlobAfterCommit(companyID, fieldID domain.ID) {
+	t.dropOtherFieldBlobsAfterCommit(companyID, fieldID, "")
+}
+
+// dropOtherFieldBlobsAfterCommit apaga, depois do commit, as cópias do arquivo de um campo em todos os drivers, exceto o
+// postgres (a linha dele é tratada na transação) e o driver `keep` (vazio = nenhum é poupado).
+func (t *txc) dropOtherFieldBlobsAfterCommit(companyID, fieldID domain.ID, keep string) {
 	k := fieldBlobKey(companyID, fieldID)
 	for _, name := range t.s.blobs().Names() {
-		if name == storage.DriverPostgres {
+		if name == storage.DriverPostgres || name == keep {
 			continue
 		}
 		drv, err := t.s.blobs().Driver(name)
@@ -203,15 +209,28 @@ func (s *Service) ReplaceSecretFieldFile(ctx context.Context, actor domain.Actor
 	return out, err
 }
 
-// replaceFieldBlob sobrescreve o texto cifrado de um campo arquivo na transação da troca. Ao contrário de putFieldBlob,
-// não apaga nada no rollback: o conteúdo anterior foi sobrescrito, então um driver fora da transação não o recupera.
+// replaceFieldBlob grava o texto cifrado novo de um campo arquivo, na transação da troca. Com o driver postgres ativo,
+// atualiza a linha e confere as linhas afetadas; sem linha (o campo foi criado em outro driver), cria. Com outro driver
+// ativo, a linha do postgres sai na transação e a cópia do driver ativo é sobrescrita. Depois do commit, as cópias nos
+// outros drivers saem também, para o texto cifrado antigo não ficar guardado. Um driver fora da transação não volta
+// atrás se a transação falhar.
 func (s *Service) replaceFieldBlob(t *txc, companyID, fieldID domain.ID, sealed []byte) error {
 	drv := s.blobs().Active()
 	if drv.Name() == storage.DriverPostgres {
-		if err := t.q.SetSecretFieldBlob(t.ctx, store.SetSecretFieldBlobParams{FieldID: fieldID, Content: sealed}); err != nil {
-			return mapErr(err, "set secret field blob")
+		n, err := t.q.ReplaceSecretFieldBlob(t.ctx, store.ReplaceSecretFieldBlobParams{FieldID: fieldID, CompanyID: companyID, Content: sealed})
+		if err != nil {
+			return mapErr(err, "replace secret field blob")
 		}
+		if n == 0 {
+			if err := t.q.CreateSecretFieldBlob(t.ctx, store.CreateSecretFieldBlobParams{FieldID: fieldID, CompanyID: companyID, Content: sealed}); err != nil {
+				return mapErr(err, "create secret field blob")
+			}
+		}
+		t.dropOtherFieldBlobsAfterCommit(companyID, fieldID, storage.DriverPostgres)
 		return nil
+	}
+	if err := t.q.DeleteSecretFieldBlob(t.ctx, fieldID); err != nil {
+		return mapErr(err, "delete secret field blob")
 	}
 	ctx := t.ctx
 	if drv.Transactional() {
@@ -220,6 +239,7 @@ func (s *Service) replaceFieldBlob(t *txc, companyID, fieldID domain.ID, sealed 
 	if err := drv.Put(ctx, fieldBlobKey(companyID, fieldID), sealed, "application/octet-stream"); err != nil {
 		return fmt.Errorf("gravar arquivo do campo: %w", err)
 	}
+	t.dropOtherFieldBlobsAfterCommit(companyID, fieldID, drv.Name())
 	return nil
 }
 

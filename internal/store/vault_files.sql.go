@@ -103,6 +103,25 @@ func (q *Queries) ListUserSecretFileFields(ctx context.Context, arg ListUserSecr
 	return items, nil
 }
 
+const replaceSecretFieldBlob = `-- name: ReplaceSecretFieldBlob :execrows
+UPDATE secret_field_blobs SET content = $1 WHERE company_id = $2 AND field_id = $3
+`
+
+type ReplaceSecretFieldBlobParams struct {
+	Content   []byte
+	CompanyID uuid.UUID
+	FieldID   uuid.UUID
+}
+
+// Sobrescreve o texto cifrado do campo no driver postgres e devolve as linhas afetadas (0 = o campo não tinha linha aqui).
+func (q *Queries) ReplaceSecretFieldBlob(ctx context.Context, arg ReplaceSecretFieldBlobParams) (int64, error) {
+	result, err := q.db.Exec(ctx, replaceSecretFieldBlob, arg.Content, arg.CompanyID, arg.FieldID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const replaceSecretFieldFile = `-- name: ReplaceSecretFieldFile :one
 UPDATE secret_fields SET file_name = $1, content_type = $2, size_bytes = $3,
        rotated_at = $4, updated_at = $4

@@ -26,3 +26,7 @@ UPDATE secret_fields SET file_name = @file_name, content_type = @content_type, s
        rotated_at = @now, updated_at = @now
 WHERE id = @id AND company_id = @company_id AND kind = 'file'
 RETURNING *;
+
+-- name: ReplaceSecretFieldBlob :execrows
+-- Sobrescreve o texto cifrado do campo no driver postgres e devolve as linhas afetadas (0 = o campo não tinha linha aqui).
+UPDATE secret_field_blobs SET content = @content WHERE company_id = @company_id AND field_id = @field_id;

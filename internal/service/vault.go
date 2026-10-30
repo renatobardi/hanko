@@ -200,7 +200,7 @@ func (s *Service) identityUserID(ctx context.Context) (*uuid.UUID, bool) {
 // ReplaceSecretFieldFile.
 func (s *Service) prepareFieldMaterial(secretID, fieldID uuid.UUID, in SecretFieldValueInput, kind domain.SecretFieldKind) (secretMaterial, error) {
 	if kind == domain.SecretFieldFile {
-		return secretMaterial{}, domain.Invalid("kind", "campo arquivo não recebe valor de texto: troque o arquivo pela tela ou apague o campo e crie outro")
+		return secretMaterial{}, domain.Invalid("kind", "campo arquivo não recebe valor de texto: o arquivo se troca só pela tela")
 	}
 	if providerOf(in) == domain.SecretProviderVault && kind == domain.SecretFieldTOTP {
 		return secretMaterial{}, domain.Invalid("provider", "semente TOTP é guardada cifrada no Hanko (provider local)")
