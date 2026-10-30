@@ -420,6 +420,8 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("POST /c/{company}/personas/{persona}/revisor", post(co(s.handlePersonaReviewer)))
 	mux.HandleFunc("POST /c/{company}/personas/{persona}/organizacao", post(co(s.handlePersonaOrg)))
 	mux.HandleFunc("POST /c/{company}/personas/{persona}/icone", post(co(s.handlePersonaIcon)))
+	mux.HandleFunc("POST /c/{company}/personas/{persona}/ambiente-variaveis", post(co(s.handlePersonaEnvSet)))
+	mux.HandleFunc("POST /c/{company}/personas/{persona}/ambiente-variaveis/{nome}/remover", post(co(s.handlePersonaEnvRemove)))
 
 	mux.HandleFunc("GET /c/{company}/caixa", co(s.handleInbox))
 	mux.HandleFunc("POST /c/{company}/caixa/tasks/{task}/desbloquear", post(co(s.handleInboxUnblock)))

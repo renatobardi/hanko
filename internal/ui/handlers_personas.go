@@ -347,18 +347,21 @@ func (s *server) renderPersona(w http.ResponseWriter, r *http.Request, co domain
 	if sh.CanWrite() {
 		sh.Action = &views.Action{Label: i18n.T(ctx, "Nova task"), Href: base + "/tasks/nova?persona=" + p.ID.String(), Icon: "plus"}
 	}
+	vm.Vars = personaVarsVM(base, p, sh.CanAdmin())
 	s.render(w, r, status, views.PersonaPage(sh, vm))
 }
 
 var personaNotices = map[string]string{
-	"icone":       i18n.N("Ícone atualizado."),
-	"pausada":     i18n.N("Persona pausada: ela não será mais acordada."),
-	"retomada":    i18n.N("Persona retomada."),
-	"reativada":   i18n.N("Persona reativada: volta a ser acordada normalmente."),
-	"organizacao": i18n.N("Organização atualizada."),
-	"revisor":     i18n.N("Revisor atualizado."),
-	"orcamento":   i18n.N("Orçamento da persona atualizado."),
-	"assinatura":  i18n.N("Assinatura da persona atualizada."),
+	"icone":             i18n.N("Ícone atualizado."),
+	"variavel":          i18n.N("Variável de ambiente salva."),
+	"variavel-removida": i18n.N("Variável de ambiente removida."),
+	"pausada":           i18n.N("Persona pausada: ela não será mais acordada."),
+	"retomada":          i18n.N("Persona retomada."),
+	"reativada":         i18n.N("Persona reativada: volta a ser acordada normalmente."),
+	"organizacao":       i18n.N("Organização atualizada."),
+	"revisor":           i18n.N("Revisor atualizado."),
+	"orcamento":         i18n.N("Orçamento da persona atualizado."),
+	"assinatura":        i18n.N("Assinatura da persona atualizada."),
 }
 
 // handlePersonaOrg changes who the persona reports to and whether its work needs review.
