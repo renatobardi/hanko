@@ -67,23 +67,30 @@ func (t *txc) importPersonaTags(cid domain.ID, doc export.Document, personas map
 		if len(p.Tags) == 0 || !link(p.Slug) {
 			continue
 		}
-		pid := personas[p.Slug]
-		for _, n := range p.Tags {
-			if _, err := t.q.InsertPersonaTagLink(t.ctx, store.InsertPersonaTagLinkParams{CompanyID: cid, PersonaID: pid,
-				TagID: byKey[domain.PersonaTagKey(n)], Now: t.now}); err != nil {
-				return fmt.Errorf("import persona tag link: %w", err)
-			}
+		if err := t.linkImportedTags(cid, personas[p.Slug], p, byKey); err != nil {
+			return err
 		}
-		n, err := t.q.CountTagsOfPersona(t.ctx, store.CountTagsOfPersonaParams{CompanyID: cid, PersonaID: pid})
-		if err != nil {
-			return fmt.Errorf("count persona tags: %w", err)
-		}
-		if n > domain.MaxTagsPerPersona {
-			return domain.Invalid("personas.tags", fmt.Sprintf("persona %q would have %d tags (max %d)", p.Slug, n, domain.MaxTagsPerPersona))
-		}
-		touched = append(touched, pid)
+		touched = append(touched, personas[p.Slug])
 	}
 	return t.refreshTagNames(cid, touched)
+}
+
+// linkImportedTags liga as tags do arquivo à persona e confere o teto de 20 com as que ela já tinha.
+func (t *txc) linkImportedTags(cid, pid domain.ID, p export.Persona, byKey map[string]domain.ID) error {
+	for _, n := range p.Tags {
+		if _, err := t.q.InsertPersonaTagLink(t.ctx, store.InsertPersonaTagLinkParams{CompanyID: cid, PersonaID: pid,
+			TagID: byKey[domain.PersonaTagKey(n)], Now: t.now}); err != nil {
+			return fmt.Errorf("import persona tag link: %w", err)
+		}
+	}
+	n, err := t.q.CountTagsOfPersona(t.ctx, store.CountTagsOfPersonaParams{CompanyID: cid, PersonaID: pid})
+	if err != nil {
+		return fmt.Errorf("count persona tags: %w", err)
+	}
+	if n > domain.MaxTagsPerPersona {
+		return domain.Invalid("personas.tags", fmt.Sprintf("persona %q would have %d tags (max %d)", p.Slug, n, domain.MaxTagsPerPersona))
+	}
+	return nil
 }
 
 // importPersonaTag devolve a tag da empresa com o nome dado, criando-a se não existe.

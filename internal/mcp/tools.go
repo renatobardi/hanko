@@ -509,24 +509,35 @@ func (t *tools) whoami(ctx context.Context, _ *sdk.CallToolRequest, in whoamiIn)
 		out.CompanyID, out.CompanySlug = c.ID.String(), c.Slug
 	}
 	if id.CompanyID != nil {
-		if c, err := t.b.GetCompany(ctx, company.String()); err == nil {
-			out.CompanySlug = c.Slug
-		}
+		t.whoamiToken(ctx, id, company, &out)
 	}
-	if id.PersonaID != nil && id.CompanyID != nil {
+	return textResult("%s.", whoamiText(out, id.PersonaID != nil)), out, nil
+}
+
+// whoamiToken completa o whoami de um token de run: slug da empresa, a persona com as tags e a task. O que não se acha
+// fica vazio.
+func (t *tools) whoamiToken(ctx context.Context, id identity, company domain.ID, out *whoamiOut) {
+	if c, err := t.b.GetCompany(ctx, company.String()); err == nil {
+		out.CompanySlug = c.Slug
+	}
+	if id.PersonaID != nil {
 		if p, err := t.b.GetPersona(ctx, company, id.PersonaID.String()); err == nil {
 			out.PersonaSlug, out.PersonaName, out.Tags = p.Slug, p.Name, personaTagNames(p)
 		}
 	}
-	if id.TaskID != nil && id.CompanyID != nil {
+	if id.TaskID != nil {
 		if tk, err := t.b.GetTask(ctx, company, id.TaskID.String()); err == nil {
 			out.TaskKey = tk.Key
 		}
 	}
+}
+
+// whoamiText é o resumo de hanko_whoami para o modelo.
+func whoamiText(out whoamiOut, isPersona bool) string {
 	var sb strings.Builder
 	if out.PersonaSlug != "" {
 		fmt.Fprintf(&sb, "Você é a persona %s (%s)", out.PersonaName, out.PersonaSlug)
-	} else if id.PersonaID != nil {
+	} else if isPersona {
 		fmt.Fprintf(&sb, "Você é a persona %s", out.PersonaID)
 	} else {
 		sb.WriteString("Você é um humano (conexão confiável)")
@@ -546,7 +557,7 @@ func (t *tools) whoami(ctx context.Context, _ *sdk.CallToolRequest, in whoamiIn)
 	if out.RunID != "" {
 		fmt.Fprintf(&sb, "; run %s", out.RunID)
 	}
-	return textResult("%s.", sb.String()), out, nil
+	return sb.String()
 }
 
 func parseStatuses(csv string) ([]domain.TaskStatus, error) {

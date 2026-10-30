@@ -14,7 +14,10 @@ import (
 // deleta. Nenhuma persona classifica (item 9): o agente só lê. Toda escrita trava as tags da empresa (LockPersonaTags),
 // grava o activity_event e recalcula `personas.tag_names` na mesma transação (itens 10 e 12).
 
-const subjectPersonaTag = "persona_tag"
+const (
+	subjectPersonaTag = "persona_tag"
+	whatPersonaTag    = "persona tag" // rótulo dos erros de "não encontrada"
+)
 
 // PersonaTagView é a tag com a contagem de personas que a têm.
 type PersonaTagView struct {
@@ -49,11 +52,11 @@ func noPersonaWrites(actor domain.Actor) error {
 	return nil
 }
 
-func (s *Service) requireTagWrite(ctx context.Context, actor domain.Actor, companyID domain.ID, min domain.MemberRole) error {
+func (s *Service) requireTagWrite(ctx context.Context, actor domain.Actor, companyID domain.ID, role domain.MemberRole) error {
 	if err := noPersonaWrites(actor); err != nil {
 		return err
 	}
-	return s.require(ctx, companyID, min)
+	return s.require(ctx, companyID, role)
 }
 
 func normalizeTagInput(in PersonaTagInput) (PersonaTagInput, error) {
@@ -98,7 +101,7 @@ func (s *Service) GetPersonaTag(ctx context.Context, companyID, tagID domain.ID)
 func tagView(ctx context.Context, q *store.Queries, companyID, tagID domain.ID) (PersonaTagView, error) {
 	r, err := q.GetPersonaTag(ctx, store.GetPersonaTagParams{CompanyID: companyID, ID: tagID})
 	if err != nil {
-		return PersonaTagView{}, mapErr(err, "persona tag")
+		return PersonaTagView{}, mapErr(err, whatPersonaTag)
 	}
 	n, err := q.CountPersonaTagLinks(ctx, store.CountPersonaTagLinksParams{CompanyID: companyID, TagID: tagID})
 	if err != nil {
@@ -150,7 +153,7 @@ func tagNameErr(err error, name string) error {
 	if isUniqueOn(err, "persona_tags_name_uq") {
 		return fmt.Errorf("já existe uma tag chamada %q: %w", name, domain.ErrConflict)
 	}
-	return mapErr(err, "persona tag")
+	return mapErr(err, whatPersonaTag)
 }
 
 // UpdatePersonaTag edita nome, cor ou descrição (member). O id e as ligações não mudam; renomear recalcula a busca das
@@ -161,35 +164,37 @@ func (s *Service) UpdatePersonaTag(ctx context.Context, actor domain.Actor, comp
 	}
 	var out PersonaTagView
 	err := s.withTx(ctx, func(t *txc) error {
-		cur, err := t.lockedTag(companyID, tagID)
-		if err != nil {
+		if err := t.updatePersonaTag(actor, companyID, tagID, in); err != nil {
 			return err
 		}
-		next, changed, err := applyTagUpdate(cur, in)
-		if err != nil {
-			return err
-		}
-		if len(changed) == 0 {
-			out, err = tagView(t.ctx, t.q, companyID, tagID)
-			return err
-		}
-		if _, err := t.q.UpdatePersonaTag(t.ctx, store.UpdatePersonaTagParams{CompanyID: companyID, ID: tagID, Name: next.Name,
-			Color: string(next.Color), Description: next.Description, Now: t.now}); err != nil {
-			return tagNameErr(err, next.Name)
-		}
-		if slices.Contains(changed, "name") {
-			if err := t.refreshTagHolders(companyID, tagID); err != nil {
-				return err
-			}
-		}
-		if err := t.activity(actor, companyID, domain.VerbPersonaTagUpdated, subjectPersonaTag, tagID,
-			map[string]any{"name": next.Name, "fields": changed}, ""); err != nil {
-			return err
-		}
+		var err error
 		out, err = tagView(t.ctx, t.q, companyID, tagID)
 		return err
 	})
 	return out, err
+}
+
+// updatePersonaTag grava a edição, recalcula a busca se o nome mudou e grava persona_tag.updated. Sem mudança, nada.
+func (t *txc) updatePersonaTag(actor domain.Actor, companyID, tagID domain.ID, in UpdatePersonaTagInput) error {
+	cur, err := t.lockedTag(companyID, tagID)
+	if err != nil {
+		return err
+	}
+	next, changed, err := applyTagUpdate(cur, in)
+	if err != nil || len(changed) == 0 {
+		return err
+	}
+	if _, err := t.q.UpdatePersonaTag(t.ctx, store.UpdatePersonaTagParams{CompanyID: companyID, ID: tagID, Name: next.Name,
+		Color: string(next.Color), Description: next.Description, Now: t.now}); err != nil {
+		return tagNameErr(err, next.Name)
+	}
+	if slices.Contains(changed, "name") {
+		if err := t.refreshTagHolders(companyID, tagID); err != nil {
+			return err
+		}
+	}
+	return t.activity(actor, companyID, domain.VerbPersonaTagUpdated, subjectPersonaTag, tagID,
+		map[string]any{"name": next.Name, "fields": changed}, "")
 }
 
 // applyTagUpdate valida a edição e devolve a tag nova com os campos que mudaram.
@@ -227,7 +232,7 @@ func (t *txc) lockedTag(companyID, tagID domain.ID) (store.PersonaTag, error) {
 	}
 	r, err := t.q.GetPersonaTagForUpdate(t.ctx, store.GetPersonaTagForUpdateParams{CompanyID: companyID, ID: tagID})
 	if err != nil {
-		return store.PersonaTag{}, mapErr(err, "persona tag")
+		return store.PersonaTag{}, mapErr(err, whatPersonaTag)
 	}
 	return r, nil
 }
@@ -279,7 +284,7 @@ func (s *Service) setTagArchived(ctx context.Context, actor domain.Actor, compan
 				at, verb = &t.now, domain.VerbPersonaTagArchived
 			}
 			if _, err := t.q.SetPersonaTagArchived(t.ctx, store.SetPersonaTagArchivedParams{CompanyID: companyID, ID: tagID, ArchivedAt: at, Now: t.now}); err != nil {
-				return mapErr(err, "persona tag")
+				return mapErr(err, whatPersonaTag)
 			}
 			if err := t.activity(actor, companyID, verb, subjectPersonaTag, tagID, map[string]any{"name": cur.Name}, ""); err != nil {
 				return err
@@ -514,7 +519,7 @@ func (s *Service) checkOrgFilter(ctx context.Context, companyID domain.ID, f Org
 	for _, id := range f.TagIDs {
 		r, err := s.read().GetPersonaTag(ctx, store.GetPersonaTagParams{CompanyID: companyID, ID: id})
 		if err != nil {
-			return f, mapErr(err, "persona tag")
+			return f, mapErr(err, whatPersonaTag)
 		}
 		if r.ArchivedAt != nil && !f.IncludeArchived {
 			return f, domain.Invalid("tag", fmt.Sprintf("tag %q is archived: show archived tags to filter by it", r.Name))

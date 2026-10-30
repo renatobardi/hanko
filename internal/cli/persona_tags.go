@@ -244,23 +244,7 @@ func (e *env) tagPersonasCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if e.asJSON {
-				return e.printJSON(l)
-			}
-			if len(l) == 0 {
-				fmt.Fprintln(e.out, e.t("Nenhuma persona nesse recorte."))
-				return nil
-			}
-			rows := make([][]string, 0, len(l))
-			for _, p := range l {
-				names := make([]string, len(p.Tags))
-				for i, t := range p.Tags {
-					names[i] = t.Name
-				}
-				rows = append(rows, []string{p.Persona.Slug, p.Persona.Name, strconv.Itoa(p.Level), strings.Join(names, ", ")})
-			}
-			e.table([]string{"SLUG", e.t("NOME"), e.t("NÍVEL"), "TAGS"}, rows)
-			return nil
+			return e.printOrgPersonas(l)
 		}),
 	}
 	f := c.Flags()
@@ -271,4 +255,24 @@ func (e *env) tagPersonasCmd() *cobra.Command {
 	f.IntVar(&q.MaxDepth, "max-depth", 0, e.t("corta abaixo deste nível (0 = sem corte)"))
 	f.BoolVar(&q.Archived, "archived", false, e.t("aceita tags arquivadas no filtro"))
 	return c
+}
+
+func (e *env) printOrgPersonas(l []api.OrgPersona) error {
+	if e.asJSON {
+		return e.printJSON(l)
+	}
+	if len(l) == 0 {
+		fmt.Fprintln(e.out, e.t("Nenhuma persona nesse recorte."))
+		return nil
+	}
+	rows := make([][]string, 0, len(l))
+	for _, p := range l {
+		names := make([]string, len(p.Tags))
+		for i, t := range p.Tags {
+			names[i] = t.Name
+		}
+		rows = append(rows, []string{p.Persona.Slug, p.Persona.Name, strconv.Itoa(p.Level), strings.Join(names, ", ")})
+	}
+	e.table([]string{"SLUG", e.t("NOME"), e.t("NÍVEL"), "TAGS"}, rows)
+	return nil
 }

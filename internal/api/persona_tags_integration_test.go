@@ -56,8 +56,15 @@ func TestAPIPersonaTags(t *testing.T) {
 	}
 	e.want(422, "GET", b+"/org-chart/personas?level=x", "", nil)
 	e.want(422, "GET", b+"/org-chart/personas?tag=nao-e-uuid", "", nil)
+	apiArchiveAndDeleteTag(t, e, tag.ID)
+}
 
-	e.want(200, "POST", b+"/persona-tags/"+tag.ID+"/archive", "", &got)
+// apiArchiveAndDeleteTag arquiva, confere as listas, desarquiva, tira e deleta a tag (aplicada à eng).
+func apiArchiveAndDeleteTag(t *testing.T, e *apiEnv, tagID string) {
+	t.Helper()
+	b := e.base()
+	var got api.PersonaTag
+	e.want(200, "POST", b+"/persona-tags/"+tagID+"/archive", "", &got)
 	if !got.Archived || got.ArchivedAt == nil {
 		t.Fatalf("arquivada: %+v", got)
 	}
@@ -70,11 +77,11 @@ func TestAPIPersonaTags(t *testing.T) {
 	if len(list.Items) != 2 {
 		t.Fatalf("lista com arquivadas: %+v", list.Items)
 	}
-	e.want(409, "PUT", b+"/personas/ceo/tags/"+tag.ID, "", nil)
-	e.want(200, "POST", b+"/persona-tags/"+tag.ID+"/unarchive", "", &got)
-	e.want(204, "DELETE", b+"/personas/eng/tags/"+tag.ID, "", nil)
-	e.want(204, "DELETE", b+"/persona-tags/"+tag.ID, "", nil)
-	e.want(404, "GET", b+"/persona-tags/"+tag.ID, "", nil)
+	e.want(409, "PUT", b+"/personas/ceo/tags/"+tagID, "", nil)
+	e.want(200, "POST", b+"/persona-tags/"+tagID+"/unarchive", "", &got)
+	e.want(204, "DELETE", b+"/personas/eng/tags/"+tagID, "", nil)
+	e.want(204, "DELETE", b+"/persona-tags/"+tagID, "", nil)
+	e.want(404, "GET", b+"/persona-tags/"+tagID, "", nil)
 }
 
 // Um run token lê as tags, mas não cria nem aplica (ADR-0087 item 9).

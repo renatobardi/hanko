@@ -173,9 +173,19 @@ func splitList(s string) []string {
 
 // ---------- registro ----------
 
+const (
+	tagsOpTag      = "personas"
+	tagsCompanyDir = "/companies/{company}"
+)
+
 func (s *server) registerPersonaTags(api huma.API) {
-	const tag = "personas"
-	b := "/companies/{company}"
+	s.registerTagRegistry(api)
+	s.registerTagLinks(api)
+}
+
+// registerTagRegistry registra o cadastro: listar, criar, obter, editar, arquivar, desarquivar e deletar.
+func (s *server) registerTagRegistry(api huma.API) {
+	const tag, b = tagsOpTag, tagsCompanyDir
 	one := b + "/persona-tags/{tag}"
 
 	huma.Register(api, op("list-persona-tags", http.MethodGet, b+"/persona-tags", tag, "Lista o cadastro de tags de persona, sem as arquivadas por padrão"),
@@ -268,6 +278,11 @@ func (s *server) registerPersonaTags(api huma.API) {
 			return nil, nil
 		})
 
+}
+
+// registerTagLinks registra aplicar, criar e aplicar, tirar e o recorte do organograma.
+func (s *server) registerTagLinks(api huma.API) {
+	const tag, b = tagsOpTag, tagsCompanyDir
 	link := func(fn func(context.Context, domain.Actor, domain.ID, domain.ID, domain.ID) error) func(context.Context, *PersonaTagLinkPath) (*struct{}, error) {
 		return func(ctx context.Context, in *PersonaTagLinkPath) (*struct{}, error) {
 			sc, err := s.tagWriteScope(ctx, in.Company)

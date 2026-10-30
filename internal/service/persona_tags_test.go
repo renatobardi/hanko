@@ -199,12 +199,18 @@ func TestPersonaTagAplicarEBusca(t *testing.T) {
 	if got := e.searchPersonas(t, "plataforma"); got != 1 {
 		t.Fatalf("busca depois de tirar = %d, quer 1", got)
 	}
+	archivedTagRules(t, e, ana, beto, dados)
+}
 
+// archivedTagRules: a tag arquivada não se aplica nem por nome, mas sai da persona; confere os eventos do teste todo.
+func archivedTagRules(t *testing.T, e *env, ana, beto domain.Persona, dados domain.PersonaTag) {
+	t.Helper()
+	ctx := context.Background()
 	if _, err := e.svc.ArchivePersonaTag(ctx, domain.HumanActor, e.co.ID, dados.ID); err != nil {
 		t.Fatal(err)
 	}
 	wantErr(t, e.svc.TagPersona(ctx, domain.HumanActor, e.co.ID, ana.ID, dados.ID), domain.ErrConflict)
-	_, err = e.svc.CreateAndTagPersona(ctx, domain.HumanActor, e.co.ID, ana.ID, service.PersonaTagInput{Name: "dados"})
+	_, err := e.svc.CreateAndTagPersona(ctx, domain.HumanActor, e.co.ID, ana.ID, service.PersonaTagInput{Name: "dados"})
 	wantErr(t, err, domain.ErrConflict)
 	if err := e.svc.UntagPersona(ctx, domain.HumanActor, e.co.ID, beto.ID, dados.ID); err != nil {
 		t.Fatalf("tirar tag arquivada: %v", err)
@@ -217,11 +223,18 @@ func TestPersonaTagAplicarEBusca(t *testing.T) {
 	if ev := last[domain.VerbPersonaUntagged]; ev.SubjectID != beto.ID || ev.SubjectType != "persona" {
 		t.Fatalf("untagged: %+v", ev)
 	}
+}
 
+// O teto de 20 tags por persona recusa a 21ª, mas reaplicar uma que ela já tem não falha (ADR-0087 item 2).
+func TestPersonaTagTetoDaPersona(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	ana := e.persona(t, "Ana", nil)
 	for i := range domain.MaxTagsPerPersona {
 		e.tagPersona(t, ana, e.tag(t, "t"+string(rune('a'+i))))
 	}
-	wantErr(t, e.svc.TagPersona(ctx, domain.HumanActor, e.co.ID, ana.ID, infra.ID), domain.ErrInvalid)
+	extra := e.tag(t, "extra")
+	wantErr(t, e.svc.TagPersona(ctx, domain.HumanActor, e.co.ID, ana.ID, extra.ID), domain.ErrInvalid)
 	if err := e.svc.TagPersona(ctx, domain.HumanActor, e.co.ID, ana.ID, mustTagByName(t, e, "ta").ID); err != nil {
 		t.Fatalf("reaplicar no teto não deve falhar: %v", err)
 	}
@@ -271,7 +284,14 @@ func TestPersonaTagArquivarEDeletar(t *testing.T) {
 	if v, err := e.svc.UnarchivePersonaTag(ctx, domain.HumanActor, e.co.ID, legado.ID); err != nil || v.Archived() {
 		t.Fatalf("desarquivar: %+v %v", v, err)
 	}
+	deleteTagRules(t, e, legado)
+}
 
+// deleteTagRules deleta a tag ligada a duas personas: some do cadastro e da busca, e grava um evento só, com o nome e a
+// contagem.
+func deleteTagRules(t *testing.T, e *env, legado service.PersonaTagView) {
+	t.Helper()
+	ctx := context.Background()
 	n, err := e.svc.DeletePersonaTag(ctx, domain.HumanActor, e.co.ID, legado.ID)
 	if err != nil || n != 2 {
 		t.Fatalf("deletar: %d %v", n, err)
