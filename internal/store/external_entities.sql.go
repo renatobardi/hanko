@@ -333,12 +333,17 @@ func (q *Queries) LockExternalHost(ctx context.Context, arg LockExternalHostPara
 	return i, err
 }
 
-const mergeCallsDailyAgent = `-- name: MergeCallsDailyAgent :exec
+const mergeCallsDaily = `-- name: MergeCallsDaily :exec
 INSERT INTO calls_daily (company_id, day, host_id, agent_id, workspace_id, model, subscription_key, calls, errors,
     input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, cost_real_usd, cost_list_usd, unpriced_calls)
-SELECT company_id, day, host_id, $1, workspace_id, model, subscription_key, calls, errors,
+SELECT company_id, day,
+    CASE WHEN $1::bool THEN host_id ELSE $2::uuid END,
+    CASE WHEN $1::bool THEN $2::uuid ELSE agent_id END,
+    workspace_id, model, subscription_key, calls, errors,
     input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, cost_real_usd, cost_list_usd, unpriced_calls
-FROM calls_daily WHERE calls_daily.company_id = $2 AND calls_daily.agent_id = $3
+FROM calls_daily
+WHERE calls_daily.company_id = $3
+    AND (CASE WHEN $1::bool THEN calls_daily.agent_id ELSE calls_daily.host_id END) = $4::uuid
 ON CONFLICT (company_id, day, host_id, agent_id, workspace_id, model, subscription_key) DO UPDATE SET
     calls = calls_daily.calls + EXCLUDED.calls,
     errors = calls_daily.errors + EXCLUDED.errors,
@@ -351,45 +356,23 @@ ON CONFLICT (company_id, day, host_id, agent_id, workspace_id, model, subscripti
     unpriced_calls = calls_daily.unpriced_calls + EXCLUDED.unpriced_calls
 `
 
-type MergeCallsDailyAgentParams struct {
+type MergeCallsDailyParams struct {
+	ByAgent   bool
 	ToID      uuid.UUID
 	CompanyID uuid.UUID
 	FromID    uuid.UUID
 }
 
-// Agregado diário (#153): juntar agente soma as linhas do agente juntado nas do que fica. Quando o que fica já tem a
-// mesma chave (dia, host, workspace, modelo, assinatura), os contadores somam; a linha do juntado sai depois.
-func (q *Queries) MergeCallsDailyAgent(ctx context.Context, arg MergeCallsDailyAgentParams) error {
-	_, err := q.db.Exec(ctx, mergeCallsDailyAgent, arg.ToID, arg.CompanyID, arg.FromID)
-	return err
-}
-
-const mergeCallsDailyHost = `-- name: MergeCallsDailyHost :exec
-INSERT INTO calls_daily (company_id, day, host_id, agent_id, workspace_id, model, subscription_key, calls, errors,
-    input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, cost_real_usd, cost_list_usd, unpriced_calls)
-SELECT company_id, day, $1, agent_id, workspace_id, model, subscription_key, calls, errors,
-    input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, cost_real_usd, cost_list_usd, unpriced_calls
-FROM calls_daily WHERE calls_daily.company_id = $2 AND calls_daily.host_id = $3
-ON CONFLICT (company_id, day, host_id, agent_id, workspace_id, model, subscription_key) DO UPDATE SET
-    calls = calls_daily.calls + EXCLUDED.calls,
-    errors = calls_daily.errors + EXCLUDED.errors,
-    input_tokens = calls_daily.input_tokens + EXCLUDED.input_tokens,
-    output_tokens = calls_daily.output_tokens + EXCLUDED.output_tokens,
-    cache_read_tokens = calls_daily.cache_read_tokens + EXCLUDED.cache_read_tokens,
-    cache_creation_tokens = calls_daily.cache_creation_tokens + EXCLUDED.cache_creation_tokens,
-    cost_real_usd = calls_daily.cost_real_usd + EXCLUDED.cost_real_usd,
-    cost_list_usd = calls_daily.cost_list_usd + EXCLUDED.cost_list_usd,
-    unpriced_calls = calls_daily.unpriced_calls + EXCLUDED.unpriced_calls
-`
-
-type MergeCallsDailyHostParams struct {
-	ToID      uuid.UUID
-	CompanyID uuid.UUID
-	FromID    uuid.UUID
-}
-
-func (q *Queries) MergeCallsDailyHost(ctx context.Context, arg MergeCallsDailyHostParams) error {
-	_, err := q.db.Exec(ctx, mergeCallsDailyHost, arg.ToID, arg.CompanyID, arg.FromID)
+// Agregado diário (#153): junta um agente (by_agent = true, troca agent_id) ou um host (troca host_id). Quando o que
+// fica já tem a mesma chave (dia, host, agente, workspace, modelo, assinatura), os contadores somam; sem colisão, a
+// linha só troca de dono. A linha do juntado sai depois (DeleteCallsDailyOf*).
+func (q *Queries) MergeCallsDaily(ctx context.Context, arg MergeCallsDailyParams) error {
+	_, err := q.db.Exec(ctx, mergeCallsDaily,
+		arg.ByAgent,
+		arg.ToID,
+		arg.CompanyID,
+		arg.FromID,
+	)
 	return err
 }
 

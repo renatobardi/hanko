@@ -115,14 +115,20 @@ UPDATE external_approval SET agent_id = @to_id WHERE company_id = @company_id AN
 -- name: MoveExternalApprovalsHost :exec
 UPDATE external_approval SET host_id = @to_id WHERE company_id = @company_id AND host_id = @from_id;
 
--- Agregado diário (#153): juntar agente soma as linhas do agente juntado nas do que fica. Quando o que fica já tem a
--- mesma chave (dia, host, workspace, modelo, assinatura), os contadores somam; a linha do juntado sai depois.
--- name: MergeCallsDailyAgent :exec
+-- Agregado diário (#153): junta um agente (by_agent = true, troca agent_id) ou um host (troca host_id). Quando o que
+-- fica já tem a mesma chave (dia, host, agente, workspace, modelo, assinatura), os contadores somam; sem colisão, a
+-- linha só troca de dono. A linha do juntado sai depois (DeleteCallsDailyOf*).
+-- name: MergeCallsDaily :exec
 INSERT INTO calls_daily (company_id, day, host_id, agent_id, workspace_id, model, subscription_key, calls, errors,
     input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, cost_real_usd, cost_list_usd, unpriced_calls)
-SELECT company_id, day, host_id, @to_id, workspace_id, model, subscription_key, calls, errors,
+SELECT company_id, day,
+    CASE WHEN @by_agent::bool THEN host_id ELSE @to_id::uuid END,
+    CASE WHEN @by_agent::bool THEN @to_id::uuid ELSE agent_id END,
+    workspace_id, model, subscription_key, calls, errors,
     input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, cost_real_usd, cost_list_usd, unpriced_calls
-FROM calls_daily WHERE calls_daily.company_id = @company_id AND calls_daily.agent_id = @from_id
+FROM calls_daily
+WHERE calls_daily.company_id = @company_id
+    AND (CASE WHEN @by_agent::bool THEN calls_daily.agent_id ELSE calls_daily.host_id END) = @from_id::uuid
 ON CONFLICT (company_id, day, host_id, agent_id, workspace_id, model, subscription_key) DO UPDATE SET
     calls = calls_daily.calls + EXCLUDED.calls,
     errors = calls_daily.errors + EXCLUDED.errors,
@@ -136,23 +142,6 @@ ON CONFLICT (company_id, day, host_id, agent_id, workspace_id, model, subscripti
 
 -- name: DeleteCallsDailyOfAgent :exec
 DELETE FROM calls_daily WHERE company_id = @company_id AND agent_id = @agent_id;
-
--- name: MergeCallsDailyHost :exec
-INSERT INTO calls_daily (company_id, day, host_id, agent_id, workspace_id, model, subscription_key, calls, errors,
-    input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, cost_real_usd, cost_list_usd, unpriced_calls)
-SELECT company_id, day, @to_id, agent_id, workspace_id, model, subscription_key, calls, errors,
-    input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, cost_real_usd, cost_list_usd, unpriced_calls
-FROM calls_daily WHERE calls_daily.company_id = @company_id AND calls_daily.host_id = @from_id
-ON CONFLICT (company_id, day, host_id, agent_id, workspace_id, model, subscription_key) DO UPDATE SET
-    calls = calls_daily.calls + EXCLUDED.calls,
-    errors = calls_daily.errors + EXCLUDED.errors,
-    input_tokens = calls_daily.input_tokens + EXCLUDED.input_tokens,
-    output_tokens = calls_daily.output_tokens + EXCLUDED.output_tokens,
-    cache_read_tokens = calls_daily.cache_read_tokens + EXCLUDED.cache_read_tokens,
-    cache_creation_tokens = calls_daily.cache_creation_tokens + EXCLUDED.cache_creation_tokens,
-    cost_real_usd = calls_daily.cost_real_usd + EXCLUDED.cost_real_usd,
-    cost_list_usd = calls_daily.cost_list_usd + EXCLUDED.cost_list_usd,
-    unpriced_calls = calls_daily.unpriced_calls + EXCLUDED.unpriced_calls;
 
 -- name: DeleteCallsDailyOfHost :exec
 DELETE FROM calls_daily WHERE company_id = @company_id AND host_id = @host_id;

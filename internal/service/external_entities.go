@@ -463,7 +463,7 @@ func moveAgentReferences(t *txc, companyID, from, into domain.ID) error {
 	if err := t.q.MoveExternalApprovalsAgent(t.ctx, store.MoveExternalApprovalsAgentParams{CompanyID: companyID, FromID: &from, ToID: &into}); err != nil {
 		return fmt.Errorf("ingest: mover aprovações: %w", err)
 	}
-	if err := t.q.MergeCallsDailyAgent(t.ctx, store.MergeCallsDailyAgentParams{CompanyID: companyID, FromID: from, ToID: into}); err != nil {
+	if err := t.q.MergeCallsDaily(t.ctx, store.MergeCallsDailyParams{ByAgent: true, CompanyID: companyID, FromID: from, ToID: into}); err != nil {
 		return fmt.Errorf("ingest: somar o agregado diário: %w", err)
 	}
 	if err := t.q.DeleteCallsDailyOfAgent(t.ctx, store.DeleteCallsDailyOfAgentParams{CompanyID: companyID, AgentID: from}); err != nil {
@@ -535,7 +535,7 @@ func moveHostReferences(t *txc, companyID, from, into domain.ID) error {
 	if err := t.q.MoveExternalApprovalsHost(t.ctx, store.MoveExternalApprovalsHostParams{CompanyID: companyID, FromID: &from, ToID: &into}); err != nil {
 		return fmt.Errorf("ingest: mover aprovações do host: %w", err)
 	}
-	if err := t.q.MergeCallsDailyHost(t.ctx, store.MergeCallsDailyHostParams{CompanyID: companyID, FromID: from, ToID: into}); err != nil {
+	if err := t.q.MergeCallsDaily(t.ctx, store.MergeCallsDailyParams{ByAgent: false, CompanyID: companyID, FromID: from, ToID: into}); err != nil {
 		return fmt.Errorf("ingest: somar o agregado diário do host: %w", err)
 	}
 	if err := t.q.DeleteCallsDailyOfHost(t.ctx, store.DeleteCallsDailyOfHostParams{CompanyID: companyID, HostID: from}); err != nil {
