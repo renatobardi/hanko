@@ -3,8 +3,11 @@ package service_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/renatobardi/hanko/internal/domain"
@@ -391,5 +394,95 @@ func TestListOrgPersonas(t *testing.T) {
 	chart, err := e.svc.OrgChart(ctx, e.co.ID)
 	if err != nil || len(chart.Roots[0].Persona.Tags) != 1 {
 		t.Fatalf("o organograma traz as tags: %v", err)
+	}
+}
+
+// Uma tag de uma empresa não se aplica a uma persona de outra, e nenhuma operação acha a tag pela outra empresa.
+func TestPersonaTagIsolamentoEntreEmpresas(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	ana := e.persona(t, "Ana", nil)
+	outra, err := e.svc.CreateCompany(ctx, domain.HumanActor, service.CreateCompanyInput{Name: "Outra", Slug: "outra"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	beto, err := e.svc.HirePersona(ctx, domain.HumanActor, outra.ID, service.HirePersonaInput{Name: "Beto", Agent: "fake", Model: "m1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	daOutra, err := e.svc.CreatePersonaTag(ctx, domain.HumanActor, outra.ID, service.PersonaTagInput{Name: "Externa"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantErr(t, e.svc.TagPersona(ctx, domain.HumanActor, e.co.ID, ana.ID, daOutra.ID), domain.ErrNotFound)
+	wantErr(t, e.svc.TagPersona(ctx, domain.HumanActor, outra.ID, ana.ID, daOutra.ID), domain.ErrNotFound)
+	wantErr(t, e.svc.UntagPersona(ctx, domain.HumanActor, e.co.ID, beto.ID, daOutra.ID), domain.ErrNotFound)
+	_, err = e.svc.GetPersonaTag(ctx, e.co.ID, daOutra.ID)
+	wantErr(t, err, domain.ErrNotFound)
+	_, err = e.svc.ArchivePersonaTag(ctx, domain.HumanActor, e.co.ID, daOutra.ID)
+	wantErr(t, err, domain.ErrNotFound)
+	_, err = e.svc.DeletePersonaTag(ctx, domain.HumanActor, e.co.ID, daOutra.ID)
+	wantErr(t, err, domain.ErrNotFound)
+	_, err = e.svc.ListOrgPersonas(ctx, e.co.ID, service.OrgPersonaFilter{TagIDs: []domain.ID{daOutra.ID}})
+	wantErr(t, err, domain.ErrNotFound)
+	if l, _ := e.svc.ListPersonaTags(ctx, e.co.ID, true); len(l) != 0 {
+		t.Fatalf("tags da outra empresa no cadastro: %+v", l)
+	}
+	if v, _ := e.svc.GetPersonaTag(ctx, outra.ID, daOutra.ID); v.PersonaCount != 0 {
+		t.Fatalf("ligação entre empresas: %+v", v)
+	}
+}
+
+// Aplicações concorrentes não passam do teto de 20 por persona: com 19 tags e 12 aplicações ao mesmo tempo, só uma entra.
+// Criações concorrentes não passam do teto de 200 por empresa.
+func TestPersonaTagTetoConcorrente(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	ana := e.persona(t, "Ana", nil)
+	for i := range domain.MaxTagsPerPersona - 1 {
+		e.tagPersona(t, ana, e.tag(t, fmt.Sprintf("base %d", i)))
+	}
+	extras := make([]service.PersonaTagView, 12)
+	for i := range extras {
+		extras[i] = e.tag(t, fmt.Sprintf("extra %d", i))
+	}
+	errs := make([]error, len(extras))
+	var wg sync.WaitGroup
+	for i, x := range extras {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			errs[i] = e.svc.TagPersona(ctx, domain.HumanActor, e.co.ID, ana.ID, x.ID)
+		}()
+	}
+	wg.Wait()
+	ok := 0
+	for _, err := range errs {
+		if err == nil {
+			ok++
+		} else if !errors.Is(err, domain.ErrInvalid) {
+			t.Fatalf("erro inesperado: %v", err)
+		}
+	}
+	if p, _ := e.svc.GetPersona(ctx, e.co.ID, ana.Slug); ok != 1 || len(p.Tags) != domain.MaxTagsPerPersona {
+		t.Fatalf("aplicações aceitas = %d, tags = %d; quer 1 e %d", ok, len(p.Tags), domain.MaxTagsPerPersona)
+	}
+
+	if _, err := e.svc.Pool.Exec(ctx, `INSERT INTO persona_tags (id, company_id, name)
+		SELECT gen_random_uuid(), $1, 'massa ' || g FROM generate_series(1, $2) g`, e.co.ID, domain.MaxPersonaTagsPerCompany-len(extras)-domain.MaxTagsPerPersona); err != nil {
+		t.Fatal(err)
+	}
+	created := make([]error, 5)
+	for i := range created {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, created[i] = e.svc.CreatePersonaTag(ctx, domain.HumanActor, e.co.ID, service.PersonaTagInput{Name: fmt.Sprintf("nova %d", i)})
+		}()
+	}
+	wg.Wait()
+	all, err := e.svc.ListPersonaTags(ctx, e.co.ID, true)
+	if err != nil || len(all) != domain.MaxPersonaTagsPerCompany {
+		t.Fatalf("cadastro = %d tags (%v), quer %d", len(all), err, domain.MaxPersonaTagsPerCompany)
 	}
 }
