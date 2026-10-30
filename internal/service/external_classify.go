@@ -243,7 +243,7 @@ func (t *txc) actionPoints(companyID domain.ID) (map[string]map[string]int, erro
 	return out, nil
 }
 
-// skillUses conta os usos das skills de fase por sessão (phase.py `_skills`): a skill do `Skill` ou o caminho lido.
+// skillUses conta os usos das skills de fase por sessão (phase.py `_skills`).
 func (t *txc) skillUses(companyID domain.ID) (map[string]map[string]aidlc.SkillUse, error) {
 	rows, err := t.q.ClassifySkillRows(t.ctx, companyID)
 	if err != nil {
@@ -254,27 +254,34 @@ func (t *txc) skillUses(companyID domain.ID) (map[string]map[string]aidlc.SkillU
 		if r.SessionID == nil {
 			continue
 		}
-		expr := r.Path
-		if r.Tool == "Skill" {
-			if s := firstNonEmpty(r.Skill, nestedSkillName(r.ToolParameters)); s != "" {
-				expr = s
-			}
+		if phase := aidlc.SkillPhase(skillExpr(r.Tool, r.Skill, r.ToolParameters, r.Path)); phase != "" {
+			addSkillUse(out, *r.SessionID, phase, r.TimeUnixNano)
 		}
-		phase := aidlc.SkillPhase(expr)
-		if phase == "" {
-			continue
-		}
-		if out[*r.SessionID] == nil {
-			out[*r.SessionID] = map[string]aidlc.SkillUse{}
-		}
-		u := out[*r.SessionID][phase]
-		u.Uses++
-		if u.First == 0 || r.TimeUnixNano < u.First {
-			u.First = r.TimeUnixNano
-		}
-		out[*r.SessionID][phase] = u
 	}
 	return out, nil
+}
+
+// skillExpr é o texto onde a skill aparece: o nome da skill na ferramenta `Skill`, ou o caminho lido.
+func skillExpr(tool, skill, params, path string) string {
+	if tool == "Skill" {
+		if s := firstNonEmpty(skill, nestedSkillName(params)); s != "" {
+			return s
+		}
+	}
+	return path
+}
+
+// addSkillUse soma um uso da fase na sessão e guarda a hora do primeiro.
+func addSkillUse(out map[string]map[string]aidlc.SkillUse, session, phase string, at int64) {
+	if out[session] == nil {
+		out[session] = map[string]aidlc.SkillUse{}
+	}
+	u := out[session][phase]
+	u.Uses++
+	if u.First == 0 || at < u.First {
+		u.First = at
+	}
+	out[session][phase] = u
 }
 
 // nestedSkillName lê `skill_name` de `tool_parameters`, que chega como texto JSON. Texto que não é JSON não conta.

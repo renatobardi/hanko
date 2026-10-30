@@ -2,11 +2,11 @@
 -- telemetria do Hanko. A passada refaz tudo por empresa; o serviço só grava o que mudou.
 
 -- name: ListCompaniesWithExternalConversations :many
-SELECT DISTINCT company_id FROM external_conversation ORDER BY company_id;
+SELECT DISTINCT company_id FROM external_conversation ORDER BY company_id ASC;
 
 -- name: ListConversationsToClassify :many
 SELECT id, session_id, oute_repo, class, class_origin, class_confidence, classifier, tags
-FROM external_conversation WHERE company_id = @company_id ORDER BY session_id;
+FROM external_conversation WHERE company_id = @company_id ORDER BY session_id ASC;
 
 -- name: ClassifySessionFacts :many
 -- Fatos da sessão: a hora do último fato, o oute.task.id (o primeiro que chegou), e se há papel de rodada, worker e passo.
@@ -30,7 +30,7 @@ SELECT oute_task_id, time_unix_nano, COALESCE(attributes->>'oute.task.phase', ''
     COALESCE(attributes->>'oute.task.repo', '')::text AS repo, COALESCE(attributes->>'oute.task.slug', '')::text AS slug
 FROM telemetry_logs
 WHERE company_id = @company_id AND event_name IN ('oute.task.opened', 'oute.task.reopened') AND oute_task_id IS NOT NULL
-ORDER BY time_unix_nano;
+ORDER BY time_unix_nano ASC;
 
 -- name: ClassifyToolActions :many
 -- Ações de ferramenta, contadas pelo que as regras leem (ADR-0079 item 2; phase.py `_actions`).
@@ -60,7 +60,7 @@ FROM (
 SELECT DISTINCT ON (conversation_id) conversation_id, class
 FROM conversation_class_input
 WHERE company_id = @company_id AND kind = 'manual'
-ORDER BY conversation_id, created_at DESC;
+ORDER BY conversation_id ASC, created_at DESC;
 
 -- name: SetConversationClass :exec
 UPDATE external_conversation

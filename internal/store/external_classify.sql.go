@@ -17,7 +17,7 @@ SELECT oute_task_id, time_unix_nano, COALESCE(attributes->>'oute.task.phase', ''
     COALESCE(attributes->>'oute.task.repo', '')::text AS repo, COALESCE(attributes->>'oute.task.slug', '')::text AS slug
 FROM telemetry_logs
 WHERE company_id = $1 AND event_name IN ('oute.task.opened', 'oute.task.reopened') AND oute_task_id IS NOT NULL
-ORDER BY time_unix_nano
+ORDER BY time_unix_nano ASC
 `
 
 type ClassifyOpeningsRow struct {
@@ -207,7 +207,7 @@ func (q *Queries) ClassifyToolActions(ctx context.Context, companyID uuid.UUID) 
 
 const listCompaniesWithExternalConversations = `-- name: ListCompaniesWithExternalConversations :many
 
-SELECT DISTINCT company_id FROM external_conversation ORDER BY company_id
+SELECT DISTINCT company_id FROM external_conversation ORDER BY company_id ASC
 `
 
 // Classificação da conversa externa (ADR-0079 itens 1 a 3 e 7). São os sinais que phase.py (oute-agent@845764f) lê, na
@@ -234,7 +234,7 @@ func (q *Queries) ListCompaniesWithExternalConversations(ctx context.Context) ([
 
 const listConversationsToClassify = `-- name: ListConversationsToClassify :many
 SELECT id, session_id, oute_repo, class, class_origin, class_confidence, classifier, tags
-FROM external_conversation WHERE company_id = $1 ORDER BY session_id
+FROM external_conversation WHERE company_id = $1 ORDER BY session_id ASC
 `
 
 type ListConversationsToClassifyRow struct {
@@ -281,7 +281,7 @@ const listManualClasses = `-- name: ListManualClasses :many
 SELECT DISTINCT ON (conversation_id) conversation_id, class
 FROM conversation_class_input
 WHERE company_id = $1 AND kind = 'manual'
-ORDER BY conversation_id, created_at DESC
+ORDER BY conversation_id ASC, created_at DESC
 `
 
 type ListManualClassesRow struct {
