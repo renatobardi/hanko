@@ -224,3 +224,91 @@ func TestRenameToAnotherAgentsAliasConflicts(t *testing.T) {
 		t.Error("o agente foi renomeado mesmo com o conflito")
 	}
 }
+
+// Juntar leva a chamada do modelo e a aprovação do agente e do host de origem para os de quem fica: agent_id e host_id
+// passam ao into (ADR-0075 item 5; ADR-0077 item 3).
+func TestMergeMovesModelCallsAndApprovalsToTheSurvivors(t *testing.T) {
+	e, key, _ := derivEnv(t)
+	admin := mkUser(t, e, "admin.chamadas@x.com", domain.RoleMember)
+	join(t, e, admin, domain.MemberAdmin)
+	ctx := context.Background()
+	at := time.Now().UnixNano()
+	writeBatch(t, e, key, derivBatch(t,
+		derivRec{id: "c1", agent: "claude", host: "oute-server", at: at},
+		derivRec{id: "c2", agent: "claude-velho", host: "oute-mac", at: at + 1}))
+	fromAgent := entityID(t, e, "external_agent", "claude-velho")
+	intoAgent := entityID(t, e, "external_agent", "claude")
+	fromHost := entityID(t, e, "external_host", "oute-mac")
+	intoHost := entityID(t, e, "external_host", "oute-server")
+
+	var ws domain.ID
+	if err := e.svc.Pool.QueryRow(ctx, `INSERT INTO workspaces (id, company_id, slug, name, path) VALUES ($1, $2, 'ws-chamadas', 'WS', '') RETURNING id`,
+		domain.NewID(), e.co.ID).Scan(&ws); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.svc.Pool.Exec(ctx, `INSERT INTO model_calls (company_id, dedupe_key, time_unix_nano, host_id, agent_id, workspace_id, role, cost_class)
+		VALUES ($1, 'mc-junta-1', 1, $2, $3, $4, 'worker', 'unpriced')`, e.co.ID, fromHost, fromAgent, ws); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.svc.Pool.Exec(ctx, `INSERT INTO external_approval (id, company_id, canal_id, state, host_id, agent_id)
+		VALUES ($1, $2, '20261030-120000-abcd', 'pending', $3, $4)`, domain.NewID(), e.co.ID, fromHost, fromAgent); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := e.svc.MergeExternalAgent(as(admin), domain.HumanActor, e.co.ID, fromAgent, intoAgent); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.svc.MergeExternalHost(as(admin), domain.HumanActor, e.co.ID, fromHost, intoHost); err != nil {
+		t.Fatal(err)
+	}
+	if n := rowCount(t, e, `SELECT count(*) FROM model_calls WHERE company_id = $1 AND agent_id = $2 AND host_id = $3`, e.co.ID, intoAgent, intoHost); n != 1 {
+		t.Errorf("chamadas do modelo no agente e host que ficaram = %d, quero 1", n)
+	}
+	if n := rowCount(t, e, `SELECT count(*) FROM external_approval WHERE company_id = $1 AND agent_id = $2 AND host_id = $3`, e.co.ID, intoAgent, intoHost); n != 1 {
+		t.Errorf("aprovações no agente e host que ficaram = %d, quero 1", n)
+	}
+	if n := rowCount(t, e, `SELECT count(*) FROM model_calls WHERE company_id = $1 AND (agent_id = $2 OR host_id = $3)`, e.co.ID, fromAgent, fromHost); n != 0 {
+		t.Errorf("chamadas do modelo que ficaram nos juntados = %d, quero 0", n)
+	}
+}
+
+// Renomear um host para um texto que já é apelido de outro host é conflito (409), e o host segue como estava.
+func TestRenameHostToAnotherHostsAliasConflicts(t *testing.T) {
+	e, key, _ := derivEnv(t)
+	admin := mkUser(t, e, "admin.apelido.host@x.com", domain.RoleMember)
+	join(t, e, admin, domain.MemberAdmin)
+	base := time.Now().Truncate(time.Second).Add(time.Hour).UnixNano()
+	writeBatch(t, e, key, derivBatch(t,
+		derivRec{id: "ah1", agent: "claude", host: "oute-alfa", at: base},
+		derivRec{id: "ah2", agent: "claude", host: "oute-beta", at: base + 1}))
+	if _, err := e.svc.UpdateExternalHost(as(admin), domain.HumanActor, e.co.ID, entityID(t, e, "external_host", "oute-alfa"), service.ExternalHostPatch{Name: strPtr("alfa-novo")}); err != nil {
+		t.Fatal(err)
+	}
+	_, err := e.svc.UpdateExternalHost(as(admin), domain.HumanActor, e.co.ID, entityID(t, e, "external_host", "oute-beta"), service.ExternalHostPatch{Name: strPtr("oute-alfa")})
+	if !errors.Is(err, domain.ErrConflict) {
+		t.Fatalf("renomear host para apelido de outro: erro = %v, quero ErrConflict", err)
+	}
+}
+
+// Juntar duas vezes grava um evento por junção feita: a repetição não some e não é contada como uma só.
+func TestMergeEventCountOnRepeatedMerge(t *testing.T) {
+	e, key, _ := derivEnv(t)
+	admin := mkUser(t, e, "admin.evento@x.com", domain.RoleMember)
+	join(t, e, admin, domain.MemberAdmin)
+	at := time.Now().UnixNano()
+	writeBatch(t, e, key, derivBatch(t,
+		derivRec{id: "ev1", agent: "claude", host: "oute-server", at: at},
+		derivRec{id: "ev2", agent: "codex", host: "oute-server", at: at + 1}))
+	from := entityID(t, e, "external_agent", "codex")
+	into := entityID(t, e, "external_agent", "claude")
+	for i := 0; i < 2; i++ {
+		if _, err := e.svc.MergeExternalAgent(as(admin), domain.HumanActor, e.co.ID, from, into); err != nil {
+			t.Fatalf("junção %d: %v", i+1, err)
+		}
+	}
+	if n := verbCount(t, e, "external_agent.merged"); n != 2 {
+		t.Errorf("eventos de junção depois de duas junções = %d, quero 2", n)
+	}
+}
+
+func strPtr(s string) *string { return &s }
