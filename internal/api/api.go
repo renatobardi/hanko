@@ -348,6 +348,7 @@ func (s *server) register(api huma.API) {
 	s.registerExternalSource(api) // contrato da fonte externa (ADR-0075 a 0079); 501 até cada fatia
 	s.registerExternalRounds(api) // contrato da rodada e da aprovação externas (ADR-0080 e 0081); 501 até a fatia 3
 	s.registerExternalCost(api)   // contrato do custo elevado e dos alertas externos (ADR-0082/0083); 501 até a fatia 2
+	s.registerPersonaTags(api)    // contrato das tags de persona (ADR-0087); 501 até a fatia 1
 	s.registerDecision(api)
 	s.registerProbe(api)
 	s.registerInstance(api)
