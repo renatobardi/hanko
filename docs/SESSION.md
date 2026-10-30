@@ -1,16 +1,15 @@
-# Fonte externa e ingestão (#125, fatia 1) · sessão `125-emparelhamento-repo`
+# Cofre (#117) · sessão `feat-117-campo-arquivo`
 Data: 2026-10-30
 
 ## Feito
-- Ingestão deriva, na transação do lote, o agente externo, o host externo e o emparelhamento do repositório (ADR-0075 itens 2 a 6, ADR-0077 item 2), com `activity_event`.
-- Ajustes da auditoria do #147: `no-repo` reservado (colisão tratada), texto fora do CHECK não derruba o lote, corrida de criação tratada, eventos só de quem inseriu.
-- Testes: 10 `TestDerive*` (incluem colisão, entrada inválida e corrida). `go test ./...` com Postgres local: 68 pacotes ok. Lint: 0 issues.
-- Sem migration nova: as tabelas e a coluna `is_system` já vieram na 00208.
+- Campo arquivo se troca pela tela (PR #146): "Trocar arquivo" sobrescreve o conteúdo, mantém nome e id, e não põe o conteúdo na página nem na URL (`ReplaceSecretFieldFile`, `internal/service/vault_files.go`).
+- Achados SHOULD-FIX da auditoria tratados: a troca confere a linha afetada no postgres (cria se faltar); a cópia antiga sai dos outros drivers e a linha do postgres sai quando outro driver está ativo; mensagem de `RotateSecretField` corrigida; fragmento de changelog duplicado removido.
+- Testes: UI sem banco (3), validação sem banco (`fileSize`, `checkFileContent`); com banco (4) em `internal/service/vault_replace_file_test.go` e `vault_replace_file_drivers_test.go`, que pulam aqui.
+- `golangci-lint run ./...`: 0 issues. Geradores e testes dos pacotes tocados: ok.
 
 ## Travado
-- Caixa "emparelhamento a conferir" (ADR-0075 item 4.4, caso de URL em conflito), corrigir emparelhamento com passado (item 5), renomear/arquivar/juntar agente e host, telas.
-- Chave de repositório por URL (item 4.1): o fato de hoje traz só o nome.
-- Repositório com slug inválido, reservado ou fora do limite vai para `no-repo`, ou fica sem workspace se o `no-repo` não puder existir (decisão deste PR, não do ADR).
+- BLOQUEADO #117: ADR-0068 §3.1 e §3.3 mandam arquivar a versão anterior em `secret_field_versions` e subir a versão. O modelo atual não guarda um blob por versão: `secret_field_blobs` tem `field_id` como chave primária (`db/migrations/00205_cofre_arquivos.sql`). Arquivar exige mudar esse modelo, o que está fora do previsto. Não decidido, segundo a decisão do Bardi.
+- Os 4 testes com banco pulam aqui (sem Postgres); rodam no CI.
 
 ## Próximo passo
-- Sessão e conversa (ADR-0078) e a conversa com o nome do gerador (ADR-0084); depois classificação (ADR-0079) e leitura.
+- Bardi decide o modelo do arquivo de versão (nova tabela ou chave com versão). Com essa decisão, arquivar e subir a versão na troca.
