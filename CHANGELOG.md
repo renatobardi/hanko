@@ -5,6 +5,194 @@ English summary at the end of each release.
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-10-31
+
+### Contrato da v0.8, grupo 3: ajustes da rodada e da aprovação externas
+
+- A migration 00211 corrige o contrato da 00210 depois de revisá-lo contra os ADR-0080 e 0081 e contra o produtor do evento: o pedido decidido pode faltar o sha256 (numa recusa ele não vem), a duração do pedido é em segundos, o nome de quem aprovou é guardado e a rodada guarda a hora do último evento, da última pergunta e da última resposta. O uso externo ganha o filtro por rodada, e o alerta de disco do Postgres passa a avisar abaixo de 20 GiB livres e a ficar crítico abaixo de 5 GiB, com a empresa trocando os dois valores. Só o contrato: nenhuma tela, rota ou job funciona ainda.
+
+- English summary: migration 00211 fixes the 00210 contract after reviewing it against ADR-0080 and 0081 and the event producer: a decided request may lack the sha256 (a rejection does not carry it), the request duration is in seconds, the approver's name is stored, and the round stores the time of its last event, last question and last answer. External usage gains the round filter, and the Postgres disk alert now warns below 20 GiB free and turns critical below 5 GiB, with each company able to change both values. Contract only: no screen, route or job works yet.
+
+### Fonte externa: alerta host_no_data (#125)
+
+- Host externo sempre ligado, não arquivado, sem fato há mais do limite da empresa abre o alerta `host_no_data` (critical). O limite é `limit.host_no_data_minutes` (padrão 30 min). Quando o fato chega, o alerta fecha sozinho (ADR-0077, item 4; ADR-0083, itens 2 e 5).
+- English summary: an always-on external host without facts for longer than the company's limit opens a critical `host_no_data` alert; the next fact closes it.
+
+### Fonte externa: agente e host externos novos na Caixa (fatia 1 da v0.8, #125)
+
+- A Caixa de entrada lista os agentes e hosts externos criados nos últimos 30 dias como itens informativos: não entram
+  na contagem nem no selo, e marcar como lido segue o de todo item. Agente ou host criado há mais de 30 dias sai da lista.
+- A API da Caixa ganha os tipos `external_agent` e `external_host` no enum `kind` dos itens e das referências. Cliente que valida o enum de forma estrita precisa aceitar os dois.
+- Ainda não há a seção visual desses itens na tela, nem a caixa de emparelhamento a conferir, nem renomear, arquivar ou
+  juntar agente e host.
+
+- English summary: the inbox lists external agents and hosts created in the last 30 days as informational items: they
+  stay out of the count and the badge, and read state follows every inbox item. The screen section, the pairing-review
+  item, and rename/archive/merge are not there yet.
+
+### Fonte externa: classificação de conversa pela telemetria (#125)
+
+- Cada conversa externa ganha a fase do AI-DLC pela regra do agent-studio: troca manual, abertura, label, skill, papel e
+  ação, nessa ordem; a primeira que decide vale. Sem sinal forte, `build` com confiança baixa (ADR-0079, itens 1 a 3).
+- A marca `regression` vai para a conversa cujo `oute.task.id` começa com `regression-` ou cujo repositório é `regression` (item 7).
+- O Jev não é chamado nesta fatia: a ação fraca só marca que ele seria chamado.
+- English summary: external conversations get an AI-DLC phase from telemetry, with the same signal order as the
+  agent-studio; manual marks win; the `regression` tag is set from the task id or repository.
+
+### Cofre: aviso de alcance na aprovação do gate de contratação
+
+- Aprovar um gate `hire` devolve os avisos de alcance da persona criada (campo `warnings` do gate, ADR-0068 §2.5), como a contratação direta já fazia: quando o `adapter_config` da ficha referencia um `${secret:…}` que a persona não alcança, a resposta da aprovação (API e CLI `hanko gate approve`) traz o aviso, que nomeia a persona e o item e nunca o valor. Continua sendo aviso, não bloqueio: a concessão pode vir depois.
+
+- English summary: approving a `hire` gate now returns the reach warnings of the created persona (gate `warnings` field, ADR-0068 §2.5), matching direct hire: when the spec's `adapter_config` references a `${secret:…}` the persona cannot reach, the approval response (API and `hanko gate approve` CLI) carries the warning, naming the persona and the item, never the value. Still a warning, not a block: the grant can come later.
+
+### Cofre: campo arquivo pela tela
+
+- "Novo campo" do item aceita o tipo `file`: a tela envia o arquivo (até 1 MiB, como `hanko secret field add --kind file`), o campo é sempre secreto e o conteúdo nunca volta à página; a lista mostra só o nome e o tamanho.
+- "Trocar arquivo" troca o conteúdo pelo arquivo novo. O arquivo anterior vai para o histórico (ADR-0068 §3.1), a versão do campo sobe, e restaurar a versão anterior põe o arquivo de volta como versão nova (§3.3). "Apagar campo" apaga o arquivo do campo e o das versões anteriores.
+
+- English summary: the secret's "New field" form accepts the `file` kind: the screen uploads the file (up to 1 MiB, like `hanko secret field add --kind file`), the field is always secret and the content never comes back to the page; the list shows only the name and size. "Replace file" replaces the content with the new file: the previous file goes to the history (ADR-0068 §3.1), the field's version goes up, and restoring a previous version puts its file back as a new version (§3.3). "Delete field" deletes the field's file and the files of its previous versions.
+
+### Cofre: delegação de segredo pessoal pela tela e pela CLI
+
+- A tela de um segredo pessoal ganhou "Delegações deste segredo": delegar a uma task, conversa ou run que você pediu, com validade de 1 hora, 24 horas (padrão) ou 7 dias; listar as delegações do segredo com alvo, validade e estado; e revogar. A lista não mostra o valor do segredo. A CLI ganhou `hanko secret delegation create <segredo> --target-type ... --target <id> [--expires 24h]`, `hanko secret delegation ls` e `hanko secret delegation revoke <id>`. A API (`POST /companies/{company}/user-secrets/{name}/delegations`, `GET /me/delegations`, `DELETE /me/delegations/{id}`) não mudou.
+
+- English summary: a personal secret's screen gained "Delegations of this secret": delegate it to a task, conversation or run you requested, valid for 1 hour, 24 hours (default) or 7 days; list the secret's delegations with target, validity and state; and revoke. The list never shows the secret's value. The CLI gained `hanko secret delegation create <secret> --target-type ... --target <id> [--expires 24h]`, `hanko secret delegation ls` and `hanko secret delegation revoke <id>`. The API did not change.
+
+### Cofre: variáveis de ambiente da persona pela tela
+
+- A página da persona ganhou a seção "Variáveis de ambiente": cada variável do ambiente do adapter mostra o nome e a referência a segredo (`${secret:NOME#campo}` ou, para campo arquivo, `${secretfile:NOME#campo}`). O admin põe, troca e tira variáveis pela tela; a referência precisa existir na empresa. Valor em claro de uma versão antiga aparece como `***` e não sai da página. A tela não aceita valor em claro.
+
+- English summary: the persona page gained an "Environment variables" section: each variable of the adapter's environment shows its name and its secret reference (`${secret:NAME#field}` or, for a file field, `${secretfile:NAME#field}`). Admins set, change and remove variables from the screen; the reference must exist in the company. A plain value from an older version shows as `***` and never leaves the page. The screen does not accept plain values.
+
+### Contrato da v0.8, grupo 2: tipos de domínio e API do custo e dos alertas externos em 501
+
+- O grupo 2 do contrato da v0.8 ganha os tipos de domínio dos 17 alertas de agente externo (severidade `critical` para `host_no_data`, `destination_refusing`, `spool` e `quota`, `warning` para os outros 13), o id derivado do sujeito sem id, os limites e prazos por empresa com os valores da Oute como padrão, e `RunCostClass`, que dá a classe de custo de um run a partir de `cost_source` e da assinatura. Também ganha 7 operações no OpenAPI, que respondem 501 até a fatia 2 (#126): histórico de mensalidade, conferências de preços e ajustes de alerta. Nenhuma tela, rota ou job funciona ainda.
+
+- English summary: contract group 2 of v0.8 gains the domain types for the 17 external-agent alerts (severity `critical` for `host_no_data`, `destination_refusing`, `spool` and `quota`, `warning` for the other 13), the derived id for subjects without an id, per-company limits and deadlines defaulting to Oute's values, and `RunCostClass`, which gives a run's cost class from `cost_source` and its subscription. It also gains 7 OpenAPI operations that answer 501 until slice 2 (#126): monthly-value history, price checks and alert settings. No screen, route or job works yet.
+
+### Contrato da v0.8, grupo 1: tipos de domínio e API da fonte externa em 501
+
+- O grupo 1 do contrato da v0.8 ganha os tipos de domínio (origem, classe de conversa, papel e classe de custo da chamada, tipo de chave do emparelhamento, normalização da URL do remoto) e 21 operações no OpenAPI, que respondem 501 até a fatia 1 (#125) e a fatia 2 (#126): agentes, hosts, emparelhamentos, sessões e conversas externas, uso externo e chaves de ingestão. As rotas de ingestão têm o OpenAPI próprio, `api/openapi-ingest.json`, gerado por `hanko openapi --ingest`, porque o listener público não as serve (ADR-0076). Nenhuma tela, rota ou ingestão funciona ainda.
+
+- English summary: contract group 1 of v0.8 gains its domain types (origin, conversation class, call role and cost class, pairing key kind, remote URL normalization) and 21 OpenAPI operations that answer 501 until slice 1 (#125) and slice 2 (#126): external agents, hosts, pairings, sessions and conversations, external usage and ingest keys. The ingestion routes have their own OpenAPI, `api/openapi-ingest.json`, generated by `hanko openapi --ingest`, because the public listener does not serve them (ADR-0076). No screen, route or ingestion works yet.
+
+### Contrato da v0.8, grupo 2: custo elevado e alertas de agente externo
+
+- A migration 00209 cria o contrato do custo elevado e dos alertas de agente externo (ADR-0082 e 0083): origem e trava do preço de modelo, chave externa da assinatura, histórico de mensalidade (cada assinatura que já existe ganha a linha inicial com o valor atual, então nenhum "pago" de hoje muda), conferência diária de preços, os 17 tipos de alerta e os cinco sujeitos novos, e os limites e prazos de cada empresa. Os runs do Hanko não mudam no banco. Só o contrato: nenhuma tela, rota ou job funciona ainda.
+
+- English summary: migration 00209 adds the contract for the elevated cost model and the external-agent alerts (ADR-0082 and 0083): price origin and lock, subscription external key, monthly-value history (every existing subscription gets its initial row with the current value, so no existing "paid" figure changes), the daily price check, the 17 alert types and five new subjects, and per-company limits and deadlines. Hanko runs do not change in the database. Contract only: no screen, route or job works yet.
+
+### Contrato da v0.8, grupo 1: fonte externa e ingestão
+
+- A migration 00208 cria o contrato da fonte externa e da ingestão (ADR-0075 a 0079, 0084 e 0086): agente, host e emparelhamento com os apelidos, sessão e conversa externas com a classificação, as tabelas de telemetria bruta particionadas por mês, as chamadas ao modelo e o agregado diário. A chave de API ganha o escopo `ingest`, presa a uma empresa, e o workspace ganha a marca de sistema para o `no-repo`. Só o contrato: nenhuma tela, rota ou ingestão funciona ainda, e nenhum dado se move.
+
+- English summary: migration 00208 adds the contract for the external source and ingestion (ADR-0075 to 0079, 0084 and 0086): agent, host and repo pairing with their aliases, external session and conversation with classification, monthly-partitioned raw telemetry tables, model calls and the daily aggregate. API keys gain the `ingest` scope, tied to a company, and workspaces gain a system flag for `no-repo`. Contract only: no screen, route or ingestion works yet, and no data moves.
+
+### Contrato da v0.8, grupo 3: rodada e aprovação externas, busca e disco
+
+- A migration 00210 cria o contrato da rodada externa e da aprovação externa (ADR-0080 e 0081): ciclo, rodada, participante, etapa (só a revisão vigente, com o texto no fato da ingestão), ação, marca do Bardi (só se acrescenta), pedido do canal com as versões do script e a lista da outbox de cada host. `source_kind` entra nesses conceitos. A busca ganha a coluna gerada nas conversas e nas sessões externas (ADR-0078). O alerta de disco do Postgres (`db_disk_low`) entra na lista de alertas da empresa. A Caixa aceita os itens de pergunta da rodada e de aprovação externa. Os tipos de domínio e as operações novas respondem 501 até a fatia 3 (#127) e a fatia 2 (#126). Só o contrato: nenhuma tela, rota ou job de rodada funciona ainda.
+
+- English summary: migration 00210 adds the contract for the external round and the external approval (ADR-0080 and 0081): cycle, round, participant, step (only the current revision, with the text in the ingestion fact), action, the Bardi mark (append-only), the channel request with the script versions and each host's outbox list. `source_kind` goes on those concepts. Search gets a generated column on external conversations and sessions (ADR-0078). The Postgres disk alert (`db_disk_low`) joins the company alert list. The inbox accepts the round question and the pending external approval items. The new domain types and operations answer 501 until slice 3 (#127) and slice 2 (#126). Contract only: no round screen, route or job works yet.
+
+### Contrato das tags de persona e dos filtros do organograma
+
+- A migration 00212 cria o cadastro de tags de persona por empresa (nome único sem distinguir caixa, cor de uma paleta fechada, descrição, arquivada) e a ligação persona ↔ tag, que não liga tag e persona de empresas diferentes. A persona ganha a coluna `tag_names`, que entra na busca com peso B (ADR-0087). Os tipos de domínio, a paleta, os limites e os verbos dos eventos ficam em `internal/domain/persona_tags.go`. As 11 operações novas (cadastro, arquivar, deletar, aplicar e tirar tag, recorte do organograma por tag e por nível) respondem 501 até a fatia 1. Só o contrato: nenhuma tela, comando ou tool de tag funciona ainda.
+
+- English summary: migration 00212 adds the per-company persona tag registry (name unique case-insensitively, color from a closed palette, description, archived) and the persona ↔ tag link, which cannot join a tag and a persona from different companies. Personas get a `tag_names` column, searched with weight B (ADR-0087). Domain types, the palette, the limits and the event verbs live in `internal/domain/persona_tags.go`. The 11 new operations (registry, archive, delete, tag and untag a persona, org chart slice by tag and level) answer 501 until slice 1. Contract only: no tag screen, command or tool works yet.
+
+### Fonte externa: agente, host e emparelhamento com workspace (fatia 1 da v0.8, #125)
+
+- A ingestão agora liga cada fato às entidades da empresa, na mesma transação do lote: o agente externo e o host externo
+  nascem do primeiro fato com esse nome (com `activity_event`), e um nome que chega com outra caixa vira apelido do mesmo
+  agente. A hora do último fato do host só sobe.
+- O repositório do fato se emparelha com o workspace de mesmo slug; sem ele, o Hanko cria um workspace só de metadado,
+  sem caminho em disco. Fato sem repositório vai para o workspace de sistema `no-repo`. Empresa arquivada recebe o bruto
+  e nenhuma entidade nova.
+- Ainda não há tela, renomear, arquivar ou juntar agente e host, caixa de entrada para emparelhamento a conferir, corrigir
+  emparelhamento, classificação de conversa e a conversa em si.
+
+- English summary: ingestion now derives the external agent and host from each fact, in the same batch transaction. Agent
+  names differing only in case become aliases of one agent; a host's last-seen time only moves forward. A fact's repository
+  pairs with the workspace of the same slug, or gets a metadata-only workspace; facts without a repository go to the system
+  `no-repo` workspace. Archived companies get raw telemetry only. No UI, rename/archive/merge, inbox items, pairing
+  correction, classification or conversations yet.
+
+### Fonte externa: agentes e hosts externos, listar, renomear, arquivar, sempre ligado e juntar (fatia 1 da v0.8, #125)
+
+- As rotas de agente e de host externos deixam de responder 501: listar, ver, renomear, arquivar ou voltar, marcar
+  "sempre ligado" (só host) e juntar dois agentes ou dois hosts. Alterar e juntar são de owner ou admin. Cada alteração
+  gera evento de atividade. O nome antigo vira apelido do mesmo agente ou host, e o agente ou host juntado fica
+  arquivado com os apelidos, as sessões e as conversas no que ficou.
+- A junção recusa agente ou host que fica arquivado (409), trava as duas linhas, preserva o horário de arquivamento do juntado, e move também as chamadas do modelo e as aprovações. Renomear para um texto que já é apelido de outro agente ou host dá 409.
+- Ainda não há telas, o alerta `host_no_data`, a troca de workspace de um emparelhamento, nem classificação de conversa.
+
+- English summary: external agent and host routes stop answering 501: list, get, rename, archive/unarchive, always-on
+  (host only), and merge two agents or two hosts. Changes are owner/admin only and each writes an activity event. The
+  old name becomes an alias of the same entity, and the merged entity is archived with its aliases, sessions and
+  conversations moved to the one that stays. No screens, no `host_no_data` alert, no repository-pairing change yet.
+
+### Fonte externa: filtro de segredo no decision model (#125)
+
+- Texto com padrão de segredo colado (chave privada, chave de API, token do GitHub, chave AWS, token do Slack, chave do Google, JWT, Bearer, URL com senha, atribuição de senha ou token) não sai do Hanko em nenhuma feature. A invocação vira erro `secret_detected`, com só o tipo do padrão no ledger e no evento `decision.invoked`, nunca o trecho (ADR-0079, item 6).
+- English summary: the decision model refuses prompts that contain a secret pattern, in every feature, before calling the provider; the ledger and the event keep only the pattern kind.
+
+### Gerador único de nome
+
+- O Hanko ganha o gerador único de nome (ADR-0084), sobre as listas de 256 + 256 palavras aprovadas: o nome derivado do id (`ExternalName`, com 16 variações e, no fim, o sufixo de 3 dígitos), a escolha do nome livre da empresa (`ChooseExternalName`) e o sorteio entre os livres (`DrawExternalName`). A conversa externa e a rodada externa passam a poder ter nome; a ligação delas ao gerador vem no PR seguinte da fatia.
+
+- English summary: Hanko gains the single name generator (ADR-0084) over the approved 256 + 256 word lists: the name derived from the id (`ExternalName`, with 16 variations and, last, the 3-digit suffix), picking a name the company has free (`ChooseExternalName`) and drawing among the free ones (`DrawExternalName`). External conversations and rounds can now have names; wiring them to the generator comes in the slice's next PR.
+
+### Ingestão de telemetria de agente externo: o núcleo (fatia 1, 1/5)
+
+- O Hanko passa a ter um listener próprio de ingestão (`HANKO_INGEST_ADDR`, desligado por padrão) que recebe o OTLP/HTTP em protobuf (com gzip) de `/v1/traces`, `/v1/logs` e `/v1/metrics`, o replay do bucket em JSON de `/v1/replay/{sinal}` e a prontidão em `/v1/ready`. Só aceita a chave de escopo `ingest`, uma por host e presa à empresa, que se cria, lista e revoga em `/api/v1/companies/{company}/ingest-keys` (owner ou admin). As linhas e a chave de dedupe reproduzem byte a byte as do agent-studio, conferidas por vetores gerados do código original. O fato repetido não duplica nada, o 2xx só vem depois do commit, e as partições mensais das tabelas de telemetria são criadas na partida e a cada 24 h. A resolução de agente e host, a conversa e o custo vêm nos PRs seguintes da fatia.
+
+- English summary: Hanko now has its own ingestion listener (`HANKO_INGEST_ADDR`, off by default) that receives OTLP/HTTP protobuf (gzip allowed) on `/v1/traces`, `/v1/logs` and `/v1/metrics`, the JSON bucket replay on `/v1/replay/{signal}` and readiness on `/v1/ready`. It only accepts the `ingest`-scoped key, one per host and tied to a company, created, listed and revoked at `/api/v1/companies/{company}/ingest-keys` (owner or admin). Rows and dedupe keys reproduce the agent-studio's byte for byte, checked against vectors generated from the original code. A repeated fact never duplicates, 2xx only comes after commit, and the monthly partitions of the telemetry tables are created at startup and every 24 h. Agent and host resolution, conversations and cost come in the next PRs of the slice.
+
+### Fonte externa: junção soma o agregado diário e escolhe a lista da outbox (#153)
+
+- Juntar agente ou host soma os contadores do agregado diário (`calls_daily`) do juntado nas linhas do que fica com a
+  mesma chave (dia, host, agente, workspace, modelo, assinatura). Linha sem colisão só troca de dono. Repetir a junção não soma de novo.
+- Juntar host escolhe a lista da outbox (`external_outbox_snapshot`) de hora mais nova; em empate fica a do que fica.
+- English summary: merging an external agent or host sums the juntado's daily aggregate (`calls_daily`) into the
+  surviving rows with the same key (day, host, agent, workspace, model, subscription); rows without collision just change owner. Merging a host keeps the newest outbox
+  snapshot, and on a tie the surviving host keeps its own. Repeating a merge does not sum again.
+
+### Palavras do gerador único de nome
+
+- O Hanko ganha as listas do gerador único de nome (ADR-0084): 256 adjetivos e 256 substantivos em inglês, as 64 + 64 do oute mais 192 + 192 novas, em `internal/domain/names/names.txt`. Ainda não há gerador: o arquivo é o dado que ele vai ler, e um teste confere o formato, a contagem e a unicidade.
+
+- English summary: Hanko gains the word lists of the single name generator (ADR-0084): 256 adjectives and 256 nouns in English, the oute's 64 + 64 plus 192 + 192 new ones, in `internal/domain/names/names.txt`. There is no generator yet: the file is the data it will read, and a test checks format, count and uniqueness.
+
+### Fonte externa: sessão externa a partir da ingestão (fatia 1 da v0.8, #125)
+
+- A ingestão agrupa os fatos pelo `oute.task.id` que a fonte declara e cria a sessão externa da empresa, uma vez, com
+  `activity_event`. Repositório, agente e rodada da sessão seguem a hora do fato mais antigo que os trouxe (migration
+  00213). Fato sem `oute.task.id` não cria sessão.
+- Ainda não há conversa externa, gerador de nome, classificação, tela nem leitura.
+
+- English summary: ingestion groups facts by the `oute.task.id` the source declares and creates the external session
+  of the company once, with `activity_event`. Repository, agent and round follow the oldest fact that carried them
+  (migration 00213). A fact without `oute.task.id` creates no session. No conversation, name generator, classification,
+  screen or reading yet.
+
+### Tags de persona: cadastro, aplicação, recorte do organograma, CLI, MCP e export
+
+- As personas ganham tags de um cadastro por empresa (ADR-0087): criar, editar, arquivar, desarquivar e deletar (com a contagem de personas que perdem a tag), aplicar, tirar e criar e aplicar numa transação só. Os papéis valem no service (viewer lê, member escreve, admin arquiva e deleta), e nenhuma persona ou run token escreve tag. Toda escrita grava o seu `activity_event`, e a busca acha a persona pelo nome da tag. A API lista o recorte do organograma por tag (alguma, todas ou sem tag), por nível e por profundidade. A CLI tem `hanko persona tag`, o MCP mostra as tags em `hanko_persona_list` (com filtro) e em `hanko_whoami`, e o export e o import da empresa levam o cadastro e as ligações. As telas vêm num PR seguinte.
+
+- English summary: personas get tags from a per-company registry (ADR-0087): create, edit, archive, unarchive and delete (with the count of personas that lose the tag), apply, remove, and create-and-apply in one transaction. Roles apply in the service (viewer reads, member writes, admin archives and deletes), and no persona or run token writes tags. Every write records its `activity_event`, and search finds the persona by the tag name. The API lists the org chart slice by tag (any, all or untagged), by level and by depth. The CLI has `hanko persona tag`, MCP shows the tags in `hanko_persona_list` (with a filter) and in `hanko_whoami`, and the company export and import carry the registry and the links. The screens come in a following PR.
+
+### Tags de persona: edição em lote na lista de Personas
+
+- A lista de Personas ganha a seleção múltipla, com "marcar todas", e uma barra para aplicar ou tirar uma tag das personas marcadas. Ao aplicar, um nome novo cria a tag. O lote roda numa transação só e grava um evento por persona alterada; se uma persona não puder receber a tag (teto de 20 ou tag arquivada), nenhuma recebe (ADR-0087, fatia 2).
+
+- English summary: the Personas list gets multiple selection, with "select all", and a bar to apply or remove a tag from the selected personas. When applying, a new name creates the tag. The batch runs in a single transaction and records one event per changed persona; if one persona cannot take the tag (the 20-tag cap or an archived tag), none does (ADR-0087, slice 2).
+
+### Tags de persona nas telas: aba Tags, ficha, lista e filtros do organograma
+
+- Personas ganha a aba Tags, com criar, editar, arquivar, desarquivar e deletar (a confirmação diz quantas personas perdem a tag). A ficha da persona mostra as tags, tira uma tag e aplica pelo nome; um nome que não existe vira "criar tag «nome»". A lista de Personas e os nós do organograma mostram até 3 chips coloridos e "+N". No organograma, o menu de cada nó aplica, tira e cria tags, e os filtros recortam por tag (alguma, todas ou sem tag), por nível e por profundidade, nos modos Destacar e Podar mantendo o caminho. O filtro fica na URL e no cookie `hanko_org` (ADR-0087). O import da empresa passa a gravar o evento de cada tag criada e de cada tag aplicada.
+
+- English summary: Personas gets a Tags tab to create, edit, archive, unarchive and delete tags (the confirmation says how many personas lose the tag). The persona page shows its tags, removes one and applies one by name; a name that does not exist becomes "create tag «name»". The Personas list and the org chart nodes show up to 3 colored chips and "+N". On the org chart, each node's menu applies, removes and creates tags, and the filters slice by tag (any, all or untagged), by level and by depth, in Highlight and Prune-keeping-the-path modes. The filter lives in the URL and in the `hanko_org` cookie (ADR-0087). The company import now records the event of each tag it creates and each tag it applies.
+
 ## [0.7.2] — 2026-10-25
 
 ### Cofre: pendências do #72 e do #86
