@@ -1,0 +1,250 @@
+package views
+
+import (
+	"github.com/renatobardi/hanko/internal/domain"
+	"github.com/renatobardi/hanko/internal/i18n"
+)
+
+// ConnectPage é a tela do assistente Conectar (ADR-0089): o servidor (passo 1) ou o estado da integração (2 a 5).
+templ ConnectPage(sh Shell, vm ConnectVM) {
+	@Layout(sh) {
+		@PageHead(i18n.T(ctx, "Conectar ferramenta a uma persona"), i18n.T(ctx, "Um servidor MCP, testado e liberado para as personas que você escolher, num fluxo só. Nenhuma escrita é liberada sem uma escolha sua.")) {
+		}
+		if vm.Notice != "" {
+			@Alert("warn", vm.Notice)
+		}
+		if !sh.CanAdmin() {
+			@NeedRole(domain.MemberAdmin)
+		} else if vm.Slug == "" {
+			@connectServerForm(vm)
+		} else {
+			@connectStateView(vm)
+		}
+	}
+}
+
+templ connectServerForm(vm ConnectVM) {
+	<form class="card pad form-card" method="post" action={ templ.SafeURL(vm.Action) } hx-boost="true">
+		if vm.Error != "" {
+			@Alert("danger", vm.Error)
+		}
+		<h2>{ i18n.T(ctx, "Passo 1 de 5: servidor") }</h2>
+		<div class="form-grid">
+			<div class="field">
+				<label for="c-name">{ i18n.T(ctx, "Nome") }</label>
+				<input class="input" id="c-name" name="name" value={ vm.Name } required maxlength="120"/>
+				if e := vm.FieldErr["name"]; e != "" {
+					<span class="err">{ e }</span>
+				}
+			</div>
+			<div class="field">
+				<label for="c-url">{ i18n.T(ctx, "URL do servidor MCP") }</label>
+				<input class="input mono" id="c-url" name="url" value={ vm.URL } required maxlength="2000" autocomplete="off" spellcheck="false" placeholder="https://"/>
+				if e := vm.FieldErr["url"]; e != "" {
+					<span class="err">{ e }</span>
+				}
+			</div>
+			<fieldset class="field">
+				<legend>{ i18n.T(ctx, "Como entrar no servidor") }</legend>
+				<label><input type="radio" name="auth" value="header" checked?={ !vm.OAuth }/> { i18n.T(ctx, "Header com segredo (ex.: Authorization: Bearer …)") }</label>
+				<label><input type="radio" name="auth" value="oauth" checked?={ vm.OAuth }/> { i18n.T(ctx, "Conexão OAuth 2.1 com PKCE (o navegador pede o consentimento)") }</label>
+			</fieldset>
+			<div class="field">
+				<label for="c-headers">{ i18n.T(ctx, "Headers (um por linha, Nome: valor)") }</label>
+				<textarea class="input mono" id="c-headers" name="headers" rows="2" autocomplete="off" spellcheck="false"></textarea>
+				<span class="note">{ i18n.T(ctx, "Segredo: fica guardado cifrado e não volta a aparecer.") }</span>
+				if e := vm.FieldErr["headers"]; e != "" {
+					<span class="err">{ e }</span>
+				}
+			</div>
+			<div class="field">
+				<label for="c-scopes">{ i18n.T(ctx, "OAuth: escopos (separados por vírgula)") }</label>
+				<input class="input mono" id="c-scopes" name="scopes" value={ vm.Scopes } autocomplete="off"/>
+			</div>
+			<div class="field">
+				<label for="c-client">{ i18n.T(ctx, "OAuth: client_id (só se o servidor não registra clientes)") }</label>
+				<input class="input mono" id="c-client" name="client_id" value={ vm.ClientID } autocomplete="off"/>
+			</div>
+		</div>
+		<div class="actions">
+			<a class="btn" href={ templ.SafeURL(vm.CancelHref) }>{ i18n.T(ctx, "Cancelar") }</a>
+			<button class="btn primary" type="submit">{ i18n.T(ctx, "Testar e descobrir ferramentas") }</button>
+		</div>
+	</form>
+}
+
+templ connectStateView(vm ConnectVM) {
+	if vm.Error != "" {
+		@Alert("danger", vm.Error)
+	}
+	if vm.ConsentHref != "" {
+		<section class="card pad" aria-labelledby="c-consent">
+			<h2 id="c-consent">{ i18n.T(ctx, "Passo 2 de 5: autorizar o servidor") }</h2>
+			<p class="muted">{ i18n.T(ctx, "O servidor pede o seu consentimento no navegador. Sem ele não há descoberta de ferramentas.") }</p>
+			<form method="post" action={ templ.SafeURL(vm.ConsentHref) }>
+				<button class="btn primary" type="submit">{ i18n.T(ctx, "Autorizar no navegador") }</button>
+			</form>
+			@connectDiscardForm(vm)
+		</section>
+	} else if vm.CatalogErr != "" {
+		<section class="card pad" aria-labelledby="c-fail">
+			<h2 id="c-fail">{ i18n.T(ctx, "Passo 2 de 5: a descoberta falhou") }</h2>
+			<div class="err">{ vm.CatalogErr }</div>
+			<p class="muted">{ i18n.T(ctx, "Nada foi liberado. Tente de novo quando o servidor responder, ou descarte o rascunho: a integração criada aqui é apagada.") }</p>
+			<div class="actions">
+				<form method="post" action={ templ.SafeURL(vm.DiscoverHref) }>
+					<button class="btn primary" type="submit">{ i18n.T(ctx, "Tentar de novo") }</button>
+				</form>
+				@connectDiscardForm(vm)
+			</div>
+		</section>
+	} else {
+		@connectToolsCard(vm)
+		if vm.CanComplete {
+			@connectChoiceForm(vm)
+			if vm.Preview != nil {
+				@connectPreviewCard(vm)
+			}
+		}
+	}
+}
+
+templ connectDiscardForm(vm ConnectVM) {
+	if vm.PersonasLinked == 0 {
+		<form method="post" action={ templ.SafeURL(vm.DiscardHref) }>
+			<button class="btn danger" type="submit">{ i18n.T(ctx, "Descartar rascunho") }</button>
+		</form>
+	}
+}
+
+templ connectToolsCard(vm ConnectVM) {
+	<section class="card pad" aria-labelledby="c-tools">
+		<h2 id="c-tools">{ i18n.T(ctx, "Passo 2 de 5: ferramentas do servidor") }</h2>
+		if vm.Quarantined > 0 {
+			<p class="muted">{ i18n.T(ctx, "Escrita e destrutiva entram em quarentena: só saem quando o modelo escolhido as permite.") }</p>
+		}
+		if len(vm.Tools) == 0 {
+			<p class="muted">{ i18n.T(ctx, "O servidor não expôs nenhuma ferramenta.") }</p>
+		} else {
+			<div class="table-wrap">
+				<table class="table">
+					<thead>
+						<tr>
+							<th>{ i18n.T(ctx, "Ferramenta") }</th>
+							<th>{ i18n.T(ctx, "Risco") }</th>
+							<th>{ i18n.T(ctx, "Situação") }</th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, t := range vm.Tools {
+							<tr>
+								<td class="ttl"><span class="mono">{ t.Name }</span>
+									if t.Title != "" {
+										<div class="note">{ t.Title }</div>
+									}
+								</td>
+								<td>@BadgeEl(t.Risk)</td>
+								<td>
+									if t.Quarantined {
+										@BadgeEl(Badge{Label: i18n.T(ctx, "quarentena"), Class: "warn"})
+									} else {
+										@BadgeEl(Badge{Label: i18n.T(ctx, "liberada na descoberta"), Class: "done"})
+									}
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+	</section>
+}
+
+// connectChoiceForm: passos 3 e 4 num formulário GET, que mostra o passo 5 sem gravar nada. Nada vem marcado.
+templ connectChoiceForm(vm ConnectVM) {
+	<form class="card pad" method="get" action={ templ.SafeURL(vm.PersonasURL) } aria-labelledby="c-choice">
+		<h2 id="c-choice">{ i18n.T(ctx, "Passo 3 de 5: quem usa") }</h2>
+		if len(vm.Personas) == 0 {
+			<p class="muted">{ i18n.T(ctx, "A empresa não tem personas. Crie uma antes de conectar ferramentas.") }</p>
+		} else {
+			<fieldset class="field">
+				<legend>{ i18n.T(ctx, "Escolha as personas (nenhuma vem marcada)") }</legend>
+				for _, p := range vm.Personas {
+					<label><input type="checkbox" name="personas" value={ p.ID } checked?={ p.Checked }/> { p.Name }</label>
+				}
+			</fieldset>
+		}
+		<h2>{ i18n.T(ctx, "Passo 4 de 5: modelo de acesso") }</h2>
+		<fieldset class="field">
+			<legend>{ i18n.T(ctx, "Escolha um modelo (nenhum vem marcado)") }</legend>
+			for _, t := range vm.Templates {
+				<label class="card pad">
+					<input type="radio" name="template" value={ t.ID } checked?={ t.Checked }/>
+					<strong>{ t.Name }</strong>
+					if t.Suggested {
+						@BadgeEl(Badge{Label: i18n.T(ctx, "sugerido"), Class: "soft"})
+					}
+					<div class="note">{ t.Description }</div>
+					<div class="note">{ i18n.T(ctx, "leitura") }: @BadgeEl(t.Read) · { i18n.T(ctx, "escrita") }: @BadgeEl(t.Write) · { i18n.T(ctx, "destrutiva") }: @BadgeEl(t.Destructive) </div>
+				</label>
+			}
+		</fieldset>
+		<p class="note">
+			{ i18n.T(ctx, "Quer outra regra? O modelo Personalizado é o editor de perfil de ferramentas.") }
+			<a href={ templ.SafeURL(vm.NewProfileHref) }>{ i18n.T(ctx, "Abrir o editor de perfil") }</a>
+		</p>
+		<div class="actions">
+			<button class="btn" type="submit">{ i18n.T(ctx, "Ver o que cada persona poderá fazer") }</button>
+		</div>
+	</form>
+}
+
+templ connectPreviewCard(vm ConnectVM) {
+	<section class="card pad" aria-labelledby="c-preview">
+		<h2 id="c-preview">{ i18n.T(ctx, "Passo 5 de 5: conferir") }</h2>
+		<p class="muted">{ i18n.T(ctx, "Depois de concluir, cada persona vê e chama exatamente as ferramentas abaixo.") }</p>
+		for _, p := range vm.Preview.Personas {
+			<h3>{ p.Name }</h3>
+			<div class="table-wrap">
+				<table class="table">
+					<thead>
+						<tr>
+							<th>{ i18n.T(ctx, "Ferramenta") }</th>
+							<th>{ i18n.T(ctx, "Risco") }</th>
+							<th>{ i18n.T(ctx, "Modo do modelo") }</th>
+							<th>{ i18n.T(ctx, "A persona chama?") }</th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, t := range p.Tools {
+							<tr>
+								<td class="mono">{ t.Name }
+									if t.Note != "" {
+										<div class="note">{ t.Note }</div>
+									}
+								</td>
+								<td>@BadgeEl(t.Risk)</td>
+								<td>@BadgeEl(t.Mode)</td>
+								<td>@BadgeEl(t.Callable)</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+		if len(vm.Preview.Released) > 0 {
+			<p class="muted">{ i18n.T(ctx, "Saem da quarentena na conclusão:") } <span class="mono">{ connectJoinNames(vm.Preview.Released) }</span></p>
+		}
+		<form method="post" action={ templ.SafeURL(vm.CompleteHref) }>
+			<input type="hidden" name="template" value={ vm.Preview.Template }/>
+			for _, p := range vm.Personas {
+				if p.Checked {
+					<input type="hidden" name="personas" value={ p.ID }/>
+				}
+			}
+			<div class="actions">
+				<button class="btn primary" type="submit">{ i18n.T(ctx, "Concluir e liberar para as personas escolhidas") }</button>
+			</div>
+		</form>
+	</section>
+}

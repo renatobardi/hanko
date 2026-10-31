@@ -39,6 +39,7 @@ var integrationNotices = map[string]string{
 	"desligada": i18n.N("Integração desligada: não entra nas execuções nem recebe eventos até ser ligada de novo."),
 	"apagada":   i18n.N("Integração apagada."),
 	"persona":   i18n.N("Personas atualizadas."),
+	"conectada": i18n.N("Ferramenta conectada: as personas escolhidas já podem usá-la, com o modelo escolhido."),
 }
 
 // labelFor traduz o nome de um evento de webhook.
@@ -113,8 +114,9 @@ func (s *server) handleIntegrations(w http.ResponseWriter, r *http.Request, co d
 	}
 	base := "/c/" + co.Slug
 	vm := views.IntegrationsVM{NewMCPHref: base + "/integracoes/nova?tipo=mcp", NewWebhookHref: base + "/integracoes/nova?tipo=webhook",
-		Notice:   i18n.T(ctx, integrationNotices[r.URL.Query().Get("ok")]),
-		Subtitle: i18n.T(ctx, "Serviços externos conectados à empresa: servidores MCP para as execuções e webhooks de saída para os seus sistemas.")}
+		ConnectHref: base + "/conectar",
+		Notice:      i18n.T(ctx, integrationNotices[r.URL.Query().Get("ok")]),
+		Subtitle:    i18n.T(ctx, "Serviços externos conectados à empresa: servidores MCP para as execuções e webhooks de saída para os seus sistemas.")}
 	for _, i := range list {
 		row := s.integrationRow(ctx, base, i)
 		if i.Kind == domain.IntegrationWebhook {
