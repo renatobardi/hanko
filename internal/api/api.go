@@ -382,6 +382,7 @@ func (s *server) register(api huma.API) {
 	s.registerSkillStudio(api)
 	s.registerSkillForks(api)
 	s.registerIntegrations(api)
+	s.registerConnect(api) // assistente Conectar e modelos de acesso (ADR-0089)
 	s.registerSecrets(api)
 	s.registerVault(api)          // contrato do cofre (ADR-0068/0069/0070); 501 até cada fatia
 	s.registerExternalSource(api) // fonte externa (ADR-0075 a 0079): agentes e hosts; as leituras vêm em registerExternalRead
