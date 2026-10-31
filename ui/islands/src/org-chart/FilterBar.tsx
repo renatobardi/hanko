@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import type { T } from "../shared/island";
 import type { OrgFilter, TagInfo } from "./filter";
 
@@ -15,12 +16,32 @@ const toggle = <V,>(list: readonly V[], v: V): V[] => (list.includes(v) ? list.f
 
 /** Filtros do organograma (ADR-0087 item 7): tags (OU ou E), sem tag, arquivadas, níveis, profundidade e modo. */
 export function FilterBar({ tags, filter, onChange, levels, tagsHref, t }: Readonly<FilterBarProps>) {
+  const root = useRef<HTMLFieldSetElement>(null);
+  // Os menus de tags e de níveis são <details>: o navegador só os fecha no clique no próprio título. Fecha também ao
+  // clicar fora, ao abrir o outro e no Esc. A escolha de uma tag não fecha o menu, porque o filtro aceita várias.
+  useEffect(() => {
+    const closeOthers = (keep: Element | null) => {
+      root.current?.querySelectorAll("details[open]").forEach((d) => {
+        if (d !== keep) d.removeAttribute("open");
+      });
+    };
+    const onDown = (e: Event) => closeOthers((e.target as Element | null)?.closest?.("details") ?? null);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeOthers(null);
+    };
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, []);
   const set = (patch: Partial<OrgFilter>) => onChange({ ...filter, ...patch });
   const listed = tags.filter((tg) => filter.archived || !tg.archived);
   const levelList = Array.from({ length: Math.max(levels, 1) }, (_, i) => i + 1);
   const tagCount = filter.tags.length + (filter.untagged ? 1 : 0);
   return (
-    <fieldset className="org-filters">
+    <fieldset className="org-filters" ref={root}>
       <legend className="sr-only">{t("org.filter.label")}</legend>
       <details>
         <summary className="btn sm outline">{tagCount > 0 ? t("org.filter.tags.n", { n: tagCount }) : t("org.filter.tags")}</summary>
