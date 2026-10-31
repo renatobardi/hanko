@@ -35,7 +35,7 @@ func dayOf(t time.Time) time.Time {
 // addInitialMonthlyValue grava a linha de nascimento da assinatura: o valor dela, com início no dia da criação.
 func addInitialMonthlyValue(t *txc, companyID, subID domain.ID, monthly float64) error {
 	_, err := t.tx.Exec(t.ctx, `INSERT INTO subscription_monthly_history (company_id, subscription_id, monthly_usd, starts_on, recorded_at, origin, actor_type)
-		VALUES ($1, $2, $3, $4, $5, 'created', 'system')`, companyID, subID, monthly, dayOf(t.now), t.now)
+		VALUES ($1, $2, $3, $4, clock_timestamp(), 'created', 'system')`, companyID, subID, monthly, dayOf(t.now))
 	if err != nil {
 		return fmt.Errorf("monthly history: %w", err)
 	}
@@ -50,7 +50,7 @@ func addMonthlyValueRow(t *txc, actor domain.Actor, companyID, subID domain.ID, 
 		actorType, actorID = "human", actor.ID
 	}
 	if _, err := t.tx.Exec(t.ctx, `INSERT INTO subscription_monthly_history (company_id, subscription_id, monthly_usd, starts_on, recorded_at, origin, actor_type, actor_id)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`, companyID, subID, monthly, dayOf(startsOn), t.now, origin, actorType, actorID); err != nil {
+		VALUES ($1, $2, $3, $4, clock_timestamp(), $5, $6, $7)`, companyID, subID, monthly, dayOf(startsOn), origin, actorType, actorID); err != nil {
 		return fmt.Errorf("monthly history: %w", err)
 	}
 	if _, err := t.tx.Exec(t.ctx, `UPDATE subscriptions SET updated_at = $3, monthly_usd = (

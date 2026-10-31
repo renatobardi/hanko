@@ -123,14 +123,16 @@ func TestPriceCheckRules(t *testing.T) {
 	}
 
 	// travado: as fontes concordam num valor diferente e o preço fica
-	if _, err := e.svc.Pool.Exec(ctx, `UPDATE model_prices SET locked = true WHERE model = 'claude-opus-5-5'`); err != nil {
+	if _, err := e.svc.Pool.Exec(ctx, `INSERT INTO model_prices (id, model, input_per_mtok, output_per_mtok, effective_at, origin, locked)
+		SELECT gen_random_uuid(), model, input_per_mtok, output_per_mtok, effective_at + interval '1 millisecond', 'config', true
+		FROM model_prices WHERE model = 'claude-opus-5-5' ORDER BY effective_at DESC LIMIT 1`); err != nil {
 		t.Fatal(err)
 	}
 	src.set([2]float64{30, 120}, [2]float64{30, 120}, false)
 	if sum, _ = e.svc.RunPriceCheck(ctx, "daily"); status(sum) != "locked_differs" {
 		t.Errorf("preço travado: %q, quer locked_differs", status(sum))
 	}
-	if n, in, locked := exact(); n != 2 || in != 20 || !locked {
+	if n, in, locked := exact(); n != 3 || in != 20 || !locked {
 		t.Errorf("a fonte nunca troca o preço travado: %d linhas, entrada %v, travado %v", n, in, locked)
 	}
 

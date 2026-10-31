@@ -383,6 +383,9 @@ func (s *Service) ExternalUsage(ctx context.Context, companyID domain.ID, since,
 	for _, k := range order {
 		out = append(out, *merged[k])
 	}
+	if len(dims) == 0 && len(out) == 0 {
+		out = append(out, ExternalUsageRowView{}) // sem agrupamento a soma é uma linha, mesmo vazia
+	}
 	return out, nil
 }
 
