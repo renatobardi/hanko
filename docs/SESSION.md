@@ -1,13 +1,12 @@
-# Gerador de nome (#125, ADR-0084) · sessão `feat-125-gerador-de-nome`
-Data: 2026-10-30
+# Release v0.8.0 · sessão `estudo-issues`
+Data: 2026-10-31
 
 ## Feito
-- `origin/main` (908ff9a, #146) incorporada por merge, sem conflito. Commit de merge com sign-off.
-- `make openapi`, `make generate` e `make islands` rodados depois do merge: nenhum arquivo gerado mudou.
-- `go build ./...` e `go test ./internal/domain ./internal/i18n ./internal/ui` passam.
+- `CHANGELOG.md`: seção `[0.8.0]` montada com `scripts/release-notes.sh cut 0.8.0` (24 fragmentos de `changelog.d/`, agora removidos).
+- Entram: cofre na tela (campo arquivo com histórico, delegação, env da persona), tags de persona, contrato da v0.8 e o back-end da fonte externa (ingestão, classificação, gerador de nome).
 
 ## Travado
-- Nada local. O CI do #160 precisa rodar de novo no head novo.
+- Nada. Tag `v0.8.0` e deploy no `hanko-prd` são passos do Bardi (`docs/RELEASING.md`).
 
 ## Próximo passo
-- Confirmar CI e SonarCloud no head novo do #160. O merge é do dispatcher e do Bardi.
+- Bardi: merge deste PR, tag assinada `v0.8.0`, deploy; depois as demos `qa` da #117 e da #125 (a da #125 ainda depende de conversa externa, emparelhamento com histórico e telas).
