@@ -11,5 +11,7 @@ Data: 2026-10-30
 - Critério `qa` (d) da #117 (demo em produção): fica com o Bardi. Por isso o PR segue `Refs #117`.
 - Os testes com banco rodaram só localmente (Postgres 18.6 arm64); o CI roda com Postgres 17.
 
+- `origin/main` (ecd6ef5, #159) incorporada sem conflito; nenhum arquivo gerado mudou.
+
 ## Próximo passo
 - Reauditar o head do PR #146 e confirmar CI e Sonar nesse head. O merge é do Bardi.
