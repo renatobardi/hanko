@@ -1,0 +1,4 @@
+### Deploy: imagem construída fora do servidor
+
+- `deploy/oute-server/deploy-prd.sh --build-local` constrói a imagem na máquina de quem roda o deploy, para a arquitetura do servidor, e a envia ao LXC `hanko-prd` com `docker save | ssh | docker load`; o servidor sobe com `docker compose up -d --no-build` e não compila. A construção e o envio rodam antes do backup e da troca dos containers, então uma falha deixa a produção como estava. Sem a opção, nada muda.
+- English summary: `deploy/oute-server/deploy-prd.sh --build-local` builds the image on the machine running the deploy, for the server's architecture, and sends it to the `hanko-prd` LXC with `docker save | ssh | docker load`; the server starts it with `docker compose up -d --no-build` and never compiles. Build and transfer run before the backup and the container swap, so a failure leaves production untouched. Without the flag nothing changes.
