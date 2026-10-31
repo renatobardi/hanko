@@ -52,6 +52,9 @@ func loadPriceBook(ctx context.Context, t *txc) (*priceBook, error) {
 		if err := rows.Scan(&p.id, &model, &p.input, &p.output, &p.cacheRead, &p.cacheCreation, &p.from); err != nil {
 			return nil, fmt.Errorf("ingest: ler a tabela de preços: %w", err)
 		}
+		if model == "" {
+			continue // o preço padrão das runs do Hanko (modelo vazio) casaria com qualquer prefixo: modelo desconhecido é sem preço (ADR-0082 item 3)
+		}
 		b.by[model] = append(b.by[model], p)
 	}
 	for k := range b.by {
