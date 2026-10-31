@@ -159,6 +159,55 @@ Na UI: *Fluxos* → **Resumo diário** → **Rodar agora**; o disparo aparece co
 
 ---
 
+## v0.8 — Fonte externa: um host manda OTLP e a conversa aparece (#125)
+
+**Duração alvo:** 3 min · **Pré-requisitos:** cenário rápido acima (servidor local, empresa `demo`, `HANKO_TOKEN` do dono). **Não use o `hanko-prd`:** lá a ingestão está desligada (`ingestão desligada (sem HANKO_INGEST_ADDR)` no log de subida), e ligá-la em produção exige o vhost de tailnet do repo `lab` (ADR-0076 item 2).
+
+> Este roteiro foi escrito lendo o código (`internal/service/ingest_test.go`, `internal/ingest/rows.go`, `internal/api/ingest_keys.go`); **não foi executado de ponta a ponta**. Se um passo falhar, anote o número do passo e a mensagem.
+
+**Comandos**
+
+```bash
+# 1. suba o servidor COM o listener de ingestão (endereço próprio, nunca 0.0.0.0 nem o mesmo do HANKO_ADDR)
+export HANKO_INGEST_ADDR=127.0.0.1:7421
+hanko serve &
+
+# 2. uma chave de ingestão para o host (o token aparece uma vez só)
+export HANKO_URL=http://127.0.0.1:7420
+INGEST_TOKEN=$(curl -s -X POST "$HANKO_URL/api/v1/companies/demo/ingest-keys" \
+  -H "Authorization: Bearer $HANKO_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"name":"oute-server"}' | jq -r '.. | .token? // empty' | head -1)
+
+# 3. um fato: uma chamada ao modelo do Claude Code, com sessão, tarefa e repositório (OTLP em JSON, rota de replay)
+NOW=$(python3 -c 'import time; print(time.time_ns())')
+cat > /tmp/fato.json <<JSON
+{"resourceSpans":[{"resource":{"attributes":[
+  {"key":"host.name","value":{"stringValue":"oute-server"}},
+  {"key":"oute.agent","value":{"stringValue":"claude"}}]},
+ "scopeSpans":[{"spans":[{"traceId":"aa","spanId":"demo-1","name":"claude_code.llm_request",
+  "startTimeUnixNano":"$NOW","endTimeUnixNano":"$((NOW + 2000000000))","attributes":[
+   {"key":"session.id","value":{"stringValue":"demo-conversa-1"}},
+   {"key":"oute.task.id","value":{"stringValue":"demo-task-1"}},
+   {"key":"oute.task.repo","value":{"stringValue":"demo-repo"}},
+   {"key":"gen_ai.response.model","value":{"stringValue":"claude-opus-5-5"}},
+   {"key":"gen_ai.usage.input_tokens","value":{"intValue":"1000"}},
+   {"key":"gen_ai.usage.output_tokens","value":{"intValue":"200"}}]}]}]}]}
+JSON
+curl -s -o /dev/null -w 'ingestão: http=%{http_code}\n' -X POST http://127.0.0.1:7421/v1/replay/traces \
+  -H "Authorization: Bearer $INGEST_TOKEN" -H 'Content-Type: application/json' --data @/tmp/fato.json
+
+# 4. a conversa, o host e o agente aparecem (chave do dono, escopo completo)
+for r in external-conversations external-hosts external-agents repo-pairings; do
+  echo "== $r"; curl -s "$HANKO_URL/api/v1/companies/demo/$r" -H "Authorization: Bearer $HANKO_TOKEN" | jq .
+done
+```
+
+**Passou quando** (critério `qa` da #125): a ingestão responde 2xx, e `external-conversations` mostra a conversa `demo-conversa-1` **com nome gerado, classe e repositório** (`demo-repo`), ligada ao host `oute-server`. Reenviar o mesmo fato não duplica a conversa (a dedupe é igual à do agent-studio).
+
+**Limites conhecidos hoje:** as telas da fonte externa ainda não existem (fatia 4, #128), por isso a leitura é pela API; `repo-pairings` pode responder 501 enquanto a rota não for ligada (corpo do PR #165). Troque o `host.name`, o `session.id` e o `spanId` para cada repetição.
+
+---
+
 ## Tags e release (só o dono cria)
 
 Nada neste repositório cria ou empurra tags. Depois de cada demo aprovada, escolha o commit em que o milestone passou (`git log --oneline`; se tudo já está na `main`, use o `HEAD` dela) e crie a tag **anotada** (não assinada; se quiser assinar, `-s` no lugar de `-a`):
