@@ -72,7 +72,7 @@ func TestExternalReads(t *testing.T) {
 	}
 
 	usage, err := e.svc.ExternalUsage(ctx, e.co.ID, time.Time{}, time.Time{}, []string{"model"}, nil)
-	if err != nil || len(usage) != 1 || usage[0].Calls != 2 || usage[0].Model != "claude-opus-5-5" || usage[0].CostRealUSD != 0.25 || usage[0].UnpricedCalls != 1 {
+	if err != nil || len(usage) != 1 || usage[0].Calls != 2 || usage[0].Model != "claude-opus-5-5" || usage[0].CostRealUSD != 0.25 || usage[0].UnpricedCalls != 0 || usage[0].CostListUSD < 0.0046 || usage[0].CostListUSD > 0.0047 {
 		t.Fatalf("ExternalUsage por modelo = %+v (%v)", usage, err)
 	}
 	if total, err := e.svc.ExternalUsage(ctx, e.co.ID, time.Time{}, time.Time{}, nil, nil); err != nil || len(total) != 1 || total[0].Calls != 2 {
@@ -93,7 +93,7 @@ func TestExternalReads(t *testing.T) {
 	if _, err := e.svc.Pool.Exec(ctx, `UPDATE external_session SET round = 'swarm-1' WHERE company_id = $1`, e.co.ID); err != nil {
 		t.Fatal(err)
 	}
-	if got, err := e.svc.ExternalUsage(ctx, e.co.ID, time.Time{}, time.Time{}, []string{"agent"}, &roundID); err != nil || len(got) != 1 || got[0].Calls != 2 || got[0].UnpricedCalls != 1 {
+	if got, err := e.svc.ExternalUsage(ctx, e.co.ID, time.Time{}, time.Time{}, []string{"agent"}, &roundID); err != nil || len(got) != 1 || got[0].Calls != 2 || got[0].UnpricedCalls != 0 {
 		t.Errorf("rodada com a sessão ligada = %+v (%v), quer 2 chamadas", got, err)
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -297,10 +298,10 @@ type dailyKey struct {
 
 type tally struct {
 	calls, errors, input, output, cacheRead, cacheCreate, unpriced int64
-	costReal                                                       float64
+	costReal, costList                                             float64
 }
 
-func (a *tally) add(r ingest.SpanRow, isErr bool, class domain.CallCostClass, real float64) {
+func (a *tally) add(r ingest.SpanRow, isErr bool, c classifiedCost) {
 	a.calls++
 	if isErr {
 		a.errors++
@@ -309,10 +310,15 @@ func (a *tally) add(r ingest.SpanRow, isErr bool, class domain.CallCostClass, re
 	a.output += int64Of(r.OutputTokens)
 	a.cacheRead += int64Of(r.CacheReadTokens)
 	a.cacheCreate += int64Of(r.CacheCreationTokens)
-	if class == domain.CallCostUnpriced {
+	if c.class == domain.CallCostUnpriced {
 		a.unpriced++
 	}
-	a.costReal += real
+	if c.real != nil {
+		a.costReal += *c.real
+	}
+	if c.list != nil {
+		a.costList += *c.list
+	}
 }
 
 func int64Of(p *int64) int64 {
@@ -324,80 +330,83 @@ func int64Of(p *int64) int64 {
 
 const insertModelCallSQL = `INSERT INTO model_calls (company_id, dedupe_key, time_unix_nano, conversation_id, host_id, agent_id, workspace_id,
   role, model, subscription_key, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, duration_ns, is_error,
-  cost_class, cost_real_usd, origin)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, 'ingested')
+  cost_class, cost_real_usd, cost_list_usd, price_id, request_id, origin)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, 'ingested')
 ON CONFLICT DO NOTHING RETURNING dedupe_key`
 
-// recordModelCalls grava, em `model_calls`, as chamadas ao modelo do lote, e soma no `calls_daily` e na conversa só as que
-// entraram de novo (a chave `(empresa, dedupe_key)` recusa o reenvio). Chamada sem host ou sem agente não tem onde entrar:
-// o bruto a guarda, e a derivada a deixa de fora.
-func recordModelCalls(t *txc, companyID domain.ID, b ingest.Batch, convs map[string]domain.ID, ents *entityCache) error {
-	type pending struct {
-		row  ingest.SpanRow
-		args []any
-		day  dailyKey
-		conv *domain.ID
-		isEr bool
-		cls  domain.CallCostClass
-		real float64
+// pendingCall é uma chamada do lote pronta para gravar.
+type pendingCall struct {
+	row   ingest.SpanRow
+	conv  *domain.ID
+	day   dailyKey
+	isErr bool
+	cost  classifiedCost
+	args  []any
+}
+
+// requestIDOf é o `request_id` do span da chamada do Claude (a chave do log `api_request`); vazio nos outros spans.
+func requestIDOf(r ingest.SpanRow) string {
+	if textOf(r.Name) != claudeCallSpan {
+		return ""
 	}
-	var list []pending
-	roles := map[string]string{}
+	id, _ := jsonMap(r.Attributes)["request_id"].(string)
+	if len(id) > 200 {
+		return ""
+	}
+	return id
+}
+
+// modelCallSpansOf escolhe, no lote, os spans que são chamada ao modelo e têm onde entrar (host e agente válidos).
+func modelCallSpansOf(b ingest.Batch) []ingest.SpanRow {
+	var out []ingest.SpanRow
 	for _, r := range b.Spans {
 		agent := textOf(r.OuteAgent)
 		if !modelCallSpans[textOf(r.Name)] || agent == routerAgent {
 			continue
 		}
-		hostName, okH := entityText(textOf(r.HostName), maxEntityName)
-		agentName, okA := entityText(agent, maxEntityName)
-		if !okH || !okA {
+		if _, ok := entityText(textOf(r.HostName), maxEntityName); !ok {
 			continue
 		}
-		hostID, err := ents.host(t, hostName)
-		if err != nil {
-			return err
+		if _, ok := entityText(agent, maxEntityName); !ok {
+			continue
 		}
-		agentID, err := ents.agent(t, agentName)
-		if err != nil {
-			return err
-		}
-		repo, _ := entityText(textOf(r.OuteRepo), maxRepoKey)
-		wsID, err := ents.workspace(t, repo)
-		if err != nil {
-			return err
-		}
-		task := textOf(r.OuteTaskID)
-		role, seen := roles[task]
-		if !seen && task != "" {
-			if role, err = sessionRole(t, companyID, task); err != nil {
-				return err
-			}
-			roles[task] = role
-		}
-		var conv *domain.ID
-		if id, ok := convs[textOf(r.SessionID)]; ok {
-			conv = &id
-		}
-		sub, _ := entityText(textOf(r.OuteSubscription), maxSubscriptionKey)
-		model := textOf(r.Model)
-		cls, real := domain.CallCostUnpriced, 0.0
-		// na assinatura zai o custo que o Claude Code calcula para o glm-* não é real (ADR-0082 item 1)
-		if r.CostUSD != nil && sub != "zai" {
-			cls, real = domain.CallCostReal, *r.CostUSD
-		}
-		isErr := r.StatusCode != nil && *r.StatusCode == 2
-		var realArg any
-		if cls == domain.CallCostReal {
-			realArg = real
-		}
-		list = append(list, pending{row: r, conv: conv, isEr: isErr, cls: cls, real: real,
-			day: dailyKey{day: time.Unix(0, r.TimeUnixNano).UTC().Truncate(24 * time.Hour), host: hostID, agent: agentID, ws: wsID, model: model, subscript: sub},
-			args: []any{companyID, r.DedupeKey, r.TimeUnixNano, conv, hostID, agentID, wsID, string(callRole(r, role)), model, sub,
-				int64Of(r.InputTokens), int64Of(r.OutputTokens), int64Of(r.CacheReadTokens), int64Of(r.CacheCreationTokens), r.DurationNs, isErr,
-				string(cls), realArg}})
+		out = append(out, r)
 	}
-	if len(list) == 0 {
-		return nil
+	return out
+}
+
+// recordModelCalls grava, em `model_calls`, as chamadas ao modelo do lote com o custo já calculado, e soma no `calls_daily`
+// e na conversa só as que entraram de novo (a chave `(empresa, dedupe_key)` recusa o reenvio). Chamada sem host ou sem
+// agente não tem onde entrar: o bruto a guarda, e a derivada a deixa de fora.
+func recordModelCalls(t *txc, companyID domain.ID, b ingest.Batch, convs map[string]domain.ID, ents *entityCache) error {
+	spans := modelCallSpansOf(b)
+	if len(spans) == 0 {
+		return upgradeCostsFromLogs(t, companyID, b)
+	}
+	book, err := loadPriceBook(t.ctx, t)
+	if err != nil {
+		return err
+	}
+	var rids []string
+	minNs, maxNs := spans[0].TimeUnixNano, spans[0].TimeUnixNano
+	for _, r := range spans {
+		if id := requestIDOf(r); id != "" {
+			rids = append(rids, id)
+		}
+		minNs, maxNs = min(minNs, r.TimeUnixNano), max(maxNs, r.TimeUnixNano)
+	}
+	fromLogs, err := logCosts(t.ctx, t, companyID, rids, minNs, maxNs)
+	if err != nil {
+		return err
+	}
+	var list []pendingCall
+	roles := map[string]string{}
+	for _, r := range spans {
+		p, err := buildCall(t, companyID, r, convs, ents, book, fromLogs, roles)
+		if err != nil {
+			return err
+		}
+		list = append(list, p)
 	}
 	batch := &pgx.Batch{}
 	for _, p := range list {
@@ -419,33 +428,170 @@ func recordModelCalls(t *txc, companyID domain.ID, b ingest.Batch, convs map[str
 		if daily[p.day] == nil {
 			daily[p.day] = &tally{}
 		}
-		daily[p.day].add(p.row, p.isEr, p.cls, p.real)
+		daily[p.day].add(p.row, p.isErr, p.cost)
 		if p.conv != nil {
 			if perConv[*p.conv] == nil {
 				perConv[*p.conv] = &tally{}
 			}
-			perConv[*p.conv].add(p.row, p.isEr, p.cls, p.real)
+			perConv[*p.conv].add(p.row, p.isErr, p.cost)
 		}
 	}
 	if err := res.Close(); err != nil {
 		return fmt.Errorf("ingest: gravar as chamadas ao modelo: %w", err)
 	}
-	return addTallies(t, companyID, daily, perConv)
+	if err := addTallies(t, companyID, daily, perConv); err != nil {
+		return err
+	}
+	return upgradeCostsFromLogs(t, companyID, b)
+}
+
+func buildCall(t *txc, companyID domain.ID, r ingest.SpanRow, convs map[string]domain.ID, ents *entityCache, book *priceBook,
+	fromLogs map[string]float64, roles map[string]string) (pendingCall, error) {
+	hostName, _ := entityText(textOf(r.HostName), maxEntityName)
+	agentName, _ := entityText(textOf(r.OuteAgent), maxEntityName)
+	hostID, err := ents.host(t, hostName)
+	if err != nil {
+		return pendingCall{}, err
+	}
+	agentID, err := ents.agent(t, agentName)
+	if err != nil {
+		return pendingCall{}, err
+	}
+	repo, _ := entityText(textOf(r.OuteRepo), maxRepoKey)
+	wsID, err := ents.workspace(t, repo)
+	if err != nil {
+		return pendingCall{}, err
+	}
+	task := textOf(r.OuteTaskID)
+	role, seen := roles[task]
+	if !seen && task != "" {
+		if role, err = sessionRole(t, companyID, task); err != nil {
+			return pendingCall{}, err
+		}
+		roles[task] = role
+	}
+	var conv *domain.ID
+	if id, ok := convs[textOf(r.SessionID)]; ok {
+		conv = &id
+	}
+	sub, _ := entityText(textOf(r.OuteSubscription), maxSubscriptionKey)
+	model := textOf(r.Model)
+	reported := r.CostUSD
+	rid := requestIDOf(r)
+	if reported == nil && rid != "" {
+		if v, ok := fromLogs[rid]; ok {
+			reported = &v
+		}
+	}
+	price, hasPrice := book.lookup(model, r.TimeUnixNano)
+	cost := classifyCost(reported, sub, agentName, price, hasPrice, int64Of(r.InputTokens), int64Of(r.OutputTokens),
+		int64Of(r.CacheReadTokens), int64Of(r.CacheCreationTokens))
+	isErr := r.StatusCode != nil && *r.StatusCode == 2
+	var ridArg any
+	if rid != "" {
+		ridArg = rid
+	}
+	return pendingCall{row: r, conv: conv, isErr: isErr, cost: cost,
+		day: dailyKey{day: time.Unix(0, r.TimeUnixNano).UTC().Truncate(24 * time.Hour), host: hostID, agent: agentID, ws: wsID, model: model, subscript: sub},
+		args: []any{companyID, r.DedupeKey, r.TimeUnixNano, conv, hostID, agentID, wsID, string(callRole(r, role)), model, sub,
+			int64Of(r.InputTokens), int64Of(r.OutputTokens), int64Of(r.CacheReadTokens), int64Of(r.CacheCreationTokens), r.DurationNs, isErr,
+			string(cost.class), cost.real, cost.list, cost.priceID, ridArg}}, nil
+}
+
+// upgradeCostsFromLogs promove a `real` a chamada gravada antes de o seu log `api_request` chegar: o span entrou como `listed`,
+// `estimated` ou `unpriced`, e o log traz o custo efetivo. O custo de lista não muda; o real soma no agregado e na conversa, e a
+// chamada que era `unpriced` sai da contagem. A `zai` não promove: o custo informado dela não é real (ADR-0082 item 1).
+func upgradeCostsFromLogs(t *txc, companyID domain.ID, b ingest.Batch) error {
+	costs := map[string]float64{}
+	for _, l := range b.Logs {
+		ev := textOf(l.EventName)
+		if ev != "api_request" && ev != "claude_code.api_request" {
+			continue
+		}
+		attrs := jsonMap(l.Attributes)
+		rid, _ := attrs["request_id"].(string)
+		raw := fmt.Sprint(attrs["cost_usd"])
+		v, err := strconv.ParseFloat(strings.TrimSpace(raw), 64)
+		if rid == "" || attrs["cost_usd"] == nil || err != nil || v < 0 {
+			continue
+		}
+		if cur, ok := costs[rid]; !ok || v > cur {
+			costs[rid] = v
+		}
+	}
+	for _, rid := range sortedTexts(costs) {
+		if err := upgradeOne(t, companyID, rid, costs[rid]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func upgradeOne(t *txc, companyID domain.ID, rid string, cost float64) error {
+	// `cost_list_usd IS NULL` é o que distingue a chamada que era `unpriced` (sem preço): o custo de lista não muda no UPDATE
+	rows, err := t.tx.Query(t.ctx, `UPDATE model_calls SET cost_class = 'real', cost_real_usd = $3
+		WHERE company_id = $1 AND request_id = $2 AND cost_class <> 'real' AND subscription_key <> $4
+		RETURNING conversation_id, host_id, agent_id, workspace_id, model, subscription_key, time_unix_nano, cost_list_usd IS NULL`,
+		companyID, rid, cost, zaiSubscription)
+	if err != nil {
+		return fmt.Errorf("ingest: promover a chamada ao custo real: %w", err)
+	}
+	type promoted struct {
+		conv    *domain.ID
+		key     dailyKey
+		noPrice bool
+	}
+	var done []promoted
+	for rows.Next() {
+		var p promoted
+		var host, agent, ws domain.ID
+		var model, sub string
+		var at int64
+		if err := rows.Scan(&p.conv, &host, &agent, &ws, &model, &sub, &at, &p.noPrice); err != nil {
+			rows.Close()
+			return fmt.Errorf("ingest: promover a chamada ao custo real: %w", err)
+		}
+		p.key = dailyKey{day: time.Unix(0, at).UTC().Truncate(24 * time.Hour), host: host, agent: agent, ws: ws, model: model, subscript: sub}
+		done = append(done, p)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for _, p := range done {
+		unpriced := int64(0)
+		if p.noPrice {
+			unpriced = 1
+		}
+		if _, err := t.tx.Exec(t.ctx, `UPDATE calls_daily SET cost_real_usd = cost_real_usd + $8, unpriced_calls = GREATEST(unpriced_calls - $9, 0)
+			WHERE company_id = $1 AND day = $2 AND host_id = $3 AND agent_id = $4 AND workspace_id = $5 AND model = $6 AND subscription_key = $7`,
+			companyID, p.key.day, p.key.host, p.key.agent, p.key.ws, p.key.model, p.key.subscript, cost, unpriced); err != nil {
+			return fmt.Errorf("ingest: ajustar o calls_daily: %w", err)
+		}
+		if p.conv != nil {
+			if _, err := t.tx.Exec(t.ctx, `UPDATE external_conversation SET cost_real_usd = cost_real_usd + $2, unpriced_calls = GREATEST(unpriced_calls - $3, 0), updated_at = $4
+				WHERE id = $1`, *p.conv, cost, unpriced, t.now); err != nil {
+				return fmt.Errorf("ingest: ajustar a conversa: %w", err)
+			}
+		}
+	}
+	return nil
 }
 
 const upsertDailySQL = `INSERT INTO calls_daily (company_id, day, host_id, agent_id, workspace_id, model, subscription_key, calls, errors,
-  input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, cost_real_usd, unpriced_calls)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+  input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, cost_real_usd, cost_list_usd, unpriced_calls)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 ON CONFLICT (company_id, day, host_id, agent_id, workspace_id, model, subscription_key) DO UPDATE SET
   calls = calls_daily.calls + EXCLUDED.calls, errors = calls_daily.errors + EXCLUDED.errors,
   input_tokens = calls_daily.input_tokens + EXCLUDED.input_tokens, output_tokens = calls_daily.output_tokens + EXCLUDED.output_tokens,
   cache_read_tokens = calls_daily.cache_read_tokens + EXCLUDED.cache_read_tokens,
   cache_creation_tokens = calls_daily.cache_creation_tokens + EXCLUDED.cache_creation_tokens,
-  cost_real_usd = calls_daily.cost_real_usd + EXCLUDED.cost_real_usd, unpriced_calls = calls_daily.unpriced_calls + EXCLUDED.unpriced_calls`
+  cost_real_usd = calls_daily.cost_real_usd + EXCLUDED.cost_real_usd, cost_list_usd = calls_daily.cost_list_usd + EXCLUDED.cost_list_usd,
+  unpriced_calls = calls_daily.unpriced_calls + EXCLUDED.unpriced_calls`
 
 const addConversationSQL = `UPDATE external_conversation SET calls = calls + $2, errors = errors + $3, input_tokens = input_tokens + $4,
   output_tokens = output_tokens + $5, cache_read_tokens = cache_read_tokens + $6, cache_creation_tokens = cache_creation_tokens + $7,
-  cost_real_usd = cost_real_usd + $8, unpriced_calls = unpriced_calls + $9, updated_at = $10 WHERE id = $1`
+  cost_real_usd = cost_real_usd + $8, cost_list_usd = cost_list_usd + $9, unpriced_calls = unpriced_calls + $10, updated_at = $11 WHERE id = $1`
 
 // refreshConversationSQL refaz o p95 da duração e o contexto (entrada + cache lido) da conversa, a partir das chamadas.
 const refreshConversationSQL = `UPDATE external_conversation c SET p95_ms = s.p95, context_avg = s.avg_ctx, context_max = s.max_ctx
@@ -458,14 +604,14 @@ WHERE c.id = s.conversation_id`
 func addTallies(t *txc, companyID domain.ID, daily map[dailyKey]*tally, perConv map[domain.ID]*tally) error {
 	for k, v := range daily {
 		if _, err := t.tx.Exec(t.ctx, upsertDailySQL, companyID, k.day, k.host, k.agent, k.ws, k.model, k.subscript, v.calls, v.errors,
-			v.input, v.output, v.cacheRead, v.cacheCreate, v.costReal, v.unpriced); err != nil {
+			v.input, v.output, v.cacheRead, v.cacheCreate, v.costReal, v.costList, v.unpriced); err != nil {
 			return fmt.Errorf("ingest: somar no calls_daily: %w", err)
 		}
 	}
 	ids := make([]domain.ID, 0, len(perConv))
 	for id, v := range perConv {
 		if _, err := t.tx.Exec(t.ctx, addConversationSQL, id, v.calls, v.errors, v.input, v.output, v.cacheRead, v.cacheCreate, v.costReal,
-			v.unpriced, t.now); err != nil {
+			v.costList, v.unpriced, t.now); err != nil {
 			return fmt.Errorf("ingest: somar na conversa: %w", err)
 		}
 		ids = append(ids, id)
