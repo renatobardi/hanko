@@ -205,6 +205,29 @@ describe("tags no organograma (ADR-0087)", () => {
     expect(persist).toHaveBeenLastCalledWith(expect.objectContaining({ maxDepth: 1 }));
   });
 
+  it("o menu de filtro de tags fecha ao clicar fora, no Esc e ao abrir o de níveis; escolher uma tag não fecha", () => {
+    render(<OrgChart nodes={tagged()} canEdit={false} apiBase="" msgs={{}} tags={tags} filter={{}} persist={vi.fn()} />);
+    const menus = Array.from(document.querySelectorAll<HTMLDetailsElement>(".org-filters details"));
+    expect(menus).toHaveLength(2);
+    const [tagMenu, levelMenu] = menus as [HTMLDetailsElement, HTMLDetailsElement];
+    const openMenu = (d: HTMLDetailsElement) => {
+      d.setAttribute("open", "");
+    };
+    openMenu(tagMenu);
+    fireEvent.click(within(tagMenu).getAllByRole("checkbox")[0]!);
+    expect(tagMenu.open).toBe(true);
+    fireEvent.pointerDown(document.body);
+    expect(tagMenu.open).toBe(false);
+    openMenu(tagMenu);
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(tagMenu.open).toBe(false);
+    openMenu(tagMenu);
+    openMenu(levelMenu);
+    fireEvent.pointerDown(levelMenu.querySelector("summary")!);
+    expect(tagMenu.open).toBe(false);
+    expect(levelMenu.open).toBe(true);
+  });
+
   it("o menu do nó aplica, tira e cria a tag na hora", async () => {
     const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) =>
       init?.method === "POST"
