@@ -252,7 +252,7 @@ func TestWriteTelemetryCreatesConversationAndCalls(t *testing.T) {
 	if !domain.ValidExternalConversationName(name) || session != "conv-1" {
 		t.Errorf("conversa = %q %q", name, session)
 	}
-	if calls != 2 || errs != 0 || input != 200 || cacheRead != 100 || costReal != 0.25 || unpriced != 1 {
+	if calls != 2 || errs != 0 || input != 200 || cacheRead != 100 || costReal != 0.25 || unpriced != 0 {
 		t.Errorf("contadores = calls %d errors %d input %d cache %d custo %v sem preço %d", calls, errs, input, cacheRead, costReal, unpriced)
 	}
 	if ctxMax == nil || *ctxMax != 150 || sessionID == nil {
@@ -262,7 +262,7 @@ func TestWriteTelemetryCreatesConversationAndCalls(t *testing.T) {
 	if err := e.svc.Pool.QueryRow(ctx, `SELECT string_agg(role || ':' || cost_class, ',' ORDER BY dedupe_key) FROM model_calls WHERE company_id = $1`, e.co.ID).Scan(&roles); err != nil {
 		t.Fatal(err)
 	}
-	if roles != "standalone:real,subagent:unpriced" {
+	if roles != "standalone:real,subagent:listed" { // a segunda, sem custo real, é de assinatura (agente claude) e tem preço de lista
 		t.Errorf("papel e classe de custo das chamadas = %q", roles)
 	}
 	var dailyCalls int64
