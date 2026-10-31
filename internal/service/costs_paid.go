@@ -30,6 +30,15 @@ type paidAllocation struct {
 	paid    float64
 	idle    float64
 	subs    []SubscriptionCost
+	// rates: USD pagos por USD de lista, de cada assinatura em cada dia que rateou (mensalidade do dia ÷ peso total do dia,
+	// runs e chamadas externas juntos; ADR-0082 item 5). O pago de uma chamada externa é a taxa × o custo de lista dela.
+	rates map[paidKey]float64
+}
+
+// paidKey é uma assinatura num dia (AAAA-MM-DD).
+type paidKey struct {
+	sub domain.ID
+	day string
 }
 
 func monthIndex(t time.Time) int { return t.Year()*12 + int(t.Month()) }
@@ -52,7 +61,7 @@ func (s *Service) allocatePaid(ctx context.Context, q *store.Queries, co store.C
 	if err != nil {
 		return nil, fmt.Errorf("list subscriptions: %w", err)
 	}
-	out := &paidAllocation{byGroup: map[string]map[string]float64{}, idleDay: map[string]float64{}}
+	out := &paidAllocation{byGroup: map[string]map[string]float64{}, idleDay: map[string]float64{}, rates: map[paidKey]float64{}}
 	for _, g := range []string{GroupDay, GroupPersona, GroupProject, GroupModel, GroupHarness} {
 		out.byGroup[g] = map[string]float64{}
 	}
@@ -87,6 +96,14 @@ func (s *Service) allocatePaid(ctx context.Context, q *store.Queries, co store.C
 			byDay[k] = append(byDay[k], r)
 		}
 	}
+	history, err := s.loadMonthlyHistory(ctx, co.ID)
+	if err != nil {
+		return nil, err
+	}
+	external, err := s.externalWeights(ctx, co.ID, subs, from, to)
+	if err != nil {
+		return nil, err
+	}
 	today := s.Now().In(loc)
 	today = time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, loc)
 	for _, sub := range subs {
@@ -112,8 +129,8 @@ func (s *Service) allocatePaid(ctx context.Context, q *store.Queries, co store.C
 			if !accrues(monthIndex(d)) {
 				continue
 			}
-			daily := sub.MonthlyUsd / float64(daysInMonth(d))
-			total := 0.0
+			daily := history.valueOn(sub.ID, d.Format("2006-01-02"), sub.MonthlyUsd) / float64(daysInMonth(d))
+			total := external[paidKey{sub.ID, d.Format("2006-01-02")}]
 			for _, r := range rs {
 				total += r.Weight
 			}
@@ -123,6 +140,7 @@ func (s *Service) allocatePaid(ctx context.Context, q *store.Queries, co store.C
 				sc.IdleUSD += daily
 				continue
 			}
+			out.rates[paidKey{sub.ID, d.Format("2006-01-02")}] = daily / total
 			for _, r := range rs {
 				share := daily * r.Weight / total
 				out.byGroup[GroupDay][r.Day] += share

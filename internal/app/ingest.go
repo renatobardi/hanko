@@ -12,6 +12,8 @@ import (
 
 	"github.com/renatobardi/hanko/internal/config"
 	"github.com/renatobardi/hanko/internal/ingest"
+	"github.com/renatobardi/hanko/internal/netguard"
+	"github.com/renatobardi/hanko/internal/pricecheck"
 	"github.com/renatobardi/hanko/internal/service"
 )
 
@@ -52,6 +54,9 @@ func startIngest(ctx context.Context, cfg config.Config, svc *service.Service, l
 		}
 	}()
 	go partitionLoop(ctx, svc, logger)
+	// a conferência diária de preços (ADR-0082 item 7) roda onde há ingestão: é a única saída à internet do módulo, pelo netguard
+	svc.PriceCheck = service.PriceCheckConfig{Client: pricecheck.NoRedirect(netguard.NewClient(netguard.Policy{}, pricecheck.OperationLimit))}
+	go priceCheckLoop(ctx, svc, logger)
 	logger.Info("ingestão no ar", "addr", ln.Addr().String())
 	return wg.Wait, nil
 }
@@ -73,6 +78,35 @@ func partitionLoop(ctx context.Context, svc *service.Service, logger *slog.Logge
 			return
 		case <-t.C:
 			ensure()
+		}
+	}
+}
+
+// priceCheckEvery é de quanto em quanto tempo a conferência de preços roda (todo dia).
+const priceCheckEvery = 24 * time.Hour
+
+// priceCheckLoop confere os preços na subida e depois todo dia. Falha só registra: o preço vigente continua.
+func priceCheckLoop(ctx context.Context, svc *service.Service, logger *slog.Logger) {
+	run := func(reason string) {
+		sum, err := svc.RunPriceCheck(ctx, reason)
+		switch {
+		case err != nil && ctx.Err() == nil:
+			logger.Error("preços: a conferência falhou, o preço vigente continua", "err", err)
+		case len(sum.Failures) > 0:
+			logger.Warn("preços: uma fonte falhou, o preço vigente continua", "failures", sum.Failures)
+		case err == nil:
+			logger.Info("preços: conferência feita", "changes", sum.Changes)
+		}
+	}
+	run("boot")
+	t := time.NewTicker(priceCheckEvery)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			run("daily")
 		}
 	}
 }

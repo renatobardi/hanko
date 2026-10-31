@@ -161,6 +161,13 @@ type backend interface {
 	CreateSubscription(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.CreateSubscriptionInput) (domain.Subscription, error)
 	ListSubscriptions(ctx context.Context, companyID domain.ID) ([]service.SubscriptionStatus, error)
 	CreateIngestKey(ctx context.Context, actor domain.Actor, companyID domain.ID, name string) (string, domain.IngestKey, error)
+	ListSubscriptionMonthlyHistory(ctx context.Context, companyID domain.ID, ref string) ([]service.SubscriptionMonthlyValueView, error)
+	AddSubscriptionMonthlyValue(ctx context.Context, actor domain.Actor, companyID domain.ID, ref string, monthly float64, startsOn time.Time) (service.SubscriptionMonthlyValueView, error)
+	ListAlertSettings(ctx context.Context, companyID domain.ID) ([]service.AlertSettingView, error)
+	PutAlertSetting(ctx context.Context, actor domain.Actor, companyID domain.ID, key string, value float64) (service.AlertSettingView, error)
+	ResetAlertSetting(ctx context.Context, actor domain.Actor, companyID domain.ID, key string) error
+	ListPriceChecks(ctx context.Context, companyID domain.ID, limit, offset int) ([]service.PriceCheckView, error)
+	GetPriceCheck(ctx context.Context, companyID, id domain.ID) (service.PriceCheckView, error)
 	ListRepoPairings(ctx context.Context, companyID domain.ID, limit, offset int) ([]service.RepoPairingView, error)
 	UpdateRepoPairing(ctx context.Context, actor domain.Actor, companyID, id, workspaceID domain.ID) (service.RepoPairingView, error)
 	GetExternalConversationContent(ctx context.Context, actor domain.Actor, companyID, conversationID domain.ID) ([]service.ConversationContentItem, error)
@@ -379,10 +386,12 @@ func (s *server) register(api huma.API) {
 	s.registerVault(api)          // contrato do cofre (ADR-0068/0069/0070); 501 até cada fatia
 	s.registerExternalSource(api) // fonte externa (ADR-0075 a 0079): agentes e hosts; as leituras vêm em registerExternalRead
 	s.registerExternalRounds(api) // contrato da rodada e da aprovação externas (ADR-0080 e 0081); 501 até a fatia 3
-	s.registerExternalCost(api)   // contrato do custo elevado e dos alertas externos (ADR-0082/0083); 501 até a fatia 2
 	s.registerIngestKeys(api)
 	s.registerExternalRead(api)
 	s.registerExternalPairing(api)
+	s.registerSubscriptionHistory(api)
+	s.registerAlertSettings(api)
+	s.registerPriceChecks(api)
 	s.registerPersonaTags(api) // tags de persona e recorte do organograma (ADR-0087)
 	s.registerDecision(api)
 	s.registerProbe(api)

@@ -25,6 +25,7 @@ type createSubscriptionIn struct {
 		WeeklyLimitUSD *float64 `json:"weekly_limit_usd,omitempty" exclusiveMinimum:"0" doc:"Teto semanal de uso estimado (custo de lista), em dólares; ausente = sem trava."`
 		WeeklyGuardPct int      `json:"weekly_guard_pct,omitempty" minimum:"1" maximum:"100" doc:"Trava semanal: a partir deste percentual do teto, novas execuções ficam bloqueadas. Padrão 90."`
 		Inactive       bool     `json:"inactive,omitempty" doc:"Cria a assinatura desligada."`
+		ExternalKey    string   `json:"external_key,omitempty" enum:"claude,zai,codex" doc:"Chave externa: liga a assinatura às chamadas externas que a declaram (única por empresa)."`
 	}
 }
 
@@ -33,12 +34,14 @@ type updateSubscriptionIn struct {
 	Body struct {
 		Name             *string   `json:"name,omitempty" minLength:"1"`
 		Agent            *string   `json:"agent,omitempty" enum:"claude,codex,acp,devin,pi,cursor,http,fake"`
-		MonthlyUSD       *float64  `json:"monthly_usd,omitempty" minimum:"0"`
+		MonthlyUSD       *float64  `json:"monthly_usd,omitempty" minimum:"0" doc:"Trocar o valor acrescenta uma linha ao histórico de mensalidade, com início hoje, e exige reautenticação recente (ADR-0082 item 6)."`
 		ModelPrefixes    *[]string `json:"model_prefixes,omitempty" doc:"Substitui a lista de prefixos."`
 		WeeklyLimitUSD   *float64  `json:"weekly_limit_usd,omitempty" exclusiveMinimum:"0"`
 		ClearWeeklyLimit bool      `json:"clear_weekly_limit,omitempty" doc:"Remove o teto semanal (e a trava)."`
 		WeeklyGuardPct   *int      `json:"weekly_guard_pct,omitempty" minimum:"1" maximum:"100"`
 		Active           *bool     `json:"active,omitempty" doc:"Liga ou desliga a assinatura."`
+		ExternalKey      *string   `json:"external_key,omitempty" enum:"claude,zai,codex" doc:"Troca a chave externa."`
+		ClearExternalKey bool      `json:"clear_external_key,omitempty" doc:"Tira a chave externa."`
 	}
 }
 
@@ -60,7 +63,7 @@ func (s *server) registerSubscriptions(api huma.API) {
 			b := in.Body
 			sub, err := s.svc.CreateSubscription(ctx, sc.Actor, sc.Company.ID, service.CreateSubscriptionInput{
 				Name: b.Name, Agent: b.Agent, MonthlyUSD: b.MonthlyUSD, ModelPrefixes: b.ModelPrefixes,
-				WeeklyLimitUSD: b.WeeklyLimitUSD, WeeklyGuardPct: b.WeeklyGuardPct, Inactive: b.Inactive})
+				WeeklyLimitUSD: b.WeeklyLimitUSD, WeeklyGuardPct: b.WeeklyGuardPct, Inactive: b.Inactive, ExternalKey: b.ExternalKey})
 			if err != nil {
 				return nil, s.fail(ctx, err)
 			}
@@ -114,7 +117,7 @@ func (s *server) registerSubscriptions(api huma.API) {
 			if _, err := s.svc.UpdateSubscription(ctx, sc.Actor, sc.Company.ID, cur.ID, service.UpdateSubscriptionInput{
 				Name: b.Name, Agent: b.Agent, MonthlyUSD: b.MonthlyUSD, ModelPrefixes: b.ModelPrefixes,
 				WeeklyLimitUSD: b.WeeklyLimitUSD, ClearWeeklyLimit: b.ClearWeeklyLimit, WeeklyGuardPct: b.WeeklyGuardPct,
-				Active: b.Active}); err != nil {
+				Active: b.Active, ExternalKey: b.ExternalKey, ClearExternalKey: b.ClearExternalKey}); err != nil {
 				return nil, s.fail(ctx, err)
 			}
 			st, err := s.svc.GetSubscription(ctx, sc.Company.ID, cur.ID.String())
