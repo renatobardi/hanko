@@ -9,4 +9,4 @@ Data: 2026-10-31
 - Nada.
 
 ## Próximo passo
-- Bardi: ler e aceitar (ou ajustar) o ADR-0089; depois o contrato (migration, tipos de domínio e OpenAPI), com gate dele.
+- Bardi aceitou o ADR-0089 em 2026-10-31 (decisões 10 e 11 incluídas); falta o merge do PR e, depois, o contrato (migration, tipos de domínio e OpenAPI), com gate dele.

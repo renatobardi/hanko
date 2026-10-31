@@ -1,5 +1,5 @@
 # ADR-0089 — Assistente "Conectar ferramenta a uma persona"
-Data: 2026-10-31 · Status: proposta (aguarda o gate do Bardi) · Issue: #45 · Usa: ADR-0029, ADR-0036, ADR-0043, ADR-0053, ADR-0067
+Data: 2026-10-31 · Status: aceita (Bardi, 2026-10-31) · Issue: #45 · Usa: ADR-0029, ADR-0036, ADR-0043, ADR-0053, ADR-0067
 
 ## Contexto
 Ligar um servidor MCP remoto a uma persona, com a escrita sob controle, passa hoje por sete telas em ordem certa: integração,
