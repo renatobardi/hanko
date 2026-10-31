@@ -1,12 +1,12 @@
-# ADR-0089 · sessão `estudo-issues`
+# Release v0.8.2 · sessão `estudo-issues`
 Data: 2026-10-31
 
 ## Feito
-- ADR-0089 "Assistente Conectar ferramenta a uma persona" (#45), status proposta: cinco decisões do Bardi (modelos de acesso como dados por empresa, admin edita, copiar e não vincular, marco único, header e OAuth) e três recomendações aceitas.
-- Ajuste achado no código: a descoberta de tools exige a integração já gravada (`tools_catalog.go:198`), então o passo 2 grava a integração (fechada e sem vínculo) e só o perfil, as regras e os vínculos vão juntos no fim.
+- `CHANGELOG.md`: seção `[0.8.2]` com `scripts/release-notes.sh cut 0.8.2` (4 fragmentos do #126: histórico de mensalidade, pago em rateio único, ajustes de alerta e conferência de preços).
+- A produção já roda este código: `hanko-prd` na `2ec645dc` desde 20:30 UTC, deploy com `--build-local`. O commit de release só muda `CHANGELOG.md`, fragmentos e este arquivo; o ADR-0089 (#171) também já está na `main`.
 
 ## Travado
-- Nada.
+- Nada. A tag `v0.8.2` é passo do Bardi (pedido no canal). Não há deploy novo.
 
 ## Próximo passo
-- Bardi aceitou o ADR-0089 em 2026-10-31 (decisões 10 e 11 incluídas); falta o merge do PR e, depois, o contrato (migration, tipos de domínio e OpenAPI), com gate dele.
+- Bardi: aprovar a tag `v0.8.2`; a demo `qa` da #117; o contrato da #45 (ADR-0089) com o gate dele.

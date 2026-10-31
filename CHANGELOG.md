@@ -5,6 +5,32 @@ English summary at the end of each release.
 
 ## [Unreleased]
 
+## [0.8.2] — 2026-10-31
+
+### Limites e prazos de alerta por empresa
+
+- A API passa a listar, trocar e voltar ao padrão os limites e os prazos de alerta da empresa (owner ou admin, com `activity_event`). A lista traz os 14 limites e os prazos de cada tipo de alerta, com o valor em vigor, o padrão (os valores da Oute), a faixa e a unidade; a empresa só guarda o que mudou. Prazo vai de 0 ("sem prazo") a 720 horas (30 dias).
+
+- English summary: the API now lists, changes and resets the company's alert limits and deadlines (owner or admin, with an `activity_event`). The list carries the 14 limits and each alert type's deadline, with the effective value, the default (Oute's values), the range and the unit; the company only stores what it changed. A deadline goes from 0 ("no deadline") to 720 hours (30 days).
+
+### Conferência diária de preços de modelo
+
+- O Hanko passa a conferir os preços de modelo na subida e a cada 24 h, onde há ingestão: busca o models.dev e o OpenRouter pelo `internal/netguard` (só https, sem credencial nem redirecionamento, no máximo 32 MiB e 60 s por fonte) e confere os modelos usados nos últimos 30 dias e os que já têm preço vindo das fontes. Só troca o preço, com uma linha nova de `model_prices` de origem `sources`, quando as duas fontes concordam; o preço travado nunca é trocado, e a fonte fora do ar, a divergência ou o modelo que uma fonte não tem deixam o preço como está. Cada conferência guarda o resultado por fonte e por modelo (`equal`, `changed`, `new`, `diverges`, `locked_differs`, `no_source`, `source_down`); a falha de uma fonte guarda só o código. A API lista as conferências e mostra cada uma.
+
+- English summary: Hanko now checks model prices at startup and every 24 h, wherever ingestion is on: it fetches models.dev and OpenRouter through `internal/netguard` (https only, no credentials or redirects, at most 32 MiB and 60 s per source) and checks the models used in the last 30 days and those that already have a price from the sources. It only changes a price, with a new `model_prices` row of origin `sources`, when both sources agree; a locked price is never changed, and a source being down, a divergence or a model one source lacks leave the price as it is. Each check stores the result per source and per model (`equal`, `changed`, `new`, `diverges`, `locked_differs`, `no_source`, `source_down`); a source failure stores only the code. The API lists the checks and shows each one.
+
+### Histórico de mensalidade e chave externa da assinatura
+
+- Cada assinatura passa a ter um histórico de mensalidade que só recebe linhas novas (valor, início, hora do registro e autor): o valor de um dia é o da linha com o maior início menor ou igual a ele, e a registrada por último desempata. A API lista o histórico e acrescenta uma linha (owner ou admin, com reautenticação recente); um início no passado muda o pago desses dias, e um no futuro é recusado. Trocar a mensalidade pelo cadastro da assinatura agora também acrescenta uma linha, com início hoje, e exige a reautenticação recente. A assinatura ganha a chave externa opcional (`claude`, `zai` ou `codex`, única por empresa), que liga a assinatura às chamadas externas que a declaram.
+
+- English summary: each subscription now has an append-only monthly-value history (value, start, recording time and author): a day's value is that of the row with the greatest start not after it, and the last recorded wins a tie. The API lists the history and adds a row (owner or admin, with recent reauthentication); a start in the past changes the paid cost of those days, and a start in the future is refused. Changing the monthly value through the subscription form now also adds a row, starting today, and requires recent reauthentication. A subscription also gains the optional external key (`claude`, `zai` or `codex`, unique per company), which ties it to the external calls that declare it.
+
+### O pago passa a ser um rateio único, com o histórico de mensalidade e as chamadas externas
+
+- O pago de uma assinatura agora usa a mensalidade de cada dia pelo histórico (a linha com o maior início menor ou igual ao dia; antes da primeira linha vale a primeira) e divide o valor do dia entre os runs e as chamadas externas que a assinatura cobre, na proporção do custo de lista. Os dias em que a assinatura não cobra continuam sem pago, e o dia sem uso continua ocioso. O uso externo ganha o campo `cost_paid_usd` (zero sem assinatura ligada pela chave externa); a soma do pago de um dia fecha com a mensalidade do dia.
+
+- English summary: a subscription's paid cost now uses each day's monthly value from the history (the row with the greatest start not after the day; before the first row, the first one applies) and splits the day's value between the runs and the external calls the subscription covers, in proportion to list cost. Days the subscription does not charge still have no paid cost, and a day without use is still idle. External usage gains the `cost_paid_usd` field (zero without a subscription tied by the external key); the day's paid total closes with the day's monthly value.
+
 ## [0.8.1] — 2026-10-31
 
 ### Conversa externa e chamadas ao modelo na ingestão
