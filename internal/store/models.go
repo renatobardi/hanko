@@ -11,6 +11,22 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type AccessTemplate struct {
+	ID              uuid.UUID
+	CompanyID       uuid.UUID
+	Slug            string
+	Name            string
+	Description     string
+	ReadMode        string
+	WriteMode       string
+	DestructiveMode string
+	Suggested       bool
+	CreatedByType   string
+	CreatedByID     *uuid.UUID
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
 type ActionMark struct {
 	ID             uuid.UUID
 	CompanyID      uuid.UUID
