@@ -1,12 +1,12 @@
-# Release v0.8.0 · sessão `estudo-issues`
+# Deploy com imagem construída fora do servidor · sessão `estudo-issues`
 Data: 2026-10-31
 
 ## Feito
-- `CHANGELOG.md`: seção `[0.8.0]` montada com `scripts/release-notes.sh cut 0.8.0` (24 fragmentos de `changelog.d/`, agora removidos).
-- Entram: cofre na tela (campo arquivo com histórico, delegação, env da persona), tags de persona, contrato da v0.8 e o back-end da fonte externa (ingestão, classificação, gerador de nome).
+- `deploy-prd.sh --build-local`: constrói a imagem no Mac (arquitetura do servidor) e a envia ao `hanko-prd` com `docker save | ssh | docker load`; sobe com `compose up --no-build`. Sem a opção, nada muda.
+- Causa do problema: o deploy da v0.8.0 compilou o Go dentro do LXC (teto de 4 GiB) e levou o IO do host a 99% de pressão; o build morreu sem imagem nova.
 
 ## Travado
-- Nada. Tag `v0.8.0` e deploy no `hanko-prd` são passos do Bardi (`docs/RELEASING.md`).
+- Não testei o script: este ambiente não alcança o oute-server. Só `bash -n`. O primeiro uso real é o deploy da v0.8.0.
 
 ## Próximo passo
-- Bardi: merge deste PR, tag assinada `v0.8.0`, deploy; depois as demos `qa` da #117 e da #125 (a da #125 ainda depende de conversa externa, emparelhamento com histórico e telas).
+- Bardi: merge deste PR, depois o deploy da v0.8.0 com `--build-local` (pedido pelo canal). A produção segue na v0.7.2.
