@@ -6964,6 +6964,11 @@
             "format": "double",
             "type": "number"
           },
+          "cost_paid_usd": {
+            "description": "Pago: a mensalidade do dia da assinatura, rateada entre os runs e as chamadas externas pelo custo de lista (ADR-0082 item 5). Zero sem assinatura.",
+            "format": "double",
+            "type": "number"
+          },
           "cost_real_usd": {
             "format": "double",
             "type": "number"
@@ -7012,6 +7017,7 @@
           "cache_creation_tokens",
           "cost_real_usd",
           "cost_list_usd",
+          "cost_paid_usd",
           "unpriced_calls"
         ],
         "type": "object"

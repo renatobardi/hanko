@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/renatobardi/hanko/internal/ingest"
+	"github.com/renatobardi/hanko/internal/service"
 )
 
 func logCostPayload(t *testing.T, requestID string, cost float64) any {
@@ -99,5 +100,84 @@ func TestWriteTelemetryCostFromLogs(t *testing.T) {
 	}
 	if err := e.svc.Pool.QueryRow(ctx, `SELECT cost_real_usd::float8 FROM external_conversation WHERE company_id = $1`, e.co.ID).Scan(&real); err != nil || real != 1.25 {
 		t.Errorf("custo real depois do reenvio = %v (%v), quer 1,25", real, err)
+	}
+}
+
+// O pago é o rateio único: a mensalidade do dia da assinatura (a do histórico), dividida entre as chamadas pelo custo de
+// lista; fecha com o valor do dia (ADR-0082 itens 5 e 6).
+func TestExternalPaidFollowsMonthlyHistory(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	actor := ingestActor(t, e)
+	token, _, err := e.svc.CreateIngestKey(ctx, actor, e.co.ID, "oute-server")
+	if err != nil {
+		t.Fatal(err)
+	}
+	key, err := e.svc.ResolveIngestKey(ctx, token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sub := e.sub(t, func(in *service.CreateSubscriptionInput) {
+		in.Name = "Claude"
+		in.Agent = "claude"
+		in.MonthlyUSD = 300
+		in.ExternalKey = "claude"
+	})
+	day := time.Now().UTC().AddDate(0, 0, -1).Truncate(24 * time.Hour)
+	// a mensalidade vale 600 desde ontem (o início no passado muda o pago desse dia)
+	if _, err := e.svc.AddSubscriptionMonthlyValue(ctx, actor, e.co.ID, sub.ID.String(), 600, day); err != nil {
+		t.Fatal(err)
+	}
+	at := day.Add(12 * time.Hour).UnixNano()
+	span := fmt.Sprintf(`{"traceId":"aa","spanId":"p1","name":"claude_code.llm_request","startTimeUnixNano":"%d","endTimeUnixNano":"%d","attributes":[
+		{"key":"gen_ai.usage.input_tokens","value":{"intValue":"100"}},{"key":"gen_ai.usage.cache_read_input_tokens","value":{"intValue":"50"}},
+		{"key":"gen_ai.usage.output_tokens","value":{"intValue":"10"}},{"key":"gen_ai.response.model","value":{"stringValue":"claude-opus-5-5"}},
+		{"key":"oute.subscription","value":{"stringValue":"claude"}}]}`, at, at+1_000_000_000)
+	rows, err := ingest.SpanRows(spanPayload(t, span), time.Now().UnixNano())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := e.svc.WriteTelemetry(ctx, key, ingest.Batch{Spans: rows}); err != nil {
+		t.Fatal(err)
+	}
+	daysInMonth := float64(time.Date(day.Year(), day.Month()+1, 0, 0, 0, 0, 0, time.UTC).Day())
+	fee := 600 / daysInMonth
+
+	usage, err := e.svc.ExternalUsage(ctx, e.co.ID, time.Time{}, time.Time{}, []string{"model"}, nil)
+	if err != nil || len(usage) != 1 {
+		t.Fatalf("ExternalUsage = %+v (%v)", usage, err)
+	}
+	if got := usage[0].CostPaidUSD; got < fee-1e-6 || got > fee+1e-6 {
+		t.Errorf("pago = %v, quer a mensalidade do dia (%v): só há uma chamada, ela leva tudo", got, fee)
+	}
+
+	// uma segunda chamada com o triplo do custo de lista divide o dia em 25% e 75%
+	if _, err := e.svc.Pool.Exec(ctx, `INSERT INTO calls_daily (company_id, day, host_id, agent_id, workspace_id, model, subscription_key, calls, cost_list_usd)
+		SELECT company_id, day, host_id, agent_id, workspace_id, 'claude-sonnet-x', subscription_key, 1, cost_list_usd * 3 FROM calls_daily WHERE company_id = $1`, e.co.ID); err != nil {
+		t.Fatal(err)
+	}
+	byModel, err := e.svc.ExternalUsage(ctx, e.co.ID, time.Time{}, time.Time{}, []string{"model"}, nil)
+	if err != nil || len(byModel) != 2 {
+		t.Fatalf("ExternalUsage por modelo = %+v (%v)", byModel, err)
+	}
+	var total, opus float64
+	for _, r := range byModel {
+		total += r.CostPaidUSD
+		if r.Model == "claude-opus-5-5" {
+			opus = r.CostPaidUSD
+		}
+	}
+	if total < fee-1e-6 || total > fee+1e-6 {
+		t.Errorf("a soma do pago do dia = %v, quer %v (fecha com a mensalidade do dia)", total, fee)
+	}
+	if opus < fee*0.25-1e-6 || opus > fee*0.25+1e-6 {
+		t.Errorf("a chamada de 1/4 do peso leva %v, quer %v", opus, fee*0.25)
+	}
+	// sem assinatura ligada pela chave, não há pago
+	if _, err := e.svc.UpdateSubscription(ctx, actor, e.co.ID, sub.ID, service.UpdateSubscriptionInput{ClearExternalKey: true}); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := e.svc.ExternalUsage(ctx, e.co.ID, time.Time{}, time.Time{}, nil, nil); len(got) != 1 || got[0].CostPaidUSD != 0 {
+		t.Errorf("sem a chave externa o pago é zero: %+v", got)
 	}
 }
