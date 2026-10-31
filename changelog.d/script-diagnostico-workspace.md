@@ -1,0 +1,5 @@
+### Script de diagnóstico de instalação
+
+- `scripts/hanko-diag.sh` coleta, só leitura e com segredos mascarados, o que o suporte precisa para diagnosticar "erros no log" e "persona sem acesso ao workspace": modo de execução (host, compose com imagem agents ou distroless), variáveis efetivas, `hanko doctor`, binários e login do harness, WARN/ERROR do servidor agrupados por mensagem, empresas, workspaces, personas, readiness, runs com falha e o log delas, permissões reais de cada caminho de workspace sob `HANKO_WORKSPACES_ROOT` e se o harness alcança a API em `HANKO_AGENT_URL` e o ai-memory.
+
+- English summary: `scripts/hanko-diag.sh` gathers, read-only and with secrets masked, what support needs to diagnose "errors in the log" and "persona has no access to the workspace": execution mode, effective variables, `hanko doctor`, harness binaries and login, server WARN/ERROR grouped by message, companies, workspaces, personas, readiness, failed runs and their logs, the real permissions of every workspace path under `HANKO_WORKSPACES_ROOT`, and whether the harness reaches the API at `HANKO_AGENT_URL` and ai-memory.
