@@ -74,6 +74,8 @@ type Service struct {
 	Alerts AlertConfig
 	// OwnerEmail é HANKO_AUTH_OWNER_EMAIL (minúsculas): o dono nomeado passa mesmo fora das listas.
 	OwnerEmail string
+	// PriceCheck é a saída à internet da conferência diária de preços (ADR-0082 item 7); sem cliente, a conferência não roda.
+	PriceCheck PriceCheckConfig
 	// Passkeys verifica as cerimônias WebAuthn (ADR-0070); nil = passkey desligada (a API responde 503).
 	Passkeys *passkey.Service
 	// IDVerifier valida o ID token do Firebase na prova de reautenticação; nil fora do provider firebase.

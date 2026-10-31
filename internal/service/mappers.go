@@ -50,7 +50,7 @@ func subscriptionFromRow(r store.Subscription) domain.Subscription {
 	}
 	return domain.Subscription{ID: r.ID, CompanyID: r.CompanyID, Name: r.Name, Agent: r.Agent, MonthlyUSD: r.MonthlyUsd,
 		ModelPrefixes: prefixes, WeeklyLimitUSD: r.WeeklyLimitUsd, WeeklyGuardPct: int(r.WeeklyGuardPct), Active: r.Active,
-		EndedAt: r.EndedAt, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt}
+		EndedAt: r.EndedAt, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, ExternalKey: r.ExternalKey}
 }
 
 func taskFromRow(r store.Task, prefix string) domain.Task {

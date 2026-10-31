@@ -219,7 +219,7 @@ func (s *server) getExternalUsage(ctx context.Context, in *externalUsageIn) (*Li
 	for i, r := range rows {
 		row := ExternalUsageRow{HostID: idPtrStr(r.HostID), AgentID: idPtrStr(r.AgentID), WorkspaceID: idPtrStr(r.WorkspaceID), Model: r.Model,
 			SubscriptionKey: r.SubscriptionKey, Calls: r.Calls, Errors: r.Errors, InputTokens: r.InputTokens, OutputTokens: r.OutputTokens,
-			CacheReadTokens: r.CacheReadTokens, CacheCreationTokens: r.CacheCreation, CostRealUSD: r.CostRealUSD, CostListUSD: r.CostListUSD,
+			CacheReadTokens: r.CacheReadTokens, CacheCreationTokens: r.CacheCreation, CostRealUSD: r.CostRealUSD, CostListUSD: r.CostListUSD, CostPaidUSD: r.CostPaidUSD,
 			UnpricedCalls: r.UnpricedCalls}
 		if r.Day != nil {
 			d := r.Day.Format("2006-01-02")

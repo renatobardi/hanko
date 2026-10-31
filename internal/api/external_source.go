@@ -1,8 +1,6 @@
 package api
 
 import (
-	"context"
-	"net/http"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -13,16 +11,6 @@ import (
 // diz qual (issues #125 e #126). O Hanko só observa: nenhuma operação executa algo num agente ou num host externo.
 // As rotas de ingestão (`/v1/traces|logs|metrics` e `/v1/replay/*`) ficam no listener da ingestão e têm o OpenAPI
 // próprio (`api/openapi-ingest.json`).
-
-// pendingContractOp registra uma operação de um contrato da v0.8 que ainda responde 501; `contract` diz de qual (por
-// exemplo "Contrato da fonte externa (ADR-0075 a 0079)") e `slice` em qual fatia ela fica pronta.
-func pendingContractOp[I, O any](api huma.API, o huma.Operation, contract, slice string) {
-	o.Description = contract + ". Responde 501 até a " + slice + "."
-	o.Errors = append(o.Errors, http.StatusNotImplemented)
-	huma.Register(api, o, func(context.Context, *I) (*O, error) {
-		return nil, problem(http.StatusNotImplemented, "operação ainda não implementada")
-	})
-}
 
 // ---------- recursos ----------
 
@@ -158,7 +146,6 @@ type IngestKeyCreated struct {
 }
 
 // ExternalUsageRow é uma linha do uso externo, por dia, host, agente, modelo, workspace e assinatura (ADR-0078 item 5).
-// O "pago" é do rateio e chega com a fatia 2.
 type ExternalUsageRow struct {
 	Day                 *string `json:"day,omitempty" format:"date"`
 	HostID              *string `json:"host_id,omitempty" format:"uuid"`
@@ -174,6 +161,7 @@ type ExternalUsageRow struct {
 	CacheCreationTokens int64   `json:"cache_creation_tokens"`
 	CostRealUSD         float64 `json:"cost_real_usd"`
 	CostListUSD         float64 `json:"cost_list_usd"`
+	CostPaidUSD         float64 `json:"cost_paid_usd" doc:"Pago: a mensalidade do dia da assinatura, rateada entre os runs e as chamadas externas pelo custo de lista (ADR-0082 item 5). Zero sem assinatura."`
 	UnpricedCalls       int64   `json:"unpriced_calls"`
 }
 

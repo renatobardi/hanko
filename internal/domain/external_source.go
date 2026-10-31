@@ -197,3 +197,16 @@ type IngestKey struct {
 // KeyScopeIngest é o escopo da chave de ingestão. Não entra em KeyScope.Valid: nenhuma rota pública cria uma chave
 // assim, e a chave nunca autentica a API pública nem o /mcp (KeyScope.Allows recusa tudo que não é full ou read).
 const KeyScopeIngest KeyScope = "ingest"
+
+// SubscriptionExternalKeys são as chaves externas de assinatura que o Hanko conhece (ADR-0082 item 4).
+var SubscriptionExternalKeys = []string{"claude", "zai", "codex"}
+
+// ValidateSubscriptionExternalKey confere a chave externa de uma assinatura.
+func ValidateSubscriptionExternalKey(key string) error {
+	for _, k := range SubscriptionExternalKeys {
+		if key == k {
+			return nil
+		}
+	}
+	return Invalid("external_key", "want claude, zai or codex")
+}
