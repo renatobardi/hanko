@@ -103,6 +103,14 @@ func (t *txc) dropFieldFiles(companyID, fieldID domain.ID) error {
 	return nil
 }
 
+// dropFieldFilesIfFile agenda o apagar dos arquivos de um campo, se ele é campo arquivo; nos demais não faz nada.
+func (t *txc) dropFieldFilesIfFile(companyID domain.ID, f store.SecretField) error {
+	if f.Kind != string(domain.SecretFieldFile) {
+		return nil
+	}
+	return t.dropFieldFiles(companyID, f.ID)
+}
+
 // dropVersionFiles agenda o apagar dos arquivos arquivados das versões dadas (as que saem do histórico).
 func (t *txc) dropVersionFiles(companyID domain.ID, versions []store.SecretFieldVersion) {
 	for _, v := range versions {

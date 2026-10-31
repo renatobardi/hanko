@@ -94,7 +94,7 @@ func TestTrocaArquivoComFSAtivoArquivaNoFS(t *testing.T) {
 	if err != nil || bytes.Contains(raw, []byte(conteudoAntigoArquivo)) {
 		t.Fatalf("o fs não tem o arquivo arquivado cifrado: %v", err)
 	}
-	if n := e.count(t, `SELECT count(*) FROM secret_field_version_blobs WHERE version_id=$1`, vid); n != 0 {
+	if e.count(t, `SELECT count(*) FROM secret_field_version_blobs WHERE version_id=$1`, vid) != 0 {
 		t.Fatal("com fs ativo, o arquivo arquivado criou linha no postgres")
 	}
 	if _, err := e.svc.RestoreSecretFieldVersion(ctx, domain.HumanActor, e.co.ID, domain.SecretScopeCompany, "prd-cluster", "kubeconfig", 1); err != nil {
@@ -147,7 +147,7 @@ func TestRevelarVersaoDeArquivoEhRecusado(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "não se revela em texto") {
 		t.Fatalf("revelar versão de arquivo: %v", err)
 	}
-	if n := e.count(t, `SELECT count(*) FROM secret_field_versions WHERE version=1 AND revealed_at IS NOT NULL`); n != 0 {
+	if e.count(t, `SELECT count(*) FROM secret_field_versions WHERE version=1 AND revealed_at IS NOT NULL`) != 0 {
 		t.Fatal("a recusa marcou a versão como revelada")
 	}
 }
@@ -170,7 +170,7 @@ func TestMigraVersaoDeArquivoDoPostgresParaOFS(t *testing.T) {
 	if err != nil || rep.Failed != 0 || rep.Moved < 2 {
 		t.Fatalf("migração (campo e versão): %+v %v", rep, err)
 	}
-	if n := e.count(t, `SELECT count(*) FROM secret_field_version_blobs WHERE version_id=$1`, vid); n != 0 {
+	if e.count(t, `SELECT count(*) FROM secret_field_version_blobs WHERE version_id=$1`, vid) != 0 {
 		t.Fatal("a linha da versão no postgres não saiu depois da migração")
 	}
 	if _, err := fs.Get(ctx, storage.Key{CompanyID: e.co.ID, ArtifactID: vid}); err != nil {

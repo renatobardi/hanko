@@ -577,11 +577,8 @@ func (s *Service) DeleteSecretField(ctx context.Context, actor domain.Actor, com
 		if f.Name == domain.DefaultSecretField {
 			return domain.Invalid("field", "o campo value é o padrão da referência ${secret:X}; apague o segredo")
 		}
-		// os arquivos saem com o campo: a lista de versões se lê antes do delete, que as leva em cascata
-		if f.Kind == string(domain.SecretFieldFile) {
-			if err := t.dropFieldFiles(companyID, f.ID); err != nil {
-				return err
-			}
+		if err := t.dropFieldFilesIfFile(companyID, f); err != nil { // antes do delete: a cascata leva as versões
+			return err
 		}
 		n, err := t.q.DeleteSecretField(t.ctx, store.DeleteSecretFieldParams{ID: f.ID, CompanyID: companyID})
 		if err != nil {
@@ -649,11 +646,8 @@ func (s *Service) RevealSecretFieldVersion(ctx context.Context, actor domain.Act
 		if err != nil {
 			return mapErr(err, "get secret field version")
 		}
-		if v.Provider != string(domain.SecretProviderLocal) {
-			return domain.Invalid("provider", "o valor desta versão mora no cofre externo")
-		}
-		if v.BlobKey != "" {
-			return domain.Invalid("kind", "versão de campo arquivo não se revela em texto; restaure a versão para voltar o arquivo dela")
+		if err := revealableVersion(v); err != nil {
+			return err
 		}
 		row, err := t.q.MarkSecretFieldVersionRevealed(t.ctx, store.MarkSecretFieldVersionRevealedParams{ID: v.ID, CompanyID: companyID, Now: &t.now})
 		if isNoRows(err) {
@@ -710,6 +704,18 @@ func (s *Service) RestoreSecretFieldVersion(ctx context.Context, actor domain.Ac
 			map[string]any{"field": f.Name, "from_version": version, "version": row.Version}, "")
 	})
 	return out, err
+}
+
+// revealableVersion diz se o valor de uma versão pode ser mostrado em texto: não o de versão de cofre externo (o valor
+// mora lá) nem o de versão de arquivo (o conteúdo é arquivo, restaurado e não revelado).
+func revealableVersion(v store.SecretFieldVersion) error {
+	if v.Provider != string(domain.SecretProviderLocal) {
+		return domain.Invalid("provider", "o valor desta versão mora no cofre externo")
+	}
+	if v.BlobKey != "" {
+		return domain.Invalid("kind", "versão de campo arquivo não se revela em texto; restaure a versão para voltar o arquivo dela")
+	}
+	return nil
 }
 
 // restoreTextVersionTx restaura uma versão de campo de texto: o valor da versão vira o valor atual, e o atual vai para o
