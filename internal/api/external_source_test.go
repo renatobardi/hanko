@@ -51,9 +51,6 @@ func TestExternalCostContratoResponde501(t *testing.T) {
 	for _, c := range []struct{ method, path, body string }{
 		{"GET", base + "/price-checks", ""},
 		{"GET", base + "/price-checks/" + run, ""},
-		{"GET", base + "/alert-settings", ""},
-		{"PUT", base + "/alert-settings/due.queue", `{"value":0}`},
-		{"DELETE", base + "/alert-settings/due.queue", ""},
 	} {
 		n++
 		resp, body := do(t, c.method, ts.URL+c.path, c.body, nil)

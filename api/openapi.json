@@ -26279,7 +26279,6 @@
     },
     "/api/v1/companies/{company}/alert-settings": {
       "get": {
-        "description": "Contrato do custo elevado e dos alertas externos (ADR-0082 e 0083). Responde 501 até a fatia 2 (#126).",
         "operationId": "list-alert-settings",
         "parameters": [
           {
@@ -26366,16 +26365,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Lista os limites e os prazos de alerta da empresa, com o valor em vigor e o padrão",
@@ -26386,7 +26375,6 @@
     },
     "/api/v1/companies/{company}/alert-settings/{key}": {
       "delete": {
-        "description": "Contrato do custo elevado e dos alertas externos (ADR-0082 e 0083). Responde 501 até a fatia 2 (#126).",
         "operationId": "reset-alert-setting",
         "parameters": [
           {
@@ -26479,16 +26467,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Volta um limite ou um prazo ao padrão (owner ou admin)",
@@ -26497,7 +26475,6 @@
         ]
       },
       "put": {
-        "description": "Contrato do custo elevado e dos alertas externos (ADR-0082 e 0083). Responde 501 até a fatia 2 (#126).",
         "operationId": "put-alert-setting",
         "parameters": [
           {
@@ -26607,16 +26584,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Troca um limite ou um prazo de alerta (owner ou admin)",

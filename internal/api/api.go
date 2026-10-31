@@ -163,6 +163,9 @@ type backend interface {
 	CreateIngestKey(ctx context.Context, actor domain.Actor, companyID domain.ID, name string) (string, domain.IngestKey, error)
 	ListSubscriptionMonthlyHistory(ctx context.Context, companyID domain.ID, ref string) ([]service.SubscriptionMonthlyValueView, error)
 	AddSubscriptionMonthlyValue(ctx context.Context, actor domain.Actor, companyID domain.ID, ref string, monthly float64, startsOn time.Time) (service.SubscriptionMonthlyValueView, error)
+	ListAlertSettings(ctx context.Context, companyID domain.ID) ([]service.AlertSettingView, error)
+	PutAlertSetting(ctx context.Context, actor domain.Actor, companyID domain.ID, key string, value float64) (service.AlertSettingView, error)
+	ResetAlertSetting(ctx context.Context, actor domain.Actor, companyID domain.ID, key string) error
 	ListRepoPairings(ctx context.Context, companyID domain.ID, limit, offset int) ([]service.RepoPairingView, error)
 	UpdateRepoPairing(ctx context.Context, actor domain.Actor, companyID, id, workspaceID domain.ID) (service.RepoPairingView, error)
 	GetExternalConversationContent(ctx context.Context, actor domain.Actor, companyID, conversationID domain.ID) ([]service.ConversationContentItem, error)
@@ -386,6 +389,7 @@ func (s *server) register(api huma.API) {
 	s.registerExternalRead(api)
 	s.registerExternalPairing(api)
 	s.registerSubscriptionHistory(api)
+	s.registerAlertSettings(api)
 	s.registerPersonaTags(api) // tags de persona e recorte do organograma (ADR-0087)
 	s.registerDecision(api)
 	s.registerProbe(api)

@@ -109,11 +109,4 @@ func (s *server) registerExternalCost(api huma.API) {
 	pendingContractOp[PriceCheckPath, ItemOut[PriceCheckDetail]](api, op("get-price-check", http.MethodGet, b+"/price-checks/{run}", tag,
 		"Mostra uma conferência de preços com o resultado de cada modelo"), costContract, sliceCost)
 
-	pendingContractOp[CompanyPath, ListOut[AlertSetting]](api, op("list-alert-settings", http.MethodGet, b+"/alert-settings", tag,
-		"Lista os limites e os prazos de alerta da empresa, com o valor em vigor e o padrão"), costContract, sliceCost)
-	pendingContractOp[putAlertSettingIn, ItemOut[AlertSetting]](api, op("put-alert-setting", http.MethodPut, b+"/alert-settings/{key}", tag,
-		"Troca um limite ou um prazo de alerta (owner ou admin)"), costContract, sliceCost)
-	del := op("reset-alert-setting", http.MethodDelete, b+"/alert-settings/{key}", tag, "Volta um limite ou um prazo ao padrão (owner ou admin)")
-	del.DefaultStatus = http.StatusNoContent
-	pendingContractOp[AlertSettingPath, struct{}](api, del, costContract, sliceCost)
 }
