@@ -230,6 +230,12 @@ func (t *txc) alertConditions(cfg AlertConfig) ([]alertCond, error) {
 	}
 	out = append(out, noData...)
 
+	telemetry, err := t.telemetryConditions()
+	if err != nil {
+		return nil, err
+	}
+	out = append(out, telemetry...)
+
 	priceCost, err := t.priceCostConditions()
 	if err != nil {
 		return nil, err
