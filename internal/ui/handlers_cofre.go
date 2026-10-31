@@ -66,7 +66,7 @@ func (s *server) vaultBE() (vaultUIBackend, bool) {
 var vaultNotices = map[string]string{
 	"campo":              i18n.N("Campo adicionado."),
 	"valor":              i18n.N("Valor do campo trocado: a versão do campo subiu."),
-	"arquivo":            i18n.N("Arquivo do campo trocado: o conteúdo anterior foi substituído."),
+	"arquivo":            i18n.N("Arquivo do campo trocado: o arquivo anterior foi para o histórico."),
 	"marca":              i18n.N("Marca do campo atualizada."),
 	"campo-apagado":      i18n.N("Campo apagado."),
 	"colecao":            i18n.N("Coleção criada."),

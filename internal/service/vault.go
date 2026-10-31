@@ -577,15 +577,18 @@ func (s *Service) DeleteSecretField(ctx context.Context, actor domain.Actor, com
 		if f.Name == domain.DefaultSecretField {
 			return domain.Invalid("field", "o campo value é o padrão da referência ${secret:X}; apague o segredo")
 		}
+		// os arquivos saem com o campo: a lista de versões se lê antes do delete, que as leva em cascata
+		if f.Kind == string(domain.SecretFieldFile) {
+			if err := t.dropFieldFiles(companyID, f.ID); err != nil {
+				return err
+			}
+		}
 		n, err := t.q.DeleteSecretField(t.ctx, store.DeleteSecretFieldParams{ID: f.ID, CompanyID: companyID})
 		if err != nil {
 			return mapErr(err, "delete secret field")
 		}
 		if n == 0 {
 			return fmt.Errorf("delete secret field: %w", domain.ErrNotFound)
-		}
-		if f.Kind == string(domain.SecretFieldFile) {
-			t.dropFieldBlobAfterCommit(companyID, f.ID)
 		}
 		return t.activity(actor, companyID, "secret.field_deleted", "secret", sec.ID, fieldEventData(f), "")
 	})
@@ -649,6 +652,9 @@ func (s *Service) RevealSecretFieldVersion(ctx context.Context, actor domain.Act
 		if v.Provider != string(domain.SecretProviderLocal) {
 			return domain.Invalid("provider", "o valor desta versão mora no cofre externo")
 		}
+		if v.BlobKey != "" {
+			return domain.Invalid("kind", "versão de campo arquivo não se revela em texto; restaure a versão para voltar o arquivo dela")
+		}
 		row, err := t.q.MarkSecretFieldVersionRevealed(t.ctx, store.MarkSecretFieldVersionRevealedParams{ID: v.ID, CompanyID: companyID, Now: &t.now})
 		if isNoRows(err) {
 			return fmt.Errorf("versão %d do campo %q já foi revelada: %w", version, fieldName, domain.ErrConflict)
@@ -690,31 +696,46 @@ func (s *Service) RestoreSecretFieldVersion(ctx context.Context, actor domain.Ac
 		if err != nil {
 			return mapErr(err, "get secret field version")
 		}
-		m := secretMaterial{provider: domain.SecretProvider(v.Provider), ext: v.ExternalRef}
-		if m.provider == domain.SecretProviderLocal {
-			plain, err := s.openFieldVersion(v, sec.ID, f.ID)
-			if err != nil {
-				return domain.Invalid("secrets", "não foi possível decifrar a versão: "+err.Error())
-			}
-			m.plain = plain
-			if m.enc, err = s.sealMaterialFor(m, fieldAAD(sec.ID, f.ID)); err != nil {
-				return err
-			}
+		var row store.SecretField
+		if v.BlobKey != "" {
+			row, err = s.restoreFileVersionTx(t, actor, companyID, sec, f, v)
+		} else {
+			row, err = s.restoreTextVersionTx(t, actor, companyID, sec, f, v)
 		}
-		row, err := s.rotateFieldTx(t, actor, companyID, f, m)
 		if err != nil {
 			return err
-		}
-		if f.Name == domain.DefaultSecretField {
-			if err := s.mirrorValueTx(t, companyID, sec, m, row.RevealedAt); err != nil {
-				return err
-			}
 		}
 		out = SecretFieldView{SecretField: secretFieldFromRow(row)}
 		return t.activity(actor, companyID, "secret.field_restored", "secret", sec.ID,
 			map[string]any{"field": f.Name, "from_version": version, "version": row.Version}, "")
 	})
 	return out, err
+}
+
+// restoreTextVersionTx restaura uma versão de campo de texto: o valor da versão vira o valor atual, e o atual vai para o
+// histórico (ADR-0068 §3.3). Quem chama tem a transação e o campo travado.
+func (s *Service) restoreTextVersionTx(t *txc, actor domain.Actor, companyID domain.ID, sec store.Secret, f store.SecretField, v store.SecretFieldVersion) (store.SecretField, error) {
+	m := secretMaterial{provider: domain.SecretProvider(v.Provider), ext: v.ExternalRef}
+	if m.provider == domain.SecretProviderLocal {
+		plain, err := s.openFieldVersion(v, sec.ID, f.ID)
+		if err != nil {
+			return store.SecretField{}, domain.Invalid("secrets", "não foi possível decifrar a versão: "+err.Error())
+		}
+		m.plain = plain
+		if m.enc, err = s.sealMaterialFor(m, fieldAAD(sec.ID, f.ID)); err != nil {
+			return store.SecretField{}, err
+		}
+	}
+	row, err := s.rotateFieldTx(t, actor, companyID, f, m)
+	if err != nil {
+		return store.SecretField{}, err
+	}
+	if f.Name == domain.DefaultSecretField {
+		if err := s.mirrorValueTx(t, companyID, sec, m, row.RevealedAt); err != nil {
+			return store.SecretField{}, err
+		}
+	}
+	return row, nil
 }
 
 // PruneSecretFieldHistory apaga o histórico que passou da retenção (ADR-0068 §3.2): as últimas N versões OU as
@@ -746,8 +767,10 @@ func (s *Service) PruneSecretFieldHistory(ctx context.Context) (int, error) {
 			continue
 		}
 		ids := make([]uuid.UUID, 0, len(drop))
+		gone := make([]store.SecretFieldVersion, 0, len(drop))
 		for _, i := range drop {
 			ids = append(ids, rows[i].ID)
+			gone = append(gone, rows[i])
 		}
 		err = s.withTx(ctx, func(t *txc) error {
 			n, err := t.q.DeleteSecretFieldVersions(t.ctx, store.DeleteSecretFieldVersionsParams{CompanyID: f.CompanyID, Ids: ids})
@@ -755,6 +778,7 @@ func (s *Service) PruneSecretFieldHistory(ctx context.Context) (int, error) {
 				return mapErr(err, "delete secret field versions")
 			}
 			total += int(n)
+			t.dropVersionFiles(f.CompanyID, gone) // o arquivo arquivado sai com a versão, nos drivers fs e s3
 			return t.activity(domain.SystemActor, f.CompanyID, "secret.history_pruned", "secret", f.SecretID,
 				map[string]any{"removed": n}, "")
 		})

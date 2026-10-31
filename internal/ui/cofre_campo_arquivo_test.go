@@ -14,8 +14,7 @@ import (
 )
 
 // Campo arquivo na tela do segredo (ADR-0068 §5.1, #117): "Novo campo" aceita o tipo file com envio de até 1 MiB, como
-// a CLI. O conteúdo vai só ao service; nenhuma resposta da tela o devolve. Campo arquivo não se troca: apaga-se e cria-se
-// outro.
+// a CLI. O conteúdo vai só ao service; nenhuma resposta da tela o devolve. A troca do arquivo está na mesma tela (#117).
 
 const (
 	camposPage        = "/c/hanko/configuracoes/segredos/openrouter-key/campos"

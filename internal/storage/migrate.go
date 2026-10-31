@@ -43,8 +43,8 @@ type MigrateReport struct {
 
 const maxReportedErrors = 20
 
-// Migrate move o conteúdo dos artefatos de um driver para outro, em lotes, e depois o dos campos arquivo do cofre
-// (migrateSecretFieldBlobs). É retomável e idempotente: cada versão é copiada, conferida (tamanho e sha256 registrados,
+// Migrate move o conteúdo dos artefatos de um driver para outro, em lotes, e depois o dos campos arquivo do cofre e das
+// versões arquivadas (migrateSecretFieldBlobs). É retomável e idempotente: cada versão é copiada, conferida (tamanho e sha256 registrados,
 // depois um Stat no destino) e só então o registro troca de driver; reexecutar continua de onde parou. Uma falha em uma
 // versão é contada e a migração segue.
 func Migrate(ctx context.Context, pool *pgxpool.Pool, reg *Registry, o MigrateOptions) (MigrateReport, error) {
@@ -157,128 +157,195 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool, reg *Registry, o MigrateOp
 	return rep, nil
 }
 
-// errFieldBlobConflict: o destino já guarda outro conteúdo para o campo.
+// errFieldBlobConflict: o destino já guarda outro conteúdo para o campo ou a versão.
 var errFieldBlobConflict = errors.New("storage: o destino já tem outro conteúdo para o campo")
 
-// migrateSecretFieldBlobs move o conteúdo cifrado dos campos arquivo do cofre entre drivers, um campo por vez
-// (ADR-0068 §5.1). No driver postgres o conteúdo vive na tabela secret_field_blobs, fora do BlobStore; nos drivers fs e
-// s3, sob a chave do campo. O texto cifrado é copiado sem decifrar: a conferência compara a cópia com a origem byte a
-// byte. Como o campo não registra o driver (quem decide onde ler é o driver ativo, ADR-0072), migrar é esvaziar a
-// origem; retomar reconhece o campo cuja origem já não tem conteúdo e o destino tem.
-func migrateSecretFieldBlobs(ctx context.Context, q *store.Queries, src, dst BlobStore, o MigrateOptions, rep *MigrateReport, log *slog.Logger) error {
-	pgSrc, pgDst := o.From == DriverPostgres, o.To == DriverPostgres
-	fail := func(id uuid.UUID, why string) {
-		rep.Failed++
-		if len(rep.Errors) < maxReportedErrors {
-			rep.Errors = append(rep.Errors, id.String()+": "+why)
-		}
-		log.Warn("blobs migrate: falha", "field_id", id, "why", why)
-	}
-	after := uuid.Nil
-	for {
-		rows, err := q.ListSecretFileFieldsAfter(ctx, store.ListSecretFileFieldsAfterParams{
-			CompanyID: o.CompanyID, AfterID: after, Lim: int32(o.Batch)}) //nolint:gosec // limitado a 1000 em Migrate
-		if err != nil {
-			return fmt.Errorf("storage: listar campos arquivo: %w", err)
-		}
-		if len(rows) == 0 {
-			return nil
-		}
-		for _, f := range rows {
-			if err := ctx.Err(); err != nil {
-				return err
-			}
-			after = f.ID
-			key := Key{CompanyID: f.CompanyID, ArtifactID: f.ID} // o id do campo no papel do id de artefato
-			data, err := readFieldBlob(ctx, q, src, pgSrc, key)
-			if err != nil {
-				fail(f.ID, "ler origem: "+err.Error())
-				continue
-			}
-			if data == nil {
-				// origem sem conteúdo: retomada (já copiado e origem apagada) ou campo sem gravação
-				if has, err := fieldBlobInDst(ctx, q, dst, pgDst, key); err == nil && has {
-					continue
-				}
-				fail(f.ID, "conteúdo ausente na origem")
-				continue
-			}
-			rep.Scanned++
-			if o.DryRun {
-				rep.Moved++
-				rep.Bytes += int64(len(data))
-				continue
-			}
-			if err := writeFieldBlob(ctx, q, dst, pgDst, key, data); err != nil {
-				fail(f.ID, err.Error())
-				continue
-			}
-			back, err := readFieldBlob(ctx, q, dst, pgDst, key)
-			if err != nil || !bytes.Equal(back, data) {
-				fail(f.ID, "o destino não confirmou a cópia")
-				continue
-			}
-			rep.Moved++
-			rep.Bytes += int64(len(data))
-			if !o.KeepSource {
-				if err := deleteFieldBlob(ctx, q, src, pgSrc, key); err != nil {
-					rep.Leftover++
-					log.Warn("blobs migrate: conteúdo movido, mas a origem não foi apagada", "field_id", f.ID, "err", err.Error())
-				}
-			}
-		}
-	}
+// cipherSite é o lugar onde mora o texto cifrado de um campo arquivo ou de uma versão arquivada: a linha do postgres
+// (secret_field_blobs ou secret_field_version_blobs) ou o BlobStore do driver. A chave é o id do campo ou da versão.
+type cipherSite struct {
+	q       *store.Queries
+	drv     BlobStore
+	pg      bool
+	version bool
 }
 
-// readFieldBlob lê o conteúdo cifrado de um campo arquivo no lugar dado; nil, nil quando o lugar não o tem.
-func readFieldBlob(ctx context.Context, q *store.Queries, drv BlobStore, pg bool, key Key) ([]byte, error) {
-	if pg {
-		b, err := q.GetSecretFieldBlob(ctx, store.GetSecretFieldBlobParams{CompanyID: key.CompanyID, FieldID: key.ArtifactID})
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, nil
+// get lê o conteúdo; ok false quando o lugar não o tem.
+func (c cipherSite) get(ctx context.Context, k Key) ([]byte, bool, error) {
+	if !c.pg {
+		b, err := c.drv.Get(ctx, k)
+		if errors.Is(err, ErrNotFound) {
+			return nil, false, nil
 		}
-		return b, err
+		return b, err == nil, err
 	}
-	b, err := drv.Get(ctx, key)
-	if errors.Is(err, ErrNotFound) {
-		return nil, nil
+	var b []byte
+	var err error
+	if c.version {
+		b, err = c.q.GetSecretFieldVersionBlob(ctx, store.GetSecretFieldVersionBlobParams{CompanyID: k.CompanyID, VersionID: k.ArtifactID})
+	} else {
+		b, err = c.q.GetSecretFieldBlob(ctx, store.GetSecretFieldBlobParams{CompanyID: k.CompanyID, FieldID: k.ArtifactID})
 	}
-	return b, err
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, false, nil
+	}
+	return b, err == nil, err
 }
 
-// fieldBlobInDst diz se o destino já tem conteúdo para a chave (retomada de uma execução interrompida).
-func fieldBlobInDst(ctx context.Context, q *store.Queries, dst BlobStore, pgDst bool, key Key) (bool, error) {
-	if pgDst {
-		_, err := q.GetSecretFieldBlob(ctx, store.GetSecretFieldBlobParams{CompanyID: key.CompanyID, FieldID: key.ArtifactID})
-		return err == nil, err
+// put grava o conteúdo no lugar. Na tabela do postgres, uma linha de outra cópia é conflito; a mesma cópia (execução
+// interrompida antes de apagar a origem) segue em frente.
+func (c cipherSite) put(ctx context.Context, k Key, data []byte) error {
+	if !c.pg {
+		return c.drv.Put(ctx, k, data, "application/octet-stream")
 	}
-	_, err := dst.Stat(ctx, key)
-	return err == nil, err
-}
-
-// writeFieldBlob grava o conteúdo cifrado no destino. Na tabela do postgres, uma linha de outra cópia é conflito; a
-// mesma cópia (execução interrompida antes de apagar a origem) segue em frente.
-func writeFieldBlob(ctx context.Context, q *store.Queries, dst BlobStore, pgDst bool, key Key, data []byte) error {
-	if !pgDst {
-		return dst.Put(ctx, key, data, "application/octet-stream")
+	cur, ok, err := c.get(ctx, k)
+	if err != nil {
+		return err
 	}
-	if cur, err := q.GetSecretFieldBlob(ctx, store.GetSecretFieldBlobParams{CompanyID: key.CompanyID, FieldID: key.ArtifactID}); err == nil {
+	if ok {
 		if bytes.Equal(cur, data) {
 			return nil
 		}
 		return errFieldBlobConflict
-	} else if !errors.Is(err, pgx.ErrNoRows) {
-		return err
 	}
-	return q.CreateSecretFieldBlob(ctx, store.CreateSecretFieldBlobParams{FieldID: key.ArtifactID, CompanyID: key.CompanyID, Content: data})
+	if c.version {
+		return c.q.CreateSecretFieldVersionBlob(ctx, store.CreateSecretFieldVersionBlobParams{VersionID: k.ArtifactID, CompanyID: k.CompanyID, Content: data})
+	}
+	return c.q.CreateSecretFieldBlob(ctx, store.CreateSecretFieldBlobParams{FieldID: k.ArtifactID, CompanyID: k.CompanyID, Content: data})
 }
 
-// deleteFieldBlob apaga o conteúdo cifrado do lugar dado.
-func deleteFieldBlob(ctx context.Context, q *store.Queries, drv BlobStore, pg bool, key Key) error {
-	if pg {
-		return q.DeleteSecretFieldBlob(ctx, key.ArtifactID)
+// del apaga o conteúdo do lugar.
+func (c cipherSite) del(ctx context.Context, k Key) error {
+	switch {
+	case !c.pg:
+		return c.drv.Delete(ctx, k)
+	case c.version:
+		return c.q.DeleteSecretFieldVersionBlob(ctx, k.ArtifactID)
+	default:
+		return c.q.DeleteSecretFieldBlob(ctx, k.ArtifactID)
 	}
-	return drv.Delete(ctx, key)
+}
+
+// has diz se o lugar já tem conteúdo para a chave (retomada de uma execução interrompida).
+func (c cipherSite) has(ctx context.Context, k Key) (bool, error) {
+	if !c.pg {
+		_, err := c.drv.Stat(ctx, k)
+		if errors.Is(err, ErrNotFound) {
+			return false, nil
+		}
+		return err == nil, err
+	}
+	_, ok, err := c.get(ctx, k)
+	return ok, err
+}
+
+// migrateSecretFieldBlobs move o conteúdo cifrado dos campos arquivo do cofre entre drivers, um campo por vez
+// (ADR-0068 §5.1), e o das versões arquivadas (§3.1), que têm chave própria. No driver postgres o conteúdo vive nas
+// tabelas secret_field_blobs e secret_field_version_blobs; nos drivers fs e s3, sob a chave do campo ou da versão. O texto
+// cifrado é copiado sem decifrar: a conferência compara a cópia com a origem byte a byte. Como o campo não registra o
+// driver (quem decide onde ler é o driver ativo, ADR-0072), migrar é esvaziar a origem; retomar reconhece a chave cuja
+// origem já não tem conteúdo e o destino tem.
+func migrateSecretFieldBlobs(ctx context.Context, q *store.Queries, src, dst BlobStore, o MigrateOptions, rep *MigrateReport, log *slog.Logger) error {
+	pgSrc, pgDst := o.From == DriverPostgres, o.To == DriverPostgres
+	err := migrateCipherBlobs(ctx, cipherSite{q: q, drv: src, pg: pgSrc}, cipherSite{q: q, drv: dst, pg: pgDst}, o, rep, log,
+		func(ctx context.Context, after uuid.UUID) ([]Key, error) {
+			rows, err := q.ListSecretFileFieldsAfter(ctx, store.ListSecretFileFieldsAfterParams{
+				CompanyID: o.CompanyID, AfterID: after, Lim: int32(o.Batch)}) //nolint:gosec // limitado a 1000 em Migrate
+			if err != nil {
+				return nil, fmt.Errorf("storage: listar campos arquivo: %w", err)
+			}
+			keys := make([]Key, len(rows))
+			for i, f := range rows {
+				keys[i] = Key{CompanyID: f.CompanyID, ArtifactID: f.ID}
+			}
+			return keys, nil
+		})
+	if err != nil {
+		return err
+	}
+	return migrateCipherBlobs(ctx, cipherSite{q: q, drv: src, pg: pgSrc, version: true}, cipherSite{q: q, drv: dst, pg: pgDst, version: true}, o, rep, log,
+		func(ctx context.Context, after uuid.UUID) ([]Key, error) {
+			rows, err := q.ListSecretFileVersionsAfter(ctx, store.ListSecretFileVersionsAfterParams{
+				CompanyID: o.CompanyID, AfterID: after, Lim: int32(o.Batch)}) //nolint:gosec // limitado a 1000 em Migrate
+			if err != nil {
+				return nil, fmt.Errorf("storage: listar versões de campo arquivo: %w", err)
+			}
+			keys := make([]Key, len(rows))
+			for i, v := range rows {
+				keys[i] = Key{CompanyID: v.CompanyID, ArtifactID: v.ID}
+			}
+			return keys, nil
+		})
+}
+
+// migrateCipherBlobs percorre as chaves que `next` lista, uma página depois da outra (cada página começa depois do último
+// id da anterior), e move o conteúdo de cada uma de src para dst.
+func migrateCipherBlobs(ctx context.Context, src, dst cipherSite, o MigrateOptions, rep *MigrateReport, log *slog.Logger,
+	next func(context.Context, uuid.UUID) ([]Key, error)) error {
+	after := uuid.Nil
+	for {
+		keys, err := next(ctx, after)
+		if err != nil {
+			return err
+		}
+		if len(keys) == 0 {
+			return nil
+		}
+		for _, key := range keys {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			after = key.ArtifactID
+			moveCipherBlob(ctx, src, dst, key, o, rep, log)
+		}
+	}
+}
+
+// moveCipherBlob copia o conteúdo de uma chave para o destino, confere a cópia e só então apaga a origem (se não for
+// --keep-source). Uma falha é contada e a migração segue.
+func moveCipherBlob(ctx context.Context, src, dst cipherSite, key Key, o MigrateOptions, rep *MigrateReport, log *slog.Logger) {
+	fail := func(why string) {
+		rep.Failed++
+		if len(rep.Errors) < maxReportedErrors {
+			rep.Errors = append(rep.Errors, key.ArtifactID.String()+": "+why)
+		}
+		log.Warn("blobs migrate: falha", "id", key.ArtifactID, "why", why)
+	}
+	data, ok, err := src.get(ctx, key)
+	if err != nil {
+		fail("ler origem: " + err.Error())
+		return
+	}
+	if !ok {
+		// origem sem conteúdo: retomada (já copiado e origem apagada) ou campo sem gravação
+		if has, err := dst.has(ctx, key); err == nil && has {
+			return
+		}
+		fail("conteúdo ausente na origem")
+		return
+	}
+	rep.Scanned++
+	if o.DryRun {
+		rep.Moved++
+		rep.Bytes += int64(len(data))
+		return
+	}
+	if err := dst.put(ctx, key, data); err != nil {
+		fail(err.Error())
+		return
+	}
+	back, ok, err := dst.get(ctx, key)
+	if err != nil || !ok || !bytes.Equal(back, data) {
+		fail("o destino não confirmou a cópia")
+		return
+	}
+	rep.Moved++
+	rep.Bytes += int64(len(data))
+	if !o.KeepSource {
+		if err := src.del(ctx, key); err != nil {
+			rep.Leftover++
+			log.Warn("blobs migrate: conteúdo movido, mas a origem não foi apagada", "id", key.ArtifactID, "err", err.Error())
+		}
+	}
 }
 
 func flip(ctx context.Context, q *store.Queries, r store.ListArtifactsForBlobMigrationRow, o MigrateOptions) (bool, error) {

@@ -261,9 +261,9 @@ func fieldRow(f SecretFieldRowVM, canWrite bool) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var15 string
-				templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Troca o conteúdo pelo arquivo novo. O conteúdo anterior é substituído: ele não fica no histórico e não volta à tela."))
+				templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Troca o conteúdo pelo arquivo novo. O arquivo anterior vai para o histórico e pode ser restaurado; a versão do campo sobe."))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `cofre.templ`, Line: 43, Col: 173}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `cofre.templ`, Line: 43, Col: 174}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 				if templ_7745c5c3_Err != nil {
@@ -313,9 +313,9 @@ func fieldRow(f SecretFieldRowVM, canWrite bool) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var19 string
-				templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Apagar o campo apaga também o arquivo dele."))
+				templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Apagar o campo apaga também o arquivo dele e o das versões anteriores."))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `cofre.templ`, Line: 48, Col: 93}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `cofre.templ`, Line: 48, Col: 121}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 				if templ_7745c5c3_Err != nil {

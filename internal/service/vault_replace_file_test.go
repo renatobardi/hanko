@@ -9,8 +9,8 @@ import (
 	"github.com/renatobardi/hanko/internal/service"
 )
 
-// Troca do conteúdo de um campo arquivo (#117): o campo mantém nome, id e versão; o conteúdo novo é o que a leitura
-// devolve; o antigo some do banco; o evento secret.field_updated não leva conteúdo. Pulam sem HANKO_TEST_DATABASE_URL.
+// Troca do conteúdo de um campo arquivo (#117): o campo mantém nome e id e sobe a versão; o conteúdo novo é o que a leitura
+// devolve; o evento secret.field_updated não leva conteúdo. Pulam sem HANKO_TEST_DATABASE_URL.
 
 const (
 	conteudoAntigoArquivo = "SENTINELA-kubeconfig-antigo-3d2a"
@@ -47,8 +47,8 @@ func TestTrocaArquivoSubstituiOConteudoSemMudarOCampo(t *testing.T) {
 	if fieldIDOf(t, e, "kubeconfig") != fieldID {
 		t.Fatal("a troca mudou o id do campo")
 	}
-	if n := e.count(t, `SELECT version FROM secret_fields WHERE id=$1`, fieldID); n != 1 {
-		t.Fatalf("a versão subiu para %d; a troca de arquivo não arquiva nem sobe a versão", n)
+	if n := e.count(t, `SELECT version FROM secret_fields WHERE id=$1`, fieldID); n != 2 {
+		t.Fatalf("versão do campo = %d depois da troca, quer 2 (a troca sobe a versão, ADR-0068 §3.1)", n)
 	}
 	if got := lerKubeconfig(t, e); got != conteudoNovoArquivo {
 		t.Fatalf("leitura depois da troca = %q, quer o conteúdo novo", got)

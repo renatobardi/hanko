@@ -65,6 +65,60 @@ func (q *Queries) ListSecretFileFieldsAfter(ctx context.Context, arg ListSecretF
 	return items, nil
 }
 
+const listSecretFileVersionsAfter = `-- name: ListSecretFileVersionsAfter :many
+SELECT v.id, v.company_id, v.field_id, f.secret_id, v.version, v.aad_version
+FROM secret_field_versions v JOIN secret_fields f ON f.id = v.field_id
+WHERE v.blob_key <> ''
+  AND ($1::uuid IS NULL OR v.company_id = $1::uuid)
+  AND v.id > $2
+ORDER BY v.id
+LIMIT $3
+`
+
+type ListSecretFileVersionsAfterParams struct {
+	CompanyID *uuid.UUID
+	AfterID   uuid.UUID
+	Lim       int32
+}
+
+type ListSecretFileVersionsAfterRow struct {
+	ID         uuid.UUID
+	CompanyID  uuid.UUID
+	FieldID    uuid.UUID
+	SecretID   uuid.UUID
+	Version    int32
+	AadVersion int16
+}
+
+// Versões arquivadas de campo arquivo (ADR-0068 §3.1): o rekey e a migração entre drivers leem uma página por id.
+// O AAD da versão entra no rekey: secret_id, id do campo e número da versão.
+func (q *Queries) ListSecretFileVersionsAfter(ctx context.Context, arg ListSecretFileVersionsAfterParams) ([]ListSecretFileVersionsAfterRow, error) {
+	rows, err := q.db.Query(ctx, listSecretFileVersionsAfter, arg.CompanyID, arg.AfterID, arg.Lim)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSecretFileVersionsAfterRow{}
+	for rows.Next() {
+		var i ListSecretFileVersionsAfterRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CompanyID,
+			&i.FieldID,
+			&i.SecretID,
+			&i.Version,
+			&i.AadVersion,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listUserSecretFileFields = `-- name: ListUserSecretFileFields :many
 SELECT f.id, f.company_id FROM secret_fields f
 JOIN secrets s ON s.id = f.secret_id
@@ -124,7 +178,7 @@ func (q *Queries) ReplaceSecretFieldBlob(ctx context.Context, arg ReplaceSecretF
 
 const replaceSecretFieldFile = `-- name: ReplaceSecretFieldFile :one
 UPDATE secret_fields SET file_name = $1, content_type = $2, size_bytes = $3,
-       rotated_at = $4, updated_at = $4
+       version = version + 1, rotated_at = $4, updated_at = $4
 WHERE id = $5 AND company_id = $6 AND kind = 'file'
 RETURNING id, company_id, secret_id, name, kind, sensitive, provider, value_enc, external_ref, blob_key, file_name, content_type, size_bytes, value_hmac, aad_version, position, version, revealed_at, last_used_at, rotated_at, created_at, updated_at, password
 `
@@ -138,8 +192,8 @@ type ReplaceSecretFieldFileParams struct {
 	CompanyID   uuid.UUID
 }
 
-// Troca o conteúdo de um campo arquivo: metadados novos e data da troca. Não sobe a versão nem arquiva a anterior
-// (o histórico não guarda o conteúdo de versões de arquivo); quem chama já regravou o blob na mesma transação.
+// Troca o conteúdo de um campo arquivo: metadados novos, versão nova e data da troca. Quem chama já arquivou a versão
+// anterior (secret_field_versions e o blob arquivado) e regravou o blob, na mesma transação.
 func (q *Queries) ReplaceSecretFieldFile(ctx context.Context, arg ReplaceSecretFieldFileParams) (SecretField, error) {
 	row := q.db.QueryRow(ctx, replaceSecretFieldFile,
 		arg.FileName,
