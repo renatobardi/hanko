@@ -194,10 +194,18 @@ func (s *Service) inboxFull(ctx context.Context, companyID domain.ID) (Inbox, er
 		for _, r := range rows {
 			stored[InboxRef{Kind: domain.InboxItemKind(r.ItemKind), ID: r.ItemID}] = r
 		}
+		due, err := s.inboxDue(ctx, companyID, in.Alerts)
+		if err != nil {
+			return in, err
+		}
+		now := s.Now()
 		state := map[InboxRef]domain.InboxItemState{}
 		for _, it := range in.Items() {
 			ref := InboxRef{Kind: it.Kind, ID: it.ID}
 			if r, ok := stored[ref]; ok {
+				if d, has := due[ref]; has && now.Sub(r.UpdatedAt) > d {
+					continue // o prazo do tipo venceu: a marca continua guardada, mas sem efeito (ADR-0083 item 6)
+				}
 				state[ref] = domain.EffectiveInboxState(r.Fingerprint, it.Fingerprint, r.ReadAt != nil, r.ArchivedAt != nil)
 			}
 		}
@@ -469,4 +477,40 @@ func ParseInboxRef(v string) (InboxRef, error) {
 		return InboxRef{Kind: kind, ID: id}, nil
 	}
 	return InboxRef{}, domain.Invalid("item", "use tipo:uuid, como gate:5c1e…")
+}
+
+// inboxDue devolve o prazo de "vence em" de cada alerta da Caixa que tem um (ADR-0083 item 6): o da empresa para o tipo ou o
+// padrão. Prazo 0 é "sem prazo" e o item fica fora do mapa. Só os alertas têm tipo com prazo.
+func (s *Service) inboxDue(ctx context.Context, companyID domain.ID, alerts []domain.Alert) (map[InboxRef]time.Duration, error) {
+	out := map[InboxRef]time.Duration{}
+	if len(alerts) == 0 {
+		return out, nil
+	}
+	rows, err := s.Pool.Query(ctx, `SELECT key, value::float8 FROM company_alert_settings WHERE company_id = $1 AND key LIKE 'due.%'`, companyID)
+	if err != nil {
+		return nil, fmt.Errorf("inbox due: %w", err)
+	}
+	defer rows.Close()
+	over := map[string]float64{}
+	for rows.Next() {
+		var k string
+		var v float64
+		if err := rows.Scan(&k, &v); err != nil {
+			return nil, fmt.Errorf("inbox due: %w", err)
+		}
+		over[k] = v
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	for _, a := range alerts {
+		hours, ok := over["due."+string(a.Kind)]
+		if !ok {
+			hours = domain.AlertDueDefaultHours(a.Kind)
+		}
+		if hours > 0 {
+			out[InboxRef{Kind: domain.InboxAlert, ID: a.ID}] = time.Duration(hours * float64(time.Hour))
+		}
+	}
+	return out, nil
 }

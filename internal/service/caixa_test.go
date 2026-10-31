@@ -212,3 +212,52 @@ func TestInboxViewerCanMarkOwnState(t *testing.T) {
 		t.Fatalf("viewer arquiva o próprio estado: %v", err)
 	}
 }
+
+// "Vence em" por tipo (ADR-0083 item 6): o alerta de agente externo arquivado volta depois do prazo do tipo, contado desde a
+// marca; a empresa pode trocar o prazo, e "sem prazo" (0) mantém o arquivamento. A marca não é apagada.
+func TestInboxAlertDueReturnsAfterTheTypeDeadline(t *testing.T) {
+	e, ana, _ := caixaEnv(t)
+	bg := context.Background()
+	alertID := domain.NewID()
+	if _, err := e.svc.Pool.Exec(bg, `INSERT INTO alerts (id, company_id, kind, subject_type, subject_id, severity, message, data, opened_at, last_seen_at)
+		VALUES ($1, $2, 'spool', 'external_host', $3, 'critical', 'Spool cheio', '{}', now(), now())`, alertID, e.co.ID, domain.NewID()); err != nil {
+		t.Fatal(err)
+	}
+	ref := service.InboxRef{Kind: domain.InboxAlert, ID: alertID}
+	count := func() int {
+		in, err := e.svc.Inbox(as(ana), e.co.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return len(in.Alerts)
+	}
+	if _, err := e.svc.SetInboxState(as(ana), ana.Actor(), e.co.ID, domain.InboxArchive, []service.InboxRef{ref}); err != nil {
+		t.Fatal(err)
+	}
+	if n := count(); n != 0 {
+		t.Fatalf("arquivado some: %d alertas", n)
+	}
+	age := func(h int) {
+		if _, err := e.svc.Pool.Exec(bg, `UPDATE inbox_state SET updated_at = now() - make_interval(hours => $1) WHERE company_id = $2 AND item_id = $3`, h, e.co.ID, alertID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	age(23)
+	if n := count(); n != 0 {
+		t.Errorf("marca de 23 h, prazo padrão de 24 h: o alerta devia seguir arquivado, veio %d", n)
+	}
+	age(25)
+	if n := count(); n != 1 {
+		t.Errorf("marca de 25 h, prazo padrão de 24 h: o alerta devia voltar, veio %d", n)
+	}
+	if _, err := e.svc.PutAlertSetting(bg, domain.HumanActor, e.co.ID, "due.spool", 0); err != nil {
+		t.Fatal(err)
+	}
+	if n := count(); n != 0 {
+		t.Errorf("sem prazo (0): a marca vale de novo, veio %d", n)
+	}
+	var kept int
+	if err := e.svc.Pool.QueryRow(bg, `SELECT count(*) FROM inbox_state WHERE company_id = $1 AND item_id = $2`, e.co.ID, alertID).Scan(&kept); err != nil || kept != 1 {
+		t.Errorf("vencer não apaga a marca: %d linhas (%v)", kept, err)
+	}
+}
