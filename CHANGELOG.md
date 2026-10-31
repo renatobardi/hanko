@@ -5,6 +5,37 @@ English summary at the end of each release.
 
 ## [Unreleased]
 
+## [0.8.1] — 2026-10-31
+
+### Conversa externa e chamadas ao modelo na ingestão
+
+- A ingestão passa a criar a conversa externa do `session.id` de cada fato, com o nome do gerador único, e a manter os atributos dela (host, agente, instância, serviço, assinatura, repositório, sessão) pela hora do fato mais antiga. Os spans que são chamada ao modelo (`claude_code.llm_request`, `session_task.turn`, `ai_memory.llm_request` e `jev.decision`, fora o agente `router`) entram em `model_calls`, com o papel da chamada, e somam no `calls_daily` e nos contadores da conversa só uma vez, mesmo reenviados. O p95 e o contexto da conversa são refeitos a partir das chamadas. O custo de lista vem na fatia 2: por ora a chamada com custo real no span é `real` e as outras são `unpriced`.
+
+- English summary: ingestion now creates the external conversation for each fact's `session.id`, named by the single generator, and keeps its attributes (host, agent, instance, service, subscription, repository, session) by the oldest fact time. Spans that are model calls (`claude_code.llm_request`, `session_task.turn`, `ai_memory.llm_request` and `jev.decision`, except the `router` agent) go into `model_calls` with the call role, and add to `calls_daily` and the conversation counters only once, even when resent. The conversation p95 and context are rebuilt from the calls. List cost comes in slice 2: for now a call with a real cost on the span is `real` and the others are `unpriced`.
+
+### Custo de lista das chamadas externas, calculado na ingestão
+
+- A chamada ao modelo que a ingestão grava passa a ter o custo de lista, calculado uma vez com o preço da hora do fato (a tabela de preços aplicada aos tokens, pelo prefixo de modelo mais longo e sem o prefixo do provedor), e uma das quatro classes: `real` (o custo do span ou, no Claude Code, o do log `api_request` de mesmo `request_id`, que pode chegar antes ou depois do span), `listed` (chamada de assinatura sem custo real), `estimated` (as outras sem custo real) e `unpriced` (modelo sem preço, que nunca vira zero). Na assinatura `zai` o custo informado é descartado. O custo de lista entra no `calls_daily`, na conversa e no uso externo; o log que chega depois promove a chamada a `real` e ajusta os totais.
+
+- English summary: a model call that ingestion records now has its list cost, computed once at the fact-time price (the price table applied to the tokens, by longest model prefix and without the provider prefix), and one of four classes: `real` (the span's cost or, for Claude Code, that of the `api_request` log with the same `request_id`, which may arrive before or after the span), `listed` (a subscription call without real cost), `estimated` (other calls without real cost) and `unpriced` (a model without a price, which never becomes zero). On the `zai` subscription the reported cost is discarded. List cost goes into `calls_daily`, the conversation and the external usage; a log that arrives later promotes the call to `real` and adjusts the totals.
+
+### Deploy: imagem construída fora do servidor
+
+- `deploy/oute-server/deploy-prd.sh --build-local` constrói a imagem na máquina de quem roda o deploy, para a arquitetura do servidor, e a envia ao LXC `hanko-prd` com `docker save | ssh | docker load`; o servidor sobe com `docker compose up -d --no-build` e não compila. A construção e o envio rodam antes do backup e da troca dos containers, então uma falha deixa a produção como estava. Sem a opção, nada muda.
+- English summary: `deploy/oute-server/deploy-prd.sh --build-local` builds the image on the machine running the deploy, for the server's architecture, and sends it to the `hanko-prd` LXC with `docker save | ssh | docker load`; the server starts it with `docker compose up -d --no-build` and never compiles. Build and transfer run before the backup and the container swap, so a failure leaves production untouched. Without the flag nothing changes.
+
+### Emparelhamento de repositório e conteúdo da conversa externa
+
+- A API passa a listar os emparelhamentos de repositório com workspace e a trocar o workspace de um (owner ou admin). Trocar leva o passado junto: as conversas, sessões, rodadas e chamadas do repositório passam para o workspace novo, e o `calls_daily` sai do velho e entra no novo pelas mesmas chamadas; o workspace de sistema `no-repo` não recebe emparelhamento. Também passa a mostrar o conteúdo completo de uma conversa externa (hoje os pedidos do usuário), só para owner e admin, com um `activity_event` a cada leitura. Com isso nenhuma operação da fonte externa responde mais 501.
+
+- English summary: the API now lists repo pairings and lets owners or admins change a pairing's workspace. Changing it carries the past along: the repository's conversations, sessions, rounds and calls move to the new workspace, and `calls_daily` leaves the old one and enters the new one with the same calls; the `no-repo` system workspace cannot take a pairing. It also shows an external conversation's full content (today the user's prompts), for owners and admins only, with an `activity_event` on every read. With this, no external-source operation answers 501 any more.
+
+### Leitura da fonte externa: sessões, conversas, classificação à mão e uso
+
+- A API passa a responder as sessões externas (lista e detalhe), as conversas externas (lista com filtro por host, agente, workspace, sessão, classe, marca e janela, ordenada pela atividade ou pelo custo, e detalhe), as entradas da classificação de uma conversa, a troca da classe à mão (owner ou admin, com `activity_event`, que vale sobre a classificação do classificador) e o uso externo, agrupado por dia, host, agente, modelo, workspace e assinatura. O filtro `round` do uso soma só as chamadas das conversas das sessões de uma rodada, para o teto de custo do modo dark. O uso traz o custo real e as chamadas sem preço; o custo de lista e o "pago" vêm com a fatia 2.
+
+- English summary: the API now answers external sessions (list and detail), external conversations (list filtered by host, agent, workspace, session, class, tag and window, ordered by activity or cost, and detail), a conversation's classification inputs, setting the class by hand (owner or admin, with an `activity_event`, which overrides the classifier) and external usage grouped by day, host, agent, model, workspace and subscription. The usage `round` filter sums only the calls of conversations in a round's sessions, for the dark mode cost cap. Usage carries real cost and unpriced calls; list cost and the "paid" figure come with slice 2.
+
 ## [0.8.0] — 2026-10-31
 
 ### Contrato da v0.8, grupo 3: ajustes da rodada e da aprovação externas

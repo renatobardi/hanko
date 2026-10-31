@@ -1,12 +1,12 @@
-# Deploy com imagem construída fora do servidor · sessão `estudo-issues`
+# Release v0.8.1 · sessão `estudo-issues`
 Data: 2026-10-31
 
 ## Feito
-- `deploy-prd.sh --build-local`: constrói a imagem no Mac (arquitetura do servidor) e a envia ao `hanko-prd` com `docker save | ssh | docker load`; sobe com `compose up --no-build`. Sem a opção, nada muda.
-- Causa do problema: o deploy da v0.8.0 compilou o Go dentro do LXC (teto de 4 GiB) e levou o IO do host a 99% de pressão; o build morreu sem imagem nova.
+- `CHANGELOG.md`: seção `[0.8.1]` com `scripts/release-notes.sh cut 0.8.1` (5 fragmentos: conversa externa, leitura, emparelhamento, custo de lista e `--build-local`).
+- A produção roda a `74948c7c`, que tem 4 dos 5 itens. O custo de lista (#168, migration 00216) entrou na `main` depois do deploy: a `v0.8.1` o inclui, então precisa de um deploy novo com `--build-local`.
 
 ## Travado
-- Não testei o script: este ambiente não alcança o oute-server. Só `bash -n`. O primeiro uso real é o deploy da v0.8.0.
+- Nada. Tag `v0.8.1` e o deploy são passos do Bardi (pedidos no canal).
 
 ## Próximo passo
-- Bardi: merge deste PR, depois o deploy da v0.8.0 com `--build-local` (pedido pelo canal). A produção segue na v0.7.2.
+- Bardi: aprovar a tag `v0.8.1` e o deploy no `hanko-prd`; depois a demo `qa` da #117.
