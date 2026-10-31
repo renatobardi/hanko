@@ -4600,6 +4600,15 @@
             ],
             "type": "string"
           },
+          "external_key": {
+            "description": "Chave externa: liga a assinatura às chamadas externas que a declaram (única por empresa).",
+            "enum": [
+              "claude",
+              "zai",
+              "codex"
+            ],
+            "type": "string"
+          },
           "inactive": {
             "description": "Cria a assinatura desligada.",
             "type": "boolean"
@@ -21242,6 +21251,15 @@
             "format": "date-time",
             "type": "string"
           },
+          "external_key": {
+            "description": "Liga a assinatura às chamadas externas que declaram esta chave em oute.subscription (ADR-0082 item 4).",
+            "enum": [
+              "claude",
+              "zai",
+              "codex"
+            ],
+            "type": "string"
+          },
           "id": {
             "format": "uuid",
             "type": "string"
@@ -24248,9 +24266,22 @@
             ],
             "type": "string"
           },
+          "clear_external_key": {
+            "description": "Tira a chave externa.",
+            "type": "boolean"
+          },
           "clear_weekly_limit": {
             "description": "Remove o teto semanal (e a trava).",
             "type": "boolean"
+          },
+          "external_key": {
+            "description": "Troca a chave externa.",
+            "enum": [
+              "claude",
+              "zai",
+              "codex"
+            ],
+            "type": "string"
           },
           "model_prefixes": {
             "description": "Substitui a lista de prefixos.",
@@ -24260,6 +24291,7 @@
             "type": "array"
           },
           "monthly_usd": {
+            "description": "Trocar o valor acrescenta uma linha ao histórico de mensalidade, com início hoje, e exige reautenticação recente (ADR-0082 item 6).",
             "format": "double",
             "minimum": 0,
             "type": "number"
@@ -69474,7 +69506,6 @@
     },
     "/api/v1/companies/{company}/subscriptions/{subscription}/monthly-history": {
       "get": {
-        "description": "Contrato do custo elevado e dos alertas externos (ADR-0082 e 0083). Responde 501 até a fatia 2 (#126).",
         "operationId": "list-subscription-monthly-history",
         "parameters": [
           {
@@ -69574,16 +69605,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Lista o histórico de mensalidade de uma assinatura",
@@ -69592,7 +69613,6 @@
         ]
       },
       "post": {
-        "description": "Contrato do custo elevado e dos alertas externos (ADR-0082 e 0083). Responde 501 até a fatia 2 (#126).",
         "operationId": "add-subscription-monthly-value",
         "parameters": [
           {
@@ -69702,16 +69722,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Acrescenta uma linha ao histórico de mensalidade (owner ou admin, com reautenticação recente)",

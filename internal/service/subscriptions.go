@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/renatobardi/hanko/internal/auth"
 	"github.com/renatobardi/hanko/internal/domain"
 	"github.com/renatobardi/hanko/internal/store"
 )
@@ -25,6 +26,8 @@ type CreateSubscriptionInput struct {
 	WeeklyLimitUSD *float64
 	WeeklyGuardPct int  // default 90
 	Inactive       bool // created switched off
+	// ExternalKey liga a assinatura às chamadas externas (claude, zai ou codex; ADR-0082 item 4); vazio = nenhuma.
+	ExternalKey string
 }
 
 // UpdateSubscriptionInput changes only the fields that are set.
@@ -37,6 +40,9 @@ type UpdateSubscriptionInput struct {
 	ClearWeeklyLimit bool
 	WeeklyGuardPct   *int
 	Active           *bool
+	// ExternalKey troca a chave externa; ClearExternalKey a tira.
+	ExternalKey      *string
+	ClearExternalKey bool
 }
 
 // SubscriptionStatus is a subscription with this week's estimated usage against its guard.
@@ -124,6 +130,11 @@ func (s *Service) CreateSubscription(ctx context.Context, actor domain.Actor, co
 	if err := validateSubscription(in.Name, in.Agent, in.MonthlyUSD, in.WeeklyLimitUSD, in.WeeklyGuardPct); err != nil {
 		return domain.Subscription{}, err
 	}
+	if in.ExternalKey != "" {
+		if err := domain.ValidateSubscriptionExternalKey(in.ExternalKey); err != nil {
+			return domain.Subscription{}, err
+		}
+	}
 	var out domain.Subscription
 	err := s.withTx(ctx, func(t *txc) error {
 		if _, err := t.q.GetCompanyByID(ctx, companyID); err != nil {
@@ -140,6 +151,15 @@ func (s *Service) CreateSubscription(ctx context.Context, actor domain.Actor, co
 			if err := t.q.OpenSubscriptionPeriod(ctx, store.OpenSubscriptionPeriodParams{SubscriptionID: out.ID, Now: t.now}); err != nil {
 				return fmt.Errorf("open subscription period: %w", err)
 			}
+		}
+		if err := addInitialMonthlyValue(t, companyID, out.ID, out.MonthlyUSD); err != nil {
+			return err
+		}
+		if in.ExternalKey != "" {
+			if err := setExternalKey(t, companyID, out.ID, &in.ExternalKey); err != nil {
+				return err
+			}
+			out.ExternalKey = &in.ExternalKey
 		}
 		return t.activity(actor, companyID, "subscription.created", "subscription", out.ID,
 			map[string]any{"name": out.Name, "agent": out.Agent, "monthly_usd": out.MonthlyUSD, "weekly_limit_usd": out.WeeklyLimitUSD}, "")
@@ -251,6 +271,13 @@ func (s *Service) UpdateSubscription(ctx context.Context, actor domain.Actor, co
 			}
 			changed = append(changed, "active")
 		}
+		keyChanged, newKey, err := externalKeyChange(cur.ExternalKey, in)
+		if err != nil {
+			return err
+		}
+		if keyChanged {
+			changed = append(changed, "external_key")
+		}
 		if len(changed) == 0 {
 			out = subscriptionFromRow(cur)
 			return nil
@@ -258,11 +285,31 @@ func (s *Service) UpdateSubscription(ctx context.Context, actor domain.Actor, co
 		if err := validateSubscription(p.Name, p.Agent, p.MonthlyUsd, p.WeeklyLimitUsd, int(p.WeeklyGuardPct)); err != nil {
 			return err
 		}
+		monthlyChanged := p.MonthlyUsd != cur.MonthlyUsd
+		if monthlyChanged { // trocar o valor é acrescentar uma linha ao histórico, com reautenticação recente (ADR-0082 item 6)
+			identity, _ := auth.IdentityFrom(ctx)
+			if _, err := s.RequireReauth(identity); err != nil {
+				return err
+			}
+		}
 		row, err := t.q.UpdateSubscription(ctx, p)
 		if err != nil {
 			return mapErr(err, "update subscription")
 		}
 		out = subscriptionFromRow(row)
+		if monthlyChanged {
+			if err := addMonthlyValueRow(t, actor, companyID, id, p.MonthlyUsd, t.now.UTC(), "manual"); err != nil {
+				return err
+			}
+		}
+		if keyChanged {
+			if err := setExternalKey(t, companyID, id, newKey); err != nil {
+				return err
+			}
+			out.ExternalKey = newKey
+		} else {
+			out.ExternalKey = cur.ExternalKey
+		}
 		if row.Active != cur.Active { // switching off closes the period; switching on opens a new one
 			if row.Active {
 				err = t.q.OpenSubscriptionPeriod(ctx, store.OpenSubscriptionPeriodParams{SubscriptionID: id, Now: t.now})
