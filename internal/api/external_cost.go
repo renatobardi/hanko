@@ -1,20 +1,12 @@
 package api
 
 import (
-	"net/http"
 	"time"
-
-	"github.com/danielgtaylor/huma/v2"
 )
 
-// Contrato do custo elevado (ADR-0082) e dos alertas de agente externo (ADR-0083), grupo 2 da v0.8 (#124). Cada operação
-// responde 501 até a fatia 2 (#126) ligar o backend. O alerta em si usa a API de alertas que já existe: os 17 tipos novos
-// aparecem nela quando a fatia 2 os abrir.
-
-const (
-	costContract = "Contrato do custo elevado e dos alertas externos (ADR-0082 e 0083)"
-	sliceCost    = "fatia 2 (#126)"
-)
+// Tipos da API do custo elevado (ADR-0082) e dos alertas de agente externo (ADR-0083): histórico de mensalidade, conferência de
+// preços e ajustes de alerta. As rotas estão em subscription_history.go, price_checks.go e alert_settings.go. O alerta em si usa a
+// API de alertas que já existe.
 
 // SubscriptionMonthlyValue é uma linha do histórico de mensalidade de uma assinatura (ADR-0082 item 6). O histórico só
 // recebe linhas novas: o valor de um dia é o da linha com o maior início menor ou igual a ele, e a registrada por último
@@ -98,15 +90,4 @@ type putAlertSettingIn struct {
 	Body struct {
 		Value float64 `json:"value" minimum:"0" doc:"Prazo em horas (0 = sem prazo, até 720) ou o valor do limite, na unidade dele."`
 	}
-}
-
-func (s *server) registerExternalCost(api huma.API) {
-	const tag = "external-cost"
-	b := "/companies/{company}"
-
-	pendingContractOp[listExternalNamedIn, ListOut[PriceCheckRun]](api, op("list-price-checks", http.MethodGet, b+"/price-checks", tag,
-		"Lista as conferências de preços, da mais recente para a mais antiga"), costContract, sliceCost)
-	pendingContractOp[PriceCheckPath, ItemOut[PriceCheckDetail]](api, op("get-price-check", http.MethodGet, b+"/price-checks/{run}", tag,
-		"Mostra uma conferência de preços com o resultado de cada modelo"), costContract, sliceCost)
-
 }

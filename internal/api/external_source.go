@@ -1,8 +1,6 @@
 package api
 
 import (
-	"context"
-	"net/http"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -13,16 +11,6 @@ import (
 // diz qual (issues #125 e #126). O Hanko só observa: nenhuma operação executa algo num agente ou num host externo.
 // As rotas de ingestão (`/v1/traces|logs|metrics` e `/v1/replay/*`) ficam no listener da ingestão e têm o OpenAPI
 // próprio (`api/openapi-ingest.json`).
-
-// pendingContractOp registra uma operação de um contrato da v0.8 que ainda responde 501; `contract` diz de qual (por
-// exemplo "Contrato da fonte externa (ADR-0075 a 0079)") e `slice` em qual fatia ela fica pronta.
-func pendingContractOp[I, O any](api huma.API, o huma.Operation, contract, slice string) {
-	o.Description = contract + ". Responde 501 até a " + slice + "."
-	o.Errors = append(o.Errors, http.StatusNotImplemented)
-	huma.Register(api, o, func(context.Context, *I) (*O, error) {
-		return nil, problem(http.StatusNotImplemented, "operação ainda não implementada")
-	})
-}
 
 // ---------- recursos ----------
 
