@@ -56,6 +56,18 @@ func TestPriceAndCostAlerts(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := openKinds(t, e)
+	dump, err := e.svc.Pool.Query(ctx, `SELECT model, cost_class, subscription_key, a.name FROM model_calls m JOIN external_agent a ON a.id = m.agent_id`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for dump.Next() {
+		var m, c, sk, an string
+		if err := dump.Scan(&m, &c, &sk, &an); err != nil {
+			t.Fatal(err)
+		}
+		t.Logf("model_calls: model=%q class=%q sub=%q agent=%q", m, c, sk, an)
+	}
+	dump.Close()
 	for _, k := range []string{"price_model_unpriced", "cost_subscription_unpriced", "cost_claude_diff"} {
 		if got[k] != 1 {
 			t.Errorf("alertas abertos %v: falta %s", got, k)
