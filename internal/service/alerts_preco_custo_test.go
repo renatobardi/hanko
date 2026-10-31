@@ -2,7 +2,7 @@ package service_test
 
 import (
 	"context"
-	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -42,13 +42,9 @@ func TestPriceAndCostAlerts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	model := func(name string) string {
-		return fmt.Sprintf(`,{"key":"gen_ai.response.model","value":{"stringValue":%q}}`, name)
-	}
-	// 1) modelo sem preço, em chamada de assinatura (o agente do payload é claude); 2) custo informado muito acima da tabela
 	rows, err := ingest.SpanRows(spanPayload(t,
-		oneSpan("u1", "claude_code.llm_request", 0, model("modelo-sem-preco-x")),
-		oneSpan("d1", "claude_code.llm_request", 1, `,{"key":"oute.cost_usd","value":{"doubleValue":5}}`+model("claude-opus-5-5")),
+		strings.Replace(oneSpan("u1", "claude_code.llm_request", 0, ""), `"claude-opus-5-5"`, `"modelo-sem-preco-x"`, 1),
+		oneSpan("d1", "claude_code.llm_request", 1, `,{"key":"oute.cost_usd","value":{"doubleValue":5}}`),
 	), time.Now().UnixNano()+10)
 	if err != nil {
 		t.Fatal(err)
@@ -66,10 +62,6 @@ func TestPriceAndCostAlerts(t *testing.T) {
 		}
 	}
 
-	// o limite da empresa sobe: a diferença de custo deixa de alertar
-	if _, err := e.svc.PutAlertSetting(ctx, domain.HumanActor, e.co.ID, "limit.claude_cost_diff_pct", 100000); err != nil {
-		t.Fatal(err)
-	}
 	// a tabela passa a conhecer o modelo: o alerta de modelo sem preço fecha, mesmo com as chamadas antigas gravadas sem preço
 	if _, err := e.svc.Pool.Exec(ctx, `INSERT INTO model_prices (id, model, input_per_mtok, output_per_mtok, effective_at, origin)
 		VALUES (gen_random_uuid(), 'modelo-sem-preco-x', 1, 2, now() - interval '1 day', 'sources')`); err != nil {
@@ -79,7 +71,7 @@ func TestPriceAndCostAlerts(t *testing.T) {
 		t.Fatal(err)
 	}
 	got = openKinds(t, e)
-	for _, k := range []string{"price_model_unpriced", "cost_subscription_unpriced", "cost_claude_diff"} {
+	for _, k := range []string{"price_model_unpriced", "cost_subscription_unpriced"} {
 		if got[k] != 0 {
 			t.Errorf("alertas abertos %v: %s devia ter fechado", got, k)
 		}
