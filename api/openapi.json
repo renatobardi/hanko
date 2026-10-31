@@ -4600,6 +4600,15 @@
             ],
             "type": "string"
           },
+          "external_key": {
+            "description": "Chave externa: liga a assinatura às chamadas externas que a declaram (única por empresa).",
+            "enum": [
+              "claude",
+              "zai",
+              "codex"
+            ],
+            "type": "string"
+          },
           "inactive": {
             "description": "Cria a assinatura desligada.",
             "type": "boolean"
@@ -6955,6 +6964,11 @@
             "format": "double",
             "type": "number"
           },
+          "cost_paid_usd": {
+            "description": "Pago: a mensalidade do dia da assinatura, rateada entre os runs e as chamadas externas pelo custo de lista (ADR-0082 item 5). Zero sem assinatura.",
+            "format": "double",
+            "type": "number"
+          },
           "cost_real_usd": {
             "format": "double",
             "type": "number"
@@ -7003,6 +7017,7 @@
           "cache_creation_tokens",
           "cost_real_usd",
           "cost_list_usd",
+          "cost_paid_usd",
           "unpriced_calls"
         ],
         "type": "object"
@@ -21242,6 +21257,15 @@
             "format": "date-time",
             "type": "string"
           },
+          "external_key": {
+            "description": "Liga a assinatura às chamadas externas que declaram esta chave em oute.subscription (ADR-0082 item 4).",
+            "enum": [
+              "claude",
+              "zai",
+              "codex"
+            ],
+            "type": "string"
+          },
           "id": {
             "format": "uuid",
             "type": "string"
@@ -24248,9 +24272,22 @@
             ],
             "type": "string"
           },
+          "clear_external_key": {
+            "description": "Tira a chave externa.",
+            "type": "boolean"
+          },
           "clear_weekly_limit": {
             "description": "Remove o teto semanal (e a trava).",
             "type": "boolean"
+          },
+          "external_key": {
+            "description": "Troca a chave externa.",
+            "enum": [
+              "claude",
+              "zai",
+              "codex"
+            ],
+            "type": "string"
           },
           "model_prefixes": {
             "description": "Substitui a lista de prefixos.",
@@ -24260,6 +24297,7 @@
             "type": "array"
           },
           "monthly_usd": {
+            "description": "Trocar o valor acrescenta uma linha ao histórico de mensalidade, com início hoje, e exige reautenticação recente (ADR-0082 item 6).",
             "format": "double",
             "minimum": 0,
             "type": "number"
@@ -26247,7 +26285,6 @@
     },
     "/api/v1/companies/{company}/alert-settings": {
       "get": {
-        "description": "Contrato do custo elevado e dos alertas externos (ADR-0082 e 0083). Responde 501 até a fatia 2 (#126).",
         "operationId": "list-alert-settings",
         "parameters": [
           {
@@ -26334,16 +26371,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Lista os limites e os prazos de alerta da empresa, com o valor em vigor e o padrão",
@@ -26354,7 +26381,6 @@
     },
     "/api/v1/companies/{company}/alert-settings/{key}": {
       "delete": {
-        "description": "Contrato do custo elevado e dos alertas externos (ADR-0082 e 0083). Responde 501 até a fatia 2 (#126).",
         "operationId": "reset-alert-setting",
         "parameters": [
           {
@@ -26447,16 +26473,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Volta um limite ou um prazo ao padrão (owner ou admin)",
@@ -26465,7 +26481,6 @@
         ]
       },
       "put": {
-        "description": "Contrato do custo elevado e dos alertas externos (ADR-0082 e 0083). Responde 501 até a fatia 2 (#126).",
         "operationId": "put-alert-setting",
         "parameters": [
           {
@@ -26575,16 +26590,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Troca um limite ou um prazo de alerta (owner ou admin)",
@@ -38375,7 +38380,6 @@
     },
     "/api/v1/companies/{company}/external-conversations": {
       "get": {
-        "description": "Contrato da fonte externa (ADR-0075 a 0079). Responde 501 até a fatia 1 (#125).",
         "operationId": "list-external-conversations",
         "parameters": [
           {
@@ -38572,16 +38576,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Lista as conversas externas, com filtro por host, agente, workspace, sessão, classe e marca",
@@ -38592,7 +38586,6 @@
     },
     "/api/v1/companies/{company}/external-conversations/{conversation}": {
       "get": {
-        "description": "Contrato da fonte externa (ADR-0075 a 0079). Responde 501 até a fatia 1 (#125).",
         "operationId": "get-external-conversation",
         "parameters": [
           {
@@ -38690,16 +38683,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Mostra uma conversa externa",
@@ -38710,7 +38693,6 @@
     },
     "/api/v1/companies/{company}/external-conversations/{conversation}/class": {
       "post": {
-        "description": "Contrato da fonte externa (ADR-0075 a 0079). Responde 501 até a fatia 1 (#125).",
         "operationId": "classify-external-conversation",
         "parameters": [
           {
@@ -38818,16 +38800,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Troca a classe de uma conversa à mão; vale sobre tudo (owner ou admin)",
@@ -38838,7 +38810,6 @@
     },
     "/api/v1/companies/{company}/external-conversations/{conversation}/class-inputs": {
       "get": {
-        "description": "Contrato da fonte externa (ADR-0075 a 0079). Responde 501 até a fatia 1 (#125).",
         "operationId": "list-conversation-class-inputs",
         "parameters": [
           {
@@ -38936,16 +38907,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Lista as entradas da classificação que não se refazem: respostas do decision model e trocas manuais",
@@ -38956,7 +38917,6 @@
     },
     "/api/v1/companies/{company}/external-conversations/{conversation}/content": {
       "get": {
-        "description": "Contrato da fonte externa (ADR-0075 a 0079). Responde 501 até a fatia 1 (#125).",
         "operationId": "get-external-conversation-content",
         "parameters": [
           {
@@ -39054,16 +39014,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Mostra o conteúdo completo da conversa (owner ou admin; cada leitura gera activity_event)",
@@ -40207,7 +40157,6 @@
     },
     "/api/v1/companies/{company}/external-sessions": {
       "get": {
-        "description": "Contrato da fonte externa (ADR-0075 a 0079). Responde 501 até a fatia 1 (#125).",
         "operationId": "list-external-sessions",
         "parameters": [
           {
@@ -40339,16 +40288,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Lista as sessões externas",
@@ -40359,7 +40298,6 @@
     },
     "/api/v1/companies/{company}/external-sessions/{session}": {
       "get": {
-        "description": "Contrato da fonte externa (ADR-0075 a 0079). Responde 501 até a fatia 1 (#125).",
         "operationId": "get-external-session",
         "parameters": [
           {
@@ -40457,16 +40395,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Mostra uma sessão externa",
@@ -40477,7 +40405,6 @@
     },
     "/api/v1/companies/{company}/external-usage": {
       "get": {
-        "description": "Contrato da fonte externa (ADR-0075 a 0079). Responde 501 até a fatia 2 (#126).",
         "operationId": "get-external-usage",
         "parameters": [
           {
@@ -40617,19 +40544,9 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
-        "summary": "Uso e custo de lista das chamadas externas, agrupados",
+        "summary": "Uso e custo de lista das chamadas externas, agrupados; o filtro `round` soma só as chamadas de uma rodada",
         "tags": [
           "external-source"
         ]
@@ -56909,7 +56826,6 @@
     },
     "/api/v1/companies/{company}/price-checks": {
       "get": {
-        "description": "Contrato do custo elevado e dos alertas externos (ADR-0082 e 0083). Responde 501 até a fatia 2 (#126).",
         "operationId": "list-price-checks",
         "parameters": [
           {
@@ -57034,16 +56950,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Lista as conferências de preços, da mais recente para a mais antiga",
@@ -57054,7 +56960,6 @@
     },
     "/api/v1/companies/{company}/price-checks/{run}": {
       "get": {
-        "description": "Contrato do custo elevado e dos alertas externos (ADR-0082 e 0083). Responde 501 até a fatia 2 (#126).",
         "operationId": "get-price-check",
         "parameters": [
           {
@@ -57152,16 +57057,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Mostra uma conferência de preços com o resultado de cada modelo",
@@ -59058,7 +58953,6 @@
     },
     "/api/v1/companies/{company}/repo-pairings": {
       "get": {
-        "description": "Contrato da fonte externa (ADR-0075 a 0079). Responde 501 até a fatia 1 (#125).",
         "operationId": "list-repo-pairings",
         "parameters": [
           {
@@ -59183,16 +59077,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Lista os emparelhamentos de repositório com workspace",
@@ -59203,7 +59087,6 @@
     },
     "/api/v1/companies/{company}/repo-pairings/{pairing}": {
       "patch": {
-        "description": "Contrato da fonte externa (ADR-0075 a 0079). Responde 501 até a fatia 1 (#125).",
         "operationId": "update-repo-pairing",
         "parameters": [
           {
@@ -59311,16 +59194,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Troca o workspace de um emparelhamento; o passado vai junto (owner ou admin)",
@@ -69584,7 +69457,6 @@
     },
     "/api/v1/companies/{company}/subscriptions/{subscription}/monthly-history": {
       "get": {
-        "description": "Contrato do custo elevado e dos alertas externos (ADR-0082 e 0083). Responde 501 até a fatia 2 (#126).",
         "operationId": "list-subscription-monthly-history",
         "parameters": [
           {
@@ -69684,16 +69556,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Lista o histórico de mensalidade de uma assinatura",
@@ -69702,7 +69564,6 @@
         ]
       },
       "post": {
-        "description": "Contrato do custo elevado e dos alertas externos (ADR-0082 e 0083). Responde 501 até a fatia 2 (#126).",
         "operationId": "add-subscription-monthly-value",
         "parameters": [
           {
@@ -69812,16 +69673,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Acrescenta uma linha ao histórico de mensalidade (owner ou admin, com reautenticação recente)",

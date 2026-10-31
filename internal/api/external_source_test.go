@@ -6,86 +6,38 @@ import (
 	"testing"
 )
 
-// O contrato da fonte externa (ADR-0075 a 0079) está no OpenAPI e responde 501 até cada fatia ligar o backend; agentes e hosts já estão ligados (external_entities_test.go).
-func TestExternalSourceContratoResponde501(t *testing.T) {
+// Toda operação da fonte externa (ADR-0075 a 0079) está no OpenAPI e já tem backend: nenhuma responde 501.
+func TestExternalSourceOperationsAreWired(t *testing.T) {
 	ts, _ := newTestServer(t, &fakeSvc{}, nil)
-	const id = "00000000-0000-0000-0000-000000000001"
-	const base = "/api/v1/companies/acme"
-	for _, c := range []struct{ method, path, body string }{
-		{"GET", base + "/repo-pairings", ""},
-		{"PATCH", base + "/repo-pairings/" + id, `{"workspace_id":"` + id + `"}`},
-		{"GET", base + "/external-sessions", ""},
-		{"GET", base + "/external-sessions/" + id, ""},
-		{"GET", base + "/external-conversations", ""},
-		{"GET", base + "/external-conversations/" + id, ""},
-		{"GET", base + "/external-conversations/" + id + "/class-inputs", ""},
-		{"POST", base + "/external-conversations/" + id + "/class", `{"class":"qa"}`},
-		{"GET", base + "/external-conversations/" + id + "/content", ""},
-		{"GET", base + "/external-usage", ""},
-	} {
-		resp, body := do(t, c.method, ts.URL+c.path, c.body, nil)
-		if resp.StatusCode != 501 {
-			t.Errorf("%s %s: %d %s, quer 501", c.method, c.path, resp.StatusCode, body)
-		}
-	}
-
-	resp, body := do(t, "GET", ts.URL+"/openapi.json", "", nil)
-	if resp.StatusCode != 200 {
-		t.Fatalf("openapi.json: %d", resp.StatusCode)
-	}
+	_, body := do(t, "GET", ts.URL+"/openapi.json", "", nil)
 	var doc struct {
 		Paths map[string]map[string]struct {
-			OperationID string                     `json:"operationId"`
-			Description string                     `json:"description"`
-			Responses   map[string]json.RawMessage `json:"responses"`
+			OperationID string `json:"operationId"`
+			Description string `json:"description"`
 		} `json:"paths"`
 	}
 	if err := json.Unmarshal([]byte(body), &doc); err != nil {
 		t.Fatal(err)
 	}
-	n := 0
-	for path, ops := range doc.Paths {
-		for method, o := range ops {
-			if !strings.HasPrefix(o.Description, "Contrato da fonte externa") {
-				continue
-			}
-			n++
-			if _, ok := o.Responses["501"]; !ok {
-				t.Errorf("%s %s (%s): sem resposta 501 no OpenAPI", method, path, o.OperationID)
-			}
-			if !strings.Contains(o.Description, "fatia ") {
-				t.Errorf("%s: a descrição deve dizer qual fatia implementa", o.OperationID)
+	want := map[string]bool{}
+	for _, id := range []string{"list-external-agents", "get-external-agent", "update-external-agent", "merge-external-agent",
+		"list-external-hosts", "get-external-host", "update-external-host", "merge-external-host", "list-repo-pairings", "update-repo-pairing",
+		"list-external-sessions", "get-external-session", "list-external-conversations", "get-external-conversation",
+		"list-conversation-class-inputs", "classify-external-conversation", "get-external-conversation-content", "get-external-usage",
+		"list-ingest-keys", "create-ingest-key", "revoke-ingest-key"} {
+		want[id] = true
+	}
+	for _, ops := range doc.Paths {
+		for _, o := range ops {
+			if want[o.OperationID] {
+				delete(want, o.OperationID)
+				if strings.Contains(o.Description, "Responde 501") {
+					t.Errorf("%s ainda responde 501", o.OperationID)
+				}
 			}
 		}
 	}
-	if n != 10 {
-		t.Fatalf("operações do contrato da fonte externa ainda em 501 = %d, quer 10 (agentes e hosts já estão ligados)", n)
-	}
-}
-
-// O contrato do custo elevado e dos alertas externos (ADR-0082 e 0083) responde 501 até a fatia 2 (#126).
-func TestExternalCostContratoResponde501(t *testing.T) {
-	ts, _ := newTestServer(t, &fakeSvc{}, nil)
-	const base = "/api/v1/companies/acme"
-	const run = "00000000-0000-0000-0000-000000000001"
-	n := 0
-	for _, c := range []struct{ method, path, body string }{
-		{"GET", base + "/subscriptions/claude-max/monthly-history", ""},
-		{"POST", base + "/subscriptions/claude-max/monthly-history", `{"monthly_usd":250,"starts_on":"2026-06-01"}`},
-		{"GET", base + "/price-checks", ""},
-		{"GET", base + "/price-checks/" + run, ""},
-		{"GET", base + "/alert-settings", ""},
-		{"PUT", base + "/alert-settings/due.queue", `{"value":0}`},
-		{"DELETE", base + "/alert-settings/due.queue", ""},
-	} {
-		n++
-		resp, body := do(t, c.method, ts.URL+c.path, c.body, nil)
-		if resp.StatusCode != 501 {
-			t.Errorf("%s %s: %d %s, quer 501", c.method, c.path, resp.StatusCode, body)
-		}
-	}
-	_, spec := do(t, "GET", ts.URL+"/openapi.json", "", nil)
-	if got := strings.Count(spec, "Contrato do custo elevado e dos alertas externos"); got != n {
-		t.Fatalf("operações do contrato do custo = %d, quer %d", got, n)
+	for id := range want {
+		t.Errorf("a operação %s não está no OpenAPI", id)
 	}
 }

@@ -34,6 +34,8 @@ type derived struct {
 	noRepo bool // há fato sem repositório válido: vai para o workspace de sistema
 	// sessions: uma por `oute.task.id` do lote (ADR-0078 item 2)
 	sessions map[string]*sessionFacts
+	// conversations: uma por `session.id` do lote (ADR-0078 item 1)
+	conversations map[string]*convFacts
 }
 
 // entityText devolve o texto aparado e dentro do limite, ou falso quando o texto não serve como entidade.
@@ -53,8 +55,17 @@ func textOf(p *string) string {
 }
 
 func collectDerived(b ingest.Batch) derived {
-	d := derived{agents: map[string]bool{}, hosts: map[string]int64{}, repos: map[string]bool{}, sessions: map[string]*sessionFacts{}}
+	d := derived{agents: map[string]bool{}, hosts: map[string]int64{}, repos: map[string]bool{}, sessions: map[string]*sessionFacts{},
+		conversations: map[string]*convFacts{}}
 	note := func(f ingest.Fixed, at int64) {
+		if sid, ok := entityText(textOf(f.SessionID), maxConversationSession); ok {
+			c := d.conversations[sid]
+			if c == nil {
+				c = &convFacts{first: at, last: at}
+				d.conversations[sid] = c
+			}
+			c.note(f, at)
+		}
 		if task, ok := entityText(textOf(f.OuteTaskID), maxSessionTask); ok {
 			s := d.sessions[task]
 			if s == nil {
@@ -90,7 +101,7 @@ func collectDerived(b ingest.Batch) derived {
 }
 
 // deriveFromBatch cria ou liga as entidades do lote. Ordem fixa (texto ordenado) para os eventos saírem sempre iguais.
-func deriveFromBatch(t *txc, companyID domain.ID, d derived) error {
+func deriveFromBatch(t *txc, companyID domain.ID, b ingest.Batch, d derived) error {
 	for _, name := range sortedTexts(d.agents) {
 		if _, err := resolveEntity(t, companyID, name, agentEntity); err != nil {
 			return err
@@ -121,7 +132,7 @@ func deriveFromBatch(t *txc, companyID domain.ID, d derived) error {
 			return err
 		}
 	}
-	return nil
+	return deriveConversations(t, companyID, b, d)
 }
 
 func sortedTexts[V any](m map[string]V) []string {

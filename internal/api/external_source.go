@@ -1,8 +1,6 @@
 package api
 
 import (
-	"context"
-	"net/http"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -13,26 +11,6 @@ import (
 // diz qual (issues #125 e #126). O Hanko só observa: nenhuma operação executa algo num agente ou num host externo.
 // As rotas de ingestão (`/v1/traces|logs|metrics` e `/v1/replay/*`) ficam no listener da ingestão e têm o OpenAPI
 // próprio (`api/openapi-ingest.json`).
-
-// pendingContractOp registra uma operação de um contrato da v0.8 que ainda responde 501; `contract` diz de qual (por
-// exemplo "Contrato da fonte externa (ADR-0075 a 0079)") e `slice` em qual fatia ela fica pronta.
-func pendingContractOp[I, O any](api huma.API, o huma.Operation, contract, slice string) {
-	o.Description = contract + ". Responde 501 até a " + slice + "."
-	o.Errors = append(o.Errors, http.StatusNotImplemented)
-	huma.Register(api, o, func(context.Context, *I) (*O, error) {
-		return nil, problem(http.StatusNotImplemented, "operação ainda não implementada")
-	})
-}
-
-// pendingExternalOp registra uma operação do contrato da fonte externa que ainda responde 501.
-func pendingExternalOp[I, O any](api huma.API, o huma.Operation, slice string) {
-	pendingContractOp[I, O](api, o, "Contrato da fonte externa (ADR-0075 a 0079)", slice)
-}
-
-const (
-	sliceExternalSource = "fatia 1 (#125)"
-	sliceExternalUsage  = "fatia 2 (#126)"
-)
 
 // ---------- recursos ----------
 
@@ -168,7 +146,6 @@ type IngestKeyCreated struct {
 }
 
 // ExternalUsageRow é uma linha do uso externo, por dia, host, agente, modelo, workspace e assinatura (ADR-0078 item 5).
-// O "pago" é do rateio e chega com a fatia 2.
 type ExternalUsageRow struct {
 	Day                 *string `json:"day,omitempty" format:"date"`
 	HostID              *string `json:"host_id,omitempty" format:"uuid"`
@@ -184,6 +161,7 @@ type ExternalUsageRow struct {
 	CacheCreationTokens int64   `json:"cache_creation_tokens"`
 	CostRealUSD         float64 `json:"cost_real_usd"`
 	CostListUSD         float64 `json:"cost_list_usd"`
+	CostPaidUSD         float64 `json:"cost_paid_usd" doc:"Pago: a mensalidade do dia da assinatura, rateada entre os runs e as chamadas externas pelo custo de lista (ADR-0082 item 5). Zero sem assinatura."`
 	UnpricedCalls       int64   `json:"unpriced_calls"`
 }
 
@@ -302,32 +280,5 @@ type externalUsageIn struct {
 // ---------- registro ----------
 
 func (s *server) registerExternalSource(api huma.API) {
-	const tag = "external-source"
-	b := "/companies/{company}"
-
 	s.registerExternalEntities(api)
-
-	pendingExternalOp[listExternalNamedIn, ListOut[RepoPairing]](api, op("list-repo-pairings", http.MethodGet, b+"/repo-pairings", tag,
-		"Lista os emparelhamentos de repositório com workspace"), sliceExternalSource)
-	pendingExternalOp[updateRepoPairingIn, ItemOut[RepoPairing]](api, op("update-repo-pairing", http.MethodPatch, b+"/repo-pairings/{pairing}", tag,
-		"Troca o workspace de um emparelhamento; o passado vai junto (owner ou admin)"), sliceExternalSource)
-
-	pendingExternalOp[listExternalSessionsIn, ListOut[ExternalSession]](api, op("list-external-sessions", http.MethodGet, b+"/external-sessions", tag,
-		"Lista as sessões externas"), sliceExternalSource)
-	pendingExternalOp[ExternalSessionPath, ItemOut[ExternalSession]](api, op("get-external-session", http.MethodGet, b+"/external-sessions/{session}", tag,
-		"Mostra uma sessão externa"), sliceExternalSource)
-
-	pendingExternalOp[listExternalConversationsIn, ListOut[ExternalConversation]](api, op("list-external-conversations", http.MethodGet, b+"/external-conversations", tag,
-		"Lista as conversas externas, com filtro por host, agente, workspace, sessão, classe e marca"), sliceExternalSource)
-	pendingExternalOp[ExternalConversationPath, ItemOut[ExternalConversation]](api, op("get-external-conversation", http.MethodGet, b+"/external-conversations/{conversation}", tag,
-		"Mostra uma conversa externa"), sliceExternalSource)
-	pendingExternalOp[ExternalConversationPath, ListOut[ConversationClassInput]](api, op("list-conversation-class-inputs", http.MethodGet, b+"/external-conversations/{conversation}/class-inputs", tag,
-		"Lista as entradas da classificação que não se refazem: respostas do decision model e trocas manuais"), sliceExternalSource)
-	pendingExternalOp[classifyExternalConversationIn, ItemOut[ExternalConversation]](api, op("classify-external-conversation", http.MethodPost, b+"/external-conversations/{conversation}/class", tag,
-		"Troca a classe de uma conversa à mão; vale sobre tudo (owner ou admin)"), sliceExternalSource)
-	pendingExternalOp[ExternalConversationPath, ItemOut[ConversationContent]](api, op("get-external-conversation-content", http.MethodGet, b+"/external-conversations/{conversation}/content", tag,
-		"Mostra o conteúdo completo da conversa (owner ou admin; cada leitura gera activity_event)"), sliceExternalSource)
-
-	pendingExternalOp[externalUsageIn, ListOut[ExternalUsageRow]](api, op("get-external-usage", http.MethodGet, b+"/external-usage", tag,
-		"Uso e custo de lista das chamadas externas, agrupados"), sliceExternalUsage)
 }

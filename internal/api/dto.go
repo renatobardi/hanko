@@ -814,6 +814,7 @@ type Subscription struct {
 	WeeklyLimitUSD *float64  `json:"weekly_limit_usd,omitempty" doc:"Teto semanal de uso estimado em dólares."`
 	WeeklyGuardPct int       `json:"weekly_guard_pct" doc:"Percentual do teto semanal que trava novas execuções."`
 	Active         bool      `json:"active"`
+	ExternalKey    *string   `json:"external_key,omitempty" enum:"claude,zai,codex" doc:"Liga a assinatura às chamadas externas que declaram esta chave em oute.subscription (ADR-0082 item 4)."`
 	WeekStart      time.Time `json:"week_start" doc:"Início (segunda-feira, fuso da empresa) da semana corrente."`
 	WeekEnd        time.Time `json:"week_end" doc:"Exclusivo."`
 	WeekUsageUSD   float64   `json:"week_usage_usd" doc:"Uso estimado da semana corrente (custo de lista das execuções cobertas)."`
@@ -841,7 +842,7 @@ func subscriptionOut(s service.SubscriptionStatus) Subscription {
 		prefixes = []string{}
 	}
 	return Subscription{ID: idStr(s.ID), CompanyID: idStr(s.CompanyID), Name: s.Name, Agent: s.Agent, MonthlyUSD: s.MonthlyUSD,
-		ModelPrefixes: prefixes, WeeklyLimitUSD: s.WeeklyLimitUSD, WeeklyGuardPct: s.WeeklyGuardPct, Active: s.Active,
+		ModelPrefixes: prefixes, WeeklyLimitUSD: s.WeeklyLimitUSD, WeeklyGuardPct: s.WeeklyGuardPct, Active: s.Active, ExternalKey: s.ExternalKey,
 		WeekStart: s.WeekStart, WeekEnd: s.WeekEnd, WeekUsageUSD: s.WeekUsageUSD, WeekPercent: s.WeekPercent, Blocked: s.Blocked,
 		CreatedAt: s.CreatedAt, UpdatedAt: s.UpdatedAt}
 }
