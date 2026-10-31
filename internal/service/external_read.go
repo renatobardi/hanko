@@ -395,3 +395,56 @@ func dateOrNil(t time.Time) *time.Time {
 }
 
 var _ = errors.Is
+
+// ---------- conteúdo ----------
+
+// ConversationContentItem é um trecho do conteúdo completo de uma conversa.
+type ConversationContentItem struct {
+	Time time.Time
+	Role string
+	Text string
+}
+
+// maxContentItems limita a resposta: uma conversa pode ter milhares de pedidos.
+const maxContentItems = 1000
+
+// GetExternalConversationContent devolve o conteúdo completo da conversa (owner ou admin). Cada leitura gera
+// `activity_event` (ADR-0076 item 9, decisão 10 da #66). Hoje o conteúdo são os pedidos (`user_prompt`, atributo `prompt`,
+// o mesmo que o classificador lê); o texto das respostas do assistente espera a conferência do nome do evento contra o
+// bucket real (ADR-04 do oute-agent: "não verificado").
+func (s *Service) GetExternalConversationContent(ctx context.Context, actor domain.Actor, companyID, conversationID domain.ID) ([]ConversationContentItem, error) {
+	if err := s.require(ctx, companyID, domain.MemberAdmin); err != nil {
+		return nil, err
+	}
+	var items []ConversationContentItem
+	err := s.withTx(ctx, func(t *txc) error {
+		var sessionID string
+		if err := t.tx.QueryRow(ctx, `SELECT session_id FROM external_conversation WHERE company_id = $1 AND id = $2`, companyID, conversationID).
+			Scan(&sessionID); err != nil {
+			return mapErr(err, "external conversation")
+		}
+		rows, err := t.tx.Query(ctx, `SELECT time_unix_nano, attributes->>'prompt' FROM telemetry_logs
+			WHERE company_id = $1 AND session_id = $2 AND event_name IN ('user_prompt', 'claude_code.user_prompt') AND attributes->>'prompt' IS NOT NULL
+			ORDER BY time_unix_nano LIMIT $3`, companyID, sessionID, maxContentItems)
+		if err != nil {
+			return fmt.Errorf("conversation content: %w", err)
+		}
+		defer rows.Close()
+		items = []ConversationContentItem{}
+		for rows.Next() {
+			var at int64
+			var text string
+			if err := rows.Scan(&at, &text); err != nil {
+				return fmt.Errorf("conversation content: %w", err)
+			}
+			items = append(items, ConversationContentItem{Time: time.Unix(0, at).UTC(), Role: "prompt", Text: text})
+		}
+		if err := rows.Err(); err != nil {
+			return err
+		}
+		rows.Close()
+		return t.activity(actor, companyID, "external_conversation.content_read", "external_conversation", conversationID,
+			map[string]any{"items": len(items)}, "")
+	})
+	return items, err
+}
