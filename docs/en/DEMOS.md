@@ -157,6 +157,20 @@ In the UI: *Flows* → **Resumo diário** → **Run now**; the firing appears wi
 
 ---
 
+## v0.8 — External source: a host sends OTLP and the conversation shows up (#125)
+
+**Target length:** 3 min · **Prerequisites:** the quick scenario above (local server, `demo` company, the owner's `HANKO_TOKEN`). **Do not use `hanko-prd`:** ingestion is off there (`ingestão desligada (sem HANKO_INGEST_ADDR)` in the boot log), and turning it on in production needs the tailnet vhost from the `lab` repo (ADR-0076 item 2).
+
+> This script was written from the code (`internal/service/ingest_test.go`, `internal/ingest/rows.go`, `internal/api/ingest_keys.go`) and **has not been run end to end**. If a step fails, note its number and the message.
+
+The commands are the same as in the Portuguese version ([docs/DEMOS.md](../DEMOS.md#v08--fonte-externa-um-host-manda-otlp-e-a-conversa-aparece-125)): start the server with `HANKO_INGEST_ADDR=127.0.0.1:7421`, create an `ingest` key through `POST /api/v1/companies/demo/ingest-keys`, post one OTLP JSON span to `http://127.0.0.1:7421/v1/replay/traces` with that key, then read `external-conversations`, `external-hosts`, `external-agents` and `repo-pairings` with the owner's key.
+
+**Passes when** (the `qa` criterion of #125): ingestion answers 2xx and `external-conversations` shows the conversation with a generated name, a class and the repository. Re-sending the same fact does not duplicate the conversation.
+
+**Known limits today:** the external-source screens do not exist yet (slice 4, #128), so reading is through the API; `repo-pairings` may answer 501 until the route is wired.
+
+---
+
 ## Tags and release (the owner creates them)
 
 Nothing in this repository creates or pushes tags. After each approved demo, pick the commit where the milestone passed (`git log --oneline`; if everything is already on `main`, use its `HEAD`) and create an **annotated** tag (not signed; use `-s` instead of `-a` to sign):
