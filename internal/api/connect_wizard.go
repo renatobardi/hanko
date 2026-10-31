@@ -174,14 +174,16 @@ type connectBeginIn struct {
 }
 
 type connectPreviewIn struct {
-	connectPath
-	Template string `query:"template" required:"true" doc:"Id ou slug do modelo de acesso."`
-	Personas string `query:"personas" required:"true" doc:"Ids ou slugs das personas, separados por vírgula."`
+	CompanyPath
+	Integration string `path:"integration" doc:"Id ou slug da integração criada pelo assistente." example:"docs"`
+	Template    string `query:"template" required:"true" doc:"Id ou slug do modelo de acesso."`
+	Personas    string `query:"personas" required:"true" doc:"Ids ou slugs das personas, separados por vírgula."`
 }
 
 type connectCompleteIn struct {
-	connectPath
-	Body struct {
+	CompanyPath
+	Integration string `path:"integration" doc:"Id ou slug da integração criada pelo assistente." example:"docs"`
+	Body        struct {
 		Template    string   `json:"template" required:"true" doc:"Id ou slug do modelo de acesso (\"Personalizado\" é feito no editor de perfis, não aqui)."`
 		Personas    []string `json:"personas" minItems:"1" doc:"Ids ou slugs das personas que recebem a ferramenta (nunca \"todas\")."`
 		ProfileName string   `json:"profile_name,omitempty" doc:"Nome do perfil criado; padrão \"<integração> — <modelo>\"."`
@@ -267,7 +269,7 @@ func (s *server) registerConnect(api huma.API) {
 			return &ItemOut[ConnectWizard]{Body: connectOut(v)}, nil
 		})
 
-	huma.Register(api, op("connect-state", http.MethodGet, "/companies/{company}/integrations/connect/{integration}", "integrations",
+	huma.Register(api, op("connect-state", http.MethodGet, "/companies/{company}/integrations/{integration}/connect", "integrations",
 		"Estado do assistente Conectar para uma integração"),
 		func(ctx context.Context, in *connectPath) (*ItemOut[ConnectWizard], error) {
 			cb, err := s.connect()
@@ -285,7 +287,7 @@ func (s *server) registerConnect(api huma.API) {
 			return &ItemOut[ConnectWizard]{Body: connectOut(v)}, nil
 		})
 
-	huma.Register(api, op("connect-discover", http.MethodPost, "/companies/{company}/integrations/connect/{integration}/discover", "integrations",
+	huma.Register(api, op("connect-discover", http.MethodPost, "/companies/{company}/integrations/{integration}/connect/discover", "integrations",
 		"Repete a descoberta do passo 2 (testar de novo); OAuth sem consentimento devolve a URL de autorização"),
 		func(ctx context.Context, in *connectPath) (*ItemOut[ConnectWizard], error) {
 			if err := forbidPersona(ctx); err != nil {
@@ -306,7 +308,7 @@ func (s *server) registerConnect(api huma.API) {
 			return &ItemOut[ConnectWizard]{Body: connectOut(v)}, nil
 		})
 
-	huma.Register(api, noContent(op("connect-discard", http.MethodDelete, "/companies/{company}/integrations/connect/{integration}", "integrations",
+	huma.Register(api, noContent(op("connect-discard", http.MethodDelete, "/companies/{company}/integrations/{integration}/connect", "integrations",
 		"Descarta o rascunho do assistente: apaga a integração (ou a conexão OAuth inteira)")),
 		func(ctx context.Context, in *connectPath) (*struct{}, error) {
 			if err := forbidPersona(ctx); err != nil {
@@ -326,7 +328,7 @@ func (s *server) registerConnect(api huma.API) {
 			return &struct{}{}, nil
 		})
 
-	huma.Register(api, op("connect-preview", http.MethodGet, "/companies/{company}/integrations/connect/{integration}/preview", "integrations",
+	huma.Register(api, op("connect-preview", http.MethodGet, "/companies/{company}/integrations/{integration}/connect/preview", "integrations",
 		"Passo 5: tools efetivas por persona com o modelo aplicado, antes de concluir"),
 		func(ctx context.Context, in *connectPreviewIn) (*ItemOut[ConnectPreview], error) {
 			cb, err := s.connect()
@@ -348,7 +350,7 @@ func (s *server) registerConnect(api huma.API) {
 			return &ItemOut[ConnectPreview]{Body: previewOut(v)}, nil
 		})
 
-	huma.Register(api, created(op("connect-complete", http.MethodPost, "/companies/{company}/integrations/connect/{integration}/complete", "integrations",
+	huma.Register(api, created(op("connect-complete", http.MethodPost, "/companies/{company}/integrations/{integration}/connect/complete", "integrations",
 		"Conclui o assistente: perfil com o modelo, vínculo e ligação por persona, quarentena liberada — tudo numa transação")),
 		func(ctx context.Context, in *connectCompleteIn) (*ItemOut[ConnectResult], error) {
 			if err := forbidPersona(ctx); err != nil {
