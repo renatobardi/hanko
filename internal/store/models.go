@@ -1183,6 +1183,7 @@ type ModelCall struct {
 	CostListUsd         *float64
 	PriceID             *uuid.UUID
 	Origin              string
+	RequestID           *string
 }
 
 type ModelPrice struct {
