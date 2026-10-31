@@ -23,9 +23,11 @@ const (
 
 type cofreFake struct {
 	*uitest.Fake
-	removed []string
-	deleted []string
-	gen     []domain.GenOptions // opções do gerador que chegaram ao backend, na ordem
+	removed    []string
+	deleted    []string
+	replaced   []service.ReplaceFieldFileInput // trocas de arquivo que chegaram ao backend
+	replaceErr error                           // erro que ReplaceSecretFieldFile devolve (nil = troca)
+	gen        []domain.GenOptions             // opções do gerador que chegaram ao backend, na ordem
 
 	envPreviews, envImports []service.EnvImportInput // pedidos do import de .env que chegaram ao backend
 	envImportErr            error                    // erro que ImportEnv devolve (nil = grava)
@@ -56,6 +58,12 @@ func (c *cofreFake) CreateSecretField(_ context.Context, _ domain.Actor, _ domai
 	c.gen = append(c.gen, in.Gen)
 	c.created = append(c.created, in)
 	return service.SecretFieldView{}, c.createErr
+}
+
+// ReplaceSecretFieldFile registra a troca de arquivo que chegou ao backend e devolve o erro configurado.
+func (c *cofreFake) ReplaceSecretFieldFile(_ context.Context, _ domain.Actor, _ domain.ID, _ domain.SecretScope, _, _ string, in service.ReplaceFieldFileInput) (service.SecretFieldView, error) {
+	c.replaced = append(c.replaced, in)
+	return service.SecretFieldView{}, c.replaceErr
 }
 
 func (c *cofreFake) DeleteSecretField(_ context.Context, _ domain.Actor, _ domain.ID, _ domain.SecretScope, _, field string) error {

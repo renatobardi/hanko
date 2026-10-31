@@ -277,3 +277,17 @@ SELECT content FROM secret_field_blobs WHERE company_id = @company_id AND field_
 
 -- name: SetSecretFieldBlob :exec
 UPDATE secret_field_blobs SET content = @content WHERE field_id = @field_id;
+
+-- name: CreateSecretFieldVersionBlob :exec
+-- Grava o texto cifrado do arquivo arquivado de uma versão (driver postgres; ADR-0068 §3.1).
+INSERT INTO secret_field_version_blobs (version_id, company_id, content) VALUES (@version_id, @company_id, @content);
+
+-- name: GetSecretFieldVersionBlob :one
+SELECT content FROM secret_field_version_blobs WHERE company_id = @company_id AND version_id = @version_id;
+
+-- name: SetSecretFieldVersionBlob :exec
+UPDATE secret_field_version_blobs SET content = @content WHERE version_id = @version_id;
+
+-- name: DeleteSecretFieldVersionBlob :exec
+-- Apaga a linha do arquivo arquivado de uma versão, depois de copiada para outro driver.
+DELETE FROM secret_field_version_blobs WHERE version_id = @version_id;

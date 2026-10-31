@@ -27,6 +27,7 @@ type vaultUIBackend interface {
 	ListSecretFields(ctx context.Context, companyID domain.ID, scope domain.SecretScope, secretName string) ([]service.SecretFieldView, error)
 	UpdateSecretFieldMeta(ctx context.Context, actor domain.Actor, companyID domain.ID, scope domain.SecretScope, secretName, fieldName string, sensitive, password *bool, position *int) (service.SecretFieldView, error)
 	RotateSecretField(ctx context.Context, actor domain.Actor, companyID domain.ID, scope domain.SecretScope, secretName, fieldName string, in service.SecretFieldValueInput) (service.SecretFieldView, error)
+	ReplaceSecretFieldFile(ctx context.Context, actor domain.Actor, companyID domain.ID, scope domain.SecretScope, secretName, fieldName string, in service.ReplaceFieldFileInput) (service.SecretFieldView, error)
 	DeleteSecretField(ctx context.Context, actor domain.Actor, companyID domain.ID, scope domain.SecretScope, secretName, fieldName string) error
 	CreateCollection(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.CollectionInput) (service.CollectionView, error)
 	ListCollections(ctx context.Context, companyID domain.ID) ([]service.CollectionView, error)
@@ -65,6 +66,7 @@ func (s *server) vaultBE() (vaultUIBackend, bool) {
 var vaultNotices = map[string]string{
 	"campo":              i18n.N("Campo adicionado."),
 	"valor":              i18n.N("Valor do campo trocado: a versão do campo subiu."),
+	"arquivo":            i18n.N("Arquivo do campo trocado: o arquivo anterior foi para o histórico."),
 	"marca":              i18n.N("Marca do campo atualizada."),
 	"campo-apagado":      i18n.N("Campo apagado."),
 	"colecao":            i18n.N("Coleção criada."),
@@ -140,7 +142,8 @@ func (s *server) fieldsVM(r *http.Request, co domain.Company, be vaultUIBackend,
 		row := views.SecretFieldRowVM{Name: f.Name, Reference: ref, Kind: string(f.Kind), Sensitive: f.Sensitive, Version: f.Version,
 			Revealed:  f.RevealedAt != nil,
 			ValueHref: seg + "/" + url.PathEscape(f.Name) + "/valor" + scopeQuery(user), MetaHref: seg + "/" + url.PathEscape(f.Name) + "/marca" + scopeQuery(user),
-			DeleteHref: seg + "/" + url.PathEscape(f.Name) + "/apagar" + scopeQuery(user)}
+			ReplaceHref: seg + "/" + url.PathEscape(f.Name) + "/arquivo" + scopeQuery(user),
+			DeleteHref:  seg + "/" + url.PathEscape(f.Name) + "/apagar" + scopeQuery(user)}
 		if f.Kind == domain.SecretFieldFile { // só metadados do arquivo; o conteúdo nunca chega à página
 			row.FileName, row.FileSize = f.FileName, fmtBytes(r.Context(), int64(f.SizeBytes))
 		}
@@ -343,6 +346,28 @@ func (s *server) handleRotateSecretField(w http.ResponseWriter, r *http.Request,
 		return
 	}
 	s.afterFieldWrite(w, r, co, be, v, user, "valor")
+}
+
+// handleReplaceSecretFieldFile troca o conteúdo de um campo arquivo pelo envio novo (até 1 MiB, como na criação). O
+// conteúdo vai só ao service; a resposta é o aviso, nunca o conteúdo.
+func (s *server) handleReplaceSecretFieldFile(w http.ResponseWriter, r *http.Request, co domain.Company) {
+	be, ctx, ok := s.vaultReq(w, r)
+	if !ok {
+		return
+	}
+	file, ferr := readFieldFile(w, r) // antes de qualquer PostFormValue: ele leria o corpo sem teto
+	if ferr != nil {
+		s.fieldsFail(w, r, co, be, ferr, nil)
+		return
+	}
+	user, name := userScopeForm(r), r.PathValue("name")
+	in := service.ReplaceFieldFileInput{File: file.data, FileName: file.name, ContentType: file.contentType}
+	v, err := be.ReplaceSecretFieldFile(ctx, actorFrom(ctx), co.ID, scopeOf(user), name, r.PathValue("field"), in)
+	if err != nil {
+		s.fieldsFail(w, r, co, be, err, nil)
+		return
+	}
+	s.afterFieldWrite(w, r, co, be, v, user, "arquivo")
 }
 
 func (s *server) handleSecretFieldMeta(w http.ResponseWriter, r *http.Request, co domain.Company) {

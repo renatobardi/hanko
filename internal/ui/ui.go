@@ -487,6 +487,7 @@ func (s *server) routes(root *http.ServeMux) {
 	mux.HandleFunc("POST /c/{company}/configuracoes/segredos/{name}/campos", post(co(s.handleCreateSecretField)))
 	mux.HandleFunc("POST /c/{company}/configuracoes/segredos/{name}/campos/{field}/valor", post(co(s.handleRotateSecretField)))
 	mux.HandleFunc("POST /c/{company}/configuracoes/segredos/{name}/campos/{field}/marca", post(co(s.handleSecretFieldMeta)))
+	mux.HandleFunc("POST /c/{company}/configuracoes/segredos/{name}/campos/{field}/arquivo", post(co(s.handleReplaceSecretFieldFile)))
 	mux.HandleFunc("POST /c/{company}/configuracoes/segredos/{name}/campos/{field}/apagar", post(co(s.handleDeleteSecretField)))
 	mux.HandleFunc("POST /c/{company}/configuracoes/segredos/{name}/delegacoes", post(co(s.handleDelegate)))
 	mux.HandleFunc("POST /c/{company}/configuracoes/segredos/{name}/delegacoes/{id}/revogar", post(co(s.handleRevokeDelegation)))

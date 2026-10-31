@@ -415,6 +415,22 @@ func (q *Queries) CreateSecretFieldVersion(ctx context.Context, arg CreateSecret
 	return i, err
 }
 
+const createSecretFieldVersionBlob = `-- name: CreateSecretFieldVersionBlob :exec
+INSERT INTO secret_field_version_blobs (version_id, company_id, content) VALUES ($1, $2, $3)
+`
+
+type CreateSecretFieldVersionBlobParams struct {
+	VersionID uuid.UUID
+	CompanyID uuid.UUID
+	Content   []byte
+}
+
+// Grava o texto cifrado do arquivo arquivado de uma versão (driver postgres; ADR-0068 §3.1).
+func (q *Queries) CreateSecretFieldVersionBlob(ctx context.Context, arg CreateSecretFieldVersionBlobParams) error {
+	_, err := q.db.Exec(ctx, createSecretFieldVersionBlob, arg.VersionID, arg.CompanyID, arg.Content)
+	return err
+}
+
 const deleteCollectionGrant = `-- name: DeleteCollectionGrant :execrows
 DELETE FROM secret_collection_grants WHERE company_id = $1 AND collection_id = $2 AND id = $3
 `
@@ -466,6 +482,16 @@ func (q *Queries) DeleteSecretField(ctx context.Context, arg DeleteSecretFieldPa
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const deleteSecretFieldVersionBlob = `-- name: DeleteSecretFieldVersionBlob :exec
+DELETE FROM secret_field_version_blobs WHERE version_id = $1
+`
+
+// Apaga a linha do arquivo arquivado de uma versão, depois de copiada para outro driver.
+func (q *Queries) DeleteSecretFieldVersionBlob(ctx context.Context, versionID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteSecretFieldVersionBlob, versionID)
+	return err
 }
 
 const deleteSecretFieldVersions = `-- name: DeleteSecretFieldVersions :execrows
@@ -710,6 +736,22 @@ func (q *Queries) GetSecretFieldVersion(ctx context.Context, arg GetSecretFieldV
 		&i.ReplacedAt,
 	)
 	return i, err
+}
+
+const getSecretFieldVersionBlob = `-- name: GetSecretFieldVersionBlob :one
+SELECT content FROM secret_field_version_blobs WHERE company_id = $1 AND version_id = $2
+`
+
+type GetSecretFieldVersionBlobParams struct {
+	CompanyID uuid.UUID
+	VersionID uuid.UUID
+}
+
+func (q *Queries) GetSecretFieldVersionBlob(ctx context.Context, arg GetSecretFieldVersionBlobParams) ([]byte, error) {
+	row := q.db.QueryRow(ctx, getSecretFieldVersionBlob, arg.CompanyID, arg.VersionID)
+	var content []byte
+	err := row.Scan(&content)
+	return content, err
 }
 
 const listCollectionGrants = `-- name: ListCollectionGrants :many
@@ -1682,6 +1724,20 @@ func (q *Queries) SetSecretFieldValueEnc(ctx context.Context, arg SetSecretField
 		arg.ValueHmac,
 		arg.ID,
 	)
+	return err
+}
+
+const setSecretFieldVersionBlob = `-- name: SetSecretFieldVersionBlob :exec
+UPDATE secret_field_version_blobs SET content = $1 WHERE version_id = $2
+`
+
+type SetSecretFieldVersionBlobParams struct {
+	Content   []byte
+	VersionID uuid.UUID
+}
+
+func (q *Queries) SetSecretFieldVersionBlob(ctx context.Context, arg SetSecretFieldVersionBlobParams) error {
+	_, err := q.db.Exec(ctx, setSecretFieldVersionBlob, arg.Content, arg.VersionID)
 	return err
 }
 
