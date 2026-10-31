@@ -769,37 +769,46 @@ func (s *Service) PruneSecretFieldHistory(ctx context.Context) (int, error) {
 	}
 	total := 0
 	for _, f := range fields {
-		rows, err := q.ListSecretFieldVersions(ctx, store.ListSecretFieldVersionsParams{CompanyID: f.CompanyID, FieldID: f.FieldID})
-		if err != nil {
-			return total, fmt.Errorf("list versions: %w", err)
-		}
-		at := make([]time.Time, len(rows))
-		for i, r := range rows {
-			at[i] = r.ReplacedAt
-		}
-		drop := domain.PruneHistory(at, s.Now().UTC(), keepVersions, keepDays)
-		if len(drop) == 0 {
-			continue
-		}
-		ids := make([]uuid.UUID, 0, len(drop))
-		for _, i := range drop {
-			ids = append(ids, rows[i].ID)
-		}
-		err = s.withTx(ctx, func(t *txc) error {
-			n, err := t.q.DeleteSecretFieldVersions(t.ctx, store.DeleteSecretFieldVersionsParams{CompanyID: f.CompanyID, Ids: ids})
-			if err != nil {
-				return mapErr(err, "delete secret field versions")
-			}
-			total += int(n)
-			t.dropVersionFiles(f.CompanyID, versionsAt(rows, drop)) // o arquivo arquivado sai com a versão, nos drivers fs e s3
-			return t.activity(domain.SystemActor, f.CompanyID, "secret.history_pruned", "secret", f.SecretID,
-				map[string]any{"removed": n}, "")
-		})
+		n, err := s.pruneFieldHistory(ctx, q, f, keepVersions, keepDays)
+		total += n
 		if err != nil {
 			return total, err
 		}
 	}
 	return total, nil
+}
+
+// pruneFieldHistory tira do histórico de um campo as versões que passaram da retenção (ADR-0068 §3.2), e com elas os
+// arquivos arquivados nos drivers fs e s3. Devolve quantas saíram.
+func (s *Service) pruneFieldHistory(ctx context.Context, q *store.Queries, f store.ListFieldsWithHistoryRow, keepVersions, keepDays int) (int, error) {
+	rows, err := q.ListSecretFieldVersions(ctx, store.ListSecretFieldVersionsParams{CompanyID: f.CompanyID, FieldID: f.FieldID})
+	if err != nil {
+		return 0, fmt.Errorf("list versions: %w", err)
+	}
+	at := make([]time.Time, len(rows))
+	for i, r := range rows {
+		at[i] = r.ReplacedAt
+	}
+	drop := domain.PruneHistory(at, s.Now().UTC(), keepVersions, keepDays)
+	if len(drop) == 0 {
+		return 0, nil
+	}
+	ids := make([]uuid.UUID, 0, len(drop))
+	for _, i := range drop {
+		ids = append(ids, rows[i].ID)
+	}
+	removed := 0
+	err = s.withTx(ctx, func(t *txc) error {
+		n, err := t.q.DeleteSecretFieldVersions(t.ctx, store.DeleteSecretFieldVersionsParams{CompanyID: f.CompanyID, Ids: ids})
+		if err != nil {
+			return mapErr(err, "delete secret field versions")
+		}
+		removed = int(n)
+		t.dropVersionFiles(f.CompanyID, versionsAt(rows, drop)) // o arquivo arquivado sai com a versão, nos drivers fs e s3
+		return t.activity(domain.SystemActor, f.CompanyID, "secret.history_pruned", "secret", f.SecretID,
+			map[string]any{"removed": n}, "")
+	})
+	return removed, err
 }
 
 // ---------- coleções ----------
