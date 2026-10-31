@@ -390,6 +390,16 @@
           "status": "partial"
         },
         {
+          "id": "operations.connect",
+          "title": {"pt": "Conectar ferramenta a uma persona (assistente)", "en": "Connect a tool to a persona (assistant)"},
+          "surfaces": {"ui": ["GET /c/{company}/conectar"], "cli": ["integration connect"], "api": ["connect-begin", "connect-state", "connect-preview", "connect-complete", "list-access-templates"]},
+          "script": {
+            "pt": "Ligar um servidor MCP a uma persona em um fluxo só: servidor, tools por risco, personas, modelo de acesso, prévia e gravação com aprovação.",
+            "en": "Connect an MCP server to a persona in one flow: server, tools by risk, personas, access template, preview and approved write."
+          },
+          "status": "partial"
+        },
+        {
           "id": "operations.skills",
           "title": {"pt": "Skills com versões", "en": "Versioned skills"},
           "surfaces": {"ui": ["GET /c/{company}/skills"], "cli": ["skill create", "skill list", "skill versions"], "api": ["create-skill", "list-skill-versions"], "mcp": ["hanko_skill_list", "hanko_skill_get"]},
