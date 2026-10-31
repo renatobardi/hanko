@@ -8,6 +8,9 @@
 #   --edge       também emite o certificado e instala o vhost nginx público de hanko.oute.pro no host
 #                (sudo no oute-server; senha do Keychain `lab-oute-sudo`, como nos scripts do lab).
 #   --snapshot   tira snapshots do LXC inteiro antes e depois do deploy (padrão: não).
+#   --build-local  constrói a imagem NESTA máquina (Docker local, para a arquitetura do servidor) e a envia ao LXC com
+#                `docker save | ssh | docker load`; o servidor sobe com `compose up --no-build` e nunca compila. Use quando o
+#                build no LXC (teto de memória de 4 GiB) saturar o disco do host: na v0.8.0 ele chegou a 99% de pressão de IO.
 #   --dry-run    só imprime os comandos.
 # Requisitos: `ssh oute-server` funcionando (usuário ubuntu, grupo lxd), working tree limpo.
 set -euo pipefail
@@ -21,8 +24,8 @@ DOMAIN="${HANKO_DOMAIN:-hanko.oute.pro}"
 # IP Tailscale do host: o split DNS da tailnet resolve *.oute.pro para ele, e os vhosts do lab
 # escutam nele explicitamente — sem este listen o nginx não acha o SNI ("unrecognized name").
 TS_IP="${OUTE_TAILSCALE_IP:-100.66.254.24}"
-EDGE=false; DRY=false; SNAP=false
-for a in "$@"; do case "$a" in --edge) EDGE=true ;; --dry-run) DRY=true ;; --snapshot) SNAP=true ;; *) echo "uso: $0 [--edge] [--dry-run] [--snapshot]" >&2; exit 2 ;; esac; done
+EDGE=false; DRY=false; SNAP=false; LOCAL_BUILD=false
+for a in "$@"; do case "$a" in --edge) EDGE=true ;; --dry-run) DRY=true ;; --snapshot) SNAP=true ;; --build-local) LOCAL_BUILD=true ;; *) echo "uso: $0 [--edge] [--dry-run] [--snapshot] [--build-local]" >&2; exit 2 ;; esac; done
 
 cd "$(git rev-parse --show-toplevel)"
 [[ -z "$(git status --porcelain)" ]] || { echo "erro: working tree com mudanças; commite antes do deploy" >&2; exit 1; }
@@ -123,10 +126,31 @@ if ! grep -q '^AI_MEMORY_IMAGE=' .env; then
   echo \"AI_MEMORY_IMAGE=\$d\" >> .env; echo \"==> ai-memory fixado em \$d\"
 fi"
 
+# 3b) Imagem construída aqui (--build-local): o servidor não compila. A imagem leva a tag que o compose espera
+#     (`hanko:${HANKO_VERSION}`, igual ao REV do .env), então o `compose up --no-build` abaixo a usa direto. Roda ANTES do
+#     backup e da troca dos containers: se a construção ou o envio falhar, o `set -e` aborta e a produção segue como estava.
+if $LOCAL_BUILD; then
+  command -v docker >/dev/null || { echo "erro: --build-local precisa do docker nesta máquina" >&2; exit 1; }
+  if $DRY; then ARCH="aarch64"; else ARCH="$(ssh -n "$HOST" "uname -m")"; fi
+  case "$ARCH" in aarch64|arm64) PLATFORM="linux/arm64" ;; x86_64|amd64) PLATFORM="linux/amd64" ;; *) echo "erro: arquitetura do servidor desconhecida: ${ARCH}" >&2; exit 1 ;; esac
+  echo "==> Construindo hanko:${REV} aqui (${PLATFORM}) e enviando ao ${NAME}"
+  if $DRY; then
+    echo "docker build --platform ${PLATFORM} -f Dockerfile.agents --build-arg VERSION=${REV} -t hanko:${REV} ."
+    echo "docker save hanko:${REV} | gzip -1 | ssh ${HOST} lxc exec ${NAME} -- sh -c 'gunzip | docker load'"
+  else
+    docker build --platform "$PLATFORM" -f Dockerfile.agents --build-arg "VERSION=${REV}" -t "hanko:${REV}" .
+    docker save "hanko:${REV}" | gzip -1 | ssh "$HOST" "lxc exec ${NAME} -- sh -c 'gunzip | docker load'"
+    x "docker image inspect hanko:${REV} >/dev/null && echo 'imagem hanko:${REV} no ${NAME}'"
+  fi
+  UP_FLAG="--no-build"
+else
+  UP_FLAG="--build"
+fi
+
 # 4) Sobe e valida. Antes, se já há banco no ar (falha do `compose ps` aborta; lista vazia = primeira instalação), um backup consistente (pg_dump -Fc + ai-memory em /var/backups/hanko):
 #    a versão nova pode trazer migrations; voltar é `deploy/oute-server/restore.sh --apply` com esse dump.
 x "set -e; ids=\$(docker compose -f /opt/app/docker-compose.yml ps -q postgres) || { echo 'erro: docker compose ps falhou; abortando antes do deploy (sem como saber se há banco no ar)' >&2; exit 1; }; if [ -n \"\$ids\" ]; then bash /opt/app/deploy/oute-server/backup.sh && echo 'backup pré-deploy ok'; else echo 'sem banco no ar: primeira instalação, sem backup pré-deploy'; fi"
-x "cd /opt/app && docker compose up -d --build"
+x "cd /opt/app && docker compose up -d ${UP_FLAG}"
 x "for i in \$(seq 1 90); do curl -fsS --max-time 2 http://127.0.0.1:${PORT}/readyz >/dev/null && echo 'readyz ok' && exit 0; sleep 2; done; docker compose -f /opt/app/docker-compose.yml logs --tail 80 hanko; exit 1"
 x "for i in \$(seq 1 30); do s=\$(docker inspect -f '{{.State.Health.Status}}' \$(docker compose -f /opt/app/docker-compose.yml ps -q ai-memory) 2>/dev/null); [ \"\$s\" = healthy ] && echo 'ai-memory ok' && exit 0; sleep 2; done; echo \"AVISO: ai-memory \${s:-ausente}; o Hanko segue sem memória (outbox)\"; docker compose -f /opt/app/docker-compose.yml logs --tail 30 ai-memory"
 x "BASE=http://127.0.0.1:${PORT} PUBLIC_HOST=${DOMAIN} bash /opt/app/deploy/oute-server/smoke.sh"

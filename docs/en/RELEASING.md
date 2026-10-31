@@ -51,6 +51,9 @@ scripts/release-notes.sh cut 0.3.0 --date 2026-11-01 --dry-run   # only prints t
 5. `release.yml` runs: it fails early if `CHANGELOG.md` has no section for the tag (step 2 forgotten), then publishes
    binaries, the image and the release with the notes.
 6. Check GitHub (release, assets, `docker pull ghcr.io/renatobardi/hanko:X.Y.Z`) and deploy the new tag to `hanko-prd`.
+   With `deploy/oute-server/deploy-prd.sh --build-local` the image is built on the machine that runs the deploy and sent
+   to the LXC, which starts it with `compose up --no-build`: the server does not compile. Use it when the build inside
+   the LXC (4 GiB memory cap) saturates the host disk, as it did on `v0.8.0` (99% IO pressure).
 
 Pending first tags: `v0.1.0` and `v0.2.0` (already in production; `CHANGELOG.md` has the `0.2.0` section). `v0.1.0`
 has no section of its own: write it by hand in `CHANGELOG.md` before tagging. Wave releases: `v0.3.0` closing wave 1,

@@ -50,7 +50,9 @@ scripts/release-notes.sh cut 0.3.0 --date 2026-11-01 --dry-run   # só mostra a 
 5. O `release.yml` roda: falha cedo se o `CHANGELOG.md` não tiver a seção da tag (passo 2 esquecido), publica
    binários, imagem e release com as notas.
 6. Confira no GitHub (release, assets, `docker pull ghcr.io/renatobardi/hanko:X.Y.Z`) e faça o deploy no `hanko-prd`
-   com a tag nova.
+   com a tag nova. Com `deploy/oute-server/deploy-prd.sh --build-local` a imagem é construída na máquina de quem roda
+   o deploy e enviada ao LXC, que sobe com `compose up --no-build`: o servidor não compila. Use quando o build no LXC
+   (teto de 4 GiB de memória) saturar o disco do host, como na `v0.8.0` (pressão de IO de 99%).
 
 Primeiras tags pendentes: `v0.1.0` e `v0.2.0` (já em produção; o `CHANGELOG.md` tem a seção `0.2.0`). Para a
 `v0.1.0`, que não tem seção própria, crie-a à mão no `CHANGELOG.md` antes de taguear. Marcos por onda: `v0.3.0` ao
