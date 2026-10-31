@@ -312,22 +312,7 @@ func (s *server) registerExternalSource(api huma.API) {
 	pendingExternalOp[updateRepoPairingIn, ItemOut[RepoPairing]](api, op("update-repo-pairing", http.MethodPatch, b+"/repo-pairings/{pairing}", tag,
 		"Troca o workspace de um emparelhamento; o passado vai junto (owner ou admin)"), sliceExternalSource)
 
-	pendingExternalOp[listExternalSessionsIn, ListOut[ExternalSession]](api, op("list-external-sessions", http.MethodGet, b+"/external-sessions", tag,
-		"Lista as sessões externas"), sliceExternalSource)
-	pendingExternalOp[ExternalSessionPath, ItemOut[ExternalSession]](api, op("get-external-session", http.MethodGet, b+"/external-sessions/{session}", tag,
-		"Mostra uma sessão externa"), sliceExternalSource)
-
-	pendingExternalOp[listExternalConversationsIn, ListOut[ExternalConversation]](api, op("list-external-conversations", http.MethodGet, b+"/external-conversations", tag,
-		"Lista as conversas externas, com filtro por host, agente, workspace, sessão, classe e marca"), sliceExternalSource)
-	pendingExternalOp[ExternalConversationPath, ItemOut[ExternalConversation]](api, op("get-external-conversation", http.MethodGet, b+"/external-conversations/{conversation}", tag,
-		"Mostra uma conversa externa"), sliceExternalSource)
-	pendingExternalOp[ExternalConversationPath, ListOut[ConversationClassInput]](api, op("list-conversation-class-inputs", http.MethodGet, b+"/external-conversations/{conversation}/class-inputs", tag,
-		"Lista as entradas da classificação que não se refazem: respostas do decision model e trocas manuais"), sliceExternalSource)
-	pendingExternalOp[classifyExternalConversationIn, ItemOut[ExternalConversation]](api, op("classify-external-conversation", http.MethodPost, b+"/external-conversations/{conversation}/class", tag,
-		"Troca a classe de uma conversa à mão; vale sobre tudo (owner ou admin)"), sliceExternalSource)
 	pendingExternalOp[ExternalConversationPath, ItemOut[ConversationContent]](api, op("get-external-conversation-content", http.MethodGet, b+"/external-conversations/{conversation}/content", tag,
 		"Mostra o conteúdo completo da conversa (owner ou admin; cada leitura gera activity_event)"), sliceExternalSource)
 
-	pendingExternalOp[externalUsageIn, ListOut[ExternalUsageRow]](api, op("get-external-usage", http.MethodGet, b+"/external-usage", tag,
-		"Uso e custo de lista das chamadas externas, agrupados"), sliceExternalUsage)
 }

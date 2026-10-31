@@ -38375,7 +38375,6 @@
     },
     "/api/v1/companies/{company}/external-conversations": {
       "get": {
-        "description": "Contrato da fonte externa (ADR-0075 a 0079). Responde 501 até a fatia 1 (#125).",
         "operationId": "list-external-conversations",
         "parameters": [
           {
@@ -38572,16 +38571,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Lista as conversas externas, com filtro por host, agente, workspace, sessão, classe e marca",
@@ -38592,7 +38581,6 @@
     },
     "/api/v1/companies/{company}/external-conversations/{conversation}": {
       "get": {
-        "description": "Contrato da fonte externa (ADR-0075 a 0079). Responde 501 até a fatia 1 (#125).",
         "operationId": "get-external-conversation",
         "parameters": [
           {
@@ -38690,16 +38678,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Mostra uma conversa externa",
@@ -38710,7 +38688,6 @@
     },
     "/api/v1/companies/{company}/external-conversations/{conversation}/class": {
       "post": {
-        "description": "Contrato da fonte externa (ADR-0075 a 0079). Responde 501 até a fatia 1 (#125).",
         "operationId": "classify-external-conversation",
         "parameters": [
           {
@@ -38818,16 +38795,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Troca a classe de uma conversa à mão; vale sobre tudo (owner ou admin)",
@@ -38838,7 +38805,6 @@
     },
     "/api/v1/companies/{company}/external-conversations/{conversation}/class-inputs": {
       "get": {
-        "description": "Contrato da fonte externa (ADR-0075 a 0079). Responde 501 até a fatia 1 (#125).",
         "operationId": "list-conversation-class-inputs",
         "parameters": [
           {
@@ -38936,16 +38902,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Lista as entradas da classificação que não se refazem: respostas do decision model e trocas manuais",
@@ -40207,7 +40163,6 @@
     },
     "/api/v1/companies/{company}/external-sessions": {
       "get": {
-        "description": "Contrato da fonte externa (ADR-0075 a 0079). Responde 501 até a fatia 1 (#125).",
         "operationId": "list-external-sessions",
         "parameters": [
           {
@@ -40339,16 +40294,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Lista as sessões externas",
@@ -40359,7 +40304,6 @@
     },
     "/api/v1/companies/{company}/external-sessions/{session}": {
       "get": {
-        "description": "Contrato da fonte externa (ADR-0075 a 0079). Responde 501 até a fatia 1 (#125).",
         "operationId": "get-external-session",
         "parameters": [
           {
@@ -40457,16 +40401,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Mostra uma sessão externa",
@@ -40477,7 +40411,6 @@
     },
     "/api/v1/companies/{company}/external-usage": {
       "get": {
-        "description": "Contrato da fonte externa (ADR-0075 a 0079). Responde 501 até a fatia 2 (#126).",
         "operationId": "get-external-usage",
         "parameters": [
           {
@@ -40617,19 +40550,9 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
-        "summary": "Uso e custo de lista das chamadas externas, agrupados",
+        "summary": "Uso e custo de lista das chamadas externas, agrupados; o filtro `round` soma só as chamadas de uma rodada",
         "tags": [
           "external-source"
         ]
