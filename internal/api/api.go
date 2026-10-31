@@ -161,6 +161,13 @@ type backend interface {
 	CreateSubscription(ctx context.Context, actor domain.Actor, companyID domain.ID, in service.CreateSubscriptionInput) (domain.Subscription, error)
 	ListSubscriptions(ctx context.Context, companyID domain.ID) ([]service.SubscriptionStatus, error)
 	CreateIngestKey(ctx context.Context, actor domain.Actor, companyID domain.ID, name string) (string, domain.IngestKey, error)
+	ListExternalSessions(ctx context.Context, companyID domain.ID, workspace, agent *domain.ID, limit, offset int) ([]service.ExternalSessionView, error)
+	GetExternalSession(ctx context.Context, companyID, id domain.ID) (service.ExternalSessionView, error)
+	ListExternalConversations(ctx context.Context, companyID domain.ID, f service.ExternalConversationFilter) ([]service.ExternalConversationView, error)
+	GetExternalConversation(ctx context.Context, companyID, id domain.ID) (service.ExternalConversationView, error)
+	ListConversationClassInputs(ctx context.Context, companyID, conversationID domain.ID) ([]service.ClassInputView, error)
+	ClassifyExternalConversation(ctx context.Context, actor domain.Actor, companyID, conversationID domain.ID, class string) (service.ExternalConversationView, error)
+	ExternalUsage(ctx context.Context, companyID domain.ID, since, until time.Time, groupBy []string, round *domain.ID) ([]service.ExternalUsageRowView, error)
 	ListIngestKeys(ctx context.Context, companyID domain.ID, includeRevoked bool, limit, offset int) ([]domain.IngestKey, error)
 	ListExternalAgents(ctx context.Context, companyID domain.ID, includeArchived bool, limit, offset int32) ([]service.ExternalAgentView, error)
 	GetExternalAgent(ctx context.Context, companyID, id domain.ID) (service.ExternalAgentView, error)
@@ -371,6 +378,7 @@ func (s *server) register(api huma.API) {
 	s.registerExternalRounds(api) // contrato da rodada e da aprovação externas (ADR-0080 e 0081); 501 até a fatia 3
 	s.registerExternalCost(api)   // contrato do custo elevado e dos alertas externos (ADR-0082/0083); 501 até a fatia 2
 	s.registerIngestKeys(api)
+	s.registerExternalRead(api)
 	s.registerPersonaTags(api) // tags de persona e recorte do organograma (ADR-0087)
 	s.registerDecision(api)
 	s.registerProbe(api)

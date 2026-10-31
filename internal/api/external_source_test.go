@@ -14,14 +14,7 @@ func TestExternalSourceContratoResponde501(t *testing.T) {
 	for _, c := range []struct{ method, path, body string }{
 		{"GET", base + "/repo-pairings", ""},
 		{"PATCH", base + "/repo-pairings/" + id, `{"workspace_id":"` + id + `"}`},
-		{"GET", base + "/external-sessions", ""},
-		{"GET", base + "/external-sessions/" + id, ""},
-		{"GET", base + "/external-conversations", ""},
-		{"GET", base + "/external-conversations/" + id, ""},
-		{"GET", base + "/external-conversations/" + id + "/class-inputs", ""},
-		{"POST", base + "/external-conversations/" + id + "/class", `{"class":"qa"}`},
 		{"GET", base + "/external-conversations/" + id + "/content", ""},
-		{"GET", base + "/external-usage", ""},
 	} {
 		resp, body := do(t, c.method, ts.URL+c.path, c.body, nil)
 		if resp.StatusCode != 501 {
@@ -58,8 +51,8 @@ func TestExternalSourceContratoResponde501(t *testing.T) {
 			}
 		}
 	}
-	if n != 10 {
-		t.Fatalf("operações do contrato da fonte externa ainda em 501 = %d, quer 10 (agentes e hosts já estão ligados)", n)
+	if n != 3 {
+		t.Fatalf("operações do contrato da fonte externa ainda em 501 = %d, quer 3 (emparelhamentos e conteúdo da conversa; o resto já está ligado)", n)
 	}
 }
 
