@@ -230,6 +230,12 @@ func (t *txc) alertConditions(cfg AlertConfig) ([]alertCond, error) {
 	}
 	out = append(out, noData...)
 
+	priceCost, err := t.priceCostConditions()
+	if err != nil {
+		return nil, err
+	}
+	out = append(out, priceCost...)
+
 	due, err := t.q.ListSecretsDueRotation(t.ctx, t.now)
 	if err != nil {
 		return nil, fmt.Errorf("list secrets due rotation: %w", err)
