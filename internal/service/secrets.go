@@ -533,7 +533,9 @@ func (s *Service) DeleteSecret(ctx context.Context, actor domain.Actor, companyI
 		}
 		for _, f := range fields {
 			if f.Kind == string(domain.SecretFieldFile) {
-				t.dropFieldBlobAfterCommit(companyID, f.ID)
+				if err := t.dropFieldFiles(companyID, f.ID); err != nil {
+					return err
+				}
 			}
 		}
 		if n, err := t.q.DeleteSecret(t.ctx, store.DeleteSecretParams{ID: cur.ID, CompanyID: companyID}); err != nil || n == 0 {

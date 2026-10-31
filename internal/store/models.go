@@ -1853,6 +1853,12 @@ type SecretFieldVersion struct {
 	ReplacedAt     time.Time
 }
 
+type SecretFieldVersionBlob struct {
+	VersionID uuid.UUID
+	CompanyID uuid.UUID
+	Content   []byte
+}
+
 type SecretSend struct {
 	ID               uuid.UUID
 	CompanyID        uuid.UUID

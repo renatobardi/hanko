@@ -39,8 +39,13 @@ templ fieldRow(f SecretFieldRowVM, canWrite bool) {
 				<details class="sec-actions">
 					<summary class="btn outline sm">{ i18n.T(ctx, "Ações") }</summary>
 					if f.Kind == "file" {
+						<form method="post" action={ templ.SafeURL(f.ReplaceHref) } enctype="multipart/form-data" hx-boost="true" class="mt-2">
+							<p class="muted text-sm">{ i18n.T(ctx, "Troca o conteúdo pelo arquivo novo. O arquivo anterior vai para o histórico e pode ser restaurado; a versão do campo sobe.") }</p>
+							<input class="input" name="arquivo" type="file" aria-label={ i18n.T(ctx, "Arquivo novo") }/>
+							<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Trocar arquivo") }</button>
+						</form>
 						<form method="post" action={ templ.SafeURL(f.DeleteHref) } hx-boost="true" class="mt-2">
-							<p class="muted text-sm">{ i18n.T(ctx, "Campo arquivo não se troca: apague o campo e crie outro com o arquivo novo.") }</p>
+							<p class="muted text-sm">{ i18n.T(ctx, "Apagar o campo apaga também o arquivo dele e o das versões anteriores.") }</p>
 							<input class="input" name="senha" type="password" autocomplete="current-password" maxlength="256" placeholder={ i18n.T(ctx, "senha da conta (se o servidor pedir)") } aria-label={ i18n.T(ctx, "senha da conta (se o servidor pedir)") }/>
 							<button class="btn outline sm" type="submit">{ i18n.T(ctx, "Apagar campo") }</button>
 						</form>

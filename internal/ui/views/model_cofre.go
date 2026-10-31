@@ -14,7 +14,8 @@ type SecretFieldRowVM struct {
 	VisibleText string
 	ValueHref   string // POST: trocar o valor
 	MetaHref    string // POST: mudar visível/secreto
-	DeleteHref  string // POST: apagar o campo (campo arquivo se troca apagando e criando de novo)
+	ReplaceHref string // POST multipart: campo arquivo, troca o conteúdo pelo arquivo novo
+	DeleteHref  string // POST: apagar o campo
 	FileName    string // campo arquivo: nome e tamanho, nunca o conteúdo
 	FileSize    string
 }

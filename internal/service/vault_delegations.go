@@ -438,7 +438,9 @@ func (t *txc) purgeMemberSecrets(actor domain.Actor, companyID, userID domain.ID
 		return MemberExitReport{}, fmt.Errorf("listar arquivos dos segredos pessoais: %w", err)
 	}
 	for _, f := range files {
-		t.dropFieldBlobAfterCommit(f.CompanyID, f.ID)
+		if err := t.dropFieldFiles(f.CompanyID, f.ID); err != nil {
+			return MemberExitReport{}, err
+		}
 	}
 	n, err := t.q.DeleteUserSecrets(t.ctx, store.DeleteUserSecretsParams{CompanyID: companyID, OwnerUserID: &userID})
 	if err != nil {

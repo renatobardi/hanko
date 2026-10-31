@@ -186,7 +186,7 @@ func (s *server) registerFieldWrites(api huma.API, secretScope domain.SecretScop
 		"Troca o valor de um campo; o anterior vai para o histórico"),
 		vaultOp(s, func(ctx context.Context, vb vaultBackend, sc scope, in *rotateSecretFieldIn) (*ItemOut[SecretField], error) {
 			if in.Body.ContentBase64 != "" {
-				return nil, problem(http.StatusUnprocessableEntity, "campo arquivo não se troca: apague o campo e crie outro com o arquivo novo")
+				return nil, problem(http.StatusUnprocessableEntity, "campo arquivo se troca pela tela (Trocar arquivo); esta rota não recebe o conteúdo de arquivo")
 			}
 			v, err := vb.RotateSecretField(ctx, sc.Actor, sc.Company.ID, secretScope, in.Name, in.Field, fieldValueIn(in.Body))
 			return vaultItem(ctx, s, secretFieldOut(v, in.Name, secretScope), err)
