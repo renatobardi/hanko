@@ -158,7 +158,6 @@ type IngestKeyCreated struct {
 }
 
 // ExternalUsageRow é uma linha do uso externo, por dia, host, agente, modelo, workspace e assinatura (ADR-0078 item 5).
-// O "pago" é do rateio e chega com a fatia 2.
 type ExternalUsageRow struct {
 	Day                 *string `json:"day,omitempty" format:"date"`
 	HostID              *string `json:"host_id,omitempty" format:"uuid"`
@@ -174,6 +173,7 @@ type ExternalUsageRow struct {
 	CacheCreationTokens int64   `json:"cache_creation_tokens"`
 	CostRealUSD         float64 `json:"cost_real_usd"`
 	CostListUSD         float64 `json:"cost_list_usd"`
+	CostPaidUSD         float64 `json:"cost_paid_usd" doc:"Pago: a mensalidade do dia da assinatura, rateada entre os runs e as chamadas externas pelo custo de lista (ADR-0082 item 5). Zero sem assinatura."`
 	UnpricedCalls       int64   `json:"unpriced_calls"`
 }
 

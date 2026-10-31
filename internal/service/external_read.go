@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -291,13 +292,14 @@ type ExternalUsageRowView struct {
 	HostID, AgentID, WorkspaceID                                             *domain.ID
 	Model, SubscriptionKey                                                   string
 	Calls, Errors, InputTokens, OutputTokens, CacheReadTokens, CacheCreation int64
-	CostRealUSD, CostListUSD                                                 float64
+	CostRealUSD, CostListUSD, CostPaidUSD                                    float64
 	UnpricedCalls                                                            int64
 }
 
 // ExternalUsage soma o uso externo por dia, host, agente, modelo, workspace e assinatura. Sem filtro de rodada lê o
 // agregado diário; com ele (ADR-0080 item 8, o teto de custo do modo dark) soma as chamadas da rodada, pela sessão da
-// conversa. O "pago" é do rateio e vem com a fatia 2 (#126).
+// conversa. O "pago" é o rateio único (ADR-0082 item 5): a mensalidade do dia de cada assinatura, dividida entre os runs e
+// as chamadas externas que ela cobre, na proporção do custo de lista; a chamada sem assinatura não tem pago.
 func (s *Service) ExternalUsage(ctx context.Context, companyID domain.ID, since, until time.Time, groupBy []string, round *domain.ID) ([]ExternalUsageRowView, error) {
 	if err := s.require(ctx, companyID, domain.MemberViewer); err != nil {
 		return nil, err
@@ -310,35 +312,154 @@ func (s *Service) ExternalUsage(ctx context.Context, companyID domain.ID, since,
 	if err != nil {
 		return nil, fmt.Errorf("external usage: %w", err)
 	}
-	defer rows.Close()
-	out := []ExternalUsageRowView{}
+	type raw struct {
+		row    ExternalUsageRowView
+		day    string
+		subKey string
+	}
+	var rawRows []raw
 	for rows.Next() {
-		var v ExternalUsageRowView
-		dest := make([]any, 0, len(dims)+10)
+		var r raw
+		dest := make([]any, 0, len(dims)+12)
 		for _, d := range dims {
 			switch d {
 			case "day":
-				dest = append(dest, &v.Day)
+				dest = append(dest, &r.row.Day)
 			case "host":
-				dest = append(dest, &v.HostID)
+				dest = append(dest, &r.row.HostID)
 			case "agent":
-				dest = append(dest, &v.AgentID)
+				dest = append(dest, &r.row.AgentID)
 			case "workspace":
-				dest = append(dest, &v.WorkspaceID)
+				dest = append(dest, &r.row.WorkspaceID)
 			case "model":
-				dest = append(dest, &v.Model)
+				dest = append(dest, &r.row.Model)
 			case "subscription":
-				dest = append(dest, &v.SubscriptionKey)
+				dest = append(dest, &r.row.SubscriptionKey)
 			}
 		}
-		dest = append(dest, &v.Calls, &v.Errors, &v.InputTokens, &v.OutputTokens, &v.CacheReadTokens, &v.CacheCreation,
-			&v.CostRealUSD, &v.CostListUSD, &v.UnpricedCalls)
+		dest = append(dest, &r.day, &r.subKey, &r.row.Calls, &r.row.Errors, &r.row.InputTokens, &r.row.OutputTokens, &r.row.CacheReadTokens,
+			&r.row.CacheCreation, &r.row.CostRealUSD, &r.row.CostListUSD, &r.row.UnpricedCalls)
 		if err := rows.Scan(dest...); err != nil {
+			rows.Close()
 			return nil, fmt.Errorf("external usage: %w", err)
 		}
-		out = append(out, v)
+		rawRows = append(rawRows, r)
 	}
-	return out, rows.Err()
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	rates, subByKey, err := s.externalPaidRates(ctx, companyID, since, until, rawRows2Days(len(rawRows), func(i int) string { return rawRows[i].day }))
+	if err != nil {
+		return nil, err
+	}
+	// o pago de cada linha (dia × assinatura) soma na linha do agrupamento pedido
+	merged := map[string]*ExternalUsageRowView{}
+	var order []string
+	for _, r := range rawRows {
+		row := r.row
+		if id, ok := subByKey[r.subKey]; ok {
+			row.CostPaidUSD = rates[paidKey{id, r.day}] * row.CostListUSD
+		}
+		k := usageGroupKey(dims, row)
+		if m, ok := merged[k]; ok {
+			m.Calls += row.Calls
+			m.Errors += row.Errors
+			m.InputTokens += row.InputTokens
+			m.OutputTokens += row.OutputTokens
+			m.CacheReadTokens += row.CacheReadTokens
+			m.CacheCreation += row.CacheCreation
+			m.CostRealUSD += row.CostRealUSD
+			m.CostListUSD += row.CostListUSD
+			m.CostPaidUSD += row.CostPaidUSD
+			m.UnpricedCalls += row.UnpricedCalls
+			continue
+		}
+		cp := row
+		merged[k] = &cp
+		order = append(order, k)
+	}
+	out := make([]ExternalUsageRowView, 0, len(order))
+	for _, k := range order {
+		out = append(out, *merged[k])
+	}
+	return out, nil
+}
+
+func rawRows2Days(n int, day func(int) string) []string {
+	seen := map[string]bool{}
+	var out []string
+	for i := 0; i < n; i++ {
+		if d := day(i); !seen[d] {
+			seen[d] = true
+			out = append(out, d)
+		}
+	}
+	return out
+}
+
+func usageGroupKey(dims []string, r ExternalUsageRowView) string {
+	var b strings.Builder
+	for _, d := range dims {
+		switch d {
+		case "day":
+			if r.Day != nil {
+				b.WriteString(r.Day.Format("2006-01-02"))
+			}
+		case "host":
+			fmt.Fprint(&b, r.HostID)
+		case "agent":
+			fmt.Fprint(&b, r.AgentID)
+		case "workspace":
+			fmt.Fprint(&b, r.WorkspaceID)
+		case "model":
+			b.WriteString(r.Model)
+		case "subscription":
+			b.WriteString(r.SubscriptionKey)
+		}
+		b.WriteByte(0)
+	}
+	return b.String()
+}
+
+// externalPaidRates devolve, por assinatura e dia, quantos USD pagos há por USD de lista (o rateio único), e a assinatura de
+// cada chave externa. Os dias vêm das linhas lidas; sem linha, não há o que ratear.
+func (s *Service) externalPaidRates(ctx context.Context, companyID domain.ID, since, until time.Time, days []string) (map[paidKey]float64, map[string]domain.ID, error) {
+	subByKey := map[string]domain.ID{}
+	if len(days) == 0 {
+		return map[paidKey]float64{}, subByKey, nil
+	}
+	sort.Strings(days)
+	from, err := time.Parse("2006-01-02", days[0])
+	if err != nil {
+		return nil, nil, fmt.Errorf("external usage: %w", err)
+	}
+	last, err := time.Parse("2006-01-02", days[len(days)-1])
+	if err != nil {
+		return nil, nil, fmt.Errorf("external usage: %w", err)
+	}
+	q := s.read()
+	co, err := q.GetCompanyByID(ctx, companyID)
+	if err != nil {
+		return nil, nil, mapErr(err, "get company")
+	}
+	subs, err := q.ListSubscriptions(ctx, companyID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("list subscriptions: %w", err)
+	}
+	for _, sub := range subs {
+		if sub.ExternalKey != nil {
+			subByKey[*sub.ExternalKey] = sub.ID
+		}
+	}
+	if len(subByKey) == 0 {
+		return map[paidKey]float64{}, subByKey, nil
+	}
+	alloc, err := s.allocatePaid(ctx, q, co, from, last.AddDate(0, 0, 1))
+	if err != nil {
+		return nil, nil, err
+	}
+	return alloc.rates, subByKey, nil
 }
 
 func externalUsageSQL(companyID domain.ID, since, until time.Time, groupBy []string, round *domain.ID) (string, []any, []string, error) {
@@ -353,7 +474,8 @@ func externalUsageSQL(companyID domain.ID, since, until time.Time, groupBy []str
 			dims = append(dims, g)
 		}
 	}
-	// com a rodada, a fonte são as chamadas (cada uma é uma linha); sem ela, o agregado diário
+	// com a rodada, a fonte são as chamadas (cada uma é uma linha); sem ela, o agregado diário. O dia e a assinatura entram
+	// sempre no agrupamento (além do pedido): o pago é por dia e por assinatura e soma depois na linha pedida.
 	from, prefix, dayExpr := "calls_daily d", "d.", "d.day"
 	sums := `COALESCE(sum(d.calls),0)::bigint, COALESCE(sum(d.errors),0)::bigint, COALESCE(sum(d.input_tokens),0)::bigint,
 		COALESCE(sum(d.output_tokens),0)::bigint, COALESCE(sum(d.cache_read_tokens),0)::bigint, COALESCE(sum(d.cache_creation_tokens),0)::bigint,
@@ -378,11 +500,10 @@ func externalUsageSQL(companyID domain.ID, since, until time.Time, groupBy []str
 			cols = append(cols, prefix+externalUsageGroups[d])
 		}
 	}
-	sel := strings.Join(append(append([]string{}, cols...), sums), ", ")
-	q := "SELECT " + sel + " FROM " + from + " WHERE " + where
-	if len(cols) > 0 {
-		q += " GROUP BY " + strings.Join(cols, ", ") + " ORDER BY " + strings.Join(cols, ", ")
-	}
+	extra := []string{"to_char(" + dayExpr + ", 'YYYY-MM-DD')", prefix + "subscription_key"}
+	group := append(append([]string{}, cols...), extra...)
+	sel := strings.Join(append(append(append([]string{}, cols...), extra...), sums), ", ")
+	q := "SELECT " + sel + " FROM " + from + " WHERE " + where + " GROUP BY " + strings.Join(group, ", ") + " ORDER BY " + strings.Join(group, ", ")
 	return q, args, dims, nil
 }
 
