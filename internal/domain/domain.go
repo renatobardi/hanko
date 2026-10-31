@@ -388,6 +388,8 @@ type Subscription struct {
 	EndedAt        *time.Time `json:"ended_at,omitempty"`
 	CreatedAt      time.Time  `json:"created_at"`
 	UpdatedAt      time.Time  `json:"updated_at"`
+	// ExternalKey liga a assinatura às chamadas externas que declaram `oute.subscription` com este valor (ADR-0082 item 4).
+	ExternalKey *string `json:"external_key,omitempty"`
 }
 
 // Covers reports whether a run of agent with model falls under the subscription. An empty model

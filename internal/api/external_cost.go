@@ -104,11 +104,6 @@ func (s *server) registerExternalCost(api huma.API) {
 	const tag = "external-cost"
 	b := "/companies/{company}"
 
-	pendingContractOp[SubscriptionPath, ListOut[SubscriptionMonthlyValue]](api, op("list-subscription-monthly-history", http.MethodGet,
-		b+"/subscriptions/{subscription}/monthly-history", tag, "Lista o histórico de mensalidade de uma assinatura"), costContract, sliceCost)
-	pendingContractOp[addMonthlyValueIn, ItemOut[SubscriptionMonthlyValue]](api, created(op("add-subscription-monthly-value", http.MethodPost,
-		b+"/subscriptions/{subscription}/monthly-history", tag, "Acrescenta uma linha ao histórico de mensalidade (owner ou admin, com reautenticação recente)")), costContract, sliceCost)
-
 	pendingContractOp[listExternalNamedIn, ListOut[PriceCheckRun]](api, op("list-price-checks", http.MethodGet, b+"/price-checks", tag,
 		"Lista as conferências de preços, da mais recente para a mais antiga"), costContract, sliceCost)
 	pendingContractOp[PriceCheckPath, ItemOut[PriceCheckDetail]](api, op("get-price-check", http.MethodGet, b+"/price-checks/{run}", tag,

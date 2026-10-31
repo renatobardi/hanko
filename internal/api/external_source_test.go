@@ -49,8 +49,6 @@ func TestExternalCostContratoResponde501(t *testing.T) {
 	const run = "00000000-0000-0000-0000-000000000001"
 	n := 0
 	for _, c := range []struct{ method, path, body string }{
-		{"GET", base + "/subscriptions/claude-max/monthly-history", ""},
-		{"POST", base + "/subscriptions/claude-max/monthly-history", `{"monthly_usd":250,"starts_on":"2026-06-01"}`},
 		{"GET", base + "/price-checks", ""},
 		{"GET", base + "/price-checks/" + run, ""},
 		{"GET", base + "/alert-settings", ""},
