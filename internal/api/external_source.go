@@ -24,16 +24,6 @@ func pendingContractOp[I, O any](api huma.API, o huma.Operation, contract, slice
 	})
 }
 
-// pendingExternalOp registra uma operação do contrato da fonte externa que ainda responde 501.
-func pendingExternalOp[I, O any](api huma.API, o huma.Operation, slice string) {
-	pendingContractOp[I, O](api, o, "Contrato da fonte externa (ADR-0075 a 0079)", slice)
-}
-
-const (
-	sliceExternalSource = "fatia 1 (#125)"
-	sliceExternalUsage  = "fatia 2 (#126)"
-)
-
 // ---------- recursos ----------
 
 // ExternalAgent é um agente que aparece na telemetria; o Hanko não o executa (ADR-0075 item 1).
@@ -302,17 +292,5 @@ type externalUsageIn struct {
 // ---------- registro ----------
 
 func (s *server) registerExternalSource(api huma.API) {
-	const tag = "external-source"
-	b := "/companies/{company}"
-
 	s.registerExternalEntities(api)
-
-	pendingExternalOp[listExternalNamedIn, ListOut[RepoPairing]](api, op("list-repo-pairings", http.MethodGet, b+"/repo-pairings", tag,
-		"Lista os emparelhamentos de repositório com workspace"), sliceExternalSource)
-	pendingExternalOp[updateRepoPairingIn, ItemOut[RepoPairing]](api, op("update-repo-pairing", http.MethodPatch, b+"/repo-pairings/{pairing}", tag,
-		"Troca o workspace de um emparelhamento; o passado vai junto (owner ou admin)"), sliceExternalSource)
-
-	pendingExternalOp[ExternalConversationPath, ItemOut[ConversationContent]](api, op("get-external-conversation-content", http.MethodGet, b+"/external-conversations/{conversation}/content", tag,
-		"Mostra o conteúdo completo da conversa (owner ou admin; cada leitura gera activity_event)"), sliceExternalSource)
-
 }
