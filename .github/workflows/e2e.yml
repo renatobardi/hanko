@@ -51,7 +51,7 @@ jobs:
           go-version: "1.27"
           cache: true
       - name: instalar templ
-        run: go install github.com/a-h/templ/cmd/templ@v0.3.1070
+        run: go install github.com/a-h/templ/cmd/templ@v0.3.1100
       - name: build
         run: make build VERSION=e2e
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
