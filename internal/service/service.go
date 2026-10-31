@@ -76,6 +76,8 @@ type Service struct {
 	OwnerEmail string
 	// PriceCheck é a saída à internet da conferência diária de preços (ADR-0082 item 7); sem cliente, a conferência não roda.
 	PriceCheck PriceCheckConfig
+	// DBDisk mede o espaço livre do disco do Postgres para o alerta db_disk_low; sem caminho, o alerta não é avaliado.
+	DBDisk DBDiskConfig
 	// Passkeys verifica as cerimônias WebAuthn (ADR-0070); nil = passkey desligada (a API responde 503).
 	Passkeys *passkey.Service
 	// IDVerifier valida o ID token do Firebase na prova de reautenticação; nil fora do provider firebase.
