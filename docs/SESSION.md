@@ -1,17 +1,13 @@
-# Cofre (#117) · sessão `feat-117-campo-arquivo`
+# Gerador de nome (#125, ADR-0084) · sessão `feat-125-gerador-de-nome`
 Data: 2026-10-30
 
 ## Feito
-- Troca do campo arquivo pela tela arquiva a versão anterior em `secret_field_versions` e sobe a versão (ADR-0068 §3.1); restaurar uma versão de arquivo a põe como versão nova (§3.3). Migration `00215_cofre_versao_arquivo.sql`: o arquivo arquivado fica no postgres (`secret_field_version_blobs`) ou no fs e s3 sob a chave do id da versão.
-- Apagar o campo, a poda do histórico e a saída do membro apagam os arquivos arquivados; migração entre drivers e rekey de `HANKO_SECRET_KEY` cobrem também as versões.
-- `origin/main` (25a8e13) incorporada. Testes de banco passam com Postgres local (service, storage, ui, api, db).
-- Sonar: S3776 em `DeleteSecretField`, `RevealSecretFieldVersion` e `PruneSecretFieldHistory` corrigidos (5096b3b, 6a2d42e e o helper `pruneFieldHistory`). Abertos fora deste PR, de funções que não mudaram: `UpdateSecretFieldMeta`, `RotateSecretField`, `RevealSecretField`, `rekeySecrets`, `sealPersonaEnv`, `CreateSecretDelegation`, `ResolveRunUserSecrets`, `prepareMaterialAAD`, `purgeMemberSecrets`.
+- `origin/main` (908ff9a, #146) incorporada por merge, sem conflito. Commit de merge com sign-off.
+- `make openapi`, `make generate` e `make islands` rodados depois do merge: nenhum arquivo gerado mudou.
+- `go build ./...` e `go test ./internal/domain ./internal/i18n ./internal/ui` passam.
 
 ## Travado
-- Critério `qa` (d) da #117 (demo em produção): fica com o Bardi. Por isso o PR segue `Refs #117`.
-- Os testes com banco rodaram só localmente (Postgres 18.6 arm64); o CI roda com Postgres 17.
-
-- `origin/main` (ecd6ef5, #159) incorporada sem conflito; nenhum arquivo gerado mudou.
+- Nada local. O CI do #160 precisa rodar de novo no head novo.
 
 ## Próximo passo
-- Reauditar o head do PR #146 e confirmar CI e Sonar nesse head. O merge é do Bardi.
+- Confirmar CI e SonarCloud no head novo do #160. O merge é do dispatcher e do Bardi.
