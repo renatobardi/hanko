@@ -533,14 +533,11 @@ func (s *Service) ConnectComplete(ctx context.Context, actor domain.Actor, compa
 		if err != nil {
 			return fmt.Errorf("list catalog tools: %w", err)
 		}
-		var unknown, quarantined []string
+		var unknown []string
 		for _, r := range tools {
 			tl := toolFromRow(r, integ.Slug)
 			if tl.Risk == domain.ToolRiskUnknown {
 				unknown = append(unknown, tl.Name)
-			}
-			if tl.Status == domain.ToolQuarantined {
-				quarantined = append(quarantined, tl.Name)
 			}
 		}
 

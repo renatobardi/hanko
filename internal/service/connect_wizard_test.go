@@ -56,16 +56,6 @@ func (e *connectEnv) beginDead(t *testing.T) service.ConnectView {
 	return v
 }
 
-// state recarrega o estado do assistente.
-func (e *connectEnv) state(t *testing.T, ref string) service.ConnectView {
-	t.Helper()
-	v, err := e.svc.ConnectState(context.Background(), domain.HumanActor, e.co.ID, ref)
-	if err != nil {
-		t.Fatalf("state: %v", err)
-	}
-	return v
-}
-
 // preview confere o passo 5.
 func (e *connectEnv) preview(t *testing.T, ref, tpl string, personas ...domain.ID) service.ConnectPreviewView {
 	t.Helper()

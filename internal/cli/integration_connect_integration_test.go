@@ -67,6 +67,9 @@ func TestCLIIntegrationConnectContraServidorReal(t *testing.T) {
 		t.Fatalf("prévia sem o modo de escrita: %q", out)
 	}
 
+	// modelo sem persona: para antes de gravar, com o motivo.
+	mustFail(t, env, 1, "escolha as personas com --persona", "integration", "connect", "docs", "--template", "somente-leitura")
+
 	// conclusão com --yes: a persona recebe a integração; a escrita sai da quarentena com modo ask.
 	out = mustOK(t, env, "integration", "connect", "docs", "--template", "leitura-livre-escrita-com-aprovacao", "--persona", "ana", "--yes")
 	if !strings.Contains(out, "Conectado: Docs") {
@@ -82,6 +85,8 @@ func TestCLIIntegrationConnectContraServidorReal(t *testing.T) {
 func TestCLIIntegrationConnectFalhaDeDescoberta(t *testing.T) {
 	_, _, env := realServer(t)
 	mustFail(t, env, 1, "descoberta falhou", "integration", "connect", "ruim", "--url", "http://127.0.0.1:1/mcp")
+	// repetir a descoberta de um rascunho que continua falhando: o mesmo erro, nada gravado.
+	mustFail(t, env, 1, "descoberta falhou", "integration", "connect", "ruim", "--discover")
 	out := mustOK(t, env, "integration", "connect", "ruim", "--discard")
 	if !strings.Contains(out, "Rascunho descartado: ruim") {
 		t.Fatalf("descarte: %q", out)
