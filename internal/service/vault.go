@@ -706,6 +706,15 @@ func (s *Service) RestoreSecretFieldVersion(ctx context.Context, actor domain.Ac
 	return out, err
 }
 
+// versionsAt devolve as versões nas posições dadas (as que a poda tira do histórico).
+func versionsAt(rows []store.SecretFieldVersion, idx []int) []store.SecretFieldVersion {
+	out := make([]store.SecretFieldVersion, 0, len(idx))
+	for _, i := range idx {
+		out = append(out, rows[i])
+	}
+	return out
+}
+
 // revealableVersion diz se o valor de uma versão pode ser mostrado em texto: não o de versão de cofre externo (o valor
 // mora lá) nem o de versão de arquivo (o conteúdo é arquivo, restaurado e não revelado).
 func revealableVersion(v store.SecretFieldVersion) error {
@@ -773,10 +782,8 @@ func (s *Service) PruneSecretFieldHistory(ctx context.Context) (int, error) {
 			continue
 		}
 		ids := make([]uuid.UUID, 0, len(drop))
-		gone := make([]store.SecretFieldVersion, 0, len(drop))
 		for _, i := range drop {
 			ids = append(ids, rows[i].ID)
-			gone = append(gone, rows[i])
 		}
 		err = s.withTx(ctx, func(t *txc) error {
 			n, err := t.q.DeleteSecretFieldVersions(t.ctx, store.DeleteSecretFieldVersionsParams{CompanyID: f.CompanyID, Ids: ids})
@@ -784,7 +791,7 @@ func (s *Service) PruneSecretFieldHistory(ctx context.Context) (int, error) {
 				return mapErr(err, "delete secret field versions")
 			}
 			total += int(n)
-			t.dropVersionFiles(f.CompanyID, gone) // o arquivo arquivado sai com a versão, nos drivers fs e s3
+			t.dropVersionFiles(f.CompanyID, versionsAt(rows, drop)) // o arquivo arquivado sai com a versão, nos drivers fs e s3
 			return t.activity(domain.SystemActor, f.CompanyID, "secret.history_pruned", "secret", f.SecretID,
 				map[string]any{"removed": n}, "")
 		})

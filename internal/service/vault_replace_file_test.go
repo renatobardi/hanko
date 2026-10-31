@@ -57,7 +57,7 @@ func TestTrocaArquivoSubstituiOConteudoSemMudarOCampo(t *testing.T) {
 	if strings.Contains(string(raw), conteudoNovoArquivo) || strings.Contains(string(raw), conteudoAntigoArquivo) {
 		t.Fatal("o blob guarda o conteúdo em claro")
 	}
-	if n := e.count(t, `SELECT count(*) FROM activity_events WHERE company_id=$1 AND verb='secret.field_updated' AND (data::jsonb)->>'field'='kubeconfig'`, e.co.ID); n < 1 {
+	if e.count(t, `SELECT count(*) FROM activity_events WHERE company_id=$1 AND verb='secret.field_updated' AND (data::jsonb)->>'field'='kubeconfig'`, e.co.ID) < 1 {
 		t.Fatal("a troca não gravou secret.field_updated")
 	}
 	if n := e.count(t, `SELECT count(*) FROM activity_events WHERE company_id=$1 AND data::text LIKE '%'||$2||'%'`, e.co.ID, conteudoNovoArquivo); n != 0 {
