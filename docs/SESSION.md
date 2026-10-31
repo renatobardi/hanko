@@ -1,12 +1,15 @@
-# Roteiro da demo da ingestão externa · sessão `estudo-issues`
+# Assistente Conectar (#45) · sessão `swarm-1031-1825`
 Data: 2026-10-31
 
 ## Feito
-- `docs/DEMOS.md` e `docs/en/DEMOS.md`: roteiro da demo `qa` da #125 num Hanko local (listener `HANKO_INGEST_ADDR`, chave `ingest`, fato OTLP em JSON pelo replay, leitura pela API).
-- Achados lendo o código: `HANKO_INGEST_ADDR` não aceita `0.0.0.0` nem o mesmo endereço de `HANKO_ADDR` (`internal/config/config.go:537-545`); a API de chaves `ingest` já está ligada (`internal/api/ingest_keys.go`).
+- Modelos de acesso (migration 00217), service, API (rotas do assistente e dos modelos), CLI `hanko integration connect` e tela `/c/{empresa}/conectar`, conforme ADR-0089.
+- Testes com Postgres local verdes: service (connect e modelos), api, cli (`IntegrationConnect`), ui (conectar), docsite, i18n.
+- OpenAPI regenerado (`make openapi`): só 11 operações novas; `sqlc` sem drift. Merge com origin/main feito (conflito só no gerado `skills_templ.go`, regenerado com templ v0.3.1100 do go.mod).
 
 ## Travado
-- O roteiro não foi executado: este ambiente não tem Go nem Postgres. O Bardi roda e anota o passo que falhar.
+- Retorno do OAuth para o assistente (ADR-0089, "não decidido"): hoje volta à aba de conexões.
+- CRUD de modelos de acesso na UI: só na API.
+- Ainda sem ensaio com um servidor MCP real e uma persona lendo issues (critério `qa`).
 
 ## Próximo passo
-- Bardi: rodar o roteiro num Hanko local; se passar, marcar o `qa` na #125 (e conferir o que falta nas fatias 3 e 4 antes de fechar).
+- Decidir o retorno do OAuth e a tela de modelos; depois o ensaio `qa` com persona real.
