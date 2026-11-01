@@ -207,9 +207,9 @@ func TestMemoryProxyContraServidorReal(t *testing.T) {
 	}
 	mux := http.NewServeMux()
 	mux.Handle(MemoryPath, h)
-	real := httptest.NewServer(mux)
-	t.Cleanup(real.Close)
-	m.proxy = real
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	m.proxy = srv
 	hdr := map[string]string{"Accept": "application/json, text/event-stream"}
 	ask := func(tool, args string) string {
 		t.Helper()

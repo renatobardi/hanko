@@ -125,14 +125,7 @@ func (p *memoryProxy) screen(ctx context.Context, w http.ResponseWriter, claims 
 
 	// Run comum: só uma chamada única pode mirar outro workspace, e só com concessão.
 	if batch {
-		for _, c := range calls {
-			if proj := targetProject(c); proj != "" && proj != sc.project {
-				p.log.Warn("memory-mcp: lote fora do escopo recusado", "tool", c.name, "run_id", claims.RunID)
-				writeRPCErrors(w, calls, rpcCodeForbidden, "um lote não pode mirar outro workspace; envie uma chamada por vez")
-				return nil, sc, true
-			}
-		}
-		return body, sc, false
+		return body, sc, p.refuseBatchTarget(w, claims, sc, calls)
 	}
 	c := calls[0]
 	proj := targetProject(c)
@@ -158,6 +151,18 @@ func (p *memoryProxy) screen(ctx context.Context, w http.ResponseWriter, claims 
 		return nil, sc, true
 	}
 	return body, memScope{workspace: sc.workspace, project: proj}, false
+}
+
+// refuseBatchTarget recusa o lote inteiro quando uma chamada mira outro workspace: a concessão vale por chamada.
+func (p *memoryProxy) refuseBatchTarget(w http.ResponseWriter, claims auth.RunClaims, sc memScope, calls []toolCall) bool {
+	for _, c := range calls {
+		if proj := targetProject(c); proj != "" && proj != sc.project {
+			p.log.Warn("memory-mcp: lote fora do escopo recusado", "tool", c.name, "run_id", claims.RunID)
+			writeRPCErrors(w, calls, rpcCodeForbidden, "um lote não pode mirar outro workspace; envie uma chamada por vez")
+			return true
+		}
+	}
+	return false
 }
 
 // targetProject é o workspace do Hanko que a chamada pede (o project do ai-memory).
