@@ -39,7 +39,10 @@ the app in `/opt/app` with the `docker-compose.yml` at the repo root (port `3810
 through nginx + certbot on the host (`--edge`, same pattern as `lab/scripts/ops/deploy-vault-vhost.sh`; the vhost also listens on
 `100.66.254.24:443` because of the tailnet's split DNS). The container and the vhost are in the lab's `inventory.yaml` (#280).
 ai-memory runs under the `memory` profile (`COMPOSE_PROFILES=memory` in `.env`); the digest is pinned in `AI_MEMORY_IMAGE` on the
-first deploy. To update it, change that line in the LXC's `.env` and run the deploy again.
+first deploy. To update it, change that line in the LXC's `.env` and recreate only that service
+(`docker compose up -d ai-memory`), after a backup. The LXC's `.env` wins over the repo's digest: changing the repo does
+not update production. Before pinning another version, run the contract test against a test server of the new version:
+`HANKO_AI_MEMORY_CONTRACT_URL=http://127.0.0.1:49374 HANKO_AI_MEMORY_CONTRACT_TOKEN=... go test ./internal/memory/aimemory -run TestContractRealServer`.
 The text below describes the generic variant using `deploy/compose.yaml`.
 
 Two containers: `hanko-stg` (branch `develop`) and `hanko-prd` (tag `v*`). Access through Tailscale (split-horizon, as in the kura-dev runbook).

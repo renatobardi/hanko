@@ -64,6 +64,8 @@ var confirmedClass = map[string]Class{
 	"memory_lint":                      ClassRead,
 	"memory_read_session_observations": ClassRead,
 	"memory_delete_page":               ClassHeld,
+	"memory_patch_page":                ClassHeld,
+	"memory_restore_page":              ClassHeld,
 	"memory_forget_sweep":              ClassHeld,
 	"memory_consolidate":               ClassHeld,
 	"memory_auto_improve":              ClassHeld,
@@ -201,7 +203,25 @@ func ProposedOf(args map[string]any) string {
 			return s
 		}
 	}
-	return ""
+	return patchEdits(args)
+}
+
+// patchEdits escreve as edições de memory_patch_page. Sem isso a proposta ficaria sem texto novo e o diff
+// mostraria a página inteira saindo, quando o patch mexe só em trechos dela.
+func patchEdits(args map[string]any) string {
+	edits, _ := args["edits"].([]any)
+	var sb strings.Builder
+	for _, e := range edits {
+		edit, ok := e.(map[string]any)
+		if !ok {
+			continue
+		}
+		op, _ := edit["op"].(string)
+		anchor, _ := edit["anchor"].(string)
+		content, _ := edit["content"].(string)
+		fmt.Fprintf(&sb, "[%s] %s\n%s\n", op, anchor, content)
+	}
+	return sb.String()
 }
 
 // ---- diff ----
