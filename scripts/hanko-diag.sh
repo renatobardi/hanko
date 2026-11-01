@@ -50,11 +50,15 @@ if [ "$MODE" = "host" ] && have docker; then
 fi
 echo "modo detectado: $MODE   compose: ${COMPOSE_FILE:-nenhum}   container: ${HANKO_SVC:-nenhum}"
 
-# hk: roda o CLI do hanko no lugar certo
+# hk: roda o CLI do hanko no lugar certo, repassando credencial e empresa para dentro do container
 hk() {
   case "$MODE" in
-    compose) docker compose -f "$COMPOSE_FILE" exec -T "$HANKO_SVC" hanko "$@" ;;
-    docker)  docker exec "$HANKO_SVC" hanko "$@" ;;
+    compose) docker compose -f "$COMPOSE_FILE" exec -T \
+               -e "HANKO_TOKEN=${HANKO_TOKEN:-}" -e "HANKO_COMPANY=${HANKO_COMPANY:-}" -e "HANKO_URL=${HANKO_URL:-}" \
+               "$HANKO_SVC" hanko "$@" ;;
+    docker)  docker exec \
+               -e "HANKO_TOKEN=${HANKO_TOKEN:-}" -e "HANKO_COMPANY=${HANKO_COMPANY:-}" -e "HANKO_URL=${HANKO_URL:-}" \
+               "$HANKO_SVC" hanko "$@" ;;
     *)       hanko "$@" ;;
   esac
 }
@@ -189,11 +193,22 @@ done
 sec "8. A persona alcança a API do Hanko? (hook de política de tools)"
 AURL="$(cx sh -c 'echo ${HANKO_AGENT_URL:-${HANKO_PUBLIC_URL:-http://127.0.0.1:7420}}' 2>/dev/null)"
 echo "URL usada pelo harness: $AURL"
-cx sh -c "wget -qO- --timeout=3 '$AURL/healthz' 2>&1 || curl -sS -m 3 '$AURL/healthz' 2>&1 || echo 'sem wget/curl no container'" 2>/dev/null
-echo
-if [ "$MODE" = "host" ]; then curl -sS -m 3 "$AURL/healthz" 2>&1; echo; fi
-echo "--- ai-memory"
-MURL="$(cx sh -c 'echo ${HANKO_MEMORY_URL:-http://127.0.0.1:49374}' 2>/dev/null)"
-cx sh -c "wget -qO- --timeout=3 '$MURL/health' 2>&1 || curl -sS -m 3 '$MURL/health' 2>&1 || echo 'sem resposta/sem cliente http'" 2>/dev/null; echo
+echo "(o próprio CLI faz a chamada, como o hook pretooluse; 'autenticação necessária' ou 'whoami' ok = alcança; 'connection refused' = não)"
+HANKO_URL="$AURL" hk whoami 2>&1 | head -3
+echo "--- ai-memory (o doctor acima já testa; aqui só a URL)"
+cx sh -c 'echo ${HANKO_MEMORY_URL:-http://127.0.0.1:49374}' 2>/dev/null
+
+# ---------- 9. Git dos workspaces (ADR-0054): espelhos e worktrees ----------
+sec "9. Git dos workspaces: espelhos em .hanko/mirrors e worktrees em .hanko/worktrees"
+GITWS="$(cx sh -c 'echo ${HANKO_GIT_WORKSPACES:-}' 2>/dev/null)"
+echo "HANKO_GIT_WORKSPACES=${GITWS:-<vazio>}"
+cx sh -c "for d in '$ROOT'/*/.hanko; do [ -d \"\$d\" ] || continue; echo '--- '\$d; find \"\$d\" -maxdepth 3 -not -path '*/objects/*' -not -path '*/refs/*' 2>&1 | head -40; done" 2>/dev/null
+if [ -n "${HANKO_COMPANY:-}" ]; then
+  for s in $(hk workspace list --json 2>/dev/null | grep -oE '"slug":"[^"]+"' | cut -d'"' -f4); do
+    echo "===== workspace $s"
+    hk workspace show "$s" 2>&1 | head -20
+    hk workspace git show "$s" 2>&1 | mask | head -25
+  done
+fi
 
 sec "FIM — arquivo: $OUT"
