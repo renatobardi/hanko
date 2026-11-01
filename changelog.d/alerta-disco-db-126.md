@@ -1,0 +1,5 @@
+### Alerta de disco do Postgres
+
+- Com `HANKO_DB_DISK_PATH` apontando para um caminho no mesmo disco dos dados do Postgres (por exemplo o volume dele montado só para leitura no contêiner do Hanko), o motor de alertas mede o espaço livre e abre `db_disk_low` em cada empresa com telemetria nos últimos 30 dias: `warning` abaixo de `limit.db_disk_warn_gib` (padrão 20 GiB) e `critical` abaixo de `limit.db_disk_critical_gib` (padrão 5 GiB), ambos ajustáveis por empresa. O alerta fecha quando o espaço volta. Sem o caminho, nada é medido.
+
+- English summary: with `HANKO_DB_DISK_PATH` pointing to a path on the same disk as the Postgres data (for example its volume mounted read-only in the Hanko container), the alert engine measures free space and opens `db_disk_low` in every company with telemetry in the last 30 days: `warning` below `limit.db_disk_warn_gib` (default 20 GiB) and `critical` below `limit.db_disk_critical_gib` (default 5 GiB), both adjustable per company. The alert closes when space recovers. Without the path nothing is measured.
