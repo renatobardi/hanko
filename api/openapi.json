@@ -39060,7 +39060,6 @@
     },
     "/api/v1/companies/{company}/external-approvals": {
       "get": {
-        "description": "Contrato do grupo 3 da v0.8 (#124): rodada e aprovação externas (ADR-0080 e 0081). Responde 501 até a fatia 3 (#127).",
         "operationId": "list-external-approvals",
         "parameters": [
           {
@@ -39188,16 +39187,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Lista os pedidos do canal de aprovação observados nos hosts, sem o script",
@@ -39208,7 +39197,6 @@
     },
     "/api/v1/companies/{company}/external-approvals/{approval}": {
       "get": {
-        "description": "Contrato do grupo 3 da v0.8 (#124): rodada e aprovação externas (ADR-0080 e 0081). Responde 501 até a fatia 3 (#127).",
         "operationId": "get-external-approval",
         "parameters": [
           {
@@ -39306,16 +39294,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Mostra um pedido do canal, com o sha256 e as versões; o comando oute approve \u003cid\u003e vai para copiar",
@@ -39326,7 +39304,6 @@
     },
     "/api/v1/companies/{company}/external-approvals/{approval}/script": {
       "get": {
-        "description": "Contrato do grupo 3 da v0.8 (#124): rodada e aprovação externas (ADR-0080 e 0081). Responde 501 até a fatia 3 (#127).",
         "operationId": "get-approval-script",
         "parameters": [
           {
@@ -39424,16 +39401,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Mostra o corpo do script de um pedido (owner ou admin; cada leitura gera activity_event)",
@@ -40088,7 +40055,6 @@
     },
     "/api/v1/companies/{company}/external-cycles/{cycle}": {
       "get": {
-        "description": "Contrato do grupo 3 da v0.8 (#124): rodada e aprovação externas (ADR-0080 e 0081). Responde 501 até a fatia 3 (#127).",
         "operationId": "get-external-cycle",
         "parameters": [
           {
@@ -40186,16 +40152,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Mostra o ciclo de uma issue, com o resumo no topo e as rodadas",
@@ -40679,7 +40635,6 @@
     },
     "/api/v1/companies/{company}/external-rounds": {
       "get": {
-        "description": "Contrato do grupo 3 da v0.8 (#124): rodada e aprovação externas (ADR-0080 e 0081). Responde 501 até a fatia 3 (#127).",
         "operationId": "list-external-rounds",
         "parameters": [
           {
@@ -40804,16 +40759,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Lista as rodadas externas, com filtro por ciclo",
@@ -40824,7 +40769,6 @@
     },
     "/api/v1/companies/{company}/external-rounds/{round}": {
       "get": {
-        "description": "Contrato do grupo 3 da v0.8 (#124): rodada e aprovação externas (ADR-0080 e 0081). Responde 501 até a fatia 3 (#127).",
         "operationId": "get-external-round",
         "parameters": [
           {
@@ -40922,16 +40866,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Mostra uma rodada externa, com participantes, etapas vigentes e ações com a marca mais nova",
@@ -40942,7 +40876,6 @@
     },
     "/api/v1/companies/{company}/external-rounds/{round}/steps/{step}/actions/{action}/marks": {
       "post": {
-        "description": "Contrato do grupo 3 da v0.8 (#124): rodada e aprovação externas (ADR-0080 e 0081). Responde 501 até a fatia 3 (#127).",
         "operationId": "mark-round-action",
         "parameters": [
           {
@@ -41072,16 +41005,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Marca uma ação da etapa como feita ou pendente (owner ou admin, com reautenticação recente; gera activity_event)",
@@ -41092,7 +41015,6 @@
     },
     "/api/v1/companies/{company}/external-rounds/{round}/steps/{step}/content": {
       "get": {
-        "description": "Contrato do grupo 3 da v0.8 (#124): rodada e aprovação externas (ADR-0080 e 0081). Responde 501 até a fatia 3 (#127).",
         "operationId": "get-round-step-content",
         "parameters": [
           {
@@ -41201,16 +41123,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Mostra o texto da etapa, lido do fato da ingestão (owner ou admin; cada leitura gera activity_event)",

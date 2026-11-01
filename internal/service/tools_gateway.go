@@ -426,6 +426,9 @@ func (s *Service) GatewayCallTool(ctx context.Context, c ToolCaller, integration
 		v.decision, v.status = domain.ToolDecisionError, domain.ToolCallFailed
 		return deny("a integração não pode ser alcançada: "+err.Error(), false)
 	}
+	// Parâmetros marcados `x-mcp-header` no schema vão também como cabeçalho Mcp-Param-<nome>: é o que o servidor
+	// remoto exige para aceitá-los (o do GitHub recusa com "header mismatch" sem eles).
+	ep = ep.WithHeaders(mcpupstream.HeaderParams(tr.InputSchema, canon))
 	start := time.Now()
 	raw, cerr := mcpupstream.CallTool(ctx, ep, tool, canon)
 	v.latency = time.Since(start)

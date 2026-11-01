@@ -132,6 +132,12 @@ func deriveFromBatch(t *txc, companyID domain.ID, b ingest.Batch, d derived) err
 			return err
 		}
 	}
+	if err := deriveRounds(t, companyID, b); err != nil {
+		return err
+	}
+	if err := deriveApprovals(t, companyID, b); err != nil {
+		return err
+	}
 	return deriveConversations(t, companyID, b, d)
 }
 
