@@ -5,6 +5,91 @@ English summary at the end of each release.
 
 ## [Unreleased]
 
+## [0.8.3] — 2026-11-01
+
+### Alerta de disco do Postgres
+
+- Com `HANKO_DB_DISK_PATH` apontando para um caminho no mesmo disco dos dados do Postgres (por exemplo o volume dele montado só para leitura no contêiner do Hanko), o motor de alertas mede o espaço livre e abre `db_disk_low` em cada empresa com telemetria nos últimos 30 dias: `warning` abaixo de `limit.db_disk_warn_gib` (padrão 20 GiB) e `critical` abaixo de `limit.db_disk_critical_gib` (padrão 5 GiB), ambos ajustáveis por empresa. O alerta fecha quando o espaço volta. Sem o caminho, nada é medido.
+
+- English summary: with `HANKO_DB_DISK_PATH` pointing to a path on the same disk as the Postgres data (for example its volume mounted read-only in the Hanko container), the alert engine measures free space and opens `db_disk_low` in every company with telemetry in the last 30 days: `warning` below `limit.db_disk_warn_gib` (default 20 GiB) and `critical` below `limit.db_disk_critical_gib` (default 5 GiB), both adjustable per company. The alert closes when space recovers. Without the path nothing is measured.
+
+### Alertas de preço e de custo de lista
+
+- O motor de alertas passa a abrir os 7 alertas de preço e de custo de agente externo: `price_changed` (preço trocado pela conferência nos últimos 7 dias, informativo), `price_sources_diverge`, `price_locked_differs`, `price_source_down` (fonte fora em 2 dias UTC seguidos), `price_model_unpriced`, `cost_subscription_unpriced` e `cost_claude_diff` (custo informado pelo Claude difere da tabela acima do limite da empresa, padrão do `limit.claude_cost_diff_pct`). Cada alerta abre em toda empresa que usou o modelo nos últimos 30 dias e fecha sozinho quando a condição some. Preço travado não alerta por divergência.
+
+- English summary: the alert engine now opens the 7 price and list-cost alerts for external agents: `price_changed`, `price_sources_diverge`, `price_locked_differs`, `price_source_down`, `price_model_unpriced`, `cost_subscription_unpriced` and `cost_claude_diff`. Each opens in every company that used the model in the last 30 days and closes by itself when the condition clears; a locked price never alerts on divergence.
+
+### Alertas operacionais de agente externo
+
+- O motor de alertas passa a abrir, a partir da telemetria gravada, os alertas de fila do exporter (`queue`), destino recusando (`destination_refusing`), spool do `oute-emit` (`spool`), cota (`quota`), rodada parada e rodada antiga (`round_stalled`, `round_old`), proxy do LLM do ai-memory fora (`llm_proxy_down`), captura parcial (`memory_capture`) e hook sem `trusted_hash` (`memory_hooks_untrusted`). Cada empresa usa os próprios limites e a própria janela de leitura (`limit.*` da API de ajustes). Host parado, sem registro há mais do limite de `host_no_data`, não liga nenhum deles além do próprio `host_no_data`. Cada alerta fecha sozinho quando o dado seguinte não mostra mais o problema.
+
+- English summary: the alert engine now opens, from stored telemetry, the exporter queue (`queue`), destination refusing (`destination_refusing`), `oute-emit` spool (`spool`), quota (`quota`), stalled and old round (`round_stalled`, `round_old`), ai-memory LLM proxy down (`llm_proxy_down`), partial capture (`memory_capture`) and hook without `trusted_hash` (`memory_hooks_untrusted`) alerts. Each company uses its own limits and read window (`limit.*` in the settings API). A stopped host, with no record for longer than the `host_no_data` limit, raises none of them besides `host_no_data` itself. Each alert closes by itself when the next data no longer shows the problem.
+
+### Aprovação externa: o pedido do canal, só observado
+
+- A ingestão passa a derivar, dos eventos `oute.canal.*`, a aprovação externa: o pedido (título, usuário, host, agente e sessão, do `proposed` mais antigo), cada versão diferente do script que chega, a decisão (`rejected` ou `executed`, com o aprovador `human` ou `human_dark`, rc, duração e tamanho da saída) em qualquer ordem de chegada, e a lista da outbox de cada host (a mais nova vence; lista com hora à frente do relógio do servidor é recusada). O pendente que a lista mais nova do host não tem, depois da folga de 60 s, sai das listas sem ser apagado. A API lista os pedidos e mostra cada um com o sha256 e o número de versões, para qualquer membro; só owner e admin leem o corpo do script, e cada leitura gera `activity_event`. O Hanko nunca aprova, recusa nem roda algo no host.
+
+- English summary: ingestion now derives the external approval from the `oute.canal.*` events: the request (title, user, host, agent and session, from the oldest `proposed`), each different script version that arrives, the decision (`rejected` or `executed`, with approver `human` or `human_dark`, rc, duration and output size) regardless of arrival order, and each host's outbox list (the newest wins; a list timestamped ahead of the server clock is refused). A pending request missing from the host's newest list, after a 60 s margin, leaves the lists without being deleted. The API lists the requests and shows each with its sha256 and version count to any member; only owners and admins read the script body, and every read generates an `activity_event`. Hanko never approves, rejects or runs anything on the host.
+
+### Assistente "Conectar ferramenta a uma persona"
+
+- Um fluxo só liga um servidor MCP a personas: servidor (header secreto ou OAuth 2.1 com PKCE), descoberta das tools por risco, escolha das personas, modelo de acesso e prévia do que cada persona poderá fazer antes de gravar (ADR-0089).
+- Modelos de acesso por empresa: "Somente leitura" e "Leitura livre, escrita com aprovação"; a escrita da conexão nova só sai da quarentena pelo modelo escolhido.
+- Comando `hanko integration connect`; a gravação exige `--yes` depois da prévia.
+- English summary: guided assistant that connects an MCP server to personas with an access template (read-only or read-free with write approval), in the web UI and as `hanko integration connect` (ADR-0089).
+
+### Caixa: aprovação externa pendente e pergunta da rodada
+
+- A Caixa passa a ter dois itens que pedem ação e contam no selo: cada pedido do canal de aprovação pendente (só para owner e admin; o item traz `oute approve <id>` para copiar e sai quando o pedido é decidido ou some da lista da outbox do host) e a pergunta da rodada ao Bardi sem resposta (a rodada aberta cuja última pergunta é igual ou mais nova que a última resposta, até o dobro de `limit.lookback_hours`). A pergunta da rodada, marcada como lida ou arquivada, volta depois do prazo `due.round_question` (24 h por padrão, ajustável por empresa).
+
+- English summary: the inbox now has two action-needed items that count toward the badge: each pending approval-channel request (owners and admins only; the item carries `oute approve <id>` to copy and leaves when the request is decided or drops off the host's outbox list) and the unanswered round question to the Bardi (an open round whose last question is equal to or newer than the last answer, up to twice `limit.lookback_hours`). A round question marked read or archived comes back after the `due.round_question` deadline (24 h by default, adjustable per company).
+
+### "Vence em" por tipo de alerta na Caixa
+
+- Um alerta marcado como lido ou arquivado na Caixa volta como não lido quando o prazo do tipo vence, contado no servidor desde a marca, além de quando a impressão digital muda. Os alertas de agente externo vencem em 24 h por padrão; os tipos que o Hanko já tinha ficam "sem prazo", e nada muda para quem já usa. Cada empresa troca o prazo de cada tipo (de "sem prazo" até 30 dias) pela API de ajustes de alerta (`due.<tipo>`). Vencer não apaga a marca: só tira o efeito dela.
+
+- English summary: a read or archived alert in the inbox comes back as unread when the type's deadline passes, counted on the server from the mark, besides when the fingerprint changes. External-agent alerts expire after 24 h by default; the alert types Hanko already had stay "no deadline", so nothing changes for current users. Each company changes the deadline of each type (from "no deadline" up to 30 days) through the alert settings API (`due.<type>`). Expiring does not delete the mark: it only removes its effect.
+
+### Documentação: roteiro da demo da ingestão externa
+
+- `docs/DEMOS.md` (e a versão em inglês) ganha o roteiro da demo `qa` da #125: ligar o listener de ingestão num Hanko local, criar uma chave `ingest`, mandar um fato OTLP em JSON e ler a conversa pela API. Não foi executado de ponta a ponta.
+- English summary: `docs/DEMOS.md` (and the English version) gains the `qa` demo script for #125: enable the ingestion listener on a local Hanko, create an `ingest` key, post an OTLP JSON fact and read the conversation through the API. It has not been run end to end.
+
+### Export da empresa leva a configuração externa
+
+- O arquivo `hanko.company.v1` passa a levar, como campos opcionais, a configuração externa da empresa: agentes e hosts externos (com apelidos e, no host, o marcador de sempre ligado), emparelhamentos de repositório, o workspace `no-repo`, a chave externa e o histórico de mensalidade de cada assinatura e os limites de alerta que a empresa mudou. Conversas, sessões, rodadas, aprovações, chamadas ao modelo, alertas, preços de modelo e telemetria não viajam, e nenhuma chave `ingest` ou `read` entra. A importação valida tudo antes de gravar e cria a empresa nova com ids novos; o host importado vem sem chave e precisa de uma chave `ingest` nova. Importar para uma empresa existente (merge) avisa que a configuração externa não entra.
+
+- English summary: the `hanko.company.v1` file now carries, as optional fields, the company's external configuration: external agents and hosts (with aliases and, for hosts, the always-on flag), repository pairings, the `no-repo` workspace, each subscription's external key and monthly history, and the alert limits the company changed. External conversations, sessions, rounds, approvals, model calls, alerts, model prices and telemetry do not travel, and no `ingest` or `read` key is included. Import validates everything before writing and creates the new company with new ids; an imported host comes without a key and needs a fresh `ingest` key. Importing into an existing company (merge) warns that external configuration is not merged.
+
+### Gateway de tools: parâmetros `x-mcp-header` viram cabeçalho
+
+- O gateway (ADR-0053) passa a repetir como cabeçalho `Mcp-Param-<nome>` todo argumento cuja propriedade no input schema da tool traz `x-mcp-header`. É o que o servidor MCP remoto do GitHub exige para `owner`, `repo` e afins; sem o cabeçalho ele recusava a chamada com `header mismatch: missing Mcp-Param-owner header`, e `issue_write`, `issue_read`, `list_issues` e `get_file_contents` falhavam para toda persona (só `search_*` passavam). O argumento continua no corpo, a credencial guardada vence qualquer cabeçalho de parâmetro, e só valores escalares sem quebra de linha entram.
+
+- English summary: the tool gateway now mirrors every argument whose schema property carries `x-mcp-header` as a `Mcp-Param-<name>` request header. The remote GitHub MCP server requires it for `owner`, `repo` and the like; without it every `issue_write`, `issue_read`, `list_issues` and `get_file_contents` call failed with `header mismatch: missing Mcp-Param-owner header` (only `search_*` worked). The argument stays in the body, stored credentials win over parameter headers, and only scalar values without line breaks are forwarded.
+
+### Organograma: os menus de filtro fecham
+
+- Os menus **Tags** e **Níveis** do filtro do organograma agora fecham ao clicar fora, ao apertar Esc e ao abrir o outro menu. Antes só fechavam no clique no próprio título. Escolher uma tag não fecha o menu, porque o filtro aceita várias.
+- English summary: the org chart's **Tags** and **Levels** filter menus now close on an outside click, on Esc and when the other menu opens; before, they only closed on a click on their own title. Picking a tag keeps the menu open because the filter accepts several.
+
+### Rodada externa: leitura, ciclo, texto da etapa e marca da ação
+
+- A API passa a listar as rodadas externas (com filtro por ciclo), mostrar uma rodada com participantes, etapas vigentes e ações com a marca mais nova, e mostrar o ciclo de uma issue com o resumo no topo. O texto de uma etapa aprovada sai do fato da telemetria só para owner e admin, e cada leitura gera `activity_event`; a etapa reprovada ou sem revisor não entrega o texto nem as ações. Owner e admin, com reautenticação recente, marcam uma ação como feita ou pendente: as marcas só se acrescentam e a mais nova vence; a ação que cita um pedido do canal não tem caixa. A ingestão passa a guardar o último evento da rodada e a última pergunta e resposta ao Bardi.
+
+- English summary: the API now lists external rounds (filterable by cycle), shows a round with participants, current steps and actions with their newest mark, and shows an issue's cycle with the summary on top. The text of an approved step comes from the telemetry fact for owners and admins only, and every read generates an `activity_event`; a rejected or reviewer-less step returns neither text nor actions. Owners and admins, with recent re-authentication, mark an action done or pending: marks are append-only and the newest wins; an action that cites a channel request has no checkbox. Ingestion now stores the round's last event and the last question and answer to the Bardi.
+
+### Rodada externa: nasce dos eventos do swarm
+
+- A ingestão passa a derivar, dos eventos `oute.swarm.*` e `oute.task.*`, a rodada externa (abertura, fechamento, repositório ligado ao workspace pelo emparelhamento, máximo de sessões e nome do gerador único), os participantes (workers, ligados à sessão externa quando ela já chegou), o ciclo (a issue `<dono>/<repo>#<n>`) e as etapas da rodada (triagem, merge por PR, kaizen, fechamento e resumo do ciclo). A revisão mais alta de uma etapa vence em qualquer ordem de chegada; o texto da etapa fica só no fato da telemetria. Evento de etapa fora do formato do `oute-swarm` não vira estado. Reenviar o lote não muda nada.
+
+- English summary: ingestion now derives, from the `oute.swarm.*` and `oute.task.*` events, the external round (opening, closing, repository linked to the workspace through pairing, session maximum and unique-generator name), participants (workers, linked to the external session once it arrives), the cycle (the `<owner>/<repo>#<n>` issue) and round steps (triage, per-PR merge, kaizen, closing and cycle summary). The highest revision of a step wins regardless of arrival order; the step text stays only in the telemetry fact. A step event outside the `oute-swarm` format creates no state. Resending a batch changes nothing.
+
+### Script de diagnóstico de instalação
+
+- `scripts/hanko-diag.sh` coleta, só leitura e com segredos mascarados, o que o suporte precisa para diagnosticar "erros no log" e "persona sem acesso ao workspace": modo de execução (host, compose com imagem agents ou distroless), variáveis efetivas, `hanko doctor`, binários e login do harness, WARN/ERROR do servidor agrupados por mensagem, empresas, workspaces, personas, readiness, runs com falha e o log delas, permissões reais de cada caminho de workspace sob `HANKO_WORKSPACES_ROOT` e se o harness alcança a API em `HANKO_AGENT_URL` e o ai-memory.
+
+- English summary: `scripts/hanko-diag.sh` gathers, read-only and with secrets masked, what support needs to diagnose "errors in the log" and "persona has no access to the workspace": execution mode, effective variables, `hanko doctor`, harness binaries and login, server WARN/ERROR grouped by message, companies, workspaces, personas, readiness, failed runs and their logs, the real permissions of every workspace path under `HANKO_WORKSPACES_ROOT`, and whether the harness reaches the API at `HANKO_AGENT_URL` and ai-memory.
+
 ## [0.8.2] — 2026-10-31
 
 ### Limites e prazos de alerta por empresa

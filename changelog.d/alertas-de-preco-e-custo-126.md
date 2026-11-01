@@ -1,5 +1,0 @@
-### Alertas de preço e de custo de lista
-
-- O motor de alertas passa a abrir os 7 alertas de preço e de custo de agente externo: `price_changed` (preço trocado pela conferência nos últimos 7 dias, informativo), `price_sources_diverge`, `price_locked_differs`, `price_source_down` (fonte fora em 2 dias UTC seguidos), `price_model_unpriced`, `cost_subscription_unpriced` e `cost_claude_diff` (custo informado pelo Claude difere da tabela acima do limite da empresa, padrão do `limit.claude_cost_diff_pct`). Cada alerta abre em toda empresa que usou o modelo nos últimos 30 dias e fecha sozinho quando a condição some. Preço travado não alerta por divergência.
-
-- English summary: the alert engine now opens the 7 price and list-cost alerts for external agents: `price_changed`, `price_sources_diverge`, `price_locked_differs`, `price_source_down`, `price_model_unpriced`, `cost_subscription_unpriced` and `cost_claude_diff`. Each opens in every company that used the model in the last 30 days and closes by itself when the condition clears; a locked price never alerts on divergence.
