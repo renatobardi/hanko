@@ -347,7 +347,7 @@ func (s *Service) buildDoc(ctx context.Context, q *store.Queries, companyID doma
 	wsSlug := map[domain.ID]string{}
 	for _, w := range wsRows {
 		wsSlug[w.ID] = w.Slug
-		doc.Workspaces = append(doc.Workspaces, export.Workspace{Slug: w.Slug, Name: w.Name, Path: w.Path, RepoURL: w.RepoUrl, DefaultBranch: w.DefaultBranch, CreatedAt: w.CreatedAt})
+		doc.Workspaces = append(doc.Workspaces, export.Workspace{Slug: w.Slug, Name: w.Name, Path: w.Path, RepoURL: w.RepoUrl, DefaultBranch: w.DefaultBranch, System: w.IsSystem, CreatedAt: w.CreatedAt})
 	}
 	prRows, err := q.ListProjects(ctx, companyID)
 	if err != nil {
@@ -378,6 +378,12 @@ func (s *Service) buildDoc(ctx context.Context, q *store.Queries, companyID doma
 		doc.Subscriptions = append(doc.Subscriptions, export.Subscription{Name: r.Name, Agent: r.Agent, MonthlyUSD: r.MonthlyUsd,
 			ModelPrefixes: nonEmpty(r.ModelPrefixes), WeeklyLimitUSD: r.WeeklyLimitUsd, WeeklyGuardPct: int(r.WeeklyGuardPct),
 			Active: r.Active, EndedAt: r.EndedAt, Periods: periods[r.ID], CreatedAt: r.CreatedAt})
+	}
+
+	if st != nil {
+		if err := exportExternal(ctx, st.tx, companyID, &doc, wsSlug, subName); err != nil {
+			return doc, err
+		}
 	}
 
 	peRows, err := q.ListPersonas(ctx, companyID)
