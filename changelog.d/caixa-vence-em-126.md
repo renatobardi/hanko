@@ -1,5 +1,0 @@
-### "Vence em" por tipo de alerta na Caixa
-
-- Um alerta marcado como lido ou arquivado na Caixa volta como não lido quando o prazo do tipo vence, contado no servidor desde a marca, além de quando a impressão digital muda. Os alertas de agente externo vencem em 24 h por padrão; os tipos que o Hanko já tinha ficam "sem prazo", e nada muda para quem já usa. Cada empresa troca o prazo de cada tipo (de "sem prazo" até 30 dias) pela API de ajustes de alerta (`due.<tipo>`). Vencer não apaga a marca: só tira o efeito dela.
-
-- English summary: a read or archived alert in the inbox comes back as unread when the type's deadline passes, counted on the server from the mark, besides when the fingerprint changes. External-agent alerts expire after 24 h by default; the alert types Hanko already had stay "no deadline", so nothing changes for current users. Each company changes the deadline of each type (from "no deadline" up to 30 days) through the alert settings API (`due.<type>`). Expiring does not delete the mark: it only removes its effect.
