@@ -2,6 +2,7 @@ package aimemory
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -29,6 +30,7 @@ func TestContractRealServer(t *testing.T) {
 	if sc, ok := p.(memory.SearchCapable); !ok || !sc.SearchSupported(ctx) {
 		t.Fatal("memory_query ausente")
 	}
+	contractTools(ctx, t, p)
 	tag := fmt.Sprintf("contratohanko%d", time.Now().UnixNano())
 	path := "hanko/runs/" + tag + ".md"
 	contractWrites(ctx, t, p, s, path, tag)
@@ -77,5 +79,45 @@ func contractPages(ctx context.Context, t *testing.T, p memory.Provider, s memor
 	}
 	if _, err := p.(memory.ToolCaller).CallTool(ctx, s, "memory_delete_page", map[string]any{"path": path}); err != nil {
 		t.Fatalf("delete page: %v", err)
+	}
+}
+
+// contractTools falha quando o servidor traz tool ou argumento que memory/args.go ainda não decidiu, e quando uma tool
+// do contrato sumiu: o proxy recusa o que não conhece, então uma versão nova pede revisão aqui antes de ser fixada.
+func contractTools(ctx context.Context, t *testing.T, p memory.Provider) {
+	t.Helper()
+	pv := p.(*provider)
+	cs, _, err := pv.session(ctx)
+	if err != nil {
+		t.Fatalf("sessão: %v", err)
+	}
+	res, err := cs.ListTools(ctx, nil)
+	if err != nil {
+		t.Fatalf("tools/list: %v", err)
+	}
+	seen := map[string]bool{}
+	for _, tool := range res.Tools {
+		seen[tool.Name] = true
+		if !memory.KnownTool(tool.Name) {
+			t.Errorf("tool fora do contrato: %s", tool.Name)
+			continue
+		}
+		raw, _ := json.Marshal(tool.InputSchema)
+		var schema struct {
+			Properties map[string]json.RawMessage `json:"properties"`
+		}
+		if err := json.Unmarshal(raw, &schema); err != nil {
+			t.Fatalf("schema de %s: %v", tool.Name, err)
+		}
+		for arg := range schema.Properties {
+			if !memory.KnownArg(tool.Name, arg) {
+				t.Errorf("argumento fora do contrato: %s.%s", tool.Name, arg)
+			}
+		}
+	}
+	for _, name := range memory.ContractTools() {
+		if !seen[name] {
+			t.Errorf("tool do contrato sumiu do servidor: %s", name)
+		}
 	}
 }
