@@ -104,87 +104,101 @@ func TestWriteTelemetryCostFromLogs(t *testing.T) {
 }
 
 // O pago é o rateio único: a mensalidade do dia da assinatura (a do histórico), dividida entre as chamadas pelo custo de
-// lista; fecha com o valor do dia (ADR-0082 itens 5 e 6).
+// lista; fecha com o valor do dia (ADR-0082 itens 5 e 6). O relógio é fixo (`svc.Now`): o dia da leitura não depende da
+// data em que o teste roda. No dia 1 do mês, a chamada do último dia do mês anterior tem o pago do mês dela. A assinatura
+// nasce antes da chamada: fora de `subscription_periods` não há cobrança (ADR-0082 item 6), e a versão que datava a
+// assinatura depois da chamada só passava quando os dois dias caíam no mesmo mês (#184).
+// A chamada e a leitura ficam ao meio-dia UTC: com fuso atrás de UTC, entre 21h e 24h locais a chamada cai num dia (UTC)
+// que o rateio local ainda não percorreu, e o pago some. Defeito de código aberto à parte (#191); este teste não cobre
+// essa janela.
 func TestExternalPaidFollowsMonthlyHistory(t *testing.T) {
-	e := newEnv(t)
-	ctx := context.Background()
-	actor := ingestActor(t, e)
-	token, _, err := e.svc.CreateIngestKey(ctx, actor, e.co.ID, "oute-server")
-	if err != nil {
-		t.Fatal(err)
+	utc := func(year int, month time.Month, day, hour int) time.Time {
+		return time.Date(year, month, day, hour, 0, 0, 0, time.UTC)
 	}
-	key, err := e.svc.ResolveIngestKey(ctx, token)
-	if err != nil {
-		t.Fatal(err)
-	}
-	sub := e.sub(t, func(in *service.CreateSubscriptionInput) {
-		in.Name = "Claude"
-		in.Agent = "claude"
-		in.MonthlyUSD = 300
-		in.ExternalKey = "claude"
-	})
-	// o dia é hoje, em UTC, e o relógio fica no meio-dia UTC: com fuso atrás de UTC, entre 21h e 24h local a chamada
-	// cai num dia (UTC) que o rateio local ainda não percorreu, e o pago some. Defeito de código aberto à parte
-	// (issue a abrir, ligada ao #184); este teste não cobre essa janela.
-	now := time.Now().UTC()
-	noon := time.Date(now.Year(), now.Month(), now.Day(), 12, 0, 0, 0, time.UTC)
-	e.svc.Now = func() time.Time { return noon }
-	// a assinatura só cobra os meses que tocou, então "ontem" cairia no mês anterior no dia 1º
-	day := noon.Truncate(24 * time.Hour)
-	// a mensalidade vale 600 desde hoje (a linha registrada depois desempata a do cadastro, que também começa hoje)
-	if _, err := e.svc.AddSubscriptionMonthlyValue(ctx, actor, e.co.ID, sub.ID.String(), 600, day); err != nil {
-		t.Fatal(err)
-	}
-	at := day.Add(12*time.Hour + time.Minute).UnixNano()
-	span := fmt.Sprintf(`{"traceId":"aa","spanId":"p1","name":"claude_code.llm_request","startTimeUnixNano":"%d","endTimeUnixNano":"%d","attributes":[
-		{"key":"gen_ai.usage.input_tokens","value":{"intValue":"100"}},{"key":"gen_ai.usage.cache_read_input_tokens","value":{"intValue":"50"}},
-		{"key":"gen_ai.usage.output_tokens","value":{"intValue":"10"}},{"key":"gen_ai.response.model","value":{"stringValue":"claude-opus-5-5"}},
-		{"key":"oute.subscription","value":{"stringValue":"claude"}}]}`, at, at+1_000_000_000)
-	rows, err := ingest.SpanRows(spanPayload(t, span), time.Now().UnixNano())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := e.svc.WriteTelemetry(ctx, key, ingest.Batch{Spans: rows}); err != nil {
-		t.Fatal(err)
-	}
-	daysInMonth := float64(time.Date(day.Year(), day.Month()+1, 0, 0, 0, 0, 0, time.UTC).Day())
-	fee := 600 / daysInMonth
+	for _, c := range []struct {
+		name                             string
+		create, record, line, call, read time.Time // relógio na criação e no registro da linha; início da mensalidade 600; dia da chamada; relógio na leitura
+	}{
+		{"leitura no dia 1 do mês", utc(2026, 10, 20, 10), utc(2026, 10, 27, 10), utc(2026, 10, 26, 0), utc(2026, 10, 31, 12), utc(2026, 11, 1, 12)},
+		{"leitura no meio do mês", utc(2026, 11, 3, 10), utc(2026, 11, 9, 10), utc(2026, 11, 8, 0), utc(2026, 11, 12, 12), utc(2026, 11, 15, 12)},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			e := newEnv(t)
+			ctx := context.Background()
+			actor := ingestActor(t, e)
+			e.svc.Now = func() time.Time { return c.create }
+			token, _, err := e.svc.CreateIngestKey(ctx, actor, e.co.ID, "oute-server")
+			if err != nil {
+				t.Fatal(err)
+			}
+			key, err := e.svc.ResolveIngestKey(ctx, token)
+			if err != nil {
+				t.Fatal(err)
+			}
+			sub := e.sub(t, func(in *service.CreateSubscriptionInput) {
+				in.Name = "Claude"
+				in.Agent = "claude"
+				in.MonthlyUSD = 300
+				in.ExternalKey = "claude"
+			})
+			e.svc.Now = func() time.Time { return c.record }
+			// a mensalidade vale 600 desde line (o início no passado muda o pago desse dia)
+			if _, err := e.svc.AddSubscriptionMonthlyValue(ctx, actor, e.co.ID, sub.ID.String(), 600, c.line); err != nil {
+				t.Fatal(err)
+			}
+			at := c.call.UnixNano()
+			span := fmt.Sprintf(`{"traceId":"aa","spanId":"p1","name":"claude_code.llm_request","startTimeUnixNano":"%d","endTimeUnixNano":"%d","attributes":[
+			{"key":"gen_ai.usage.input_tokens","value":{"intValue":"100"}},{"key":"gen_ai.usage.cache_read_input_tokens","value":{"intValue":"50"}},
+			{"key":"gen_ai.usage.output_tokens","value":{"intValue":"10"}},{"key":"gen_ai.response.model","value":{"stringValue":"claude-opus-5-5"}},
+			{"key":"oute.subscription","value":{"stringValue":"claude"}}]}`, at, at+1_000_000_000)
+			rows, err := ingest.SpanRows(spanPayload(t, span), c.read.UnixNano())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := e.svc.WriteTelemetry(ctx, key, ingest.Batch{Spans: rows}); err != nil {
+				t.Fatal(err)
+			}
+			e.svc.Now = func() time.Time { return c.read }
+			daysInMonth := float64(time.Date(c.call.Year(), c.call.Month()+1, 0, 0, 0, 0, 0, time.UTC).Day())
+			fee := 600 / daysInMonth
 
-	usage, err := e.svc.ExternalUsage(ctx, e.co.ID, time.Time{}, time.Time{}, []string{"model"}, nil)
-	if err != nil || len(usage) != 1 {
-		t.Fatalf("ExternalUsage = %+v (%v)", usage, err)
-	}
-	if got := usage[0].CostPaidUSD; got < fee-1e-6 || got > fee+1e-6 {
-		t.Errorf("pago = %v, quer a mensalidade do dia (%v): só há uma chamada, ela leva tudo", got, fee)
-	}
+			usage, err := e.svc.ExternalUsage(ctx, e.co.ID, time.Time{}, time.Time{}, []string{"model"}, nil)
+			if err != nil || len(usage) != 1 {
+				t.Fatalf("ExternalUsage = %+v (%v)", usage, err)
+			}
+			if got := usage[0].CostPaidUSD; got < fee-1e-6 || got > fee+1e-6 {
+				t.Errorf("pago = %v, quer a mensalidade do dia (%v): só há uma chamada, ela leva tudo", got, fee)
+			}
 
-	// uma segunda chamada com o triplo do custo de lista divide o dia em 25% e 75%
-	if _, err := e.svc.Pool.Exec(ctx, `INSERT INTO calls_daily (company_id, day, host_id, agent_id, workspace_id, model, subscription_key, calls, cost_list_usd)
-		SELECT company_id, day, host_id, agent_id, workspace_id, 'claude-sonnet-x', subscription_key, 1, cost_list_usd * 3 FROM calls_daily WHERE company_id = $1`, e.co.ID); err != nil {
-		t.Fatal(err)
-	}
-	byModel, err := e.svc.ExternalUsage(ctx, e.co.ID, time.Time{}, time.Time{}, []string{"model"}, nil)
-	if err != nil || len(byModel) != 2 {
-		t.Fatalf("ExternalUsage por modelo = %+v (%v)", byModel, err)
-	}
-	var total, opus float64
-	for _, r := range byModel {
-		total += r.CostPaidUSD
-		if r.Model == "claude-opus-5-5" {
-			opus = r.CostPaidUSD
-		}
-	}
-	if total < fee-1e-6 || total > fee+1e-6 {
-		t.Errorf("a soma do pago do dia = %v, quer %v (fecha com a mensalidade do dia)", total, fee)
-	}
-	if opus < fee*0.25-1e-6 || opus > fee*0.25+1e-6 {
-		t.Errorf("a chamada de 1/4 do peso leva %v, quer %v", opus, fee*0.25)
-	}
-	// sem assinatura ligada pela chave, não há pago
-	if _, err := e.svc.UpdateSubscription(ctx, actor, e.co.ID, sub.ID, service.UpdateSubscriptionInput{ClearExternalKey: true}); err != nil {
-		t.Fatal(err)
-	}
-	if got, _ := e.svc.ExternalUsage(ctx, e.co.ID, time.Time{}, time.Time{}, nil, nil); len(got) != 1 || got[0].CostPaidUSD != 0 {
-		t.Errorf("sem a chave externa o pago é zero: %+v", got)
+			// uma segunda chamada com o triplo do custo de lista divide o dia em 25% e 75%
+			if _, err := e.svc.Pool.Exec(ctx, `INSERT INTO calls_daily (company_id, day, host_id, agent_id, workspace_id, model, subscription_key, calls, cost_list_usd)
+			SELECT company_id, day, host_id, agent_id, workspace_id, 'claude-sonnet-x', subscription_key, 1, cost_list_usd * 3 FROM calls_daily WHERE company_id = $1`, e.co.ID); err != nil {
+				t.Fatal(err)
+			}
+			byModel, err := e.svc.ExternalUsage(ctx, e.co.ID, time.Time{}, time.Time{}, []string{"model"}, nil)
+			if err != nil || len(byModel) != 2 {
+				t.Fatalf("ExternalUsage por modelo = %+v (%v)", byModel, err)
+			}
+			var total, opus float64
+			for _, r := range byModel {
+				total += r.CostPaidUSD
+				if r.Model == "claude-opus-5-5" {
+					opus = r.CostPaidUSD
+				}
+			}
+			if total < fee-1e-6 || total > fee+1e-6 {
+				t.Errorf("a soma do pago do dia = %v, quer %v (fecha com a mensalidade do dia)", total, fee)
+			}
+			if opus < fee*0.25-1e-6 || opus > fee*0.25+1e-6 {
+				t.Errorf("a chamada de 1/4 do peso leva %v, quer %v", opus, fee*0.25)
+			}
+			// sem assinatura ligada pela chave, não há pago
+			if _, err := e.svc.UpdateSubscription(ctx, actor, e.co.ID, sub.ID, service.UpdateSubscriptionInput{ClearExternalKey: true}); err != nil {
+				t.Fatal(err)
+			}
+			if got, _ := e.svc.ExternalUsage(ctx, e.co.ID, time.Time{}, time.Time{}, nil, nil); len(got) != 1 || got[0].CostPaidUSD != 0 {
+				t.Errorf("sem a chave externa o pago é zero: %+v", got)
+			}
+		})
 	}
 }

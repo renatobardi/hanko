@@ -261,3 +261,50 @@ func TestInboxAlertDueReturnsAfterTheTypeDeadline(t *testing.T) {
 		t.Errorf("vencer não apaga a marca: %d linhas (%v)", kept, err)
 	}
 }
+
+// A aprovação externa pendente (só owner e admin) e a pergunta da rodada sem resposta são itens da Caixa que contam em Count;
+// a pergunta vence em 24 h por padrão (ADR-0080 item 6; ADR-0081 item 6; ADR-0083 item 6).
+func TestInboxExternalApprovalAndRoundQuestion(t *testing.T) {
+	e, ana, _ := caixaEnv(t)
+	bg := context.Background()
+	roundID := domain.NewID()
+	asked := time.Now().Add(-time.Hour).UnixNano()
+	if _, err := e.svc.Pool.Exec(bg, `INSERT INTO external_round (id, company_id, round_key, name, last_asked_at) VALUES ($1, $2, 'swarm-9', 'Brave_Otter', $3)`, roundID, e.co.ID, asked); err != nil {
+		t.Fatal(err)
+	}
+	approvalID := domain.NewID()
+	if _, err := e.svc.Pool.Exec(bg, `INSERT INTO external_approval (id, company_id, canal_id, title, state, requested_at) VALUES ($1, $2, '20261031-101500-deploy', 'Deploy', 'pending', $3)`,
+		approvalID, e.co.ID, asked); err != nil {
+		t.Fatal(err)
+	}
+
+	in, err := e.svc.Inbox(bg, e.co.ID) // sem identidade (modo trusted): vê tudo
+	if err != nil || len(in.ExternalApprovals) != 1 || len(in.RoundQuestions) != 1 {
+		t.Fatalf("Inbox = %d aprovações, %d perguntas (%v), quer 1 e 1", len(in.ExternalApprovals), len(in.RoundQuestions), err)
+	}
+	if in.Count() != 2 {
+		t.Errorf("Count = %d, quer 2 (os dois pedem ação)", in.Count())
+	}
+	if in.ExternalApprovals[0].CanalID != "20261031-101500-deploy" {
+		t.Errorf("aprovação = %+v", in.ExternalApprovals[0])
+	}
+	// o membro comum não vê o pedido do canal (topologia do host), mas vê a pergunta
+	mine, err := e.svc.Inbox(as(ana), e.co.ID)
+	if err != nil || len(mine.ExternalApprovals) != 0 || len(mine.RoundQuestions) != 1 {
+		t.Errorf("membro: %d aprovações, %d perguntas (%v), quer 0 e 1", len(mine.ExternalApprovals), len(mine.RoundQuestions), err)
+	}
+	// respondida, a pergunta sai; a rodada fechada também
+	if _, err := e.svc.Pool.Exec(bg, `UPDATE external_round SET last_answered_at = $2 WHERE id = $1`, roundID, asked+1); err != nil {
+		t.Fatal(err)
+	}
+	if in, _ = e.svc.Inbox(bg, e.co.ID); len(in.RoundQuestions) != 0 {
+		t.Errorf("pergunta respondida continua na Caixa: %+v", in.RoundQuestions)
+	}
+	// decidido, o pedido sai
+	if _, err := e.svc.Pool.Exec(bg, `UPDATE external_approval SET state = 'decided', decision = 'executed', approver = 'human', decided_at = $2 WHERE id = $1`, approvalID, asked+2); err != nil {
+		t.Fatal(err)
+	}
+	if in, _ = e.svc.Inbox(bg, e.co.ID); len(in.ExternalApprovals) != 0 {
+		t.Errorf("pedido decidido continua na Caixa: %+v", in.ExternalApprovals)
+	}
+}

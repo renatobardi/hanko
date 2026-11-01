@@ -146,6 +146,11 @@ func (p importPlan) counts(d export.Document) map[string]int {
 	if n := len(d.PersonaTags); n > 0 {
 		out["persona_tags"] = n
 	}
+	for k, n := range map[string]int{"external_agents": len(d.ExternalAgents), "external_hosts": len(d.ExternalHosts), "repo_pairings": len(d.RepoPairings), "alert_settings": len(d.AlertSettings)} {
+		if n > 0 {
+			out[k] = n
+		}
+	}
 	if n := len(p.clearedPaths); n > 0 {
 		out["workspace_paths_cleared"] = n
 	}
@@ -558,6 +563,9 @@ func (s *Service) planImport(ctx context.Context, doc export.Document, opts Impo
 	if p.si, err = s.planSkillsIntegrations(doc, pe); err != nil {
 		return p, err
 	}
+	if err := validateExternal(doc); err != nil {
+		return p, err
+	}
 	if err := planPersonaTags(doc); err != nil {
 		return p, err
 	}
@@ -713,6 +721,11 @@ func (t *txc) runImport(cid domain.ID, doc export.Document, p importPlan, opts I
 			return mapErr(err, "import workspace "+w.Slug)
 		}
 		wsID[w.Slug] = id
+		if w.System {
+			if _, err := t.tx.Exec(ctx, `UPDATE workspaces SET is_system = true WHERE id = $1`, id); err != nil {
+				return mapErr(err, "import system workspace")
+			}
+		}
 	}
 	prID := map[string]domain.ID{}
 	for _, x := range doc.Projects {
@@ -748,6 +761,12 @@ func (t *txc) runImport(cid domain.ID, doc export.Document, p importPlan, opts I
 			}
 		}
 		subID[name] = id
+		if err := t.importSubscriptionExternal(cid, id, x); err != nil {
+			return err
+		}
+	}
+	if err := t.importExternal(cid, doc, wsID); err != nil {
+		return err
 	}
 	peID := map[string]domain.ID{}
 	for i, x := range doc.Personas {
