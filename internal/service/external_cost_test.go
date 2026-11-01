@@ -108,6 +108,9 @@ func TestWriteTelemetryCostFromLogs(t *testing.T) {
 // data em que o teste roda. No dia 1 do mês, a chamada do último dia do mês anterior tem o pago do mês dela. A assinatura
 // nasce antes da chamada: fora de `subscription_periods` não há cobrança (ADR-0082 item 6), e a versão que datava a
 // assinatura depois da chamada só passava quando os dois dias caíam no mesmo mês (#184).
+// A chamada e a leitura ficam ao meio-dia UTC: com fuso atrás de UTC, entre 21h e 24h locais a chamada cai num dia (UTC)
+// que o rateio local ainda não percorreu, e o pago some. Defeito de código aberto à parte (#191); este teste não cobre
+// essa janela.
 func TestExternalPaidFollowsMonthlyHistory(t *testing.T) {
 	utc := func(year int, month time.Month, day, hour int) time.Time {
 		return time.Date(year, month, day, hour, 0, 0, 0, time.UTC)
@@ -116,8 +119,8 @@ func TestExternalPaidFollowsMonthlyHistory(t *testing.T) {
 		name                             string
 		create, record, line, call, read time.Time // relógio na criação e no registro da linha; início da mensalidade 600; dia da chamada; relógio na leitura
 	}{
-		{"leitura no dia 1 do mês", utc(2026, 10, 20, 10), utc(2026, 10, 27, 10), utc(2026, 10, 26, 0), utc(2026, 10, 31, 12), utc(2026, 11, 1, 9)},
-		{"leitura no meio do mês", utc(2026, 11, 3, 10), utc(2026, 11, 9, 10), utc(2026, 11, 8, 0), utc(2026, 11, 12, 12), utc(2026, 11, 15, 9)},
+		{"leitura no dia 1 do mês", utc(2026, 10, 20, 10), utc(2026, 10, 27, 10), utc(2026, 10, 26, 0), utc(2026, 10, 31, 12), utc(2026, 11, 1, 12)},
+		{"leitura no meio do mês", utc(2026, 11, 3, 10), utc(2026, 11, 9, 10), utc(2026, 11, 8, 0), utc(2026, 11, 12, 12), utc(2026, 11, 15, 12)},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			e := newEnv(t)

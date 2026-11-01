@@ -1,29 +1,15 @@
 package api
 
 import (
-	"context"
-	"net/http"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 )
 
-// Contrato da rodada e da aprovação externas (ADR-0080 e 0081), grupo 3 da v0.8 (#124). Cada operação já tem entrada e
-// saída no OpenAPI e responde 501 até a fatia que a implementa; a descrição diz qual. Os limites de alerta (incluindo o
+// Tipos da API da rodada e da aprovação externas (ADR-0080 e 0081), grupo 3 da v0.8 (#124), ligados na fatia 3 (#127). Os limites de alerta (incluindo o
 // de disco) já têm operação no grupo 2 (`alert-settings`, ADR-0083). O Hanko só observa: nenhuma operação marca, aprova
 // nem roda algo no host. O texto de uma etapa e o script de um pedido saem do fato da ingestão, com permissão e
 // `activity_event` (ADR-0080 item 3; ADR-0081 item 3).
-
-// pendingRoundOp registra uma operação do contrato da rodada e da aprovação que ainda responde 501.
-func pendingRoundOp[I, O any](api huma.API, o huma.Operation, slice string) {
-	o.Description = "Contrato do grupo 3 da v0.8 (#124): rodada e aprovação externas (ADR-0080 e 0081). Responde 501 até a " + slice + "."
-	o.Errors = append(o.Errors, http.StatusNotImplemented)
-	huma.Register(api, o, func(context.Context, *I) (*O, error) {
-		return nil, problem(http.StatusNotImplemented, "operação ainda não implementada")
-	})
-}
-
-const sliceRoundApproval = "fatia 3 (#127)"
 
 // ---------- recursos ----------
 
@@ -189,16 +175,8 @@ type markRoundActionIn struct {
 // ---------- registro ----------
 
 func (s *server) registerExternalRounds(api huma.API) {
-	const tag = "external-rounds"
-	b := "/companies/{company}"
 	s.registerRoundReads(api)
-
-	pendingRoundOp[listExternalApprovalsIn, ListOut[ExternalApproval]](api, op("list-external-approvals", http.MethodGet, b+"/external-approvals", tag,
-		"Lista os pedidos do canal de aprovação observados nos hosts, sem o script"), sliceRoundApproval)
-	pendingRoundOp[ExternalApprovalPath, ItemOut[ExternalApproval]](api, op("get-external-approval", http.MethodGet, b+"/external-approvals/{approval}", tag,
-		"Mostra um pedido do canal, com o sha256 e as versões; o comando oute approve <id> vai para copiar"), sliceRoundApproval)
-	pendingRoundOp[ExternalApprovalPath, ItemOut[ApprovalScript]](api, op("get-approval-script", http.MethodGet, b+"/external-approvals/{approval}/script", tag,
-		"Mostra o corpo do script de um pedido (owner ou admin; cada leitura gera activity_event)"), sliceRoundApproval)
+	s.registerApprovalReads(api)
 }
 
 // RoundStepContent é o texto de uma etapa, lido do fato (ADR-0080 item 3). Só owner e admin leem.

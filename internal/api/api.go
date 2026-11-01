@@ -166,6 +166,9 @@ type backend interface {
 	ListAlertSettings(ctx context.Context, companyID domain.ID) ([]service.AlertSettingView, error)
 	PutAlertSetting(ctx context.Context, actor domain.Actor, companyID domain.ID, key string, value float64) (service.AlertSettingView, error)
 	ResetAlertSetting(ctx context.Context, actor domain.Actor, companyID domain.ID, key string) error
+	ListExternalApprovals(ctx context.Context, companyID domain.ID, state string, limit, offset int) ([]service.ApprovalView, error)
+	GetExternalApproval(ctx context.Context, companyID, id domain.ID) (service.ApprovalView, error)
+	ApprovalScript(ctx context.Context, actor domain.Actor, companyID, id domain.ID) (service.ApprovalScriptView, error)
 	ListExternalRounds(ctx context.Context, companyID domain.ID, cycle *domain.ID, limit, offset int) ([]service.RoundView, error)
 	GetExternalRound(ctx context.Context, companyID, id domain.ID) (service.RoundDetailView, error)
 	GetExternalCycle(ctx context.Context, companyID, id domain.ID) (service.CycleView, error)
@@ -387,6 +390,7 @@ func (s *server) register(api huma.API) {
 	s.registerSkillStudio(api)
 	s.registerSkillForks(api)
 	s.registerIntegrations(api)
+	s.registerConnect(api) // assistente Conectar e modelos de acesso (ADR-0089)
 	s.registerSecrets(api)
 	s.registerVault(api)          // contrato do cofre (ADR-0068/0069/0070); 501 até cada fatia
 	s.registerExternalSource(api) // fonte externa (ADR-0075 a 0079): agentes e hosts; as leituras vêm em registerExternalRead

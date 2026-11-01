@@ -18,6 +18,9 @@ exec > >(tee "$OUT") 2>&1
 
 sec() { printf '\n\n===== %s =====\n' "$*"; }
 have() { command -v "$1" >/dev/null 2>&1; }
+# jfield CHAVE: valores de uma chave string do JSON do CLI (indentado, com espaço depois dos dois-pontos)
+jfield() { grep -oE "\"$1\": *\"[^\"]*\"" | sed -E 's/^[^:]*: *"//; s/"$//'; }
+uuids() { grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'; }
 mask() { sed -E 's/((SECRET|TOKEN|KEY|PASSWORD|DATABASE_URL|API_KEY)[A-Z_]*=)([^ "'"'"']{0,4})[^ "'"'"']*/\1\3****/gI'; }
 
 # ---------- 0. detecção ----------
@@ -50,11 +53,15 @@ if [ "$MODE" = "host" ] && have docker; then
 fi
 echo "modo detectado: $MODE   compose: ${COMPOSE_FILE:-nenhum}   container: ${HANKO_SVC:-nenhum}"
 
-# hk: roda o CLI do hanko no lugar certo
+# hk: roda o CLI do hanko no lugar certo, repassando credencial e empresa para dentro do container
 hk() {
   case "$MODE" in
-    compose) docker compose -f "$COMPOSE_FILE" exec -T "$HANKO_SVC" hanko "$@" ;;
-    docker)  docker exec "$HANKO_SVC" hanko "$@" ;;
+    compose) docker compose -f "$COMPOSE_FILE" exec -T \
+               -e "HANKO_TOKEN=${HANKO_TOKEN:-}" -e "HANKO_COMPANY=${HANKO_COMPANY:-}" -e "HANKO_URL=${HANKO_URL:-}" \
+               "$HANKO_SVC" hanko "$@" ;;
+    docker)  docker exec \
+               -e "HANKO_TOKEN=${HANKO_TOKEN:-}" -e "HANKO_COMPANY=${HANKO_COMPANY:-}" -e "HANKO_URL=${HANKO_URL:-}" \
+               "$HANKO_SVC" hanko "$@" ;;
     *)       hanko "$@" ;;
   esac
 }
@@ -141,7 +148,7 @@ echo "(se aparecer 401/'credencial ausente': rode de novo com HANKO_TOKEN=hk_...
 hk whoami 2>&1 | head -5
 hk company list --json 2>&1 | head -60
 if [ -z "${HANKO_COMPANY:-}" ]; then
-  HANKO_COMPANY="$(hk company list --json 2>/dev/null | grep -oE '"slug":"[^"]+"' | head -1 | cut -d'"' -f4)"
+  HANKO_COMPANY="$(hk company list --json 2>/dev/null | jfield slug | head -1)"
   export HANKO_COMPANY
 fi
 echo "empresa usada: ${HANKO_COMPANY:-<nenhuma>}"
@@ -154,12 +161,14 @@ if [ -n "${HANKO_COMPANY:-}" ]; then
   echo "--- env list";       hk env list 2>&1 | head -20
   echo "--- últimas 15 runs"; hk run list --limit 15 2>&1
   echo "--- runs failed (até 5) com log"
-  for r in $(hk run list --status failed --limit 5 --json 2>/dev/null | grep -oE '"id":"[^"]+"' | cut -d'"' -f4); do
+  for r in $(hk run list --status failed --limit 5 2>/dev/null | uuids); do
     echo "##### run $r"; hk run show "$r" 2>&1 | head -30; hk run logs "$r" 2>&1 | mask | tail -80
   done
-  echo "--- última run (qualquer status) com log"
-  r="$(hk run list --limit 1 --json 2>/dev/null | grep -oE '"id":"[^"]+"' | head -1 | cut -d'"' -f4)"
-  [ -n "$r" ] && { hk run show "$r" 2>&1 | head -30; hk run logs "$r" 2>&1 | mask | grep -iE 'workspace|diretório|permiss|política|negad|denied|failed|erro|error|warn' | tail -60; }
+  echo "--- últimas 3 runs (qualquer status): linhas de workspace, permissão, política e erro"
+  for r in $(hk run list --limit 3 2>/dev/null | uuids); do
+    echo "##### run $r"; hk run show "$r" 2>&1 | head -25
+    hk run logs "$r" 2>&1 | mask | grep -iE 'workspace|worktree|diretório|permiss|política|negad|denied|failed|erro|error|warn|tool' | tail -60
+  done
 fi
 
 # ---------- 7. disco: raiz e caminhos dos workspaces ----------
@@ -167,7 +176,7 @@ sec "7. Raiz dos workspaces e caminhos cadastrados (no ambiente de execução)"
 ROOT="$(cx sh -c 'echo ${HANKO_WORKSPACES_ROOT:-$HOME/hanko-workspaces}' 2>/dev/null)"
 echo "HANKO_WORKSPACES_ROOT efetiva: $ROOT"
 cx sh -c "ls -la '$ROOT' 2>&1; echo; ls -la '$ROOT'/* 2>&1 | head -40" 2>/dev/null
-PATHS="$(hk workspace list --json 2>/dev/null | grep -oE '"path":"[^"]*"' | cut -d'"' -f4)"
+PATHS="$(hk workspace list --json 2>/dev/null | jfield path)"
 for p in $PATHS; do
   echo "----- $p"
   cx sh -c "
@@ -189,11 +198,22 @@ done
 sec "8. A persona alcança a API do Hanko? (hook de política de tools)"
 AURL="$(cx sh -c 'echo ${HANKO_AGENT_URL:-${HANKO_PUBLIC_URL:-http://127.0.0.1:7420}}' 2>/dev/null)"
 echo "URL usada pelo harness: $AURL"
-cx sh -c "wget -qO- --timeout=3 '$AURL/healthz' 2>&1 || curl -sS -m 3 '$AURL/healthz' 2>&1 || echo 'sem wget/curl no container'" 2>/dev/null
-echo
-if [ "$MODE" = "host" ]; then curl -sS -m 3 "$AURL/healthz" 2>&1; echo; fi
-echo "--- ai-memory"
-MURL="$(cx sh -c 'echo ${HANKO_MEMORY_URL:-http://127.0.0.1:49374}' 2>/dev/null)"
-cx sh -c "wget -qO- --timeout=3 '$MURL/health' 2>&1 || curl -sS -m 3 '$MURL/health' 2>&1 || echo 'sem resposta/sem cliente http'" 2>/dev/null; echo
+echo "(o próprio CLI faz a chamada, como o hook pretooluse; 'autenticação necessária' ou 'whoami' ok = alcança; 'connection refused' = não)"
+HANKO_URL="$AURL" hk whoami 2>&1 | head -3
+echo "--- ai-memory (o doctor acima já testa; aqui só a URL)"
+cx sh -c 'echo ${HANKO_MEMORY_URL:-http://127.0.0.1:49374}' 2>/dev/null
+
+# ---------- 9. Git dos workspaces (ADR-0054): espelhos e worktrees ----------
+sec "9. Git dos workspaces: espelhos em .hanko/mirrors e worktrees em .hanko/worktrees"
+GITWS="$(cx sh -c 'echo ${HANKO_GIT_WORKSPACES:-}' 2>/dev/null)"
+echo "HANKO_GIT_WORKSPACES=${GITWS:-<vazio>}"
+cx sh -c "for d in '$ROOT'/*/.hanko; do [ -d \"\$d\" ] || continue; echo '--- '\$d; find \"\$d\" -maxdepth 3 -not -path '*/objects/*' -not -path '*/refs/*' 2>&1 | head -40; done" 2>/dev/null
+if [ -n "${HANKO_COMPANY:-}" ]; then
+  for s in $(hk workspace list --json 2>/dev/null | jfield slug); do
+    echo "===== workspace $s"
+    hk workspace show "$s" 2>&1 | head -20
+    hk workspace git show "$s" 2>&1 | mask | head -25
+  done
+fi
 
 sec "FIM — arquivo: $OUT"

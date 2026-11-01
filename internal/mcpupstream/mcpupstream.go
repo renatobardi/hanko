@@ -10,6 +10,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
+	"strings"
 	"time"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -37,6 +39,84 @@ type Tool struct {
 	Annotations domain.ToolAnnotations
 	// HasAnnotations: o servidor mandou o objeto de anotações.
 	HasAnnotations bool
+}
+
+// HeaderParamPrefix é o prefixo do cabeçalho HTTP que repete um parâmetro marcado `x-mcp-header` no input schema.
+const HeaderParamPrefix = "Mcp-Param-"
+
+// headerParamName aceita só nomes que cabem num cabeçalho: letras, dígitos, hífen e sublinhado.
+var headerParamName = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
+
+// HeaderParams lê no input schema da tool as propriedades marcadas `x-mcp-header` e devolve, para as que vieram nos
+// argumentos, o cabeçalho `Mcp-Param-<nome>` com o valor. Alguns servidores MCP remotos (o do GitHub, por exemplo)
+// exigem esses parâmetros também como cabeçalho e recusam a chamada sem eles ("header mismatch: missing
+// Mcp-Param-owner header"). O argumento continua no corpo. Só valores escalares entram; um valor com quebra de linha
+// é ignorado (não cabe num cabeçalho) e um nome fora do padrão também.
+func HeaderParams(schema, args json.RawMessage) map[string]string {
+	var sc struct {
+		Properties map[string]struct {
+			Header string `json:"x-mcp-header"`
+		} `json:"properties"`
+	}
+	if len(schema) == 0 || json.Unmarshal(schema, &sc) != nil || len(sc.Properties) == 0 {
+		return nil
+	}
+	var in map[string]json.RawMessage
+	if len(args) == 0 || json.Unmarshal(args, &in) != nil {
+		return nil
+	}
+	var out map[string]string
+	for prop, p := range sc.Properties {
+		if p.Header == "" || !headerParamName.MatchString(p.Header) {
+			continue
+		}
+		raw, ok := in[prop]
+		if !ok {
+			continue
+		}
+		v, ok := scalarText(raw)
+		if !ok || strings.ContainsAny(v, "\r\n") {
+			continue
+		}
+		if out == nil {
+			out = map[string]string{}
+		}
+		out[HeaderParamPrefix+p.Header] = v
+	}
+	return out
+}
+
+// scalarText é o texto de um valor JSON escalar: string sem aspas, número e booleano como vieram.
+func scalarText(raw json.RawMessage) (string, bool) {
+	var s string
+	if json.Unmarshal(raw, &s) == nil {
+		return s, true
+	}
+	t := strings.TrimSpace(string(raw))
+	switch {
+	case t == "true", t == "false":
+		return t, true
+	case t != "" && t != "null" && (t[0] == '-' || (t[0] >= '0' && t[0] <= '9')):
+		return t, true
+	}
+	return "", false
+}
+
+// WithHeaders devolve uma cópia do endpoint com cabeçalhos a mais para uma chamada. Os guardados no endpoint vencem:
+// um parâmetro nunca sobrescreve a credencial.
+func (ep Endpoint) WithHeaders(extra map[string]string) Endpoint {
+	if len(extra) == 0 {
+		return ep
+	}
+	h := map[string]string{}
+	for k, v := range extra {
+		h[k] = v
+	}
+	for k, v := range ep.Headers {
+		h[k] = v
+	}
+	ep.Headers = h
+	return ep
 }
 
 // RemoteError é a recusa do servidor remoto (erro JSON-RPC): a conexão funcionou, a chamada não.
