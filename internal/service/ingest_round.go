@@ -428,6 +428,9 @@ func upsertStep(t *txc, companyID domain.ID, rounds map[string]domain.ID, s step
 	if err != nil {
 		return fmt.Errorf("ingest: etapa %s da rodada %q: %w", s.kind, s.round, err)
 	}
+	if err := replaceStepActions(t, companyID, stepID, textOf(s.row.Body)); err != nil {
+		return err
+	}
 	if s.kind != "triage" {
 		return nil
 	}
@@ -441,6 +444,21 @@ func upsertStep(t *txc, companyID domain.ID, rounds map[string]domain.ID, s step
 	}
 	if _, err := t.tx.Exec(t.ctx, `UPDATE external_round SET cycle_id = $2, cycle_at = $3, updated_at = $4 WHERE id = $1`, *roundID, cycle, s.at, t.now); err != nil {
 		return fmt.Errorf("ingest: ciclo da rodada %q: %w", s.round, err)
+	}
+	return nil
+}
+
+// replaceStepActions troca as ações da etapa pelas da revisão vigente (ADR-0080 item 4). As marcas não dependem destas linhas
+// (apontam para a etapa e o id da ação), então uma revisão nova não apaga o que o Bardi marcou.
+func replaceStepActions(t *txc, companyID, stepID domain.ID, body string) error {
+	if _, err := t.tx.Exec(t.ctx, `DELETE FROM step_action WHERE step_id = $1`, stepID); err != nil {
+		return fmt.Errorf("ingest: trocar as ações da etapa: %w", err)
+	}
+	for _, a := range domain.ParseStepActions(body) {
+		if _, err := t.tx.Exec(t.ctx, `INSERT INTO step_action (id, company_id, step_id, action_id, approval_key, created_at) VALUES ($1, $2, $3, $4, $5, $6)`,
+			domain.NewID(), companyID, stepID, a.ID, a.Approval, t.now); err != nil {
+			return fmt.Errorf("ingest: gravar a ação %q: %w", a.ID, err)
+		}
 	}
 	return nil
 }

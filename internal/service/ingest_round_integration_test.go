@@ -12,12 +12,16 @@ import (
 
 // swarmLog monta um registro de log com o nome do evento e os atributos (pares chave, valor) mais o id do evento.
 func swarmLog(id, event string, at int64, kv ...string) string {
+	return swarmLogBody(id, event, "texto", at, kv...)
+}
+
+func swarmLogBody(id, event, body string, at int64, kv ...string) string {
 	attrs := []string{fmt.Sprintf(`{"key":"oute.event.id","value":{"stringValue":%q}}`, id),
 		`{"key":"host.name","value":{"stringValue":"oute-server"}}`, `{"key":"oute.swarm.round","value":{"stringValue":"swarm-1"}}`}
 	for i := 0; i < len(kv); i += 2 {
 		attrs = append(attrs, fmt.Sprintf(`{"key":%q,"value":{"stringValue":%q}}`, kv[i], kv[i+1]))
 	}
-	return fmt.Sprintf(`{"timeUnixNano":"%d","eventName":%q,"body":{"stringValue":"texto"},"attributes":[%s]}`, at, event, strings.Join(attrs, ","))
+	return fmt.Sprintf(`{"timeUnixNano":"%d","eventName":%q,"body":{"stringValue":%q},"attributes":[%s]}`, at, event, body, strings.Join(attrs, ","))
 }
 
 const stepSHA = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
@@ -38,12 +42,16 @@ func TestWriteTelemetryDerivesRounds(t *testing.T) {
 	}
 	base := time.Now().UnixNano()
 	step := func(id string, at int64, kind, rev, skey, review string) string {
+		body := "texto"
+		if kind == "triagem" && rev == "2" {
+			body = "## Ações\n- a1: rodar o deploy\n- a2: ver `pedido:20261031-101500-deploy`\n"
+		}
 		kv := []string{"oute.swarm.step.kind", kind, "oute.swarm.step.rev", rev, "oute.swarm.step.sha256", stepSHA,
 			"oute.swarm.step.review", review, "oute.swarm.step.refcheck", "ok", "oute.swarm.cycle", "renatobardi/hanko#126"}
 		if skey != "" {
 			kv = append(kv, "oute.swarm.step.key", skey)
 		}
-		return swarmLog(id, "oute.swarm.step.published", at, kv...)
+		return swarmLogBody(id, "oute.swarm.step.published", body, at, kv...)
 	}
 	send := func(recs ...string) {
 		t.Helper()
@@ -104,6 +112,13 @@ func TestWriteTelemetryDerivesRounds(t *testing.T) {
 	}
 	if steps != 3 || triageRev != 2 || triageReview != "approved" || cycleSteps != 1 || participants != 1 {
 		t.Errorf("etapas=%d (quer 3: triagem, merge e resumo), triagem rev=%d %s (quer 2 approved), resumo do ciclo=%d, participante=%d", steps, triageRev, triageReview, cycleSteps, participants)
+	}
+	var actions, withApproval int
+	if err := e.svc.Pool.QueryRow(ctx, `SELECT count(*), count(*) FILTER (WHERE approval_key = '20261031-101500-deploy') FROM step_action WHERE company_id = $1`, e.co.ID).Scan(&actions, &withApproval); err != nil {
+		t.Fatal(err)
+	}
+	if actions != 2 || withApproval != 1 {
+		t.Errorf("ações da revisão vigente = %d (quer 2), com pedido = %d (quer 1); a revisão 1 chegou depois e não vale", actions, withApproval)
 	}
 	var rounds int
 	if err := e.svc.Pool.QueryRow(ctx, `SELECT count(*) FROM external_round WHERE company_id = $1`, e.co.ID).Scan(&rounds); err != nil || rounds != 1 {
