@@ -1,12 +1,12 @@
-# Assessment de log e acesso ao workspace · sessão `bold-ptolemy`
-Data: 2026-10-31
+# Teste do pago no dia 1 · sessão `hanko-184-teste-pago-dia-1`
+Data: 2026-11-01
 
 ## Feito
-- Assessment estático (sem os logs do Bardi) das causas de "erros no log" e "persona sem acesso" num projeto em workspace. Três candidatas: fallback silencioso para diretório temporário quando o caminho não existe ou está fora da raiz (`internal/heartbeat/workspace_root.go`, `executor.go:817-833`), hook `pretooluse` que nega toda tool quando não alcança `HANKO_AGENT_URL` (`internal/cli/toolpolicy.go:276`), e ruído do `ai-memory` padrão fora do ar mais OTLP sem collector.
-- `scripts/hanko-diag.sh`: coleta só leitura e mascarada (modo, env, doctor, harness, WARN/ERROR agrupados, workspaces com permissões, readiness, runs com falha, alcance da API). Nota no RUNBOOK §4 e fragmento em `changelog.d/`.
+- #184 reproduzido com o relógio real em 1º/nov (pago = 0, esperado 600/31) e a causa achada: o teste datava a assinatura (criada "hoje") depois da chamada ("ontem"); fora de `subscription_periods` não há cobrança (ADR-0082 item 6), então no dia 1 o mês da chamada não accrua. O cálculo segue o ADR; o defeito era só do teste.
+- `TestExternalPaidFollowsMonthlyHistory` reescrito com relógio fixo (`svc.Now`): assinatura nasce antes da chamada, dois casos — leitura no dia 1 do mês seguinte e no meio do mês. PR #188 aberto, checks verdes; branch atualizado com a `origin/main` (#182) a pedido do dispatcher.
 
 ## Travado
-- Diagnóstico final depende da saída do script rodado na instalação do Bardi.
+- Nada.
 
 ## Próximo passo
-- Bardi roda `bash scripts/hanko-diag.sh` e cola o `hanko-diag-<data>.txt`. Com isso, priorizar: falha explícita (ou WARN + badge) no fallback para temporário; validar existência e permissão da pasta no cadastro do workspace; alinhar `dirExists` da UI com o executor; ampliar `doctor` (raiz, permissões, outbox de memória); rever `ai-memory` como provider padrão.
+- Bardi revisa/mergeia o PR #188; release e deploy da v0.8.3 ficam com ele (fora de escopo).
