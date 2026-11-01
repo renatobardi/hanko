@@ -102,7 +102,7 @@ func TestMemoryProxyConcessaoNuncaAtravessaEmpresa(t *testing.T) {
 func TestMemoryProxyCuradoriaLeituraEAditivoSeguem(t *testing.T) {
 	m := setupMem(t, "t", nil)
 	m.asCuration()
-	m.post(t, m.tok, toolCallBody(1, "memory_search", `{"q":"x"}`), nil)
+	m.post(t, m.tok, toolCallBody(1, "memory_query", `{"query":"x"}`), nil)
 	m.post(t, m.tok, toolCallBody(2, "memory_write_page", `{"path":"hanko/curadoria/2026-01-01","body":"relatório"}`), nil)
 	if n := m.upstreamCalls(); n != 2 {
 		t.Fatalf("upstream recebeu %d chamadas; esperava 2", n)
@@ -143,7 +143,7 @@ func TestMemoryProxyCuradoriaRecusaHandoffELote(t *testing.T) {
 	if out := readJSON(t, resp.Body); out["error"] == nil {
 		t.Errorf("handoff deveria ser recusado: %v", out)
 	}
-	batch := `[` + toolCallBody(1, "memory_search", `{}`) + `,` + toolCallBody(2, "memory_delete_page", `{"path":"a"}`) + `]`
+	batch := `[` + toolCallBody(1, "memory_query", `{"query":"x"}`) + `,` + toolCallBody(2, "memory_delete_page", `{"path":"a"}`) + `]`
 	resp = m.post(t, m.tok, batch, nil)
 	b, _ := io.ReadAll(resp.Body)
 	if !strings.Contains(string(b), `"error"`) || m.upstreamCalls() != 0 || len(m.backend.proposals) != 0 {

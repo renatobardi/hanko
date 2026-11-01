@@ -135,7 +135,7 @@ func (p *memoryProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "autenticação indisponível", http.StatusServiceUnavailable)
 		return
 	}
-	sc, err := p.scopeFor(r.Context(), claims)
+	sc, err := p.scopeFor(r.Context(), claims, run)
 	if err != nil {
 		p.log.Error("memory-mcp: resolver escopo", "err", err, "run_id", claims.RunID)
 		http.Error(w, "escopo de memória indisponível", http.StatusServiceUnavailable)
@@ -148,11 +148,12 @@ func (p *memoryProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		var done bool
+		home := sc
 		body, sc, done = p.screen(r.Context(), w, claims, run, sc, body)
 		if done {
 			return // respondido aqui (proposta registrada, chamada recusada)
 		}
-		body = pinScopeArgs(body, sc)
+		body = pinScopeArgs(body, sc, home)
 		r.Body = io.NopCloser(bytes.NewReader(body))
 		r.ContentLength = int64(len(body))
 		r.Header.Del("Content-Length")
@@ -165,9 +166,9 @@ func (p *memoryProxy) unauthorized(w http.ResponseWriter, reason string) {
 	http.Error(w, "unauthorized: "+reason, http.StatusUnauthorized)
 }
 
-// scopeFor deriva workspace (slug da empresa do token) e project (slug do workspace da
-// task do run, senão o da persona, senão "default"), igual ao heartbeat.
-func (p *memoryProxy) scopeFor(ctx context.Context, c auth.RunClaims) (memScope, error) {
+// scopeFor deriva workspace (slug da empresa do token) e project (slug do workspace que a run usou, na ordem task,
+// projeto, persona; senão "default"). Run antiga, sem a origem gravada, segue pela task e pela persona.
+func (p *memoryProxy) scopeFor(ctx context.Context, c auth.RunClaims, run service.RunView) (memScope, error) {
 	ctx, cancel := context.WithTimeout(ctx, lookupTimeout)
 	defer cancel()
 	cid, err := domain.ParseID(c.CompanyID)
@@ -179,6 +180,9 @@ func (p *memoryProxy) scopeFor(ctx context.Context, c auth.RunClaims) (memScope,
 		return memScope{}, fmt.Errorf("empresa: %w", err)
 	}
 	sc := memScope{workspace: co.Slug, project: defaultMemoryProject}
+	if run.WorkspaceSource != "" {
+		return p.scopeOfRun(ctx, cid, sc, run)
+	}
 	var wsID *domain.ID
 	if task, err := p.d.Backend.GetTask(ctx, cid, c.TaskID); err == nil {
 		wsID = task.WorkspaceID
@@ -204,71 +208,103 @@ func (p *memoryProxy) scopeFor(ctx context.Context, c auth.RunClaims) (memScope,
 	return sc, nil
 }
 
+func (p *memoryProxy) scopeOfRun(ctx context.Context, cid domain.ID, sc memScope, run service.RunView) (memScope, error) {
+	if run.WorkspaceID == nil {
+		return sc, nil
+	}
+	ws, err := p.d.Backend.GetWorkspace(ctx, cid, run.WorkspaceID.String())
+	switch {
+	case err == nil && ws.Slug != "":
+		sc.project = ws.Slug
+	case err != nil && !errors.Is(err, domain.ErrNotFound):
+		return memScope{}, fmt.Errorf("workspace: %w", err)
+	}
+	return sc, nil
+}
+
 func bearerToken(r *http.Request) (string, bool) {
 	scheme, tok, ok := strings.Cut(strings.TrimSpace(r.Header.Get("Authorization")), " ")
 	tok = strings.TrimSpace(tok)
 	return tok, ok && strings.EqualFold(scheme, "bearer") && tok != ""
 }
 
-// pinScopeArgs força workspace/project nos argumentos de tools/call quando o agente os
-// informa, para que ele não consiga ler/escrever memória de outra empresa por argumento.
-// Corpo que não seja JSON-RPC reconhecível passa intacto.
-func pinScopeArgs(body []byte, sc memScope) []byte {
+// pinScopeArgs reescreve o corpo com o que o proxy leu e fixa o escopo de cada tools/call. O escopo vai sempre nos
+// argumentos: o servidor ignora os headers X-Memory-* e, sem argumentos, resolve um escopo padrão compartilhado. home é
+// o escopo da run; sc pode ser outro workspace, com concessão. O corpo já passou por parseToolCalls.
+func pinScopeArgs(body []byte, sc, home memScope) []byte {
 	trim := bytes.TrimSpace(body)
 	if len(trim) == 0 {
 		return body
 	}
-	pin := func(msg map[string]json.RawMessage) bool {
-		var method string
-		if json.Unmarshal(msg["method"], &method) != nil || method != "tools/call" {
-			return false
-		}
-		var params map[string]json.RawMessage
-		if json.Unmarshal(msg["params"], &params) != nil {
-			return false
-		}
-		var args map[string]json.RawMessage
-		if json.Unmarshal(params["arguments"], &args) != nil {
-			return false
-		}
-		changed := false
-		for k, v := range map[string]string{"workspace": sc.workspace, "project": sc.project} {
-			if _, has := args[k]; has {
-				args[k], _ = json.Marshal(v)
-				changed = true
-			}
-		}
-		if !changed {
-			return false
-		}
-		params["arguments"], _ = json.Marshal(args)
-		msg["params"], _ = json.Marshal(params)
-		return true
-	}
-	switch trim[0] {
-	case '{':
-		var msg map[string]json.RawMessage
-		if json.Unmarshal(trim, &msg) != nil || !pin(msg) {
-			return body
-		}
-		out, _ := json.Marshal(msg)
-		return out
-	case '[':
+	var (
+		out any
+		err error
+	)
+	if trim[0] == '[' {
 		var batch []map[string]json.RawMessage
-		if json.Unmarshal(trim, &batch) != nil {
-			return body
-		}
-		changed := false
-		for _, m := range batch {
-			if m != nil && pin(m) {
-				changed = true
+		if err = json.Unmarshal(trim, &batch); err == nil {
+			for _, msg := range batch {
+				pinMessage(msg, sc, home)
 			}
+			out = batch
 		}
-		if !changed {
-			return body
+	} else {
+		var msg map[string]json.RawMessage
+		if err = json.Unmarshal(trim, &msg); err == nil {
+			pinMessage(msg, sc, home)
+			out = msg
 		}
-		out, _ := json.Marshal(batch)
-		return out
 	}
-	return body
+	if err != nil {
+		return body
+	}
+	b, err := json.Marshal(out)
+	if err != nil {
+		return body
+	}
+	return b
+}
+
+func pinMessage(msg map[string]json.RawMessage, sc, home memScope) {
+	var method string
+	if json.Unmarshal(msg["method"], &method) != nil || method != "tools/call" {
+		return
+	}
+	var params map[string]json.RawMessage
+	if json.Unmarshal(msg["params"], &params) != nil {
+		return
+	}
+	var name string
+	if json.Unmarshal(params["name"], &name) != nil {
+		return
+	}
+	args := map[string]json.RawMessage{}
+	if raw, has := params["arguments"]; has {
+		if json.Unmarshal(raw, &args) != nil || args == nil {
+			args = map[string]json.RawMessage{}
+		}
+	}
+	pinToolArgs(name, args, sc, home)
+	params["arguments"], _ = json.Marshal(args)
+	msg["params"], _ = json.Marshal(params)
+}
+
+func pinToolArgs(name string, args map[string]json.RawMessage, sc, home memScope) {
+	set := func(k, v string) { args[k], _ = json.Marshal(v) }
+	_, historic := args["as_of"]
+	switch {
+	case name == memory.QueryTool && !historic: // o servidor recusa as_of com scopes; com as_of ele não traz a área global
+		// Um item em scopes busca só nesse escopo e deixa de fora os global_scope_hits.
+		delete(args, "workspace")
+		delete(args, "project")
+		args["scopes"], _ = json.Marshal([]map[string]string{{"workspace": sc.workspace, "project": sc.project}})
+	case name == memory.MessageSendTool:
+		set("to_workspace", sc.workspace)
+		set("to_project", sc.project)
+		set("from_workspace", home.workspace)
+		set("from_project", home.project)
+	case memory.ScopedTool(name):
+		set("workspace", sc.workspace)
+		set("project", sc.project)
+	}
 }

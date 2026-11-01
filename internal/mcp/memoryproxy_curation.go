@@ -19,11 +19,13 @@ import (
 //   - run de curadoria (trigger memory): leitura e escrita aditiva seguem; escrita que remove, funde ou
 //     reescreve vira proposta com gate humano e a run recebe uma resposta sintética; o que não cabe numa
 //     curadoria (handoff, sessão) é recusado;
+//   - toda run: tool ou argumento fora do contrato (memory/args.go) é recusado;
 //   - demais runs: o escopo é o do token; só uma concessão (memory_grants) alcança outro workspace da
 //     empresa, e escrever exige concessão de escrita. Outra empresa nunca é alcançável.
 
 const (
 	rpcCodeForbidden = -32001
+	rpcCodeInvalid   = -32600
 	rpcCodeInternal  = -32603
 )
 
@@ -33,49 +35,80 @@ type toolCall struct {
 	args map[string]any
 }
 
-// parseToolCalls extrai as chamadas tools/call do corpo (objeto ou lote). batch diz se veio em lote.
-func parseToolCalls(body []byte) (calls []toolCall, batch bool) {
+// parseToolCalls extrai as chamadas tools/call do corpo (objeto ou lote). batch diz se veio em lote; ok=false diz que
+// o corpo não pôde ser lido e não deve seguir. As chaves são exatas, de propósito: encoding/json em struct casaria
+// "METHOD" com "method", e o proxy leria outra chamada que não a que o servidor recebe.
+func parseToolCalls(body []byte) (calls []toolCall, batch, ok bool) {
 	trim := bytes.TrimSpace(body)
 	if len(trim) == 0 {
-		return nil, false
+		return nil, false, true
 	}
-	one := func(raw json.RawMessage) {
-		var m struct {
-			ID     json.RawMessage `json:"id"`
-			Method string          `json:"method"`
-			Params struct {
-				Name      string         `json:"name"`
-				Arguments map[string]any `json:"arguments"`
-			} `json:"params"`
-		}
-		if json.Unmarshal(raw, &m) != nil || m.Method != "tools/call" {
-			return
-		}
-		calls = append(calls, toolCall{id: m.ID, name: m.Params.Name, args: m.Params.Arguments})
-	}
+	var msgs []json.RawMessage
 	switch trim[0] {
 	case '{':
-		one(trim)
+		msgs = []json.RawMessage{trim}
 	case '[':
 		batch = true
-		var arr []json.RawMessage
-		if json.Unmarshal(trim, &arr) != nil {
-			return nil, false
+		if json.Unmarshal(trim, &msgs) != nil {
+			return nil, batch, false
 		}
-		for _, raw := range arr {
-			one(raw)
+	default:
+		return nil, false, false
+	}
+	for _, raw := range msgs {
+		c, isCall, valid := parseToolCall(raw)
+		if !valid {
+			return nil, batch, false
+		}
+		if isCall {
+			calls = append(calls, c)
 		}
 	}
-	return calls, batch
+	return calls, batch, true
+}
+
+func parseToolCall(raw json.RawMessage) (c toolCall, isCall, valid bool) {
+	var msg map[string]json.RawMessage
+	if json.Unmarshal(raw, &msg) != nil || msg == nil {
+		return c, false, false
+	}
+	methodRaw, has := msg["method"]
+	if !has {
+		return c, false, true // resposta do cliente: não é chamada
+	}
+	var method string
+	if json.Unmarshal(methodRaw, &method) != nil {
+		return c, false, false
+	}
+	if method != "tools/call" {
+		return c, false, true
+	}
+	var params map[string]json.RawMessage
+	if json.Unmarshal(msg["params"], &params) != nil || params == nil || json.Unmarshal(params["name"], &c.name) != nil {
+		return c, true, false
+	}
+	if a, has := params["arguments"]; has && json.Unmarshal(a, &c.args) != nil {
+		return c, true, false
+	}
+	c.id = msg["id"]
+	return c, true, true
 }
 
 // screen aplica a política sobre as chamadas de tool do corpo. Devolve o corpo a encaminhar, o escopo efetivo
 // e done=true quando já respondeu ao cliente.
 func (p *memoryProxy) screen(ctx context.Context, w http.ResponseWriter, claims auth.RunClaims, run service.RunView,
 	sc memScope, body []byte) ([]byte, memScope, bool) {
-	calls, batch := parseToolCalls(body)
+	calls, batch, ok := parseToolCalls(body)
+	if !ok {
+		p.log.Warn("memory-mcp: corpo recusado", "run_id", claims.RunID)
+		writeRPCError(w, nil, rpcCodeInvalid, "chamada inválida para a memória")
+		return nil, sc, true
+	}
 	if len(calls) == 0 {
 		return body, sc, false
+	}
+	if p.refuseOutOfContract(w, claims, sc, calls, batch) {
+		return nil, sc, true
 	}
 	cid, err1 := domain.ParseID(claims.CompanyID)
 	pid, err2 := domain.ParseID(claims.PersonaID)
@@ -91,12 +124,11 @@ func (p *memoryProxy) screen(ctx context.Context, w http.ResponseWriter, claims 
 	}
 
 	// Run comum: só uma chamada única pode mirar outro workspace, e só com concessão.
-	if batch || len(calls) != 1 {
-		return body, sc, false
+	if batch {
+		return body, sc, p.refuseBatchTarget(w, claims, sc, calls)
 	}
 	c := calls[0]
-	proj, _ := c.args["project"].(string)
-	proj = strings.TrimSpace(proj)
+	proj := targetProject(c)
 	if proj == "" || proj == sc.project {
 		return body, sc, false
 	}
@@ -119,6 +151,56 @@ func (p *memoryProxy) screen(ctx context.Context, w http.ResponseWriter, claims 
 		return nil, sc, true
 	}
 	return body, memScope{workspace: sc.workspace, project: proj}, false
+}
+
+// refuseBatchTarget recusa o lote inteiro quando uma chamada mira outro workspace: a concessão vale por chamada.
+func (p *memoryProxy) refuseBatchTarget(w http.ResponseWriter, claims auth.RunClaims, sc memScope, calls []toolCall) bool {
+	for _, c := range calls {
+		if proj := targetProject(c); proj != "" && proj != sc.project {
+			p.log.Warn("memory-mcp: lote fora do escopo recusado", "tool", c.name, "run_id", claims.RunID)
+			writeRPCErrors(w, calls, rpcCodeForbidden, "um lote não pode mirar outro workspace; envie uma chamada por vez")
+			return true
+		}
+	}
+	return false
+}
+
+// targetProject é o workspace do Hanko que a chamada pede (o project do ai-memory).
+func targetProject(c toolCall) string {
+	key := "project"
+	if c.name == memory.MessageSendTool {
+		key = "to_project"
+	}
+	proj, _ := c.args[key].(string)
+	return strings.TrimSpace(proj)
+}
+
+// refuseOutOfContract recusa tool ou argumento fora do contrato (memory/args.go) e recado para outra empresa.
+// O log leva só os nomes, para mostrar o que as personas tentam sem guardar o conteúdo.
+func (p *memoryProxy) refuseOutOfContract(w http.ResponseWriter, claims auth.RunClaims, sc memScope, calls []toolCall, batch bool) bool {
+	for _, c := range calls {
+		msg := ""
+		refused := memory.RefusedArgs(c.name, c.args)
+		dest, _ := c.args["to_workspace"].(string)
+		switch {
+		case !memory.KnownTool(c.name):
+			msg = fmt.Sprintf("a tool %q não está liberada para as personas", c.name)
+		case len(refused) > 0:
+			msg = fmt.Sprintf("a tool %q não aceita %s aqui: a memória da run fica no workspace dela", c.name, strings.Join(refused, ", "))
+		case c.name == memory.MessageSendTool && dest != "" && dest != sc.workspace:
+			msg = "recado só vale dentro da própria empresa"
+		default:
+			continue
+		}
+		p.log.Warn("memory-mcp: chamada fora do contrato", "tool", c.name, "args", refused, "run_id", claims.RunID)
+		if batch {
+			writeRPCErrors(w, calls, rpcCodeForbidden, msg)
+		} else {
+			writeRPCError(w, c.id, rpcCodeForbidden, msg)
+		}
+		return true
+	}
+	return false
 }
 
 func (p *memoryProxy) lookupAccess(ctx context.Context, cid, pid domain.ID, slug string) (domain.MemoryAccess, error) {
