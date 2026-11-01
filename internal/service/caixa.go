@@ -117,6 +117,12 @@ func (i Inbox) Items() []InboxItem {
 	for _, a := range i.Alerts {
 		add(InboxItem{Kind: domain.InboxAlert, ID: a.ID, Title: a.Message, Ref: a.SubjectID.String(), At: a.OpenedAt, Fingerprint: alertFingerprint(a)})
 	}
+	for _, a := range i.ExternalApprovals {
+		add(InboxItem{Kind: domain.InboxExternalApproval, ID: a.ID, Title: a.Title, Detail: "oute approve " + a.CanalID, Ref: a.CanalID, At: a.At, Fingerprint: micros(a.At)})
+	}
+	for _, q := range i.RoundQuestions {
+		add(InboxItem{Kind: domain.InboxRoundQuestion, ID: q.ID, Title: "Pergunta ao Bardi na rodada " + q.Name, Ref: q.ID.String(), At: q.At, Fingerprint: micros(q.At)})
+	}
 	for _, g := range i.GuardedSubscriptions {
 		add(InboxItem{Kind: domain.InboxSubscription, ID: g.ID, Title: g.Name, Ref: g.ID.String(), At: g.WeekStart, Fingerprint: subFingerprint(g)})
 	}
@@ -194,7 +200,7 @@ func (s *Service) inboxFull(ctx context.Context, companyID domain.ID) (Inbox, er
 		for _, r := range rows {
 			stored[InboxRef{Kind: domain.InboxItemKind(r.ItemKind), ID: r.ItemID}] = r
 		}
-		due, err := s.inboxDue(ctx, companyID, in.Alerts)
+		due, err := s.inboxDue(ctx, companyID, in.Alerts, in.RoundQuestions)
 		if err != nil {
 			return in, err
 		}
@@ -303,6 +309,20 @@ func (i *Inbox) Filter(view domain.InboxView) {
 		}
 	}
 	i.AchievedGoals = goals
+	var approvals []InboxApproval
+	for _, a := range i.ExternalApprovals {
+		if keep(domain.InboxExternalApproval, a.ID) {
+			approvals = append(approvals, a)
+		}
+	}
+	i.ExternalApprovals = approvals
+	var questions []InboxRoundQuestion
+	for _, q := range i.RoundQuestions {
+		if keep(domain.InboxRoundQuestion, q.ID) {
+			questions = append(questions, q)
+		}
+	}
+	i.RoundQuestions = questions
 	var agents []ExternalNew
 	for _, a := range i.NewAgents {
 		if keep(domain.InboxExternalAgent, a.ID) {
@@ -481,9 +501,9 @@ func ParseInboxRef(v string) (InboxRef, error) {
 
 // inboxDue devolve o prazo de "vence em" de cada alerta da Caixa que tem um (ADR-0083 item 6): o da empresa para o tipo ou o
 // padrão. Prazo 0 é "sem prazo" e o item fica fora do mapa. Só os alertas têm tipo com prazo.
-func (s *Service) inboxDue(ctx context.Context, companyID domain.ID, alerts []domain.Alert) (map[InboxRef]time.Duration, error) {
+func (s *Service) inboxDue(ctx context.Context, companyID domain.ID, alerts []domain.Alert, questions []InboxRoundQuestion) (map[InboxRef]time.Duration, error) {
 	out := map[InboxRef]time.Duration{}
-	if len(alerts) == 0 {
+	if len(alerts) == 0 && len(questions) == 0 {
 		return out, nil
 	}
 	rows, err := s.Pool.Query(ctx, `SELECT key, value::float8 FROM company_alert_settings WHERE company_id = $1 AND key LIKE 'due.%'`, companyID)
@@ -502,6 +522,17 @@ func (s *Service) inboxDue(ctx context.Context, companyID domain.ID, alerts []do
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
+	}
+	if len(questions) > 0 {
+		hours, ok := over[domain.AlertDueRoundQuestion]
+		if !ok {
+			hours = 24
+		}
+		if hours > 0 {
+			for _, q := range questions {
+				out[InboxRef{Kind: domain.InboxRoundQuestion, ID: q.ID}] = time.Duration(hours * float64(time.Hour))
+			}
+		}
 	}
 	for _, a := range alerts {
 		hours, ok := over["due."+string(a.Kind)]
