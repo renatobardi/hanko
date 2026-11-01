@@ -95,12 +95,13 @@ func swarmEvents(b ingest.Batch) []swarmEvent {
 
 // roundFacts é o que o lote traz para uma rodada.
 type roundFacts struct {
-	name           string
-	repo           attr
-	max            attr
-	opened, closed *int64
-	participants   map[string]*participantFacts
-	stepSeen       bool
+	name                       string
+	repo                       attr
+	max                        attr
+	opened, closed             *int64
+	lastEvent, asked, answered *int64
+	participants               map[string]*participantFacts
+	stepSeen                   bool
 }
 
 type participantFacts struct {
@@ -138,6 +139,7 @@ func (f *roundFacts) participant(slug string) *participantFacts {
 // note aplica um evento que não é de etapa aos fatos da rodada.
 func (f *roundFacts) note(ev swarmEvent) {
 	a := ev.attrs
+	f.noteActivity(ev)
 	switch ev.name {
 	case eventRoundOpened:
 		f.opened = minPtr(f.opened, ev.at)
@@ -225,6 +227,7 @@ func deriveRounds(t *txc, companyID domain.ID, b ingest.Batch) error {
 			rounds[ev.round] = f
 		}
 		if ev.name == eventStepPublished {
+			f.noteActivity(ev)
 			if s, ok := parseStep(ev); ok {
 				steps = append(steps, s)
 			}
@@ -239,7 +242,7 @@ func deriveRounds(t *txc, companyID domain.ID, b ingest.Batch) error {
 	}
 	keys := make([]string, 0, len(rounds))
 	for k, f := range rounds {
-		if f.opened != nil || f.closed != nil || f.stepSeen || len(f.participants) > 0 {
+		if f.opened != nil || f.closed != nil || f.stepSeen || len(f.participants) > 0 || f.asked != nil || f.answered != nil {
 			keys = append(keys, k)
 		}
 	}
@@ -314,7 +317,10 @@ const updateRoundFactsSQL = `UPDATE external_round SET
   max_at = CASE WHEN $5::bigint IS NOT NULL AND (max_at IS NULL OR $5::bigint < max_at) THEN $5::bigint ELSE max_at END,
   opened_at = CASE WHEN $7::bigint IS NULL THEN opened_at ELSE LEAST(COALESCE(opened_at, $7::bigint), $7::bigint) END,
   closed_at = CASE WHEN $8::bigint IS NULL THEN closed_at ELSE GREATEST(COALESCE(closed_at, $8::bigint), $8::bigint) END,
-  updated_at = $9
+  last_event_at = CASE WHEN $9::bigint IS NULL THEN last_event_at ELSE GREATEST(COALESCE(last_event_at, $9::bigint), $9::bigint) END,
+  last_asked_at = CASE WHEN $10::bigint IS NULL THEN last_asked_at ELSE GREATEST(COALESCE(last_asked_at, $10::bigint), $10::bigint) END,
+  last_answered_at = CASE WHEN $11::bigint IS NULL THEN last_answered_at ELSE GREATEST(COALESCE(last_answered_at, $11::bigint), $11::bigint) END,
+  updated_at = $12
 WHERE id = $1`
 
 func upsertRound(t *txc, companyID domain.ID, key string, f *roundFacts) (domain.ID, error) {
@@ -340,7 +346,7 @@ func upsertRound(t *txc, companyID domain.ID, key string, f *roundFacts) (domain
 		n, _ := strconv.Atoi(f.max.text)
 		maxVal = &n
 	}
-	if _, err := t.tx.Exec(t.ctx, updateRoundFactsSQL, id, repoAt, repo, ws, maxAt, maxVal, f.opened, f.closed, t.now); err != nil {
+	if _, err := t.tx.Exec(t.ctx, updateRoundFactsSQL, id, repoAt, repo, ws, maxAt, maxVal, f.opened, f.closed, f.lastEvent, f.asked, f.answered, t.now); err != nil {
 		return id, fmt.Errorf("ingest: atualizar a rodada %q: %w", key, err)
 	}
 	return id, nil
@@ -461,4 +467,18 @@ func replaceStepActions(t *txc, companyID, stepID domain.ID, body string) error 
 		}
 	}
 	return nil
+}
+
+// noteActivity guarda o último evento `oute.swarm.*` da rodada e a última pergunta e resposta ao Bardi (ADR-0080 item 6).
+func (f *roundFacts) noteActivity(ev swarmEvent) {
+	if !strings.HasPrefix(ev.name, "oute.swarm.") {
+		return
+	}
+	f.lastEvent = maxPtr(f.lastEvent, ev.at)
+	switch ev.name {
+	case "oute.swarm.round.asked":
+		f.asked = maxPtr(f.asked, ev.at)
+	case "oute.swarm.round.answered":
+		f.answered = maxPtr(f.answered, ev.at)
+	}
 }

@@ -12,11 +12,6 @@ func TestExternalRoundContratoResponde501(t *testing.T) {
 	const id = "00000000-0000-0000-0000-000000000001"
 	const base = "/api/v1/companies/acme"
 	for _, c := range []struct{ method, path, body string }{
-		{"GET", base + "/external-rounds", ""},
-		{"GET", base + "/external-rounds/" + id, ""},
-		{"GET", base + "/external-rounds/" + id + "/steps/" + id + "/content", ""},
-		{"POST", base + "/external-rounds/" + id + "/steps/" + id + "/actions/ab1/marks", `{"state":"done"}`},
-		{"GET", base + "/external-cycles/" + id, ""},
 		{"GET", base + "/external-approvals", ""},
 		{"GET", base + "/external-approvals/" + id, ""},
 		{"GET", base + "/external-approvals/" + id + "/script", ""},
@@ -32,8 +27,8 @@ func TestExternalRoundContratoResponde501(t *testing.T) {
 		t.Fatalf("openapi.json: %d", resp.StatusCode)
 	}
 	n := checkRoundContractOps(t, body)
-	if n != 8 {
-		t.Fatalf("operações do contrato da rodada e da aprovação = %d, quer 8", n)
+	if n != 3 {
+		t.Fatalf("operações do contrato da rodada e da aprovação = %d, quer 3", n)
 	}
 }
 

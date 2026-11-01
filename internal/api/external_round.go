@@ -191,17 +191,7 @@ type markRoundActionIn struct {
 func (s *server) registerExternalRounds(api huma.API) {
 	const tag = "external-rounds"
 	b := "/companies/{company}"
-
-	pendingRoundOp[listExternalRoundsIn, ListOut[ExternalRound]](api, op("list-external-rounds", http.MethodGet, b+"/external-rounds", tag,
-		"Lista as rodadas externas, com filtro por ciclo"), sliceRoundApproval)
-	pendingRoundOp[ExternalRoundPath, ItemOut[ExternalRoundDetail]](api, op("get-external-round", http.MethodGet, b+"/external-rounds/{round}", tag,
-		"Mostra uma rodada externa, com participantes, etapas vigentes e ações com a marca mais nova"), sliceRoundApproval)
-	pendingRoundOp[RoundStepPath, ItemOut[RoundStepContent]](api, op("get-round-step-content", http.MethodGet, b+"/external-rounds/{round}/steps/{step}/content", tag,
-		"Mostra o texto da etapa, lido do fato da ingestão (owner ou admin; cada leitura gera activity_event)"), sliceRoundApproval)
-	pendingRoundOp[markRoundActionIn, ItemOut[ActionMark]](api, created(op("mark-round-action", http.MethodPost, b+"/external-rounds/{round}/steps/{step}/actions/{action}/marks", tag,
-		"Marca uma ação da etapa como feita ou pendente (owner ou admin, com reautenticação recente; gera activity_event)")), sliceRoundApproval)
-	pendingRoundOp[ExternalCyclePath, ItemOut[ExternalCycle]](api, op("get-external-cycle", http.MethodGet, b+"/external-cycles/{cycle}", tag,
-		"Mostra o ciclo de uma issue, com o resumo no topo e as rodadas"), sliceRoundApproval)
+	s.registerRoundReads(api)
 
 	pendingRoundOp[listExternalApprovalsIn, ListOut[ExternalApproval]](api, op("list-external-approvals", http.MethodGet, b+"/external-approvals", tag,
 		"Lista os pedidos do canal de aprovação observados nos hosts, sem o script"), sliceRoundApproval)
