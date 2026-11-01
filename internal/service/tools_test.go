@@ -22,6 +22,7 @@ type upstreamMCP struct {
 	hs    *httptest.Server
 	mu    sync.Mutex
 	auths []string
+	hdrs  []http.Header // cabeçalhos de cada pedido, na ordem
 	calls []string
 	hits  int
 }
@@ -35,6 +36,7 @@ func newUpstreamMCP(t *testing.T) *upstreamMCP {
 		u.mu.Lock()
 		u.hits++
 		u.auths = append(u.auths, r.Header.Get("Authorization"))
+		u.hdrs = append(u.hdrs, r.Header.Clone())
 		u.mu.Unlock()
 		h.ServeHTTP(w, r)
 	}))
@@ -834,5 +836,37 @@ func TestToolCatalogLegacyIntegrationKeepsBaseline(t *testing.T) {
 		if tl.Status != domain.ToolActive {
 			t.Errorf("%s: %+v", n, tl)
 		}
+	}
+}
+
+// Parâmetro marcado `x-mcp-header` no schema vai também como cabeçalho Mcp-Param-<nome> (é o que o servidor remoto do
+// GitHub exige; sem ele recusa com "header mismatch"). A credencial guardada continua indo, e o argumento fica no corpo.
+func TestGatewayForwardsHeaderParams(t *testing.T) {
+	e := newToolsEnv(t)
+	ctx := context.Background()
+	e.up.addSchema("issue_write", &sdk.ToolAnnotations{ReadOnlyHint: true},
+		`{"type":"object","properties":{"owner":{"type":"string","x-mcp-header":"owner"},"repo":{"type":"string","x-mcp-header":"repo"},"issue_number":{"type":"number"}}}`)
+	e.reviewed(t)
+	ana := e.persona(t, "Ana", nil)
+	c, _ := toolRun(t, e, ana)
+	res, err := e.svc.GatewayCallTool(ctx, c, "docs", "issue_write", json.RawMessage(`{"owner":"renatobardi","repo":"kubo","issue_number":160}`))
+	if err != nil || res.Decision != domain.ToolDecisionAllow || !strings.Contains(string(res.Result), "ok issue_write") {
+		t.Fatalf("issue_write: %+v %v", res, err)
+	}
+	e.up.mu.Lock()
+	h := e.up.hdrs[len(e.up.hdrs)-1]
+	e.up.mu.Unlock()
+	if h.Get("Mcp-Param-owner") != "renatobardi" || h.Get("Mcp-Param-repo") != "kubo" {
+		t.Fatalf("cabeçalhos Mcp-Param-*: %v", h)
+	}
+	if h.Get("Mcp-Param-issue_number") != "" {
+		t.Fatalf("issue_number não é marcado e não vira cabeçalho: %v", h)
+	}
+	if h.Get("Authorization") != upstreamSecret {
+		t.Fatalf("Authorization: %q", h.Get("Authorization"))
+	}
+	calls := e.up.callLog()
+	if last := calls[len(calls)-1]; !strings.Contains(last, `"owner":"renatobardi"`) {
+		t.Fatalf("o argumento continua no corpo: %s", last)
 	}
 }
