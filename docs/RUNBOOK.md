@@ -327,6 +327,10 @@ docker compose -f deploy/compose.yaml exec -T postgres dropdb -U "$POSTGRES_USER
 
 Registre data e resultado em `docs/SESSION.md` ou no issue de operação.
 
+### Alerta de disco do Postgres (`db_disk_low`)
+
+O Postgres roda em outro contêiner, então o Hanko só mede o disco dele se enxergar o volume. O `docker-compose.yml` monta `pgdata` **só para leitura** em `/pgdata-disk` no contêiner do Hanko e define `HANKO_DB_DISK_PATH=/pgdata-disk`; o Hanko só consulta o espaço livre do sistema de arquivos e não lê nem escreve nos dados do banco. Com o caminho, cada empresa com telemetria nos últimos 30 dias recebe `warning` abaixo de `limit.db_disk_warn_gib` (padrão 20 GiB) e `critical` abaixo de `limit.db_disk_critical_gib` (padrão 5 GiB), ajustáveis pela API de ajustes de alerta. Sem `HANKO_DB_DISK_PATH` o alerta não é avaliado. Para desligar: tire a variável e a linha do volume.
+
 ### Backups pelo próprio Hanko (ADR-0062)
 
 Além do `backup.sh` + restic do host, instalações em binário/host têm `hanko backup` (precisa de `pg_dump`/`pg_restore` no PATH):
