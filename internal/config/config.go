@@ -177,6 +177,9 @@ type Ops struct {
 	Home string `yaml:"home" env:"HANKO_HOME"`
 	// BackupDir é HANKO_BACKUP_DIR: onde `hanko backup` grava os arquivos (padrão <Home>/backups).
 	BackupDir string `yaml:"backup_dir" env:"HANKO_BACKUP_DIR"`
+	// DBDiskPath é HANKO_DB_DISK_PATH: um caminho no mesmo disco dos dados do Postgres (por exemplo o volume dele montado só para
+	// leitura). Com ele o Hanko mede o espaço livre e abre o alerta `db_disk_low`; vazio = não mede (ADR-0083, comentário da #66).
+	DBDiskPath string `yaml:"db_disk_path" env:"HANKO_DB_DISK_PATH"`
 	// BackupKeep é HANKO_BACKUP_KEEP: quantos backups agendados ficam (os mais antigos são podados); 0 = padrão (7).
 	BackupKeep int `yaml:"backup_keep" env:"HANKO_BACKUP_KEEP"`
 	// PGDumpBin e PGRestoreBin são HANKO_PG_DUMP_BIN / HANKO_PG_RESTORE_BIN (padrão: pg_dump e pg_restore no PATH).
@@ -382,7 +385,7 @@ func environFor(getenv func(string) string) map[string]string {
 		"HANKO_ENV_SSH_ALLOW_HOSTS", "HANKO_ENV_SANDBOX", "HANKO_ENV_SANDBOX_HOST_ROOT",
 		"HANKO_ENV_CLOUD", "HANKO_ENV_CLOUD_API_URL", "HANKO_ENV_CLOUD_SSH_HOST", "HANKO_ENV_CLOUD_SSH_KNOWN_HOSTS", "HANKO_READINESS_INTERVAL",
 		"HANKO_PLUGINS_DIR", "HANKO_PLUGINS_DATA_DIR",
-		"HANKO_HOME", "HANKO_BACKUP_DIR", "HANKO_BACKUP_KEEP", "HANKO_PG_DUMP_BIN", "HANKO_PG_RESTORE_BIN", "HANKO_PSQL_BIN",
+		"HANKO_HOME", "HANKO_BACKUP_DIR", "HANKO_DB_DISK_PATH", "HANKO_BACKUP_KEEP", "HANKO_PG_DUMP_BIN", "HANKO_PG_RESTORE_BIN", "HANKO_PSQL_BIN",
 	}
 	m := make(map[string]string, len(keys))
 	for _, k := range keys {
@@ -453,6 +456,7 @@ func (c *Config) finalize() error {
 			c.Ops.Home = filepath.Join(home, ".hanko")
 		}
 	}
+	c.Ops.DBDiskPath = strings.TrimSpace(c.Ops.DBDiskPath)
 	c.Ops.BackupDir = strings.TrimSpace(c.Ops.BackupDir)
 	if c.Ops.BackupDir == "" && c.Ops.Home != "" {
 		c.Ops.BackupDir = filepath.Join(c.Ops.Home, "backups")
