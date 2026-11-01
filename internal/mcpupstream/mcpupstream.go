@@ -108,7 +108,7 @@ func (ep Endpoint) WithHeaders(extra map[string]string) Endpoint {
 	if len(extra) == 0 {
 		return ep
 	}
-	h := make(map[string]string, len(ep.Headers)+len(extra))
+	h := map[string]string{}
 	for k, v := range extra {
 		h[k] = v
 	}
