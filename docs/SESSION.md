@@ -1,12 +1,11 @@
-# Assessment de log e acesso ao workspace · sessão `bold-ptolemy`
-Data: 2026-10-31
+# Corte da v0.8.3 · sessão `swarm-1029-2126` (dispatcher)
+Data: 2026-11-01
 
 ## Feito
-- Assessment estático (sem os logs do Bardi) das causas de "erros no log" e "persona sem acesso" num projeto em workspace. Três candidatas: fallback silencioso para diretório temporário quando o caminho não existe ou está fora da raiz (`internal/heartbeat/workspace_root.go`, `executor.go:817-833`), hook `pretooluse` que nega toda tool quando não alcança `HANKO_AGENT_URL` (`internal/cli/toolpolicy.go:276`), e ruído do `ai-memory` padrão fora do ar mais OTLP sem collector.
-- `scripts/hanko-diag.sh`: coleta só leitura e mascarada (modo, env, doctor, harness, WARN/ERROR agrupados, workspaces com permissões, readiness, runs com falha, alcance da API). Nota no RUNBOOK §4 e fragmento em `changelog.d/`.
+- `scripts/release-notes.sh cut 0.8.3`: funde os 6 fragmentos de `changelog.d/` em `## [0.8.3]` do `CHANGELOG.md` (alertas de preço e de custo, alertas operacionais, "vence em", roteiro da demo da #125, menus do organograma, `scripts/hanko-diag.sh`).
 
 ## Travado
-- Diagnóstico final depende da saída do script rodado na instalação do Bardi.
+- Nada. O PR espera o merge do Bardi; a tag é passo humano (`docs/RELEASING.md`, passo 4).
 
 ## Próximo passo
-- Bardi roda `bash scripts/hanko-diag.sh` e cola o `hanko-diag-<data>.txt`. Com isso, priorizar: falha explícita (ou WARN + badge) no fallback para temporário; validar existência e permissão da pasta no cadastro do workspace; alinhar `dirExists` da UI com o executor; ampliar `doctor` (raiz, permissões, outbox de memória); rever `ai-memory` como provider padrão.
+- Merge deste PR, tag `v0.8.3` na `main` (pedido pelo canal) e deploy no `hanko-prd` com `deploy-prd.sh --build-local`.
