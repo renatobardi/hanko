@@ -1,12 +1,11 @@
-# ai-memory 3.3.1 no Hanko (#200) · sessão `hanko-ai-memory-update`
+# Contrato do proxy de memória (#202) · sessão `hanko-ai-memory-update`
 Data: 2026-11-01
 
 ## Feito
-- `hanko-prd` trocado de 3.0.0 para 3.3.1, com backup antes (`/var/backups/hanko/aimemory-20261101T215320Z.tar.gz`) e `.env.pre-aim331` no LXC. Ensaio com cópia do backup antes da troca.
-- Digest fixado no repo; `ReadPage` pede 64.000 caracteres e devolve o corpo; `memory_patch_page` e `memory_restore_page` retidas; teste de contrato opcional `TestContractRealServer`.
+- Proxy `/memory-mcp`: lista de permitidos (`internal/memory/args.go`), escopo sempre nos argumentos, leitura estrita do corpo, escopo igual ao da run, recusas no log. `TestMemoryProxyContraServidorReal` testa token de run, proxy e ai-memory real (só com `HANKO_AI_MEMORY_CONTRACT_URL`).
 
 ## Travado
-- Falha de isolamento no proxy `/memory-mcp`, anterior à 3.3.1: tratar em privado (`SECURITY.md`), sem issue pública.
+- `GHSA-jjc6-c2mx-9fq7` segue em rascunho: publicar depois da release. Não medido: dados no escopo padrão do ai-memory ou no workspace errado em prd.
 
 ## Próximo passo
-- Fazer merge do PR e deploy do Hanko: até lá o diff do gate em prd usa o cliente antigo, com corte em 12.000 caracteres.
+- Merge, release e deploy; depois olhar `memory-mcp: chamada fora do contrato` no log para decidir concessões. Fase 2: credencial por empresa (issue própria).
