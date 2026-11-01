@@ -5,6 +5,42 @@ English summary at the end of each release.
 
 ## [Unreleased]
 
+## [0.8.3] — 2026-11-01
+
+### Alertas de preço e de custo de lista
+
+- O motor de alertas passa a abrir os 7 alertas de preço e de custo de agente externo: `price_changed` (preço trocado pela conferência nos últimos 7 dias, informativo), `price_sources_diverge`, `price_locked_differs`, `price_source_down` (fonte fora em 2 dias UTC seguidos), `price_model_unpriced`, `cost_subscription_unpriced` e `cost_claude_diff` (custo informado pelo Claude difere da tabela acima do limite da empresa, padrão do `limit.claude_cost_diff_pct`). Cada alerta abre em toda empresa que usou o modelo nos últimos 30 dias e fecha sozinho quando a condição some. Preço travado não alerta por divergência.
+
+- English summary: the alert engine now opens the 7 price and list-cost alerts for external agents: `price_changed`, `price_sources_diverge`, `price_locked_differs`, `price_source_down`, `price_model_unpriced`, `cost_subscription_unpriced` and `cost_claude_diff`. Each opens in every company that used the model in the last 30 days and closes by itself when the condition clears; a locked price never alerts on divergence.
+
+### Alertas operacionais de agente externo
+
+- O motor de alertas passa a abrir, a partir da telemetria gravada, os alertas de fila do exporter (`queue`), destino recusando (`destination_refusing`), spool do `oute-emit` (`spool`), cota (`quota`), rodada parada e rodada antiga (`round_stalled`, `round_old`), proxy do LLM do ai-memory fora (`llm_proxy_down`), captura parcial (`memory_capture`) e hook sem `trusted_hash` (`memory_hooks_untrusted`). Cada empresa usa os próprios limites e a própria janela de leitura (`limit.*` da API de ajustes). Host parado, sem registro há mais do limite de `host_no_data`, não liga nenhum deles além do próprio `host_no_data`. Cada alerta fecha sozinho quando o dado seguinte não mostra mais o problema.
+
+- English summary: the alert engine now opens, from stored telemetry, the exporter queue (`queue`), destination refusing (`destination_refusing`), `oute-emit` spool (`spool`), quota (`quota`), stalled and old round (`round_stalled`, `round_old`), ai-memory LLM proxy down (`llm_proxy_down`), partial capture (`memory_capture`) and hook without `trusted_hash` (`memory_hooks_untrusted`) alerts. Each company uses its own limits and read window (`limit.*` in the settings API). A stopped host, with no record for longer than the `host_no_data` limit, raises none of them besides `host_no_data` itself. Each alert closes by itself when the next data no longer shows the problem.
+
+### "Vence em" por tipo de alerta na Caixa
+
+- Um alerta marcado como lido ou arquivado na Caixa volta como não lido quando o prazo do tipo vence, contado no servidor desde a marca, além de quando a impressão digital muda. Os alertas de agente externo vencem em 24 h por padrão; os tipos que o Hanko já tinha ficam "sem prazo", e nada muda para quem já usa. Cada empresa troca o prazo de cada tipo (de "sem prazo" até 30 dias) pela API de ajustes de alerta (`due.<tipo>`). Vencer não apaga a marca: só tira o efeito dela.
+
+- English summary: a read or archived alert in the inbox comes back as unread when the type's deadline passes, counted on the server from the mark, besides when the fingerprint changes. External-agent alerts expire after 24 h by default; the alert types Hanko already had stay "no deadline", so nothing changes for current users. Each company changes the deadline of each type (from "no deadline" up to 30 days) through the alert settings API (`due.<type>`). Expiring does not delete the mark: it only removes its effect.
+
+### Documentação: roteiro da demo da ingestão externa
+
+- `docs/DEMOS.md` (e a versão em inglês) ganha o roteiro da demo `qa` da #125: ligar o listener de ingestão num Hanko local, criar uma chave `ingest`, mandar um fato OTLP em JSON e ler a conversa pela API. Não foi executado de ponta a ponta.
+- English summary: `docs/DEMOS.md` (and the English version) gains the `qa` demo script for #125: enable the ingestion listener on a local Hanko, create an `ingest` key, post an OTLP JSON fact and read the conversation through the API. It has not been run end to end.
+
+### Organograma: os menus de filtro fecham
+
+- Os menus **Tags** e **Níveis** do filtro do organograma agora fecham ao clicar fora, ao apertar Esc e ao abrir o outro menu. Antes só fechavam no clique no próprio título. Escolher uma tag não fecha o menu, porque o filtro aceita várias.
+- English summary: the org chart's **Tags** and **Levels** filter menus now close on an outside click, on Esc and when the other menu opens; before, they only closed on a click on their own title. Picking a tag keeps the menu open because the filter accepts several.
+
+### Script de diagnóstico de instalação
+
+- `scripts/hanko-diag.sh` coleta, só leitura e com segredos mascarados, o que o suporte precisa para diagnosticar "erros no log" e "persona sem acesso ao workspace": modo de execução (host, compose com imagem agents ou distroless), variáveis efetivas, `hanko doctor`, binários e login do harness, WARN/ERROR do servidor agrupados por mensagem, empresas, workspaces, personas, readiness, runs com falha e o log delas, permissões reais de cada caminho de workspace sob `HANKO_WORKSPACES_ROOT` e se o harness alcança a API em `HANKO_AGENT_URL` e o ai-memory.
+
+- English summary: `scripts/hanko-diag.sh` gathers, read-only and with secrets masked, what support needs to diagnose "errors in the log" and "persona has no access to the workspace": execution mode, effective variables, `hanko doctor`, harness binaries and login, server WARN/ERROR grouped by message, companies, workspaces, personas, readiness, failed runs and their logs, the real permissions of every workspace path under `HANKO_WORKSPACES_ROOT`, and whether the harness reaches the API at `HANKO_AGENT_URL` and ai-memory.
+
 ## [0.8.2] — 2026-10-31
 
 ### Limites e prazos de alerta por empresa
