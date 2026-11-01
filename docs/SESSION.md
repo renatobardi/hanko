@@ -1,16 +1,13 @@
-# Diagnóstico da produção (hanko-prd) · sessão `bold-ptolemy`
+# Correções do diagnóstico da produção · sessão `bold-ptolemy`
 Data: 2026-11-01
 
 ## Feito
-- `scripts/hanko-diag.sh` rodou completo no LXC `hanko-prd` (v791fe025). Servidor saudável (doctor 8 OK, só WARN de boot). Os erros estão no log das runs, não no do servidor.
-- Causa 1 ("falta de acesso" ao GitHub): o gateway de tools (ADR-0053) chama o MCP remoto do GitHub só com `arguments`; o upstream exige os parâmetros marcados `x-mcp-header` no input schema como cabeçalho `Mcp-Param-<nome>` e recusa com `-32020 header mismatch: missing Mcp-Param-owner`. `internal/mcpupstream/mcpupstream.go:190` (`CallTool`) não lê o schema nem envia cabeçalho por chamada; o catálogo já guarda o `InputSchema` (`internal/service/tools_gateway.go:147`). Só `search_*` funcionam porque não têm `owner`.
-- Causa 2 (Bash negada): persona sem política de tools nativa → `NativeToolCheck` devolve `none` (`internal/service/tools_policy.go:369-390`), o hook não responde e vale o `--permission-mode acceptEdits` do claude headless, que recusa `git log`, `which gh` etc. ("requires approval"). Comportamento previsto no ADR-0053 §"sem política", mas sem aviso ao operador. `gh` nem existe na imagem `Dockerfile.agents`.
-- Causa 3 (menores): `demo-arquivo` → `${secret:demo-kube}` inexistente (WARN a cada boot); `demo-cofre` fora da coleção do segredo; `tester-mutation` com alias de modelo inválido `claude-haiku` (readiness nunca testada); WARN "falha de exportação OpenTelemetry" carregando erro de banco (`count alerts`); 6 dos 7 workspaces sem Git ligado (pastas vazias), só `kubo` com espelho `ready`; chat usa só o workspace da persona (`conversations.go:562`), Delivery Manager não tem workspace.
-- CI: `TestExternalPaidFollowsMonthlyHistory` falhava em todo dia 1 (ontem cai no mês anterior, que a assinatura recém-criada não acumula). Reproduzido com Postgres 16 local; a `main` corrigiu em #179 (o dia passa a ser hoje) e essa versão ficou.
-- Script: `hk` repassa `HANKO_TOKEN`/`HANKO_COMPANY`; JSON indentado lido por `jfield`; seção 9 com espelhos e `workspace git show`. PR #183.
+- #183 mesclado e em produção (`48fd2c99`): gateway repete `x-mcp-header` como `Mcp-Param-*`; catálogo do GitHub atualizado pelo Bardi; política nativa `allow Bash` gravada para `delivery-manager`.
+- Item 2: run `claude` sem política nativa explica a recusa do modo headless do claude no evento "tools negadas por permissão", com o comando `hanko tool-policy set allow --persona <slug> --native <tool>` (`internal/heartbeat/tools.go`: `nativeDenialHint`, `denialHintSink`; teste unitário). Linha no troubleshooting do RUNBOOK e fragmento em `changelog.d/`.
+- Achado novo na persona: ADR-0054 §12 deixa push/PR fora do escopo; a branch `ote-N` vive no espelho e `gh` não está na imagem. Caminho hoje: tools `create_branch`/`push_files`/`create_pull_request` do GitHub MCP pelo gateway (conferir quarentena pós-refresh, ADR-0067).
 
 ## Travado
-- Nada. Três API keys ficaram expostas no chat da sessão; Bardi revoga.
+- Nada.
 
 ## Próximo passo
-- Correções em ordem: (1) gateway envia `Mcp-Param-*` a partir do `x-mcp-header` do schema, com teste; (2) decidir política nativa padrão (perfil "dev" com Bash liberada) ou aviso na run quando `none` recusa; (3) rótulo correto do WARN de OTel; (4) alerta/readiness para `${secret:}` inexistente e alias de modelo inválido; (5) `hanko workspace git enable` nos outros workspaces ou aviso de pasta vazia; (6) chat usar workspace do projeto quando a persona não tem.
+- (3) rótulo do WARN "falha de exportação OpenTelemetry" que carrega erro de banco (`internal/telemetry/telemetry.go:221-238`, callback `count alerts` em `internal/service/alerts.go:411`); (4) readiness falhar com `${secret:}` inexistente e alias de modelo fora do catálogo; (5) chat usar o workspace do projeto quando a persona não tem (`conversations.go:562`); (6) decidir se o Hanko passa a fazer push da branch do worktree (revisar ADR-0054) ou documentar o caminho via GitHub MCP.
