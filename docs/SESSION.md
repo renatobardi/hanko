@@ -1,15 +1,12 @@
-# Assistente Conectar (#45) · sessão `swarm-1031-1825`
+# Teste do pago no dia 1 · sessão `hanko-184-teste-pago-dia-1`
 Data: 2026-11-01
 
 ## Feito
-- Modelos de acesso (migration 00217), service, API, CLI `hanko integration connect`, tela `/c/{empresa}/conectar`, conforme ADR-0089. OpenAPI regenerado: só 11 operações novas.
-- Merge com origin/main (48fd2c9) feito; conflito só em `docs/SESSION.md`, resolvido sobrescrevendo. Geradores (openapi, sqlc, templ) sem drift.
-- Teste `TestExternalPaidFollowsMonthlyHistory` com relógio ao meio-dia UTC (mesmo ajuste do PR #192, branch `fix/184-teste-virada-mes`). O defeito de código continua: #191.
+- #184 reproduzido com o relógio real em 1º/nov (pago = 0, esperado 600/31) e a causa achada: o teste datava a assinatura (criada "hoje") depois da chamada ("ontem"); fora de `subscription_periods` não há cobrança (ADR-0082 item 6), então no dia 1 o mês da chamada não accrua. O cálculo segue o ADR; o defeito era só do teste.
+- `TestExternalPaidFollowsMonthlyHistory` reescrito com relógio fixo (`svc.Now`): assinatura nasce antes da chamada, dois casos — leitura no dia 1 do mês seguinte e no meio do mês. PR #188 aberto; branch acompanhando a `origin/main` (#182, #189 e #176 — o conflito do #176 manteve o relógio fixo, a leitura ao meio-dia UTC e a nota da janela 21h–24h locais, que é o defeito aberto do #191).
 
 ## Travado
-- CI do #176 no teste de custo depende do merge do PR #192 (`Refs #184`), pedido do Bardi.
-- #191: peso de chamada externa em dia UTC × rateio em dia local. Falta decidir qual dia vale.
-- Retorno do OAuth para o assistente (ADR-0089, "não decidido"); CRUD de modelos na UI; ensaio `qa` com persona real.
+- Nada.
 
 ## Próximo passo
-- Decidir o dia de negócio do rateio (#191). Depois, se o Bardi pedir, merge do #192 e rebase do #176 sobre a main.
+- Bardi decide entre o PR #188 (relógio fixo, dois casos) e o PR #192 (meio-dia UTC sobre o teste antigo) para o #184; o não escolhido deve ser fechado. Release e deploy da v0.8.3 ficam com ele.
