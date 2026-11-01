@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/url"
 	"os"
+	"strings"
 
 	"github.com/renatobardi/hanko/internal/adapter"
 	"github.com/renatobardi/hanko/internal/domain"
@@ -116,6 +117,33 @@ func (h *Heartbeat) attachToolPolicy(spec *adapter.Spec, rc service.RunContext, 
 	default:
 		emit(domain.EventSystem, "política de tools: o harness "+spec.Agent+" não expõe as tools nativas; a política vale só para as tools de integração e de plugin")
 	}
+}
+
+// deniedToolsPrefix é o começo do evento que o adapter do claude emite quando o harness recusou tools por permissão.
+const deniedToolsPrefix = "tools negadas por permissão: "
+
+// nativeDenialHint explica a recusa quando ela veio do modo de permissão do próprio claude: a persona não tem política de
+// tools nativa, então o hook não entrou e, em modo headless, o claude recusa o que não libera sozinho (Bash fora da lista
+// dele, por exemplo). Sem isso o operador só vê a recusa seca e procura o erro no lugar errado (ADR-0053).
+func nativeDenialHint(spec adapter.Spec, personaSlug string) string {
+	if spec.Agent != "claude" || spec.ReadOnly || spec.ToolHookBin != "" {
+		return ""
+	}
+	return " (sem política de tools nativa para esta persona: valeu o modo de permissão do claude, que em modo headless recusa o que não libera sozinho; " +
+		"para liberar, `hanko tool-policy set allow --persona " + personaSlug + " --native <tool>` ou a aba Política em Integrações)"
+}
+
+// denialHintSink completa o evento de tools negadas com nativeDenialHint; os demais eventos passam como estão.
+func denialHintSink(next adapter.Sink, hint string) adapter.Sink {
+	if hint == "" {
+		return next
+	}
+	return adapter.SinkFunc(func(ctx context.Context, e adapter.Event) error {
+		if e.Kind == domain.EventSystem && strings.HasPrefix(e.Text, deniedToolsPrefix) {
+			e.Text += hint
+		}
+		return next.Emit(ctx, e)
+	})
 }
 
 // nativeGuard consulta o motor de política a cada permission request do ACP. Em ask espera o gate dentro da run.
