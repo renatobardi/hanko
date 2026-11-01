@@ -219,6 +219,8 @@ func importWarnings(doc export.Document, p importPlan, active, existing bool) []
 		add("flows_disabled", "%d fluxo(s) entram desligados", flows)
 	}
 	if existing {
+		ext := len(doc.ExternalAgents) + len(doc.ExternalHosts) + len(doc.RepoPairings) + len(doc.AlertSettings)
+		add("external_not_merged", "%d item(ns) de configuração externa (agentes, hosts, emparelhamentos, limites de alerta) não entram numa empresa existente; só numa empresa nova", ext)
 		hist := len(doc.Tasks) + len(doc.Runs) + len(doc.Artifacts)
 		add("history_not_merged", "%d item(ns) de histórico (tasks, execuções, artefatos) não entram numa empresa existente; só a configuração", hist)
 	}

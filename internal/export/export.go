@@ -29,6 +29,11 @@ type Document struct {
 	Skills       []Skill       `json:"skills,omitempty" doc:"Skills da empresa (SKILL.md); a ligação com as personas está em personas[].skills. Opcional (ADR-0029)."`
 	Integrations []Integration `json:"integrations,omitempty" doc:"Integrações SEM segredos (headers, variáveis, segredo HMAC); entram desligadas na importação. Opcional (ADR-0029)."`
 	Runs         []Run         `json:"runs,omitempty" doc:"Só com with_runs: execuções encerradas, sem logs a menos que with_logs."`
+	// Configuração externa (ADR-0088): opcional, o formato continua v1.
+	ExternalAgents []ExternalAgent `json:"external_agents,omitempty"`
+	ExternalHosts  []ExternalHost  `json:"external_hosts,omitempty"`
+	RepoPairings   []RepoPairing   `json:"repo_pairings,omitempty"`
+	AlertSettings  []AlertSetting  `json:"alert_settings,omitempty"`
 	// Artifacts só vem com with_artifacts (ADR-0028); arquivos antigos não têm o campo, e o formato continua v1.
 	Artifacts []Artifact `json:"artifacts,omitempty" doc:"Só com with_artifacts: todas as versões dos artefatos, com o conteúdo em base64."`
 }
@@ -49,8 +54,10 @@ type Workspace struct {
 	Path    string `json:"path"`
 	RepoURL string `json:"repo_url,omitempty"`
 	// DefaultBranch é metadado; opcional (arquivos antigos não têm).
-	DefaultBranch string    `json:"default_branch,omitempty"`
-	CreatedAt     time.Time `json:"created_at"`
+	DefaultBranch string `json:"default_branch,omitempty"`
+	// System marca o workspace `no-repo` das chamadas sem repositório (ADR-0075 item 6; ADR-0088 item 1). Opcional.
+	System    bool      `json:"system,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 type Project struct {
@@ -80,7 +87,10 @@ type Subscription struct {
 	Active         bool       `json:"active"`
 	EndedAt        *time.Time `json:"ended_at,omitempty"`
 	Periods        []Period   `json:"periods,omitempty"`
-	CreatedAt      time.Time  `json:"created_at"`
+	// ExternalKey e MonthlyHistory são opcionais (ADR-0088 item 1): arquivos antigos não têm, e a importação cria a linha de nascimento.
+	ExternalKey    string         `json:"external_key,omitempty" enum:"claude,codex,zai" doc:"Liga a assinatura às chamadas externas que a declaram."`
+	MonthlyHistory []MonthlyValue `json:"monthly_history,omitempty"`
+	CreatedAt      time.Time      `json:"created_at"`
 }
 
 type Persona struct {
