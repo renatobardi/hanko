@@ -300,7 +300,8 @@ func (h *Heartbeat) executeRunJob(ctx context.Context, a ExecuteRunArgs, ji jobI
 			h.appendEvent(c, a, e)
 			return nil
 		})
-		if len(redact) > 0 { // defesa em profundidade: vale para qualquer adapter, não só os que já redigem
+		sink = denialHintSink(sink, nativeDenialHint(spec, rc.Persona.Slug)) // recusa do modo do claude explicada (ADR-0053)
+		if len(redact) > 0 {                                                 // defesa em profundidade: vale para qualquer adapter, não só os que já redigem
 			sink = adapter.RedactingSink(sink, redact...)
 		}
 		rs, hasRS := h.svc.(runSecretsBackend)

@@ -1,0 +1,5 @@
+### Recusa de tool nativa pelo modo do claude vem explicada na run
+
+- Numa run `claude` sem política de tools nativa para a persona, o hook `PreToolUse` não entra e vale o modo de permissão do próprio claude, que em modo headless recusa o que não libera sozinho (`git log`, `which gh` e outros comandos fora da lista dele). O evento "tools negadas por permissão" passa a dizer isso e a trazer o comando que libera (`hanko tool-policy set allow --persona <slug> --native <tool>`, ou a aba Política em Integrações). Com hook, em revisão ou em outro harness nada muda (ADR-0053).
+
+- English summary: in a `claude` run where the persona has no native tool policy, the `PreToolUse` hook is not installed and the harness's own headless permission mode denies anything it does not auto-allow. The "tools denied by permission" run event now says so and includes the command that grants the tool (`hanko tool-policy set allow --persona <slug> --native <tool>`, or the Policy tab under Integrations). Nothing changes with a hook, in review runs, or for other harnesses.

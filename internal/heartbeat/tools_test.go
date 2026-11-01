@@ -195,3 +195,37 @@ func TestNativeGuardMapsDecisions(t *testing.T) {
 		t.Fatalf("pedido repassado: %+v", nf.checks)
 	}
 }
+
+// Run claude sem política nativa: a recusa de tools pelo modo de permissão do claude sai explicada, com o comando que a
+// libera. Com hook, revisão ou outro harness não há dica, e os demais eventos passam intactos.
+func TestDenialHintOnlyForClaudeWithoutNativePolicy(t *testing.T) {
+	if h := nativeDenialHint(adapter.Spec{Agent: "claude"}, "ana"); !strings.Contains(h, "--persona ana --native <tool>") || !strings.Contains(h, "sem política de tools nativa") {
+		t.Fatalf("sem hook: %q", h)
+	}
+	for name, spec := range map[string]adapter.Spec{
+		"com hook": {Agent: "claude", ToolHookBin: "/opt/hanko"},
+		"revisão":  {Agent: "claude", ReadOnly: true},
+		"codex":    {Agent: "codex"},
+		"acp":      {Agent: "acp"},
+	} {
+		if h := nativeDenialHint(spec, "ana"); h != "" {
+			t.Errorf("%s: não devia ter dica: %q", name, h)
+		}
+	}
+
+	var got []adapter.Event
+	next := adapter.SinkFunc(func(_ context.Context, e adapter.Event) error { got = append(got, e); return nil })
+	sink := denialHintSink(next, " (dica)")
+	ctx := context.Background()
+	_ = sink.Emit(ctx, adapter.Event{Kind: domain.EventSystem, Text: "tools negadas por permissão: Bash"})
+	_ = sink.Emit(ctx, adapter.Event{Kind: domain.EventSystem, Text: "worktree Git: branch x"})
+	_ = sink.Emit(ctx, adapter.Event{Kind: domain.EventResult, Text: "tools negadas por permissão: Bash"})
+	if len(got) != 3 || got[0].Text != "tools negadas por permissão: Bash (dica)" || got[1].Text != "worktree Git: branch x" || got[2].Text != "tools negadas por permissão: Bash" {
+		t.Fatalf("eventos: %+v", got)
+	}
+	got = nil
+	_ = denialHintSink(next, "").Emit(ctx, adapter.Event{Kind: domain.EventSystem, Text: "tools negadas por permissão: Bash"})
+	if len(got) != 1 || got[0].Text != "tools negadas por permissão: Bash" {
+		t.Fatalf("sem dica o evento passa intacto: %+v", got)
+	}
+}
