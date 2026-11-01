@@ -1,16 +1,15 @@
-# Diagnóstico da produção (hanko-prd) · sessão `bold-ptolemy`
+# Assistente Conectar (#45) · sessão `swarm-1031-1825`
 Data: 2026-11-01
 
 ## Feito
-- `scripts/hanko-diag.sh` rodou completo no LXC `hanko-prd` (v791fe025). Servidor saudável (doctor 8 OK, só WARN de boot). Os erros estão no log das runs, não no do servidor.
-- Causa 1 ("falta de acesso" ao GitHub): o gateway de tools (ADR-0053) chama o MCP remoto do GitHub só com `arguments`; o upstream exige os parâmetros marcados `x-mcp-header` no input schema como cabeçalho `Mcp-Param-<nome>` e recusa com `-32020 header mismatch: missing Mcp-Param-owner`. `internal/mcpupstream/mcpupstream.go:190` (`CallTool`) não lê o schema nem envia cabeçalho por chamada; o catálogo já guarda o `InputSchema` (`internal/service/tools_gateway.go:147`). Só `search_*` funcionam porque não têm `owner`.
-- Causa 2 (Bash negada): persona sem política de tools nativa → `NativeToolCheck` devolve `none` (`internal/service/tools_policy.go:369-390`), o hook não responde e vale o `--permission-mode acceptEdits` do claude headless, que recusa `git log`, `which gh` etc. ("requires approval"). Comportamento previsto no ADR-0053 §"sem política", mas sem aviso ao operador. `gh` nem existe na imagem `Dockerfile.agents`.
-- Causa 3 (menores): `demo-arquivo` → `${secret:demo-kube}` inexistente (WARN a cada boot); `demo-cofre` fora da coleção do segredo; `tester-mutation` com alias de modelo inválido `claude-haiku` (readiness nunca testada); WARN "falha de exportação OpenTelemetry" carregando erro de banco (`count alerts`); 6 dos 7 workspaces sem Git ligado (pastas vazias), só `kubo` com espelho `ready`; chat usa só o workspace da persona (`conversations.go:562`), Delivery Manager não tem workspace.
-- CI: `TestExternalPaidFollowsMonthlyHistory` falhava em todo dia 1 (ontem cai no mês anterior, que a assinatura recém-criada não acumula). Reproduzido com Postgres 16 local; a `main` corrigiu em #179 (o dia passa a ser hoje) e essa versão ficou.
-- Script: `hk` repassa `HANKO_TOKEN`/`HANKO_COMPANY`; JSON indentado lido por `jfield`; seção 9 com espelhos e `workspace git show`. PR #183.
+- Modelos de acesso (migration 00217), service, API, CLI `hanko integration connect`, tela `/c/{empresa}/conectar`, conforme ADR-0089. OpenAPI regenerado: só 11 operações novas.
+- Merge com origin/main (48fd2c9) feito; conflito só em `docs/SESSION.md`, resolvido sobrescrevendo. Geradores (openapi, sqlc, templ) sem drift.
+- Teste `TestExternalPaidFollowsMonthlyHistory` com relógio ao meio-dia UTC (mesmo ajuste do PR #192, branch `fix/184-teste-virada-mes`). O defeito de código continua: #191.
 
 ## Travado
-- Nada. Três API keys ficaram expostas no chat da sessão; Bardi revoga.
+- CI do #176 no teste de custo depende do merge do PR #192 (`Refs #184`), pedido do Bardi.
+- #191: peso de chamada externa em dia UTC × rateio em dia local. Falta decidir qual dia vale.
+- Retorno do OAuth para o assistente (ADR-0089, "não decidido"); CRUD de modelos na UI; ensaio `qa` com persona real.
 
 ## Próximo passo
-- Correções em ordem: (1) gateway envia `Mcp-Param-*` a partir do `x-mcp-header` do schema, com teste; (2) decidir política nativa padrão (perfil "dev" com Bash liberada) ou aviso na run quando `none` recusa; (3) rótulo correto do WARN de OTel; (4) alerta/readiness para `${secret:}` inexistente e alias de modelo inválido; (5) `hanko workspace git enable` nos outros workspaces ou aviso de pasta vazia; (6) chat usar workspace do projeto quando a persona não tem.
+- Decidir o dia de negócio do rateio (#191). Depois, se o Bardi pedir, merge do #192 e rebase do #176 sobre a main.

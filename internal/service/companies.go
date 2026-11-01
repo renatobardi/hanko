@@ -75,6 +75,9 @@ func (s *Service) CreateCompany(ctx context.Context, actor domain.Actor, in Crea
 				return mapErr(err, "add owner")
 			}
 		}
+		if err := t.seedAccessTemplates(ctx, out.ID); err != nil {
+			return err
+		}
 		return t.activity(actor, out.ID, "company.created", "company", out.ID,
 			map[string]any{"slug": out.Slug, "name": out.Name}, "")
 	})

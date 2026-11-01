@@ -67,6 +67,7 @@ func (s *server) skillRoutes(mux langMux) {
 
 	mux.HandleFunc("GET /c/{company}/integracoes", co(s.handleIntegrations))
 	mux.HandleFunc("GET /c/{company}/integracoes/nova", co(s.handleNewIntegration))
+	s.connectRoutes(mux) // assistente Conectar (ADR-0089)
 	mux.HandleFunc("POST /c/{company}/integracoes/nova", post(co(s.handleCreateIntegration)))
 	mux.HandleFunc("GET /c/{company}/integracoes/{integration}", co(s.handleIntegration))
 	mux.HandleFunc("POST /c/{company}/integracoes/{integration}", post(co(s.handleUpdateIntegration)))
