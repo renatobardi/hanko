@@ -31,30 +31,39 @@ func TestContractRealServer(t *testing.T) {
 	}
 	tag := fmt.Sprintf("contratohanko%d", time.Now().UnixNano())
 	path := "hanko/runs/" + tag + ".md"
+	contractWrites(ctx, t, p, s, path, tag)
+	contractSearch(ctx, t, p, s, tag)
+	contractPages(ctx, t, p, s, path, tag)
+}
+
+func contractWrites(ctx context.Context, t *testing.T, p memory.Provider, s memory.Scope, path, tag string) {
+	t.Helper()
 	if err := p.Record(ctx, s, memory.Fact{Path: path, Title: "Contrato " + tag, Body: "corpo " + tag, Tags: []string{"contrato"}}); err != nil {
 		t.Fatalf("record: %v", err)
 	}
 	if err := p.Record(ctx, s, memory.Fact{Path: path, Title: "Contrato " + tag, Body: "corpo " + tag}); err != nil {
 		t.Fatalf("record idempotente: %v", err)
 	}
-	b, err := p.Briefing(ctx, s)
-	t.Logf("briefing (%d bytes): %v", len(b), err)
-	if err != nil {
+	if _, err := p.Briefing(ctx, s); err != nil {
 		t.Fatalf("briefing: %v", err)
 	}
 	if _, err := p.AcceptHandoff(ctx, s); err != nil {
 		t.Fatalf("handoff: %v", err)
 	}
-	hits, err := p.Search(ctx, []memory.Scope{s}, tag, 5)
-	t.Logf("hits um escopo: %+v", hits)
-	if err != nil || len(hits) == 0 {
-		t.Fatalf("search: %v (%d hits)", err, len(hits))
+}
+
+func contractSearch(ctx context.Context, t *testing.T, p memory.Provider, s memory.Scope, tag string) {
+	t.Helper()
+	for _, scopes := range [][]memory.Scope{{s}, {s, {Workspace: s.Workspace, Project: "outro"}}} {
+		hits, err := p.Search(ctx, scopes, tag, 5)
+		if err != nil || len(hits) == 0 {
+			t.Fatalf("search em %d escopos: %v (%d hits)", len(scopes), err, len(hits))
+		}
 	}
-	hits, err = p.Search(ctx, []memory.Scope{s, {Workspace: "contrato", Project: "outro"}}, tag, 5)
-	t.Logf("hits dois escopos: %+v", hits)
-	if err != nil || len(hits) == 0 {
-		t.Fatalf("search multi: %v (%d hits)", err, len(hits))
-	}
+}
+
+func contractPages(ctx context.Context, t *testing.T, p memory.Provider, s memory.Scope, path, tag string) {
+	t.Helper()
 	longBody := tag + strings.Repeat("\nlinha do corpo longo", 1000)
 	if err := p.Record(ctx, s, memory.Fact{Path: path, Title: "Contrato " + tag, Body: longBody}); err != nil {
 		t.Fatalf("record longo: %v", err)
