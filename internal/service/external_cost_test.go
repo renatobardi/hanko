@@ -124,6 +124,11 @@ func TestExternalPaidFollowsMonthlyHistory(t *testing.T) {
 		in.ExternalKey = "claude"
 	})
 	day := time.Now().UTC().AddDate(0, 0, -1).Truncate(24 * time.Hour)
+	// A assinatura já cobrava ontem: o período aberto começa em `day`. Sem isso, no dia 1 do mês ontem cai no mês anterior,
+	// que não acumula (a assinatura só nasceu hoje), e o pago desse dia é zero.
+	if _, err := e.svc.Pool.Exec(ctx, `UPDATE subscription_periods SET started_at = $2 WHERE subscription_id = $1 AND ended_at IS NULL`, sub.ID, day); err != nil {
+		t.Fatal(err)
+	}
 	// a mensalidade vale 600 desde ontem (o início no passado muda o pago desse dia)
 	if _, err := e.svc.AddSubscriptionMonthlyValue(ctx, actor, e.co.ID, sub.ID.String(), 600, day); err != nil {
 		t.Fatal(err)
