@@ -230,6 +230,12 @@ func (t *txc) alertConditions(cfg AlertConfig) ([]alertCond, error) {
 	}
 	out = append(out, noData...)
 
+	disk, err := t.diskConditions()
+	if err != nil {
+		return nil, err
+	}
+	out = append(out, disk...)
+
 	telemetry, err := t.telemetryConditions()
 	if err != nil {
 		return nil, err
