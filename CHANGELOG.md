@@ -90,6 +90,18 @@ English summary at the end of each release.
 
 - English summary: `scripts/hanko-diag.sh` gathers, read-only and with secrets masked, what support needs to diagnose "errors in the log" and "persona has no access to the workspace": execution mode, effective variables, `hanko doctor`, harness binaries and login, server WARN/ERROR grouped by message, companies, workspaces, personas, readiness, failed runs and their logs, the real permissions of every workspace path under `HANKO_WORKSPACES_ROOT`, and whether the harness reaches the API at `HANKO_AGENT_URL` and ai-memory.
 
+### Compose de produção mede o disco do Postgres
+
+- O `docker-compose.yml` monta o volume `pgdata` só para leitura em `/pgdata-disk` no contêiner do Hanko e define `HANKO_DB_DISK_PATH`, o que liga o alerta `db_disk_low`. O Hanko só consulta o espaço livre do disco; não lê nem escreve nos dados do banco. Para desligar, tire a variável e a linha do volume (`docs/RUNBOOK.md`).
+
+- English summary: the production `docker-compose.yml` mounts the `pgdata` volume read-only at `/pgdata-disk` in the Hanko container and sets `HANKO_DB_DISK_PATH`, which turns on the `db_disk_low` alert. Hanko only queries the disk's free space; it neither reads nor writes the database files. To turn it off, remove the variable and the volume line (`docs/RUNBOOK.md`).
+
+### Recusa de tool nativa pelo modo do claude vem explicada na run
+
+- Numa run `claude` sem política de tools nativa para a persona, o hook `PreToolUse` não entra e vale o modo de permissão do próprio claude, que em modo headless recusa o que não libera sozinho (`git log`, `which gh` e outros comandos fora da lista dele). O evento "tools negadas por permissão" passa a dizer isso e a trazer o comando que libera (`hanko tool-policy set allow --persona <slug> --native <tool>`, ou a aba Política em Integrações). Com hook, em revisão ou em outro harness nada muda (ADR-0053).
+
+- English summary: in a `claude` run where the persona has no native tool policy, the `PreToolUse` hook is not installed and the harness's own headless permission mode denies anything it does not auto-allow. The "tools denied by permission" run event now says so and includes the command that grants the tool (`hanko tool-policy set allow --persona <slug> --native <tool>`, or the Policy tab under Integrations). Nothing changes with a hook, in review runs, or for other harnesses.
+
 ## [0.8.2] — 2026-10-31
 
 ### Limites e prazos de alerta por empresa
