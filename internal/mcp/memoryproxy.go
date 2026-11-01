@@ -291,8 +291,9 @@ func pinMessage(msg map[string]json.RawMessage, sc, home memScope) {
 
 func pinToolArgs(name string, args map[string]json.RawMessage, sc, home memScope) {
 	set := func(k, v string) { args[k], _ = json.Marshal(v) }
+	_, historic := args["as_of"]
 	switch {
-	case name == memory.QueryTool:
+	case name == memory.QueryTool && !historic: // o servidor recusa as_of com scopes; com as_of ele não traz a área global
 		// Um item em scopes busca só nesse escopo e deixa de fora os global_scope_hits.
 		delete(args, "workspace")
 		delete(args, "project")

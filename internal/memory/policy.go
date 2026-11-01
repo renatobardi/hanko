@@ -16,7 +16,8 @@ import (
 // confirmedClass. Para qualquer outro nome (versões futuras) a política não presume nada: ela
 // olha as palavras do nome (get_x, list_x, search_x… são leitura; add_x, append_x… são aditivas) e, na
 // dúvida, RETÉM. Reter é o lado seguro: uma tool desconhecida vira proposta que um humano lê, nunca uma
-// remoção silenciosa.
+// remoção silenciosa. O proxy recusa antes o que está fora do contrato (args.go), então a heurística só decide o
+// destino de tools do contrato que não estão em confirmedClass.
 
 // Class é o destino de uma chamada de tool numa run de curadoria.
 type Class int

@@ -394,7 +394,8 @@ Requer `HANKO_MEMORY_PROVIDER=ai-memory` (ADR-0030). Com `none` a seção "Memó
 - **Rodar agora:** botão "Consolidar agora" ou `hanko memory consolidate [workspace]`. Cria uma task de sistema por workspace; o custo entra no ledger e no orçamento como qualquer run. Uma rodada aberta por workspace; a que nunca rodou expira em 6 h.
 - **Gate `memory`:** remoções, fusões e reescritas da curadoria não chegam ao ai-memory; viram proposta e um gate na aba "Memória" do Inbox (diff e sha256). Aprovar enfileira `apply_memory_proposal`; rejeitar descarta. CLI: `hanko memory proposals|approve|reject <id>`.
 - **Falha ao aplicar:** a proposta fica `failed` com o erro e é tentada de novo (1 min a 6 h, 20 tentativas). Depois disso: `hanko memory retry <id>` ou o botão "Tentar de novo". Nada se perde.
-- **Concessões:** uma persona só alcança a memória do próprio workspace. Para outro workspace da empresa: `hanko memory grant <persona> <workspace> --access read|write` (`grants`, `revoke` para listar e remover).
+- **Concessões:** uma persona só alcança a memória do próprio workspace. Para outro workspace da empresa: `hanko memory grant <persona> <workspace> --access read|write` (`grants`, `revoke` para listar e remover). Projetos e tasks do mesmo workspace compartilham a memória; o escopo segue o workspace da run (task, projeto, persona).
+- **Contrato de tools:** o proxy `/memory-mcp` só aceita as tools e os argumentos de `internal/memory/args.go`. O resto é recusado e aparece no log como `memory-mcp: chamada fora do contrato`, só com os nomes. Ao fixar outra versão do ai-memory, `TestContractRealServer` aponta o que falta decidir. A busca das personas não traz a área global do ai-memory.
 - **Diff com conteúdo atual:** o padrão é `memory_read_page` (tool real do ai-memory); `HANKO_MEMORY_READ_TOOL` (`memory.read_tool` no YAML) troca o nome; sem nenhuma o diff mostra só o proposto.
 
 | Sintoma | Causa provável | Ação |

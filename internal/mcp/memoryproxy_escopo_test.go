@@ -127,6 +127,14 @@ func TestMemoryProxyBuscaUsaUmItemEmScopes(t *testing.T) {
 	want("api")
 }
 
+func TestMemoryProxyBuscaHistoricaFicaSemScopes(t *testing.T) {
+	m := setupMem(t, "t", nil)
+	m.post(t, m.tok, toolCallBody(1, "memory_query", `{"query":"x","as_of":"2026-01-01T00:00:00Z"}`), nil)
+	if a := upstreamArgs(t, m.last(t).body); a["scopes"] != nil || a["workspace"] != "acme" || a["project"] != "default" {
+		t.Errorf("argumentos = %v", a)
+	}
+}
+
 func TestMemoryProxyRecado(t *testing.T) {
 	m := setupMem(t, "t", nil)
 	m.post(t, m.tok, toolCallBody(1, "memory_message_send", `{"body":"oi","to_workspace":"acme","to_project":"default"}`), nil)
@@ -217,6 +225,9 @@ func TestMemoryProxyContraServidorReal(t *testing.T) {
 	}
 	if out := ask("memory_read_page", `{"path":"notas/propria.md"}`); !strings.Contains(out, "termoproprio") {
 		t.Errorf("leitura no próprio escopo: %s", out)
+	}
+	if out := ask("memory_query", `{"query":"termogeral","as_of":"2030-01-01T00:00:00Z"}`); strings.Contains(out, "termogeral") {
+		t.Errorf("busca histórica trouxe a área global: %s", out)
 	}
 	for _, q := range []string{`{"query":"termoalheio"}`, `{"query":"termogeral"}`, `{"query":"termoalheio","global":true}`,
 		`{"query":"termoalheio","scopes":[{"workspace":"outra","project":"default"}]}`} {
