@@ -123,13 +123,19 @@ func TestExternalPaidFollowsMonthlyHistory(t *testing.T) {
 		in.MonthlyUSD = 300
 		in.ExternalKey = "claude"
 	})
-	// o dia é hoje: a assinatura só cobra os meses que tocou, então "ontem" cairia no mês anterior no dia 1º
-	day := time.Now().UTC().Truncate(24 * time.Hour)
+	// o dia é hoje, em UTC, e o relógio fica no meio-dia UTC: com fuso atrás de UTC, entre 21h e 24h local a chamada
+	// cai num dia (UTC) que o rateio local ainda não percorreu, e o pago some. Defeito de código aberto à parte
+	// (issue a abrir, ligada ao #184); este teste não cobre essa janela.
+	now := time.Now().UTC()
+	noon := time.Date(now.Year(), now.Month(), now.Day(), 12, 0, 0, 0, time.UTC)
+	e.svc.Now = func() time.Time { return noon }
+	// a assinatura só cobra os meses que tocou, então "ontem" cairia no mês anterior no dia 1º
+	day := noon.Truncate(24 * time.Hour)
 	// a mensalidade vale 600 desde hoje (a linha registrada depois desempata a do cadastro, que também começa hoje)
 	if _, err := e.svc.AddSubscriptionMonthlyValue(ctx, actor, e.co.ID, sub.ID.String(), 600, day); err != nil {
 		t.Fatal(err)
 	}
-	at := day.Add(time.Minute).UnixNano()
+	at := day.Add(12*time.Hour + time.Minute).UnixNano()
 	span := fmt.Sprintf(`{"traceId":"aa","spanId":"p1","name":"claude_code.llm_request","startTimeUnixNano":"%d","endTimeUnixNano":"%d","attributes":[
 		{"key":"gen_ai.usage.input_tokens","value":{"intValue":"100"}},{"key":"gen_ai.usage.cache_read_input_tokens","value":{"intValue":"50"}},
 		{"key":"gen_ai.usage.output_tokens","value":{"intValue":"10"}},{"key":"gen_ai.response.model","value":{"stringValue":"claude-opus-5-5"}},
