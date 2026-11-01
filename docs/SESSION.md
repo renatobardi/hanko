@@ -2,14 +2,14 @@
 Data: 2026-11-01
 
 ## Feito
-- Modelos de acesso (migration 00217), service, API (rotas do assistente e dos modelos), CLI `hanko integration connect` e tela `/c/{empresa}/conectar`, conforme ADR-0089.
-- Testes com Postgres local verdes: service (connect e modelos), api, cli (`IntegrationConnect`), ui (conectar), docsite, i18n. CI do PR #176 verde e gate do SonarCloud OK no head anterior.
-- OpenAPI regenerado (`make openapi`): só 11 operações novas; `sqlc` sem drift. Merge com origin/main feito de novo (2026-11-01): a main trouxe alertas v0.8 e um script de diagnóstico, sem geradores afetados.
+- Modelos de acesso (migration 00217), service, API, CLI `hanko integration connect`, tela `/c/{empresa}/conectar`, conforme ADR-0089. OpenAPI regenerado: só 11 operações novas.
+- Merge com origin/main (48fd2c9) feito; conflito só em `docs/SESSION.md`, resolvido sobrescrevendo. Geradores (openapi, sqlc, templ) sem drift.
+- Teste `TestExternalPaidFollowsMonthlyHistory` com relógio ao meio-dia UTC (mesmo ajuste do PR #192, branch `fix/184-teste-virada-mes`). O defeito de código continua: #191.
 
 ## Travado
-- Retorno do OAuth para o assistente (ADR-0089, "não decidido"): hoje volta à aba de conexões.
-- CRUD de modelos de acesso na UI: só na API.
-- Sem ensaio com servidor MCP real e persona lendo issues (critério `qa`).
+- CI do #176 no teste de custo depende do merge do PR #192 (`Refs #184`), pedido do Bardi.
+- #191: peso de chamada externa em dia UTC × rateio em dia local. Falta decidir qual dia vale.
+- Retorno do OAuth para o assistente (ADR-0089, "não decidido"); CRUD de modelos na UI; ensaio `qa` com persona real.
 
 ## Próximo passo
-- Decidir o retorno do OAuth e a tela de modelos; depois o ensaio `qa` com persona real.
+- Decidir o dia de negócio do rateio (#191). Depois, se o Bardi pedir, merge do #192 e rebase do #176 sobre a main.
