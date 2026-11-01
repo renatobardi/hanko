@@ -375,6 +375,8 @@ A imagem de contêiner (distroless) não tem `pg_dump`: lá a tela de Backups fi
 
 Logs são JSON no stderr com `trace_id`/`span_id`: copie o `trace_id` e busque no Tempo (Grafana) para ver o trace completo da requisição/run.
 
+Para abrir um chamado, rode `bash scripts/hanko-diag.sh` na máquina do Hanko (host ou compose; `HANKO_COMPOSE_DIR` aponta a pasta do compose, `HANKO_TOKEN`/`HANKO_COMPANY` servem a parte da API). Ele é só leitura, mascara segredos e grava `hanko-diag-<data>.txt` com: modo de execução, variáveis efetivas, `hanko doctor`, binários e login do harness, WARN/ERROR do servidor agrupados, workspaces com permissões reais de cada caminho, readiness das personas, runs com falha e o log delas, e se o harness alcança `HANKO_AGENT_URL`.
+
 ## Memória consolidada (curadoria governada)
 
 Requer `HANKO_MEMORY_PROVIDER=ai-memory` (ADR-0030). Com `none` a seção "Memória" das Configurações mostra "Memória desligada" e a API responde 422 com o motivo.
