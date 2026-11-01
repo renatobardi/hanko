@@ -166,6 +166,11 @@ type backend interface {
 	ListAlertSettings(ctx context.Context, companyID domain.ID) ([]service.AlertSettingView, error)
 	PutAlertSetting(ctx context.Context, actor domain.Actor, companyID domain.ID, key string, value float64) (service.AlertSettingView, error)
 	ResetAlertSetting(ctx context.Context, actor domain.Actor, companyID domain.ID, key string) error
+	ListExternalRounds(ctx context.Context, companyID domain.ID, cycle *domain.ID, limit, offset int) ([]service.RoundView, error)
+	GetExternalRound(ctx context.Context, companyID, id domain.ID) (service.RoundDetailView, error)
+	GetExternalCycle(ctx context.Context, companyID, id domain.ID) (service.CycleView, error)
+	RoundStepContent(ctx context.Context, actor domain.Actor, companyID, roundID, stepID domain.ID) (string, error)
+	MarkRoundAction(ctx context.Context, actor domain.Actor, companyID, roundID, stepID domain.ID, actionID, state string) (service.ActionMarkView, error)
 	ListPriceChecks(ctx context.Context, companyID domain.ID, limit, offset int) ([]service.PriceCheckView, error)
 	GetPriceCheck(ctx context.Context, companyID, id domain.ID) (service.PriceCheckView, error)
 	ListRepoPairings(ctx context.Context, companyID domain.ID, limit, offset int) ([]service.RepoPairingView, error)
