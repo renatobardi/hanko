@@ -33,6 +33,138 @@
         ],
         "type": "object"
       },
+      "AccessTemplate": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "created_by": {
+            "$ref": "#/components/schemas/ActorRef"
+          },
+          "description": {
+            "type": "string"
+          },
+          "destructive_mode": {
+            "enum": [
+              "allow",
+              "ask",
+              "off"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "name": {
+            "examples": [
+              "Leitura livre, escrita com aprovação"
+            ],
+            "type": "string"
+          },
+          "read_mode": {
+            "enum": [
+              "allow",
+              "ask",
+              "off"
+            ],
+            "type": "string"
+          },
+          "slug": {
+            "examples": [
+              "leitura-livre-escrita-com-aprovacao"
+            ],
+            "type": "string"
+          },
+          "suggested": {
+            "description": "O modelo sugerido no passo 4 do assistente (um por empresa).",
+            "type": "boolean"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "write_mode": {
+            "enum": [
+              "allow",
+              "ask",
+              "off"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "read_mode",
+          "write_mode",
+          "destructive_mode",
+          "suggested",
+          "created_by",
+          "created_at",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "AccessTemplateBody": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "maxLength": 300,
+            "type": "string"
+          },
+          "destructive_mode": {
+            "enum": [
+              "allow",
+              "ask",
+              "off"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "examples": [
+              "Somente leitura"
+            ],
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "read_mode": {
+            "enum": [
+              "allow",
+              "ask",
+              "off"
+            ],
+            "type": "string"
+          },
+          "slug": {
+            "description": "Derivado do nome quando omitido (só na criação).",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,62}$",
+            "type": "string"
+          },
+          "suggested": {
+            "type": "boolean"
+          },
+          "write_mode": {
+            "enum": [
+              "allow",
+              "ask",
+              "off"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "read_mode",
+          "write_mode",
+          "destructive_mode"
+        ],
+        "type": "object"
+      },
       "ActionMark": {
         "additionalProperties": false,
         "properties": {
@@ -2730,6 +2862,382 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "ConnectBeginInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "client_id": {
+            "description": "OAuth: cliente já registrado (para servidor sem registro dinâmico).",
+            "type": "string"
+          },
+          "headers": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Headers fixos enviados ao servidor (segredos, ex.: Authorization). Guardados cifrados; nunca devolvidos.",
+            "type": "object"
+          },
+          "name": {
+            "examples": [
+              "GitHub"
+            ],
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "oauth": {
+            "description": "Conectar por OAuth 2.1 com PKCE (ADR-0043) em vez de header secreto.",
+            "type": "boolean"
+          },
+          "scopes": {
+            "description": "OAuth: escopos pedidos.",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "url": {
+            "description": "Endereço do servidor MCP http.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "url"
+        ],
+        "type": "object"
+      },
+      "ConnectCompleteInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "personas": {
+            "description": "Ids ou slugs das personas que recebem a ferramenta (nunca \"todas\").",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "profile_name": {
+            "description": "Nome do perfil criado; padrão \"\u003cintegração\u003e — \u003cmodelo\u003e\".",
+            "type": "string"
+          },
+          "profile_slug": {
+            "type": "string"
+          },
+          "template": {
+            "description": "Id ou slug do modelo de acesso (\"Personalizado\" é feito no editor de perfis, não aqui).",
+            "type": "string"
+          }
+        },
+        "required": [
+          "template",
+          "personas"
+        ],
+        "type": "object"
+      },
+      "ConnectPreview": {
+        "additionalProperties": false,
+        "properties": {
+          "personas": {
+            "items": {
+              "$ref": "#/components/schemas/ConnectPreviewPersona"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "released": {
+            "description": "Tools que saem da quarentena na conclusão.",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "template": {
+            "$ref": "#/components/schemas/AccessTemplate"
+          }
+        },
+        "required": [
+          "template",
+          "personas"
+        ],
+        "type": "object"
+      },
+      "ConnectPreviewPersona": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "persona_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "tools": {
+            "items": {
+              "$ref": "#/components/schemas/ConnectPreviewTool"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "persona_id",
+          "name",
+          "tools"
+        ],
+        "type": "object"
+      },
+      "ConnectPreviewTool": {
+        "additionalProperties": false,
+        "properties": {
+          "effective": {
+            "description": "Após concluir, a persona vê e pode chamar esta tool.",
+            "type": "boolean"
+          },
+          "mode": {
+            "description": "Modo do modelo para o risco desta tool (desconhecido conta como destrutivo).",
+            "enum": [
+              "allow",
+              "ask",
+              "off"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "risk": {
+            "enum": [
+              "read",
+              "write",
+              "destructive",
+              "unknown"
+            ],
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "verdict": {
+            "$ref": "#/components/schemas/ToolVerdict"
+          }
+        },
+        "required": [
+          "name",
+          "risk",
+          "mode",
+          "verdict",
+          "effective"
+        ],
+        "type": "object"
+      },
+      "ConnectResult": {
+        "additionalProperties": false,
+        "properties": {
+          "integration": {
+            "$ref": "#/components/schemas/Integration"
+          },
+          "personas": {
+            "items": {
+              "$ref": "#/components/schemas/IntegrationPersona"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "profile": {
+            "$ref": "#/components/schemas/ToolProfile"
+          },
+          "released": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "integration",
+          "profile",
+          "personas"
+        ],
+        "type": "object"
+      },
+      "ConnectWizard": {
+        "additionalProperties": false,
+        "properties": {
+          "auth_url": {
+            "description": "OAuth: URL de autorização, quando falta consentir.",
+            "type": "string"
+          },
+          "can_complete": {
+            "description": "Descoberta feita: dá para escolher personas e concluir.",
+            "type": "boolean"
+          },
+          "catalog_error": {
+            "type": "string"
+          },
+          "connection": {
+            "$ref": "#/components/schemas/Connection",
+            "description": "Presente quando o assistente começou por OAuth."
+          },
+          "integration": {
+            "$ref": "#/components/schemas/Integration"
+          },
+          "personas_linked": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "synced_at": {
+            "description": "Última descoberta bem-sucedida.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "templates": {
+            "items": {
+              "$ref": "#/components/schemas/AccessTemplate"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "tools": {
+            "items": {
+              "$ref": "#/components/schemas/ConnectWizardTool"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "transport": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "integration",
+          "transport",
+          "tools",
+          "templates",
+          "personas_linked",
+          "can_complete"
+        ],
+        "type": "object"
+      },
+      "ConnectWizardTool": {
+        "additionalProperties": false,
+        "properties": {
+          "annotations": {
+            "$ref": "#/components/schemas/ToolAnnotations"
+          },
+          "description": {
+            "type": "string"
+          },
+          "first_seen_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "input_schema": {
+            "additionalProperties": {},
+            "description": "JSON Schema de entrada (objeto).",
+            "type": "object"
+          },
+          "integration_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "integration_slug": {
+            "type": "string"
+          },
+          "last_seen_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "name": {
+            "examples": [
+              "create_issue"
+            ],
+            "type": "string"
+          },
+          "quarantined": {
+            "description": "Em quarentena (ADR-0067): escreve e espera revisão.",
+            "type": "boolean"
+          },
+          "reviewed_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "reviewed_by": {
+            "$ref": "#/components/schemas/ActorRef"
+          },
+          "risk": {
+            "description": "Derivado das anotações.",
+            "enum": [
+              "read",
+              "write",
+              "destructive",
+              "unknown"
+            ],
+            "type": "string"
+          },
+          "schema_sha256": {
+            "description": "Hash da definição (nome, descrição, schema e anotações): mudou, a tool mudou de contrato.",
+            "type": "string"
+          },
+          "status": {
+            "description": "quarantined: nova ou alterada e pode escrever; espera a revisão de um admin.",
+            "enum": [
+              "active",
+              "quarantined",
+              "disabled",
+              "removed"
+            ],
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "quarantined",
+          "id",
+          "integration_id",
+          "integration_slug",
+          "name",
+          "input_schema",
+          "annotations",
+          "schema_sha256",
+          "risk",
+          "status",
+          "first_seen_at",
+          "last_seen_at"
+        ],
         "type": "object"
       },
       "Connection": {
@@ -10152,6 +10660,37 @@
         },
         "required": [
           "task"
+        ],
+        "type": "object"
+      },
+      "ListBodyAccessTemplate": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "description": "Itens da página.",
+            "items": {
+              "$ref": "#/components/schemas/AccessTemplate"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "limit": {
+            "description": "Limite aplicado.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "offset": {
+            "description": "Deslocamento aplicado.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "limit",
+          "offset"
         ],
         "type": "object"
       },
@@ -26123,6 +26662,531 @@
         "summary": "Atualiza a empresa: nome, fuso, descrição, prefixo (com zero tasks) e/ou orçamento",
         "tags": [
           "companies"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/access-templates": {
+      "get": {
+        "operationId": "list-access-templates",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Máximo de itens retornados.",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "description": "Máximo de itens retornados.",
+              "format": "int64",
+              "maximum": 500,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Quantos itens pular.",
+            "explode": false,
+            "in": "query",
+            "name": "offset",
+            "schema": {
+              "default": 0,
+              "description": "Quantos itens pular.",
+              "format": "int64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListBodyAccessTemplate"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Lista os modelos de acesso da empresa (o sugerido primeiro)",
+        "tags": [
+          "integrations"
+        ]
+      },
+      "post": {
+        "operationId": "create-access-template",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccessTemplateBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessTemplate"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Cria um modelo de acesso (admin)",
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/access-templates/{template}": {
+      "delete": {
+        "operationId": "delete-access-template",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug do modelo.",
+            "in": "path",
+            "name": "template",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug do modelo.",
+              "examples": [
+                "somente-leitura"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Apaga um modelo de acesso (admin). Cópia no uso: conexões concluídas antes continuam iguais.",
+        "tags": [
+          "integrations"
+        ]
+      },
+      "get": {
+        "operationId": "get-access-template",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug do modelo.",
+            "in": "path",
+            "name": "template",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug do modelo.",
+              "examples": [
+                "somente-leitura"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessTemplate"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Obtém um modelo de acesso",
+        "tags": [
+          "integrations"
+        ]
+      },
+      "patch": {
+        "operationId": "update-access-template",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccessTemplateBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessTemplate"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Edita um modelo de acesso (admin). Cópia no uso: conexões concluídas antes continuam iguais.",
+        "tags": [
+          "integrations"
         ]
       }
     },
@@ -44967,6 +46031,112 @@
         ]
       }
     },
+    "/api/v1/companies/{company}/integrations/connect": {
+      "post": {
+        "operationId": "connect-begin",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectBeginInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectWizard"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Passo 1+2 do assistente Conectar: cria a integração (header secreto) ou a conexão OAuth e descobre o catálogo",
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
     "/api/v1/companies/{company}/integrations/{integration}": {
       "delete": {
         "operationId": "delete-integration",
@@ -45288,6 +46458,574 @@
           }
         },
         "summary": "Atualiza uma integração",
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/integrations/{integration}/connect": {
+      "delete": {
+        "operationId": "connect-discard",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug da integração criada pelo assistente.",
+            "in": "path",
+            "name": "integration",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da integração criada pelo assistente.",
+              "examples": [
+                "docs"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Descarta o rascunho do assistente: apaga a integração (ou a conexão OAuth inteira)",
+        "tags": [
+          "integrations"
+        ]
+      },
+      "get": {
+        "operationId": "connect-state",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug da integração criada pelo assistente.",
+            "in": "path",
+            "name": "integration",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da integração criada pelo assistente.",
+              "examples": [
+                "docs"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectWizard"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Estado do assistente Conectar para uma integração",
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/integrations/{integration}/connect/complete": {
+      "post": {
+        "operationId": "connect-complete",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug da integração criada pelo assistente.",
+            "in": "path",
+            "name": "integration",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da integração criada pelo assistente.",
+              "examples": [
+                "docs"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectCompleteInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectResult"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Conclui o assistente: perfil com o modelo, vínculo e ligação por persona, quarentena liberada — tudo numa transação",
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/integrations/{integration}/connect/discover": {
+      "post": {
+        "operationId": "connect-discover",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug da integração criada pelo assistente.",
+            "in": "path",
+            "name": "integration",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da integração criada pelo assistente.",
+              "examples": [
+                "docs"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectWizard"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Repete a descoberta do passo 2 (testar de novo); OAuth sem consentimento devolve a URL de autorização",
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
+    "/api/v1/companies/{company}/integrations/{integration}/connect/preview": {
+      "get": {
+        "operationId": "connect-preview",
+        "parameters": [
+          {
+            "description": "Id ou slug da empresa.",
+            "in": "path",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da empresa.",
+              "examples": [
+                "acme"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug da integração criada pelo assistente.",
+            "in": "path",
+            "name": "integration",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug da integração criada pelo assistente.",
+              "examples": [
+                "docs"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Id ou slug do modelo de acesso.",
+            "explode": false,
+            "in": "query",
+            "name": "template",
+            "required": true,
+            "schema": {
+              "description": "Id ou slug do modelo de acesso.",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ids ou slugs das personas, separados por vírgula.",
+            "explode": false,
+            "in": "query",
+            "name": "personas",
+            "required": true,
+            "schema": {
+              "description": "Ids ou slugs das personas, separados por vírgula.",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectPreview"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Passo 5: tools efetivas por persona com o modelo aplicado, antes de concluir",
         "tags": [
           "integrations"
         ]

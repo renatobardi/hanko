@@ -150,7 +150,17 @@ func TestWiringAuthenticatedLocal(t *testing.T) {
 			t.Fatalf("atividade: %v %d", err, len(acts))
 		}
 		u, _ := svc.GetUserByEmail(ctx, "dona@exemplo.com")
-		if a := acts[len(acts)-1].Actor; a.Type != domain.ActorHuman || a.ID == nil || *a.ID != u.ID {
+		// o evento de criação da empresa é o do usuário; a semeadura dos modelos (ADR-0089) é do sistema.
+		var created *domain.ActivityEvent
+		for i := range acts {
+			if acts[i].Verb == "company.created" {
+				created = &acts[i]
+			}
+		}
+		if created == nil {
+			t.Fatalf("sem company.created: %+v", acts)
+		}
+		if a := created.Actor; a.Type != domain.ActorHuman || a.ID == nil || *a.ID != u.ID {
 			t.Fatalf("o evento deveria ser do usuário: %+v", a)
 		}
 	})

@@ -352,6 +352,10 @@ templ IntegrationsPage(sh Shell, vm IntegrationsVM) {
 	@Layout(sh) {
 		@PageHead(i18n.T(ctx, "Integrações"), vm.Subtitle) {
 			if sh.CanAdmin() {
+				<a class="btn outline" href={ templ.SafeURL(vm.ConnectHref) }>
+					@Icon("plus")
+					{ i18n.T(ctx, "Conectar ferramenta") }
+				</a>
 				<a class="btn outline" href={ templ.SafeURL(vm.NewMCPHref) }>
 					@Icon("plus")
 					{ i18n.T(ctx, "Servidor MCP") }

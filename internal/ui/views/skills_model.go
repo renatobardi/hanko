@@ -102,6 +102,7 @@ type IntegrationsVM struct {
 	Subtitle       string
 	NewMCPHref     string
 	NewWebhookHref string
+	ConnectHref    string
 	Notice         string
 	MCP            []IntegrationRow
 	Webhooks       []IntegrationRow

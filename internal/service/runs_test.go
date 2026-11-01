@@ -544,7 +544,7 @@ func TestActivityFilterAndDashboardEmpty(t *testing.T) {
 	e.task(t, service.CreateTaskInput{})
 
 	all, err := e.svc.ListActivity(ctx, e.co.ID, service.ActivityFilter{})
-	if err != nil || len(all) != 3 { // company.created + 2 task.created
+	if err != nil || len(all) != 5 { // company.created + 2 access_template.seeded (ADR-0089) + 2 task.created
 		t.Fatalf("all = %d %v", len(all), err)
 	}
 	if all[0].Verb != "task.created" {
@@ -556,8 +556,13 @@ func TestActivityFilterAndDashboardEmpty(t *testing.T) {
 	}
 	before := all[1].OccurredAt
 	older, _ := e.svc.ListActivity(ctx, e.co.ID, service.ActivityFilter{Before: &before})
-	if len(older) != 1 || older[0].Verb != "company.created" {
+	if len(older) != 3 {
 		t.Fatalf("before: %+v", older)
+	}
+	for _, a := range older {
+		if a.Verb == "task.created" {
+			t.Fatalf("before devolveu task: %+v", older)
+		}
 	}
 	if lim, _ := e.svc.ListActivity(ctx, e.co.ID, service.ActivityFilter{Limit: 1}); len(lim) != 1 {
 		t.Fatalf("limit = %d", len(lim))
