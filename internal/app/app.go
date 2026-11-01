@@ -34,6 +34,7 @@ import (
 	"github.com/renatobardi/hanko/internal/memory"
 	"github.com/renatobardi/hanko/internal/memory/aimemory"
 	"github.com/renatobardi/hanko/internal/netguard"
+	"github.com/renatobardi/hanko/internal/ops"
 	"github.com/renatobardi/hanko/internal/ratelimit"
 	"github.com/renatobardi/hanko/internal/readiness"
 	"github.com/renatobardi/hanko/internal/secretbox"
@@ -83,6 +84,7 @@ func Serve(ctx context.Context, cfg config.Config, version string) error {
 		return fmt.Errorf("app: heartbeat: %w", err)
 	}
 	svc := service.New(pool, hb, broker)
+	svc.DBDisk = service.DBDiskConfig{Path: cfg.Ops.DBDiskPath, Free: ops.DiskFree}
 	svc.Log = logger
 	svc.WorkspacesRoot = cfg.WorkspacesRoot
 	svc.RunReserveUSD = cfg.RunReserveUSD

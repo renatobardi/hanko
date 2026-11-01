@@ -29,6 +29,7 @@ mode: trusted            # trusted | authenticated (login; exige secret >= 32 by
 # ops:                   # operação da instância (ADR-0062): backups e Postgres cliente
 #   home: ""             # diretório de dados do Hanko (padrão ~/.hanko); HANKO_HOME
 #   backup_dir: ""       # onde ficam os backups (padrão <home>/backups); HANKO_BACKUP_DIR
+#   db_disk_path: ""     # caminho no disco do Postgres, para o alerta db_disk_low; vazio = não mede; HANKO_DB_DISK_PATH
 #   backup_keep: 7       # backups automáticos retidos (os manuais nunca são podados); HANKO_BACKUP_KEEP
 #   pg_dump_bin: pg_dump         # HANKO_PG_DUMP_BIN
 #   pg_restore_bin: pg_restore   # HANKO_PG_RESTORE_BIN
