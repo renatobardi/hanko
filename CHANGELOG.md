@@ -5,6 +5,25 @@ English summary at the end of each release.
 
 ## [Unreleased]
 
+## [0.8.4] — 2026-11-01
+
+### ai-memory 3.3.1
+
+- O digest fixado do ai-memory passa a ser o da 3.3.1, no `docker-compose.yml`, no `.env.example` e no primeiro deploy de `deploy-prd.sh`, que antes usava `latest`. Uma instalação existente segue com o `AI_MEMORY_IMAGE` do seu `.env`.
+- O diff das propostas de curadoria mostra o texto da página, não o JSON da resposta, e pede o teto de 64.000 caracteres: a 3.3 corta em 12.000 sem esse pedido, e o resto da página pareceria removido. Página maior que o teto vem com aviso de corte.
+- As tools novas `memory_patch_page` e `memory_restore_page` entram na política de curadoria como retidas, e a proposta de um patch mostra as edições.
+- `deploy/compose.yaml` define `AI_MEMORY_ALLOWED_HOSTS`. Sem isso o servidor recusa o Hanko com 403.
+
+- English summary: the pinned ai-memory digest is now 3.3.1 (`docker-compose.yml`, `.env.example`, first `deploy-prd.sh` run, which used `latest`); existing installs keep their `.env` value. Curation diffs show the page text and request the 64,000-character ceiling, because 3.3 cuts at 12,000 by default. `memory_patch_page` and `memory_restore_page` are held for human review, and a patch proposal shows its edits. `deploy/compose.yaml` sets `AI_MEMORY_ALLOWED_HOSTS`, without which the server answers 403 to Hanko.
+
+### Proxy de memória mais estrito
+
+- O proxy `/memory-mcp` fixa o escopo da run em toda chamada e só aceita as tools e os argumentos revisados. O resto é recusado e fica no log, só com os nomes.
+- A memória da persona segue o workspace da run, na ordem task, projeto, persona. Antes, uma task que herdava o workspace do projeto podia usar a memória de outro lugar.
+- Personas passam a alcançar outro workspace só por concessão (`hanko memory grant`), e a busca delas não traz a área global do ai-memory.
+
+- English summary: the `/memory-mcp` proxy pins the run's scope on every call and only accepts reviewed tools and arguments; anything else is refused and logged by name. Persona memory follows the run's workspace (task, project, persona). Personas reach another workspace only through a grant, and their search no longer returns ai-memory's global area.
+
 ## [0.8.3] — 2026-11-01
 
 ### Alerta de disco do Postgres

@@ -1,11 +1,11 @@
-# Contrato do proxy de memória (#202) · sessão `hanko-ai-memory-update`
+# ai-memory 3.3.1 e contrato do proxy (#200, #202) · sessão `hanko-ai-memory-update`
 Data: 2026-11-01
 
 ## Feito
-- Proxy `/memory-mcp`: lista de permitidos (`internal/memory/args.go`), escopo sempre nos argumentos, leitura estrita do corpo, escopo igual ao da run, recusas no log. `TestMemoryProxyContraServidorReal` testa token de run, proxy e ai-memory real (só com `HANKO_AI_MEMORY_CONTRACT_URL`).
+- `hanko-prd` no ai-memory 3.3.1. Proxy `/memory-mcp` com lista de permitidos e escopo sempre nos argumentos (#203). v0.8.4 cortada; tag e deploy são pedidos do canal.
 
 ## Travado
-- `GHSA-jjc6-c2mx-9fq7` segue em rascunho: publicar depois da release. Não medido: dados no escopo padrão do ai-memory ou no workspace errado em prd.
+- `GHSA-jjc6-c2mx-9fq7` segue em rascunho até a release sair. Não medido: dados no escopo padrão do ai-memory ou no workspace errado em prd.
 
 ## Próximo passo
-- Merge, release e deploy; depois olhar `memory-mcp: chamada fora do contrato` no log para decidir concessões. Fase 2: credencial por empresa (issue própria).
+- Publicar o advisory; ler `memory-mcp: chamada fora do contrato` no log para decidir concessões; abrir a issue da fase 2 (credencial por empresa).
