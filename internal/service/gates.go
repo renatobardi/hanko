@@ -818,6 +818,10 @@ type Inbox struct {
 	UnderReview []InboxReview
 	// NewAgents e NewHosts são os agentes e hosts externos criados na janela: informativos, fora de Count (ADR-0075 item 2).
 	NewAgents, NewHosts []ExternalNew
+	// ExternalApprovals são os pedidos do canal pendentes (só owner e admin os veem) e RoundQuestions as perguntas da rodada ao
+	// Bardi sem resposta: os dois pedem ação e contam em Count (ADR-0081 item 6; ADR-0080 item 6).
+	ExternalApprovals []InboxApproval
+	RoundQuestions    []InboxRoundQuestion
 	// AchievedGoals são as metas atingidas nos últimos dias: informativo (ninguém precisa agir), fora de Count.
 	AchievedGoals []GoalView
 	// HeldTasks são as raízes de pausa (ADR-0040): informativo, o humano que pausou decide quando retomar; fora de Count.
@@ -847,7 +851,7 @@ type InboxReview struct {
 
 // Count is the number of items waiting.
 func (i Inbox) Count() int {
-	return len(i.Gates) + len(i.BlockedTasks) + len(i.FailedRuns) + len(i.StoppedRuns) + len(i.ErrorPersonas) + len(i.Alerts) + len(i.GuardedSubscriptions) + len(i.Mentions) + len(i.QuarantinedTools) + len(i.BudgetIncidents)
+	return len(i.Gates) + len(i.BlockedTasks) + len(i.FailedRuns) + len(i.StoppedRuns) + len(i.ErrorPersonas) + len(i.Alerts) + len(i.GuardedSubscriptions) + len(i.Mentions) + len(i.QuarantinedTools) + len(i.BudgetIncidents) + len(i.ExternalApprovals) + len(i.RoundQuestions)
 }
 
 const (
@@ -949,6 +953,9 @@ func (s *Service) buildInbox(ctx context.Context, companyID domain.ID) (Inbox, e
 		if in.BudgetIncidents, err = s.ListBudgetIncidents(ctx, companyID, true, 50); err != nil {
 			return in, err
 		}
+	}
+	if err := s.addExternalWork(ctx, companyID, &in); err != nil {
+		return in, err
 	}
 	if err := s.addExternalNew(ctx, companyID, &in); err != nil {
 		return in, err
