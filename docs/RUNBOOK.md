@@ -39,7 +39,10 @@ app em `/opt/app` com o `docker-compose.yml` da raiz (porta `3810`), `.env` gera
 nginx + certbot no host (`--edge`, mesmo padrão de `lab/scripts/ops/deploy-vault-vhost.sh`; o vhost escuta também em
 `100.66.254.24:443` por causa do split DNS da tailnet). O container e o vhost estão no `inventory.yaml` do lab (#280).
 ai-memory sobe no profile `memory` (`COMPOSE_PROFILES=memory` no `.env`); o digest fica fixado em `AI_MEMORY_IMAGE` no
-primeiro deploy — para atualizar, troque essa linha no `.env` do LXC e rode o deploy de novo.
+primeiro deploy — para atualizar, troque essa linha no `.env` do LXC e recrie só esse serviço
+(`docker compose up -d ai-memory`), com um backup antes. O `.env` do LXC vale sobre o digest do repo: mudar o repo não
+atualiza a produção. Antes de fixar outra versão, rode o teste de contrato contra um servidor de teste da versão nova:
+`HANKO_AI_MEMORY_CONTRACT_URL=http://127.0.0.1:49374 HANKO_AI_MEMORY_CONTRACT_TOKEN=... go test ./internal/memory/aimemory -run TestContractRealServer`.
 O texto abaixo descreve a variante genérica com `deploy/compose.yaml`.
 
 
