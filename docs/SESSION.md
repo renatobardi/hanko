@@ -1,12 +1,13 @@
-# Assessment de log e acesso ao workspace · sessão `bold-ptolemy`
-Data: 2026-10-31
+# Diagnóstico da produção (hanko-prd) · sessão `bold-ptolemy`
+Data: 2026-11-01
 
 ## Feito
-- Assessment estático (sem os logs do Bardi) das causas de "erros no log" e "persona sem acesso" num projeto em workspace. Três candidatas: fallback silencioso para diretório temporário quando o caminho não existe ou está fora da raiz (`internal/heartbeat/workspace_root.go`, `executor.go:817-833`), hook `pretooluse` que nega toda tool quando não alcança `HANKO_AGENT_URL` (`internal/cli/toolpolicy.go:276`), e ruído do `ai-memory` padrão fora do ar mais OTLP sem collector.
-- `scripts/hanko-diag.sh`: coleta só leitura e mascarada (modo, env, doctor, harness, WARN/ERROR agrupados, workspaces com permissões, readiness, runs com falha, alcance da API). Nota no RUNBOOK §4 e fragmento em `changelog.d/`.
+- `scripts/hanko-diag.sh` rodou no LXC `hanko-prd` (v791fe025, authenticated+firebase, `HANKO_GIT_WORKSPACES=true`). Servidor saudável: doctor 8 OK, 13 WARN em 400 linhas, todos de boot/restart; nenhum ruído recorrente.
+- Achados: persona `demo-arquivo` referencia `${secret:demo-kube}` inexistente (WARN a cada boot, run falha no início); as 7 pastas de workspace da empresa `oute` estão vazias (criadas à mão em 18/10) e `.hanko/` existe; WARN "falha de exportação OpenTelemetry" carrega erro de banco (`count alerts`), rótulo enganoso; sem login do `codex`; `pg_dump` ausente e nenhum backup.
+- Correção do script: `docker compose exec` não herdava `HANKO_TOKEN`/`HANKO_COMPANY` (seção 6 dava 401 com chave); alcance da API agora pelo próprio CLI; seção 9 lista espelhos/worktrees e `workspace git show`.
 
 ## Travado
-- Diagnóstico final depende da saída do script rodado na instalação do Bardi.
+- Seção 6 e 9 (workspaces com repo_url, espelhos, readiness, runs com falha) ainda não saíram: dependem da nova rodada com API key.
 
 ## Próximo passo
-- Bardi roda `bash scripts/hanko-diag.sh` e cola o `hanko-diag-<data>.txt`. Com isso, priorizar: falha explícita (ou WARN + badge) no fallback para temporário; validar existência e permissão da pasta no cadastro do workspace; alinhar `dirExists` da UI com o executor; ampliar `doctor` (raiz, permissões, outbox de memória); rever `ai-memory` como provider padrão.
+- Bardi: revogar a API key exposta no chat, criar outra e rodar o script atualizado no LXC. Depois priorizar: segredo `demo-kube`; rótulo do WARN de OTel; falha explícita no fallback para diretório temporário; validação de existência/permissão no cadastro do workspace; `doctor` com raiz/permissões/outbox.
