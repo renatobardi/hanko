@@ -37996,7 +37996,6 @@
     },
     "/api/v1/companies/{company}/external-approvals": {
       "get": {
-        "description": "Contrato do grupo 3 da v0.8 (#124): rodada e aprovação externas (ADR-0080 e 0081). Responde 501 até a fatia 3 (#127).",
         "operationId": "list-external-approvals",
         "parameters": [
           {
@@ -38124,16 +38123,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Lista os pedidos do canal de aprovação observados nos hosts, sem o script",
@@ -38144,7 +38133,6 @@
     },
     "/api/v1/companies/{company}/external-approvals/{approval}": {
       "get": {
-        "description": "Contrato do grupo 3 da v0.8 (#124): rodada e aprovação externas (ADR-0080 e 0081). Responde 501 até a fatia 3 (#127).",
         "operationId": "get-external-approval",
         "parameters": [
           {
@@ -38242,16 +38230,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Mostra um pedido do canal, com o sha256 e as versões; o comando oute approve \u003cid\u003e vai para copiar",
@@ -38262,7 +38240,6 @@
     },
     "/api/v1/companies/{company}/external-approvals/{approval}/script": {
       "get": {
-        "description": "Contrato do grupo 3 da v0.8 (#124): rodada e aprovação externas (ADR-0080 e 0081). Responde 501 até a fatia 3 (#127).",
         "operationId": "get-approval-script",
         "parameters": [
           {
@@ -38360,16 +38337,6 @@
               }
             },
             "description": "Internal Server Error"
-          },
-          "501": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Mostra o corpo do script de um pedido (owner ou admin; cada leitura gera activity_event)",
