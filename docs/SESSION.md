@@ -1,12 +1,13 @@
-# Release v0.8.5: log das chamadas de memória encaminhadas (#207) · sessão `hanko-ai-memory-update`
+# Correções do diagnóstico da produção · sessão `bold-ptolemy`
 Data: 2026-11-02
 
 ## Feito
-- v0.8.5 cortada com o log `memory-mcp: chamada encaminhada` (#208). Tag e deploy são pedidos do canal.
-- Em prd (v0.8.4) até agora: 0 runs e 0 propostas de memória desde o deploy; 0 `chamada fora do contrato`.
+- #183 (gateway `Mcp-Param-*` + script de diagnóstico) e #193 (recusa de Bash explicada na run) mesclados; #183 em produção, #193 aguarda deploy.
+- Item 3: o gauge `hanko_alerts_open` loga a própria falha de leitura (WARN a cada 5 min, resto debug) e devolve nil ao SDK; o erro de banco deixa de sair como "falha de exportação OpenTelemetry" (`internal/app/alertmetrics.go`; teste cobre o log e a ausência de ponto). Linha no troubleshooting do RUNBOOK e fragmento em `changelog.d/`.
+- Operação pelo Bardi: catálogo do GitHub atualizado, política `allow Bash` para `delivery-manager`, API keys expostas revogadas.
 
 ## Travado
-- `GHSA-jjc6-c2mx-9fq7` segue em rascunho (publicar é decisão do Bardi). Falta a primeira run com workspace em prd para testar o proxy de ponta a ponta.
+- Nada.
 
 ## Próximo passo
-- Depois da primeira run com memória: reler o log (`chamada encaminhada` e `fora do contrato`). Fase 2: #205.
+- (4) readiness falhar com `${secret:}` inexistente e alias de modelo fora do catálogo (`internal/readiness/readiness.go`, `internal/service/readiness.go`); (5) chat usar o workspace do projeto quando a persona não tem (`internal/service/conversations.go:562`); (6) decidir se o Hanko passa a fazer push da branch do worktree (revisar ADR-0054) ou documentar o caminho via GitHub MCP (`create_branch`/`push_files`/`create_pull_request`).

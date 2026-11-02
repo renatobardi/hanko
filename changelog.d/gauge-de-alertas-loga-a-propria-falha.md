@@ -1,0 +1,5 @@
+### Falha de leitura do gauge de alertas deixa de sair como "falha de exportação OpenTelemetry"
+
+- O callback do gauge `hanko_alerts_open` devolvia ao SDK o erro de leitura do banco, e o handler global de erros do OpenTelemetry o logava como "falha de exportação OpenTelemetry (collector indisponível?)", apontando o collector quando o problema era o Postgres. Agora o próprio gauge registra a falha ("métrica hanko_alerts_open: leitura dos alertas falhou"), um WARN a cada 5 minutos e o resto em debug, e devolve nil ao SDK; a coleta das demais métricas segue como antes, sem ponto para esse gauge.
+
+- English summary: the `hanko_alerts_open` gauge callback used to return its database read error to the SDK, and the global OpenTelemetry error handler logged it as "OpenTelemetry export failure (collector unavailable?)", pointing at the collector when the problem was Postgres. The gauge now logs the failure itself ("hanko_alerts_open metric: reading alerts failed"), one WARN every 5 minutes and debug otherwise, and returns nil; the other metrics are still collected, with no point for this gauge.
